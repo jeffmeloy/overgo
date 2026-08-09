@@ -1,0 +1,88 @@
+package hostmath
+
+import (
+	"math"
+	"testing"
+)
+
+// TestGELUTanh pins the tanh approximation against PyTorch gelu(approximate="tanh").
+func TestGELUTanh(t *testing.T) {
+	v := []float32{0, 1, -1, 2, -2, 0.5}
+	want := []float64{0, 0.8411919906082768, -0.15880801, 1.9545976, -0.04540229, 0.34571400982514394}
+	GELUTanhInPlace(v)
+	for i := range v {
+		if diff := math.Abs(float64(v[i]) - want[i]); diff > 1e-6 {
+			t.Fatalf("gelu[%d] = %g, want %g", i, v[i], want[i])
+		}
+	}
+}
+
+// bruteBidirectional: direct per-query softmax over an explicit key subset.
+func bruteBidirectional(q, k, v []float32, querySeq, keySeq, heads, headDim int, allowed func(int) bool) []float32 {
+	out := make([]float32, querySeq*heads*headDim)
+	for h := 0; h < heads; h++ {
+		for qi := 0; qi < querySeq; qi++ {
+			var keys []int
+			var scores []float64
+			for ki := 0; ki < keySeq; ki++ {
+				if !allowed(ki) {
+					continue
+				}
+				var dot float64
+				for d := 0; d < headDim; d++ {
+					dot += float64(q[(qi*heads+h)*headDim+d]) * float64(k[(ki*heads+h)*headDim+d])
+				}
+				keys = append(keys, ki)
+				scores = append(scores, dot)
+			}
+			mx := math.Inf(-1)
+			for _, s := range scores {
+				mx = math.Max(mx, s)
+			}
+			var sum float64
+			for i, s := range scores {
+				scores[i] = math.Exp(s - mx)
+				sum += scores[i]
+			}
+			for i, ki := range keys {
+				w := scores[i] / sum
+				for d := 0; d < headDim; d++ {
+					out[(qi*heads+h)*headDim+d] += float32(w * float64(v[(ki*heads+h)*headDim+d]))
+				}
+			}
+		}
+	}
+	return out
+}
+
+func TestMaskedBidirectionalAttention(t *testing.T) {
+	const querySeq, keySeq, heads, headDim = 3, 5, 2, 4
+	fill := func(n int, seed float64) []float32 {
+		out := make([]float32, n)
+		for i := range out {
+			out[i] = float32(math.Sin(seed + float64(i)*0.7))
+		}
+		return out
+	}
+	q := fill(querySeq*heads*headDim, 0.1)
+	k := fill(keySeq*heads*headDim, 0.5)
+	v := fill(keySeq*heads*headDim, 0.9)
+
+	got := make([]float32, querySeq*heads*headDim)
+	MaskedBidirectionalAttention(got, q, k, v, querySeq, keySeq, heads, heads, headDim, nil)
+	want := bruteBidirectional(q, k, v, querySeq, keySeq, heads, headDim, func(int) bool { return true })
+	for i := range got {
+		if diff := math.Abs(float64(got[i]) - float64(want[i])); diff > 1e-6 {
+			t.Fatalf("unmasked[%d] = %g, want %g", i, got[i], want[i])
+		}
+	}
+
+	mask := []bool{true, true, false, true, false}
+	MaskedBidirectionalAttention(got, q, k, v, querySeq, keySeq, heads, heads, headDim, mask)
+	want = bruteBidirectional(q, k, v, querySeq, keySeq, heads, headDim, func(ki int) bool { return mask[ki] })
+	for i := range got {
+		if diff := math.Abs(float64(got[i]) - float64(want[i])); diff > 1e-6 {
+			t.Fatalf("masked[%d] = %g, want %g", i, got[i], want[i])
+		}
+	}
+}

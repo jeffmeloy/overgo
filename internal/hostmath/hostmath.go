@@ -137,6 +137,73 @@ func SiLUGate(dst, gate, up []float32) {
 	}
 }
 
+// GELUTanhInPlace: the tanh-approximation GELU
+// 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3))) element-wise, f64 math.
+func GELUTanhInPlace(v []float32) {
+	c := math.Sqrt(2 / math.Pi)
+	for k := range v {
+		x := float64(v[k])
+		v[k] = float32(0.5 * x * (1 + math.Tanh(c*(x+0.044715*x*x*x))))
+	}
+}
+
+// MaskedBidirectionalAttention: softmax(q·k^T)·v per head over the FULL key
+// span (set attention — no causal order) with score scale 1; any scale is
+// folded into q by the caller. keyMask hides masked keys from every query
+// (nil = all visible; must admit at least one key). Scores and softmax
+// reduce in f64. Layout: q/out [querySeq][heads][headDim] flat,
+// k/v [keySeq][kvHeads][headDim]; query head h reads kv head h/(heads/kvHeads).
+func MaskedBidirectionalAttention(out, q, k, v []float32, querySeq, keySeq, heads, kvHeads, headDim int, keyMask []bool) {
+	if keyMask != nil && len(keyMask) != keySeq {
+		panic("hostmath: attention key mask length != keySeq")
+	}
+	clear(out)
+	parallelRange(heads, func(hStart, hEnd int) {
+		scores := make([]float64, keySeq)
+		group := heads / kvHeads
+		for h := hStart; h < hEnd; h++ {
+			kv := h / group
+			for qi := 0; qi < querySeq; qi++ {
+				qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
+				maxScore := math.Inf(-1)
+				for ki := 0; ki < keySeq; ki++ {
+					if keyMask != nil && !keyMask[ki] {
+						scores[ki] = math.Inf(-1)
+						continue
+					}
+					kRow := k[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+					var dot float64
+					for d := 0; d < headDim; d++ {
+						dot += float64(qRow[d]) * float64(kRow[d])
+					}
+					scores[ki] = dot
+					maxScore = max(maxScore, dot)
+				}
+				var sum float64
+				for ki := 0; ki < keySeq; ki++ {
+					if math.IsInf(scores[ki], -1) {
+						scores[ki] = 0
+						continue
+					}
+					scores[ki] = math.Exp(scores[ki] - maxScore)
+					sum += scores[ki]
+				}
+				outRow := out[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
+				for ki := 0; ki < keySeq; ki++ {
+					if scores[ki] == 0 {
+						continue
+					}
+					weight := scores[ki] / sum
+					vRow := v[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+					for d := 0; d < headDim; d++ {
+						outRow[d] += float32(weight * float64(vRow[d]))
+					}
+				}
+			}
+		}
+	})
+}
+
 // CausalAttention: softmax(q·k^T)·v per head over a causal span with score
 // scale 1 — any scale (fixed or learned) is folded into q by the caller.
 // Layout: q/out [seq][heads][headDim] flat, k/v [seq][kvHeads][headDim];

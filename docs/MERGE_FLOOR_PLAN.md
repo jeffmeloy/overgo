@@ -425,8 +425,9 @@ sides:
   embedding, RevIN, per-dim scale, RMSNorm, RoPE, attention core/layer,
   residual blocks, decoder layer, quantile output projection.
 - Evidence riding the port: `fixtures/timesfm_golden.json` (forward) plus
-  ELEVEN per-component gradient goldens (`timesfm_*_grad_golden.json`) --
-  the training leg's parity fixtures exist already.
+  TEN per-component gradient goldens (`timesfm_*_grad_golden.json`; count
+  corrected from the export's own inventory) -- the training leg's parity
+  fixtures exist already.
 - Artifact: `models/timesfm-2.5-200m-transformers/model.safetensors`
   (930 MB, config.json; the `timesfm/` subdir is the vendor python repo --
   reference only, never executed in the lane).
@@ -434,8 +435,14 @@ sides:
   store; its stage list is the port's recipe template).
 
 Port sequence (the porting discipline, instantiated):
-1. Rung export: timesfm measurement baselines from adaptive's store +
-   the golden fixtures as content-addressed parity artifacts.
+1. Rung export: DONE 2026-08-08 -- `repodb-export -rung timesfm` emitted the
+   11 golden fixtures as hashed, located file artifacts plus the
+   rung-baseline evidence document, imported atomically with source
+   evidence. HONEST FINDING recorded in the baseline itself: adaptive's
+   store holds timesfm model facts but ZERO measurements (the forecast lane
+   never recorded runs), so the performance leg has no source baseline --
+   it compares overgo revisions against each other or measures the source
+   on demand; a baseline is never invented.
 2. Forecast task + terminal capability in overgo's recipe schema.
 3. Neutral time-series package (reference/CPU): safetensors load with
    dims-from-shapes, forward to quantile output, matching the forward

@@ -115,7 +115,7 @@
       "steps": [
         {
           "id": "golden-generation",
-          "status": "open",
+          "status": "done",
           "title": "capture predict goldens from adaptive live server /api/predict (classification + regression sub-models; X/y/rows/cols contract) + decode/latency baseline; reference is extmodel/tabular_set_transformer.go (ICL set transformer)"
         },
         {

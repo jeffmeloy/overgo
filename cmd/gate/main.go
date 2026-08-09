@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/closureledger"
+	"overgo/internal/closurescan"
 	"overgo/internal/guard"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
@@ -106,6 +108,7 @@ func (g *gateContext) pipeline() error {
 		{"manifest", runrecord.PhaseValidate, g.stepManifest},
 		{"sbom", runrecord.PhaseValidate, g.stepSBOM},
 		{"claims", runrecord.PhaseValidate, g.stepClaims},
+		{"magics", runrecord.PhaseValidate, g.stepMagics},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
 	}
 	for _, s := range steps {
@@ -268,6 +271,70 @@ func (g *gateContext) stepSBOM() (bool, error) {
 func (g *gateContext) stepClaims() (bool, error) {
 	_, err := command(g.repo, "go", "run", "./cmd/compatibility", "-check")
 	return false, err
+}
+
+// stepMagics is Automation Doctrine Layer 6, scoped to this commit's files:
+// numeric constants in changed production Go must have closure-ledger rows.
+// Matching is by row NAME (owner-surface file IDs are version-pinned content
+// hashes, so a name match is the honest path-stable heuristic). Advisory
+// first — uncatalogued constants land in the honesty line, not a refusal —
+// enforcement hardens once the 530-constant backlog is triaged
+// (first-run-calibrates applied to enforcement itself).
+func (g *gateContext) stepMagics() (bool, error) {
+	candidates, err := closurescan.ScanFiles(g.repo, g.paths)
+	if err != nil {
+		return false, err
+	}
+	if len(candidates) == 0 {
+		return true, nil
+	}
+	catalogued, err := ledgerNames(g.repo, g.storePath)
+	if err != nil {
+		g.honesty = append(g.honesty, "magic scan: ledger unreadable ("+err.Error()+"); constants unchecked")
+		return false, nil
+	}
+	uncatalogued := 0
+	for _, candidate := range candidates {
+		if catalogued[candidate.Name] {
+			continue
+		}
+		uncatalogued++
+		g.honesty = append(g.honesty, fmt.Sprintf(
+			"uncatalogued constant %s=%s (%s) — triage via closure-scan", candidate.Name, candidate.Value, candidate.File))
+	}
+	if uncatalogued == 0 {
+		g.honesty = append(g.honesty, fmt.Sprintf("magic scan: %d constant(s) in scope, all catalogued", len(candidates)))
+	}
+	return false, nil
+}
+
+func ledgerNames(repo, storePath string) (map[string]bool, error) {
+	store, err := repodb.OpenReadOnly(filepath.Join(repo, storePath))
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: 100_000})
+	if err != nil {
+		return nil, err
+	}
+	names := map[string]bool{}
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != closureledger.MediaType {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil || !ok {
+			continue
+		}
+		document, err := closureledger.Parse(content.Data)
+		if err != nil {
+			continue
+		}
+		names[document.Name] = true
+	}
+	return names, nil
 }
 
 func (g *gateContext) stepCommit() (bool, error) {

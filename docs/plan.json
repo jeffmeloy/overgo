@@ -1,5 +1,5 @@
 {
-  "campaign": "adaptive_new -\u003e overgo merge: model ladder",
+  "campaign": "adaptive_new -> overgo merge: model ladder",
   "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only.",
   "items": [
     {
@@ -43,7 +43,43 @@
       "id": "rung2-fractale",
       "title": "Fractale-350M",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "golden-generation",
+          "status": "open",
+          "title": "generate forward/decode goldens from adaptive_new's verified Forward oracle (no fixtures exist; models/Fractale-350M-base/model.pt, tokenizer.json, generation_config.json)"
+        },
+        {
+          "id": "rung-export",
+          "status": "open",
+          "title": "repodb-export -rung Fractale into overgo store (fixtures + honest baseline)"
+        },
+        {
+          "id": "pt-loader-port",
+          "status": "open",
+          "title": "port the PyTorch-pickle tensor reader as a generic overgo loader (retained capability; adaptive go/extmodel/tensor_artifacts.go ~L3054)"
+        },
+        {
+          "id": "reference-port",
+          "status": "open",
+          "title": "serve Fractale via generic modules + recipe wiring; decode parity vs goldens (O(n) incremental decode is the reference bar)"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "title": "sealed lifecycle activation, generation task"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "training capability per baseline policy"
+        },
+        {
+          "id": "performance-leg",
+          "status": "open",
+          "title": "head-to-head wall+memory, at-or-below"
+        }
+      ]
     },
     {
       "id": "rung3-carbon",

@@ -14,6 +14,8 @@ package seriesforecast
 import (
 	"fmt"
 	"math"
+
+	"overgo/internal/hostmath"
 )
 
 // revinTolerance mirrors the adaptive execution-profile fact revin.tolerance
@@ -134,27 +136,50 @@ func (m *Model) residualBlock(dst []float32, prefix string, x []float32) error {
 		return fmt.Errorf("seriesforecast: residual block %q x=%d dst=%d want in=%d out=%d", prefix, len(x), len(dst), inputDim, outputDim)
 	}
 	hidden := make([]float32, hiddenDim)
-	matvecT(hidden, x, m.Weights[prefix+".hidden_layer.weight"], hiddenDim, inputDim)
-	addBias(hidden, m.Weights[prefix+".hidden_layer.bias"])
-	siluInPlace(hidden)
-	matvecT(dst, hidden, m.Weights[prefix+".output_layer.weight"], outputDim, hiddenDim)
-	addBias(dst, m.Weights[prefix+".output_layer.bias"])
+	hostmath.Linear(hidden, x, m.Weights[prefix+".hidden_layer.weight"], 1, inputDim, hiddenDim)
+	hostmath.AddBias(hidden, m.Weights[prefix+".hidden_layer.bias"])
+	hostmath.SiLUInPlace(hidden)
+	hostmath.Linear(dst, hidden, m.Weights[prefix+".output_layer.weight"], 1, hiddenDim, outputDim)
+	hostmath.AddBias(dst, m.Weights[prefix+".output_layer.bias"])
 	residual := make([]float32, outputDim)
-	matvecT(residual, x, m.Weights[prefix+".residual_layer.weight"], outputDim, inputDim)
-	addBias(residual, m.Weights[prefix+".residual_layer.bias"])
+	hostmath.Linear(residual, x, m.Weights[prefix+".residual_layer.weight"], 1, inputDim, outputDim)
+	hostmath.AddBias(residual, m.Weights[prefix+".residual_layer.bias"])
 	for k := range dst {
 		dst[k] += residual[k]
 	}
 	return nil
 }
 
-// Forecast runs the full forward. The decoder stack is the remaining port
-// slice; until it lands this refuses rather than emitting unverified output.
-func (m *Model) Forecast(series []float32, horizon int) ([]float32, error) {
-	if m.Dims.Layers > 0 {
-		return nil, fmt.Errorf("seriesforecast: decoder stack not yet ported; Forecast is withheld until forward parity against the golden")
+// Forecast runs the full forward: pad, running patch stats, RevIN embed,
+// the post-norm decoder stack, then the quantile head denormalized with the
+// last patch's statistics. The result is [Horizon*Quantiles] flat, t-major.
+func (m *Model) Forecast(series []float32) ([]float32, error) {
+	padded, masks, err := padToPatches(series, make([]float32, len(series)), m.Dims.PatchLen)
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("seriesforecast: degenerate zero-layer model")
+	tokens := len(padded) / m.Dims.PatchLen
+	mu := make([]float64, tokens)
+	sigma := make([]float64, tokens)
+	patchStats(padded, masks, m.Dims.PatchLen, mu, sigma)
+	hidden := make([]float32, tokens*m.Dims.Hidden)
+	if err := m.patchEmbed(hidden, padded, masks, mu, sigma); err != nil {
+		return nil, err
+	}
+	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
+	for index := 0; index < m.Dims.Layers; index++ {
+		l, err := m.layerWeights(index)
+		if err != nil {
+			return nil, err
+		}
+		m.layerForward(hidden, l, invFreq, tokens)
+	}
+	out := make([]float32, m.Dims.Horizon*m.Dims.Quantiles)
+	last := tokens - 1
+	if err := m.head(out, hidden[last*m.Dims.Hidden:(last+1)*m.Dims.Hidden], mu[last], sigma[last]); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // head runs the point-projection residual block on the final token and
@@ -167,31 +192,4 @@ func (m *Model) head(dst, lastToken []float32, mu, sigma float64) error {
 		dst[k] = float32(float64(dst[k])*sigma + mu)
 	}
 	return nil
-}
-
-func matvecT(dst, x, weight []float32, rows, cols int) {
-	for r := 0; r < rows; r++ {
-		var sum float32
-		row := weight[r*cols : (r+1)*cols]
-		for c := 0; c < cols; c++ {
-			sum += row[c] * x[c]
-		}
-		dst[r] = sum
-	}
-}
-
-func addBias(v, bias []float32) {
-	if bias == nil {
-		return
-	}
-	for k := range v {
-		v[k] += bias[k]
-	}
-}
-
-func siluInPlace(v []float32) {
-	for k := range v {
-		x := float64(v[k])
-		v[k] = float32(x / (1 + math.Exp(-x)))
-	}
 }

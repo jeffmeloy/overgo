@@ -92,11 +92,11 @@ func TestResidualBlockTinyCase(t *testing.T) {
 	}
 }
 
-// Forecast must refuse until the decoder stack lands: withheld is honest,
-// wrong numbers are not.
-func TestForecastRefusesWithoutDecoder(t *testing.T) {
+// Forecast fails loudly on a model whose dims never derived (no silent
+// zero-shape math).
+func TestForecastRejectsUnderivedDims(t *testing.T) {
 	model := &Model{Dims: Dims{Layers: 20}}
-	if _, err := model.Forecast([]float32{1, 2, 3}, 8); err == nil {
-		t.Fatal("Forecast produced output without a ported decoder")
+	if _, err := model.Forecast([]float32{1, 2, 3}); err == nil {
+		t.Fatal("Forecast accepted a model with underived dims")
 	}
 }

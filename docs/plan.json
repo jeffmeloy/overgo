@@ -179,7 +179,38 @@
       "id": "rung7-pockettts",
       "title": "pocket-tts (port-class)",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "golden-import",
+          "status": "done",
+          "title": "complete golden ladder pulled from adaptive fixtures/pockettts (g0 config/tensors, g1 tokenizer, g2 mimi encode, g3 stage traces, g4 e2e, g5 mimi decode stages, g6 backbone + reference wav; ~8MB)"
+        },
+        {
+          "id": "backbone-port",
+          "status": "open",
+          "title": "neutral speech-synthesis package: text backbone vs g6/g3 traces (reference: adaptive extmodel/speech_flow_synthesis.go; known: voice-cloning encoder is amputated in the artifact -- decoder/TTS is the capability)"
+        },
+        {
+          "id": "codec-port",
+          "status": "open",
+          "title": "audio codec decoder vs g5 mimi decode stages; e2e wav vs g4 + reference wav (multimodal directive: real audio out, byte/\u8fd1-parity bar derived)"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "title": "sealed lifecycle, speech task entry"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "adaptive HAS a pocket-tts training declaration (seed profiles) -- scope it honestly"
+        },
+        {
+          "id": "performance-leg",
+          "status": "open",
+          "title": "matched protocol, at-or-below"
+        }
+      ]
     },
     {
       "id": "rung8-un0",

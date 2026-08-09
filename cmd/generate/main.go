@@ -38,6 +38,29 @@ func main() {
 	clioptions.Main(run)
 }
 
+// topLogitIndices: descending top-n token ids by logit
+func topLogitIndices(logits []float32, n int) []int {
+	if n > len(logits) {
+		n = len(logits)
+	}
+	top := make([]int, 0, n)
+	for id, value := range logits {
+		position := len(top)
+		for position > 0 && value > logits[top[position-1]] {
+			position--
+		}
+		if position >= n {
+			continue
+		}
+		if len(top) < n {
+			top = append(top, 0)
+		}
+		copy(top[position+1:], top[position:])
+		top[position] = id
+	}
+	return top
+}
+
 func run() error {
 	maxNewTokens := flag.Int("n", 1, "maximum number of new tokens")
 	contextShift := flag.Bool(
@@ -114,6 +137,7 @@ func run() error {
 	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for non-GIF video input")
 	imageThinking := flag.Bool("image-thinking", true, "retain Qwen3.5 thinking preamble for image prompts")
 	promptIDsFlag := flag.String("prompt-ids", "", "comma-separated prompt token IDs; bypasses tokenization (prompt argument optional)")
+	debugTopLogits := flag.Int("debug-top-logits", 0, "print top-N (id, logit) pairs per generated step to stderr; zero disables")
 	flag.Parse()
 	if flag.NArg() != 2 && !(*promptIDsFlag != "" && flag.NArg() == 1) {
 		return errors.New("usage: generate [options] <model.gguf> <prompt>  (prompt optional with -prompt-ids)")
@@ -267,6 +291,22 @@ func run() error {
 		ContextShift:  *contextShift,
 		KeepTokens:    *keepTokens,
 		DiscardTokens: *discardTokens,
+	}
+	if *debugTopLogits > 0 {
+		topN := *debugTopLogits
+		options.OnToken = func(event inference.TokenEvent) error {
+			if len(event.Logits) == 0 {
+				fmt.Fprintf(os.Stderr, "step %d: logits unavailable\n", event.Index)
+				return nil
+			}
+			top := topLogitIndices(event.Logits, topN)
+			fmt.Fprintf(os.Stderr, "step %d:", event.Index)
+			for _, id := range top {
+				fmt.Fprintf(os.Stderr, " %d=%.6f", id, event.Logits[id])
+			}
+			fmt.Fprintln(os.Stderr)
+			return nil
+		}
 	}
 	mediaInputs := 0
 	if *imagePath != "" {

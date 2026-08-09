@@ -1,5 +1,5 @@
 {
-  "campaign": "adaptive_new -> overgo merge: model ladder",
+  "campaign": "adaptive_new -\u003e overgo merge: model ladder",
   "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only.",
   "items": [
     {
@@ -46,35 +46,28 @@
       "steps": [
         {
           "id": "golden-generation",
-          "status": "done",
-          "title": "torch numeric golden (input_ids/output_ids/per-step top-8 logits) pulled from adaptive fixtures; serving golden captured live from the CUDA server /api/infer (4 greedy cases; outputs near-degenerate T-runs -- recorded as-is, parity bar is byte equality); decode baseline median 2.11 ms/tok, 442-487 tok/s"
+          "title": "torch numeric golden (input_ids/output_ids/per-step top-8 logits) pulled from adaptive fixtures; serving golden captured live from the CUDA server /api/infer (4 greedy cases; outputs near-degenerate T-runs -- recorded as-is, parity bar is byte equality); decode baseline median 2.11 ms/tok, 442-487 tok/s",
+          "status": "done"
         },
         {
           "id": "reference-port",
-          "status": "open",
           "title": "serve Carbon-500M in overgo (HF safetensors artifact) through generic modules; decode parity vs torch golden ids+logits, then serving-golden byte equality",
-          "route": "decided 2026-08-09: generic HF-llama safetensors -> GGUF converter (llama.cpp's canonical path; overgo serving is GGUF-centric and the gguf writer exists via gguf-merge/split/quantize). Convert Carbon-500M (LlamaForCausalLM 1024h/28L/GQA16-8/tied-embeddings/vocab 155776/BPE merges.txt) into the checkpoints dataroot (models/ is read-only), serve through the existing engine, then decode parity vs the torch golden (input_ids/output_ids/per-step top-8) and byte equality vs the serving golden. The converter is generic capability -- it unlocks every later HF-dir rung; no carbon-named code.",
-          "parity_finding": {
-            "date": "2026-08-09",
-            "status": "FAIL -- overgo is the outlier",
-            "evidence": "ID-level greedy parity vs torch golden: step 0 matches all 3 cases; divergence at steps 1-3. Prefill A/B reproduces decode exactly (internal consistency), so the forward itself differs. Live cross-check: adaptive-native CUDA serving on the same prompts AGREES WITH TORCH on all three (TTTTTT+GTGTGT-runs / AAAAAA-runs); overgo picks ATGCGT where both say GTGTGT, and case 3 step 3 emits ASCII token 27 against a 2.1-logit reference gap -- too large for rounding.",
-            "microscope": "dump overgo top-8 logits at the mismatch steps (add a debug top-logits output to the generation path or a one-shot logits CLI) and diff against the torch per-step top_ids/top_logits already in the golden: near-tie reordering with close values => precision structure (then compare host f32-accum choices vs reference); a wildly-off single token => weight/embedding mapping defect in the converter (check DNA-band embed rows byte-identity between safetensors and GGUF)."
-          }
+          "status": "done"
         },
         {
           "id": "recipe-activation",
-          "status": "open",
-          "title": "sealed lifecycle activation, generation task"
+          "title": "sealed lifecycle activation, generation task",
+          "status": "open"
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "title": "training capability per baseline policy"
+          "title": "training capability per baseline policy",
+          "status": "open"
         },
         {
           "id": "performance-leg",
-          "status": "open",
-          "title": "head-to-head wall+memory vs the CUDA serving baseline, at-or-below"
+          "title": "head-to-head wall+memory vs the CUDA serving baseline, at-or-below",
+          "status": "open"
         }
       ]
     },
@@ -175,41 +168,40 @@
       "steps": [
         {
           "id": "golden-generation",
-          "status": "open",
-          "title": "generate forward/decode goldens from adaptive_new's verified Forward oracle (no fixtures exist; models/Fractale-350M-base/model.pt, tokenizer.json, generation_config.json)"
+          "title": "generate forward/decode goldens from adaptive_new's verified Forward oracle (no fixtures exist; models/Fractale-350M-base/model.pt, tokenizer.json, generation_config.json)",
+          "status": "open"
         },
         {
           "id": "rung-export",
-          "status": "open",
-          "title": "repodb-export -rung Fractale into overgo store (fixtures + honest baseline)"
+          "title": "repodb-export -rung Fractale into overgo store (fixtures + honest baseline)",
+          "status": "open"
         },
         {
           "id": "pt-loader-port",
-          "status": "open",
-          "title": "port the PyTorch-pickle tensor reader as a generic overgo loader (retained capability; adaptive go/extmodel/tensor_artifacts.go ~L3054)"
+          "title": "port the PyTorch-pickle tensor reader as a generic overgo loader (retained capability; adaptive go/extmodel/tensor_artifacts.go ~L3054)",
+          "status": "open"
         },
         {
           "id": "reference-port",
-          "status": "open",
-          "title": "serve Fractale via generic modules + recipe wiring; decode parity vs goldens (O(n) incremental decode is the reference bar)"
+          "title": "serve Fractale via generic modules + recipe wiring; decode parity vs goldens (O(n) incremental decode is the reference bar)",
+          "status": "open"
         },
         {
           "id": "recipe-activation",
-          "status": "open",
-          "title": "sealed lifecycle activation, generation task"
+          "title": "sealed lifecycle activation, generation task",
+          "status": "open"
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "title": "training capability per baseline policy"
+          "title": "training capability per baseline policy",
+          "status": "open"
         },
         {
           "id": "performance-leg",
-          "status": "open",
-          "title": "head-to-head wall+memory, at-or-below"
+          "title": "head-to-head wall+memory, at-or-below",
+          "status": "open"
         }
-      ],
-      "finding": "2026-08-09 reconnaissance: NO current verified Fractale implementation exists in either tree -- adaptive_new has zero Fractale references (not in server discovery; model.pt only), and overgo post-restructure has none either. The serving-lane memory predates the restructure and is stale. A rung port requires a verified oracle to pin against; none exists. Brick path to reopen: EITHER restore the pre-restructure llamacpp2go fractale lane from that repo's git history, OR define a from-scratch verification standard (SmolLM2 tokenizer equality + reference logits from the original training stack). Deferred, not parked -- reopens after rungs with live adaptive baselines."
+      ]
     }
   ]
 }

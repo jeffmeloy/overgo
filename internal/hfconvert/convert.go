@@ -3,6 +3,7 @@
 package hfconvert
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -502,6 +503,13 @@ func modelTensors(source *safetensors.Source, config modelConfig) ([]gguf.Tensor
 		if err != nil {
 			return nil, fmt.Errorf("HF-llama converter: tensor %q: %w", sourceName, err)
 		}
+		// GGUF llama RoPE is interleaved; HF q/k rows are rotate-half layout
+		if heads := ropePermuteHeads(destinationName, config); heads != 0 {
+			reader, err = permuteRopeRows(reader, tensor.Shape, dataType, heads)
+			if err != nil {
+				return nil, fmt.Errorf("HF-llama converter: permute %q: %w", sourceName, err)
+			}
+		}
 		tensors = append(tensors, gguf.TensorData{
 			Name: destinationName, Shape: reverseShape(tensor.Shape), Type: dataType, Data: reader,
 		})
@@ -546,6 +554,64 @@ func modelTensorName(name string) (string, bool) {
 		return "", false
 	}
 	return "blk." + match[1] + "." + suffix, true
+}
+
+func ropePermuteHeads(destinationName string, config modelConfig) uint32 {
+	switch {
+	case strings.HasSuffix(destinationName, ".attn_q.weight"):
+		return config.AttentionHeads
+	case strings.HasSuffix(destinationName, ".attn_k.weight"):
+		return config.KVHeads
+	}
+	return 0
+}
+
+// permuteRopeRows: llama.cpp q/k permutation; per head, row (s, i) of the
+// (2, d/2) split moves to interleaved row 2i+s.
+func permuteRopeRows(reader io.Reader, shape []uint64, dataType gguf.DType, heads uint32) (io.Reader, error) {
+	if len(shape) != 2 || heads == 0 {
+		return nil, errors.New("rank-2 tensor with head count required")
+	}
+	elementSize := uint64(0)
+	switch dataType {
+	case gguf.DTypeBF16, gguf.DTypeF16:
+		elementSize = 2
+	case gguf.DTypeF32:
+		elementSize = 4
+	default:
+		return nil, fmt.Errorf("unsupported dtype %d", dataType)
+	}
+	outRows, rowBytes := shape[0], shape[1]*elementSize
+	if outRows%uint64(heads) != 0 {
+		return nil, errors.New("rows are not divisible by head count")
+	}
+	headDim := outRows / uint64(heads)
+	if headDim%2 != 0 {
+		return nil, errors.New("head dimension is odd")
+	}
+	source, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	if uint64(len(source)) != outRows*rowBytes {
+		return nil, errors.New("tensor byte size disagrees with its shape")
+	}
+	destination := make([]byte, len(source))
+	half := headDim / 2
+	for head := uint64(0); head < uint64(heads); head++ {
+		base := head * headDim
+		for pair := uint64(0); pair < half; pair++ {
+			for split := uint64(0); split < 2; split++ {
+				sourceRow := base + split*half + pair
+				destinationRow := base + pair*2 + split
+				copy(
+					destination[destinationRow*rowBytes:(destinationRow+1)*rowBytes],
+					source[sourceRow*rowBytes:(sourceRow+1)*rowBytes],
+				)
+			}
+		}
+	}
+	return bytes.NewReader(destination), nil
 }
 
 // modelTensorReader: source dtypes pass through unconverted.

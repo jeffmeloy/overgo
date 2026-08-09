@@ -35,6 +35,8 @@ const (
 	// TaskSeq2Seq: encoder-decoder generation (ladder rung 6; source
 	// tokens in, generated target tokens out).
 	TaskSeq2Seq Task = "seq2seq"
+	// TaskSpeech: speech synthesis (ladder rung 7; text in, audio out).
+	TaskSpeech Task = "speech"
 )
 
 type Placement string
@@ -215,7 +217,7 @@ func validName(value string) bool {
 
 func validateTask(task Task) error {
 	switch task {
-	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq:
+	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid task %q", task)

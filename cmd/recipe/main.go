@@ -48,7 +48,7 @@ func run() error {
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func run() error {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
 		switch capability := recipe.Task(*task); capability {
-		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq:
+		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech:
 			return activateCapability(repository, path, *reason, capability)
 		}
 		return activate(repository, path, *reason)
@@ -87,7 +87,8 @@ func run() error {
 
 // capabilityInventory: per-task artifact inventory. Forecast and seq2seq are
 // standard HF safetensors directories (extra vendor sidecars ignored by the
-// companion whitelist); tabular is the dual-head explicit file list.
+// companion whitelist); tabular is the dual-head explicit file list; speech
+// is the pocket-tts explicit file list.
 func capabilityInventory(task recipe.Task, path string) (modelartifact.Inventory, error) {
 	switch task {
 	case recipe.TaskForecast, recipe.TaskSeq2Seq:
@@ -99,6 +100,8 @@ func capabilityInventory(task recipe.Task, path string) (modelartifact.Inventory
 		return modelartifact.FromHFRepository(repo)
 	case recipe.TaskTabular:
 		return tabularInventory(path)
+	case recipe.TaskSpeech:
+		return speechInventory(path)
 	}
 	return modelartifact.Inventory{}, fmt.Errorf("no capability inventory for task %q", task)
 }
@@ -112,8 +115,40 @@ func capabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 		return modelrecipe.TabularDefinition(modelID)
 	case recipe.TaskSeq2Seq:
 		return modelrecipe.Seq2SeqDefinition(modelID)
+	case recipe.TaskSpeech:
+		return modelrecipe.SpeechDefinition(modelID)
 	}
 	return recipe.Definition{}, fmt.Errorf("no capability definition for task %q", task)
+}
+
+// speechInventory: the pocket-tts layout is an explicit file list — the
+// vendor-resolved pockettts_config.json, one standalone top-level
+// .safetensors weights file (name is content-hashed; discovered, not
+// assumed), and the tokenizer.model the text conditioner reads. The
+// embeddings/clips subdirectories are voice data, not model components.
+func speechInventory(path string) (modelartifact.Inventory, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return modelartifact.Inventory{}, err
+	}
+	weights := ""
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".safetensors") {
+			continue
+		}
+		if weights != "" {
+			return modelartifact.Inventory{}, fmt.Errorf("speech inventory: multiple safetensors files in %s", path)
+		}
+		weights = entry.Name()
+	}
+	if weights == "" {
+		return modelartifact.Inventory{}, fmt.Errorf("speech inventory: no safetensors weights in %s", path)
+	}
+	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
+		{Path: filepath.Join(path, "pockettts_config.json"), Name: "config", Role: artifact.ComponentConfig},
+		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
+		{Path: filepath.Join(path, "tokenizer.model"), Name: "tokenizer", Role: artifact.ComponentTokenizer},
+	})
 }
 
 // tabularInventory: dual-head artifact (classification/ + regression/, each
@@ -299,7 +334,7 @@ func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
 	switch task {
-	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq:
+	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech:
 		var err error
 		inventory, err = capabilityInventory(task, path)
 		if err != nil {

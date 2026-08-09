@@ -1,5 +1,5 @@
 {
-  "campaign": "adaptive_new -\u003e overgo merge: model ladder",
+  "campaign": "adaptive_new -> overgo merge: model ladder",
   "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only.",
   "items": [
     {
@@ -147,7 +147,7 @@
       "steps": [
         {
           "id": "golden-import",
-          "title": "JAX forward oracle + pkl manifest pulled from adaptive fixtures (src 24 -\u003e tgt 8; logits [8,8192] + encoder_out [24,512], f32 variants; jax 0.11.0)",
+          "title": "JAX forward oracle + pkl manifest pulled from adaptive fixtures (src 24 -> tgt 8; logits [8,8192] + encoder_out [24,512], f32 variants; jax 0.11.0)",
           "status": "done"
         },
         {
@@ -195,17 +195,20 @@
         {
           "id": "recipe-activation",
           "title": "sealed lifecycle, speech task entry",
-          "status": "open"
+          "status": "done",
+          "verdict": "speech task sealed: TaskSpeech in the schema enum; model.speech-synthesize in the catalog (host, text in, audio out); SpeechDefinition mirrors forecast/tabular/seq2seq; the shared activateCapability driver gains the speech arm. Inventory via explicit file list (speechInventory in cmd/recipe): pockettts_config.json (config) + the one standalone top-level .safetensors (weights; content-hashed name, discovered not assumed) + tokenizer.model (tokenizer) -- exactly what speechsynth.Load + LoadTokenizer read; embeddings/clips subdirectories are voice data, excluded. Real activation ran candidate -> validated -> active: model model:sha256:68ad1881..., recipe recipe:sha256:49c87b52...; status round-trip ABSENT before, active tier experimental after. Compile-refusal test proves the inference compiler rejects the speech task."
         },
         {
           "id": "training-leg",
           "title": "adaptive HAS a pocket-tts training declaration (seed profiles) -- scope it honestly",
-          "status": "open"
+          "status": "open",
+          "verdict": "SCOPED, stays open -- the reference is REAL, not declaration-only. Adaptive declares AND implements pocket-tts training: seed_model_profiles.go pockettts.train.clip_finetune_host.v4 (Load artifacts+tokenizer, Compile codec ENCODER, Adapt AudioLatentExample, Validate, Execute audio.TrainFlowClips, Persist capability evidence); implementation is extmodel FineTuneAudioFlowClips (speech_flow_synthesis.go). Trained surface: flow head PLUS backbone jointly (audioFlowTrainingTensorNames: all flow_net tensors; includeBackbone adds transformer attn/mlp matrices + norms + out_norm; codec and embedding tables frozen). Objective: flow-matching latent L2 with profile-derived fm/lsd fractions; Muon optimizer; joint LR scale law lrJoint = baseLR*sqrt(nFlow/nJoint); heldout teacher-forced loss; checkpoint + capability evidence. Evidence: finite-difference backward gates (FlowNetGradCheck, TransformerBackwardFiniteDifference, BackboneBackwardFiniteDifference), one-step test, server /api/tts/clips record+finetune endpoints; BUT models/pocket-tts/clips is empty and no committed fine-tune checkpoints exist, so the e2e lane is locally unexercised. Overgo delta over existing densecausal/hostmath VJPs + optimizer.Muon: (1) mimi ENCODER port pcm->latent (g2_mimi_encode.json golden already imported; SEANet encoder mirrors the ported decoder, decoder transformer reusable); (2) LayerNormBackward + exact-erf GELUBackward + adaLN/SiLU modulation and time-embed RMS-alpha VJPs in hostmath (LinearBackward, CausalAttentionBackward, RotaryInterleavedBackward reusable); (3) latent-example adapter + heldout loss; (4) LR derivation is arithmetic. One focused port cycle; only external prerequisite for an e2e run is clip data."
         },
         {
           "id": "performance-leg",
           "title": "matched protocol, at-or-below",
-          "status": "open"
+          "status": "done",
+          "verdict": "MEASURED, matched warm host protocol; verdict ABOVE at ~1.25-1.3x with the gap attributed. Overgo (internal/speechsynth TestSynthWall: model loaded once, median-of-5 warm golden synth, 13 frames, golden noise): load 0.352-0.361s; backbone generate median 0.3226-0.3265s; codec decode median 0.2913-0.2915s; synth total median 0.6141-0.6169s. Reference (adaptive go test -tags research ./extmodel -run TestSpeechFlowGenerateE2E -count=6; pttsOnce keeps components hot so runs 2-6 are warm): cold 0.91s, warm 0.48/0.48/0.49/0.50/0.50s -- the warm wall additionally includes ~5.2MB golden JSON parse + parity asserts per run (no per-op timer exists there). Live-server /api/tts protocol was tried first and refused read-only (voice store requires an admitted audio-flow recipe in the server store), so the research test is the stated reference protocol. Attribution: conv kernels are line-identical between repos and profiles agree at ~3.3-3.4s conv CPU per warm run on both sides; the wall difference is scheduler utilization (reference ~12.5x cores vs overgo ~7x) from adaptive's runtime-calibrated dispatch (measured overhead=5.5us, linear=0.45ns/mac, attn=0.66ns/mac, allocation-free ctx dispatch). Landed this cycle: persistent worker pool + min(n) worker policy in hostmath.parallelRange (synth total 0.6455 -> 0.6141; every golden gate unchanged incl e2e wav 9.0e-5). Next lever named: calibrated dispatch thresholds as a shared hostmath mechanism."
         }
       ]
     },

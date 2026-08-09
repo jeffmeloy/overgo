@@ -23,6 +23,9 @@ const (
 	// ModuleSeq2SeqGenerate: host encoder-decoder generation for seq2seq
 	// capability packages; input source tokens, output generated tokens.
 	ModuleSeq2SeqGenerate recipe.ModuleID = "model.seq2seq-generate"
+	// ModuleSpeechSynthesize: host text-to-speech for speech capability
+	// packages; input text, output synthesized audio.
+	ModuleSpeechSynthesize recipe.ModuleID = "model.speech-synthesize"
 )
 
 var catalog = mustCatalog()
@@ -141,6 +144,27 @@ func Seq2SeqDefinition(modelID artifact.ID) (recipe.Definition, error) {
 		[]recipe.Output{{
 			Name: "tokens", Data: recipe.DataTokens,
 			Source: recipe.Endpoint{Node: forward.ID, Port: "tokens"},
+		}},
+	)
+}
+
+// SpeechDefinition: single host speech-synthesize node bound to the model
+// artifact. The capability package derives every dimension from the
+// artifact's tensor shapes, so the definition carries no profile document.
+func SpeechDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	forward := recipe.Node{ID: "speech", Module: ModuleSpeechSynthesize, Placement: recipe.PlacementHost}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskSpeech,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
+		[]recipe.Node{forward},
+		nil,
+		[]recipe.Input{{
+			Name: "text", Data: recipe.DataText,
+			Target: recipe.Endpoint{Node: forward.ID, Port: "text"},
+		}},
+		[]recipe.Output{{
+			Name: "audio", Data: recipe.DataAudio,
+			Source: recipe.Endpoint{Node: forward.ID, Port: "audio"},
 		}},
 	)
 }
@@ -362,6 +386,12 @@ func mustCatalog() *recipe.Catalog {
 			Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs:     []recipe.Port{{Name: "source", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
 			Outputs:    []recipe.Port{{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleSpeechSynthesize, Tasks: []recipe.Task{recipe.TaskSpeech},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:     []recipe.Port{{Name: "text", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "audio", Data: recipe.DataAudio, Cardinality: recipe.CardinalityOne}},
 		},
 	)
 	if err != nil {

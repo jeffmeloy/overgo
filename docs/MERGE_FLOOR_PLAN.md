@@ -36,11 +36,12 @@ Two dependency directions, each with a named failure mode:
 | 2 | Claim evidence tiers | DONE `df84648` | `cmd/compatibility` |
 | 3 | Magic-ledger export contract | DONE (overgo side) | `internal/repodbimport`, `cmd/repodb-import`; producer `cmd/repodb-export` in adaptive_new |
 | 4 | Magic ledger resident in store | DONE (59 rows) | overgo RepoDB store |
-| 5 | Closure scan / native magic baseline | PENDING | `cmd/closure-scan` (to build) |
-| 6 | Statistical / longitudinal layer | DEFERRED to wave 1 | `internal/runrecord` advisories + gate wiring |
-| 7 | Exporter durable commit + remaining scopes | PARTIAL | `cmd/repodb-export` (adaptive_new) |
-| 8 | PowerShell retirement (Go/bash automation) | DONE | `cmd/device-lane`, `cmd/build-kernels`, `scripts/fuzz-smoke.sh` |
-| 9 | Data organization (models/datasets/checkpoints) | PARTIAL | data roots, `internal/artifact` locations, guard |
+| 5 | Closure scan / native magic baseline | DONE `9ad13c3` | `cmd/closure-scan`; 6-row native baseline in store |
+| 6 | Statistical / longitudinal layer | DONE `4da7897` (calibrating) | `cmd/advisories`, gate evaluations, `internal/runrecord` |
+| 7 | Export contract + rung-time scopes | DONE as redefined | `cmd/repodb-export` (adaptive_new); rung exports per ladder rung |
+| 8 | PowerShell retirement (Go/bash automation) | DONE `7252970` | `cmd/device-lane`, `cmd/build-kernels`, `scripts/fuzz-smoke.sh` |
+| 9 | Data organization + discovery | DONE `cefb3b4`/`e4d5cb3` | `internal/dataroot`, `repodb-query -servable`, guard |
+| — | Wave-1 mechanism pilot | DONE `8cfe56b` | `cmd/recipe`; Qwen3.5-9B served through sealed authority |
 
 ## Built components
 
@@ -162,21 +163,35 @@ calibrates, second enforces). Builds against the wave-1 pilot's own run
 history as its calibration corpus. Distribution-free by mandate: median/MAD/
 quantiles/envelopes, alarm budget as a recorded decision, no Gaussian/IID.
 
-### 7. Exporter durable commit + remaining scopes (PARTIAL)
+### 7. Export contract + rung-time scopes (DONE as redefined)
 
-`cmd/repodb-export` is proven (produced the stream that imported cleanly) but
-UNCOMMITTED in adaptive_new -- caught behind that repo's unrelated
-`adversarial_sqa` phase over a media merge. Low-stakes bookkeeping; lands when
-that phase clears naturally or on explicit direction. Do NOT review the
-co-implementer's media merge just to unblock it (inverts priority, risks a
-duplicate review).
+`cmd/repodb-export` is proven (produced the magic-ledger stream that imported
+cleanly; 59 rows resident) but UNCOMMITTED in adaptive_new -- caught behind
+that repo's unrelated `adversarial_sqa` phase. Low-stakes bookkeeping; lands
+when that phase clears. Do NOT review the co-implementer's media merge just
+to unblock it.
 
-Remaining export scopes, same wire pattern, ordered by port need:
-- **Profiles** with per-field provenance -> needed before model ports.
-- **Measurements** (phased, environment-bound runs) -> seeds the statistical
-  layer's history and the external scoreboard.
-- **Dataset** split/mixture/dedup facts -> needed before the training wave.
-- **Findings** -> the live adversarial register moves as store documents.
+SCOPE REDEFINITION (2026-08-08, discovered by building the rest of the floor
+first): the remaining scopes are RUNG-TIME exports, not a bulk pre-load, for
+two structural reasons found on contact:
+- Measurements key to (recipe, environment) series -- and a model's overgo
+  recipe only exists once its rung activates it. A bulk import now would
+  create orphan observations keyed to nothing; exported baselines become
+  comparable exactly when the rung's recipe exists.
+- adaptive_new's per-model profile facts (ConfigField bags with per-field
+  provenance) do not fit overgo's ProfileDocument (architecture POLICY, not
+  a fact bag); their correct overgo home is rung-time evidence documents
+  attached to the rung's own artifacts, with external-evidence facts (e.g.
+  synthesis thresholds) landing as closure-ledger or decision rows where
+  they are load-bearing.
+
+Therefore: each ladder rung BEGINS with the rung export -- that model's
+measurement baselines (for the performance acceptance leg) and its profile
+facts (as evidence against the rung's artifacts), through the same proven
+wire contract. Dataset split/mixture facts export the same way when the
+training wave reaches data-bearing rungs; findings migrate at the final
+cutover. The exporter machinery is the floor deliverable and is complete;
+rung exports are part of each rung's definition.
 
 ### 8. PowerShell retirement (DONE)
 
@@ -294,20 +309,31 @@ expensively answered question (the `schedule.go` num_steps case).
 - [x] Gate records every outcome to the store; scope derived; honesty line.
 - [x] Evidence tiers enforced; manifest honest.
 - [x] Magic ledger resident and queryable.
-- [ ] Overgo's own magics catalogued as native closure documents (component 5).
-- [ ] Profiles + measurements exported (component 7) -- gates the model
-      capability waves (TimesFM onward), NOT the wave-1 pilot, which runs on
-      overgo's own safetensors/catalog path.
-- [ ] Statistical layer calibrated against wave-1 runs (component 6).
+- [x] Overgo's own magics catalogued as native closure documents (component 5:
+      the scan tool + 6-row baseline; full catalog is ongoing triage by
+      design).
+- [x] Export contract proven; profile/measurement scopes redefined as
+      rung-time exports with the structural reasoning recorded (component 7).
+- [x] Statistical layer wired end-to-end, quantile-calibrated, accruing its
+      calibration corpus from gate runs (component 6; enforcement begins when
+      history clears the detector's floor -- first run calibrates, second
+      enforces, by design).
 - [x] PowerShell scripts retired to Go/bash; guard-vs-shipped-PS contradiction
       resolved (component 8).
 - [x] Guard + gitignore cover all three data roots incl. checkpoints (component 9).
-- [ ] Single data-root config contract; discovery as a store query (component 9).
+- [x] Single data-root config contract; discovery as a store query (component 9).
 
-First four are met -- the floor is load-bearing for the wave-1 pilot (dense
-Qwen recipe parity) NOW. Components 5-7 complete it in parallel with that
-pilot; none blocks starting the pilot, and the pilot's runs are what
-component 6 needs to exist.
+THE FLOOR IS COMPLETE. The wave-1 mechanism pilot has already run on it:
+Qwen3.5-9B activated through the sealed lifecycle (cmd/recipe) and served
+correctly by bare-name discovery with zero bytes moved. The ladder's rung 1
+(timesfm-200m) opens with its rung export; every acceptance leg has its
+machinery.
+
+Residuals, owned and non-blocking: the exporter's bookkeeping commit in
+adaptive_new (behind that repo's review phase); the manifest-scoped device
+lane and store-derived smoke matrix remain target forms (their interim
+invocations are named in skill.md); advisory enforcement activates as gate
+history crosses the detector floor.
 
 ## Model ladder (owner directive 2026-08-08)
 

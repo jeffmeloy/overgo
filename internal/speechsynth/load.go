@@ -1,10 +1,11 @@
-// Package speechsynth owns the speech-synthesis TEXT BACKBONE capability
-// (ladder rung 7, backbone-port slice): the flow-LM conditioner transformer,
-// the conditional flow head, and the frame-latent generation loop, judged
-// against the imported pockettts golden ladder (fixtures/pockettts).
+// Package speechsynth owns the speech-synthesis capability (ladder rung 7):
+// the flow-LM conditioner transformer, the conditional flow head, the
+// frame-latent generation loop, and the mimi codec DECODER (latent -> PCM),
+// judged against the imported pockettts golden ladder (fixtures/pockettts).
 //
-// The mimi codec (latent -> PCM, PCM -> voice latent) is the NEXT slice;
-// LatentsToPCM refuses loudly rather than fabricating audio.
+// The mimi ENCODER (PCM -> voice latent) is not ported: the decode path
+// never calls it and the artifact's voice-cloning encoder is amputated;
+// voice conditioning enters from the golden ladder (codec.go).
 //
 // Architecture (all ported behavior, written fresh against overgo owners):
 // pre-norm causal transformer — LayerNorm(norm1) -> fused qkv -> interleaved
@@ -112,6 +113,9 @@ type Model struct {
 
 	flow flowNet
 
+	// Codec: the mimi decoder half; LatentsToPCM refuses while nil.
+	Codec *CodecDecoder
+
 	invFreq    []float64 // interleaved-RoPE ladder from MaxPeriod, HeadDim
 	scoreScale float32   // 1/sqrt(hd), folded into q before attention
 }
@@ -136,6 +140,40 @@ type artifactConfig struct {
 			NumLayers   int     `json:"num_layers"`
 		} `json:"transformer"`
 	} `json:"flow_lm"`
+	Mimi mimiConfig `json:"mimi"`
+}
+
+// mimiConfig: the codec section of the vendor-resolved config.
+type mimiConfig struct {
+	FrameRate  float64 `json:"frame_rate"`
+	SampleRate int     `json:"sample_rate"`
+	OuterDim   int     `json:"outer_dim"`
+	Quantizer  struct {
+		Dimension       int `json:"dimension"`
+		OutputDimension int `json:"output_dimension"`
+	} `json:"quantizer"`
+	Seanet      seanetConfig `json:"seanet"`
+	Transformer struct {
+		Context        int     `json:"context"`
+		DModel         int     `json:"d_model"`
+		DimFeedforward int     `json:"dim_feedforward"`
+		MaxPeriod      float64 `json:"max_period"`
+		NumHeads       int     `json:"num_heads"`
+		NumLayers      int     `json:"num_layers"`
+	} `json:"transformer"`
+}
+
+// seanetConfig: SEANet layout facts (widths, kernels, strides) — pure
+// geometry the tensors cannot fully self-describe (stage count and order).
+type seanetConfig struct {
+	Channels           int   `json:"channels"`
+	Compress           int   `json:"compress"`
+	Dimension          int   `json:"dimension"`
+	KernelSize         int   `json:"kernel_size"`
+	LastKernelSize     int   `json:"last_kernel_size"`
+	NFilters           int   `json:"n_filters"`
+	Ratios             []int `json:"ratios"`
+	ResidualKernelSize int   `json:"residual_kernel_size"`
 }
 
 // configFileName: the vendor-resolved serving config beside the weights.
@@ -342,6 +380,9 @@ func Load(directory string) (*Model, error) {
 				return nil, err
 			}
 		}
+	}
+	if m.Codec, err = loadCodecDecoder(read, shapes, config, dims.LatentDim); err != nil {
+		return nil, err
 	}
 	return m, nil
 }

@@ -75,10 +75,3 @@ func (m *Model) GenerateLatents(voiceCond []float32, voiceFrames int, textIDs []
 	latents.Values = latents.Values[:latents.Frames*latent]
 	return latents, eos, nil
 }
-
-// LatentsToPCM is the codec boundary: normalized latents -> denorm ->
-// quantizer bridge -> mimi decode. That whole path is the codec-port slice;
-// until it lands this refuses loudly rather than fabricating audio.
-func (m *Model) LatentsToPCM(latents LatentBatch) ([]float32, error) {
-	return nil, fmt.Errorf("speechsynth: latent-to-pcm requires the mimi codec decoder, which is not ported yet (codec-port slice); refusing rather than producing unverified audio")
-}

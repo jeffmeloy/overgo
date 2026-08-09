@@ -104,3 +104,41 @@ func DecodeWAV(data []byte) ([]float32, int, error) {
 	}
 	return samples, sampleRate, nil
 }
+
+// EncodeWAVPCM16 encodes mono samples (clipped to [-1, 1]) as a 16-bit PCM
+// RIFF/WAVE byte slice — the inverse of DecodeWAV's PCM16 arm.
+func EncodeWAVPCM16(samples []float32, sampleRate int) ([]byte, error) {
+	if sampleRate <= 0 {
+		return nil, fmt.Errorf("media: WAV sample rate %d", sampleRate)
+	}
+	dataBytes := len(samples) * pcm16Bytes
+	out := make([]byte, riffHeaderBytes+wavChunkHeaderBytes+wavFormatMinimumBytes+wavChunkHeaderBytes+dataBytes)
+	copy(out[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(out[4:8], uint32(len(out)-wavChunkHeaderBytes))
+	copy(out[8:riffHeaderBytes], "WAVE")
+	fmtStart := riffHeaderBytes
+	copy(out[fmtStart:fmtStart+4], "fmt ")
+	binary.LittleEndian.PutUint32(out[fmtStart+4:fmtStart+8], wavFormatMinimumBytes)
+	body := fmtStart + wavChunkHeaderBytes
+	binary.LittleEndian.PutUint16(out[body:body+2], wavPCM)
+	binary.LittleEndian.PutUint16(out[body+2:body+4], 1) // mono
+	binary.LittleEndian.PutUint32(out[body+4:body+8], uint32(sampleRate))
+	binary.LittleEndian.PutUint32(out[body+8:body+12], uint32(sampleRate*pcm16Bytes))
+	binary.LittleEndian.PutUint16(out[body+12:body+14], pcm16Bytes)
+	binary.LittleEndian.PutUint16(out[body+14:body+16], pcm16Bits)
+	dataStart := body + wavFormatMinimumBytes
+	copy(out[dataStart:dataStart+4], "data")
+	binary.LittleEndian.PutUint32(out[dataStart+4:dataStart+8], uint32(dataBytes))
+	payload := out[dataStart+wavChunkHeaderBytes:]
+	for index, sample := range samples {
+		value := math.Round(float64(sample) * pcm16Magnitude)
+		if value > pcm16Magnitude-1 {
+			value = pcm16Magnitude - 1
+		}
+		if value < -pcm16Magnitude {
+			value = -pcm16Magnitude
+		}
+		binary.LittleEndian.PutUint16(payload[index*pcm16Bytes:], uint16(int16(value)))
+	}
+	return out, nil
+}

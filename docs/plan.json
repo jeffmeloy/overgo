@@ -190,7 +190,7 @@
         {
           "id": "codec-port",
           "title": "audio codec decoder vs g5 mimi decode stages; e2e wav vs g4 + reference wav (multimodal directive: real audio out, byte/近-parity bar derived)",
-          "status": "open"
+          "status": "done"
         },
         {
           "id": "recipe-activation",

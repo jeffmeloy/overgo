@@ -2,7 +2,6 @@ package speechsynth
 
 import (
 	"math"
-	"strings"
 	"testing"
 )
 
@@ -67,18 +66,10 @@ func TestGenerationGolden(t *testing.T) {
 		nFrames, worstLatent, tolGenLatent, worstEOS, tolEOSLogit)
 }
 
-// TestLatentsToPCMRefusesAtCodecBoundary pins the codec-boundary refusal:
-// until the mimi decoder slice lands, latent-to-pcm must refuse loudly.
-func TestLatentsToPCMRefusesAtCodecBoundary(t *testing.T) {
-	var m Model
-	pcm, err := m.LatentsToPCM(LatentBatch{Values: make([]float32, 32), Frames: 1, Width: 32})
-	if err == nil || pcm != nil {
-		t.Fatal("want loud refusal at the codec boundary")
-	}
-	if !strings.Contains(err.Error(), "codec") || !strings.Contains(err.Error(), "refusing") {
-		t.Fatalf("refusal must name the missing codec slice: %v", err)
-	}
-}
+// The codec-boundary refusal test is GONE by design: the mimi decoder is
+// ported, so latent-to-pcm now has real golden gates — see
+// TestSpeakE2EProducesReferenceAudio and TestLatentsToPCMContracts
+// (codec_golden_test.go), mirroring rung-1's refusal-to-golden turn.
 
 // TestGenerateLatentsInputContracts pins the named refusals.
 func TestGenerateLatentsInputContracts(t *testing.T) {

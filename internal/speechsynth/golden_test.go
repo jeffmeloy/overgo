@@ -75,8 +75,9 @@ type g7Golden struct {
 		Noise goldenTensor `json:"noise"`
 		Out   goldenTensor `json:"out"`
 	} `json:"flow_calls"`
-	NQuantizerCalls int       `json:"n_quantizer_calls"`
-	EOSLogits       []float64 `json:"eos_logits"`
+	NQuantizerCalls int          `json:"n_quantizer_calls"`
+	EOSLogits       []float64    `json:"eos_logits"`
+	PCM             goldenTensor `json:"pcm"`
 }
 
 type g3Golden struct {

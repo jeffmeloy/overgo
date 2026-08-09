@@ -1,8 +1,10 @@
 {
  "schema": "qwen35_4b_serving_golden/v1",
- "status": "PROVISIONAL",
- "source": "overgo host path (OVERGO_HOST_EXECUTE=1 cmd/generate, reference executor, greedy temp=0); adaptive live-serving capture replaces this when the GPU frees",
+ "status": "LIVE",
+ "provisional": false,
+ "source": "cmd/generate on CUDA device (NVIDIA GeForce RTX 4090 D), greedy temp=0, 8 new tokens per case; deterministic across repeat runs (byte-identical); matches prior host-path (OVERGO_HOST_EXECUTE=1 reference executor) capture token-for-token",
  "model": "checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf (overgo hfconvert from models/Qwen3.5-4B safetensors)",
+ "model_sha256": "c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec",
  "date": "2026-08-09",
  "decode_mode": "greedy (temp 0), 8 new tokens per case, ID-level",
  "cases": [

@@ -396,8 +396,8 @@
         },
         {
           "id": "convert-parity",
-          "status": "open",
-          "title": "conversion + ID/text parity vs live serving goldens (capture when GPU free; multimodal directive: image+text cases from repodb datasets)"
+          "status": "done",
+          "title": "conversion + ID/text parity vs live serving goldens (capture when GPU free; multimodal directive: image+text cases from repodb datasets) -- DONE: Qwen3.5-4B-f16.gguf 441 tensors 8.66GB (71ebe02); serving goldens LIVE on device, 3/3 exact host match, deterministic greedy, fixture provisional=false + model sha256. PERF FINDING: ~6.06 s/token, weights NOT device-resident (~996MiB above idle baseline, streaming) -> residency is the performance-leg lever"
         },
         {
           "id": "recipe-activation",

@@ -355,3 +355,15 @@ are the first store history the statistical layer calibrates against). The
 dense-Qwen recipe parity check remains the wave-1 *mechanism* pilot -- it
 proves the recipe/plan/parity machinery on overgo's best-supported family
 before the ladder starts consuming it rung by rung.
+
+Probe result (2026-08-08): with `local-models.yaml` pointing the models root
+at adaptive_new's home, `generate Qwen3.5-9B-Q8_0.gguf` resolves the bare
+name through the data-root contract and is refused by recipe authority with
+"active inference recipe is absent" -- both halves behaving exactly as
+designed (bare-name discovery works; no bootstrap fallback exists). The
+pilot's first action is therefore a recipe activation flow: drive
+`modelrecipe.PublishCandidate -> Transition -> Active` (the lifecycle API is
+complete; no command invokes it yet) for the dense-Qwen definition, with the
+activation's decision event carrying reason + decider per the store's
+decision discipline. Then the generate run lands with parity evidence and
+the store's first inference run record.

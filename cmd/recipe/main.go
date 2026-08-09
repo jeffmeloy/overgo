@@ -48,7 +48,7 @@ func run() error {
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -73,11 +73,9 @@ func run() error {
 		if strings.TrimSpace(*reason) == "" {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
-		switch recipe.Task(*task) {
-		case recipe.TaskForecast:
-			return activateForecast(repository, path, *reason)
-		case recipe.TaskTabular:
-			return activateTabular(repository, path, *reason)
+		switch capability := recipe.Task(*task); capability {
+		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq:
+			return activateCapability(repository, path, *reason, capability)
 		}
 		return activate(repository, path, *reason)
 	case "status":
@@ -87,61 +85,35 @@ func run() error {
 	}
 }
 
-// activateForecast drives the sealed lifecycle for a safetensors-directory
-// forecast model: inventory facts, then candidate -> validated -> active
-// with the decision evidence. The capability package derives dimensions
-// from the artifact, so no profile document is published.
-func activateForecast(repository, path, reason string) error {
-	ctx := context.Background()
-	repo, err := hfrepo.Open(path)
-	if err != nil {
-		return err
+// capabilityInventory: per-task artifact inventory. Forecast and seq2seq are
+// standard HF safetensors directories (extra vendor sidecars ignored by the
+// companion whitelist); tabular is the dual-head explicit file list.
+func capabilityInventory(task recipe.Task, path string) (modelartifact.Inventory, error) {
+	switch task {
+	case recipe.TaskForecast, recipe.TaskSeq2Seq:
+		repo, err := hfrepo.Open(path)
+		if err != nil {
+			return modelartifact.Inventory{}, err
+		}
+		defer repo.Close()
+		return modelartifact.FromHFRepository(repo)
+	case recipe.TaskTabular:
+		return tabularInventory(path)
 	}
-	inventory, err := modelartifact.FromHFRepository(repo)
-	if err != nil {
-		return err
+	return modelartifact.Inventory{}, fmt.Errorf("no capability inventory for task %q", task)
+}
+
+// capabilityDefinition: per-task single-node host definition constructor.
+func capabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
+	switch task {
+	case recipe.TaskForecast:
+		return modelrecipe.ForecastDefinition(modelID)
+	case recipe.TaskTabular:
+		return modelrecipe.TabularDefinition(modelID)
+	case recipe.TaskSeq2Seq:
+		return modelrecipe.Seq2SeqDefinition(modelID)
 	}
-	store, err := repodb.Open(repository)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	modelID := inventory.Manifest.ID
-	batch, err := inventory.Batch("recipe/facts/" + modelID.String())
-	if err != nil {
-		return err
-	}
-	if _, err := store.Commit(ctx, batch); err != nil {
-		return fmt.Errorf("publish model facts: %w", err)
-	}
-	definition, err := modelrecipe.ForecastDefinition(modelID)
-	if err != nil {
-		return err
-	}
-	if _, _, err := modelrecipe.PublishCandidate(
-		ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
-	); err != nil {
-		return fmt.Errorf("publish candidate: %w", err)
-	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "recipe/validated/"+definition.ID.String(), definition,
-		recipe.StatusValidated, nil, nil,
-	); err != nil {
-		return fmt.Errorf("transition validated: %w", err)
-	}
-	evidenceID, err := activationEvidence(ctx, store, definition, reason)
-	if err != nil {
-		return err
-	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "recipe/active/"+definition.ID.String(), definition,
-		recipe.StatusActive, []artifact.ID{evidenceID}, nil,
-	); err != nil {
-		return fmt.Errorf("transition active: %w", err)
-	}
-	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
-		path, recipe.TaskForecast, modelID, definition.ID, reason)
-	return nil
+	return recipe.Definition{}, fmt.Errorf("no capability definition for task %q", task)
 }
 
 // tabularInventory: dual-head artifact (classification/ + regression/, each
@@ -164,13 +136,13 @@ func tabularInventory(path string) (modelartifact.Inventory, error) {
 	return modelartifact.FromFiles(path, specs)
 }
 
-// activateTabular drives the sealed lifecycle for the dual-head tabular ICL
-// model: inventory facts, then candidate -> validated -> active with the
-// decision evidence. The capability package derives dimensions from the
-// artifact, so no profile document is published.
-func activateTabular(repository, path, reason string) error {
+// activateCapability drives the shared sealed lifecycle for capability-package
+// models: inventory facts, then candidate -> validated -> active with the
+// decision evidence. Capability packages derive dimensions from the artifact,
+// so no profile document is published.
+func activateCapability(repository, path, reason string, task recipe.Task) error {
 	ctx := context.Background()
-	inventory, err := tabularInventory(path)
+	inventory, err := capabilityInventory(task, path)
 	if err != nil {
 		return err
 	}
@@ -187,7 +159,7 @@ func activateTabular(repository, path, reason string) error {
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
-	definition, err := modelrecipe.TabularDefinition(modelID)
+	definition, err := capabilityDefinition(task, modelID)
 	if err != nil {
 		return err
 	}
@@ -213,7 +185,7 @@ func activateTabular(repository, path, reason string) error {
 		return fmt.Errorf("transition active: %w", err)
 	}
 	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
-		path, recipe.TaskTabular, modelID, definition.ID, reason)
+		path, task, modelID, definition.ID, reason)
 	return nil
 }
 
@@ -326,22 +298,14 @@ func activationEvidence(
 func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
-	if task == recipe.TaskForecast {
-		repo, err := hfrepo.Open(path)
-		if err != nil {
-			return err
-		}
-		inventory, err = modelartifact.FromHFRepository(repo)
-		if err != nil {
-			return err
-		}
-	} else if task == recipe.TaskTabular {
+	switch task {
+	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq:
 		var err error
-		inventory, err = tabularInventory(path)
+		inventory, err = capabilityInventory(task, path)
 		if err != nil {
 			return err
 		}
-	} else {
+	default:
 		file, err := gguf.Open(path)
 		if err != nil {
 			return err

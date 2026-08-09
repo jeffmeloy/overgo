@@ -135,6 +135,32 @@ func TestTabularDefinitionValidatesAgainstCatalog(t *testing.T) {
 	}
 }
 
+func TestSeq2SeqDefinitionValidatesAgainstCatalog(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "seq2seq-model")
+	definition, err := Seq2SeqDefinition(modelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := definition.Validate(Catalog()); err != nil {
+		t.Fatal(err)
+	}
+	if definition.Task != recipe.TaskSeq2Seq || definition.Model != modelID {
+		t.Fatalf("definition = %+v", definition)
+	}
+	if len(definition.Nodes) != 1 || definition.Nodes[0].Module != ModuleSeq2SeqGenerate ||
+		definition.Nodes[0].Placement != recipe.PlacementHost {
+		t.Fatalf("nodes = %+v", definition.Nodes)
+	}
+	if len(definition.Inputs) != 1 || definition.Inputs[0].Data != recipe.DataTokens ||
+		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataTokens {
+		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
+	}
+	// Inference compiler must refuse the non-inference task.
+	if _, err := Compile(definition, model.Spec{}, model.Weights{}); err == nil {
+		t.Fatal("inference compiler accepted a seq2seq recipe")
+	}
+}
+
 func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "persisted-model")
 	definition, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)

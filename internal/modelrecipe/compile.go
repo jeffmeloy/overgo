@@ -20,6 +20,9 @@ const (
 	// ModuleTabularPredict: host forward for tabular ICL capability
 	// packages; input table tensor, output per-row predictions tensor.
 	ModuleTabularPredict recipe.ModuleID = "model.tabular-predict"
+	// ModuleSeq2SeqGenerate: host encoder-decoder generation for seq2seq
+	// capability packages; input source tokens, output generated tokens.
+	ModuleSeq2SeqGenerate recipe.ModuleID = "model.seq2seq-generate"
 )
 
 var catalog = mustCatalog()
@@ -117,6 +120,27 @@ func TabularDefinition(modelID artifact.ID) (recipe.Definition, error) {
 		[]recipe.Output{{
 			Name: "predictions", Data: recipe.DataTensor,
 			Source: recipe.Endpoint{Node: forward.ID, Port: "predictions"},
+		}},
+	)
+}
+
+// Seq2SeqDefinition: single host seq2seq-generate node bound to the model
+// artifact. The capability package derives every dimension from the
+// artifact's tensor shapes, so the definition carries no profile document.
+func Seq2SeqDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	forward := recipe.Node{ID: "seq2seq", Module: ModuleSeq2SeqGenerate, Placement: recipe.PlacementHost}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskSeq2Seq,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
+		[]recipe.Node{forward},
+		nil,
+		[]recipe.Input{{
+			Name: "source", Data: recipe.DataTokens,
+			Target: recipe.Endpoint{Node: forward.ID, Port: "source"},
+		}},
+		[]recipe.Output{{
+			Name: "tokens", Data: recipe.DataTokens,
+			Source: recipe.Endpoint{Node: forward.ID, Port: "tokens"},
 		}},
 	)
 }
@@ -332,6 +356,12 @@ func mustCatalog() *recipe.Catalog {
 			Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs:     []recipe.Port{{Name: "table", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
 			Outputs:    []recipe.Port{{Name: "predictions", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleSeq2SeqGenerate, Tasks: []recipe.Task{recipe.TaskSeq2Seq},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:     []recipe.Port{{Name: "source", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
 		},
 	)
 	if err != nil {

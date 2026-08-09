@@ -419,7 +419,33 @@
       "id": "rung13-e4b",
       "title": "gemma-4-E4B",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "recon-goldens",
+          "status": "done",
+          "title": "adaptive serves E4B via mixed_window.infer.spine_host_greedy (HOST spine) + trains via mixed_window.train.stream_lm_cuda; fixture dirs e4b/ e4b_vision/ e4b_audio/ + gemma4_audio golden exist; overgo has gemma4convert + cmd/gemma4-gguf-convert (multimodal converter precedent)"
+        },
+        {
+          "id": "convert-parity",
+          "status": "open",
+          "title": "gemma4 conversion of E4B (existing converter; verify vs e4b fixture set incl. vision+audio per multimodal directive)"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "title": "GGUF inference activation"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "adaptive TRAINS E4B (stream_lm_cuda) -- real reference; scope densecausal/mixed-window delta"
+        },
+        {
+          "id": "performance-leg",
+          "status": "open",
+          "title": "head-to-head vs adaptive serving, at-or-below"
+        }
+      ]
     },
     {
       "id": "rung14-rxbrain",
@@ -542,10 +568,11 @@
       "verdict": "BETTER every run"
     },
     "rung11-wan": {
-      "overgo": "exact 127.6 s/step; bf16 17.5 (quality unclaimed); CUDA VAE 38.2s/81f",
+      "overgo": "denoise 10.77 s/step (50-step prod, bf16 wmma cp.async, goldens G3-exact/BF16G3/G4 pass), decode 40.8s/81f, total ~583s, peak 10.2GB",
       "adaptive": "exact 13.8 s/step, decode 29-45s",
-      "verdict": "OPEN -- WORSE on exact denoise; port of adaptive structure in flight"
+      "python": "8.4 s/step, total 463.4s",
+      "verdict": "BEATS adaptive; python stretch open (10.77 vs 8.4)"
     },
-    "summary": "7 BETTER, 2 TIE, 0 WORSE across completed rungs; rung11 open and behind on exact denoise"
+    "summary": "8 BETTER, 2 TIE, 0 WORSE vs adaptive; rung11 python stretch open"
   }
 }

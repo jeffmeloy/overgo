@@ -47,6 +47,26 @@ func (l *Library) SGEMM(
 	return errors.New("cuBLAS loading is currently supported only on Windows")
 }
 
+func (l *Library) SGEMMStridedBatched(
+	handle Handle,
+	operationA, operationB Operation,
+	m, n, k int32,
+	alpha float32,
+	a driver.DevicePtr,
+	leadingA int32,
+	strideA int64,
+	b driver.DevicePtr,
+	leadingB int32,
+	strideB int64,
+	beta float32,
+	c driver.DevicePtr,
+	leadingC int32,
+	strideC int64,
+	batch int32,
+) error {
+	return errors.New("cuBLAS loading is currently supported only on Windows")
+}
+
 func (l *Library) GEMMEx(
 	handle Handle,
 	operationA, operationB Operation,

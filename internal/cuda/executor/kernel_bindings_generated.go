@@ -15,6 +15,9 @@ const (
 	kernelAttentionDecodeF32
 	kernelAttentionF32
 	kernelAttentionOnlineF32
+	kernelAttentionOnlineFinalizeF32
+	kernelAttentionOnlineInitF32
+	kernelAttentionOnlineSoftmaxF32
 	kernelAttentionTiledBf16F32
 	kernelAttentionTiledF32
 	kernelBf16RoundF32
@@ -164,6 +167,9 @@ var kernelFunctionNames = [...]string{
 	"attention_decode_f32",
 	"attention_f32",
 	"attention_online_f32",
+	"attention_online_finalize_f32",
+	"attention_online_init_f32",
+	"attention_online_softmax_f32",
 	"attention_tiled_bf16_f32",
 	"attention_tiled_f32",
 	"bf16_round_f32",
@@ -312,6 +318,9 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	12,
 	24,
 	23,
+	6,
+	5,
+	10,
 	10,
 	12,
 	3,

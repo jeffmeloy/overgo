@@ -740,6 +740,8 @@ type CompiledGraph struct {
 	needBlas        bool
 	bf16InputBytes  uint64
 	q8InputBytes    uint64
+	// attentionScoreBytes: cuBLAS attention score staging ([heads][chunk][keys] F32)
+	attentionScoreBytes uint64
 }
 
 const graphArenaAlignment = 256
@@ -902,6 +904,12 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 			}
 			compiled.bf16InputBytes = max(compiled.bf16InputBytes, elements*2)
 		}
+		if node.Op == tensor.OpAttention {
+			if bytes, ok := blasAttentionScoreBytes(node); ok {
+				compiled.needBlas = true
+				compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
+			}
+		}
 		if node.Op == tensor.OpMulMat && node.Inputs[0].Type == dtype.Q8_0 &&
 			node.Inputs[1].Shape.Rank == 2 && node.Inputs[1].Shape.Dims[1] == 1 {
 			elements, elementErr := node.Inputs[1].Shape.Elements()
@@ -916,6 +924,14 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		}
 	}
 	dependencies := compileGraphRewrites(compiled, order, uses, consumers, outputSet)
+	for _, fusion := range compiled.bf16Attention {
+		bytes, ok := blasBF16AttentionStagingBytes(fusion)
+		if !ok {
+			return nil, errors.New("fused attention BF16 staging size overflows")
+		}
+		compiled.needBlas = true
+		compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
+	}
 	memory, err := planner.BuildWithRewrites(
 		outputs, graphArenaAlignment, dependencies, compiled.skipped,
 	)
@@ -1108,6 +1124,7 @@ func (e *Executor) runCompiled(
 	err := e.worker.Do(ctx, func(state *device.State) error {
 		resources, resourceErr := e.ensureResources(
 			state, compiled.needBlas, compiled.bf16InputBytes, compiled.q8InputBytes,
+			compiled.attentionScoreBytes,
 		)
 		if resourceErr != nil {
 			return resourceErr
@@ -1591,7 +1608,7 @@ func execute(
 				continue
 			}
 			if fusion, ok := compiled.bf16Attention[node]; ok {
-				if err := launchBF16Attention(state, functions, node, fusion, pointers); err != nil {
+				if err := launchBF16Attention(state, functions, blas, node, fusion, pointers); err != nil {
 					return fmt.Errorf("launch tensor %d (bf16_attention): %w", node.ID, err)
 				}
 				submitted = submitted || !probe
@@ -1749,6 +1766,9 @@ type blasState struct {
 	staging      driver.DevicePtr
 	stagingBytes uint64
 	stagedNode   *tensor.Tensor
+	// scores: attention score staging for the strided-batched SGEMM path
+	scores     driver.DevicePtr
+	scoreBytes uint64
 }
 
 const (
@@ -1767,6 +1787,7 @@ func (e *Executor) ensureResources(
 	needBlas bool,
 	bf16InputBytes uint64,
 	q8InputBytes uint64,
+	attentionScoreBytes uint64,
 ) (*executorResources, error) {
 	if e.resources.module == 0 {
 		if err := kernel.ValidateAssets(); err != nil {
@@ -1818,6 +1839,20 @@ func (e *Executor) ensureResources(
 		}
 		e.resources.blas.staging = staging
 		e.resources.blas.stagingBytes = bf16InputBytes
+	}
+	if attentionScoreBytes > 0 && e.resources.blas != nil && e.resources.blas.scoreBytes < attentionScoreBytes {
+		scores, err := state.Driver.MemAlloc(attentionScoreBytes)
+		if err != nil {
+			return nil, err
+		}
+		if e.resources.blas.scores != 0 {
+			if err := state.Driver.MemFree(e.resources.blas.scores); err != nil {
+				_ = state.Driver.MemFree(scores)
+				return nil, err
+			}
+		}
+		e.resources.blas.scores = scores
+		e.resources.blas.scoreBytes = attentionScoreBytes
 	}
 	if q8InputBytes > e.resources.q8Input.stagingBytes {
 		staging, err := state.Driver.MemAlloc(q8InputBytes)
@@ -1877,6 +1912,11 @@ func (e *Executor) closeResources(state *device.State) error {
 			errs = append(errs, state.Driver.MemFree(e.resources.blas.staging))
 			e.resources.blas.staging = 0
 			e.resources.blas.stagingBytes = 0
+		}
+		if e.resources.blas.scores != 0 {
+			errs = append(errs, state.Driver.MemFree(e.resources.blas.scores))
+			e.resources.blas.scores = 0
+			e.resources.blas.scoreBytes = 0
 		}
 		if err := e.resources.blas.library.Destroy(e.resources.blas.handle); err != nil {
 			errs = append(errs, err)

@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "c89dfa55297eb258834ef043d5e1d4952d9445e17a67423186a31d14fb1b11e8",
+      "sourceSha256": "17ec90b6b547a186bab0bc25e8c668edb09fdedbdce70c8883b7140c00354be1",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "6a7137a49c37c4088599ced94f88521878ecd711081caa0387bfa9a842f8e269",
+      "assetSha256": "51648f2274e395644766ecafaa4852407667d96738a348231d69963ad4e072de",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -54,6 +54,9 @@
         "attention_decode_f32",
         "attention_f32",
         "attention_online_f32",
+        "attention_online_finalize_f32",
+        "attention_online_init_f32",
+        "attention_online_softmax_f32",
         "attention_tiled_bf16_f32",
         "attention_tiled_f32",
         "bf16_round_f32",
@@ -379,6 +382,53 @@
           ],
           "functions": [
             "attention_online_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "attention_online_finalize_f32",
+            "repeat_heads_f32",
+            "vae_time_interleave_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "attention_online_init_f32",
+            "top_k_f32",
+            "top_k_pairs_f32",
+            "transpose_2d_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "attention_online_softmax_f32"
           ]
         },
         {
@@ -784,20 +834,6 @@
           "parameters": [
             ".u64",
             ".u64",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".u32"
-          ],
-          "functions": [
-            "repeat_heads_f32",
-            "vae_time_interleave_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
             ".u64",
             ".u64",
             ".u64",
@@ -980,20 +1016,6 @@
           ],
           "functions": [
             "ssm_scan_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
-            ".u32",
-            ".u32",
-            ".u32"
-          ],
-          "functions": [
-            "top_k_f32",
-            "top_k_pairs_f32",
-            "transpose_2d_f32"
           ]
         },
         {

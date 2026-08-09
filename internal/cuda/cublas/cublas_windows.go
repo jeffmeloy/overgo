@@ -17,11 +17,12 @@ import (
 type Library struct {
 	dll *syscall.DLL
 
-	create    *syscall.Proc
-	destroy   *syscall.Proc
-	setStream *syscall.Proc
-	sgemm     *syscall.Proc
-	gemmEx    *syscall.Proc
+	create            *syscall.Proc
+	destroy           *syscall.Proc
+	setStream         *syscall.Proc
+	sgemm             *syscall.Proc
+	sgemmStridedBatch *syscall.Proc
+	gemmEx            *syscall.Proc
 }
 
 func Open() (*Library, error) {
@@ -49,6 +50,7 @@ func Open() (*Library, error) {
 		{"cublasDestroy_v2", &lib.destroy},
 		{"cublasSetStream_v2", &lib.setStream},
 		{"cublasSgemm_v2", &lib.sgemm},
+		{"cublasSgemmStridedBatched", &lib.sgemmStridedBatch},
 		{"cublasGemmEx", &lib.gemmEx},
 	}
 	for _, item := range required {
@@ -126,6 +128,43 @@ func (l *Library) Destroy(handle Handle) error {
 func (l *Library) SetStream(handle Handle, stream driver.Stream) error {
 	status, _, _ := l.setStream.Call(uintptr(handle), uintptr(stream))
 	return result("cublasSetStream_v2", status)
+}
+
+// SGEMMStridedBatched: column-major strided-batched F32 GEMM
+// C_i = alpha*op(A_i)*op(B_i) + beta*C_i; strides are in elements.
+func (l *Library) SGEMMStridedBatched(
+	handle Handle,
+	operationA, operationB Operation,
+	m, n, k int32,
+	alpha float32,
+	a driver.DevicePtr,
+	leadingA int32,
+	strideA int64,
+	b driver.DevicePtr,
+	leadingB int32,
+	strideB int64,
+	beta float32,
+	c driver.DevicePtr,
+	leadingC int32,
+	strideC int64,
+	batch int32,
+) error {
+	if m <= 0 || n <= 0 || k <= 0 || batch <= 0 {
+		return errors.New("cublasSgemmStridedBatched: dimensions must be positive")
+	}
+	status, _, _ := l.sgemmStridedBatch.Call(
+		uintptr(handle), uintptr(operationA), uintptr(operationB),
+		uintptr(m), uintptr(n), uintptr(k),
+		uintptr(unsafe.Pointer(&alpha)),
+		uintptr(a), uintptr(leadingA), uintptr(strideA),
+		uintptr(b), uintptr(leadingB), uintptr(strideB),
+		uintptr(unsafe.Pointer(&beta)),
+		uintptr(c), uintptr(leadingC), uintptr(strideC),
+		uintptr(batch),
+	)
+	runtime.KeepAlive(alpha)
+	runtime.KeepAlive(beta)
+	return result("cublasSgemmStridedBatched", status)
 }
 
 // SGEMM: performs column-major C = alpha*op()*op(B) + beta*C

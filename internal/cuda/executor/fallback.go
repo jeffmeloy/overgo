@@ -151,8 +151,9 @@ func traceExternalCall(state *device.State, tag uint64, words ...uint64) bool {
 }
 
 const (
-	traceTagSGEMM  = uint64(1) << 32
-	traceTagGEMMEx = uint64(2) << 32
+	traceTagSGEMM        = uint64(1) << 32
+	traceTagGEMMEx       = uint64(2) << 32
+	traceTagSGEMMStrided = uint64(3) << 32
 )
 
 func validateKernelArgumentCount(function boundKernel, count int) error {

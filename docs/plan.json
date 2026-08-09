@@ -387,7 +387,33 @@
       "id": "rung12-qwen4b",
       "title": "Qwen3.5-4B (activation-class)",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "recon-route",
+          "status": "done",
+          "title": "qwen3_5 multimodal (text_config: gated attn output, full_attention_interval hybrid; vision tower with deepstack indexes); sharded safetensors + chat template; overgo serves qwen3.5 GGUFs natively (9B pilot) -- route: convert (extend hfconvert to qwen3_5 text+vision or reuse an existing conversion path) OR locate/produce GGUF; decide by reading overgo qwen35 catalog support first"
+        },
+        {
+          "id": "convert-parity",
+          "status": "open",
+          "title": "conversion + ID/text parity vs live serving goldens (capture when GPU free; multimodal directive: image+text cases from repodb datasets)"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "title": "GGUF inference activation"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "densecausal extension per config deltas (gated attn output, hybrid attention) vs tiny torch golden; real step"
+        },
+        {
+          "id": "performance-leg",
+          "status": "open",
+          "title": "CUDA head-to-head vs adaptive serving, at-or-below"
+        }
+      ]
     },
     {
       "id": "rung13-e4b",

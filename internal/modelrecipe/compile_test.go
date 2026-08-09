@@ -109,6 +109,32 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 	}
 }
 
+func TestTabularDefinitionValidatesAgainstCatalog(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "tabular-model")
+	definition, err := TabularDefinition(modelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := definition.Validate(Catalog()); err != nil {
+		t.Fatal(err)
+	}
+	if definition.Task != recipe.TaskTabular || definition.Model != modelID {
+		t.Fatalf("definition = %+v", definition)
+	}
+	if len(definition.Nodes) != 1 || definition.Nodes[0].Module != ModuleTabularPredict ||
+		definition.Nodes[0].Placement != recipe.PlacementHost {
+		t.Fatalf("nodes = %+v", definition.Nodes)
+	}
+	if len(definition.Inputs) != 1 || definition.Inputs[0].Data != recipe.DataTensor ||
+		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataTensor {
+		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
+	}
+	// Inference compiler must refuse the non-token task.
+	if _, err := Compile(definition, model.Spec{}, model.Weights{}); err == nil {
+		t.Fatal("inference compiler accepted a tabular recipe")
+	}
+}
+
 func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "persisted-model")
 	definition, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)

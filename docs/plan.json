@@ -111,7 +111,7 @@
     {
       "id": "rung5-tabfm",
       "title": "tabfm (port-class)",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "golden-generation",
@@ -126,17 +126,20 @@
         {
           "id": "recipe-activation",
           "title": "sealed lifecycle, tabular-predict task (recipe schema may need the task enum)",
-          "status": "open"
+          "status": "done",
+          "verdict": "TaskTabular admitted (recipe schema enum + validateTask, catalog module model.tabular-predict host table->predictions, modelrecipe.TabularDefinition); dual-head artifact inventoried via new generic modelartifact.FromFiles (explicit component list, tensor facts namespaced per head). Activated: model:sha256:127ad48856519e932017fedeed3e9c09a6f12ea726f496ac1c97abeaa1bf30b5 -> recipe:sha256:545e6cca3b1f34ad8376fa18b764f2b60d1f9bde0418518a038ffbbfee3272d8, status round-trip verified (tier experimental)."
         },
         {
           "id": "training-leg",
           "title": "per baseline policy (ICL models predict via context, check what adaptive trains here first)",
-          "status": "open"
+          "status": "done",
+          "verdict": "ABSENT-baseline: adaptive_new has no tabular training capability. Evidence: extmodel/tabular_set_transformer.go is forward-only (no backward); the seeded recipe tabfm.infer.table_host.v6 has only Load+Execute stages (no adapt/train stage); recipeTaskTraining modules are causal-LM only (ModuleCausalTrainingForwardBackward); go/training and go/modeltrain contain no tabular code (only an owed-future-grid note in a skipped sweep harness). The ICL model predicts via context and trains in its vendor pytorch stack (models/tabfm-1.0.0-pytorch/tabfm/); overgo matches the reference capability surface exactly (predict only)."
         },
         {
           "id": "performance-leg",
           "title": "head-to-head vs live baseline, at-or-below",
-          "status": "open"
+          "status": "done",
+          "verdict": "AT-OR-BELOW on all 4 golden cases, matched warm-predict protocol. Reference /api/predict 'seconds' excludes load (handler compiles the resident runtime before its timer; 2nd-request values used); overgo = median of 5 warm predicts after one LoadHead (internal/tabularicl/predict_wall_test.go TestPredictWall). Seconds ref->overgo: cls_blobs 2.2320->1.8040 (0.81x), cls_wide 3.8770->2.5440 (0.66x), reg_linear 2.3345->1.8261 (0.78x), reg_wide 3.8638->2.5098 (0.65x). Overgo head load 2.2-2.8s."
         }
       ]
     },

@@ -17,6 +17,9 @@ const (
 	// ModuleForecastSeries: host forward for series-forecast capability
 	// packages; input series tensor, output quantile-forecast tensor.
 	ModuleForecastSeries recipe.ModuleID = "model.forecast-series"
+	// ModuleTabularPredict: host forward for tabular ICL capability
+	// packages; input table tensor, output per-row predictions tensor.
+	ModuleTabularPredict recipe.ModuleID = "model.tabular-predict"
 )
 
 var catalog = mustCatalog()
@@ -93,6 +96,27 @@ func ForecastDefinition(modelID artifact.ID) (recipe.Definition, error) {
 		[]recipe.Output{{
 			Name: "forecast", Data: recipe.DataTensor,
 			Source: recipe.Endpoint{Node: forward.ID, Port: "forecast"},
+		}},
+	)
+}
+
+// TabularDefinition: single host tabular-predict node bound to the model
+// artifact. The capability package derives every dimension from the
+// artifact's tensor shapes, so the definition carries no profile document.
+func TabularDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	forward := recipe.Node{ID: "tabular", Module: ModuleTabularPredict, Placement: recipe.PlacementHost}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskTabular,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
+		[]recipe.Node{forward},
+		nil,
+		[]recipe.Input{{
+			Name: "table", Data: recipe.DataTensor,
+			Target: recipe.Endpoint{Node: forward.ID, Port: "table"},
+		}},
+		[]recipe.Output{{
+			Name: "predictions", Data: recipe.DataTensor,
+			Source: recipe.Endpoint{Node: forward.ID, Port: "predictions"},
 		}},
 	)
 }
@@ -302,6 +326,12 @@ func mustCatalog() *recipe.Catalog {
 			Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs:     []recipe.Port{{Name: "series", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
 			Outputs:    []recipe.Port{{Name: "forecast", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleTabularPredict, Tasks: []recipe.Task{recipe.TaskTabular},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:     []recipe.Port{{Name: "table", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "predictions", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
 		},
 	)
 	if err != nil {

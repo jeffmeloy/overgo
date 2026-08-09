@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -29,6 +30,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/tabularicl"
 )
 
 func main() {
@@ -46,7 +48,7 @@ func run() error {
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -71,8 +73,11 @@ func run() error {
 		if strings.TrimSpace(*reason) == "" {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
-		if recipe.Task(*task) == recipe.TaskForecast {
+		switch recipe.Task(*task) {
+		case recipe.TaskForecast:
 			return activateForecast(repository, path, *reason)
+		case recipe.TaskTabular:
+			return activateTabular(repository, path, *reason)
 		}
 		return activate(repository, path, *reason)
 	case "status":
@@ -136,6 +141,79 @@ func activateForecast(repository, path, reason string) error {
 	}
 	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
 		path, recipe.TaskForecast, modelID, definition.ID, reason)
+	return nil
+}
+
+// tabularInventory: dual-head artifact (classification/ + regression/, each
+// config.json + model.safetensors) — an explicit file list; no repository
+// walker owns this layout.
+func tabularInventory(path string) (modelartifact.Inventory, error) {
+	var specs []modelartifact.FileSpec
+	for _, head := range []string{tabularicl.TaskClassification, tabularicl.TaskRegression} {
+		specs = append(specs,
+			modelartifact.FileSpec{
+				Path: filepath.Join(path, head, "config.json"),
+				Name: head + "/config", Role: artifact.ComponentConfig,
+			},
+			modelartifact.FileSpec{
+				Path: filepath.Join(path, head, "model.safetensors"),
+				Name: head + "/weights", Role: artifact.ComponentWeights,
+			},
+		)
+	}
+	return modelartifact.FromFiles(path, specs)
+}
+
+// activateTabular drives the sealed lifecycle for the dual-head tabular ICL
+// model: inventory facts, then candidate -> validated -> active with the
+// decision evidence. The capability package derives dimensions from the
+// artifact, so no profile document is published.
+func activateTabular(repository, path, reason string) error {
+	ctx := context.Background()
+	inventory, err := tabularInventory(path)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	modelID := inventory.Manifest.ID
+	batch, err := inventory.Batch("recipe/facts/" + modelID.String())
+	if err != nil {
+		return err
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return fmt.Errorf("publish model facts: %w", err)
+	}
+	definition, err := modelrecipe.TabularDefinition(modelID)
+	if err != nil {
+		return err
+	}
+	if _, _, err := modelrecipe.PublishCandidate(
+		ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
+	); err != nil {
+		return fmt.Errorf("publish candidate: %w", err)
+	}
+	if _, _, err := modelrecipe.Transition(
+		ctx, store, "recipe/validated/"+definition.ID.String(), definition,
+		recipe.StatusValidated, nil, nil,
+	); err != nil {
+		return fmt.Errorf("transition validated: %w", err)
+	}
+	evidenceID, err := activationEvidence(ctx, store, definition, reason)
+	if err != nil {
+		return err
+	}
+	if _, _, err := modelrecipe.Transition(
+		ctx, store, "recipe/active/"+definition.ID.String(), definition,
+		recipe.StatusActive, []artifact.ID{evidenceID}, nil,
+	); err != nil {
+		return fmt.Errorf("transition active: %w", err)
+	}
+	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
+		path, recipe.TaskTabular, modelID, definition.ID, reason)
 	return nil
 }
 
@@ -254,6 +332,12 @@ func status(repository, path string, task recipe.Task) error {
 			return err
 		}
 		inventory, err = modelartifact.FromHFRepository(repo)
+		if err != nil {
+			return err
+		}
+	} else if task == recipe.TaskTabular {
+		var err error
+		inventory, err = tabularInventory(path)
 		if err != nil {
 			return err
 		}

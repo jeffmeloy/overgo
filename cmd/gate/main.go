@@ -111,6 +111,7 @@ func (g *gateContext) pipeline() error {
 		{"sbom", runrecord.PhaseValidate, g.stepSBOM},
 		{"claims", runrecord.PhaseValidate, g.stepClaims},
 		{"magics", runrecord.PhaseValidate, g.stepMagics},
+		{"device", runrecord.PhaseTest, g.stepDevice},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
 	}
 	treeKey, cache := g.loadRetryCache()
@@ -478,6 +479,19 @@ func ledgerNames(repo, storePath string) (map[string]bool, error) {
 		names[document.Name] = true
 	}
 	return names, nil
+}
+
+// stepDevice is the manifest-scoped device lane routing (Automation Doctrine
+// Layer 3): the CUDA lane fires only when kernel-owning or CUDA-cone paths
+// change; a failure INCLUDING device unavailability fails the commit —
+// UNAVAILABLE never passes for a change that needs device evidence.
+func (g *gateContext) stepDevice() (bool, error) {
+	if !g.pathsTouchAny("kernels/", "internal/cuda/") {
+		g.honesty = append(g.honesty, "device lane skipped: no kernel or CUDA-cone paths in -paths")
+		return true, nil
+	}
+	_, err := command(g.repo, "go", "run", "./cmd/device-lane")
+	return false, err
 }
 
 func (g *gateContext) stepCommit() (bool, error) {

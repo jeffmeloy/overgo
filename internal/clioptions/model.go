@@ -124,7 +124,10 @@ func OpenRunner(
 	if strings.TrimSpace(repository) == "" {
 		return nil, errors.New("model recipe repository is required")
 	}
-	store, err := repodb.Open(repository)
+	// Serving only READS the store (recipe resolution); a writer open here
+	// starved concurrent serves and self-deadlocked the smoke lane against
+	// its own child process.
+	store, err := repodb.OpenReadOnly(repository)
 	if err != nil {
 		return nil, fmt.Errorf("open model recipe repository: %w", err)
 	}

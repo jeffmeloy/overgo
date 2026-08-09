@@ -1,15 +1,13 @@
 // Worker fan-out for the host math primitives: chunked ranges over a
 // persistent worker pool (spawning GOMAXPROCS goroutines per call dominated
 // the wall on codec/backbone paths that issue thousands of small dispatches
-// per second). Serial when the range cannot feed at least two workers — a
-// structural bound, not a tuned threshold. Chunks are independent, so pool
+// per second). Whether a call fans out at all, and across how many workers,
+// is decided per call by the calibrated cost model in dispatch.go — measured
+// host constants, no tuned thresholds. Chunks are independent, so pool
 // scheduling is bit-identical to the serial loop.
 package hostmath
 
-import (
-	"runtime"
-	"sync"
-)
+import "sync"
 
 type poolTask struct {
 	fn         func(start, end int)
@@ -24,7 +22,7 @@ var (
 
 func ensurePool() {
 	poolOnce.Do(func() {
-		workers := runtime.GOMAXPROCS(0) - 1
+		workers := poolWorkerLimit() - 1
 		if workers < 1 {
 			workers = 1
 		}
@@ -40,15 +38,22 @@ func ensurePool() {
 	})
 }
 
-func parallelRange(n int, fn func(start, end int)) {
-	workers := runtime.GOMAXPROCS(0)
-	if workers > n {
-		workers = n
-	}
-	if workers <= 1 {
+// parallelRangeCost: cost-modeled dispatch. unitMACs is the caller's per-unit
+// work estimate (MACs of the rate's kernel class); dispatchWorkers turns it
+// into serial-or-w-workers using the one-time host calibration.
+func parallelRangeCost(n, unitMACs int, rate macRate, fn func(start, end int)) {
+	workers := dispatchWorkers(n, unitMACs, rate)
+	if workers < 2 {
 		fn(0, n)
 		return
 	}
+	fanOut(n, workers, fn)
+}
+
+// fanOut: unconditional chunked dispatch across workers (callers guarantee
+// workers >= 2 and workers <= n). Caller works the first chunk; a saturated
+// pool (nested or concurrent dispatch) runs the chunk inline.
+func fanOut(n, workers int, fn func(start, end int)) {
 	ensurePool()
 	chunk := (n + workers - 1) / workers
 	var wg sync.WaitGroup
@@ -59,11 +64,10 @@ func parallelRange(n int, fn func(start, end int)) {
 		select {
 		case poolTasks <- task:
 		default:
-			// Pool saturated (nested or concurrent dispatch): run inline.
 			fn(start, end)
 			wg.Done()
 		}
 	}
-	fn(0, min(chunk, n)) // caller works the first chunk
+	fn(0, min(chunk, n))
 	wg.Wait()
 }

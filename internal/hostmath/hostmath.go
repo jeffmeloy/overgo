@@ -139,20 +139,27 @@ func Softplus(x float64) float64 { return math.Log1p(math.Exp(x)) }
 // Fans out over the output dimension — each worker owns disjoint dst
 // columns, so the split is race-free.
 func Linear(dst, x, w []float32, rows, inDim, outDim int) {
-	parallelRange(outDim, func(oStart, oEnd int) {
-		for r := 0; r < rows; r++ {
-			xRow := x[r*inDim : (r+1)*inDim]
-			dRow := dst[r*outDim : (r+1)*outDim]
-			for o := oStart; o < oEnd; o++ {
-				wRow := w[o*inDim : (o+1)*inDim]
-				var sum float32
-				for c := range wRow {
-					sum += wRow[c] * xRow[c]
-				}
-				dRow[o] = sum
-			}
-		}
+	// rows*inDim MACs per output column.
+	parallelRangeCost(outDim, rows*inDim, macF32, func(oStart, oEnd int) {
+		linearCols(dst, x, w, rows, inDim, outDim, oStart, oEnd)
 	})
+}
+
+// linearCols: output columns [oStart,oEnd) of Linear — the serial kernel the
+// dispatch calibration times.
+func linearCols(dst, x, w []float32, rows, inDim, outDim, oStart, oEnd int) {
+	for r := 0; r < rows; r++ {
+		xRow := x[r*inDim : (r+1)*inDim]
+		dRow := dst[r*outDim : (r+1)*outDim]
+		for o := oStart; o < oEnd; o++ {
+			wRow := w[o*inDim : (o+1)*inDim]
+			var sum float32
+			for c := range wRow {
+				sum += wRow[c] * xRow[c]
+			}
+			dRow[o] = sum
+		}
+	}
 }
 
 // AddBias adds bias element-wise; a nil bias is the no-bias variant.
@@ -202,7 +209,9 @@ func MaskedBidirectionalAttention(out, q, k, v []float32, querySeq, keySeq, head
 		panic("hostmath: attention key mask length != keySeq")
 	}
 	clear(out)
-	parallelRange(heads, func(hStart, hEnd int) {
+	// Per head: querySeq*keySeq (score dot + value mix) pairs at 2*headDim
+	// MACs each; softmax exp is lower-order (keySeq vs keySeq*headDim).
+	parallelRangeCost(heads, 2*querySeq*keySeq*headDim, macF64, func(hStart, hEnd int) {
 		scores := make([]float64, keySeq)
 		group := heads / kvHeads
 		for h := hStart; h < hEnd; h++ {
@@ -255,41 +264,61 @@ func MaskedBidirectionalAttention(out, q, k, v []float32, querySeq, keySeq, head
 // kvHeads == heads is the per-head case). Scores are f64 dots stored f32.
 func CausalAttention(out, q, k, v []float32, seq, heads, kvHeads, headDim int) {
 	clear(out)
-	parallelRange(heads, func(hStart, hEnd int) {
+	// Per head: causal span sum_qi(qi+1) = seq*(seq+1)/2 pairs at 2*headDim
+	// MACs each (score dot + value mix).
+	parallelRangeCost(heads, seq*(seq+1)*headDim, macF64, func(hStart, hEnd int) {
 		causalAttentionHeads(out, q, k, v, seq, heads, kvHeads, headDim, hStart, hEnd)
 	})
 }
 
 // CausalAttentionStep: one cached-decode query at position cachedRows-1
 // attending the cachedRows keys/values accumulated so far — the incremental
-// form of CausalAttention. Same per-row math (f64 dots stored f32,
-// SoftmaxInPlace, f32 value accumulation), so a stepped decode is
-// bit-identical to the full-sequence core's row at that position. Layout:
-// q/out [heads][headDim] flat; kCache/vCache [cachedRows][kvHeads][headDim].
+// form of CausalAttention. Layout: q/out [heads][headDim] flat;
+// kCache/vCache [cachedRows][kvHeads][headDim].
 func CausalAttentionStep(out, q, kCache, vCache []float32, cachedRows, heads, kvHeads, headDim int) {
+	CausalAttentionSteps(out, q, kCache, vCache, cachedRows-1, 1, heads, kvHeads, headDim)
+}
+
+// CausalAttentionSteps: T new cached-decode queries at positions
+// rows0..rows0+T-1, each attending the cache prefix through its own row —
+// the batched form of CausalAttentionStep. Same per-row math (f64 dots
+// stored f32, SoftmaxInPlace, f32 value accumulation), so a stepped decode
+// is bit-identical to the full-sequence core's row at that position.
+// Layout: q/out [T][heads][headDim] flat; kCache/vCache hold rows0+T rows
+// [kvHeads][headDim]. Parallel over heads — each worker owns disjoint out
+// slices per row.
+func CausalAttentionSteps(out, q, kCache, vCache []float32, rows0, T, heads, kvHeads, headDim int) {
 	clear(out)
 	group := heads / kvHeads
-	scores := make([]float32, cachedRows)
-	for h := 0; h < heads; h++ {
-		kv := h / group
-		qRow := q[h*headDim : (h+1)*headDim]
-		for ki := range scores {
-			kRow := kCache[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-			var dot float64
-			for d := 0; d < headDim; d++ {
-				dot += float64(qRow[d]) * float64(kRow[d])
+	// Per head: sum_t (rows0+t+1) key rows at 2*headDim MACs each (score
+	// dot + value mix).
+	unit := 2 * headDim * (T*rows0 + T*(T+1)/2)
+	parallelRangeCost(heads, unit, macF64, func(hStart, hEnd int) {
+		scores := make([]float32, rows0+T)
+		for h := hStart; h < hEnd; h++ {
+			kv := h / group
+			for t := 0; t < T; t++ {
+				probs := scores[:rows0+t+1]
+				qRow := q[(t*heads+h)*headDim : (t*heads+h+1)*headDim]
+				for ki := range probs {
+					kRow := kCache[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+					var dot float64
+					for d := 0; d < headDim; d++ {
+						dot += float64(qRow[d]) * float64(kRow[d])
+					}
+					probs[ki] = float32(dot)
+				}
+				SoftmaxInPlace(probs)
+				outRow := out[(t*heads+h)*headDim : (t*heads+h+1)*headDim]
+				for ki, weight := range probs {
+					vRow := vCache[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+					for d := 0; d < headDim; d++ {
+						outRow[d] += weight * vRow[d]
+					}
+				}
 			}
-			scores[ki] = float32(dot)
 		}
-		SoftmaxInPlace(scores)
-		outRow := out[h*headDim : (h+1)*headDim]
-		for ki, weight := range scores {
-			vRow := vCache[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-			for d := 0; d < headDim; d++ {
-				outRow[d] += weight * vRow[d]
-			}
-		}
-	}
+	})
 }
 
 // causalAttentionHeads runs the head range [hStart,hEnd) — each worker owns

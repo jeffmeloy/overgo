@@ -14,30 +14,37 @@ func CausalConv1d(x []float32, cIn, T int, w, bias []float32, cOut, k, stride in
 	leftPad := k - stride
 	outT := T / stride
 	out := make([]float32, cOut*outT)
-	parallelRange(cOut, func(coLo, coHi int) {
-		for co := coLo; co < coHi; co++ {
-			for ot := 0; ot < outT; ot++ {
-				start := ot*stride - leftPad
-				var acc float64
-				for ci := 0; ci < cIn; ci++ {
-					xRow := x[ci*T:]
-					wRow := w[(co*cIn+ci)*k:]
-					for j := 0; j < k; j++ {
-						ti := start + j
-						if ti < 0 || ti >= T {
-							continue // zero padding
-						}
-						acc += float64(xRow[ti]) * float64(wRow[j])
-					}
-				}
-				if bias != nil {
-					acc += float64(bias[co])
-				}
-				out[co*outT+ot] = float32(acc)
-			}
-		}
+	// outT*cIn*k MACs per output channel.
+	parallelRangeCost(cOut, outT*cIn*k, macF64, func(coLo, coHi int) {
+		causalConv1dChannels(out, x, w, bias, cIn, T, outT, k, stride, leftPad, coLo, coHi)
 	})
 	return out
+}
+
+// causalConv1dChannels: output channels [coLo,coHi) of CausalConv1d — the
+// serial kernel the dispatch calibration times.
+func causalConv1dChannels(out, x, w, bias []float32, cIn, T, outT, k, stride, leftPad, coLo, coHi int) {
+	for co := coLo; co < coHi; co++ {
+		for ot := 0; ot < outT; ot++ {
+			start := ot*stride - leftPad
+			var acc float64
+			for ci := 0; ci < cIn; ci++ {
+				xRow := x[ci*T:]
+				wRow := w[(co*cIn+ci)*k:]
+				for j := 0; j < k; j++ {
+					ti := start + j
+					if ti < 0 || ti >= T {
+						continue // zero padding
+					}
+					acc += float64(xRow[ti]) * float64(wRow[j])
+				}
+			}
+			if bias != nil {
+				acc += float64(bias[co])
+			}
+			out[co*outT+ot] = float32(acc)
+		}
+	}
 }
 
 // ConvTranspose1dTrim: 1-D transposed convolution, trimming the trailing
@@ -51,7 +58,9 @@ func ConvTranspose1dTrim(x []float32, cIn, T int, w, bias []float32, cOut, k, st
 	cInPerG := cIn / groups
 	cOutPerG := cOut / groups
 	out := make([]float32, cOut*outT)
-	parallelRange(cOut, func(coLo, coHi int) {
+	// cInPerG*T*k MACs per output channel; the outT accumulate-copy is
+	// lower-order (outT = T*stride <= T*k).
+	parallelRangeCost(cOut, cInPerG*T*k, macF64, func(coLo, coHi int) {
 		acc := make([]float64, fullT)
 		for co := coLo; co < coHi; co++ {
 			clear(acc)

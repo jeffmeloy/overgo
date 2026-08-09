@@ -436,6 +436,17 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 	if err := s.applyGrammar(adjusted); err != nil {
 		return 0, err
 	}
+	if s.IsRawGreedy() {
+		// full candidate pipeline reduces to argmax; skip vocab-wide sort
+		best := 0
+		for index, value := range adjusted {
+			if value > adjusted[best] {
+				best = index
+			}
+		}
+		s.recordGreedyProbability(best)
+		return s.acceptGrammar(best)
+	}
 	if s.config.Mirostat != 0 && s.config.Temperature == 0 {
 		best := 0
 		for index, value := range adjusted {

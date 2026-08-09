@@ -89,12 +89,7 @@ func Convert(options Options) (Report, error) {
 	if strings.TrimSpace(options.OutputPath) == "" {
 		return Report{}, errors.New("HF converter: output path is required")
 	}
-	if _, statErr := os.Stat(filepath.Join(directory, "model.safetensors.index.json")); statErr == nil {
-		return Report{}, errors.New("HF converter: sharded checkpoints are unsupported; need a single model.safetensors")
-	}
-	if _, statErr := os.Stat(filepath.Join(directory, "model.safetensors")); statErr != nil {
-		return Report{}, fmt.Errorf("HF converter: model.safetensors: %w", statErr)
-	}
+	// Shard discovery (single file or index) is OpenSource's contract.
 	config, err := readConfig(directory)
 	if err != nil {
 		return Report{}, err
@@ -156,13 +151,19 @@ func validateConfig(config modelConfig) error {
 		config.MaxPositions == 0 || config.RMSEpsilon <= 0 || config.RopeTheta <= 0 {
 		return errors.New("HF converter: configuration is incomplete")
 	}
-	if config.HiddenSize%config.AttentionHeads != 0 {
+	if config.HeadDim == 0 && config.HiddenSize%config.AttentionHeads != 0 {
 		return errors.New("HF converter: hidden size is not divisible by head count")
 	}
-	if config.HeadDim != 0 && config.HeadDim != config.HiddenSize/config.AttentionHeads {
-		return errors.New("HF converter: explicit head_dim disagrees with hidden_size/num_attention_heads")
-	}
 	return nil
+}
+
+// headDim: explicit head_dim is authoritative (may differ from hidden/heads,
+// e.g. MiniCPM5 128 vs 96); fallback hidden/heads.
+func (c modelConfig) headDim() uint32 {
+	if c.HeadDim != 0 {
+		return c.HeadDim
+	}
+	return c.HiddenSize / c.AttentionHeads
 }
 
 func modelMetadata(directory, name string, profile archProfile, config modelConfig) ([]gguf.Metadata, error) {
@@ -178,7 +179,9 @@ func modelMetadata(directory, name string, profile archProfile, config modelConf
 		uint32Metadata(prefix+"attention.head_count_kv", config.KVHeads),
 		float32Metadata(prefix+"attention.layer_norm_rms_epsilon", config.RMSEpsilon),
 		float32Metadata(prefix+"rope.freq_base", config.RopeTheta),
-		uint32Metadata(prefix+"rope.dimension_count", config.HiddenSize/config.AttentionHeads),
+		uint32Metadata(prefix+"attention.key_length", config.headDim()),
+		uint32Metadata(prefix+"attention.value_length", config.headDim()),
+		uint32Metadata(prefix+"rope.dimension_count", config.headDim()),
 		uint32Metadata(prefix+"vocab_size", config.Vocabulary),
 	}
 	tokenizerItems, err := tokenizerMetadata(directory, config.Vocabulary)
@@ -275,15 +278,21 @@ const (
 	tokenTypeUnused      = 5
 )
 
-// HF pre-tokenizer Split regexes mapped to GGUF pre names the runtime supports.
+// HF pre-tokenizer Split regexes mapped to GGUF pre names the runtime
+// supports. A Sequence of Split nodes keys on the newline-joined regexes:
+// llama3-family tokenizers (MiniCPM5) isolate 1-3 digit runs first, then
+// split with the main regex — composition equals llama.cpp's llama-bpe.
 const (
-	gpt2SplitRegex  = `'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+`
-	qwen2SplitRegex = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
+	gpt2SplitRegex   = `'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+`
+	qwen2SplitRegex  = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
+	digitSplitRegex  = `\p{N}{1,3}`
+	llama3SplitRegex = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}+| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
 )
 
 var splitRegexPre = map[string]string{
 	gpt2SplitRegex:  "gpt-2",
 	qwen2SplitRegex: "qwen2",
+	digitSplitRegex + "\n" + llama3SplitRegex: "llama-bpe",
 }
 
 type preTokenizerNode struct {
@@ -307,12 +316,9 @@ func preTokenizerName(raw json.RawMessage) (string, error) {
 	if len(regexes) == 0 {
 		return "gpt-2", nil
 	}
-	if len(regexes) > 1 {
-		return "", fmt.Errorf("HF converter: %d pre-tokenizer split patterns; need at most one", len(regexes))
-	}
-	pre, ok := splitRegexPre[regexes[0]]
+	pre, ok := splitRegexPre[strings.Join(regexes, "\n")]
 	if !ok {
-		return "", fmt.Errorf("HF converter: unsupported pre-tokenizer split regex %q", regexes[0])
+		return "", fmt.Errorf("HF converter: unsupported pre-tokenizer split sequence %q", regexes)
 	}
 	return pre, nil
 }

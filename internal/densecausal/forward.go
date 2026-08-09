@@ -1,7 +1,7 @@
 // Forward for the dense causal-LM capability: embedding lookup, pre-norm
 // decoder layers (split-half rope, GQA causal attention, SiLU-gated MLP),
-// final norm, tied lm head. Full-sequence prefill — training posture, no
-// cache.
+// final norm, lm head (tied embedding or untied lm_head.weight). Full-sequence
+// prefill — training posture, no cache.
 package densecausal
 
 import (
@@ -155,15 +155,31 @@ func (m *Model) forwardStates(tokens []int) ([][]float32, error) {
 	return states, nil
 }
 
-// Logits: final norm then the tied lm head over every position;
-// returns [seq*vocab] flat.
+// Logits: final norm then the lm head (HeadName: tied embedding or untied
+// lm_head.weight) over every position; returns [seq*vocab] flat.
 func (m *Model) logits(final []float32, seq int) []float32 {
 	d := m.Dims
 	normed := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
 	out := make([]float32, seq*d.Vocab)
-	hostmath.Linear(out, normed, m.Weights["model.embed_tokens.weight"], seq, d.Hidden, d.Vocab)
+	hostmath.Linear(out, normed, m.head(), seq, d.Hidden, d.Vocab)
 	return out
+}
+
+// head: lm-head weight view; the embedding when tied.
+func (m *Model) head() []float32 {
+	if m.HeadName == "" {
+		return m.Weights["model.embed_tokens.weight"]
+	}
+	return m.Weights[m.HeadName]
+}
+
+// headName: grad slot key for the lm head.
+func (m *Model) headName() string {
+	if m.HeadName == "" {
+		return "model.embed_tokens.weight"
+	}
+	return m.HeadName
 }
 
 // Loss: forward-only causal-LM loss (mean CE, positions 0..n-2 predicting

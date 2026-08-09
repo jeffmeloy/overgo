@@ -271,8 +271,34 @@
     {
       "id": "rung10-minicpm",
       "title": "MiniCPM5-1B",
-      "status": "open",
-      "steps": []
+      "status": "done",
+      "steps": [
+        {
+          "id": "golden-import",
+          "status": "done",
+          "title": "torch top-10 logits golden pulled from adaptive fixtures (prompt/input_ids/top10 ids+logits+stats)"
+        },
+        {
+          "id": "convert-parity",
+          "status": "done",
+          "title": "hfconvert llama path extended: sharded-index checkpoints (OpenSource contract), explicit head_dim authoritative (128 != hidden/heads 96; attention.key_length/value_length + rope.dimension_count emitted), llama3-family two-Split pre-tokenizer sequence -> llama-bpe; untied lm_head -> output.weight was already handled. Top-10 ids exact vs torch golden, logits within 2.6e-5 of 4-decimal rounding; text byte-equal on all 3 live serving goldens"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "done",
+          "title": "GGUF inference recipe activated + status round-trip (tier experimental)"
+        },
+        {
+          "id": "training-leg",
+          "status": "done",
+          "title": "densecausal untied head: HeadName routes lm-head grads to lm_head.weight (tied case unchanged: same slot accumulates). No new tiny golden -- llama math pinned by llama_train_golden.json; untied routing pinned against the tied golden (duplicate-head split test). Real step: loss 11.959011 -> 8.589184"
+        },
+        {
+          "id": "performance-leg",
+          "status": "done",
+          "title": "benchmark -native-quant CUDA 3 runs x2: decode p50 321.7 / 363.0 tok/s vs serving baseline 294.6-295.8 tok/s (3.40-3.44 ms/tok) -- at-or-below (faster)"
+        }
+      ]
     },
     {
       "id": "rung11-wan",

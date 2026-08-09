@@ -41,12 +41,14 @@ type Dims struct {
 	AttnBias     bool
 }
 
-// Model: loaded weights (f32), shapes, and derived dims. lm head is the
-// embedding when tied (the only layout this path has evidence for).
+// Model: loaded weights (f32), shapes, and derived dims. HeadName keys the
+// lm-head weight: lm_head.weight when untied, the embedding when tied — the
+// tied case accumulates head+scatter grads in the one shared slot.
 type Model struct {
-	Dims    Dims
-	Weights map[string][]float32
-	Shapes  map[string][]int
+	Dims     Dims
+	Weights  map[string][]float32
+	Shapes   map[string][]int
+	HeadName string
 }
 
 type artifactConfig struct {
@@ -119,6 +121,10 @@ func Load(directory string) (*Model, error) {
 	default:
 		return nil, fmt.Errorf("densecausal: unsupported model_type %q (llama, qwen2)", config.ModelType)
 	}
+	// tie_word_embeddings cross-check: tied forbids lm_head.weight, untied requires it.
+	if untied := m.HeadName == "lm_head.weight"; untied == config.TieWordEmbeddings {
+		return nil, fmt.Errorf("densecausal: tie_word_embeddings=%v but lm_head.weight present=%v", config.TieWordEmbeddings, untied)
+	}
 	return m, nil
 }
 
@@ -131,8 +137,16 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 		return nil, err
 	}
 	d.Vocab, d.Hidden = embed[0], embed[1]
+	headName := "model.embed_tokens.weight"
 	if _, untied := shapes["lm_head.weight"]; untied {
-		return nil, fmt.Errorf("densecausal: untied lm_head.weight present; only tied embeddings are verified")
+		head, err := shapeOf(shapes, "lm_head.weight", 2)
+		if err != nil {
+			return nil, err
+		}
+		if head[0] != d.Vocab || head[1] != d.Hidden {
+			return nil, fmt.Errorf("densecausal: lm_head.weight %v, want [%d %d]", head, d.Vocab, d.Hidden)
+		}
+		headName = "lm_head.weight"
 	}
 	if heads <= 0 {
 		return nil, fmt.Errorf("densecausal: config num_attention_heads %d", heads)
@@ -205,7 +219,7 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 			return nil, fmt.Errorf("densecausal: unexpected bias tensor %q", name)
 		}
 	}
-	return &Model{Dims: d, Weights: weights, Shapes: shapes}, nil
+	return &Model{Dims: d, Weights: weights, Shapes: shapes, HeadName: headName}, nil
 }
 
 // layerAttnBias validates the per-layer q/k/v bias triple: absent entirely,

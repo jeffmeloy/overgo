@@ -23,8 +23,11 @@ func artifactDir(t *testing.T, name string) string {
 		t.Fatal(err)
 	}
 	dir := filepath.Join(roots.Models, name)
+	// Single-file or sharded-index checkpoints both qualify (OpenSource contract).
 	if _, err := os.Stat(filepath.Join(dir, "model.safetensors")); err != nil {
-		t.Skipf("UNAVAILABLE: %s artifact absent at %s; real-artifact training step NOT verified", name, dir)
+		if _, err := os.Stat(filepath.Join(dir, "model.safetensors.index.json")); err != nil {
+			t.Skipf("UNAVAILABLE: %s artifact absent at %s; real-artifact training step NOT verified", name, dir)
+		}
 	}
 	return dir
 }

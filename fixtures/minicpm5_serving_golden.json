@@ -1,0 +1,44 @@
+{
+  "schema": "minicpm5_serving_golden/v1",
+  "source": "adaptive_new adaptive-gpt-server /api/infer (cuda build), greedy device argmax",
+  "model_dir": "models/MiniCPM5-1B",
+  "date": "2026-08-09",
+  "cases": [
+    {
+      "name": "capital",
+      "prompt": "The capital of France is",
+      "max_tokens": 24,
+      "text": " Paris, a city renowned for its rich history, cultural significance, and global influence. Paris has been the capital of France",
+      "prompt_tokens": 6,
+      "generated_tokens": 24,
+      "decode_median_ms": 3.39855,
+      "decode_tok_per_sec": 87.58154603514532,
+      "serving_path": "resident KV-cache",
+      "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+    },
+    {
+      "name": "count",
+      "prompt": "One, two, three, four,",
+      "max_tokens": 24,
+      "text": " five, six, seven, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen, sixteen,",
+      "prompt_tokens": 9,
+      "generated_tokens": 24,
+      "decode_median_ms": 3.4391000000000003,
+      "decode_tok_per_sec": 294.62249891117773,
+      "serving_path": "resident KV-cache",
+      "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+    },
+    {
+      "name": "code",
+      "prompt": "def fibonacci(n):",
+      "max_tokens": 32,
+      "text": " # Function to calculate the nth Fibonacci number. def fibonacci(n): # Function to calculate the nth Fibonacci number. return [0, 1] if n",
+      "prompt_tokens": 6,
+      "generated_tokens": 32,
+      "decode_median_ms": 3.3999499999999996,
+      "decode_tok_per_sec": 295.8382242072013,
+      "serving_path": "resident KV-cache",
+      "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+    }
+  ]
+}

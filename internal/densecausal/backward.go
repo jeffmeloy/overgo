@@ -1,9 +1,9 @@
 // Backward for the dense causal-LM capability, composed from hostmath VJPs
 // in checkpoint posture: only the per-layer residual-stream inputs are
 // retained; every trace is recomputed from them. Gradients are keyed by the
-// checkpoint tensor names an optimizer consumes. Tied embeddings: the one
-// embedding gradient slot accumulates BOTH the lm-head contribution and the
-// input-lookup scatter.
+// checkpoint tensor names an optimizer consumes. Head grads key by HeadName:
+// tied, the one embedding slot accumulates BOTH the lm-head contribution and
+// the input-lookup scatter; untied, lm_head.weight gets its own slot.
 package densecausal
 
 import (
@@ -41,18 +41,18 @@ func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
 	final := states[d.Layers]
 	normed := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
-	embed := m.Weights["model.embed_tokens.weight"]
+	head := m.head()
 	logits := make([]float32, seq*d.Vocab)
-	hostmath.Linear(logits, normed, embed, seq, d.Hidden, d.Vocab)
+	hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
 
 	g := Grads{}
 	// Last position predicts nothing: its logits row carries zero gradient.
 	dLogits := make([]float32, seq*d.Vocab)
 	loss := hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
 
-	gradEmbed := g.slot("model.embed_tokens.weight", len(embed))
+	gradHead := g.slot(m.headName(), len(head))
 	dNormed := make([]float32, seq*d.Hidden)
-	hostmath.LinearBackward(dNormed, gradEmbed, nil, normed, embed, dLogits, seq, d.Hidden, d.Vocab, false)
+	hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
 	dx := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormBackward(dx, g.slot("model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
 
@@ -63,7 +63,10 @@ func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
 			return 0, nil, nil, err
 		}
 	}
-	// Input-embedding scatter (second tied contribution).
+	// Input-embedding scatter (the second contribution when tied; the only
+	// embedding contribution when untied).
+	embed := m.Weights["model.embed_tokens.weight"]
+	gradEmbed := g.slot("model.embed_tokens.weight", len(embed))
 	for t, id := range tokens {
 		row := gradEmbed[id*d.Hidden : (id+1)*d.Hidden]
 		dRow := dx[t*d.Hidden : (t+1)*d.Hidden]

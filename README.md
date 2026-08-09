@@ -33,11 +33,19 @@ The implementation is currently experimental. See:
 
 ## Development
 
-```powershell
+Commits go through the gate, which owns hygiene (fmt/vet/build), derived-scope
+tests, manifest/SBOM/claims verification, and the store record:
+
+```bash
+go run ./cmd/gate -message-file msg.txt -paths internal/foo/bar.go
+```
+
+Standalone checks and lanes:
+
+```bash
 go test ./...
-go run ./cmd/cuda-info
-.\scripts\verify.ps1 -CUDA
-.\scripts\fuzz-smoke.ps1 -Duration 5s
+go run ./cmd/device-lane
+bash scripts/fuzz-smoke.sh 5s
 go run ./cmd/kernel-manifest
 go run ./cmd/compatibility -check
 go run ./cmd/sbom -check
@@ -46,11 +54,11 @@ go run ./cmd/release -out dist -verify-reproducible
 
 Regenerate the pinned llama.cpp IQ codebook tables for both Go and CUDA with:
 
-```powershell
-go run ./cmd/gen-iq-tables `
-  -source C:\path\to\llama.cpp\ggml\src\ggml-common.h `
-  -out internal\quant\iq_tables_generated.go `
-  -cuda-out kernels\cuda\iq_tables_generated.cuh `
+```bash
+go run ./cmd/gen-iq-tables \
+  -source /path/to/llama.cpp/ggml/src/ggml-common.h \
+  -out internal/quant/iq_tables_generated.go \
+  -cuda-out kernels/cuda/iq_tables_generated.cuh \
   -commit 42fc243060709331ff9b158a9ed2cbe37219ae83
 ```
 
@@ -61,7 +69,7 @@ driver instance; cuBLAS launches are not misreported as custom kernels.
 
 Inspect or tokenize a GGUF model with:
 
-```powershell
+```bash
 go run ./cmd/inspect-gguf -metadata -tensors <model.gguf>
 go run ./cmd/inspect-safetensors -tensors -validate-runtime <model-directory>
 go run ./cmd/gguf-hash -all -uuid <model.gguf>
@@ -781,8 +789,9 @@ external archive checksum. Kernel-manifest and SBOM freshness are release
 gates. The tag/manual GitHub workflow uploads this unsigned artifact; signing
 requires a user-controlled certificate and is not simulated.
 
-Regenerate the embedded smoke-test PTX with:
+Regenerate the embedded smoke-test PTX (compiles kernels for the pinned
+device class, refreshes runtime pins, updates and verifies the manifest):
 
-```powershell
-.\scripts\build-kernels.ps1
+```bash
+go run ./cmd/build-kernels
 ```

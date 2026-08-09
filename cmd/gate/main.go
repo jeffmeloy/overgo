@@ -268,9 +268,35 @@ func (g *gateContext) stepClaims() (bool, error) {
 }
 
 func (g *gateContext) stepCommit() (bool, error) {
-	addArgs := append([]string{"add", "--"}, g.paths...)
-	if _, err := command(g.repo, "git", addArgs...); err != nil {
+	// Add only paths with UNSTAGED changes: git refuses an add pathspec for a
+	// file that is gone with its deletion already fully staged (observed on
+	// the .ps1 retirement commit, under both plain and -A forms). Fully
+	// staged entries need no add; the scope step already proved staged
+	// content stays inside -paths.
+	dirty, err := gitLines(g.repo, append([]string{"status", "--porcelain", "--"}, g.paths...)...)
+	if err != nil {
 		return false, err
+	}
+	needAdd := map[string]bool{}
+	for _, line := range dirty {
+		if len(line) < 4 {
+			continue
+		}
+		if line[1] != ' ' || strings.HasPrefix(line, "??") {
+			needAdd[filepath.ToSlash(strings.TrimSpace(line[3:]))] = true
+		}
+	}
+	var addList []string
+	for _, p := range g.paths {
+		if needAdd[p] {
+			addList = append(addList, p)
+		}
+	}
+	if len(addList) > 0 {
+		addArgs := append([]string{"add", "-A", "--"}, addList...)
+		if _, err := command(g.repo, "git", addArgs...); err != nil {
+			return false, err
+		}
 	}
 	cmd := exec.Command("git", "commit", "-F", g.messageFile)
 	cmd.Dir = g.repo

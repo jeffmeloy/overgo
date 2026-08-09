@@ -39,7 +39,7 @@ Two dependency directions, each with a named failure mode:
 | 5 | Closure scan / native magic baseline | PENDING | `cmd/closure-scan` (to build) |
 | 6 | Statistical / longitudinal layer | DEFERRED to wave 1 | `internal/runrecord` advisories + gate wiring |
 | 7 | Exporter durable commit + remaining scopes | PARTIAL | `cmd/repodb-export` (adaptive_new) |
-| 8 | PowerShell retirement (Go/bash automation) | PARTIAL | `scripts/*.ps1`, README, docs |
+| 8 | PowerShell retirement (Go/bash automation) | DONE | `cmd/device-lane`, `cmd/build-kernels`, `scripts/fuzz-smoke.sh` |
 | 9 | Data organization (models/datasets/checkpoints) | PARTIAL | data roots, `internal/artifact` locations, guard |
 
 ## Built components
@@ -178,33 +178,28 @@ Remaining export scopes, same wire pattern, ordered by port need:
 - **Dataset** split/mixture/dedup facts -> needed before the training wave.
 - **Findings** -> the live adversarial register moves as store documents.
 
-### 8. PowerShell retirement (PARTIAL)
+### 8. PowerShell retirement (DONE)
 
 Doctrine (skill.md Code Hygiene) is no PowerShell -- scripts are bash or Go.
-This is not cosmetic: the guard BLOCKS `powershell`/`pwsh` invocation, so the
-three shipped `.ps1` scripts are a live contradiction -- the repo forbids
-running the workflow its own README documents, and merge-week muscle memory
-must not form around commands the guard rejects.
+The three `.ps1` scripts were a live contradiction (the guard blocks
+`powershell`/`pwsh` while README documented running them). Resolved:
 
-State and disposition:
-- `verify.ps1` -- ~80% SUPERSEDED by `cmd/gate` (fmt/vet/build/test/sbom/
-  manifest/claims). The only unique remainder is the CUDA/device lane
-  (`cuda-info`, `cuda-smoke`, `internal/cuda/...` integration tests) and the
-  full unscoped `go test ./...`. Disposition: give the CUDA lane a Go/bash
-  home (the manifest-routed device lane of Automation Doctrine Layer 3), THEN
-  delete `verify.ps1` and repoint README. Do not delete before the CUDA lane
-  has a home -- that loses the device-test invocation.
-- `build-kernels.ps1` -- nvcc PTX/cubin build. Port to a `cmd/build-kernels`
-  Go tool (or thin bash) that shells nvcc; the ABI manifest already owns the
-  provenance side, this is just the invocation.
-- `fuzz-smoke.ps1` -- fuzz harness. Port to bash or a Go cmd.
-- Doc/example references (README, `docs/IMPLEMENTATION_LOG.md`,
-  `docs/REPODB_IMPORT.md`): repoint to the bash/Go equivalents. The
-  `REPODB_IMPORT.md` example is already converted.
-
-Sequence: it rides component 1 (gate) already having absorbed the hygiene
-chain, so the remaining work is the CUDA lane home + two script ports + doc
-repointing. Retiring `verify.ps1` is the last step, gated on the CUDA lane.
+- `cmd/device-lane` (Go) owns the CUDA/device lane: `cuda-info` as the
+  availability probe (failure = UNAVAILABLE, loudly, never green),
+  `cuda-smoke`, then the env-gated CUDA integration tests. Faithful port of
+  verify.ps1's unique remainder; the manifest-scoped form remains the Layer-3
+  target and the lane says so in its honesty line.
+- `cmd/build-kernels` (Go) owns kernel builds: nvcc PTX for the pinned device
+  class (`compute_89`, the compatibility-baseline device -- a baseline
+  decision, not a flag), runtime SHA-256 pin refresh in the validation
+  source, then kernel-manifest update + verify so provenance and bytes agree.
+- `scripts/fuzz-smoke.sh` (bash) owns the never-panic fuzz sweep, duration
+  per target as the argument.
+- `verify.ps1`, `build-kernels.ps1`, `fuzz-smoke.ps1` deleted; README
+  converted to bash/Go throughout (gate for commits, device-lane and
+  fuzz-smoke as standalone lanes). `docs/IMPLEMENTATION_LOG.md` retains
+  historical `.ps1` mentions as frozen chronology, which is allowed -- live
+  guidance no longer references deleted surfaces.
 
 ### 9. Data organization (PARTIAL)
 
@@ -304,7 +299,7 @@ expensively answered question (the `schedule.go` num_steps case).
       capability waves (TimesFM onward), NOT the wave-1 pilot, which runs on
       overgo's own safetensors/catalog path.
 - [ ] Statistical layer calibrated against wave-1 runs (component 6).
-- [ ] PowerShell scripts retired to Go/bash; guard-vs-shipped-PS contradiction
+- [x] PowerShell scripts retired to Go/bash; guard-vs-shipped-PS contradiction
       resolved (component 8).
 - [x] Guard + gitignore cover all three data roots incl. checkpoints (component 9).
 - [ ] Single data-root config contract; discovery as a store query (component 9).
@@ -314,10 +309,49 @@ Qwen recipe parity) NOW. Components 5-7 complete it in parallel with that
 pilot; none blocks starting the pilot, and the pilot's runs are what
 component 6 needs to exist.
 
-## Wave-1 pilot (first port, calibration corpus)
+## Model ladder (owner directive 2026-08-08)
 
-Dense Qwen recipe compiled into overgo's `ModelPlan`, active-recipe authority
-required (already native: `e1fc61f`), token/cache/CUDA parity proven and
-recorded to the store. Small enough to be safe under the bare floor, real
-enough to generate the run history that calibrates component 6. Inference and
-training organs at full rate follow only after it defends.
+After the floor: merge adaptive_new's models ONE AT A TIME, smallest to
+largest, verifying the inference AND training capabilities of each before the
+next -- the ladder is the port order, and each rung is its own gated,
+evidence-recorded slice.
+
+Per-rung acceptance:
+- Inference: the model serves through overgo recipe authority; parity evidence
+  recorded to the store (vs adaptive_new goldens where they exist, vs the
+  pinned upstream oracle where they apply); its compatibility claim carries
+  the honest evidence tier.
+- Training: whatever adaptive_new could do with this model (fine-tune, LoRA
+  adapt, probe-train) is demonstrated through overgo's training path, with
+  the magic-ledger closure audit run on every surface the rung touches.
+- Performance (owner directive 2026-08-08): overgo's wall time AND peak
+  memory for the rung's operations must be AT OR BELOW adaptive_new's
+  recorded numbers for the same artifact and operation -- the match-or-beat
+  doctrine applied per rung, measured through the store's phased
+  environment-bound runs against adaptive_new's exported measurement
+  baselines (component 7's measurements scope is what supplies them). A rung
+  that regresses time or memory does not pass; the regression becomes the
+  rung's blocking finding. The comparison itself follows the no-magic and
+  distribution disciplines (owner directive 2026-08-08): at n<=3 replicates
+  the only bankable verdict is envelope separation (non-overlapping min-max);
+  beyond that, median/MAD -- never mean/sd without a recorded defense; any
+  tolerance or noise floor in the comparison is derived from the measurements
+  themselves or is a recorded decision with its trigger, never an asserted
+  constant; and the full accounting (both sides' runs, the derived floor, the
+  verdict) lands in the store, not in prose.
+- Weights never move: each rung's artifacts resolve via the data-root
+  contract (local-models.yaml pointing at adaptive_new's model home).
+
+Ladder, smallest -> largest (adaptive_new models/ + checkpoints/; sizes
+approximate; re-derive exact order from disk at each rung):
+
+    timesfm-200m -> Fractale-350M -> Carbon-500M -> Qwen2.5-0.5B -> tabfm
+    -> needle -> pocket-tts -> Un-0 -> SimpleDiffusion -> MiniCPM5-1B
+    -> Wan2.1-1.3B -> Qwen3.5-4B -> gemma-4-E4B -> RxBrain
+    -> SenseNova-U1-8B -> Krea-2-Turbo -> gemma-4-12B-fp8 -> Qwen3.5-9B
+
+The first rung doubles as the calibration corpus for component 6 (its runs
+are the first store history the statistical layer calibrates against). The
+dense-Qwen recipe parity check remains the wave-1 *mechanism* pilot -- it
+proves the recipe/plan/parity machinery on overgo's best-supported family
+before the ladder starts consuming it rung by rung.

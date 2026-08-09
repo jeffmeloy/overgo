@@ -113,9 +113,10 @@ func run() error {
 	videoFPS := flag.Float64("video-fps", 24, "source FPS for multimodal video timestamps")
 	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for non-GIF video input")
 	imageThinking := flag.Bool("image-thinking", true, "retain Qwen3.5 thinking preamble for image prompts")
+	promptIDsFlag := flag.String("prompt-ids", "", "comma-separated prompt token IDs; bypasses tokenization (prompt argument optional)")
 	flag.Parse()
-	if flag.NArg() != 2 {
-		return errors.New("usage: generate [options] <model.gguf> <prompt>")
+	if flag.NArg() != 2 && !(*promptIDsFlag != "" && flag.NArg() == 1) {
+		return errors.New("usage: generate [options] <model.gguf> <prompt>  (prompt optional with -prompt-ids)")
 	}
 	runner, err := modelFlags.OpenRunner(context.Background(), flag.Arg(0), 1)
 	if err != nil {
@@ -332,6 +333,18 @@ func run() error {
 		}
 		options.PromptTokenIDs = promptIDs
 		options.ProjectedInputs = &projected
+	}
+	if *promptIDsFlag != "" {
+		if mediaInputs > 0 {
+			return errors.New("generate: -prompt-ids and media inputs are mutually exclusive")
+		}
+		for _, raw := range strings.Split(*promptIDsFlag, ",") {
+			value, parseErr := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
+			if parseErr != nil || value < 0 {
+				return fmt.Errorf("generate: invalid prompt token id %q", raw)
+			}
+			options.PromptTokenIDs = append(options.PromptTokenIDs, tokenizer.TokenID(value))
+		}
 	}
 	var ids []tokenizer.TokenID
 	var text string

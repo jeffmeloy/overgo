@@ -146,6 +146,16 @@ pending, so a pending mechanism is never mistaken for an active one.
    choose the next action fresh from the live tree — the previous rank-1 is a
    candidate, not a default.
 
+### Port-First (standing, owner 2026-08-09)
+
+The campaign PORTS adaptive_new into overgo; it never starts from scratch.
+Every capability and performance slice begins from adaptive_new's verified
+implementation: read it end-to-end, port its structure/kernels/math, verify
+against its goldens. Novel design is admissible ONLY after the port matches
+the reference, and only as a measured improvement on top. Reinventing what
+adaptive already ships is the named failure mode -- it cost hours of
+trial-kernel iteration against a reference that already ran 9x faster.
+
 ### Continuation and Stops
 
 THE TURN IS THE PLAN (owner directive 2026-08-09). Under the campaign

@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 )
 
@@ -35,11 +37,15 @@ func run(args []string, output io.Writer) error {
 	from := flags.Uint64("from-sequence", 0, "first commit sequence")
 	to := flags.Uint64("to-sequence", 0, "last commit sequence")
 	jsonOutput := flags.Bool("json", false, "emit JSON")
+	servable := flags.Bool("servable", false, "list models with an active inference recipe and on-disk presence (the discovery query)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 || strings.TrimSpace(*repository) == "" {
 		return errors.New("usage: repodb-query -repo <path> [filters]")
+	}
+	if *servable {
+		return writeServable(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -84,6 +90,67 @@ func run(args []string, output io.Writer) error {
 		return encoder.Encode(result)
 	}
 	return writeText(output, result)
+}
+
+// writeServable is the discovery query (floor component 9): a servable model
+// is a model manifest with an ACTIVE inference recipe whose bytes are PRESENT
+// at a recorded location. The same predicate drives the smoke matrix and the
+// evidence tier; discovery cannot drift from recipe truth because it is
+// recipe truth.
+func writeServable(output io.Writer, repository string, limit int) error {
+	ctx := context.Background()
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindModel, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	count := 0
+	for _, manifest := range result.Manifests {
+		activation, active, err := modelrecipe.ActiveRecord(ctx, store, manifest.ID, recipe.TaskInference)
+		if err != nil {
+			return err
+		}
+		if !active {
+			continue
+		}
+		location, present := manifestPresence(ctx, store, manifest)
+		fmt.Fprintf(output, "servable model=%s tier=%s recipe=%s present=%t location=%s\n",
+			manifest.ID, activation.Tier, activation.Definition.ID, present, location)
+		count++
+	}
+	fmt.Fprintf(output, "%d servable model(s); honesty: presence is a stat of recorded locations, absent locations report present=false\n", count)
+	return nil
+}
+
+// manifestPresence stats the recorded locations of the manifest and its
+// components; the first existing path wins, a recorded-but-missing path or no
+// recorded location reports absent.
+func manifestPresence(ctx context.Context, store *repodb.Store, manifest artifact.Manifest) (string, bool) {
+	ids := []artifact.ID{manifest.ID}
+	for _, component := range manifest.Components {
+		ids = append(ids, component.Artifact)
+	}
+	recorded := ""
+	for _, id := range ids {
+		locations, err := store.Locations(ctx, id)
+		if err != nil {
+			continue
+		}
+		for _, location := range locations {
+			if location.Kind != artifact.LocationFile && location.Kind != artifact.LocationDirectory {
+				continue
+			}
+			recorded = location.Value
+			if _, err := os.Stat(location.Value); err == nil {
+				return location.Value, true
+			}
+		}
+	}
+	return recorded, false
 }
 
 func parseFollow(value string) (repodb.FollowDirection, error) {

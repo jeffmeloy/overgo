@@ -1,5 +1,5 @@
 {
-  "campaign": "adaptive_new -\u003e overgo merge: model ladder",
+  "campaign": "adaptive_new -> overgo merge: model ladder",
   "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only.",
   "items": [
     {
@@ -147,7 +147,7 @@
       "steps": [
         {
           "id": "golden-import",
-          "title": "JAX forward oracle + pkl manifest pulled from adaptive fixtures (src 24 -\u003e tgt 8; logits [8,8192] + encoder_out [24,512], f32 variants; jax 0.11.0)",
+          "title": "JAX forward oracle + pkl manifest pulled from adaptive fixtures (src 24 -> tgt 8; logits [8,8192] + encoder_out [24,512], f32 variants; jax 0.11.0)",
           "status": "done"
         },
         {
@@ -189,7 +189,7 @@
         },
         {
           "id": "codec-port",
-          "title": "audio codec decoder vs g5 mimi decode stages; e2e wav vs g4 + reference wav (multimodal directive: real audio out, byte/è¿‘-parity bar derived)",
+          "title": "audio codec decoder vs g5 mimi decode stages; e2e wav vs g4 + reference wav (multimodal directive: real audio out, byte/\u00c3\u00a8\u00c2\u00bf\u00e2\u20ac\u02dc-parity bar derived)",
           "status": "done"
         },
         {
@@ -212,8 +212,29 @@
     {
       "id": "rung8-un0",
       "title": "Un-0",
-      "status": "open",
-      "steps": []
+      "status": "done",
+      "steps": [
+        {
+          "id": "reference-port",
+          "status": "done",
+          "title": "neutral oscillatorimage package; dims derived from flat tensor lengths, namespace discovered from *.to_out.weight; parity dynamics 3.57e-07 (gate 1e-4), generator 3.13e-07 (gate 1e-3); goldens read from the REFERENCE repo fixtures/ (they do NOT ship in the artifact dir -- deviation from the step premise, verified: models/Un-0 holds only config/weights/provenance)"
+        },
+        {
+          "id": "training-leg",
+          "status": "done",
+          "title": "backward vs reference-shipped conv/block bwd goldens: conv dx 8.31e-07 dW 8.96e-07 dB 1.34e-07; block dx 9.22e-08 dW1 5.98e-07 dB1 1.23e-07 dW2 1.01e-06 dB2 4.76e-07 (all gate 1e-4); dynamics+readout+full-generator VJPs FD-gated; drift objective (reference bootstrap: target 0.1+0.2*class) under ported Muon lr 0.02 mu 0.95 descends 265.61 -> 57.18 over 60 steps"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "done",
+          "title": "NEW terminal TaskImageGen (image-gen): condition tensor in, image out -- TaskGeneration is token generation (tokenizer-coupled in the workflow catalog), no reuse fits; ModuleImageGenerate + ImageGenDefinition + explicit-file inventory (config.json + model.safetensors; provenance sidecar is lineage, not a component); ACTIVATED with parity-citing reason, status round-trip ABSENT -> active tier experimental, recipe:sha256:2938eb7c..."
+        },
+        {
+          "id": "performance-leg",
+          "status": "done",
+          "title": "matched host protocol: shared generator-golden parity test, go test -count=5 elapsed both sides -- adaptive 0.01s x5 (median 0.01s), overgo 0.01s x5 (median 0.01s), identical max abs diff 3.13e-07; verdict AT (equal within the 10ms go-test resolution; adaptive exposes no finer un0 generate timing surface read-only). Supplementary overgo in-process walls: load 509us, per-generate median 1.25ms (min 1.16ms max 1.53ms, 30-generate batches x5, warm). Memory: 117KB f32 weights both sides, host-resident, runtime-dominated."
+        }
+      ]
     },
     {
       "id": "rung9-simplediffusion",

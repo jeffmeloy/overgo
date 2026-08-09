@@ -48,7 +48,7 @@ func run() error {
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func run() error {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
 		switch capability := recipe.Task(*task); capability {
-		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech:
+		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen:
 			return activateCapability(repository, path, *reason, capability)
 		}
 		return activate(repository, path, *reason)
@@ -102,6 +102,8 @@ func capabilityInventory(task recipe.Task, path string) (modelartifact.Inventory
 		return tabularInventory(path)
 	case recipe.TaskSpeech:
 		return speechInventory(path)
+	case recipe.TaskImageGen:
+		return imageGenInventory(path)
 	}
 	return modelartifact.Inventory{}, fmt.Errorf("no capability inventory for task %q", task)
 }
@@ -117,6 +119,8 @@ func capabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 		return modelrecipe.Seq2SeqDefinition(modelID)
 	case recipe.TaskSpeech:
 		return modelrecipe.SpeechDefinition(modelID)
+	case recipe.TaskImageGen:
+		return modelrecipe.ImageGenDefinition(modelID)
 	}
 	return recipe.Definition{}, fmt.Errorf("no capability definition for task %q", task)
 }
@@ -148,6 +152,17 @@ func speechInventory(path string) (modelartifact.Inventory, error) {
 		{Path: filepath.Join(path, "pockettts_config.json"), Name: "config", Role: artifact.ComponentConfig},
 		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
 		{Path: filepath.Join(path, "tokenizer.model"), Name: "tokenizer", Role: artifact.ComponentTokenizer},
+	})
+}
+
+// imageGenInventory: the conditional-oscillator layout is an explicit file
+// list — config.json (execution facts) plus model.safetensors (every
+// dimension derives from its flat tensor lengths). The provenance sidecar is
+// lineage metadata, not a model component.
+func imageGenInventory(path string) (modelartifact.Inventory, error) {
+	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
+		{Path: filepath.Join(path, "config.json"), Name: "config", Role: artifact.ComponentConfig},
+		{Path: filepath.Join(path, "model.safetensors"), Name: "weights", Role: artifact.ComponentWeights},
 	})
 }
 
@@ -334,7 +349,7 @@ func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
 	switch task {
-	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech:
+	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen:
 		var err error
 		inventory, err = capabilityInventory(task, path)
 		if err != nil {

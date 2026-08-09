@@ -187,6 +187,32 @@ func TestSpeechDefinitionValidatesAgainstCatalog(t *testing.T) {
 	}
 }
 
+func TestImageGenDefinitionValidatesAgainstCatalog(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "imagegen-model")
+	definition, err := ImageGenDefinition(modelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := definition.Validate(Catalog()); err != nil {
+		t.Fatal(err)
+	}
+	if definition.Task != recipe.TaskImageGen || definition.Model != modelID {
+		t.Fatalf("definition = %+v", definition)
+	}
+	if len(definition.Nodes) != 1 || definition.Nodes[0].Module != ModuleImageGenerate ||
+		definition.Nodes[0].Placement != recipe.PlacementHost {
+		t.Fatalf("nodes = %+v", definition.Nodes)
+	}
+	if len(definition.Inputs) != 1 || definition.Inputs[0].Data != recipe.DataTensor ||
+		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataImage {
+		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
+	}
+	// Inference compiler must refuse the non-inference task.
+	if _, err := Compile(definition, model.Spec{}, model.Weights{}); err == nil {
+		t.Fatal("inference compiler accepted an image-gen recipe")
+	}
+}
+
 func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "persisted-model")
 	definition, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)

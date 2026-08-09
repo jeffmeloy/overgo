@@ -37,6 +37,11 @@ const (
 	TaskSeq2Seq Task = "seq2seq"
 	// TaskSpeech: speech synthesis (ladder rung 7; text in, audio out).
 	TaskSpeech Task = "speech"
+	// TaskImageGen: class-conditional image generation (ladder rung 8;
+	// condition tensor in, sampled image out). A NEW terminal task: the
+	// existing TaskGeneration is token generation (tokenizer-coupled in the
+	// workflow catalog) and the oscillator contract has no tokens or logits.
+	TaskImageGen Task = "image-gen"
 )
 
 type Placement string
@@ -217,7 +222,7 @@ func validName(value string) bool {
 
 func validateTask(task Task) error {
 	switch task {
-	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech:
+	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskImageGen:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid task %q", task)

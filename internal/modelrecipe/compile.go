@@ -26,6 +26,10 @@ const (
 	// ModuleSpeechSynthesize: host text-to-speech for speech capability
 	// packages; input text, output synthesized audio.
 	ModuleSpeechSynthesize recipe.ModuleID = "model.speech-synthesize"
+	// ModuleImageGenerate: host class-conditional image sampling for
+	// image-generation capability packages; input condition tensor, output
+	// generated image.
+	ModuleImageGenerate recipe.ModuleID = "model.image-generate"
 )
 
 var catalog = mustCatalog()
@@ -165,6 +169,27 @@ func SpeechDefinition(modelID artifact.ID) (recipe.Definition, error) {
 		[]recipe.Output{{
 			Name: "audio", Data: recipe.DataAudio,
 			Source: recipe.Endpoint{Node: forward.ID, Port: "audio"},
+		}},
+	)
+}
+
+// ImageGenDefinition: single host image-generate node bound to the model
+// artifact. The capability package derives every dimension from the
+// artifact's tensor lengths, so the definition carries no profile document.
+func ImageGenDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	forward := recipe.Node{ID: "imagegen", Module: ModuleImageGenerate, Placement: recipe.PlacementHost}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskImageGen,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
+		[]recipe.Node{forward},
+		nil,
+		[]recipe.Input{{
+			Name: "condition", Data: recipe.DataTensor,
+			Target: recipe.Endpoint{Node: forward.ID, Port: "condition"},
+		}},
+		[]recipe.Output{{
+			Name: "image", Data: recipe.DataImage,
+			Source: recipe.Endpoint{Node: forward.ID, Port: "image"},
 		}},
 	)
 }
@@ -392,6 +417,12 @@ func mustCatalog() *recipe.Catalog {
 			Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs:     []recipe.Port{{Name: "text", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
 			Outputs:    []recipe.Port{{Name: "audio", Data: recipe.DataAudio, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleImageGenerate, Tasks: []recipe.Task{recipe.TaskImageGen},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:     []recipe.Port{{Name: "condition", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "image", Data: recipe.DataImage, Cardinality: recipe.CardinalityOne}},
 		},
 	)
 	if err != nil {

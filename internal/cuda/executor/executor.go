@@ -729,6 +729,7 @@ type CompiledGraph struct {
 	bf16Gate        map[*tensor.Tensor]bf16GateFusion
 	bf16ProjAdd     map[*tensor.Tensor]bf16ProjAddFusion
 	bf16Append      map[*tensor.Tensor]bf16AppendFusion
+	bf16Attention   map[*tensor.Tensor]bf16AttentionFusion
 	bf16Argmax      map[*tensor.Tensor]*tensor.Tensor
 	ropeAppend      map[*tensor.Tensor]ropeAppendFusion
 	elided          map[*tensor.Tensor]struct{}
@@ -1589,6 +1590,13 @@ func execute(
 				submitted = submitted || !probe
 				continue
 			}
+			if fusion, ok := compiled.bf16Attention[node]; ok {
+				if err := launchBF16Attention(state, functions, node, fusion, pointers); err != nil {
+					return fmt.Errorf("launch tensor %d (bf16_attention): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
 			if paired, ok := compiled.q8Argmax[node]; ok {
 				var launchErr error
 				if node.Op == tensor.OpMulMat {
@@ -1770,6 +1778,10 @@ func (e *Executor) ensureResources(
 		}
 		functions, err := loadFunctions(state.Driver, module)
 		if err != nil {
+			_ = state.Driver.ModuleUnload(module)
+			return nil, err
+		}
+		if err := configureLargeSharedKernels(state.Driver, functions); err != nil {
 			_ = state.Driver.ModuleUnload(module)
 			return nil, err
 		}

@@ -122,6 +122,10 @@ func (l *Library) ModuleFunction(module Module, name string) (Function, error) {
 	return 0, errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+func (l *Library) FuncSetMaxDynamicShared(function Function, bytes uint32) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
 func (l *Library) LaunchKernel(
 	function Function,
 	grid Dim3,

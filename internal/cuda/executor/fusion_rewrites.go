@@ -58,6 +58,16 @@ type bf16AppendFusion struct {
 	projection *tensor.Tensor
 }
 
+// bf16AttentionFusion: Attention(BF16Round(q), BF16Round(k), BF16Round(v))
+// collapsed into the width-128 tensor-core flash kernel. The kernel rounds
+// the pre-round F32 inputs on stage-in (round-to-nearest-even, identical to
+// the elided bf16_round launches), accumulates products in F32, and keeps
+// the online softmax exact F32; probabilities round to BF16 for the value
+// product (declared kernel semantics, measured by the differential fixture).
+type bf16AttentionFusion struct {
+	query, key, value *tensor.Tensor
+}
+
 type rewriteContext struct {
 	compiled   *CompiledGraph
 	order      []*tensor.Tensor
@@ -81,6 +91,7 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "bf16-projection-add", apply: applyBF16ProjAddRewrite},
 	{name: "rope-append", apply: applyRopeAppendRewrite},
 	{name: "bf16-append", apply: applyBF16AppendRewrite},
+	{name: "bf16-attention", apply: applyBF16AttentionRewrite},
 	{name: "bf16-argmax", apply: applyBF16ArgmaxRewrite},
 }
 
@@ -419,6 +430,61 @@ func applyRopeAppendRewrite(context *rewriteContext) {
 	}
 }
 
+// applyBF16AttentionRewrite: featureless non-causal width-128 attention whose
+// three inputs are single-use BF16Round nodes fuses into the tensor-core
+// flash kernel; the rounds elide entirely (the kernel rounds on stage-in).
+func applyBF16AttentionRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		if node.Op != tensor.OpAttention || len(node.Inputs) != 3 {
+			continue
+		}
+		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
+		if !ok || attributes.Causal || attributes.HasSinks || attributes.HasBlockMask ||
+			attributes.SymmetricWindow || attributes.ChunkedWindow ||
+			attributes.Softcap != 0 || attributes.MaxALiBiBias != 0 ||
+			attributes.QueryStart != 0 || attributes.KeyValueTokens != 0 ||
+			attributes.Window != 0 || attributes.RelativeBuckets != 0 {
+			continue
+		}
+		query, key, value := node.Inputs[0], node.Inputs[1], node.Inputs[2]
+		if query == key || query == value || key == value {
+			continue
+		}
+		fusable := true
+		for _, round := range [...]*tensor.Tensor{query, key, value} {
+			if round.Op != tensor.OpBF16Round || context.uses[round] != 1 ||
+				round.Shape.Rank < 3 || round.Shape.Dims[0] != 128 {
+				fusable = false
+				break
+			}
+			if _, retained := context.outputSet[round]; retained {
+				fusable = false
+				break
+			}
+			if _, alreadySkipped := compiled.skipped[round]; alreadySkipped {
+				fusable = false
+				break
+			}
+		}
+		if !fusable {
+			continue
+		}
+		if compiled.bf16Attention == nil {
+			compiled.bf16Attention = make(map[*tensor.Tensor]bf16AttentionFusion)
+		}
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		compiled.bf16Attention[node] = bf16AttentionFusion{
+			query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0],
+		}
+		compiled.skipped[query] = struct{}{}
+		compiled.skipped[key] = struct{}{}
+		compiled.skipped[value] = struct{}{}
+	}
+}
+
 func (context *rewriteContext) compileDependencies() {
 	for node, fusion := range context.compiled.weightedRMS {
 		if fusion.addLeft != nil {
@@ -455,6 +521,11 @@ func (context *rewriteContext) compileDependencies() {
 	}
 	for node, fusion := range context.compiled.bf16Append {
 		context.dependency[node] = append(context.dependency[node], fusion.projection.Inputs...)
+	}
+	for node, fusion := range context.compiled.bf16Attention {
+		context.dependency[node] = append(
+			context.dependency[node], fusion.query, fusion.key, fusion.value,
+		)
 	}
 }
 

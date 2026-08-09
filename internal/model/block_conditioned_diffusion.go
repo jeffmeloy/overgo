@@ -66,6 +66,9 @@ type ConditionedDiffusionBlockOptions struct {
 	RotaryBase         float32
 	AxisChannels       [3]uint64
 	AxisPositions      [3][]uint32
+	// RoundAttentionStorage: round attention q/k/v through BF16 storage
+	// (declared in-graph via BF16Round; backends may fuse to tensor cores).
+	RoundAttentionStorage bool
 }
 
 // ThreeAxisRotaryChannels: canonical temporal/height/width split of an even
@@ -251,7 +254,16 @@ func BuildConditionedDiffusionBlock(
 	value := builder.Reshape(result.SelfValueProjected, headWidth, heads, tokens)
 	result.SelfQueryRotated = BuildAxisPartitionedRoPE(builder, query, options.AxisChannels, options.AxisPositions, options.RotaryBase)
 	result.SelfKeyRotated = BuildAxisPartitionedRoPE(builder, key, options.AxisChannels, options.AxisPositions, options.RotaryBase)
-	attention := builder.Attention(result.SelfQueryRotated, result.SelfKeyRotated, value, attentionScale, false)
+	roundStorage := func(x *tensor.Tensor) *tensor.Tensor {
+		if options.RoundAttentionStorage {
+			return builder.BF16Round(x)
+		}
+		return x
+	}
+	attention := builder.Attention(
+		roundStorage(result.SelfQueryRotated), roundStorage(result.SelfKeyRotated),
+		roundStorage(value), attentionScale, false,
+	)
 	result.SelfAttention = builder.Reshape(attention, dim, tokens)
 	result.SelfProjected = buildBiasedProjection(builder, weights.SelfAttention.Output, weights.SelfAttention.OutputBias, result.SelfAttention)
 	result.SelfResidual = builder.Add(input, builder.Multiply(result.SelfProjected, chunk(2)))
@@ -268,8 +280,8 @@ func BuildConditionedDiffusionBlock(
 		weights.CrossAttention.QueryNorm, options.Epsilon,
 	)
 	crossAttention := builder.Attention(
-		builder.Reshape(crossQuery, headWidth, heads, tokens),
-		crossKey, crossValue, attentionScale, false,
+		roundStorage(builder.Reshape(crossQuery, headWidth, heads, tokens)),
+		roundStorage(crossKey), roundStorage(crossValue), attentionScale, false,
 	)
 	result.CrossProjected = buildBiasedProjection(
 		builder, weights.CrossAttention.Output, weights.CrossAttention.OutputBias,

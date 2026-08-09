@@ -1,4 +1,6 @@
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
+#include <mma.h>
 #include "iq_tables_generated.cuh"
 
 enum GGMLStorageType : unsigned int {
@@ -3020,6 +3022,365 @@ extern "C" __global__ void attention_online_f32(
         const unsigned int output_offset =
             ((sequence * query_tokens + query_token) * query_heads + query_head) * value_width;
         output[output_offset + threadIdx.x] = weighted / shared_sum;
+    }
+}
+
+// Tiled exact flash-style attention for large non-causal featureless
+// workloads (no bias/sinks/blocks/softcap/alibi/window). One block owns a
+// 32-query-row tile of one head; K/V stream through shared memory in
+// 32-token tiles with an exact online softmax, so scores never touch
+// global memory. Each of 8 warps owns 4 query rows; within a row, lane j
+// owns tile token j for the score and broadcasts its probability for the
+// value accumulation. Dynamic shared: Q tile (32*key_width) + K tile
+// transposed (key_width*32) + V tile (32*value_width) floats.
+extern "C" __global__ void attention_tiled_f32(
+        const float * query,
+        const float * key,
+        const float * value,
+        float * output,
+        unsigned int key_width,
+        unsigned int value_width,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        unsigned int query_tokens,
+        unsigned int key_value_tokens,
+        unsigned int sequences,
+        float scale) {
+    const unsigned int TILE = 32u;
+    const unsigned int CW = 4u; // output channels per lane (width <= 128)
+    const unsigned int row_tile = blockIdx.x;
+    const unsigned int query_head = blockIdx.y;
+    const unsigned int sequence = blockIdx.z;
+    if (sequence >= sequences || query_head >= query_heads ||
+        key_width > TILE * CW || value_width > TILE * CW) {
+        return;
+    }
+    const unsigned int group_size = query_heads / key_value_heads;
+    const unsigned int key_value_head = query_head / group_size;
+    const unsigned int warp = threadIdx.x >> 5;
+    const unsigned int lane = threadIdx.x & 31u;
+
+    extern __shared__ float shared[];
+    float * q_tile = shared;                       // [TILE][key_width]
+    float * k_tile = q_tile + TILE * key_width;    // [key_width][TILE] transposed
+    float * v_tile = k_tile + TILE * key_width;    // [TILE][value_width]
+
+    // Cooperative Q tile load (rows beyond the sequence zero-fill).
+    const unsigned int row_base = row_tile * TILE;
+    for (unsigned int index = threadIdx.x; index < TILE * key_width; index += blockDim.x) {
+        const unsigned int row = index / key_width;
+        const unsigned int channel = index % key_width;
+        const unsigned int token = row_base + row;
+        q_tile[index] = token < query_tokens
+            ? query[((sequence * query_tokens + token) * query_heads + query_head) * key_width + channel]
+            : 0.0f;
+    }
+    __syncthreads();
+
+    // Per-warp row state: 4 rows, per-lane CW output channels each.
+    float maximum[4] = {-3.402823466e+38F, -3.402823466e+38F, -3.402823466e+38F, -3.402823466e+38F};
+    float sum[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    float accumulator[4][CW];
+    for (unsigned int r = 0; r < 4; ++r) {
+        for (unsigned int i = 0; i < CW; ++i) {
+            accumulator[r][i] = 0.0f;
+        }
+    }
+
+    for (unsigned int tile_base = 0; tile_base < key_value_tokens; tile_base += TILE) {
+        // Cooperative K (transposed) and V tile loads.
+        for (unsigned int index = threadIdx.x; index < TILE * key_width; index += blockDim.x) {
+            const unsigned int token = index / key_width;
+            const unsigned int channel = index % key_width;
+            const unsigned int kv = tile_base + token;
+            k_tile[channel * TILE + token] = kv < key_value_tokens
+                ? key[((sequence * key_value_tokens + kv) * key_value_heads + key_value_head) * key_width + channel]
+                : 0.0f;
+        }
+        for (unsigned int index = threadIdx.x; index < TILE * value_width; index += blockDim.x) {
+            const unsigned int token = index / value_width;
+            const unsigned int channel = index % value_width;
+            const unsigned int kv = tile_base + token;
+            v_tile[index] = kv < key_value_tokens
+                ? value[((sequence * key_value_tokens + kv) * key_value_heads + key_value_head) * value_width + channel]
+                : 0.0f;
+        }
+        __syncthreads();
+
+        for (unsigned int r = 0; r < 4; ++r) {
+            const unsigned int row = warp * 4u + r;
+            // Lane j scores tile token j against the shared Q row.
+            float score = -3.402823466e+38F;
+            if (tile_base + lane < key_value_tokens) {
+                float dot = 0.0f;
+                const float * q_row = q_tile + row * key_width;
+                const float * k_column = k_tile + lane;
+                for (unsigned int channel = 0; channel < key_width; ++channel) {
+                    dot += q_row[channel] * k_column[channel * TILE];
+                }
+                score = dot * scale;
+            }
+            float tile_maximum = score;
+            for (unsigned int offset = 16; offset > 0; offset >>= 1) {
+                tile_maximum = fmaxf(tile_maximum, __shfl_xor_sync(0xffffffffu, tile_maximum, offset));
+            }
+            const float next_maximum = fmaxf(maximum[r], tile_maximum);
+            const float alpha = expf(maximum[r] - next_maximum);
+            maximum[r] = next_maximum;
+            const float probability = tile_base + lane < key_value_tokens
+                ? expf(score - next_maximum)
+                : 0.0f;
+            float tile_sum = probability;
+            for (unsigned int offset = 16; offset > 0; offset >>= 1) {
+                tile_sum += __shfl_xor_sync(0xffffffffu, tile_sum, offset);
+            }
+            sum[r] = sum[r] * alpha + tile_sum;
+            for (unsigned int i = 0; i < CW; ++i) {
+                accumulator[r][i] *= alpha;
+            }
+            for (unsigned int j = 0; j < TILE; ++j) {
+                const float p = __shfl_sync(0xffffffffu, probability, j);
+                const float * v_row = v_tile + j * value_width;
+                for (unsigned int i = 0; i < CW; ++i) {
+                    const unsigned int channel = lane + 32u * i;
+                    if (channel < value_width) {
+                        accumulator[r][i] += p * v_row[channel];
+                    }
+                }
+            }
+        }
+        __syncthreads();
+    }
+
+    for (unsigned int r = 0; r < 4; ++r) {
+        const unsigned int row = warp * 4u + r;
+        const unsigned int token = row_base + row;
+        if (token >= query_tokens || sum[r] <= 0.0f) {
+            continue;
+        }
+        const unsigned int output_offset =
+            ((sequence * query_tokens + token) * query_heads + query_head) * value_width;
+        for (unsigned int i = 0; i < CW; ++i) {
+            const unsigned int channel = lane + 32u * i;
+            if (channel < value_width) {
+                output[output_offset + channel] = accumulator[r][i] / sum[r];
+            }
+        }
+    }
+}
+
+// BF16 tensor-core flash attention for head width 128 (the fused
+// Attention(BF16Round(q), BF16Round(k), BF16Round(v)) form). Storage
+// rounding only: inputs round to BF16 on stage-in (round-to-nearest-even,
+// identical to bf16_round_f32), products accumulate in F32 through wmma
+// m16n16k16 fragments, and the online softmax runs in exact F32 on the
+// staged score tile; probabilities round to BF16 for the value product.
+// One 256-thread block owns 64 query rows of one head; K/V stream in
+// 32-token tiles. Every shared array pads its leading dimension to break
+// wmma shared-memory bank conflicts; the softmax epilogue runs four threads
+// per row with warp shuffles. Dynamic shared: Q(64x136 bf16) + K/V(32x136
+// bf16) + S(64x36 f32) + P(64x40 bf16) + O(64x132 f32) + row stats =
+// 83712 bytes (needs the >48KB dynamic-shared opt-in).
+extern "C" __global__ void attention_tiled_bf16_f32(
+        const float * query,
+        const float * key,
+        const float * value,
+        float * output,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        unsigned int query_tokens,
+        unsigned int key_value_tokens,
+        unsigned int sequences,
+        float scale) {
+    const unsigned int W = 128u;
+    const unsigned int BM = 64u;
+    const unsigned int BN = 32u;
+    const unsigned int QLD = W + 8u;  // bf16 lds, multiple of 8
+    const unsigned int KLD = W + 8u;
+    const unsigned int VLD = W + 8u;
+    const unsigned int SLD = BN + 4u; // f32 ld, multiple of 4
+    const unsigned int PLD = BN + 8u; // bf16 ld, multiple of 8
+    const unsigned int OLD = W + 4u;  // f32 ld, multiple of 4
+    using namespace nvcuda;
+    const unsigned int row_tile = blockIdx.x;
+    const unsigned int query_head = blockIdx.y;
+    const unsigned int sequence = blockIdx.z;
+    if (sequence >= sequences || query_head >= query_heads) {
+        return;
+    }
+    const unsigned int key_value_head = query_head / (query_heads / key_value_heads);
+    const unsigned int warp = threadIdx.x >> 5;
+
+    extern __shared__ unsigned char attention_shared[];
+    __nv_bfloat16 * q_tile = (__nv_bfloat16 *) attention_shared;    // [BM][QLD]
+    __nv_bfloat16 * k_tile = q_tile + BM * QLD;                     // [BN][KLD]
+    __nv_bfloat16 * v_tile = k_tile + BN * KLD;                     // [BN][VLD]
+    float * s_tile = (float *) (v_tile + BN * VLD);                 // [BM][SLD]
+    __nv_bfloat16 * p_tile = (__nv_bfloat16 *) (s_tile + BM * SLD); // [BM][PLD]
+    float * o_tile = (float *) (p_tile + BM * PLD);                 // [BM][OLD]
+    float * alpha_row = o_tile + BM * OLD;                          // [BM]
+    float * maximum_row = alpha_row + BM;                           // [BM]
+    float * sum_row = maximum_row + BM;                             // [BM]
+
+    // rescale_flag shares the tail of the stats region.
+    unsigned int * rescale_flag = (unsigned int *) (sum_row + BM);
+
+    const unsigned int row_base = row_tile * BM;
+    for (unsigned int index = threadIdx.x; index < BM * W; index += blockDim.x) {
+        const unsigned int row = index >> 7;
+        const unsigned int channel = index & 127u;
+        const unsigned int token = row_base + row;
+        q_tile[row * QLD + channel] = __float2bfloat16(token < query_tokens
+            ? query[((sequence * query_tokens + token) * query_heads + query_head) * W + channel]
+            : 0.0f);
+    }
+    for (unsigned int index = threadIdx.x; index < BM; index += blockDim.x) {
+        maximum_row[index] = -3.402823466e+38F;
+        sum_row[index] = 0.0f;
+    }
+
+    // O accumulators stay register-resident: warp w owns rows (w%4)*16 and
+    // four 16-column strips from (w/4)*64; they spill through o_tile only on
+    // a rescale tile and at the end.
+    const unsigned int o_row0 = (warp & 3u) * 16u;
+    const unsigned int o_column_base = (warp >> 2) * 64u;
+    wmma::fragment<wmma::accumulator, 16, 16, 16, float> weighted[4];
+    for (unsigned int strip = 0; strip < 4u; ++strip) {
+        wmma::fill_fragment(weighted[strip], 0.0f);
+    }
+    __syncthreads();
+
+    // Q fragments are tile-invariant: load the warp's score-row strip once.
+    const unsigned int s_row0 = (warp & 3u) * 16u;
+    const unsigned int s_column0 = (warp >> 2) * 16u;
+    wmma::fragment<wmma::matrix_a, 16, 16, 16, __nv_bfloat16, wmma::row_major> q_frag[8];
+    for (unsigned int k = 0; k < 8u; ++k) {
+        wmma::load_matrix_sync(q_frag[k], q_tile + s_row0 * QLD + k * 16u, QLD);
+    }
+
+    for (unsigned int tile_base = 0; tile_base < key_value_tokens; tile_base += BN) {
+        for (unsigned int index = threadIdx.x; index < BN * W; index += blockDim.x) {
+            const unsigned int token = index >> 7;
+            const unsigned int channel = index & 127u;
+            const unsigned int kv = tile_base + token;
+            const bool included = kv < key_value_tokens;
+            const unsigned int base =
+                ((sequence * key_value_tokens + kv) * key_value_heads + key_value_head) * W + channel;
+            k_tile[token * KLD + channel] = __float2bfloat16(included ? key[base] : 0.0f);
+            v_tile[token * VLD + channel] = __float2bfloat16(included ? value[base] : 0.0f);
+        }
+        if (threadIdx.x == 0) {
+            rescale_flag[0] = 0u;
+        }
+        __syncthreads();
+
+        {
+            // S tile: warp w owns rows (w%4)*16, columns (w/4)*16.
+            wmma::fragment<wmma::accumulator, 16, 16, 16, float> scores;
+            wmma::fill_fragment(scores, 0.0f);
+            for (unsigned int k = 0; k < 8u; ++k) {
+                wmma::fragment<wmma::matrix_b, 16, 16, 16, __nv_bfloat16, wmma::col_major> b;
+                wmma::load_matrix_sync(b, k_tile + s_column0 * KLD + k * 16u, KLD);
+                wmma::mma_sync(scores, q_frag[k], b, scores);
+            }
+            wmma::store_matrix_sync(s_tile + s_row0 * SLD + s_column0, scores, SLD, wmma::mem_row_major);
+        }
+        __syncthreads();
+
+        // Exact online softmax on the staged F32 scores: four threads per
+        // row, reduced with warp shuffles.
+        {
+            const unsigned int row = threadIdx.x >> 2;
+            const unsigned int part = threadIdx.x & 3u;
+            const unsigned int remaining = key_value_tokens - tile_base;
+            const unsigned int valid = remaining < BN ? remaining : BN;
+            float local_maximum = -3.402823466e+38F;
+            for (unsigned int j = part; j < valid; j += 4u) {
+                local_maximum = fmaxf(local_maximum, s_tile[row * SLD + j] * scale);
+            }
+            local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xffffffffu, local_maximum, 1));
+            local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xffffffffu, local_maximum, 2));
+            const float next_maximum = fmaxf(maximum_row[row], local_maximum);
+            const float alpha = expf(maximum_row[row] - next_maximum);
+            float local_sum = 0.0f;
+            for (unsigned int j = part; j < BN; j += 4u) {
+                const float probability = j < valid
+                    ? expf(s_tile[row * SLD + j] * scale - next_maximum)
+                    : 0.0f;
+                p_tile[row * PLD + j] = __float2bfloat16(probability);
+                local_sum += probability;
+            }
+            local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 1);
+            local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 2);
+            if (part == 0) {
+                maximum_row[row] = next_maximum;
+                sum_row[row] = sum_row[row] * alpha + local_sum;
+                alpha_row[row] = alpha;
+                if (alpha != 1.0f) {
+                    rescale_flag[0] = 1u;
+                }
+            }
+        }
+        __syncthreads();
+
+        if (rescale_flag[0] != 0u) {
+            // Spill the resident accumulators, apply the per-row alpha, and
+            // reload; the common steady-state tile (running max unchanged)
+            // skips this entirely.
+            for (unsigned int strip = 0; strip < 4u; ++strip) {
+                wmma::store_matrix_sync(
+                    o_tile + o_row0 * OLD + o_column_base + strip * 16u,
+                    weighted[strip], OLD, wmma::mem_row_major);
+            }
+            __syncthreads();
+            for (unsigned int index = threadIdx.x; index < BM * W; index += blockDim.x) {
+                const unsigned int row = index >> 7;
+                const float alpha = alpha_row[row];
+                if (alpha != 1.0f) {
+                    o_tile[row * OLD + (index & 127u)] *= alpha;
+                }
+            }
+            __syncthreads();
+            for (unsigned int strip = 0; strip < 4u; ++strip) {
+                wmma::load_matrix_sync(
+                    weighted[strip],
+                    o_tile + o_row0 * OLD + o_column_base + strip * 16u,
+                    OLD, wmma::mem_row_major);
+            }
+        }
+
+        {
+            // P fragments load once per tile and feed all four strips.
+            wmma::fragment<wmma::matrix_a, 16, 16, 16, __nv_bfloat16, wmma::row_major> p_frag[2];
+            wmma::load_matrix_sync(p_frag[0], p_tile + o_row0 * PLD, PLD);
+            wmma::load_matrix_sync(p_frag[1], p_tile + o_row0 * PLD + 16u, PLD);
+            for (unsigned int strip = 0; strip < 4u; ++strip) {
+                const unsigned int column0 = o_column_base + strip * 16u;
+                for (unsigned int k = 0; k < 2u; ++k) {
+                    wmma::fragment<wmma::matrix_b, 16, 16, 16, __nv_bfloat16, wmma::row_major> b;
+                    wmma::load_matrix_sync(b, v_tile + k * 16u * VLD + column0, VLD);
+                    wmma::mma_sync(weighted[strip], p_frag[k], b, weighted[strip]);
+                }
+            }
+        }
+        __syncthreads();
+    }
+
+    for (unsigned int strip = 0; strip < 4u; ++strip) {
+        wmma::store_matrix_sync(
+            o_tile + o_row0 * OLD + o_column_base + strip * 16u,
+            weighted[strip], OLD, wmma::mem_row_major);
+    }
+    __syncthreads();
+
+    for (unsigned int index = threadIdx.x; index < BM * W; index += blockDim.x) {
+        const unsigned int row = index >> 7;
+        const unsigned int channel = index & 127u;
+        const unsigned int token = row_base + row;
+        if (token < query_tokens && sum_row[row] > 0.0f) {
+            output[((sequence * query_tokens + token) * query_heads + query_head) * W + channel] =
+                o_tile[row * OLD + channel] / sum_row[row];
+        }
     }
 }
 

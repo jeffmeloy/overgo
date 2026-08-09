@@ -69,6 +69,7 @@ type Library struct {
 	cuModuleLoadData     *syscall.Proc
 	cuModuleUnload       *syscall.Proc
 	cuModuleGetFunction  *syscall.Proc
+	cuFuncSetAttribute   *syscall.Proc
 	cuLaunchKernel       *syscall.Proc
 	cuStreamBeginCapture *syscall.Proc
 	cuStreamEndCapture   *syscall.Proc
@@ -116,6 +117,7 @@ func Open() (*Library, error) {
 		{"cuModuleLoadData", &lib.cuModuleLoadData},
 		{"cuModuleUnload", &lib.cuModuleUnload},
 		{"cuModuleGetFunction", &lib.cuModuleGetFunction},
+		{"cuFuncSetAttribute", &lib.cuFuncSetAttribute},
 		{"cuLaunchKernel", &lib.cuLaunchKernel},
 		{"cuStreamBeginCapture", &lib.cuStreamBeginCapture},
 		{"cuStreamEndCapture", &lib.cuStreamEndCapture},
@@ -573,6 +575,20 @@ func (l *Library) ModuleFunction(module Module, name string) (Function, error) {
 		return 0, err
 	}
 	return function, nil
+}
+
+// funcAttributeMaxDynamicSharedBytes: CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES.
+const funcAttributeMaxDynamicSharedBytes = 8
+
+// FuncSetMaxDynamicShared: opts a kernel into dynamic shared memory above
+// the 48KB default (sm_89 permits up to 99KB per block).
+func (l *Library) FuncSetMaxDynamicShared(function Function, bytes uint32) error {
+	result, _, _ := l.cuFuncSetAttribute.Call(
+		uintptr(function),
+		uintptr(funcAttributeMaxDynamicSharedBytes),
+		uintptr(bytes),
+	)
+	return l.result("cuFuncSetAttribute", result)
 }
 
 // LaunchKernel: launches CUDA kernel; Each argument must point to storage

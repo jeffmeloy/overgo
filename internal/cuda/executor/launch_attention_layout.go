@@ -11,6 +11,94 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+// BF16 tensor-core flash attention geometry (attention_tiled_bf16_f32):
+// width fixed at 128, 64 query rows per 256-thread block, 32-token K/V
+// tiles. Shared bytes mirror the kernel's layout exactly.
+const (
+	attentionBF16Width       = uint32(128)
+	attentionBF16RowTile     = uint32(64)
+	attentionBF16KVTile      = uint32(32)
+	attentionBF16Threads     = uint32(256)
+	attentionBF16SharedBytes = uint32(2*attentionBF16RowTile*(attentionBF16Width+8) + // Q bf16 [64][136]
+		2*2*attentionBF16KVTile*(attentionBF16Width+8) + // K,V bf16 [32][136]
+		4*attentionBF16RowTile*(attentionBF16KVTile+4) + // S f32 [64][36]
+		2*attentionBF16RowTile*(attentionBF16KVTile+8) + // P bf16 [64][40]
+		4*attentionBF16RowTile*(attentionBF16Width+4) + // O f32 [64][132]
+		3*4*attentionBF16RowTile + // alpha/max/sum rows
+		4) // rescale flag
+)
+
+// configureLargeSharedKernels: one-time dynamic-shared opt-in for kernels
+// above the 48KB default.
+func configureLargeSharedKernels(lib *driver.Library, functions functionSet) error {
+	return lib.FuncSetMaxDynamicShared(
+		functions[kernelAttentionTiledBf16F32].function, attentionBF16SharedBytes,
+	)
+}
+
+// launchBF16Attention: the fused Attention(BF16Round(q/k/v)) tensor-core
+// path; reads the pre-round F32 tensors.
+func launchBF16Attention(
+	state *device.State,
+	functions functionSet,
+	node *tensor.Tensor,
+	fusion bf16AttentionFusion,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	attributes, ok := node.Attrs.(tensor.AttentionAttributes)
+	if !ok {
+		return errors.New("invalid fused attention attributes")
+	}
+	queryNode, keyNode := fusion.query, fusion.key
+	keyWidth, err := uint32Checked(queryNode.Shape.Dims[0], "fused attention width")
+	if err != nil {
+		return err
+	}
+	if keyWidth != attentionBF16Width || fusion.value.Shape.Dims[0] != uint64(attentionBF16Width) {
+		return errors.New("fused attention width must be 128")
+	}
+	queryHeads, err := uint32Checked(queryNode.Shape.Dims[1], "fused attention query heads")
+	if err != nil {
+		return err
+	}
+	keyValueHeads, err := uint32Checked(keyNode.Shape.Dims[1], "fused attention KV heads")
+	if err != nil {
+		return err
+	}
+	queryTokens, err := uint32Checked(queryNode.Shape.Dims[2], "fused attention query tokens")
+	if err != nil {
+		return err
+	}
+	keyValueTokens, err := uint32Checked(keyNode.Shape.Dims[2], "fused attention KV tokens")
+	if err != nil {
+		return err
+	}
+	sequences := uint32(1)
+	if queryNode.Shape.Rank == 4 {
+		sequences, err = uint32Checked(queryNode.Shape.Dims[3], "fused attention sequences")
+		if err != nil {
+			return err
+		}
+	}
+	query := pointers[queryNode]
+	key := pointers[keyNode]
+	value := pointers[fusion.value]
+	output := pointers[node]
+	scale := attributes.Scale
+	grid := driver.Dim3{
+		X: (queryTokens + attentionBF16RowTile - 1) / attentionBF16RowTile,
+		Y: queryHeads,
+		Z: sequences,
+	}
+	return launchGridSharedABI(
+		state, functions[kernelAttentionTiledBf16F32],
+		grid, driver.Dim3{X: attentionBF16Threads, Y: 1, Z: 1}, attentionBF16SharedBytes,
+		&query, &key, &value, &output,
+		&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
+		&sequences, &scale,
+	)
+}
+
 func launchAttentionLayout(
 	state *device.State,
 	functions functionSet,
@@ -134,6 +222,33 @@ func launchAttentionLayout(
 				driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1}, uint32(sharedBytes),
 				&query, &key, &value, &output, &keyWidth, &valueWidth,
 				&queryHeads, &keyValueHeads, &tokenCountPointer, &keyCapacityTokens,
+				&sequences, &scale,
+			)
+		}
+		// Tiled exact path: large featureless non-causal workloads stream
+		// K/V through shared memory with an online softmax (scores never
+		// reach global memory); one block per 32-query-row tile per head.
+		const (
+			attentionTiledTile     = uint32(32)
+			attentionTiledMaxWidth = uint32(128)
+			attentionTiledThreads  = uint32(256)
+		)
+		tiledShared := uint64(2*attentionTiledTile*keyWidth+attentionTiledTile*valueWidth) * f32Bytes
+		if causal == 0 && relativeBias == 0 && sinks == 0 && blockIDs == 0 &&
+			softcap == 0 && maxALiBiBias == 0 && window == 0 && symmetricWindow == 0 &&
+			queryStart == 0 && keyValueTokens == keyCapacityTokens &&
+			keyWidth <= attentionTiledMaxWidth && valueWidth <= attentionTiledMaxWidth &&
+			queryTokens >= attentionTiledTile && tiledShared <= attentionDecodeSharedLimit {
+			grid := driver.Dim3{
+				X: (queryTokens + attentionTiledTile - 1) / attentionTiledTile,
+				Y: queryHeads,
+				Z: sequences,
+			}
+			return launchGridSharedABI(
+				state, functions[kernelAttentionTiledF32],
+				grid, driver.Dim3{X: attentionTiledThreads, Y: 1, Z: 1}, uint32(tiledShared),
+				&query, &key, &value, &output, &keyWidth, &valueWidth,
+				&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
 				&sequences, &scale,
 			)
 		}

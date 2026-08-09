@@ -345,7 +345,29 @@
           "id": "performance-leg",
           "status": "open",
           "title": "matched protocol, honest: adaptive serves Wan DiT+VAE on CUDA only (host is oracle-grade, not serving); compare CUDA-vs-CUDA if overgo grows a CUDA path, else document the host-vs-CUDA asymmetry and measure the shared host stages (text conditioning) at-or-below",
-          "bar": "beat upstream Python (463.4s wall, 8.80GB allocated, 50-step 81-frame clip) at EXACT quality; overgo graph runtime is the vehicle; worktree techniques cited in doctrine"
+          "bar": "beat upstream Python (463.4s wall, 8.80GB allocated, 50-step 81-frame clip) at EXACT quality; overgo graph runtime is the vehicle; worktree techniques cited in doctrine",
+          "measurement": {
+            "date": "2026-08-09",
+            "iterations_s_per_step": [
+              900,
+              127.6,
+              124.8,
+              33.9,
+              21.7,
+              17.5
+            ],
+            "best_denoise_50step_s": 878.2,
+            "peak_gb": 10.02,
+            "post_release_gb": 7.05,
+            "exact_config_s_per_step": 127.6,
+            "verdict": "NOT MET (python 463.4s/8.80GB); bf16 config quality NOT claimed (cosine 0.9977 = failed-fast class); exact config golden-exact but 127.6 s/step",
+            "next_levers_ranked": [
+              "CUDA VAE decode (gates total; adaptive 29-45s)",
+              "attention BN=64/cp.async to 60+ TFLOPS",
+              "cublasLt",
+              "arena/bf16 intermediates"
+            ]
+          }
         }
       ]
     },

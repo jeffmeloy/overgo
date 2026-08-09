@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "a7447bce735bb994858e55e389ca4fce008c9753b4464abb62ae1edeae9f005c",
+      "sourceSha256": "25c28a95ba8c487a953dda1a3b8dcf6447875a8a4fbb58c47277ecb8ac931549",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "598444593cd91de7ac51455d1534492f48175c3fb218a62ec662d1789c6ffe73",
+      "assetSha256": "7acf73b89c652b268e79174120b6e9d6fbb4006c4968754e0fb56c8b56dee36a",
       "functions": [
         "add_f32",
         "multiply_f32",
@@ -119,6 +119,8 @@
         "attention_f32",
         "attention_decode_f32",
         "attention_online_f32",
+        "attention_tiled_f32",
+        "attention_tiled_bf16_f32",
         "concat_f32",
         "get_rows_q8_0_f32",
         "mul_mat_q8_0_f32",
@@ -1000,6 +1002,42 @@
           ],
           "functions": [
             "attention_online_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "attention_tiled_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "attention_tiled_bf16_f32"
           ]
         },
         {

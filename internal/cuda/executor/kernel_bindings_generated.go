@@ -80,6 +80,8 @@ const (
 	kernelAttentionF32
 	kernelAttentionDecodeF32
 	kernelAttentionOnlineF32
+	kernelAttentionTiledF32
+	kernelAttentionTiledBf16F32
 	kernelConcatF32
 	kernelGetRowsQ80F32
 	kernelMulMatQ80F32
@@ -221,6 +223,8 @@ var kernelFunctionNames = [...]string{
 	"attention_f32",
 	"attention_decode_f32",
 	"attention_online_f32",
+	"attention_tiled_f32",
+	"attention_tiled_bf16_f32",
 	"concat_f32",
 	"get_rows_q8_0_f32",
 	"mul_mat_q8_0_f32",
@@ -361,6 +365,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	24,
 	12,
 	23,
+	12,
+	10,
 	8,
 	5,
 	6,

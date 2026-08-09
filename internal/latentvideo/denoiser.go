@@ -270,6 +270,10 @@ type DenoiserProgram struct {
 	Config   DenoiserConfig
 	Geometry LatentGeometry
 
+	// matmulWeightType: storage type of every rank-2 projection weight input
+	// (F32 exact; BF16 = storage rounding for the device tensor-core path).
+	matmulWeightType dtype.Type
+
 	weights *DenoiserWeights
 
 	contextInput        *tensor.Tensor
@@ -290,63 +294,102 @@ type DenoiserProgram struct {
 	Head   *tensor.Tensor
 }
 
-func graphWeightInput(builder *tensor.Builder, inputs map[string]*tensor.Tensor, name string, dimensions ...uint64) *tensor.Tensor {
-	node := builder.Input(name, dtype.F32, tensor.MustShape(dimensions...))
-	inputs[name] = node
+// weightInputBinder: binds named weight inputs on one builder; rank-2
+// projection weights take the program's matmul storage type, everything
+// else stays F32.
+type weightInputBinder struct {
+	builder    *tensor.Builder
+	inputs     map[string]*tensor.Tensor
+	matmulType dtype.Type
+}
+
+func (b weightInputBinder) input(name string, dimensions ...uint64) *tensor.Tensor {
+	storage := dtype.F32
+	if len(dimensions) == 2 {
+		storage = b.matmulType
+	}
+	node := b.builder.Input(name, storage, tensor.MustShape(dimensions...))
+	b.inputs[name] = node
 	return node
 }
 
-func crossAttentionContextWeights(builder *tensor.Builder, inputs map[string]*tensor.Tensor, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
+func crossAttentionContextWeights(bind weightInputBinder, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
 	return model.ConditionedDiffusionAttentionWeights{
-		Key: graphWeightInput(builder, inputs, prefix+"k.weight", d, d), KeyBias: graphWeightInput(builder, inputs, prefix+"k.bias", d),
-		Value: graphWeightInput(builder, inputs, prefix+"v.weight", d, d), ValueBias: graphWeightInput(builder, inputs, prefix+"v.bias", d),
-		KeyNorm: graphWeightInput(builder, inputs, prefix+"norm_k.weight", d),
+		Key: bind.input(prefix+"k.weight", d, d), KeyBias: bind.input(prefix+"k.bias", d),
+		Value: bind.input(prefix+"v.weight", d, d), ValueBias: bind.input(prefix+"v.bias", d),
+		KeyNorm: bind.input(prefix+"norm_k.weight", d),
 	}
 }
 
-func attentionQueryOutputWeights(builder *tensor.Builder, inputs map[string]*tensor.Tensor, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
+func attentionQueryOutputWeights(bind weightInputBinder, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
 	return model.ConditionedDiffusionAttentionWeights{
-		Query: graphWeightInput(builder, inputs, prefix+"q.weight", d, d), QueryBias: graphWeightInput(builder, inputs, prefix+"q.bias", d),
-		Output: graphWeightInput(builder, inputs, prefix+"o.weight", d, d), OutputBias: graphWeightInput(builder, inputs, prefix+"o.bias", d),
-		QueryNorm: graphWeightInput(builder, inputs, prefix+"norm_q.weight", d),
+		Query: bind.input(prefix+"q.weight", d, d), QueryBias: bind.input(prefix+"q.bias", d),
+		Output: bind.input(prefix+"o.weight", d, d), OutputBias: bind.input(prefix+"o.bias", d),
+		QueryNorm: bind.input(prefix+"norm_q.weight", d),
 	}
 }
 
-func selfAttentionWeights(builder *tensor.Builder, inputs map[string]*tensor.Tensor, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
-	weights := attentionQueryOutputWeights(builder, inputs, prefix, d)
-	weights.Key = graphWeightInput(builder, inputs, prefix+"k.weight", d, d)
-	weights.KeyBias = graphWeightInput(builder, inputs, prefix+"k.bias", d)
-	weights.Value = graphWeightInput(builder, inputs, prefix+"v.weight", d, d)
-	weights.ValueBias = graphWeightInput(builder, inputs, prefix+"v.bias", d)
-	weights.KeyNorm = graphWeightInput(builder, inputs, prefix+"norm_k.weight", d)
+func selfAttentionWeights(bind weightInputBinder, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
+	weights := attentionQueryOutputWeights(bind, prefix, d)
+	weights.Key = bind.input(prefix+"k.weight", d, d)
+	weights.KeyBias = bind.input(prefix+"k.bias", d)
+	weights.Value = bind.input(prefix+"v.weight", d, d)
+	weights.ValueBias = bind.input(prefix+"v.bias", d)
+	weights.KeyNorm = bind.input(prefix+"norm_k.weight", d)
 	return weights
 }
 
+// DenoiserPrecision: storage-rounding levers. MatmulWeights selects the
+// rank-2 projection weight storage (F32 exact; BF16 device tensor-core
+// path). RoundAttentionStorage declares BF16 rounding of attention q/k/v in
+// the graph (backends may fuse to a tensor-core flash kernel).
+type DenoiserPrecision struct {
+	MatmulWeights         dtype.Type
+	RoundAttentionStorage bool
+}
+
 // CompileDenoiserProgram: builds the context and step graphs for one latent
-// geometry.
+// geometry with exact F32 storage everywhere.
 func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry) (*DenoiserProgram, error) {
+	return CompileDenoiserProgramPrecision(c, weights, geometry, DenoiserPrecision{MatmulWeights: dtype.F32})
+}
+
+// CompileDenoiserProgramTyped: weight-storage-only selection (attention
+// stays exact F32).
+func CompileDenoiserProgramTyped(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, matmulWeightType dtype.Type) (*DenoiserProgram, error) {
+	return CompileDenoiserProgramPrecision(c, weights, geometry, DenoiserPrecision{MatmulWeights: matmulWeightType})
+}
+
+// CompileDenoiserProgramPrecision: builds both graphs under one precision
+// declaration.
+func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision) (*DenoiserProgram, error) {
+	matmulWeightType := precision.MatmulWeights
 	if weights == nil {
 		return nil, fmt.Errorf("denoiser program: weights are nil")
 	}
 	if geometry.Seq <= 0 {
 		return nil, fmt.Errorf("denoiser program: geometry has no tokens")
 	}
+	if matmulWeightType != dtype.F32 && matmulWeightType != dtype.BF16 {
+		return nil, fmt.Errorf("denoiser program: matmul weight type %s is unsupported", matmulWeightType)
+	}
 	d := uint64(c.Dim)
 	heads := uint64(c.NumHeads)
 	headWidth := d / heads
 	textLen := uint64(c.TextLen)
 	seq := uint64(geometry.Seq)
-	program := &DenoiserProgram{Config: c, Geometry: geometry, weights: weights}
+	program := &DenoiserProgram{Config: c, Geometry: geometry, weights: weights, matmulWeightType: matmulWeightType}
 
 	// Context graph: per-block cross-attention K/V from the text context.
 	contextBuilder := tensor.NewBuilder()
 	program.contextWeightInputs = make(map[string]*tensor.Tensor)
+	contextBind := weightInputBinder{builder: contextBuilder, inputs: program.contextWeightInputs, matmulType: matmulWeightType}
 	program.contextInput = contextBuilder.Input("context", dtype.F32, tensor.MustShape(d, textLen))
 	for layer := 0; layer < c.NumLayers; layer++ {
 		prefix := denoiserBlockPrefix(layer) + "cross_attn."
 		key, value, err := model.BuildConditionedDiffusionCrossContext(
 			contextBuilder, program.contextInput,
-			crossAttentionContextWeights(contextBuilder, program.contextWeightInputs, prefix, d),
+			crossAttentionContextWeights(contextBind, prefix, d),
 			heads, float32(c.Eps),
 		)
 		if err != nil {
@@ -362,18 +405,20 @@ func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 	// Step graph: patch embedding -> blocks -> head.
 	builder := tensor.NewBuilder()
 	program.stepWeightInputs = make(map[string]*tensor.Tensor)
+	bind := weightInputBinder{builder: builder, inputs: program.stepWeightInputs, matmulType: matmulWeightType}
 	program.stepPatch = builder.Input("patch_tokens", dtype.F32, tensor.MustShape(uint64(c.patchIn()), seq))
 	program.stepBlockE = builder.Input("conditioning_block", dtype.F32, tensor.MustShape(6*d))
 	program.stepHeadE = builder.Input("conditioning_head", dtype.F32, tensor.MustShape(d))
-	embedW := graphWeightInput(builder, program.stepWeightInputs, "patch_embedding.weight", uint64(c.patchIn()), d)
-	embedB := graphWeightInput(builder, program.stepWeightInputs, "patch_embedding.bias", d)
+	embedW := bind.input("patch_embedding.weight", uint64(c.patchIn()), d)
+	embedB := bind.input("patch_embedding.bias", d)
 	hidden := builder.Add(builder.MulMat(embedW, program.stepPatch), embedB)
 
 	options := model.ConditionedDiffusionBlockOptions{
 		Dim: d, Heads: heads, FFNDim: uint64(c.FFNDim),
-		Epsilon:      float32(c.Eps),
-		RotaryBase:   float32(c.Policy.RotaryFrequencyBase),
-		AxisChannels: model.ThreeAxisRotaryChannels(headWidth),
+		Epsilon:               float32(c.Eps),
+		RotaryBase:            float32(c.Policy.RotaryFrequencyBase),
+		AxisChannels:          model.ThreeAxisRotaryChannels(headWidth),
+		RoundAttentionStorage: precision.RoundAttentionStorage,
 	}
 	for token := 0; token < geometry.Seq; token++ {
 		spatial := geometry.Grid[1] * geometry.Grid[2]
@@ -388,15 +433,15 @@ func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 		program.stepCrossKeys = append(program.stepCrossKeys, crossKey)
 		program.stepCrossValues = append(program.stepCrossValues, crossValue)
 		blockWeights := model.ConditionedDiffusionBlockWeights{
-			Modulation:      graphWeightInput(builder, program.stepWeightInputs, prefix+"modulation", 6*d),
-			SelfAttention:   selfAttentionWeights(builder, program.stepWeightInputs, prefix+"self_attn.", d),
-			CrossAttention:  attentionQueryOutputWeights(builder, program.stepWeightInputs, prefix+"cross_attn.", d),
-			CrossNormWeight: graphWeightInput(builder, program.stepWeightInputs, prefix+"norm3.weight", d),
-			CrossNormBias:   graphWeightInput(builder, program.stepWeightInputs, prefix+"norm3.bias", d),
-			FFNExpand:       graphWeightInput(builder, program.stepWeightInputs, prefix+"ffn.0.weight", d, uint64(c.FFNDim)),
-			FFNExpandBias:   graphWeightInput(builder, program.stepWeightInputs, prefix+"ffn.0.bias", uint64(c.FFNDim)),
-			FFNContract:     graphWeightInput(builder, program.stepWeightInputs, prefix+"ffn.2.weight", uint64(c.FFNDim), d),
-			FFNContractBias: graphWeightInput(builder, program.stepWeightInputs, prefix+"ffn.2.bias", d),
+			Modulation:      bind.input(prefix+"modulation", 6*d),
+			SelfAttention:   selfAttentionWeights(bind, prefix+"self_attn.", d),
+			CrossAttention:  attentionQueryOutputWeights(bind, prefix+"cross_attn.", d),
+			CrossNormWeight: bind.input(prefix+"norm3.weight", d),
+			CrossNormBias:   bind.input(prefix+"norm3.bias", d),
+			FFNExpand:       bind.input(prefix+"ffn.0.weight", d, uint64(c.FFNDim)),
+			FFNExpandBias:   bind.input(prefix+"ffn.0.bias", uint64(c.FFNDim)),
+			FFNContract:     bind.input(prefix+"ffn.2.weight", uint64(c.FFNDim), d),
+			FFNContractBias: bind.input(prefix+"ffn.2.bias", d),
 		}
 		result, err := model.BuildConditionedDiffusionBlock(
 			builder, hidden, program.stepBlockE, crossKey, crossValue, options, blockWeights,
@@ -409,9 +454,9 @@ func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 	}
 	head, err := model.BuildConditionedDiffusionHead(
 		builder, hidden, program.stepHeadE,
-		graphWeightInput(builder, program.stepWeightInputs, "head.modulation", 2*d),
-		graphWeightInput(builder, program.stepWeightInputs, "head.head.weight", d, uint64(c.patchOut())),
-		graphWeightInput(builder, program.stepWeightInputs, "head.head.bias", uint64(c.patchOut())),
+		bind.input("head.modulation", 2*d),
+		bind.input("head.head.weight", d, uint64(c.patchOut())),
+		bind.input("head.head.bias", uint64(c.patchOut())),
 		float32(c.Eps),
 	)
 	if err != nil {
@@ -426,6 +471,9 @@ func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 
 func (p *DenoiserProgram) weightFeeds(inputs map[string]*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) error {
 	for name, node := range inputs {
+		if node.Type != dtype.F32 {
+			return fmt.Errorf("denoiser weight feed %s: host feeds require F32 storage, program compiled %s", name, node.Type)
+		}
 		data := p.weights.tensor(name)
 		elements, err := node.Shape.Elements()
 		if err != nil || uint64(len(data)) != elements {
@@ -593,6 +641,8 @@ type DenoiseRequest struct {
 	InitialSample []float32
 	Noise         NoisePlan
 	TraceSteps    bool
+	// StepHook: optional per-step progress observer (heartbeat for long runs).
+	StepHook func(step int, timestep int64)
 }
 
 // DenoiseStepTrace: per-step sampler boundary tensors.
@@ -610,8 +660,44 @@ type DenoiseResult struct {
 	Steps     []DenoiseStepTrace
 }
 
+// DenoiseBackend: one execution engine for the guided step loop. Branch
+// contexts are opaque engine-resident cross-attention projections;
+// ForwardHead returns the head patches [seq*patchOut] for one branch.
+type DenoiseBackend interface {
+	ProjectBranchContext(context []float32) (any, error)
+	ForwardHead(patchTokens, blockE, headE []float32, branchContext any) ([]float32, error)
+}
+
+// graphRunnerBackend: the host-feed adapter; reference.Execute or any
+// GraphRunner closure satisfies the loop through it.
+type graphRunnerBackend struct {
+	program *DenoiserProgram
+	run     GraphRunner
+}
+
+func (b graphRunnerBackend) ProjectBranchContext(context []float32) (any, error) {
+	return b.program.ProjectContext(b.run, context)
+}
+
+func (b graphRunnerBackend) ForwardHead(patchTokens, blockE, headE []float32, branchContext any) ([]float32, error) {
+	projection, ok := branchContext.(ContextProjection)
+	if !ok {
+		return nil, fmt.Errorf("denoise forward: branch context is %T, need ContextProjection", branchContext)
+	}
+	values, err := b.program.Forward(b.run, patchTokens, blockE, headE, projection, []*tensor.Tensor{b.program.Head})
+	if err != nil {
+		return nil, err
+	}
+	return values[b.program.Head].Data, nil
+}
+
 // Denoise: the full guided UniPC trajectory through the step graph.
 func (p *DenoiserProgram) Denoise(run GraphRunner, request DenoiseRequest) (DenoiseResult, error) {
+	return p.DenoiseWithBackend(graphRunnerBackend{program: p, run: run}, request)
+}
+
+// DenoiseWithBackend: the guided UniPC trajectory over one execution engine.
+func (p *DenoiserProgram) DenoiseWithBackend(backend DenoiseBackend, request DenoiseRequest) (DenoiseResult, error) {
 	var result DenoiseResult
 	elements := p.Geometry.Elements()
 	timesteps, sigmas, err := UniPCSchedule(p.Config.Policy.NumTrainTimesteps, request.Steps, request.Shift)
@@ -632,18 +718,17 @@ func (p *DenoiserProgram) Denoise(run GraphRunner, request DenoiseRequest) (Deno
 	} else if err := FillNormalNoise(sample, request.Noise); err != nil {
 		return result, err
 	}
-	condContext, err := p.ProjectContext(run, request.CondContext)
+	condContext, err := backend.ProjectBranchContext(request.CondContext)
 	if err != nil {
 		return result, err
 	}
-	uncondContext, err := p.ProjectContext(run, request.UncondContext)
+	uncondContext, err := backend.ProjectBranchContext(request.UncondContext)
 	if err != nil {
 		return result, err
 	}
 	timestepWeights := p.weights.TimestepWeights(p.Config)
 	next := make([]float32, elements)
 	guided := make([]float32, elements)
-	outputs := []*tensor.Tensor{p.Head}
 	for i, timestep := range timesteps {
 		headE, blockE, err := CompileTimestepConditioning([]float64{float64(timestep)}, timestepWeights)
 		if err != nil {
@@ -653,12 +738,12 @@ func (p *DenoiserProgram) Denoise(run GraphRunner, request DenoiseRequest) (Deno
 		if err != nil {
 			return result, err
 		}
-		branch := func(context ContextProjection) ([]float32, error) {
-			values, err := p.Forward(run, patchTokens, blockE, headE, context, outputs)
+		branch := func(context any) ([]float32, error) {
+			patches, err := backend.ForwardHead(patchTokens, blockE, headE, context)
 			if err != nil {
 				return nil, err
 			}
-			return p.UnpatchifyLatent(values[p.Head].Data)
+			return p.UnpatchifyLatent(patches)
 		}
 		condOut, err := branch(condContext)
 		if err != nil {
@@ -687,6 +772,9 @@ func (p *DenoiserProgram) Denoise(run GraphRunner, request DenoiseRequest) (Deno
 		if request.TraceSteps {
 			trace.SampleOut = append([]float32(nil), sample...)
 			result.Steps = append(result.Steps, trace)
+		}
+		if request.StepHook != nil {
+			request.StepHook(i, timestep)
 		}
 	}
 	result.Latent = sample

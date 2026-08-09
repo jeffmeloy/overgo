@@ -444,9 +444,23 @@ Port sequence (the porting discipline, instantiated):
    it compares overgo revisions against each other or measures the source
    on demand; a baseline is never invented.
 2. Forecast task + terminal capability in overgo's recipe schema.
+   DONE 2026-08-09: TaskForecast admitted to the schema and validator.
 3. Neutral time-series package (reference/CPU): safetensors load with
    dims-from-shapes, forward to quantile output, matching the forward
    golden bit-for-bit at fp32.
+   SPECIFICATION REFINED 2026-08-09 (source read finding): the adaptive
+   source is NOT self-contained -- its transformer core composes extmodel's
+   shared decoder substrate (decoderStackProgram, grad bindings, rope
+   tables), which the porting discipline forbids copying. The reference
+   port re-expresses the 20 layers through OVERGO'S OWN op vocabulary,
+   and the mapping is grounded viable: OpSoftplus exists on all backends
+   (per-dim query scale = softplus(param) elementwise), post-norm
+   attention/FF tensors are native block vocabulary, qk-norm variants
+   exist. Series-specific pieces to write fresh: patch embedding (32-len
+   patches -> tokenizer.hidden_layer), RevIN normalization (host-side
+   pre/post with recorded tolerance), residual blocks, quantile output
+   projection (10240x1280 -> 1+levels x horizon). RoPE-before-query-norm
+   ordering is the one layer-order detail to pin against the golden.
 4. Recipe modules + activation through the sealed lifecycle; forecast
    entry through the recipe-authorized path.
 5. Training leg: per-component backward matching the eleven grad goldens.

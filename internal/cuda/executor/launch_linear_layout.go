@@ -161,6 +161,17 @@ func launchLinearLayout(
 		left := pointers[leftNode]
 		right := pointers[rightNode]
 		if leftNode.Type == dtype.BF16 {
+			// decode regime: warp-per-row native read, no staging conversion
+			if rightRows == 1 && inner%2 == 0 && rightNode.Type == dtype.F32 {
+				launchCount, err := bf16MulMatLaunchCount(leftRows, rightRows)
+				if err != nil {
+					return err
+				}
+				return launch1DABI(
+					state, functions[kernelMulMatBf16F32], launchCount,
+					&left, &right, &output, &inner, &leftRows, &rightRows,
+				)
+			}
 			if blas == nil || blas.staging == 0 {
 				return errors.New("cuBLAS BF16 workspace is unavailable")
 			}
@@ -377,6 +388,15 @@ func launchLinearLayout(
 	}
 }
 
+func bf16MulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {
+	const warpThreads = uint64(32)
+	warps := uint64(leftRows) * uint64(rightRows)
+	if warps > math.MaxUint32/warpThreads {
+		return 0, errors.New("BF16 mul_mat launch size exceeds uint32")
+	}
+	return uint32(warps * warpThreads), nil
+}
+
 func q8InputMulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {
 	const warpThreads = uint64(q8InputBlockWidth)
 	warps := uint64(leftRows) * uint64(rightRows)
@@ -547,6 +567,245 @@ func launchWeightedRMSGate(
 	}
 	q8Input.stagedNode = output
 	return nil
+}
+
+func launchBF16ProjAdd(
+	state *device.State,
+	functions functionSet,
+	output *tensor.Tensor,
+	fusion bf16ProjAddFusion,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	leftNode := fusion.projection.Inputs[0]
+	inner, err := uint32Checked(leftNode.Shape.Dims[0], "BF16 projection inner dimension")
+	if err != nil {
+		return err
+	}
+	rows, err := uint32Checked(leftNode.Shape.Dims[1], "BF16 projection row count")
+	if err != nil {
+		return err
+	}
+	launchCount, err := bf16MulMatLaunchCount(rows, 1)
+	if err != nil {
+		return err
+	}
+	left := pointers[leftNode]
+	right := pointers[fusion.projection.Inputs[1]]
+	addend := pointers[fusion.addend]
+	result := pointers[output]
+	return launch1DABI(
+		state, functions[kernelMulMatBf16AddF32], launchCount,
+		&left, &right, &addend, &result, &inner, &rows,
+	)
+}
+
+func launchBF16Gate(
+	state *device.State,
+	functions functionSet,
+	output *tensor.Tensor,
+	fusion bf16GateFusion,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	gateNode := fusion.gate.Inputs[0]
+	inner, err := uint32Checked(gateNode.Shape.Dims[0], "BF16 gate inner dimension")
+	if err != nil {
+		return err
+	}
+	rows, err := uint32Checked(gateNode.Shape.Dims[1], "BF16 gate row count")
+	if err != nil {
+		return err
+	}
+	launchCount, err := bf16MulMatLaunchCount(rows, 1)
+	if err != nil {
+		return err
+	}
+	gate := pointers[gateNode]
+	up := pointers[fusion.up.Inputs[0]]
+	right := pointers[fusion.gate.Inputs[1]]
+	result := pointers[output]
+	kind := uint32(fusion.kind)
+	return launch1DABI(
+		state, functions[kernelMulMatBf16GateF32], launchCount,
+		&gate, &up, &right, &result, &inner, &rows, &kind,
+	)
+}
+
+func launchBF16Append(
+	state *device.State,
+	functions functionSet,
+	node *tensor.Tensor,
+	fusion bf16AppendFusion,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+	attributePointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	attributes, ok := node.Attrs.(tensor.CacheAppendAttributes)
+	if !ok || attributes.Axis+1 != uint32(node.Shape.Rank) {
+		return errors.New("invalid fused cache append attributes")
+	}
+	output := pointers[node]
+	left := pointers[node.Inputs[0]]
+	if output != left {
+		leftCount, err := elementCount32(node.Inputs[0].Shape)
+		if err != nil {
+			return err
+		}
+		if err := launch1DABI(
+			state, functions[kernelCopyF32], leftCount, &left, &output, &leftCount,
+		); err != nil {
+			return err
+		}
+	}
+	leftNode := fusion.projection.Inputs[0]
+	inner, err := uint32Checked(leftNode.Shape.Dims[0], "BF16 append inner dimension")
+	if err != nil {
+		return err
+	}
+	rows, err := uint32Checked(leftNode.Shape.Dims[1], "BF16 append row count")
+	if err != nil {
+		return err
+	}
+	innerElements := uint64(1)
+	for dimension := uint32(0); dimension < attributes.Axis; dimension++ {
+		if innerElements > math.MaxUint64/node.Shape.Dims[dimension] {
+			return errors.New("fused cache append offset overflows")
+		}
+		innerElements *= node.Shape.Dims[dimension]
+	}
+	appendInner, err := uint32Checked(innerElements, "fused cache append inner size")
+	if err != nil {
+		return err
+	}
+	offsetPointer, ok := attributePointers[node]
+	if !ok {
+		return errors.New("fused cache append offset storage is unavailable")
+	}
+	launchCount, err := bf16MulMatLaunchCount(rows, 1)
+	if err != nil {
+		return err
+	}
+	weight := pointers[leftNode]
+	right := pointers[fusion.projection.Inputs[1]]
+	return launch1DABI(
+		state, functions[kernelMulMatBf16AppendF32], launchCount,
+		&weight, &right, &output, &offsetPointer, &inner, &rows, &appendInner,
+	)
+}
+
+func launchBF16ArgmaxPartials(
+	state *device.State,
+	functions functionSet,
+	projection *tensor.Tensor,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	leftNode, rightNode := projection.Inputs[0], projection.Inputs[1]
+	inner, err := uint32Checked(leftNode.Shape.Dims[0], "BF16 argmax inner dimension")
+	if err != nil {
+		return err
+	}
+	rows, err := uint32Checked(leftNode.Shape.Dims[1], "BF16 argmax row count")
+	if err != nil {
+		return err
+	}
+	partialCount, ok := q8ArgmaxPartialCount(uint64(rows))
+	if !ok {
+		return errors.New("BF16 argmax partial count exceeds uint32")
+	}
+	left := pointers[leftNode]
+	right := pointers[rightNode]
+	partials := pointers[projection]
+	const threads = uint32(q8ArgmaxWarpsPerBlock * 32)
+	return launchGridABI(
+		state, functions[kernelMulMatBf16ArgmaxPartialsF32],
+		driver.Dim3{X: partialCount, Y: 1, Z: 1},
+		driver.Dim3{X: threads, Y: 1, Z: 1},
+		&left, &right, &partials, &inner, &rows,
+	)
+}
+
+func launchRopeAppend(
+	state *device.State,
+	functions functionSet,
+	node *tensor.Tensor,
+	fusion ropeAppendFusion,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+	attributePointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	appendAttributes, ok := node.Attrs.(tensor.CacheAppendAttributes)
+	if !ok || appendAttributes.Axis+1 != uint32(node.Shape.Rank) {
+		return errors.New("invalid fused cache append attributes")
+	}
+	ropeAttributes, ok := fusion.rope.Attrs.(tensor.RoPEAttributes)
+	if !ok {
+		return errors.New("invalid fused RoPE attributes")
+	}
+	output := pointers[node]
+	left := pointers[node.Inputs[0]]
+	if output != left {
+		leftCount, err := elementCount32(node.Inputs[0].Shape)
+		if err != nil {
+			return err
+		}
+		if err := launch1DABI(
+			state, functions[kernelCopyF32], leftCount, &left, &output, &leftCount,
+		); err != nil {
+			return err
+		}
+	}
+	count, err := elementCount32(fusion.rope.Shape)
+	if err != nil {
+		return err
+	}
+	width, err := uint32Checked(fusion.rope.Shape.Dims[0], "fused RoPE width")
+	if err != nil {
+		return err
+	}
+	heads, err := uint32Checked(fusion.rope.Shape.Dims[1], "fused RoPE heads")
+	if err != nil {
+		return err
+	}
+	tokens, err := uint32Checked(fusion.rope.Shape.Dims[2], "fused RoPE tokens")
+	if err != nil {
+		return err
+	}
+	innerElements := uint64(1)
+	for dimension := uint32(0); dimension < appendAttributes.Axis; dimension++ {
+		if innerElements > math.MaxUint64/node.Shape.Dims[dimension] {
+			return errors.New("fused cache append offset overflows")
+		}
+		innerElements *= node.Shape.Dims[dimension]
+	}
+	inner, err := uint32Checked(innerElements, "fused cache append inner size")
+	if err != nil {
+		return err
+	}
+	input := pointers[fusion.rope.Inputs[0]]
+	var frequencyFactors driver.DevicePtr
+	if len(fusion.rope.Inputs) == 2 {
+		frequencyFactors = pointers[fusion.rope.Inputs[1]]
+	}
+	positions, ok := attributePointers[fusion.rope]
+	if !ok {
+		return errors.New("fused RoPE position storage is unavailable")
+	}
+	offsetPointer, ok := attributePointers[node]
+	if !ok {
+		return errors.New("fused cache append offset storage is unavailable")
+	}
+	rotary := ropeAttributes.RotaryDimensions
+	frequencyBase := ropeAttributes.FrequencyBase
+	frequencyScale := ropeAttributes.FrequencyScale
+	originalContext := ropeAttributes.OriginalContext
+	extFactor := ropeAttributes.ExtFactor
+	attentionFactor := ropeAttributes.AttentionFactor
+	betaFast := ropeAttributes.BetaFast
+	betaSlow := ropeAttributes.BetaSlow
+	return launch1DABI(
+		state, functions[kernelRopeAppendNormalF32], count,
+		&input, &positions, &frequencyFactors, &output, &offsetPointer, &inner,
+		&width, &heads, &tokens, &rotary,
+		&frequencyBase, &frequencyScale, &originalContext, &extFactor, &attentionFactor,
+		&betaFast, &betaSlow, &count,
+	)
 }
 
 const (

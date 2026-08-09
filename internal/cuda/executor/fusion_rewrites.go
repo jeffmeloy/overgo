@@ -32,6 +32,32 @@ type weightedRMSGateFusion struct {
 	kind activatedGateKind
 }
 
+// bf16ProjAddFusion: one-token BF16 matvec with the residual add folded into
+// the epilogue.
+type bf16ProjAddFusion struct {
+	projection *tensor.Tensor
+	addend     *tensor.Tensor
+}
+
+// bf16GateFusion: one-token BF16 gate/up matvec pair with the activation
+// product folded into the epilogue.
+type bf16GateFusion struct {
+	gate *tensor.Tensor
+	up   *tensor.Tensor
+	kind activatedGateKind
+}
+
+// ropeAppendFusion: rope_normal rotated directly into its cache-append slot.
+type ropeAppendFusion struct {
+	rope *tensor.Tensor
+}
+
+// bf16AppendFusion: one-token BF16 matvec written directly into its
+// cache-append slot.
+type bf16AppendFusion struct {
+	projection *tensor.Tensor
+}
+
 type rewriteContext struct {
 	compiled   *CompiledGraph
 	order      []*tensor.Tensor
@@ -51,6 +77,11 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "activated-gate", apply: applyActivatedGateRewrite},
 	{name: "q8-emission", apply: applyQ8EmissionRewrite},
 	{name: "q8-argmax", apply: applyQ8ArgmaxRewrite},
+	{name: "bf16-gate", apply: applyBF16GateRewrite},
+	{name: "bf16-projection-add", apply: applyBF16ProjAddRewrite},
+	{name: "rope-append", apply: applyRopeAppendRewrite},
+	{name: "bf16-append", apply: applyBF16AppendRewrite},
+	{name: "bf16-argmax", apply: applyBF16ArgmaxRewrite},
 }
 
 func compileGraphRewrites(
@@ -205,6 +236,174 @@ func applyQ8ArgmaxRewrite(context *rewriteContext) {
 	}
 }
 
+// bf16DecodeProjection: one-token BF16 matvec candidate for epilogue fusion.
+func (context *rewriteContext) bf16DecodeProjection(node *tensor.Tensor) bool {
+	if node == nil || node.Op != tensor.OpMulMat || len(node.Inputs) != 2 {
+		return false
+	}
+	left, right := node.Inputs[0], node.Inputs[1]
+	if left.Type != dtype.BF16 || right.Type != dtype.F32 ||
+		right.Shape.Rank != 2 || right.Shape.Dims[1] != 1 || left.Shape.Dims[0]%2 != 0 {
+		return false
+	}
+	if context.uses[node] != 1 {
+		return false
+	}
+	if _, skipped := context.compiled.skipped[node]; skipped {
+		return false
+	}
+	_, retained := context.outputSet[node]
+	return !retained
+}
+
+func applyBF16GateRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for node, fusion := range compiled.activatedGate {
+		if _, emit := compiled.q8Emit[node]; emit {
+			continue
+		}
+		gate, up := fusion.gate, fusion.up
+		if !context.bf16DecodeProjection(gate) || !context.bf16DecodeProjection(up) ||
+			gate.Inputs[1] != up.Inputs[1] || gate == up {
+			continue
+		}
+		if compiled.bf16Gate == nil {
+			compiled.bf16Gate = make(map[*tensor.Tensor]bf16GateFusion)
+		}
+		compiled.bf16Gate[node] = bf16GateFusion{gate: gate, up: up, kind: fusion.kind}
+		delete(compiled.activatedGate, node)
+		compiled.skipped[gate] = struct{}{}
+		compiled.skipped[up] = struct{}{}
+	}
+}
+
+func applyBF16ProjAddRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		if node.Op != tensor.OpAdd || len(node.Inputs) != 2 {
+			continue
+		}
+		if _, skipped := compiled.skipped[node]; skipped {
+			continue
+		}
+		projection, addend := node.Inputs[0], node.Inputs[1]
+		if !context.bf16DecodeProjection(projection) {
+			projection, addend = addend, projection
+		}
+		if !context.bf16DecodeProjection(projection) || projection == addend ||
+			!node.Shape.Equal(projection.Shape) || !addend.Shape.Equal(node.Shape) {
+			continue
+		}
+		if compiled.bf16ProjAdd == nil {
+			compiled.bf16ProjAdd = make(map[*tensor.Tensor]bf16ProjAddFusion)
+		}
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		compiled.bf16ProjAdd[node] = bf16ProjAddFusion{projection: projection, addend: addend}
+		compiled.skipped[projection] = struct{}{}
+	}
+}
+
+// applyBF16AppendRewrite: cache_append of a reshaped single-use one-token
+// BF16 matvec writes its rows directly into the cache slot. The projection is
+// elided from launching only; its buffer stays planned for alias resolution.
+func applyBF16AppendRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		if node.Op != tensor.OpCacheAppend || len(node.Inputs) != 2 {
+			continue
+		}
+		if _, fused := compiled.ropeAppend[node]; fused {
+			continue
+		}
+		view := node.Inputs[1]
+		if view.Op != tensor.OpReshape || len(view.Inputs) != 1 || context.uses[view] != 1 {
+			continue
+		}
+		if _, retained := context.outputSet[view]; retained {
+			continue
+		}
+		projection := view.Inputs[0]
+		if !context.bf16DecodeProjection(projection) {
+			continue
+		}
+		if _, fused := compiled.bf16ProjAdd[projection]; fused {
+			continue
+		}
+		if compiled.bf16Append == nil {
+			compiled.bf16Append = make(map[*tensor.Tensor]bf16AppendFusion)
+		}
+		if compiled.elided == nil {
+			compiled.elided = make(map[*tensor.Tensor]struct{})
+		}
+		compiled.bf16Append[node] = bf16AppendFusion{projection: projection}
+		compiled.elided[projection] = struct{}{}
+	}
+}
+
+// applyBF16ArgmaxRewrite: greedy selection over a one-token BF16 projection
+// computes block-level argmax partials in the projection kernel; logits never
+// materialize. Partials reuse the projection allocation.
+func applyBF16ArgmaxRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, projection := range context.order {
+		if !context.bf16DecodeProjection(projection) {
+			continue
+		}
+		if _, fused := compiled.bf16ProjAdd[projection]; fused {
+			continue
+		}
+		if _, elided := compiled.elided[projection]; elided {
+			continue
+		}
+		selection := context.consumers[projection][0]
+		attributes, ok := selection.Attrs.(tensor.TopKAttributes)
+		rows := projection.Shape.Dims[0]
+		partials, partialsOK := q8ArgmaxPartialCount(rows)
+		if selection.Op != tensor.OpTopK || !ok || attributes.K != 1 || rows < 2 ||
+			!partialsOK || q8ArgmaxPartialValues*uint64(partials) > rows {
+			continue
+		}
+		if compiled.bf16Argmax == nil {
+			compiled.bf16Argmax = make(map[*tensor.Tensor]*tensor.Tensor)
+		}
+		compiled.bf16Argmax[projection] = selection
+		compiled.bf16Argmax[selection] = projection
+	}
+}
+
+// applyRopeAppendRewrite: cache_append of a single-use rope_normal rotates
+// directly into the cache slot.
+func applyRopeAppendRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		if node.Op != tensor.OpCacheAppend || len(node.Inputs) != 2 {
+			continue
+		}
+		rope := node.Inputs[1]
+		if rope.Op != tensor.OpRoPENormal || context.uses[rope] != 1 {
+			continue
+		}
+		if _, skipped := compiled.skipped[rope]; skipped {
+			continue
+		}
+		if _, retained := context.outputSet[rope]; retained {
+			continue
+		}
+		if compiled.ropeAppend == nil {
+			compiled.ropeAppend = make(map[*tensor.Tensor]ropeAppendFusion)
+		}
+		if compiled.elided == nil {
+			compiled.elided = make(map[*tensor.Tensor]struct{})
+		}
+		// launch-only elision: the retained cache output's alias validation
+		// still addresses the rope buffer
+		compiled.ropeAppend[node] = ropeAppendFusion{rope: rope}
+		compiled.elided[rope] = struct{}{}
+	}
+}
+
 func (context *rewriteContext) compileDependencies() {
 	for node, fusion := range context.compiled.weightedRMS {
 		if fusion.addLeft != nil {
@@ -223,6 +422,24 @@ func (context *rewriteContext) compileDependencies() {
 		} else {
 			context.dependency[node] = append(context.dependency[node], fusion.normalization.Inputs[0])
 		}
+	}
+	for node, fusion := range context.compiled.bf16Gate {
+		context.dependency[node] = append(
+			context.dependency[node],
+			fusion.gate.Inputs[0], fusion.gate.Inputs[1], fusion.up.Inputs[0],
+		)
+	}
+	for node, fusion := range context.compiled.bf16ProjAdd {
+		context.dependency[node] = append(
+			context.dependency[node],
+			fusion.projection.Inputs[0], fusion.projection.Inputs[1],
+		)
+	}
+	for node, fusion := range context.compiled.ropeAppend {
+		context.dependency[node] = append(context.dependency[node], fusion.rope.Inputs...)
+	}
+	for node, fusion := range context.compiled.bf16Append {
+		context.dependency[node] = append(context.dependency[node], fusion.projection.Inputs...)
 	}
 }
 

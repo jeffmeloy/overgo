@@ -2054,6 +2054,58 @@ extern "C" __global__ void rope_normal_f32(
         : x0 * sine + x1 * cosine;
 }
 
+// rope_normal rotated DIRECTLY into its cache-append slot: the standalone
+// append copy launch does not exist. Offset is device-resident (token units of
+// inner elements), keeping decode launches byte-identical across steps.
+extern "C" __global__ void rope_append_normal_f32(
+        const float * input,
+        const unsigned int * positions,
+        const float * frequency_factors,
+        float * output,
+        const unsigned int * offset,
+        unsigned int inner,
+        unsigned int width,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int rotary_dimensions,
+        float frequency_base,
+        float frequency_scale,
+		unsigned int original_context,
+		float ext_factor,
+		float attention_factor,
+		float beta_fast,
+		float beta_slow,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    float * destination = output + (size_t) offset[0] * inner + index;
+    const unsigned int column = index % width;
+    if (column >= rotary_dimensions) {
+        *destination = input[index];
+        return;
+    }
+    const unsigned int row = index / width;
+    const unsigned int token = (row / heads) % tokens;
+    const unsigned int pair = column / 2;
+    const unsigned int pair_offset = row * width + pair * 2;
+	const float theta_extrapolated =
+		(float) positions[token] *
+        powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions) /
+        (frequency_factors == nullptr ? 1.0f : frequency_factors[pair]);
+    float sine;
+    float cosine;
+	rope_yarn_angles(theta_extrapolated, frequency_scale, pair, rotary_dimensions,
+		original_context, frequency_base, ext_factor, attention_factor,
+		beta_fast, beta_slow, &cosine, &sine);
+    const float x0 = input[pair_offset];
+    const float x1 = input[pair_offset + 1];
+    *destination = (column & 1) == 0
+        ? x0 * cosine - x1 * sine
+        : x0 * sine + x1 * cosine;
+}
+
 extern "C" __global__ void rope_multi_f32(
         const float * input,
         const unsigned int * positions,
@@ -3072,6 +3124,172 @@ extern "C" __global__ void mul_mat_q8_0_input_f32(
     if (lane == 0) {
         output[right_row * left_rows + left_row] = sum;
     }
+}
+
+// warp-per-row BF16 matvec: packed pair loads keep coalesced 128B segments;
+// fp32 input and accumulation. Decode-regime replacement for staged GEMMEx.
+extern "C" __global__ void mul_mat_bf16_f32(
+        const unsigned int * left,
+        const float * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
+    const unsigned int left_row = warp_index % left_rows;
+    const unsigned int right_row = warp_index / left_rows;
+    if (right_row >= right_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int pairs = inner / 2;
+    const unsigned int * weight_row = left + (size_t) left_row * pairs;
+    const float * input_row = right + (size_t) right_row * inner;
+    float sum = 0.0f;
+    for (unsigned int pair = lane; pair < pairs; pair += CUDA_WARP_WIDTH) {
+        const unsigned int packed = weight_row[pair];
+        const float low = __uint_as_float(packed << 16);
+        const float high = __uint_as_float(packed & 0xffff0000U);
+        sum += low * input_row[2 * pair] + high * input_row[2 * pair + 1];
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffff, sum, offset);
+    }
+    if (lane == 0) {
+        output[right_row * left_rows + left_row] = sum;
+    }
+}
+
+__device__ __forceinline__ float bf16_dot_row(
+        const unsigned int * left,
+        const float * input_row,
+        unsigned int pairs,
+        unsigned int row,
+        unsigned int lane) {
+    const unsigned int * weight_row = left + (size_t) row * pairs;
+    float sum = 0.0f;
+    for (unsigned int pair = lane; pair < pairs; pair += CUDA_WARP_WIDTH) {
+        const unsigned int packed = weight_row[pair];
+        const float low = __uint_as_float(packed << 16);
+        const float high = __uint_as_float(packed & 0xffff0000U);
+        sum += low * input_row[2 * pair] + high * input_row[2 * pair + 1];
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffff, sum, offset);
+    }
+    return sum;
+}
+
+// BF16 matvec with residual epilogue: output = W.x + addend (one token).
+extern "C" __global__ void mul_mat_bf16_add_f32(
+        const unsigned int * left,
+        const float * right,
+        const float * addend,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows) {
+    const unsigned int warp_index =
+        (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    if (warp_index >= left_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const float sum = bf16_dot_row(left, right, inner / 2, warp_index, lane);
+    if (lane == 0) {
+        output[warp_index] = sum + addend[warp_index];
+    }
+}
+
+// fused BF16 gate/up matvec pair with activation epilogue:
+// output = activate(Wg.x) * (Wu.x) (one token).
+extern "C" __global__ void mul_mat_bf16_gate_f32(
+        const unsigned int * gate,
+        const unsigned int * up,
+        const float * right,
+        float * output,
+        unsigned int inner,
+        unsigned int rows,
+        unsigned int activation) {
+    const unsigned int warp_index =
+        (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    if (warp_index >= rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int pairs = inner / 2;
+    const float gated = bf16_dot_row(gate, right, pairs, warp_index, lane);
+    const float scaled = bf16_dot_row(up, right, pairs, warp_index, lane);
+    if (lane == 0) {
+        output[warp_index] = activated_gate_value(gated, activation) * scaled;
+    }
+}
+
+// BF16 matvec appended DIRECTLY into its cache slot: the standalone append
+// copy launch does not exist. Offset is device-resident (token units of
+// append_inner elements).
+extern "C" __global__ void mul_mat_bf16_append_f32(
+        const unsigned int * left,
+        const float * right,
+        float * output,
+        const unsigned int * offset,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int append_inner) {
+    const unsigned int warp_index =
+        (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    if (warp_index >= left_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const float sum = bf16_dot_row(left, right, inner / 2, warp_index, lane);
+    if (lane == 0) {
+        output[(size_t) offset[0] * append_inner + warp_index] = sum;
+    }
+}
+
+// BF16 head projection fused with block-level argmax: logits never
+// materialize. Mirrors the Q8 partials contract; the shared reduction kernel
+// argmax_q8_0_input_partials_f32 finishes the selection.
+extern "C" __global__ void mul_mat_bf16_argmax_partials_f32(
+        const unsigned int * left,
+        const float * right,
+        float * partials,
+        unsigned int inner,
+        unsigned int left_rows) {
+    constexpr unsigned int warps_per_block = 8;
+    constexpr unsigned int partial_values = 2;
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int row = blockIdx.x * warps_per_block + warp;
+    const bool valid = row < left_rows;
+    const float sum = valid ? bf16_dot_row(left, right, inner / 2, row, lane) : 0.0f;
+    __shared__ float values[warps_per_block];
+    __shared__ unsigned int indices[warps_per_block];
+    __shared__ unsigned int invalids[warps_per_block];
+    if (lane == 0) {
+        values[warp] = sum;
+        indices[warp] = valid ? row : 0xffffffffU;
+        invalids[warp] = valid && isnan(sum);
+    }
+    __syncthreads();
+    if (threadIdx.x != 0) {
+        return;
+    }
+    unsigned int best = 0xffffffffU;
+    float best_value = 0.0f;
+    unsigned int invalid = 0;
+    for (unsigned int item = 0; item < warps_per_block; ++item) {
+        invalid |= invalids[item];
+        const unsigned int index = indices[item];
+        if (index != 0xffffffffU &&
+            (best == 0xffffffffU || top_k_before(values[item], index, best_value, best))) {
+            best = index;
+            best_value = values[item];
+        }
+    }
+    partials[blockIdx.x * partial_values] = best_value;
+    partials[blockIdx.x * partial_values + 1] = invalid ? -1.0f : (float) best;
 }
 
 extern "C" __global__ void mul_mat_q8_0_input_argmax_partials_f32(

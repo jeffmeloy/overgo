@@ -84,6 +84,12 @@ const (
 	kernelGetRowsQ80F32
 	kernelMulMatQ80F32
 	kernelMulMatQ80InputF32
+	kernelMulMatBf16F32
+	kernelMulMatBf16AddF32
+	kernelMulMatBf16GateF32
+	kernelMulMatBf16AppendF32
+	kernelMulMatBf16ArgmaxPartialsF32
+	kernelRopeAppendNormalF32
 	kernelMulMatQ80InputArgmaxPartialsF32
 	kernelGetRowsQ40F32
 	kernelMulMatQ40F32
@@ -218,6 +224,12 @@ var kernelFunctionNames = [...]string{
 	"get_rows_q8_0_f32",
 	"mul_mat_q8_0_f32",
 	"mul_mat_q8_0_input_f32",
+	"mul_mat_bf16_f32",
+	"mul_mat_bf16_add_f32",
+	"mul_mat_bf16_gate_f32",
+	"mul_mat_bf16_append_f32",
+	"mul_mat_bf16_argmax_partials_f32",
+	"rope_append_normal_f32",
 	"mul_mat_q8_0_input_argmax_partials_f32",
 	"get_rows_q4_0_f32",
 	"mul_mat_q4_0_f32",
@@ -351,6 +363,12 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	6,
 	6,
+	6,
+	6,
+	7,
+	7,
+	5,
+	18,
 	5,
 	5,
 	6,

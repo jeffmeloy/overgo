@@ -726,6 +726,12 @@ type CompiledGraph struct {
 	weightedRMS     map[*tensor.Tensor]weightedRMSFusion
 	activatedGate   map[*tensor.Tensor]activatedGateFusion
 	weightedRMSGate map[*tensor.Tensor]weightedRMSGateFusion
+	bf16Gate        map[*tensor.Tensor]bf16GateFusion
+	bf16ProjAdd     map[*tensor.Tensor]bf16ProjAddFusion
+	bf16Append      map[*tensor.Tensor]bf16AppendFusion
+	bf16Argmax      map[*tensor.Tensor]*tensor.Tensor
+	ropeAppend      map[*tensor.Tensor]ropeAppendFusion
+	elided          map[*tensor.Tensor]struct{}
 	q8Emit          map[*tensor.Tensor]struct{}
 	q8Argmax        map[*tensor.Tensor]*tensor.Tensor
 	targetContracts []tensor.OutputTargetContract
@@ -916,6 +922,7 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		return nil, err
 	}
 	compiled.memory = memory
+	dumpOpCounts(compiled)
 	return compiled, nil
 }
 
@@ -1493,6 +1500,9 @@ func execute(
 			if _, skipped := compiled.skipped[node]; skipped {
 				continue
 			}
+			if _, elided := compiled.elided[node]; elided {
+				continue
+			}
 			_, aliases, viewErr := tensor.ResolveStorageView(node)
 			if viewErr != nil {
 				return viewErr
@@ -1530,6 +1540,51 @@ func execute(
 					state, functions, q8Input, node, fusion, emitQ8, pointers,
 				); err != nil {
 					return fmt.Errorf("launch tensor %d (weighted_rms_gate): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if fusion, ok := compiled.bf16Append[node]; ok {
+				if err := launchBF16Append(
+					state, functions, node, fusion, pointers, attributePointers,
+				); err != nil {
+					return fmt.Errorf("launch tensor %d (bf16_append): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if paired, ok := compiled.bf16Argmax[node]; ok {
+				var launchErr error
+				if node.Op == tensor.OpMulMat {
+					launchErr = launchBF16ArgmaxPartials(state, functions, node, pointers)
+				} else {
+					launchErr = launchQ8ArgmaxReduction(state, functions, paired, node, pointers)
+				}
+				if launchErr != nil {
+					return fmt.Errorf("launch tensor %d (bf16_argmax): %w", node.ID, launchErr)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if fusion, ok := compiled.ropeAppend[node]; ok {
+				if err := launchRopeAppend(
+					state, functions, node, fusion, pointers, attributePointers,
+				); err != nil {
+					return fmt.Errorf("launch tensor %d (rope_append): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if fusion, ok := compiled.bf16Gate[node]; ok {
+				if err := launchBF16Gate(state, functions, node, fusion, pointers); err != nil {
+					return fmt.Errorf("launch tensor %d (bf16_gate): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if fusion, ok := compiled.bf16ProjAdd[node]; ok {
+				if err := launchBF16ProjAdd(state, functions, node, fusion, pointers); err != nil {
+					return fmt.Errorf("launch tensor %d (bf16_projection_add): %w", node.ID, err)
 				}
 				submitted = submitted || !probe
 				continue

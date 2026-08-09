@@ -155,14 +155,25 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 			if err = rawWeights.Load(context.Background(), file, quantized); err != nil {
 				return fail(err)
 			}
+			// native BF16 matrices feed the decode catalog directly: half the
+			// per-token weight traffic; F32 copies stay resident for prefill
+			var decodeTensors []gguf.TensorInfo
+			for _, info := range selected {
+				_, adapted := adaptedTensors[info.Name]
+				_, requiresF32 := f32Required[info.Name]
+				if !adapted && !requiresF32 && info.Type == dtype.BF16 && info.Dimensions == 2 {
+					decodeTensors = append(decodeTensors, info)
+				}
+			}
 			if options.PreloadBF16DecodeWeights {
-				decodeTensors := make([]gguf.TensorInfo, 0, len(quantized))
 				for _, info := range quantized {
 					_, adapted := adaptedTensors[info.Name]
 					if !adapted && info.Type == dtype.Q8_0 && info.Dimensions >= 2 {
 						decodeTensors = append(decodeTensors, info)
 					}
 				}
+			}
+			if len(decodeTensors) > 0 {
 				decodeWeights, err = model.NewDeviceBF16Weights(worker)
 				if err == nil {
 					err = decodeWeights.Load(context.Background(), file, decodeTensors)

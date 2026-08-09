@@ -1,5 +1,5 @@
 {
-  "campaign": "adaptive_new -\u003e overgo merge: model ladder",
+  "campaign": "adaptive_new -> overgo merge: model ladder",
   "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only.",
   "items": [
     {
@@ -112,7 +112,33 @@
       "id": "rung5-tabfm",
       "title": "tabfm (port-class)",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "golden-generation",
+          "status": "open",
+          "title": "capture predict goldens from adaptive live server /api/predict (classification + regression sub-models; X/y/rows/cols contract) + decode/latency baseline; reference is extmodel/tabular_set_transformer.go (ICL set transformer)"
+        },
+        {
+          "id": "reference-port",
+          "status": "open",
+          "title": "neutral tabular capability package (seriesforecast pattern): dims from safetensors shapes of models/tabfm-1.0.0-pytorch/{classification,regression}; forward parity vs goldens"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "title": "sealed lifecycle, tabular-predict task (recipe schema may need the task enum)"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "per baseline policy (ICL models predict via context, check what adaptive trains here first)"
+        },
+        {
+          "id": "performance-leg",
+          "status": "open",
+          "title": "head-to-head vs live baseline, at-or-below"
+        }
+      ]
     },
     {
       "id": "rung6-needle",

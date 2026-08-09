@@ -160,6 +160,22 @@ they can supply is missing. When repo evidence can decide a fork, decide it
 and report what changed. A session that ends with open plan items and none
 of those three reasons is the failure mode this section exists to prevent.
 
+HEARTBEAT WAKES ARE EXECUTION TICKS (owner correction 2026-08-09). A wake
+with a live background agent is NOT "check and re-arm": dispatch the next
+DISJOINT open action (another plan step, the cross-repo carry, doctrine
+work) before re-arming. Re-arm-only turns are the observed failure mode --
+24 idle minutes while queued work sat untouched. Only GPU-contending work
+defers while an agent measures on the device; CPU-side slices never wait.
+
+DELEGATION CONTRACT. A subagent's prompt must require verification to run
+TO COMPLETION before its final message -- "suite still running, will
+finalize later" is a malformed ending that costs an idle resume round-trip
+(observed 3x). Long suites: detach WITH a watcher and wait on it inside
+the same agent turn. STALL DETECTION: an agent transcript with no growth
+plus an idle GPU for ~15 min is a stall -- send a checkpoint demand
+immediately; no response by the following wake means TaskStop and salvage
+of its working tree (scripts/stall_check.sh prints the verdict).
+
 ### Testing Lanes
 
 - Fast correctness: `go test ./...` — model-free, required per code slice;

@@ -42,6 +42,10 @@ const (
 	// existing TaskGeneration is token generation (tokenizer-coupled in the
 	// workflow catalog) and the oscillator contract has no tokens or logits.
 	TaskImageGen Task = "image-gen"
+	// TaskVideoGen: text-to-video generation (ladder rung 11; prompt text
+	// in, decoded video frames out). Distinct from TaskImageGen: the
+	// contract carries a text-conditioning stage and temporal decode.
+	TaskVideoGen Task = "video-gen"
 )
 
 type Placement string
@@ -222,7 +226,7 @@ func validName(value string) bool {
 
 func validateTask(task Task) error {
 	switch task {
-	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskImageGen:
+	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskImageGen, TaskVideoGen:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid task %q", task)

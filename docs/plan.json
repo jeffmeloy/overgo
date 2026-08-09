@@ -338,8 +338,9 @@
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "title": "scope honestly: adaptive has NO Wan training lane (serving-only; go/training has no wan objective, no training recipe declaration for wan-t2v; vendor python lives in models/Wan2.1-T2V-1.3B/Wan2.1) -- expected outcome is a recorded ABSENT/vendor scoping, not a port"
+          "status": "done",
+          "title": "scope honestly: adaptive has NO Wan training lane (serving-only; go/training has no wan objective, no training recipe declaration for wan-t2v; vendor python lives in models/Wan2.1-T2V-1.3B/Wan2.1) -- expected outcome is a recorded ABSENT/vendor scoping, not a port",
+          "verdict": "ABSENT-baseline: adaptive serves Wan but does not train it -- the scoping agent found serving-only seeded recipes (wan_t2v.generate.video_cuda.v5), no training stages, vendor python training in the artifact repo (Wan2.1/). No lane nobody has; matches the rung-5/6 discipline."
         },
         {
           "id": "performance-leg",

@@ -30,6 +30,9 @@ const (
 	// image-generation capability packages; input condition tensor, output
 	// generated image.
 	ModuleImageGenerate recipe.ModuleID = "model.image-generate"
+	// ModuleVideoGenerate: text-to-video generation (device denoise session
+	// + CUDA VAE decode); prompt text in, decoded video frames out.
+	ModuleVideoGenerate recipe.ModuleID = "model.video-generate"
 )
 
 var catalog = mustCatalog()
@@ -190,6 +193,28 @@ func ImageGenDefinition(modelID artifact.ID) (recipe.Definition, error) {
 		[]recipe.Output{{
 			Name: "image", Data: recipe.DataImage,
 			Source: recipe.Endpoint{Node: forward.ID, Port: "image"},
+		}},
+	)
+}
+
+// VideoGenDefinition: single video-generate node bound to the model
+// artifact (device placement — the production denoise/decode path is the
+// CUDA session). The capability package derives dimensions from the
+// artifact, so the definition carries no profile document.
+func VideoGenDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	forward := recipe.Node{ID: "videogen", Module: ModuleVideoGenerate, Placement: recipe.PlacementDevice}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskVideoGen,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
+		[]recipe.Node{forward},
+		nil,
+		[]recipe.Input{{
+			Name: "prompt", Data: recipe.DataText,
+			Target: recipe.Endpoint{Node: forward.ID, Port: "prompt"},
+		}},
+		[]recipe.Output{{
+			Name: "video", Data: recipe.DataVideo,
+			Source: recipe.Endpoint{Node: forward.ID, Port: "video"},
 		}},
 	)
 }
@@ -423,6 +448,12 @@ func mustCatalog() *recipe.Catalog {
 			Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs:     []recipe.Port{{Name: "condition", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
 			Outputs:    []recipe.Port{{Name: "image", Data: recipe.DataImage, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleVideoGenerate, Tasks: []recipe.Task{recipe.TaskVideoGen},
+			Placements: []recipe.Placement{recipe.PlacementDevice},
+			Inputs:     []recipe.Port{{Name: "prompt", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "video", Data: recipe.DataVideo, Cardinality: recipe.CardinalityOne}},
 		},
 	)
 	if err != nil {

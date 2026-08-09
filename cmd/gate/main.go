@@ -14,6 +14,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -111,9 +113,22 @@ func (g *gateContext) pipeline() error {
 		{"magics", runrecord.PhaseValidate, g.stepMagics},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
 	}
+	treeKey, cache := g.loadRetryCache()
+	// Verification steps whose result depends only on tree state may reuse a
+	// prior identical-tree success (the retry-loop tax: a failed commit step
+	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
+	// always run; commit is never cached.
+	cacheable := map[string]bool{"vet": true, "build": true, "test": true, "manifest": true, "sbom": true, "claims": true}
 	for _, s := range steps {
 		began := time.Now()
-		skipped, err := s.fn()
+		var skipped bool
+		var err error
+		if cacheable[s.name] && cache.Steps[s.name] == string(runrecord.StepSucceeded) {
+			skipped = true
+			g.honesty = append(g.honesty, s.name+" reused: identical tree already passed this step")
+		} else {
+			skipped, err = s.fn()
+		}
 		record := runrecord.GateStep{
 			Name: s.name, Phase: s.phase, Outcome: runrecord.StepSucceeded,
 			DurationNS: uint64(time.Since(began).Nanoseconds()),
@@ -126,11 +141,85 @@ func (g *gateContext) pipeline() error {
 		}
 		g.steps = append(g.steps, record)
 		fmt.Printf("[gate] %-8s %-9s %6.2fs\n", s.name, record.Outcome, time.Since(began).Seconds())
+		if err == nil && cacheable[s.name] && !skipped {
+			cache.Steps[s.name] = string(runrecord.StepSucceeded)
+			g.saveRetryCache(treeKey, cache)
+		}
 		if err != nil {
 			return fmt.Errorf("%s: %w", s.name, err)
 		}
 	}
 	return nil
+}
+
+type retryCache struct {
+	TreeKey string            `json:"tree_key"`
+	Steps   map[string]string `json:"steps"`
+}
+
+// treeStateKey hashes HEAD plus every pending difference (staged, unstaged,
+// and the content of untracked planned paths): identical key means the
+// verification inputs are byte-identical.
+func (g *gateContext) treeStateKey() (string, error) {
+	head, err := command(g.repo, "git", "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	staged, err := command(g.repo, "git", "diff", "--cached")
+	if err != nil {
+		return "", err
+	}
+	unstaged, err := command(g.repo, "git", "diff")
+	if err != nil {
+		return "", err
+	}
+	hasher := sha256.New()
+	hasher.Write([]byte(head))
+	hasher.Write([]byte(staged))
+	hasher.Write([]byte(unstaged))
+	for _, p := range g.paths {
+		raw, err := os.ReadFile(filepath.Join(g.repo, filepath.FromSlash(p)))
+		if err != nil {
+			continue // deletions contribute through the diffs
+		}
+		hasher.Write([]byte(p))
+		hasher.Write(raw)
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func (g *gateContext) loadRetryCache() (string, retryCache) {
+	empty := retryCache{Steps: map[string]string{}}
+	key, err := g.treeStateKey()
+	if err != nil {
+		return "", empty
+	}
+	empty.TreeKey = key
+	raw, err := os.ReadFile(filepath.Join(g.repo, "bin", "gate_cache.json"))
+	if err != nil {
+		return key, empty
+	}
+	var cache retryCache
+	if json.Unmarshal(raw, &cache) != nil || cache.TreeKey != key || cache.Steps == nil {
+		return key, empty
+	}
+	return key, cache
+}
+
+func (g *gateContext) saveRetryCache(key string, cache retryCache) {
+	if key == "" {
+		return
+	}
+	cache.TreeKey = key
+	raw, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return
+	}
+	dir := filepath.Join(g.repo, "bin")
+	if os.MkdirAll(dir, 0o755) != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(dir, "gate_cache.json"), append(raw, '\n'), 0o644)
 }
 
 // stepScope refuses staged paths outside the plan (the commit would ship
@@ -206,7 +295,31 @@ func (g *gateContext) stepVet() (bool, error) {
 	return false, err
 }
 
+func (g *gateContext) pathsTouchGo() bool {
+	for _, p := range g.paths {
+		if strings.HasSuffix(p, ".go") || p == "go.mod" || p == "go.sum" {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *gateContext) pathsTouchAny(prefixes ...string) bool {
+	for _, p := range g.paths {
+		for _, prefix := range prefixes {
+			if p == prefix || strings.HasPrefix(p, prefix) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (g *gateContext) stepBuild() (bool, error) {
+	if !g.pathsTouchGo() {
+		g.honesty = append(g.honesty, "build skipped: no Go source or module files in -paths")
+		return true, nil
+	}
 	_, err := command(g.repo, "go", "build", "./...")
 	return false, err
 }
@@ -259,16 +372,46 @@ func (g *gateContext) stepManifest() (bool, error) {
 	if _, err := os.Stat(filepath.Join(g.repo, "kernels", "manifest.json")); err != nil {
 		return true, nil
 	}
+	if !g.pathsTouchAny("kernels/", "internal/cuda/kernel/", "cmd/kernel-manifest/", "cmd/build-kernels/") {
+		g.honesty = append(g.honesty, "manifest skipped: no kernel-owning paths in -paths")
+		return true, nil
+	}
 	_, err := command(g.repo, "go", "run", "./cmd/kernel-manifest")
 	return false, err
 }
 
 func (g *gateContext) stepSBOM() (bool, error) {
+	if !g.pathsTouchAny("go.mod", "go.sum", "LICENSES.md", "SBOM.cdx.json", "cmd/sbom/") {
+		g.honesty = append(g.honesty, "sbom skipped: no dependency-owning paths in -paths")
+		return true, nil
+	}
 	_, err := command(g.repo, "go", "run", "./cmd/sbom", "-check")
 	return false, err
 }
 
+// stepClaims runs when the manifest itself, its checker, or any changed path
+// mentioned in the manifest's raw bytes is in scope. Substring matching is
+// deliberately safe-over-skip: a false positive runs the check, never the
+// reverse.
 func (g *gateContext) stepClaims() (bool, error) {
+	run := g.pathsTouchAny("compatibility.yaml", "cmd/compatibility/", "internal/model/")
+	if !run {
+		raw, err := os.ReadFile(filepath.Join(g.repo, "compatibility.yaml"))
+		if err != nil {
+			return false, err
+		}
+		manifestText := string(raw)
+		for _, p := range g.paths {
+			if strings.Contains(manifestText, p) {
+				run = true
+				break
+			}
+		}
+	}
+	if !run {
+		g.honesty = append(g.honesty, "claims skipped: no changed path appears in compatibility.yaml")
+		return true, nil
+	}
 	_, err := command(g.repo, "go", "run", "./cmd/compatibility", "-check")
 	return false, err
 }

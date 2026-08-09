@@ -124,10 +124,23 @@ func run() error {
 	return nil
 }
 
-// loadObservations pairs run and evaluation documents by evaluation.Run,
-// ordered by store arrival; sequence is that arrival order (monotone within
-// one store, which is what the detector's series contract needs).
+// loadObservations pairs run and evaluation documents by evaluation.Run and
+// orders them by TRUE chronology: the store's commit sequence, joined through
+// the gate's batch-key convention ("gate/<codeCommit>") against the Run's own
+// CodeCommit. Query returns artifacts in content-hash order -- uncorrelated
+// with time -- so any arrival-order sequencing would feed the detector a
+// shuffled series (caught before enforcement activated; this join is the
+// zero-store-change fix, and a store-owned introduction sequence is the
+// eventual owner if non-gate series need it).
 func loadObservations(ctx context.Context, store *repodb.Store, metric string) ([]runrecord.Observation, error) {
+	commitsResult, err := store.Query(ctx, repodb.Query{FromSequence: 1, MaxResults: 100_000})
+	if err != nil {
+		return nil, err
+	}
+	sequenceByCommitKey := map[string]uint64{}
+	for _, view := range commitsResult.Commits {
+		sequenceByCommitKey[view.Key] = view.Sequence
+	}
 	runs := map[artifact.ID]runrecord.Run{}
 	runsResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindRun, MaxResults: 100_000})
 	if err != nil {
@@ -149,7 +162,7 @@ func loadObservations(ctx context.Context, store *repodb.Store, metric string) (
 		return nil, err
 	}
 	var observations []runrecord.Observation
-	sequence := uint64(0)
+	unmapped := 0
 	for _, descriptor := range evaluationsResult.Artifacts {
 		content, ok, err := store.Content(ctx, descriptor.ID)
 		if err != nil || !ok {
@@ -170,11 +183,19 @@ func loadObservations(ctx context.Context, store *repodb.Store, metric string) (
 		if !hasMetric {
 			continue
 		}
-		sequence++
+		sequence, ok := sequenceByCommitKey["gate/"+run.CodeCommit]
+		if !ok {
+			unmapped++
+			continue
+		}
 		observations = append(observations, runrecord.Observation{
 			Sequence: sequence, Run: run, Evaluation: evaluation,
 		})
 	}
+	if unmapped > 0 {
+		fmt.Printf("honesty: %d observation(s) skipped -- no commit-key chronology for their series\n", unmapped)
+	}
+	sort.Slice(observations, func(i, j int) bool { return observations[i].Sequence < observations[j].Sequence })
 	return observations, nil
 }
 

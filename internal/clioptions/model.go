@@ -5,9 +5,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/repodb"
@@ -62,7 +64,7 @@ func AddModelFlags(flags *flag.FlagSet, loraHelp string) *ModelFlags {
 func AddModelFlagsWithConfig(flags *flag.FlagSet, loraHelp string, config ModelFlagConfig) *ModelFlags {
 	result := &ModelFlags{}
 	result.DeviceOrdinal = flags.Int("device", 0, "CUDA device ordinal")
-	result.Repository = flags.String("repo", "", "required RepoDB containing the active model recipe")
+	result.Repository = flags.String("repo", "", "RepoDB containing the active model recipe; empty resolves via the data-root contract (OVERGO_DATA_ROOT, local-models.yaml, or ./repodb-store)")
 	if config.PreloadName != "" {
 		result.Preload = flags.Bool(config.PreloadName, config.PreloadDefault, "dequantize all model weights once into CUDA memory")
 	}
@@ -89,10 +91,28 @@ func (flags *ModelFlags) OpenRunner(
 	path string,
 	loraScale float32,
 ) (*inference.Runner, error) {
-	if flags == nil || flags.Repository == nil || strings.TrimSpace(*flags.Repository) == "" {
+	if flags == nil || flags.Repository == nil {
 		return nil, errors.New("model recipe repository is required")
 	}
-	return OpenRunner(ctx, *flags.Repository, path, flags.OpenOptions(loraScale))
+	repository := strings.TrimSpace(*flags.Repository)
+	// The data-root contract owns defaults; an explicit -repo flag stays
+	// authoritative. Bare model references resolve under the models and
+	// checkpoints roots so discovery cannot drift per-tool.
+	working, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	roots, err := dataroot.Resolve(working)
+	if err != nil {
+		return nil, err
+	}
+	if repository == "" {
+		repository = roots.Store
+		if _, err := os.Stat(repository); err != nil {
+			return nil, fmt.Errorf("model recipe repository is required: no -repo flag and no store at %s (%s)", repository, roots.Source)
+		}
+	}
+	return OpenRunner(ctx, repository, roots.ResolveModelPath(path), flags.OpenOptions(loraScale))
 }
 
 // OpenRunner: storage-bound assembly; inference receives only a compiled program.

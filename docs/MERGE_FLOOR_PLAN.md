@@ -412,6 +412,43 @@ dense-Qwen recipe parity check remains the wave-1 *mechanism* pilot -- it
 proves the recipe/plan/parity machinery on overgo's best-supported family
 before the ladder starts consuming it rung by rung.
 
+### Rung 1 OPEN: timesfm-200m (specification, 2026-08-08)
+
+The ladder's first rung is a CAPABILITY PORT, not an activation: overgo has
+no forecast task and no time-series execution. Ground truth located on both
+sides:
+
+- Source: `adaptive_new/go/extmodel/patched_time_series.go` (709 lines,
+  neutral-named `patchedSeries*` per the model-names doctrine; dims DERIVED
+  from tensor shapes -- patchLen 32, hidden 1280, 20 layers, 16 heads x 80,
+  horizon 128, quantile head). Components per its golden set: patch
+  embedding, RevIN, per-dim scale, RMSNorm, RoPE, attention core/layer,
+  residual blocks, decoder layer, quantile output projection.
+- Evidence riding the port: `fixtures/timesfm_golden.json` (forward) plus
+  ELEVEN per-component gradient goldens (`timesfm_*_grad_golden.json`) --
+  the training leg's parity fixtures exist already.
+- Artifact: `models/timesfm-2.5-200m-transformers/model.safetensors`
+  (930 MB, config.json; the `timesfm/` subdir is the vendor python repo --
+  reference only, never executed in the lane).
+- adaptive recipe facts: `timesfm.forecast.host.v4` (active in adaptive's
+  store; its stage list is the port's recipe template).
+
+Port sequence (the porting discipline, instantiated):
+1. Rung export: timesfm measurement baselines from adaptive's store +
+   the golden fixtures as content-addressed parity artifacts.
+2. Forecast task + terminal capability in overgo's recipe schema.
+3. Neutral time-series package (reference/CPU): safetensors load with
+   dims-from-shapes, forward to quantile output, matching the forward
+   golden bit-for-bit at fp32.
+4. Recipe modules + activation through the sealed lifecycle; forecast
+   entry through the recipe-authorized path.
+5. Training leg: per-component backward matching the eleven grad goldens.
+6. Performance leg: wall + peak memory vs the exported adaptive baselines
+   under the distribution discipline; store-recorded verdict.
+
+Numerical porting starts from fresh context by standing decision: parity
+work gets full attention or it waits.
+
 Probe result (2026-08-08): with `local-models.yaml` pointing the models root
 at adaptive_new's home, `generate Qwen3.5-9B-Q8_0.gguf` resolves the bare
 name through the data-root contract and is refused by recipe authority with

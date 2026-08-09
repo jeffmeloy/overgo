@@ -53,8 +53,9 @@ rules (record-cycle prose) dropped. One rule the lineage guard lacked:
 `find -delete` / `-exec <delete-verb>` over a protected path (the delete
 target is the substituted `{}`, so no verb-scoped rule sees it).
 
-Corpus: 42 cases, DENY and ALLOW per rule, non-vacuity enforced by the test
-(a one-directional rule fails the suite). Fail-open on unparseable input; the
+Corpus: 44 cases (grown with each new rule; the count in this doc is
+informational — the test owns it), DENY and ALLOW per rule, non-vacuity
+enforced by the test (a one-directional rule fails the suite). Fail-open on unparseable input; the
 corpus, not the binary, is where strictness lives.
 
 Incident lineage covered: 300 GB force-delete, 170 GB worktree-junction
@@ -299,7 +300,9 @@ expensively answered question (the `schedule.go` num_steps case).
 - [x] Evidence tiers enforced; manifest honest.
 - [x] Magic ledger resident and queryable.
 - [ ] Overgo's own magics catalogued as native closure documents (component 5).
-- [ ] Profiles + measurements exported (component 7) -- gates wave-1 model port.
+- [ ] Profiles + measurements exported (component 7) -- gates the model
+      capability waves (TimesFM onward), NOT the wave-1 pilot, which runs on
+      overgo's own safetensors/catalog path.
 - [ ] Statistical layer calibrated against wave-1 runs (component 6).
 - [ ] PowerShell scripts retired to Go/bash; guard-vs-shipped-PS contradiction
       resolved (component 8).

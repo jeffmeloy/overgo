@@ -97,13 +97,17 @@ pending, so a pending mechanism is never mistaken for an active one.
   refuses the commit rather than sweeping it.
 - Session safety precedes everything: the destructive-command guard (corpus-
   tested, DENY and ALLOW per rule) runs before every shell (Bash/PowerShell)
-  tool call. Data never moves: model/dataset stores are read-only to
-  automation by construction.
+  tool call. Data never moves: model/dataset/checkpoint stores are
+  guard-enforced read-only to automation (deny delete/move/chmod), and the
+  provenance store references their bytes by location, never by copy.
 
 ## Operating Loop
 
-1. Ground: `git status --short`; read the store's open findings and the live
-   plan; re-rank from the current tree.
+1. Ground: `git status --short`; read the open findings (store documents once
+   component 7 lands; until then the floor plan's pending items) and the live
+   plan — during the merge campaign that is `docs/MERGE_FLOOR_PLAN.md`; a
+   post-merge priority surface is an OPEN design decision, deliberately not
+   yet chosen. Re-rank from the current tree.
 2. One behavioral change per slice — unless mechanically inseparable, or a
    same-transformation batch where every step provably leaves parity evidence
    unchanged (one gate run for the batch).
@@ -135,15 +139,18 @@ evidence can decide a fork, decide it and report what changed.
 
 ### Testing Lanes
 
+Built lanes (run today):
 - Fast correctness: `go test ./...` — model-free, required per code slice;
   scope derived from the import graph on gated runs.
-- Device parity: CUDA integration tests (env-gated) + kernel-scoped parity
-  from the manifest diff; missing prerequisites are UNAVAILABLE, never passing
-  evidence.
-- Model smoke: store-derived matrix over active, oracle-backed recipes with
-  artifacts present; real-model runs record to the store.
 - Claims: `go run ./cmd/compatibility -check`; manifest: regenerate-and-diff;
   SBOM: `go run ./cmd/sbom -check`.
+
+Target lanes (build status in `docs/MERGE_FLOOR_PLAN.md`; until built, CUDA
+integration tests run env-gated via their existing invocation):
+- Device parity: kernel-scoped parity from the manifest diff; missing
+  prerequisites are UNAVAILABLE, never passing evidence.
+- Model smoke: store-derived matrix over active, oracle-backed recipes with
+  artifacts present; real-model runs record to the store.
 
 ## Capability-Grounded Governance
 

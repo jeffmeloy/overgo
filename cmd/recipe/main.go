@@ -23,6 +23,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
+	"overgo/internal/hfrepo"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
@@ -45,6 +46,7 @@ func run() error {
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -69,12 +71,72 @@ func run() error {
 		if strings.TrimSpace(*reason) == "" {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
+		if recipe.Task(*task) == recipe.TaskForecast {
+			return activateForecast(repository, path, *reason)
+		}
 		return activate(repository, path, *reason)
 	case "status":
-		return status(repository, path)
+		return status(repository, path, recipe.Task(*task))
 	default:
 		return fmt.Errorf("unknown verb %q", verb)
 	}
+}
+
+// activateForecast drives the sealed lifecycle for a safetensors-directory
+// forecast model: inventory facts, then candidate -> validated -> active
+// with the decision evidence. The capability package derives dimensions
+// from the artifact, so no profile document is published.
+func activateForecast(repository, path, reason string) error {
+	ctx := context.Background()
+	repo, err := hfrepo.Open(path)
+	if err != nil {
+		return err
+	}
+	inventory, err := modelartifact.FromHFRepository(repo)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	modelID := inventory.Manifest.ID
+	batch, err := inventory.Batch("recipe/facts/" + modelID.String())
+	if err != nil {
+		return err
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return fmt.Errorf("publish model facts: %w", err)
+	}
+	definition, err := modelrecipe.ForecastDefinition(modelID)
+	if err != nil {
+		return err
+	}
+	if _, _, err := modelrecipe.PublishCandidate(
+		ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
+	); err != nil {
+		return fmt.Errorf("publish candidate: %w", err)
+	}
+	if _, _, err := modelrecipe.Transition(
+		ctx, store, "recipe/validated/"+definition.ID.String(), definition,
+		recipe.StatusValidated, nil, nil,
+	); err != nil {
+		return fmt.Errorf("transition validated: %w", err)
+	}
+	evidenceID, err := activationEvidence(ctx, store, definition, reason)
+	if err != nil {
+		return err
+	}
+	if _, _, err := modelrecipe.Transition(
+		ctx, store, "recipe/active/"+definition.ID.String(), definition,
+		recipe.StatusActive, []artifact.ID{evidenceID}, nil,
+	); err != nil {
+		return fmt.Errorf("transition active: %w", err)
+	}
+	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
+		path, recipe.TaskForecast, modelID, definition.ID, reason)
+	return nil
 }
 
 func activate(repository, path, reason string) error {
@@ -183,28 +245,40 @@ func activationEvidence(
 	return id, nil
 }
 
-func status(repository, path string) error {
+func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
-	file, err := gguf.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file)
-	if err != nil {
-		return err
+	var inventory modelartifact.Inventory
+	if task == recipe.TaskForecast {
+		repo, err := hfrepo.Open(path)
+		if err != nil {
+			return err
+		}
+		inventory, err = modelartifact.FromHFRepository(repo)
+		if err != nil {
+			return err
+		}
+	} else {
+		file, err := gguf.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		inventory, err = modelartifact.FromGGUF(file)
+		if err != nil {
+			return err
+		}
 	}
 	store, err := repodb.OpenReadOnly(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	activation, active, err := modelrecipe.ActiveRecord(ctx, store, inventory.Manifest.ID, recipe.TaskInference)
+	activation, active, err := modelrecipe.ActiveRecord(ctx, store, inventory.Manifest.ID, task)
 	if err != nil {
 		return err
 	}
 	if !active {
-		fmt.Printf("%s\n  model  %s\n  active inference recipe: ABSENT\n", path, inventory.Manifest.ID)
+		fmt.Printf("%s\n  model  %s\n  active %s recipe: ABSENT\n", path, inventory.Manifest.ID, task)
 		return nil
 	}
 	fmt.Printf("%s\n  model  %s\n  recipe %s\n  tier   %s\n",

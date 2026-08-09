@@ -333,7 +333,7 @@
         },
         {
           "id": "recipe-activation",
-          "status": "open",
+          "status": "done",
           "title": "sealed lifecycle, task video-gen (likely NEW task in the recipe catalog); model discovery: config.json + diffusion_pytorch_model.safetensors + Wan2.1_VAE.pth + models_t5_umt5-xxl-enc-bf16.pth + google/umt5-xxl tokenizer are all bound from one artifact dir"
         },
         {
@@ -467,5 +467,59 @@
         }
       ]
     }
-  ]
+  ],
+  "performance_ledger": {
+    "note": "per-rung head-to-head verdicts vs adaptive_new; restored 2026-08-09 after step rewrites clobbered inline measurement blobs; commit bodies remain the primary ledger",
+    "rung1-timesfm": {
+      "overgo": "0.674-0.696s",
+      "adaptive": "0.851-0.873s",
+      "verdict": "BETTER -22pct envelopes separated"
+    },
+    "rung3-carbon": {
+      "overgo": "483-516 tok/s (1.99 ms/tok)",
+      "adaptive": "442-487 (2.11)",
+      "verdict": "BETTER"
+    },
+    "rung4-qwen05": {
+      "overgo": "505-520 tok/s",
+      "adaptive": "480-515",
+      "verdict": "TIE within envelope (at-or-below)"
+    },
+    "rung5-tabfm": {
+      "overgo": "0.65-0.81x per case",
+      "adaptive": "1.0x",
+      "verdict": "BETTER all 4 cases"
+    },
+    "rung6-needle": {
+      "overgo": "0.14-0.25s composite",
+      "adaptive": "0.42-0.44s test-wall",
+      "verdict": "BETTER (protocol caveat: ref wall includes asserts)"
+    },
+    "rung7-pockettts": {
+      "overgo": "0.441-0.476s",
+      "adaptive": "0.48-0.50s",
+      "verdict": "BETTER small margin"
+    },
+    "rung8-un0": {
+      "overgo": "0.01s",
+      "adaptive": "0.01s",
+      "verdict": "TIE at protocol resolution"
+    },
+    "rung9-simplediffusion": {
+      "overgo": "0.17s",
+      "adaptive": "0.21s",
+      "verdict": "BETTER 0.81x"
+    },
+    "rung10-minicpm": {
+      "overgo": "2.62-3.02 ms/tok",
+      "adaptive": "3.40-3.44",
+      "verdict": "BETTER every run"
+    },
+    "rung11-wan": {
+      "overgo": "exact 127.6 s/step; bf16 17.5 (quality unclaimed); CUDA VAE 38.2s/81f",
+      "adaptive": "exact 13.8 s/step, decode 29-45s",
+      "verdict": "OPEN -- WORSE on exact denoise; port of adaptive structure in flight"
+    },
+    "summary": "7 BETTER, 2 TIE, 0 WORSE across completed rungs; rung11 open and behind on exact denoise"
+  }
 }

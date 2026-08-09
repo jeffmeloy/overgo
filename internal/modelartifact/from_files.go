@@ -22,9 +22,9 @@ type FileSpec struct {
 // FromFiles builds an Inventory from an explicit component list, for
 // artifacts whose directory layout no repository walker owns (e.g. a
 // multi-sub-model directory holding one safetensors file per head).
-// Weights components must be single .safetensors files; their tensor facts
-// are namespaced "<name>/<tensor>" so heads with identical tensor names
-// stay distinct.
+// Safetensors weights get tensor facts namespaced "<name>/<tensor>" so
+// heads with identical tensor names stay distinct; pytorch-zip weights
+// (.pth/.pt) are content-hashed components without fact extraction.
 func FromFiles(directory string, specs []FileSpec) (Inventory, error) {
 	if directory == "" || len(specs) == 0 {
 		return Inventory{}, errors.New("model artifact: file inventory requires a directory and components")
@@ -35,7 +35,7 @@ func FromFiles(directory string, specs []FileSpec) (Inventory, error) {
 	locations := make([]artifact.Location, 0, len(specs)+1)
 	var facts []TensorFact
 	for _, spec := range specs {
-		kind, mediaType := fileContract(spec.Role)
+		kind, mediaType := fileContract(spec.Role, spec.Path)
 		descriptor, absolute, err := identifyFile(spec.Path, kind, mediaType)
 		if err != nil {
 			return Inventory{}, fmt.Errorf("model artifact: component %s: %w", spec.Name, err)
@@ -74,11 +74,18 @@ func FromFiles(directory string, specs []FileSpec) (Inventory, error) {
 	return Inventory{Manifest: manifest, TensorInventory: tensors, Components: descriptors, Locations: locations}, nil
 }
 
-func fileContract(role artifact.ComponentRole) (artifact.Kind, string) {
+func fileContract(role artifact.ComponentRole, path string) (artifact.Kind, string) {
 	switch role {
 	case artifact.ComponentConfig:
 		return artifact.KindFile, jsonMediaType
 	case artifact.ComponentWeights, artifact.ComponentWeightsShard:
+		// Media type follows the container: safetensors gets tensor-fact
+		// extraction; pytorch-zip (.pth/.pt) is a tensor set whose facts
+		// are not parsed here (internal/pytorchzip owns that reader).
+		switch strings.ToLower(filepath.Ext(path)) {
+		case ".pth", ".pt":
+			return artifact.KindTensorSet, pytorchZipMediaType
+		}
 		return artifact.KindTensorSet, safetensorsMediaType
 	default:
 		return artifact.KindFile, binaryMediaType

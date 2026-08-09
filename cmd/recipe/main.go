@@ -48,7 +48,7 @@ func run() error {
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func run() error {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
 		switch capability := recipe.Task(*task); capability {
-		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen:
+		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen:
 			return activateCapability(repository, path, *reason, capability)
 		}
 		return activate(repository, path, *reason)
@@ -104,8 +104,28 @@ func capabilityInventory(task recipe.Task, path string) (modelartifact.Inventory
 		return speechInventory(path)
 	case recipe.TaskImageGen:
 		return imageGenInventory(path)
+	case recipe.TaskVideoGen:
+		return videoGenInventory(path)
 	}
 	return modelartifact.Inventory{}, fmt.Errorf("no capability inventory for task %q", task)
+}
+
+// videoGenInventory: the text-to-video artifact is an explicit four-part
+// list -- diffusion config + denoiser weights (the one top-level
+// safetensors), the VAE checkpoint, and the text-encoder checkpoint (both
+// pytorch-zip; read by internal/pytorchzip). The tokenizer directory and
+// vendor repo are companions, not components.
+func videoGenInventory(path string) (modelartifact.Inventory, error) {
+	weights, err := singleSafetensors("video-gen", path)
+	if err != nil {
+		return modelartifact.Inventory{}, err
+	}
+	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
+		{Path: filepath.Join(path, "config.json"), Name: "config", Role: artifact.ComponentConfig},
+		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
+		{Path: filepath.Join(path, "Wan2.1_VAE.pth"), Name: "vae/weights", Role: artifact.ComponentWeights},
+		{Path: filepath.Join(path, "models_t5_umt5-xxl-enc-bf16.pth"), Name: "textenc/weights", Role: artifact.ComponentWeights},
+	})
 }
 
 // capabilityDefinition: per-task single-node host definition constructor.
@@ -121,6 +141,8 @@ func capabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 		return modelrecipe.SpeechDefinition(modelID)
 	case recipe.TaskImageGen:
 		return modelrecipe.ImageGenDefinition(modelID)
+	case recipe.TaskVideoGen:
+		return modelrecipe.VideoGenDefinition(modelID)
 	}
 	return recipe.Definition{}, fmt.Errorf("no capability definition for task %q", task)
 }
@@ -364,7 +386,7 @@ func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
 	switch task {
-	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen:
+	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen:
 		var err error
 		inventory, err = capabilityInventory(task, path)
 		if err != nil {

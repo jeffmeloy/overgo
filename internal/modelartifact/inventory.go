@@ -14,6 +14,7 @@ import (
 const (
 	ggufMediaType        = "application/vnd.gguf"
 	safetensorsMediaType = "application/vnd.safetensors"
+	pytorchZipMediaType  = "application/vnd.pytorch.zip"
 	jsonMediaType        = "application/json"
 	textMediaType        = "text/plain"
 	binaryMediaType      = "application/octet-stream"

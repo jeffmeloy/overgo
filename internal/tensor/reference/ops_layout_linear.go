@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -98,15 +99,18 @@ func mulMat(shape tensor.Shape, left, right Value) (Value, error) {
 		return Value{}, errors.New("mul_mat inner dimensions differ")
 	}
 	output := make([]float32, m*n)
-	for row := 0; row < n; row++ {
-		for column := 0; column < m; column++ {
+	// Output elements are independent f64 accumulations; calibrated fan-out
+	// keeps results bit-identical to the serial loop.
+	hostmath.ParallelRangeF64(m*n, k, func(lo, hi int) {
+		for index := lo; index < hi; index++ {
+			row, column := index/m, index%m
 			var sum float64
 			for inner := 0; inner < k; inner++ {
 				sum += float64(left.Data[column*k+inner]) * float64(right.Data[row*k+inner])
 			}
-			output[row*m+column] = float32(sum)
+			output[index] = float32(sum)
 		}
-	}
+	})
 	return Value{Shape: shape, Data: output}, nil
 }
 

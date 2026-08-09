@@ -213,6 +213,34 @@ func TestCompileFusesResidualAddIntoWeightedRMSNorm(t *testing.T) {
 	}
 }
 
+// A broadcast add (rank-1 bias) ahead of the norm must NOT fold into the
+// fused kernel: weighted_rms_norm_add_f32 reads both operands at full row
+// extent, so folding a bias reads past its storage.
+func TestCompileKeepsBroadcastAddOutOfWeightedRMSNorm(t *testing.T) {
+	const fixtureWidth = 8
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(fixtureWidth, 2))
+	bias := builder.Input("bias", dtype.F32, tensor.MustShape(fixtureWidth))
+	weight := builder.Input("weight", dtype.F32, tensor.MustShape(fixtureWidth))
+	biased := builder.Add(input, bias)
+	normalized := builder.RMSNorm(biased, 1e-5)
+	output := builder.Multiply(normalized, weight)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fusion, ok := compiled.weightedRMS[output]
+	if !ok || fusion.normalization != normalized {
+		t.Fatalf("weighted RMSNorm fusion = %+v, available %t", fusion, ok)
+	}
+	if fusion.addLeft != nil || fusion.addRight != nil {
+		t.Fatal("broadcast bias add was folded into the fused RMSNorm")
+	}
+	if _, skipped := compiled.skipped[biased]; skipped {
+		t.Fatal("broadcast bias add launch was skipped")
+	}
+}
+
 func TestCompileFusesWeightedRMSNormAndActivatedGate(t *testing.T) {
 	const fixtureWidth = 8
 	builder := tensor.NewBuilder()

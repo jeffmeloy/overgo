@@ -238,7 +238,8 @@ type encoderBlockWeights struct {
 }
 
 // EncoderStats: measured streaming behavior; PeakHeapAllocBytes is the
-// largest sampled Go heap live-set across the run (memory-bounding evidence).
+// largest sampled Go heap live-set DELTA over the entry baseline
+// (memory-bounding evidence robust to unrelated resident heap).
 type EncoderStats struct {
 	Layers              int
 	TokenRows           int
@@ -286,11 +287,15 @@ func EncodeTokensStreamed(checkpoint string, plan EncoderPlan, tokenIDs, mask []
 	if err != nil {
 		return nil, stats, err
 	}
+	// Delta over the entry baseline: the streamed bound must hold regardless
+	// of unrelated live heap (other tests' resident weights).
+	var baseline runtime.MemStats
+	runtime.ReadMemStats(&baseline)
 	samplePeak := func() {
 		var ms runtime.MemStats
 		runtime.ReadMemStats(&ms)
-		if ms.HeapAlloc > stats.PeakHeapAllocBytes {
-			stats.PeakHeapAllocBytes = ms.HeapAlloc
+		if ms.HeapAlloc > baseline.HeapAlloc && ms.HeapAlloc-baseline.HeapAlloc > stats.PeakHeapAllocBytes {
+			stats.PeakHeapAllocBytes = ms.HeapAlloc - baseline.HeapAlloc
 		}
 	}
 	for layer := 0; layer < config.Layers; layer++ {

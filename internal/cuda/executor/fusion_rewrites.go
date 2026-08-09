@@ -128,7 +128,10 @@ func applyWeightedRMSRewrite(context *rewriteContext) {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
 		fusion := weightedRMSFusion{normalization: normalization, weight: weight}
-		if source := normalization.Inputs[0]; source.Op == tensor.OpAdd && context.uses[source] == 1 {
+		// The fused add kernel reads both operands at full row extent; a
+		// broadcast add (e.g. a rank-1 bias) must stay unfused.
+		if source := normalization.Inputs[0]; source.Op == tensor.OpAdd && context.uses[source] == 1 &&
+			source.Inputs[0].Shape.Equal(source.Shape) && source.Inputs[1].Shape.Equal(source.Shape) {
 			if _, retained := context.outputSet[source]; !retained {
 				fusion.addLeft, fusion.addRight = source.Inputs[0], source.Inputs[1]
 				compiled.skipped[source] = struct{}{}

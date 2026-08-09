@@ -42,6 +42,23 @@ func (b *Builder) ReGLU(gate, up *Tensor) *Tensor {
 	return b.Multiply(b.ReLU(gate), up)
 }
 
+// Tanh-approximate GELU coefficients (math facts of the approximation,
+// gelu(x) = 0.5x(1+tanh(sqrt(2/pi)(x+0.044715x^3)))).
+const (
+	geluTanhCubicCoefficient float32 = 0.044715
+	geluTanhInnerScale       float32 = 0.7978845608028654 // sqrt(2/pi)
+)
+
+// GELUTanhExact: exact float32 tanh GELU composed from elementwise ops.
+// OpGELU keeps llama.cpp's fp16-rounded table semantics; diffusion
+// transformers need the unrounded PyTorch approximate="tanh" activation.
+func (b *Builder) GELUTanhExact(x *Tensor) *Tensor {
+	cubic := b.Multiply(b.Multiply(x, x), x)
+	inner := b.Scale(b.Add(x, b.Scale(cubic, geluTanhCubicCoefficient)), geluTanhInnerScale)
+	half := b.Scale(x, 0.5)
+	return b.Add(half, b.Multiply(half, b.Tanh(inner)))
+}
+
 // MulMat: follows ggml semantics; Left has shape [K,M], right has shape [K,N],
 // and result has shape [M,N]
 func (b *Builder) MulMat(left, right *Tensor) *Tensor {

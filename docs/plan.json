@@ -317,13 +317,13 @@
         },
         {
           "id": "dit-port",
-          "status": "open",
+          "status": "done",
           "title": "DiT slice: patch embedding conv3d boundary + timestep conditioning (vs g2) + 30 conditioned transformer blocks (self-attn 3-axis RoPE, cross-attn qk-norm, adaptive modulation 6-chunk) + head/unpatchify vs g3 step-0 per-block traces and block-0 boundary seams; host reference exists only as adaptive's test oracle (extmodel/conditioned_latent_oracle_test.go conditionedTransformerBlockForward), production is CUDA",
           "note": "denoise is 93 percent of Wan wall -- build on overgo graph runtime (retained-graph replay + fusions) with the safe worktree levers designed in, not bolted on"
         },
         {
           "id": "sampler-port",
-          "status": "open",
+          "status": "done",
           "title": "denoise loop: UniPC shifted-flow schedule (VideoUniPCSchedule; g2 timesteps/sigmas) + sampler updates + cond/uncond guidance vs g3 sample_in/model_output/sample_out trajectory; initial noise is torch.cuda philox (curand_normal4) parity -- g3 step_00_sample_in is the seeded-noise golden (seed 31), adaptive has no host noise path"
         },
         {

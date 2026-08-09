@@ -25,6 +25,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/finding"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
@@ -120,7 +121,75 @@ func run() error {
 	}
 	fmt.Printf("ADVISORY raised: latest=%g baseline_median=%g mad=%g surprise=%g (committed %s)\n",
 		advisory.LatestValue, advisory.BaselineMedian, advisory.MAD, advisory.Surprise(), advisory.ID)
-	fmt.Println("honesty: an advisory is not a finding; two-window confirmation escalates it")
+	return escalate(ctx, store, advisory)
+}
+
+// escalate is the two-window confirmation: a second advisory for the same
+// (recipe, environment, metric) series at a DIFFERENT latest sequence
+// confirms the first, and the pair becomes one open finding. One open
+// finding per series -- repeats add no new document.
+func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisory) error {
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: 100_000})
+	if err != nil {
+		return err
+	}
+	var confirming []runrecord.Advisory
+	openFindingExists := false
+	seriesKey := latest.Recipe.String() + "/" + latest.Environment.String() + "/" + latest.Metric
+	for _, descriptor := range result.Artifacts {
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil || !ok {
+			continue
+		}
+		switch descriptor.MediaType {
+		case runrecord.AdvisoryMediaType:
+			prior, err := runrecord.ParseAdvisory(content.Data)
+			if err != nil || prior.Metric != latest.Metric ||
+				prior.Recipe != latest.Recipe || prior.Environment != latest.Environment ||
+				prior.LatestSequence == latest.LatestSequence {
+				continue
+			}
+			confirming = append(confirming, prior)
+		case finding.MediaType:
+			document, err := finding.Parse(content.Data)
+			if err != nil || document.Status != finding.StatusOpen {
+				continue
+			}
+			if strings.Contains(document.Title, seriesKey) {
+				openFindingExists = true
+			}
+		}
+	}
+	if len(confirming) == 0 {
+		fmt.Println("honesty: single-window advisory; a second independent window escalates it to a finding")
+		return nil
+	}
+	if openFindingExists {
+		fmt.Println("honesty: confirmed regression already has an open finding; no duplicate emitted")
+		return nil
+	}
+	evidence := []artifact.ID{latest.ID}
+	for _, prior := range confirming {
+		evidence = append(evidence, prior.ID)
+	}
+	document, err := finding.New(
+		"confirmed regression in series "+seriesKey,
+		finding.SeverityMedium, finding.StatusOpen,
+		[]artifact.ID{latest.Recipe, latest.Environment}, evidence,
+		"Diagnose the regression source via the advisories' phase deltas; close with the fix landed and this series back under its calibrated threshold.",
+		"advisories for this series stop raising across two consecutive independent windows after the fix commit.",
+	)
+	if err != nil {
+		return err
+	}
+	batch, err := document.Batch("finding/" + document.ID.String())
+	if err != nil {
+		return err
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return err
+	}
+	fmt.Printf("FINDING opened (two-window confirmation, %d prior advisor(ies)): %s\n", len(confirming), document.ID)
 	return nil
 }
 

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/dataset"
+	"overgo/internal/finding"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
@@ -397,6 +398,12 @@ func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, e
 			break
 		}
 		_, canonical, err = closureledger.Normalize(data)
+	case finding.MediaType:
+		requireSchema(finding.Schema)
+		if err != nil {
+			break
+		}
+		_, canonical, err = finding.Normalize(data)
 	case runrecord.RunMediaType:
 		requireSchema(runrecord.RunSchema, runrecord.LegacyRunSchema)
 		if err != nil {

@@ -42,7 +42,7 @@
     {
       "id": "rung3-carbon",
       "title": "Carbon-500M",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "golden-generation",
@@ -62,7 +62,7 @@
         {
           "id": "training-leg",
           "title": "training capability per baseline policy",
-          "status": "open"
+          "status": "done"
         },
         {
           "id": "performance-leg",

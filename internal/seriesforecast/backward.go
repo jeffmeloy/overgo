@@ -214,7 +214,7 @@ func (m *Model) attnSubForward(l layer, x []float32, invFreq []float64, seq int)
 		}
 	}
 	tr.attnCore = make([]float32, seq*width)
-	hostmath.CausalAttention(tr.attnCore, tr.qFinal, tr.kFinal, tr.v, seq, heads, hd)
+	hostmath.CausalAttention(tr.attnCore, tr.qFinal, tr.kFinal, tr.v, seq, heads, heads, hd)
 	return tr
 }
 
@@ -235,7 +235,7 @@ func (m *Model) attnSubBackward(index int, l layer, x, dOut []float32, invFreq [
 	dq := make([]float32, seq*width)
 	dk := make([]float32, seq*width)
 	dv := make([]float32, seq*width)
-	hostmath.CausalAttentionBackward(dq, dk, dv, tr.qFinal, tr.kFinal, tr.v, dAttnCore, seq, heads, hd)
+	hostmath.CausalAttentionBackward(dq, dk, dv, tr.qFinal, tr.kFinal, tr.v, dAttnCore, seq, heads, heads, hd)
 
 	// Per-dim softplus query scale: parameter gradient reads the normed
 	// (pre-scale) query; the incoming dq then scales down to the norm output.

@@ -102,7 +102,7 @@ func (m *Model) layerForward(hidden []float32, l layer, invFreq []float64, seq i
 	}
 
 	attn := make([]float32, seq*width)
-	hostmath.CausalAttention(attn, q, k, v, seq, heads, hd)
+	hostmath.CausalAttention(attn, q, k, v, seq, heads, heads, hd)
 	oProj := make([]float32, seq*d)
 	hostmath.Linear(oProj, attn, l.o, seq, width, d)
 

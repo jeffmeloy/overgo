@@ -99,7 +99,7 @@ func TestCausalAttentionBackwardMatchesGolden(t *testing.T) {
 	dq := make([]float32, len(q))
 	dk := make([]float32, len(k))
 	dv := make([]float32, len(v))
-	CausalAttentionBackward(dq, dk, dv, q, k, v, f64To32(g.Dout), g.N, 1, g.HD)
+	CausalAttentionBackward(dq, dk, dv, q, k, v, f64To32(g.Dout), g.N, 1, 1, g.HD)
 	checkClose(t, "grad_q", dq, g.GradQ)
 	checkClose(t, "grad_k", dk, g.GradK)
 	checkClose(t, "grad_v", dv, g.GradV)
@@ -125,10 +125,10 @@ func TestCausalAttentionBackwardForwardConsistency(t *testing.T) {
 	dq := make([]float32, n)
 	dk := make([]float32, n)
 	dv := make([]float32, n)
-	CausalAttentionBackward(dq, dk, dv, q, k, v, dOut, seq, heads, hd)
+	CausalAttentionBackward(dq, dk, dv, q, k, v, dOut, seq, heads, heads, hd)
 	loss := func(q []float32) float64 {
 		out := make([]float32, n)
-		CausalAttention(out, q, k, v, seq, heads, hd)
+		CausalAttention(out, q, k, v, seq, heads, heads, hd)
 		var sum float64
 		for i := range out {
 			sum += float64(out[i]) * float64(dOut[i])

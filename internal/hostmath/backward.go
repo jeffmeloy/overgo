@@ -59,12 +59,70 @@ func RotaryHalfBackward(dx []float32, invFreq []float64, pos int) {
 	}
 }
 
+// RotaryInterleavedBackward: the VJP of ApplyRotaryInterleaved — rotation by
+// the negated angle, in place on one head row's gradient.
+func RotaryInterleavedBackward(dx []float32, invFreq []float64, pos int) {
+	h := len(dx) / 2
+	for i := 0; i < h; i++ {
+		a := float64(pos) * invFreq[i]
+		c, s := math.Cos(a), math.Sin(a)
+		d1, d2 := float64(dx[2*i]), float64(dx[2*i+1])
+		dx[2*i] = float32(c*d1 + s*d2)
+		dx[2*i+1] = float32(-s*d1 + c*d2)
+	}
+}
+
 // SiLUBackward: dst = dy * silu'(x).
 func SiLUBackward(dst, x, dy []float32) {
 	for i, v := range x {
 		s := 1.0 / (1.0 + math.Exp(-float64(v)))
 		dst[i] = float32(float64(dy[i]) * s * (1.0 + float64(v)*(1.0-s)))
 	}
+}
+
+// SiLUGateBackward: VJP of SiLUGate — dGate = dy*up*silu'(gate),
+// dUp = dy*silu(gate). Both set.
+func SiLUGateBackward(dGate, dUp, gate, up, dy []float32) {
+	for i := range gate {
+		g := float64(gate[i])
+		s := 1.0 / (1.0 + math.Exp(-g))
+		silu := g * s
+		dGate[i] = float32(float64(dy[i]) * float64(up[i]) * s * (1.0 + g*(1.0-s)))
+		dUp[i] = float32(float64(dy[i]) * silu)
+	}
+}
+
+// SoftmaxCrossEntropy: mean cross-entropy over rows of logits [rows,classes]
+// against integer targets; writes the mean-loss gradient
+// (softmax - onehot)/rows into dLogits and returns the loss. f64 throughout.
+func SoftmaxCrossEntropy(dLogits, logits []float32, targets []int, rows, classes int) float64 {
+	var loss float64
+	invRows := 1.0 / float64(rows)
+	for r := 0; r < rows; r++ {
+		row := logits[r*classes : (r+1)*classes]
+		mx := float64(row[0])
+		for _, v := range row[1:] {
+			if float64(v) > mx {
+				mx = float64(v)
+			}
+		}
+		var sum float64
+		for _, v := range row {
+			sum += math.Exp(float64(v) - mx)
+		}
+		logSum := math.Log(sum) + mx
+		target := targets[r]
+		loss += (logSum - float64(row[target])) * invRows
+		dRow := dLogits[r*classes : (r+1)*classes]
+		for c := 0; c < classes; c++ {
+			p := math.Exp(float64(row[c]) - logSum)
+			if c == target {
+				p -= 1
+			}
+			dRow[c] = float32(p * invRows)
+		}
+	}
+	return loss
 }
 
 // LinearBackward: forward was dst = x·w^T with w row-major [out,in]. Writes
@@ -106,15 +164,19 @@ func LinearBackward(dx, dW, dB, x, w, dy []float32, rows, inDim, outDim int, add
 }
 
 // CausalAttentionBackward: VJP of CausalAttention (score scale 1, causal,
-// per-head KV). Probabilities are recomputed row-by-row; the softmax VJP is
-// ds = p*(dP - p·dP). Layout matches the forward: [seq][heads][headDim].
-func CausalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, heads, headDim int) {
+// grouped-query KV — dk/dv accumulate across the query heads sharing each kv
+// head, so the head loop stays serial). Probabilities are recomputed
+// row-by-row; the softmax VJP is ds = p*(dP - p·dP). Layout matches the
+// forward: q [seq][heads][headDim], k/v [seq][kvHeads][headDim].
+func CausalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, heads, kvHeads, headDim int) {
 	clear(dq)
 	clear(dk)
 	clear(dv)
 	probs := make([]float64, seq)
 	dP := make([]float64, seq)
+	group := heads / kvHeads
 	for h := 0; h < heads; h++ {
+		kv := h / group
 		for qi := 0; qi < seq; qi++ {
 			nk := qi + 1
 			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
@@ -122,7 +184,7 @@ func CausalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, heads, he
 			dqRow := dq[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			mx := math.Inf(-1)
 			for m := 0; m < nk; m++ {
-				kRow := k[(m*heads+h)*headDim : (m*heads+h+1)*headDim]
+				kRow := k[(m*kvHeads+kv)*headDim : (m*kvHeads+kv+1)*headDim]
 				var dot float64
 				for x := 0; x < headDim; x++ {
 					dot += float64(qRow[x]) * float64(kRow[x])
@@ -141,8 +203,8 @@ func CausalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, heads, he
 			var dot float64
 			for m := 0; m < nk; m++ {
 				probs[m] *= inv
-				vRow := v[(m*heads+h)*headDim : (m*heads+h+1)*headDim]
-				dvRow := dv[(m*heads+h)*headDim : (m*heads+h+1)*headDim]
+				vRow := v[(m*kvHeads+kv)*headDim : (m*kvHeads+kv+1)*headDim]
+				dvRow := dv[(m*kvHeads+kv)*headDim : (m*kvHeads+kv+1)*headDim]
 				var dpm float64
 				for x := 0; x < headDim; x++ {
 					dpm += float64(dout[x]) * float64(vRow[x])
@@ -153,8 +215,8 @@ func CausalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, heads, he
 			}
 			for m := 0; m < nk; m++ {
 				g := probs[m] * (dP[m] - dot)
-				kRow := k[(m*heads+h)*headDim : (m*heads+h+1)*headDim]
-				dkRow := dk[(m*heads+h)*headDim : (m*heads+h+1)*headDim]
+				kRow := k[(m*kvHeads+kv)*headDim : (m*kvHeads+kv+1)*headDim]
+				dkRow := dk[(m*kvHeads+kv)*headDim : (m*kvHeads+kv+1)*headDim]
 				for x := 0; x < headDim; x++ {
 					dqRow[x] += float32(g * float64(kRow[x]))
 					dkRow[x] += float32(g * float64(qRow[x]))

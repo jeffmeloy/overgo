@@ -51,6 +51,20 @@ func ApplyRotaryHalf(x []float32, invFreq []float64, pos int) {
 	}
 }
 
+// ApplyRotaryInterleaved rotates interleaved pairs (2i, 2i+1) of one head
+// row by pos*invFreq[i] (in place) — the GGML "normal" rope layout; the
+// split-half HF layout is ApplyRotaryHalf.
+func ApplyRotaryInterleaved(x []float32, invFreq []float64, pos int) {
+	h := len(x) / 2
+	for i := 0; i < h; i++ {
+		a := float64(pos) * invFreq[i]
+		c, s := math.Cos(a), math.Sin(a)
+		x1, x2 := float64(x[2*i]), float64(x[2*i+1])
+		x[2*i] = float32(x1*c - x2*s)
+		x[2*i+1] = float32(x1*s + x2*c)
+	}
+}
+
 // SoftmaxInPlace: max-subtracted softmax; f32 storage, f64 sum.
 func SoftmaxInPlace(row []float32) {
 	if len(row) == 0 {
@@ -115,26 +129,38 @@ func SiLUInPlace(v []float32) {
 	}
 }
 
+// SiLUGate: dst = silu(gate) * up element-wise — the gated-MLP inner product.
+func SiLUGate(dst, gate, up []float32) {
+	for i := range dst {
+		g := float64(gate[i])
+		dst[i] = float32(g / (1 + math.Exp(-g)) * float64(up[i]))
+	}
+}
+
 // CausalAttention: softmax(q·k^T)·v per head over a causal span with score
 // scale 1 — any scale (fixed or learned) is folded into q by the caller.
-// Layout is [seq][heads][headDim] flat; scores are f64 dots stored f32.
-func CausalAttention(out, q, k, v []float32, seq, heads, headDim int) {
+// Layout: q/out [seq][heads][headDim] flat, k/v [seq][kvHeads][headDim];
+// query head h reads kv head h/(heads/kvHeads) (grouped-query attention;
+// kvHeads == heads is the per-head case). Scores are f64 dots stored f32.
+func CausalAttention(out, q, k, v []float32, seq, heads, kvHeads, headDim int) {
 	clear(out)
 	parallelRange(heads, func(hStart, hEnd int) {
-		causalAttentionHeads(out, q, k, v, seq, heads, headDim, hStart, hEnd)
+		causalAttentionHeads(out, q, k, v, seq, heads, kvHeads, headDim, hStart, hEnd)
 	})
 }
 
 // causalAttentionHeads runs the head range [hStart,hEnd) — each worker owns
 // disjoint out rows per head, so the split is race-free.
-func causalAttentionHeads(out, q, k, v []float32, seq, heads, headDim, hStart, hEnd int) {
+func causalAttentionHeads(out, q, k, v []float32, seq, heads, kvHeads, headDim, hStart, hEnd int) {
 	scores := make([]float32, seq)
+	group := heads / kvHeads
 	for h := hStart; h < hEnd; h++ {
+		kv := h / group
 		for qi := 0; qi < seq; qi++ {
 			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			probs := scores[:qi+1]
 			for ki := range probs {
-				kRow := k[(ki*heads+h)*headDim : (ki*heads+h+1)*headDim]
+				kRow := k[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 				var dot float64
 				for d := 0; d < headDim; d++ {
 					dot += float64(qRow[d]) * float64(kRow[d])
@@ -144,7 +170,7 @@ func causalAttentionHeads(out, q, k, v []float32, seq, heads, headDim, hStart, h
 			SoftmaxInPlace(probs)
 			outRow := out[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			for ki, weight := range probs {
-				vRow := v[(ki*heads+h)*headDim : (ki*heads+h+1)*headDim]
+				vRow := v[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 				for d := 0; d < headDim; d++ {
 					outRow[d] += weight * vRow[d]
 				}

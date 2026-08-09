@@ -40,29 +40,19 @@
       ]
     },
     {
-      "id": "rung2-fractale",
-      "title": "Fractale-350M",
+      "id": "rung3-carbon",
+      "title": "Carbon-500M",
       "status": "open",
       "steps": [
         {
           "id": "golden-generation",
-          "status": "open",
-          "title": "generate forward/decode goldens from adaptive_new's verified Forward oracle (no fixtures exist; models/Fractale-350M-base/model.pt, tokenizer.json, generation_config.json)"
-        },
-        {
-          "id": "rung-export",
-          "status": "open",
-          "title": "repodb-export -rung Fractale into overgo store (fixtures + honest baseline)"
-        },
-        {
-          "id": "pt-loader-port",
-          "status": "open",
-          "title": "port the PyTorch-pickle tensor reader as a generic overgo loader (retained capability; adaptive go/extmodel/tensor_artifacts.go ~L3054)"
+          "status": "done",
+          "title": "torch numeric golden (input_ids/output_ids/per-step top-8 logits) pulled from adaptive fixtures; serving golden captured live from the CUDA server /api/infer (4 greedy cases; outputs near-degenerate T-runs -- recorded as-is, parity bar is byte equality); decode baseline median 2.11 ms/tok, 442-487 tok/s"
         },
         {
           "id": "reference-port",
           "status": "open",
-          "title": "serve Fractale via generic modules + recipe wiring; decode parity vs goldens (O(n) incremental decode is the reference bar)"
+          "title": "serve Carbon-500M in overgo (HF safetensors artifact) through generic modules; decode parity vs torch golden ids+logits, then serving-golden byte equality"
         },
         {
           "id": "recipe-activation",
@@ -77,15 +67,9 @@
         {
           "id": "performance-leg",
           "status": "open",
-          "title": "head-to-head wall+memory, at-or-below"
+          "title": "head-to-head wall+memory vs the CUDA serving baseline, at-or-below"
         }
       ]
-    },
-    {
-      "id": "rung3-carbon",
-      "title": "Carbon-500M",
-      "status": "open",
-      "steps": []
     },
     {
       "id": "rung4-qwen05",
@@ -176,6 +160,49 @@
       "title": "Qwen3.5-9B (activation done at pilot; smoke+legs)",
       "status": "open",
       "steps": []
+    },
+    {
+      "id": "rung2-fractale",
+      "title": "Fractale-350M",
+      "status": "deferred-pending-oracle",
+      "steps": [
+        {
+          "id": "golden-generation",
+          "status": "open",
+          "title": "generate forward/decode goldens from adaptive_new's verified Forward oracle (no fixtures exist; models/Fractale-350M-base/model.pt, tokenizer.json, generation_config.json)"
+        },
+        {
+          "id": "rung-export",
+          "status": "open",
+          "title": "repodb-export -rung Fractale into overgo store (fixtures + honest baseline)"
+        },
+        {
+          "id": "pt-loader-port",
+          "status": "open",
+          "title": "port the PyTorch-pickle tensor reader as a generic overgo loader (retained capability; adaptive go/extmodel/tensor_artifacts.go ~L3054)"
+        },
+        {
+          "id": "reference-port",
+          "status": "open",
+          "title": "serve Fractale via generic modules + recipe wiring; decode parity vs goldens (O(n) incremental decode is the reference bar)"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "title": "sealed lifecycle activation, generation task"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "training capability per baseline policy"
+        },
+        {
+          "id": "performance-leg",
+          "status": "open",
+          "title": "head-to-head wall+memory, at-or-below"
+        }
+      ],
+      "finding": "2026-08-09 reconnaissance: NO current verified Fractale implementation exists in either tree -- adaptive_new has zero Fractale references (not in server discovery; model.pt only), and overgo post-restructure has none either. The serving-lane memory predates the restructure and is stale. A rung port requires a verified oracle to pin against; none exists. Brick path to reopen: EITHER restore the pre-restructure llamacpp2go fractale lane from that repo's git history, OR define a from-scratch verification standard (SmolLM2 tokenizer equality + reference logits from the original training stack). Deferred, not parked -- reopens after rungs with live adaptive baselines."
     }
   ]
 }

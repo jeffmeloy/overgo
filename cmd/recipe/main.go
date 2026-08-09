@@ -125,15 +125,14 @@ func capabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 	return recipe.Definition{}, fmt.Errorf("no capability definition for task %q", task)
 }
 
-// speechInventory: the pocket-tts layout is an explicit file list — the
-// vendor-resolved pockettts_config.json, one standalone top-level
-// .safetensors weights file (name is content-hashed; discovered, not
-// assumed), and the tokenizer.model the text conditioner reads. The
-// embeddings/clips subdirectories are voice data, not model components.
-func speechInventory(path string) (modelartifact.Inventory, error) {
+// singleSafetensors: the ONE top-level .safetensors weights file of a
+// capability artifact. Vendor-chosen names (pocket-tts content hash, un0
+// model.safetensors, u-vit step_NNN.safetensors) are discovered, never
+// assumed; more than one is ambiguous and refused.
+func singleSafetensors(context, path string) (string, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return modelartifact.Inventory{}, err
+		return "", err
 	}
 	weights := ""
 	for _, entry := range entries {
@@ -141,12 +140,24 @@ func speechInventory(path string) (modelartifact.Inventory, error) {
 			continue
 		}
 		if weights != "" {
-			return modelartifact.Inventory{}, fmt.Errorf("speech inventory: multiple safetensors files in %s", path)
+			return "", fmt.Errorf("%s inventory: multiple safetensors files in %s", context, path)
 		}
 		weights = entry.Name()
 	}
 	if weights == "" {
-		return modelartifact.Inventory{}, fmt.Errorf("speech inventory: no safetensors weights in %s", path)
+		return "", fmt.Errorf("%s inventory: no safetensors weights in %s", context, path)
+	}
+	return weights, nil
+}
+
+// speechInventory: the pocket-tts layout is an explicit file list — the
+// vendor-resolved pockettts_config.json, the discovered weights file, and
+// the tokenizer.model the text conditioner reads. The embeddings/clips
+// subdirectories are voice data, not model components.
+func speechInventory(path string) (modelartifact.Inventory, error) {
+	weights, err := singleSafetensors("speech", path)
+	if err != nil {
+		return modelartifact.Inventory{}, err
 	}
 	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
 		{Path: filepath.Join(path, "pockettts_config.json"), Name: "config", Role: artifact.ComponentConfig},
@@ -155,14 +166,18 @@ func speechInventory(path string) (modelartifact.Inventory, error) {
 	})
 }
 
-// imageGenInventory: the conditional-oscillator layout is an explicit file
-// list — config.json (execution facts) plus model.safetensors (every
-// dimension derives from its flat tensor lengths). The provenance sidecar is
-// lineage metadata, not a model component.
+// imageGenInventory: image-gen artifacts are an explicit two-component list
+// — config.json (family tag / execution facts) plus the discovered weights
+// file; every dimension derives from tensor lengths. Vendor scripts, sample
+// renders, and provenance sidecars are not model components.
 func imageGenInventory(path string) (modelartifact.Inventory, error) {
+	weights, err := singleSafetensors("image-gen", path)
+	if err != nil {
+		return modelartifact.Inventory{}, err
+	}
 	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
 		{Path: filepath.Join(path, "config.json"), Name: "config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(path, "model.safetensors"), Name: "weights", Role: artifact.ComponentWeights},
+		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
 	})
 }
 

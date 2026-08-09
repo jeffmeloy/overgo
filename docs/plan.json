@@ -239,8 +239,34 @@
     {
       "id": "rung9-simplediffusion",
       "title": "SimpleDiffusion (port-class)",
-      "status": "open",
-      "steps": []
+      "status": "done",
+      "steps": [
+        {
+          "id": "golden-import",
+          "status": "done",
+          "title": "component golden set pulled from adaptive fixtures/simplediffusion (cplinear, groupnorm, ot_flow, projection_ops, real_forward, resblock, rope, tpa)"
+        },
+        {
+          "id": "reference-port",
+          "status": "done",
+          "title": "neutral internal/diffusionimage: architecture DERIVED from flat tensor lengths (heads^2=len(WAq)*c/len(WBq); 3 vendor-source constants: groups=32, eps=1e-5, rope theta=1e4); component parity worst diffs -- xATGLU 2.4e-07, CPLinear 1.2e-07, RoPE 0, TPA 1.9e-07, GroupNorm 2.4e-07, ResBlock 2.4e-07, TransformerBlock 1.2e-07, projections 1.2e-07 (gates 1e-5/1e-4); tiny full model fwd 2.6e-08; REAL artifact fwd max abs 3.99e-06 vs 5e-4 gate; Euler Sample smoke finite; vendor token-reshape quirk golden-locked"
+        },
+        {
+          "id": "training-leg",
+          "status": "done",
+          "title": "OT-flow objective parity (x_t 3.0e-08, target 6.0e-08, loss 6.4118216 vs 6.41182184, dPred 4.8e-07 at 1e-5); full tiny-model backward vs torch: dX 6.6e-06, 63 grad tensors worst 8.4e-05 vs 2e-4 gate; FD gates on xATGLU(+alpha), CP factors, GroupNorm, projections, ResBlock, TransformerBlock(+4 scalars), pool/upsample; SGD train (Muon declined: host NS over ~100 matrices up to 2048x512 prohibitive per step): tiny fixed-path 0.026695->0.021471 over 30 steps (0.80x), REAL artifact 3 steps 1.9294->1.9218 monotone"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "done",
+          "title": "activated through the shared activateCapability driver, task image-gen; imageGenInventory generalized to DISCOVER the single top-level safetensors (step_799.safetensors; shared singleSafetensors owner with speech); status round-trip: model:sha256:5641a228.. recipe:sha256:e98c43b7.. tier experimental; Un-0 activation unaffected"
+        },
+        {
+          "id": "performance-leg",
+          "status": "done",
+          "title": "matched host protocol: vendor-parity test (fresh load + one 1x3x32x32 forward), go test -count=5 both sides -- adaptive 0.61/0.21/0.22/0.20/0.20s median 0.21s; overgo 0.51/0.17/0.18/0.17/0.17s median 0.17s; verdict BELOW (0.81x). Supplementary overgo in-process: load 130ms, warm forward median 54ms (min 47 max 64, 5 repeats); heap live-after-GC 389.3MB = the 388.4MB f32 weight set (no duplication), watermark 513MB across 5 forwards; adaptive exposes no finer read-only forward-timing surface"
+        }
+      ]
     },
     {
       "id": "rung10-minicpm",

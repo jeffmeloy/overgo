@@ -38,6 +38,13 @@ func ensurePool() {
 	})
 }
 
+// ParallelRangeF64: calibrated fan-out for capability-package f64-accumulate
+// kernels (conv planes, attention heads, wide linears). Same pool and cost
+// model as the in-package primitives; unitMACs prices one unit of n.
+func ParallelRangeF64(n, unitMACs int, fn func(start, end int)) {
+	parallelRangeCost(n, unitMACs, macF64, fn)
+}
+
 // parallelRangeCost: cost-modeled dispatch. unitMACs is the caller's per-unit
 // work estimate (MACs of the rate's kernel class); dispatchWorkers turns it
 // into serial-or-w-workers using the one-time host calibration.

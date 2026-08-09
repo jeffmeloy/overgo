@@ -74,7 +74,7 @@
     {
       "id": "rung4-qwen05",
       "title": "Qwen2.5-0.5B (activation-class)",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "golden-generation",
@@ -104,7 +104,7 @@
         {
           "id": "performance-leg",
           "title": "head-to-head vs 1.97 ms/tok baseline, at-or-below",
-          "status": "open"
+          "status": "done"
         }
       ]
     },

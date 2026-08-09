@@ -53,7 +53,7 @@ func run() error {
 		}
 		fmt.Printf("generated %s\n", item.output)
 	}
-	if err := refreshPins("internal/cuda/kernel/validation.go"); err != nil {
+	if err := refreshPins("internal/cuda/kernel/manifest_generated.go"); err != nil {
 		return err
 	}
 	for _, args := range [][]string{{"-update"}, nil} {

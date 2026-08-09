@@ -291,7 +291,7 @@ func applyBF16ProjAddRewrite(context *rewriteContext) {
 			projection, addend = addend, projection
 		}
 		if !context.bf16DecodeProjection(projection) || projection == addend ||
-			!node.Shape.Equal(projection.Shape) || !addend.Shape.Equal(node.Shape) {
+			!node.Shape.Equal(projection.Shape) || !addendEpilogueCompatible(node, addend) {
 			continue
 		}
 		if compiled.bf16ProjAdd == nil {
@@ -303,6 +303,17 @@ func applyBF16ProjAddRewrite(context *rewriteContext) {
 		compiled.bf16ProjAdd[node] = bf16ProjAddFusion{projection: projection, addend: addend}
 		compiled.skipped[projection] = struct{}{}
 	}
+}
+
+// addendEpilogueCompatible: residual (same shape) or rank-1 bias vector
+// broadcast over the single decode column; the epilogue kernel indexes
+// addend[row] identically in both layouts.
+func addendEpilogueCompatible(node, addend *tensor.Tensor) bool {
+	if addend.Shape.Equal(node.Shape) {
+		return true
+	}
+	return addend.Shape.Rank == 1 && node.Shape.Rank == 2 &&
+		node.Shape.Dims[1] == 1 && addend.Shape.Dims[0] == node.Shape.Dims[0]
 }
 
 // applyBF16AppendRewrite: cache_append of a reshaped single-use one-token
@@ -373,8 +384,8 @@ func applyBF16ArgmaxRewrite(context *rewriteContext) {
 	}
 }
 
-// applyRopeAppendRewrite: cache_append of a single-use rope_normal rotates
-// directly into the cache slot.
+// applyRopeAppendRewrite: cache_append of a single-use rope_normal/rope_neox
+// rotates directly into the cache slot.
 func applyRopeAppendRewrite(context *rewriteContext) {
 	compiled := context.compiled
 	for _, node := range context.order {
@@ -382,7 +393,8 @@ func applyRopeAppendRewrite(context *rewriteContext) {
 			continue
 		}
 		rope := node.Inputs[1]
-		if rope.Op != tensor.OpRoPENormal || context.uses[rope] != 1 {
+		if (rope.Op != tensor.OpRoPENormal && rope.Op != tensor.OpRoPENeoX) ||
+			context.uses[rope] != 1 {
 			continue
 		}
 		if _, skipped := compiled.skipped[rope]; skipped {

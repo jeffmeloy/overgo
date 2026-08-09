@@ -799,8 +799,12 @@ func launchRopeAppend(
 	attentionFactor := ropeAttributes.AttentionFactor
 	betaFast := ropeAttributes.BetaFast
 	betaSlow := ropeAttributes.BetaSlow
+	function := functions[kernelRopeAppendNormalF32]
+	if fusion.rope.Op == tensor.OpRoPENeoX {
+		function = functions[kernelRopeAppendNeoxF32]
+	}
 	return launch1DABI(
-		state, functions[kernelRopeAppendNormalF32], count,
+		state, function, count,
 		&input, &positions, &frequencyFactors, &output, &offsetPointer, &inner,
 		&width, &heads, &tokens, &rotary,
 		&frequencyBase, &frequencyScale, &originalContext, &extFactor, &attentionFactor,

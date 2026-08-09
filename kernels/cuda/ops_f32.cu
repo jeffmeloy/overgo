@@ -2106,6 +2106,58 @@ extern "C" __global__ void rope_append_normal_f32(
         : x0 * sine + x1 * cosine;
 }
 
+// rope_neox rotated DIRECTLY into its cache-append slot; mirrors
+// rope_append_normal_f32 with half-split pair indexing.
+extern "C" __global__ void rope_append_neox_f32(
+        const float * input,
+        const unsigned int * positions,
+        const float * frequency_factors,
+        float * output,
+        const unsigned int * offset,
+        unsigned int inner,
+        unsigned int width,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int rotary_dimensions,
+        float frequency_base,
+        float frequency_scale,
+		unsigned int original_context,
+		float ext_factor,
+		float attention_factor,
+		float beta_fast,
+		float beta_slow,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    float * destination = output + (size_t) offset[0] * inner + index;
+    const unsigned int column = index % width;
+    if (column >= rotary_dimensions) {
+        *destination = input[index];
+        return;
+    }
+    const unsigned int row = index / width;
+    const unsigned int token = (row / heads) % tokens;
+    const unsigned int half = rotary_dimensions / 2;
+    const unsigned int pair = column % half;
+    const unsigned int pair_offset = row * width + pair;
+	const float theta_extrapolated =
+		(float) positions[token] *
+        powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions) /
+        (frequency_factors == nullptr ? 1.0f : frequency_factors[pair]);
+    float sine;
+    float cosine;
+	rope_yarn_angles(theta_extrapolated, frequency_scale, pair, rotary_dimensions,
+		original_context, frequency_base, ext_factor, attention_factor,
+		beta_fast, beta_slow, &cosine, &sine);
+    const float x0 = input[pair_offset];
+    const float x1 = input[pair_offset + half];
+    *destination = column < half
+        ? x0 * cosine - x1 * sine
+        : x0 * sine + x1 * cosine;
+}
+
 extern "C" __global__ void rope_multi_f32(
         const float * input,
         const unsigned int * positions,

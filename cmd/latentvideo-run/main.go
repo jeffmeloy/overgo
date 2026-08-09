@@ -1,9 +1,10 @@
 // latentvideo-run: production-shape Wan denoise + decode harness. Runs the
 // full guided UniPC trajectory through the CUDA denoiser session (retained
-// graph replay), releases denoiser device resources, then host-decodes the
-// final latent. Reports wall, device memory, execution counters, and
-// non-degeneracy quality evidence; writes the final latent and a JSON
-// summary for cross-checking.
+// graph replay), releases denoiser device resources, then decodes the final
+// latent (CUDA session by default; host oracle via -decode-engine host).
+// Reports wall, device memory, execution counters, and non-degeneracy
+// quality evidence; writes the final latent and a JSON summary for
+// cross-checking.
 package main
 
 import (
@@ -11,6 +12,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"math"
@@ -165,7 +167,8 @@ func run() error {
 	weightType := flag.String("weight-type", "f32", "matmul weight storage: f32 or bf16")
 	bf16Attention := flag.Bool("bf16-attention", false, "round attention q/k/v through BF16 storage (tensor-core flash path)")
 	deviceOrdinal := flag.Int("device", 0, "CUDA device ordinal")
-	decode := flag.Bool("decode", true, "run the causal VAE host decode")
+	decode := flag.Bool("decode", true, "run the causal VAE decode")
+	decodeEngine := flag.String("decode-engine", "cuda", "vae decode engine: cuda (session) or host (oracle)")
 	decodeFrames := flag.Int("decode-frames", 0, "latent frames to decode (0 = all; host decode is slow at production scale)")
 	outDir := flag.String("out", filepath.Join("build", "latentvideo"), "output directory")
 	fixtureDir := flag.String("fixtures", filepath.Join("fixtures", "wan"), "wan fixture directory")
@@ -442,10 +445,24 @@ func run() error {
 			}
 			return nil
 		}
-		decodeStats, err := latentvideo.DecodeLatentVideo(
-			checkpoint, plan, stats, decodeLatent,
-			decodeLatentFrames, geometry.LatentHeight, geometry.LatentWidth, sink,
-		)
+		var decodeStats latentvideo.VAEDecodeStats
+		switch *decodeEngine {
+		case "cuda":
+			session, sessionErr := latentvideo.NewVAEDecoderCUDASession(checkpoint, plan, *deviceOrdinal)
+			if sessionErr != nil {
+				return sessionErr
+			}
+			decodeStats, err = session.Decode(stats, decodeLatent,
+				decodeLatentFrames, geometry.LatentHeight, geometry.LatentWidth, sink)
+			err = errors.Join(err, session.Close())
+		case "host":
+			decodeStats, err = latentvideo.DecodeLatentVideo(
+				checkpoint, plan, stats, decodeLatent,
+				decodeLatentFrames, geometry.LatentHeight, geometry.LatentWidth, sink,
+			)
+		default:
+			err = fmt.Errorf("unknown decode engine %q", *decodeEngine)
+		}
 		if err != nil {
 			return err
 		}

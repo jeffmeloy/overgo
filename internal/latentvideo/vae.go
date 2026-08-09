@@ -451,6 +451,8 @@ type VAEDecodeStats struct {
 	Engine             string
 	DecodeWallSec      float64
 	PeakHeapAllocBytes uint64
+	// PeakDeviceBytes: runtime-owned device allocation peak (CUDA engine only).
+	PeakDeviceBytes uint64
 }
 
 // vaeTemporalCache: per-convolution stream state — the last <=2 frames of

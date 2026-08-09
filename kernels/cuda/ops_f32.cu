@@ -4866,3 +4866,347 @@ __device__ float moe_expert_value(
     }
 #undef MOE_DEQUANT_CASE
 }
+
+// ---- Wan causal 3-D VAE decode (streamed chunk-major, latentvideo) ----
+
+// vae_causal_conv3d_f32: stride-1 same-padded causal 3-D convolution over one
+// streamed chunk with a temporal prefix cache of cache_t frames. 64x64
+// position-by-channel tiles with 4x4 register blocking per thread (8 shared
+// reads per 16 FMA) and per-block position decomposition precomputed once;
+// fp32 FMA accumulation in the fixed ascending kernel-value order, fused
+// mandatory bias. Output dims equal input dims (stride 1 everywhere in the
+// decoder). Covers 3x3x3, temporal 3x1x1, and 1x1x1 pointwise convs.
+#define VAE_CONV_TILE 64
+#define VAE_CONV_K 16
+#define VAE_CONV_SPAN 16
+extern "C" __global__ void vae_causal_conv3d_f32(
+        float * out,
+        const float * x,
+        const float * cache,
+        const float * weight,
+        const float * bias,
+        int c_in,
+        int c_out,
+        int in_t,
+        int in_h,
+        int in_w,
+        int kt_n,
+        int kh_n,
+        int kw_n,
+        int pad_t,
+        int pad_h,
+        int pad_w,
+        int cache_t) {
+    __shared__ float activations[VAE_CONV_K][VAE_CONV_TILE];
+    __shared__ float weights[VAE_CONV_K][VAE_CONV_TILE];
+    __shared__ int pos_t[VAE_CONV_TILE];
+    __shared__ int pos_h[VAE_CONV_TILE];
+    __shared__ int pos_w[VAE_CONV_TILE];
+    const int lane = threadIdx.x;
+    const int tx = lane % VAE_CONV_SPAN;
+    const int ty = lane / VAE_CONV_SPAN;
+    const int positions = in_t * in_h * in_w;
+    const int channel_tiles = (c_out + VAE_CONV_TILE - 1) / VAE_CONV_TILE;
+    const int position_tile = blockIdx.x / channel_tiles;
+    const int channel_tile = blockIdx.x - position_tile * channel_tiles;
+    const int kernel_values = c_in * kt_n * kh_n * kw_n;
+    const int kernel_plane = kt_n * kh_n * kw_n;
+    if (lane < VAE_CONV_TILE) {
+        const int position = position_tile * VAE_CONV_TILE + lane;
+        const int clamped = position < positions ? position : positions - 1;
+        const int ot = clamped / (in_h * in_w);
+        const int prem = clamped - ot * in_h * in_w;
+        pos_t[lane] = ot;
+        pos_h[lane] = prem / in_w;
+        pos_w[lane] = prem - (prem / in_w) * in_w;
+    }
+    float acc[4][4];
+    for (int i = 0; i < 4; ++i) {
+        const int position = position_tile * VAE_CONV_TILE + ty + i * VAE_CONV_SPAN;
+        for (int j = 0; j < 4; ++j) {
+            const int co = channel_tile * VAE_CONV_TILE + tx + j * VAE_CONV_SPAN;
+            acc[i][j] = (position < positions && co < c_out) ? bias[co] : 0.0f;
+        }
+    }
+    __syncthreads();
+    for (int base = 0; base < kernel_values; base += VAE_CONV_K) {
+        for (int flat = lane; flat < VAE_CONV_K * VAE_CONV_TILE; flat += blockDim.x) {
+            const int k = flat / VAE_CONV_TILE;
+            const int m = flat - k * VAE_CONV_TILE;
+            const int input_kernel = base + k;
+            const int position = position_tile * VAE_CONV_TILE + m;
+            float value = 0.0f;
+            if (position < positions && input_kernel < kernel_values) {
+                const int ci = input_kernel / kernel_plane;
+                int z = input_kernel - ci * kernel_plane;
+                const int kt = z / (kh_n * kw_n);
+                z -= kt * kh_n * kw_n;
+                const int kh = z / kw_n;
+                const int kw = z - kh * kw_n;
+                const int padded_t = pos_t[m] + kt - (2 * pad_t - cache_t);
+                const int ih = pos_h[m] + kh - pad_h;
+                const int iw = pos_w[m] + kw - pad_w;
+                if (padded_t >= 0 && padded_t < cache_t + in_t &&
+                        ih >= 0 && ih < in_h && iw >= 0 && iw < in_w) {
+                    if (padded_t < cache_t) {
+                        value = cache[((ci * cache_t + padded_t) * in_h + ih) * in_w + iw];
+                    } else {
+                        value = x[((ci * in_t + padded_t - cache_t) * in_h + ih) * in_w + iw];
+                    }
+                }
+            }
+            activations[k][m] = value;
+            const int load_co = channel_tile * VAE_CONV_TILE + m;
+            weights[k][m] = (load_co < c_out && input_kernel < kernel_values)
+                ? weight[load_co * kernel_values + input_kernel]
+                : 0.0f;
+        }
+        __syncthreads();
+        for (int k = 0; k < VAE_CONV_K; ++k) {
+            float a[4];
+            float b[4];
+            for (int i = 0; i < 4; ++i) {
+                a[i] = activations[k][ty + i * VAE_CONV_SPAN];
+                b[i] = weights[k][tx + i * VAE_CONV_SPAN];
+            }
+            for (int i = 0; i < 4; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    acc[i][j] = fmaf(a[i], b[j], acc[i][j]);
+                }
+            }
+        }
+        __syncthreads();
+    }
+    for (int i = 0; i < 4; ++i) {
+        const int position = position_tile * VAE_CONV_TILE + ty + i * VAE_CONV_SPAN;
+        if (position >= positions) continue;
+        for (int j = 0; j < 4; ++j) {
+            const int co = channel_tile * VAE_CONV_TILE + tx + j * VAE_CONV_SPAN;
+            if (co < c_out) {
+                out[co * positions + position] = acc[i][j];
+            }
+        }
+    }
+}
+
+// vae_channel_rms_norm_f32: RMS over channels at each position, sqrt(C)
+// scale, 1e-12 zero guard, f64 accumulation (reference engine convention),
+// optional fused SiLU applied after the f32 rounding (host rounding order).
+// One block per position; shared = blockDim.x doubles.
+extern "C" __global__ void vae_channel_rms_norm_f32(
+        float * out,
+        const float * x,
+        const float * gamma,
+        int channels,
+        int plane,
+        int apply_silu) {
+    extern __shared__ double vae_rms_reduce[];
+    const int pos = blockIdx.x;
+    const int tid = threadIdx.x;
+    double sum = 0.0;
+    for (int ch = tid; ch < channels; ch += blockDim.x) {
+        const double v = (double) x[ch * plane + pos];
+        sum += v * v;
+    }
+    vae_rms_reduce[tid] = sum;
+    __syncthreads();
+    for (int stride = blockDim.x / 2; stride; stride >>= 1) {
+        if (tid < stride) {
+            vae_rms_reduce[tid] += vae_rms_reduce[tid + stride];
+        }
+        __syncthreads();
+    }
+    double norm = sqrt(vae_rms_reduce[0]);
+    if (norm < 1.0e-12) {
+        norm = 1.0e-12;
+    }
+    const double scale = sqrt((double) channels) / norm;
+    for (int ch = tid; ch < channels; ch += blockDim.x) {
+        const int idx = ch * plane + pos;
+        float value = (float) ((double) x[idx] * scale * (double) gamma[ch]);
+        if (apply_silu) {
+            const double s = (double) value;
+            value = (float) (s / (1.0 + exp(-s)));
+        }
+        out[idx] = value;
+    }
+}
+
+// vae_spatial_attention_f32: QKV-packed per-frame spatial self-attention.
+// Layout qkv[section*channels*groups*frame + (ch*groups+g)*frame + pos],
+// sections q=0,k=1,v=2; groups is the frame count, frame the spatial extent.
+// One block per (group, query); shared = frame floats (8-aligned) + one
+// double per thread. Residual add stays with the caller.
+extern "C" __global__ void vae_spatial_attention_f32(
+        const float * qkv,
+        float * out,
+        int channels,
+        int groups,
+        int frame,
+        float scale) {
+    extern __shared__ unsigned char vae_attention_scratch[];
+    float * scores = (float *) vae_attention_scratch;
+    const int score_bytes = ((frame * (int) sizeof(float) + 7) / 8) * 8;
+    double * reduce = (double *) (vae_attention_scratch + score_bytes);
+    const int qi = blockIdx.x % frame;
+    const int g = blockIdx.x / frame;
+    const int tid = threadIdx.x;
+    const int koff = channels * groups * frame;
+    const int voff = 2 * channels * groups * frame;
+    for (int kj = tid; kj < frame; kj += blockDim.x) {
+        float dot = 0.0f;
+        for (int ch = 0; ch < channels; ++ch) {
+            dot = fmaf(qkv[(ch * groups + g) * frame + qi],
+                       qkv[koff + (ch * groups + g) * frame + kj], dot);
+        }
+        scores[kj] = dot * scale;
+    }
+    __syncthreads();
+    float local_max = -3.402823466e38f;
+    for (int j = tid; j < frame; j += blockDim.x) {
+        local_max = fmaxf(local_max, scores[j]);
+    }
+    reduce[tid] = local_max;
+    __syncthreads();
+    for (int stride = blockDim.x / 2; stride; stride >>= 1) {
+        if (tid < stride) {
+            reduce[tid] = fmax(reduce[tid], reduce[tid + stride]);
+        }
+        __syncthreads();
+    }
+    const float mx = (float) reduce[0];
+    __syncthreads();
+    double sum = 0.0;
+    for (int j = tid; j < frame; j += blockDim.x) {
+        const float e = expf(scores[j] - mx);
+        scores[j] = e;
+        sum += e;
+    }
+    reduce[tid] = sum;
+    __syncthreads();
+    for (int stride = blockDim.x / 2; stride; stride >>= 1) {
+        if (tid < stride) {
+            reduce[tid] += reduce[tid + stride];
+        }
+        __syncthreads();
+    }
+    const float inv = (float) (1.0 / reduce[0]);
+    for (int ch = tid; ch < channels; ch += blockDim.x) {
+        float acc = 0.0f;
+        for (int j = 0; j < frame; ++j) {
+            acc = fmaf(scores[j] * inv, qkv[voff + (ch * groups + g) * frame + j], acc);
+        }
+        out[(ch * groups + g) * frame + qi] = acc;
+    }
+}
+
+// vae_upsample2d_f32: nearest-neighbor 2x spatial upsample fused with a
+// same-padded 3x3 Conv2d per frame (Wan resample stack), fp32 FMA, fused
+// mandatory bias. One thread per output element.
+extern "C" __global__ void vae_upsample2d_f32(
+        float * out,
+        const float * x,
+        const float * weight,
+        const float * bias,
+        int c_in,
+        int c_out,
+        int frames,
+        int height,
+        int width,
+        int out_h,
+        int out_w,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const int plane = frames * out_h * out_w;
+    const int co = (int) index / plane;
+    int rem = (int) index - co * plane;
+    const int ti = rem / (out_h * out_w);
+    rem -= ti * out_h * out_w;
+    const int oh = rem / out_w;
+    const int ow = rem - oh * out_w;
+    float acc = bias[co];
+    for (int ci = 0; ci < c_in; ++ci) {
+        for (int kh = 0; kh < 3; ++kh) {
+            const int uh = oh + kh - 1;
+            if (uh < 0 || uh >= out_h) {
+                continue;
+            }
+            const int ih = uh / 2;
+            for (int kw = 0; kw < 3; ++kw) {
+                const int uw = ow + kw - 1;
+                if (uw < 0 || uw >= out_w) {
+                    continue;
+                }
+                const int iw = uw / 2;
+                acc = fmaf(x[((ci * frames + ti) * height + ih) * width + iw],
+                           weight[((co * c_in + ci) * 3 + kh) * 3 + kw], acc);
+            }
+        }
+    }
+    out[index] = acc;
+}
+
+// vae_time_interleave_f32: temporal upsample reshape - the time conv's
+// doubled channel output [2c][t][s] interleaves to [c][2t][s]; even output
+// frames from the first channel half.
+extern "C" __global__ void vae_time_interleave_f32(
+        float * out,
+        const float * convolved,
+        int channels,
+        int frames,
+        int spatial,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const int out_frames = 2 * frames;
+    const int ch = (int) index / (out_frames * spatial);
+    int rem = (int) index - ch * out_frames * spatial;
+    const int ti = rem / spatial;
+    const int pos = rem - ti * spatial;
+    out[index] = convolved[(((ti & 1) * channels + ch) * frames + ti / 2) * spatial + pos];
+}
+
+// vae_temporal_cache_update_f32: reference temporal_cache_update semantics.
+// mode 0: keep the last two input frames, joining the prior cache's final
+// frame when the chunk is a single frame; mode 1: zero prefix then the chunk
+// (temporal upsample first-cache convention after the skipped chunk).
+extern "C" __global__ void vae_temporal_cache_update_f32(
+        float * out,
+        const float * current,
+        const float * prior,
+        int channels,
+        int current_frames,
+        int prior_frames,
+        int out_frames,
+        int spatial,
+        int mode,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const int ch = (int) index / (out_frames * spatial);
+    int rem = (int) index - ch * out_frames * spatial;
+    const int ti = rem / spatial;
+    const int pos = rem - ti * spatial;
+    if (mode) {
+        out[index] = ti == 0 ? 0.0f : current[(ch * current_frames + ti - 1) * spatial + pos];
+        return;
+    }
+    if (current_frames >= 2) {
+        const int src = current_frames - out_frames + ti;
+        out[index] = current[(ch * current_frames + src) * spatial + pos];
+        return;
+    }
+    if (prior_frames > 0 && ti == 0) {
+        out[index] = prior[(ch * prior_frames + prior_frames - 1) * spatial + pos];
+        return;
+    }
+    const int src = ti - (prior_frames > 0 ? 1 : 0);
+    out[index] = current[(ch * current_frames + src) * spatial + pos];
+}

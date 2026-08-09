@@ -3,10 +3,10 @@
 package kernel
 
 const (
-	BundleABIVersion = 35
+	BundleABIVersion = 36
 	BundleTarget     = "compute_89"
 	VectorAddSHA256  = "af74febeae5bb087f35610f7d194695c10374bc7aed4a224da6072a56e59d159"
-	OpsF32SHA256     = "7acf73b89c652b268e79174120b6e9d6fbb4006c4968754e0fb56c8b56dee36a"
+	OpsF32SHA256     = "6a7137a49c37c4088599ced94f88521878ecd711081caa0387bfa9a842f8e269"
 )
 
 var bundleAssets = [...]bundleAsset{

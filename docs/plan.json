@@ -52,7 +52,8 @@
         {
           "id": "reference-port",
           "status": "open",
-          "title": "serve Carbon-500M in overgo (HF safetensors artifact) through generic modules; decode parity vs torch golden ids+logits, then serving-golden byte equality"
+          "title": "serve Carbon-500M in overgo (HF safetensors artifact) through generic modules; decode parity vs torch golden ids+logits, then serving-golden byte equality",
+          "route": "decided 2026-08-09: generic HF-llama safetensors -> GGUF converter (llama.cpp's canonical path; overgo serving is GGUF-centric and the gguf writer exists via gguf-merge/split/quantize). Convert Carbon-500M (LlamaForCausalLM 1024h/28L/GQA16-8/tied-embeddings/vocab 155776/BPE merges.txt) into the checkpoints dataroot (models/ is read-only), serve through the existing engine, then decode parity vs the torch golden (input_ids/output_ids/per-step top-8) and byte equality vs the serving golden. The converter is generic capability -- it unlocks every later HF-dir rung; no carbon-named code."
         },
         {
           "id": "recipe-activation",

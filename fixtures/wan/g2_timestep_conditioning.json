@@ -1,0 +1,50 @@
+{
+  "block_e": {
+    "file": "raw/g2_block_e.f32le",
+    "shape": [
+      4,
+      6,
+      1536
+    ],
+    "elements": 36864,
+    "sha256": "fe1db05a8e387afe6dacba25cfc3f66cf7c795e9e0d42356a39313991a29cef7",
+    "min": -2.5907545,
+    "max": 1.7229652,
+    "mean": 0.08126879254056629
+  },
+  "freq_dim": 256,
+  "head_e": {
+    "file": "raw/g2_head_e.f32le",
+    "shape": [
+      4,
+      1536
+    ],
+    "elements": 6144,
+    "sha256": "a3cfde5926f142808a12d1683231d8959b22fe825a6ceb6fcf790f203286c347",
+    "min": -0.94157445,
+    "max": 0.6750462,
+    "mean": 0.0137168116939212
+  },
+  "schedule": {
+    "num_train_timesteps": 1000,
+    "reference": "VideoUniPCSchedule shifted flow schedule",
+    "shift": 5,
+    "sigmas": [
+      0.99979985,
+      0.93726546,
+      0.8330554,
+      0.6246873,
+      0
+    ],
+    "steps": 4,
+    "timesteps": [
+      999,
+      937,
+      833,
+      624
+    ]
+  },
+  "schema": "overgo.wan_golden.g2/v1",
+  "sin_period": 10000,
+  "source": "adaptive_new extmodel.CompileTimestepConditioningInto over real time_embedding/time_projection weights"
+}

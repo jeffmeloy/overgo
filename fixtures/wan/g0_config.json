@@ -1,0 +1,124 @@
+{
+  "config": {
+    "cross_attn_norm": true,
+    "dim": 1536,
+    "eps": 0.000001,
+    "ffn_dim": 8960,
+    "freq_dim": 256,
+    "in_dim": 16,
+    "num_heads": 12,
+    "num_layers": 30,
+    "num_train_timesteps": 1000,
+    "out_dim": 16,
+    "patch_size": [
+      1,
+      2,
+      2
+    ],
+    "qk_norm": true,
+    "rotary_frequency_base": 10000,
+    "sample_fps": 16,
+    "sinusoidal_period": 10000,
+    "t5_checkpoint": "models_t5_umt5-xxl-enc-bf16.pth",
+    "text_dim": 4096,
+    "text_len": 512,
+    "vae_checkpoint": "Wan2.1_VAE.pth",
+    "vae_stride": [
+      4,
+      8,
+      8
+    ]
+  },
+  "diffusion_inventory": {
+    "contract_ok": true,
+    "dtypes": {
+      "F32": 825
+    },
+    "tensor_count": 825,
+    "total_bytes": 5675987200
+  },
+  "model_dir": "models/Wan2.1-T2V-1.3B",
+  "model_files": [
+    {
+      "name": "LICENSE.txt",
+      "bytes": 11558
+    },
+    {
+      "name": "README.md",
+      "bytes": 17210
+    },
+    {
+      "name": "Wan2.1",
+      "dir": true
+    },
+    {
+      "name": "Wan2.1_VAE.pth",
+      "bytes": 507609880
+    },
+    {
+      "name": "assets",
+      "dir": true
+    },
+    {
+      "name": "config.json",
+      "bytes": 263
+    },
+    {
+      "name": "diffusion_pytorch_model.safetensors",
+      "bytes": 5676070424
+    },
+    {
+      "name": "examples",
+      "dir": true
+    },
+    {
+      "name": "google",
+      "dir": true
+    },
+    {
+      "name": "models_t5_umt5-xxl-enc-bf16.pth",
+      "bytes": 11361920418
+    }
+  ],
+  "schema": "overgo.wan_golden.g0/v1",
+  "source": "adaptive_new extmodel.LoadResolvedLatentVideoConfig + inventory (read-only)",
+  "vae_latent_stats": {
+    "mean": [
+      -0.7571,
+      -0.7089,
+      -0.9113,
+      0.1075,
+      -0.1745,
+      0.9653,
+      -0.1517,
+      1.5508,
+      0.4134,
+      -0.0715,
+      0.5517,
+      -0.3632,
+      -0.1922,
+      -0.9497,
+      0.2503,
+      -0.2921
+    ],
+    "std": [
+      2.8184,
+      1.4541,
+      2.3275,
+      2.6558,
+      1.2196,
+      1.7708,
+      2.6052,
+      2.0743,
+      3.2687,
+      2.1526,
+      2.8652,
+      1.5579,
+      1.6382,
+      1.1253,
+      2.8251,
+      1.916
+    ],
+    "z_dim": 16
+  }
+}

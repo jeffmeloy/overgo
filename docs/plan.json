@@ -1,6 +1,6 @@
 {
   "campaign": "adaptive_new -> overgo merge: model ladder",
-  "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only.",
+  "doctrine": "The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/.claude/worktrees/image_gen/image_gen_report.md -- Wan python 463.4s/8.8GB vs exact-Go 739.9s/22.54GB (denoise 690.9s dominates) vs quality-fast 424.3s/11.95GB (FAILS single-complete-cone); safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; the quality-fast attention approximation is the degradation to avoid. Owner note: route media denoise through overgo's OWN tensor machinery (retained CUDA-graph replay, bf16-native decode catalog, GEMV/epilogue fusion rewrites, calibrated dispatch) rather than porting adaptive's slower path -- that machinery already beat adaptive on rungs 3-4 and is the intended edge over Python.",
   "items": [
     {
       "id": "rung1-timesfm",
@@ -304,7 +304,50 @@
       "id": "rung11-wan",
       "title": "Wan2.1-1.3B (port-class)",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "golden-generation",
+          "status": "done",
+          "title": "staged golden set captured into fixtures/wan (g0 config/inventory+VAE latent stats, g1 umt5 text conditioning cond+uncond 512x1536, g2 UniPC schedule + timestep conditioning, g3 32*16 f1 s4 seed31 all-30-blocks denoise: per-block step-0 traces + block-0 boundary seams + sample_in/model_output/sample_out trajectory + final latent + decoded frame, g4 32*16 f5 s2 seed42 temporal run: trajectory + 2-latent-frame latent + 5 decoded frames); mechanism: throwaway Go program (temp dir, go.mod replace) driving adaptive's exported serving API (AcquireSemanticTextConditioning host path; GenerateLatentVideoCUDA ExecutionProbe/FrameSink -- DiT loop, philox noise, UniPC sampler, VAE decode are CUDA-only in adaptive, so g3/g4 are CUDA-captured); store-backed resolve was stale (fingerprint drift 94ae44f7->592e8e35), captured via catalog resolution"
+        },
+        {
+          "id": "text-conditioning-port",
+          "status": "open",
+          "title": "neutral text-conditioning slice: unigram tokenizer (google/umt5-xxl tokenizer.json) + relative-position umt5 encoder streamed from models_t5_umt5-xxl-enc-bf16.pth (pytorch-zip reader, bf16-rounded host math) + text_embedding.0/GELU/.2 projection + pad-row semantics vs g1 (reference: adaptive extmodel/latent_video.go encodeRelativePositionTokensStreamed + projectCompactTextConditioningEvidence)"
+        },
+        {
+          "id": "dit-port",
+          "status": "open",
+          "title": "DiT slice: patch embedding conv3d boundary + timestep conditioning (vs g2) + 30 conditioned transformer blocks (self-attn 3-axis RoPE, cross-attn qk-norm, adaptive modulation 6-chunk) + head/unpatchify vs g3 step-0 per-block traces and block-0 boundary seams; host reference exists only as adaptive's test oracle (extmodel/conditioned_latent_oracle_test.go conditionedTransformerBlockForward), production is CUDA",
+          "note": "denoise is 93 percent of Wan wall -- build on overgo graph runtime (retained-graph replay + fusions) with the safe worktree levers designed in, not bolted on"
+        },
+        {
+          "id": "sampler-port",
+          "status": "open",
+          "title": "denoise loop: UniPC shifted-flow schedule (VideoUniPCSchedule; g2 timesteps/sigmas) + sampler updates + cond/uncond guidance vs g3 sample_in/model_output/sample_out trajectory; initial noise is torch.cuda philox (curand_normal4) parity -- g3 step_00_sample_in is the seeded-noise golden (seed 31), adaptive has no host noise path"
+        },
+        {
+          "id": "vae-port",
+          "status": "open",
+          "title": "causal 3D VAE decoder slice: Wan2.1_VAE.pth (pytorch-zip) media-codec program (causal conv3d, rms channel norm, spatial attention, resize/upsample, latent mean/std denorm from g0) vs g3 final_latent->frame_00 and g4 final_latent (2 latent frames)->5 frames (temporal time-conv exercised); adaptive decode is CUDA-only, host primitives exist as torch-fixture unit oracles (extmodel/causal_video_codec_test.go)"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "title": "sealed lifecycle, task video-gen (likely NEW task in the recipe catalog); model discovery: config.json + diffusion_pytorch_model.safetensors + Wan2.1_VAE.pth + models_t5_umt5-xxl-enc-bf16.pth + google/umt5-xxl tokenizer are all bound from one artifact dir"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "scope honestly: adaptive has NO Wan training lane (serving-only; go/training has no wan objective, no training recipe declaration for wan-t2v; vendor python lives in models/Wan2.1-T2V-1.3B/Wan2.1) -- expected outcome is a recorded ABSENT/vendor scoping, not a port"
+        },
+        {
+          "id": "performance-leg",
+          "status": "open",
+          "title": "matched protocol, honest: adaptive serves Wan DiT+VAE on CUDA only (host is oracle-grade, not serving); compare CUDA-vs-CUDA if overgo grows a CUDA path, else document the host-vs-CUDA asymmetry and measure the shared host stages (text conditioning) at-or-below",
+          "bar": "beat upstream Python (463.4s wall, 8.80GB allocated, 50-step 81-frame clip) at EXACT quality; overgo graph runtime is the vehicle; worktree techniques cited in doctrine"
+        }
+      ]
     },
     {
       "id": "rung12-qwen4b",

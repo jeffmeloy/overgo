@@ -46,10 +46,55 @@ func TestFP8BF16ReaderFoldsRowScales(t *testing.T) {
 		t.Fatalf("output bytes = %d, want %d", len(actual), len(weights)*2)
 	}
 	for index, encoded := range weights {
-		want := dtype.Float32ToBF16(fp8E4M3FN(encoded) * scales[index/4])
+		want := dtype.Float32ToBF16(dtype.F8E4M3ToFloat32(encoded) * scales[index/4])
 		got := binary.LittleEndian.Uint16(actual[index*2:])
 		if got != want {
 			t.Fatalf("value %d = %#04x, want %#04x", index, got, want)
+		}
+	}
+}
+
+// TestFP8NativeReaderConcatenatesWeightThenScale: the fp8-preserving emit path
+// writes the exact resident buffer layout -- all e4m3 weight bytes followed by
+// the per-row F32 scale bytes -- as a raw concatenation with no decode/repack.
+func TestFP8NativeReaderConcatenatesWeightThenScale(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "fp8native-*.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	weights := []byte{0x00, 0x01, 0x08, 0x38, 0x40, 0x7e, 0x80, 0xb8}
+	scales := []float32{2, 0.5}
+	encodedScales := make([]byte, len(scales)*4)
+	for index, scale := range scales {
+		binary.LittleEndian.PutUint32(encodedScales[index*4:], math.Float32bits(scale))
+	}
+	if _, err := file.Write(append(weights, encodedScales...)); err != nil {
+		t.Fatal(err)
+	}
+	weight, err := safetensors.NewTensor("weight", "F8_E4M3", []uint64{2, 4}, file, 0, int64(len(weights)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	scale, err := safetensors.NewTensor("scale", "F32", []uint64{2}, file, int64(len(weights)), int64(len(encodedScales)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := newFP8NativeReader(weight, scale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := append(append([]byte{}, weights...), encodedScales...)
+	if len(actual) != len(want) {
+		t.Fatalf("output bytes = %d, want %d", len(actual), len(want))
+	}
+	for index := range want {
+		if actual[index] != want[index] {
+			t.Fatalf("byte %d = %#02x, want %#02x", index, actual[index], want[index])
 		}
 	}
 }
@@ -119,25 +164,5 @@ func TestPatchPermutationReaderConvertsInterleavedToPlanar(t *testing.T) {
 		if got != expected {
 			t.Fatalf("value %d = %d, want %d", index, got, expected)
 		}
-	}
-}
-
-func TestFP8E4M3FNValues(t *testing.T) {
-	for _, test := range []struct {
-		encoded byte
-		want    float32
-	}{
-		{0x01, 1.0 / 512.0},
-		{0x08, 1.0 / 64.0},
-		{0x38, 1},
-		{0x7e, 448},
-		{0xb8, -1},
-	} {
-		if got := fp8E4M3FN(test.encoded); got != test.want {
-			t.Fatalf("decode %#02x = %g, want %g", test.encoded, got, test.want)
-		}
-	}
-	if !math.IsNaN(float64(fp8E4M3FN(0x7f))) {
-		t.Fatal("0x7f is not NaN")
 	}
 }

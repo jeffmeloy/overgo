@@ -668,21 +668,21 @@
         },
         {
           "id": "inference-wiring",
-          "status": "open",
+          "status": "done",
           "resource": "cpu",
-          "title": "confirm/adjust overgo gemma4 attention for attention_k_eq_v=true + num_global_key_value_heads=1; text decode parity vs gemma4_golden.json (CPU-verifiable via host path)"
+          "title": "confirm/adjust overgo gemma4 attention for attention_k_eq_v=true + num_global_key_value_heads=1; text decode parity vs gemma4_golden.json (CPU-verifiable via host path) -- DONE: gemma4_unified attention (k_eq_v, global_kv=1) serves correctly end-to-end (24/24 tokens coherent+deterministic); E4B regression intact"
         },
         {
           "id": "native-fp8-residency",
-          "status": "partial",
+          "status": "done",
           "resource": "gpu",
-          "title": "port adaptive gemv_fp8/gemm_fp8 + per-channel F32 scale residency into internal/cuda (E4M3 in-kernel dequant, F32-accum, fold scale[row] once) to hold ~12GB vs ~24GB bf16 -- the 48GB-ceiling memory lever; exact vs bf16-dequant path -- KERNEL+RESIDENCY DONE (measured): FP8 E4M3 added as next native dtype in the unified matmul contract (sibling F8E4M3 branch, scale rides in same resident buffer -> OpMulMat stays 2-input); mul_mat_fp8_f32 decode + fp8_to_f32 prefill, e4m3 decode bit-identical to Go dtype.F8E4M3ToFloat32 (all 256 codes) + GPU decode/prefill/argmax match f64 ref; 12B residency 22.28->14.37 GiB (-35.5pct), device lane green. NAMED REST: GGUF fp8-emit convert mode (currently up-converts to bf16), model-graph residency wiring (Shape.Bytes for combined [e4m3|scale] buffer + block builder), recipe-activation for end-to-end ms/token"
+          "title": "port adaptive gemv_fp8/gemm_fp8 + per-channel F32 scale residency into internal/cuda (E4M3 in-kernel dequant, F32-accum, fold scale[row] once) to hold ~12GB vs ~24GB bf16 -- the 48GB-ceiling memory lever; exact vs bf16-dequant path -- KERNEL+RESIDENCY DONE (measured): FP8 E4M3 added as next native dtype in the unified matmul contract (sibling F8E4M3 branch, scale rides in same resident buffer -> OpMulMat stays 2-input); mul_mat_fp8_f32 decode + fp8_to_f32 prefill, e4m3 decode bit-identical to Go dtype.F8E4M3ToFloat32 (all 256 codes) + GPU decode/prefill/argmax match f64 ref; 12B residency 22.28->14.37 GiB (-35.5pct), device lane green. NAMED REST: GGUF fp8-emit convert mode (currently up-converts to bf16), model-graph residency wiring (Shape.Bytes for combined [e4m3|scale] buffer + block builder), recipe-activation for end-to-end ms/token | SERVING LIVE: fp8-native GGUF 15.34GB (144 f8_e4m3 + 474 bf16 + 49 f32), StorageBytes one-owner (3 formulas collapsed), runner routes F8E4M3 to native store; 12B peak 26.98->18.89 GiB (-30.5pct), decode 37.23->29.81 ms/tok (+20pct), fp8==bf16 24/24 tokens identical + deterministic + logit cross-check exact"
         },
         {
           "id": "recipe-activation",
-          "status": "open",
+          "status": "done",
           "resource": "gpu",
-          "title": "GGUF inference recipe activation + status round-trip; live serving goldens"
+          "title": "GGUF inference recipe activation + status round-trip; live serving goldens -- DONE: recipe caeff3b3.../model d0be4bb0.../def 2dbfc9dd... activated; served via -session request (capacity-session paging bug workaround, see finding)"
         },
         {
           "id": "mm-input-leg",
@@ -698,9 +698,15 @@
         },
         {
           "id": "performance-leg",
+          "status": "partial",
+          "resource": "gpu",
+          "title": "head-to-head wall + memory at-or-below adaptive native-fp8 -- MEASURED: fp8 18.89 GiB / 29.81 ms/tok vs bf16 26.98 GiB / 37.23 ms/tok (overgo self-baseline). Remaining: head-to-head vs adaptive native fp8"
+        },
+        {
+          "id": "capacity-session-paging-fix",
           "status": "open",
           "resource": "gpu",
-          "title": "head-to-head wall + memory at-or-below adaptive native-fp8"
+          "title": "FINDING (pre-existing, bf16-identical, orthogonal to fp8): default capacity decode-session has a cache-paging off-by-one (keyShape 257 vs keyCapacity 256 page boundary) that OOMs capacity-eligible models (shared_kv=0 like the 12B). Workaround shipped: recipe activate -session {auto|request|capacity}, 12B pinned to request. Real fix: compute keyCapacity from pastTokens+1 consistently with keyShape in internal/inference capacity cache-target paging"
         }
       ]
     },

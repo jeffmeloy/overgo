@@ -49,6 +49,7 @@ func run() error {
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
 	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen)")
+	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -77,7 +78,11 @@ func run() error {
 		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen:
 			return activateCapability(repository, path, *reason, capability)
 		}
-		return activate(repository, path, *reason)
+		sessionOverride, sessionErr := parseSessionOverride(*sessionFlag)
+		if sessionErr != nil {
+			return sessionErr
+		}
+		return activate(repository, path, *reason, sessionOverride)
 	case "status":
 		return status(repository, path, recipe.Task(*task))
 	default:
@@ -276,7 +281,27 @@ func activateCapability(repository, path, reason string, task recipe.Task) error
 	return nil
 }
 
-func activate(repository, path, reason string) error {
+// sessionOverride: operator-pinned decode session; nil defers to the
+// plan-derived choice.
+type sessionOverride struct {
+	set   bool
+	value modelrecipe.DecodeSessionPolicy
+}
+
+func parseSessionOverride(text string) (sessionOverride, error) {
+	switch strings.ToLower(strings.TrimSpace(text)) {
+	case "", "auto":
+		return sessionOverride{}, nil
+	case "request":
+		return sessionOverride{set: true, value: modelrecipe.DecodeSessionRequest}, nil
+	case "capacity":
+		return sessionOverride{set: true, value: modelrecipe.DecodeSessionCapacity}, nil
+	default:
+		return sessionOverride{}, fmt.Errorf("unknown -session %q (auto|request|capacity)", text)
+	}
+}
+
+func activate(repository, path, reason string, override sessionOverride) error {
 	ctx := context.Background()
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -320,6 +345,14 @@ func activate(repository, path, reason string) error {
 	session := modelrecipe.DecodeSessionCapacity
 	if !modelPlan.SupportsCapacityCache() {
 		session = modelrecipe.DecodeSessionRequest
+	}
+	if override.set {
+		// operator pin: request is the general per-request path (valid for any
+		// model); capacity requires SupportsCapacityCache.
+		if override.value == modelrecipe.DecodeSessionCapacity && !modelPlan.SupportsCapacityCache() {
+			return errors.New("recipe: -session capacity is unsupported by this model's compiled plan")
+		}
+		session = override.value
 	}
 	store, err := repodb.Open(repository)
 	if err != nil {

@@ -200,12 +200,15 @@ func loadResidentWeights(
 			_, requiresF32 := f32Required[info.Name]
 			_, isEmbedding := embeddingTensors[info.Name]
 			// native half-precision residency: 2D F16/BF16 matmul weights stream
-			// into the raw store at 2 bytes (no F32 blowup). Decode reads the
-			// native dtype directly; prefill upconverts to F32 for a bit-exact
-			// SGEMM. Embeddings (get_rows, no half-precision kernel) and
-			// adapted/f32-required tensors stay F32.
+			// into the raw store at 2 bytes (no F32 blowup). F8E4M3 joins the same
+			// raw native route at ~1 byte/element + a per-row F32 scale (the
+			// combined [rows*inner e4m3 | rows*4 scale] payload the GGUF carries and
+			// the fp8 matmul kernel consumes). Decode reads the native dtype
+			// directly; prefill upconverts to F32 for a bit-exact SGEMM. Embeddings
+			// (get_rows, no half-precision kernel) and adapted/f32-required tensors
+			// stay F32.
 			if !adapted && !requiresF32 && !isEmbedding && info.Dimensions == 2 &&
-				(info.Type == dtype.F16 || info.Type == dtype.BF16) {
+				(info.Type == dtype.F16 || info.Type == dtype.BF16 || info.Type == dtype.F8E4M3) {
 				quantized = append(quantized, info)
 				continue
 			}

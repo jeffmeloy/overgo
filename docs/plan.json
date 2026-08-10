@@ -481,7 +481,7 @@
           "id": "cuda-serving",
           "status": "partial",
           "resource": "gpu",
-          "title": "device path through the generic executor (retained replay + fusion); goldens exact; at-or-below adaptive native bar -- DEVICE INCREMENT DONE (exact+measured): terminal vocab projection (final RMSNorm -> lm_head 2048x120818 BF16 -> argmax) runs on the generic executor from the SAME graph as the host golden, composing existing ops (no family kernel): device top token 628 = golden first_token, logits worst |d| 1.9e-6 vs BF16-dequant ref, 0.894 ms/token, head 472 MiB; cmd/vqaparity -device mode. NOT the e2e bar (28-31 ms/tok needs full stack). REMAINS: 32-layer branch-routed MoT decode graph + on-device resident KV append, prefill (dual weight sets/block-causal/multi-axis rope), vision tower graph, full e2e wall+peak (persistent-residency lever vs adaptive per-request rebuild)"
+          "title": "device path through the generic executor (retained replay + fusion); goldens exact; at-or-below adaptive native bar -- DEVICE INCREMENT DONE (exact+measured): terminal vocab projection (final RMSNorm -> lm_head 2048x120818 BF16 -> argmax) runs on the generic executor from the SAME graph as the host golden, composing existing ops (no family kernel): device top token 628 = golden first_token, logits worst |d| 1.9e-6 vs BF16-dequant ref, 0.894 ms/token, head 472 MiB; cmd/vqaparity -device mode. NOT the e2e bar (28-31 ms/tok needs full stack). REMAINS: 32-layer branch-routed MoT decode graph + on-device resident KV append, prefill (dual weight sets/block-causal/multi-axis rope), vision tower graph, full e2e wall+peak (persistent-residency lever vs adaptive per-request rebuild) || DECODE DONE: full 32-layer branch-routed MoT decode on the generic executor (pure graph composition, no family kernel) -- 12-step token chain EXACT vs golden [628 357 1218...91686] \"The stovetop holds a metal pot on the left burner\", 5.998 ms/token (~5x faster than adaptive 28-31 bar), retained replay graph_updates=0 (67 launches/2 instantiations), peak +3850MiB, device lane green. internal/routedlm/devicegraph.go + cmd/vqaparity -device-decode. REMAINS: prefill on device (prompt KV currently host-computed+uploaded) + vision tower graph"
         },
         {
           "id": "recipe-activation",
@@ -860,8 +860,8 @@
     "rung14-rxbrain": {
       "adaptive": "native VQA e2e 18.4-23.1s (residency rebuild ~70pct), decode 28-31 ms/token, peak 11.97GB",
       "python": "oracle 44.7s full, ~630 ms/token decode",
-      "overgo": "host reference 44/44 fixture parity; CUDA serving next",
-      "verdict": "OPEN -- bar measured 2026-08-09"
+      "overgo": "device decode 5.998 ms/token (32-layer MoT, retained replay updates=0), 12-step chain exact; terminal 0.894 ms/tok",
+      "verdict": "BEATS adaptive decode bar ~5x (5.998 vs 28-31 ms/token); prefill+vision device paths remain"
     },
     "native_dtype_bf16_prefill": {
       "note": "unified F16/BF16 native-dtype prefill: drop resident F32 weight copies, bit-exact upconvert into one reused workspace before identical SGEMM",

@@ -46,6 +46,23 @@ func gpuUsedMiB() int {
 	return v
 }
 
+// gpuFreeMiB: coarse free-VRAM probe via nvidia-smi.
+func gpuFreeMiB() int {
+	out, err := exec.Command("nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits").Output()
+	if err != nil {
+		return -1
+	}
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	if len(fields) == 0 {
+		return -1
+	}
+	v, err := strconv.Atoi(fields[0])
+	if err != nil {
+		return -1
+	}
+	return v
+}
+
 // runDevice: device terminal parity + measurement.
 func runDevice(l *ladder) error {
 	ctx := context.Background()

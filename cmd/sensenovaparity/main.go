@@ -86,15 +86,22 @@ func main() {
 	modelDir := flag.String("model", `C:\Users\jeffm\adaptive_new\models\SenseNova-U1-8B-MoT-Infographic-V3`, "checkpoint dir (READ-ONLY)")
 	fixturesDir := flag.String("fixtures", `C:\Users\jeffm\adaptive_new\fixtures\sensenova`, "fixture dir (READ-ONLY)")
 	logPath := flag.String("log", `build\sensenova_parity_log.txt`, "liveness log path")
+	deviceMode := flag.Bool("device", false, "run the CUDA device denoise-terminal stages after the CPU ladder")
 	flag.Parse()
 
 	l := &ladder{logPath: *logPath, counts: map[string]int{}}
 	// First line immediately (liveness).
-	l.log(fmt.Sprintf("LADDER START sensenovaparity model=%s fixtures=%s", *modelDir, *fixturesDir))
+	l.log(fmt.Sprintf("LADDER START sensenovaparity model=%s fixtures=%s device=%v", *modelDir, *fixturesDir, *deviceMode))
 
 	if err := run(l, *modelDir, *fixturesDir); err != nil {
 		l.log("LADDER ERROR " + err.Error())
 		os.Exit(1)
+	}
+	if *deviceMode && !l.failed {
+		if err := runDevice(l, *modelDir, *fixturesDir); err != nil {
+			l.log("DEVICE ERROR " + err.Error())
+			os.Exit(1)
+		}
 	}
 	summary := fmt.Sprintf("oracle=%d derive=%d wired=%d frontier=%d",
 		l.counts[verdictOracle], l.counts[verdictDerive], l.counts[verdictWired], l.counts[verdictFrontier])

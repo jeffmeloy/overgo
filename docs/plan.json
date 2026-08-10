@@ -544,9 +544,9 @@
         },
         {
           "id": "denoise-stack",
-          "status": "open",
+          "status": "partial",
           "resource": "cpu",
-          "title": "generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head); parity vs generation_layers + steps[] z (needs torch-matched randn(seed) for z init)"
+          "title": "generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head); parity vs generation_layers + steps[] z (needs torch-matched randn(seed) for z init) -- DEVICE TERMINAL+SAMPLER verified: flow condition/head as executor graphs device==host (3.1e-2/6.3e-2), euler steps PASS-ORACLE vs real gen+edit oracles (next_z 3.9e-3/1.6e-2/7.8e-3), trajectory continuity exact (step0.next_z==step1.z, |d|=0); 0.844 ms/step terminal, +444MiB (fm_modules streamed, 35GB not resident); ladder oracle=8/derive=6/wired=4/frontier=2. REMAINS: 42-layer transformer body on device (needs per-section multi-axis rope splicing since RoPEMulti single-base cant express [64/5e6/T,32/1e4/H,32/1e4/W] + block-causal 42-layer resident forward + gen-branch cross-attn to prefix KV); its verification is gated by source-PNG + probe-sparsity + seed-42 RNG regardless of the port"
         },
         {
           "id": "measure-bar",

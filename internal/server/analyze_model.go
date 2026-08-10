@@ -15,6 +15,22 @@ type analyzeModelResponse struct {
 	Model        analyzeModelFacts   `json:"model"`
 	Derived      analyzeModelDerived `json:"derived"`
 	Capabilities []string            `json:"capabilities"`
+	Analysis     analyzeCapabilities `json:"analysis"`
+}
+
+// analyzeCapabilities: which workbench analyses the loaded model/build supports,
+// so the client can gate tabs rather than let a request fail.
+type analyzeCapabilities struct {
+	Vocabulary   bool `json:"vocabulary"`
+	Logits       bool `json:"logits"`
+	HiddenStates bool `json:"hidden_states"`
+	Attention    bool `json:"attention"`
+}
+
+// HiddenStateCaptureSupportAPI: reports whether per-layer hidden-state capture is
+// available for the loaded architecture.
+type HiddenStateCaptureSupportAPI interface {
+	SupportsHiddenStateCapture() bool
 }
 
 type analyzeModelFacts struct {
@@ -82,8 +98,24 @@ func (h *Handler) analyzeModel(response http.ResponseWriter, request *http.Reque
 		},
 		Derived:      deriveModelStatistics(model),
 		Capabilities: h.modelCapabilities(),
+		Analysis:     h.analysisCapabilities(),
 	}
 	writeJSON(response, http.StatusOK, result)
+}
+
+// analysisCapabilities: which analysis tabs the loaded model/build can serve.
+// Logits (the /completion n_probs + entropy lens) is always available; the
+// others depend on generator capability. Attention is a Tier-3 feature not yet
+// wired.
+func (h *Handler) analysisCapabilities() analyzeCapabilities {
+	capabilities := analyzeCapabilities{Logits: true}
+	if _, ok := h.generator.(VocabularyInspectionAPI); ok {
+		capabilities.Vocabulary = true
+	}
+	if support, ok := h.generator.(HiddenStateCaptureSupportAPI); ok {
+		capabilities.HiddenStates = support.SupportsHiddenStateCapture()
+	}
+	return capabilities
 }
 
 // deriveModelStatistics: integer/exact ratios only; a divisor of zero leaves

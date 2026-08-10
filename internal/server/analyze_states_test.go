@@ -28,9 +28,11 @@ func (g *statesGenerator) TokenizeText(string, bool, bool) ([]tokenizer.TokenID,
 }
 
 func (g *statesGenerator) ExtractLayerInputs(_ context.Context, tokenIDs []tokenizer.TokenID, layerIDs []int32) (reference.Value, error) {
+	// Return only the (possibly truncated) tokens the handler asked for.
+	n := len(tokenIDs)
 	return reference.Value{
-		Shape: tensor.MustShape(uint64(g.width), uint64(len(g.tokens))),
-		Data:  g.vectors,
+		Shape: tensor.MustShape(uint64(g.width), uint64(n)),
+		Data:  g.vectors[:g.width*n],
 	}, nil
 }
 
@@ -89,6 +91,31 @@ func TestAnalyzeStatesDefaultsToSpearman(t *testing.T) {
 	}
 	if result.Metric != "spearman" {
 		t.Fatalf("default metric = %q, want spearman", result.Metric)
+	}
+}
+
+func TestAnalyzeStatesSurfacesTruncation(t *testing.T) {
+	// Five tokens, but only three positions permitted → truncation is reported,
+	// not silent.
+	gen := &statesGenerator{
+		tokens:  []tokenizer.TokenID{1, 2, 3, 4, 5},
+		width:   2,
+		vectors: []float32{0, 0, 1, 0, 2, 0, 3, 0, 4, 0},
+	}
+	handler := newTestHandler(t, gen)
+	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"x","max_positions":3}`)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var result analyzeStatesResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !result.Truncated || result.Positions != 3 || result.RequestedPositions != 5 || result.MaxPositions != 3 {
+		t.Fatalf("truncation not surfaced: %+v", result)
+	}
+	if len(result.Distance) != 3 {
+		t.Fatalf("distance size = %d, want 3", len(result.Distance))
 	}
 }
 

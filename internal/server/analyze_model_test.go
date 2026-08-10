@@ -74,6 +74,43 @@ func TestAnalyzeModelOmitsRatiosWithZeroDivisor(t *testing.T) {
 	}
 }
 
+// analysisCapableGenerator: a vocab-capable generator that also supports
+// hidden-state capture, for exercising the analysis-capability block.
+type analysisCapableGenerator struct {
+	vocabGenerator
+}
+
+func (g *analysisCapableGenerator) SupportsHiddenStateCapture() bool { return true }
+
+func TestAnalyzeModelReportsAnalysisCapabilities(t *testing.T) {
+	// Bare fake: logits always available; no vocab inspection or capture support.
+	bare := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/analyze/model", "")
+	var bareResult analyzeModelResponse
+	if err := json.Unmarshal(bare.Body.Bytes(), &bareResult); err != nil {
+		t.Fatal(err)
+	}
+	if !bareResult.Analysis.Logits || bareResult.Analysis.Vocabulary ||
+		bareResult.Analysis.HiddenStates || bareResult.Analysis.Attention {
+		t.Fatalf("bare analysis = %+v", bareResult.Analysis)
+	}
+
+	// Capable generator: vocabulary + hidden-state capture reported true.
+	capable := serveTestRequest(
+		newTestHandler(t, &analysisCapableGenerator{vocabGenerator: *newVocabGenerator()}),
+		http.MethodGet, "/analyze/model", "")
+	var capableResult analyzeModelResponse
+	if err := json.Unmarshal(capable.Body.Bytes(), &capableResult); err != nil {
+		t.Fatal(err)
+	}
+	if !capableResult.Analysis.Vocabulary || !capableResult.Analysis.HiddenStates || !capableResult.Analysis.Logits {
+		t.Fatalf("capable analysis = %+v", capableResult.Analysis)
+	}
+	// Attention stays false until Tier 3.
+	if capableResult.Analysis.Attention {
+		t.Fatal("attention should be false")
+	}
+}
+
 func TestAnalyzeModelRejectsNonGet(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()

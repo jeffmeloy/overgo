@@ -12,6 +12,7 @@
   window.overgo.registerTab({
     id: "states",
     label: "Hidden states",
+    requires: "hidden_states",
     async mount(panel, overgo) {
       const { el, clear } = overgo;
       clear(panel);
@@ -57,6 +58,17 @@
       function render(data) {
         clear(out);
         const labels = data.tokens.map((t) => displayToken(t.text) || String(t.id));
+        // Color nodes by sequence position (early → late) so the graph shows how
+        // token order maps onto the structure.
+        const colors = data.tokens.map((_, i) => {
+          const t = data.positions > 1 ? i / (data.positions - 1) : 0;
+          return "hsl(" + Math.round(210 - 150 * t) + ", 65%, 55%)";
+        });
+
+        if (data.truncated) {
+          out.appendChild(el("div", { class: "note", style: "color:var(--amber)",
+            text: "Prompt truncated to " + data.positions + " of " + data.requested_positions + " tokens (max " + data.max_positions + ")." }));
+        }
 
         out.appendChild(el("div", { class: "lens-summary" },
           el("span", { class: "note", text: "layer " + data.layer + " / " + data.block_count }),
@@ -71,7 +83,7 @@
         out.appendChild(el("div", { class: "section-title", text: "Neighbor graph (kNN edges, non-metric-MDS layout)" }));
         const edges = [];
         data.neighbors.forEach((neighbors, i) => neighbors.forEach((j) => edges.push([i, j])));
-        out.appendChild(overgo.viz.graph(data.layout, edges, { labels: labels }));
+        out.appendChild(overgo.viz.graph(data.layout, edges, { labels: labels, colors: colors }));
         out.appendChild(el("div", { class: "note", style: "margin-top:8px",
           text: "The matrix and neighbor graph are primary. The 2D layout is a rank-preserving summary only — read it together with the stress above (higher stress = the 2D placement is a poorer summary)." }));
       }

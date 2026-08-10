@@ -138,6 +138,42 @@
     }
   }
 
+  // ---- capability gating ----
+  // A tab may declare `requires: "<key>"`; if /analyze/model's analysis block
+  // reports that capability false, the tab is disabled rather than allowed to
+  // fail. Fail-open: if capabilities can't be fetched (offline / key required),
+  // every tab stays enabled and errors surface per-request instead.
+  let capabilities = null;
+
+  function tabSupported(tab) {
+    if (!tab.requires || !capabilities) return true;
+    return capabilities[tab.requires] !== false;
+  }
+
+  function applyCapabilities() {
+    for (const tab of tabs) {
+      const ok = tabSupported(tab);
+      tab.button.disabled = !ok;
+      tab.button.classList.toggle("disabled-tab", !ok);
+      tab.button.title = ok ? "" : "Not available for this model";
+    }
+    const active = tabs.find((t) => t.button.classList.contains("active"));
+    if (active && !tabSupported(active)) {
+      const firstOk = tabs.find(tabSupported);
+      if (firstOk) activate(firstOk.id);
+    }
+  }
+
+  async function refreshCapabilities() {
+    try {
+      const model = await api.get("/analyze/model");
+      capabilities = model.analysis || {};
+    } catch (err) {
+      capabilities = null; // fail-open
+    }
+    applyCapabilities();
+  }
+
   function initShell() {
     const tabBar = document.getElementById("tabs");
     const panels = document.getElementById("panels");
@@ -156,6 +192,7 @@
       const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
       if (current) activate(current);
       refreshStatus();
+      refreshCapabilities();
     });
     window.addEventListener("hashchange", () => {
       const id = location.hash.slice(1);
@@ -164,6 +201,7 @@
     const start = location.hash.slice(1);
     activate(tabs.some((t) => t.id === start) ? start : (tabs[0] && tabs[0].id));
     refreshStatus();
+    refreshCapabilities();
   }
 
   // boot.js is deferred, so it runs while readyState is "interactive" — before

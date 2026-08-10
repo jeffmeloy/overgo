@@ -122,7 +122,7 @@
       node.appendChild(svg("line", { x1: sx(coords[a][0]), y1: sy(coords[a][1]), x2: sx(coords[b][0]), y2: sy(coords[b][1]), stroke: "var(--line)", "stroke-width": 1 }));
     }
     coords.forEach((c, i) => {
-      const dot = svg("circle", { cx: sx(c[0]), cy: sy(c[1]), r: 4, fill: "var(--acc)" });
+      const dot = svg("circle", { cx: sx(c[0]), cy: sy(c[1]), r: 4, fill: opts.colors ? opts.colors[i] : "var(--acc)" });
       const title = document.createElementNS(NS, "title");
       title.textContent = opts.labels ? opts.labels[i] : String(i);
       dot.appendChild(title);

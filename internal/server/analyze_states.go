@@ -42,18 +42,21 @@ type analyzeStatesToken struct {
 }
 
 type analyzeStatesResponse struct {
-	Layer            int                  `json:"layer"`
-	Block            int                  `json:"block_count"`
-	Positions        int                  `json:"positions"`
-	Width            int                  `json:"width"`
-	Metric           string               `json:"metric"`
-	K                int                  `json:"k"`
-	Tokens           []analyzeStatesToken `json:"tokens"`
-	Distance         [][]float64          `json:"distance"`
-	Neighbors        [][]int              `json:"neighbors"`
-	Layout           [][2]float64         `json:"layout"`
-	Stress           float64              `json:"stress"`
-	LayoutIterations int                  `json:"layout_iterations"`
+	Layer              int                  `json:"layer"`
+	Block              int                  `json:"block_count"`
+	Positions          int                  `json:"positions"`
+	RequestedPositions int                  `json:"requested_positions"`
+	MaxPositions       int                  `json:"max_positions"`
+	Truncated          bool                 `json:"truncated"`
+	Width              int                  `json:"width"`
+	Metric             string               `json:"metric"`
+	K                  int                  `json:"k"`
+	Tokens             []analyzeStatesToken `json:"tokens"`
+	Distance           [][]float64          `json:"distance"`
+	Neighbors          [][]int              `json:"neighbors"`
+	Layout             [][2]float64         `json:"layout"`
+	Stress             float64              `json:"stress"`
+	LayoutIterations   int                  `json:"layout_iterations"`
 }
 
 // analyzeStates: capture the residual-stream vectors at one layer over the
@@ -97,7 +100,9 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 	if limit <= 0 || limit > analyzeStatesMaxPositions {
 		limit = analyzeStatesMaxPositions
 	}
-	if len(tokens) > limit {
+	requestedPositions := len(tokens)
+	truncated := requestedPositions > limit
+	if truncated {
 		tokens = tokens[:limit]
 	}
 	if len(tokens) < 2 {
@@ -150,18 +155,21 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 	}
 
 	writeJSON(response, http.StatusOK, analyzeStatesResponse{
-		Layer:            layer,
-		Block:            blockCount,
-		Positions:        len(tokens),
-		Width:            width,
-		Metric:           string(metric),
-		K:                k,
-		Tokens:           tokenList,
-		Distance:         distance,
-		Neighbors:        neighbors,
-		Layout:           layout,
-		Stress:           stress,
-		LayoutIterations: iterations,
+		Layer:              layer,
+		Block:              blockCount,
+		Positions:          len(tokens),
+		RequestedPositions: requestedPositions,
+		MaxPositions:       limit,
+		Truncated:          truncated,
+		Width:              width,
+		Metric:             string(metric),
+		K:                  k,
+		Tokens:             tokenList,
+		Distance:           distance,
+		Neighbors:          neighbors,
+		Layout:             layout,
+		Stress:             stress,
+		LayoutIterations:   iterations,
 	})
 }
 

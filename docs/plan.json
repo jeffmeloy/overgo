@@ -473,9 +473,9 @@
         },
         {
           "id": "measure-bar",
-          "status": "open",
+          "status": "done",
           "resource": "gpu",
-          "title": "run adaptive native CUDA VQA on the canonical bridgev2 case to establish the perf bar (VisionQAPromptDecodeTimings profile); python oracle 0.63 s/token is the fallback bar"
+          "title": "adaptive native VQA bar MEASURED (real server binary, canonical case, 3 runs): e2e 18.4-23.1s, vision 2.8-3.6s, decode 28-31 ms/token (13-22x faster than python oracle 630ms); KEY STRUCTURE: per-request residency rebuild 12.8-18.0s dominates ~70pct of e2e (load_seconds=0, device returns to baseline between requests); engine peak 11.97GB, resident weights 6.17GB. Overgo port bar: match 28-31 ms/token decode AND keep weights/KV persistently resident across requests -> beats e2e outright. Artifacts build/rxbrain_bar_*.json/csv/log"
         },
         {
           "id": "cuda-serving",
@@ -616,6 +616,12 @@
       "python": "8.4 s/step, total 463.4s",
       "verdict": "BEATS adaptive; python stretch open (10.77 vs 8.4)"
     },
-    "summary": "8 BETTER, 2 TIE, 0 WORSE vs adaptive; rung11 python stretch open"
+    "summary": "8 BETTER, 2 TIE, 0 WORSE vs adaptive; rung11 python stretch open",
+    "rung14-rxbrain": {
+      "adaptive": "native VQA e2e 18.4-23.1s (residency rebuild ~70pct), decode 28-31 ms/token, peak 11.97GB",
+      "python": "oracle 44.7s full, ~630 ms/token decode",
+      "overgo": "port in flight (host reference vs 45-fixture ladder)",
+      "verdict": "OPEN -- bar measured 2026-08-09"
+    }
   }
 }

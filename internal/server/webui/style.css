@@ -81,7 +81,14 @@ a { color:var(--acc); }
 }
 .pill.ok { color:var(--ok); }
 .pill.err { color:var(--err); }
-.tabs { display:flex; gap:4px; padding:10px 18px 0; flex-wrap:wrap; }
+.sections { display:flex; gap:6px; padding:12px 18px 0; flex-wrap:wrap; }
+.section {
+  cursor:pointer; font:600 13px var(--font); color:var(--dim);
+  padding:8px 16px; border:0; background:transparent; border-radius:8px;
+}
+.section:hover { color:var(--ink); }
+.section.active { color:#fff; background:linear-gradient(135deg, var(--go1), var(--go2)); }
+.tabs { display:flex; gap:4px; padding:8px 18px 0; flex-wrap:wrap; }
 .tab {
   cursor:pointer; font:600 12.5px var(--font); color:var(--dim);
   padding:9px 14px; border:1px solid transparent; border-bottom:0;
@@ -132,6 +139,16 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .pbar-fill { display:block; height:100%; background:linear-gradient(90deg, var(--go1), var(--go2)); }
 .pbar-fill.hi { background:linear-gradient(90deg, var(--ok), var(--acc)); }
 .pbar-val { font-size:11px; color:var(--dim); text-align:right; }
+
+/* ---- chat ---- */
+.chat-log { display:flex; flex-direction:column; gap:12px; margin-bottom:14px; }
+.msg { border:1px solid var(--line); border-radius:12px; padding:10px 14px; background:var(--bg1); max-width:80ch; }
+.msg.user { align-self:flex-end; border-color:color-mix(in srgb, var(--acc) 35%, var(--line)); }
+.msg.assistant { align-self:flex-start; }
+.msg .role { font:600 10px var(--font); letter-spacing:1.4px; text-transform:uppercase; color:var(--faint); margin-bottom:4px; }
+.msg .body { white-space:pre-wrap; word-break:break-word; }
+.msg .body .cursor { color:var(--acc); }
+.chat-controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px; }
 
 /* ---- logit lens ---- */
 .lens-token {

@@ -15,13 +15,17 @@
   <span class="grow"></span>
   <input class="keyfield" id="api-key" type="password" placeholder="API key (if required)" autocomplete="off" spellcheck="false">
 </header>
+<nav class="sections" id="sections"></nav>
 <nav class="tabs" id="tabs"></nav>
 <main class="wrap"><div id="panels"></div></main>
 
-<!-- boot first (defines window.overgo), then each analysis module self-registers.
-     Adding a Tier-1 module = drop a file in mod/ and add one <script> line here. -->
+<!-- boot first (defines window.overgo), then each module self-registers into a
+     section. Adding a tab = drop a file in mod/ and add one <script> line here. -->
 <script defer src="/boot.js"></script>
 <script defer src="/viz.js"></script>
+<script defer src="/mod/chat.js"></script>
+<script defer src="/mod/datasets.js"></script>
+<script defer src="/mod/training.js"></script>
 <script defer src="/mod/analyze_model.js"></script>
 <script defer src="/mod/analyze_vocab.js"></script>
 <script defer src="/mod/analyze_logits.js"></script>

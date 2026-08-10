@@ -9,6 +9,7 @@
   window.overgo.registerTab({
     id: "lens",
     label: "Logit lens",
+    section: "workbench",
     requires: "logits",
     async mount(panel, overgo) {
       const { el, clear } = overgo;

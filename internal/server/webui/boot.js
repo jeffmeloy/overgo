@@ -101,14 +101,49 @@
   };
 
   // ---- shell wiring (runs after all deferred module scripts registered) ----
+  // Two-level nav: top-level SECTIONS, each holding one or more tabs. A tab
+  // declares `section`; those without one fall into "workbench".
+  const SECTION_ORDER = [
+    { id: "inference", label: "Inference" },
+    { id: "datasets", label: "Datasets" },
+    { id: "training", label: "Training" },
+    { id: "workbench", label: "Workbench" },
+  ];
+  let activeSection = null;
+  const sectionButtons = [];
+
+  function tabSection(tab) { return tab.section || "workbench"; }
+  function sectionsPresent() {
+    return SECTION_ORDER.filter((s) => tabs.some((t) => tabSection(t) === s.id));
+  }
+
+  function syncSectionUI() {
+    for (const sb of sectionButtons) sb.button.classList.toggle("active", sb.id === activeSection);
+    for (const tab of tabs) tab.button.style.display = tabSection(tab) === activeSection ? "" : "none";
+  }
+
   function activate(id) {
-    for (const tab of tabs) {
-      const on = tab.id === id;
-      tab.button.classList.toggle("active", on);
-      tab.panel.classList.toggle("active", on);
-      if (on && !tab.mounted) { tab.mounted = true; safeMount(tab); }
+    const tab = tabs.find((t) => t.id === id);
+    if (!tab) return;
+    activeSection = tabSection(tab);
+    for (const t of tabs) {
+      const on = t.id === id;
+      t.button.classList.toggle("active", on);
+      t.panel.classList.toggle("active", on);
+      if (on && !t.mounted) { t.mounted = true; safeMount(t); }
     }
+    syncSectionUI();
     if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
+  }
+
+  // selectSection: switch to a section, keeping the current tab if it already
+  // belongs there, otherwise activating the section's first (supported) tab.
+  function selectSection(id) {
+    const current = tabs.find((t) => t.button.classList.contains("active"));
+    if (current && tabSection(current) === id) { activeSection = id; syncSectionUI(); return; }
+    const first = tabs.find((t) => tabSection(t) === id && tabSupported(t)) ||
+      tabs.find((t) => tabSection(t) === id);
+    if (first) activate(first.id);
   }
 
   function safeMount(tab) {
@@ -175,8 +210,14 @@
   }
 
   function initShell() {
+    const sectionBar = document.getElementById("sections");
     const tabBar = document.getElementById("tabs");
     const panels = document.getElementById("panels");
+    for (const section of sectionsPresent()) {
+      const button = el("button", { class: "section", onclick: () => selectSection(section.id) }, section.label);
+      sectionBar.appendChild(button);
+      sectionButtons.push({ id: section.id, button: button });
+    }
     for (const tab of tabs) {
       tab.button = el("button", { class: "tab", onclick: () => activate(tab.id) }, tab.label);
       tab.panel = el("div", { class: "panel", id: "panel-" + tab.id });

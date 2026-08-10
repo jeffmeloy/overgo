@@ -17,6 +17,7 @@ type BranchBinding struct {
 	ForkPaths     []string  // sorted ".weight"-trimmed layer paths that fork per branch
 	QNormSections []string  // per-head Q-norm leaf suffixes, concatenated to head_dim
 	KNormSections []string  // per-head K-norm leaf suffixes, concatenated to head_dim
+	RopeThetaKeys []string  // per-QK-norm-section config key naming the rope base
 	EmbedName     string    // token embedding tensor
 	LMHeadName    string    // head tensor (falls back to tied embeddings)
 	FinalNormName [2]string // per-branch final norm tensor (equal entries = shared)
@@ -29,8 +30,10 @@ func (b BranchBinding) validate() error {
 		return fmt.Errorf("routed lm binding: layer prefix %q needs exactly one %%d", b.LayerPrefix)
 	case b.Suffix == "" || len(b.ForkPaths) == 0 || !slices.IsSorted(b.ForkPaths):
 		return fmt.Errorf("routed lm binding: missing suffix or unsorted fork paths")
-	case len(b.QNormSections) == 0 || len(b.KNormSections) == 0:
-		return fmt.Errorf("routed lm binding: missing QK-norm sections")
+	case len(b.QNormSections) == 0 || len(b.KNormSections) != len(b.QNormSections):
+		return fmt.Errorf("routed lm binding: missing or mismatched QK-norm sections")
+	case len(b.RopeThetaKeys) != len(b.QNormSections):
+		return fmt.Errorf("routed lm binding: rope theta keys %d != norm sections %d", len(b.RopeThetaKeys), len(b.QNormSections))
 	case b.EmbedName == "" || b.FinalNormName[0] == "" || b.FinalNormName[1] == "":
 		return fmt.Errorf("routed lm binding: missing embed or final norm names")
 	}
@@ -80,6 +83,7 @@ func RxBrainBinding() BranchBinding {
 		},
 		QNormSections: []string{"self_attn.query_layernorm.weight"},
 		KNormSections: []string{"self_attn.key_layernorm.weight"},
+		RopeThetaKeys: []string{"rope_theta"},
 		EmbedName:     "model.language_model.model.embed_tokens.weight",
 		LMHeadName:    "model.language_model.lm_head.weight",
 		FinalNormName: [2]string{
@@ -107,6 +111,7 @@ func SenseNovaBinding() BranchBinding {
 		},
 		QNormSections: []string{"self_attn.q_norm.weight", "self_attn.q_norm_hw.weight"},
 		KNormSections: []string{"self_attn.k_norm.weight", "self_attn.k_norm_hw.weight"},
+		RopeThetaKeys: []string{"rope_theta", "rope_theta_hw"},
 		EmbedName:     "language_model.model.embed_tokens.weight",
 		LMHeadName:    "language_model.lm_head.weight",
 		FinalNormName: [2]string{

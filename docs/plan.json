@@ -514,9 +514,9 @@
         },
         {
           "id": "multiaxis-rope-positions",
-          "status": "open",
+          "status": "done",
           "resource": "cpu",
-          "title": "per-section rope plan (text th=5e6 scalar pos + image th=1e4 2-D h/w) + block-causal position model (image block shares time index, bidirectional within block)"
+          "title": "per-section rope plan (text th=5e6 scalar pos + image th=1e4 2-D h/w) + block-causal position model (image block shares time index, bidirectional within block) -- DONE: RopePlan sections derived from QK-norm shapes + binding-named theta keys ({64,5e6,Time},{32,1e4,H},{32,1e4,W} on real checkpoint); RowPosition{branch,time,h,w} + BlockCausalEnds verbatim port; rxbrain ladder 44/44 bit-identical (block0_qkv |d|=0), degenerate-plan lane-exact test incl dynamic-NTK"
         },
         {
           "id": "flow-head",

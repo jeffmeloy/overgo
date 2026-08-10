@@ -27,11 +27,10 @@ func DecodeRow(tokenRow []float32, decodeMask []int, segments [][2]int, resident
 	if resident.KVHeads != cfg.NumKeyValueHeads || resident.HeadDim != cfg.HeadDim {
 		return nil, fmt.Errorf("routed lm decode: resident shape heads=%d dim=%d, config heads=%d dim=%d", resident.KVHeads, resident.HeadDim, cfg.NumKeyValueHeads, cfg.HeadDim)
 	}
-	base, err := RopeInvFreqBase(cfg)
+	rope, err := ropePlanFromConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	ropeInv := hostmath.RopeInvFreq(base, cfg.HeadDim)
 	modality := decodeMask[tokenPos]
 	branch := branchIndex(modality)
 	normWeight := w.InputNorm.Text
@@ -54,15 +53,16 @@ func DecodeRow(tokenRow []float32, decodeMask []int, segments [][2]int, resident
 	linearRounded(q, normed, qW, 1)
 	linearRounded(k, normed, kW, 1)
 	linearRounded(v, normed, vW, 1)
+	pos := RowPosition{Branch: branch, Time: tokenPos}
 	for head := 0; head < cfg.NumAttentionHeads; head++ {
 		row := q[head*hd : (head+1)*hd]
-		applyRotaryHalfBF16(row, ropeInv, tokenPos)
+		rope.applyRotary(row, pos)
 		bf16RoundSlice(row)
 		rmsNormRounded(row, row, w.QKV.QNorm[branch], 1, hd, cfg.RMSNormEps)
 	}
 	for head := 0; head < cfg.NumKeyValueHeads; head++ {
 		row := k[head*hd : (head+1)*hd]
-		applyRotaryHalfBF16(row, ropeInv, tokenPos)
+		rope.applyRotary(row, pos)
 		bf16RoundSlice(row)
 		rmsNormRounded(row, row, w.QKV.KNorm[branch], 1, hd, cfg.RMSNormEps)
 	}

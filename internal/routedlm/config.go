@@ -32,6 +32,14 @@ type Config struct {
 	HiddenAct             string         `json:"hidden_act"`
 	UseQKNorm             bool           `json:"use_qk_norm"`
 	RopeScaling           map[string]any `json:"rope_scaling"`
+	ropeBases             map[string]float64
+}
+
+// RopeBase: numeric config field by the key a binding names (same config
+// section the LM fields were parsed from).
+func (cfg Config) RopeBase(key string) (float64, bool) {
+	value, ok := cfg.ropeBases[key]
+	return value, ok
 }
 
 // LoadConfig: LM fields from config.json, descending the binding's config
@@ -59,6 +67,16 @@ func parseConfig(raw []byte, sectionPath []string) (Config, error) {
 	var cfg Config
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return Config{}, fmt.Errorf("routed lm config: %w", err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return Config{}, fmt.Errorf("routed lm config: %w", err)
+	}
+	cfg.ropeBases = make(map[string]float64)
+	for key, value := range fields {
+		if number, ok := float64ConfigValue(value); ok {
+			cfg.ropeBases[key] = number
+		}
 	}
 	return cfg, cfg.validate()
 }
@@ -103,14 +121,20 @@ func float64ConfigValue(v any) (float64, bool) {
 // rope_scaling only rescales theta by alpha^(d/(d-2)); factor/mscale are 1.0
 // and beta_fast/beta_slow are unused by the reference implementation.
 func RopeInvFreqBase(cfg Config) (float64, error) {
-	if cfg.HeadDim <= 2 || cfg.RopeTheta <= 0 {
-		return 0, fmt.Errorf("routed lm rope: invalid head_dim=%d rope_theta=%g", cfg.HeadDim, cfg.RopeTheta)
+	return ropeSectionBase(cfg.RopeTheta, cfg.HeadDim, cfg.RopeScaling)
+}
+
+// ropeSectionBase: dynamic-NTK-adjusted rope base for one rotary section of
+// the given width (width = head_dim is the full-width case above).
+func ropeSectionBase(theta float64, width int, scaling map[string]any) (float64, error) {
+	if width <= 2 || theta <= 0 {
+		return 0, fmt.Errorf("routed lm rope: invalid section width=%d theta=%g", width, theta)
 	}
-	base := cfg.RopeTheta
-	if cfg.RopeScaling != nil {
-		if typ, _ := cfg.RopeScaling["type"].(string); typ == "dynamic" {
-			if alpha, ok := float64ConfigValue(cfg.RopeScaling["alpha"]); ok && alpha != 0 {
-				base = cfg.RopeTheta * math.Pow(alpha, float64(cfg.HeadDim)/float64(cfg.HeadDim-2))
+	base := theta
+	if scaling != nil {
+		if typ, _ := scaling["type"].(string); typ == "dynamic" {
+			if alpha, ok := float64ConfigValue(scaling["alpha"]); ok && alpha != 0 {
+				base = theta * math.Pow(alpha, float64(width)/float64(width-2))
 			}
 		}
 	}

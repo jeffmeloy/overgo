@@ -106,11 +106,10 @@ func PromptLayerForward(hidden []float32, mask []int, cfg Config, w LayerWeights
 	if tokens == 0 || len(hidden) != tokens*d {
 		return nil, fmt.Errorf("routed lm prompt layer: hidden len %d != %d tokens * %d", len(hidden), tokens, d)
 	}
-	base, err := RopeInvFreqBase(cfg)
+	rope, err := ropePlanFromConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	ropeInv := hostmath.RopeInvFreq(base, cfg.HeadDim)
 	qOut := cfg.NumAttentionHeads * cfg.HeadDim
 	kvOut := cfg.NumKeyValueHeads * cfg.HeadDim
 	s := &PromptLayerState{
@@ -160,27 +159,29 @@ func PromptLayerForward(hidden []float32, mask []int, cfg Config, w LayerWeights
 	s.KHeads = append([]float32(nil), s.KProj...)
 	for token := 0; token < tokens; token++ {
 		branch := branchIndex(mask[token])
+		pos := RowPosition{Branch: branch, Time: token}
 		for head := 0; head < cfg.NumAttentionHeads; head++ {
 			row := s.QHeads[token*qOut+head*hd : token*qOut+(head+1)*hd]
-			applyRotaryHalfBF16(row, ropeInv, token)
+			rope.applyRotary(row, pos)
 			bf16RoundSlice(row)
 			rmsNormRounded(row, row, w.QKV.QNorm[branch], 1, hd, cfg.RMSNormEps)
 		}
 		for head := 0; head < cfg.NumKeyValueHeads; head++ {
 			row := s.KHeads[token*kvOut+head*hd : token*kvOut+(head+1)*hd]
-			applyRotaryHalfBF16(row, ropeInv, token)
+			rope.applyRotary(row, pos)
 			bf16RoundSlice(row)
 			rmsNormRounded(row, row, w.QKV.KNorm[branch], 1, hd, cfg.RMSNormEps)
 		}
 	}
-	// Segment-windowed attention.
+	// Window-masked attention (per-row windows from the visual segments).
 	s.Context = make([]float32, tokens*qOut)
 	group := cfg.NumAttentionHeads / cfg.NumKeyValueHeads
 	scale := 1.0 / math.Sqrt(float64(hd))
+	windows := SegmentWindows(s.segments, tokens)
 	hostmath.ParallelRangeF64(tokens, cfg.NumAttentionHeads*tokens*2*hd, func(lo, hi int) {
 		scores := make([]float32, tokens)
 		for tokenPos := lo; tokenPos < hi; tokenPos++ {
-			start, end := segmentRange(s.segments, tokenPos, tokens)
+			start, end := windows[tokenPos][0], windows[tokenPos][1]
 			for head := 0; head < cfg.NumAttentionHeads; head++ {
 				kvHead := head / group
 				q := s.QHeads[tokenPos*qOut+head*hd : tokenPos*qOut+(head+1)*hd]
@@ -291,11 +292,10 @@ func PromptResidentKV(hidden []float32, mask []int, cfg Config, w LayerWeights) 
 	if tokens == 0 || len(hidden) != tokens*d {
 		return nil, fmt.Errorf("routed lm prompt kv: hidden len %d != %d tokens * %d", len(hidden), tokens, d)
 	}
-	base, err := RopeInvFreqBase(cfg)
+	rope, err := ropePlanFromConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	ropeInv := hostmath.RopeInvFreq(base, cfg.HeadDim)
 	kvOut := cfg.NumKeyValueHeads * cfg.HeadDim
 	hd := cfg.HeadDim
 	kv := &ResidentKV{
@@ -323,7 +323,7 @@ func PromptResidentKV(hidden []float32, mask []int, cfg Config, w LayerWeights) 
 			linearRounded(vRow, normRow, group.v, 1)
 			for head := 0; head < cfg.NumKeyValueHeads; head++ {
 				headRow := kRow[head*hd : (head+1)*hd]
-				applyRotaryHalfBF16(headRow, ropeInv, token)
+				rope.applyRotary(headRow, RowPosition{Branch: branch, Time: token})
 				bf16RoundSlice(headRow)
 				rmsNormRounded(headRow, headRow, w.QKV.KNorm[branch], 1, hd, cfg.RMSNormEps)
 			}

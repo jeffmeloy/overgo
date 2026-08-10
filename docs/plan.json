@@ -609,15 +609,15 @@
         },
         {
           "id": "sampler-port",
-          "status": "open",
+          "status": "done",
           "resource": "cpu",
-          "title": "dynamic-shift flow-match Euler (exponential time-shift, seq-len-dependent, distilled few-step) vs Wan UniPC; parity vs host-goldens [oracle READY: g2 exact sigmas/timesteps]"
+          "title": "dynamic-shift flow-match Euler (exponential time-shift, seq-len-dependent, distilled few-step) vs Wan UniPC; parity vs host-goldens [oracle READY: g2 exact sigmas/timesteps] -- DONE EXACT vs g2: FlowMatchEuler dynamic-shift, sigmas/timesteps/deltas bit-for-bit from config (mu=1.15, shiftFlowSigma via exp(mu)); caught f32-rounded Euler delta; shift derivation non-hardcoded"
         },
         {
           "id": "vae-port",
-          "status": "open",
+          "status": "partial",
           "resource": "cpu",
-          "title": "spatial AutoencoderKLQwenImage decode (z16, base 96, dim_mult [1,2,4,4], latents_mean/std denorm) + host oracle + tiled upsample; distinct from latentvideo causal 3D codec [oracle READY: g3 decoded image bit-exact]"
+          "title": "spatial AutoencoderKLQwenImage decode (z16, base 96, dim_mult [1,2,4,4], latents_mean/std denorm) + host oracle + tiled upsample; distinct from latentvideo causal 3D codec [oracle READY: g3 decoded image bit-exact] -- PLAN+DECODE VERIFIED (bit-exact g3 blocked on final-latent hook): QwenImage spatial decoder (21 ops derived from real ckpt shapes, z16->RGB spatial-8x, denorm z*std+mean, single-frame Rep-convention collapses temporal to spatial-2x resample-conv); synthetic [16,32,32]->[3,256,256] deterministic; bit-exact vs g3 u8 needs the exact final latent (denoiser port OR adaptive dump hook) -- pinned by TestVAEExactFinalLatentIsHookGap"
         },
         {
           "id": "cuda-serving",

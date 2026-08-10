@@ -173,6 +173,89 @@ func TestActivationSparsityBackwardFiniteDifference(t *testing.T) {
 	}
 }
 
+func TestMatchMagnitudeBackwardFiniteDifference(t *testing.T) {
+	const rows, width = 3, 5
+	rng := rand.New(rand.NewSource(31))
+	// Bias norms away from zero so no row hits the si==0/st==0 corners.
+	input := e4bRandVec(rng, rows*width, 0.6, 0.5)
+	target := e4bRandVec(rng, rows*width, 0.4, 0.5)
+	dOut := e4bRandVec(rng, rows*width, 0, 1)
+
+	forward := func() []float32 { // host-exact mirror of gemma3nMatchMagnitude
+		out := make([]float32, rows*width)
+		for r := 0; r < rows; r++ {
+			base := r * width
+			var si, st float64
+			for j := 0; j < width; j++ {
+				si += float64(input[base+j]) * float64(input[base+j])
+				st += float64(target[base+j]) * float64(target[base+j])
+			}
+			scale := float32(1)
+			if si != 0 {
+				scale = float32(math.Sqrt(st / si))
+			}
+			for j := 0; j < width; j++ {
+				out[base+j] = input[base+j] * scale
+			}
+		}
+		return out
+	}
+	loss := func() float64 {
+		out := forward()
+		var s float64
+		for i := range out {
+			s += float64(out[i]) * float64(dOut[i])
+		}
+		return s
+	}
+
+	dInput := make([]float32, rows*width)
+	dTarget := make([]float32, rows*width)
+	MatchMagnitudeBackward(dInput, dTarget, input, target, dOut, rows, width)
+
+	tol := fdTol(fdStep, width)
+	check := func(name string, vec, grad []float32) {
+		t.Helper()
+		for i := range vec {
+			orig := vec[i]
+			vec[i] = orig + fdStep
+			lp := loss()
+			vec[i] = orig - fdStep
+			lm := loss()
+			vec[i] = orig
+			fd := (lp - lm) / (2 * fdStep)
+			if math.Abs(fd-float64(grad[i])) > tol*(1+math.Abs(fd)) {
+				t.Fatalf("%s[%d]: fd %.6g vs analytic %.6g (tol %.1e)", name, i, fd, grad[i], tol)
+			}
+		}
+	}
+	check("dInput", input, dInput)
+	check("dTarget", target, dTarget)
+}
+
+func TestTanhBackwardFiniteDifference(t *testing.T) {
+	x := []float32{-3, -1.2, -0.4, 0, 0.3, 0.8, 1.7, 4}
+	dy := []float32{0.6, -1.4, 0.9, 2, -0.5, 1.1, -0.8, 0.7}
+	dx := make([]float32, len(x))
+	TanhBackward(dx, x, dy)
+	tol := fdTol(fdStep, 1)
+	for i := range x {
+		lp := math.Tanh(float64(x[i])+fdStep) * float64(dy[i])
+		lm := math.Tanh(float64(x[i])-fdStep) * float64(dy[i])
+		fd := (lp - lm) / (2 * fdStep)
+		if math.Abs(fd-float64(dx[i])) > tol*(1+math.Abs(fd)) {
+			t.Fatalf("tanh dx[%d]: fd %.6g vs analytic %.6g", i, fd, dx[i])
+		}
+	}
+	aliased := append([]float32(nil), dy...)
+	TanhBackward(aliased, x, aliased)
+	for i := range aliased {
+		if aliased[i] != dx[i] {
+			t.Fatalf("aliased tanh backward diverges at %d", i)
+		}
+	}
+}
+
 func TestEmbedInputScaleBackwardFiniteDifference(t *testing.T) {
 	const d, vocab, scale = 4, 5, 3.0
 	rng := rand.New(rand.NewSource(21))

@@ -146,6 +146,64 @@ func ActivationSparsityBackward(dGate, gate, dA []float32, rows, width int, stdM
 	}
 }
 
+// MatchMagnitudeBackward: VJP of the gemma3n per-row match-magnitude rescale
+// out_j = sqrt(||target||^2/||input||^2) * input_j, which couples every input
+// AND target element in a row. With si=sum input^2, st=sum target^2,
+// scale=sqrt(st/si) and D=sum_j dOut_j*input_j:
+//
+//	dInput_k  = scale*(dOut_k - input_k*D/si)
+//	dTarget_k = scale*target_k*D/st
+//
+// dInput/dTarget are set (each row overwritten). si==0 rows are identity
+// (out=input): dInput=dOut, dTarget=0, matching the forward's skip branch;
+// st==0 rows have scale=0 so both grads are zero. Layout is row-major
+// [rows,width] (token-major, feature-fastest), matching the forward.
+func MatchMagnitudeBackward(dInput, dTarget, input, target, dOut []float32, rows, width int) {
+	for r := 0; r < rows; r++ {
+		base := r * width
+		in := input[base : base+width]
+		tg := target[base : base+width]
+		dO := dOut[base : base+width]
+		di := dInput[base : base+width]
+		dt := dTarget[base : base+width]
+		var si, st, dot float64
+		for j := 0; j < width; j++ {
+			si += float64(in[j]) * float64(in[j])
+			st += float64(tg[j]) * float64(tg[j])
+			dot += float64(dO[j]) * float64(in[j])
+		}
+		if si == 0 {
+			for j := 0; j < width; j++ {
+				di[j] = dO[j]
+				dt[j] = 0
+			}
+			continue
+		}
+		scale := math.Sqrt(st / si)
+		for j := 0; j < width; j++ {
+			di[j] = float32(scale * (float64(dO[j]) - float64(in[j])*dot/si))
+		}
+		if st == 0 {
+			for j := 0; j < width; j++ {
+				dt[j] = 0
+			}
+			continue
+		}
+		for j := 0; j < width; j++ {
+			dt[j] = float32(scale * float64(tg[j]) * dot / st)
+		}
+	}
+}
+
+// TanhBackward: VJP of the element-wise tanh (the gemma3n AltUp-router and
+// modality-coefficient nonlinearity): dst = dy*(1-tanh(x)^2). dst may alias dy.
+func TanhBackward(dst, x, dy []float32) {
+	for i := range x {
+		t := math.Tanh(float64(x[i]))
+		dst[i] = float32(float64(dy[i]) * (1 - t*t))
+	}
+}
+
 // EmbedInputScaleBackward: VJP of the input-embedding scaling h = scale*E[token]
 // (the gemma sqrt(d) input-embed scale). Accumulates the per-token upstream
 // gradient into the shared embedding-table rows: dEmbed[token] += scale*dHidden.

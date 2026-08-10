@@ -526,9 +526,27 @@
         },
         {
           "id": "reference-parity",
+          "status": "partial",
+          "resource": "cpu",
+          "title": "host reference vs oracle fixtures: topology test port first (CPU-unchanged in adaptive), then sampled-index checks on edit_oracle (per-layer hiddens, prefix KV [1,4365,8,128]), then generation oracle z-trajectory -- HARNESS DONE (cmd/sensenovaparity, <1s on real 35GB via sparse probes): 3 value oracles PASS (edit+gen schedule knots exact, gen z-sigma 3e-4), 6 exact structural derivations vs real checkpoint (binding/rope [64/5e6/T,32/1e4/H,32/1e4/W]/flow plan/geometry), 2 oracle-absent wired (flow terminal + vision embedders finite/shaped), 3 FRONTIER blocked on prereqs below"
+        },
+        {
+          "id": "prompt-renderer",
           "status": "open",
           "resource": "cpu",
-          "title": "host reference vs oracle fixtures: topology test port first (CPU-unchanged in adaptive), then sampled-index checks on edit_oracle (per-layer hiddens, prefix KV [1,4365,8,128]), then generation oracle z-trajectory"
+          "title": "port SenseNova edit prompt renderer (compileCausalPrefixInput + 8 prefix-template repodb facts + Qwen2 BPE); yields sha256 id/time/h/w oracle (conditional 4365 / source 4107 tokens) with NO forward -- exercises routedlm.BlockPositions"
+        },
+        {
+          "id": "prefix-layer-stack",
+          "status": "open",
+          "resource": "cpu",
+          "title": "wire block-causal + multi-axis + branch-routed prefix layer forward (PromptLayerForward is still single-axis Time+VisualSegments; pieces CompileRopePlan/BlockPositions/BlockCausalWindows exist) into a SenseNova layer stack; parity vs edit_oracle prefix_layers + prefix_kv [1,4365,8,128]"
+        },
+        {
+          "id": "denoise-stack",
+          "status": "open",
+          "resource": "cpu",
+          "title": "generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head); parity vs generation_layers + steps[] z (needs torch-matched randn(seed) for z init)"
         },
         {
           "id": "measure-bar",

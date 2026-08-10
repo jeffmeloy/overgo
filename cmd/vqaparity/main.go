@@ -90,8 +90,32 @@ func main() {
 	deviceMode := flag.Bool("device", false, "run the CUDA device terminal parity + measurement")
 	deviceDecodeMode := flag.Bool("device-decode", false, "run the CUDA device 32-layer decode parity + measurement")
 	deviceVisionMode := flag.Bool("device-vision", false, "run the CUDA device vision-blocks parity + measurement")
+	deviceMergerMode := flag.Bool("device-merger", false, "run the CUDA device merger parity + measurement")
+	devicePrefillMode := flag.Bool("device-prefill", false, "run the CUDA device branch-routed prefill parity + measurement")
+	deviceFullMode := flag.Bool("device-full", false, "run the CUDA device full pipeline (merger->prefill->decode) + measurement")
 	flag.Parse()
 	l := &ladder{modelDir: *modelDir, fixturesDir: *fixturesDir, logPath: *logPath}
+	if *deviceFullMode {
+		if err := runDeviceFull(l); err != nil {
+			l.log("DEVICE FULL ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	if *devicePrefillMode {
+		if err := runDevicePrefill(l); err != nil {
+			l.log("DEVICE PREFILL ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	if *deviceMergerMode {
+		if err := runDeviceMerger(l); err != nil {
+			l.log("DEVICE MERGER ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 	if *deviceVisionMode {
 		if err := runDeviceVision(l); err != nil {
 			l.log("DEVICE VISION ERROR " + err.Error())

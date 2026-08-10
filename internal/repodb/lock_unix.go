@@ -5,8 +5,7 @@ package repodb
 import (
 	"fmt"
 	"os"
-
-	"golang.org/x/sys/unix"
+	"syscall"
 )
 
 type fileLock struct {
@@ -18,7 +17,7 @@ func acquireFileLock(path string) (*fileLock, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		_ = file.Close()
 		return nil, err
 	}
@@ -29,7 +28,7 @@ func (l *fileLock) Close() error {
 	if l == nil || l.file == nil {
 		return nil
 	}
-	unlockErr := unix.Flock(int(l.file.Fd()), unix.LOCK_UN)
+	unlockErr := syscall.Flock(int(l.file.Fd()), syscall.LOCK_UN)
 	closeErr := l.file.Close()
 	l.file = nil
 	if unlockErr != nil {

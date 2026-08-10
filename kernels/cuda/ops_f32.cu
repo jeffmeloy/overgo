@@ -120,6 +120,33 @@ extern "C" __global__ void f32_to_bf16(
     output[index] = (unsigned short) (bits >> 16);
 }
 
+// F16 -> F32 lossless upconvert (prefill weight staging feeds SGEMM). F16 has
+// fewer exponent/mantissa bits than F32, so every value expands exactly.
+extern "C" __global__ void f16_to_f32(
+        const unsigned short * input,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    output[index] = __half2float(__ushort_as_half(input[index]));
+}
+
+// BF16 -> F32 lossless upconvert (prefill weight staging feeds SGEMM). BF16 is
+// the high 16 bits of the F32 encoding, so the expansion is an exact bit shift
+// and matches the resident F32-copy dequant (quant.Dequantize BF16) exactly.
+extern "C" __global__ void bf16_to_f32(
+        const unsigned short * input,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    output[index] = __uint_as_float(((unsigned int) input[index]) << 16);
+}
+
 extern "C" __global__ void quantize_q8_0_input_f32(
         const float * input,
         unsigned char * output,
@@ -3888,6 +3915,43 @@ extern "C" __global__ void mul_mat_bf16_f32(
         const unsigned int packed = weight_row[pair];
         const float low = __uint_as_float(packed << 16);
         const float high = __uint_as_float(packed & 0xffff0000U);
+        sum += low * input_row[2 * pair] + high * input_row[2 * pair + 1];
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffff, sum, offset);
+    }
+    if (lane == 0) {
+        output[right_row * left_rows + left_row] = sum;
+    }
+}
+
+// warp-per-row F16 matvec: packed pair loads keep coalesced 128B segments;
+// each F16 half upconverts to F32 per element BEFORE the FMA (lossless), same
+// F32 accumulation as the BF16 decode kernel. Decode-regime native-F16 read
+// (half the per-token weight bandwidth of the F32 fallback).
+extern "C" __global__ void mul_mat_f16_f32(
+        const unsigned int * left,
+        const float * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
+    const unsigned int left_row = warp_index % left_rows;
+    const unsigned int right_row = warp_index / left_rows;
+    if (right_row >= right_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int pairs = inner / 2;
+    const unsigned int * weight_row = left + (size_t) left_row * pairs;
+    const float * input_row = right + (size_t) right_row * inner;
+    float sum = 0.0f;
+    for (unsigned int pair = lane; pair < pairs; pair += CUDA_WARP_WIDTH) {
+        const unsigned int packed = weight_row[pair];
+        const float low = __half2float(__ushort_as_half((unsigned short) (packed & 0xffffU)));
+        const float high = __half2float(__ushort_as_half((unsigned short) (packed >> 16)));
         sum += low * input_row[2 * pair] + high * input_row[2 * pair + 1];
     }
     for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {

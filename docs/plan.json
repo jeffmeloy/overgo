@@ -413,8 +413,8 @@
         },
         {
           "id": "performance-leg",
-          "status": "open",
-          "title": "CUDA head-to-head vs adaptive serving, at-or-below",
+          "status": "partial",
+          "title": "CUDA head-to-head vs adaptive serving, at-or-below -- MEMORY LEVER LANDED: native-dtype BF16 prefill (drop F32 copies, bit-exact bf16->f32 upconvert into reused workspace) -> Qwen3.5-4B peak 24.43->10.77 GiB (-55.9pct), decode 11 ms/tok unchanged, goldens 3/3 exact. Remaining: head-to-head vs adaptive.",
           "resource": "gpu"
         }
       ]
@@ -449,8 +449,8 @@
         },
         {
           "id": "performance-leg",
-          "status": "open",
-          "title": "head-to-head vs adaptive serving, at-or-below",
+          "status": "partial",
+          "title": "head-to-head vs adaptive serving, at-or-below -- MEMORY LEVER LANDED (same native-dtype BF16 prefill): E4B peak 41.74->21.79 GiB (-47.8pct), decode 66.6->20.05 ms/tok (3.3x, was memory-pressured near-OOM), goldens 3/3 exact. Remaining: head-to-head vs adaptive.",
           "resource": "gpu"
         }
       ]
@@ -853,6 +853,12 @@
       "python": "oracle 44.7s full, ~630 ms/token decode",
       "overgo": "host reference 44/44 fixture parity; CUDA serving next",
       "verdict": "OPEN -- bar measured 2026-08-09"
+    },
+    "native_dtype_bf16_prefill": {
+      "note": "unified F16/BF16 native-dtype prefill: drop resident F32 weight copies, bit-exact upconvert into one reused workspace before identical SGEMM",
+      "qwen35-4b": "peak 24.43->10.77 GiB (-55.9pct), decode ~11 ms/tok unchanged, goldens 3/3 exact",
+      "e4b": "peak 41.74->21.79 GiB (-47.8pct), decode 66.6->20.05 ms/tok (3.3x), goldens 3/3 exact",
+      "contract": "F16 kept + test-guarded; production bf16 models exercise the path (not inert)"
     }
   }
 }

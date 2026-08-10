@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "d02af5c9e1048ce985ae4404bd4217c243a8b30b602b5e2bfbaa6877727e1727",
+      "sourceSha256": "445f32bb7d02bad4d51c699c7cc0ac46f9f7ff29055b59e49597938c51fd5e6a",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "c4bfc2e51b8966a3c65cfd339a46e60e470e29cf2fb2b9019d66e323ab01ca82",
+      "assetSha256": "d278e1ee2803d5ea9566c292825438e6dbf8128854ffd6d0594efcd24d85bb22",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -60,6 +60,7 @@
         "attention_tiled_bf16_f32",
         "attention_tiled_f32",
         "bf16_round_f32",
+        "bf16_to_f32",
         "broadcast_add_f32",
         "broadcast_divide_f32",
         "broadcast_gate_add_f32",
@@ -72,6 +73,7 @@
         "copy_token_offset_f32",
         "divide_f32",
         "exp_f32",
+        "f16_to_f32",
         "f32_to_bf16",
         "flat_slice_f32",
         "fwht_f32",
@@ -124,6 +126,7 @@
         "mul_mat_bf16_argmax_partials_f32",
         "mul_mat_bf16_f32",
         "mul_mat_bf16_gate_f32",
+        "mul_mat_f16_f32",
         "mul_mat_f32",
         "mul_mat_iq1_m_f32",
         "mul_mat_iq1_s_f32",
@@ -294,8 +297,10 @@
           "functions": [
             "argmax_q8_0_input_partials_f32",
             "bf16_round_f32",
+            "bf16_to_f32",
             "copy_f32",
             "exp_f32",
+            "f16_to_f32",
             "f32_to_bf16",
             "gelu_erf_f32",
             "gelu_f32",
@@ -832,6 +837,7 @@
           ],
           "functions": [
             "mul_mat_bf16_f32",
+            "mul_mat_f16_f32",
             "mul_mat_f32",
             "mul_mat_iq1_m_f32",
             "mul_mat_iq1_s_f32",

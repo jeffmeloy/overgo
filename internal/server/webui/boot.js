@@ -166,9 +166,13 @@
     refreshStatus();
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initShell);
-  } else {
+  // boot.js is deferred, so it runs while readyState is "interactive" — before
+  // the later deferred module scripts have registered their tabs. DOMContentLoaded
+  // fires only after all deferred scripts run, so defer initShell to it unless the
+  // document is already fully loaded.
+  if (document.readyState === "complete") {
     initShell();
+  } else {
+    document.addEventListener("DOMContentLoaded", initShell);
   }
 })();

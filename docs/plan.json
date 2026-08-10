@@ -682,7 +682,7 @@
           "id": "recipe-activation",
           "status": "done",
           "resource": "gpu",
-          "title": "GGUF inference recipe activation + status round-trip; live serving goldens -- DONE: recipe caeff3b3.../model d0be4bb0.../def 2dbfc9dd... activated; served via -session request (capacity-session paging bug workaround, see finding)"
+          "title": "GGUF inference recipe activation + status round-trip; live serving goldens -- DONE: recipe caeff3b3.../model d0be4bb0.../def 2dbfc9dd... activated; served on capacity session (paging bug now fixed)"
         },
         {
           "id": "mm-input-leg",
@@ -704,9 +704,9 @@
         },
         {
           "id": "capacity-session-paging-fix",
-          "status": "open",
+          "status": "done",
           "resource": "gpu",
-          "title": "FINDING (pre-existing, bf16-identical, orthogonal to fp8): default capacity decode-session has a cache-paging off-by-one (keyShape 257 vs keyCapacity 256 page boundary) that OOMs capacity-eligible models (shared_kv=0 like the 12B). Workaround shipped: recipe activate -session {auto|request|capacity}, 12B pinned to request. Real fix: compute keyCapacity from pastTokens+1 consistently with keyShape in internal/inference capacity cache-target paging"
+          "title": "FINDING (pre-existing, bf16-identical, orthogonal to fp8): default capacity decode-session has a cache-paging off-by-one (keyShape 257 vs keyCapacity 256 page boundary) that OOMs capacity-eligible models (shared_kv=0 like the 12B). Workaround shipped: recipe activate -session {auto|request|capacity}, 12B pinned to request. Real fix: compute keyCapacity from pastTokens+1 consistently with keyShape in internal/inference capacity cache-target paging -- DONE: root cause = buildGemma4BlockCached used unconditional builder.Concat + hardcoded queryStart (ignoring cacheWrite); capacity/append override to SourceCapacity(256) made Concat produce keyShape 257 vs keyCapacity 256 -> OOM (Carbon/generic use WriteCache, so were fine). FIX: route through builder.WriteCache(...,cacheWrite) + CacheTokenOffset (mirrors generic staged path) -> keyShape==keyCapacity by construction. Derived via the cache-write contract, no magic +1. Pinned tests capacity_paging_golden/repro pass; 12B now serves on default capacity session (no -session request pin)"
         }
       ]
     },

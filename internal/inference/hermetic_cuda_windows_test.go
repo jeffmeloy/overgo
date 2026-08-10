@@ -126,6 +126,58 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	}
 }
 
+// TestHermeticCUDACapacityCachePageBoundary drives the capacity decode session
+// across a KV-cache page boundary (page=4: boundary at pastTokens=4) and beyond,
+// comparing the device append path against the proven-correct host concat path at
+// every step. The steps reach pastTokens 2..7 so the session is replayed while the
+// storage lives in a GROWN page (Cap=8) -- the exact condition that exposed the
+// keyShape/keyCapacity off-by-one on the 12B.
+func TestHermeticCUDACapacityCachePageBoundary(t *testing.T) {
+	cudatest.Require(t)
+	path := writeHermeticLlamaGGUF(t)
+	runner, err := openFixtureRunnerWithOptions(path, OpenOptions{PreloadDeviceWeights: true, CachePageTokens: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	deviceBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
+		MaxSequences: 1, Device: true, PageTokens: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer deviceBatch.Close(context.Background())
+	hostBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
+		MaxSequences: 1, PageTokens: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hostBatch.Close(context.Background())
+
+	// prefill 2 -> decode single tokens; cache.Tokens after each step = 2,3,4,5,6,7,8.
+	// pastTokens=4 crosses page 0->1 (Cap 4->8); pastTokens=5,6,7 replay inside the
+	// grown page -- where the stale source capacity struck.
+	steps := [][]tokenizer.TokenID{{1, 4}, {5}, {6}, {7}, {4}, {5}, {6}}
+	for step, tokens := range steps {
+		device, deviceErr := deviceBatch.Step(context.Background(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
+		host, hostErr := hostBatch.Step(context.Background(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
+		if deviceErr != nil || hostErr != nil {
+			t.Fatalf("step %d device/host errors = %v/%v", step, deviceErr, hostErr)
+		}
+		if len(device) != 1 || len(host) != 1 || device[0].Tokens != host[0].Tokens ||
+			device[0].Position != host[0].Position || len(device[0].Logits) != len(host[0].Logits) {
+			t.Fatalf("step %d states = %+v/%+v", step, device, host)
+		}
+		for index := range device[0].Logits {
+			if delta := math.Abs(float64(device[0].Logits[index] - host[0].Logits[index])); delta > 2e-4 {
+				t.Fatalf("step %d (tokens=%d) logit %d device=%g host=%g delta=%g",
+					step, device[0].Tokens, index, device[0].Logits[index], host[0].Logits[index], delta)
+			}
+		}
+	}
+}
+
 func writeHermeticLlamaGGUF(t *testing.T) string {
 	t.Helper()
 	metadata := []gguf.Metadata{

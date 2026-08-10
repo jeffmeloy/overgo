@@ -15,8 +15,17 @@ import (
 	"overgo/internal/repodb"
 )
 
-// ResolveActiveGGUF: temporary RepoDB-backed serving fixture.
+// ResolveActiveGGUF: temporary RepoDB-backed serving fixture (capacity session).
 func ResolveActiveGGUF(path string, placement recipe.Placement) (modelrecipe.LoadedProgram, error) {
+	return ResolveActiveGGUFWithSession(path, placement, modelrecipe.DecodeSessionCapacity)
+}
+
+// ResolveActiveGGUFWithSession: serving fixture with an explicit decode-session
+// policy, so tests can compare the capacity (append) path against the request
+// (concat) path on the same model.
+func ResolveActiveGGUFWithSession(
+	path string, placement recipe.Placement, session modelrecipe.DecodeSessionPolicy,
+) (modelrecipe.LoadedProgram, error) {
 	root, err := os.MkdirTemp("", "overgo-serving-fixture-")
 	if err != nil {
 		return modelrecipe.LoadedProgram{}, err
@@ -71,7 +80,7 @@ func ResolveActiveGGUF(path string, placement recipe.Placement) (modelrecipe.Loa
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		inventory.Manifest.ID, profileDocument.ID, document.ID, placement,
-		modelrecipe.DecodeSessionCapacity,
+		session,
 	)
 	if err != nil {
 		return modelrecipe.LoadedProgram{}, err

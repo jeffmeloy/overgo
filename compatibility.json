@@ -1,0 +1,4626 @@
+{
+  "benchmark": {
+    "device_memory_scope": "runner-owned-driver-allocations",
+    "execution_counter_scope": "runner-owned-driver-calls",
+    "format": "json",
+    "metrics": [
+      "model-and-device-identity",
+      "model-load-time",
+      "prompt-and-output-token-counts",
+      "time-to-first-token",
+      "post-first-token-decode-rate",
+      "end-to-end-token-rate",
+      "host-heap-snapshots",
+      "current-device-allocation",
+      "peak-device-allocation",
+      "p50-and-minimum-summaries",
+      "custom-kernel-launches",
+      "stream-synchronizations",
+      "host-device-copy-counts-and-bytes",
+      "device-device-copy-counts-and-bytes",
+      "stream-ordered-device-memset-counts-and-bytes",
+      "launches-and-synchronizations-per-output-token"
+    ]
+  },
+  "cache": {
+    "device_residency": {
+      "fallbacks": [
+        "editable-session-state",
+        "streamed-weight-execution"
+      ],
+      "host_transfer": "vocabulary-logits-only",
+      "multiple_device_sequences": true,
+      "named_state_modes": [
+        "fixed",
+        "token-aligned"
+      ],
+      "paged_retained_cache": true,
+      "prefix_preserving_context_shift": "owned-device-range-compaction",
+      "preloaded_dense_generation": "retained-output-allocations",
+      "preloaded_qwen35_generation": "retained-hybrid-output-allocations",
+      "prompt_cache": "retained-device-prefix-and-logits",
+      "recurrent_and_hybrid_sequences": true,
+      "retained_device_forks": "shared-until-advance",
+      "rolling_context_shift": "zero-copy-device-pointer-view",
+      "steady_stream_synchronizations_per_token": 1
+    },
+    "features": [
+      "prefix-removal",
+      "absolute-position-preservation",
+      "hybrid-recurrent-state-preservation",
+      "rolling-context-generation",
+      "prefix-preserving-middle-range-removal",
+      "native-completion-n-keep",
+      "native-completion-n-discard"
+    ],
+    "loads_legacy_version": 1,
+    "state_version": 2
+  },
+  "claims": [
+    {
+      "evidence": [
+        {
+          "contains": "func OpenSourceWithLimits(",
+          "path": "internal/safetensors/source.go"
+        },
+        {
+          "contains": "func TestOpenSourceRejectsInvalidRepositories(",
+          "path": "internal/safetensors/source_test.go"
+        }
+      ],
+      "id": "bounded-safetensors-repositories",
+      "status": "implemented",
+      "summary": "Safetensors repositories apply config, index, shard, header, tensor, dtype, range, overlap, and catalog bounds."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func ValidateDenseRepository(",
+          "path": "internal/hfgguf/catalog.go"
+        },
+        {
+          "contains": "func TestValidateDenseRepositoryUsesRuntimeCatalog(",
+          "path": "internal/hfgguf/catalog_test.go"
+        }
+      ],
+      "id": "safetensors-gguf-dense-bridge",
+      "status": "implemented",
+      "summary": "Standard Llama and Qwen2 Safetensors metadata, names, shapes, storage, and payload streams bridge to existing GGUF runtime catalogs."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func ValidateQwen35Repository(",
+          "path": "internal/hfgguf/qwen35.go"
+        },
+        {
+          "contains": "func TestValidateQwen35RepositoryUsesRuntimeCatalog(",
+          "path": "internal/hfgguf/catalog_test.go"
+        }
+      ],
+      "id": "safetensors-gguf-qwen35-bridge",
+      "status": "implemented",
+      "summary": "Qwen 3.5 Safetensors text, recurrent, and MTP metadata, names, shapes, and payload streams bridge to existing GGUF runtime catalogs."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func OpenWithOptions(",
+          "path": "internal/gguf/reader.go"
+        },
+        {
+          "contains": "func TestParseEnforcesLimits(",
+          "path": "internal/gguf/reader_test.go"
+        }
+      ],
+      "id": "bounded-gguf-parsing",
+      "status": "implemented",
+      "summary": "GGUF parsing applies allocation, count, alignment, and split limits."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func validateMultimodalImages(",
+          "path": "internal/server/server_native_prompt.go"
+        },
+        {
+          "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
+          "path": "internal/server/server_test.go"
+        }
+      ],
+      "id": "bounded-server-media",
+      "status": "implemented",
+      "summary": "Multimodal requests bound encoded bodies, decoded media, dimensions, and pixels."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func TestGemma4RealFixture(",
+          "path": "internal/projector/gemma4_test.go"
+        },
+        {
+          "contains": "func TestGemma4RealPromptTokens(",
+          "path": "internal/projector/gemma4_test.go"
+        }
+      ],
+      "id": "gemma4-multimodal-oracle",
+      "status": "implemented",
+      "summary": "Gemma 4 image preprocessing, projector output, and prompt tokens have pinned real-model oracles."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func splitPathPrefix(",
+          "path": "internal/gguf/reader.go"
+        },
+        {
+          "contains": "func TestOpenLoadsAndReadsSplitGGUF(",
+          "path": "internal/gguf/split_test.go"
+        }
+      ],
+      "id": "validated-split-gguf",
+      "status": "implemented",
+      "summary": "Split GGUF models load, validate, write, merge, and round-trip."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func Quantize(",
+          "path": "internal/quant/quantize.go"
+        },
+        {
+          "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
+          "path": "internal/quant/quantize_test.go"
+        }
+      ],
+      "id": "pinned-quantization",
+      "status": "implemented",
+      "summary": "Quantization encoders are checked against pinned GGML references."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (w *Worker) Do(",
+          "path": "internal/cuda/device/worker.go"
+        },
+        {
+          "contains": "func TestWorkerMemoryRoundTrip(",
+          "path": "internal/cuda/device/worker_windows_test.go"
+        }
+      ],
+      "id": "serialized-cuda-worker",
+      "status": "implemented",
+      "summary": "CUDA driver work executes through one locked-thread context owner."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func CompileModelPlan(",
+          "path": "internal/model/layer_plan.go"
+        },
+        {
+          "contains": "func TestCompileModelPlanPinsLayerPolicies(",
+          "path": "internal/model/layer_plan_test.go"
+        }
+      ],
+      "id": "compiled-model-plan",
+      "status": "implemented",
+      "summary": "Model opening compiles per-layer graph, cache, attention, position, residual, and feed-forward policy before execution."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func Compile(",
+          "path": "internal/cuda/executor/executor.go"
+        },
+        {
+          "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
+          "path": "internal/cuda/executor/compile_test.go"
+        }
+      ],
+      "id": "compiled-cuda-graph",
+      "status": "implemented",
+      "summary": "Repeated CUDA graph execution can reuse validated topology, BLAS selection, and arena planning."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func DescribeOperation(",
+          "path": "internal/tensor/operation.go"
+        },
+        {
+          "contains": "func TestOperationCatalogIsDenseAndUnique(",
+          "path": "internal/tensor/operation_test.go"
+        }
+      ],
+      "id": "tensor-operation-catalog",
+      "status": "implemented",
+      "summary": "Tensor operation identity, diagnostic class, and backend coverage share one typed catalog."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (r *Runner) selectPromptCache(",
+          "path": "internal/inference/prompt_cache.go"
+        },
+        {
+          "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
+          "path": "internal/inference/prompt_cache_test.go"
+        }
+      ],
+      "id": "editable-prompt-cache",
+      "status": "implemented",
+      "summary": "Bounded prompt caches support selection, eviction, context edits, and exact media-signed replay."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func NewGBNFGrammar(",
+          "path": "internal/sampling/gbnf.go"
+        },
+        {
+          "contains": "func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(",
+          "path": "internal/sampling/json_schema_test.go"
+        }
+      ],
+      "id": "constrained-generation",
+      "status": "implemented",
+      "summary": "GBNF and JSON Schema constraints match pinned upstream corpora."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (r *Qwen3VLRunner) BuildImagesPrompt(",
+          "path": "internal/projector/prompt.go"
+        },
+        {
+          "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
+          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+        }
+      ],
+      "id": "ordered-multi-image",
+      "status": "implemented",
+      "summary": "Native, Chat, and Responses prompts preserve ordered image/text parts."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (r *Gemma4Runner) BuildImagesHistoryPrompt(",
+          "path": "internal/projector/prompt.go"
+        },
+        {
+          "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
+          "path": "internal/server/server_completion_chat_embedding_test.go"
+        }
+      ],
+      "id": "media-history",
+      "status": "implemented",
+      "summary": "Chat and Responses preserve projected images in earlier or final user turns through the complete formatted history."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (r *Gemma4Runner) BuildMediaHistoryPrompt(",
+          "path": "internal/projector/prompt.go"
+        },
+        {
+          "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
+          "path": "internal/server/server_completion_chat_embedding_test.go"
+        }
+      ],
+      "id": "mixed-media-history",
+      "status": "implemented",
+      "summary": "Gemma 4 preserves ordered image/audio chunks through native, Chat, and Responses history."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (f *remoteMediaFetcher) fetch(",
+          "path": "internal/server/media_policy.go"
+        },
+        {
+          "contains": "func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault(",
+          "path": "internal/server/media_policy_test.go"
+        }
+      ],
+      "id": "bounded-remote-media",
+      "status": "implemented",
+      "summary": "Remote media is opt-in through explicit scheme, host, port, network, redirect, timeout, MIME, concurrency, and byte policy."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func LoadResponseFilePolicy(",
+          "path": "internal/server/resource_policy.go"
+        },
+        {
+          "contains": "func TestResponsesInputFileSources(",
+          "path": "internal/server/resource_policy_test.go"
+        }
+      ],
+      "id": "responses-file-inputs",
+      "status": "implemented",
+      "summary": "Responses accepts bounded typed inline, policy-mapped file-ID, allowlisted URL, and image file-ID inputs."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "by response_tools.%s policy",
+          "path": "internal/server/responses_tools.go"
+        },
+        {
+          "contains": "func TestResponsesHostedAndCustomToolsUseExplicitPolicy(",
+          "path": "internal/server/resource_policy_test.go"
+        }
+      ],
+      "id": "explicit-response-tool-policy",
+      "status": "implemented",
+      "summary": "Hosted, MCP, and free-form custom Responses tools are classified and denied unless an external executor contract is added."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func DecodeEncodedVideo(",
+          "path": "internal/projector/encoded_video.go"
+        },
+        {
+          "contains": "func TestChatAndResponsesEncodedVideoProjection(",
+          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+        }
+      ],
+      "id": "server-encoded-video",
+      "status": "implemented",
+      "summary": "Chat and Responses decode bounded single-turn encoded video through native GIF or FFmpeg paths."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (h *Handler) responsesInputTokens(",
+          "path": "internal/server/protocol_responses.go"
+        },
+        {
+          "contains": "func TestMultimodalInputTokenCounting(",
+          "path": "internal/server/server_completion_chat_embedding_test.go"
+        }
+      ],
+      "id": "multimodal-token-counting",
+      "status": "implemented",
+      "summary": "Chat and Responses token counts use the projected media prompt."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (h *Handler) preparePrompt(",
+          "path": "internal/server/server_native_prompt.go"
+        },
+        {
+          "contains": "func (h *Handler) prepareProtocolGeneration(",
+          "path": "internal/server/protocol_common.go"
+        },
+        {
+          "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
+          "path": "internal/server/server_completion_chat_embedding_test.go"
+        }
+      ],
+      "id": "unified-prompt-preparation",
+      "status": "implemented",
+      "summary": "Native generation and the Chat, Responses, and Anthropic protocols share prepared prompts with token counting."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (s *chatOutputStream) Accept(",
+          "path": "internal/inference/chat_stream.go"
+        },
+        {
+          "contains": "func TestStreamingResponsesFunctionCallLifecycle(",
+          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+        }
+      ],
+      "id": "incremental-tool-streaming",
+      "status": "implemented",
+      "summary": "Chat, Responses, and Anthropic stream JSON and Hermes function arguments incrementally."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "promptTools []inference.ChatTool",
+          "path": "internal/server/protocol_chat.go"
+        },
+        {
+          "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
+          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+        }
+      ],
+      "id": "multimodal-function-tools",
+      "status": "implemented",
+      "summary": "Chat, Responses, and Anthropic preserve projected image/audio history while formatting and streaming function tools."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "case \"image\":",
+          "path": "internal/server/anthropic_tools.go"
+        },
+        {
+          "contains": "func TestAnthropicImageToolsAndTokenCounting(",
+          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+        }
+      ],
+      "id": "anthropic-image-input",
+      "status": "implemented",
+      "summary": "Anthropic image blocks support bounded base64, allowlisted URL, and mapped file-ID projection with token-count parity."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func validateAnthropicThinking(",
+          "path": "internal/server/anthropic_thinking.go"
+        },
+        {
+          "contains": "func TestAnthropicThinkingBufferedStreamingImageAndReplay(",
+          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+        }
+      ],
+      "id": "anthropic-local-thinking",
+      "status": "implemented",
+      "summary": "Manual summarized thinking supports buffered/SSE output, projected images, handler-local signed replay, and tamper rejection."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (s *responseHistoryStore) put(",
+          "path": "internal/server/response_history.go"
+        },
+        {
+          "contains": "func TestResponsesPreviousResponseContinuation(",
+          "path": "internal/server/server_completion_chat_embedding_test.go"
+        }
+      ],
+      "id": "responses-continuation",
+      "status": "implemented",
+      "summary": "Bounded handler-local response history supports text, media, tool-call, streaming, and token-count continuations."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func validateResponsesReasoning(",
+          "path": "internal/server/protocol_responses.go"
+        },
+        {
+          "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
+          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+        }
+      ],
+      "id": "responses-reasoning",
+      "status": "implemented",
+      "summary": "Responses reasoning summaries support input replay, buffered output, streaming lifecycle events, and continuation retention."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func LookupArchitecture(",
+          "path": "internal/model/architecture.go"
+        },
+        {
+          "contains": "func TestArchitectureRegistryProfiles(",
+          "path": "internal/model/architecture_test.go"
+        }
+      ],
+      "id": "architecture-profiles",
+      "status": "implemented",
+      "summary": "Model architectures use a central family and capability registry with grouped specifications."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func BuildArchitectureBlockCached(",
+          "path": "internal/model/graph_dispatch.go"
+        },
+        {
+          "contains": "func ReadWeights(",
+          "path": "internal/model/weights_dispatch.go"
+        },
+        {
+          "contains": "func TestArchitectureBlockDispatchRoutesFamilies(",
+          "path": "internal/model/graph_dispatch_test.go"
+        }
+      ],
+      "id": "architecture-family-dispatch",
+      "status": "implemented",
+      "summary": "Graph construction and tensor catalog validation route through architecture families."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (b *ContinuousBatch) Step(",
+          "path": "internal/inference/continuous_batch.go"
+        },
+        {
+          "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
+          "path": "internal/inference/device_cache_paging_test.go"
+        }
+      ],
+      "id": "paged-continuous-cache",
+      "status": "implemented",
+      "summary": "Retained CUDA cache pages and transactional attention/recurrent/hybrid multi-sequence steps support dynamic admission and forks."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (r *Runner) NewT5BatchSession(",
+          "path": "internal/inference/t5_batch.go"
+        },
+        {
+          "contains": "func TestValidatePaddedTokenBatchMasksSuffixes(",
+          "path": "internal/inference/t5_batch_test.go"
+        }
+      ],
+      "id": "padded-t5-batches",
+      "status": "implemented",
+      "summary": "Rectangular T5 batches use explicit source and decoder lengths so padding never enters attention state."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func createArchive(",
+          "path": "cmd/release/main.go"
+        },
+        {
+          "contains": "func TestCreateArchiveIsDeterministic(",
+          "path": "cmd/release/main_test.go"
+        }
+      ],
+      "id": "reproducible-release",
+      "status": "implemented",
+      "summary": "Release archives are deterministic and compared across two builds."
+    }
+  ],
+  "cuda": {
+    "compute_capabilities": [
+      "8.9"
+    ],
+    "driver_tested": "595.79",
+    "kernel_targets": [
+      "sm_89",
+      "compute_89"
+    ],
+    "native_weight_types": [
+      "Q1_0",
+      "Q2_0",
+      "Q4_0",
+      "Q4_1",
+      "Q5_0",
+      "Q5_1",
+      "Q8_0",
+      "Q8_1",
+      "Q8_K",
+      "Q2_K",
+      "Q3_K",
+      "Q4_K",
+      "Q5_K",
+      "Q6_K",
+      "TQ1_0",
+      "TQ2_0",
+      "IQ1_S",
+      "IQ1_M",
+      "IQ2_XXS",
+      "IQ2_XS",
+      "IQ2_S",
+      "IQ3_XXS",
+      "IQ3_S",
+      "IQ4_NL",
+      "IQ4_XS",
+      "MXFP4",
+      "NVFP4"
+    ],
+    "toolkit_tested": "12.9"
+  },
+  "diffusion": {
+    "architectures": [
+      "dream",
+      "llada",
+      "llada-moe",
+      "rnd1"
+    ],
+    "cancellation": "context-and-callback",
+    "classifier_free_guidance": true,
+    "gumbel_transform": "optional",
+    "ranking_algorithms": [
+      "origin",
+      "entropy",
+      "margin",
+      "random",
+      "confidence"
+    ],
+    "schedules": [
+      "timestep",
+      "block"
+    ],
+    "shift_logits_metadata": "diffusion.shift_logits"
+  },
+  "gguf": {
+    "f32_compatibility_conversion": [
+      "F32",
+      "F16",
+      "BF16",
+      "F64",
+      "I8",
+      "I16",
+      "I32",
+      "I64",
+      "Q1_0",
+      "Q2_0",
+      "Q4_0",
+      "Q4_1",
+      "Q5_0",
+      "Q5_1",
+      "Q8_0",
+      "Q8_1",
+      "Q2_K",
+      "Q3_K",
+      "Q4_K",
+      "Q5_K",
+      "Q6_K",
+      "Q8_K",
+      "TQ1_0",
+      "TQ2_0",
+      "IQ1_S",
+      "IQ1_M",
+      "IQ2_XXS",
+      "IQ2_XS",
+      "IQ2_S",
+      "IQ3_XXS",
+      "IQ3_S",
+      "IQ4_NL",
+      "IQ4_XS",
+      "MXFP4",
+      "NVFP4"
+    ],
+    "split_files": {
+      "automatic_local_discovery": true,
+      "default_maximum_shards": 1024,
+      "first_shard_required": true,
+      "naming": "\u003cprefix\u003e-%05d-of-%05d.gguf",
+      "validates": [
+        "split-index-and-count",
+        "global-tensor-count",
+        "duplicate-tensor-names",
+        "per-shard-bounds"
+      ]
+    },
+    "versions": [
+      2,
+      3
+    ],
+    "writing": {
+      "canonical_tensor_offsets": true,
+      "create_validated_splits": true,
+      "merge_validated_splits": true,
+      "metadata_scalars_and_arrays": "all",
+      "model_quantization": {
+        "default_policy": "matrices-except-1d",
+        "destinations": [
+          "F32",
+          "F16",
+          "BF16",
+          "Q1_0",
+          "Q2_0",
+          "Q4_0",
+          "Q4_1",
+          "Q5_0",
+          "Q5_1",
+          "Q8_0",
+          "Q2_K",
+          "Q3_K",
+          "Q4_K",
+          "Q5_K",
+          "Q6_K",
+          "TQ1_0",
+          "TQ2_0",
+          "IQ1_S",
+          "IQ1_M",
+          "IQ2_XXS",
+          "IQ2_XS",
+          "IQ2_S",
+          "IQ3_XXS",
+          "IQ3_S",
+          "IQ4_NL",
+          "IQ4_XS",
+          "MXFP4",
+          "NVFP4"
+        ],
+        "importance_matrix": {
+          "formats": [
+            "pinned-gguf",
+            "legacy-binary"
+          ],
+          "per_expert_normalization": true,
+          "provenance_metadata": true,
+          "required_destinations": [
+            "IQ1_S",
+            "IQ1_M",
+            "IQ2_XXS",
+            "IQ2_XS"
+          ]
+        },
+        "pinned_byte_exact_encoders": [
+          "Q1_0",
+          "Q2_0",
+          "Q4_0",
+          "Q4_1",
+          "Q5_0",
+          "Q5_1",
+          "Q8_0",
+          "Q8_1",
+          "Q2_K",
+          "Q3_K",
+          "Q4_K",
+          "Q5_K",
+          "Q6_K",
+          "Q8_K",
+          "TQ1_0",
+          "TQ2_0",
+          "IQ1_S",
+          "IQ1_M",
+          "IQ2_XXS",
+          "IQ2_XS",
+          "IQ2_S",
+          "IQ3_XXS",
+          "IQ3_S",
+          "IQ4_NL",
+          "IQ4_XS",
+          "MXFP4",
+          "NVFP4"
+        ],
+        "streaming": true
+      },
+      "overwrite_existing_output": false,
+      "payload_hashing": {
+        "algorithms": [
+          "xxh64",
+          "sha1",
+          "sha256",
+          "llama-cpp-uuidv5"
+        ],
+        "logical_model": true,
+        "manifest_verification": true,
+        "per_tensor": true
+      },
+      "pinned_upstream_validation": [
+        "llama-gguf-hash",
+        "llama-gguf-split--merge"
+      ],
+      "split_limits": [
+        "tensor-count",
+        "aligned-payload-bytes"
+      ],
+      "streaming_tensor_payloads": true,
+      "versions": [
+        2,
+        3
+      ]
+    }
+  },
+  "go": {
+    "cgo": false,
+    "minimum": "1.26"
+  },
+  "hardening": {
+    "fuzz_smoke_script": "scripts/fuzz-smoke.ps1",
+    "fuzz_targets": [
+      "gguf-parser",
+      "tokenizer-encode-decode",
+      "gbnf-compiler",
+      "json-schema-converter",
+      "sampler-state",
+      "cache-state",
+      "session-state",
+      "server-json"
+    ],
+    "race_detector": {
+      "reason": "standard-go-race-detector-requires-cgo",
+      "status": "blocked"
+    },
+    "sbom": {
+      "artifact": "SBOM.cdx.json",
+      "ci_verified": true,
+      "deterministic": true,
+      "format": "CycloneDX-1.6",
+      "kernel_manifest": {
+        "abi_version": 14,
+        "cache_invalidation": "embedded-ptx-content-hash",
+        "runtime_validation": "fail-closed-before-module-load",
+        "schema": 2,
+        "verifies": [
+          "source-and-asset-sha256",
+          "complete-entry-set",
+          "ordered-parameter-layouts",
+          "launch-and-shared-memory-conventions"
+        ]
+      },
+      "kernel_sha256": true,
+      "license_inventory": "LICENSES.md",
+      "project_license": "NOASSERTION"
+    }
+  },
+  "host": {
+    "arch": "amd64",
+    "os": "windows"
+  },
+  "models": {
+    "afmoe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "mup-square-root-embedding-scale",
+        "dual-pre-and-post-rmsnorm",
+        "qk-rmsnorm",
+        "per-element-sigmoid-attention-gate",
+        "periodic-no-rope-layers",
+        "interleaved-sliding-attention",
+        "optional-leading-dense-swiglu-blocks",
+        "sigmoid-top-k-routing-with-selection-correction-bias",
+        "optional-selected-weight-normalization",
+        "optional-shared-experts",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "apertus": {
+      "features": [
+        "rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "optional-projection-biases",
+        "per-head-qk-rmsnorm",
+        "full-neox-rope",
+        "ordinary-or-longrope-factors",
+        "metadata-attention-scale",
+        "scalar-or-per-layer-xielu",
+        "ungated-xielu-ffn",
+        "untied-output-projection"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "arcee": {
+      "features": [
+        "rmsnorm",
+        "normal-rope",
+        "optional-per-pair-rope-factors",
+        "metadata-attention-scale",
+        "sequential-squared-relu",
+        "optional-tied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "arctic": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "pre-rmsnorm",
+        "normal-rope",
+        "parallel-dense-and-moe-ffn",
+        "embedding-width-dense-swiglu",
+        "separately-normalized-packed-swiglu-experts",
+        "normalized-softmax-top-k-routing",
+        "routed-weight-scaling",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "arwkv7": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "rms-pre-normalization",
+        "single-cached-token-shift",
+        "vector-decay-wkv7-recurrence",
+        "learned-in-context-rate",
+        "cross-layer-first-value-residual",
+        "normalized-and-corrected-keys",
+        "per-head-output-correction",
+        "optional-time-gate-and-group-normalization",
+        "sequential-swiglu",
+        "serializable-recurrent-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "baichuan": {
+      "features": [
+        "rmsnorm",
+        "variant-selected-normal-rope-or-alibi",
+        "swiglu",
+        "untied-output-projection"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "variants": [
+        "7b-32-layer",
+        "13b-40-layer"
+      ]
+    },
+    "bailingmoe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "pre-rmsnorm",
+        "normal-rope",
+        "softmax-top-k-routing",
+        "optional-selected-weight-normalization",
+        "routed-weight-scaling",
+        "packed-swiglu-experts",
+        "always-on-shared-experts",
+        "serializable-prefix-editable-kv-cache",
+        "required-untied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "tokenizers": [
+        "bailingmoe-bpe"
+      ]
+    },
+    "bailingmoe2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "pre-rmsnorm",
+        "fused-qkv-projection",
+        "per-head-qk-rmsnorm",
+        "neox-rope",
+        "leading-dense-swiglu-blocks",
+        "softmax-or-sigmoid-top-k-routing",
+        "optional-selection-correction-bias",
+        "optional-selected-weight-normalization",
+        "routed-weight-scaling",
+        "packed-swiglu-experts",
+        "configurable-always-on-shared-experts",
+        "executable-nextn-mtp-layer",
+        "stateful-greedy-nextn-draft-and-verification",
+        "serializable-prefix-editable-kv-cache",
+        "required-untied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "tokenizers": [
+        "bailingmoe-bpe"
+      ]
+    },
+    "bert": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "learned-absolute-position-embeddings",
+        "optional-token-type-embeddings",
+        "affine-embedding-layernorm",
+        "bidirectional-fused-or-separate-qkv-attention",
+        "post-attention-and-ffn-layernorm",
+        "gelu-ffn",
+        "hidden-state-encoder-output"
+      ],
+      "limitations": [
+        "classifier-and-pooler-outside-hidden-state-boundary",
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "bitnet": {
+      "features": [
+        "rmsnorm",
+        "attention-and-ffn-sub-layer-rmsnorm",
+        "optional-scalar-projection-scales",
+        "neox-rope",
+        "swiglu",
+        "tied-output",
+        "ternary-weight-decoding"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "bloom": {
+      "features": [
+        "affine-token-embedding-layernorm",
+        "affine-block-and-output-layernorm",
+        "required-contiguous-fused-qkv",
+        "llama-cpp-compatible-alibi",
+        "sequential-gelu",
+        "required-projection-biases",
+        "tied-or-untied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "chameleon": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-linear-weights"
+      ],
+      "features": [
+        "per-head-affine-qk-layernorm",
+        "standard-or-sandwich-rmsnorm",
+        "normal-rope",
+        "projected-soft-token-overrides",
+        "text-output-image-code-suppression",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "limitations": [
+        "vision-projector-absent-from-pinned-upstream",
+        "image-token-generation-absent-from-pinned-upstream",
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential",
+        "image-logit-suppression"
+      ]
+    },
+    "chatglm": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "normal-rope",
+        "fused-width-swiglu",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "codeshell": {
+      "features": [
+        "affine-layernorm",
+        "neox-rope",
+        "sequential-gelu",
+        "projection-biases",
+        "output-as-embedding-fallback",
+        "untied-output-projection"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "cogvlm": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "token-input-decoder",
+        "required-contiguous-fused-qkv",
+        "normal-rope-with-optional-factors",
+        "rmsnorm",
+        "swiglu",
+        "strict-parallel-visual-expert-catalog",
+        "fixed-size-bicubic-image-projector",
+        "post-norm-vision-transformer",
+        "gated-boi-eoi-vision-adapter",
+        "mixed-text-and-visual-expert-prompt-routing",
+        "native-cogvlm-question-answer-prompt",
+        "ordered-multi-image-soft-token-merge",
+        "optional-cuda-projector-execution",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "cohere2": {
+      "constraints": [
+        "dense"
+      ],
+      "features": [
+        "weight-only-layernorm",
+        "parallel-attention-ffn-residual",
+        "partial-normal-rope-on-sliding-layers",
+        "periodic-full-attention-without-rope",
+        "direct-logit-scale",
+        "swiglu",
+        "tied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "cohere2moe": {
+      "constraints": [
+        "single-nextn-mtp-block"
+      ],
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "rmsnorm-or-weight-only-layernorm",
+        "parallel-attention-ffn-residual",
+        "leading-dense-swiglu-blocks",
+        "scalar-or-per-layer-sliding-window-pattern",
+        "dense-prefix-and-sliding-layer-normal-rope",
+        "periodic-full-attention-without-rope",
+        "normalized-or-unnormalized-sigmoid-top-k-routing",
+        "separate-or-fused-gate-up-swiglu-experts",
+        "optional-shared-experts-with-half-averaging",
+        "direct-logit-scale",
+        "optional-tied-output",
+        "combined-trunk-or-mtp-sidecar",
+        "full-attention-rope-nextn-mtp",
+        "private-or-shared-mtp-embedding-norm-and-head",
+        "greedy-or-sampled-speculative-verification",
+        "transactional-sampler-state",
+        "serializable-model-bound-mtp-state",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "command-r": {
+      "features": [
+        "weight-only-layernorm",
+        "parallel-attention-ffn-residual",
+        "normal-rope",
+        "optional-direct-logit-scale",
+        "per-head-qk-layernorm-on-64-layer-variants",
+        "swiglu",
+        "tied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "dbrx": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "weight-only-layernorm",
+        "required-contiguous-fused-qkv",
+        "symmetric-qkv-clamp",
+        "neox-rope",
+        "normalized-softmax-top-k-routing",
+        "packed-swiglu-experts",
+        "required-untied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "tokenizers": [
+        "dbrx-bpe"
+      ]
+    },
+    "deci": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "per-layer-query-kv-and-feed-forward-schedules",
+        "full-attention-layers",
+        "projection-only-linear-attention-layers",
+        "attention-free-layers",
+        "zero-width-dummy-layers",
+        "contiguous-fused-or-separate-qkv",
+        "optional-projection-and-mlp-biases",
+        "normal-or-longrope-factors",
+        "swiglu",
+        "optional-tied-output",
+        "compact-serializable-sentinel-cache-for-non-kv-layers",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "deepseek": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "optional-leading-dense-swiglu",
+        "unnormalized-softmax-topk-routing",
+        "routed-weight-scaling",
+        "shared-swiglu-expert",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "tokenizers": [
+        "deepseek-llm-bpe"
+      ],
+      "validation": [
+        "pinned-46-case-tokenizer-oracle",
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "deepseek2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "direct-or-lora-query",
+        "compressed-kv-rmsnorm",
+        "legacy-decompressed-mla",
+        "absorbed-mla",
+        "grouped-per-head-k-and-v-projections",
+        "normal-yarn-rope",
+        "yarn-derived-attention-scale",
+        "optional-position-temperature",
+        "dense-leading-swiglu",
+        "dense-only-variant",
+        "softmax-or-sigmoid-routed-experts",
+        "optional-selection-correction-bias",
+        "fused-or-separate-expert-gate-up",
+        "shared-swiglu-expert",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "deepseek2-ocr": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "separate-qkv",
+        "neox-rope",
+        "dense-leading-swiglu",
+        "softmax-or-sigmoid-routed-experts",
+        "optional-selection-correction-bias",
+        "fused-or-separate-expert-gate-up",
+        "shared-swiglu-expert",
+        "projected-embedding-overrides",
+        "serializable-prefix-editable-kv-cache",
+        "deepseekocr-dynamic-image-projector",
+        "pillow-bicubic-local-grid-and-overview",
+        "sam-window-and-global-relative-attention",
+        "clip-quickgelu-vision-transformer",
+        "row-newline-and-view-separator-assembly",
+        "deepseekocr2-gqa-qwen2-resampler",
+        "bidirectional-image-and-causal-query-mask",
+        "independent-local-tile-streams",
+        "ordered-multi-image-soft-token-merge",
+        "native-image-history-prompts",
+        "optional-cuda-projector-execution"
+      ],
+      "limitations": [
+        "real-model-validation-pending-fixture"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "deepseek32": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "required-query-lora",
+        "compressed-kv-rmsnorm",
+        "absorbed-mla",
+        "normal-yarn-main-attention",
+        "per-layer-lightning-indexer",
+        "affine-indexer-key-layernorm-1e-6",
+        "neox-yarn-indexer-rope",
+        "fwht-indexer-mixing",
+        "relu-weighted-history-scoring",
+        "top-k-sparse-causal-attention",
+        "per-layer-serializable-indexer-key-cache",
+        "dense-leading-swiglu",
+        "softmax-or-sigmoid-routed-experts",
+        "optional-selection-correction-bias",
+        "fused-or-separate-expert-gate-up",
+        "shared-swiglu-expert",
+        "tied-or-untied-output",
+        "executable-nextn-mtp-layer",
+        "stateful-indexer-cache-for-nextn-drafting",
+        "stateful-greedy-nextn-draft-and-verification",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "deepseek4": {
+      "execution": [
+        "bounded-host-hyper-connections-and-compressed-attention",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "four-stream-sinkhorn-hyper-connections",
+        "grouped-attention-output-lora",
+        "attention-sinks",
+        "raw-sliding-window-cache",
+        "ratio-4-overlap-compression",
+        "ratio-128-compression",
+        "compressor-gate-ape-and-rmsnorm-state",
+        "lightning-indexer-fwht-top-k-selection",
+        "hash-derived-early-layer-expert-selection",
+        "sqrt-softplus-routed-swiglu-experts",
+        "per-layer-routed-and-shared-swiglu-clamps",
+        "native-mxfp4-expert-storage",
+        "serializable-compressor-and-kv-cache",
+        "explicit-gapped-cache-positions"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "dflash": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-linear-weights"
+      ],
+      "features": [
+        "strict-target-layer-metadata-and-catalog",
+        "full-sequence-target-layer-input-extraction",
+        "single-pass-cached-target-layer-input-capture",
+        "target-feature-fusion",
+        "committed-kv-cache-injection",
+        "incremental-committed-feature-injection",
+        "neox-rope-qk-normalization",
+        "cache-aware-non-causal-noise-block-attention",
+        "interleaved-sliding-window-patterns",
+        "paired-target-embedding-and-output-projection",
+        "prefix-resynchronization",
+        "greedy-block-proposal-and-target-verification",
+        "sampled-ratio-verification-and-sampler-rollback",
+        "accepted-prefix-target-and-draft-cache-advancement"
+      ],
+      "limitations": [
+        "explicit-prefix-sync-recomputes-target-prefix",
+        "real-model-pair-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-feature-injection-noise-pipeline",
+        "full-cuda-pipeline-differential",
+        "env-gated-cached-layer-input-differential",
+        "env-gated-real-pair-coordinator"
+      ]
+    },
+    "dots1": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "per-head-qk-rmsnorm",
+        "neox-rope",
+        "optional-leading-dense-swiglu-blocks",
+        "softmax-or-sigmoid-top-k-routing",
+        "optional-selection-correction-bias",
+        "optional-selected-weight-normalization",
+        "routed-weight-scaling",
+        "packed-swiglu-experts",
+        "required-shared-swiglu-experts",
+        "required-untied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "dream": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quant"
+      ],
+      "features": [
+        "non-causal-full-sequence-attention",
+        "no-kv-cache",
+        "neox-rope",
+        "rmsnorm",
+        "swiglu",
+        "all-position-hidden-states",
+        "all-position-logits",
+        "optional-output-bias",
+        "iterative-mask-transfer",
+        "timestep-and-block-schedules",
+        "five-ranking-algorithms",
+        "classifier-free-guidance",
+        "shifted-logit-metadata",
+        "optional-gumbel-transform",
+        "diffusion-cli"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "eagle3": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-linear-weights"
+      ],
+      "features": [
+        "exactly-three-target-layer-inputs",
+        "single-pass-cached-target-layer-input-capture",
+        "target-hidden-to-draft-feature-fusion",
+        "shifted-token-feature-cache-construction",
+        "dual-rmsnorm-concatenated-attention-input",
+        "optional-normal-rope-factors",
+        "configurable-normalized-feature-residual",
+        "draft-or-target-token-embedding",
+        "draft-or-target-output-projection",
+        "draft-to-target-vocabulary-remapping",
+        "autoregressive-pre-norm-feature-carry",
+        "bounded-greedy-draft-and-target-verification",
+        "transactional-sampled-speculative-verification",
+        "accepted-prefix-target-cache-advancement",
+        "committed-target-feature-resynchronization",
+        "incremental-target-feature-resynchronization",
+        "sampler-checkpoint-rollback-and-commit"
+      ],
+      "limitations": [
+        "real-model-pair-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-feature-and-decoder-pipeline",
+        "full-cuda-pipeline-differential",
+        "env-gated-cached-layer-input-differential",
+        "env-gated-real-pair-coordinator"
+      ]
+    },
+    "ernie4_5": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "normal-rope",
+        "sequential-attention-and-swiglu-residuals",
+        "ignored-catalog-only-attention-output-bias",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "ernie4_5-moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "normal-rope",
+        "leading-and-interleaved-dense-swiglu-layers",
+        "normalized-softmax-top-k-routing",
+        "optional-selection-correction-bias",
+        "optional-gated-or-ungated-silu-experts",
+        "routed-weight-scaling",
+        "optional-shared-swiglu-expert",
+        "ignored-catalog-only-attention-output-bias",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "eurobert": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "bidirectional-attention",
+        "fused-or-separate-qkv",
+        "neox-rope",
+        "rmsnorm",
+        "swiglu",
+        "hidden-state-encoder-output"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "exaone": {
+      "features": [
+        "optional-tied-output",
+        "neox-rope",
+        "optional-per-pair-rope-factors",
+        "swiglu"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "exaone-moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "pre-rmsnorm",
+        "per-head-qk-rmsnorm",
+        "scalar-or-per-layer-sliding-pattern",
+        "local-layer-only-neox-rope",
+        "leading-dense-swiglu-blocks",
+        "softmax-or-sigmoid-top-k-routing",
+        "optional-selection-correction-bias",
+        "optional-selected-weight-normalization",
+        "routed-weight-scaling",
+        "packed-swiglu-experts",
+        "always-on-shared-expert",
+        "executable-dense-nextn-mtp-decoder",
+        "stateful-nextn-greedy-draft-and-verification",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "exaone4": {
+      "features": [
+        "post-only-attention-and-ffn-rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "optional-qkv-bias",
+        "per-head-qk-rmsnorm",
+        "neox-rope",
+        "optional-per-pair-rope-factors",
+        "periodic-sliding-attention",
+        "periodic-full-attention-without-rope",
+        "swiglu",
+        "tied-or-untied-output",
+        "executable-nextn-mtp-decoder",
+        "stateful-nextn-greedy-draft-and-verification"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "falcon": {
+      "features": [
+        "affine-layernorm",
+        "required-contiguous-fused-qkv",
+        "full-neox-rope",
+        "parallel-gelu-ffn",
+        "optional-second-attention-layernorm",
+        "tied-or-untied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "falcon-h1": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-linear-weights",
+        "retained-device-cache"
+      ],
+      "features": [
+        "parallel-neox-rope-gqa-and-mamba2",
+        "separate-or-fused-qkv",
+        "optional-attention-ssm-and-ffn-biases",
+        "optional-ssm-grouped-rmsnorm",
+        "parallel-swiglu",
+        "named-convolution-and-ssm-state",
+        "serializable-prefix-editable-cache"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "cache-topology-and-editing",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "gemma": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quant"
+      ],
+      "features": [
+        "tied-output-embedding",
+        "embedding-and-query-scaling",
+        "neox-rope",
+        "geglu"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "gemma-embedding": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quant"
+      ],
+      "features": [
+        "encoder-only-hidden-states",
+        "square-root-embedding-scale",
+        "fused-or-separate-qkv-with-optional-bias",
+        "per-head-qk-rmsnorm",
+        "neox-rope",
+        "periodic-full-attention",
+        "symmetric-sliding-attention",
+        "post-attention-and-ffn-rmsnorm",
+        "parallel-geglu",
+        "optional-post-pooling-dense-2-dense-3"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "gemma2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quant"
+      ],
+      "features": [
+        "alternating-sliding-attention",
+        "attention-logit-softcapping",
+        "final-logit-softcapping",
+        "neox-rope",
+        "geglu",
+        "post-attention-and-ffn-norms"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "gemma3": {
+      "features": [
+        "strict-48-layer-catalog",
+        "scaled-local-global-rope",
+        "sliding-attention",
+        "geglu",
+        "post-attention-and-ffn-norms"
+      ],
+      "status": "experimental",
+      "types": [
+        "IQ4_XS",
+        "Q6_K"
+      ],
+      "validated_fixture": "gemma-3-12b-it-IQ4_XS.gguf",
+      "validation": [
+        "perplexity-relative-delta-below-0.5-percent",
+        "greedy-token-id-exact"
+      ]
+    },
+    "gemma3n": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-linear-weights"
+      ],
+      "features": [
+        "four-stream-altup-prediction-and-correction",
+        "magnitude-matched-altup-projection-and-unembedding",
+        "laurel-low-rank-residual",
+        "gaussian-activation-sparsity-first-ten-layers",
+        "projected-per-layer-token-inputs",
+        "first-twenty-layer-kv-production",
+        "sliding-and-global-layer-18-or-19-kv-sharing",
+        "serializable-prefix-editable-kv-cache",
+        "final-logit-softcap",
+        "mobilenetv5-fixed-image-projector",
+        "edge-and-universal-inverted-residual-blocks",
+        "downsampled-mqa-vision-attention",
+        "multi-scale-feature-fusion",
+        "fixed-256-image-soft-tokens",
+        "native-multi-image-history-prompts",
+        "optional-cuda-image-projection"
+      ],
+      "limitations": [
+        "audio-encoder-absent-from-pinned-mtmd-execution",
+        "real-model-validation-pending-fixture"
+      ],
+      "status": "experimental",
+      "tokenizers": [
+        "gemma4-raw-bpe"
+      ],
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "altup-layout-and-formula-tests",
+        "reference-cuda-active-stage-differential",
+        "synthetic-projector-catalog-and-prompt-contract",
+        "reference-cuda-projector-differential",
+        "reference-cuda-conv2d-differential"
+      ]
+    },
+    "gemma4": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "per-layer-full-or-sliding-head-widths",
+        "full-and-sliding-neox-rope",
+        "shared-kv-tail-layers",
+        "absent-value-projection-key-fallback",
+        "attention-and-feed-forward-post-norms",
+        "mixed-dense-and-gelu-moe-layers",
+        "normalized-softmax-top-k-routing",
+        "separate-or-fused-geglu-experts",
+        "per-expert-output-scaling",
+        "dense-shared-expert-branch",
+        "projected-per-layer-token-inputs",
+        "optional-layer-output-scaling",
+        "final-logit-softcap",
+        "serializable-prefix-editable-kv-cache",
+        "encoder-free-image-projector",
+        "ordered-images-first-soft-token-blocks",
+        "per-image-bidirectional-attention-block",
+        "frame-block-video-projection",
+        "encoder-free-audio-projection",
+        "optional-cuda-projector-execution"
+      ],
+      "multimodal_validated_fixture": "gemma-4-12b-it-mmproj-bf16.gguf + gemma4_mm_image.png + gemma4_mm_golden.json",
+      "real_model_validation": "pending-language-model-oracle",
+      "status": "experimental",
+      "tokenizers": [
+        "gemma4-raw-bpe"
+      ]
+    },
+    "gemma4-assistant": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-linear-weights"
+      ],
+      "features": [
+        "paired-gemma4-target-context",
+        "target-token-and-hidden-pre-projection",
+        "final-two-target-layer-kv-sharing",
+        "per-layer-swa-or-global-cache-selection",
+        "fixed-position-autoregressive-drafting",
+        "query-only-rmsnorm-attention",
+        "parallel-geglu-feed-forward",
+        "post-attention-and-ffn-norms",
+        "recurrent-target-width-hidden-projection",
+        "tied-assistant-output-embedding",
+        "bounded-greedy-draft-and-target-verification",
+        "transactional-sampled-speculative-verification",
+        "accepted-prefix-cache-advancement",
+        "target-hidden-state-resynchronization",
+        "sampler-checkpoint-rollback-and-commit",
+        "projected-image-audio-target-prefix"
+      ],
+      "limitations": [
+        "real-model-pair-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-full-pipeline",
+        "full-cuda-pipeline-differential",
+        "env-gated-real-pair-coordinator"
+      ]
+    },
+    "glm-dsa": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "compressed-kv-rmsnorm",
+        "absorbed-mla",
+        "normal-yarn-rope",
+        "metadata-selected-full-indexer-layers",
+        "shared-top-k-indexer-schedule",
+        "affine-indexer-key-layernorm",
+        "fwht-indexer-mixing",
+        "relu-weighted-history-scoring",
+        "top-k-sparse-causal-attention",
+        "serializable-indexer-key-cache",
+        "dense-leading-swiglu",
+        "softmax-or-sigmoid-routed-experts",
+        "optional-selection-correction-bias",
+        "fused-or-separate-expert-gate-up",
+        "shared-swiglu-expert",
+        "executable-nextn-mtp-layer",
+        "trunk-top-k-handoff-for-shared-indexer-mtp",
+        "stateful-greedy-nextn-draft-and-verification",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "glm4": {
+      "features": [
+        "pre-and-post-rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "optional-qkv-bias",
+        "partial-normal-or-four-axis-mrope",
+        "caller-supplied-four-axis-positions",
+        "projected-embedding-overrides",
+        "fused-gate-up-swiglu",
+        "tied-or-untied-output",
+        "executable-nextn-mtp-decoder",
+        "stateful-nextn-greedy-draft-and-verification"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "glm4moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "leading-dense-swiglu-blocks",
+        "fused-or-separate-qkv-with-optional-bias",
+        "optional-per-head-qk-rmsnorm",
+        "normal-or-four-axis-mrope",
+        "caller-supplied-four-axis-positions",
+        "projected-embedding-overrides",
+        "post-residual-rmsnorm",
+        "sigmoid-or-softmax-top-k-routing",
+        "selection-correction-bias",
+        "optional-selected-weight-normalization",
+        "packed-swiglu-experts",
+        "shared-expert",
+        "executable-nextn-mtp-layer",
+        "stateful-greedy-nextn-draft-and-verification",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "gpt-oss": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts",
+        "retained-device-cache"
+      ],
+      "features": [
+        "separate-qkv",
+        "normal-rope",
+        "alternating-standard-sliding-and-full-attention",
+        "attention-sinks",
+        "biased-attention-output",
+        "residual-post-attention-rmsnorm",
+        "selected-expert-softmax-routing",
+        "biased-openai-swiglu-experts",
+        "mxfp4-native-expert-storage",
+        "untied-output-projection",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "tokenizers": [
+        "gpt4o-bpe"
+      ]
+    },
+    "gpt2": {
+      "features": [
+        "learned-absolute-position-embeddings",
+        "affine-layernorm",
+        "required-contiguous-fused-qkv",
+        "sequential-gelu",
+        "required-projection-biases",
+        "tied-or-untied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "gptj": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights",
+        "retained-device-cache"
+      ],
+      "features": [
+        "affine-layernorm",
+        "separate-qkv",
+        "partial-normal-rope",
+        "shared-pre-attention-layernorm",
+        "parallel-attention-and-gelu-new-ffn",
+        "required-ffn-biases",
+        "required-untied-output-and-bias",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "tokenizers": [
+        "gpt2-bpe"
+      ]
+    },
+    "gptneox": {
+      "features": [
+        "affine-layernorm",
+        "required-contiguous-fused-qkv",
+        "required-projection-biases",
+        "partial-neox-rope",
+        "metadata-selected-parallel-or-sequential-residual",
+        "gelu-ffn",
+        "untied-output-projection"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "granite": {
+      "features": [
+        "embedding-scale",
+        "residual-branch-scale",
+        "metadata-attention-scale",
+        "inverse-logit-scale",
+        "optional-no-rope",
+        "normal-rope",
+        "swiglu",
+        "tied-output",
+        "optional-projection-biases",
+        "optional-normalized-softmax-top-k-moe",
+        "optional-gated-or-ungated-experts",
+        "optional-shared-swiglu-expert",
+        "projected-base-embedding-overrides",
+        "mapped-projector-deepstack-injection",
+        "zero-filled-token-deepstack",
+        "granite4-vision-projector",
+        "pillow-bicubic-aspect-fit-padding",
+        "overview-first-uhd-grid-tiles",
+        "learned-position-siglip-vision-transformer",
+        "window-qformer-self-and-cross-attention",
+        "spatial-offset-or-average-pool-downsampling",
+        "base-and-deepstack-projector-streams",
+        "ordered-multi-image-soft-token-merge",
+        "native-image-marker-and-slot-tokens",
+        "optional-cuda-projector-execution"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "variants": [
+        "dense-text-only",
+        "same-architecture-moe-text-only",
+        "vision-deepstack-decoder"
+      ]
+    },
+    "granitehybrid": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "metadata-selected-attention-and-mamba2-layers",
+        "optional-normal-rope",
+        "metadata-attention-scale",
+        "optional-convolution-and-projection-biases",
+        "grouped-mamba2-selective-scan",
+        "embedding-and-residual-branch-scales",
+        "dense-or-softmax-routed-moe-swiglu",
+        "optional-ungated-and-shared-experts",
+        "inverse-logit-scale",
+        "serializable-hybrid-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "granitemoe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "embedding-residual-attention-and-inverse-logit-scales",
+        "optional-no-rope-or-longrope",
+        "normalized-softmax-topk-routing",
+        "gated-swiglu-or-ungated-silu-experts",
+        "optional-shared-swiglu-expert",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "grok": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "rmsnorm-with-attention-and-ffn-postnorms",
+        "contiguous-fused-or-separate-qkv",
+        "neox-or-yarn-rope",
+        "metadata-attention-scale-and-softcap",
+        "normalized-softmax-top-k-routing",
+        "packed-gelu-or-geglu-experts",
+        "optional-dense-geglu-blend",
+        "metadata-embedding-and-direct-logit-scales",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "grovemoe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "separate-qkv",
+        "per-head-qk-rmsnorm",
+        "neox-rope",
+        "normalized-softmax-top-k-routing",
+        "packed-swiglu-experts",
+        "shared-router-logits",
+        "grouped-chunk-expert-bank",
+        "chunk-expert-scaling",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "hunyuan-dense": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "xdrope-adjusted-normal-or-four-axis-mrope",
+        "caller-supplied-four-axis-positions",
+        "projected-embedding-overrides",
+        "post-rope-qk-rmsnorm",
+        "swiglu",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "hunyuan-moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "post-rope-qk-rmsnorm",
+        "normalized-softmax-top-k-routing",
+        "packed-swiglu-experts",
+        "required-shared-swiglu-expert",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "hunyuan_vl": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "text-coordinate-decoder",
+        "contiguous-fused-or-separate-qkv",
+        "xdrope-adjusted-normal-or-four-axis-mrope",
+        "caller-supplied-four-axis-positions",
+        "post-rope-qk-rmsnorm",
+        "swiglu",
+        "optional-tied-output",
+        "projected-embedding-overrides",
+        "serializable-prefix-editable-kv-cache",
+        "hunyuanvl-dynamic-image-projector",
+        "pillow-bicubic-aligned-image-resize",
+        "interpolated-learned-vision-positions",
+        "fused-or-separate-vision-qkv-with-optional-bias",
+        "rmsnorm-convolutional-vision-merger",
+        "row-newline-image-prefix",
+        "ordered-multi-image-soft-token-merge",
+        "per-image-four-axis-grid",
+        "optional-cuda-projector-execution"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "hy_v3": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "fused-or-separate-qkv",
+        "per-head-qk-rmsnorm",
+        "neox-rope",
+        "leading-dense-swiglu-blocks",
+        "sigmoid-or-softmax-top-k-routing",
+        "optional-selection-correction-bias",
+        "optional-selected-weight-normalization",
+        "fused-or-separate-swiglu-experts",
+        "always-on-shared-expert",
+        "multi-head-full-decoder-nextn-mtp",
+        "post-output-norm-target-and-draft-hidden-state",
+        "per-head-growing-prefix-kv-cache",
+        "shared-or-private-mtp-embedding-norm-head",
+        "greedy-speculative-accept-rollback",
+        "probability-ratio-speculative-acceptance",
+        "positive-residual-correction",
+        "transactional-draft-target-sampler-state",
+        "model-bound-multi-head-mtp-session-state",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "internlm2": {
+      "features": [
+        "untied-output-projection",
+        "normal-rope",
+        "swiglu"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "jais": {
+      "features": [
+        "affine-layernorm",
+        "required-biased-fused-qkv",
+        "optional-alibi",
+        "inverse-head-width-attention-scale",
+        "biased-parallel-swiglu",
+        "required-untied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "jais2": {
+      "constraints": [
+        "matching-query-and-kv-head-counts"
+      ],
+      "features": [
+        "affine-layernorm",
+        "neox-rope",
+        "sequential-squared-relu",
+        "required-projection-biases",
+        "optional-tied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "jamba": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "metadata-selected-attention-and-mamba-layers",
+        "no-rope-grouped-query-attention",
+        "learned-dt-b-c-rmsnorm",
+        "mamba-v1-selective-scan",
+        "dense-swiglu-or-softmax-routed-moe",
+        "non-renormalized-selected-expert-weights",
+        "serializable-hybrid-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "jina-bert-v2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "bidirectional-alibi-attention",
+        "optional-fused-qkv",
+        "affine-qk-layernorm",
+        "optional-secondary-attention-residual-norm",
+        "gelu-or-geglu-ffn",
+        "hidden-state-encoder-output"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "jina-bert-v3": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "bidirectional-neox-rope-attention",
+        "optional-fused-qkv",
+        "affine-embedding-and-post-norms",
+        "dense-gelu-ffn",
+        "gate-free-softmax-topk-gelu-experts",
+        "hidden-state-encoder-output"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-dense-and-moe-catalogs",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "kimi-linear": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-linear-weights",
+        "retained-device-cache"
+      ],
+      "features": [
+        "metadata-selected-kda-and-mla-layers",
+        "no-rope-absorbed-mla",
+        "gated-delta-recurrent-attention",
+        "convolution-and-matrix-state-cache",
+        "dense-leading-swiglu",
+        "routed-and-shared-experts",
+        "serializable-prefix-editable-cache"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "cache-topology-and-editing",
+        "reference-cuda-kda-and-mla-differentials"
+      ]
+    },
+    "laguna": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "per-layer-query-and-kv-head-counts",
+        "qk-rmsnorm",
+        "full-attention-neox-yarn",
+        "periodic-sliding-attention-with-plain-rope",
+        "per-head-or-per-element-softplus-attention-gate",
+        "leading-dense-swiglu-blocks",
+        "sigmoid-top-k-routing-with-selection-correction-bias",
+        "optional-selected-weight-normalization",
+        "always-on-shared-expert",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "lfm2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-projections"
+      ],
+      "features": [
+        "per-layer-attention-convolution-schedule",
+        "qk-rmsnorm-attention",
+        "optional-sliding-attention",
+        "gated-channel-wise-short-convolution",
+        "centered-non-causal-short-convolution",
+        "asymmetric-even-kernel-centered-convolution",
+        "quantized-short-convolution-kernel-f32-promotion",
+        "serializable-hybrid-cache",
+        "swiglu"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "lfm2moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-projections",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "per-layer-attention-convolution-schedule",
+        "qk-rmsnorm-attention",
+        "optional-sliding-attention",
+        "gated-channel-wise-short-convolution",
+        "centered-non-causal-short-convolution",
+        "asymmetric-even-kernel-centered-convolution",
+        "quantized-short-convolution-kernel-f32-promotion",
+        "optional-leading-dense-swiglu-blocks",
+        "softmax-or-sigmoid-top-k-routing",
+        "required-selection-correction-bias",
+        "selected-weight-normalization",
+        "routed-weight-scaling",
+        "packed-swiglu-experts",
+        "serializable-hybrid-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "llada": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quant"
+      ],
+      "features": [
+        "non-causal-full-sequence-attention",
+        "no-kv-cache",
+        "normal-rope",
+        "rmsnorm",
+        "swiglu",
+        "all-position-hidden-states-and-logits",
+        "optional-tied-output",
+        "iterative-mask-transfer",
+        "timestep-and-block-schedules",
+        "five-ranking-algorithms",
+        "classifier-free-guidance",
+        "shifted-logit-metadata",
+        "optional-gumbel-transform",
+        "diffusion-cli"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "llada-moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "non-causal-full-sequence-attention",
+        "no-kv-cache",
+        "qk-rmsnorm",
+        "neox-rope",
+        "unnormalized-softmax-top-k-moe",
+        "all-position-hidden-states-and-logits",
+        "required-untied-output",
+        "iterative-mask-transfer",
+        "timestep-and-block-schedules",
+        "five-ranking-algorithms",
+        "classifier-free-guidance",
+        "shifted-logit-metadata",
+        "optional-gumbel-transform",
+        "diffusion-cli"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "llama": {
+      "constraints": [
+        "optional-projection-biases",
+        "ordinary-or-linear-rope",
+        "optional-per-pair-rope-factors",
+        "no-longrope-or-yarn-factor-selection"
+      ],
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "mixtral-normalized-softmax-top-k-routing",
+        "mixtral-packed-swiglu-experts",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "tokenizers": [
+        "llama-spm",
+        "llama3-bpe"
+      ],
+      "types": [
+        "F16",
+        "Q8_0",
+        "Q8_1",
+        "Q8_K"
+      ],
+      "variants": [
+        "dense",
+        "mixtral-moe"
+      ]
+    },
+    "llama-embed": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-linear-weights"
+      ],
+      "features": [
+        "dense-or-mixtral-style-catalog",
+        "bidirectional-normal-rope-attention",
+        "dense-or-routed-swiglu",
+        "final-rmsnorm-hidden-state-output",
+        "explicit-vocabulary-logit-rejection"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-dense-and-moe-catalogs",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "llama4": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts",
+        "retained-device-cache"
+      ],
+      "features": [
+        "separate-qkv",
+        "normal-rope",
+        "post-rope-unweighted-qk-rmsnorm",
+        "chunk-aligned-causal-attention",
+        "position-dependent-full-attention-temperature",
+        "interleaved-dense-and-moe-layers",
+        "unnormalized-sigmoid-top-k-routing",
+        "packed-swiglu-experts",
+        "dense-shared-expert-branch",
+        "serializable-prefix-editable-kv-cache",
+        "llama4-uhd-image-projector",
+        "refined-grid-then-overview-tiles",
+        "bicubic-aspect-fit-padding",
+        "class-and-learned-position-vision-input",
+        "two-axis-vision-rope",
+        "fused-or-separate-vision-qkv-with-optional-bias",
+        "pixel-shuffle-vision-adapter",
+        "ordered-multi-image-soft-token-merge",
+        "native-image-boundary-and-slot-tokens",
+        "optional-cuda-projector-execution"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "tokenizers": [
+        "gpt4o-bpe",
+        "llama4-pre-tokenizer"
+      ]
+    },
+    "maincoder": {
+      "features": [
+        "normal-rope",
+        "post-rope-qk-rmsnorm",
+        "swiglu",
+        "tied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "mamba": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "pure-recurrent-no-attention",
+        "rms-pre-normalization",
+        "split-input-and-gate-projection",
+        "cached-channel-ssm-convolution-with-bias",
+        "mamba-v1-selective-scan",
+        "optional-falconmamba-dt-b-c-rmsnorm",
+        "diagonal-d-residual-skip",
+        "silu-z-gate",
+        "serializable-recurrent-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "mamba2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "pure-recurrent-no-attention",
+        "rms-pre-normalization",
+        "expanded-z-x-b-c-dt-projection",
+        "grouped-b-c-channel-convolution",
+        "scalar-per-head-a-and-d",
+        "grouped-mamba2-selective-scan",
+        "silu-z-gate",
+        "grouped-learned-output-rmsnorm",
+        "serializable-recurrent-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "mellum": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "rmsnorm",
+        "separate-qkv",
+        "per-head-qk-rmsnorm",
+        "neox-linear-or-yarn-rope",
+        "scalar-or-per-layer-sliding-window-pattern",
+        "unscaled-rope-on-sliding-layers",
+        "normalized-softmax-top-k-routing",
+        "packed-swiglu-experts",
+        "required-untied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "mimo2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "fused-or-separate-qkv",
+        "per-layer-kv-head-counts",
+        "per-layer-sliding-or-full-attention",
+        "per-head-attention-sink-logits",
+        "neox-partial-rope",
+        "swa-specific-rope-base",
+        "post-projection-attention-value-scale",
+        "mixed-dense-and-sigmoid-moe-layers",
+        "selection-correction-bias",
+        "normalized-selected-expert-weights",
+        "packed-swiglu-experts",
+        "executable-nextn-mtp-layer",
+        "stateful-greedy-nextn-draft-and-verification",
+        "serializable-prefix-editable-kv-cache",
+        "mimovl-dynamic-image-projector",
+        "temporal-pair-convolutional-patch-embedding",
+        "grouped-query-vision-attention",
+        "row-and-column-symmetric-window-attention",
+        "per-head-vision-attention-sinks",
+        "two-axis-vision-rope",
+        "swiglu-vision-feed-forward",
+        "two-by-two-gelu-merger",
+        "native-mimo-image-prompt",
+        "ordered-multi-image-soft-token-merge",
+        "optional-cuda-projector-execution"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "minicpm": {
+      "features": [
+        "embedding-scale",
+        "residual-branch-scale",
+        "inverse-logit-scale",
+        "normal-rope",
+        "context-selected-longrope-factors",
+        "normal-yarn-rope",
+        "swiglu",
+        "tied-output",
+        "optional-projection-biases"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "minicpm3": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "embedding-scale",
+        "residual-branch-scale",
+        "inverse-logit-scale",
+        "mla-query-lora-a-norm-b",
+        "compressed-kv-rmsnorm",
+        "shared-positional-key",
+        "partial-neox-rope",
+        "optional-longrope-factors",
+        "swiglu",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "minimax-m2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "full-projection-qk-rmsnorm",
+        "partial-neox-rope",
+        "softmax-or-sigmoid-top-k-routing",
+        "required-selection-correction-bias",
+        "selected-weight-normalization",
+        "routed-weight-scaling",
+        "packed-swiglu-experts",
+        "required-untied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "mistral3": {
+      "features": [
+        "normal-rope",
+        "context-selected-longrope-factors",
+        "normal-yarn-rope",
+        "yarn-log-multiplier-correction",
+        "metadata-attention-scale",
+        "position-dependent-query-temperature",
+        "swiglu",
+        "normalized-softmax-top-k-routing",
+        "packed-swiglu-experts",
+        "native-quantized-experts",
+        "tied-output",
+        "optional-projection-biases"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "variants": [
+        "dense-standard-rope",
+        "dense-linear-rope",
+        "moe-standard-rope",
+        "moe-linear-rope",
+        "moe-longrope",
+        "moe-yarn",
+        "dense-longrope",
+        "dense-yarn"
+      ]
+    },
+    "mistral4": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "native-mistral4-metadata-namespace",
+        "direct-or-lora-query",
+        "compressed-kv-rmsnorm",
+        "legacy-decompressed-mla",
+        "absorbed-mla",
+        "grouped-per-head-k-and-v-projections",
+        "normal-yarn-rope",
+        "yarn-derived-attention-scale",
+        "optional-position-temperature",
+        "dense-leading-swiglu",
+        "dense-only-variant",
+        "softmax-or-sigmoid-routed-experts",
+        "optional-selection-correction-bias",
+        "fused-or-separate-expert-gate-up",
+        "shared-swiglu-expert",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental",
+      "upstream_graph": "deepseek2-inherited"
+    },
+    "modern-bert": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "affine-embedding-layernorm",
+        "fused-qkv",
+        "bidirectional-neox-rope-attention",
+        "periodic-symmetric-local-attention",
+        "geglu-swiglu-or-reglu",
+        "hidden-state-encoder-output"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "mpt": {
+      "features": [
+        "optional-learned-absolute-position-embeddings",
+        "optional-bias-affine-layernorm",
+        "required-contiguous-fused-qkv",
+        "fused-qkv-clamping",
+        "optional-full-projection-affine-qk-layernorm",
+        "optional-projection-biases",
+        "optional-llama-cpp-compatible-alibi",
+        "sequential-gelu",
+        "optional-awq-post-gelu-activation-scaling",
+        "tied-or-untied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "nemotron": {
+      "features": [
+        "affine-layernorm",
+        "neox-rope",
+        "sequential-squared-relu",
+        "optional-projection-biases",
+        "untied-output-projection"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "nemotron_h": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "metadata-selected-attention-mamba2-and-ffn-layers",
+        "no-rope-grouped-query-attention",
+        "optional-projection-and-convolution-biases",
+        "grouped-mamba2-selective-scan",
+        "sequential-squared-relu-ffn",
+        "serializable-hybrid-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "nemotron_h_moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "metadata-selected-attention-mamba2-and-moe-layers",
+        "no-rope-grouped-query-attention",
+        "grouped-mamba2-selective-scan",
+        "sigmoid-top-k-squared-relu-experts",
+        "selection-correction-bias",
+        "optional-latent-expert-projections",
+        "shared-squared-relu-expert",
+        "serializable-hybrid-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "neo-bert": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "fused-qkv-bidirectional-attention",
+        "normal-rope",
+        "pre-rmsnorm-residual-blocks",
+        "fused-swiglu",
+        "final-rmsnorm-hidden-state-output"
+      ],
+      "limitations": [
+        "classifier-outside-hidden-state-boundary",
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "nomic-bert": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "optional-fused-qkv",
+        "bidirectional-neox-rope-attention",
+        "affine-embedding-and-post-norms",
+        "gated-swiglu",
+        "hidden-state-encoder-output"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "nomic-bert-moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "alternating-dense-and-expert-cadence",
+        "dense-gelu-blocks",
+        "gate-free-softmax-topk-gelu-experts",
+        "bidirectional-neox-rope-attention",
+        "affine-embedding-and-post-norms",
+        "hidden-state-encoder-output"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "olmo": {
+      "features": [
+        "unweighted-layernorm",
+        "normal-rope",
+        "separate-qkv-clamping",
+        "swiglu",
+        "optional-tied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "olmo2": {
+      "features": [
+        "post-normalized-blocks",
+        "full-projection-qk-rmsnorm",
+        "optional-sliding-attention",
+        "neox-rope",
+        "swiglu"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "olmoe": {
+      "constraints": [
+        "matching-query-and-kv-head-counts"
+      ],
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "full-projection-qk-rmsnorm",
+        "neox-rope",
+        "unnormalized-softmax-top-k-routing",
+        "packed-swiglu-experts",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "openelm": {
+      "features": [
+        "per-layer-query-kv-and-feed-forward-widths",
+        "rmsnorm",
+        "fused-qkv",
+        "per-head-qk-rmsnorm",
+        "neox-rope",
+        "swiglu",
+        "tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "orion": {
+      "features": [
+        "affine-layernorm",
+        "neox-rope",
+        "swiglu",
+        "untied-output-projection"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "paddleocr": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "ernie-4-5-rmsnorm-swiglu-decoder",
+        "contiguous-fused-or-separate-qkv",
+        "adjacent-pair-four-axis-mrope",
+        "caller-supplied-four-axis-positions",
+        "projected-embedding-overrides",
+        "optional-attention-output-bias",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache",
+        "paddleocr-dynamic-image-projector",
+        "bilinear-aligned-image-resize",
+        "fused-or-separate-vision-qkv-with-optional-bias",
+        "raster-vision-mrope",
+        "padded-two-by-two-patch-merge",
+        "ordered-multi-image-soft-token-merge",
+        "compressed-four-axis-image-grid",
+        "optional-cuda-projector-execution"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "pangu-embedded": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-linear-weights"
+      ],
+      "features": [
+        "causal-rmsnorm-swiglu-decoder",
+        "separate-or-fused-qkv",
+        "required-attention-output-bias",
+        "neox-rope",
+        "optional-longrope-factors",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-cuda-block-differential"
+      ]
+    },
+    "phi2": {
+      "features": [
+        "affine-layernorm",
+        "contiguous-fused-or-separate-qkv",
+        "optional-qkv-biases",
+        "partial-neox-rope",
+        "query-pre-scaling",
+        "parallel-gelu-ffn",
+        "required-output-bias",
+        "untied-output-projection"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "phi3": {
+      "constraints": [
+        "dense"
+      ],
+      "features": [
+        "rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "optional-qkv-bias",
+        "query-pre-scaling",
+        "fused-gate-up-swiglu",
+        "longrope-short-long-factor-selection",
+        "tied-or-untied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "phimoe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "affine-rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "optional-qkv-bias",
+        "required-attention-output-bias",
+        "query-pre-scaling",
+        "longrope-short-long-factor-selection",
+        "normalized-softmax-top-k-routing",
+        "packed-swiglu-experts",
+        "required-untied-output-and-bias",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "plamo": {
+      "features": [
+        "rmsnorm",
+        "parallel-attention-ffn-residual",
+        "neox-rope",
+        "grouped-query-attention",
+        "swiglu",
+        "untied-output-projection"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "plamo2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "metadata-selected-attention-and-mamba-layers",
+        "interleaved-per-head-z-x-projection",
+        "learned-b-c-dt-rmsnorm",
+        "grouped-head-selective-scan",
+        "fused-qkv-and-per-head-qk-rmsnorm",
+        "normal-rope",
+        "mixer-and-ffn-postnorms",
+        "fused-gate-up-swiglu",
+        "serializable-hybrid-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "plamo3": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "per-layer-query-kv-and-feed-forward-widths",
+        "rmsnorm",
+        "required-contiguous-fused-qkv",
+        "pre-rope-per-head-qk-rmsnorm",
+        "neox-rope-with-sliding-frequency-base",
+        "scalar-or-per-layer-sliding-window-pattern",
+        "attention-and-ffn-postnorms",
+        "fused-gate-up-swiglu",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "plm": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "rmsnorm",
+        "mla-direct-query",
+        "compressed-kv-rmsnorm",
+        "shared-positional-key",
+        "partial-normal-rope",
+        "squared-relu",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "qwen": {
+      "execution": [
+        "bounded-host",
+        "f32-preload"
+      ],
+      "features": [
+        "rmsnorm",
+        "required-contiguous-fused-qkv-with-bias",
+        "neox-rope",
+        "swiglu",
+        "required-untied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "qwen2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quant"
+      ],
+      "features": [
+        "projection-biases",
+        "optional-output-bias",
+        "neox-rope",
+        "swiglu"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "qwen2moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "neox-rope",
+        "unnormalized-softmax-top-k-routing",
+        "packed-swiglu-experts",
+        "sigmoid-gated-shared-expert",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "qwen2vl": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quant"
+      ],
+      "features": [
+        "text-coordinate-decoder",
+        "fused-or-separate-qkv-with-optional-bias",
+        "scaled-four-axis-adjacent-pair-mrope",
+        "caller-supplied-four-axis-positions",
+        "optional-output-bias",
+        "swiglu",
+        "projected-embedding-overrides",
+        "serializable-prefix-editable-kv-cache",
+        "qwen2vl-merger-image-video-projector",
+        "temporal-pair-patch-projection",
+        "separate-biased-vision-qkv",
+        "vision-mrope",
+        "ordered-multi-image-soft-token-merge",
+        "compressed-four-axis-image-grid",
+        "temporal-four-axis-video-grid",
+        "standard-and-legacy-ffn-catalogs",
+        "optional-cuda-projector-execution"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "qwen3": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-q8",
+        "native-k-quant",
+        "native-iq4-xs"
+      ],
+      "features": [
+        "last-token-classification-rerank-softmax",
+        "named-rerank-template-or-eos-sep-pair-format"
+      ],
+      "status": "experimental",
+      "types": [
+        "Q1_0",
+        "Q2_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q8_0",
+        "Q2_K",
+        "Q3_K",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "IQ4_XS"
+      ],
+      "validated_fixture": "Qwen3-4B-UD-Q8_K_XL.gguf"
+    },
+    "qwen35": {
+      "additional_validated_fixture": "Bonsai-27B-Q1_0.gguf",
+      "execution": [
+        "native-q8"
+      ],
+      "features": [
+        "multi-axis-rope-kernel",
+        "text-generation-position-input",
+        "caller-supplied-four-axis-positions",
+        "projected-embedding-overrides",
+        "qwen3vl-merger-image-projector",
+        "merged-patch-image-preprocessing",
+        "qwen35-image-chat-template",
+        "compressed-image-grid-mrope",
+        "temporal-pair-video-projector",
+        "timestamped-video-chunks",
+        "per-chunk-compressed-video-mrope",
+        "odd-frame-repeat-padding",
+        "gated-full-attention",
+        "fused-gated-delta-net",
+        "recurrent-convolution-state",
+        "serializable-hybrid-cache",
+        "retained-device-hybrid-cache",
+        "stream-ordered-zero-state-initialization",
+        "pinned-single-dense-nextn-block",
+        "stateful-mtp-kv-and-hidden-session",
+        "shared-or-private-mtp-embedding-norm-head",
+        "standalone-mtp-sidecar-pairing",
+        "greedy-speculative-accept-rollback",
+        "probability-ratio-speculative-acceptance",
+        "positive-residual-correction",
+        "transactional-draft-target-sampler-state",
+        "draft-and-target-bound-mtp-session-state"
+      ],
+      "multimodal_validated_fixture": "Qwen3.5-4B-F16.gguf",
+      "status": "experimental",
+      "tokenizers": [
+        "qwen35-bpe"
+      ],
+      "types": [
+        "Q8_0"
+      ],
+      "validated_fixture": "Qwen3.5-9B-Q8_0.gguf",
+      "video_validated_fixture": "qwen35_video_golden.json"
+    },
+    "qwen35moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "multi-axis-rope-kernel",
+        "text-generation-position-input",
+        "caller-supplied-four-axis-positions",
+        "projected-embedding-overrides",
+        "gated-full-attention",
+        "fused-gated-delta-net",
+        "recurrent-convolution-state",
+        "softmax-top-k-routing",
+        "selected-probability-normalization",
+        "routed-weight-scaling",
+        "separate-or-fused-swiglu-experts",
+        "sigmoid-gated-shared-expert",
+        "serializable-hybrid-cache",
+        "pinned-single-dense-nextn-block",
+        "stateful-mtp-kv-and-hidden-session",
+        "shared-or-private-mtp-embedding-norm-head",
+        "standalone-mtp-sidecar-pairing",
+        "greedy-speculative-accept-rollback",
+        "probability-ratio-speculative-acceptance",
+        "positive-residual-correction",
+        "transactional-draft-target-sampler-state",
+        "draft-and-target-bound-mtp-session-state"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "qwen3moe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "qwen3-qk-rmsnorm",
+        "neox-rope",
+        "softmax-top-k-routing",
+        "selected-probability-normalization",
+        "routed-weight-scaling",
+        "packed-swiglu-experts"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "qwen3next": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "gated-neox-full-attention",
+        "optimized-qkv-plus-gate-recurrent-layout",
+        "legacy-grouped-qkvz-recurrent-layout",
+        "fused-beta-alpha-projection",
+        "repeat-interleave-gdn-head-broadcast",
+        "recurrent-convolution-state",
+        "softmax-top-k-routing",
+        "selected-probability-normalization",
+        "routed-weight-scaling",
+        "separate-or-fused-swiglu-experts",
+        "sigmoid-gated-shared-expert",
+        "serializable-hybrid-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "qwen3vl": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quant"
+      ],
+      "features": [
+        "text-coordinate-decoder",
+        "fused-or-separate-qkv-with-optional-bias",
+        "pre-rope-per-head-qk-rmsnorm",
+        "scaled-four-axis-adjacent-pair-mrope",
+        "caller-supplied-four-axis-positions",
+        "swiglu",
+        "projected-embedding-overrides",
+        "zero-filled-or-projected-deepstack",
+        "last-token-classification-rerank-softmax",
+        "named-rerank-template-or-eos-sep-pair-format",
+        "serializable-prefix-editable-kv-cache",
+        "qwen3vl-merger-image-projector",
+        "ordered-multi-image-soft-token-merge",
+        "per-image-compressed-four-axis-mrope",
+        "temporal-pair-video-projection",
+        "optional-cuda-projector-execution",
+        "vision-layer-deepstack-projection",
+        "prompt-aligned-deepstack-injection"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "qwen3vlmoe": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "text-coordinate-decoder",
+        "fused-or-separate-qkv-with-optional-bias",
+        "pre-rope-per-head-qk-rmsnorm",
+        "scaled-four-axis-adjacent-pair-mrope",
+        "caller-supplied-four-axis-positions",
+        "softmax-top-k-routing",
+        "selected-probability-normalization",
+        "routed-weight-scaling",
+        "packed-swiglu-experts",
+        "zero-filled-or-projected-deepstack",
+        "projected-embedding-overrides",
+        "serializable-prefix-editable-kv-cache",
+        "qwen3vl-merger-image-projector",
+        "ordered-multi-image-soft-token-merge",
+        "per-image-compressed-four-axis-mrope",
+        "temporal-pair-video-projection",
+        "vision-layer-deepstack-projection",
+        "prompt-aligned-deepstack-injection",
+        "optional-cuda-projector-execution"
+      ],
+      "limitations": [
+        "classification-rerank-head-absent-from-pinned-graph"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "refact": {
+      "features": [
+        "rmsnorm",
+        "llama-cpp-compatible-alibi",
+        "fused-or-separate-qkv",
+        "parallel-swiglu",
+        "softmax-top-k-experts",
+        "gated-or-ungated-expert-silu",
+        "tied-or-untied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "rnd1": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "non-causal-full-sequence-attention",
+        "no-kv-cache",
+        "qk-rmsnorm",
+        "neox-rope",
+        "normalized-softmax-top-k-moe",
+        "all-position-hidden-states-and-logits",
+        "iterative-mask-transfer",
+        "timestep-and-block-schedules",
+        "five-ranking-algorithms",
+        "classifier-free-guidance",
+        "shifted-logit-metadata",
+        "optional-gumbel-transform",
+        "diffusion-cli"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "rwkv6": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "affine-layer-normalization",
+        "dual-cached-token-shifts",
+        "five-way-low-rank-time-mix",
+        "fused-or-separate-time-mix-lerps",
+        "time-first-wkv6-recurrence",
+        "per-head-group-normalization",
+        "silu-output-gate",
+        "squared-relu-channel-mix",
+        "optional-periodic-residual-rescale",
+        "serializable-recurrent-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "rwkv6qwen2": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "rms-pre-normalization",
+        "cached-normalized-token-shift",
+        "five-way-low-rank-time-mix",
+        "optional-time-projection-biases",
+        "grouped-kv-gated-linear-attention",
+        "sigmoid-output-gate",
+        "sequential-swiglu",
+        "optional-periodic-residual-rescale",
+        "serializable-recurrent-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "rwkv7": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-weights"
+      ],
+      "features": [
+        "affine-layer-normalization",
+        "dual-cached-token-shifts",
+        "vector-decay-wkv7-recurrence",
+        "learned-in-context-rate",
+        "cross-layer-first-value-residual",
+        "normalized-and-corrected-keys",
+        "per-head-output-correction",
+        "gated-time-mix-with-group-normalization",
+        "squared-relu-channel-mix",
+        "serializable-recurrent-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "seed_oss": {
+      "features": [
+        "rmsnorm",
+        "neox-rope",
+        "metadata-attention-scale",
+        "swiglu",
+        "post-attention-named-pre-ffn-norm",
+        "optional-tied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "smallthinker": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "rmsnorm",
+        "contiguous-fused-or-separate-qkv",
+        "optional-qkv-biases",
+        "dense-first-periodic-sliding-attention",
+        "no-rope-full-attention-layers",
+        "neox-rope-with-swa-frequency-base",
+        "pre-attention-router-input",
+        "softmax-or-sigmoid-top-k-routing",
+        "selected-weight-normalization",
+        "routed-weight-scaling",
+        "packed-reglu-experts",
+        "optional-tied-output",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "smollm3": {
+      "features": [
+        "periodic-no-rope-layers",
+        "metadata-attention-scale",
+        "normal-rope",
+        "swiglu"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "stablelm": {
+      "features": [
+        "affine-layernorm",
+        "partial-neox-rope",
+        "optional-per-head-qk-layernorm",
+        "sequential-or-parallel-ffn-residual",
+        "swiglu",
+        "untied-output-projection"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "starcoder": {
+      "features": [
+        "learned-absolute-position-embeddings",
+        "affine-layernorm",
+        "required-contiguous-fused-qkv",
+        "sequential-gelu",
+        "required-projection-biases",
+        "tied-or-untied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "starcoder2": {
+      "features": [
+        "affine-layernorm",
+        "neox-rope",
+        "sequential-gelu",
+        "projection-biases",
+        "optional-tied-output"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "step35": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quantized-experts"
+      ],
+      "features": [
+        "separate-or-fused-qkv",
+        "optional-per-head-qk-rmsnorm",
+        "per-layer-query-and-kv-head-counts",
+        "per-layer-sliding-or-full-attention",
+        "half-width-full-attention-rope",
+        "swa-specific-rope-base",
+        "shared-rope-factors",
+        "optional-sigmoid-head-gate",
+        "mixed-dense-and-moe-layers",
+        "sigmoid-or-softmax-top-k-routing",
+        "optional-selection-correction-bias",
+        "optional-selected-weight-normalization",
+        "per-layer-limited-swiglu-experts",
+        "per-layer-limited-shared-experts",
+        "multi-head-full-decoder-nextn-mtp",
+        "pre-output-norm-target-hidden-state",
+        "per-head-growing-prefix-kv-cache",
+        "shared-or-private-mtp-embedding-norm-head",
+        "greedy-speculative-accept-rollback",
+        "probability-ratio-speculative-acceptance",
+        "positive-residual-correction",
+        "transactional-draft-target-sampler-state",
+        "model-bound-multi-head-mtp-session-state",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "t5": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-k-quant"
+      ],
+      "features": [
+        "strict-encoder-decoder-catalog",
+        "bidirectional-encoder-attention",
+        "causal-decoder-relative-position-buckets",
+        "fixed-cross-attention-cache",
+        "active-range-self-cache-editing",
+        "high-level-sampled-generation",
+        "generate-cli-dispatch",
+        "completion-server-dispatch",
+        "relu-and-gated-gelu-ffn",
+        "resumable-model-bound-session",
+        "exact-source-encoder-prompt-cache"
+      ],
+      "limitations": [
+        "real-decoder-fixture-pending"
+      ],
+      "status": "experimental",
+      "tokenizers": [
+        "sentencepiece-ugm"
+      ],
+      "types": [
+        "F32",
+        "Q5_K",
+        "Q6_K"
+      ],
+      "validation": [
+        "synthetic-topology",
+        "cache-and-session-round-trip",
+        "cuda-block-differential"
+      ]
+    },
+    "t5encoder": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-k-quant"
+      ],
+      "features": [
+        "strict-encoder-catalog",
+        "bidirectional-attention",
+        "relative-position-buckets",
+        "geglu",
+        "mean-pooled-embeddings"
+      ],
+      "limitations": [
+        "encoder-only",
+        "no-cross-attention"
+      ],
+      "status": "experimental",
+      "tokenizers": [
+        "sentencepiece-ugm"
+      ],
+      "types": [
+        "Q5_K",
+        "Q6_K",
+        "F32"
+      ],
+      "validated_fixture": "umt5-xxl-encoder-Q5_K_S.gguf",
+      "validation": [
+        "tokenizer-id-exact",
+        "pooled-embedding-cosine-above-0.999"
+      ]
+    },
+    "talkie": {
+      "execution": [
+        "bounded-host",
+        "f32-preload",
+        "native-quant",
+        "retained-device-cache"
+      ],
+      "features": [
+        "initial-and-final-unweighted-rmsnorm",
+        "normalized-token-embedding-skip",
+        "fused-or-separate-qkv-with-optional-bias",
+        "post-rope-per-head-query-gain",
+        "post-rope-unweighted-key-rmsnorm",
+        "causal-neox-rope-attention",
+        "parallel-swiglu",
+        "per-layer-scalar-skip-injection",
+        "untied-output-projection",
+        "direct-logit-scaling",
+        "serializable-prefix-editable-kv-cache"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    },
+    "wavtokenizer-dec": {
+      "execution": [
+        "host-f32-staging",
+        "f32-preload"
+      ],
+      "features": [
+        "strict-decoder-catalog",
+        "semantic-token-embedding",
+        "six-stage-posnet",
+        "non-causal-single-head-attention",
+        "dense-and-depthwise-same-padding-conv1d",
+        "channel-group-normalization",
+        "convnext-gelu-projection",
+        "audio-feature-frame-output",
+        "pinned-istft-waveform-synthesis",
+        "fixed-24khz-mono-output"
+      ],
+      "limitations": [
+        "real-model-fixture-pending"
+      ],
+      "status": "experimental",
+      "types": [
+        "F32",
+        "F16",
+        "BF16"
+      ],
+      "validation": [
+        "synthetic-metadata-and-catalog",
+        "reference-topology-and-known-answer",
+        "full-cuda-decoder-differential",
+        "waveform-dc-known-answer",
+        "env-gated-real-waveform-decode"
+      ]
+    },
+    "xverse": {
+      "features": [
+        "untied-output-projection",
+        "normal-rope",
+        "swiglu"
+      ],
+      "real_model_validation": "pending-fixture",
+      "status": "experimental"
+    }
+  },
+  "release": {
+    "cgo": false,
+    "deterministic": {
+      "fixed_zip_timestamps": true,
+      "go_build_id": "empty",
+      "repeated_build_comparison": true,
+      "trimpath": true,
+      "vcs_stamp": false
+    },
+    "manifests": [
+      "embedded-SHA256SUMS",
+      "external-archive-sha256",
+      "CycloneDX-SBOM",
+      "license-inventory",
+      "CUDA-kernel-ABI"
+    ],
+    "signing": {
+      "reason": "no-user-controlled-code-signing-certificate",
+      "status": "blocked"
+    },
+    "target": "windows-amd64",
+    "workflow": ".github/workflows/release.yml"
+  },
+  "sampling": {
+    "configurable_chain": {
+      "default": [
+        "penalties",
+        "dry",
+        "top_n_sigma",
+        "top_k",
+        "typ_p",
+        "top_p",
+        "min_p",
+        "xtc",
+        "temperature"
+      ],
+      "optional": [
+        "adaptive_p",
+        "infill"
+      ],
+      "repeated_stages": true
+    },
+    "deterministic_state": true,
+    "filters": [
+      "temperature",
+      "dynamic-temperature",
+      "top-k",
+      "top-p",
+      "min-p",
+      "typical-p",
+      "top-n-sigma",
+      "xtc",
+      "repetition",
+      "dry",
+      "mirostat-v1",
+      "mirostat-v2",
+      "adaptive-p",
+      "infill",
+      "logit-bias",
+      "ignore-eog"
+    ],
+    "gbnf": {
+      "features": [
+        "literals-and-escapes",
+        "unicode-character-ranges",
+        "negated-character-classes",
+        "wildcard",
+        "named-rules",
+        "groups-and-alternation",
+        "right-recursion",
+        "repetition",
+        "partial-utf8-token-pieces",
+        "numeric-token-terminals",
+        "named-token-terminals",
+        "inverse-token-terminals",
+        "lazy-token-triggers",
+        "lazy-regex-triggers",
+        "bounded-ecmascript-regex-triggers",
+        "lookahead-and-lookbehind-triggers",
+        "backreference-triggers",
+        "overlapping-token-replay",
+        "serialized-state"
+      ]
+    },
+    "grammars": [
+      "exact-literal-choices",
+      "gbnf-character",
+      "json-schema-to-gbnf"
+    ],
+    "loads_legacy_state_versions": [
+      2,
+      3
+    ],
+    "state_version": 4
+  },
+  "schema": 1,
+  "server": {
+    "anthropic_messages": {
+      "buffered": true,
+      "input": [
+        "string-system",
+        "text-block-system",
+        "string-messages",
+        "text-block-messages",
+        "function-tools",
+        "assistant-tool-use",
+        "user-tool-results",
+        "base64-image-blocks",
+        "policy-allowed-image-urls",
+        "policy-mapped-image-file-ids"
+      ],
+      "limitations": [
+        "adaptive-omitted-and-redacted-thinking",
+        "thinking-with-tools-and-interleaved-thinking",
+        "local-thinking-signatures-are-handler-scoped-not-anthropic-portable"
+      ],
+      "response": [
+        "text-content-blocks",
+        "local-signed-thinking-content-blocks",
+        "stop-reason-and-sequence",
+        "cache-input-output-usage",
+        "tool-use-content-blocks"
+      ],
+      "route": "/v1/messages",
+      "streaming": {
+        "lifecycle": [
+          "message_start",
+          "content_block_start",
+          "content_block_delta",
+          "content_block_stop",
+          "message_delta",
+          "message_stop"
+        ],
+        "named_sse_events": true
+      },
+      "token_count_route": "/v1/messages/count_tokens"
+    },
+    "bearer_authentication": "optional",
+    "chat_completion": {
+      "content_parts": [
+        "text",
+        "input-text",
+        "output-text",
+        "image-url-base64-data-uri",
+        "image-url-policy-allowed-remote-url",
+        "input-audio-base64-wav",
+        "input-audio-policy-allowed-remote-url",
+        "input-video-base64-data-uri",
+        "input-video-policy-allowed-remote-url"
+      ],
+      "limitations": [
+        "video-with-tools",
+        "video-history-and-mixed-video-media"
+      ],
+      "multimodal": {
+        "buffered": true,
+        "exact_media_signed_prompt_cache": true,
+        "history": true,
+        "media_items_per_request": {
+          "maximum": 8,
+          "minimum": 1
+        },
+        "ordered_mixed_image_audio": true,
+        "projection_after_slot_admission": true,
+        "streaming": true
+      }
+    },
+    "chat_templates": [
+      "chatml",
+      "gemma-turns",
+      "llama3-headers",
+      "gguf-jinja-text"
+    ],
+    "chat_token_count": {
+      "multimodal_projection": true,
+      "response_object": "response.input_tokens",
+      "routes": [
+        "/chat/completions/input_tokens",
+        "/v1/chat/completions/input_tokens"
+      ],
+      "shares_generation_formatter": true
+    },
+    "context_shift": "optional",
+    "endpoints": [
+      "/health",
+      "/healthz",
+      "/v1/health",
+      "/metrics",
+      "/models",
+      "/v1/models",
+      "/v1/completions",
+      "/v1/chat/completions",
+      "/chat/completions",
+      "/chat/completions/input_tokens",
+      "/v1/chat/completions/input_tokens",
+      "/responses",
+      "/v1/responses",
+      "/responses/input_tokens",
+      "/v1/responses/input_tokens",
+      "/v1/messages",
+      "/v1/messages/count_tokens",
+      "/lora-adapters",
+      "/v1/embeddings",
+      "/embedding",
+      "/embeddings",
+      "/rerank",
+      "/reranking",
+      "/v1/rerank",
+      "/v1/reranking",
+      "/completion",
+      "/completions",
+      "/infill",
+      "/apply-template",
+      "/tokenize",
+      "/detokenize",
+      "/props",
+      "/slots"
+    ],
+    "gguf_jinja": {
+      "context": [
+        "messages",
+        "bos_token",
+        "eos_token",
+        "add_generation_prompt",
+        "enable_thinking",
+        "tools",
+        "assistant-tool-calls",
+        "tool-results",
+        "documents-empty"
+      ],
+      "engine": "gonja-v2",
+      "extensions": [
+        "raise_exception",
+        "strftime_now",
+        "namespace",
+        "range"
+      ],
+      "function_input_max_bytes": 4096,
+      "function_output_max_bytes": 4096,
+      "loader": "memory-only",
+      "named_template_variants": [
+        "tool_use",
+        "rerank"
+      ],
+      "output_max_bytes": 16777216,
+      "pinned_real_model_oracles": [
+        "qwen3",
+        "qwen3-tools-and-history",
+        "qwen35",
+        "qwen35-tools-and-history",
+        "gemma3",
+        "bonsai",
+        "bonsai-tools-and-history"
+      ],
+      "template_max_bytes": 1048576
+    },
+    "graceful_shutdown_seconds": 30,
+    "lora_adapters": {
+      "alora": {
+        "activation": "last-invocation-token-sequence",
+        "maximum-simultaneous-enabled": 1,
+        "pre-invocation-scale": 0,
+        "prompt-cache-retention": "disabled-for-split-evaluation",
+        "unmatched-request-scale": 0
+      },
+      "application": {
+        "alpha_over_rank": true,
+        "formula": "base*x+scale*B*(A*x)",
+        "multiple_adapters": "additive",
+        "projections": [
+          "dense-mulmat",
+          "grouped-expert-mulmat",
+          "token-embedding-rows",
+          "output-logits"
+        ],
+        "weight_modes": [
+          "streamed",
+          "preloaded-f32",
+          "native-quantized"
+        ]
+      },
+      "discovery": "loaded-id-path-scale-list",
+      "global_scale_post": "replace-all",
+      "lifecycle": {
+        "per-request-prompt-cache-isolation": "adapter-signature",
+        "per-request-scale-restore": true,
+        "prompt-cache-invalidation": "scale-change",
+        "session-fingerprint": "adapter-content-and-scale"
+      },
+      "limitations": [
+        "real-model-differential-fixture",
+        "fused-moe-ephemeral-full-weight-merge"
+      ],
+      "omitted_adapter": "disabled",
+      "startup": {
+        "default_scale": 1,
+        "disable_initial_apply_flag": "--lora-init-without-apply",
+        "flag": "--lora",
+        "repeatable": true
+      }
+    },
+    "model_discovery": {
+      "envelopes": [
+        "models",
+        "data"
+      ],
+      "exposes_model_path": false,
+      "metadata": [
+        "architecture-family",
+        "vocabulary-type-and-count",
+        "context-length",
+        "embedding-length",
+        "parameter-count",
+        "tensor-bytes",
+        "quantization-level"
+      ]
+    },
+    "multiple_choices": {
+      "maximum": 8,
+      "streaming": true
+    },
+    "native_completion": {
+      "multimodal_images_per_request": {
+        "maximum": 8,
+        "minimum": 1
+      },
+      "multimodal_prompt": {
+        "encodings": [
+          "raw-base64",
+          "data-image-base64-uri",
+          "data-audio-wav-base64-uri"
+        ],
+        "media_items_per_request": 8,
+        "media_marker": "\u003c__media__\u003e",
+        "ordered_mixed_image_audio": true,
+        "projection_after_slot_admission": true,
+        "shape": "prompt-string-plus-multimodal-data"
+      },
+      "multiple_choices": {
+        "maximum": 8
+      },
+      "projected_inputs": {
+        "completion_count": 1,
+        "fields": [
+          "embedding-overrides",
+          "four-axis-positions",
+          "deepstack-embeddings"
+        ],
+        "prompt_count": 1
+      },
+      "prompt_batches": {
+        "heterogeneous": true,
+        "maximum": 64,
+        "order": "prompt-major"
+      },
+      "prompt_cache": {
+        "minimum_match_field": "n_cache_reuse",
+        "opt_in_field": "cache_prompt",
+        "pure_attention_suffix_rollback": {
+          "device": "zero-copy-shape-view",
+          "host": "copied-range-edit",
+          "multi_device_entries": "independent-no-mutation"
+        },
+        "recurrent_hybrid_reuse": "exact-cached-prefix-only",
+        "reports_cached_and_evaluated_tokens": true,
+        "retained_entries": {
+          "configurable": true,
+          "default": 1,
+          "eviction": "lru"
+        },
+        "reuse": "best-matching-entry",
+        "split_prompt_decode_timings": true
+      },
+      "prompt_shapes": [
+        "string",
+        "exact-token-sequence",
+        "mixed-token-string-sequence"
+      ],
+      "response": [
+        "content",
+        "raw-tokens",
+        "stop-type-and-word",
+        "prompt-and-generated-token-counts",
+        "normalized-generation-settings",
+        "timings"
+      ],
+      "response_fields": {
+        "maximum": 64,
+        "missing_paths": "omitted",
+        "slash_paths": true,
+        "streaming_final_only": true
+      },
+      "streaming": {
+        "final-metadata-event": true,
+        "indentation_limit": {
+          "field": "n_indent",
+          "trims_offending_suffix": true,
+          "whitespace": [
+            "space",
+            "tab"
+          ]
+        },
+        "openai-done-marker": false,
+        "partial-token-events": true,
+        "post_sampling_probabilities": {
+          "buffered": true,
+          "may_return_fewer_than_n": true,
+          "opt_in_field": "post_sampling_probs",
+          "requires": "positive-n_probs",
+          "sampler_paths": [
+            "standard-chain",
+            "greedy",
+            "mirostat-v1",
+            "mirostat-v2",
+            "adaptive-p"
+          ],
+          "source": "filtered-sampler-candidates",
+          "streaming": true,
+          "values": "probability"
+        },
+        "pre_sampling_probabilities": {
+          "buffered": true,
+          "field": "n_probs",
+          "selected_token": true,
+          "streaming": true,
+          "token_bytes": true,
+          "token_piece": true,
+          "top_n": true,
+          "values": "logprob"
+        },
+        "prediction_time_limit": {
+          "disabled_values": [
+            -1,
+            0
+          ],
+          "field": "t_max_predict_ms",
+          "graceful": true,
+          "stop_condition": "first-newline-after-budget"
+        },
+        "prompt_progress": {
+          "events": [
+            "prompt-start",
+            "prompt-complete"
+          ],
+          "fields": [
+            "total",
+            "cache",
+            "processed",
+            "time-ms"
+          ],
+          "limitation": "no-internal-batch-increments",
+          "opt_in_field": "return_progress"
+        },
+        "sse_ping_interval": {
+          "default_seconds": 30,
+          "disabled_values": [
+            -1,
+            0
+          ],
+          "frame": ":\n\n"
+        },
+        "timings_per_token": {
+          "cache_prompt_decode_split": true,
+          "opt_in_field": "timings_per_token",
+          "zero_safe_rates": true
+        }
+      }
+    },
+    "native_embeddings": {
+      "encoding": "float",
+      "normalization": [
+        "none-minus-one",
+        "max-absolute-int16-range",
+        "general-p-norm"
+      ],
+      "pooling": [
+        "mean",
+        "last",
+        "none-per-token"
+      ],
+      "prompt_shapes": [
+        "string",
+        "exact-token-sequence",
+        "mixed-token-string-sequence",
+        "heterogeneous-batch"
+      ],
+      "response": "indexed-nested-float-vectors",
+      "routes": [
+        "/embedding",
+        "/embeddings"
+      ]
+    },
+    "native_infill": {
+      "delegates_to_native_completion": true,
+      "layouts": [
+        "prefix-suffix-middle",
+        "suffix-prefix-middle"
+      ],
+      "mixed_prefix_suffix_tokens": true,
+      "prefix_suffix_ratio": "3:1",
+      "repository_extra_context": true,
+      "route": "/infill"
+    },
+    "openai_chat_tools": {
+      "arguments": {
+        "required-validation": true,
+        "schema-type-coercion": true,
+        "unknown-tool-validation": true
+      },
+      "buffered": true,
+      "choices": [
+        "auto",
+        "required",
+        "none",
+        "named-function"
+      ],
+      "formatting": [
+        "openai-function-schemas",
+        "assistant-tool-call-history",
+        "tool-result-history",
+        "python-style-ordered-tojson"
+      ],
+      "grammar": {
+        "auto": "lazy-tool-call-delimiter-trigger",
+        "named_function": "forced-selected-schema",
+        "required": "forced-schema-derived"
+      },
+      "limitations": [
+        "arbitrary-unknown-template-output-syntax"
+      ],
+      "output_parsers": [
+        "qwen-json-in-xml",
+        "qwen35-bonsai-hermes-xml"
+      ],
+      "response": {
+        "empty_content": "null",
+        "finish_reason": "tool_calls",
+        "generated_call_ids": true
+      },
+      "routes": [
+        "/chat/completions",
+        "/v1/chat/completions"
+      ],
+      "streaming": {
+        "final_finish_reason": "tool_calls",
+        "incremental_argument_deltas": true,
+        "template_syntax_hidden": true
+      }
+    },
+    "openai_completion": {
+      "buffered": true,
+      "choice_order": "prompt-major",
+      "exact_ids_bypass_tokenization": true,
+      "prompt_batch_maximum": 64,
+      "prompt_shapes": [
+        "string",
+        "exact-token-sequence",
+        "mixed-token-string-sequence",
+        "flat-string-batch",
+        "nested-heterogeneous-batch"
+      ],
+      "route": "/v1/completions",
+      "streaming": true
+    },
+    "openai_embeddings": {
+      "encoding": [
+        "float",
+        "base64-little-endian-float32"
+      ],
+      "route": "/v1/embeddings"
+    },
+    "prometheus_metrics": [
+      "readiness",
+      "request-count-and-concurrency",
+      "generation-count-errors-and-tokens",
+      "uptime",
+      "runner-cuda-current-bytes",
+      "runner-cuda-peak-bytes",
+      "runner-cuda-live-allocation-count",
+      "runner-cuda-custom-kernel-launch-count",
+      "runner-cuda-stream-and-context-synchronization-count",
+      "runner-cuda-host-device-transfer-bytes",
+      "runner-cuda-device-device-transfer-bytes"
+    ],
+    "props": {
+      "fields": [
+        "default-generation-settings",
+        "total-slots",
+        "model-alias",
+        "model-file-type",
+        "model-path",
+        "model-metadata",
+        "modalities",
+        "endpoint-capabilities",
+        "chat-template",
+        "bos-eos-token-text",
+        "build-info",
+        "sleeping-state"
+      ],
+      "method": "GET",
+      "mutable": false
+    },
+    "public_endpoints": [
+      "/health",
+      "/healthz",
+      "/v1/health",
+      "/metrics",
+      "/models",
+      "/v1/models"
+    ],
+    "request_budgets": {
+      "decoded_image_bytes": 16777216,
+      "decoded_media_bytes": 25165824,
+      "image_dimension": 16384,
+      "image_pixels": 16777216,
+      "json_bytes": 1048576,
+      "multimodal_json_bytes": 33554432,
+      "request_image_pixels": 33554432,
+      "response_resource_bytes": 16777216
+    },
+    "request_timeout": "optional",
+    "reranking": {
+      "formats": [
+        "jina-results-envelope",
+        "tei-result-array"
+      ],
+      "routes": [
+        "/rerank",
+        "/reranking",
+        "/v1/rerank",
+        "/v1/reranking"
+      ],
+      "sorting": "descending-stable",
+      "tei_return_text": "optional",
+      "top_n": "optional",
+      "usage": "prompt-and-total-tokens"
+    },
+    "responses": {
+      "buffered": true,
+      "input": [
+        "text",
+        "text-message-array",
+        "text-content-parts",
+        "instructions",
+        "ordered-multi-turn-image-audio-parts",
+        "base64-data-uris",
+        "policy-allowed-remote-media-urls",
+        "single-turn-encoded-video",
+        "typed-inline-text-files",
+        "policy-mapped-text-file-ids",
+        "policy-allowed-text-file-urls",
+        "policy-mapped-image-file-ids"
+      ],
+      "limitations": [
+        "hosted-mcp-and-custom-tools-explicitly-denied-without-external-executor",
+        "pdf-and-nontext-document-inputs",
+        "video-with-tools",
+        "video-history-and-mixed-video-media",
+        "encrypted-reasoning",
+        "reasoning-summary-with-tools"
+      ],
+      "multimodal_token_counting": true,
+      "output": "response-object-with-message-and-usage",
+      "previous_response_continuation": {
+        "default_maximum_bytes": 67108864,
+        "default_maximum_entries": 128,
+        "storage": "bounded-handler-local",
+        "store_false": true
+      },
+      "reasoning": {
+        "effort": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "input_replay": "summary-or-reasoning-text",
+        "streaming_summary_events": true,
+        "summary": [
+          "auto",
+          "concise",
+          "detailed"
+        ]
+      },
+      "routes": [
+        "/responses",
+        "/v1/responses"
+      ],
+      "streaming": {
+        "lifecycle": [
+          "response.created",
+          "response.in_progress",
+          "response.output_item.added",
+          "response.content_part.added",
+          "response.output_text.delta",
+          "response.output_text.done",
+          "response.content_part.done",
+          "response.output_item.done",
+          "response.completed"
+        ],
+        "named_sse_events": true,
+        "openai_done_marker": false
+      },
+      "token_count_routes": [
+        "/responses/input_tokens",
+        "/v1/responses/input_tokens"
+      ]
+    },
+    "slots": {
+      "completed_snapshot_retained_until_reuse": true,
+      "exact_id_request": true,
+      "fail_on_no_slot": true,
+      "fields": [
+        "id",
+        "id-task-while-busy",
+        "context-length",
+        "speculative",
+        "processing-state",
+        "prompt-token-count",
+        "prompt-processed-count",
+        "prompt-cache-count",
+        "prompt",
+        "generated-text",
+        "timing-rates",
+        "sampler-parameters",
+        "stop-sequences",
+        "prompt-cache-controls",
+        "context-shift",
+        "next-token-state"
+      ],
+      "maximum": 65536,
+      "stable_ids": true
+    },
+    "stop_sequences": [
+      "buffered",
+      "streaming",
+      "cross-token"
+    ],
+    "structured_output": {
+      "chat_completion": {
+        "response_format_types": [
+          "text",
+          "json_object",
+          "json_schema"
+        ],
+        "routes": [
+          "/chat/completions",
+          "/v1/chat/completions"
+        ],
+        "top_level_field": "json_schema",
+        "wrapped_schema_field": "response_format.json_schema.schema"
+      },
+      "converter": "ordered-json-schema-to-gbnf",
+      "explicit_grammar_conflicts_rejected": true,
+      "grammar_root": "root",
+      "native_completion": {
+        "field": "json_schema",
+        "routes": [
+          "/completion",
+          "/completions"
+        ]
+      },
+      "openai_completion": {
+        "field": "json_schema",
+        "route": "/v1/completions"
+      }
+    },
+    "tokenizer": {
+      "detokenize": {
+        "exact_piece_concatenation": true,
+        "renders_special_tokens": true
+      },
+      "maximum_tokens": 1048576,
+      "tokenize": {
+        "add_special_first_text_only": true,
+        "content_shapes": [
+          "string",
+          "mixed-token-string-sequence"
+        ],
+        "invalid_utf8_piece": "integer-byte-array",
+        "parse_special_default": true,
+        "with_pieces": true
+      }
+    }
+  },
+  "tokenizers": {
+    "algorithms": [
+      "sentencepiece-bpe",
+      "gpt2-byte-bpe",
+      "gemma4-raw-bpe",
+      "bert-wordpiece",
+      "unigram"
+    ],
+    "exact_oracle_cases": 280,
+    "fim": {
+      "deprecated_metadata": [
+        "prefix_token_id",
+        "suffix_token_id",
+        "middle_token_id"
+      ],
+      "fallback_token_spellings": true,
+      "metadata": [
+        "fim_pre_token_id",
+        "fim_suf_token_id",
+        "fim_mid_token_id",
+        "fim_pad_token_id",
+        "fim_rep_token_id",
+        "fim_sep_token_id"
+      ]
+    },
+    "pinned_oracle_corpora": [
+      "qwen2",
+      "qwen35",
+      "gpt-2",
+      "llama-spm",
+      "llama-bpe",
+      "bert-bge"
+    ]
+  },
+  "tools": [
+    "inspect-gguf",
+    "gguf-hash",
+    "gguf-merge",
+    "gguf-quantize",
+    "gguf-split",
+    "json-schema-grammar",
+    "tokenize",
+    "block-check",
+    "generate",
+    "diffusion",
+    "perplexity",
+    "embedding",
+    "rerank",
+    "benchmark",
+    "server"
+  ],
+  "upstream": {
+    "commit": "42fc243060709331ff9b158a9ed2cbe37219ae83",
+    "repository": "ggml-org/llama.cpp"
+  }
+}

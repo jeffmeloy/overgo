@@ -10,5 +10,5 @@
 *.out
 *.test
 coverage.out
-local-models.yaml
+local-models.json
 /.profile_tmp/

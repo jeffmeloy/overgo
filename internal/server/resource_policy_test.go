@@ -16,7 +16,7 @@ import (
 )
 
 func TestRepositoryResponseFilePolicy(t *testing.T) {
-	policy, err := LoadResponseFilePolicy(filepath.Join("..", "..", "resource_policy.yaml"))
+	policy, err := LoadResponseFilePolicy(filepath.Join("..", "..", "resource_policy.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,10 +28,10 @@ func TestRepositoryResponseFilePolicy(t *testing.T) {
 
 func TestResponseToolPolicyRejectsUnbackedAllow(t *testing.T) {
 	root := t.TempDir()
-	policyPath := filepath.Join(root, "policy.yaml")
-	document := "schema: 1\nresponse_files:\n  enabled: false\n" +
-		"  max_file_bytes: 1\n  allowed_roots: []\n  files: {}\n" +
-		"response_tools:\n  hosted: allow\n  custom: deny\n"
+	policyPath := filepath.Join(root, "policy.json")
+	document := `{"schema":1,"response_files":{"enabled":false,"max_file_bytes":1,` +
+		`"allowed_roots":[],"files":{}},` +
+		`"response_tools":{"hosted":"allow","custom":"deny"}}`
 	if err := os.WriteFile(policyPath, []byte(document), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -46,10 +46,10 @@ func TestResponseFilePolicyLoadsAllowedFiles(t *testing.T) {
 	if err := os.WriteFile(filePath, []byte("bounded note"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	policyPath := filepath.Join(root, "policy.yaml")
-	document := "schema: 1\nresponse_files:\n  enabled: true\n" +
-		"  max_file_bytes: 32\n  allowed_roots:\n    - .\n  files:\n" +
-		"    file_note:\n      path: note.txt\n      media_type: text/plain\n"
+	policyPath := filepath.Join(root, "policy.json")
+	document := `{"schema":1,"response_files":{"enabled":true,"max_file_bytes":32,` +
+		`"allowed_roots":["."],` +
+		`"files":{"file_note":{"path":"note.txt","media_type":"text/plain"}}}}`
 	if err := os.WriteFile(policyPath, []byte(document), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -78,17 +78,17 @@ func TestResponseFilePolicyRejectsEscapesAndOversizedFiles(t *testing.T) {
 	if err := os.WriteFile(outside, []byte("outside"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	policyPath := filepath.Join(root, "policy.yaml")
-	document := "schema: 1\nresponse_files:\n  enabled: true\n" +
-		"  max_file_bytes: 4\n  allowed_roots:\n    - allowed\n  files:\n" +
-		"    file_escape:\n      path: outside.txt\n      media_type: text/plain\n"
+	policyPath := filepath.Join(root, "policy.json")
+	document := `{"schema":1,"response_files":{"enabled":true,"max_file_bytes":4,` +
+		`"allowed_roots":["allowed"],` +
+		`"files":{"file_escape":{"path":"outside.txt","media_type":"text/plain"}}}}`
 	if err := os.WriteFile(policyPath, []byte(document), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := LoadResponseFilePolicy(policyPath); err == nil || !strings.Contains(err.Error(), "outside allowed roots") {
 		t.Fatalf("escape error = %v", err)
 	}
-	document = strings.ReplaceAll(document, "path: outside.txt", "path: allowed/large.txt")
+	document = strings.ReplaceAll(document, `"path":"outside.txt"`, `"path":"allowed/large.txt"`)
 	if err := os.WriteFile(filepath.Join(allowed, "large.txt"), []byte("large"), 0o600); err != nil {
 		t.Fatal(err)
 	}

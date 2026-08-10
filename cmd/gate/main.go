@@ -304,9 +304,16 @@ func (g *gateContext) stepScope() (bool, error) {
 func (g *gateContext) changedGoFiles() []string {
 	var out []string
 	for _, p := range g.paths {
-		if strings.HasSuffix(p, ".go") {
-			out = append(out, p)
+		if !strings.HasSuffix(p, ".go") {
+			continue
 		}
+		// Skip planned .go paths no longer on disk (a rename/delete staged in
+		// this commit): gofmt cannot stat a removed file, and the scope step
+		// already validated the deletion is tracked.
+		if _, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(p))); err != nil {
+			continue
+		}
+		out = append(out, p)
 	}
 	return out
 }
@@ -434,9 +441,9 @@ func (g *gateContext) stepSBOM() (bool, error) {
 // deliberately safe-over-skip: a false positive runs the check, never the
 // reverse.
 func (g *gateContext) stepClaims() (bool, error) {
-	run := g.pathsTouchAny("compatibility.yaml", "cmd/compatibility/", "internal/model/")
+	run := g.pathsTouchAny("compatibility.json", "cmd/compatibility/", "internal/model/")
 	if !run {
-		raw, err := os.ReadFile(filepath.Join(g.repo, "compatibility.yaml"))
+		raw, err := os.ReadFile(filepath.Join(g.repo, "compatibility.json"))
 		if err != nil {
 			return false, err
 		}
@@ -449,7 +456,7 @@ func (g *gateContext) stepClaims() (bool, error) {
 		}
 	}
 	if !run {
-		g.honesty = append(g.honesty, "claims skipped: no changed path appears in compatibility.yaml")
+		g.honesty = append(g.honesty, "claims skipped: no changed path appears in compatibility.json")
 		return true, nil
 	}
 	_, err := command(g.repo, "go", "run", "./cmd/compatibility", "-check")

@@ -64,7 +64,7 @@ func AddModelFlags(flags *flag.FlagSet, loraHelp string) *ModelFlags {
 func AddModelFlagsWithConfig(flags *flag.FlagSet, loraHelp string, config ModelFlagConfig) *ModelFlags {
 	result := &ModelFlags{}
 	result.DeviceOrdinal = flags.Int("device", 0, "CUDA device ordinal")
-	result.Repository = flags.String("repo", "", "RepoDB containing the active model recipe; empty resolves via the data-root contract (OVERGO_DATA_ROOT, local-models.yaml, or ./repodb-store)")
+	result.Repository = flags.String("repo", "", "RepoDB containing the active model recipe; empty resolves via the data-root contract (OVERGO_DATA_ROOT, local-models.json, or ./repodb-store)")
 	if config.PreloadName != "" {
 		result.Preload = flags.Bool(config.PreloadName, config.PreloadDefault, "dequantize all model weights once into CUDA memory")
 	}

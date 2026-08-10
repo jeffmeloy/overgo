@@ -16,7 +16,7 @@ import (
 // completeness, and the distinct untied head — without any forward/decode.
 //
 // Skips when the artifact is absent (worktree-safe). Override the location with
-// OVERGO_QWEN35_9B_GGUF; otherwise the local-models.yaml models root is used.
+// OVERGO_QWEN35_9B_GGUF; otherwise the local-models.json models root is used.
 const qwen35_9BDefaultPath = `C:\Users\jeffm\adaptive_new\models\Qwen3.5-9B-Q8_0.gguf`
 
 func qwen35_9BPath(t *testing.T) string {

@@ -7,7 +7,7 @@
 // Resolution order:
 //  1. OVERGO_DATA_ROOT env — one base directory holding repodb-store/,
 //     models/, datasets/, checkpoints/.
-//  2. local-models.yaml in the working directory — explicit per-root paths,
+//  2. local-models.json in the working directory — explicit per-root paths,
 //     which is how overgo points at data that lives in another repository's
 //     home without moving a byte (data never moves; code comes to the data).
 //  3. Working-directory defaults (repodb-store, models, datasets,
@@ -15,12 +15,12 @@
 package dataroot
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -28,16 +28,16 @@ const (
 	Env = "OVERGO_DATA_ROOT"
 	// ConfigFile is the per-checkout root override file (resolution step 2);
 	// gitignored, machine-local by design.
-	ConfigFile = "local-models.yaml"
+	ConfigFile = "local-models.json"
 )
 
 // Roots: resolved data locations. Source names which resolution step won.
 type Roots struct {
-	Store       string `yaml:"store"`
-	Models      string `yaml:"models"`
-	Datasets    string `yaml:"datasets"`
-	Checkpoints string `yaml:"checkpoints"`
-	Source      string `yaml:"-"`
+	Store       string `json:"store"`
+	Models      string `json:"models"`
+	Datasets    string `json:"datasets"`
+	Checkpoints string `json:"checkpoints"`
+	Source      string `json:"-"`
 }
 
 // Resolve returns the data roots for the given working directory.
@@ -58,8 +58,8 @@ func Resolve(workingDirectory string) (Roots, error) {
 	configPath := filepath.Join(workingDirectory, ConfigFile)
 	if raw, err := os.ReadFile(configPath); err == nil {
 		var roots Roots
-		decoder := yaml.NewDecoder(strings.NewReader(string(raw)))
-		decoder.KnownFields(true)
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&roots); err != nil {
 			return Roots{}, fmt.Errorf("dataroot: parse %s: %w", ConfigFile, err)
 		}

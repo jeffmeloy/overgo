@@ -46,20 +46,20 @@ type RemoteMediaPolicy struct {
 }
 
 type mediaPolicyDocument struct {
-	Schema int `yaml:"schema"`
+	Schema int `json:"schema"`
 	Remote struct {
-		Enabled               bool     `yaml:"enabled"`
-		AllowedSchemes        []string `yaml:"allowed_schemes"`
-		AllowedHosts          []string `yaml:"allowed_hosts"`
-		AllowedPorts          []int    `yaml:"allowed_ports"`
-		AllowPrivateNetworks  bool     `yaml:"allow_private_networks"`
-		MaxRedirects          int      `yaml:"max_redirects"`
-		MaxConcurrentFetches  int      `yaml:"max_concurrent_fetches"`
-		ConnectTimeout        string   `yaml:"connect_timeout"`
-		ResponseHeaderTimeout string   `yaml:"response_header_timeout"`
-		TotalTimeout          string   `yaml:"total_timeout"`
-		MaxResponseBytes      int64    `yaml:"max_response_bytes"`
-	} `yaml:"remote_media"`
+		Enabled               bool     `json:"enabled"`
+		AllowedSchemes        []string `json:"allowed_schemes"`
+		AllowedHosts          []string `json:"allowed_hosts"`
+		AllowedPorts          []int    `json:"allowed_ports"`
+		AllowPrivateNetworks  bool     `json:"allow_private_networks"`
+		MaxRedirects          int      `json:"max_redirects"`
+		MaxConcurrentFetches  int      `json:"max_concurrent_fetches"`
+		ConnectTimeout        string   `json:"connect_timeout"`
+		ResponseHeaderTimeout string   `json:"response_header_timeout"`
+		TotalTimeout          string   `json:"total_timeout"`
+		MaxResponseBytes      int64    `json:"max_response_bytes"`
+	} `json:"remote_media"`
 }
 
 func LoadRemoteMediaPolicy(path string) (*RemoteMediaPolicy, error) {
@@ -68,7 +68,7 @@ func LoadRemoteMediaPolicy(path string) (*RemoteMediaPolicy, error) {
 		return nil, fmt.Errorf("read remote media policy: %w", err)
 	}
 	var document mediaPolicyDocument
-	if err := decodeStrictYAML(data, &document, "remote media policy must contain exactly one YAML document"); err != nil {
+	if err := decodeStrictJSON(data, &document, "remote media policy must contain exactly one JSON document"); err != nil {
 		return nil, fmt.Errorf("decode remote media policy: %w", err)
 	}
 	if document.Schema != remoteMediaPolicySchemaVersion {

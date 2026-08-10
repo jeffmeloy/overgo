@@ -1101,7 +1101,7 @@ statements.
   bidirectional while audio ranges remain causal. Pinned llama.cpp and native
   Go both produce 221 prompt tokens for the same one-second audio plus image
   fixture in either order. Remote image/audio URLs are opt-in through the
-  top-level `media_policy.yaml`; exact scheme/host/port allowlists, DNS and
+  top-level `media_policy.json`; exact scheme/host/port allowlists, DNS and
   redirect revalidation, private/reserved-network rejection, independent
   connect/header/total timeouts, MIME checks, response and aggregate byte
   limits, and a fetch-concurrency bound define the SSRF boundary.

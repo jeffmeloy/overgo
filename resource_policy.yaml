@@ -1,9 +1,0 @@
-schema: 1
-response_files:
-  enabled: false
-  max_file_bytes: 16777216
-  allowed_roots: []
-  files: {}
-response_tools:
-  hosted: deny
-  custom: deny

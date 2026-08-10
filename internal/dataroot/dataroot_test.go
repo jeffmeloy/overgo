@@ -31,7 +31,7 @@ func TestConfigFileOverridesPerRootWithDefaultsForOmitted(t *testing.T) {
 	t.Setenv(Env, "")
 	work := t.TempDir()
 	elsewhere := t.TempDir()
-	config := "models: " + filepath.ToSlash(filepath.Join(elsewhere, "weights")) + "\n"
+	config := `{"models":"` + filepath.ToSlash(filepath.Join(elsewhere, "weights")) + `"}`
 	if err := os.WriteFile(filepath.Join(work, ConfigFile), []byte(config), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestConfigFileOverridesPerRootWithDefaultsForOmitted(t *testing.T) {
 func TestUnknownConfigFieldFailsLoudly(t *testing.T) {
 	t.Setenv(Env, "")
 	work := t.TempDir()
-	if err := os.WriteFile(filepath.Join(work, ConfigFile), []byte("modles: /typo\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(work, ConfigFile), []byte(`{"modles":"/typo"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Resolve(work); err == nil {

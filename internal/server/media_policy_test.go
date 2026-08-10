@@ -16,7 +16,7 @@ import (
 )
 
 func TestRepositoryRemoteMediaPolicy(t *testing.T) {
-	policy, err := LoadRemoteMediaPolicy(filepath.Join("..", "..", "media_policy.yaml"))
+	policy, err := LoadRemoteMediaPolicy(filepath.Join("..", "..", "media_policy.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

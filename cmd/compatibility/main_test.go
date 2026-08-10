@@ -11,39 +11,24 @@ func TestGenerateValidatesEvidenceAndSortsOutput(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "internal/feature.go", "package feature\nfunc Feature() {}\n")
 	writeTestFile(t, root, "internal/feature_test.go", "package feature\nfunc TestFeature() {}\n")
-	writeTestFile(t, root, manifestPath, `schema: 1
-upstream:
-  repository: ggml-org/llama.cpp
-  commit: 42fc243060709331ff9b158a9ed2cbe37219ae83
-host:
-  os: windows
-  arch: amd64
-go:
-  minimum: "1.26"
-  cgo: false
-claims:
-  - id: feature
-    status: implemented
-    summary: Feature works.
-    evidence:
-      - path: internal/feature.go
-        contains: "func Feature("
-      - path: internal/feature_test.go
-        contains: "func TestFeature("
-models:
-  zeta:
-    status: experimental
-    features: [z]
-    real_model_validation: pending-fixture
-  alpha:
-    status: experimental
-    features: [a]
-    validated_fixture: alpha.gguf
-  multimodal:
-    status: experimental
-    features: [image]
-    real_model_validation: pending-language-model-oracle
-    multimodal_validated_fixture: projector.gguf + image.png + golden.json
+	writeTestFile(t, root, manifestPath, `{
+  "schema": 1,
+  "upstream": {"repository": "ggml-org/llama.cpp", "commit": "42fc243060709331ff9b158a9ed2cbe37219ae83"},
+  "host": {"os": "windows", "arch": "amd64"},
+  "go": {"minimum": "1.26", "cgo": false},
+  "claims": [
+    {"id": "feature", "status": "implemented", "summary": "Feature works.",
+     "evidence": [
+       {"path": "internal/feature.go", "contains": "func Feature("},
+       {"path": "internal/feature_test.go", "contains": "func TestFeature("}
+     ]}
+  ],
+  "models": {
+    "zeta": {"status": "experimental", "features": ["z"], "real_model_validation": "pending-fixture"},
+    "alpha": {"status": "experimental", "features": ["a"], "validated_fixture": "alpha.gguf"},
+    "multimodal": {"status": "experimental", "features": ["image"], "real_model_validation": "pending-language-model-oracle", "multimodal_validated_fixture": "projector.gguf + image.png + golden.json"}
+  }
+}
 `)
 	output, err := generate(root)
 	if err != nil {
@@ -61,21 +46,19 @@ models:
 func TestGenerateRejectsStaleClaimEvidence(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "feature_test.go", "package feature\nfunc TestOther() {}\n")
-	writeTestFile(t, root, manifestPath, `schema: 1
-upstream: {repository: ggml-org/llama.cpp, commit: 42fc243060709331ff9b158a9ed2cbe37219ae83}
-host: {os: windows, arch: amd64}
-go: {minimum: "1.26", cgo: false}
-claims:
-  - id: stale
-    status: implemented
-    summary: Stale claim.
-    evidence:
-      - path: feature_test.go
-        contains: "func TestMissing("
-models:
-  model:
-    status: experimental
-    features: [feature]
+	writeTestFile(t, root, manifestPath, `{
+  "schema": 1,
+  "upstream": {"repository": "ggml-org/llama.cpp", "commit": "42fc243060709331ff9b158a9ed2cbe37219ae83"},
+  "host": {"os": "windows", "arch": "amd64"},
+  "go": {"minimum": "1.26", "cgo": false},
+  "claims": [
+    {"id": "stale", "status": "implemented", "summary": "Stale claim.",
+     "evidence": [{"path": "feature_test.go", "contains": "func TestMissing("}]}
+  ],
+  "models": {
+    "model": {"status": "experimental", "features": ["feature"]}
+  }
+}
 `)
 	if _, err := generate(root); err == nil || !strings.Contains(err.Error(), "lacks") {
 		t.Fatalf("stale evidence error = %v", err)

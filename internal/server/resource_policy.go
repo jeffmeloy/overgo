@@ -29,27 +29,27 @@ type ResponseFileResolver interface {
 }
 
 type ResponseFilePolicy struct {
-	Schema        int                        `yaml:"schema"`
-	ResponseFiles responseFilePolicySettings `yaml:"response_files"`
-	ResponseTools ResponseToolPolicy         `yaml:"response_tools"`
+	Schema        int                        `json:"schema"`
+	ResponseFiles responseFilePolicySettings `json:"response_files"`
+	ResponseTools ResponseToolPolicy         `json:"response_tools"`
 	files         map[string]ResponseFile
 }
 
 type ResponseToolPolicy struct {
-	Hosted string `yaml:"hosted"`
-	Custom string `yaml:"custom"`
+	Hosted string `json:"hosted"`
+	Custom string `json:"custom"`
 }
 
 type responseFilePolicySettings struct {
-	Enabled      bool                          `yaml:"enabled"`
-	MaxFileBytes int64                         `yaml:"max_file_bytes"`
-	AllowedRoots []string                      `yaml:"allowed_roots"`
-	Files        map[string]responseFileRecord `yaml:"files"`
+	Enabled      bool                          `json:"enabled"`
+	MaxFileBytes int64                         `json:"max_file_bytes"`
+	AllowedRoots []string                      `json:"allowed_roots"`
+	Files        map[string]responseFileRecord `json:"files"`
 }
 
 type responseFileRecord struct {
-	Path      string `yaml:"path"`
-	MediaType string `yaml:"media_type"`
+	Path      string `json:"path"`
+	MediaType string `json:"media_type"`
 }
 
 var responseFileIDPattern = regexp.MustCompile(
@@ -62,7 +62,7 @@ func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 		return nil, fmt.Errorf("read response resource policy: %w", err)
 	}
 	var policy ResponseFilePolicy
-	if err := decodeStrictYAML(data, &policy, "response resource policy must contain exactly one YAML document"); err != nil {
+	if err := decodeStrictJSON(data, &policy, "response resource policy must contain exactly one JSON document"); err != nil {
 		return nil, fmt.Errorf("decode response resource policy: %w", err)
 	}
 	if policy.Schema != responseFilePolicySchemaVersion {

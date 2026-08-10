@@ -263,7 +263,7 @@ prior data-loss incidents.
 
 **Remaining (PENDING):**
 - Single data-root config contract: one owner (`OVERGO_DATA_ROOT` env or the
-  gitignored `local-models.yaml`) naming where the three roots live, read by
+  gitignored `local-models.json`) naming where the three roots live, read by
   the importer AND the runtime. Today `generate` takes ad-hoc path flags and
   `server` a model-id -- no unified root, which is how smoke-matrix staleness
   (E4B) started. Establish before the wave-1 model port.
@@ -396,7 +396,7 @@ Per-rung acceptance:
   constant; and the full accounting (both sides' runs, the derived floor, the
   verdict) lands in the store, not in prose.
 - Weights never move: each rung's artifacts resolve via the data-root
-  contract (local-models.yaml pointing at adaptive_new's model home).
+  contract (local-models.json pointing at adaptive_new's model home).
 
 Ladder, smallest -> largest (adaptive_new models/ + checkpoints/; sizes
 approximate; re-derive exact order from disk at each rung):
@@ -470,7 +470,7 @@ Port sequence (the porting discipline, instantiated):
 Numerical porting starts from fresh context by standing decision: parity
 work gets full attention or it waits.
 
-Probe result (2026-08-08): with `local-models.yaml` pointing the models root
+Probe result (2026-08-08): with `local-models.json` pointing the models root
 at adaptive_new's home, `generate Qwen3.5-9B-Q8_0.gguf` resolves the bare
 name through the data-root contract and is refused by recipe authority with
 "active inference recipe is absent" -- both halves behaving exactly as

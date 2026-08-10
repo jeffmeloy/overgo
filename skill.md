@@ -70,7 +70,7 @@ a file is the natural contract.
   environment-bound), evaluations, regression advisories, magic ledger rows,
   findings documents, gate outcomes. Query via `cmd/repodb-query`; never grep
   the binary log.
-- `compatibility.yaml` — machine-checked capability claims with evidence
+- `compatibility.json` — machine-checked capability claims with evidence
   pointers and an evidence tier per claim (`implemented` != `oracle-backed`).
   A capability without a claim does not exist; a claim whose evidence goes
   stale fails the gate.

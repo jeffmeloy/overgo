@@ -27,7 +27,7 @@ The implementation is currently experimental. See:
 - `docs/COMPATIBILITY.md` for the generated model/feature matrix;
 - `docs/IMPLEMENTATION_LOG.md` for archived validation history;
 - `docs/REPODB.md` for artifact identity and provenance-store contracts;
-- `compatibility.yaml` for machine-checked compatibility claims;
+- `compatibility.json` for machine-checked compatibility claims;
 - `SBOM.cdx.json` and `LICENSES.md` for dependency/kernel provenance and the
   explicit license inventory.
 
@@ -258,7 +258,7 @@ generation prompt, and no tools. Input-token routes project the same prompt
 used by generation and report its exact hard/soft-token length.
 
 Remote `image_url` and `input_audio.url` fetching is controlled by
-[`media_policy.yaml`](media_policy.yaml), loaded through `-media-policy`. The
+[`media_policy.json`](media_policy.json), loaded through `-media-policy`. The
 shipped policy disables URLs. Enabling it requires an explicit scheme, host,
 and port allowlist. DNS results, every redirect target, private/reserved
 networks, MIME types, concurrent fetches, response bytes, and connect/header/
@@ -476,7 +476,7 @@ parts use native projected generation through buffered, streaming, history,
 and input-token Responses paths. Policy-allowed remote URLs share the same
 bounded fetcher. Responses `input_file` accepts typed base64 text data, mapped
 `file_id` text, or policy-allowed text URLs; `input_image.file_id` accepts mapped
-images. [`resource_policy.yaml`](resource_policy.yaml), loaded through
+images. [`resource_policy.json`](resource_policy.json), loaded through
 `-resource-policy`, supplies disabled-by-default file-ID mappings under explicit
 canonicalized roots with eager byte and MIME validation. Files become labeled
 user text, not instructions. PDF/non-text documents, video with tools, and

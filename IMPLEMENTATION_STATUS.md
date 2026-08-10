@@ -3,7 +3,7 @@
 This file is the live roadmap. Detailed completed-work history is archived in
 [`docs/IMPLEMENTATION_LOG.md`](docs/IMPLEMENTATION_LOG.md). The generated model
 and feature matrix is in [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md), with
-[`compatibility.yaml`](compatibility.yaml) as its machine-readable source.
+[`compatibility.json`](compatibility.json) as its machine-readable source.
 
 ## Baseline
 
@@ -394,7 +394,7 @@ artifact, or additional platform.
 | Responses | Bounded continuation, reasoning summaries, and typed text/image files; no PDF/non-text documents, hosted/custom tools, encrypted reasoning, or reasoning-with-tools |
 | Multimodal server | Supported image/audio media may use function tools; video remains single-turn/non-mixed and cannot use tools |
 | Anthropic | Manual summarized thinking uses handler-local signatures; adaptive/omitted/redacted/interleaved modes and thinking with tools are explicit exclusions |
-| Architectures | Declared model graphs execute; marked real-model fixture validation remains in `compatibility.yaml` |
+| Architectures | Declared model graphs execute; marked real-model fixture validation remains in `compatibility.json` |
 | Vision | Chameleon accepts projected soft tokens; its encoder/projector and image-token generator are absent from the pinned upstream execution path |
 | Speculation | Integrated greedy/sampled coordinators; real target/draft pair validation remains fixture-gated |
 | Audio | WavTokenizer waveform synthesis complete; Gemma 3n audio remains absent from pinned mtmd execution |
@@ -423,6 +423,6 @@ Blocked fixture work does not stop independent implementation work.
 - Reference semantics precede CUDA optimization.
 - CPU/CUDA differentials precede real-model performance claims.
 - Real-model claims name their fixture or remain marked pending.
-- Compatibility changes update `compatibility.yaml` and regenerate its matrix.
+- Compatibility changes update `compatibility.json` and regenerate its matrix.
 - Completed detail moves to `docs/IMPLEMENTATION_LOG.md`; this file stays
   concise and current.

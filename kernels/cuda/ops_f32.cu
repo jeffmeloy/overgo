@@ -406,6 +406,35 @@ extern "C" __global__ void gelu_erf_f32(
     }
 }
 
+// gelu_tanh_exact_f32: the elementwise tanh-GELU chain fused into one pass,
+// replicating the primitive kernel sequence op-for-op (__f*_rn blocks FMA
+// contraction, so every intermediate rounds exactly like the separate
+// multiply/scale/add/tanh launches it replaces). bias_width != 0 folds the
+// preceding broadcast bias add (bias[index % bias_width]) into the same pass.
+extern "C" __global__ void gelu_tanh_exact_f32(
+        const float * input,
+        const float * bias,
+        float * output,
+        float cubic_coefficient,
+        float inner_scale,
+        float half_scale,
+        unsigned int bias_width,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        float x = input[index];
+        if (bias_width != 0u) {
+            x = __fadd_rn(x, bias[index % bias_width]);
+        }
+        const float squared = __fmul_rn(x, x);
+        const float cubic = __fmul_rn(squared, x);
+        const float shifted = __fadd_rn(x, __fmul_rn(cubic, cubic_coefficient));
+        const float inner = __fmul_rn(shifted, inner_scale);
+        const float half = __fmul_rn(x, half_scale);
+        output[index] = __fadd_rn(half, __fmul_rn(half, tanhf(inner)));
+    }
+}
+
 extern "C" __global__ void xielu_f32(
         const float * input,
         float * output,
@@ -1861,6 +1890,64 @@ extern "C" __global__ void layer_norm_f32(
     }
 }
 
+// layer_norm_modulate_f32: layer_norm_f32 with the per-channel modulation
+// epilogue fused into the write-back pass (identical reduction, identical
+// per-element rounding via __f*_rn: the unfused chain materialized the
+// normalized value then applied one op per kernel pass).
+// adaptive != 0: out = n + n*scale + shift (adaptive shift-scale);
+// adaptive == 0: out = n*scale + shift (affine norm).
+extern "C" __global__ void layer_norm_modulate_f32(
+        const float * input,
+        const float * scale_vector,
+        const float * shift_vector,
+        float * output,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon,
+        unsigned int adaptive) {
+    const unsigned int row = blockIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const unsigned int offset = row * width;
+    float sum = 0.0f;
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+        sum += input[offset + column];
+    }
+    __shared__ float partial[256];
+    sum = block_sum_f32(sum, partial);
+    const float mean = sum / (float) width;
+    float sum_squares = 0.0f;
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+        const float centered = input[offset + column] - mean;
+        sum_squares += centered * centered;
+    }
+    sum_squares = block_sum_f32(sum_squares, partial);
+    const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+        const float normalized = (input[offset + column] - mean) * inverse;
+        const float scaled = __fmul_rn(normalized, scale_vector[column]);
+        const float value = adaptive != 0u ? __fadd_rn(normalized, scaled) : scaled;
+        output[offset + column] = __fadd_rn(value, shift_vector[column]);
+    }
+}
+
+// broadcast_gate_add_f32: out = residual + value*gate[channel] — the gated
+// residual join (rank-1 gate broadcast over tokens) in one pass, rounding
+// exactly like the broadcast_multiply + add pair it replaces.
+extern "C" __global__ void broadcast_gate_add_f32(
+        const float * value,
+        const float * gate,
+        const float * residual,
+        float * output,
+        unsigned int width,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = __fadd_rn(residual[index], __fmul_rn(value[index], gate[index % width]));
+    }
+}
+
 extern "C" __global__ void softmax_f32(
         const float * input,
         float * output,
@@ -3288,34 +3375,28 @@ extern "C" __global__ void attention_tiled_f32(
     }
 }
 
-// attention_bf16_stage_kv: issue one K/V tile's cp.async copies into the
-// given shared stage (16 bytes = 8 bf16 channels per copy). Sources are the
-// pre-packed BF16 K/V (interleaved layout, pointers pre-offset to the
-// sequence and KV head); rows past the sequence zero-fill directly.
-__device__ __forceinline__ void attention_bf16_stage_kv(
-        const unsigned short * key_base,
-        const unsigned short * value_base,
-        __nv_bfloat16 * k_stage,
-        __nv_bfloat16 * v_stage,
+// attention_bf16_stage_rows: issue one 64-token panel's cp.async copies of a
+// pre-packed BF16 tensor into the given shared stage (16 bytes = 8 bf16
+// channels per copy; pointer pre-offset to the sequence and KV head); rows
+// past the sequence zero-fill directly.
+__device__ __forceinline__ void attention_bf16_stage_rows(
+        const unsigned short * base,
+        __nv_bfloat16 * stage,
         unsigned int tile_base,
         unsigned int key_value_tokens,
         unsigned int token_stride) {
     const unsigned int W = 128u;
-    const unsigned int BN = 32u;
-    const unsigned int KLD = W + 8u;
+    const unsigned int BN = 64u;
+    const unsigned int LD = W + 8u;
     const unsigned int copies = BN * (W / 8u);
-    for (unsigned int copy = threadIdx.x; copy < copies * 2u; copy += blockDim.x) {
-        const bool is_value = copy >= copies;
-        const unsigned int slot = is_value ? copy - copies : copy;
-        const unsigned int token = slot / (W / 8u);
-        const unsigned int channel = (slot % (W / 8u)) * 8u;
-        __nv_bfloat16 * destination =
-            (is_value ? v_stage : k_stage) + token * KLD + channel;
+    for (unsigned int copy = threadIdx.x; copy < copies; copy += blockDim.x) {
+        const unsigned int token = copy / (W / 8u);
+        const unsigned int channel = (copy % (W / 8u)) * 8u;
+        __nv_bfloat16 * destination = stage + token * LD + channel;
         const unsigned int kv = tile_base + token;
         if (kv < key_value_tokens) {
-            const unsigned short * source =
-                (is_value ? value_base : key_base) + kv * token_stride + channel;
-            __pipeline_memcpy_async(destination, source, 16);
+            __pipeline_memcpy_async(
+                destination, base + (size_t) kv * token_stride + channel, 16);
         } else {
             for (unsigned int i = 0; i < 8u; ++i) {
                 destination[i] = __float2bfloat16(0.0f);
@@ -3324,22 +3405,61 @@ __device__ __forceinline__ void attention_bf16_stage_kv(
     }
 }
 
+// attention_ldx4 / attention_ldx4_trans / attention_mma: the ldmatrix +
+// mma.sync primitives behind the BF16 flash kernel. nvcc's wmma path lowers
+// generic-space fragment loads to scalar loads (no LDSM), which leaves the
+// tensor pipe idle; explicit ldmatrix restores 16-bytes-per-lane fragment
+// loads. mma.m16n8k16 drives the same HMMA.16816 hardware ops as wmma
+// m16n16k16 (identical per-element FMA order), so numerics stay in the
+// declared kernel class. Register mappings below are the architected
+// sm_80+ fragment layouts, verified by a basis-product calibration probe.
+__device__ __forceinline__ unsigned int attention_shared_address(const void * pointer) {
+    return (unsigned int) __cvta_generic_to_shared(pointer);
+}
+
+__device__ __forceinline__ void attention_ldx4(
+        unsigned int address,
+        unsigned int & r0, unsigned int & r1, unsigned int & r2, unsigned int & r3) {
+    asm volatile("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0,%1,%2,%3}, [%4];"
+        : "=r"(r0), "=r"(r1), "=r"(r2), "=r"(r3) : "r"(address));
+}
+
+__device__ __forceinline__ void attention_ldx4_trans(
+        unsigned int address,
+        unsigned int & r0, unsigned int & r1, unsigned int & r2, unsigned int & r3) {
+    asm volatile("ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16 {%0,%1,%2,%3}, [%4];"
+        : "=r"(r0), "=r"(r1), "=r"(r2), "=r"(r3) : "r"(address));
+}
+
+__device__ __forceinline__ void attention_mma(
+        float * c,
+        const unsigned int * a,
+        unsigned int b0, unsigned int b1) {
+    asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 "
+        "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
+        : "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
+        : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
+}
+
 // BF16 tensor-core flash attention for head width 128 (the fused
 // Attention(BF16Round(q), BF16Round(k), BF16Round(v)) form). Storage
 // rounding only: Q rounds to BF16 on stage-in (round-to-nearest-even,
 // identical to bf16_round_f32) and K/V arrive pre-rounded to BF16 by the
 // launcher's f32_to_bf16 pack (the same rounding class); products
-// accumulate in F32 through wmma m16n16k16 fragments, and the online
-// softmax runs in exact F32 on the staged score tile; probabilities round
-// to BF16 for the value product. One 256-thread block owns 64 query rows
-// of one head; K/V stream in 32-token tiles through a cp.async
-// double-buffered pipeline (the next tile loads while the current one
-// computes). Every shared array pads its leading dimension to break wmma
-// shared-memory bank conflicts; the softmax epilogue runs four threads per
-// row with warp shuffles. Dynamic shared: Q(64x136 bf16) + 2x K/V(32x136
-// bf16) + S(64x36 f32) + P(64x40 bf16) + O(64x132 f32) + row stats =
-// 101124 bytes (needs the >48KB dynamic-shared opt-in).
-extern "C" __global__ void attention_tiled_bf16_f32(
+// accumulate in F32 through mma.m16n8k16 fragments (ldmatrix-fed), and the
+// online softmax runs in exact F32 on the staged score tile; probabilities
+// round to BF16 for the value product. One 512-thread block (16 warps) owns
+// 64 query rows of one head; K/V stream in 64-token panels: K
+// double-buffers through cp.async (the next panel loads during the value
+// product) while V single-buffers (its load overlaps scores and softmax).
+// O accumulators stay register-resident with architected row mapping, so
+// the online rescale is a per-register multiply (alpha is exactly 1 on
+// steady-state panels, and x*1.0f is exact). The O spill scratch used by
+// the final store aliases the Q+S region (Q is register-resident after the
+// fragment preload and S is consumed into P first), keeping dynamic shared
+// at K(2x64x136 bf16) + V(64x136 bf16) + Q/S-alias(64x136 bf16 + 64x68
+// f32, >= O 64x132 f32) + P(64x72 bf16) + row stats = 97024 bytes.
+extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
         const float * query,
         const unsigned short * key,
         const unsigned short * value,
@@ -3352,14 +3472,13 @@ extern "C" __global__ void attention_tiled_bf16_f32(
         float scale) {
     const unsigned int W = 128u;
     const unsigned int BM = 64u;
-    const unsigned int BN = 32u;
+    const unsigned int BN = 64u;
     const unsigned int QLD = W + 8u;  // bf16 lds, multiple of 8
     const unsigned int KLD = W + 8u;
     const unsigned int VLD = W + 8u;
     const unsigned int SLD = BN + 4u; // f32 ld, multiple of 4
     const unsigned int PLD = BN + 8u; // bf16 ld, multiple of 8
     const unsigned int OLD = W + 4u;  // f32 ld, multiple of 4
-    using namespace nvcuda;
     const unsigned int row_tile = blockIdx.x;
     const unsigned int query_head = blockIdx.y;
     const unsigned int sequence = blockIdx.z;
@@ -3368,20 +3487,21 @@ extern "C" __global__ void attention_tiled_bf16_f32(
     }
     const unsigned int key_value_head = query_head / (query_heads / key_value_heads);
     const unsigned int warp = threadIdx.x >> 5;
+    const unsigned int lane = threadIdx.x & 31u;
 
     extern __shared__ unsigned char attention_shared[];
-    __nv_bfloat16 * q_tile = (__nv_bfloat16 *) attention_shared;    // [BM][QLD]
-    __nv_bfloat16 * k_tile = q_tile + BM * QLD;                     // [2][BN][KLD]
-    __nv_bfloat16 * v_tile = k_tile + 2u * BN * KLD;                // [2][BN][VLD]
-    float * s_tile = (float *) (v_tile + 2u * BN * VLD);            // [BM][SLD]
+    __nv_bfloat16 * k_tile = (__nv_bfloat16 *) attention_shared;    // [2][BN][KLD]
+    __nv_bfloat16 * v_tile = k_tile + 2u * BN * KLD;                // [BN][VLD]
+    unsigned char * qs_region = (unsigned char *) (v_tile + BN * VLD);
+    __nv_bfloat16 * q_tile = (__nv_bfloat16 *) qs_region;           // [BM][QLD]
+    float * s_tile = (float *) (q_tile + BM * QLD);                 // [BM][SLD]
+    // O spill scratch (final store only) aliases Q+S: Q lives only until
+    // the fragment preload and S is dead once P is written.
+    float * o_tile = (float *) qs_region;                           // [BM][OLD]
     __nv_bfloat16 * p_tile = (__nv_bfloat16 *) (s_tile + BM * SLD); // [BM][PLD]
-    float * o_tile = (float *) (p_tile + BM * PLD);                 // [BM][OLD]
-    float * alpha_row = o_tile + BM * OLD;                          // [BM]
+    float * alpha_row = (float *) (p_tile + BM * PLD);              // [BM]
     float * maximum_row = alpha_row + BM;                           // [BM]
     float * sum_row = maximum_row + BM;                             // [BM]
-
-    // rescale_flag shares the tail of the stats region.
-    unsigned int * rescale_flag = (unsigned int *) (sum_row + BM);
 
     const unsigned int row_base = row_tile * BM;
     for (unsigned int index = threadIdx.x; index < BM * W; index += blockDim.x) {
@@ -3397,148 +3517,183 @@ extern "C" __global__ void attention_tiled_bf16_f32(
         sum_row[index] = 0.0f;
     }
 
-    // O accumulators stay register-resident: warp w owns rows (w%4)*16 and
-    // four 16-column strips from (w/4)*64; they spill through o_tile only on
-    // a rescale tile and at the end.
-    const unsigned int o_row0 = (warp & 3u) * 16u;
-    const unsigned int o_column_base = (warp >> 2) * 64u;
-    wmma::fragment<wmma::accumulator, 16, 16, 16, float> weighted[4];
-    for (unsigned int strip = 0; strip < 4u; ++strip) {
-        wmma::fill_fragment(weighted[strip], 0.0f);
+    // Warp tiling: warp w owns S rows (w%4)*16 x columns (w/4)*16 and O rows
+    // (w%4)*16 x columns (w/4)*32. Architected fragment lane roles: g = row
+    // within the 8-row group, t = the lane's element pair.
+    const unsigned int s_row0 = (warp & 3u) * 16u;
+    const unsigned int s_column0 = (warp >> 2) * 16u;
+    const unsigned int o_column_base = (warp >> 2) * 32u;
+    const unsigned int g = lane >> 2;
+    const unsigned int t = lane & 3u;
+    // ldmatrix lane->address roles (16x16 operand = four 8x8 tiles).
+    const unsigned int a_row = (lane & 7u) + ((lane >> 3u) & 1u) * 8u;  // tiles: row-halves first
+    const unsigned int a_col = (lane >> 4u) * 8u;
+    const unsigned int bk_row = (lane & 7u) + (lane >> 4u) * 8u;        // tiles: column-halves first
+    const unsigned int bk_col = ((lane >> 3u) & 1u) * 8u;
+
+    // O accumulators: four 16x8 column tiles, register-resident across the
+    // whole stream; element rows are architected (g and g+8).
+    float weighted[4][4];
+    for (unsigned int tile = 0; tile < 4u; ++tile) {
+        for (unsigned int element = 0; element < 4u; ++element) {
+            weighted[tile][element] = 0.0f;
+        }
     }
     __syncthreads();
 
-    // Q fragments are tile-invariant: load the warp's score-row strip once.
-    const unsigned int s_row0 = (warp & 3u) * 16u;
-    const unsigned int s_column0 = (warp >> 2) * 16u;
-    wmma::fragment<wmma::matrix_a, 16, 16, 16, __nv_bfloat16, wmma::row_major> q_frag[8];
+    // Q fragments are panel-invariant: load the warp's score-row strip once
+    // (q_tile is dead afterwards; the O spill scratch overlays it).
+    unsigned int q_frag[8][4];
     for (unsigned int k = 0; k < 8u; ++k) {
-        wmma::load_matrix_sync(q_frag[k], q_tile + s_row0 * QLD + k * 16u, QLD);
+        attention_ldx4(
+            attention_shared_address(q_tile + (s_row0 + a_row) * QLD + k * 16u + a_col),
+            q_frag[k][0], q_frag[k][1], q_frag[k][2], q_frag[k][3]);
     }
+    __syncthreads();
 
-    // Pre-offset K/V to the sequence and KV head; preload tile 0.
+    // Pre-offset K/V to the sequence and KV head; preload K panel 0.
     const unsigned int kv_token_stride = key_value_heads * W;
     const unsigned short * key_base = key +
         sequence * key_value_tokens * kv_token_stride + key_value_head * W;
     const unsigned short * value_base = value +
         sequence * key_value_tokens * kv_token_stride + key_value_head * W;
-    attention_bf16_stage_kv(
-        key_base, value_base, k_tile, v_tile, 0u, key_value_tokens, kv_token_stride);
+    attention_bf16_stage_rows(key_base, k_tile, 0u, key_value_tokens, kv_token_stride);
     __pipeline_commit();
 
     unsigned int stage = 0u;
     for (unsigned int tile_base = 0; tile_base < key_value_tokens; tile_base += BN, stage ^= 1u) {
+        const bool has_next = tile_base + BN < key_value_tokens;
+        // K for this tile is the only outstanding group; the barrier both
+        // publishes it and closes out the previous value product, so v_tile
+        // is free for this panel's V copy (which then overlaps scores).
         __pipeline_wait_prior(0);
-        if (threadIdx.x == 0) {
-            rescale_flag[0] = 0u;
-        }
         __syncthreads();
-        if (tile_base + BN < key_value_tokens) {
-            attention_bf16_stage_kv(
-                key_base, value_base,
-                k_tile + (stage ^ 1u) * BN * KLD, v_tile + (stage ^ 1u) * BN * VLD,
+        attention_bf16_stage_rows(
+            value_base, v_tile, tile_base, key_value_tokens, kv_token_stride);
+        __pipeline_commit();
+        const __nv_bfloat16 * k_stage = k_tile + stage * BN * KLD;
+
+        {
+            // S tile: two n-halves of the warp's 16x16 score tile.
+            float scores[2][4] = {{0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}};
+            const __nv_bfloat16 * k_rows = k_stage + (s_column0 + bk_row) * KLD + bk_col;
+            for (unsigned int k = 0; k < 8u; ++k) {
+                unsigned int b0, b1, b2, b3;
+                attention_ldx4(
+                    attention_shared_address(k_rows + k * 16u), b0, b1, b2, b3);
+                attention_mma(scores[0], q_frag[k], b0, b1);
+                attention_mma(scores[1], q_frag[k], b2, b3);
+            }
+            float * s_low = s_tile + (s_row0 + g) * SLD + s_column0 + 2u * t;
+            float * s_high = s_tile + (s_row0 + 8u + g) * SLD + s_column0 + 2u * t;
+            *(float2 *) s_low = make_float2(scores[0][0], scores[0][1]);
+            *(float2 *) s_high = make_float2(scores[0][2], scores[0][3]);
+            *(float2 *) (s_low + 8u) = make_float2(scores[1][0], scores[1][1]);
+            *(float2 *) (s_high + 8u) = make_float2(scores[1][2], scores[1][3]);
+        }
+        // The next K panel loads during softmax and the value product.
+        if (has_next) {
+            attention_bf16_stage_rows(
+                key_base, k_tile + (stage ^ 1u) * BN * KLD,
                 tile_base + BN, key_value_tokens, kv_token_stride);
             __pipeline_commit();
         }
-        const __nv_bfloat16 * k_stage = k_tile + stage * BN * KLD;
-        const __nv_bfloat16 * v_stage = v_tile + stage * BN * VLD;
-
-        {
-            // S tile: warp w owns rows (w%4)*16, columns (w/4)*16.
-            wmma::fragment<wmma::accumulator, 16, 16, 16, float> scores;
-            wmma::fill_fragment(scores, 0.0f);
-            for (unsigned int k = 0; k < 8u; ++k) {
-                wmma::fragment<wmma::matrix_b, 16, 16, 16, __nv_bfloat16, wmma::col_major> b;
-                wmma::load_matrix_sync(b, k_stage + s_column0 * KLD + k * 16u, KLD);
-                wmma::mma_sync(scores, q_frag[k], b, scores);
-            }
-            wmma::store_matrix_sync(s_tile + s_row0 * SLD + s_column0, scores, SLD, wmma::mem_row_major);
-        }
         __syncthreads();
 
-        // Exact online softmax on the staged F32 scores: four threads per
+        // Exact online softmax on the staged F32 scores: eight threads per
         // row, reduced with warp shuffles.
         {
-            const unsigned int row = threadIdx.x >> 2;
-            const unsigned int part = threadIdx.x & 3u;
+            const unsigned int row = threadIdx.x >> 3;
+            const unsigned int part = threadIdx.x & 7u;
             const unsigned int remaining = key_value_tokens - tile_base;
             const unsigned int valid = remaining < BN ? remaining : BN;
+            // One shared read per column: the scaled scores stay in
+            // registers across the max and probability passes.
+            float scaled[8];
+            for (unsigned int i = 0; i < 8u; ++i) {
+                scaled[i] = s_tile[row * SLD + part + 8u * i] * scale;
+            }
             float local_maximum = -3.402823466e+38F;
-            for (unsigned int j = part; j < valid; j += 4u) {
-                local_maximum = fmaxf(local_maximum, s_tile[row * SLD + j] * scale);
+            for (unsigned int i = 0; i < 8u; ++i) {
+                if (part + 8u * i < valid) {
+                    local_maximum = fmaxf(local_maximum, scaled[i]);
+                }
             }
             local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xffffffffu, local_maximum, 1));
             local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xffffffffu, local_maximum, 2));
+            local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xffffffffu, local_maximum, 4));
             const float next_maximum = fmaxf(maximum_row[row], local_maximum);
             const float alpha = expf(maximum_row[row] - next_maximum);
             float local_sum = 0.0f;
-            for (unsigned int j = part; j < BN; j += 4u) {
-                const float probability = j < valid
-                    ? expf(s_tile[row * SLD + j] * scale - next_maximum)
+            for (unsigned int i = 0; i < 8u; ++i) {
+                const float probability = part + 8u * i < valid
+                    ? expf(scaled[i] - next_maximum)
                     : 0.0f;
-                p_tile[row * PLD + j] = __float2bfloat16(probability);
+                p_tile[row * PLD + part + 8u * i] = __float2bfloat16(probability);
                 local_sum += probability;
             }
             local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 1);
             local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 2);
+            local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 4);
             if (part == 0) {
                 maximum_row[row] = next_maximum;
                 sum_row[row] = sum_row[row] * alpha + local_sum;
                 alpha_row[row] = alpha;
-                if (alpha != 1.0f) {
-                    rescale_flag[0] = 1u;
-                }
             }
         }
+        // V panel must be resident before the value product: all-but-one
+        // leaves only the next K (or nothing on the last panel)
+        // outstanding. One barrier publishes P, the row stats, and V.
+        __pipeline_wait_prior(has_next ? 1 : 0);
         __syncthreads();
 
-        if (rescale_flag[0] != 0u) {
-            // Spill the resident accumulators, apply the per-row alpha, and
-            // reload; the common steady-state tile (running max unchanged)
-            // skips this entirely.
-            for (unsigned int strip = 0; strip < 4u; ++strip) {
-                wmma::store_matrix_sync(
-                    o_tile + o_row0 * OLD + o_column_base + strip * 16u,
-                    weighted[strip], OLD, wmma::mem_row_major);
-            }
-            __syncthreads();
-            for (unsigned int index = threadIdx.x; index < BM * W; index += blockDim.x) {
-                const unsigned int row = index >> 7;
-                const float alpha = alpha_row[row];
-                if (alpha != 1.0f) {
-                    o_tile[row * OLD + (index & 127u)] *= alpha;
-                }
-            }
-            __syncthreads();
-            for (unsigned int strip = 0; strip < 4u; ++strip) {
-                wmma::load_matrix_sync(
-                    weighted[strip],
-                    o_tile + o_row0 * OLD + o_column_base + strip * 16u,
-                    OLD, wmma::mem_row_major);
+        {
+            // Register-resident rescale: each accumulator element's row is
+            // architected (g in the low half, g+8 in the high), so the
+            // running-max correction is a plain multiply. Steady-state
+            // panels carry alpha == 1 exactly and x*1.0f is exact.
+            const float alpha_low = alpha_row[s_row0 + g];
+            const float alpha_high = alpha_row[s_row0 + 8u + g];
+            for (unsigned int tile = 0; tile < 4u; ++tile) {
+                weighted[tile][0] *= alpha_low;
+                weighted[tile][1] *= alpha_low;
+                weighted[tile][2] *= alpha_high;
+                weighted[tile][3] *= alpha_high;
             }
         }
 
         {
-            // P fragments load once per tile and feed all four strips.
-            wmma::fragment<wmma::matrix_a, 16, 16, 16, __nv_bfloat16, wmma::row_major> p_frag[2];
-            wmma::load_matrix_sync(p_frag[0], p_tile + o_row0 * PLD, PLD);
-            wmma::load_matrix_sync(p_frag[1], p_tile + o_row0 * PLD + 16u, PLD);
-            for (unsigned int strip = 0; strip < 4u; ++strip) {
-                const unsigned int column0 = o_column_base + strip * 16u;
-                for (unsigned int k = 0; k < 2u; ++k) {
-                    wmma::fragment<wmma::matrix_b, 16, 16, 16, __nv_bfloat16, wmma::row_major> b;
-                    wmma::load_matrix_sync(b, v_stage + k * 16u * VLD + column0, VLD);
-                    wmma::mma_sync(weighted[strip], p_frag[k], b, weighted[strip]);
-                }
+            // Value product: P fragments load once per token quarter and
+            // feed all four O column tiles.
+            for (unsigned int k = 0; k < 4u; ++k) {
+                unsigned int p_frag[4];
+                attention_ldx4(
+                    attention_shared_address(
+                        p_tile + (s_row0 + a_row) * PLD + k * 16u + a_col),
+                    p_frag[0], p_frag[1], p_frag[2], p_frag[3]);
+                const __nv_bfloat16 * v_rows =
+                    v_tile + (k * 16u + a_row) * VLD + o_column_base + a_col;
+                unsigned int b0, b1, b2, b3;
+                attention_ldx4_trans(
+                    attention_shared_address(v_rows), b0, b1, b2, b3);
+                attention_mma(weighted[0], p_frag, b0, b1);
+                attention_mma(weighted[1], p_frag, b2, b3);
+                attention_ldx4_trans(
+                    attention_shared_address(v_rows + 16u), b0, b1, b2, b3);
+                attention_mma(weighted[2], p_frag, b0, b1);
+                attention_mma(weighted[3], p_frag, b2, b3);
             }
         }
-        __syncthreads();
+        // No trailing barrier: the next panel's top barrier (after the K
+        // wait) closes this value product before v_tile is rewritten.
     }
 
-    for (unsigned int strip = 0; strip < 4u; ++strip) {
-        wmma::store_matrix_sync(
-            o_tile + o_row0 * OLD + o_column_base + strip * 16u,
-            weighted[strip], OLD, wmma::mem_row_major);
+    for (unsigned int tile = 0; tile < 4u; ++tile) {
+        const unsigned int column = o_column_base + tile * 8u + 2u * t;
+        *(float2 *) (o_tile + (s_row0 + g) * OLD + column) =
+            make_float2(weighted[tile][0], weighted[tile][1]);
+        *(float2 *) (o_tile + (s_row0 + 8u + g) * OLD + column) =
+            make_float2(weighted[tile][2], weighted[tile][3]);
     }
     __syncthreads();
 

@@ -13,21 +13,21 @@ import (
 )
 
 // BF16 tensor-core flash attention geometry (attention_tiled_bf16_f32):
-// width fixed at 128, 64 query rows per 256-thread block, 32-token K/V
-// tiles double-buffered through the cp.async pipeline. Shared bytes mirror
-// the kernel's layout exactly.
+// width fixed at 128, 64 query rows per 512-thread (16-warp) block,
+// 64-token K/V panels (K double-buffered, V single-buffered through the
+// cp.async pipeline; the O spill scratch aliases the dead Q+S region).
+// Shared bytes mirror the kernel's layout exactly.
 const (
 	attentionBF16Width       = uint32(128)
 	attentionBF16RowTile     = uint32(64)
-	attentionBF16KVTile      = uint32(32)
-	attentionBF16Threads     = uint32(256)
-	attentionBF16SharedBytes = uint32(2*attentionBF16RowTile*(attentionBF16Width+8) + // Q bf16 [64][136]
-		2*2*2*attentionBF16KVTile*(attentionBF16Width+8) + // K,V bf16 [2][32][136]
-		4*attentionBF16RowTile*(attentionBF16KVTile+4) + // S f32 [64][36]
-		2*attentionBF16RowTile*(attentionBF16KVTile+8) + // P bf16 [64][40]
-		4*attentionBF16RowTile*(attentionBF16Width+4) + // O f32 [64][132]
-		3*4*attentionBF16RowTile + // alpha/max/sum rows
-		4) // rescale flag
+	attentionBF16KVTile      = uint32(64)
+	attentionBF16Threads     = uint32(512)
+	attentionBF16SharedBytes = uint32(2*2*attentionBF16KVTile*(attentionBF16Width+8) + // K bf16 [2][64][136]
+		2*attentionBF16KVTile*(attentionBF16Width+8) + // V bf16 [64][136]
+		2*attentionBF16RowTile*(attentionBF16Width+8) + // Q bf16 [64][136] (O spill alias base)
+		4*attentionBF16RowTile*(attentionBF16KVTile+4) + // S f32 [64][68] (O spill alias tail)
+		2*attentionBF16RowTile*(attentionBF16KVTile+8) + // P bf16 [64][72]
+		3*4*attentionBF16RowTile) // alpha/max/sum rows
 )
 
 // configureLargeSharedKernels: one-time dynamic-shared opt-in for kernels

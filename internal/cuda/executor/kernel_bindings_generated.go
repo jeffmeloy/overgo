@@ -23,6 +23,7 @@ const (
 	kernelBf16RoundF32
 	kernelBroadcastAddF32
 	kernelBroadcastDivideF32
+	kernelBroadcastGateAddF32
 	kernelBroadcastMultiplyF32
 	kernelClampF32
 	kernelConcatF32
@@ -41,6 +42,7 @@ const (
 	kernelGatherLastQ80F32
 	kernelGeluErfF32
 	kernelGeluF32
+	kernelGeluTanhExactF32
 	kernelGetRowsF32
 	kernelGetRowsIq1MF32
 	kernelGetRowsIq1SF32
@@ -74,6 +76,7 @@ const (
 	kernelIndexerScoreF32
 	kernelL2NormF32
 	kernelLayerNormF32
+	kernelLayerNormModulateF32
 	kernelLoraMergeF32
 	kernelMoeF32
 	kernelMoeGroupedF32
@@ -175,6 +178,7 @@ var kernelFunctionNames = [...]string{
 	"bf16_round_f32",
 	"broadcast_add_f32",
 	"broadcast_divide_f32",
+	"broadcast_gate_add_f32",
 	"broadcast_multiply_f32",
 	"clamp_f32",
 	"concat_f32",
@@ -193,6 +197,7 @@ var kernelFunctionNames = [...]string{
 	"gather_last_q8_0_f32",
 	"gelu_erf_f32",
 	"gelu_f32",
+	"gelu_tanh_exact_f32",
 	"get_rows_f32",
 	"get_rows_iq1_m_f32",
 	"get_rows_iq1_s_f32",
@@ -226,6 +231,7 @@ var kernelFunctionNames = [...]string{
 	"indexer_score_f32",
 	"l2_norm_f32",
 	"layer_norm_f32",
+	"layer_norm_modulate_f32",
 	"lora_merge_f32",
 	"moe_f32",
 	"moe_grouped_f32",
@@ -326,6 +332,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	15,
 	15,
+	6,
 	15,
 	5,
 	8,
@@ -344,6 +351,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	3,
 	3,
+	8,
 	5,
 	5,
 	5,
@@ -377,6 +385,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	11,
 	5,
 	5,
+	8,
 	10,
 	30,
 	29,

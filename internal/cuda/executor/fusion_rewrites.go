@@ -1,6 +1,9 @@
 package executor
 
 import (
+	"fmt"
+	"os"
+
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -30,6 +33,36 @@ type weightedRMSGateFusion struct {
 	weightedRMSFusion
 	gate *tensor.Tensor
 	kind activatedGateKind
+}
+
+// geluTanhFusion: the exact tanh-GELU elementwise chain
+// (x -> half + half*tanh((x + c*x^3)*s), half = h*x) collapsed into one
+// kernel pass; scale factors come from the graph's Scale attributes. bias
+// non-nil additionally folds the preceding rank-1 broadcast bias add.
+type geluTanhFusion struct {
+	input            *tensor.Tensor
+	bias             *tensor.Tensor
+	cubicCoefficient float32
+	innerScale       float32
+	halfScale        float32
+}
+
+// layerNormModulateFusion: LayerNorm with the per-channel modulation
+// epilogue folded into its write-back pass. adaptive selects
+// n + n*scale + shift (adaptive shift-scale) over n*scale + shift (affine).
+type layerNormModulateFusion struct {
+	normalization *tensor.Tensor
+	scaleVector   *tensor.Tensor
+	shiftVector   *tensor.Tensor
+	adaptive      bool
+}
+
+// broadcastGateAddFusion: residual + value*gate with a rank-1 gate
+// broadcast, joined in one pass.
+type broadcastGateAddFusion struct {
+	value    *tensor.Tensor
+	gate     *tensor.Tensor
+	residual *tensor.Tensor
 }
 
 // bf16ProjAddFusion: one-token BF16 matvec with the residual add folded into
@@ -85,6 +118,9 @@ type graphRewrite struct {
 var graphRewriteCatalog = [...]graphRewrite{
 	{name: "weighted-rms", apply: applyWeightedRMSRewrite},
 	{name: "activated-gate", apply: applyActivatedGateRewrite},
+	{name: "gelu-tanh", apply: applyGELUTanhRewrite},
+	{name: "layer-norm-modulate", apply: applyLayerNormModulateRewrite},
+	// BISECT {name: "broadcast-gate-add", apply: applyBroadcastGateAddRewrite},
 	{name: "q8-emission", apply: applyQ8EmissionRewrite},
 	{name: "q8-argmax", apply: applyQ8ArgmaxRewrite},
 	{name: "bf16-gate", apply: applyBF16GateRewrite},
@@ -198,6 +234,289 @@ func applyActivatedGateRewrite(context *rewriteContext) {
 			gate: activation.Inputs[0], up: up, activation: activation, kind: kind,
 		}
 		compiled.skipped[activation] = struct{}{}
+	}
+}
+
+func scaleFactorFor(node *tensor.Tensor) (float32, bool) {
+	if node == nil || node.Op != tensor.OpScale || len(node.Inputs) != 1 {
+		return 0, false
+	}
+	attributes, ok := node.Attrs.(tensor.ScaleAttributes)
+	return attributes.Value, ok
+}
+
+// fusableIntermediate: single-consumer interior node available for elision.
+func (context *rewriteContext) fusableIntermediate(node *tensor.Tensor, uses int) bool {
+	if node == nil || context.uses[node] != uses {
+		return false
+	}
+	if _, skipped := context.compiled.skipped[node]; skipped {
+		return false
+	}
+	_, retained := context.outputSet[node]
+	return !retained
+}
+
+// applyGELUTanhRewrite: the GELUTanhExact builder chain
+// (squared = x*x; cubic = squared*x; shifted = x + Scale(cubic, c);
+// inner = Scale(shifted, s); half = Scale(x, h); out = half + half*Tanh(inner))
+// collapses into one elementwise kernel that replays the identical
+// per-element rounding sequence. When x is itself a single-purpose rank-1
+// broadcast bias add (a biased projection), the bias add folds in too.
+func applyGELUTanhRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		if node.Op != tensor.OpAdd || len(node.Inputs) != 2 {
+			continue
+		}
+		if _, skipped := compiled.skipped[node]; skipped {
+			continue
+		}
+		half, product := node.Inputs[0], node.Inputs[1]
+		if half.Op != tensor.OpScale {
+			half, product = product, half
+		}
+		if half.Op != tensor.OpScale || product == nil ||
+			product.Op != tensor.OpMultiply || len(product.Inputs) != 2 {
+			continue
+		}
+		hyperbolic := product.Inputs[0]
+		if hyperbolic == half {
+			hyperbolic = product.Inputs[1]
+		}
+		if (product.Inputs[0] != half && product.Inputs[1] != half) ||
+			hyperbolic.Op != tensor.OpTanh || len(hyperbolic.Inputs) != 1 {
+			continue
+		}
+		inner := hyperbolic.Inputs[0]
+		innerScale, innerOK := scaleFactorFor(inner)
+		if !innerOK {
+			continue
+		}
+		shifted := inner.Inputs[0]
+		if shifted.Op != tensor.OpAdd || len(shifted.Inputs) != 2 {
+			continue
+		}
+		x := half.Inputs[0]
+		scaledCubic := shifted.Inputs[0]
+		if scaledCubic == x {
+			scaledCubic = shifted.Inputs[1]
+		}
+		if shifted.Inputs[0] != x && shifted.Inputs[1] != x {
+			continue
+		}
+		cubicCoefficient, cubicOK := scaleFactorFor(scaledCubic)
+		if !cubicOK {
+			continue
+		}
+		halfScale, halfOK := scaleFactorFor(half)
+		if !halfOK {
+			continue
+		}
+		cubic := scaledCubic.Inputs[0]
+		if cubic.Op != tensor.OpMultiply || len(cubic.Inputs) != 2 {
+			continue
+		}
+		squared := cubic.Inputs[0]
+		if squared == x {
+			squared = cubic.Inputs[1]
+		}
+		if (cubic.Inputs[0] != x && cubic.Inputs[1] != x) ||
+			squared.Op != tensor.OpMultiply || len(squared.Inputs) != 2 ||
+			squared.Inputs[0] != x || squared.Inputs[1] != x {
+			continue
+		}
+		if !x.Shape.Equal(node.Shape) {
+			continue
+		}
+		if !context.fusableIntermediate(half, 2) ||
+			!context.fusableIntermediate(product, 1) ||
+			!context.fusableIntermediate(hyperbolic, 1) ||
+			!context.fusableIntermediate(inner, 1) ||
+			!context.fusableIntermediate(shifted, 1) ||
+			!context.fusableIntermediate(scaledCubic, 1) ||
+			!context.fusableIntermediate(cubic, 1) ||
+			!context.fusableIntermediate(squared, 1) {
+			continue
+		}
+		fusion := geluTanhFusion{
+			input:            x,
+			cubicCoefficient: cubicCoefficient,
+			innerScale:       innerScale,
+			halfScale:        halfScale,
+		}
+		if compiled.geluTanh == nil {
+			compiled.geluTanh = make(map[*tensor.Tensor]geluTanhFusion)
+		}
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		// Bias fold: x = biased projection whose every use is this chain
+		// (squared twice, cubic, shifted, half).
+		if x.Op == tensor.OpAdd && len(x.Inputs) == 2 && context.fusableIntermediate(x, 5) {
+			projection, bias := x.Inputs[0], x.Inputs[1]
+			if projection.Shape.Rank == 1 {
+				projection, bias = bias, projection
+			}
+			if bias.Shape.Rank == 1 && x.Shape.Rank == 2 &&
+				projection.Shape.Equal(x.Shape) && bias.Shape.Dims[0] == x.Shape.Dims[0] {
+				fusion.input = projection
+				fusion.bias = bias
+				compiled.skipped[x] = struct{}{}
+			}
+		}
+		compiled.geluTanh[node] = fusion
+		for _, interior := range [...]*tensor.Tensor{
+			half, product, hyperbolic, inner, shifted, scaledCubic, cubic, squared,
+		} {
+			compiled.skipped[interior] = struct{}{}
+		}
+	}
+}
+
+// modulationVectorFor: rank-1 per-channel vector broadcastable over the
+// rank-2 node's rows.
+func modulationVectorFor(node, vector *tensor.Tensor) bool {
+	return vector != nil && vector.Shape.Rank == 1 && node.Shape.Rank == 2 &&
+		vector.Shape.Dims[0] == node.Shape.Dims[0]
+}
+
+// applyLayerNormModulateRewrite: the adaptive shift-scale chain
+// Add(Add(ln, Multiply(ln, scale)), shift) and the affine norm chain
+// Add(Multiply(ln, weight), bias) fold into the layer-norm write-back pass.
+func applyLayerNormModulateRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		if node.Op != tensor.OpAdd || len(node.Inputs) != 2 {
+			continue
+		}
+		if _, skipped := compiled.skipped[node]; skipped {
+			continue
+		}
+		if _, fused := compiled.geluTanh[node]; fused {
+			continue
+		}
+		inner, shift := node.Inputs[0], node.Inputs[1]
+		if !modulationVectorFor(node, shift) {
+			inner, shift = shift, inner
+		}
+		if !modulationVectorFor(node, shift) || !inner.Shape.Equal(node.Shape) {
+			continue
+		}
+		var fusion layerNormModulateFusion
+		var interior []*tensor.Tensor
+		if inner.Op == tensor.OpAdd && len(inner.Inputs) == 2 {
+			// Adaptive: inner = Add(ln, Multiply(ln, scale)).
+			normalization, product := inner.Inputs[0], inner.Inputs[1]
+			if product.Op != tensor.OpMultiply {
+				normalization, product = product, normalization
+			}
+			if normalization.Op != tensor.OpLayerNorm || product.Op != tensor.OpMultiply ||
+				len(product.Inputs) != 2 {
+				continue
+			}
+			scale := product.Inputs[0]
+			if scale == normalization {
+				scale = product.Inputs[1]
+			}
+			if (product.Inputs[0] != normalization && product.Inputs[1] != normalization) ||
+				!modulationVectorFor(node, scale) {
+				continue
+			}
+			if !context.fusableIntermediate(normalization, 2) ||
+				!context.fusableIntermediate(product, 1) ||
+				!context.fusableIntermediate(inner, 1) {
+				continue
+			}
+			fusion = layerNormModulateFusion{
+				normalization: normalization, scaleVector: scale, shiftVector: shift, adaptive: true,
+			}
+			interior = []*tensor.Tensor{normalization, product, inner}
+		} else if inner.Op == tensor.OpMultiply && len(inner.Inputs) == 2 {
+			// Affine: inner = Multiply(ln, weight).
+			normalization, weight := inner.Inputs[0], inner.Inputs[1]
+			if normalization.Op != tensor.OpLayerNorm {
+				normalization, weight = weight, normalization
+			}
+			if normalization.Op != tensor.OpLayerNorm || !modulationVectorFor(node, weight) {
+				continue
+			}
+			if !context.fusableIntermediate(normalization, 1) ||
+				!context.fusableIntermediate(inner, 1) {
+				continue
+			}
+			fusion = layerNormModulateFusion{
+				normalization: normalization, scaleVector: weight, shiftVector: shift, adaptive: false,
+			}
+			interior = []*tensor.Tensor{normalization, inner}
+		} else {
+			continue
+		}
+		if compiled.layerNormModulate == nil {
+			compiled.layerNormModulate = make(map[*tensor.Tensor]layerNormModulateFusion)
+		}
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		compiled.layerNormModulate[node] = fusion
+		for _, item := range interior {
+			compiled.skipped[item] = struct{}{}
+		}
+	}
+}
+
+// applyBroadcastGateAddRewrite: Add(residual, Multiply(value, gate)) with a
+// rank-1 gate joins into one pass.
+func applyBroadcastGateAddRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		if node.Op != tensor.OpAdd || len(node.Inputs) != 2 {
+			continue
+		}
+		if _, skipped := compiled.skipped[node]; skipped {
+			continue
+		}
+		if _, fused := compiled.geluTanh[node]; fused {
+			continue
+		}
+		if _, fused := compiled.layerNormModulate[node]; fused {
+			continue
+		}
+		product, residual := node.Inputs[0], node.Inputs[1]
+		if product.Op != tensor.OpMultiply {
+			product, residual = residual, product
+		}
+		if product.Op != tensor.OpMultiply || len(product.Inputs) != 2 ||
+			!residual.Shape.Equal(node.Shape) || product == residual {
+			continue
+		}
+		value, gate := product.Inputs[0], product.Inputs[1]
+		if !modulationVectorFor(node, gate) {
+			value, gate = gate, value
+		}
+		if !modulationVectorFor(node, gate) || !value.Shape.Equal(node.Shape) {
+			continue
+		}
+		if !context.fusableIntermediate(product, 1) {
+			continue
+		}
+		if compiled.broadcastGateAdd == nil {
+			compiled.broadcastGateAdd = make(map[*tensor.Tensor]broadcastGateAddFusion)
+		}
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		compiled.broadcastGateAdd[node] = broadcastGateAddFusion{
+			value: value, gate: gate, residual: residual,
+		}
+		compiled.skipped[product] = struct{}{}
+		if os.Getenv("OVERGO_FUSION_DEBUG") != "" {
+			fmt.Printf("gate-add: node=%d %v value=%d(%s %v) gate=%d(%s %v) residual=%d(%s %v)\n",
+				node.ID, node.Shape.Dims[:node.Shape.Rank],
+				value.ID, value.Op, value.Shape.Dims[:value.Shape.Rank],
+				gate.ID, gate.Op, gate.Shape.Dims[:gate.Shape.Rank],
+				residual.ID, residual.Op, residual.Shape.Dims[:residual.Shape.Rank])
+		}
 	}
 }
 
@@ -495,6 +814,23 @@ func (context *rewriteContext) compileDependencies() {
 	}
 	for node, fusion := range context.compiled.activatedGate {
 		context.dependency[node] = append(context.dependency[node], fusion.gate)
+	}
+	for node, fusion := range context.compiled.geluTanh {
+		context.dependency[node] = append(context.dependency[node], fusion.input)
+		if fusion.bias != nil {
+			context.dependency[node] = append(context.dependency[node], fusion.bias)
+		}
+	}
+	for node, fusion := range context.compiled.layerNormModulate {
+		context.dependency[node] = append(
+			context.dependency[node],
+			fusion.normalization.Inputs[0], fusion.scaleVector, fusion.shiftVector,
+		)
+	}
+	for node, fusion := range context.compiled.broadcastGateAdd {
+		context.dependency[node] = append(
+			context.dependency[node], fusion.value, fusion.gate, fusion.residual,
+		)
 	}
 	for node, fusion := range context.compiled.weightedRMSGate {
 		context.dependency[node] = append(context.dependency[node], fusion.gate, fusion.weight)

@@ -481,6 +481,96 @@ func launchWeightedRMSNorm(
 	)
 }
 
+// launchGELUTanh: one fused pass over the exact tanh-GELU chain; a non-nil
+// bias folds the preceding rank-1 broadcast bias add.
+func launchGELUTanh(
+	state *device.State,
+	functions functionSet,
+	output *tensor.Tensor,
+	fusion geluTanhFusion,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	count, err := elementCount32(output.Shape)
+	if err != nil {
+		return err
+	}
+	input := pointers[fusion.input]
+	result := pointers[output]
+	var bias driver.DevicePtr
+	biasWidth := uint32(0)
+	if fusion.bias != nil {
+		bias = pointers[fusion.bias]
+		width, widthErr := uint32Checked(fusion.bias.Shape.Dims[0], "gelu_tanh bias width")
+		if widthErr != nil {
+			return widthErr
+		}
+		biasWidth = width
+	}
+	cubic, inner, half := fusion.cubicCoefficient, fusion.innerScale, fusion.halfScale
+	return launch1DABI(
+		state, functions[kernelGeluTanhExactF32], count,
+		&input, &bias, &result, &cubic, &inner, &half, &biasWidth, &count,
+	)
+}
+
+// launchLayerNormModulate: layer norm with the modulation epilogue fused
+// into its write-back pass.
+func launchLayerNormModulate(
+	state *device.State,
+	functions functionSet,
+	output *tensor.Tensor,
+	fusion layerNormModulateFusion,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	attributes, ok := fusion.normalization.Attrs.(tensor.LayerNormAttributes)
+	if !ok {
+		return errors.New("invalid fused LayerNorm attributes")
+	}
+	width, rows, err := rowDimensions32(output.Shape)
+	if err != nil {
+		return err
+	}
+	input := pointers[fusion.normalization.Inputs[0]]
+	scale := pointers[fusion.scaleVector]
+	shift := pointers[fusion.shiftVector]
+	result := pointers[output]
+	epsilon := attributes.Epsilon
+	adaptive := uint32(0)
+	if fusion.adaptive {
+		adaptive = 1
+	}
+	return launchNormalizationABI(
+		state, functions[kernelLayerNormModulateF32], rows,
+		&input, &scale, &shift, &result, &width, &rows, &epsilon, &adaptive,
+	)
+}
+
+// launchBroadcastGateAdd: residual + value*gate joined in one pass.
+func launchBroadcastGateAdd(
+	state *device.State,
+	functions functionSet,
+	output *tensor.Tensor,
+	fusion broadcastGateAddFusion,
+	pointers map[*tensor.Tensor]driver.DevicePtr,
+) error {
+	count, err := elementCount32(output.Shape)
+	if err != nil {
+		return err
+	}
+	width, err := uint32Checked(fusion.gate.Shape.Dims[0], "broadcast gate width")
+	if err != nil {
+		return err
+	}
+	value := pointers[fusion.value]
+	gate := pointers[fusion.gate]
+	residual := pointers[fusion.residual]
+	result := pointers[output]
+	return launch1DABI(
+		state, functions[kernelBroadcastGateAddF32], count,
+		&value, &gate, &residual, &result, &width, &count,
+	)
+}
+
 func launchActivatedGate(
 	state *device.State,
 	functions functionSet,

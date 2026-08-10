@@ -725,21 +725,25 @@ type CompiledGraph struct {
 	memory          planner.Plan
 	weightedRMS     map[*tensor.Tensor]weightedRMSFusion
 	activatedGate   map[*tensor.Tensor]activatedGateFusion
+	geluTanh        map[*tensor.Tensor]geluTanhFusion
 	weightedRMSGate map[*tensor.Tensor]weightedRMSGateFusion
-	bf16Gate        map[*tensor.Tensor]bf16GateFusion
-	bf16ProjAdd     map[*tensor.Tensor]bf16ProjAddFusion
-	bf16Append      map[*tensor.Tensor]bf16AppendFusion
-	bf16Attention   map[*tensor.Tensor]bf16AttentionFusion
-	bf16Argmax      map[*tensor.Tensor]*tensor.Tensor
-	ropeAppend      map[*tensor.Tensor]ropeAppendFusion
-	elided          map[*tensor.Tensor]struct{}
-	q8Emit          map[*tensor.Tensor]struct{}
-	q8Argmax        map[*tensor.Tensor]*tensor.Tensor
-	targetContracts []tensor.OutputTargetContract
-	skipped         map[*tensor.Tensor]struct{}
-	needBlas        bool
-	bf16InputBytes  uint64
-	q8InputBytes    uint64
+
+	layerNormModulate map[*tensor.Tensor]layerNormModulateFusion
+	broadcastGateAdd  map[*tensor.Tensor]broadcastGateAddFusion
+	bf16Gate          map[*tensor.Tensor]bf16GateFusion
+	bf16ProjAdd       map[*tensor.Tensor]bf16ProjAddFusion
+	bf16Append        map[*tensor.Tensor]bf16AppendFusion
+	bf16Attention     map[*tensor.Tensor]bf16AttentionFusion
+	bf16Argmax        map[*tensor.Tensor]*tensor.Tensor
+	ropeAppend        map[*tensor.Tensor]ropeAppendFusion
+	elided            map[*tensor.Tensor]struct{}
+	q8Emit            map[*tensor.Tensor]struct{}
+	q8Argmax          map[*tensor.Tensor]*tensor.Tensor
+	targetContracts   []tensor.OutputTargetContract
+	skipped           map[*tensor.Tensor]struct{}
+	needBlas          bool
+	bf16InputBytes    uint64
+	q8InputBytes      uint64
 	// attentionScoreBytes: cuBLAS attention score staging ([heads][chunk][keys] F32)
 	attentionScoreBytes uint64
 }
@@ -1548,6 +1552,27 @@ func execute(
 					state, functions, q8Input, node, fusion, emitQ8, pointers,
 				); err != nil {
 					return fmt.Errorf("launch tensor %d (activated_gate): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if fusion, ok := compiled.geluTanh[node]; ok {
+				if err := launchGELUTanh(state, functions, node, fusion, pointers); err != nil {
+					return fmt.Errorf("launch tensor %d (gelu_tanh): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if fusion, ok := compiled.layerNormModulate[node]; ok {
+				if err := launchLayerNormModulate(state, functions, node, fusion, pointers); err != nil {
+					return fmt.Errorf("launch tensor %d (layer_norm_modulate): %w", node.ID, err)
+				}
+				submitted = submitted || !probe
+				continue
+			}
+			if fusion, ok := compiled.broadcastGateAdd[node]; ok {
+				if err := launchBroadcastGateAdd(state, functions, node, fusion, pointers); err != nil {
+					return fmt.Errorf("launch tensor %d (broadcast_gate_add): %w", node.ID, err)
 				}
 				submitted = submitted || !probe
 				continue

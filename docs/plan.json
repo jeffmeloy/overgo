@@ -500,7 +500,60 @@
       "id": "rung15-sensenova",
       "title": "SenseNova-U1-8B",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "recon-goldens",
+          "status": "done",
+          "title": "SenseNova-U1-8B-MoT-Infographic-V3 (neo_chat): 42L qwen3-shaped trunk FORKED per-layer via _mot_gen MODULE suffix (13 fork paths, 35.1GB/1116 tensors, 2x8.1B branches); split QK norms (q_norm+q_norm_hw sum to head_dim 128) over dual rope (text th=5e6 1-D, image th=1e4 2-D h/w); conv-only vision embedders x2 (no ViT); pixel-space flow head (fm_head 2L/1536, no VAE), resolution-derived noise scale; block-causal segment attention with prefix KV + denoise loop; dual CFG. Adaptive: generation-only recipe (no training), family expressed as neutral causal-GQA-media code + repodb contract facts (no family file). Fixtures: generation_oracle_256 + edit_oracle_v3_256 (device-neutral JSON: sampled indices + sha256, incl per-layer prefix/generation hiddens + prefix KV); CUDA-only harness, host harness must be written. Perf: warm generation phase 3.068s (256x256 1-step), no CPU baseline -> measure-bar needed"
+        },
+        {
+          "id": "routedlm-generalize",
+          "status": "open",
+          "resource": "cpu",
+          "title": "lift branch binding into a contract: {suffix, fork_paths, module-level placement} config (rxbrain _v becomes config too), per-branch section-valued QK norms, per-branch final norm, section-addressed config reader (llm_config); REGRESSION GATE: rxbrain ladder stays 44/44"
+        },
+        {
+          "id": "multiaxis-rope-positions",
+          "status": "open",
+          "resource": "cpu",
+          "title": "per-section rope plan (text th=5e6 scalar pos + image th=1e4 2-D h/w) + block-causal position model (image block shares time index, bidirectional within block)"
+        },
+        {
+          "id": "flow-head",
+          "status": "open",
+          "resource": "cpu",
+          "title": "flow terminal: fm_head + timestep/noise-scale sinusoidal embedders (resolution-derived scale, capped) + conv-only vision embedders x2; pixel-space planar publish, no VAE"
+        },
+        {
+          "id": "reference-parity",
+          "status": "open",
+          "resource": "cpu",
+          "title": "host reference vs oracle fixtures: topology test port first (CPU-unchanged in adaptive), then sampled-index checks on edit_oracle (per-layer hiddens, prefix KV [1,4365,8,128]), then generation oracle z-trajectory"
+        },
+        {
+          "id": "measure-bar",
+          "status": "open",
+          "resource": "gpu",
+          "title": "adaptive native bar on canonical case (warm 3.068s generation phase 256x256 1-step recorded; ship shape 2720x1536 50 steps needs fresh measurement)"
+        },
+        {
+          "id": "cuda-serving",
+          "status": "open",
+          "resource": "gpu",
+          "title": "device path through generic executor; oracle parity; at-or-below adaptive; persistent residency vs adaptive warm 42/42-resident"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "resource": "gpu",
+          "title": "generation recipe activation + status round-trip; real-image verification per multimodal directive"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "ABSENT verdict expected: adaptive seeds generation-only for this scope; record verdict"
+        }
+      ]
     },
     {
       "id": "rung16-krea",

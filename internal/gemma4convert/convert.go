@@ -54,10 +54,35 @@ type modelConfig struct {
 		PatchSize   uint32  `json:"patch_size"`
 		PoolingSize uint32  `json:"pooling_kernel_size"`
 		RMSEpsilon  float32 `json:"rms_norm_eps"`
+		// tower layout (E4B): full vision transformer
+		HiddenSize        uint32 `json:"hidden_size"`
+		HiddenLayers      uint32 `json:"num_hidden_layers"`
+		AttentionHeads    uint32 `json:"num_attention_heads"`
+		KVHeads           uint32 `json:"num_key_value_heads"`
+		HeadDim           uint32 `json:"head_dim"`
+		IntermediateSize  uint32 `json:"intermediate_size"`
+		PositionEmbedding uint32 `json:"position_embedding_size"`
+		HiddenAct         string `json:"hidden_activation"`
+		Rope              struct {
+			Theta float32 `json:"rope_theta"`
+		} `json:"rope_parameters"`
 	} `json:"vision_config"`
 	Audio struct {
 		Embedding  uint32  `json:"audio_embed_dim"`
 		RMSEpsilon float32 `json:"rms_norm_eps"`
+		// tower layout (E4B): conformer encoder
+		HiddenSize     uint32   `json:"hidden_size"`
+		HiddenLayers   uint32   `json:"num_hidden_layers"`
+		AttentionHeads uint32   `json:"num_attention_heads"`
+		ConvKernel     uint32   `json:"conv_kernel_size"`
+		SubChannels    []uint32 `json:"subsampling_conv_channels"`
+		ChunkSize      uint32   `json:"attention_chunk_size"`
+		ContextLeft    uint32   `json:"attention_context_left"`
+		ContextRight   uint32   `json:"attention_context_right"`
+		LogitCap       float32  `json:"attention_logit_cap"`
+		ResidualWeight float32  `json:"residual_weight"`
+		OutputProjDims uint32   `json:"output_proj_dims"`
+		HiddenAct      string   `json:"hidden_act"`
 	} `json:"audio_config"`
 }
 
@@ -148,18 +173,45 @@ func Convert(options Options) (Report, error) {
 		report.ModelTensors = len(tensors)
 	}
 	if options.MMProjPath != "" {
-		if err := validateProjectorConfig(config); err != nil {
-			return report, err
-		}
-		metadata := projectorMetadata(name, config)
-		tensors, tensorErr := projectorTensors(source, options.MMProjF32)
-		if tensorErr != nil {
-			return report, tensorErr
+		var metadata []gguf.Metadata
+		var tensors []gguf.TensorData
+		if towerLayout(config) {
+			processor, processorErr := readProcessorConfig(directory)
+			if processorErr != nil {
+				return report, processorErr
+			}
+			if err := validateTowerConfig(config, processor); err != nil {
+				return report, err
+			}
+			feedForward, feedErr := audioFeedForwardLength(source, config)
+			if feedErr != nil {
+				return report, feedErr
+			}
+			metadata = towerProjectorMetadata(name, config, processor, feedForward)
+			var tensorErr error
+			tensors, tensorErr = towerTensors(source, options.MMProjF32)
+			if tensorErr != nil {
+				return report, tensorErr
+			}
+		} else {
+			if err := validateProjectorConfig(config); err != nil {
+				return report, err
+			}
+			metadata = projectorMetadata(name, config)
+			var tensorErr error
+			tensors, tensorErr = projectorTensors(source, options.MMProjF32)
+			if tensorErr != nil {
+				return report, tensorErr
+			}
 		}
 		if err := writeOutput(options.MMProjPath, metadata, tensors); err != nil {
 			return report, err
 		}
-		runner, openErr := projector.OpenGemma4(options.MMProjPath)
+		openProjector := func(path string) (io.Closer, error) { return projector.OpenGemma4(path) }
+		if towerLayout(config) {
+			openProjector = func(path string) (io.Closer, error) { return projector.OpenGemma4Tower(path) }
+		}
+		runner, openErr := openProjector(options.MMProjPath)
 		if openErr != nil {
 			_ = os.Remove(options.MMProjPath)
 			return report, fmt.Errorf("Gemma 4 converter: generated projector: %w", openErr)

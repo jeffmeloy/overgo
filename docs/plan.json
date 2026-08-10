@@ -754,42 +754,45 @@
     {
       "id": "rung2-fractale",
       "title": "Fractale-350M",
-      "status": "deferred-pending-oracle",
+      "status": "open",
       "steps": [
         {
-          "id": "golden-generation",
-          "title": "generate forward/decode goldens from adaptive_new's verified Forward oracle (no fixtures exist; models/Fractale-350M-base/model.pt, tokenizer.json, generation_config.json)",
-          "status": "open"
-        },
-        {
-          "id": "rung-export",
-          "title": "repodb-export -rung Fractale into overgo store (fixtures + honest baseline)",
-          "status": "open"
+          "id": "recon",
+          "status": "done",
+          "title": "Fractale-350M-base = ThoughtBank/DeepSeek-V4-mini (386M FP32 model.pt pytorch-zip pickle; NO config.json -- dims in ck[\"cfg\"]; 12L d768 12h, MoE 4+1 top-2, CSA/HCA compressed attn, mHC Sinkhorn hyper-connection residuals, + novel 8-slot fast-weight THOUGHT BANK hypernet -> low-rank MLP per slot). Tokenizer = external SmolLM2-135M + 2 added specials <think>/<blank>. CORRECTION to prior memory: NO adaptive Go serving path exists -- only the python torch reference (_core/model.py ThoughtBankLM.forward); reference decode is O(n^2) full-reforward, the \"O(n) incremental\" is a PORT GOAL not an existing artifact. NO fixtures anywhere (grep fractale in adaptive = manifest.json only)"
         },
         {
           "id": "pt-loader-port",
-          "title": "port the PyTorch-pickle tensor reader as a generic overgo loader (retained capability; adaptive go/extmodel/tensor_artifacts.go ~L3054)",
-          "status": "open"
+          "status": "done",
+          "title": "DONE (pre-existing): internal/pytorchzip reads .pt/.pth pickle FP32 tensor sets (FloatStorage->F32, zip-offset storage resolution, row-gather) -- resolves the ORIGINAL container blocker that deferred this rung"
+        },
+        {
+          "id": "golden-generation",
+          "status": "blocked-external-prereq",
+          "title": "BLOCKED external-prereq: mint ids/logits/mem-bank goldens by running the torch ThoughtBankLM oracle on CPU (fixed seed bank + temp=0 greedy, since init_mem=None seeds random slots) -- needs torch+transformers AND a one-time SmolLM2-135M tokenizer download (network). This is the actual deferral cause, still valid"
         },
         {
           "id": "reference-port",
-          "title": "serve Fractale via generic modules + recipe wiring; decode parity vs goldens (O(n) incremental decode is the reference bar)",
-          "status": "open"
+          "status": "open",
+          "resource": "cpu",
+          "title": "NET-NEW serving (no Go impl on either side): thought-bank fast-weight slot->low-rank-MLP read + FIFO bank carry, mHC Sinkhorn residuals, CSA/HCA at 12L/768, <think>/<blank> chunk-carry decode. overgo DeepSeek4 module is a GGUF/43-layer REFERENCE (no bank) not a drop-in. Gated on golden-generation"
         },
         {
           "id": "recipe-activation",
-          "title": "sealed lifecycle activation, generation task",
-          "status": "open"
+          "status": "open",
+          "resource": "gpu",
+          "title": "generic recipe activation once served"
         },
         {
           "id": "training-leg",
-          "title": "training capability per baseline policy",
-          "status": "open"
+          "status": "open",
+          "title": "per baseline policy; adaptive has no training lane for it"
         },
         {
           "id": "performance-leg",
-          "title": "head-to-head wall+memory, at-or-below",
-          "status": "open"
+          "status": "open",
+          "resource": "gpu",
+          "title": "O(n) incremental decode goal vs the O(n^2) torch reference; head-to-head"
         }
       ]
     }

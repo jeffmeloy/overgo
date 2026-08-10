@@ -538,9 +538,9 @@
         },
         {
           "id": "prefix-layer-stack",
-          "status": "open",
+          "status": "blocked-external-prereq",
           "resource": "cpu",
-          "title": "wire block-causal + multi-axis + branch-routed prefix layer forward (PromptLayerForward is still single-axis Time+VisualSegments; pieces CompileRopePlan/BlockPositions/BlockCausalWindows exist) into a SenseNova layer stack; parity vs edit_oracle prefix_layers + prefix_kv [1,4365,8,128]"
+          "title": "wire block-causal + multi-axis + branch-routed prefix layer forward (PromptLayerForward is still single-axis Time+VisualSegments; pieces CompileRopePlan/BlockPositions/BlockCausalWindows exist) into a SenseNova layer stack; parity vs edit_oracle prefix_layers + prefix_kv [1,4365,8,128] -- BLOCKED: edit-lane per-layer hidden parity needs the external EDIT SOURCE PNG, which is NOT in the repo (searched all of adaptive_new: only generation OUTPUTS + showcase PNGs present; edit_oracle source is a sampled probe). The layer-stack CODE can be built but its parity oracle is unavailable without the source image. Unblock: obtain the edit source image, OR verify via the generation lane (denoise-stack, no source image) whose oracle is coarser (terminal z only)"
         },
         {
           "id": "denoise-stack",

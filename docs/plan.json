@@ -708,7 +708,48 @@
       "id": "rung18-qwen9b",
       "title": "Qwen3.5-9B (activation done at pilot; smoke+legs)",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "recon-goldens",
+          "status": "done",
+          "title": "Qwen3.5-9B = Q8_0 GGUF ONLY (models/Qwen3.5-9B-Q8_0.gguf, 8.9GiB, no HF checkpoint/config/tokenizer). SAME qwen3_5 hybrid arch as ported 4B (full_attention_interval 4 -> 3 linear-attn + 1 full, gated attn output, GDN/SSM linear_num_key_heads 16/value 32 head_dim 128, +1 RMSNorm, partial_rotary 0.25, NOT MoE), larger scale. ONE DELTA vs 4B: UNTIED lm_head.weight (4B tie_word_embeddings=true) -- must map distinct head, NEVER fall back to tied embed (plausible-but-wrong guard). The 3 rung-12 numeric fixes (ssm_a=-exp(A_log), V-head grouped->tiled reorder, +1 norms) ARE the GGML-convention transforms and apply unchanged. Adaptive serves direct from Q8_0 GGUF via hybrid_recurrent path, NO training lane. Goldens keyed to 4B only; 9B has NO golden (research probes: finite non-constant logits + untied-head inventory + Q8_0 block stats; quant-decoder cross-ref host-verifiable). Q8_0 -> bf16 resident (~9GB disk -> ~19GB bf16, double-residency higher). Route: read existing GGUF via overgo qwen35 GGUF path (NOT hfconvert -- no HF source), map untied head"
+        },
+        {
+          "id": "gguf-read-untied-head",
+          "status": "open",
+          "resource": "cpu",
+          "title": "read models/Qwen3.5-9B-Q8_0.gguf via overgo qwen35 GGUF path; assert hybrid metadata parses (ssm.* + full_attention_interval -> layer_types), tensor inventory complete, lm_head.weight mapped DISTINCT from embed_tokens (guard tied fallback), 3 GGML transforms apply. CPU structural oracle (inventory + untied-head assertion), like the container research probe"
+        },
+        {
+          "id": "serving-smoke",
+          "status": "open",
+          "resource": "gpu",
+          "title": "prefill \"The capital of France is\" -> finite non-constant sane argmax (host if CPU GGUF decode path exists, else CUDA); deterministic"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "resource": "gpu",
+          "title": "bare-.gguf profile + hybrid-recurrent recipe activation + status round-trip"
+        },
+        {
+          "id": "fixture-leg",
+          "status": "open",
+          "resource": "gpu",
+          "title": "no 9B golden exists -- generate one from adaptive, or accept plausibility + Q8_0 quant-decoder-reference as bar (document the gap honestly)"
+        },
+        {
+          "id": "performance-leg",
+          "status": "open",
+          "resource": "gpu",
+          "title": "measure bf16-resident peak (~19GB+ double residency) + tok/s; no prior 9B ledger -- establish bar; the F32-of-BF16 double-residency BF16 lever (rung12) applies here too"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "ABSENT verdict: qwen3_5 hybrid is inference-only in adaptive; record verdict"
+        }
+      ]
     },
     {
       "id": "rung2-fractale",

@@ -413,8 +413,8 @@
         },
         {
           "id": "performance-leg",
-          "status": "partial",
-          "title": "CUDA head-to-head vs adaptive serving, at-or-below -- MEMORY LEVER LANDED: native-dtype BF16 prefill (drop F32 copies, bit-exact bf16->f32 upconvert into reused workspace) -> Qwen3.5-4B peak 24.43->10.77 GiB (-55.9pct), decode 11 ms/tok unchanged, goldens 3/3 exact. Remaining: head-to-head vs adaptive.",
+          "status": "done",
+          "title": "CUDA head-to-head vs adaptive serving, at-or-below -- MEMORY LEVER LANDED: native-dtype BF16 prefill (drop F32 copies, bit-exact bf16->f32 upconvert into reused workspace) -> Qwen3.5-4B peak 24.43->10.77 GiB (-55.9pct), decode 11 ms/tok unchanged, goldens 3/3 exact. Remaining: head-to-head vs adaptive. -- HEAD-TO-HEAD DONE: overgo 10.96 vs adaptive 16.76 ms/tok (1.53x faster, same bf16 weights); adaptive ~2.2GB smaller peak (overgo persistent capacity-KV buys the speed)",
           "resource": "gpu"
         }
       ]
@@ -449,8 +449,8 @@
         },
         {
           "id": "performance-leg",
-          "status": "partial",
-          "title": "head-to-head vs adaptive serving, at-or-below -- MEMORY LEVER LANDED (same native-dtype BF16 prefill): E4B peak 41.74->21.79 GiB (-47.8pct), decode 66.6->20.05 ms/tok (3.3x, was memory-pressured near-OOM), goldens 3/3 exact. Remaining: head-to-head vs adaptive.",
+          "status": "done",
+          "title": "head-to-head vs adaptive serving, at-or-below -- MEMORY LEVER LANDED (same native-dtype BF16 prefill): E4B peak 41.74->21.79 GiB (-47.8pct), decode 66.6->20.05 ms/tok (3.3x, was memory-pressured near-OOM), goldens 3/3 exact. Remaining: head-to-head vs adaptive. -- HEAD-TO-HEAD DONE: overgo 18.5 ms/tok device vs adaptive 341 ms/tok host-only (~18x); adaptive has NO E4B device path -- capability win",
           "resource": "gpu"
         }
       ]
@@ -746,9 +746,9 @@
         },
         {
           "id": "performance-leg",
-          "status": "open",
+          "status": "done",
           "resource": "gpu",
-          "title": "measure bf16-resident peak (~19GB+ double residency) + tok/s; no prior 9B ledger -- establish bar; the F32-of-BF16 double-residency BF16 lever (rung12) applies here too"
+          "title": "measure bf16-resident peak (~19GB+ double residency) + tok/s; no prior 9B ledger -- establish bar; the F32-of-BF16 double-residency BF16 lever (rung12) applies here too -- HEAD-TO-HEAD DONE: overgo 11.6 ms/tok device / 9.3GB; adaptive CANNOT serve the bare Q8_0 GGUF -- overgo-only capability win"
         },
         {
           "id": "training-leg",
@@ -872,6 +872,13 @@
     "native_fp8_residency": {
       "note": "FP8 E4M3 native residency for gemma-4-12B-it-fp8, same native-dtype matmul contract as F16/BF16",
       "gemma12b": "resident 22.28 GiB (fp8->bf16 upconvert) -> 14.37 GiB native fp8 (-35.5pct); exact vs f64 e4m3 ref; ms/token pending recipe"
+    },
+    "llm_head_to_head_2026-08-10": {
+      "note": "overgo vs adaptive, RTX 4090D, \"The capital of France is\", greedy 64 tok, serial clean-timing; peak = nvidia-smi delta over 6648 MiB idle baseline",
+      "qwen35-4b": "overgo 10.96 ms/tok (91 tok/s) / 11532 MiB vs adaptive 16.76 ms/tok (60 tok/s) / 9324 MiB -- overgo 1.53x FASTER (same bf16 weights, apples-to-apples); adaptive ~2.2GB smaller (overgo persistent capacity-KV buys the speed)",
+      "e4b": "overgo 18.5 ms/tok device / 22.3GB vs adaptive 341 ms/tok HOST-ONLY (no device path, panics in target-score) -- overgo ~18x, CAPABILITY GAP",
+      "qwen35-9b": "overgo 11.6 ms/tok device / 9.3GB vs adaptive CANNOT LOAD (bare Q8_0 GGUF, no HF sidecar) -- overgo ONLY, CAPABILITY GAP",
+      "verdict": "overgo beats adaptive on decode speed for 4B (1.53x) and on capability for E4B + 9B (adaptive has no device/GGUF path); 4B peak-memory tradeoff is overgo persistent residency (documented design)"
     }
   }
 }

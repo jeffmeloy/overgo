@@ -479,9 +479,9 @@
         },
         {
           "id": "cuda-serving",
-          "status": "open",
+          "status": "partial",
           "resource": "gpu",
-          "title": "device path through the generic executor (retained replay + fusion); goldens exact; at-or-below adaptive native bar"
+          "title": "device path through the generic executor (retained replay + fusion); goldens exact; at-or-below adaptive native bar -- DEVICE INCREMENT DONE (exact+measured): terminal vocab projection (final RMSNorm -> lm_head 2048x120818 BF16 -> argmax) runs on the generic executor from the SAME graph as the host golden, composing existing ops (no family kernel): device top token 628 = golden first_token, logits worst |d| 1.9e-6 vs BF16-dequant ref, 0.894 ms/token, head 472 MiB; cmd/vqaparity -device mode. NOT the e2e bar (28-31 ms/tok needs full stack). REMAINS: 32-layer branch-routed MoT decode graph + on-device resident KV append, prefill (dual weight sets/block-causal/multi-axis rope), vision tower graph, full e2e wall+peak (persistent-residency lever vs adaptive per-request rebuild)"
         },
         {
           "id": "recipe-activation",

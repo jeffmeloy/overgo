@@ -87,8 +87,16 @@ func main() {
 	logPath := flag.String("log", `build\rxbrain_port_log.txt`, "liveness log path")
 	fromStage := flag.String("from", "", "skip stages before this name")
 	toStage := flag.String("to", "", "stop after this stage name")
+	deviceMode := flag.Bool("device", false, "run the CUDA device terminal parity + measurement")
 	flag.Parse()
 	l := &ladder{modelDir: *modelDir, fixturesDir: *fixturesDir, logPath: *logPath}
+	if *deviceMode {
+		if err := runDevice(l); err != nil {
+			l.log("DEVICE ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(l, *fromStage, *toStage); err != nil {
 		l.log("LADDER ERROR " + err.Error())
 		os.Exit(1)

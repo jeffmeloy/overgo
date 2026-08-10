@@ -303,7 +303,7 @@
     {
       "id": "rung11-wan",
       "title": "Wan2.1-1.3B (port-class)",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "golden-generation",

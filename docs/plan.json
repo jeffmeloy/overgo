@@ -520,9 +520,9 @@
         },
         {
           "id": "flow-head",
-          "status": "open",
+          "status": "done",
           "resource": "cpu",
-          "title": "flow terminal: fm_head + timestep/noise-scale sinusoidal embedders (resolution-derived scale, capped) + conv-only vision embedders x2; pixel-space planar publish, no VAE"
+          "title": "flow terminal: fm_head + timestep/noise-scale sinusoidal embedders (resolution-derived scale, capped) + conv-only vision embedders x2; pixel-space planar publish, no VAE -- DONE: internal/routedlm/flowterminal.go (flow head + timestep/noise-scale sinusoidal embedders + 2 conv-only vision embedders + 2D patch rope); 9/9 tests pass, real-checkpoint shapes validated; all dims DERIVED (merge=2 two ways, freq=256 from timestep mlp.0, flowdim=3072=c*p^2*merge^2 xcheck fm_head.2, base=64 from config); period=10000 cited from adaptive reference_facts.json sinusoidal_period; rxbrain ladder 44/44 intact. CAVEAT: no bit-exact flow-forward oracle exists -- outputs finite/shaped/schedule-exact, not end-to-end numeric"
         },
         {
           "id": "reference-parity",

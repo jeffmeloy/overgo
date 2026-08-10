@@ -665,7 +665,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 	case "/lora-adapters":
 		h.loraAdapters(response, request)
 	default:
-		writeError(response, http.StatusNotFound, "not_found", "route not found")
+		h.serveWebUI(response, request)
 	}
 }
 

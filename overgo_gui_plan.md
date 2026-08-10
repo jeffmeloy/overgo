@@ -141,7 +141,7 @@ internal/server/
   analyze_model.go                 # GET /analyze/model — arch/stats aggregate     (A1)
   analyze_vocab.go                 # GET /analyze/vocab — paged/searchable vocab    (A1)
   analyze_logits.go                # entropy field on native completion; capture    (A1)
-  analyze_states.go                # opt-in hidden-state capture + Go PCA           (A2)
+  analyze_states.go                # opt-in hidden-state capture; distances + kNN    (A2)
   analyze_attention.go             # opt-in analysis attention path + scores        (A3)
   analyze_*_test.go                # per-endpoint shape/auth tests
   webui/                           # the embedded client (no build step)
@@ -203,8 +203,29 @@ get the UI at `http://localhost:8080/`.
 Goal: the analytical power of lophius (`C:\Users\jeffm\lophius`), delivered through overgo's
 server + thin client. Lophius runs on HF Transformers/PyTorch and visualizes with plotly; we
 reproduce the *capabilities*, not the stack. Everything below is **Go on the server, vanilla
-JS on the client** — entropy and PCA are a few dozen lines of Go, heatmaps and scatter plots
-are canvas/SVG.
+JS on the client** — the measured quantities are a few dozen lines of Go, heatmaps and scatter
+plots are canvas/SVG.
+
+### Analysis principle — distribution-free, no shape assumptions
+
+A hard constraint on every analysis in this workbench: **make no assumptions about the shape or
+distribution of the data.** We report *measured functionals of the empirical distribution* and
+*structure shown directly* — never a quantity that presupposes Gaussianity, linearity, a metric
+geometry, or a fitted generative model.
+
+- **Allowed:** Shannon entropy (a distribution-free functional of the empirical softmax), token
+  **ranks**, measured **probabilities**, **perplexity** (a monotone transform of entropy),
+  raw **attention scores**, pairwise **similarity/distance matrices**, and **neighbor (kNN)
+  graphs** shown as-is.
+- **Disallowed as defaults:** PCA (linear subspace / variance-maximizing ⇒ implicitly Gaussian),
+  and t-SNE / UMAP / PaCMAP (each bakes in a neighborhood or manifold-density prior). Where a 2D
+  layout is genuinely needed we use **rank-only / non-parametric** methods (non-metric MDS on the
+  rank order of distances; force-directed layout of the kNN graph). PCA may appear *only* as an
+  explicitly labeled linear baseline, off by default.
+
+This constraint costs Tier 1 nothing (entropy/ranks/probabilities are already assumption-free);
+its real effect is on Tier 2 (§ below), where it replaces PCA-first projection with
+distance/neighbor structure shown directly.
 
 ### Lophius capability inventory (from its docs + `outputs.py`/`models.py`)
 
@@ -230,13 +251,18 @@ data flows today; only full-vocab **entropy** is a genuinely new (small) server 
 
 **Tier 2 — needs activation taps in the graph executor (fast-follow):**
 
-| Lophius capability | Gap in overgo | Plan |
+Bound by the analysis principle above — **no PCA-first projection.** The primary views show the
+measured structure of the captured hidden states directly; a 2D layout, when offered, uses only
+rank/neighbor information.
+
+| Lophius capability | Gap in overgo | Plan (assumption-free) |
 |---|---|---|
 | Hidden-state capture (post-layer residual) | The executor streams activations through device memory without retaining per-layer copies | Add an opt-in "capture" mode that copies post-layer hidden states off-device for a single analysis request (bounded: first token / selected positions) |
-| 2D/3D projection of hidden states | No projector | **PCA implemented in Go** (pure linear algebra, zero deps) → client renders a canvas/SVG scatter, color by token/position/layer. t-SNE/UMAP/PaCMAP are heavier iterative methods → **stretch** (a small Barnes-Hut t-SNE in Go later; PCA covers the MVP) |
+| Structure of hidden states | No analysis | **Direct, non-parametric views first:** pairwise **cosine + Euclidean distance matrices** (heatmaps) and a **kNN neighbor graph** over the captured states — no model fitted, nothing assumed about shape |
+| 2D/3D layout (only when a scatter is wanted) | No projector | **Rank-only / non-parametric layout:** **non-metric MDS** (uses only the rank order of pairwise distances) or **force-directed kNN-graph layout** (local neighbor relations only), both in Go, zero deps → canvas/SVG scatter, color by token/position/layer. **PCA/t-SNE/UMAP/PaCMAP are excluded** as defaults (shape/distribution priors); PCA may be added later only as a clearly-labeled linear baseline, off by default |
 
-Client: `mod/analyze_states.js` — layer selector, 2D/3D scatter, projection-method dropdown
-(PCA enabled first).
+Client: `mod/analyze_states.js` — layer selector, distance-matrix heatmap + neighbor graph,
+optional rank-based 2D/3D scatter (method dropdown lists only assumption-free layouts by default).
 
 **Tier 3 — needs an analysis-mode attention path (stretch, largest engine cost):**
 
@@ -277,8 +303,9 @@ contract as the chat console, extended to interpretability.
 - **A1 — analysis Tier 1.** `analyze_model.go`/`analyze_vocab.go` + entropy on native
   completion; `mod/analyze_model.js`, `analyze_vocab.js`, `analyze_logits.js`. The lophius
   logit/entropy lens + model/vocab inspection, all from data overgo already has. *(commits)*
-- **A2 — hidden-state projection.** executor capture hook + Go PCA (`analyze_states.go`);
-  `mod/analyze_states.js` scatter. *(commit)*
+- **A2 — hidden-state structure.** executor capture hook + distribution-free views
+  (`analyze_states.go`: cosine/Euclidean distance matrices, kNN graph, optional non-metric-MDS
+  layout); `mod/analyze_states.js`. No PCA/t-SNE defaults (see §5A analysis principle). *(commit)*
 - **A3 — attention heatmaps.** analysis attention path (`analyze_attention.go`);
   `mod/analyze_attention.js`. Largest engine cost — scheduled last, opt-in, length-capped. *(commit)*
 - **Phase 2 milestones** — completion/infill, embeddings/rerank, responses. *(commits each)*

@@ -435,7 +435,7 @@ func launchAttentionLayout(
 		// Strided-batched SGEMM path: exact F32 gemm+softmax+gemm with the
 		// score tile bounded by the derived query chunk; owns every
 		// qualifying dense-MHA workload when the score staging is resident.
-		if blas != nil && blas.scores != 0 &&
+		if !attributes.NaiveF32 && blas != nil && blas.scores != 0 &&
 			relativeBias == 0 && sinks == 0 && blockIDs == 0 {
 			chunk, keyChunk, scoreBytes, ok := blasAttentionGeometry(
 				queryHeads, keyValueHeads, queryTokens, keyValueTokens, keyCapacityTokens,

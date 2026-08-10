@@ -89,8 +89,16 @@ func main() {
 	toStage := flag.String("to", "", "stop after this stage name")
 	deviceMode := flag.Bool("device", false, "run the CUDA device terminal parity + measurement")
 	deviceDecodeMode := flag.Bool("device-decode", false, "run the CUDA device 32-layer decode parity + measurement")
+	deviceVisionMode := flag.Bool("device-vision", false, "run the CUDA device vision-blocks parity + measurement")
 	flag.Parse()
 	l := &ladder{modelDir: *modelDir, fixturesDir: *fixturesDir, logPath: *logPath}
+	if *deviceVisionMode {
+		if err := runDeviceVision(l); err != nil {
+			l.log("DEVICE VISION ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 	if *deviceDecodeMode {
 		if err := runDeviceDecode(l); err != nil {
 			l.log("DEVICE DECODE ERROR " + err.Error())

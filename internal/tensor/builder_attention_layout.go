@@ -297,6 +297,7 @@ type attentionOptions struct {
 	symmetricWindow       bool
 	relativeBidirectional bool
 	chunkedWindow         bool
+	naiveF32              bool
 	queryStart, window    uint32
 }
 
@@ -314,6 +315,9 @@ type AttentionOptions struct {
 	ChunkedWindow         bool
 	QueryStart            uint32
 	Window                uint32
+	// NaiveF32: route dense F32 attention through the per-query online kernel
+	// (skip the blas-chunked scores path) for reference-parity reductions.
+	NaiveF32 bool
 }
 
 // AttentionWithOptions: typed attention construction.
@@ -332,7 +336,7 @@ func (b *Builder) AttentionWithOptions(
 		causal: options.Causal, symmetricWindow: options.SymmetricWindow,
 		relativeBidirectional: options.RelativeBidirectional,
 		chunkedWindow:         options.ChunkedWindow, queryStart: options.QueryStart,
-		window: options.Window,
+		window: options.Window, naiveF32: options.NaiveF32,
 	})
 }
 
@@ -680,6 +684,7 @@ func (b *Builder) buildAttention(
 			Window:                options.window,
 			RelativeBuckets:       relativeBuckets,
 			RelativeBidirectional: options.relativeBidirectional,
+			NaiveF32:              options.naiveF32,
 		},
 	)
 }

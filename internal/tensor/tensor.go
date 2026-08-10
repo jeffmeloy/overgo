@@ -149,6 +149,10 @@ type AttentionAttributes struct {
 	Window                uint32
 	RelativeBuckets       uint32
 	RelativeBidirectional bool
+	// NaiveF32: route dense F32 attention through the per-query online kernel
+	// (skip the blas-chunked scores path) so the reduction matches a reference
+	// per-query two-pass attn_fwd; opt-in for F32 parity-critical towers.
+	NaiveF32 bool
 }
 
 type Conv1DAttributes struct {

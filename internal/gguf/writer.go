@@ -267,10 +267,6 @@ func prepareTensors(tensors []TensorData, alignment uint64) ([]preparedTensor, e
 				len(input.Shape),
 			)
 		}
-		traits, ok := input.Type.Traits()
-		if !ok || traits.BlockSize == 0 || traits.TypeSize == 0 {
-			return nil, fmt.Errorf("tensor %q has unsupported type %d", input.Name, input.Type)
-		}
 		info := TensorInfo{
 			Name:       input.Name,
 			Dimensions: uint32(len(input.Shape)),
@@ -294,20 +290,11 @@ func prepareTensors(tensors []TensorData, alignment uint64) ([]preparedTensor, e
 			elements *= dimension
 			info.Shape[axis] = dimension
 		}
-		if info.Shape[0]%traits.BlockSize != 0 {
-			return nil, fmt.Errorf(
-				"tensor %q row size %d is not divisible by %s block size %d",
-				input.Name,
-				info.Shape[0],
-				traits.Name,
-				traits.BlockSize,
-			)
+		size, sizeErr := input.Type.StorageBytes(elements, info.Shape[0])
+		if sizeErr != nil {
+			return nil, fmt.Errorf("tensor %q: %w", input.Name, sizeErr)
 		}
-		blocks := elements / traits.BlockSize
-		if blocks > math.MaxUint64/traits.TypeSize {
-			return nil, fmt.Errorf("tensor %q byte size overflows uint64", input.Name)
-		}
-		info.Size = blocks * traits.TypeSize
+		info.Size = size
 		if input.Data == nil {
 			return nil, fmt.Errorf("tensor %q data is nil", input.Name)
 		}

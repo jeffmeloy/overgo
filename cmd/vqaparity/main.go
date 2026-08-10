@@ -87,8 +87,67 @@ func main() {
 	logPath := flag.String("log", `build\rxbrain_port_log.txt`, "liveness log path")
 	fromStage := flag.String("from", "", "skip stages before this name")
 	toStage := flag.String("to", "", "stop after this stage name")
+	deviceMode := flag.Bool("device", false, "run the CUDA device terminal parity + measurement")
+	deviceDecodeMode := flag.Bool("device-decode", false, "run the CUDA device 32-layer decode parity + measurement")
+	deviceVisionMode := flag.Bool("device-vision", false, "run the CUDA device vision-blocks parity + measurement")
+	deviceMergerMode := flag.Bool("device-merger", false, "run the CUDA device merger parity + measurement")
+	devicePrefillMode := flag.Bool("device-prefill", false, "run the CUDA device branch-routed prefill parity + measurement")
+	deviceFullMode := flag.Bool("device-full", false, "run the CUDA device full pipeline (merger->prefill->decode) + measurement")
+	recipeServeMode := flag.Bool("recipe-serve", false, "serve the canonical case THROUGH the activated VQA recipe (gate on active recipe, real processor, decode-until-EOS)")
+	repoFlag := flag.String("repo", "", "RepoDB store for -recipe-serve; empty resolves via the data-root contract")
+	imageFlag := flag.String("image", `C:\Users\jeffm\adaptive_new\models\Hy-Embodied-RxBrain-1.0\Hy-Embodied-RxBrain-1.0\demo_cases\bridgev2_move_toy\input\obs_1.jpg`, "serve image path")
+	questionFlag := flag.String("question", "What objects are on the stovetop, and where is the green toy?", "serve question")
 	flag.Parse()
 	l := &ladder{modelDir: *modelDir, fixturesDir: *fixturesDir, logPath: *logPath}
+	if *recipeServeMode {
+		if err := runRecipeServe(l, *repoFlag, *imageFlag, *questionFlag); err != nil {
+			l.log("RECIPE serve ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	if *deviceFullMode {
+		if err := runDeviceFull(l); err != nil {
+			l.log("DEVICE FULL ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	if *devicePrefillMode {
+		if err := runDevicePrefill(l); err != nil {
+			l.log("DEVICE PREFILL ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	if *deviceMergerMode {
+		if err := runDeviceMerger(l); err != nil {
+			l.log("DEVICE MERGER ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	if *deviceVisionMode {
+		if err := runDeviceVision(l); err != nil {
+			l.log("DEVICE VISION ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	if *deviceDecodeMode {
+		if err := runDeviceDecode(l); err != nil {
+			l.log("DEVICE DECODE ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	if *deviceMode {
+		if err := runDevice(l); err != nil {
+			l.log("DEVICE ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(l, *fromStage, *toStage); err != nil {
 		l.log("LADDER ERROR " + err.Error())
 		os.Exit(1)

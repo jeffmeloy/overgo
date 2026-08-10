@@ -66,6 +66,13 @@ func LayerNormInto(out, x, weight, bias []float32, rows, d int, eps float64) {
 // tanh approximation above.
 func GELUErf(x float64) float64 { return 0.5 * x * (1 + math.Erf(x/math.Sqrt2)) }
 
+// GELUErfPrime: derivative of GELUErf,
+// 0.5(1+erf(x/sqrt2)) + x*exp(-x^2/2)/sqrt(2pi) — the scalar VJP factor for
+// the erf GELU, for callers mixing it into a larger reduction per element.
+func GELUErfPrime(x float64) float64 {
+	return 0.5*(1+math.Erf(x/math.Sqrt2)) + x*math.Exp(-x*x/2)/math.Sqrt(2*math.Pi)
+}
+
 // GELUErfInPlace applies GELUErf element-wise, f64 math.
 func GELUErfInPlace(v []float32) {
 	for k := range v {
@@ -191,10 +198,101 @@ func SiLUGate(dst, gate, up []float32) {
 // GELUTanhInPlace: the tanh-approximation GELU
 // 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3))) element-wise, f64 math.
 func GELUTanhInPlace(v []float32) {
-	c := math.Sqrt(2 / math.Pi)
 	for k := range v {
-		x := float64(v[k])
-		v[k] = float32(0.5 * x * (1 + math.Tanh(c*(x+0.044715*x*x*x))))
+		v[k] = float32(GELUTanh(float64(v[k])))
+	}
+}
+
+// geluTanhCoeff: the sqrt(2/pi) scale and cubic term of the tanh-approx GELU.
+var geluTanhSqrt2OverPi = math.Sqrt(2 / math.Pi)
+
+const geluTanhCubic = 0.044715
+
+// GELUTanh: the tanh-approximation GELU (gemma "gelu_pytorch_tanh"),
+// 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3))). This is the smooth training
+// activation; the gemma3n serving path additionally round-trips through fp16
+// (a native-dtype inference artifact) which the training VJP does not model.
+func GELUTanh(x float64) float64 {
+	return 0.5 * x * (1 + math.Tanh(geluTanhSqrt2OverPi*(x+geluTanhCubic*x*x*x)))
+}
+
+// GELUTanhPrime: derivative of GELUTanh. With u=sqrt(2/pi)*(x+c*x^3),
+// t=tanh(u), du/dx=sqrt(2/pi)*(1+3c*x^2): 0.5(1+t)+0.5*x*(1-t^2)*du/dx.
+func GELUTanhPrime(x float64) float64 {
+	u := geluTanhSqrt2OverPi * (x + geluTanhCubic*x*x*x)
+	t := math.Tanh(u)
+	dudx := geluTanhSqrt2OverPi * (1 + 3*geluTanhCubic*x*x)
+	return 0.5*(1+t) + 0.5*x*(1-t*t)*dudx
+}
+
+// SparseGateInto: the gemma3n activation-sparsity gate. Per row of width
+// `width`, cutoff = mean + stdMult*sampleStd (sample std uses width-1), and
+// dst_i = relu(gate_i - cutoff). stdMult<=0 with a nil-effect cutoff reduces
+// to the identity relu; the caller supplies the model's std multiplier. The
+// cutoff depends on every element in the row, so this is not element-wise.
+func SparseGateInto(dst, gate []float32, rows, width int, stdMult float64) {
+	for r := 0; r < rows; r++ {
+		base := r * width
+		row := gate[base : base+width]
+		var sum float64
+		for _, g := range row {
+			sum += float64(g)
+		}
+		mean := sum / float64(width)
+		var sq float64
+		for _, g := range row {
+			d := float64(g) - mean
+			sq += d * d
+		}
+		std := math.Sqrt(sq / float64(width-1))
+		cutoff := mean + stdMult*std
+		for i, g := range row {
+			d := float64(g) - cutoff
+			if d > 0 {
+				dst[base+i] = float32(d)
+			} else {
+				dst[base+i] = 0
+			}
+		}
+	}
+}
+
+// WindowedCausalAttention: causal attention where each query qi attends only
+// keys in [max(0,qi-window+1), qi]; window<=0 is the full causal span, making
+// this a strict generalization of CausalAttention. Score scale is 1 (the
+// caller folds any 1/sqrt(headDim) into q, matching CausalAttention). Layout:
+// q/out [seq][heads][headDim], k/v [seq][kvHeads][headDim]; query head h reads
+// kv head h/(heads/kvHeads). Softmax reduces in f64.
+func WindowedCausalAttention(out, q, k, v []float32, seq, heads, kvHeads, headDim, window int) {
+	clear(out)
+	group := heads / kvHeads
+	scores := make([]float32, seq)
+	for h := 0; h < heads; h++ {
+		kv := h / group
+		for qi := 0; qi < seq; qi++ {
+			lo := 0
+			if window > 0 && qi+1 > window {
+				lo = qi + 1 - window
+			}
+			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
+			probs := scores[:qi+1-lo]
+			for m := range probs {
+				kRow := k[((lo+m)*kvHeads+kv)*headDim : ((lo+m)*kvHeads+kv+1)*headDim]
+				var dot float64
+				for d := 0; d < headDim; d++ {
+					dot += float64(qRow[d]) * float64(kRow[d])
+				}
+				probs[m] = float32(dot)
+			}
+			SoftmaxInPlace(probs)
+			outRow := out[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
+			for m, weight := range probs {
+				vRow := v[((lo+m)*kvHeads+kv)*headDim : ((lo+m)*kvHeads+kv+1)*headDim]
+				for d := 0; d < headDim; d++ {
+					outRow[d] += weight * vRow[d]
+				}
+			}
+		}
 	}
 }
 

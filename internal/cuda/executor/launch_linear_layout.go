@@ -160,46 +160,121 @@ func launchLinearLayout(
 		}
 		left := pointers[leftNode]
 		right := pointers[rightNode]
-		if leftNode.Type == dtype.BF16 {
-			// decode regime: warp-per-row native read, no staging conversion
+		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
+			// native half-precision residency, one mechanism parameterized by the
+			// weight dtype: single-token decode reads the 2-byte weight directly
+			// (lossless per-element upconvert in-kernel, F32 accumulate);
+			// multi-token prefill upconverts the weight to F32 in a reused scratch
+			// and runs the identical SGEMM as the F32 fallback. The upconvert
+			// (F16 __half2float / BF16 bits<<16) reproduces the resident F32-copy
+			// dequant bit-for-bit, so the SGEMM operands and result are bit-exact.
+			decodeKernel := kernelMulMatF16F32
+			upconvertKernel := kernelF16ToF32
+			if leftNode.Type == dtype.BF16 {
+				decodeKernel = kernelMulMatBf16F32
+				upconvertKernel = kernelBf16ToF32
+			}
 			if rightRows == 1 && inner%2 == 0 && rightNode.Type == dtype.F32 {
 				launchCount, err := bf16MulMatLaunchCount(leftRows, rightRows)
 				if err != nil {
 					return err
 				}
 				return launch1DABI(
-					state, functions[kernelMulMatBf16F32], launchCount,
+					state, functions[decodeKernel], launchCount,
 					&left, &right, &output, &inner, &leftRows, &rightRows,
 				)
 			}
-			if blas == nil || blas.staging == 0 {
-				return errors.New("cuBLAS BF16 workspace is unavailable")
+			if rightNode.Type != dtype.F32 {
+				return fmt.Errorf("%s mul_mat right input has type %s", leftNode.Type, rightNode.Type)
 			}
-			elements := uint64(inner) * uint64(rightRows)
-			if elements > math.MaxUint32 || elements*2 > blas.stagingBytes {
-				return errors.New("BF16 mul_mat input exceeds workspace")
+			if blas == nil || blas.weightStaging == 0 {
+				return fmt.Errorf("%s mul_mat weight workspace is unavailable", leftNode.Type)
 			}
-			if blas.stagedNode != rightNode {
-				count := uint32(elements)
-				if err := launch1DABI(state, functions[kernelF32ToBf16], count, &right, &blas.staging, &count); err != nil {
-					return err
-				}
-				blas.stagedNode = rightNode
+			weightElements := uint64(inner) * uint64(leftRows)
+			if weightElements > math.MaxUint32 || weightElements*4 > blas.weightStagingBytes {
+				return fmt.Errorf("%s mul_mat weight exceeds workspace", leftNode.Type)
+			}
+			count := uint32(weightElements)
+			if err := launch1DABI(
+				state, functions[upconvertKernel], count, &left, &blas.weightStaging, &count,
+			); err != nil {
+				return err
 			}
 			if traceExternalCall(
-				state, traceTagGEMMEx,
-				uint64(left), uint64(blas.staging), uint64(output),
+				state, traceTagSGEMM,
+				uint64(blas.weightStaging), uint64(right), uint64(output),
 				uint64(leftRows), uint64(rightRows), uint64(inner),
 			) {
 				return nil
 			}
-			return blas.library.GEMMEx(
+			err = blas.library.SGEMM(
 				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
 				int32(leftRows), int32(rightRows), int32(inner), 1,
-				left, cublas.DataBF16, int32(inner),
-				blas.staging, cublas.DataBF16, int32(inner), 0,
-				output, cublas.DataF32, int32(leftRows), cublas.ComputeF32, cublas.GemmDefault,
+				blas.weightStaging, int32(inner), right, int32(inner), 0,
+				output, int32(leftRows),
 			)
+			runtime.KeepAlive(left)
+			runtime.KeepAlive(right)
+			runtime.KeepAlive(output)
+			return err
+		}
+		if leftNode.Type == dtype.F8E4M3 {
+			// native fp8 residency, same native-dtype contract as F16/BF16 but the
+			// weight is packed e4m3 (1 byte/element) followed IN THE SAME resident
+			// buffer by a per-output-row F32 scale [rows*inner e4m3 | rows*4 scale].
+			// Decode (single token) reads e4m3 quads directly and folds scale[row]
+			// once; prefill upconverts (e4m3 -> F32, scale folded per element) into
+			// the reused weight staging and runs the identical SGEMM.
+			if rightNode.Type != dtype.F32 {
+				return fmt.Errorf("fp8 mul_mat right input has type %s", rightNode.Type)
+			}
+			if inner%4 != 0 {
+				return errors.New("fp8 mul_mat inner dimension is not a multiple of 4")
+			}
+			scaleOffset := uint64(inner) * uint64(leftRows)
+			scale := left + driver.DevicePtr(scaleOffset)
+			if rightRows == 1 {
+				launchCount, err := bf16MulMatLaunchCount(leftRows, rightRows)
+				if err != nil {
+					return err
+				}
+				return launch1DABI(
+					state, functions[kernelMulMatFp8F32], launchCount,
+					&left, &scale, &right, &output, &inner, &leftRows, &rightRows,
+				)
+			}
+			if blas == nil || blas.weightStaging == 0 {
+				return errors.New("fp8 mul_mat weight workspace is unavailable")
+			}
+			weightElements := uint64(inner) * uint64(leftRows)
+			if weightElements > math.MaxUint32 || weightElements*4 > blas.weightStagingBytes {
+				return errors.New("fp8 mul_mat weight exceeds workspace")
+			}
+			if err := launchGridABI(
+				state, functions[kernelFp8ToF32],
+				driver.Dim3{X: leftRows, Y: 1, Z: 1},
+				driver.Dim3{X: 256, Y: 1, Z: 1},
+				&left, &scale, &blas.weightStaging, &inner, &leftRows,
+			); err != nil {
+				return err
+			}
+			if traceExternalCall(
+				state, traceTagSGEMM,
+				uint64(blas.weightStaging), uint64(right), uint64(output),
+				uint64(leftRows), uint64(rightRows), uint64(inner),
+			) {
+				return nil
+			}
+			err = blas.library.SGEMM(
+				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+				int32(leftRows), int32(rightRows), int32(inner), 1,
+				blas.weightStaging, int32(inner), right, int32(inner), 0,
+				output, int32(leftRows),
+			)
+			runtime.KeepAlive(left)
+			runtime.KeepAlive(right)
+			runtime.KeepAlive(output)
+			return err
 		}
 		if nativeQuantizedType(leftNode.Type) {
 			if rightNode.Type != dtype.F32 {

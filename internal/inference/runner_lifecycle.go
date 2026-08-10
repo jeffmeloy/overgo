@@ -122,8 +122,16 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 		if err != nil {
 			return fail(err)
 		}
+		// Tied models drive the vocab projection from the token embedding, which
+		// stays F32 for get_rows; the resolved output-projection tensor lets the
+		// resident loader keep a small BF16 catalog copy so greedy decode keeps
+		// the fused BF16 argmax path that the native layer weights use.
+		outputProjection := weights.TokenEmbedding
+		if program.Model.Terminal().OutputHead == model.OutputHeadDedicated && weights.Output != nil {
+			outputProjection = *weights.Output
+		}
 		if err = loadResidentWeights(
-			file, weights, loraAdapters, options, worker,
+			file, weights, outputProjection, loraAdapters, options, worker,
 			&deviceWeights, &rawWeights, &decodeWeights,
 		); err != nil {
 			if !residencyDerived || !driver.IsOutOfMemory(err) {
@@ -161,6 +169,7 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 func loadResidentWeights(
 	file *gguf.File,
 	weights model.Weights,
+	outputProjection gguf.TensorInfo,
 	loraAdapters []loadedLoRA,
 	options OpenOptions,
 	worker *device.Worker,
@@ -183,11 +192,26 @@ func loadResidentWeights(
 			}
 		}
 		f32Required := f32RequiredModelTensors(weights)
+		embeddingTensors := getRowsSourceTensors(weights)
 		f32Tensors = make([]gguf.TensorInfo, 0, len(selected))
 		var quantized []gguf.TensorInfo
 		for _, info := range selected {
 			_, adapted := adaptedTensors[info.Name]
 			_, requiresF32 := f32Required[info.Name]
+			_, isEmbedding := embeddingTensors[info.Name]
+			// native half-precision residency: 2D F16/BF16 matmul weights stream
+			// into the raw store at 2 bytes (no F32 blowup). F8E4M3 joins the same
+			// raw native route at ~1 byte/element + a per-row F32 scale (the
+			// combined [rows*inner e4m3 | rows*4 scale] payload the GGUF carries and
+			// the fp8 matmul kernel consumes). Decode reads the native dtype
+			// directly; prefill upconverts to F32 for a bit-exact SGEMM. Embeddings
+			// (get_rows, no half-precision kernel) and adapted/f32-required tensors
+			// stay F32.
+			if !adapted && !requiresF32 && !isEmbedding && info.Dimensions == 2 &&
+				(info.Type == dtype.F16 || info.Type == dtype.BF16 || info.Type == dtype.F8E4M3) {
+				quantized = append(quantized, info)
+				continue
+			}
 			if !adapted && !requiresF32 && (info.Type == dtype.Q4_0 ||
 				info.Type == dtype.Q4_1 ||
 				info.Type == dtype.Q5_0 ||
@@ -227,15 +251,16 @@ func loadResidentWeights(
 		if err = (*rawWeights).Load(context.Background(), file, quantized); err != nil {
 			return err
 		}
-		// native BF16 matrices feed the decode catalog directly: half the
-		// per-token weight traffic; F32 copies stay resident for prefill
+		// native 2D BF16 matmul weights now live in the raw store (above),
+		// serving both decode (native kernel) and prefill (upconvert + SGEMM)
+		// from a single 2-byte copy. The decode catalog holds only tensors that
+		// stayed F32 in the raw store yet drive a decode MulMat: a tied output
+		// projection (the token embedding, kept F32 for get_rows) gets a small
+		// BF16 copy so greedy decode keeps the fused BF16 argmax path.
 		var decodeTensors []gguf.TensorInfo
-		for _, info := range selected {
-			_, adapted := adaptedTensors[info.Name]
-			_, requiresF32 := f32Required[info.Name]
-			if !adapted && !requiresF32 && info.Type == dtype.BF16 && info.Dimensions == 2 {
-				decodeTensors = append(decodeTensors, info)
-			}
+		if _, isEmbedding := embeddingTensors[outputProjection.Name]; isEmbedding &&
+			outputProjection.Type == dtype.BF16 && outputProjection.Dimensions == 2 {
+			decodeTensors = append(decodeTensors, outputProjection)
 		}
 		if options.PreloadBF16DecodeWeights {
 			for _, info := range quantized {

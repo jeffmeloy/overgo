@@ -797,24 +797,10 @@ func (c *cursor) tensor() (TensorInfo, error) {
 		return TensorInfo{}, err
 	}
 	tensor.Type = DType(rawType)
-	traits, ok := tensor.Type.Traits()
-	if !ok || traits.BlockSize == 0 || traits.TypeSize == 0 {
-		return TensorInfo{}, fmt.Errorf("tensor %q has unsupported type %d", name, rawType)
+	tensor.Size, err = tensor.Type.StorageBytes(elements, tensor.Shape[0])
+	if err != nil {
+		return TensorInfo{}, fmt.Errorf("tensor %q: %w", name, err)
 	}
-	if tensor.Shape[0]%traits.BlockSize != 0 {
-		return TensorInfo{}, fmt.Errorf(
-			"tensor %q row size %d is not divisible by %s block size %d",
-			name,
-			tensor.Shape[0],
-			traits.Name,
-			traits.BlockSize,
-		)
-	}
-	blocks := elements / traits.BlockSize
-	if blocks > math.MaxUint64/traits.TypeSize {
-		return TensorInfo{}, fmt.Errorf("tensor %q byte size overflows uint64", name)
-	}
-	tensor.Size = blocks * traits.TypeSize
 	tensor.Offset, err = c.uint64()
 	if err != nil {
 		return TensorInfo{}, err

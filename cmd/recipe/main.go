@@ -48,7 +48,8 @@ func run() error {
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen|vqa)")
+	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -74,10 +75,14 @@ func run() error {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
 		switch capability := recipe.Task(*task); capability {
-		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen:
+		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVQA:
 			return activateCapability(repository, path, *reason, capability)
 		}
-		return activate(repository, path, *reason)
+		sessionOverride, sessionErr := parseSessionOverride(*sessionFlag)
+		if sessionErr != nil {
+			return sessionErr
+		}
+		return activate(repository, path, *reason, sessionOverride)
 	case "status":
 		return status(repository, path, recipe.Task(*task))
 	default:
@@ -106,6 +111,8 @@ func capabilityInventory(task recipe.Task, path string) (modelartifact.Inventory
 		return imageGenInventory(path)
 	case recipe.TaskVideoGen:
 		return videoGenInventory(path)
+	case recipe.TaskVQA:
+		return vqaInventory(path)
 	}
 	return modelartifact.Inventory{}, fmt.Errorf("no capability inventory for task %q", task)
 }
@@ -128,6 +135,21 @@ func videoGenInventory(path string) (modelartifact.Inventory, error) {
 	})
 }
 
+// vqaInventory: the RxBrain VQA artifact is a standard sharded HF safetensors
+// repository — config.json + model.safetensors.index.json + shards, with the
+// tokenizer and preprocessor_config.json as companions (the processor reads
+// them at serve time). Extra vendor sidecars (paper PDF, demo cases, nested
+// vendor tree) are ignored by the companion whitelist. Same walker as forecast
+// and seq2seq; the multimodal wiring lives in the recipe definition, not here.
+func vqaInventory(path string) (modelartifact.Inventory, error) {
+	repo, err := hfrepo.Open(path)
+	if err != nil {
+		return modelartifact.Inventory{}, err
+	}
+	defer repo.Close()
+	return modelartifact.FromHFRepository(repo)
+}
+
 // capabilityDefinition: per-task single-node host definition constructor.
 func capabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
 	switch task {
@@ -143,6 +165,8 @@ func capabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 		return modelrecipe.ImageGenDefinition(modelID)
 	case recipe.TaskVideoGen:
 		return modelrecipe.VideoGenDefinition(modelID)
+	case recipe.TaskVQA:
+		return modelrecipe.VQADefinition(modelID)
 	}
 	return recipe.Definition{}, fmt.Errorf("no capability definition for task %q", task)
 }
@@ -276,7 +300,27 @@ func activateCapability(repository, path, reason string, task recipe.Task) error
 	return nil
 }
 
-func activate(repository, path, reason string) error {
+// sessionOverride: operator-pinned decode session; nil defers to the
+// plan-derived choice.
+type sessionOverride struct {
+	set   bool
+	value modelrecipe.DecodeSessionPolicy
+}
+
+func parseSessionOverride(text string) (sessionOverride, error) {
+	switch strings.ToLower(strings.TrimSpace(text)) {
+	case "", "auto":
+		return sessionOverride{}, nil
+	case "request":
+		return sessionOverride{set: true, value: modelrecipe.DecodeSessionRequest}, nil
+	case "capacity":
+		return sessionOverride{set: true, value: modelrecipe.DecodeSessionCapacity}, nil
+	default:
+		return sessionOverride{}, fmt.Errorf("unknown -session %q (auto|request|capacity)", text)
+	}
+}
+
+func activate(repository, path, reason string, override sessionOverride) error {
 	ctx := context.Background()
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -320,6 +364,14 @@ func activate(repository, path, reason string) error {
 	session := modelrecipe.DecodeSessionCapacity
 	if !modelPlan.SupportsCapacityCache() {
 		session = modelrecipe.DecodeSessionRequest
+	}
+	if override.set {
+		// operator pin: request is the general per-request path (valid for any
+		// model); capacity requires SupportsCapacityCache.
+		if override.value == modelrecipe.DecodeSessionCapacity && !modelPlan.SupportsCapacityCache() {
+			return errors.New("recipe: -session capacity is unsupported by this model's compiled plan")
+		}
+		session = override.value
 	}
 	store, err := repodb.Open(repository)
 	if err != nil {
@@ -425,7 +477,7 @@ func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
 	switch task {
-	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen:
+	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVQA:
 		var err error
 		inventory, err = capabilityInventory(task, path)
 		if err != nil {

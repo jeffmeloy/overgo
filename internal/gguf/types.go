@@ -96,6 +96,7 @@ const (
 	DTypeNVFP4  = dtype.NVFP4
 	DTypeQ1_0   = dtype.Q1_0
 	DTypeQ2_0   = dtype.Q2_0
+	DTypeF8E4M3 = dtype.F8E4M3
 	DTypeCount  = dtype.Count
 )
 

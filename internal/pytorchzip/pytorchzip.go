@@ -105,6 +105,10 @@ type pickleTensorParser struct {
 	stack   []pickleValue
 	memo    map[int]pickleValue
 	tensors []TensorMeta
+	// scalars captures string-keyed scalar dict entries (ints, floats, bools,
+	// strings) seen anywhere in the stream — the config a {cfg, model} save
+	// pickles beside the weights. nil disables capture (the tensor-only path).
+	scalars map[string]any
 }
 
 func (p *pickleTensorParser) parse() error {
@@ -147,6 +151,32 @@ func (p *pickleTensorParser) parse() error {
 			p.push([]pickleValue{})
 		case '}': // EMPTY_DICT
 			p.push(pickleDict{})
+		case ']': // EMPTY_LIST
+			// A config pickled beside the weights (a {cfg, model, step} save) can
+			// carry list fields; a list is a slice, like a tuple. The tensor walk
+			// ignores the container, but the stream must still parse past it.
+			p.push([]pickleValue{})
+		case 'a': // APPEND
+			val := p.pop()
+			lst := p.pop()
+			if items, ok := lst.([]pickleValue); ok {
+				p.push(append(items, val))
+				break
+			}
+			p.push(lst)
+		case 'e': // APPENDS
+			items := p.popUntilMark()
+			lst := p.pop()
+			if existing, ok := lst.([]pickleValue); ok {
+				p.push(append(existing, items...))
+				break
+			}
+			p.push(lst)
+		case 'G': // BINFLOAT: 8-byte IEEE-754 double, BIG-endian (network order)
+			// A {cfg, model, step} save pickles a config alongside the weights;
+			// any float field in it emits BINFLOAT, over a number the tensor walk
+			// never reads. Without this case the reader refuses the whole file.
+			p.push(math.Float64frombits(binary.BigEndian.Uint64(p.read(8))))
 		case 'X': // BINUNICODE
 			n := int(p.readU32())
 			p.push(string(p.read(n)))
@@ -262,11 +292,57 @@ func (p *pickleTensorParser) notePair(key, val pickleValue) {
 	if !ok {
 		return
 	}
-	ref, ok := val.(pickleTensorRef)
-	if !ok || ref.index < 0 || ref.index >= len(p.tensors) {
+	if ref, ok := val.(pickleTensorRef); ok && ref.index >= 0 && ref.index < len(p.tensors) {
+		p.tensors[ref.index].Name = name
 		return
 	}
-	p.tensors[ref.index].Name = name
+	// Config scalars a {cfg, model} save carries beside the weights. The tensor
+	// walk ignores them; capture is opt-in so the tensor-only path is unchanged.
+	if p.scalars != nil {
+		switch v := val.(type) {
+		case int64, float64, bool, string:
+			p.scalars[name] = v
+		}
+	}
+}
+
+// ReadScalarConfig parses the checkpoint pickle and returns its string-keyed
+// scalar entries (ints, floats, bools, strings), flattened by key across any
+// nested dicts — the config a {cfg, model, step} save pickles beside the
+// weights. Tensor entries are skipped; use ReadTensorMetadata for those.
+func ReadScalarConfig(filename string) (map[string]any, error) {
+	zr, err := zip.OpenReader(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer zr.Close()
+	for _, f := range zr.File {
+		if path.Base(f.Name) == "data.pkl" {
+			b, err := readZipEntryBytes(f, maxPickleBytes)
+			if err != nil {
+				return nil, err
+			}
+			return parseScalarConfig(b)
+		}
+	}
+	return nil, fmt.Errorf("pytorchzip: data.pkl not found in %s", filename)
+}
+
+func parseScalarConfig(data []byte) (scalars map[string]any, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			pe, ok := r.(pickleParseError)
+			if !ok {
+				panic(r)
+			}
+			scalars, err = nil, fmt.Errorf("pytorchzip pickle: %s at offset %d", pe.msg, pe.pos)
+		}
+	}()
+	p := &pickleTensorParser{data: data, memo: map[int]pickleValue{}, scalars: map[string]any{}}
+	if err := p.parse(); err != nil {
+		return nil, err
+	}
+	return p.scalars, nil
 }
 
 func persistentStorageRef(v pickleValue) (pickleStorageRef, error) {

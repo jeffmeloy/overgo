@@ -1,0 +1,202 @@
+{
+  "exact_sparse_probe": {
+    "hook": "extmodel.ExecutionProbe selecting per-step sampler output points; emit strided element probes + sha256 of each strided latent",
+    "needs_hook": true,
+    "present": false,
+    "reason": "public serve path exposes per-step latent DISTRIBUTION (median/MAD) but not exact element probes of the step latent tensor"
+  },
+  "per_step_latent_distribution": {
+    "form": "median+MAD (device-computed, real)",
+    "latent_mad": [
+      0.641510009765625,
+      0.607421875,
+      0.569549560546875,
+      0.517608642578125,
+      0.455718994140625,
+      0.389556884765625,
+      0.3172607421875,
+      0.29736328125
+    ],
+    "latent_median": [
+      -0.003021240234375,
+      -0.00518798828125,
+      -0.008575439453125,
+      -0.009796142578125,
+      -0.011077880859375,
+      -0.008880615234375,
+      -0.0128173828125,
+      -0.04833984375
+    ],
+    "non_finite_total": 0,
+    "present": true,
+    "velocity_mad": [
+      0.777099609375,
+      0.828857421875,
+      0.787109375,
+      0.74853515625,
+      0.728515625,
+      0.7093963623046875,
+      0.7001953125,
+      0.66162109375
+    ],
+    "velocity_median": [
+      0.035400390625,
+      0.069580078125,
+      0.048828125,
+      0.02197265625,
+      0.010162353515625,
+      0.0062713623046875,
+      0.0068359375,
+      0.01806640625
+    ]
+  },
+  "schedule": {
+    "mu": 1.15,
+    "num_train_timesteps": 1000,
+    "scheduler": "FlowMatchEulerDiscreteScheduler",
+    "sigma_deltas": [
+      -0.04327627271413803,
+      -0.05219295993447304,
+      -0.06418196111917496,
+      -0.08083788305521011,
+      -0.10494410991668701,
+      -0.14172270894050598,
+      -0.201943039894104,
+      -0.31090104579925537
+    ],
+    "sigma_knots": [
+      1,
+      0.9567237271222464,
+      0.9045307667386397,
+      0.8403488020923522,
+      0.7595109169491111,
+      0.6545668033876179,
+      0.5128441015091338,
+      0.3109010566906254,
+      0
+    ],
+    "sigmas_current": [
+      1,
+      0.9567237271222464,
+      0.9045307667386397,
+      0.8403488020923522,
+      0.7595109169491111,
+      0.6545668033876179,
+      0.5128441015091338,
+      0.3109010566906254
+    ],
+    "sigmas_next": [
+      0.9567237271222464,
+      0.9045307667386397,
+      0.8403488020923522,
+      0.7595109169491111,
+      0.6545668033876179,
+      0.5128441015091338,
+      0.3109010566906254,
+      0
+    ],
+    "steps": 8,
+    "timesteps": [
+      1000,
+      956.7237271222464,
+      904.5307667386397,
+      840.3488020923522,
+      759.5109169491111,
+      654.5668033876178,
+      512.8441015091338,
+      310.9010566906254
+    ]
+  },
+  "schema": "overgo.krea_golden.g2/v1",
+  "source": "adaptive_new latent-euler sampler dynamics (profile_denoiser=true), device-computed per step",
+  "steps": [
+    {
+      "latent_mad": 0.641510009765625,
+      "latent_median": -0.003021240234375,
+      "non_finite": 0,
+      "sigma_current": 1,
+      "sigma_delta": -0.04327627271413803,
+      "sigma_next": 0.9567237271222464,
+      "step": 0,
+      "velocity_mad": 0.777099609375,
+      "velocity_median": 0.035400390625
+    },
+    {
+      "latent_mad": 0.607421875,
+      "latent_median": -0.00518798828125,
+      "non_finite": 0,
+      "sigma_current": 0.9567237271222464,
+      "sigma_delta": -0.05219295993447304,
+      "sigma_next": 0.9045307667386397,
+      "step": 1,
+      "velocity_mad": 0.828857421875,
+      "velocity_median": 0.069580078125
+    },
+    {
+      "latent_mad": 0.569549560546875,
+      "latent_median": -0.008575439453125,
+      "non_finite": 0,
+      "sigma_current": 0.9045307667386397,
+      "sigma_delta": -0.06418196111917496,
+      "sigma_next": 0.8403488020923522,
+      "step": 2,
+      "velocity_mad": 0.787109375,
+      "velocity_median": 0.048828125
+    },
+    {
+      "latent_mad": 0.517608642578125,
+      "latent_median": -0.009796142578125,
+      "non_finite": 0,
+      "sigma_current": 0.8403488020923522,
+      "sigma_delta": -0.08083788305521011,
+      "sigma_next": 0.7595109169491111,
+      "step": 3,
+      "velocity_mad": 0.74853515625,
+      "velocity_median": 0.02197265625
+    },
+    {
+      "latent_mad": 0.455718994140625,
+      "latent_median": -0.011077880859375,
+      "non_finite": 0,
+      "sigma_current": 0.7595109169491111,
+      "sigma_delta": -0.10494410991668701,
+      "sigma_next": 0.6545668033876179,
+      "step": 4,
+      "velocity_mad": 0.728515625,
+      "velocity_median": 0.010162353515625
+    },
+    {
+      "latent_mad": 0.389556884765625,
+      "latent_median": -0.008880615234375,
+      "non_finite": 0,
+      "sigma_current": 0.6545668033876179,
+      "sigma_delta": -0.14172270894050598,
+      "sigma_next": 0.5128441015091338,
+      "step": 5,
+      "velocity_mad": 0.7093963623046875,
+      "velocity_median": 0.0062713623046875
+    },
+    {
+      "latent_mad": 0.3172607421875,
+      "latent_median": -0.0128173828125,
+      "non_finite": 0,
+      "sigma_current": 0.5128441015091338,
+      "sigma_delta": -0.201943039894104,
+      "sigma_next": 0.3109010566906254,
+      "step": 6,
+      "velocity_mad": 0.7001953125,
+      "velocity_median": 0.0068359375
+    },
+    {
+      "latent_mad": 0.29736328125,
+      "latent_median": -0.04833984375,
+      "non_finite": 0,
+      "sigma_current": 0.3109010566906254,
+      "sigma_delta": -0.31090104579925537,
+      "sigma_next": 0,
+      "step": 7,
+      "velocity_mad": 0.66162109375,
+      "velocity_median": 0.01806640625
+    }
+  ]
+}

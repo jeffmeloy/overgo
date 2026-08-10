@@ -29,6 +29,22 @@ func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 	return result
 }
 
+// getRowsSourceTensors: tensors consumed by get_rows (embedding tables), which
+// have no native-F16 kernel and must stay F32-resident.
+func getRowsSourceTensors(weights model.Weights) map[string]struct{} {
+	result := make(map[string]struct{})
+	result[weights.TokenEmbedding.Name] = struct{}{}
+	for _, info := range []*gguf.TensorInfo{
+		weights.PositionEmbedding,
+		weights.PerLayerTokenEmbedding,
+	} {
+		if info != nil {
+			result[info.Name] = struct{}{}
+		}
+	}
+	return result
+}
+
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {
 	names := make(map[string]struct{})
 	for _, info := range weights.TensorInfos() {

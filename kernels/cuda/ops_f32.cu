@@ -120,6 +120,75 @@ extern "C" __global__ void f32_to_bf16(
     output[index] = (unsigned short) (bits >> 16);
 }
 
+// F16 -> F32 lossless upconvert (prefill weight staging feeds SGEMM). F16 has
+// fewer exponent/mantissa bits than F32, so every value expands exactly.
+extern "C" __global__ void f16_to_f32(
+        const unsigned short * input,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    output[index] = __half2float(__ushort_as_half(input[index]));
+}
+
+// BF16 -> F32 lossless upconvert (prefill weight staging feeds SGEMM). BF16 is
+// the high 16 bits of the F32 encoding, so the expansion is an exact bit shift
+// and matches the resident F32-copy dequant (quant.Dequantize BF16) exactly.
+extern "C" __global__ void bf16_to_f32(
+        const unsigned short * input,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    output[index] = __uint_as_float(((unsigned int) input[index]) << 16);
+}
+
+// e4m3 (OCP F8_E4M3FN) -> f32, exact by construction: every e4m3 value is
+// representable in f32, so this is pure integer bit assembly (no float rounding,
+// -use_fast_math immune). Bit-identical to Go dtype.F8E4M3ToFloat32. Layout:
+// 1 sign, 4 exponent (bias 7), 3 mantissa; NO Inf; the sole NaN is S.1111.111.
+__device__ __forceinline__ float fp8_e4m3_decode(unsigned int b) {
+    const unsigned int s = (b & 0x80u) << 24;            // e4m3 sign bit7 -> f32 bit31
+    const unsigned int e = (b >> 3) & 0x0fu;
+    const unsigned int m = b & 0x07u;
+    if (e == 0u) {
+        // subnormal: m * 2^-9 (m in 0..7, exact in f32); sign OR'd back in
+        const float v = (float) m * (1.0f / 512.0f);
+        return __uint_as_float(s | __float_as_uint(v));
+    }
+    if (e == 0x0fu && m == 0x07u) {
+        return __uint_as_float(s | 0x7fc00000u);         // E4M3FN NaN, sign preserved
+    }
+    // normal: (1 + m/8) * 2^(e-7); exponent field e-7+127 = e+120, mantissa m<<20
+    return __uint_as_float(s | ((e + 120u) << 23) | (m << 20));
+}
+
+// FP8(E4M3) -> F32 prefill upconvert with per-output-row scale folded in. Mirrors
+// bf16_to_f32 (prefill weight staging feeds SGEMM) but E4M3 carries a per-row F32
+// weight_scale, so the staged F32 weight is scale[row] * e4m3(byte). One block per
+// row keeps scale[row] in a register across the row.
+extern "C" __global__ void fp8_to_f32(
+        const unsigned char * input,
+        const float * scale,
+        float * output,
+        unsigned int inner,
+        unsigned int rows) {
+    const unsigned int row = blockIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const float row_scale = scale[row];
+    const unsigned char * weight_row = input + (size_t) row * inner;
+    float * output_row = output + (size_t) row * inner;
+    for (unsigned int column = threadIdx.x; column < inner; column += blockDim.x) {
+        output_row[column] = fp8_e4m3_decode((unsigned int) weight_row[column]) * row_scale;
+    }
+}
+
 extern "C" __global__ void quantize_q8_0_input_f32(
         const float * input,
         unsigned char * output,
@@ -3895,6 +3964,84 @@ extern "C" __global__ void mul_mat_bf16_f32(
     }
     if (lane == 0) {
         output[right_row * left_rows + left_row] = sum;
+    }
+}
+
+// warp-per-row F16 matvec: packed pair loads keep coalesced 128B segments;
+// each F16 half upconverts to F32 per element BEFORE the FMA (lossless), same
+// F32 accumulation as the BF16 decode kernel. Decode-regime native-F16 read
+// (half the per-token weight bandwidth of the F32 fallback).
+extern "C" __global__ void mul_mat_f16_f32(
+        const unsigned int * left,
+        const float * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
+    const unsigned int left_row = warp_index % left_rows;
+    const unsigned int right_row = warp_index / left_rows;
+    if (right_row >= right_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int pairs = inner / 2;
+    const unsigned int * weight_row = left + (size_t) left_row * pairs;
+    const float * input_row = right + (size_t) right_row * inner;
+    float sum = 0.0f;
+    for (unsigned int pair = lane; pair < pairs; pair += CUDA_WARP_WIDTH) {
+        const unsigned int packed = weight_row[pair];
+        const float low = __half2float(__ushort_as_half((unsigned short) (packed & 0xffffU)));
+        const float high = __half2float(__ushort_as_half((unsigned short) (packed >> 16)));
+        sum += low * input_row[2 * pair] + high * input_row[2 * pair + 1];
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffff, sum, offset);
+    }
+    if (lane == 0) {
+        output[right_row * left_rows + left_row] = sum;
+    }
+}
+
+// warp-per-row FP8(E4M3) matvec with per-output-row scale. Native-dtype decode
+// sibling of mul_mat_bf16_f32: lanes read packed uint32 quads of e4m3 bytes
+// (coalesced 128B segments), decode 4 values in registers, F32 accumulate,
+// warp-shuffle reduce, and the per-row F32 scale folds in ONCE at lane 0
+// (y = scale[row] * dot(e4m3_row, x)). inner must be a multiple of 4.
+extern "C" __global__ void mul_mat_fp8_f32(
+        const unsigned int * left,
+        const float * scale,
+        const float * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
+    const unsigned int left_row = warp_index % left_rows;
+    const unsigned int right_row = warp_index / left_rows;
+    if (right_row >= right_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int quads = inner / 4;
+    const unsigned int * weight_row = left + (size_t) left_row * quads;
+    const float * input_row = right + (size_t) right_row * inner;
+    float sum = 0.0f;
+    for (unsigned int quad = lane; quad < quads; quad += CUDA_WARP_WIDTH) {
+        const unsigned int packed = weight_row[quad];
+        const unsigned int base = 4u * quad;
+        sum += fp8_e4m3_decode(packed & 0xffu)          * input_row[base]
+             + fp8_e4m3_decode((packed >> 8) & 0xffu)   * input_row[base + 1]
+             + fp8_e4m3_decode((packed >> 16) & 0xffu)  * input_row[base + 2]
+             + fp8_e4m3_decode((packed >> 24) & 0xffu)  * input_row[base + 3];
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffff, sum, offset);
+    }
+    if (lane == 0) {
+        output[right_row * left_rows + left_row] = sum * scale[left_row];
     }
 }
 

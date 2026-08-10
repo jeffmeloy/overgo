@@ -290,7 +290,7 @@ func buildDenseBlock(options BlockDispatchOptions) (DenseBlockResult, error) {
 	case DenseGraphTalkie:
 		return buildTalkieBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue)
 	case DenseGraphGemma4:
-		return buildGemma4BlockCached(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.plan)
+		return buildGemma4BlockCached(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.plan, c.cacheWrite)
 	case DenseGraphRWKV6:
 		return buildRWKV6BlockCached(c.builder, c.input, c.spec, c.weights, c.pastKey, c.pastValue, c.layer)
 	case DenseGraphRWKV7:
@@ -598,6 +598,7 @@ func buildGemma4BlockCached(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 	layerPlan LayerPlan,
+	cacheWrite tensor.CacheWriteMode,
 ) (DenseBlockResult, error) {
 	layerIndex := layerPlan.Layer
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
@@ -674,9 +675,15 @@ func buildGemma4BlockCached(
 		key = layerPlan.Rotary.ApplyOne(builder, key, positions, nil, weights.RopeFactors)
 		cacheKey, cacheValue = key, value
 		if pastKey != nil {
-			queryStart = uint32(pastKey.Shape.Dims[2])
-			cacheKey = builder.Concat(pastKey, key, 2)
-			cacheValue = builder.Concat(pastValue, value, 2)
+			// Honor the cache-write contract: on the capacity/append session
+			// pastKey is a fixed-capacity buffer whose token axis is the source
+			// capacity, not the active-token count -- the logical offset comes
+			// from CacheTokenOffset and the append op auto-bounds KeyValueTokens.
+			// Concat is WriteCache's request-session branch, so this is a no-op
+			// there and unlocks the append path here.
+			queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
+			cacheKey = builder.WriteCache(pastKey, key, 2, cacheWrite)
+			cacheValue = builder.WriteCache(pastValue, value, 2, cacheWrite)
 		}
 	} else {
 		if pastKey.Shape.Rank != 3 || pastValue.Shape.Rank != 3 ||

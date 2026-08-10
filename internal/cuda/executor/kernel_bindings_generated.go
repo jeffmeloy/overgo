@@ -21,6 +21,7 @@ const (
 	kernelAttentionTiledBf16F32
 	kernelAttentionTiledF32
 	kernelBf16RoundF32
+	kernelBf16ToF32
 	kernelBroadcastAddF32
 	kernelBroadcastDivideF32
 	kernelBroadcastGateAddF32
@@ -33,8 +34,10 @@ const (
 	kernelCopyTokenOffsetF32
 	kernelDivideF32
 	kernelExpF32
+	kernelF16ToF32
 	kernelF32ToBf16
 	kernelFlatSliceF32
+	kernelFp8ToF32
 	kernelFwhtF32
 	kernelGatedDeltaNetF32
 	kernelGatedLinearAttentionF32
@@ -85,7 +88,9 @@ const (
 	kernelMulMatBf16ArgmaxPartialsF32
 	kernelMulMatBf16F32
 	kernelMulMatBf16GateF32
+	kernelMulMatF16F32
 	kernelMulMatF32
+	kernelMulMatFp8F32
 	kernelMulMatIq1MF32
 	kernelMulMatIq1SF32
 	kernelMulMatIq2SF32
@@ -176,6 +181,7 @@ var kernelFunctionNames = [...]string{
 	"attention_tiled_bf16_f32",
 	"attention_tiled_f32",
 	"bf16_round_f32",
+	"bf16_to_f32",
 	"broadcast_add_f32",
 	"broadcast_divide_f32",
 	"broadcast_gate_add_f32",
@@ -188,8 +194,10 @@ var kernelFunctionNames = [...]string{
 	"copy_token_offset_f32",
 	"divide_f32",
 	"exp_f32",
+	"f16_to_f32",
 	"f32_to_bf16",
 	"flat_slice_f32",
+	"fp8_to_f32",
 	"fwht_f32",
 	"gated_delta_net_f32",
 	"gated_linear_attention_f32",
@@ -240,7 +248,9 @@ var kernelFunctionNames = [...]string{
 	"mul_mat_bf16_argmax_partials_f32",
 	"mul_mat_bf16_f32",
 	"mul_mat_bf16_gate_f32",
+	"mul_mat_f16_f32",
 	"mul_mat_f32",
+	"mul_mat_fp8_f32",
 	"mul_mat_iq1_m_f32",
 	"mul_mat_iq1_s_f32",
 	"mul_mat_iq2_s_f32",
@@ -330,6 +340,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	10,
 	12,
 	3,
+	3,
 	15,
 	15,
 	6,
@@ -343,7 +354,9 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	3,
 	3,
+	3,
 	4,
+	5,
 	4,
 	15,
 	12,
@@ -395,6 +408,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	7,
 	6,
+	6,
+	7,
 	6,
 	6,
 	6,

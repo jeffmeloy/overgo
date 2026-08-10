@@ -105,6 +105,10 @@ type Options struct {
 	MMProjPath string
 	MMProjF32  bool
 	Name       string
+	// FP8Native: preserve fp8 (F8_E4M3) mlp gate/up/down weights as native
+	// F8E4M3 GGUF tensors ([e4m3 | per-row F32 scale] combined payload) instead
+	// of up-converting them to BF16. attn/lm_head/embeds always stay BF16.
+	FP8Native bool
 }
 
 type Report struct {
@@ -160,7 +164,7 @@ func Convert(options Options) (Report, error) {
 		if metadataErr != nil {
 			return report, metadataErr
 		}
-		tensors, tensorErr := modelTensors(source, config)
+		tensors, tensorErr := modelTensors(source, config, options.FP8Native)
 		if tensorErr != nil {
 			return report, tensorErr
 		}
@@ -427,7 +431,7 @@ func tokenizerMetadata(directory string, vocabulary uint32) ([]gguf.Metadata, er
 var byteTokenPattern = regexp.MustCompile(`^<0x[0-9A-Fa-f]{2}>$`)
 var layerNamePattern = regexp.MustCompile(`^model\.language_model\.layers\.(\d+)\.(.+)$`)
 
-func modelTensors(source *safetensors.Source, config modelConfig) ([]gguf.TensorData, error) {
+func modelTensors(source *safetensors.Source, config modelConfig, fp8Native bool) ([]gguf.TensorData, error) {
 	tensors := make([]gguf.TensorData, 0, len(source.Tensors)+1)
 	sharedKVStart := config.Text.HiddenLayers - config.Text.SharedKVLayers
 	for sourceName, tensor := range source.Tensors {
@@ -447,7 +451,7 @@ func modelTensors(source *safetensors.Source, config modelConfig) ([]gguf.Tensor
 			}
 			continue
 		}
-		dataType, reader, err := modelTensorReader(source, tensor)
+		dataType, reader, err := modelTensorReader(source, tensor, destinationName, fp8Native)
 		if err != nil {
 			return nil, fmt.Errorf("Gemma 4 converter: tensor %q: %w", sourceName, err)
 		}
@@ -524,7 +528,9 @@ func modelTensorName(name string) (string, bool) {
 	return "blk." + match[1] + "." + suffix, true
 }
 
-func modelTensorReader(source *safetensors.Source, tensor safetensors.Tensor) (gguf.DType, io.Reader, error) {
+func modelTensorReader(
+	source *safetensors.Source, tensor safetensors.Tensor, destination string, fp8Native bool,
+) (gguf.DType, io.Reader, error) {
 	if strings.HasSuffix(tensor.Name, ".layer_scalar") {
 		if tensor.DType != "BF16" {
 			return 0, nil, errors.New("layer scalar must use BF16")
@@ -542,11 +548,24 @@ func modelTensorReader(source *safetensors.Source, tensor safetensors.Tensor) (g
 		if !ok {
 			return 0, nil, errors.New("FP8 scale is missing")
 		}
+		if fp8Native && isFFNProjection(destination) {
+			// native fp8 residency: preserve [e4m3 | per-row F32 scale] combined
+			reader, err := newFP8NativeReader(tensor, scale)
+			return gguf.DTypeF8E4M3, reader, err
+		}
 		reader, err := newFP8BF16Reader(tensor, scale)
 		return gguf.DTypeBF16, reader, err
 	default:
 		return 0, nil, fmt.Errorf("unsupported dtype %q", tensor.DType)
 	}
+}
+
+// isFFNProjection: gemma4 mlp gate/up/down destination weights -- the only
+// tensors emitted natively as F8E4M3.
+func isFFNProjection(destination string) bool {
+	return strings.HasSuffix(destination, ".ffn_gate.weight") ||
+		strings.HasSuffix(destination, ".ffn_up.weight") ||
+		strings.HasSuffix(destination, ".ffn_down.weight")
 }
 
 func validateModelCatalog(metadata []gguf.Metadata, tensors []gguf.TensorData) error {

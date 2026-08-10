@@ -131,6 +131,74 @@ func TestBuildGemma4SlidingBlockUsesVisionBlockMask(t *testing.T) {
 	t.Fatal("Gemma 4 sliding attention node missing")
 }
 
+// TestBuildGemma4BlockHonorsAppendCacheWrite pins the capacity-session contract:
+// under a fixed-capacity append plan the Gemma 4 block must emit an OpCacheAppend
+// (bounded write into the source-capacity buffer) rather than an unbounded Concat.
+// A raw Concat produced keyShape = sourceCapacity+tokens (e.g. 257) while the cache
+// plan sized keyCapacity at the page capacity (256), OOMing capacity-eligible models
+// (gemma-4-12B). Offset/KeyValueTokens must come from the append plan, not the
+// buffer's token axis.
+func TestBuildGemma4BlockHonorsAppendCacheWrite(t *testing.T) {
+	builder := tensor.NewBuilder()
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "gemma4", BlockCount: 2, EmbeddingLength: 4,
+		FeedForwardLength: 6, RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 2, ValueLength: 2, KeyLengthSWA: 2, ValueLengthSWA: 2,
+		RopeDimensionCount: 2, RopeDimensionSWA: 2, RopeFrequencyBase: 10000, RopeFrequencySWA: 10000,
+		AttentionScale: 1, SlidingWindow: 4,
+		SlidingLayers: []bool{true, false}}, MultimodalSpec: MultimodalSpec{EmbeddingPerLayer: 1},
+	}
+	const (
+		activeTokens   = uint32(2)
+		sourceCapacity = uint32(4)
+		capacityTokens = uint32(4)
+	)
+	// Mirror the capacity path: SetCacheAppendPlan + past buffer whose token axis
+	// is the SOURCE CAPACITY (not the active-token count).
+	builder.SetCacheAppendPlan(tensor.CacheAppendPlan{
+		ActiveTokens: activeTokens, SourceCapacityTokens: sourceCapacity, CapacityTokens: capacityTokens,
+	})
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1))
+	weights := gemma4BlockInputs(builder, spec, true, false)
+	pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(2, 1, uint64(sourceCapacity)))
+	pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(2, 1, uint64(sourceCapacity)))
+	// Layer 1 is a full (non-sliding) KV-owning layer.
+	plan := spec.PlanLayer(1, false)
+	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+		Context: CachedBlockContext{
+			Builder: builder, Input: input, Positions: []uint32{activeTokens},
+			PastKey: pastKey, PastValue: pastValue, Layer: 1, CacheWrite: tensor.CacheWriteAppend,
+		},
+		Spec: spec, Weights: weights, Plan: &plan,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Key.Op != tensor.OpCacheAppend || result.Value.Op != tensor.OpCacheAppend {
+		t.Fatalf("Gemma 4 append cache ops = %v/%v, want OpCacheAppend", result.Key.Op, result.Value.Op)
+	}
+	if result.Key.Shape.Dims[2] != uint64(capacityTokens) {
+		t.Fatalf("Gemma 4 append key token axis = %d, want capacity %d", result.Key.Shape.Dims[2], capacityTokens)
+	}
+	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundAttention bool
+	for _, node := range nodes {
+		if node.Op == tensor.OpAttention {
+			foundAttention = true
+			attributes := node.Attrs.(tensor.AttentionAttributes)
+			if attributes.QueryStart != activeTokens || attributes.KeyValueTokens != activeTokens+1 {
+				t.Fatalf("Gemma 4 append attention offsets = %+v, want QueryStart=%d KeyValueTokens=%d",
+					attributes, activeTokens, activeTokens+1)
+			}
+		}
+	}
+	if !foundAttention {
+		t.Fatal("Gemma 4 attention node missing")
+	}
+}
+
 func gemma4BlockInputs(builder *tensor.Builder, spec Spec, hasKV, moe bool) LayerGraphWeights {
 	embedding := uint64(spec.EmbeddingLength)
 	key := uint64(spec.KeyLengthSWA)

@@ -1,6 +1,10 @@
 package dtype
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"math"
+)
 
 // Type: ggml-compatible tensor storage type
 type Type uint32
@@ -41,7 +45,11 @@ const (
 	NVFP4  Type = 40
 	Q1_0   Type = 41
 	Q2_0   Type = 42
-	Count  Type = 43
+	// F8E4M3: OCP F8_E4M3FN payload with a per-output-row F32 scale carried
+	// alongside (native-dtype residency). Not a self-contained GGUF block type;
+	// this id is internal to the native-dtype matmul path. 1 byte/element.
+	F8E4M3 Type = 43
+	Count  Type = 44
 )
 
 // Traits defines type's physical block layout
@@ -88,6 +96,7 @@ var traits = map[Type]Traits{
 	NVFP4:  {"nvfp4", 64, 36, true},
 	Q1_0:   {"q1_0", 128, 18, true},
 	Q2_0:   {"q2_0", 64, 18, true},
+	F8E4M3: {"f8_e4m3", 1, 1, false},
 }
 
 func (t Type) String() string {
@@ -100,4 +109,38 @@ func (t Type) String() string {
 func (t Type) Traits() (Traits, bool) {
 	value, ok := traits[t]
 	return value, ok
+}
+
+// StorageBytes: physical byte size of a tensor of this type whose logical shape
+// has `elements` elements laid out as rows of width `rowWidth` (dims[0]). This
+// is the single owner of tensor storage-byte accounting shared by Shape.Bytes,
+// the GGUF reader, and the GGUF writer. Block types occupy
+// (elements/BlockSize)*TypeSize. F8E4M3 native residency additionally carries a
+// per-output-row F32 scale after the packed e4m3 payload (elements*1 + rows*4),
+// matching the resident matmul buffer layout [rows*inner e4m3 | rows*4 scale]
+// the fp8 kernel expects. rowWidth must divide into whole blocks.
+func (t Type) StorageBytes(elements, rowWidth uint64) (uint64, error) {
+	traitsValue, ok := traits[t]
+	if !ok || traitsValue.BlockSize == 0 || traitsValue.TypeSize == 0 {
+		return 0, fmt.Errorf("unsupported type %d", uint32(t))
+	}
+	if rowWidth == 0 || rowWidth%traitsValue.BlockSize != 0 {
+		return 0, fmt.Errorf(
+			"row width %d is not divisible by %s block size %d",
+			rowWidth, traitsValue.Name, traitsValue.BlockSize,
+		)
+	}
+	if t == F8E4M3 {
+		// packed e4m3 (1 byte/element) followed by one F32 scale per output row
+		rows := elements / rowWidth
+		if rows > (math.MaxUint64-elements)/4 {
+			return 0, errors.New("fp8 tensor byte size overflows uint64")
+		}
+		return elements + rows*4, nil
+	}
+	blocks := elements / traitsValue.BlockSize
+	if blocks > math.MaxUint64/traitsValue.TypeSize {
+		return 0, errors.New("tensor byte size overflows uint64")
+	}
+	return blocks * traitsValue.TypeSize, nil
 }

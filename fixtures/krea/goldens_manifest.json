@@ -1,0 +1,49 @@
+{
+  "case": "fox_seed42_256",
+  "hook_needed": "extmodel.ExecutionProbe wired into a Krea-side dump program (JointTransformerFlowCUDARequest.Probe) — mirrors the wan g1/g3 mint harness — to emit sparse element probes + sha256 for text conditioning, per-step latent, final latent, and the VAE float tensor.",
+  "schema": "overgo.krea_golden.manifest/v1",
+  "stages": [
+    {
+      "file": "g1_text_conditioning.json",
+      "form": "telemetry only",
+      "needs_hook": true,
+      "present": false,
+      "stage": "text_conditioning (Qwen3VL selected-layer fusion)"
+    },
+    {
+      "file": "g2_schedule.json",
+      "form": "exact sigmas + timesteps",
+      "needs_hook": false,
+      "present": true,
+      "stage": "schedule knots (timesteps, sigmas)"
+    },
+    {
+      "file": "g2_schedule.json",
+      "form": "median+MAD distribution (real); exact element probes pending",
+      "needs_hook": true,
+      "present": "partial",
+      "stage": "per-denoise-step latent (MMDiT flow)"
+    },
+    {
+      "file": "g2_schedule.json",
+      "form": "last-step distribution only",
+      "needs_hook": true,
+      "present": "partial",
+      "stage": "final latent"
+    },
+    {
+      "file": "g3_final_image.json",
+      "form": "probes+sha256+stats+raw",
+      "needs_hook": false,
+      "present": true,
+      "stage": "VAE-decoded image tensor (8-bit)"
+    },
+    {
+      "file": "g3_final_image.json",
+      "form": "needs hook",
+      "needs_hook": true,
+      "present": false,
+      "stage": "VAE-decoded image tensor (float, pre-quant)"
+    }
+  ]
+}

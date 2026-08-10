@@ -60,27 +60,11 @@ func (s Shape) Elements() (uint64, error) {
 }
 
 func (s Shape) Bytes(dataType dtype.Type) (uint64, error) {
-	traits, ok := dataType.Traits()
-	if !ok {
-		return 0, fmt.Errorf("unknown tensor type %d", dataType)
-	}
-	if s.Dims[0]%traits.BlockSize != 0 {
-		return 0, fmt.Errorf(
-			"row width %d is not divisible by %s block size %d",
-			s.Dims[0],
-			traits.Name,
-			traits.BlockSize,
-		)
-	}
 	elements, err := s.Elements()
 	if err != nil {
 		return 0, err
 	}
-	blocks := elements / traits.BlockSize
-	if blocks > math.MaxUint64/traits.TypeSize {
-		return 0, errors.New("tensor byte size overflows uint64")
-	}
-	return blocks * traits.TypeSize, nil
+	return dataType.StorageBytes(elements, s.Dims[0])
 }
 
 func (s Shape) Equal(other Shape) bool {

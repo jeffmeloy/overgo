@@ -1,0 +1,38 @@
+{
+  "pipeline": "Qwen3VL encoder -\u003e select layers [2,5,8,11,14,17,20,23,26,29,32,35] -\u003e text fusion refiner -\u003e conditioning",
+  "schema": "overgo.krea_golden.g1/v1",
+  "source": "adaptive_new extmodel selected-layer Qwen3VL encoder + text fusion (telemetry only)",
+  "telemetry": {
+    "conditioning_cache": {
+      "admitted": true,
+      "budget_bytes": 30851489792,
+      "entries": 1,
+      "evictions": 0,
+      "hit": false,
+      "owned_bytes": 12583488
+    },
+    "text_encoder": {
+      "activation_device_bytes": 138952704,
+      "captures": 12,
+      "checkpoint_bytes_read": 7269814272,
+      "layers": 36,
+      "peak_host_bytes": 5596160,
+      "peak_layer_device_bytes": 201872384,
+      "wall_seconds": 4.4175736
+    },
+    "text_fusion": {
+      "checkpoint_bytes_read": 900872240,
+      "layerwise_runs": 1024,
+      "peak_device_bytes": 239875584,
+      "peak_host_bytes": 173822976,
+      "refiner_runs": 2,
+      "wall_seconds": 1.4595334
+    }
+  },
+  "tensor": {
+    "hook": "extmodel.ExecutionProbe on JointTransformerFlowCUDARequest.Probe selecting the text-fusion output point; emit sparse probes + sha256 over the fused conditioning tensor",
+    "needs_hook": true,
+    "present": false,
+    "reason": "public serve path (HTTP /api/image-out) exposes encoder/fusion telemetry counts (layers=36, captures=12) but not the fused conditioning tensor values"
+  }
+}

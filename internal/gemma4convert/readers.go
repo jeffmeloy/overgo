@@ -15,14 +15,21 @@ const (
 	bf16StorageBytes    = 2
 	rgbChannelCount     = 3
 	positionAxisCount   = 2
-
-	fp8SignMask       = 0x80
-	fp8ExponentShift  = 3
-	fp8ExponentMask   = 0x0f
-	fp8MantissaMask   = 0x07
-	fp8ExponentBias   = 7
-	fp8SubnormalScale = 1.0 / 512.0
 )
+
+// newFP8NativeReader: fp8-preserving emit. The resident matmul buffer the fp8
+// kernel expects is [rows*inner e4m3 | rows*4 F32 scale]; safetensors already
+// stores the e4m3 weight row-major ([rows, inner]) and the per-row scale as F32
+// little-endian, which is byte-for-byte that layout. So native emit is a raw
+// concatenation -- no decode, no repack -- and the GGUF F8E4M3 tensor size
+// (dtype.StorageBytes) is exactly rows*inner + rows*4.
+func newFP8NativeReader(weight safetensors.Tensor, scale safetensors.Tensor) (io.Reader, error) {
+	if weight.DType != "F8_E4M3" || len(weight.Shape) != 2 || scale.DType != "F32" ||
+		len(scale.Shape) != 1 || scale.Shape[0] != weight.Shape[0] {
+		return nil, errors.New("FP8 weight/scale shape is incompatible")
+	}
+	return io.MultiReader(weight.Reader(), scale.Reader()), nil
+}
 
 type fp8BF16Reader struct {
 	weight safetensors.Tensor
@@ -81,7 +88,7 @@ func (r *fp8BF16Reader) Read(destination []byte) (int, error) {
 			return written, err
 		}
 		for column, value := range r.input {
-			converted := fp8E4M3FN(value) * r.scales[r.row]
+			converted := dtype.F8E4M3ToFloat32(value) * r.scales[r.row]
 			binary.LittleEndian.PutUint16(
 				r.buffer[column*bf16StorageBytes:], dtype.Float32ToBF16(converted),
 			)
@@ -90,24 +97,6 @@ func (r *fp8BF16Reader) Read(destination []byte) (int, error) {
 		r.offset = 0
 	}
 	return written, nil
-}
-
-func fp8E4M3FN(encoded byte) float32 {
-	sign := float32(1)
-	if encoded&fp8SignMask != 0 {
-		sign = -1
-	}
-	exponent := int((encoded >> fp8ExponentShift) & fp8ExponentMask)
-	mantissa := int(encoded & fp8MantissaMask)
-	if exponent == 0 {
-		return sign * float32(mantissa) * fp8SubnormalScale
-	}
-	if exponent == fp8ExponentMask && mantissa == fp8MantissaMask {
-		return float32(math.NaN())
-	}
-	return sign * float32(math.Ldexp(
-		1+float64(mantissa)/(fp8MantissaMask+1), exponent-fp8ExponentBias,
-	))
 }
 
 type positionReader struct {

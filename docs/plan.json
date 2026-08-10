@@ -577,7 +577,72 @@
       "id": "rung16-krea",
       "title": "Krea-2-Turbo",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "recon-goldens",
+          "status": "done",
+          "title": "Krea-2-Turbo (Krea2Pipeline, distilled): dual-stream MMDiT Krea2Transformer2DModel 28L, 48 heads/GQA 12 kv, head_dim 128, 3-axis RoPE [32,48,48] theta 1000, separate text stream (12 layers + refiner); FlowMatchEulerDiscrete dynamic-shift; VAE AutoencoderKLQwenImage spatial 8x z16; text enc Qwen3VL 36L with 12 SELECTED-layer hidden fusion + ViT. Adaptive serving CUDA-only (joint_transformer_cuda_windows.go), NO training lane. Goldens CUDA-SHA gated (b25fa024...), no CPU host goldens -> overgo must stand up its own (Wan pattern). PERF BAR: python 97.5-135.4s / ~42.8GiB; adaptive 158.1s / 31.2GiB -- MEMORY-AHEAD, wall-behind (inverse of Wan start); must beat python wall AND memory at exact SHA. Heavy reuse of internal/latentvideo (DiT/sampler/VAE/replay/ldmatrix-mma attn)"
+        },
+        {
+          "id": "convert-discovery",
+          "status": "open",
+          "resource": "cpu",
+          "title": "teach converter/discovery Krea2Transformer2DModel + AutoencoderKLQwenImage + Qwen3VLModel from one artifact dir; geometry shape-derived (latentvideo pattern); serving-only tag. VERIFY: config/shape derivation vs real Krea-2-Turbo index (structural oracle, CPU)"
+        },
+        {
+          "id": "host-goldens",
+          "status": "open",
+          "resource": "gpu",
+          "title": "stand up CPU-verifiable denoise-step + VAE-decode host goldens (Krea has none; dump intermediates from adaptive CUDA path or python oracle, seed 42, canonical fox/ice-cream case) -- the parity spine for the port"
+        },
+        {
+          "id": "text-conditioning",
+          "status": "open",
+          "resource": "cpu",
+          "title": "Qwen3VL encoder + 12 selected-hidden-layer fusion into DiT text stream (Qwen2 tokenizer); vs latentvideo/textcond (UMT5) -- new encoder surface"
+        },
+        {
+          "id": "denoiser-port",
+          "status": "open",
+          "resource": "cpu",
+          "title": "dual-stream 28-block MMDiT on latentvideo DiT machinery (reuse ldmatrix+mma attention, gelu fusion, retained-graph replay, GQA, 3-axis rope tables); text-token co-attention is new vs single-stream Wan; parity vs host-goldens"
+        },
+        {
+          "id": "sampler-port",
+          "status": "open",
+          "resource": "cpu",
+          "title": "dynamic-shift flow-match Euler (exponential time-shift, seq-len-dependent, distilled few-step) vs Wan UniPC; parity vs host-goldens"
+        },
+        {
+          "id": "vae-port",
+          "status": "open",
+          "resource": "cpu",
+          "title": "spatial AutoencoderKLQwenImage decode (z16, base 96, dim_mult [1,2,4,4], latents_mean/std denorm) + host oracle + tiled upsample; distinct from latentvideo causal 3D codec"
+        },
+        {
+          "id": "cuda-serving",
+          "status": "open",
+          "resource": "gpu",
+          "title": "device path through generic executor; exact SHA b25fa024...; retained replay"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "resource": "gpu",
+          "title": "generation recipe activation + status round-trip; real-image verification"
+        },
+        {
+          "id": "performance-leg",
+          "status": "open",
+          "resource": "gpu",
+          "title": "beat python wall AND memory at exact SHA (currently memory-ahead 31.2 vs 42.8GiB, wall-behind 158 vs 97-135s); close wall with rung-11 attention/fusion levers"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "ABSENT verdict expected: adaptive serving-only for Krea2; record verdict"
+        }
+      ]
     },
     {
       "id": "rung17-gemma12b",

@@ -532,9 +532,9 @@
         },
         {
           "id": "prompt-renderer",
-          "status": "open",
+          "status": "done",
           "resource": "cpu",
-          "title": "port SenseNova edit prompt renderer (compileCausalPrefixInput + 8 prefix-template repodb facts + Qwen2 BPE); yields sha256 id/time/h/w oracle (conditional 4365 / source 4107 tokens) with NO forward -- exercises routedlm.BlockPositions"
+          "title": "port SenseNova edit prompt renderer (compileCausalPrefixInput + 8 prefix-template repodb facts + Qwen2 BPE); yields sha256 id/time/h/w oracle (conditional 4365 / source 4107 tokens) with NO forward -- exercises routedlm.BlockPositions -- DONE PASS-ORACLE: routedlm.RenderEditPrompt (ported compileCausalPrefixInput, reuses BlockPositions) + hfbpe.LoadLegacy (vocab.json/merges.txt; SenseNova has no tokenizer.json) reproduce ids EXACTLY; all 8 sha256 (ids/time/h/w x conditional 4365 / source 4107) match edit_oracle_v3_256; template facts cited from repodb reference_facts.json; ladder oracle=4 derive=6 wired=2 frontier=2; rxbrain 44/44 intact"
         },
         {
           "id": "prefix-layer-stack",

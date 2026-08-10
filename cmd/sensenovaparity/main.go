@@ -19,12 +19,16 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"math"
 	"os"
 	"time"
 
+	"overgo/internal/hfbpe"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
@@ -388,15 +392,54 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 			edit.SourceContract.Pixels.sampleCount(), edit.SourceContract.Pixels.Elements), nil
 	})
 
-	// ---- FRONTIER: text_inputs (real sha256 oracle; renderer not ported) --
-	l.stage("text_inputs_frontier", func() (string, float64, string, error) {
-		c := edit.TextInputs.Conditional
-		s := edit.TextInputs.SourceOnly
-		detail := fmt.Sprintf("FRONTIER next-stage: reconstruct+sha256 ids/time/height/width (conditional=%d, source_only=%d tokens). "+
-			"BLOCKED: SenseNova edit prompt renderer (compileCausalPrefixInput) not ported — needs (a) repodb prefix-template facts (system/user/assistant/separator/image tokens) absent from overgo repodb-store, (b) a Qwen2 BPE encoder over the chat specials. "+
-			"Positions (time/height/width) are already ported (routedlm.BlockPositions); only the id sequence + template facts are missing. sha256[cond.ids]=%.12s...",
-			c.IDs.Elements, s.IDs.Elements, c.IDs.SHA256LEI64)
-		return verdictFrontier, math.NaN(), detail, nil
+	// ---- text_inputs (real sha256 oracle; renderer ported) ----------------
+	l.stage("text_inputs", func() (string, float64, string, error) {
+		tok, err := hfbpe.LoadLegacy(modelDir)
+		if err != nil {
+			return "", math.NaN(), "", fmt.Errorf("load tokenizer: %w", err)
+		}
+		tmpl := routedlm.SenseNovaPromptTemplate()
+		grid := edit.SourceContract.GridHW[0]
+		merge := flowPlan.ImageMerge
+		if merge <= 0 || grid[0]%merge != 0 || grid[1]%merge != 0 {
+			return "", math.NaN(), "", fmt.Errorf("bad merge %d for grid %v", merge, grid)
+		}
+		source := routedlm.PromptSource{
+			TokenHeight: grid[0] / merge,
+			TokenWidth:  grid[1] / merge,
+			TokenCount:  edit.SourceContract.TokenCount,
+		}
+		cases := []struct {
+			name   string
+			role   routedlm.PromptRole
+			prompt string
+			oracle editOracleInput
+		}{
+			{"conditional", routedlm.PromptRolePromptSource, edit.Request.Prompt, edit.TextInputs.Conditional},
+			{"source_only", routedlm.PromptRoleSourceOnly, "", edit.TextInputs.SourceOnly},
+		}
+		for _, c := range cases {
+			p, err := routedlm.RenderEditPrompt(tok, c.prompt, c.role, tmpl, source)
+			if err != nil {
+				return "", math.NaN(), "", fmt.Errorf("render %s: %w", c.name, err)
+			}
+			for _, f := range []struct {
+				n    string
+				got  []int
+				want intContract
+			}{
+				{"ids", p.IDs, c.oracle.IDs},
+				{"time", p.Time, c.oracle.Time},
+				{"height", p.Height, c.oracle.Height},
+				{"width", p.Width, c.oracle.Width},
+			} {
+				if err := checkIntContract(c.name+"."+f.n, f.got, f.want); err != nil {
+					return "", math.NaN(), "", err
+				}
+			}
+		}
+		return verdictOracle, 0, fmt.Sprintf("ids+time+height+width sha256 match: conditional=%d source_only=%d tokens (renderer=routedlm.RenderEditPrompt, tokenizer=hfbpe.LoadLegacy vocab+merges, template=SenseNovaPromptTemplate, merge=%d source=%dx%d=%d)",
+			edit.TextInputs.Conditional.IDs.Elements, edit.TextInputs.SourceOnly.IDs.Elements, merge, source.TokenHeight, source.TokenWidth, source.TokenCount), nil
 	})
 
 	// ---- FRONTIER: prefix / KV / generation forward parity ----------------
@@ -418,6 +461,24 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 		return verdictFrontier, math.NaN(), detail, nil
 	})
 
+	return nil
+}
+
+// checkIntContract asserts a rendered integer vector matches the oracle by
+// element count and by sha256 of its little-endian int64 encoding (the exact
+// contract the fixture records for ids/time/height/width).
+func checkIntContract(name string, got []int, want intContract) error {
+	if len(got) != want.Elements {
+		return fmt.Errorf("%s elements=%d != oracle %d", name, len(got), want.Elements)
+	}
+	buf := make([]byte, 8*len(got))
+	for i, v := range got {
+		binary.LittleEndian.PutUint64(buf[i*8:], uint64(int64(v)))
+	}
+	sum := sha256.Sum256(buf)
+	if hexsum := hex.EncodeToString(sum[:]); hexsum != want.SHA256LEI64 {
+		return fmt.Errorf("%s sha256=%s != oracle %s", name, hexsum, want.SHA256LEI64)
+	}
 	return nil
 }
 

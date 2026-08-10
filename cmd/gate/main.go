@@ -77,6 +77,9 @@ func run() error {
 			g.paths = append(g.paths, filepath.ToSlash(p))
 		}
 	}
+	if err := g.expandDirectoryPaths(); err != nil {
+		return err
+	}
 
 	outcome := runrecord.OutcomeSucceeded
 	failure := ""
@@ -221,6 +224,42 @@ func (g *gateContext) saveRetryCache(key string, cache retryCache) {
 		return
 	}
 	_ = os.WriteFile(filepath.Join(dir, "gate_cache.json"), append(raw, '\n'), 0o644)
+}
+
+// expandDirectoryPaths rewrites a -paths entry naming a directory into that
+// directory's files (tracked + untracked, gitignore honored). Incident: a
+// directory entry never matched porcelain's trailing-slash "?? dir/" form, so
+// the add silently no-opped and a commit shipped a message claiming files it
+// did not carry. Empty expansion refuses rather than dropping the entry.
+func (g *gateContext) expandDirectoryPaths() error {
+	var expanded []string
+	seen := map[string]bool{}
+	for _, p := range g.paths {
+		info, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(p)))
+		if err != nil || !info.IsDir() {
+			if !seen[p] {
+				seen[p] = true
+				expanded = append(expanded, p)
+			}
+			continue
+		}
+		files, err := gitLines(g.repo, "ls-files", "-co", "--exclude-standard", "--", p)
+		if err != nil {
+			return err
+		}
+		if len(files) == 0 {
+			return fmt.Errorf("-paths entry %s is a directory with no eligible files", p)
+		}
+		for _, f := range files {
+			f = filepath.ToSlash(f)
+			if !seen[f] {
+				seen[f] = true
+				expanded = append(expanded, f)
+			}
+		}
+	}
+	g.paths = expanded
+	return nil
 }
 
 // stepScope refuses staged paths outside the plan (the commit would ship

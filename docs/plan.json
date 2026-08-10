@@ -716,9 +716,9 @@
         },
         {
           "id": "gguf-read-untied-head",
-          "status": "open",
+          "status": "done",
           "resource": "cpu",
-          "title": "read models/Qwen3.5-9B-Q8_0.gguf via overgo qwen35 GGUF path; assert hybrid metadata parses (ssm.* + full_attention_interval -> layer_types), tensor inventory complete, lm_head.weight mapped DISTINCT from embed_tokens (guard tied fallback), 3 GGML transforms apply. CPU structural oracle (inventory + untied-head assertion), like the container research probe"
+          "title": "read models/Qwen3.5-9B-Q8_0.gguf via overgo qwen35 GGUF path; assert hybrid metadata parses (ssm.* + full_attention_interval -> layer_types), tensor inventory complete, lm_head.weight mapped DISTINCT from embed_tokens (guard tied fallback), 3 GGML transforms apply. CPU structural oracle (inventory + untied-head assertion), like the container research probe -- DONE PASS: overgo reads Qwen3.5-9B Q8_0 GGUF (gguf.Open->model.ReadSpec->ReadWeights); all hybrid dims from metadata (no HF sidecar), layer-type synthesized from full_attention_interval=4 matches physical inventory all 32 blocks; UNTIED output.weight mapped distinct from token_embd (Weights.Output non-nil); 3 GGML conventions consumed as-is (import-time on write side). Added structural oracle test guarding tied-fallback substitution. LATENT RISK documented: qwen35 profile lacks ArchitectureRequiresOutput so a missing output.weight would silently tie -- oracle guards the real 9B"
         },
         {
           "id": "serving-smoke",

@@ -590,6 +590,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/props" ||
 		request.URL.Path == "/analyze/model" ||
 		request.URL.Path == "/analyze/vocab" ||
+		request.URL.Path == "/analyze/states" ||
 		request.URL.Path == "/completion" ||
 		request.URL.Path == "/completions" ||
 		request.URL.Path == "/infill" ||
@@ -660,6 +661,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.analyzeModel(response, request)
 	case "/analyze/vocab":
 		h.analyzeVocab(response, request)
+	case "/analyze/states":
+		h.analyzeStates(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

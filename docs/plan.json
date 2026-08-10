@@ -459,7 +459,42 @@
       "id": "rung14-rxbrain",
       "title": "Hy-Embodied-RxBrain",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "recon-goldens",
+          "status": "done",
+          "title": "Hy-Embodied-RxBrain-1.0 (unified_mot): 32L GQA trunk h2048 + MoT dual text/vision weight sets per layer routed by per-token modality mask (shared QK-norms); hunyuan_vl_mot 27L tower, anyres, interpolated 2D pos-embed, 4-matrix merger; dynamic-NTK rope (alpha 1000); streamed 120818x2048 terminal head. Adaptive serves VQA natively (vision_qa.go + merged_patch_vision.go host arithmetic + 6 CUDA files), NO training lane, generation=python-oracle-only (external FLUX VAE, out of scope). Goldens: complete 45-fixture parity ladder (processor->vision->prefill->all 32 layer boundaries->terminal->12 decode steps->text) with sha256+probes, CPU-verifiable. PERF BAR OPEN: adaptive banked no native serving numbers; python oracle 0.63 s/token decode, 44.7s full VQA"
+        },
+        {
+          "id": "reference-port",
+          "status": "open",
+          "resource": "cpu",
+          "title": "port adaptive host arithmetic (merged_patch_vision.go + modality_transformer_config.go, build-tag-free) into neutral overgo packages: MoT fork as mask-routed row groups over densecausal primitives, tower via projector (hunyuanvl spec reuses; safetensors reader + interpolated pos-embed + merger new), streamed terminal head; verify stage-by-stage against the 45-fixture ladder"
+        },
+        {
+          "id": "measure-bar",
+          "status": "open",
+          "resource": "gpu",
+          "title": "run adaptive native CUDA VQA on the canonical bridgev2 case to establish the perf bar (VisionQAPromptDecodeTimings profile); python oracle 0.63 s/token is the fallback bar"
+        },
+        {
+          "id": "cuda-serving",
+          "status": "open",
+          "resource": "gpu",
+          "title": "device path through the generic executor (retained replay + fusion); goldens exact; at-or-below adaptive native bar"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "resource": "gpu",
+          "title": "VQA recipe activation + status round-trip; real-image verification per multimodal directive"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "title": "ABSENT verdict expected: adaptive has no rxbrain training recipe; record verdict, no invented lane"
+        }
+      ]
     },
     {
       "id": "rung15-sensenova",

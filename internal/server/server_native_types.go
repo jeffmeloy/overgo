@@ -254,6 +254,7 @@ type nativeTokenProbability struct {
 	Bytes       []int                         `json:"bytes"`
 	LogProb     *float64                      `json:"logprob,omitempty"`
 	Prob        *float64                      `json:"prob,omitempty"`
+	Entropy     *float64                      `json:"entropy,omitempty"`
 	TopLogProbs []nativeTokenLogProbability   `json:"top_logprobs,omitempty"`
 	TopProbs    []nativeTokenProbabilityValue `json:"top_probs,omitempty"`
 }

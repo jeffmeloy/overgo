@@ -365,6 +365,15 @@ func (h *Handler) nativeTokenProbability(
 		)
 	}
 	logNormalization := maximum + math.Log(total)
+	// Full-vocabulary Shannon entropy of the model's next-token distribution,
+	// in nats. This is a distribution-free functional of the empirical softmax
+	// (H = sum p_i * -log p_i, with -log p_i = logNormalization - logit_i >= 0);
+	// it assumes nothing about the shape of the logits.
+	entropy := 0.0
+	for _, logit := range logits {
+		surprisal := logNormalization - float64(logit)
+		entropy += math.Exp(-surprisal) * surprisal
+	}
 	indices := make([]int, len(logits))
 	for index := range indices {
 		indices[index] = index
@@ -409,6 +418,7 @@ func (h *Handler) nativeTokenProbability(
 	}
 	selectedLogProbability := selectedItem.LogProb
 	result.LogProb = &selectedLogProbability
+	result.Entropy = &entropy
 	for _, index := range indices {
 		item, itemErr := itemFor(tokenizer.TokenID(index))
 		if itemErr != nil {

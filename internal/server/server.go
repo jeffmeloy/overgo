@@ -588,6 +588,9 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/tokenize" ||
 		request.URL.Path == "/detokenize" ||
 		request.URL.Path == "/props" ||
+		request.URL.Path == "/analyze/model" ||
+		request.URL.Path == "/analyze/vocab" ||
+		request.URL.Path == "/analyze/states" ||
 		request.URL.Path == "/completion" ||
 		request.URL.Path == "/completions" ||
 		request.URL.Path == "/infill" ||
@@ -654,12 +657,18 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.detokenize(response, request)
 	case "/props":
 		h.properties(response, request)
+	case "/analyze/model":
+		h.analyzeModel(response, request)
+	case "/analyze/vocab":
+		h.analyzeVocab(response, request)
+	case "/analyze/states":
+		h.analyzeStates(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":
 		h.loraAdapters(response, request)
 	default:
-		writeError(response, http.StatusNotFound, "not_found", "route not found")
+		h.serveWebUI(response, request)
 	}
 }
 

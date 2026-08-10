@@ -648,7 +648,61 @@
       "id": "rung17-gemma12b",
       "title": "gemma-4-12B-fp8",
       "status": "open",
-      "steps": []
+      "steps": [
+        {
+          "id": "recon-goldens",
+          "status": "done",
+          "title": "gemma-4-12B-it-fp8 = gemma4_unified (DIFFERENT from E4B gemma4): hidden 3840, 48L, 16 heads/8 kv, num_global_kv_heads=1, attention_k_eq_v=true, head_dim 256/global 512, SharedKV=0 + PLE=0 (both ABSENT -- simpler spine than E4B), unified vision/audio/video projector (not full ViT). FP8: FP8_PER_CHANNEL_PER_TOKEN E4M3 on MLP linears ONLY (per-output-channel F32 weight_scale; attn+lm_head+embeds stay bf16). Adaptive serves via same AlternatingWindowHost, NATIVE fp8 CUDA (gemv_fp8/gemm_fp8 in-kernel dequant, ~12GB resident) + exact E4M3 CPU oracle; TRAINS gemma4_unified. overgo ALREADY converts fp8->bf16 (newFP8BF16Reader, W=bf16(e4m3->f32 * scale[row])) matching the golden provenance exactly; gemma4convert config is model_type-agnostic so accepts gemma4_unified. Goldens gemma4_golden.json CPU-verifiable (AlternatingWindowHost fp32 + exact E4M3). NEW: native-fp8 residency kernel (12 vs 24GB), attention_k_eq_v + global_kv=1 runtime wiring, unified MM projector"
+        },
+        {
+          "id": "rung-export",
+          "status": "open",
+          "resource": "cpu",
+          "title": "gemma4_golden.json + honest bf16-dequant baseline into overgo store (dequant_gemma_fp8 contract = newFP8BF16Reader)"
+        },
+        {
+          "id": "converter-parity",
+          "status": "open",
+          "resource": "cpu",
+          "title": "run gemma4convert on gemma-4-12B-it-fp8 (structural config accepts gemma4_unified; SharedKV/PLE=0 no-op; fp8 MLP -> bf16 via newFP8BF16Reader); verify GGUF tensor inventory + fp8-dequant vs gemma4_golden.json (0-mismatch target like E4B)"
+        },
+        {
+          "id": "inference-wiring",
+          "status": "open",
+          "resource": "cpu",
+          "title": "confirm/adjust overgo gemma4 attention for attention_k_eq_v=true + num_global_key_value_heads=1; text decode parity vs gemma4_golden.json (CPU-verifiable via host path)"
+        },
+        {
+          "id": "native-fp8-residency",
+          "status": "open",
+          "resource": "gpu",
+          "title": "port adaptive gemv_fp8/gemm_fp8 + per-channel F32 scale residency into internal/cuda (E4M3 in-kernel dequant, F32-accum, fold scale[row] once) to hold ~12GB vs ~24GB bf16 -- the 48GB-ceiling memory lever; exact vs bf16-dequant path"
+        },
+        {
+          "id": "recipe-activation",
+          "status": "open",
+          "resource": "gpu",
+          "title": "GGUF inference recipe activation + status round-trip; live serving goldens"
+        },
+        {
+          "id": "mm-input-leg",
+          "status": "open",
+          "resource": "gpu",
+          "title": "unified vision/audio projector (NEW vs E4B towers) per capability_budget gemma12b_image_input/_audio_input smokes; stageable after text"
+        },
+        {
+          "id": "training-leg",
+          "status": "open",
+          "resource": "gpu",
+          "title": "adaptive TRAINS gemma4_unified (stream_lm_cuda / mixed-window) -- real reference; head-to-head, record verdict"
+        },
+        {
+          "id": "performance-leg",
+          "status": "open",
+          "resource": "gpu",
+          "title": "head-to-head wall + memory at-or-below adaptive native-fp8"
+        }
+      ]
     },
     {
       "id": "rung18-qwen9b",

@@ -35,7 +35,7 @@ func (g *statesGenerator) ExtractLayerInputs(_ context.Context, tokenIDs []token
 }
 
 func threeTokenStates() *statesGenerator {
-	// token0 == token1 (cosine distance 0); token2 orthogonal (distance 1).
+	// token0 == token1 (distance 0); token2 orthogonal.
 	return &statesGenerator{
 		tokens: []tokenizer.TokenID{10, 11, 12},
 		width:  4,
@@ -49,7 +49,8 @@ func threeTokenStates() *statesGenerator {
 
 func TestAnalyzeStatesReportsStructure(t *testing.T) {
 	handler := newTestHandler(t, threeTokenStates())
-	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"anything","layer":5}`)
+	// Request cosine explicitly for closed-form distances (0 and 1).
+	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"anything","layer":5,"metric":"cosine","k":2}`)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
@@ -57,25 +58,45 @@ func TestAnalyzeStatesReportsStructure(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if result.Positions != 3 || result.Width != 4 || result.Layer != 5 {
-		t.Fatalf("positions/width/layer = %d/%d/%d", result.Positions, result.Width, result.Layer)
+	if result.Positions != 3 || result.Width != 4 || result.Layer != 5 || result.Metric != "cosine" {
+		t.Fatalf("positions/width/layer/metric = %d/%d/%d/%s", result.Positions, result.Width, result.Layer, result.Metric)
 	}
-	if result.Method != "non-metric-mds" {
-		t.Fatalf("method = %q", result.Method)
+	if math.Abs(result.Distance[0][1]) > 1e-6 || math.Abs(result.Distance[0][2]-1) > 1e-6 {
+		t.Fatalf("distance = %v", result.Distance)
 	}
-	// Measured distances: identical tokens at 0, orthogonal at 1.
-	if math.Abs(result.Cosine[0][1]) > 1e-6 || math.Abs(result.Cosine[0][2]-1) > 1e-6 {
-		t.Fatalf("cosine = %v", result.Cosine)
-	}
-	// Nearest neighbor of token 0 is its identical twin, token 1.
 	if len(result.Neighbors[0]) == 0 || result.Neighbors[0][0] != 1 {
 		t.Fatalf("neighbors[0] = %v", result.Neighbors[0])
 	}
-	if len(result.Layout) != 3 || result.Stress < 0 || result.Stress > 1.0001 {
-		t.Fatalf("layout=%d stress=%v", len(result.Layout), result.Stress)
+	if len(result.Layout) != 3 || result.Stress < 0 || result.Stress > 1.0001 || result.LayoutIterations <= 0 {
+		t.Fatalf("layout=%d stress=%v iters=%d", len(result.Layout), result.Stress, result.LayoutIterations)
 	}
 	if len(result.Tokens) != 3 || result.Tokens[0].Text == "" {
 		t.Fatalf("tokens = %+v", result.Tokens)
+	}
+}
+
+// The default metric is the assumption-light one (Spearman rank correlation),
+// not a silently-privileged Euclidean/cosine geometry.
+func TestAnalyzeStatesDefaultsToSpearman(t *testing.T) {
+	handler := newTestHandler(t, threeTokenStates())
+	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"anything"}`)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	var result analyzeStatesResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if result.Metric != "spearman" {
+		t.Fatalf("default metric = %q, want spearman", result.Metric)
+	}
+}
+
+func TestAnalyzeStatesRejectsInvalidMetric(t *testing.T) {
+	handler := newTestHandler(t, threeTokenStates())
+	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"x","metric":"banana"}`)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", response.Code)
 	}
 }
 

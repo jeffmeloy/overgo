@@ -8,10 +8,71 @@ import (
 // mdsPair: an upper-triangle index pair (i<j) used by the non-metric MDS solver.
 type mdsPair struct{ i, j int }
 
-// Distribution-free structure of a set of hidden-state vectors. Every function
-// here reports measured geometry or uses only the *rank order* of dissimilarities
-// — no PCA, no Gaussian/linear assumption, no fitted generative model (see the
-// workbench's analysis principle). Inputs are row vectors; N is bounded upstream.
+// Distribution-free structure of a set of hidden-state vectors. The dissimilarity
+// between vectors is an *explicit, caller-chosen* geometric assumption — never one
+// assumed silently — and the downstream layout consumes only the rank order of
+// those dissimilarities (no PCA, no metric embedding of the inputs, no Gaussian
+// or linear assumption). Inputs are row vectors; N is bounded upstream.
+
+// dissimilarityMetric: how two hidden-state vectors are compared. Ordered from
+// fewest to most assumptions; the default is the assumption-light one.
+//
+//	spearman  — 1 - Spearman rank correlation. Invariant to any strictly-monotone
+//	            transform of a vector's coordinates, so it assumes neither a
+//	            per-dimension scale nor a Euclidean/inner-product geometry. Default.
+//	cosine    — 1 - cosine similarity. Scale-invariant, but assumes a linear
+//	            inner-product geometry.
+//	euclidean — L2 distance. Full metric; scale-sensitive and dominated by
+//	            high-variance ("massive activation") dimensions.
+type dissimilarityMetric string
+
+const (
+	metricSpearman  dissimilarityMetric = "spearman"
+	metricCosine    dissimilarityMetric = "cosine"
+	metricEuclidean dissimilarityMetric = "euclidean"
+)
+
+func validMetric(metric dissimilarityMetric) bool {
+	switch metric {
+	case metricSpearman, metricCosine, metricEuclidean:
+		return true
+	default:
+		return false
+	}
+}
+
+// dissimilarityMatrix: N×N dissimilarities under the chosen metric.
+func dissimilarityMatrix(vectors [][]float32, metric dissimilarityMetric) [][]float64 {
+	switch metric {
+	case metricEuclidean:
+		return euclideanDistanceMatrix(vectors)
+	case metricCosine:
+		return cosineDistanceMatrix(vectors)
+	default:
+		return spearmanDistanceMatrix(vectors)
+	}
+}
+
+// spearmanDistanceMatrix: 1 - Spearman rank correlation. Coordinates are
+// rank-transformed per vector (fractional ranks for ties), then compared by
+// Pearson correlation of the rank vectors. Because only the coordinate *ordering*
+// is used, any monotone per-coordinate transform leaves every distance unchanged.
+func spearmanDistanceMatrix(vectors [][]float32) [][]float64 {
+	n := len(vectors)
+	ranks := make([][]float64, n)
+	for i, v := range vectors {
+		ranks[i] = fractionalRanks(v)
+	}
+	distance := newSquare(n)
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			value := 1 - pearson(ranks[i], ranks[j])
+			distance[i][j] = value
+			distance[j][i] = value
+		}
+	}
+	return distance
+}
 
 // cosineDistanceMatrix: N×N matrix of 1 - cosine similarity (in [0,2]). Exact.
 func cosineDistanceMatrix(vectors [][]float32) [][]float64 {
@@ -62,6 +123,23 @@ func euclideanDistanceMatrix(vectors [][]float32) [][]float64 {
 	return distance
 }
 
+// defaultNeighborCount: a documented heuristic for the kNN graph when the caller
+// does not specify k — round(log2 N), clamped to [1, N-1]. It is only a default;
+// k is an explicit, definitional parameter of the graph, surfaced to the caller.
+func defaultNeighborCount(n int) int {
+	if n < 3 {
+		return 1
+	}
+	k := int(math.Round(math.Log2(float64(n))))
+	if k < 1 {
+		k = 1
+	}
+	if k > n-1 {
+		k = n - 1
+	}
+	return k
+}
+
 // kNNAdjacency: for each row, the indices of its k nearest neighbors (self
 // excluded), ascending by distance. Ties break by index for determinism.
 func kNNAdjacency(distance [][]float64, k int) [][]int {
@@ -97,21 +175,16 @@ func kNNAdjacency(distance [][]float64, k int) [][]int {
 
 // nonMetricMDS: a 2D layout that uses ONLY the rank order of the pairwise
 // dissimilarities — Kruskal non-metric MDS by SMACOF with isotonic (monotone)
-// regression of the disparities each iteration. No metric/linear/Gaussian
-// assumption: any strictly monotone transform of the input distances yields the
-// same layout. Deterministic (rank-based init, fixed schedule). Returns the
-// coordinates and the final Kruskal stress-1.
-func nonMetricMDS(distance [][]float64, iterations int) ([][2]float64, float64) {
+// regression of the disparities each iteration. Any strictly monotone transform
+// of the input dissimilarities yields the same layout. Iterates to convergence
+// (relative stress improvement below `tolerance`) rather than a fixed count, with
+// `maxIterations` only as a safety bound. Returns the coordinates, the final
+// Kruskal stress-1, and the number of iterations actually run.
+func nonMetricMDS(distance [][]float64, maxIterations int, tolerance float64) ([][2]float64, float64, int) {
 	n := len(distance)
 	coords := make([][2]float64, n)
-	if n == 0 {
-		return coords, 0
-	}
-	if n == 1 {
-		return coords, 0
-	}
-	if iterations < 1 {
-		iterations = 200
+	if n < 2 {
+		return coords, 0, 0
 	}
 
 	// Upper-triangle pairs, ordered by the *rank* of their dissimilarity. Only
@@ -130,87 +203,27 @@ func nonMetricMDS(distance [][]float64, iterations int) ([][2]float64, float64) 
 	// dissimilarity to the two ends of the farthest pair (ordinal, not metric).
 	initRankLayout(distance, coords)
 
-	stress := 1.0
+	stress := math.Inf(1)
+	iterationsRun := 0
 	current := make([]float64, len(pairs)) // embedding distances, pair order
 	disparities := make([]float64, len(pairs))
-	for iteration := 0; iteration < iterations; iteration++ {
+	for iteration := 0; iteration < maxIterations; iteration++ {
 		for index, p := range pairs {
 			current[index] = euclid2(coords[p.i], coords[p.j])
 		}
 		// Isotonic regression: monotone-nondecreasing disparities fit to the
 		// embedding distances taken in dissimilarity-rank order (PAVA).
 		isotonicFit(current, disparities)
-		stress = kruskalStress(current, disparities)
+		newStress := kruskalStress(current, disparities)
+		iterationsRun = iteration + 1
+		if iteration > 0 && stress-newStress <= tolerance*stress {
+			stress = newStress
+			break
+		}
+		stress = newStress
 		guttmanUpdate(coords, pairs, disparities, current)
 	}
-	return coords, stress
-}
-
-// forceDirectedLayout: Fruchterman–Reingold over the kNN graph — local neighbor
-// relations only, deterministic schedule. No assumption about global shape.
-func forceDirectedLayout(adjacency [][]int, iterations int) [][2]float64 {
-	n := len(adjacency)
-	coords := make([][2]float64, n)
-	if n == 0 {
-		return coords
-	}
-	if iterations < 1 {
-		iterations = 300
-	}
-	// Deterministic circular init.
-	for i := 0; i < n; i++ {
-		angle := 2 * math.Pi * float64(i) / float64(n)
-		coords[i] = [2]float64{math.Cos(angle), math.Sin(angle)}
-	}
-	area := 1.0
-	kSpring := math.Sqrt(area / float64(n))
-	temperature := 0.1
-	edges := undirectedEdges(adjacency)
-	for iteration := 0; iteration < iterations; iteration++ {
-		displacement := make([][2]float64, n)
-		// Repulsion between all pairs.
-		for i := 0; i < n; i++ {
-			for j := i + 1; j < n; j++ {
-				dx := coords[i][0] - coords[j][0]
-				dy := coords[i][1] - coords[j][1]
-				dist := math.Hypot(dx, dy)
-				if dist < 1e-9 {
-					dx, dy, dist = 1e-4, 1e-4, 1e-4
-				}
-				force := kSpring * kSpring / dist
-				ux, uy := dx/dist, dy/dist
-				displacement[i][0] += ux * force
-				displacement[i][1] += uy * force
-				displacement[j][0] -= ux * force
-				displacement[j][1] -= uy * force
-			}
-		}
-		// Attraction along edges.
-		for _, e := range edges {
-			dx := coords[e[0]][0] - coords[e[1]][0]
-			dy := coords[e[0]][1] - coords[e[1]][1]
-			dist := math.Hypot(dx, dy)
-			if dist < 1e-9 {
-				continue
-			}
-			force := dist * dist / kSpring
-			ux, uy := dx/dist, dy/dist
-			displacement[e[0]][0] -= ux * force
-			displacement[e[0]][1] -= uy * force
-			displacement[e[1]][0] += ux * force
-			displacement[e[1]][1] += uy * force
-		}
-		for i := 0; i < n; i++ {
-			d := math.Hypot(displacement[i][0], displacement[i][1])
-			if d > 1e-9 {
-				limit := math.Min(d, temperature)
-				coords[i][0] += displacement[i][0] / d * limit
-				coords[i][1] += displacement[i][1] / d * limit
-			}
-		}
-		temperature *= 0.99 // deterministic cooling
-	}
-	return coords
+	return coords, stress, iterationsRun
 }
 
 // ---- helpers ----
@@ -225,6 +238,58 @@ func newSquare(n int) [][]float64 {
 
 func euclid2(a, b [2]float64) float64 {
 	return math.Hypot(a[0]-b[0], a[1]-b[1])
+}
+
+// fractionalRanks: ascending ranks of a vector's coordinates, ties assigned their
+// average rank. Only the ordering of coordinates is captured — no magnitudes.
+func fractionalRanks(v []float32) []float64 {
+	d := len(v)
+	order := make([]int, d)
+	for i := range order {
+		order[i] = i
+	}
+	sort.SliceStable(order, func(a, b int) bool { return v[order[a]] < v[order[b]] })
+	ranks := make([]float64, d)
+	i := 0
+	for i < d {
+		j := i
+		for j+1 < d && v[order[j+1]] == v[order[i]] {
+			j++
+		}
+		average := float64(i+j) / 2.0
+		for k := i; k <= j; k++ {
+			ranks[order[k]] = average
+		}
+		i = j + 1
+	}
+	return ranks
+}
+
+// pearson: Pearson correlation; 0 when either input has no variance.
+func pearson(a, b []float64) float64 {
+	n := len(a)
+	if n == 0 {
+		return 0
+	}
+	var meanA, meanB float64
+	for i := range a {
+		meanA += a[i]
+		meanB += b[i]
+	}
+	meanA /= float64(n)
+	meanB /= float64(n)
+	var numerator, varA, varB float64
+	for i := range a {
+		x := a[i] - meanA
+		y := b[i] - meanB
+		numerator += x * y
+		varA += x * x
+		varB += y * y
+	}
+	if varA == 0 || varB == 0 {
+		return 0
+	}
+	return numerator / math.Sqrt(varA*varB)
 }
 
 // initRankLayout: (x,y) = normalized rank of dissimilarity to the two ends of
@@ -335,7 +400,6 @@ func guttmanUpdate(coords [][2]float64, pairs []mdsPair, disparities, current []
 		if d > 1e-12 {
 			ratio = disparities[index] / d
 		}
-		// B contribution: off-diagonal -ratio, accumulated as Guttman transform.
 		bx := ratio * (coords[p.i][0] - coords[p.j][0])
 		by := ratio * (coords[p.i][1] - coords[p.j][1])
 		next[p.i][0] += coords[p.j][0] + bx
@@ -347,23 +411,4 @@ func guttmanUpdate(coords [][2]float64, pairs []mdsPair, disparities, current []
 		coords[i][0] = next[i][0] / float64(n)
 		coords[i][1] = next[i][1] / float64(n)
 	}
-}
-
-func undirectedEdges(adjacency [][]int) [][2]int {
-	seen := make(map[[2]int]struct{})
-	edges := make([][2]int, 0)
-	for i, neighbors := range adjacency {
-		for _, j := range neighbors {
-			a, b := i, j
-			if a > b {
-				a, b = b, a
-			}
-			key := [2]int{a, b}
-			if _, ok := seen[key]; !ok {
-				seen[key] = struct{}{}
-				edges = append(edges, key)
-			}
-		}
-	}
-	return edges
 }

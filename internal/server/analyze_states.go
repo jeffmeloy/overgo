@@ -18,14 +18,19 @@ type HiddenStateCaptureAPI interface {
 }
 
 const (
+	// analyzeStatesMaxPositions bounds captured tokens for latency/memory; it is
+	// surfaced to the caller via max_positions, not a hidden modeling choice.
 	analyzeStatesMaxPositions = 64
-	analyzeStatesDefaultK     = 5
-	analyzeStatesMDSIters     = 200
+	// The two below are numerical-convergence bounds for SMACOF (a safety cap and
+	// a relative-improvement stop), not model parameters.
+	analyzeStatesMDSMaxIters  = 1000
+	analyzeStatesMDSTolerance = 1e-6
 )
 
 type analyzeStatesRequest struct {
 	Prompt       string `json:"prompt"`
 	Layer        *int   `json:"layer"`
+	Metric       string `json:"metric"`
 	MaxPositions int    `json:"max_positions"`
 	K            int    `json:"k"`
 }
@@ -37,18 +42,18 @@ type analyzeStatesToken struct {
 }
 
 type analyzeStatesResponse struct {
-	Layer     int                  `json:"layer"`
-	Block     int                  `json:"block_count"`
-	Positions int                  `json:"positions"`
-	Width     int                  `json:"width"`
-	K         int                  `json:"k"`
-	Method    string               `json:"method"`
-	Tokens    []analyzeStatesToken `json:"tokens"`
-	Cosine    [][]float64          `json:"cosine"`
-	Euclidean [][]float64          `json:"euclidean"`
-	Neighbors [][]int              `json:"neighbors"`
-	Layout    [][2]float64         `json:"layout"`
-	Stress    float64              `json:"stress"`
+	Layer            int                  `json:"layer"`
+	Block            int                  `json:"block_count"`
+	Positions        int                  `json:"positions"`
+	Width            int                  `json:"width"`
+	Metric           string               `json:"metric"`
+	K                int                  `json:"k"`
+	Tokens           []analyzeStatesToken `json:"tokens"`
+	Distance         [][]float64          `json:"distance"`
+	Neighbors        [][]int              `json:"neighbors"`
+	Layout           [][2]float64         `json:"layout"`
+	Stress           float64              `json:"stress"`
+	LayoutIterations int                  `json:"layout_iterations"`
 }
 
 // analyzeStates: capture the residual-stream vectors at one layer over the
@@ -72,6 +77,15 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 	var body analyzeStatesRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
+	}
+
+	metric := metricSpearman
+	if body.Metric != "" {
+		metric = dissimilarityMetric(body.Metric)
+		if !validMetric(metric) {
+			writeInvalidRequest(response, errors.New("metric must be spearman, cosine, or euclidean"))
+			return
+		}
 	}
 
 	tokens, err := tokenizerAPI.TokenizeText(body.Prompt, true, true)
@@ -117,12 +131,11 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 
 	k := body.K
 	if k <= 0 {
-		k = analyzeStatesDefaultK
+		k = defaultNeighborCount(len(tokens))
 	}
-	cosine := cosineDistanceMatrix(vectors)
-	euclidean := euclideanDistanceMatrix(vectors)
-	neighbors := kNNAdjacency(cosine, k)
-	layout, stress := nonMetricMDS(cosine, analyzeStatesMDSIters)
+	distance := dissimilarityMatrix(vectors, metric)
+	neighbors := kNNAdjacency(distance, k)
+	layout, stress, iterations := nonMetricMDS(distance, analyzeStatesMDSMaxIters, analyzeStatesMDSTolerance)
 
 	tokenList := make([]analyzeStatesToken, len(tokens))
 	pieceAPI, hasPieces := h.generator.(TokenPieceAPI)
@@ -137,18 +150,18 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 	}
 
 	writeJSON(response, http.StatusOK, analyzeStatesResponse{
-		Layer:     layer,
-		Block:     blockCount,
-		Positions: len(tokens),
-		Width:     width,
-		K:         k,
-		Method:    "non-metric-mds",
-		Tokens:    tokenList,
-		Cosine:    cosine,
-		Euclidean: euclidean,
-		Neighbors: neighbors,
-		Layout:    layout,
-		Stress:    stress,
+		Layer:            layer,
+		Block:            blockCount,
+		Positions:        len(tokens),
+		Width:            width,
+		Metric:           string(metric),
+		K:                k,
+		Tokens:           tokenList,
+		Distance:         distance,
+		Neighbors:        neighbors,
+		Layout:           layout,
+		Stress:           stress,
+		LayoutIterations: iterations,
 	})
 }
 

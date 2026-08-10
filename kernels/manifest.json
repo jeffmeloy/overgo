@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "445f32bb7d02bad4d51c699c7cc0ac46f9f7ff29055b59e49597938c51fd5e6a",
+      "sourceSha256": "fc8609997c31729fef16a79e6d5f845beae042ca4a0ee40c279919f01153432c",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "d278e1ee2803d5ea9566c292825438e6dbf8128854ffd6d0594efcd24d85bb22",
+      "assetSha256": "32e60420a3e36f9e5f0bdb545f7ecb9f677ae7693fbf4af79f92d0c128bf92c7",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -76,6 +76,7 @@
         "f16_to_f32",
         "f32_to_bf16",
         "flat_slice_f32",
+        "fp8_to_f32",
         "fwht_f32",
         "gated_delta_net_f32",
         "gated_linear_attention_f32",
@@ -128,6 +129,7 @@
         "mul_mat_bf16_gate_f32",
         "mul_mat_f16_f32",
         "mul_mat_f32",
+        "mul_mat_fp8_f32",
         "mul_mat_iq1_m_f32",
         "mul_mat_iq1_s_f32",
         "mul_mat_iq2_s_f32",
@@ -213,6 +215,7 @@
           "functions": [
             "activated_gate_f32",
             "copy_token_offset_f32",
+            "fp8_to_f32",
             "get_rows_f32",
             "get_rows_iq1_m_f32",
             "get_rows_iq1_s_f32",
@@ -823,7 +826,8 @@
           ],
           "functions": [
             "mul_mat_bf16_append_f32",
-            "mul_mat_bf16_gate_f32"
+            "mul_mat_bf16_gate_f32",
+            "mul_mat_fp8_f32"
           ]
         },
         {

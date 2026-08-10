@@ -37,6 +37,7 @@ const (
 	kernelF16ToF32
 	kernelF32ToBf16
 	kernelFlatSliceF32
+	kernelFp8ToF32
 	kernelFwhtF32
 	kernelGatedDeltaNetF32
 	kernelGatedLinearAttentionF32
@@ -89,6 +90,7 @@ const (
 	kernelMulMatBf16GateF32
 	kernelMulMatF16F32
 	kernelMulMatF32
+	kernelMulMatFp8F32
 	kernelMulMatIq1MF32
 	kernelMulMatIq1SF32
 	kernelMulMatIq2SF32
@@ -195,6 +197,7 @@ var kernelFunctionNames = [...]string{
 	"f16_to_f32",
 	"f32_to_bf16",
 	"flat_slice_f32",
+	"fp8_to_f32",
 	"fwht_f32",
 	"gated_delta_net_f32",
 	"gated_linear_attention_f32",
@@ -247,6 +250,7 @@ var kernelFunctionNames = [...]string{
 	"mul_mat_bf16_gate_f32",
 	"mul_mat_f16_f32",
 	"mul_mat_f32",
+	"mul_mat_fp8_f32",
 	"mul_mat_iq1_m_f32",
 	"mul_mat_iq1_s_f32",
 	"mul_mat_iq2_s_f32",
@@ -352,6 +356,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	3,
 	4,
+	5,
 	4,
 	15,
 	12,
@@ -404,6 +409,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	6,
 	6,
+	7,
 	6,
 	6,
 	6,

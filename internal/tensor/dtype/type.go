@@ -41,7 +41,11 @@ const (
 	NVFP4  Type = 40
 	Q1_0   Type = 41
 	Q2_0   Type = 42
-	Count  Type = 43
+	// F8E4M3: OCP F8_E4M3FN payload with a per-output-row F32 scale carried
+	// alongside (native-dtype residency). Not a self-contained GGUF block type;
+	// this id is internal to the native-dtype matmul path. 1 byte/element.
+	F8E4M3 Type = 43
+	Count  Type = 44
 )
 
 // Traits defines type's physical block layout
@@ -88,6 +92,7 @@ var traits = map[Type]Traits{
 	NVFP4:  {"nvfp4", 64, 36, true},
 	Q1_0:   {"q1_0", 128, 18, true},
 	Q2_0:   {"q2_0", 64, 18, true},
+	F8E4M3: {"f8_e4m3", 1, 1, false},
 }
 
 func (t Type) String() string {

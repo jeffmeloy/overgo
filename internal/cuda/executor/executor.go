@@ -905,11 +905,13 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 			compiled.needBlas = true
 		}
 		if node.Op == tensor.OpMulMat &&
-			(node.Inputs[0].Type == dtype.F16 || node.Inputs[0].Type == dtype.BF16) {
-			// prefill (multi-token) upconverts the half-precision weight to F32
-			// and runs SGEMM (bit-exact vs the F32 fallback); single-token decode
-			// reads the 2-byte weight natively via the custom kernel and needs no
-			// cuBLAS. One staging size covers both F16 and BF16.
+			(node.Inputs[0].Type == dtype.F16 || node.Inputs[0].Type == dtype.BF16 ||
+				node.Inputs[0].Type == dtype.F8E4M3) {
+			// prefill (multi-token) upconverts the native-dtype weight to F32
+			// and runs SGEMM; single-token decode reads the packed weight natively
+			// via the custom kernel and needs no cuBLAS. One staging size covers
+			// F16/BF16 (2 bytes, bit-exact upconvert) and F8E4M3 (1 byte e4m3 with
+			// the per-row scale folded into the staged F32 weight).
 			inner := node.Inputs[0].Shape.Dims[0]
 			leftRows := node.Inputs[0].Shape.Dims[1]
 			rightRows := node.Inputs[1].Shape.Dims[1]
@@ -1367,7 +1369,8 @@ func execute(
 			continue
 		}
 		if pointer, ok := deviceFeeds[node]; ok {
-			if node.Type != dtype.F32 && node.Type != dtype.BF16 && node.Type != dtype.F16 && !nativeQuantizedType(node.Type) {
+			if node.Type != dtype.F32 && node.Type != dtype.BF16 && node.Type != dtype.F16 &&
+				node.Type != dtype.F8E4M3 && !nativeQuantizedType(node.Type) {
 				return nil, fmt.Errorf("CUDA device feed %q has unsupported type %s", node.Name, node.Type)
 			}
 			if pointer == 0 {

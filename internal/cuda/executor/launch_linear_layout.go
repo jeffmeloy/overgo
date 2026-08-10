@@ -218,6 +218,64 @@ func launchLinearLayout(
 			runtime.KeepAlive(output)
 			return err
 		}
+		if leftNode.Type == dtype.F8E4M3 {
+			// native fp8 residency, same native-dtype contract as F16/BF16 but the
+			// weight is packed e4m3 (1 byte/element) followed IN THE SAME resident
+			// buffer by a per-output-row F32 scale [rows*inner e4m3 | rows*4 scale].
+			// Decode (single token) reads e4m3 quads directly and folds scale[row]
+			// once; prefill upconverts (e4m3 -> F32, scale folded per element) into
+			// the reused weight staging and runs the identical SGEMM.
+			if rightNode.Type != dtype.F32 {
+				return fmt.Errorf("fp8 mul_mat right input has type %s", rightNode.Type)
+			}
+			if inner%4 != 0 {
+				return errors.New("fp8 mul_mat inner dimension is not a multiple of 4")
+			}
+			scaleOffset := uint64(inner) * uint64(leftRows)
+			scale := left + driver.DevicePtr(scaleOffset)
+			if rightRows == 1 {
+				launchCount, err := bf16MulMatLaunchCount(leftRows, rightRows)
+				if err != nil {
+					return err
+				}
+				return launch1DABI(
+					state, functions[kernelMulMatFp8F32], launchCount,
+					&left, &scale, &right, &output, &inner, &leftRows, &rightRows,
+				)
+			}
+			if blas == nil || blas.weightStaging == 0 {
+				return errors.New("fp8 mul_mat weight workspace is unavailable")
+			}
+			weightElements := uint64(inner) * uint64(leftRows)
+			if weightElements > math.MaxUint32 || weightElements*4 > blas.weightStagingBytes {
+				return errors.New("fp8 mul_mat weight exceeds workspace")
+			}
+			if err := launchGridABI(
+				state, functions[kernelFp8ToF32],
+				driver.Dim3{X: leftRows, Y: 1, Z: 1},
+				driver.Dim3{X: 256, Y: 1, Z: 1},
+				&left, &scale, &blas.weightStaging, &inner, &leftRows,
+			); err != nil {
+				return err
+			}
+			if traceExternalCall(
+				state, traceTagSGEMM,
+				uint64(blas.weightStaging), uint64(right), uint64(output),
+				uint64(leftRows), uint64(rightRows), uint64(inner),
+			) {
+				return nil
+			}
+			err = blas.library.SGEMM(
+				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+				int32(leftRows), int32(rightRows), int32(inner), 1,
+				blas.weightStaging, int32(inner), right, int32(inner), 0,
+				output, int32(leftRows),
+			)
+			runtime.KeepAlive(left)
+			runtime.KeepAlive(right)
+			runtime.KeepAlive(output)
+			return err
+		}
 		if nativeQuantizedType(leftNode.Type) {
 			if rightNode.Type != dtype.F32 {
 				return fmt.Errorf("%s mul_mat right input has type %s", leftNode.Type, rightNode.Type)

@@ -674,9 +674,9 @@
         },
         {
           "id": "native-fp8-residency",
-          "status": "open",
+          "status": "partial",
           "resource": "gpu",
-          "title": "port adaptive gemv_fp8/gemm_fp8 + per-channel F32 scale residency into internal/cuda (E4M3 in-kernel dequant, F32-accum, fold scale[row] once) to hold ~12GB vs ~24GB bf16 -- the 48GB-ceiling memory lever; exact vs bf16-dequant path"
+          "title": "port adaptive gemv_fp8/gemm_fp8 + per-channel F32 scale residency into internal/cuda (E4M3 in-kernel dequant, F32-accum, fold scale[row] once) to hold ~12GB vs ~24GB bf16 -- the 48GB-ceiling memory lever; exact vs bf16-dequant path -- KERNEL+RESIDENCY DONE (measured): FP8 E4M3 added as next native dtype in the unified matmul contract (sibling F8E4M3 branch, scale rides in same resident buffer -> OpMulMat stays 2-input); mul_mat_fp8_f32 decode + fp8_to_f32 prefill, e4m3 decode bit-identical to Go dtype.F8E4M3ToFloat32 (all 256 codes) + GPU decode/prefill/argmax match f64 ref; 12B residency 22.28->14.37 GiB (-35.5pct), device lane green. NAMED REST: GGUF fp8-emit convert mode (currently up-converts to bf16), model-graph residency wiring (Shape.Bytes for combined [e4m3|scale] buffer + block builder), recipe-activation for end-to-end ms/token"
         },
         {
           "id": "recipe-activation",
@@ -862,6 +862,10 @@
       "qwen35-4b": "peak 24.43->10.77 GiB (-55.9pct), decode ~11 ms/tok unchanged, goldens 3/3 exact",
       "e4b": "peak 41.74->21.79 GiB (-47.8pct), decode 66.6->20.05 ms/tok (3.3x), goldens 3/3 exact",
       "contract": "F16 kept + test-guarded; production bf16 models exercise the path (not inert)"
+    },
+    "native_fp8_residency": {
+      "note": "FP8 E4M3 native residency for gemma-4-12B-it-fp8, same native-dtype matmul contract as F16/BF16",
+      "gemma12b": "resident 22.28 GiB (fp8->bf16 upconvert) -> 14.37 GiB native fp8 (-35.5pct); exact vs f64 e4m3 ref; ms/token pending recipe"
     }
   }
 }

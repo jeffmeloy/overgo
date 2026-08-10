@@ -182,17 +182,31 @@ transport artifact, not a unit of work, and every "end of turn" is an
 invitation to stop -- the observed root cause of repeated idle stops:
 one dispatch feels like completion, "GPU busy" reads as "plan blocked",
 and waiting is never scored against the unblocked candidates. The
-campaign is a continuous dispatcher over two lanes {GPU, CPU}. Wakes,
-task notifications, and user messages are EVENTS into that dispatcher,
-never boundaries. On every event: for each FREE lane, dispatch the
-highest open plan step runnable on it, or write ONE line naming why no
-open step fits that lane (file overlap with an in-flight gate counts;
-"something is running elsewhere" does not). Plan steps carry a resource
-tag (cpu | gpu | either) so "runnable" is a lookup, not judgment. Yielding
-the process back to the harness is legal ONLY when both lanes are
-occupied or per-lane blocked-lines are written; it is a scheduler yield,
-not an ending -- nothing is summarized, defended, or wrapped up on yield.
-The only true exits remain the three user-owned stop reasons.
+campaign is a continuous dispatcher. Wakes, task notifications, and user
+messages are EVENTS into that dispatcher, never boundaries.
+
+GPU IS A MEMORY POOL, NOT A SINGLE LANE (owner correction 2026-08-09).
+The card is 48 GB; most models are small (sub-GB to a few GB), so
+MULTIPLE GPU agents run concurrently, packed by VRAM. "A GPU agent is
+running" does NOT block another GPU dispatch -- check free VRAM
+(nvidia-smi) and dispatch if the new task fits. Serialize onto one GPU
+task ONLY when: (a) it is a clean-timing PERF MEASUREMENT (contention
+skews numbers), or (b) the running job already needs most of the card
+(E4B ~22GB, Krea 2048^2 ~33GB, training with grads), or (c) genuine
+FILE overlap / gate-serialization (two commit-gates never run at once).
+Otherwise pack: correctness dumps, small-model serves, kernel builds,
+recons, host ports all coexist. Over-serializing GPU work is now a named
+failure mode as bad as idle-stopping.
+
+On every event: for each capacity that is free (CPU, or GPU VRAM
+headroom that fits an open step), dispatch the highest open plan step
+that fits, or write ONE line naming why no open step fits (VRAM would
+overflow; file overlap with an in-flight gate; clean-timing exclusivity;
+external-prereq). Plan steps carry a resource tag (cpu | gpu | either).
+Yielding is legal ONLY when every capacity is occupied or has a written
+blocked-line; it is a scheduler yield, not an ending -- nothing is
+summarized or wrapped up on yield. The only true exits remain the three
+user-owned stop reasons.
 
 DELEGATION CONTRACT. A subagent's prompt must require verification to run
 TO COMPLETION before its final message -- "suite still running, will

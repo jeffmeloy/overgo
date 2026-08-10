@@ -585,9 +585,9 @@
         },
         {
           "id": "convert-discovery",
-          "status": "open",
+          "status": "done",
           "resource": "cpu",
-          "title": "teach converter/discovery Krea2Transformer2DModel + AutoencoderKLQwenImage + Qwen3VLModel from one artifact dir; geometry shape-derived (latentvideo pattern); serving-only tag. VERIFY: config/shape derivation vs real Krea-2-Turbo index (structural oracle, CPU)"
+          "title": "teach converter/discovery Krea2Transformer2DModel + AutoencoderKLQwenImage + Qwen3VLModel from one artifact dir; geometry shape-derived (latentvideo pattern); serving-only tag. VERIFY: config/shape derivation vs real Krea-2-Turbo index (structural oracle, CPU) -- DONE: internal/latentimage (RecognizePipeline/Derive/VerifyCheckpoint/Enumerate); every dim config-read or tensor-shape-derived with config-vs-config cross-checks (in_channels==z_dim*patch^2, sum(rope_axes)==head_dim, text_hidden==text_encoder_hidden fusion boundary); CPU structural oracle 38/38 dims vs real Krea-2-Turbo headers; serving-only. NOTE: transformer/ uses diffusion_pytorch_model.safetensors.index.json (not model.*) -- serving loader must handle"
         },
         {
           "id": "host-goldens",

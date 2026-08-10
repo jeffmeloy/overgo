@@ -1,0 +1,62 @@
+{
+ "schema": "qwen35_9b_serving_smoke/v1",
+ "status": "LIVE",
+ "provisional": true,
+ "golden_gap": "no independent oracle: the 9B ships no HF config/tokenizer and no Python/host reference logits exist for this checkpoint. These ids are a device-serving REGRESSION anchor, plausibility-validated (Paris + coherent counting), NOT a numeric golden. The Q8_0 quant decoder + hybrid decode conventions are cross-referenced by TestQwen35_9BUntiedHeadGGUFStructuralOracle and shared with the golden-validated 4B path.",
+ "source": "overgo internal/inference device serving (hybrid_recurrent, PlacementHybrid, PreloadQuantizedWeights), greedy temp=0, 8 new tokens/case; deterministic across repeat runs (id-identical); untied lm_head live (output.weight distinct from token_embd)",
+ "model": "models/Qwen3.5-9B-Q8_0.gguf (Unsloth bare GGUF; no HF sidecar)",
+ "model_sha256": "809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4",
+ "device": "NVIDIA GeForce RTX 4090 D",
+ "decode_mode": "greedy (temp 0), 8 new tokens per case, ID-level",
+ "cases": [
+  {
+   "name": "capital",
+   "prompt": "The capital of France is",
+   "prompt_ids": [
+    760,
+    6511,
+    314,
+    9338,
+    369
+   ],
+   "generated_ids": [
+    11751,
+    13,
+    198,
+    760,
+    6511,
+    314,
+    9338,
+    369
+   ],
+   "text": "The capital of France is Paris.\nThe capital of France is"
+  },
+  {
+   "name": "count",
+   "prompt": "Count from one to five: one, two,",
+   "prompt_ids": [
+    2427,
+    494,
+    799,
+    310,
+    4097,
+    25,
+    799,
+    11,
+    1330,
+    11
+   ],
+   "generated_ids": [
+    2250,
+    11,
+    2943,
+    11,
+    4097,
+    13,
+    271,
+    2427
+   ],
+   "text": "Count from one to five: one, two, three, four, five.\n\nCount"
+  }
+ ]
+}

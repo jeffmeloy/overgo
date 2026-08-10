@@ -443,8 +443,8 @@
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "title": "adaptive TRAINS E4B (stream_lm_cuda) -- real reference; scope densecausal/mixed-window delta",
+          "status": "blocked-missing-backward",
+          "title": "adaptive TRAINS E4B (stream_lm_cuda) -- real reference; scope densecausal/mixed-window delta -- HALT VERDICT: overgo CANNOT train E4B -- the gemma3n arch (AltUp/PLE/SharedKV/windowed) is INFERENCE-ONLY, zero backward funcs; blocker is missing backward CODE not memory. What IS verified: densecausal text-LM training lane grad-parity PASS (adaptive-schema goldens + FD), real loss-decrease (Carbon-500M 21.08->11.75 1 SGD step; Qwen2.5-0.5B monotone 10.6->1.85 over 6 steps), optimizer=full-param SGD (host Muon prohibitive 500M+). E4B remainder (named): port adaptive operators_backward.go windowed-attn + AltUp/Laurel/PLE VJPs (reuse 8 verified hostmath VJPs) + a device backward (current text-LM backward host-only), then grad-parity vs adaptive E4B grads + bf16-SGD+ckpt loss-decrease. Memory math: E4B fp32-grad SGD ~48GB OOM; bf16-SGD+ckpt ~32GB tight-feasible but the path does not exist",
           "resource": "gpu"
         },
         {
@@ -728,21 +728,21 @@
         },
         {
           "id": "serving-smoke",
-          "status": "open",
+          "status": "done",
           "resource": "gpu",
-          "title": "prefill \"The capital of France is\" -> finite non-constant sane argmax (host if CPU GGUF decode path exists, else CUDA); deterministic"
+          "title": "prefill \"The capital of France is\" -> finite non-constant sane argmax (host if CPU GGUF decode path exists, else CUDA); deterministic -- DONE: 9B serves coherent+deterministic (\"Paris\"), untied head LIVE (output.weight distinct), peak 9339 MiB (Q8_0 resident, BF16 lever ~half the bf16 estimate), ~18 ms/tok; via the 4B entry point, no changes"
         },
         {
           "id": "recipe-activation",
-          "status": "open",
+          "status": "done",
           "resource": "gpu",
-          "title": "bare-.gguf profile + hybrid-recurrent recipe activation + status round-trip"
+          "title": "bare-.gguf profile + hybrid-recurrent recipe activation + status round-trip -- DONE: recipe f1296e05.../model 896a8789... activated, status round-trip PASS, tier experimental, session=capacity (paging fix applies); no profile tweak (4B precedent generalized)"
         },
         {
           "id": "fixture-leg",
-          "status": "open",
+          "status": "done",
           "resource": "gpu",
-          "title": "no 9B golden exists -- generate one from adaptive, or accept plausibility + Q8_0 quant-decoder-reference as bar (document the gap honestly)"
+          "title": "no 9B golden exists -- generate one from adaptive, or accept plausibility + Q8_0 quant-decoder-reference as bar (document the gap honestly) -- DONE: fixtures/qwen35_9b_serving_smoke.json (provisional, load-bearing regression anchor, model sha + golden_gap named); no independent numeric oracle exists (honest)"
         },
         {
           "id": "performance-leg",

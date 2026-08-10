@@ -9,10 +9,12 @@ import (
 	"slices"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
 )
@@ -50,6 +52,22 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 	cachePageTokens := resolveCachePageTokens(options.CachePageTokens)
 	file := consumed.File()
 	path, spec, weights, program := consumed.Path(), consumed.Spec(), consumed.Weights(), consumed.Plan()
+	// Residency is derived, never defaulted: the active recipe's placement is
+	// the decision surface when no explicit mode was requested. Device
+	// placement mandates resident weights; hybrid placement measures fit on
+	// the serving hardware by attempting residency — a device out-of-memory
+	// during preload releases the stores and serving continues streaming.
+	residencyDerived := false
+	if !options.PreloadDeviceWeights && !options.PreloadQuantizedWeights &&
+		!options.CacheHostWeights && !hostExecuteEnabled() {
+		switch program.Identity.Placement {
+		case recipe.PlacementDevice:
+			options.PreloadQuantizedWeights = true
+		case recipe.PlacementHybrid:
+			options.PreloadQuantizedWeights = true
+			residencyDerived = true
+		}
+	}
 	var cuda *executor.Executor
 	var worker *device.Worker
 	var deviceWeights *model.DeviceF32Weights
@@ -104,94 +122,21 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 		if err != nil {
 			return fail(err)
 		}
-		deviceWeights, err = model.NewDeviceF32Weights(worker)
-		if err != nil {
-			return fail(err)
-		}
-		selected := selectedModelTensors(file, weights)
-		f32Tensors := selected
-		if options.PreloadQuantizedWeights {
-			adaptedTensors := make(map[string]struct{})
-			for _, loaded := range loraAdapters {
-				for name := range loaded.adapter.Weights {
-					adaptedTensors[name] = struct{}{}
-				}
+		if err = loadResidentWeights(
+			file, weights, loraAdapters, options, worker,
+			&deviceWeights, &rawWeights, &decodeWeights,
+		); err != nil {
+			if !residencyDerived || !driver.IsOutOfMemory(err) {
+				return fail(err)
 			}
-			f32Required := f32RequiredModelTensors(weights)
-			f32Tensors = make([]gguf.TensorInfo, 0, len(selected))
-			var quantized []gguf.TensorInfo
-			for _, info := range selected {
-				_, adapted := adaptedTensors[info.Name]
-				_, requiresF32 := f32Required[info.Name]
-				if !adapted && !requiresF32 && (info.Type == dtype.Q4_0 ||
-					info.Type == dtype.Q4_1 ||
-					info.Type == dtype.Q5_0 ||
-					info.Type == dtype.Q5_1 ||
-					info.Type == dtype.Q1_0 ||
-					info.Type == dtype.Q2_0 ||
-					info.Type == dtype.TQ1_0 ||
-					info.Type == dtype.TQ2_0 ||
-					info.Type == dtype.Q8_0 ||
-					info.Type == dtype.Q8_1 ||
-					info.Type == dtype.Q2K ||
-					info.Type == dtype.Q3K ||
-					info.Type == dtype.Q4K ||
-					info.Type == dtype.Q5K ||
-					info.Type == dtype.Q6K ||
-					info.Type == dtype.Q8K ||
-					info.Type == dtype.IQ2XXS ||
-					info.Type == dtype.IQ2XS ||
-					info.Type == dtype.IQ2S ||
-					info.Type == dtype.IQ3XXS ||
-					info.Type == dtype.IQ3S ||
-					info.Type == dtype.IQ1S ||
-					info.Type == dtype.IQ1M ||
-					info.Type == dtype.IQ4NL ||
-					info.Type == dtype.IQ4XS ||
-					info.Type == dtype.MXFP4 ||
-					info.Type == dtype.NVFP4) {
-					quantized = append(quantized, info)
-				} else {
-					f32Tensors = append(f32Tensors, info)
-				}
-			}
-			rawWeights, err = model.NewDeviceWeights(worker)
+			// Measured fit answered no: release the partial stores and keep
+			// the executor; decode streams weights as before.
+			err = errors.Join(decodeWeights.Close(), rawWeights.Close(), deviceWeights.Close())
 			if err != nil {
 				return fail(err)
 			}
-			if err = rawWeights.Load(context.Background(), file, quantized); err != nil {
-				return fail(err)
-			}
-			// native BF16 matrices feed the decode catalog directly: half the
-			// per-token weight traffic; F32 copies stay resident for prefill
-			var decodeTensors []gguf.TensorInfo
-			for _, info := range selected {
-				_, adapted := adaptedTensors[info.Name]
-				_, requiresF32 := f32Required[info.Name]
-				if !adapted && !requiresF32 && info.Type == dtype.BF16 && info.Dimensions == 2 {
-					decodeTensors = append(decodeTensors, info)
-				}
-			}
-			if options.PreloadBF16DecodeWeights {
-				for _, info := range quantized {
-					_, adapted := adaptedTensors[info.Name]
-					if !adapted && info.Type == dtype.Q8_0 && info.Dimensions >= 2 {
-						decodeTensors = append(decodeTensors, info)
-					}
-				}
-			}
-			if len(decodeTensors) > 0 {
-				decodeWeights, err = model.NewDeviceBF16Weights(worker)
-				if err == nil {
-					err = decodeWeights.Load(context.Background(), file, decodeTensors)
-				}
-				if err != nil {
-					return fail(err)
-				}
-			}
-		}
-		if err = deviceWeights.Load(context.Background(), file, f32Tensors); err != nil {
-			return fail(err)
+			decodeWeights, rawWeights, deviceWeights = nil, nil, nil
+			options.PreloadQuantizedWeights = false
 		}
 	} else if !hostExecuteEnabled() {
 		cuda, err = executor.New(options.DeviceOrdinal)
@@ -209,6 +154,108 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 		outputBias:          outputBias,
 		promptCacheCapacity: promptCacheCapacity, cachePageTokens: cachePageTokens,
 	}, runnerState: runnerState{loraAdapters: loraAdapters}}, nil
+}
+
+// loadResidentWeights: uploads the resident weight stores for a preload open;
+// partially loaded stores stay owned by the caller on failure.
+func loadResidentWeights(
+	file *gguf.File,
+	weights model.Weights,
+	loraAdapters []loadedLoRA,
+	options OpenOptions,
+	worker *device.Worker,
+	deviceWeights **model.DeviceF32Weights,
+	rawWeights **model.DeviceWeights,
+	decodeWeights **model.DeviceBF16Weights,
+) error {
+	var err error
+	*deviceWeights, err = model.NewDeviceF32Weights(worker)
+	if err != nil {
+		return err
+	}
+	selected := selectedModelTensors(file, weights)
+	f32Tensors := selected
+	if options.PreloadQuantizedWeights {
+		adaptedTensors := make(map[string]struct{})
+		for _, loaded := range loraAdapters {
+			for name := range loaded.adapter.Weights {
+				adaptedTensors[name] = struct{}{}
+			}
+		}
+		f32Required := f32RequiredModelTensors(weights)
+		f32Tensors = make([]gguf.TensorInfo, 0, len(selected))
+		var quantized []gguf.TensorInfo
+		for _, info := range selected {
+			_, adapted := adaptedTensors[info.Name]
+			_, requiresF32 := f32Required[info.Name]
+			if !adapted && !requiresF32 && (info.Type == dtype.Q4_0 ||
+				info.Type == dtype.Q4_1 ||
+				info.Type == dtype.Q5_0 ||
+				info.Type == dtype.Q5_1 ||
+				info.Type == dtype.Q1_0 ||
+				info.Type == dtype.Q2_0 ||
+				info.Type == dtype.TQ1_0 ||
+				info.Type == dtype.TQ2_0 ||
+				info.Type == dtype.Q8_0 ||
+				info.Type == dtype.Q8_1 ||
+				info.Type == dtype.Q2K ||
+				info.Type == dtype.Q3K ||
+				info.Type == dtype.Q4K ||
+				info.Type == dtype.Q5K ||
+				info.Type == dtype.Q6K ||
+				info.Type == dtype.Q8K ||
+				info.Type == dtype.IQ2XXS ||
+				info.Type == dtype.IQ2XS ||
+				info.Type == dtype.IQ2S ||
+				info.Type == dtype.IQ3XXS ||
+				info.Type == dtype.IQ3S ||
+				info.Type == dtype.IQ1S ||
+				info.Type == dtype.IQ1M ||
+				info.Type == dtype.IQ4NL ||
+				info.Type == dtype.IQ4XS ||
+				info.Type == dtype.MXFP4 ||
+				info.Type == dtype.NVFP4) {
+				quantized = append(quantized, info)
+			} else {
+				f32Tensors = append(f32Tensors, info)
+			}
+		}
+		*rawWeights, err = model.NewDeviceWeights(worker)
+		if err != nil {
+			return err
+		}
+		if err = (*rawWeights).Load(context.Background(), file, quantized); err != nil {
+			return err
+		}
+		// native BF16 matrices feed the decode catalog directly: half the
+		// per-token weight traffic; F32 copies stay resident for prefill
+		var decodeTensors []gguf.TensorInfo
+		for _, info := range selected {
+			_, adapted := adaptedTensors[info.Name]
+			_, requiresF32 := f32Required[info.Name]
+			if !adapted && !requiresF32 && info.Type == dtype.BF16 && info.Dimensions == 2 {
+				decodeTensors = append(decodeTensors, info)
+			}
+		}
+		if options.PreloadBF16DecodeWeights {
+			for _, info := range quantized {
+				_, adapted := adaptedTensors[info.Name]
+				if !adapted && info.Type == dtype.Q8_0 && info.Dimensions >= 2 {
+					decodeTensors = append(decodeTensors, info)
+				}
+			}
+		}
+		if len(decodeTensors) > 0 {
+			*decodeWeights, err = model.NewDeviceBF16Weights(worker)
+			if err == nil {
+				err = (*decodeWeights).Load(context.Background(), file, decodeTensors)
+			}
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return (*deviceWeights).Load(context.Background(), file, f32Tensors)
 }
 
 func (r *Runner) Close() error {

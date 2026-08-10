@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 )
@@ -90,6 +91,16 @@ type ResultError struct {
 	Code      int32
 	Name      string
 	Message   string
+}
+
+// cudaErrorOutOfMemory: CUDA_ERROR_OUT_OF_MEMORY (CUDA Driver API result code).
+const cudaErrorOutOfMemory = 2
+
+// IsOutOfMemory: allocation-failure classification; derived-residency
+// placement falls back to streaming on exactly this result.
+func IsOutOfMemory(err error) bool {
+	var result *ResultError
+	return errors.As(err, &result) && result.Code == cudaErrorOutOfMemory
 }
 
 func (e *ResultError) Error() string {

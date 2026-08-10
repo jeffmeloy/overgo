@@ -29,22 +29,78 @@ import (
 
 // prefillContext: shared prompt state for the device prefill / full pipeline.
 type prefillContext struct {
-	cfg       routedlm.Config
-	src       *safetensors.Source
-	spec      patchtower.Spec
-	blockLast []float32
-	merger    patchtower.MergerWeights
-	gridT     int
-	gridH     int
-	gridW     int
-	imageRows int
-	mask      []int
-	promptLen int
-	prefill   []float32 // host prefill embeds [tokens, H]
-	segments  [][2]int
-	blocks    []routedlm.PrefillAttnBlock
-	maskText  []float32 // [tokens] 1 at text rows
-	maskVis   []float32 // [tokens] 1 at vision rows
+	cfg                routedlm.Config
+	src                *safetensors.Source
+	spec               patchtower.Spec
+	blockLast          []float32
+	merger             patchtower.MergerWeights
+	gridT              int
+	gridH              int
+	gridW              int
+	imageRows          int
+	inputIDs           []int
+	imageMaskPositions []int
+	mask               []int
+	promptLen          int
+	prefill            []float32 // host prefill embeds [tokens, H]
+	segments           [][2]int
+	blocks             []routedlm.PrefillAttnBlock
+	maskText           []float32 // [tokens] 1 at text rows
+	maskVis            []float32 // [tokens] 1 at vision rows
+}
+
+// newPrefillContext: builds the prompt state from processor-derived inputs
+// (input ids + image-mask positions + image grid) — the golden-free serving
+// path. The image-feature block_last and host prefill embeds are produced
+// on-device by the pipeline, so they are left nil here. imageRows is derived
+// from the grid and cross-checked against the image-token count.
+func newPrefillContext(modelDir string, inputIDs, imageMaskPositions []int, gridT, gridH, gridW int) (*prefillContext, error) {
+	spec, err := patchtower.LoadSpec(modelDir)
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := routedlm.LoadConfig(modelDir, binding)
+	if err != nil {
+		return nil, err
+	}
+	src, err := safetensors.OpenSource(modelDir)
+	if err != nil {
+		return nil, err
+	}
+	merger, err := patchtower.LoadMergerWeights(src, spec)
+	if err != nil {
+		src.Close()
+		return nil, err
+	}
+	if gridH%spec.MergeSize != 0 || gridW%spec.MergeSize != 0 {
+		src.Close()
+		return nil, fmt.Errorf("prefill context: grid [%d,%d] not divisible by merge=%d", gridH, gridW, spec.MergeSize)
+	}
+	imageRows := gridT * (gridH / spec.MergeSize) * (gridW / spec.MergeSize)
+	if imageRows != len(imageMaskPositions) {
+		src.Close()
+		return nil, fmt.Errorf("prefill context: imageRows=%d != image-token count=%d", imageRows, len(imageMaskPositions))
+	}
+	promptLen := len(inputIDs)
+	mask := routedlm.ModalityMask(promptLen, imageMaskPositions)
+	segments := routedlm.VisualSegments(mask)
+	blocks := routedlm.PrefillAttnBlocks(segments, promptLen)
+	maskText := make([]float32, promptLen)
+	maskVis := make([]float32, promptLen)
+	for i, m := range mask {
+		if m == 0 {
+			maskText[i] = 1
+		} else {
+			maskVis[i] = 1
+		}
+	}
+	return &prefillContext{
+		cfg: cfg, src: src, spec: spec, merger: merger,
+		gridT: gridT, gridH: gridH, gridW: gridW, imageRows: imageRows,
+		inputIDs: inputIDs, imageMaskPositions: imageMaskPositions,
+		mask: mask, promptLen: promptLen, segments: segments, blocks: blocks,
+		maskText: maskText, maskVis: maskVis,
+	}, nil
 }
 
 func loadPrefillContext(l *ladder) (*prefillContext, error) {
@@ -112,6 +168,7 @@ func loadPrefillContext(l *ladder) (*prefillContext, error) {
 	return &prefillContext{
 		cfg: cfg, src: src, spec: spec, blockLast: blockLast, merger: merger,
 		gridT: gridT, gridH: gridH, gridW: gridW, imageRows: imageRows,
+		inputIDs: fg.InputIDs, imageMaskPositions: fg.PrefillTensors.InputImageMaskPositions,
 		mask: mask, promptLen: promptLen, prefill: prefill, segments: segments, blocks: blocks,
 		maskText: maskText, maskVis: maskVis,
 	}, nil

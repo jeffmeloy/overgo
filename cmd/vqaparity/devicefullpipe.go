@@ -1,15 +1,20 @@
 package main
 
 // Device full-pipeline mode: chains the RxBrain stages entirely on the CUDA
-// device with NO golden-seeded state — device merger (image features) ->
-// host embedding splice -> device branch-routed prefill (32 chained MoT layers,
-// exporting the per-layer resident K/V) -> terminal (first token) -> device
-// 32-layer decode seeded from the DEVICE prefill K/V (replacing the golden
-// PromptResidentKV) -> 12-step generation. Verified to reproduce the exact
-// answer and the golden 12-step chain, then measured end-to-end (wall + peak
-// MiB) against adaptive's per-request bar (e2e 18.4-23.1s, engine peak 11.97GB).
-// The lever is persistent residency: decode weights + the prefilled KV stay
-// resident, so the 12 decode steps replay one compiled graph.
+// device with NO golden-seeded state — device vision tower -> device merger
+// (image features) -> host embedding splice -> device branch-routed prefill (32
+// chained MoT layers, exporting the per-layer resident K/V) -> terminal (first
+// token) -> device 32-layer decode seeded from the DEVICE prefill K/V -> N-step
+// generation. Verified to reproduce the exact answer and the golden 12-step
+// chain, then measured end-to-end (wall + peak MiB) against adaptive's
+// per-request bar (e2e 18.4-23.1s, engine peak 11.97GB). The lever is
+// persistent residency: decode weights + the prefilled KV stay resident, so the
+// decode steps replay one compiled graph.
+//
+// runFullPipeline is the single owner of the stage orchestration. The
+// -device-full harness (runDeviceFull) drives it with golden pixel_values + a
+// per-step golden verifier; the activated recipe serve (runRecipeServe) drives
+// it with processor-derived pixel_values and a decode-until-EOS budget.
 
 import (
 	"context"
@@ -19,7 +24,6 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
-	"overgo/internal/hfbpe"
 	"overgo/internal/patchtower"
 	"overgo/internal/routedlm"
 	"overgo/internal/tensor"
@@ -27,25 +31,45 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
+// fullOpts: how runFullPipeline drives the decode loop.
+type fullOpts struct {
+	// verify (harness parity): fixed step count = len(DecodeSteps), first token
+	// and every step top asserted against the golden chain.
+	verify *decodeStepsGolden
+	// serve budget: maxSteps caps generation, eosIDs stop it (token excluded).
+	maxSteps int
+	eosIDs   []int
+}
+
+// fullResult: the pipeline outcome the caller decodes + reports.
+type fullResult struct {
+	firstToken   int
+	generated    []int
+	e2eWall      time.Duration
+	decodeWall   time.Duration
+	steps        int
+	baseMiB      int
+	afterLoadMiB int
+	peakMiB      int
+	launches     uint64
+	instantis    uint64
+	updates      uint64
+}
+
 func runDeviceFull(l *ladder) error {
 	ctx := context.Background()
-	baseMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE full START gpu.used=%dMiB free=%dMiB", baseMiB, gpuFreeMiB()))
-
 	pc, err := loadPrefillContext(l)
 	if err != nil {
 		return err
 	}
 	defer pc.src.Close()
-	cfg := pc.cfg
-	H := cfg.HiddenSize
-	hd := cfg.HeadDim
-	kvHeads := cfg.NumKeyValueHeads
-	kvOut := kvHeads * hd
-	vocab := cfg.VocabSize
-	O := pc.spec.OutHidden
 
-	terminal, err := routedlm.LoadTerminalWeights(pc.src, cfg, binding)
+	// golden pixel_values (harness input) + per-step golden verifier.
+	pgv, err := loadGoldenJSON[processorGolden](l.fixturesDir, "rxbrain_vqa_processor_golden.json")
+	if err != nil {
+		return err
+	}
+	pixelValues, err := loadTensorAsset(l.fixturesDir, pgv.PixelValuesAsset, pgv.PixelValues)
 	if err != nil {
 		return err
 	}
@@ -65,131 +89,120 @@ func runDeviceFull(l *ladder) error {
 	}
 	defer exe.Close()
 
+	res, err := runFullPipeline(l, ctx, worker, exe, pc, pixelValues, fullOpts{verify: &dg})
+	if err != nil {
+		return err
+	}
+	if err := requireIntSliceEqual("device full chain", res.generated, dg.GeneratedTokens); err != nil {
+		return err
+	}
+	text, err := decodeChain(l.modelDir, res.generated)
+	if err != nil {
+		return err
+	}
+	const want = "The stovetop holds a metal pot on the left burner"
+	if text != want {
+		return fmt.Errorf("device full decoded text %q != %q", text, want)
+	}
+	l.log(fmt.Sprintf("DEVICE full ANSWER EXACT chain=%v", res.generated))
+	l.log(fmt.Sprintf("DEVICE full TEXT %q", text))
+	l.log(fmt.Sprintf("DEVICE full MEASURE e2e=%s (vision+merger+prefill+decode) decode=%s (%d steps, %.3f ms/token) peak gpu.used=%dMiB (delta=%dMiB) free=%dMiB",
+		res.e2eWall.Round(time.Millisecond), res.decodeWall.Round(time.Millisecond), res.steps, float64(res.decodeWall.Microseconds())/1000.0/float64(res.steps), res.peakMiB, res.peakMiB-res.baseMiB, gpuFreeMiB()))
+	l.log(fmt.Sprintf("DEVICE full REPLAY decode graph_launches=%d graph_instantiations=%d graph_updates=%d over %d steps (single compiled decode graph, per-step runtime attrs only)",
+		res.launches, res.instantis, res.updates, res.steps))
+	l.log(fmt.Sprintf("DEVICE full vs ADAPTIVE bar: adaptive e2e 18.4-23.1s engine peak 11.97GB; overgo e2e=%s peak=%dMiB (golden-seeded KV REPLACED by device prefill)", res.e2eWall.Round(time.Millisecond), res.peakMiB))
+	l.log("DEVICE full LANE GREEN")
+	return nil
+}
+
+// runFullPipeline: the shared device VQA serving pipeline. pc carries the prompt
+// state (from goldens in harness mode, from the processor in serve mode);
+// pixelValues is the preprocessed image. Returns the generated token chain +
+// timing/residency measurements. Logs the per-stage boundaries.
+func runFullPipeline(
+	l *ladder,
+	ctx context.Context,
+	worker *device.Worker,
+	exe *executor.Executor,
+	pc *prefillContext,
+	pixelValues []float32,
+	opts fullOpts,
+) (fullResult, error) {
+	var res fullResult
+	res.baseMiB = gpuUsedMiB()
+	l.log(fmt.Sprintf("DEVICE full START gpu.used=%dMiB free=%dMiB", res.baseMiB, gpuFreeMiB()))
+
+	cfg := pc.cfg
+	H := cfg.HiddenSize
+	hd := cfg.HeadDim
+	kvHeads := cfg.NumKeyValueHeads
+	vocab := cfg.VocabSize
+	O := pc.spec.OutHidden
+
+	terminal, err := routedlm.LoadTerminalWeights(pc.src, cfg, binding)
+	if err != nil {
+		return res, err
+	}
+
 	binder := &prefillWeightBinder{worker: worker, ctx: ctx}
 	e2eStart := time.Now()
 
 	// ================= STAGE 0: DEVICE VISION TOWER -> block_last ============
-	// Host front-end (conv patch embed + interpolated pos-embed) from the image
-	// pixel_values, then the 27 pre-norm blocks on device (adaptive's
-	// host-front-end / device-blocks split). Produces block_last for the merger,
-	// replacing the golden asset so the pipeline runs from the image.
 	nPatch := pc.gridT * pc.gridH * pc.gridW
-	blockLast, err := runFullVision(l, ctx, worker, exe, pc, nPatch)
+	blockLast, err := runFullVision(l, ctx, worker, exe, pc, pixelValues, nPatch)
 	if err != nil {
-		return err
+		return res, err
 	}
 	l.log(fmt.Sprintf("DEVICE full STAGE0 vision tower done nPatch=%d hidden=%d", nPatch, pc.spec.Hidden))
 
 	// ================= STAGE 1: DEVICE MERGER -> image features ==============
-	mg, err := patchtower.BuildDeviceMerger(pc.spec, pc.imageRows, pc.gridT, pc.gridH, pc.gridW)
+	devMerged, err := runFullMerger(ctx, exe, binder, pc, blockLast, nPatch, O)
 	if err != nil {
-		return err
+		return res, err
 	}
-	mgCompiled, err := executor.Compile(mg.Merged)
-	if err != nil {
-		return fmt.Errorf("device full merger compile: %w", err)
-	}
-	mgFeeds := map[*tensor.Tensor]driver.DevicePtr{}
-	if err := firstErr(
-		bindMergerV(binder, mgFeeds, mg.Proj1W, pc.merger.Proj1Weight), bindMergerV(binder, mgFeeds, mg.Proj1B, pc.merger.Proj1Bias),
-		bindMergerV(binder, mgFeeds, mg.Proj2W, pc.merger.Proj2Weight), bindMergerV(binder, mgFeeds, mg.Proj2B, pc.merger.Proj2Bias),
-		bindMergerV(binder, mgFeeds, mg.Pool0W, pc.merger.Pool0Weight), bindMergerV(binder, mgFeeds, mg.Pool0B, pc.merger.Pool0Bias),
-		bindMergerV(binder, mgFeeds, mg.Pool2W, pc.merger.Pool2Weight), bindMergerV(binder, mgFeeds, mg.Pool2B, pc.merger.Pool2Bias),
-	); err != nil {
-		return err
-	}
-	mgHost := map[*tensor.Tensor]reference.Value{
-		mg.BlockLast: {Shape: tensor.MustShape(uint64(pc.spec.Hidden), uint64(nPatch)), Data: blockLast},
-	}
-	mgOut, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, mgCompiled, mgHost, mgFeeds)
-	if err != nil {
-		return fmt.Errorf("device full merger execute: %w", err)
-	}
-	devMerged := append([]float32(nil), mgOut[mg.Merged].Data...) // [imageRows*O] row-major
-	binder.free()
 	l.log(fmt.Sprintf("DEVICE full STAGE1 merger done rows=%d out=%d", pc.imageRows, O))
 
 	// prefill embeds = embedding-table text rows + device merger image rows.
-	fg, err := loadGoldenJSON[prefillGolden](l.fixturesDir, "rxbrain_vqa_prefill_golden.json")
-	if err != nil {
-		return err
-	}
-	prefillEmbeds, err := routedlm.PrefillValues(pc.src, cfg, binding, fg.InputIDs, fg.PrefillTensors.InputImageMaskPositions, pc.imageRows, func(dst []float32, ordinal int) error {
+	prefillEmbeds, err := routedlm.PrefillValues(pc.src, cfg, binding, pc.inputIDs, pc.imageMaskPositions, pc.imageRows, func(dst []float32, ordinal int) error {
 		copy(dst, devMerged[ordinal*O:(ordinal+1)*O])
 		return nil
 	})
 	if err != nil {
-		return err
+		return res, err
 	}
 
 	// ================= STAGE 2: DEVICE PREFILL (chained) + KV export =========
-	pg, err := routedlm.BuildDevicePrefillLayer(cfg, pc.promptLen, pc.blocks)
+	lastRow, seedKeys, seedValues, err := runFullPrefill(ctx, exe, binder, pc, prefillEmbeds)
 	if err != nil {
-		return err
+		return res, err
 	}
-	pgCompiled, err := executor.Compile(pg.Output, pg.KeyKV, pg.ValueKV)
-	if err != nil {
-		return fmt.Errorf("device full prefill compile: %w", err)
-	}
-	rowShape := tensor.MustShape(uint64(H), uint64(pc.promptLen))
-	maskShape := tensor.MustShape(1, uint64(pc.promptLen))
-	seedKeys := make([][]float32, cfg.NumHiddenLayers)
-	seedValues := make([][]float32, cfg.NumHiddenLayers)
-	row := append([]float32(nil), prefillEmbeds...)
-	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-		w, err := routedlm.LoadLayerWeights(pc.src, cfg, binding, layer)
-		if err != nil {
-			return err
-		}
-		feeds := map[*tensor.Tensor]driver.DevicePtr{}
-		if err := bindPrefillBranch(binder, feeds, pg.Text,
-			w.InputNorm.Text, w.QKV.QText, w.QKV.KText, w.QKV.VText, w.QKV.OText,
-			w.QKV.QNorm[0], w.QKV.KNorm[0], w.Output.PostText, w.Output.GateText, w.Output.UpText, w.Output.DownText); err != nil {
-			return err
-		}
-		if err := bindPrefillBranch(binder, feeds, pg.Vision,
-			w.InputNorm.Vision, w.QKV.QVision, w.QKV.KVision, w.QKV.VVision, w.QKV.OVision,
-			w.QKV.QNorm[1], w.QKV.KNorm[1], w.Output.PostVision, w.Output.GateVision, w.Output.UpVision, w.Output.DownVision); err != nil {
-			return err
-		}
-		hostFeeds := map[*tensor.Tensor]reference.Value{
-			pg.Row:      {Shape: rowShape, Data: row},
-			pg.MaskText: {Shape: maskShape, Data: pc.maskText},
-			pg.MaskVis:  {Shape: maskShape, Data: pc.maskVis},
-		}
-		out, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, pgCompiled, hostFeeds, feeds)
-		if err != nil {
-			binder.free()
-			return fmt.Errorf("device full prefill layer %d: %w", layer, err)
-		}
-		row = append([]float32(nil), out[pg.Output].Data...)
-		seedKeys[layer] = append([]float32(nil), out[pg.KeyKV].Data[:pc.promptLen*kvOut]...)
-		seedValues[layer] = append([]float32(nil), out[pg.ValueKV].Data[:pc.promptLen*kvOut]...)
-		binder.free()
-	}
-	lastRow := row[(pc.promptLen-1)*H : pc.promptLen*H]
 	firstToken, firstLogit, err := routedlm.TerminalTopToken(lastRow, cfg, terminal, 0)
 	if err != nil {
-		return err
+		return res, err
 	}
-	if firstToken != dg.FirstToken {
-		return fmt.Errorf("device full prefill terminal top %d != golden first token %d", firstToken, dg.FirstToken)
+	if opts.verify != nil && firstToken != opts.verify.FirstToken {
+		return res, fmt.Errorf("device full prefill terminal top %d != golden first token %d", firstToken, opts.verify.FirstToken)
 	}
-	l.log(fmt.Sprintf("DEVICE full STAGE2 prefill done, terminal first token=%d logit=%.4f (EXACT vs golden) KV exported for %d layers", firstToken, firstLogit, cfg.NumHiddenLayers))
+	res.firstToken = firstToken
+	l.log(fmt.Sprintf("DEVICE full STAGE2 prefill done, terminal first token=%d logit=%.4f KV exported for %d layers", firstToken, firstLogit, cfg.NumHiddenLayers))
 
 	// ================= STAGE 3: DEVICE DECODE seeded from prefill KV =========
 	weights := make([]routedlm.LayerWeights, cfg.NumHiddenLayers)
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
 		if weights[layer], err = routedlm.LoadLayerWeights(pc.src, cfg, binding, layer); err != nil {
-			return err
+			return res, err
 		}
 	}
-	steps := len(dg.DecodeSteps)
-	capacity := uint32(pc.promptLen + steps + 1)
+	// capacity: prompt + the maximum tokens we might generate.
+	genBudget := opts.maxSteps
+	if opts.verify != nil {
+		genBudget = len(opts.verify.DecodeSteps)
+	}
+	capacity := uint32(pc.promptLen + genBudget + 1)
 
 	dgraph, err := routedlm.BuildDeviceDecodeGraph(cfg, capacity)
 	if err != nil {
-		return err
+		return res, err
 	}
 	outputs := []*tensor.Tensor{dgraph.Logits}
 	for layer := range dgraph.Nodes {
@@ -197,10 +210,9 @@ func runDeviceFull(l *ladder) error {
 	}
 	dCompiled, err := executor.Compile(outputs...)
 	if err != nil {
-		return fmt.Errorf("device full decode compile: %w", err)
+		return res, fmt.Errorf("device full decode compile: %w", err)
 	}
 
-	// upload decode text-branch weights (resident) + terminal.
 	deco := &prefillWeightBinder{worker: worker, ctx: ctx}
 	defer deco.free()
 	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{}
@@ -230,21 +242,21 @@ func runDeviceFull(l *ladder) error {
 			bindVec(in.PostNorm, w.Output.PostText),
 			bindMat(in.Gate, w.Output.GateText), bindMat(in.Up, w.Output.UpText), bindMat(in.Down, w.Output.DownText),
 		); err != nil {
-			return fmt.Errorf("device full decode weight upload layer %d: %w", layer, err)
+			return res, fmt.Errorf("device full decode weight upload layer %d: %w", layer, err)
 		}
 	}
 	if err := bindVec(dgraph.FinalNorm, terminal.FinalNorm[0]); err != nil {
-		return err
+		return res, err
 	}
 	if terminal.Head.DType != "BF16" {
-		return fmt.Errorf("device full: head dtype %s, want BF16", terminal.Head.DType)
+		return res, fmt.Errorf("device full: head dtype %s, want BF16", terminal.Head.DType)
 	}
 	headBytes := make([]byte, vocab*H*2)
 	if _, err := terminal.Head.ReadAt(headBytes, 0); err != nil {
-		return fmt.Errorf("device full: head read: %w", err)
+		return res, fmt.Errorf("device full: head read: %w", err)
 	}
 	if p, e := deco.upload(headBytes); e != nil {
-		return e
+		return res, e
 	} else {
 		deviceFeeds[dgraph.Head] = p
 	}
@@ -257,18 +269,18 @@ func runDeviceFull(l *ladder) error {
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
 		kb, e := exe.AllocateDeviceBuffer(ctx, kvBytes)
 		if e != nil {
-			return fmt.Errorf("device full kv key alloc layer %d: %w", layer, e)
+			return res, fmt.Errorf("device full kv key alloc layer %d: %w", layer, e)
 		}
 		vb, e := exe.AllocateDeviceBuffer(ctx, kvBytes)
 		if e != nil {
-			return fmt.Errorf("device full kv value alloc layer %d: %w", layer, e)
+			return res, fmt.Errorf("device full kv value alloc layer %d: %w", layer, e)
 		}
 		kv := devKV{key: kb, value: vb}
 		if kv.keyV, e = kb.Value(kvShape); e != nil {
-			return e
+			return res, e
 		}
 		if kv.valueV, e = vb.Value(kvShape); e != nil {
-			return e
+			return res, e
 		}
 		if e := worker.Do(ctx, func(state *device.State) error {
 			if e := state.Driver.MemcpyHtoD(kv.keyV.Pointer, driver.Bytes(seedKeys[layer])); e != nil {
@@ -276,16 +288,16 @@ func runDeviceFull(l *ladder) error {
 			}
 			return state.Driver.MemcpyHtoD(kv.valueV.Pointer, driver.Bytes(seedValues[layer]))
 		}); e != nil {
-			return fmt.Errorf("device full kv seed layer %d: %w", layer, e)
+			return res, fmt.Errorf("device full kv seed layer %d: %w", layer, e)
 		}
 		caches[layer] = kv
 		deviceFeeds[dgraph.Inputs[layer].PastKey] = kv.keyV.Pointer
 		deviceFeeds[dgraph.Inputs[layer].PastValue] = kv.valueV.Pointer
 		if e := targets.Set(dgraph.Nodes[layer].KeyAppend, kv.keyV); e != nil {
-			return e
+			return res, e
 		}
 		if e := targets.Set(dgraph.Nodes[layer].ValueAppend, kv.valueV); e != nil {
-			return e
+			return res, e
 		}
 	}
 	defer func() {
@@ -298,8 +310,8 @@ func runDeviceFull(l *ladder) error {
 			}
 		}
 	}()
-	afterLoadMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE full residency gpu.used %d->%dMiB (delta=%dMiB) free=%dMiB (decode weights + prefilled KV resident)", baseMiB, afterLoadMiB, afterLoadMiB-baseMiB, gpuFreeMiB()))
+	res.afterLoadMiB = gpuUsedMiB()
+	l.log(fmt.Sprintf("DEVICE full residency gpu.used %d->%dMiB (delta=%dMiB) free=%dMiB (decode weights + prefilled KV resident)", res.baseMiB, res.afterLoadMiB, res.afterLoadMiB-res.baseMiB, gpuFreeMiB()))
 
 	attrs := dCompiled.NewRuntimeAttributes()
 	setStep := func(tokenPos int) error {
@@ -337,77 +349,160 @@ func runDeviceFull(l *ladder) error {
 	}
 	statsBefore, _ := worker.ExecutionStats(ctx)
 
+	eos := map[int]bool{}
+	for _, id := range opts.eosIDs {
+		eos[id] = true
+	}
 	tokenID := firstToken
 	generated := []int{tokenID}
 	decodeStart := time.Now()
-	for step := 0; step < steps; step++ {
+	for step := 0; step < genBudget; step++ {
 		tokenPos := pc.promptLen + step
 		embedding, err := routedlm.EmbeddingRows(pc.src, cfg, binding, []int{tokenID})
 		if err != nil {
-			return err
+			return res, err
 		}
 		if err := setStep(tokenPos); err != nil {
-			return err
+			return res, err
 		}
 		hostFeeds := map[*tensor.Tensor]reference.Value{
 			dgraph.Embedding: {Shape: tensor.MustShape(uint64(H), 1), Data: embedding},
 		}
 		retained, err := exe.ExecuteRetainedCompiledParameterized(ctx, dCompiled, hostFeeds, deviceFeeds, targets, attrs)
 		if err != nil {
-			return fmt.Errorf("device full decode step %d: %w", step, err)
+			return res, fmt.Errorf("device full decode step %d: %w", step, err)
 		}
 		logitsVal, err := retained.CopyToHost(ctx, dgraph.Logits)
 		if err != nil {
-			return err
+			return res, err
 		}
 		_ = retained.Release(ctx)
 		devTop := argmaxF32(logitsVal.Data)
-		if devTop != dg.GeneratedTokens[step+1] {
-			return fmt.Errorf("device full decode step %d top %d != golden %d", step, devTop, dg.GeneratedTokens[step+1])
+		if opts.verify != nil && devTop != opts.verify.GeneratedTokens[step+1] {
+			return res, fmt.Errorf("device full decode step %d top %d != golden %d", step, devTop, opts.verify.GeneratedTokens[step+1])
+		}
+		if opts.verify == nil && eos[devTop] {
+			// EOS reached: stop, do not emit the stop token.
+			break
 		}
 		generated = append(generated, devTop)
 		tokenID = devTop
 	}
-	decodeWall := time.Since(decodeStart)
-	e2eWall := time.Since(e2eStart)
-	if err := requireIntSliceEqual("device full chain", generated, dg.GeneratedTokens); err != nil {
-		return err
-	}
-
-	tok, err := hfbpe.Load(l.modelDir)
-	if err != nil {
-		return err
-	}
-	text := tok.Decode(generated)
-	const want = "The stovetop holds a metal pot on the left burner"
-	if text != want {
-		return fmt.Errorf("device full decoded text %q != %q", text, want)
-	}
-
+	res.decodeWall = time.Since(decodeStart)
+	res.e2eWall = time.Since(e2eStart)
+	res.steps = len(generated) - 1
+	res.generated = generated
+	res.peakMiB = gpuUsedMiB()
 	statsAfter, _ := worker.ExecutionStats(ctx)
-	peakMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE full ANSWER EXACT chain=%v", generated))
-	l.log(fmt.Sprintf("DEVICE full TEXT %q", text))
-	l.log(fmt.Sprintf("DEVICE full MEASURE e2e=%s (vision+merger+prefill+decode) decode=%s (%d steps, %.3f ms/token) peak gpu.used=%dMiB (delta=%dMiB) free=%dMiB",
-		e2eWall.Round(time.Millisecond), decodeWall.Round(time.Millisecond), steps, float64(decodeWall.Microseconds())/1000.0/float64(steps), peakMiB, peakMiB-baseMiB, gpuFreeMiB()))
-	l.log(fmt.Sprintf("DEVICE full REPLAY decode graph_launches=%d graph_instantiations=%d graph_updates=%d over %d steps (single compiled decode graph, per-step runtime attrs only)",
-		statsAfter.GraphLaunches-statsBefore.GraphLaunches, statsAfter.GraphInstantiations-statsBefore.GraphInstantiations, statsAfter.GraphUpdates-statsBefore.GraphUpdates, steps))
-	l.log(fmt.Sprintf("DEVICE full vs ADAPTIVE bar: adaptive e2e 18.4-23.1s engine peak 11.97GB; overgo e2e=%s peak=%dMiB (golden-seeded KV REPLACED by device prefill)", e2eWall.Round(time.Millisecond), peakMiB))
-	l.log("DEVICE full LANE GREEN")
-	return nil
+	res.launches = statsAfter.GraphLaunches - statsBefore.GraphLaunches
+	res.instantis = statsAfter.GraphInstantiations - statsBefore.GraphInstantiations
+	res.updates = statsAfter.GraphUpdates - statsBefore.GraphUpdates
+	return res, nil
 }
 
-// runFullVision: host front-end + device 27-block vision tower from the image
+// runFullMerger: STAGE 1 — device merger from block_last to imageRows*O merged
+// image-feature rows (row-major host copy).
+func runFullMerger(
+	ctx context.Context,
+	exe *executor.Executor,
+	binder *prefillWeightBinder,
+	pc *prefillContext,
+	blockLast []float32,
+	nPatch, O int,
+) ([]float32, error) {
+	mg, err := patchtower.BuildDeviceMerger(pc.spec, pc.imageRows, pc.gridT, pc.gridH, pc.gridW)
+	if err != nil {
+		return nil, err
+	}
+	mgCompiled, err := executor.Compile(mg.Merged)
+	if err != nil {
+		return nil, fmt.Errorf("device full merger compile: %w", err)
+	}
+	mgFeeds := map[*tensor.Tensor]driver.DevicePtr{}
+	if err := firstErr(
+		bindMergerV(binder, mgFeeds, mg.Proj1W, pc.merger.Proj1Weight), bindMergerV(binder, mgFeeds, mg.Proj1B, pc.merger.Proj1Bias),
+		bindMergerV(binder, mgFeeds, mg.Proj2W, pc.merger.Proj2Weight), bindMergerV(binder, mgFeeds, mg.Proj2B, pc.merger.Proj2Bias),
+		bindMergerV(binder, mgFeeds, mg.Pool0W, pc.merger.Pool0Weight), bindMergerV(binder, mgFeeds, mg.Pool0B, pc.merger.Pool0Bias),
+		bindMergerV(binder, mgFeeds, mg.Pool2W, pc.merger.Pool2Weight), bindMergerV(binder, mgFeeds, mg.Pool2B, pc.merger.Pool2Bias),
+	); err != nil {
+		return nil, err
+	}
+	mgHost := map[*tensor.Tensor]reference.Value{
+		mg.BlockLast: {Shape: tensor.MustShape(uint64(pc.spec.Hidden), uint64(nPatch)), Data: blockLast},
+	}
+	mgOut, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, mgCompiled, mgHost, mgFeeds)
+	if err != nil {
+		return nil, fmt.Errorf("device full merger execute: %w", err)
+	}
+	merged := append([]float32(nil), mgOut[mg.Merged].Data...) // [imageRows*O] row-major
+	binder.free()
+	return merged, nil
+}
+
+// runFullPrefill: STAGE 2 — chained branch-routed prefill over all layers,
+// returning the last hidden row (terminal input) and the exported per-layer
+// resident K/V.
+func runFullPrefill(
+	ctx context.Context,
+	exe *executor.Executor,
+	binder *prefillWeightBinder,
+	pc *prefillContext,
+	prefillEmbeds []float32,
+) (lastRow []float32, seedKeys, seedValues [][]float32, err error) {
+	cfg := pc.cfg
+	H := cfg.HiddenSize
+	kvOut := cfg.NumKeyValueHeads * cfg.HeadDim
+	pg, err := routedlm.BuildDevicePrefillLayer(cfg, pc.promptLen, pc.blocks)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	pgCompiled, err := executor.Compile(pg.Output, pg.KeyKV, pg.ValueKV)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("device full prefill compile: %w", err)
+	}
+	rowShape := tensor.MustShape(uint64(H), uint64(pc.promptLen))
+	maskShape := tensor.MustShape(1, uint64(pc.promptLen))
+	seedKeys = make([][]float32, cfg.NumHiddenLayers)
+	seedValues = make([][]float32, cfg.NumHiddenLayers)
+	row := append([]float32(nil), prefillEmbeds...)
+	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
+		w, err := routedlm.LoadLayerWeights(pc.src, cfg, binding, layer)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		feeds := map[*tensor.Tensor]driver.DevicePtr{}
+		if err := bindPrefillBranch(binder, feeds, pg.Text,
+			w.InputNorm.Text, w.QKV.QText, w.QKV.KText, w.QKV.VText, w.QKV.OText,
+			w.QKV.QNorm[0], w.QKV.KNorm[0], w.Output.PostText, w.Output.GateText, w.Output.UpText, w.Output.DownText); err != nil {
+			return nil, nil, nil, err
+		}
+		if err := bindPrefillBranch(binder, feeds, pg.Vision,
+			w.InputNorm.Vision, w.QKV.QVision, w.QKV.KVision, w.QKV.VVision, w.QKV.OVision,
+			w.QKV.QNorm[1], w.QKV.KNorm[1], w.Output.PostVision, w.Output.GateVision, w.Output.UpVision, w.Output.DownVision); err != nil {
+			return nil, nil, nil, err
+		}
+		hostFeeds := map[*tensor.Tensor]reference.Value{
+			pg.Row:      {Shape: rowShape, Data: row},
+			pg.MaskText: {Shape: maskShape, Data: pc.maskText},
+			pg.MaskVis:  {Shape: maskShape, Data: pc.maskVis},
+		}
+		out, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, pgCompiled, hostFeeds, feeds)
+		if err != nil {
+			binder.free()
+			return nil, nil, nil, fmt.Errorf("device full prefill layer %d: %w", layer, err)
+		}
+		row = append([]float32(nil), out[pg.Output].Data...)
+		seedKeys[layer] = append([]float32(nil), out[pg.KeyKV].Data[:pc.promptLen*kvOut]...)
+		seedValues[layer] = append([]float32(nil), out[pg.ValueKV].Data[:pc.promptLen*kvOut]...)
+		binder.free()
+	}
+	lastRow = row[(pc.promptLen-1)*H : pc.promptLen*H]
+	return lastRow, seedKeys, seedValues, nil
+}
+
+// runFullVision: host front-end + device 27-block vision tower from the supplied
 // pixel_values, returning the device block_last [hidden, nPatch] (host copy).
-func runFullVision(l *ladder, ctx context.Context, worker *device.Worker, exe *executor.Executor, pc *prefillContext, nPatch int) ([]float32, error) {
-	pgv, err := loadGoldenJSON[processorGolden](l.fixturesDir, "rxbrain_vqa_processor_golden.json")
-	if err != nil {
-		return nil, err
-	}
-	pixelValues, err := loadTensorAsset(l.fixturesDir, pgv.PixelValuesAsset, pgv.PixelValues)
-	if err != nil {
-		return nil, err
-	}
+func runFullVision(l *ladder, ctx context.Context, worker *device.Worker, exe *executor.Executor, pc *prefillContext, pixelValues []float32, nPatch int) ([]float32, error) {
 	patchWeights, err := patchtower.LoadPatchEmbedWeights(pc.src, pc.spec)
 	if err != nil {
 		return nil, err

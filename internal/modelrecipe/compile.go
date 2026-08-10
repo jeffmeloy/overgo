@@ -33,6 +33,10 @@ const (
 	// ModuleVideoGenerate: text-to-video generation (device denoise session
 	// + CUDA VAE decode); prompt text in, decoded video frames out.
 	ModuleVideoGenerate recipe.ModuleID = "model.video-generate"
+	// ModuleVQAAnswer: vision question-answering (device vision tower ->
+	// merger -> modality-routed prefill -> resident-KV decode); image +
+	// question text in, answer text out.
+	ModuleVQAAnswer recipe.ModuleID = "model.vqa-answer"
 )
 
 var catalog = mustCatalog()
@@ -215,6 +219,36 @@ func VideoGenDefinition(modelID artifact.ID) (recipe.Definition, error) {
 		[]recipe.Output{{
 			Name: "video", Data: recipe.DataVideo,
 			Source: recipe.Endpoint{Node: forward.ID, Port: "video"},
+		}},
+	)
+}
+
+// VQADefinition: single device vqa-answer node bound to the model artifact.
+// The capability package derives every dimension from the artifact's tensor
+// shapes + config, so the definition carries no profile document. Two inputs
+// (image + question) converge on the node; one text answer leaves it. The
+// device pipeline (vision -> merger -> prefill -> decode) is the production
+// serving path — hence PlacementDevice.
+func VQADefinition(modelID artifact.ID) (recipe.Definition, error) {
+	answer := recipe.Node{ID: "vqa", Module: ModuleVQAAnswer, Placement: recipe.PlacementDevice}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskVQA,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
+		[]recipe.Node{answer},
+		nil,
+		[]recipe.Input{
+			{
+				Name: "image", Data: recipe.DataImage,
+				Target: recipe.Endpoint{Node: answer.ID, Port: "image"},
+			},
+			{
+				Name: "question", Data: recipe.DataText,
+				Target: recipe.Endpoint{Node: answer.ID, Port: "question"},
+			},
+		},
+		[]recipe.Output{{
+			Name: "answer", Data: recipe.DataText,
+			Source: recipe.Endpoint{Node: answer.ID, Port: "answer"},
 		}},
 	)
 }
@@ -454,6 +488,15 @@ func mustCatalog() *recipe.Catalog {
 			Placements: []recipe.Placement{recipe.PlacementDevice},
 			Inputs:     []recipe.Port{{Name: "prompt", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
 			Outputs:    []recipe.Port{{Name: "video", Data: recipe.DataVideo, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleVQAAnswer, Tasks: []recipe.Task{recipe.TaskVQA},
+			Placements: []recipe.Placement{recipe.PlacementDevice},
+			Inputs: []recipe.Port{
+				{Name: "image", Data: recipe.DataImage, Cardinality: recipe.CardinalityOne},
+				{Name: "question", Data: recipe.DataText, Cardinality: recipe.CardinalityOne},
+			},
+			Outputs: []recipe.Port{{Name: "answer", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
 		},
 	)
 	if err != nil {

@@ -458,7 +458,7 @@
     {
       "id": "rung14-rxbrain",
       "title": "Hy-Embodied-RxBrain",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "recon-goldens",
@@ -485,14 +485,14 @@
         },
         {
           "id": "recipe-activation",
-          "status": "open",
+          "status": "done",
           "resource": "gpu",
-          "title": "VQA recipe activation + status round-trip; real-image verification per multimodal directive"
+          "title": "VQA recipe activation + status round-trip; real-image verification per multimodal directive -- DONE: generic recipe.TaskVQA + modelrecipe.ModuleVQAAnswer/VQADefinition (capability-package pattern, dims from artifact); recipe caeff... no -- model e686cefa.../recipe 608551da... activated, status round-trip PASS (ABSENT->active). Serve-through-recipe EXACT on REAL image+text (cmd/vqaparity -recipe-serve, gates on active recipe, real processor, decode-to-EOS): golden 13-token prefix bit-exact then full coherent answer to clean EOS, deterministic, ~10.1s e2e. FINDING: owner target string was the 12-step TRUNCATION; real model continues to that exact phrase and completes"
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "title": "ABSENT verdict expected: adaptive has no rxbrain training recipe; record verdict, no invented lane"
+          "status": "done",
+          "title": "ABSENT verdict expected: adaptive has no rxbrain training recipe; record verdict, no invented lane -- ABSENT verdict recorded: adaptive has NO training recipe for modality-transformer (generation/planning are python-oracle-only); no invented lane"
         }
       ]
     },

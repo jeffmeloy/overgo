@@ -48,7 +48,7 @@ func run() error {
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen|vqa)")
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
@@ -75,7 +75,7 @@ func run() error {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
 		switch capability := recipe.Task(*task); capability {
-		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen:
+		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVQA:
 			return activateCapability(repository, path, *reason, capability)
 		}
 		sessionOverride, sessionErr := parseSessionOverride(*sessionFlag)
@@ -111,6 +111,8 @@ func capabilityInventory(task recipe.Task, path string) (modelartifact.Inventory
 		return imageGenInventory(path)
 	case recipe.TaskVideoGen:
 		return videoGenInventory(path)
+	case recipe.TaskVQA:
+		return vqaInventory(path)
 	}
 	return modelartifact.Inventory{}, fmt.Errorf("no capability inventory for task %q", task)
 }
@@ -133,6 +135,21 @@ func videoGenInventory(path string) (modelartifact.Inventory, error) {
 	})
 }
 
+// vqaInventory: the RxBrain VQA artifact is a standard sharded HF safetensors
+// repository — config.json + model.safetensors.index.json + shards, with the
+// tokenizer and preprocessor_config.json as companions (the processor reads
+// them at serve time). Extra vendor sidecars (paper PDF, demo cases, nested
+// vendor tree) are ignored by the companion whitelist. Same walker as forecast
+// and seq2seq; the multimodal wiring lives in the recipe definition, not here.
+func vqaInventory(path string) (modelartifact.Inventory, error) {
+	repo, err := hfrepo.Open(path)
+	if err != nil {
+		return modelartifact.Inventory{}, err
+	}
+	defer repo.Close()
+	return modelartifact.FromHFRepository(repo)
+}
+
 // capabilityDefinition: per-task single-node host definition constructor.
 func capabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
 	switch task {
@@ -148,6 +165,8 @@ func capabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 		return modelrecipe.ImageGenDefinition(modelID)
 	case recipe.TaskVideoGen:
 		return modelrecipe.VideoGenDefinition(modelID)
+	case recipe.TaskVQA:
+		return modelrecipe.VQADefinition(modelID)
 	}
 	return recipe.Definition{}, fmt.Errorf("no capability definition for task %q", task)
 }
@@ -458,7 +477,7 @@ func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
 	switch task {
-	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen:
+	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVQA:
 		var err error
 		inventory, err = capabilityInventory(task, path)
 		if err != nil {

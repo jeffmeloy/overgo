@@ -46,6 +46,11 @@ const (
 	// in, decoded video frames out). Distinct from TaskImageGen: the
 	// contract carries a text-conditioning stage and temporal decode.
 	TaskVideoGen Task = "video-gen"
+	// TaskVQA: vision question-answering (ladder rung 14; image + question
+	// text in, answer text out). The multimodal serving contract — a vision
+	// tower + modality-routed (MoT) decoder — distinct from token inference
+	// (no GGUF, dual-modality prefill) and from image-gen (text out, not image).
+	TaskVQA Task = "vqa"
 )
 
 type Placement string
@@ -226,7 +231,7 @@ func validName(value string) bool {
 
 func validateTask(task Task) error {
 	switch task {
-	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskImageGen, TaskVideoGen:
+	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskImageGen, TaskVideoGen, TaskVQA:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid task %q", task)

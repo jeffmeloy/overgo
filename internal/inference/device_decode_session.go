@@ -151,9 +151,19 @@ func decodeGraphOutputs(graph deviceBatchGraph, output deviceOutputPlan) []*tens
 		first = graph.candidates
 	}
 	result := []*tensor.Tensor{first}
+	// SharedKV layers alias the source layer's K/V nodes; a compiled graph
+	// admits each output once, so aliased tensors are collected once.
+	seen := map[*tensor.Tensor]struct{}{first: {}}
 	for layer := range graph.keys {
-		result = append(result, graph.keys[layer], graph.values[layer])
-		result = graph.states[layer].AppendValues(result)
+		for _, node := range graph.states[layer].AppendValues(
+			[]*tensor.Tensor{graph.keys[layer], graph.values[layer]},
+		) {
+			if _, duplicate := seen[node]; duplicate {
+				continue
+			}
+			seen[node] = struct{}{}
+			result = append(result, node)
+		}
 	}
 	return result
 }

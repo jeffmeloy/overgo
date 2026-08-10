@@ -307,6 +307,20 @@ func activate(repository, path, reason string) error {
 	if err != nil {
 		return err
 	}
+	// session derived from the compiled plan: capacity requires every token
+	// cache to admit bounded append; SharedKV models compile only as request.
+	weights, err := model.ReadWeights(file, spec)
+	if err != nil {
+		return err
+	}
+	modelPlan, err := model.CompileModelPlan(spec, weights)
+	if err != nil {
+		return err
+	}
+	session := modelrecipe.DecodeSessionCapacity
+	if !modelPlan.SupportsCapacityCache() {
+		session = modelrecipe.DecodeSessionRequest
+	}
 	store, err := repodb.Open(repository)
 	if err != nil {
 		return err
@@ -320,31 +334,56 @@ func activate(repository, path, reason string) error {
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		modelID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
-		modelrecipe.DecodeSessionCapacity,
+		session,
 	)
 	if err != nil {
 		return err
 	}
-	if _, _, err := modelrecipe.PublishCandidate(
-		ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
-	); err != nil {
-		return fmt.Errorf("publish candidate: %w", err)
-	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "recipe/validated/"+definition.ID.String(), definition,
-		recipe.StatusValidated, nil, nil,
-	); err != nil {
-		return fmt.Errorf("transition validated: %w", err)
-	}
-	evidenceID, err := activationEvidence(ctx, store, definition, reason)
+	// resumable lifecycle: pick up from wherever this definition already is
+	state, published, err := modelrecipe.Status(ctx, store, definition.ID)
 	if err != nil {
 		return err
 	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "recipe/active/"+definition.ID.String(), definition,
-		recipe.StatusActive, []artifact.ID{evidenceID}, nil,
-	); err != nil {
-		return fmt.Errorf("transition active: %w", err)
+	if !published {
+		if _, _, err := modelrecipe.PublishCandidate(
+			ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
+		); err != nil {
+			return fmt.Errorf("publish candidate: %w", err)
+		}
+		state = recipe.StatusCandidate
+	}
+	if state == recipe.StatusCandidate {
+		if _, _, err := modelrecipe.Transition(
+			ctx, store, "recipe/validated/"+definition.ID.String(), definition,
+			recipe.StatusValidated, nil, nil,
+		); err != nil {
+			return fmt.Errorf("transition validated: %w", err)
+		}
+		state = recipe.StatusValidated
+	}
+	switch state {
+	case recipe.StatusValidated:
+		evidenceID, err := activationEvidence(ctx, store, definition, reason)
+		if err != nil {
+			return err
+		}
+		// activation supersedes any current active recipe for this model+task
+		var supersedes *artifact.ID
+		if current, active, err := modelrecipe.ActiveRecord(
+			ctx, store, modelID, recipe.TaskInference,
+		); err == nil && active && current.Definition.ID != definition.ID {
+			id := current.Definition.ID
+			supersedes = &id
+		}
+		if _, _, err := modelrecipe.Transition(
+			ctx, store, "recipe/active/"+definition.ID.String(), definition,
+			recipe.StatusActive, []artifact.ID{evidenceID}, supersedes,
+		); err != nil {
+			return fmt.Errorf("transition active: %w", err)
+		}
+	case recipe.StatusActive:
+	default:
+		return fmt.Errorf("recipe %s is %q; activation resumes only from candidate or validated", definition.ID, state)
 	}
 	fmt.Printf("activated %s\n  model      %s\n  definition %s\n  recipe     %s\n  reason     %s\n",
 		path, modelID, resolved.Document.ID, definition.ID, reason)

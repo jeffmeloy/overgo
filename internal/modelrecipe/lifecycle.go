@@ -290,6 +290,18 @@ func activeBoundProfile(
 	return document, true, nil
 }
 
+// Status: current lifecycle state of a recipe; published=false when never seen.
+func Status(ctx context.Context, store artifact.Reader, recipeID artifact.ID) (recipe.Status, bool, error) {
+	if _, ok, err := artifact.ResolveAlias(ctx, store, statusAlias(recipeID)); err != nil || !ok {
+		return "", false, err
+	}
+	event, err := currentEvent(ctx, store, recipeID)
+	if err != nil {
+		return "", false, err
+	}
+	return event.To, true, nil
+}
+
 func currentEvent(ctx context.Context, store artifact.Reader, recipeID artifact.ID) (recipe.LifecycleEvent, error) {
 	eventID, ok, err := artifact.ResolveAlias(ctx, store, statusAlias(recipeID))
 	if err != nil {

@@ -437,8 +437,8 @@
         },
         {
           "id": "recipe-activation",
-          "status": "open",
-          "title": "GGUF inference activation",
+          "status": "done",
+          "title": "GGUF inference activation -- DONE: E4B serves RESIDENT via derived hybrid residency; 3-case fixture LIVE deterministic; 41.2s load, ~81.6 ms/token, peak 48616 MiB (F32-of-BF16 double residency = named memory lever); 2 generic fixes: session policy derived from model plan (call-site magic killed), SharedKV decode dedupe + cache aliasing",
           "resource": "gpu"
         },
         {

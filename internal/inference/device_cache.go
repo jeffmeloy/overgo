@@ -988,6 +988,12 @@ func (r *Runner) assembleDeviceBatchCaches(
 		}
 		var ok bool
 		for layer := range graph.keys {
+			// SharedKV layers alias the source layer's cache, as on the host path
+			if layerPlan := r.layerPlan(layer); layerPlan.SharedKV {
+				cache.Keys[layer] = cache.Keys[layerPlan.KVSource]
+				cache.Values[layer] = cache.Values[layerPlan.KVSource]
+				continue
+			}
 			cache.Keys[layer], ok = retained.Value(graph.keys[layer])
 			if !ok {
 				return fail(fmt.Errorf("inference: missing retained key for branch %d layer %d", index, layer))
@@ -1045,6 +1051,10 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 			r.spec.ContextLength,
 		))
 		for layer := range graph.keys {
+			// SharedKV layers read the source layer's cache in-graph and own no storage
+			if r.layerPlan(layer).SharedKV {
+				continue
+			}
 			_, schema, err := r.cacheSchema(layer, graph.pastTokens+graph.tokenCount)
 			if err != nil {
 				return nil, err

@@ -57,6 +57,10 @@ func dissimilarityMatrix(vectors [][]float32, metric dissimilarityMetric) [][]fl
 // rank-transformed per vector (fractional ranks for ties), then compared by
 // Pearson correlation of the rank vectors. Because only the coordinate *ordering*
 // is used, any monotone per-coordinate transform leaves every distance unchanged.
+//
+// Cost: O(N·D·logD) for the per-vector rank sorts plus O(N²·D) for the pairwise
+// correlations. N is bounded by analyzeStatesMaxPositions, so this is cheap; if
+// that cap is raised the rank sort's D·logD term is what grows per vector.
 func spearmanDistanceMatrix(vectors [][]float32) [][]float64 {
 	n := len(vectors)
 	ranks := make([][]float64, n)

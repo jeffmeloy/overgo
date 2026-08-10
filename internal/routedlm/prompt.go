@@ -63,6 +63,14 @@ func segmentRange(segments [][2]int, tokenPos, limit int) (int, int) {
 	return start, end
 }
 
+// branchIndex: weight-set index for a modality route (0 = text, 1 = vision).
+func branchIndex(route int) int {
+	if route != 0 {
+		return 1
+	}
+	return 0
+}
+
 // branchRows: token indexes per branch (0 = text, nonzero = vision).
 func branchRows(mask []int) (zero, nonZero []int) {
 	for row, route := range mask {
@@ -151,17 +159,18 @@ func PromptLayerForward(hidden []float32, mask []int, cfg Config, w LayerWeights
 	s.QHeads = append([]float32(nil), s.QProj...)
 	s.KHeads = append([]float32(nil), s.KProj...)
 	for token := 0; token < tokens; token++ {
+		branch := branchIndex(mask[token])
 		for head := 0; head < cfg.NumAttentionHeads; head++ {
 			row := s.QHeads[token*qOut+head*hd : token*qOut+(head+1)*hd]
 			applyRotaryHalfBF16(row, ropeInv, token)
 			bf16RoundSlice(row)
-			rmsNormRounded(row, row, w.QKV.QNorm, 1, hd, cfg.RMSNormEps)
+			rmsNormRounded(row, row, w.QKV.QNorm[branch], 1, hd, cfg.RMSNormEps)
 		}
 		for head := 0; head < cfg.NumKeyValueHeads; head++ {
 			row := s.KHeads[token*kvOut+head*hd : token*kvOut+(head+1)*hd]
 			applyRotaryHalfBF16(row, ropeInv, token)
 			bf16RoundSlice(row)
-			rmsNormRounded(row, row, w.QKV.KNorm, 1, hd, cfg.RMSNormEps)
+			rmsNormRounded(row, row, w.QKV.KNorm[branch], 1, hd, cfg.RMSNormEps)
 		}
 	}
 	// Segment-windowed attention.
@@ -298,7 +307,7 @@ func PromptResidentKV(hidden []float32, mask []int, cfg Config, w LayerWeights) 
 	}
 	zero, nonZero := branchRows(mask)
 	normRow := make([]float32, d)
-	for _, group := range []struct {
+	for branch, group := range []struct {
 		rows       []int
 		normWeight []float32
 		k, v       BF16Matrix
@@ -316,7 +325,7 @@ func PromptResidentKV(hidden []float32, mask []int, cfg Config, w LayerWeights) 
 				headRow := kRow[head*hd : (head+1)*hd]
 				applyRotaryHalfBF16(headRow, ropeInv, token)
 				bf16RoundSlice(headRow)
-				rmsNormRounded(headRow, headRow, w.QKV.KNorm, 1, hd, cfg.RMSNormEps)
+				rmsNormRounded(headRow, headRow, w.QKV.KNorm[branch], 1, hd, cfg.RMSNormEps)
 			}
 		}
 	}

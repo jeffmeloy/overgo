@@ -9,24 +9,18 @@ import (
 	"overgo/internal/safetensors"
 )
 
-// Checkpoint tensor names.
-const (
-	EmbedTokensName = "model.language_model.model.embed_tokens.weight"
-	FinalNormName   = "model.language_model.model.norm.weight"
-	LMHeadName      = "model.language_model.lm_head.weight"
-	layerPrefixFmt  = "model.language_model.model.layers.%d."
-)
-
 // InputNormWeights: per-branch pre-attention RMSNorm scales.
 type InputNormWeights struct {
 	Text, Vision []float32
 }
 
-// QKVWeights: per-branch attention projections + shared per-head QK norms.
+// QKVWeights: per-branch attention projections + per-branch per-head QK norm
+// scales (binding sections concatenated to head_dim; a shared unforked
+// section yields identical branch entries).
 type QKVWeights struct {
 	QText, KText, VText, OText         BF16Matrix
 	QVision, KVision, VVision, OVision BF16Matrix
-	QNorm, KNorm                       []float32
+	QNorm, KNorm                       [2][]float32
 }
 
 // OutputWeights: per-branch post-attention norm + SiLU MLP.
@@ -87,49 +81,88 @@ func materializeVectorF32(src *safetensors.Source, name string, dim int) ([]floa
 	return out, nil
 }
 
-// LoadLayerWeights: one layer's dual-branch weight sets (matrices stay bf16).
-func LoadLayerWeights(src *safetensors.Source, cfg Config, layer int) (LayerWeights, error) {
+// materializeNormSectionsF32: 1-D norm sections concatenated in order;
+// per-section lengths come from tensor shapes and must sum to total.
+func materializeNormSectionsF32(src *safetensors.Source, names []string, total int) ([]float32, error) {
+	out := make([]float32, 0, total)
+	for _, name := range names {
+		t, ok := src.Tensors[name]
+		if !ok {
+			return nil, fmt.Errorf("routed lm: missing tensor %s", name)
+		}
+		if len(t.Shape) != 1 || t.Shape[0] <= 0 {
+			return nil, fmt.Errorf("routed lm: norm section %s shape %v, want 1-D", name, t.Shape)
+		}
+		section, err := materializeVectorF32(src, name, int(t.Shape[0]))
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, section...)
+	}
+	if len(out) != total {
+		return nil, fmt.Errorf("routed lm: norm sections %v elements %d != %d", names, len(out), total)
+	}
+	return out, nil
+}
+
+// LoadLayerWeights: one layer's dual-branch weight sets (matrices stay bf16);
+// names resolved through the branch binding.
+func LoadLayerWeights(src *safetensors.Source, cfg Config, b BranchBinding, layer int) (LayerWeights, error) {
+	if err := b.validate(); err != nil {
+		return LayerWeights{}, err
+	}
 	if layer < 0 || layer >= cfg.NumHiddenLayers {
 		return LayerWeights{}, fmt.Errorf("routed lm layer: layer=%d outside [0,%d)", layer, cfg.NumHiddenLayers)
 	}
-	prefix := fmt.Sprintf(layerPrefixFmt, layer)
 	h, f := cfg.HiddenSize, cfg.IntermediateSize
 	qOut := cfg.NumAttentionHeads * cfg.HeadDim
 	kvOut := cfg.NumKeyValueHeads * cfg.HeadDim
 	var w LayerWeights
 	var err error
-	mat := func(dst *BF16Matrix, name string, in, out int) {
+	mat := func(dst *BF16Matrix, branch int, suffix string, in, out int) {
 		if err != nil {
 			return
 		}
-		*dst, err = materializeBF16(src, prefix+name, in, out)
+		*dst, err = materializeBF16(src, b.LayerTensorName(layer, branch, suffix), in, out)
 	}
-	vec := func(dst *[]float32, name string, dim int) {
+	vec := func(dst *[]float32, branch int, suffix string, dim int) {
 		if err != nil {
 			return
 		}
-		*dst, err = materializeVectorF32(src, prefix+name, dim)
+		*dst, err = materializeVectorF32(src, b.LayerTensorName(layer, branch, suffix), dim)
 	}
-	vec(&w.InputNorm.Text, "input_layernorm.weight", h)
-	vec(&w.InputNorm.Vision, "input_layernorm_v.weight", h)
-	mat(&w.QKV.QText, "self_attn.q_proj.weight", h, qOut)
-	mat(&w.QKV.KText, "self_attn.k_proj.weight", h, kvOut)
-	mat(&w.QKV.VText, "self_attn.v_proj.weight", h, kvOut)
-	mat(&w.QKV.OText, "self_attn.o_proj.weight", qOut, h)
-	mat(&w.QKV.QVision, "self_attn.q_proj_v.weight", h, qOut)
-	mat(&w.QKV.KVision, "self_attn.k_proj_v.weight", h, kvOut)
-	mat(&w.QKV.VVision, "self_attn.v_proj_v.weight", h, kvOut)
-	mat(&w.QKV.OVision, "self_attn.o_proj_v.weight", qOut, h)
-	vec(&w.QKV.QNorm, "self_attn.query_layernorm.weight", cfg.HeadDim)
-	vec(&w.QKV.KNorm, "self_attn.key_layernorm.weight", cfg.HeadDim)
-	vec(&w.Output.PostText, "post_attention_layernorm.weight", h)
-	vec(&w.Output.PostVision, "post_attention_layernorm_v.weight", h)
-	mat(&w.Output.GateText, "mlp.gate_proj.weight", h, f)
-	mat(&w.Output.UpText, "mlp.up_proj.weight", h, f)
-	mat(&w.Output.DownText, "mlp.down_proj.weight", f, h)
-	mat(&w.Output.GateVision, "mlp_v.gate_proj.weight", h, f)
-	mat(&w.Output.UpVision, "mlp_v.up_proj.weight", h, f)
-	mat(&w.Output.DownVision, "mlp_v.down_proj.weight", f, h)
+	sections := func(dst *[]float32, branch int, suffixes []string) {
+		if err != nil {
+			return
+		}
+		names := make([]string, len(suffixes))
+		for i, suffix := range suffixes {
+			names[i] = b.LayerTensorName(layer, branch, suffix)
+		}
+		*dst, err = materializeNormSectionsF32(src, names, cfg.HeadDim)
+	}
+	vec(&w.InputNorm.Text, 0, "input_layernorm.weight", h)
+	vec(&w.InputNorm.Vision, 1, "input_layernorm.weight", h)
+	mat(&w.QKV.QText, 0, "self_attn.q_proj.weight", h, qOut)
+	mat(&w.QKV.KText, 0, "self_attn.k_proj.weight", h, kvOut)
+	mat(&w.QKV.VText, 0, "self_attn.v_proj.weight", h, kvOut)
+	mat(&w.QKV.OText, 0, "self_attn.o_proj.weight", qOut, h)
+	mat(&w.QKV.QVision, 1, "self_attn.q_proj.weight", h, qOut)
+	mat(&w.QKV.KVision, 1, "self_attn.k_proj.weight", h, kvOut)
+	mat(&w.QKV.VVision, 1, "self_attn.v_proj.weight", h, kvOut)
+	mat(&w.QKV.OVision, 1, "self_attn.o_proj.weight", qOut, h)
+	for branch := 0; branch < 2; branch++ {
+		sections(&w.QKV.QNorm[branch], branch, b.QNormSections)
+		sections(&w.QKV.KNorm[branch], branch, b.KNormSections)
+	}
+	vec(&w.Output.PostText, 0, "post_attention_layernorm.weight", h)
+	vec(&w.Output.PostVision, 1, "post_attention_layernorm.weight", h)
+	mat(&w.Output.GateText, 0, "mlp.gate_proj.weight", h, f)
+	mat(&w.Output.UpText, 0, "mlp.up_proj.weight", h, f)
+	mat(&w.Output.DownText, 0, "mlp.down_proj.weight", f, h)
+	mat(&w.Output.GateVision, 1, "mlp.gate_proj.weight", h, f)
+	mat(&w.Output.UpVision, 1, "mlp.up_proj.weight", h, f)
+	mat(&w.Output.DownVision, 1, "mlp.down_proj.weight", f, h)
 	if err != nil {
 		return LayerWeights{}, fmt.Errorf("routed lm layer %d: %w", layer, err)
 	}
@@ -175,10 +208,10 @@ func ReadTensorRowsF32(t safetensors.Tensor, rowWidth int, rows []int) ([]float3
 }
 
 // EmbeddingRows: token embedding rows by id.
-func EmbeddingRows(src *safetensors.Source, cfg Config, tokenIDs []int) ([]float32, error) {
-	t, ok := src.Tensors[EmbedTokensName]
+func EmbeddingRows(src *safetensors.Source, cfg Config, b BranchBinding, tokenIDs []int) ([]float32, error) {
+	t, ok := src.Tensors[b.EmbedName]
 	if !ok {
-		return nil, fmt.Errorf("routed lm embed: missing %s", EmbedTokensName)
+		return nil, fmt.Errorf("routed lm embed: missing %s", b.EmbedName)
 	}
 	if len(t.Shape) != 2 || int(t.Shape[0]) != cfg.VocabSize || int(t.Shape[1]) != cfg.HiddenSize {
 		return nil, fmt.Errorf("routed lm embed shape %v, want [%d,%d]", t.Shape, cfg.VocabSize, cfg.HiddenSize)
@@ -186,27 +219,41 @@ func EmbeddingRows(src *safetensors.Source, cfg Config, tokenIDs []int) ([]float
 	return ReadTensorRowsF32(t, cfg.HiddenSize, tokenIDs)
 }
 
-// TerminalWeights: final norm (f32) + the head tensor handle (streamed).
+// TerminalWeights: per-branch final norms (f32; equal binding names load the
+// same scales) + the head tensor handle (streamed).
 type TerminalWeights struct {
-	FinalNorm []float32
+	FinalNorm [2][]float32
 	Head      safetensors.Tensor
 }
 
-// LoadTerminalWeights: final norm + head (lm_head, else tied embeddings).
-func LoadTerminalWeights(src *safetensors.Source, cfg Config) (TerminalWeights, error) {
-	norm, err := materializeVectorF32(src, FinalNormName, cfg.HiddenSize)
-	if err != nil {
+// LoadTerminalWeights: per-branch final norms + head (lm_head, else tied
+// embeddings).
+func LoadTerminalWeights(src *safetensors.Source, cfg Config, b BranchBinding) (TerminalWeights, error) {
+	if err := b.validate(); err != nil {
 		return TerminalWeights{}, err
 	}
-	head, ok := src.Tensors[LMHeadName]
+	var out TerminalWeights
+	for branch, name := range b.FinalNormName {
+		if branch > 0 && name == b.FinalNormName[0] {
+			out.FinalNorm[branch] = out.FinalNorm[0]
+			continue
+		}
+		norm, err := materializeVectorF32(src, name, cfg.HiddenSize)
+		if err != nil {
+			return TerminalWeights{}, err
+		}
+		out.FinalNorm[branch] = norm
+	}
+	head, ok := src.Tensors[b.LMHeadName]
 	if !ok {
-		head, ok = src.Tensors[EmbedTokensName]
+		head, ok = src.Tensors[b.EmbedName]
 	}
 	if !ok {
-		return TerminalWeights{}, fmt.Errorf("routed lm terminal: missing %s or %s", LMHeadName, EmbedTokensName)
+		return TerminalWeights{}, fmt.Errorf("routed lm terminal: missing %s or %s", b.LMHeadName, b.EmbedName)
 	}
 	if len(head.Shape) != 2 || int(head.Shape[0]) != cfg.VocabSize || int(head.Shape[1]) != cfg.HiddenSize {
 		return TerminalWeights{}, fmt.Errorf("routed lm terminal head shape %v, want [%d,%d]", head.Shape, cfg.VocabSize, cfg.HiddenSize)
 	}
-	return TerminalWeights{FinalNorm: norm, Head: head}, nil
+	out.Head = head
+	return out, nil
 }

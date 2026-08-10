@@ -13,7 +13,7 @@ import (
 // PrefillValues: prompt input embeddings — token rows from the embedding
 // table with image-mask positions replaced by projected image-feature rows
 // (imageRow fills dst with the merged row for ordinal i).
-func PrefillValues(src *safetensors.Source, cfg Config, inputIDs, imageMaskPositions []int, imageRows int, imageRow func(dst []float32, ordinal int) error) ([]float32, error) {
+func PrefillValues(src *safetensors.Source, cfg Config, b BranchBinding, inputIDs, imageMaskPositions []int, imageRows int, imageRow func(dst []float32, ordinal int) error) ([]float32, error) {
 	if len(inputIDs) == 0 {
 		return nil, fmt.Errorf("routed lm prefill: empty input ids")
 	}
@@ -44,7 +44,7 @@ func PrefillValues(src *safetensors.Source, cfg Config, inputIDs, imageMaskPosit
 			tokenIDs = append(tokenIDs, id)
 		}
 	}
-	loadedRows, err := EmbeddingRows(src, cfg, tokenIDs)
+	loadedRows, err := EmbeddingRows(src, cfg, b, tokenIDs)
 	if err != nil {
 		return nil, err
 	}

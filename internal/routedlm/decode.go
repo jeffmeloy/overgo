@@ -33,6 +33,7 @@ func DecodeRow(tokenRow []float32, decodeMask []int, segments [][2]int, resident
 	}
 	ropeInv := hostmath.RopeInvFreq(base, cfg.HeadDim)
 	modality := decodeMask[tokenPos]
+	branch := branchIndex(modality)
 	normWeight := w.InputNorm.Text
 	qW, kW, vW, oW := w.QKV.QText, w.QKV.KText, w.QKV.VText, w.QKV.OText
 	postW, gateW, upW, downW := w.Output.PostText, w.Output.GateText, w.Output.UpText, w.Output.DownText
@@ -57,13 +58,13 @@ func DecodeRow(tokenRow []float32, decodeMask []int, segments [][2]int, resident
 		row := q[head*hd : (head+1)*hd]
 		applyRotaryHalfBF16(row, ropeInv, tokenPos)
 		bf16RoundSlice(row)
-		rmsNormRounded(row, row, w.QKV.QNorm, 1, hd, cfg.RMSNormEps)
+		rmsNormRounded(row, row, w.QKV.QNorm[branch], 1, hd, cfg.RMSNormEps)
 	}
 	for head := 0; head < cfg.NumKeyValueHeads; head++ {
 		row := k[head*hd : (head+1)*hd]
 		applyRotaryHalfBF16(row, ropeInv, tokenPos)
 		bf16RoundSlice(row)
-		rmsNormRounded(row, row, w.QKV.KNorm, 1, hd, cfg.RMSNormEps)
+		rmsNormRounded(row, row, w.QKV.KNorm[branch], 1, hd, cfg.RMSNormEps)
 	}
 	resident.Keys = append(resident.Keys, k...)
 	resident.Values = append(resident.Values, v...)

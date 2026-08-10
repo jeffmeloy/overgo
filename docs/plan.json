@@ -508,9 +508,9 @@
         },
         {
           "id": "routedlm-generalize",
-          "status": "open",
+          "status": "done",
           "resource": "cpu",
-          "title": "lift branch binding into a contract: {suffix, fork_paths, module-level placement} config (rxbrain _v becomes config too), per-branch section-valued QK norms, per-branch final norm, section-addressed config reader (llm_config); REGRESSION GATE: rxbrain ladder stays 44/44"
+          "title": "lift branch binding into a contract: {suffix, fork_paths, module-level placement} config (rxbrain _v becomes config too), per-branch section-valued QK norms, per-branch final norm, section-addressed config reader (llm_config); REGRESSION GATE: rxbrain ladder stays 44/44 -- DONE: BranchBinding contract (LayerPrefix/Suffix/ForkPaths/module-placement rule ported verbatim from models.go:2619, per-branch section-valued QK norms, per-branch final norm, ConfigSection reader); RxBrainBinding + SenseNovaBinding instances; rxbrain ladder 44/44 bit-identical; 23-case naming table verified vs real SenseNova index"
         },
         {
           "id": "multiaxis-rope-positions",

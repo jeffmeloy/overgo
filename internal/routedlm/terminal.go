@@ -11,27 +11,32 @@ import (
 // terminalScratchBytes: streamed head chunk size (row-multiple enforced).
 const terminalScratchBytes = 8 << 20
 
-// TerminalFinalHidden: rmsnorm(layerOutput) * finalNorm — NOT bf16-rounded
-// (reference terminal contract).
-func TerminalFinalHidden(layerOutput []float32, cfg Config, terminal TerminalWeights) ([]float32, int, error) {
+// TerminalFinalHidden: rmsnorm(layerOutput) * the branch's final norm — NOT
+// bf16-rounded (reference terminal contract). branch selects the final-norm
+// weight set (0 = text; shared bindings alias both entries).
+func TerminalFinalHidden(layerOutput []float32, cfg Config, terminal TerminalWeights, branch int) ([]float32, int, error) {
 	d := cfg.HiddenSize
 	if len(layerOutput) == 0 || len(layerOutput)%d != 0 {
 		return nil, 0, fmt.Errorf("routed lm terminal: layer output len=%d not divisible by hidden %d", len(layerOutput), d)
 	}
-	if len(terminal.FinalNorm) != d {
-		return nil, 0, fmt.Errorf("routed lm terminal: final norm len=%d, want %d", len(terminal.FinalNorm), d)
+	if branch < 0 || branch >= len(terminal.FinalNorm) {
+		return nil, 0, fmt.Errorf("routed lm terminal: branch=%d outside [0,%d)", branch, len(terminal.FinalNorm))
+	}
+	norm := terminal.FinalNorm[branch]
+	if len(norm) != d {
+		return nil, 0, fmt.Errorf("routed lm terminal: final norm len=%d, want %d", len(norm), d)
 	}
 	rows := len(layerOutput) / d
 	finalHidden := make([]float32, len(layerOutput))
-	hostmath.RMSNormInto(finalHidden, layerOutput, terminal.FinalNorm, rows, d, cfg.RMSNormEps)
+	hostmath.RMSNormInto(finalHidden, layerOutput, norm, rows, d, cfg.RMSNormEps)
 	return finalHidden, rows, nil
 }
 
 // TerminalTopToken: streamed argmax over the head rows against the LAST
 // final-hidden row; the 0.5GB head is never materialized. Ties keep the
 // lowest id.
-func TerminalTopToken(layerOutput []float32, cfg Config, terminal TerminalWeights) (int, float32, error) {
-	finalHidden, rows, err := TerminalFinalHidden(layerOutput, cfg, terminal)
+func TerminalTopToken(layerOutput []float32, cfg Config, terminal TerminalWeights, branch int) (int, float32, error) {
+	finalHidden, rows, err := TerminalFinalHidden(layerOutput, cfg, terminal, branch)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -86,8 +91,8 @@ func streamedArgmaxDot(terminal TerminalWeights, cfg Config, vector []float32) (
 }
 
 // TerminalProbeValues: final-hidden probes + logits for selected head rows.
-func TerminalProbeValues(layerOutput []float32, cfg Config, terminal TerminalWeights, hiddenIndices, headRows []int) ([]float32, []float32, error) {
-	finalHidden, rows, err := TerminalFinalHidden(layerOutput, cfg, terminal)
+func TerminalProbeValues(layerOutput []float32, cfg Config, terminal TerminalWeights, branch int, hiddenIndices, headRows []int) ([]float32, []float32, error) {
+	finalHidden, rows, err := TerminalFinalHidden(layerOutput, cfg, terminal, branch)
 	if err != nil {
 		return nil, nil, err
 	}

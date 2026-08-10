@@ -34,10 +34,27 @@ type Config struct {
 	RopeScaling           map[string]any `json:"rope_scaling"`
 }
 
-func LoadConfig(modelDir string) (Config, error) {
+// LoadConfig: LM fields from config.json, descending the binding's config
+// section path (nil = flat top-level fields).
+func LoadConfig(modelDir string, b BranchBinding) (Config, error) {
 	raw, err := os.ReadFile(filepath.Join(modelDir, "config.json"))
 	if err != nil {
 		return Config{}, err
+	}
+	return parseConfig(raw, b.ConfigSection)
+}
+
+func parseConfig(raw []byte, sectionPath []string) (Config, error) {
+	for _, section := range sectionPath {
+		var node map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &node); err != nil {
+			return Config{}, fmt.Errorf("routed lm config: %w", err)
+		}
+		sub, ok := node[section]
+		if !ok {
+			return Config{}, fmt.Errorf("routed lm config: missing section %s", section)
+		}
+		raw = sub
 	}
 	var cfg Config
 	if err := json.Unmarshal(raw, &cfg); err != nil {

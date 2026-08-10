@@ -19,6 +19,9 @@ import (
 	"overgo/internal/safetensors"
 )
 
+// binding: RxBrain's `_v` branch naming contract.
+var binding = routedlm.RxBrainBinding()
+
 // Role literals of this checkpoint's prompt specials; sourced from its
 // tokenizer_config.json added_tokens_decoder role assignments (the reference
 // repodb profile facts, derivation tokenizer-special-token-role/v1).
@@ -138,7 +141,7 @@ func run(l *ladder, fromStage, toStage string) error {
 	if err != nil {
 		return err
 	}
-	cfg, err := routedlm.LoadConfig(l.modelDir)
+	cfg, err := routedlm.LoadConfig(l.modelDir, binding)
 	if err != nil {
 		return err
 	}
@@ -325,7 +328,7 @@ func run(l *ladder, fromStage, toStage string) error {
 	var prefill []float32
 	buildPrefill := func() ([]float32, error) {
 		scratch := patchtower.NewMergerScratch(spec)
-		return routedlm.PrefillValues(src, cfg, fg.InputIDs, fg.PrefillTensors.InputImageMaskPositions, imageRows, func(dst []float32, ordinal int) error {
+		return routedlm.PrefillValues(src, cfg, binding, fg.InputIDs, fg.PrefillTensors.InputImageMaskPositions, imageRows, func(dst []float32, ordinal int) error {
 			patchtower.MergerRowInto(dst, blockLast, ordinal, gridH, gridW, spec, merger, &scratch)
 			return nil
 		})
@@ -349,7 +352,7 @@ func run(l *ladder, fromStage, toStage string) error {
 	// ---- MoT layer 0 sub-stages --------------------------------------
 	var layer0 *routedlm.PromptLayerState
 	gate("mot_layer0_sub_stages", func() (string, error) {
-		w, err := routedlm.LoadLayerWeights(src, cfg, 0)
+		w, err := routedlm.LoadLayerWeights(src, cfg, binding, 0)
 		if err != nil {
 			return "", err
 		}
@@ -443,7 +446,7 @@ func run(l *ladder, fromStage, toStage string) error {
 			if err != nil {
 				return "", err
 			}
-			w, err := routedlm.LoadLayerWeights(src, cfg, layer)
+			w, err := routedlm.LoadLayerWeights(src, cfg, binding, layer)
 			if err != nil {
 				return "", err
 			}
@@ -457,7 +460,7 @@ func run(l *ladder, fromStage, toStage string) error {
 	}
 
 	// ---- terminal -----------------------------------------------------
-	terminal, err := routedlm.LoadTerminalWeights(src, cfg)
+	terminal, err := routedlm.LoadTerminalWeights(src, cfg, binding)
 	if err != nil {
 		return err
 	}
@@ -477,7 +480,7 @@ func run(l *ladder, fromStage, toStage string) error {
 		finalHidden := tg.TerminalTensors["final_hidden"]
 		logitIDs := append([]int{}, tg.LastLogits.ProbeIndex...)
 		logitIDs = append(logitIDs, tg.LastLogits.TopIndex...)
-		gotHidden, gotLogits, err := routedlm.TerminalProbeValues(layer31, cfg, terminal, finalHidden.ProbeIndex, logitIDs)
+		gotHidden, gotLogits, err := routedlm.TerminalProbeValues(layer31, cfg, terminal, 0, finalHidden.ProbeIndex, logitIDs)
 		if err != nil {
 			return "", err
 		}
@@ -495,7 +498,7 @@ func run(l *ladder, fromStage, toStage string) error {
 		if len(tg.LastLogits.TopIndex) == 0 {
 			return "", fmt.Errorf("terminal golden missing top logits")
 		}
-		gotTopID, gotTopLogit, err := routedlm.TerminalTopToken(layer31, cfg, terminal)
+		gotTopID, gotTopLogit, err := routedlm.TerminalTopToken(layer31, cfg, terminal, 0)
 		if err != nil {
 			return "", err
 		}
@@ -526,7 +529,7 @@ func run(l *ladder, fromStage, toStage string) error {
 		resident := make([]*routedlm.ResidentKV, cfg.NumHiddenLayers)
 		weights := make([]routedlm.LayerWeights, cfg.NumHiddenLayers)
 		for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-			w, err := routedlm.LoadLayerWeights(src, cfg, layer)
+			w, err := routedlm.LoadLayerWeights(src, cfg, binding, layer)
 			if err != nil {
 				return "", err
 			}
@@ -557,7 +560,7 @@ func run(l *ladder, fromStage, toStage string) error {
 			if step.Step != stepIndex || step.Position != promptLen+stepIndex || step.TokenIn != tokenID {
 				return "", fmt.Errorf("decode step %d golden pos=%d token_in=%d, have token=%d", stepIndex, step.Position, step.TokenIn, tokenID)
 			}
-			embedding, err := routedlm.EmbeddingRows(src, cfg, []int{tokenID})
+			embedding, err := routedlm.EmbeddingRows(src, cfg, binding, []int{tokenID})
 			if err != nil {
 				return "", err
 			}
@@ -568,7 +571,7 @@ func run(l *ladder, fromStage, toStage string) error {
 			}
 			logitIDs := append([]int{}, step.Logits.ProbeIndex...)
 			logitIDs = append(logitIDs, step.Logits.TopIndex...)
-			gotHidden, gotLogits, err := routedlm.TerminalProbeValues(row, cfg, terminal, step.FinalHidden.ProbeIndex, logitIDs)
+			gotHidden, gotLogits, err := routedlm.TerminalProbeValues(row, cfg, terminal, 0, step.FinalHidden.ProbeIndex, logitIDs)
 			if err != nil {
 				return "", err
 			}
@@ -583,7 +586,7 @@ func run(l *ladder, fromStage, toStage string) error {
 			if _, err := probeValuesCheck(fmt.Sprintf("step%d logits top", stepIndex), topLogits, step.Logits.TopValue, 1.75, 0.2); err != nil {
 				return "", err
 			}
-			nextID, _, err := routedlm.TerminalTopToken(row, cfg, terminal)
+			nextID, _, err := routedlm.TerminalTopToken(row, cfg, terminal, 0)
 			if err != nil {
 				return "", err
 			}

@@ -1,0 +1,123 @@
+# Plan — eliminate non-stdlib Go dependencies
+
+Goal: overgo depends only on the Go standard library (no third-party modules).
+Applies to overgo + the overgo_gui worktree (same `go.mod`).
+
+## Current dependency surface (measured)
+
+Five **direct** external modules; every `cmd/sbom/main.go` hit is the SBOM
+*lister*, not a consumer — the real usage sites are narrow:
+
+| Module | Real usage site(s) | What it does | Pulls indirect? |
+|---|---|---|---|
+| `gopkg.in/yaml.v3` | `internal/dataroot/dataroot.go`, `internal/server/strict_yaml.go`, `cmd/compatibility` | parse compatibility.yaml + media/resource/dataroot policy YAML | kr/pretty |
+| `golang.org/x/sys` | `internal/repodb/lock_{unix,windows}.go` | store file lock (Flock / LockFileEx) | — |
+| `golang.org/x/text` | `internal/tokenizer/wpm.go` | Unicode **NFD** normalization (`norm.NFD.String`) | — |
+| `github.com/dlclark/regexp2/v2` | `internal/sampling/trigger_regex.go` | ECMAScript-regex for **user-supplied** GBNF trigger patterns (backtracking) | — |
+| `github.com/nikolalohinski/gonja/v2` | `internal/inference/chat.go` | Jinja2 chat-template rendering | logrus, json-iterator, go-humanize, modern-go/* |
+
+**Leverage:** all 8 indirect deps come from **gonja** (logrus, json-iterator,
+humanize, modern-go/concurrent, modern-go/reflect2, pkg/errors, x/exp) and
+**yaml** (kr/pretty). Removing those two clears the entire transitive tree;
+regexp2, x/sys, x/text are leaf deps with no transitive pull.
+
+## Per-dependency replacement assessment
+
+### 1. `golang.org/x/sys` → `syscall` + LazyDLL — LOW, doctrine-aligned
+- **Unix:** `unix.Flock(fd, LOCK_EX|LOCK_NB)` → stdlib `syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB)` (in stdlib on all unix GOOS). Direct swap.
+- **Windows:** `windows.LockFileEx/UnlockFileEx` → call them via
+  `syscall.NewLazyDLL("kernel32.dll").NewProc("LockFileEx")` — the **exact
+  no-cgo DLL pattern overgo already uses for CUDA**. Reuse the `Overlapped`
+  struct from `syscall` (present) or a local mirror.
+- Risk: none functional; keep the `_unix`/`_windows` build-tag split.
+- Effort: ~1 slice.
+
+### 2. `golang.org/x/text` (NFD) → generated decomposition table — MEDIUM
+- Only `norm.NFD.String` is used (rest of wpm.go is stdlib `unicode`). The
+  stdlib has **no** normalization package.
+- Replace with a **`go:generate` step that emits a canonical-decomposition
+  table** (from the Unicode UCD `UnicodeData.txt`) into a committed `.go` file —
+  same pattern the stdlib itself uses for `unicode` tables. Runtime code is a
+  pure-stdlib table lookup + recursive canonical decomposition + canonical
+  ordering (combining-class sort). No runtime dep; the generator runs offline.
+- Scope note: WordPiece/BERT normalization needs NFD only (not full NFC/NFKC),
+  so the table is bounded. Pin it with a fixture test (a set of strings whose
+  NFD output is snapshotted against the current x/text result before removal).
+- Effort: ~1–2 slices (generator + table + parity fixture).
+
+### 3. `gopkg.in/yaml.v3` → migrate config to JSON (`encoding/json`) — MEDIUM
+- The stdlib has no YAML. overgo already parses JSON everywhere, so the clean
+  path is a **data-format migration**, not a YAML re-implementation:
+  - Convert `compatibility.yaml`, `media_policy.yaml`, `resource_policy.yaml`,
+    and the dataroot config to `.json` (a one-time offline `yaml→json` pass).
+  - Swap the three call sites to `encoding/json`. `strict_yaml.go`'s
+    reject-unknown-keys behavior maps to `json.Decoder.DisallowUnknownFields()`.
+- Trade-off: JSON loses YAML comments in those files. If comments are
+  load-bearing (compatibility.yaml is large + hand-annotated), keep them in a
+  sibling `.md` or as `"_comment"` fields; decide per file.
+- Kills the kr/pretty indirect dep.
+- Effort: ~1–2 slices (format migration + call-site swap + gate on the parsed
+  structs round-tripping identically).
+
+### 4. `dlclark/regexp2` → stdlib `regexp` (RE2) — capability decision required
+- regexp2 backs **user-supplied** GBNF trigger patterns compiled as ECMAScript
+  with backtracking (lookahead/lookbehind/backreferences possible). Go's stdlib
+  `regexp` is RE2: **linear-time, no backtracking, no lookaround/backrefs.**
+- Two honest options:
+  - **(a) RE2 subset (recommended):** accept only RE2-expressible triggers,
+    reject the rest with a clear error. This is a *capability reduction* for
+    exotic patterns, but an **upside** for the common case: RE2's linear-time
+    guarantee removes the ReDoS surface that today needs the `MaxBacktrackingStackSize`
+    + `MatchTimeout` guards. Record it as a typed decision (what patterns are no
+    longer accepted) with the trade rationale.
+  - **(b) keep regexp2** if any shipped/needed trigger genuinely requires
+    lookahead — then this dep does not go, and the goal becomes "stdlib-only
+    except regexp2, justified."
+- Decision input: audit the actual GBNF trigger patterns in use; if none use
+  lookaround/backrefs, (a) is free. regexp2 has no transitive deps, so this is
+  low-leverage — do it last, or accept it as the one justified exception.
+- Effort: (a) ~1 slice + a pattern audit; (b) zero (documented exception).
+
+### 5. `gonja` (Jinja2) → minimal Jinja subset interpreter — HIGH (highest leverage)
+- Chat-template rendering uses gonja's full environment (filters, tests, control
+  structures, methods, whitespace control). stdlib `text/template` has different
+  syntax and cannot run Jinja templates as-is; real chat templates
+  (Qwen/Gemma/Llama) use `{%- for/if -%}`, filters (`tojson`, `trim`,
+  `default`), and method calls.
+- Path: **write a bounded Jinja2-subset interpreter** in stdlib only, scoped to
+  exactly the constructs the shipped chat templates use — measured, not guessed:
+  1. Inventory every `chat_template.jinja` across the served models; extract the
+     set of tags/filters/tests/methods actually referenced.
+  2. Implement a lexer + parser + evaluator covering only that set (loops,
+     conditionals, whitespace-control `-`, the observed filters, attribute/method
+     access, string ops). This is a real interpreter but bounded by the inventory.
+  3. **Parity-gate hard:** render every model's template through both gonja and
+     the new engine on real message fixtures; require byte-identical output
+     before removing gonja. Any template using an unimplemented construct fails
+     loudly (no silent divergence).
+- Removing gonja clears logrus + json-iterator + humanize + modern-go/* +
+  x/exp — the bulk of the tree — so it is the **highest-leverage** item despite
+  being the hardest.
+- Effort: several slices (inventory → interpreter → per-model parity fixtures).
+
+## Staged stack (lowest-risk / highest-certainty first)
+
+1. **x/sys → syscall/LazyDLL** — cleanest, doctrine-aligned, zero capability change.
+2. **yaml → JSON** — kills kr/pretty; format migration, well-understood.
+3. **x/text → generated NFD table** — self-contained, parity-fixture gated.
+4. **gonja → Jinja subset** — biggest lift but clears 7 of 8 indirect deps;
+   inventory-bounded + byte-parity gated.
+5. **regexp2 → RE2 subset** *or* documented exception — a capability decision;
+   do last once (1)–(4) prove out, or accept as the single justified third-party.
+
+Each step is independently landable and leaves the build green; after (1)–(4)
+the only remaining external module is regexp2 (leaf, no transitive deps), so even
+stopping before (5) collapses the dependency tree to one justified entry.
+
+## What "done" looks like
+- `go.mod` `require` block empty of third-party (or only a documented regexp2
+  exception with its capability-trade rationale recorded).
+- `go mod tidy` removes all indirect deps.
+- SBOM (`cmd/sbom`) reflects stdlib-only.
+- Every replaced surface parity-gated against the dep it replaced (NFD strings,
+  parsed config structs, rendered chat templates, trigger-match behavior).

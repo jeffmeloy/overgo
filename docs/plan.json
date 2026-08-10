@@ -759,7 +759,7 @@
         {
           "id": "recon",
           "status": "done",
-          "title": "Fractale-350M-base = ThoughtBank/DeepSeek-V4-mini (386M FP32 model.pt pytorch-zip pickle; NO config.json -- dims in ck[\"cfg\"]; 12L d768 12h, MoE 4+1 top-2, CSA/HCA compressed attn, mHC Sinkhorn hyper-connection residuals, + novel 8-slot fast-weight THOUGHT BANK hypernet -> low-rank MLP per slot). Tokenizer = external SmolLM2-135M + 2 added specials <think>/<blank>. CORRECTION to prior memory: NO adaptive Go serving path exists -- only the python torch reference (_core/model.py ThoughtBankLM.forward); reference decode is O(n^2) full-reforward, the \"O(n) incremental\" is a PORT GOAL not an existing artifact. NO fixtures anywhere (grep fractale in adaptive = manifest.json only)"
+          "title": "Fractale-350M-base = ThoughtBank/DeepSeek-V4-mini (386M FP32 model.pt pytorch-zip pickle; NO config.json -- dims in ck[\"cfg\"]; 12L d768 12h, MoE 4+1 top-2, CSA/HCA compressed attn, mHC Sinkhorn hyper-connection residuals, + novel 8-slot fast-weight THOUGHT BANK hypernet -> low-rank MLP per slot). Tokenizer = external SmolLM2-135M + 2 added specials <think>/<blank>. CORRECTION to prior memory: NO adaptive Go serving path exists -- only the python torch reference (_core/model.py ThoughtBankLM.forward); reference decode is O(n^2) full-reforward, the \"O(n) incremental\" is a PORT GOAL not an existing artifact. NO fixtures anywhere (grep fractale in adaptive = manifest.json only) | CORRECTION via git archaeology: adaptive DID implement a full Go Fractale lane at commit b8fef3cc2 (fast_weight_bank_lm.go + _decode + _backward + engine_fast_weight_bank_lm.go + incremental bit-exact research oracle, ~10 files) named GENERICALLY (fast_weight_bank_lm, no \"fractale\" token -- recon grep-for-fractale missed it). That lane is on an UNMERGED branch, ABSENT from current master (worktree retired). So port-first source EXISTS in git, not just torch."
         },
         {
           "id": "pt-loader-port",
@@ -769,13 +769,13 @@
         {
           "id": "golden-generation",
           "status": "blocked-external-prereq",
-          "title": "BLOCKED external-prereq: mint ids/logits/mem-bank goldens by running the torch ThoughtBankLM oracle on CPU (fixed seed bank + temp=0 greedy, since init_mem=None seeds random slots) -- needs torch+transformers AND a one-time SmolLM2-135M tokenizer download (network). This is the actual deferral cause, still valid"
+          "title": "golden oracle available two ways: (a) adaptive Go FastWeightBankLMForward at b8fef3cc2 (bit-exact, fast_weight_bank_lm_incremental_research_test.go) -- recover from git + run on the model; (b) torch ThoughtBankLM. Either needs the model.pt + SmolLM2 tokenizer download (network) -- external-prereq for the dump run"
         },
         {
           "id": "reference-port",
           "status": "open",
           "resource": "cpu",
-          "title": "NET-NEW serving (no Go impl on either side): thought-bank fast-weight slot->low-rank-MLP read + FIFO bank carry, mHC Sinkhorn residuals, CSA/HCA at 12L/768, <think>/<blank> chunk-carry decode. overgo DeepSeek4 module is a GGUF/43-layer REFERENCE (no bank) not a drop-in. Gated on golden-generation"
+          "title": "PORT-FIRST from adaptive git b8fef3cc2 (NOT net-new): recover fast_weight_bank_lm*.go (thought-bank fast-weight slot->low-rank-MLP, mHC Sinkhorn residuals, CSA/HCA, O(n) incremental compressed-KV decode, <think>/<blank> chunk carry) and re-express through overgo owners; adaptive lane is bit-exact + host O(n) already. Container read via internal/pytorchzip (done)"
         },
         {
           "id": "recipe-activation",

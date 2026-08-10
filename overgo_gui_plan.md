@@ -364,3 +364,108 @@ and a manual smoke against a real model. A2/A3 touch the inference/executor pack
    - **(c) Full port incl. Tier 3** — add attention heatmaps (needs an analysis attention path;
      highest engine cost, most conflict with the CUDA merge).
    My recommendation: **build (a) now**, schedule (b)/(c) after the `master` CUDA merge settles.
+
+---
+
+## 10. Tier 2 & 3 — detailed design
+
+Grounded in a read of overgo's internals. Two findings make both tiers a *capture-
+and-compute* problem rather than a *write-new-kernels* problem:
+
+- **Tier 2 tap already exists.** Per-layer hidden states are the block-output residual
+  tensors built in `internal/model/block.go` (`residual := builder.Add(input, attention)`,
+  then the residual stages). The executor already owns a **`RetainedOutputs` /
+  `RetainedTargets`** mechanism (`internal/cuda/executor/executor.go`, used by
+  `internal/inference/device_cache.go`) that pins selected graph tensors in standalone
+  device buffers and `CopyToHost`s them. Capture = register the chosen block-output
+  tensors as extra retained targets for one bounded analysis pass. No new kernel.
+- **Tier 3 tap already exists.** overgo has a **cuBLAS strided-batched SGEMM attention
+  path that stages `[heads][chunk][keys]` F32 scores through DRAM**
+  (`executor.go` `attentionScoreBytes`; `launch_attention_layout.go`). Flash paths never
+  materialize scores; this one does. Capture = force attention through the scored path for
+  a bounded request and copy the staged scores. No new kernel (a dedicated capture kernel
+  is a later fallback only).
+
+Both tiers stay **distribution-free** (§5A): the server returns measured structure, never a
+fitted model. Both are **opt-in, single-shot, length-capped**, run on a path distinct from
+`generate`, and never mutate the KV cache or serving state — so serving numerics and the
+bit-identity fixtures are untouched.
+
+### Tier 2 — hidden-state structure
+
+**Engine (`internal/inference`, new file `analysis_states.go`):**
+`Runner.CaptureHiddenStates(ctx, prompt string, opts CaptureOptions) (*HiddenStateCapture, error)`
+- `opts`: `Layers []int` (default all), `MaxPositions int` (cap, e.g. 128), `Positions []int` (optional subset).
+- Runs one non-cached forward over the (truncated) prompt; registers the selected block-output
+  tensors via `compiled.NewRetainedTargets()`; `CopyToHost`s them.
+- Returns host `Layers [][]PositionVector` (`hidden_dim` floats each) + token ids/pieces. Bounded:
+  `layers × positions × hidden_dim × 4B`; the cap is enforced and **logged** (no silent truncation).
+
+**Server: `POST /analyze/states`** `{ prompt, layers?, max_positions?, k?, layout? }` →
+server computes the structure in Go and returns compact results (not raw vectors, to hold the
+thin-client contract; a `raw:true` debug flag returns capped vectors):
+- per selected layer: pairwise **cosine** and **Euclidean** distance matrices (N×N, N = positions);
+- **kNN adjacency** (`k`) derived from those distances;
+- optional 2D **layout coordinates** (see methods).
+
+**Distribution-free methods (Go, zero deps, deterministic — no RNG):**
+- Distance matrices: exact, assumption-free.
+- **Non-metric MDS** (primary layout): SMACOF minimizing Kruskal stress-1 on the *rank order* of
+  distances — uses only ordinal information, so no metric/Gaussian/linear assumption. Deterministic
+  init from two fixed anchor points (farthest-pair), **not** classical/metric MDS (which is PCA-like
+  and therefore excluded as a default).
+- **Force-directed kNN layout** (alternative): Fruchterman–Reingold over the kNN graph — local
+  neighbor relations only. Deterministic schedule.
+- **PCA excluded** as a default; if ever added, it is a clearly-labeled linear baseline, off by default.
+
+**Client `mod/analyze_states.js`:** layer selector; **distance-matrix heatmap**; **kNN neighbor
+graph**; optional layout scatter (method dropdown: non-metric-MDS / force — assumption-free only).
+Color by position/token. New `viz.js` primitives: `heatmap(matrix, opts)` and `graph(nodes, edges)`.
+
+**Milestones**
+- **A2a** — `Runner.CaptureHiddenStates` via `RetainedTargets` + tests (shape, bounds enforced,
+  determinism). Needs a device; add a reference/fake-backed path test where the CPU lane allows.
+- **A2b** — `POST /analyze/states` computing distances/kNN/MDS in Go + tests: distance correctness;
+  **rank-invariance** (any monotone transform of the distances yields an identical non-metric layout);
+  SMACOF stress decreases monotonically.
+- **A2c** — client module + `heatmap`/`graph` viz.
+
+### Tier 3 — attention scores
+
+**Engine (`internal/inference` + a thin hook in `internal/cuda/executor`):**
+- Add an **analysis attention mode** that, for a bounded request, routes attention through the
+  **scored SGEMM path** (bypassing the bf16/flash fusion — the `bf16AttentionFusion` rewrite and the
+  flash launch) and captures the **post-softmax weights** per `[head][q][k]` before the per-chunk
+  score staging is reused. Because the staging is a reused scratch buffer, capture copies each query
+  chunk's weights into a retained analysis buffer as chunks complete (or runs unchunked for a bounded
+  prompt).
+- Expose **post-softmax attention weights** (rows sum to 1 — the visualized quantity); raw pre-softmax
+  scores optional. Both measured, distribution-free.
+- `Runner.CaptureAttention(ctx, prompt, opts) (*AttentionCapture, error)` with `opts`:
+  `Layer int`, `Heads []int`, `MaxPositions int`.
+
+**Server: `POST /analyze/attention`** `{ prompt, layer, heads?, max_positions? }` → per requested head
+an `[q][k]` row-normalized weight matrix (bounded), plus token pieces for axis labels.
+
+**Client `mod/analyze_attention.js`:** layer picker; head picker / small-multiples grid; `[q][k]`
+**heatmap** (reusing the A2 `heatmap` primitive), causal mask shown, row-normalized; hover shows the
+q/k token pieces and the weight.
+
+**Milestones**
+- **A3a** — analysis capture (force scored path + copy weights) + engine test.
+- **A3b** — `POST /analyze/attention` + tests: **row sums ≈ 1**, **causal zeros above the diagonal**,
+  correct shape/heads.
+- **A3c** — client heatmap module.
+
+### Cross-cutting
+
+- **Capability gating.** `/analyze/model` grows an `analysis` capability block reporting which features
+  the loaded arch/dtype supports (e.g. attention capture only where the scored SGEMM path exists — some
+  bf16 archs may be flash-only). The client hides/disables unsupported tabs rather than erroring.
+- **Merge coordination.** A2 touches `internal/inference`/`internal/model`; A3 also reaches the
+  attention cone the merge agent is actively rewriting (the flash-attention work reviewed at the start
+  of this effort). **Sequence: land after the master CUDA merge; A2 before A3** (A2 reuses the settled
+  `RetainedTargets` mechanism with less attention-cone risk; A3 is deepest and needs tight coordination).
+- **Fallbacks.** If forcing the scored path is unavailable for a given arch/dtype, A3 degrades to
+  "unsupported for this model" (gated) rather than a wrong result; a dedicated capture kernel is a
+  longer-term option only if broad coverage is required.

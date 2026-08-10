@@ -66,6 +66,13 @@ func LayerNormInto(out, x, weight, bias []float32, rows, d int, eps float64) {
 // tanh approximation above.
 func GELUErf(x float64) float64 { return 0.5 * x * (1 + math.Erf(x/math.Sqrt2)) }
 
+// GELUErfPrime: derivative of GELUErf,
+// 0.5(1+erf(x/sqrt2)) + x*exp(-x^2/2)/sqrt(2pi) — the scalar VJP factor for
+// the erf GELU, for callers mixing it into a larger reduction per element.
+func GELUErfPrime(x float64) float64 {
+	return 0.5*(1+math.Erf(x/math.Sqrt2)) + x*math.Exp(-x*x/2)/math.Sqrt(2*math.Pi)
+}
+
 // GELUErfInPlace applies GELUErf element-wise, f64 math.
 func GELUErfInPlace(v []float32) {
 	for k := range v {

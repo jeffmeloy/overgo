@@ -770,7 +770,7 @@
         {
           "id": "pt-loader-port",
           "status": "done",
-          "title": "DONE (pre-existing): internal/pytorchzip reads .pt/.pth pickle FP32 tensor sets (FloatStorage->F32, zip-offset storage resolution, row-gather) -- resolves the ORIGINAL container blocker that deferred this rung"
+          "title": "DONE (pre-existing): internal/pytorchzip reads .pt/.pth pickle FP32 tensor sets (FloatStorage->F32, zip-offset storage resolution, row-gather) -- resolves the ORIGINAL container blocker that deferred this rung [extended: +4 pickle opcodes + ReadScalarConfig for the cfg dict]"
         },
         {
           "id": "golden-generation",
@@ -779,9 +779,9 @@
         },
         {
           "id": "reference-port",
-          "status": "open",
+          "status": "partial",
           "resource": "cpu",
-          "title": "PORT-FIRST from adaptive git b8fef3cc2 (NOT net-new): recover fast_weight_bank_lm*.go (thought-bank fast-weight slot->low-rank-MLP, mHC Sinkhorn residuals, CSA/HCA, O(n) incremental compressed-KV decode, <think>/<blank> chunk carry) and re-express through overgo owners; adaptive lane is bit-exact + host O(n) already. Container read via internal/pytorchzip (done)"
+          "title": "PORT-FIRST from adaptive git b8fef3cc2 (NOT net-new): recover fast_weight_bank_lm*.go (thought-bank fast-weight slot->low-rank-MLP, mHC Sinkhorn residuals, CSA/HCA, O(n) incremental compressed-KV decode, <think>/<blank> chunk carry) and re-express through overgo owners; adaptive lane is bit-exact + host O(n) already. Container read via internal/pytorchzip (done) -- PARTIAL (recovered from git b8fef3cc2, re-expressed via overgo owners): new neutral internal/thoughtbank (fast-weight bank fwd+bwd, mHC + Sinkhorn fwd+bwd -- all finite-difference unit-tested, brackets <4e-4) + config derivation; hostmath gains sinkhorn/swiglu/GELUErfPrime (neutral home); pytorchzip capability port (4 pickle opcodes BINFLOAT/EMPTY_LIST/APPEND/APPENDS + ReadScalarConfig) UNLOCKS the .pt cfg read. CONFIG-PARSE VERIFIED vs real model.pt (653 tensors, all dims match ck[\"cfg\"], untied lm_head). REMAINS: CSA/HCA compressed attention port (self-contained, no torch), the assembled 12L stack + incremental-decode bit-exact contract (testable on small synthetic config, no torch), and the torch/SmolLM2 e2e golden (external-prereq)"
         },
         {
           "id": "recipe-activation",

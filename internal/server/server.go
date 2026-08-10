@@ -588,6 +588,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/tokenize" ||
 		request.URL.Path == "/detokenize" ||
 		request.URL.Path == "/props" ||
+		request.URL.Path == "/analyze/model" ||
 		request.URL.Path == "/completion" ||
 		request.URL.Path == "/completions" ||
 		request.URL.Path == "/infill" ||
@@ -654,6 +655,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.detokenize(response, request)
 	case "/props":
 		h.properties(response, request)
+	case "/analyze/model":
+		h.analyzeModel(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

@@ -4,6 +4,13 @@ A web GUI for **overgo**, built in the spirit of `adaptive_new`'s `adaptive_gpt.
 approach: a **thin client over the Go server**, all state living server-side, no build
 step, no external dependencies, one self-contained asset tree served by overgo itself.
 
+Beyond a chat/inference console, the GUI incorporates a **model-analysis workbench** with
+the same capabilities as `C:\Users\jeffm\lophius` (a Python/Panel LLM research workbench) —
+model & tokenizer inspection, a logit/probability/entropy lens, attention visualization, and
+hidden-state projection — but reimplemented in **overgo's own stack**: analysis computed in
+Go on the server, rendered with our vanilla-JS thin client (canvas/SVG, no plotly), **no
+Python, torch, or transformers anywhere**. See §5A.
+
 Worktree: `C:\Users\jeffm\overgo_gui` (branch `overgo_gui`). All work and commits happen
 here, isolated from the `master` merge activity.
 
@@ -131,17 +138,29 @@ overgo_gui_plan.md                 # this file
 internal/server/
   webui_static.go                  # //go:embed webui/**, static handler, route wiring
   webui_static_test.go             # serves index, 404s unknown, no-auth on assets
+  analyze_model.go                 # GET /analyze/model — arch/stats aggregate     (A1)
+  analyze_vocab.go                 # GET /analyze/vocab — paged/searchable vocab    (A1)
+  analyze_logits.go                # entropy field on native completion; capture    (A1)
+  analyze_states.go                # opt-in hidden-state capture + Go PCA           (A2)
+  analyze_attention.go             # opt-in analysis attention path + scores        (A3)
+  analyze_*_test.go                # per-endpoint shape/auth tests
   webui/                           # the embedded client (no build step)
     index.html                     # landing/probe card (port of adaptive_gpt.html)
     app.html                       # console shell (tabs + key field + model card)
     style.css                      # shared palette + components (from adaptive styles)
     boot.js                        # probe, router, fetch helpers, auth injection
+    viz.js                         # shared canvas/SVG primitives (heatmap, scatter, bars)
     mod/
-      chat.js                      # streaming chat console        (M2)
-      status.js                    # model/props/slots/metrics     (M3)
-      tokens.js                    # tokenize/detokenize/template   (M3)
-      complete.js                  # completion + infill playground (Phase 2)
-      embed.js                     # embeddings + rerank            (Phase 2)
+      chat.js                      # streaming chat console            (M2)
+      status.js                    # model/props/slots/metrics         (M3)
+      tokens.js                    # tokenize/detokenize/template       (M3)
+      complete.js                  # completion + infill playground     (Phase 2)
+      embed.js                     # embeddings + rerank                (Phase 2)
+      analyze_model.js             # stats + architecture summary       (A1)
+      analyze_vocab.js             # searchable vocab + chat template   (A1)
+      analyze_logits.js            # logit/prob/entropy lens            (A1)
+      analyze_states.js            # hidden-state 2D/3D projection      (A2)
+      analyze_attention.js         # attention heatmaps                 (A3)
 ```
 
 Everything under `webui/` is embedded, so `go run ./cmd/server <model>` is the only step to
@@ -172,6 +191,79 @@ get the UI at `http://localhost:8080/`.
    `internal/diffusionimage` / `internal/latentvideo` / `internal/speechsynth`. Tracked here as
    a known gap; the GUI leaves a disabled "studio" entry that explains it's server-gated.
 
+### Analysis track (parallel — see §5A for the full port)
+9. **Analysis workbench** (the lophius capability port): model/vocab inspection + logit/
+   probability/entropy lens (Tier 1, ships with MVP-class effort), then hidden-state projection
+   (Tier 2) and attention heatmaps (Tier 3). Tier 1 is server-only; Tier 2/3 need engine taps.
+
+---
+
+## 5A. Analysis workbench — lophius capability port
+
+Goal: the analytical power of lophius (`C:\Users\jeffm\lophius`), delivered through overgo's
+server + thin client. Lophius runs on HF Transformers/PyTorch and visualizes with plotly; we
+reproduce the *capabilities*, not the stack. Everything below is **Go on the server, vanilla
+JS on the client** — entropy and PCA are a few dozen lines of Go, heatmaps and scatter plots
+are canvas/SVG.
+
+### Lophius capability inventory (from its docs + `outputs.py`/`models.py`)
+
+- Model **statistics**, **architecture** tree, config; **tokenizer** info, **chat template**,
+  searchable **vocabulary**; source links per module.
+- Per-step **top-k logits**, **top-k probabilities**, full-vocabulary **entropy** (nats).
+- **Attention scores** for any layer & head (heatmap).
+- **First-token hidden states** in 2D/3D via PCA / t-SNE / UMAP / PaCMAP (scatter).
+- Load **multiple models** at once and compare; edit config with **live reload**.
+
+### Mapping to overgo — tiered by how much engine work each needs
+
+**Tier 1 — data already in overgo, or a small localized server add (ships with the GUI):**
+
+| Lophius capability | overgo source of truth | Server surface | Client module |
+|---|---|---|---|
+| Model statistics & architecture | `internal/model/architecture.go` (family/capability taxonomy), GGUF metadata, `/models`+`/props` | new `GET /analyze/model` (read-only aggregate) | `mod/analyze_model.js` — stat cards, architecture/composition summary |
+| Tokenizer info + chat template | `internal/tokenizer` (`Vocab`), `/apply-template` | reuse `/apply-template`; new `GET /analyze/vocab?query=&page=` (paged/searchable) | `mod/analyze_vocab.js` — searchable vocab table, token flags, template viewer |
+| **Logit / probability / entropy lens** | **`/completion` already returns `n_probs`** (top-N token logprobs per position); server already holds full `logits[]`+`logNormalization` (`server_native_generation.go`) | extend native completion with an `entropy` field per position (full-vocab, computed server-side); optionally an `analysis:true` flag that also captures the **prompt** positions | `mod/analyze_logits.js` — per-token top-k bars, logprob table, **entropy sparkline** across the sequence, "logit lens" strip |
+
+Tier 1 is the marquee interpretability surface and is ~80% already present — the logit/prob
+data flows today; only full-vocab **entropy** is a genuinely new (small) server value.
+
+**Tier 2 — needs activation taps in the graph executor (fast-follow):**
+
+| Lophius capability | Gap in overgo | Plan |
+|---|---|---|
+| Hidden-state capture (post-layer residual) | The executor streams activations through device memory without retaining per-layer copies | Add an opt-in "capture" mode that copies post-layer hidden states off-device for a single analysis request (bounded: first token / selected positions) |
+| 2D/3D projection of hidden states | No projector | **PCA implemented in Go** (pure linear algebra, zero deps) → client renders a canvas/SVG scatter, color by token/position/layer. t-SNE/UMAP/PaCMAP are heavier iterative methods → **stretch** (a small Barnes-Hut t-SNE in Go later; PCA covers the MVP) |
+
+Client: `mod/analyze_states.js` — layer selector, 2D/3D scatter, projection-method dropdown
+(PCA enabled first).
+
+**Tier 3 — needs an analysis-mode attention path (stretch, largest engine cost):**
+
+| Lophius capability | Gap in overgo | Plan |
+|---|---|---|
+| Attention-score heatmaps per layer/head | overgo's **flash-attention kernels never materialize** the `[heads][q][k]` score matrix (that's the point of flash attention) | Add an **eager/analysis attention path** (or a capture kernel) that emits the score matrix for a bounded prompt when an analysis request asks for it; strictly opt-in and length-capped |
+
+Client: `mod/analyze_attention.js` — layer/head pickers, `[q][k]` heatmap (canvas), row-normalized.
+
+### Deliberate divergences from lophius (call out, don't paper over)
+
+- **Single served model.** overgo's server loads one model at startup. Lophius's "load many
+  models / compare / batch across models" doesn't map without multi-model serving — **out of
+  scope**. Cross-**prompt** comparison within the one served model *is* supported.
+- **No live config-edit/reload.** overgo binds a GGUF at startup; mutating config and hot-
+  reloading isn't in the model runtime — **out of scope** (inspection is read-only).
+- **No Python escape hatch.** Lophius's selling point is "drop to raw torch/transformers."
+  overgo's equivalent is its Go API and CLIs (`cmd/model-info`, `cmd/inspect-gguf`); the GUI
+  links to those rather than exposing a REPL.
+
+### Why this fits the doctrine
+
+Each analysis call is a plain request → server computes → JSON back → client draws. No client
+state beyond what a re-fetch rebuilds. Entropy, PCA, and (later) t-SNE run in Go where the
+weights and logits already live; the browser only ever renders. That is the same thin-client
+contract as the chat console, extended to interpretability.
+
 ---
 
 ## 6. Milestones & commit plan (commits land in this worktree)
@@ -182,10 +274,18 @@ get the UI at `http://localhost:8080/`.
   `/health`. *(commit)*
 - **M2 — chat console.** `app.html` shell + `mod/chat.js` streaming. *(commit)*
 - **M3 — status + tokenizer.** `mod/status.js`, `mod/tokens.js`. *(commit)*
+- **A1 — analysis Tier 1.** `analyze_model.go`/`analyze_vocab.go` + entropy on native
+  completion; `mod/analyze_model.js`, `analyze_vocab.js`, `analyze_logits.js`. The lophius
+  logit/entropy lens + model/vocab inspection, all from data overgo already has. *(commits)*
+- **A2 — hidden-state projection.** executor capture hook + Go PCA (`analyze_states.go`);
+  `mod/analyze_states.js` scatter. *(commit)*
+- **A3 — attention heatmaps.** analysis attention path (`analyze_attention.go`);
+  `mod/analyze_attention.js`. Largest engine cost — scheduled last, opt-in, length-capped. *(commit)*
 - **Phase 2 milestones** — completion/infill, embeddings/rerank, responses. *(commits each)*
 
 Each milestone is a green commit: `go build ./...` + `go test ./internal/server/...` pass,
-and a manual smoke against a real model.
+and a manual smoke against a real model. A2/A3 touch the inference/executor packages (not just
+`internal/server`), so they carry more merge risk and coordination — see §8.
 
 ---
 
@@ -211,6 +311,12 @@ and a manual smoke against a real model.
   string and shape in `boot.js` so a drift is a one-file fix.
 - **Capability variance by model.** `rerank`/embedding/multimodal depend on the loaded model;
   the GUI reads `/models` capabilities and hides/disables tabs accordingly rather than erroring.
+- **Analysis Tier 2/3 reach into the engine.** Hidden-state capture (A2) and the attention
+  analysis path (A3) touch `internal/inference` / `internal/cuda/executor` — the same cone the
+  merge agent is rewriting (the flash-attention work I reviewed earlier). High conflict risk.
+  Mitigation: land Tier 1 (A1, server-only) first and independently; defer A2/A3 until the CUDA
+  merge settles, and design them as opt-in, bounded, off-the-hot-path capture so they can't
+  perturb serving numerics or the bit-identity fixtures.
 
 ---
 
@@ -223,3 +329,11 @@ and a manual smoke against a real model.
    overgo identity reusing only the structure?
 3. **Scope confirmation:** MVP = chat + status + tokenizer (+ Phase 2 embeddings/rerank/infill),
    media explicitly deferred until the server exposes it — agreed?
+4. **Analysis depth (§5A):** how far do we take the lophius port?
+   - **(a) Tier 1 only** — model/vocab inspection + logit/probability/entropy lens. Server-only,
+     no engine changes, ~80% already in overgo. Lands cleanly alongside the merge. *(recommended
+     first step.)*
+   - **(b) Tier 1 + Tier 2** — add hidden-state capture + PCA projection (t-SNE/UMAP a later stretch).
+   - **(c) Full port incl. Tier 3** — add attention heatmaps (needs an analysis attention path;
+     highest engine cost, most conflict with the CUDA merge).
+   My recommendation: **build (a) now**, schedule (b)/(c) after the `master` CUDA merge settles.

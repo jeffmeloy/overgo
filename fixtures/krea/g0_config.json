@@ -1,0 +1,66 @@
+{
+  "adaptive_invocation": {
+    "binary": "go/bin/adaptive-gpt-server-cuda.exe",
+    "endpoint": "POST /api/image-out",
+    "request": {
+      "cfg_scale": 0,
+      "engine": "krea2-native",
+      "height": 256,
+      "model_dir": "models/Krea-2-Turbo",
+      "mu": 1.15,
+      "profile_denoiser": true,
+      "prompt": "a red fox licking a vanilla ice cream cone in snow",
+      "seed": 42,
+      "steps": 8,
+      "width": 256
+    }
+  },
+  "artifact_sha256": "11c57953c87dfa65e587e2c626a86740528094b86884cc2eb6c7de84e30491e0",
+  "config": {
+    "canonical_full_res": "2048x2048 (reduced to 256x256 to coexist on shared 48GB GPU)",
+    "cfg_scale": 0,
+    "guidance": "distilled (cfg_scale=0, single conditioning)",
+    "height": 256,
+    "mu": 1.15,
+    "seed": 42,
+    "steps": 8,
+    "timestep_shift_source": "dynamic (FlowMatchEuler use_dynamic_shifting, base_shift 0.5 max_shift 1.15)",
+    "width": 256
+  },
+  "dtypes": {
+    "compute": "bf16 native (native_go_cuda)",
+    "note": "served in model-native dtype; no fp32 upcast oracle",
+    "transformer_weights": {
+      "BF16": 256,
+      "F32": 174
+    }
+  },
+  "model": {
+    "dir": "models/Krea-2-Turbo",
+    "num_train_timesteps": 1000,
+    "pipeline": "Krea2Pipeline",
+    "scheduler": "FlowMatchEulerDiscreteScheduler",
+    "text_encoder": "Qwen3VLModel",
+    "text_encoder_select_layers": [
+      2,
+      5,
+      8,
+      11,
+      14,
+      17,
+      20,
+      23,
+      26,
+      29,
+      32,
+      35
+    ],
+    "transformer": "Krea2Transformer2DModel",
+    "vae_scale_factor": 8
+  },
+  "native_total_seconds": 25.4304883,
+  "runtime": "native_go_cuda",
+  "schema": "overgo.krea_golden.g0/v1",
+  "source": "adaptive_new go/bin/adaptive-gpt-server-cuda.exe :8137 POST /api/image-out (engine krea2-native)",
+  "strategy": "direct"
+}

@@ -591,33 +591,33 @@
         },
         {
           "id": "host-goldens",
-          "status": "open",
+          "status": "partial",
           "resource": "gpu",
-          "title": "stand up CPU-verifiable denoise-step + VAE-decode host goldens (Krea has none; dump intermediates from adaptive CUDA path or python oracle, seed 42, canonical fox/ice-cream case) -- the parity spine for the port"
+          "title": "stand up CPU-verifiable denoise-step + VAE-decode host goldens (Krea has none; dump intermediates from adaptive CUDA path or python oracle, seed 42, canonical fox/ice-cream case) -- the parity spine for the port -- MINTED (public serve path, 256x256 seed42 8-step turbo): VAE-decoded image BIT-EXACT (u8 sha256 b257e244 + probes -- strong e2e anchor), schedule knots EXACT (g2 sigmas/timesteps -- full sampler parity spine), per-step latent+velocity distribution median/MAD (all 8 steps finite). fixtures/krea/{g0..g3,manifest}+raw; reload-verified. LIMITATION: exact intermediate TENSOR probes (text-cond, per-step latent elements, final latent, VAE float) need an adaptive-side ExecutionProbe dump hook (not HTTP-exposed, no Krea probe program exists) -- adaptive is read-only (only-change-overgo), so OUT OF SCOPE. Sampler port verifies vs g2 now; VAE port verifies bit-exact vs g3 now; denoiser verifies distribution now (exact per-step needs the hook)"
         },
         {
           "id": "text-conditioning",
           "status": "open",
           "resource": "cpu",
-          "title": "Qwen3VL encoder + 12 selected-hidden-layer fusion into DiT text stream (Qwen2 tokenizer); vs latentvideo/textcond (UMT5) -- new encoder surface"
+          "title": "Qwen3VL encoder + 12 selected-hidden-layer fusion into DiT text stream (Qwen2 tokenizer); vs latentvideo/textcond (UMT5) -- new encoder surface [oracle: telemetry only; exact needs adaptive dump hook (out of scope)]"
         },
         {
           "id": "denoiser-port",
           "status": "open",
           "resource": "cpu",
-          "title": "dual-stream 28-block MMDiT on latentvideo DiT machinery (reuse ldmatrix+mma attention, gelu fusion, retained-graph replay, GQA, 3-axis rope tables); text-token co-attention is new vs single-stream Wan; parity vs host-goldens"
+          "title": "dual-stream 28-block MMDiT on latentvideo DiT machinery (reuse ldmatrix+mma attention, gelu fusion, retained-graph replay, GQA, 3-axis rope tables); text-token co-attention is new vs single-stream Wan; parity vs host-goldens [oracle: g2 per-step distribution now; exact per-step needs adaptive dump hook (out of scope)]"
         },
         {
           "id": "sampler-port",
           "status": "open",
           "resource": "cpu",
-          "title": "dynamic-shift flow-match Euler (exponential time-shift, seq-len-dependent, distilled few-step) vs Wan UniPC; parity vs host-goldens"
+          "title": "dynamic-shift flow-match Euler (exponential time-shift, seq-len-dependent, distilled few-step) vs Wan UniPC; parity vs host-goldens [oracle READY: g2 exact sigmas/timesteps]"
         },
         {
           "id": "vae-port",
           "status": "open",
           "resource": "cpu",
-          "title": "spatial AutoencoderKLQwenImage decode (z16, base 96, dim_mult [1,2,4,4], latents_mean/std denorm) + host oracle + tiled upsample; distinct from latentvideo causal 3D codec"
+          "title": "spatial AutoencoderKLQwenImage decode (z16, base 96, dim_mult [1,2,4,4], latents_mean/std denorm) + host oracle + tiled upsample; distinct from latentvideo causal 3D codec [oracle READY: g3 decoded image bit-exact]"
         },
         {
           "id": "cuda-serving",

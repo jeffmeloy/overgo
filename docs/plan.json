@@ -662,9 +662,9 @@
         },
         {
           "id": "converter-parity",
-          "status": "open",
+          "status": "done",
           "resource": "cpu",
-          "title": "run gemma4convert on gemma-4-12B-it-fp8 (structural config accepts gemma4_unified; SharedKV/PLE=0 no-op; fp8 MLP -> bf16 via newFP8BF16Reader); verify GGUF tensor inventory + fp8-dequant vs gemma4_golden.json (0-mismatch target like E4B)"
+          "title": "run gemma4convert on gemma-4-12B-it-fp8 (structural config accepts gemma4_unified; SharedKV/PLE=0 no-op; fp8 MLP -> bf16 via newFP8BF16Reader); verify GGUF tensor inventory + fp8-dequant vs gemma4_golden.json (0-mismatch target like E4B) -- DONE 0-mismatch, NO converter changes: gemma4convert handled gemma4_unified fp8 as-is; gemma-4-12B-it-fp8-bf16.gguf 667 tensors (618 bf16 + 49 f32) 22.2GiB 85s; 810 source lang = 666 emitted + 144 weight_scale consumed + 11 MM excluded +1 rope; fp8 MLP dequant bit-matches bf16(e4m3(w)*scale[row]) at sampled rows, bf16 attn/embeds byte-identical; attention_k_eq_v real (8 full-attn layers emit attn_k, no attn_v); metadata matches config"
         },
         {
           "id": "inference-wiring",

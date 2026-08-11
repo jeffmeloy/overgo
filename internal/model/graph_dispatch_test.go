@@ -23,7 +23,9 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 		switch policy {
 		case BlockDense:
 			want = []LayerOperator{
-				LayerOperatorPolicyAttention, LayerOperatorPolicyFeedForward,
+				LayerOperatorAttentionInputNorm, LayerOperatorAttentionMix, LayerOperatorResidual,
+				LayerOperatorFeedForwardInputNorm, LayerOperatorFeedForwardMix,
+				LayerOperatorFeedForwardOutput, LayerOperatorResidual,
 			}
 		case BlockKimiLinear:
 			want = []LayerOperator{
@@ -85,6 +87,12 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 			}
 			if operator == LayerOperatorRecurrentMix && instruction.Recurrent == RecurrentMixNone {
 				t.Fatalf("semantic program %d recurrent stage has no math policy", policy)
+			}
+			if operator == LayerOperatorAttentionMix && instruction.Attention == AttentionMixNone {
+				t.Fatalf("semantic program %d attention stage has no math policy", policy)
+			}
+			if operator == LayerOperatorFeedForwardMix && instruction.FeedForward == FeedForwardMixNone {
+				t.Fatalf("semantic program %d feed-forward stage has no math policy", policy)
 			}
 		}
 	}

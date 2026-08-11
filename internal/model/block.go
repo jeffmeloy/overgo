@@ -250,71 +250,51 @@ type denseBlockContext struct {
 	cacheWrite         tensor.CacheWriteMode
 }
 
-func prepareDenseBlock(options BlockDispatchOptions) (denseBlockContext, error) {
+func newDenseBlockContext(options BlockDispatchOptions) denseBlockContext {
 	c := options.Context
-	prepared := denseBlockContext{
+	return denseBlockContext{
 		builder: c.Builder, input: c.Input, spec: options.Spec, weights: options.Weights,
 		positions: c.Positions, multiPositions: c.MultiPositions,
 		pastKey: c.PastKey, pastValue: c.PastValue, layer: c.Layer, cacheWrite: c.CacheWrite,
+		plan: *options.Plan, profile: options.Spec.Profile(),
 	}
-	if prepared.builder == nil {
-		return prepared, errors.New("dense block builder is nil")
-	}
-	if prepared.input == nil {
-		return prepared, errors.New("dense block input is nil")
-	}
-	if err := prepared.builder.Err(); err != nil {
-		return prepared, err
-	}
-	if options.Plan == nil {
-		return prepared, errors.New("compiled dense layer plan is required")
-	}
-	prepared.plan = *options.Plan
-	prepared.profile = prepared.spec.Profile()
-	if prepared.plan.Layer != prepared.layer {
-		return prepared, errors.New("compiled dense layer plan index differs")
-	}
-	return prepared, nil
 }
 
-func buildPolicyAttentionStage(
+func preparePolicyAttentionInputs(
 	options BlockDispatchOptions,
-) (DenseBlockResult, *tensor.Tensor, *tensor.Tensor, error) {
-	c, err := prepareDenseBlock(options)
-	if err != nil {
-		return DenseBlockResult{}, nil, nil, err
+) (*tensor.Tensor, *tensor.Tensor, error) {
+	c := newDenseBlockContext(options)
+	if c.builder == nil || c.input == nil {
+		return nil, nil, errors.New("compiled attention-input stage is nil")
+	}
+	if err := c.builder.Err(); err != nil {
+		return nil, nil, err
 	}
 	if c.plan.DenseGraph != DenseGraphStandard || c.plan.DeciSparse {
-		return DenseBlockResult{}, nil, nil, errors.New("compiled policy attention stage is incompatible")
+		return nil, nil, errors.New("compiled attention-input stage is incompatible")
 	}
 	if err := c.plan.ExpertComposition.Validate(c.spec); err != nil {
-		return DenseBlockResult{}, nil, nil, err
+		return nil, nil, err
 	}
 	if c.profile.FeedForward == FeedForwardXIELU &&
 		(int(c.layer) >= len(c.spec.XIELUAlphaN) || int(c.layer) >= len(c.spec.XIELUAlphaP) ||
 			int(c.layer) >= len(c.spec.XIELUBeta) || int(c.layer) >= len(c.spec.XIELUEpsilon)) {
-		return DenseBlockResult{}, nil, nil, errors.New("Apertus xIELU parameters are missing for layer")
+		return nil, nil, errors.New("Apertus xIELU parameters are missing for layer")
 	}
 	usesExperts := c.weights.FeedForwardRouter != nil
 	if err := c.plan.DenseWeights.Validate(c.spec, c.profile, c.weights, usesExperts); err != nil {
-		return DenseBlockResult{}, nil, nil, err
+		return nil, nil, err
 	}
 	if len(c.positions) == 0 || uint64(len(c.positions)) != c.input.Shape.Dims[1] {
-		return DenseBlockResult{}, nil, nil, fmt.Errorf(
+		return nil, nil, fmt.Errorf(
 			"dense block has %d positions for %d tokens", len(c.positions), c.input.Shape.Dims[1],
 		)
 	}
 	if err := requireTensorPair(c.pastKey, c.pastValue, "dense block past key/value cache must both be present"); err != nil {
-		return DenseBlockResult{}, nil, nil, err
+		return nil, nil, err
 	}
 	if c.spec.NonCausalAttention && c.profile.Forward != ForwardDFlash && c.pastKey != nil {
-		return DenseBlockResult{}, nil, nil, errors.New("non-causal dense block does not support a KV cache")
-	}
-
-	tokens := uint64(len(c.positions))
-	runtime := denseBlockRuntime{
-		builder: c.builder, spec: c.spec, weights: c.weights, plan: c.plan,
-		profile: c.profile, layer: c.layer, tokens: tokens,
+		return nil, nil, errors.New("non-causal dense block does not support a KV cache")
 	}
 	normalized := c.input
 	if c.plan.Normalization.PreAttention && !c.spec.SandwichNorm {
@@ -323,7 +303,6 @@ func buildPolicyAttentionStage(
 		)
 	}
 	feedForwardNormalized := normalized
-	attentionGate := c.plan.AttentionOutput.PrepareGate(c.builder, normalized, c.weights)
 	if c.plan.DenseWeights.validateFalconNorm && c.weights.AttentionNorm2 != nil {
 		if c.weights.AttentionNorm2Bias == nil {
 			normalized = c.builder.Multiply(
@@ -335,10 +314,25 @@ func buildPolicyAttentionStage(
 			)
 		}
 	}
+	return normalized, feedForwardNormalized, c.builder.Err()
+}
+
+func buildPolicyAttentionMix(
+	options BlockDispatchOptions,
+	normalized, gateInput, pastKey, pastValue *tensor.Tensor,
+) (DenseBlockResult, error) {
+	c := newDenseBlockContext(options)
+	c.pastKey, c.pastValue = pastKey, pastValue
+	tokens := uint64(len(c.positions))
+	runtime := denseBlockRuntime{
+		builder: c.builder, spec: c.spec, weights: c.weights, plan: c.plan,
+		profile: c.profile, layer: c.layer, tokens: tokens,
+	}
+	attentionGate := c.plan.AttentionOutput.PrepareGate(c.builder, gateInput, c.weights)
 	query, key, value := runtime.projectAttention(normalized)
-	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkProjection)
+	query, key, err := c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkProjection)
 	if err != nil {
-		return DenseBlockResult{}, nil, nil, err
+		return DenseBlockResult{}, err
 	}
 	headCount := c.spec.LayerHeadCount(c.layer)
 	kvHeadCount := c.spec.LayerKVHeadCount(c.layer)
@@ -347,20 +341,20 @@ func buildPolicyAttentionStage(
 	value = c.builder.Reshape(value, uint64(c.spec.ValueLength), uint64(kvHeadCount), tokens)
 	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkHeads)
 	if err != nil {
-		return DenseBlockResult{}, nil, nil, err
+		return DenseBlockResult{}, err
 	}
 	query, key = c.plan.Rotary.Apply(
 		c.builder, query, key, c.positions, c.multiPositions, c.weights.RopeFactors,
 	)
 	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkPostRotary)
 	if err != nil {
-		return DenseBlockResult{}, nil, nil, err
+		return DenseBlockResult{}, err
 	}
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if c.pastKey != nil {
 		if c.pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, nil, nil, errors.New("dense block KV cache token count exceeds uint32")
+			return DenseBlockResult{}, errors.New("dense block KV cache token count exceeds uint32")
 		}
 		queryStart = c.builder.CacheTokenOffset(uint32(c.pastKey.Shape.Dims[2]))
 		cacheKey = c.builder.WriteCache(c.pastKey, key, 2, c.cacheWrite)
@@ -384,40 +378,28 @@ func buildPolicyAttentionStage(
 	)
 	attention, err = c.plan.AttentionOutput.ApplyProjection(c.builder, attention, c.spec, c.weights)
 	if err != nil {
-		return DenseBlockResult{}, nil, nil, err
-	}
-	residual := c.builder.Add(c.input, attention)
-	normalized = c.plan.ResidualStages.AfterAttention(
-		c.builder, residual, normalized, c.spec, c.weights,
-	)
-	return DenseBlockResult{Output: residual, Key: cacheKey, Value: cacheValue},
-		normalized, feedForwardNormalized, nil
-}
-
-func buildPolicyFeedForwardStage(
-	options BlockDispatchOptions,
-	normalized, feedForwardNormalized, residual, cacheKey, cacheValue *tensor.Tensor,
-) (DenseBlockResult, error) {
-	c, err := prepareDenseBlock(options)
-	if err != nil {
 		return DenseBlockResult{}, err
 	}
+	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, c.builder.Err()
+}
+
+func buildPolicyFeedForwardMix(
+	options BlockDispatchOptions,
+	normalized, residual *tensor.Tensor,
+) (*tensor.Tensor, error) {
+	c := newDenseBlockContext(options)
 	usesExperts := c.weights.FeedForwardRouter != nil
 	if usesExperts && c.plan.ExpertComposition.kind == expertArctic {
 		feedForward, err := c.plan.ExpertComposition.Build(
 			c.builder, c.input, residual, normalized, c.spec, c.weights, c.plan,
 		)
 		if err != nil {
-			return DenseBlockResult{}, err
+			return nil, err
 		}
-		return DenseBlockResult{
-			Output: c.builder.Add(residual, feedForward), Key: cacheKey, Value: cacheValue,
-		}, c.builder.Err()
+		return feedForward, c.builder.Err()
 	}
-	normalized = c.plan.ResidualStages.FeedForwardInput(
-		c.builder, c.input, residual, normalized, feedForwardNormalized, c.spec, c.weights,
-	)
 	var feedForward *tensor.Tensor
+	var err error
 	if usesExperts {
 		feedForward, err = c.plan.ExpertComposition.Build(
 			c.builder, c.input, residual, normalized, c.spec, c.weights, c.plan,
@@ -427,16 +409,12 @@ func buildPolicyFeedForwardStage(
 			builder: c.builder, spec: c.spec, weights: c.weights, plan: c.plan,
 			profile: c.profile, layer: c.layer, tokens: c.input.Shape.Dims[1],
 		}
-		feedForward, err = runtime.buildFeedForward(normalized, c.plan.Normalization)
+		feedForward, err = runtime.buildFeedForward(normalized)
 	}
 	if err != nil {
-		return DenseBlockResult{}, err
+		return nil, err
 	}
-	output := c.builder.Add(residual, feedForward)
-	if err := c.builder.Err(); err != nil {
-		return DenseBlockResult{}, err
-	}
-	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+	return feedForward, c.builder.Err()
 }
 
 type denseBlockRuntime struct {
@@ -496,10 +474,7 @@ func (r denseBlockRuntime) projectAttention(normalized *tensor.Tensor) (*tensor.
 	return query, key, value
 }
 
-func (r denseBlockRuntime) buildFeedForward(
-	normalized *tensor.Tensor,
-	normPlan NormalizationPlan,
-) (*tensor.Tensor, error) {
+func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.Tensor, error) {
 	up := r.builder.MulMat(r.weights.FeedForwardUp, normalized)
 	if r.weights.FeedForwardUpScale != nil {
 		up = r.builder.Multiply(up, r.weights.FeedForwardUpScale)
@@ -555,9 +530,7 @@ func (r denseBlockRuntime) buildFeedForward(
 	if r.weights.FeedForwardDownBias != nil {
 		feedForward = r.builder.Add(feedForward, r.weights.FeedForwardDownBias)
 	}
-	return r.plan.ResidualStages.ApplyFeedForwardOutput(
-		r.builder, feedForward, r.spec, r.weights, normPlan,
-	), r.builder.Err()
+	return feedForward, r.builder.Err()
 }
 
 func buildSharedKVQKNormMixCached(

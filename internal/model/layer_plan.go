@@ -51,8 +51,7 @@ type LayerOperator uint8
 
 const (
 	LayerOperatorNone LayerOperator = iota
-	LayerOperatorPolicyAttention
-	LayerOperatorPolicyFeedForward
+	LayerOperatorAttentionInputNorm
 	LayerOperatorLinearAttention
 	LayerOperatorLatentAttention
 	LayerOperatorHyperAttention
@@ -78,6 +77,8 @@ const (
 	LayerOperatorFeedForwardResidualNorm
 	LayerOperatorPairedInputNorm
 	LayerOperatorResidualScale
+	LayerOperatorFeedForwardInputNorm
+	LayerOperatorFeedForwardOutput
 )
 
 // RecurrentMixPolicy: recurrent operator implementation.
@@ -110,6 +111,7 @@ const (
 	AttentionMixBidirectionalEncoder
 	AttentionMixPairedCausalProjection
 	AttentionMixSharedCacheQKNorm
+	AttentionMixCompiledProjection
 )
 
 // HybridMixPolicy: parallel mixer implementation.
@@ -135,6 +137,7 @@ const (
 	FeedForwardMixGatedTokenShiftSquaredReLU
 	FeedForwardMixTokenShiftSquaredReLU
 	FeedForwardMixEncoder
+	FeedForwardMixCompiled
 )
 
 const (
@@ -982,11 +985,11 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 		}
 		if profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
 			return newLayerProgram(
-				leafLayerStage(
-					LayerOperatorPolicyAttention,
-					[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
-				),
-				layerStage(LayerOperatorPolicyFeedForward),
+				layerStage(LayerOperatorAttentionInputNorm),
+				attentionLayerStage(AttentionMixCompiledProjection),
+				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardInputNorm),
+				feedForwardLayerStage(FeedForwardMixCompiled),
+				layerStage(LayerOperatorFeedForwardOutput), layerStage(LayerOperatorResidual),
 			)
 		}
 		return LayerProgram{}

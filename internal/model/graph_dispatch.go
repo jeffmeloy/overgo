@@ -109,11 +109,11 @@ func resolveLayerOperands(
 }
 
 type layerExecution struct {
-	residual              *tensor.Tensor
-	current               *tensor.Tensor
-	policyNormalized      *tensor.Tensor
-	policyFeedForwardNorm *tensor.Tensor
-	result                DenseBlockResult
+	residual        *tensor.Tensor
+	current         *tensor.Tensor
+	attentionInput  *tensor.Tensor
+	feedForwardBase *tensor.Tensor
+	result          DenseBlockResult
 }
 
 func executeLayerProgram(
@@ -154,6 +154,18 @@ func executeLayerInstruction(
 ) error {
 	c := options.Context
 	switch instruction.Operator {
+	case LayerOperatorAttentionInputNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 {
+			return errors.New("compiled attention-input stage is invalid")
+		}
+		attentionInput, feedForwardBase, err := preparePolicyAttentionInputs(options)
+		if err != nil {
+			return err
+		}
+		execution.current = attentionInput
+		execution.attentionInput = attentionInput
+		execution.feedForwardBase = feedForwardBase
+		return nil
 	case LayerOperatorAttentionNorm:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
 			options.Weights.AttentionNorm == nil {
@@ -270,6 +282,11 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan,
 			)
+		case AttentionMixCompiledProjection:
+			result, err = buildPolicyAttentionMix(
+				options, execution.current, execution.feedForwardBase,
+				operands.caches[0], operands.caches[1],
+			)
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
 		}
@@ -376,6 +393,22 @@ func executeLayerInstruction(
 			options.Weights.FeedForwardNormBias, options.Spec,
 		)
 		return c.Builder.Err()
+	case LayerOperatorFeedForwardInputNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			execution.attentionInput == nil || execution.feedForwardBase == nil {
+			return errors.New("compiled feed-forward input stage is invalid")
+		}
+		normalized := plan.ResidualStages.AfterAttention(
+			c.Builder, execution.residual, execution.attentionInput, options.Spec, options.Weights,
+		)
+		if plan.ExpertComposition.kind != expertArctic {
+			normalized = plan.ResidualStages.FeedForwardInput(
+				c.Builder, c.Input, execution.residual, normalized, execution.feedForwardBase,
+				options.Spec, options.Weights,
+			)
+		}
+		execution.current = normalized
+		return c.Builder.Err()
 	case LayerOperatorFeedForwardMix:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 {
 			return errors.New("compiled feed-forward stage is invalid")
@@ -416,6 +449,10 @@ func executeLayerInstruction(
 			feedForward, err = buildEncoderFeedForwardMix(
 				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
 			)
+		case FeedForwardMixCompiled:
+			feedForward, err = buildPolicyFeedForwardMix(
+				options, execution.current, execution.residual,
+			)
 		default:
 			return errors.New("compiled feed-forward policy is invalid")
 		}
@@ -424,6 +461,16 @@ func executeLayerInstruction(
 		}
 		execution.current = feedForward
 		return nil
+	case LayerOperatorFeedForwardOutput:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil {
+			return errors.New("compiled feed-forward output stage is invalid")
+		}
+		if options.Weights.FeedForwardRouter == nil {
+			execution.current = plan.ResidualStages.ApplyFeedForwardOutput(
+				c.Builder, execution.current, options.Spec, options.Weights, plan.Normalization,
+			)
+		}
+		return c.Builder.Err()
 	case LayerOperatorFeedForwardPostNorm:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
 			options.Weights.FeedForwardPostNorm == nil {
@@ -553,40 +600,6 @@ func executeLayerInstruction(
 			execution.result.Output = execution.current
 		}
 		return c.Builder.Err()
-	case LayerOperatorPolicyAttention:
-		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||
-			plan.Block != BlockDense {
-			return errors.New("compiled dense-attention stage is invalid")
-		}
-		result, normalized, feedForwardNorm, err := buildPolicyAttentionStage(options)
-		if err != nil {
-			return err
-		}
-		execution.current = result.Output
-		execution.residual = result.Output
-		execution.result = result
-		execution.policyNormalized = normalized
-		execution.policyFeedForwardNorm = feedForwardNorm
-		return nil
-	case LayerOperatorPolicyFeedForward:
-		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
-			plan.Block != BlockDense || execution.policyNormalized == nil ||
-			execution.policyFeedForwardNorm == nil {
-			return errors.New("compiled dense feed-forward stage is invalid")
-		}
-		result, err := buildPolicyFeedForwardStage(
-			options, execution.policyNormalized, execution.policyFeedForwardNorm,
-			execution.residual, execution.result.Key, execution.result.Value,
-		)
-		if err != nil {
-			return err
-		}
-		execution.current = result.Output
-		execution.residual = result.Output
-		execution.result = result
-		execution.policyNormalized = nil
-		execution.policyFeedForwardNorm = nil
-		return nil
 	case LayerOperatorLinearAttention:
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||
 			plan.Block != BlockKimiLinear || !plan.Recurrent {

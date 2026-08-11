@@ -1,12 +1,10 @@
 package tabularicl
 
 import (
-	"context"
 	"errors"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/recipe"
 	"overgo/internal/workflowruntime"
 )
 
@@ -25,45 +23,24 @@ type predictor interface {
 
 // RegisterRuntime binds one loaded model to its tabular stage.
 func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model *Model) error {
+	if model == nil {
+		return errors.New("tabularicl: incomplete runtime binding")
+	}
 	return registerRuntime(runtime, modelID, model)
 }
 
 func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model predictor) error {
-	if runtime == nil || model == nil || modelID.Kind() != artifact.KindModel {
-		return errors.New("tabularicl: incomplete runtime binding")
-	}
-	return runtime.Register(modelrecipe.ModuleTabularPredict, workflowruntime.AdapterFunc(
-		func(ctx context.Context, request workflowruntime.StepRequest) (map[recipe.PortName]workflowruntime.Value, error) {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			bound, ok := request.Dependency(recipe.DependencyModel, 0)
-			if !ok || bound != modelID {
-				return nil, errors.New("tabularicl: recipe model differs from runtime binding")
-			}
-			input, ok := request.Inputs["table"].Single()
-			if !ok {
-				return nil, errors.New("tabularicl: runtime requires one table")
-			}
-			table, ok := input.Value.(Request)
-			if !ok {
-				return nil, errors.New("tabularicl: runtime table has invalid value type")
-			}
+	return workflowruntime.RegisterJSONStage[Request, Prediction](
+		runtime, modelrecipe.ModuleTabularPredict, modelID, predictionContract,
+		func(table Request) (Prediction, error) {
 			values, outDim, err := model.Predict(table)
 			if err != nil {
-				return nil, err
+				return Prediction{}, err
 			}
 			if outDim <= 0 || table.Rows <= 0 || len(values) != table.Rows*outDim {
-				return nil, errors.New("tabularicl: predictor returned invalid output geometry")
+				return Prediction{}, errors.New("tabularicl: predictor returned invalid output geometry")
 			}
-			prediction := Prediction{Values: values, Rows: table.Rows, OutDim: outDim}
-			content, err := artifact.JSONContent(predictionContract, prediction)
-			if err != nil {
-				return nil, err
-			}
-			return map[recipe.PortName]workflowruntime.Value{
-				"predictions": workflowruntime.ArtifactValue(recipe.DataTensor, prediction, content),
-			}, nil
+			return Prediction{Values: values, Rows: table.Rows, OutDim: outDim}, nil
 		},
-	))
+	)
 }

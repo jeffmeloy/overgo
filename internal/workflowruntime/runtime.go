@@ -47,19 +47,8 @@ func ArtifactValue(kind recipe.DataKind, value any, content artifact.Content) Va
 
 // StepRequest: one compiled module invocation.
 type StepRequest struct {
-	Node         recipe.Node
-	Dependencies []recipe.Dependency
-	Inputs       map[recipe.PortName]Value
-}
-
-// Dependency returns one compiled artifact binding.
-func (r StepRequest) Dependency(role recipe.DependencyRole, slot uint32) (artifact.ID, bool) {
-	for _, dependency := range r.Dependencies {
-		if dependency.Role == role && dependency.Slot == slot {
-			return dependency.Artifact, true
-		}
-	}
-	return artifact.ID{}, false
+	Model  artifact.ID
+	Inputs map[recipe.PortName]Value
 }
 
 // Adapter: module execution boundary.
@@ -258,7 +247,7 @@ func (r *Runtime) executePlan(
 			return nil, fmt.Errorf("workflow runtime: module %q has no adapter", step.Module)
 		}
 		produced, err := adapter.Execute(ctx, StepRequest{
-			Node: step, Dependencies: slices.Clone(definition.Dependencies), Inputs: stepInputs,
+			Model: definition.Model, Inputs: stepInputs,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("workflow runtime: step %q: %w", step.ID, err)

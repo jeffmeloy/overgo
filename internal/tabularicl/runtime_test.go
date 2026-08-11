@@ -1,17 +1,12 @@
 package tabularicl
 
 import (
-	"context"
 	"math"
 	"reflect"
 	"testing"
 
-	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/recipe"
-	"overgo/internal/repodb"
-	"overgo/internal/testutil"
-	"overgo/internal/workflowruntime"
+	"overgo/internal/modelrecipetest"
 )
 
 const (
@@ -73,26 +68,8 @@ func TestRegisteredRuntimeEnforcesTabularOutputContract(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			store, err := repodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer store.Close()
-			modelID := testutil.ArtifactID(t, artifact.KindModel, "tabular-"+test.name)
-			testutil.PublishArtifact(t, store, modelID)
-			definition, err := modelrecipe.TabularDefinition(modelID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			program, err := modelrecipe.CompileCapability(definition)
-			if err != nil {
-				t.Fatal(err)
-			}
-			runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := registerRuntime(runtime, modelID, predictorFunc(
+			fixture := modelrecipetest.NewCapability(t, "tabular-"+test.name, modelrecipe.TabularDefinition)
+			if err := registerRuntime(fixture.Runtime, fixture.Model, predictorFunc(
 				func(request Request) ([]float32, int, error) {
 					if !reflect.DeepEqual(request, tabularRequestFixture) {
 						t.Fatalf("request = %+v", request)
@@ -102,9 +79,7 @@ func TestRegisteredRuntimeEnforcesTabularOutputContract(t *testing.T) {
 			)); err != nil {
 				t.Fatal(err)
 			}
-			result, err := runtime.ExecuteProgram(context.Background(), "tabular/runtime/"+test.name, program, map[recipe.PortName]workflowruntime.Value{
-				"table": {Kind: recipe.DataTensor, Items: []workflowruntime.Datum{{Value: tabularRequestFixture}}},
-			})
+			result, err := fixture.ExecuteTensor("tabular/runtime/"+test.name, "table", tabularRequestFixture)
 			if test.wantError {
 				if err == nil {
 					t.Fatal("invalid prediction geometry accepted")

@@ -37,3 +37,33 @@ func (m *Model) TrainDevice(worker *device.Worker, tokens []int, steps int, base
 	scatter(m, names, weights)
 	return trajectory, nil
 }
+
+// TrainDeviceFull runs `steps` Muon updates with BOTH the backward and the Muon
+// optimizer step on the GPU: deviceLossAndGrads (device layer backward via the
+// resident MLP/attention blocks) plus DeviceMuonStepPlan. Only the forward and
+// the head/norm/embedding tail run on host. Matches Train's host trajectory
+// within fp32 tolerance. Attention bias is not yet supported.
+func (m *Model) TrainDeviceFull(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
+	names, weights, gradients, plan, resolvedLR, err := m.trainSetup(baseLR)
+	if err != nil {
+		return nil, err
+	}
+	config := optimizer.Config{BaseLearningRate: resolvedLR, Momentum: mu, Schedule: optimizer.ScheduleConstant}
+	momentum := make([]float32, len(weights))
+
+	trajectory := make([]float64, 0, steps)
+	for step := 0; step < steps; step++ {
+		scatter(m, names, weights)
+		loss, _, grads, err := m.deviceLossAndGrads(worker, tokens)
+		if err != nil {
+			return nil, err
+		}
+		trajectory = append(trajectory, loss)
+		m.gatherGrads(names, gradients, grads)
+		if err := optimizer.DeviceMuonStepPlan(worker, weights, gradients, momentum, plan, step+1, config); err != nil {
+			return nil, err
+		}
+	}
+	scatter(m, names, weights)
+	return trajectory, nil
+}

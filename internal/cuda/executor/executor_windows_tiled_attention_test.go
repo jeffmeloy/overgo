@@ -4,10 +4,8 @@ package executor
 
 import (
 	"context"
-	"math"
 	"testing"
 
-	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -18,7 +16,6 @@ import (
 // executing the same rounded graph. Residual disagreement is the in-kernel
 // BF16 probability rounding plus F32 accumulation order; the gate bounds it.
 func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
-	cudatest.Require(t)
 	cases := []struct {
 		name                    string
 		queryHeads, keyValHeads uint64
@@ -67,14 +64,8 @@ func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var worst float64
-			for i := range want[attention].Data {
-				difference := math.Abs(float64(got[attention].Data[i] - want[attention].Data[i]))
-				if difference > worst {
-					worst = difference
-				}
-			}
-			t.Logf("%s max_abs_diff=%.6g", testCase.name, worst)
+			worst, at := maxAbsDifference(t, got[attention].Data, want[attention].Data)
+			t.Logf("%s max_abs_diff=%.6g at=%d", testCase.name, worst, at)
 			if worst > testCase.tolerance {
 				t.Fatalf("max abs diff %.6g > %.6g", worst, testCase.tolerance)
 			}
@@ -86,7 +77,6 @@ func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
 // (non-causal, featureless, >=32 query rows) vs the reference backend across
 // widths, GQA groupings, and non-multiple-of-32 KV extents.
 func TestExecutorTiledAttentionMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	cases := []struct {
 		name                    string
 		width                   uint64
@@ -125,14 +115,8 @@ func TestExecutorTiledAttentionMatchesReference(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var worst float64
-			for i := range want[attention].Data {
-				difference := math.Abs(float64(got[attention].Data[i] - want[attention].Data[i]))
-				if difference > worst {
-					worst = difference
-				}
-			}
-			t.Logf("%s max_abs_diff=%.6g", testCase.name, worst)
+			worst, at := maxAbsDifference(t, got[attention].Data, want[attention].Data)
+			t.Logf("%s max_abs_diff=%.6g at=%d", testCase.name, worst, at)
 			if worst > testCase.tolerance {
 				t.Fatalf("max abs diff %.6g > %.6g", worst, testCase.tolerance)
 			}

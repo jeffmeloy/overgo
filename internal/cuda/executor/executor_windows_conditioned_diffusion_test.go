@@ -6,7 +6,6 @@ import (
 	"context"
 	"testing"
 
-	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -20,7 +19,6 @@ import (
 // 2 heads of width 6 (axis channels 2/2/2), a 2x1x2 token grid, 3 context
 // tokens.
 func TestExecutorConditionedDiffusionBlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	const (
 		dim       = uint64(12)
@@ -161,7 +159,6 @@ func TestExecutorConditionedDiffusionBlockMatchesReference(t *testing.T) {
 		"cross_attn", "cross_residual", "ffn",
 		"output", "head",
 	}
-	cudatest.Require(t)
 	want, err := reference.Execute(outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
@@ -173,17 +170,7 @@ func TestExecutorConditionedDiffusionBlockMatchesReference(t *testing.T) {
 	}
 	failed := false
 	for index, output := range outputs {
-		var maxDiff float64
-		at := -1
-		for i := range want[output].Data {
-			diff := float64(got[output].Data[i]) - float64(want[output].Data[i])
-			if diff < 0 {
-				diff = -diff
-			}
-			if diff > maxDiff {
-				maxDiff, at = diff, i
-			}
-		}
+		maxDiff, at := maxAbsDifference(t, got[output].Data, want[output].Data)
 		t.Logf("%s max_abs_diff=%.6g at=%d", names[index], maxDiff, at)
 		failed = failed || maxDiff > accuracyModel
 	}

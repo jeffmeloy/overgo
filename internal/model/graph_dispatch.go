@@ -606,17 +606,14 @@ func executeLayerInstruction(
 		}
 		return c.Builder.Err()
 	case LayerOperatorLatentAttention:
-		valid := instruction.CacheCount == 2 && instruction.TensorCount == 0 &&
-			(plan.Block == BlockMLA || plan.Block == BlockKimiLinear && !plan.Recurrent)
-		if plan.Block == BlockDSA {
-			valid = instruction.CacheCount == 3 && instruction.TensorCount == 1
-		}
+		valid := instruction.CacheCount == 2 && instruction.TensorCount == 0 ||
+			instruction.CacheCount == 3 && instruction.TensorCount == 1
 		if !valid {
 			return errors.New("compiled latent-attention stage is invalid")
 		}
-		result, err := buildLatentAttentionMixCachedWithPlan(
+		result, err := buildLatentAttentionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], plan,
+			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], plan.Layer,
 		)
 		if err != nil {
 			return err
@@ -625,10 +622,10 @@ func executeLayerInstruction(
 		execution.result = result
 		return nil
 	case LayerOperatorHyperAttention:
-		if instruction.CacheCount != 1 || instruction.TensorCount != 1 || plan.Block != BlockDeepSeek4 {
+		if instruction.CacheCount != 1 || instruction.TensorCount != 1 {
 			return errors.New("compiled hyper-attention stage is invalid")
 		}
-		result, err := buildDeepSeek4AttentionCachedWithPlan(
+		result, err := buildHyperAttentionStage(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
 			operands.caches[0], c.PastStates, operands.tensors[0], plan,
 		)
@@ -639,11 +636,10 @@ func executeLayerInstruction(
 		execution.result = result
 		return nil
 	case LayerOperatorHyperFeedForward:
-		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
-			plan.Block != BlockDeepSeek4 {
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 {
 			return errors.New("compiled hyper-feed-forward stage is invalid")
 		}
-		output, err := buildDeepSeek4FeedForwardWithPlan(
+		output, err := buildHyperFeedForwardStage(
 			c.Builder, execution.current, options.Spec, options.Weights, c.TokenRows, plan,
 		)
 		if err != nil {

@@ -15,8 +15,8 @@ const (
 	rwkv7DecayScale      = float32(-0.606531)
 )
 
-// buildDeepSeek4AttentionCachedWithPlan: hyper-attention stage.
-func buildDeepSeek4AttentionCachedWithPlan(
+// buildHyperAttentionStage: hyper-connected compressed attention.
+func buildHyperAttentionStage(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -28,11 +28,11 @@ func buildDeepSeek4AttentionCachedWithPlan(
 	plan LayerPlan,
 ) (DenseBlockResult, error) {
 	layerIndex := plan.Layer
-	if spec.Profile().Block != BlockDeepSeek4 || builder == nil || input == nil ||
+	if builder == nil || input == nil ||
 		(input.Shape.Rank != 2 && input.Shape.Rank != 3) || layerIndex >= spec.BlockCount || len(positions) == 0 ||
 		uint64(len(positions)) != input.Shape.Dims[input.Shape.Rank-1] ||
 		currentPositions == nil || currentPositions.Shape != tensor.MustShape(1, 1, uint64(len(positions))) {
-		return DenseBlockResult{}, errors.New("DeepSeek 4 block input is invalid")
+		return DenseBlockResult{}, errors.New("hyper-attention input is invalid")
 	}
 	if layerIndex == 0 {
 		if input.Shape.Rank != 2 {
@@ -185,8 +185,8 @@ func buildDeepSeek4AttentionCachedWithPlan(
 	return DenseBlockResult{Output: input, Key: cacheKV, Value: cacheValue, States: states}, nil
 }
 
-// buildDeepSeek4FeedForwardWithPlan: hyper-FFN and terminal head.
-func buildDeepSeek4FeedForwardWithPlan(
+// buildHyperFeedForwardStage: hyper-connected routed FFN and terminal head.
+func buildHyperFeedForwardStage(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -195,10 +195,10 @@ func buildDeepSeek4FeedForwardWithPlan(
 	plan LayerPlan,
 ) (*tensor.Tensor, error) {
 	layerIndex := plan.Layer
-	if spec.Profile().Block != BlockDeepSeek4 || builder == nil || input == nil ||
+	if builder == nil || input == nil ||
 		input.Shape.Rank != 3 || input.Shape.Dims[1] != uint64(spec.HyperConnectionCount) ||
 		layerIndex >= spec.BlockCount {
-		return nil, errors.New("DeepSeek 4 feed-forward input is invalid")
+		return nil, errors.New("hyper feed-forward input is invalid")
 	}
 	required := graphWeights{
 		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),

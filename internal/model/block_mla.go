@@ -7,23 +7,8 @@ import (
 	"overgo/internal/tensor"
 )
 
-// buildLatentAttentionMixCachedWithPlan: MLA/DSA mixer.
-func buildLatentAttentionMixCachedWithPlan(
-	builder *tensor.Builder,
-	normalized *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
-	plan LayerPlan,
-) (DenseBlockResult, error) {
-	return buildMLAAttentionMixCachedForLayer(
-		builder, normalized, spec, weights, positions, pastKey, pastValue,
-		pastIndexerKey, previousTopK, plan.Layer,
-	)
-}
-
-func buildMLAAttentionMixCachedForLayer(
+// buildLatentAttentionMixCached: compressed-query/KV attention.
+func buildLatentAttentionMixCached(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	spec Spec,
@@ -34,9 +19,6 @@ func buildMLAAttentionMixCachedForLayer(
 ) (DenseBlockResult, error) {
 	profile := spec.Profile()
 	attentionPolicy := profile.Attention
-	if attentionPolicy != AttentionMLA && attentionPolicy != AttentionDSA && profile.MLAVariant != mlaVariantKimi {
-		return DenseBlockResult{}, errors.New("MLA block architecture is unsupported")
-	}
 	isMiniCPM3 := profile.MLAVariant == mlaVariantMiniCPM3
 	isDeepSeek2 := profile.Has(ArchitectureDeepSeek2)
 	isDSA := attentionPolicy == AttentionDSA

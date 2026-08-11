@@ -85,3 +85,67 @@ func TestLinearBackwardGradCheck(t *testing.T) {
 		t.Fatalf("dX %.3e / dW %.3e > %.1e", maxX, maxW, tolerance)
 	}
 }
+
+// hostLinearLossT returns L = sum(dY ⊙ (X·Wᵀ)) in fp64 (W stored [outDim,in]).
+func hostLinearLossT(x, w, dY []float32, rows, in, outDim int) float64 {
+	var loss float64
+	for r := 0; r < rows; r++ {
+		for o := 0; o < outDim; o++ {
+			var y float64
+			for i := 0; i < in; i++ {
+				y += float64(x[r*in+i]) * float64(w[o*in+i])
+			}
+			loss += float64(dY[r*outDim+o]) * y
+		}
+	}
+	return loss
+}
+
+// TestLinearBackwardTGradCheck verifies device LinearBackwardT (the Y=X·Wᵀ
+// densecausal convention) against a central finite-difference of the host loss.
+func TestLinearBackwardTGradCheck(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	const rows, in, outDim = 6, 5, 4
+	rng := rand.New(rand.NewSource(5))
+	x := randSlice(rng, rows*in)
+	w := randSlice(rng, outDim*in)
+	dY := randSlice(rng, rows*outDim)
+
+	dX, dW, err := LinearBackwardT(worker, x, w, dY, rows, in, outDim)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const eps = 1e-2
+	fd := func(perturb []float32, idx int) float64 {
+		orig := perturb[idx]
+		perturb[idx] = orig + float32(eps)
+		lp := hostLinearLossT(x, w, dY, rows, in, outDim)
+		perturb[idx] = orig - float32(eps)
+		lm := hostLinearLossT(x, w, dY, rows, in, outDim)
+		perturb[idx] = orig
+		return (lp - lm) / (2 * eps)
+	}
+	var maxX, maxW float64
+	for i := range x {
+		if d := math.Abs(fd(x, i) - float64(dX[i])); d > maxX {
+			maxX = d
+		}
+	}
+	for j := range w {
+		if d := math.Abs(fd(w, j) - float64(dW[j])); d > maxW {
+			maxW = d
+		}
+	}
+	t.Logf("LinearBackwardT: max |dX-fd| %.3e  max |dW-fd| %.3e", maxX, maxW)
+	const tolerance = 1e-3
+	if maxX > tolerance || maxW > tolerance {
+		t.Fatalf("dX %.3e / dW %.3e > %.1e", maxX, maxW, tolerance)
+	}
+}

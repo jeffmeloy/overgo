@@ -103,3 +103,28 @@ func LinearBackward(worker *device.Worker, x, w, dY []float32, rows, in, out int
 	}
 	return dX, dW, nil
 }
+
+// LinearBackwardT computes the gradients of the HF-layout linear map
+// Y = X·Wᵀ (X[rows,in], W[outDim,in], Y[rows,outDim]) -- densecausal's convention
+// (hostmath.Linear), the transpose of LinearBackward's Y=X·W. Given dY:
+//
+//	dX = dY·W    [rows,in]
+//	dW = dYᵀ·X   [outDim,in]
+//
+// Composes deviceGEMM (two cuBLAS GEMMs). This is the linear adapter the
+// densecausal-exact device layer backward uses for its q/k/v/o and gate/up/down
+// projections, whose weights are stored [out,in].
+func LinearBackwardT(worker *device.Worker, x, w, dY []float32, rows, in, outDim int) (dX, dW []float32, err error) {
+	if rows <= 0 || in <= 0 || outDim <= 0 || len(x) != rows*in || len(w) != outDim*in || len(dY) != rows*outDim {
+		return nil, nil, fmt.Errorf("LinearBackwardT: shape mismatch (rows=%d in=%d outDim=%d x=%d w=%d dY=%d)", rows, in, outDim, len(x), len(w), len(dY))
+	}
+	dX, err = deviceGEMM(worker, false, false, rows, outDim, in, dY, w) // dY·W
+	if err != nil {
+		return nil, nil, err
+	}
+	dW, err = deviceGEMM(worker, true, false, outDim, rows, in, dY, x) // dYᵀ·X
+	if err != nil {
+		return nil, nil, err
+	}
+	return dX, dW, nil
+}

@@ -442,11 +442,18 @@ func (g *gateContext) stepManifest() (bool, error) {
 	if _, err := os.Stat(filepath.Join(g.repo, "kernels", "manifest.json")); err != nil {
 		return true, nil
 	}
-	if !g.pathsTouchAny("kernels/", "internal/cuda/kernel/", "cmd/kernel-manifest/", "cmd/build-kernels/") {
+	if !g.pathsTouchAny("kernels/", "internal/cuda/kernel/", "cmd/kernel-manifest/", "cmd/build-kernels/", "cmd/kernel-bindings/") {
 		g.honesty = append(g.honesty, "manifest skipped: no kernel-owning paths in -paths")
 		return true, nil
 	}
-	_, err := command(g.repo, "go", "run", "./cmd/kernel-manifest")
+	if _, err := command(g.repo, "go", "run", "./cmd/kernel-manifest"); err != nil {
+		return false, err
+	}
+	// Bindings derive from the same manifest, but build-kernels updates the
+	// manifest + PTX WITHOUT regenerating the executor bindings (that needs
+	// `go generate ./internal/cuda/executor`). Verify freshness here so a stale
+	// kernel_bindings_generated.go cannot ship on a kernel change.
+	_, err := command(g.repo, "go", "test", "-run", "TestGeneratedBindingsMatchManifest", "-count=1", "./cmd/kernel-bindings")
 	return false, err
 }
 

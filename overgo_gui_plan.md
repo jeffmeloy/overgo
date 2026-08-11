@@ -11,8 +11,44 @@ hidden-state projection — but reimplemented in **overgo's own stack**: analysi
 Go on the server, rendered with our vanilla-JS thin client (canvas/SVG, no plotly), **no
 Python, torch, or transformers anywhere**. See §5A.
 
-Worktree: `C:\Users\jeffm\overgo_gui` (branch `overgo_gui`). All work and commits happen
-here, isolated from the `master` merge activity.
+Worktree: `C:\Users\jeffm\overgo_gui` (branch `overgo_gui`). Work and commits land here;
+`master` has periodically absorbed the branch (last unification at `d2f2de8`), so the branch
+tracks master plus in-flight GUI work.
+
+---
+
+## 0. Status & console architecture (living section)
+
+The GUI is a **four-section console**, one served thin client (`app.html`) with a two-level
+nav — top-level sections, each holding one or more tabs. A tab self-registers with a
+`section`; `boot.js` renders the section bar and shows only the active section's tabs
+(capability-gated, lazy-mounted).
+
+| Section | Tabs | State |
+|---|---|---|
+| **Inference** | Chat | **Done** — streaming `/v1/chat/completions`, thin-client history, SSE live, system prompt, temp/max-tokens, stop/clear. Live-verified on Qwen3.5-9B. |
+| **Datasets** | Datasets | **Scaffold** — section navigable; browse backend next (`/datasets`). |
+| **Training** | Runs | **Scaffold** — read-only; browse backend next (`/runs`, RepoDB). |
+| **Workbench** | Model · Vocabulary · Logit lens · Hidden states | **Done** — Tier 1 + Tier 2 (below), all live-verified. |
+
+**Done:** section shell; Inference chat; serving/embed (§3 D1); landing/probe; Tier 1
+(model/vocab inspection + logit/probability/**entropy** lens); Tier 2 (hidden-state capture via
+`ExtractLayerInputs` → distribution-free structure: distance matrices, kNN, non-metric MDS —
+see §5A/§10 and the metric-discipline note); Tier 2 cross-cutting (capability gating via the
+`/analyze/model` `analysis` block; no-silent-truncation).
+
+**Next (non-blocking):** the **browse backend** for Datasets + Training — modeled on
+`adaptive_new`'s API (`dataset-registry`, `artifact-runs`/`runs`), read-only:
+- `cmd/server` + `Config`: open the `-repo` RepoDB store read-only and resolve the datasets
+  root; hand both to the `Handler` (additive; no CUDA cone).
+- `GET /datasets` (registry: name/kind/modality/file+byte counts, from `datasets/manifest.json`)
+  and `GET /datasets/sample` (row sampling).
+- `GET /runs` — RepoDB `Query(kind=run)` → `runrecord.ParseRun` → runs with recipe/outcome/phase
+  metrics; drill into `evaluation`/`evidence` artifacts. No job control (per decision).
+- Replace the two scaffold modules with real tables/detail views.
+
+**Deferred (blocking):** Tier 3 attention heatmaps — deepest in the attention cone the CUDA
+work rewrote; the client already gates it (`analysis.attention=false`). See §10 Tier 3.
 
 ---
 
@@ -169,6 +205,10 @@ get the UI at `http://localhost:8080/`.
 ---
 
 ## 5. Feature surface — phased
+
+> Historical phasing from the initial plan. For **current** build state and the four-section
+> console, see §0 — it supersedes the MVP/Phase framing below. The console reorganized these
+> features into Inference / Datasets / Training / Workbench sections rather than a flat tab list.
 
 ### MVP (this effort)
 1. **Landing + probe** (`index.html`) — the adaptive launcher, repointed to `/health`+`/models`.
@@ -347,7 +387,13 @@ and a manual smoke against a real model. A2/A3 touch the inference/executor pack
 
 ---
 
-## 9. Decisions requested from the user
+## 9. Decisions — resolved
+
+Recorded outcomes (all since decided): **D1** → embed + serve same-origin (option A). **Visual**
+→ clone the adaptive palette (sibling look). **Scope** → chat + workbench built; media deferred.
+**Analysis depth** → Tier 1 + Tier 2 built; Tier 3 deferred. **Console layout** → sections in the
+served app. **Training** → read-only run/artifact browsing, no job control. Original prompts kept
+below for provenance.
 
 1. **D1:** OK to serve the GUI by embedding it into overgo's server (option A, touches
    `internal/server` additively)? Or keep the server untouched and ship a standalone page +

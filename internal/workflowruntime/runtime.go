@@ -59,21 +59,32 @@ type Result struct {
 type Runtime struct {
 	mu       sync.RWMutex
 	store    artifact.Repository
+	catalog  *recipe.Catalog
 	adapters map[recipe.ModuleID]Adapter
 }
 
 func New(store artifact.Repository) (*Runtime, error) {
+	return NewWithCatalog(store, workflowrecipe.Catalog())
+}
+
+// NewWithCatalog binds execution and adapter admission to one module catalog.
+func NewWithCatalog(store artifact.Repository, catalog *recipe.Catalog) (*Runtime, error) {
 	if store == nil {
 		return nil, errors.New("workflow runtime: nil repository")
 	}
-	return &Runtime{store: store, adapters: make(map[recipe.ModuleID]Adapter)}, nil
+	if catalog == nil {
+		return nil, errors.New("workflow runtime: nil module catalog")
+	}
+	return &Runtime{
+		store: store, catalog: catalog.Clone(), adapters: make(map[recipe.ModuleID]Adapter),
+	}, nil
 }
 
 func (r *Runtime) Register(module recipe.ModuleID, adapter Adapter) error {
-	if r == nil || adapter == nil {
+	if r == nil || r.catalog == nil || adapter == nil {
 		return errors.New("workflow runtime: nil runtime or adapter")
 	}
-	if _, ok := workflowrecipe.Module(module); !ok {
+	if _, ok := r.catalog.Module(module); !ok {
 		return fmt.Errorf("workflow runtime: unknown module %q", module)
 	}
 	r.mu.Lock()
@@ -91,7 +102,7 @@ func (r *Runtime) Execute(
 	definition recipe.Definition,
 	inputs map[recipe.PortName]Value,
 ) (Result, error) {
-	if r == nil || r.store == nil {
+	if r == nil || r.store == nil || r.catalog == nil {
 		return Result{}, errors.New("workflow runtime: nil runtime")
 	}
 	if ctx == nil {
@@ -104,11 +115,51 @@ func (r *Runtime) Execute(
 	if plan.Support != workflowrecipe.ExecutionRuntime {
 		return Result{}, errors.New("workflow runtime: orchestration-only plan")
 	}
+	return r.executeProgram(ctx, key, plan.Program, inputs)
+}
+
+// ExecuteProgram runs a catalog-resolved recipe and records its lineage.
+func (r *Runtime) ExecuteProgram(
+	ctx context.Context,
+	key string,
+	program recipe.Program,
+	inputs map[recipe.PortName]Value,
+) (Result, error) {
+	if r == nil || r.store == nil || r.catalog == nil {
+		return Result{}, errors.New("workflow runtime: nil runtime")
+	}
+	if ctx == nil {
+		return Result{}, errors.New("workflow runtime: nil context")
+	}
+	definition := program.Definition()
+	if definition.Task == recipe.TaskTraining {
+		return Result{}, errors.New("workflow runtime: orchestration-only plan")
+	}
+	validated, err := recipe.CompileProgram(definition, r.catalog)
+	if err != nil {
+		return Result{}, err
+	}
+	if !slices.EqualFunc(program.Stages(), validated.Stages(), func(left, right recipe.Stage) bool {
+		return left.Node == right.Node && left.Module.ID == right.Module.ID
+	}) {
+		return Result{}, errors.New("workflow runtime: compiled program differs from recipe")
+	}
+	return r.executeProgram(ctx, key, validated, inputs)
+}
+
+func (r *Runtime) executeProgram(
+	ctx context.Context,
+	key string,
+	program recipe.Program,
+	inputs map[recipe.PortName]Value,
+) (Result, error) {
+	definition := program.Definition()
+	stages := program.Stages()
 	inputIDs, inputFacts, err := externalFacts(inputs, false)
 	if err != nil {
 		return Result{}, err
 	}
-	outputs, executeErr := r.executePlan(ctx, plan, inputs)
+	outputs, executeErr := r.executePlan(ctx, definition, stages, inputs)
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	if executeErr != nil {
 		outputs = nil
@@ -146,25 +197,26 @@ func (r *Runtime) Execute(
 
 func (r *Runtime) executePlan(
 	ctx context.Context,
-	plan workflowrecipe.Plan,
+	definition recipe.Definition,
+	stages []recipe.Stage,
 	external map[recipe.PortName]Value,
 ) (map[recipe.PortName]Value, error) {
 	bound := make(map[recipe.Endpoint][]Value)
-	if len(external) != len(plan.Recipe.Inputs) {
+	if len(external) != len(definition.Inputs) {
 		return nil, errors.New("workflow runtime: external input set differs")
 	}
-	for _, input := range plan.Recipe.Inputs {
+	for _, input := range definition.Inputs {
 		value, ok := external[input.Name]
 		if !ok || value.Kind != input.Data {
 			return nil, fmt.Errorf("workflow runtime: invalid input %q", input.Name)
 		}
 		bound[input.Target] = append(bound[input.Target], cloneValue(value))
 	}
-	for _, step := range plan.Steps {
+	for _, stage := range stages {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		module, _ := workflowrecipe.Module(step.Module)
+		step, module := stage.Node, stage.Module
 		stepInputs := make(map[recipe.PortName]Value, len(module.Inputs))
 		for _, port := range module.Inputs {
 			value, err := mergeValues(port.Data, bound[recipe.Endpoint{Node: step.ID, Port: port.Name}])
@@ -181,7 +233,7 @@ func (r *Runtime) executePlan(
 			return nil, fmt.Errorf("workflow runtime: module %q has no adapter", step.Module)
 		}
 		produced, err := adapter.Execute(ctx, StepRequest{
-			Node: step, Dependencies: slices.Clone(plan.Dependencies), Inputs: stepInputs,
+			Node: step, Dependencies: slices.Clone(definition.Dependencies), Inputs: stepInputs,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("workflow runtime: step %q: %w", step.ID, err)
@@ -190,7 +242,7 @@ func (r *Runtime) executePlan(
 		if err != nil {
 			return nil, fmt.Errorf("workflow runtime: step %q: %w", step.ID, err)
 		}
-		for _, edge := range plan.Recipe.Edges {
+		for _, edge := range definition.Edges {
 			if edge.From.Node == step.ID {
 				if value, ok := validated[edge.From.Port]; ok {
 					bound[edge.To] = append(bound[edge.To], cloneValue(value))
@@ -201,8 +253,8 @@ func (r *Runtime) executePlan(
 			bound[recipe.Endpoint{Node: step.ID, Port: name}] = []Value{value}
 		}
 	}
-	outputs := make(map[recipe.PortName]Value, len(plan.Recipe.Outputs))
-	for _, output := range plan.Recipe.Outputs {
+	outputs := make(map[recipe.PortName]Value, len(definition.Outputs))
+	for _, output := range definition.Outputs {
 		values := bound[output.Source]
 		value, err := mergeValues(output.Data, values)
 		if err != nil || len(value.Items) == 0 {

@@ -298,6 +298,14 @@ func Compile(definition recipe.Definition, spec model.Spec, weights model.Weight
 	})
 }
 
+// CompileCapability resolves an executable non-inference model program.
+func CompileCapability(definition recipe.Definition) (recipe.Program, error) {
+	if definition.Task != recipe.TaskForecast {
+		return recipe.Program{}, fmt.Errorf("model recipe: unsupported runtime task %q", definition.Task)
+	}
+	return recipe.CompileProgram(definition, catalog)
+}
+
 func compileDefinition(
 	definition recipe.Definition,
 	compileModel func() (model.ModelPlan, error),

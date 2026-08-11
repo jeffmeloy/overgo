@@ -109,6 +109,23 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 	}
 }
 
+func TestCompileCapabilityResolvesForecastStage(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "forecast-model")
+	definition, err := ForecastDefinition(modelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stages := program.Stages()
+	if len(stages) != 1 || stages[0].Node.Module != ModuleForecastSeries ||
+		stages[0].Module.ID != ModuleForecastSeries {
+		t.Fatalf("forecast stages = %+v", stages)
+	}
+}
+
 func TestTabularDefinitionValidatesAgainstCatalog(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "tabular-model")
 	definition, err := TabularDefinition(modelID)

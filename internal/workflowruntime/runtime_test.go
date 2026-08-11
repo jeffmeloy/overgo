@@ -88,6 +88,29 @@ func TestRuntimePublishesCancelledRun(t *testing.T) {
 	}
 }
 
+func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
+	store, _ := runtimeFixture(t)
+	defer store.Close()
+	runtime, err := New(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := workflowrecipe.Training(workflowrecipe.Bindings{
+		Model:   testutil.ArtifactID(t, artifact.KindModel, "training-model"),
+		Dataset: testutil.ArtifactID(t, artifact.KindDataset, "training-dataset"),
+	}, recipe.PlacementHost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/training", program, nil); err == nil {
+		t.Fatal("orchestration-only program executed")
+	}
+}
+
 func TestRuntimeCollapsesRepeatedArtifactFacts(t *testing.T) {
 	content := fixtureContent(t, artifact.KindFile, "shared")
 	values := map[recipe.PortName]Value{

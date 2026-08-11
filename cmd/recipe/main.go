@@ -13,9 +13,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,8 +32,53 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/seriesforecast"
 	"overgo/internal/tabularicl"
+	"overgo/internal/workflowruntime"
 )
+
+var forecastInputContract = artifact.DocumentContract{
+	Kind: artifact.KindFile, MediaType: "application/json", Schema: "overgo.forecast-input.v1",
+}
+
+type capabilityExecutor func(
+	context.Context,
+	artifact.Repository,
+	string,
+	artifact.ID,
+	recipe.Program,
+	string,
+) (any, error)
+
+type capabilityCommand struct {
+	inventory  func(string) (modelartifact.Inventory, error)
+	definition func(artifact.ID) (recipe.Definition, error)
+	execute    capabilityExecutor
+}
+
+var capabilityCommands = map[recipe.Task]capabilityCommand{
+	recipe.TaskForecast: {
+		inventory: hfInventory, definition: modelrecipe.ForecastDefinition, execute: executeForecast,
+	},
+	recipe.TaskTabular: {
+		inventory: tabularInventory, definition: modelrecipe.TabularDefinition,
+	},
+	recipe.TaskSeq2Seq: {
+		inventory: hfInventory, definition: modelrecipe.Seq2SeqDefinition,
+	},
+	recipe.TaskSpeech: {
+		inventory: speechInventory, definition: modelrecipe.SpeechDefinition,
+	},
+	recipe.TaskImageGen: {
+		inventory: imageGenInventory, definition: modelrecipe.ImageGenDefinition,
+	},
+	recipe.TaskVideoGen: {
+		inventory: videoGenInventory, definition: modelrecipe.VideoGenDefinition,
+	},
+	recipe.TaskVQA: {
+		inventory: hfInventory, definition: modelrecipe.VQADefinition,
+	},
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -42,7 +89,7 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: recipe <activate|status> [-repo <dir>] [-reason <text>] <model>")
+		return errors.New("usage: recipe <activate|run|status> [options] <model>")
 	}
 	verb := os.Args[1]
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
@@ -50,6 +97,7 @@ func run() error {
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
 	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen|vqa)")
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
+	input := flags.String("input", "", "task input as JSON (run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -69,52 +117,46 @@ func run() error {
 		repository = roots.Store
 	}
 	path := roots.ResolveModelPath(flags.Arg(0))
+	selectedTask := recipe.Task(*task)
+	capability, capabilityKnown := capabilityCommands[selectedTask]
 	switch verb {
 	case "activate":
 		if strings.TrimSpace(*reason) == "" {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
-		switch capability := recipe.Task(*task); capability {
-		case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVQA:
-			return activateCapability(repository, path, *reason, capability)
+		if capabilityKnown {
+			return activateCapability(repository, path, *reason, selectedTask, capability)
+		}
+		if selectedTask != recipe.TaskInference {
+			return fmt.Errorf("unsupported model recipe task %q", selectedTask)
 		}
 		sessionOverride, sessionErr := parseSessionOverride(*sessionFlag)
 		if sessionErr != nil {
 			return sessionErr
 		}
 		return activate(repository, path, *reason, sessionOverride)
+	case "run":
+		if !capabilityKnown || capability.execute == nil {
+			return fmt.Errorf("task %q has no registered runtime", selectedTask)
+		}
+		if strings.TrimSpace(*input) == "" {
+			return errors.New("run requires -input JSON")
+		}
+		return executeCapability(repository, path, selectedTask, capability, *input)
 	case "status":
-		return status(repository, path, recipe.Task(*task))
+		return status(repository, path, selectedTask)
 	default:
 		return fmt.Errorf("unknown verb %q", verb)
 	}
 }
 
-// capabilityInventory: per-task artifact inventory. Forecast and seq2seq are
-// standard HF safetensors directories (extra vendor sidecars ignored by the
-// companion whitelist); tabular is the dual-head explicit file list; speech
-// is the pocket-tts explicit file list.
-func capabilityInventory(task recipe.Task, path string) (modelartifact.Inventory, error) {
-	switch task {
-	case recipe.TaskForecast, recipe.TaskSeq2Seq:
-		repo, err := hfrepo.Open(path)
-		if err != nil {
-			return modelartifact.Inventory{}, err
-		}
-		defer repo.Close()
-		return modelartifact.FromHFRepository(repo)
-	case recipe.TaskTabular:
-		return tabularInventory(path)
-	case recipe.TaskSpeech:
-		return speechInventory(path)
-	case recipe.TaskImageGen:
-		return imageGenInventory(path)
-	case recipe.TaskVideoGen:
-		return videoGenInventory(path)
-	case recipe.TaskVQA:
-		return vqaInventory(path)
+func hfInventory(path string) (modelartifact.Inventory, error) {
+	repository, err := hfrepo.Open(path)
+	if err != nil {
+		return modelartifact.Inventory{}, err
 	}
-	return modelartifact.Inventory{}, fmt.Errorf("no capability inventory for task %q", task)
+	defer repository.Close()
+	return modelartifact.FromHFRepository(repository)
 }
 
 // videoGenInventory: the text-to-video artifact is an explicit four-part
@@ -133,42 +175,6 @@ func videoGenInventory(path string) (modelartifact.Inventory, error) {
 		{Path: filepath.Join(path, "Wan2.1_VAE.pth"), Name: "vae/weights", Role: artifact.ComponentWeights},
 		{Path: filepath.Join(path, "models_t5_umt5-xxl-enc-bf16.pth"), Name: "textenc/weights", Role: artifact.ComponentWeights},
 	})
-}
-
-// vqaInventory: the RxBrain VQA artifact is a standard sharded HF safetensors
-// repository — config.json + model.safetensors.index.json + shards, with the
-// tokenizer and preprocessor_config.json as companions (the processor reads
-// them at serve time). Extra vendor sidecars (paper PDF, demo cases, nested
-// vendor tree) are ignored by the companion whitelist. Same walker as forecast
-// and seq2seq; the multimodal wiring lives in the recipe definition, not here.
-func vqaInventory(path string) (modelartifact.Inventory, error) {
-	repo, err := hfrepo.Open(path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	defer repo.Close()
-	return modelartifact.FromHFRepository(repo)
-}
-
-// capabilityDefinition: per-task single-node host definition constructor.
-func capabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
-	switch task {
-	case recipe.TaskForecast:
-		return modelrecipe.ForecastDefinition(modelID)
-	case recipe.TaskTabular:
-		return modelrecipe.TabularDefinition(modelID)
-	case recipe.TaskSeq2Seq:
-		return modelrecipe.Seq2SeqDefinition(modelID)
-	case recipe.TaskSpeech:
-		return modelrecipe.SpeechDefinition(modelID)
-	case recipe.TaskImageGen:
-		return modelrecipe.ImageGenDefinition(modelID)
-	case recipe.TaskVideoGen:
-		return modelrecipe.VideoGenDefinition(modelID)
-	case recipe.TaskVQA:
-		return modelrecipe.VQADefinition(modelID)
-	}
-	return recipe.Definition{}, fmt.Errorf("no capability definition for task %q", task)
 }
 
 // singleSafetensors: the ONE top-level .safetensors weights file of a
@@ -251,9 +257,13 @@ func tabularInventory(path string) (modelartifact.Inventory, error) {
 // models: inventory facts, then candidate -> validated -> active with the
 // decision evidence. Capability packages derive dimensions from the artifact,
 // so no profile document is published.
-func activateCapability(repository, path, reason string, task recipe.Task) error {
+func activateCapability(
+	repository, path, reason string,
+	task recipe.Task,
+	capability capabilityCommand,
+) error {
 	ctx := context.Background()
-	inventory, err := capabilityInventory(task, path)
+	inventory, err := capability.inventory(path)
 	if err != nil {
 		return err
 	}
@@ -270,7 +280,7 @@ func activateCapability(repository, path, reason string, task recipe.Task) error
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
-	definition, err := capabilityDefinition(task, modelID)
+	definition, err := capability.definition(modelID)
 	if err != nil {
 		return err
 	}
@@ -298,6 +308,116 @@ func activateCapability(repository, path, reason string, task recipe.Task) error
 	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
 		path, task, modelID, definition.ID, reason)
 	return nil
+}
+
+func executeCapability(
+	repository, path string,
+	task recipe.Task,
+	capability capabilityCommand,
+	input string,
+) error {
+	ctx := context.Background()
+	inventory, err := capability.inventory(path)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	modelID := inventory.Manifest.ID
+	activation, active, err := modelrecipe.ActiveRecord(ctx, store, modelID, task)
+	if err != nil {
+		return err
+	}
+	if !active {
+		return fmt.Errorf("model %s has no active %s recipe", modelID, task)
+	}
+	program, err := modelrecipe.CompileCapability(activation.Definition)
+	if err != nil {
+		return err
+	}
+	output, err := capability.execute(ctx, store, path, modelID, program, input)
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(output)
+}
+
+func executeForecast(
+	ctx context.Context,
+	store artifact.Repository,
+	path string,
+	modelID artifact.ID,
+	program recipe.Program,
+	input string,
+) (any, error) {
+	series, content, err := forecastInput(input)
+	if err != nil {
+		return nil, err
+	}
+	model, err := seriesforecast.Load(path)
+	if err != nil {
+		return nil, err
+	}
+	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
+	if err != nil {
+		return nil, err
+	}
+	if err := seriesforecast.RegisterRuntime(runtime, modelID, model); err != nil {
+		return nil, err
+	}
+	result, err := runtime.ExecuteProgram(
+		ctx,
+		"recipe/run/"+program.Definition().ID.String()+"/"+content.Descriptor.ID.String(),
+		program,
+		map[recipe.PortName]workflowruntime.Value{
+			"series": {
+				Kind: recipe.DataTensor,
+				Items: []workflowruntime.Datum{{
+					Artifact: content.Descriptor, Content: &content, Value: series,
+				}},
+			},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	forecast := result.Outputs["forecast"]
+	if len(forecast.Items) != 1 {
+		return nil, errors.New("forecast runtime returned an invalid output set")
+	}
+	values, ok := forecast.Items[0].Value.([]float32)
+	if !ok {
+		return nil, errors.New("forecast runtime returned an invalid output value")
+	}
+	return values, nil
+}
+
+func forecastInput(input string) ([]float32, artifact.Content, error) {
+	var series []float32
+	if err := json.Unmarshal([]byte(input), &series); err != nil {
+		return nil, artifact.Content{}, fmt.Errorf("decode forecast input: %w", err)
+	}
+	if len(series) == 0 {
+		return nil, artifact.Content{}, errors.New("forecast input series is empty")
+	}
+	for _, value := range series {
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			return nil, artifact.Content{}, errors.New("forecast input series contains a non-finite value")
+		}
+	}
+	payload, err := json.Marshal(series)
+	if err != nil {
+		return nil, artifact.Content{}, err
+	}
+	id, err := forecastInputContract.Identify(payload)
+	if err != nil {
+		return nil, artifact.Content{}, err
+	}
+	content, err := forecastInputContract.Content(id, payload)
+	return series, content, err
 }
 
 // sessionOverride: operator-pinned decode session; nil defers to the
@@ -476,14 +596,16 @@ func activationEvidence(
 func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
-	switch task {
-	case recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVQA:
+	if capability, ok := capabilityCommands[task]; ok {
 		var err error
-		inventory, err = capabilityInventory(task, path)
+		inventory, err = capability.inventory(path)
 		if err != nil {
 			return err
 		}
-	default:
+	} else {
+		if task != recipe.TaskInference {
+			return fmt.Errorf("unsupported model recipe task %q", task)
+		}
 		file, err := gguf.Open(path)
 		if err != nil {
 			return err

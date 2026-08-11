@@ -63,20 +63,21 @@ func TestWorkflowRecipesCompileCanonicalPlans(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if definition.Task != test.task || len(plan.Steps) != test.steps || plan.Support != test.support {
+			stages := plan.Program.Stages()
+			if definition.Task != test.task || len(stages) != test.steps || plan.Support != test.support {
 				t.Fatalf("plan = %+v", plan)
 			}
 			rebuilt, err := test.build()
 			if err != nil || rebuilt.ID != definition.ID {
 				t.Fatalf("canonical rebuild = (%s, %v)", rebuilt.ID, err)
 			}
-			positions := make(map[recipe.NodeID]int, len(plan.Steps))
-			for index, step := range plan.Steps {
-				positions[step.ID] = index
+			positions := make(map[recipe.NodeID]int, len(stages))
+			for index, stage := range stages {
+				positions[stage.Node.ID] = index
 			}
 			for _, edge := range definition.Edges {
 				if positions[edge.From.Node] >= positions[edge.To.Node] {
-					t.Fatalf("steps are not topological: %+v", plan.Steps)
+					t.Fatalf("steps are not topological: %+v", stages)
 				}
 			}
 		})

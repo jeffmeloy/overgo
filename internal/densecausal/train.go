@@ -37,41 +37,12 @@ func (m *Model) TrainResume(tokens []int, steps int, baseLR, mu float64, resume 
 }
 
 func (m *Model) train(tokens []int, steps int, baseLR, mu float64, resume *optimizer.State) ([]float64, optimizer.State, error) {
-	names := make([]string, 0, len(m.Weights))
-	for name := range m.Weights {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	total := 0
-	for _, name := range names {
-		total += len(m.Weights[name])
-	}
-	if baseLR <= 0 {
-		baseLR = optimizer.DeriveBaseLR(total)
-	}
-	weights := make([]float32, total)
-	gradients := make([]float32, total)
-	specs := make([]optimizer.GroupSpec, 0, len(names))
-	offset := 0
-	for _, name := range names {
-		values := m.Weights[name]
-		rows, cols, err := tensorGeometry(m.Shapes[name], len(values))
-		if err != nil {
-			return nil, optimizer.State{}, fmt.Errorf("densecausal: %s: %w", name, err)
-		}
-		copy(weights[offset:], values)
-		specs = append(specs, optimizer.GroupSpec{
-			Name: name, Start: offset, End: offset + len(values), Rows: rows, Cols: cols,
-		})
-		offset += len(values)
-	}
-	plan, err := optimizer.CompilePlan(total, specs)
+	names, weights, gradients, plan, resolvedLR, err := m.trainSetup(baseLR)
 	if err != nil {
 		return nil, optimizer.State{}, err
 	}
 	opt, err := optimizer.New(weights, gradients, plan, optimizer.Config{
-		BaseLearningRate: baseLR, Momentum: mu, Schedule: optimizer.ScheduleConstant,
+		BaseLearningRate: resolvedLR, Momentum: mu, Schedule: optimizer.ScheduleConstant,
 	})
 	if err != nil {
 		return nil, optimizer.State{}, err
@@ -84,28 +55,70 @@ func (m *Model) train(tokens []int, steps int, baseLR, mu float64, resume *optim
 
 	trajectory := make([]float64, 0, steps)
 	for step := 0; step < steps; step++ {
-		// Scatter optimizer weights into the model before each forward pass.
 		scatter(m, names, weights)
 		loss, _, grads, err := m.LossAndGrads(tokens)
 		if err != nil {
 			return nil, optimizer.State{}, err
 		}
 		trajectory = append(trajectory, loss)
-		offset = 0
-		for _, name := range names {
-			n := len(m.Weights[name])
-			if g, ok := grads[name]; ok {
-				copy(gradients[offset:offset+n], g)
-			} else {
-				clear(gradients[offset : offset+n])
-			}
-			offset += n
-		}
+		m.gatherGrads(names, gradients, grads)
 		opt.Step()
 	}
-	// Final scatter so the model reflects the last update.
 	scatter(m, names, weights)
 	return trajectory, opt.Snapshot(), nil
+}
+
+// trainSetup flattens the model's trainable tensors into an optimizer layout:
+// sorted names, flat weight+gradient buffers (weights populated from m.Weights),
+// a compiled plan (Muon geometry derived from each tensor's shape), and the
+// resolved base LR (derived from the parameter count when baseLR<=0).
+func (m *Model) trainSetup(baseLR float64) (names []string, weights, gradients []float32, plan optimizer.Plan, resolvedLR float64, err error) {
+	names = make([]string, 0, len(m.Weights))
+	for name := range m.Weights {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	total := 0
+	for _, name := range names {
+		total += len(m.Weights[name])
+	}
+	if baseLR <= 0 {
+		baseLR = optimizer.DeriveBaseLR(total)
+	}
+	weights = make([]float32, total)
+	gradients = make([]float32, total)
+	specs := make([]optimizer.GroupSpec, 0, len(names))
+	offset := 0
+	for _, name := range names {
+		values := m.Weights[name]
+		rows, cols, err := tensorGeometry(m.Shapes[name], len(values))
+		if err != nil {
+			return nil, nil, nil, optimizer.Plan{}, 0, fmt.Errorf("densecausal: %s: %w", name, err)
+		}
+		copy(weights[offset:], values)
+		specs = append(specs, optimizer.GroupSpec{
+			Name: name, Start: offset, End: offset + len(values), Rows: rows, Cols: cols,
+		})
+		offset += len(values)
+	}
+	plan, err = optimizer.CompilePlan(total, specs)
+	return names, weights, gradients, plan, baseLR, err
+}
+
+// gatherGrads copies per-tensor gradients into the flat buffer in trainSetup's
+// sorted order; a tensor absent from grads is zeroed.
+func (m *Model) gatherGrads(names []string, gradients []float32, grads Grads) {
+	offset := 0
+	for _, name := range names {
+		n := len(m.Weights[name])
+		if g, ok := grads[name]; ok {
+			copy(gradients[offset:offset+n], g)
+		} else {
+			clear(gradients[offset : offset+n])
+		}
+		offset += n
+	}
 }
 
 // scatter copies the flat optimizer weight buffer back into the model tensors.

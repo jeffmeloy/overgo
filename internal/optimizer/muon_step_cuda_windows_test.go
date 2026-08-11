@@ -131,7 +131,7 @@ func TestDeviceMuonStepPlanMatchesHost(t *testing.T) {
 	devG := make([]float32, n)
 	copy(devG, g)
 	devM := make([]float32, n)
-	if err := deviceMuonStepPlan(worker, devW, devG, devM, plan, 1, config); err != nil {
+	if err := DeviceMuonStepPlan(worker, devW, devG, devM, plan, 1, config); err != nil {
 		t.Fatal(err)
 	}
 

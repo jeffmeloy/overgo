@@ -4,6 +4,7 @@ package optimizer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"runtime"
@@ -15,15 +16,17 @@ import (
 	"overgo/internal/cuda/kernel"
 )
 
-// deviceNewtonSchulz runs the Muon Newton-Schulz iteration on the GPU in fp32,
-// reproducing host newtonSchulz (fp64 oracle) within tolerance. Every matmul is
-// a cuBLAS GEMM; the c0*I term folds into the final matmul
-// (X*(c0*I + R) = c0*X + X*R), so no diagonal kernel is needed -- only cuBLAS
-// plus the existing ops_f32 scale/add. The Frobenius norm reuses a GEMM
-// dot-product. Buffers/handles are per-call (correctness-first; a resident
-// device optimizer will cache them).
+const (
+	float32StorageBytes = uint64(4)
+	matrixScratchCount  = uint64(3)
+	gramScratchCount    = uint64(3)
+	normScratchCount    = uint64(1)
+)
+
+// deviceNewtonSchulz: FP32 device Muon orthogonalization; FP64 host oracle.
 func deviceNewtonSchulz(worker *device.Worker, input []float32, rows, cols int) ([]float32, error) {
-	if rows <= 0 || cols <= 0 || len(input) != rows*cols {
+	maxInt := int(^uint(0) >> 1)
+	if rows <= 0 || cols <= 0 || rows > maxInt/cols || len(input) != rows*cols {
 		return nil, fmt.Errorf("deviceNewtonSchulz: len %d != %d*%d", len(input), rows, cols)
 	}
 	if uint64(len(input)) > math.MaxUint32 {
@@ -40,7 +43,7 @@ func deviceNewtonSchulz(worker *device.Worker, input []float32, rows, cols int) 
 	return result, nil
 }
 
-func runDeviceNewtonSchulz(state *device.State, data []float32, rows, cols int) error {
+func runDeviceNewtonSchulz(state *device.State, data []float32, rows, cols int) (resultErr error) {
 	lib := state.Driver
 	n := rows * cols
 	dim := cols
@@ -54,12 +57,12 @@ func runDeviceNewtonSchulz(state *device.State, data []float32, rows, cols int) 
 	if err != nil {
 		return err
 	}
-	defer blas.Close()
+	defer func() { resultErr = errors.Join(resultErr, blas.Close()) }()
 	handle, err := blas.Create()
 	if err != nil {
 		return err
 	}
-	defer blas.Destroy(handle)
+	defer func() { resultErr = errors.Join(resultErr, blas.Destroy(handle)) }()
 	if err := blas.SetStream(handle, state.Stream); err != nil {
 		return err
 	}
@@ -67,7 +70,7 @@ func runDeviceNewtonSchulz(state *device.State, data []float32, rows, cols int) 
 	if err != nil {
 		return err
 	}
-	defer lib.ModuleUnload(module)
+	defer func() { resultErr = errors.Join(resultErr, lib.ModuleUnload(module)) }()
 	scaleFn, err := lib.ModuleFunction(module, "scale_f32")
 	if err != nil {
 		return err
@@ -77,48 +80,32 @@ func runDeviceNewtonSchulz(state *device.State, data []float32, rows, cols int) 
 		return err
 	}
 
-	alloc := func(count int) (driver.DevicePtr, error) { return lib.MemAlloc(uint64(count) * 4) }
-	dX, err := alloc(n)
+	arenaElements := matrixScratchCount*uint64(n) +
+		gramScratchCount*uint64(gramN) + normScratchCount
+	arena, err := lib.MemAlloc(arenaElements * float32StorageBytes)
 	if err != nil {
 		return err
 	}
-	defer lib.MemFree(dX)
-	dXNew, err := alloc(n)
-	if err != nil {
-		return err
+	defer func() { resultErr = errors.Join(resultErr, lib.MemFree(arena)) }()
+	next := arena
+	take := func(elements int) driver.DevicePtr {
+		pointer := next
+		next += driver.DevicePtr(uint64(elements) * float32StorageBytes)
+		return pointer
 	}
-	defer lib.MemFree(dXNew)
-	dCX, err := alloc(n)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dCX)
-	dGram, err := alloc(gramN)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dGram)
-	dSq, err := alloc(gramN)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dSq)
-	dRest, err := alloc(gramN)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dRest)
-	dNorm, err := alloc(1)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dNorm)
+	dX := take(n)
+	dXNew := take(n)
+	dCX := take(n)
+	dGram := take(gramN)
+	dSq := take(gramN)
+	dRest := take(gramN)
+	dNorm := take(1)
 
 	if err := lib.MemcpyHtoD(dX, driver.Bytes(data)); err != nil {
 		return err
 	}
 
-	// scale: out = in * s (count elements). add: out = a + b.
+	// Elementwise scale/add kernels.
 	launchElementwise := func(fn driver.Function, count int, args []unsafe.Pointer) error {
 		const threads = uint32(256)
 		total := uint32(count)
@@ -148,7 +135,7 @@ func runDeviceNewtonSchulz(state *device.State, data []float32, rows, cols int) 
 		return err
 	}
 
-	// Frobenius normalize: ||X||^2 = X_flat[1,n] . X_flat[n,1] via one GEMM.
+	// Frobenius normalization via one flat dot-product GEMM.
 	if err := blas.RowMajorGEMMF32(handle, 1, int32(n), 1, dX, dX, dNorm); err != nil {
 		return err
 	}
@@ -178,17 +165,17 @@ func runDeviceNewtonSchulz(state *device.State, data []float32, rows, cols int) 
 		c2 := float32(coefficients[2])
 
 		if tall {
-			// gram = XᵀX  [cols x cols]
+			// gram = X^T*X [cols, cols]
 			if err := blas.RowMajorGEMMExF32(handle, true, false, int32(cols), int32(rows), int32(cols), dX, dX, dGram); err != nil {
 				return err
 			}
 		} else {
-			// gram = XXᵀ  [rows x rows]
+			// gram = X*X^T [rows, rows]
 			if err := blas.RowMajorGEMMExF32(handle, false, true, int32(rows), int32(cols), int32(rows), dX, dX, dGram); err != nil {
 				return err
 			}
 		}
-		// sq = gram·gram  [dim x dim]
+		// sq = gram*gram [dim, dim]
 		if err := blas.RowMajorGEMMF32(handle, int32(dim), int32(dim), int32(dim), dGram, dGram, dSq); err != nil {
 			return err
 		}
@@ -202,14 +189,14 @@ func runDeviceNewtonSchulz(state *device.State, data []float32, rows, cols int) 
 		if err := add(dRest, dSq, dRest, gramN); err != nil {
 			return err
 		}
-		// Xnew = op·rest-product + c0*X  (c0*I folded into the matmul).
+		// Xnew = product + c0*X; c0*I folded into GEMM.
 		if tall {
-			// Xnew = X·rest  [rows x cols]
+			// Xnew = X*rest [rows, cols]
 			if err := blas.RowMajorGEMMF32(handle, int32(rows), int32(cols), int32(cols), dX, dRest, dXNew); err != nil {
 				return err
 			}
 		} else {
-			// Xnew = rest·X  [rows x cols]
+			// Xnew = rest*X [rows, cols]
 			if err := blas.RowMajorGEMMF32(handle, int32(rows), int32(rows), int32(cols), dRest, dX, dXNew); err != nil {
 				return err
 			}

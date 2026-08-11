@@ -6,6 +6,33 @@ import (
 	"testing"
 )
 
+func requireLayerProgram(t *testing.T, program LayerProgram, want ...LayerOperator) {
+	t.Helper()
+	if program.Count != uint8(len(want)) {
+		t.Fatalf("stage count = %d, want %d", program.Count, len(want))
+	}
+	for index, operator := range want {
+		instruction, ok := program.Instruction(index)
+		if !ok || instruction.Operator != operator {
+			t.Fatalf("stage %d = %+v, want operator %d", index, instruction, operator)
+		}
+		switch operator {
+		case LayerOperatorRecurrentMix:
+			if instruction.Recurrent == RecurrentMixNone {
+				t.Fatalf("stage %d has no recurrent policy", index)
+			}
+		case LayerOperatorAttentionMix:
+			if instruction.Attention == AttentionMixNone {
+				t.Fatalf("stage %d has no attention policy", index)
+			}
+		case LayerOperatorFeedForwardMix:
+			if instruction.FeedForward == FeedForwardMixNone {
+				t.Fatalf("stage %d has no feed-forward policy", index)
+			}
+		}
+	}
+}
+
 func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 	for policy := BlockDense; policy <= BlockDeepSeek4; policy++ {
 		composition := LayerCompositionStandard
@@ -15,10 +42,6 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 		program := compileLayerProgram(
 			LayerPlan{Block: policy, Composition: composition}, ArchitectureProfile{},
 		)
-		_, ok := program.Instruction(0)
-		if !ok {
-			t.Fatalf("block policy %d has no compiled operator", policy)
-		}
 		var want []LayerOperator
 		switch policy {
 		case BlockDense:
@@ -77,24 +100,7 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
 			}
 		}
-		if program.Count != uint8(len(want)) {
-			t.Fatalf("semantic program %d count = %d", policy, program.Count)
-		}
-		for index, operator := range want {
-			instruction, _ := program.Instruction(index)
-			if instruction.Operator != operator {
-				t.Fatalf("semantic program %d stage %d = %d, want %d", policy, index, instruction.Operator, operator)
-			}
-			if operator == LayerOperatorRecurrentMix && instruction.Recurrent == RecurrentMixNone {
-				t.Fatalf("semantic program %d recurrent stage has no math policy", policy)
-			}
-			if operator == LayerOperatorAttentionMix && instruction.Attention == AttentionMixNone {
-				t.Fatalf("semantic program %d attention stage has no math policy", policy)
-			}
-			if operator == LayerOperatorFeedForwardMix && instruction.FeedForward == FeedForwardMixNone {
-				t.Fatalf("semantic program %d feed-forward stage has no math policy", policy)
-			}
-		}
+		requireLayerProgram(t, program, want...)
 	}
 }
 
@@ -107,15 +113,7 @@ func TestGemma4ProgramUsesNeutralStages(t *testing.T) {
 		LayerOperatorResidual, LayerOperatorFeedForwardMix, LayerOperatorResidual,
 		LayerOperatorOutputAdapter,
 	}
-	if program.Count != uint8(len(want)) {
-		t.Fatalf("Gemma 4 stage count = %d", program.Count)
-	}
-	for index, operator := range want {
-		instruction, _ := program.Instruction(index)
-		if instruction.Operator != operator {
-			t.Fatalf("Gemma 4 stage %d = %d, want %d", index, instruction.Operator, operator)
-		}
-	}
+	requireLayerProgram(t, program, want...)
 }
 
 func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
@@ -126,15 +124,7 @@ func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
 		LayerOperatorPairedInputNorm, LayerOperatorAttentionMix, LayerOperatorResidual,
 		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
 	}
-	if program.Count != uint8(len(want)) {
-		t.Fatalf("Eagle3 stage count = %d", program.Count)
-	}
-	for index, operator := range want {
-		instruction, _ := program.Instruction(index)
-		if instruction.Operator != operator {
-			t.Fatalf("Eagle3 stage %d = %d, want %d", index, instruction.Operator, operator)
-		}
-	}
+	requireLayerProgram(t, program, want...)
 	paired, _ := program.Instruction(0)
 	if paired.TensorCount != 1 || paired.Tensors[0] != RuntimeTensorPerLayerInput {
 		t.Fatalf("Eagle3 paired binding = %+v", paired)
@@ -150,15 +140,7 @@ func TestGemma4AssistantProgramUsesSharedCacheStages(t *testing.T) {
 		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
 		LayerOperatorFeedForwardPostNorm, LayerOperatorResidualScale,
 	}
-	if program.Count != uint8(len(want)) {
-		t.Fatalf("Gemma 4 assistant stage count = %d", program.Count)
-	}
-	for index, operator := range want {
-		instruction, _ := program.Instruction(index)
-		if instruction.Operator != operator {
-			t.Fatalf("Gemma 4 assistant stage %d = %d, want %d", index, instruction.Operator, operator)
-		}
-	}
+	requireLayerProgram(t, program, want...)
 	attention, _ := program.Instruction(1)
 	if attention.Attention != AttentionMixSharedCacheQKNorm || attention.CacheCount != 2 {
 		t.Fatalf("Gemma 4 assistant attention binding = %+v", attention)
@@ -200,15 +182,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			program := compileLayerProgram(LayerPlan{Block: BlockDense}, test.profile)
-			if program.Count != uint8(len(test.want)) {
-				t.Fatalf("stage count = %d", program.Count)
-			}
-			for index, operator := range test.want {
-				instruction, _ := program.Instruction(index)
-				if instruction.Operator != operator {
-					t.Fatalf("stage %d = %d, want %d", index, instruction.Operator, operator)
-				}
-			}
+			requireLayerProgram(t, program, test.want...)
 		})
 	}
 }
@@ -222,15 +196,7 @@ func TestTalkieProgramUsesNeutralStages(t *testing.T) {
 		LayerOperatorRMSNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
 		LayerOperatorScaledSkip,
 	}
-	if program.Count != uint8(len(want)) {
-		t.Fatalf("Talkie stage count = %d", program.Count)
-	}
-	for index, operator := range want {
-		instruction, _ := program.Instruction(index)
-		if instruction.Operator != operator {
-			t.Fatalf("Talkie stage %d = %d, want %d", index, instruction.Operator, operator)
-		}
-	}
+	requireLayerProgram(t, program, want...)
 }
 
 func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
@@ -241,15 +207,7 @@ func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 		LayerOperatorAttentionMix, LayerOperatorAttentionResidualNorm,
 		LayerOperatorFeedForwardMix, LayerOperatorFeedForwardResidualNorm,
 	}
-	if program.Count != uint8(len(want)) {
-		t.Fatalf("BERT stage count = %d", program.Count)
-	}
-	for index, operator := range want {
-		instruction, _ := program.Instruction(index)
-		if instruction.Operator != operator {
-			t.Fatalf("BERT stage %d = %d, want %d", index, instruction.Operator, operator)
-		}
-	}
+	requireLayerProgram(t, program, want...)
 }
 
 func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
@@ -271,15 +229,7 @@ func TestGemmaEmbeddingProgramUsesNeutralStages(t *testing.T) {
 		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
 		LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
 	}
-	if program.Count != uint8(len(want)) {
-		t.Fatalf("Gemma embedding stage count = %d", program.Count)
-	}
-	for index, operator := range want {
-		instruction, _ := program.Instruction(index)
-		if instruction.Operator != operator {
-			t.Fatalf("Gemma embedding stage %d = %d, want %d", index, instruction.Operator, operator)
-		}
-	}
+	requireLayerProgram(t, program, want...)
 }
 
 func TestDeciSparseProgramUsesNeutralStages(t *testing.T) {
@@ -289,25 +239,17 @@ func TestDeciSparseProgramUsesNeutralStages(t *testing.T) {
 		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
 		LayerOperatorResidual,
 	}
-	if program.Count != uint8(len(want)) {
-		t.Fatalf("Deci stage count = %d", program.Count)
-	}
-	for index, operator := range want {
-		instruction, _ := program.Instruction(index)
-		if instruction.Operator != operator {
-			t.Fatalf("Deci stage %d = %d, want %d", index, instruction.Operator, operator)
-		}
-	}
+	requireLayerProgram(t, program, want...)
 }
 
 func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 	program := compileLayerProgram(
 		LayerPlan{Block: BlockKimiLinear, Recurrent: true}, ArchitectureProfile{},
 	)
-	instruction, ok := program.Instruction(0)
-	if !ok || program.Count != 6 || instruction.Operator != LayerOperatorAttentionNorm {
-		t.Fatalf("Kimi recurrent program = %+v", program)
-	}
+	requireLayerProgram(t, program,
+		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+	)
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
 	if mixer.Operator != LayerOperatorRecurrentMix || mixer.Recurrent != RecurrentMixKeyedDeltaAttention ||
@@ -325,15 +267,7 @@ func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
 		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
 	}
-	if program.Count != uint8(len(want)) {
-		t.Fatalf("LFM2 recurrent stage count = %d", program.Count)
-	}
-	for index, operator := range want {
-		instruction, _ := program.Instruction(index)
-		if instruction.Operator != operator {
-			t.Fatalf("LFM2 recurrent stage %d = %d", index, instruction.Operator)
-		}
-	}
+	requireLayerProgram(t, program, want...)
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
 	if mixer.Recurrent != RecurrentMixShortConvolution || feedForward.FeedForward != FeedForwardMixStandardSwiGLU {

@@ -59,11 +59,12 @@ func main() {
 
 func run() error {
 	messageFile := flag.String("message-file", "", "commit message file (required; never -m: the shell eats backticks)")
-	pathsCSV := flag.String("paths", "", "comma-separated repo-relative paths this commit ships (required)")
+	pathsCSV := flag.String("paths", "", "comma-separated repo-relative paths this commit ships (required unless -merge)")
 	storePath := flag.String("store", "repodb-store", "RepoDB store directory (relative to repo root)")
+	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
 	flag.Parse()
-	if *messageFile == "" || *pathsCSV == "" {
-		return fmt.Errorf("usage: gate -message-file <path> -paths <csv> [-store <dir>]")
+	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
+		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) [-store <dir>]")
 	}
 	repo, err := os.Getwd()
 	if err != nil {
@@ -72,9 +73,31 @@ func run() error {
 	g := &gateContext{
 		repo: repo, messageFile: *messageFile, storePath: *storePath, start: time.Now(),
 	}
-	for _, p := range strings.Split(*pathsCSV, ",") {
-		if p = strings.TrimSpace(p); p != "" {
+	if *merge {
+		// Merge mode: the staged merge IS the plan. Deriving -paths from the
+		// staged set makes the scope step trivially pass, and the existing
+		// commit step (git commit -F, no pathspec) finalizes the two-parent
+		// commit that git merge --no-commit left pending. Merges otherwise
+		// bypass the gate entirely; this runs full hygiene + impacted tests on
+		// the merged tree before the commit lands.
+		if _, err := command(repo, "git", "rev-parse", "--verify", "-q", "MERGE_HEAD"); err != nil {
+			return fmt.Errorf("-merge needs an in-progress merge (no MERGE_HEAD): run `git merge --no-ff --no-commit <branch>` first")
+		}
+		staged, err := gitLines(repo, "diff", "--cached", "--name-only")
+		if err != nil {
+			return err
+		}
+		if len(staged) == 0 {
+			return fmt.Errorf("-merge: the staged merge set is empty")
+		}
+		for _, p := range staged {
 			g.paths = append(g.paths, filepath.ToSlash(p))
+		}
+	} else {
+		for _, p := range strings.Split(*pathsCSV, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				g.paths = append(g.paths, filepath.ToSlash(p))
+			}
 		}
 	}
 	if err := g.expandDirectoryPaths(); err != nil {

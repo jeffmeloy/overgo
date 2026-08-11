@@ -309,7 +309,7 @@ func executeLayerInstruction(
 		case HybridMixAttentionSSM:
 			result, err = buildAttentionSSMHybridMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3],
+				operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3], plan,
 			)
 		default:
 			return errors.New("compiled hybrid-mixing policy is invalid")
@@ -330,7 +330,7 @@ func executeLayerInstruction(
 		case RecurrentMixMamba:
 			result, err = buildMambaMixerCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1],
+				operands.caches[0], operands.caches[1], plan.StateSpace,
 			)
 		case RecurrentMixMamba2:
 			if instruction.RequireConvolutionBias && options.Weights.SSMConv1DBias == nil {
@@ -338,7 +338,7 @@ func executeLayerInstruction(
 			}
 			result, err = buildMamba2MixerCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1],
+				operands.caches[0], operands.caches[1], plan.StateSpace,
 			)
 		case RecurrentMixPLaMo2:
 			result, err = buildPLaMo2MixerCached(
@@ -770,11 +770,11 @@ func buildStandardFeedForwardMix(
 		}
 		if weights.FeedForwardGateUpExperts != nil {
 			required.add("feed-forward fused expert gate/up", weights.FeedForwardGateUpExperts)
-		} else if plan.Block != BlockGraniteHybrid {
-			required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
-			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
 		} else {
 			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
+			if !plan.DenseWeights.allowUngatedExperts || weights.FeedForwardGateExperts != nil {
+				required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
+			}
 		}
 		if plan.Experts.SelectionBias {
 			required.add("feed-forward selection bias", weights.FeedForwardExpertBias)

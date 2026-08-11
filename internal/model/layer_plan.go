@@ -319,6 +319,7 @@ type LayerPlan struct {
 	QueryScale        QueryScalePlan
 	AttentionOutput   AttentionOutputPlan
 	ResidualStages    ResidualStagePlan
+	StateSpace        StateSpacePlan
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -429,6 +430,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		QueryScale:        s.queryScalePlan(profile, layer),
 		AttentionOutput:   s.attentionOutputPlan(normalization),
 		ResidualStages:    residualStages,
+		StateSpace:        s.stateSpacePlan(layer),
 	}
 	plan.Program = compileLayerProgram(plan, profile)
 	return plan
@@ -661,6 +663,9 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		}
 		if layer.Normalization != norm {
 			return fmt.Errorf("model plan layer %d normalization drifted from model policy", index)
+		}
+		if layer.StateSpace != spec.stateSpacePlan(uint32(index)) {
+			return fmt.Errorf("model plan layer %d state-space policy is inconsistent", index)
 		}
 	}
 	if spec.DeepstackLayerCount > 0 {

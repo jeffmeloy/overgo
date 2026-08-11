@@ -748,9 +748,8 @@ func buildShortConvolutionMixCached(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Profile().Attention != AttentionLFM2 || builder == nil || normalized == nil ||
-		pastKey == nil || pastValue == nil {
-		return DenseBlockResult{}, errors.New("LFM2 block requires lfm2 or lfm2moe architecture")
+	if builder == nil || normalized == nil || pastKey == nil || pastValue == nil {
+		return DenseBlockResult{}, errors.New("short-convolution input/state is nil")
 	}
 	required := graphWeights{
 		requireGraphWeight("short-convolution input", weights.ShortConvInput),

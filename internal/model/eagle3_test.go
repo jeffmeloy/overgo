@@ -49,14 +49,7 @@ func TestBuildEagle3FeatureAndDecoder(t *testing.T) {
 		FeedForwardDown: input("down", tensor.MustShape(6, 4), 0.02),
 	}
 	tokens := input("tokens", tensor.MustShape(4, 3), 0.1)
-	program, err := CompileModelPlan(spec, Weights{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	plan, err := program.Layer(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	plan := fixtureLayerPlan(t, spec, Weights{}, 0)
 	result, err := buildFixtureLayerWithAuxiliary(
 		builder, tokens, spec, weights, []uint32{0, 1, 2}, nil, nil, nil, fused, plan,
 	)

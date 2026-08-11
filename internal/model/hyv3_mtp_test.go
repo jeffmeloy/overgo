@@ -37,14 +37,7 @@ func TestBuildHYV3MTPPipeline(t *testing.T) {
 		FeedForwardUp:   builder.Input("up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown: builder.Input("down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	program, err := CompileModelPlan(spec, Weights{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	draft, err := program.DraftProgram(spec, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
 	block, err := buildFixtureLayerWithPlan(
 		builder, current, draft.Spec, weights, []uint32{4}, nil, nil, draft.Plan,
 	)

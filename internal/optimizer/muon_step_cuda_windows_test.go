@@ -85,3 +85,68 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 		})
 	}
 }
+
+// TestDeviceMuonStepPlanMatchesHost gates a full-plan device step (matrix group
+// on device, vector/sign group host-side) against host Optimizer.Step.
+func TestDeviceMuonStepPlanMatchesHost(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	const mu, baseLR = 0.9, 0.1
+	const mR, mC, vN = 16, 16, 16
+	matrixN := mR * mC
+	n := matrixN + vN
+	rng := rand.New(rand.NewSource(3))
+	w := make([]float32, n)
+	g := make([]float32, n)
+	for i := range w {
+		w[i] = float32(rng.NormFloat64())
+		g[i] = float32(rng.NormFloat64())
+	}
+	plan, err := CompilePlan(n, []GroupSpec{
+		{Name: "m", Start: 0, End: matrixN, Rows: mR, Cols: mC},
+		{Name: "v", Start: matrixN, End: n, Rows: vN, Cols: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := Config{BaseLearningRate: baseLR, Momentum: mu, Schedule: ScheduleConstant}
+
+	hostW := make([]float32, n)
+	copy(hostW, w)
+	hostG := make([]float32, n)
+	copy(hostG, g)
+	opt, err := New(hostW, hostG, plan, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opt.Step()
+
+	devW := make([]float32, n)
+	copy(devW, w)
+	devG := make([]float32, n)
+	copy(devG, g)
+	devM := make([]float32, n)
+	if err := deviceMuonStepPlan(worker, devW, devG, devM, plan, 1, config); err != nil {
+		t.Fatal(err)
+	}
+
+	var maxW, maxM float64
+	for i := 0; i < n; i++ {
+		if d := math.Abs(float64(devW[i]) - float64(hostW[i])); d > maxW {
+			maxW = d
+		}
+		if d := math.Abs(float64(devM[i]) - opt.momentum[i]); d > maxM {
+			maxM = d
+		}
+	}
+	t.Logf("mixed plan: max abs weight %.3e momentum %.3e", maxW, maxM)
+	const tolerance = 1e-5
+	if maxW > tolerance || maxM > tolerance {
+		t.Fatalf("weight %.3e / momentum %.3e > %.1e", maxW, maxM, tolerance)
+	}
+}

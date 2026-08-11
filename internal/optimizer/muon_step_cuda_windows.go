@@ -114,3 +114,47 @@ func deviceMuonMatrixStep(worker *device.Worker, weights, gradient, momentum []f
 		return ops.lib.MemcpyDtoH(driver.Bytes(momentum), dM) // dM holds nextM
 	})
 }
+
+// deviceMuonStepPlan runs one full Muon step for `plan` (fp32, device-native
+// momentum), matching host Optimizer.Step within tolerance. Matrix (Muon) groups
+// run on the GPU via deviceMuonMatrixStep; the cheap sign and frozen groups run
+// host-side in the same pass. weights, gradients (consumed/zeroed) and momentum
+// update in place. This is correctness-first: each matrix group takes its own
+// device context/transfers; a resident batched step is a later optimization.
+func deviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []float32, plan Plan, step int, config Config) error {
+	rate := config.LearningRate(step)
+	mu := float32(config.Momentum)
+	for _, group := range plan.groups {
+		switch {
+		case group.Frozen:
+			clear(gradients[group.Start:group.End])
+		case group.Update == UpdateSign:
+			for i := group.Start; i < group.End; i++ {
+				next := mu*momentum[i] + gradients[i]
+				direction := mu*next + gradients[i]
+				momentum[i] = next
+				if gradients[i] != 0 {
+					switch {
+					case direction > 0:
+						weights[i] -= float32(rate)
+					case direction < 0:
+						weights[i] += float32(rate)
+					}
+				}
+				gradients[i] = 0
+			}
+		case group.Update == UpdateMuon:
+			if err := deviceMuonMatrixStep(
+				worker,
+				weights[group.Start:group.End],
+				gradients[group.Start:group.End],
+				momentum[group.Start:group.End],
+				group.Rows, group.Cols, config.Momentum, rate,
+			); err != nil {
+				return err
+			}
+			clear(gradients[group.Start:group.End])
+		}
+	}
+	return nil
+}

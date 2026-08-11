@@ -32,6 +32,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/seq2seq"
 	"overgo/internal/seriesforecast"
 	"overgo/internal/strictjson"
 	"overgo/internal/tabularicl"
@@ -41,6 +42,8 @@ import (
 var forecastInputContract = artifact.JSONContract(artifact.KindFile, "overgo.forecast-input.v1")
 
 var tabularInputContract = artifact.JSONContract(artifact.KindFile, "overgo.tabular-input.v1")
+
+var seq2seqInputContract = artifact.JSONContract(artifact.KindFile, "overgo.seq2seq-input.v1")
 
 type capabilityExecutor func(
 	context.Context,
@@ -65,7 +68,7 @@ var capabilityCommands = map[recipe.Task]capabilityCommand{
 		inventory: tabularInventory, definition: modelrecipe.TabularDefinition, execute: executeTabular,
 	},
 	recipe.TaskSeq2Seq: {
-		inventory: hfInventory, definition: modelrecipe.Seq2SeqDefinition,
+		inventory: hfInventory, definition: modelrecipe.Seq2SeqDefinition, execute: executeSeq2Seq,
 	},
 	recipe.TaskSpeech: {
 		inventory: speechInventory, definition: modelrecipe.SpeechDefinition,
@@ -362,16 +365,12 @@ func executeForecast(
 	if err != nil {
 		return nil, err
 	}
-	result, err := executeTensorProgram(
-		ctx, store, program, "series", series, content,
+	return executeScalarProgram[[]float32](
+		ctx, store, program, series, content,
 		func(runtime *workflowruntime.Runtime) error {
 			return seriesforecast.RegisterRuntime(runtime, modelID, model)
 		},
 	)
-	if err != nil {
-		return nil, err
-	}
-	return tensorOutput[[]float32](result, "forecast")
 }
 
 func executeTabular(
@@ -390,55 +389,79 @@ func executeTabular(
 	if err != nil {
 		return nil, err
 	}
-	result, err := executeTensorProgram(
-		ctx, store, program, "table", request, content,
+	return executeScalarProgram[tabularicl.Prediction](
+		ctx, store, program, request, content,
 		func(runtime *workflowruntime.Runtime) error {
 			return tabularicl.RegisterRuntime(runtime, modelID, model)
 		},
 	)
+}
+
+func executeSeq2Seq(
+	ctx context.Context,
+	store artifact.Repository,
+	path string,
+	modelID artifact.ID,
+	program recipe.Program,
+	input string,
+) (any, error) {
+	request, content, err := seq2seqInput(input)
 	if err != nil {
 		return nil, err
 	}
-	return tensorOutput[tabularicl.Prediction](result, "predictions")
-}
-
-func executeTensorProgram(
-	ctx context.Context,
-	store artifact.Repository,
-	program recipe.Program,
-	inputPort recipe.PortName,
-	value any,
-	content artifact.Content,
-	bind func(*workflowruntime.Runtime) error,
-) (workflowruntime.Result, error) {
-	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
+	model, err := seq2seq.Load(path)
 	if err != nil {
-		return workflowruntime.Result{}, err
+		return nil, err
 	}
-	if err := bind(runtime); err != nil {
-		return workflowruntime.Result{}, err
-	}
-	return runtime.ExecuteProgram(
-		ctx,
-		"recipe/run/"+program.Definition().ID.String()+"/"+content.Descriptor.ID.String(),
-		program,
-		map[recipe.PortName]workflowruntime.Value{
-			inputPort: workflowruntime.ArtifactValue(recipe.DataTensor, value, content),
+	return executeScalarProgram[[]int](
+		ctx, store, program, request, content,
+		func(runtime *workflowruntime.Runtime) error {
+			return seq2seq.RegisterRuntime(runtime, modelID, model)
 		},
 	)
 }
 
-func tensorOutput[T any](result workflowruntime.Result, port recipe.PortName) (T, error) {
-	var zero T
-	output, ok := result.Outputs[port].Single()
-	if !ok {
-		return zero, fmt.Errorf("runtime output %q has invalid cardinality", port)
+func executeScalarProgram[Output any](
+	ctx context.Context,
+	store artifact.Repository,
+	program recipe.Program,
+	value any,
+	content artifact.Content,
+	bind func(*workflowruntime.Runtime) error,
+) (Output, error) {
+	var zero Output
+	definition := program.Definition()
+	if len(definition.Inputs) != 1 || len(definition.Outputs) != 1 {
+		return zero, errors.New("recipe command: scalar execution requires one input and output")
 	}
-	value, ok := output.Value.(T)
-	if !ok {
-		return zero, fmt.Errorf("runtime output %q has invalid value type", port)
+	input, output := definition.Inputs[0], definition.Outputs[0]
+	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
+	if err != nil {
+		return zero, err
 	}
-	return value, nil
+	if err := bind(runtime); err != nil {
+		return zero, err
+	}
+	result, err := runtime.ExecuteProgram(
+		ctx,
+		"recipe/run/"+definition.ID.String()+"/"+content.Descriptor.ID.String(),
+		program,
+		map[recipe.PortName]workflowruntime.Value{
+			input.Name: workflowruntime.ArtifactValue(input.Data, value, content),
+		},
+	)
+	if err != nil {
+		return zero, err
+	}
+	datum, ok := result.Outputs[output.Name].Single()
+	if !ok {
+		return zero, fmt.Errorf("runtime output %q has invalid cardinality", output.Name)
+	}
+	decoded, ok := datum.Value.(Output)
+	if !ok {
+		return zero, fmt.Errorf("runtime output %q has invalid value type", output.Name)
+	}
+	return decoded, nil
 }
 
 func forecastInput(input string) ([]float32, artifact.Content, error) {
@@ -467,6 +490,18 @@ func tabularInput(input string) (tabularicl.Request, artifact.Content, error) {
 		return request, artifact.Content{}, err
 	}
 	content, err := artifact.JSONContent(tabularInputContract, request)
+	return request, content, err
+}
+
+func seq2seqInput(input string) (seq2seq.GenerateRequest, artifact.Content, error) {
+	var request seq2seq.GenerateRequest
+	if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
+		return request, artifact.Content{}, fmt.Errorf("decode seq2seq input: %w", err)
+	}
+	if err := seq2seq.ValidateGenerateRequest(request); err != nil {
+		return request, artifact.Content{}, err
+	}
+	content, err := artifact.JSONContent(seq2seqInputContract, request)
 	return request, content, err
 }
 

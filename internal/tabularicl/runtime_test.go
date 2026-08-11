@@ -79,7 +79,7 @@ func TestRegisteredRuntimeEnforcesTabularOutputContract(t *testing.T) {
 			)); err != nil {
 				t.Fatal(err)
 			}
-			result, err := fixture.ExecuteTensor("tabular/runtime/"+test.name, "table", tabularRequestFixture)
+			result, err := fixture.ExecuteScalar("tabular/runtime/"+test.name, tabularRequestFixture)
 			if test.wantError {
 				if err == nil {
 					t.Fatal("invalid prediction geometry accepted")

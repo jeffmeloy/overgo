@@ -14,6 +14,7 @@ const (
 	forecastInputFixture       = `[1.25,-2.5,4]`
 	tabularInputFixture        = `{"task":"classification","x":[2,3],"y":[1,0],"rows":2,"cols":1,"train_rows":1}`
 	invalidTabularInputFixture = `{"task":"classification","unknown":1}`
+	seq2seqInputFixture        = `{"source":[3,5],"max_tokens":2}`
 	tabularInputRows           = 2
 	tabularInputCols           = 1
 	tabularInputTrainRows      = 1
@@ -28,6 +29,7 @@ func TestCommandsResolveExecutableCapabilityStages(t *testing.T) {
 	}{
 		{task: recipe.TaskForecast, module: modelrecipe.ModuleForecastSeries},
 		{task: recipe.TaskTabular, module: modelrecipe.ModuleTabularPredict},
+		{task: recipe.TaskSeq2Seq, module: modelrecipe.ModuleSeq2SeqGenerate},
 	}
 	for _, test := range tests {
 		t.Run(string(test.task), func(t *testing.T) {
@@ -84,5 +86,21 @@ func TestForecastInputIsCanonicalArtifact(t *testing.T) {
 	}
 	if err := content.Validate(); err != nil || content.Descriptor.ID.Kind() != artifact.KindFile {
 		t.Fatalf("input content = (%+v, %v)", content.Descriptor, err)
+	}
+}
+
+func TestSeq2SeqInputIsValidatedCanonicalArtifact(t *testing.T) {
+	request, content, err := seq2seqInput(seq2seqInputFixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(request.Source) != 2 || request.Source[0] != 3 || request.Source[1] != 5 || request.MaxTokens != 2 {
+		t.Fatalf("request = %+v", request)
+	}
+	if err := content.Validate(); err != nil || content.Descriptor.ID.Kind() != artifact.KindFile {
+		t.Fatalf("input content = (%+v, %v)", content.Descriptor, err)
+	}
+	if _, _, err := seq2seqInput(`{"source":[],"max_tokens":2}`); err == nil {
+		t.Fatal("empty seq2seq source accepted")
 	}
 }

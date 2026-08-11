@@ -29,7 +29,7 @@ func TestRegisteredRuntimeExecutesIdentityBoundForecastProgram(t *testing.T) {
 	})); err != nil {
 		t.Fatal(err)
 	}
-	result, err := fixture.ExecuteTensor("forecast/runtime", "series", forecastInputFixture)
+	result, err := fixture.ExecuteScalar("forecast/runtime", forecastInputFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestRegisteredRuntimeRejectsDifferentRecipeModel(t *testing.T) {
 	})); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.ExecuteTensor("forecast/mismatch", "series", forecastInputFixture); err == nil {
+	if _, err := fixture.ExecuteScalar("forecast/mismatch", forecastInputFixture); err == nil {
 		t.Fatal("mismatched model binding accepted")
 	}
 }

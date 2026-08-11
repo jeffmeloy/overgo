@@ -3,6 +3,7 @@ package modelrecipetest
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -42,8 +43,13 @@ func check(t testing.TB, err error) {
 	}
 }
 
-func (f Capability) ExecuteTensor(key string, port recipe.PortName, value any) (workflowruntime.Result, error) {
+func (f Capability) ExecuteScalar(key string, value any) (workflowruntime.Result, error) {
+	definition := f.Program.Definition()
+	if len(definition.Inputs) != 1 {
+		return workflowruntime.Result{}, fmt.Errorf("model recipe fixture: want one input, got %d", len(definition.Inputs))
+	}
+	input := definition.Inputs[0]
 	return f.Runtime.ExecuteProgram(context.Background(), key, f.Program, map[recipe.PortName]workflowruntime.Value{
-		port: {Kind: recipe.DataTensor, Items: []workflowruntime.Datum{{Value: value}}},
+		input.Name: {Kind: input.Data, Items: []workflowruntime.Datum{{Value: value}}},
 	})
 }

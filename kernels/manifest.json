@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "6d542f00f5ddfc542a76d61a374e72420b94d1c64f2eb76ada435d4221190475",
+      "sourceSha256": "55f9a91bf3f06221c2ef862f1fd772a26efcd92e8b45928ab9688758d3c0a691",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "aa087ce6aab8302a423af0009b02cc455227c32315ce1f19a3bee6571a9d67d3",
+      "assetSha256": "409cb6694be58f6f07da7299a4623e39a6bf4236b94b517975bcc3a26c9ee84c",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -164,6 +164,7 @@
         "relu_f32",
         "relu_squared_f32",
         "repeat_heads_f32",
+        "rms_norm_backward_f32",
         "rms_norm_f32",
         "rope_append_neox_f32",
         "rope_append_normal_f32",
@@ -885,6 +886,22 @@
             ".u64",
             ".u32",
             ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "rms_norm_backward_f32",
+            "weighted_rms_norm_add_q8_0_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
             ".u32",
             ".u32",
             ".u32",
@@ -1201,21 +1218,6 @@
           "functions": [
             "weighted_rms_norm_add_f32",
             "weighted_rms_norm_q8_0_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u32",
-            ".u32",
-            ".f32"
-          ],
-          "functions": [
-            "weighted_rms_norm_add_q8_0_f32"
           ]
         },
         {

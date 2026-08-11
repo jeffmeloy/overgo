@@ -427,6 +427,39 @@ extern "C" __global__ void silu_backward_f32(
     }
 }
 
+// rms_norm_backward_f32: VJP of affine RMSNorm y = x * rsqrt(mean(x^2)+eps) * w.
+// One thread per row. dscale (the weight gradient) accumulates across rows via
+// atomicAdd, so the caller must zero-initialize it before launch.
+extern "C" __global__ void rms_norm_backward_f32(
+        const float * dy,
+        const float * x,
+        const float * weight,
+        float * dx,
+        float * dscale,
+        unsigned int rows,
+        unsigned int d,
+        float eps) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const float * xr = x + (size_t)row * d;
+    const float * dyr = dy + (size_t)row * d;
+    float * dxr = dx + (size_t)row * d;
+    float ss = 0.0f;
+    float dotGX = 0.0f;
+    for (unsigned int i = 0; i < d; i++) {
+        ss += xr[i] * xr[i];
+        dotGX += dyr[i] * weight[i] * xr[i];
+    }
+    const float inv = rsqrtf(ss / (float)d + eps);
+    const float coef = inv * inv * inv / (float)d * dotGX;
+    for (unsigned int i = 0; i < d; i++) {
+        dxr[i] = inv * weight[i] * dyr[i] - coef * xr[i];
+        atomicAdd(&dscale[i], dyr[i] * xr[i] * inv);
+    }
+}
+
 extern "C" __global__ void activated_gate_f32(
         const float * gate,
         const float * up,

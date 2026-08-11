@@ -110,6 +110,53 @@ func TestGemma4ProgramUsesNeutralStages(t *testing.T) {
 	}
 }
 
+func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
+	program := compileLayerProgram(
+		LayerPlan{Block: BlockDense}, ArchitectureProfile{Forward: ForwardEagle3},
+	)
+	want := []LayerOperator{
+		LayerOperatorPairedInputNorm, LayerOperatorAttentionMix, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+	}
+	if program.Count != uint8(len(want)) {
+		t.Fatalf("Eagle3 stage count = %d", program.Count)
+	}
+	for index, operator := range want {
+		instruction, _ := program.Instruction(index)
+		if instruction.Operator != operator {
+			t.Fatalf("Eagle3 stage %d = %d, want %d", index, instruction.Operator, operator)
+		}
+	}
+	paired, _ := program.Instruction(0)
+	if paired.TensorCount != 1 || paired.Tensors[0] != RuntimeTensorPerLayerInput {
+		t.Fatalf("Eagle3 paired binding = %+v", paired)
+	}
+}
+
+func TestGemma4AssistantProgramUsesSharedCacheStages(t *testing.T) {
+	program := compileLayerProgram(
+		LayerPlan{Block: BlockDense}, ArchitectureProfile{Forward: ForwardGemma4Assistant},
+	)
+	want := []LayerOperator{
+		LayerOperatorAttentionNorm, LayerOperatorAttentionMix, LayerOperatorAttentionPostNorm,
+		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
+		LayerOperatorFeedForwardPostNorm, LayerOperatorResidualScale,
+	}
+	if program.Count != uint8(len(want)) {
+		t.Fatalf("Gemma 4 assistant stage count = %d", program.Count)
+	}
+	for index, operator := range want {
+		instruction, _ := program.Instruction(index)
+		if instruction.Operator != operator {
+			t.Fatalf("Gemma 4 assistant stage %d = %d, want %d", index, instruction.Operator, operator)
+		}
+	}
+	attention, _ := program.Instruction(1)
+	if attention.Attention != AttentionMixSharedCacheQKNorm || attention.CacheCount != 2 {
+		t.Fatalf("Gemma 4 assistant attention binding = %+v", attention)
+	}
+}
+
 func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 	tests := []struct {
 		name    string

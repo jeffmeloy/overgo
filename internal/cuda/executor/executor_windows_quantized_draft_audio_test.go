@@ -164,7 +164,7 @@ func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 		seed += 2
 		return item
 	}
-	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "eagle3", EmbeddingLength: 4, TargetHiddenSize: 3,
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "eagle3", BlockCount: 1, EmbeddingLength: 4, TargetHiddenSize: 3,
 		TargetLayers: []int32{1, 3, 5}, FeedForwardLength: 6,
 
 		RMSNormEpsilon: 1e-5}, AttentionSpec: model.AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
@@ -189,7 +189,21 @@ func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 		FeedForwardDown: input("down", tensor.MustShape(6, 4), 0.03, -0.1),
 	}
 	tokens := input("tokens", tensor.MustShape(4, 3), 0.08, -0.1)
-	result, err := model.BuildEagle3BlockCached(builder, tokens, fused, spec, weights, []uint32{0, 1, 2}, nil, nil)
+	program, err := model.CompileModelPlan(spec, model.Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := program.Layer(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: tokens, Positions: []uint32{0, 1, 2},
+			PerLayerInput: fused, Layer: plan.Layer, CacheWrite: tensor.CacheWriteConcat,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,6 +250,10 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	program, err := model.CompileModelPlan(spec, model.Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	for layer := uint32(0); layer < spec.BlockCount; layer++ {
 		keyWidth := uint64(spec.LayerKeyLength(layer))
 		weights := model.LayerGraphWeights{
@@ -253,12 +271,22 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 		}
 		sharedKey := input(fmt.Sprintf("shared_key_%d", layer), tensor.MustShape(keyWidth, 1, 3), 0.04, -0.1)
 		sharedValue := input(fmt.Sprintf("shared_value_%d", layer), tensor.MustShape(keyWidth, 1, 3), 0.04, -0.1)
-		current, err = model.BuildGemma4AssistantBlock(
-			builder, current, spec, weights, []uint32{3}, sharedKey, sharedValue, layer,
-		)
+		plan, planErr := program.Layer(int(layer))
+		if planErr != nil {
+			t.Fatal(planErr)
+		}
+		block, buildErr := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+			Spec: spec, Weights: weights, Plan: &plan,
+			Context: model.CachedBlockContext{
+				Builder: builder, Input: current, Positions: []uint32{3},
+				PastKey: sharedKey, PastValue: sharedValue, Layer: plan.Layer,
+			},
+		})
+		err = buildErr
 		if err != nil {
 			t.Fatal(err)
 		}
+		current = block.Output
 	}
 	outputNorm := input("output_norm", tensor.MustShape(4), 0.03, 0.9)
 	output := input("output", tensor.MustShape(4, 8), 0.03, -0.1)

@@ -170,6 +170,27 @@ func executeLayerInstruction(
 		}
 		execution.current = c.Builder.RMSNorm(execution.current, options.Spec.RMSNormEpsilon)
 		return c.Builder.Err()
+	case LayerOperatorPairedInputNorm:
+		target := operands.tensors[0]
+		if instruction.CacheCount != 0 || instruction.TensorCount != 1 || target == nil ||
+			execution.current == nil || !execution.current.Shape.Equal(target.Shape) ||
+			execution.current.Shape.Rank != 2 ||
+			execution.current.Shape.Dims[0] != uint64(options.Spec.EmbeddingLength) ||
+			options.Weights.AttentionNorm == nil || options.Weights.AttentionNorm2 == nil {
+			return errors.New("compiled paired-input normalization stage is invalid")
+		}
+		tokenNorm := c.Builder.WeightedRMSNorm(
+			execution.current, options.Weights.AttentionNorm, options.Spec.RMSNormEpsilon,
+		)
+		targetNorm := c.Builder.WeightedRMSNorm(
+			target, options.Weights.AttentionNorm2, options.Spec.RMSNormEpsilon,
+		)
+		execution.current = c.Builder.Concat(tokenNorm, targetNorm, 0)
+		execution.residual = target
+		if options.Spec.NormBeforeResidual {
+			execution.residual = targetNorm
+		}
+		return c.Builder.Err()
 	case LayerOperatorAttentionPostNorm:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
 			options.Weights.AttentionPostNorm == nil {
@@ -238,6 +259,16 @@ func executeLayerInstruction(
 			result, err = buildBidirectionalEncoderAttentionMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
+			)
+		case AttentionMixPairedCausalProjection:
+			result, err = buildPairedCausalProjectionMixCached(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], c.CacheWrite,
+			)
+		case AttentionMixSharedCacheQKNorm:
+			result, err = buildSharedCacheQKNormMix(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan,
 			)
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
@@ -433,6 +464,17 @@ func executeLayerInstruction(
 			return errors.New("compiled residual stage is invalid")
 		}
 		execution.current = c.Builder.Add(execution.residual, execution.current)
+		execution.residual = execution.current
+		execution.result.Output = execution.current
+		return c.Builder.Err()
+	case LayerOperatorResidualScale:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			execution.current == nil || execution.residual == nil || options.Weights.LayerOutputScale == nil {
+			return errors.New("compiled residual-scale stage is invalid")
+		}
+		execution.current = c.Builder.Multiply(
+			c.Builder.Add(execution.residual, execution.current), options.Weights.LayerOutputScale,
+		)
 		execution.residual = execution.current
 		execution.result.Output = execution.current
 		return c.Builder.Err()

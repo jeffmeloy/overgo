@@ -76,6 +76,8 @@ const (
 	LayerOperatorAttentionResidualNorm
 	LayerOperatorInputResidualNorm
 	LayerOperatorFeedForwardResidualNorm
+	LayerOperatorPairedInputNorm
+	LayerOperatorResidualScale
 )
 
 // RecurrentMixPolicy: recurrent operator implementation.
@@ -106,6 +108,8 @@ const (
 	AttentionMixCausalPostQKNorm
 	AttentionMixSharedKVQKNorm
 	AttentionMixBidirectionalEncoder
+	AttentionMixPairedCausalProjection
+	AttentionMixSharedCacheQKNorm
 )
 
 // HybridMixPolicy: parallel mixer implementation.
@@ -881,6 +885,21 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 	switch block {
 	case BlockDense:
+		if profile.Forward == ForwardGemma4Assistant {
+			return newLayerProgram(
+				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixSharedCacheQKNorm),
+				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
+				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixGatedGELU),
+				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidualScale),
+			)
+		}
+		if profile.Forward == ForwardEagle3 {
+			return newLayerProgram(
+				pairedInputLayerStage(), attentionLayerStage(AttentionMixPairedCausalProjection),
+				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
+				feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+			)
+		}
 		if profile.DenseGraph == DenseGraphRWKV6 {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixAffineWKV6, false),
@@ -1118,6 +1137,12 @@ func tokenShiftLayerStage(policy FeedForwardMixPolicy) LayerOperatorInstruction 
 	instruction.CacheCount = 1
 	instruction.Caches[0] = RuntimeCachePrimaryKey
 	return instruction
+}
+
+func pairedInputLayerStage() LayerOperatorInstruction {
+	return leafLayerStage(
+		LayerOperatorPairedInputNorm, nil, []RuntimeTensorBinding{RuntimeTensorPerLayerInput},
+	)
 }
 
 func cacheSentinelLayerStage() LayerOperatorInstruction {

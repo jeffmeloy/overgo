@@ -1240,7 +1240,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, err
 			}
 		} else if handled, familyErr := loadStateSpaceLayer(
-			required, tensors, prefix, spec, layer, block,
+			required, tensors, prefix, spec, layer, block, layerPlan.StateSpace,
 			queryLength, keyLength, valueLength, attentionOutputLength,
 		); familyErr != nil {
 			return Weights{}, familyErr

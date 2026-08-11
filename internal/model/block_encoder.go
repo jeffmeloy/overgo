@@ -7,7 +7,7 @@ import (
 	"overgo/internal/tensor"
 )
 
-func buildPostNormalizedEncoderAttention(
+func buildBidirectionalEncoderAttentionMix(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -31,10 +31,8 @@ func buildPostNormalizedEncoderAttention(
 	}
 	required := graphWeights{
 		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
-		requireGraphWeight("attention post norm bias", weights.AttentionPostNormBias),
 	}
-	if err := required.validate("post-normalized encoder attention"); err != nil {
+	if err := required.validate("bidirectional encoder attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := uint64(len(positions))
@@ -80,23 +78,13 @@ func buildPostNormalizedEncoderAttention(
 	if weights.AttentionOutputBias != nil {
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
-	attention = builder.AffineLayerNorm(
-		builder.Add(input, attention), weights.AttentionPostNorm,
-		weights.AttentionPostNormBias, spec.LayerNormEpsilon,
-	)
-	if encoder.Kind == encoderGraphJinaV2 && weights.AttentionNorm2 != nil {
-		attention = ApplyNormalization(
-			builder, builder.Add(attention, input),
-			weights.AttentionNorm2, weights.AttentionNorm2Bias, spec,
-		)
-	}
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: attention, Key: key, Value: value}, nil
 }
 
-func buildPostNormalizedEncoderFeedForward(
+func buildEncoderFeedForwardMix(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -110,10 +98,7 @@ func buildPostNormalizedEncoderFeedForward(
 	if input == nil || input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, errors.New("post-normalized encoder feed-forward input shape is incompatible")
 	}
-	required := graphWeights{
-		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
-		requireGraphWeight("feed-forward post norm bias", weights.FeedForwardPostNormBias),
-	}
+	required := graphWeights{}
 	usesExperts := encoder.usesExperts() && spec.IsInterleavedMoELayer(layerIndex)
 	if usesExperts {
 		required.add("feed-forward router", weights.FeedForwardRouter)
@@ -123,7 +108,7 @@ func buildPostNormalizedEncoderFeedForward(
 		required.add("feed-forward up", weights.FeedForwardUp)
 		required.add("feed-forward down", weights.FeedForwardDown)
 	}
-	if err := required.validate("post-normalized encoder feed-forward"); err != nil {
+	if err := required.validate("encoder feed-forward"); err != nil {
 		return nil, err
 	}
 	if encoder.Kind == encoderGraphNomic && weights.FeedForwardGate == nil {
@@ -166,14 +151,10 @@ func buildPostNormalizedEncoderFeedForward(
 			feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
 		}
 	}
-	output := builder.AffineLayerNorm(
-		builder.Add(input, feedForward), weights.FeedForwardPostNorm,
-		weights.FeedForwardPostNormBias, spec.LayerNormEpsilon,
-	)
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
-	return output, nil
+	return feedForward, nil
 }
 
 func buildBidirectionalFusedQKVMix(

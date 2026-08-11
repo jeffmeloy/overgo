@@ -13,14 +13,15 @@ func buildMambaMixerCached(
 	spec Spec,
 	weights LayerGraphWeights,
 	convState, ssmState *tensor.Tensor,
+	plan StateSpacePlan,
 ) (DenseBlockResult, error) {
+	useWeightedStateNorm := plan.kind == stateSpaceJamba
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("Mamba mixer input/state is nil")
 	}
-	profile := spec.Profile()
-	if (profile.Block != BlockMamba && profile.RecurrentBlock != BlockJamba) || input.Shape.Rank != 2 ||
+	if input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Mamba mixer architecture/input is invalid")
+		return DenseBlockResult{}, errors.New("Mamba mixer input shape is invalid")
 	}
 	required := graphWeights{
 		requireGraphWeight("SSM input", weights.SSMInput),
@@ -36,7 +37,7 @@ func buildMambaMixerCached(
 	if err := required.validate("Mamba mixer"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if profile.RecurrentBlock == BlockJamba {
+	if useWeightedStateNorm {
 		if err := (graphWeights{
 			requireGraphWeight("SSM time-step norm", weights.SSMTimeStepNorm),
 			requireGraphWeight("SSM B norm", weights.SSMBNorm),
@@ -77,7 +78,7 @@ func buildMambaMixerCached(
 		dt = builder.RMSNorm(dt, spec.RMSNormEpsilon)
 		beta = builder.RMSNorm(beta, spec.RMSNormEpsilon)
 		c = builder.RMSNorm(c, spec.RMSNormEpsilon)
-	} else if profile.RecurrentBlock == BlockJamba {
+	} else if useWeightedStateNorm {
 		dt = builder.WeightedRMSNorm(dt, weights.SSMTimeStepNorm, spec.RMSNormEpsilon)
 		beta = builder.WeightedRMSNorm(beta, weights.SSMBNorm, spec.RMSNormEpsilon)
 		c = builder.WeightedRMSNorm(c, weights.SSMCNorm, spec.RMSNormEpsilon)
@@ -109,15 +110,14 @@ func buildMamba2MixerCached(
 	spec Spec,
 	weights LayerGraphWeights,
 	convState, ssmState *tensor.Tensor,
+	plan StateSpacePlan,
 ) (DenseBlockResult, error) {
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("Mamba2 block input/state is nil")
 	}
-	profile := spec.Profile()
-	if (profile.Block != BlockMamba2 && profile.RecurrentBlock != BlockGraniteHybrid &&
-		profile.Block != BlockFalconH1 && profile.Block != BlockNemotronH) || input.Shape.Rank != 2 ||
+	if input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Mamba2 mixer architecture/input is invalid")
+		return DenseBlockResult{}, errors.New("Mamba2 mixer input shape is invalid")
 	}
 	required := graphWeights{
 		requireGraphWeight("SSM input", weights.SSMInput),
@@ -127,7 +127,7 @@ func buildMamba2MixerCached(
 		requireGraphWeight("SSM D", weights.SSMD),
 		requireGraphWeight("SSM output", weights.SSMOutput),
 	}
-	if profile.Block != BlockFalconH1 {
+	if plan.kind != stateSpaceFalconH1 {
 		required.add("SSM norm", weights.SSMNorm)
 	}
 	if err := required.validate("Mamba2 block"); err != nil {
@@ -202,6 +202,7 @@ func buildAttentionSSMHybridMixCached(
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue, convState, ssmState *tensor.Tensor,
+	plan LayerPlan,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("Falcon-H1 hybrid mix input/state is nil")
@@ -285,7 +286,7 @@ func buildAttentionSSMHybridMixCached(
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
 
-	ssm, err := buildMamba2MixerCached(builder, normalized, spec, weights, convState, ssmState)
+	ssm, err := buildMamba2MixerCached(builder, normalized, spec, weights, convState, ssmState, plan.StateSpace)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}

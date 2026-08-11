@@ -1,5 +1,3 @@
-# All Go sources are LF in the working tree regardless of core.autocrlf, so a
-# fresh checkout, merge, or worktree add never leaves CRLF for gofmt (or the
-# generated-source byte-parity checks) to trip on. Subsumes the per-file
-# generated-source pins.
+# Hermetic source and byte-fixture newlines.
 *.go text eol=lf
+internal/inference/testdata/chat_templates/** text eol=lf

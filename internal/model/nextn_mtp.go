@@ -1,10 +1,6 @@
 package model
 
-import (
-	"errors"
-
-	"overgo/internal/tensor"
-)
+import "overgo/internal/tensor"
 
 // BuildNextNMTPInput: normalized token/target fusion.
 func BuildNextNMTPInput(
@@ -17,73 +13,6 @@ func BuildNextNMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
 		nextNMTPPolicy, offset,
 	)
-}
-
-// BuildNextNMTPBlockCached: appended decoder block.
-func BuildNextNMTPBlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue *tensor.Tensor,
-	offset uint32,
-) (DenseBlockResult, error) {
-	return BuildNextNMTPBlockCachedWithDSA(
-		builder, input, spec, weights, positions, pastKey, pastValue, nil, nil, offset,
-	)
-}
-
-// BuildNextNMTPBlockCachedWithDSA: appended block plus sparse-indexer state.
-func BuildNextNMTPBlockCachedWithDSA(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
-	offset uint32,
-) (DenseBlockResult, error) {
-	if !nextNMTPPolicy.valid(spec, offset) {
-		return DenseBlockResult{}, errors.New("NextN MTP block is invalid")
-	}
-	executable := spec
-	executable.BlockCount += spec.NextNPredictLayers
-	plan := executable.PlanLayer(spec.BlockCount+offset, false)
-	return BuildNextNMTPBlockCachedWithDSAPlan(
-		builder, input, spec, weights, positions, pastKey, pastValue,
-		pastIndexerKey, previousTopK, offset, plan,
-	)
-}
-
-// BuildNextNMTPBlockCachedWithDSAPlan: compiled appended block.
-func BuildNextNMTPBlockCachedWithDSAPlan(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
-	offset uint32,
-	plan LayerPlan,
-) (DenseBlockResult, error) {
-	if !nextNMTPPolicy.valid(spec, offset) || plan.Layer != spec.BlockCount+offset {
-		return DenseBlockResult{}, errors.New("NextN MTP block plan is invalid")
-	}
-	executable := spec
-	executable.BlockCount += spec.NextNPredictLayers
-	return BuildArchitectureBlockCached(BlockDispatchOptions{
-		Context: CachedBlockContext{
-			Builder: builder, Input: input, Positions: positions,
-			PastKey: pastKey, PastValue: pastValue,
-			PastStates: CacheStates[*tensor.Tensor]{
-				CacheStateIndexerKey: {Mode: CacheStateToken, Value: pastIndexerKey},
-			},
-			PerLayerInput: previousTopK, Layer: spec.BlockCount + offset,
-			Recurrent: plan.Recurrent,
-		},
-		Spec: executable, Weights: weights, Plan: &plan,
-	})
 }
 
 // BuildNextNMTPOutputs: normalized hidden and logits.

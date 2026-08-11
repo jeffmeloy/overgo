@@ -761,6 +761,8 @@ func (p ModelPlan) DraftProgram(spec Spec, offset uint32) (DraftLayerProgram, er
 	}
 	if p.draft.SingleCatalog {
 		spec, _ = singleDraftExecutableSpec(spec, p.draft.Kind)
+	} else if p.draft.Kind == DraftNextNMTP {
+		spec.BlockCount += p.draft.Heads
 	}
 	return DraftLayerProgram{Spec: spec, Plan: layer}, nil
 }

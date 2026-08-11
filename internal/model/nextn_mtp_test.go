@@ -31,7 +31,10 @@ func TestBuildGLM4NextNMTPPipeline(t *testing.T) {
 	weights.FeedForwardPostNorm = builder.Input("ffn_post", dtype.F32, tensor.MustShape(8))
 	weights.FeedForwardGate = nil
 	weights.FeedForwardUp = builder.Input("gate_up", dtype.F32, tensor.MustShape(8, 24))
-	block, err := BuildNextNMTPBlockCached(builder, current, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	draft := nextNFixtureProgram(t, spec)
+	block, err := buildFixtureLayerWithPlan(
+		builder, current, draft.Spec, weights, []uint32{0, 1}, nil, nil, draft.Plan,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,11 +65,27 @@ func TestBuildEXAONE4NextNMTPBlock(t *testing.T) {
 	weights.AttentionQKVBias = builder.Input("qkv_bias", dtype.F32, tensor.MustShape(16))
 	weights.AttentionPostNorm = builder.Input("attn_post", dtype.F32, tensor.MustShape(8))
 	weights.FeedForwardPostNorm = builder.Input("ffn_post", dtype.F32, tensor.MustShape(8))
-	result, err := BuildNextNMTPBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	draft := nextNFixtureProgram(t, spec)
+	result, err := buildFixtureLayerWithPlan(
+		builder, input, draft.Spec, weights, []uint32{0, 1}, nil, nil, draft.Plan,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(tensor.MustShape(4, 1, 2)) {
 		t.Fatalf("unexpected EXAONE 4 NextN block: %+v", result)
 	}
+}
+
+func nextNFixtureProgram(t *testing.T, spec Spec) DraftLayerProgram {
+	t.Helper()
+	program, err := CompileModelPlan(spec, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := program.DraftProgram(spec, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return draft
 }

@@ -20,8 +20,8 @@ import (
 // a cuBLAS GEMM; the c0*I term folds into the final matmul
 // (X*(c0*I + R) = c0*X + X*R), so no diagonal kernel is needed -- only cuBLAS
 // plus the existing ops_f32 scale/add. The Frobenius norm reuses a GEMM
-// dot-product. Buffers/handles are per-call (correctness-first; a resident
-// device optimizer will cache them).
+// dot-product. Buffers/handles are per-call (correctness-first; the device Muon
+// step reuses the same primitives on resident state).
 func deviceNewtonSchulz(worker *device.Worker, input []float32, rows, cols int) ([]float32, error) {
 	if rows <= 0 || cols <= 0 || len(input) != rows*cols {
 		return nil, fmt.Errorf("deviceNewtonSchulz: len %d != %d*%d", len(input), rows, cols)
@@ -32,7 +32,32 @@ func deviceNewtonSchulz(worker *device.Worker, input []float32, rows, cols int) 
 	result := make([]float32, len(input))
 	copy(result, input)
 	err := worker.Do(context.Background(), func(state *device.State) error {
-		return runDeviceNewtonSchulz(state, result, rows, cols)
+		ops, err := newDeviceOps(state)
+		if err != nil {
+			return err
+		}
+		defer ops.close()
+
+		n := rows * cols
+		gramN := gramDim(rows, cols)
+		gramN *= gramN
+		buffers, err := ops.allocBuffers(n, gramN)
+		if err != nil {
+			return err
+		}
+		defer buffers.free(ops.lib)
+
+		if err := ops.lib.MemcpyHtoD(buffers.dX, driver.Bytes(result)); err != nil {
+			return err
+		}
+		final, err := ops.newtonSchulz(buffers, rows, cols)
+		if err != nil {
+			return err
+		}
+		if err := ops.lib.StreamSynchronize(ops.stream); err != nil {
+			return err
+		}
+		return ops.lib.MemcpyDtoH(driver.Bytes(result), final)
 	})
 	if err != nil {
 		return nil, err
@@ -40,131 +65,167 @@ func deviceNewtonSchulz(worker *device.Worker, input []float32, rows, cols int) 
 	return result, nil
 }
 
-func runDeviceNewtonSchulz(state *device.State, data []float32, rows, cols int) error {
-	lib := state.Driver
-	n := rows * cols
-	dim := cols
-	tall := rows >= cols
-	if !tall {
-		dim = rows
+// gramDim returns min(rows, cols), the side of the gram matrix (XᵀX for tall,
+// XXᵀ for wide).
+func gramDim(rows, cols int) int {
+	if rows < cols {
+		return rows
 	}
-	gramN := dim * dim
+	return cols
+}
 
+// deviceOps bundles the per-context device handles the Muon primitives share:
+// the driver library, a cuBLAS handle bound to the stream, and the ops_f32
+// scale/add kernels.
+type deviceOps struct {
+	lib     *driver.Library
+	blas    *cublas.Library
+	handle  cublas.Handle
+	module  driver.Module
+	scaleFn driver.Function
+	addFn   driver.Function
+	stream  driver.Stream
+}
+
+func newDeviceOps(state *device.State) (*deviceOps, error) {
+	lib := state.Driver
 	blas, err := cublas.Open()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer blas.Close()
 	handle, err := blas.Create()
 	if err != nil {
-		return err
+		blas.Close()
+		return nil, err
 	}
-	defer blas.Destroy(handle)
 	if err := blas.SetStream(handle, state.Stream); err != nil {
-		return err
+		blas.Destroy(handle)
+		blas.Close()
+		return nil, err
 	}
 	module, err := lib.ModuleLoadData(kernel.OpsF32PTX)
 	if err != nil {
-		return err
+		blas.Destroy(handle)
+		blas.Close()
+		return nil, err
 	}
-	defer lib.ModuleUnload(module)
 	scaleFn, err := lib.ModuleFunction(module, "scale_f32")
 	if err != nil {
-		return err
+		lib.ModuleUnload(module)
+		blas.Destroy(handle)
+		blas.Close()
+		return nil, err
 	}
 	addFn, err := lib.ModuleFunction(module, "add_f32")
 	if err != nil {
-		return err
+		lib.ModuleUnload(module)
+		blas.Destroy(handle)
+		blas.Close()
+		return nil, err
 	}
+	return &deviceOps{lib: lib, blas: blas, handle: handle, module: module, scaleFn: scaleFn, addFn: addFn, stream: state.Stream}, nil
+}
 
-	alloc := func(count int) (driver.DevicePtr, error) { return lib.MemAlloc(uint64(count) * 4) }
-	dX, err := alloc(n)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dX)
-	dXNew, err := alloc(n)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dXNew)
-	dCX, err := alloc(n)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dCX)
-	dGram, err := alloc(gramN)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dGram)
-	dSq, err := alloc(gramN)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dSq)
-	dRest, err := alloc(gramN)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dRest)
-	dNorm, err := alloc(1)
-	if err != nil {
-		return err
-	}
-	defer lib.MemFree(dNorm)
+func (o *deviceOps) close() {
+	o.lib.ModuleUnload(o.module)
+	o.blas.Destroy(o.handle)
+	o.blas.Close()
+}
 
-	if err := lib.MemcpyHtoD(dX, driver.Bytes(data)); err != nil {
-		return err
-	}
+func (o *deviceOps) launch(fn driver.Function, count int, args []unsafe.Pointer) error {
+	const threads = uint32(256)
+	total := uint32(count)
+	blocks := (total + threads - 1) / threads
+	return o.lib.LaunchKernel(fn,
+		driver.Dim3{X: blocks, Y: 1, Z: 1},
+		driver.Dim3{X: threads, Y: 1, Z: 1},
+		0, o.stream, args)
+}
 
-	// scale: out = in * s (count elements). add: out = a + b.
-	launchElementwise := func(fn driver.Function, count int, args []unsafe.Pointer) error {
-		const threads = uint32(256)
-		total := uint32(count)
-		blocks := (total + threads - 1) / threads
-		return lib.LaunchKernel(fn,
-			driver.Dim3{X: blocks, Y: 1, Z: 1},
-			driver.Dim3{X: threads, Y: 1, Z: 1},
-			0, state.Stream, args)
+// scale: out = in * s (count elements).
+func (o *deviceOps) scale(in, out driver.DevicePtr, s float32, count int) error {
+	c := uint32(count)
+	err := o.launch(o.scaleFn, count, []unsafe.Pointer{
+		unsafe.Pointer(&in), unsafe.Pointer(&out), unsafe.Pointer(&s), unsafe.Pointer(&c),
+	})
+	runtime.KeepAlive(in)
+	runtime.KeepAlive(out)
+	return err
+}
+
+// add: out = a + b (count elements).
+func (o *deviceOps) add(a, b, out driver.DevicePtr, count int) error {
+	c := uint32(count)
+	err := o.launch(o.addFn, count, []unsafe.Pointer{
+		unsafe.Pointer(&a), unsafe.Pointer(&b), unsafe.Pointer(&out), unsafe.Pointer(&c),
+	})
+	runtime.KeepAlive(a)
+	runtime.KeepAlive(b)
+	runtime.KeepAlive(out)
+	return err
+}
+
+// nsBuffers holds the device scratch a Newton-Schulz run needs: the working
+// matrix dX and a same-size double buffer/temp, plus the three gram-sized
+// buffers and the one-element norm scalar.
+type nsBuffers struct {
+	dX, dXNew, dCX    driver.DevicePtr // size n = rows*cols
+	dGram, dSq, dRest driver.DevicePtr // size gramN = dim*dim
+	dNorm             driver.DevicePtr // size 1
+}
+
+func (o *deviceOps) allocBuffers(n, gramN int) (nsBuffers, error) {
+	var b nsBuffers
+	alloc := func(count int) (driver.DevicePtr, error) { return o.lib.MemAlloc(uint64(count) * 4) }
+	ptrs := []*driver.DevicePtr{&b.dX, &b.dXNew, &b.dCX, &b.dGram, &b.dSq, &b.dRest, &b.dNorm}
+	sizes := []int{n, n, n, gramN, gramN, gramN, 1}
+	for i, p := range ptrs {
+		ptr, err := alloc(sizes[i])
+		if err != nil {
+			b.free(o.lib)
+			return nsBuffers{}, err
+		}
+		*p = ptr
 	}
-	scale := func(in, out driver.DevicePtr, s float32, count int) error {
-		c := uint32(count)
-		err := launchElementwise(scaleFn, count, []unsafe.Pointer{
-			unsafe.Pointer(&in), unsafe.Pointer(&out), unsafe.Pointer(&s), unsafe.Pointer(&c),
-		})
-		runtime.KeepAlive(in)
-		runtime.KeepAlive(out)
-		return err
+	return b, nil
+}
+
+func (b nsBuffers) free(lib *driver.Library) {
+	for _, p := range []driver.DevicePtr{b.dX, b.dXNew, b.dCX, b.dGram, b.dSq, b.dRest, b.dNorm} {
+		if p != 0 {
+			lib.MemFree(p)
+		}
 	}
-	add := func(a, b, out driver.DevicePtr, count int) error {
-		c := uint32(count)
-		err := launchElementwise(addFn, count, []unsafe.Pointer{
-			unsafe.Pointer(&a), unsafe.Pointer(&b), unsafe.Pointer(&out), unsafe.Pointer(&c),
-		})
-		runtime.KeepAlive(a)
-		runtime.KeepAlive(b)
-		runtime.KeepAlive(out)
-		return err
-	}
+}
+
+// newtonSchulz runs normalize + the 8 stage-1 + 2 stage-2 iterations in place on
+// b.dX (already populated). Returns the device pointer holding the result (ping-
+// pong between dX and dXNew); a degenerate matrix (norm below guard) returns dX
+// unchanged.
+func (o *deviceOps) newtonSchulz(b nsBuffers, rows, cols int) (driver.DevicePtr, error) {
+	n := rows * cols
+	dim := gramDim(rows, cols)
+	gramN := dim * dim
+	tall := rows >= cols
+	dX, dXNew := b.dX, b.dXNew
 
 	// Frobenius normalize: ||X||^2 = X_flat[1,n] . X_flat[n,1] via one GEMM.
-	if err := blas.RowMajorGEMMF32(handle, 1, int32(n), 1, dX, dX, dNorm); err != nil {
-		return err
+	if err := o.blas.RowMajorGEMMF32(o.handle, 1, int32(n), 1, dX, dX, b.dNorm); err != nil {
+		return 0, err
 	}
-	if err := lib.StreamSynchronize(state.Stream); err != nil {
-		return err
+	if err := o.lib.StreamSynchronize(o.stream); err != nil {
+		return 0, err
 	}
 	normSquared := make([]float32, 1)
-	if err := lib.MemcpyDtoH(driver.Bytes(normSquared), dNorm); err != nil {
-		return err
+	if err := o.lib.MemcpyDtoH(driver.Bytes(normSquared), b.dNorm); err != nil {
+		return 0, err
 	}
 	norm := math.Sqrt(float64(normSquared[0]))
 	if norm < newtonSchulzFrobeniusGuard {
-		return nil // degenerate matrix: leave `data` unchanged, matching host
+		return dX, nil
 	}
-	if err := scale(dX, dX, float32(1/norm), n); err != nil {
-		return err
+	if err := o.scale(dX, dX, float32(1/norm), n); err != nil {
+		return 0, err
 	}
 
 	iterations := newtonSchulzStage1Iterations + newtonSchulzStage2Iterations
@@ -179,52 +240,48 @@ func runDeviceNewtonSchulz(state *device.State, data []float32, rows, cols int) 
 
 		if tall {
 			// gram = XᵀX  [cols x cols]
-			if err := blas.RowMajorGEMMExF32(handle, true, false, int32(cols), int32(rows), int32(cols), dX, dX, dGram); err != nil {
-				return err
+			if err := o.blas.RowMajorGEMMExF32(o.handle, true, false, int32(cols), int32(rows), int32(cols), dX, dX, b.dGram); err != nil {
+				return 0, err
 			}
 		} else {
 			// gram = XXᵀ  [rows x rows]
-			if err := blas.RowMajorGEMMExF32(handle, false, true, int32(rows), int32(cols), int32(rows), dX, dX, dGram); err != nil {
-				return err
+			if err := o.blas.RowMajorGEMMExF32(o.handle, false, true, int32(rows), int32(cols), int32(rows), dX, dX, b.dGram); err != nil {
+				return 0, err
 			}
 		}
 		// sq = gram·gram  [dim x dim]
-		if err := blas.RowMajorGEMMF32(handle, int32(dim), int32(dim), int32(dim), dGram, dGram, dSq); err != nil {
-			return err
+		if err := o.blas.RowMajorGEMMF32(o.handle, int32(dim), int32(dim), int32(dim), b.dGram, b.dGram, b.dSq); err != nil {
+			return 0, err
 		}
 		// rest = c1*gram + c2*sq
-		if err := scale(dGram, dRest, c1, gramN); err != nil {
-			return err
+		if err := o.scale(b.dGram, b.dRest, c1, gramN); err != nil {
+			return 0, err
 		}
-		if err := scale(dSq, dSq, c2, gramN); err != nil {
-			return err
+		if err := o.scale(b.dSq, b.dSq, c2, gramN); err != nil {
+			return 0, err
 		}
-		if err := add(dRest, dSq, dRest, gramN); err != nil {
-			return err
+		if err := o.add(b.dRest, b.dSq, b.dRest, gramN); err != nil {
+			return 0, err
 		}
 		// Xnew = op·rest-product + c0*X  (c0*I folded into the matmul).
 		if tall {
 			// Xnew = X·rest  [rows x cols]
-			if err := blas.RowMajorGEMMF32(handle, int32(rows), int32(cols), int32(cols), dX, dRest, dXNew); err != nil {
-				return err
+			if err := o.blas.RowMajorGEMMF32(o.handle, int32(rows), int32(cols), int32(cols), dX, b.dRest, dXNew); err != nil {
+				return 0, err
 			}
 		} else {
 			// Xnew = rest·X  [rows x cols]
-			if err := blas.RowMajorGEMMF32(handle, int32(rows), int32(rows), int32(cols), dRest, dX, dXNew); err != nil {
-				return err
+			if err := o.blas.RowMajorGEMMF32(o.handle, int32(rows), int32(rows), int32(cols), b.dRest, dX, dXNew); err != nil {
+				return 0, err
 			}
 		}
-		if err := scale(dX, dCX, c0, n); err != nil {
-			return err
+		if err := o.scale(dX, b.dCX, c0, n); err != nil {
+			return 0, err
 		}
-		if err := add(dXNew, dCX, dXNew, n); err != nil {
-			return err
+		if err := o.add(dXNew, b.dCX, dXNew, n); err != nil {
+			return 0, err
 		}
 		dX, dXNew = dXNew, dX
 	}
-
-	if err := lib.StreamSynchronize(state.Stream); err != nil {
-		return err
-	}
-	return lib.MemcpyDtoH(driver.Bytes(data), dX)
+	return dX, nil
 }

@@ -92,11 +92,27 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 
 func TestDenseProgramsIsolateAtomicGraphs(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphBERT},
+		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphTalkie},
 	)
 	instruction, ok := program.Instruction(0)
 	if !ok || program.Count != 1 || instruction.Operator != LayerOperatorDenseTransformer {
 		t.Fatalf("atomic dense program = %+v", program)
+	}
+}
+
+func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
+	program := compileLayerProgram(
+		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphBERT},
+	)
+	want := []LayerOperator{LayerOperatorDenseAttention, LayerOperatorDenseFeedForward}
+	if program.Count != uint8(len(want)) {
+		t.Fatalf("BERT stage count = %d", program.Count)
+	}
+	for index, operator := range want {
+		instruction, _ := program.Instruction(index)
+		if instruction.Operator != operator {
+			t.Fatalf("BERT stage %d = %d, want %d", index, instruction.Operator, operator)
+		}
 	}
 }
 

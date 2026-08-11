@@ -283,8 +283,6 @@ func buildDenseBlock(options BlockDispatchOptions) (DenseBlockResult, error) {
 		return DenseBlockResult{}, err
 	}
 	switch c.plan.DenseGraph {
-	case DenseGraphBERT:
-		return buildBERTEncoderBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.layer)
 	case DenseGraphTalkie:
 		return buildTalkieBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue)
 	case DenseGraphGemma4:
@@ -305,6 +303,7 @@ type denseFeedForwardState struct {
 	residual              *tensor.Tensor
 	cacheKey, cacheValue  *tensor.Tensor
 	usesExperts           bool
+	postNormalizedEncoder bool
 }
 
 func buildDenseAttentionStage(
@@ -313,6 +312,15 @@ func buildDenseAttentionStage(
 	c, err := prepareDenseBlock(options)
 	if err != nil {
 		return DenseBlockResult{}, denseFeedForwardState{}, err
+	}
+	if c.plan.DenseGraph == DenseGraphBERT {
+		result, buildErr := buildPostNormalizedEncoderAttention(
+			c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.layer,
+		)
+		return result, denseFeedForwardState{
+			context: c, residual: result.Output, cacheKey: result.Key, cacheValue: result.Value,
+			postNormalizedEncoder: true,
+		}, buildErr
 	}
 	if c.plan.DenseGraph != DenseGraphStandard || c.plan.DeciSparse {
 		return DenseBlockResult{}, denseFeedForwardState{}, errors.New("compiled dense attention stage is incompatible")
@@ -432,6 +440,14 @@ func buildDenseFeedForwardStage(
 	state denseFeedForwardState,
 ) (DenseBlockResult, error) {
 	c := state.context
+	if state.postNormalizedEncoder {
+		output, err := buildPostNormalizedEncoderFeedForward(
+			c.builder, state.residual, c.spec, c.weights, c.layer,
+		)
+		return DenseBlockResult{
+			Output: output, Key: state.cacheKey, Value: state.cacheValue,
+		}, err
+	}
 	if state.usesExperts && c.plan.ExpertComposition.kind == expertArctic {
 		feedForward, err := c.plan.ExpertComposition.Build(
 			c.builder, c.input, state.residual, state.normalized, c.spec, c.weights, c.plan,

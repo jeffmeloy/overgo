@@ -869,7 +869,8 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorResidual),
 			)...)
 		}
-		if profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
+		if profile.DenseGraph == DenseGraphBERT ||
+			profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
 			return newLayerProgram(
 				leafLayerStage(
 					LayerOperatorDenseAttention,

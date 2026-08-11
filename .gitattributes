@@ -1,3 +1,5 @@
-# Generated-source byte parity: fixed line endings.
-internal/cuda/executor/kernel_bindings_generated.go text eol=lf
-internal/cuda/kernel/manifest_generated.go text eol=lf
+# All Go sources are LF in the working tree regardless of core.autocrlf, so a
+# fresh checkout, merge, or worktree add never leaves CRLF for gofmt (or the
+# generated-source byte-parity checks) to trip on. Subsumes the per-file
+# generated-source pins.
+*.go text eol=lf

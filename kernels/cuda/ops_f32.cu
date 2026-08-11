@@ -412,6 +412,21 @@ extern "C" __global__ void silu_f32(
     }
 }
 
+// silu_backward_f32: grad_input = grad_output * silu'(x), where
+// silu(x) = x*sigmoid(x) and silu'(x) = s*(1 + x*(1-s)), s = sigmoid(x).
+extern "C" __global__ void silu_backward_f32(
+        const float * grad_output,
+        const float * input,
+        float * grad_input,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const float x = input[index];
+        const float s = 1.0f / (1.0f + expf(-x));
+        grad_input[index] = grad_output[index] * s * (1.0f + x * (1.0f - s));
+    }
+}
+
 extern "C" __global__ void activated_gate_f32(
         const float * gate,
         const float * up,

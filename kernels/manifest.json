@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "457a680079e96757dd52fe2d17f2ba9968d8f5417f3dabd5f1c5fcc0d7abd468",
+      "sourceSha256": "4c6de12885bfa43dcc1c850137873460f757d45858b8d31f498f2748defcb925",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "970c63cdede8d0bca5e7a05397fa2aae73ebea8bc0b6fa0f50a699bb06c80108",
+      "assetSha256": "d8cc446e678c13031453990bfd9aba2b2a6099f8c5f1797bbf35a47deed62eb7",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -168,6 +168,7 @@
         "rms_norm_f32",
         "rope_append_neox_f32",
         "rope_append_normal_f32",
+        "rope_half_backward_f32",
         "rope_multi_f32",
         "rope_neox_f32",
         "rope_normal_f32",
@@ -426,6 +427,7 @@
           ],
           "functions": [
             "attention_online_init_f32",
+            "rope_half_backward_f32",
             "top_k_f32",
             "top_k_pairs_f32",
             "transpose_2d_f32"

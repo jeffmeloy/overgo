@@ -73,6 +73,9 @@ const (
 	LayerOperatorOutputAdapter
 	LayerOperatorTokenShiftMix
 	LayerOperatorPeriodicScale
+	LayerOperatorAttentionResidualNorm
+	LayerOperatorInputResidualNorm
+	LayerOperatorFeedForwardResidualNorm
 )
 
 // RecurrentMixPolicy: recurrent operator implementation.
@@ -102,6 +105,7 @@ const (
 	AttentionMixBidirectionalQKNorm
 	AttentionMixCausalPostQKNorm
 	AttentionMixSharedKVQKNorm
+	AttentionMixBidirectionalEncoder
 )
 
 // HybridMixPolicy: parallel mixer implementation.
@@ -126,6 +130,7 @@ const (
 	FeedForwardMixParallelGatedGELU
 	FeedForwardMixGatedTokenShiftSquaredReLU
 	FeedForwardMixTokenShiftSquaredReLU
+	FeedForwardMixEncoder
 )
 
 const (
@@ -900,6 +905,19 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorResidual),
 			)
 		}
+		if profile.DenseGraph == DenseGraphBERT {
+			stages := []LayerOperatorInstruction{
+				attentionLayerStage(AttentionMixBidirectionalEncoder),
+				layerStage(LayerOperatorAttentionResidualNorm),
+			}
+			if profile.EncoderGraph.Kind == encoderGraphJinaV2 {
+				stages = append(stages, layerStage(LayerOperatorInputResidualNorm))
+			}
+			return newLayerProgram(append(stages,
+				feedForwardLayerStage(FeedForwardMixEncoder),
+				layerStage(LayerOperatorFeedForwardResidualNorm),
+			)...)
+		}
 		if plan.DeciSparse {
 			stages := []LayerOperatorInstruction{cacheSentinelLayerStage()}
 			if plan.Composition == LayerCompositionIdentity {
@@ -916,8 +934,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorResidual),
 			)...)
 		}
-		if profile.DenseGraph == DenseGraphBERT ||
-			profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
+		if profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
 			return newLayerProgram(
 				leafLayerStage(
 					LayerOperatorDenseAttention,

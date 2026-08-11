@@ -234,6 +234,11 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan, c.CacheWrite,
 			)
+		case AttentionMixBidirectionalEncoder:
+			result, err = buildBidirectionalEncoderAttentionMix(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan.Layer,
+			)
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
 		}
@@ -376,6 +381,10 @@ func executeLayerInstruction(
 			feedForward, err = buildParallelGatedGELUFeedForwardMix(
 				c.Builder, execution.current, options.Spec, options.Weights, plan,
 			)
+		case FeedForwardMixEncoder:
+			feedForward, err = buildEncoderFeedForwardMix(
+				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
+			)
 		default:
 			return errors.New("compiled feed-forward policy is invalid")
 		}
@@ -424,6 +433,32 @@ func executeLayerInstruction(
 			return errors.New("compiled residual stage is invalid")
 		}
 		execution.current = c.Builder.Add(execution.residual, execution.current)
+		execution.residual = execution.current
+		execution.result.Output = execution.current
+		return c.Builder.Err()
+	case LayerOperatorAttentionResidualNorm, LayerOperatorInputResidualNorm,
+		LayerOperatorFeedForwardResidualNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			execution.current == nil || execution.residual == nil {
+			return errors.New("compiled residual-normalization stage is invalid")
+		}
+		residual, weight, bias := execution.residual, options.Weights.AttentionPostNorm,
+			options.Weights.AttentionPostNormBias
+		switch instruction.Operator {
+		case LayerOperatorInputResidualNorm:
+			residual, weight, bias = c.Input, options.Weights.AttentionNorm2, options.Weights.AttentionNorm2Bias
+		case LayerOperatorFeedForwardResidualNorm:
+			weight, bias = options.Weights.FeedForwardPostNorm, options.Weights.FeedForwardPostNormBias
+		}
+		if instruction.Operator == LayerOperatorInputResidualNorm && weight == nil && bias == nil {
+			return nil
+		}
+		if weight == nil || bias == nil {
+			return errors.New("compiled residual-normalization weights are incomplete")
+		}
+		execution.current = ApplyNormalization(
+			c.Builder, c.Builder.Add(residual, execution.current), weight, bias, options.Spec,
+		)
 		execution.residual = execution.current
 		execution.result.Output = execution.current
 		return c.Builder.Err()

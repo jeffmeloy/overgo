@@ -182,7 +182,10 @@ func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 	program := compileLayerProgram(
 		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphBERT},
 	)
-	want := []LayerOperator{LayerOperatorDenseAttention, LayerOperatorDenseFeedForward}
+	want := []LayerOperator{
+		LayerOperatorAttentionMix, LayerOperatorAttentionResidualNorm,
+		LayerOperatorFeedForwardMix, LayerOperatorFeedForwardResidualNorm,
+	}
 	if program.Count != uint8(len(want)) {
 		t.Fatalf("BERT stage count = %d", program.Count)
 	}
@@ -191,6 +194,16 @@ func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 		if instruction.Operator != operator {
 			t.Fatalf("BERT stage %d = %d, want %d", index, instruction.Operator, operator)
 		}
+	}
+}
+
+func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
+	program := compileLayerProgram(LayerPlan{Block: BlockDense}, ArchitectureProfile{
+		DenseGraph: DenseGraphBERT, EncoderGraph: EncoderGraphPolicy{Kind: encoderGraphJinaV2},
+	})
+	instruction, ok := program.Instruction(2)
+	if !ok || program.Count != 5 || instruction.Operator != LayerOperatorInputResidualNorm {
+		t.Fatalf("JinaV2 program = %+v", program)
 	}
 }
 

@@ -15,12 +15,12 @@
 package dataroot
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"overgo/internal/strictjson"
 )
 
 const (
@@ -56,36 +56,43 @@ func Resolve(workingDirectory string) (Roots, error) {
 		}, nil
 	}
 	configPath := filepath.Join(workingDirectory, ConfigFile)
-	if raw, err := os.ReadFile(configPath); err == nil {
-		var roots Roots
-		decoder := json.NewDecoder(bytes.NewReader(raw))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&roots); err != nil {
-			return Roots{}, fmt.Errorf("dataroot: parse %s: %w", ConfigFile, err)
-		}
-		defaults := fallback(workingDirectory)
-		if roots.Store == "" {
-			roots.Store = defaults.Store
-		}
-		if roots.Models == "" {
-			roots.Models = defaults.Models
-		}
-		if roots.Datasets == "" {
-			roots.Datasets = defaults.Datasets
-		}
-		if roots.Checkpoints == "" {
-			roots.Checkpoints = defaults.Checkpoints
-		}
-		// Config values arrive in whatever separator style the user wrote;
-		// normalize to host form so every downstream Join/Stat agrees.
-		roots.Store = filepath.Clean(filepath.FromSlash(roots.Store))
-		roots.Models = filepath.Clean(filepath.FromSlash(roots.Models))
-		roots.Datasets = filepath.Clean(filepath.FromSlash(roots.Datasets))
-		roots.Checkpoints = filepath.Clean(filepath.FromSlash(roots.Checkpoints))
-		roots.Source = ConfigFile
-		return roots, nil
+	raw, err := os.ReadFile(configPath)
+	if os.IsNotExist(err) {
+		return fallback(workingDirectory), nil
 	}
-	return fallback(workingDirectory), nil
+	if err != nil {
+		return Roots{}, fmt.Errorf("dataroot: read %s: %w", ConfigFile, err)
+	}
+	var roots Roots
+	if err := strictjson.DecodeBytes(raw, &roots); err != nil {
+		return Roots{}, fmt.Errorf("dataroot: parse %s: %w", ConfigFile, err)
+	}
+	defaults := fallback(workingDirectory)
+	if roots.Store == "" {
+		roots.Store = defaults.Store
+	}
+	if roots.Models == "" {
+		roots.Models = defaults.Models
+	}
+	if roots.Datasets == "" {
+		roots.Datasets = defaults.Datasets
+	}
+	if roots.Checkpoints == "" {
+		roots.Checkpoints = defaults.Checkpoints
+	}
+	for _, root := range []*string{&roots.Store, &roots.Models, &roots.Datasets, &roots.Checkpoints} {
+		*root = configuredRoot(workingDirectory, *root)
+	}
+	roots.Source = ConfigFile
+	return roots, nil
+}
+
+func configuredRoot(workingDirectory, root string) string {
+	root = filepath.Clean(filepath.FromSlash(root))
+	if filepath.IsAbs(root) {
+		return root
+	}
+	return filepath.Join(workingDirectory, root)
 }
 
 func fallback(workingDirectory string) Roots {

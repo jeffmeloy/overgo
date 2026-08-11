@@ -18,6 +18,25 @@ import (
 // to override. This is the host learning loop; the device path is a later rung
 // that must match this trajectory within tolerance.
 func (m *Model) Train(tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
+	trajectory, _, err := m.train(tokens, steps, baseLR, mu, nil)
+	return trajectory, err
+}
+
+// TrainState carries the optimizer state (momentum + step + plan/config
+// identity) needed to resume training exactly. Model weights resume from
+// m.Weights, so a step-boundary checkpoint is the pair (m.Weights snapshot,
+// TrainState): no accumulated gradient is required after a committed step.
+type TrainState = optimizer.State
+
+// TrainResume runs `steps` Muon updates continuing from a prior optimizer state
+// (nil starts fresh) and returns the loss trajectory plus the post-run state for
+// the next checkpoint. An uninterrupted run and a checkpoint/resume split of the
+// same run produce identical weights.
+func (m *Model) TrainResume(tokens []int, steps int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
+	return m.train(tokens, steps, baseLR, mu, resume)
+}
+
+func (m *Model) train(tokens []int, steps int, baseLR, mu float64, resume *optimizer.State) ([]float64, optimizer.State, error) {
 	names := make([]string, 0, len(m.Weights))
 	for name := range m.Weights {
 		names = append(names, name)
@@ -39,7 +58,7 @@ func (m *Model) Train(tokens []int, steps int, baseLR, mu float64) ([]float64, e
 		values := m.Weights[name]
 		rows, cols, err := tensorGeometry(m.Shapes[name], len(values))
 		if err != nil {
-			return nil, fmt.Errorf("densecausal: %s: %w", name, err)
+			return nil, optimizer.State{}, fmt.Errorf("densecausal: %s: %w", name, err)
 		}
 		copy(weights[offset:], values)
 		specs = append(specs, optimizer.GroupSpec{
@@ -49,13 +68,18 @@ func (m *Model) Train(tokens []int, steps int, baseLR, mu float64) ([]float64, e
 	}
 	plan, err := optimizer.CompilePlan(total, specs)
 	if err != nil {
-		return nil, err
+		return nil, optimizer.State{}, err
 	}
 	opt, err := optimizer.New(weights, gradients, plan, optimizer.Config{
 		BaseLearningRate: baseLR, Momentum: mu, Schedule: optimizer.ScheduleConstant,
 	})
 	if err != nil {
-		return nil, err
+		return nil, optimizer.State{}, err
+	}
+	if resume != nil {
+		if err := opt.Restore(*resume); err != nil {
+			return nil, optimizer.State{}, err
+		}
 	}
 
 	trajectory := make([]float64, 0, steps)
@@ -64,7 +88,7 @@ func (m *Model) Train(tokens []int, steps int, baseLR, mu float64) ([]float64, e
 		scatter(m, names, weights)
 		loss, _, grads, err := m.LossAndGrads(tokens)
 		if err != nil {
-			return nil, err
+			return nil, optimizer.State{}, err
 		}
 		trajectory = append(trajectory, loss)
 		offset = 0
@@ -81,7 +105,7 @@ func (m *Model) Train(tokens []int, steps int, baseLR, mu float64) ([]float64, e
 	}
 	// Final scatter so the model reflects the last update.
 	scatter(m, names, weights)
-	return trajectory, nil
+	return trajectory, opt.Snapshot(), nil
 }
 
 // scatter copies the flat optimizer weight buffer back into the model tensors.

@@ -93,6 +93,33 @@ func TestMuonTrainingDecreasesLossTiny(t *testing.T) {
 	}
 }
 
+// TestTrainResumeMatchesUninterrupted: an exact step-boundary checkpoint/resume
+// split (5 steps, snapshot optimizer state, resume 5 more) produces bitwise-
+// identical weights to an uninterrupted 10-step run. Both use the derived rate.
+func TestTrainResumeMatchesUninterrupted(t *testing.T) {
+	tokens := []int{1, 5, 9, 3, 7, 2, 11, 4}
+	a := tinyMuonModel(t)
+	if _, err := a.Train(tokens, 10, 0, 0.9); err != nil {
+		t.Fatal(err)
+	}
+	b := tinyMuonModel(t)
+	_, state, err := b.TrainResume(tokens, 5, 0, 0.9, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := b.TrainResume(tokens, 5, 0, 0.9, &state); err != nil {
+		t.Fatal(err)
+	}
+	for name, wa := range a.Weights {
+		wb := b.Weights[name]
+		for i := range wa {
+			if wa[i] != wb[i] {
+				t.Fatalf("weight %q[%d]: uninterrupted %g != resumed %g", name, i, wa[i], wb[i])
+			}
+		}
+	}
+}
+
 // Real-artifact Muon training is deliberately NOT gated here: one host
 // Newton-Schulz step over a 500M model's large matrices exceeds go test's 600s
 // timeout. Real-model Muon verification belongs to the device-NS rung (rung 2)

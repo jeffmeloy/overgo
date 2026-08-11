@@ -18,16 +18,91 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
+type cudaReferenceFixture struct {
+	t       *testing.T
+	builder *tensor.Builder
+	feeds   map[*tensor.Tensor]reference.Value
+	seed    int
+}
+
+func newCUDAReferenceFixture(t *testing.T, seed int) *cudaReferenceFixture {
+	t.Helper()
 	cudatest.Require(t)
-	builder := tensor.NewBuilder()
-	feeds := make(map[*tensor.Tensor]reference.Value)
-	seed := 3
+	return &cudaReferenceFixture{
+		t: t, builder: tensor.NewBuilder(), feeds: make(map[*tensor.Tensor]reference.Value), seed: seed,
+	}
+}
+
+func (f *cudaReferenceFixture) input(
+	name string,
+	shape tensor.Shape,
+	scale, offset float32,
+) *tensor.Tensor {
+	item := f.builder.Input(name, dtype.F32, shape)
+	f.feeds[item] = patternedValue(shape, f.seed, scale, offset)
+	f.seed += 2
+	return item
+}
+
+func (f *cudaReferenceFixture) nextInput(
+	prefix string,
+	shape tensor.Shape,
+	scale, offset float32,
+) *tensor.Tensor {
+	return f.input(fmt.Sprintf("%s_%d", prefix, f.seed), shape, scale, offset)
+}
+
+func (f *cudaReferenceFixture) modelPlan(spec model.Spec) model.ModelPlan {
+	f.t.Helper()
+	plan, err := model.CompileModelPlan(spec, model.Weights{})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return plan
+}
+
+func (f *cudaReferenceFixture) layer(
+	program model.ModelPlan,
+	layer int,
+	spec model.Spec,
+	weights model.LayerGraphWeights,
+	context model.CachedBlockContext,
+) model.DenseBlockResult {
+	f.t.Helper()
+	plan, err := program.Layer(layer)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	context.Builder, context.Layer = f.builder, plan.Layer
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan, Context: context,
+	})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return result
+}
+
+func (f *cudaReferenceFixture) requireMatch(outputs []*tensor.Tensor, tolerance float64) {
+	f.t.Helper()
+	want, err := reference.Execute(outputs, f.feeds)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	got, err := newFixtureExecutor(f.t).Execute(context.Background(), outputs, f.feeds)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	for _, output := range outputs {
+		compare(f.t, got[output].Data, want[output].Data, tolerance)
+	}
+}
+
+func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
+	fixture := newCUDAReferenceFixture(t, 3)
+	builder := fixture.builder
 	input := func(shape tensor.Shape, scale, offset float32) *tensor.Tensor {
-		item := builder.Input(fmt.Sprintf("wav_%d", seed), dtype.F32, shape)
-		feeds[item] = patternedValue(shape, seed, scale, offset)
-		seed += 2
-		return item
+		return fixture.nextInput("wav", shape, scale, offset)
 	}
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "wavtokenizer-dec", EmbeddingLength: 2, OutputEmbeddingLength: 3,
 
@@ -79,29 +154,12 @@ func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, 1e-3)
+	fixture.requireMatch([]*tensor.Tensor{output}, 1e-3)
 }
 
 func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
-	cudatest.Require(t)
-	builder := tensor.NewBuilder()
-	feeds := make(map[*tensor.Tensor]reference.Value)
-	seed := 3
-	input := func(name string, shape tensor.Shape, scale, offset float32) *tensor.Tensor {
-		item := builder.Input(name, dtype.F32, shape)
-		feeds[item] = patternedValue(shape, seed, scale, offset)
-		seed += 2
-		return item
-	}
+	fixture := newCUDAReferenceFixture(t, 3)
+	builder, input := fixture.builder, fixture.input
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "dflash", EmbeddingLength: 4, FeedForwardLength: 6,
 
 		RMSNormEpsilon: 1e-5,
@@ -139,31 +197,12 @@ func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, output := range outputs {
-		compare(t, got[output].Data, want[output].Data, 1e-3)
-	}
+	fixture.requireMatch(outputs, 1e-3)
 }
 
 func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
-	cudatest.Require(t)
-	builder := tensor.NewBuilder()
-	feeds := make(map[*tensor.Tensor]reference.Value)
-	seed := 3
-	input := func(name string, shape tensor.Shape, scale, offset float32) *tensor.Tensor {
-		item := builder.Input(name, dtype.F32, shape)
-		feeds[item] = patternedValue(shape, seed, scale, offset)
-		seed += 2
-		return item
-	}
+	fixture := newCUDAReferenceFixture(t, 3)
+	builder, input := fixture.builder, fixture.input
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "eagle3", BlockCount: 1, EmbeddingLength: 4, TargetHiddenSize: 3,
 		TargetLayers: []int32{1, 3, 5}, FeedForwardLength: 6,
 
@@ -189,50 +228,17 @@ func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 		FeedForwardDown: input("down", tensor.MustShape(6, 4), 0.03, -0.1),
 	}
 	tokens := input("tokens", tensor.MustShape(4, 3), 0.08, -0.1)
-	program, err := model.CompileModelPlan(spec, model.Weights{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	plan, err := program.Layer(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan,
-		Context: model.CachedBlockContext{
-			Builder: builder, Input: tokens, Positions: []uint32{0, 1, 2},
-			PerLayerInput: fused, Layer: plan.Layer, CacheWrite: tensor.CacheWriteConcat,
-		},
+	result := fixture.layer(fixture.modelPlan(spec), 0, spec, weights, model.CachedBlockContext{
+		Input: tokens, Positions: []uint32{0, 1, 2}, PerLayerInput: fused,
+		CacheWrite: tensor.CacheWriteConcat,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
 	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, output := range outputs {
-		compare(t, got[output].Data, want[output].Data, 1e-3)
-	}
+	fixture.requireMatch(outputs, 1e-3)
 }
 
 func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
-	cudatest.Require(t)
-	builder := tensor.NewBuilder()
-	feeds := make(map[*tensor.Tensor]reference.Value)
-	seed := 7
-	input := func(name string, shape tensor.Shape, scale, offset float32) *tensor.Tensor {
-		item := builder.Input(name, dtype.F32, shape)
-		feeds[item] = patternedValue(shape, seed, scale, offset)
-		seed += 2
-		return item
-	}
+	fixture := newCUDAReferenceFixture(t, 7)
+	builder, input := fixture.builder, fixture.input
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma4-assistant", BlockCount: 2, EmbeddingLength: 4,
 		TargetHiddenSize: 6, FeedForwardLength: 6,
 
@@ -250,10 +256,7 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := model.CompileModelPlan(spec, model.Weights{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	program := fixture.modelPlan(spec)
 	for layer := uint32(0); layer < spec.BlockCount; layer++ {
 		keyWidth := uint64(spec.LayerKeyLength(layer))
 		weights := model.LayerGraphWeights{
@@ -271,21 +274,9 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 		}
 		sharedKey := input(fmt.Sprintf("shared_key_%d", layer), tensor.MustShape(keyWidth, 1, 3), 0.04, -0.1)
 		sharedValue := input(fmt.Sprintf("shared_value_%d", layer), tensor.MustShape(keyWidth, 1, 3), 0.04, -0.1)
-		plan, planErr := program.Layer(int(layer))
-		if planErr != nil {
-			t.Fatal(planErr)
-		}
-		block, buildErr := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-			Spec: spec, Weights: weights, Plan: &plan,
-			Context: model.CachedBlockContext{
-				Builder: builder, Input: current, Positions: []uint32{3},
-				PastKey: sharedKey, PastValue: sharedValue, Layer: plan.Layer,
-			},
+		block := fixture.layer(program, int(layer), spec, weights, model.CachedBlockContext{
+			Input: current, Positions: []uint32{3}, PastKey: sharedKey, PastValue: sharedValue,
 		})
-		err = buildErr
-		if err != nil {
-			t.Fatal(err)
-		}
 		current = block.Output
 	}
 	outputNorm := input("output_norm", tensor.MustShape(4), 0.03, 0.9)
@@ -298,31 +289,12 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	outputs := []*tensor.Tensor{logits, nextHidden}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, result := range outputs {
-		compare(t, got[result].Data, want[result].Data, 2e-3)
-	}
+	fixture.requireMatch(outputs, 2e-3)
 }
 
 func TestExecutorGemma3nActiveStageMatchesReference(t *testing.T) {
-	cudatest.Require(t)
-	builder := tensor.NewBuilder()
-	feeds := make(map[*tensor.Tensor]reference.Value)
-	seed := 11
-	input := func(name string, shape tensor.Shape, scale, offset float32) *tensor.Tensor {
-		item := builder.Input(name, dtype.F32, shape)
-		feeds[item] = patternedValue(shape, seed, scale, offset)
-		seed += 2
-		return item
-	}
+	fixture := newCUDAReferenceFixture(t, 11)
+	builder, input := fixture.builder, fixture.input
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma3n", BlockCount: 21, EmbeddingLength: 4,
 		FeedForwardLength: 6,
 
@@ -361,18 +333,7 @@ func TestExecutorGemma3nActiveStageMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	outputs := []*tensor.Tensor{output, stage.Key, stage.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, result := range outputs {
-		compare(t, got[result].Data, want[result].Data, 2e-3)
-	}
+	fixture.requireMatch(outputs, 2e-3)
 }
 
 func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {

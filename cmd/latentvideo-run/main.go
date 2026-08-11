@@ -69,13 +69,19 @@ type runReport struct {
 }
 
 func summarize(data []float32) tensorSummary {
-	summary := tensorSummary{Elements: len(data), Finite: true, Min: math.Inf(1), Max: math.Inf(-1)}
+	summary := tensorSummary{Elements: len(data), Finite: true}
+	if len(data) != 0 {
+		summary.Min = math.Inf(1)
+		summary.Max = math.Inf(-1)
+	}
 	hash := sha256.New()
 	var sum, sumSquares float64
+	finiteCount := 0
 	for _, value := range data {
 		v := float64(value)
 		if math.IsNaN(v) || math.IsInf(v, 0) {
 			summary.Finite = false
+			continue
 		}
 		if v < summary.Min {
 			summary.Min = v
@@ -85,13 +91,18 @@ func summarize(data []float32) tensorSummary {
 		}
 		sum += v
 		sumSquares += v * v
+		finiteCount++
 	}
 	_, _ = hash.Write(driver.Bytes(data))
 	summary.SHA256 = hex.EncodeToString(hash.Sum(nil))
-	if len(data) > 0 {
-		summary.Mean = sum / float64(len(data))
-		summary.Std = math.Sqrt(sumSquares/float64(len(data)) - summary.Mean*summary.Mean)
+	if finiteCount == 0 {
+		summary.Min = 0
+		summary.Max = 0
+		return summary
 	}
+	summary.Mean = sum / float64(finiteCount)
+	variance := sumSquares/float64(finiteCount) - summary.Mean*summary.Mean
+	summary.Std = math.Sqrt(max(variance, 0))
 	return summary
 }
 

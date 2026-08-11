@@ -9,8 +9,10 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -23,6 +25,16 @@ func TestRepositoryRemoteMediaPolicy(t *testing.T) {
 	if policy.Enabled || len(policy.AllowedSchemes) != 1 || policy.AllowedSchemes[0] != "https" ||
 		policy.AllowPrivateNetworks || policy.MaxRedirects != 2 || policy.MaxConcurrentFetches != 4 {
 		t.Fatalf("default policy = %+v", policy)
+	}
+}
+
+func TestRemoteMediaPolicyRejectsOversizedDocument(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "policy.json")
+	if err := os.WriteFile(path, bytes.Repeat([]byte{' '}, int(maxPolicyDocumentBytes)+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadRemoteMediaPolicy(path); err == nil || !strings.Contains(err.Error(), "byte limit") {
+		t.Fatalf("oversized policy error = %v", err)
 	}
 }
 

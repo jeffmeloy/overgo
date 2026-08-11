@@ -14,7 +14,6 @@ import (
 const (
 	responseFilePolicySchemaVersion = 1
 	defaultResponseFileBytes        = 16 << 20
-	maxResourcePolicyBytes          = 1 << 20
 	maxResponseFileIDBytes          = 120
 )
 
@@ -57,13 +56,9 @@ var responseFileIDPattern = regexp.MustCompile(
 )
 
 func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
-	data, err := readBoundedFile(path, maxResourcePolicyBytes, false)
-	if err != nil {
-		return nil, fmt.Errorf("read response resource policy: %w", err)
-	}
 	var policy ResponseFilePolicy
-	if err := decodeStrictJSON(data, &policy, "response resource policy must contain exactly one JSON document"); err != nil {
-		return nil, fmt.Errorf("decode response resource policy: %w", err)
+	if err := loadPolicyDocument(path, &policy); err != nil {
+		return nil, fmt.Errorf("load response resource policy: %w", err)
 	}
 	if policy.Schema != responseFilePolicySchemaVersion {
 		return nil, fmt.Errorf("response resource policy schema %d is unsupported", policy.Schema)

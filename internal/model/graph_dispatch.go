@@ -164,6 +164,12 @@ func executeLayerInstruction(
 			options.Weights.AttentionNormBias, options.Spec,
 		)
 		return c.Builder.Err()
+	case LayerOperatorRMSNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil {
+			return errors.New("compiled RMS-normalization stage is invalid")
+		}
+		execution.current = c.Builder.RMSNorm(execution.current, options.Spec.RMSNormEpsilon)
+		return c.Builder.Err()
 	case LayerOperatorAttentionPostNorm:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
 			options.Weights.AttentionPostNorm == nil {
@@ -212,6 +218,21 @@ func executeLayerInstruction(
 			result, err = buildBidirectionalFusedQKVMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
+			)
+		case AttentionMixBidirectionalQKNorm:
+			result, err = buildBidirectionalQKNormMix(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan.Layer,
+			)
+		case AttentionMixCausalPostQKNorm:
+			result, err = buildCausalPostQKNormMixCached(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan.Layer,
+			)
+		case AttentionMixSharedKVQKNorm:
+			result, err = buildSharedKVQKNormMixCached(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan, c.CacheWrite,
 			)
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
@@ -290,6 +311,16 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
+		case RecurrentMixAffineWKV6:
+			result, err = buildAffineWKV6MixCached(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1],
+			)
+		case RecurrentMixDynamicWKV7:
+			result, err = buildDynamicWKV7MixCached(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1], plan,
+			)
 		default:
 			return errors.New("compiled recurrent-mixing policy is invalid")
 		}
@@ -336,6 +367,14 @@ func executeLayerInstruction(
 			feedForward, err = buildRoutedSwiGLUFeedForwardMix(
 				c.Builder, execution.current, options.Weights,
 				plan.Experts, plan.ExpertComposition,
+			)
+		case FeedForwardMixGatedGELU:
+			feedForward, err = buildGatedGELUFeedForwardMix(
+				c.Builder, execution.current, options.Weights,
+			)
+		case FeedForwardMixParallelGatedGELU:
+			feedForward, err = buildParallelGatedGELUFeedForwardMix(
+				c.Builder, execution.current, options.Spec, options.Weights, plan,
 			)
 		default:
 			return errors.New("compiled feed-forward policy is invalid")
@@ -388,17 +427,55 @@ func executeLayerInstruction(
 		execution.residual = execution.current
 		execution.result.Output = execution.current
 		return c.Builder.Err()
-	case LayerOperatorDenseTransformer:
-		if instruction.CacheCount != 2 || instruction.TensorCount != 0 || plan.Block != BlockDense {
-			return errors.New("compiled dense-transformer stage is invalid")
+	case LayerOperatorScaledSkip:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil ||
+			options.Weights.EmbeddingSkip == nil || options.Weights.LayerOutputScale == nil ||
+			!options.Weights.EmbeddingSkip.Shape.Equal(execution.current.Shape) {
+			return errors.New("compiled scaled-skip stage is invalid")
 		}
-		result, err := buildDenseBlock(options)
+		execution.current = c.Builder.Add(
+			execution.current,
+			c.Builder.Multiply(options.Weights.EmbeddingSkip, options.Weights.LayerOutputScale),
+		)
+		execution.residual = execution.current
+		execution.result.Output = execution.current
+		return c.Builder.Err()
+	case LayerOperatorOutputAdapter:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil {
+			return errors.New("compiled output-adapter stage is invalid")
+		}
+		output, err := buildOutputAdapter(c.Builder, execution.current, options.Spec, options.Weights, plan)
+		if err != nil {
+			return err
+		}
+		execution.current = output
+		execution.residual = output
+		execution.result.Output = output
+		return nil
+	case LayerOperatorTokenShiftMix:
+		if instruction.CacheCount != 1 || instruction.TensorCount != 0 || execution.current == nil {
+			return errors.New("compiled token-shift stage is invalid")
+		}
+		result, err := buildTokenShiftFeedForwardMix(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			operands.caches[0], execution.result.Key, instruction.FeedForward,
+		)
 		if err != nil {
 			return err
 		}
 		execution.current = result.Output
-		execution.result = result
+		execution.result.Key = result.Key
 		return nil
+	case LayerOperatorPeriodicScale:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil {
+			return errors.New("compiled periodic-scale stage is invalid")
+		}
+		if options.Spec.RescaleEvery > 0 && (plan.Layer+1)%options.Spec.RescaleEvery == 0 {
+			execution.current = c.Builder.Scale(execution.current, rwkvLayerRescale)
+			execution.residual = execution.current
+			execution.result.Output = execution.current
+		}
+		return c.Builder.Err()
 	case LayerOperatorDenseAttention:
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||
 			plan.Block != BlockDense {
@@ -574,6 +651,23 @@ func buildSquaredReLUFeedForwardMix(
 	}
 	up := builder.MulMat(weights.FeedForwardUp, input)
 	return builder.MulMat(weights.FeedForwardDown, builder.ReLUSquared(up)), builder.Err()
+}
+
+func buildGatedGELUFeedForwardMix(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	weights LayerGraphWeights,
+) (*tensor.Tensor, error) {
+	if err := (graphWeights{
+		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+	}).validate("compiled gated-GELU feed-forward stage"); err != nil {
+		return nil, err
+	}
+	gate := builder.MulMat(weights.FeedForwardGate, input)
+	up := builder.MulMat(weights.FeedForwardUp, input)
+	return builder.MulMat(weights.FeedForwardDown, builder.GEGLU(gate, up)), builder.Err()
 }
 
 func buildStandardFeedForwardMix(

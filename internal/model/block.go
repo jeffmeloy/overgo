@@ -277,28 +277,6 @@ func prepareDenseBlock(options BlockDispatchOptions) (denseBlockContext, error) 
 	return prepared, nil
 }
 
-func buildDenseBlock(options BlockDispatchOptions) (DenseBlockResult, error) {
-	c, err := prepareDenseBlock(options)
-	if err != nil {
-		return DenseBlockResult{}, err
-	}
-	switch c.plan.DenseGraph {
-	case DenseGraphBERT:
-		return buildBERTEncoderBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.layer)
-	case DenseGraphGemmaEmbedding:
-		return buildGemmaEmbeddingBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.layer)
-	case DenseGraphTalkie:
-		return buildTalkieBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue)
-	case DenseGraphGemma4:
-		return buildGemma4BlockCached(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.plan, c.cacheWrite)
-	case DenseGraphRWKV6:
-		return buildRWKV6BlockCached(c.builder, c.input, c.spec, c.weights, c.pastKey, c.pastValue, c.layer)
-	case DenseGraphRWKV7:
-		return buildRWKV7BlockCached(c.builder, c.input, c.spec, c.weights, c.pastKey, c.pastValue, c.layer)
-	}
-	return DenseBlockResult{}, errors.New("standard dense block requires staged execution")
-}
-
 type denseFeedForwardState struct {
 	context               denseBlockContext
 	runtime               denseBlockRuntime
@@ -307,6 +285,7 @@ type denseFeedForwardState struct {
 	residual              *tensor.Tensor
 	cacheKey, cacheValue  *tensor.Tensor
 	usesExperts           bool
+	postNormalizedEncoder bool
 }
 
 func buildDenseAttentionStage(
@@ -315,6 +294,15 @@ func buildDenseAttentionStage(
 	c, err := prepareDenseBlock(options)
 	if err != nil {
 		return DenseBlockResult{}, denseFeedForwardState{}, err
+	}
+	if c.plan.DenseGraph == DenseGraphBERT {
+		result, buildErr := buildPostNormalizedEncoderAttention(
+			c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.layer,
+		)
+		return result, denseFeedForwardState{
+			context: c, residual: result.Output, cacheKey: result.Key, cacheValue: result.Value,
+			postNormalizedEncoder: true,
+		}, buildErr
 	}
 	if c.plan.DenseGraph != DenseGraphStandard || c.plan.DeciSparse {
 		return DenseBlockResult{}, denseFeedForwardState{}, errors.New("compiled dense attention stage is incompatible")
@@ -434,6 +422,14 @@ func buildDenseFeedForwardStage(
 	state denseFeedForwardState,
 ) (DenseBlockResult, error) {
 	c := state.context
+	if state.postNormalizedEncoder {
+		output, err := buildPostNormalizedEncoderFeedForward(
+			c.builder, state.residual, c.spec, c.weights, c.layer,
+		)
+		return DenseBlockResult{
+			Output: output, Key: state.cacheKey, Value: state.cacheValue,
+		}, err
+	}
 	if state.usesExperts && c.plan.ExpertComposition.kind == expertArctic {
 		feedForward, err := c.plan.ExpertComposition.Build(
 			c.builder, c.input, state.residual, state.normalized, c.spec, c.weights, c.plan,
@@ -590,9 +586,9 @@ func (r denseBlockRuntime) buildFeedForward(
 	), r.builder.Err()
 }
 
-func buildGemma4BlockCached(
+func buildSharedKVQKNormMixCached(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
@@ -601,58 +597,31 @@ func buildGemma4BlockCached(
 	cacheWrite tensor.CacheWriteMode,
 ) (DenseBlockResult, error) {
 	layerIndex := layerPlan.Layer
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
-		len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Gemma 4 block input shape is invalid")
+	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
+		len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
+		return DenseBlockResult{}, errors.New("shared-KV attention input shape is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Gemma 4 cache pair is incomplete"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "shared-KV attention cache pair is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("attention query", weights.AttentionQ),
 		requireGraphWeight("attention query norm", weights.AttentionQNorm),
 		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
 	}
-	if spec.LayerHasKV(layerIndex) {
+	if layerPlan.HasKV {
 		required.add("attention key", weights.AttentionK)
 		required.add("attention key norm", weights.AttentionKNorm)
 	} else if pastKey == nil {
-		return DenseBlockResult{}, errors.New("Gemma 4 shared-KV layer has no source cache")
+		return DenseBlockResult{}, errors.New("shared-KV attention has no source cache")
 	}
-	usesExperts := weights.FeedForwardRouter != nil
-	if usesExperts {
-		required.add("expert router", weights.FeedForwardRouter)
-		required.add("expert router scale", weights.FeedForwardRouterScale)
-		required.add("expert down", weights.FeedForwardDownExperts)
-		required.add("expert pre norm", weights.FeedForwardPreNorm2)
-		required.add("dense expert post norm", weights.FeedForwardPostNorm1)
-		required.add("routed expert post norm", weights.FeedForwardPostNorm2)
-		if weights.FeedForwardGateUpExperts == nil {
-			required.add("expert gate", weights.FeedForwardGateExperts)
-			required.add("expert up", weights.FeedForwardUpExperts)
-		}
-	}
-	if spec.EmbeddingPerLayer > 0 {
-		required.add("per-layer input", weights.PerLayerInput)
-		required.add("per-layer input gate", weights.PerLayerInputGate)
-		required.add("per-layer projection", weights.PerLayerProjection)
-		required.add("per-layer post norm", weights.PerLayerPostNorm)
-	}
-	if err := required.validate("Gemma 4 block"); err != nil {
+	if err := required.validate("shared-KV attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	tokens := input.Shape.Dims[1]
+	tokens := normalized.Shape.Dims[1]
 	shapes := spec.TensorShapes(layerIndex)
 	headCount, kvHeadCount := shapes.QueryHeads, shapes.KVHeads
 	keyLength, valueLength := shapes.Key, shapes.Value
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
 	query := builder.Reshape(
 		builder.MulMat(weights.AttentionQ, normalized), keyLength, headCount, tokens,
 	)
@@ -660,7 +629,7 @@ func buildGemma4BlockCached(
 	query = layerPlan.Rotary.ApplyOne(builder, query, positions, nil, weights.RopeFactors)
 	cacheKey, cacheValue := pastKey, pastValue
 	queryStart := uint32(0)
-	if spec.LayerHasKV(layerIndex) {
+	if layerPlan.HasKV {
 		key := builder.Reshape(
 			builder.MulMat(weights.AttentionK, normalized), keyLength, kvHeadCount, tokens,
 		)
@@ -675,12 +644,7 @@ func buildGemma4BlockCached(
 		key = layerPlan.Rotary.ApplyOne(builder, key, positions, nil, weights.RopeFactors)
 		cacheKey, cacheValue = key, value
 		if pastKey != nil {
-			// Honor the cache-write contract: on the capacity/append session
-			// pastKey is a fixed-capacity buffer whose token axis is the source
-			// capacity, not the active-token count -- the logical offset comes
-			// from CacheTokenOffset and the append op auto-bounds KeyValueTokens.
-			// Concat is WriteCache's request-session branch, so this is a no-op
-			// there and unlocks the append path here.
+			// Cache offset: active prefix or retained-capacity runtime slot.
 			queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
 			cacheKey = builder.WriteCache(pastKey, key, 2, cacheWrite)
 			cacheValue = builder.WriteCache(pastValue, value, 2, cacheWrite)
@@ -690,7 +654,7 @@ func buildGemma4BlockCached(
 			pastKey.Shape.Dims[0] != keyLength || pastValue.Shape.Dims[0] != valueLength ||
 			pastKey.Shape.Dims[1] != kvHeadCount || pastValue.Shape.Dims[1] != kvHeadCount ||
 			pastKey.Shape.Dims[2] != pastValue.Shape.Dims[2] || pastKey.Shape.Dims[2] < tokens {
-			return DenseBlockResult{}, errors.New("Gemma 4 shared-KV source shape is invalid")
+			return DenseBlockResult{}, errors.New("shared-KV attention source shape is invalid")
 		}
 		queryStart = uint32(pastKey.Shape.Dims[2] - tokens)
 	}
@@ -700,30 +664,83 @@ func buildGemma4BlockCached(
 	)
 	attention = builder.Reshape(attention, headCount*valueLength, tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
-	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
-	attentionOutput := builder.Add(input, attention)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, nil
+}
+
+func buildParallelGatedGELUFeedForwardMix(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	layerPlan LayerPlan,
+) (*tensor.Tensor, error) {
+	required := graphWeights{
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
+	}
+	usesExperts := weights.FeedForwardRouter != nil
+	if usesExperts {
+		required.add("expert router", weights.FeedForwardRouter)
+		required.add("expert router scale", weights.FeedForwardRouterScale)
+		required.add("expert down", weights.FeedForwardDownExperts)
+		required.add("expert pre norm", weights.FeedForwardPreNorm2)
+		required.add("dense expert post norm", weights.FeedForwardPostNorm1)
+		required.add("routed expert post norm", weights.FeedForwardPostNorm2)
+		if weights.FeedForwardGateUpExperts == nil {
+			required.add("expert gate", weights.FeedForwardGateExperts)
+			required.add("expert up", weights.FeedForwardUpExperts)
+		}
+	}
+	if err := required.validate("parallel gated feed-forward"); err != nil {
+		return nil, err
+	}
 	var feedForward *tensor.Tensor
 	if usesExperts {
-		denseInput := builder.WeightedRMSNorm(attentionOutput, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+		denseInput := builder.WeightedRMSNorm(input, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 		denseGate := builder.MulMat(weights.FeedForwardGate, denseInput)
 		denseUp := builder.MulMat(weights.FeedForwardUp, denseInput)
 		dense := builder.MulMat(weights.FeedForwardDown, builder.GEGLU(denseGate, denseUp))
 		dense = builder.WeightedRMSNorm(dense, weights.FeedForwardPostNorm1, spec.RMSNormEpsilon)
-		expertInput := builder.WeightedRMSNorm(attentionOutput, weights.FeedForwardPreNorm2, spec.RMSNormEpsilon)
-		routerInput := builder.Scale(builder.RMSNorm(attentionOutput, spec.RMSNormEpsilon), 1/float32(math.Sqrt(float64(spec.EmbeddingLength))))
+		expertInput := builder.WeightedRMSNorm(input, weights.FeedForwardPreNorm2, spec.RMSNormEpsilon)
+		routerInput := builder.Scale(builder.RMSNorm(input, spec.RMSNormEpsilon), 1/float32(math.Sqrt(float64(spec.EmbeddingLength))))
 		routerInput = builder.Multiply(routerInput, weights.FeedForwardRouterScale)
 		feedForward = layerPlan.Experts.BuildLayer(builder, expertInput, routerInput, weights)
 		feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm2, spec.RMSNormEpsilon)
 		feedForward = builder.Add(dense, feedForward)
 	} else {
-		feedForwardInput := builder.WeightedRMSNorm(attentionOutput, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+		feedForwardInput := builder.WeightedRMSNorm(input, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 		gate := builder.MulMat(weights.FeedForwardGate, feedForwardInput)
 		up := builder.MulMat(weights.FeedForwardUp, feedForwardInput)
 		feedForward = builder.MulMat(weights.FeedForwardDown, builder.GEGLU(gate, up))
 	}
 	feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon)
-	output := builder.Add(attentionOutput, feedForward)
-	if spec.EmbeddingPerLayer > 0 {
+	return feedForward, builder.Err()
+}
+
+func buildOutputAdapter(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	layerPlan LayerPlan,
+) (*tensor.Tensor, error) {
+	output := input
+	if layerPlan.PerLayerInput {
+		required := graphWeights{
+			requireGraphWeight("per-layer input", weights.PerLayerInput),
+			requireGraphWeight("per-layer input gate", weights.PerLayerInputGate),
+			requireGraphWeight("per-layer projection", weights.PerLayerProjection),
+			requireGraphWeight("per-layer post norm", weights.PerLayerPostNorm),
+		}
+		if err := required.validate("output adapter"); err != nil {
+			return nil, err
+		}
 		perLayer := builder.GELU(builder.MulMat(weights.PerLayerInputGate, output))
 		perLayer = builder.Multiply(perLayer, weights.PerLayerInput)
 		perLayer = builder.MulMat(weights.PerLayerProjection, perLayer)
@@ -733,10 +750,7 @@ func buildGemma4BlockCached(
 	if weights.LayerOutputScale != nil {
 		output = builder.Multiply(output, weights.LayerOutputScale)
 	}
-	if err := builder.Err(); err != nil {
-		return DenseBlockResult{}, err
-	}
-	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+	return output, builder.Err()
 }
 
 // Gemma3nAttentionResult: attention/Laurel stage plus FFN projections.

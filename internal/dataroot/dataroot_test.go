@@ -61,6 +61,43 @@ func TestUnknownConfigFieldFailsLoudly(t *testing.T) {
 	}
 }
 
+func TestConfigRejectsTrailingDocument(t *testing.T) {
+	t.Setenv(Env, "")
+	work := t.TempDir()
+	if err := os.WriteFile(filepath.Join(work, ConfigFile), []byte(`{} {}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Resolve(work); err == nil {
+		t.Fatal("trailing config document accepted")
+	}
+}
+
+func TestConfigReadFailureDoesNotSelectDefaults(t *testing.T) {
+	t.Setenv(Env, "")
+	work := t.TempDir()
+	if err := os.Mkdir(filepath.Join(work, ConfigFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Resolve(work); err == nil {
+		t.Fatal("unreadable config selected defaults")
+	}
+}
+
+func TestRelativeConfigRootsResolveFromConfigDirectory(t *testing.T) {
+	t.Setenv(Env, "")
+	work := t.TempDir()
+	if err := os.WriteFile(filepath.Join(work, ConfigFile), []byte(`{"models":"weights"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	roots, err := Resolve(work)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roots.Models != filepath.Join(work, "weights") {
+		t.Fatalf("relative models root = %q", roots.Models)
+	}
+}
+
 func TestDefaultsPreservePreContractBehavior(t *testing.T) {
 	t.Setenv(Env, "")
 	work := t.TempDir()

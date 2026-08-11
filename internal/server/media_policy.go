@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -63,13 +62,9 @@ type mediaPolicyDocument struct {
 }
 
 func LoadRemoteMediaPolicy(path string) (*RemoteMediaPolicy, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read remote media policy: %w", err)
-	}
 	var document mediaPolicyDocument
-	if err := decodeStrictJSON(data, &document, "remote media policy must contain exactly one JSON document"); err != nil {
-		return nil, fmt.Errorf("decode remote media policy: %w", err)
+	if err := loadPolicyDocument(path, &document); err != nil {
+		return nil, fmt.Errorf("load remote media policy: %w", err)
 	}
 	if document.Schema != remoteMediaPolicySchemaVersion {
 		return nil, fmt.Errorf(

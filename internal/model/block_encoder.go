@@ -7,7 +7,7 @@ import (
 	"overgo/internal/tensor"
 )
 
-func buildBERTEncoderBlock(
+func buildPostNormalizedEncoderAttention(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -33,56 +33,20 @@ func buildBERTEncoderBlock(
 		requireGraphWeight("attention output", weights.AttentionOutput),
 		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
 		requireGraphWeight("attention post norm bias", weights.AttentionPostNormBias),
-		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
-		requireGraphWeight("feed-forward post norm bias", weights.FeedForwardPostNormBias),
 	}
-	usesExperts := encoder.usesExperts() &&
-		spec.IsInterleavedMoELayer(layerIndex)
-	if usesExperts {
-		required.add("feed-forward router", weights.FeedForwardRouter)
-		required.add("feed-forward expert up", weights.FeedForwardUpExperts)
-		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
-	} else {
-		required.add("feed-forward up", weights.FeedForwardUp)
-		required.add("feed-forward down", weights.FeedForwardDown)
-	}
-	if err := required.validate("BERT-family block"); err != nil {
+	if err := required.validate("post-normalized encoder attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if encoder.Kind == encoderGraphNomic && weights.FeedForwardGate == nil {
-		return DenseBlockResult{}, errors.New("NomicBERT block feed-forward gate weight is nil")
-	}
 	tokens := uint64(len(positions))
-	queryLength := uint64(spec.HeadCount) * uint64(spec.KeyLength)
-	keyLength := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
-	valueLength := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
-	var query, key, value *tensor.Tensor
-	if weights.AttentionQKV != nil {
-		mixed := builder.MulMat(weights.AttentionQKV, input)
-		if weights.AttentionQKVBias != nil {
-			mixed = builder.Add(mixed, weights.AttentionQKVBias)
-		}
-		stride := queryLength + keyLength + valueLength
-		query = builder.Reshape(builder.GroupSlice(mixed, 0, queryLength, 1, stride), queryLength, tokens)
-		key = builder.Reshape(builder.GroupSlice(mixed, queryLength, keyLength, 1, stride), keyLength, tokens)
-		value = builder.Reshape(builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride), valueLength, tokens)
-	} else {
-		if weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil {
-			return DenseBlockResult{}, errors.New("BERT-family block Q/K/V weights are incomplete")
-		}
-		query = builder.MulMat(weights.AttentionQ, input)
-		key = builder.MulMat(weights.AttentionK, input)
-		value = builder.MulMat(weights.AttentionV, input)
-		if weights.AttentionQBias != nil {
-			query = builder.Add(query, weights.AttentionQBias)
-		}
-		if weights.AttentionKBias != nil {
-			key = builder.Add(key, weights.AttentionKBias)
-		}
-		if weights.AttentionVBias != nil {
-			value = builder.Add(value, weights.AttentionVBias)
-		}
+	if weights.AttentionQKV == nil &&
+		(weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil) {
+		return DenseBlockResult{}, errors.New("post-normalized encoder attention Q/K/V weights are incomplete")
 	}
+	runtime := denseBlockRuntime{
+		builder: builder, spec: spec, weights: weights, profile: spec.Profile(),
+		layer: layerIndex, tokens: tokens,
+	}
+	query, key, value := runtime.projectAttention(input)
 	if encoder.Kind == encoderGraphJinaV2 {
 		if weights.AttentionQNorm != nil {
 			query = ApplyNormalization(builder, query, weights.AttentionQNorm, weights.AttentionQNormBias, spec)
@@ -126,14 +90,54 @@ func buildBERTEncoderBlock(
 			weights.AttentionNorm2, weights.AttentionNorm2Bias, spec,
 		)
 	}
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: attention, Key: key, Value: value}, nil
+}
+
+func buildPostNormalizedEncoderFeedForward(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	layerIndex uint32,
+) (*tensor.Tensor, error) {
+	encoder := spec.Profile().EncoderGraph
+	if !encoder.bertFamily() {
+		return nil, errors.New("post-normalized encoder feed-forward requires a BERT-family architecture")
+	}
+	if input == nil || input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return nil, errors.New("post-normalized encoder feed-forward input shape is incompatible")
+	}
+	required := graphWeights{
+		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
+		requireGraphWeight("feed-forward post norm bias", weights.FeedForwardPostNormBias),
+	}
+	usesExperts := encoder.usesExperts() && spec.IsInterleavedMoELayer(layerIndex)
+	if usesExperts {
+		required.add("feed-forward router", weights.FeedForwardRouter)
+		required.add("feed-forward expert up", weights.FeedForwardUpExperts)
+		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
+	} else {
+		required.add("feed-forward up", weights.FeedForwardUp)
+		required.add("feed-forward down", weights.FeedForwardDown)
+	}
+	if err := required.validate("post-normalized encoder feed-forward"); err != nil {
+		return nil, err
+	}
+	if encoder.Kind == encoderGraphNomic && weights.FeedForwardGate == nil {
+		return nil, errors.New("NomicBERT feed-forward gate weight is nil")
+	}
+	tokens := input.Shape.Dims[1]
 	var feedForward *tensor.Tensor
 	if usesExperts {
 		plan := spec.moeGraphPlan(layerIndex)
 		plan.Activation = tensor.MoEActivationGELU
 		plan.NormalizeTopKProb = true
-		feedForward = plan.BuildLayer(builder, attention, nil, weights)
+		feedForward = plan.BuildLayer(builder, input, nil, weights)
 	} else {
-		feedForward = builder.MulMat(weights.FeedForwardUp, attention)
+		feedForward = builder.MulMat(weights.FeedForwardUp, input)
 		if weights.FeedForwardUpBias != nil {
 			feedForward = builder.Add(feedForward, weights.FeedForwardUpBias)
 		}
@@ -142,7 +146,7 @@ func buildBERTEncoderBlock(
 		if encoder.Kind == encoderGraphJinaV2 {
 			width := uint64(spec.FeedForwardLength)
 			if weights.FeedForwardGate != nil {
-				gate := builder.MulMat(weights.FeedForwardGate, attention)
+				gate := builder.MulMat(weights.FeedForwardGate, input)
 				feedForward = builder.GEGLU(gate, feedForward)
 			} else if weights.FeedForwardUp.Shape.Dims[1] == 2*width {
 				gate := builder.Reshape(builder.GroupSlice(feedForward, 0, width, 1, 2*width), width, tokens)
@@ -152,7 +156,7 @@ func buildBERTEncoderBlock(
 				feedForward = builder.GELU(feedForward)
 			}
 		} else if encoder.Kind == encoderGraphNomic {
-			gate := builder.MulMat(weights.FeedForwardGate, attention)
+			gate := builder.MulMat(weights.FeedForwardGate, input)
 			feedForward = builder.SwiGLU(gate, feedForward)
 		} else {
 			feedForward = builder.GELU(feedForward)
@@ -163,13 +167,13 @@ func buildBERTEncoderBlock(
 		}
 	}
 	output := builder.AffineLayerNorm(
-		builder.Add(attention, feedForward), weights.FeedForwardPostNorm,
+		builder.Add(input, feedForward), weights.FeedForwardPostNorm,
 		weights.FeedForwardPostNormBias, spec.LayerNormEpsilon,
 	)
 	if err := builder.Err(); err != nil {
-		return DenseBlockResult{}, err
+		return nil, err
 	}
-	return DenseBlockResult{Output: output, Key: key, Value: value}, nil
+	return output, nil
 }
 
 func buildBidirectionalFusedQKVMix(
@@ -247,7 +251,7 @@ func buildBidirectionalFusedQKVMix(
 	return DenseBlockResult{Output: attention, Key: key, Value: value}, nil
 }
 
-func buildGemmaEmbeddingBlock(
+func buildBidirectionalQKNormMix(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -257,35 +261,28 @@ func buildGemmaEmbeddingBlock(
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
 	if spec.Profile().EncoderGraph.Kind != encoderGraphGemmaEmbedding {
-		return DenseBlockResult{}, errors.New("Gemma embedding block requires gemma-embedding architecture")
+		return DenseBlockResult{}, errors.New("bidirectional Q/K-normalized attention requires gemma-embedding architecture")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Gemma embedding block input shape is incompatible")
+		return DenseBlockResult{}, errors.New("bidirectional Q/K-normalized attention input shape is incompatible")
 	}
 	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Gemma embedding block position count is incompatible")
+		return DenseBlockResult{}, errors.New("bidirectional Q/K-normalized attention position count is incompatible")
 	}
 	if pastKey != nil || pastValue != nil {
-		return DenseBlockResult{}, errors.New("Gemma embedding block does not support a KV cache")
+		return DenseBlockResult{}, errors.New("bidirectional Q/K-normalized attention does not support a KV cache")
 	}
 	if weights.AttentionQKV != nil &&
 		(weights.AttentionQBias != nil || weights.AttentionKBias != nil || weights.AttentionVBias != nil) {
-		return DenseBlockResult{}, errors.New("Gemma embedding fused QKV cannot use separate projection biases")
+		return DenseBlockResult{}, errors.New("fused QKV cannot use separate projection biases")
 	}
 	if weights.AttentionQKV == nil && weights.AttentionQKVBias != nil {
-		return DenseBlockResult{}, errors.New("Gemma embedding fused QKV bias has no fused projection")
+		return DenseBlockResult{}, errors.New("fused QKV bias has no fused projection")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("attention output", weights.AttentionOutput),
 		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
 		requireGraphWeight("attention K norm", weights.AttentionKNorm),
-		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
 	}
 	if weights.AttentionQKV != nil {
 		required.add("attention QKV", weights.AttentionQKV)
@@ -294,40 +291,17 @@ func buildGemmaEmbeddingBlock(
 		required.add("attention K", weights.AttentionK)
 		required.add("attention V", weights.AttentionV)
 	}
-	if err := required.validate("Gemma embedding block"); err != nil {
+	if err := required.validate("bidirectional Q/K-normalized attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := uint64(len(positions))
-	headCount := uint64(spec.HeadCount)
-	kvHeadCount := uint64(spec.HeadCountKV)
-	queryLength := headCount * uint64(spec.KeyLength)
-	keyLength := kvHeadCount * uint64(spec.KeyLength)
-	valueLength := kvHeadCount * uint64(spec.ValueLength)
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
-	var query, key, value *tensor.Tensor
-	if weights.AttentionQKV != nil {
-		mixed := builder.MulMat(weights.AttentionQKV, normalized)
-		if weights.AttentionQKVBias != nil {
-			mixed = builder.Add(mixed, weights.AttentionQKVBias)
-		}
-		stride := queryLength + keyLength + valueLength
-		query = builder.Reshape(builder.GroupSlice(mixed, 0, queryLength, 1, stride), queryLength, tokens)
-		key = builder.Reshape(builder.GroupSlice(mixed, queryLength, keyLength, 1, stride), keyLength, tokens)
-		value = builder.Reshape(builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride), valueLength, tokens)
-	} else {
-		query = builder.MulMat(weights.AttentionQ, normalized)
-		key = builder.MulMat(weights.AttentionK, normalized)
-		value = builder.MulMat(weights.AttentionV, normalized)
-		if weights.AttentionQBias != nil {
-			query = builder.Add(query, weights.AttentionQBias)
-		}
-		if weights.AttentionKBias != nil {
-			key = builder.Add(key, weights.AttentionKBias)
-		}
-		if weights.AttentionVBias != nil {
-			value = builder.Add(value, weights.AttentionVBias)
-		}
+	shapes := spec.TensorShapes(layerIndex)
+	headCount, kvHeadCount := uint64(shapes.QueryHeads), uint64(shapes.KVHeads)
+	runtime := denseBlockRuntime{
+		builder: builder, spec: spec, weights: weights, profile: spec.Profile(),
+		layer: layerIndex, tokens: tokens,
 	}
+	query, key, value := runtime.projectAttention(input)
 	query = builder.Reshape(query, uint64(spec.KeyLength), headCount, tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeadCount, tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeadCount, tokens)
@@ -355,38 +329,31 @@ func buildGemmaEmbeddingBlock(
 	attention := builder.AttentionWithOptions(query, key, value, attentionOptions)
 	attention = builder.Reshape(attention, headCount*uint64(spec.ValueLength), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
-	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
-	residual := builder.Add(input, attention)
-	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	gate := builder.MulMat(weights.FeedForwardGate, normalized)
-	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	feedForward := builder.MulMat(weights.FeedForwardDown, builder.GEGLU(gate, up))
-	feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon)
-	output := builder.Add(residual, feedForward)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: key, Value: value}, nil
+	return DenseBlockResult{Output: attention, Key: key, Value: value}, nil
 }
 
-func buildTalkieBlock(
+func buildCausalPostQKNormMixCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Talkie block input shape is incompatible")
+	if spec.Profile().DenseGraph != DenseGraphTalkie {
+		return DenseBlockResult{}, errors.New("causal post-Q/K-normalized attention requires Talkie policy")
 	}
-	if weights.EmbeddingSkip == nil || !weights.EmbeddingSkip.Shape.Equal(input.Shape) {
-		return DenseBlockResult{}, errors.New("Talkie block embedding skip is missing or incompatible")
+	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("causal post-Q/K-normalized attention input shape is incompatible")
 	}
 	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Talkie block position count is incompatible")
+		return DenseBlockResult{}, errors.New("causal post-Q/K-normalized attention position count is incompatible")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Talkie block past key/value cache must both be present"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "causal post-Q/K-normalized attention cache pair is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if weights.AttentionQKV != nil &&
@@ -399,10 +366,6 @@ func buildTalkieBlock(
 	required := graphWeights{
 		requireGraphWeight("attention output", weights.AttentionOutput),
 		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
-		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-		requireGraphWeight("layer output scale", weights.LayerOutputScale),
 	}
 	if weights.AttentionQKV != nil {
 		required.add("attention QKV", weights.AttentionQKV)
@@ -411,41 +374,18 @@ func buildTalkieBlock(
 		required.add("attention K", weights.AttentionK)
 		required.add("attention V", weights.AttentionV)
 	}
-	if err := required.validate("Talkie block"); err != nil {
+	if err := required.validate("causal post-Q/K-normalized attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 
 	tokens := uint64(len(positions))
-	headCount := uint64(spec.HeadCount)
-	kvHeadCount := uint64(spec.HeadCountKV)
-	queryLength := headCount * uint64(spec.KeyLength)
-	keyLength := kvHeadCount * uint64(spec.KeyLength)
-	valueLength := kvHeadCount * uint64(spec.ValueLength)
-	normalized := builder.RMSNorm(input, spec.RMSNormEpsilon)
-	var query, key, value *tensor.Tensor
-	if weights.AttentionQKV != nil {
-		mixed := builder.MulMat(weights.AttentionQKV, normalized)
-		if weights.AttentionQKVBias != nil {
-			mixed = builder.Add(mixed, weights.AttentionQKVBias)
-		}
-		stride := queryLength + keyLength + valueLength
-		query = builder.Reshape(builder.GroupSlice(mixed, 0, queryLength, 1, stride), queryLength, tokens)
-		key = builder.Reshape(builder.GroupSlice(mixed, queryLength, keyLength, 1, stride), keyLength, tokens)
-		value = builder.Reshape(builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride), valueLength, tokens)
-	} else {
-		query = builder.MulMat(weights.AttentionQ, normalized)
-		key = builder.MulMat(weights.AttentionK, normalized)
-		value = builder.MulMat(weights.AttentionV, normalized)
-		if weights.AttentionQBias != nil {
-			query = builder.Add(query, weights.AttentionQBias)
-		}
-		if weights.AttentionKBias != nil {
-			key = builder.Add(key, weights.AttentionKBias)
-		}
-		if weights.AttentionVBias != nil {
-			value = builder.Add(value, weights.AttentionVBias)
-		}
+	shapes := spec.TensorShapes(layerIndex)
+	headCount, kvHeadCount := uint64(shapes.QueryHeads), uint64(shapes.KVHeads)
+	runtime := denseBlockRuntime{
+		builder: builder, spec: spec, weights: weights, profile: spec.Profile(),
+		layer: layerIndex, tokens: tokens,
 	}
+	query, key, value := runtime.projectAttention(input)
 	query = builder.Reshape(query, uint64(spec.KeyLength), headCount, tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeadCount, tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeadCount, tokens)
@@ -474,17 +414,10 @@ func buildTalkieBlock(
 	if weights.AttentionOutputBias != nil {
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
-	residual := builder.Add(input, attention)
-	normalized = builder.RMSNorm(residual, spec.RMSNormEpsilon)
-	gate := builder.MulMat(weights.FeedForwardGate, normalized)
-	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
-	output := builder.Add(residual, feedForward)
-	output = builder.Add(output, builder.Multiply(weights.EmbeddingSkip, weights.LayerOutputScale))
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, nil
 }
 
 // BuildT5EncoderBlock: full bidirectional encoder block.

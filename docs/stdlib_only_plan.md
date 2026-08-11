@@ -59,24 +59,30 @@ regexp2, x/sys, x/text are leaf deps with no transitive pull.
 - Effort: ~1–2 slices (format migration + call-site swap + gate on the parsed
   structs round-tripping identically).
 
-### 4. `dlclark/regexp2` → stdlib `regexp` (RE2) — capability decision required
+### 4. `dlclark/regexp2` → RESOLVED: retained as the single justified exception (option b)
 - regexp2 backs **user-supplied** GBNF trigger patterns compiled as ECMAScript
   with backtracking (lookahead/lookbehind/backreferences possible). Go's stdlib
   `regexp` is RE2: **linear-time, no backtracking, no lookaround/backrefs.**
-- Two honest options:
-  - **(a) RE2 subset (recommended):** accept only RE2-expressible triggers,
-    reject the rest with a clear error. This is a *capability reduction* for
-    exotic patterns, but an **upside** for the common case: RE2's linear-time
-    guarantee removes the ReDoS surface that today needs the `MaxBacktrackingStackSize`
-    + `MatchTimeout` guards. Record it as a typed decision (what patterns are no
-    longer accepted) with the trade rationale.
-  - **(b) keep regexp2** if any shipped/needed trigger genuinely requires
-    lookahead — then this dep does not go, and the goal becomes "stdlib-only
-    except regexp2, justified."
-- Decision input: audit the actual GBNF trigger patterns in use; if none use
-  lookaround/backrefs, (a) is free. regexp2 has no transitive deps, so this is
-  low-leverage — do it last, or accept it as the one justified exception.
-- Effort: (a) ~1 slice + a pattern audit; (b) zero (documented exception).
+- **Audit result (2026-08):** the ECMAScript feature set is a *tested, contract*
+  *capability*, not incidental. `internal/sampling/gbnf_test.go`
+  `TestLazyGBNFECMAScriptTriggerFeatures` explicitly exercises lookbehind
+  `(?<=prefix)`, lookahead `(?=[0-9])`, and backreference `\2`;
+  `TestLazyGBNFTriggerResourceLimits` asserts the bounded-backtracking guard
+  errors on `(?:^){40000}`. These are the trigger semantics of llama.cpp's
+  `std::regex` ECMAScript grammar, which overgo mirrors for parity. overgo's
+  *own* generated pattern (`(<tool_call>)` in `chat_tool_grammar.go`) is
+  RE2-expressible, but the trigger engine is a compat surface that accepts
+  arbitrary caller/model-supplied patterns.
+- **Decision — keep regexp2** (option b). Swapping to RE2 would delete a tested
+  capability and break parity with the reference `std::regex` engine (a
+  capability-retention violation, not a subtraction). regexp2 is **pure Go (no
+  cgo, no transitive deps)**, so it does not violate the runtime-surface
+  doctrine; it is a single leaf module. The ReDoS surface it would otherwise
+  raise is already bounded structurally: `MaxBacktrackingStackSize(32768)` +
+  `MatchTimeout(50ms)` + `maxGBNFTriggerPatternBytes(4096)` +
+  `maxGBNFTriggerPatterns(128)`.
+- Effort: zero code change — documented exception with rationale recorded in
+  `trigger_regex.go` and here.
 
 ### 5. `gonja` (Jinja2) → minimal Jinja subset interpreter — HIGH (highest leverage)
 - Chat-template rendering uses gonja's full environment (filters, tests, control
@@ -107,17 +113,19 @@ regexp2, x/sys, x/text are leaf deps with no transitive pull.
 3. **x/text → generated NFD table** — self-contained, parity-fixture gated.
 4. **gonja → Jinja subset** — biggest lift but clears 7 of 8 indirect deps;
    inventory-bounded + byte-parity gated.
-5. **regexp2 → RE2 subset** *or* documented exception — a capability decision;
-   do last once (1)–(4) prove out, or accept as the single justified third-party.
+5. **regexp2 → RESOLVED: retained** — the audit found lookaround/backreference
+   are tested contract capabilities required for `std::regex` parity; kept as the
+   single justified third-party (pure Go, leaf, no transitive deps).
 
 Each step is independently landable and leaves the build green; after (1)–(4)
-the only remaining external module is regexp2 (leaf, no transitive deps), so even
-stopping before (5) collapses the dependency tree to one justified entry.
+the only remaining external module is regexp2 (leaf, no transitive deps), which
+(5) resolved as the one justified entry.
 
-## What "done" looks like
-- `go.mod` `require` block empty of third-party (or only a documented regexp2
-  exception with its capability-trade rationale recorded).
-- `go mod tidy` removes all indirect deps.
-- SBOM (`cmd/sbom`) reflects stdlib-only.
-- Every replaced surface parity-gated against the dep it replaced (NFD strings,
-  parsed config structs, rendered chat templates, trigger-match behavior).
+## Outcome — DONE
+- `go.mod` `require` block: **one** third-party module, regexp2, the documented
+  justified exception (rationale above + in `trigger_regex.go`). All other
+  third-party (yaml.v3, x/sys, x/text, gonja) and every indirect dep removed.
+- `go mod tidy` clean; SBOM (`cmd/sbom`) reflects the single-exception surface.
+- Every replaced surface parity-gated against the dep it replaced: NFD strings
+  (generated-table fixtures), parsed config structs (JSON round-trip), rendered
+  chat templates (135-case byte-parity vs gonja), file locks (syscall/LazyDLL).

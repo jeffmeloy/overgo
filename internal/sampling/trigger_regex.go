@@ -7,6 +7,12 @@ import (
 	"github.com/dlclark/regexp2/v2"
 )
 
+// regexp2 is overgo's one justified non-stdlib dep (pure Go, no cgo, leaf).
+// Retained: GBNF triggers are ECMAScript for std::regex parity — lookaround +
+// backreferences (tested: TestLazyGBNFECMAScriptTriggerFeatures) that stdlib
+// RE2 cannot express. ReDoS bounded by backtrack cap + MatchTimeout + size/count
+// limits below. See docs/stdlib_only_plan.md §4.
+
 const (
 	maxGBNFTriggerPatternBytes = 4096
 	maxGBNFTriggerBacktrack    = 32768

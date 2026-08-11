@@ -1,173 +1,432 @@
-# Training Plan — per-model, memory-hierarchy-aware
+# Training plan — controller-first, measured, memory-hierarchy-aware
 
-Single-box target (measured 2026-08-10): **VRAM 48 GB** (RTX 4090D, ~1 TB/s),
-**CPU RAM 94 GB** (PCIe4 x16 ~25 GB/s to GPU, ~80 GB/s local), **NVMe ~1.1 TB
-free** (Gen4 ~6 GB/s). Fastest memory does the math; slower tiers are staging.
+This plan targets one measured workstation:
 
-## 1. Training-state memory model
+- GPU: NVIDIA GeForce RTX 4090 D, 49,140 MiB reported VRAM.
+- Host RAM: approximately 94 GB available to the system.
+- GPU link: PCIe 4 x16, subject to measured pinned-transfer throughput.
+- Local storage: Gen4 NVMe with approximately 1.1 TB free.
 
-Per P parameters, with Muon (momentum-only — no second moment, the key win over
-Adam):
+The immediate product objective is not full training of every supported model. It
+is a trustworthy learning loop for a small workflow controller. Larger-model
+offload is scaling infrastructure built after that loop works.
 
-| Component | bytes/param | P=1B |
-|---|---|---|
-| Weights (bf16) | 2 | 2 GB |
-| Gradients (bf16) | 2 | 2 GB |
-| Muon momentum (fp32) | 4 | 4 GB |
-| **Optimizer+model state** | **8** | **8 GB** |
-| Activations (per micro-batch, checkpointed) | ~O(1)/segment | batch-dependent |
+## 1. First product milestone
 
-Adam would be 12–16 B/param; Muon's single fp32 momentum is what makes 8 B/param
-achievable. Momentum may drop to bf16 (→6 B/param) with periodic fp32 refresh, or
-offload to NVMe. Newton-Schulz needs only the *current* 2D group's matrix + its
-Gram on-device transiently.
+A pretrained 350M–1B controller can be fine-tuned on-device, checkpointed and
+resumed exactly, improves across multiple seeds on immutable held-out workflow
+tasks, passes regression and tool-validity gates, and is promoted or rolled back
+entirely through RepoDB identities.
 
-State budget vs the 48 GB card: everything ≤ ~5B params trains fully resident;
-≥6B needs tiered offload.
+This milestone requires all of the following:
 
-## 2. Tiered-offload architecture (ZeRO-Infinity-style, single-GPU)
+1. Device forward, backward, loss and optimizer execution.
+2. Exact step-boundary and accumulation-boundary checkpoint contracts.
+3. Immutable dataset splits and complete artifact lineage.
+4. Fixed-seed host/device numerical evidence.
+5. Multi-seed held-out task improvement.
+6. Candidate, evaluated, promoted and rollback lifecycle.
 
-- **Tier 0 — VRAM (compute):** active layer weights + its activations + the
-  current Newton-Schulz matrix + a double-buffer for the next layer's weights
-  (prefetch) + the current micro-batch's live (non-checkpointed) activations.
-- **Tier 1 — CPU RAM (primary offload):** full resident bf16 weights, the fp32
-  momentum, the gradient-accumulation buffer, spilled checkpointed activations.
-  94 GB holds the *entire* state of every trainable model here except the 12B.
-- **Tier 2 — NVMe (cold overflow):** fp32 master/optimizer state that exceeds
-  CPU RAM (only the 12B), dataset shards (streamed), activation-spill overflow.
-  Async, double-buffered.
+E4B, 12B, dynamic quantization and NVMe optimizer paging are not prerequisites
+for this milestone.
 
-### Scheduling primitives
-1. **Layer-streaming + double-buffered prefetch.** Compute layer N in VRAM while
-   DMA-prefetching layer N+1 weights CPU→VRAM; offload layer N grads VRAM→CPU
-   after its backward. Reuses the retained-graph replay + device-feed machinery
-   already in the executor.
-2. **Break-even rule (the intelligence).** A layer with W weight-bytes and C
-   FLOPs at micro-batch B: fetch ≈ W/25e9 s, compute ≈ C/165e12 s (bf16). Offload
-   is *free* (compute-bound, PCIe fully hidden) when `C/165e12 > W/25e9`. Since C
-   scales with B and W does not, **there is a minimum micro-batch × seq that makes
-   offload free** — the scheduler picks B (or grad-accum depth) at or above it;
-   below it, keep more layers resident instead of offloading.
-3. **Gradient checkpointing.** Store only segment boundaries; recompute
-   activations in backward. Activation memory O(layers)→O(√layers) or O(1)/segment
-   at ~33% extra compute — mandatory for ≥4B.
-4. **Gradient accumulation.** Decouple statistical batch from memory batch:
-   micro-batch sized to VRAM, accumulate K steps (buffer in Tier 1) to the target
-   effective batch.
-5. **Per-group Muon streaming.** The optimizer step streams each 2D param-group
-   through VRAM: momentum (Tier 1) + matrix DMA-in → Newton-Schulz → DMA-out. Only
-   one group's matrix is on-device at a time → device Muon at any scale without
-   holding all optimizer state in VRAM. (Host NS is prohibitive ≥500M — this is
-   how Muon scales; a device NS kernel is the enabling to-do.)
+## 2. Authority and compiled contracts
 
-## 2b. Dynamic quantization tier (amplifies offload)
+RepoDB owns the identities and lineage for:
 
-overgo ships a full quantization codec both directions (`internal/quant`:
-`quantize.go`, calibrated `quantize_weighted.go`, `dequantize.go`) over Q1_0–Q8_K,
-MXFP4, NVFP4, F8E4M3, BF16/F16, with in-kernel dequant already proven on-device
-(native-fp8 matmul, GGML block dequant). Quantization is therefore a *tier
-compressor*, applied per-slot and chosen dynamically by the break-even rule, not a
-fixed model format.
+- initial model and tokenizer;
+- dataset source, normalization and immutable split;
+- training recipe and compiled program;
+- objective mixture and sampling policy;
+- optimizer, schedule and precision policy;
+- run, measurement and evaluation;
+- checkpoint and resume lineage;
+- candidate, promotion and rollback decision.
 
-**What gets quantized, and why it stays correct:**
-- **Offloaded/streamed forward weights (Tier 1/2 → VRAM):** store the resident
-  copy quantized (Q6_K ≈ 6.5 b/p, Q4_K ≈ 4.5, NVFP4/MXFP4 ≈ 4, fp8 = 8) and
-  dequant in-VRAM before the matmul. This shrinks both the resident footprint *and*
-  the PCIe/NVMe transfer → **offload goes compute-bound at a smaller micro-batch**
-  (W drops, so the §2 break-even `C/165e12 > W/25e9` holds sooner). fp8 uses the
-  existing native matmul (no separate dequant pass).
-- **The master weight is NOT quantized.** Keep a bf16 (or fp32) master +
-  momentum for the *update*; quantize only the forward compute copy. The gradient
-  is taken w.r.t. the dequantized forward weight; the optimizer update applies to
-  the master. So quant buys bandwidth/footprint without corrupting convergence.
-  (QLoRA-style frozen-quant base + trained hi-precision adapter is the alternative
-  when only a delta is learned — cheaper still, but not full fine-tune.)
-- **Gradients transferred VRAM→CPU:** quantize to fp8/Q8 on the way out,
-  dequant on accumulation → halves–quarters the backward PCIe traffic.
-- **Optimizer momentum (Tier 1/2):** 8-bit / bf16 momentum with per-tensor
-  scale via `quantize_weighted` — the "8-bit optimizer" — cuts the largest state
-  buffer. This is what lets the 12B momentum fit CPU RAM without NVMe.
-- **Activation spill (VRAM→CPU):** Q8/fp8 the checkpointed activations that spill.
+A training workflow recipe currently describes orchestration. It must compile to
+a sealed `TrainingRunPlan` before production training begins. That plan owns:
 
-**Dynamic selection (the intelligence):** per layer, start at the highest
-precision that is compute-bound; if the offload is transfer-bound at the target
-batch, step the *offloaded/transferred* precision down (Q6_K→Q4_K→NVFP4→fp8) until
-compute-bound or the quality gate binds — never the master. Every choice is a
-recorded decision with a **measured** grad-parity/loss-decrease bound (quant of
-the forward weight perturbs the gradient; it must stay within the FD-oracle
-tolerance and keep loss monotone), not a magic constant.
+- model, dataset, split and recipe identities;
+- a compiled model-level `TrainingProgram`;
+- optimizer groups and typed update policies;
+- precision, memory and transfer policies;
+- objective and sampling configuration;
+- checkpoint boundaries and retention policy;
+- evaluation and promotion gates.
 
-## 3. Per-model plans
+The model-level `TrainingProgram` contains ordered semantic forward and backward
+operators, indexed tensor and parameter bindings, saved-versus-recomputed tensor
+liveness, gradient destinations and optimizer-group bindings. CUDA launch details
+remain executor concerns. Missing compiled facts are initialization errors; no
+production fallback reconstructs training policy from model-family predicates.
 
-Legend: **R**=fully resident (Tier 0 only), **T1**=CPU-RAM offload, **T2**=+NVMe.
-Effective batch reached via grad-accum. Only models adaptive actually
-trains (or that have an overgo train lane) get a training plan; the rest are
-serving/generation-only or pretrained (marked N/A).
+## 3. Memory models
 
-| Model | P | State (8B/p) | Tier | Micro-batch policy | Ckpt | Fit |
-|---|---|---|---|---|---|---|
-| Fractale-350M | 0.39B | ~3 GB | **R** | large (seq 2k, B up to VRAM) | off | trivial; ~40 GB free for activations |
-| Carbon-500M | 0.5B | 4 GB | **R** | large | off | trivial |
-| Qwen2.5-0.5B | 0.5B | 4 GB | **R** | large | off | trivial |
-| SimpleDiffusion / Un-0 / pocket-tts | <1B | <8 GB | **R** | family train.go step-verified | off | resident |
-| MiniCPM5-1B | 1B | 8 GB | **R** | B sized to fill ~35 GB activations | opt | resident, big batch |
-| E4B (gemma3n) | ~8B | 64 GB | **T1** | micro-batch 1–2, grad-accum to target; layer-stream W/G | **on** | 64 GB in 94 GB CPU RAM; active window + ckpt acts in VRAM |
-| gemma-12B (gemma4_unified) | 11.96B | 96 GB | **T1+T2** | micro-batch 1, grad-accum; bf16 momentum (→72 GB, CPU-RAM only) OR fp32 momentum→NVMe | **on** | 72 GB bf16-mom fits CPU RAM; fp32-mom spills 48 GB to NVMe |
-| Qwen3.5-4B / 9B (hybrid) | 4/9B | 32/72 GB | T1 | — | on | **blocked**: needs SSM/GDN + gated-attn backward (not ported); adaptive is inference-only here |
-| Wan / RxBrain / SenseNova / Krea | — | — | — | — | — | **N/A**: adaptive serving/generation-only, no training recipe |
-| TimesFM / TabFM / needle | small | — | R | — | — | **N/A** unless fine-tuning added (no train lane today) |
+Memory claims must name the representation they describe. Current and target
+state must not share one estimate.
 
-### Notes per tier decision
-- **Resident (≤~1B):** state ≤ 8 GB leaves ~35–40 GB of the 48 GB card for
-  activations → train at large batch with no offload, no checkpointing. Fastest
-  path; use these to validate the training loop + Muon-at-scale before offload.
-- **E4B (T1):** 64 GB state exceeds VRAM but fits CPU RAM. bf16 W (16) + bf16 G
-  (16) + fp32 momentum (32) resident in CPU RAM; per-layer W streamed to VRAM
-  (double-buffered), grads streamed back, checkpointed activations spill to CPU.
-  Micro-batch 1–2 × seq, grad-accum to the target statistical batch. This is the
-  "bf16-SGD+ckpt ~32 GB" note made comfortable by moving momentum off-device.
-- **gemma-12B (T1+T2):** 96 GB fp32-momentum state exceeds CPU RAM by ~2 GB once
-  dataset+activations are counted. Options in preference order: (a) **8-bit/bf16
-  momentum** (§2b) → ~24–48 GB momentum, plus **NVFP4/fp8-quantized offloaded
-  forward weights** (12B bf16 W 24 GB → ~6 GB NVFP4) → total resident well under
-  94 GB CPU RAM, *no NVMe*, and the smaller W makes prefetch compute-bound at
-  micro-batch 1; the bf16 master (24 GB) + bf16 grads stay in CPU RAM for the
-  update. (b) fallback: keep fp32 momentum, **spill it to NVMe** async-paged during
-  the per-group Muon step (touched once/step, ~6 GB/s hidden behind layer
-  forward/backward). Prefer (a) — dynamic quant turns the 12B from "T2/NVMe
-  required" into "T1 comfortable."
+### 3.1 Current host optimizer
 
-## 4. Implementation dependencies (status → to-do)
+The current optimizer holds:
 
-The plan runs on primitives that are partly built:
+| Component | Representation | Bytes/parameter |
+|---|---:|---:|
+| Weights | FP32 | 4 |
+| Gradients | FP32 | 4 |
+| Momentum | FP64 | 8 |
+| **Persistent minimum** |  | **16** |
 
-- **Optimizer (Muon/NS) — DONE**, bit-parity vs adaptive (`internal/optimizer`).
-- **Quantization codec — DONE** (`internal/quant`, both directions + calibrated +
-  in-kernel dequant/fp8-matmul): the dynamic-quant tier (§2b) is enabled today;
-  what's missing is wiring it into the *training* offload paths + the quality gate.
-- **Host backward VJPs — DONE + FD-verified**: dense (`hostmath`), gemma3n E4B
-  (windowed-attn/AltUp/Laurel/PLE, `internal/inference/gemma3n_backward.go`).
-- **Resident-model training (≤1B) — VERIFIED**: densecausal grad-parity +
-  loss-decrease; diffusion/oscillator/speech step-tests.
-- **TO-DO (enabling the offload tiers), in order:**
-  1. **Device backward** — overgo's backward is host-only today; the T1/T2 plans
-     need GPU backward kernels (the biggest gap).
-  2. **Device Newton-Schulz** + per-group streaming — host NS prohibitive ≥500M.
-  3. **Layer-streaming offload allocator** — double-buffered CPU↔VRAM weight/grad
-     DMA with prefetch, driven by the break-even rule; extends the existing
-     device-feed + retained-graph machinery.
-  4. **Gradient checkpointing** in the training graph.
-  5. **NVMe async pager** for the 12B fp32-momentum fallback + dataset streaming.
-  6. **Dynamic-quant training wiring** — apply the existing `internal/quant`
-     codec to offloaded forward weights / transferred grads / momentum /
-     activation spill (§2b), driven by the break-even rule, gated by measured
-     grad-parity + loss-monotonicity (the quality gate).
-  7. **Hybrid (qwen3_5) backward** — SSM/GDN + gated-attn VJPs, only if the
-     inference-only hybrids are ever to be trained.
+Newton–Schulz input, output and Gram buffers add group-dependent scratch. This is
+a correctness reference and small-model implementation, not the state layout used
+by the future 8-byte estimate.
 
-Sequencing: land (1)+(2) to move E4B/gemma-12B from host-gradient-verified to
-device-trainable at the resident-small scale first, then (3)+(4) for the T1
-offload, then (6) dynamic quant to shrink footprint/bandwidth (turns the 12B into
-CPU-RAM-comfortable and lowers every model's break-even batch), with (5) NVMe only
-as the 12B fp32-momentum fallback. Each step is grad-parity gated against the
-FD-verified host backward already in the tree.
+### 3.2 Initial device baseline
+
+Bring-up proceeds in two explicit precision stages:
+
+1. FP32 weights, gradients, accumulation and momentum for the smallest fixture.
+2. BF16 compute weights with FP32 gradient accumulation and FP32 momentum.
+
+If BF16 weights are authoritative, update accuracy must be measured. If an FP32
+master is retained, its additional 4 bytes/parameter must be budgeted. Individual
+gradient transfer may later use BF16 or FP8; accumulated gradients remain FP32
+until convergence evidence supports another representation.
+
+### 3.3 Target optimized layouts
+
+Candidate layouts are compiled policies, not implicit assumptions:
+
+| Layout | Persistent state | Approximate bytes/parameter |
+|---|---|---:|
+| BF16 master + BF16 gradient + FP32 momentum | 2 + 2 + 4 | 8 |
+| FP32 master + BF16 compute + BF16 gradient + FP32 momentum | 4 + 2 + 2 + 4 | 12 |
+| BF16 master + FP32 accumulated gradient + FP32 momentum | 2 + 4 + 4 | 10 |
+
+Derived forward copies, pinned transfer buffers, optimizer scratch, saved
+activations, CUDA workspaces, allocator fragmentation, runtime memory and operating
+system headroom are budgeted separately. A model fits only when its measured peak
+stays below a configured safe high-water mark. Because OOM is a hard halt, the
+high-water mark is a **tail bound (p99 of measured peak), not a mean** — measured
+allocation has run-to-run variance (fragmentation, workspace sizing, allocation
+order) and no stationarity guarantee across driver or thermal state, so budgeting
+to the average peak OOMs on the tail.
+
+## 4. Muon-only optimizer policy
+
+Muon is the only optimizer family. The compiled plan assigns an explicit Muon
+geometry to every trainable parameter group rather than routing exceptional shapes
+to a second optimizer:
+
+- `MuonMatrix`: Newton–Schulz orthogonalized Nesterov momentum for eligible
+  two-dimensional weights, including dense embeddings and output projections.
+- `MuonVector`: Nesterov momentum with a compiled vector normalization rule for
+  normalization weights, biases and other one-dimensional groups.
+- `MuonScalar`: explicitly scaled Nesterov momentum for true scalar groups.
+- `Frozen`: no state and no update for parameters excluded by the recipe.
+
+Higher-rank tensors receive a semantic matrix view compiled from their tensor
+role; they are not flattened by an unexplained runtime convention. Tied tensors
+have one optimizer binding and one state allocation. Weight decay, clipping and
+loss scaling are orthogonal transforms inside the Muon step, independently typed
+by parameter role, not alternate optimizers.
+
+The existing sign update for non-matrix groups is a host-reference behavior, not
+an implicit production fallback. It must either become the explicitly defined
+`MuonVector`/`MuonScalar` rule with convergence evidence or be replaced by a
+better normalized Muon rule before controller promotion. Every geometry shares
+one Muon configuration, schedule, checkpoint schema and plan identity.
+
+The first device optimizer milestone therefore includes Newton–Schulz and the
+vector/scalar Muon rules. Each must match the CPU reference trajectory within a
+recorded tolerance. Device Newton–Schulz is streamed per optimizer group. Its
+memory plan includes the current matrix, output, Gram, polynomial scratch and
+conversion buffers. The planner rejects a group whose peak scratch cannot fit its
+assigned capacity class.
+
+## 5. Memory hierarchy and execution schedule
+
+### Tier 0 — VRAM
+
+Active weights, live activations, gradient workspaces, optimizer scratch and
+double-buffered transfer slots. All math occurs here unless a compiled host
+operator explicitly says otherwise.
+
+### Tier 1 — host RAM
+
+Pinned staging buffers, offloaded master weights, accumulated gradients, optimizer
+state and explicitly spilled checkpoint boundaries. The planner reserves host and
+operating-system headroom rather than treating all installed RAM as allocatable.
+
+### Tier 2 — NVMe
+
+Dataset shards, durable checkpoints and cold overflow. Optimizer-state paging is
+a last-resort experimental policy because it adds read/write latency, synchronization
+and endurance cost.
+
+### Scheduling rules
+
+1. Stream layer weights through reusable pinned double buffers.
+2. Prefetch only when measured transfer can overlap useful compute.
+3. Store only compiled checkpoint boundaries; recompute internal activations.
+4. Accumulate gradients in FP32 by default.
+5. To amortize weight transfer across microbatches, use an explicit layer-major
+   schedule that retains a layer while processing several microbatches.
+6. Account for the additional activation storage or spill induced by layer-major
+   scheduling.
+7. Release or reuse buffers according to compiled liveness, not garbage-collector
+   timing.
+
+## 6. Measured scheduling model
+
+Theoretical peak FLOP/s and link bandwidth are hypotheses only. The planner uses
+calibration records keyed by device, operator, shape, dtype and transfer direction.
+
+Per layer and capacity class, measure:
+
+- forward execution time;
+- backward execution time;
+- recomputation time;
+- CPU-to-GPU and GPU-to-CPU transfer time;
+- quantization, dequantization and conversion time;
+- pinned-buffer setup and synchronization overhead;
+- achievable overlap and peak allocated memory.
+
+The scheduler compares complete candidate timelines rather than only
+`FLOPs/peak > bytes/link`. Gradient accumulation affects transfer amortization only
+when the selected execution schedule reuses loaded weights. Every compiled memory
+schedule records its calibration identity and rejects incompatible hardware or
+capacity classes.
+
+Calibration records are distributions, not point estimates. A memory-fit or
+overlap decision that must not fail (peak memory, whether a prefetch hides behind
+compute) uses a tail statistic (p95/p99); a throughput estimate that only affects
+expected wall-clock may use the median. Each calibrated timing carries its sample
+count and spread so the planner can tell a stable measurement from a noisy one
+rather than trusting a single sample.
+
+## 7. Checkpoint and resume contracts
+
+Two checkpoint schemas are required:
+
+### Step-boundary checkpoint
+
+- authoritative weights;
+- optimizer state and step;
+- learning-rate and objective schedules;
+- RNG streams;
+- dataset shard, cursor and sampler state;
+- precision and memory policies;
+- compiled recipe and program identities.
+
+No accumulated gradient is required after a committed optimizer step.
+
+### Accumulation-boundary checkpoint
+
+Includes every step-boundary field plus:
+
+- accumulated gradients;
+- microstep index and target accumulation depth;
+- pending loss-scaling state;
+- scheduler state needed to resume the exact transfer/recompute boundary.
+
+Exact-resume tests compare the uninterrupted and resumed trajectories, not only
+their next loss value.
+
+## 8. Quantized training transport
+
+Quantization follows a working BF16 Tier-1 baseline. Existing inference codecs
+prove encoding and device-consumption mechanics, not training convergence.
+
+Admit one state category at a time:
+
+1. FP8 forward-weight transport or resident compute copy.
+2. FP8/BF16 gradient transport with FP32 accumulation.
+3. Quantized activation spill.
+4. Optimizer-state compression.
+5. Q6/Q4 forward copies only after multi-seed convergence evidence.
+
+Each policy specifies:
+
+- scale granularity and update cadence;
+- deterministic or stochastic rounding;
+- saturation accounting;
+- straight-through estimator behavior for a quantized forward copy;
+- error-feedback or residual accumulation for lossy gradient transport;
+- authoritative master representation;
+- stability and rollback thresholds.
+
+Precision choices form a measured Pareto catalog over memory, transfer time,
+kernel time and error. They are not ordered only by nominal bit width and do not
+change opportunistically during a run unless the recipe defines a validated phase
+transition.
+
+Quality gates include gradient relative error, update cosine similarity, sampled
+directional derivatives, fixed-seed trajectory bounds and multi-seed held-out
+evaluation. Monotonic minibatch loss is not required or sufficient.
+
+## 9. Controller learning plan
+
+The first controller is fine-tuned from a suitable pretrained 350M–1B base.
+Training a new language model from scratch is a later, separately budgeted program.
+
+**Open decision (blocks rung 1): choose the base and register its RepoDB
+identity.** Rung 1 cannot seal a `TrainingRunPlan` until the base model is named,
+because the plan owns the initial-model identity. Candidates are Fractale-350M,
+Carbon-500M and Qwen2.5-0.5B — all already resident-trainable (§11). Decision
+criterion, in order: (a) a device forward/backward already parity-verified in the
+tree, so rung 2 is not gated on a new backward; (b) an instruction/tool-use
+pretraining that transfers to workflow control rather than a bare LM; (c) the
+smallest base that clears the promotion suite, to keep the loop fast. Record the
+choice and its evidence as the rung-1 decision in `plan.json`; until then rung 1
+is design-blocked, not started.
+
+### Dataset composition
+
+- successful workflow and tool-use traces;
+- tool selection and argument construction;
+- repairs after tool, validation and execution failures;
+- evaluation decisions and evidence interpretation;
+- negative examples, rejected actions and failed trajectories;
+- concise completion and escalation behavior.
+
+### Split and lineage policy
+
+- Split before augmentation or self-generation.
+- Keep repository, task family and near-duplicate groups within one split.
+- Preserve an immutable external holdout unavailable to data generation.
+- Record source, license, normalization and generator lineage.
+- Quarantine generated examples until quality and contamination checks pass.
+- Never promote evaluation traces directly into training without a new versioned
+  dataset and split audit.
+
+### Objective mixture
+
+The recipe defines weights and sampling policy for:
+
+- next-token behavior cloning;
+- structured tool-call validity;
+- workflow completion;
+- repair and recovery;
+- preference or ranking examples;
+- optional auxiliary state/value prediction.
+
+The initial milestone uses supervised fine-tuning or adapters. Selective and then
+full-model fine-tuning follow only when the same evaluation suite shows a useful
+increment.
+
+### Evaluation
+
+- syntax and schema validity of tool calls;
+- correct tool and argument selection;
+- workflow completion rate;
+- recovery after injected failures;
+- held-out repository/task performance;
+- token, latency and tool-call efficiency;
+- general-language and prior-capability regression;
+- contamination and memorization checks.
+
+Promotion requires multiple seeds, predefined thresholds and comparison against
+the current promoted controller. RepoDB records candidate, evaluation, decision
+and rollback lineage. A single descending training-loss curve cannot promote a
+model.
+
+## 10. Implementation ladder
+
+`docs/plan.json` (driven by `cmd/plan`) is the single execution owner: it tracks
+which rung and step is open, done or blocked. This section and the §11 model
+ladder are rationale and sequencing only — they explain *why* the rungs are
+ordered this way and *what* each proves; they do not record completion. When a
+training rung lands, its status changes in `plan.json`, not here. If this ladder
+and `plan.json` ever disagree on scope, `plan.json` wins and this section is
+corrected to match. Add or rename a training rung in `plan.json` first, then
+reflect the rationale here.
+
+Each rung produces a runnable artifact and an evidence record. A later rung does
+not redefine an earlier rung's correctness contract.
+
+1. **Compile training authority.** Add sealed `TrainingRunPlan` and model-level
+   `TrainingProgram`; bind RepoDB model, dataset, split, objective and policy IDs.
+2. **Resident FP32 Muon plumbing.** Complete device forward, backward, loss and
+   Muon update for small matrix, vector and scalar fixtures; prove host/device
+   parity. **Device backward is the dominant sub-item and the schedule long
+   pole** — overgo's backward is host-only today, so this rung is not
+   equal-weight with its neighbors. Expect it to decompose in `plan.json` into
+   per-operator backward kernels (matmul, normalization, activation, attention),
+   each grad-parity gated against the FD-verified host VJPs before the rung is
+   marked done. Size the rung accordingly rather than treating "backward" as one
+   step.
+3. **Exact recovery.** Implement both checkpoint schemas and bitwise or bounded
+   uninterrupted-versus-resumed trajectory tests.
+4. **Mixed-precision resident training.** BF16 compute with FP32 accumulation;
+   establish loss scaling, clipping and convergence envelopes.
+5. **Muon scale-up.** Stream all Muon geometry groups, reuse Newton–Schulz scratch
+   by capacity class and compare complete CPU/device update trajectories.
+6. **Controller proof.** Fine-tune the intended 350M–1B controller and pass the
+   immutable held-out promotion suite across multiple seeds.
+7. **Forced Tier-1 streaming.** Artificially cap VRAM on the small model; prove
+   double-buffered weight/gradient transfer, overlap and exact results.
+8. **Checkpointed activations.** Prove recomputation independently, then compose
+   it with Tier-1 streaming.
+9. **Layer-major accumulation.** Reuse each loaded layer across microbatches;
+   measure the activation-versus-transfer tradeoff.
+10. **E4B Tier-1 training.** Compile a measured BF16 schedule; train only after
+    peak memory and recovery gates pass.
+11. **Quantized transport.** Admit FP8 and other policies incrementally against
+    the BF16 E4B baseline.
+12. **Hybrid backward.** Add SSM/GDN and gated-attention VJPs only for a concrete
+    Qwen training objective.
+13. **12B scale-up.** Attempt RAM-resident or compressed Tier-1 training only
+    after measured headroom exists.
+14. **NVMe optimizer paging.** Last-resort experiment with explicit latency,
+    write-volume and endurance budgets.
+
+## 11. Model ladder
+
+| Model or family | Near-term role | Initial tier | Admission condition |
+|---|---|---:|---|
+| Dense fixture | Numerical/device plumbing | VRAM | Forward/backward/update parity |
+| Fractale-350M, Carbon-500M or Qwen2.5-0.5B | Controller candidate | VRAM | Exact resume and promotion-suite definition |
+| SimpleDiffusion, Un-0, pocket-tts | Family-specific training validation | VRAM | Existing host step evidence promoted to device program |
+| MiniCPM5-1B | Resident scale validation | VRAM | Measured peak below safe capacity class |
+| Gemma3n E4B | Tier-1 scale target | RAM offload | Device backward, checkpointing and streamed optimizer complete |
+| Qwen3.5 4B/9B | Optional hybrid training | RAM offload | Concrete objective plus SSM/GDN and gated-attention VJPs |
+| Gemma4 12B | Late scale target | RAM, optional NVMe | Measured state layout and safe host headroom |
+| Wan, RxBrain, SenseNova, Krea | Serving/generation | N/A | No training work without an approved learning objective |
+| TimesFM, TabFM, needle | Serving/evaluation | N/A | Add only with a concrete fine-tuning recipe and dataset |
+
+Parameter counts and fit decisions come from compiled model inventory and measured
+state schemas. This table expresses sequence, not authoritative byte counts.
+
+## 12. Evidence and promotion gates
+
+Every rung records:
+
+- exact artifact and source revision identities;
+- hardware, driver and capacity class;
+- compiled program and calibration identities;
+- peak VRAM and host-RAM usage;
+- bytes transferred by direction and tier;
+- forward, backward, recompute, transfer and optimizer timing;
+- numerical parity and convergence measurements;
+- checkpoint/resume evidence;
+- evaluation results across required seeds;
+- explicit pass, halt or rollback decision.
+
+A result is not promoted when evidence is missing, stale, hardware-incompatible or
+derived from mutable datasets. Performance claims compare the same model, data,
+seed, precision, objective and stopping rule.
+
+## 13. Non-goals for the first milestone
+
+- Training every model that Overgo can serve.
+- Pretraining a general language model from scratch.
+- Treating inference quantization as proven training quantization.
+- Hiding NVMe traffic behind theoretical peak-compute arithmetic.
+- Mixing optimizer families or silently routing parameter shapes to another
+  optimizer.
+- Using model-family fallbacks outside compiled training authority.
+- Accepting one seed, one batch or monotonic training loss as promotion evidence.
+
+The plan succeeds first when the controller learning loop is trustworthy. Larger
+models then validate that the same compiled contracts and evidence gates scale
+through the memory hierarchy.

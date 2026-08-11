@@ -102,7 +102,7 @@ func (m *Model) deviceLayerBackward(worker *device.Worker, index int, x, dOut []
 	p := deviceCausalSoftmaxGQA(tr.qScaled, tr.kRoped, seq, d.Heads, d.KVHeads, d.HeadDim)
 
 	// --- MLP branch backward ---
-	mlp, err := devicemath.GatedMLPBackwardT(worker, hn, l.gate, l.up, l.down, gate, a, up, hMLP, dOut, seq, d.Hidden, d.Intermediate)
+	mlp, err := devicemath.GatedMLPBackwardTResident(worker, hn, l.gate, l.up, l.down, gate, a, up, hMLP, dOut, seq, d.Hidden, d.Intermediate)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func (m *Model) deviceLayerBackward(worker *device.Worker, index int, x, dOut []
 		return nil, err
 	}
 	copy(g.slot(prefix+"self_attn.o_proj.weight", d.Hidden*width), dWo)
-	dq, dk, dv, err := devicemath.MultiHeadAttentionBackward(worker, tr.qScaled, tr.kRoped, tr.v, p, dAttnCore, seq, d.Heads, d.KVHeads, d.HeadDim, 1.0)
+	dq, dk, dv, err := devicemath.MultiHeadAttentionBackwardResident(worker, tr.qScaled, tr.kRoped, tr.v, p, dAttnCore, seq, d.Heads, d.KVHeads, d.HeadDim, 1.0)
 	if err != nil {
 		return nil, err
 	}

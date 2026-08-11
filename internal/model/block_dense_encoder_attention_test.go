@@ -1663,7 +1663,7 @@ func TestBuildQwen35AttentionBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := qwen35TestSpec()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
-	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+	result, err := buildQwen35BlockWithOptions(qwen35BlockOptions{
 		Builder: builder, Input: input, Spec: spec, Weights: qwen35AttentionInputs(builder, spec),
 		Positions: []uint32{0, 1}, Sequences: 1, CacheWrite: tensor.CacheWriteConcat,
 	})
@@ -1719,7 +1719,7 @@ func TestBuildQwen35PackedAttentionBlock(t *testing.T) {
 	pastValue := builder.Input(
 		"past_value", dtype.F32, tensor.MustShape(keyWidth, keyHeads, pastTokens, sequenceCount),
 	)
-	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+	result, err := buildQwen35BlockWithOptions(qwen35BlockOptions{
 		Builder: builder, Input: input, Spec: spec, Weights: qwen35AttentionInputs(builder, spec),
 		Positions: []uint32{position}, Sequences: sequenceCount,
 		PastKey: pastKey, PastValue: pastValue, CacheWrite: tensor.CacheWriteConcat,
@@ -1739,7 +1739,7 @@ func TestBuildQwen35AttentionBlockUsesDistinctMRoPEPositions(t *testing.T) {
 	spec := qwen35TestSpec()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
-	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+	result, err := buildQwen35BlockWithOptions(qwen35BlockOptions{
 		Builder: builder, Input: input, Spec: spec, Weights: qwen35AttentionInputs(builder, spec),
 		Positions: positions[0], MultiPositions: &positions, Sequences: 1,
 		CacheWrite: tensor.CacheWriteConcat,

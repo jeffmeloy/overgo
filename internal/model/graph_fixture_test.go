@@ -38,7 +38,7 @@ func fixtureDraftProgram(
 	return draft
 }
 
-type Qwen35BlockOptions struct {
+type qwen35BlockOptions struct {
 	Builder        *tensor.Builder
 	Input          *tensor.Tensor
 	Spec           Spec
@@ -59,7 +59,7 @@ type qwen35BlockFixtureResult struct {
 	Recurrent                               bool
 }
 
-func BuildQwen35BlockWithOptions(options Qwen35BlockOptions) (qwen35BlockFixtureResult, error) {
+func buildQwen35BlockWithOptions(options qwen35BlockOptions) (qwen35BlockFixtureResult, error) {
 	plan := options.Spec.PlanLayer(0, options.Recurrent)
 	pastKey, pastValue := options.PastKey, options.PastValue
 	if options.Recurrent {

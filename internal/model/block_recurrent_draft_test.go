@@ -487,7 +487,7 @@ func TestBuildQwen35RecurrentBlock(t *testing.T) {
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 2, 2, 1))
-	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+	result, err := buildQwen35BlockWithOptions(qwen35BlockOptions{
 		Builder: builder, Input: input, Spec: spec, Weights: qwen35RecurrentInputs(builder, spec),
 		Positions: []uint32{0, 1}, Sequences: 1, Recurrent: true,
 		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
@@ -540,7 +540,7 @@ func TestBuildQwen35PackedRecurrentBlock(t *testing.T) {
 		string(CacheStateSSM), dtype.F32,
 		tensor.MustShape(stateWidth, stateWidth, valueHeads, sequenceCount),
 	)
-	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+	result, err := buildQwen35BlockWithOptions(qwen35BlockOptions{
 		Builder: builder, Input: input, Spec: spec, Weights: qwen35RecurrentInputs(builder, spec),
 		Positions: []uint32{position}, Sequences: sequenceCount, Recurrent: true,
 		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
@@ -579,7 +579,7 @@ func TestBuildQwen35MoEBlocks(t *testing.T) {
 				ssmState = builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 2, 2, 1))
 			}
 			setQwen35MoEInputs(builder, spec, &weights)
-			result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+			result, err := buildQwen35BlockWithOptions(qwen35BlockOptions{
 				Builder: builder, Input: input, Spec: spec, Weights: weights,
 				Positions: []uint32{0, 1}, Sequences: 1, Recurrent: recurrent,
 				ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
@@ -638,7 +638,7 @@ func TestBuildQwen3NextBlocks(t *testing.T) {
 				ssmState = builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 2, 2, 1))
 			}
 			setQwen35MoEInputs(builder, spec, &weights)
-			result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+			result, err := buildQwen35BlockWithOptions(qwen35BlockOptions{
 				Builder: builder, Input: input, Spec: spec, Weights: weights,
 				Positions: []uint32{0, 1}, Sequences: 1, Recurrent: recurrent,
 				ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
@@ -692,7 +692,7 @@ func TestBuildQwen3NextLegacyQKVZBlock(t *testing.T) {
 	setQwen35MoEInputs(builder, spec, &weights)
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 2, 2, 1))
-	result, err := BuildQwen35BlockWithOptions(Qwen35BlockOptions{
+	result, err := buildQwen35BlockWithOptions(qwen35BlockOptions{
 		Builder: builder, Input: input, Spec: spec, Weights: weights,
 		Positions: []uint32{0, 1}, Sequences: 1, Recurrent: true,
 		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,

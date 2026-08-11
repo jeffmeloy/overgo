@@ -624,14 +624,20 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	spec := modeltest.Qwen35().Spec
 	spec.Architecture = "qwen35moe"
 	spec.NextNPredictLayers = 1
-	dense := spec
-	dense.Architecture = "qwen35"
+	program, err := model.CompileModelPlan(spec, model.Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := program.DraftProgram(spec, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	token := builder.Input("mtp_token", dtype.F32, tensor.MustShape(8, 1))
 	hidden := builder.Input("mtp_hidden", dtype.F32, tensor.MustShape(8, 1))
 	embeddingNorm := builder.Input("mtp_enorm", dtype.F32, tensor.MustShape(8))
 	hiddenNorm := builder.Input("mtp_hnorm", dtype.F32, tensor.MustShape(8))
 	projection := builder.Input("mtp_eh", dtype.F32, tensor.MustShape(16, 8))
-	weights, feeds := qwen35ExecutorWeights(builder, dense, false)
+	weights, feeds := qwen35ExecutorWeights(builder, draft.Spec, false)
 	for node, value := range map[*tensor.Tensor]reference.Value{
 		token:         patternedValue(token.Shape, 7, 0.03, -0.04),
 		hidden:        patternedValue(hidden.Shape, 11, 0.04, 0.02),
@@ -647,9 +653,14 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	block, err := model.BuildQwen35MTPBlockCached(
-		builder, current, spec, weights, []uint32{19}, nil, nil, dense.PlanLayer(0, false),
-	)
+	plan := draft.Plan
+	block, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: draft.Spec, Weights: weights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: current, Positions: []uint32{19}, Layer: plan.Layer,
+			CacheWrite: tensor.CacheWriteConcat, Sequences: 1,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

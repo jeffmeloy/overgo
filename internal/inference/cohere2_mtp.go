@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"overgo/internal/model"
-	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -70,15 +69,15 @@ func (r *Runner) AdvanceCohere2MTP(
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
 	mtp := r.weights.Cohere2MTP
+	draftProgram, err := r.draftLayerProgram(0)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
 	return r.advanceSingleHeadMTP(ctx, tokenID, session, singleHeadMTPAdapter{
 		nodePrefix: "cohere2_mtp", layer: mtp.Layer,
 		embeddingNorm: mtp.EmbeddingNorm, hiddenNorm: mtp.HiddenNorm, project: mtp.EHProjection,
 		tokenEmbedding: mtp.TokenEmbedding, outputNorm: mtp.OutputNorm, output: mtp.Output,
-		buildInput: model.BuildCohere2MTPInput,
-		buildBlock: func(builder *tensor.Builder, input *tensor.Tensor, spec model.Spec, weights model.LayerGraphWeights, positions []uint32, pastKey, pastValue *tensor.Tensor) (singleHeadMTPBlock, error) {
-			block, err := model.BuildCohere2MTPBlockCached(builder, input, spec, weights, positions, pastKey, pastValue)
-			return singleHeadMTPBlock{output: block.Output, key: block.Key, value: block.Value}, err
-		},
+		buildInput: model.BuildCohere2MTPInput, buildBlock: compiledDraftBlock(draftProgram),
 		buildOutputs: model.BuildCohere2MTPOutputs,
 	})
 }

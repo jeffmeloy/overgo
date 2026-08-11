@@ -20,7 +20,7 @@ func TestBuildQwen35MTPPipeline(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			plan, err := program.DraftLayer(0)
+			draft, err := program.DraftProgram(spec, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -37,8 +37,9 @@ func TestBuildQwen35MTPPipeline(t *testing.T) {
 			}
 			weightSpec := spec
 			weightSpec.Architecture = "qwen35"
-			block, err := BuildQwen35MTPBlockCached(
-				builder, current, spec, qwen35AttentionInputs(builder, weightSpec), []uint32{7}, nil, nil, plan,
+			block, err := buildFixtureLayerWithPlan(
+				builder, current, draft.Spec, qwen35AttentionInputs(builder, weightSpec),
+				[]uint32{7}, nil, nil, draft.Plan,
 			)
 			if err != nil {
 				t.Fatal(err)

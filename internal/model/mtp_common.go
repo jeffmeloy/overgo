@@ -33,6 +33,23 @@ var (
 	}
 )
 
+func singleDraftExecutableSpec(spec Spec, kind DraftKind) (Spec, uint32) {
+	switch kind {
+	case DraftQwen35MTP:
+		profile, _ := LookupArchitecture("qwen35")
+		spec.Architecture = profile.Name
+		return spec.withProfile(profile), 0
+	case DraftCohere2MTP:
+		layer := spec.BlockCount
+		spec.BlockCount++
+		spec.LeadingDenseBlocks = spec.BlockCount
+		spec.SlidingWindow = 0
+		return spec, layer
+	default:
+		return spec, spec.BlockCount
+	}
+}
+
 func (p mtpPolicy) valid(spec Spec, offset uint32) bool {
 	plan := spec.Profile().DraftPlan(spec.NextNPredictLayers)
 	return plan.Kind == p.kind && plan.HasHead(offset) && (!p.single || offset == 0 && plan.SessionEligible())

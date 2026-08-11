@@ -28,6 +28,24 @@ type singleHeadMTPAdapter struct {
 	buildOutputs                       func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, *tensor.Tensor, error)
 }
 
+func compiledDraftBlock(
+	program model.DraftLayerProgram,
+) func(*tensor.Builder, *tensor.Tensor, model.Spec, model.LayerGraphWeights, []uint32, *tensor.Tensor, *tensor.Tensor) (singleHeadMTPBlock, error) {
+	return func(builder *tensor.Builder, input *tensor.Tensor, _ model.Spec, weights model.LayerGraphWeights,
+		positions []uint32, pastKey, pastValue *tensor.Tensor) (singleHeadMTPBlock, error) {
+		plan := program.Plan
+		block, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+			Spec: program.Spec, Weights: weights, Plan: &plan,
+			Context: model.CachedBlockContext{
+				Builder: builder, Input: input, Positions: positions,
+				PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
+				CacheWrite: tensor.CacheWriteConcat, Sequences: 1,
+			},
+		})
+		return singleHeadMTPBlock{output: block.Output, key: block.Key, value: block.Value}, err
+	}
+}
+
 func (r *Runner) hasDraftSession(kind model.DraftKind, catalogs int) bool {
 	if r == nil {
 		return false

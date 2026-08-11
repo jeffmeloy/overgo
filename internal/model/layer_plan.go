@@ -574,9 +574,10 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		for offset := range plan.draftLayers {
 			plan.draftLayers[offset] = executable.PlanLayer(spec.BlockCount+uint32(offset), false)
 		}
-	} else if plan.draft.Kind == DraftQwen35MTP && plan.draft.SessionEligible() {
-		executable := qwen35MTPExecutableSpec(spec)
-		plan.draftLayers = []LayerPlan{executable.PlanLayer(0, false)}
+	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
+		(plan.draft.Kind != DraftCohere2MTP || weights.Cohere2MTP != nil) {
+		executable, layer := singleDraftExecutableSpec(spec, plan.draft.Kind)
+		plan.draftLayers = []LayerPlan{executable.PlanLayer(layer, false)}
 	}
 	if err := validateModelPlan(spec, weights, plan); err != nil {
 		return ModelPlan{}, err
@@ -597,7 +598,8 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	wantDraftLayers := 0
 	if plan.draft.AppendedBlocks {
 		wantDraftLayers = int(plan.draft.Heads)
-	} else if plan.draft.Kind == DraftQwen35MTP && plan.draft.SessionEligible() {
+	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
+		(plan.draft.Kind != DraftCohere2MTP || weights.Cohere2MTP != nil) {
 		wantDraftLayers = 1
 	}
 	if len(plan.draftLayers) != wantDraftLayers {
@@ -738,6 +740,29 @@ func (p ModelPlan) DraftLayer(offset uint32) (LayerPlan, error) {
 		return LayerPlan{}, fmt.Errorf("model plan draft layer %d is unavailable", offset)
 	}
 	return p.draftLayers[offset], nil
+}
+
+// DraftLayerProgram: executable spec plus compiled draft layer.
+type DraftLayerProgram struct {
+	Spec Spec
+	Plan LayerPlan
+}
+
+// DraftProgram: bounds-checked executable draft contract.
+func (p ModelPlan) DraftProgram(spec Spec, offset uint32) (DraftLayerProgram, error) {
+	if p.profile.Name == "" || spec.Architecture != p.profile.Name {
+		return DraftLayerProgram{}, fmt.Errorf(
+			"model plan profile %q does not match draft spec %q", p.profile.Name, spec.Architecture,
+		)
+	}
+	layer, err := p.DraftLayer(offset)
+	if err != nil {
+		return DraftLayerProgram{}, err
+	}
+	if p.draft.SingleCatalog {
+		spec, _ = singleDraftExecutableSpec(spec, p.draft.Kind)
+	}
+	return DraftLayerProgram{Spec: spec, Plan: layer}, nil
 }
 
 // CacheSchema: materialized compiled layer-cache contract.

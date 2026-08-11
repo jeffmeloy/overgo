@@ -1,10 +1,6 @@
 package model
 
-import (
-	"errors"
-
-	"overgo/internal/tensor"
-)
+import "overgo/internal/tensor"
 
 // BuildCohere2MTPInput: normalized token/hidden fusion.
 func BuildCohere2MTPInput(
@@ -14,28 +10,6 @@ func BuildCohere2MTPInput(
 ) (*tensor.Tensor, error) {
 	return buildMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection, spec,
-		cohere2MTPPolicy, 0,
-	)
-}
-
-// BuildCohere2MTPBlockCached: full-attention routed draft block.
-func BuildCohere2MTPBlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue *tensor.Tensor,
-) (DenseBlockResult, error) {
-	if weights.FeedForwardRouter == nil {
-		return DenseBlockResult{}, errors.New("Cohere2-MoE MTP block is invalid")
-	}
-	mtp := spec
-	mtp.BlockCount++
-	mtp.LeadingDenseBlocks = mtp.BlockCount
-	mtp.SlidingWindow = 0
-	return buildMTPDenseBlock(
-		builder, input, spec, mtp, weights, positions, pastKey, pastValue,
 		cohere2MTPPolicy, 0,
 	)
 }

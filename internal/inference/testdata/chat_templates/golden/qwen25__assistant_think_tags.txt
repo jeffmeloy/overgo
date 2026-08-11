@@ -1,0 +1,13 @@
+<|im_start|>system
+You are a helpful assistant.<|im_end|>
+<|im_start|>user
+Q<|im_end|>
+<|im_start|>assistant
+<think>
+reason here
+</think>
+
+final answer<|im_end|>
+<|im_start|>user
+more<|im_end|>
+<|im_start|>assistant

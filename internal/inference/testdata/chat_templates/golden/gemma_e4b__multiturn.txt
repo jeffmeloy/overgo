@@ -1,0 +1,10 @@
+<|turn>system
+<|think|>
+Be concise.<turn|>
+<|turn>user
+Hi<turn|>
+<|turn>model
+Hello there<turn|>
+<|turn>user
+Weather?<turn|>
+<|turn>model

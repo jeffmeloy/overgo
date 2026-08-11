@@ -1,0 +1,6 @@
+<|turn>system
+<|think|>
+Be concise.<turn|>
+<|turn>user
+Hello<turn|>
+<|turn>model

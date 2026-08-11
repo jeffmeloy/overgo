@@ -1,0 +1,7 @@
+<|turn>system
+Be concise.<turn|>
+<|turn>user
+Hello<turn|>
+<|turn>model
+<|channel>thought
+<channel|>

@@ -1,0 +1,8 @@
+<|turn>system
+<|think|>
+quote " and 'apos' & <lt> \slash\ tab	end<turn|>
+<|turn>user
+unicode café 日本語 
+ newline
+ line2<turn|>
+<|turn>model

@@ -1,0 +1,10 @@
+<｜hy_User｜>Q/no_think<｜hy_Assistant｜><think>
+
+</think>
+<answer>
+<think>
+reason here
+</think>
+
+final answer
+</answer></s><｜hy_User｜>more/think<｜hy_Assistant｜><think>

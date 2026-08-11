@@ -1,0 +1,6 @@
+Be concise.<｜hy_place▁holder▁no▁3｜><｜hy_User｜>Hi/no_think<｜hy_Assistant｜><think>
+
+</think>
+<answer>
+Hello there
+</answer></s><｜hy_User｜>Weather?/think<｜hy_Assistant｜><think>

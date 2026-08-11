@@ -8,12 +8,6 @@ import (
 	"io"
 	"sort"
 	"strings"
-	"time"
-
-	"github.com/nikolalohinski/gonja/v2"
-	"github.com/nikolalohinski/gonja/v2/config"
-	"github.com/nikolalohinski/gonja/v2/exec"
-	"github.com/nikolalohinski/gonja/v2/loaders"
 )
 
 const (
@@ -345,7 +339,7 @@ func (r *Runner) FormatChatWithOptions(
 		}
 	}
 	if source != "" {
-		return r.formatJinjaChat(source, messages, options)
+		return r.formatJinjaChatNative(source, messages, options)
 	}
 	if len(options.Tools) != 0 {
 		return "", errors.New("inference: tools require a GGUF Jinja chat template")
@@ -373,50 +367,46 @@ func (r *Runner) FormatChatWithOptions(
 	return "", errors.New("inference: vocabulary has no supported chat-template boundaries")
 }
 
-func (r *Runner) formatJinjaChat(
+// buildChatContext assembles the template variable context shared by the gonja
+// and stdlib (internal/jinja) rendering paths. Messages and tools are []any so
+// both engines iterate them identically.
+func (r *Runner) buildChatContext(
 	source string,
 	messages []ChatMessage,
 	options ChatFormatOptions,
-) (string, error) {
-	if len(messages) == 0 {
-		return "", errors.New("inference: chat message list is empty")
-	}
-	if len(source) > maxChatTemplateBytes {
-		return "", errors.New("inference: chat template exceeds 1 MiB")
-	}
-	source = normalizeChatTemplateSource(source)
-	wireMessages := make([]map[string]any, len(messages))
+) (map[string]any, error) {
+	wireMessages := make([]any, len(messages))
 	for index, message := range messages {
 		switch message.Role {
 		case "system", "user", "assistant", "tool":
 		default:
-			return "", fmt.Errorf(
+			return nil, fmt.Errorf(
 				"inference: chat message %d has unsupported role %q",
 				index,
 				message.Role,
 			)
 		}
-		wireMessages[index] = map[string]any{
+		wire := map[string]any{
 			"role":    message.Role,
 			"content": message.Content,
 		}
 		if message.ReasoningContent != "" {
-			wireMessages[index]["reasoning_content"] = message.ReasoningContent
+			wire["reasoning_content"] = message.ReasoningContent
 		}
 		if message.Name != "" {
-			wireMessages[index]["name"] = message.Name
+			wire["name"] = message.Name
 		}
 		if message.ToolCallID != "" {
-			wireMessages[index]["tool_call_id"] = message.ToolCallID
+			wire["tool_call_id"] = message.ToolCallID
 		}
 		if message.ToolResultError {
-			wireMessages[index]["is_error"] = true
+			wire["is_error"] = true
 		}
 		if len(message.ToolCalls) != 0 {
-			calls := make([]chatTemplateToolCall, len(message.ToolCalls))
+			calls := make([]any, len(message.ToolCalls))
 			for callIndex, call := range message.ToolCalls {
 				if err := validateChatToolCall(call); err != nil {
-					return "", fmt.Errorf(
+					return nil, fmt.Errorf(
 						"inference: chat message %d tool_call %d: %w",
 						index,
 						callIndex,
@@ -435,37 +425,20 @@ func (r *Runner) formatJinjaChat(
 					arguments: arguments,
 				}
 			}
-			wireMessages[index]["tool_calls"] = calls
+			wire["tool_calls"] = calls
 		}
+		wireMessages[index] = wire
 	}
-	wireTools := make([]chatTemplateTool, len(options.Tools))
+	wireTools := make([]any, len(options.Tools))
 	for index, tool := range options.Tools {
 		if err := validateChatTool(tool); err != nil {
-			return "", fmt.Errorf("inference: chat tool %d: %w", index, err)
+			return nil, fmt.Errorf("inference: chat tool %d: %w", index, err)
 		}
 		wireTools[index] = chatTemplateTool{tool: tool}
 	}
-	const identifier = "/tokenizer.chat_template"
-	loader, err := loaders.NewMemoryLoader(map[string]string{
-		identifier: source,
-	})
-	if err != nil {
-		return "", fmt.Errorf("inference: initialize chat-template loader: %w", err)
-	}
-	configuration := config.New()
-	configuration.AutoEscape = false
-	template, err := exec.NewTemplate(
-		identifier,
-		configuration,
-		loader,
-		newChatTemplateEnvironment(),
-	)
-	if err != nil {
-		return "", fmt.Errorf("inference: parse GGUF chat template: %w", err)
-	}
 	bos := vocabularyTokenText(r.vocab, r.vocab.BOS)
 	eos := vocabularyTokenText(r.vocab, r.vocab.EOS)
-	context := exec.NewContext(map[string]any{
+	return map[string]any{
 		"messages":              wireMessages,
 		"bos_token":             bos,
 		"eos_token":             eos,
@@ -473,19 +446,7 @@ func (r *Runner) formatJinjaChat(
 		"enable_thinking":       options.EnableThinking,
 		"tools":                 wireTools,
 		"documents":             nil,
-	})
-	writer := &boundedStringWriter{limit: maxFormattedChatBytes}
-	if err := template.Execute(writer, context); err != nil {
-		return "", fmt.Errorf("inference: execute GGUF chat template: %w", err)
-	}
-	result := writer.String()
-	if r.vocab.AddBOS && bos != "" {
-		result = strings.TrimPrefix(result, bos)
-	}
-	if result == "" {
-		return "", errors.New("inference: chat template produced an empty prompt")
-	}
-	return result, nil
+	}, nil
 }
 
 func validateChatTool(tool ChatTool) error {
@@ -501,23 +462,13 @@ func validateChatTool(tool ChatTool) error {
 	return nil
 }
 
+// chatTemplateTool, chatTemplateToolFunction, chatTemplateToolCall, and
+// chatTemplateCallFunction adapt chat tools/calls for template access. Their
+// JinjaGet methods (see chat_jinja.go) expose attribute/item access to the
+// stdlib interpreter; their unexported fields make encoding/json emit "{}",
+// matching gonja's tojson fallback for these opaque objects.
 type chatTemplateTool struct {
 	tool ChatTool
-}
-
-func (t chatTemplateTool) GetAttribute(name string) (*exec.Value, bool) {
-	return t.GetItem(name)
-}
-
-func (t chatTemplateTool) GetItem(key any) (*exec.Value, bool) {
-	switch key {
-	case "type":
-		return exec.AsValue("function"), true
-	case "function":
-		return exec.AsValue(chatTemplateToolFunction{definition: t.tool.Function}), true
-	default:
-		return exec.AsValue(nil), false
-	}
 }
 
 type chatTemplateToolFunction struct {
@@ -529,95 +480,9 @@ type chatTemplateToolCall struct {
 	arguments any
 }
 
-func (c chatTemplateToolCall) GetAttribute(name string) (*exec.Value, bool) {
-	return c.GetItem(name)
-}
-
-func (c chatTemplateToolCall) GetItem(key any) (*exec.Value, bool) {
-	switch key {
-	case "id":
-		if c.call.ID == "" {
-			return exec.AsValue(nil), false
-		}
-		return exec.AsValue(c.call.ID), true
-	case "type":
-		return exec.AsValue("function"), true
-	case "function":
-		return exec.AsValue(chatTemplateCallFunction{
-			function:  c.call.Function,
-			arguments: c.arguments,
-		}), true
-	default:
-		return exec.AsValue(nil), false
-	}
-}
-
 type chatTemplateCallFunction struct {
 	function  ChatToolFunction
 	arguments any
-}
-
-func (f chatTemplateCallFunction) GetAttribute(name string) (*exec.Value, bool) {
-	return f.GetItem(name)
-}
-
-func (f chatTemplateCallFunction) GetItem(key any) (*exec.Value, bool) {
-	switch key {
-	case "name":
-		return exec.AsValue(f.function.Name), true
-	case "arguments":
-		return exec.AsValue(f.arguments), true
-	default:
-		return exec.AsValue(nil), false
-	}
-}
-
-func (f chatTemplateToolFunction) GetAttribute(name string) (*exec.Value, bool) {
-	return f.GetItem(name)
-}
-
-func (f chatTemplateToolFunction) GetItem(key any) (*exec.Value, bool) {
-	switch key {
-	case "name":
-		return exec.AsValue(f.definition.Name), true
-	case "description":
-		return exec.AsValue(f.definition.Description), true
-	case "parameters":
-		return exec.AsValue(f.definition.Parameters), true
-	default:
-		return exec.AsValue(nil), false
-	}
-}
-
-func newChatTemplateEnvironment() *exec.Environment {
-	filters := exec.NewFilterSet(map[string]exec.FilterFunction{}).
-		Update(gonja.DefaultEnvironment.Filters)
-	context := exec.EmptyContext().Update(gonja.DefaultEnvironment.Context)
-	context.Set("raise_exception", chatTemplateRaiseException)
-	context.Set("strftime_now", newChatTemplateStrftime(time.Now()))
-	fallback, _ := filters.Get("tojson")
-	_ = filters.Replace(
-		"tojson",
-		func(
-			evaluator *exec.Evaluator,
-			input *exec.Value,
-			parameters *exec.VarArgs,
-		) *exec.Value {
-			if len(parameters.Args) != 0 || len(parameters.KwArgs) != 0 {
-				return fallback(evaluator, input, parameters)
-			}
-			var output strings.Builder
-			writeChatTemplateJSON(&output, input.Interface())
-			return exec.AsSafeValue(output.String())
-		},
-	)
-	return &exec.Environment{
-		Context:           context,
-		Filters:           filters,
-		Tests:             gonja.DefaultEnvironment.Tests,
-		ControlStructures: gonja.DefaultEnvironment.ControlStructures,
-		Methods:           gonja.DefaultEnvironment.Methods,
-	}
 }
 
 func writeChatTemplateJSON(output *strings.Builder, value any) {
@@ -721,22 +586,6 @@ func normalizeChatTemplateSource(source string) string {
 func chatTemplateUsesObjectArguments(source string) bool {
 	return strings.Contains(source, "tool_call.arguments") &&
 		strings.Contains(source, "| tojson")
-}
-
-type boundedStringWriter struct {
-	builder strings.Builder
-	limit   int
-}
-
-func (w *boundedStringWriter) Write(data []byte) (int, error) {
-	if len(data) > w.limit-w.builder.Len() {
-		return 0, errors.New("formatted chat prompt exceeds 16 MiB")
-	}
-	return w.builder.Write(data)
-}
-
-func (w *boundedStringWriter) String() string {
-	return w.builder.String()
 }
 
 func formatChatML(messages []ChatMessage) (string, error) {

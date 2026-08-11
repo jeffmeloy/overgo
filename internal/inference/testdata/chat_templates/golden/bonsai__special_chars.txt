@@ -1,0 +1,8 @@
+<|im_start|>system
+quote " and 'apos' & <lt> \slash\ tab	end<|im_end|>
+<|im_start|>user
+unicode café 日本語 
+ newline
+ line2<|im_end|>
+<|im_start|>assistant
+<think>

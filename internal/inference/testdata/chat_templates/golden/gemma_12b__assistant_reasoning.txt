@@ -1,0 +1,10 @@
+<|turn>system
+<|think|>
+<turn|>
+<|turn>user
+Q<turn|>
+<|turn>model
+answer<turn|>
+<|turn>user
+again<turn|>
+<|turn>model

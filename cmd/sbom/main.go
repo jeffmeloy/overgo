@@ -147,19 +147,8 @@ func generate(root string) ([]byte, error) {
 
 func moduleLicense(path string) string {
 	switch path {
-	case "github.com/dustin/go-humanize",
-		"github.com/dlclark/regexp2/v2",
-		"github.com/json-iterator/go",
-		"github.com/nikolalohinski/gonja/v2",
-		"github.com/sirupsen/logrus":
+	case "github.com/dlclark/regexp2/v2":
 		return "MIT"
-	case "github.com/modern-go/concurrent",
-		"github.com/modern-go/reflect2":
-		return "Apache-2.0"
-	case "github.com/pkg/errors":
-		return "BSD-2-Clause"
-	case "golang.org/x/exp", "golang.org/x/sys", "golang.org/x/text":
-		return "BSD-3-Clause"
 	default:
 		return "NOASSERTION"
 	}

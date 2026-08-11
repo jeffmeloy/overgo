@@ -1,0 +1,6 @@
+<｜hy_User｜>Q/no_think<｜hy_Assistant｜><think>
+
+</think>
+<answer>
+answer
+</answer></s><｜hy_User｜>again/think<｜hy_Assistant｜><think>

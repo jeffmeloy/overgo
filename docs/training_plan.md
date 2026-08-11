@@ -354,7 +354,10 @@ not redefine an earlier rung's correctness contract.
    per-operator backward kernels (matmul, normalization, activation, attention),
    each grad-parity gated against the FD-verified host VJPs before the rung is
    marked done. Size the rung accordingly rather than treating "backward" as one
-   step.
+   step. Grounded kernel decomposition and slice order: see
+   [device_training_rung2.md](device_training_rung2.md) (host loop is the fp64
+   oracle; device fp32 slices are tolerance-gated; first slice = device
+   Newton-Schulz via cuBLAS).
 3. **Exact recovery.** Implement both checkpoint schemas and bitwise or bounded
    uninterrupted-versus-resumed trajectory tests.
 4. **Mixed-precision resident training.** BF16 compute with FP32 accumulation;

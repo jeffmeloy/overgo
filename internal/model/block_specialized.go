@@ -652,8 +652,8 @@ func buildTokenShiftFeedForwardMix(
 	return DenseBlockResult{Output: channel, Key: nextShift}, nil
 }
 
-// buildKimiKDAMixCached: recurrent KDA mixer.
-func buildKimiKDAMixCached(
+// buildKeyedDeltaAttentionMixCached: convolutional keyed-delta recurrence.
+func buildKeyedDeltaAttentionMixCached(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	spec Spec,
@@ -661,11 +661,8 @@ func buildKimiKDAMixCached(
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if spec.Profile().Block != BlockKimiLinear {
-		return DenseBlockResult{}, errors.New("Kimi Linear block requires kimi-linear architecture")
-	}
 	if builder == nil || normalized == nil || pastKey == nil || pastValue == nil {
-		return DenseBlockResult{}, errors.New("Kimi Linear KDA input/state is nil")
+		return DenseBlockResult{}, errors.New("keyed-delta attention input/state is nil")
 	}
 	required := graphWeights{
 		requireGraphWeight("attention Q", weights.AttentionQ),
@@ -684,11 +681,11 @@ func buildKimiKDAMixCached(
 		requireGraphWeight("output gate B", weights.SSMOutputGateB),
 		requireGraphWeight("SSM norm", weights.SSMNorm),
 	}
-	if err := required.validate("Kimi Linear KDA"); err != nil {
+	if err := required.validate("keyed-delta attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if normalized.Shape.Rank != 2 || len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Kimi Linear KDA input shape is invalid")
+		return DenseBlockResult{}, errors.New("keyed-delta attention input shape is invalid")
 	}
 	headDim := uint64(spec.KDAHeadDim)
 	heads := uint64(spec.HeadCount)
@@ -697,7 +694,7 @@ func buildKimiKDAMixCached(
 	window := uint64(spec.SSMConvKernel - 1)
 	if !pastKey.Shape.Equal(tensor.MustShape(window, 3*inner)) ||
 		!pastValue.Shape.Equal(tensor.MustShape(headDim, headDim, heads, 1)) {
-		return DenseBlockResult{}, errors.New("Kimi Linear KDA cache shape is invalid")
+		return DenseBlockResult{}, errors.New("keyed-delta attention cache shape is invalid")
 	}
 	convolve := func(projection, kernel *tensor.Tensor, stateIndex uint64) (*tensor.Tensor, *tensor.Tensor) {
 		state := builder.FlatSlice(pastKey, stateIndex*window*inner, window, inner)

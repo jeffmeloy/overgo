@@ -310,7 +310,7 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 	}
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
-	if mixer.Operator != LayerOperatorLinearAttention ||
+	if mixer.Operator != LayerOperatorRecurrentMix || mixer.Recurrent != RecurrentMixKeyedDeltaAttention ||
 		feedForward.FeedForward != FeedForwardMixStandardSwiGLU {
 		t.Fatalf("Kimi recurrent policies = %+v/%+v", mixer, feedForward)
 	}

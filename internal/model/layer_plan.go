@@ -52,7 +52,6 @@ type LayerOperator uint8
 const (
 	LayerOperatorNone LayerOperator = iota
 	LayerOperatorAttentionInputNorm
-	LayerOperatorLinearAttention
 	LayerOperatorLatentAttention
 	LayerOperatorHyperAttention
 	LayerOperatorHyperFeedForward
@@ -94,6 +93,7 @@ const (
 	RecurrentMixDynamicWKV6
 	RecurrentMixAffineWKV6
 	RecurrentMixDynamicWKV7
+	RecurrentMixKeyedDeltaAttention
 )
 
 // AttentionMixPolicy: attention operator implementation.
@@ -1001,10 +1001,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			)
 		}
 		return residualMixerProgram(
-			leafLayerStage(
-				LayerOperatorLinearAttention,
-				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
-			),
+			recurrentLayerStage(RecurrentMixKeyedDeltaAttention, false),
 			FeedForwardMixStandardSwiGLU, false,
 		)
 	case BlockMLA:

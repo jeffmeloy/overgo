@@ -374,6 +374,11 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1], plan,
 			)
+		case RecurrentMixKeyedDeltaAttention:
+			result, err = buildKeyedDeltaAttentionMixCached(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1],
+			)
 		default:
 			return errors.New("compiled recurrent-mixing policy is invalid")
 		}
@@ -600,21 +605,6 @@ func executeLayerInstruction(
 			execution.result.Output = execution.current
 		}
 		return c.Builder.Err()
-	case LayerOperatorLinearAttention:
-		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||
-			plan.Block != BlockKimiLinear || !plan.Recurrent {
-			return errors.New("compiled linear-attention stage is invalid")
-		}
-		result, err := buildKimiKDAMixCached(
-			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1],
-		)
-		if err != nil {
-			return err
-		}
-		execution.current = result.Output
-		execution.result = result
-		return nil
 	case LayerOperatorLatentAttention:
 		valid := instruction.CacheCount == 2 && instruction.TensorCount == 0 &&
 			(plan.Block == BlockMLA || plan.Block == BlockKimiLinear && !plan.Recurrent)

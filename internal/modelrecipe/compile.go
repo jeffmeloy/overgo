@@ -292,7 +292,7 @@ func inference(
 	)
 }
 
-func Compile(definition recipe.Definition, spec model.Spec, weights model.Weights) (Plan, error) {
+func CompileInference(definition recipe.Definition, spec model.Spec, weights model.Weights) (Plan, error) {
 	return compileDefinition(definition, func() (model.ModelPlan, error) {
 		return model.CompileModelPlan(spec, weights)
 	})

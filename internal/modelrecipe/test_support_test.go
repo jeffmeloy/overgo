@@ -49,6 +49,6 @@ func compileActiveFixture(
 		plan, compileErr := CompileWithProfile(definition, document, spec, weights)
 		return plan, compileErr == nil, compileErr
 	}
-	plan, err := Compile(definition, spec, weights)
+	plan, err := CompileInference(definition, spec, weights)
 	return plan, err == nil, err
 }

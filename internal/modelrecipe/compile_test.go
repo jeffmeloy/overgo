@@ -21,7 +21,7 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 	if err := definition.Validate(Catalog()); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := Compile(definition, model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, model.Weights{})
+	plan, err := CompileInference(definition, model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, model.Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Compile(definition, model.Spec{CommonSpec: model.CommonSpec{
+	program, err := CompileInference(definition, model.Spec{CommonSpec: model.CommonSpec{
 		Architecture: "llama", BlockCount: 1,
 	}}, model.Weights{Layers: []model.LayerWeights{{}}})
 	if err != nil {
@@ -57,7 +57,7 @@ func TestRecipeDecodeSessionPolicyIsAuthoritative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Compile(definition, model.Spec{CommonSpec: model.CommonSpec{
+	program, err := CompileInference(definition, model.Spec{CommonSpec: model.CommonSpec{
 		Architecture: "llama", BlockCount: fixtureLayerCount,
 	}}, model.Weights{Layers: []model.LayerWeights{{}}})
 	if err != nil {
@@ -74,7 +74,7 @@ func TestCapacityDecodePolicyRequiresCompatibleModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Compile(
+	if _, err := CompileInference(
 		definition,
 		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}},
 		model.Weights{},
@@ -94,7 +94,7 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixture := modeltest.Qwen35DenseRecurrentPair()
-	program, err := Compile(definition, fixture.Spec, fixture.ServingWeights())
+	program, err := CompileInference(definition, fixture.Spec, fixture.ServingWeights())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestTabularDefinitionValidatesAgainstCatalog(t *testing.T) {
 		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
 	}
 	// Inference compiler must refuse the non-token task.
-	if _, err := Compile(definition, model.Spec{}, model.Weights{}); err == nil {
+	if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {
 		t.Fatal("inference compiler accepted a tabular recipe")
 	}
 }
@@ -173,7 +173,7 @@ func TestSeq2SeqDefinitionValidatesAgainstCatalog(t *testing.T) {
 		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
 	}
 	// Inference compiler must refuse the non-inference task.
-	if _, err := Compile(definition, model.Spec{}, model.Weights{}); err == nil {
+	if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {
 		t.Fatal("inference compiler accepted a seq2seq recipe")
 	}
 }
@@ -199,7 +199,7 @@ func TestSpeechDefinitionValidatesAgainstCatalog(t *testing.T) {
 		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
 	}
 	// Inference compiler must refuse the non-inference task.
-	if _, err := Compile(definition, model.Spec{}, model.Weights{}); err == nil {
+	if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {
 		t.Fatal("inference compiler accepted a speech recipe")
 	}
 }
@@ -225,7 +225,7 @@ func TestImageGenDefinitionValidatesAgainstCatalog(t *testing.T) {
 		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
 	}
 	// Inference compiler must refuse the non-inference task.
-	if _, err := Compile(definition, model.Spec{}, model.Weights{}); err == nil {
+	if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {
 		t.Fatal("inference compiler accepted an image-gen recipe")
 	}
 }

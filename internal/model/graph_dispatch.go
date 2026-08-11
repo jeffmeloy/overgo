@@ -229,6 +229,11 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
+		case AttentionMixSharedKVQKNorm:
+			result, err = buildSharedKVQKNormMixCached(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan, c.CacheWrite,
+			)
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
 		}
@@ -306,6 +311,16 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
+		case RecurrentMixAffineWKV6:
+			result, err = buildAffineWKV6MixCached(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1],
+			)
+		case RecurrentMixDynamicWKV7:
+			result, err = buildDynamicWKV7MixCached(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1], plan,
+			)
 		default:
 			return errors.New("compiled recurrent-mixing policy is invalid")
 		}
@@ -356,6 +371,10 @@ func executeLayerInstruction(
 		case FeedForwardMixGatedGELU:
 			feedForward, err = buildGatedGELUFeedForwardMix(
 				c.Builder, execution.current, options.Weights,
+			)
+		case FeedForwardMixParallelGatedGELU:
+			feedForward, err = buildParallelGatedGELUFeedForwardMix(
+				c.Builder, execution.current, options.Spec, options.Weights, plan,
 			)
 		default:
 			return errors.New("compiled feed-forward policy is invalid")
@@ -421,17 +440,42 @@ func executeLayerInstruction(
 		execution.residual = execution.current
 		execution.result.Output = execution.current
 		return c.Builder.Err()
-	case LayerOperatorDenseTransformer:
-		if instruction.CacheCount != 2 || instruction.TensorCount != 0 || plan.Block != BlockDense {
-			return errors.New("compiled dense-transformer stage is invalid")
+	case LayerOperatorOutputAdapter:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil {
+			return errors.New("compiled output-adapter stage is invalid")
 		}
-		result, err := buildDenseBlock(options)
+		output, err := buildOutputAdapter(c.Builder, execution.current, options.Spec, options.Weights, plan)
+		if err != nil {
+			return err
+		}
+		execution.current = output
+		execution.residual = output
+		execution.result.Output = output
+		return nil
+	case LayerOperatorTokenShiftMix:
+		if instruction.CacheCount != 1 || instruction.TensorCount != 0 || execution.current == nil {
+			return errors.New("compiled token-shift stage is invalid")
+		}
+		result, err := buildTokenShiftFeedForwardMix(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			operands.caches[0], execution.result.Key, instruction.FeedForward,
+		)
 		if err != nil {
 			return err
 		}
 		execution.current = result.Output
-		execution.result = result
+		execution.result.Key = result.Key
 		return nil
+	case LayerOperatorPeriodicScale:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil {
+			return errors.New("compiled periodic-scale stage is invalid")
+		}
+		if options.Spec.RescaleEvery > 0 && (plan.Layer+1)%options.Spec.RescaleEvery == 0 {
+			execution.current = c.Builder.Scale(execution.current, rwkvLayerRescale)
+			execution.residual = execution.current
+			execution.result.Output = execution.current
+		}
+		return c.Builder.Err()
 	case LayerOperatorDenseAttention:
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||
 			plan.Block != BlockDense {

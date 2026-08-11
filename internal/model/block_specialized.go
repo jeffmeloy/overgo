@@ -304,33 +304,8 @@ func buildDynamicWKV6MixCached(
 		return DenseBlockResult{}, errors.New("dynamic WKV6 cache shape is invalid")
 	}
 	xPrev := builder.Reshape(pastShift, embedding, 1)
-	if tokens > 1 {
-		xPrev = builder.Concat(xPrev, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
-	}
 	nextShift := builder.FlatSlice(normalized, embedding*(tokens-1), embedding)
-	sx := builder.Add(xPrev, builder.Scale(normalized, -1))
-	base := builder.Add(normalized, builder.Multiply(sx, builder.Reshape(weights.TimeMixLerpX, embedding, 1)))
-	adjustments := builder.GroupedMulMat(
-		weights.TimeMixW2,
-		builder.Reshape(
-			builder.Tanh(builder.MulMat(weights.TimeMixW1, base)),
-			uint64(spec.TimeMixExtraDim), rwkv6TimeMixStreams, tokens,
-		),
-	)
-	adjustments = builder.Reshape(adjustments, embedding*rwkv6TimeMixStreams, tokens)
-	lerps := builder.Reshape(weights.TimeMixLerpFused, embedding*rwkv6TimeMixStreams, 1)
-	mixed := make([]*tensor.Tensor, rwkv6TimeMixStreams)
-	for index := uint64(0); index < rwkv6TimeMixStreams; index++ {
-		adjustment := builder.Reshape(
-			builder.GroupSlice(adjustments, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams),
-			embedding, tokens,
-		)
-		lerp := builder.Reshape(
-			builder.GroupSlice(lerps, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams),
-			embedding,
-		)
-		mixed[index] = builder.Add(normalized, builder.Multiply(sx, builder.Add(adjustment, lerp)))
-	}
+	mixed := buildWKV6MixedStreams(builder, normalized, xPrev, spec, weights)
 	xw, xk, xv, xr, xg := mixed[0], mixed[1], mixed[2], mixed[3], mixed[4]
 	key := builder.MulMat(weights.TimeMixKey, xk)
 	value := builder.MulMat(weights.TimeMixValue, xv)
@@ -366,23 +341,18 @@ func buildDynamicWKV6MixCached(
 	return DenseBlockResult{Output: attention, Key: nextShift, Value: nextState}, nil
 }
 
-// buildRWKV6BlockCached: affine-LN WKV6 recurrent block.
-func buildRWKV6BlockCached(
+// buildAffineWKV6MixCached: affine-normalized WKV6 recurrence.
+func buildAffineWKV6MixCached(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	pastShift, pastState *tensor.Tensor,
-	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Profile().DenseGraph != DenseGraphRWKV6 || builder == nil || input == nil || pastShift == nil || pastState == nil {
-		return DenseBlockResult{}, errors.New("RWKV6 block input/state is invalid")
+	if builder == nil || normalized == nil || pastShift == nil || pastState == nil {
+		return DenseBlockResult{}, errors.New("affine WKV6 input/state is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
-		requireGraphWeight("attention norm bias", weights.AttentionNormBias),
-		requireGraphWeight("channel norm", weights.AttentionNorm2),
-		requireGraphWeight("channel norm bias", weights.AttentionNorm2Bias),
 		requireGraphWeight("time-mix W1", weights.TimeMixW1),
 		requireGraphWeight("time-mix W2", weights.TimeMixW2),
 		requireGraphWeight("time-mix lerp X", weights.TimeMixLerpX),
@@ -397,13 +367,8 @@ func buildRWKV6BlockCached(
 		requireGraphWeight("time-mix norm", weights.TimeMixLN),
 		requireGraphWeight("time-mix norm bias", weights.TimeMixLNBias),
 		requireGraphWeight("time output", weights.TimeMixOutput),
-		requireGraphWeight("channel lerp K", weights.ChannelMixLerpK),
-		requireGraphWeight("channel lerp R", weights.ChannelMixLerpR),
-		requireGraphWeight("channel key", weights.ChannelMixKey),
-		requireGraphWeight("channel value", weights.ChannelMixValue),
-		requireGraphWeight("channel receptance", weights.ChannelMixReceptance),
 	}
-	if err := required.validate("RWKV6"); err != nil {
+	if err := required.validate("affine WKV6"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if weights.TimeMixLerpFused == nil &&
@@ -414,50 +379,14 @@ func buildRWKV6BlockCached(
 	embedding := uint64(spec.EmbeddingLength)
 	width := uint64(spec.WKVHeadSize)
 	heads := uint64(spec.HeadCount)
-	tokens := input.Shape.Dims[1]
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != embedding || tokens == 0 ||
+	tokens := normalized.Shape.Dims[1]
+	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != embedding || tokens == 0 ||
 		!pastShift.Shape.Equal(tensor.MustShape(embedding, 2)) ||
 		!pastState.Shape.Equal(tensor.MustShape(width, width, heads, 1)) {
-		return DenseBlockResult{}, errors.New("RWKV6 input/cache shape is invalid")
+		return DenseBlockResult{}, errors.New("affine WKV6 input/cache shape is invalid")
 	}
-	attNorm := ApplyNormalization(builder, input, weights.AttentionNorm, weights.AttentionNormBias, spec)
 	attPrev := builder.Reshape(builder.FlatSlice(pastShift, 0, embedding), embedding, 1)
-	if tokens > 1 {
-		attPrev = builder.Concat(attPrev, builder.FlatSlice(attNorm, 0, embedding, tokens-1), 1)
-	}
-	sx := builder.Add(attPrev, builder.Scale(attNorm, -1))
-	base := builder.Add(attNorm, builder.Multiply(sx, builder.Reshape(weights.TimeMixLerpX, embedding, 1)))
-	adjustments := builder.GroupedMulMat(
-		weights.TimeMixW2,
-		builder.Reshape(
-			builder.Tanh(builder.MulMat(weights.TimeMixW1, base)),
-			uint64(spec.TimeMixExtraDim), rwkv6TimeMixStreams, tokens,
-		),
-	)
-	adjustments = builder.Reshape(adjustments, embedding*rwkv6TimeMixStreams, tokens)
-	mixed := make([]*tensor.Tensor, rwkv6TimeMixStreams)
-	separate := []*tensor.Tensor{
-		weights.TimeMixLerpW, weights.TimeMixLerpK, weights.TimeMixLerpV,
-		weights.TimeMixLerpR, weights.TimeMixLerpG,
-	}
-	for index := uint64(0); index < rwkv6TimeMixStreams; index++ {
-		adjustment := builder.Reshape(
-			builder.GroupSlice(
-				adjustments, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams,
-			), embedding, tokens,
-		)
-		var lerp *tensor.Tensor
-		if weights.TimeMixLerpFused != nil {
-			fused := builder.Reshape(weights.TimeMixLerpFused, embedding*rwkv6TimeMixStreams, 1)
-			lerp = builder.Reshape(
-				builder.GroupSlice(fused, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams),
-				embedding,
-			)
-		} else {
-			lerp = builder.Reshape(separate[index], embedding)
-		}
-		mixed[index] = builder.Add(attNorm, builder.Multiply(sx, builder.Add(adjustment, lerp)))
-	}
+	mixed := buildWKV6MixedStreams(builder, normalized, attPrev, spec, weights)
 	xw, xk, xv, xr, xg := mixed[0], mixed[1], mixed[2], mixed[3], mixed[4]
 	key := builder.Reshape(builder.MulMat(weights.TimeMixKey, xk), width, heads, tokens, 1)
 	value := builder.Reshape(builder.MulMat(weights.TimeMixValue, xv), width, heads, tokens, 1)
@@ -474,46 +403,71 @@ func buildRWKV6BlockCached(
 	)
 	attention = builder.Add(builder.Multiply(attention, weights.TimeMixLN), weights.TimeMixLNBias)
 	attention = builder.MulMat(weights.TimeMixOutput, builder.Multiply(attention, gate))
-	ffnInput := builder.Add(input, attention)
-	ffnNorm := ApplyNormalization(builder, ffnInput, weights.AttentionNorm2, weights.AttentionNorm2Bias, spec)
-	ffnPrev := builder.Reshape(builder.FlatSlice(pastShift, embedding, embedding), embedding, 1)
-	if tokens > 1 {
-		ffnPrev = builder.Concat(ffnPrev, builder.FlatSlice(ffnNorm, 0, embedding, tokens-1), 1)
-	}
-	channelShift := builder.Add(ffnPrev, builder.Scale(ffnNorm, -1))
-	channelKeyInput := builder.Add(ffnNorm, builder.Multiply(channelShift, builder.Reshape(weights.ChannelMixLerpK, embedding, 1)))
-	channelReceptanceInput := builder.Add(ffnNorm, builder.Multiply(channelShift, builder.Reshape(weights.ChannelMixLerpR, embedding, 1)))
-	channel := builder.MulMat(weights.ChannelMixValue, builder.ReLUSquared(builder.MulMat(weights.ChannelMixKey, channelKeyInput)))
-	channel = builder.Multiply(builder.Sigmoid(builder.MulMat(weights.ChannelMixReceptance, channelReceptanceInput)), channel)
-	output := builder.Add(ffnInput, channel)
-	if spec.RescaleEvery > 0 && (layerIndex+1)%spec.RescaleEvery == 0 {
-		output = builder.Scale(output, rwkvLayerRescale)
-	}
-	nextAttShift := builder.FlatSlice(attNorm, embedding*(tokens-1), embedding)
-	nextFFNShift := builder.FlatSlice(ffnNorm, embedding*(tokens-1), embedding)
-	nextShift := builder.Concat(builder.Reshape(nextAttShift, embedding, 1), builder.Reshape(nextFFNShift, embedding, 1), 1)
+	nextShift := builder.Reshape(
+		builder.FlatSlice(normalized, embedding*(tokens-1), embedding), embedding, 1,
+	)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: nextShift, Value: nextState}, nil
+	return DenseBlockResult{Output: attention, Key: nextShift, Value: nextState}, nil
 }
 
-// buildRWKV7BlockCached: RWKV7/ARWKV7 recurrent block.
-func buildRWKV7BlockCached(
+func buildWKV6MixedStreams(
 	builder *tensor.Builder,
-	input *tensor.Tensor,
+	normalized, previous *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+) [rwkv6TimeMixStreams]*tensor.Tensor {
+	embedding, tokens := uint64(spec.EmbeddingLength), normalized.Shape.Dims[1]
+	if tokens > 1 {
+		previous = builder.Concat(previous, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
+	}
+	delta := builder.Add(previous, builder.Scale(normalized, -1))
+	base := builder.Add(normalized, builder.Multiply(
+		delta, builder.Reshape(weights.TimeMixLerpX, embedding, 1),
+	))
+	adjustments := builder.Reshape(builder.GroupedMulMat(
+		weights.TimeMixW2, builder.Reshape(
+			builder.Tanh(builder.MulMat(weights.TimeMixW1, base)),
+			uint64(spec.TimeMixExtraDim), rwkv6TimeMixStreams, tokens,
+		),
+	), embedding*rwkv6TimeMixStreams, tokens)
+	separate := [rwkv6TimeMixStreams]*tensor.Tensor{
+		weights.TimeMixLerpW, weights.TimeMixLerpK, weights.TimeMixLerpV,
+		weights.TimeMixLerpR, weights.TimeMixLerpG,
+	}
+	var mixed [rwkv6TimeMixStreams]*tensor.Tensor
+	for index := uint64(0); index < rwkv6TimeMixStreams; index++ {
+		adjustment := builder.Reshape(builder.GroupSlice(
+			adjustments, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams,
+		), embedding, tokens)
+		lerp := separate[index]
+		if weights.TimeMixLerpFused != nil {
+			lerp = builder.GroupSlice(
+				builder.Reshape(weights.TimeMixLerpFused, embedding*rwkv6TimeMixStreams, 1),
+				index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams,
+			)
+		}
+		mixed[index] = builder.Add(normalized, builder.Multiply(
+			delta, builder.Add(adjustment, builder.Reshape(lerp, embedding)),
+		))
+	}
+	return mixed
+}
+
+// buildDynamicWKV7MixCached: dynamic-decay WKV7 recurrence.
+func buildDynamicWKV7MixCached(
+	builder *tensor.Builder,
+	normalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	pastShift, pastState *tensor.Tensor,
-	layerIndex uint32,
+	layerPlan LayerPlan,
 ) (DenseBlockResult, error) {
-	profile := spec.Profile()
-	if profile.DenseGraph != DenseGraphRWKV7 ||
-		builder == nil || input == nil || pastShift == nil || pastState == nil {
-		return DenseBlockResult{}, errors.New("RWKV7 block input/state is invalid")
+	if builder == nil || normalized == nil || pastShift == nil || pastState == nil {
+		return DenseBlockResult{}, errors.New("dynamic WKV7 input/state is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("time W0", weights.TimeMixW0),
 		requireGraphWeight("time W1", weights.TimeMixW1),
 		requireGraphWeight("time W2", weights.TimeMixW2),
@@ -532,45 +486,32 @@ func buildRWKV7BlockCached(
 		requireGraphWeight("time receptance", weights.TimeMixReceptance),
 		requireGraphWeight("time output", weights.TimeMixOutput),
 	}
-	channelMix := profile.Normalization == NormalizationLayer
-	if channelMix {
-		required.add("attention norm bias", weights.AttentionNormBias)
-		required.add("channel norm", weights.AttentionNorm2)
-		required.add("channel norm bias", weights.AttentionNorm2Bias)
+	if layerPlan.Normalization.Operation == NormalizationLayer {
 		required.add("time norm", weights.TimeMixLN)
 		required.add("time norm bias", weights.TimeMixLNBias)
-		required.add("channel lerp", weights.ChannelMixLerpK)
-		required.add("channel key", weights.ChannelMixKey)
-		required.add("channel value", weights.ChannelMixValue)
-	} else {
-		required.add("feed-forward norm", weights.FeedForwardNorm)
-		required.add("feed-forward gate", weights.FeedForwardGate)
-		required.add("feed-forward up", weights.FeedForwardUp)
-		required.add("feed-forward down", weights.FeedForwardDown)
 	}
 	if spec.GateLoRARank > 0 {
 		required.add("time G1", weights.TimeMixG1)
 		required.add("time G2", weights.TimeMixG2)
 	}
-	if err := required.validate("RWKV7"); err != nil {
+	if err := required.validate("dynamic WKV7"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	embedding := uint64(spec.EmbeddingLength)
 	width := uint64(spec.WKVHeadSize)
 	heads := uint64(spec.HeadCount)
-	tokens := input.Shape.Dims[1]
+	tokens := normalized.Shape.Dims[1]
 	shiftCount := uint64(spec.TokenShiftCount)
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != embedding || tokens == 0 ||
+	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != embedding || tokens == 0 ||
 		!pastShift.Shape.Equal(tensor.MustShape(embedding, shiftCount)) ||
 		!pastState.Shape.Equal(tensor.MustShape(width, width, heads, 1)) {
-		return DenseBlockResult{}, errors.New("RWKV7 input/cache shape is invalid")
+		return DenseBlockResult{}, errors.New("dynamic WKV7 input/cache shape is invalid")
 	}
-	attNorm := ApplyNormalization(builder, input, weights.AttentionNorm, weights.AttentionNormBias, spec)
 	attPrev := builder.Reshape(builder.FlatSlice(pastShift, 0, embedding), embedding, 1)
 	if tokens > 1 {
-		attPrev = builder.Concat(attPrev, builder.FlatSlice(attNorm, 0, embedding, tokens-1), 1)
+		attPrev = builder.Concat(attPrev, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
 	}
-	sx := builder.Add(attPrev, builder.Scale(attNorm, -1))
+	sx := builder.Add(attPrev, builder.Scale(normalized, -1))
 	lerpCount := rwkv7GatedMixStreams
 	if spec.GateLoRARank == 0 {
 		lerpCount = rwkv7TimeMixStreams
@@ -579,7 +520,7 @@ func buildRWKV7BlockCached(
 	mixed := make([]*tensor.Tensor, lerpCount)
 	for index := uint64(0); index < lerpCount; index++ {
 		lerp := builder.Reshape(builder.GroupSlice(lerps, index*embedding, embedding, 1, embedding*lerpCount), embedding)
-		mixed[index] = builder.Add(attNorm, builder.Multiply(sx, lerp))
+		mixed[index] = builder.Add(normalized, builder.Multiply(sx, lerp))
 	}
 	xr, xw, xk, xv, xa := mixed[0], mixed[1], mixed[2], mixed[3], mixed[4]
 	receptance := builder.MulMat(weights.TimeMixReceptance, xr)
@@ -591,7 +532,7 @@ func buildRWKV7BlockCached(
 	key := builder.MulMat(weights.TimeMixKey, xk)
 	value := builder.MulMat(weights.TimeMixValue, xv)
 	var auxiliary *tensor.Tensor
-	if layerIndex == 0 {
+	if layerPlan.Layer == 0 {
 		if weights.PerLayerInput != nil {
 			return DenseBlockResult{}, errors.New("RWKV7 first layer received a value residual")
 		}
@@ -640,35 +581,75 @@ func buildRWKV7BlockCached(
 		attention = builder.Multiply(attention, gate)
 	}
 	attention = builder.MulMat(weights.TimeMixOutput, attention)
-	ffnInput := builder.Add(input, attention)
-	var ffnNorm, output *tensor.Tensor
-	if channelMix {
-		ffnNorm = ApplyNormalization(builder, ffnInput, weights.AttentionNorm2, weights.AttentionNorm2Bias, spec)
-		ffnPrev := builder.Reshape(builder.FlatSlice(pastShift, embedding, embedding), embedding, 1)
-		if tokens > 1 {
-			ffnPrev = builder.Concat(ffnPrev, builder.FlatSlice(ffnNorm, 0, embedding, tokens-1), 1)
-		}
-		channelShift := builder.Add(ffnPrev, builder.Scale(ffnNorm, -1))
-		channelInput := builder.Add(ffnNorm, builder.Multiply(channelShift, builder.Reshape(weights.ChannelMixLerpK, embedding, 1)))
-		channel := builder.MulMat(weights.ChannelMixValue, builder.ReLUSquared(builder.MulMat(weights.ChannelMixKey, channelInput)))
-		output = builder.Add(ffnInput, channel)
-	} else {
-		ffnNorm = builder.WeightedRMSNorm(ffnInput, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-		ffn := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(
-			builder.MulMat(weights.FeedForwardGate, ffnNorm), builder.MulMat(weights.FeedForwardUp, ffnNorm),
-		))
-		output = builder.Add(ffnInput, ffn)
-	}
-	nextAttShift := builder.FlatSlice(attNorm, embedding*(tokens-1), embedding)
-	nextShift := builder.Reshape(nextAttShift, embedding, 1)
-	if shiftCount == 2 {
-		nextFFNShift := builder.FlatSlice(ffnNorm, embedding*(tokens-1), embedding)
-		nextShift = builder.Concat(nextShift, builder.Reshape(nextFFNShift, embedding, 1), 1)
-	}
+	nextShift := builder.Reshape(
+		builder.FlatSlice(normalized, embedding*(tokens-1), embedding), embedding, 1,
+	)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: nextShift, Value: nextState, Auxiliary: auxiliary}, nil
+	return DenseBlockResult{Output: attention, Key: nextShift, Value: nextState, Auxiliary: auxiliary}, nil
+}
+
+// buildTokenShiftFeedForwardMix: normalized shifted-channel projection.
+func buildTokenShiftFeedForwardMix(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	pastShift, nextAttentionShift *tensor.Tensor,
+	policy FeedForwardMixPolicy,
+) (DenseBlockResult, error) {
+	required := graphWeights{
+		requireGraphWeight("channel norm", weights.AttentionNorm2),
+		requireGraphWeight("channel norm bias", weights.AttentionNorm2Bias),
+		requireGraphWeight("channel lerp K", weights.ChannelMixLerpK),
+		requireGraphWeight("channel key", weights.ChannelMixKey),
+		requireGraphWeight("channel value", weights.ChannelMixValue),
+	}
+	if policy == FeedForwardMixGatedTokenShiftSquaredReLU {
+		required.add("channel lerp R", weights.ChannelMixLerpR)
+		required.add("channel receptance", weights.ChannelMixReceptance)
+	} else if policy != FeedForwardMixTokenShiftSquaredReLU {
+		return DenseBlockResult{}, errors.New("token-shift feed-forward policy is invalid")
+	}
+	if err := required.validate("token-shift feed-forward"); err != nil {
+		return DenseBlockResult{}, err
+	}
+	embedding := uint64(spec.EmbeddingLength)
+	if input == nil || input.Shape.Rank != 2 || input.Shape.Dims[0] != embedding || input.Shape.Dims[1] == 0 ||
+		pastShift == nil || !pastShift.Shape.Equal(tensor.MustShape(embedding, 2)) ||
+		nextAttentionShift == nil || !nextAttentionShift.Shape.Equal(tensor.MustShape(embedding, 1)) {
+		return DenseBlockResult{}, errors.New("token-shift feed-forward input/cache shape is invalid")
+	}
+	tokens := input.Shape.Dims[1]
+	normalized := ApplyNormalization(builder, input, weights.AttentionNorm2, weights.AttentionNorm2Bias, spec)
+	previous := builder.Reshape(builder.FlatSlice(pastShift, embedding, embedding), embedding, 1)
+	if tokens > 1 {
+		previous = builder.Concat(previous, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
+	}
+	shift := builder.Add(previous, builder.Scale(normalized, -1))
+	keyInput := builder.Add(normalized, builder.Multiply(
+		shift, builder.Reshape(weights.ChannelMixLerpK, embedding, 1),
+	))
+	channel := builder.MulMat(
+		weights.ChannelMixValue, builder.ReLUSquared(builder.MulMat(weights.ChannelMixKey, keyInput)),
+	)
+	if policy == FeedForwardMixGatedTokenShiftSquaredReLU {
+		receptanceInput := builder.Add(normalized, builder.Multiply(
+			shift, builder.Reshape(weights.ChannelMixLerpR, embedding, 1),
+		))
+		channel = builder.Multiply(
+			builder.Sigmoid(builder.MulMat(weights.ChannelMixReceptance, receptanceInput)), channel,
+		)
+	}
+	nextChannelShift := builder.Reshape(
+		builder.FlatSlice(normalized, embedding*(tokens-1), embedding), embedding, 1,
+	)
+	nextShift := builder.Concat(nextAttentionShift, nextChannelShift, 1)
+	if err := builder.Err(); err != nil {
+		return DenseBlockResult{}, err
+	}
+	return DenseBlockResult{Output: channel, Key: nextShift}, nil
 }
 
 // buildKimiKDAMixCached: recurrent KDA mixer.

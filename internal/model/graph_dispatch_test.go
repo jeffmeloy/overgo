@@ -90,13 +90,71 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 	}
 }
 
-func TestDenseProgramsIsolateAtomicGraphs(t *testing.T) {
+func TestGemma4ProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
 		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphGemma4},
 	)
-	instruction, ok := program.Instruction(0)
-	if !ok || program.Count != 1 || instruction.Operator != LayerOperatorDenseTransformer {
-		t.Fatalf("atomic dense program = %+v", program)
+	want := []LayerOperator{
+		LayerOperatorAttentionNorm, LayerOperatorAttentionMix, LayerOperatorAttentionPostNorm,
+		LayerOperatorResidual, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+		LayerOperatorOutputAdapter,
+	}
+	if program.Count != uint8(len(want)) {
+		t.Fatalf("Gemma 4 stage count = %d", program.Count)
+	}
+	for index, operator := range want {
+		instruction, _ := program.Instruction(index)
+		if instruction.Operator != operator {
+			t.Fatalf("Gemma 4 stage %d = %d, want %d", index, instruction.Operator, operator)
+		}
+	}
+}
+
+func TestRWKVProgramsUseNeutralStages(t *testing.T) {
+	tests := []struct {
+		name    string
+		profile ArchitectureProfile
+		want    []LayerOperator
+	}{
+		{
+			name: "RWKV6", profile: ArchitectureProfile{DenseGraph: DenseGraphRWKV6},
+			want: []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
+				LayerOperatorTokenShiftMix, LayerOperatorResidual, LayerOperatorPeriodicScale,
+			},
+		},
+		{
+			name: "RWKV7 channel", profile: ArchitectureProfile{
+				DenseGraph: DenseGraphRWKV7, Normalization: NormalizationLayer,
+			},
+			want: []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
+				LayerOperatorTokenShiftMix, LayerOperatorResidual,
+			},
+		},
+		{
+			name: "RWKV7 SwiGLU", profile: ArchitectureProfile{
+				DenseGraph: DenseGraphRWKV7, Normalization: NormalizationRMS,
+			},
+			want: []LayerOperator{
+				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
+				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			program := compileLayerProgram(LayerPlan{Block: BlockDense}, test.profile)
+			if program.Count != uint8(len(test.want)) {
+				t.Fatalf("stage count = %d", program.Count)
+			}
+			for index, operator := range test.want {
+				instruction, _ := program.Instruction(index)
+				if instruction.Operator != operator {
+					t.Fatalf("stage %d = %d, want %d", index, instruction.Operator, operator)
+				}
+			}
+		})
 	}
 }
 

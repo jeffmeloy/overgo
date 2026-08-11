@@ -69,6 +69,8 @@ const (
 	LayerOperatorCacheSentinel
 	LayerOperatorScale
 	LayerOperatorResidual
+	LayerOperatorRMSNorm
+	LayerOperatorScaledSkip
 )
 
 // RecurrentMixPolicy: recurrent operator implementation.
@@ -94,6 +96,7 @@ const (
 	AttentionMixOutputProjection
 	AttentionMixBidirectionalFusedQKV
 	AttentionMixBidirectionalQKNorm
+	AttentionMixCausalPostQKNorm
 )
 
 // HybridMixPolicy: parallel mixer implementation.
@@ -838,6 +841,14 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 	switch block {
 	case BlockDense:
+		if profile.DenseGraph == DenseGraphTalkie {
+			return newLayerProgram(
+				layerStage(LayerOperatorRMSNorm), attentionLayerStage(AttentionMixCausalPostQKNorm),
+				layerStage(LayerOperatorResidual), layerStage(LayerOperatorRMSNorm),
+				feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+				layerStage(LayerOperatorScaledSkip),
+			)
+		}
 		if profile.DenseGraph == DenseGraphGemmaEmbedding {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixBidirectionalQKNorm),

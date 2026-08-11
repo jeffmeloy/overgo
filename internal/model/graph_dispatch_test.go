@@ -92,11 +92,31 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 
 func TestDenseProgramsIsolateAtomicGraphs(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphTalkie},
+		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphGemma4},
 	)
 	instruction, ok := program.Instruction(0)
 	if !ok || program.Count != 1 || instruction.Operator != LayerOperatorDenseTransformer {
 		t.Fatalf("atomic dense program = %+v", program)
+	}
+}
+
+func TestTalkieProgramUsesNeutralStages(t *testing.T) {
+	program := compileLayerProgram(
+		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphTalkie},
+	)
+	want := []LayerOperator{
+		LayerOperatorRMSNorm, LayerOperatorAttentionMix, LayerOperatorResidual,
+		LayerOperatorRMSNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+		LayerOperatorScaledSkip,
+	}
+	if program.Count != uint8(len(want)) {
+		t.Fatalf("Talkie stage count = %d", program.Count)
+	}
+	for index, operator := range want {
+		instruction, _ := program.Instruction(index)
+		if instruction.Operator != operator {
+			t.Fatalf("Talkie stage %d = %d, want %d", index, instruction.Operator, operator)
+		}
 	}
 }
 

@@ -164,6 +164,12 @@ func executeLayerInstruction(
 			options.Weights.AttentionNormBias, options.Spec,
 		)
 		return c.Builder.Err()
+	case LayerOperatorRMSNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil {
+			return errors.New("compiled RMS-normalization stage is invalid")
+		}
+		execution.current = c.Builder.RMSNorm(execution.current, options.Spec.RMSNormEpsilon)
+		return c.Builder.Err()
 	case LayerOperatorAttentionPostNorm:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
 			options.Weights.AttentionPostNorm == nil {
@@ -215,6 +221,11 @@ func executeLayerInstruction(
 			)
 		case AttentionMixBidirectionalQKNorm:
 			result, err = buildBidirectionalQKNormMix(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan.Layer,
+			)
+		case AttentionMixCausalPostQKNorm:
+			result, err = buildCausalPostQKNormMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
@@ -394,6 +405,19 @@ func executeLayerInstruction(
 			return errors.New("compiled residual stage is invalid")
 		}
 		execution.current = c.Builder.Add(execution.residual, execution.current)
+		execution.residual = execution.current
+		execution.result.Output = execution.current
+		return c.Builder.Err()
+	case LayerOperatorScaledSkip:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil ||
+			options.Weights.EmbeddingSkip == nil || options.Weights.LayerOutputScale == nil ||
+			!options.Weights.EmbeddingSkip.Shape.Equal(execution.current.Shape) {
+			return errors.New("compiled scaled-skip stage is invalid")
+		}
+		execution.current = c.Builder.Add(
+			execution.current,
+			c.Builder.Multiply(options.Weights.EmbeddingSkip, options.Weights.LayerOutputScale),
+		)
 		execution.residual = execution.current
 		execution.result.Output = execution.current
 		return c.Builder.Err()

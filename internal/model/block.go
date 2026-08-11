@@ -283,8 +283,6 @@ func buildDenseBlock(options BlockDispatchOptions) (DenseBlockResult, error) {
 		return DenseBlockResult{}, err
 	}
 	switch c.plan.DenseGraph {
-	case DenseGraphTalkie:
-		return buildTalkieBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue)
 	case DenseGraphGemma4:
 		return buildGemma4BlockCached(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.plan, c.cacheWrite)
 	case DenseGraphRWKV6:

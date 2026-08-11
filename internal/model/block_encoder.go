@@ -335,24 +335,25 @@ func buildBidirectionalQKNormMix(
 	return DenseBlockResult{Output: attention, Key: key, Value: value}, nil
 }
 
-func buildTalkieBlock(
+func buildCausalPostQKNormMixCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
+	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Talkie block input shape is incompatible")
+	if spec.Profile().DenseGraph != DenseGraphTalkie {
+		return DenseBlockResult{}, errors.New("causal post-Q/K-normalized attention requires Talkie policy")
 	}
-	if weights.EmbeddingSkip == nil || !weights.EmbeddingSkip.Shape.Equal(input.Shape) {
-		return DenseBlockResult{}, errors.New("Talkie block embedding skip is missing or incompatible")
+	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("causal post-Q/K-normalized attention input shape is incompatible")
 	}
 	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Talkie block position count is incompatible")
+		return DenseBlockResult{}, errors.New("causal post-Q/K-normalized attention position count is incompatible")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Talkie block past key/value cache must both be present"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "causal post-Q/K-normalized attention cache pair is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if weights.AttentionQKV != nil &&
@@ -365,10 +366,6 @@ func buildTalkieBlock(
 	required := graphWeights{
 		requireGraphWeight("attention output", weights.AttentionOutput),
 		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
-		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-		requireGraphWeight("layer output scale", weights.LayerOutputScale),
 	}
 	if weights.AttentionQKV != nil {
 		required.add("attention QKV", weights.AttentionQKV)
@@ -377,41 +374,18 @@ func buildTalkieBlock(
 		required.add("attention K", weights.AttentionK)
 		required.add("attention V", weights.AttentionV)
 	}
-	if err := required.validate("Talkie block"); err != nil {
+	if err := required.validate("causal post-Q/K-normalized attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 
 	tokens := uint64(len(positions))
-	headCount := uint64(spec.HeadCount)
-	kvHeadCount := uint64(spec.HeadCountKV)
-	queryLength := headCount * uint64(spec.KeyLength)
-	keyLength := kvHeadCount * uint64(spec.KeyLength)
-	valueLength := kvHeadCount * uint64(spec.ValueLength)
-	normalized := builder.RMSNorm(input, spec.RMSNormEpsilon)
-	var query, key, value *tensor.Tensor
-	if weights.AttentionQKV != nil {
-		mixed := builder.MulMat(weights.AttentionQKV, normalized)
-		if weights.AttentionQKVBias != nil {
-			mixed = builder.Add(mixed, weights.AttentionQKVBias)
-		}
-		stride := queryLength + keyLength + valueLength
-		query = builder.Reshape(builder.GroupSlice(mixed, 0, queryLength, 1, stride), queryLength, tokens)
-		key = builder.Reshape(builder.GroupSlice(mixed, queryLength, keyLength, 1, stride), keyLength, tokens)
-		value = builder.Reshape(builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride), valueLength, tokens)
-	} else {
-		query = builder.MulMat(weights.AttentionQ, normalized)
-		key = builder.MulMat(weights.AttentionK, normalized)
-		value = builder.MulMat(weights.AttentionV, normalized)
-		if weights.AttentionQBias != nil {
-			query = builder.Add(query, weights.AttentionQBias)
-		}
-		if weights.AttentionKBias != nil {
-			key = builder.Add(key, weights.AttentionKBias)
-		}
-		if weights.AttentionVBias != nil {
-			value = builder.Add(value, weights.AttentionVBias)
-		}
+	shapes := spec.TensorShapes(layerIndex)
+	headCount, kvHeadCount := uint64(shapes.QueryHeads), uint64(shapes.KVHeads)
+	runtime := denseBlockRuntime{
+		builder: builder, spec: spec, weights: weights, profile: spec.Profile(),
+		layer: layerIndex, tokens: tokens,
 	}
+	query, key, value := runtime.projectAttention(input)
 	query = builder.Reshape(query, uint64(spec.KeyLength), headCount, tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeadCount, tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeadCount, tokens)
@@ -440,17 +414,10 @@ func buildTalkieBlock(
 	if weights.AttentionOutputBias != nil {
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
-	residual := builder.Add(input, attention)
-	normalized = builder.RMSNorm(residual, spec.RMSNormEpsilon)
-	gate := builder.MulMat(weights.FeedForwardGate, normalized)
-	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
-	output := builder.Add(residual, feedForward)
-	output = builder.Add(output, builder.Multiply(weights.EmbeddingSkip, weights.LayerOutputScale))
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
+	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, nil
 }
 
 // BuildT5EncoderBlock: full bidirectional encoder block.

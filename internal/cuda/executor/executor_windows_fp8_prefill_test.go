@@ -1,16 +1,12 @@
 package executor
 
 import (
-	"context"
 	"encoding/binary"
 	"math"
 	"testing"
 
-	"overgo/internal/cuda/driver"
-	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
-	"overgo/internal/tensor/reference"
 )
 
 // fp8PatternByte: deterministic finite e4m3 byte with broad coverage (both
@@ -33,7 +29,6 @@ func fp8PatternByte(index int) byte {
 // F32 with the per-row scale folded in and runs the identical SGEMM. Both must
 // match the exact e4m3-dequant-times-scale F32 reference; greedy argmax exact.
 func TestExecutorFP8MulMatMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	const inner, rows = 64, 19 // inner % 4 == 0 for the packed-quad decode
 	leftShape := tensor.MustShape(inner, rows)
 
@@ -55,69 +50,5 @@ func TestExecutorFP8MulMatMatchesReference(t *testing.T) {
 		binary.LittleEndian.PutUint32(storage[rows*inner+row*4:], math.Float32bits(scales[row]))
 	}
 
-	for _, testCase := range []struct {
-		name      string
-		rightRows uint64
-	}{
-		{"decode", 1},
-		{"prefill", 3},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			rightShape := tensor.MustShape(inner, testCase.rightRows)
-			rightValue := patternedValue(rightShape, 7, 0.05, 0.02)
-
-			referenceBuilder := tensor.NewBuilder()
-			referenceLeft := referenceBuilder.Input("left", dtype.F32, leftShape)
-			referenceRight := referenceBuilder.Input("right", dtype.F32, rightShape)
-			referenceOutput := referenceBuilder.MulMat(referenceLeft, referenceRight)
-			want, err := reference.Execute([]*tensor.Tensor{referenceOutput}, map[*tensor.Tensor]reference.Value{
-				referenceLeft: {Shape: leftShape, Data: dequantized}, referenceRight: rightValue,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			builder := tensor.NewBuilder()
-			left := builder.Input("left", dtype.F8E4M3, leftShape)
-			right := builder.Input("right", dtype.F32, rightShape)
-			output := builder.MulMat(left, right)
-			worker := newFixtureWorker(t)
-			pointer := copyFixtureDeviceBytes(t, worker, storage)
-			cuda := newFixtureExecutorWithWorker(t, worker)
-			got, err := cuda.ExecuteWithDeviceFeeds(context.Background(), []*tensor.Tensor{output},
-				map[*tensor.Tensor]reference.Value{right: rightValue}, map[*tensor.Tensor]driver.DevicePtr{left: pointer})
-			if err != nil {
-				t.Fatal(err)
-			}
-			compare(t, got[output].Data, want[referenceOutput].Data, accuracyQuantized)
-		})
-	}
-
-	// Greedy selection over the decode projection must be exact.
-	rightShape := tensor.MustShape(inner, 1)
-	rightValue := patternedValue(rightShape, 7, 0.05, 0.02)
-	referenceBuilder := tensor.NewBuilder()
-	referenceLeft := referenceBuilder.Input("left", dtype.F32, leftShape)
-	referenceRight := referenceBuilder.Input("right", dtype.F32, rightShape)
-	referenceOutput := referenceBuilder.MulMat(referenceLeft, referenceRight)
-	referenceSelection := referenceBuilder.TopK(referenceOutput, 1)
-	wantSelection, err := reference.Execute([]*tensor.Tensor{referenceSelection}, map[*tensor.Tensor]reference.Value{
-		referenceLeft: {Shape: leftShape, Data: dequantized}, referenceRight: rightValue,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	builder := tensor.NewBuilder()
-	left := builder.Input("left", dtype.F8E4M3, leftShape)
-	right := builder.Input("right", dtype.F32, rightShape)
-	selection := builder.TopK(builder.MulMat(left, right), 1)
-	worker := newFixtureWorker(t)
-	pointer := copyFixtureDeviceBytes(t, worker, storage)
-	cuda := newFixtureExecutorWithWorker(t, worker)
-	gotSelection, err := cuda.ExecuteWithDeviceFeeds(context.Background(), []*tensor.Tensor{selection},
-		map[*tensor.Tensor]reference.Value{right: rightValue}, map[*tensor.Tensor]driver.DevicePtr{left: pointer})
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, gotSelection[selection].Data, wantSelection[referenceSelection].Data, accuracyExact)
+	checkResidentMulMat(t, dtype.F8E4M3, leftShape, storage, dequantized)
 }

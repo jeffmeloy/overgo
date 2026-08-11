@@ -43,6 +43,19 @@ type graphOutputCheck struct {
 	tolerance float64
 }
 
+type residentProjectionCase struct {
+	name       string
+	rightRows  uint64
+	selectTopK bool
+	tolerance  float64
+}
+
+var residentProjectionCases = [...]residentProjectionCase{
+	{name: "decode", rightRows: 1, tolerance: accuracyQuantized},
+	{name: "prefill", rightRows: 3, tolerance: accuracyQuantized},
+	{name: "greedy", rightRows: 1, selectTopK: true, tolerance: accuracyExact},
+}
+
 type cudaReferenceFixture struct {
 	t       *testing.T
 	builder *tensor.Builder
@@ -183,6 +196,67 @@ func copyFixtureDeviceBytes(
 		})
 	})
 	return pointer
+}
+
+func checkResidentMulMat(
+	t *testing.T,
+	dataType dtype.Type,
+	leftShape tensor.Shape,
+	storage []byte,
+	dequantized []float32,
+) {
+	t.Helper()
+	cudatest.Require(t)
+	const (
+		rightSeed   = 7
+		rightScale  = 0.05
+		rightOffset = 0.02
+		topKCount   = 1
+	)
+	for _, testCase := range residentProjectionCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			rightShape := tensor.MustShape(leftShape.Slice()[0], testCase.rightRows)
+			rightValue := patternedValue(rightShape, rightSeed, rightScale, rightOffset)
+
+			referenceBuilder := tensor.NewBuilder()
+			referenceLeft := referenceBuilder.Input("left", dtype.F32, leftShape)
+			referenceRight := referenceBuilder.Input("right", dtype.F32, rightShape)
+			referenceOutput := referenceBuilder.MulMat(referenceLeft, referenceRight)
+
+			builder := tensor.NewBuilder()
+			left := builder.Input("left", dataType, leftShape)
+			right := builder.Input("right", dtype.F32, rightShape)
+			output := builder.MulMat(left, right)
+			if testCase.selectTopK {
+				referenceOutput = referenceBuilder.TopK(referenceOutput, topKCount)
+				output = builder.TopK(output, topKCount)
+			}
+			want, err := reference.Execute(
+				[]*tensor.Tensor{referenceOutput},
+				map[*tensor.Tensor]reference.Value{
+					referenceLeft:  {Shape: leftShape, Data: dequantized},
+					referenceRight: rightValue,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			worker := newFixtureWorker(t)
+			pointer := copyFixtureDeviceBytes(t, worker, storage)
+			cuda := newFixtureExecutorWithWorker(t, worker)
+			got, err := cuda.ExecuteWithDeviceFeeds(
+				context.Background(),
+				[]*tensor.Tensor{output},
+				map[*tensor.Tensor]reference.Value{right: rightValue},
+				map[*tensor.Tensor]driver.DevicePtr{left: pointer},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			compare(t, got[output].Data, want[referenceOutput].Data, testCase.tolerance)
+		})
+	}
 }
 
 func fixturePositions(tokens uint32) []uint32 {

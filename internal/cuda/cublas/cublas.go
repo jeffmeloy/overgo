@@ -1,6 +1,10 @@
 package cublas
 
-import "fmt"
+import (
+	"fmt"
+
+	"overgo/internal/cuda/driver"
+)
 
 type Handle uintptr
 
@@ -20,6 +24,23 @@ const (
 	ComputeF32         ComputeType   = 68
 	GemmDefault        GemmAlgorithm = -1
 )
+
+// RowMajorGEMMF32 computes row-major C[m,n] = A[m,k] · B[k,n] in fp32 on device
+// pointers. cuBLAS is column-major, so the row-major product is computed
+// transposed (Cᵀ = Bᵀ·Aᵀ): GEMM(N,N, n, m, k, B, A, C) with leading dims n, k,
+// n. Encapsulates the layout convention once so device Newton-Schulz and other
+// matmul-composed callers do not re-derive it. Calls GEMMEx, so it resolves to
+// the real or unsupported backend like any other cuBLAS op.
+func (l *Library) RowMajorGEMMF32(handle Handle, m, k, n int32, a, b, c driver.DevicePtr) error {
+	return l.GEMMEx(
+		handle, OperationNone, OperationNone,
+		n, m, k, 1,
+		b, DataF32, n,
+		a, DataF32, k,
+		0, c, DataF32, n,
+		ComputeF32, GemmDefault,
+	)
+}
 
 // StatusError: reports cuBLAS API failure
 type StatusError struct {

@@ -94,6 +94,78 @@ func TestSGEMMIntegration(t *testing.T) {
 	}
 }
 
+// TestRowMajorGEMMF32Integration verifies the row-major convention on a
+// non-square product (m != k != n), the case that exposes leading-dimension or
+// transpose mistakes: A[2x3] · B[3x4] = C[2x4] against a host reference.
+func TestRowMajorGEMMF32Integration(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	const m, k, n = 2, 3, 4
+	a := []float32{1, 2, 3, 4, 5, 6}
+	b := []float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+	want := make([]float32, m*n)
+	for i := 0; i < m; i++ {
+		for j := 0; j < n; j++ {
+			var sum float32
+			for p := 0; p < k; p++ {
+				sum += a[i*k+p] * b[p*n+j]
+			}
+			want[i*n+j] = sum
+		}
+	}
+	out := make([]float32, m*n)
+	err = worker.Do(context.Background(), func(state *device.State) error {
+		lib, err := Open()
+		if err != nil {
+			return err
+		}
+		defer lib.Close()
+		handle, err := lib.Create()
+		if err != nil {
+			return err
+		}
+		defer lib.Destroy(handle)
+		if err := lib.SetStream(handle, state.Stream); err != nil {
+			return err
+		}
+		aPtr, err := copyToDevice(state.Driver, a)
+		if err != nil {
+			return err
+		}
+		defer state.Driver.MemFree(aPtr)
+		bPtr, err := copyToDevice(state.Driver, b)
+		if err != nil {
+			return err
+		}
+		defer state.Driver.MemFree(bPtr)
+		cPtr, err := state.Driver.MemAlloc(uint64(len(out) * 4))
+		if err != nil {
+			return err
+		}
+		defer state.Driver.MemFree(cPtr)
+		if err := lib.RowMajorGEMMF32(handle, m, k, n, aPtr, bPtr, cPtr); err != nil {
+			return err
+		}
+		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+			return err
+		}
+		return state.Driver.MemcpyDtoH(driver.Bytes(out), cPtr)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range want {
+		if math.Abs(float64(out[index]-want[index])) > 1e-4 {
+			t.Fatalf("out[%d] = %v, want %v", index, out[index], want[index])
+		}
+	}
+}
+
 func TestGEMMExBF16Integration(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)

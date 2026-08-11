@@ -22,8 +22,9 @@ func ValidateGenerateRequest(request GenerateRequest) error {
 	return nil
 }
 
-type generator interface {
-	Generate([]int, int) ([]int, error)
+type runtimeStages interface {
+	EncodeRequest(GenerateRequest) (EncodedRequest, error)
+	PrepareGeneration(EncodedRequest) (TokenSelector, error)
 }
 
 // RegisterRuntime binds one loaded model to its generation stage.
@@ -34,17 +35,27 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 	return registerRuntime(runtime, modelID, model)
 }
 
-func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model generator) error {
+func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model runtimeStages) error {
 	if model == nil {
 		return errors.New("seq2seq: incomplete runtime binding")
 	}
-	return workflowruntime.RegisterJSONStage[GenerateRequest, []int](
-		runtime, modelrecipe.ModuleSeq2SeqGenerate, modelID, generatedTokensContract,
-		func(request GenerateRequest) ([]int, error) {
-			if err := ValidateGenerateRequest(request); err != nil {
-				return nil, err
+	if err := workflowruntime.RegisterScalarStage(
+		runtime, modelrecipe.ModuleSeq2SeqEncode, modelID, model.EncodeRequest, nil,
+	); err != nil {
+		return err
+	}
+	if err := workflowruntime.RegisterScalarStage(
+		runtime, modelrecipe.ModuleSeq2SeqPrepare, modelID, model.PrepareGeneration, nil,
+	); err != nil {
+		return err
+	}
+	return workflowruntime.RegisterJSONStage[TokenSelector, []int](
+		runtime, modelrecipe.ModuleSeq2SeqSelect, modelID, generatedTokensContract,
+		func(selector TokenSelector) ([]int, error) {
+			if selector == nil {
+				return nil, errors.New("seq2seq: missing token selector")
 			}
-			return model.Generate(request.Source, request.MaxTokens)
+			return selector.Select()
 		},
 	)
 }

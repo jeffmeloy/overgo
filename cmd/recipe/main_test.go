@@ -30,7 +30,9 @@ func TestCommandsResolveExecutableCapabilityStages(t *testing.T) {
 	}{
 		{task: recipe.TaskForecast, modules: []recipe.ModuleID{modelrecipe.ModuleForecastSeries}},
 		{task: recipe.TaskTabular, modules: []recipe.ModuleID{modelrecipe.ModuleTabularPredict}},
-		{task: recipe.TaskSeq2Seq, modules: []recipe.ModuleID{modelrecipe.ModuleSeq2SeqGenerate}},
+		{task: recipe.TaskSeq2Seq, modules: []recipe.ModuleID{
+			modelrecipe.ModuleSeq2SeqEncode, modelrecipe.ModuleSeq2SeqPrepare, modelrecipe.ModuleSeq2SeqSelect,
+		}},
 		{task: recipe.TaskSpeech, modules: []recipe.ModuleID{
 			modelrecipe.ModuleSpeechTokenize, modelrecipe.ModuleSpeechGenerate, modelrecipe.ModuleSpeechDecode,
 		}},

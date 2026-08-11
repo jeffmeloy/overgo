@@ -20,12 +20,12 @@ const (
 	// ModuleTabularPredict: host forward for tabular ICL capability
 	// packages; input table tensor, output per-row predictions tensor.
 	ModuleTabularPredict recipe.ModuleID = "model.tabular-predict"
-	// ModuleSeq2SeqGenerate: host encoder-decoder generation for seq2seq
-	// capability packages; input source tokens, output generated tokens.
-	ModuleSeq2SeqGenerate recipe.ModuleID = "model.seq2seq-generate"
-	ModuleSpeechTokenize  recipe.ModuleID = "model.speech-tokenize"
-	ModuleSpeechGenerate  recipe.ModuleID = "model.speech-generate"
-	ModuleSpeechDecode    recipe.ModuleID = "model.speech-decode"
+	ModuleSeq2SeqEncode  recipe.ModuleID = "model.seq2seq-encode"
+	ModuleSeq2SeqPrepare recipe.ModuleID = "model.seq2seq-prepare"
+	ModuleSeq2SeqSelect  recipe.ModuleID = "model.seq2seq-select"
+	ModuleSpeechTokenize recipe.ModuleID = "model.speech-tokenize"
+	ModuleSpeechGenerate recipe.ModuleID = "model.speech-generate"
+	ModuleSpeechDecode   recipe.ModuleID = "model.speech-decode"
 	// ModuleImageGenerate: host class-conditional image sampling for
 	// image-generation capability packages; input condition tensor, output
 	// generated image.
@@ -138,23 +138,26 @@ func TabularDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	)
 }
 
-// Seq2SeqDefinition: single host seq2seq-generate node bound to the model
-// artifact. The capability package derives every dimension from the
-// artifact's tensor shapes, so the definition carries no profile document.
+// Seq2SeqDefinition: encode, prepare incremental session, select tokens.
 func Seq2SeqDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	forward := recipe.Node{ID: "seq2seq", Module: ModuleSeq2SeqGenerate, Placement: recipe.PlacementHost}
+	encode := recipe.Node{ID: "encode", Module: ModuleSeq2SeqEncode, Placement: recipe.PlacementHost}
+	prepare := recipe.Node{ID: "prepare", Module: ModuleSeq2SeqPrepare, Placement: recipe.PlacementHost}
+	selectTokens := recipe.Node{ID: "select", Module: ModuleSeq2SeqSelect, Placement: recipe.PlacementHost}
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskSeq2Seq,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
-		[]recipe.Node{forward},
-		nil,
+		[]recipe.Node{encode, prepare, selectTokens},
+		[]recipe.Edge{
+			{From: recipe.Endpoint{Node: encode.ID, Port: "memory"}, To: recipe.Endpoint{Node: prepare.ID, Port: "memory"}},
+			{From: recipe.Endpoint{Node: prepare.ID, Port: "session"}, To: recipe.Endpoint{Node: selectTokens.ID, Port: "session"}},
+		},
 		[]recipe.Input{{
 			Name: "source", Data: recipe.DataTokens,
-			Target: recipe.Endpoint{Node: forward.ID, Port: "source"},
+			Target: recipe.Endpoint{Node: encode.ID, Port: "source"},
 		}},
 		[]recipe.Output{{
 			Name: "tokens", Data: recipe.DataTokens,
-			Source: recipe.Endpoint{Node: forward.ID, Port: "tokens"},
+			Source: recipe.Endpoint{Node: selectTokens.ID, Port: "tokens"},
 		}},
 	)
 }
@@ -477,9 +480,21 @@ func mustCatalog() *recipe.Catalog {
 			Outputs:    []recipe.Port{{Name: "predictions", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
 		},
 		recipe.Module{
-			ID: ModuleSeq2SeqGenerate, Tasks: []recipe.Task{recipe.TaskSeq2Seq},
+			ID: ModuleSeq2SeqEncode, Tasks: []recipe.Task{recipe.TaskSeq2Seq},
 			Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs:     []recipe.Port{{Name: "source", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "memory", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleSeq2SeqPrepare, Tasks: []recipe.Task{recipe.TaskSeq2Seq},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:     []recipe.Port{{Name: "memory", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleSeq2SeqSelect, Tasks: []recipe.Task{recipe.TaskSeq2Seq},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:     []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
 			Outputs:    []recipe.Port{{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
 		},
 		recipe.Module{

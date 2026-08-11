@@ -43,7 +43,7 @@ func TestDecodeWall(t *testing.T) {
 		return err
 	})
 	median("generate-8", func() error {
-		_, err := model.Generate(oracle.Src, 8)
+		_, err := executeGenerationStages(model, oracle.Src, 8)
 		return err
 	})
 }

@@ -16,8 +16,21 @@ func RegisterJSONStage[Input, Output any](
 	contract artifact.DocumentContract,
 	execute func(Input) (Output, error),
 ) error {
+	return RegisterScalarStage(runtime, moduleID, modelID, execute, func(value Output) (artifact.Content, error) {
+		return artifact.JSONContent(contract, value)
+	})
+}
+
+// RegisterScalarStage binds typed computation with optional artifact output.
+func RegisterScalarStage[Input, Output any](
+	runtime *Runtime,
+	moduleID recipe.ModuleID,
+	modelID artifact.ID,
+	execute func(Input) (Output, error),
+	encode func(Output) (artifact.Content, error),
+) error {
 	if runtime == nil || runtime.catalog == nil || execute == nil || modelID.Kind() != artifact.KindModel {
-		return fmt.Errorf("workflow runtime: incomplete JSON stage")
+		return fmt.Errorf("workflow runtime: incomplete scalar stage")
 	}
 	module, ok := runtime.catalog.Module(moduleID)
 	if !ok {
@@ -46,11 +59,15 @@ func RegisterJSONStage[Input, Output any](
 			if err != nil {
 				return nil, err
 			}
-			content, err := artifact.JSONContent(contract, value)
-			if err != nil {
-				return nil, err
+			output := Value{Kind: outputPort.Data, Items: []Datum{{Value: value}}}
+			if encode != nil {
+				content, err := encode(value)
+				if err != nil {
+					return nil, err
+				}
+				output = ArtifactValue(outputPort.Data, value, content)
 			}
-			return map[recipe.PortName]Value{outputPort.Name: ArtifactValue(outputPort.Data, value, content)}, nil
+			return map[recipe.PortName]Value{outputPort.Name: output}, nil
 		},
 	))
 }

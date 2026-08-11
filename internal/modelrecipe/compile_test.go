@@ -201,13 +201,23 @@ func TestSpeechDefinitionValidatesAgainstCatalog(t *testing.T) {
 	if definition.Task != recipe.TaskSpeech || definition.Model != modelID {
 		t.Fatalf("definition = %+v", definition)
 	}
-	if len(definition.Nodes) != 1 || definition.Nodes[0].Module != ModuleSpeechSynthesize ||
-		definition.Nodes[0].Placement != recipe.PlacementHost {
-		t.Fatalf("nodes = %+v", definition.Nodes)
-	}
 	if len(definition.Inputs) != 1 || definition.Inputs[0].Data != recipe.DataText ||
 		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataAudio {
 		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
+	}
+	program, err := CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stages := program.Stages()
+	want := []recipe.ModuleID{ModuleSpeechTokenize, ModuleSpeechGenerate, ModuleSpeechDecode}
+	if len(stages) != len(want) {
+		t.Fatalf("stages = %+v", stages)
+	}
+	for index, module := range want {
+		if stages[index].Module.ID != module || stages[index].Node.Placement != recipe.PlacementHost {
+			t.Fatalf("stage[%d] = %+v", index, stages[index])
+		}
 	}
 	// Inference compiler must refuse the non-inference task.
 	if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {

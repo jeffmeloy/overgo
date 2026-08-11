@@ -25,13 +25,15 @@ var forecastValuesFixture = []float32{1.25, -2.5, 4}
 
 func TestCommandsResolveExecutableCapabilityStages(t *testing.T) {
 	tests := []struct {
-		task   recipe.Task
-		module recipe.ModuleID
+		task    recipe.Task
+		modules []recipe.ModuleID
 	}{
-		{task: recipe.TaskForecast, module: modelrecipe.ModuleForecastSeries},
-		{task: recipe.TaskTabular, module: modelrecipe.ModuleTabularPredict},
-		{task: recipe.TaskSeq2Seq, module: modelrecipe.ModuleSeq2SeqGenerate},
-		{task: recipe.TaskSpeech, module: modelrecipe.ModuleSpeechSynthesize},
+		{task: recipe.TaskForecast, modules: []recipe.ModuleID{modelrecipe.ModuleForecastSeries}},
+		{task: recipe.TaskTabular, modules: []recipe.ModuleID{modelrecipe.ModuleTabularPredict}},
+		{task: recipe.TaskSeq2Seq, modules: []recipe.ModuleID{modelrecipe.ModuleSeq2SeqGenerate}},
+		{task: recipe.TaskSpeech, modules: []recipe.ModuleID{
+			modelrecipe.ModuleSpeechTokenize, modelrecipe.ModuleSpeechGenerate, modelrecipe.ModuleSpeechDecode,
+		}},
 	}
 	for _, test := range tests {
 		t.Run(string(test.task), func(t *testing.T) {
@@ -49,8 +51,13 @@ func TestCommandsResolveExecutableCapabilityStages(t *testing.T) {
 				t.Fatal(err)
 			}
 			stages := program.Stages()
-			if len(stages) != 1 || stages[0].Module.ID != test.module {
+			if len(stages) != len(test.modules) {
 				t.Fatalf("program = %+v", program)
+			}
+			for index, module := range test.modules {
+				if stages[index].Module.ID != module {
+					t.Fatalf("stage[%d] = %+v", index, stages[index])
+				}
 			}
 		})
 	}

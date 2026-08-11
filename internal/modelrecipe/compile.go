@@ -23,9 +23,9 @@ const (
 	// ModuleSeq2SeqGenerate: host encoder-decoder generation for seq2seq
 	// capability packages; input source tokens, output generated tokens.
 	ModuleSeq2SeqGenerate recipe.ModuleID = "model.seq2seq-generate"
-	// ModuleSpeechSynthesize: host text-to-speech for speech capability
-	// packages; input text, output synthesized audio.
-	ModuleSpeechSynthesize recipe.ModuleID = "model.speech-synthesize"
+	ModuleSpeechTokenize  recipe.ModuleID = "model.speech-tokenize"
+	ModuleSpeechGenerate  recipe.ModuleID = "model.speech-generate"
+	ModuleSpeechDecode    recipe.ModuleID = "model.speech-decode"
 	// ModuleImageGenerate: host class-conditional image sampling for
 	// image-generation capability packages; input condition tensor, output
 	// generated image.
@@ -159,23 +159,26 @@ func Seq2SeqDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	)
 }
 
-// SpeechDefinition: single host speech-synthesize node bound to the model
-// artifact. The capability package derives every dimension from the
-// artifact's tensor shapes, so the definition carries no profile document.
+// SpeechDefinition: tokenization, latent generation, and audio decode.
 func SpeechDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	forward := recipe.Node{ID: "speech", Module: ModuleSpeechSynthesize, Placement: recipe.PlacementHost}
+	tokenize := recipe.Node{ID: "tokenize", Module: ModuleSpeechTokenize, Placement: recipe.PlacementHost}
+	generate := recipe.Node{ID: "generate", Module: ModuleSpeechGenerate, Placement: recipe.PlacementHost}
+	decode := recipe.Node{ID: "decode", Module: ModuleSpeechDecode, Placement: recipe.PlacementHost}
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskSpeech,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
-		[]recipe.Node{forward},
-		nil,
+		[]recipe.Node{tokenize, generate, decode},
+		[]recipe.Edge{
+			{From: recipe.Endpoint{Node: tokenize.ID, Port: "tokens"}, To: recipe.Endpoint{Node: generate.ID, Port: "tokens"}},
+			{From: recipe.Endpoint{Node: generate.ID, Port: "latents"}, To: recipe.Endpoint{Node: decode.ID, Port: "latents"}},
+		},
 		[]recipe.Input{{
 			Name: "text", Data: recipe.DataText,
-			Target: recipe.Endpoint{Node: forward.ID, Port: "text"},
+			Target: recipe.Endpoint{Node: tokenize.ID, Port: "text"},
 		}},
 		[]recipe.Output{{
 			Name: "audio", Data: recipe.DataAudio,
-			Source: recipe.Endpoint{Node: forward.ID, Port: "audio"},
+			Source: recipe.Endpoint{Node: decode.ID, Port: "audio"},
 		}},
 	)
 }
@@ -480,9 +483,21 @@ func mustCatalog() *recipe.Catalog {
 			Outputs:    []recipe.Port{{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
 		},
 		recipe.Module{
-			ID: ModuleSpeechSynthesize, Tasks: []recipe.Task{recipe.TaskSpeech},
+			ID: ModuleSpeechTokenize, Tasks: []recipe.Task{recipe.TaskSpeech},
 			Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs:     []recipe.Port{{Name: "text", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleSpeechGenerate, Tasks: []recipe.Task{recipe.TaskSpeech},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:     []recipe.Port{{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "latents", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleSpeechDecode, Tasks: []recipe.Task{recipe.TaskSpeech},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:     []recipe.Port{{Name: "latents", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
 			Outputs:    []recipe.Port{{Name: "audio", Data: recipe.DataAudio, Cardinality: recipe.CardinalityOne}},
 		},
 		recipe.Module{

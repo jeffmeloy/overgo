@@ -555,12 +555,24 @@ func ledgerNames(repo, storePath string) (map[string]bool, error) {
 // change; a failure INCLUDING device unavailability fails the commit —
 // UNAVAILABLE never passes for a change that needs device evidence.
 func (g *gateContext) stepDevice() (bool, error) {
-	if !g.pathsTouchAny("kernels/", "internal/cuda/") {
+	if !g.pathsTouchAny("kernels/", "internal/cuda/") && !g.pathsTouchDeviceSource() {
 		g.honesty = append(g.honesty, "device lane skipped: no kernel or CUDA-cone paths in -paths")
 		return true, nil
 	}
 	_, err := command(g.repo, "go", "run", "./cmd/device-lane")
 	return false, err
+}
+
+// pathsTouchDeviceSource: device-lane code lives outside internal/cuda too (e.g.
+// the device optimizer in internal/optimizer). Any _cuda_windows source/test in
+// -paths fires the lane so its device evidence is not silently skipped.
+func (g *gateContext) pathsTouchDeviceSource() bool {
+	for _, p := range g.paths {
+		if strings.Contains(p, "_cuda_windows") {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *gateContext) stepCommit() (bool, error) {

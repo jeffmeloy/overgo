@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"sort"
 
 	"overgo/internal/optimizer"
 )
@@ -144,9 +143,7 @@ func (m *Model) blockTensorName(i int, part string) string {
 	return fmt.Sprintf("%s.blocks.%d.%s", m.Namespace, i, part)
 }
 
-// trainableTensors: name -> (slice, rows, cols). Matrix shapes follow the
-// reference layout: couplings/drive/conv weights are Muon matrices, vectors
-// and biases are elementwise.
+// trainableTensors: bound values and Muon geometry by artifact name.
 func (m *Model) trainableTensors() (map[string][]float32, map[string][2]int) {
 	cfg := m.Cfg
 	tensors := map[string][]float32{}
@@ -172,40 +169,15 @@ func (m *Model) trainableTensors() (map[string][]float32, map[string][2]int) {
 	return tensors, shapes
 }
 
-// TrainDrift: the reference bootstrap loop — batch = one row per class, phase
-// init resampled per step, drift objective, Muon steps at (baseLR, mu).
-// Returns the loss trajectory.
+// TrainDrift: class-batch drift objective with resampled phase initialization.
 func (m *Model) TrainDrift(steps int, baseLR, mu float64, seed int64) ([]float64, error) {
 	cfg := m.Cfg
 	tensors, shapes := m.trainableTensors()
-	names := make([]string, 0, len(tensors))
-	for name := range tensors {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	total := 0
-	for _, name := range names {
-		total += len(tensors[name])
-	}
-	weights := make([]float32, total)
-	gradients := make([]float32, total)
-	specs := make([]optimizer.GroupSpec, 0, len(names))
-	offset := 0
-	for _, name := range names {
-		values := tensors[name]
-		shape := shapes[name]
-		copy(weights[offset:], values)
-		specs = append(specs, optimizer.GroupSpec{
-			Name: name, Start: offset, End: offset + len(values),
-			Rows: shape[0], Cols: shape[1],
-		})
-		offset += len(values)
-	}
-	plan, err := optimizer.CompilePlan(total, specs)
+	pack, err := optimizer.NewTensorPack(tensors, optimizer.MatrixGeometry(shapes))
 	if err != nil {
 		return nil, err
 	}
-	opt, err := optimizer.New(weights, gradients, plan, optimizer.Config{
+	opt, err := pack.NewOptimizer(optimizer.Config{
 		BaseLearningRate: baseLR, Momentum: mu, Schedule: optimizer.ScheduleConstant,
 	})
 	if err != nil {
@@ -219,12 +191,7 @@ func (m *Model) TrainDrift(steps int, baseLR, mu float64, seed int64) ([]float64
 	init := make([]float32, classes*tot)
 	trajectory := make([]float64, 0, steps)
 	for step := 0; step < steps; step++ {
-		// Scatter optimizer weights back into the model tensors.
-		offset = 0
-		for _, name := range names {
-			copy(tensors[name], weights[offset:offset+len(tensors[name])])
-			offset += len(tensors[name])
-		}
+		pack.Scatter()
 		for i := range init {
 			init[i] = float32((rng.Float64()*2 - 1) * math.Pi)
 		}
@@ -233,18 +200,11 @@ func (m *Model) TrainDrift(steps int, baseLR, mu float64, seed int64) ([]float64
 		grads := Grads{}
 		m.backwardInto(trace, m.Drive, dImage, grads)
 		trajectory = append(trajectory, loss)
-		offset = 0
-		for _, name := range names {
-			copy(gradients[offset:offset+len(tensors[name])], grads[name])
-			offset += len(tensors[name])
+		if err := pack.GatherGradients(grads); err != nil {
+			return nil, err
 		}
 		opt.Step()
 	}
-	// Final scatter so the model reflects the last step.
-	offset = 0
-	for _, name := range names {
-		copy(tensors[name], weights[offset:offset+len(tensors[name])])
-		offset += len(tensors[name])
-	}
+	pack.Scatter()
 	return trajectory, nil
 }

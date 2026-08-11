@@ -21,33 +21,14 @@ import (
 func muonJointStep(t *testing.T, m *Model, g Grads, lrJoint float64) {
 	t.Helper()
 	tensors, shapes := m.TrainedTensors(true)
-	names := m.TrainedTensorNames(true)
-	total := 0
-	for _, name := range names {
-		total += len(tensors[name])
-	}
-	weights := make([]float32, total)
-	grads := make([]float32, total)
-	specs := make([]optimizer.GroupSpec, 0, len(names))
-	offset := 0
-	for _, name := range names {
-		w := tensors[name]
-		shape := shapes[name]
-		copy(weights[offset:], w)
-		if gv, ok := g[name]; ok {
-			copy(grads[offset:], gv)
-		}
-		specs = append(specs, optimizer.GroupSpec{
-			Name: name, Start: offset, End: offset + len(w),
-			Rows: shape[0], Cols: shape[1],
-		})
-		offset += len(w)
-	}
-	plan, err := optimizer.CompilePlan(total, specs)
+	pack, err := optimizer.NewTensorPack(tensors, optimizer.MatrixGeometry(shapes))
 	if err != nil {
 		t.Fatal(err)
 	}
-	opt, err := optimizer.New(weights, grads, plan, optimizer.Config{
+	if err := pack.GatherGradients(g); err != nil {
+		t.Fatal(err)
+	}
+	opt, err := pack.NewOptimizer(optimizer.Config{
 		BaseLearningRate: lrJoint, Momentum: 0.95, Schedule: optimizer.ScheduleConstant,
 	})
 	if err != nil {
@@ -57,12 +38,7 @@ func muonJointStep(t *testing.T, m *Model, g Grads, lrJoint float64) {
 	if result.LearningRate != lrJoint {
 		t.Fatalf("step rate %g != derived %g", result.LearningRate, lrJoint)
 	}
-	offset = 0
-	for _, name := range names {
-		w := tensors[name]
-		copy(w, weights[offset:offset+len(w)])
-		offset += len(w)
-	}
+	pack.Scatter()
 }
 
 // TestJointMuonStepTinyDecreasesLoss: derived-lr Muon step on the tiny joint

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"strings"
 	"unicode"
-
-	"golang.org/x/text/unicode/norm"
 )
 
 const escapedWordPieceSpace = "▁"
@@ -45,7 +43,7 @@ func (v *Vocab) encodeWPM(text string) ([]TokenID, error) {
 
 func (v *Vocab) preprocessWPM(text string) []string {
 	if v.StripAccents {
-		text = norm.NFD.String(text)
+		text = nfdString(text)
 	}
 	words := make([]string, 0, len(text)/4+1)
 	var current strings.Builder

@@ -34,6 +34,7 @@ import (
 	"overgo/internal/repodb"
 	"overgo/internal/seq2seq"
 	"overgo/internal/seriesforecast"
+	"overgo/internal/speechsynth"
 	"overgo/internal/strictjson"
 	"overgo/internal/tabularicl"
 	"overgo/internal/workflowruntime"
@@ -44,6 +45,8 @@ var forecastInputContract = artifact.JSONContract(artifact.KindFile, "overgo.for
 var tabularInputContract = artifact.JSONContract(artifact.KindFile, "overgo.tabular-input.v1")
 
 var seq2seqInputContract = artifact.JSONContract(artifact.KindFile, "overgo.seq2seq-input.v1")
+
+var speechInputContract = artifact.JSONContract(artifact.KindFile, "overgo.speech-input.v1")
 
 type capabilityExecutor func(
 	context.Context,
@@ -71,7 +74,7 @@ var capabilityCommands = map[recipe.Task]capabilityCommand{
 		inventory: hfInventory, definition: modelrecipe.Seq2SeqDefinition, execute: executeSeq2Seq,
 	},
 	recipe.TaskSpeech: {
-		inventory: speechInventory, definition: modelrecipe.SpeechDefinition,
+		inventory: speechInventory, definition: modelrecipe.SpeechDefinition, execute: executeSpeech,
 	},
 	recipe.TaskImageGen: {
 		inventory: imageGenInventory, definition: modelrecipe.ImageGenDefinition,
@@ -421,6 +424,30 @@ func executeSeq2Seq(
 	)
 }
 
+func executeSpeech(
+	ctx context.Context,
+	store artifact.Repository,
+	path string,
+	modelID artifact.ID,
+	program recipe.Program,
+	input string,
+) (any, error) {
+	request, content, err := speechInput(input)
+	if err != nil {
+		return nil, err
+	}
+	synthesizer, err := speechsynth.LoadSynthesizer(path)
+	if err != nil {
+		return nil, err
+	}
+	return executeScalarProgram[speechsynth.Audio](
+		ctx, store, program, request, content,
+		func(runtime *workflowruntime.Runtime) error {
+			return speechsynth.RegisterRuntime(runtime, modelID, synthesizer)
+		},
+	)
+}
+
 func executeScalarProgram[Output any](
 	ctx context.Context,
 	store artifact.Repository,
@@ -465,44 +492,47 @@ func executeScalarProgram[Output any](
 }
 
 func forecastInput(input string) ([]float32, artifact.Content, error) {
-	var series []float32
-	if err := json.Unmarshal([]byte(input), &series); err != nil {
-		return nil, artifact.Content{}, fmt.Errorf("decode forecast input: %w", err)
-	}
+	return decodeCapabilityInput(input, "forecast", forecastInputContract, validateForecastInput)
+}
+
+func validateForecastInput(series []float32) error {
 	if len(series) == 0 {
-		return nil, artifact.Content{}, errors.New("forecast input series is empty")
+		return errors.New("forecast input series is empty")
 	}
 	for _, value := range series {
 		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
-			return nil, artifact.Content{}, errors.New("forecast input series contains a non-finite value")
+			return errors.New("forecast input series contains a non-finite value")
 		}
 	}
-	content, err := artifact.JSONContent(forecastInputContract, series)
-	return series, content, err
+	return nil
 }
 
 func tabularInput(input string) (tabularicl.Request, artifact.Content, error) {
-	var request tabularicl.Request
-	if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
-		return request, artifact.Content{}, fmt.Errorf("decode tabular input: %w", err)
-	}
-	if err := tabularicl.ValidateRequest(request); err != nil {
-		return request, artifact.Content{}, err
-	}
-	content, err := artifact.JSONContent(tabularInputContract, request)
-	return request, content, err
+	return decodeCapabilityInput(input, "tabular", tabularInputContract, tabularicl.ValidateRequest)
 }
 
 func seq2seqInput(input string) (seq2seq.GenerateRequest, artifact.Content, error) {
-	var request seq2seq.GenerateRequest
-	if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
-		return request, artifact.Content{}, fmt.Errorf("decode seq2seq input: %w", err)
+	return decodeCapabilityInput(input, "seq2seq", seq2seqInputContract, seq2seq.ValidateGenerateRequest)
+}
+
+func speechInput(input string) (speechsynth.SynthesisRequest, artifact.Content, error) {
+	return decodeCapabilityInput(input, "speech", speechInputContract, speechsynth.ValidateSynthesisRequest)
+}
+
+func decodeCapabilityInput[Input any](
+	raw, name string,
+	contract artifact.DocumentContract,
+	validate func(Input) error,
+) (Input, artifact.Content, error) {
+	var value Input
+	if err := strictjson.DecodeBytes([]byte(raw), &value); err != nil {
+		return value, artifact.Content{}, fmt.Errorf("decode %s input: %w", name, err)
 	}
-	if err := seq2seq.ValidateGenerateRequest(request); err != nil {
-		return request, artifact.Content{}, err
+	if err := validate(value); err != nil {
+		return value, artifact.Content{}, err
 	}
-	content, err := artifact.JSONContent(seq2seqInputContract, request)
-	return request, content, err
+	content, err := artifact.JSONContent(contract, value)
+	return value, content, err
 }
 
 // sessionOverride: operator-pinned decode session; nil defers to the

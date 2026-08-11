@@ -15,6 +15,7 @@ const (
 	tabularInputFixture        = `{"task":"classification","x":[2,3],"y":[1,0],"rows":2,"cols":1,"train_rows":1}`
 	invalidTabularInputFixture = `{"task":"classification","unknown":1}`
 	seq2seqInputFixture        = `{"source":[3,5],"max_tokens":2}`
+	speechInputFixture         = `{"text":"hello","max_frames":2,"seed":7}`
 	tabularInputRows           = 2
 	tabularInputCols           = 1
 	tabularInputTrainRows      = 1
@@ -30,6 +31,7 @@ func TestCommandsResolveExecutableCapabilityStages(t *testing.T) {
 		{task: recipe.TaskForecast, module: modelrecipe.ModuleForecastSeries},
 		{task: recipe.TaskTabular, module: modelrecipe.ModuleTabularPredict},
 		{task: recipe.TaskSeq2Seq, module: modelrecipe.ModuleSeq2SeqGenerate},
+		{task: recipe.TaskSpeech, module: modelrecipe.ModuleSpeechSynthesize},
 	}
 	for _, test := range tests {
 		t.Run(string(test.task), func(t *testing.T) {
@@ -102,5 +104,21 @@ func TestSeq2SeqInputIsValidatedCanonicalArtifact(t *testing.T) {
 	}
 	if _, _, err := seq2seqInput(`{"source":[],"max_tokens":2}`); err == nil {
 		t.Fatal("empty seq2seq source accepted")
+	}
+}
+
+func TestSpeechInputIsValidatedCanonicalArtifact(t *testing.T) {
+	request, content, err := speechInput(speechInputFixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.Text != "hello" || request.MaxFrames != 2 || request.Seed != 7 {
+		t.Fatalf("request = %+v", request)
+	}
+	if err := content.Validate(); err != nil || content.Descriptor.ID.Kind() != artifact.KindFile {
+		t.Fatalf("input content = (%+v, %v)", content.Descriptor, err)
+	}
+	if _, _, err := speechInput(`{"text":"","max_frames":2}`); err == nil {
+		t.Fatal("empty speech text accepted")
 	}
 }

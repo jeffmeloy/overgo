@@ -57,6 +57,41 @@ Bitwise host determinism (checkpoint/resume) is unchanged.
    the python/go(adaptive_new)/overgo **performance** comparison (speed + peak
    memory) — the milestone the whole rung exists to reach.
 
+## Progress
+
+Slices 1-2 DONE and gate/GPU-verified: device Newton-Schulz (internal/optimizer,
+fp32 vs fp64 host ~1e-7), device Muon step (matrix + full-plan `DeviceMuonStepPlan`
+vs host `Optimizer.Step`), and it is wired into `densecausal.TrainDevice`
+(reproduces the host learning curve to 3.8e-6). Slice 3 (device backward) DONE as
+an FD-verified operator library in `internal/devicemath`, each grad-checked on the
+GPU against a float64 reference: `LinearBackward`, `SiLUBackward`,
+`GatedMLPBackward` (SwiGLU), `RMSNormBackward`, `SoftmaxBackward`,
+`AttentionCoreBackward` + `MultiHeadAttentionBackward` (causal GQA),
+`RoPEHalfBackward`, and the composed `LayerBackward` (a full generic pre-norm
+transformer layer). The ops_f32 kernel-extension path is established (silu/rms-norm/
+softmax/rope backward kernels added via `cmd/build-kernels`).
+
+## Remaining: densecausal-exact integration (the next slices)
+
+`devicemath.LayerBackward` proves the operators compose, but densecausal's layer
+(internal/densecausal/forward.go attnSubForward/layerForward) uses specific
+conventions the integrated backward MUST match to gate against host `layerBackward`:
+- **Linear layout is `W[out,in]`, `Y = X·Wᵀ`** (hostmath.Linear), the transpose of
+  devicemath.LinearBackward's `Y=X·W` — so its dX/dW GEMMs flip (dX=dY·W,
+  dW=dYᵀ·X). Add a `LinearBackwardT` or transpose W at the boundary.
+- **Scale is folded into `qScaled`**: q is projected, bias added, RoPE'd, then
+  multiplied by `1/sqrt(headDim)`; CausalAttention then runs at scale=1. So the
+  device attention backward uses scale=1 and RoPEHalfBackward + the scale factor
+  apply to dQ.
+- Bias (qb/kb/vb) lands BEFORE rope; RoPE is split-half per head on qPost/kPost.
+- attnCore is `[seq, Heads*HeadDim]`; the o-projection maps it to `[seq, Hidden]`.
+- densecausal.layerBackward RECOMPUTES attnSubForward for intermediates (checkpoint
+  posture) rather than saving them; the device path can mirror that or save a cache.
+
+Then: end-to-end device training loop (device forward + device backward + device
+Muon step) gated vs host `densecausal.Train`; then the python/go/overgo speed+memory
+comparison — the milestone the whole rung exists to reach.
+
 ## Non-goals for rung 2
 Multi-GPU (single 4090D). Quantized training transport (later rung, after the fp32
 device baseline). Changing the host oracle's fp64 determinism.

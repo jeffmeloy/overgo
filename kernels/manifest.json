@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "55f9a91bf3f06221c2ef862f1fd772a26efcd92e8b45928ab9688758d3c0a691",
+      "sourceSha256": "457a680079e96757dd52fe2d17f2ba9968d8f5417f3dabd5f1c5fcc0d7abd468",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "409cb6694be58f6f07da7299a4623e39a6bf4236b94b517975bcc3a26c9ee84c",
+      "assetSha256": "970c63cdede8d0bca5e7a05397fa2aae73ebea8bc0b6fa0f50a699bb06c80108",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -178,6 +178,7 @@
         "sigmoid_f32",
         "silu_backward_f32",
         "silu_f32",
+        "softmax_backward_f32",
         "softmax_f32",
         "softplus_f32",
         "sparse_attention_f32",
@@ -247,7 +248,8 @@
             "get_rows_tq1_0_f32",
             "get_rows_tq2_0_f32",
             "mul_mat_bf16_argmax_partials_f32",
-            "mul_mat_q8_0_input_argmax_partials_f32"
+            "mul_mat_q8_0_input_argmax_partials_f32",
+            "softmax_backward_f32"
           ]
         },
         {

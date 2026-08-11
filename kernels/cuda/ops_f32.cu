@@ -460,6 +460,30 @@ extern "C" __global__ void rms_norm_backward_f32(
     }
 }
 
+// softmax_backward_f32: VJP of a row-wise softmax. Given the softmax output p
+// and its cotangent dp, ds_i = p_i*(dp_i - sum_j p_j*dp_j). One thread per row.
+extern "C" __global__ void softmax_backward_f32(
+        const float * p,
+        const float * dp,
+        float * ds,
+        unsigned int rows,
+        unsigned int d) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const float * pr = p + (size_t)row * d;
+    const float * dpr = dp + (size_t)row * d;
+    float * dsr = ds + (size_t)row * d;
+    float dot = 0.0f;
+    for (unsigned int i = 0; i < d; i++) {
+        dot += pr[i] * dpr[i];
+    }
+    for (unsigned int i = 0; i < d; i++) {
+        dsr[i] = pr[i] * (dpr[i] - dot);
+    }
+}
+
 extern "C" __global__ void activated_gate_f32(
         const float * gate,
         const float * up,

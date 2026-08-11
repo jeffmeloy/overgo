@@ -51,8 +51,8 @@ type LayerOperator uint8
 
 const (
 	LayerOperatorNone LayerOperator = iota
-	LayerOperatorDenseAttention
-	LayerOperatorDenseFeedForward
+	LayerOperatorPolicyAttention
+	LayerOperatorPolicyFeedForward
 	LayerOperatorLinearAttention
 	LayerOperatorLatentAttention
 	LayerOperatorHyperAttention
@@ -937,10 +937,10 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 		if profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
 			return newLayerProgram(
 				leafLayerStage(
-					LayerOperatorDenseAttention,
+					LayerOperatorPolicyAttention,
 					[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 				),
-				layerStage(LayerOperatorDenseFeedForward),
+				layerStage(LayerOperatorPolicyFeedForward),
 			)
 		}
 		return LayerProgram{}

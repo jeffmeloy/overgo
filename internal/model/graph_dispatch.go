@@ -109,11 +109,11 @@ func resolveLayerOperands(
 }
 
 type layerExecution struct {
-	residual *tensor.Tensor
-	current  *tensor.Tensor
-	result   DenseBlockResult
-	dense    denseFeedForwardState
-	hasDense bool
+	residual              *tensor.Tensor
+	current               *tensor.Tensor
+	policyNormalized      *tensor.Tensor
+	policyFeedForwardNorm *tensor.Tensor
+	result                DenseBlockResult
 }
 
 func executeLayerProgram(
@@ -511,32 +511,39 @@ func executeLayerInstruction(
 			execution.result.Output = execution.current
 		}
 		return c.Builder.Err()
-	case LayerOperatorDenseAttention:
+	case LayerOperatorPolicyAttention:
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||
 			plan.Block != BlockDense {
 			return errors.New("compiled dense-attention stage is invalid")
 		}
-		result, state, err := buildDenseAttentionStage(options)
+		result, normalized, feedForwardNorm, err := buildPolicyAttentionStage(options)
 		if err != nil {
 			return err
 		}
 		execution.current = result.Output
+		execution.residual = result.Output
 		execution.result = result
-		execution.dense = state
-		execution.hasDense = true
+		execution.policyNormalized = normalized
+		execution.policyFeedForwardNorm = feedForwardNorm
 		return nil
-	case LayerOperatorDenseFeedForward:
+	case LayerOperatorPolicyFeedForward:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
-			plan.Block != BlockDense || !execution.hasDense {
+			plan.Block != BlockDense || execution.policyNormalized == nil ||
+			execution.policyFeedForwardNorm == nil {
 			return errors.New("compiled dense feed-forward stage is invalid")
 		}
-		result, err := buildDenseFeedForwardStage(execution.dense)
+		result, err := buildPolicyFeedForwardStage(
+			options, execution.policyNormalized, execution.policyFeedForwardNorm,
+			execution.residual, execution.result.Key, execution.result.Value,
+		)
 		if err != nil {
 			return err
 		}
 		execution.current = result.Output
+		execution.residual = result.Output
 		execution.result = result
-		execution.hasDense = false
+		execution.policyNormalized = nil
+		execution.policyFeedForwardNorm = nil
 		return nil
 	case LayerOperatorLinearAttention:
 		if instruction.CacheCount != 2 || instruction.TensorCount != 0 ||

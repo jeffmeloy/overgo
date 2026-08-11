@@ -23,7 +23,7 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 		switch policy {
 		case BlockDense:
 			want = []LayerOperator{
-				LayerOperatorDenseAttention, LayerOperatorDenseFeedForward,
+				LayerOperatorPolicyAttention, LayerOperatorPolicyFeedForward,
 			}
 		case BlockKimiLinear:
 			want = []LayerOperator{

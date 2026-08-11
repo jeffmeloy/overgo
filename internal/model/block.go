@@ -277,48 +277,38 @@ func prepareDenseBlock(options BlockDispatchOptions) (denseBlockContext, error) 
 	return prepared, nil
 }
 
-type denseFeedForwardState struct {
-	context               denseBlockContext
-	runtime               denseBlockRuntime
-	normalized            *tensor.Tensor
-	feedForwardNormalized *tensor.Tensor
-	residual              *tensor.Tensor
-	cacheKey, cacheValue  *tensor.Tensor
-	usesExperts           bool
-}
-
-func buildDenseAttentionStage(
+func buildPolicyAttentionStage(
 	options BlockDispatchOptions,
-) (DenseBlockResult, denseFeedForwardState, error) {
+) (DenseBlockResult, *tensor.Tensor, *tensor.Tensor, error) {
 	c, err := prepareDenseBlock(options)
 	if err != nil {
-		return DenseBlockResult{}, denseFeedForwardState{}, err
+		return DenseBlockResult{}, nil, nil, err
 	}
 	if c.plan.DenseGraph != DenseGraphStandard || c.plan.DeciSparse {
-		return DenseBlockResult{}, denseFeedForwardState{}, errors.New("compiled dense attention stage is incompatible")
+		return DenseBlockResult{}, nil, nil, errors.New("compiled policy attention stage is incompatible")
 	}
 	if err := c.plan.ExpertComposition.Validate(c.spec); err != nil {
-		return DenseBlockResult{}, denseFeedForwardState{}, err
+		return DenseBlockResult{}, nil, nil, err
 	}
 	if c.profile.FeedForward == FeedForwardXIELU &&
 		(int(c.layer) >= len(c.spec.XIELUAlphaN) || int(c.layer) >= len(c.spec.XIELUAlphaP) ||
 			int(c.layer) >= len(c.spec.XIELUBeta) || int(c.layer) >= len(c.spec.XIELUEpsilon)) {
-		return DenseBlockResult{}, denseFeedForwardState{}, errors.New("Apertus xIELU parameters are missing for layer")
+		return DenseBlockResult{}, nil, nil, errors.New("Apertus xIELU parameters are missing for layer")
 	}
 	usesExperts := c.weights.FeedForwardRouter != nil
 	if err := c.plan.DenseWeights.Validate(c.spec, c.profile, c.weights, usesExperts); err != nil {
-		return DenseBlockResult{}, denseFeedForwardState{}, err
+		return DenseBlockResult{}, nil, nil, err
 	}
 	if len(c.positions) == 0 || uint64(len(c.positions)) != c.input.Shape.Dims[1] {
-		return DenseBlockResult{}, denseFeedForwardState{}, fmt.Errorf(
+		return DenseBlockResult{}, nil, nil, fmt.Errorf(
 			"dense block has %d positions for %d tokens", len(c.positions), c.input.Shape.Dims[1],
 		)
 	}
 	if err := requireTensorPair(c.pastKey, c.pastValue, "dense block past key/value cache must both be present"); err != nil {
-		return DenseBlockResult{}, denseFeedForwardState{}, err
+		return DenseBlockResult{}, nil, nil, err
 	}
 	if c.spec.NonCausalAttention && c.profile.Forward != ForwardDFlash && c.pastKey != nil {
-		return DenseBlockResult{}, denseFeedForwardState{}, errors.New("non-causal dense block does not support a KV cache")
+		return DenseBlockResult{}, nil, nil, errors.New("non-causal dense block does not support a KV cache")
 	}
 
 	tokens := uint64(len(c.positions))
@@ -348,7 +338,7 @@ func buildDenseAttentionStage(
 	query, key, value := runtime.projectAttention(normalized)
 	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkProjection)
 	if err != nil {
-		return DenseBlockResult{}, denseFeedForwardState{}, err
+		return DenseBlockResult{}, nil, nil, err
 	}
 	headCount := c.spec.LayerHeadCount(c.layer)
 	kvHeadCount := c.spec.LayerKVHeadCount(c.layer)
@@ -357,20 +347,20 @@ func buildDenseAttentionStage(
 	value = c.builder.Reshape(value, uint64(c.spec.ValueLength), uint64(kvHeadCount), tokens)
 	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkHeads)
 	if err != nil {
-		return DenseBlockResult{}, denseFeedForwardState{}, err
+		return DenseBlockResult{}, nil, nil, err
 	}
 	query, key = c.plan.Rotary.Apply(
 		c.builder, query, key, c.positions, c.multiPositions, c.weights.RopeFactors,
 	)
 	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkPostRotary)
 	if err != nil {
-		return DenseBlockResult{}, denseFeedForwardState{}, err
+		return DenseBlockResult{}, nil, nil, err
 	}
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if c.pastKey != nil {
 		if c.pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, denseFeedForwardState{}, errors.New("dense block KV cache token count exceeds uint32")
+			return DenseBlockResult{}, nil, nil, errors.New("dense block KV cache token count exceeds uint32")
 		}
 		queryStart = c.builder.CacheTokenOffset(uint32(c.pastKey.Shape.Dims[2]))
 		cacheKey = c.builder.WriteCache(c.pastKey, key, 2, c.cacheWrite)
@@ -394,57 +384,59 @@ func buildDenseAttentionStage(
 	)
 	attention, err = c.plan.AttentionOutput.ApplyProjection(c.builder, attention, c.spec, c.weights)
 	if err != nil {
-		return DenseBlockResult{}, denseFeedForwardState{}, err
+		return DenseBlockResult{}, nil, nil, err
 	}
 	residual := c.builder.Add(c.input, attention)
 	normalized = c.plan.ResidualStages.AfterAttention(
 		c.builder, residual, normalized, c.spec, c.weights,
 	)
-	state := denseFeedForwardState{
-		context: c, runtime: runtime, normalized: normalized,
-		feedForwardNormalized: feedForwardNormalized, residual: residual,
-		cacheKey: cacheKey, cacheValue: cacheValue, usesExperts: usesExperts,
-	}
-	return DenseBlockResult{Output: residual, Key: cacheKey, Value: cacheValue}, state, nil
+	return DenseBlockResult{Output: residual, Key: cacheKey, Value: cacheValue},
+		normalized, feedForwardNormalized, nil
 }
 
-func buildDenseFeedForwardStage(
-	state denseFeedForwardState,
+func buildPolicyFeedForwardStage(
+	options BlockDispatchOptions,
+	normalized, feedForwardNormalized, residual, cacheKey, cacheValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	c := state.context
-	if state.usesExperts && c.plan.ExpertComposition.kind == expertArctic {
+	c, err := prepareDenseBlock(options)
+	if err != nil {
+		return DenseBlockResult{}, err
+	}
+	usesExperts := c.weights.FeedForwardRouter != nil
+	if usesExperts && c.plan.ExpertComposition.kind == expertArctic {
 		feedForward, err := c.plan.ExpertComposition.Build(
-			c.builder, c.input, state.residual, state.normalized, c.spec, c.weights, c.plan,
+			c.builder, c.input, residual, normalized, c.spec, c.weights, c.plan,
 		)
 		if err != nil {
 			return DenseBlockResult{}, err
 		}
 		return DenseBlockResult{
-			Output: c.builder.Add(state.residual, feedForward),
-			Key:    state.cacheKey, Value: state.cacheValue,
+			Output: c.builder.Add(residual, feedForward), Key: cacheKey, Value: cacheValue,
 		}, c.builder.Err()
 	}
-	normalized := c.plan.ResidualStages.FeedForwardInput(
-		c.builder, c.input, state.residual, state.normalized,
-		state.feedForwardNormalized, c.spec, c.weights,
+	normalized = c.plan.ResidualStages.FeedForwardInput(
+		c.builder, c.input, residual, normalized, feedForwardNormalized, c.spec, c.weights,
 	)
 	var feedForward *tensor.Tensor
-	var err error
-	if state.usesExperts {
+	if usesExperts {
 		feedForward, err = c.plan.ExpertComposition.Build(
-			c.builder, c.input, state.residual, normalized, c.spec, c.weights, c.plan,
+			c.builder, c.input, residual, normalized, c.spec, c.weights, c.plan,
 		)
 	} else {
-		feedForward, err = state.runtime.buildFeedForward(normalized, c.plan.Normalization)
+		runtime := denseBlockRuntime{
+			builder: c.builder, spec: c.spec, weights: c.weights, plan: c.plan,
+			profile: c.profile, layer: c.layer, tokens: c.input.Shape.Dims[1],
+		}
+		feedForward, err = runtime.buildFeedForward(normalized, c.plan.Normalization)
 	}
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
-	output := c.builder.Add(state.residual, feedForward)
+	output := c.builder.Add(residual, feedForward)
 	if err := c.builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: output, Key: state.cacheKey, Value: state.cacheValue}, nil
+	return DenseBlockResult{Output: output, Key: cacheKey, Value: cacheValue}, nil
 }
 
 type denseBlockRuntime struct {

@@ -67,3 +67,46 @@ func GatedMLPBackward(worker *device.Worker, x, wGate, wUp, wDown, g, a, u, h, d
 	}
 	return GatedMLPGrads{DX: dX, DWGate: dWGate, DWUp: dWUp, DWDown: dWDown}, nil
 }
+
+// GatedMLPBackwardT is GatedMLPBackward for densecausal's HF weight layout, where
+// every projection is Y = X·Wᵀ with W stored [out,in] (gate/up are [inter,d],
+// down is [d,inter]). Uses LinearBackwardT for the three projections; the
+// activation glue is identical. Returns dX[rows,d] and the three weight grads in
+// [out,in] layout.
+func GatedMLPBackwardT(worker *device.Worker, x, wGate, wUp, wDown, g, a, u, h, dY []float32, rows, d, inter int) (GatedMLPGrads, error) {
+	if rows <= 0 || d <= 0 || inter <= 0 ||
+		len(x) != rows*d || len(wGate) != inter*d || len(wUp) != inter*d || len(wDown) != d*inter ||
+		len(g) != rows*inter || len(a) != rows*inter || len(u) != rows*inter || len(h) != rows*inter || len(dY) != rows*d {
+		return GatedMLPGrads{}, fmt.Errorf("GatedMLPBackwardT: shape mismatch (rows=%d d=%d inter=%d)", rows, d, inter)
+	}
+	// Y = h·Wdownᵀ  ->  dh[rows,inter], dWdown[d,inter].
+	dh, dWDown, err := LinearBackwardT(worker, h, wDown, dY, rows, inter, d)
+	if err != nil {
+		return GatedMLPGrads{}, err
+	}
+	da := make([]float32, rows*inter)
+	du := make([]float32, rows*inter)
+	for i := range dh {
+		da[i] = dh[i] * u[i]
+		du[i] = dh[i] * a[i]
+	}
+	dg, err := SiLUBackward(worker, g, da)
+	if err != nil {
+		return GatedMLPGrads{}, err
+	}
+	// g = X·Wgateᵀ  ->  dXgate[rows,d], dWgate[inter,d].
+	dXGate, dWGate, err := LinearBackwardT(worker, x, wGate, dg, rows, d, inter)
+	if err != nil {
+		return GatedMLPGrads{}, err
+	}
+	// u = X·Wupᵀ  ->  dXup[rows,d], dWup[inter,d].
+	dXUp, dWUp, err := LinearBackwardT(worker, x, wUp, du, rows, d, inter)
+	if err != nil {
+		return GatedMLPGrads{}, err
+	}
+	dX := make([]float32, rows*d)
+	for i := range dX {
+		dX[i] = dXGate[i] + dXUp[i]
+	}
+	return GatedMLPGrads{DX: dX, DWGate: dWGate, DWUp: dWUp, DWDown: dWDown}, nil
+}

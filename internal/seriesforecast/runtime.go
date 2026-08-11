@@ -2,9 +2,7 @@ package seriesforecast
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
@@ -12,9 +10,7 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-var forecastContract = artifact.DocumentContract{
-	Kind: artifact.KindOutput, MediaType: "application/json", Schema: "overgo.forecast-output.v1",
-}
+var forecastContract = artifact.JSONContract(artifact.KindOutput, "overgo.forecast-output.v1")
 
 type forecaster interface {
 	Forecast([]float32) ([]float32, error)
@@ -34,15 +30,15 @@ func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			bound, ok := requestModel(request.Dependencies)
+			bound, ok := request.Dependency(recipe.DependencyModel, 0)
 			if !ok || bound != modelID {
 				return nil, errors.New("seriesforecast: recipe model differs from runtime binding")
 			}
-			input := request.Inputs["series"]
-			if len(input.Items) != 1 {
+			input, ok := request.Inputs["series"].Single()
+			if !ok {
 				return nil, errors.New("seriesforecast: runtime requires one series")
 			}
-			series, ok := input.Items[0].Value.([]float32)
+			series, ok := input.Value.([]float32)
 			if !ok {
 				return nil, errors.New("seriesforecast: runtime series has invalid value type")
 			}
@@ -50,39 +46,13 @@ func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 			if err != nil {
 				return nil, err
 			}
-			content, err := forecastContent(forecast)
+			content, err := artifact.JSONContent(forecastContract, forecast)
 			if err != nil {
 				return nil, err
 			}
 			return map[recipe.PortName]workflowruntime.Value{
-				"forecast": {
-					Kind: recipe.DataTensor,
-					Items: []workflowruntime.Datum{{
-						Artifact: content.Descriptor, Content: &content, Value: forecast,
-					}},
-				},
+				"forecast": workflowruntime.ArtifactValue(recipe.DataTensor, forecast, content),
 			}, nil
 		},
 	))
-}
-
-func requestModel(dependencies []recipe.Dependency) (artifact.ID, bool) {
-	for _, dependency := range dependencies {
-		if dependency.Role == recipe.DependencyModel && dependency.Slot == 0 {
-			return dependency.Artifact, true
-		}
-	}
-	return artifact.ID{}, false
-}
-
-func forecastContent(forecast []float32) (artifact.Content, error) {
-	payload, err := json.Marshal(forecast)
-	if err != nil {
-		return artifact.Content{}, fmt.Errorf("seriesforecast: encode forecast: %w", err)
-	}
-	id, err := forecastContract.Identify(payload)
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return forecastContract.Content(id, payload)
 }

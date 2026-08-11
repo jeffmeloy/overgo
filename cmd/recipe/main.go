@@ -33,13 +33,14 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/seriesforecast"
+	"overgo/internal/strictjson"
 	"overgo/internal/tabularicl"
 	"overgo/internal/workflowruntime"
 )
 
-var forecastInputContract = artifact.DocumentContract{
-	Kind: artifact.KindFile, MediaType: "application/json", Schema: "overgo.forecast-input.v1",
-}
+var forecastInputContract = artifact.JSONContract(artifact.KindFile, "overgo.forecast-input.v1")
+
+var tabularInputContract = artifact.JSONContract(artifact.KindFile, "overgo.tabular-input.v1")
 
 type capabilityExecutor func(
 	context.Context,
@@ -61,7 +62,7 @@ var capabilityCommands = map[recipe.Task]capabilityCommand{
 		inventory: hfInventory, definition: modelrecipe.ForecastDefinition, execute: executeForecast,
 	},
 	recipe.TaskTabular: {
-		inventory: tabularInventory, definition: modelrecipe.TabularDefinition,
+		inventory: tabularInventory, definition: modelrecipe.TabularDefinition, execute: executeTabular,
 	},
 	recipe.TaskSeq2Seq: {
 		inventory: hfInventory, definition: modelrecipe.Seq2SeqDefinition,
@@ -238,7 +239,7 @@ func imageGenInventory(path string) (modelartifact.Inventory, error) {
 // walker owns this layout.
 func tabularInventory(path string) (modelartifact.Inventory, error) {
 	var specs []modelartifact.FileSpec
-	for _, head := range []string{tabularicl.TaskClassification, tabularicl.TaskRegression} {
+	for _, head := range tabularicl.Tasks() {
 		specs = append(specs,
 			modelartifact.FileSpec{
 				Path: filepath.Join(path, head, "config.json"),
@@ -361,38 +362,83 @@ func executeForecast(
 	if err != nil {
 		return nil, err
 	}
-	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
-	if err != nil {
-		return nil, err
-	}
-	if err := seriesforecast.RegisterRuntime(runtime, modelID, model); err != nil {
-		return nil, err
-	}
-	result, err := runtime.ExecuteProgram(
-		ctx,
-		"recipe/run/"+program.Definition().ID.String()+"/"+content.Descriptor.ID.String(),
-		program,
-		map[recipe.PortName]workflowruntime.Value{
-			"series": {
-				Kind: recipe.DataTensor,
-				Items: []workflowruntime.Datum{{
-					Artifact: content.Descriptor, Content: &content, Value: series,
-				}},
-			},
+	result, err := executeTensorProgram(
+		ctx, store, program, "series", series, content,
+		func(runtime *workflowruntime.Runtime) error {
+			return seriesforecast.RegisterRuntime(runtime, modelID, model)
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
-	forecast := result.Outputs["forecast"]
-	if len(forecast.Items) != 1 {
-		return nil, errors.New("forecast runtime returned an invalid output set")
+	return tensorOutput[[]float32](result, "forecast")
+}
+
+func executeTabular(
+	ctx context.Context,
+	store artifact.Repository,
+	path string,
+	modelID artifact.ID,
+	program recipe.Program,
+	input string,
+) (any, error) {
+	request, content, err := tabularInput(input)
+	if err != nil {
+		return nil, err
 	}
-	values, ok := forecast.Items[0].Value.([]float32)
+	model, err := tabularicl.LoadTask(path, request.Task)
+	if err != nil {
+		return nil, err
+	}
+	result, err := executeTensorProgram(
+		ctx, store, program, "table", request, content,
+		func(runtime *workflowruntime.Runtime) error {
+			return tabularicl.RegisterRuntime(runtime, modelID, model)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return tensorOutput[tabularicl.Prediction](result, "predictions")
+}
+
+func executeTensorProgram(
+	ctx context.Context,
+	store artifact.Repository,
+	program recipe.Program,
+	inputPort recipe.PortName,
+	value any,
+	content artifact.Content,
+	bind func(*workflowruntime.Runtime) error,
+) (workflowruntime.Result, error) {
+	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
+	if err != nil {
+		return workflowruntime.Result{}, err
+	}
+	if err := bind(runtime); err != nil {
+		return workflowruntime.Result{}, err
+	}
+	return runtime.ExecuteProgram(
+		ctx,
+		"recipe/run/"+program.Definition().ID.String()+"/"+content.Descriptor.ID.String(),
+		program,
+		map[recipe.PortName]workflowruntime.Value{
+			inputPort: workflowruntime.ArtifactValue(recipe.DataTensor, value, content),
+		},
+	)
+}
+
+func tensorOutput[T any](result workflowruntime.Result, port recipe.PortName) (T, error) {
+	var zero T
+	output, ok := result.Outputs[port].Single()
 	if !ok {
-		return nil, errors.New("forecast runtime returned an invalid output value")
+		return zero, fmt.Errorf("runtime output %q has invalid cardinality", port)
 	}
-	return values, nil
+	value, ok := output.Value.(T)
+	if !ok {
+		return zero, fmt.Errorf("runtime output %q has invalid value type", port)
+	}
+	return value, nil
 }
 
 func forecastInput(input string) ([]float32, artifact.Content, error) {
@@ -408,16 +454,20 @@ func forecastInput(input string) ([]float32, artifact.Content, error) {
 			return nil, artifact.Content{}, errors.New("forecast input series contains a non-finite value")
 		}
 	}
-	payload, err := json.Marshal(series)
-	if err != nil {
-		return nil, artifact.Content{}, err
-	}
-	id, err := forecastInputContract.Identify(payload)
-	if err != nil {
-		return nil, artifact.Content{}, err
-	}
-	content, err := forecastInputContract.Content(id, payload)
+	content, err := artifact.JSONContent(forecastInputContract, series)
 	return series, content, err
+}
+
+func tabularInput(input string) (tabularicl.Request, artifact.Content, error) {
+	var request tabularicl.Request
+	if err := strictjson.DecodeBytes([]byte(input), &request); err != nil {
+		return request, artifact.Content{}, fmt.Errorf("decode tabular input: %w", err)
+	}
+	if err := tabularicl.ValidateRequest(request); err != nil {
+		return request, artifact.Content{}, err
+	}
+	content, err := artifact.JSONContent(tabularInputContract, request)
+	return request, content, err
 }
 
 // sessionOverride: operator-pinned decode session; nil defers to the

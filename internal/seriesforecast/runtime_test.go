@@ -24,7 +24,7 @@ func TestRegisteredRuntimeExecutesIdentityBoundForecastProgram(t *testing.T) {
 	}
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "forecast-model")
-	publishRuntimeModel(t, store, modelID)
+	testutil.PublishArtifact(t, store, modelID)
 	definition, err := modelrecipe.ForecastDefinition(modelID)
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestRegisteredRuntimeRejectsDifferentRecipeModel(t *testing.T) {
 	defer store.Close()
 	bound := testutil.ArtifactID(t, artifact.KindModel, "bound")
 	other := testutil.ArtifactID(t, artifact.KindModel, "other")
-	publishRuntimeModel(t, store, other)
+	testutil.PublishArtifact(t, store, other)
 	definition, _ := modelrecipe.ForecastDefinition(other)
 	program, _ := modelrecipe.CompileCapability(definition)
 	runtime, _ := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
@@ -79,15 +79,5 @@ func TestRegisteredRuntimeRejectsDifferentRecipeModel(t *testing.T) {
 		"series": {Kind: recipe.DataTensor, Items: []workflowruntime.Datum{{Value: []float32{1}}}},
 	}); err == nil {
 		t.Fatal("mismatched model binding accepted")
-	}
-}
-
-func publishRuntimeModel(t *testing.T, store *repodb.Store, modelID artifact.ID) {
-	t.Helper()
-	if _, err := store.Commit(context.Background(), artifact.Batch{
-		Key:       "forecast/model/" + modelID.String(),
-		Artifacts: []artifact.Descriptor{{ID: modelID}},
-	}); err != nil {
-		t.Fatal(err)
 	}
 }

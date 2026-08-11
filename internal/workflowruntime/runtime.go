@@ -30,11 +30,36 @@ type Value struct {
 	Items []Datum
 }
 
+// Single returns the only datum in a scalar value.
+func (v Value) Single() (Datum, bool) {
+	if len(v.Items) != 1 {
+		return Datum{}, false
+	}
+	return v.Items[0], true
+}
+
+// ArtifactValue binds a runtime value to durable content.
+func ArtifactValue(kind recipe.DataKind, value any, content artifact.Content) Value {
+	return Value{Kind: kind, Items: []Datum{{
+		Artifact: content.Descriptor, Content: &content, Value: value,
+	}}}
+}
+
 // StepRequest: one compiled module invocation.
 type StepRequest struct {
 	Node         recipe.Node
 	Dependencies []recipe.Dependency
 	Inputs       map[recipe.PortName]Value
+}
+
+// Dependency returns one compiled artifact binding.
+func (r StepRequest) Dependency(role recipe.DependencyRole, slot uint32) (artifact.ID, bool) {
+	for _, dependency := range r.Dependencies {
+		if dependency.Role == role && dependency.Slot == slot {
+			return dependency.Artifact, true
+		}
+	}
+	return artifact.ID{}, false
 }
 
 // Adapter: module execution boundary.

@@ -126,6 +126,17 @@ func TestCompileCapabilityResolvesForecastStage(t *testing.T) {
 	}
 }
 
+func TestCompileCapabilityRejectsInferenceProgram(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "capability-inference-model")
+	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CompileCapability(definition); err == nil {
+		t.Fatal("capability compiler accepted inference recipe")
+	}
+}
+
 func TestTabularDefinitionValidatesAgainstCatalog(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "tabular-model")
 	definition, err := TabularDefinition(modelID)

@@ -26,17 +26,36 @@ const (
 )
 
 // RowMajorGEMMF32 computes row-major C[m,n] = A[m,k] · B[k,n] in fp32 on device
-// pointers. cuBLAS is column-major, so the row-major product is computed
-// transposed (Cᵀ = Bᵀ·Aᵀ): GEMM(N,N, n, m, k, B, A, C) with leading dims n, k,
-// n. Encapsulates the layout convention once so device Newton-Schulz and other
-// matmul-composed callers do not re-derive it. Calls GEMMEx, so it resolves to
-// the real or unsupported backend like any other cuBLAS op.
+// pointers (no transposes). Convenience over RowMajorGEMMExF32.
 func (l *Library) RowMajorGEMMF32(handle Handle, m, k, n int32, a, b, c driver.DevicePtr) error {
+	return l.RowMajorGEMMExF32(handle, false, false, m, k, n, a, b, c)
+}
+
+// RowMajorGEMMExF32 computes row-major C[m,n] = op(A) · op(B) in fp32 on device
+// pointers, where op(A) is [m,k] and op(B) is [k,n]. transA/transB select
+// whether the stored row-major A/B are used transposed (so the gram products
+// XᵀX and XXᵀ need no materialized transpose).
+//
+// cuBLAS is column-major; a row-major matrix is seen as its transpose. The
+// row-major product is therefore obtained by computing Cᵀ = op(B)ᵀ·op(A)ᵀ with
+// the operands swapped: GEMM(opB, opA, n, m, k, B, A, C). Leading dims are the
+// stored row-major widths (lda = k or m under transA; ldb = n or k under
+// transB; ldc = n). With both flags off this reduces to the verified
+// GEMM(N,N, n,m,k, B(n), A(k), C(n)) formula.
+func (l *Library) RowMajorGEMMExF32(handle Handle, transA, transB bool, m, k, n int32, a, b, c driver.DevicePtr) error {
+	opA, lda := OperationNone, k
+	if transA {
+		opA, lda = OperationTranspose, m
+	}
+	opB, ldb := OperationNone, n
+	if transB {
+		opB, ldb = OperationTranspose, k
+	}
 	return l.GEMMEx(
-		handle, OperationNone, OperationNone,
+		handle, opB, opA,
 		n, m, k, 1,
-		b, DataF32, n,
-		a, DataF32, k,
+		b, DataF32, ldb,
+		a, DataF32, lda,
 		0, c, DataF32, n,
 		ComputeF32, GemmDefault,
 	)

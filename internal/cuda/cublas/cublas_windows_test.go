@@ -166,6 +166,105 @@ func TestRowMajorGEMMF32Integration(t *testing.T) {
 	}
 }
 
+// TestRowMajorGEMMExF32TransposeIntegration verifies the transpose-capable
+// path against host references for the two gram products device Newton-Schulz
+// needs: XᵀX (transA) and XXᵀ (transB), with X[3x2] non-square.
+func TestRowMajorGEMMExF32TransposeIntegration(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	const rows, cols = 3, 2
+	x := []float32{1, 2, 3, 4, 5, 6} // row-major [3x2]
+
+	// Host gram XᵀX [cols x cols].
+	wantXtX := make([]float32, cols*cols)
+	for i := 0; i < cols; i++ {
+		for j := 0; j < cols; j++ {
+			var s float32
+			for r := 0; r < rows; r++ {
+				s += x[r*cols+i] * x[r*cols+j]
+			}
+			wantXtX[i*cols+j] = s
+		}
+	}
+	// Host gram XXᵀ [rows x rows].
+	wantXXt := make([]float32, rows*rows)
+	for i := 0; i < rows; i++ {
+		for j := 0; j < rows; j++ {
+			var s float32
+			for c := 0; c < cols; c++ {
+				s += x[i*cols+c] * x[j*cols+c]
+			}
+			wantXXt[i*rows+j] = s
+		}
+	}
+
+	gotXtX := make([]float32, cols*cols)
+	gotXXt := make([]float32, rows*rows)
+	err = worker.Do(context.Background(), func(state *device.State) error {
+		lib, err := Open()
+		if err != nil {
+			return err
+		}
+		defer lib.Close()
+		handle, err := lib.Create()
+		if err != nil {
+			return err
+		}
+		defer lib.Destroy(handle)
+		if err := lib.SetStream(handle, state.Stream); err != nil {
+			return err
+		}
+		xPtr, err := copyToDevice(state.Driver, x)
+		if err != nil {
+			return err
+		}
+		defer state.Driver.MemFree(xPtr)
+		xtxPtr, err := state.Driver.MemAlloc(uint64(len(gotXtX) * 4))
+		if err != nil {
+			return err
+		}
+		defer state.Driver.MemFree(xtxPtr)
+		xxtPtr, err := state.Driver.MemAlloc(uint64(len(gotXXt) * 4))
+		if err != nil {
+			return err
+		}
+		defer state.Driver.MemFree(xxtPtr)
+		// XᵀX: op(A)=Xᵀ [cols x rows], op(B)=X [rows x cols] -> [cols x cols].
+		if err := lib.RowMajorGEMMExF32(handle, true, false, cols, rows, cols, xPtr, xPtr, xtxPtr); err != nil {
+			return err
+		}
+		// XXᵀ: op(A)=X [rows x cols], op(B)=Xᵀ [cols x rows] -> [rows x rows].
+		if err := lib.RowMajorGEMMExF32(handle, false, true, rows, cols, rows, xPtr, xPtr, xxtPtr); err != nil {
+			return err
+		}
+		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+			return err
+		}
+		if err := state.Driver.MemcpyDtoH(driver.Bytes(gotXtX), xtxPtr); err != nil {
+			return err
+		}
+		return state.Driver.MemcpyDtoH(driver.Bytes(gotXXt), xxtPtr)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range wantXtX {
+		if math.Abs(float64(gotXtX[i]-wantXtX[i])) > 1e-4 {
+			t.Fatalf("XtX[%d] = %v, want %v", i, gotXtX[i], wantXtX[i])
+		}
+	}
+	for i := range wantXXt {
+		if math.Abs(float64(gotXXt[i]-wantXXt[i])) > 1e-4 {
+			t.Fatalf("XXt[%d] = %v, want %v", i, gotXXt[i], wantXXt[i])
+		}
+	}
+}
+
 func TestGEMMExBF16Integration(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)

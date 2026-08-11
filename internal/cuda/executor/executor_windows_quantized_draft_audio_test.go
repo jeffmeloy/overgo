@@ -18,86 +18,6 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-type cudaReferenceFixture struct {
-	t       *testing.T
-	builder *tensor.Builder
-	feeds   map[*tensor.Tensor]reference.Value
-	seed    int
-}
-
-func newCUDAReferenceFixture(t *testing.T, seed int) *cudaReferenceFixture {
-	t.Helper()
-	cudatest.Require(t)
-	return &cudaReferenceFixture{
-		t: t, builder: tensor.NewBuilder(), feeds: make(map[*tensor.Tensor]reference.Value), seed: seed,
-	}
-}
-
-func (f *cudaReferenceFixture) input(
-	name string,
-	shape tensor.Shape,
-	scale, offset float32,
-) *tensor.Tensor {
-	item := f.builder.Input(name, dtype.F32, shape)
-	f.feeds[item] = patternedValue(shape, f.seed, scale, offset)
-	f.seed += 2
-	return item
-}
-
-func (f *cudaReferenceFixture) nextInput(
-	prefix string,
-	shape tensor.Shape,
-	scale, offset float32,
-) *tensor.Tensor {
-	return f.input(fmt.Sprintf("%s_%d", prefix, f.seed), shape, scale, offset)
-}
-
-func (f *cudaReferenceFixture) modelPlan(spec model.Spec) model.ModelPlan {
-	f.t.Helper()
-	plan, err := model.CompileModelPlan(spec, model.Weights{})
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	return plan
-}
-
-func (f *cudaReferenceFixture) layer(
-	program model.ModelPlan,
-	layer int,
-	spec model.Spec,
-	weights model.LayerGraphWeights,
-	context model.CachedBlockContext,
-) model.DenseBlockResult {
-	f.t.Helper()
-	plan, err := program.Layer(layer)
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	context.Builder, context.Layer = f.builder, plan.Layer
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan, Context: context,
-	})
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	return result
-}
-
-func (f *cudaReferenceFixture) requireMatch(outputs []*tensor.Tensor, tolerance float64) {
-	f.t.Helper()
-	want, err := reference.Execute(outputs, f.feeds)
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	got, err := newFixtureExecutor(f.t).Execute(context.Background(), outputs, f.feeds)
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	for _, output := range outputs {
-		compare(f.t, got[output].Data, want[output].Data, tolerance)
-	}
-}
-
 func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
 	fixture := newCUDAReferenceFixture(t, 3)
 	builder := fixture.builder
@@ -827,26 +747,4 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 		}
 	}
 	compare(t, results[product].Data, wantProduct, 1e-4)
-}
-
-func patternedValue(shape tensor.Shape, seed int, scale, bias float32) reference.Value {
-	elements, _ := shape.Elements()
-	data := make([]float32, int(elements))
-	for i := range data {
-		data[i] = bias + scale*float32(((i*7+seed*3)%19)-9)
-	}
-	value, _ := reference.NewValue(shape, data)
-	return value
-}
-
-func compare(t *testing.T, got, want []float32, tolerance float64) {
-	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("length = %d, want %d", len(got), len(want))
-	}
-	for i := range want {
-		if difference := math.Abs(float64(got[i] - want[i])); difference > tolerance {
-			t.Fatalf("value[%d] = %v, want %v (difference %g)", i, got[i], want[i], difference)
-		}
-	}
 }

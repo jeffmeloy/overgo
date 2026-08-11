@@ -111,18 +111,78 @@ func LinearBackward(worker *device.Worker, x, w, dY []float32, rows, in, out int
 //	dX = dY·W    [rows,in]
 //	dW = dYᵀ·X   [outDim,in]
 //
-// Composes deviceGEMM (two cuBLAS GEMMs). This is the linear adapter the
-// densecausal-exact device layer backward uses for its q/k/v/o and gate/up/down
-// projections, whose weights are stored [out,in].
+// The two GEMMs share one device context: x, w and dY are uploaded once (dY
+// feeds both products), both cuBLAS calls run on resident device pointers, and
+// only dX/dW come back -- one worker.Do per linear VJP instead of two. This is
+// the linear adapter the densecausal-exact device layer backward uses for its
+// q/k/v/o and gate/up/down projections, whose weights are stored [out,in].
 func LinearBackwardT(worker *device.Worker, x, w, dY []float32, rows, in, outDim int) (dX, dW []float32, err error) {
 	if rows <= 0 || in <= 0 || outDim <= 0 || len(x) != rows*in || len(w) != outDim*in || len(dY) != rows*outDim {
 		return nil, nil, fmt.Errorf("LinearBackwardT: shape mismatch (rows=%d in=%d outDim=%d x=%d w=%d dY=%d)", rows, in, outDim, len(x), len(w), len(dY))
 	}
-	dX, err = deviceGEMM(worker, false, false, rows, outDim, in, dY, w) // dY·W
-	if err != nil {
-		return nil, nil, err
-	}
-	dW, err = deviceGEMM(worker, true, false, outDim, rows, in, dY, x) // dYᵀ·X
+	dX = make([]float32, rows*in)
+	dW = make([]float32, outDim*in)
+	err = worker.Do(context.Background(), func(state *device.State) error {
+		lib := state.Driver
+		blas, err := cublas.Open()
+		if err != nil {
+			return err
+		}
+		defer blas.Close()
+		handle, err := blas.Create()
+		if err != nil {
+			return err
+		}
+		defer blas.Destroy(handle)
+		if err := blas.SetStream(handle, state.Stream); err != nil {
+			return err
+		}
+		var xPtr, wPtr, dyPtr, dxPtr, dwPtr driver.DevicePtr
+		specs := []struct {
+			ptr  *driver.DevicePtr
+			data []float32
+			up   bool
+		}{{&xPtr, x, true}, {&wPtr, w, true}, {&dyPtr, dY, true}, {&dxPtr, dX, false}, {&dwPtr, dW, false}}
+		for i := range specs {
+			p, err := lib.MemAlloc(uint64(len(specs[i].data)) * 4)
+			if err != nil {
+				for j := range specs {
+					if *specs[j].ptr != 0 {
+						lib.MemFree(*specs[j].ptr)
+					}
+				}
+				return err
+			}
+			*specs[i].ptr = p
+		}
+		defer func() {
+			for i := range specs {
+				lib.MemFree(*specs[i].ptr)
+			}
+		}()
+		for _, s := range specs {
+			if s.up {
+				if err := lib.MemcpyHtoD(*s.ptr, driver.Bytes(s.data)); err != nil {
+					return err
+				}
+			}
+		}
+		// dX = dY·W  [rows,in]
+		if err := blas.RowMajorGEMMExF32(handle, false, false, int32(rows), int32(outDim), int32(in), dyPtr, wPtr, dxPtr); err != nil {
+			return err
+		}
+		// dW = dYᵀ·X  [outDim,in]
+		if err := blas.RowMajorGEMMExF32(handle, true, false, int32(outDim), int32(rows), int32(in), dyPtr, xPtr, dwPtr); err != nil {
+			return err
+		}
+		if err := lib.StreamSynchronize(state.Stream); err != nil {
+			return err
+		}
+		if err := lib.MemcpyDtoH(driver.Bytes(dX), dxPtr); err != nil {
+			return err
+		}
+		return lib.MemcpyDtoH(driver.Bytes(dW), dwPtr)
+	})
 	if err != nil {
 		return nil, nil, err
 	}

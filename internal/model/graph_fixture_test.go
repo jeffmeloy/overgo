@@ -1,8 +1,44 @@
 package model
 
-import "overgo/internal/tensor"
+import (
+	"testing"
 
-type Qwen35BlockOptions struct {
+	"overgo/internal/tensor"
+)
+
+func fixtureModelPlan(t *testing.T, spec Spec, weights Weights) ModelPlan {
+	t.Helper()
+	plan, err := CompileModelPlan(spec, weights)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plan
+}
+
+func fixtureLayerPlan(t *testing.T, spec Spec, weights Weights, layer int) LayerPlan {
+	t.Helper()
+	plan, err := fixtureModelPlan(t, spec, weights).Layer(layer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plan
+}
+
+func fixtureDraftProgram(
+	t *testing.T,
+	spec Spec,
+	weights Weights,
+	head uint32,
+) DraftLayerProgram {
+	t.Helper()
+	draft, err := fixtureModelPlan(t, spec, weights).DraftProgram(spec, head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return draft
+}
+
+type qwen35BlockOptions struct {
 	Builder        *tensor.Builder
 	Input          *tensor.Tensor
 	Spec           Spec
@@ -23,7 +59,7 @@ type qwen35BlockFixtureResult struct {
 	Recurrent                               bool
 }
 
-func BuildQwen35BlockWithOptions(options Qwen35BlockOptions) (qwen35BlockFixtureResult, error) {
+func buildQwen35BlockWithOptions(options qwen35BlockOptions) (qwen35BlockFixtureResult, error) {
 	plan := options.Spec.PlanLayer(0, options.Recurrent)
 	pastKey, pastValue := options.PastKey, options.PastValue
 	if options.Recurrent {

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"overgo/internal/cuda/driver"
-	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/model"
 	"overgo/internal/modeltest"
 	"overgo/internal/quant"
@@ -18,7 +17,6 @@ import (
 )
 
 func TestExecutorImplicitZeroFeed(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("zero", dtype.F32, tensor.MustShape(4))
 	output := builder.Scale(input, 3)
@@ -37,7 +35,6 @@ func TestExecutorImplicitZeroFeed(t *testing.T) {
 }
 
 func TestExecutorBF16RoundMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(6))
 	output := builder.BF16Round(input)
@@ -45,24 +42,10 @@ func TestExecutorBF16RoundMatchesReference(t *testing.T) {
 		1, 1.00390625, 1.01171875, -1.01171875, float32(math.Inf(1)), float32(math.NaN()),
 	}}
 	feeds := map[*tensor.Tensor]reference.Value{input: value}
-	want, err := reference.Execute([]*tensor.Tensor{output.Inputs[0], output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for index, item := range got[output].Data {
-		if math.Float32bits(item) != math.Float32bits(want[output].Data[index]) {
-			t.Fatalf("BF16 round[%d] = %08x, want %08x", index, math.Float32bits(item), math.Float32bits(want[output].Data[index]))
-		}
-	}
+	checkCUDAGraph(t, feeds, bitExactGraphCheck(output))
 }
 
 func TestExecutorLoRAMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	builder.SetLoRA(map[string][]tensor.LoRADefinition{
 		"projection": {{
@@ -113,7 +96,6 @@ func TestExecutorLoRAMatchesReference(t *testing.T) {
 }
 
 func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
 	transformed := builder.FWHT(input)
@@ -149,7 +131,6 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 }
 
 func TestExecutorTopKPairsMultiChunkMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	const (
 		fixtureWidth = 4099
 		fixtureRows  = 2
@@ -165,7 +146,6 @@ func TestExecutorTopKPairsMultiChunkMatchesReference(t *testing.T) {
 }
 
 func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
 	hcFN := builder.Input("hc_fn", dtype.F32, tensor.MustShape(4, 8))
@@ -251,7 +231,6 @@ func dsaFixtureWeights(builder *tensor.Builder, spec model.Spec) model.LayerGrap
 }
 
 func TestExecutorGLMDSABlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	spec := modeltest.GLMDSA().Spec
 	input := builder.Input("input", dtype.F32, tensor.MustShape(uint64(spec.EmbeddingLength), dsaFixtureTokens))
@@ -278,7 +257,6 @@ func TestExecutorGLMDSABlockMatchesReference(t *testing.T) {
 }
 
 func TestExecutorDeepSeek32BlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	spec := modeltest.DeepSeek32().Spec
 	input := builder.Input("input", dtype.F32, tensor.MustShape(uint64(spec.EmbeddingLength), dsaFixtureTokens))
@@ -305,7 +283,6 @@ func TestExecutorDeepSeek32BlockMatchesReference(t *testing.T) {
 }
 
 func TestExecutorMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	shape := tensor.MustShape(8, 3)
 	left := builder.Input("left", dtype.F32, shape)
@@ -336,30 +313,11 @@ func TestExecutorMatchesReference(t *testing.T) {
 	leftValue, _ := reference.NewValue(shape, leftData)
 	rightValue, _ := reference.NewValue(shape, rightData)
 	feeds := map[*tensor.Tensor]reference.Value{left: leftValue, right: rightValue}
-	want, err := reference.Execute([]*tensor.Tensor{output, layerNorm, reluSquared, geluErf, xielu, divide}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(
-		context.Background(),
-		[]*tensor.Tensor{output, layerNorm, reluSquared, geluErf, xielu, divide},
-		feeds,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, accuracyElementwise)
-	compare(t, got[layerNorm].Data, want[layerNorm].Data, accuracyElementwise)
-	compare(t, got[reluSquared].Data, want[reluSquared].Data, accuracyElementwise)
-	compare(t, got[geluErf].Data, want[geluErf].Data, accuracyElementwise)
-	compare(t, got[xielu].Data, want[xielu].Data, accuracyElementwise)
-	compare(t, got[divide].Data, want[divide].Data, accuracyElementwise)
+	outputs := []*tensor.Tensor{output, layerNorm, reluSquared, geluErf, xielu, divide}
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyElementwise)...)
 }
 
 func TestExecutorMPTVariantsMatchReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	seed := 5
@@ -397,20 +355,10 @@ func TestExecutorMPTVariantsMatchReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, accuracyModelLoose)
+	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyModelLoose})
 }
 
 func TestExecutorGroupedMulMatMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	left := builder.Input("left", dtype.F32, tensor.MustShape(4, 3, 2))
 	right := builder.Input("right", dtype.F32, tensor.MustShape(4, 2, 3))
@@ -419,20 +367,10 @@ func TestExecutorGroupedMulMatMatchesReference(t *testing.T) {
 		left:  patternedValue(left.Shape, 11, 0.13, -0.2),
 		right: patternedValue(right.Shape, 7, 0.09, 0.05),
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, accuracyProjection)
+	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyProjection})
 }
 
 func TestExecutorQuantizedGroupedMulMatMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	leftShape := tensor.MustShape(32, 3, 2)
 	rightShape := tensor.MustShape(32, 2, 2)
 	leftValue := patternedValue(leftShape, 11, 0.03, -0.1)
@@ -445,33 +383,16 @@ func TestExecutorQuantizedGroupedMulMatMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	referenceBuilder := tensor.NewBuilder()
-	referenceLeft := referenceBuilder.Input("left", dtype.F32, leftShape)
-	referenceRight := referenceBuilder.Input("right", dtype.F32, rightShape)
-	referenceOutput := referenceBuilder.GroupedMulMat(referenceLeft, referenceRight)
-	want, err := reference.Execute([]*tensor.Tensor{referenceOutput}, map[*tensor.Tensor]reference.Value{
-		referenceLeft: {Shape: leftShape, Data: dequantized}, referenceRight: rightValue,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	builder := tensor.NewBuilder()
-	left := builder.Input("left", dtype.Q8_0, leftShape)
-	right := builder.Input("right", dtype.F32, rightShape)
-	output := builder.GroupedMulMat(left, right)
-	worker := newFixtureWorker(t)
-	pointer := copyFixtureDeviceBytes(t, worker, storage)
-	cuda := newFixtureExecutorWithWorker(t, worker)
-	got, err := cuda.ExecuteWithDeviceFeeds(context.Background(), []*tensor.Tensor{output},
-		map[*tensor.Tensor]reference.Value{right: rightValue}, map[*tensor.Tensor]driver.DevicePtr{left: pointer})
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[referenceOutput].Data, accuracyQuantKernel)
+	checkResidentBinaryGraph(
+		t, dtype.Q8_0, leftShape, storage, dequantized, rightValue,
+		func(builder *tensor.Builder, left, right *tensor.Tensor) *tensor.Tensor {
+			return builder.GroupedMulMat(left, right)
+		},
+		accuracyQuantKernel,
+	)
 }
 
 func TestExecutorMoEMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 2))
 	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 3))
@@ -512,20 +433,10 @@ func TestExecutorMoEMatchesReference(t *testing.T) {
 			0.75, 0.25, -1, 0.5,
 		}),
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, accuracyState)
+	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyState})
 }
 
 func TestExecutorMoEExpertScaleMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 2))
 	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
@@ -548,20 +459,10 @@ func TestExecutorMoEExpertScaleMatchesReference(t *testing.T) {
 		down:        patternedValue(down.Shape, 13, 0.1, 0),
 		expertScale: scaleValue,
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, accuracyStateLoose)
+	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyStateLoose})
 }
 
 func TestExecutorGroupedMoEMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
 	routerInput := builder.Input("router-input", dtype.F32, tensor.MustShape(4, 2))
@@ -580,20 +481,10 @@ func TestExecutorGroupedMoEMatchesReference(t *testing.T) {
 		up:          patternedValue(up.Shape, 13, 0.08, 0),
 		down:        patternedValue(down.Shape, 17, 0.08, 0),
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, accuracyStateLoose)
+	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyStateLoose})
 }
 
 func TestExecutorGroupedMoESupportsTopKPolicyBoundary(t *testing.T) {
-	cudatest.Require(t)
 	const expertCount = uint64(tensor.MaxMoETopK)
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(1, 1))
@@ -612,20 +503,10 @@ func TestExecutorGroupedMoESupportsTopKPolicyBoundary(t *testing.T) {
 		up:     patternedValue(up.Shape, 11, 0.1, 0),
 		down:   patternedValue(down.Shape, 13, 0.1, 0),
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, accuracyProjection)
+	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyProjection})
 }
 
 func TestExecutorGroveMoEBlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "grovemoe", BlockCount: 1, EmbeddingLength: 8,
 		FeedForwardLength: 24,
@@ -674,23 +555,14 @@ func TestExecutorGroveMoEBlockMatchesReference(t *testing.T) {
 	} {
 		feeds[node] = patternedValue(node.Shape, index+31, 0.03, 1)
 	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, accuracyRecurrent)
-	compare(t, got[result.Key].Data, want[result.Key].Data, accuracyState)
-	compare(t, got[result.Value].Data, want[result.Value].Data, accuracyState)
+	checkCUDAGraph(t, feeds,
+		graphOutputCheck{output: result.Output, tolerance: accuracyRecurrent},
+		graphOutputCheck{output: result.Key, tolerance: accuracyState},
+		graphOutputCheck{output: result.Value, tolerance: accuracyState},
+	)
 }
 
 func TestExecutorLlama4MoEBlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama4", BlockCount: 4, EmbeddingLength: 4, FeedForwardLength: 6,
 
@@ -736,23 +608,14 @@ func TestExecutorLlama4MoEBlockMatchesReference(t *testing.T) {
 	feeds[weights.AttentionTemperatureScale] = reference.Value{
 		Shape: weights.AttentionTemperatureScale.Shape, Data: []float32{1.0693147, 1.0693147},
 	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, accuracyRecurrent)
-	compare(t, got[result.Key].Data, want[result.Key].Data, accuracyFP32Tight)
-	compare(t, got[result.Value].Data, want[result.Value].Data, accuracyFP32Tight)
+	checkCUDAGraph(t, feeds,
+		graphOutputCheck{output: result.Output, tolerance: accuracyRecurrent},
+		graphOutputCheck{output: result.Key, tolerance: accuracyFP32Tight},
+		graphOutputCheck{output: result.Value, tolerance: accuracyFP32Tight},
+	)
 }
 
 func TestExecutorMistral3TemperatureMoEBlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "mistral3", EmbeddingLength: 4, FeedForwardLength: 4,
 
@@ -795,23 +658,14 @@ func TestExecutorMistral3TemperatureMoEBlockMatchesReference(t *testing.T) {
 		Shape: weights.AttentionTemperatureScale.Shape,
 		Data:  []float32{1 + 0.1*float32(math.Log(2)), 1 + 0.1*float32(math.Log(2))},
 	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, accuracyRecurrent)
-	compare(t, got[result.Key].Data, want[result.Key].Data, accuracyFP32)
-	compare(t, got[result.Value].Data, want[result.Value].Data, accuracyFP32)
+	checkCUDAGraph(t, feeds,
+		graphOutputCheck{output: result.Output, tolerance: accuracyRecurrent},
+		graphOutputCheck{output: result.Key, tolerance: accuracyFP32},
+		graphOutputCheck{output: result.Value, tolerance: accuracyFP32},
+	)
 }
 
 func TestExecutorGPTOSSBlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "gpt-oss", BlockCount: 2, EmbeddingLength: 4, FeedForwardLength: 4,
 
@@ -858,23 +712,14 @@ func TestExecutorGPTOSSBlockMatchesReference(t *testing.T) {
 	} {
 		feeds[node] = patternedValue(node.Shape, index+31, 0.03, 0.7)
 	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, accuracyRecurrent)
-	compare(t, got[result.Key].Data, want[result.Key].Data, accuracyFP32Tight)
-	compare(t, got[result.Value].Data, want[result.Value].Data, accuracyFP32Tight)
+	checkCUDAGraph(t, feeds,
+		graphOutputCheck{output: result.Output, tolerance: accuracyRecurrent},
+		graphOutputCheck{output: result.Key, tolerance: accuracyFP32Tight},
+		graphOutputCheck{output: result.Value, tolerance: accuracyFP32Tight},
+	)
 }
 
 func TestExecutorGLM4MoEBlockMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "glm4moe", BlockCount: 2,
 		EmbeddingLength: 8, FeedForwardLength: 12,
@@ -926,23 +771,14 @@ func TestExecutorGLM4MoEBlockMatchesReference(t *testing.T) {
 	} {
 		feeds[node] = patternedValue(node.Shape, index+37, 0.03, 1)
 	}
-	outputs := []*tensor.Tensor{result.Output, result.Key, result.Value}
-	want, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[result.Output].Data, want[result.Output].Data, accuracyRecurrent)
-	compare(t, got[result.Key].Data, want[result.Key].Data, accuracyState)
-	compare(t, got[result.Value].Data, want[result.Value].Data, accuracyState)
+	checkCUDAGraph(t, feeds,
+		graphOutputCheck{output: result.Output, tolerance: accuracyRecurrent},
+		graphOutputCheck{output: result.Key, tolerance: accuracyState},
+		graphOutputCheck{output: result.Value, tolerance: accuracyState},
+	)
 }
 
 func TestExecutorNativeQuantizedMoEMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	for _, dataType := range []dtype.Type{
 		dtype.Q8_0,
 		dtype.Q4_0,
@@ -1098,7 +934,6 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 }
 
 func TestExecutorSigmoidMoEWithSelectionBiasMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(3, 2))
 	router := builder.Input("router", dtype.F32, tensor.MustShape(3, 4))
@@ -1115,20 +950,10 @@ func TestExecutorSigmoidMoEWithSelectionBiasMatchesReference(t *testing.T) {
 		down:   patternedValue(down.Shape, 13, 0.2, 0),
 		bias:   patternedValue(bias.Shape, 17, 0.4, 0),
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, accuracyStateLoose)
+	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyStateLoose})
 }
 
 func TestExecutorMulMatMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	left := builder.Input("left", dtype.F32, tensor.MustShape(5, 3))
 	right := builder.Input("right", dtype.F32, tensor.MustShape(5, 4))
@@ -1148,24 +973,12 @@ func TestExecutorMulMatMatchesReference(t *testing.T) {
 		1, 1, 1, 1, 1,
 	})
 	feeds := map[*tensor.Tensor]reference.Value{left: leftValue, right: rightValue}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, accuracyProjection)
+	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyProjection})
 }
 
-func TestExecutorQ8DecodeMulMatMatchesDequantizedReference(t *testing.T) {
-	cudatest.Require(t)
+func TestExecutorQ8MulMatMatchesDequantizedReference(t *testing.T) {
 	leftShape := tensor.MustShape(64, 19)
-	rightShape := tensor.MustShape(64, 1)
 	leftValue := patternedValue(leftShape, 11, 0.03, -0.1)
-	rightValue := patternedValue(rightShape, 7, 0.05, 0.02)
 	storage, err := quant.Quantize(dtype.Q8_0, leftValue.Data)
 	if err != nil {
 		t.Fatal(err)
@@ -1174,53 +987,10 @@ func TestExecutorQ8DecodeMulMatMatchesDequantizedReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	referenceBuilder := tensor.NewBuilder()
-	referenceLeft := referenceBuilder.Input("left", dtype.F32, leftShape)
-	referenceRight := referenceBuilder.Input("right", dtype.F32, rightShape)
-	referenceOutput := referenceBuilder.MulMat(referenceLeft, referenceRight)
-	want, err := reference.Execute([]*tensor.Tensor{referenceOutput}, map[*tensor.Tensor]reference.Value{
-		referenceLeft: {Shape: leftShape, Data: dequantized}, referenceRight: rightValue,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	builder := tensor.NewBuilder()
-	left := builder.Input("left", dtype.Q8_0, leftShape)
-	right := builder.Input("right", dtype.F32, rightShape)
-	output := builder.MulMat(left, right)
-	worker := newFixtureWorker(t)
-	pointer := copyFixtureDeviceBytes(t, worker, storage)
-	cuda := newFixtureExecutorWithWorker(t, worker)
-	got, err := cuda.ExecuteWithDeviceFeeds(context.Background(), []*tensor.Tensor{output},
-		map[*tensor.Tensor]reference.Value{right: rightValue}, map[*tensor.Tensor]driver.DevicePtr{left: pointer})
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[referenceOutput].Data, accuracyQuantized)
-	referenceSelection := referenceBuilder.TopK(referenceOutput, 1)
-	wantSelection, err := reference.Execute(
-		[]*tensor.Tensor{referenceSelection},
-		map[*tensor.Tensor]reference.Value{
-			referenceLeft: {Shape: leftShape, Data: dequantized}, referenceRight: rightValue,
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	selection := builder.TopK(output, 1)
-	gotSelection, err := cuda.ExecuteWithDeviceFeeds(
-		context.Background(), []*tensor.Tensor{selection},
-		map[*tensor.Tensor]reference.Value{right: rightValue},
-		map[*tensor.Tensor]driver.DevicePtr{left: pointer},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, gotSelection[selection].Data, wantSelection[referenceSelection].Data, accuracyExact)
+	checkResidentMulMat(t, dtype.Q8_0, leftShape, storage, dequantized)
 }
 
 func TestExecutorActivatedGatesMatchReference(t *testing.T) {
-	cudatest.Require(t)
 	for _, build := range []struct {
 		name string
 		fn   func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor) *tensor.Tensor
@@ -1247,24 +1017,12 @@ func TestExecutorActivatedGatesMatchReference(t *testing.T) {
 				),
 			}
 			outputs := []*tensor.Tensor{activated, output}
-			want, err := reference.Execute(outputs, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
-			cuda := newFixtureExecutor(t)
-			got, err := cuda.Execute(context.Background(), outputs, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, item := range outputs {
-				compare(t, got[item].Data, want[item].Data, accuracyProjection)
-			}
+			checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyProjection)...)
 		})
 	}
 }
 
 func TestExecutorSSMConvMatchesReference(t *testing.T) {
-	cudatest.Require(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(6, 3, 2))
 	weights := builder.Input("weights", dtype.F32, tensor.MustShape(4, 3))
@@ -1278,14 +1036,5 @@ func TestExecutorSSMConvMatchesReference(t *testing.T) {
 		input:   inputValue,
 		weights: weightValue,
 	}
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, got[output].Data, want[output].Data, accuracyProjection)
+	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyProjection})
 }

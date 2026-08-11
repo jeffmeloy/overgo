@@ -40,14 +40,7 @@ func TestBuildStep35MTPPipeline(t *testing.T) {
 		FeedForwardUp:   builder.Input("up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown: builder.Input("down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	program, err := CompileModelPlan(spec, Weights{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	draft, err := program.DraftProgram(spec, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	draft := fixtureDraftProgram(t, spec, Weights{}, 1)
 	block, err := buildFixtureLayerWithPlan(
 		builder, current, draft.Spec, weights, []uint32{7}, nil, nil, draft.Plan,
 	)

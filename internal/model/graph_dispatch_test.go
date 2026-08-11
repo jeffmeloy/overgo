@@ -100,6 +100,26 @@ func TestDenseProgramsIsolateAtomicGraphs(t *testing.T) {
 	}
 }
 
+func TestGemmaEmbeddingProgramUsesNeutralStages(t *testing.T) {
+	program := compileLayerProgram(
+		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphGemmaEmbedding},
+	)
+	want := []LayerOperator{
+		LayerOperatorAttentionNorm, LayerOperatorAttentionMix, LayerOperatorAttentionPostNorm,
+		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
+		LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
+	}
+	if program.Count != uint8(len(want)) {
+		t.Fatalf("Gemma embedding stage count = %d", program.Count)
+	}
+	for index, operator := range want {
+		instruction, _ := program.Instruction(index)
+		if instruction.Operator != operator {
+			t.Fatalf("Gemma embedding stage %d = %d, want %d", index, instruction.Operator, operator)
+		}
+	}
+}
+
 func TestDeciSparseProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(LayerPlan{Block: BlockDense, DeciSparse: true}, ArchitectureProfile{})
 	want := []LayerOperator{

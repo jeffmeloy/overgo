@@ -93,6 +93,7 @@ const (
 	AttentionMixGatedProjection
 	AttentionMixOutputProjection
 	AttentionMixBidirectionalFusedQKV
+	AttentionMixBidirectionalQKNorm
 )
 
 // HybridMixPolicy: parallel mixer implementation.
@@ -113,6 +114,7 @@ const (
 	FeedForwardMixSquaredReLU
 	FeedForwardMixRoutedSquaredReLU
 	FeedForwardMixRoutedSwiGLU
+	FeedForwardMixGatedGELU
 )
 
 const (
@@ -836,6 +838,14 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 	switch block {
 	case BlockDense:
+		if profile.DenseGraph == DenseGraphGemmaEmbedding {
+			return newLayerProgram(
+				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixBidirectionalQKNorm),
+				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
+				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixGatedGELU),
+				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
+			)
+		}
 		if profile.DenseGraph == DenseGraphModernBERT {
 			return newLayerProgram(
 				attentionLayerStage(AttentionMixBidirectionalFusedQKV), layerStage(LayerOperatorResidual),

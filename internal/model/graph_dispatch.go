@@ -213,6 +213,11 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
+		case AttentionMixBidirectionalQKNorm:
+			result, err = buildBidirectionalQKNormMix(
+				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+				operands.caches[0], operands.caches[1], plan.Layer,
+			)
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
 		}
@@ -336,6 +341,10 @@ func executeLayerInstruction(
 			feedForward, err = buildRoutedSwiGLUFeedForwardMix(
 				c.Builder, execution.current, options.Weights,
 				plan.Experts, plan.ExpertComposition,
+			)
+		case FeedForwardMixGatedGELU:
+			feedForward, err = buildGatedGELUFeedForwardMix(
+				c.Builder, execution.current, options.Weights,
 			)
 		default:
 			return errors.New("compiled feed-forward policy is invalid")
@@ -574,6 +583,23 @@ func buildSquaredReLUFeedForwardMix(
 	}
 	up := builder.MulMat(weights.FeedForwardUp, input)
 	return builder.MulMat(weights.FeedForwardDown, builder.ReLUSquared(up)), builder.Err()
+}
+
+func buildGatedGELUFeedForwardMix(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	weights LayerGraphWeights,
+) (*tensor.Tensor, error) {
+	if err := (graphWeights{
+		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+	}).validate("compiled gated-GELU feed-forward stage"); err != nil {
+		return nil, err
+	}
+	gate := builder.MulMat(weights.FeedForwardGate, input)
+	up := builder.MulMat(weights.FeedForwardUp, input)
+	return builder.MulMat(weights.FeedForwardDown, builder.GEGLU(gate, up)), builder.Err()
 }
 
 func buildStandardFeedForwardMix(

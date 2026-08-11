@@ -285,8 +285,6 @@ func buildDenseBlock(options BlockDispatchOptions) (DenseBlockResult, error) {
 	switch c.plan.DenseGraph {
 	case DenseGraphBERT:
 		return buildBERTEncoderBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.layer)
-	case DenseGraphGemmaEmbedding:
-		return buildGemmaEmbeddingBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue, c.layer)
 	case DenseGraphTalkie:
 		return buildTalkieBlock(c.builder, c.input, c.spec, c.weights, c.positions, c.pastKey, c.pastValue)
 	case DenseGraphGemma4:

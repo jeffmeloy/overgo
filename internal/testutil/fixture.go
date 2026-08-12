@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/binary"
 	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -73,6 +75,57 @@ func RepoRoot(t testing.TB) string {
 func FixturePath(t testing.TB, elements ...string) string {
 	t.Helper()
 	return filepath.Join(append([]string{RepoRoot(t), "fixtures"}, elements...)...)
+}
+
+type DenseCausalSpec struct {
+	Vocab, Hidden, Heads, HeadDim int
+	KVHeads, Intermediate, Layers int
+	Seed                          int64
+}
+
+// DenseCausalWeights: seeded tied-embedding Llama fixture catalog.
+func DenseCausalWeights(t testing.TB, spec DenseCausalSpec) (map[string][]float32, map[string][]int) {
+	t.Helper()
+	if spec.Vocab <= 0 || spec.Hidden <= 0 || spec.Heads <= 0 || spec.HeadDim <= 0 ||
+		spec.KVHeads <= 0 || spec.Intermediate <= 0 || spec.Layers <= 0 {
+		t.Fatal("testutil: invalid dense causal fixture dimensions")
+	}
+	random := rand.New(rand.NewSource(spec.Seed))
+	weights := make(map[string][]float32)
+	shapes := make(map[string][]int)
+	add := func(name string, dimensions ...int) {
+		elements := 1
+		for _, dimension := range dimensions {
+			elements *= dimension
+		}
+		values := make([]float32, elements)
+		for index := range values {
+			values[index] = float32(random.NormFloat64() * 0.02)
+		}
+		weights[name], shapes[name] = values, dimensions
+	}
+	norm := func(name string) {
+		values := make([]float32, spec.Hidden)
+		for index := range values {
+			values[index] = float32(1 + random.NormFloat64()*0.01)
+		}
+		weights[name], shapes[name] = values, []int{spec.Hidden}
+	}
+	add("model.embed_tokens.weight", spec.Vocab, spec.Hidden)
+	for layer := range spec.Layers {
+		prefix := "model.layers." + strconv.Itoa(layer) + "."
+		norm(prefix + "input_layernorm.weight")
+		add(prefix+"self_attn.q_proj.weight", spec.Heads*spec.HeadDim, spec.Hidden)
+		add(prefix+"self_attn.k_proj.weight", spec.KVHeads*spec.HeadDim, spec.Hidden)
+		add(prefix+"self_attn.v_proj.weight", spec.KVHeads*spec.HeadDim, spec.Hidden)
+		add(prefix+"self_attn.o_proj.weight", spec.Hidden, spec.Heads*spec.HeadDim)
+		norm(prefix + "post_attention_layernorm.weight")
+		add(prefix+"mlp.gate_proj.weight", spec.Intermediate, spec.Hidden)
+		add(prefix+"mlp.up_proj.weight", spec.Intermediate, spec.Hidden)
+		add(prefix+"mlp.down_proj.weight", spec.Hidden, spec.Intermediate)
+	}
+	norm("model.norm.weight")
+	return weights, shapes
 }
 
 func WriteGGUF(

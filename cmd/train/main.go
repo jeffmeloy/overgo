@@ -90,6 +90,16 @@ func lrLabel(lr float64) string {
 	return fmt.Sprintf("%g", lr)
 }
 
+func runHostTraining(
+	m *densecausal.Model,
+	tokens []int,
+	steps int,
+	baseLR, mu float64,
+) ([]float64, string, error) {
+	trajectory, err := m.Train(tokens, steps, baseLR, mu)
+	return trajectory, "host", err
+}
+
 // saveCheckpoint writes the trained weights as a single-file model.safetensors
 // and copies config.json + tokenizer.json so the checkpoint reloads through
 // densecausal.Load. The trained weights live in m.Weights (the training step

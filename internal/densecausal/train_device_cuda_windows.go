@@ -14,28 +14,9 @@ import (
 // bottleneck -- is device-accelerated. Momentum is fp32 device-native. Returns
 // the loss trajectory (entry k is the loss before update k).
 func (m *Model) TrainDevice(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
-	names, weights, gradients, plan, resolvedLR, err := m.trainSetup(baseLR)
-	if err != nil {
-		return nil, err
-	}
-	config := optimizer.Config{BaseLearningRate: resolvedLR, Momentum: mu, Schedule: optimizer.ScheduleConstant}
-	momentum := make([]float32, len(weights))
-
-	trajectory := make([]float64, 0, steps)
-	for step := 0; step < steps; step++ {
-		scatter(m, names, weights)
-		loss, _, grads, err := m.LossAndGrads(tokens)
-		if err != nil {
-			return nil, err
-		}
-		trajectory = append(trajectory, loss)
-		m.gatherGrads(names, gradients, grads)
-		if err := optimizer.DeviceMuonStepPlan(worker, weights, gradients, momentum, plan, step+1, config); err != nil {
-			return nil, err
-		}
-	}
-	scatter(m, names, weights)
-	return trajectory, nil
+	return m.trainDevice(worker, steps, baseLR, mu, func() (float64, []float32, Grads, error) {
+		return m.LossAndGrads(tokens)
+	})
 }
 
 // TrainDeviceFull runs `steps` Muon updates with BOTH the backward and the Muon
@@ -44,6 +25,17 @@ func (m *Model) TrainDevice(worker *device.Worker, tokens []int, steps int, base
 // the head/norm/embedding tail run on host. Matches Train's host trajectory
 // within fp32 tolerance. Attention bias is not yet supported.
 func (m *Model) TrainDeviceFull(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
+	return m.trainDevice(worker, steps, baseLR, mu, func() (float64, []float32, Grads, error) {
+		return m.deviceLossAndGrads(worker, tokens)
+	})
+}
+
+func (m *Model) trainDevice(
+	worker *device.Worker,
+	steps int,
+	baseLR, mu float64,
+	lossAndGrads func() (float64, []float32, Grads, error),
+) ([]float64, error) {
 	names, weights, gradients, plan, resolvedLR, err := m.trainSetup(baseLR)
 	if err != nil {
 		return nil, err
@@ -54,7 +46,7 @@ func (m *Model) TrainDeviceFull(worker *device.Worker, tokens []int, steps int, 
 	trajectory := make([]float64, 0, steps)
 	for step := 0; step < steps; step++ {
 		scatter(m, names, weights)
-		loss, _, grads, err := m.deviceLossAndGrads(worker, tokens)
+		loss, _, grads, err := lossAndGrads()
 		if err != nil {
 			return nil, err
 		}

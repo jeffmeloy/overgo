@@ -57,11 +57,29 @@ const (
 	LayerOperatorHyperFeedForward
 	LayerOperatorAttentionNorm
 	LayerOperatorAttentionPostNorm
-	LayerOperatorAttentionMix
+	LayerOperatorAttentionCausalProjection
+	LayerOperatorAttentionGatedProjection
+	LayerOperatorAttentionOutputProjection
+	LayerOperatorAttentionBidirectionalFusedQKV
+	LayerOperatorAttentionBidirectionalQKNorm
+	LayerOperatorAttentionCausalPostQKNorm
+	LayerOperatorAttentionSharedKVQKNorm
+	LayerOperatorAttentionBidirectionalEncoder
+	LayerOperatorAttentionPairedCausalProjection
+	LayerOperatorAttentionSharedCacheQKNorm
+	LayerOperatorAttentionPlannedProjection
 	LayerOperatorHybridMix
 	LayerOperatorRecurrentMix
 	LayerOperatorFeedForwardNorm
-	LayerOperatorFeedForwardMix
+	LayerOperatorFeedForwardStandardSwiGLU
+	LayerOperatorFeedForwardFusedGLU
+	LayerOperatorFeedForwardSquaredReLU
+	LayerOperatorFeedForwardRoutedSquaredReLU
+	LayerOperatorFeedForwardRoutedSwiGLU
+	LayerOperatorFeedForwardGatedGELU
+	LayerOperatorFeedForwardParallelGatedGELU
+	LayerOperatorFeedForwardEncoder
+	LayerOperatorFeedForwardPlanned
 	LayerOperatorFeedForwardPostNorm
 	LayerOperatorCacheSentinel
 	LayerOperatorScale
@@ -69,7 +87,8 @@ const (
 	LayerOperatorRMSNorm
 	LayerOperatorScaledSkip
 	LayerOperatorOutputAdapter
-	LayerOperatorTokenShiftMix
+	LayerOperatorGatedTokenShiftSquaredReLU
+	LayerOperatorTokenShiftSquaredReLU
 	LayerOperatorPeriodicScale
 	LayerOperatorAttentionResidualNorm
 	LayerOperatorInputResidualNorm
@@ -78,42 +97,6 @@ const (
 	LayerOperatorResidualScale
 	LayerOperatorFeedForwardInputNorm
 	LayerOperatorFeedForwardOutput
-)
-
-// AttentionMixPolicy: attention operator implementation.
-type AttentionMixPolicy uint8
-
-const (
-	AttentionMixNone AttentionMixPolicy = iota
-	AttentionMixCausalProjection
-	AttentionMixGatedProjection
-	AttentionMixOutputProjection
-	AttentionMixBidirectionalFusedQKV
-	AttentionMixBidirectionalQKNorm
-	AttentionMixCausalPostQKNorm
-	AttentionMixSharedKVQKNorm
-	AttentionMixBidirectionalEncoder
-	AttentionMixPairedCausalProjection
-	AttentionMixSharedCacheQKNorm
-	AttentionMixCompiledProjection
-)
-
-// FeedForwardMixPolicy: feed-forward operator implementation.
-type FeedForwardMixPolicy uint8
-
-const (
-	FeedForwardMixNone FeedForwardMixPolicy = iota
-	FeedForwardMixStandardSwiGLU
-	FeedForwardMixFusedGLU
-	FeedForwardMixSquaredReLU
-	FeedForwardMixRoutedSquaredReLU
-	FeedForwardMixRoutedSwiGLU
-	FeedForwardMixGatedGELU
-	FeedForwardMixParallelGatedGELU
-	FeedForwardMixGatedTokenShiftSquaredReLU
-	FeedForwardMixTokenShiftSquaredReLU
-	FeedForwardMixEncoder
-	FeedForwardMixCompiled
 )
 
 const (
@@ -125,8 +108,6 @@ const (
 // LayerOperatorInstruction: compiled operator and operand indexes.
 type LayerOperatorInstruction struct {
 	Operator    LayerOperator
-	Attention   AttentionMixPolicy
-	FeedForward FeedForwardMixPolicy
 	CacheCount  uint8
 	TensorCount uint8
 	Caches      [maxLayerCacheBindings]RuntimeCacheBinding
@@ -859,45 +840,45 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	composition := plan.Composition
 	if profile.Attention == AttentionLFM2 && recurrent {
 		return residualMixerProgram(
-			recurrentLayerStage(), FeedForwardMixStandardSwiGLU, false,
+			recurrentLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
 	}
 	if profile.DenseGraph == DenseGraphRWKV6Qwen2 {
 		return residualMixerProgram(
-			recurrentLayerStage(), FeedForwardMixStandardSwiGLU,
+			recurrentLayerStage(), LayerOperatorFeedForwardStandardSwiGLU,
 			plan.ResidualStages.residualScale > 0,
 		)
 	}
 	if profile.Attention == AttentionQwenGDN {
-		mixer := attentionLayerStage(AttentionMixGatedProjection)
+		mixer := attentionLayerStage(LayerOperatorAttentionGatedProjection)
 		if recurrent {
 			mixer = recurrentLayerStage()
 		}
-		return residualMixerProgram(mixer, FeedForwardMixRoutedSwiGLU, false)
+		return residualMixerProgram(mixer, LayerOperatorFeedForwardRoutedSwiGLU, false)
 	}
 	if block == BlockFalconH1 {
 		return residualMixerProgram(
-			hybridLayerStage(), FeedForwardMixStandardSwiGLU, false,
+			hybridLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
 	}
 	if block == BlockGraniteHybrid {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
-			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixStandardSwiGLU),
+			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(LayerOperatorFeedForwardStandardSwiGLU),
 			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
 		)
 	}
 	if block == BlockJamba {
 		return residualMixerProgram(
-			recurrentLayerStage(), FeedForwardMixStandardSwiGLU, false,
+			recurrentLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
 	}
 	if block == BlockPLaMo2 {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 			layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixFusedGLU),
+			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(LayerOperatorFeedForwardFusedGLU),
 			layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
 		)
 	}
@@ -910,13 +891,13 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			)
 		case LayerCompositionAttentionOnly:
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixCausalProjection),
+				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionCausalProjection),
 				layerStage(LayerOperatorResidual),
 			)
 		case LayerCompositionFeedForwardOnly:
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), cacheSentinelLayerStage(),
-				feedForwardLayerStage(FeedForwardMixRoutedSquaredReLU), layerStage(LayerOperatorResidual),
+				feedForwardLayerStage(LayerOperatorFeedForwardRoutedSquaredReLU), layerStage(LayerOperatorResidual),
 			)
 		default:
 			return LayerProgram{}
@@ -933,23 +914,23 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	case BlockDense:
 		if profile.Forward == ForwardGemma4Assistant {
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixSharedCacheQKNorm),
+				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionSharedCacheQKNorm),
 				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixGatedGELU),
+				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(LayerOperatorFeedForwardGatedGELU),
 				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidualScale),
 			)
 		}
 		if profile.Forward == ForwardEagle3 {
 			return newLayerProgram(
-				pairedInputLayerStage(), attentionLayerStage(AttentionMixPairedCausalProjection),
+				pairedInputLayerStage(), attentionLayerStage(LayerOperatorAttentionPairedCausalProjection),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
-				feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+				feedForwardLayerStage(LayerOperatorFeedForwardStandardSwiGLU), layerStage(LayerOperatorResidual),
 			)
 		}
 		if profile.DenseGraph == DenseGraphRWKV6 {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
-				layerStage(LayerOperatorResidual), tokenShiftLayerStage(FeedForwardMixGatedTokenShiftSquaredReLU),
+				layerStage(LayerOperatorResidual), tokenShiftLayerStage(LayerOperatorGatedTokenShiftSquaredReLU),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorPeriodicScale),
 			)
 		}
@@ -959,54 +940,54 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorResidual),
 			}
 			if profile.Normalization == NormalizationLayer {
-				stages = append(stages, tokenShiftLayerStage(FeedForwardMixTokenShiftSquaredReLU))
+				stages = append(stages, tokenShiftLayerStage(LayerOperatorTokenShiftSquaredReLU))
 			} else {
 				stages = append(stages, layerStage(LayerOperatorFeedForwardNorm),
-					feedForwardLayerStage(FeedForwardMixStandardSwiGLU))
+					feedForwardLayerStage(LayerOperatorFeedForwardStandardSwiGLU))
 			}
 			return newLayerProgram(append(stages, layerStage(LayerOperatorResidual))...)
 		}
 		if profile.DenseGraph == DenseGraphGemma4 {
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixSharedKVQKNorm),
+				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionSharedKVQKNorm),
 				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-				feedForwardLayerStage(FeedForwardMixParallelGatedGELU), layerStage(LayerOperatorResidual),
+				feedForwardLayerStage(LayerOperatorFeedForwardParallelGatedGELU), layerStage(LayerOperatorResidual),
 				layerStage(LayerOperatorOutputAdapter),
 			)
 		}
 		if profile.DenseGraph == DenseGraphTalkie {
 			return newLayerProgram(
-				layerStage(LayerOperatorRMSNorm), attentionLayerStage(AttentionMixCausalPostQKNorm),
+				layerStage(LayerOperatorRMSNorm), attentionLayerStage(LayerOperatorAttentionCausalPostQKNorm),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorRMSNorm),
-				feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+				feedForwardLayerStage(LayerOperatorFeedForwardStandardSwiGLU), layerStage(LayerOperatorResidual),
 				layerStage(LayerOperatorScaledSkip),
 			)
 		}
 		if profile.DenseGraph == DenseGraphGemmaEmbedding {
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixBidirectionalQKNorm),
+				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionBidirectionalQKNorm),
 				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixGatedGELU),
+				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(LayerOperatorFeedForwardGatedGELU),
 				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
 			)
 		}
 		if profile.DenseGraph == DenseGraphModernBERT {
 			return newLayerProgram(
-				attentionLayerStage(AttentionMixBidirectionalFusedQKV), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixFusedGLU),
+				attentionLayerStage(LayerOperatorAttentionBidirectionalFusedQKV), layerStage(LayerOperatorResidual),
+				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(LayerOperatorFeedForwardFusedGLU),
 				layerStage(LayerOperatorResidual),
 			)
 		}
 		if profile.DenseGraph == DenseGraphBERT {
 			stages := []LayerOperatorInstruction{
-				attentionLayerStage(AttentionMixBidirectionalEncoder),
+				attentionLayerStage(LayerOperatorAttentionBidirectionalEncoder),
 				layerStage(LayerOperatorAttentionResidualNorm),
 			}
 			if profile.EncoderGraph.Kind == encoderGraphJinaV2 {
 				stages = append(stages, layerStage(LayerOperatorInputResidualNorm))
 			}
 			return newLayerProgram(append(stages,
-				feedForwardLayerStage(FeedForwardMixEncoder),
+				feedForwardLayerStage(LayerOperatorFeedForwardEncoder),
 				layerStage(LayerOperatorFeedForwardResidualNorm),
 			)...)
 		}
@@ -1017,21 +998,21 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			}
 			if plan.Composition != LayerCompositionFeedForwardOnly {
 				stages = append(stages, layerStage(LayerOperatorAttentionNorm),
-					attentionLayerStageWithoutCache(AttentionMixOutputProjection),
+					attentionLayerStageWithoutCache(LayerOperatorAttentionOutputProjection),
 					layerStage(LayerOperatorResidual))
 			}
 			return newLayerProgram(append(stages,
 				layerStage(LayerOperatorFeedForwardNorm),
-				feedForwardLayerStage(FeedForwardMixStandardSwiGLU),
+				feedForwardLayerStage(LayerOperatorFeedForwardStandardSwiGLU),
 				layerStage(LayerOperatorResidual),
 			)...)
 		}
 		if profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionInputNorm),
-				attentionLayerStage(AttentionMixCompiledProjection),
+				attentionLayerStage(LayerOperatorAttentionPlannedProjection),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardInputNorm),
-				feedForwardLayerStage(FeedForwardMixCompiled),
+				feedForwardLayerStage(LayerOperatorFeedForwardPlanned),
 				layerStage(LayerOperatorFeedForwardOutput), layerStage(LayerOperatorResidual),
 			)
 		}
@@ -1045,7 +1026,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 		}
 		return residualMixerProgram(
 			recurrentLayerStage(),
-			FeedForwardMixStandardSwiGLU, false,
+			LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
 	case BlockMLA:
 		return latentLayerProgram(
@@ -1072,7 +1053,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 }
 
-func residualMixerProgram(mixer LayerOperatorInstruction, feedForward FeedForwardMixPolicy, scale bool) LayerProgram {
+func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale bool) LayerProgram {
 	stages := []LayerOperatorInstruction{
 		layerStage(LayerOperatorAttentionNorm), mixer, layerStage(LayerOperatorResidual),
 		layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(feedForward), layerStage(LayerOperatorResidual),
@@ -1088,9 +1069,9 @@ func latentLayerProgram(
 	caches []RuntimeCacheBinding,
 	tensors []RuntimeTensorBinding,
 ) LayerProgram {
-	mix := FeedForwardMixStandardSwiGLU
+	mix := LayerOperatorFeedForwardStandardSwiGLU
 	if profile.FeedForward == FeedForwardSquaredReLU {
-		mix = FeedForwardMixSquaredReLU
+		mix = LayerOperatorFeedForwardSquaredReLU
 	}
 	stages := []LayerOperatorInstruction{
 		layerStage(LayerOperatorAttentionNorm),
@@ -1137,19 +1118,16 @@ func recurrentLayerStage() LayerOperatorInstruction {
 	return instruction
 }
 
-func attentionLayerStage(policy AttentionMixPolicy) LayerOperatorInstruction {
-	instruction := layerStage(LayerOperatorAttentionMix)
-	instruction.Attention = policy
+func attentionLayerStage(operator LayerOperator) LayerOperatorInstruction {
+	instruction := layerStage(operator)
 	instruction.CacheCount = 2
 	instruction.Caches[0] = RuntimeCachePrimaryKey
 	instruction.Caches[1] = RuntimeCachePrimaryValue
 	return instruction
 }
 
-func attentionLayerStageWithoutCache(policy AttentionMixPolicy) LayerOperatorInstruction {
-	instruction := layerStage(LayerOperatorAttentionMix)
-	instruction.Attention = policy
-	return instruction
+func attentionLayerStageWithoutCache(operator LayerOperator) LayerOperatorInstruction {
+	return layerStage(operator)
 }
 
 func hybridLayerStage() LayerOperatorInstruction {
@@ -1162,15 +1140,12 @@ func hybridLayerStage() LayerOperatorInstruction {
 	return instruction
 }
 
-func feedForwardLayerStage(policy FeedForwardMixPolicy) LayerOperatorInstruction {
-	instruction := layerStage(LayerOperatorFeedForwardMix)
-	instruction.FeedForward = policy
-	return instruction
+func feedForwardLayerStage(operator LayerOperator) LayerOperatorInstruction {
+	return layerStage(operator)
 }
 
-func tokenShiftLayerStage(policy FeedForwardMixPolicy) LayerOperatorInstruction {
-	instruction := feedForwardLayerStage(policy)
-	instruction.Operator = LayerOperatorTokenShiftMix
+func tokenShiftLayerStage(operator LayerOperator) LayerOperatorInstruction {
+	instruction := layerStage(operator)
 	instruction.CacheCount = 1
 	instruction.Caches[0] = RuntimeCachePrimaryKey
 	return instruction

@@ -233,9 +233,14 @@ func executeLayerInstruction(
 			execution.current, options.Weights.AttentionPostNorm, options.Spec.RMSNormEpsilon,
 		)
 		return c.Builder.Err()
-	case LayerOperatorAttentionMix:
+	case LayerOperatorAttentionCausalProjection, LayerOperatorAttentionGatedProjection,
+		LayerOperatorAttentionOutputProjection, LayerOperatorAttentionBidirectionalFusedQKV,
+		LayerOperatorAttentionBidirectionalQKNorm, LayerOperatorAttentionCausalPostQKNorm,
+		LayerOperatorAttentionSharedKVQKNorm, LayerOperatorAttentionBidirectionalEncoder,
+		LayerOperatorAttentionPairedCausalProjection, LayerOperatorAttentionSharedCacheQKNorm,
+		LayerOperatorAttentionPlannedProjection:
 		cacheCount := uint8(2)
-		if instruction.Attention == AttentionMixOutputProjection {
+		if instruction.Operator == LayerOperatorAttentionOutputProjection {
 			cacheCount = 0
 		}
 		if instruction.TensorCount != 0 || instruction.CacheCount != cacheCount {
@@ -243,13 +248,13 @@ func executeLayerInstruction(
 		}
 		var result DenseBlockResult
 		var err error
-		switch instruction.Attention {
-		case AttentionMixCausalProjection:
+		switch instruction.Operator {
+		case LayerOperatorAttentionCausalProjection:
 			result, err = buildCausalProjectionMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
-		case AttentionMixGatedProjection:
+		case LayerOperatorAttentionGatedProjection:
 			sequences := c.Sequences
 			if sequences == 0 {
 				sequences = 1
@@ -259,7 +264,7 @@ func executeLayerInstruction(
 				c.Positions, c.MultiPositions, sequences,
 				operands.caches[0], operands.caches[1], c.CacheWrite,
 			)
-		case AttentionMixOutputProjection:
+		case LayerOperatorAttentionOutputProjection:
 			if options.Weights.AttentionOutput == nil {
 				return errors.New("compiled output-projection stage is invalid")
 			}
@@ -268,42 +273,42 @@ func executeLayerInstruction(
 				projected = c.Builder.Add(projected, options.Weights.AttentionOutputBias)
 			}
 			result.Output, err = projected, c.Builder.Err()
-		case AttentionMixBidirectionalFusedQKV:
+		case LayerOperatorAttentionBidirectionalFusedQKV:
 			result, err = buildBidirectionalFusedQKVMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
-		case AttentionMixBidirectionalQKNorm:
+		case LayerOperatorAttentionBidirectionalQKNorm:
 			result, err = buildBidirectionalQKNormMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
-		case AttentionMixCausalPostQKNorm:
+		case LayerOperatorAttentionCausalPostQKNorm:
 			result, err = buildCausalPostQKNormMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
-		case AttentionMixSharedKVQKNorm:
+		case LayerOperatorAttentionSharedKVQKNorm:
 			result, err = buildSharedKVQKNormMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan, c.CacheWrite,
 			)
-		case AttentionMixBidirectionalEncoder:
+		case LayerOperatorAttentionBidirectionalEncoder:
 			result, err = buildBidirectionalEncoderAttentionMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan.Layer,
 			)
-		case AttentionMixPairedCausalProjection:
+		case LayerOperatorAttentionPairedCausalProjection:
 			result, err = buildPairedCausalProjectionMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], c.CacheWrite,
 			)
-		case AttentionMixSharedCacheQKNorm:
+		case LayerOperatorAttentionSharedCacheQKNorm:
 			result, err = buildSharedCacheQKNormMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1], plan,
 			)
-		case AttentionMixCompiledProjection:
+		case LayerOperatorAttentionPlannedProjection:
 			result, err = buildPolicyAttentionMix(
 				options, execution.current, execution.feedForwardBase,
 				operands.caches[0], operands.caches[1],
@@ -428,47 +433,51 @@ func executeLayerInstruction(
 		}
 		execution.current = normalized
 		return c.Builder.Err()
-	case LayerOperatorFeedForwardMix:
+	case LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorFeedForwardFusedGLU,
+		LayerOperatorFeedForwardSquaredReLU, LayerOperatorFeedForwardRoutedSquaredReLU,
+		LayerOperatorFeedForwardRoutedSwiGLU, LayerOperatorFeedForwardGatedGELU,
+		LayerOperatorFeedForwardParallelGatedGELU, LayerOperatorFeedForwardEncoder,
+		LayerOperatorFeedForwardPlanned:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 {
 			return errors.New("compiled feed-forward stage is invalid")
 		}
 		var feedForward *tensor.Tensor
 		var err error
-		switch instruction.FeedForward {
-		case FeedForwardMixStandardSwiGLU:
+		switch instruction.Operator {
+		case LayerOperatorFeedForwardStandardSwiGLU:
 			feedForward, err = buildStandardFeedForwardMix(
 				c.Builder, execution.current, plan, options.Spec, options.Weights,
 			)
-		case FeedForwardMixFusedGLU:
+		case LayerOperatorFeedForwardFusedGLU:
 			feedForward, err = buildFusedFeedForwardMix(
 				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
 			)
-		case FeedForwardMixSquaredReLU:
+		case LayerOperatorFeedForwardSquaredReLU:
 			feedForward, err = buildSquaredReLUFeedForwardMix(
 				c.Builder, execution.current, options.Weights,
 			)
-		case FeedForwardMixRoutedSquaredReLU:
+		case LayerOperatorFeedForwardRoutedSquaredReLU:
 			feedForward, err = buildRoutedSquaredReLUFeedForwardMix(
 				c.Builder, execution.current, options.Weights, plan.Experts,
 			)
-		case FeedForwardMixRoutedSwiGLU:
+		case LayerOperatorFeedForwardRoutedSwiGLU:
 			feedForward, err = buildRoutedSwiGLUFeedForwardMix(
 				c.Builder, execution.current, options.Weights,
 				plan.Experts, plan.ExpertComposition,
 			)
-		case FeedForwardMixGatedGELU:
+		case LayerOperatorFeedForwardGatedGELU:
 			feedForward, err = buildGatedGELUFeedForwardMix(
 				c.Builder, execution.current, options.Weights,
 			)
-		case FeedForwardMixParallelGatedGELU:
+		case LayerOperatorFeedForwardParallelGatedGELU:
 			feedForward, err = buildParallelGatedGELUFeedForwardMix(
 				c.Builder, execution.current, options.Spec, options.Weights, plan,
 			)
-		case FeedForwardMixEncoder:
+		case LayerOperatorFeedForwardEncoder:
 			feedForward, err = buildEncoderFeedForwardMix(
 				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
 			)
-		case FeedForwardMixCompiled:
+		case LayerOperatorFeedForwardPlanned:
 			feedForward, err = buildPolicyFeedForwardMix(
 				options, execution.current, execution.residual,
 			)
@@ -595,13 +604,13 @@ func executeLayerInstruction(
 		execution.residual = output
 		execution.result.Output = output
 		return nil
-	case LayerOperatorTokenShiftMix:
+	case LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorTokenShiftSquaredReLU:
 		if instruction.CacheCount != 1 || instruction.TensorCount != 0 || execution.current == nil {
 			return errors.New("compiled token-shift stage is invalid")
 		}
 		result, err := buildTokenShiftFeedForwardMix(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], execution.result.Key, instruction.FeedForward,
+			operands.caches[0], execution.result.Key, instruction.Operator,
 		)
 		if err != nil {
 			return err

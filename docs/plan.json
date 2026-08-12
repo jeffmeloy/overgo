@@ -625,13 +625,14 @@
     },
     {
       "id": "hybrid-device-train-integration",
-      "title": "hybrid device-training integration: compose the full gemma3n/qwen35 layer BACKWARD on device (assemble the GDN-backward kernel 20d4232 + windowed-attn-backward 5d4ceae + AltUp/Laurel/PLE via existing device Linear/RMSNorm ops) into a resident device training loop for the HYBRID models, bit-parity vs the host assembled-layer golden (inference/gemma3n_backward.go + hostmath hybrid VJPs). Extends the densecausal resident device training (ed95d9d) to the hybrid arch.",
-      "status": "open",
+      "title": "hybrid layer BACKWARD on device -- DONE (both variants: 3cc66cb full_attention incl. partial rope, 231cd56 GDN-mix linear_attention; bit-parity vs host HybridDecoderLayerBackward, all grad groups ~1e-5..7e-4). devicemath.HybridDecoderLayerBackwardDevice reuses GDN-backward 20d4232 + windowed-attn 5d4ceae + new l2_norm/short_conv backward kernels + existing Linear/RMSNorm/rope device ops. The resident device training LOOP for the hybrid arch (forward+backward+optimizer resident across steps) is split to follow-up hybrid-device-resident-loop -- it needs a hybrid device FORWARD + a host hybrid-model training reference, a larger integration extending ed95d9d.",
+      "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "hybrid device-training integration: compose the full gemma3n/qwen35 layer BACKWARD on device (assemble the GDN-backward kernel 20d4232 + windowed-attn-backward 5d4ceae + AltUp/Laurel/PLE via existing device Linear/RMSNorm ops) into a resident device training loop for the HYBRID models, bit-parity vs the host assembled-layer golden (inference/gemma3n_backward.go + hostmath hybrid VJPs). Extends the densecausal resident device training (ed95d9d) to the hybrid arch.",
-          "status": "open"
+          "title": "hybrid layer BACKWARD on device -- DONE (both variants: 3cc66cb full_attention incl. partial rope, 231cd56 GDN-mix linear_attention; bit-parity vs host HybridDecoderLayerBackward, all grad groups ~1e-5..7e-4). devicemath.HybridDecoderLayerBackwardDevice reuses GDN-backward 20d4232 + windowed-attn 5d4ceae + new l2_norm/short_conv backward kernels + existing Linear/RMSNorm/rope device ops. The resident device training LOOP for the hybrid arch (forward+backward+optimizer resident across steps) is split to follow-up hybrid-device-resident-loop -- it needs a hybrid device FORWARD + a host hybrid-model training reference, a larger integration extending ed95d9d.",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/devicemath/ -run HybridDecoderLayerBackwardDeviceMatchesHost -count=1"
         }
       ]
     },
@@ -669,6 +670,18 @@
           "id": "training-leg",
           "title": "ABSENT verdict expected: adaptive has no rxbrain training recipe; record verdict, no invented lane -- ABSENT verdict recorded: adaptive has NO training recipe for modality-transformer (generation/planning are python-oracle-only); no invented lane",
           "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "hybrid-device-resident-loop",
+      "title": "hybrid-device-resident-loop: resident device training LOOP for the HYBRID models (qwen35/gemma3n) -- extend TrainDeviceResident (ed95d9d) to run the hybrid forward+backward (using HybridDecoderLayerBackwardDevice 3cc66cb/231cd56)+optimizer resident across steps, weights+momentum device-resident, scratch-pooled, peak under measured-free bound. Needs a hybrid device FORWARD (host today) + a host hybrid-model multi-step training reference for trajectory parity. Large integration.",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "hybrid-device-resident-loop: resident device training LOOP for the HYBRID models (qwen35/gemma3n) -- extend TrainDeviceResident (ed95d9d) to run the hybrid forward+backward (using HybridDecoderLayerBackwardDevice 3cc66cb/231cd56)+optimizer resident across steps, weights+momentum device-resident, scratch-pooled, peak under measured-free bound. Needs a hybrid device FORWARD (host today) + a host hybrid-model multi-step training reference for trajectory parity. Large integration.",
+          "status": "open"
         }
       ]
     },

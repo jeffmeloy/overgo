@@ -81,10 +81,10 @@ func (r *Runner) AdvanceQwen35MTP(
 		return reference.Value{}, nil, err
 	}
 	return r.advanceSingleHeadMTP(ctx, tokenID, session, singleHeadMTPAdapter{
-		nodePrefix: "qwen35_mtp", layer: mtp.Layer,
+		nodePrefix: "qwen35_mtp", layer: mtp.Layer, program: draftProgram,
 		embeddingNorm: mtp.EmbeddingNorm, hiddenNorm: mtp.HiddenNorm, project: mtp.EHProjection,
 		tokenEmbedding: mtp.TokenEmbedding, outputNorm: mtp.OutputNorm, output: mtp.Output,
-		buildInput: model.BuildQwen35MTPInput, buildBlock: compiledDraftBlock(draftProgram),
+		buildInput:   model.BuildQwen35MTPInput,
 		buildOutputs: model.BuildQwen35MTPOutputs,
 	})
 }

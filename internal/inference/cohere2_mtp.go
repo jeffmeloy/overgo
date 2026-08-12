@@ -74,10 +74,10 @@ func (r *Runner) AdvanceCohere2MTP(
 		return reference.Value{}, nil, err
 	}
 	return r.advanceSingleHeadMTP(ctx, tokenID, session, singleHeadMTPAdapter{
-		nodePrefix: "cohere2_mtp", layer: mtp.Layer,
+		nodePrefix: "cohere2_mtp", layer: mtp.Layer, program: draftProgram,
 		embeddingNorm: mtp.EmbeddingNorm, hiddenNorm: mtp.HiddenNorm, project: mtp.EHProjection,
 		tokenEmbedding: mtp.TokenEmbedding, outputNorm: mtp.OutputNorm, output: mtp.Output,
-		buildInput: model.BuildCohere2MTPInput, buildBlock: compiledDraftBlock(draftProgram),
+		buildInput:   model.BuildCohere2MTPInput,
 		buildOutputs: model.BuildCohere2MTPOutputs,
 	})
 }

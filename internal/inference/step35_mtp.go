@@ -272,13 +272,10 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	plan := draftProgram.Plan
-	block, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Spec: draftProgram.Spec, Weights: graphWeights, Plan: &plan,
-		Context: model.CachedBlockContext{
-			Builder: runtime.builder, Input: current, Positions: positions,
-			PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
-		},
-	})
+	block, err := draftProgram.Build(model.CachedBlockContext{
+		Builder: runtime.builder, Input: current, Positions: positions,
+		PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
+	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}

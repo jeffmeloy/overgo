@@ -36,6 +36,21 @@ type BlockDispatchOptions struct {
 func BuildArchitectureBlockCached(
 	options BlockDispatchOptions,
 ) (DenseBlockResult, error) {
+	return executeCompiledLayer(options)
+}
+
+// Build constructs the graph owned by a compiled draft layer.
+func (p DraftLayerProgram) Build(
+	context CachedBlockContext,
+	weights LayerGraphWeights,
+) (DenseBlockResult, error) {
+	plan := p.Plan
+	return executeCompiledLayer(BlockDispatchOptions{
+		Context: context, Spec: p.Spec, Weights: weights, Plan: &plan,
+	})
+}
+
+func executeCompiledLayer(options BlockDispatchOptions) (DenseBlockResult, error) {
 	_, ok := options.Spec.ResolvedProfile()
 	if !ok {
 		return DenseBlockResult{}, &UnsupportedArchitectureError{

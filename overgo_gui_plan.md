@@ -13,7 +13,8 @@ Python, torch, or transformers anywhere**. See §5A.
 
 Worktree: `C:\Users\jeffm\overgo_gui` (branch `overgo_gui`). Work and commits land here;
 The branch tracks master plus in-flight GUI work; master is merged in periodically (latest at
-`bc47a24`, bringing densecausal device training + capability recipe runtime).
+`0b43ea6` — rope_half kernel, on-device attention softmax, recipe-execution consolidation;
+prior `bc47a24` brought densecausal device training + capability recipe runtime).
 
 > **Merge note (operational):** on this Windows worktree the repo's `gate -merge` step fails on
 > two master-side cross-platform artifacts unrelated to the GUI: (1) stale-CRLF checkouts of

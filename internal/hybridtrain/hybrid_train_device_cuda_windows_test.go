@@ -104,9 +104,17 @@ func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	if acc.MomentumReads != 0 {
 		t.Errorf("per-step momentum reads = %d, want 0 (momentum resident, not round-tripped)", acc.MomentumReads)
 	}
-	if acc.GradUploads != steps || acc.WeightReads != steps {
-		t.Errorf("per-step transfers: gradUploads=%d weightReads=%d, want %d each", acc.GradUploads, acc.WeightReads, steps)
+	// The crux: ZERO per-step weight motion. Weights are resident across the whole
+	// K-step loop and read back to host exactly once, at the final checkpoint.
+	if acc.WeightReads != 0 {
+		t.Errorf("per-step weight reads = %d, want 0 (weights resident, no per-step read-back)", acc.WeightReads)
 	}
-	t.Logf("residency: matrixElems=%d weightUploads=%d momentumUploads=%d momentumReads=%d gradUploads=%d weightReads=%d",
-		acc.MatrixElems, acc.WeightUploads, acc.MomentumUploads, acc.MomentumReads, acc.GradUploads, acc.WeightReads)
+	if acc.FinalWeightRead != 1 {
+		t.Errorf("final weight read-backs = %d, want 1 (single checkpoint read)", acc.FinalWeightRead)
+	}
+	if acc.GradUploads != steps {
+		t.Errorf("per-step grad uploads = %d, want %d (grads recomputed each step)", acc.GradUploads, steps)
+	}
+	t.Logf("residency: matrixElems=%d weightUploads=%d momentumUploads=%d momentumReads=%d gradUploads=%d weightReads=%d finalWeightRead=%d",
+		acc.MatrixElems, acc.WeightUploads, acc.MomentumUploads, acc.MomentumReads, acc.GradUploads, acc.WeightReads, acc.FinalWeightRead)
 }

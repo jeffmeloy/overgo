@@ -34,20 +34,29 @@ type gatedDeltaMixDeviceCache struct {
 // LinearForwardT(c.gated, Wout); callers that need it (the layer forward) apply
 // it, callers that reverse from `gated` (the backward) do not.
 func gatedDeltaMixForwardDevice(worker *device.Worker, x []float32, w hostmath.GatedDeltaMixWeights, d hostmath.GatedDeltaMixDims, state []float32) (gatedDeltaMixDeviceCache, error) {
+	return gatedDeltaMixForwardDeviceW(worker, x, gdnHostMatW(w), w, d, state)
+}
+
+// gatedDeltaMixForwardDeviceW is gatedDeltaMixForwardDevice over resident-or-host
+// matrix weights (mw). The vector weights (conv kernels/biases, per-head scalars,
+// the output RMSNorm weight) stay host-owned (Sign-updated) and come from w; only
+// the projection matrices Wq/Wk/Wv/Wbeta/Walpha/Wz are read through mw, so a
+// resident-weight GDN forward re-uploads no matrix weights.
+func gatedDeltaMixForwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW, w hostmath.GatedDeltaMixWeights, d hostmath.GatedDeltaMixDims, state []float32) (gatedDeltaMixDeviceCache, error) {
 	T, H, hk, hv, hd, K := d.Tokens, d.Hidden, d.KeyHeads, d.ValueHeads, d.HeadDim, d.ConvK
 	keyDim, valDim := hk*hd, hv*hd
 	eps := d.Eps
 	var c gatedDeltaMixDeviceCache
 
-	qProj, err := LinearForwardT(worker, x, w.Wq, T, H, keyDim)
+	qProj, err := linearForwardTW(worker, x, mw.wq, T, H, keyDim)
 	if err != nil {
 		return c, err
 	}
-	kProj, err := LinearForwardT(worker, x, w.Wk, T, H, keyDim)
+	kProj, err := linearForwardTW(worker, x, mw.wk, T, H, keyDim)
 	if err != nil {
 		return c, err
 	}
-	vProj, err := LinearForwardT(worker, x, w.Wv, T, H, valDim)
+	vProj, err := linearForwardTW(worker, x, mw.wv, T, H, valDim)
 	if err != nil {
 		return c, err
 	}
@@ -59,7 +68,7 @@ func gatedDeltaMixForwardDevice(worker *device.Worker, x []float32, w hostmath.G
 	c.qL2 = hostmath.L2NormForward(c.qConv, T*hk, hd, eps)
 	c.kL2 = hostmath.L2NormForward(c.kConv, T*hk, hd, eps)
 	// beta = sigmoid(Wbeta·x); alpha = Walpha·x; gate = softplus(alpha+ts)*A.
-	betaPre, err := LinearForwardT(worker, x, w.Wbeta, T, H, hv)
+	betaPre, err := linearForwardTW(worker, x, mw.wbeta, T, H, hv)
 	if err != nil {
 		return c, err
 	}
@@ -67,7 +76,7 @@ func gatedDeltaMixForwardDevice(worker *device.Worker, x []float32, w hostmath.G
 	for i, v := range betaPre {
 		c.beta[i] = float32(1 / (1 + math.Exp(-float64(v))))
 	}
-	c.alpha, err = LinearForwardT(worker, x, w.Walpha, T, H, hv)
+	c.alpha, err = linearForwardTW(worker, x, mw.walpha, T, H, hv)
 	if err != nil {
 		return c, err
 	}
@@ -78,7 +87,7 @@ func gatedDeltaMixForwardDevice(worker *device.Worker, x []float32, w hostmath.G
 			c.gate[t*hv+h] = float32(sp * float64(w.A[h]))
 		}
 	}
-	c.z, err = LinearForwardT(worker, x, w.Wz, T, H, valDim)
+	c.z, err = linearForwardTW(worker, x, mw.wz, T, H, valDim)
 	if err != nil {
 		return c, err
 	}
@@ -114,16 +123,26 @@ func gatedDeltaMixForwardDevice(worker *device.Worker, x []float32, w hostmath.G
 // hostmath.GatedDeltaMixBackward to the kernel-parity class. x is the normed mix
 // input [T,Hidden]; state is the GDN input state [hv,hd,hd]; dOut is [T,OutDim].
 func GatedDeltaMixBackwardDevice(worker *device.Worker, x []float32, w hostmath.GatedDeltaMixWeights, d hostmath.GatedDeltaMixDims, state, dOut []float32) (hostmath.GatedDeltaMixGrads, error) {
+	return gatedDeltaMixBackwardDeviceW(worker, x, gdnHostMatW(w), w, d, state, dOut)
+}
+
+// gatedDeltaMixBackwardDeviceW is GatedDeltaMixBackwardDevice over resident-or-host
+// matrix weights (mw); vector weights stay host-owned via w. It reads no matrix
+// weight back to host: the projection VJPs use linearBackwardTW over mw and the
+// forward recompute uses gatedDeltaMixForwardDeviceW over the same mw. The weight
+// GRADIENTS (DWq..DWout) still return as host slices -- grads are recomputed each
+// step and uploaded into the resident grad buffer by the caller.
+func gatedDeltaMixBackwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW, w hostmath.GatedDeltaMixWeights, d hostmath.GatedDeltaMixDims, state, dOut []float32) (hostmath.GatedDeltaMixGrads, error) {
 	T, H, hk, hv, hd, K := d.Tokens, d.Hidden, d.KeyHeads, d.ValueHeads, d.HeadDim, d.ConvK
 	keyDim, valDim := hk*hd, hv*hd
 	eps := d.Eps
 	var g hostmath.GatedDeltaMixGrads
 	if len(x) != T*H || len(dOut) != T*d.OutDim {
-		return g, fmt.Errorf("GatedDeltaMixBackwardDevice: shape mismatch (T=%d H=%d OutDim=%d x=%d dOut=%d)", T, H, d.OutDim, len(x), len(dOut))
+		return g, fmt.Errorf("gatedDeltaMixBackwardDeviceW: shape mismatch (T=%d H=%d OutDim=%d x=%d dOut=%d)", T, H, d.OutDim, len(x), len(dOut))
 	}
 
 	// --- forward recompute: only the intermediates the VJP consumes ---
-	fc, err := gatedDeltaMixForwardDevice(worker, x, w, d, state)
+	fc, err := gatedDeltaMixForwardDeviceW(worker, x, mw, w, d, state)
 	if err != nil {
 		return g, err
 	}
@@ -142,7 +161,7 @@ func GatedDeltaMixBackwardDevice(worker *device.Worker, x []float32, w hostmath.
 	}
 
 	// out = gated·Woutᵀ
-	dGated, dWout, err := LinearBackwardT(worker, gated, w.Wout, dOut, T, valDim, d.OutDim)
+	dGated, dWout, err := linearBackwardTW(worker, gated, mw.wout, dOut, T, valDim, d.OutDim)
 	if err != nil {
 		return g, err
 	}
@@ -168,7 +187,7 @@ func GatedDeltaMixBackwardDevice(worker *device.Worker, x []float32, w hostmath.
 	}
 	g.DNorm = dNorm
 	// z = Wz·x
-	dxZ, dWz, err := LinearBackwardT(worker, x, w.Wz, dz, T, H, valDim)
+	dxZ, dWz, err := linearBackwardTW(worker, x, mw.wz, dz, T, H, valDim)
 	if err != nil {
 		return g, err
 	}
@@ -198,7 +217,7 @@ func GatedDeltaMixBackwardDevice(worker *device.Worker, x []float32, w hostmath.
 		}
 	}
 	// alpha = Walpha·x
-	dxA, dWalpha, err := LinearBackwardT(worker, x, w.Walpha, dAlpha, T, H, hv)
+	dxA, dWalpha, err := linearBackwardTW(worker, x, mw.walpha, dAlpha, T, H, hv)
 	if err != nil {
 		return g, err
 	}
@@ -210,7 +229,7 @@ func GatedDeltaMixBackwardDevice(worker *device.Worker, x []float32, w hostmath.
 		b := float64(beta[i])
 		dBetaPre[i] = float32(float64(dBeta[i]) * b * (1 - b))
 	}
-	dxB, dWbeta, err := LinearBackwardT(worker, x, w.Wbeta, dBetaPre, T, H, hv)
+	dxB, dWbeta, err := linearBackwardTW(worker, x, mw.wbeta, dBetaPre, T, H, hv)
 	if err != nil {
 		return g, err
 	}
@@ -242,15 +261,15 @@ func GatedDeltaMixBackwardDevice(worker *device.Worker, x []float32, w hostmath.
 	g.DConvK, g.DConvBiasK = dConvK, dConvBiasK
 	g.DConvV, g.DConvBiasV = dConvV, dConvBiasV
 	// {q,k,v}Proj = W{q,k,v}·x
-	dxQ, dWq, err := LinearBackwardT(worker, x, w.Wq, dqProj, T, H, keyDim)
+	dxQ, dWq, err := linearBackwardTW(worker, x, mw.wq, dqProj, T, H, keyDim)
 	if err != nil {
 		return g, err
 	}
-	dxK, dWk, err := LinearBackwardT(worker, x, w.Wk, dkProj, T, H, keyDim)
+	dxK, dWk, err := linearBackwardTW(worker, x, mw.wk, dkProj, T, H, keyDim)
 	if err != nil {
 		return g, err
 	}
-	dxV, dWv, err := LinearBackwardT(worker, x, w.Wv, dvProj, T, H, valDim)
+	dxV, dWv, err := linearBackwardTW(worker, x, mw.wv, dvProj, T, H, valDim)
 	if err != nil {
 		return g, err
 	}

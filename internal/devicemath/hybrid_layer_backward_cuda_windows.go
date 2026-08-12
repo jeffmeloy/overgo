@@ -29,9 +29,20 @@ import (
 // causal GQA attention forward/backward; linear_attention (GDN mix) routes
 // through GatedDeltaMixBackwardDevice (device L2Norm/ShortConv/GDN backward).
 func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state, dOut []float32) (hostmath.HybridDecoderLayerGrads, error) {
+	return hybridLayerBackwardW(worker, x, hybridHostMatW(w), w, d, state, dOut)
+}
+
+// hybridLayerBackwardW is HybridDecoderLayerBackwardDevice over resident-or-host
+// matrix weights (mw); VECTOR weights stay host-owned via w. Unlike the original
+// host shortcut, the GDN residual mixOut is recomputed on DEVICE from mw (via
+// gatedDeltaMixForwardDeviceW + Wout) rather than from the host GDN forward -- so
+// with resident mw it reads the CURRENT resident weights, never the (now-unrefreshed)
+// host slices. Weight GRADIENTS return as host slices for the caller to pack and
+// upload into the resident grad buffer; no matrix weight is read back.
+func hybridLayerBackwardW(worker *device.Worker, x []float32, mw hybridMatW, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state, dOut []float32) (hostmath.HybridDecoderLayerGrads, error) {
 	T, H := d.Tokens, d.Hidden
 	if len(x) != T*H || len(dOut) != T*H {
-		return hostmath.HybridDecoderLayerGrads{}, fmt.Errorf("HybridDecoderLayerBackwardDevice: shape mismatch (T=%d H=%d x=%d dOut=%d)", T, H, len(x), len(dOut))
+		return hostmath.HybridDecoderLayerGrads{}, fmt.Errorf("hybridLayerBackwardW: shape mismatch (T=%d H=%d x=%d dOut=%d)", T, H, len(x), len(dOut))
 	}
 
 	var g hostmath.HybridDecoderLayerGrads
@@ -43,15 +54,23 @@ func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w host
 	if err != nil {
 		return g, err
 	}
-	// mix forward: attention recomputes on device (returns its VJP cache); the GDN
-	// mix reuses the proven host forward for the residual (its VJP recomputes its
-	// own intermediates in GatedDeltaMixBackwardDevice).
+	// mix forward on device from mw (resident-safe): attention returns its VJP cache;
+	// the GDN residual mixOut is gated·Woutᵀ recomputed from mw (the backward's own
+	// GatedDeltaMixBackwardDeviceW recomputes the rest of its intermediates).
 	var mixOut []float32
 	var ac attnMixDeviceCache
 	if w.IsLinear {
-		mixOut, _ = hostmath.GatedDeltaMixForward(xn, w.GDN, d.GDN, state)
+		gc, err := gatedDeltaMixForwardDeviceW(worker, xn, mw.gdn, w.GDN, d.GDN, state)
+		if err != nil {
+			return g, err
+		}
+		valDim := d.GDN.ValueHeads * d.GDN.HeadDim
+		mixOut, err = linearForwardTW(worker, gc.gated, mw.gdn.wout, T, valDim, d.GDN.OutDim)
+		if err != nil {
+			return g, err
+		}
 	} else {
-		mixOut, ac, err = attentionMixForwardDevice(worker, xn, w.Attn, d.Attn)
+		mixOut, ac, err = attentionMixForwardDeviceW(worker, xn, mw.attn, w.Attn, d.Attn)
 		if err != nil {
 			return g, err
 		}
@@ -64,11 +83,11 @@ func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w host
 	if err != nil {
 		return g, err
 	}
-	gateP, err := LinearForwardT(worker, hn, w.MLP.Gate, T, H, d.Inter)
+	gateP, err := linearForwardTW(worker, hn, mw.mlp.gate, T, H, d.Inter)
 	if err != nil {
 		return g, err
 	}
-	upP, err := LinearForwardT(worker, hn, w.MLP.Up, T, H, d.Inter)
+	upP, err := linearForwardTW(worker, hn, mw.mlp.up, T, H, d.Inter)
 	if err != nil {
 		return g, err
 	}
@@ -78,7 +97,7 @@ func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w host
 	}
 
 	// --- MLP branch backward (SwiGLU): out = h + MLP(RMSNorm(h,PostNorm)) ---
-	mlp, err := GatedMLPBackwardT(worker, hn, w.MLP.Gate, w.MLP.Up, w.MLP.Down, gateP, aP, upP, hMLP, dOut, T, H, d.Inter)
+	mlp, err := gatedMLPBackwardTW(worker, hn, mw.mlp, gateP, aP, upP, hMLP, dOut, T, H, d.Inter)
 	if err != nil {
 		return g, err
 	}
@@ -97,7 +116,7 @@ func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w host
 	// --- mix branch backward: h = x + Mix(RMSNorm(x,InputNorm)) ---
 	var dXn []float32
 	if w.IsLinear {
-		mg, err := GatedDeltaMixBackwardDevice(worker, xn, w.GDN, d.GDN, state, dh)
+		mg, err := gatedDeltaMixBackwardDeviceW(worker, xn, mw.gdn, w.GDN, d.GDN, state, dh)
 		if err != nil {
 			return g, err
 		}
@@ -105,7 +124,7 @@ func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w host
 		g.DState = mg.DState
 		dXn = mg.DX
 	} else {
-		dxn, dAttn, err := attentionMixBackwardDevice(worker, xn, w.Attn, d.Attn, dh, ac)
+		dxn, dAttn, err := attentionMixBackwardDeviceW(worker, xn, mw.attn, w.Attn, d.Attn, dh, ac)
 		if err != nil {
 			return g, err
 		}
@@ -143,6 +162,14 @@ type attnMixDeviceCache struct {
 // q/k/v proj -> per-head RMSNorm(q,k) -> partial rotary(q,k) -> scale q by
 // 1/sqrt(hd) -> causal GQA attention -> Wo. Returns the mix output and the cache.
 func attentionMixForwardDevice(worker *device.Worker, xn []float32, w hostmath.AttentionMixWeights, ad hostmath.AttentionMixDims) ([]float32, attnMixDeviceCache, error) {
+	return attentionMixForwardDeviceW(worker, xn, attnHostMatW(w), w, ad)
+}
+
+// attentionMixForwardDeviceW is attentionMixForwardDevice over resident-or-host
+// matrix weights (mw: Wq/Wk/Wv/Wo); the per-head q/k RMSNorm weights stay
+// host-owned via w. A resident-weight attention forward re-uploads no matrix
+// weight.
+func attentionMixForwardDeviceW(worker *device.Worker, xn []float32, mw attnMatW, w hostmath.AttentionMixWeights, ad hostmath.AttentionMixDims) ([]float32, attnMixDeviceCache, error) {
 	var c attnMixDeviceCache
 	T, H := ad.Tokens, ad.Hidden
 	c.heads, c.kv, c.hd = ad.Heads, ad.KVHeads, ad.HeadDim
@@ -151,15 +178,15 @@ func attentionMixForwardDevice(worker *device.Worker, xn []float32, w hostmath.A
 	c.invFreq = f64To32(hostmath.RopeInvFreq(ad.RopeTheta, c.rd))
 	c.scale = float32(1.0 / math.Sqrt(float64(c.hd)))
 
-	qProj, err := LinearForwardT(worker, xn, w.Wq, T, H, c.qDim)
+	qProj, err := linearForwardTW(worker, xn, mw.wq, T, H, c.qDim)
 	if err != nil {
 		return nil, c, err
 	}
-	kProj, err := LinearForwardT(worker, xn, w.Wk, T, H, c.kvDim)
+	kProj, err := linearForwardTW(worker, xn, mw.wk, T, H, c.kvDim)
 	if err != nil {
 		return nil, c, err
 	}
-	v, err := LinearForwardT(worker, xn, w.Wv, T, H, c.kvDim)
+	v, err := linearForwardTW(worker, xn, mw.wv, T, H, c.kvDim)
 	if err != nil {
 		return nil, c, err
 	}
@@ -192,7 +219,7 @@ func attentionMixForwardDevice(worker *device.Worker, xn []float32, w hostmath.A
 		return nil, c, err
 	}
 	c.attn = attn
-	mixOut, err := LinearForwardT(worker, attn, w.Wo, T, c.qDim, H)
+	mixOut, err := linearForwardTW(worker, attn, mw.wo, T, c.qDim, H)
 	if err != nil {
 		return nil, c, err
 	}
@@ -202,11 +229,18 @@ func attentionMixForwardDevice(worker *device.Worker, xn []float32, w hostmath.A
 // attentionMixBackwardDevice is the device VJP of attentionMixForwardDevice,
 // mirroring hostmath.attentionMixBackward op for op.
 func attentionMixBackwardDevice(worker *device.Worker, xn []float32, w hostmath.AttentionMixWeights, ad hostmath.AttentionMixDims, dOut []float32, c attnMixDeviceCache) ([]float32, hostmath.AttentionMixWeights, error) {
+	return attentionMixBackwardDeviceW(worker, xn, attnHostMatW(w), w, ad, dOut, c)
+}
+
+// attentionMixBackwardDeviceW is attentionMixBackwardDevice over resident-or-host
+// matrix weights (mw); q/k RMSNorm weights stay host-owned via w. Matrix VJPs use
+// linearBackwardTW over mw (no weight read-back); weight grads still return host.
+func attentionMixBackwardDeviceW(worker *device.Worker, xn []float32, mw attnMatW, w hostmath.AttentionMixWeights, ad hostmath.AttentionMixDims, dOut []float32, c attnMixDeviceCache) ([]float32, hostmath.AttentionMixWeights, error) {
 	T, H := ad.Tokens, ad.Hidden
 	var dw hostmath.AttentionMixWeights
 
 	// Wo: dAttn = dOut·Wo ; dWo = dOutᵀ·attn
-	dAttn, dWo, err := LinearBackwardT(worker, c.attn, w.Wo, dOut, T, c.qDim, H)
+	dAttn, dWo, err := linearBackwardTW(worker, c.attn, mw.wo, dOut, T, c.qDim, H)
 	if err != nil {
 		return nil, dw, err
 	}
@@ -239,15 +273,15 @@ func attentionMixBackwardDevice(worker *device.Worker, xn []float32, w hostmath.
 	}
 	dw.QNorm, dw.KNorm = dQNorm, dKNorm
 	// q/k/v projection backward; dXn accumulates the three input-grad paths.
-	dxQ, dWq, err := LinearBackwardT(worker, xn, w.Wq, dqProj, T, H, c.qDim)
+	dxQ, dWq, err := linearBackwardTW(worker, xn, mw.wq, dqProj, T, H, c.qDim)
 	if err != nil {
 		return nil, dw, err
 	}
-	dxK, dWk, err := LinearBackwardT(worker, xn, w.Wk, dkProj, T, H, c.kvDim)
+	dxK, dWk, err := linearBackwardTW(worker, xn, mw.wk, dkProj, T, H, c.kvDim)
 	if err != nil {
 		return nil, dw, err
 	}
-	dxV, dWv, err := LinearBackwardT(worker, xn, w.Wv, dv, T, H, c.kvDim)
+	dxV, dWv, err := linearBackwardTW(worker, xn, mw.wv, dv, T, H, c.kvDim)
 	if err != nil {
 		return nil, dw, err
 	}

@@ -45,10 +45,19 @@ type HybridLayerDeviceCache struct {
 // ops' fp32 parity, so `out` matches hostmath.HybridDecoderLayerForward to the
 // ~1e-4 kernel-parity class.
 func HybridDecoderLayerForwardDevice(worker *device.Worker, x []float32, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state []float32) ([]float32, HybridLayerDeviceCache, error) {
+	return hybridLayerForwardW(worker, x, hybridHostMatW(w), w, d, state)
+}
+
+// hybridLayerForwardW is HybridDecoderLayerForwardDevice over resident-or-host
+// matrix weights (mw: the MLP + active mix projection matrices). The norm/conv/
+// scalar VECTOR weights stay host-owned via w. When mw carries resident device
+// pointers, the whole layer forward re-uploads NO matrix weight -- the resident
+// hybrid runStack's per-step no-weight-motion forward.
+func hybridLayerForwardW(worker *device.Worker, x []float32, mw hybridMatW, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state []float32) ([]float32, HybridLayerDeviceCache, error) {
 	T, H := d.Tokens, d.Hidden
 	var cache HybridLayerDeviceCache
 	if len(x) != T*H {
-		return nil, cache, fmt.Errorf("HybridDecoderLayerForwardDevice: shape mismatch (T=%d H=%d x=%d)", T, H, len(x))
+		return nil, cache, fmt.Errorf("hybridLayerForwardW: shape mismatch (T=%d H=%d x=%d)", T, H, len(x))
 	}
 	cache.IsLinear = w.IsLinear
 	eps := d.Eps
@@ -62,20 +71,20 @@ func HybridDecoderLayerForwardDevice(worker *device.Worker, x []float32, w hostm
 
 	var mixOut []float32
 	if w.IsLinear {
-		gc, err := gatedDeltaMixForwardDevice(worker, xn, w.GDN, d.GDN, state)
+		gc, err := gatedDeltaMixForwardDeviceW(worker, xn, mw.gdn, w.GDN, d.GDN, state)
 		if err != nil {
 			return nil, cache, err
 		}
 		cache.GDN = gc
 		valDim := d.GDN.ValueHeads * d.GDN.HeadDim
 		// mix output: gated·Woutᵀ (the one matmul the recompute stops short of).
-		mixOut, err = LinearForwardT(worker, gc.gated, w.GDN.Wout, T, valDim, d.GDN.OutDim)
+		mixOut, err = linearForwardTW(worker, gc.gated, mw.gdn.wout, T, valDim, d.GDN.OutDim)
 		if err != nil {
 			return nil, cache, err
 		}
 	} else {
 		var ac attnMixDeviceCache
-		mixOut, ac, err = attentionMixForwardDevice(worker, xn, w.Attn, d.Attn)
+		mixOut, ac, err = attentionMixForwardDeviceW(worker, xn, mw.attn, w.Attn, d.Attn)
 		if err != nil {
 			return nil, cache, err
 		}
@@ -96,11 +105,11 @@ func HybridDecoderLayerForwardDevice(worker *device.Worker, x []float32, w hostm
 	}
 	cache.Hn = hn
 
-	gateP, err := LinearForwardT(worker, hn, w.MLP.Gate, T, H, d.Inter)
+	gateP, err := linearForwardTW(worker, hn, mw.mlp.gate, T, H, d.Inter)
 	if err != nil {
 		return nil, cache, err
 	}
-	upP, err := LinearForwardT(worker, hn, w.MLP.Up, T, H, d.Inter)
+	upP, err := linearForwardTW(worker, hn, mw.mlp.up, T, H, d.Inter)
 	if err != nil {
 		return nil, cache, err
 	}
@@ -110,7 +119,7 @@ func HybridDecoderLayerForwardDevice(worker *device.Worker, x []float32, w hostm
 	}
 	cache.GateP, cache.UpP, cache.AP, cache.HMLP = gateP, upP, aP, hMLP
 
-	mlpOut, err := LinearForwardT(worker, hMLP, w.MLP.Down, T, d.Inter, H)
+	mlpOut, err := linearForwardTW(worker, hMLP, mw.mlp.down, T, d.Inter, H)
 	if err != nil {
 		return nil, cache, err
 	}

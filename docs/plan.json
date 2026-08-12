@@ -763,7 +763,8 @@
         {
           "id": "do",
           "title": "hybrid-device-fully-resident: eliminate the per-step matrix-weight read-back in TrainDeviceResident (hybridtrain) -- HybridDecoderLayerForwardDevice/BackwardDevice are host-weight-fed and the GDN mix forward is host-computed, so weights upload once but read back once/step (weightReads=K). Needs a device GDN FORWARD reading RESIDENT weight pointers + a resident-weight 'hybrid runStack' analogous to densecausal, for densecausal-class zero-per-step-weight-motion. Momentum already fully resident (ffecb6c).",
-          "status": "open"
+          "status": "open",
+          "verify": "go build ./... \u0026\u0026 go vet ./internal/devicemath/ ./internal/hybridtrain/ \u0026\u0026 go test ./internal/hybridtrain/ -run 'TestResidentMatrixLayout|TestHybridTrainDeviceResidentMatchesHost' -count=1 \u0026\u0026 go test ./internal/devicemath/ -run 'TestHybridDecoderLayerForwardDeviceMatchesHost|TestHybridDecoderLayerBackwardDeviceMatchesHost|TestGDNForwardMatchesKernel|TestGatedDeltaNetBackwardMatchesKernel' -count=1 \u0026\u0026 go test ./internal/densecausal/ -run TestTrainDeviceResidentMatchesHost -count=1"
         }
       ]
     },

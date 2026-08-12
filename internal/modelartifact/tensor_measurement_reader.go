@@ -72,7 +72,7 @@ func MeasureGGUF(
 		measurements = append(measurements, measurement)
 		readBytes += bytesNeeded
 	}
-	return NewTensorMeasurementDocument(inventory.ID, policy, readBytes, measurements)
+	return newTensorMeasurementDocument(inventory.ID, policy, readBytes, measurements)
 }
 
 func MeasureSafetensors(
@@ -125,7 +125,7 @@ func MeasureSafetensors(
 		measurements = append(measurements, measurement)
 		readBytes += bytesNeeded
 	}
-	return NewTensorMeasurementDocument(inventory.ID, policy, readBytes, measurements)
+	return newTensorMeasurementDocument(inventory.ID, policy, readBytes, measurements)
 }
 
 func decodeSafetensorScalar(dataType string, data []byte) (float64, error) {

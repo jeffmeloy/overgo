@@ -184,10 +184,6 @@ func (s LayerCacheSchema) HasState(name CacheStateName) bool {
 	return present
 }
 
-func (s LayerCacheSchema) StateCount() int {
-	return len(s.states)
-}
-
 func (s *LayerCacheSchema) addState(name CacheStateName, state CacheState[CacheValueSchema]) {
 	s.states = append(s.states, namedCacheStateSchema{name: name, state: state})
 }

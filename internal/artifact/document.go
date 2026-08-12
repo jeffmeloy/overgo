@@ -54,6 +54,15 @@ func (c DocumentContract) Content(id ID, data []byte) (Content, error) {
 	return Content{Descriptor: descriptor, Data: slices.Clone(data)}, nil
 }
 
+// ContentBytes binds raw document bytes to their derived identity.
+func (c DocumentContract) ContentBytes(data []byte) (Content, error) {
+	id, err := c.Identify(data)
+	if err != nil {
+		return Content{}, err
+	}
+	return c.Content(id, data)
+}
+
 func (c DocumentContract) ValidateContent(content Content, id ID) error {
 	if id.Kind() != c.Kind || content.Descriptor.ID != id || content.Descriptor.MediaType != c.MediaType ||
 		content.Descriptor.Schema != c.Schema {

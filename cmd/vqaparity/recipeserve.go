@@ -9,13 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"overgo/internal/capabilityruntime"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/dataroot"
 	"overgo/internal/hfbpe"
 	"overgo/internal/patchtower"
-	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
 )
@@ -68,6 +66,48 @@ func openRecipeStore(repo string) (*repodb.Store, error) {
 	return repodb.Open(repository)
 }
 
+type preparedVQA struct {
+	pixels              []float32
+	inputIDs, positions []int
+	eosIDs              []int
+	gridT, gridH, gridW int
+}
+
+func prepareVQA(modelDir string, image []byte, question string) (preparedVQA, error) {
+	pre, err := patchtower.LoadPreprocessConfig(modelDir)
+	if err != nil {
+		return preparedVQA{}, err
+	}
+	tok, err := hfbpe.Load(modelDir)
+	if err != nil {
+		return preparedVQA{}, err
+	}
+	specials, err := routedlm.LoadPromptSpecials(modelDir, promptRoles)
+	if err != nil {
+		return preparedVQA{}, err
+	}
+	rgb, height, width, err := patchtower.DecodeImageBytesRGB(image)
+	if err != nil {
+		return preparedVQA{}, err
+	}
+	pixels, gridT, gridH, gridW, err := patchtower.PreprocessImage(pre, rgb, height, width)
+	if err != nil {
+		return preparedVQA{}, err
+	}
+	inputIDs, err := routedlm.RenderVisionQAPrompt(tok, specials, question, gridH, gridW, pre.MergeSize)
+	if err != nil {
+		return preparedVQA{}, err
+	}
+	eosIDs, err := readEOSTokenIDs(modelDir)
+	if err != nil {
+		return preparedVQA{}, err
+	}
+	return preparedVQA{
+		pixels: pixels, inputIDs: inputIDs, positions: routedlm.ImageMaskPositions(inputIDs, specials),
+		eosIDs: eosIDs, gridT: gridT, gridH: gridH, gridW: gridW,
+	}, nil
+}
+
 // runRecipeServe: canonical case through the active recipe.
 func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	ctx := context.Background()
@@ -77,11 +117,10 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		return err
 	}
 	defer store.Close()
-	inventory, program, err := capabilityruntime.ResolveActive(ctx, store, l.modelDir, recipe.TaskVQA)
+	modelID, program, err := resolveActiveVQA(ctx, store, l.modelDir)
 	if err != nil {
 		return err
 	}
-	modelID := inventory.Manifest.ID
 	recipeID := program.Definition().ID.String()
 	l.log(fmt.Sprintf("RECIPE serve active vqa recipe resolved model=%s recipe=%s", modelID, recipeID))
 
@@ -92,7 +131,6 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	if err != nil {
 		return err
 	}
-	image := capabilityruntime.VQAImage{Data: rawImg}
 
 	// Golden chain: required prefix; serve continues to EOS.
 	dg, err := loadGoldenJSON[decodeStepsGolden](l.fixturesDir, "rxbrain_vqa_decode_steps_golden.json")
@@ -105,42 +143,13 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 
 	serveOnce := func(
 		executeContext context.Context,
-		inputImage capabilityruntime.VQAImage,
-		inputQuestion string,
+		prepared preparedVQA,
 		tag string,
 	) ([]int, string, time.Duration, fullResult, error) {
-		pre, err := patchtower.LoadPreprocessConfig(l.modelDir)
-		if err != nil {
-			return nil, "", 0, fullResult{}, err
-		}
-		tok, err := hfbpe.Load(l.modelDir)
-		if err != nil {
-			return nil, "", 0, fullResult{}, err
-		}
-		specials, err := routedlm.LoadPromptSpecials(l.modelDir, promptRoles)
-		if err != nil {
-			return nil, "", 0, fullResult{}, err
-		}
-		rgb, height, width, err := patchtower.DecodeImageBytesRGB(inputImage.Data)
-		if err != nil {
-			return nil, "", 0, fullResult{}, err
-		}
-		pixelValues, gridT, gridH, gridW, err := patchtower.PreprocessImage(pre, rgb, height, width)
-		if err != nil {
-			return nil, "", 0, fullResult{}, err
-		}
-		inputIDs, err := routedlm.RenderVisionQAPrompt(tok, specials, inputQuestion, gridH, gridW, pre.MergeSize)
-		if err != nil {
-			return nil, "", 0, fullResult{}, err
-		}
-		positions := routedlm.ImageMaskPositions(inputIDs, specials)
-		l.log(fmt.Sprintf("RECIPE serve %s PROCESSOR image=%s grid=[%d,%d,%d] promptLen=%d imageTokens=%d question=%q",
-			tag, filepath.Base(imagePath), gridT, gridH, gridW, len(inputIDs), len(positions), inputQuestion))
-		eosIDs, err := readEOSTokenIDs(l.modelDir)
-		if err != nil {
-			return nil, "", 0, fullResult{}, err
-		}
-		pc, err := newPrefillContext(l.modelDir, inputIDs, positions, gridT, gridH, gridW)
+		pc, err := newPrefillContext(
+			l.modelDir, prepared.inputIDs, prepared.positions,
+			prepared.gridT, prepared.gridH, prepared.gridW,
+		)
 		if err != nil {
 			return nil, "", 0, fullResult{}, err
 		}
@@ -155,7 +164,10 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 			return nil, "", 0, fullResult{}, fmt.Errorf("recipe serve executor: %w", err)
 		}
 		defer exe.Close()
-		res, err := runFullPipeline(l, executeContext, worker, exe, pc, pixelValues, fullOpts{maxSteps: maxSteps, eosIDs: eosIDs})
+		res, err := runFullPipeline(
+			l, executeContext, worker, exe, pc, prepared.pixels,
+			fullOpts{maxSteps: maxSteps, eosIDs: prepared.eosIDs},
+		)
 		if err != nil {
 			return nil, "", 0, fullResult{}, err
 		}
@@ -176,11 +188,20 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		var wall time.Duration
 		var result fullResult
 		var pipelineErr error
-		answer, err := capabilityruntime.ExecuteVQA(
-			ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), image, question,
-			func(executeContext context.Context, image capabilityruntime.VQAImage, question string) (string, error) {
+		answer, err := executeVQA(
+			ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), rawImg, question,
+			func(image []byte, question string) (preparedVQA, error) {
+				prepared, prepareErr := prepareVQA(l.modelDir, image, question)
+				if prepareErr == nil {
+					l.log(fmt.Sprintf("RECIPE serve %s PROCESSOR image=%s grid=[%d,%d,%d] promptLen=%d imageTokens=%d question=%q",
+						tag, filepath.Base(imagePath), prepared.gridT, prepared.gridH, prepared.gridW,
+						len(prepared.inputIDs), len(prepared.positions), question))
+				}
+				return prepared, prepareErr
+			},
+			func(executeContext context.Context, prepared preparedVQA) (string, error) {
 				var text string
-				chain, text, wall, result, pipelineErr = serveOnce(executeContext, image, question, tag)
+				chain, text, wall, result, pipelineErr = serveOnce(executeContext, prepared, tag)
 				return text, pipelineErr
 			},
 		)

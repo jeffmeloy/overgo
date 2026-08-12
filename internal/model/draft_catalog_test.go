@@ -23,11 +23,6 @@ func TestWeightsDraftCatalogs(t *testing.T) {
 		catalogs[1].LayerOutputNorm == nil || catalogs[1].LayerOutputNorm.Name != "next_layer_norm" {
 		t.Fatalf("draft catalogs = %+v", catalogs)
 	}
-	layers := weights.LayerCatalog()
-	if len(layers) != 3 || layers[0].AttentionNorm.Name != "trunk" ||
-		layers[1].AttentionNorm.Name != "qwen_layer" || layers[2].AttentionNorm.Name != "next_layer" {
-		t.Fatalf("layer catalog = %+v", layers)
-	}
 }
 
 func pointerTensorInfo(value gguf.TensorInfo) *gguf.TensorInfo { return &value }

@@ -217,34 +217,6 @@ func TestIndexerCadenceUsesBoundProfilePolicy(t *testing.T) {
 	}
 }
 
-func TestArchitectureProfileDraftBlockPolicy(t *testing.T) {
-	for architecture, want := range map[string]bool{
-		"step35": true, "hy_v3": true, "glm4": true,
-		"qwen35": false, "cohere2moe": false, "llama": false,
-	} {
-		profile, ok := LookupArchitecture(architecture)
-		if !ok || profile.AppendsDraftBlocks() != want {
-			t.Fatalf("%s appends draft blocks = %v, want %v", architecture, profile.AppendsDraftBlocks(), want)
-		}
-	}
-}
-
-func TestArchitectureProfileDraftHeadPolicy(t *testing.T) {
-	step, _ := LookupArchitecture("step35")
-	if !step.HasDraftHead(DraftStep35MTP, 2, 0) ||
-		!step.HasDraftHead(DraftStep35MTP, 2, 1) ||
-		step.HasDraftHead(DraftStep35MTP, 2, 2) ||
-		step.HasSingleDraft(DraftStep35MTP, 2) {
-		t.Fatalf("Step3.5 draft policy = %#v", step)
-	}
-	qwen, _ := LookupArchitecture("qwen35")
-	if !qwen.HasSingleDraft(DraftQwen35MTP, 1) ||
-		qwen.HasSingleDraft(DraftQwen35MTP, 2) ||
-		qwen.HasDraftHead(DraftNextNMTP, 1, 0) {
-		t.Fatalf("Qwen3.5 draft policy = %#v", qwen)
-	}
-}
-
 func TestArchitectureProfileDraftPlan(t *testing.T) {
 	for architecture, want := range map[string]DraftPlan{
 		"qwen35":     {Kind: DraftQwen35MTP, Heads: 1, Label: "Qwen3.5 MTP", SingleCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle},
@@ -283,21 +255,21 @@ func TestArchitectureProfileDeepSeekLayoutPolicy(t *testing.T) {
 	}
 }
 
-func TestArchitectureProfileForwardPolicy(t *testing.T) {
-	for architecture, want := range map[string]ForwardPolicy{
-		"llama":            ForwardCached,
-		"bert":             ForwardNonCausal,
-		"dream":            ForwardNonCausal,
-		"dflash":           ForwardDFlash,
-		"eagle3":           ForwardEagle3,
-		"gemma4-assistant": ForwardGemma4Assistant,
-		"wavtokenizer-dec": ForwardWavTokenizer,
-		"t5encoder":        ForwardT5Encoder,
-		"t5":               ForwardT5,
+func TestArchitectureProfileForwardProgram(t *testing.T) {
+	for architecture, want := range map[string]ForwardProgram{
+		"llama":            {Operation: ForwardOperationCached},
+		"bert":             {Operation: ForwardOperationBidirectional},
+		"dream":            {Operation: ForwardOperationBidirectional},
+		"dflash":           {Operation: ForwardOperationSession, Session: ForwardSessionPairedFeatures},
+		"eagle3":           {Operation: ForwardOperationSession, Session: ForwardSessionFeatureDraft},
+		"gemma4-assistant": {Operation: ForwardOperationSession, Session: ForwardSessionPairedProjection},
+		"wavtokenizer-dec": {Operation: ForwardOperationAudioTokens},
+		"t5encoder":        {Operation: ForwardOperationEncoder},
+		"t5":               {Operation: ForwardOperationSession, Session: ForwardSessionEncoderDecoder},
 	} {
 		profile, ok := LookupArchitecture(architecture)
 		if !ok || profile.Forward != want {
-			t.Fatalf("%s forward policy = %v, want %v", architecture, profile.Forward, want)
+			t.Fatalf("%s forward program = %v, want %v", architecture, profile.Forward, want)
 		}
 	}
 }

@@ -119,30 +119,6 @@ func (l *LoadedProgram) bindResolved(
 	return nil
 }
 
-// Identity: immutable compiled serving identity.
-func (l LoadedProgram) Identity() (ProgramIdentity, bool) {
-	if l.state == nil {
-		return ProgramIdentity{}, false
-	}
-	return l.state.Program.Identity, true
-}
-
-// Architecture: verified model architecture.
-func (l LoadedProgram) Architecture() (string, bool) {
-	if l.state == nil {
-		return "", false
-	}
-	return l.state.Spec.Architecture, true
-}
-
-// LayerPlans: immutable compiled layer-program copy.
-func (l LoadedProgram) LayerPlans() ([]model.LayerPlan, bool) {
-	if l.state == nil {
-		return nil, false
-	}
-	return l.state.Program.Model.Layers(), true
-}
-
 // Take: transfers resolved serving ownership exactly once.
 func (l *LoadedProgram) Take() (
 	*gguf.File, string, model.Spec, model.Weights, Plan, recipe.EvidenceTier, error,

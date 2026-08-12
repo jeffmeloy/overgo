@@ -78,11 +78,15 @@ type Runtime struct {
 }
 
 func New(store artifact.Repository) (*Runtime, error) {
-	return NewWithCatalog(store, workflowrecipe.Catalog())
+	return newRuntime(store, workflowrecipe.Catalog())
 }
 
-// NewWithCatalog binds execution and adapter admission to one module catalog.
-func NewWithCatalog(store artifact.Repository, catalog *recipe.Catalog) (*Runtime, error) {
+// NewForProgram binds execution to a compiled program's module authority.
+func NewForProgram(store artifact.Repository, program recipe.Program) (*Runtime, error) {
+	return newRuntime(store, program.Catalog())
+}
+
+func newRuntime(store artifact.Repository, catalog *recipe.Catalog) (*Runtime, error) {
 	if store == nil {
 		return nil, errors.New("workflow runtime: nil repository")
 	}

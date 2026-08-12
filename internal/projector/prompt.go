@@ -593,10 +593,6 @@ func OpenAudioProjectorWithOptions(path string, options OpenOptions) (AudioProje
 	}
 }
 
-func OpenVideoProjector(path string) (VideoProjector, error) {
-	return OpenVideoProjectorWithOptions(path, OpenOptions{})
-}
-
 func OpenVideoProjectorWithOptions(path string, options OpenOptions) (VideoProjector, error) {
 	projector, err := OpenImageProjectorWithOptions(path, options)
 	if err != nil {

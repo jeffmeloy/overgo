@@ -3,7 +3,6 @@ package testutil
 import (
 	"context"
 	"encoding/binary"
-	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -16,10 +15,8 @@ import (
 
 const (
 	wavPCMFormat         = 1
-	wavIEEEFloatFormat   = 3
 	wavMonoChannels      = 1
 	wavPCM16Bits         = 16
-	wavFloat32Bits       = 32
 	bitsPerByte          = 8
 	wavHeaderBytes       = 44
 	wavRIFFPayloadBytes  = 36
@@ -167,15 +164,6 @@ func MonoPCM16WAV(sampleRate uint32, samples []int16) []byte {
 		binary.LittleEndian.PutUint16(body[index*bytesPerSample:], uint16(sample))
 	}
 	return monoWAV(sampleRate, wavPCMFormat, wavPCM16Bits, body)
-}
-
-func MonoFloat32WAV(sampleRate uint32, samples []float32) []byte {
-	bytesPerSample := wavFloat32Bits / bitsPerByte
-	body := make([]byte, len(samples)*bytesPerSample)
-	for index, sample := range samples {
-		binary.LittleEndian.PutUint32(body[index*bytesPerSample:], math.Float32bits(sample))
-	}
-	return monoWAV(sampleRate, wavIEEEFloatFormat, wavFloat32Bits, body)
 }
 
 func monoWAV(sampleRate uint32, format, bits uint16, body []byte) []byte {

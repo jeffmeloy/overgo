@@ -75,14 +75,8 @@ type Gemma4TowerRunner struct {
 	cuda *projectorCUDA
 }
 
-type Gemma4TowerOpenOptions = OpenOptions
-
 func OpenGemma4Tower(path string) (*Gemma4TowerRunner, error) {
-	return OpenGemma4TowerWithOptions(path, Gemma4TowerOpenOptions{})
-}
-
-func OpenGemma4TowerWithOptions(path string, options Gemma4TowerOpenOptions) (*Gemma4TowerRunner, error) {
-	return openCatalogProjector(path, options, "Gemma 4 tower", nil,
+	return openCatalogProjector(path, OpenOptions{}, "Gemma 4 tower", nil,
 		ReadGemma4TowerSpec, validateGemma4TowerCatalog,
 		func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
 			return &Gemma4TowerRunner{file: file, spec: spec, cuda: cuda}

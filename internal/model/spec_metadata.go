@@ -286,7 +286,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 	if profile.readsMetadata(MetadataReadBaichuanBlocks) && spec.BlockCount == 40 {
 		spec.RopeDisabled, spec.MaxALiBiBias = true, 8
 	}
-	if !spec.RopeDisabled && profile.Forward != ForwardT5Encoder {
+	if !spec.RopeDisabled && profile.Forward.Operation != ForwardOperationEncoder {
 		optionalBase := validation.optionalRopeBase()
 		if optionalBase {
 			spec.RopeFrequencyBase = 10000
@@ -404,7 +404,7 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 	validation := m.profile.Validation
 	var err error
 	switch {
-	case m.profile.Forward == ForwardGemma4Assistant:
+	case m.profile.Forward.Session == ForwardSessionPairedProjection:
 		if spec.TargetHiddenSize, err = required[uint32](values, prefix+"embedding_length_out", gguf.ValueTypeUint32); err != nil {
 			return err
 		}
@@ -425,7 +425,7 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 		if spec.BlockCount >= spec.KVFromStart {
 			spec.SharedKVLayers = spec.BlockCount - spec.KVFromStart
 		}
-	case m.profile.Forward == ForwardWavTokenizer:
+	case m.profile.Forward.Operation == ForwardOperationAudioTokens:
 		spec.OutputEmbeddingLength = spec.EmbeddingLength
 		if spec.EmbeddingLength, err = required[uint32](values, prefix+"features_length", gguf.ValueTypeUint32); err != nil {
 			return err

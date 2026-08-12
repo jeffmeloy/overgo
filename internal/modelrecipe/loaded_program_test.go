@@ -87,10 +87,7 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer loaded.Close()
-	identity, ok := loaded.Identity()
-	if !ok {
-		t.Fatal("resolved program identity is unavailable")
-	}
+	identity := loaded.state.Program.Identity
 	if identity.Model != inventory.Manifest.ID || identity.Profile != resolved.Profile.ID ||
 		identity.Definition != resolved.Document.ID || identity.Recipe != definition.ID ||
 		identity.RecipeVersion != definition.Version || identity.Placement != recipe.PlacementHybrid ||
@@ -99,8 +96,7 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 	}
 	mutated := identity
 	mutated.Profile = artifact.ID{}
-	identity, ok = loaded.Identity()
-	if !ok || identity.Profile != resolved.Profile.ID {
+	if loaded.state.Program.Identity.Profile != resolved.Profile.ID {
 		t.Fatal("returned identity mutated sealed program")
 	}
 	file, _, _, _, _, _, err := loaded.Take()

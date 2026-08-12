@@ -499,24 +499,24 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 	if err != nil {
 		return Weights{}, err
 	}
-	profile := spec.Profile()
-	if profile.Validation.MLA == MLAValidationDeepSeek4 {
-		return readDeepSeek4WeightCatalog(catalog, spec)
+	policy := spec.Profile().ModelCatalog.Weights
+	if int(policy) >= len(weightCatalogReaders) || weightCatalogReaders[policy] == nil {
+		return Weights{}, fmt.Errorf("weight catalog policy %d for %q is unsupported", policy, spec.Architecture)
 	}
-	switch profile.CatalogFamily {
-	case ArchitectureFamilyDraft:
-		return readDraftWeightCatalog(catalog, spec)
-	case ArchitectureFamilyEncoder:
-		switch profile.Forward {
-		case ForwardT5Encoder:
-			return readT5EncoderWeightCatalog(catalog, spec)
-		case ForwardWavTokenizer:
-			return readWavTokenizerWeightCatalog(catalog, spec)
-		}
-	case ArchitectureFamilyEncoderDecoder:
-		return readT5WeightCatalog(catalog, spec)
-	}
-	return readLayeredWeightCatalog(catalog, spec)
+	return weightCatalogReaders[policy](catalog, spec)
+}
+
+type weightCatalogReader func(weightCatalog, Spec) (Weights, error)
+
+var weightCatalogReaders = [...]weightCatalogReader{
+	WeightCatalogLayered:          readLayeredWeightCatalog,
+	WeightCatalogCompressedHyper:  readDeepSeek4WeightCatalog,
+	WeightCatalogTargetFeatures:   readDFlashWeightCatalog,
+	WeightCatalogHiddenFusion:     readEagle3WeightCatalog,
+	WeightCatalogPairedProjection: readGemma4AssistantWeightCatalog,
+	WeightCatalogEncoder:          readT5EncoderWeightCatalog,
+	WeightCatalogAudioDecoder:     readWavTokenizerWeightCatalog,
+	WeightCatalogEncoderDecoder:   readT5WeightCatalog,
 }
 
 func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {

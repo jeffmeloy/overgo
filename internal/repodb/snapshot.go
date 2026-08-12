@@ -102,13 +102,6 @@ func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
 	return SnapshotInfo{Sequence: document.Sequence, Head: document.Head, Path: path}, nil
 }
 
-// SnapshotAnchor reports the loaded replay accelerator.
-func (s *Store) SnapshotAnchor() (artifact.CommitID, uint64) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.snapshot.head, s.snapshot.sequence
-}
-
 func snapshotDocumentFromState(state catalogState, sequence uint64, head artifact.CommitID) snapshotDocument {
 	document := snapshotDocument{Version: snapshotVersion, Sequence: sequence, Head: head}
 	for _, descriptor := range state.artifacts {

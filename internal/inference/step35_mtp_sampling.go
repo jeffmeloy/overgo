@@ -12,8 +12,6 @@ import (
 // Step35MTPSampledDraft: proposals plus sampler checkpoints.
 type Step35MTPSampledDraft = sampledDraft[*Step35MTPSession]
 
-type HYV3MTPSampledDraft = Step35MTPSampledDraft
-
 // DraftStep35MTPSampled: transactional trained-head sampling.
 func (r *Runner) DraftStep35MTPSampled(
 	ctx context.Context,
@@ -24,21 +22,6 @@ func (r *Runner) DraftStep35MTPSampled(
 	minimumProbability float64,
 ) (draft *Step35MTPSampledDraft, err error) {
 	if err := r.validateStep35MTP(); err != nil {
-		return nil, err
-	}
-	return r.draftMultiHeadMTPSampled(ctx, session, sampler, history, maximum, minimumProbability)
-}
-
-// DraftHYV3MTPSampled: transactional HY-V3 head sampling.
-func (r *Runner) DraftHYV3MTPSampled(
-	ctx context.Context,
-	session *HYV3MTPSession,
-	sampler *sampling.Sampler,
-	history []tokenizer.TokenID,
-	maximum int,
-	minimumProbability float64,
-) (*HYV3MTPSampledDraft, error) {
-	if err := r.validateHYV3MTP(); err != nil {
 		return nil, err
 	}
 	return r.draftMultiHeadMTPSampled(ctx, session, sampler, history, maximum, minimumProbability)
@@ -77,20 +60,6 @@ func (r *Runner) VerifyStep35MTPSampled(
 	targetSampler *sampling.Sampler,
 ) (verification *Step35MTPVerification, err error) {
 	if err := r.validateStep35MTP(); err != nil {
-		return nil, err
-	}
-	return r.verifyMultiHeadMTPSampled(ctx, target, draft, draftSampler, targetSampler)
-}
-
-// VerifyHYV3MTPSampled: sampled HY-V3 target verification.
-func (r *Runner) VerifyHYV3MTPSampled(
-	ctx context.Context,
-	target *Runner,
-	draft *HYV3MTPSampledDraft,
-	draftSampler *sampling.Sampler,
-	targetSampler *sampling.Sampler,
-) (*HYV3MTPVerification, error) {
-	if err := r.validateHYV3MTP(); err != nil {
 		return nil, err
 	}
 	return r.verifyMultiHeadMTPSampled(ctx, target, draft, draftSampler, targetSampler)

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"overgo/internal/artifact"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
@@ -85,7 +84,7 @@ func Execute[Output any](
 	if len(definition.Outputs) != 1 {
 		return zero, fmt.Errorf("capability runtime: program requires one output")
 	}
-	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
+	runtime, err := workflowruntime.NewForProgram(store, program)
 	if err != nil {
 		return zero, err
 	}

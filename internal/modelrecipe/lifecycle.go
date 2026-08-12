@@ -12,24 +12,7 @@ import (
 )
 
 func PublishCandidate(ctx context.Context, store artifact.Repository, key string, definition recipe.Definition) (artifact.CommitID, recipe.LifecycleEvent, error) {
-	return publishCandidate(ctx, store, key, definition, nil)
-}
-
-func PublishProfileCandidate(
-	ctx context.Context,
-	store artifact.Repository,
-	key string,
-	definition recipe.Definition,
-	document ProfileDocument,
-) (artifact.CommitID, recipe.LifecycleEvent, error) {
-	if err := document.ValidateIdentity(); err != nil {
-		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
-	}
-	profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
-	if !ok || profileID != document.ID {
-		return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: definition does not bind profile")
-	}
-	return publishCandidate(ctx, store, key, definition, &document)
+	return publishCandidate(ctx, store, key, definition)
 }
 
 func publishCandidate(
@@ -37,7 +20,6 @@ func publishCandidate(
 	store artifact.Repository,
 	key string,
 	definition recipe.Definition,
-	document *ProfileDocument,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
 	definitionContent, err := Content(definition)
 	if err != nil {
@@ -52,17 +34,7 @@ func publishCandidate(
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
 	contents := []artifact.Content{definitionContent, eventContent}
-	var profileLineage []artifact.Lineage
-	if document != nil {
-		profileContents, lineage, contentErr := profilePublicationFacts(*document)
-		if contentErr != nil {
-			return artifact.CommitID{}, recipe.LifecycleEvent{}, contentErr
-		}
-		contents = append(contents, profileContents...)
-		profileLineage = lineage
-	}
-	lineage := make([]artifact.Lineage, 0, len(definition.Dependencies)+len(profileLineage))
-	lineage = append(lineage, profileLineage...)
+	lineage := make([]artifact.Lineage, 0, len(definition.Dependencies))
 	for _, dependency := range definition.Dependencies {
 		lineage = append(lineage, artifact.Lineage{
 			Child: definition.ID, Parent: dependency.Artifact, Relation: artifact.RelationDependsOn,

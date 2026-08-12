@@ -90,7 +90,7 @@ func TestGemma4ProgramUsesNeutralStages(t *testing.T) {
 
 func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{}, ArchitectureProfile{Forward: ForwardEagle3},
+		LayerPlan{}, ArchitectureProfile{Forward: ForwardProgram{Operation: ForwardOperationSession, Session: ForwardSessionFeatureDraft}},
 	)
 	want := []LayerOperator{
 		LayerOperatorPairedInputNorm, LayerOperatorAttentionPairedCausalProjection, LayerOperatorResidual,
@@ -105,7 +105,7 @@ func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
 
 func TestGemma4AssistantProgramUsesSharedCacheStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{}, ArchitectureProfile{Forward: ForwardGemma4Assistant},
+		LayerPlan{}, ArchitectureProfile{Forward: ForwardProgram{Operation: ForwardOperationSession, Session: ForwardSessionPairedProjection}},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorAttentionSharedCacheQKNorm, LayerOperatorAttentionPostNorm,

@@ -25,11 +25,11 @@ func TestDocumentRoundTripAndCanonicalValue(t *testing.T) {
 	if string(document.Value) != `{"class":"decode","tokens":256}` {
 		t.Fatalf("canonical value = %s", document.Value)
 	}
-	content, err := document.ContentBytes()
+	content, err := document.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := Parse(content)
+	parsed, err := Parse(content.Data)
 	if err != nil || parsed.ID != document.ID {
 		t.Fatalf("round trip = (%+v, %v)", parsed, err)
 	}

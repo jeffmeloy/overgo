@@ -105,10 +105,6 @@ func (d Document) ValidateIdentity() error {
 	return documentCodec.ValidateIdentity(d)
 }
 
-func (d Document) ContentBytes() ([]byte, error) {
-	return documentCodec.ContentBytes(d)
-}
-
 func (d Document) Content() (artifact.Content, error) {
 	return documentCodec.Content(d)
 }

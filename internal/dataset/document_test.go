@@ -109,12 +109,12 @@ func TestDatasetDocumentsRejectInvalidAndNonCanonicalContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := version.ContentBytes()
+	content, err := version.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
 	var body map[string]any
-	if err := json.Unmarshal(content, &body); err != nil {
+	if err := json.Unmarshal(content.Data, &body); err != nil {
 		t.Fatal(err)
 	}
 	body["unknown"] = true

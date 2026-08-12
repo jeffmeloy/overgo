@@ -33,11 +33,11 @@ func TestGroupSplitIsDeterministicAndGroupSafe(t *testing.T) {
 	}
 	groupPartition := map[string]string{}
 	for _, membership := range first.Memberships {
-		content, err := membership.ContentBytes()
+		content, err := membership.Content()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ParseMembership(content); err != nil {
+		if _, err := membershipCodec.Parse(content.Data); err != nil {
 			t.Fatal(err)
 		}
 		for _, record := range membership.Records {

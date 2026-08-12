@@ -156,7 +156,7 @@
     },
     "Family": 4,
     "FeedForward": 3,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 5
@@ -458,6 +458,9 @@
     "CatalogFamily": 1,
     "Family": 1,
     "GraphFamily": 1,
+    "ModelCatalog": {
+      "Weights": 1
+    },
     "Name": "deepseek4",
     "Validation": {
       "MLA": 2
@@ -479,10 +482,13 @@
       }
     },
     "Family": 7,
-    "Forward": 2,
+    "Forward": {"Operation": 4, "Session": 1},
     "GraphFamily": 7,
     "MetadataDefaults": {
       "RopeDimension": 2
+    },
+    "ModelCatalog": {
+      "Weights": 2
     },
     "Name": "dflash",
     "Validation": {
@@ -517,7 +523,7 @@
     "Capabilities": 33,
     "CatalogFamily": 6,
     "Family": 6,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 6,
     "Name": "dream"
   },
@@ -525,10 +531,13 @@
     "Capabilities": 8192,
     "CatalogFamily": 7,
     "Family": 7,
-    "Forward": 3,
+    "Forward": {"Operation": 4, "Session": 2},
     "GraphFamily": 7,
     "MetadataDefaults": {
       "RopeDimension": 2
+    },
+    "ModelCatalog": {
+      "Weights": 3
     },
     "Name": "eagle3",
     "Validation": {
@@ -586,7 +595,7 @@
     "Capabilities": 67108881,
     "CatalogFamily": 4,
     "Family": 4,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Name": "eurobert"
   },
@@ -702,7 +711,7 @@
       "Kind": 7
     },
     "Family": 4,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -824,10 +833,13 @@
     },
     "CatalogFamily": 7,
     "Family": 7,
-    "Forward": 4,
+    "Forward": {"Operation": 4, "Session": 3},
     "GraphFamily": 7,
     "Metadata": {
       "SWAHeadLengths": true
+    },
+    "ModelCatalog": {
+      "Weights": 4
     },
     "Name": "gemma4-assistant",
     "Validation": {
@@ -1276,7 +1288,7 @@
       "Kind": 2
     },
     "Family": 4,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -1308,7 +1320,7 @@
     },
     "Family": 4,
     "FeedForward": 3,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -1444,7 +1456,7 @@
     "Capabilities": 8225,
     "CatalogFamily": 6,
     "Family": 6,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 6,
     "Name": "llada",
     "Position": 1,
@@ -1465,7 +1477,7 @@
       "Normalization": 2
     },
     "Family": 6,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 6,
     "Name": "llada-moe",
     "Validation": {
@@ -1493,7 +1505,7 @@
       "Catalog": 2
     },
     "Family": 4,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Name": "llama-embed",
     "Validation": {
@@ -1729,7 +1741,7 @@
     },
     "Family": 4,
     "FeedForward": 2,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -1818,7 +1830,7 @@
     "CatalogFamily": 4,
     "Family": 4,
     "FeedForward": 2,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -1841,7 +1853,7 @@
       "Kind": 4
     },
     "Family": 4,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -1870,7 +1882,7 @@
     },
     "Family": 4,
     "FeedForward": 3,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -2320,7 +2332,7 @@
       "Catalog": 1
     },
     "Family": 6,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 6,
     "Name": "rnd1",
     "Validation": {
@@ -2490,10 +2502,13 @@
       "Kind": 8
     },
     "Family": 5,
-    "Forward": 7,
+    "Forward": {"Operation": 4, "Session": 4},
     "GraphFamily": 5,
     "Metadata": {
       "KVHeads": 5
+    },
+    "ModelCatalog": {
+      "Weights": 7
     },
     "Name": "t5",
     "OutputNorm": 3,
@@ -2509,10 +2524,13 @@
       "Kind": 9
     },
     "Family": 4,
-    "Forward": 6,
+    "Forward": {"Operation": 3},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 5
+    },
+    "ModelCatalog": {
+      "Weights": 5
     },
     "Name": "t5encoder",
     "OutputNorm": 2,
@@ -2541,12 +2559,15 @@
     "Capabilities": 19,
     "CatalogFamily": 4,
     "Family": 4,
-    "Forward": 5,
+    "Forward": {"Operation": 2},
     "GraphFamily": 4,
     "Metadata": {
       "GroupNorm": true,
       "Heads": 3,
       "KVHeads": 3
+    },
+    "ModelCatalog": {
+      "Weights": 6
     },
     "Name": "wavtokenizer-dec",
     "Validation": {

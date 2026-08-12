@@ -30,30 +30,23 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	identity, identityOK := loaded.Identity()
-	architecture, architectureOK := loaded.Architecture()
-	if !identityOK || !architectureOK || identity.Recipe != definition.ID || architecture != "qwen35" {
-		_ = loaded.Close()
-		t.Fatalf("resolved Qwen3.5 program = %+v", identity)
-	}
-	dense, recurrent := false, false
-	layers, ok := loaded.LayerPlans()
-	if !ok {
-		_ = loaded.Close()
-		t.Fatal("resolved Qwen3.5 model plan is unavailable")
-	}
-	for _, layer := range layers {
-		dense = dense || !layer.Recurrent
-		recurrent = recurrent || layer.Recurrent
-	}
-	if !dense || !recurrent {
-		_ = loaded.Close()
-		t.Fatalf("Qwen3.5 layer program lacks dense/recurrent coverage")
-	}
 	runner, err := OpenWithProgram(&loaded, OpenOptions{})
 	if err != nil {
 		_ = loaded.Close()
 		t.Fatal(err)
+	}
+	if runner.program.Identity.Recipe != definition.ID || runner.spec.Architecture != "qwen35" {
+		_ = runner.Close()
+		t.Fatalf("resolved Qwen3.5 program = %+v", runner.program.Identity)
+	}
+	dense, recurrent := false, false
+	for _, layer := range runner.program.Model.Layers() {
+		dense = dense || !layer.Recurrent
+		recurrent = recurrent || layer.Recurrent
+	}
+	if !dense || !recurrent {
+		_ = runner.Close()
+		t.Fatal("Qwen3.5 layer program lacks dense/recurrent coverage")
 	}
 	if runner.EvidenceTier() != recipe.EvidenceExperimental {
 		_ = runner.Close()

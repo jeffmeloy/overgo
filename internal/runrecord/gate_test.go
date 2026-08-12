@@ -2,6 +2,7 @@ package runrecord
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -22,14 +23,17 @@ func TestGateRecordAggregatesStepsAndRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if record.Run.UnattributedNS() != 10 || len(record.Run.Phases) != 2 {
-		t.Fatalf("gate timing = (%d, %+v)", record.Run.UnattributedNS(), record.Run.Phases)
+	if record.Run.MeasuredNS != 100 || !slices.Equal(record.Run.Phases, []PhaseMetric{
+		{Phase: PhaseTest, DurationNS: 70},
+		{Phase: PhaseVet, DurationNS: 20},
+	}) {
+		t.Fatalf("gate timing = (%d, %+v)", record.Run.MeasuredNS, record.Run.Phases)
 	}
-	content, err := record.Result.ContentBytes()
+	content, err := record.Result.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseGateResult(content)
+	parsed, err := ParseGateResult(content.Data)
 	if err != nil || parsed.ID != record.Result.ID {
 		t.Fatalf("gate result round trip = (%+v, %v)", parsed, err)
 	}

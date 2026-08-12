@@ -71,20 +71,6 @@ func (p DraftPlan) Block(trunk, offset uint32) uint32 {
 	return trunk + offset
 }
 
-// ForwardPolicy: public inference entry route.
-type ForwardPolicy uint8
-
-const (
-	ForwardCached ForwardPolicy = iota
-	ForwardNonCausal
-	ForwardDFlash
-	ForwardEagle3
-	ForwardGemma4Assistant
-	ForwardWavTokenizer
-	ForwardT5Encoder
-	ForwardT5
-)
-
 // OutputNormPolicy: final normalization tensor ownership.
 type OutputNormPolicy uint8
 
@@ -223,11 +209,6 @@ type NormalizationPlan struct {
 	FeedForwardLayout FeedForwardNormLayoutPolicy
 }
 
-// Weighted: learned normalization weight required.
-func (p NormalizationPlan) Weighted() bool {
-	return p.Operation != NormalizationUnweightedLayer && p.Operation != NormalizationUnweightedRMS
-}
-
 // PostNormTensors: post-norm tensor namespace.
 func (p NormalizationPlan) PostNormTensors() PostNormTensorNames {
 	switch p.PostNormLayout {
@@ -323,7 +304,7 @@ type ArchitectureProfile struct {
 	GraphFamily      ArchitectureFamily
 	CatalogFamily    ArchitectureFamily
 	DraftKind        DraftKind
-	Forward          ForwardPolicy
+	Forward          ForwardProgram
 	OutputNorm       OutputNormPolicy
 	Capabilities     ArchitectureCapability
 	Normalization    NormalizationPolicy
@@ -362,23 +343,6 @@ type ArchitectureProfile struct {
 // Has: capability predicate.
 func (p ArchitectureProfile) Has(capability ArchitectureCapability) bool {
 	return p.Capabilities&capability != 0
-}
-
-// AppendsDraftBlocks: catalog-visible draft tail
-func (p ArchitectureProfile) AppendsDraftBlocks() bool {
-	return p.DraftPlan(1).AppendedBlocks
-}
-
-// HasDraftHead: bounded draft-head policy.
-func (p ArchitectureProfile) HasDraftHead(kind DraftKind, count, offset uint32) bool {
-	plan := p.DraftPlan(count)
-	return plan.Kind == kind && plan.HasHead(offset)
-}
-
-// HasSingleDraft: single-head draft policy.
-func (p ArchitectureProfile) HasSingleDraft(kind DraftKind, count uint32) bool {
-	plan := p.DraftPlan(count)
-	return plan.Kind == kind && plan.HasHead(0) && count == 1
 }
 
 // DraftPlan: architecture draft catalog/session descriptor.

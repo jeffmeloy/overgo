@@ -26,7 +26,6 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("GraphFamily", profile.GraphFamily, ArchitectureFamilyDraft),
 		validateProfileOrdinal("CatalogFamily", profile.CatalogFamily, ArchitectureFamilyDraft),
 		validateProfileOrdinal("DraftKind", profile.DraftKind, DraftCohere2MTP),
-		validateProfileOrdinal("Forward", profile.Forward, ForwardT5),
 		validateProfileOrdinal("OutputNorm", profile.OutputNorm, OutputNormTokenEmbedding),
 		validateProfileOrdinal("Normalization", profile.Normalization, NormalizationWeightOnlyLayer),
 		validateProfileOrdinal("Position", profile.Position, PositionNormal),
@@ -53,6 +52,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("DenseWeights.BiasCatalog", profile.DenseWeights.BiasCatalog, denseBiasCatalogJais),
 		validateProfileOrdinal("ModelCatalog.PositionEmbedding", profile.ModelCatalog.PositionEmbedding, positionEmbeddingOptional),
 		validateProfileOrdinal("ModelCatalog.TokenNorm", profile.ModelCatalog.TokenNorm, tokenNormAffine),
+		validateProfileOrdinal("ModelCatalog.Weights", profile.ModelCatalog.Weights, WeightCatalogEncoderDecoder),
 		validateProfileOrdinal("Rotary.Kind", profile.Rotary.Kind, rotaryPolicyGemma),
 		validateProfileOrdinal("Rotary.MultiAxis", profile.Rotary.MultiAxis, multiAxisRotaryWithSections),
 		validateProfileOrdinal("Rotary.Usage", profile.Rotary.Usage, RotaryUsageSlidingOnly),
@@ -90,6 +90,9 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		if err != nil {
 			return fmt.Errorf("architecture profile %q: %w", profile.Name, err)
 		}
+	}
+	if !profile.Forward.valid() {
+		return fmt.Errorf("architecture profile %q: invalid forward program", profile.Name)
 	}
 	if unknown := profile.Capabilities &^ allArchitectureCapabilities; unknown != 0 {
 		return fmt.Errorf("architecture profile %q: Capabilities has unknown bits %#x", profile.Name, unknown)

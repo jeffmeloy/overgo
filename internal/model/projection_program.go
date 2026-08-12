@@ -100,17 +100,17 @@ func (p ProjectionProgram) Build(
 
 func compileProjectionPrograms(spec Spec, profile ArchitectureProfile) [projectionRoleCount]ProjectionProgram {
 	var programs [projectionRoleCount]ProjectionProgram
-	switch profile.Forward {
-	case ForwardEagle3:
+	switch profile.Forward.Session {
+	case ForwardSessionFeatureDraft:
 		programs[ProjectionFeature] = ProjectionProgram{
 			width: uint64(eagle3TargetLayerCount) * uint64(spec.TargetHiddenSize), outputs: 1,
 		}
-	case ForwardDFlash:
+	case ForwardSessionPairedFeatures:
 		programs[ProjectionFeature] = ProjectionProgram{
 			width: uint64(len(spec.TargetLayers)) * uint64(spec.EmbeddingLength),
 			norm:  projectionNormAfter, epsilon: spec.RMSNormEpsilon, outputs: 1,
 		}
-	case ForwardGemma4Assistant:
+	case ForwardSessionPairedProjection:
 		programs[ProjectionPairedInput] = ProjectionProgram{
 			input: projectionScaledPair, width: uint64(spec.TargetHiddenSize),
 			scale: float32(math.Sqrt(float64(spec.TargetHiddenSize))), outputs: 1,

@@ -154,10 +154,6 @@ func (d ModelDefinitionDocument) ValidateIdentity() error {
 	return modelDefinitionCodec.ValidateIdentity(d)
 }
 
-func (d ModelDefinitionDocument) ContentBytes() ([]byte, error) {
-	return modelDefinitionCodec.ContentBytes(d)
-}
-
 func (d ModelDefinitionDocument) Content() (artifact.Content, error) {
 	return modelDefinitionCodec.Content(d)
 }

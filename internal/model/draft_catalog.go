@@ -55,15 +55,3 @@ func (w Weights) DraftCatalogs() []DraftWeightCatalog {
 	}
 	return result
 }
-
-// LayerCatalog: encoder, trunk, and draft layers.
-func (w Weights) LayerCatalog() []LayerWeights {
-	drafts := w.DraftCatalogs()
-	result := make([]LayerWeights, 0, len(w.EncoderLayers)+len(w.Layers)+len(drafts))
-	result = append(result, w.EncoderLayers...)
-	result = append(result, w.Layers...)
-	for _, draft := range drafts {
-		result = append(result, draft.Layer)
-	}
-	return result
-}

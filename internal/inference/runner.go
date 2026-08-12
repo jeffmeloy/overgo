@@ -257,11 +257,11 @@ func (r *Runner) profile() model.ArchitectureProfile {
 	return r.program.Model.Profile()
 }
 
-func (r *Runner) forwardPolicy() model.ForwardPolicy {
+func (r *Runner) forwardProgram() model.ForwardProgram {
 	if r == nil || r.program.Model.Profile().Name == "" {
-		panic("inference: compiled forward policy is unavailable")
+		panic("inference: compiled forward program is unavailable")
 	}
-	return r.program.Model.Profile().Forward
+	return r.program.Model.Forward()
 }
 
 func (r *Runner) Vocab() *tokenizer.Vocab {
@@ -300,7 +300,7 @@ func (r *Runner) ForwardWithEmbeddingOverrides(
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if r.forwardPolicy() == model.ForwardT5Encoder || r.spec.NonCausalAttention {
+	if r.forwardProgram().Operation == model.ForwardOperationEncoder || r.spec.NonCausalAttention {
 		return reference.Value{}, errors.New("inference: embedding overrides currently require a causal decoder")
 	}
 	hidden, _, err := r.forwardCachedProjectedChunkLocked(
@@ -313,27 +313,45 @@ func (r *Runner) forwardLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
-	switch r.forwardPolicy() {
-	case model.ForwardDFlash:
-		return reference.Value{}, errors.New("inference: DFlash requires feature fusion, cache injection, and paired target decode")
-	case model.ForwardEagle3:
-		return reference.Value{}, errors.New("inference: Eagle3 requires NewEagle3Session and AdvanceEagle3")
-	case model.ForwardGemma4Assistant:
-		return reference.Value{}, errors.New("inference: Gemma 4 assistant requires NewGemma4AssistantSession and AdvanceGemma4Assistant")
-	case model.ForwardWavTokenizer:
-		return r.forwardWavTokenizerLocked(ctx, tokenIDs)
-	case model.ForwardT5Encoder:
-		return r.forwardT5EncoderLocked(ctx, tokenIDs)
-	case model.ForwardT5:
-		return reference.Value{}, errors.New("inference: T5 requires NewT5Session and DecodeT5")
-	case model.ForwardNonCausal:
-		return r.forwardNonCausalLocked(ctx, tokenIDs)
-	case model.ForwardCached:
-		hidden, _, err := r.forwardCachedLocked(ctx, tokenIDs, nil)
-		return hidden, err
-	default:
+	program := r.forwardProgram()
+	if int(program.Operation) >= len(forwardExecutors) || forwardExecutors[program.Operation] == nil {
 		return reference.Value{}, errors.New("inference: unknown compiled forward policy")
 	}
+	return forwardExecutors[program.Operation](r, ctx, tokenIDs)
+}
+
+type forwardExecutor func(*Runner, context.Context, []tokenizer.TokenID) (reference.Value, error)
+
+var forwardExecutors = [...]forwardExecutor{
+	model.ForwardOperationCached: func(r *Runner, ctx context.Context, ids []tokenizer.TokenID) (reference.Value, error) {
+		hidden, _, err := r.forwardCachedLocked(ctx, ids, nil)
+		return hidden, err
+	},
+	model.ForwardOperationBidirectional: func(r *Runner, ctx context.Context, ids []tokenizer.TokenID) (reference.Value, error) {
+		return r.forwardNonCausalLocked(ctx, ids)
+	},
+	model.ForwardOperationAudioTokens: func(r *Runner, ctx context.Context, ids []tokenizer.TokenID) (reference.Value, error) {
+		return r.forwardWavTokenizerLocked(ctx, ids)
+	},
+	model.ForwardOperationEncoder: func(r *Runner, ctx context.Context, ids []tokenizer.TokenID) (reference.Value, error) {
+		return r.forwardT5EncoderLocked(ctx, ids)
+	},
+	model.ForwardOperationSession: forwardSessionError,
+}
+
+var forwardSessionErrors = [...]error{
+	model.ForwardSessionPairedFeatures:   errors.New("inference: DFlash requires feature fusion, cache injection, and paired target decode"),
+	model.ForwardSessionFeatureDraft:     errors.New("inference: Eagle3 requires NewEagle3Session and AdvanceEagle3"),
+	model.ForwardSessionPairedProjection: errors.New("inference: Gemma 4 assistant requires NewGemma4AssistantSession and AdvanceGemma4Assistant"),
+	model.ForwardSessionEncoderDecoder:   errors.New("inference: T5 requires NewT5Session and DecodeT5"),
+}
+
+func forwardSessionError(r *Runner, _ context.Context, _ []tokenizer.TokenID) (reference.Value, error) {
+	session := r.forwardProgram().Session
+	if int(session) >= len(forwardSessionErrors) || forwardSessionErrors[session] == nil {
+		return reference.Value{}, errors.New("inference: unknown compiled forward session")
+	}
+	return reference.Value{}, forwardSessionErrors[session]
 }
 
 // ForwardNonCausal: evaluates entire bidirectional token sequence without
@@ -354,7 +372,7 @@ func (r *Runner) ForwardCached(
 	if r.spec.NonCausalAttention {
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
-	if r.forwardPolicy() == model.ForwardT5 {
+	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
 		return reference.Value{}, nil, errors.New("inference: use DecodeT5 for T5 caching")
 	}
 	return r.forwardCachedLocked(ctx, tokenIDs, cache)
@@ -522,10 +540,10 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	if r.weights.Cohere2MTP != nil && r.weights.Cohere2MTP.MTPOnly {
 		return reference.Value{}, nil, errors.New("inference: Cohere2-MoE MTP-only model requires a paired target session")
 	}
-	if r.forwardPolicy() == model.ForwardGemma4Assistant {
+	if r.forwardProgram().Session == model.ForwardSessionPairedProjection {
 		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")
 	}
-	if r.forwardPolicy() == model.ForwardT5Encoder {
+	if r.forwardProgram().Operation == model.ForwardOperationEncoder {
 		return reference.Value{}, nil, errors.New("inference: T5 encoder does not support KV caching")
 	}
 	projected, err := r.compileProjectedRequestPlan(len(tokenIDs), cache != nil, inputs)

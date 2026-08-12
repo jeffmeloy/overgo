@@ -22,7 +22,7 @@ func (r *Runner) GenerateT5(
 	if r == nil || r.vocab == nil {
 		return nil, "", nil, errors.New("inference: runner is nil")
 	}
-	if r.forwardPolicy() != model.ForwardT5 {
+	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return nil, "", nil, errors.New("inference: T5 generation requires T5 architecture")
 	}
 	if err := normalizeGenerateOptions(&options); err != nil {

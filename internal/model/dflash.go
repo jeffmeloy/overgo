@@ -54,7 +54,7 @@ func (p CacheProjectionProgram) Build(
 }
 
 func compileCacheProjectionProgram(spec Spec, profile ArchitectureProfile) CacheProjectionProgram {
-	if profile.Forward != ForwardDFlash {
+	if profile.Forward.Session != ForwardSessionPairedFeatures {
 		return CacheProjectionProgram{}
 	}
 	frequencyScale := float32(1)

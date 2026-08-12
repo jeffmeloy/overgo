@@ -15,9 +15,5 @@ func JSONContent(contract DocumentContract, value any) (Content, error) {
 	if err != nil {
 		return Content{}, err
 	}
-	id, err := contract.Identify(payload)
-	if err != nil {
-		return Content{}, err
-	}
-	return contract.Content(id, payload)
+	return contract.ContentBytes(payload)
 }

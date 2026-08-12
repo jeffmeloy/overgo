@@ -17,19 +17,19 @@ func TestTensorInventoryDocumentRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := document.ContentBytes()
+	content, err := document.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseTensorInventoryDocument(content)
+	parsed, err := ParseTensorInventoryDocument(content.Data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsedContent, err := parsed.ContentBytes()
+	parsedContent, err := parsed.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if parsed.ID != document.ID || !bytes.Equal(parsedContent, content) {
+	if parsed.ID != document.ID || !bytes.Equal(parsedContent.Data, content.Data) {
 		t.Fatal("tensor inventory round trip drifted")
 	}
 }

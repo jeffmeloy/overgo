@@ -105,10 +105,6 @@ func (g GateResult) ValidateIdentity() error {
 	return gateCodec.ValidateIdentity(g)
 }
 
-func (g GateResult) ContentBytes() ([]byte, error) {
-	return gateCodec.ContentBytes(g)
-}
-
 func (g GateResult) Content() (artifact.Content, error) {
 	return gateCodec.Content(g)
 }

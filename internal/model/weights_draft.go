@@ -8,19 +8,6 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-func readDraftWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
-	switch spec.Profile().Forward {
-	case ForwardDFlash:
-		return readDFlashWeightCatalog(catalog, spec)
-	case ForwardEagle3:
-		return readEagle3WeightCatalog(catalog, spec)
-	case ForwardGemma4Assistant:
-		return readGemma4AssistantWeightCatalog(catalog, spec)
-	default:
-		return Weights{}, fmt.Errorf("draft catalog for %q is unsupported", spec.Architecture)
-	}
-}
-
 func readDFlashWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
 	required, tensors := catalog.required, catalog.tensors
 	width := uint64(spec.EmbeddingLength)

@@ -111,16 +111,8 @@ func BuildGroupSplit(
 	return plan, err
 }
 
-func ParseMembership(content []byte) (Membership, error) {
-	return membershipCodec.Parse(content)
-}
-
 func (m Membership) ValidateIdentity() error {
 	return membershipCodec.ValidateIdentity(m)
-}
-
-func (m Membership) ContentBytes() ([]byte, error) {
-	return membershipCodec.ContentBytes(m)
 }
 
 func (m Membership) Content() (artifact.Content, error) {

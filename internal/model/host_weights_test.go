@@ -32,7 +32,7 @@ func TestLoadHostTensor(t *testing.T) {
 	}
 }
 
-func TestLoadHostRowsAndArgmaxDot(t *testing.T) {
+func TestLoadHostRowsAndDotRows(t *testing.T) {
 	data := hostTableFixture(t)
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
 	if err != nil {
@@ -48,12 +48,15 @@ func TestLoadHostRowsAndArgmaxDot(t *testing.T) {
 			t.Fatalf("row value[%d] = %v, want %v", index, value.Data[index], want[index])
 		}
 	}
-	row, score, err := ArgmaxDot(context.Background(), file, file.Tensors[0], []float32{1, 1}, 2)
+	scores, err := DotRows(context.Background(), file, file.Tensors[0], []float32{1, 1}, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row != 2 || score != 11 {
-		t.Fatalf("argmax = row %d score %v, want row 2 score 11", row, score)
+	wantScores := []float32{3, 7, 11}
+	for row, want := range wantScores {
+		if scores[row] != want {
+			t.Fatalf("score[%d] = %v, want %v", row, scores[row], want)
+		}
 	}
 }
 

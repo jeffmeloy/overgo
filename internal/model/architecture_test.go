@@ -217,34 +217,6 @@ func TestIndexerCadenceUsesBoundProfilePolicy(t *testing.T) {
 	}
 }
 
-func TestArchitectureProfileDraftBlockPolicy(t *testing.T) {
-	for architecture, want := range map[string]bool{
-		"step35": true, "hy_v3": true, "glm4": true,
-		"qwen35": false, "cohere2moe": false, "llama": false,
-	} {
-		profile, ok := LookupArchitecture(architecture)
-		if !ok || profile.AppendsDraftBlocks() != want {
-			t.Fatalf("%s appends draft blocks = %v, want %v", architecture, profile.AppendsDraftBlocks(), want)
-		}
-	}
-}
-
-func TestArchitectureProfileDraftHeadPolicy(t *testing.T) {
-	step, _ := LookupArchitecture("step35")
-	if !step.HasDraftHead(DraftStep35MTP, 2, 0) ||
-		!step.HasDraftHead(DraftStep35MTP, 2, 1) ||
-		step.HasDraftHead(DraftStep35MTP, 2, 2) ||
-		step.HasSingleDraft(DraftStep35MTP, 2) {
-		t.Fatalf("Step3.5 draft policy = %#v", step)
-	}
-	qwen, _ := LookupArchitecture("qwen35")
-	if !qwen.HasSingleDraft(DraftQwen35MTP, 1) ||
-		qwen.HasSingleDraft(DraftQwen35MTP, 2) ||
-		qwen.HasDraftHead(DraftNextNMTP, 1, 0) {
-		t.Fatalf("Qwen3.5 draft policy = %#v", qwen)
-	}
-}
-
 func TestArchitectureProfileDraftPlan(t *testing.T) {
 	for architecture, want := range map[string]DraftPlan{
 		"qwen35":     {Kind: DraftQwen35MTP, Heads: 1, Label: "Qwen3.5 MTP", SingleCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle},

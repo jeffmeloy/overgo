@@ -829,7 +829,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.AttentionClamp = clamp
 		}
 	}
-	if m.profile.Forward == ForwardT5 || m.profile.Forward == ForwardT5Encoder {
+	if m.profile.Forward.Session == ForwardSessionEncoderDecoder ||
+		m.profile.Forward.Operation == ForwardOperationEncoder {
 		if spec.RelativeBuckets, err = required[uint32](
 			values,
 			prefix+"attention.relative_buckets_count",
@@ -837,7 +838,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); err != nil {
 			return Spec{}, err
 		}
-		if m.profile.Forward == ForwardT5 {
+		if m.profile.Forward.Session == ForwardSessionEncoderDecoder {
 			spec.DecoderBlockCount = optionalOr(
 				values, prefix+"decoder_block_count", gguf.ValueTypeUint32, spec.BlockCount,
 			)

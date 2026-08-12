@@ -191,7 +191,7 @@ func (p SequenceOutputProgram) Build(
 }
 
 func compileSequenceOutputProgram(spec Spec, profile ArchitectureProfile) SequenceOutputProgram {
-	if profile.Forward != ForwardWavTokenizer {
+	if profile.Forward.Operation != ForwardOperationAudioTokens {
 		return SequenceOutputProgram{}
 	}
 	return SequenceOutputProgram{

@@ -26,7 +26,6 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("GraphFamily", profile.GraphFamily, ArchitectureFamilyDraft),
 		validateProfileOrdinal("CatalogFamily", profile.CatalogFamily, ArchitectureFamilyDraft),
 		validateProfileOrdinal("DraftKind", profile.DraftKind, DraftCohere2MTP),
-		validateProfileOrdinal("Forward", profile.Forward, ForwardT5),
 		validateProfileOrdinal("OutputNorm", profile.OutputNorm, OutputNormTokenEmbedding),
 		validateProfileOrdinal("Normalization", profile.Normalization, NormalizationWeightOnlyLayer),
 		validateProfileOrdinal("Position", profile.Position, PositionNormal),
@@ -91,6 +90,9 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		if err != nil {
 			return fmt.Errorf("architecture profile %q: %w", profile.Name, err)
 		}
+	}
+	if !profile.Forward.valid() {
+		return fmt.Errorf("architecture profile %q: invalid forward program", profile.Name)
 	}
 	if unknown := profile.Capabilities &^ allArchitectureCapabilities; unknown != 0 {
 		return fmt.Errorf("architecture profile %q: Capabilities has unknown bits %#x", profile.Name, unknown)

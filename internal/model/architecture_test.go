@@ -283,21 +283,21 @@ func TestArchitectureProfileDeepSeekLayoutPolicy(t *testing.T) {
 	}
 }
 
-func TestArchitectureProfileForwardPolicy(t *testing.T) {
-	for architecture, want := range map[string]ForwardPolicy{
-		"llama":            ForwardCached,
-		"bert":             ForwardNonCausal,
-		"dream":            ForwardNonCausal,
-		"dflash":           ForwardDFlash,
-		"eagle3":           ForwardEagle3,
-		"gemma4-assistant": ForwardGemma4Assistant,
-		"wavtokenizer-dec": ForwardWavTokenizer,
-		"t5encoder":        ForwardT5Encoder,
-		"t5":               ForwardT5,
+func TestArchitectureProfileForwardProgram(t *testing.T) {
+	for architecture, want := range map[string]ForwardProgram{
+		"llama":            {Operation: ForwardOperationCached},
+		"bert":             {Operation: ForwardOperationBidirectional},
+		"dream":            {Operation: ForwardOperationBidirectional},
+		"dflash":           {Operation: ForwardOperationSession, Session: ForwardSessionPairedFeatures},
+		"eagle3":           {Operation: ForwardOperationSession, Session: ForwardSessionFeatureDraft},
+		"gemma4-assistant": {Operation: ForwardOperationSession, Session: ForwardSessionPairedProjection},
+		"wavtokenizer-dec": {Operation: ForwardOperationAudioTokens},
+		"t5encoder":        {Operation: ForwardOperationEncoder},
+		"t5":               {Operation: ForwardOperationSession, Session: ForwardSessionEncoderDecoder},
 	} {
 		profile, ok := LookupArchitecture(architecture)
 		if !ok || profile.Forward != want {
-			t.Fatalf("%s forward policy = %v, want %v", architecture, profile.Forward, want)
+			t.Fatalf("%s forward program = %v, want %v", architecture, profile.Forward, want)
 		}
 	}
 }

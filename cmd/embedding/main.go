@@ -42,7 +42,7 @@ func run() error {
 		return err
 	}
 	defer runner.Close()
-	if runner.Spec().Profile().Forward != model.ForwardT5Encoder {
+	if runner.Spec().Profile().Forward.Operation != model.ForwardOperationEncoder {
 		return fmt.Errorf("embedding: architecture %q is not an encoder", runner.Spec().Architecture)
 	}
 	ids, err := runner.Vocab().Encode(*prompt, tokenizer.EncodeOptions{AddSpecial: true})

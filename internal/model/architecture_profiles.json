@@ -156,7 +156,7 @@
     },
     "Family": 4,
     "FeedForward": 3,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 5
@@ -482,7 +482,7 @@
       }
     },
     "Family": 7,
-    "Forward": 2,
+    "Forward": {"Operation": 4, "Session": 1},
     "GraphFamily": 7,
     "MetadataDefaults": {
       "RopeDimension": 2
@@ -523,7 +523,7 @@
     "Capabilities": 33,
     "CatalogFamily": 6,
     "Family": 6,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 6,
     "Name": "dream"
   },
@@ -531,7 +531,7 @@
     "Capabilities": 8192,
     "CatalogFamily": 7,
     "Family": 7,
-    "Forward": 3,
+    "Forward": {"Operation": 4, "Session": 2},
     "GraphFamily": 7,
     "MetadataDefaults": {
       "RopeDimension": 2
@@ -595,7 +595,7 @@
     "Capabilities": 67108881,
     "CatalogFamily": 4,
     "Family": 4,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Name": "eurobert"
   },
@@ -711,7 +711,7 @@
       "Kind": 7
     },
     "Family": 4,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -833,7 +833,7 @@
     },
     "CatalogFamily": 7,
     "Family": 7,
-    "Forward": 4,
+    "Forward": {"Operation": 4, "Session": 3},
     "GraphFamily": 7,
     "Metadata": {
       "SWAHeadLengths": true
@@ -1288,7 +1288,7 @@
       "Kind": 2
     },
     "Family": 4,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -1320,7 +1320,7 @@
     },
     "Family": 4,
     "FeedForward": 3,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -1456,7 +1456,7 @@
     "Capabilities": 8225,
     "CatalogFamily": 6,
     "Family": 6,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 6,
     "Name": "llada",
     "Position": 1,
@@ -1477,7 +1477,7 @@
       "Normalization": 2
     },
     "Family": 6,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 6,
     "Name": "llada-moe",
     "Validation": {
@@ -1505,7 +1505,7 @@
       "Catalog": 2
     },
     "Family": 4,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Name": "llama-embed",
     "Validation": {
@@ -1741,7 +1741,7 @@
     },
     "Family": 4,
     "FeedForward": 2,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -1830,7 +1830,7 @@
     "CatalogFamily": 4,
     "Family": 4,
     "FeedForward": 2,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -1853,7 +1853,7 @@
       "Kind": 4
     },
     "Family": 4,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -1882,7 +1882,7 @@
     },
     "Family": 4,
     "FeedForward": 3,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
@@ -2332,7 +2332,7 @@
       "Catalog": 1
     },
     "Family": 6,
-    "Forward": 1,
+    "Forward": {"Operation": 1},
     "GraphFamily": 6,
     "Name": "rnd1",
     "Validation": {
@@ -2502,7 +2502,7 @@
       "Kind": 8
     },
     "Family": 5,
-    "Forward": 7,
+    "Forward": {"Operation": 4, "Session": 4},
     "GraphFamily": 5,
     "Metadata": {
       "KVHeads": 5
@@ -2524,7 +2524,7 @@
       "Kind": 9
     },
     "Family": 4,
-    "Forward": 6,
+    "Forward": {"Operation": 3},
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 5
@@ -2559,7 +2559,7 @@
     "Capabilities": 19,
     "CatalogFamily": 4,
     "Family": 4,
-    "Forward": 5,
+    "Forward": {"Operation": 2},
     "GraphFamily": 4,
     "Metadata": {
       "GroupNorm": true,

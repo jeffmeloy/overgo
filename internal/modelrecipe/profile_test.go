@@ -16,10 +16,10 @@ import (
 	"overgo/internal/testutil"
 )
 
-const profileCatalogSemanticDigest = "26b8f9af39b4e2b18d9ef5f62151f7075c2cccdb553d7edb39fcc58675a78a19"
-const architectureProfileFactCount = 129
-const architectureProfileFactDigest = "4c75916ef6d934cc824d5f497fa98725b3a6714fdc5d539c58f5b1b9aa40185d"
-const architectureProfileFactSchemaDigest = "049362db9a8936d28292190c3d11dbcf413f3e6f289c35c4fcde915213f7b7fd"
+const profileCatalogSemanticDigest = "8ce75bf47481840381860fe40a47e9aa42b84645fc7a34c31856ed4d0f56a07c"
+const architectureProfileFactCount = 130
+const architectureProfileFactDigest = "31cde440a845fb18fabc103e0a6c9065aefca0469868c0e3a1cfccf581f8a041"
+const architectureProfileFactSchemaDigest = "458eba091f41690bf07df99c4141ac747fe877aeb4f269adfae128c18b61bea0"
 
 const unsupportedProfilePolicyValue = ^uint8(0)
 
@@ -97,7 +97,7 @@ func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
 
 func TestProfileDocumentRejectsInvalidPolicy(t *testing.T) {
 	profile, _ := model.LookupArchitecture("llama")
-	profile.Forward = model.ForwardPolicy(unsupportedProfilePolicyValue)
+	profile.Forward = model.ForwardProgram{Operation: model.ForwardOperation(unsupportedProfilePolicyValue)}
 	if _, err := NewProfileDocument(profile); err == nil {
 		t.Fatal("invalid profile document accepted")
 	}

@@ -293,7 +293,7 @@ func preparePolicyAttentionInputs(
 	if err := requireTensorPair(c.pastKey, c.pastValue, "dense block past key/value cache must both be present"); err != nil {
 		return nil, nil, err
 	}
-	if c.spec.NonCausalAttention && c.profile.Forward != ForwardDFlash && c.pastKey != nil {
+	if c.spec.NonCausalAttention && c.profile.Forward.Session != ForwardSessionPairedFeatures && c.pastKey != nil {
 		return nil, nil, errors.New("non-causal dense block does not support a KV cache")
 	}
 	normalized := c.input

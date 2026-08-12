@@ -485,9 +485,6 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 			"model plan profile %q does not match architecture %q", profile.Name, spec.Architecture,
 		)
 	}
-	if profile.Forward == ForwardCached && spec.NonCausalAttention {
-		profile.Forward = ForwardNonCausal
-	}
 	spec = spec.withProfile(profile)
 	layers := spec.BlockCount
 	if profile.Family == ArchitectureFamilyEncoderDecoder && spec.DecoderBlockCount > layers {
@@ -504,7 +501,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		cacheProject: compileCacheProjectionProgram(spec, profile),
 		projections:  compileProjectionPrograms(spec, profile),
 		sequenceOut:  compileSequenceOutputProgram(spec, profile),
-		forward:      compileForwardProgram(profile),
+		forward:      resolveForwardProgram(profile.Forward, spec.NonCausalAttention),
 	}
 	if weights.Output != nil {
 		plan.terminal.OutputHead = OutputHeadDedicated
@@ -543,7 +540,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 }
 
 func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
-	if !plan.forward.valid() || plan.forward != compileForwardProgram(plan.profile) {
+	if !plan.forward.valid() || plan.forward != resolveForwardProgram(plan.profile.Forward, spec.NonCausalAttention) {
 		return fmt.Errorf("model plan architecture %s has invalid forward program", spec.Architecture)
 	}
 	if plan.terminal.OutputHead > OutputHeadDedicated ||
@@ -762,7 +759,7 @@ func (p ModelPlan) sequenceProgram(layer int, role layerProgramRole) (CompiledLa
 		return CompiledLayerProgram{}, fmt.Errorf("model plan has no T5 encoder program for %q", p.spec.Architecture)
 	}
 	if role == programDecoder {
-		if p.profile.Family != ArchitectureFamilyEncoderDecoder || p.profile.Forward != ForwardT5 {
+		if p.profile.Family != ArchitectureFamilyEncoderDecoder || p.profile.Forward.Session != ForwardSessionEncoderDecoder {
 			return CompiledLayerProgram{}, fmt.Errorf("model plan has no decoder program for %q", p.spec.Architecture)
 		}
 		limit = p.spec.DecoderBlockCount
@@ -921,7 +918,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 	switch {
 	default:
-		if profile.Forward == ForwardGemma4Assistant {
+		if profile.Forward.Session == ForwardSessionPairedProjection {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionSharedCacheQKNorm),
 				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
@@ -929,7 +926,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidualScale),
 			)
 		}
-		if profile.Forward == ForwardEagle3 {
+		if profile.Forward.Session == ForwardSessionFeatureDraft {
 			return newLayerProgram(
 				pairedInputLayerStage(), attentionLayerStage(LayerOperatorAttentionPairedCausalProjection),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),

@@ -328,8 +328,8 @@ func TestCompileModelPlanAppliesSpecForwardOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Profile().Forward != ForwardNonCausal {
-		t.Fatalf("forward policy = %v", plan.Profile().Forward)
+	if plan.Forward().Operation != ForwardOperationBidirectional {
+		t.Fatalf("forward program = %v", plan.Forward())
 	}
 }
 

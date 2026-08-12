@@ -71,20 +71,6 @@ func (p DraftPlan) Block(trunk, offset uint32) uint32 {
 	return trunk + offset
 }
 
-// ForwardPolicy: public inference entry route.
-type ForwardPolicy uint8
-
-const (
-	ForwardCached ForwardPolicy = iota
-	ForwardNonCausal
-	ForwardDFlash
-	ForwardEagle3
-	ForwardGemma4Assistant
-	ForwardWavTokenizer
-	ForwardT5Encoder
-	ForwardT5
-)
-
 // OutputNormPolicy: final normalization tensor ownership.
 type OutputNormPolicy uint8
 
@@ -323,7 +309,7 @@ type ArchitectureProfile struct {
 	GraphFamily      ArchitectureFamily
 	CatalogFamily    ArchitectureFamily
 	DraftKind        DraftKind
-	Forward          ForwardPolicy
+	Forward          ForwardProgram
 	OutputNorm       OutputNormPolicy
 	Capabilities     ArchitectureCapability
 	Normalization    NormalizationPolicy

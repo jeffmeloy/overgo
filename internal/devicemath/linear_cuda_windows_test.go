@@ -35,6 +35,44 @@ func hostLinearLoss(x, w, dY []float32, rows, in, out int) float64 {
 	return loss
 }
 
+// TestLinearForwardTMatchesHost verifies device LinearForwardT (Y = X·Wᵀ,
+// W[outDim,in]) against an fp64 reference.
+func TestLinearForwardTMatchesHost(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	const rows, in, outDim = 12, 20, 16
+	rng := rand.New(rand.NewSource(41))
+	x := randSlice(rng, rows*in)
+	w := randSlice(rng, outDim*in) // [outDim, in]
+
+	got, err := LinearForwardT(worker, x, w, rows, in, outDim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var maxDiff float64
+	for r := 0; r < rows; r++ {
+		for o := 0; o < outDim; o++ {
+			var y float64
+			for i := 0; i < in; i++ {
+				y += float64(x[r*in+i]) * float64(w[o*in+i]) // Wᵀ: w[o,i]
+			}
+			if diff := math.Abs(float64(got[r*outDim+o]) - y); diff > maxDiff {
+				maxDiff = diff
+			}
+		}
+	}
+	t.Logf("linearT forward: max |dev-host| %.3e", maxDiff)
+	const tolerance = 1e-4
+	if maxDiff > tolerance {
+		t.Fatalf("linearT forward %.3e > %.1e", maxDiff, tolerance)
+	}
+}
+
 // TestLinearBackwardGradCheck verifies device LinearBackward against a central
 // finite-difference of the host loss. The loss is linear in X and W, so the FD
 // is exact up to fp rounding; the residual is fp32 GEMM precision.

@@ -9,7 +9,44 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/hostmath"
 )
+
+// TestRMSNormForwardMatchesHost checks device RMSNormForward against
+// hostmath.RMSNormInto (the forward the device layer forward must reproduce).
+func TestRMSNormForwardMatchesHost(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	const rows, d = 24, 64
+	eps := 1e-6
+	rng := rand.New(rand.NewSource(31))
+	x := randSlice(rng, rows*d)
+	weight := randSlice(rng, d)
+
+	got, err := RMSNormForward(worker, x, weight, rows, d, eps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := make([]float32, rows*d)
+	hostmath.RMSNormInto(want, x, weight, rows, d, eps)
+
+	var maxDiff float64
+	for i := range want {
+		if diff := math.Abs(float64(got[i]) - float64(want[i])); diff > maxDiff {
+			maxDiff = diff
+		}
+	}
+	t.Logf("rmsnorm forward: max |dev-host| %.3e", maxDiff)
+	const tolerance = 1e-5
+	if maxDiff > tolerance {
+		t.Fatalf("rmsnorm forward %.3e > %.1e", maxDiff, tolerance)
+	}
+}
 
 // rmsNormLossF64 returns L = sum(dy ⊙ y) for affine RMSNorm in float64.
 func rmsNormLossF64(x, weight, dy []float32, rows, d int, eps float64) float64 {

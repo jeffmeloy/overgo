@@ -103,3 +103,11 @@ func linearBackward(
 	}
 	return dX, dW, nil
 }
+
+// LinearForwardT: HF-layout Y = X·Wᵀ via one cuBLAS GEMM.
+func LinearForwardT(worker *device.Worker, x, w []float32, rows, in, out int) ([]float32, error) {
+	if rows <= 0 || in <= 0 || out <= 0 || len(x) != rows*in || len(w) != out*in {
+		return nil, fmt.Errorf("LinearForwardT: shape mismatch (rows=%d in=%d out=%d x=%d w=%d)", rows, in, out, len(x), len(w))
+	}
+	return deviceGEMM(worker, false, true, rows, in, out, x, w)
+}

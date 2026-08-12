@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testutil"
 )
 
 // goldenFile mirrors fixtures/tabfm_predict_golden.json (schema
@@ -42,11 +43,7 @@ const predictTolerance = 1e-3
 
 func readGolden(t *testing.T) *goldenFile {
 	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(filepath.Dir(filepath.Dir(working)), "fixtures", "tabfm_predict_golden.json")
+	path := testutil.FixturePath(t, "tabfm_predict_golden.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Skipf("UNAVAILABLE: predict golden absent at %s; parity NOT verified", path)
@@ -65,12 +62,7 @@ func readGolden(t *testing.T) *goldenFile {
 // contract; absent artifact skips LOUDLY (UNAVAILABLE is never green).
 func headDir(t *testing.T, task string) string {
 	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := filepath.Dir(filepath.Dir(working)) // internal/tabularicl -> repo root
-	roots, err := dataroot.Resolve(repo)
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}

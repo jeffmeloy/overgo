@@ -4,12 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"overgo/internal/jsonfile"
 )
 
 // Golden fixture schemas (adaptive_new fixtures/rxbrain_vqa_*.json).
@@ -102,11 +103,7 @@ type decodeStepsGolden struct {
 
 func loadGoldenJSON[T any](fixturesDir, name string) (T, error) {
 	var out T
-	raw, err := os.ReadFile(filepath.Join(fixturesDir, name))
-	if err != nil {
-		return out, err
-	}
-	if err := json.Unmarshal(raw, &out); err != nil {
+	if err := jsonfile.Decode(filepath.Join(fixturesDir, name), &out); err != nil {
 		return out, fmt.Errorf("%s: %w", name, err)
 	}
 	return out, nil

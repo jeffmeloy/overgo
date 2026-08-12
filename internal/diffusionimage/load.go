@@ -14,14 +14,13 @@
 package diffusionimage
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
 )
 
@@ -117,14 +116,10 @@ type Model struct {
 // safetensors file, strips the torch.compile prefix, derives the
 // architecture from flat tensor lengths, and binds weights.
 func Load(directory string) (*Model, error) {
-	raw, err := os.ReadFile(filepath.Join(directory, "config.json"))
-	if err != nil {
-		return nil, err
-	}
 	var cfg struct {
 		ModelType string `json:"model_type"`
 	}
-	if err := json.Unmarshal(raw, &cfg); err != nil {
+	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &cfg); err != nil {
 		return nil, fmt.Errorf("diffusionimage: parse config.json: %w", err)
 	}
 	if cfg.ModelType != modelType {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 // CUDA-vs-host decode tolerance derivation: the host decode is the in-repo
@@ -119,7 +120,7 @@ func TestVAEDecodeCUDAProduction(t *testing.T) {
 	stats := vaeG0LatentStats(t)
 	const latentFrames, latentH, latentW = 21, 60, 104
 	elements := plan.ZDim * latentFrames * latentH * latentW
-	artifactDir := filepath.Join(repoRoot(t), "build", "latentvideo", "full_bf16")
+	artifactDir := filepath.Join(testutil.RepoRoot(t), "build", "latentvideo", "full_bf16")
 	latentPath := filepath.Join(artifactDir, "final_latent.f32le")
 	framePath := filepath.Join(artifactDir, "frame_00.f32le")
 	var z []float32

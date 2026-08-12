@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/recipe"
 )
 
 const (
@@ -51,7 +51,7 @@ func (f runtimeFixture) decode(latents LatentBatch) (Audio, error) {
 }
 
 func TestRegisteredRuntimeExecutesSpeechProgram(t *testing.T) {
-	fixture := modelrecipetest.NewCapability(t, "speech-model", modelrecipe.SpeechDefinition)
+	fixture := modelrecipetest.NewCapability(t, "speech-model", recipe.TaskSpeech)
 	request := SynthesisRequest{Text: synthesisTextFixture, MaxFrames: synthesisFramesFixture, Seed: synthesisSeedFixture}
 	plan := generationPlan{tokens: synthesisTokenFixture, maxFrames: synthesisFramesFixture, seed: synthesisSeedFixture}
 	latents := LatentBatch{Values: synthesisLatentFixture, Frames: 1, Width: len(synthesisLatentFixture)}
@@ -65,9 +65,8 @@ func TestRegisteredRuntimeExecutesSpeechProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	datum, one := result.Outputs["audio"].Single()
-	got, typed := datum.Value.(Audio)
-	if !one || !typed || got.SampleRate != synthesisRateFixture || !slices.Equal(got.PCM, synthesisPCMFixture) || !result.Commit.Valid() {
-		t.Fatalf("audio = (%+v, %v, %v), commit=%v", got, one, typed, result.Commit)
+	got := modelrecipetest.Output[Audio](t, result, "audio")
+	if got.SampleRate != synthesisRateFixture || !slices.Equal(got.PCM, synthesisPCMFixture) {
+		t.Fatalf("audio = %+v", got)
 	}
 }

@@ -111,25 +111,24 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 
 func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 	tests := []struct {
-		task       recipe.Task
-		definition func(artifact.ID) (recipe.Definition, error)
-		placement  recipe.Placement
-		inputs     []recipe.DataKind
-		output     recipe.DataKind
-		modules    []recipe.ModuleID
+		task      recipe.Task
+		placement recipe.Placement
+		inputs    []recipe.DataKind
+		output    recipe.DataKind
+		modules   []recipe.ModuleID
 	}{
-		{recipe.TaskForecast, ForecastDefinition, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleForecastSeries}},
-		{recipe.TaskTabular, TabularDefinition, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleTabularPredict}},
-		{recipe.TaskSeq2Seq, Seq2SeqDefinition, recipe.PlacementHost, []recipe.DataKind{recipe.DataTokens}, recipe.DataTokens, []recipe.ModuleID{ModuleSeq2SeqEncode, ModuleSeq2SeqPrepare, ModuleSeq2SeqSelect}},
-		{recipe.TaskSpeech, SpeechDefinition, recipe.PlacementHost, []recipe.DataKind{recipe.DataText}, recipe.DataAudio, []recipe.ModuleID{ModuleSpeechTokenize, ModuleSpeechGenerate, ModuleSpeechDecode}},
-		{recipe.TaskImageGen, ImageGenDefinition, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataImage, []recipe.ModuleID{ModuleImageGenerate}},
-		{recipe.TaskVideoGen, VideoGenDefinition, recipe.PlacementDevice, []recipe.DataKind{recipe.DataText}, recipe.DataVideo, []recipe.ModuleID{ModuleVideoGenerate}},
-		{recipe.TaskVQA, VQADefinition, recipe.PlacementDevice, []recipe.DataKind{recipe.DataImage, recipe.DataText}, recipe.DataText, []recipe.ModuleID{ModuleVQAAnswer}},
+		{recipe.TaskForecast, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleForecastSeries}},
+		{recipe.TaskTabular, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleTabularPredict}},
+		{recipe.TaskSeq2Seq, recipe.PlacementHost, []recipe.DataKind{recipe.DataTokens}, recipe.DataTokens, []recipe.ModuleID{ModuleSeq2SeqEncode, ModuleSeq2SeqPrepare, ModuleSeq2SeqSelect}},
+		{recipe.TaskSpeech, recipe.PlacementHost, []recipe.DataKind{recipe.DataText}, recipe.DataAudio, []recipe.ModuleID{ModuleSpeechTokenize, ModuleSpeechGenerate, ModuleSpeechDecode}},
+		{recipe.TaskImageGen, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataImage, []recipe.ModuleID{ModuleImageGenerate}},
+		{recipe.TaskVideoGen, recipe.PlacementDevice, []recipe.DataKind{recipe.DataText}, recipe.DataVideo, []recipe.ModuleID{ModuleVideoGenerate}},
+		{recipe.TaskVQA, recipe.PlacementDevice, []recipe.DataKind{recipe.DataImage, recipe.DataText}, recipe.DataText, []recipe.ModuleID{ModuleVQAAnswer}},
 	}
 	for _, test := range tests {
 		t.Run(string(test.task), func(t *testing.T) {
 			modelID := testutil.ArtifactID(t, artifact.KindModel, string(test.task)+"-model")
-			definition, err := test.definition(modelID)
+			definition, err := CapabilityDefinition(test.task, modelID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -158,6 +157,9 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 				t.Fatal("inference compiler accepted capability recipe")
 			}
 		})
+	}
+	if _, err := CapabilityDefinition(recipe.TaskInference, artifact.ID{}); err == nil {
+		t.Fatal("inference accepted as capability definition")
 	}
 }
 

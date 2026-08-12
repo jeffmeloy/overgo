@@ -40,6 +40,15 @@ type Roots struct {
 	Source      string `json:"-"`
 }
 
+// ResolveCurrent returns roots for the process working directory.
+func ResolveCurrent() (Roots, error) {
+	working, err := os.Getwd()
+	if err != nil {
+		return Roots{}, err
+	}
+	return Resolve(working)
+}
+
 // Resolve returns the data roots for the given working directory.
 func Resolve(workingDirectory string) (Roots, error) {
 	if base := strings.TrimSpace(os.Getenv(Env)); base != "" {

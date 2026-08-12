@@ -104,12 +104,11 @@ type scalarStage struct {
 }
 
 type linearCapability struct {
-	task      recipe.Task
 	placement recipe.Placement
 	stages    []scalarStage
 }
 
-func (c linearCapability) definition(modelID artifact.ID) (recipe.Definition, error) {
+func (c linearCapability) definition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
 	nodes := make([]recipe.Node, len(c.stages))
 	edges := make([]recipe.Edge, len(c.stages)-1)
 	for index, stage := range c.stages {
@@ -124,17 +123,17 @@ func (c linearCapability) definition(modelID artifact.ID) (recipe.Definition, er
 	}
 	first, last := c.stages[0], c.stages[len(c.stages)-1]
 	return recipe.NewDefinitionWithDependencies(
-		c.task, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, nodes, edges,
+		task, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, nodes, edges,
 		[]recipe.Input{{Name: first.input, Data: first.inputData, Target: recipe.Endpoint{Node: first.node, Port: first.input}}},
 		[]recipe.Output{{Name: last.output, Data: last.outData, Source: recipe.Endpoint{Node: last.node, Port: last.output}}},
 	)
 }
 
-func (c linearCapability) modules() []recipe.Module {
+func (c linearCapability) modules(task recipe.Task) []recipe.Module {
 	modules := make([]recipe.Module, len(c.stages))
 	for index, stage := range c.stages {
 		modules[index] = recipe.Module{
-			ID: stage.module, Tasks: []recipe.Task{c.task}, Placements: []recipe.Placement{c.placement},
+			ID: stage.module, Tasks: []recipe.Task{task}, Placements: []recipe.Placement{c.placement},
 			Inputs:  []recipe.Port{{Name: stage.input, Data: stage.inputData, Cardinality: recipe.CardinalityOne}},
 			Outputs: []recipe.Port{{Name: stage.output, Data: stage.outData, Cardinality: recipe.CardinalityOne}},
 		}
@@ -143,76 +142,43 @@ func (c linearCapability) modules() []recipe.Module {
 }
 
 var linearCapabilities = map[recipe.Task]linearCapability{
-	recipe.TaskForecast: {task: recipe.TaskForecast, placement: recipe.PlacementHost, stages: []scalarStage{
+	recipe.TaskForecast: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "forecast", module: ModuleForecastSeries, input: "series", output: "forecast", inputData: recipe.DataTensor, outData: recipe.DataTensor},
 	}},
-	recipe.TaskTabular: {task: recipe.TaskTabular, placement: recipe.PlacementHost, stages: []scalarStage{
+	recipe.TaskTabular: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "tabular", module: ModuleTabularPredict, input: "table", output: "predictions", inputData: recipe.DataTensor, outData: recipe.DataTensor},
 	}},
-	recipe.TaskSeq2Seq: {task: recipe.TaskSeq2Seq, placement: recipe.PlacementHost, stages: []scalarStage{
+	recipe.TaskSeq2Seq: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "encode", module: ModuleSeq2SeqEncode, input: "source", output: "memory", inputData: recipe.DataTokens, outData: recipe.DataTensor},
 		{node: "prepare", module: ModuleSeq2SeqPrepare, input: "memory", output: "session", inputData: recipe.DataTensor, outData: recipe.DataSessionPlan},
 		{node: "select", module: ModuleSeq2SeqSelect, input: "session", output: "tokens", inputData: recipe.DataSessionPlan, outData: recipe.DataTokens},
 	}},
-	recipe.TaskSpeech: {task: recipe.TaskSpeech, placement: recipe.PlacementHost, stages: []scalarStage{
+	recipe.TaskSpeech: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "tokenize", module: ModuleSpeechTokenize, input: "text", output: "tokens", inputData: recipe.DataText, outData: recipe.DataTokens},
 		{node: "generate", module: ModuleSpeechGenerate, input: "tokens", output: "latents", inputData: recipe.DataTokens, outData: recipe.DataTensor},
 		{node: "decode", module: ModuleSpeechDecode, input: "latents", output: "audio", inputData: recipe.DataTensor, outData: recipe.DataAudio},
 	}},
-	recipe.TaskImageGen: {task: recipe.TaskImageGen, placement: recipe.PlacementHost, stages: []scalarStage{
+	recipe.TaskImageGen: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "imagegen", module: ModuleImageGenerate, input: "condition", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
 	}},
-	recipe.TaskVideoGen: {task: recipe.TaskVideoGen, placement: recipe.PlacementDevice, stages: []scalarStage{
+	recipe.TaskVideoGen: {placement: recipe.PlacementDevice, stages: []scalarStage{
 		{node: "videogen", module: ModuleVideoGenerate, input: "prompt", output: "video", inputData: recipe.DataText, outData: recipe.DataVideo},
 	}},
 }
 
-// ForecastDefinition: single host forecast node bound to the model artifact.
-// The capability package derives every dimension from the artifact itself,
-// so the definition carries no profile document.
-func ForecastDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return linearCapabilities[recipe.TaskForecast].definition(modelID)
+// CapabilityDefinition: task-indexed executable topology.
+func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
+	if task == recipe.TaskVQA {
+		return vqaDefinition(modelID)
+	}
+	capability, ok := linearCapabilities[task]
+	if !ok {
+		return recipe.Definition{}, fmt.Errorf("model recipe: unsupported capability task %q", task)
+	}
+	return capability.definition(task, modelID)
 }
 
-// TabularDefinition: single host tabular-predict node bound to the model
-// artifact. The capability package derives every dimension from the
-// artifact's tensor shapes, so the definition carries no profile document.
-func TabularDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return linearCapabilities[recipe.TaskTabular].definition(modelID)
-}
-
-// Seq2SeqDefinition: encode, prepare incremental session, select tokens.
-func Seq2SeqDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return linearCapabilities[recipe.TaskSeq2Seq].definition(modelID)
-}
-
-// SpeechDefinition: tokenization, latent generation, and audio decode.
-func SpeechDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return linearCapabilities[recipe.TaskSpeech].definition(modelID)
-}
-
-// ImageGenDefinition: single host image-generate node bound to the model
-// artifact. The capability package derives every dimension from the
-// artifact's tensor lengths, so the definition carries no profile document.
-func ImageGenDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return linearCapabilities[recipe.TaskImageGen].definition(modelID)
-}
-
-// VideoGenDefinition: single video-generate node bound to the model
-// artifact (device placement — the production denoise/decode path is the
-// CUDA session). The capability package derives dimensions from the
-// artifact, so the definition carries no profile document.
-func VideoGenDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return linearCapabilities[recipe.TaskVideoGen].definition(modelID)
-}
-
-// VQADefinition: single device vqa-answer node bound to the model artifact.
-// The capability package derives every dimension from the artifact's tensor
-// shapes + config, so the definition carries no profile document. Two inputs
-// (image + question) converge on the node; one text answer leaves it. The
-// device pipeline (vision -> merger -> prefill -> decode) is the production
-// serving path — hence PlacementDevice.
-func VQADefinition(modelID artifact.ID) (recipe.Definition, error) {
+func vqaDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	answer := recipe.Node{ID: "vqa", Module: ModuleVQAAnswer, Placement: recipe.PlacementDevice}
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskVQA,
@@ -449,7 +415,7 @@ func mustCatalog() *recipe.Catalog {
 		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
 		recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen,
 	} {
-		modules = append(modules, linearCapabilities[task].modules()...)
+		modules = append(modules, linearCapabilities[task].modules(task)...)
 	}
 	modules = append(modules,
 		recipe.Module{

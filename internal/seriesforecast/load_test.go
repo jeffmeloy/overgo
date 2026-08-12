@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testutil"
 )
 
 // artifactDir resolves the real timesfm artifact through the data-root
@@ -13,12 +14,7 @@ import (
 // skip names what was not tested).
 func artifactDir(t *testing.T) string {
 	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := filepath.Dir(filepath.Dir(working)) // internal/seriesforecast -> repo root
-	roots, err := dataroot.Resolve(repo)
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,19 +4,15 @@ import (
 	"encoding/json"
 	"math"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 func readGrad(t *testing.T, name string, out any) {
 	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(filepath.Dir(filepath.Dir(working)), "fixtures", name)
+	path := testutil.FixturePath(t, name)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Skipf("UNAVAILABLE: %s absent; backward parity NOT verified", name)

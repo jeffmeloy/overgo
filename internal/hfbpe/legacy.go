@@ -2,12 +2,13 @@ package hfbpe
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"overgo/internal/jsonfile"
 )
 
 // LoadLegacy consumes the split-file Hugging Face byte-level BPE representation
@@ -17,11 +18,7 @@ import (
 // path as Load. Ported from adaptive_new go/extmodel loadLegacyByteLevelTokenizer.
 func LoadLegacy(dir string) (*Tokenizer, error) {
 	var vocab map[string]int
-	vb, err := os.ReadFile(filepath.Join(dir, "vocab.json"))
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(vb, &vocab); err != nil {
+	if err := jsonfile.Decode(filepath.Join(dir, "vocab.json"), &vocab); err != nil {
 		return nil, fmt.Errorf("parse vocab.json: %w", err)
 	}
 	file, err := os.Open(filepath.Join(dir, "merges.txt"))
@@ -47,14 +44,9 @@ func LoadLegacy(dir string) (*Tokenizer, error) {
 		return nil, err
 	}
 	var added map[string]int
-	ab, err := os.ReadFile(filepath.Join(dir, "added_tokens.json"))
+	err = jsonfile.Decode(filepath.Join(dir, "added_tokens.json"), &added)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-	if err == nil {
-		if err := json.Unmarshal(ab, &added); err != nil {
-			return nil, fmt.Errorf("parse added_tokens.json: %w", err)
-		}
+		return nil, fmt.Errorf("parse added_tokens.json: %w", err)
 	}
 	for token, id := range added {
 		t.special[token] = id

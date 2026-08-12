@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/recipe"
 )
 
 const (
@@ -68,7 +68,7 @@ func TestRegisteredRuntimeEnforcesTabularOutputContract(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fixture := modelrecipetest.NewCapability(t, "tabular-"+test.name, modelrecipe.TabularDefinition)
+			fixture := modelrecipetest.NewCapability(t, "tabular-"+test.name, recipe.TaskTabular)
 			if err := registerRuntime(fixture.Runtime, fixture.Model, predictorFunc(
 				func(request Request) ([]float32, int, error) {
 					if !reflect.DeepEqual(request, tabularRequestFixture) {
@@ -89,12 +89,10 @@ func TestRegisteredRuntimeEnforcesTabularOutputContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			datum, ok := result.Outputs["predictions"].Single()
-			prediction, typed := datum.Value.(Prediction)
-			if !ok || !typed || prediction.Rows != tabularFixtureRows ||
-				prediction.OutDim != tabularFixtureOutDim || !reflect.DeepEqual(prediction.Values, tabularValuesFixture) ||
-				!result.Commit.Valid() {
-				t.Fatalf("prediction = (%+v, %v, %v), commit=%v", prediction, ok, typed, result.Commit)
+			prediction := modelrecipetest.Output[Prediction](t, result, "predictions")
+			if prediction.Rows != tabularFixtureRows || prediction.OutDim != tabularFixtureOutDim ||
+				!reflect.DeepEqual(prediction.Values, tabularValuesFixture) {
+				t.Fatalf("prediction = %+v", prediction)
 			}
 		})
 	}

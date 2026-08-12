@@ -21,6 +21,20 @@ func RegisterJSONStage[Input, Output any](
 	})
 }
 
+// ScalarInput: typed single datum from a step port.
+func ScalarInput[Input any](request StepRequest, name recipe.PortName) (Input, error) {
+	var zero Input
+	datum, ok := request.Inputs[name].Single()
+	if !ok {
+		return zero, fmt.Errorf("workflow runtime: input %q is not scalar", name)
+	}
+	input, ok := datum.Value.(Input)
+	if !ok {
+		return zero, fmt.Errorf("workflow runtime: input %q has invalid value type", name)
+	}
+	return input, nil
+}
+
 // RegisterScalarStage binds typed computation with optional artifact output.
 func RegisterScalarStage[Input, Output any](
 	runtime *Runtime,
@@ -47,13 +61,9 @@ func RegisterScalarStage[Input, Output any](
 			if request.Model != modelID {
 				return nil, fmt.Errorf("workflow runtime: recipe model differs from JSON stage")
 			}
-			datum, ok := request.Inputs[inputPort.Name].Single()
-			if !ok {
-				return nil, fmt.Errorf("workflow runtime: input %q is not scalar", inputPort.Name)
-			}
-			input, ok := datum.Value.(Input)
-			if !ok {
-				return nil, fmt.Errorf("workflow runtime: input %q has invalid value type", inputPort.Name)
+			input, err := ScalarInput[Input](request, inputPort.Name)
+			if err != nil {
+				return nil, err
 			}
 			value, err := execute(input)
 			if err != nil {

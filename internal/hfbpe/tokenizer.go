@@ -9,11 +9,12 @@ package hfbpe
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
+
+	"overgo/internal/jsonfile"
 )
 
 const byteValueCount = 256
@@ -46,12 +47,8 @@ type tokenizerJSON struct {
 
 // Load: reads tokenizer.json from a model dir and builds the encoder.
 func Load(dir string) (*Tokenizer, error) {
-	b, err := os.ReadFile(filepath.Join(dir, "tokenizer.json"))
-	if err != nil {
-		return nil, err
-	}
 	var tj tokenizerJSON
-	if err := json.Unmarshal(b, &tj); err != nil {
+	if err := jsonfile.Decode(filepath.Join(dir, "tokenizer.json"), &tj); err != nil {
 		return nil, fmt.Errorf("parse tokenizer.json: %w", err)
 	}
 	if !strings.EqualFold(tj.Model.Type, "BPE") {

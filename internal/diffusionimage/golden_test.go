@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testutil"
 )
 
 // Parity gates: the reference port's committed tolerances (adaptive
@@ -21,20 +22,11 @@ const (
 	tolReal  = 5e-4
 )
 
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return filepath.Dir(filepath.Dir(working)) // internal/diffusionimage -> repo root
-}
-
 // loadGolden: rung-9 goldens are committed IN-REPO (fixtures/simplediffusion);
 // absence is a defect, not an environment gap.
 func loadGolden[T any](t *testing.T, name string) T {
 	t.Helper()
-	path := filepath.Join(repoRoot(t), "fixtures", "simplediffusion", name+".json")
+	path := testutil.FixturePath(t, "simplediffusion", name+".json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("missing required golden %s: %v", path, err)
@@ -167,7 +159,7 @@ var (
 
 func artifactDir(t *testing.T) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(repoRoot(t))
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}

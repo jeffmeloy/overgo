@@ -2,14 +2,14 @@ package patchtower
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
-	"os"
 	"path/filepath"
+
+	"overgo/internal/jsonfile"
 )
 
 // Preprocess order: aligned smart resize, torch-style uint8 antialias bicubic
@@ -36,12 +36,8 @@ type PreprocessConfig struct {
 }
 
 func LoadPreprocessConfig(modelDir string) (*PreprocessConfig, error) {
-	raw, err := os.ReadFile(filepath.Join(modelDir, "preprocessor_config.json"))
-	if err != nil {
-		return nil, err
-	}
 	var c PreprocessConfig
-	if err := json.Unmarshal(raw, &c); err != nil {
+	if err := jsonfile.Decode(filepath.Join(modelDir, "preprocessor_config.json"), &c); err != nil {
 		return nil, fmt.Errorf("patch tower preprocessor config: %w", err)
 	}
 	if c.PatchSize <= 0 || c.TemporalPatchSize <= 0 || c.MergeSize <= 0 ||

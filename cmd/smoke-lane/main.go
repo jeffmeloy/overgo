@@ -33,11 +33,7 @@ func main() {
 }
 
 func run() error {
-	working, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	roots, err := dataroot.Resolve(working)
+	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return err
 	}

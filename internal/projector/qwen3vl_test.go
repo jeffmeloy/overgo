@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"image"
 	"image/color"
 	"image/png"
@@ -16,6 +15,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/jsonfile"
 	"overgo/internal/tensor"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
@@ -56,11 +56,7 @@ func TestQwen3VLRealFixture(t *testing.T) {
 			Merger probeRecord `json:"merger"`
 		} `json:"vit_intermediates"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &golden); err != nil {
+	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
 	file, err := os.Open(imagePath)
@@ -403,11 +399,7 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 			Merger probeRecord `json:"merger"`
 		} `json:"vit_intermediates"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &golden); err != nil {
+	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
 	frames := make([]image.Image, 16)

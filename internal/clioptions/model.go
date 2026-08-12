@@ -98,11 +98,7 @@ func (flags *ModelFlags) OpenRunner(
 	// The data-root contract owns defaults; an explicit -repo flag stays
 	// authoritative. Bare model references resolve under the models and
 	// checkpoints roots so discovery cannot drift per-tool.
-	working, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	roots, err := dataroot.Resolve(working)
+	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return nil, err
 	}

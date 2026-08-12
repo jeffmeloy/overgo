@@ -11,16 +11,8 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testutil"
 )
-
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return filepath.Dir(filepath.Dir(working)) // internal/latentvideo -> repo root
-}
 
 type g1Tensor struct {
 	File     string  `json:"file"`
@@ -51,7 +43,7 @@ type g1Golden struct {
 
 func loadG1(t *testing.T) (g1Golden, string) {
 	t.Helper()
-	dir := filepath.Join(repoRoot(t), "fixtures", "wan")
+	dir := testutil.FixturePath(t, "wan")
 	raw, err := os.ReadFile(filepath.Join(dir, "g1_text_conditioning.json"))
 	if err != nil {
 		t.Fatalf("missing required golden manifest: %v", err)
@@ -85,7 +77,7 @@ func loadG1Tensor(t *testing.T, dir string, spec g1Tensor) []float32 {
 
 func wanModelDir(t *testing.T) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(repoRoot(t))
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,12 +4,12 @@ package inference
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"slices"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
@@ -51,12 +51,8 @@ func TestServingGoldenRegression(t *testing.T) {
 	default:
 		t.Fatalf("OVERGO_GOLDEN_SESSION = %q, want request|capacity", sessionName)
 	}
-	data, err := os.ReadFile(fixturePath)
-	if err != nil {
-		t.Fatal(err)
-	}
 	var golden servingGolden
-	if err := json.Unmarshal(data, &golden); err != nil {
+	if err := jsonfile.Decode(fixturePath, &golden); err != nil {
 		t.Fatal(err)
 	}
 	if len(golden.Cases) == 0 {

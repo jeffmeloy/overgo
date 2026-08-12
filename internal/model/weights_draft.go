@@ -8,23 +8,6 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-func readDraftWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
-	policy := spec.Profile().ModelCatalog.Draft
-	if policy == DraftWeightCatalogNone || int(policy) >= len(draftWeightCatalogReaders) ||
-		draftWeightCatalogReaders[policy] == nil {
-		return Weights{}, fmt.Errorf("draft catalog for %q is unsupported", spec.Architecture)
-	}
-	return draftWeightCatalogReaders[policy](catalog, spec)
-}
-
-type draftWeightCatalogReader func(weightCatalog, Spec) (Weights, error)
-
-var draftWeightCatalogReaders = [...]draftWeightCatalogReader{
-	DraftWeightCatalogTargetFeatures:   readDFlashWeightCatalog,
-	DraftWeightCatalogHiddenFusion:     readEagle3WeightCatalog,
-	DraftWeightCatalogPairedProjection: readGemma4AssistantWeightCatalog,
-}
-
 func readDFlashWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
 	required, tensors := catalog.required, catalog.tensors
 	width := uint64(spec.EmbeddingLength)

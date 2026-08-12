@@ -16,19 +16,23 @@ const (
 	tokenNormAffine
 )
 
-// DraftWeightCatalogPolicy: draft model-level tensor topology.
-type DraftWeightCatalogPolicy uint8
+// WeightCatalogPolicy: root tensor-catalog topology.
+type WeightCatalogPolicy uint8
 
 const (
-	DraftWeightCatalogNone DraftWeightCatalogPolicy = iota
-	DraftWeightCatalogTargetFeatures
-	DraftWeightCatalogHiddenFusion
-	DraftWeightCatalogPairedProjection
+	WeightCatalogLayered WeightCatalogPolicy = iota
+	WeightCatalogCompressedHyper
+	WeightCatalogTargetFeatures
+	WeightCatalogHiddenFusion
+	WeightCatalogPairedProjection
+	WeightCatalogEncoder
+	WeightCatalogAudioDecoder
+	WeightCatalogEncoderDecoder
 )
 
 // ModelCatalogPolicy: model-level tensor inventory.
 type ModelCatalogPolicy struct {
-	Draft                   DraftWeightCatalogPolicy
+	Weights                 WeightCatalogPolicy
 	PositionEmbedding       positionEmbeddingCatalogPolicy
 	TokenNorm               tokenNormCatalogPolicy
 	TokenEmbeddingFallback  bool

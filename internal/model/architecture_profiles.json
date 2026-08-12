@@ -458,6 +458,9 @@
     "CatalogFamily": 1,
     "Family": 1,
     "GraphFamily": 1,
+    "ModelCatalog": {
+      "Weights": 1
+    },
     "Name": "deepseek4",
     "Validation": {
       "MLA": 2
@@ -485,7 +488,7 @@
       "RopeDimension": 2
     },
     "ModelCatalog": {
-      "Draft": 1
+      "Weights": 2
     },
     "Name": "dflash",
     "Validation": {
@@ -534,7 +537,7 @@
       "RopeDimension": 2
     },
     "ModelCatalog": {
-      "Draft": 2
+      "Weights": 3
     },
     "Name": "eagle3",
     "Validation": {
@@ -836,7 +839,7 @@
       "SWAHeadLengths": true
     },
     "ModelCatalog": {
-      "Draft": 3
+      "Weights": 4
     },
     "Name": "gemma4-assistant",
     "Validation": {
@@ -2504,6 +2507,9 @@
     "Metadata": {
       "KVHeads": 5
     },
+    "ModelCatalog": {
+      "Weights": 7
+    },
     "Name": "t5",
     "OutputNorm": 3,
     "Validation": {
@@ -2522,6 +2528,9 @@
     "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 5
+    },
+    "ModelCatalog": {
+      "Weights": 5
     },
     "Name": "t5encoder",
     "OutputNorm": 2,
@@ -2556,6 +2565,9 @@
       "GroupNorm": true,
       "Heads": 3,
       "KVHeads": 3
+    },
+    "ModelCatalog": {
+      "Weights": 6
     },
     "Name": "wavtokenizer-dec",
     "Validation": {

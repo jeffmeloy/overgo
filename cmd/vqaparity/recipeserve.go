@@ -1,13 +1,5 @@
 package main
 
-// Recipe-gated serve: the RxBrain VQA pipeline driven THROUGH the activated
-// recipe rather than the golden parity harness. It (1) resolves the active VQA
-// recipe from the RepoDB store (asserting the model artifact, recipe definition,
-// and evidence tier are published), (2) runs the real processor on an image +
-// question (no golden ids), and (3) drives the shared device pipeline
-// (runFullPipeline) with a decode-until-EOS budget. The generated answer is
-// asserted exact and repeated for determinism.
-
 import (
 	"context"
 	"encoding/json"
@@ -43,8 +35,7 @@ func decodeChain(modelDir string, ids []int) (string, error) {
 	return tok.Decode(ids), nil
 }
 
-// readEOSTokenIDs: generation_config.json eos_token_id (scalar or list) — the
-// authoritative stop tokens for generation.
+// readEOSTokenIDs: scalar or list generation stop tokens.
 func readEOSTokenIDs(modelDir string) ([]int, error) {
 	raw, err := os.ReadFile(filepath.Join(modelDir, "generation_config.json"))
 	if err != nil {
@@ -74,11 +65,7 @@ func readEOSTokenIDs(modelDir string) ([]int, error) {
 func openRecipeStore(repo string) (*repodb.Store, error) {
 	repository := repo
 	if repository == "" {
-		working, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		roots, err := dataroot.Resolve(working)
+		roots, err := dataroot.ResolveCurrent()
 		if err != nil {
 			return nil, err
 		}
@@ -137,9 +124,6 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		return err
 	}
 	image := visionqa.Image{Data: rawImg}
-	if err := visionqa.ValidateInput(image, question); err != nil {
-		return err
-	}
 	imageContent, err := artifact.JSONContent(
 		artifact.JSONContract(artifact.KindFile, "overgo.vqa-image-input.v1"), image,
 	)
@@ -157,11 +141,7 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		"question": workflowruntime.ArtifactValue(recipe.DataText, question, questionContent),
 	}
 
-	// The 12-step parity golden is a TRUNCATION of the model's natural answer;
-	// the real serve decodes until EOS. Two exactness anchors: (1) the generated
-	// chain reproduces the proven golden chain as an exact prefix (bit-exact vs
-	// the device-full harness), and (2) the decoded text begins with the golden
-	// answer phrase and completes coherently, stopping at EOS.
+	// Golden chain: required prefix; serve continues to EOS.
 	dg, err := loadGoldenJSON[decodeStepsGolden](l.fixturesDir, "rxbrain_vqa_decode_steps_golden.json")
 	if err != nil {
 		return err
@@ -273,7 +253,7 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	l.log(fmt.Sprintf("RECIPE serve RUN1 EXACT golden-prefix (%d tokens) + phrase; full answer %d tokens, first=%d e2e=%s",
 		len(goldenChain), len(chain1), chain1[0], e2e1.Round(time.Millisecond)))
 
-	// ---- determinism: second serve must reproduce the chain bit-for-bit ---
+	// Second pass: bit-exact determinism.
 	chain2, text2, e2e2, _, err := executeRecipe("RUN2")
 	if err != nil {
 		return err

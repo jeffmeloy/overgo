@@ -22,6 +22,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
+	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/tensor/dtype"
@@ -189,11 +190,7 @@ func run() error {
 	referenceLatent := flag.String("reference-latent", "", "reference final latent (.f32le) for cosine cross-check")
 	flag.Parse()
 
-	working, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	roots, err := dataroot.Resolve(working)
+	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return err
 	}
@@ -201,12 +198,8 @@ func run() error {
 	if _, err := os.Stat(modelDir); err != nil {
 		return fmt.Errorf("model dir absent: %w", err)
 	}
-	g0Raw, err := os.ReadFile(filepath.Join(*fixtureDir, "g0_config.json"))
-	if err != nil {
-		return err
-	}
 	var g0 g0Config
-	if err := json.Unmarshal(g0Raw, &g0); err != nil {
+	if err := jsonfile.Decode(filepath.Join(*fixtureDir, "g0_config.json"), &g0); err != nil {
 		return err
 	}
 	policy := latentvideo.DenoiserPolicy{

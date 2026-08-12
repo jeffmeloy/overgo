@@ -53,3 +53,13 @@ func (f Capability) ExecuteScalar(key string, value any) (workflowruntime.Result
 		input.Name: {Kind: input.Data, Items: []workflowruntime.Datum{{Value: value}}},
 	})
 }
+
+func Output[Value any](t testing.TB, result workflowruntime.Result, name recipe.PortName) Value {
+	t.Helper()
+	datum, one := result.Outputs[name].Single()
+	value, typed := datum.Value.(Value)
+	if !one || !typed || !result.Commit.Valid() {
+		t.Fatalf("model recipe output %q = (%T, %v, %v), commit=%v", name, datum.Value, one, typed, result.Commit)
+	}
+	return value
+}

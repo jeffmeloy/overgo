@@ -109,11 +109,7 @@ func run() error {
 	if flags.NArg() != 1 {
 		return errors.New("exactly one model reference is required")
 	}
-	working, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	roots, err := dataroot.Resolve(working)
+	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return err
 	}
@@ -164,28 +160,14 @@ func hfInventory(path string) (modelartifact.Inventory, error) {
 	return modelartifact.FromHFRepository(repository)
 }
 
-// videoGenInventory: the text-to-video artifact is an explicit four-part
-// list -- diffusion config + denoiser weights (the one top-level
-// safetensors), the VAE checkpoint, and the text-encoder checkpoint (both
-// pytorch-zip; read by internal/pytorchzip). The tokenizer directory and
-// vendor repo are companions, not components.
+// videoGenInventory: denoiser, VAE, and text-encoder facts.
 func videoGenInventory(path string) (modelartifact.Inventory, error) {
-	weights, err := singleSafetensors("video-gen", path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
-		{Path: filepath.Join(path, "config.json"), Name: "config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
-		{Path: filepath.Join(path, "Wan2.1_VAE.pth"), Name: "vae/weights", Role: artifact.ComponentWeights},
-		{Path: filepath.Join(path, "models_t5_umt5-xxl-enc-bf16.pth"), Name: "textenc/weights", Role: artifact.ComponentWeights},
-	})
+	return safetensorsInventory("video-gen", path, "config.json",
+		modelartifact.FileSpec{Path: "Wan2.1_VAE.pth", Name: "vae/weights", Role: artifact.ComponentWeights},
+		modelartifact.FileSpec{Path: "models_t5_umt5-xxl-enc-bf16.pth", Name: "textenc/weights", Role: artifact.ComponentWeights})
 }
 
-// singleSafetensors: the ONE top-level .safetensors weights file of a
-// capability artifact. Vendor-chosen names (pocket-tts content hash, un0
-// model.safetensors, u-vit step_NNN.safetensors) are discovered, never
-// assumed; more than one is ambiguous and refused.
+// singleSafetensors: unique top-level weights file.
 func singleSafetensors(context, path string) (string, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
@@ -207,40 +189,37 @@ func singleSafetensors(context, path string) (string, error) {
 	return weights, nil
 }
 
-// speechInventory: the pocket-tts layout is an explicit file list — the
-// vendor-resolved pockettts_config.json, the discovered weights file, and
-// the tokenizer.model the text conditioner reads. The embeddings/clips
-// subdirectories are voice data, not model components.
+func safetensorsInventory(
+	context, path, config string,
+	companions ...modelartifact.FileSpec,
+) (modelartifact.Inventory, error) {
+	weights, err := singleSafetensors(context, path)
+	if err != nil {
+		return modelartifact.Inventory{}, err
+	}
+	specs := []modelartifact.FileSpec{
+		{Path: filepath.Join(path, config), Name: "config", Role: artifact.ComponentConfig},
+		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
+	}
+	for _, companion := range companions {
+		companion.Path = filepath.Join(path, companion.Path)
+		specs = append(specs, companion)
+	}
+	return modelartifact.FromFiles(path, specs)
+}
+
+// speechInventory: model, codec, and tokenizer facts.
 func speechInventory(path string) (modelartifact.Inventory, error) {
-	weights, err := singleSafetensors("speech", path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
-		{Path: filepath.Join(path, "pockettts_config.json"), Name: "config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
-		{Path: filepath.Join(path, "tokenizer.model"), Name: "tokenizer", Role: artifact.ComponentTokenizer},
-	})
+	return safetensorsInventory("speech", path, "pockettts_config.json",
+		modelartifact.FileSpec{Path: "tokenizer.model", Name: "tokenizer", Role: artifact.ComponentTokenizer})
 }
 
-// imageGenInventory: image-gen artifacts are an explicit two-component list
-// — config.json (family tag / execution facts) plus the discovered weights
-// file; every dimension derives from tensor lengths. Vendor scripts, sample
-// renders, and provenance sidecars are not model components.
+// imageGenInventory: config and weights facts.
 func imageGenInventory(path string) (modelartifact.Inventory, error) {
-	weights, err := singleSafetensors("image-gen", path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
-		{Path: filepath.Join(path, "config.json"), Name: "config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
-	})
+	return safetensorsInventory("image-gen", path, "config.json")
 }
 
-// tabularInventory: dual-head artifact (classification/ + regression/, each
-// config.json + model.safetensors) — an explicit file list; no repository
-// walker owns this layout.
+// tabularInventory: classification and regression head facts.
 func tabularInventory(path string) (modelartifact.Inventory, error) {
 	var specs []modelartifact.FileSpec
 	for _, head := range tabularicl.Tasks() {

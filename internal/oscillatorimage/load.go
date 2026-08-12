@@ -11,14 +11,13 @@
 package oscillatorimage
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
 )
 
@@ -90,12 +89,8 @@ func (c Config) readoutWidth() int {
 // Load reads config.json and the safetensors weights, derives dims from flat
 // tensor lengths, and cross-checks the config's restated dims.
 func Load(directory string) (*Model, error) {
-	raw, err := os.ReadFile(filepath.Join(directory, "config.json"))
-	if err != nil {
-		return nil, err
-	}
 	var cfg Config
-	if err := json.Unmarshal(raw, &cfg); err != nil {
+	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &cfg); err != nil {
 		return nil, fmt.Errorf("oscillatorimage: parse config.json: %w", err)
 	}
 	tensors, err := loadTensors(directory)

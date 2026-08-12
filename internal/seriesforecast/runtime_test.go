@@ -33,10 +33,9 @@ func TestRegisteredRuntimeExecutesIdentityBoundForecastProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	datum, one := result.Outputs["forecast"].Single()
-	got, typed := datum.Value.([]float32)
-	if !one || !typed || !slices.Equal(got, forecastOutputFixture) || !result.Commit.Valid() {
-		t.Fatalf("forecast = (%v, %v, %v), commit=%v", got, one, typed, result.Commit)
+	got := modelrecipetest.Output[[]float32](t, result, "forecast")
+	if !slices.Equal(got, forecastOutputFixture) {
+		t.Fatalf("forecast = %v", got)
 	}
 }
 

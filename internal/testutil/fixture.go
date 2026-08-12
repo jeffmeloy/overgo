@@ -50,6 +50,31 @@ func PublishArtifact(t testing.TB, repository artifact.Repository, id artifact.I
 	}
 }
 
+// RepoRoot: nearest parent containing go.mod.
+func RepoRoot(t testing.TB) string {
+	t.Helper()
+	directory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(directory, "go.mod")); err == nil {
+			return directory
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			t.Fatal("testutil: repository root not found")
+		}
+		directory = parent
+	}
+}
+
+// FixturePath: repository fixture path.
+func FixturePath(t testing.TB, elements ...string) string {
+	t.Helper()
+	return filepath.Join(append([]string{RepoRoot(t), "fixtures"}, elements...)...)
+}
+
 func WriteGGUF(
 	t testing.TB,
 	path string,

@@ -9,16 +9,15 @@
 package seriesforecast
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
+	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
 )
 
@@ -213,12 +212,8 @@ func canonicalize(
 }
 
 func loadConfig(path string) (artifactConfig, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return artifactConfig{}, err
-	}
 	var config artifactConfig
-	if err := json.Unmarshal(raw, &config); err != nil {
+	if err := jsonfile.Decode(path, &config); err != nil {
 		return artifactConfig{}, fmt.Errorf("seriesforecast: parse config.json: %w", err)
 	}
 	if len(config.Quantiles) == 0 {

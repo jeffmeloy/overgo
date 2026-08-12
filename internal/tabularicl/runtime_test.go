@@ -89,12 +89,10 @@ func TestRegisteredRuntimeEnforcesTabularOutputContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			datum, ok := result.Outputs["predictions"].Single()
-			prediction, typed := datum.Value.(Prediction)
-			if !ok || !typed || prediction.Rows != tabularFixtureRows ||
-				prediction.OutDim != tabularFixtureOutDim || !reflect.DeepEqual(prediction.Values, tabularValuesFixture) ||
-				!result.Commit.Valid() {
-				t.Fatalf("prediction = (%+v, %v, %v), commit=%v", prediction, ok, typed, result.Commit)
+			prediction := modelrecipetest.Output[Prediction](t, result, "predictions")
+			if prediction.Rows != tabularFixtureRows || prediction.OutDim != tabularFixtureOutDim ||
+				!reflect.DeepEqual(prediction.Values, tabularValuesFixture) {
+				t.Fatalf("prediction = %+v", prediction)
 			}
 		})
 	}

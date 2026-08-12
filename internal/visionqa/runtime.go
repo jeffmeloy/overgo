@@ -3,7 +3,6 @@ package visionqa
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -38,11 +37,11 @@ func RegisterRuntime(
 			if request.Model != modelID {
 				return nil, errors.New("visionqa: recipe model differs from runtime binding")
 			}
-			image, err := input[Image](request, "image")
+			image, err := workflowruntime.ScalarInput[Image](request, "image")
 			if err != nil {
 				return nil, err
 			}
-			question, err := input[string](request, "question")
+			question, err := workflowruntime.ScalarInput[string](request, "question")
 			if err != nil {
 				return nil, err
 			}
@@ -62,17 +61,4 @@ func RegisterRuntime(
 			}, nil
 		},
 	))
-}
-
-func input[Value any](request workflowruntime.StepRequest, name recipe.PortName) (Value, error) {
-	var zero Value
-	datum, ok := request.Inputs[name].Single()
-	if !ok {
-		return zero, fmt.Errorf("visionqa: input %q is not scalar", name)
-	}
-	value, ok := datum.Value.(Value)
-	if !ok {
-		return zero, fmt.Errorf("visionqa: input %q has invalid type", name)
-	}
-	return value, nil
 }

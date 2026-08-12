@@ -35,9 +35,7 @@ func TestRegisteredRuntimeExecutesVQAProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	datum, one := result.Outputs["answer"].Single()
-	answer, typed := datum.Value.(string)
-	if !one || !typed || answer != answerFixture || !result.Commit.Valid() {
-		t.Fatalf("answer = (%q, %v, %v), commit=%v", answer, one, typed, result.Commit)
+	if answer := modelrecipetest.Output[string](t, result, "answer"); answer != answerFixture {
+		t.Fatalf("answer = %q", answer)
 	}
 }

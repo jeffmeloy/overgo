@@ -15,14 +15,13 @@
 package densecausal
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
 )
 
@@ -62,12 +61,8 @@ type artifactConfig struct {
 
 // Load opens the safetensors artifact and materializes every tensor as f32.
 func Load(directory string) (*Model, error) {
-	raw, err := os.ReadFile(filepath.Join(directory, "config.json"))
-	if err != nil {
-		return nil, err
-	}
 	var config artifactConfig
-	if err := json.Unmarshal(raw, &config); err != nil {
+	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &config); err != nil {
 		return nil, fmt.Errorf("densecausal: parse config.json: %w", err)
 	}
 	source, err := safetensors.OpenSource(directory)

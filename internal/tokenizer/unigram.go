@@ -9,8 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"
 	"strings"
+
+	"overgo/internal/jsonfile"
 )
 
 // UnigramPiece is one unigram vocabulary entry.
@@ -164,10 +165,6 @@ func (p *hfUnigramJSONPiece) UnmarshalJSON(raw []byte) error {
 // Unigram. Returns the table, its artifact unk_id, and whether the artifact
 // enables byte fallback (policy owners decide whether that is admissible).
 func LoadHFUnigramJSON(path string) (*Unigram, int, bool, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, 0, false, err
-	}
 	var artifact struct {
 		Model struct {
 			Type         string               `json:"type"`
@@ -176,7 +173,7 @@ func LoadHFUnigramJSON(path string) (*Unigram, int, bool, error) {
 			ByteFallback bool                 `json:"byte_fallback"`
 		} `json:"model"`
 	}
-	if err := json.Unmarshal(raw, &artifact); err != nil {
+	if err := jsonfile.Decode(path, &artifact); err != nil {
 		return nil, 0, false, fmt.Errorf("tokenizer: parse unigram tokenizer: %w", err)
 	}
 	if artifact.Model.Type != "Unigram" {

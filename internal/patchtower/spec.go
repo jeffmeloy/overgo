@@ -10,10 +10,10 @@
 package patchtower
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
+
+	"overgo/internal/jsonfile"
 )
 
 const RGBChannels = 3
@@ -52,12 +52,8 @@ type modelConfigJSON struct {
 
 // LoadSpec: reads config.json + preprocessor_config.json under modelDir.
 func LoadSpec(modelDir string) (Spec, error) {
-	raw, err := os.ReadFile(filepath.Join(modelDir, "config.json"))
-	if err != nil {
-		return Spec{}, err
-	}
 	var cfg modelConfigJSON
-	if err := json.Unmarshal(raw, &cfg); err != nil {
+	if err := jsonfile.Decode(filepath.Join(modelDir, "config.json"), &cfg); err != nil {
 		return Spec{}, fmt.Errorf("patch tower config: %w", err)
 	}
 	pre, err := LoadPreprocessConfig(modelDir)

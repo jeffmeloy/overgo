@@ -65,9 +65,8 @@ func TestRegisteredRuntimeExecutesSpeechProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	datum, one := result.Outputs["audio"].Single()
-	got, typed := datum.Value.(Audio)
-	if !one || !typed || got.SampleRate != synthesisRateFixture || !slices.Equal(got.PCM, synthesisPCMFixture) || !result.Commit.Valid() {
-		t.Fatalf("audio = (%+v, %v, %v), commit=%v", got, one, typed, result.Commit)
+	got := modelrecipetest.Output[Audio](t, result, "audio")
+	if got.SampleRate != synthesisRateFixture || !slices.Equal(got.PCM, synthesisPCMFixture) {
+		t.Fatalf("audio = %+v", got)
 	}
 }

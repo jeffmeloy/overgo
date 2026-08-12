@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"math"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 // goldenFile mirrors fixtures/timesfm_golden.json (schema timesfm_golden/v1),
@@ -31,11 +31,7 @@ type goldenFile struct {
 
 func readGolden(t *testing.T) *goldenFile {
 	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(filepath.Dir(filepath.Dir(working)), "fixtures", "timesfm_golden.json")
+	path := testutil.FixturePath(t, "timesfm_golden.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Skipf("UNAVAILABLE: forward golden absent at %s; parity NOT verified", path)

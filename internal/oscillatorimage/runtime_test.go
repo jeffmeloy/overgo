@@ -26,10 +26,9 @@ func TestRegisteredRuntimeExecutesImageProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	datum, one := result.Outputs["image"].Single()
-	got, typed := datum.Value.(Image)
-	if !one || !typed || len(got.Pixels) != 1 || got.Pixels[0] != want.Pixels[0] || !result.Commit.Valid() {
-		t.Fatalf("image = (%+v, %v, %v), commit=%v", got, one, typed, result.Commit)
+	got := modelrecipetest.Output[Image](t, result, "image")
+	if len(got.Pixels) != 1 || got.Pixels[0] != want.Pixels[0] {
+		t.Fatalf("image = %+v", got)
 	}
 }
 

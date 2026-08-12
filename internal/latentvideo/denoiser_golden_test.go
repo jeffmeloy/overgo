@@ -14,6 +14,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testutil"
 )
 
 // referenceDenoiserPolicy: published diffusion-pipeline facts the checkpoint
@@ -88,7 +89,7 @@ type goldenDenoiseManifest struct {
 
 func loadDenoiseManifest(t *testing.T, name string) (goldenDenoiseManifest, string) {
 	t.Helper()
-	dir := filepath.Join(repoRoot(t), "fixtures", "wan")
+	dir := testutil.FixturePath(t, "wan")
 	raw, err := os.ReadFile(filepath.Join(dir, name))
 	if err != nil {
 		t.Fatalf("missing required golden manifest: %v", err)
@@ -254,7 +255,7 @@ func TestTimestepConditioningGoldenG2(t *testing.T) {
 	if testing.Short() {
 		t.Skip("loads the 5.7GB denoiser weight set; skipped in -short")
 	}
-	dir := filepath.Join(repoRoot(t), "fixtures", "wan")
+	dir := testutil.FixturePath(t, "wan")
 	raw, err := os.ReadFile(filepath.Join(dir, "g2_timestep_conditioning.json"))
 	if err != nil {
 		t.Fatalf("missing required golden manifest: %v", err)

@@ -55,9 +55,8 @@ func TestRegisteredRuntimeExecutesSeq2SeqProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	datum, one := result.Outputs["tokens"].Single()
-	got, typed := datum.Value.([]int)
-	if !one || !typed || !slices.Equal(got, generationOutputFixture) || !result.Commit.Valid() {
-		t.Fatalf("tokens = (%v, %v, %v), commit=%v", got, one, typed, result.Commit)
+	got := modelrecipetest.Output[[]int](t, result, "tokens")
+	if !slices.Equal(got, generationOutputFixture) {
+		t.Fatalf("tokens = %v", got)
 	}
 }

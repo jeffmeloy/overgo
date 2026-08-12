@@ -401,8 +401,57 @@ func buildCausalPostQKNormMixCached(
 	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, nil
 }
 
-// BuildT5EncoderBlock: full bidirectional encoder block.
-func BuildT5EncoderBlock(
+func t5Projection(
+	builder *tensor.Builder,
+	input, weight *tensor.Tensor,
+	width uint32,
+	heads uint32,
+	tokens uint64,
+) *tensor.Tensor {
+	return builder.Reshape(builder.MulMat(weight, input), uint64(width), uint64(heads), tokens)
+}
+
+func buildT5FeedForward(
+	builder *tensor.Builder,
+	residual *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+) *tensor.Tensor {
+	normalized := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
+	up := builder.MulMat(weights.FeedForwardUp, normalized)
+	activated := builder.ReLU(up)
+	if weights.FeedForwardGate != nil {
+		activated = builder.GEGLU(builder.MulMat(weights.FeedForwardGate, normalized), up)
+	}
+	return builder.Add(residual, builder.MulMat(weights.FeedForwardDown, activated))
+}
+
+func validateT5Weights(weights LayerGraphWeights, cross bool) error {
+	required := graphWeights{
+		requireGraphWeight("attention norm", weights.AttentionNorm),
+		requireGraphWeight("attention Q", weights.AttentionQ),
+		requireGraphWeight("attention K", weights.AttentionK),
+		requireGraphWeight("attention V", weights.AttentionV),
+		requireGraphWeight("attention output", weights.AttentionOutput),
+		requireGraphWeight("attention relative bias", weights.AttentionRelativeBias),
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+	}
+	if cross {
+		required = append(required,
+			requireGraphWeight("cross-attention norm", weights.CrossAttentionNorm),
+			requireGraphWeight("cross-attention Q", weights.CrossAttentionQ),
+			requireGraphWeight("cross-attention K", weights.CrossAttentionK),
+			requireGraphWeight("cross-attention V", weights.CrossAttentionV),
+			requireGraphWeight("cross-attention output", weights.CrossAttentionOutput),
+		)
+	}
+	return required.validate("T5 block")
+}
+
+// buildT5EncoderBlock: full bidirectional encoder block.
+func buildT5EncoderBlock(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
@@ -415,18 +464,7 @@ func BuildT5EncoderBlock(
 	if encoder != encoderGraphT5 && encoder != encoderGraphT5Encoder {
 		return nil, errors.New("T5 encoder block requires T5 architecture")
 	}
-	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
-		requireGraphWeight("attention Q", weights.AttentionQ),
-		requireGraphWeight("attention K", weights.AttentionK),
-		requireGraphWeight("attention V", weights.AttentionV),
-		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("attention relative bias", weights.AttentionRelativeBias),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-	}
-	if err := required.validate("T5 encoder block"); err != nil {
+	if err := validateT5Weights(weights, false); err != nil {
 		return nil, err
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
@@ -434,24 +472,9 @@ func BuildT5EncoderBlock(
 	}
 	tokens := input.Shape.Dims[1]
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
-	query := builder.Reshape(
-		builder.MulMat(weights.AttentionQ, normalized),
-		uint64(spec.KeyLength),
-		uint64(spec.HeadCount),
-		tokens,
-	)
-	key := builder.Reshape(
-		builder.MulMat(weights.AttentionK, normalized),
-		uint64(spec.KeyLength),
-		uint64(spec.HeadCountKV),
-		tokens,
-	)
-	value := builder.Reshape(
-		builder.MulMat(weights.AttentionV, normalized),
-		uint64(spec.ValueLength),
-		uint64(spec.HeadCountKV),
-		tokens,
-	)
+	query := t5Projection(builder, normalized, weights.AttentionQ, spec.KeyLength, spec.HeadCount, tokens)
+	key := t5Projection(builder, normalized, weights.AttentionK, spec.KeyLength, spec.HeadCountKV, tokens)
+	value := t5Projection(builder, normalized, weights.AttentionV, spec.ValueLength, spec.HeadCountKV, tokens)
 	attention := builder.AttentionWithRelativeBias(
 		query,
 		key,
@@ -466,29 +489,15 @@ func BuildT5EncoderBlock(
 	)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	residual := builder.Add(input, attention)
-	normalized = builder.WeightedRMSNorm(
-		residual,
-		weights.FeedForwardNorm,
-		spec.RMSNormEpsilon,
-	)
-	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	var activated *tensor.Tensor
-	if weights.FeedForwardGate != nil {
-		gate := builder.MulMat(weights.FeedForwardGate, normalized)
-		activated = builder.GEGLU(gate, up)
-	} else {
-		activated = builder.ReLU(up)
-	}
-	feedForward := builder.MulMat(weights.FeedForwardDown, activated)
-	output := builder.Add(residual, feedForward)
+	output := buildT5FeedForward(builder, residual, spec, weights)
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
 	return output, nil
 }
 
-// BuildT5DecoderBlockCached: causal self-attention plus fixed cross-attention.
-func BuildT5DecoderBlockCached(
+// buildT5DecoderBlockCached: causal self-attention plus fixed cross-attention.
+func buildT5DecoderBlockCached(
 	builder *tensor.Builder,
 	input, encoder *tensor.Tensor,
 	spec Spec,
@@ -501,23 +510,7 @@ func BuildT5DecoderBlockCached(
 	if spec.Profile().EncoderGraph.Kind != encoderGraphT5 {
 		return DenseBlockResult{}, errors.New("T5 decoder block requires T5 architecture")
 	}
-	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
-		requireGraphWeight("attention Q", weights.AttentionQ),
-		requireGraphWeight("attention K", weights.AttentionK),
-		requireGraphWeight("attention V", weights.AttentionV),
-		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("attention relative bias", weights.AttentionRelativeBias),
-		requireGraphWeight("cross-attention norm", weights.CrossAttentionNorm),
-		requireGraphWeight("cross-attention Q", weights.CrossAttentionQ),
-		requireGraphWeight("cross-attention K", weights.CrossAttentionK),
-		requireGraphWeight("cross-attention V", weights.CrossAttentionV),
-		requireGraphWeight("cross-attention output", weights.CrossAttentionOutput),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-	}
-	if err := required.validate("T5 decoder block"); err != nil {
+	if err := validateT5Weights(weights, true); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
@@ -534,18 +527,9 @@ func BuildT5DecoderBlockCached(
 	}
 	tokens := input.Shape.Dims[1]
 	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
-	query := builder.Reshape(
-		builder.MulMat(weights.AttentionQ, normalized),
-		uint64(spec.KeyLength), uint64(spec.HeadCount), tokens,
-	)
-	key := builder.Reshape(
-		builder.MulMat(weights.AttentionK, normalized),
-		uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens,
-	)
-	value := builder.Reshape(
-		builder.MulMat(weights.AttentionV, normalized),
-		uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens,
-	)
+	query := t5Projection(builder, normalized, weights.AttentionQ, spec.KeyLength, spec.HeadCount, tokens)
+	key := t5Projection(builder, normalized, weights.AttentionK, spec.KeyLength, spec.HeadCountKV, tokens)
+	value := t5Projection(builder, normalized, weights.AttentionV, spec.ValueLength, spec.HeadCountKV, tokens)
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if pastSelfKey != nil {
@@ -563,39 +547,21 @@ func BuildT5DecoderBlockCached(
 	residual := builder.Add(input, builder.MulMat(weights.AttentionOutput, attention))
 
 	normalized = builder.WeightedRMSNorm(residual, weights.CrossAttentionNorm, spec.RMSNormEpsilon)
-	crossQuery := builder.Reshape(
-		builder.MulMat(weights.CrossAttentionQ, normalized),
-		uint64(spec.KeyLength), uint64(spec.HeadCount), tokens,
-	)
+	crossQuery := t5Projection(builder, normalized, weights.CrossAttentionQ, spec.KeyLength, spec.HeadCount, tokens)
 	crossKey, crossValue := pastCrossKey, pastCrossValue
 	if crossKey == nil {
 		if encoder.Shape.Rank != 2 || encoder.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 			return DenseBlockResult{}, errors.New("T5 decoder encoder state shape is incompatible")
 		}
 		encoderTokens := encoder.Shape.Dims[1]
-		crossKey = builder.Reshape(
-			builder.MulMat(weights.CrossAttentionK, encoder),
-			uint64(spec.KeyLength), uint64(spec.HeadCountKV), encoderTokens,
-		)
-		crossValue = builder.Reshape(
-			builder.MulMat(weights.CrossAttentionV, encoder),
-			uint64(spec.ValueLength), uint64(spec.HeadCountKV), encoderTokens,
-		)
+		crossKey = t5Projection(builder, encoder, weights.CrossAttentionK, spec.KeyLength, spec.HeadCountKV, encoderTokens)
+		crossValue = t5Projection(builder, encoder, weights.CrossAttentionV, spec.ValueLength, spec.HeadCountKV, encoderTokens)
 	}
 	crossAttention := builder.AttentionWithOffset(crossQuery, crossKey, crossValue, 1, false, 0)
 	crossAttention = builder.Reshape(crossAttention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
 	residual = builder.Add(residual, builder.MulMat(weights.CrossAttentionOutput, crossAttention))
 
-	normalized = builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	up := builder.MulMat(weights.FeedForwardUp, normalized)
-	var activated *tensor.Tensor
-	if weights.FeedForwardGate != nil {
-		gate := builder.MulMat(weights.FeedForwardGate, normalized)
-		activated = builder.GEGLU(gate, up)
-	} else {
-		activated = builder.ReLU(up)
-	}
-	output := builder.Add(residual, builder.MulMat(weights.FeedForwardDown, activated))
+	output := buildT5FeedForward(builder, residual, spec, weights)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}

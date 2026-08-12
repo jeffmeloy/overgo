@@ -389,21 +389,27 @@ func (r *Runner) runT5EncoderLayer(
 	info model.LayerWeights,
 	layerIndex int,
 ) (reference.Value, error) {
+	program, err := r.program.Model.EncoderProgram(r.spec, layerIndex)
+	if err != nil {
+		return reference.Value{}, err
+	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	input := runtime.input("input", activation)
 	graphWeights, err := runtime.layer(info, fmt.Sprintf("enc.blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output, err := model.BuildT5EncoderBlock(runtime.builder, input, r.spec, graphWeights)
+	result, err := program.Build(model.CachedBlockContext{
+		Builder: runtime.builder, Input: input,
+	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	results, err := runtime.execute(output)
+	results, err := runtime.execute(result.Output)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	return results[output], nil
+	return results[result.Output], nil
 }
 
 func (r *Runner) runT5DecoderLayer(
@@ -413,6 +419,10 @@ func (r *Runner) runT5DecoderLayer(
 	layerIndex int,
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
+	program, err := r.program.Model.DecoderProgram(r.spec, layerIndex)
+	if err != nil {
+		return reference.Value{}, LayerCache{}, err
+	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	input := runtime.input("input", activation)
 	var encoderInput *tensor.Tensor
@@ -434,10 +444,11 @@ func (r *Runner) runT5DecoderLayer(
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
-	result, err := model.BuildT5DecoderBlockCached(
-		runtime.builder, input, encoderInput, r.spec, graphWeights,
-		pastSelfKey, pastSelfValue, pastCrossKey, pastCrossValue,
-	)
+	result, err := program.Build(model.CachedBlockContext{
+		Builder: runtime.builder, Input: input, Encoder: encoderInput,
+		PastKey: pastSelfKey, PastValue: pastSelfValue,
+		CrossKey: pastCrossKey, CrossValue: pastCrossValue,
+	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}

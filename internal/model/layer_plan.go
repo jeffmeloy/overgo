@@ -758,7 +758,16 @@ func (p ModelPlan) DraftLayer(offset uint32) (LayerPlan, error) {
 type CompiledLayerProgram struct {
 	spec Spec
 	plan LayerPlan
+	role layerProgramRole
 }
+
+type layerProgramRole uint8
+
+const (
+	programLayer layerProgramRole = iota
+	programEncoder
+	programDecoder
+)
 
 // Layer returns the immutable compiled layer facts.
 func (p CompiledLayerProgram) Layer() LayerPlan { return p.plan }
@@ -778,6 +787,36 @@ func (p ModelPlan) LayerProgram(spec Spec, layer int) (CompiledLayerProgram, err
 		return CompiledLayerProgram{}, err
 	}
 	return CompiledLayerProgram{spec: spec, plan: compiled}, nil
+}
+
+func (p ModelPlan) sequenceProgram(spec Spec, layer int, role layerProgramRole) (CompiledLayerProgram, error) {
+	encoder := p.profile.EncoderGraph.Kind
+	limit := spec.BlockCount
+	if role == programEncoder && encoder != encoderGraphT5 && encoder != encoderGraphT5Encoder {
+		return CompiledLayerProgram{}, fmt.Errorf("model plan has no T5 encoder program for %q", spec.Architecture)
+	}
+	if role == programDecoder {
+		if p.profile.Family != ArchitectureFamilyEncoderDecoder || p.profile.Forward != ForwardT5 {
+			return CompiledLayerProgram{}, fmt.Errorf("model plan has no decoder program for %q", spec.Architecture)
+		}
+		limit = spec.DecoderBlockCount
+	}
+	if layer < 0 || uint32(layer) >= limit {
+		return CompiledLayerProgram{}, fmt.Errorf("model plan sequence layer %d is outside [0,%d)", layer, limit)
+	}
+	program, err := p.LayerProgram(spec, layer)
+	program.role = role
+	return program, err
+}
+
+// EncoderProgram returns one compiled encoder layer.
+func (p ModelPlan) EncoderProgram(spec Spec, layer int) (CompiledLayerProgram, error) {
+	return p.sequenceProgram(spec, layer, programEncoder)
+}
+
+// DecoderProgram returns one compiled causal/cross-attention decoder layer.
+func (p ModelPlan) DecoderProgram(spec Spec, layer int) (CompiledLayerProgram, error) {
+	return p.sequenceProgram(spec, layer, programDecoder)
 }
 
 // DraftProgram: bounds-checked executable draft contract.

@@ -17,8 +17,8 @@ Goal: recipes and compiled neutral operator programs are the only production run
 | 2 | Trunk host graphs | `buildLayerBlockFromPlan`; three direct runner dispatches | compiled trunk program owns construction; helper and direct dispatches deleted | Complete |
 | 3 | Continuous/device cache | direct dispatch in `device_cache.go` | decode session invokes compiled program with indexed cache bindings | Complete |
 | 4 | Auxiliary decoders | direct Eagle3 and Gemma 4 assistant dispatch | compiled auxiliary programs own topology and bindings | Complete |
-| 5 | Encoder/decoder | exported T5 encoder/decoder builders | typed encoder/cross-attention programs own ordered stages; builders deleted | In progress |
-| 6 | Diffusion/video | `BuildConditionedDiffusionBlock` | compiled diffusion program owns block/head stages; direct builder deleted | Pending |
+| 5 | Encoder/decoder | exported T5 encoder/decoder builders | typed encoder/cross-attention programs own ordered stages; builders deleted | Complete |
+| 6 | Diffusion/video | `BuildConditionedDiffusionBlock` | compiled diffusion program owns block/head stages; direct builder deleted | In progress |
 | 7 | Compatibility dispatch | exported `BuildArchitectureBlockCached` and direct-construction tests | all callers execute sealed programs; compatibility entry point deleted | Pending |
 | 8 | Leaf operators | family-named attention/recurrent/FFN leaves selected inside neutral instructions | mathematical operator policies replace family naming where semantics match; redundant leaves deleted | Pending |
 | 9 | Recipe boundaries | remaining command/server task switches or runtime reconstruction | active compiled recipe selected once at assembly; no serving fallbacks/probes | Pending |
@@ -35,3 +35,4 @@ Goal: recipes and compiled neutral operator programs are the only production run
 - Baseline: branch includes current `master`; worktree clean; full repository tests and vet passed before this campaign.
 - Wave 1: sealed `DraftLayerProgram.Build` owns Qwen3.5, Cohere2, NextN, Step3.5, and HYV3 draft block construction. Deleted `compiledDraftBlock`, its translation result, the adapter callback, ignored spec input, and three direct generic dispatches. Production delta: +40/-50. Host model/inference tests and vet pass. CUDA parity gates compile and report explicit `OVERGO_CUDA_TEST=1` skips on this environment.
 - Waves 2-4: replaced mutable draft-only authority with sealed `CompiledLayerProgram`; migrated trunk host, non-causal, device-cache, Eagle3, and Gemma 4 callers; deleted `buildLayerBlockFromPlan` and every production compatibility-dispatch call. Production delta: +114/-118. Model, inference, and CUDA-executor package gates pass.
+- Wave 5: extended the same sealed program with compiled encoder/decoder roles; migrated T5 runner and CUDA parity caller; deleted exported T5 builder APIs. Consolidated Q/K/V projection geometry, gated/plain FFN, and required-weight validation. Production delta: +133/-104; the +29 authority cost replaces two public family runtimes and is tracked for paydown in Waves 7-8. Host model/inference and CUDA-executor parity graphs pass.

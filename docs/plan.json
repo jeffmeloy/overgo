@@ -862,7 +862,7 @@
         {
           "id": "device-tiled-vae",
           "title": "device tiled_fp32 VAE decode (device_tile_gather) matching the golden -- overgo vae.go is host whole-frame f64. Parity vs the g3 decoded-image anchor on device.",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/latentimage/ -run \"TestVAEProgramReferenceMatchesHost|TestVAEUpsampleTilingSeamFree|TestPlanUpsampleTilingGeometry\" -count=1"
         },
         {

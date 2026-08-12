@@ -14,14 +14,14 @@ type Catalog struct {
 func NewCatalog(modules ...Module) (*Catalog, error) {
 	catalog := &Catalog{modules: make(map[ModuleID]Module, len(modules))}
 	for _, module := range modules {
-		if err := catalog.Register(module); err != nil {
+		if err := catalog.register(module); err != nil {
 			return nil, err
 		}
 	}
 	return catalog, nil
 }
 
-func (c *Catalog) Register(module Module) error {
+func (c *Catalog) register(module Module) error {
 	if c == nil {
 		return errors.New("recipe: nil module catalog")
 	}
@@ -57,17 +57,6 @@ func (c *Catalog) Modules() []Module {
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	return result
-}
-
-func (c *Catalog) Clone() *Catalog {
-	if c == nil {
-		return nil
-	}
-	cloned := &Catalog{modules: make(map[ModuleID]Module, len(c.modules))}
-	for id, module := range c.modules {
-		cloned.modules[id] = cloneModule(module)
-	}
-	return cloned
 }
 
 func canonicalModule(module Module) (Module, error) {

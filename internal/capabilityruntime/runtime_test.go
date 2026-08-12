@@ -17,15 +17,16 @@ type scalarRequest struct {
 	Value int `json:"value"`
 }
 
-func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
+func capabilityFixture(t *testing.T, name string, task recipe.Task) (*repodb.Store, artifact.ID, recipe.Program) {
+	t.Helper()
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "scalar-model")
+	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 	testutil.PublishArtifact(t, store, modelID)
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskImageGen, modelID)
+	definition, err := modelrecipe.CapabilityDefinition(task, modelID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,6 +34,11 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return store, modelID, program
+}
+
+func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
+	store, modelID, program := capabilityFixture(t, "scalar-model", recipe.TaskImageGen)
 	execute := JSONScalar[scalarRequest, int, int](
 		"scalar", func(request scalarRequest) error {
 			if request.Value <= 0 {
@@ -61,5 +67,28 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	}
 	if program.Definition().Task != recipe.TaskImageGen {
 		t.Fatalf("task = %s", program.Definition().Task)
+	}
+}
+
+func TestExecuteVQABindsInputsAndOutputLineage(t *testing.T) {
+	store, modelID, program := capabilityFixture(t, "vqa-model", recipe.TaskVQA)
+	image := VQAImage{Data: []byte("image")}
+	answer, err := ExecuteVQA(
+		context.Background(), store, modelID, program, "vqa/runtime", image, "where?",
+		func(_ context.Context, gotImage VQAImage, question string) (string, error) {
+			if string(gotImage.Data) != string(image.Data) || question != "where?" {
+				t.Fatalf("input = (%q, %q)", gotImage.Data, question)
+			}
+			return "there", nil
+		},
+	)
+	if err != nil || answer != "there" {
+		t.Fatalf("answer = (%q, %v)", answer, err)
+	}
+	if _, err := ExecuteVQA(
+		context.Background(), store, modelID, program, "vqa/invalid", VQAImage{}, "where?",
+		func(context.Context, VQAImage, string) (string, error) { return "", nil },
+	); err == nil {
+		t.Fatal("empty image accepted")
 	}
 }

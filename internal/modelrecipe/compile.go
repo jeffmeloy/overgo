@@ -78,7 +78,7 @@ type DecodePlan struct {
 }
 
 func Catalog() *recipe.Catalog {
-	return catalog.Clone()
+	return catalog
 }
 
 func InferenceWithModelDefinition(

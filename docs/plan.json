@@ -3,6 +3,45 @@
   "doctrine": "PORT-FIRST (owner, 2026-08-09, standing): the point of this campaign is to PORT adaptive_new into overgo, never to start from scratch. Every capability AND performance slice STARTS from adaptive_new's verified implementation: read it end-to-end, port its structure/kernels/math, verify against its goldens. Novel design is admissible ONLY after the port matches the reference, and only as a measured improvement on top of it. A slice that reinvents what adaptive already ships is the named failure mode. The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/.claude/worktrees/image_gen/image_gen_report.md -- Wan python 463.4s/8.8GB vs exact-Go 739.9s/22.54GB (denoise 690.9s dominates) vs quality-fast 424.3s/11.95GB (FAILS single-complete-cone); safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; the quality-fast attention approximation is the degradation to avoid. Owner note: route media denoise through overgo's OWN tensor machinery (retained CUDA-graph replay, bf16-native decode catalog, GEMV/epilogue fusion rewrites, calibrated dispatch) rather than porting adaptive's slower path -- that machinery already beat adaptive on rungs 3-4 and is the intended edge over Python.",
   "items": [
     {
+      "id": "merge-tightening-4",
+      "title": "merge overgo_tightening into master (4 commits since 7efcbae: compile neutral aux graph programs, recipe residency authoritative, centralize capability runtime assembly, seal capability execution authority); PROVE no session work lost (hostmath/optimizer/densecausal/scripts additions survive); gate -merge -plan; run full+cuda tests after",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "merge overgo_tightening into master (4 commits since 7efcbae: compile neutral aux graph programs, recipe residency authoritative, centralize capability runtime assembly, seal capability execution authority); PROVE no session work lost (hostmath/optimizer/densecausal/scripts additions survive); gate -merge -plan; run full+cuda tests after",
+          "status": "done",
+          "verify": "go build ./... \u0026\u0026 bash scripts/overgo_stop_gate.sh --selftest \u0026\u0026 test -f scripts/gen_qwen35_hybrid_grad_golden.py \u0026\u0026 git merge-base --is-ancestor overgo_tightening HEAD"
+        }
+      ]
+    },
+    {
+      "id": "loop-hardening-4",
+      "title": "fix + wire overgo Stop hook: add stop_hook_active re-attempt valve to overgo_stop_gate.sh (without it a no-progress turn hard-wedges) + wire it as the Stop hook in .claude/settings.json so overgo-ROOTED sessions self-enforce the loop (adaptive_new is reference-only; its stop hook watched the wrong repo, which is why the loop never enforced and drift/milestone-stop went uncaught)",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "fix + wire overgo Stop hook: add stop_hook_active re-attempt valve to overgo_stop_gate.sh (without it a no-progress turn hard-wedges) + wire it as the Stop hook in .claude/settings.json so overgo-ROOTED sessions self-enforce the loop (adaptive_new is reference-only; its stop hook watched the wrong repo, which is why the loop never enforced and drift/milestone-stop went uncaught)",
+          "status": "done",
+          "verify": "bash scripts/overgo_stop_gate.sh --selftest"
+        }
+      ]
+    },
+    {
+      "id": "loop-hardening-3",
+      "title": "cmd/plan -setverify: set an existing step's verify + run it once (closes the hand-edit-plan.json gap that recurred 3x this session; catches unrunnable verify like unquoted | at set-time)",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "cmd/plan -setverify: set an existing step's verify + run it once (closes the hand-edit-plan.json gap that recurred 3x this session; catches unrunnable verify like unquoted | at set-time)",
+          "status": "done",
+          "verify": "go test ./cmd/plan/ -run EnforceSetVerify -count=1"
+        }
+      ]
+    },
+    {
       "id": "sync-tightening",
       "title": "sync overgo_tightening: merge committed changes since last merge (12 commits: seal/authoritative plans, delete family policies, encode exact layer operators, derive catalogs from typed facts, fail-closed video recipes); verify tree green + no work lost; gate -merge -plan",
       "status": "done",
@@ -421,20 +460,33 @@
     {
       "id": "l2norm-backward",
       "title": "l2norm-backward: VJP of L2 normalization (qwen3.5 GDN mix L2-normalizes q and k per head before the recurrence: y = x/sqrt(sum(x^2)+eps)); host-side, FD-grad-checked",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "l2norm-backward: VJP of L2 normalization (qwen3.5 GDN mix L2-normalizes q and k per head before the recurrence: y = x/sqrt(sum(x^2)+eps)); host-side, FD-grad-checked",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/hostmath/ -run TestL2Norm -count=1"
+        }
+      ]
+    },
+    {
+      "id": "linear-attn-mix-backward",
+      "title": "linear-attn-mix-backward: composed qwen3.5 gated-delta mix VJP (qkv-proj -\u003e ShortConv -\u003e L2Norm(q,k) -\u003e beta=sigmoid(Wb.n), alpha=Wa.n, gate=softplus(alpha+ts)*A, z=Wz.n -\u003e GDN -\u003e WeightedRMSNorm(out,SSMNorm)*SiLU(z) -\u003e SSMOutput proj); host, FD-grad-checked end-to-end over all weights + input",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "linear-attn-mix-backward: composed qwen3.5 gated-delta mix VJP (qkv-proj -\u003e ShortConv -\u003e L2Norm(q,k) -\u003e beta=sigmoid(Wb.n), alpha=Wa.n, gate=softplus(alpha+ts)*A, z=Wz.n -\u003e GDN -\u003e WeightedRMSNorm(out,SSMNorm)*SiLU(z) -\u003e SSMOutput proj); host, FD-grad-checked end-to-end over all weights + input",
+          "status": "done",
+          "verify": "go test ./internal/hostmath/ -run TestGatedDeltaMix -count=1"
         }
       ]
     },
     {
       "id": "rung12-qwen4b",
       "title": "Qwen3.5-4B (activation-class)",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "recon-route",
@@ -467,12 +519,14 @@
         {
           "id": "qwen35-hybrid-layer-backward",
           "title": "qwen3.5 hybrid decoder-layer backward: GDN linear_attention layers (GDN VJP) + gated attn output + full_attention dense layers (existing dense VJPs), FD-verified as a composed layer",
-          "status": "open"
+          "status": "done",
+          "verify": "go test ./internal/hostmath/ -run TestHybridDecoderLayer -count=1"
         },
         {
           "id": "train-grad-parity",
           "title": "tiny qwen3.5-hybrid torch golden (python) + gradient parity vs it + a real training step (loss decrease) on the hybrid model",
-          "status": "open"
+          "status": "done",
+          "verify": "go test ./internal/hostmath/ -run 'TestHybridDecoderLayerGradParity|TestHybridDecoderLayerTrainStep' -count=1"
         },
         {
           "id": "performance-leg",
@@ -504,7 +558,32 @@
         {
           "id": "training-leg",
           "title": "adaptive TRAINS E4B (stream_lm_cuda) -- real reference; scope densecausal/mixed-window delta -- HALT VERDICT: overgo CANNOT train E4B -- the gemma3n arch (AltUp/PLE/SharedKV/windowed) is INFERENCE-ONLY, zero backward funcs; blocker is missing backward CODE not memory. What IS verified: densecausal text-LM training lane grad-parity PASS (adaptive-schema goldens + FD), real loss-decrease (Carbon-500M 21.08-\u003e11.75 1 SGD step; Qwen2.5-0.5B monotone 10.6-\u003e1.85 over 6 steps), optimizer=full-param SGD (host Muon prohibitive 500M+). E4B remainder (named): port adaptive operators_backward.go windowed-attn + AltUp/Laurel/PLE VJPs (reuse 8 verified hostmath VJPs) + a device backward (current text-LM backward host-only), then grad-parity vs adaptive E4B grads + bf16-SGD+ckpt loss-decrease. Memory math: E4B fp32-grad SGD ~48GB OOM; bf16-SGD+ckpt ~32GB tight-feasible but the path does not exist || BACKWARD VJPs STARTED (FD-verified, internal/hostmath): WindowedCausalAttentionBackward (sliding-window gap; window\u003c=0 bit-equal to CausalAttentionBackward), GELUTanhBackward, ActivationSparsityBackward, SoftcapBackward, EmbedInputScaleBackward, QK-norm=RMSNormBackward composed. These + the 8 existing VJPs make a mixed-window decoder LAYER backward composable (unit-verified building blocks). No E4B grad goldens exist (FD is the oracle, as the existing VJPs use). REMAINDER for e2e E4B training: AltUp backward (needs new match-magnitude VJP), Laurel backward, PLE backward (per-layer gate/proj/norm + embed-table grad), the assembled gemma3n host-backward (activation capture + composition), a DEVICE backward (current text-LM backward host-only), and the bf16-SGD+grad-checkpointing memory path (~32GB tight; fp32-grad OOMs) ||| HOST-BACKWARD COMPLETE (FD-verified): match-magnitude + AltUp (modalities/init/predict/correct+inject/merge) + PLE (input-gate/proj/post-norm/correct-scale/per-layer-embed grad) + Laurel + FFN(dense+sparse) + the ASSEMBLED active-layer backward (input-norm/Laurel/QKV+per-head-QK-norm/NeoX-rope/attn/out-proj/post-norm/sqrt2-residual/FFN) -- full gemma3n layer back-proppable for BOTH full-causal and sliding-window, all composed from FD-verified hostmath VJPs (internal/inference/gemma3n_backward.go). E4B training GRADIENT COMPUTATION done+verified. REMAINDER for at-scale training: DEVICE backward (CUDA kernels; host-only today) + bf16-SGD+grad-checkpointing memory path (fp32-grad OOMs 48GB) + serving-vs-training rope reconciliation (partial-rope/keyLength!=headDim)",
-          "status": "partial"
+          "status": "done"
+        },
+        {
+          "id": "train-scale-bf16-sgd",
+          "title": "SHARED training-scale path. bf16-SGD memory path -- the gate to at-scale training. DONE (correct, keep): optimizer.BF16SGD, a 2-byte bf16 master with stochastic rounding + no momentum (unit-verified). NOT DONE (SQA 2026-08-12, finding High): densecausal.TrainBF16SGD does NOT reduce peak memory and is test-only -- it RETAINS Model.Weights(fp32) + flat fp32 weights + fp32 gradients + an fp32 work slab + named grads AND adds the bf16 master, so peak GROWS. It is a bf16-optimizer experiment, not the memory path; the earlier 'half the footprint' claim was false. REAL acceptance: the forward+backward read the bf16 master DIRECTLY (eliminate every fp32 weight copy; grads bf16 or streamed per-layer), wired into cmd/train (not test-only), and a MEASURED peak-memory reduction vs the fp32 baseline on a real model that OOMs under fp32-grad. Verify must MEASURE peak bytes and assert the reduction.",
+          "status": "open"
+        },
+        {
+          "id": "train-scale-device-session",
+          "title": "SHARED training-scale path (SQA 2026-08-12, finding High): device training is LAYER-resident, not SESSION-resident. layer_forward_resident allocates+downloads 11 activation arrays PER LAYER; layer_backward_resident re-uploads them and downloads all gradients per layer; train_device still owns duplicate flat host slabs + scatter/gather each step. Milestone: ONE persistent device training session -- weights+momentum+activations resident on device across forward+backward+optimizer AND across steps; download only for checkpoint. Verify: measured host<->device round-trips per step collapse and no per-step host weight scatter.",
+          "status": "open"
+        },
+        {
+          "id": "train-cuda-admission",
+          "title": "SHARED training-scale path (SQA 2026-08-12, finding Medium): CUDA backend admission is incomplete. cmd/train selects TrainDeviceFull whenever CUDA opens, but device forward REJECTS attention bias -- an unsupported config fails mid-session instead of up front. Fix: a compiled capability plan decides device-vs-host and REFUSES unsupported CUDA configs (attention bias, unsupported arch) BEFORE session construction. Verify: an attention-bias / unsupported model routes to host or errors cleanly at selection time, never mid-session.",
+          "status": "open"
+        },
+        {
+          "id": "train-scale-device-backward",
+          "title": "SHARED training-scale path: DEVICE (CUDA, cgo-free) backward kernels for the training hot path (host-only today); bit-parity vs the FD-verified host backward as golden (gemma3n_backward.go + hostmath GDN/hybrid VJPs). Reuse the existing cudaScope/PTX contract; one kernel set serves qwen35 GDN + e4b mixed-window.",
+          "status": "open"
+        },
+        {
+          "id": "train-scale-rope-reconcile",
+          "title": "SHARED training-scale path: reconcile serving-vs-training rope (partial-rope / keyLength != headDim) so the training forward matches the serving executor exactly; verify by grad-parity of the affected layers against the serving rope convention.",
+          "status": "open"
         },
         {
           "id": "performance-leg",

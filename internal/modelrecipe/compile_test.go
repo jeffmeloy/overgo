@@ -109,20 +109,55 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 	}
 }
 
-func TestCompileCapabilityResolvesForecastStage(t *testing.T) {
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "forecast-model")
-	definition, err := ForecastDefinition(modelID)
-	if err != nil {
-		t.Fatal(err)
+func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
+	tests := []struct {
+		task       recipe.Task
+		definition func(artifact.ID) (recipe.Definition, error)
+		placement  recipe.Placement
+		inputs     []recipe.DataKind
+		output     recipe.DataKind
+		modules    []recipe.ModuleID
+	}{
+		{recipe.TaskForecast, ForecastDefinition, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleForecastSeries}},
+		{recipe.TaskTabular, TabularDefinition, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleTabularPredict}},
+		{recipe.TaskSeq2Seq, Seq2SeqDefinition, recipe.PlacementHost, []recipe.DataKind{recipe.DataTokens}, recipe.DataTokens, []recipe.ModuleID{ModuleSeq2SeqEncode, ModuleSeq2SeqPrepare, ModuleSeq2SeqSelect}},
+		{recipe.TaskSpeech, SpeechDefinition, recipe.PlacementHost, []recipe.DataKind{recipe.DataText}, recipe.DataAudio, []recipe.ModuleID{ModuleSpeechTokenize, ModuleSpeechGenerate, ModuleSpeechDecode}},
+		{recipe.TaskImageGen, ImageGenDefinition, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataImage, []recipe.ModuleID{ModuleImageGenerate}},
+		{recipe.TaskVideoGen, VideoGenDefinition, recipe.PlacementDevice, []recipe.DataKind{recipe.DataText}, recipe.DataVideo, []recipe.ModuleID{ModuleVideoGenerate}},
+		{recipe.TaskVQA, VQADefinition, recipe.PlacementDevice, []recipe.DataKind{recipe.DataImage, recipe.DataText}, recipe.DataText, []recipe.ModuleID{ModuleVQAAnswer}},
 	}
-	program, err := CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stages := program.Stages()
-	if len(stages) != 1 || stages[0].Node.Module != ModuleForecastSeries ||
-		stages[0].Module.ID != ModuleForecastSeries {
-		t.Fatalf("forecast stages = %+v", stages)
+	for _, test := range tests {
+		t.Run(string(test.task), func(t *testing.T) {
+			modelID := testutil.ArtifactID(t, artifact.KindModel, string(test.task)+"-model")
+			definition, err := test.definition(modelID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if definition.Task != test.task || definition.Model != modelID || len(definition.Inputs) != len(test.inputs) || len(definition.Outputs) != 1 || definition.Outputs[0].Data != test.output {
+				t.Fatalf("definition = %+v", definition)
+			}
+			for index, kind := range test.inputs {
+				if definition.Inputs[index].Data != kind {
+					t.Fatalf("input[%d] = %+v", index, definition.Inputs[index])
+				}
+			}
+			program, err := CompileCapability(definition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stages := program.Stages()
+			if len(stages) != len(test.modules) {
+				t.Fatalf("stages = %+v", stages)
+			}
+			for index, module := range test.modules {
+				if stages[index].Module.ID != module || stages[index].Node.Placement != test.placement {
+					t.Fatalf("stage[%d] = %+v", index, stages[index])
+				}
+			}
+			if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {
+				t.Fatal("inference compiler accepted capability recipe")
+			}
+		})
 	}
 }
 
@@ -134,130 +169,6 @@ func TestCompileCapabilityRejectsInferenceProgram(t *testing.T) {
 	}
 	if _, err := CompileCapability(definition); err == nil {
 		t.Fatal("capability compiler accepted inference recipe")
-	}
-}
-
-func TestTabularDefinitionValidatesAgainstCatalog(t *testing.T) {
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "tabular-model")
-	definition, err := TabularDefinition(modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := definition.Validate(Catalog()); err != nil {
-		t.Fatal(err)
-	}
-	if definition.Task != recipe.TaskTabular || definition.Model != modelID {
-		t.Fatalf("definition = %+v", definition)
-	}
-	if len(definition.Nodes) != 1 || definition.Nodes[0].Module != ModuleTabularPredict ||
-		definition.Nodes[0].Placement != recipe.PlacementHost {
-		t.Fatalf("nodes = %+v", definition.Nodes)
-	}
-	if len(definition.Inputs) != 1 || definition.Inputs[0].Data != recipe.DataTensor ||
-		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataTensor {
-		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
-	}
-	// Inference compiler must refuse the non-token task.
-	if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {
-		t.Fatal("inference compiler accepted a tabular recipe")
-	}
-}
-
-func TestSeq2SeqDefinitionValidatesAgainstCatalog(t *testing.T) {
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "seq2seq-model")
-	definition, err := Seq2SeqDefinition(modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := definition.Validate(Catalog()); err != nil {
-		t.Fatal(err)
-	}
-	if definition.Task != recipe.TaskSeq2Seq || definition.Model != modelID {
-		t.Fatalf("definition = %+v", definition)
-	}
-	if len(definition.Inputs) != 1 || definition.Inputs[0].Data != recipe.DataTokens ||
-		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataTokens {
-		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
-	}
-	program, err := CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stages := program.Stages()
-	want := []recipe.ModuleID{ModuleSeq2SeqEncode, ModuleSeq2SeqPrepare, ModuleSeq2SeqSelect}
-	if len(stages) != len(want) {
-		t.Fatalf("stages = %+v", stages)
-	}
-	for index, module := range want {
-		if stages[index].Module.ID != module || stages[index].Node.Placement != recipe.PlacementHost {
-			t.Fatalf("stage[%d] = %+v", index, stages[index])
-		}
-	}
-	// Inference compiler must refuse the non-inference task.
-	if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {
-		t.Fatal("inference compiler accepted a seq2seq recipe")
-	}
-}
-
-func TestSpeechDefinitionValidatesAgainstCatalog(t *testing.T) {
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "speech-model")
-	definition, err := SpeechDefinition(modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := definition.Validate(Catalog()); err != nil {
-		t.Fatal(err)
-	}
-	if definition.Task != recipe.TaskSpeech || definition.Model != modelID {
-		t.Fatalf("definition = %+v", definition)
-	}
-	if len(definition.Inputs) != 1 || definition.Inputs[0].Data != recipe.DataText ||
-		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataAudio {
-		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
-	}
-	program, err := CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stages := program.Stages()
-	want := []recipe.ModuleID{ModuleSpeechTokenize, ModuleSpeechGenerate, ModuleSpeechDecode}
-	if len(stages) != len(want) {
-		t.Fatalf("stages = %+v", stages)
-	}
-	for index, module := range want {
-		if stages[index].Module.ID != module || stages[index].Node.Placement != recipe.PlacementHost {
-			t.Fatalf("stage[%d] = %+v", index, stages[index])
-		}
-	}
-	// Inference compiler must refuse the non-inference task.
-	if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {
-		t.Fatal("inference compiler accepted a speech recipe")
-	}
-}
-
-func TestImageGenDefinitionValidatesAgainstCatalog(t *testing.T) {
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "imagegen-model")
-	definition, err := ImageGenDefinition(modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := definition.Validate(Catalog()); err != nil {
-		t.Fatal(err)
-	}
-	if definition.Task != recipe.TaskImageGen || definition.Model != modelID {
-		t.Fatalf("definition = %+v", definition)
-	}
-	if len(definition.Nodes) != 1 || definition.Nodes[0].Module != ModuleImageGenerate ||
-		definition.Nodes[0].Placement != recipe.PlacementHost {
-		t.Fatalf("nodes = %+v", definition.Nodes)
-	}
-	if len(definition.Inputs) != 1 || definition.Inputs[0].Data != recipe.DataTensor ||
-		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataImage {
-		t.Fatalf("ports = %+v / %+v", definition.Inputs, definition.Outputs)
-	}
-	// Inference compiler must refuse the non-inference task.
-	if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {
-		t.Fatal("inference compiler accepted an image-gen recipe")
 	}
 }
 

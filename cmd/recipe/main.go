@@ -40,13 +40,31 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-var forecastInputContract = artifact.JSONContract(artifact.KindFile, "overgo.forecast-input.v1")
+type capabilityInput[Input any] struct {
+	name     string
+	validate func(Input) error
+}
 
-var tabularInputContract = artifact.JSONContract(artifact.KindFile, "overgo.tabular-input.v1")
+func (i capabilityInput[Input]) decode(raw string) (Input, artifact.Content, error) {
+	var value Input
+	if err := strictjson.DecodeBytes([]byte(raw), &value); err != nil {
+		return value, artifact.Content{}, fmt.Errorf("decode %s input: %w", i.name, err)
+	}
+	if err := i.validate(value); err != nil {
+		return value, artifact.Content{}, err
+	}
+	content, err := artifact.JSONContent(
+		artifact.JSONContract(artifact.KindFile, "overgo."+i.name+"-input.v1"), value,
+	)
+	return value, content, err
+}
 
-var seq2seqInputContract = artifact.JSONContract(artifact.KindFile, "overgo.seq2seq-input.v1")
-
-var speechInputContract = artifact.JSONContract(artifact.KindFile, "overgo.speech-input.v1")
+var (
+	forecastInput = capabilityInput[[]float32]{name: "forecast", validate: validateForecastInput}
+	tabularInput  = capabilityInput[tabularicl.Request]{name: "tabular", validate: tabularicl.ValidateRequest}
+	seq2seqInput  = capabilityInput[seq2seq.GenerateRequest]{name: "seq2seq", validate: seq2seq.ValidateGenerateRequest}
+	speechInput   = capabilityInput[speechsynth.SynthesisRequest]{name: "speech", validate: speechsynth.ValidateSynthesisRequest}
+)
 
 type capabilityExecutor func(
 	context.Context,
@@ -65,16 +83,26 @@ type capabilityCommand struct {
 
 var capabilityCommands = map[recipe.Task]capabilityCommand{
 	recipe.TaskForecast: {
-		inventory: hfInventory, definition: modelrecipe.ForecastDefinition, execute: executeForecast,
+		inventory: hfInventory, definition: modelrecipe.ForecastDefinition,
+		execute: scalarCapability[[]float32, *seriesforecast.Model, []float32](
+			forecastInput, ignoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime),
 	},
 	recipe.TaskTabular: {
-		inventory: tabularInventory, definition: modelrecipe.TabularDefinition, execute: executeTabular,
+		inventory: tabularInventory, definition: modelrecipe.TabularDefinition,
+		execute: scalarCapability[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](tabularInput,
+			func(path string, request tabularicl.Request) (*tabularicl.Model, error) {
+				return tabularicl.LoadTask(path, request.Task)
+			}, tabularicl.RegisterRuntime),
 	},
 	recipe.TaskSeq2Seq: {
-		inventory: hfInventory, definition: modelrecipe.Seq2SeqDefinition, execute: executeSeq2Seq,
+		inventory: hfInventory, definition: modelrecipe.Seq2SeqDefinition,
+		execute: scalarCapability[seq2seq.GenerateRequest, *seq2seq.Model, []int](
+			seq2seqInput, ignoreInput[seq2seq.GenerateRequest](seq2seq.Load), seq2seq.RegisterRuntime),
 	},
 	recipe.TaskSpeech: {
-		inventory: speechInventory, definition: modelrecipe.SpeechDefinition, execute: executeSpeech,
+		inventory: speechInventory, definition: modelrecipe.SpeechDefinition,
+		execute: scalarCapability[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
+			speechInput, ignoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime),
 	},
 	recipe.TaskImageGen: {
 		inventory: imageGenInventory, definition: modelrecipe.ImageGenDefinition,
@@ -352,147 +380,54 @@ func executeCapability(
 	return json.NewEncoder(os.Stdout).Encode(output)
 }
 
-func executeForecast(
-	ctx context.Context,
-	store artifact.Repository,
-	path string,
-	modelID artifact.ID,
-	program recipe.Program,
-	input string,
-) (any, error) {
-	series, content, err := forecastInput(input)
-	if err != nil {
-		return nil, err
-	}
-	model, err := seriesforecast.Load(path)
-	if err != nil {
-		return nil, err
-	}
-	return executeScalarProgram[[]float32](
-		ctx, store, program, series, content,
-		func(runtime *workflowruntime.Runtime) error {
-			return seriesforecast.RegisterRuntime(runtime, modelID, model)
-		},
-	)
+func ignoreInput[Input, Model any](load func(string) (Model, error)) func(string, Input) (Model, error) {
+	return func(path string, _ Input) (Model, error) { return load(path) }
 }
 
-func executeTabular(
-	ctx context.Context,
-	store artifact.Repository,
-	path string,
-	modelID artifact.ID,
-	program recipe.Program,
-	input string,
-) (any, error) {
-	request, content, err := tabularInput(input)
-	if err != nil {
-		return nil, err
+func scalarCapability[Input, Model, Output any](
+	inputSpec capabilityInput[Input],
+	load func(string, Input) (Model, error),
+	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
+) capabilityExecutor {
+	return func(ctx context.Context, store artifact.Repository, path string, modelID artifact.ID, program recipe.Program, raw string) (any, error) {
+		value, content, err := inputSpec.decode(raw)
+		if err != nil {
+			return nil, err
+		}
+		loaded, err := load(path, value)
+		if err != nil {
+			return nil, err
+		}
+		definition := program.Definition()
+		if len(definition.Inputs) != 1 || len(definition.Outputs) != 1 {
+			return nil, errors.New("recipe command: scalar execution requires one input and output")
+		}
+		input, output := definition.Inputs[0], definition.Outputs[0]
+		runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
+		if err != nil {
+			return nil, err
+		}
+		if err := bind(runtime, modelID, loaded); err != nil {
+			return nil, err
+		}
+		result, err := runtime.ExecuteProgram(ctx,
+			"recipe/run/"+definition.ID.String()+"/"+content.Descriptor.ID.String(), program,
+			map[recipe.PortName]workflowruntime.Value{
+				input.Name: workflowruntime.ArtifactValue(input.Data, value, content),
+			})
+		if err != nil {
+			return nil, err
+		}
+		datum, ok := result.Outputs[output.Name].Single()
+		if !ok {
+			return nil, fmt.Errorf("runtime output %q has invalid cardinality", output.Name)
+		}
+		decoded, ok := datum.Value.(Output)
+		if !ok {
+			return nil, fmt.Errorf("runtime output %q has invalid value type", output.Name)
+		}
+		return decoded, nil
 	}
-	model, err := tabularicl.LoadTask(path, request.Task)
-	if err != nil {
-		return nil, err
-	}
-	return executeScalarProgram[tabularicl.Prediction](
-		ctx, store, program, request, content,
-		func(runtime *workflowruntime.Runtime) error {
-			return tabularicl.RegisterRuntime(runtime, modelID, model)
-		},
-	)
-}
-
-func executeSeq2Seq(
-	ctx context.Context,
-	store artifact.Repository,
-	path string,
-	modelID artifact.ID,
-	program recipe.Program,
-	input string,
-) (any, error) {
-	request, content, err := seq2seqInput(input)
-	if err != nil {
-		return nil, err
-	}
-	model, err := seq2seq.Load(path)
-	if err != nil {
-		return nil, err
-	}
-	return executeScalarProgram[[]int](
-		ctx, store, program, request, content,
-		func(runtime *workflowruntime.Runtime) error {
-			return seq2seq.RegisterRuntime(runtime, modelID, model)
-		},
-	)
-}
-
-func executeSpeech(
-	ctx context.Context,
-	store artifact.Repository,
-	path string,
-	modelID artifact.ID,
-	program recipe.Program,
-	input string,
-) (any, error) {
-	request, content, err := speechInput(input)
-	if err != nil {
-		return nil, err
-	}
-	synthesizer, err := speechsynth.LoadSynthesizer(path)
-	if err != nil {
-		return nil, err
-	}
-	return executeScalarProgram[speechsynth.Audio](
-		ctx, store, program, request, content,
-		func(runtime *workflowruntime.Runtime) error {
-			return speechsynth.RegisterRuntime(runtime, modelID, synthesizer)
-		},
-	)
-}
-
-func executeScalarProgram[Output any](
-	ctx context.Context,
-	store artifact.Repository,
-	program recipe.Program,
-	value any,
-	content artifact.Content,
-	bind func(*workflowruntime.Runtime) error,
-) (Output, error) {
-	var zero Output
-	definition := program.Definition()
-	if len(definition.Inputs) != 1 || len(definition.Outputs) != 1 {
-		return zero, errors.New("recipe command: scalar execution requires one input and output")
-	}
-	input, output := definition.Inputs[0], definition.Outputs[0]
-	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
-	if err != nil {
-		return zero, err
-	}
-	if err := bind(runtime); err != nil {
-		return zero, err
-	}
-	result, err := runtime.ExecuteProgram(
-		ctx,
-		"recipe/run/"+definition.ID.String()+"/"+content.Descriptor.ID.String(),
-		program,
-		map[recipe.PortName]workflowruntime.Value{
-			input.Name: workflowruntime.ArtifactValue(input.Data, value, content),
-		},
-	)
-	if err != nil {
-		return zero, err
-	}
-	datum, ok := result.Outputs[output.Name].Single()
-	if !ok {
-		return zero, fmt.Errorf("runtime output %q has invalid cardinality", output.Name)
-	}
-	decoded, ok := datum.Value.(Output)
-	if !ok {
-		return zero, fmt.Errorf("runtime output %q has invalid value type", output.Name)
-	}
-	return decoded, nil
-}
-
-func forecastInput(input string) ([]float32, artifact.Content, error) {
-	return decodeCapabilityInput(input, "forecast", forecastInputContract, validateForecastInput)
 }
 
 func validateForecastInput(series []float32) error {
@@ -505,34 +440,6 @@ func validateForecastInput(series []float32) error {
 		}
 	}
 	return nil
-}
-
-func tabularInput(input string) (tabularicl.Request, artifact.Content, error) {
-	return decodeCapabilityInput(input, "tabular", tabularInputContract, tabularicl.ValidateRequest)
-}
-
-func seq2seqInput(input string) (seq2seq.GenerateRequest, artifact.Content, error) {
-	return decodeCapabilityInput(input, "seq2seq", seq2seqInputContract, seq2seq.ValidateGenerateRequest)
-}
-
-func speechInput(input string) (speechsynth.SynthesisRequest, artifact.Content, error) {
-	return decodeCapabilityInput(input, "speech", speechInputContract, speechsynth.ValidateSynthesisRequest)
-}
-
-func decodeCapabilityInput[Input any](
-	raw, name string,
-	contract artifact.DocumentContract,
-	validate func(Input) error,
-) (Input, artifact.Content, error) {
-	var value Input
-	if err := strictjson.DecodeBytes([]byte(raw), &value); err != nil {
-		return value, artifact.Content{}, fmt.Errorf("decode %s input: %w", name, err)
-	}
-	if err := validate(value); err != nil {
-		return value, artifact.Content{}, err
-	}
-	content, err := artifact.JSONContent(contract, value)
-	return value, content, err
 }
 
 // sessionOverride: operator-pinned decode session; nil defers to the

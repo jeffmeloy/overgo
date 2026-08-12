@@ -4,10 +4,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/tabularicl"
-	"overgo/internal/testutil"
 )
 
 const (
@@ -23,50 +21,21 @@ const (
 
 var forecastValuesFixture = []float32{1.25, -2.5, 4}
 
-func TestCommandsResolveExecutableCapabilityStages(t *testing.T) {
-	tests := []struct {
-		task    recipe.Task
-		modules []recipe.ModuleID
-	}{
-		{task: recipe.TaskForecast, modules: []recipe.ModuleID{modelrecipe.ModuleForecastSeries}},
-		{task: recipe.TaskTabular, modules: []recipe.ModuleID{modelrecipe.ModuleTabularPredict}},
-		{task: recipe.TaskSeq2Seq, modules: []recipe.ModuleID{
-			modelrecipe.ModuleSeq2SeqEncode, modelrecipe.ModuleSeq2SeqPrepare, modelrecipe.ModuleSeq2SeqSelect,
-		}},
-		{task: recipe.TaskSpeech, modules: []recipe.ModuleID{
-			modelrecipe.ModuleSpeechTokenize, modelrecipe.ModuleSpeechGenerate, modelrecipe.ModuleSpeechDecode,
-		}},
-	}
-	for _, test := range tests {
-		t.Run(string(test.task), func(t *testing.T) {
-			capability, ok := capabilityCommands[test.task]
+func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
+	for _, task := range []recipe.Task{
+		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech,
+	} {
+		t.Run(string(task), func(t *testing.T) {
+			capability, ok := capabilityCommands[task]
 			if !ok || capability.inventory == nil || capability.definition == nil || capability.execute == nil {
 				t.Fatalf("capability = %+v", capability)
-			}
-			modelID := testutil.ArtifactID(t, artifact.KindModel, string(test.task)+"-command-model")
-			definition, err := capability.definition(modelID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			program, err := modelrecipe.CompileCapability(definition)
-			if err != nil {
-				t.Fatal(err)
-			}
-			stages := program.Stages()
-			if len(stages) != len(test.modules) {
-				t.Fatalf("program = %+v", program)
-			}
-			for index, module := range test.modules {
-				if stages[index].Module.ID != module {
-					t.Fatalf("stage[%d] = %+v", index, stages[index])
-				}
 			}
 		})
 	}
 }
 
 func TestTabularInputIsValidatedCanonicalArtifact(t *testing.T) {
-	request, content, err := tabularInput(tabularInputFixture)
+	request, content, err := tabularInput.decode(tabularInputFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,13 +46,13 @@ func TestTabularInputIsValidatedCanonicalArtifact(t *testing.T) {
 	if err := content.Validate(); err != nil || content.Descriptor.ID.Kind() != artifact.KindFile {
 		t.Fatalf("input content = (%+v, %v)", content.Descriptor, err)
 	}
-	if _, _, err := tabularInput(invalidTabularInputFixture); err == nil {
+	if _, _, err := tabularInput.decode(invalidTabularInputFixture); err == nil {
 		t.Fatal("unknown tabular input field accepted")
 	}
 }
 
 func TestForecastInputIsCanonicalArtifact(t *testing.T) {
-	values, content, err := forecastInput(forecastInputFixture)
+	values, content, err := forecastInput.decode(forecastInputFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +70,7 @@ func TestForecastInputIsCanonicalArtifact(t *testing.T) {
 }
 
 func TestSeq2SeqInputIsValidatedCanonicalArtifact(t *testing.T) {
-	request, content, err := seq2seqInput(seq2seqInputFixture)
+	request, content, err := seq2seqInput.decode(seq2seqInputFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,13 +80,13 @@ func TestSeq2SeqInputIsValidatedCanonicalArtifact(t *testing.T) {
 	if err := content.Validate(); err != nil || content.Descriptor.ID.Kind() != artifact.KindFile {
 		t.Fatalf("input content = (%+v, %v)", content.Descriptor, err)
 	}
-	if _, _, err := seq2seqInput(`{"source":[],"max_tokens":2}`); err == nil {
+	if _, _, err := seq2seqInput.decode(`{"source":[],"max_tokens":2}`); err == nil {
 		t.Fatal("empty seq2seq source accepted")
 	}
 }
 
 func TestSpeechInputIsValidatedCanonicalArtifact(t *testing.T) {
-	request, content, err := speechInput(speechInputFixture)
+	request, content, err := speechInput.decode(speechInputFixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +96,7 @@ func TestSpeechInputIsValidatedCanonicalArtifact(t *testing.T) {
 	if err := content.Validate(); err != nil || content.Descriptor.ID.Kind() != artifact.KindFile {
 		t.Fatalf("input content = (%+v, %v)", content.Descriptor, err)
 	}
-	if _, _, err := speechInput(`{"text":"","max_frames":2}`); err == nil {
+	if _, _, err := speechInput.decode(`{"text":"","max_frames":2}`); err == nil {
 		t.Fatal("empty speech text accepted")
 	}
 }

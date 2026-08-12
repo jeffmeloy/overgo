@@ -24,26 +24,26 @@ var (
 type runtimeFixture struct {
 	t       *testing.T
 	request SynthesisRequest
-	plan    GenerationPlan
+	plan    generationPlan
 	latents LatentBatch
 	audio   Audio
 }
 
-func (f runtimeFixture) Tokenize(request SynthesisRequest) (GenerationPlan, error) {
+func (f runtimeFixture) tokenize(request SynthesisRequest) (generationPlan, error) {
 	if request != f.request {
 		f.t.Fatalf("request = %+v", request)
 	}
 	return f.plan, nil
 }
 
-func (f runtimeFixture) Generate(plan GenerationPlan) (LatentBatch, error) {
-	if !slices.Equal(plan.Tokens, f.plan.Tokens) || plan.MaxFrames != f.plan.MaxFrames || plan.Seed != f.plan.Seed {
+func (f runtimeFixture) generate(plan generationPlan) (LatentBatch, error) {
+	if !slices.Equal(plan.tokens, f.plan.tokens) || plan.maxFrames != f.plan.maxFrames || plan.seed != f.plan.seed {
 		f.t.Fatalf("plan = %+v", plan)
 	}
 	return f.latents, nil
 }
 
-func (f runtimeFixture) Decode(latents LatentBatch) (Audio, error) {
+func (f runtimeFixture) decode(latents LatentBatch) (Audio, error) {
 	if !slices.Equal(latents.Values, f.latents.Values) || latents.Frames != f.latents.Frames || latents.Width != f.latents.Width {
 		f.t.Fatalf("latents = %+v", latents)
 	}
@@ -53,7 +53,7 @@ func (f runtimeFixture) Decode(latents LatentBatch) (Audio, error) {
 func TestRegisteredRuntimeExecutesSpeechProgram(t *testing.T) {
 	fixture := modelrecipetest.NewCapability(t, "speech-model", modelrecipe.SpeechDefinition)
 	request := SynthesisRequest{Text: synthesisTextFixture, MaxFrames: synthesisFramesFixture, Seed: synthesisSeedFixture}
-	plan := GenerationPlan{Tokens: synthesisTokenFixture, MaxFrames: synthesisFramesFixture, Seed: synthesisSeedFixture}
+	plan := generationPlan{tokens: synthesisTokenFixture, maxFrames: synthesisFramesFixture, seed: synthesisSeedFixture}
 	latents := LatentBatch{Values: synthesisLatentFixture, Frames: 1, Width: len(synthesisLatentFixture)}
 	audio := Audio{PCM: synthesisPCMFixture, SampleRate: synthesisRateFixture}
 	if err := registerRuntime(fixture.Runtime, fixture.Model, runtimeFixture{

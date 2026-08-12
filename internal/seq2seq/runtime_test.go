@@ -18,25 +18,25 @@ var (
 
 type selectFunc func() ([]int, error)
 
-func (f selectFunc) Select() ([]int, error) { return f() }
+func (f selectFunc) selectTokens() ([]int, error) { return f() }
 
 type runtimeFixture struct {
 	t       *testing.T
 	request GenerateRequest
-	encoded EncodedRequest
+	encoded encodedRequest
 	output  []int
 }
 
-func (f runtimeFixture) EncodeRequest(request GenerateRequest) (EncodedRequest, error) {
+func (f runtimeFixture) encodeRequest(request GenerateRequest) (encodedRequest, error) {
 	if !slices.Equal(request.Source, f.request.Source) || request.MaxTokens != f.request.MaxTokens {
 		f.t.Fatalf("request = %+v", request)
 	}
 	return f.encoded, nil
 }
 
-func (f runtimeFixture) PrepareGeneration(encoded EncodedRequest) (TokenSelector, error) {
-	if !slices.Equal(encoded.Memory, f.encoded.Memory) ||
-		encoded.SourceRows != f.encoded.SourceRows || encoded.MaxTokens != f.encoded.MaxTokens {
+func (f runtimeFixture) prepareGeneration(encoded encodedRequest) (tokenSelector, error) {
+	if !slices.Equal(encoded.memory, f.encoded.memory) ||
+		encoded.sourceRows != f.encoded.sourceRows || encoded.maxTokens != f.encoded.maxTokens {
 		f.t.Fatalf("encoded = %+v", encoded)
 	}
 	return selectFunc(func() ([]int, error) { return f.output, nil }), nil
@@ -45,7 +45,7 @@ func (f runtimeFixture) PrepareGeneration(encoded EncodedRequest) (TokenSelector
 func TestRegisteredRuntimeExecutesSeq2SeqProgram(t *testing.T) {
 	fixture := modelrecipetest.NewCapability(t, "seq2seq-model", modelrecipe.Seq2SeqDefinition)
 	request := GenerateRequest{Source: generationSourceFixture, MaxTokens: generationLimitFixture}
-	encoded := EncodedRequest{Memory: generationMemoryFixture, SourceRows: len(generationSourceFixture), MaxTokens: generationLimitFixture}
+	encoded := encodedRequest{memory: generationMemoryFixture, sourceRows: len(generationSourceFixture), maxTokens: generationLimitFixture}
 	if err := registerRuntime(fixture.Runtime, fixture.Model, runtimeFixture{
 		t: t, request: request, encoded: encoded, output: generationOutputFixture,
 	}); err != nil {

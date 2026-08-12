@@ -25,10 +25,10 @@ type Audio struct {
 	SampleRate int       `json:"sample_rate"`
 }
 
-type GenerationPlan struct {
-	Tokens    []int
-	MaxFrames int
-	Seed      int64
+type generationPlan struct {
+	tokens    []int
+	maxFrames int
+	seed      int64
 }
 
 func ValidateSynthesisRequest(request SynthesisRequest) error {
@@ -59,27 +59,27 @@ func (s *Synthesizer) complete() bool {
 	return s != nil && s.model != nil && s.model.Codec != nil && s.tokenizer != nil
 }
 
-func (s *Synthesizer) Tokenize(request SynthesisRequest) (GenerationPlan, error) {
+func (s *Synthesizer) tokenize(request SynthesisRequest) (generationPlan, error) {
 	if !s.complete() {
-		return GenerationPlan{}, errors.New("speechsynth: incomplete synthesizer")
+		return generationPlan{}, errors.New("speechsynth: incomplete synthesizer")
 	}
 	if err := ValidateSynthesisRequest(request); err != nil {
-		return GenerationPlan{}, err
+		return generationPlan{}, err
 	}
 	tokens, err := s.tokenizer.Encode(request.Text)
 	if err != nil {
-		return GenerationPlan{}, err
+		return generationPlan{}, err
 	}
-	return GenerationPlan{Tokens: tokens, MaxFrames: request.MaxFrames, Seed: request.Seed}, nil
+	return generationPlan{tokens: tokens, maxFrames: request.MaxFrames, seed: request.Seed}, nil
 }
 
-func (s *Synthesizer) Generate(plan GenerationPlan) (LatentBatch, error) {
-	if !s.complete() || len(plan.Tokens) == 0 || plan.MaxFrames <= 0 {
+func (s *Synthesizer) generate(plan generationPlan) (LatentBatch, error) {
+	if !s.complete() || len(plan.tokens) == 0 || plan.maxFrames <= 0 {
 		return LatentBatch{}, errors.New("speechsynth: invalid generation plan")
 	}
-	random := rand.New(rand.NewSource(plan.Seed))
-	latents, _, err := s.model.GenerateLatents(nil, 0, plan.Tokens, GenerateParams{
-		MaxFrames: plan.MaxFrames, EOSThreshold: math.Inf(1),
+	random := rand.New(rand.NewSource(plan.seed))
+	latents, _, err := s.model.GenerateLatents(nil, 0, plan.tokens, GenerateParams{
+		MaxFrames: plan.maxFrames, EOSThreshold: math.Inf(1),
 		NoiseAt: func(_ int, values []float32) {
 			for index := range values {
 				values[index] = float32(random.NormFloat64())
@@ -92,7 +92,7 @@ func (s *Synthesizer) Generate(plan GenerationPlan) (LatentBatch, error) {
 	return latents, nil
 }
 
-func (s *Synthesizer) Decode(latents LatentBatch) (Audio, error) {
+func (s *Synthesizer) decode(latents LatentBatch) (Audio, error) {
 	if !s.complete() {
 		return Audio{}, errors.New("speechsynth: incomplete synthesizer")
 	}
@@ -104,9 +104,9 @@ func (s *Synthesizer) Decode(latents LatentBatch) (Audio, error) {
 }
 
 type runtimeStages interface {
-	Tokenize(SynthesisRequest) (GenerationPlan, error)
-	Generate(GenerationPlan) (LatentBatch, error)
-	Decode(LatentBatch) (Audio, error)
+	tokenize(SynthesisRequest) (generationPlan, error)
+	generate(generationPlan) (LatentBatch, error)
+	decode(LatentBatch) (Audio, error)
 }
 
 // RegisterRuntime binds one synthesizer to its recipe stage.
@@ -122,16 +122,16 @@ func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, synt
 		return errors.New("speechsynth: incomplete runtime binding")
 	}
 	if err := workflowruntime.RegisterScalarStage(
-		runtime, modelrecipe.ModuleSpeechTokenize, modelID, synthesizer.Tokenize, nil,
+		runtime, modelrecipe.ModuleSpeechTokenize, modelID, synthesizer.tokenize, nil,
 	); err != nil {
 		return err
 	}
 	if err := workflowruntime.RegisterScalarStage(
-		runtime, modelrecipe.ModuleSpeechGenerate, modelID, synthesizer.Generate, nil,
+		runtime, modelrecipe.ModuleSpeechGenerate, modelID, synthesizer.generate, nil,
 	); err != nil {
 		return err
 	}
 	return workflowruntime.RegisterJSONStage(
-		runtime, modelrecipe.ModuleSpeechDecode, modelID, audioContract, synthesizer.Decode,
+		runtime, modelrecipe.ModuleSpeechDecode, modelID, audioContract, synthesizer.decode,
 	)
 }

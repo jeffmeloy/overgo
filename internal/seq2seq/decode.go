@@ -88,44 +88,44 @@ func (s *Decoder) Advance(logits []float32, token int) error {
 	return nil
 }
 
-type EncodedRequest struct {
-	Memory     []float32
-	SourceRows int
-	MaxTokens  int
+type encodedRequest struct {
+	memory     []float32
+	sourceRows int
+	maxTokens  int
 }
 
-type GenerationSession struct {
+type generationSession struct {
 	decoder   *Decoder
 	maxTokens int
 }
 
-type TokenSelector interface {
-	Select() ([]int, error)
+type tokenSelector interface {
+	selectTokens() ([]int, error)
 }
 
-func (m *Model) EncodeRequest(request GenerateRequest) (EncodedRequest, error) {
+func (m *Model) encodeRequest(request GenerateRequest) (encodedRequest, error) {
 	if err := ValidateGenerateRequest(request); err != nil {
-		return EncodedRequest{}, err
+		return encodedRequest{}, err
 	}
 	memory, err := m.Encode(request.Source)
 	if err != nil {
-		return EncodedRequest{}, err
+		return encodedRequest{}, err
 	}
-	return EncodedRequest{Memory: memory, SourceRows: len(request.Source), MaxTokens: request.MaxTokens}, nil
+	return encodedRequest{memory: memory, sourceRows: len(request.Source), maxTokens: request.MaxTokens}, nil
 }
 
-func (m *Model) PrepareGeneration(encoded EncodedRequest) (TokenSelector, error) {
-	if encoded.SourceRows <= 0 || encoded.MaxTokens <= 0 {
+func (m *Model) prepareGeneration(encoded encodedRequest) (tokenSelector, error) {
+	if encoded.sourceRows <= 0 || encoded.maxTokens <= 0 {
 		return nil, fmt.Errorf("seq2seq: invalid encoded request")
 	}
-	decoder, err := m.NewDecoder(encoded.Memory, encoded.SourceRows, encoded.MaxTokens+1)
+	decoder, err := m.NewDecoder(encoded.memory, encoded.sourceRows, encoded.maxTokens+1)
 	if err != nil {
 		return nil, err
 	}
-	return &GenerationSession{decoder: decoder, maxTokens: encoded.MaxTokens}, nil
+	return &generationSession{decoder: decoder, maxTokens: encoded.maxTokens}, nil
 }
 
-func (s *GenerationSession) Select() ([]int, error) {
+func (s *generationSession) selectTokens() ([]int, error) {
 	if s == nil || s.decoder == nil || s.maxTokens <= 0 {
 		return nil, fmt.Errorf("seq2seq: invalid generation session")
 	}

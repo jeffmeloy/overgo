@@ -96,115 +96,106 @@ func InferenceWithModelDefinition(
 	}, placement, session)
 }
 
+type scalarStage struct {
+	node               recipe.NodeID
+	module             recipe.ModuleID
+	input, output      recipe.PortName
+	inputData, outData recipe.DataKind
+}
+
+type linearCapability struct {
+	task      recipe.Task
+	placement recipe.Placement
+	stages    []scalarStage
+}
+
+func (c linearCapability) definition(modelID artifact.ID) (recipe.Definition, error) {
+	nodes := make([]recipe.Node, len(c.stages))
+	edges := make([]recipe.Edge, len(c.stages)-1)
+	for index, stage := range c.stages {
+		nodes[index] = recipe.Node{ID: stage.node, Module: stage.module, Placement: c.placement}
+		if index > 0 {
+			prior := c.stages[index-1]
+			edges[index-1] = recipe.Edge{
+				From: recipe.Endpoint{Node: prior.node, Port: prior.output},
+				To:   recipe.Endpoint{Node: stage.node, Port: stage.input},
+			}
+		}
+	}
+	first, last := c.stages[0], c.stages[len(c.stages)-1]
+	return recipe.NewDefinitionWithDependencies(
+		c.task, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, nodes, edges,
+		[]recipe.Input{{Name: first.input, Data: first.inputData, Target: recipe.Endpoint{Node: first.node, Port: first.input}}},
+		[]recipe.Output{{Name: last.output, Data: last.outData, Source: recipe.Endpoint{Node: last.node, Port: last.output}}},
+	)
+}
+
+func (c linearCapability) modules() []recipe.Module {
+	modules := make([]recipe.Module, len(c.stages))
+	for index, stage := range c.stages {
+		modules[index] = recipe.Module{
+			ID: stage.module, Tasks: []recipe.Task{c.task}, Placements: []recipe.Placement{c.placement},
+			Inputs:  []recipe.Port{{Name: stage.input, Data: stage.inputData, Cardinality: recipe.CardinalityOne}},
+			Outputs: []recipe.Port{{Name: stage.output, Data: stage.outData, Cardinality: recipe.CardinalityOne}},
+		}
+	}
+	return modules
+}
+
+var linearCapabilities = map[recipe.Task]linearCapability{
+	recipe.TaskForecast: {task: recipe.TaskForecast, placement: recipe.PlacementHost, stages: []scalarStage{
+		{node: "forecast", module: ModuleForecastSeries, input: "series", output: "forecast", inputData: recipe.DataTensor, outData: recipe.DataTensor},
+	}},
+	recipe.TaskTabular: {task: recipe.TaskTabular, placement: recipe.PlacementHost, stages: []scalarStage{
+		{node: "tabular", module: ModuleTabularPredict, input: "table", output: "predictions", inputData: recipe.DataTensor, outData: recipe.DataTensor},
+	}},
+	recipe.TaskSeq2Seq: {task: recipe.TaskSeq2Seq, placement: recipe.PlacementHost, stages: []scalarStage{
+		{node: "encode", module: ModuleSeq2SeqEncode, input: "source", output: "memory", inputData: recipe.DataTokens, outData: recipe.DataTensor},
+		{node: "prepare", module: ModuleSeq2SeqPrepare, input: "memory", output: "session", inputData: recipe.DataTensor, outData: recipe.DataSessionPlan},
+		{node: "select", module: ModuleSeq2SeqSelect, input: "session", output: "tokens", inputData: recipe.DataSessionPlan, outData: recipe.DataTokens},
+	}},
+	recipe.TaskSpeech: {task: recipe.TaskSpeech, placement: recipe.PlacementHost, stages: []scalarStage{
+		{node: "tokenize", module: ModuleSpeechTokenize, input: "text", output: "tokens", inputData: recipe.DataText, outData: recipe.DataTokens},
+		{node: "generate", module: ModuleSpeechGenerate, input: "tokens", output: "latents", inputData: recipe.DataTokens, outData: recipe.DataTensor},
+		{node: "decode", module: ModuleSpeechDecode, input: "latents", output: "audio", inputData: recipe.DataTensor, outData: recipe.DataAudio},
+	}},
+	recipe.TaskImageGen: {task: recipe.TaskImageGen, placement: recipe.PlacementHost, stages: []scalarStage{
+		{node: "imagegen", module: ModuleImageGenerate, input: "condition", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
+	}},
+	recipe.TaskVideoGen: {task: recipe.TaskVideoGen, placement: recipe.PlacementDevice, stages: []scalarStage{
+		{node: "videogen", module: ModuleVideoGenerate, input: "prompt", output: "video", inputData: recipe.DataText, outData: recipe.DataVideo},
+	}},
+}
+
 // ForecastDefinition: single host forecast node bound to the model artifact.
 // The capability package derives every dimension from the artifact itself,
 // so the definition carries no profile document.
 func ForecastDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	forward := recipe.Node{ID: "forecast", Module: ModuleForecastSeries, Placement: recipe.PlacementHost}
-	return recipe.NewDefinitionWithDependencies(
-		recipe.TaskForecast,
-		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
-		[]recipe.Node{forward},
-		nil,
-		[]recipe.Input{{
-			Name: "series", Data: recipe.DataTensor,
-			Target: recipe.Endpoint{Node: forward.ID, Port: "series"},
-		}},
-		[]recipe.Output{{
-			Name: "forecast", Data: recipe.DataTensor,
-			Source: recipe.Endpoint{Node: forward.ID, Port: "forecast"},
-		}},
-	)
+	return linearCapabilities[recipe.TaskForecast].definition(modelID)
 }
 
 // TabularDefinition: single host tabular-predict node bound to the model
 // artifact. The capability package derives every dimension from the
 // artifact's tensor shapes, so the definition carries no profile document.
 func TabularDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	forward := recipe.Node{ID: "tabular", Module: ModuleTabularPredict, Placement: recipe.PlacementHost}
-	return recipe.NewDefinitionWithDependencies(
-		recipe.TaskTabular,
-		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
-		[]recipe.Node{forward},
-		nil,
-		[]recipe.Input{{
-			Name: "table", Data: recipe.DataTensor,
-			Target: recipe.Endpoint{Node: forward.ID, Port: "table"},
-		}},
-		[]recipe.Output{{
-			Name: "predictions", Data: recipe.DataTensor,
-			Source: recipe.Endpoint{Node: forward.ID, Port: "predictions"},
-		}},
-	)
+	return linearCapabilities[recipe.TaskTabular].definition(modelID)
 }
 
 // Seq2SeqDefinition: encode, prepare incremental session, select tokens.
 func Seq2SeqDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	encode := recipe.Node{ID: "encode", Module: ModuleSeq2SeqEncode, Placement: recipe.PlacementHost}
-	prepare := recipe.Node{ID: "prepare", Module: ModuleSeq2SeqPrepare, Placement: recipe.PlacementHost}
-	selectTokens := recipe.Node{ID: "select", Module: ModuleSeq2SeqSelect, Placement: recipe.PlacementHost}
-	return recipe.NewDefinitionWithDependencies(
-		recipe.TaskSeq2Seq,
-		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
-		[]recipe.Node{encode, prepare, selectTokens},
-		[]recipe.Edge{
-			{From: recipe.Endpoint{Node: encode.ID, Port: "memory"}, To: recipe.Endpoint{Node: prepare.ID, Port: "memory"}},
-			{From: recipe.Endpoint{Node: prepare.ID, Port: "session"}, To: recipe.Endpoint{Node: selectTokens.ID, Port: "session"}},
-		},
-		[]recipe.Input{{
-			Name: "source", Data: recipe.DataTokens,
-			Target: recipe.Endpoint{Node: encode.ID, Port: "source"},
-		}},
-		[]recipe.Output{{
-			Name: "tokens", Data: recipe.DataTokens,
-			Source: recipe.Endpoint{Node: selectTokens.ID, Port: "tokens"},
-		}},
-	)
+	return linearCapabilities[recipe.TaskSeq2Seq].definition(modelID)
 }
 
 // SpeechDefinition: tokenization, latent generation, and audio decode.
 func SpeechDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	tokenize := recipe.Node{ID: "tokenize", Module: ModuleSpeechTokenize, Placement: recipe.PlacementHost}
-	generate := recipe.Node{ID: "generate", Module: ModuleSpeechGenerate, Placement: recipe.PlacementHost}
-	decode := recipe.Node{ID: "decode", Module: ModuleSpeechDecode, Placement: recipe.PlacementHost}
-	return recipe.NewDefinitionWithDependencies(
-		recipe.TaskSpeech,
-		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
-		[]recipe.Node{tokenize, generate, decode},
-		[]recipe.Edge{
-			{From: recipe.Endpoint{Node: tokenize.ID, Port: "tokens"}, To: recipe.Endpoint{Node: generate.ID, Port: "tokens"}},
-			{From: recipe.Endpoint{Node: generate.ID, Port: "latents"}, To: recipe.Endpoint{Node: decode.ID, Port: "latents"}},
-		},
-		[]recipe.Input{{
-			Name: "text", Data: recipe.DataText,
-			Target: recipe.Endpoint{Node: tokenize.ID, Port: "text"},
-		}},
-		[]recipe.Output{{
-			Name: "audio", Data: recipe.DataAudio,
-			Source: recipe.Endpoint{Node: decode.ID, Port: "audio"},
-		}},
-	)
+	return linearCapabilities[recipe.TaskSpeech].definition(modelID)
 }
 
 // ImageGenDefinition: single host image-generate node bound to the model
 // artifact. The capability package derives every dimension from the
 // artifact's tensor lengths, so the definition carries no profile document.
 func ImageGenDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	forward := recipe.Node{ID: "imagegen", Module: ModuleImageGenerate, Placement: recipe.PlacementHost}
-	return recipe.NewDefinitionWithDependencies(
-		recipe.TaskImageGen,
-		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
-		[]recipe.Node{forward},
-		nil,
-		[]recipe.Input{{
-			Name: "condition", Data: recipe.DataTensor,
-			Target: recipe.Endpoint{Node: forward.ID, Port: "condition"},
-		}},
-		[]recipe.Output{{
-			Name: "image", Data: recipe.DataImage,
-			Source: recipe.Endpoint{Node: forward.ID, Port: "image"},
-		}},
-	)
+	return linearCapabilities[recipe.TaskImageGen].definition(modelID)
 }
 
 // VideoGenDefinition: single video-generate node bound to the model
@@ -212,21 +203,7 @@ func ImageGenDefinition(modelID artifact.ID) (recipe.Definition, error) {
 // CUDA session). The capability package derives dimensions from the
 // artifact, so the definition carries no profile document.
 func VideoGenDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	forward := recipe.Node{ID: "videogen", Module: ModuleVideoGenerate, Placement: recipe.PlacementDevice}
-	return recipe.NewDefinitionWithDependencies(
-		recipe.TaskVideoGen,
-		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
-		[]recipe.Node{forward},
-		nil,
-		[]recipe.Input{{
-			Name: "prompt", Data: recipe.DataText,
-			Target: recipe.Endpoint{Node: forward.ID, Port: "prompt"},
-		}},
-		[]recipe.Output{{
-			Name: "video", Data: recipe.DataVideo,
-			Source: recipe.Endpoint{Node: forward.ID, Port: "video"},
-		}},
-	)
+	return linearCapabilities[recipe.TaskVideoGen].definition(modelID)
 }
 
 // VQADefinition: single device vqa-answer node bound to the model artifact.
@@ -448,8 +425,8 @@ func Batch(key string, definition recipe.Definition) (artifact.Batch, error) {
 
 func mustCatalog() *recipe.Catalog {
 	placements := []recipe.Placement{recipe.PlacementHost, recipe.PlacementDevice, recipe.PlacementHybrid}
-	catalog, err := recipe.NewCatalog(
-		recipe.Module{
+	modules := []recipe.Module{
+		{
 			ID: ModuleCompileModelPlan, Tasks: []recipe.Task{recipe.TaskInference}, Placements: placements,
 			Outputs: []recipe.Port{{Name: "plan", Data: recipe.DataModelPlan, Cardinality: recipe.CardinalityOne}},
 		},
@@ -467,66 +444,14 @@ func mustCatalog() *recipe.Catalog {
 			},
 			Outputs: []recipe.Port{{Name: "logits", Data: recipe.DataLogits, Cardinality: recipe.CardinalityOne}},
 		},
-		recipe.Module{
-			ID: ModuleForecastSeries, Tasks: []recipe.Task{recipe.TaskForecast},
-			Placements: []recipe.Placement{recipe.PlacementHost},
-			Inputs:     []recipe.Port{{Name: "series", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
-			Outputs:    []recipe.Port{{Name: "forecast", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
-		},
-		recipe.Module{
-			ID: ModuleTabularPredict, Tasks: []recipe.Task{recipe.TaskTabular},
-			Placements: []recipe.Placement{recipe.PlacementHost},
-			Inputs:     []recipe.Port{{Name: "table", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
-			Outputs:    []recipe.Port{{Name: "predictions", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
-		},
-		recipe.Module{
-			ID: ModuleSeq2SeqEncode, Tasks: []recipe.Task{recipe.TaskSeq2Seq},
-			Placements: []recipe.Placement{recipe.PlacementHost},
-			Inputs:     []recipe.Port{{Name: "source", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
-			Outputs:    []recipe.Port{{Name: "memory", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
-		},
-		recipe.Module{
-			ID: ModuleSeq2SeqPrepare, Tasks: []recipe.Task{recipe.TaskSeq2Seq},
-			Placements: []recipe.Placement{recipe.PlacementHost},
-			Inputs:     []recipe.Port{{Name: "memory", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
-			Outputs:    []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
-		},
-		recipe.Module{
-			ID: ModuleSeq2SeqSelect, Tasks: []recipe.Task{recipe.TaskSeq2Seq},
-			Placements: []recipe.Placement{recipe.PlacementHost},
-			Inputs:     []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
-			Outputs:    []recipe.Port{{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
-		},
-		recipe.Module{
-			ID: ModuleSpeechTokenize, Tasks: []recipe.Task{recipe.TaskSpeech},
-			Placements: []recipe.Placement{recipe.PlacementHost},
-			Inputs:     []recipe.Port{{Name: "text", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
-			Outputs:    []recipe.Port{{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
-		},
-		recipe.Module{
-			ID: ModuleSpeechGenerate, Tasks: []recipe.Task{recipe.TaskSpeech},
-			Placements: []recipe.Placement{recipe.PlacementHost},
-			Inputs:     []recipe.Port{{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
-			Outputs:    []recipe.Port{{Name: "latents", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
-		},
-		recipe.Module{
-			ID: ModuleSpeechDecode, Tasks: []recipe.Task{recipe.TaskSpeech},
-			Placements: []recipe.Placement{recipe.PlacementHost},
-			Inputs:     []recipe.Port{{Name: "latents", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
-			Outputs:    []recipe.Port{{Name: "audio", Data: recipe.DataAudio, Cardinality: recipe.CardinalityOne}},
-		},
-		recipe.Module{
-			ID: ModuleImageGenerate, Tasks: []recipe.Task{recipe.TaskImageGen},
-			Placements: []recipe.Placement{recipe.PlacementHost},
-			Inputs:     []recipe.Port{{Name: "condition", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
-			Outputs:    []recipe.Port{{Name: "image", Data: recipe.DataImage, Cardinality: recipe.CardinalityOne}},
-		},
-		recipe.Module{
-			ID: ModuleVideoGenerate, Tasks: []recipe.Task{recipe.TaskVideoGen},
-			Placements: []recipe.Placement{recipe.PlacementDevice},
-			Inputs:     []recipe.Port{{Name: "prompt", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
-			Outputs:    []recipe.Port{{Name: "video", Data: recipe.DataVideo, Cardinality: recipe.CardinalityOne}},
-		},
+	}
+	for _, task := range []recipe.Task{
+		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
+		recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen,
+	} {
+		modules = append(modules, linearCapabilities[task].modules()...)
+	}
+	modules = append(modules,
 		recipe.Module{
 			ID: ModuleVQAAnswer, Tasks: []recipe.Task{recipe.TaskVQA},
 			Placements: []recipe.Placement{recipe.PlacementDevice},
@@ -537,6 +462,7 @@ func mustCatalog() *recipe.Catalog {
 			Outputs: []recipe.Port{{Name: "answer", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
 		},
 	)
+	catalog, err := recipe.NewCatalog(modules...)
 	if err != nil {
 		panic(err)
 	}

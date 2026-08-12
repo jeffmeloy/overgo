@@ -176,7 +176,12 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if plan.LayerCount() != 1 || plan.layers[0].Block != test.block || plan.layers[0].Cache != test.cache {
+			if plan.LayerCount() != 1 {
+				t.Fatalf("plan = %+v", plan)
+			}
+			layer := plan.layers[0]
+			wantProgram := compileLayerProgram(layer, plan.profile, test.block)
+			if layer.Program != wantProgram || layer.Cache != test.cache {
 				t.Fatalf("plan = %+v", plan)
 			}
 		})
@@ -326,7 +331,7 @@ func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
 			t.Fatalf("%s selected dense graph with AltUp", architecture)
 		}
 		for _, layer := range plan.layers {
-			if layer.Block != BlockDense || layer.Attention != AttentionStandard ||
+			if layer.StateSpace.kind != stateSpaceNone || layer.Attention != AttentionStandard ||
 				layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
 				t.Fatalf("%s selected dense graph for layer %+v", architecture, layer)
 			}

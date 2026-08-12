@@ -979,7 +979,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				layer.AttentionNormBias = &attentionNormBias
 			}
 		}
-		if layerPlan.Block == BlockKimiLinear {
+		if layerPlan.StateSpace.kind == stateSpaceKeyedDelta {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
 			if layer.Recurrent {
 				inner := uint64(spec.SSMInnerSize)
@@ -1554,7 +1554,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, itemErr
 			}
 		}
-		if layerPlan.Block == BlockMamba || layerPlan.Block == BlockMamba2 {
+		if layerPlan.StateSpace.kind == stateSpaceMamba || layerPlan.StateSpace.kind == stateSpaceMamba2 {
 			continue
 		}
 		feedForwardNormName := normPlan.FeedForwardNormTensor()

@@ -236,7 +236,6 @@ type LayerPlan struct {
 	Layer             uint32
 	GraphFamily       ArchitectureFamily
 	CatalogFamily     ArchitectureFamily
-	Block             BlockPolicy
 	Program           LayerProgram
 	Composition       LayerCompositionPolicy
 	Cache             CachePolicy
@@ -352,7 +351,6 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Position:          profile.Position,
 		Residual:          profile.Residual,
 		FeedForward:       profile.FeedForward,
-		Block:             block,
 		Composition:       composition,
 		Cache:             cache,
 		CacheMode:         cache.PrimaryMode(),
@@ -386,7 +384,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		ResidualStages:    residualStages,
 		StateSpace:        s.stateSpacePlan(layer, recurrent),
 	}
-	plan.Program = compileLayerProgram(plan, profile)
+	plan.Program = compileLayerProgram(plan, profile, block)
 	return plan
 }
 
@@ -599,7 +597,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			layer.CatalogFamily != plan.profile.CatalogFamily {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
-		if layer.Program != compileLayerProgram(layer, plan.profile) {
+		if layer.Program != compileLayerProgram(layer, plan.profile, blockPolicy(plan.profile, layer.Recurrent)) {
 			return fmt.Errorf("model plan layer %d operator program is inconsistent", index)
 		}
 		if layer.SharedKV {
@@ -673,7 +671,7 @@ func cachedGraphPolicy(profile ArchitectureProfile, layers []LayerPlan) CachedGr
 		return CachedGraphLayered
 	}
 	for _, layer := range layers {
-		if layer.Block != BlockDense || layer.Attention != AttentionStandard ||
+		if layer.StateSpace.kind != stateSpaceNone || layer.Attention != AttentionStandard ||
 			layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
 			return CachedGraphLayered
 		}
@@ -834,8 +832,7 @@ func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
 	return profile.Block
 }
 
-func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgram {
-	block := plan.Block
+func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile, block BlockPolicy) LayerProgram {
 	recurrent := plan.Recurrent
 	composition := plan.Composition
 	if profile.Attention == AttentionLFM2 && recurrent {

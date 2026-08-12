@@ -26,7 +26,7 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 			composition = LayerCompositionAttentionOnly
 		}
 		program := compileLayerProgram(
-			LayerPlan{Block: policy, Composition: composition}, ArchitectureProfile{},
+			LayerPlan{Composition: composition}, ArchitectureProfile{}, policy,
 		)
 		var want []LayerOperator
 		switch policy {
@@ -92,7 +92,7 @@ func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
 
 func TestGemma4ProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphGemma4},
+		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphGemma4}, BlockDense,
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorAttentionSharedKVQKNorm, LayerOperatorAttentionPostNorm,
@@ -104,7 +104,7 @@ func TestGemma4ProgramUsesNeutralStages(t *testing.T) {
 
 func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{Forward: ForwardEagle3},
+		LayerPlan{}, ArchitectureProfile{Forward: ForwardEagle3}, BlockDense,
 	)
 	want := []LayerOperator{
 		LayerOperatorPairedInputNorm, LayerOperatorAttentionPairedCausalProjection, LayerOperatorResidual,
@@ -119,7 +119,7 @@ func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
 
 func TestGemma4AssistantProgramUsesSharedCacheStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{Forward: ForwardGemma4Assistant},
+		LayerPlan{}, ArchitectureProfile{Forward: ForwardGemma4Assistant}, BlockDense,
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorAttentionSharedCacheQKNorm, LayerOperatorAttentionPostNorm,
@@ -167,7 +167,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			program := compileLayerProgram(LayerPlan{Block: BlockDense}, test.profile)
+			program := compileLayerProgram(LayerPlan{}, test.profile, BlockDense)
 			requireLayerProgram(t, program, test.want...)
 		})
 	}
@@ -175,7 +175,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 
 func TestTalkieProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphTalkie},
+		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphTalkie}, BlockDense,
 	)
 	want := []LayerOperator{
 		LayerOperatorRMSNorm, LayerOperatorAttentionCausalPostQKNorm, LayerOperatorResidual,
@@ -187,7 +187,7 @@ func TestTalkieProgramUsesNeutralStages(t *testing.T) {
 
 func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphBERT},
+		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphBERT}, BlockDense,
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionBidirectionalEncoder, LayerOperatorAttentionResidualNorm,
@@ -197,9 +197,9 @@ func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 }
 
 func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
-	program := compileLayerProgram(LayerPlan{Block: BlockDense}, ArchitectureProfile{
+	program := compileLayerProgram(LayerPlan{}, ArchitectureProfile{
 		DenseGraph: DenseGraphBERT, EncoderGraph: EncoderGraphPolicy{Kind: encoderGraphJinaV2},
-	})
+	}, BlockDense)
 	instruction, ok := program.Instruction(2)
 	if !ok || program.Count != 5 || instruction.Operator != LayerOperatorInputResidualNorm {
 		t.Fatalf("JinaV2 program = %+v", program)
@@ -208,7 +208,7 @@ func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
 
 func TestGemmaEmbeddingProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphGemmaEmbedding},
+		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphGemmaEmbedding}, BlockDense,
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorAttentionBidirectionalQKNorm, LayerOperatorAttentionPostNorm,
@@ -219,7 +219,7 @@ func TestGemmaEmbeddingProgramUsesNeutralStages(t *testing.T) {
 }
 
 func TestDeciSparseProgramUsesNeutralStages(t *testing.T) {
-	program := compileLayerProgram(LayerPlan{Block: BlockDense, DeciSparse: true}, ArchitectureProfile{})
+	program := compileLayerProgram(LayerPlan{DeciSparse: true}, ArchitectureProfile{}, BlockDense)
 	want := []LayerOperator{
 		LayerOperatorCacheSentinel, LayerOperatorAttentionNorm, LayerOperatorAttentionOutputProjection,
 		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU,
@@ -230,7 +230,7 @@ func TestDeciSparseProgramUsesNeutralStages(t *testing.T) {
 
 func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockKimiLinear, Recurrent: true}, ArchitectureProfile{},
+		LayerPlan{Recurrent: true}, ArchitectureProfile{}, BlockKimiLinear,
 	)
 	requireLayerProgram(t, program,
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -248,8 +248,8 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 
 func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense, Recurrent: true},
-		ArchitectureProfile{Attention: AttentionLFM2},
+		LayerPlan{Recurrent: true},
+		ArchitectureProfile{Attention: AttentionLFM2}, BlockDense,
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -282,10 +282,10 @@ func TestNemotronLayerProgramsSelectSemanticMixer(t *testing.T) {
 		t.Run(fixture.name, func(t *testing.T) {
 			program := compileLayerProgram(
 				LayerPlan{
-					Block: BlockNemotronH, Recurrent: fixture.recurrent,
+					Recurrent:   fixture.recurrent,
 					Composition: fixture.composition,
 				},
-				ArchitectureProfile{},
+				ArchitectureProfile{}, BlockNemotronH,
 			)
 			instruction, ok := program.Instruction(mixerStage)
 			if !ok || instruction.Operator != fixture.mixer {
@@ -302,8 +302,8 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 	)
 	for _, recurrent := range []bool{false, true} {
 		program := compileLayerProgram(
-			LayerPlan{Block: BlockDense, Recurrent: recurrent},
-			ArchitectureProfile{Attention: AttentionQwenGDN},
+			LayerPlan{Recurrent: recurrent},
+			ArchitectureProfile{Attention: AttentionQwenGDN}, BlockDense,
 		)
 		instruction, ok := program.Instruction(mixerStage)
 		if !ok || program.Count != qwenProgramStageCount {

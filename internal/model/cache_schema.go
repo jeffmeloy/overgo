@@ -302,7 +302,7 @@ func cacheSchemaForPlan(
 	}
 	shapes := spec.TensorShapes(uint32(layerIndex))
 	keyWidth, valueWidth, heads := shapes.Key, shapes.Value, shapes.KVHeads
-	if plan.Attention == AttentionMLA || plan.Attention == AttentionDSA || plan.Block == BlockKimiLinear {
+	if plan.Attention == AttentionMLA || plan.Attention == AttentionDSA || plan.StateSpace.kind == stateSpaceKeyedDelta {
 		heads = uint64(spec.HeadCount)
 		if info.AttentionKB != nil {
 			keyWidth = uint64(spec.KVLoRARank + spec.RopeDimensionCount)

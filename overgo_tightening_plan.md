@@ -30,7 +30,7 @@ Goal: recipes and compiled neutral operator programs are the only production run
 - Exported model-family graph constructors: 0.
 - Production T5 and free conditioned-diffusion builder calls: 0.
 - Trunk, draft, encoder, decoder, split-activation, feature/cache projection, per-layer input, and sequence-output paths enter through sealed model programs.
-- Remaining leaf duplication: attention/hybrid instruction policy mirrors and family-oriented block/catalog facts used during plan and weight compilation.
+- Remaining catalog duplication: family-oriented profile facts still select portions of state-space and weight-catalog compilation; executable layer plans no longer retain those family labels.
 - Remaining recipe boundary: generic capability execution is active for forecast, tabular, seq2seq, speech, and image; video and VQA still require production loaders/adapters.
 
 ## Wave log
@@ -48,3 +48,4 @@ Goal: recipes and compiled neutral operator programs are the only production run
 - Wave 8e: deleted `RecurrentMixPolicy` and both recurrent instruction fields; `StateSpacePlan` now solely selects selective-scan, grouped-scan, WKV, gated-delta, short-convolution, and keyed-delta execution. Fixed plan compilation to honor weight-derived recurrent layers even when metadata cadence is absent. Production delta: +47/-62, net -15; each layer instruction is two policy fields smaller. Model, inference, and CUDA-executor gates pass.
 - Wave 8f: deleted the single-value `HybridMixPolicy` and its instruction field. `LayerOperatorHybridMix` now directly denotes the only neutral parallel attention/state-space operator. Production delta: +6/-23, net -17; each fixed-capacity instruction is one field smaller. Model, inference, and CUDA-executor gates pass.
 - Wave 8g: encoded all attention, FFN, and token-shift mathematics directly in `LayerOperator`; deleted `AttentionMixPolicy`, `FeedForwardMixPolicy`, and both instruction fields. Tests now assert exact operators rather than compatibility categories. Production delta: +105/-121, net -16; total delta +140/-166, net -26. Model, inference, and CUDA-executor gates pass.
+- Wave 9a: removed `BlockPolicy` from executable `LayerPlan`. Cache topology, dense-graph eligibility, and weight loading now consume compiled attention/cache/state-space facts; family policy exists only while compiling the neutral program. Kimi Linear records keyed-delta capability for both attention and recurrent layers while retaining the per-layer recurrent bit, preserving its latent-cache geometry. Production delta: +8/-11, net -3; total delta +34/-32 because fixtures now assert the replacement program contract. Model, inference, and CUDA-executor gates and vet pass.

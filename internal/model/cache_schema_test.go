@@ -72,7 +72,7 @@ func TestCacheSchemaReportsInvalidRecurrentDimensions(t *testing.T) {
 		},
 	}
 	plan := LayerPlan{
-		Layer: 0, Block: BlockMamba, Cache: CacheMamba,
+		Layer: 0, Cache: CacheMamba,
 		CacheMode: CacheStateFixed,
 	}
 	if _, err := cacheSchemaForPlan(spec, plan, LayerWeights{}, fixtureTokenCount); err == nil {

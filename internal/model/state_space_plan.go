@@ -58,7 +58,7 @@ func (s Spec) stateSpacePlan(layer uint32, recurrent bool) StateSpacePlan {
 		plan.kind, plan.recurrent = stateSpaceAffineWKV6, true
 	case profile.DenseGraph == DenseGraphRWKV7:
 		plan.kind, plan.recurrent = stateSpaceDynamicWKV7, true
-	case profile.Block == BlockKimiLinear && plan.recurrent:
+	case profile.Block == BlockKimiLinear:
 		plan.kind = stateSpaceKeyedDelta
 	}
 	return plan

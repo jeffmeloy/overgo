@@ -10,6 +10,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/overgo_stop_gate.sh"
+          }
+        ]
+      }
     ]
   }
 }

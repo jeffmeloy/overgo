@@ -17,6 +17,16 @@ if [ "${1:-}" = "--selftest" ]; then
 	exit 0
 fi
 
+# Re-attempt valve: the harness re-runs the Stop hook with stop_hook_active=true
+# right after a block. Let the retry through -- otherwise a turn with no plan
+# progress (a bounded question, a status readout, a genuine hold) can never be
+# ended and the session hard-wedges. Read stdin AFTER --selftest so a manual
+# selftest (no piped stdin) does not hang on cat.
+in="$(cat 2>/dev/null || true)"
+case "$in" in
+*'"stop_hook_active":true'* | *'"stop_hook_active": true'*) exit 0 ;;
+esac
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO" || exit 0
 STATE="docs/.loop_state" # gitignored: last-seen HEAD + dispatched step

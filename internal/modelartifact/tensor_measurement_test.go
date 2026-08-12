@@ -55,11 +55,11 @@ func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
 		measurement.Elements != 512 || measurement.SampleFraction() != 0.5 || measurement.MAD <= 0 {
 		t.Fatalf("GGUF measurement = %+v", first)
 	}
-	content, err := first.ContentBytes()
+	content, err := first.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseTensorMeasurementDocument(content)
+	parsed, err := ParseTensorMeasurementDocument(content.Data)
 	if err != nil || parsed.ID != first.ID {
 		t.Fatalf("measurement round trip = (%+v, %v)", parsed, err)
 	}

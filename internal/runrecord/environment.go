@@ -59,10 +59,6 @@ func (e Environment) ValidateIdentity() error {
 	return environmentCodec.ValidateIdentity(e)
 }
 
-func (e Environment) ContentBytes() ([]byte, error) {
-	return environmentCodec.ContentBytes(e)
-}
-
 func (e Environment) Content() (artifact.Content, error) {
 	return environmentCodec.Content(e)
 }

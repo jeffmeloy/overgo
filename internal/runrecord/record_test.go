@@ -22,11 +22,11 @@ func TestRunAndEvaluationRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := run.ContentBytes()
+	content, err := run.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsedRun, err := ParseRun(content)
+	parsedRun, err := ParseRun(content.Data)
 	if err != nil || parsedRun.ID != run.ID {
 		t.Fatalf("run round trip = (%+v, %v)", parsedRun, err)
 	}
@@ -37,11 +37,11 @@ func TestRunAndEvaluationRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	evaluationContent, err := evaluation.ContentBytes()
+	evaluationContent, err := evaluation.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsedEvaluation, err := ParseEvaluation(evaluationContent)
+	parsedEvaluation, err := ParseEvaluation(evaluationContent.Data)
 	if err != nil || parsedEvaluation.ID != evaluation.ID || len(evaluation.Lineage()) != 3 {
 		t.Fatalf("evaluation round trip = (%+v, %v)", parsedEvaluation, err)
 	}
@@ -120,11 +120,11 @@ func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := environment.ContentBytes()
+	content, err := environment.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsedEnvironment, err := ParseEnvironment(content)
+	parsedEnvironment, err := ParseEnvironment(content.Data)
 	if err != nil || parsedEnvironment != environment {
 		t.Fatalf("environment round trip = (%+v, %v)", parsedEnvironment, err)
 	}
@@ -146,11 +146,11 @@ func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
 	}) {
 		t.Fatalf("bound timing = (%d, %+v)", run.UnattributedNS(), run.Phases)
 	}
-	content, err = run.ContentBytes()
+	content, err = run.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsedRun, err := ParseRun(content)
+	parsedRun, err := ParseRun(content.Data)
 	if err != nil || parsedRun.ID != run.ID || parsedRun.UnattributedNS() != 10 {
 		t.Fatalf("bound run round trip = (%+v, %v)", parsedRun, err)
 	}

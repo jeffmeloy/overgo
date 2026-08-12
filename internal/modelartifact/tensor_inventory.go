@@ -109,10 +109,6 @@ func (d TensorInventoryDocument) ValidateIdentity() error {
 	return tensorInventoryCodec.ValidateIdentity(d)
 }
 
-func (d TensorInventoryDocument) ContentBytes() ([]byte, error) {
-	return tensorInventoryCodec.ContentBytes(d)
-}
-
 func (d TensorInventoryDocument) Content() (artifact.Content, error) {
 	return tensorInventoryCodec.Content(d)
 }

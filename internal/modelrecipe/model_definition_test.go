@@ -53,11 +53,11 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := document.ContentBytes()
+	content, err := document.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseModelDefinitionDocument(content)
+	parsed, err := ParseModelDefinitionDocument(content.Data)
 	if err != nil {
 		t.Fatal(err)
 	}

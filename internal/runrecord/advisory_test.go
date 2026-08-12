@@ -24,11 +24,11 @@ func TestMADRegressionAdvisoryReplaysKnownSeries(t *testing.T) {
 	if len(advisory.PhaseDeltas) != 2 {
 		t.Fatalf("phase deltas = %+v", advisory.PhaseDeltas)
 	}
-	content, err := advisory.ContentBytes()
+	content, err := advisory.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseAdvisory(content)
+	parsed, err := ParseAdvisory(content.Data)
 	if err != nil || parsed.ID != advisory.ID || parsed.Surprise() != advisory.Surprise() {
 		t.Fatalf("advisory round trip = (%+v, %v)", parsed, err)
 	}

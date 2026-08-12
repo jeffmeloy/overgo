@@ -119,10 +119,6 @@ func (m Membership) ValidateIdentity() error {
 	return membershipCodec.ValidateIdentity(m)
 }
 
-func (m Membership) ContentBytes() ([]byte, error) {
-	return membershipCodec.ContentBytes(m)
-}
-
 func (m Membership) Content() (artifact.Content, error) {
 	return membershipCodec.Content(m)
 }

@@ -104,10 +104,6 @@ func (d TensorMeasurementDocument) ValidateIdentity() error {
 	return tensorMeasurementCodec.ValidateIdentity(d)
 }
 
-func (d TensorMeasurementDocument) ContentBytes() ([]byte, error) {
-	return tensorMeasurementCodec.ContentBytes(d)
-}
-
 func (d TensorMeasurementDocument) Content() (artifact.Content, error) {
 	return tensorMeasurementCodec.Content(d)
 }

@@ -71,15 +71,37 @@ func executeScalar[Output any](
 	inputContent artifact.Content,
 	bind func(*workflowruntime.Runtime) error,
 ) (Output, error) {
+	definition := program.Definition()
+	if len(definition.Inputs) != 1 {
+		var zero Output
+		return zero, errors.New("capability runtime: scalar execution requires one input")
+	}
+	input := definition.Inputs[0]
+	return Execute[Output](ctx, store, modelID, program,
+		"recipe/run/"+definition.ID.String()+"/"+inputContent.Descriptor.ID.String(),
+		map[recipe.PortName]workflowruntime.Value{
+			input.Name: workflowruntime.ArtifactValue(input.Data, inputValue, inputContent),
+		}, bind)
+}
+
+func Execute[Output any](
+	ctx context.Context,
+	store artifact.Repository,
+	modelID artifact.ID,
+	program recipe.Program,
+	key string,
+	inputs map[recipe.PortName]workflowruntime.Value,
+	bind func(*workflowruntime.Runtime) error,
+) (Output, error) {
 	var zero Output
 	definition := program.Definition()
 	if definition.Model != modelID {
 		return zero, errors.New("capability runtime: program model differs from binding")
 	}
-	if len(definition.Inputs) != 1 || len(definition.Outputs) != 1 {
-		return zero, errors.New("capability runtime: scalar execution requires one input and output")
+	if len(definition.Outputs) != 1 {
+		return zero, errors.New("capability runtime: execution requires one output")
 	}
-	input, output := definition.Inputs[0], definition.Outputs[0]
+	output := definition.Outputs[0]
 	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
 	if err != nil {
 		return zero, err
@@ -87,11 +109,7 @@ func executeScalar[Output any](
 	if err := bind(runtime); err != nil {
 		return zero, err
 	}
-	result, err := runtime.ExecuteProgram(ctx,
-		"recipe/run/"+definition.ID.String()+"/"+inputContent.Descriptor.ID.String(), program,
-		map[recipe.PortName]workflowruntime.Value{
-			input.Name: workflowruntime.ArtifactValue(input.Data, inputValue, inputContent),
-		})
+	result, err := runtime.ExecuteProgram(ctx, key, program, inputs)
 	if err != nil {
 		return zero, err
 	}

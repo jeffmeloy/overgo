@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/dataroot"
@@ -28,6 +30,8 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
+	"overgo/internal/visionqa"
+	"overgo/internal/workflowruntime"
 )
 
 // decodeChain: token ids -> text via the checkpoint tokenizer.
@@ -66,70 +70,65 @@ func readEOSTokenIDs(modelDir string) ([]int, error) {
 	return []int{scalar}, nil
 }
 
-// resolveActiveVQA: gate — the serve runs only when an active VQA recipe is
-// published for THIS artifact. Returns the model id + recipe (definition) id +
-// tier for the round-trip log.
-func resolveActiveVQA(ctx context.Context, repo, modelDir string) (modelID, recipeID, tier string, err error) {
+// openRecipeStore: writable workflow lineage store.
+func openRecipeStore(repo string) (*repodb.Store, error) {
 	repository := repo
 	if repository == "" {
-		working, e := os.Getwd()
-		if e != nil {
-			return "", "", "", e
+		working, err := os.Getwd()
+		if err != nil {
+			return nil, err
 		}
-		roots, e := dataroot.Resolve(working)
-		if e != nil {
-			return "", "", "", e
+		roots, err := dataroot.Resolve(working)
+		if err != nil {
+			return nil, err
 		}
 		repository = roots.Store
 	}
+	return repodb.Open(repository)
+}
+
+// resolveActiveVQA: compiled active program for the HF artifact.
+func resolveActiveVQA(
+	ctx context.Context,
+	store artifact.Reader,
+	modelDir string,
+) (artifact.ID, recipe.Program, string, error) {
 	hf, err := hfrepo.Open(modelDir)
 	if err != nil {
-		return "", "", "", err
+		return artifact.ID{}, recipe.Program{}, "", err
 	}
 	inventory, err := modelartifact.FromHFRepository(hf)
 	_ = hf.Close()
 	if err != nil {
-		return "", "", "", err
+		return artifact.ID{}, recipe.Program{}, "", err
 	}
-	store, err := repodb.OpenReadOnly(repository)
-	if err != nil {
-		return "", "", "", err
-	}
-	defer store.Close()
 	activation, active, err := modelrecipe.ActiveRecord(ctx, store, inventory.Manifest.ID, recipe.TaskVQA)
 	if err != nil {
-		return "", "", "", err
+		return artifact.ID{}, recipe.Program{}, "", err
 	}
 	if !active {
-		return "", "", "", fmt.Errorf("no active vqa recipe for %s (activate first)", inventory.Manifest.ID)
+		return artifact.ID{}, recipe.Program{}, "", fmt.Errorf("no active vqa recipe for %s (activate first)", inventory.Manifest.ID)
 	}
-	return inventory.Manifest.ID.String(), activation.Definition.ID.String(), string(activation.Tier), nil
+	program, err := modelrecipe.CompileCapability(activation.Definition)
+	return inventory.Manifest.ID, program, string(activation.Tier), err
 }
 
-// runRecipeServe: serve the canonical case through the activated recipe.
+// runRecipeServe: canonical case through the active recipe.
 func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	ctx := context.Background()
 
-	// ---- GATE: active VQA recipe must be published for this artifact -------
-	modelID, recipeID, tier, err := resolveActiveVQA(ctx, repo, l.modelDir)
+	store, err := openRecipeStore(repo)
 	if err != nil {
 		return err
 	}
-	l.log(fmt.Sprintf("RECIPE serve GATE active vqa recipe resolved model=%s recipe=%s tier=%s", modelID, recipeID, tier))
+	defer store.Close()
+	modelID, program, tier, err := resolveActiveVQA(ctx, store, l.modelDir)
+	if err != nil {
+		return err
+	}
+	recipeID := program.Definition().ID.String()
+	l.log(fmt.Sprintf("RECIPE serve active vqa recipe resolved model=%s recipe=%s tier=%s", modelID, recipeID, tier))
 
-	// ---- processor: real image + question -> input ids (NO golden) --------
-	pre, err := patchtower.LoadPreprocessConfig(l.modelDir)
-	if err != nil {
-		return err
-	}
-	tok, err := hfbpe.Load(l.modelDir)
-	if err != nil {
-		return err
-	}
-	specials, err := routedlm.LoadPromptSpecials(l.modelDir, promptRoles)
-	if err != nil {
-		return err
-	}
 	if _, statErr := os.Stat(imagePath); statErr != nil {
 		return fmt.Errorf("serve image not found: %s", imagePath)
 	}
@@ -137,25 +136,25 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	if err != nil {
 		return err
 	}
-	rgb, h, w, err := patchtower.DecodeImageBytesRGB(rawImg)
+	image := visionqa.Image{Data: rawImg}
+	if err := visionqa.ValidateInput(image, question); err != nil {
+		return err
+	}
+	imageContent, err := artifact.JSONContent(
+		artifact.JSONContract(artifact.KindFile, "overgo.vqa-image-input.v1"), image,
+	)
 	if err != nil {
 		return err
 	}
-	pixelValues, gridT, gridH, gridW, err := patchtower.PreprocessImage(pre, rgb, h, w)
+	questionContent, err := artifact.JSONContent(
+		artifact.JSONContract(artifact.KindFile, "overgo.vqa-question-input.v1"), question,
+	)
 	if err != nil {
 		return err
 	}
-	inputIDs, err := routedlm.RenderVisionQAPrompt(tok, specials, question, gridH, gridW, pre.MergeSize)
-	if err != nil {
-		return err
-	}
-	positions := routedlm.ImageMaskPositions(inputIDs, specials)
-	l.log(fmt.Sprintf("RECIPE serve PROCESSOR image=%s grid=[%d,%d,%d] promptLen=%d imageTokens=%d question=%q",
-		filepath.Base(imagePath), gridT, gridH, gridW, len(inputIDs), len(positions), question))
-
-	eosIDs, err := readEOSTokenIDs(l.modelDir)
-	if err != nil {
-		return err
+	inputs := map[recipe.PortName]workflowruntime.Value{
+		"image":    workflowruntime.ArtifactValue(recipe.DataImage, image, imageContent),
+		"question": workflowruntime.ArtifactValue(recipe.DataText, question, questionContent),
 	}
 
 	// The 12-step parity golden is a TRUNCATION of the model's natural answer;
@@ -171,7 +170,43 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	const wantPrefix = "The stovetop holds a metal pot on the left burner"
 	const maxSteps = 64
 
-	serveOnce := func(tag string) ([]int, string, time.Duration, fullResult, error) {
+	serveOnce := func(
+		executeContext context.Context,
+		inputImage visionqa.Image,
+		inputQuestion string,
+		tag string,
+	) ([]int, string, time.Duration, fullResult, error) {
+		pre, err := patchtower.LoadPreprocessConfig(l.modelDir)
+		if err != nil {
+			return nil, "", 0, fullResult{}, err
+		}
+		tok, err := hfbpe.Load(l.modelDir)
+		if err != nil {
+			return nil, "", 0, fullResult{}, err
+		}
+		specials, err := routedlm.LoadPromptSpecials(l.modelDir, promptRoles)
+		if err != nil {
+			return nil, "", 0, fullResult{}, err
+		}
+		rgb, height, width, err := patchtower.DecodeImageBytesRGB(inputImage.Data)
+		if err != nil {
+			return nil, "", 0, fullResult{}, err
+		}
+		pixelValues, gridT, gridH, gridW, err := patchtower.PreprocessImage(pre, rgb, height, width)
+		if err != nil {
+			return nil, "", 0, fullResult{}, err
+		}
+		inputIDs, err := routedlm.RenderVisionQAPrompt(tok, specials, inputQuestion, gridH, gridW, pre.MergeSize)
+		if err != nil {
+			return nil, "", 0, fullResult{}, err
+		}
+		positions := routedlm.ImageMaskPositions(inputIDs, specials)
+		l.log(fmt.Sprintf("RECIPE serve %s PROCESSOR image=%s grid=[%d,%d,%d] promptLen=%d imageTokens=%d question=%q",
+			tag, filepath.Base(imagePath), gridT, gridH, gridW, len(inputIDs), len(positions), inputQuestion))
+		eosIDs, err := readEOSTokenIDs(l.modelDir)
+		if err != nil {
+			return nil, "", 0, fullResult{}, err
+		}
 		pc, err := newPrefillContext(l.modelDir, inputIDs, positions, gridT, gridH, gridW)
 		if err != nil {
 			return nil, "", 0, fullResult{}, err
@@ -187,7 +222,7 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 			return nil, "", 0, fullResult{}, fmt.Errorf("recipe serve executor: %w", err)
 		}
 		defer exe.Close()
-		res, err := runFullPipeline(l, ctx, worker, exe, pc, pixelValues, fullOpts{maxSteps: maxSteps, eosIDs: eosIDs})
+		res, err := runFullPipeline(l, executeContext, worker, exe, pc, pixelValues, fullOpts{maxSteps: maxSteps, eosIDs: eosIDs})
 		if err != nil {
 			return nil, "", 0, fullResult{}, err
 		}
@@ -203,7 +238,26 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		return res.generated, text, res.e2eWall, res, nil
 	}
 
-	chain1, text1, e2e1, _, err := serveOnce("RUN1")
+	executeRecipe := func(tag string) ([]int, string, time.Duration, fullResult, error) {
+		var chain []int
+		var wall time.Duration
+		var result fullResult
+		var pipelineErr error
+		answer, err := capabilityruntime.Execute[string](
+			ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), inputs,
+			func(runtime *workflowruntime.Runtime) error {
+				return visionqa.RegisterRuntime(runtime, modelID,
+					func(executeContext context.Context, image visionqa.Image, question string) (string, error) {
+						var text string
+						chain, text, wall, result, pipelineErr = serveOnce(executeContext, image, question, tag)
+						return text, pipelineErr
+					})
+			},
+		)
+		return chain, answer, wall, result, err
+	}
+
+	chain1, text1, e2e1, _, err := executeRecipe("RUN1")
 	if err != nil {
 		return err
 	}
@@ -220,7 +274,7 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		len(goldenChain), len(chain1), chain1[0], e2e1.Round(time.Millisecond)))
 
 	// ---- determinism: second serve must reproduce the chain bit-for-bit ---
-	chain2, text2, e2e2, _, err := serveOnce("RUN2")
+	chain2, text2, e2e2, _, err := executeRecipe("RUN2")
 	if err != nil {
 		return err
 	}

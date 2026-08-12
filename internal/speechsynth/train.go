@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"sort"
 
 	"overgo/internal/hostmath"
 )
@@ -486,17 +485,6 @@ func (m *Model) TrainedTensors(includeBackbone bool) (map[string][]float32, map[
 		}
 	}
 	return tensors, shapes
-}
-
-// TrainedTensorNames: deterministic (sorted) order of a trained set.
-func (m *Model) TrainedTensorNames(includeBackbone bool) []string {
-	tensors, _ := m.TrainedTensors(includeBackbone)
-	names := make([]string, 0, len(tensors))
-	for name := range tensors {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
 }
 
 // DerivedJointLR ports the reference scale law: a base rate tuned for the

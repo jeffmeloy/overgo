@@ -111,7 +111,7 @@ func TestPredictParity(t *testing.T) {
 			MaxClasses: 0, OutDim: 1, IsClassifier: false,
 		},
 	}
-	for _, task := range []string{TaskClassification, TaskRegression} {
+	for _, task := range Tasks() {
 		head, err := LoadHead(headDir(t, task))
 		if err != nil {
 			t.Fatal(err)

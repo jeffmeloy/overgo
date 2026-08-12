@@ -412,6 +412,106 @@ extern "C" __global__ void silu_f32(
     }
 }
 
+// silu_backward_f32: grad_input = grad_output * silu'(x), where
+// silu(x) = x*sigmoid(x) and silu'(x) = s*(1 + x*(1-s)), s = sigmoid(x).
+extern "C" __global__ void silu_backward_f32(
+        const float * grad_output,
+        const float * input,
+        float * grad_input,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const float x = input[index];
+        const float s = 1.0f / (1.0f + expf(-x));
+        grad_input[index] = grad_output[index] * s * (1.0f + x * (1.0f - s));
+    }
+}
+
+// rms_norm_backward_f32: VJP of affine RMSNorm y = x * rsqrt(mean(x^2)+eps) * w.
+// One thread per row. dscale (the weight gradient) accumulates across rows via
+// atomicAdd, so the caller must zero-initialize it before launch.
+extern "C" __global__ void rms_norm_backward_f32(
+        const float * dy,
+        const float * x,
+        const float * weight,
+        float * dx,
+        float * dscale,
+        unsigned int rows,
+        unsigned int d,
+        float eps) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const float * xr = x + (size_t)row * d;
+    const float * dyr = dy + (size_t)row * d;
+    float * dxr = dx + (size_t)row * d;
+    float ss = 0.0f;
+    float dotGX = 0.0f;
+    for (unsigned int i = 0; i < d; i++) {
+        ss += xr[i] * xr[i];
+        dotGX += dyr[i] * weight[i] * xr[i];
+    }
+    const float inv = rsqrtf(ss / (float)d + eps);
+    const float coef = inv * inv * inv / (float)d * dotGX;
+    for (unsigned int i = 0; i < d; i++) {
+        dxr[i] = inv * weight[i] * dyr[i] - coef * xr[i];
+        atomicAdd(&dscale[i], dyr[i] * xr[i] * inv);
+    }
+}
+
+// softmax_backward_f32: VJP of a row-wise softmax. Given the softmax output p
+// and its cotangent dp, ds_i = p_i*(dp_i - sum_j p_j*dp_j). One thread per row.
+extern "C" __global__ void softmax_backward_f32(
+        const float * p,
+        const float * dp,
+        float * ds,
+        unsigned int rows,
+        unsigned int d) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const float * pr = p + (size_t)row * d;
+    const float * dpr = dp + (size_t)row * d;
+    float * dsr = ds + (size_t)row * d;
+    float dot = 0.0f;
+    for (unsigned int i = 0; i < d; i++) {
+        dot += pr[i] * dpr[i];
+    }
+    for (unsigned int i = 0; i < d; i++) {
+        dsr[i] = pr[i] * (dpr[i] - dot);
+    }
+}
+
+// rope_half_backward_f32: VJP of split-half (HF-layout) rotary embedding. dx is
+// [seq, n_heads*hd]; inv_freq is [hd/2]. Rotates each gradient pair (i, i+hd/2)
+// by the negated angle pos*inv_freq[i]. One thread per (position, head, pair).
+extern "C" __global__ void rope_half_backward_f32(
+        float * dx,
+        const float * inv_freq,
+        unsigned int seq,
+        unsigned int n_heads,
+        unsigned int hd) {
+    const unsigned int half = hd / 2;
+    const unsigned int total = seq * n_heads * half;
+    const unsigned int t = blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= total) {
+        return;
+    }
+    const unsigned int i = t % half;
+    const unsigned int head = (t / half) % n_heads;
+    const unsigned int pos = (t / half) / n_heads;
+    const float a = (float)pos * inv_freq[i];
+    const float c = cosf(a);
+    const float s = sinf(a);
+    const size_t base = (size_t)pos * n_heads * hd + (size_t)head * hd;
+    const float d1 = dx[base + i];
+    const float d2 = dx[base + i + half];
+    dx[base + i] = c * d1 + s * d2;
+    dx[base + i + half] = -s * d1 + c * d2;
+}
+
 extern "C" __global__ void activated_gate_f32(
         const float * gate,
         const float * up,

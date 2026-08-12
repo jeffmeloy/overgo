@@ -5,6 +5,8 @@ package executor
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -39,6 +41,90 @@ const (
 type graphOutputCheck struct {
 	output    *tensor.Tensor
 	tolerance float64
+	bitExact  bool
+}
+
+type residentProjectionCase struct {
+	name       string
+	rightRows  uint64
+	selectTopK bool
+	tolerance  float64
+}
+
+var residentProjectionCases = [...]residentProjectionCase{
+	{name: "decode", rightRows: 1, tolerance: accuracyQuantized},
+	{name: "prefill", rightRows: 3, tolerance: accuracyQuantized},
+	{name: "greedy", rightRows: 1, selectTopK: true, tolerance: accuracyExact},
+}
+
+type cudaReferenceFixture struct {
+	t       *testing.T
+	builder *tensor.Builder
+	feeds   map[*tensor.Tensor]reference.Value
+	seed    int
+}
+
+func newCUDAReferenceFixture(t *testing.T, seed int) *cudaReferenceFixture {
+	t.Helper()
+	cudatest.Require(t)
+	return &cudaReferenceFixture{
+		t: t, builder: tensor.NewBuilder(), feeds: make(map[*tensor.Tensor]reference.Value), seed: seed,
+	}
+}
+
+func (f *cudaReferenceFixture) input(
+	name string,
+	shape tensor.Shape,
+	scale, offset float32,
+) *tensor.Tensor {
+	item := f.builder.Input(name, dtype.F32, shape)
+	f.feeds[item] = patternedValue(shape, f.seed, scale, offset)
+	f.seed += 2
+	return item
+}
+
+func (f *cudaReferenceFixture) nextInput(
+	prefix string,
+	shape tensor.Shape,
+	scale, offset float32,
+) *tensor.Tensor {
+	return f.input(fmt.Sprintf("%s_%d", prefix, f.seed), shape, scale, offset)
+}
+
+func (f *cudaReferenceFixture) modelPlan(spec model.Spec) model.ModelPlan {
+	f.t.Helper()
+	plan, err := model.CompileModelPlan(spec, model.Weights{})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return plan
+}
+
+func (f *cudaReferenceFixture) layer(
+	program model.ModelPlan,
+	layer int,
+	spec model.Spec,
+	weights model.LayerGraphWeights,
+	context model.CachedBlockContext,
+) model.DenseBlockResult {
+	f.t.Helper()
+	plan, err := program.Layer(layer)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	context.Builder, context.Layer = f.builder, plan.Layer
+	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: spec, Weights: weights, Plan: &plan, Context: context,
+	})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return result
+}
+
+func (f *cudaReferenceFixture) requireMatch(outputs []*tensor.Tensor, tolerance float64) {
+	f.t.Helper()
+	checkCUDAGraph(f.t, f.feeds, uniformGraphChecks(outputs, tolerance)...)
 }
 
 func newFixtureExecutor(t testing.TB) *Executor {
@@ -111,6 +197,84 @@ func copyFixtureDeviceBytes(
 		})
 	})
 	return pointer
+}
+
+func checkResidentMulMat(
+	t *testing.T,
+	dataType dtype.Type,
+	leftShape tensor.Shape,
+	storage []byte,
+	dequantized []float32,
+) {
+	t.Helper()
+	cudatest.Require(t)
+	const (
+		rightSeed   = 7
+		rightScale  = 0.05
+		rightOffset = 0.02
+		topKCount   = 1
+	)
+	for _, testCase := range residentProjectionCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			rightShape := tensor.MustShape(leftShape.Slice()[0], testCase.rightRows)
+			rightValue := patternedValue(rightShape, rightSeed, rightScale, rightOffset)
+			checkResidentBinaryGraph(
+				t, dataType, leftShape, storage, dequantized, rightValue,
+				func(builder *tensor.Builder, left, right *tensor.Tensor) *tensor.Tensor {
+					output := builder.MulMat(left, right)
+					if testCase.selectTopK {
+						return builder.TopK(output, topKCount)
+					}
+					return output
+				},
+				testCase.tolerance,
+			)
+		})
+	}
+}
+
+func checkResidentBinaryGraph(
+	t *testing.T,
+	dataType dtype.Type,
+	leftShape tensor.Shape,
+	storage []byte,
+	dequantized []float32,
+	rightValue reference.Value,
+	build func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor) *tensor.Tensor,
+	tolerance float64,
+) {
+	t.Helper()
+	referenceBuilder := tensor.NewBuilder()
+	referenceLeft := referenceBuilder.Input("left", dtype.F32, leftShape)
+	referenceRight := referenceBuilder.Input("right", dtype.F32, rightValue.Shape)
+	referenceOutput := build(referenceBuilder, referenceLeft, referenceRight)
+	want, err := reference.Execute(
+		[]*tensor.Tensor{referenceOutput},
+		map[*tensor.Tensor]reference.Value{
+			referenceLeft: {Shape: leftShape, Data: dequantized}, referenceRight: rightValue,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder := tensor.NewBuilder()
+	left := builder.Input("left", dataType, leftShape)
+	right := builder.Input("right", dtype.F32, rightValue.Shape)
+	output := build(builder, left, right)
+	worker := newFixtureWorker(t)
+	pointer := copyFixtureDeviceBytes(t, worker, storage)
+	cuda := newFixtureExecutorWithWorker(t, worker)
+	got, err := cuda.ExecuteWithDeviceFeeds(
+		context.Background(),
+		[]*tensor.Tensor{output},
+		map[*tensor.Tensor]reference.Value{right: rightValue},
+		map[*tensor.Tensor]driver.DevicePtr{left: pointer},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got[output].Data, want[referenceOutput].Data, tolerance)
 }
 
 func fixturePositions(tokens uint32) []uint32 {
@@ -217,8 +381,16 @@ func checkCUDAGraph(
 		t.Fatal(err)
 	}
 	for _, check := range checks {
+		if check.bitExact {
+			compareBits(t, got[check.output].Data, want[check.output].Data)
+			continue
+		}
 		compare(t, got[check.output].Data, want[check.output].Data, check.tolerance)
 	}
+}
+
+func bitExactGraphCheck(output *tensor.Tensor) graphOutputCheck {
+	return graphOutputCheck{output: output, bitExact: true}
 }
 
 func uniformGraphChecks(outputs []*tensor.Tensor, tolerance float64) []graphOutputCheck {
@@ -227,4 +399,56 @@ func uniformGraphChecks(outputs []*tensor.Tensor, tolerance float64) []graphOutp
 		checks[index] = graphOutputCheck{output: output, tolerance: tolerance}
 	}
 	return checks
+}
+
+func patternedValue(shape tensor.Shape, seed int, scale, bias float32) reference.Value {
+	elements, _ := shape.Elements()
+	data := make([]float32, int(elements))
+	for index := range data {
+		data[index] = bias + scale*float32(((index*7+seed*3)%19)-9)
+	}
+	value, _ := reference.NewValue(shape, data)
+	return value
+}
+
+func compare(t *testing.T, got, want []float32, tolerance float64) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("length = %d, want %d", len(got), len(want))
+	}
+	for index := range want {
+		if difference := math.Abs(float64(got[index] - want[index])); difference > tolerance {
+			t.Fatalf("value[%d] = %v, want %v (difference %g)", index, got[index], want[index], difference)
+		}
+	}
+}
+
+func compareBits(t *testing.T, got, want []float32) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("length = %d, want %d", len(got), len(want))
+	}
+	for index := range want {
+		if math.Float32bits(got[index]) != math.Float32bits(want[index]) {
+			t.Fatalf(
+				"value[%d] = %08x, want %08x",
+				index, math.Float32bits(got[index]), math.Float32bits(want[index]),
+			)
+		}
+	}
+}
+
+func maxAbsDifference(t testing.TB, got, want []float32) (float64, int) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("length = %d, want %d", len(got), len(want))
+	}
+	maximum, at := float64(0), -1
+	for index := range want {
+		difference := math.Abs(float64(got[index] - want[index]))
+		if difference > maximum {
+			maximum, at = difference, index
+		}
+	}
+	return maximum, at
 }

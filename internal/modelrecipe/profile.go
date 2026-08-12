@@ -305,7 +305,7 @@ func VerifyProfileParity(
 	spec model.Spec,
 	weights model.Weights,
 ) (Plan, error) {
-	legacy, err := Compile(definition, spec, weights)
+	legacy, err := CompileInference(definition, spec, weights)
 	if err != nil {
 		return Plan{}, err
 	}

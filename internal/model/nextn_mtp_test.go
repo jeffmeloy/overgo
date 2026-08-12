@@ -31,7 +31,10 @@ func TestBuildGLM4NextNMTPPipeline(t *testing.T) {
 	weights.FeedForwardPostNorm = builder.Input("ffn_post", dtype.F32, tensor.MustShape(8))
 	weights.FeedForwardGate = nil
 	weights.FeedForwardUp = builder.Input("gate_up", dtype.F32, tensor.MustShape(8, 24))
-	block, err := BuildNextNMTPBlockCached(builder, current, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
+	block, err := buildFixtureLayerWithPlan(
+		builder, current, draft.Spec, weights, []uint32{0, 1}, nil, nil, draft.Plan,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +65,10 @@ func TestBuildEXAONE4NextNMTPBlock(t *testing.T) {
 	weights.AttentionQKVBias = builder.Input("qkv_bias", dtype.F32, tensor.MustShape(16))
 	weights.AttentionPostNorm = builder.Input("attn_post", dtype.F32, tensor.MustShape(8))
 	weights.FeedForwardPostNorm = builder.Input("ffn_post", dtype.F32, tensor.MustShape(8))
-	result, err := BuildNextNMTPBlockCached(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
+	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
+	result, err := buildFixtureLayerWithPlan(
+		builder, input, draft.Spec, weights, []uint32{0, 1}, nil, nil, draft.Plan,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,14 +16,7 @@ func TestBuildQwen35MTPPipeline(t *testing.T) {
 			spec := qwen35TestSpec()
 			spec.Architecture = architecture
 			spec.NextNPredictLayers = 1
-			program, err := CompileModelPlan(spec, Weights{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			plan, err := program.DraftLayer(0)
-			if err != nil {
-				t.Fatal(err)
-			}
+			draft := fixtureDraftProgram(t, spec, Weights{}, 0)
 			token := builder.Input("token", dtype.F32, tensor.MustShape(8, 1))
 			hidden := builder.Input("hidden", dtype.F32, tensor.MustShape(8, 1))
 			embeddingNorm := builder.Input("enorm", dtype.F32, tensor.MustShape(8))
@@ -37,8 +30,9 @@ func TestBuildQwen35MTPPipeline(t *testing.T) {
 			}
 			weightSpec := spec
 			weightSpec.Architecture = "qwen35"
-			block, err := BuildQwen35MTPBlockCached(
-				builder, current, spec, qwen35AttentionInputs(builder, weightSpec), []uint32{7}, nil, nil, plan,
+			block, err := buildFixtureLayerWithPlan(
+				builder, current, draft.Spec, qwen35AttentionInputs(builder, weightSpec),
+				[]uint32{7}, nil, nil, draft.Plan,
 			)
 			if err != nil {
 				t.Fatal(err)

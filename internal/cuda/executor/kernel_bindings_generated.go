@@ -125,9 +125,11 @@ const (
 	kernelReluF32
 	kernelReluSquaredF32
 	kernelRepeatHeadsF32
+	kernelRmsNormBackwardF32
 	kernelRmsNormF32
 	kernelRopeAppendNeoxF32
 	kernelRopeAppendNormalF32
+	kernelRopeHalfBackwardF32
 	kernelRopeMultiF32
 	kernelRopeNeoxF32
 	kernelRopeNormalF32
@@ -136,7 +138,9 @@ const (
 	kernelSamAttentionF32
 	kernelScaleF32
 	kernelSigmoidF32
+	kernelSiluBackwardF32
 	kernelSiluF32
+	kernelSoftmaxBackwardF32
 	kernelSoftmaxF32
 	kernelSoftplusF32
 	kernelSparseAttentionF32
@@ -285,9 +289,11 @@ var kernelFunctionNames = [...]string{
 	"relu_f32",
 	"relu_squared_f32",
 	"repeat_heads_f32",
+	"rms_norm_backward_f32",
 	"rms_norm_f32",
 	"rope_append_neox_f32",
 	"rope_append_normal_f32",
+	"rope_half_backward_f32",
 	"rope_multi_f32",
 	"rope_neox_f32",
 	"rope_normal_f32",
@@ -296,7 +302,9 @@ var kernelFunctionNames = [...]string{
 	"sam_attention_f32",
 	"scale_f32",
 	"sigmoid_f32",
+	"silu_backward_f32",
 	"silu_f32",
+	"softmax_backward_f32",
 	"softmax_f32",
 	"softplus_f32",
 	"sparse_attention_f32",
@@ -444,9 +452,11 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	3,
 	6,
+	8,
 	5,
 	18,
 	18,
+	5,
 	14,
 	16,
 	16,
@@ -455,7 +465,9 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	18,
 	4,
 	3,
+	4,
 	3,
+	5,
 	4,
 	3,
 	16,

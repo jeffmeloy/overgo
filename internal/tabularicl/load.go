@@ -13,6 +13,7 @@ import (
 	"io"
 	"math"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +26,11 @@ const (
 	TaskClassification = "classification"
 	TaskRegression     = "regression"
 )
+
+var taskNames = [...]string{TaskClassification, TaskRegression}
+
+// Tasks returns the supported head names.
+func Tasks() []string { return slices.Clone(taskNames[:]) }
 
 // rmsEps: the one carried execution fact. Not recorded anywhere in the
 // artifact (config.json or tensors); vendor source
@@ -105,8 +111,8 @@ type Model struct {
 // Load reads both sub-model heads under directory (classification/ and
 // regression/, each config.json + model.safetensors).
 func Load(directory string) (*Model, error) {
-	m := &Model{Heads: make(map[string]*Head, 2)}
-	for _, task := range []string{TaskClassification, TaskRegression} {
+	m := &Model{Heads: make(map[string]*Head, len(taskNames))}
+	for _, task := range taskNames {
 		head, err := LoadHead(filepath.Join(directory, task))
 		if err != nil {
 			return nil, fmt.Errorf("tabularicl %s head: %w", task, err)
@@ -114,6 +120,22 @@ func Load(directory string) (*Model, error) {
 		m.Heads[task] = head
 	}
 	return m, nil
+}
+
+// LoadTask materializes only the requested task head.
+func LoadTask(directory, task string) (*Model, error) {
+	if !validTask(task) {
+		return nil, fmt.Errorf("tabularicl: unsupported task %q", task)
+	}
+	head, err := LoadHead(filepath.Join(directory, task))
+	if err != nil {
+		return nil, fmt.Errorf("tabularicl %s head: %w", task, err)
+	}
+	return &Model{Heads: map[string]*Head{task: head}}, nil
+}
+
+func validTask(task string) bool {
+	return slices.Contains(taskNames[:], task)
 }
 
 // LoadHead reads one task head and materializes every tensor as f32.

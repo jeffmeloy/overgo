@@ -235,10 +235,15 @@ func (r *Runner) layerPlan(layer int) model.LayerPlan {
 }
 
 func (r *Runner) draftLayerPlan(offset uint32) (model.LayerPlan, error) {
+	program, err := r.draftLayerProgram(offset)
+	return program.Plan, err
+}
+
+func (r *Runner) draftLayerProgram(offset uint32) (model.DraftLayerProgram, error) {
 	if r == nil {
-		return model.LayerPlan{}, errors.New("inference: compiled draft layer is unavailable")
+		return model.DraftLayerProgram{}, errors.New("inference: compiled draft layer is unavailable")
 	}
-	return r.program.Model.DraftLayer(offset)
+	return r.program.Model.DraftProgram(r.spec, offset)
 }
 
 func (r *Runner) profile() model.ArchitectureProfile {

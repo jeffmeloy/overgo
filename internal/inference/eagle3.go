@@ -177,9 +177,15 @@ func (r *Runner) stepEagle3(
 		pastKey = runtime.input("eagle3.past_key", cache.Layers[0].Key)
 		pastValue = runtime.input("eagle3.past_value", cache.Layers[0].Value)
 	}
-	block, err := model.BuildEagle3BlockCached(
-		runtime.builder, tokenInput, featureInput, r.spec, graphWeights, []uint32{position}, pastKey, pastValue,
-	)
+	plan := r.layerPlan(0)
+	block, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: r.spec, Weights: graphWeights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: runtime.builder, Input: tokenInput, Positions: []uint32{position},
+			PastKey: pastKey, PastValue: pastValue, PerLayerInput: featureInput,
+			Layer: plan.Layer, CacheWrite: tensor.CacheWriteConcat,
+		},
+	})
 	if err != nil {
 		return Eagle3StepResult{}, err
 	}

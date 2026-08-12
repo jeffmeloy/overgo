@@ -442,11 +442,18 @@ func (g *gateContext) stepManifest() (bool, error) {
 	if _, err := os.Stat(filepath.Join(g.repo, "kernels", "manifest.json")); err != nil {
 		return true, nil
 	}
-	if !g.pathsTouchAny("kernels/", "internal/cuda/kernel/", "cmd/kernel-manifest/", "cmd/build-kernels/") {
+	if !g.pathsTouchAny("kernels/", "internal/cuda/kernel/", "cmd/kernel-manifest/", "cmd/build-kernels/", "cmd/kernel-bindings/") {
 		g.honesty = append(g.honesty, "manifest skipped: no kernel-owning paths in -paths")
 		return true, nil
 	}
-	_, err := command(g.repo, "go", "run", "./cmd/kernel-manifest")
+	if _, err := command(g.repo, "go", "run", "./cmd/kernel-manifest"); err != nil {
+		return false, err
+	}
+	// Bindings derive from the same manifest, but build-kernels updates the
+	// manifest + PTX WITHOUT regenerating the executor bindings (that needs
+	// `go generate ./internal/cuda/executor`). Verify freshness here so a stale
+	// kernel_bindings_generated.go cannot ship on a kernel change.
+	_, err := command(g.repo, "go", "test", "-run", "TestGeneratedBindingsMatchManifest", "-count=1", "./cmd/kernel-bindings")
 	return false, err
 }
 
@@ -555,12 +562,24 @@ func ledgerNames(repo, storePath string) (map[string]bool, error) {
 // change; a failure INCLUDING device unavailability fails the commit —
 // UNAVAILABLE never passes for a change that needs device evidence.
 func (g *gateContext) stepDevice() (bool, error) {
-	if !g.pathsTouchAny("kernels/", "internal/cuda/") {
+	if !g.pathsTouchAny("kernels/", "internal/cuda/") && !g.pathsTouchDeviceSource() {
 		g.honesty = append(g.honesty, "device lane skipped: no kernel or CUDA-cone paths in -paths")
 		return true, nil
 	}
 	_, err := command(g.repo, "go", "run", "./cmd/device-lane")
 	return false, err
+}
+
+// pathsTouchDeviceSource: device-lane code lives outside internal/cuda too (e.g.
+// the device optimizer in internal/optimizer). Any _cuda_windows source/test in
+// -paths fires the lane so its device evidence is not silently skipped.
+func (g *gateContext) pathsTouchDeviceSource() bool {
+	for _, p := range g.paths {
+		if strings.Contains(p, "_cuda_windows") {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *gateContext) stepCommit() (bool, error) {

@@ -1,6 +1,10 @@
 package cublas
 
-import "fmt"
+import (
+	"fmt"
+
+	"overgo/internal/cuda/driver"
+)
 
 type Handle uintptr
 
@@ -20,6 +24,33 @@ const (
 	ComputeF32         ComputeType   = 68
 	GemmDefault        GemmAlgorithm = -1
 )
+
+// RowMajorGEMMF32: row-major C[m,n] = A[m,k]*B[k,n].
+func (l *Library) RowMajorGEMMF32(handle Handle, m, k, n int32, a, b, c driver.DevicePtr) error {
+	return l.RowMajorGEMMExF32(handle, false, false, m, k, n, a, b, c)
+}
+
+// RowMajorGEMMExF32: row-major C[m,n] = op(A)*op(B).
+// Transpose flags avoid materialized X^T*X and X*X^T inputs.
+// cuBLAS uses the equivalent swapped column-major product.
+func (l *Library) RowMajorGEMMExF32(handle Handle, transA, transB bool, m, k, n int32, a, b, c driver.DevicePtr) error {
+	opA, lda := OperationNone, k
+	if transA {
+		opA, lda = OperationTranspose, m
+	}
+	opB, ldb := OperationNone, n
+	if transB {
+		opB, ldb = OperationTranspose, k
+	}
+	return l.GEMMEx(
+		handle, opB, opA,
+		n, m, k, 1,
+		b, DataF32, ldb,
+		a, DataF32, lda,
+		0, c, DataF32, n,
+		ComputeF32, GemmDefault,
+	)
+}
 
 // StatusError: reports cuBLAS API failure
 type StatusError struct {

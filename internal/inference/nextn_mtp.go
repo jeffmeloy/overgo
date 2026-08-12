@@ -126,14 +126,22 @@ func (r *Runner) AdvanceNextNMTP(
 	if session.Layer.Auxiliary != nil {
 		previousTopK = graph.input("nextn_mtp.previous_top_k", *session.Layer.Auxiliary)
 	}
-	draftLayer, err := r.draftLayerPlan(0)
+	draftProgram, err := r.draftLayerProgram(0)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	block, err := model.BuildNextNMTPBlockCachedWithDSAPlan(
-		builder, current, r.spec, graphWeights, []uint32{session.Position},
-		pastKey, pastValue, pastIndexerKey, previousTopK, 0, draftLayer,
-	)
+	plan := draftProgram.Plan
+	block, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: draftProgram.Spec, Weights: graphWeights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: builder, Input: current, Positions: []uint32{session.Position},
+			PastKey: pastKey, PastValue: pastValue,
+			PastStates: model.CacheStates[*tensor.Tensor]{
+				model.CacheStateIndexerKey: {Mode: model.CacheStateToken, Value: pastIndexerKey},
+			},
+			PerLayerInput: previousTopK, Layer: plan.Layer, Recurrent: plan.Recurrent,
+		},
+	})
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

@@ -1,0 +1,152 @@
+package densecausal
+
+import (
+	"fmt"
+	"sort"
+
+	"overgo/internal/optimizer"
+)
+
+// Train runs `steps` full-parameter Muon updates over one token batch and
+// returns the loss trajectory (entry k is the loss measured before update k, so
+// trajectory[0] is the pre-training loss). Every trainable tensor flattens into
+// one optimizer plan; the Muon geometry is derived from each tensor's stored
+// shape -- 2D tensors get the Newton-Schulz matrix rule, 1D tensors the vector
+// rule -- never named per family. A non-positive baseLR is DERIVED from the
+// trainable parameter count (optimizer.DeriveBaseLR: n_params^-1/2), so one
+// call trains any scale without a hand-tuned rate; pass a positive baseLR only
+// to override. This is the host learning loop; the device path is a later rung
+// that must match this trajectory within tolerance.
+func (m *Model) Train(tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
+	trajectory, _, err := m.train(tokens, steps, baseLR, mu, nil)
+	return trajectory, err
+}
+
+// TrainState carries the optimizer state (momentum + step + plan/config
+// identity) needed to resume training exactly. Model weights resume from
+// m.Weights, so a step-boundary checkpoint is the pair (m.Weights snapshot,
+// TrainState): no accumulated gradient is required after a committed step.
+type TrainState = optimizer.State
+
+// TrainResume runs `steps` Muon updates continuing from a prior optimizer state
+// (nil starts fresh) and returns the loss trajectory plus the post-run state for
+// the next checkpoint. An uninterrupted run and a checkpoint/resume split of the
+// same run produce identical weights.
+func (m *Model) TrainResume(tokens []int, steps int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
+	return m.train(tokens, steps, baseLR, mu, resume)
+}
+
+func (m *Model) train(tokens []int, steps int, baseLR, mu float64, resume *optimizer.State) ([]float64, optimizer.State, error) {
+	names, weights, gradients, plan, resolvedLR, err := m.trainSetup(baseLR)
+	if err != nil {
+		return nil, optimizer.State{}, err
+	}
+	opt, err := optimizer.New(weights, gradients, plan, optimizer.Config{
+		BaseLearningRate: resolvedLR, Momentum: mu, Schedule: optimizer.ScheduleConstant,
+	})
+	if err != nil {
+		return nil, optimizer.State{}, err
+	}
+	if resume != nil {
+		if err := opt.Restore(*resume); err != nil {
+			return nil, optimizer.State{}, err
+		}
+	}
+
+	trajectory := make([]float64, 0, steps)
+	for step := 0; step < steps; step++ {
+		scatter(m, names, weights)
+		loss, _, grads, err := m.LossAndGrads(tokens)
+		if err != nil {
+			return nil, optimizer.State{}, err
+		}
+		trajectory = append(trajectory, loss)
+		m.gatherGrads(names, gradients, grads)
+		opt.Step()
+	}
+	scatter(m, names, weights)
+	return trajectory, opt.Snapshot(), nil
+}
+
+// trainSetup flattens the model's trainable tensors into an optimizer layout:
+// sorted names, flat weight+gradient buffers (weights populated from m.Weights),
+// a compiled plan (Muon geometry derived from each tensor's shape), and the
+// resolved base LR (derived from the parameter count when baseLR<=0).
+func (m *Model) trainSetup(baseLR float64) (names []string, weights, gradients []float32, plan optimizer.Plan, resolvedLR float64, err error) {
+	names = make([]string, 0, len(m.Weights))
+	for name := range m.Weights {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	total := 0
+	for _, name := range names {
+		total += len(m.Weights[name])
+	}
+	if baseLR <= 0 {
+		baseLR = optimizer.DeriveBaseLR(total)
+	}
+	weights = make([]float32, total)
+	gradients = make([]float32, total)
+	specs := make([]optimizer.GroupSpec, 0, len(names))
+	offset := 0
+	for _, name := range names {
+		values := m.Weights[name]
+		rows, cols, err := tensorGeometry(m.Shapes[name], len(values))
+		if err != nil {
+			return nil, nil, nil, optimizer.Plan{}, 0, fmt.Errorf("densecausal: %s: %w", name, err)
+		}
+		copy(weights[offset:], values)
+		specs = append(specs, optimizer.GroupSpec{
+			Name: name, Start: offset, End: offset + len(values), Rows: rows, Cols: cols,
+		})
+		offset += len(values)
+	}
+	plan, err = optimizer.CompilePlan(total, specs)
+	return names, weights, gradients, plan, baseLR, err
+}
+
+// gatherGrads copies per-tensor gradients into the flat buffer in trainSetup's
+// sorted order; a tensor absent from grads is zeroed.
+func (m *Model) gatherGrads(names []string, gradients []float32, grads Grads) {
+	offset := 0
+	for _, name := range names {
+		n := len(m.Weights[name])
+		if g, ok := grads[name]; ok {
+			copy(gradients[offset:offset+n], g)
+		} else {
+			clear(gradients[offset : offset+n])
+		}
+		offset += n
+	}
+}
+
+// scatter copies the flat optimizer weight buffer back into the model tensors.
+func scatter(m *Model, names []string, weights []float32) {
+	offset := 0
+	for _, name := range names {
+		n := len(m.Weights[name])
+		copy(m.Weights[name], weights[offset:offset+n])
+		offset += n
+	}
+}
+
+// tensorGeometry maps a stored tensor shape to Muon (rows, cols): a 2D tensor
+// keeps its shape (Newton-Schulz matrix geometry), a 1D tensor is a
+// (length, 1) vector; any other rank is an unsupported training layout.
+func tensorGeometry(shape []int, length int) (int, int, error) {
+	switch len(shape) {
+	case 2:
+		if shape[0]*shape[1] != length {
+			return 0, 0, fmt.Errorf("shape %v does not match length %d", shape, length)
+		}
+		return shape[0], shape[1], nil
+	case 1:
+		if shape[0] != length {
+			return 0, 0, fmt.Errorf("shape %v does not match length %d", shape, length)
+		}
+		return shape[0], 1, nil
+	default:
+		return 0, 0, fmt.Errorf("unsupported tensor rank %d (shape %v)", len(shape), shape)
+	}
+}

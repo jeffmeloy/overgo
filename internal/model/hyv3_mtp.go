@@ -15,22 +15,6 @@ func BuildHYV3MTPInput(
 	)
 }
 
-// BuildHYV3MTPBlockCached: selected full draft block.
-func BuildHYV3MTPBlockCached(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue *tensor.Tensor,
-	offset uint32,
-) (DenseBlockResult, error) {
-	return buildMTPDenseBlock(
-		builder, input, spec, spec, weights, positions, pastKey, pastValue,
-		hyv3MTPPolicy, offset,
-	)
-}
-
 // BuildHYV3MTPOutputs: post-norm hidden plus selected logits.
 func BuildHYV3MTPOutputs(
 	builder *tensor.Builder,

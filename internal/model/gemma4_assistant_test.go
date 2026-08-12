@@ -45,12 +45,14 @@ func TestBuildGemma4AssistantPipeline(t *testing.T) {
 	}
 	sharedKey := input("shared_key", 2, 1, 2)
 	sharedValue := input("shared_value", 2, 1, 2)
-	current, err = BuildGemma4AssistantBlock(
-		builder, current, spec, weights, []uint32{2}, sharedKey, sharedValue, 0,
+	plan := fixtureLayerPlan(t, spec, Weights{}, 0)
+	block, err := buildFixtureLayerWithPlan(
+		builder, current, spec, weights, []uint32{2}, sharedKey, sharedValue, plan,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	current = block.Output
 	outputNorm := input("output_norm", 2)
 	output := input("output", 2, 4)
 	post := input("post", 2, 3)

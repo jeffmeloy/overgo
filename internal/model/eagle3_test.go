@@ -24,7 +24,7 @@ func TestBuildEagle3FeatureAndDecoder(t *testing.T) {
 		feeds[item] = reference.Value{Shape: shape, Data: data}
 		return item
 	}
-	spec := Spec{CommonSpec: CommonSpec{Architecture: "eagle3", EmbeddingLength: 4, TargetHiddenSize: 3,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "eagle3", BlockCount: 1, EmbeddingLength: 4, TargetHiddenSize: 3,
 		TargetLayers: []int32{1, 3, 5}, FeedForwardLength: 6,
 
 		RMSNormEpsilon: 1e-5}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
@@ -49,7 +49,10 @@ func TestBuildEagle3FeatureAndDecoder(t *testing.T) {
 		FeedForwardDown: input("down", tensor.MustShape(6, 4), 0.02),
 	}
 	tokens := input("tokens", tensor.MustShape(4, 3), 0.1)
-	result, err := BuildEagle3BlockCached(builder, tokens, fused, spec, weights, []uint32{0, 1, 2}, nil, nil)
+	plan := fixtureLayerPlan(t, spec, Weights{}, 0)
+	result, err := buildFixtureLayerWithAuxiliary(
+		builder, tokens, spec, weights, []uint32{0, 1, 2}, nil, nil, nil, fused, plan,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

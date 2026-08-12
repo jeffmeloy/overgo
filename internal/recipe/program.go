@@ -1,0 +1,96 @@
+package recipe
+
+import (
+	"errors"
+	"slices"
+)
+
+// Stage: validated node plus its immutable module contract.
+type Stage struct {
+	Node   Node
+	Module Module
+}
+
+// Program: catalog-resolved executable recipe graph.
+type Program struct {
+	definition Definition
+	stages     []Stage
+}
+
+// Definition returns an isolated recipe copy.
+func (p Program) Definition() Definition { return cloneProgramDefinition(p.definition) }
+
+// Stages returns isolated compiled-stage contracts.
+func (p Program) Stages() []Stage {
+	stages := slices.Clone(p.stages)
+	for index := range stages {
+		stages[index].Module = cloneModule(stages[index].Module)
+	}
+	return stages
+}
+
+// CompileProgram resolves module contracts and orders executable stages.
+func CompileProgram(definition Definition, catalog *Catalog) (Program, error) {
+	if err := definition.Validate(catalog); err != nil {
+		return Program{}, err
+	}
+	ordered, err := executionOrder(definition)
+	if err != nil {
+		return Program{}, err
+	}
+	stages := make([]Stage, len(ordered))
+	for index, node := range ordered {
+		module, ok := catalog.Module(node.Module)
+		if !ok {
+			return Program{}, errors.New("recipe: compiled node lacks module contract")
+		}
+		stages[index] = Stage{Node: node, Module: module}
+	}
+	return Program{definition: cloneProgramDefinition(definition), stages: stages}, nil
+}
+
+func cloneProgramDefinition(definition Definition) Definition {
+	definition.Dependencies = slices.Clone(definition.Dependencies)
+	definition.Nodes = slices.Clone(definition.Nodes)
+	definition.Edges = slices.Clone(definition.Edges)
+	definition.Inputs = slices.Clone(definition.Inputs)
+	definition.Outputs = slices.Clone(definition.Outputs)
+	return definition
+}
+
+func executionOrder(definition Definition) ([]Node, error) {
+	nodes := make(map[NodeID]Node, len(definition.Nodes))
+	indegree := make(map[NodeID]int, len(definition.Nodes))
+	adjacency := make(map[NodeID][]NodeID, len(definition.Nodes))
+	for _, node := range definition.Nodes {
+		nodes[node.ID], indegree[node.ID] = node, 0
+	}
+	for _, edge := range definition.Edges {
+		adjacency[edge.From.Node] = append(adjacency[edge.From.Node], edge.To.Node)
+		indegree[edge.To.Node]++
+	}
+	ready := make([]NodeID, 0, len(nodes))
+	for id, count := range indegree {
+		if count == 0 {
+			ready = append(ready, id)
+		}
+	}
+	slices.Sort(ready)
+	steps := make([]Node, 0, len(nodes))
+	for len(ready) > 0 {
+		id := ready[0]
+		ready = ready[1:]
+		steps = append(steps, nodes[id])
+		for _, target := range adjacency[id] {
+			indegree[target]--
+			if indegree[target] == 0 {
+				ready = append(ready, target)
+				slices.Sort(ready)
+			}
+		}
+	}
+	if len(steps) != len(nodes) {
+		return nil, errors.New("recipe: execution graph contains cycle")
+	}
+	return steps, nil
+}

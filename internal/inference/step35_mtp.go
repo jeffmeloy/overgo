@@ -267,14 +267,18 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 		pastKey = runtime.input("step35_mtp.past_key", past.Key)
 		pastValue = runtime.input("step35_mtp.past_value", past.Value)
 	}
-	var block model.DenseBlockResult
-	draftLayer, err := r.draftLayerPlan(offset)
+	draftProgram, err := r.draftLayerProgram(offset)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	block, err = model.BuildAppendedMTPBlockCachedWithPlan(
-		runtime.builder, current, r.spec, graphWeights, positions, pastKey, pastValue, offset, draftLayer,
-	)
+	plan := draftProgram.Plan
+	block, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+		Spec: draftProgram.Spec, Weights: graphWeights, Plan: &plan,
+		Context: model.CachedBlockContext{
+			Builder: runtime.builder, Input: current, Positions: positions,
+			PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
+		},
+	})
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}

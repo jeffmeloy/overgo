@@ -225,10 +225,22 @@ func TestIncrementalMatchesFullDecode(t *testing.T) {
 
 // TestGreedyGenerationStable: parity leg (d) — a short greedy generation
 // from the oracle source terminates, stays in-vocab, and is deterministic.
+func executeGenerationStages(model *Model, source []int, limit int) ([]int, error) {
+	encoded, err := model.encodeRequest(GenerateRequest{Source: source, MaxTokens: limit})
+	if err != nil {
+		return nil, err
+	}
+	selector, err := model.prepareGeneration(encoded)
+	if err != nil {
+		return nil, err
+	}
+	return selector.selectTokens()
+}
+
 func TestGreedyGenerationStable(t *testing.T) {
 	oracle := readOracle(t)
 	model := loadArtifactModel(t)
-	first, err := model.Generate(oracle.Src, 8)
+	first, err := executeGenerationStages(model, oracle.Src, 8)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +252,7 @@ func TestGreedyGenerationStable(t *testing.T) {
 			t.Fatalf("generated token %d at %d outside vocab %d", token, i, model.Dims.Vocab)
 		}
 	}
-	second, err := model.Generate(oracle.Src, 8)
+	second, err := executeGenerationStages(model, oracle.Src, 8)
 	if err != nil {
 		t.Fatal(err)
 	}

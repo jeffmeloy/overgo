@@ -37,7 +37,8 @@ func run() error {
 	}
 	steps := [][]string{
 		{"go", "run", "./cmd/cuda-smoke"},
-		{"go", "test", "./internal/cuda/...", "./internal/model", "./internal/projector", "-count=1"},
+		{"go", "test", "./internal/cuda/...", "./internal/model", "./internal/projector", "./internal/optimizer", "./internal/devicemath", "-count=1"},
+		{"go", "test", "-run", "Device", "./internal/densecausal", "-count=1"},
 	}
 	for _, step := range steps {
 		began := time.Now()

@@ -14,10 +14,10 @@ func loadStateSpaceLayer(
 	spec Spec,
 	layer *LayerWeights,
 	block uint32,
+	plan StateSpacePlan,
 	queryLength, keyLength, valueLength, attentionOutputLength uint64,
 ) (bool, error) {
 	var err error
-	plan := spec.stateSpacePlan(block)
 	if plan.kind == stateSpaceJamba {
 		layer.Recurrent = true
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{

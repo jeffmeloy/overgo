@@ -51,9 +51,7 @@ type LayerOperator uint8
 
 const (
 	LayerOperatorNone LayerOperator = iota
-	LayerOperatorDenseAttention
-	LayerOperatorDenseFeedForward
-	LayerOperatorLinearAttention
+	LayerOperatorAttentionInputNorm
 	LayerOperatorLatentAttention
 	LayerOperatorHyperAttention
 	LayerOperatorHyperFeedForward
@@ -73,6 +71,13 @@ const (
 	LayerOperatorOutputAdapter
 	LayerOperatorTokenShiftMix
 	LayerOperatorPeriodicScale
+	LayerOperatorAttentionResidualNorm
+	LayerOperatorInputResidualNorm
+	LayerOperatorFeedForwardResidualNorm
+	LayerOperatorPairedInputNorm
+	LayerOperatorResidualScale
+	LayerOperatorFeedForwardInputNorm
+	LayerOperatorFeedForwardOutput
 )
 
 // RecurrentMixPolicy: recurrent operator implementation.
@@ -88,6 +93,7 @@ const (
 	RecurrentMixDynamicWKV6
 	RecurrentMixAffineWKV6
 	RecurrentMixDynamicWKV7
+	RecurrentMixKeyedDeltaAttention
 )
 
 // AttentionMixPolicy: attention operator implementation.
@@ -102,6 +108,10 @@ const (
 	AttentionMixBidirectionalQKNorm
 	AttentionMixCausalPostQKNorm
 	AttentionMixSharedKVQKNorm
+	AttentionMixBidirectionalEncoder
+	AttentionMixPairedCausalProjection
+	AttentionMixSharedCacheQKNorm
+	AttentionMixCompiledProjection
 )
 
 // HybridMixPolicy: parallel mixer implementation.
@@ -126,6 +136,8 @@ const (
 	FeedForwardMixParallelGatedGELU
 	FeedForwardMixGatedTokenShiftSquaredReLU
 	FeedForwardMixTokenShiftSquaredReLU
+	FeedForwardMixEncoder
+	FeedForwardMixCompiled
 )
 
 const (
@@ -307,6 +319,7 @@ type LayerPlan struct {
 	QueryScale        QueryScalePlan
 	AttentionOutput   AttentionOutputPlan
 	ResidualStages    ResidualStagePlan
+	StateSpace        StateSpacePlan
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -417,6 +430,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		QueryScale:        s.queryScalePlan(profile, layer),
 		AttentionOutput:   s.attentionOutputPlan(normalization),
 		ResidualStages:    residualStages,
+		StateSpace:        s.stateSpacePlan(layer),
 	}
 	plan.Program = compileLayerProgram(plan, profile)
 	return plan
@@ -569,9 +583,10 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		for offset := range plan.draftLayers {
 			plan.draftLayers[offset] = executable.PlanLayer(spec.BlockCount+uint32(offset), false)
 		}
-	} else if plan.draft.Kind == DraftQwen35MTP && plan.draft.SessionEligible() {
-		executable := qwen35MTPExecutableSpec(spec)
-		plan.draftLayers = []LayerPlan{executable.PlanLayer(0, false)}
+	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
+		(plan.draft.Kind != DraftCohere2MTP || weights.Cohere2MTP != nil) {
+		executable, layer := singleDraftExecutableSpec(spec, plan.draft.Kind)
+		plan.draftLayers = []LayerPlan{executable.PlanLayer(layer, false)}
 	}
 	if err := validateModelPlan(spec, weights, plan); err != nil {
 		return ModelPlan{}, err
@@ -592,7 +607,8 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	wantDraftLayers := 0
 	if plan.draft.AppendedBlocks {
 		wantDraftLayers = int(plan.draft.Heads)
-	} else if plan.draft.Kind == DraftQwen35MTP && plan.draft.SessionEligible() {
+	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
+		(plan.draft.Kind != DraftCohere2MTP || weights.Cohere2MTP != nil) {
 		wantDraftLayers = 1
 	}
 	if len(plan.draftLayers) != wantDraftLayers {
@@ -647,6 +663,9 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		}
 		if layer.Normalization != norm {
 			return fmt.Errorf("model plan layer %d normalization drifted from model policy", index)
+		}
+		if layer.StateSpace != spec.stateSpacePlan(uint32(index)) {
+			return fmt.Errorf("model plan layer %d state-space policy is inconsistent", index)
 		}
 	}
 	if spec.DeepstackLayerCount > 0 {
@@ -733,6 +752,31 @@ func (p ModelPlan) DraftLayer(offset uint32) (LayerPlan, error) {
 		return LayerPlan{}, fmt.Errorf("model plan draft layer %d is unavailable", offset)
 	}
 	return p.draftLayers[offset], nil
+}
+
+// DraftLayerProgram: executable spec plus compiled draft layer.
+type DraftLayerProgram struct {
+	Spec Spec
+	Plan LayerPlan
+}
+
+// DraftProgram: bounds-checked executable draft contract.
+func (p ModelPlan) DraftProgram(spec Spec, offset uint32) (DraftLayerProgram, error) {
+	if p.profile.Name == "" || spec.Architecture != p.profile.Name {
+		return DraftLayerProgram{}, fmt.Errorf(
+			"model plan profile %q does not match draft spec %q", p.profile.Name, spec.Architecture,
+		)
+	}
+	layer, err := p.DraftLayer(offset)
+	if err != nil {
+		return DraftLayerProgram{}, err
+	}
+	if p.draft.SingleCatalog {
+		spec, _ = singleDraftExecutableSpec(spec, p.draft.Kind)
+	} else if p.draft.Kind == DraftNextNMTP {
+		spec.BlockCount += p.draft.Heads
+	}
+	return DraftLayerProgram{Spec: spec, Plan: layer}, nil
 }
 
 // CacheSchema: materialized compiled layer-cache contract.
@@ -849,6 +893,21 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 	switch block {
 	case BlockDense:
+		if profile.Forward == ForwardGemma4Assistant {
+			return newLayerProgram(
+				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(AttentionMixSharedCacheQKNorm),
+				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
+				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixGatedGELU),
+				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidualScale),
+			)
+		}
+		if profile.Forward == ForwardEagle3 {
+			return newLayerProgram(
+				pairedInputLayerStage(), attentionLayerStage(AttentionMixPairedCausalProjection),
+				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
+				feedForwardLayerStage(FeedForwardMixStandardSwiGLU), layerStage(LayerOperatorResidual),
+			)
+		}
 		if profile.DenseGraph == DenseGraphRWKV6 {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixAffineWKV6, false),
@@ -900,6 +959,19 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorResidual),
 			)
 		}
+		if profile.DenseGraph == DenseGraphBERT {
+			stages := []LayerOperatorInstruction{
+				attentionLayerStage(AttentionMixBidirectionalEncoder),
+				layerStage(LayerOperatorAttentionResidualNorm),
+			}
+			if profile.EncoderGraph.Kind == encoderGraphJinaV2 {
+				stages = append(stages, layerStage(LayerOperatorInputResidualNorm))
+			}
+			return newLayerProgram(append(stages,
+				feedForwardLayerStage(FeedForwardMixEncoder),
+				layerStage(LayerOperatorFeedForwardResidualNorm),
+			)...)
+		}
 		if plan.DeciSparse {
 			stages := []LayerOperatorInstruction{cacheSentinelLayerStage()}
 			if plan.Composition == LayerCompositionIdentity {
@@ -916,14 +988,13 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorResidual),
 			)...)
 		}
-		if profile.DenseGraph == DenseGraphBERT ||
-			profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
+		if profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
 			return newLayerProgram(
-				leafLayerStage(
-					LayerOperatorDenseAttention,
-					[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
-				),
-				layerStage(LayerOperatorDenseFeedForward),
+				layerStage(LayerOperatorAttentionInputNorm),
+				attentionLayerStage(AttentionMixCompiledProjection),
+				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardInputNorm),
+				feedForwardLayerStage(FeedForwardMixCompiled),
+				layerStage(LayerOperatorFeedForwardOutput), layerStage(LayerOperatorResidual),
 			)
 		}
 		return LayerProgram{}
@@ -935,10 +1006,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			)
 		}
 		return residualMixerProgram(
-			leafLayerStage(
-				LayerOperatorLinearAttention,
-				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
-			),
+			recurrentLayerStage(RecurrentMixKeyedDeltaAttention, false),
 			FeedForwardMixStandardSwiGLU, false,
 		)
 	case BlockMLA:
@@ -1074,6 +1142,12 @@ func tokenShiftLayerStage(policy FeedForwardMixPolicy) LayerOperatorInstruction 
 	instruction.CacheCount = 1
 	instruction.Caches[0] = RuntimeCachePrimaryKey
 	return instruction
+}
+
+func pairedInputLayerStage() LayerOperatorInstruction {
+	return leafLayerStage(
+		LayerOperatorPairedInputNorm, nil, []RuntimeTensorBinding{RuntimeTensorPerLayerInput},
+	)
 }
 
 func cacheSentinelLayerStage() LayerOperatorInstruction {

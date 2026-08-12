@@ -124,7 +124,7 @@ func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsedEnvironment, err := ParseEnvironment(content.Data)
+	parsedEnvironment, err := environmentCodec.Parse(content.Data)
 	if err != nil || parsedEnvironment != environment {
 		t.Fatalf("environment round trip = (%+v, %v)", parsedEnvironment, err)
 	}

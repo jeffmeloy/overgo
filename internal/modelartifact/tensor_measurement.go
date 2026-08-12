@@ -18,10 +18,8 @@ const (
 	TensorMeasurementMediaType        = "application/vnd.overgo.tensor-measurement+json"
 	TensorMeasurementSchema           = "overgo/tensor-measurement/v1"
 
-	defaultMeasurementSamples   = 4096
-	defaultMeasurementReadBytes = 256 << 20
-	minimumMeasurementSamples   = 256
-	maximumMeasurementSamples   = 1 << 20
+	minimumMeasurementSamples = 256
+	maximumMeasurementSamples = 1 << 20
 )
 
 var tensorMeasurementContract = artifact.DocumentContract{
@@ -47,13 +45,6 @@ type MeasurementPolicy struct {
 	MaxReadBytes        uint64 `json:"max_read_bytes"`
 }
 
-func DefaultMeasurementPolicy() MeasurementPolicy {
-	return MeasurementPolicy{
-		MaxSamplesPerTensor: defaultMeasurementSamples,
-		MaxReadBytes:        defaultMeasurementReadBytes,
-	}
-}
-
 type TensorMeasurement struct {
 	Name             string  `json:"name"`
 	Elements         uint64  `json:"elements"`
@@ -66,13 +57,6 @@ type TensorMeasurement struct {
 	MAD              float64 `json:"mad"`
 }
 
-func (m TensorMeasurement) SampleFraction() float64 {
-	if m.Elements == 0 {
-		return 0
-	}
-	return float64(m.Samples) / float64(m.Elements)
-}
-
 // TensorMeasurementDocument: bounded sampled tensor evidence.
 type TensorMeasurementDocument struct {
 	Version      uint16              `json:"version"`
@@ -83,7 +67,7 @@ type TensorMeasurementDocument struct {
 	ID           artifact.ID         `json:"-"`
 }
 
-func NewTensorMeasurementDocument(
+func newTensorMeasurementDocument(
 	inventory artifact.ID,
 	policy MeasurementPolicy,
 	readBytes uint64,
@@ -94,10 +78,6 @@ func NewTensorMeasurementDocument(
 		ReadBytes: readBytes, Measurements: slices.Clone(measurements),
 	}
 	return tensorMeasurementCodec.New(document)
-}
-
-func ParseTensorMeasurementDocument(content []byte) (TensorMeasurementDocument, error) {
-	return tensorMeasurementCodec.Parse(content)
 }
 
 func (d TensorMeasurementDocument) ValidateIdentity() error {

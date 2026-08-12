@@ -51,10 +51,6 @@ func NewEnvironment(host, osName, arch, device, backend, driver, runtime string)
 	return environmentCodec.New(environment)
 }
 
-func ParseEnvironment(content []byte) (Environment, error) {
-	return environmentCodec.Parse(content)
-}
-
 func (e Environment) ValidateIdentity() error {
 	return environmentCodec.ValidateIdentity(e)
 }

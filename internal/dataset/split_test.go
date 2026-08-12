@@ -37,7 +37,7 @@ func TestGroupSplitIsDeterministicAndGroupSafe(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ParseMembership(content.Data); err != nil {
+		if _, err := membershipCodec.Parse(content.Data); err != nil {
 			t.Fatal(err)
 		}
 		for _, record := range membership.Records {

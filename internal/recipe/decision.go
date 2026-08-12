@@ -98,8 +98,6 @@ func (d Decision) Content() (artifact.Content, error) {
 	return decisionCodec.Content(d)
 }
 
-func DecisionDocumentContract() artifact.DocumentContract { return decisionContract }
-
 func canonicalizeDecision(decision *Decision) error {
 	if decision == nil || decision.Version != DecisionVersion || !decision.Subject.Valid() {
 		return errors.New("recipe: invalid decision envelope")

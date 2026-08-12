@@ -92,14 +92,6 @@ func (d ProfileDocument) Content() ([]byte, error) {
 	return profileCodec.ContentBytes(d)
 }
 
-func (d ProfileDocument) Descriptor() (artifact.Descriptor, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Descriptor{}, err
-	}
-	return profileContract.Descriptor(d.ID, uint64(len(content)))
-}
-
 func (d ProfileDocument) validateShape() error {
 	if d.Version != ProfileVersion ||
 		d.Architecture == "" || d.Policy.Name != d.Architecture {

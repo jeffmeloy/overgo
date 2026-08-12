@@ -61,9 +61,9 @@ func TestDefinitionCanonicalIdentityAndValidation(t *testing.T) {
 	if rebuilt.ID != definition.ID {
 		t.Fatalf("canonical IDs differ: %s != %s", rebuilt.ID, definition.ID)
 	}
-	descriptor, err := definition.Descriptor()
-	if err != nil || descriptor.ID != definition.ID || descriptor.Schema != Schema {
-		t.Fatalf("descriptor = (%+v, %v)", descriptor, err)
+	content, err := definition.ArtifactContent()
+	if err != nil || content.Descriptor.ID != definition.ID || content.Descriptor.Schema != Schema {
+		t.Fatalf("content descriptor = (%+v, %v)", content.Descriptor, err)
 	}
 }
 
@@ -141,9 +141,10 @@ func TestDefinitionReadsCanonicalLegacyVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor, err := parsed.Descriptor()
-	if err != nil || parsed.ID != legacy.ID || parsed.Version != LegacyVersion || descriptor.Schema != LegacySchema {
-		t.Fatalf("legacy definition = (%+v, %+v, %v)", parsed, descriptor, err)
+	artifactContent, err := parsed.ArtifactContent()
+	if err != nil || parsed.ID != legacy.ID || parsed.Version != LegacyVersion ||
+		artifactContent.Descriptor.Schema != LegacySchema {
+		t.Fatalf("legacy definition = (%+v, %+v, %v)", parsed, artifactContent.Descriptor, err)
 	}
 }
 

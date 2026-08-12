@@ -362,14 +362,6 @@ func validCodeCommit(value string) bool {
 	return true
 }
 
-func (r Run) UnattributedNS() int64 {
-	unattributed := int64(r.MeasuredNS)
-	for _, phase := range r.Phases {
-		unattributed -= int64(phase.DurationNS)
-	}
-	return unattributed
-}
-
 func canonicalizeEvaluation(evaluation *Evaluation) error {
 	if evaluation == nil || evaluation.Version != Version ||
 		evaluation.Recipe.Kind() != artifact.KindRecipe || evaluation.Run.Kind() != artifact.KindRun ||

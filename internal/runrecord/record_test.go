@@ -114,9 +114,10 @@ func TestRunAndEvaluationRejectInvalidFacts(t *testing.T) {
 }
 
 func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
-	environment, err := NewEnvironment(
-		"fixture-host", "windows", "amd64", "RTX 4090", "cuda", "591.44", "go1.25",
-	)
+	environment, err := environmentCodec.New(Environment{
+		Version: EnvironmentVersion, Host: "fixture-host", OS: "windows", Arch: "amd64",
+		Device: "RTX 4090", Backend: "cuda", Driver: "591.44", Runtime: "go1.25",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,18 +141,19 @@ func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if run.UnattributedNS() != 10 || !slices.Equal(run.Phases, []PhaseMetric{
+	if run.MeasuredNS != 100 || !slices.Equal(run.Phases, []PhaseMetric{
 		{Phase: PhaseDecode, DurationNS: 55},
 		{Phase: PhasePrefill, DurationNS: 35},
 	}) {
-		t.Fatalf("bound timing = (%d, %+v)", run.UnattributedNS(), run.Phases)
+		t.Fatalf("bound timing = (%d, %+v)", run.MeasuredNS, run.Phases)
 	}
 	content, err = run.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
 	parsedRun, err := ParseRun(content.Data)
-	if err != nil || parsedRun.ID != run.ID || parsedRun.UnattributedNS() != 10 {
+	if err != nil || parsedRun.ID != run.ID || parsedRun.MeasuredNS != run.MeasuredNS ||
+		!slices.Equal(parsedRun.Phases, run.Phases) {
 		t.Fatalf("bound run round trip = (%+v, %v)", parsedRun, err)
 	}
 	if len(run.Lineage()) != 3 {
@@ -185,8 +187,10 @@ func TestBoundRunRejectsUncontrolledTimingFacts(t *testing.T) {
 		recipeID, OutcomeSucceeded, nil, []artifact.ID{outputID}, "", fixtureCodeCommit,
 		environmentID, 10, []PhaseMetric{{Phase: PhaseDecode, DurationNS: 12}},
 	)
-	if err != nil || run.UnattributedNS() != -2 {
-		t.Fatalf("over-attributed timing = (%d, %v)", run.UnattributedNS(), err)
+	if err != nil || run.MeasuredNS != 10 || !slices.Equal(run.Phases, []PhaseMetric{{
+		Phase: PhaseDecode, DurationNS: 12,
+	}}) {
+		t.Fatalf("over-attributed timing = (%+v, %v)", run, err)
 	}
 }
 
@@ -197,9 +201,10 @@ func TestBoundRunPersistsEnvironmentLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	environment, err := NewEnvironment(
-		"fixture-host", "linux", "amd64", "A100", "cuda", "580.65", "go1.25",
-	)
+	environment, err := environmentCodec.New(Environment{
+		Version: EnvironmentVersion, Host: "fixture-host", OS: "linux", Arch: "amd64",
+		Device: "A100", Backend: "cuda", Driver: "580.65", Runtime: "go1.25",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

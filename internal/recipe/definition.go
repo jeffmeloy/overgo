@@ -121,14 +121,6 @@ func (d Definition) Content() ([]byte, error) {
 	return definitionCodec.ContentBytes(d)
 }
 
-func (d Definition) Descriptor() (artifact.Descriptor, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Descriptor{}, err
-	}
-	return DefinitionDocumentContract(d.Version).Descriptor(d.ID, uint64(len(content)))
-}
-
 func (d Definition) ArtifactContent() (artifact.Content, error) {
 	return definitionCodec.Content(d)
 }

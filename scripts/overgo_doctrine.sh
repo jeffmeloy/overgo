@@ -50,6 +50,11 @@ recorded: `go run ./cmd/plan -stop <user-stop|irreversible|external-prereq>:
 SCOPE. A bounded request -- a status readout, an explanation, a review, one
 scoped edit -- is a COMPLETE turn once answered; do not inflate it into a
 campaign. The Stop gate enforces the loop, not bounded requests.
+
+GO. skill.md "Go Engineering Doctrine" is binding: concrete types and local
+mechanics by default; exported/generic surface requires stable multi-consumer
+ownership; review correctness, ownership, API/error/context/concurrency,
+allocations, tests, then delta; preserve behavior while deleting authority.
 DOCTRINE
 
 echo ""

@@ -393,6 +393,54 @@ A probe runs only when it can change a decision:
 
 ## Code Hygiene
 
+### Go Engineering Doctrine
+
+- Simplicity is a constraint. Prefer direct code, standard-library conventions,
+  and one obvious control path. An abstraction must delete repeated policy or
+  mechanics for multiple real consumers; a one-consumer generic helper is
+  speculative surface and should remain local or be deleted.
+- Packages own cohesive capabilities, not horizontal utility collections.
+  Package names are short, concrete, and non-redundant. Dependencies point
+  toward stable contracts; composition roots bind implementations.
+- Concrete types are the default. Define the smallest useful interface at the
+  consuming boundary, after substitution is real. Do not export an interface,
+  option, constructor, getter, or wrapper solely for tests or possible callers.
+- Exported API is permanent cost. Export only stable cross-package contracts;
+  keep representation and orchestration private. Migrate all callers and delete
+  displaced compatibility APIs in the same slice.
+- Make zero values deliberately useful or reject them at construction. Avoid
+  partially initialized values, hidden mutable builder state, sentinel success,
+  panic recovery as validation, and fallbacks that change topology.
+- Errors are values. Return them at the boundary that can act; add concise
+  operation context once; preserve identity with wrapping; use typed/sentinel
+  errors only when callers branch. Never log and return the same error.
+- `context.Context` is the first parameter for cancellable work, never stored,
+  never optional, and never replaced with `context.Background` below an
+  assembly boundary. Cancellation and cleanup ownership must be explicit.
+- Concurrency has one owner. Bound goroutine lifetime, detach resources under
+  lock and release outside it, avoid callbacks while locked, and prove shutdown,
+  error, and cancellation paths. Prefer synchronous code until concurrency
+  removes measured waiting.
+- Allocation and indirection need purpose. Reuse immutable plans and bounded
+  buffers on hot paths; preallocate from derived sizes; avoid per-token maps,
+  reflection, interface boxing, and copies whose ownership is already clear.
+  Measure before adding concurrency, pooling, fusion, or cache complexity.
+- Names state behavior or mathematics. Follow Go initialism, receiver, package,
+  and comment conventions. Comments are telegraphic and explain contracts,
+  invariants, or non-obvious reasons; they do not narrate syntax.
+- Tests assert observable contracts and failure modes. Prefer table-driven
+  cases and named fixture facts; do not copy the algorithm under test, inspect
+  implementation trivia, depend on ambient state, or turn unexplained literals
+  into a second configuration surface. A test-only abstraction must make the
+  behavior clearer and smaller.
+- Every Go slice runs `gofmt`, focused tests, `go test ./...`, and `go vet ./...`;
+  add race, fuzz, benchmark, CUDA, or integration gates when the changed risk
+  requires them. A green gate does not excuse an unnecessary API or code path.
+- Review in this order: correctness and ownership; API/zero-value/error/context
+  contracts; concurrency and cleanup; allocations and processing; naming and
+  comments; tests; code delta. Prefer the change that preserves behavior while
+  deleting authority, branches, state, operations, or bytes.
+
 - Go is the runtime surface. No cgo, ever; C ABIs via loaded DLLs; kernels via
   the manifest. No PowerShell; scripts are bash or Go.
 - Package docs, tests, fixtures, and verifier commands are the contract.

@@ -18,8 +18,8 @@ import (
 // not supported (matching deviceLayerBackward). Parity target: host layerForwardCached.
 func (m *Model) deviceLayerForwardCached(worker *device.Worker, x []float32, l layer, invFreq []float32, seq int) (layerCache, error) {
 	d := m.Dims
-	if d.AttnBias {
-		return layerCache{}, fmt.Errorf("deviceLayerForwardCached: attention bias not supported yet")
+	if ok, reason := DeviceTrainingSupported(d); !ok {
+		return layerCache{}, fmt.Errorf("deviceLayerForwardCached: %s", reason)
 	}
 	fc, xOut, err := devicemath.LayerForwardResident(worker, x, devicemath.LayerForwardWeights{
 		InLN: l.inLN, PostLN: l.postLN,

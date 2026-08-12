@@ -26,8 +26,8 @@ func ropeInvF32(invFreq []float64) []float32 {
 // layerBackward's math and slots. Attention bias is not yet supported.
 func (m *Model) deviceLayerBackward(worker *device.Worker, index int, x, dOut []float32, cache layerCache, invFreq []float64, seq int, g Grads) ([]float32, error) {
 	d := m.Dims
-	if d.AttnBias {
-		return nil, fmt.Errorf("deviceLayerBackward: attention bias not supported yet")
+	if ok, reason := DeviceTrainingSupported(d); !ok {
+		return nil, fmt.Errorf("deviceLayerBackward: %s", reason)
 	}
 	l, err := m.layerWeights(index)
 	if err != nil {

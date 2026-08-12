@@ -595,12 +595,14 @@
         {
           "id": "train-scale-device-session",
           "title": "THE E4B at-scale gate: the GPU ~48GB OOM lives HERE, not on the host bf16 step (SQA 2026-08-12 finding High). Device training is LAYER-resident, not SESSION-resident. layer_forward_resident allocates+downloads 11 activation arrays PER LAYER; layer_backward_resident re-uploads them and downloads all gradients per layer; train_device still owns duplicate flat host slabs + scatter/gather each step. Milestone: ONE persistent device training session -- weights+momentum+activations resident on device across forward+backward+optimizer AND across steps; download only for checkpoint. Verify: measured host\u003c-\u003edevice round-trips per step collapse and no per-step host weight scatter.",
-          "status": "open"
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/densecausal/ -run TrainDeviceResident -count=1"
         },
         {
           "id": "train-cuda-admission",
           "title": "SHARED training-scale path (SQA 2026-08-12, finding Medium): CUDA backend admission is incomplete. cmd/train selects TrainDeviceFull whenever CUDA opens, but device forward REJECTS attention bias -- an unsupported config fails mid-session instead of up front. Fix: a compiled capability plan decides device-vs-host and REFUSES unsupported CUDA configs (attention bias, unsupported arch) BEFORE session construction. Verify: an attention-bias / unsupported model routes to host or errors cleanly at selection time, never mid-session.",
-          "status": "open"
+          "status": "open",
+          "verify": "go test ./cmd/train/ ./internal/densecausal/ -run 'DeviceTrainingSupportedAdmission|TrainAttnBiasRoutedToHostAtSelection' -count=1"
         },
         {
           "id": "train-scale-device-backward",

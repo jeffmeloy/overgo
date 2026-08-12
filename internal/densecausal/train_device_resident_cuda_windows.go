@@ -70,8 +70,8 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 		return nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
 	d := m.Dims
-	if d.AttnBias {
-		return nil, fmt.Errorf("TrainDeviceResident: attention bias not supported yet")
+	if ok, reason := DeviceTrainingSupported(d); !ok {
+		return nil, fmt.Errorf("TrainDeviceResident: %s", reason)
 	}
 
 	// Derived scale ceiling: how many layers fit fully resident is DERIVED from

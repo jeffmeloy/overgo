@@ -25,8 +25,8 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
 	d := m.Dims
-	if d.AttnBias {
-		return 0, nil, nil, fmt.Errorf("deviceLossAndGrads: attention bias not supported yet")
+	if ok, reason := DeviceTrainingSupported(d); !ok {
+		return 0, nil, nil, fmt.Errorf("deviceLossAndGrads: %s", reason)
 	}
 	seq := len(tokens)
 	width := d.Heads * d.HeadDim

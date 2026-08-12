@@ -522,7 +522,7 @@
           "path": "internal/model/weights_dispatch.go"
         },
         {
-          "contains": "func TestLayerProgramsCoverCompiledPolicies(",
+          "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go"
         }
       ],

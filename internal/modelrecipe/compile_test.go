@@ -115,18 +115,18 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 
 func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 	tests := []struct {
-		task      recipe.Task
-		placement recipe.Placement
-		inputs    []recipe.DataKind
-		output    recipe.DataKind
-		modules   []recipe.ModuleID
+		task       recipe.Task
+		placements []recipe.Placement
+		inputs     []recipe.DataKind
+		output     recipe.DataKind
+		modules    []recipe.ModuleID
 	}{
-		{recipe.TaskForecast, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleForecastSeries}},
-		{recipe.TaskTabular, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleTabularPredict}},
-		{recipe.TaskSeq2Seq, recipe.PlacementHost, []recipe.DataKind{recipe.DataTokens}, recipe.DataTokens, []recipe.ModuleID{ModuleSeq2SeqEncode, ModuleSeq2SeqPrepare, ModuleSeq2SeqSelect}},
-		{recipe.TaskSpeech, recipe.PlacementHost, []recipe.DataKind{recipe.DataText}, recipe.DataAudio, []recipe.ModuleID{ModuleSpeechTokenize, ModuleSpeechGenerate, ModuleSpeechDecode}},
-		{recipe.TaskImageGen, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataImage, []recipe.ModuleID{ModuleImageGenerate}},
-		{recipe.TaskVQA, recipe.PlacementDevice, []recipe.DataKind{recipe.DataImage, recipe.DataText}, recipe.DataText, []recipe.ModuleID{ModuleVQAAnswer}},
+		{recipe.TaskForecast, []recipe.Placement{recipe.PlacementHost}, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleForecastSeries}},
+		{recipe.TaskTabular, []recipe.Placement{recipe.PlacementHost}, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleTabularPredict}},
+		{recipe.TaskSeq2Seq, []recipe.Placement{recipe.PlacementHost, recipe.PlacementHost, recipe.PlacementHost}, []recipe.DataKind{recipe.DataTokens}, recipe.DataTokens, []recipe.ModuleID{ModuleSeq2SeqEncode, ModuleSeq2SeqPrepare, ModuleSeq2SeqSelect}},
+		{recipe.TaskSpeech, []recipe.Placement{recipe.PlacementHost, recipe.PlacementHost, recipe.PlacementHost}, []recipe.DataKind{recipe.DataText}, recipe.DataAudio, []recipe.ModuleID{ModuleSpeechTokenize, ModuleSpeechGenerate, ModuleSpeechDecode}},
+		{recipe.TaskImageGen, []recipe.Placement{recipe.PlacementHost, recipe.PlacementHost, recipe.PlacementHost}, []recipe.DataKind{recipe.DataTensor}, recipe.DataImage, []recipe.ModuleID{ModuleImagePrepare, ModuleImageIntegrate, ModuleImageDecode}},
+		{recipe.TaskVQA, []recipe.Placement{recipe.PlacementHost, recipe.PlacementDevice}, []recipe.DataKind{recipe.DataImage, recipe.DataText}, recipe.DataText, []recipe.ModuleID{ModuleVQAPrepare, ModuleVQAGenerate}},
 	}
 	for _, test := range tests {
 		t.Run(string(test.task), func(t *testing.T) {
@@ -152,7 +152,7 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 				t.Fatalf("stages = %+v", stages)
 			}
 			for index, module := range test.modules {
-				if stages[index].Module.ID != module || stages[index].Node.Placement != test.placement {
+				if stages[index].Module.ID != module || stages[index].Node.Placement != test.placements[index] {
 					t.Fatalf("stage[%d] = %+v", index, stages[index])
 				}
 			}

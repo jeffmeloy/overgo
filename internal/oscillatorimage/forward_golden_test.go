@@ -58,11 +58,33 @@ func TestGeneratorMatchesTorch(t *testing.T) {
 		blocks[i] = DecoderBlock{W1: f32of(w1), B1: f32of(b1), W2: f32of(w2), B2: f32of(b2), Cout: cout}
 	}
 
-	out := generateImage(
-		f32of(gf("init")), f32of(gf("omega")), f32of(gf("omega_cond")),
-		f32of(gf("K")), f32of(gf("K_cond")), f32of(gf("drive")),
-		blocks, f32of(gf("to_out_w")), f32of(gf("to_out_b")),
-		b, n, nc, numSteps, dt, 1, 1, 1,
-		inCh, inH, inW, outCh, decoderNegativeSlope, "ref_oscillator", "sin_cos", true)
-	requireWithin(t, "generator", out, gf("out"), tolGenerator)
+	if b != 1 {
+		t.Fatalf("generator fixture batch = %d", b)
+	}
+	model := Model{
+		Cfg: Config{
+			N: n, NCond: nc, InChannels: inCh, InH: inH, InW: inW, OutChannels: outCh,
+			NumSteps: numSteps, Dt: dt, KScale: 1, KCondScale: 1, KDriveScale: 1,
+			Relativization: "ref_oscillator", Encoding: "sin_cos", TanhOut: true,
+			BlockChannels: func() []int {
+				channels := make([]int, len(blocks))
+				for index := range blocks {
+					channels[index] = blocks[index].Cout
+				}
+				return channels
+			}(),
+		},
+		Slope: decoderNegativeSlope, Omega: f32of(gf("omega")), OmegaCond: f32of(gf("omega_cond")),
+		K: f32of(gf("K")), KCond: f32of(gf("K_cond")), Blocks: blocks,
+		ToOutW: f32of(gf("to_out_w")), ToOutB: f32of(gf("to_out_b")),
+	}
+	features, err := model.integrate(phasePlan{state: f32of(gf("init")), drive: f32of(gf("drive"))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, err := model.decode(features)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireWithin(t, "generator", image.Pixels, gf("out"), tolGenerator)
 }

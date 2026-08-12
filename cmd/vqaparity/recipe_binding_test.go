@@ -31,9 +31,15 @@ func TestExecuteVQABindsDescriptorInputsAndOutput(t *testing.T) {
 	answer, err := executeVQA(
 		context.Background(), store, modelID, program,
 		"vqa/runtime", image, "where?",
-		func(_ context.Context, gotImage []byte, question string) (string, error) {
+		func(gotImage []byte, question string) (string, error) {
 			if string(gotImage) != string(image) || question != "where?" {
 				t.Fatalf("input = (%q, %q)", gotImage, question)
+			}
+			return question + " prepared", nil
+		},
+		func(_ context.Context, prepared string) (string, error) {
+			if prepared != "where? prepared" {
+				t.Fatalf("prepared = %q", prepared)
 			}
 			return "there", nil
 		},

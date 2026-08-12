@@ -26,14 +26,11 @@ const (
 	ModuleSpeechTokenize recipe.ModuleID = "model.speech-tokenize"
 	ModuleSpeechGenerate recipe.ModuleID = "model.speech-generate"
 	ModuleSpeechDecode   recipe.ModuleID = "model.speech-decode"
-	// ModuleImageGenerate: host class-conditional image sampling for
-	// image-generation capability packages; input condition tensor, output
-	// generated image.
-	ModuleImageGenerate recipe.ModuleID = "model.image-generate"
-	// ModuleVQAAnswer: vision question-answering (device vision tower ->
-	// merger -> modality-routed prefill -> resident-KV decode); image +
-	// question text in, answer text out.
-	ModuleVQAAnswer recipe.ModuleID = "model.vqa-answer"
+	ModuleImagePrepare   recipe.ModuleID = "model.image-prepare"
+	ModuleImageIntegrate recipe.ModuleID = "model.image-integrate"
+	ModuleImageDecode    recipe.ModuleID = "model.image-decode"
+	ModuleVQAPrepare     recipe.ModuleID = "model.vqa-prepare"
+	ModuleVQAGenerate    recipe.ModuleID = "model.vqa-generate"
 )
 
 var catalog = mustCatalog()
@@ -155,7 +152,9 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 		{node: "decode", module: ModuleSpeechDecode, input: "latents", output: "audio", inputData: recipe.DataTensor, outData: recipe.DataAudio},
 	}},
 	recipe.TaskImageGen: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "imagegen", module: ModuleImageGenerate, input: "condition", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
+		{node: "prepare", module: ModuleImagePrepare, input: "condition", output: "session", inputData: recipe.DataTensor, outData: recipe.DataSessionPlan},
+		{node: "integrate", module: ModuleImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
+		{node: "decode", module: ModuleImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
 	}},
 }
 
@@ -172,25 +171,29 @@ func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 }
 
 func vqaDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	answer := recipe.Node{ID: "vqa", Module: ModuleVQAAnswer, Placement: recipe.PlacementDevice}
+	prepare := recipe.Node{ID: "prepare", Module: ModuleVQAPrepare, Placement: recipe.PlacementHost}
+	generate := recipe.Node{ID: "generate", Module: ModuleVQAGenerate, Placement: recipe.PlacementDevice}
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskVQA,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
-		[]recipe.Node{answer},
-		nil,
+		[]recipe.Node{prepare, generate},
+		[]recipe.Edge{{
+			From: recipe.Endpoint{Node: prepare.ID, Port: "session"},
+			To:   recipe.Endpoint{Node: generate.ID, Port: "session"},
+		}},
 		[]recipe.Input{
 			{
 				Name: "image", Data: recipe.DataImage,
-				Target: recipe.Endpoint{Node: answer.ID, Port: "image"},
+				Target: recipe.Endpoint{Node: prepare.ID, Port: "image"},
 			},
 			{
 				Name: "question", Data: recipe.DataText,
-				Target: recipe.Endpoint{Node: answer.ID, Port: "question"},
+				Target: recipe.Endpoint{Node: prepare.ID, Port: "question"},
 			},
 		},
 		[]recipe.Output{{
 			Name: "answer", Data: recipe.DataText,
-			Source: recipe.Endpoint{Node: answer.ID, Port: "answer"},
+			Source: recipe.Endpoint{Node: generate.ID, Port: "answer"},
 		}},
 	)
 }
@@ -441,13 +444,19 @@ func mustCatalog() *recipe.Catalog {
 	}
 	modules = append(modules,
 		recipe.Module{
-			ID: ModuleVQAAnswer, Tasks: []recipe.Task{recipe.TaskVQA},
-			Placements: []recipe.Placement{recipe.PlacementDevice},
+			ID: ModuleVQAPrepare, Tasks: []recipe.Task{recipe.TaskVQA},
+			Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs: []recipe.Port{
 				{Name: "image", Data: recipe.DataImage, Cardinality: recipe.CardinalityOne},
 				{Name: "question", Data: recipe.DataText, Cardinality: recipe.CardinalityOne},
 			},
-			Outputs: []recipe.Port{{Name: "answer", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+			Outputs: []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleVQAGenerate, Tasks: []recipe.Task{recipe.TaskVQA},
+			Placements: []recipe.Placement{recipe.PlacementDevice},
+			Inputs:     []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "answer", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
 		},
 	)
 	catalog, err := recipe.NewCatalog(modules...)

@@ -3,14 +3,27 @@
   "doctrine": "PORT-FIRST (owner, 2026-08-09, standing): the point of this campaign is to PORT adaptive_new into overgo, never to start from scratch. Every capability AND performance slice STARTS from adaptive_new's verified implementation: read it end-to-end, port its structure/kernels/math, verify against its goldens. Novel design is admissible ONLY after the port matches the reference, and only as a measured improvement on top of it. A slice that reinvents what adaptive already ships is the named failure mode. The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/.claude/worktrees/image_gen/image_gen_report.md -- Wan python 463.4s/8.8GB vs exact-Go 739.9s/22.54GB (denoise 690.9s dominates) vs quality-fast 424.3s/11.95GB (FAILS single-complete-cone); safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; the quality-fast attention approximation is the degradation to avoid. Owner note: route media denoise through overgo's OWN tensor machinery (retained CUDA-graph replay, bf16-native decode catalog, GEMV/epilogue fusion rewrites, calibrated dispatch) rather than porting adaptive's slower path -- that machinery already beat adaptive on rungs 3-4 and is the intended edge over Python.",
   "items": [
     {
-      "id": "loop-hardening-5",
-      "title": "overgo self-contained doctrine: SessionStart hook (scripts/overgo_doctrine.sh) emits the OVERGO turn contract + dispatched task, so overgo sessions are driven by overgo's own loop/plan, not adaptive_new's session_doctrine/skill.md. Pairs with the user-level Stop hook (~/.claude) so enforcement + doctrine hold regardless of launch dir; adaptive_new stays reference-only.",
+      "id": "loop-hardening-6",
+      "title": "Go loophook: move ALL loop-control automation logic into cmd/loophook (Go, unit-tested), bash reduced to one-line adapters. stop = exit 2 blocks a turn-end that orphans work (uncommitted .go OR an armed dispatch marker); post-commit arms docs/.dispatch_pending at the gate boundary; doctrine builds the binary + emits the turn contract. This programmatically catches the milestone-stop-after-commit the old progress-based gate allowed. Repo doctrine: Go for all automation.",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "overgo self-contained doctrine: SessionStart hook (scripts/overgo_doctrine.sh) emits the OVERGO turn contract + dispatched task, so overgo sessions are driven by overgo's own loop/plan, not adaptive_new's session_doctrine/skill.md. Pairs with the user-level Stop hook (~/.claude) so enforcement + doctrine hold regardless of launch dir; adaptive_new stays reference-only.",
+          "title": "Go loophook: move ALL loop-control automation logic into cmd/loophook (Go, unit-tested), bash reduced to one-line adapters. stop = exit 2 blocks a turn-end that orphans work (uncommitted .go OR an armed dispatch marker); post-commit arms docs/.dispatch_pending at the gate boundary; doctrine builds the binary + emits the turn contract. This programmatically catches the milestone-stop-after-commit the old progress-based gate allowed. Repo doctrine: Go for all automation.",
           "status": "open",
+          "verify": "go test ./cmd/loophook/ -count=1 \u0026\u0026 bash scripts/overgo_stop_gate.sh --selftest"
+        }
+      ]
+    },
+    {
+      "id": "loop-hardening-5",
+      "title": "overgo self-contained doctrine: SessionStart hook (scripts/overgo_doctrine.sh) emits the OVERGO turn contract + dispatched task, so overgo sessions are driven by overgo's own loop/plan, not adaptive_new's session_doctrine/skill.md. Pairs with the user-level Stop hook (~/.claude) so enforcement + doctrine hold regardless of launch dir; adaptive_new stays reference-only.",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "overgo self-contained doctrine: SessionStart hook (scripts/overgo_doctrine.sh) emits the OVERGO turn contract + dispatched task, so overgo sessions are driven by overgo's own loop/plan, not adaptive_new's session_doctrine/skill.md. Pairs with the user-level Stop hook (~/.claude) so enforcement + doctrine hold regardless of launch dir; adaptive_new stays reference-only.",
+          "status": "done",
           "verify": "bash scripts/overgo_doctrine.sh --selftest \u0026\u0026 python -c \"import json; json.load(open('.claude/settings.json'))\""
         }
       ]

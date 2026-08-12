@@ -11,6 +11,17 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/overgo_post_commit_dispatch.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

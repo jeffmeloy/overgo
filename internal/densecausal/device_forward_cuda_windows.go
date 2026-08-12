@@ -7,7 +7,6 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/devicemath"
-	"overgo/internal/hostmath"
 )
 
 // deviceLayerForwardCached is the device counterpart to layerForwardCached: it
@@ -36,22 +35,4 @@ func (m *Model) deviceLayerForwardCached(worker *device.Worker, x []float32, l l
 		tr: attnTrace{qScaled: fc.QScaled, kRoped: fc.KRoped, v: fc.V, attnCore: fc.AttnCore},
 		h2: fc.H2, hn: fc.Hn, gate: fc.Gate, up: fc.Up, a: fc.A, hMLP: fc.HMLP,
 	}, nil
-}
-
-// deviceForwardStatesCached is the device counterpart to forwardStatesCached: it
-// runs the whole stack forward on the GPU (embedding lookup on host, then each
-// layer via deviceLayerForwardCached), retaining every layer's input residual
-// stream and its cache. Replaces the host forward inside deviceLossAndGrads, so
-// the per-layer forward no longer runs on host. states[l] is layer l's input;
-// states[Layers] is the final pre-norm stream.
-func (m *Model) deviceForwardStatesCached(worker *device.Worker, tokens []int) ([][]float32, []layerCache, error) {
-	d := m.Dims
-	invF32 := ropeInvF32(hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim))
-	return m.cachedForwardStates(tokens, func(x []float32, index, seq int) (layerCache, error) {
-		l, err := m.layerWeights(index)
-		if err != nil {
-			return layerCache{}, err
-		}
-		return m.deviceLayerForwardCached(worker, x, l, invF32, seq)
-	})
 }

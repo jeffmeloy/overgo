@@ -170,7 +170,7 @@ func (r *Runner) forwardWavTokenizerLocked(
 	}
 	runtime.addHostFeeds(hostFeeds)
 	runtime.addDeviceFeeds(deviceFeeds)
-	output, err := model.BuildWavTokenizerDecoder(runtime.builder, input, r.spec, graphWeights)
+	output, err := r.program.Model.BuildSequenceOutput(runtime.builder, input, graphWeights)
 	if err != nil {
 		return reference.Value{}, err
 	}

@@ -48,7 +48,8 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	if _, _, err := ActivateVerified(ctx, store, "fixture/lifecycle/first/active", first, firstVerification, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	active, ok, err := Active(ctx, store, modelID, recipe.TaskInference)
+	activation, ok, err := ActiveRecord(ctx, store, modelID, recipe.TaskInference)
+	active := activation.Definition
 	if err != nil || !ok || active.ID != first.ID {
 		t.Fatalf("first active = (%s, %v, %v)", active.ID, ok, err)
 	}
@@ -75,7 +76,8 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	active, ok, err = Active(ctx, store, modelID, recipe.TaskInference)
+	activation, ok, err = ActiveRecord(ctx, store, modelID, recipe.TaskInference)
+	active = activation.Definition
 	if err != nil || !ok || active.ID != second.ID {
 		t.Fatalf("second active = (%s, %v, %v)", active.ID, ok, err)
 	}

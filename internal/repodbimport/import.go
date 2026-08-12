@@ -362,12 +362,6 @@ func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, e
 			break
 		}
 		_, canonical, err = modelrecipe.NormalizeProfileDocument(data)
-	case modelrecipe.ProfileParityMediaType:
-		requireSchema(modelrecipe.ProfileParitySchema)
-		if err != nil {
-			break
-		}
-		_, canonical, err = modelrecipe.NormalizeProfileParityEvidence(data)
 	case modelrecipe.CatalogProfileDerivationMediaType:
 		requireSchema(modelrecipe.CatalogProfileDerivationSchema)
 		if err != nil {

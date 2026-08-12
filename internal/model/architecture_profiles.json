@@ -386,7 +386,6 @@
   },
   {
     "Attention": 1,
-    "Block": 9,
     "Capabilities": 34359739012,
     "CatalogFamily": 1,
     "Experts": {
@@ -427,7 +426,6 @@
   },
   {
     "Attention": 2,
-    "Block": 10,
     "Capabilities": 34359739268,
     "CatalogFamily": 1,
     "DraftKind": 4,
@@ -455,7 +453,6 @@
     }
   },
   {
-    "Block": 11,
     "Cache": 12,
     "Capabilities": 8196,
     "CatalogFamily": 1,
@@ -664,7 +661,6 @@
     "Residual": 1
   },
   {
-    "Block": 3,
     "Cache": 10,
     "Capabilities": 8,
     "CatalogFamily": 3,
@@ -841,7 +837,6 @@
   {
     "Attention": 2,
     "Auxiliary": 2,
-    "Block": 10,
     "Capabilities": 34359739140,
     "CatalogFamily": 1,
     "DraftKind": 4,
@@ -1055,7 +1050,6 @@
       "Recurrent": 12
     },
     "Position": 1,
-    "RecurrentBlock": 5,
     "RecurrentCache": 3,
     "Rotary": {
       "Kind": 4
@@ -1272,7 +1266,6 @@
     "Validation": {
       "Recurrent": 11
     },
-    "RecurrentBlock": 4,
     "RecurrentCache": 2
   },
   {
@@ -1329,7 +1322,6 @@
     }
   },
   {
-    "Block": 8,
     "Capabilities": 8388618,
     "CatalogFamily": 2,
     "Experts": {
@@ -1560,7 +1552,6 @@
     }
   },
   {
-    "Block": 1,
     "Cache": 2,
     "Capabilities": 10,
     "CatalogFamily": 2,
@@ -1576,7 +1567,6 @@
     }
   },
   {
-    "Block": 2,
     "Cache": 3,
     "Capabilities": 10,
     "CatalogFamily": 2,
@@ -1660,7 +1650,6 @@
   },
   {
     "Attention": 1,
-    "Block": 9,
     "Capabilities": 131584,
     "MLAVariant": 2,
     "Name": "minicpm3",
@@ -1712,7 +1701,6 @@
   },
   {
     "Attention": 1,
-    "Block": 9,
     "Capabilities": 34359739008,
     "Experts": {
       "BiasCatalog": 1,
@@ -1790,7 +1778,6 @@
     "Normalization": 1
   },
   {
-    "Block": 7,
     "CacheFallback": 1,
     "Capabilities": 10,
     "CatalogFamily": 3,
@@ -1809,7 +1796,6 @@
     "RecurrentCache": 3
   },
   {
-    "Block": 7,
     "CacheFallback": 1,
     "Capabilities": 14,
     "CatalogFamily": 3,
@@ -2075,7 +2061,6 @@
       "Recurrent": 13
     },
     "Position": 1,
-    "RecurrentBlock": 6,
     "RecurrentCache": 2,
     "Rotary": {
       "Kind": 4
@@ -2107,7 +2092,6 @@
   },
   {
     "Attention": 1,
-    "Block": 9,
     "Capabilities": 524800,
     "FeedForward": 4,
     "MLAVariant": 1,

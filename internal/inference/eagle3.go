@@ -45,7 +45,7 @@ func (r *Runner) FuseEagle3Features(ctx context.Context, features reference.Valu
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output, err := model.BuildEagle3FeatureEncoder(runtime.builder, input, projection, r.spec)
+	output, err := r.program.Model.BuildFeatureProjection(runtime.builder, input, projection, nil)
 	if err != nil {
 		return reference.Value{}, err
 	}

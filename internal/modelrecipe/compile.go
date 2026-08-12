@@ -30,9 +30,6 @@ const (
 	// image-generation capability packages; input condition tensor, output
 	// generated image.
 	ModuleImageGenerate recipe.ModuleID = "model.image-generate"
-	// ModuleVideoGenerate: text-to-video generation (device denoise session
-	// + CUDA VAE decode); prompt text in, decoded video frames out.
-	ModuleVideoGenerate recipe.ModuleID = "model.video-generate"
 	// ModuleVQAAnswer: vision question-answering (device vision tower ->
 	// merger -> modality-routed prefill -> resident-KV decode); image +
 	// question text in, answer text out.
@@ -161,9 +158,6 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 	recipe.TaskImageGen: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "imagegen", module: ModuleImageGenerate, input: "condition", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
 	}},
-	recipe.TaskVideoGen: {placement: recipe.PlacementDevice, stages: []scalarStage{
-		{node: "videogen", module: ModuleVideoGenerate, input: "prompt", output: "video", inputData: recipe.DataText, outData: recipe.DataVideo},
-	}},
 }
 
 // CapabilityDefinition: task-indexed executable topology.
@@ -239,12 +233,6 @@ func inference(
 			Source: recipe.Endpoint{Node: forward.ID, Port: "logits"},
 		}},
 	)
-}
-
-func CompileInference(definition recipe.Definition, spec model.Spec, weights model.Weights) (Plan, error) {
-	return compileDefinition(definition, func() (model.ModelPlan, error) {
-		return model.CompileModelPlan(spec, weights)
-	})
 }
 
 // CompileCapability resolves an executable non-inference model program.
@@ -413,7 +401,7 @@ func mustCatalog() *recipe.Catalog {
 	}
 	for _, task := range []recipe.Task{
 		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
-		recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen,
+		recipe.TaskSpeech, recipe.TaskImageGen,
 	} {
 		modules = append(modules, linearCapabilities[task].modules(task)...)
 	}

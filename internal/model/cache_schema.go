@@ -133,7 +133,7 @@ func compileCacheSchemas(
 		if index < len(layers) {
 			layer = layers[index]
 		}
-		schema, err := CacheSchemaForPlan(spec, plans[index], layer, 1)
+		schema, err := cacheSchemaForPlan(spec, plans[index], layer, 1)
 		if err != nil {
 			return nil, fmt.Errorf("cache schema layer %d: %w", index, err)
 		}
@@ -223,14 +223,7 @@ func cacheValue(mode CacheStateMode, shape tensor.Shape) CacheState[CacheValueSc
 	return CacheState[CacheValueSchema]{Mode: mode, Value: CacheValueSchema{Shape: shape}}
 }
 
-// CacheSchema: derives layer cache shapes and range behavior.
-func CacheSchema(spec Spec, layerIndex int, info LayerWeights, tokens uint32) (LayerCacheSchema, error) {
-	plan := spec.PlanLayer(uint32(layerIndex), info.Recurrent)
-	return CacheSchemaForPlan(spec, plan, info, tokens)
-}
-
-// CacheSchemaForPlan: materializes a compiled layer-state contract.
-func CacheSchemaForPlan(
+func cacheSchemaForPlan(
 	spec Spec,
 	plan LayerPlan,
 	info LayerWeights,
@@ -309,7 +302,7 @@ func CacheSchemaForPlan(
 	}
 	shapes := spec.TensorShapes(uint32(layerIndex))
 	keyWidth, valueWidth, heads := shapes.Key, shapes.Value, shapes.KVHeads
-	if plan.Attention == AttentionMLA || plan.Attention == AttentionDSA || plan.Block == BlockKimiLinear {
+	if plan.Attention == AttentionMLA || plan.Attention == AttentionDSA || plan.StateSpace.kind == stateSpaceKeyedDelta {
 		heads = uint64(spec.HeadCount)
 		if info.AttentionKB != nil {
 			keyWidth = uint64(spec.KVLoRARank + spec.RopeDimensionCount)

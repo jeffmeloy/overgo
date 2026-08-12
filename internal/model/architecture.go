@@ -338,8 +338,6 @@ type ArchitectureProfile struct {
 	Temperature      AttentionTemperaturePolicy
 	PostNormLayout   PostNormLayoutPolicy
 	FFNNormLayout    FeedForwardNormLayoutPolicy
-	Block            BlockPolicy
-	RecurrentBlock   BlockPolicy
 	Cache            CachePolicy
 	RecurrentCache   CachePolicy
 	CacheFallback    CacheFallbackPolicy

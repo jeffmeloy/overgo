@@ -145,7 +145,11 @@ func publishProgramFacts(
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, err := NewModelDefinitionFromGGUF(file, profileDocument, inventory.TensorInventory)
+	spec, err := model.ReadSpecWithProfile(file, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	if err != nil {
 		t.Fatal(err)
 	}

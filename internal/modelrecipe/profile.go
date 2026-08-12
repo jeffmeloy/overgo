@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -296,25 +295,4 @@ func CompileWithProfile(
 	return compileDefinition(definition, func() (model.ModelPlan, error) {
 		return model.CompileModelPlanWithProfile(spec, weights, document.Policy)
 	})
-}
-
-// VerifyProfileParity: registry/profile plan equivalence gate.
-func VerifyProfileParity(
-	definition recipe.Definition,
-	document ProfileDocument,
-	spec model.Spec,
-	weights model.Weights,
-) (Plan, error) {
-	legacy, err := CompileInference(definition, spec, weights)
-	if err != nil {
-		return Plan{}, err
-	}
-	candidate, err := CompileWithProfile(definition, document, spec, weights)
-	if err != nil {
-		return Plan{}, err
-	}
-	if !reflect.DeepEqual(legacy.Model, candidate.Model) {
-		return Plan{}, errors.New("model recipe: profile parity mismatch")
-	}
-	return candidate, nil
 }

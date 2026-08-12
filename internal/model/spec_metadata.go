@@ -303,7 +303,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 			qwenGDNMulti := profile.Attention == AttentionQwenGDN && profile.Has(ArchitectureMultiAxisPositions)
 			longRoPE := profile.Has(ArchitectureLongRoPE) && scalingType == "longrope"
 			yarn := scalingType == "yarn" && (profile.Has(ArchitectureDeepSeek2Layout) ||
-				profile.Block == BlockDeepSeek4 || validation.supportsYaRN())
+				validation.MLA == MLAValidationDeepSeek4 || validation.supportsYaRN())
 			if qwenGDNMulti || scalingType != "linear" && !longRoPE && !yarn {
 				return fmt.Errorf("model architecture %q uses unsupported RoPE scaling type %q", architecture, scalingType)
 			}

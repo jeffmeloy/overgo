@@ -40,8 +40,6 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Temperature", profile.Temperature, AttentionTemperatureNoRoPE),
 		validateProfileOrdinal("PostNormLayout", profile.PostNormLayout, PostNormLayoutGrok),
 		validateProfileOrdinal("FFNNormLayout", profile.FFNNormLayout, FeedForwardNormLayoutPostAttention),
-		validateProfileOrdinal("Block", profile.Block, BlockDeepSeek4),
-		validateProfileOrdinal("RecurrentBlock", profile.RecurrentBlock, BlockDeepSeek4),
 		validateProfileOrdinal("Cache", profile.Cache, CacheDeepSeek4),
 		validateProfileOrdinal("RecurrentCache", profile.RecurrentCache, CacheDeepSeek4),
 		validateProfileOrdinal("CacheFallback", profile.CacheFallback, CacheFallbackMissingKV),

@@ -1309,8 +1309,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(inputErr)
 		}
 		deviceFeeds[norm] = pointer
-		perLayerInputs, inputErr = model.BuildGemma4PerLayerInputs(
-			builder, current, builder.GetRows(perLayerTable, rows), projection, norm, r.spec,
+		perLayerInputs, inputErr = r.program.Model.BuildPerLayerInputs(
+			builder, current, builder.GetRows(perLayerTable, rows), projection, norm,
 		)
 		if inputErr != nil {
 			return fail(inputErr)

@@ -500,7 +500,7 @@ func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 		return Weights{}, err
 	}
 	profile := spec.Profile()
-	if profile.Block == BlockDeepSeek4 {
+	if profile.Validation.MLA == MLAValidationDeepSeek4 {
 		return readDeepSeek4WeightCatalog(catalog, spec)
 	}
 	switch profile.CatalogFamily {
@@ -979,7 +979,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				layer.AttentionNormBias = &attentionNormBias
 			}
 		}
-		if layerPlan.Block == BlockKimiLinear {
+		if layerPlan.StateSpace.kind == stateSpaceKeyedDelta {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
 			if layer.Recurrent {
 				inner := uint64(spec.SSMInnerSize)
@@ -1126,7 +1126,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		} else if handled {
 			continue
 		}
-		if profile.Block == BlockNemotronH {
+		if layerPlan.StateSpace.kind == stateSpaceNemotronH {
 			if spec.IsRecurrentLayer(block) {
 				layer.Recurrent = true
 				convDimension := uint64(spec.SSMInnerSize) +
@@ -1337,8 +1337,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			return Weights{}, attentionErr
 		}
 		qkPlan := spec.qkPreprocessPlan(block)
-		if !layer.Recurrent && profile.RecurrentBlock != BlockPLaMo2 &&
-			(qkPlan.Heads == qkNormWeighted || qkPlan.PostRotary == qkNormWeighted) {
+		if !layer.Recurrent && (qkPlan.Heads == qkNormWeighted || qkPlan.PostRotary == qkNormWeighted) {
 			shape := []uint64{uint64(spec.KeyLength)}
 			if normErr := loadQKNormPair(required, tensors, prefix, layer, shape, shape, ""); normErr != nil {
 				return Weights{}, normErr
@@ -1403,7 +1402,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			layer.AttentionOutputGate = &gate
 		}
 		headQKNorm := qkPlan.Heads == qkNormAffine || qkPlan.Heads == qkNormConfiguredNoBias ||
-			qkPlan.Heads == qkNormLayer || profile.RecurrentBlock == BlockPLaMo2 && !layer.Recurrent
+			qkPlan.Heads == qkNormLayer
 		if headQKNorm {
 			optionalLabel := ""
 			if qkPlan.Heads == qkNormLayer {
@@ -1554,7 +1553,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, itemErr
 			}
 		}
-		if layerPlan.Block == BlockMamba || layerPlan.Block == BlockMamba2 {
+		if layerPlan.StateSpace.kind == stateSpaceMamba || layerPlan.StateSpace.kind == stateSpaceMamba2 {
 			continue
 		}
 		feedForwardNormName := normPlan.FeedForwardNormTensor()

@@ -597,7 +597,7 @@ func buildTokenShiftFeedForwardMix(
 	spec Spec,
 	weights LayerGraphWeights,
 	pastShift, nextAttentionShift *tensor.Tensor,
-	policy FeedForwardMixPolicy,
+	operator LayerOperator,
 ) (DenseBlockResult, error) {
 	required := graphWeights{
 		requireGraphWeight("channel norm", weights.AttentionNorm2),
@@ -606,10 +606,10 @@ func buildTokenShiftFeedForwardMix(
 		requireGraphWeight("channel key", weights.ChannelMixKey),
 		requireGraphWeight("channel value", weights.ChannelMixValue),
 	}
-	if policy == FeedForwardMixGatedTokenShiftSquaredReLU {
+	if operator == LayerOperatorGatedTokenShiftSquaredReLU {
 		required.add("channel lerp R", weights.ChannelMixLerpR)
 		required.add("channel receptance", weights.ChannelMixReceptance)
-	} else if policy != FeedForwardMixTokenShiftSquaredReLU {
+	} else if operator != LayerOperatorTokenShiftSquaredReLU {
 		return DenseBlockResult{}, errors.New("token-shift feed-forward policy is invalid")
 	}
 	if err := required.validate("token-shift feed-forward"); err != nil {
@@ -634,7 +634,7 @@ func buildTokenShiftFeedForwardMix(
 	channel := builder.MulMat(
 		weights.ChannelMixValue, builder.ReLUSquared(builder.MulMat(weights.ChannelMixKey, keyInput)),
 	)
-	if policy == FeedForwardMixGatedTokenShiftSquaredReLU {
+	if operator == LayerOperatorGatedTokenShiftSquaredReLU {
 		receptanceInput := builder.Add(normalized, builder.Multiply(
 			shift, builder.Reshape(weights.ChannelMixLerpR, embedding, 1),
 		))

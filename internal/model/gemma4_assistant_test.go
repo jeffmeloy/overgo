@@ -26,7 +26,8 @@ func TestBuildGemma4AssistantPipeline(t *testing.T) {
 	token := input("target_token", 3, 1)
 	hidden := input("target_hidden", 3, 1)
 	pre := input("pre", 6, 2)
-	current, err := BuildGemma4AssistantInput(builder, token, hidden, pre, spec)
+	program := fixtureModelPlan(t, spec, Weights{})
+	current, err := program.BuildFusedInput(builder, token, hidden, pre)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +57,7 @@ func TestBuildGemma4AssistantPipeline(t *testing.T) {
 	outputNorm := input("output_norm", 2)
 	output := input("output", 2, 4)
 	post := input("post", 2, 3)
-	logits, nextHidden, err := BuildGemma4AssistantOutputs(builder, current, outputNorm, output, post, spec)
+	logits, nextHidden, err := program.BuildProjectedOutputs(builder, current, outputNorm, output, post)
 	if err != nil {
 		t.Fatal(err)
 	}

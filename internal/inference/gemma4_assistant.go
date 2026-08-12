@@ -113,7 +113,7 @@ func (r *Runner) AdvanceGemma4Assistant(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	current, err := model.BuildGemma4AssistantInput(runtime.builder, tokenInput, hiddenInput, pre, r.spec)
+	current, err := r.program.Model.BuildFusedInput(runtime.builder, tokenInput, hiddenInput, pre)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -157,7 +157,7 @@ func (r *Runner) AdvanceGemma4Assistant(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	logits, nextHidden, err := model.BuildGemma4AssistantOutputs(runtime.builder, current, outputNorm, output, post, r.spec)
+	logits, nextHidden, err := r.program.Model.BuildProjectedOutputs(runtime.builder, current, outputNorm, output, post)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

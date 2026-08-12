@@ -207,7 +207,7 @@ func (r *Runner) FuseDFlashFeatures(ctx context.Context, features reference.Valu
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output, err := model.BuildDFlashFeatureEncoder(runtime.builder, input, projection, projectionNorm, r.spec)
+	output, err := r.program.Model.BuildFeatureProjection(runtime.builder, input, projection, projectionNorm)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -291,8 +291,8 @@ func (r *Runner) injectDFlashLayer(
 		pastKey = runtime.input("dflash.past_key", past.Key)
 		pastValue = runtime.input("dflash.past_value", past.Value)
 	}
-	key, value, err := model.BuildDFlashCacheInjection(
-		runtime.builder, input, r.spec, graphWeights, positions, pastKey, pastValue,
+	key, value, err := r.program.Model.BuildCacheProjection(
+		runtime.builder, input, graphWeights, positions, pastKey, pastValue,
 	)
 	if err != nil {
 		return LayerCache{}, err

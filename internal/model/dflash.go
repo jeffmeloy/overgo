@@ -2,47 +2,32 @@ package model
 
 import (
 	"errors"
-	"math"
 
 	"overgo/internal/tensor"
 )
 
-// BuildDFlashFeatureEncoder: target-layer fusion projection.
-func BuildDFlashFeatureEncoder(
-	builder *tensor.Builder,
-	features, projection, norm *tensor.Tensor,
-	spec Spec,
-) (*tensor.Tensor, error) {
-	if builder == nil || features == nil || projection == nil || norm == nil {
-		return nil, errors.New("DFlash feature encoder input is nil")
-	}
-	if spec.Profile().Forward != ForwardDFlash || features.Shape.Rank != 2 ||
-		features.Shape.Dims[0] != uint64(len(spec.TargetLayers))*uint64(spec.EmbeddingLength) {
-		return nil, errors.New("DFlash feature encoder shape is incompatible")
-	}
-	output := builder.MulMat(projection, features)
-	output = builder.WeightedRMSNorm(output, norm, spec.RMSNormEpsilon)
-	if err := builder.Err(); err != nil {
-		return nil, err
-	}
-	return output, nil
-}
+type cacheProjectionPolicy uint8
 
-// BuildDFlashCacheInjection: fused-feature K/V append.
-func BuildDFlashCacheInjection(
+const (
+	cacheProjectionNone cacheProjectionPolicy = iota
+	cacheProjectionRotaryQKNorm
+)
+
+// BuildCacheProjection executes the compiled cache-projection policy.
+func (p ModelPlan) BuildCacheProjection(
 	builder *tensor.Builder,
 	fused *tensor.Tensor,
-	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
+	spec := p.spec
 	if builder == nil || fused == nil || weights.AttentionK == nil || weights.AttentionV == nil || weights.AttentionKNorm == nil {
-		return nil, nil, errors.New("DFlash cache injection input is nil")
+		return nil, nil, errors.New("compiled cache projection input is nil")
 	}
-	if spec.Profile().Forward != ForwardDFlash || fused.Shape.Rank != 2 || fused.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
+	if p.cacheProject != cacheProjectionRotaryQKNorm || fused.Shape.Rank != 2 || fused.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		len(positions) != int(fused.Shape.Dims[1]) || (pastKey == nil) != (pastValue == nil) {
-		return nil, nil, errors.New("DFlash cache injection shape is incompatible")
+		return nil, nil, errors.New("compiled cache projection shape is incompatible")
 	}
 	tokens := fused.Shape.Dims[1]
 	key := builder.Reshape(
@@ -71,9 +56,4 @@ func BuildDFlashCacheInjection(
 		return nil, nil, err
 	}
 	return key, value, nil
-}
-
-// DFlashAttentionScale: head-width scale.
-func DFlashAttentionScale(spec Spec) float32 {
-	return float32(1 / math.Sqrt(float64(spec.KeyLength)))
 }

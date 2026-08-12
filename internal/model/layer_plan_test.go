@@ -140,34 +140,35 @@ func TestPlanLayerCompilesTensorGraphControls(t *testing.T) {
 
 func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 	tests := []struct {
-		name  string
-		spec  Spec
-		layer LayerWeights
-		block BlockPolicy
-		cache CachePolicy
+		name       string
+		spec       Spec
+		layer      LayerWeights
+		stateSpace stateSpaceKind
+		attention  AttentionPolicy
+		cache      CachePolicy
 	}{
 		{
 			name: "mamba", spec: Spec{CommonSpec: CommonSpec{Architecture: "mamba", BlockCount: 1}},
-			block: BlockMamba, cache: CacheMamba,
+			stateSpace: stateSpaceMamba, cache: CacheMamba,
 		},
 		{
 			name: "jamba attention", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
-			block: BlockDense, cache: CacheAttention,
+			cache: CacheAttention,
 		},
 		{
 			name: "jamba recurrent", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
-			layer: LayerWeights{Recurrent: true}, block: BlockJamba, cache: CacheMamba,
+			layer: LayerWeights{Recurrent: true}, stateSpace: stateSpaceJamba, cache: CacheMamba,
 		},
 		{
 			name: "DSA", spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
-			block: BlockDSA, cache: CacheAttention,
+			attention: AttentionDSA, cache: CacheAttention,
 		},
 		{
 			name: "DeepSeek 4", spec: Spec{
 				CommonSpec:    CommonSpec{Architecture: "deepseek4", BlockCount: 1},
 				AttentionSpec: AttentionSpec{CompressRatios: []uint32{0}},
 			},
-			block: BlockDeepSeek4, cache: CacheDeepSeek4,
+			cache: CacheDeepSeek4,
 		},
 	}
 	for _, test := range tests {
@@ -176,7 +177,12 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if plan.LayerCount() != 1 || plan.layers[0].Block != test.block || plan.layers[0].Cache != test.cache {
+			if plan.LayerCount() != 1 {
+				t.Fatalf("plan = %+v", plan)
+			}
+			layer := plan.layers[0]
+			if layer.StateSpace.kind != test.stateSpace || layer.Attention != test.attention ||
+				layer.Cache != test.cache {
 				t.Fatalf("plan = %+v", plan)
 			}
 		})
@@ -326,7 +332,7 @@ func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
 			t.Fatalf("%s selected dense graph with AltUp", architecture)
 		}
 		for _, layer := range plan.layers {
-			if layer.Block != BlockDense || layer.Attention != AttentionStandard ||
+			if layer.StateSpace.kind != stateSpaceNone || layer.Attention != AttentionStandard ||
 				layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
 				t.Fatalf("%s selected dense graph for layer %+v", architecture, layer)
 			}

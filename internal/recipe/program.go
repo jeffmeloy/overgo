@@ -33,6 +33,9 @@ func (p Program) Stages() []Stage {
 // UsesCatalog reports the immutable module authority used during compilation.
 func (p Program) UsesCatalog(catalog *Catalog) bool { return catalog != nil && p.catalog == catalog }
 
+// Catalog returns the immutable module authority used during compilation.
+func (p Program) Catalog() *Catalog { return p.catalog }
+
 // CompileProgram resolves module contracts and orders executable stages.
 func CompileProgram(definition Definition, catalog *Catalog) (Program, error) {
 	if err := definition.Validate(catalog); err != nil {

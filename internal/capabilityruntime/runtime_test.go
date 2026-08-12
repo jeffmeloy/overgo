@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/testutil"
@@ -17,7 +16,9 @@ type scalarRequest struct {
 	Value int `json:"value"`
 }
 
-func capabilityFixture(t *testing.T, name string, task recipe.Task) (*repodb.Store, artifact.ID, recipe.Program) {
+const scalarModule recipe.ModuleID = "test.scalar"
+
+func capabilityFixture(t *testing.T, name string) (*repodb.Store, artifact.ID, recipe.Program) {
 	t.Helper()
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
@@ -26,11 +27,24 @@ func capabilityFixture(t *testing.T, name string, task recipe.Task) (*repodb.Sto
 	t.Cleanup(func() { _ = store.Close() })
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 	testutil.PublishArtifact(t, store, modelID)
-	definition, err := modelrecipe.CapabilityDefinition(task, modelID)
+	node := recipe.Node{ID: "scalar", Module: scalarModule, Placement: recipe.PlacementHost}
+	definition, err := recipe.NewDefinition(
+		recipe.TaskImageGen, modelID, []recipe.Node{node}, nil,
+		[]recipe.Input{{Name: "input", Data: recipe.DataTensor, Target: recipe.Endpoint{Node: node.ID, Port: "input"}}},
+		[]recipe.Output{{Name: "output", Data: recipe.DataImage, Source: recipe.Endpoint{Node: node.ID, Port: "output"}}},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := modelrecipe.CompileCapability(definition)
+	catalog, err := recipe.NewCatalog(recipe.Module{
+		ID: scalarModule, Tasks: []recipe.Task{recipe.TaskImageGen}, Placements: []recipe.Placement{recipe.PlacementHost},
+		Inputs:  []recipe.Port{{Name: "input", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+		Outputs: []recipe.Port{{Name: "output", Data: recipe.DataImage, Cardinality: recipe.CardinalityOne}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := recipe.CompileProgram(definition, catalog)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +52,7 @@ func capabilityFixture(t *testing.T, name string, task recipe.Task) (*repodb.Sto
 }
 
 func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
-	store, modelID, program := capabilityFixture(t, "scalar-model", recipe.TaskImageGen)
+	store, modelID, program := capabilityFixture(t, "scalar-model")
 	execute := JSONScalar[scalarRequest, int, int](
 		"scalar", func(request scalarRequest) error {
 			if request.Value <= 0 {
@@ -49,7 +63,7 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 		func(path string, request scalarRequest) (int, error) { return len(path) + request.Value, nil },
 		func(runtime *workflowruntime.Runtime, bound artifact.ID, model int) error {
 			return workflowruntime.RegisterJSONStage[scalarRequest, int](
-				runtime, modelrecipe.ModuleImageGenerate, bound,
+				runtime, scalarModule, bound,
 				artifact.JSONContract(artifact.KindOutput, "test.scalar-output.v1"),
 				func(request scalarRequest) (int, error) { return request.Value + model, nil },
 			)
@@ -67,28 +81,5 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	}
 	if program.Definition().Task != recipe.TaskImageGen {
 		t.Fatalf("task = %s", program.Definition().Task)
-	}
-}
-
-func TestExecuteVQABindsInputsAndOutputLineage(t *testing.T) {
-	store, modelID, program := capabilityFixture(t, "vqa-model", recipe.TaskVQA)
-	image := VQAImage{Data: []byte("image")}
-	answer, err := ExecuteVQA(
-		context.Background(), store, modelID, program, "vqa/runtime", image, "where?",
-		func(_ context.Context, gotImage VQAImage, question string) (string, error) {
-			if string(gotImage.Data) != string(image.Data) || question != "where?" {
-				t.Fatalf("input = (%q, %q)", gotImage.Data, question)
-			}
-			return "there", nil
-		},
-	)
-	if err != nil || answer != "there" {
-		t.Fatalf("answer = (%q, %v)", answer, err)
-	}
-	if _, err := ExecuteVQA(
-		context.Background(), store, modelID, program, "vqa/invalid", VQAImage{}, "where?",
-		func(context.Context, VQAImage, string) (string, error) { return "", nil },
-	); err == nil {
-		t.Fatal("empty image accepted")
 	}
 }

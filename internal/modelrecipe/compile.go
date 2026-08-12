@@ -77,10 +77,6 @@ type DecodePlan struct {
 	Session DecodeSessionPolicy
 }
 
-func Catalog() *recipe.Catalog {
-	return catalog
-}
-
 func InferenceWithModelDefinition(
 	modelID artifact.ID,
 	profileID artifact.ID,

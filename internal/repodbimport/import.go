@@ -550,12 +550,8 @@ func importSource(header Header, raw []byte) (artifact.Content, artifact.ID, err
 	if err != nil {
 		return artifact.Content{}, artifact.ID{}, err
 	}
-	id, err := sourceContract.Identify(data)
-	if err != nil {
-		return artifact.Content{}, artifact.ID{}, err
-	}
-	content, err := sourceContract.Content(id, data)
-	return content, id, err
+	content, err := sourceContract.ContentBytes(data)
+	return content, content.Descriptor.ID, err
 }
 
 func exportDigest(raw []byte) string {

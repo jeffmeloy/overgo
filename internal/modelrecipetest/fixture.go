@@ -73,7 +73,7 @@ func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 	check(t, err)
 	program, err := modelrecipe.CompileCapability(compiled)
 	check(t, err)
-	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
+	runtime, err := workflowruntime.NewForProgram(store, program)
 	check(t, err)
 	return Capability{Model: modelID, Program: program, Runtime: runtime}
 }

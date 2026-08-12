@@ -18,7 +18,7 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := definition.Validate(Catalog()); err != nil {
+	if err := definition.Validate(catalog); err != nil {
 		t.Fatal(err)
 	}
 	plan, err := compileInferenceFixture(definition, model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, model.Weights{})

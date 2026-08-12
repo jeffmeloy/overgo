@@ -9,13 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"overgo/internal/capabilityruntime"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/dataroot"
 	"overgo/internal/hfbpe"
 	"overgo/internal/patchtower"
-	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
 )
@@ -77,11 +75,10 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		return err
 	}
 	defer store.Close()
-	inventory, program, err := capabilityruntime.ResolveActive(ctx, store, l.modelDir, recipe.TaskVQA)
+	modelID, program, err := resolveActiveVQA(ctx, store, l.modelDir)
 	if err != nil {
 		return err
 	}
-	modelID := inventory.Manifest.ID
 	recipeID := program.Definition().ID.String()
 	l.log(fmt.Sprintf("RECIPE serve active vqa recipe resolved model=%s recipe=%s", modelID, recipeID))
 
@@ -92,7 +89,6 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	if err != nil {
 		return err
 	}
-	image := capabilityruntime.VQAImage{Data: rawImg}
 
 	// Golden chain: required prefix; serve continues to EOS.
 	dg, err := loadGoldenJSON[decodeStepsGolden](l.fixturesDir, "rxbrain_vqa_decode_steps_golden.json")
@@ -105,7 +101,7 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 
 	serveOnce := func(
 		executeContext context.Context,
-		inputImage capabilityruntime.VQAImage,
+		inputImage []byte,
 		inputQuestion string,
 		tag string,
 	) ([]int, string, time.Duration, fullResult, error) {
@@ -121,7 +117,7 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		if err != nil {
 			return nil, "", 0, fullResult{}, err
 		}
-		rgb, height, width, err := patchtower.DecodeImageBytesRGB(inputImage.Data)
+		rgb, height, width, err := patchtower.DecodeImageBytesRGB(inputImage)
 		if err != nil {
 			return nil, "", 0, fullResult{}, err
 		}
@@ -176,9 +172,9 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		var wall time.Duration
 		var result fullResult
 		var pipelineErr error
-		answer, err := capabilityruntime.ExecuteVQA(
-			ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), image, question,
-			func(executeContext context.Context, image capabilityruntime.VQAImage, question string) (string, error) {
+		answer, err := executeVQA(
+			ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), rawImg, question,
+			func(executeContext context.Context, image []byte, question string) (string, error) {
 				var text string
 				chain, text, wall, result, pipelineErr = serveOnce(executeContext, image, question, tag)
 				return text, pipelineErr

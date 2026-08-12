@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/capabilityruntime"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
@@ -69,7 +68,7 @@ func run() error {
 	}
 	path := roots.ResolveModelPath(flags.Arg(0))
 	selectedTask := recipe.Task(*task)
-	capability, capabilityKnown := capabilityruntime.Lookup(selectedTask)
+	capability, capabilityKnown := capabilities[selectedTask]
 	switch verb {
 	case "activate":
 		if strings.TrimSpace(*reason) == "" {
@@ -95,7 +94,7 @@ func run() error {
 		}
 		return activate(repository, path, *reason, sessionOverride, residency, verification)
 	case "run":
-		if !capabilityKnown || capability.Execute == nil {
+		if !capabilityKnown || capability.execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
 		}
 		if strings.TrimSpace(*input) == "" {
@@ -133,11 +132,11 @@ func parseVerification(gateText, runText string) (modelrecipe.Verification, erro
 func activateCapability(
 	repository, path, reason string,
 	task recipe.Task,
-	capability capabilityruntime.Capability,
+	capability capability,
 	verification modelrecipe.Verification,
 ) error {
 	ctx := context.Background()
-	inventory, err := capability.Inventory(path)
+	inventory, err := capability.inventory(path)
 	if err != nil {
 		return err
 	}
@@ -169,7 +168,7 @@ func activateCapability(
 func executeCapability(
 	repository, path string,
 	task recipe.Task,
-	capability capabilityruntime.Capability,
+	capability capability,
 	input string,
 ) error {
 	ctx := context.Background()
@@ -178,11 +177,15 @@ func executeCapability(
 		return err
 	}
 	defer store.Close()
-	inventory, program, err := capabilityruntime.ResolveActive(ctx, store, path, task)
+	inventory, err := capability.inventory(path)
 	if err != nil {
 		return err
 	}
-	output, err := capability.Execute(ctx, store, path, inventory.Manifest.ID, program, input)
+	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, inventory.Manifest.ID, task)
+	if err != nil {
+		return err
+	}
+	output, err := capability.execute(ctx, store, path, inventory.Manifest.ID, program, input)
 	if err != nil {
 		return err
 	}
@@ -394,9 +397,9 @@ func promoteVerified(
 func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
-	if capability, ok := capabilityruntime.Lookup(task); ok {
+	if capability, ok := capabilities[task]; ok {
 		var err error
-		inventory, err = capability.Inventory(path)
+		inventory, err = capability.inventory(path)
 		if err != nil {
 			return err
 		}

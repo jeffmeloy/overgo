@@ -294,15 +294,8 @@ func activateCapability(
 	); err != nil {
 		return fmt.Errorf("transition validated: %w", err)
 	}
-	decisionID, err := activationDecision(ctx, store, definition, verification, reason)
-	if err != nil {
+	if err := promoteVerified(ctx, store, definition, verification, reason, nil); err != nil {
 		return err
-	}
-	if _, _, err := modelrecipe.ActivateVerified(
-		ctx, store, "recipe/active/"+definition.ID.String(), definition,
-		verification, []artifact.ID{decisionID}, nil,
-	); err != nil {
-		return fmt.Errorf("transition active: %w", err)
 	}
 	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
 		path, task, modelID, definition.ID, reason)
@@ -463,10 +456,6 @@ func activate(
 	}
 	switch state {
 	case recipe.StatusValidated:
-		decisionID, err := activationDecision(ctx, store, definition, verification, reason)
-		if err != nil {
-			return err
-		}
 		// activation supersedes any current active recipe for this model+task
 		var supersedes *artifact.ID
 		if current, active, err := modelrecipe.ActiveRecord(
@@ -475,11 +464,8 @@ func activate(
 			id := current.Definition.ID
 			supersedes = &id
 		}
-		if _, _, err := modelrecipe.ActivateVerified(
-			ctx, store, "recipe/active/"+definition.ID.String(), definition,
-			verification, []artifact.ID{decisionID}, supersedes,
-		); err != nil {
-			return fmt.Errorf("transition active: %w", err)
+		if err := promoteVerified(ctx, store, definition, verification, reason, supersedes); err != nil {
+			return err
 		}
 	case recipe.StatusActive:
 	default:
@@ -490,19 +476,20 @@ func activate(
 	return nil
 }
 
-// activationDecision: accepted promotion bound to completed verifier facts.
-func activationDecision(
+// promoteVerified: accepted decision plus verifier-bound promotion.
+func promoteVerified(
 	ctx context.Context,
 	store artifact.Repository,
 	definition recipe.Definition,
 	verification modelrecipe.Verification,
 	reason string,
-) (artifact.ID, error) {
+	supersedes *artifact.ID,
+) error {
 	verified, err := runrecord.VerifyGateRun(
 		ctx, store, definition.ID, verification.Gate, verification.Run,
 	)
 	if err != nil {
-		return artifact.ID{}, err
+		return err
 	}
 	decision, err := recipe.NewDecision(
 		definition.ID, recipe.DecisionAccepted, recipe.EvidenceExperimental, reason,
@@ -510,11 +497,11 @@ func activationDecision(
 		[]artifact.ID{verified.Gate.ID, verified.Run.ID},
 	)
 	if err != nil {
-		return artifact.ID{}, err
+		return err
 	}
 	content, err := decision.Content()
 	if err != nil {
-		return artifact.ID{}, err
+		return err
 	}
 	batch, err := artifact.NewDocumentBatch(
 		"recipe/activation-decision/"+definition.ID.String(),
@@ -526,12 +513,18 @@ func activationDecision(
 		}, nil,
 	)
 	if err != nil {
-		return artifact.ID{}, err
+		return err
 	}
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
-		return artifact.ID{}, err
+		return err
 	}
-	return decision.ID, nil
+	if _, _, err := modelrecipe.ActivateVerified(
+		ctx, store, "recipe/active/"+definition.ID.String(), definition,
+		verification, []artifact.ID{decision.ID}, supersedes,
+	); err != nil {
+		return fmt.Errorf("transition active: %w", err)
+	}
+	return nil
 }
 
 func status(repository, path string, task recipe.Task) error {

@@ -5,7 +5,7 @@
     {
       "id": "rung0-loop-hardening",
       "title": "loop hardening: plan-bound dispatch + machine-verified done + commit gate (owner 2026-08-11, after a session drifted off-plan ~13 commits with zero -advance)",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "tooling",
@@ -16,7 +16,7 @@
         {
           "id": "enforce-test",
           "title": "tests prove the enforcement: advance refuses a step whose verify is missing or fails; gate refuses a -plan that is not the current open step",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/plan/ ./cmd/plan/ ./cmd/gate/ -run Enforce -count=1"
         }
       ]
@@ -383,8 +383,9 @@
         },
         {
           "id": "recipe-activation",
-          "title": "GGUF inference activation",
-          "status": "open"
+          "title": "GGUF inference activation -- DONE: Qwen3.5-4B-f16.gguf through the sealed lifecycle (candidate->validated->active); status round-trip resolves ACTIVE, tier experimental (model:sha256:887f4124.., recipe:sha256:235e2ad6.., definition:sha256:0f2902f7..); TestActiveRecipeQwen35Open PASS on the real 8.66GB model -- resolves the active GGUF recipe + qwen35 program (dense/recurrent layer coverage) + evidence tier. Mechanism ported (cmd/recipe activate/status + modelrecipe sealed lifecycle + qwen35 arch profile), not reinvented",
+          "status": "open",
+          "verify": "OVERGO_QWEN35_MODEL=/c/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf go test ./internal/inference/ -run TestActiveRecipeQwen35Open -count=1"
         },
         {
           "id": "training-leg",

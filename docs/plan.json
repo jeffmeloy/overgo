@@ -5,12 +5,12 @@
     {
       "id": "loop-hardening-2",
       "title": "mechanical task injection: cmd/plan -add (inject a top task) + gate requires -plan on merges too (merge exemption removed)",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "mechanical task injection: cmd/plan -add (inject a top task) + gate requires -plan on merges too (merge exemption removed)",
-          "status": "open",
+          "status": "done",
           "verify": "go build ./cmd/plan/ ./cmd/gate/ \u0026\u0026 go test ./internal/plan/ ./cmd/plan/ ./cmd/gate/ -run Enforce -count=1"
         }
       ]
@@ -402,8 +402,9 @@
         },
         {
           "id": "gdn-forward-host",
-          "title": "TRAINING-LEG refactor (owner 2026-08-12): qwen3.5 is hybrid -- 24 linear_attention (gated-delta-net, recurrent) + 8 full_attention (interval 4) layers, head_dim 256/16 heads. ABSENT-baseline: adaptive serves qwen3.5 (qwen35-floor serving + hybrid_recurrent_decoder) but has NO training lane; overgo has GDN forward (gated_delta_net_f32) but no GDN backward; densecausal is dense-causal-only. Directive: BUILD the GDN backward so overgo trains the hybrid model (derive-from-forward, no adaptive reference, FD-verified). STEP 1: neutral host reference of the gated-delta-net forward (chunked delta rule + decay/beta gating) matching gated_delta_net_f32; forward parity vs the executor on a real qwen3.5 GDN layer -- the forward the backward differentiates",
-          "status": "open"
+          "title": "TRAINING-LEG refactor (owner 2026-08-12): qwen3.5 is hybrid -- 24 linear_attention (gated-delta-net, recurrent) + 8 full_attention (interval 4) layers, head_dim 256/16 heads. ABSENT-baseline: adaptive serves qwen3.5 (qwen35-floor serving + hybrid_recurrent_decoder) but has NO training lane; overgo has GDN forward (gated_delta_net_f32) but no GDN backward; densecausal is dense-causal-only. Directive: BUILD the GDN backward so overgo trains the hybrid model (derive-from-forward, no adaptive reference, FD-verified). STEP 1: neutral host reference of the gated-delta-net forward (chunked delta rule + decay/beta gating) matching gated_delta_net_f32; forward parity vs the executor on a real qwen3.5 GDN layer -- the forward the backward differentiates -- DONE: hostmath.GatedDeltaNetForward ports the recurrence (per-row gated decay S*=exp(gate), delta rule S+=(v-S.k)*beta*k, readout out=(S.q)/sqrt(size)); parity vs the gated_delta_net_f32 kernel EXACT -- output 2.24e-8, final-state 2.38e-7",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/devicemath/ -run TestGDNForwardMatchesKernel -count=1"
         },
         {
           "id": "gdn-backward-host",

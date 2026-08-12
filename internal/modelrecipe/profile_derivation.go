@@ -70,10 +70,6 @@ func NewCatalogProfileDerivation(profile model.ArchitectureProfile) (CatalogProf
 	return catalogProfileDerivationCodec.New(document)
 }
 
-func ParseCatalogProfileDerivation(content []byte) (CatalogProfileDerivation, error) {
-	return catalogProfileDerivationCodec.Parse(content)
-}
-
 func (d CatalogProfileDerivation) ValidateIdentity() error {
 	return catalogProfileDerivationCodec.ValidateIdentity(d)
 }
@@ -117,7 +113,7 @@ func profilePublicationFacts(document ProfileDocument) (
 	[]artifact.Lineage,
 	error,
 ) {
-	profileContent, err := ProfileContent(document)
+	profileContent, err := profileContent(document)
 	if err != nil {
 		return nil, nil, err
 	}

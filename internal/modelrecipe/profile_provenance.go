@@ -3,7 +3,6 @@ package modelrecipe
 import (
 	"errors"
 	"reflect"
-	"slices"
 	"sort"
 	"strings"
 
@@ -43,14 +42,6 @@ var architectureProfileFacts = func() []ProfileFactID {
 	}
 	return facts
 }()
-
-func ArchitectureProfileFacts() []ProfileFactID {
-	return slices.Clone(architectureProfileFacts)
-}
-
-func ArchitectureProfileFactSchema() []ProfileFactSpec {
-	return slices.Clone(architectureProfileFactSpecs)
-}
 
 func CatalogProfileProvenance(profile model.ArchitectureProfile) ([]ProfileFactProvenance, error) {
 	derivation, err := NewCatalogProfileDerivation(profile)

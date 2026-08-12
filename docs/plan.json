@@ -3,14 +3,27 @@
   "doctrine": "PORT-FIRST (owner, 2026-08-09, standing): the point of this campaign is to PORT adaptive_new into overgo, never to start from scratch. Every capability AND performance slice STARTS from adaptive_new's verified implementation: read it end-to-end, port its structure/kernels/math, verify against its goldens. Novel design is admissible ONLY after the port matches the reference, and only as a measured improvement on top of it. A slice that reinvents what adaptive already ships is the named failure mode. The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/.claude/worktrees/image_gen/image_gen_report.md -- Wan python 463.4s/8.8GB vs exact-Go 739.9s/22.54GB (denoise 690.9s dominates) vs quality-fast 424.3s/11.95GB (FAILS single-complete-cone); safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; the quality-fast attention approximation is the degradation to avoid. Owner note: route media denoise through overgo's OWN tensor machinery (retained CUDA-graph replay, bf16-native decode catalog, GEMV/epilogue fusion rewrites, calibrated dispatch) rather than porting adaptive's slower path -- that machinery already beat adaptive on rungs 3-4 and is the intended edge over Python.",
   "items": [
     {
+      "id": "sync-tightening",
+      "title": "sync overgo_tightening: merge committed changes since last merge (12 commits: seal/authoritative plans, delete family policies, encode exact layer operators, derive catalogs from typed facts, fail-closed video recipes); verify tree green + no work lost; gate -merge -plan",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "sync overgo_tightening: merge committed changes since last merge (12 commits: seal/authoritative plans, delete family policies, encode exact layer operators, derive catalogs from typed facts, fail-closed video recipes); verify tree green + no work lost; gate -merge -plan",
+          "status": "done",
+          "verify": "go build ./... \u0026\u0026 go test ./internal/plan/ ./cmd/plan/ ./cmd/gate/ -run Enforce -count=1 \u0026\u0026 git merge-base --is-ancestor tightening/overgo_tightening HEAD"
+        }
+      ]
+    },
+    {
       "id": "loop-driver",
       "title": "execution driver: plan -stop \u003cvalid-reason\u003e records a legitimate stop; scripts/overgo_stop_gate.sh blocks turn-end unless a step advanced / a gate is running / a fresh valid stop is recorded; scripts/overgo_next_task.sh emits the dispatched task. Makes dispatch DRIVE execution, not just track it. Hook WIRING into settings.json (Stop + UserPromptSubmit) is the owner environment step",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "execution driver: plan -stop \u003cvalid-reason\u003e records a legitimate stop; scripts/overgo_stop_gate.sh blocks turn-end unless a step advanced / a gate is running / a fresh valid stop is recorded; scripts/overgo_next_task.sh emits the dispatched task. Makes dispatch DRIVE execution, not just track it. Hook WIRING into settings.json (Stop + UserPromptSubmit) is the owner environment step",
-          "status": "open",
+          "status": "done",
           "verify": "go build ./cmd/plan/ \u0026\u0026 go test ./cmd/plan/ -run EnforceStop -count=1 \u0026\u0026 bash -n scripts/overgo_stop_gate.sh \u0026\u0026 bash -n scripts/overgo_next_task.sh"
         }
       ]
@@ -421,8 +434,9 @@
         },
         {
           "id": "gdn-backward-host",
-          "title": "derive + implement the GDN recurrence VJP (dq/dk/dv/dbeta/ddecay/dstate) host-side, FD-grad-checked vs the host forward",
-          "status": "open"
+          "title": "derive + implement the GDN recurrence VJP (dq/dk/dv/dbeta/ddecay/dstate) host-side, FD-grad-checked vs the host forward -- DONE: hostmath.GatedDeltaNetBackward, BPTT through the per-(head,seq,row) gated delta recurrence (saves s'/s per token; dSp=dSnew-beta*(dSnew.k)*k; dGate[c]=dSp[c]*s'[c]; dS_carry=dSp*exp(gate)); grouped q/k accumulate. FD grad-check PASS scalar+per-column: dQ<=2.9e-5 dK<=1.5e-5 dV<=1.7e-5 dGate<=1.7e-5 dBeta<=2.6e-6 dInputState<=8.6e-6 (tol 1e-2)",
+          "status": "open",
+          "verify": "go test ./internal/hostmath/ -run TestGDNBackwardFD -count=1"
         },
         {
           "id": "qwen35-hybrid-layer-backward",

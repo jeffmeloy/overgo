@@ -421,13 +421,26 @@
     {
       "id": "l2norm-backward",
       "title": "l2norm-backward: VJP of L2 normalization (qwen3.5 GDN mix L2-normalizes q and k per head before the recurrence: y = x/sqrt(sum(x^2)+eps)); host-side, FD-grad-checked",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "l2norm-backward: VJP of L2 normalization (qwen3.5 GDN mix L2-normalizes q and k per head before the recurrence: y = x/sqrt(sum(x^2)+eps)); host-side, FD-grad-checked",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/hostmath/ -run TestL2Norm -count=1"
+        }
+      ]
+    },
+    {
+      "id": "linear-attn-mix-backward",
+      "title": "linear-attn-mix-backward: composed qwen3.5 gated-delta mix VJP (qkv-proj -\u003e ShortConv -\u003e L2Norm(q,k) -\u003e beta=sigmoid(Wb.n), alpha=Wa.n, gate=softplus(alpha+ts)*A, z=Wz.n -\u003e GDN -\u003e WeightedRMSNorm(out,SSMNorm)*SiLU(z) -\u003e SSMOutput proj); host, FD-grad-checked end-to-end over all weights + input",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "linear-attn-mix-backward: composed qwen3.5 gated-delta mix VJP (qkv-proj -\u003e ShortConv -\u003e L2Norm(q,k) -\u003e beta=sigmoid(Wb.n), alpha=Wa.n, gate=softplus(alpha+ts)*A, z=Wz.n -\u003e GDN -\u003e WeightedRMSNorm(out,SSMNorm)*SiLU(z) -\u003e SSMOutput proj); host, FD-grad-checked end-to-end over all weights + input",
+          "status": "open",
+          "verify": "go test ./internal/hostmath/ -run TestGatedDeltaMix -count=1"
         }
       ]
     },

@@ -514,7 +514,7 @@
     {
       "evidence": [
         {
-          "contains": "func BuildArchitectureBlockCached(",
+          "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go"
         },
         {
@@ -522,13 +522,13 @@
           "path": "internal/model/weights_dispatch.go"
         },
         {
-          "contains": "func TestArchitectureBlockDispatchRoutesFamilies(",
+          "contains": "func TestLayerProgramsCoverCompiledPolicies(",
           "path": "internal/model/graph_dispatch_test.go"
         }
       ],
       "id": "architecture-family-dispatch",
       "status": "implemented",
-      "summary": "Graph construction and tensor catalog validation route through architecture families."
+      "summary": "Graph construction and tensor catalog validation route through compiled layer programs (per-family compiled policies), superseding the removed compatibility-layer family dispatcher."
     },
     {
       "evidence": [

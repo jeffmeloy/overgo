@@ -26,7 +26,7 @@ func fixtureLayerPlan(t *testing.T, spec Spec, weights Weights, layer int) Layer
 
 func fixtureLayerProgram(t *testing.T, spec Spec, weights Weights, layer int) CompiledLayerProgram {
 	t.Helper()
-	program, err := fixtureModelPlan(t, spec, weights).LayerProgram(spec, layer)
+	program, err := fixtureModelPlan(t, spec, weights).LayerProgram(layer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func fixtureDraftProgram(
 	head uint32,
 ) CompiledLayerProgram {
 	t.Helper()
-	draft, err := fixtureModelPlan(t, spec, weights).DraftProgram(spec, head)
+	draft, err := fixtureModelPlan(t, spec, weights).DraftProgram(head)
 	if err != nil {
 		t.Fatal(err)
 	}

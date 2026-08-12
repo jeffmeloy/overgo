@@ -345,7 +345,7 @@ func (r *Runner) runLFM2LayerNonCausal(
 	}
 	spec := r.spec
 	spec.NonCausalAttention = true
-	program, err := r.program.Model.LayerProgram(spec, layerIndex)
+	program, err := r.program.Model.LayerProgram(layerIndex)
 	if err != nil {
 		return reference.Value{}, err
 	}

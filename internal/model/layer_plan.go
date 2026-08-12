@@ -513,6 +513,7 @@ func auxiliaryFlow(s Spec, profile ArchitectureProfile, layer uint32) (Auxiliary
 
 // ModelPlan: immutable model and per-layer execution contract.
 type ModelPlan struct {
+	spec         Spec
 	profile      ArchitectureProfile
 	layers       []LayerPlan
 	draftLayers  []LayerPlan
@@ -555,7 +556,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		cacheLayers = spec.DecoderBlockCount
 	}
 	plan := ModelPlan{
-		profile: profile, layers: make([]LayerPlan, layers), cacheLayers: cacheLayers,
+		spec: spec, profile: profile, layers: make([]LayerPlan, layers), cacheLayers: cacheLayers,
 		terminal: TerminalPlan{Normalization: profile.OutputNorm},
 		draft:    profile.DraftPlan(spec.NextNPredictLayers),
 	}
@@ -777,60 +778,61 @@ func (p CompiledLayerProgram) Layer() LayerPlan { return p.plan }
 func (p CompiledLayerProgram) Spec() Spec { return p.spec }
 
 // LayerProgram binds one trunk layer to its validated model spec.
-func (p ModelPlan) LayerProgram(spec Spec, layer int) (CompiledLayerProgram, error) {
-	if p.profile.Name == "" || spec.Architecture != p.profile.Name {
+func (p ModelPlan) LayerProgram(layer int) (CompiledLayerProgram, error) {
+	if p.profile.Name == "" || p.spec.Architecture != p.profile.Name {
 		return CompiledLayerProgram{}, fmt.Errorf(
-			"model plan profile %q does not match layer spec %q", p.profile.Name, spec.Architecture,
+			"model plan profile %q does not match layer spec %q", p.profile.Name, p.spec.Architecture,
 		)
 	}
 	compiled, err := p.Layer(layer)
 	if err != nil {
 		return CompiledLayerProgram{}, err
 	}
-	return CompiledLayerProgram{spec: spec, plan: compiled}, nil
+	return CompiledLayerProgram{spec: p.spec, plan: compiled}, nil
 }
 
-func (p ModelPlan) sequenceProgram(spec Spec, layer int, role layerProgramRole) (CompiledLayerProgram, error) {
+func (p ModelPlan) sequenceProgram(layer int, role layerProgramRole) (CompiledLayerProgram, error) {
 	encoder := p.profile.EncoderGraph.Kind
-	limit := spec.BlockCount
+	limit := p.spec.BlockCount
 	if role == programEncoder && encoder != encoderGraphT5 && encoder != encoderGraphT5Encoder {
-		return CompiledLayerProgram{}, fmt.Errorf("model plan has no T5 encoder program for %q", spec.Architecture)
+		return CompiledLayerProgram{}, fmt.Errorf("model plan has no T5 encoder program for %q", p.spec.Architecture)
 	}
 	if role == programDecoder {
 		if p.profile.Family != ArchitectureFamilyEncoderDecoder || p.profile.Forward != ForwardT5 {
-			return CompiledLayerProgram{}, fmt.Errorf("model plan has no decoder program for %q", spec.Architecture)
+			return CompiledLayerProgram{}, fmt.Errorf("model plan has no decoder program for %q", p.spec.Architecture)
 		}
-		limit = spec.DecoderBlockCount
+		limit = p.spec.DecoderBlockCount
 	}
 	if layer < 0 || uint32(layer) >= limit {
 		return CompiledLayerProgram{}, fmt.Errorf("model plan sequence layer %d is outside [0,%d)", layer, limit)
 	}
-	program, err := p.LayerProgram(spec, layer)
+	program, err := p.LayerProgram(layer)
 	program.role = role
 	return program, err
 }
 
 // EncoderProgram returns one compiled encoder layer.
-func (p ModelPlan) EncoderProgram(spec Spec, layer int) (CompiledLayerProgram, error) {
-	return p.sequenceProgram(spec, layer, programEncoder)
+func (p ModelPlan) EncoderProgram(layer int) (CompiledLayerProgram, error) {
+	return p.sequenceProgram(layer, programEncoder)
 }
 
 // DecoderProgram returns one compiled causal/cross-attention decoder layer.
-func (p ModelPlan) DecoderProgram(spec Spec, layer int) (CompiledLayerProgram, error) {
-	return p.sequenceProgram(spec, layer, programDecoder)
+func (p ModelPlan) DecoderProgram(layer int) (CompiledLayerProgram, error) {
+	return p.sequenceProgram(layer, programDecoder)
 }
 
 // DraftProgram: bounds-checked executable draft contract.
-func (p ModelPlan) DraftProgram(spec Spec, offset uint32) (CompiledLayerProgram, error) {
-	if p.profile.Name == "" || spec.Architecture != p.profile.Name {
+func (p ModelPlan) DraftProgram(offset uint32) (CompiledLayerProgram, error) {
+	if p.profile.Name == "" || p.spec.Architecture != p.profile.Name {
 		return CompiledLayerProgram{}, fmt.Errorf(
-			"model plan profile %q does not match draft spec %q", p.profile.Name, spec.Architecture,
+			"model plan profile %q does not match draft spec %q", p.profile.Name, p.spec.Architecture,
 		)
 	}
 	layer, err := p.DraftLayer(offset)
 	if err != nil {
 		return CompiledLayerProgram{}, err
 	}
+	spec := p.spec
 	if p.draft.SingleCatalog {
 		spec, _ = singleDraftExecutableSpec(spec, p.draft.Kind)
 	} else if p.draft.Kind == DraftNextNMTP {

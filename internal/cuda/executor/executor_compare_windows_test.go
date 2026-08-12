@@ -46,7 +46,7 @@ func compileFixtureLayerProgram(
 	if err != nil {
 		return model.CompiledLayerProgram{}, err
 	}
-	return plan.LayerProgram(spec, int(layer))
+	return plan.LayerProgram(int(layer))
 }
 
 const cudaFixtureDevice = 0

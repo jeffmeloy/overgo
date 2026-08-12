@@ -1029,7 +1029,7 @@ func TestExecutorT5DecoderBlockMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := plan.DecoderProgram(spec, 0)
+	program, err := plan.DecoderProgram(0)
 	if err != nil {
 		t.Fatal(err)
 	}

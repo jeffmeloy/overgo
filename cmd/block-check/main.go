@@ -84,7 +84,7 @@ func run() error {
 	for index := range positions {
 		positions[index] = uint32(index)
 	}
-	program, err := modelPlan.LayerProgram(spec, *layerIndex)
+	program, err := modelPlan.LayerProgram(*layerIndex)
 	if err != nil {
 		return err
 	}

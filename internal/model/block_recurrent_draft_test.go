@@ -402,7 +402,7 @@ func TestBuildT5EncoderBlock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := plan.EncoderProgram(spec, 0)
+	program, err := plan.EncoderProgram(0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,7 +465,7 @@ func TestBuildT5DecoderBlockCached(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := plan.DecoderProgram(spec, 0)
+	program, err := plan.DecoderProgram(0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -231,7 +231,7 @@ func (r *Runner) layerProgram(layer int) model.CompiledLayerProgram {
 	if r == nil {
 		panic("inference: compiled layer plan is unavailable")
 	}
-	program, err := r.program.Model.LayerProgram(r.spec, layer)
+	program, err := r.program.Model.LayerProgram(layer)
 	if err != nil {
 		panic("inference: compiled layer plan is unavailable")
 	}
@@ -242,7 +242,7 @@ func (r *Runner) draftLayerProgram(offset uint32) (model.CompiledLayerProgram, e
 	if r == nil {
 		return model.CompiledLayerProgram{}, errors.New("inference: compiled draft layer is unavailable")
 	}
-	return r.program.Model.DraftProgram(r.spec, offset)
+	return r.program.Model.DraftProgram(offset)
 }
 
 func (r *Runner) profile() model.ArchitectureProfile {

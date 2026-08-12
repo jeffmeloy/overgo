@@ -522,7 +522,7 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, err := program.DraftProgram(spec, 0)
+	draft, err := program.DraftProgram(0)
 	if err != nil {
 		t.Fatal(err)
 	}

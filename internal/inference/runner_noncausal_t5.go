@@ -389,7 +389,7 @@ func (r *Runner) runT5EncoderLayer(
 	info model.LayerWeights,
 	layerIndex int,
 ) (reference.Value, error) {
-	program, err := r.program.Model.EncoderProgram(r.spec, layerIndex)
+	program, err := r.program.Model.EncoderProgram(layerIndex)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -419,7 +419,7 @@ func (r *Runner) runT5DecoderLayer(
 	layerIndex int,
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
-	program, err := r.program.Model.DecoderProgram(r.spec, layerIndex)
+	program, err := r.program.Model.DecoderProgram(layerIndex)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}

@@ -733,7 +733,7 @@
         },
         {
           "id": "measure-bar",
-          "title": "adaptive native bar on canonical case (warm 3.068s generation phase 256x256 1-step recorded; ship shape 2720x1536 50 steps needs fresh measurement)",
+          "title": "adaptive native bar MEASURED (2026-08-12, 4090D, adaptive-gpt-server -tags cuda, GenerateCausalGQAFlowImageCUDA sensenova-native profile, canonical ship case 2720x1536 x 50 steps BF16, 3 runs deterministic PNG sha bd096918..): WARM ~162.5s total / ~159.7s denoise (steady-state serving target); COLD 181.5s (+10.4s operator load +32.6GB stream +8.9s prefix); peak owned device 25,872,514,916 B = 24.10 GiB (nvidia-smi ~24.4 GiB), no OOM on 48GB. Supersedes recon 3.068s@256x256x1 AND the stale image_gen_report.md 206s (pre-BF16/residency). OVERGO PORT BAR: <=~162s warm denoise + <=~24 GiB peak. adaptive_new untouched (git identical to session start).",
           "status": "open"
         },
         {

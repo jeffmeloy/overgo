@@ -25,9 +25,12 @@
 //
 // NOTE ON g3 PARITY. The bit-exact g3 image needs the exact final latent, which
 // needs (a) the exact text conditioning -- the Qwen3VL 36-layer encoder's 12
-// selected hidden states, a NEEDS-HOOK stage (g1 present=false), NOT ported and
-// NOT in the goldens -- and (b) the exact seed-42 noise (torch randn, reproduced
-// natively by adaptive; RNG not matched here). Additionally the real checkpoint
+// selected hidden states. That encoder IS now ported (textencoder.go: streamed
+// host forward -> [textSeq,12,TextHidden] feeding textConditioning here), but its
+// exact numeric values still need the adaptive dump hook (g1 present=false, not in
+// the goldens) so this remains telemetry/structural, not bit-exact -- and (b) the
+// exact seed-42 noise (torch randn, reproduced natively by adaptive; RNG not
+// matched here). Additionally the real checkpoint
 // is 12.82B params (~51GB as f32), so a full-scale host forward is not runnable
 // CPU-only. This file therefore VERIFIES block shapes against the real checkpoint
 // (headers) and exercises the exact forward arithmetic at synthetic scale; the

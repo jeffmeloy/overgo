@@ -19,9 +19,12 @@ type AttentionMixWeights struct {
 	QNorm, KNorm   []float32
 }
 
-// AttentionMixDims: full_attention geometry.
+// AttentionMixDims: full_attention geometry. RopeDim is the rotary width from
+// the model config (qwen3.5: head_dim*partial_rotary_factor); 0 or >=HeadDim
+// means full-head rope. Only the first RopeWidth(RopeDim,HeadDim) dims rotate.
 type AttentionMixDims struct {
 	Tokens, Hidden, Heads, KVHeads, HeadDim int
+	RopeDim                                 int
 	RopeTheta, Eps                          float64
 }
 
@@ -88,7 +91,8 @@ func attentionMixForward(x []float32, w AttentionMixWeights, d AttentionMixDims)
 	kn := make([]float32, T*kvDim)
 	RMSNormInto(qn, c.qProj, w.QNorm, T*heads, hd, d.Eps)
 	RMSNormInto(kn, c.kProj, w.KNorm, T*kv, hd, d.Eps)
-	c.invFreq = RopeInvFreq(d.RopeTheta, hd)
+	rd := RopeWidth(d.RopeDim, hd)
+	c.invFreq = RopeInvFreq(d.RopeTheta, rd)
 	c.scale = 1.0 / math.Sqrt(float64(hd))
 	c.qs = make([]float32, T*qDim)
 	c.kr = make([]float32, T*kvDim)
@@ -97,13 +101,14 @@ func attentionMixForward(x []float32, w AttentionMixWeights, d AttentionMixDims)
 	for t := 0; t < T; t++ {
 		for h := 0; h < heads; h++ {
 			row := c.qs[(t*heads+h)*hd : (t*heads+h+1)*hd]
-			ApplyRotaryHalf(row, c.invFreq, t)
+			ApplyRotaryHalf(row[:rd], c.invFreq, t)
 			for i := range row {
 				row[i] *= float32(c.scale)
 			}
 		}
 		for h := 0; h < kv; h++ {
-			ApplyRotaryHalf(c.kr[(t*kv+h)*hd:(t*kv+h+1)*hd], c.invFreq, t)
+			base := (t*kv + h) * hd
+			ApplyRotaryHalf(c.kr[base:base+rd], c.invFreq, t)
 		}
 	}
 	c.attn = make([]float32, T*qDim)

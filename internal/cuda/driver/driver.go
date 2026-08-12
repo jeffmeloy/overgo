@@ -119,6 +119,7 @@ func (e *ResultError) Error() string {
 
 const (
 	attributeMultiprocessorCount    = 16
+	attributeMaxThreadsPerMultiproc = 39
 	attributeComputeCapabilityMajor = 75
 	attributeComputeCapabilityMinor = 76
 )

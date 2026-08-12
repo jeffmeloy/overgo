@@ -148,6 +148,24 @@ func freshStopAtHead(head string) bool {
 	return strings.Contains(string(b), `"head":"`+head+`"`)
 }
 
+// gateProcessRunning reports whether a plan-bound gate is committing right now,
+// so the Stop gate steps aside instead of false-blocking a turn-end that is
+// merely waiting on a background gate.
+//
+// ACCEPTED RESIDUAL (loop-hardening-7): tasklist is the sole signal, so during
+// the ~2s `go run ./cmd/gate` COMPILE phase -- before the temp gate.exe exists --
+// this returns false. Ending a turn in that window false-blocks on dirty .go.
+// That block is SAFE (it errs toward "commit your work", never toward orphaning)
+// and SELF-HEALING: the very next attempt carries stop_hook_active, whose valve
+// allows (TestStopDecision "retry valve"). No wedge was ever observed.
+// Every candidate fix is a NET LOSS: gate_status.json records only the TERMINAL
+// outcome (the early "running" write was deliberately removed after a killed gate
+// left a stale one -- cmd/gate doc), and a launch marker armed pre-compile
+// re-introduces exactly that hazard -- a killed gate would leave the marker set,
+// making this return true while work IS orphaned, so the Stop gate would allow
+// ending with uncommitted .go. Trading a safe self-healing transient for an
+// unsafe stale-marker residual is the wrong trade; the falsifiable guard is the
+// retry valve staying intact (reopen if a compile-window block ever wedges).
 func gateProcessRunning() bool {
 	// go run ./cmd/gate builds a temp exe named gate.exe; match it.
 	if out, err := exec.Command("tasklist").Output(); err == nil {

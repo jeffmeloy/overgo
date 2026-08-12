@@ -149,6 +149,12 @@ type AttentionAttributes struct {
 	Window                uint32
 	RelativeBuckets       uint32
 	RelativeBidirectional bool
+	// HasKeyBias: an additive per-key score bias [key tokens] is the final input,
+	// added to QK^T before softmax (0.0 attended, large-negative to drop a pad
+	// key). Ports adaptive runtime_causal_gqa_masked_bf16's per-key pad mask as an
+	// additive bias so masked keys underflow to 0 probability; non-breaking (the
+	// input and flag are absent for every existing caller).
+	HasKeyBias bool
 	// NaiveF32: route dense F32 attention through the per-query online kernel
 	// (skip the blas-chunked scores path) so the reduction matches a reference
 	// per-query two-pass attn_fwd; opt-in for F32 parity-critical towers.

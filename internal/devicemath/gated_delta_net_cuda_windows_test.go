@@ -125,3 +125,83 @@ func TestGDNForwardMatchesKernel(t *testing.T) {
 		t.Fatalf("GDN forward host vs kernel: out %.3e state %.3e > %.1e", outDiff, stateDiff, tol)
 	}
 }
+
+// TestGatedDeltaNetBackwardMatchesKernel pins hostmath.GatedDeltaNetBackward (the
+// FD-verified host BPTT golden) against the gated_delta_net_backward_f32 CUDA
+// kernel via GatedDeltaNetBackwardDevice. All six gradients must match within the
+// forward's fp32 tolerance class. Covers both gate widths and GQA grouping so the
+// grouped q/k atomic accumulation and per-column gate path are exercised.
+func TestGatedDeltaNetBackwardMatchesKernel(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	maxAbs := func(a, b []float32) float64 {
+		var m float64
+		for i := range a {
+			if d := math.Abs(float64(a[i]) - float64(b[i])); d > m {
+				m = d
+			}
+		}
+		return m
+	}
+
+	cases := []struct {
+		name                                                 string
+		size, qHeads, kHeads, heads, tokens, seqs, gateWidth int
+		repeatInterleave                                     bool
+	}{
+		{"scalar_gate", 8, 2, 2, 2, 4, 1, 1, false},
+		{"vector_gate", 8, 2, 2, 2, 4, 2, 8, false},
+		{"gqa_interleave", 6, 2, 1, 4, 3, 2, 1, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rng := rand.New(rand.NewSource(int64(1009 + tc.size + tc.heads)))
+			rs := func(n int) []float32 {
+				s := make([]float32, n)
+				for i := range s {
+					s[i] = float32(rng.NormFloat64() * 0.3)
+				}
+				return s
+			}
+			query := rs(tc.size * tc.qHeads * tc.tokens * tc.seqs)
+			key := rs(tc.size * tc.kHeads * tc.tokens * tc.seqs)
+			value := rs(tc.size * tc.heads * tc.tokens * tc.seqs)
+			gate := rs(tc.gateWidth * tc.heads * tc.tokens * tc.seqs)
+			beta := rs(tc.heads * tc.tokens * tc.seqs)
+			inputState := rs(tc.heads * tc.seqs * tc.size * tc.size)
+			dOutput := rs(tc.size * tc.heads * tc.tokens * tc.seqs)
+
+			wantDQ, wantDK, wantDV, wantDG, wantDB, wantDS := hostmath.GatedDeltaNetBackward(
+				query, key, value, gate, beta, inputState, dOutput,
+				tc.size, tc.qHeads, tc.kHeads, tc.heads, tc.tokens, tc.seqs, tc.gateWidth,
+				tc.repeatInterleave)
+
+			gotDQ, gotDK, gotDV, gotDG, gotDB, gotDS, err := GatedDeltaNetBackwardDevice(
+				worker, query, key, value, gate, beta, inputState, dOutput,
+				tc.size, tc.qHeads, tc.kHeads, tc.heads, tc.tokens, tc.seqs, tc.gateWidth,
+				tc.repeatInterleave)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			dqD := maxAbs(wantDQ, gotDQ)
+			dkD := maxAbs(wantDK, gotDK)
+			dvD := maxAbs(wantDV, gotDV)
+			dgD := maxAbs(wantDG, gotDG)
+			dbD := maxAbs(wantDB, gotDB)
+			dsD := maxAbs(wantDS, gotDS)
+			t.Logf("GDN backward: dQ %.3e dK %.3e dV %.3e dGate %.3e dBeta %.3e dState %.3e",
+				dqD, dkD, dvD, dgD, dbD, dsD)
+			const tol = 1e-4
+			if dqD > tol || dkD > tol || dvD > tol || dgD > tol || dbD > tol || dsD > tol {
+				t.Fatalf("GDN backward host vs kernel exceeds %.1e: dQ %.3e dK %.3e dV %.3e dGate %.3e dBeta %.3e dState %.3e",
+					tol, dqD, dkD, dvD, dgD, dbD, dsD)
+			}
+		})
+	}
+}

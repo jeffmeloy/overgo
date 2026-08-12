@@ -383,12 +383,24 @@ func launchAttentionLayout(
 		var relativeBias driver.DevicePtr
 		var sinks driver.DevicePtr
 		var blockIDs driver.DevicePtr
-		if len(node.Inputs) == 4 && attributes.HasBlockMask {
-			blockIDs = pointers[node.Inputs[3]]
-		} else if len(node.Inputs) == 4 && attributes.HasSinks {
-			sinks = pointers[node.Inputs[3]]
-		} else if len(node.Inputs) == 4 {
-			relativeBias = pointers[node.Inputs[3]]
+		var keyBias driver.DevicePtr
+		// Optional inputs follow q/k/v from index 3 in a fixed order:
+		// (bias|sinks), blockIDs, keyBias -- each present per its attribute flag.
+		optIdx := 3
+		if attributes.RelativeBuckets != 0 && optIdx < len(node.Inputs) {
+			relativeBias = pointers[node.Inputs[optIdx]]
+			optIdx++
+		} else if attributes.HasSinks && optIdx < len(node.Inputs) {
+			sinks = pointers[node.Inputs[optIdx]]
+			optIdx++
+		}
+		if attributes.HasBlockMask && optIdx < len(node.Inputs) {
+			blockIDs = pointers[node.Inputs[optIdx]]
+			optIdx++
+		}
+		if attributes.HasKeyBias && optIdx < len(node.Inputs) {
+			keyBias = pointers[node.Inputs[optIdx]]
+			optIdx++
 		}
 		relativeBuckets := attributes.RelativeBuckets
 		relativeBidirectional := kernelBool(attributes.RelativeBidirectional)
@@ -416,7 +428,7 @@ func launchAttentionLayout(
 		tokenCountPointer, hasTokenCount := attributePointers[node]
 		sharedBytes := (uint64(keyCapacityTokens) + attentionDecodePartialFloats) * f32Bytes
 		if queryTokens == 1 && causal != 0 && queryStart+1 == keyValueTokens &&
-			relativeBias == 0 && sinks == 0 && blockIDs == 0 && softcap == 0 &&
+			relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 && softcap == 0 &&
 			maxALiBiBias == 0 && window == 0 && hasTokenCount &&
 			sharedBytes <= attentionDecodeSharedLimit {
 			blocks := uint64(queryHeads) * uint64(sequences)
@@ -436,7 +448,7 @@ func launchAttentionLayout(
 		// score tile bounded by the derived query chunk; owns every
 		// qualifying dense-MHA workload when the score staging is resident.
 		if !attributes.NaiveF32 && blas != nil && blas.scores != 0 &&
-			relativeBias == 0 && sinks == 0 && blockIDs == 0 {
+			relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 {
 			chunk, keyChunk, scoreBytes, ok := blasAttentionGeometry(
 				queryHeads, keyValueHeads, queryTokens, keyValueTokens, keyCapacityTokens,
 				keyWidth, valueWidth, attributes,
@@ -459,7 +471,7 @@ func launchAttentionLayout(
 			attentionTiledThreads  = uint32(256)
 		)
 		tiledShared := uint64(2*attentionTiledTile*keyWidth+attentionTiledTile*valueWidth) * f32Bytes
-		if causal == 0 && relativeBias == 0 && sinks == 0 && blockIDs == 0 &&
+		if causal == 0 && relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 &&
 			softcap == 0 && maxALiBiBias == 0 && window == 0 && symmetricWindow == 0 &&
 			queryStart == 0 && keyValueTokens == keyCapacityTokens &&
 			keyWidth <= attentionTiledMaxWidth && valueWidth <= attentionTiledMaxWidth &&
@@ -487,7 +499,7 @@ func launchAttentionLayout(
 				state, functions[kernelAttentionOnlineF32],
 				driver.Dim3{X: uint32(blocks), Y: 1, Z: 1},
 				driver.Dim3{X: attentionOnlineThreads, Y: 1, Z: 1},
-				&query, &key, &value, &relativeBias, &sinks, &blockIDs, &output,
+				&query, &key, &value, &relativeBias, &sinks, &blockIDs, &keyBias, &output,
 				&keyWidth, &valueWidth, &queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences,
 				&scale, &softcap, &maxALiBiBias, &causal, &queryStart, &window, &symmetricWindow,
 				&relativeBuckets, &relativeBidirectional,
@@ -495,7 +507,7 @@ func launchAttentionLayout(
 		}
 		return launch1DABI(
 			state, functions[kernelAttentionF32], count,
-			&query, &key, &value, &relativeBias, &sinks, &blockIDs, &output,
+			&query, &key, &value, &relativeBias, &sinks, &blockIDs, &keyBias, &output,
 			&keyWidth, &valueWidth, &queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences,
 			&scale, &softcap, &maxALiBiBias, &causal, &queryStart, &window, &symmetricWindow,
 			&relativeBuckets, &relativeBidirectional, &count,

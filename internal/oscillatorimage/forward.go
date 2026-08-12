@@ -217,25 +217,31 @@ func (m *Model) prepare(request Request) (phasePlan, error) {
 func (m *Model) integrate(plan phasePlan) ([]float32, error) {
 	cfg := m.Cfg
 	tot := cfg.N + cfg.NCond
+	// Batch is carried by the plan's state length (b samples of tot phases);
+	// prepare() builds b=1, but the staged path stays batch-general so a
+	// multi-sample plan integrates every sample (parity: un0 generator golden).
+	b := len(plan.state) / tot
 	state := append([]float32(nil), plan.state...)
 	vel := make([]float32, len(state))
 	trig := make([]float64, 2*tot)
 	for range cfg.NumSteps {
 		conditionalKuramotoForwardInto(
 			vel, state, m.Omega, m.OmegaCond, m.K, m.KCond, plan.drive,
-			1, cfg.N, cfg.NCond, cfg.KScale, cfg.KCondScale, cfg.KDriveScale, trig[:tot], trig[tot:],
+			b, cfg.N, cfg.NCond, cfg.KScale, cfg.KCondScale, cfg.KDriveScale, trig[:tot], trig[tot:],
 		)
 		for i := range state {
 			state[i] = float32(float64(state[i]) + cfg.Dt*float64(vel[i]))
 		}
 	}
-	return readoutTransform(state, 1, cfg.N, tot, 0, cfg.Relativization, cfg.Encoding), nil
+	return readoutTransform(state, b, cfg.N, tot, 0, cfg.Relativization, cfg.Encoding), nil
 }
 
 func (m *Model) decode(features []float32) (Image, error) {
 	cfg := m.Cfg
+	// Batch derived from the readout width (b samples of in_ch*in_h*in_w).
+	b := len(features) / (cfg.InChannels * cfg.InH * cfg.InW)
 	pixels, _ := decoderForwardTrace(
-		features, m.Blocks, m.ToOutW, m.ToOutB, 1,
+		features, m.Blocks, m.ToOutW, m.ToOutB, b,
 		cfg.InChannels, cfg.InH, cfg.InW, cfg.OutChannels, m.Slope, cfg.TanhOut,
 	)
 	return Image{Pixels: pixels, Channels: cfg.OutChannels, Height: cfg.OutH(), Width: cfg.OutW()}, nil

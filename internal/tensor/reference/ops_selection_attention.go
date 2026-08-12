@@ -302,7 +302,7 @@ func indexerScore(
 func attention(
 	shape tensor.Shape,
 	query, key, value Value,
-	bias, sinks, blockIDs *Value,
+	bias, sinks, blockIDs, keyBias *Value,
 	attributes tensor.AttentionAttributes,
 ) (Value, error) {
 	keyWidth := int(query.Shape.Dims[0])
@@ -406,6 +406,11 @@ func attention(
 					if attributes.Softcap > 0 {
 						cap := float64(attributes.Softcap)
 						score = cap * math.Tanh(score/cap)
+					}
+					// Additive per-key pad mask (applied AFTER softcap so a pad
+					// key's large-negative bias dominates and underflows to 0).
+					if keyBias != nil {
+						score += float64(keyBias.Data[keyToken])
 					}
 					scores[keyToken] = score
 					if score > maximum {

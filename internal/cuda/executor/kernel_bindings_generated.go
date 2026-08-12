@@ -40,6 +40,7 @@ const (
 	kernelFlatSliceF32
 	kernelFp8ToF32
 	kernelFwhtF32
+	kernelGatedDeltaNetBackwardF32
 	kernelGatedDeltaNetF32
 	kernelGatedLinearAttentionF32
 	kernelGatherLastF32
@@ -80,6 +81,7 @@ const (
 	kernelHeadMajorF32
 	kernelHeadMajorInverseF32
 	kernelIndexerScoreF32
+	kernelL2NormBackwardF32
 	kernelL2NormF32
 	kernelLayerNormF32
 	kernelLayerNormModulateF32
@@ -141,6 +143,7 @@ const (
 	kernelRwkv7F32
 	kernelSamAttentionF32
 	kernelScaleF32
+	kernelShortConvBackwardF32
 	kernelSigmoidF32
 	kernelSiluBackwardF32
 	kernelSiluF32
@@ -208,6 +211,7 @@ var kernelFunctionNames = [...]string{
 	"flat_slice_f32",
 	"fp8_to_f32",
 	"fwht_f32",
+	"gated_delta_net_backward_f32",
 	"gated_delta_net_f32",
 	"gated_linear_attention_f32",
 	"gather_last_f32",
@@ -248,6 +252,7 @@ var kernelFunctionNames = [...]string{
 	"head_major_f32",
 	"head_major_inverse_f32",
 	"indexer_score_f32",
+	"l2_norm_backward_f32",
 	"l2_norm_f32",
 	"layer_norm_f32",
 	"layer_norm_modulate_f32",
@@ -309,6 +314,7 @@ var kernelFunctionNames = [...]string{
 	"rwkv7_f32",
 	"sam_attention_f32",
 	"scale_f32",
+	"short_conv_backward_f32",
 	"sigmoid_f32",
 	"silu_backward_f32",
 	"silu_f32",
@@ -348,8 +354,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	3,
 	12,
+	25,
 	24,
-	23,
 	6,
 	5,
 	10,
@@ -375,6 +381,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	5,
 	4,
+	23,
 	15,
 	12,
 	7,
@@ -415,6 +422,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	11,
+	6,
 	5,
 	5,
 	8,
@@ -476,6 +484,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	12,
 	18,
 	4,
+	12,
 	3,
 	4,
 	3,

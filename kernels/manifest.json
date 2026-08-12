@@ -35,8 +35,35 @@
       ]
     },
     {
+      "source": "kernels/cuda/torch_cuda_randn.cu",
+      "sourceSha256": "adc4e83fe8cccd5290c84dd74fcaedc274df28c2f1bf795221391e7274d739d6",
+      "asset": "internal/cuda/kernel/torch_cuda_randn.ptx",
+      "assetSha256": "68e0165a1251f63b53a4f94ff8f8c2e95a419f6fc7a148c9f45c9a6ac902a85f",
+      "compilerFlags": [
+        "-ptx",
+        "-arch=compute_89",
+        "--std=c++17"
+      ],
+      "functions": [
+        "torch_cuda_randn"
+      ],
+      "argumentLayouts": [
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "torch_cuda_randn"
+          ]
+        }
+      ]
+    },
+    {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "326a9535473254fb0a894f6abbcbdc05663cc5ddd148b9fc22a3d6980a4ecfc6",
+      "sourceSha256": "336cae3e6644627f49cff570c7503a7d17b122b87f377f14fa71c42b4f9848f6",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +71,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "26490ade059e64c6d8080e9ec4234cb779ae59c879d641ca8f12b1152b991e1f",
+      "assetSha256": "5659d13f0187bc9a56add201cea141291be4c6a330bc179a3d2c38b80a230d5f",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -79,6 +106,7 @@
         "flat_slice_f32",
         "fp8_to_f32",
         "fwht_f32",
+        "gated_delta_net_backward_f32",
         "gated_delta_net_f32",
         "gated_linear_attention_f32",
         "gather_last_f32",
@@ -119,6 +147,7 @@
         "head_major_f32",
         "head_major_inverse_f32",
         "indexer_score_f32",
+        "l2_norm_backward_f32",
         "l2_norm_f32",
         "layer_norm_f32",
         "layer_norm_modulate_f32",
@@ -180,6 +209,7 @@
         "rwkv7_f32",
         "sam_attention_f32",
         "scale_f32",
+        "short_conv_backward_f32",
         "sigmoid_f32",
         "silu_backward_f32",
         "silu_f32",
@@ -355,6 +385,7 @@
             ".u64",
             ".u64",
             ".u64",
+            ".u64",
             ".u32",
             ".u32",
             ".u32",
@@ -379,6 +410,7 @@
         },
         {
           "parameters": [
+            ".u64",
             ".u64",
             ".u64",
             ".u64",
@@ -598,6 +630,36 @@
             ".u64",
             ".u64",
             ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "gated_delta_net_backward_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
             ".u32",
             ".u32",
             ".u32",
@@ -708,6 +770,20 @@
           ],
           "functions": [
             "indexer_score_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "l2_norm_backward_f32",
+            "weighted_rms_norm_f32"
           ]
         },
         {
@@ -1010,7 +1086,8 @@
             ".u32"
           ],
           "functions": [
-            "rwkv7_f32"
+            "rwkv7_f32",
+            "short_conv_backward_f32"
           ]
         },
         {
@@ -1230,19 +1307,6 @@
           "functions": [
             "weighted_rms_norm_add_f32",
             "weighted_rms_norm_q8_0_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u32",
-            ".u32",
-            ".f32"
-          ],
-          "functions": [
-            "weighted_rms_norm_f32"
           ]
         },
         {

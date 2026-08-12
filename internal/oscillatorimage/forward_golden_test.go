@@ -58,9 +58,9 @@ func TestGeneratorMatchesTorch(t *testing.T) {
 		blocks[i] = DecoderBlock{W1: f32of(w1), B1: f32of(b1), W2: f32of(w2), B2: f32of(b2), Cout: cout}
 	}
 
-	if b != 1 {
-		t.Fatalf("generator fixture batch = %d", b)
-	}
+	// The generator golden is batched (b>1); the staged integrate/decode path
+	// derives b from the plan/readout widths, so verify every sample, never skip.
+	_ = b
 	model := Model{
 		Cfg: Config{
 			N: n, NCond: nc, InChannels: inCh, InH: inH, InW: inW, OutChannels: outCh,

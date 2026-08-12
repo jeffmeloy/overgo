@@ -189,6 +189,86 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 	}
 	defer exe.Close()
 
+	// ---- device multi-axis per-section rope (device-vs-host, real rope plan) ---
+	// Closes the named body sub-gap: RoPEMulti carries a single FrequencyBase and
+	// cannot express the SenseNova plan [64/5e6/Time, 32/1e4/H, 32/1e4/W]. The
+	// generic executor expresses it by splicing one RoPENeoX per section
+	// (GroupSlice -> RoPENeoX(theta,axis) -> Concat), no family kernel. Verified
+	// device-vs-host on the REAL checkpoint's compiled plan over REAL block-causal
+	// multi-axis positions. RNG/source-PNG independent.
+	l.stage("device_multiaxis_rope", func() (string, float64, string, error) {
+		plan, err := routedlm.CompileRopePlan(src, cfg, binding)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		if len(plan.Sections) != 3 {
+			return "", math.NaN(), "", fmt.Errorf("expected 3 rope sections, got %d", len(plan.Sections))
+		}
+		// A block-causal multi-axis prompt: text rows, then one 4x4 image block,
+		// then a trailing text row — exercises Time (text), and shared-Time +
+		// (H,W) rasterization (image block) exactly as compileCausalPrefixInput.
+		const tokenWidth = 4
+		mask := []int{0, 0, 0}
+		for i := 0; i < tokenWidth*tokenWidth; i++ {
+			mask = append(mask, 1)
+		}
+		mask = append(mask, 0, 0)
+		positions, err := routedlm.BlockPositions(mask, tokenWidth)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		tokens := len(positions)
+		hd := cfg.HeadDim
+		heads := cfg.NumAttentionHeads
+		// deterministic bounded synthetic Q, layout [head_dim, heads, tokens]
+		// flat = (t*heads+h)*head_dim + c (dim0 = channel, contiguous).
+		q := make([]float32, tokens*heads*hd)
+		for i := range q {
+			q[i] = float32((i*37)%101)/50.5 - 1.0
+		}
+		f32ref := append([]float32(nil), q...)
+		if err := plan.HostApplyF32Rows(f32ref, positions, heads, hd); err != nil {
+			return "", math.NaN(), "", err
+		}
+		bf16ref := append([]float32(nil), q...)
+		if err := plan.HostApplyBF16Rows(bf16ref, positions, heads, hd); err != nil {
+			return "", math.NaN(), "", err
+		}
+
+		b := tensor.NewBuilder()
+		qShape := tensor.MustShape(uint64(hd), uint64(heads), uint64(tokens))
+		qNode := b.Input("q", dtype.F32, qShape)
+		roped, err := plan.DeviceApply(b, qNode, positions)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		compiled, err := executor.Compile(roped)
+		if err != nil {
+			return "", math.NaN(), "", fmt.Errorf("compile: %w", err)
+		}
+		host := map[*tensor.Tensor]reference.Value{qNode: {Shape: qShape, Data: q}}
+		out, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, host, map[*tensor.Tensor]driver.DevicePtr{})
+		if err != nil {
+			return "", math.NaN(), "", fmt.Errorf("execute: %w", err)
+		}
+		dev := out[roped].Data
+		if len(dev) != len(f32ref) {
+			return "", math.NaN(), "", fmt.Errorf("device output len %d != %d", len(dev), len(f32ref))
+		}
+		// primary: device (f32 kernel) vs pure-f32 reference of the SAME
+		// arithmetic — proves the composition + kernels are exact (f32-vs-f64
+		// trig only). tight tol.
+		worstF32 := worstAbs(dev, f32ref)
+		if worstF32 > 1e-4 {
+			return "", worstF32, "", fmt.Errorf("device rope != f32 reference worst|d|=%.3e > 1e-4 (composition/kernel bug)", worstF32)
+		}
+		// secondary: device vs the SenseNova bf16-stepped reference discipline
+		// (applyRotary) — expected ~bf16 granularity, reported not gated.
+		worstBF16 := worstAbs(dev, bf16ref)
+		ref := maxAbs(bf16ref)
+		return verdictWired, worstF32, fmt.Sprintf("DEVICE==HOST multi-axis rope on real plan [64/5e6/T,32/1e4/H,32/1e4/W]: tokens=%d heads=%d hd=%d block-causal(text+4x4 image) | vs-f32-ref worst|d|=%.3e (tol 1e-4) | vs-bf16-discipline worst|d|=%.3e max|ref|=%.3e (3 RoPENeoX spliced, no family kernel; RoPEMulti single-base cannot express this)", tokens, heads, hd, worstF32, worstBF16, ref), nil
+	})
+
 	H := flowPlan.Hidden
 	F := flowPlan.FlowDim
 	freqDim := flowPlan.FrequencyDim

@@ -44,6 +44,10 @@ type layerOps struct {
 	fns  map[string]driver.Function
 	d    layerDims
 	invP driver.DevicePtr
+	// arena, when non-nil, pools every layer's transient forward/backward scratch
+	// into one reused region (set by runStack). nil for the single-layer wrappers,
+	// which keep the legacy per-call session allocations.
+	arena *scratchArena
 }
 
 // newLayerOps loads the named kernels and uploads invFreq once for the session.
@@ -65,6 +69,15 @@ func newLayerOps(s *cudaBLAS, names []string, d layerDims, invFreq []float32) (*
 
 func (o *layerOps) off(base driver.DevicePtr, elems int) driver.DevicePtr {
 	return base + driver.DevicePtr(uint64(elems)*f32Bytes)
+}
+
+// scratch returns transient per-op device memory: from the reused arena when
+// pooling (peak O(1 layer)) or from the session scope otherwise.
+func (o *layerOps) scratch(n int) (driver.DevicePtr, error) {
+	if o.arena != nil {
+		return o.arena.alloc(n)
+	}
+	return o.s.alloc(n)
 }
 
 func (o *layerOps) rms(in, weight, out driver.DevicePtr) error {
@@ -148,23 +161,32 @@ type layerGradPtrs struct {
 	dInLN, dPostLN, dQ, dK, dV, dO, dGate, dUp, dDown driver.DevicePtr
 }
 
+// layerCacheElemSpec is the element count of each of the 11 resident activation
+// buffers for one layer, in field order (xn,qScaled,kRoped,v,attnCore,h2,hn,
+// gate,up,a,hMLP). Single owner: allocLayerCache assigns from it and the resident
+// capacity plan sums it -- no drift.
+func layerCacheElemSpec(d layerDims) []int {
+	return []int{
+		d.seq * d.hidden, d.seq * d.width, d.seq * d.kvWidth,
+		d.seq * d.kvWidth, d.seq * d.width, d.seq * d.hidden,
+		d.seq * d.hidden, d.seq * d.inter, d.seq * d.inter,
+		d.seq * d.inter, d.seq * d.inter,
+	}
+}
+
 // allocLayerCache allocates the 11 resident activation buffers for one layer.
 func allocLayerCache(s *cudaScope, d layerDims) (layerCachePtrs, error) {
 	var c layerCachePtrs
-	for _, spec := range []struct {
-		p *driver.DevicePtr
-		n int
-	}{
-		{&c.xn, d.seq * d.hidden}, {&c.qScaled, d.seq * d.width}, {&c.kRoped, d.seq * d.kvWidth},
-		{&c.v, d.seq * d.kvWidth}, {&c.attnCore, d.seq * d.width}, {&c.h2, d.seq * d.hidden},
-		{&c.hn, d.seq * d.hidden}, {&c.gate, d.seq * d.inter}, {&c.up, d.seq * d.inter},
-		{&c.a, d.seq * d.inter}, {&c.hMLP, d.seq * d.inter},
-	} {
-		p, err := s.alloc(spec.n)
+	dst := []*driver.DevicePtr{
+		&c.xn, &c.qScaled, &c.kRoped, &c.v, &c.attnCore, &c.h2,
+		&c.hn, &c.gate, &c.up, &c.a, &c.hMLP,
+	}
+	for i, n := range layerCacheElemSpec(d) {
+		p, err := s.alloc(n)
 		if err != nil {
 			return layerCachePtrs{}, err
 		}
-		*spec.p = p
+		*dst[i] = p
 	}
 	return c, nil
 }
@@ -196,7 +218,7 @@ func allocLayerGrads(s *cudaScope, d layerDims) (layerGradPtrs, error) {
 // layerForwardCached. Nothing is uploaded or downloaded here.
 func (o *layerOps) forwardDevice(in driver.DevicePtr, w layerWeightPtrs, c layerCachePtrs, xOut driver.DevicePtr) error {
 	d := o.d
-	al := func(n int) (driver.DevicePtr, error) { return o.s.alloc(n) }
+	al := func(n int) (driver.DevicePtr, error) { return o.scratch(n) }
 	qHM, err := al(d.seq * d.width)
 	if err != nil {
 		return err
@@ -333,7 +355,7 @@ func (o *layerOps) backwardDevice(x, dOut driver.DevicePtr, c layerCachePtrs, w 
 	al := func(n int) driver.DevicePtr {
 		var p driver.DevicePtr
 		if err == nil {
-			p, err = o.s.alloc(n)
+			p, err = o.scratch(n)
 		}
 		return p
 	}

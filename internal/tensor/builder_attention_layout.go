@@ -136,6 +136,18 @@ func (b *Builder) Attention(query, key, value *Tensor, scale float32, causal boo
 	return b.AttentionWithOffset(query, key, value, scale, causal, 0)
 }
 
+// AttentionWithKeyBias: causal/dense GQA plus an additive per-key score bias
+// (rank-1 [key tokens], added to QK^T before softmax). keyBias entries are 0.0
+// for attended keys and a large negative for pad keys, so a pad key underflows
+// to 0 probability -- the additive-bias form of adaptive's per-key pad mask
+// (runtime_causal_gqa_masked_bf16). Composes with causal; no window / relative
+// bias / sinks / block mask.
+func (b *Builder) AttentionWithKeyBias(query, key, value, keyBias *Tensor, scale float32, causal bool) *Tensor {
+	return b.buildAttention(query, key, value, attentionOptions{
+		keyBias: keyBias, scale: scale, causal: causal,
+	})
+}
+
 // DeepSeek4Attention: raw plus reconstructed compressed attention.
 func (b *Builder) DeepSeek4Attention(
 	query, cacheKV, cachePositions, sinks, compressorKV, compressorScore, compressorNorm,
@@ -291,6 +303,7 @@ func (b *Builder) IndexerScore(
 
 type attentionOptions struct {
 	bias, sinks, blockIDs *Tensor
+	keyBias               *Tensor
 	scale, softcap        float32
 	maxALiBiBias          float32
 	causal                bool
@@ -306,6 +319,7 @@ type AttentionOptions struct {
 	Bias                  *Tensor
 	Sinks                 *Tensor
 	BlockIDs              *Tensor
+	KeyBias               *Tensor
 	Scale                 float32
 	Softcap               float32
 	MaxALiBiBias          float32
@@ -332,7 +346,8 @@ func (b *Builder) AttentionWithOptions(
 	}
 	return b.buildAttention(query, key, value, attentionOptions{
 		bias: options.Bias, sinks: options.Sinks, blockIDs: options.BlockIDs,
-		scale: options.Scale, softcap: options.Softcap, maxALiBiBias: options.MaxALiBiBias,
+		keyBias: options.KeyBias,
+		scale:   options.Scale, softcap: options.Softcap, maxALiBiBias: options.MaxALiBiBias,
 		causal: options.Causal, symmetricWindow: options.SymmetricWindow,
 		relativeBidirectional: options.RelativeBidirectional,
 		chunkedWindow:         options.ChunkedWindow, queryStart: options.QueryStart,
@@ -633,6 +648,12 @@ func (b *Builder) buildAttention(
 		b.setError(errors.New("attention block IDs must have shape [key tokens] and match input type"))
 		return nil
 	}
+	if options.keyBias != nil &&
+		(options.keyBias.Type != query.Type || options.keyBias.Shape.Rank != 1 ||
+			options.keyBias.Shape.Dims[0] != key.Shape.Dims[2]) {
+		b.setError(errors.New("attention key bias must have shape [key tokens] and match input type"))
+		return nil
+	}
 	dimensions := []uint64{value.Shape.Dims[0], query.Shape.Dims[1], query.Shape.Dims[2]}
 	if query.Shape.Rank == 4 {
 		dimensions = append(dimensions, query.Shape.Dims[3])
@@ -650,6 +671,11 @@ func (b *Builder) buildAttention(
 	}
 	if options.blockIDs != nil {
 		inputs = append(inputs, options.blockIDs)
+	}
+	// keyBias is always the FINAL optional input; parsers walk from index 3 in
+	// this same order (bias|sinks, blockIDs, keyBias) driven by the flags.
+	if options.keyBias != nil {
+		inputs = append(inputs, options.keyBias)
 	}
 	var keyValueTokens uint32
 	if key.Op == OpCacheAppend {
@@ -684,6 +710,7 @@ func (b *Builder) buildAttention(
 			Window:                options.window,
 			RelativeBuckets:       relativeBuckets,
 			RelativeBidirectional: options.relativeBidirectional,
+			HasKeyBias:            options.keyBias != nil,
 			NaiveF32:              options.naiveF32,
 		},
 	)

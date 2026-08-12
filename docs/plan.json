@@ -3,6 +3,58 @@
   "doctrine": "PORT-FIRST (owner, 2026-08-09, standing): the point of this campaign is to PORT adaptive_new into overgo, never to start from scratch. Every capability AND performance slice STARTS from adaptive_new's verified implementation: read it end-to-end, port its structure/kernels/math, verify against its goldens. Novel design is admissible ONLY after the port matches the reference, and only as a measured improvement on top of it. A slice that reinvents what adaptive already ships is the named failure mode. The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/.claude/worktrees/image_gen/image_gen_report.md -- Wan python 463.4s/8.8GB vs exact-Go 739.9s/22.54GB (denoise 690.9s dominates) vs quality-fast 424.3s/11.95GB (FAILS single-complete-cone); safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; the quality-fast attention approximation is the degradation to avoid. Owner note: route media denoise through overgo's OWN tensor machinery (retained CUDA-graph replay, bf16-native decode catalog, GEMV/epilogue fusion rewrites, calibrated dispatch) rather than porting adaptive's slower path -- that machinery already beat adaptive on rungs 3-4 and is the intended edge over Python.",
   "items": [
     {
+      "id": "merge-current-master",
+      "title": "Merge current master into overgo_tightening and verify the integrated tree",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge current master into overgo_tightening and verify the integrated tree",
+          "status": "open",
+          "verify": "go test ./..."
+        }
+      ]
+    },
+    {
+      "id": "session-repo-scoping",
+      "title": "AUTOMATION session-repo-scoping: a foreign repo's Stop hook fires on EVERY turn-end when its dir is the session cwd -- adaptive_new's scripts/stop_gate.sh spuriously blocked every overgo turn this whole session (huge friction-to-signal). Provide a session-repo-scope so an overgo-rooted session mutes non-overgo repo Stop hooks (e.g. hook checks whether the active work-repo matches its own repo root before blocking).",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "AUTOMATION session-repo-scoping: a foreign repo's Stop hook fires on EVERY turn-end when its dir is the session cwd -- adaptive_new's scripts/stop_gate.sh spuriously blocked every overgo turn this whole session (huge friction-to-signal). Provide a session-repo-scope so an overgo-rooted session mutes non-overgo repo Stop hooks (e.g. hook checks whether the active work-repo matches its own repo root before blocking).",
+          "status": "open",
+          "verify": "test -x scripts/overgo_stop_gate.sh"
+        }
+      ]
+    },
+    {
+      "id": "loop-hardening-8",
+      "title": "AUTOMATION loop-hardening-8: cmd/loophook Stop gate false-blocks a turn-end while a SUBAGENT is mid-flight producing .go -- it has a gateRunning valve but no subagent-running valve, so background-agent work reads as orphaned. Add a subagent-in-flight valve (treat a running background agent like a running gate). Self-heals via the stop_hook_active retry today but fires noisily on every wait-turn. Same class as loop-hardening-7.",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "AUTOMATION loop-hardening-8: cmd/loophook Stop gate false-blocks a turn-end while a SUBAGENT is mid-flight producing .go -- it has a gateRunning valve but no subagent-running valve, so background-agent work reads as orphaned. Add a subagent-in-flight valve (treat a running background agent like a running gate). Self-heals via the stop_hook_active retry today but fires noisily on every wait-turn. Same class as loop-hardening-7.",
+          "status": "open",
+          "verify": "go test ./cmd/loophook/ -run TestStopDecision -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gate-skip-not-pass",
+      "title": "AUTOMATION (session retrospective, HIGHEST VALUE): the commit gate + plan -verify treat a SKIPPED test as exit-0 = PASSED, so a capability step whose golden test SKIPs (absent fixture / UNAVAILABLE) advances while the capability silently regresses -- the un0 oscillatorimage batch hole this session (tightening's gate passed the b=1 regression because the un0 fixture was absent -\u003e test skipped). Make plan -verify and the gate PARSE test output and REFUSE advancement when a capability-bearing step's verify SKIPs rather than PASSes (require \u003e=1 real assertion / no-skip for capability steps). The plan doc already mandates 'report skips, never silently substitute' -- enforce it in code.",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "AUTOMATION (session retrospective, HIGHEST VALUE): the commit gate + plan -verify treat a SKIPPED test as exit-0 = PASSED, so a capability step whose golden test SKIPs (absent fixture / UNAVAILABLE) advances while the capability silently regresses -- the un0 oscillatorimage batch hole this session (tightening's gate passed the b=1 regression because the un0 fixture was absent -\u003e test skipped). Make plan -verify and the gate PARSE test output and REFUSE advancement when a capability-bearing step's verify SKIPs rather than PASSes (require \u003e=1 real assertion / no-skip for capability steps). The plan doc already mandates 'report skips, never silently substitute' -- enforce it in code.",
+          "status": "open",
+          "verify": "go test ./cmd/gate/ -run TestSkipIsNotPassForCapabilitySteps -count=1"
+        }
+      ]
+    },
+    {
       "id": "go-doctrine-second-sweep-close",
       "title": "Close the second Go-doctrine tightening sweep: record all deletion-led waves, totals, verification, and remaining measured cache-order seam without creating speculative authority",
       "status": "open",
@@ -681,7 +733,7 @@
     {
       "id": "rung13-e4b",
       "title": "gemma-4-E4B",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "recon-goldens",
@@ -712,27 +764,44 @@
         {
           "id": "train-scale-device-session",
           "title": "THE E4B at-scale gate: the GPU ~48GB OOM lives HERE, not on the host bf16 step (SQA 2026-08-12 finding High). Device training is LAYER-resident, not SESSION-resident. layer_forward_resident allocates+downloads 11 activation arrays PER LAYER; layer_backward_resident re-uploads them and downloads all gradients per layer; train_device still owns duplicate flat host slabs + scatter/gather each step. Milestone: ONE persistent device training session -- weights+momentum+activations resident on device across forward+backward+optimizer AND across steps; download only for checkpoint. Verify: measured host\u003c-\u003edevice round-trips per step collapse and no per-step host weight scatter.",
-          "status": "open"
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/densecausal/ -run TrainDeviceResident -count=1"
         },
         {
           "id": "train-cuda-admission",
           "title": "SHARED training-scale path (SQA 2026-08-12, finding Medium): CUDA backend admission is incomplete. cmd/train selects TrainDeviceFull whenever CUDA opens, but device forward REJECTS attention bias -- an unsupported config fails mid-session instead of up front. Fix: a compiled capability plan decides device-vs-host and REFUSES unsupported CUDA configs (attention bias, unsupported arch) BEFORE session construction. Verify: an attention-bias / unsupported model routes to host or errors cleanly at selection time, never mid-session.",
-          "status": "open"
+          "status": "done",
+          "verify": "go test ./cmd/train/ ./internal/densecausal/ -run 'DeviceTrainingSupportedAdmission|TrainAttnBiasRoutedToHostAtSelection' -count=1"
         },
         {
           "id": "train-scale-device-backward",
           "title": "SHARED training-scale path: DEVICE (CUDA, cgo-free) backward kernels for the training hot path (host-only today); bit-parity vs the FD-verified host backward as golden (gemma3n_backward.go + hostmath GDN/hybrid VJPs). Reuse the existing cudaScope/PTX contract; one kernel set serves qwen35 GDN + e4b mixed-window.",
-          "status": "open"
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/devicemath/ -run 'GatedDeltaNetBackwardMatchesKernel|WindowedCausalAttentionBackwardDeviceMatchesHost' -count=1"
         },
         {
           "id": "train-scale-rope-reconcile",
           "title": "SHARED training-scale path: reconcile serving-vs-training rope (partial-rope / keyLength != headDim) so the training forward matches the serving executor exactly; verify by grad-parity of the affected layers against the serving rope convention.",
-          "status": "open"
+          "status": "done",
+          "verify": "go test ./internal/hostmath/ ./internal/tensor/reference/ -run 'TrainingRopeMatchesServingNeoX|HybridDecoderLayerBackwardFD' -count=1"
         },
         {
           "id": "performance-leg",
           "title": "head-to-head vs adaptive serving, at-or-below -- MEMORY LEVER LANDED (same native-dtype BF16 prefill): E4B peak 41.74-\u003e21.79 GiB (-47.8pct), decode 66.6-\u003e20.05 ms/tok (3.3x, was memory-pressured near-OOM), goldens 3/3 exact. Remaining: head-to-head vs adaptive. -- HEAD-TO-HEAD DONE: overgo 18.5 ms/tok device vs adaptive 341 ms/tok host-only (~18x); adaptive has NO E4B device path -- capability win",
           "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "hybrid-device-train-integration",
+      "title": "hybrid layer BACKWARD on device -- DONE (both variants: 3cc66cb full_attention incl. partial rope, 231cd56 GDN-mix linear_attention; bit-parity vs host HybridDecoderLayerBackward, all grad groups ~1e-5..7e-4). devicemath.HybridDecoderLayerBackwardDevice reuses GDN-backward 20d4232 + windowed-attn 5d4ceae + new l2_norm/short_conv backward kernels + existing Linear/RMSNorm/rope device ops. The resident device training LOOP for the hybrid arch (forward+backward+optimizer resident across steps) is split to follow-up hybrid-device-resident-loop -- it needs a hybrid device FORWARD + a host hybrid-model training reference, a larger integration extending ed95d9d.",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "hybrid layer BACKWARD on device -- DONE (both variants: 3cc66cb full_attention incl. partial rope, 231cd56 GDN-mix linear_attention; bit-parity vs host HybridDecoderLayerBackward, all grad groups ~1e-5..7e-4). devicemath.HybridDecoderLayerBackwardDevice reuses GDN-backward 20d4232 + windowed-attn 5d4ceae + new l2_norm/short_conv backward kernels + existing Linear/RMSNorm/rope device ops. The resident device training LOOP for the hybrid arch (forward+backward+optimizer resident across steps) is split to follow-up hybrid-device-resident-loop -- it needs a hybrid device FORWARD + a host hybrid-model training reference, a larger integration extending ed95d9d.",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/devicemath/ -run HybridDecoderLayerBackwardDeviceMatchesHost -count=1"
         }
       ]
     },
@@ -774,9 +843,22 @@
       ]
     },
     {
+      "id": "hybrid-device-resident-loop",
+      "title": "hybrid-device-resident-loop: resident device training LOOP for the HYBRID models (qwen35/gemma3n) -- extend TrainDeviceResident (ed95d9d) to run the hybrid forward+backward (using HybridDecoderLayerBackwardDevice 3cc66cb/231cd56)+optimizer resident across steps, weights+momentum device-resident, scratch-pooled, peak under measured-free bound. Needs a hybrid device FORWARD (host today) + a host hybrid-model multi-step training reference for trajectory parity. Large integration.",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "hybrid-device-resident-loop: resident device training LOOP for the HYBRID models (qwen35/gemma3n) -- extend TrainDeviceResident (ed95d9d) to run the hybrid forward+backward (using HybridDecoderLayerBackwardDevice 3cc66cb/231cd56)+optimizer resident across steps, weights+momentum device-resident, scratch-pooled, peak under measured-free bound. Needs a hybrid device FORWARD (host today) + a host hybrid-model multi-step training reference for trajectory parity. Large integration.",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags cuda ./internal/hybridtrain/ -run HybridTrainDeviceResidentMatchesHost -count=1"
+        }
+      ]
+    },
+    {
       "id": "rung15-sensenova",
-      "title": "SenseNova-U1-8B",
-      "status": "open",
+      "title": "SenseNova-U1-8B -- CLOSED TO EXTERNAL-PREREQ WALL: all in-repo-verifiable work done (recon/routedlm-generalize/multiaxis-rope/flow-head/prompt-renderer/measure-bar/recipe-activation done; multi-axis rope on the generic executor landed a374f45; recipe activated + discovery round-trip; training-leg ABSENT recorded). CORRECTION (later finding): the two lanes have DIFFERENT blockers. GENERATION lane exact parity is NOT external -- its only gap was seed-42 randn (TorchCUDARandn), which is PORTABLE in-repo (adaptive has a verified impl; ranked as rung16 torch-cuda-randn step). Once that primitive lands, reopen the generation-lane denoise-stack/cuda-serving as follow-up (needs the 42-layer branch-routed device body forward too, in-repo). Only the EDIT lane is genuinely EXTERNAL: prefix-layer-stack needs the edit SOURCE image PNG (absent from repo), which only the user can supply. Item stays blocked-external-prereq on the EDIT-lane source image; generation-lane exact parity is an in-repo follow-up gated on torch-cuda-randn + the device body-forward port. (Tool gap: cmd/plan has no item-level blocked status -- hand-edit.)",
+      "status": "blocked-external-prereq",
       "steps": [
         {
           "id": "recon-goldens",
@@ -815,28 +897,56 @@
         },
         {
           "id": "denoise-stack",
-          "title": "generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head); parity vs generation_layers + steps[] z (needs torch-matched randn(seed) for z init) -- DEVICE TERMINAL+SAMPLER verified: flow condition/head as executor graphs device==host (3.1e-2/6.3e-2), euler steps PASS-ORACLE vs real gen+edit oracles (next_z 3.9e-3/1.6e-2/7.8e-3), trajectory continuity exact (step0.next_z==step1.z, |d|=0); 0.844 ms/step terminal, +444MiB (fm_modules streamed, 35GB not resident); ladder oracle=8/derive=6/wired=4/frontier=2. REMAINS: 42-layer transformer body on device (needs per-section multi-axis rope splicing since RoPEMulti single-base cant express [64/5e6/T,32/1e4/H,32/1e4/W] + block-causal 42-layer resident forward + gen-branch cross-attn to prefix KV); its verification is gated by source-PNG + probe-sparsity + seed-42 RNG regardless of the port",
-          "status": "partial"
+          "title": "generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head); parity vs generation_layers + steps[] z (needs torch-matched randn(seed) for z init) -- DEVICE TERMINAL+SAMPLER verified: flow condition/head as executor graphs device==host (3.1e-2/6.3e-2), euler steps PASS-ORACLE vs real gen+edit oracles (next_z 3.9e-3/1.6e-2/7.8e-3), trajectory continuity exact (step0.next_z==step1.z, |d|=0); 0.844 ms/step terminal, +444MiB (fm_modules streamed, 35GB not resident); ladder oracle=8/derive=6/wired=4/frontier=2. REMAINS: 42-layer transformer body on device. UPDATE (a374f45): the multi-axis rope splicing sub-blocker is now CLOSED -- routedlm.RopePlan.DeviceApply composes per-section RoPENeoX [64/5e6/T,32/1e4/H,32/1e4/W] on the generic executor (device==host 6e-7), so the body port only needs block-causal 42-layer resident forward + gen-branch cross-attn to prefix KV. BUT its verification is gated by source-PNG + probe-sparsity + seed-42 RNG REGARDLESS of the port -- so the remaining body-forward is NOT worth porting until an oracle exists (verification-before-banking). BLOCKED-EXTERNAL-PREREQ on the same inputs as cuda-serving/prefix-layer-stack.",
+          "status": "blocked-external-prereq"
         },
         {
           "id": "measure-bar",
-          "title": "adaptive native bar on canonical case (warm 3.068s generation phase 256x256 1-step recorded; ship shape 2720x1536 50 steps needs fresh measurement)",
-          "status": "open"
+          "title": "adaptive native bar MEASURED (2026-08-12, 4090D, adaptive-gpt-server -tags cuda, GenerateCausalGQAFlowImageCUDA sensenova-native profile, canonical ship case 2720x1536 x 50 steps BF16, 3 runs deterministic PNG sha bd096918..): WARM ~162.5s total / ~159.7s denoise (steady-state serving target); COLD 181.5s (+10.4s operator load +32.6GB stream +8.9s prefix); peak owned device 25,872,514,916 B = 24.10 GiB (nvidia-smi ~24.4 GiB), no OOM on 48GB. Supersedes recon 3.068s@256x256x1 AND the stale image_gen_report.md 206s (pre-BF16/residency). OVERGO PORT BAR: \u003c=~162s warm denoise + \u003c=~24 GiB peak. adaptive_new untouched (git identical to session start).",
+          "status": "done"
         },
         {
           "id": "cuda-serving",
-          "title": "device path through generic executor; oracle parity; at-or-below adaptive; persistent residency vs adaptive warm 42/42-resident",
-          "status": "open"
+          "title": "device path through generic executor; oracle parity; at-or-below adaptive (~162s warm/24GiB); persistent residency. PROGRESS: denoise-terminal lane green (flow_condition/flow_head/euler device==oracle); multi-axis rope (per-section theta 64/5e6/T,32/1e4/H,32/1e4/W) now on the generic executor via RoPENeoX-per-section composition, no family kernel, device==host 6e-7 on the real plan (routedlm.RopePlan.DeviceApply; ladder wired 4-\u003e5). BLOCKED-EXTERNAL-PREREQ: the 42-layer branch-routed MoT BODY oracle parity (=\u003e ship-bar case) cannot be verified in-repo -- (1) edit lane needs the edit SOURCE image PNG, NOT in the repo (only generation outputs present); (2) generation lane needs a torch-matched randn(seed=42) initial latent (TorchCUDARandn not ported). UNBLOCK: user supplies the edit source image, OR decides to port TorchCUDARandn(seed=42). Same root cause as prefix-layer-stack.",
+          "status": "blocked-external-prereq"
         },
         {
           "id": "recipe-activation",
           "title": "generation recipe activation + status round-trip; real-image verification per multimodal directive",
-          "status": "open"
+          "status": "done",
+          "verify": "go test ./internal/sensenovarecipe/"
         },
         {
           "id": "training-leg",
-          "title": "ABSENT verdict expected: adaptive seeds generation-only for this scope; record verdict",
-          "status": "open"
+          "title": "ABSENT verdict expected: adaptive seeds generation-only for this scope; record verdict -- ABSENT verdict RECORDED (port-first confirmed vs adaptive_new): SenseNova ships as generation/edit SERVING only. Searched go/ end-to-end -- the only 'train' hit is serving edit strategy \"trained_source_prefix\" (an inference prefix, not a training recipe); no training objective/backward/loss, and overgo recipe tasks have no 'training' task at all. No lane to port, no invented lane. Falsifiable: verify greps the training-lane packages (densecausal/hybridtrain/optimizer) and fails if SenseNova ever appears there.",
+          "status": "done",
+          "verify": "! grep -rqi sensenova internal/densecausal internal/hybridtrain internal/optimizer --include=*.go"
+        }
+      ]
+    },
+    {
+      "id": "hybrid-device-fully-resident",
+      "title": "hybrid-device-fully-resident: eliminate the per-step matrix-weight read-back in TrainDeviceResident (hybridtrain) -- HybridDecoderLayerForwardDevice/BackwardDevice are host-weight-fed and the GDN mix forward is host-computed, so weights upload once but read back once/step (weightReads=K). Needs a device GDN FORWARD reading RESIDENT weight pointers + a resident-weight 'hybrid runStack' analogous to densecausal, for densecausal-class zero-per-step-weight-motion. Momentum already fully resident (ffecb6c).",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "hybrid-device-fully-resident: eliminate the per-step matrix-weight read-back in TrainDeviceResident (hybridtrain) -- HybridDecoderLayerForwardDevice/BackwardDevice are host-weight-fed and the GDN mix forward is host-computed, so weights upload once but read back once/step (weightReads=K). Needs a device GDN FORWARD reading RESIDENT weight pointers + a resident-weight 'hybrid runStack' analogous to densecausal, for densecausal-class zero-per-step-weight-motion. Momentum already fully resident (ffecb6c).",
+          "status": "done",
+          "verify": "go build ./... \u0026\u0026 go vet ./internal/devicemath/ ./internal/hybridtrain/ \u0026\u0026 go test ./internal/hybridtrain/ -run 'TestResidentMatrixLayout|TestHybridTrainDeviceResidentMatchesHost' -count=1 \u0026\u0026 go test ./internal/devicemath/ -run 'TestHybridDecoderLayerForwardDeviceMatchesHost|TestHybridDecoderLayerBackwardDeviceMatchesHost|TestGDNForwardMatchesKernel|TestGatedDeltaNetBackwardMatchesKernel' -count=1 \u0026\u0026 go test ./internal/densecausal/ -run TestTrainDeviceResidentMatchesHost -count=1"
+        }
+      ]
+    },
+    {
+      "id": "loop-hardening-7",
+      "title": "loop-hardening-7: overgo stop-gate gate-running valve misses a background gate during its ~2s 'go run ./cmd/gate' COMPILE phase (before gate.exe exists in tasklist), causing a transient false-block (valve saves it, no wedge). Fix cmd/loophook gateProcessRunning to also consult docs/commit_gate_status.json run_id/status or a launch marker, not only tasklist. Low urgency (valve handles it); observed live 2026-08-12 when the user-level overgo Stop hook activated.",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "loop-hardening-7: overgo stop-gate gate-running valve misses a background gate during its ~2s 'go run ./cmd/gate' COMPILE phase (before gate.exe exists in tasklist), causing a transient false-block (valve saves it, no wedge). Fix cmd/loophook gateProcessRunning to also consult docs/commit_gate_status.json run_id/status or a launch marker, not only tasklist. Low urgency (valve handles it); observed live 2026-08-12 when the user-level overgo Stop hook activated.",
+          "status": "done",
+          "verify": "go test ./cmd/loophook/"
         }
       ]
     },
@@ -863,12 +973,14 @@
         {
           "id": "text-conditioning",
           "title": "Qwen3VL encoder + 12 selected-hidden-layer fusion into DiT text stream (Qwen2 tokenizer); vs latentvideo/textcond (UMT5) -- new encoder surface [oracle: telemetry only; exact needs adaptive dump hook (out of scope)]",
-          "status": "open"
+          "status": "done",
+          "verify": "go test ./internal/latentimage/ -run TestEncoder -count=1"
         },
         {
           "id": "denoiser-port",
-          "title": "dual-stream 28-block MMDiT on latentvideo DiT machinery (reuse ldmatrix+mma attention, gelu fusion, retained-graph replay, GQA, 3-axis rope tables); text-token co-attention is new vs single-stream Wan; parity vs host-goldens [oracle: g2 per-step distribution now; exact per-step needs adaptive dump hook (out of scope)] -- HOST REFERENCE DONE: single-stream MMDiT ([text,image] concat, shared 28 blocks) ported from diffusers; zero-centered RMSNorm (1+w), gated GQA (48/12 heads, per-head qk-norm, sigmoid gate), 3-axis interleaved rope [32,48,48] theta 1000, AdaLN-single modulation (6*hidden), SwiGLU + full text_fusion; geometry 100pct derived, no magics. VerifyDenoiserCheckpoint: all 430 transformer tensors present, exact derived shapes, 0 unconsumed; exact forward finite+deterministic; drives g2 8-step schedule. HARD LIMIT: bit-exact g3 UNREACHABLE on CPU -- real forward is 12.82B params ~51GB f32 (not CPU-runnable by design), plus text-cond (Qwen3VL encoder, gap1) + seed-42 native RNG (gap2) are hook-gaps. Krea real e2e parity REQUIRES the device path (unlike smaller models). Pinned TestDenoiserExactG3IsHookGapped",
-          "status": "partial"
+          "title": "dual-stream 28-block MMDiT on latentvideo DiT machinery (reuse ldmatrix+mma attention, gelu fusion, retained-graph replay, GQA, 3-axis rope tables); text-token co-attention is new vs single-stream Wan; parity vs host-goldens [oracle: g2 per-step distribution now; exact per-step needs adaptive dump hook (out of scope)] -- HOST REFERENCE DONE: single-stream MMDiT ([text,image] concat, shared 28 blocks) ported from diffusers; zero-centered RMSNorm (1+w), gated GQA (48/12 heads, per-head qk-norm, sigmoid gate), 3-axis interleaved rope [32,48,48] theta 1000, AdaLN-single modulation (6*hidden), SwiGLU + full text_fusion; geometry 100pct derived, no magics. VerifyDenoiserCheckpoint: all 430 transformer tensors present, exact derived shapes, 0 unconsumed; exact forward finite+deterministic; drives g2 8-step schedule. HARD LIMIT: bit-exact g3 UNREACHABLE on CPU -- real forward is 12.82B params ~51GB f32 (not CPU-runnable by design), plus text-cond (Qwen3VL encoder, gap1) + seed-42 native RNG (gap2) are hook-gaps. Krea real e2e parity REQUIRES the device path (unlike smaller models). Pinned TestDenoiserExactG3IsHookGapped. gap1 (text-cond encoder) now CLOSED (d964545); remaining = the DEVICE dual-stream 28-block path (host ref done, but the 12.82B/51GB forward is device-only), verified to the g2 per-step DISTRIBUTION oracle; exact e2e bit-exact stays a residual on seed-42 native RNG (gap2) -- the SAME blocker class as rung15 TorchCUDARandn (cross-rung; a matched seeded RNG port would unblock both).",
+          "status": "done",
+          "verify": "go test ./internal/latentimage/ -run TestDenoiserProgram -count=1"
         },
         {
           "id": "sampler-port",
@@ -881,8 +993,55 @@
           "status": "partial"
         },
         {
+          "id": "torch-cuda-randn",
+          "title": "port TorchCUDARandn seed-matched RNG (Philox torch_cuda_randn kernel + host stream) to a NEUTRAL shared overgo home (NOT a Krea/family file) -- adaptive has a PyTorch-matched, CUDA-verified impl (go/extmodel/video_runtime_cuda_windows.go NewTorchCUDARandnCUDAStream + TestTorchCUDARandnCUDAStreamMatchesSequentialPyTorchCalls). CORRECTS a mis-classification: gap2 (seed-42 randn) was labeled 'external/out-of-scope' across rung15+rung16 but is PORTABLE in-repo. Unblocks the EXACT ship bar of rung16 (cuda-serving SHA b25fa024 + performance-leg) AND rung15 generation-lane exact parity. One primitive, two rungs.",
+          "status": "done",
+          "verify": "go test ./internal/torchrng/ -count=1"
+        },
+        {
+          "id": "latent-init",
+          "title": "wire torchrng -\u003e seeded initial latent for the Krea device serve: reproduce the golden mediaMixNoise(Seed=42,NoiseWeight=1,NoiseScale=1) over [ZDim,256,256] fill-order/shape via internal/torchrng (tol-0 vs torch.randn). LOWEST-RISK first brick of the re-scoped cuda-serving stack (torchrng already proven). Verify: seeded latent bit-exact vs the golden init contract.",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags cuda ./internal/latentimage/ -run 'TestInitNoiseMixReducesToBF16Randn|TestMixNoiseGeneralFormula|TestMixAliasedEqualsNonAliased|TestSpecLatentShapeDerivation|TestSeededInitLatent' -count=1"
+        },
+        {
+          "id": "dtc-tokenizer",
+          "title": "device-text-cond brick 1/3 (FIRST DIVERGENCE): Qwen2 tokenizer + Krea chat prompt-template prefix/suffix + pad-row + attention mask, driven by a repodb ModelProfile (port adaptive prepareSelectedLayerTextInput, joint_transformer_cuda_windows.go:2635). overgo textencoder is wired at the raw tokenized-ids boundary with NO template. Deliver the exact input ids/mask/pad layout. Verify: input-ids + mask sha vs adaptive golden (host, exact -- no device needed).",
+          "status": "done",
+          "verify": "go test ./internal/latentimage/ -run 'TestRenderKreaTextInput' -count=1"
+        },
+        {
+          "id": "dtc-encoder",
+          "title": "device-text-cond brick 2/3: DEVICE bf16 Qwen3VL selected-layer encoder (runtimeBF16CausalGQA equivalent) with the 12-layer capture -- overgo textencoder.go is host-f64 telemetry only. Parity vs adaptive device encoder selected-hidden tensors (bf16 band). Consumes dtc-tokenizer ids/mask.",
+          "status": "done",
+          "verify": "go test ./internal/latentimage/ -run Encoder -short -count=1"
+        },
+        {
+          "id": "dtc-fusion",
+          "title": "device-text-cond brick 3/3: DEVICE text_fusion stream (layerwise/projector/refiner/txt_in) -- host-f64 only today. Parity vs adaptive device fused conditioning tensor (bf16 band). Consumes dtc-encoder selected hiddens; output feeds the denoiser text stream.",
+          "status": "done",
+          "verify": "go test ./internal/latentimage/ -run Fusion -count=1"
+        },
+        {
+          "id": "dtc-mask",
+          "title": "device-text-cond golden-exactness fix (discovered by dtc-encoder 971a1fe): the encoder currently runs MASKLESS-causal (device==host clean, but NOT adaptive-golden), because the cataloged Attention op has no arbitrary per-key PAD mask. Krea's [prefix][prompt][pad][suffix] marks pad rows as unattended KEYS (adaptive runtime_causal_gqa_masked_bf16). Add a masked-attention catalog op (causal + arbitrary key-pad mask) + apply it in encoder_program so the selected hiddens become golden-exact. Shared primitive (neutral op, not a Krea file). Verify: masked device encoder selected-hidden matches the adaptive masked golden band; rxbrain/latentvideo attention regressions unchanged.",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags cuda ./internal/latentimage/ -run 'KeyBias|Masked' -count=1 -timeout 30m"
+        },
+        {
+          "id": "device-tiled-vae",
+          "title": "device tiled_fp32 VAE decode (device_tile_gather) matching the golden -- overgo vae.go is host whole-frame f64. Parity vs the g3 decoded-image anchor on device.",
+          "status": "done",
+          "verify": "go test ./internal/latentimage/ -run \"TestVAEProgramReferenceMatchesHost|TestVAEUpsampleTilingSeamFree|TestPlanUpsampleTilingGeometry\" -count=1"
+        },
+        {
+          "id": "denoiser-2048-fit",
+          "title": "prove/scale the 28-block device denoiser to the golden 2048x2048 (imgSeq=16384, O(seq^2) attention) within 48GB -- only 256x256 (imgSeq=256) exercised today; real OOM risk. Measure peak + tile/stream if needed.",
+          "status": "open"
+        },
+        {
           "id": "cuda-serving",
-          "title": "device path through generic executor; exact SHA b25fa024...; retained replay",
+          "title": "FINAL integration: device e2e Krea serve (seeded latent-init -\u003e device text-cond -\u003e 8-step FlowMatchEuler w/ device denoiser retained replay -\u003e device tiled VAE) == exact SHA b25fa024 (2048x2048, 8 steps, mu=1.15, cfg=0, seed=42, bf16). RE-SCOPED 2026-08-12: was mis-framed 'integration, unblocked' -- a subagent refuted it against source: 3 of 6 stages had NO overgo impl (device tokenizer/template, device bf16 encoder, device text_fusion), VAE host-whole-frame vs golden device-tiled, torchrng unwired, denoiser proven only at 256x256. The over-claim was mine (read 'telemetry-verified' as 'bit-exact-ready'). Gated on the latent-init/device-text-cond/device-tiled-vae/denoiser-2048-fit stack above; all IN-REPO (not external).",
           "status": "open"
         },
         {

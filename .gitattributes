@@ -1,3 +1,6 @@
 # Hermetic source and byte-fixture newlines.
 *.go text eol=lf
 internal/inference/testdata/chat_templates/** text eol=lf
+kernels/cuda/*.cu text eol=lf
+kernels/cuda/*.cuh text eol=lf
+internal/cuda/kernel/*.ptx text eol=lf

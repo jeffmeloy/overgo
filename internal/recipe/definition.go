@@ -85,12 +85,6 @@ func decodeDefinition(content []byte, definition *Definition) error {
 	return nil
 }
 
-func NewDefinition(task Task, model artifact.ID, nodes []Node, edges []Edge, inputs []Input, outputs []Output) (Definition, error) {
-	return NewDefinitionWithDependencies(
-		task, []Dependency{{Role: DependencyModel, Artifact: model}}, nodes, edges, inputs, outputs,
-	)
-}
-
 func NewDefinitionWithDependencies(
 	task Task,
 	dependencies []Dependency,

@@ -45,7 +45,7 @@ func TestIdentityIncludesKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if model == checkpoint || model.Digest() != checkpoint.Digest() {
+	if model == checkpoint || model.digest != checkpoint.digest {
 		t.Fatalf("kind qualification failed: model=%s checkpoint=%s", model, checkpoint)
 	}
 }

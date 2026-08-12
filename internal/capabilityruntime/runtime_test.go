@@ -28,8 +28,10 @@ func capabilityFixture(t *testing.T, name string) (*repodb.Store, artifact.ID, r
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 	testutil.PublishArtifact(t, store, modelID)
 	node := recipe.Node{ID: "scalar", Module: scalarModule, Placement: recipe.PlacementHost}
-	definition, err := recipe.NewDefinition(
-		recipe.TaskImageGen, modelID, []recipe.Node{node}, nil,
+	definition, err := recipe.NewDefinitionWithDependencies(
+		recipe.TaskImageGen,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
+		[]recipe.Node{node}, nil,
 		[]recipe.Input{{Name: "input", Data: recipe.DataTensor, Target: recipe.Endpoint{Node: node.ID, Port: "input"}}},
 		[]recipe.Output{{Name: "output", Data: recipe.DataImage, Source: recipe.Endpoint{Node: node.ID, Port: "output"}}},
 	)

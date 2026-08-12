@@ -247,17 +247,15 @@ func (s catalogState) reaches(start, target artifact.ID, pending map[artifact.ID
 
 // Store: hash-chained artifact catalog
 type Store struct {
-	mu        sync.RWMutex
-	log       *recordLog
-	state     catalogState
-	head      artifact.CommitID
-	sequence  uint64
-	recovered bool
-	readOnly  bool
-	closed    bool
-	fault     error
-	root      string
-	snapshot  replayAnchor
+	mu       sync.RWMutex
+	log      *recordLog
+	state    catalogState
+	head     artifact.CommitID
+	sequence uint64
+	readOnly bool
+	closed   bool
+	fault    error
+	root     string
 }
 
 func Open(root string) (*Store, error) {
@@ -276,7 +274,7 @@ func open(root string, readOnly bool) (*Store, error) {
 	if !loaded {
 		state = newCatalogState()
 	}
-	store := &Store{state: state, readOnly: readOnly, root: root, snapshot: anchor}
+	store := &Store{state: state, readOnly: readOnly, root: root}
 	apply := func(record logRecord) error {
 		batch, payloadHash, err := decodeBatch(record.payload)
 		if err != nil {
@@ -297,7 +295,6 @@ func open(root string, readOnly bool) (*Store, error) {
 	log, replay, err := openRecordLog(root, readOnly, anchor, apply)
 	if errors.Is(err, ErrSnapshotAnchor) && loaded {
 		store.state = newCatalogState()
-		store.snapshot = replayAnchor{}
 		log, replay, err = openRecordLog(root, readOnly, replayAnchor{}, apply)
 	}
 	if err != nil {
@@ -306,7 +303,6 @@ func open(root string, readOnly bool) (*Store, error) {
 	store.log = log
 	store.head = replay.head
 	store.sequence = replay.sequence
-	store.recovered = replay.recovered
 	return store, nil
 }
 
@@ -465,12 +461,6 @@ func (s *Store) Head() (artifact.CommitID, uint64) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.head, s.sequence
-}
-
-func (s *Store) Recovered() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.recovered
 }
 
 func (s *Store) Close() error {

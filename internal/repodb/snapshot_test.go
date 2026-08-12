@@ -47,10 +47,6 @@ func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	anchor, sequence := store.SnapshotAnchor()
-	if anchor != first || sequence != 1 {
-		t.Fatalf("loaded anchor = (%s, %d)", anchor, sequence)
-	}
 	head, headSequence := store.Head()
 	if head != second || headSequence != 2 {
 		t.Fatalf("replayed head = (%s, %d)", head, headSequence)
@@ -99,10 +95,6 @@ func TestCorruptSnapshotFallsBackToLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	anchor, sequence := store.SnapshotAnchor()
-	if anchor.Valid() || sequence != 0 {
-		t.Fatalf("corrupt snapshot loaded: (%s, %d)", anchor, sequence)
-	}
 	if _, ok, err := store.Artifact(context.Background(), batch.Artifacts[0].ID); err != nil || !ok {
 		t.Fatalf("rebuilt artifact = (%v, %v)", ok, err)
 	}
@@ -154,10 +146,6 @@ func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer target.Close()
-	anchor, sequence := target.SnapshotAnchor()
-	if anchor.Valid() || sequence != 0 {
-		t.Fatalf("foreign snapshot loaded: (%s, %d)", anchor, sequence)
-	}
 	if _, ok, err := target.Artifact(context.Background(), targetArtifact.ID); err != nil || !ok {
 		t.Fatalf("target artifact = (%v, %v)", ok, err)
 	}

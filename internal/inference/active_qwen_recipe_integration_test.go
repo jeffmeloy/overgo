@@ -105,7 +105,7 @@ func publishActiveGGUFRecipe(
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		inventory.Manifest.ID, profileDocument.ID, document.ID, recipe.PlacementHybrid,
-		modelrecipe.DecodeSessionCapacity,
+		modelrecipe.DecodeSessionCapacity, recipe.ResidencyHybridNative,
 	)
 	if err != nil {
 		t.Fatal(err)

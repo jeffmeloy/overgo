@@ -16,7 +16,7 @@ import (
 
 func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	ctx := context.Background()
-	store, definition := runtimeFixture(t)
+	store, program := runtimeFixture(t)
 	defer store.Close()
 	runtime, err := New(store)
 	if err != nil {
@@ -24,7 +24,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	}
 	registerGenerationAdapters(t, runtime, false)
 	prompt := fixtureContent(t, artifact.KindFile, "hello")
-	result, err := runtime.Execute(ctx, "runtime/success", definition, map[recipe.PortName]Value{
+	result, err := runtime.ExecuteProgram(ctx, "runtime/success", program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}},
 	})
 	if err != nil {
@@ -49,14 +49,14 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 
 func TestRuntimePublishesFailedRun(t *testing.T) {
 	ctx := context.Background()
-	store, definition := runtimeFixture(t)
+	store, program := runtimeFixture(t)
 	defer store.Close()
 	runtime, err := New(store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	registerGenerationAdapters(t, runtime, true)
-	result, err := runtime.Execute(ctx, "runtime/failure", definition, map[recipe.PortName]Value{
+	result, err := runtime.ExecuteProgram(ctx, "runtime/failure", program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}},
 	})
 	if err == nil || result.Run.Outcome != runrecord.OutcomeFailed || result.Run.Failure != executionFailureCode {
@@ -68,7 +68,7 @@ func TestRuntimePublishesFailedRun(t *testing.T) {
 }
 
 func TestRuntimePublishesCancelledRun(t *testing.T) {
-	store, definition := runtimeFixture(t)
+	store, program := runtimeFixture(t)
 	defer store.Close()
 	runtime, err := New(store)
 	if err != nil {
@@ -77,7 +77,7 @@ func TestRuntimePublishesCancelledRun(t *testing.T) {
 	registerGenerationAdapters(t, runtime, false)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	result, err := runtime.Execute(ctx, "runtime/cancelled", definition, map[recipe.PortName]Value{
+	result, err := runtime.ExecuteProgram(ctx, "runtime/cancelled", program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}},
 	})
 	if !errors.Is(err, context.Canceled) || result.Run.Outcome != runrecord.OutcomeCancelled {
@@ -111,6 +111,26 @@ func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
 	}
 }
 
+func TestExecuteProgramRejectsAnotherCatalogAuthority(t *testing.T) {
+	store, program := runtimeFixture(t)
+	defer store.Close()
+	foreign, err := recipe.NewCatalog(workflowrecipe.Catalog().Modules()...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err = recipe.CompileProgram(program.Definition(), foreign)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := New(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/foreign", program, nil); err == nil {
+		t.Fatal("program compiled by another catalog accepted")
+	}
+}
+
 func TestRuntimeCollapsesRepeatedArtifactFacts(t *testing.T) {
 	content := fixtureContent(t, artifact.KindFile, "shared")
 	values := map[recipe.PortName]Value{
@@ -139,7 +159,7 @@ func TestValidateOutputsAllowsAbsentOptionalPort(t *testing.T) {
 	}
 }
 
-func runtimeFixture(t *testing.T) (*repodb.Store, recipe.Definition) {
+func runtimeFixture(t *testing.T) (*repodb.Store, recipe.Program) {
 	t.Helper()
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
@@ -161,7 +181,12 @@ func runtimeFixture(t *testing.T) (*repodb.Store, recipe.Definition) {
 		store.Close()
 		t.Fatal(err)
 	}
-	return store, definition
+	program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
+	if err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
+	return store, program
 }
 
 func registerGenerationAdapters(t *testing.T, runtime *Runtime, fail bool) {

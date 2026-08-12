@@ -67,6 +67,7 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	}
 	definition, err := InferenceWithModelDefinition(
 		modelID, profileDocument.ID, document.ID, recipe.PlacementHost, DecodeSessionRequest,
+		recipe.ResidencyHostCache,
 	)
 	if err != nil {
 		t.Fatal(err)

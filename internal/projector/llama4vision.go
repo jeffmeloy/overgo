@@ -59,9 +59,10 @@ type Llama4VisionOutput struct {
 }
 
 type Llama4VisionRunner struct {
-	file *gguf.File
-	spec Llama4VisionSpec
-	cuda *projectorCUDA
+	file      *gguf.File
+	spec      Llama4VisionSpec
+	attention visionAttentionPlan
+	cuda      *projectorCUDA
 }
 
 type Llama4VisionOpenOptions = OpenOptions
@@ -74,7 +75,7 @@ func OpenLlama4VisionWithOptions(path string, options Llama4VisionOpenOptions) (
 	return openCatalogProjector(path, options, "Llama-4", nil,
 		ReadLlama4VisionSpec, validateLlama4VisionCatalog,
 		func(file *gguf.File, spec Llama4VisionSpec, cuda *projectorCUDA) *Llama4VisionRunner {
-			return &Llama4VisionRunner{file: file, spec: spec, cuda: cuda}
+			return &Llama4VisionRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads), cuda: cuda}
 		})
 }
 
@@ -434,7 +435,7 @@ func (r *Llama4VisionRunner) runLayer(ctx context.Context, hidden []float32, gri
 		return err
 	}
 	llama4VisionRoPE(qkv, gridH, gridW, r.spec.Hidden, r.spec.Heads, r.spec.RopeTheta)
-	attention := mustVisionAttentionPlan(r.spec.Hidden, r.spec.Heads, false).cpu(qkv, rows)
+	attention := r.attention.cpu(qkv, rows)
 	outWeight, err := r.load(ctx, prefix+"attn_out.weight")
 	if err != nil {
 		return err

@@ -194,13 +194,7 @@ type cachedPrompt struct {
 }
 
 type OpenOptions struct {
-	DeviceOrdinal            int
-	PreloadDeviceWeights     bool
-	PreloadQuantizedWeights  bool
-	PreloadBF16DecodeWeights bool
-	// CacheHostWeights retains lazily dequantized F32 host tensors.
-	// False preserves bounded layer-at-a-time loading.
-	CacheHostWeights bool
+	DeviceOrdinal int
 	// PromptCacheEntries: bounds independently reusable prompt states
 	// Zero: selects default capacity of one
 	PromptCacheEntries int
@@ -222,6 +216,17 @@ func (r *Runner) EvidenceTier() recipe.EvidenceTier {
 	}
 	return r.evidenceTier
 }
+
+// Residency: compiled weight-storage policy.
+func (r *Runner) Residency() recipe.ResidencyPolicy {
+	if r == nil {
+		return ""
+	}
+	return r.program.Residency
+}
+
+// DeviceResident: all execution weights have device residency.
+func (r *Runner) DeviceResident() bool { return r != nil && r.hasPreloadedWeights() }
 
 func (r *Runner) layerPlan(layer int) model.LayerPlan {
 	return r.layerProgram(layer).Layer()

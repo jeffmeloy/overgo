@@ -90,7 +90,7 @@ func NewWithCatalog(store artifact.Repository, catalog *recipe.Catalog) (*Runtim
 		return nil, errors.New("workflow runtime: nil module catalog")
 	}
 	return &Runtime{
-		store: store, catalog: catalog.Clone(), adapters: make(map[recipe.ModuleID]Adapter),
+		store: store, catalog: catalog, adapters: make(map[recipe.ModuleID]Adapter),
 	}, nil
 }
 
@@ -110,28 +110,6 @@ func (r *Runtime) Register(module recipe.ModuleID, adapter Adapter) error {
 	return nil
 }
 
-func (r *Runtime) Execute(
-	ctx context.Context,
-	key string,
-	definition recipe.Definition,
-	inputs map[recipe.PortName]Value,
-) (Result, error) {
-	if r == nil || r.store == nil || r.catalog == nil {
-		return Result{}, errors.New("workflow runtime: nil runtime")
-	}
-	if ctx == nil {
-		return Result{}, errors.New("workflow runtime: nil context")
-	}
-	plan, err := workflowrecipe.Compile(definition)
-	if err != nil {
-		return Result{}, err
-	}
-	if plan.Support != workflowrecipe.ExecutionRuntime {
-		return Result{}, errors.New("workflow runtime: orchestration-only plan")
-	}
-	return r.executeProgram(ctx, key, plan.Program, inputs)
-}
-
 // ExecuteProgram runs a catalog-resolved recipe and records its lineage.
 func (r *Runtime) ExecuteProgram(
 	ctx context.Context,
@@ -149,16 +127,10 @@ func (r *Runtime) ExecuteProgram(
 	if definition.Task == recipe.TaskTraining {
 		return Result{}, errors.New("workflow runtime: orchestration-only plan")
 	}
-	validated, err := recipe.CompileProgram(definition, r.catalog)
-	if err != nil {
-		return Result{}, err
+	if !program.UsesCatalog(r.catalog) {
+		return Result{}, errors.New("workflow runtime: compiled program uses another module catalog")
 	}
-	if !slices.EqualFunc(program.Stages(), validated.Stages(), func(left, right recipe.Stage) bool {
-		return left.Node == right.Node && left.Module.ID == right.Module.ID
-	}) {
-		return Result{}, errors.New("workflow runtime: compiled program differs from recipe")
-	}
-	return r.executeProgram(ctx, key, validated, inputs)
+	return r.executeProgram(ctx, key, program, inputs)
 }
 
 func (r *Runtime) executeProgram(

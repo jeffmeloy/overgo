@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/recipe"
 )
 
@@ -12,8 +13,8 @@ func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 		recipe.TaskSpeech, recipe.TaskImageGen,
 	} {
 		t.Run(string(task), func(t *testing.T) {
-			capability, ok := capabilityCommands[task]
-			if !ok || capability.inventory == nil || capability.execute == nil {
+			capability, ok := capabilityruntime.Lookup(task)
+			if !ok || capability.Inventory == nil || capability.Execute == nil {
 				t.Fatalf("capability = %+v", capability)
 			}
 		})

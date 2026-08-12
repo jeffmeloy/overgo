@@ -37,9 +37,10 @@ type HunyuanVLImage gridImage
 type HunyuanVLOutput gridOutput
 
 type HunyuanVLRunner struct {
-	file *gguf.File
-	spec HunyuanVLSpec
-	cuda *projectorCUDA
+	file      *gguf.File
+	spec      HunyuanVLSpec
+	attention visionAttentionPlan
+	cuda      *projectorCUDA
 }
 
 type HunyuanVLOpenOptions = OpenOptions
@@ -52,7 +53,7 @@ func OpenHunyuanVLWithOptions(path string, options HunyuanVLOpenOptions) (*Hunyu
 	return openCatalogProjector(path, options, "Hunyuan-VL", nil,
 		ReadHunyuanVLSpec, validateHunyuanVLCatalog,
 		func(file *gguf.File, spec HunyuanVLSpec, cuda *projectorCUDA) *HunyuanVLRunner {
-			return &HunyuanVLRunner{file: file, spec: spec, cuda: cuda}
+			return &HunyuanVLRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads), cuda: cuda}
 		})
 }
 

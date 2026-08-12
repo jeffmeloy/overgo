@@ -27,10 +27,9 @@ func TestBuildGemma4AssistantPipeline(t *testing.T) {
 	hidden := input("target_hidden", 3, 1)
 	pre := input("pre", 6, 2)
 	program := fixtureModelPlan(t, spec, Weights{})
-	current, err := program.BuildFusedInput(builder, token, hidden, pre)
-	if err != nil {
-		t.Fatal(err)
-	}
+	fused := fixtureProjection(t, builder, program, ProjectionPairedInput,
+		ProjectionOperands{Input: token, Paired: hidden, Primary: pre})
+	current := fused.Primary
 	weights := LayerGraphWeights{
 		AttentionNorm:       input("attn_norm", 2),
 		AttentionQ:          input("attn_q", 2, 2),
@@ -57,10 +56,9 @@ func TestBuildGemma4AssistantPipeline(t *testing.T) {
 	outputNorm := input("output_norm", 2)
 	output := input("output", 2, 4)
 	post := input("post", 2, 3)
-	logits, nextHidden, err := program.BuildProjectedOutputs(builder, current, outputNorm, output, post)
-	if err != nil {
-		t.Fatal(err)
-	}
+	projected := fixtureProjection(t, builder, program, ProjectionPairedOutput,
+		ProjectionOperands{Input: current, Primary: output, Secondary: post, Normalization: outputNorm})
+	logits, nextHidden := projected.Primary, projected.Secondary
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	for _, node := range []*tensor.Tensor{
 		token, hidden, pre, weights.AttentionNorm, weights.AttentionQ, weights.AttentionQNorm,

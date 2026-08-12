@@ -45,15 +45,18 @@ func (r *Runner) FuseEagle3Features(ctx context.Context, features reference.Valu
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output, err := r.program.Model.BuildFeatureProjection(runtime.builder, input, projection, nil)
+	result, err := r.program.Model.Projection(model.ProjectionFeature).Build(
+		runtime.builder,
+		model.ProjectionOperands{Input: input, Primary: projection},
+	)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	results, err := runtime.execute(output)
+	results, err := runtime.execute(result.Primary)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	return results[output], nil
+	return results[result.Primary], nil
 }
 
 // NewEagle3Session: full-prefix shifted-cache construction.

@@ -31,13 +31,13 @@ func TestBuildWavTokenizerDecoder(t *testing.T) {
 		ConvNextEmbeddingLength: 2, ConvNextBlockCount: 1,
 		GroupNormGroups: 1, GroupNormEpsilon: 1e-5},
 	}
-	weights := WavTokenizerGraphWeights{
+	weights := SequenceOutputGraphWeights{
 		InputConv:      input("conv1d.weight", tensor.MustShape(7, 2, 2), 0),
 		InputConvBias:  input("conv1d.bias", tensor.MustShape(1, 2), 0),
-		PosNet:         make([]WavPosNetGraphWeights, 6),
+		Residual:       make([]SequenceResidualGraphWeights, 6),
 		TokenNorm:      input("token_norm", tensor.MustShape(2), 1),
 		TokenNormBias:  input("token_norm_bias", tensor.MustShape(2), 0),
-		ConvNext:       make([]WavConvNextGraphWeights, 1),
+		Convolution:    make([]SequenceConvGraphWeights, 1),
 		OutputNorm:     input("output_norm", tensor.MustShape(2), 1),
 		OutputNormBias: input("output_norm_bias", tensor.MustShape(2), 0),
 		Output:         input("output", tensor.MustShape(2, 3), 0),
@@ -46,25 +46,25 @@ func TestBuildWavTokenizerDecoder(t *testing.T) {
 	feeds[weights.OutputBias] = reference.Value{Shape: weights.OutputBias.Shape, Data: []float32{1, 2, 3}}
 	for _, block := range []int{0, 1, 3, 4} {
 		prefix := "posnet"
-		weights.PosNet[block] = WavPosNetGraphWeights{
+		weights.Residual[block] = SequenceResidualGraphWeights{
 			Norm1: input(prefix, tensor.MustShape(1, 2), 1), Norm1Bias: input(prefix, tensor.MustShape(1, 2), 0),
 			Conv1: input(prefix, tensor.MustShape(3, 2, 2), 0), Conv1Bias: input(prefix, tensor.MustShape(1, 2), 0),
 			Norm2: input(prefix, tensor.MustShape(1, 2), 1), Norm2Bias: input(prefix, tensor.MustShape(1, 2), 0),
 			Conv2: input(prefix, tensor.MustShape(3, 2, 2), 0), Conv2Bias: input(prefix, tensor.MustShape(1, 2), 0),
 		}
 	}
-	weights.PosNet[2] = WavPosNetGraphWeights{
+	weights.Residual[2] = SequenceResidualGraphWeights{
 		AttentionNorm: input("attn", tensor.MustShape(1, 2), 1), AttentionNormBias: input("attn", tensor.MustShape(1, 2), 0),
 		AttentionQ: input("attn", tensor.MustShape(1, 2, 2), 0), AttentionQBias: input("attn", tensor.MustShape(1, 2), 0),
 		AttentionK: input("attn", tensor.MustShape(1, 2, 2), 0), AttentionKBias: input("attn", tensor.MustShape(1, 2), 0),
 		AttentionV: input("attn", tensor.MustShape(1, 2, 2), 0), AttentionVBias: input("attn", tensor.MustShape(1, 2), 0),
 		AttentionOutput: input("attn", tensor.MustShape(1, 2, 2), 0), AttentionOutBias: input("attn", tensor.MustShape(1, 2), 0),
 	}
-	weights.PosNet[5] = WavPosNetGraphWeights{
+	weights.Residual[5] = SequenceResidualGraphWeights{
 		AttentionNorm:     input("final_group_norm", tensor.MustShape(1, 2), 1),
 		AttentionNormBias: input("final_group_norm_bias", tensor.MustShape(1, 2), 0),
 	}
-	weights.ConvNext[0] = WavConvNextGraphWeights{
+	weights.Convolution[0] = SequenceConvGraphWeights{
 		Depthwise: input("dw", tensor.MustShape(7, 1, 2), 0), DepthwiseBias: input("dw_bias", tensor.MustShape(1, 2), 0),
 		Norm: input("norm", tensor.MustShape(2), 1), NormBias: input("norm_bias", tensor.MustShape(2), 0),
 		Pointwise1: input("pw1", tensor.MustShape(2, 4), 0), Pointwise1Bias: input("pw1_bias", tensor.MustShape(4), 0),
@@ -73,7 +73,7 @@ func TestBuildWavTokenizerDecoder(t *testing.T) {
 	}
 	embeddings := input("embeddings", tensor.MustShape(2, 3), 0.5)
 	program := fixtureModelPlan(t, spec, Weights{})
-	output, err := program.BuildSequenceOutput(builder, embeddings, weights)
+	output, err := program.SequenceOutput().Build(builder, embeddings, weights)
 	if err != nil {
 		t.Fatal(err)
 	}

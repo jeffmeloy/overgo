@@ -131,6 +131,19 @@ func (f *cudaReferenceFixture) modelPlan(spec model.Spec) model.ModelPlan {
 	return plan
 }
 
+func (f *cudaReferenceFixture) projection(
+	plan model.ModelPlan,
+	role model.ProjectionRole,
+	operands model.ProjectionOperands,
+) model.ProjectionResult {
+	f.t.Helper()
+	result, err := plan.Projection(role).Build(f.builder, operands)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return result
+}
+
 func (f *cudaReferenceFixture) layer(
 	program model.ModelPlan,
 	layer int,

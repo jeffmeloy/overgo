@@ -33,10 +33,9 @@ func TestBuildEagle3FeatureAndDecoder(t *testing.T) {
 	features := input("features", tensor.MustShape(9, 3), 0.1)
 	projection := input("fc", tensor.MustShape(9, 4), 0.02)
 	program := fixtureModelPlan(t, spec, Weights{})
-	fused, err := program.BuildFeatureProjection(builder, features, projection, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	projected := fixtureProjection(t, builder, program, ProjectionFeature,
+		ProjectionOperands{Input: features, Primary: projection})
+	fused := projected.Primary
 	weights := LayerGraphWeights{
 		AttentionNorm:   input("token_norm", tensor.MustShape(4), 0.9),
 		AttentionNorm2:  input("target_norm", tensor.MustShape(4), 0.9),

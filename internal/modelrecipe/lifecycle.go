@@ -434,7 +434,3 @@ func statusAlias(recipeID artifact.ID) string {
 func activeAlias(modelID artifact.ID, task recipe.Task) string {
 	return "recipe.active." + string(task) + "." + modelID.String()
 }
-
-func legacyRecipeProfileAlias(recipeID artifact.ID) string {
-	return "recipe.profile." + recipeID.String()
-}

@@ -30,7 +30,7 @@ const (
 func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	cudatest.Require(t)
 	path := writeHermeticLlamaGGUF(t)
-	runner, err := openFixtureRunnerWithOptions(path, OpenOptions{PreloadDeviceWeights: true, CachePageTokens: 4})
+	runner, err := openF32FixtureRunner(path, OpenOptions{CachePageTokens: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 func TestHermeticCUDACapacityCachePageBoundary(t *testing.T) {
 	cudatest.Require(t)
 	path := writeHermeticLlamaGGUF(t)
-	runner, err := openFixtureRunnerWithOptions(path, OpenOptions{PreloadDeviceWeights: true, CachePageTokens: 4})
+	runner, err := openF32FixtureRunner(path, OpenOptions{CachePageTokens: 4})
 	if err != nil {
 		t.Fatal(err)
 	}

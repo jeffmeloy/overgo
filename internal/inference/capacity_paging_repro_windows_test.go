@@ -20,11 +20,13 @@ func generateCapacityPagingRepro(
 	t *testing.T, path string, session modelrecipe.DecodeSessionPolicy,
 ) []tokenizer.TokenID {
 	t.Helper()
-	loaded, err := servingtest.ResolveActiveGGUFWithSession(path, recipe.PlacementHybrid, session)
+	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+		path, recipe.PlacementHybrid, session, recipe.ResidencyDeviceF32,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenWithProgram(&loaded, OpenOptions{PreloadDeviceWeights: true})
+	runner, err := OpenWithProgram(&loaded, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -62,7 +62,7 @@ const (
 var catalog = mustCatalog()
 
 func Catalog() *recipe.Catalog {
-	return catalog.Clone()
+	return catalog
 }
 
 func Module(id recipe.ModuleID) (recipe.Module, bool) { return catalog.Module(id) }

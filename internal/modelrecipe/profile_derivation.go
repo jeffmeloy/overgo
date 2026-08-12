@@ -122,9 +122,6 @@ func profilePublicationFacts(document ProfileDocument) (
 		return nil, nil, err
 	}
 	contents := []artifact.Content{profileContent}
-	if document.Version == LegacyProfileVersion {
-		return contents, nil, nil
-	}
 	catalog, err := NewCatalogProfileDerivation(document.Policy)
 	if err != nil {
 		return nil, nil, err
@@ -161,9 +158,6 @@ func validateStoredProfileProvenance(
 	store artifact.Reader,
 	document ProfileDocument,
 ) error {
-	if document.Version == LegacyProfileVersion {
-		return nil
-	}
 	parents, err := store.Parents(ctx, document.ID)
 	if err != nil {
 		return err

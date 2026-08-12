@@ -13,6 +13,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
@@ -20,8 +21,12 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func openFixtureRunner(path string, options inference.OpenOptions) (*inference.Runner, error) {
-	loaded, err := servingtest.ResolveActiveGGUF(path, recipe.PlacementHybrid)
+func openFixtureRunner(
+	path string, options inference.OpenOptions, residency recipe.ResidencyPolicy,
+) (*inference.Runner, error) {
+	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+		path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, residency,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +48,7 @@ func TestQwen35VideoEndToEndOracle(t *testing.T) {
 	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
-	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadDeviceWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{}, recipe.ResidencyDeviceF32)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +115,7 @@ func TestGemma4ImageEndToEndOracle(t *testing.T) {
 	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
-	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{}, recipe.ResidencyDeviceNative)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +182,7 @@ func TestGemma4ImageDeviceProjectorEndToEndOracle(t *testing.T) {
 	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
-	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{}, recipe.ResidencyDeviceNative)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +255,7 @@ func TestGemma4AudioEndToEndOracle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{}, recipe.ResidencyDeviceNative)
 	if err != nil {
 		t.Fatal(err)
 	}

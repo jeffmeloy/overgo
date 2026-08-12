@@ -39,11 +39,12 @@ const (
 var catalog = mustCatalog()
 
 type Plan struct {
-	Identity ProgramIdentity
-	Recipe   recipe.Definition
-	Model    model.ModelPlan
-	Decode   DecodePlan
-	Nodes    []recipe.Node
+	Identity  ProgramIdentity
+	Recipe    recipe.Definition
+	Model     model.ModelPlan
+	Decode    DecodePlan
+	Residency recipe.ResidencyPolicy
+	Nodes     []recipe.Node
 }
 
 // Runtime: compiled execution surface.
@@ -59,6 +60,7 @@ type ProgramIdentity struct {
 	Recipe        artifact.ID
 	RecipeVersion uint16
 	Placement     recipe.Placement
+	Residency     recipe.ResidencyPolicy
 	Runtime       Runtime
 }
 
@@ -76,7 +78,7 @@ type DecodePlan struct {
 }
 
 func Catalog() *recipe.Catalog {
-	return catalog.Clone()
+	return catalog
 }
 
 func InferenceWithModelDefinition(
@@ -85,12 +87,13 @@ func InferenceWithModelDefinition(
 	definitionID artifact.ID,
 	placement recipe.Placement,
 	session DecodeSessionPolicy,
+	residency recipe.ResidencyPolicy,
 ) (recipe.Definition, error) {
 	return inference([]recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: modelID},
 		{Role: recipe.DependencyProfile, Artifact: profileID},
 		{Role: recipe.DependencyDefinition, Artifact: definitionID},
-	}, placement, session)
+	}, placement, session, residency)
 }
 
 type scalarStage struct {
@@ -200,8 +203,14 @@ func inference(
 	dependencies []recipe.Dependency,
 	placement recipe.Placement,
 	session DecodeSessionPolicy,
+	residency recipe.ResidencyPolicy,
 ) (recipe.Definition, error) {
-	compile := recipe.Node{ID: "compile", Module: ModuleCompileModelPlan, Placement: placement}
+	if err := validateResidencyPlacement(residency, placement); err != nil {
+		return recipe.Definition{}, err
+	}
+	compile := recipe.Node{
+		ID: "compile", Module: ModuleCompileModelPlan, Placement: placement, Residency: residency,
+	}
 	decode := recipe.Node{
 		ID: "decode", Module: ModuleCompileDecodePlan, Placement: placement, Session: session,
 	}
@@ -266,11 +275,13 @@ func compileDefinition(
 	if err != nil {
 		return Plan{}, err
 	}
-	decode, err := compileDecodePlan(definition.Nodes, modelPlan)
+	decode, residency, err := compileRuntimePolicies(
+		definition.Nodes, modelPlan, programIdentity(definition).Placement,
+	)
 	if err != nil {
 		return Plan{}, err
 	}
-	return compilePlan(definition, definition.Nodes, modelPlan, decode), nil
+	return compilePlan(definition, definition.Nodes, modelPlan, decode, residency), nil
 }
 
 func compilePlan(
@@ -278,37 +289,61 @@ func compilePlan(
 	nodes []recipe.Node,
 	modelPlan model.ModelPlan,
 	decode DecodePlan,
+	residency recipe.ResidencyPolicy,
 ) Plan {
 	return Plan{
 		Identity: programIdentity(definition), Recipe: definition,
-		Model: modelPlan, Decode: decode,
+		Model: modelPlan, Decode: decode, Residency: residency,
 		Nodes: append([]recipe.Node(nil), nodes...),
 	}
 }
 
-func compileDecodePlan(nodes []recipe.Node, modelPlan model.ModelPlan) (DecodePlan, error) {
+func compileRuntimePolicies(
+	nodes []recipe.Node,
+	modelPlan model.ModelPlan,
+	placement recipe.Placement,
+) (DecodePlan, recipe.ResidencyPolicy, error) {
 	var session DecodeSessionPolicy
+	var residency recipe.ResidencyPolicy
 	for _, node := range nodes {
-		if node.Module == ModuleCompileDecodePlan {
-			if session != "" {
-				return DecodePlan{}, errors.New("model recipe: multiple decode-session policies")
+		if node.Session != "" {
+			if node.Module != ModuleCompileDecodePlan || session != "" {
+				return DecodePlan{}, "", errors.New("model recipe: misplaced or duplicate session policy")
 			}
 			session = node.Session
-			continue
 		}
-		if node.Session != "" {
-			return DecodePlan{}, fmt.Errorf(
-				"model recipe: module %q carries decode-session policy", node.Module,
-			)
+		if node.Residency != "" {
+			if node.Module != ModuleCompileModelPlan || residency != "" {
+				return DecodePlan{}, "", errors.New("model recipe: misplaced or duplicate residency policy")
+			}
+			residency = node.Residency
 		}
 	}
-	if session == "" {
-		return DecodePlan{}, errors.New("model recipe: decode-session policy is missing")
+	if session == "" || residency == "" {
+		return DecodePlan{}, "", errors.New("model recipe: runtime policy is incomplete")
 	}
 	if session == DecodeSessionCapacity && !modelPlan.SupportsCapacityCache() {
-		return DecodePlan{}, errors.New("model recipe: capacity session is incompatible with model plan")
+		return DecodePlan{}, "", errors.New("model recipe: capacity session is incompatible with model plan")
 	}
-	return DecodePlan{Session: session}, nil
+	if err := validateResidencyPlacement(residency, placement); err != nil {
+		return DecodePlan{}, "", err
+	}
+	return DecodePlan{Session: session}, residency, nil
+}
+
+func validateResidencyPlacement(policy recipe.ResidencyPolicy, placement recipe.Placement) error {
+	if policy == "" || !policy.Valid() {
+		return errors.New("model recipe: residency policy is invalid")
+	}
+	if placement == recipe.PlacementDevice &&
+		(policy == recipe.ResidencyStream || policy == recipe.ResidencyHostCache ||
+			policy == recipe.ResidencyHybridNative || policy == recipe.ResidencyHostReference) {
+		return errors.New("model recipe: residency policy is incompatible with device placement")
+	}
+	if placement == recipe.PlacementHost && policy != recipe.ResidencyHostReference && policy != recipe.ResidencyHostCache {
+		return errors.New("model recipe: residency policy is incompatible with host placement")
+	}
+	return nil
 }
 
 func programIdentity(definition recipe.Definition) ProgramIdentity {
@@ -319,6 +354,9 @@ func programIdentity(definition recipe.Definition) ProgramIdentity {
 	identity.Profile, _ = definition.Dependency(recipe.DependencyProfile, 0)
 	identity.Definition, _ = definition.Dependency(recipe.DependencyDefinition, 0)
 	for _, node := range definition.Nodes {
+		if node.Module == ModuleCompileModelPlan {
+			identity.Residency = node.Residency
+		}
 		if node.Module == ModuleForwardTokens {
 			identity.Placement = node.Placement
 			break
@@ -336,7 +374,7 @@ func validateProgramIdentity(definition recipe.Definition, identity ProgramIdent
 		identity.Profile.Kind() != artifact.KindProfile ||
 		identity.Definition.Kind() != artifact.KindModelDefinition ||
 		identity.Recipe.Kind() != artifact.KindRecipe ||
-		identity.Runtime != RuntimeInference || identity.Placement == "" {
+		identity.Runtime != RuntimeInference || identity.Placement == "" || identity.Residency == "" {
 		return errors.New("model recipe: serving program identity is incomplete")
 	}
 	for _, node := range definition.Nodes {
@@ -358,9 +396,9 @@ func (p Plan) ValidateServing() error {
 	if !slices.Equal(p.Nodes, p.Recipe.Nodes) {
 		return errors.New("model recipe: serving node program differs")
 	}
-	decode, err := compileDecodePlan(p.Nodes, p.Model)
-	if err != nil || decode != p.Decode {
-		return errors.New("model recipe: serving decode program differs")
+	decode, residency, err := compileRuntimePolicies(p.Nodes, p.Model, p.Identity.Placement)
+	if err != nil || decode != p.Decode || residency != p.Residency || residency != p.Identity.Residency {
+		return errors.New("model recipe: serving runtime program differs")
 	}
 	return nil
 }

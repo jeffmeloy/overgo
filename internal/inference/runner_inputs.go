@@ -47,8 +47,8 @@ func (r *Runner) decodeDeviceInput(
 func (r *Runner) wavTokenizerGraphInputs(
 	ctx context.Context,
 	builder *tensor.Builder,
-) (model.WavTokenizerGraphWeights, map[*tensor.Tensor]reference.Value, map[*tensor.Tensor]driver.DevicePtr, error) {
-	var result model.WavTokenizerGraphWeights
+) (model.SequenceOutputGraphWeights, map[*tensor.Tensor]reference.Value, map[*tensor.Tensor]driver.DevicePtr, error) {
+	var result model.SequenceOutputGraphWeights
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	if r.weights.WavTokenizer == nil {
@@ -92,9 +92,9 @@ func (r *Runner) wavTokenizerGraphInputs(
 			return result, nil, nil, err
 		}
 	}
-	result.PosNet = make([]model.WavPosNetGraphWeights, len(info.PosNet))
+	result.Residual = make([]model.SequenceResidualGraphWeights, len(info.PosNet))
 	for block := range info.PosNet {
-		source, destination := &info.PosNet[block], &result.PosNet[block]
+		source, destination := &info.PosNet[block], &result.Residual[block]
 		for _, item := range []struct {
 			destination **tensor.Tensor
 			info        gguf.TensorInfo
@@ -116,9 +116,9 @@ func (r *Runner) wavTokenizerGraphInputs(
 			}
 		}
 	}
-	result.ConvNext = make([]model.WavConvNextGraphWeights, len(info.ConvNext))
+	result.Convolution = make([]model.SequenceConvGraphWeights, len(info.ConvNext))
 	for block := range info.ConvNext {
-		source, destination := &info.ConvNext[block], &result.ConvNext[block]
+		source, destination := &info.ConvNext[block], &result.Convolution[block]
 		for _, item := range []struct {
 			destination **tensor.Tensor
 			info        gguf.TensorInfo

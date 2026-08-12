@@ -456,7 +456,9 @@ type ModelPlan struct {
 	cachedGraph  CachedGraphPolicy
 	terminal     TerminalPlan
 	draft        DraftPlan
-	cacheProject cacheProjectionPolicy
+	cacheProject CacheProjectionProgram
+	projections  [projectionRoleCount]ProjectionProgram
+	sequenceOut  SequenceOutputProgram
 }
 
 // CompileModelPlan: resolves architecture decisions before execution.
@@ -492,14 +494,11 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	}
 	plan := ModelPlan{
 		spec: spec, profile: profile, layers: make([]LayerPlan, layers), cacheLayers: cacheLayers,
-		terminal: TerminalPlan{Normalization: profile.OutputNorm},
-		draft:    profile.DraftPlan(spec.NextNPredictLayers),
-		cacheProject: func() cacheProjectionPolicy {
-			if profile.Forward == ForwardDFlash {
-				return cacheProjectionRotaryQKNorm
-			}
-			return cacheProjectionNone
-		}(),
+		terminal:     TerminalPlan{Normalization: profile.OutputNorm},
+		draft:        profile.DraftPlan(spec.NextNPredictLayers),
+		cacheProject: compileCacheProjectionProgram(spec, profile),
+		projections:  compileProjectionPrograms(spec, profile),
+		sequenceOut:  compileSequenceOutputProgram(spec, profile),
 	}
 	if weights.Output != nil {
 		plan.terminal.OutputHead = OutputHeadDedicated
@@ -803,6 +802,20 @@ func (p ModelPlan) CachedGraph() CachedGraphPolicy { return p.cachedGraph }
 
 // Terminal: compiled output stages.
 func (p ModelPlan) Terminal() TerminalPlan { return p.terminal }
+
+// Projection: compiled auxiliary projection program; absent roles fail on Build.
+func (p ModelPlan) Projection(role ProjectionRole) ProjectionProgram {
+	if role >= projectionRoleCount {
+		return ProjectionProgram{}
+	}
+	return p.projections[role]
+}
+
+// CacheProjection: compiled auxiliary K/V projection program.
+func (p ModelPlan) CacheProjection() CacheProjectionProgram { return p.cacheProject }
+
+// SequenceOutput: compiled terminal sequence program.
+func (p ModelPlan) SequenceOutput() SequenceOutputProgram { return p.sequenceOut }
 
 // Draft: compiled speculative policy.
 func (p ModelPlan) Draft() DraftPlan { return p.draft }

@@ -19,6 +19,7 @@ import (
 	"overgo/internal/closureledger"
 	"overgo/internal/dataset"
 	"overgo/internal/finding"
+	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
@@ -27,12 +28,13 @@ import (
 )
 
 const (
-	Version         uint16 = 1
-	SourceMediaType        = "application/vnd.overgo.repodb-import+json"
-	SourceSchema           = "overgo/repodb-import/v1"
-	maxLineBytes           = artifact.MaxContentBytes
-	maxImportBytes         = 512 << 20
-	maxRecords             = 1_000_000
+	Version             uint16 = 1
+	SourceMediaType            = "application/vnd.overgo.repodb-import+json"
+	SourceSchema               = "overgo/repodb-import/v1"
+	maxLineBytes               = artifact.MaxContentBytes
+	maxImportBytes             = 512 << 20
+	maxRecords                 = 1_000_000
+	legacyProfileSchema        = "overgo/model-profile/v1"
 )
 
 var sourceContract = artifact.DocumentContract{
@@ -309,7 +311,7 @@ func resolveNode(
 	// Known documents are canonicalized by their OWN codec before identity:
 	// the reference-resolution marshal above is generic and cannot know each
 	// type's canonical field order, and stored bytes are identity.
-	data, err = canonicalizeKnownDocument(node.record.MediaType, node.record.Schema, data)
+	data, schema, err := canonicalizeKnownDocument(node.record.MediaType, node.record.Schema, data)
 	if err != nil {
 		return false, artifact.ID{}, nil, nil, err
 	}
@@ -318,7 +320,7 @@ func resolveNode(
 		return false, artifact.ID{}, nil, nil, err
 	}
 	content := artifact.Content{Descriptor: artifact.Descriptor{
-		ID: id, Size: uint64(len(data)), MediaType: node.record.MediaType, Schema: node.record.Schema,
+		ID: id, Size: uint64(len(data)), MediaType: node.record.MediaType, Schema: schema,
 	}, Data: data}
 	if err := content.Validate(); err != nil {
 		return false, artifact.ID{}, nil, nil, err
@@ -329,8 +331,9 @@ func resolveNode(
 // canonicalizeKnownDocument returns the domain codec's canonical bytes for a
 // known media type (admitting any field order), and the input unchanged for
 // unknown types. Each codec owns its canonical-form fact.
-func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, error) {
+func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, string, error) {
 	canonical := data
+	resolvedSchema := schema
 	var err error
 	requireSchema := func(allowed ...string) {
 		if !slices.Contains(allowed, schema) {
@@ -357,11 +360,16 @@ func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, e
 		}
 		_, canonical, err = recipe.NormalizeDecision(data)
 	case modelrecipe.ProfileMediaType:
-		requireSchema(modelrecipe.ProfileSchema, modelrecipe.LegacyProfileSchema)
+		requireSchema(modelrecipe.ProfileSchema, legacyProfileSchema)
 		if err != nil {
 			break
 		}
-		_, canonical, err = modelrecipe.NormalizeProfileDocument(data)
+		if schema == legacyProfileSchema {
+			canonical, err = upgradeLegacyProfile(data)
+			resolvedSchema = modelrecipe.ProfileSchema
+		} else {
+			_, canonical, err = modelrecipe.NormalizeProfileDocument(data)
+		}
 	case modelrecipe.CatalogProfileDerivationMediaType:
 		requireSchema(modelrecipe.CatalogProfileDerivationSchema)
 		if err != nil {
@@ -442,9 +450,28 @@ func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, e
 		_, canonical, err = modelartifact.NormalizeTensorMeasurementDocument(data)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("repodb import: invalid %q document: %w", mediaType, err)
+		return nil, "", fmt.Errorf("repodb import: invalid %q document: %w", mediaType, err)
 	}
-	return canonical, nil
+	return canonical, resolvedSchema, nil
+}
+
+func upgradeLegacyProfile(data []byte) ([]byte, error) {
+	var legacy struct {
+		Version      uint16                    `json:"version"`
+		Architecture string                    `json:"architecture"`
+		Policy       model.ArchitectureProfile `json:"policy"`
+	}
+	if err := strictjson.DecodeBytes(data, &legacy); err != nil {
+		return nil, err
+	}
+	if legacy.Version != 1 || legacy.Architecture == "" || legacy.Policy.Name != legacy.Architecture {
+		return nil, errors.New("invalid legacy model profile")
+	}
+	document, err := modelrecipe.NewProfileDocument(legacy.Policy)
+	if err != nil {
+		return nil, err
+	}
+	return document.Content()
 }
 
 func resolveReferences(value any, names map[string]artifact.ID) (any, bool, error) {

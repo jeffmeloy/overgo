@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -93,30 +92,6 @@ func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
 	invalid[0].SourceField = ""
 	if _, err := NewProfileDocumentWithProvenance(profile, invalid); err == nil {
 		t.Fatal("profile provenance without source accepted")
-	}
-}
-
-func TestLegacyProfileDocumentRemainsReadable(t *testing.T) {
-	profile, _ := model.LookupArchitecture("llama")
-	content, err := json.Marshal(profileBody{
-		Version: LegacyProfileVersion, Architecture: profile.Name, Policy: profile,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	document, err := ParseProfileDocument(content)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Version != LegacyProfileVersion || len(document.Provenance) != 0 {
-		t.Fatalf("legacy profile = %+v", document)
-	}
-	encoded, err := document.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(encoded, content) {
-		t.Fatal("legacy profile encoding changed")
 	}
 }
 

@@ -59,7 +59,7 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 		v := builder.GroupSlice(qkv, uint64(2*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
 		q = llama4VisionRoPEGraph(builder, q, positionsW, positionsH, r.spec.RopeTheta)
 		k = llama4VisionRoPEGraph(builder, k, positionsW, positionsH, r.spec.RopeTheta)
-		attention := mustVisionAttentionPlan(r.spec.Hidden, r.spec.Heads, false).graph(builder, q, k, v)
+		attention := r.attention.graph(builder, q, k, v)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))
 		projected := graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_out.weight"), attention), prefix+"attn_out.bias")
 		hidden = builder.Add(hidden, projected)

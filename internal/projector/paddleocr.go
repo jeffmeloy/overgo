@@ -49,9 +49,10 @@ type PaddleOCRImage gridImage
 type PaddleOCROutput gridOutput
 
 type PaddleOCRRunner struct {
-	file *gguf.File
-	spec PaddleOCRSpec
-	cuda *projectorCUDA
+	file      *gguf.File
+	spec      PaddleOCRSpec
+	attention visionAttentionPlan
+	cuda      *projectorCUDA
 }
 
 type PaddleOCROpenOptions = OpenOptions
@@ -64,7 +65,7 @@ func OpenPaddleOCRWithOptions(path string, options PaddleOCROpenOptions) (*Paddl
 	return openCatalogProjector(path, options, "PaddleOCR", nil,
 		ReadPaddleOCRSpec, validatePaddleOCRCatalog,
 		func(file *gguf.File, spec PaddleOCRSpec, cuda *projectorCUDA) *PaddleOCRRunner {
-			return &PaddleOCRRunner{file: file, spec: spec, cuda: cuda}
+			return &PaddleOCRRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads), cuda: cuda}
 		})
 }
 

@@ -3,14 +3,27 @@
   "doctrine": "PORT-FIRST (owner, 2026-08-09, standing): the point of this campaign is to PORT adaptive_new into overgo, never to start from scratch. Every capability AND performance slice STARTS from adaptive_new's verified implementation: read it end-to-end, port its structure/kernels/math, verify against its goldens. Novel design is admissible ONLY after the port matches the reference, and only as a measured improvement on top of it. A slice that reinvents what adaptive already ships is the named failure mode. The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/.claude/worktrees/image_gen/image_gen_report.md -- Wan python 463.4s/8.8GB vs exact-Go 739.9s/22.54GB (denoise 690.9s dominates) vs quality-fast 424.3s/11.95GB (FAILS single-complete-cone); safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; the quality-fast attention approximation is the degradation to avoid. Owner note: route media denoise through overgo's OWN tensor machinery (retained CUDA-graph replay, bf16-native decode catalog, GEMV/epilogue fusion rewrites, calibrated dispatch) rather than porting adaptive's slower path -- that machinery already beat adaptive on rungs 3-4 and is the intended edge over Python.",
   "items": [
     {
-      "id": "loop-hardening-4",
-      "title": "fix + wire overgo Stop hook: add stop_hook_active re-attempt valve to overgo_stop_gate.sh (without it a no-progress turn hard-wedges) + wire it as the Stop hook in .claude/settings.json so overgo-ROOTED sessions self-enforce the loop (adaptive_new is reference-only; its stop hook watched the wrong repo, which is why the loop never enforced and drift/milestone-stop went uncaught)",
+      "id": "merge-tightening-4",
+      "title": "merge overgo_tightening into master (4 commits since 7efcbae: compile neutral aux graph programs, recipe residency authoritative, centralize capability runtime assembly, seal capability execution authority); PROVE no session work lost (hostmath/optimizer/densecausal/scripts additions survive); gate -merge -plan; run full+cuda tests after",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "fix + wire overgo Stop hook: add stop_hook_active re-attempt valve to overgo_stop_gate.sh (without it a no-progress turn hard-wedges) + wire it as the Stop hook in .claude/settings.json so overgo-ROOTED sessions self-enforce the loop (adaptive_new is reference-only; its stop hook watched the wrong repo, which is why the loop never enforced and drift/milestone-stop went uncaught)",
+          "title": "merge overgo_tightening into master (4 commits since 7efcbae: compile neutral aux graph programs, recipe residency authoritative, centralize capability runtime assembly, seal capability execution authority); PROVE no session work lost (hostmath/optimizer/densecausal/scripts additions survive); gate -merge -plan; run full+cuda tests after",
           "status": "open",
+          "verify": "go build ./... \u0026\u0026 bash scripts/overgo_stop_gate.sh --selftest \u0026\u0026 test -f scripts/gen_qwen35_hybrid_grad_golden.py \u0026\u0026 git merge-base --is-ancestor overgo_tightening HEAD"
+        }
+      ]
+    },
+    {
+      "id": "loop-hardening-4",
+      "title": "fix + wire overgo Stop hook: add stop_hook_active re-attempt valve to overgo_stop_gate.sh (without it a no-progress turn hard-wedges) + wire it as the Stop hook in .claude/settings.json so overgo-ROOTED sessions self-enforce the loop (adaptive_new is reference-only; its stop hook watched the wrong repo, which is why the loop never enforced and drift/milestone-stop went uncaught)",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "fix + wire overgo Stop hook: add stop_hook_active re-attempt valve to overgo_stop_gate.sh (without it a no-progress turn hard-wedges) + wire it as the Stop hook in .claude/settings.json so overgo-ROOTED sessions self-enforce the loop (adaptive_new is reference-only; its stop hook watched the wrong repo, which is why the loop never enforced and drift/milestone-stop went uncaught)",
+          "status": "done",
           "verify": "bash scripts/overgo_stop_gate.sh --selftest"
         }
       ]

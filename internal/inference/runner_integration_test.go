@@ -195,9 +195,8 @@ func TestPreloadedCachedLayerInputsMatchFullExtraction(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal:           0,
-		PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -299,9 +298,8 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal:           0,
-		PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -560,9 +558,8 @@ func TestNativeQwen35HybridMatchesOracleAndResumes(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal:           0,
-		PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -734,8 +731,8 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -875,8 +872,8 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN35_MTP_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -973,12 +970,12 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	if assistantPath == "" || targetPath == "" {
 		t.Skip("OVERGO_GEMMA4_ASSISTANT_MODEL and OVERGO_GEMMA4_TARGET_MODEL are not set")
 	}
-	assistant, err := openFixtureRunnerWithOptions(assistantPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	assistant, err := openNativeFixtureRunner(assistantPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer assistant.Close()
-	target, err := openFixtureRunnerWithOptions(targetPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	target, err := openNativeFixtureRunner(targetPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1055,12 +1052,12 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	if draftPath == "" || targetPath == "" {
 		t.Skip("OVERGO_EAGLE3_MODEL and OVERGO_EAGLE3_TARGET_MODEL are not set")
 	}
-	draftRunner, err := openFixtureRunnerWithOptions(draftPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	draftRunner, err := openNativeFixtureRunner(draftPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer draftRunner.Close()
-	target, err := openFixtureRunnerWithOptions(targetPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	target, err := openNativeFixtureRunner(targetPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1127,12 +1124,12 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	if draftPath == "" || targetPath == "" {
 		t.Skip("OVERGO_DFLASH_MODEL and OVERGO_DFLASH_TARGET_MODEL are not set")
 	}
-	draftRunner, err := openFixtureRunnerWithOptions(draftPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	draftRunner, err := openNativeFixtureRunner(draftPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer draftRunner.Close()
-	target, err := openFixtureRunnerWithOptions(targetPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	target, err := openNativeFixtureRunner(targetPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1204,7 +1201,7 @@ func TestWavTokenizerDecodeWaveform(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_WAVTOKENIZER_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{DeviceOrdinal: 0, PreloadQuantizedWeights: true})
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1228,8 +1225,8 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_COHERE2_MTP_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1320,9 +1317,8 @@ func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_BONSAI_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal:           0,
-		PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1352,9 +1348,8 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_GEMMA3_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal:           0,
-		PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1416,9 +1411,8 @@ func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_UMT5_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal:           0,
-		PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1507,9 +1501,8 @@ func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
 
 func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	t.Helper()
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal:           0,
-		PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)

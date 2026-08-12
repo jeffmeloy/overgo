@@ -15,15 +15,13 @@ import (
 )
 
 type cliConfig struct {
-	model       string
-	repository  string
-	prompt      string
-	device      int
-	preload     bool
-	nativeQuant bool
-	lora        []string
-	visual      bool
-	diffusion   inference.DiffusionOptions
+	model      string
+	repository string
+	prompt     string
+	device     int
+	lora       []string
+	visual     bool
+	diffusion  inference.DiffusionOptions
 }
 
 func main() {
@@ -37,7 +35,7 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 	}
 	runner, err := clioptions.OpenRunner(
 		context.Background(), config.repository, config.model,
-		clioptions.BuildOpenOptions(config.device, config.preload, config.nativeQuant, config.lora, 1),
+		clioptions.BuildOpenOptions(config.device, config.lora, 1),
 	)
 	if err != nil {
 		return err
@@ -63,9 +61,7 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 func parseCLI(arguments []string) (cliConfig, error) {
 	flags := flag.NewFlagSet("diffusion", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	modelFlags := clioptions.AddModelFlagsWithConfig(flags, "GGUF LoRA adapter at scale 1; repeatable", clioptions.ModelFlagConfig{
-		PreloadName: "preload", NativeQuantName: "native-quant",
-	})
+	modelFlags := clioptions.AddModelFlags(flags, "GGUF LoRA adapter at scale 1; repeatable")
 	length := flags.Int("length", 512, "total prompt-plus-output sequence length")
 	steps := flags.Int("steps", 128, "diffusion step count")
 	algorithm := flags.Int("algorithm", 4, "ranking: 0 origin, 1 entropy, 2 margin, 3 random, 4 confidence")
@@ -85,11 +81,6 @@ func parseCLI(arguments []string) (cliConfig, error) {
 	}
 	if flags.NArg() != 2 {
 		return cliConfig{}, errors.New("usage: diffusion [options] <model.gguf> <prompt>")
-	}
-	preload := modelFlags.Preload != nil && *modelFlags.Preload
-	nativeQuant := modelFlags.NativeQuant != nil && *modelFlags.NativeQuant
-	if preload && nativeQuant {
-		return cliConfig{}, errors.New("diffusion: -preload and -native-quant are mutually exclusive")
 	}
 	if (*epsilon == 0) == (*blockLength == 0) {
 		return cliConfig{}, errors.New("diffusion: set exactly one of -eps or -block-length")
@@ -128,7 +119,7 @@ func parseCLI(arguments []string) (cliConfig, error) {
 	return cliConfig{
 		model: flags.Arg(0), repository: *modelFlags.Repository,
 		prompt: flags.Arg(1), device: *modelFlags.DeviceOrdinal,
-		preload: preload, nativeQuant: nativeQuant, lora: modelFlags.LoRAPaths(), visual: *visual,
+		lora: modelFlags.LoRAPaths(), visual: *visual,
 		diffusion: inference.DiffusionOptions{
 			MaxLength: *length, Steps: *steps,
 			Temperature: float32(*temperature), TopK: *topK, TopP: float32(*topP), Seed: *seed,

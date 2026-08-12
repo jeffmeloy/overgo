@@ -31,23 +31,14 @@ func TestEncoderRunnersRejectVocabularyLogits(t *testing.T) {
 	}
 }
 
-func TestCausalRunnerRejectsNonCausalEntryPoint(t *testing.T) {
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}}}
-	runner = attachFixtureProgram(runner)
-	_, err := runner.ForwardNonCausal(context.Background(), nil)
-	if err == nil || !strings.Contains(err.Error(), "not configured for non-causal") {
-		t.Fatalf("ForwardNonCausal error = %v", err)
-	}
-}
-
-func TestLFM2RunnerAcceptsNonCausalEntryPoint(t *testing.T) {
+func TestLFM2RunnerUsesCompiledNonCausalForward(t *testing.T) {
 	for _, architecture := range []string{"lfm2", "lfm2moe"} {
 		t.Run(architecture, func(t *testing.T) {
 			runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}}}}
 			runner = attachFixtureProgram(runner)
-			_, err := runner.ForwardNonCausal(context.Background(), nil)
+			_, err := runner.Forward(context.Background(), nil)
 			if err == nil || !strings.Contains(err.Error(), "token sequence is empty") {
-				t.Fatalf("ForwardNonCausal error = %v", err)
+				t.Fatalf("Forward error = %v", err)
 			}
 		})
 	}

@@ -209,11 +209,6 @@ type NormalizationPlan struct {
 	FeedForwardLayout FeedForwardNormLayoutPolicy
 }
 
-// Weighted: learned normalization weight required.
-func (p NormalizationPlan) Weighted() bool {
-	return p.Operation != NormalizationUnweightedLayer && p.Operation != NormalizationUnweightedRMS
-}
-
 // PostNormTensors: post-norm tensor namespace.
 func (p NormalizationPlan) PostNormTensors() PostNormTensorNames {
 	switch p.PostNormLayout {

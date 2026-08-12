@@ -12,24 +12,6 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func (r *Runner) ForwardNonCausal(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-) (reference.Value, error) {
-	if r == nil {
-		return reference.Value{}, errors.New("inference: runner is nil")
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, errors.New("inference: runner is closed")
-	}
-	if !r.spec.NonCausalAttention && r.profile().Attention != model.AttentionLFM2 {
-		return reference.Value{}, errors.New("inference: model is not configured for non-causal attention")
-	}
-	return r.forwardNonCausalLocked(ctx, tokenIDs)
-}
-
 // DecodeWavTokenizer: decodes semantic tokens into audio-feature frames.
 func (r *Runner) DecodeWavTokenizer(
 	ctx context.Context,
@@ -47,31 +29,6 @@ func (r *Runner) DecodeWavTokenizer(
 		return reference.Value{}, errors.New("inference: audio decode requires wavtokenizer-dec architecture")
 	}
 	return r.forwardWavTokenizerLocked(ctx, tokenIDs)
-}
-
-// ForwardNonCausalLogits: evaluates complete bidirectional sequence and
-// returns vocabulary logits for every position in shape [vocabulary, tokens]
-// never creates or mutates decoder cache state
-func (r *Runner) ForwardNonCausalLogits(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-) (reference.Value, error) {
-	if r == nil {
-		return reference.Value{}, errors.New("inference: runner is nil")
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, errors.New("inference: runner is closed")
-	}
-	if !r.spec.NonCausalAttention && r.profile().Attention != model.AttentionLFM2 {
-		return reference.Value{}, errors.New("inference: model is not configured for non-causal attention")
-	}
-	hidden, err := r.forwardNonCausalLocked(ctx, tokenIDs)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	return r.projectAllLogits(ctx, hidden)
 }
 
 func (r *Runner) forwardNonCausalLocked(

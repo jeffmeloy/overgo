@@ -134,20 +134,6 @@ func (b *Builder) MoESoftmaxWithSelectionBias(
 	})
 }
 
-// MoESoftmaxLimitedWithSelectionBias: biased selection; limited SwiGLU.
-func (b *Builder) MoESoftmaxLimitedWithSelectionBias(
-	input, router, gate, up, down, selectionBias *Tensor,
-	topK uint32,
-	normalizeTopKProb bool,
-	scale, swigluClamp float32,
-) *Tensor {
-	return b.buildMoE(input, router, up, down, moeOptions{
-		gate: gate, selectionBias: selectionBias, topK: topK, normalizeTopKProb: normalizeTopKProb,
-		scale: scale, routing: MoERoutingSoftmax, activation: MoEActivationSiLU,
-		expertIndexDivisor: 1, swigluClamp: swigluClamp,
-	})
-}
-
 // MoESoftmaxFusedGateUp: softmax top-k; fused expert gate/up storage.
 func (b *Builder) MoESoftmaxFusedGateUp(
 	input, router, gateUp, down, selectionBias *Tensor,
@@ -256,20 +242,6 @@ func (b *Builder) MoEGELUWithRouterInput(
 		routerInput: routerInput, gate: gate, expertScale: expertScale, topK: topK,
 		normalizeTopKProb: normalizeTopKProb, scale: scale, routing: MoERoutingSoftmax,
 		activation: MoEActivationGELU, expertIndexDivisor: 1,
-	})
-}
-
-// MoEGELUFusedGateUpWithRouterInput: split router input; fused GEGLU experts.
-func (b *Builder) MoEGELUFusedGateUpWithRouterInput(
-	input, routerInput, router, gateUp, down, expertScale *Tensor,
-	topK uint32,
-	normalizeTopKProb bool,
-	scale float32,
-) *Tensor {
-	return b.buildMoE(input, router, gateUp, down, moeOptions{
-		routerInput: routerInput, expertScale: expertScale, topK: topK,
-		normalizeTopKProb: normalizeTopKProb, scale: scale, routing: MoERoutingSoftmax,
-		activation: MoEActivationGELU, fusedGateUp: true, expertIndexDivisor: 1,
 	})
 }
 

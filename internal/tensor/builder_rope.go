@@ -121,21 +121,6 @@ func (b *Builder) RoPENeoXScaledWithFactors(
 	})
 }
 
-// RoPENeoXWithFactors: applies one frequency divisor per rotary pair
-func (b *Builder) RoPENeoXWithFactors(
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	frequencyBase float32,
-	frequencyFactors *Tensor,
-) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
-		frequencyFactors: frequencyFactors, rotaryDimensions: rotaryDimensions,
-		frequencyBase: frequencyBase, frequencyScale: 1,
-	})
-}
-
 // RoPENormal: applies rotary embeddings to consecutive channel pairs, as used
 // by Llama architecture family
 func (b *Builder) RoPENormal(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {

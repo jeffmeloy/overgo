@@ -40,9 +40,6 @@ func (e *Env) SetGlobal(name string, fn GlobalFunc) {
 	e.globals[name] = callable{name: name, call: fn}
 }
 
-// SetValue registers a global value (non-callable) available to templates.
-func (e *Env) SetValue(name string, v any) { e.globals[name] = v }
-
 // SetFilter registers (or replaces) a filter.
 func (e *Env) SetFilter(name string, f Filter) { e.filters[name] = f }
 

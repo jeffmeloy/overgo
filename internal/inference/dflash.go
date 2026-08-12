@@ -132,15 +132,6 @@ func (r *Runner) ExtractLayerInputs(
 	return result, nil
 }
 
-// PrimeDFlash: extracts, fuses, and injects one committed prefix.
-func (r *Runner) PrimeDFlash(
-	ctx context.Context,
-	target *Runner,
-	tokenIDs []tokenizer.TokenID,
-) (*KVCache, error) {
-	return r.SyncDFlashPrefix(ctx, target, tokenIDs, nil)
-}
-
 // SyncDFlashPrefix: recomputes target inputs; injects unsynced suffix.
 func (r *Runner) SyncDFlashPrefix(
 	ctx context.Context,

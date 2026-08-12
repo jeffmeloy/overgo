@@ -354,12 +354,6 @@ func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 	return CompileDenoiserProgramPrecision(c, weights, geometry, DenoiserPrecision{MatmulWeights: dtype.F32})
 }
 
-// CompileDenoiserProgramTyped: weight-storage-only selection (attention
-// stays exact F32).
-func CompileDenoiserProgramTyped(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, matmulWeightType dtype.Type) (*DenoiserProgram, error) {
-	return CompileDenoiserProgramPrecision(c, weights, geometry, DenoiserPrecision{MatmulWeights: matmulWeightType})
-}
-
 // CompileDenoiserProgramPrecision: builds both graphs under one precision
 // declaration.
 func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision) (*DenoiserProgram, error) {

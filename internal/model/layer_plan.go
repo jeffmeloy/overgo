@@ -80,22 +80,6 @@ const (
 	LayerOperatorFeedForwardOutput
 )
 
-// RecurrentMixPolicy: recurrent operator implementation.
-type RecurrentMixPolicy uint8
-
-const (
-	RecurrentMixNone RecurrentMixPolicy = iota
-	RecurrentMixMamba
-	RecurrentMixMamba2
-	RecurrentMixPLaMo2
-	RecurrentMixGatedDelta
-	RecurrentMixShortConvolution
-	RecurrentMixDynamicWKV6
-	RecurrentMixAffineWKV6
-	RecurrentMixDynamicWKV7
-	RecurrentMixKeyedDeltaAttention
-)
-
 // AttentionMixPolicy: attention operator implementation.
 type AttentionMixPolicy uint8
 
@@ -148,16 +132,14 @@ const (
 
 // LayerOperatorInstruction: compiled operator and operand indexes.
 type LayerOperatorInstruction struct {
-	Operator               LayerOperator
-	Attention              AttentionMixPolicy
-	Hybrid                 HybridMixPolicy
-	Recurrent              RecurrentMixPolicy
-	FeedForward            FeedForwardMixPolicy
-	RequireConvolutionBias bool
-	CacheCount             uint8
-	TensorCount            uint8
-	Caches                 [maxLayerCacheBindings]RuntimeCacheBinding
-	Tensors                [maxLayerTensorBindings]RuntimeTensorBinding
+	Operator    LayerOperator
+	Attention   AttentionMixPolicy
+	Hybrid      HybridMixPolicy
+	FeedForward FeedForwardMixPolicy
+	CacheCount  uint8
+	TensorCount uint8
+	Caches      [maxLayerCacheBindings]RuntimeCacheBinding
+	Tensors     [maxLayerTensorBindings]RuntimeTensorBinding
 }
 
 // LayerProgram: ordered fixed-capacity layer instructions.
@@ -430,7 +412,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		QueryScale:        s.queryScalePlan(profile, layer),
 		AttentionOutput:   s.attentionOutputPlan(normalization),
 		ResidualStages:    residualStages,
-		StateSpace:        s.stateSpacePlan(layer),
+		StateSpace:        s.stateSpacePlan(layer, recurrent),
 	}
 	plan.Program = compileLayerProgram(plan, profile)
 	return plan
@@ -672,7 +654,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		if layer.Normalization != norm {
 			return fmt.Errorf("model plan layer %d normalization drifted from model policy", index)
 		}
-		if layer.StateSpace != spec.stateSpacePlan(uint32(index)) {
+		if layer.StateSpace != spec.stateSpacePlan(uint32(index), layer.Recurrent) {
 			return fmt.Errorf("model plan layer %d state-space policy is inconsistent", index)
 		}
 	}
@@ -886,19 +868,19 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	composition := plan.Composition
 	if profile.Attention == AttentionLFM2 && recurrent {
 		return residualMixerProgram(
-			recurrentLayerStage(RecurrentMixShortConvolution, false), FeedForwardMixStandardSwiGLU, false,
+			recurrentLayerStage(), FeedForwardMixStandardSwiGLU, false,
 		)
 	}
 	if profile.DenseGraph == DenseGraphRWKV6Qwen2 {
 		return residualMixerProgram(
-			recurrentLayerStage(RecurrentMixDynamicWKV6, false), FeedForwardMixStandardSwiGLU,
+			recurrentLayerStage(), FeedForwardMixStandardSwiGLU,
 			plan.ResidualStages.residualScale > 0,
 		)
 	}
 	if profile.Attention == AttentionQwenGDN {
 		mixer := attentionLayerStage(AttentionMixGatedProjection)
 		if recurrent {
-			mixer = recurrentLayerStage(RecurrentMixGatedDelta, false)
+			mixer = recurrentLayerStage()
 		}
 		return residualMixerProgram(mixer, FeedForwardMixRoutedSwiGLU, false)
 	}
@@ -909,7 +891,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 	if block == BlockGraniteHybrid {
 		return newLayerProgram(
-			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixMamba2, false),
+			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
 			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixStandardSwiGLU),
 			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
@@ -917,12 +899,12 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 	if block == BlockJamba {
 		return residualMixerProgram(
-			recurrentLayerStage(RecurrentMixMamba, false), FeedForwardMixStandardSwiGLU, false,
+			recurrentLayerStage(), FeedForwardMixStandardSwiGLU, false,
 		)
 	}
 	if block == BlockPLaMo2 {
 		return newLayerProgram(
-			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixPLaMo2, false),
+			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 			layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
 			layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(FeedForwardMixFusedGLU),
 			layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
@@ -932,7 +914,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 		switch composition {
 		case LayerCompositionRecurrentOnly:
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixMamba2, false),
+				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 				layerStage(LayerOperatorResidual),
 			)
 		case LayerCompositionAttentionOnly:
@@ -950,13 +932,9 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 		}
 	}
 	if block == BlockMamba || block == BlockMamba2 {
-		recurrentPolicy := RecurrentMixMamba
-		if block == BlockMamba2 {
-			recurrentPolicy = RecurrentMixMamba2
-		}
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm),
-			recurrentLayerStage(recurrentPolicy, block == BlockMamba2),
+			recurrentLayerStage(),
 			layerStage(LayerOperatorResidual),
 		)
 	}
@@ -979,14 +957,14 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 		}
 		if profile.DenseGraph == DenseGraphRWKV6 {
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixAffineWKV6, false),
+				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 				layerStage(LayerOperatorResidual), tokenShiftLayerStage(FeedForwardMixGatedTokenShiftSquaredReLU),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorPeriodicScale),
 			)
 		}
 		if profile.DenseGraph == DenseGraphRWKV7 {
 			stages := []LayerOperatorInstruction{
-				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(RecurrentMixDynamicWKV7, false),
+				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 				layerStage(LayerOperatorResidual),
 			}
 			if profile.Normalization == NormalizationLayer {
@@ -1075,7 +1053,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			)
 		}
 		return residualMixerProgram(
-			recurrentLayerStage(RecurrentMixKeyedDeltaAttention, false),
+			recurrentLayerStage(),
 			FeedForwardMixStandardSwiGLU, false,
 		)
 	case BlockMLA:
@@ -1160,13 +1138,8 @@ func layerStage(operator LayerOperator) LayerOperatorInstruction {
 	return LayerOperatorInstruction{Operator: operator}
 }
 
-func recurrentLayerStage(
-	policy RecurrentMixPolicy,
-	requireConvolutionBias bool,
-) LayerOperatorInstruction {
+func recurrentLayerStage() LayerOperatorInstruction {
 	instruction := layerStage(LayerOperatorRecurrentMix)
-	instruction.Recurrent = policy
-	instruction.RequireConvolutionBias = requireConvolutionBias
 	instruction.CacheCount = 2
 	instruction.Caches[0] = RuntimeCachePrimaryKey
 	instruction.Caches[1] = RuntimeCachePrimaryValue

@@ -25,10 +25,12 @@ Goal: recipes and compiled neutral operator programs are the only production run
 
 ## Current inventory
 
-- Production direct generic block-dispatch callers: 0. The exported compatibility dispatcher remains test-only pending Wave 7 deletion.
-- Production T5 builder calls: 2.
-- Production conditioned-diffusion builder calls: 1.
-- Draft programs already carry executable `Spec` and `LayerPlan`; execution authority is the first narrow deletion seam.
+- Production direct/compatibility block dispatchers: 0.
+- Exported model-family graph constructors: 0.
+- Production T5 and free conditioned-diffusion builder calls: 0.
+- Trunk, draft, encoder, decoder, split-activation, feature/cache projection, per-layer input, and sequence-output paths enter through sealed model programs.
+- Remaining leaf duplication: attention/hybrid instruction policy mirrors and family-oriented block/catalog facts used during plan and weight compilation.
+- Remaining recipe boundary: generic capability execution is active for forecast, tabular, seq2seq, speech, and image; video and VQA still require production loaders/adapters.
 
 ## Wave log
 
@@ -42,3 +44,4 @@ Goal: recipes and compiled neutral operator programs are the only production run
 - Wave 8b: moved all Qwen3.5, Cohere2, NextN, Step3.5, and HY-V3 draft input/output policy into `CompiledLayerProgram`; deleted ten exported family APIs, five wrapper files, two runtime callbacks, and the Step/HY runtime branch. Policy lookup is indexed and carries no duplicate spec. Production delta: +68/-199, net -131. Model, inference, and CUDA-executor gates pass.
 - Wave 8c: made `ModelPlan` retain its compiled spec and changed trunk, draft, encoder, and decoder program lookup to index-only. Migrated all 14 callers; runtime code can no longer resupply mismatched architecture geometry during program admission. Production delta: +26/-24; the two-line sealed-spec cost removes four public duplicate-authority parameters. Model, recipe, inference, command, and CUDA-executor gates pass.
 - Wave 8d: moved Eagle3/DFlash feature fusion, DFlash cache projection, Gemma4 per-layer projection, Gemma4-assistant input/output projection, and WavTokenizer sequence output behind `ModelPlan`. Deleted the family builders, runtime profile probe, unused DFlash scale helper, compatibility cache-schema constructor, and the last exported family graph symbol. Production delta: +85/-92, net -7. Shared feature fusion selects only linear or linear+RMS math from the sealed forward policy. Targeted model, recipe, inference, and CUDA gates pass.
+- Wave 8e: deleted `RecurrentMixPolicy` and both recurrent instruction fields; `StateSpacePlan` now solely selects selective-scan, grouped-scan, WKV, gated-delta, short-convolution, and keyed-delta execution. Fixed plan compilation to honor weight-derived recurrent layers even when metadata cadence is absent. Production delta: +47/-62, net -15; each layer instruction is two policy fields smaller. Model, inference, and CUDA-executor gates pass.

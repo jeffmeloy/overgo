@@ -13,6 +13,10 @@ const (
 	stateSpaceNemotronH
 	stateSpaceQwenGDN
 	stateSpaceLFM2
+	stateSpaceDynamicWKV6
+	stateSpaceAffineWKV6
+	stateSpaceDynamicWKV7
+	stateSpaceKeyedDelta
 )
 
 // StateSpacePlan: recurrent graph/catalog contract.
@@ -23,10 +27,10 @@ type StateSpacePlan struct {
 	qwen      qwenGDNPolicy
 }
 
-func (s Spec) stateSpacePlan(layer uint32) StateSpacePlan {
+func (s Spec) stateSpacePlan(layer uint32, recurrent bool) StateSpacePlan {
 	profile := s.Profile()
 	plan := StateSpacePlan{
-		recurrent: s.IsRecurrentLayer(layer), moe: profile.Has(ArchitectureMoE),
+		recurrent: recurrent || s.IsRecurrentLayer(layer), moe: profile.Has(ArchitectureMoE),
 		qwen: profile.AttentionGraph.QwenGDN,
 	}
 	switch {
@@ -48,6 +52,14 @@ func (s Spec) stateSpacePlan(layer uint32) StateSpacePlan {
 		plan.kind = stateSpaceQwenGDN
 	case profile.Attention == AttentionLFM2 && plan.recurrent:
 		plan.kind = stateSpaceLFM2
+	case profile.DenseGraph == DenseGraphRWKV6Qwen2:
+		plan.kind, plan.recurrent = stateSpaceDynamicWKV6, true
+	case profile.DenseGraph == DenseGraphRWKV6:
+		plan.kind, plan.recurrent = stateSpaceAffineWKV6, true
+	case profile.DenseGraph == DenseGraphRWKV7:
+		plan.kind, plan.recurrent = stateSpaceDynamicWKV7, true
+	case profile.Block == BlockKimiLinear && plan.recurrent:
+		plan.kind = stateSpaceKeyedDelta
 	}
 	return plan
 }

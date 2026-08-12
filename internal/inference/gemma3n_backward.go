@@ -331,7 +331,7 @@ func g3nActivateFFNBackward(dGate, dUp []float32, gate, up reference.Value, dRes
 }
 
 // --- Laurel (learned augmented residual layer) host forward + backward. The
-// forward mirrors model.BuildGemma3nAttentionStage's laurel sub-graph:
+// Forward mirrors the compiled activation projection's Laurel subgraph:
 //   l1  = LaurelLeft  @ normalized      (emb -> rank)
 //   l2  = LaurelRight @ l1              (rank -> emb)
 //   ln  = weightedRMS(l2, LaurelPostNorm)
@@ -368,7 +368,7 @@ func gemma3nLaurelBackward(dNormalized, dLeft, dRight, dPostNorm []float32, norm
 }
 
 // --- Assembled gemma3n active-layer host forward + backward. This is a faithful
-// host transcription of model.BuildGemma3nAttentionStage + BuildGemma3nFeedForwardOutput
+// Host transcription of the compiled projection prefix and suffix
 // (the differentiable composition), used to FD-verify the full-layer gradient wrt
 // the residual-stream input and every layer weight, for both the full-causal and
 // the sliding-window layer types. keyLength=valueLength=headDim and full-dim

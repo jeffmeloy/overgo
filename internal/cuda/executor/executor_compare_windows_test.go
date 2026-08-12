@@ -19,27 +19,34 @@ import (
 )
 
 func buildCompiledLayer(options model.BlockDispatchOptions) (model.DenseBlockResult, error) {
-	spec := options.Spec
-	if spec.BlockCount <= options.Context.Layer {
-		spec.BlockCount = options.Context.Layer + 1
-	}
-	spec.RecurrentLayers = make([]bool, spec.BlockCount)
-	spec.RecurrentLayers[options.Context.Layer] = options.Context.Recurrent
-	layers := make([]model.LayerWeights, spec.BlockCount)
-	if int(options.Context.Layer) < len(layers) {
-		layers[options.Context.Layer].Recurrent = options.Context.Recurrent
-	}
-	plan, err := model.CompileModelPlan(spec, model.Weights{Layers: layers})
-	if err != nil {
-		return model.DenseBlockResult{}, err
-	}
-	program, err := plan.LayerProgram(spec, int(options.Context.Layer))
+	program, err := compileFixtureLayerProgram(options.Spec, options.Context.Layer, options.Context.Recurrent)
 	if err != nil {
 		return model.DenseBlockResult{}, err
 	}
 	context := options.Context
 	context.Layer, context.Recurrent = program.Layer().Layer, program.Layer().Recurrent
 	return program.Build(context, options.Weights)
+}
+
+func compileFixtureLayerProgram(
+	spec model.Spec,
+	layer uint32,
+	recurrent bool,
+) (model.CompiledLayerProgram, error) {
+	if spec.BlockCount <= layer {
+		spec.BlockCount = layer + 1
+	}
+	spec.RecurrentLayers = make([]bool, spec.BlockCount)
+	spec.RecurrentLayers[layer] = recurrent
+	layers := make([]model.LayerWeights, spec.BlockCount)
+	if int(layer) < len(layers) {
+		layers[layer].Recurrent = recurrent
+	}
+	plan, err := model.CompileModelPlan(spec, model.Weights{Layers: layers})
+	if err != nil {
+		return model.CompiledLayerProgram{}, err
+	}
+	return plan.LayerProgram(spec, int(layer))
 }
 
 const cudaFixtureDevice = 0

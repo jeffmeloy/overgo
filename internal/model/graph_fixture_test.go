@@ -24,6 +24,15 @@ func fixtureLayerPlan(t *testing.T, spec Spec, weights Weights, layer int) Layer
 	return plan
 }
 
+func fixtureLayerProgram(t *testing.T, spec Spec, weights Weights, layer int) CompiledLayerProgram {
+	t.Helper()
+	program, err := fixtureModelPlan(t, spec, weights).LayerProgram(spec, layer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return program
+}
+
 func fixtureDraftProgram(
 	t *testing.T,
 	spec Spec,

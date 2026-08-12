@@ -103,10 +103,11 @@ func (r *Runner) runGemma3nActiveLayer(
 		pastKey = runtime.input("gemma3n.cache_key", past.Key)
 		pastValue = runtime.input("gemma3n.cache_value", past.Value)
 	}
-	stage, err := model.BuildGemma3nAttentionStage(
-		runtime.builder, inputNode, r.spec, graphWeights, positions,
-		pastKey, pastValue, uint32(layerIndex),
-	)
+	program := r.layerProgram(layerIndex)
+	stage, err := program.BuildActivationProjection(model.CachedBlockContext{
+		Builder: runtime.builder, Input: inputNode, Positions: positions,
+		PastKey: pastKey, PastValue: pastValue, Layer: uint32(layerIndex),
+	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
@@ -129,8 +130,8 @@ func (r *Runner) runGemma3nActiveLayer(
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
-	output, err := model.BuildGemma3nFeedForwardOutput(
-		runtime.builder, residualNode, activatedNode, r.spec, graphWeights,
+	output, err := program.BuildActivatedOutput(
+		runtime.builder, residualNode, activatedNode, graphWeights,
 	)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err

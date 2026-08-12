@@ -250,24 +250,25 @@ func TestBuildGemma3nAttentionAndFeedForwardStages(t *testing.T) {
 		SlidingWindow: 4}, MultimodalSpec: MultimodalSpec{KVFromStart: 20, SharedKVLayers: 1},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
-	owned, err := BuildGemma3nAttentionStage(
-		builder, input, spec, gemma3nBlockInputs(builder, spec, true),
-		[]uint32{0, 1}, nil, nil, 0,
-	)
+	ownedProgram := fixtureLayerProgram(t, spec, Weights{}, 0)
+	owned, err := ownedProgram.BuildActivationProjection(CachedBlockContext{
+		Builder: builder, Input: input, Positions: []uint32{0, 1}, Layer: 0,
+	}, gemma3nBlockInputs(builder, spec, true))
 	if err != nil {
 		t.Fatal(err)
 	}
 	activated := builder.Input("activated", dtype.F32, tensor.MustShape(6, 2))
-	output, err := BuildGemma3nFeedForwardOutput(
-		builder, owned.Residual, activated, spec, gemma3nBlockInputs(builder, spec, true),
+	output, err := ownedProgram.BuildActivatedOutput(
+		builder, owned.Residual, activated, gemma3nBlockInputs(builder, spec, true),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	shared, err := BuildGemma3nAttentionStage(
-		builder, output, spec, gemma3nBlockInputs(builder, spec, false),
-		[]uint32{0, 1}, owned.Key, owned.Value, 20,
-	)
+	sharedProgram := fixtureLayerProgram(t, spec, Weights{}, 20)
+	shared, err := sharedProgram.BuildActivationProjection(CachedBlockContext{
+		Builder: builder, Input: output, Positions: []uint32{0, 1},
+		PastKey: owned.Key, PastValue: owned.Value, Layer: 20,
+	}, gemma3nBlockInputs(builder, spec, false))
 	if err != nil {
 		t.Fatal(err)
 	}

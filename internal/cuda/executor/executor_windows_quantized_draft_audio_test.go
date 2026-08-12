@@ -241,14 +241,18 @@ func TestExecutorGemma3nActiveStageMatchesReference(t *testing.T) {
 		LaurelPostNorm:      input("laurel_post", tensor.MustShape(4), 0.03, 0.9),
 	}
 	current := input("current", tensor.MustShape(4, 3), 0.08, -0.1)
-	stage, err := model.BuildGemma3nAttentionStage(
-		builder, current, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
-	)
+	program, err := compileFixtureLayerProgram(spec, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage, err := program.BuildActivationProjection(model.CachedBlockContext{
+		Builder: builder, Input: current, Positions: []uint32{0, 1, 2}, Layer: 0,
+	}, weights)
 	if err != nil {
 		t.Fatal(err)
 	}
 	activated := builder.Multiply(builder.GELU(stage.Gate), stage.Up)
-	output, err := model.BuildGemma3nFeedForwardOutput(builder, stage.Residual, activated, spec, weights)
+	output, err := program.BuildActivatedOutput(builder, stage.Residual, activated, weights)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -38,17 +38,17 @@ type WavTokenizerGraphWeights struct {
 	Output, OutputBias         *tensor.Tensor
 }
 
-// BuildWavTokenizerDecoder: token IDs to audio-feature frames
-func BuildWavTokenizerDecoder(
+// BuildSequenceOutput executes the compiled sequence-output program.
+func (p ModelPlan) BuildSequenceOutput(
 	builder *tensor.Builder,
 	embeddings *tensor.Tensor,
-	spec Spec,
 	weights WavTokenizerGraphWeights,
 ) (*tensor.Tensor, error) {
+	spec := p.spec
 	if builder == nil || embeddings == nil {
 		return nil, errors.New("WavTokenizer decoder input is nil")
 	}
-	if spec.Profile().Forward != ForwardWavTokenizer {
+	if p.profile.Forward != ForwardWavTokenizer {
 		return nil, errors.New("WavTokenizer decoder requires WavTokenizer forward policy")
 	}
 	if embeddings.Shape.Rank != 2 || embeddings.Shape.Dims[0] != uint64(spec.EmbeddingLength) {

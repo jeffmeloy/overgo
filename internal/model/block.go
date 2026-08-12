@@ -843,16 +843,16 @@ func (p CompiledLayerProgram) BuildActivatedOutput(
 	return output, nil
 }
 
-// BuildGemma4PerLayerInputs: projects token and model embeddings per block.
-func BuildGemma4PerLayerInputs(
+// BuildPerLayerInputs executes compiled per-layer embedding projections.
+func (p ModelPlan) BuildPerLayerInputs(
 	builder *tensor.Builder,
 	input, tokenEmbedding, modelProjection, projectionNorm *tensor.Tensor,
-	spec Spec,
 ) ([]*tensor.Tensor, error) {
+	spec := p.spec
 	if builder == nil || input == nil || tokenEmbedding == nil || modelProjection == nil || projectionNorm == nil {
 		return nil, errors.New("Gemma 4 per-layer input is incomplete")
 	}
-	if !spec.Profile().Has(ArchitecturePerLayerEmbeddings) ||
+	if !p.profile.Has(ArchitecturePerLayerEmbeddings) ||
 		spec.EmbeddingPerLayer == 0 || spec.BlockCount == 0 ||
 		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, errors.New("Gemma 4 per-layer input configuration is invalid")

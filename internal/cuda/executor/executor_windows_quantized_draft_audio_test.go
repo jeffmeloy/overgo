@@ -70,7 +70,8 @@ func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
 		Gamma: input(tensor.MustShape(2), 0.03, 0.9),
 	}
 	embeddings := input(tensor.MustShape(2, 4), 0.1, -0.2)
-	output, err := model.BuildWavTokenizerDecoder(builder, embeddings, spec, weights)
+	program := fixture.modelPlan(spec)
+	output, err := program.BuildSequenceOutput(builder, embeddings, weights)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +91,8 @@ func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
 	features := input("features", tensor.MustShape(8, 2), 0.08, -0.1)
 	projection := input("fc", tensor.MustShape(8, 4), 0.03, -0.1)
 	encoderNorm := input("enc_norm", tensor.MustShape(4), 0.03, 0.9)
-	fused, err := model.BuildDFlashFeatureEncoder(builder, features, projection, encoderNorm, spec)
+	program := fixture.modelPlan(spec)
+	fused, err := program.BuildFeatureProjection(builder, features, projection, encoderNorm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +109,7 @@ func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
 		FeedForwardUp:   input("up", tensor.MustShape(4, 6), 0.03, -0.1),
 		FeedForwardDown: input("down", tensor.MustShape(6, 4), 0.03, -0.1),
 	}
-	key, value, err := model.BuildDFlashCacheInjection(builder, fused, spec, weights, []uint32{0, 1}, nil, nil)
+	key, value, err := program.BuildCacheProjection(builder, fused, weights, []uint32{0, 1}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +133,8 @@ func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 	}
 	features := input("features", tensor.MustShape(9, 3), 0.08, -0.1)
 	projection := input("fc", tensor.MustShape(9, 4), 0.03, -0.1)
-	fused, err := model.BuildEagle3FeatureEncoder(builder, features, projection, spec)
+	program := fixture.modelPlan(spec)
+	fused, err := program.BuildFeatureProjection(builder, features, projection, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,11 +175,11 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 	targetToken := input("target_token", tensor.MustShape(6, 1), 0.06, -0.1)
 	targetHidden := input("target_hidden", tensor.MustShape(6, 1), 0.05, 0.2)
 	pre := input("pre", tensor.MustShape(12, 4), 0.03, -0.1)
-	current, err := model.BuildGemma4AssistantInput(builder, targetToken, targetHidden, pre, spec)
+	program := fixture.modelPlan(spec)
+	current, err := program.BuildFusedInput(builder, targetToken, targetHidden, pre)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program := fixture.modelPlan(spec)
 	for layer := uint32(0); layer < spec.BlockCount; layer++ {
 		keyWidth := uint64(spec.LayerKeyLength(layer))
 		weights := model.LayerGraphWeights{
@@ -202,9 +205,7 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 	outputNorm := input("output_norm", tensor.MustShape(4), 0.03, 0.9)
 	output := input("output", tensor.MustShape(4, 8), 0.03, -0.1)
 	post := input("post", tensor.MustShape(4, 6), 0.03, -0.1)
-	logits, nextHidden, err := model.BuildGemma4AssistantOutputs(
-		builder, current, outputNorm, output, post, spec,
-	)
+	logits, nextHidden, err := program.BuildProjectedOutputs(builder, current, outputNorm, output, post)
 	if err != nil {
 		t.Fatal(err)
 	}

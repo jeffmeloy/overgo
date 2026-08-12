@@ -233,7 +233,11 @@ func TestRecurrentPrimaryStateShapesCoverFusedFamilies(t *testing.T) {
 				},
 			}
 			info := model.LayerWeights{Recurrent: test.recurrent}
-			schema, err := model.CacheSchema(spec, 0, info, 1)
+			plan, err := model.CompileModelPlan(spec, model.Weights{Layers: []model.LayerWeights{info}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			schema, err := plan.CacheSchema(0, 1)
 			if err != nil {
 				t.Fatal(err)
 			}

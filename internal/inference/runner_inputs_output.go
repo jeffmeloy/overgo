@@ -49,8 +49,8 @@ func (r *Runner) prepareGemma4PerLayerInputs(
 	if err != nil {
 		return nil, err
 	}
-	outputs, err := model.BuildGemma4PerLayerInputs(
-		runtime.builder, input, selectedInput, projection, norm, r.spec,
+	outputs, err := r.program.Model.BuildPerLayerInputs(
+		runtime.builder, input, selectedInput, projection, norm,
 	)
 	if err != nil {
 		return nil, err

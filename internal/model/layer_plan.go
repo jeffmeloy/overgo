@@ -522,6 +522,7 @@ type ModelPlan struct {
 	cachedGraph  CachedGraphPolicy
 	terminal     TerminalPlan
 	draft        DraftPlan
+	cacheProject cacheProjectionPolicy
 }
 
 // CompileModelPlan: resolves architecture decisions before execution.
@@ -559,6 +560,12 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		spec: spec, profile: profile, layers: make([]LayerPlan, layers), cacheLayers: cacheLayers,
 		terminal: TerminalPlan{Normalization: profile.OutputNorm},
 		draft:    profile.DraftPlan(spec.NextNPredictLayers),
+		cacheProject: func() cacheProjectionPolicy {
+			if profile.Forward == ForwardDFlash {
+				return cacheProjectionRotaryQKNorm
+			}
+			return cacheProjectionNone
+		}(),
 	}
 	if weights.Output != nil {
 		plan.terminal.OutputHead = OutputHeadDedicated

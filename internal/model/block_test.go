@@ -25,7 +25,8 @@ func TestBuildGemma4PerLayerInputs(t *testing.T) {
 	selected := builder.Input("selected", dtype.F32, tensor.MustShape(2, 1))
 	projection := builder.Input("projection", dtype.F32, tensor.MustShape(2, 2))
 	norm := builder.Input("norm", dtype.F32, tensor.MustShape(1))
-	outputs, err := BuildGemma4PerLayerInputs(builder, input, selected, projection, norm, spec)
+	program := fixtureModelPlan(t, spec, Weights{})
+	outputs, err := program.BuildPerLayerInputs(builder, input, selected, projection, norm)
 	if err != nil {
 		t.Fatal(err)
 	}

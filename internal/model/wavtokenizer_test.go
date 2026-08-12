@@ -72,7 +72,8 @@ func TestBuildWavTokenizerDecoder(t *testing.T) {
 		Gamma: input("gamma", tensor.MustShape(2), 1),
 	}
 	embeddings := input("embeddings", tensor.MustShape(2, 3), 0.5)
-	output, err := BuildWavTokenizerDecoder(builder, embeddings, spec, weights)
+	program := fixtureModelPlan(t, spec, Weights{})
+	output, err := program.BuildSequenceOutput(builder, embeddings, weights)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,16 +7,16 @@ import (
 	"overgo/internal/tensor"
 )
 
-// BuildGemma4AssistantInput: target token/hidden fusion.
-func BuildGemma4AssistantInput(
+// BuildFusedInput executes the compiled paired-input projection.
+func (p ModelPlan) BuildFusedInput(
 	builder *tensor.Builder,
 	targetTokenEmbedding, targetHidden, projection *tensor.Tensor,
-	spec Spec,
 ) (*tensor.Tensor, error) {
+	spec := p.spec
 	if builder == nil || targetTokenEmbedding == nil || targetHidden == nil || projection == nil {
 		return nil, errors.New("Gemma 4 assistant input is nil")
 	}
-	if spec.Profile().Forward != ForwardGemma4Assistant || targetTokenEmbedding.Shape.Rank != 2 ||
+	if p.profile.Forward != ForwardGemma4Assistant || targetTokenEmbedding.Shape.Rank != 2 ||
 		!targetTokenEmbedding.Shape.Equal(targetHidden.Shape) ||
 		targetHidden.Shape.Dims[0] != uint64(spec.TargetHiddenSize) {
 		return nil, errors.New("Gemma 4 assistant input shape is incompatible")
@@ -80,16 +80,16 @@ func buildSharedCacheQKNormMix(
 	return DenseBlockResult{Output: attention}, nil
 }
 
-// BuildGemma4AssistantOutputs: logits plus recurrent target-width hidden.
-func BuildGemma4AssistantOutputs(
+// BuildProjectedOutputs executes compiled normalization and output projections.
+func (p ModelPlan) BuildProjectedOutputs(
 	builder *tensor.Builder,
 	input, outputNorm, output, postProjection *tensor.Tensor,
-	spec Spec,
 ) (logits, nextHidden *tensor.Tensor, err error) {
+	spec := p.spec
 	if builder == nil || input == nil || outputNorm == nil || output == nil || postProjection == nil {
 		return nil, nil, errors.New("Gemma 4 assistant output is nil")
 	}
-	if spec.Profile().Forward != ForwardGemma4Assistant || input.Shape.Rank != 2 ||
+	if p.profile.Forward != ForwardGemma4Assistant || input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, nil, errors.New("Gemma 4 assistant output shape is incompatible")
 	}

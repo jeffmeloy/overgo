@@ -148,11 +148,11 @@ type ConditionedDiffusionBlockResult struct {
 	FeedForward                                              *tensor.Tensor
 }
 
-// BuildAxisPartitionedRoPE: adjacent-pair rotary over contiguous per-axis
+// buildAxisPartitionedRoPE: adjacent-pair rotary over contiguous per-axis
 // channel spans with axis-local frequency exponents: pair j of an axis span
 // of width w rotates by position*base^(-2j/w). Slice, rotate, reassemble —
 // every stage is a cataloged op.
-func BuildAxisPartitionedRoPE(
+func buildAxisPartitionedRoPE(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	channels [3]uint64,
@@ -302,8 +302,8 @@ func buildConditionedDiffusionBlock(
 	query := builder.Reshape(result.SelfQueryNormed, headWidth, heads, tokens)
 	key := builder.Reshape(result.SelfKeyNormed, headWidth, heads, tokens)
 	value := builder.Reshape(result.SelfValueProjected, headWidth, heads, tokens)
-	result.SelfQueryRotated = BuildAxisPartitionedRoPE(builder, query, options.AxisChannels, options.AxisPositions, options.RotaryBase)
-	result.SelfKeyRotated = BuildAxisPartitionedRoPE(builder, key, options.AxisChannels, options.AxisPositions, options.RotaryBase)
+	result.SelfQueryRotated = buildAxisPartitionedRoPE(builder, query, options.AxisChannels, options.AxisPositions, options.RotaryBase)
+	result.SelfKeyRotated = buildAxisPartitionedRoPE(builder, key, options.AxisChannels, options.AxisPositions, options.RotaryBase)
 	roundStorage := func(x *tensor.Tensor) *tensor.Tensor {
 		if options.RoundAttentionStorage {
 			return builder.BF16Round(x)

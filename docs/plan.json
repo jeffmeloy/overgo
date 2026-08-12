@@ -804,13 +804,14 @@
         {
           "id": "text-conditioning",
           "title": "Qwen3VL encoder + 12 selected-hidden-layer fusion into DiT text stream (Qwen2 tokenizer); vs latentvideo/textcond (UMT5) -- new encoder surface [oracle: telemetry only; exact needs adaptive dump hook (out of scope)]",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/latentimage/ -run TestEncoder -count=1"
         },
         {
           "id": "denoiser-port",
-          "title": "dual-stream 28-block MMDiT on latentvideo DiT machinery (reuse ldmatrix+mma attention, gelu fusion, retained-graph replay, GQA, 3-axis rope tables); text-token co-attention is new vs single-stream Wan; parity vs host-goldens [oracle: g2 per-step distribution now; exact per-step needs adaptive dump hook (out of scope)] -- HOST REFERENCE DONE: single-stream MMDiT ([text,image] concat, shared 28 blocks) ported from diffusers; zero-centered RMSNorm (1+w), gated GQA (48/12 heads, per-head qk-norm, sigmoid gate), 3-axis interleaved rope [32,48,48] theta 1000, AdaLN-single modulation (6*hidden), SwiGLU + full text_fusion; geometry 100pct derived, no magics. VerifyDenoiserCheckpoint: all 430 transformer tensors present, exact derived shapes, 0 unconsumed; exact forward finite+deterministic; drives g2 8-step schedule. HARD LIMIT: bit-exact g3 UNREACHABLE on CPU -- real forward is 12.82B params ~51GB f32 (not CPU-runnable by design), plus text-cond (Qwen3VL encoder, gap1) + seed-42 native RNG (gap2) are hook-gaps. Krea real e2e parity REQUIRES the device path (unlike smaller models). Pinned TestDenoiserExactG3IsHookGapped",
-          "status": "partial"
+          "title": "dual-stream 28-block MMDiT on latentvideo DiT machinery (reuse ldmatrix+mma attention, gelu fusion, retained-graph replay, GQA, 3-axis rope tables); text-token co-attention is new vs single-stream Wan; parity vs host-goldens [oracle: g2 per-step distribution now; exact per-step needs adaptive dump hook (out of scope)] -- HOST REFERENCE DONE: single-stream MMDiT ([text,image] concat, shared 28 blocks) ported from diffusers; zero-centered RMSNorm (1+w), gated GQA (48/12 heads, per-head qk-norm, sigmoid gate), 3-axis interleaved rope [32,48,48] theta 1000, AdaLN-single modulation (6*hidden), SwiGLU + full text_fusion; geometry 100pct derived, no magics. VerifyDenoiserCheckpoint: all 430 transformer tensors present, exact derived shapes, 0 unconsumed; exact forward finite+deterministic; drives g2 8-step schedule. HARD LIMIT: bit-exact g3 UNREACHABLE on CPU -- real forward is 12.82B params ~51GB f32 (not CPU-runnable by design), plus text-cond (Qwen3VL encoder, gap1) + seed-42 native RNG (gap2) are hook-gaps. Krea real e2e parity REQUIRES the device path (unlike smaller models). Pinned TestDenoiserExactG3IsHookGapped. gap1 (text-cond encoder) now CLOSED (d964545); remaining = the DEVICE dual-stream 28-block path (host ref done, but the 12.82B/51GB forward is device-only), verified to the g2 per-step DISTRIBUTION oracle; exact e2e bit-exact stays a residual on seed-42 native RNG (gap2) -- the SAME blocker class as rung15 TorchCUDARandn (cross-rung; a matched seeded RNG port would unblock both).",
+          "status": "open",
+          "verify": "go test ./internal/latentimage/ -run TestDenoiserProgram -count=1"
         },
         {
           "id": "sampler-port",

@@ -129,19 +129,17 @@ func (r *Runner) AdvanceGemma4Assistant(
 		cacheInputs[sliding] = [2]*tensor.Tensor{key, value}
 	}
 	for layerIndex, info := range r.weights.Layers {
+		program := r.layerProgram(layerIndex)
+		plan := program.Layer()
 		graphWeights, layerErr := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 		if layerErr != nil {
 			return reference.Value{}, nil, layerErr
 		}
 		shared := cacheInputs[r.spec.IsSlidingLayer(uint32(layerIndex))]
-		plan := r.layerPlan(layerIndex)
-		block, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-			Spec: r.spec, Weights: graphWeights, Plan: &plan,
-			Context: model.CachedBlockContext{
-				Builder: runtime.builder, Input: current, Positions: []uint32{session.Position},
-				PastKey: shared[0], PastValue: shared[1], Layer: plan.Layer,
-			},
-		})
+		block, err := program.Build(model.CachedBlockContext{
+			Builder: runtime.builder, Input: current, Positions: []uint32{session.Position},
+			PastKey: shared[0], PastValue: shared[1], Layer: plan.Layer,
+		}, graphWeights)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference Gemma 4 assistant layer %d: %w", layerIndex, err)
 		}

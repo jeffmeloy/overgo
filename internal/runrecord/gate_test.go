@@ -101,3 +101,49 @@ func TestGateRecordRejectsOutcomeStepContradictions(t *testing.T) {
 		t.Fatal("failed gate without failed step accepted")
 	}
 }
+
+func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "verified-recipe")
+	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "verified-environment")
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key:       "fixture/verification/facts",
+		Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: environmentID}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	records := make([]GateRecord, 2)
+	for index, name := range []string{"first", "second"} {
+		records[index], err = NewGateRecord(
+			recipeID, environmentID, fixtureCodeCommit, OutcomeSucceeded, "", uint64(index+1),
+			[]GateStep{{
+				Name: name, Phase: PhaseValidate, Outcome: StepSucceeded, DurationNS: uint64(index + 1),
+			}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch, batchErr := records[index].Batch("fixture/verification/" + name)
+		if batchErr != nil {
+			t.Fatal(batchErr)
+		}
+		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := VerifyGateRun(
+		ctx, store, recipeID, records[0].Result.ID, records[0].Run.ID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyGateRun(
+		ctx, store, recipeID, records[0].Result.ID, records[1].Run.ID,
+	); err == nil {
+		t.Fatal("unbound gate/run pair accepted")
+	}
+}

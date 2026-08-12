@@ -89,14 +89,9 @@ func resolveActiveVQA(
 	if err != nil {
 		return artifact.ID{}, recipe.Program{}, "", err
 	}
-	activation, active, err := modelrecipe.ActiveRecord(ctx, store, inventory.Manifest.ID, recipe.TaskVQA)
-	if err != nil {
-		return artifact.ID{}, recipe.Program{}, "", err
-	}
-	if !active {
-		return artifact.ID{}, recipe.Program{}, "", fmt.Errorf("no active vqa recipe for %s (activate first)", inventory.Manifest.ID)
-	}
-	program, err := modelrecipe.CompileCapability(activation.Definition)
+	activation, program, err := modelrecipe.ResolveActiveCapability(
+		ctx, store, inventory.Manifest.ID, recipe.TaskVQA,
+	)
 	return inventory.Manifest.ID, program, string(activation.Tier), err
 }
 

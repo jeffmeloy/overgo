@@ -2,36 +2,24 @@ package densecausal
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/optimizer"
 )
 
-// Train runs `steps` full-parameter Muon updates over one token batch and
-// returns the loss trajectory (entry k is the loss measured before update k, so
-// trajectory[0] is the pre-training loss). Every trainable tensor flattens into
-// one optimizer plan; the Muon geometry is derived from each tensor's stored
-// shape -- 2D tensors get the Newton-Schulz matrix rule, 1D tensors the vector
-// rule -- never named per family. A non-positive baseLR is DERIVED from the
-// trainable parameter count (optimizer.DeriveBaseLR: n_params^-1/2), so one
-// call trains any scale without a hand-tuned rate; pass a positive baseLR only
-// to override. This is the host learning loop; the device path is a later rung
-// that must match this trajectory within tolerance.
+// Train: full-parameter Muon updates; pre-update loss trajectory.
+// Non-positive baseLR derives from parameter count.
 func (m *Model) Train(tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
 	trajectory, _, err := m.train(tokens, steps, baseLR, mu, nil)
 	return trajectory, err
 }
 
-// TrainState carries the optimizer state (momentum + step + plan/config
-// identity) needed to resume training exactly. Model weights resume from
-// m.Weights, so a step-boundary checkpoint is the pair (m.Weights snapshot,
-// TrainState): no accumulated gradient is required after a committed step.
+// TrainState: exact step-boundary optimizer state.
 type TrainState = optimizer.State
 
-// TrainResume runs `steps` Muon updates continuing from a prior optimizer state
-// (nil starts fresh) and returns the loss trajectory plus the post-run state for
-// the next checkpoint. An uninterrupted run and a checkpoint/resume split of the
-// same run produce identical weights.
+// TrainResume: resumable Muon updates; nil starts fresh.
 func (m *Model) TrainResume(tokens []int, steps int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
 	return m.train(tokens, steps, baseLR, mu, resume)
 }
@@ -68,20 +56,21 @@ func (m *Model) train(tokens []int, steps int, baseLR, mu float64, resume *optim
 	return trajectory, opt.Snapshot(), nil
 }
 
-// trainSetup flattens the model's trainable tensors into an optimizer layout:
-// sorted names, flat weight+gradient buffers (weights populated from m.Weights),
-// a compiled plan (Muon geometry derived from each tensor's shape), and the
-// resolved base LR (derived from the parameter count when baseLR<=0).
+// trainSetup: sorted tensors, flat buffers, compiled geometry, resolved LR.
 func (m *Model) trainSetup(baseLR float64) (names []string, weights, gradients []float32, plan optimizer.Plan, resolvedLR float64, err error) {
-	names = make([]string, 0, len(m.Weights))
-	for name := range m.Weights {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names = slices.Sorted(maps.Keys(m.Weights))
 
-	total := 0
+	var totalElements uint64
 	for _, name := range names {
-		total += len(m.Weights[name])
+		var valid bool
+		totalElements, valid = checked.Add64(totalElements, uint64(len(m.Weights[name])))
+		if !valid {
+			return nil, nil, nil, optimizer.Plan{}, 0, fmt.Errorf("densecausal: trainable parameter count overflows uint64")
+		}
+	}
+	total, valid := checked.Int(totalElements)
+	if !valid {
+		return nil, nil, nil, optimizer.Plan{}, 0, fmt.Errorf("densecausal: trainable parameter count exceeds int")
 	}
 	if baseLR <= 0 {
 		baseLR = optimizer.DeriveBaseLR(total)
@@ -106,8 +95,7 @@ func (m *Model) trainSetup(baseLR float64) (names []string, weights, gradients [
 	return names, weights, gradients, plan, baseLR, err
 }
 
-// gatherGrads copies per-tensor gradients into the flat buffer in trainSetup's
-// sorted order; a tensor absent from grads is zeroed.
+// gatherGrads: tensor gradients -> flat plan order; absent tensors zeroed.
 func (m *Model) gatherGrads(names []string, gradients []float32, grads Grads) {
 	offset := 0
 	for _, name := range names {
@@ -131,18 +119,20 @@ func scatter(m *Model, names []string, weights []float32) {
 	}
 }
 
-// tensorGeometry maps a stored tensor shape to Muon (rows, cols): a 2D tensor
-// keeps its shape (Newton-Schulz matrix geometry), a 1D tensor is a
-// (length, 1) vector; any other rank is an unsupported training layout.
+// tensorGeometry: stored shape -> Muon matrix/vector geometry.
 func tensorGeometry(shape []int, length int) (int, int, error) {
 	switch len(shape) {
 	case 2:
-		if shape[0]*shape[1] != length {
+		if shape[0] <= 0 || shape[1] <= 0 {
+			return 0, 0, fmt.Errorf("shape %v has non-positive dimensions", shape)
+		}
+		elements, valid := checked.Mul64(uint64(shape[0]), uint64(shape[1]))
+		if !valid || elements != uint64(length) {
 			return 0, 0, fmt.Errorf("shape %v does not match length %d", shape, length)
 		}
 		return shape[0], shape[1], nil
 	case 1:
-		if shape[0] != length {
+		if shape[0] <= 0 || shape[0] != length {
 			return 0, 0, fmt.Errorf("shape %v does not match length %d", shape, length)
 		}
 		return shape[0], 1, nil

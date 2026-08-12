@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -9,47 +8,8 @@ import (
 
 	"overgo/internal/densecausal"
 	"overgo/internal/safetensors"
+	"overgo/internal/testutil"
 )
-
-// tinyLlama returns the weights+shapes of a minimal valid tied-embedding llama
-// (no attention bias) that densecausal.Load/NewModel accept and Train can step.
-// Values are small deterministic magnitudes so the training step stays finite.
-func tinyLlama() (map[string][]float32, map[string][]int) {
-	const vocab, hidden, heads, headDim, kvHeads, inter, layers = 8, 8, 2, 4, 1, 16, 1
-	qOut := heads * headDim
-	kvOut := kvHeads * headDim
-	weights := map[string][]float32{}
-	shapes := map[string][]int{}
-	seed := 0
-	add := func(name string, dims ...int) {
-		n := 1
-		for _, d := range dims {
-			n *= d
-		}
-		values := make([]float32, n)
-		for i := range values {
-			seed++
-			values[i] = float32(math.Sin(float64(seed))) * 0.1
-		}
-		weights[name] = values
-		shapes[name] = dims
-	}
-	add("model.embed_tokens.weight", vocab, hidden)
-	for l := 0; l < layers; l++ {
-		p := fmt.Sprintf("model.layers.%d.", l)
-		add(p+"self_attn.q_proj.weight", qOut, hidden)
-		add(p+"self_attn.k_proj.weight", kvOut, hidden)
-		add(p+"self_attn.v_proj.weight", kvOut, hidden)
-		add(p+"self_attn.o_proj.weight", hidden, qOut)
-		add(p+"mlp.gate_proj.weight", inter, hidden)
-		add(p+"mlp.up_proj.weight", inter, hidden)
-		add(p+"mlp.down_proj.weight", hidden, inter)
-		add(p+"input_layernorm.weight", hidden)
-		add(p+"post_attention_layernorm.weight", hidden)
-	}
-	add("model.norm.weight", hidden)
-	return weights, shapes
-}
 
 func writeArtifactDir(t *testing.T, dir string, weights map[string][]float32, shapes map[string][]int) {
 	t.Helper()
@@ -74,7 +34,10 @@ func writeArtifactDir(t *testing.T, dir string, weights map[string][]float32, sh
 // This proves the writer produces loader-compatible artifacts and that the
 // production caller is not inert.
 func TestTrainGlueLoadStepSaveReload(t *testing.T) {
-	weights, shapes := tinyLlama()
+	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
+		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4,
+		KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 1,
+	})
 	src := filepath.Join(t.TempDir(), "src")
 	writeArtifactDir(t, src, weights, shapes)
 

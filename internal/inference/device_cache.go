@@ -1322,7 +1322,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
 	decodeCatalog := plan.mode == deviceOutputGreedy && tokensPerSequence == 1 && r.decodeWeights != nil
 	for layerIndex, info := range r.weights.Layers {
-		plan := r.layerPlan(layerIndex)
+		program := r.layerProgram(layerIndex)
+		plan := program.Layer()
 		var graphWeights model.LayerGraphWeights
 		var layerFeeds map[*tensor.Tensor]driver.DevicePtr
 		var layerErr error
@@ -1359,18 +1360,15 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 			cacheBindings[layerIndex] = cacheInputs
 		}
-		result, buildErr := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-			Context: model.CachedBlockContext{
-				Builder: builder, Input: current, Positions: positions, TokenRows: rows,
-				PastKey: cacheInputs.key, PastValue: cacheInputs.value,
-				PastStates:       cacheInputs.states,
-				CurrentPositions: boundSideInputs.currentPositions,
-				PerLayerInput:    graphWeights.PerLayerInput,
-				Layer:            uint32(layerIndex), Recurrent: plan.Recurrent,
-				CacheWrite: cacheWrite, Sequences: sequences,
-			},
-			Spec: r.spec, Weights: graphWeights, Plan: &plan,
-		})
+		result, buildErr := program.Build(model.CachedBlockContext{
+			Builder: builder, Input: current, Positions: positions, TokenRows: rows,
+			PastKey: cacheInputs.key, PastValue: cacheInputs.value,
+			PastStates:       cacheInputs.states,
+			CurrentPositions: boundSideInputs.currentPositions,
+			PerLayerInput:    graphWeights.PerLayerInput,
+			Layer:            uint32(layerIndex), Recurrent: plan.Recurrent,
+			CacheWrite: cacheWrite, Sequences: sequences,
+		}, graphWeights)
 		if buildErr != nil {
 			return fail(buildErr)
 		}

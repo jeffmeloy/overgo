@@ -61,11 +61,7 @@ func TestRegisteredRuntimeExecutesSpeechProgram(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	result, err := fixture.ExecuteScalar("speech/runtime", request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := modelrecipetest.Output[Audio](t, result, "audio")
+	got := modelrecipetest.MustExecuteScalar[Audio](t, fixture, "speech/runtime", request)
 	if got.SampleRate != synthesisRateFixture || !slices.Equal(got.PCM, synthesisPCMFixture) {
 		t.Fatalf("audio = %+v", got)
 	}

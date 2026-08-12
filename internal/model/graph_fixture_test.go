@@ -24,14 +24,23 @@ func fixtureLayerPlan(t *testing.T, spec Spec, weights Weights, layer int) Layer
 	return plan
 }
 
+func fixtureLayerProgram(t *testing.T, spec Spec, weights Weights, layer int) CompiledLayerProgram {
+	t.Helper()
+	program, err := fixtureModelPlan(t, spec, weights).LayerProgram(layer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return program
+}
+
 func fixtureDraftProgram(
 	t *testing.T,
 	spec Spec,
 	weights Weights,
 	head uint32,
-) DraftLayerProgram {
+) CompiledLayerProgram {
 	t.Helper()
-	draft, err := fixtureModelPlan(t, spec, weights).DraftProgram(spec, head)
+	draft, err := fixtureModelPlan(t, spec, weights).DraftProgram(head)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +74,7 @@ func buildQwen35BlockWithOptions(options qwen35BlockOptions) (qwen35BlockFixture
 	if options.Recurrent {
 		pastKey, pastValue = options.ConvState, options.SSMState
 	}
-	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: options.Spec, Weights: options.Weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: options.Builder, Input: options.Input, Positions: options.Positions,
@@ -111,7 +120,7 @@ func buildFixtureLayerWithAuxiliary(
 			CacheStateIndexerKey: {Mode: CacheStateToken, Value: pastIndexerKey},
 		}
 	}
-	return BuildArchitectureBlockCached(BlockDispatchOptions{
+	return executeCompiledLayer(BlockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
 			PastKey: pastKey, PastValue: pastValue, PastStates: states,
@@ -172,7 +181,7 @@ func buildFixtureDenseBlockCachedWithMultiPositions(
 	layer uint32,
 ) (DenseBlockResult, error) {
 	plan := spec.PlanLayer(layer, false)
-	return BuildArchitectureBlockCached(BlockDispatchOptions{
+	return executeCompiledLayer(BlockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, MultiPositions: &positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer,

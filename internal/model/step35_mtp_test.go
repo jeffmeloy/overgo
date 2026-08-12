@@ -25,7 +25,8 @@ func TestBuildStep35MTPPipeline(t *testing.T) {
 	enorm := builder.Input("enorm", dtype.F32, tensor.MustShape(8))
 	hnorm := builder.Input("hnorm", dtype.F32, tensor.MustShape(8))
 	projection := builder.Input("eh", dtype.F32, tensor.MustShape(16, 8))
-	current, err := BuildStep35MTPInput(builder, token, hidden, enorm, hnorm, projection, spec, 1)
+	draft := fixtureDraftProgram(t, spec, Weights{}, 1)
+	current, err := draft.BuildDraftInput(builder, token, hidden, enorm, hnorm, projection)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,16 +41,16 @@ func TestBuildStep35MTPPipeline(t *testing.T) {
 		FeedForwardUp:   builder.Input("up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown: builder.Input("down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	draft := fixtureDraftProgram(t, spec, Weights{}, 1)
-	block, err := buildFixtureLayerWithPlan(
-		builder, current, draft.Spec, weights, []uint32{7}, nil, nil, draft.Plan,
-	)
+	plan := draft.Layer()
+	block, err := draft.Build(CachedBlockContext{
+		Builder: builder, Input: current, Positions: []uint32{7}, Layer: plan.Layer,
+	}, weights)
 	if err != nil {
 		t.Fatal(err)
 	}
 	outputNorm := builder.Input("output_norm", dtype.F32, tensor.MustShape(8))
 	head := builder.Input("head", dtype.F32, tensor.MustShape(8, 13))
-	logits, nextHidden, err := BuildStep35MTPOutputs(builder, block.Output, outputNorm, head, spec, 1)
+	logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, outputNorm, head)
 	if err != nil {
 		t.Fatal(err)
 	}

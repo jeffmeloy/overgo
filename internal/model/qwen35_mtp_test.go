@@ -22,24 +22,24 @@ func TestBuildQwen35MTPPipeline(t *testing.T) {
 			embeddingNorm := builder.Input("enorm", dtype.F32, tensor.MustShape(8))
 			hiddenNorm := builder.Input("hnorm", dtype.F32, tensor.MustShape(8))
 			projection := builder.Input("eh", dtype.F32, tensor.MustShape(16, 8))
-			current, err := BuildQwen35MTPInput(
-				builder, token, hidden, embeddingNorm, hiddenNorm, projection, spec,
+			current, err := draft.BuildDraftInput(
+				builder, token, hidden, embeddingNorm, hiddenNorm, projection,
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			weightSpec := spec
 			weightSpec.Architecture = "qwen35"
-			block, err := buildFixtureLayerWithPlan(
-				builder, current, draft.Spec, qwen35AttentionInputs(builder, weightSpec),
-				[]uint32{7}, nil, nil, draft.Plan,
-			)
+			plan := draft.Layer()
+			block, err := draft.Build(CachedBlockContext{
+				Builder: builder, Input: current, Positions: []uint32{7}, Layer: plan.Layer,
+			}, qwen35AttentionInputs(builder, weightSpec))
 			if err != nil {
 				t.Fatal(err)
 			}
 			outputNorm := builder.Input("output_norm", dtype.F32, tensor.MustShape(8))
 			head := builder.Input("head", dtype.F32, tensor.MustShape(8, 13))
-			logits, nextHidden, err := BuildQwen35MTPOutputs(builder, block.Output, outputNorm, head, spec)
+			logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, outputNorm, head)
 			if err != nil {
 				t.Fatal(err)
 			}

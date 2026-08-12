@@ -25,9 +25,5 @@ func runTraining(m *densecausal.Model, tokens []int, steps int, baseLR, mu float
 		}
 		fmt.Printf("train: CUDA unavailable (%v); using host path\n", err)
 	}
-	traj, err := m.Train(tokens, steps, baseLR, mu)
-	if err != nil {
-		return nil, "", err
-	}
-	return traj, "host", nil
+	return runHostTraining(m, tokens, steps, baseLR, mu)
 }

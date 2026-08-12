@@ -14,36 +14,12 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-type singleHeadMTPBlock struct {
-	output, key, value *tensor.Tensor
-}
-
 type singleHeadMTPAdapter struct {
 	nodePrefix                         string
 	layer                              model.LayerWeights
+	program                            model.CompiledLayerProgram
 	embeddingNorm, hiddenNorm, project gguf.TensorInfo
 	tokenEmbedding, outputNorm, output *gguf.TensorInfo
-	buildInput                         func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, error)
-	buildBlock                         func(*tensor.Builder, *tensor.Tensor, model.Spec, model.LayerGraphWeights, []uint32, *tensor.Tensor, *tensor.Tensor) (singleHeadMTPBlock, error)
-	buildOutputs                       func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, *tensor.Tensor, error)
-}
-
-func compiledDraftBlock(
-	program model.DraftLayerProgram,
-) func(*tensor.Builder, *tensor.Tensor, model.Spec, model.LayerGraphWeights, []uint32, *tensor.Tensor, *tensor.Tensor) (singleHeadMTPBlock, error) {
-	return func(builder *tensor.Builder, input *tensor.Tensor, _ model.Spec, weights model.LayerGraphWeights,
-		positions []uint32, pastKey, pastValue *tensor.Tensor) (singleHeadMTPBlock, error) {
-		plan := program.Plan
-		block, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-			Spec: program.Spec, Weights: weights, Plan: &plan,
-			Context: model.CachedBlockContext{
-				Builder: builder, Input: input, Positions: positions,
-				PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
-				CacheWrite: tensor.CacheWriteConcat, Sequences: 1,
-			},
-		})
-		return singleHeadMTPBlock{output: block.Output, key: block.Key, value: block.Value}, err
-	}
 }
 
 func (r *Runner) hasDraftSession(kind model.DraftKind, catalogs int) bool {
@@ -88,8 +64,8 @@ func (r *Runner) advanceSingleHeadMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	current, err := adapter.buildInput(
-		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec,
+	current, err := adapter.program.BuildDraftInput(
+		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection,
 	)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -99,9 +75,12 @@ func (r *Runner) advanceSingleHeadMTP(
 		pastKey = graph.input(adapter.nodePrefix+".past_key", session.Layer.Key)
 		pastValue = graph.input(adapter.nodePrefix+".past_value", session.Layer.Value)
 	}
-	block, err := adapter.buildBlock(
-		builder, current, r.spec, graphWeights, []uint32{session.Position}, pastKey, pastValue,
-	)
+	plan := adapter.program.Layer()
+	block, err := adapter.program.Build(model.CachedBlockContext{
+		Builder: builder, Input: current, Positions: []uint32{session.Position},
+		PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
+		CacheWrite: tensor.CacheWriteConcat, Sequences: 1,
+	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -115,11 +94,11 @@ func (r *Runner) advanceSingleHeadMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	logits, nextHidden, err := adapter.buildOutputs(builder, block.output, outputNorm, output, r.spec)
+	logits, nextHidden, err := adapter.program.BuildDraftOutputs(builder, block.Output, outputNorm, output)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	results, err := graph.execute(logits, nextHidden, block.key, block.value)
+	results, err := graph.execute(logits, nextHidden, block.Key, block.Value)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -127,7 +106,7 @@ func (r *Runner) advanceSingleHeadMTP(
 	logitValue.Data = r.finalizeLogits(logitValue.Data)
 	return logitValue, &Qwen35MTPSession{
 		TrunkCache:    session.TrunkCache,
-		Layer:         LayerCache{Key: results[block.key], Value: results[block.value]},
+		Layer:         LayerCache{Key: results[block.Key], Value: results[block.Value]},
 		PendingHidden: results[nextHidden], MTPStart: session.MTPStart,
 		Position: session.Position + 1, targetModel: session.targetModel,
 	}, nil

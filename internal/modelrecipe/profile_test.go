@@ -338,8 +338,9 @@ func TestProfileCandidateParityPromotion(t *testing.T) {
 	if evidence.Profile != document.ID || evidence.Recipe != definition.ID {
 		t.Fatalf("evidence = %+v", evidence)
 	}
+	verification := publishVerification(t, store, definition.ID, "fixture/profile/verification")
 	if _, _, err := ActivateProfileCandidate(
-		ctx, store, "fixture/profile/active", definition, nil,
+		ctx, store, "fixture/profile/active", definition, verification, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

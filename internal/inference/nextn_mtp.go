@@ -109,8 +109,12 @@ func (r *Runner) AdvanceNextNMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	current, err := model.BuildNextNMTPInput(
-		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, 0,
+	draftProgram, err := r.draftLayerProgram(0)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
+	current, err := draftProgram.BuildDraftInput(
+		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection,
 	)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -126,22 +130,15 @@ func (r *Runner) AdvanceNextNMTP(
 	if session.Layer.Auxiliary != nil {
 		previousTopK = graph.input("nextn_mtp.previous_top_k", *session.Layer.Auxiliary)
 	}
-	draftProgram, err := r.draftLayerProgram(0)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	plan := draftProgram.Plan
-	block, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Spec: draftProgram.Spec, Weights: graphWeights, Plan: &plan,
-		Context: model.CachedBlockContext{
-			Builder: builder, Input: current, Positions: []uint32{session.Position},
-			PastKey: pastKey, PastValue: pastValue,
-			PastStates: model.CacheStates[*tensor.Tensor]{
-				model.CacheStateIndexerKey: {Mode: model.CacheStateToken, Value: pastIndexerKey},
-			},
-			PerLayerInput: previousTopK, Layer: plan.Layer, Recurrent: plan.Recurrent,
+	plan := draftProgram.Layer()
+	block, err := draftProgram.Build(model.CachedBlockContext{
+		Builder: builder, Input: current, Positions: []uint32{session.Position},
+		PastKey: pastKey, PastValue: pastValue,
+		PastStates: model.CacheStates[*tensor.Tensor]{
+			model.CacheStateIndexerKey: {Mode: model.CacheStateToken, Value: pastIndexerKey},
 		},
-	})
+		PerLayerInput: previousTopK, Layer: plan.Layer, Recurrent: plan.Recurrent,
+	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -155,7 +152,7 @@ func (r *Runner) AdvanceNextNMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	logits, nextHidden, err := model.BuildNextNMTPOutputs(builder, block.Output, outputNorm, output, r.spec, 0)
+	logits, nextHidden, err := draftProgram.BuildDraftOutputs(builder, block.Output, outputNorm, output)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

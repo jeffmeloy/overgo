@@ -4,52 +4,18 @@ package densecausal
 
 import (
 	"math/rand"
-	"strconv"
 	"testing"
 	"time"
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
-// syntheticCausalModel builds a seeded dense-causal model at the requested
-// geometry (tied embeddings, no attention bias) for timing/measurement.
-func syntheticCausalModel(t *testing.T, seed int64, vocab, hidden, heads, headDim, kvHeads, inter, layers int) *Model {
+func syntheticCausalModel(t *testing.T, spec testutil.DenseCausalSpec) *Model {
 	t.Helper()
-	rng := rand.New(rand.NewSource(seed))
-	weights := map[string][]float32{}
-	shapes := map[string][]int{}
-	matrix := func(name string, rows, cols int) {
-		values := make([]float32, rows*cols)
-		for i := range values {
-			values[i] = float32(rng.NormFloat64() * 0.02)
-		}
-		weights[name] = values
-		shapes[name] = []int{rows, cols}
-	}
-	norm := func(name string, n int) {
-		values := make([]float32, n)
-		for i := range values {
-			values[i] = float32(1 + rng.NormFloat64()*0.01)
-		}
-		weights[name] = values
-		shapes[name] = []int{n}
-	}
-	matrix("model.embed_tokens.weight", vocab, hidden)
-	for layer := 0; layer < layers; layer++ {
-		prefix := "model.layers." + strconv.Itoa(layer) + "."
-		norm(prefix+"input_layernorm.weight", hidden)
-		matrix(prefix+"self_attn.q_proj.weight", heads*headDim, hidden)
-		matrix(prefix+"self_attn.k_proj.weight", kvHeads*headDim, hidden)
-		matrix(prefix+"self_attn.v_proj.weight", kvHeads*headDim, hidden)
-		matrix(prefix+"self_attn.o_proj.weight", hidden, heads*headDim)
-		norm(prefix+"post_attention_layernorm.weight", hidden)
-		matrix(prefix+"mlp.gate_proj.weight", inter, hidden)
-		matrix(prefix+"mlp.up_proj.weight", inter, hidden)
-		matrix(prefix+"mlp.down_proj.weight", hidden, inter)
-	}
-	norm("model.norm.weight", hidden)
-	m, err := NewModel(weights, shapes, heads, headDim, 10000, 1e-6)
+	weights, shapes := testutil.DenseCausalWeights(t, spec)
+	m, err := NewModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,6 +45,10 @@ func TestTrainingWallTimeHostVsGPU(t *testing.T) {
 		seq                                                   = 24
 		steps                                                 = 3
 	)
+	modelSpec := testutil.DenseCausalSpec{
+		Vocab: vocab, Hidden: hidden, Heads: heads, HeadDim: headDim,
+		KVHeads: kvHeads, Intermediate: inter, Layers: layers, Seed: 1,
+	}
 	tokens := make([]int, seq)
 	rng := rand.New(rand.NewSource(7))
 	for i := range tokens {
@@ -86,11 +56,11 @@ func TestTrainingWallTimeHostVsGPU(t *testing.T) {
 	}
 
 	timeTrain := func(fn func(*Model) error) time.Duration {
-		m := syntheticCausalModel(t, 1, vocab, hidden, heads, headDim, kvHeads, inter, layers)
+		m := syntheticCausalModel(t, modelSpec)
 		if err := fn(m); err != nil { // warm up (also JIT/context)
 			t.Fatal(err)
 		}
-		m = syntheticCausalModel(t, 1, vocab, hidden, heads, headDim, kvHeads, inter, layers)
+		m = syntheticCausalModel(t, modelSpec)
 		start := time.Now()
 		if err := fn(m); err != nil {
 			t.Fatal(err)

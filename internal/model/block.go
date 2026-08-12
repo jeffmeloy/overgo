@@ -700,8 +700,8 @@ func buildOutputAdapter(
 	return output, builder.Err()
 }
 
-// Gemma3nAttentionResult: attention/Laurel stage plus FFN projections.
-type Gemma3nAttentionResult struct {
+// ActivationProjectionResult: projected activation seam before host policy.
+type ActivationProjectionResult struct {
 	Residual *tensor.Tensor
 	Gate     *tensor.Tensor
 	Up       *tensor.Tensor
@@ -709,23 +709,25 @@ type Gemma3nAttentionResult struct {
 	Value    *tensor.Tensor
 }
 
-// BuildGemma3nAttentionStage: active AltUp attention, Laurel, FFN projections.
-func BuildGemma3nAttentionStage(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
+// BuildActivationProjection executes the program-owned projection prefix.
+func (p CompiledLayerProgram) BuildActivationProjection(
+	context CachedBlockContext,
 	weights LayerGraphWeights,
-	positions []uint32,
-	pastKey, pastValue *tensor.Tensor,
-	layerIndex uint32,
-) (Gemma3nAttentionResult, error) {
+) (ActivationProjectionResult, error) {
+	if p.plan.DenseGraph != DenseGraphGemma3n || p.plan.Layer != context.Layer ||
+		p.plan.Recurrent != context.Recurrent {
+		return ActivationProjectionResult{}, errors.New("compiled activation-projection program is incompatible")
+	}
+	builder, input, spec := context.Builder, context.Input, p.spec
+	positions, pastKey, pastValue := context.Positions, context.PastKey, context.PastValue
+	layerIndex := p.plan.Layer
 	if builder == nil || input == nil || spec.Profile().DenseGraph != DenseGraphGemma3n ||
 		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
-		return Gemma3nAttentionResult{}, errors.New("Gemma 3n attention input is invalid")
+		return ActivationProjectionResult{}, errors.New("activation-projection input is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "Gemma 3n cache pair is incomplete"); err != nil {
-		return Gemma3nAttentionResult{}, err
+		return ActivationProjectionResult{}, err
 	}
 	required := graphWeights{
 		requireGraphWeight("attention norm", weights.AttentionNorm),
@@ -745,10 +747,10 @@ func BuildGemma3nAttentionStage(
 		required.add("attention value", weights.AttentionV)
 		required.add("attention key norm", weights.AttentionKNorm)
 	} else if pastKey == nil {
-		return Gemma3nAttentionResult{}, errors.New("Gemma 3n shared-KV layer has no source cache")
+		return ActivationProjectionResult{}, errors.New("Gemma 3n shared-KV layer has no source cache")
 	}
 	if err := required.validate("Gemma 3n"); err != nil {
-		return Gemma3nAttentionResult{}, err
+		return ActivationProjectionResult{}, err
 	}
 	tokens := input.Shape.Dims[1]
 	shapes := spec.TensorShapes(layerIndex)
@@ -777,7 +779,7 @@ func BuildGemma3nAttentionStage(
 		cacheKey, cacheValue = key, value
 		if pastKey != nil {
 			if pastKey.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
-				return Gemma3nAttentionResult{}, errors.New("Gemma 3n cache shape is invalid")
+				return ActivationProjectionResult{}, errors.New("Gemma 3n cache shape is invalid")
 			}
 			queryStart = uint32(pastKey.Shape.Dims[2])
 			cacheKey = builder.Concat(pastKey, key, 2)
@@ -788,7 +790,7 @@ func BuildGemma3nAttentionStage(
 			pastKey.Shape.Dims[0] != keyLength || pastValue.Shape.Dims[0] != valueLength ||
 			pastKey.Shape.Dims[1] != kvHeadCount || pastValue.Shape.Dims[1] != kvHeadCount ||
 			pastKey.Shape.Dims[2] != pastValue.Shape.Dims[2] || pastKey.Shape.Dims[2] < tokens {
-			return Gemma3nAttentionResult{}, errors.New("Gemma 3n shared-KV source shape is invalid")
+			return ActivationProjectionResult{}, errors.New("Gemma 3n shared-KV source shape is invalid")
 		}
 		queryStart = uint32(pastKey.Shape.Dims[2] - tokens)
 	}
@@ -809,7 +811,7 @@ func BuildGemma3nAttentionStage(
 	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
 	residual := builder.Scale(builder.Add(builder.Add(input, attention), laurel), 1/float32(math.Sqrt2))
 	feedForwardInput := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	result := Gemma3nAttentionResult{
+	result := ActivationProjectionResult{
 		Residual: residual,
 		Gate:     builder.MulMat(weights.FeedForwardGate, feedForwardInput),
 		Up:       builder.MulMat(weights.FeedForwardUp, feedForwardInput),
@@ -817,24 +819,23 @@ func BuildGemma3nAttentionStage(
 		Value:    cacheValue,
 	}
 	if err := builder.Err(); err != nil {
-		return Gemma3nAttentionResult{}, err
+		return ActivationProjectionResult{}, err
 	}
 	return result, nil
 }
 
-// BuildGemma3nFeedForwardOutput: down projection, post norm, residual.
-func BuildGemma3nFeedForwardOutput(
+// BuildActivatedOutput executes the program-owned projection suffix.
+func (p CompiledLayerProgram) BuildActivatedOutput(
 	builder *tensor.Builder,
 	residual, activated *tensor.Tensor,
-	spec Spec,
 	weights LayerGraphWeights,
 ) (*tensor.Tensor, error) {
-	if builder == nil || residual == nil || activated == nil || spec.Profile().DenseGraph != DenseGraphGemma3n ||
+	if p.plan.DenseGraph != DenseGraphGemma3n || builder == nil || residual == nil || activated == nil ||
 		weights.FeedForwardDown == nil || weights.FeedForwardPostNorm == nil {
-		return nil, errors.New("Gemma 3n feed-forward output is incomplete")
+		return nil, errors.New("compiled activated-output stage is incomplete")
 	}
 	output := builder.MulMat(weights.FeedForwardDown, activated)
-	output = builder.WeightedRMSNorm(output, weights.FeedForwardPostNorm, spec.RMSNormEpsilon)
+	output = builder.WeightedRMSNorm(output, weights.FeedForwardPostNorm, p.spec.RMSNormEpsilon)
 	output = builder.Add(residual, output)
 	if err := builder.Err(); err != nil {
 		return nil, err

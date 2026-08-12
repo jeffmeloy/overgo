@@ -2,7 +2,6 @@ package capabilityruntime
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"overgo/internal/artifact"
@@ -12,14 +11,7 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-type Executor func(
-	context.Context,
-	artifact.Repository,
-	string,
-	artifact.ID,
-	recipe.Program,
-	string,
-) (any, error)
+type Executor func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error)
 
 func JSONScalar[Input, Model, Output any](
 	name string,
@@ -35,6 +27,13 @@ func JSONScalar[Input, Model, Output any](
 		program recipe.Program,
 		raw string,
 	) (any, error) {
+		definition := program.Definition()
+		if definition.Model != modelID {
+			return nil, fmt.Errorf("capability runtime: program model differs from binding")
+		}
+		if len(definition.Inputs) != 1 {
+			return nil, fmt.Errorf("capability runtime: scalar program requires one input")
+		}
 		var input Input
 		if err := strictjson.DecodeBytes([]byte(raw), &input); err != nil {
 			return nil, fmt.Errorf("decode %s input: %w", name, err)
@@ -52,9 +51,15 @@ func JSONScalar[Input, Model, Output any](
 		if err != nil {
 			return nil, err
 		}
-		return executeScalar[Output](ctx, store, modelID, program, input, content, func(runtime *workflowruntime.Runtime) error {
-			return bind(runtime, modelID, model)
-		})
+		inputPort := definition.Inputs[0]
+		return Execute[Output](
+			ctx, store, modelID, program,
+			"recipe/run/"+definition.ID.String()+"/"+content.Descriptor.ID.String(),
+			map[recipe.PortName]workflowruntime.Value{
+				inputPort.Name: workflowruntime.ArtifactValue(inputPort.Data, input, content),
+			},
+			func(runtime *workflowruntime.Runtime) error { return bind(runtime, modelID, model) },
+		)
 	}
 }
 
@@ -62,28 +67,7 @@ func IgnoreInput[Input, Model any](load func(string) (Model, error)) func(string
 	return func(path string, _ Input) (Model, error) { return load(path) }
 }
 
-func executeScalar[Output any](
-	ctx context.Context,
-	store artifact.Repository,
-	modelID artifact.ID,
-	program recipe.Program,
-	inputValue any,
-	inputContent artifact.Content,
-	bind func(*workflowruntime.Runtime) error,
-) (Output, error) {
-	definition := program.Definition()
-	if len(definition.Inputs) != 1 {
-		var zero Output
-		return zero, errors.New("capability runtime: scalar execution requires one input")
-	}
-	input := definition.Inputs[0]
-	return Execute[Output](ctx, store, modelID, program,
-		"recipe/run/"+definition.ID.String()+"/"+inputContent.Descriptor.ID.String(),
-		map[recipe.PortName]workflowruntime.Value{
-			input.Name: workflowruntime.ArtifactValue(input.Data, inputValue, inputContent),
-		}, bind)
-}
-
+// Execute binds adapters and runs a program with one typed output.
 func Execute[Output any](
 	ctx context.Context,
 	store artifact.Repository,
@@ -96,12 +80,11 @@ func Execute[Output any](
 	var zero Output
 	definition := program.Definition()
 	if definition.Model != modelID {
-		return zero, errors.New("capability runtime: program model differs from binding")
+		return zero, fmt.Errorf("capability runtime: program model differs from binding")
 	}
 	if len(definition.Outputs) != 1 {
-		return zero, errors.New("capability runtime: execution requires one output")
+		return zero, fmt.Errorf("capability runtime: program requires one output")
 	}
-	output := definition.Outputs[0]
 	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
 	if err != nil {
 		return zero, err
@@ -113,13 +96,14 @@ func Execute[Output any](
 	if err != nil {
 		return zero, err
 	}
+	output := definition.Outputs[0]
 	datum, ok := result.Outputs[output.Name].Single()
 	if !ok {
-		return zero, fmt.Errorf("capability runtime: output %q has invalid cardinality", output.Name)
+		return zero, fmt.Errorf("capability runtime: output %q is not scalar", output.Name)
 	}
-	decoded, ok := datum.Value.(Output)
+	value, ok := datum.Value.(Output)
 	if !ok {
 		return zero, fmt.Errorf("capability runtime: output %q has invalid value type", output.Name)
 	}
-	return decoded, nil
+	return value, nil
 }

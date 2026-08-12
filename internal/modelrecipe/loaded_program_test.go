@@ -186,15 +186,8 @@ func activateProgram(t *testing.T, store artifact.Repository, definition recipe.
 	if _, _, err := Transition(ctx, store, "fixture/program/validated/"+definition.ID.String(), definition, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	evidence := []byte("program-validation")
-	evidenceID := testutil.ArtifactBytesID(t, artifact.KindEvidence, evidence)
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "fixture/program/evidence/" + definition.ID.String(),
-		Artifacts: []artifact.Descriptor{{ID: evidenceID, Size: uint64(len(evidence))}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := Transition(ctx, store, "fixture/program/active/"+definition.ID.String(), definition, recipe.StatusActive, []artifact.ID{evidenceID}, nil); err != nil {
+	verification := publishVerification(t, store, definition.ID, "fixture/program/verification/"+definition.ID.String())
+	if _, _, err := ActivateVerified(ctx, store, "fixture/program/active/"+definition.ID.String(), definition, verification, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }

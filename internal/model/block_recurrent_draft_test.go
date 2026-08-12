@@ -376,6 +376,7 @@ func kimiLinearCommonInputs(builder *tensor.Builder, spec Spec, moe bool) LayerG
 func TestBuildT5EncoderBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "t5encoder",
+		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
 
@@ -397,10 +398,19 @@ func TestBuildT5EncoderBlock(t *testing.T) {
 		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
-	output, err := BuildT5EncoderBlock(builder, input, spec, weights)
+	plan, err := CompileModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	program, err := plan.EncoderProgram(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := program.Build(CachedBlockContext{Builder: builder, Input: input}, weights)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := result.Output
 	if !output.Shape.Equal(input.Shape) {
 		t.Fatalf("T5 output shape = %v, want %v", output.Shape, input.Shape)
 	}
@@ -429,9 +439,9 @@ func TestBuildT5EncoderBlock(t *testing.T) {
 
 func TestBuildT5DecoderBlockCached(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{CommonSpec: CommonSpec{Architecture: "t5", EmbeddingLength: 8, FeedForwardLength: 16,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "t5", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 16,
 
-		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4}, EncoderSpec: EncoderSpec{RelativeBuckets: 4},
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4}, EncoderSpec: EncoderSpec{DecoderBlockCount: 1, RelativeBuckets: 4},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	encoder := builder.Input("encoder", dtype.F32, tensor.MustShape(8, 3))
@@ -451,7 +461,17 @@ func TestBuildT5DecoderBlockCached(t *testing.T) {
 		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
-	result, err := BuildT5DecoderBlockCached(builder, input, encoder, spec, weights, nil, nil, nil, nil)
+	plan, err := CompileModelPlan(spec, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := plan.DecoderProgram(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := program.Build(CachedBlockContext{
+		Builder: builder, Input: input, Encoder: encoder,
+	}, weights)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1042,7 +1062,7 @@ func TestBuildNemotronHMoEBlockUsesLatentSquaredReLUExperts(t *testing.T) {
 	}
 	const fixtureLayer = 2
 	plan := spec.PlanLayer(fixtureLayer, false)
-	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: fixturePositions, Layer: fixtureLayer,

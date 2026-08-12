@@ -32,12 +32,32 @@ func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
-	d := m.Dims
-	seq := len(tokens)
 	states, err := m.forwardStates(tokens)
 	if err != nil {
 		return 0, nil, nil, err
 	}
+	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
+	return m.lossAndGradsFromStates(tokens, states, func(
+		index int, input, outputGradient []float32, sequence int, gradients Grads,
+	) ([]float32, error) {
+		return m.layerBackward(index, input, outputGradient, invFreq, sequence, gradients)
+	})
+}
+
+type layerGradient func(
+	index int,
+	input, outputGradient []float32,
+	sequence int,
+	gradients Grads,
+) ([]float32, error)
+
+func (m *Model) lossAndGradsFromStates(
+	tokens []int,
+	states [][]float32,
+	backward layerGradient,
+) (float64, []float32, Grads, error) {
+	d := m.Dims
+	seq := len(tokens)
 	final := states[d.Layers]
 	normed := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
@@ -56,9 +76,9 @@ func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
 	dx := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormBackward(dx, g.slot("model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
 
-	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
 	for index := d.Layers - 1; index >= 0; index-- {
-		dx, err = m.layerBackward(index, states[index], dx, invFreq, seq, g)
+		var err error
+		dx, err = backward(index, states[index], dx, seq, g)
 		if err != nil {
 			return 0, nil, nil, err
 		}
@@ -67,14 +87,15 @@ func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
 	// embedding contribution when untied).
 	embed := m.Weights["model.embed_tokens.weight"]
 	gradEmbed := g.slot("model.embed_tokens.weight", len(embed))
-	for t, id := range tokens {
-		row := gradEmbed[id*d.Hidden : (id+1)*d.Hidden]
-		dRow := dx[t*d.Hidden : (t+1)*d.Hidden]
-		for i := range row {
-			row[i] += dRow[i]
-		}
-	}
+	scatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
 	return loss, logits, g, nil
+}
+
+func scatterEmbeddingGradient(embedding, gradient []float32, tokens []int, hidden int) {
+	for token, id := range tokens {
+		row := embedding[id*hidden : (id+1)*hidden]
+		addInPlace(row, gradient[token*hidden:(token+1)*hidden])
+	}
 }
 
 // layerBackward: VJP of layerForward. x is the layer input residual stream

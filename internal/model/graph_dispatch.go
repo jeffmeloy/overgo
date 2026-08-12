@@ -15,6 +15,9 @@ type CachedBlockContext struct {
 	TokenRows        []uint32
 	PastKey          *tensor.Tensor
 	PastValue        *tensor.Tensor
+	Encoder          *tensor.Tensor
+	CrossKey         *tensor.Tensor
+	CrossValue       *tensor.Tensor
 	PastStates       CacheStates[*tensor.Tensor]
 	CurrentPositions *tensor.Tensor
 	PerLayerInput    *tensor.Tensor
@@ -32,10 +35,28 @@ type BlockDispatchOptions struct {
 	Plan    *LayerPlan
 }
 
-// BuildArchitectureBlockCached: compiled layer-program construction.
-func BuildArchitectureBlockCached(
-	options BlockDispatchOptions,
+// Build constructs the graph owned by a compiled draft layer.
+func (p CompiledLayerProgram) Build(
+	context CachedBlockContext,
+	weights LayerGraphWeights,
 ) (DenseBlockResult, error) {
+	switch p.role {
+	case programEncoder:
+		output, err := buildT5EncoderBlock(context.Builder, context.Input, p.spec, weights)
+		return DenseBlockResult{Output: output}, err
+	case programDecoder:
+		return buildT5DecoderBlockCached(
+			context.Builder, context.Input, context.Encoder, p.spec, weights,
+			context.PastKey, context.PastValue, context.CrossKey, context.CrossValue,
+		)
+	}
+	plan := p.plan
+	return executeCompiledLayer(BlockDispatchOptions{
+		Context: context, Spec: p.spec, Weights: weights, Plan: &plan,
+	})
+}
+
+func executeCompiledLayer(options BlockDispatchOptions) (DenseBlockResult, error) {
 	_, ok := options.Spec.ResolvedProfile()
 	if !ok {
 		return DenseBlockResult{}, &UnsupportedArchitectureError{

@@ -67,7 +67,17 @@ func run() error {
 		tokens = tokens[:*maxSeq]
 	}
 
-	traj, backend, err := runTraining(model, tokens, *steps, *baseLR, *mu, !*host)
+	// Capability admission: prefer the device path only for models the device
+	// backward supports. Qwen2 and other attention-bias models are loadable but
+	// not device-trainable yet, so they run on host rather than failing.
+	preferDevice := !*host
+	if preferDevice {
+		if ok, reason := model.DeviceTrainingAdmitted(); !ok {
+			fmt.Printf("train: model not admitted for the device path (%s); using host\n", reason)
+			preferDevice = false
+		}
+	}
+	traj, backend, err := runTraining(model, tokens, *steps, *baseLR, *mu, preferDevice)
 	if err != nil {
 		return fmt.Errorf("train: %w", err)
 	}

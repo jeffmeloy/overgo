@@ -38,17 +38,21 @@ func main() {
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
+	add := flag.Bool("add", false, "inject a new top-priority task: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	force := flag.String("force", "", "with -advance: skip verify, REQUIRES a reason (logged loudly)")
+	title := flag.String("title", "", "with -add: the task title")
+	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
+	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	flag.Parse()
-	if err := run(cli{*next, *prompt, *verify, *status, *advance, *force}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, advance: *advance, add: *add, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	next, prompt, verify, status, advance bool
-	force                                 string
+	next, prompt, verify, status, advance, add bool
+	force, title, before, verifyCmd            string
 }
 
 func run(c cli, args []string) error {
@@ -57,6 +61,11 @@ func run(c cli, args []string) error {
 		return err
 	}
 	switch {
+	case c.add:
+		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
+			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
+		}
+		return addItem(document, args[0], c.title, c.before, c.verifyCmd)
 	case c.advance:
 		if len(args) != 2 {
 			return errors.New("usage: plan -advance <item-id> <step-id|.>")
@@ -86,6 +95,56 @@ func run(c cli, args []string) error {
 	default:
 		return errors.New("one of -next, -prompt, -verify, -status, -advance is required")
 	}
+}
+
+// addItem injects a new task as a top-priority item (one step "do"), inserted
+// before `before` (or at the top of the plan when empty). This is the mechanical
+// "inject a task" operation -- a merge, a fix, or any owner-requested work becomes
+// a first-class dispatched/verified/advanced task without hand-editing plan.json.
+func addItem(document plan.Plan, id, title, before, verifyCmd string) error {
+	updated, err := insertItem(document, id, title, before, verifyCmd)
+	if err != nil {
+		return err
+	}
+	if err := plan.Save("", updated); err != nil {
+		return err
+	}
+	action, _ := nextAction(updated)
+	fmt.Printf("added item %s (step do); next: %s\n", id, action)
+	return nil
+}
+
+// insertItem is the pure core of addItem: returns a plan with a new open item
+// (one step "do") inserted before `before` (or at the top when empty). No I/O.
+func insertItem(document plan.Plan, id, title, before, verifyCmd string) (plan.Plan, error) {
+	for _, it := range document.Items {
+		if it.ID == id {
+			return plan.Plan{}, fmt.Errorf("item %q already exists", id)
+		}
+	}
+	item := plan.Item{
+		ID: id, Title: title, Status: "open",
+		Steps: []plan.Step{{ID: "do", Title: title, Status: "open", Verify: verifyCmd}},
+	}
+	pos := 0
+	if before != "" {
+		pos = -1
+		for i, it := range document.Items {
+			if it.ID == before {
+				pos = i
+				break
+			}
+		}
+		if pos < 0 {
+			return plan.Plan{}, fmt.Errorf("-before %q: no such item", before)
+		}
+	}
+	out := make([]plan.Item, 0, len(document.Items)+1)
+	out = append(out, document.Items[:pos]...)
+	out = append(out, item)
+	out = append(out, document.Items[pos:]...)
+	document.Items = out
+	return document, nil
 }
 
 func printStatus(document plan.Plan) {

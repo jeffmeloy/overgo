@@ -3,6 +3,19 @@
   "doctrine": "PORT-FIRST (owner, 2026-08-09, standing): the point of this campaign is to PORT adaptive_new into overgo, never to start from scratch. Every capability AND performance slice STARTS from adaptive_new's verified implementation: read it end-to-end, port its structure/kernels/math, verify against its goldens. Novel design is admissible ONLY after the port matches the reference, and only as a measured improvement on top of it. A slice that reinvents what adaptive already ships is the named failure mode. The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/.claude/worktrees/image_gen/image_gen_report.md -- Wan python 463.4s/8.8GB vs exact-Go 739.9s/22.54GB (denoise 690.9s dominates) vs quality-fast 424.3s/11.95GB (FAILS single-complete-cone); safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; the quality-fast attention approximation is the degradation to avoid. Owner note: route media denoise through overgo's OWN tensor machinery (retained CUDA-graph replay, bf16-native decode catalog, GEMV/epilogue fusion rewrites, calibrated dispatch) rather than porting adaptive's slower path -- that machinery already beat adaptive on rungs 3-4 and is the intended edge over Python.",
   "items": [
     {
+      "id": "loop-hardening-2",
+      "title": "mechanical task injection: cmd/plan -add (inject a top task) + gate requires -plan on merges too (merge exemption removed)",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "mechanical task injection: cmd/plan -add (inject a top task) + gate requires -plan on merges too (merge exemption removed)",
+          "status": "open",
+          "verify": "go build ./cmd/plan/ ./cmd/gate/ \u0026\u0026 go test ./internal/plan/ ./cmd/plan/ ./cmd/gate/ -run Enforce -count=1"
+        }
+      ]
+    },
+    {
       "id": "rung0-loop-hardening",
       "title": "loop hardening: plan-bound dispatch + machine-verified done + commit gate (owner 2026-08-11, after a session drifted off-plan ~13 commits with zero -advance)",
       "status": "done",
@@ -383,13 +396,28 @@
         },
         {
           "id": "recipe-activation",
-          "title": "GGUF inference activation -- DONE: Qwen3.5-4B-f16.gguf through the sealed lifecycle (candidate->validated->active); status round-trip resolves ACTIVE, tier experimental (model:sha256:887f4124.., recipe:sha256:235e2ad6.., definition:sha256:0f2902f7..); TestActiveRecipeQwen35Open PASS on the real 8.66GB model -- resolves the active GGUF recipe + qwen35 program (dense/recurrent layer coverage) + evidence tier. Mechanism ported (cmd/recipe activate/status + modelrecipe sealed lifecycle + qwen35 arch profile), not reinvented",
-          "status": "open",
+          "title": "GGUF inference activation -- DONE: Qwen3.5-4B-f16.gguf through the sealed lifecycle (candidate-\u003evalidated-\u003eactive); status round-trip resolves ACTIVE, tier experimental (model:sha256:887f4124.., recipe:sha256:235e2ad6.., definition:sha256:0f2902f7..); TestActiveRecipeQwen35Open PASS on the real 8.66GB model -- resolves the active GGUF recipe + qwen35 program (dense/recurrent layer coverage) + evidence tier. Mechanism ported (cmd/recipe activate/status + modelrecipe sealed lifecycle + qwen35 arch profile), not reinvented",
+          "status": "done",
           "verify": "OVERGO_QWEN35_MODEL=/c/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf go test ./internal/inference/ -run TestActiveRecipeQwen35Open -count=1"
         },
         {
-          "id": "training-leg",
-          "title": "densecausal extension per config deltas (gated attn output, hybrid attention) vs tiny torch golden; real step",
+          "id": "gdn-forward-host",
+          "title": "TRAINING-LEG refactor (owner 2026-08-12): qwen3.5 is hybrid -- 24 linear_attention (gated-delta-net, recurrent) + 8 full_attention (interval 4) layers, head_dim 256/16 heads. ABSENT-baseline: adaptive serves qwen3.5 (qwen35-floor serving + hybrid_recurrent_decoder) but has NO training lane; overgo has GDN forward (gated_delta_net_f32) but no GDN backward; densecausal is dense-causal-only. Directive: BUILD the GDN backward so overgo trains the hybrid model (derive-from-forward, no adaptive reference, FD-verified). STEP 1: neutral host reference of the gated-delta-net forward (chunked delta rule + decay/beta gating) matching gated_delta_net_f32; forward parity vs the executor on a real qwen3.5 GDN layer -- the forward the backward differentiates",
+          "status": "open"
+        },
+        {
+          "id": "gdn-backward-host",
+          "title": "derive + implement the GDN recurrence VJP (dq/dk/dv/dbeta/ddecay/dstate) host-side, FD-grad-checked vs the host forward",
+          "status": "open"
+        },
+        {
+          "id": "qwen35-hybrid-layer-backward",
+          "title": "qwen3.5 hybrid decoder-layer backward: GDN linear_attention layers (GDN VJP) + gated attn output + full_attention dense layers (existing dense VJPs), FD-verified as a composed layer",
+          "status": "open"
+        },
+        {
+          "id": "train-grad-parity",
+          "title": "tiny qwen3.5-hybrid torch golden (python) + gradient parity vs it + a real training step (loss decrease) on the hybrid model",
           "status": "open"
         },
         {

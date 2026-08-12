@@ -72,10 +72,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if !*merge {
-		if err := checkPlanBinding(repo, *planRef); err != nil {
-			return err
-		}
+	// Every commit -- including a merge finalize -- is bound to the plan's current
+	// open step. Merges are no longer exempt: a sync/merge is a first-class plan
+	// task (inject it with `plan -add`, then finalize with -plan <item>/do).
+	if err := checkPlanBinding(repo, *planRef); err != nil {
+		return err
 	}
 	g := &gateContext{
 		repo: repo, messageFile: *messageFile, storePath: *storePath, start: time.Now(),

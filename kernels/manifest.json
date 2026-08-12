@@ -35,6 +35,33 @@
       ]
     },
     {
+      "source": "kernels/cuda/torch_cuda_randn.cu",
+      "sourceSha256": "adc4e83fe8cccd5290c84dd74fcaedc274df28c2f1bf795221391e7274d739d6",
+      "asset": "internal/cuda/kernel/torch_cuda_randn.ptx",
+      "assetSha256": "68e0165a1251f63b53a4f94ff8f8c2e95a419f6fc7a148c9f45c9a6ac902a85f",
+      "compilerFlags": [
+        "-ptx",
+        "-arch=compute_89",
+        "--std=c++17"
+      ],
+      "functions": [
+        "torch_cuda_randn"
+      ],
+      "argumentLayouts": [
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "torch_cuda_randn"
+          ]
+        }
+      ]
+    },
+    {
       "source": "kernels/cuda/ops_f32.cu",
       "sourceSha256": "3cc26713cd8ce3c2281178c2c53c551090f7975a084d2ea8d0239ef65b9c85f3",
       "sourceDependencies": [

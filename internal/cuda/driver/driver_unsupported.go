@@ -38,6 +38,10 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	return DeviceInfo{}, errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+func (l *Library) DeviceProfile(device Device) (smCount, maxThreadsPerSM int, err error) {
+	return 0, 0, errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 	return 0, errors.New("CUDA driver loading is currently supported only on Windows")
 }

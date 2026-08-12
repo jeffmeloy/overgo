@@ -662,6 +662,21 @@ func (l *Library) LaunchKernel(
 	return nil
 }
 
+// DeviceProfile: returns the two device fields a torch.cuda distribution kernel
+// needs to size its Philox launch -- SM count and max resident threads per SM.
+// These bound the grid so the counter-advance geometry matches PyTorch's.
+func (l *Library) DeviceProfile(device Device) (smCount, maxThreadsPerSM int, err error) {
+	smCount, err = l.deviceAttribute(device, attributeMultiprocessorCount)
+	if err != nil {
+		return 0, 0, err
+	}
+	maxThreadsPerSM, err = l.deviceAttribute(device, attributeMaxThreadsPerMultiproc)
+	if err != nil {
+		return 0, 0, err
+	}
+	return smCount, maxThreadsPerSM, nil
+}
+
 func (l *Library) deviceAttribute(device Device, attribute int) (int, error) {
 	var value int32
 	result, _, _ := l.cuDeviceGetAttribute.Call(

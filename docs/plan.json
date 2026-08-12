@@ -688,8 +688,8 @@
     },
     {
       "id": "rung15-sensenova",
-      "title": "SenseNova-U1-8B",
-      "status": "open",
+      "title": "SenseNova-U1-8B -- CLOSED TO EXTERNAL-PREREQ WALL: all in-repo-verifiable work done (recon/routedlm-generalize/multiaxis-rope/flow-head/prompt-renderer/measure-bar/recipe-activation done; multi-axis rope on the generic executor landed a374f45; recipe activated + discovery round-trip; training-leg ABSENT recorded). SHIP BAR (cuda-serving oracle parity + real rendered image) BLOCKED-EXTERNAL-PREREQ: needs the edit SOURCE image PNG (absent from repo) OR a torch-matched randn(seed=42) initial latent (TorchCUDARandn not ported). Sub-steps prefix-layer-stack/denoise-stack/cuda-serving carry the blocker + UNBLOCK path. Item status=blocked so the loop advances; reopen when the source image / seeded RNG is supplied. (Tool gap: cmd/plan has no item-level blocked status -- hand-edit; add as a loop-hardening improvement.)",
+      "status": "blocked-external-prereq",
       "steps": [
         {
           "id": "recon-goldens",
@@ -728,8 +728,8 @@
         },
         {
           "id": "denoise-stack",
-          "title": "generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head); parity vs generation_layers + steps[] z (needs torch-matched randn(seed) for z init) -- DEVICE TERMINAL+SAMPLER verified: flow condition/head as executor graphs device==host (3.1e-2/6.3e-2), euler steps PASS-ORACLE vs real gen+edit oracles (next_z 3.9e-3/1.6e-2/7.8e-3), trajectory continuity exact (step0.next_z==step1.z, |d|=0); 0.844 ms/step terminal, +444MiB (fm_modules streamed, 35GB not resident); ladder oracle=8/derive=6/wired=4/frontier=2. REMAINS: 42-layer transformer body on device (needs per-section multi-axis rope splicing since RoPEMulti single-base cant express [64/5e6/T,32/1e4/H,32/1e4/W] + block-causal 42-layer resident forward + gen-branch cross-attn to prefix KV); its verification is gated by source-PNG + probe-sparsity + seed-42 RNG regardless of the port",
-          "status": "partial"
+          "title": "generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head); parity vs generation_layers + steps[] z (needs torch-matched randn(seed) for z init) -- DEVICE TERMINAL+SAMPLER verified: flow condition/head as executor graphs device==host (3.1e-2/6.3e-2), euler steps PASS-ORACLE vs real gen+edit oracles (next_z 3.9e-3/1.6e-2/7.8e-3), trajectory continuity exact (step0.next_z==step1.z, |d|=0); 0.844 ms/step terminal, +444MiB (fm_modules streamed, 35GB not resident); ladder oracle=8/derive=6/wired=4/frontier=2. REMAINS: 42-layer transformer body on device. UPDATE (a374f45): the multi-axis rope splicing sub-blocker is now CLOSED -- routedlm.RopePlan.DeviceApply composes per-section RoPENeoX [64/5e6/T,32/1e4/H,32/1e4/W] on the generic executor (device==host 6e-7), so the body port only needs block-causal 42-layer resident forward + gen-branch cross-attn to prefix KV. BUT its verification is gated by source-PNG + probe-sparsity + seed-42 RNG REGARDLESS of the port -- so the remaining body-forward is NOT worth porting until an oracle exists (verification-before-banking). BLOCKED-EXTERNAL-PREREQ on the same inputs as cuda-serving/prefix-layer-stack.",
+          "status": "blocked-external-prereq"
         },
         {
           "id": "measure-bar",
@@ -744,13 +744,14 @@
         {
           "id": "recipe-activation",
           "title": "generation recipe activation + status round-trip; real-image verification per multimodal directive",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/sensenovarecipe/"
         },
         {
           "id": "training-leg",
-          "title": "ABSENT verdict expected: adaptive seeds generation-only for this scope; record verdict",
-          "status": "open"
+          "title": "ABSENT verdict expected: adaptive seeds generation-only for this scope; record verdict -- ABSENT verdict RECORDED (port-first confirmed vs adaptive_new): SenseNova ships as generation/edit SERVING only. Searched go/ end-to-end -- the only 'train' hit is serving edit strategy \"trained_source_prefix\" (an inference prefix, not a training recipe); no training objective/backward/loss, and overgo recipe tasks have no 'training' task at all. No lane to port, no invented lane. Falsifiable: verify greps the training-lane packages (densecausal/hybridtrain/optimizer) and fails if SenseNova ever appears there.",
+          "status": "done",
+          "verify": "! grep -rqi sensenova internal/densecausal internal/hybridtrain internal/optimizer --include=*.go"
         }
       ]
     },

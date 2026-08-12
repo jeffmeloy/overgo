@@ -601,7 +601,7 @@
         {
           "id": "train-cuda-admission",
           "title": "SHARED training-scale path (SQA 2026-08-12, finding Medium): CUDA backend admission is incomplete. cmd/train selects TrainDeviceFull whenever CUDA opens, but device forward REJECTS attention bias -- an unsupported config fails mid-session instead of up front. Fix: a compiled capability plan decides device-vs-host and REFUSES unsupported CUDA configs (attention bias, unsupported arch) BEFORE session construction. Verify: an attention-bias / unsupported model routes to host or errors cleanly at selection time, never mid-session.",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./cmd/train/ ./internal/densecausal/ -run 'DeviceTrainingSupportedAdmission|TrainAttnBiasRoutedToHostAtSelection' -count=1"
         },
         {

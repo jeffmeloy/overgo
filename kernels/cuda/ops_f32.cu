@@ -1284,6 +1284,172 @@ extern "C" __global__ void gated_delta_net_f32(
     }
 }
 
+// gated_delta_net_backward_f32: VJP of gated_delta_net_f32, the BPTT through the
+// per-(sequence,head,row) gated delta recurrence. One thread per (sequence,head,
+// row): the token loop is inherently sequential per row, rows are independent.
+// A forward recompute pass writes each token's post-update state s_t into the
+// safter scratch; sprime (post-gate, pre-delta) is recomputed from safter[t-1].
+// The reverse pass carries ds through ds_carry scratch. Internal math is double
+// to mirror the host f64 reference; grouped q/k, dgate, and dbeta accumulate
+// across rows/heads via atomicAdd, so the caller must zero-initialize
+// d_query/d_key/d_value/d_gate/d_beta before launch (d_input_state is written
+// once per element). scratch buffers safter (count*size*tokens*size) and
+// ds_carry (count*size*size) are doubles; they need no pre-init.
+extern "C" __global__ void gated_delta_net_backward_f32(
+        const float * query,
+        const float * key,
+        const float * value,
+        const float * gate,
+        const float * beta,
+        const float * input_state,
+        const float * d_output,
+        float * d_query,
+        float * d_key,
+        float * d_value,
+        float * d_gate,
+        float * d_beta,
+        float * d_input_state,
+        double * safter,
+        double * ds_carry,
+        unsigned int size,
+        unsigned int query_heads,
+        unsigned int key_heads,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int sequences,
+        unsigned int gate_width,
+        unsigned int repeat_interleave) {
+    const unsigned int index = blockIdx.x;
+    const unsigned int count = heads * sequences;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int head = index % heads;
+    const unsigned int sequence = index / heads;
+    const unsigned int query_head = repeat_interleave
+        ? head / (heads / query_heads)
+        : head % query_heads;
+    const unsigned int key_head = repeat_interleave
+        ? head / (heads / key_heads)
+        : head % key_heads;
+    const double scale = 1.0 / sqrt((double) size);
+    const unsigned int state_elements = size * size;
+    for (unsigned int row = threadIdx.x; row < size; row += blockDim.x) {
+        const float * state_in = input_state + index * state_elements + row * size;
+        double * row_safter = safter + ((size_t)(index * size + row)) * tokens * size;
+        double * ds = ds_carry + ((size_t)(index * size + row)) * size;
+        // Forward recompute: write s_t (post-update state) into row_safter[t].
+        for (unsigned int token = 0; token < tokens; ++token) {
+            const unsigned int value_base =
+                ((sequence * tokens + token) * heads + head) * size;
+            const unsigned int key_base =
+                ((sequence * tokens + token) * key_heads + key_head) * size;
+            const unsigned int gate_base =
+                ((sequence * tokens + token) * heads + head) * gate_width;
+            const double beta_value =
+                (double) beta[(sequence * tokens + token) * heads + head];
+            const double * prev = token == 0
+                ? (const double *) 0
+                : row_safter + (size_t)(token - 1) * size;
+            double dot = 0.0;
+            for (unsigned int column = 0; column < size; ++column) {
+                const double g = gate_width == 1
+                    ? (double) gate[gate_base]
+                    : (double) gate[gate_base + column];
+                const double base = token == 0
+                    ? (double) state_in[column]
+                    : prev[column];
+                dot += base * exp(g) * (double) key[key_base + column];
+            }
+            const double delta =
+                ((double) value[value_base + row] - dot) * beta_value;
+            double * cur = row_safter + (size_t)token * size;
+            for (unsigned int column = 0; column < size; ++column) {
+                const double g = gate_width == 1
+                    ? (double) gate[gate_base]
+                    : (double) gate[gate_base + column];
+                const double base = token == 0
+                    ? (double) state_in[column]
+                    : prev[column];
+                cur[column] = base * exp(g) + delta * (double) key[key_base + column];
+            }
+        }
+        // Reverse pass over tokens.
+        for (unsigned int column = 0; column < size; ++column) {
+            ds[column] = 0.0;
+        }
+        for (int token = (int) tokens - 1; token >= 0; --token) {
+            const unsigned int value_base =
+                ((sequence * tokens + token) * heads + head) * size;
+            const unsigned int query_base =
+                ((sequence * tokens + token) * query_heads + query_head) * size;
+            const unsigned int key_base =
+                ((sequence * tokens + token) * key_heads + key_head) * size;
+            const unsigned int gate_base =
+                ((sequence * tokens + token) * heads + head) * gate_width;
+            const unsigned int beta_index =
+                (sequence * tokens + token) * heads + head;
+            const double beta_value = (double) beta[beta_index];
+            const double go_value = (double) d_output[value_base + row] * scale;
+            const double * saf_cur = row_safter + (size_t)token * size;
+            const double * prev = token == 0
+                ? (const double *) 0
+                : row_safter + (size_t)(token - 1) * size;
+            // dsnew = ds + go*q ; dQuery += go*s_t ; dDelta = dsnew . k
+            double d_delta = 0.0;
+            for (unsigned int column = 0; column < size; ++column) {
+                const double dsnew = ds[column] + go_value * (double) query[query_base + column];
+                atomicAdd(&d_query[query_base + column], (float)(go_value * saf_cur[column]));
+                d_delta += dsnew * (double) key[key_base + column];
+            }
+            // recompute dot from s'_t (= prev . exp(gate))
+            double dot = 0.0;
+            for (unsigned int column = 0; column < size; ++column) {
+                const double g = gate_width == 1
+                    ? (double) gate[gate_base]
+                    : (double) gate[gate_base + column];
+                const double base = token == 0
+                    ? (double) state_in[column]
+                    : prev[column];
+                dot += base * exp(g) * (double) key[key_base + column];
+            }
+            const double v_minus = (double) value[value_base + row] - dot;
+            const double delta = v_minus * beta_value;
+            atomicAdd(&d_value[value_base + row], (float)(d_delta * beta_value));
+            atomicAdd(&d_beta[beta_index], (float)(d_delta * v_minus));
+            const double d_dot = -d_delta * beta_value;
+            // dSp = dsnew + d_dot*k ; dKey += delta*dsnew + d_dot*s' ;
+            // dGate += dSp*s' ; ds = dSp*exp(gate)
+            double gate_accum = 0.0;
+            for (unsigned int column = 0; column < size; ++column) {
+                const double g = gate_width == 1
+                    ? (double) gate[gate_base]
+                    : (double) gate[gate_base + column];
+                const double gexp = exp(g);
+                const double sprime = (token == 0
+                    ? (double) state_in[column]
+                    : prev[column]) * gexp;
+                const double kc = (double) key[key_base + column];
+                const double dsnew = ds[column] + go_value * (double) query[query_base + column];
+                const double dsp = dsnew + d_dot * kc;
+                atomicAdd(&d_key[key_base + column], (float)(delta * dsnew + d_dot * sprime));
+                if (gate_width == 1) {
+                    gate_accum += dsp * sprime;
+                } else {
+                    atomicAdd(&d_gate[gate_base + column], (float)(dsp * sprime));
+                }
+                ds[column] = dsp * gexp;
+            }
+            if (gate_width == 1) {
+                atomicAdd(&d_gate[gate_base], (float) gate_accum);
+            }
+        }
+        for (unsigned int column = 0; column < size; ++column) {
+            d_input_state[index * state_elements + row * size + column] = (float) ds[column];
+        }
+    }
+}
+
 extern "C" __global__ void gated_linear_attention_f32(
 		const float * key,
 		const float * value,

@@ -43,39 +43,36 @@ type capabilityCommand struct {
 	execute   capabilityruntime.Executor
 }
 
+func executableCapability(
+	inventory func(string) (modelartifact.Inventory, error),
+	execute capabilityruntime.Executor,
+) capabilityCommand {
+	return capabilityCommand{inventory: inventory, execute: execute}
+}
+
 var capabilityCommands = map[recipe.Task]capabilityCommand{
-	recipe.TaskForecast: {
-		inventory: hfInventory,
-		execute: capabilityruntime.JSONScalar[[]float32, *seriesforecast.Model, []float32](
+	recipe.TaskForecast: executableCapability(hfInventory,
+		capabilityruntime.JSONScalar[[]float32, *seriesforecast.Model, []float32](
 			"forecast", seriesforecast.ValidateRequest,
-			capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime),
-	},
-	recipe.TaskTabular: {
-		inventory: tabularInventory,
-		execute: capabilityruntime.JSONScalar[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](
+			capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime)),
+	recipe.TaskTabular: executableCapability(tabularInventory,
+		capabilityruntime.JSONScalar[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](
 			"tabular", tabularicl.ValidateRequest,
 			func(path string, request tabularicl.Request) (*tabularicl.Model, error) {
 				return tabularicl.LoadTask(path, request.Task)
-			}, tabularicl.RegisterRuntime),
-	},
-	recipe.TaskSeq2Seq: {
-		inventory: hfInventory,
-		execute: capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Model, []int](
+			}, tabularicl.RegisterRuntime)),
+	recipe.TaskSeq2Seq: executableCapability(hfInventory,
+		capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Model, []int](
 			"seq2seq", seq2seq.ValidateGenerateRequest,
-			capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.Load), seq2seq.RegisterRuntime),
-	},
-	recipe.TaskSpeech: {
-		inventory: speechInventory,
-		execute: capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
+			capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.Load), seq2seq.RegisterRuntime)),
+	recipe.TaskSpeech: executableCapability(speechInventory,
+		capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
 			"speech", speechsynth.ValidateSynthesisRequest,
-			capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime),
-	},
-	recipe.TaskImageGen: {
-		inventory: imageGenInventory,
-		execute: capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
+			capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)),
+	recipe.TaskImageGen: executableCapability(imageGenInventory,
+		capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
 			"image-gen", oscillatorimage.ValidateRequest,
-			capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime),
-	},
+			capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime)),
 	recipe.TaskVideoGen: {
 		inventory: videoGenInventory,
 	},

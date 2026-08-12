@@ -34,6 +34,10 @@ func JSONScalar[Input, Model, Output any](
 		program recipe.Program,
 		raw string,
 	) (any, error) {
+		definition := program.Definition()
+		if definition.Model != modelID {
+			return nil, fmt.Errorf("capability runtime: program model differs from binding")
+		}
 		var input Input
 		if err := strictjson.DecodeBytes([]byte(raw), &input); err != nil {
 			return nil, fmt.Errorf("decode %s input: %w", name, err)
@@ -51,13 +55,9 @@ func JSONScalar[Input, Model, Output any](
 		if err != nil {
 			return nil, err
 		}
-		definition := program.Definition()
 		runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
 		if err != nil {
 			return nil, err
-		}
-		if definition.Model != modelID {
-			return nil, fmt.Errorf("capability runtime: program model differs from binding")
 		}
 		if err := bind(runtime, modelID, model); err != nil {
 			return nil, err

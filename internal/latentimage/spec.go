@@ -323,10 +323,13 @@ func (s *Spec) crossCheckConfig() error {
 	if len(e.SelectLayers) != t.TextLayers {
 		return fmt.Errorf("latentimage: len(select_layers)=%d != num_text_layers %d", len(e.SelectLayers), t.TextLayers)
 	}
-	// selected layers must index into the text encoder depth (0-based)
+	// Selected layers index hidden_states[N] captured AFTER decoder layer N-1
+	// (adaptive convention; hidden_states[0] is the embedding). Valid range is
+	// [1, HiddenLayers], matching captureSlots -- the code that executes the
+	// capture -- so a config that passes derivation cannot fail at execution.
 	for _, layer := range e.SelectLayers {
-		if layer < 0 || layer >= e.HiddenLayers {
-			return fmt.Errorf("latentimage: select layer %d out of range [0,%d)", layer, e.HiddenLayers)
+		if layer < 1 || layer > e.HiddenLayers {
+			return fmt.Errorf("latentimage: select layer %d out of range [1,%d]", layer, e.HiddenLayers)
 		}
 	}
 	// latents_mean/std length == z_dim

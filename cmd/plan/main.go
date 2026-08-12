@@ -22,9 +22,11 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -303,14 +305,41 @@ func runVerify(it plan.Item, st plan.Step) error {
 		return fmt.Errorf("no verify defined for %s/%s -- add a runnable step.verify (exits 0 iff accepted) before advancing", it.ID, st.ID)
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: %s\n", it.ID, st.ID, st.Verify)
+	var buf bytes.Buffer
 	cmd := exec.Command("sh", "-c", st.Verify)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("verify FAILED for %s/%s: %w", it.ID, st.ID, err)
 	}
+	if reason := vacuousVerify(buf.String()); reason != "" {
+		return fmt.Errorf("verify VACUOUS for %s/%s: %s -- a skip is NOT a pass; run the oracle against the real prerequisite (on hardware / with the fixture) or record an honest stop, but do not advance on unverified parity", it.ID, st.ID, reason)
+	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: PASS\n", it.ID, st.ID)
 	return nil
+}
+
+// vacuousVerify reports why a 0-exit verify is NOT real evidence, or "" when it
+// is. A skipped test still exits 0, so without this a capability whose golden /
+// fixture / hardware is absent advances UNVERIFIED -- the exact hole that let
+// the un0 batch regression through tightening's gate (the golden was
+// UNAVAILABLE on that worktree, the test skipped, exit stayed 0). It keys on the
+// repo's existing conventions: an absent prerequisite emits UNAVAILABLE and/or
+// "parity NOT verified", and an empty/over-filtered run emits "[no test(s)...]".
+// Environment-gated skips that DID run real assertions elsewhere still print a
+// package "ok" without these markers and are unaffected.
+func vacuousVerify(out string) string {
+	switch {
+	case strings.Contains(out, "UNAVAILABLE"):
+		return "output contains UNAVAILABLE (a prerequisite was absent, so parity was NOT verified)"
+	case strings.Contains(out, "parity NOT verified"):
+		return "output reports 'parity NOT verified'"
+	case strings.Contains(out, "[no tests to run]"):
+		return "the verify filtered out every test ([no tests to run]) -- it asserted nothing"
+	case strings.Contains(out, "[no test files]"):
+		return "the verify ran a package with no tests ([no test files]) -- it asserted nothing"
+	}
+	return ""
 }
 
 func advanceStep(document plan.Plan, itemID, stepID, force string) error {

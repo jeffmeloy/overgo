@@ -754,29 +754,49 @@ func (p ModelPlan) DraftLayer(offset uint32) (LayerPlan, error) {
 	return p.draftLayers[offset], nil
 }
 
-// DraftLayerProgram: executable spec plus compiled draft layer.
-type DraftLayerProgram struct {
-	Spec Spec
-	Plan LayerPlan
+// CompiledLayerProgram: sealed executable layer contract.
+type CompiledLayerProgram struct {
+	spec Spec
+	plan LayerPlan
+}
+
+// Layer returns the immutable compiled layer facts.
+func (p CompiledLayerProgram) Layer() LayerPlan { return p.plan }
+
+// Spec returns the program-owned model facts.
+func (p CompiledLayerProgram) Spec() Spec { return p.spec }
+
+// LayerProgram binds one trunk layer to its validated model spec.
+func (p ModelPlan) LayerProgram(spec Spec, layer int) (CompiledLayerProgram, error) {
+	if p.profile.Name == "" || spec.Architecture != p.profile.Name {
+		return CompiledLayerProgram{}, fmt.Errorf(
+			"model plan profile %q does not match layer spec %q", p.profile.Name, spec.Architecture,
+		)
+	}
+	compiled, err := p.Layer(layer)
+	if err != nil {
+		return CompiledLayerProgram{}, err
+	}
+	return CompiledLayerProgram{spec: spec, plan: compiled}, nil
 }
 
 // DraftProgram: bounds-checked executable draft contract.
-func (p ModelPlan) DraftProgram(spec Spec, offset uint32) (DraftLayerProgram, error) {
+func (p ModelPlan) DraftProgram(spec Spec, offset uint32) (CompiledLayerProgram, error) {
 	if p.profile.Name == "" || spec.Architecture != p.profile.Name {
-		return DraftLayerProgram{}, fmt.Errorf(
+		return CompiledLayerProgram{}, fmt.Errorf(
 			"model plan profile %q does not match draft spec %q", p.profile.Name, spec.Architecture,
 		)
 	}
 	layer, err := p.DraftLayer(offset)
 	if err != nil {
-		return DraftLayerProgram{}, err
+		return CompiledLayerProgram{}, err
 	}
 	if p.draft.SingleCatalog {
 		spec, _ = singleDraftExecutableSpec(spec, p.draft.Kind)
 	} else if p.draft.Kind == DraftNextNMTP {
 		spec.BlockCount += p.draft.Heads
 	}
-	return DraftLayerProgram{Spec: spec, Plan: layer}, nil
+	return CompiledLayerProgram{spec: spec, plan: layer}, nil
 }
 
 // CacheSchema: materialized compiled layer-cache contract.

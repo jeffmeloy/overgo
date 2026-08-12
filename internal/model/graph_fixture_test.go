@@ -29,7 +29,7 @@ func fixtureDraftProgram(
 	spec Spec,
 	weights Weights,
 	head uint32,
-) DraftLayerProgram {
+) CompiledLayerProgram {
 	t.Helper()
 	draft, err := fixtureModelPlan(t, spec, weights).DraftProgram(spec, head)
 	if err != nil {

@@ -224,24 +224,23 @@ func (r *Runner) EvidenceTier() recipe.EvidenceTier {
 }
 
 func (r *Runner) layerPlan(layer int) model.LayerPlan {
+	return r.layerProgram(layer).Layer()
+}
+
+func (r *Runner) layerProgram(layer int) model.CompiledLayerProgram {
 	if r == nil {
 		panic("inference: compiled layer plan is unavailable")
 	}
-	plan, err := r.program.Model.Layer(layer)
+	program, err := r.program.Model.LayerProgram(r.spec, layer)
 	if err != nil {
 		panic("inference: compiled layer plan is unavailable")
 	}
-	return plan
+	return program
 }
 
-func (r *Runner) draftLayerPlan(offset uint32) (model.LayerPlan, error) {
-	program, err := r.draftLayerProgram(offset)
-	return program.Plan, err
-}
-
-func (r *Runner) draftLayerProgram(offset uint32) (model.DraftLayerProgram, error) {
+func (r *Runner) draftLayerProgram(offset uint32) (model.CompiledLayerProgram, error) {
 	if r == nil {
-		return model.DraftLayerProgram{}, errors.New("inference: compiled draft layer is unavailable")
+		return model.CompiledLayerProgram{}, errors.New("inference: compiled draft layer is unavailable")
 	}
 	return r.program.Model.DraftProgram(r.spec, offset)
 }

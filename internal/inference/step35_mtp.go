@@ -271,7 +271,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	plan := draftProgram.Plan
+	plan := draftProgram.Layer()
 	block, err := draftProgram.Build(model.CachedBlockContext{
 		Builder: runtime.builder, Input: current, Positions: positions,
 		PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,

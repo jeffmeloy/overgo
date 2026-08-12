@@ -32,9 +32,10 @@ func TestBuildGLM4NextNMTPPipeline(t *testing.T) {
 	weights.FeedForwardGate = nil
 	weights.FeedForwardUp = builder.Input("gate_up", dtype.F32, tensor.MustShape(8, 24))
 	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
-	block, err := buildFixtureLayerWithPlan(
-		builder, current, draft.Spec, weights, []uint32{0, 1}, nil, nil, draft.Plan,
-	)
+	plan := draft.Layer()
+	block, err := draft.Build(CachedBlockContext{
+		Builder: builder, Input: current, Positions: []uint32{0, 1}, Layer: plan.Layer,
+	}, weights)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,9 +67,10 @@ func TestBuildEXAONE4NextNMTPBlock(t *testing.T) {
 	weights.AttentionPostNorm = builder.Input("attn_post", dtype.F32, tensor.MustShape(8))
 	weights.FeedForwardPostNorm = builder.Input("ffn_post", dtype.F32, tensor.MustShape(8))
 	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
-	result, err := buildFixtureLayerWithPlan(
-		builder, input, draft.Spec, weights, []uint32{0, 1}, nil, nil, draft.Plan,
-	)
+	plan := draft.Layer()
+	result, err := draft.Build(CachedBlockContext{
+		Builder: builder, Input: input, Positions: []uint32{0, 1}, Layer: plan.Layer,
+	}, weights)
 	if err != nil {
 		t.Fatal(err)
 	}

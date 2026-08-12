@@ -40,13 +40,13 @@ func BuildArchitectureBlockCached(
 }
 
 // Build constructs the graph owned by a compiled draft layer.
-func (p DraftLayerProgram) Build(
+func (p CompiledLayerProgram) Build(
 	context CachedBlockContext,
 	weights LayerGraphWeights,
 ) (DenseBlockResult, error) {
-	plan := p.Plan
+	plan := p.plan
 	return executeCompiledLayer(BlockDispatchOptions{
-		Context: context, Spec: p.Spec, Weights: weights, Plan: &plan,
+		Context: context, Spec: p.spec, Weights: weights, Plan: &plan,
 	})
 }
 

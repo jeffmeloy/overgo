@@ -17,7 +17,7 @@ import (
 type singleHeadMTPAdapter struct {
 	nodePrefix                         string
 	layer                              model.LayerWeights
-	program                            model.DraftLayerProgram
+	program                            model.CompiledLayerProgram
 	embeddingNorm, hiddenNorm, project gguf.TensorInfo
 	tokenEmbedding, outputNorm, output *gguf.TensorInfo
 	buildInput                         func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, error)
@@ -77,7 +77,7 @@ func (r *Runner) advanceSingleHeadMTP(
 		pastKey = graph.input(adapter.nodePrefix+".past_key", session.Layer.Key)
 		pastValue = graph.input(adapter.nodePrefix+".past_value", session.Layer.Value)
 	}
-	plan := adapter.program.Plan
+	plan := adapter.program.Layer()
 	block, err := adapter.program.Build(model.CachedBlockContext{
 		Builder: builder, Input: current, Positions: []uint32{session.Position},
 		PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,

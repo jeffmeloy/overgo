@@ -44,9 +44,10 @@ func TestBuildCohere2MTPPipeline(t *testing.T) {
 		FeedForwardSharedDown:    builder.Input("sd", dtype.F32, tensor.MustShape(6, 8)),
 	}
 	draft := fixtureDraftProgram(t, spec, Weights{Cohere2MTP: &Cohere2MTPWeights{}}, 0)
-	block, err := buildFixtureLayerWithPlan(
-		builder, current, draft.Spec, weights, []uint32{0, 1}, nil, nil, draft.Plan,
-	)
+	plan := draft.Layer()
+	block, err := draft.Build(CachedBlockContext{
+		Builder: builder, Input: current, Positions: []uint32{0, 1}, Layer: plan.Layer,
+	}, weights)
 	if err != nil {
 		t.Fatal(err)
 	}

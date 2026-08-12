@@ -130,7 +130,7 @@ func (r *Runner) AdvanceNextNMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	plan := draftProgram.Plan
+	plan := draftProgram.Layer()
 	block, err := draftProgram.Build(model.CachedBlockContext{
 		Builder: builder, Input: current, Positions: []uint32{session.Position},
 		PastKey: pastKey, PastValue: pastValue,

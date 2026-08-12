@@ -41,7 +41,8 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	captured := make(map[int32]*tensor.Tensor)
 	for layerIndex, info := range r.weights.Layers {
-		plan := r.layerPlan(layerIndex)
+		program := r.layerProgram(layerIndex)
+		plan := program.Layer()
 		if stream := deepstackInputForLayer(plan.DeepstackBefore, deepstackBase, deepstackInputs); stream != nil {
 			deepstack := builder.Input(
 				fmt.Sprintf("blk.%d.deepstack_input", layerIndex), dtype.F32, stream.Shape,
@@ -96,10 +97,15 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			hostFeeds[pastKey] = past.Key
 			hostFeeds[pastValue] = past.Value
 		}
-		result, err := buildLayerBlockFromPlan(
-			builder, current, r.spec, graphWeights, positions, multiPositions,
-			pastKey, pastValue, plan,
-		)
+		var axes *[4][]uint32
+		if multiPositions != nil {
+			converted := [4][]uint32(*multiPositions)
+			axes = &converted
+		}
+		result, err := program.Build(model.CachedBlockContext{
+			Builder: builder, Input: current, Positions: positions, MultiPositions: axes,
+			PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
+		}, graphWeights)
 		if err != nil {
 			return reference.Value{}, nil, err
 		}
@@ -160,7 +166,8 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	current := input
 	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
 	for layerIndex, info := range r.weights.Layers {
-		plan := r.layerPlan(layerIndex)
+		program := r.layerProgram(layerIndex)
+		plan := program.Layer()
 		graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 		if err != nil {
 			return reference.Value{}, err
@@ -170,9 +177,9 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 		); err != nil {
 			return reference.Value{}, err
 		}
-		result, err := buildLayerBlockFromPlan(
-			builder, current, r.spec, graphWeights, positions, nil, nil, nil, plan,
-		)
+		result, err := program.Build(model.CachedBlockContext{
+			Builder: builder, Input: current, Positions: positions, Layer: plan.Layer,
+		}, graphWeights)
 		if err != nil {
 			return reference.Value{}, err
 		}
@@ -204,7 +211,8 @@ func (r *Runner) runLayerCached(
 	visualMode bool,
 	attentionBlockIDs []float32,
 ) (reference.Value, LayerCache, error) {
-	plan := r.layerPlan(layerIndex)
+	program := r.layerProgram(layerIndex)
+	plan := program.Layer()
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)
@@ -253,23 +261,20 @@ func (r *Runner) runLayerCached(
 		converted := [4][]uint32(*multiPositions)
 		dispatchMultiPositions = &converted
 	}
-	result, err = model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Context: model.CachedBlockContext{
-			Builder:          builder,
-			Input:            input,
-			Positions:        positions,
-			MultiPositions:   dispatchMultiPositions,
-			TokenRows:        tokenRows,
-			PastKey:          cacheInputs.key,
-			PastValue:        cacheInputs.value,
-			PastStates:       cacheInputs.states,
-			CurrentPositions: boundSideInputs.currentPositions,
-			PerLayerInput:    graphWeights.PerLayerInput,
-			Layer:            uint32(layerIndex),
-			Recurrent:        info.Recurrent,
-		},
-		Spec: r.spec, Weights: graphWeights, Plan: &plan,
-	})
+	result, err = program.Build(model.CachedBlockContext{
+		Builder:          builder,
+		Input:            input,
+		Positions:        positions,
+		MultiPositions:   dispatchMultiPositions,
+		TokenRows:        tokenRows,
+		PastKey:          cacheInputs.key,
+		PastValue:        cacheInputs.value,
+		PastStates:       cacheInputs.states,
+		CurrentPositions: boundSideInputs.currentPositions,
+		PerLayerInput:    graphWeights.PerLayerInput,
+		Layer:            uint32(layerIndex),
+		Recurrent:        info.Recurrent,
+	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
@@ -340,15 +345,16 @@ func (r *Runner) runLFM2LayerNonCausal(
 	}
 	spec := r.spec
 	spec.NonCausalAttention = true
-	plan := r.layerPlan(layerIndex)
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Context: model.CachedBlockContext{
-			Builder: builder, Input: input, Positions: positions,
-			PastKey: state, PastValue: reserved,
-			Layer: uint32(layerIndex), Recurrent: info.Recurrent,
-		},
-		Spec: spec, Weights: graphWeights, Plan: &plan,
-	})
+	program, err := r.program.Model.LayerProgram(spec, layerIndex)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	plan := program.Layer()
+	result, err := program.Build(model.CachedBlockContext{
+		Builder: builder, Input: input, Positions: positions,
+		PastKey: state, PastValue: reserved,
+		Layer: plan.Layer, Recurrent: info.Recurrent,
+	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -366,7 +372,8 @@ func (r *Runner) runDenseLayerNoCache(
 	layerIndex int,
 	positions []uint32,
 ) (reference.Value, error) {
-	plan := r.layerPlan(layerIndex)
+	program := r.layerProgram(layerIndex)
+	plan := program.Layer()
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)
@@ -380,9 +387,9 @@ func (r *Runner) runDenseLayerNoCache(
 	); err != nil {
 		return reference.Value{}, err
 	}
-	result, err := buildLayerBlockFromPlan(
-		builder, input, r.spec, graphWeights, positions, nil, nil, nil, plan,
-	)
+	result, err := program.Build(model.CachedBlockContext{
+		Builder: builder, Input: input, Positions: positions, Layer: plan.Layer,
+	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -391,30 +398,6 @@ func (r *Runner) runDenseLayerNoCache(
 		return reference.Value{}, err
 	}
 	return results[result.Output], nil
-}
-
-func buildLayerBlockFromPlan(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec model.Spec,
-	weights model.LayerGraphWeights,
-	positions []uint32,
-	multiPositions *MultiAxisPositions,
-	pastKey, pastValue *tensor.Tensor,
-	plan model.LayerPlan,
-) (model.DenseBlockResult, error) {
-	var axes *[4][]uint32
-	if multiPositions != nil {
-		converted := [4][]uint32(*multiPositions)
-		axes = &converted
-	}
-	return model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Context: model.CachedBlockContext{
-			Builder: builder, Input: input, Positions: positions, MultiPositions: axes,
-			PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
-		},
-		Spec: spec, Weights: weights, Plan: &plan,
-	})
 }
 
 func (r *Runner) runOutputNorm(ctx context.Context, activation reference.Value) (reference.Value, error) {

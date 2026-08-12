@@ -564,7 +564,7 @@
     {
       "id": "rung13-e4b",
       "title": "gemma-4-E4B",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "recon-goldens",
@@ -613,7 +613,7 @@
         {
           "id": "train-scale-rope-reconcile",
           "title": "SHARED training-scale path: reconcile serving-vs-training rope (partial-rope / keyLength != headDim) so the training forward matches the serving executor exactly; verify by grad-parity of the affected layers against the serving rope convention.",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/hostmath/ ./internal/tensor/reference/ -run 'TrainingRopeMatchesServingNeoX|HybridDecoderLayerBackwardFD' -count=1"
         },
         {

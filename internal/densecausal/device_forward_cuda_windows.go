@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/devicemath"
+	"overgo/internal/hostmath"
 )
 
 // deviceLayerForwardCached is the device counterpart to layerForwardCached: it
@@ -89,4 +90,39 @@ func (m *Model) deviceLayerForwardCached(worker *device.Worker, x []float32, l l
 		x[i] += mlp[i]
 	}
 	return c, nil
+}
+
+// deviceForwardStatesCached is the device counterpart to forwardStatesCached: it
+// runs the whole stack forward on the GPU (embedding lookup on host, then each
+// layer via deviceLayerForwardCached), retaining every layer's input residual
+// stream and its cache. Replaces the host forward inside deviceLossAndGrads, so
+// the per-layer forward no longer runs on host. states[l] is layer l's input;
+// states[Layers] is the final pre-norm stream.
+func (m *Model) deviceForwardStatesCached(worker *device.Worker, tokens []int) ([][]float32, []layerCache, error) {
+	d := m.Dims
+	seq := len(tokens)
+	embed := m.Weights["model.embed_tokens.weight"]
+	x := make([]float32, seq*d.Hidden)
+	for t, id := range tokens {
+		if id < 0 || id >= d.Vocab {
+			return nil, nil, fmt.Errorf("densecausal: token %d out of vocab %d", id, d.Vocab)
+		}
+		copy(x[t*d.Hidden:(t+1)*d.Hidden], embed[id*d.Hidden:(id+1)*d.Hidden])
+	}
+	invF32 := ropeInvF32(hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim))
+	states := make([][]float32, d.Layers+1)
+	caches := make([]layerCache, d.Layers)
+	for index := 0; index < d.Layers; index++ {
+		states[index] = append([]float32(nil), x...)
+		l, err := m.layerWeights(index)
+		if err != nil {
+			return nil, nil, err
+		}
+		caches[index], err = m.deviceLayerForwardCached(worker, x, l, invF32, seq)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	states[d.Layers] = x
+	return states, caches, nil
 }

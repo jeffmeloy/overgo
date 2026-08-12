@@ -681,7 +681,8 @@
         {
           "id": "do",
           "title": "hybrid-device-resident-loop: resident device training LOOP for the HYBRID models (qwen35/gemma3n) -- extend TrainDeviceResident (ed95d9d) to run the hybrid forward+backward (using HybridDecoderLayerBackwardDevice 3cc66cb/231cd56)+optimizer resident across steps, weights+momentum device-resident, scratch-pooled, peak under measured-free bound. Needs a hybrid device FORWARD (host today) + a host hybrid-model multi-step training reference for trajectory parity. Large integration.",
-          "status": "open"
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags cuda ./internal/hybridtrain/ -run HybridTrainDeviceResidentMatchesHost -count=1"
         }
       ]
     },

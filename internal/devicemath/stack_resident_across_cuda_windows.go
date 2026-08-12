@@ -189,6 +189,21 @@ func FreeResident(worker *device.Worker, ptrs ...driver.DevicePtr) error {
 	})
 }
 
+// WriteResident copies host slices into the named element ranges of a flat
+// resident buffer in one session (host-to-device) -- the upload counterpart of
+// ReadResident. The resident training loop uses it to refresh the resident
+// gradient buffer with the host-computed per-step gradients without reallocating.
+func WriteResident(worker *device.Worker, base driver.DevicePtr, slices ...ResidentSlice) error {
+	return worker.Do(context.Background(), func(state *device.State) error {
+		for _, sl := range slices {
+			if err := state.Driver.MemcpyHtoD(ptrAt(base, sl.ElemOffset), driver.Bytes(sl.Data)); err != nil {
+				return err
+			}
+		}
+		return state.Driver.StreamSynchronize(state.Stream)
+	})
+}
+
 // ReadResident copies the named element ranges of a flat resident buffer back to
 // their host slices in one session (device-to-host).
 func ReadResident(worker *device.Worker, base driver.DevicePtr, slices ...ResidentSlice) error {

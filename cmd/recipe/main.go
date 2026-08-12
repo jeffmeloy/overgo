@@ -73,9 +73,6 @@ var capabilityCommands = map[recipe.Task]capabilityCommand{
 		capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
 			"image-gen", oscillatorimage.ValidateRequest,
 			capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime)),
-	recipe.TaskVideoGen: {
-		inventory: videoGenInventory,
-	},
 	recipe.TaskVQA: {
 		inventory: hfInventory,
 	},
@@ -98,7 +95,7 @@ func run() error {
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
 	gate := flags.String("gate", "", "successful verifier gate artifact ID (activate)")
 	runID := flags.String("run-id", "", "bound verifier run artifact ID (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen|vqa)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|vqa)")
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
 	input := flags.String("input", "", "task input as JSON (run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
@@ -172,13 +169,6 @@ func hfInventory(path string) (modelartifact.Inventory, error) {
 	}
 	defer repository.Close()
 	return modelartifact.FromHFRepository(repository)
-}
-
-// videoGenInventory: denoiser, VAE, and text-encoder facts.
-func videoGenInventory(path string) (modelartifact.Inventory, error) {
-	return safetensorsInventory("video-gen", path, "config.json",
-		modelartifact.FileSpec{Path: "Wan2.1_VAE.pth", Name: "vae/weights", Role: artifact.ComponentWeights},
-		modelartifact.FileSpec{Path: "models_t5_umt5-xxl-enc-bf16.pth", Name: "textenc/weights", Role: artifact.ComponentWeights})
 }
 
 // singleSafetensors: unique top-level weights file.

@@ -122,7 +122,6 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 		{recipe.TaskSeq2Seq, recipe.PlacementHost, []recipe.DataKind{recipe.DataTokens}, recipe.DataTokens, []recipe.ModuleID{ModuleSeq2SeqEncode, ModuleSeq2SeqPrepare, ModuleSeq2SeqSelect}},
 		{recipe.TaskSpeech, recipe.PlacementHost, []recipe.DataKind{recipe.DataText}, recipe.DataAudio, []recipe.ModuleID{ModuleSpeechTokenize, ModuleSpeechGenerate, ModuleSpeechDecode}},
 		{recipe.TaskImageGen, recipe.PlacementHost, []recipe.DataKind{recipe.DataTensor}, recipe.DataImage, []recipe.ModuleID{ModuleImageGenerate}},
-		{recipe.TaskVideoGen, recipe.PlacementDevice, []recipe.DataKind{recipe.DataText}, recipe.DataVideo, []recipe.ModuleID{ModuleVideoGenerate}},
 		{recipe.TaskVQA, recipe.PlacementDevice, []recipe.DataKind{recipe.DataImage, recipe.DataText}, recipe.DataText, []recipe.ModuleID{ModuleVQAAnswer}},
 	}
 	for _, test := range tests {
@@ -160,6 +159,9 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 	}
 	if _, err := CapabilityDefinition(recipe.TaskInference, artifact.ID{}); err == nil {
 		t.Fatal("inference accepted as capability definition")
+	}
+	if _, err := CapabilityDefinition(recipe.TaskVideoGen, artifact.ID{}); err == nil {
+		t.Fatal("video recipe accepted without an executable adapter")
 	}
 }
 

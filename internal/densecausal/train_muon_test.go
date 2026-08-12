@@ -21,6 +21,23 @@ func tinyMuonModel(t *testing.T) *Model {
 	return m
 }
 
+func TestTensorGeometryRejectsNonPositiveDimensions(t *testing.T) {
+	tests := map[string]struct {
+		shape  []int
+		length int
+	}{
+		"negative matrix": {shape: []int{-1, -1}, length: 1},
+		"empty vector":    {shape: []int{0}, length: 0},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := tensorGeometry(test.shape, test.length); err == nil {
+				t.Fatal("invalid tensor geometry accepted")
+			}
+		})
+	}
+}
+
 // TestMuonTrainingDecreasesLossTiny: multi-step Muon training over a fixed batch
 // reduces the loss on the seeded in-memory model, with the base learning rate
 // DERIVED from the parameter count (baseLR=0), not hand-tuned. Loss finite

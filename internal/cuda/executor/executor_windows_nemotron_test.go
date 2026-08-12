@@ -46,7 +46,7 @@ func TestExecutorNemotronHRecurrentBlockMatchesReference(t *testing.T) {
 		SSMOutput:     builder.Input("ssm_out", dtype.F32, tensor.MustShape(inner, embedding)),
 	}
 	plan := spec.PlanLayer(0, true)
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(model.BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
@@ -117,7 +117,7 @@ func TestExecutorNemotronHMoEBlockMatchesReference(t *testing.T) {
 		)),
 	}
 	plan := spec.PlanLayer(0, false)
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(model.BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: model.CachedBlockContext{Builder: builder, Input: input, Positions: positions},
 	})
@@ -179,7 +179,7 @@ func TestExecutorNemotronHAttentionBlockMatchesReference(t *testing.T) {
 		AttentionOutputBias: builder.Input("output_bias", dtype.F32, tensor.MustShape(shapes.Embedding)),
 	}
 	plan := spec.PlanLayer(0, false)
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(model.BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: model.CachedBlockContext{Builder: builder, Input: input, Positions: positions},
 	})

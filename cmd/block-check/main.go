@@ -58,6 +58,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	modelPlan, err := model.CompileModelPlan(spec, weights)
+	if err != nil {
+		return err
+	}
 	if *layerIndex >= len(weights.Layers) {
 		return fmt.Errorf("layer %d exceeds model layer count %d", *layerIndex, len(weights.Layers))
 	}
@@ -80,13 +84,15 @@ func run() error {
 	for index := range positions {
 		positions[index] = uint32(index)
 	}
-	plan := spec.PlanLayer(uint32(*layerIndex), false)
-	blockResult, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-		Context: model.CachedBlockContext{
-			Builder: builder, Input: input, Positions: positions, Layer: plan.Layer,
-		},
-		Spec: spec, Weights: graphWeights, Plan: &plan,
-	})
+	program, err := modelPlan.LayerProgram(spec, *layerIndex)
+	if err != nil {
+		return err
+	}
+	plan := program.Layer()
+	blockResult, err := program.Build(model.CachedBlockContext{
+		Builder: builder, Input: input, Positions: positions,
+		Layer: plan.Layer, Recurrent: plan.Recurrent,
+	}, graphWeights)
 	if err != nil {
 		return err
 	}

@@ -18,6 +18,30 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
+func buildCompiledLayer(options model.BlockDispatchOptions) (model.DenseBlockResult, error) {
+	spec := options.Spec
+	if spec.BlockCount <= options.Context.Layer {
+		spec.BlockCount = options.Context.Layer + 1
+	}
+	spec.RecurrentLayers = make([]bool, spec.BlockCount)
+	spec.RecurrentLayers[options.Context.Layer] = options.Context.Recurrent
+	layers := make([]model.LayerWeights, spec.BlockCount)
+	if int(options.Context.Layer) < len(layers) {
+		layers[options.Context.Layer].Recurrent = options.Context.Recurrent
+	}
+	plan, err := model.CompileModelPlan(spec, model.Weights{Layers: layers})
+	if err != nil {
+		return model.DenseBlockResult{}, err
+	}
+	program, err := plan.LayerProgram(spec, int(options.Context.Layer))
+	if err != nil {
+		return model.DenseBlockResult{}, err
+	}
+	context := options.Context
+	context.Layer, context.Recurrent = program.Layer().Layer, program.Layer().Recurrent
+	return program.Build(context, options.Weights)
+}
+
 const cudaFixtureDevice = 0
 
 const (
@@ -113,7 +137,7 @@ func (f *cudaReferenceFixture) layer(
 		f.t.Fatal(err)
 	}
 	context.Builder, context.Layer = f.builder, plan.Layer
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(model.BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan, Context: context,
 	})
 	if err != nil {
@@ -305,7 +329,7 @@ func buildFixtureCachedBlock(
 	recurrent bool,
 ) (model.DenseBlockResult, error) {
 	plan := spec.PlanLayer(layer, recurrent)
-	return model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+	return buildCompiledLayer(model.BlockDispatchOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer, Recurrent: recurrent,
@@ -351,7 +375,7 @@ func buildFixtureDenseBlockCachedWithMultiPositions(
 	layer uint32,
 ) (model.DenseBlockResult, error) {
 	plan := spec.PlanLayer(layer, false)
-	return model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+	return buildCompiledLayer(model.BlockDispatchOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, MultiPositions: &positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer,

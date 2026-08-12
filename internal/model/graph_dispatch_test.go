@@ -328,7 +328,7 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 }
 
 func TestArchitectureBlockDispatchRoutesFamilies(t *testing.T) {
-	_, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+	_, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: Spec{CommonSpec: CommonSpec{Architecture: "unknown"}},
 	})
 	var unsupported *UnsupportedArchitectureError
@@ -337,7 +337,7 @@ func TestArchitectureBlockDispatchRoutesFamilies(t *testing.T) {
 	}
 	t5 := Spec{CommonSpec: CommonSpec{Architecture: "t5"}}
 	t5Plan := t5.PlanLayer(0, false)
-	_, err = BuildArchitectureBlockCached(BlockDispatchOptions{Spec: t5, Plan: &t5Plan})
+	_, err = executeCompiledLayer(BlockDispatchOptions{Spec: t5, Plan: &t5Plan})
 	if err == nil || !strings.Contains(err.Error(), "explicit encoder state") {
 		t.Fatalf("T5 dispatch error = %v", err)
 	}
@@ -346,14 +346,14 @@ func TestArchitectureBlockDispatchRoutesFamilies(t *testing.T) {
 	}
 	externalSpec := Spec{CommonSpec: CommonSpec{Architecture: external.Name}}.withProfile(external)
 	externalPlan := externalSpec.PlanLayer(0, false)
-	_, err = BuildArchitectureBlockCached(BlockDispatchOptions{
+	_, err = executeCompiledLayer(BlockDispatchOptions{
 		Spec: externalSpec, Plan: &externalPlan,
 	})
 	if err == nil || !strings.Contains(err.Error(), "explicit encoder state") {
 		t.Fatalf("bound external dispatch error = %v", err)
 	}
 	llama, _ := LookupArchitecture("llama")
-	_, err = BuildArchitectureBlockCached(BlockDispatchOptions{
+	_, err = executeCompiledLayer(BlockDispatchOptions{
 		Spec: Spec{CommonSpec: CommonSpec{Architecture: llama.Name}}.withProfile(llama),
 	})
 	if err == nil || !strings.Contains(err.Error(), "compiled layer plan is required") {

@@ -35,13 +35,6 @@ type BlockDispatchOptions struct {
 	Plan    *LayerPlan
 }
 
-// BuildArchitectureBlockCached: compiled layer-program construction.
-func BuildArchitectureBlockCached(
-	options BlockDispatchOptions,
-) (DenseBlockResult, error) {
-	return executeCompiledLayer(options)
-}
-
 // Build constructs the graph owned by a compiled draft layer.
 func (p CompiledLayerProgram) Build(
 	context CachedBlockContext,

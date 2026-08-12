@@ -26,6 +26,7 @@ const (
 	kernelBroadcastDivideF32
 	kernelBroadcastGateAddF32
 	kernelBroadcastMultiplyF32
+	kernelCausalSoftmaxF32
 	kernelClampF32
 	kernelConcatF32
 	kernelConv1dSameF32
@@ -130,6 +131,7 @@ const (
 	kernelRopeAppendNeoxF32
 	kernelRopeAppendNormalF32
 	kernelRopeHalfBackwardF32
+	kernelRopeHalfF32
 	kernelRopeMultiF32
 	kernelRopeNeoxF32
 	kernelRopeNormalF32
@@ -190,6 +192,7 @@ var kernelFunctionNames = [...]string{
 	"broadcast_divide_f32",
 	"broadcast_gate_add_f32",
 	"broadcast_multiply_f32",
+	"causal_softmax_f32",
 	"clamp_f32",
 	"concat_f32",
 	"conv_1d_same_f32",
@@ -294,6 +297,7 @@ var kernelFunctionNames = [...]string{
 	"rope_append_neox_f32",
 	"rope_append_normal_f32",
 	"rope_half_backward_f32",
+	"rope_half_f32",
 	"rope_multi_f32",
 	"rope_neox_f32",
 	"rope_normal_f32",
@@ -353,6 +357,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	15,
 	6,
 	15,
+	3,
 	5,
 	8,
 	10,
@@ -456,6 +461,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	18,
 	18,
+	5,
 	5,
 	14,
 	16,

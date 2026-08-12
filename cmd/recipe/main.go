@@ -17,101 +17,71 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/seq2seq"
 	"overgo/internal/seriesforecast"
 	"overgo/internal/speechsynth"
-	"overgo/internal/strictjson"
 	"overgo/internal/tabularicl"
-	"overgo/internal/workflowruntime"
 )
-
-type capabilityInput[Input any] struct {
-	name     string
-	validate func(Input) error
-}
-
-func (i capabilityInput[Input]) decode(raw string) (Input, artifact.Content, error) {
-	var value Input
-	if err := strictjson.DecodeBytes([]byte(raw), &value); err != nil {
-		return value, artifact.Content{}, fmt.Errorf("decode %s input: %w", i.name, err)
-	}
-	if err := i.validate(value); err != nil {
-		return value, artifact.Content{}, err
-	}
-	content, err := artifact.JSONContent(
-		artifact.JSONContract(artifact.KindFile, "overgo."+i.name+"-input.v1"), value,
-	)
-	return value, content, err
-}
-
-var (
-	forecastInput = capabilityInput[[]float32]{name: "forecast", validate: validateForecastInput}
-	tabularInput  = capabilityInput[tabularicl.Request]{name: "tabular", validate: tabularicl.ValidateRequest}
-	seq2seqInput  = capabilityInput[seq2seq.GenerateRequest]{name: "seq2seq", validate: seq2seq.ValidateGenerateRequest}
-	speechInput   = capabilityInput[speechsynth.SynthesisRequest]{name: "speech", validate: speechsynth.ValidateSynthesisRequest}
-)
-
-type capabilityExecutor func(
-	context.Context,
-	artifact.Repository,
-	string,
-	artifact.ID,
-	recipe.Program,
-	string,
-) (any, error)
 
 type capabilityCommand struct {
-	inventory  func(string) (modelartifact.Inventory, error)
-	definition func(artifact.ID) (recipe.Definition, error)
-	execute    capabilityExecutor
+	inventory func(string) (modelartifact.Inventory, error)
+	execute   capabilityruntime.Executor
 }
 
 var capabilityCommands = map[recipe.Task]capabilityCommand{
 	recipe.TaskForecast: {
-		inventory: hfInventory, definition: modelrecipe.ForecastDefinition,
-		execute: scalarCapability[[]float32, *seriesforecast.Model, []float32](
-			forecastInput, ignoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime),
+		inventory: hfInventory,
+		execute: capabilityruntime.JSONScalar[[]float32, *seriesforecast.Model, []float32](
+			"forecast", seriesforecast.ValidateRequest,
+			capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime),
 	},
 	recipe.TaskTabular: {
-		inventory: tabularInventory, definition: modelrecipe.TabularDefinition,
-		execute: scalarCapability[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](tabularInput,
+		inventory: tabularInventory,
+		execute: capabilityruntime.JSONScalar[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](
+			"tabular", tabularicl.ValidateRequest,
 			func(path string, request tabularicl.Request) (*tabularicl.Model, error) {
 				return tabularicl.LoadTask(path, request.Task)
 			}, tabularicl.RegisterRuntime),
 	},
 	recipe.TaskSeq2Seq: {
-		inventory: hfInventory, definition: modelrecipe.Seq2SeqDefinition,
-		execute: scalarCapability[seq2seq.GenerateRequest, *seq2seq.Model, []int](
-			seq2seqInput, ignoreInput[seq2seq.GenerateRequest](seq2seq.Load), seq2seq.RegisterRuntime),
+		inventory: hfInventory,
+		execute: capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Model, []int](
+			"seq2seq", seq2seq.ValidateGenerateRequest,
+			capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.Load), seq2seq.RegisterRuntime),
 	},
 	recipe.TaskSpeech: {
-		inventory: speechInventory, definition: modelrecipe.SpeechDefinition,
-		execute: scalarCapability[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
-			speechInput, ignoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime),
+		inventory: speechInventory,
+		execute: capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
+			"speech", speechsynth.ValidateSynthesisRequest,
+			capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime),
 	},
 	recipe.TaskImageGen: {
-		inventory: imageGenInventory, definition: modelrecipe.ImageGenDefinition,
+		inventory: imageGenInventory,
+		execute: capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
+			"image-gen", oscillatorimage.ValidateRequest,
+			capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime),
 	},
 	recipe.TaskVideoGen: {
-		inventory: videoGenInventory, definition: modelrecipe.VideoGenDefinition,
+		inventory: videoGenInventory,
 	},
 	recipe.TaskVQA: {
-		inventory: hfInventory, definition: modelrecipe.VQADefinition,
+		inventory: hfInventory,
 	},
 }
 
@@ -139,11 +109,7 @@ func run() error {
 	if flags.NArg() != 1 {
 		return errors.New("exactly one model reference is required")
 	}
-	working, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	roots, err := dataroot.Resolve(working)
+	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return err
 	}
@@ -194,28 +160,14 @@ func hfInventory(path string) (modelartifact.Inventory, error) {
 	return modelartifact.FromHFRepository(repository)
 }
 
-// videoGenInventory: the text-to-video artifact is an explicit four-part
-// list -- diffusion config + denoiser weights (the one top-level
-// safetensors), the VAE checkpoint, and the text-encoder checkpoint (both
-// pytorch-zip; read by internal/pytorchzip). The tokenizer directory and
-// vendor repo are companions, not components.
+// videoGenInventory: denoiser, VAE, and text-encoder facts.
 func videoGenInventory(path string) (modelartifact.Inventory, error) {
-	weights, err := singleSafetensors("video-gen", path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
-		{Path: filepath.Join(path, "config.json"), Name: "config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
-		{Path: filepath.Join(path, "Wan2.1_VAE.pth"), Name: "vae/weights", Role: artifact.ComponentWeights},
-		{Path: filepath.Join(path, "models_t5_umt5-xxl-enc-bf16.pth"), Name: "textenc/weights", Role: artifact.ComponentWeights},
-	})
+	return safetensorsInventory("video-gen", path, "config.json",
+		modelartifact.FileSpec{Path: "Wan2.1_VAE.pth", Name: "vae/weights", Role: artifact.ComponentWeights},
+		modelartifact.FileSpec{Path: "models_t5_umt5-xxl-enc-bf16.pth", Name: "textenc/weights", Role: artifact.ComponentWeights})
 }
 
-// singleSafetensors: the ONE top-level .safetensors weights file of a
-// capability artifact. Vendor-chosen names (pocket-tts content hash, un0
-// model.safetensors, u-vit step_NNN.safetensors) are discovered, never
-// assumed; more than one is ambiguous and refused.
+// singleSafetensors: unique top-level weights file.
 func singleSafetensors(context, path string) (string, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
@@ -237,40 +189,37 @@ func singleSafetensors(context, path string) (string, error) {
 	return weights, nil
 }
 
-// speechInventory: the pocket-tts layout is an explicit file list — the
-// vendor-resolved pockettts_config.json, the discovered weights file, and
-// the tokenizer.model the text conditioner reads. The embeddings/clips
-// subdirectories are voice data, not model components.
+func safetensorsInventory(
+	context, path, config string,
+	companions ...modelartifact.FileSpec,
+) (modelartifact.Inventory, error) {
+	weights, err := singleSafetensors(context, path)
+	if err != nil {
+		return modelartifact.Inventory{}, err
+	}
+	specs := []modelartifact.FileSpec{
+		{Path: filepath.Join(path, config), Name: "config", Role: artifact.ComponentConfig},
+		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
+	}
+	for _, companion := range companions {
+		companion.Path = filepath.Join(path, companion.Path)
+		specs = append(specs, companion)
+	}
+	return modelartifact.FromFiles(path, specs)
+}
+
+// speechInventory: model, codec, and tokenizer facts.
 func speechInventory(path string) (modelartifact.Inventory, error) {
-	weights, err := singleSafetensors("speech", path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
-		{Path: filepath.Join(path, "pockettts_config.json"), Name: "config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
-		{Path: filepath.Join(path, "tokenizer.model"), Name: "tokenizer", Role: artifact.ComponentTokenizer},
-	})
+	return safetensorsInventory("speech", path, "pockettts_config.json",
+		modelartifact.FileSpec{Path: "tokenizer.model", Name: "tokenizer", Role: artifact.ComponentTokenizer})
 }
 
-// imageGenInventory: image-gen artifacts are an explicit two-component list
-// — config.json (family tag / execution facts) plus the discovered weights
-// file; every dimension derives from tensor lengths. Vendor scripts, sample
-// renders, and provenance sidecars are not model components.
+// imageGenInventory: config and weights facts.
 func imageGenInventory(path string) (modelartifact.Inventory, error) {
-	weights, err := singleSafetensors("image-gen", path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
-		{Path: filepath.Join(path, "config.json"), Name: "config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
-	})
+	return safetensorsInventory("image-gen", path, "config.json")
 }
 
-// tabularInventory: dual-head artifact (classification/ + regression/, each
-// config.json + model.safetensors) — an explicit file list; no repository
-// walker owns this layout.
+// tabularInventory: classification and regression head facts.
 func tabularInventory(path string) (modelartifact.Inventory, error) {
 	var specs []modelartifact.FileSpec
 	for _, head := range tabularicl.Tasks() {
@@ -315,7 +264,7 @@ func activateCapability(
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
-	definition, err := capability.definition(modelID)
+	definition, err := modelrecipe.CapabilityDefinition(task, modelID)
 	if err != nil {
 		return err
 	}
@@ -378,68 +327,6 @@ func executeCapability(
 		return err
 	}
 	return json.NewEncoder(os.Stdout).Encode(output)
-}
-
-func ignoreInput[Input, Model any](load func(string) (Model, error)) func(string, Input) (Model, error) {
-	return func(path string, _ Input) (Model, error) { return load(path) }
-}
-
-func scalarCapability[Input, Model, Output any](
-	inputSpec capabilityInput[Input],
-	load func(string, Input) (Model, error),
-	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
-) capabilityExecutor {
-	return func(ctx context.Context, store artifact.Repository, path string, modelID artifact.ID, program recipe.Program, raw string) (any, error) {
-		value, content, err := inputSpec.decode(raw)
-		if err != nil {
-			return nil, err
-		}
-		loaded, err := load(path, value)
-		if err != nil {
-			return nil, err
-		}
-		definition := program.Definition()
-		if len(definition.Inputs) != 1 || len(definition.Outputs) != 1 {
-			return nil, errors.New("recipe command: scalar execution requires one input and output")
-		}
-		input, output := definition.Inputs[0], definition.Outputs[0]
-		runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
-		if err != nil {
-			return nil, err
-		}
-		if err := bind(runtime, modelID, loaded); err != nil {
-			return nil, err
-		}
-		result, err := runtime.ExecuteProgram(ctx,
-			"recipe/run/"+definition.ID.String()+"/"+content.Descriptor.ID.String(), program,
-			map[recipe.PortName]workflowruntime.Value{
-				input.Name: workflowruntime.ArtifactValue(input.Data, value, content),
-			})
-		if err != nil {
-			return nil, err
-		}
-		datum, ok := result.Outputs[output.Name].Single()
-		if !ok {
-			return nil, fmt.Errorf("runtime output %q has invalid cardinality", output.Name)
-		}
-		decoded, ok := datum.Value.(Output)
-		if !ok {
-			return nil, fmt.Errorf("runtime output %q has invalid value type", output.Name)
-		}
-		return decoded, nil
-	}
-}
-
-func validateForecastInput(series []float32) error {
-	if len(series) == 0 {
-		return errors.New("forecast input series is empty")
-	}
-	for _, value := range series {
-		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
-			return errors.New("forecast input series contains a non-finite value")
-		}
-	}
-	return nil
 }
 
 // sessionOverride: operator-pinned decode session; nil defers to the

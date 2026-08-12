@@ -7,18 +7,14 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testutil"
 )
 
 // artifactDir resolves a real artifact through the data-root contract;
 // absent artifact skips LOUDLY.
 func artifactDir(t *testing.T, name string) string {
 	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := filepath.Dir(filepath.Dir(working)) // internal/densecausal -> repo root
-	roots, err := dataroot.Resolve(repo)
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}

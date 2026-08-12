@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testutil"
 )
 
 // oracleFile mirrors fixtures/needle_forward_oracle.json: a JAX 0.11.0
@@ -40,11 +41,7 @@ const (
 
 func readOracle(t *testing.T) *oracleFile {
 	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(filepath.Dir(filepath.Dir(working)), "fixtures", "needle_forward_oracle.json")
+	path := testutil.FixturePath(t, "needle_forward_oracle.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Skipf("UNAVAILABLE: forward oracle absent at %s; parity NOT verified", path)
@@ -66,12 +63,7 @@ func loadArtifactModel(t *testing.T) *Model {
 	if testing.Short() {
 		t.Skip("loads the full artifact; skipped in -short")
 	}
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := filepath.Dir(filepath.Dir(working)) // internal/seq2seq -> repo root
-	roots, err := dataroot.Resolve(repo)
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}

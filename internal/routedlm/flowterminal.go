@@ -11,13 +11,12 @@ package routedlm
 // modeling_fm_modules.py / modeling_neo_vit.py / modeling_neo_chat.py.
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
 )
@@ -83,12 +82,8 @@ type FlowConfig struct {
 
 // LoadFlowConfig: flow fields from config.json (flat top level).
 func LoadFlowConfig(modelDir string) (FlowConfig, error) {
-	raw, err := os.ReadFile(filepath.Join(modelDir, "config.json"))
-	if err != nil {
-		return FlowConfig{}, err
-	}
 	var cfg FlowConfig
-	if err := json.Unmarshal(raw, &cfg); err != nil {
+	if err := jsonfile.Decode(filepath.Join(modelDir, "config.json"), &cfg); err != nil {
 		return FlowConfig{}, fmt.Errorf("routed lm flow config: %w", err)
 	}
 	return cfg, cfg.validate()

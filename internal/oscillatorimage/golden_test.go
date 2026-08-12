@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testutil"
 )
 
 // Parity gates: the reference port's committed tolerances (adaptive
@@ -21,22 +22,13 @@ const (
 	tolGenerator = 1e-3
 )
 
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return filepath.Dir(filepath.Dir(working)) // internal/oscillatorimage -> repo root
-}
-
 // referenceFixturePath: the un0 goldens ship in the REFERENCE repo's
 // fixtures/ directory (sibling of the models root per the data-root
 // contract), not inside the artifact directory; read them where they live,
 // never copied.
 func referenceFixturePath(t *testing.T, name string) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(repoRoot(t))
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +113,7 @@ var (
 
 func artifactDir(t *testing.T) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(repoRoot(t))
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}

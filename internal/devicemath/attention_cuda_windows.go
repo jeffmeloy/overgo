@@ -3,12 +3,9 @@
 package devicemath
 
 import (
-	"context"
 	"fmt"
 
-	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 )
 
 // deviceGEMM computes row-major C[m,n] = op(A)·op(B) in fp32 on the GPU, with
@@ -20,56 +17,23 @@ func deviceGEMM(worker *device.Worker, transA, transB bool, m, k, n int, a, b []
 		return nil, fmt.Errorf("deviceGEMM: shape mismatch (m=%d k=%d n=%d a=%d b=%d)", m, k, n, len(a), len(b))
 	}
 	c := make([]float32, m*n)
-	err := worker.Do(context.Background(), func(state *device.State) error {
-		lib := state.Driver
-		blas, err := cublas.Open()
+	err := withCUDABLAS(worker, func(session *cudaBLAS) error {
+		aPtr, err := session.upload(a)
 		if err != nil {
 			return err
 		}
-		defer blas.Close()
-		handle, err := blas.Create()
+		bPtr, err := session.upload(b)
 		if err != nil {
 			return err
 		}
-		defer blas.Destroy(handle)
-		if err := blas.SetStream(handle, state.Stream); err != nil {
+		cPtr, err := session.alloc(len(c))
+		if err != nil {
 			return err
 		}
-		var aPtr, bPtr, cPtr driver.DevicePtr
-		specs := []struct {
-			ptr  *driver.DevicePtr
-			data []float32
-		}{{&aPtr, a}, {&bPtr, b}, {&cPtr, c}}
-		for i := range specs {
-			p, err := lib.MemAlloc(uint64(len(specs[i].data)) * 4)
-			if err != nil {
-				for j := range specs {
-					if *specs[j].ptr != 0 {
-						lib.MemFree(*specs[j].ptr)
-					}
-				}
-				return err
-			}
-			*specs[i].ptr = p
-		}
-		defer func() {
-			for i := range specs {
-				lib.MemFree(*specs[i].ptr)
-			}
-		}()
-		if err := lib.MemcpyHtoD(aPtr, driver.Bytes(a)); err != nil {
+		if err := session.gemm(transA, transB, m, k, n, aPtr, bPtr, cPtr); err != nil {
 			return err
 		}
-		if err := lib.MemcpyHtoD(bPtr, driver.Bytes(b)); err != nil {
-			return err
-		}
-		if err := blas.RowMajorGEMMExF32(handle, transA, transB, int32(m), int32(k), int32(n), aPtr, bPtr, cPtr); err != nil {
-			return err
-		}
-		if err := lib.StreamSynchronize(state.Stream); err != nil {
-			return err
-		}
-		return lib.MemcpyDtoH(driver.Bytes(c), cPtr)
+		return session.finish(cudaDownload{c, cPtr})
 	})
 	if err != nil {
 		return nil, err

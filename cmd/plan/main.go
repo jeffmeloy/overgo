@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"overgo/internal/jsonfile"
 )
 
 const planPath = "docs/plan.json"
@@ -89,12 +91,8 @@ func run(next, status, advance bool, args []string) error {
 }
 
 func load() (plan, error) {
-	raw, err := os.ReadFile(filepath.FromSlash(planPath))
-	if err != nil {
-		return plan{}, err
-	}
 	var document plan
-	if err := json.Unmarshal(raw, &document); err != nil {
+	if err := jsonfile.Decode(filepath.FromSlash(planPath), &document); err != nil {
 		return plan{}, fmt.Errorf("parse %s: %w", planPath, err)
 	}
 	return document, nil

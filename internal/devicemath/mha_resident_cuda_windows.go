@@ -3,15 +3,11 @@
 package devicemath
 
 import (
-	"context"
 	"fmt"
-	"runtime"
 	"unsafe"
 
-	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
-	"overgo/internal/cuda/kernel"
 )
 
 // toHeadMajor reshapes [seq, nHeads*hd] -> [nHeads, seq, hd] (each head
@@ -40,14 +36,17 @@ func fromHeadMajor(x []float32, seq, nHeads, hd int) []float32 {
 // MultiHeadAttentionBackwardResident is the resident counterpart to
 // MultiHeadAttentionBackward: the whole causal GQA attention-core backward runs
 // in ONE worker.Do -- inputs reshaped head-major and uploaded once, every head's
-// four GEMMs and softmax_backward run on resident sub-buffers, GQA dk/dv
-// accumulate on device via the add kernel, and only dQ/dK/dV come back. Same
-// math as MultiHeadAttentionBackward (scale multiplies dQ). Addresses SQA
-// finding 2 for the attention block.
-func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, p, dOut []float32, seq, nh, nkv, hd int, scale float64) (dQ, dK, dV []float32, err error) {
+// GEMMs and softmax_backward run on resident sub-buffers, GQA dk/dv accumulate
+// on device via the add kernel, and only dQ/dK/dV come back. The softmax
+// probabilities are recomputed on device per head (causal_softmax of qh·khᵀ)
+// rather than received as a host [nh, seq, seq] slice -- the score scale is
+// folded into q upstream, so scores use scale 1 (dQ/dK are scaled on return).
+// Same math as MultiHeadAttentionBackward. Addresses SQA finding 2 for the
+// attention block and removes the O(heads*seq^2) host softmax allocation.
+func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, dOut []float32, seq, nh, nkv, hd int, scale float64) (dQ, dK, dV []float32, err error) {
 	if seq <= 0 || nh <= 0 || nkv <= 0 || hd <= 0 || nh%nkv != 0 ||
 		len(q) != seq*nh*hd || len(k) != seq*nkv*hd || len(v) != seq*nkv*hd ||
-		len(p) != nh*seq*seq || len(dOut) != seq*nh*hd {
+		len(dOut) != seq*nh*hd {
 		return nil, nil, nil, fmt.Errorf("MultiHeadAttentionBackwardResident: shape mismatch (seq=%d nh=%d nkv=%d hd=%d)", seq, nh, nkv, hd)
 	}
 	group := nh / nkv
@@ -59,124 +58,83 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, p, dOut 
 	dkC := make([]float32, seq*nkv*hd)
 	dvC := make([]float32, seq*nkv*hd)
 
-	err = worker.Do(context.Background(), func(state *device.State) error {
-		lib := state.Driver
-		blas, err := cublas.Open()
+	err = withCUDABLAS(worker, func(session *cudaBLAS) error {
+		addFn, err := session.function("add_f32")
 		if err != nil {
 			return err
 		}
-		defer blas.Close()
-		handle, err := blas.Create()
+		softmaxFn, err := session.function("softmax_backward_f32")
 		if err != nil {
 			return err
 		}
-		defer blas.Destroy(handle)
-		if err := blas.SetStream(handle, state.Stream); err != nil {
-			return err
-		}
-		module, err := lib.ModuleLoadData(kernel.OpsF32PTX)
-		if err != nil {
-			return err
-		}
-		defer lib.ModuleUnload(module)
-		addFn, err := lib.ModuleFunction(module, "add_f32")
-		if err != nil {
-			return err
-		}
-		softmaxFn, err := lib.ModuleFunction(module, "softmax_backward_f32")
+		causalSoftmaxFn, err := session.function("causal_softmax_f32")
 		if err != nil {
 			return err
 		}
 
-		var frees []driver.DevicePtr
-		defer func() {
-			for _, pp := range frees {
-				lib.MemFree(pp)
-			}
-		}()
-		alloc := func(n int) (driver.DevicePtr, error) {
-			pp, err := lib.MemAlloc(uint64(n) * 4)
-			if err != nil {
-				return 0, err
-			}
-			frees = append(frees, pp)
-			return pp, nil
-		}
-		upload := func(data []float32) (driver.DevicePtr, error) {
-			pp, err := alloc(len(data))
-			if err != nil {
-				return 0, err
-			}
-			return pp, lib.MemcpyHtoD(pp, driver.Bytes(data))
-		}
-
-		qP, err := upload(qC)
+		qP, err := session.upload(qC)
 		if err != nil {
 			return err
 		}
-		kP, err := upload(kC)
+		kP, err := session.upload(kC)
 		if err != nil {
 			return err
 		}
-		vP, err := upload(vC)
+		vP, err := session.upload(vC)
 		if err != nil {
 			return err
 		}
-		pP, err := upload(p)
+		dOutP, err := session.upload(dOutC)
 		if err != nil {
 			return err
 		}
-		dOutP, err := upload(dOutC)
+		dqP, err := session.alloc(seq * nh * hd)
 		if err != nil {
 			return err
 		}
-		dqP, err := alloc(seq * nh * hd)
+		dkP, err := session.alloc(seq * nkv * hd)
 		if err != nil {
 			return err
 		}
-		dkP, err := alloc(seq * nkv * hd)
-		if err != nil {
-			return err
-		}
-		dvP, err := alloc(seq * nkv * hd)
+		dvP, err := session.alloc(seq * nkv * hd)
 		if err != nil {
 			return err
 		}
 		// dk/dv accumulate across the group -> zero first.
-		if err := lib.MemsetD32Async(dkP, 0, uint64(seq*nkv*hd), state.Stream); err != nil {
+		if err := session.state.Driver.MemsetD32Async(dkP, 0, uint64(seq*nkv*hd), session.state.Stream); err != nil {
 			return err
 		}
-		if err := lib.MemsetD32Async(dvP, 0, uint64(seq*nh*hd/group), state.Stream); err != nil {
+		if err := session.state.Driver.MemsetD32Async(dvP, 0, uint64(seq*nh*hd/group), session.state.Stream); err != nil {
 			return err
 		}
-		dpP, err := alloc(seq * seq)
+		dpP, err := session.alloc(seq * seq)
 		if err != nil {
 			return err
 		}
-		dsP, err := alloc(seq * seq)
+		dsP, err := session.alloc(seq * seq)
 		if err != nil {
 			return err
 		}
-		tmpP, err := alloc(seq * hd)
+		// Per-head score + softmax scratch (reused each head): scores = qh·khᵀ,
+		// then causal_softmax -> phP (device p, no host [nh,seq,seq] upload).
+		scoresP, err := session.alloc(seq * seq)
+		if err != nil {
+			return err
+		}
+		phP, err := session.alloc(seq * seq)
+		if err != nil {
+			return err
+		}
+		tmpP, err := session.alloc(seq * hd)
 		if err != nil {
 			return err
 		}
 
 		off := func(base driver.DevicePtr, elems int) driver.DevicePtr {
-			return base + driver.DevicePtr(elems*4)
-		}
-		launch := func(fn driver.Function, n int, args []unsafe.Pointer) error {
-			const threads = uint32(256)
-			blocks := (uint32(n) + threads - 1) / threads
-			return lib.LaunchKernel(fn, driver.Dim3{X: blocks, Y: 1, Z: 1}, driver.Dim3{X: threads, Y: 1, Z: 1}, 0, state.Stream, args)
+			return base + driver.DevicePtr(uint64(elems)*f32Bytes)
 		}
 		add := func(a, b, out driver.DevicePtr, n int) error {
-			c := uint32(n)
-			e := launch(addFn, n, []unsafe.Pointer{unsafe.Pointer(&a), unsafe.Pointer(&b), unsafe.Pointer(&out), unsafe.Pointer(&c)})
-			runtime.KeepAlive(a)
-			runtime.KeepAlive(b)
-			runtime.KeepAlive(out)
-			return e
+			return session.launchVector3(addFn, a, b, out, n)
 		}
 
 		hs := seq * hd
@@ -184,31 +142,43 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, p, dOut 
 			kv := h / group
 			qh, dOuth, dqh := off(qP, h*hs), off(dOutP, h*hs), off(dqP, h*hs)
 			kh, vh, dkh, dvh := off(kP, kv*hs), off(vP, kv*hs), off(dkP, kv*hs), off(dvP, kv*hs)
-			ph := off(pP, h*seq*seq)
+
+			// p_h = causal_softmax(qh·khᵀ) on device (scores use scale 1, folded
+			// into q upstream) -- replaces the uploaded host softmax slice.
+			if err := session.gemm(false, true, seq, hd, seq, qh, kh, scoresP); err != nil {
+				return err
+			}
+			rowsCausal := uint32(seq)
+			if err := session.launch1D(causalSoftmaxFn, rowsCausal,
+				unsafe.Pointer(&scoresP), unsafe.Pointer(&phP), unsafe.Pointer(&rowsCausal)); err != nil {
+				return err
+			}
+			ph := phP
 
 			// dp = dOuth·vhᵀ  [seq,seq]
-			if err := blas.RowMajorGEMMExF32(handle, false, true, int32(seq), int32(hd), int32(seq), dOuth, vh, dpP); err != nil {
+			if err := session.gemm(false, true, seq, hd, seq, dOuth, vh, dpP); err != nil {
 				return err
 			}
 			// dscores = softmax_backward(ph, dp)  [seq rows of length seq]
 			rowsU, dU := uint32(seq), uint32(seq)
-			if err := launch(softmaxFn, seq, []unsafe.Pointer{unsafe.Pointer(&ph), unsafe.Pointer(&dpP), unsafe.Pointer(&dsP), unsafe.Pointer(&rowsU), unsafe.Pointer(&dU)}); err != nil {
+			if err := session.launch1D(softmaxFn, rowsU,
+				unsafe.Pointer(&ph), unsafe.Pointer(&dpP), unsafe.Pointer(&dsP),
+				unsafe.Pointer(&rowsU), unsafe.Pointer(&dU)); err != nil {
 				return err
 			}
-			runtime.KeepAlive(ph)
 			// dV_h = phᵀ·dOuth  -> accumulate into dvh
-			if err := blas.RowMajorGEMMExF32(handle, true, false, int32(seq), int32(seq), int32(hd), ph, dOuth, tmpP); err != nil {
+			if err := session.gemm(true, false, seq, seq, hd, ph, dOuth, tmpP); err != nil {
 				return err
 			}
 			if err := add(dvh, tmpP, dvh, hs); err != nil {
 				return err
 			}
 			// dQ_h = dscores·kh  -> unique head, write
-			if err := blas.RowMajorGEMMExF32(handle, false, false, int32(seq), int32(seq), int32(hd), dsP, kh, dqh); err != nil {
+			if err := session.gemm(false, false, seq, seq, hd, dsP, kh, dqh); err != nil {
 				return err
 			}
 			// dK_h = dscoresᵀ·qh  -> accumulate into dkh
-			if err := blas.RowMajorGEMMExF32(handle, true, false, int32(seq), int32(seq), int32(hd), dsP, qh, tmpP); err != nil {
+			if err := session.gemm(true, false, seq, seq, hd, dsP, qh, tmpP); err != nil {
 				return err
 			}
 			if err := add(dkh, tmpP, dkh, hs); err != nil {
@@ -216,16 +186,9 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, p, dOut 
 			}
 		}
 
-		if err := lib.StreamSynchronize(state.Stream); err != nil {
-			return err
-		}
-		if err := lib.MemcpyDtoH(driver.Bytes(dqC), dqP); err != nil {
-			return err
-		}
-		if err := lib.MemcpyDtoH(driver.Bytes(dkC), dkP); err != nil {
-			return err
-		}
-		return lib.MemcpyDtoH(driver.Bytes(dvC), dvP)
+		return session.finish(
+			cudaDownload{dqC, dqP}, cudaDownload{dkC, dkP}, cudaDownload{dvC, dvP},
+		)
 	})
 	if err != nil {
 		return nil, nil, nil, err

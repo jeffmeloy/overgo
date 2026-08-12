@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"math"
 	"os"
-	"path/filepath"
 	"testing"
+
+	"overgo/internal/testutil"
 )
 
 // tinyGolden mirrors fixtures/{llama,qwen2}_train_golden.json
@@ -38,11 +39,7 @@ type tinyGolden struct {
 
 func readGolden(t *testing.T, file, schema string) *tinyGolden {
 	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(filepath.Dir(filepath.Dir(working)), "fixtures", file)
+	path := testutil.FixturePath(t, file)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Skipf("UNAVAILABLE: %s absent; training parity NOT verified", path)

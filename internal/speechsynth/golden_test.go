@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testutil"
 )
 
 // Golden-ladder tolerances. The elementwise gates are the reference port's
@@ -84,18 +85,9 @@ type g3Golden struct {
 	Traces map[string]goldenSummary `json:"traces"`
 }
 
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return filepath.Dir(filepath.Dir(working)) // internal/speechsynth -> repo root
-}
-
 func fixturePath(t *testing.T, name string) string {
 	t.Helper()
-	return filepath.Join(repoRoot(t), "fixtures", "pockettts", name)
+	return testutil.FixturePath(t, "pockettts", name)
 }
 
 // loadFixture decodes a committed golden; absence skips LOUDLY.
@@ -156,7 +148,7 @@ func loadArtifactModel(t *testing.T) *Model {
 	if testing.Short() {
 		t.Skip("loads the full artifact; skipped in -short")
 	}
-	roots, err := dataroot.Resolve(repoRoot(t))
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +165,7 @@ func loadArtifactModel(t *testing.T) *Model {
 
 func artifactDir(t *testing.T) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(repoRoot(t))
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}

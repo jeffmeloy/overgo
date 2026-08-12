@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/recipe"
 )
 
 const generationLimitFixture = 2
@@ -43,7 +43,7 @@ func (f runtimeFixture) prepareGeneration(encoded encodedRequest) (tokenSelector
 }
 
 func TestRegisteredRuntimeExecutesSeq2SeqProgram(t *testing.T) {
-	fixture := modelrecipetest.NewCapability(t, "seq2seq-model", modelrecipe.Seq2SeqDefinition)
+	fixture := modelrecipetest.NewCapability(t, "seq2seq-model", recipe.TaskSeq2Seq)
 	request := GenerateRequest{Source: generationSourceFixture, MaxTokens: generationLimitFixture}
 	encoded := encodedRequest{memory: generationMemoryFixture, sourceRows: len(generationSourceFixture), maxTokens: generationLimitFixture}
 	if err := registerRuntime(fixture.Runtime, fixture.Model, runtimeFixture{
@@ -55,9 +55,8 @@ func TestRegisteredRuntimeExecutesSeq2SeqProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	datum, one := result.Outputs["tokens"].Single()
-	got, typed := datum.Value.([]int)
-	if !one || !typed || !slices.Equal(got, generationOutputFixture) || !result.Commit.Valid() {
-		t.Fatalf("tokens = (%v, %v, %v), commit=%v", got, one, typed, result.Commit)
+	got := modelrecipetest.Output[[]int](t, result, "tokens")
+	if !slices.Equal(got, generationOutputFixture) {
+		t.Fatalf("tokens = %v", got)
 	}
 }

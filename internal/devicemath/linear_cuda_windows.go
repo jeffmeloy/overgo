@@ -7,12 +7,9 @@
 package devicemath
 
 import (
-	"context"
 	"fmt"
 
-	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 )
 
 // LinearBackward computes the gradients of the row-major linear map
@@ -30,73 +27,34 @@ func LinearBackward(worker *device.Worker, x, w, dY []float32, rows, in, out int
 	}
 	dX = make([]float32, rows*in)
 	dW = make([]float32, in*out)
-	err = worker.Do(context.Background(), func(state *device.State) error {
-		lib := state.Driver
-		blas, err := cublas.Open()
+	err = withCUDABLAS(worker, func(session *cudaBLAS) error {
+		xPtr, err := session.upload(x)
 		if err != nil {
 			return err
 		}
-		defer blas.Close()
-		handle, err := blas.Create()
+		wPtr, err := session.upload(w)
 		if err != nil {
 			return err
 		}
-		defer blas.Destroy(handle)
-		if err := blas.SetStream(handle, state.Stream); err != nil {
+		dyPtr, err := session.upload(dY)
+		if err != nil {
 			return err
 		}
-
-		var dxPtr, dwPtr, xPtr, wPtr, dyPtr driver.DevicePtr
-		bufs := []struct {
-			ptr  *driver.DevicePtr
-			data []float32
-		}{
-			{&dxPtr, dX}, {&dwPtr, dW}, {&xPtr, x}, {&wPtr, w}, {&dyPtr, dY},
-		}
-		for i := range bufs {
-			p, err := lib.MemAlloc(uint64(len(bufs[i].data)) * 4)
-			if err != nil {
-				for j := range bufs {
-					if *bufs[j].ptr != 0 {
-						lib.MemFree(*bufs[j].ptr)
-					}
-				}
-				return err
-			}
-			*bufs[i].ptr = p
-		}
-		defer func() {
-			for i := range bufs {
-				lib.MemFree(*bufs[i].ptr)
-			}
-		}()
-
-		if err := lib.MemcpyHtoD(xPtr, driver.Bytes(x)); err != nil {
+		dxPtr, err := session.alloc(len(dX))
+		if err != nil {
 			return err
 		}
-		if err := lib.MemcpyHtoD(wPtr, driver.Bytes(w)); err != nil {
+		dwPtr, err := session.alloc(len(dW))
+		if err != nil {
 			return err
 		}
-		if err := lib.MemcpyHtoD(dyPtr, driver.Bytes(dY)); err != nil {
+		if err := session.gemm(false, true, rows, out, in, dyPtr, wPtr, dxPtr); err != nil {
 			return err
 		}
-
-		// dX = dY·Wᵀ : op(A)=dY[rows,out], op(B)=Wᵀ[out,in] -> [rows,in].
-		if err := blas.RowMajorGEMMExF32(handle, false, true, int32(rows), int32(out), int32(in), dyPtr, wPtr, dxPtr); err != nil {
+		if err := session.gemm(true, false, in, rows, out, xPtr, dyPtr, dwPtr); err != nil {
 			return err
 		}
-		// dW = Xᵀ·dY : op(A)=Xᵀ[in,rows], op(B)=dY[rows,out] -> [in,out].
-		if err := blas.RowMajorGEMMExF32(handle, true, false, int32(in), int32(rows), int32(out), xPtr, dyPtr, dwPtr); err != nil {
-			return err
-		}
-
-		if err := lib.StreamSynchronize(state.Stream); err != nil {
-			return err
-		}
-		if err := lib.MemcpyDtoH(driver.Bytes(dX), dxPtr); err != nil {
-			return err
-		}
-		return lib.MemcpyDtoH(driver.Bytes(dW), dwPtr)
+		return session.finish(cudaDownload{dX, dxPtr}, cudaDownload{dW, dwPtr})
 	})
 	if err != nil {
 		return nil, nil, err
@@ -122,66 +80,34 @@ func LinearBackwardT(worker *device.Worker, x, w, dY []float32, rows, in, outDim
 	}
 	dX = make([]float32, rows*in)
 	dW = make([]float32, outDim*in)
-	err = worker.Do(context.Background(), func(state *device.State) error {
-		lib := state.Driver
-		blas, err := cublas.Open()
+	err = withCUDABLAS(worker, func(session *cudaBLAS) error {
+		xPtr, err := session.upload(x)
 		if err != nil {
 			return err
 		}
-		defer blas.Close()
-		handle, err := blas.Create()
+		wPtr, err := session.upload(w)
 		if err != nil {
 			return err
 		}
-		defer blas.Destroy(handle)
-		if err := blas.SetStream(handle, state.Stream); err != nil {
+		dyPtr, err := session.upload(dY)
+		if err != nil {
 			return err
 		}
-		var xPtr, wPtr, dyPtr, dxPtr, dwPtr driver.DevicePtr
-		specs := []struct {
-			ptr  *driver.DevicePtr
-			data []float32
-			up   bool
-		}{{&xPtr, x, true}, {&wPtr, w, true}, {&dyPtr, dY, true}, {&dxPtr, dX, false}, {&dwPtr, dW, false}}
-		for i := range specs {
-			p, err := lib.MemAlloc(uint64(len(specs[i].data)) * 4)
-			if err != nil {
-				for j := range specs {
-					if *specs[j].ptr != 0 {
-						lib.MemFree(*specs[j].ptr)
-					}
-				}
-				return err
-			}
-			*specs[i].ptr = p
-		}
-		defer func() {
-			for i := range specs {
-				lib.MemFree(*specs[i].ptr)
-			}
-		}()
-		for _, s := range specs {
-			if s.up {
-				if err := lib.MemcpyHtoD(*s.ptr, driver.Bytes(s.data)); err != nil {
-					return err
-				}
-			}
-		}
-		// dX = dY·W  [rows,in]
-		if err := blas.RowMajorGEMMExF32(handle, false, false, int32(rows), int32(outDim), int32(in), dyPtr, wPtr, dxPtr); err != nil {
+		dxPtr, err := session.alloc(len(dX))
+		if err != nil {
 			return err
 		}
-		// dW = dYᵀ·X  [outDim,in]
-		if err := blas.RowMajorGEMMExF32(handle, true, false, int32(outDim), int32(rows), int32(in), dyPtr, xPtr, dwPtr); err != nil {
+		dwPtr, err := session.alloc(len(dW))
+		if err != nil {
 			return err
 		}
-		if err := lib.StreamSynchronize(state.Stream); err != nil {
+		if err := session.gemm(false, false, rows, outDim, in, dyPtr, wPtr, dxPtr); err != nil {
 			return err
 		}
-		if err := lib.MemcpyDtoH(driver.Bytes(dX), dxPtr); err != nil {
+		if err := session.gemm(true, false, outDim, rows, in, dyPtr, xPtr, dwPtr); err != nil {
 			return err
 		}
-		return lib.MemcpyDtoH(driver.Bytes(dW), dwPtr)
+		return session.finish(cudaDownload{dX, dxPtr}, cudaDownload{dW, dwPtr})
 	})
 	if err != nil {
 		return nil, nil, err

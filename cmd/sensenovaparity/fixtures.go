@@ -11,10 +11,10 @@ package main
 import (
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"math"
-	"os"
+
+	"overgo/internal/jsonfile"
 )
 
 // intContract: an integer input vector recorded as element count + sha256 of
@@ -196,9 +196,5 @@ func (s sampledTensor) finiteProbes() (int, error) {
 }
 
 func loadJSON[T any](path string, out *T) error {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(raw, out)
+	return jsonfile.Decode(path, out)
 }

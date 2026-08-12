@@ -512,6 +512,35 @@ extern "C" __global__ void rope_half_backward_f32(
     dx[base + i + half] = -s * d1 + c * d2;
 }
 
+// rope_half_f32: split-half (HF-layout) rotary embedding forward. x is
+// [seq, n_heads*hd]; inv_freq is [hd/2]. Rotates each pair (i, i+hd/2) by angle
+// pos*inv_freq[i]. One thread per (position, head, pair). Forward rotation R;
+// rope_half_backward_f32 applies its transpose.
+extern "C" __global__ void rope_half_f32(
+        float * x,
+        const float * inv_freq,
+        unsigned int seq,
+        unsigned int n_heads,
+        unsigned int hd) {
+    const unsigned int half = hd / 2;
+    const unsigned int total = seq * n_heads * half;
+    const unsigned int t = blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= total) {
+        return;
+    }
+    const unsigned int i = t % half;
+    const unsigned int head = (t / half) % n_heads;
+    const unsigned int pos = (t / half) / n_heads;
+    const float a = (float)pos * inv_freq[i];
+    const float c = cosf(a);
+    const float s = sinf(a);
+    const size_t base = (size_t)pos * n_heads * hd + (size_t)head * hd;
+    const float x1 = x[base + i];
+    const float x2 = x[base + i + half];
+    x[base + i] = c * x1 - s * x2;
+    x[base + i + half] = s * x1 + c * x2;
+}
+
 extern "C" __global__ void activated_gate_f32(
         const float * gate,
         const float * up,
@@ -2139,6 +2168,39 @@ extern "C" __global__ void softmax_f32(
     }
     for (unsigned int column = 0; column < width; ++column) {
         output[offset + column] /= sum;
+    }
+}
+
+// causal_softmax_f32: row-wise softmax over the causal prefix of a square
+// [rows, rows] score matrix. Row i (a query) softmaxes over columns 0..i (keys)
+// and zeros columns i+1..rows-1. One thread per row. Feeds the device attention
+// backward so the softmax p is computed in-place from resident scores instead of
+// uploaded from a host [heads, seq, seq] allocation.
+extern "C" __global__ void causal_softmax_f32(
+        const float * scores,
+        float * probabilities,
+        unsigned int rows) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const unsigned int offset = row * rows;
+    const unsigned int keys = row + 1;
+    float maximum = scores[offset];
+    for (unsigned int column = 1; column < keys; ++column) {
+        maximum = fmaxf(maximum, scores[offset + column]);
+    }
+    float sum = 0.0f;
+    for (unsigned int column = 0; column < keys; ++column) {
+        const float value = expf(scores[offset + column] - maximum);
+        probabilities[offset + column] = value;
+        sum += value;
+    }
+    for (unsigned int column = 0; column < keys; ++column) {
+        probabilities[offset + column] /= sum;
+    }
+    for (unsigned int column = keys; column < rows; ++column) {
+        probabilities[offset + column] = 0.0f;
     }
 }
 

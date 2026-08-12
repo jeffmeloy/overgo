@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"image"
 	"image/color"
 	_ "image/png"
@@ -12,6 +11,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/inference"
+	"overgo/internal/jsonfile"
 	"overgo/internal/media"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
@@ -40,11 +40,7 @@ func TestQwen35VideoEndToEndOracle(t *testing.T) {
 		Question          string              `json:"question"`
 		GeneratedTokenIDs []tokenizer.TokenID `json:"generated_token_ids"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &golden); err != nil {
+	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
 	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadDeviceWeights: true})
@@ -111,11 +107,7 @@ func TestGemma4ImageEndToEndOracle(t *testing.T) {
 		InputIDs          []tokenizer.TokenID `json:"input_ids"`
 		GeneratedTokenIDs []tokenizer.TokenID `json:"generated_token_ids"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &golden); err != nil {
+	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
 	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
@@ -182,11 +174,7 @@ func TestGemma4ImageDeviceProjectorEndToEndOracle(t *testing.T) {
 		InputIDs          []tokenizer.TokenID `json:"input_ids"`
 		GeneratedTokenIDs []tokenizer.TokenID `json:"generated_token_ids"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &golden); err != nil {
+	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
 	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
@@ -251,11 +239,7 @@ func TestGemma4AudioEndToEndOracle(t *testing.T) {
 			TopIDs []tokenizer.TokenID `json:"top_ids"`
 		} `json:"steps"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &golden); err != nil {
+	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
 	wave, err := os.ReadFile(wavePath)

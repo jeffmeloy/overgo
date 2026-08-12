@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testutil"
 )
 
 // VAE decode parity vs the committed CUDA-captured goldens. Tolerance
@@ -36,7 +37,7 @@ func wanVAECheckpointPath(t *testing.T) string {
 // g0 capture (the checkpoint carries no config; g0 is the committed source).
 func vaeG0LatentStats(t *testing.T) VAELatentStats {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(repoRoot(t), "fixtures", "wan", "g0_config.json"))
+	raw, err := os.ReadFile(testutil.FixturePath(t, "wan", "g0_config.json"))
 	if err != nil {
 		t.Fatalf("missing required g0 config: %v", err)
 	}
@@ -102,7 +103,7 @@ type vaeGoldenFrames struct {
 
 func loadVAEGoldenFrames(t *testing.T, manifestName string) vaeGoldenFrames {
 	t.Helper()
-	dir := filepath.Join(repoRoot(t), "fixtures", "wan")
+	dir := testutil.FixturePath(t, "wan")
 	raw, err := os.ReadFile(filepath.Join(dir, manifestName))
 	if err != nil {
 		t.Fatalf("missing required golden manifest: %v", err)

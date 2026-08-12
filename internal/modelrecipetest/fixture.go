@@ -20,14 +20,14 @@ type Capability struct {
 	Runtime *workflowruntime.Runtime
 }
 
-func NewCapability(t testing.TB, name string, definition func(artifact.ID) (recipe.Definition, error)) Capability {
+func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 	t.Helper()
 	store, err := repodb.Open(t.TempDir())
 	check(t, err)
 	t.Cleanup(func() { check(t, store.Close()) })
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 	testutil.PublishArtifact(t, store, modelID)
-	compiled, err := definition(modelID)
+	compiled, err := modelrecipe.CapabilityDefinition(task, modelID)
 	check(t, err)
 	program, err := modelrecipe.CompileCapability(compiled)
 	check(t, err)
@@ -52,4 +52,14 @@ func (f Capability) ExecuteScalar(key string, value any) (workflowruntime.Result
 	return f.Runtime.ExecuteProgram(context.Background(), key, f.Program, map[recipe.PortName]workflowruntime.Value{
 		input.Name: {Kind: input.Data, Items: []workflowruntime.Datum{{Value: value}}},
 	})
+}
+
+func Output[Value any](t testing.TB, result workflowruntime.Result, name recipe.PortName) Value {
+	t.Helper()
+	datum, one := result.Outputs[name].Single()
+	value, typed := datum.Value.(Value)
+	if !one || !typed || !result.Commit.Valid() {
+		t.Fatalf("model recipe output %q = (%T, %v, %v), commit=%v", name, datum.Value, one, typed, result.Commit)
+	}
+	return value
 }

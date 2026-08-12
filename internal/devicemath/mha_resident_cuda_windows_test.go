@@ -36,7 +36,7 @@ func TestMultiHeadAttentionBackwardResidentMatchesPerOp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dQr, dKr, dVr, err := MultiHeadAttentionBackwardResident(worker, q, k, v, p, dOut, seq, nh, nkv, hd, scale)
+	dQr, dKr, dVr, err := MultiHeadAttentionBackwardResident(worker, q, k, v, dOut, seq, nh, nkv, hd, scale)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestMultiHeadAttentionBackwardResidentMatchesPerOp(t *testing.T) {
 		return e
 	})
 	resT := timeIt(func() error {
-		_, _, _, e := MultiHeadAttentionBackwardResident(worker, q, k, v, p, dOut, seq, nh, nkv, hd, scale)
+		_, _, _, e := MultiHeadAttentionBackwardResident(worker, q, k, v, dOut, seq, nh, nkv, hd, scale)
 		return e
 	})
 	t.Logf("MHA backward per-call: per-op %v, resident %v (%.2fx)", perOpT, resT, float64(perOpT)/float64(resT))

@@ -52,11 +52,7 @@ func run() error {
 	if strings.TrimSpace(*reason) == "" {
 		return errors.New("-reason is required: the alarm budget is a recorded decision, not a default")
 	}
-	working, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	roots, err := dataroot.Resolve(working)
+	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return err
 	}

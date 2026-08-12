@@ -88,54 +88,35 @@ func executeVQA[Prepared any](
 			imageInput.Name:    workflowruntime.ArtifactValue(imageInput.Data, image, imageContent),
 			questionInput.Name: workflowruntime.ArtifactValue(questionInput.Data, question, questionContent),
 		}, func(runtime *workflowruntime.Runtime) error {
-			if err := runtime.Register(stages[0].Module.ID, workflowruntime.AdapterFunc(
-				func(_ context.Context, request workflowruntime.StepRequest) (map[recipe.PortName]workflowruntime.Value, error) {
-					if request.Model != modelID {
-						return nil, errors.New("VQA recipe: prepare model differs")
-					}
+			if err := workflowruntime.RegisterResolvedStage(
+				runtime, stages[0].Module.ID, modelID,
+				func(_ context.Context, request workflowruntime.StepRequest) (Prepared, error) {
 					inputImage, err := workflowruntime.ScalarInput[[]byte](request, imageInput.Target.Port)
 					if err != nil {
-						return nil, err
+						var zero Prepared
+						return zero, err
 					}
 					inputQuestion, err := workflowruntime.ScalarInput[string](request, questionInput.Target.Port)
 					if err != nil {
-						return nil, err
+						var zero Prepared
+						return zero, err
 					}
-					value, err := prepare(inputImage, inputQuestion)
-					if err != nil {
-						return nil, err
-					}
-					return map[recipe.PortName]workflowruntime.Value{
-						stages[0].Module.Outputs[0].Name: {
-							Kind:  stages[0].Module.Outputs[0].Data,
-							Items: []workflowruntime.Datum{{Value: value}},
-						},
-					}, nil
-				},
-			)); err != nil {
+					return prepare(inputImage, inputQuestion)
+				}, nil,
+			); err != nil {
 				return err
 			}
-			return runtime.Register(stages[1].Module.ID, workflowruntime.AdapterFunc(
-				func(ctx context.Context, request workflowruntime.StepRequest) (map[recipe.PortName]workflowruntime.Value, error) {
-					if request.Model != modelID {
-						return nil, errors.New("VQA recipe: generate model differs")
-					}
+			return workflowruntime.RegisterResolvedStage(
+				runtime, stages[1].Module.ID, modelID,
+				func(ctx context.Context, request workflowruntime.StepRequest) (string, error) {
 					prepared, err := workflowruntime.ScalarInput[Prepared](request, stages[1].Module.Inputs[0].Name)
 					if err != nil {
-						return nil, err
+						return "", err
 					}
-					value, err := answer(ctx, prepared)
-					if err != nil {
-						return nil, err
-					}
-					content, err := artifact.JSONContent(vqaAnswerContract, value)
-					if err != nil {
-						return nil, err
-					}
-					return map[recipe.PortName]workflowruntime.Value{
-						definition.Outputs[0].Source.Port: workflowruntime.ArtifactValue(recipe.DataText, value, content),
-					}, nil
+					return answer(ctx, prepared)
+				}, func(value string) (artifact.Content, error) {
+					return artifact.JSONContent(vqaAnswerContract, value)
 				},
-			))
+			)
 		})
 }

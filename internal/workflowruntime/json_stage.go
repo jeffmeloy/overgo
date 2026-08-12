@@ -55,17 +55,44 @@ func RegisterScalarStage[Input, Output any](
 		module.Outputs[0].Cardinality != recipe.CardinalityOne {
 		return fmt.Errorf("workflow runtime: module %q is not scalar", moduleID)
 	}
-	inputPort, outputPort := module.Inputs[0], module.Outputs[0]
-	return runtime.Register(moduleID, AdapterFunc(
-		func(_ context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
-			if request.Model != modelID {
-				return nil, fmt.Errorf("workflow runtime: recipe model differs from JSON stage")
-			}
+	inputPort := module.Inputs[0]
+	return RegisterResolvedStage(runtime, moduleID, modelID,
+		func(_ context.Context, request StepRequest) (Output, error) {
 			input, err := ScalarInput[Input](request, inputPort.Name)
 			if err != nil {
-				return nil, err
+				var zero Output
+				return zero, err
 			}
-			value, err := execute(input)
+			return execute(input)
+		}, encode,
+	)
+}
+
+// RegisterResolvedStage binds request resolution and one scalar output.
+func RegisterResolvedStage[Output any](
+	runtime *Runtime,
+	moduleID recipe.ModuleID,
+	modelID artifact.ID,
+	execute func(context.Context, StepRequest) (Output, error),
+	encode func(Output) (artifact.Content, error),
+) error {
+	if runtime == nil || runtime.catalog == nil || execute == nil || modelID.Kind() != artifact.KindModel {
+		return fmt.Errorf("workflow runtime: incomplete resolved stage")
+	}
+	module, ok := runtime.catalog.Module(moduleID)
+	if !ok {
+		return fmt.Errorf("workflow runtime: unknown module %q", moduleID)
+	}
+	if len(module.Outputs) != 1 || module.Outputs[0].Cardinality != recipe.CardinalityOne {
+		return fmt.Errorf("workflow runtime: module %q has no scalar output", moduleID)
+	}
+	outputPort := module.Outputs[0]
+	return runtime.Register(moduleID, AdapterFunc(
+		func(ctx context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
+			if request.Model != modelID {
+				return nil, fmt.Errorf("workflow runtime: recipe model differs from resolved stage")
+			}
+			value, err := execute(ctx, request)
 			if err != nil {
 				return nil, err
 			}

@@ -239,7 +239,8 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
 	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
-		withProfile(ArchitectureProfile{Block: BlockKimiLinear}).stateSpacePlan(0, true)
+		withProfile(ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationKimiLinear}}).
+		stateSpacePlan(0, true)
 	if mixer.Operator != LayerOperatorRecurrentMix || state.kind != stateSpaceKeyedDelta ||
 		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
 		t.Fatalf("Kimi recurrent policies = %+v/%+v/%d", mixer, feedForward, state.kind)

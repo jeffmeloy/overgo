@@ -73,6 +73,9 @@ func (s Spec) qkPreprocessPlan(layer uint32) QKPreprocessPlan {
 	if policy.PostRotaryRMSNon128 && s.UsesRoPE(layer) && s.ExpertCount != 128 {
 		plan.PostRotary = qkNormRMS
 	}
+	if s.Profile().Validation.Recurrent == RecurrentValidationPLaMo2 && !s.IsRecurrentLayer(layer) {
+		plan.Heads = qkNormConfiguredNoBias
+	}
 	return plan
 }
 

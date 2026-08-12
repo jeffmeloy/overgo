@@ -22,11 +22,9 @@ func TestRegisteredRuntimeExecutesImageProgram(t *testing.T) {
 	})); err != nil {
 		t.Fatal(err)
 	}
-	result, err := fixture.ExecuteScalar("image/runtime", Request{Class: 2, Seed: 7})
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := modelrecipetest.Output[Image](t, result, "image")
+	got := modelrecipetest.MustExecuteScalar[Image](
+		t, fixture, "image/runtime", Request{Class: 2, Seed: 7},
+	)
 	if len(got.Pixels) != 1 || got.Pixels[0] != want.Pixels[0] {
 		t.Fatalf("image = %+v", got)
 	}

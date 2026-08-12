@@ -29,11 +29,7 @@ func TestRegisteredRuntimeExecutesIdentityBoundForecastProgram(t *testing.T) {
 	})); err != nil {
 		t.Fatal(err)
 	}
-	result, err := fixture.ExecuteScalar("forecast/runtime", forecastInputFixture)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := modelrecipetest.Output[[]float32](t, result, "forecast")
+	got := modelrecipetest.MustExecuteScalar[[]float32](t, fixture, "forecast/runtime", forecastInputFixture)
 	if !slices.Equal(got, forecastOutputFixture) {
 		t.Fatalf("forecast = %v", got)
 	}

@@ -96,6 +96,18 @@ func (f Capability) ExecuteScalar(key string, value any) (workflowruntime.Result
 	})
 }
 
+// MustExecuteScalar runs a scalar capability and returns its typed output.
+func MustExecuteScalar[Value any](t testing.TB, fixture Capability, key string, input any) Value {
+	t.Helper()
+	result, err := fixture.ExecuteScalar(key, input)
+	check(t, err)
+	outputs := fixture.Program.Definition().Outputs
+	if len(outputs) != 1 {
+		t.Fatalf("model recipe fixture: want one output, got %d", len(outputs))
+	}
+	return Output[Value](t, result, outputs[0].Name)
+}
+
 func Output[Value any](t testing.TB, result workflowruntime.Result, name recipe.PortName) Value {
 	t.Helper()
 	datum, one := result.Outputs[name].Single()

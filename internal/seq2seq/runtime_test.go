@@ -51,11 +51,7 @@ func TestRegisteredRuntimeExecutesSeq2SeqProgram(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	result, err := fixture.ExecuteScalar("seq2seq/runtime", request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := modelrecipetest.Output[[]int](t, result, "tokens")
+	got := modelrecipetest.MustExecuteScalar[[]int](t, fixture, "seq2seq/runtime", request)
 	if !slices.Equal(got, generationOutputFixture) {
 		t.Fatalf("tokens = %v", got)
 	}

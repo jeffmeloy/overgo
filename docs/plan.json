@@ -434,12 +434,12 @@
     {
       "id": "linear-attn-mix-backward",
       "title": "linear-attn-mix-backward: composed qwen3.5 gated-delta mix VJP (qkv-proj -\u003e ShortConv -\u003e L2Norm(q,k) -\u003e beta=sigmoid(Wb.n), alpha=Wa.n, gate=softplus(alpha+ts)*A, z=Wz.n -\u003e GDN -\u003e WeightedRMSNorm(out,SSMNorm)*SiLU(z) -\u003e SSMOutput proj); host, FD-grad-checked end-to-end over all weights + input",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "linear-attn-mix-backward: composed qwen3.5 gated-delta mix VJP (qkv-proj -\u003e ShortConv -\u003e L2Norm(q,k) -\u003e beta=sigmoid(Wb.n), alpha=Wa.n, gate=softplus(alpha+ts)*A, z=Wz.n -\u003e GDN -\u003e WeightedRMSNorm(out,SSMNorm)*SiLU(z) -\u003e SSMOutput proj); host, FD-grad-checked end-to-end over all weights + input",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/hostmath/ -run TestGatedDeltaMix -count=1"
         }
       ]
@@ -480,7 +480,8 @@
         {
           "id": "qwen35-hybrid-layer-backward",
           "title": "qwen3.5 hybrid decoder-layer backward: GDN linear_attention layers (GDN VJP) + gated attn output + full_attention dense layers (existing dense VJPs), FD-verified as a composed layer",
-          "status": "open"
+          "status": "open",
+          "verify": "go test ./internal/hostmath/ -run TestHybridDecoderLayer -count=1"
         },
         {
           "id": "train-grad-parity",

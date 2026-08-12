@@ -52,3 +52,19 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 		t.Fatal("unknown -before must be rejected")
 	}
 }
+
+// TestEnforceStopReason pins that only the three legitimate stop reasons are
+// accepted -- a manufactured "checkpoint"/"should I continue?" is refused, so the
+// stop-gate can tell a real stop from an invented one.
+func TestEnforceStopReason(t *testing.T) {
+	for _, r := range []string{"user-stop", "user-stop: they said wait", "irreversible: needs confirm", "external-prereq: model missing"} {
+		if err := validateStop(r); err != nil {
+			t.Fatalf("valid stop %q rejected: %v", r, err)
+		}
+	}
+	for _, r := range []string{"", "checkpoint", "should I continue?", "done for now", "milestone", "picking up fresh"} {
+		if err := validateStop(r); err == nil {
+			t.Fatalf("manufactured stop %q must be REFUSED", r)
+		}
+	}
+}

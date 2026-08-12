@@ -62,6 +62,40 @@ func LinearBackward(worker *device.Worker, x, w, dY []float32, rows, in, out int
 	return dX, dW, nil
 }
 
+// LinearForwardT applies the HF-layout linear map Y = X·Wᵀ
+// (X[rows,in], W[outDim,in], Y[rows,outDim]) -- densecausal's convention
+// (hostmath.Linear) -- as one cuBLAS GEMM. Forward counterpart to
+// LinearBackwardT; the device layer forward's q/k/v/o and gate/up/down
+// projections use it.
+func LinearForwardT(worker *device.Worker, x, w []float32, rows, in, outDim int) ([]float32, error) {
+	if rows <= 0 || in <= 0 || outDim <= 0 || len(x) != rows*in || len(w) != outDim*in {
+		return nil, fmt.Errorf("LinearForwardT: shape mismatch (rows=%d in=%d outDim=%d x=%d w=%d)", rows, in, outDim, len(x), len(w))
+	}
+	y := make([]float32, rows*outDim)
+	err := withCUDABLAS(worker, func(session *cudaBLAS) error {
+		xPtr, err := session.upload(x)
+		if err != nil {
+			return err
+		}
+		wPtr, err := session.upload(w)
+		if err != nil {
+			return err
+		}
+		yPtr, err := session.alloc(len(y))
+		if err != nil {
+			return err
+		}
+		if err := session.gemm(false, true, rows, in, outDim, xPtr, wPtr, yPtr); err != nil {
+			return err
+		}
+		return session.finish(cudaDownload{y, yPtr})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return y, nil
+}
+
 // LinearBackwardT computes the gradients of the HF-layout linear map
 // Y = X·Wᵀ (X[rows,in], W[outDim,in], Y[rows,outDim]) -- densecausal's convention
 // (hostmath.Linear), the transpose of LinearBackward's Y=X·W. Given dY:

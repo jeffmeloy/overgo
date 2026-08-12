@@ -21,8 +21,8 @@ Goal: recipes and compiled neutral operator programs are the only production run
 | 6 | Diffusion/video | `BuildConditionedDiffusionBlock` | compiled diffusion program owns block/head stages; direct builder deleted | Complete |
 | 7 | Compatibility dispatch | exported `BuildArchitectureBlockCached` and direct-construction tests | all callers execute sealed programs; compatibility entry point deleted | Complete |
 | 8 | Leaf operators | family-named attention/recurrent/FFN leaves selected inside neutral instructions | exact mathematical operators replace mirror policies; redundant instruction fields deleted | Complete |
-| 9 | Catalog authority | `BlockPolicy` family facts still influence weight/cache/state compilation | typed mathematical and tensor-catalog facts replace runtime family orchestration where semantics match | In progress |
-| 10 | Recipe boundaries | remaining command/server task switches or runtime reconstruction | active compiled recipe selected once at assembly; no serving fallbacks/probes | Pending |
+| 9 | Catalog authority | `BlockPolicy` family facts still influence weight/cache/state compilation | typed mathematical and tensor-catalog facts replace runtime family orchestration where semantics match | Complete |
+| 10 | Recipe boundaries | remaining command/server task switches or runtime reconstruction | active compiled recipe selected once at assembly; no serving fallbacks/probes | In progress |
 
 ## Current inventory
 
@@ -30,7 +30,7 @@ Goal: recipes and compiled neutral operator programs are the only production run
 - Exported model-family graph constructors: 0.
 - Production T5 and free conditioned-diffusion builder calls: 0.
 - Trunk, draft, encoder, decoder, split-activation, feature/cache projection, per-layer input, and sequence-output paths enter through sealed model programs.
-- Remaining catalog duplication: family-oriented profile facts still select portions of state-space and weight-catalog compilation; executable layer plans no longer retain those family labels.
+- Runtime family block policies: 0; embedded profiles contain only typed capability, validation, tensor-layout, and mathematical operator facts.
 - Remaining recipe boundary: generic capability execution is active for forecast, tabular, seq2seq, speech, and image; video and VQA still require production loaders/adapters.
 
 ## Wave log
@@ -50,3 +50,4 @@ Goal: recipes and compiled neutral operator programs are the only production run
 - Wave 8g: encoded all attention, FFN, and token-shift mathematics directly in `LayerOperator`; deleted `AttentionMixPolicy`, `FeedForwardMixPolicy`, and both instruction fields. Tests now assert exact operators rather than compatibility categories. Production delta: +105/-121, net -16; total delta +140/-166, net -26. Model, inference, and CUDA-executor gates pass.
 - Wave 9a: removed `BlockPolicy` from executable `LayerPlan`. Cache topology, dense-graph eligibility, and weight loading now consume compiled attention/cache/state-space facts; family policy exists only while compiling the neutral program. Kimi Linear records keyed-delta capability for both attention and recurrent layers while retaining the per-layer recurrent bit, preserving its latent-cache geometry. Production delta: +8/-11, net -3; total delta +34/-32 because fixtures now assert the replacement program contract. Model, inference, and CUDA-executor gates and vet pass.
 - Wave 9b: replaced all weight, metadata, and state-space comparisons against profile `BlockPolicy` with existing typed validation, cache, attention, and compiled state-space facts. PLaMo attention layers now compile their per-head tensor layout as the existing configured/no-bias Q/K operator, preserving weighted RMS math while deleting the loader exception. Removed unused state-space fields and helper. Production delta: +16/-20, net -4. Model, inference, and CUDA-executor gates and vet pass.
+- Wave 9c: deleted `BlockPolicy`, both architecture-profile block fields, all 16 serialized family selectors, the ordinal checks, and the compiler translation function. `PlanLayer` now derives composition, cache writes, state-space, MoE behavior, and ordered operators solely from typed facts. Replaced family-loop fixtures with exact typed-profile coverage and updated sealed profile provenance digests. Production delta: +20/-67, net -47; total delta +108/-172, net -64. Model, recipe, inference, and CUDA-executor gates and vet pass.

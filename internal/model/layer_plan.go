@@ -7,24 +7,6 @@ import (
 	"overgo/internal/tensor"
 )
 
-// BlockPolicy: compiled block-builder selection.
-type BlockPolicy uint8
-
-const (
-	BlockDense BlockPolicy = iota
-	BlockMamba
-	BlockMamba2
-	BlockFalconH1
-	BlockJamba
-	BlockGraniteHybrid
-	BlockPLaMo2
-	BlockNemotronH
-	BlockKimiLinear
-	BlockMLA
-	BlockDSA
-	BlockDeepSeek4
-)
-
 // RuntimeCacheBinding: indexed cache operand.
 type RuntimeCacheBinding uint8
 
@@ -293,9 +275,9 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	}
 	normalization := s.NormPlan()
 	cache := cachePolicy(s, profile, layer, recurrent)
-	block := blockPolicy(profile, recurrent)
+	stateSpace := s.stateSpacePlan(layer, recurrent)
 	composition := LayerCompositionStandard
-	if block == BlockNemotronH {
+	if stateSpace.kind == stateSpaceNemotronH {
 		switch {
 		case recurrent:
 			composition = LayerCompositionRecurrentOnly
@@ -324,7 +306,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		}
 	}
 	experts := s.moeGraphPlan(layer)
-	if block == BlockNemotronH {
+	if stateSpace.kind == stateSpaceNemotronH {
 		experts.Routing = tensor.MoERoutingSigmoid
 		experts.Activation = tensor.MoEActivationReLUSquared
 		experts.SelectionBias = true
@@ -339,7 +321,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	cacheWrite := CacheWriteFixed
 	if cache.PrimaryMode().TokenAligned() {
 		cacheWrite = CacheWriteConcatOnly
-		if block == BlockDense || profile.Attention == AttentionQwenGDN {
+		if stateSpace.kind == stateSpaceNone || profile.Attention == AttentionQwenGDN {
 			cacheWrite = CacheWriteConcatOrAppend
 		}
 	}
@@ -382,9 +364,9 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		QueryScale:        s.queryScalePlan(profile, layer),
 		AttentionOutput:   s.attentionOutputPlan(normalization),
 		ResidualStages:    residualStages,
-		StateSpace:        s.stateSpacePlan(layer, recurrent),
+		StateSpace:        stateSpace,
 	}
-	plan.Program = compileLayerProgram(plan, profile, block)
+	plan.Program = compileLayerProgram(plan, profile)
 	return plan
 }
 
@@ -597,7 +579,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			layer.CatalogFamily != plan.profile.CatalogFamily {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
-		if layer.Program != compileLayerProgram(layer, plan.profile, blockPolicy(plan.profile, layer.Recurrent)) {
+		if layer.Program != compileLayerProgram(layer, plan.profile) {
 			return fmt.Errorf("model plan layer %d operator program is inconsistent", index)
 		}
 		if layer.SharedKV {
@@ -825,14 +807,7 @@ func (p ModelPlan) Terminal() TerminalPlan { return p.terminal }
 // Draft: compiled speculative policy.
 func (p ModelPlan) Draft() DraftPlan { return p.draft }
 
-func blockPolicy(profile ArchitectureProfile, recurrent bool) BlockPolicy {
-	if recurrent && profile.RecurrentBlock != BlockDense {
-		return profile.RecurrentBlock
-	}
-	return profile.Block
-}
-
-func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile, block BlockPolicy) LayerProgram {
+func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgram {
 	recurrent := plan.Recurrent
 	composition := plan.Composition
 	if profile.Attention == AttentionLFM2 && recurrent {
@@ -853,12 +828,12 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile, block Bloc
 		}
 		return residualMixerProgram(mixer, LayerOperatorFeedForwardRoutedSwiGLU, false)
 	}
-	if block == BlockFalconH1 {
+	if plan.StateSpace.kind == stateSpaceFalconH1 {
 		return residualMixerProgram(
 			hybridLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
 	}
-	if block == BlockGraniteHybrid {
+	if plan.StateSpace.kind == stateSpaceGraniteHybrid {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
@@ -866,12 +841,12 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile, block Bloc
 			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
 		)
 	}
-	if block == BlockJamba {
+	if plan.StateSpace.kind == stateSpaceJamba {
 		return residualMixerProgram(
 			recurrentLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
 	}
-	if block == BlockPLaMo2 {
+	if plan.StateSpace.kind == stateSpacePLaMo2 {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 			layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
@@ -879,7 +854,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile, block Bloc
 			layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
 		)
 	}
-	if block == BlockNemotronH {
+	if plan.StateSpace.kind == stateSpaceNemotronH {
 		switch composition {
 		case LayerCompositionRecurrentOnly:
 			return newLayerProgram(
@@ -900,15 +875,15 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile, block Bloc
 			return LayerProgram{}
 		}
 	}
-	if block == BlockMamba || block == BlockMamba2 {
+	if plan.StateSpace.kind == stateSpaceMamba || plan.StateSpace.kind == stateSpaceMamba2 {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm),
 			recurrentLayerStage(),
 			layerStage(LayerOperatorResidual),
 		)
 	}
-	switch block {
-	case BlockDense:
+	switch {
+	default:
 		if profile.Forward == ForwardGemma4Assistant {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionSharedCacheQKNorm),
@@ -1014,7 +989,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile, block Bloc
 			)
 		}
 		return LayerProgram{}
-	case BlockKimiLinear:
+	case profile.Validation.MLA == MLAValidationKimiLinear:
 		if !recurrent {
 			return latentLayerProgram(
 				profile,
@@ -1025,18 +1000,18 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile, block Bloc
 			recurrentLayerStage(),
 			LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
-	case BlockMLA:
+	case plan.Attention == AttentionMLA:
 		return latentLayerProgram(
 			profile,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 		)
-	case BlockDSA:
+	case plan.Attention == AttentionDSA:
 		return latentLayerProgram(
 			profile,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey},
 			[]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
 		)
-	case BlockDeepSeek4:
+	case profile.Validation.MLA == MLAValidationDeepSeek4:
 		return newLayerProgram(
 			leafLayerStage(
 				LayerOperatorHyperAttention,
@@ -1045,8 +1020,6 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile, block Bloc
 			),
 			layerStage(LayerOperatorHyperFeedForward),
 		)
-	default:
-		return LayerProgram{}
 	}
 }
 

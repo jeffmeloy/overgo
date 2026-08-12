@@ -676,12 +676,12 @@
     {
       "id": "hybrid-device-resident-loop",
       "title": "hybrid-device-resident-loop: resident device training LOOP for the HYBRID models (qwen35/gemma3n) -- extend TrainDeviceResident (ed95d9d) to run the hybrid forward+backward (using HybridDecoderLayerBackwardDevice 3cc66cb/231cd56)+optimizer resident across steps, weights+momentum device-resident, scratch-pooled, peak under measured-free bound. Needs a hybrid device FORWARD (host today) + a host hybrid-model multi-step training reference for trajectory parity. Large integration.",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "hybrid-device-resident-loop: resident device training LOOP for the HYBRID models (qwen35/gemma3n) -- extend TrainDeviceResident (ed95d9d) to run the hybrid forward+backward (using HybridDecoderLayerBackwardDevice 3cc66cb/231cd56)+optimizer resident across steps, weights+momentum device-resident, scratch-pooled, peak under measured-free bound. Needs a hybrid device FORWARD (host today) + a host hybrid-model multi-step training reference for trajectory parity. Large integration.",
-          "status": "open",
+          "status": "done",
           "verify": "OVERGO_CUDA_TEST=1 go test -tags cuda ./internal/hybridtrain/ -run HybridTrainDeviceResidentMatchesHost -count=1"
         }
       ]
@@ -749,6 +749,30 @@
         {
           "id": "training-leg",
           "title": "ABSENT verdict expected: adaptive seeds generation-only for this scope; record verdict",
+          "status": "open"
+        }
+      ]
+    },
+    {
+      "id": "hybrid-device-fully-resident",
+      "title": "hybrid-device-fully-resident: eliminate the per-step matrix-weight read-back in TrainDeviceResident (hybridtrain) -- HybridDecoderLayerForwardDevice/BackwardDevice are host-weight-fed and the GDN mix forward is host-computed, so weights upload once but read back once/step (weightReads=K). Needs a device GDN FORWARD reading RESIDENT weight pointers + a resident-weight 'hybrid runStack' analogous to densecausal, for densecausal-class zero-per-step-weight-motion. Momentum already fully resident (ffecb6c).",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "hybrid-device-fully-resident: eliminate the per-step matrix-weight read-back in TrainDeviceResident (hybridtrain) -- HybridDecoderLayerForwardDevice/BackwardDevice are host-weight-fed and the GDN mix forward is host-computed, so weights upload once but read back once/step (weightReads=K). Needs a device GDN FORWARD reading RESIDENT weight pointers + a resident-weight 'hybrid runStack' analogous to densecausal, for densecausal-class zero-per-step-weight-motion. Momentum already fully resident (ffecb6c).",
+          "status": "open"
+        }
+      ]
+    },
+    {
+      "id": "loop-hardening-7",
+      "title": "loop-hardening-7: overgo stop-gate gate-running valve misses a background gate during its ~2s 'go run ./cmd/gate' COMPILE phase (before gate.exe exists in tasklist), causing a transient false-block (valve saves it, no wedge). Fix cmd/loophook gateProcessRunning to also consult docs/commit_gate_status.json run_id/status or a launch marker, not only tasklist. Low urgency (valve handles it); observed live 2026-08-12 when the user-level overgo Stop hook activated.",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "loop-hardening-7: overgo stop-gate gate-running valve misses a background gate during its ~2s 'go run ./cmd/gate' COMPILE phase (before gate.exe exists in tasklist), causing a transient false-block (valve saves it, no wedge). Fix cmd/loophook gateProcessRunning to also consult docs/commit_gate_status.json run_id/status or a launch marker, not only tasklist. Low urgency (valve handles it); observed live 2026-08-12 when the user-level overgo Stop hook activated.",
           "status": "open"
         }
       ]

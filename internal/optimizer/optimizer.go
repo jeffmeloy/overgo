@@ -53,9 +53,24 @@ func New(weights, gradients []float32, plan Plan, config Config) (*Optimizer, er
 }
 
 func (o *Optimizer) Step() StepResult {
+	return o.StepGroups(func(Group) bool { return true })
+}
+
+// StepGroups advances the optimizer applying updates only to groups for which
+// include reports true; excluded groups are left untouched (weights, momentum and
+// gradients unchanged). The step counter and learning rate advance exactly once,
+// identically to Step, so a caller that splits a step across two StepGroups calls
+// (e.g. host-side non-matrix groups here, device-side matrix groups elsewhere)
+// must advance the step for only one of them. Used by the device-resident training
+// loop to run the host optimizer on the tail/sign groups while the layer matrices
+// are updated on resident device buffers.
+func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 	o.step++
 	rate := o.config.LearningRate(o.step)
 	for _, group := range o.plan.groups {
+		if !include(group) {
+			continue
+		}
 		if group.Frozen {
 			clear(o.gradients[group.Start:group.End])
 			continue

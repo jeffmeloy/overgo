@@ -95,6 +95,37 @@ func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows,
 	return o.lib.MemcpyDtoH(driver.Bytes(momentum), dM)
 }
 
+// ResidentMatrix is one Muon matrix update target whose weights, gradient and
+// momentum already live on the device (caller-owned persistent buffers). Rows/Cols
+// are the densecausal matrix geometry (W[out,in]).
+type ResidentMatrix struct {
+	Weights, Gradient, Momentum driver.DevicePtr
+	Rows, Cols                  int
+}
+
+// DeviceMuonMatricesResident applies one Muon step to already-resident device
+// matrices: nothing is uploaded or downloaded. Weights, gradient and momentum stay
+// on the device across calls; the caller uploads them once at the start of training
+// and downloads only at checkpoint. This is the same Newton-Schulz update
+// muonMatrixGroupResident applies inside DeviceMuonStepPlan, lifted onto persistent
+// caller buffers so the across-step training loop never scatters/gathers weights.
+func DeviceMuonMatricesResident(worker *device.Worker, matrices []ResidentMatrix, step int, config Config) error {
+	rate := config.LearningRate(step)
+	return worker.Do(context.Background(), func(state *device.State) error {
+		ops, err := newDeviceOps(state)
+		if err != nil {
+			return err
+		}
+		defer ops.close()
+		for _, m := range matrices {
+			if err := ops.muonMatrixGroupResident(m.Weights, m.Gradient, m.Momentum, m.Rows, m.Cols, config.Momentum, rate); err != nil {
+				return err
+			}
+		}
+		return ops.lib.StreamSynchronize(ops.stream)
+	})
+}
+
 // DeviceMuonStepPlan: one flat upload/download; resident matrix updates.
 func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []float32, plan Plan, step int, config Config) error {
 	rate := config.LearningRate(step)

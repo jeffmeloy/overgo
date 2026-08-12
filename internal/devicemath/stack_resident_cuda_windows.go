@@ -73,71 +73,27 @@ func StackForwardBackwardResident(
 		grads[i].DWDown = make([]float32, hidden*inter)
 	}
 	dxEmbed := make([]float32, seq*hidden)
-	final := make([]float32, seq*hidden)
 
 	err := withCUDABLAS(worker, func(s *cudaBLAS) error {
 		ops, err := newLayerOps(s, stackFnNames, d, invFreq)
 		if err != nil {
 			return err
 		}
-
-		// --- Forward: all layers, caches + weights + input residuals resident. ---
-		xIn := make([]driver.DevicePtr, nL+1)
-		xIn[0], err = s.upload(embeds)
-		if err != nil {
-			return err
-		}
+		// Weights upload once, grad buffers allocate in-session; both feed runStack.
 		wp := make([]layerWeightPtrs, nL)
-		cp := make([]layerCachePtrs, nL)
+		gp := make([]layerGradPtrs, nL)
 		for i := 0; i < nL; i++ {
 			if wp[i], err = uploadLayerWeights(s.cudaScope, layers[i]); err != nil {
 				return err
 			}
-			if cp[i], err = allocLayerCache(s.cudaScope, d); err != nil {
-				return err
-			}
-			if xIn[i+1], err = s.alloc(seq * hidden); err != nil {
-				return err
-			}
-			if err := ops.forwardDevice(xIn[i], wp[i], cp[i], xIn[i+1]); err != nil {
-				return err
-			}
-		}
-
-		// Only host round-trip out: the final pre-norm stream for the head/norm/CE tail.
-		if err := s.finish(cudaDownload{final, xIn[nL]}); err != nil {
-			return err
-		}
-		dOutHost, err := tail(final)
-		if err != nil {
-			return err
-		}
-		if len(dOutHost) != seq*hidden {
-			return fmt.Errorf("StackForwardBackwardResident: tail dOut len %d != %d", len(dOutHost), seq*hidden)
-		}
-
-		// --- Backward: caches consumed resident; dOut flows device-to-device. ---
-		dOutP, err := s.upload(dOutHost)
-		if err != nil {
-			return err
-		}
-		gp := make([]layerGradPtrs, nL)
-		for i := range gp {
 			if gp[i], err = allocLayerGrads(s.cudaScope, d); err != nil {
 				return err
 			}
 		}
-		for i := nL - 1; i >= 0; i-- {
-			dXP, err := s.alloc(seq * hidden)
-			if err != nil {
-				return err
-			}
-			if err := ops.backwardDevice(xIn[i], dOutP, cp[i], wp[i], gp[i], dXP); err != nil {
-				return err
-			}
-			dOutP = dXP // becomes the previous layer's output gradient
+		dOutP, err := ops.runStack(embeds, wp, gp, tail)
+		if err != nil {
+			return err
 		}
-
 		downloads := make([]cudaDownload, 0, nL*9+1)
 		for i := 0; i < nL; i++ {
 			downloads = append(downloads,
@@ -154,4 +110,67 @@ func StackForwardBackwardResident(
 		return nil, nil, err
 	}
 	return dxEmbed, grads, nil
+}
+
+// runStack executes the whole pre-norm stack inside the current session: forward
+// over all layers (activation caches resident), a host round-trip through tail on
+// the streamed-out final pre-norm, then backward over all layers writing weight
+// grads into gp. The weight pointers wp and grad pointers gp are supplied by the
+// caller -- session-local (StackForwardBackwardResident) or persistent-across-steps
+// (StackForwardBackwardResidentWeights) -- so this one driver owns the fwd/bwd
+// composition regardless of where the buffers live. Returns the device pointer for
+// dX after layer 0 (the embedding-input gradient); the caller downloads what it
+// needs. The layer math is forwardDevice/backwardDevice (single owner).
+func (o *layerOps) runStack(embeds []float32, wp []layerWeightPtrs, gp []layerGradPtrs, tail func(final []float32) ([]float32, error)) (driver.DevicePtr, error) {
+	d := o.d
+	nL := len(wp)
+	seqHidden := d.seq * d.hidden
+
+	xIn := make([]driver.DevicePtr, nL+1)
+	var err error
+	if xIn[0], err = o.s.upload(embeds); err != nil {
+		return 0, err
+	}
+	cp := make([]layerCachePtrs, nL)
+	for i := 0; i < nL; i++ {
+		if cp[i], err = allocLayerCache(o.s.cudaScope, d); err != nil {
+			return 0, err
+		}
+		if xIn[i+1], err = o.s.alloc(seqHidden); err != nil {
+			return 0, err
+		}
+		if err := o.forwardDevice(xIn[i], wp[i], cp[i], xIn[i+1]); err != nil {
+			return 0, err
+		}
+	}
+
+	// Only host round-trip out: the final pre-norm stream for the head/norm/CE tail.
+	final := make([]float32, seqHidden)
+	if err := o.s.finish(cudaDownload{final, xIn[nL]}); err != nil {
+		return 0, err
+	}
+	dOutHost, err := tail(final)
+	if err != nil {
+		return 0, err
+	}
+	if len(dOutHost) != seqHidden {
+		return 0, fmt.Errorf("runStack: tail dOut len %d != %d", len(dOutHost), seqHidden)
+	}
+
+	// Backward: caches consumed resident; dOut flows device-to-device.
+	dOutP, err := o.s.upload(dOutHost)
+	if err != nil {
+		return 0, err
+	}
+	for i := nL - 1; i >= 0; i-- {
+		dXP, err := o.s.alloc(seqHidden)
+		if err != nil {
+			return 0, err
+		}
+		if err := o.backwardDevice(xIn[i], dOutP, cp[i], wp[i], gp[i], dXP); err != nil {
+			return 0, err
+		}
+		dOutP = dXP // becomes the previous layer's output gradient
+	}
+	return dOutP, nil
 }

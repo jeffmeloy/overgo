@@ -57,12 +57,12 @@
     {
       "id": "loop-hardening-6",
       "title": "Go loophook: move ALL loop-control automation logic into cmd/loophook (Go, unit-tested), bash reduced to one-line adapters. stop = exit 2 blocks a turn-end that orphans work (uncommitted .go OR an armed dispatch marker); post-commit arms docs/.dispatch_pending at the gate boundary; doctrine builds the binary + emits the turn contract. This programmatically catches the milestone-stop-after-commit the old progress-based gate allowed. Repo doctrine: Go for all automation.",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Go loophook: move ALL loop-control automation logic into cmd/loophook (Go, unit-tested), bash reduced to one-line adapters. stop = exit 2 blocks a turn-end that orphans work (uncommitted .go OR an armed dispatch marker); post-commit arms docs/.dispatch_pending at the gate boundary; doctrine builds the binary + emits the turn contract. This programmatically catches the milestone-stop-after-commit the old progress-based gate allowed. Repo doctrine: Go for all automation.",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./cmd/loophook/ -count=1 \u0026\u0026 bash scripts/overgo_stop_gate.sh --selftest"
         }
       ]

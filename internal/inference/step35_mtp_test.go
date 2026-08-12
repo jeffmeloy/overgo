@@ -60,8 +60,8 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_STEP35_MTP_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -166,8 +166,8 @@ func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
 	if modelPath == "" {
 		t.Skip("OVERGO_HYV3_MTP_MODEL is not set")
 	}
-	runner, err := openFixtureRunnerWithOptions(modelPath, OpenOptions{
-		DeviceOrdinal: 0, PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)

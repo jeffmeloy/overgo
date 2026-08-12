@@ -11,14 +11,14 @@ func TestParseCLI(t *testing.T) {
 		"-length", "64", "-steps", "16", "-algorithm", "2",
 		"-block-length", "8", "-cfg-scale", "1.5", "-alg-temp", "0.2",
 		"-temp", "0.4", "-top-k", "12", "-top-p", "0.8", "-seed", "7",
-		"-gumbel", "-shift-logits", "false", "-native-quant",
+		"-gumbel", "-shift-logits", "false",
 		"-lora", "a.gguf", "model.gguf", "prompt",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	options := config.diffusion
-	if config.model != "model.gguf" || config.prompt != "prompt" || !config.nativeQuant ||
+	if config.model != "model.gguf" || config.prompt != "prompt" ||
 		len(config.lora) != 1 || options.MaxLength != 64 || options.Steps != 16 ||
 		options.Algorithm != inference.DiffusionMargin || options.Schedule != inference.DiffusionBlock ||
 		options.BlockLength != 8 || options.CFGScale != 1.5 || options.AlgorithmTemperature != 0.2 ||

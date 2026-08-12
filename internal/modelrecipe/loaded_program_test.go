@@ -62,7 +62,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 		_, other := publishProgramFacts(t, store, otherPath)
 		definition, err := InferenceWithModelDefinition(
 			inventory.Manifest.ID, other.Profile.ID, other.Document.ID, recipe.PlacementHybrid,
-			DecodeSessionCapacity,
+			DecodeSessionCapacity, recipe.ResidencyHybridNative,
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -103,12 +103,12 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 	if !ok || identity.Profile != resolved.Profile.ID {
 		t.Fatal("returned identity mutated sealed program")
 	}
-	consumed, err := loaded.Consume()
+	file, _, _, _, _, _, err := loaded.Take()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer consumed.Close()
-	if _, err := loaded.Consume(); err == nil {
+	defer file.Close()
+	if _, _, _, _, _, _, err := loaded.Take(); err == nil {
 		t.Fatal("loaded program consumed twice")
 	}
 }
@@ -173,7 +173,7 @@ func definitionRecipe(
 	t.Helper()
 	definition, err := InferenceWithModelDefinition(
 		inventory.Manifest.ID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
-		DecodeSessionCapacity,
+		DecodeSessionCapacity, recipe.ResidencyHybridNative,
 	)
 	if err != nil {
 		t.Fatal(err)

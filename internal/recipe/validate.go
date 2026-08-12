@@ -25,6 +25,9 @@ func (d Definition) Validate(catalog *Catalog) error {
 		if !node.Session.Valid() {
 			return fmt.Errorf("recipe: node %q has invalid session policy %q", node.ID, node.Session)
 		}
+		if !node.Residency.Valid() {
+			return fmt.Errorf("recipe: node %q has invalid residency policy %q", node.ID, node.Residency)
+		}
 		module, ok := catalog.Module(node.Module)
 		if !ok {
 			return fmt.Errorf("recipe: node %q uses unknown module %q", node.ID, node.Module)

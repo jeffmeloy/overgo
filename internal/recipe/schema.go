@@ -143,11 +143,35 @@ func (p SessionPolicy) Valid() bool {
 	return p == "" || p == SessionRequest || p == SessionCapacity
 }
 
+// ResidencyPolicy: compiled model-weight storage and execution policy.
+type ResidencyPolicy string
+
+const (
+	ResidencyStream           ResidencyPolicy = "stream"
+	ResidencyHostCache        ResidencyPolicy = "host-cache"
+	ResidencyDeviceF32        ResidencyPolicy = "device-f32"
+	ResidencyDeviceNative     ResidencyPolicy = "device-native"
+	ResidencyDeviceNativeBF16 ResidencyPolicy = "device-native-bf16"
+	ResidencyHybridNative     ResidencyPolicy = "hybrid-native"
+	ResidencyHostReference    ResidencyPolicy = "host-reference"
+)
+
+func (p ResidencyPolicy) Valid() bool {
+	switch p {
+	case "", ResidencyStream, ResidencyHostCache, ResidencyDeviceF32, ResidencyDeviceNative,
+		ResidencyDeviceNativeBF16, ResidencyHybridNative, ResidencyHostReference:
+		return true
+	default:
+		return false
+	}
+}
+
 type Node struct {
-	ID        NodeID        `json:"id"`
-	Module    ModuleID      `json:"module"`
-	Placement Placement     `json:"placement"`
-	Session   SessionPolicy `json:"session,omitempty"`
+	ID        NodeID          `json:"id"`
+	Module    ModuleID        `json:"module"`
+	Placement Placement       `json:"placement"`
+	Session   SessionPolicy   `json:"session,omitempty"`
+	Residency ResidencyPolicy `json:"residency,omitempty"`
 }
 
 type Endpoint struct {

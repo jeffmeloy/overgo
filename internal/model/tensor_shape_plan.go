@@ -68,22 +68,6 @@ func (p TensorShapePlan) ExpertDown() []uint64 {
 	return []uint64{p.ExpertWidth, p.Embedding, p.Experts}
 }
 
-func (p TensorShapePlan) KeyCache(tokens uint32) tensor.Shape {
-	shape, err := p.KeyCacheShape(tokens)
-	if err != nil {
-		panic(err)
-	}
-	return shape
-}
-
-func (p TensorShapePlan) ValueCache(tokens uint32) tensor.Shape {
-	shape, err := p.ValueCacheShape(tokens)
-	if err != nil {
-		panic(err)
-	}
-	return shape
-}
-
 func (p TensorShapePlan) KeyCacheShape(tokens uint32) (tensor.Shape, error) {
 	return tensor.NewShape(p.Key, p.KVHeads, uint64(tokens))
 }

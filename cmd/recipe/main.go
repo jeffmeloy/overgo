@@ -97,6 +97,8 @@ func run() error {
 	runID := flags.String("run-id", "", "bound verifier run artifact ID (activate)")
 	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|vqa)")
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
+	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),
+		"weight residency: stream | host-cache | device-f32 | device-native | device-native-bf16 | hybrid-native | host-reference")
 	input := flags.String("input", "", "task input as JSON (run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
@@ -134,7 +136,11 @@ func run() error {
 		if sessionErr != nil {
 			return sessionErr
 		}
-		return activate(repository, path, *reason, sessionOverride, verification)
+		residency, residencyErr := parseResidency(*residencyFlag)
+		if residencyErr != nil {
+			return residencyErr
+		}
+		return activate(repository, path, *reason, sessionOverride, residency, verification)
 	case "run":
 		if !capabilityKnown || capability.execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
@@ -148,6 +154,14 @@ func run() error {
 	default:
 		return fmt.Errorf("unknown verb %q", verb)
 	}
+}
+
+func parseResidency(text string) (recipe.ResidencyPolicy, error) {
+	policy := recipe.ResidencyPolicy(strings.ToLower(strings.TrimSpace(text)))
+	if policy == "" || !policy.Valid() {
+		return "", fmt.Errorf("unknown -residency %q", text)
+	}
+	return policy, nil
 }
 
 func parseVerification(gateText, runText string) (modelrecipe.Verification, error) {
@@ -329,6 +343,7 @@ func parseSessionOverride(text string) (sessionOverride, error) {
 func activate(
 	repository, path, reason string,
 	override sessionOverride,
+	residency recipe.ResidencyPolicy,
 	verification modelrecipe.Verification,
 ) error {
 	ctx := context.Background()
@@ -396,7 +411,7 @@ func activate(
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		modelID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
-		session,
+		session, residency,
 	)
 	if err != nil {
 		return err

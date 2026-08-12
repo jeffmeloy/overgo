@@ -17,7 +17,9 @@ import (
 
 // ResolveActiveGGUF: temporary RepoDB-backed serving fixture (capacity session).
 func ResolveActiveGGUF(path string, placement recipe.Placement) (modelrecipe.LoadedProgram, error) {
-	return ResolveActiveGGUFWithSession(path, placement, modelrecipe.DecodeSessionCapacity)
+	return ResolveActiveGGUFWithPolicy(
+		path, placement, modelrecipe.DecodeSessionCapacity, defaultResidency(placement),
+	)
 }
 
 // ResolveActiveGGUFWithSession: serving fixture with an explicit decode-session
@@ -25,6 +27,16 @@ func ResolveActiveGGUF(path string, placement recipe.Placement) (modelrecipe.Loa
 // (concat) path on the same model.
 func ResolveActiveGGUFWithSession(
 	path string, placement recipe.Placement, session modelrecipe.DecodeSessionPolicy,
+) (modelrecipe.LoadedProgram, error) {
+	return ResolveActiveGGUFWithPolicy(path, placement, session, defaultResidency(placement))
+}
+
+// ResolveActiveGGUFWithPolicy: serving fixture with exact session and residency identity.
+func ResolveActiveGGUFWithPolicy(
+	path string,
+	placement recipe.Placement,
+	session modelrecipe.DecodeSessionPolicy,
+	residency recipe.ResidencyPolicy,
 ) (modelrecipe.LoadedProgram, error) {
 	root, err := os.MkdirTemp("", "overgo-serving-fixture-")
 	if err != nil {
@@ -78,7 +90,7 @@ func ResolveActiveGGUFWithSession(
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		inventory.Manifest.ID, profileDocument.ID, document.ID, placement,
-		session,
+		session, residency,
 	)
 	if err != nil {
 		return modelrecipe.LoadedProgram{}, err
@@ -103,4 +115,15 @@ func ResolveActiveGGUFWithSession(
 		return modelrecipe.LoadedProgram{}, err
 	}
 	return modelrecipe.ResolveActiveGGUF(ctx, store, path)
+}
+
+func defaultResidency(placement recipe.Placement) recipe.ResidencyPolicy {
+	switch placement {
+	case recipe.PlacementDevice:
+		return recipe.ResidencyDeviceNative
+	case recipe.PlacementHost:
+		return recipe.ResidencyHostCache
+	default:
+		return recipe.ResidencyHybridNative
+	}
 }

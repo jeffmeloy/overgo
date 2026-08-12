@@ -58,11 +58,13 @@ func TestServingGoldenRegression(t *testing.T) {
 	if len(golden.Cases) == 0 {
 		t.Fatal("serving golden has no cases")
 	}
-	loaded, err := servingtest.ResolveActiveGGUFWithSession(modelPath, recipe.PlacementHybrid, session)
+	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+		modelPath, recipe.PlacementHybrid, session, recipe.ResidencyDeviceF32,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenWithProgram(&loaded, OpenOptions{PreloadDeviceWeights: true})
+	runner, err := OpenWithProgram(&loaded, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,7 +17,7 @@ func inferenceWithProfileFixture(
 	return inference([]recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: modelID},
 		{Role: recipe.DependencyProfile, Artifact: profileID},
-	}, placement, session)
+	}, placement, session, fixtureResidency(placement))
 }
 
 func inferenceFixture(
@@ -27,7 +27,18 @@ func inferenceFixture(
 ) (recipe.Definition, error) {
 	return inference(
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, placement, session,
+		fixtureResidency(placement),
 	)
+}
+
+func fixtureResidency(placement recipe.Placement) recipe.ResidencyPolicy {
+	if placement == recipe.PlacementHost {
+		return recipe.ResidencyHostCache
+	}
+	if placement == recipe.PlacementDevice {
+		return recipe.ResidencyDeviceNative
+	}
+	return recipe.ResidencyHybridNative
 }
 
 func compileInferenceFixture(

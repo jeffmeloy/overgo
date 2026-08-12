@@ -20,7 +20,7 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 	}
 	d := m.Dims
 	seq := len(tokens)
-	states, err := m.forwardStates(tokens)
+	states, caches, err := m.forwardStatesCached(tokens)
 	if err != nil {
 		return 0, nil, nil, err
 	}
@@ -43,7 +43,7 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 
 	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
 	for index := d.Layers - 1; index >= 0; index-- {
-		dx, err = m.deviceLayerBackward(worker, index, states[index], dx, invFreq, seq, g)
+		dx, err = m.deviceLayerBackward(worker, index, states[index], dx, caches[index], invFreq, seq, g)
 		if err != nil {
 			return 0, nil, nil, err
 		}

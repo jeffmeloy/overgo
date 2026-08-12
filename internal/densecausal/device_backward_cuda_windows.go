@@ -8,7 +8,6 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/devicemath"
-	"overgo/internal/hostmath"
 )
 
 // ropeInvF32 converts the rope inverse-frequency table to fp32 for the device.
@@ -61,7 +60,7 @@ func deviceCausalSoftmaxGQA(q, k []float32, seq, nh, nkv, hd int) []float32 {
 // internal/devicemath, matching layerBackward's math (and weight-grad slots)
 // exactly. Returns dx (the layer's input gradient) and writes weight grads into
 // g. Attention bias is not yet supported (AttnBias must be false).
-func (m *Model) deviceLayerBackward(worker *device.Worker, index int, x, dOut []float32, invFreq []float64, seq int, g Grads) ([]float32, error) {
+func (m *Model) deviceLayerBackward(worker *device.Worker, index int, x, dOut []float32, cache layerCache, invFreq []float64, seq int, g Grads) ([]float32, error) {
 	d := m.Dims
 	if d.AttnBias {
 		return nil, fmt.Errorf("deviceLayerBackward: attention bias not supported yet")
@@ -76,29 +75,10 @@ func (m *Model) deviceLayerBackward(worker *device.Worker, index int, x, dOut []
 	scale := float32(1 / math.Sqrt(float64(d.HeadDim)))
 	invF32 := ropeInvF32(invFreq)
 
-	// Recompute the forward for intermediates (host).
-	xn := make([]float32, seq*d.Hidden)
-	hostmath.RMSNormInto(xn, x, l.inLN, seq, d.Hidden, d.RMSEps)
-	tr := m.attnSubForward(l, xn, invFreq, seq)
-	attnOut := make([]float32, seq*d.Hidden)
-	hostmath.Linear(attnOut, tr.attnCore, l.o, seq, width, d.Hidden)
-	h2 := make([]float32, seq*d.Hidden)
-	for i := range h2 {
-		h2[i] = x[i] + attnOut[i]
-	}
-	hn := make([]float32, seq*d.Hidden)
-	hostmath.RMSNormInto(hn, h2, l.postLN, seq, d.Hidden, d.RMSEps)
-	gate := make([]float32, seq*d.Intermediate)
-	up := make([]float32, seq*d.Intermediate)
-	hostmath.Linear(gate, hn, l.gate, seq, d.Hidden, d.Intermediate)
-	hostmath.Linear(up, hn, l.up, seq, d.Hidden, d.Intermediate)
-	a := make([]float32, seq*d.Intermediate)
-	hMLP := make([]float32, seq*d.Intermediate)
-	for i := range gate {
-		gi := float64(gate[i])
-		a[i] = float32(gi / (1 + math.Exp(-gi)))
-		hMLP[i] = a[i] * up[i]
-	}
+	// Forward intermediates come from the cache (saved by layerForwardCached) --
+	// no host recompute.
+	xn, tr, h2, hn := cache.xn, cache.tr, cache.h2, cache.hn
+	gate, up, a, hMLP := cache.gate, cache.up, cache.a, cache.hMLP
 	p := deviceCausalSoftmaxGQA(tr.qScaled, tr.kRoped, seq, d.Heads, d.KVHeads, d.HeadDim)
 
 	// --- MLP branch backward ---

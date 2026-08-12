@@ -41,7 +41,13 @@ func TestDeviceLayerBackwardMatchesHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	gDev := Grads{}
-	dxDev, err := m.deviceLayerBackward(worker, 0, x, dOut, invFreq, seq, gDev)
+	l0, err := m.layerWeights(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	xForCache := append([]float32(nil), x...)
+	cache := m.layerForwardCached(xForCache, l0, invFreq, seq)
+	dxDev, err := m.deviceLayerBackward(worker, 0, x, dOut, cache, invFreq, seq, gDev)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -199,7 +199,7 @@ func buildBiasedProjection(builder *tensor.Builder, weight, bias, input *tensor.
 	return builder.Add(builder.MulMat(weight, input), bias)
 }
 
-// BuildConditionedDiffusionCrossContext: fixed-context cross-attention K/V,
+// buildConditionedDiffusionCrossContext: fixed-context cross-attention K/V,
 // projected once per context: K = RMSNorm_w(W_k ctx + b_k), V = W_v ctx +
 // b_v, both reshaped to [headWidth, heads, contextTokens].
 func buildConditionedDiffusionCrossContext(
@@ -238,11 +238,11 @@ func buildConditionedDiffusionCrossContext(
 	return key, value, nil
 }
 
-// BuildConditionedDiffusionBlock: one adaptive-layernorm diffusion
+// buildConditionedDiffusionBlock: one adaptive-layernorm diffusion
 // transformer block. conditioning is the per-execution [6*dim] timestep
 // embedding added to the block's learned modulation; chunk order is
 // (self shift, self scale, self gate, ffn shift, ffn scale, ffn gate).
-// crossKey/crossValue come from BuildConditionedDiffusionCrossContext.
+// crossKey/crossValue: preprojected fixed context.
 func buildConditionedDiffusionBlock(
 	builder *tensor.Builder,
 	input, conditioning *tensor.Tensor,
@@ -349,7 +349,7 @@ func buildConditionedDiffusionBlock(
 	return result, nil
 }
 
-// BuildConditionedDiffusionHead: final modulated projection. conditioning is
+// buildConditionedDiffusionHead: final modulated projection. conditioning is
 // the [dim] timestep embedding; modulation is the learned [2*dim]
 // (shift, scale) pair; output projects each token to its patch values.
 func buildConditionedDiffusionHead(

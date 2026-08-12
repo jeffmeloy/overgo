@@ -17,66 +17,19 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
-	"overgo/internal/hfrepo"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/seq2seq"
-	"overgo/internal/seriesforecast"
-	"overgo/internal/speechsynth"
-	"overgo/internal/tabularicl"
 )
-
-type capabilityCommand struct {
-	inventory func(string) (modelartifact.Inventory, error)
-	execute   capabilityruntime.Executor
-}
-
-func executableCapability(
-	inventory func(string) (modelartifact.Inventory, error),
-	execute capabilityruntime.Executor,
-) capabilityCommand {
-	return capabilityCommand{inventory: inventory, execute: execute}
-}
-
-var capabilityCommands = map[recipe.Task]capabilityCommand{
-	recipe.TaskForecast: executableCapability(hfInventory,
-		capabilityruntime.JSONScalar[[]float32, *seriesforecast.Model, []float32](
-			"forecast", seriesforecast.ValidateRequest,
-			capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime)),
-	recipe.TaskTabular: executableCapability(tabularInventory,
-		capabilityruntime.JSONScalar[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](
-			"tabular", tabularicl.ValidateRequest,
-			func(path string, request tabularicl.Request) (*tabularicl.Model, error) {
-				return tabularicl.LoadTask(path, request.Task)
-			}, tabularicl.RegisterRuntime)),
-	recipe.TaskSeq2Seq: executableCapability(hfInventory,
-		capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Model, []int](
-			"seq2seq", seq2seq.ValidateGenerateRequest,
-			capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.Load), seq2seq.RegisterRuntime)),
-	recipe.TaskSpeech: executableCapability(speechInventory,
-		capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
-			"speech", speechsynth.ValidateSynthesisRequest,
-			capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)),
-	recipe.TaskImageGen: executableCapability(imageGenInventory,
-		capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
-			"image-gen", oscillatorimage.ValidateRequest,
-			capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime)),
-	recipe.TaskVQA: {
-		inventory: hfInventory,
-	},
-}
 
 func main() {
 	if err := run(); err != nil {
@@ -116,7 +69,7 @@ func run() error {
 	}
 	path := roots.ResolveModelPath(flags.Arg(0))
 	selectedTask := recipe.Task(*task)
-	capability, capabilityKnown := capabilityCommands[selectedTask]
+	capability, capabilityKnown := capabilityruntime.Lookup(selectedTask)
 	switch verb {
 	case "activate":
 		if strings.TrimSpace(*reason) == "" {
@@ -142,7 +95,7 @@ func run() error {
 		}
 		return activate(repository, path, *reason, sessionOverride, residency, verification)
 	case "run":
-		if !capabilityKnown || capability.execute == nil {
+		if !capabilityKnown || capability.Execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
 		}
 		if strings.TrimSpace(*input) == "" {
@@ -176,94 +129,15 @@ func parseVerification(gateText, runText string) (modelrecipe.Verification, erro
 	return modelrecipe.Verification{Gate: gate, Run: run}, nil
 }
 
-func hfInventory(path string) (modelartifact.Inventory, error) {
-	repository, err := hfrepo.Open(path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	defer repository.Close()
-	return modelartifact.FromHFRepository(repository)
-}
-
-// singleSafetensors: unique top-level weights file.
-func singleSafetensors(context, path string) (string, error) {
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return "", err
-	}
-	weights := ""
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".safetensors") {
-			continue
-		}
-		if weights != "" {
-			return "", fmt.Errorf("%s inventory: multiple safetensors files in %s", context, path)
-		}
-		weights = entry.Name()
-	}
-	if weights == "" {
-		return "", fmt.Errorf("%s inventory: no safetensors weights in %s", context, path)
-	}
-	return weights, nil
-}
-
-func safetensorsInventory(
-	context, path, config string,
-	companions ...modelartifact.FileSpec,
-) (modelartifact.Inventory, error) {
-	weights, err := singleSafetensors(context, path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	specs := []modelartifact.FileSpec{
-		{Path: filepath.Join(path, config), Name: "config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
-	}
-	for _, companion := range companions {
-		companion.Path = filepath.Join(path, companion.Path)
-		specs = append(specs, companion)
-	}
-	return modelartifact.FromFiles(path, specs)
-}
-
-// speechInventory: model, codec, and tokenizer facts.
-func speechInventory(path string) (modelartifact.Inventory, error) {
-	return safetensorsInventory("speech", path, "pockettts_config.json",
-		modelartifact.FileSpec{Path: "tokenizer.model", Name: "tokenizer", Role: artifact.ComponentTokenizer})
-}
-
-// imageGenInventory: config and weights facts.
-func imageGenInventory(path string) (modelartifact.Inventory, error) {
-	return safetensorsInventory("image-gen", path, "config.json")
-}
-
-// tabularInventory: classification and regression head facts.
-func tabularInventory(path string) (modelartifact.Inventory, error) {
-	var specs []modelartifact.FileSpec
-	for _, head := range tabularicl.Tasks() {
-		specs = append(specs,
-			modelartifact.FileSpec{
-				Path: filepath.Join(path, head, "config.json"),
-				Name: head + "/config", Role: artifact.ComponentConfig,
-			},
-			modelartifact.FileSpec{
-				Path: filepath.Join(path, head, "model.safetensors"),
-				Name: head + "/weights", Role: artifact.ComponentWeights,
-			},
-		)
-	}
-	return modelartifact.FromFiles(path, specs)
-}
-
 // activateCapability: capability facts, candidate, validation, verified promotion.
 func activateCapability(
 	repository, path, reason string,
 	task recipe.Task,
-	capability capabilityCommand,
+	capability capabilityruntime.Capability,
 	verification modelrecipe.Verification,
 ) error {
 	ctx := context.Background()
-	inventory, err := capability.inventory(path)
+	inventory, err := capability.Inventory(path)
 	if err != nil {
 		return err
 	}
@@ -295,25 +169,20 @@ func activateCapability(
 func executeCapability(
 	repository, path string,
 	task recipe.Task,
-	capability capabilityCommand,
+	capability capabilityruntime.Capability,
 	input string,
 ) error {
 	ctx := context.Background()
-	inventory, err := capability.inventory(path)
-	if err != nil {
-		return err
-	}
 	store, err := repodb.Open(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	modelID := inventory.Manifest.ID
-	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
+	inventory, program, err := capabilityruntime.ResolveActive(ctx, store, path, task)
 	if err != nil {
 		return err
 	}
-	output, err := capability.execute(ctx, store, path, modelID, program, input)
+	output, err := capability.Execute(ctx, store, path, inventory.Manifest.ID, program, input)
 	if err != nil {
 		return err
 	}
@@ -525,9 +394,9 @@ func promoteVerified(
 func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
-	if capability, ok := capabilityCommands[task]; ok {
+	if capability, ok := capabilityruntime.Lookup(task); ok {
 		var err error
-		inventory, err = capability.inventory(path)
+		inventory, err = capability.Inventory(path)
 		if err != nil {
 			return err
 		}

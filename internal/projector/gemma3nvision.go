@@ -427,7 +427,7 @@ func (r *Gemma3nVisionRunner) buildAttentionGraph(
 	q = builder.Reshape(q, headWidth, heads, q.Shape.Dims[1]*q.Shape.Dims[2])
 	k = builder.Reshape(k, headWidth, 1, k.Shape.Dims[1]*k.Shape.Dims[2])
 	v = builder.Reshape(v, headWidth, 1, v.Shape.Dims[1]*v.Shape.Dims[2])
-	attention := mustVisionAttentionPlan(int(headWidth*heads), int(heads), false).graph(builder, q, k, v)
+	attention := compileVisionAttention(int(headWidth*heads), int(heads)).graph(builder, q, k, v)
 	if attention == nil {
 		return input
 	}

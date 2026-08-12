@@ -51,19 +51,8 @@ type visionAttentionPlan struct {
 	causal bool
 }
 
-func newVisionAttentionPlan(hidden, heads int, causal bool) (visionAttentionPlan, error) {
-	if hidden <= 0 || heads <= 0 || hidden%heads != 0 {
-		return visionAttentionPlan{}, errors.New("projector: invalid attention dimensions")
-	}
-	return visionAttentionPlan{hidden: hidden, heads: heads, causal: causal}, nil
-}
-
-func mustVisionAttentionPlan(hidden, heads int, causal bool) visionAttentionPlan {
-	plan, err := newVisionAttentionPlan(hidden, heads, causal)
-	if err != nil {
-		panic(err)
-	}
-	return plan
+func compileVisionAttention(hidden, heads int) visionAttentionPlan {
+	return visionAttentionPlan{hidden: hidden, heads: heads}
 }
 
 func (p visionAttentionPlan) headWidth() int {

@@ -102,9 +102,9 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			r.spec.ContextLength,
 		)
 	}
-	expectedLayers := r.cacheLayerCount()
+	expectedLayers := int(r.program.Model.CacheLayerCount())
 	if expectedLayers == 0 {
-		expectedLayers = len(r.weights.Layers)
+		return errors.New("inference: model program has no cache layers")
 	}
 	if len(cache.Layers) != expectedLayers {
 		return fmt.Errorf(
@@ -172,13 +172,6 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		}
 	}
 	return nil
-}
-
-func (r *Runner) cacheLayerCount() int {
-	if r.program.Model.CacheLayerCount() != 0 {
-		return int(r.program.Model.CacheLayerCount())
-	}
-	panic("inference: compiled cache layer count is unavailable")
 }
 
 func (r *Runner) hasCachePolicy(policy model.CachePolicy) bool {

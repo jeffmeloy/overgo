@@ -15,9 +15,6 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/dataroot"
 	"overgo/internal/hfbpe"
-	"overgo/internal/hfrepo"
-	"overgo/internal/modelartifact"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/patchtower"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
@@ -74,27 +71,6 @@ func openRecipeStore(repo string) (*repodb.Store, error) {
 	return repodb.Open(repository)
 }
 
-// resolveActiveVQA: compiled active program for the HF artifact.
-func resolveActiveVQA(
-	ctx context.Context,
-	store artifact.Reader,
-	modelDir string,
-) (artifact.ID, recipe.Program, string, error) {
-	hf, err := hfrepo.Open(modelDir)
-	if err != nil {
-		return artifact.ID{}, recipe.Program{}, "", err
-	}
-	inventory, err := modelartifact.FromHFRepository(hf)
-	_ = hf.Close()
-	if err != nil {
-		return artifact.ID{}, recipe.Program{}, "", err
-	}
-	activation, program, err := modelrecipe.ResolveActiveCapability(
-		ctx, store, inventory.Manifest.ID, recipe.TaskVQA,
-	)
-	return inventory.Manifest.ID, program, string(activation.Tier), err
-}
-
 // runRecipeServe: canonical case through the active recipe.
 func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	ctx := context.Background()
@@ -104,12 +80,13 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		return err
 	}
 	defer store.Close()
-	modelID, program, tier, err := resolveActiveVQA(ctx, store, l.modelDir)
+	inventory, program, err := capabilityruntime.ResolveActive(ctx, store, l.modelDir, recipe.TaskVQA)
 	if err != nil {
 		return err
 	}
+	modelID := inventory.Manifest.ID
 	recipeID := program.Definition().ID.String()
-	l.log(fmt.Sprintf("RECIPE serve active vqa recipe resolved model=%s recipe=%s tier=%s", modelID, recipeID, tier))
+	l.log(fmt.Sprintf("RECIPE serve active vqa recipe resolved model=%s recipe=%s", modelID, recipeID))
 
 	if _, statErr := os.Stat(imagePath); statErr != nil {
 		return fmt.Errorf("serve image not found: %s", imagePath)

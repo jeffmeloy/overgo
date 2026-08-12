@@ -541,6 +541,46 @@ extern "C" __global__ void rope_half_f32(
     x[base + i + half] = s * x1 + c * x2;
 }
 
+// head_major_f32: reshape [seq, n_heads*hd] (position-major) ->
+// [n_heads, seq, hd] (head-major, each head contiguous) so per-head device GEMMs
+// address contiguous sub-buffers. One thread per output element (gather).
+extern "C" __global__ void head_major_f32(
+        const float * input,
+        float * output,
+        unsigned int seq,
+        unsigned int n_heads,
+        unsigned int hd) {
+    const unsigned int total = seq * n_heads * hd;
+    const unsigned int t = blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= total) {
+        return;
+    }
+    const unsigned int x = t % hd;
+    const unsigned int i = (t / hd) % seq;
+    const unsigned int h = (t / hd) / seq;
+    output[t] = input[((size_t)i * n_heads + h) * hd + x];
+}
+
+// head_major_inverse_f32: reshape [n_heads, seq, hd] (head-major) ->
+// [seq, n_heads*hd] (position-major), the inverse of head_major_f32. One thread
+// per output element (gather).
+extern "C" __global__ void head_major_inverse_f32(
+        const float * input,
+        float * output,
+        unsigned int seq,
+        unsigned int n_heads,
+        unsigned int hd) {
+    const unsigned int total = seq * n_heads * hd;
+    const unsigned int t = blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= total) {
+        return;
+    }
+    const unsigned int x = t % hd;
+    const unsigned int h = (t / hd) % n_heads;
+    const unsigned int i = (t / hd) / n_heads;
+    output[t] = input[((size_t)h * seq + i) * hd + x];
+}
+
 extern "C" __global__ void activated_gate_f32(
         const float * gate,
         const float * up,

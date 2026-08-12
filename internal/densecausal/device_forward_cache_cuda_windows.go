@@ -3,7 +3,6 @@
 package densecausal
 
 import (
-	"fmt"
 	"math"
 
 	"overgo/internal/hostmath"
@@ -32,9 +31,7 @@ func (m *Model) layerForwardCached(x []float32, l layer, invFreq []float64, seq 
 	c.tr = m.attnSubForward(l, c.xn, invFreq, seq)
 	attnOut := make([]float32, seq*d.Hidden)
 	hostmath.Linear(attnOut, c.tr.attnCore, l.o, seq, width, d.Hidden)
-	for i := range x {
-		x[i] += attnOut[i]
-	}
+	addInPlace(x, attnOut)
 	c.h2 = append([]float32(nil), x...)
 	c.hn = make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(c.hn, x, l.postLN, seq, d.Hidden, d.RMSEps)
@@ -51,9 +48,7 @@ func (m *Model) layerForwardCached(x []float32, l layer, invFreq []float64, seq 
 	}
 	mlp := make([]float32, seq*d.Hidden)
 	hostmath.Linear(mlp, c.hMLP, l.down, seq, d.Intermediate, d.Hidden)
-	for i := range x {
-		x[i] += mlp[i]
-	}
+	addInPlace(x, mlp)
 	return c
 }
 
@@ -61,27 +56,25 @@ func (m *Model) layerForwardCached(x []float32, l layer, invFreq []float64, seq 
 // stream AND its forward intermediates, so the device backward consumes the
 // cache instead of recomputing the forward per layer.
 func (m *Model) forwardStatesCached(tokens []int) ([][]float32, []layerCache, error) {
-	d := m.Dims
-	seq := len(tokens)
-	embed := m.Weights["model.embed_tokens.weight"]
-	x := make([]float32, seq*d.Hidden)
-	for t, id := range tokens {
-		if id < 0 || id >= d.Vocab {
-			return nil, nil, fmt.Errorf("densecausal: token %d out of vocab %d", id, d.Vocab)
-		}
-		copy(x[t*d.Hidden:(t+1)*d.Hidden], embed[id*d.Hidden:(id+1)*d.Hidden])
-	}
-	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
-	states := make([][]float32, d.Layers+1)
-	caches := make([]layerCache, d.Layers)
-	for index := 0; index < d.Layers; index++ {
-		states[index] = append([]float32(nil), x...)
+	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
+	return m.cachedForwardStates(tokens, func(x []float32, index, seq int) (layerCache, error) {
 		l, err := m.layerWeights(index)
 		if err != nil {
-			return nil, nil, err
+			return layerCache{}, err
 		}
-		caches[index] = m.layerForwardCached(x, l, invFreq, seq)
-	}
-	states[d.Layers] = x
-	return states, caches, nil
+		return m.layerForwardCached(x, l, invFreq, seq), nil
+	})
+}
+
+func (m *Model) cachedForwardStates(
+	tokens []int,
+	forward func(x []float32, index, sequence int) (layerCache, error),
+) ([][]float32, []layerCache, error) {
+	caches := make([]layerCache, m.Dims.Layers)
+	states, err := m.retainedForwardStates(tokens, func(x []float32, index, sequence int) error {
+		var err error
+		caches[index], err = forward(x, index, sequence)
+		return err
+	})
+	return states, caches, err
 }

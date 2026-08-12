@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"encoding/binary"
 	"math"
 	"os"
@@ -37,6 +38,16 @@ func ArtifactBytesID(t testing.TB, kind artifact.Kind, content []byte) artifact.
 		t.Fatal(err)
 	}
 	return id
+}
+
+// PublishArtifact records one identity-only fixture fact.
+func PublishArtifact(t testing.TB, repository artifact.Repository, id artifact.ID) {
+	t.Helper()
+	if _, err := repository.Commit(context.Background(), artifact.Batch{
+		Key: "test/artifact/" + id.String(), Artifacts: []artifact.Descriptor{{ID: id}},
+	}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func WriteGGUF(

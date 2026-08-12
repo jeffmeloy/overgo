@@ -16,17 +16,39 @@ import (
 // Request: labeled prefix (rows [0,TrainRows)) conditions predictions for
 // ALL rows; test rows' Y values are read but never influence any output.
 type Request struct {
-	Task      string
-	X         []float32 // row-major [Rows*Cols]
-	Y         []float32 // len Rows; class ids (classification) or scalars
-	Rows      int
-	Cols      int
-	TrainRows int
-	CatCols   []int
+	Task      string    `json:"task"`
+	X         []float32 `json:"x"` // row-major [Rows*Cols]
+	Y         []float32 `json:"y"` // len Rows; class ids or scalars
+	Rows      int       `json:"rows"`
+	Cols      int       `json:"cols"`
+	TrainRows int       `json:"train_rows"`
+	CatCols   []int     `json:"categorical_columns,omitempty"`
+}
+
+// ValidateRequest checks task and input geometry before model loading.
+func ValidateRequest(req Request) error {
+	if !validTask(req.Task) {
+		return fmt.Errorf("tabularicl: unsupported task %q", req.Task)
+	}
+	if _, err := requestCatMask(req.X, req.Y, req.Rows, req.Cols, req.TrainRows, req.CatCols); err != nil {
+		return err
+	}
+	if req.Task == TaskClassification {
+		for row := 0; row < req.TrainRows; row++ {
+			class := int(req.Y[row])
+			if class < 0 || float32(class) != req.Y[row] {
+				return fmt.Errorf("tabularicl: train row %d has invalid class %g", row, req.Y[row])
+			}
+		}
+	}
+	return nil
 }
 
 // Predict dispatches to the task head; returns [Rows*OutDim] raw outputs.
 func (m *Model) Predict(req Request) ([]float32, int, error) {
+	if err := ValidateRequest(req); err != nil {
+		return nil, 0, err
+	}
 	head, ok := m.Heads[req.Task]
 	if !ok {
 		return nil, 0, fmt.Errorf("tabularicl: task %q was not loaded", req.Task)
@@ -47,7 +69,11 @@ func (h *Head) Predict(x, y []float32, rows, cols, trainRows int, catCols []int)
 	if h.Dims.IsClassifier {
 		// MaxClasses is an artifact bound.
 		for t := 0; t < trainRows; t++ {
-			if cls := int(y[t]); cls < 0 || cls >= h.Dims.MaxClasses {
+			cls := int(y[t])
+			if float32(cls) != y[t] {
+				return nil, fmt.Errorf("tabularicl: train row %d has invalid class %g", t, y[t])
+			}
+			if cls < 0 || cls >= h.Dims.MaxClasses {
 				return nil, fmt.Errorf("tabularicl: train row %d class %d outside [0,%d)", t, cls, h.Dims.MaxClasses)
 			}
 		}
@@ -65,10 +91,23 @@ func requestCatMask(x, y []float32, rows, cols, trainRows int, catCols []int) ([
 	if trainRows <= 0 || trainRows >= rows {
 		return nil, fmt.Errorf("tabularicl: train_rows %d must be in [1, rows-1] (%d rows)", trainRows, rows)
 	}
+	for index, value := range x {
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			return nil, fmt.Errorf("tabularicl: x[%d] is non-finite", index)
+		}
+	}
+	for index, value := range y {
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			return nil, fmt.Errorf("tabularicl: y[%d] is non-finite", index)
+		}
+	}
 	catMask := make([]bool, cols)
 	for _, c := range catCols {
 		if c < 0 || c >= cols {
 			return nil, fmt.Errorf("tabularicl: categorical column %d out of range (cols %d)", c, cols)
+		}
+		if catMask[c] {
+			return nil, fmt.Errorf("tabularicl: categorical column %d is repeated", c)
 		}
 		catMask[c] = true
 	}

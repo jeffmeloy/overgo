@@ -25,23 +25,14 @@ const (
 	GemmDefault        GemmAlgorithm = -1
 )
 
-// RowMajorGEMMF32 computes row-major C[m,n] = A[m,k] · B[k,n] in fp32 on device
-// pointers (no transposes). Convenience over RowMajorGEMMExF32.
+// RowMajorGEMMF32: row-major C[m,n] = A[m,k]*B[k,n].
 func (l *Library) RowMajorGEMMF32(handle Handle, m, k, n int32, a, b, c driver.DevicePtr) error {
 	return l.RowMajorGEMMExF32(handle, false, false, m, k, n, a, b, c)
 }
 
-// RowMajorGEMMExF32 computes row-major C[m,n] = op(A) · op(B) in fp32 on device
-// pointers, where op(A) is [m,k] and op(B) is [k,n]. transA/transB select
-// whether the stored row-major A/B are used transposed (so the gram products
-// XᵀX and XXᵀ need no materialized transpose).
-//
-// cuBLAS is column-major; a row-major matrix is seen as its transpose. The
-// row-major product is therefore obtained by computing Cᵀ = op(B)ᵀ·op(A)ᵀ with
-// the operands swapped: GEMM(opB, opA, n, m, k, B, A, C). Leading dims are the
-// stored row-major widths (lda = k or m under transA; ldb = n or k under
-// transB; ldc = n). With both flags off this reduces to the verified
-// GEMM(N,N, n,m,k, B(n), A(k), C(n)) formula.
+// RowMajorGEMMExF32: row-major C[m,n] = op(A)*op(B).
+// Transpose flags avoid materialized X^T*X and X*X^T inputs.
+// cuBLAS uses the equivalent swapped column-major product.
 func (l *Library) RowMajorGEMMExF32(handle Handle, transA, transB bool, m, k, n int32, a, b, c driver.DevicePtr) error {
 	opA, lda := OperationNone, k
 	if transA {

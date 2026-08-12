@@ -88,35 +88,63 @@ func (s *Decoder) Advance(logits []float32, token int) error {
 	return nil
 }
 
-// Generate greedily decodes up to maxTokens ids from source token ids:
-// encode, seed with the decoder start token, argmax each step, stop at eos.
-func (m *Model) Generate(src []int, maxTokens int) ([]int, error) {
-	if maxTokens <= 0 {
-		return nil, nil
+type encodedRequest struct {
+	memory     []float32
+	sourceRows int
+	maxTokens  int
+}
+
+type generationSession struct {
+	decoder   *Decoder
+	maxTokens int
+}
+
+type tokenSelector interface {
+	selectTokens() ([]int, error)
+}
+
+func (m *Model) encodeRequest(request GenerateRequest) (encodedRequest, error) {
+	if err := ValidateGenerateRequest(request); err != nil {
+		return encodedRequest{}, err
 	}
-	memory, err := m.Encode(src)
+	memory, err := m.Encode(request.Source)
+	if err != nil {
+		return encodedRequest{}, err
+	}
+	return encodedRequest{memory: memory, sourceRows: len(request.Source), maxTokens: request.MaxTokens}, nil
+}
+
+func (m *Model) prepareGeneration(encoded encodedRequest) (tokenSelector, error) {
+	if encoded.sourceRows <= 0 || encoded.maxTokens <= 0 {
+		return nil, fmt.Errorf("seq2seq: invalid encoded request")
+	}
+	decoder, err := m.NewDecoder(encoded.memory, encoded.sourceRows, encoded.maxTokens+1)
 	if err != nil {
 		return nil, err
 	}
-	session, err := m.NewDecoder(memory, len(src), maxTokens+1)
-	if err != nil {
+	return &generationSession{decoder: decoder, maxTokens: encoded.maxTokens}, nil
+}
+
+func (s *generationSession) selectTokens() ([]int, error) {
+	if s == nil || s.decoder == nil || s.maxTokens <= 0 {
+		return nil, fmt.Errorf("seq2seq: invalid generation session")
+	}
+	model := s.decoder.m
+	logits := make([]float32, model.Dims.Vocab)
+	if err := s.decoder.Advance(logits, model.Dims.StartToken); err != nil {
 		return nil, err
 	}
-	logits := make([]float32, m.Dims.Vocab)
-	if err := session.Advance(logits, m.Dims.StartToken); err != nil {
-		return nil, err
-	}
-	tokens := make([]int, 0, maxTokens)
-	for len(tokens) < maxTokens {
+	tokens := make([]int, 0, s.maxTokens)
+	for len(tokens) < s.maxTokens {
 		next := argmax(logits)
-		if next == m.Dims.EOSToken {
+		if next == model.Dims.EOSToken {
 			break
 		}
 		tokens = append(tokens, next)
-		if len(tokens) == maxTokens {
+		if len(tokens) == s.maxTokens {
 			break
 		}
-		if err := session.Advance(logits, next); err != nil {
+		if err := s.decoder.Advance(logits, next); err != nil {
 			return tokens, err
 		}
 	}

@@ -48,10 +48,8 @@ type Bindings struct {
 }
 
 type Plan struct {
-	Recipe       recipe.Definition
-	Steps        []recipe.Node
-	Dependencies []recipe.Dependency
-	Support      ExecutionSupport
+	Program recipe.Program
+	Support ExecutionSupport
 }
 
 type ExecutionSupport uint8
@@ -162,13 +160,12 @@ func Compile(definition recipe.Definition) (Plan, error) {
 	if err := validateTaskDependencies(definition); err != nil {
 		return Plan{}, err
 	}
-	steps, err := executionOrder(definition)
+	program, err := recipe.CompileProgram(definition, catalog)
 	if err != nil {
 		return Plan{}, err
 	}
 	return Plan{
-		Recipe: definition, Steps: steps, Dependencies: slices.Clone(definition.Dependencies),
-		Support: executionSupport(definition.Task),
+		Program: program, Support: executionSupport(definition.Task),
 	}, nil
 }
 
@@ -241,43 +238,6 @@ func validateTaskDependencies(definition recipe.Definition) error {
 		}
 	}
 	return nil
-}
-
-func executionOrder(definition recipe.Definition) ([]recipe.Node, error) {
-	nodes := make(map[recipe.NodeID]recipe.Node, len(definition.Nodes))
-	indegree := make(map[recipe.NodeID]int, len(definition.Nodes))
-	adjacency := make(map[recipe.NodeID][]recipe.NodeID, len(definition.Nodes))
-	for _, node := range definition.Nodes {
-		nodes[node.ID], indegree[node.ID] = node, 0
-	}
-	for _, edge := range definition.Edges {
-		adjacency[edge.From.Node] = append(adjacency[edge.From.Node], edge.To.Node)
-		indegree[edge.To.Node]++
-	}
-	ready := make([]recipe.NodeID, 0, len(nodes))
-	for id, count := range indegree {
-		if count == 0 {
-			ready = append(ready, id)
-		}
-	}
-	slices.Sort(ready)
-	steps := make([]recipe.Node, 0, len(nodes))
-	for len(ready) > 0 {
-		id := ready[0]
-		ready = ready[1:]
-		steps = append(steps, nodes[id])
-		for _, target := range adjacency[id] {
-			indegree[target]--
-			if indegree[target] == 0 {
-				ready = append(ready, target)
-				slices.Sort(ready)
-			}
-		}
-	}
-	if len(steps) != len(nodes) {
-		return nil, errors.New("workflow recipe: execution graph contains cycle")
-	}
-	return steps, nil
 }
 
 func mediaContract(media MediaKind) (recipe.ModuleID, recipe.DataKind, error) {

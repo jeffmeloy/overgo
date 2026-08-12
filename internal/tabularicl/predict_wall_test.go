@@ -19,7 +19,7 @@ func TestPredictWall(t *testing.T) {
 		t.Skip("loads ~6.5GB weights per head; skipped in -short")
 	}
 	golden := readGolden(t)
-	for _, task := range []string{TaskClassification, TaskRegression} {
+	for _, task := range Tasks() {
 		loadStart := time.Now()
 		head, err := LoadHead(headDir(t, task))
 		if err != nil {

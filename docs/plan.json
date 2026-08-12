@@ -406,6 +406,19 @@
       ]
     },
     {
+      "id": "shortconv-backward",
+      "title": "shortconv-backward: VJP of the SSMConv1D short causal depthwise conv (qwen3.5 GDN mix applies it to q/k/v before the recurrence); host-side, FD-grad-checked. First concrete piece of the qwen3.5 linear_attention layer backward (which the grounding revealed = QKV proj + conv1d + slice + beta/alpha + SSMNorm + GDN VJP + z-gate + SSMOutput proj)",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "shortconv-backward: VJP of the SSMConv1D short causal depthwise conv (qwen3.5 GDN mix applies it to q/k/v before the recurrence); host-side, FD-grad-checked. First concrete piece of the qwen3.5 linear_attention layer backward (which the grounding revealed = QKV proj + conv1d + slice + beta/alpha + SSMNorm + GDN VJP + z-gate + SSMOutput proj)",
+          "status": "open",
+          "verify": "go test ./internal/hostmath/ -run TestShortConv -count=1"
+        }
+      ]
+    },
+    {
       "id": "rung12-qwen4b",
       "title": "Qwen3.5-4B (activation-class)",
       "status": "open",
@@ -434,8 +447,8 @@
         },
         {
           "id": "gdn-backward-host",
-          "title": "derive + implement the GDN recurrence VJP (dq/dk/dv/dbeta/ddecay/dstate) host-side, FD-grad-checked vs the host forward -- DONE: hostmath.GatedDeltaNetBackward, BPTT through the per-(head,seq,row) gated delta recurrence (saves s'/s per token; dSp=dSnew-beta*(dSnew.k)*k; dGate[c]=dSp[c]*s'[c]; dS_carry=dSp*exp(gate)); grouped q/k accumulate. FD grad-check PASS scalar+per-column: dQ<=2.9e-5 dK<=1.5e-5 dV<=1.7e-5 dGate<=1.7e-5 dBeta<=2.6e-6 dInputState<=8.6e-6 (tol 1e-2)",
-          "status": "open",
+          "title": "derive + implement the GDN recurrence VJP (dq/dk/dv/dbeta/ddecay/dstate) host-side, FD-grad-checked vs the host forward -- DONE: hostmath.GatedDeltaNetBackward, BPTT through the per-(head,seq,row) gated delta recurrence (saves s'/s per token; dSp=dSnew-beta*(dSnew.k)*k; dGate[c]=dSp[c]*s'[c]; dS_carry=dSp*exp(gate)); grouped q/k accumulate. FD grad-check PASS scalar+per-column: dQ\u003c=2.9e-5 dK\u003c=1.5e-5 dV\u003c=1.7e-5 dGate\u003c=1.7e-5 dBeta\u003c=2.6e-6 dInputState\u003c=8.6e-6 (tol 1e-2)",
+          "status": "done",
           "verify": "go test ./internal/hostmath/ -run TestGDNBackwardFD -count=1"
         },
         {

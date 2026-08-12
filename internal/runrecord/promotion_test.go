@@ -71,8 +71,8 @@ func TestEvaluationPromotesWorkflowRecipe(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	active, ok, err := modelrecipe.Active(ctx, store, modelID, recipe.TaskGeneration)
-	if err != nil || !ok || active.ID != definition.ID {
-		t.Fatalf("active workflow = (%s, %v, %v)", active.ID, ok, err)
+	active, ok, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskGeneration)
+	if err != nil || !ok || active.Definition.ID != definition.ID {
+		t.Fatalf("active workflow = (%s, %v, %v)", active.Definition.ID, ok, err)
 	}
 }

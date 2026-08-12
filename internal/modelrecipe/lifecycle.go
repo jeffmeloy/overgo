@@ -282,11 +282,6 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 	}, true, nil
 }
 
-func Active(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (recipe.Definition, bool, error) {
-	activation, ok, err := ActiveRecord(ctx, store, modelID, task)
-	return activation.Definition, ok, err
-}
-
 // ResolveActiveCapability returns the verified executable capability program.
 func ResolveActiveCapability(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (Activation, recipe.Program, error) {
 	activation, active, err := ActiveRecord(ctx, store, modelID, task)
@@ -298,52 +293,6 @@ func ResolveActiveCapability(ctx context.Context, store artifact.Reader, modelID
 	}
 	program, err := CompileCapability(activation.Definition)
 	return activation, program, err
-}
-
-// ActiveProfile: parity-gated policy for runtime ingestion.
-func ActiveProfile(
-	ctx context.Context,
-	store artifact.Reader,
-	modelID artifact.ID,
-	task recipe.Task,
-) (ProfileDocument, bool, error) {
-	definition, ok, err := Active(ctx, store, modelID, task)
-	if err != nil || !ok {
-		return ProfileDocument{}, ok, err
-	}
-	return activeBoundProfile(ctx, store, definition)
-}
-
-func activeBoundProfile(
-	ctx context.Context,
-	store artifact.Reader,
-	definition recipe.Definition,
-) (ProfileDocument, bool, error) {
-	profileID, bound := definition.Dependency(recipe.DependencyProfile, 0)
-	if !bound && definition.Version == recipe.LegacyVersion {
-		var err error
-		profileID, bound, err = artifact.ResolveAlias(ctx, store, legacyRecipeProfileAlias(definition.ID))
-		if err != nil {
-			return ProfileDocument{}, false, err
-		}
-	}
-	if !bound {
-		return ProfileDocument{}, false, nil
-	}
-	document, err := loadProfile(ctx, store, profileID)
-	if err != nil {
-		return ProfileDocument{}, false, err
-	}
-	event, err := currentEvent(ctx, store, definition.ID)
-	if err != nil {
-		return ProfileDocument{}, false, err
-	}
-	if _, err := matchingProfileParity(
-		ctx, store, event.Evidence, definition, document,
-	); err != nil {
-		return ProfileDocument{}, false, err
-	}
-	return document, true, nil
 }
 
 // Status: current lifecycle state of a recipe; published=false when never seen.

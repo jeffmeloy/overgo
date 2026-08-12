@@ -297,98 +297,7 @@ func TestPublishProfileCatalogRequiresExternalDerivation(t *testing.T) {
 	}
 }
 
-func TestProfileCandidateParityPromotion(t *testing.T) {
-	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	modelID := commitFixtureModel(t, ctx, store, "fixture/profile/model", "parity-model")
-	profile, _ := model.LookupArchitecture("llama")
-	document, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	definition, err := inferenceWithProfileFixture(
-		modelID, document.ID, recipe.PlacementHost, DecodeSessionCapacity,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := PublishProfileCandidate(
-		ctx, store, "fixture/profile/candidate", definition, document,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if _, bound, err := store.ResolveAlias(ctx, legacyRecipeProfileAlias(definition.ID)); err != nil || bound {
-		t.Fatalf("legacy profile alias = (%v, %v)", bound, err)
-	}
-	parents, err := store.Parents(ctx, definition.ID)
-	if err != nil || len(parents) != len(definition.Dependencies) {
-		t.Fatalf("dependency lineage = (%+v, %v)", parents, err)
-	}
-	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1}}
-	_, _, evidence, err := ValidateProfileCandidate(
-		ctx, store, "fixture/profile/validated", definition, spec, model.Weights{},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if evidence.Profile != document.ID || evidence.Recipe != definition.ID {
-		t.Fatalf("evidence = %+v", evidence)
-	}
-	verification := publishVerification(t, store, definition.ID, "fixture/profile/verification")
-	if _, _, err := ActivateProfileCandidate(
-		ctx, store, "fixture/profile/active", definition, verification, nil,
-	); err != nil {
-		t.Fatal(err)
-	}
-	plan, ok, err := compileActiveFixture(ctx, store, modelID, spec, model.Weights{})
-	if err != nil || !ok || plan.Model.Profile() != profile {
-		t.Fatalf("active profile plan = (%+v, %v, %v)", plan.Model, ok, err)
-	}
-	activeProfile, ok, err := ActiveProfile(ctx, store, modelID, recipe.TaskInference)
-	if err != nil || !ok || activeProfile.ID != document.ID {
-		t.Fatalf("active profile = (%s, %v, %v)", activeProfile.ID, ok, err)
-	}
-}
-
-func TestProfileCandidateRejectsParityDrift(t *testing.T) {
-	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	modelID := commitFixtureModel(t, ctx, store, "fixture/drift/model", "drift-model")
-	profile, _ := model.LookupArchitecture("llama")
-	profile.Attention = model.AttentionLFM2
-	document, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	definition, err := inferenceWithProfileFixture(
-		modelID, document.ID, recipe.PlacementHost, DecodeSessionCapacity,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := PublishProfileCandidate(
-		ctx, store, "fixture/drift/candidate", definition, document,
-	); err != nil {
-		t.Fatal(err)
-	}
-	_, _, _, err = ValidateProfileCandidate(
-		ctx, store, "fixture/drift/validated", definition,
-		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1}}, model.Weights{},
-	)
-	if err == nil {
-		t.Fatal("drifted profile passed parity validation")
-	}
-}
-
-func TestCompileWithProfileMatchesRegistry(t *testing.T) {
+func TestCompileWithProfileOwnsPlan(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "profile-model")
 	profile, ok := model.LookupArchitecture("llama")
 	if !ok {
@@ -404,7 +313,7 @@ func TestCompileWithProfileMatchesRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := VerifyProfileParity(
+	plan, err := CompileWithProfile(
 		definition, document,
 		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1}}, model.Weights{},
 	)

@@ -21,7 +21,7 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 	if err := definition.Validate(Catalog()); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := CompileInference(definition, model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, model.Weights{})
+	plan, err := compileInferenceFixture(definition, model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, model.Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := CompileInference(definition, model.Spec{CommonSpec: model.CommonSpec{
+	program, err := compileInferenceFixture(definition, model.Spec{CommonSpec: model.CommonSpec{
 		Architecture: "llama", BlockCount: 1,
 	}}, model.Weights{Layers: []model.LayerWeights{{}}})
 	if err != nil {
@@ -57,7 +57,7 @@ func TestRecipeDecodeSessionPolicyIsAuthoritative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := CompileInference(definition, model.Spec{CommonSpec: model.CommonSpec{
+	program, err := compileInferenceFixture(definition, model.Spec{CommonSpec: model.CommonSpec{
 		Architecture: "llama", BlockCount: fixtureLayerCount,
 	}}, model.Weights{Layers: []model.LayerWeights{{}}})
 	if err != nil {
@@ -74,7 +74,7 @@ func TestCapacityDecodePolicyRequiresCompatibleModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := CompileInference(
+	if _, err := compileInferenceFixture(
 		definition,
 		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}},
 		model.Weights{},
@@ -94,7 +94,7 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixture := modeltest.Qwen35DenseRecurrentPair()
-	program, err := CompileInference(definition, fixture.Spec, fixture.ServingWeights())
+	program, err := compileInferenceFixture(definition, fixture.Spec, fixture.ServingWeights())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 					t.Fatalf("stage[%d] = %+v", index, stages[index])
 				}
 			}
-			if _, err := CompileInference(definition, model.Spec{}, model.Weights{}); err == nil {
+			if _, err := compileInferenceFixture(definition, model.Spec{}, model.Weights{}); err == nil {
 				t.Fatal("inference compiler accepted capability recipe")
 			}
 		})

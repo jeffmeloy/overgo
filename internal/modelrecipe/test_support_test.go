@@ -30,6 +30,16 @@ func inferenceFixture(
 	)
 }
 
+func compileInferenceFixture(
+	definition recipe.Definition,
+	spec model.Spec,
+	weights model.Weights,
+) (Plan, error) {
+	return compileDefinition(definition, func() (model.ModelPlan, error) {
+		return model.CompileModelPlan(spec, weights)
+	})
+}
+
 func compileActiveFixture(
 	ctx context.Context,
 	store artifact.Reader,
@@ -37,18 +47,19 @@ func compileActiveFixture(
 	spec model.Spec,
 	weights model.Weights,
 ) (Plan, bool, error) {
-	definition, ok, err := Active(ctx, store, modelID, recipe.TaskInference)
+	activation, ok, err := ActiveRecord(ctx, store, modelID, recipe.TaskInference)
 	if err != nil || !ok {
 		return Plan{}, ok, err
 	}
-	document, bound, err := activeBoundProfile(ctx, store, definition)
-	if err != nil {
-		return Plan{}, false, err
-	}
-	if bound {
+	definition := activation.Definition
+	if profileID, bound := definition.Dependency(recipe.DependencyProfile, 0); bound {
+		document, loadErr := loadProfile(ctx, store, profileID)
+		if loadErr != nil {
+			return Plan{}, false, loadErr
+		}
 		plan, compileErr := CompileWithProfile(definition, document, spec, weights)
 		return plan, compileErr == nil, compileErr
 	}
-	plan, err := CompileInference(definition, spec, weights)
+	plan, err := compileInferenceFixture(definition, spec, weights)
 	return plan, err == nil, err
 }

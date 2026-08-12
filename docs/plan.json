@@ -5,12 +5,12 @@
     {
       "id": "merge-tightening-4",
       "title": "merge overgo_tightening into master (4 commits since 7efcbae: compile neutral aux graph programs, recipe residency authoritative, centralize capability runtime assembly, seal capability execution authority); PROVE no session work lost (hostmath/optimizer/densecausal/scripts additions survive); gate -merge -plan; run full+cuda tests after",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "merge overgo_tightening into master (4 commits since 7efcbae: compile neutral aux graph programs, recipe residency authoritative, centralize capability runtime assembly, seal capability execution authority); PROVE no session work lost (hostmath/optimizer/densecausal/scripts additions survive); gate -merge -plan; run full+cuda tests after",
-          "status": "open",
+          "status": "done",
           "verify": "go build ./... \u0026\u0026 bash scripts/overgo_stop_gate.sh --selftest \u0026\u0026 test -f scripts/gen_qwen35_hybrid_grad_golden.py \u0026\u0026 git merge-base --is-ancestor overgo_tightening HEAD"
         }
       ]
@@ -562,7 +562,17 @@
         },
         {
           "id": "train-scale-bf16-sgd",
-          "title": "SHARED training-scale path (qwen35 rung12 + e4b rung13 converge here; host backward complete+FD-verified for BOTH). bf16-SGD memory path: bf16 master weights + fp32 grad accumulation + activation grad-checkpointing, resident set DERIVED from measured free memory (no n_gpu_layers/batch magic). Accept when a model that OOMs under fp32-grad SGD (e4b ~48GB) trains with loss-decrease under a measured peak bound. OOM is a HALT; this is the gate to at-scale training of every model already serving.",
+          "title": "SHARED training-scale path. bf16-SGD memory path -- the gate to at-scale training. DONE (correct, keep): optimizer.BF16SGD, a 2-byte bf16 master with stochastic rounding + no momentum (unit-verified). NOT DONE (SQA 2026-08-12, finding High): densecausal.TrainBF16SGD does NOT reduce peak memory and is test-only -- it RETAINS Model.Weights(fp32) + flat fp32 weights + fp32 gradients + an fp32 work slab + named grads AND adds the bf16 master, so peak GROWS. It is a bf16-optimizer experiment, not the memory path; the earlier 'half the footprint' claim was false. REAL acceptance: the forward+backward read the bf16 master DIRECTLY (eliminate every fp32 weight copy; grads bf16 or streamed per-layer), wired into cmd/train (not test-only), and a MEASURED peak-memory reduction vs the fp32 baseline on a real model that OOMs under fp32-grad. Verify must MEASURE peak bytes and assert the reduction.",
+          "status": "open"
+        },
+        {
+          "id": "train-scale-device-session",
+          "title": "SHARED training-scale path (SQA 2026-08-12, finding High): device training is LAYER-resident, not SESSION-resident. layer_forward_resident allocates+downloads 11 activation arrays PER LAYER; layer_backward_resident re-uploads them and downloads all gradients per layer; train_device still owns duplicate flat host slabs + scatter/gather each step. Milestone: ONE persistent device training session -- weights+momentum+activations resident on device across forward+backward+optimizer AND across steps; download only for checkpoint. Verify: measured host<->device round-trips per step collapse and no per-step host weight scatter.",
+          "status": "open"
+        },
+        {
+          "id": "train-cuda-admission",
+          "title": "SHARED training-scale path (SQA 2026-08-12, finding Medium): CUDA backend admission is incomplete. cmd/train selects TrainDeviceFull whenever CUDA opens, but device forward REJECTS attention bias -- an unsupported config fails mid-session instead of up front. Fix: a compiled capability plan decides device-vs-host and REFUSES unsupported CUDA configs (attention bias, unsupported arch) BEFORE session construction. Verify: an attention-bias / unsupported model routes to host or errors cleanly at selection time, never mid-session.",
           "status": "open"
         },
         {

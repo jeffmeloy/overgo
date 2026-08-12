@@ -408,13 +408,26 @@
     {
       "id": "shortconv-backward",
       "title": "shortconv-backward: VJP of the SSMConv1D short causal depthwise conv (qwen3.5 GDN mix applies it to q/k/v before the recurrence); host-side, FD-grad-checked. First concrete piece of the qwen3.5 linear_attention layer backward (which the grounding revealed = QKV proj + conv1d + slice + beta/alpha + SSMNorm + GDN VJP + z-gate + SSMOutput proj)",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "shortconv-backward: VJP of the SSMConv1D short causal depthwise conv (qwen3.5 GDN mix applies it to q/k/v before the recurrence); host-side, FD-grad-checked. First concrete piece of the qwen3.5 linear_attention layer backward (which the grounding revealed = QKV proj + conv1d + slice + beta/alpha + SSMNorm + GDN VJP + z-gate + SSMOutput proj)",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/hostmath/ -run TestShortConv -count=1"
+        }
+      ]
+    },
+    {
+      "id": "l2norm-backward",
+      "title": "l2norm-backward: VJP of L2 normalization (qwen3.5 GDN mix L2-normalizes q and k per head before the recurrence: y = x/sqrt(sum(x^2)+eps)); host-side, FD-grad-checked",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "l2norm-backward: VJP of L2 normalization (qwen3.5 GDN mix L2-normalizes q and k per head before the recurrence: y = x/sqrt(sum(x^2)+eps)); host-side, FD-grad-checked",
+          "status": "open",
+          "verify": "go test ./internal/hostmath/ -run TestL2Norm -count=1"
         }
       ]
     },

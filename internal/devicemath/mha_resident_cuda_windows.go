@@ -40,14 +40,17 @@ func fromHeadMajor(x []float32, seq, nHeads, hd int) []float32 {
 // MultiHeadAttentionBackwardResident is the resident counterpart to
 // MultiHeadAttentionBackward: the whole causal GQA attention-core backward runs
 // in ONE worker.Do -- inputs reshaped head-major and uploaded once, every head's
-// four GEMMs and softmax_backward run on resident sub-buffers, GQA dk/dv
-// accumulate on device via the add kernel, and only dQ/dK/dV come back. Same
-// math as MultiHeadAttentionBackward (scale multiplies dQ). Addresses SQA
-// finding 2 for the attention block.
-func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, p, dOut []float32, seq, nh, nkv, hd int, scale float64) (dQ, dK, dV []float32, err error) {
+// GEMMs and softmax_backward run on resident sub-buffers, GQA dk/dv accumulate
+// on device via the add kernel, and only dQ/dK/dV come back. The softmax
+// probabilities are recomputed on device per head (causal_softmax of qh·khᵀ)
+// rather than received as a host [nh, seq, seq] slice -- the score scale is
+// folded into q upstream, so scores use scale 1 (dQ/dK are scaled on return).
+// Same math as MultiHeadAttentionBackward. Addresses SQA finding 2 for the
+// attention block and removes the O(heads*seq^2) host softmax allocation.
+func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, dOut []float32, seq, nh, nkv, hd int, scale float64) (dQ, dK, dV []float32, err error) {
 	if seq <= 0 || nh <= 0 || nkv <= 0 || hd <= 0 || nh%nkv != 0 ||
 		len(q) != seq*nh*hd || len(k) != seq*nkv*hd || len(v) != seq*nkv*hd ||
-		len(p) != nh*seq*seq || len(dOut) != seq*nh*hd {
+		len(dOut) != seq*nh*hd {
 		return nil, nil, nil, fmt.Errorf("MultiHeadAttentionBackwardResident: shape mismatch (seq=%d nh=%d nkv=%d hd=%d)", seq, nh, nkv, hd)
 	}
 	group := nh / nkv
@@ -87,6 +90,10 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, p, dOut 
 		if err != nil {
 			return err
 		}
+		causalSoftmaxFn, err := lib.ModuleFunction(module, "causal_softmax_f32")
+		if err != nil {
+			return err
+		}
 
 		var frees []driver.DevicePtr
 		defer func() {
@@ -122,10 +129,6 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, p, dOut 
 		if err != nil {
 			return err
 		}
-		pP, err := upload(p)
-		if err != nil {
-			return err
-		}
 		dOutP, err := upload(dOutC)
 		if err != nil {
 			return err
@@ -157,6 +160,16 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, p, dOut 
 		if err != nil {
 			return err
 		}
+		// Per-head score + softmax scratch (reused each head): scores = qh·khᵀ,
+		// then causal_softmax -> phP.
+		scoresP, err := alloc(seq * seq)
+		if err != nil {
+			return err
+		}
+		phP, err := alloc(seq * seq)
+		if err != nil {
+			return err
+		}
 		tmpP, err := alloc(seq * hd)
 		if err != nil {
 			return err
@@ -184,7 +197,18 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, p, dOut 
 			kv := h / group
 			qh, dOuth, dqh := off(qP, h*hs), off(dOutP, h*hs), off(dqP, h*hs)
 			kh, vh, dkh, dvh := off(kP, kv*hs), off(vP, kv*hs), off(dkP, kv*hs), off(dvP, kv*hs)
-			ph := off(pP, h*seq*seq)
+
+			// p_h = causal_softmax(qh·khᵀ) on device (scores use scale 1, folded
+			// into q upstream) -- replaces the uploaded host softmax slice.
+			if err := blas.RowMajorGEMMExF32(handle, false, true, int32(seq), int32(hd), int32(seq), qh, kh, scoresP); err != nil {
+				return err
+			}
+			rowsCausal := uint32(seq)
+			if err := launch(causalSoftmaxFn, seq, []unsafe.Pointer{unsafe.Pointer(&scoresP), unsafe.Pointer(&phP), unsafe.Pointer(&rowsCausal)}); err != nil {
+				return err
+			}
+			runtime.KeepAlive(scoresP)
+			ph := phP
 
 			// dp = dOuth·vhᵀ  [seq,seq]
 			if err := blas.RowMajorGEMMExF32(handle, false, true, int32(seq), int32(hd), int32(seq), dOuth, vh, dpP); err != nil {

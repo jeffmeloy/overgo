@@ -26,6 +26,7 @@ const (
 	kernelBroadcastDivideF32
 	kernelBroadcastGateAddF32
 	kernelBroadcastMultiplyF32
+	kernelCausalSoftmaxF32
 	kernelClampF32
 	kernelConcatF32
 	kernelConv1dSameF32
@@ -190,6 +191,7 @@ var kernelFunctionNames = [...]string{
 	"broadcast_divide_f32",
 	"broadcast_gate_add_f32",
 	"broadcast_multiply_f32",
+	"causal_softmax_f32",
 	"clamp_f32",
 	"concat_f32",
 	"conv_1d_same_f32",
@@ -353,6 +355,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	15,
 	6,
 	15,
+	3,
 	5,
 	8,
 	10,

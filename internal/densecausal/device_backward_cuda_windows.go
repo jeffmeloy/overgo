@@ -19,42 +19,6 @@ func ropeInvF32(invFreq []float64) []float32 {
 	return out
 }
 
-// deviceCausalSoftmaxGQA computes the per-head causal softmax p[nh*seq*seq] the
-// device MHA consumes, matching hostmath.CausalAttentionBackward's scoring
-// (scale=1 -- the score scale is already folded into qScaled -- GQA kv=h/group,
-// keys 0..qi). p[h*seq*seq + qi*seq + m].
-func deviceCausalSoftmaxGQA(q, k []float32, seq, nh, nkv, hd int) []float32 {
-	group := nh / nkv
-	p := make([]float32, nh*seq*seq)
-	row := make([]float64, seq)
-	for h := 0; h < nh; h++ {
-		kv := h / group
-		for qi := 0; qi < seq; qi++ {
-			nkeys := qi + 1
-			mx := math.Inf(-1)
-			for m := 0; m < nkeys; m++ {
-				var dot float64
-				for x := 0; x < hd; x++ {
-					dot += float64(q[(qi*nh+h)*hd+x]) * float64(k[(m*nkv+kv)*hd+x])
-				}
-				row[m] = dot
-				if dot > mx {
-					mx = dot
-				}
-			}
-			var sum float64
-			for m := 0; m < nkeys; m++ {
-				row[m] = math.Exp(row[m] - mx)
-				sum += row[m]
-			}
-			for m := 0; m < nkeys; m++ {
-				p[h*seq*seq+qi*seq+m] = float32(row[m] / sum)
-			}
-		}
-	}
-	return p
-}
-
 // deviceLayerBackward is the device counterpart to layerBackward: it recomputes
 // the forward on host for intermediates, then runs every VJP on the GPU via
 // internal/devicemath, matching layerBackward's math (and weight-grad slots)
@@ -79,7 +43,6 @@ func (m *Model) deviceLayerBackward(worker *device.Worker, index int, x, dOut []
 	// no host recompute.
 	xn, tr, h2, hn := cache.xn, cache.tr, cache.h2, cache.hn
 	gate, up, a, hMLP := cache.gate, cache.up, cache.a, cache.hMLP
-	p := deviceCausalSoftmaxGQA(tr.qScaled, tr.kRoped, seq, d.Heads, d.KVHeads, d.HeadDim)
 
 	// --- MLP branch backward ---
 	mlp, err := devicemath.GatedMLPBackwardTResident(worker, hn, l.gate, l.up, l.down, gate, a, up, hMLP, dOut, seq, d.Hidden, d.Intermediate)
@@ -105,7 +68,7 @@ func (m *Model) deviceLayerBackward(worker *device.Worker, index int, x, dOut []
 		return nil, err
 	}
 	copy(g.slot(prefix+"self_attn.o_proj.weight", d.Hidden*width), dWo)
-	dq, dk, dv, err := devicemath.MultiHeadAttentionBackwardResident(worker, tr.qScaled, tr.kRoped, tr.v, p, dAttnCore, seq, d.Heads, d.KVHeads, d.HeadDim, 1.0)
+	dq, dk, dv, err := devicemath.MultiHeadAttentionBackwardResident(worker, tr.qScaled, tr.kRoped, tr.v, dAttnCore, seq, d.Heads, d.KVHeads, d.HeadDim, 1.0)
 	if err != nil {
 		return nil, err
 	}

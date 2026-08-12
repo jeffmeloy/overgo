@@ -2142,6 +2142,39 @@ extern "C" __global__ void softmax_f32(
     }
 }
 
+// causal_softmax_f32: row-wise softmax over the causal prefix of a square
+// [rows, rows] score matrix. Row i (a query) softmaxes over columns 0..i (keys)
+// and zeros columns i+1..rows-1. One thread per row. Feeds the device attention
+// backward so the softmax p is computed in-place from resident scores instead of
+// uploaded from a host [heads, seq, seq] allocation.
+extern "C" __global__ void causal_softmax_f32(
+        const float * scores,
+        float * probabilities,
+        unsigned int rows) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const unsigned int offset = row * rows;
+    const unsigned int keys = row + 1;
+    float maximum = scores[offset];
+    for (unsigned int column = 1; column < keys; ++column) {
+        maximum = fmaxf(maximum, scores[offset + column]);
+    }
+    float sum = 0.0f;
+    for (unsigned int column = 0; column < keys; ++column) {
+        const float value = expf(scores[offset + column] - maximum);
+        probabilities[offset + column] = value;
+        sum += value;
+    }
+    for (unsigned int column = 0; column < keys; ++column) {
+        probabilities[offset + column] /= sum;
+    }
+    for (unsigned int column = keys; column < rows; ++column) {
+        probabilities[offset + column] = 0.0f;
+    }
+}
+
 extern "C" __global__ void mul_mat_f32(
         const float * left,
         const float * right,

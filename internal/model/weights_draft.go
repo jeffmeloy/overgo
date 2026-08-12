@@ -9,16 +9,20 @@ import (
 )
 
 func readDraftWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
-	switch spec.Profile().Forward {
-	case ForwardDFlash:
-		return readDFlashWeightCatalog(catalog, spec)
-	case ForwardEagle3:
-		return readEagle3WeightCatalog(catalog, spec)
-	case ForwardGemma4Assistant:
-		return readGemma4AssistantWeightCatalog(catalog, spec)
-	default:
+	policy := spec.Profile().ModelCatalog.Draft
+	if policy == DraftWeightCatalogNone || int(policy) >= len(draftWeightCatalogReaders) ||
+		draftWeightCatalogReaders[policy] == nil {
 		return Weights{}, fmt.Errorf("draft catalog for %q is unsupported", spec.Architecture)
 	}
+	return draftWeightCatalogReaders[policy](catalog, spec)
+}
+
+type draftWeightCatalogReader func(weightCatalog, Spec) (Weights, error)
+
+var draftWeightCatalogReaders = [...]draftWeightCatalogReader{
+	DraftWeightCatalogTargetFeatures:   readDFlashWeightCatalog,
+	DraftWeightCatalogHiddenFusion:     readEagle3WeightCatalog,
+	DraftWeightCatalogPairedProjection: readGemma4AssistantWeightCatalog,
 }
 
 func readDFlashWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {

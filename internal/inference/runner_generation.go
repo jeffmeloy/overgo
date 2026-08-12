@@ -39,10 +39,10 @@ func (r *Runner) Generate(
 	if r == nil || r.vocab == nil {
 		return nil, "", errors.New("inference: runner is nil")
 	}
-	if r.forwardPolicy() == model.ForwardT5Encoder {
+	if r.forwardProgram().Operation == model.ForwardOperationEncoder {
 		return nil, "", errors.New("inference: T5 encoder models do not generate tokens")
 	}
-	if r.forwardPolicy() == model.ForwardT5 {
+	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
 		generated, _, _, err := r.GenerateT5(ctx, prompt, options)
 		if err != nil {
 			return nil, "", err

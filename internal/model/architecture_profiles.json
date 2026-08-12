@@ -484,6 +484,9 @@
     "MetadataDefaults": {
       "RopeDimension": 2
     },
+    "ModelCatalog": {
+      "Draft": 1
+    },
     "Name": "dflash",
     "Validation": {
       "Recurrent": 2
@@ -529,6 +532,9 @@
     "GraphFamily": 7,
     "MetadataDefaults": {
       "RopeDimension": 2
+    },
+    "ModelCatalog": {
+      "Draft": 2
     },
     "Name": "eagle3",
     "Validation": {
@@ -828,6 +834,9 @@
     "GraphFamily": 7,
     "Metadata": {
       "SWAHeadLengths": true
+    },
+    "ModelCatalog": {
+      "Draft": 3
     },
     "Name": "gemma4-assistant",
     "Validation": {

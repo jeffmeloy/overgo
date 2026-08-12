@@ -22,6 +22,28 @@ func TestValidateModelPlanRejectsMutatedProgram(t *testing.T) {
 	}
 }
 
+func TestLayerProgramOverflowCannotMasqueradeAsEmpty(t *testing.T) {
+	stages := make([]LayerOperatorInstruction, maxLayerInstructions+1)
+	for index := range stages {
+		stages[index] = layerStage(LayerOperatorResidual)
+	}
+	program := newLayerProgram(stages...)
+	if program.Count != maxLayerInstructions+1 || program.valid() {
+		t.Fatalf("overflow program = %+v", program)
+	}
+
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
+	plan, err := CompileModelPlan(spec, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.layers[0].Program = program
+	if err := validateModelPlan(spec, Weights{}, plan); err == nil ||
+		!strings.Contains(err.Error(), "instructions; capacity") {
+		t.Fatalf("overflow program error = %v", err)
+	}
+}
+
 func TestCompileModelPlanOwnsTerminalPolicy(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
 	tied, err := CompileModelPlan(spec, Weights{})

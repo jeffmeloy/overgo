@@ -43,7 +43,7 @@ func (r *Runner) DecodeWavTokenizer(
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if r.forwardPolicy() != model.ForwardWavTokenizer {
+	if r.forwardProgram().Operation != model.ForwardOperationAudioTokens {
 		return reference.Value{}, errors.New("inference: audio decode requires wavtokenizer-dec architecture")
 	}
 	return r.forwardWavTokenizerLocked(ctx, tokenIDs)
@@ -78,7 +78,7 @@ func (r *Runner) forwardNonCausalLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
-	if r.forwardPolicy() == model.ForwardWavTokenizer {
+	if r.forwardProgram().Operation == model.ForwardOperationAudioTokens {
 		return r.forwardWavTokenizerLocked(ctx, tokenIDs)
 	}
 	if len(tokenIDs) == 0 {
@@ -262,7 +262,7 @@ func (r *Runner) forwardT5EncoderLocked(
 		return reference.Value{}, err
 	}
 	layers := r.weights.Layers
-	if r.forwardPolicy() == model.ForwardT5 {
+	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
 		layers = r.weights.EncoderLayers
 	}
 	for layerIndex, layerInfo := range layers {
@@ -271,7 +271,7 @@ func (r *Runner) forwardT5EncoderLocked(
 			return reference.Value{}, fmt.Errorf("inference encoder layer %d: %w", layerIndex, err)
 		}
 	}
-	if r.forwardPolicy() == model.ForwardT5 {
+	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
 		return r.runT5EncoderOutputNorm(ctx, activation)
 	}
 	return r.runOutputNorm(ctx, activation)
@@ -287,7 +287,7 @@ func (r *Runner) NewT5Session(ctx context.Context, sourceIDs []tokenizer.TokenID
 	if r.closed {
 		return nil, errors.New("inference: runner is closed")
 	}
-	if r.forwardPolicy() != model.ForwardT5 {
+	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return nil, errors.New("inference: T5 session requires T5 architecture")
 	}
 	encoder, err := r.forwardT5EncoderLocked(ctx, sourceIDs)
@@ -311,7 +311,7 @@ func (r *Runner) DecodeT5(
 	if r.closed {
 		return reference.Value{}, nil, errors.New("inference: runner is closed")
 	}
-	if r.forwardPolicy() != model.ForwardT5 {
+	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return reference.Value{}, nil, errors.New("inference: T5 decode requires T5 architecture")
 	}
 	return r.decodeT5Locked(ctx, session, decoderIDs)

@@ -151,7 +151,7 @@ func (r *Runner) SyncDFlashPrefix(
 	if r == nil || target == nil || r == target || r.path == target.path {
 		return nil, errors.New("inference: DFlash and target runners are invalid")
 	}
-	if r.profile().Forward != model.ForwardDFlash || target.spec.EmbeddingLength != r.spec.EmbeddingLength {
+	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures || target.spec.EmbeddingLength != r.spec.EmbeddingLength {
 		return nil, errors.New("inference: DFlash target model is incompatible")
 	}
 	start := 0
@@ -194,7 +194,7 @@ func (r *Runner) FuseDFlashFeatures(ctx context.Context, features reference.Valu
 	if r.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if r.profile().Forward != model.ForwardDFlash || r.weights.FeatureProjection == nil || r.weights.EncoderOutputNorm == nil {
+	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures || r.weights.FeatureProjection == nil || r.weights.EncoderOutputNorm == nil {
 		return reference.Value{}, errors.New("inference: DFlash feature encoder is unavailable")
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
@@ -236,7 +236,7 @@ func (r *Runner) InjectDFlashFeatures(
 	if r.closed {
 		return nil, errors.New("inference: runner is closed")
 	}
-	if r.profile().Forward != model.ForwardDFlash {
+	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures {
 		return nil, errors.New("inference: cache injection requires DFlash architecture")
 	}
 	if fused.Shape.Rank != 2 || fused.Shape.Dims[1] != uint64(len(positions)) {
@@ -329,7 +329,7 @@ func (r *Runner) DecodeDFlashNoiseBlock(
 	if r.closed || target.closed {
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
-	if r.profile().Forward != model.ForwardDFlash || target.spec.EmbeddingLength != r.spec.EmbeddingLength ||
+	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures || target.spec.EmbeddingLength != r.spec.EmbeddingLength ||
 		target.spec.VocabularySize != r.spec.VocabularySize {
 		return reference.Value{}, errors.New("inference: DFlash target model is incompatible")
 	}

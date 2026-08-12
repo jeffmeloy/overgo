@@ -47,7 +47,7 @@ func (r *Runner) NewT5BatchSession(
 	if r.closed {
 		return nil, errors.New("inference: runner is closed")
 	}
-	if r.forwardPolicy() != model.ForwardT5 {
+	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return nil, errors.New("inference: T5 batch session requires T5 architecture")
 	}
 	result := &T5BatchSession{
@@ -102,7 +102,7 @@ func (r *Runner) DecodeT5Batch(
 	if r.closed {
 		return T5BatchResult{}, nil, errors.New("inference: runner is closed")
 	}
-	if r.forwardPolicy() != model.ForwardT5 {
+	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return T5BatchResult{}, nil, errors.New("inference: T5 batch decode requires T5 architecture")
 	}
 	next := &T5BatchSession{

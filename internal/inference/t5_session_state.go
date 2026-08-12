@@ -120,7 +120,7 @@ func (r *Runner) LoadT5Session(data []byte) (*T5Session, error) {
 }
 
 func (r *Runner) validateT5Session(session *T5Session) error {
-	if r.forwardPolicy() != model.ForwardT5 {
+	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return errors.New("inference: T5 session requires T5 architecture")
 	}
 	if session == nil || session.Encoder.Shape.Rank != 2 ||

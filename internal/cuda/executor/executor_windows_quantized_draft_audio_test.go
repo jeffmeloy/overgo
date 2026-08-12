@@ -31,38 +31,38 @@ func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
 		ConvNextEmbeddingLength: 2, ConvNextBlockCount: 1,
 		GroupNormGroups: 1, GroupNormEpsilon: 1e-5},
 	}
-	weights := model.WavTokenizerGraphWeights{
+	weights := model.SequenceOutputGraphWeights{
 		InputConv:      input(tensor.MustShape(7, 2, 2), 0.03, -0.1),
 		InputConvBias:  input(tensor.MustShape(1, 2), 0.02, -0.03),
-		PosNet:         make([]model.WavPosNetGraphWeights, 6),
+		Residual:       make([]model.SequenceResidualGraphWeights, 6),
 		TokenNorm:      input(tensor.MustShape(2), 0.03, 0.9),
 		TokenNormBias:  input(tensor.MustShape(2), 0.02, -0.03),
-		ConvNext:       make([]model.WavConvNextGraphWeights, 1),
+		Convolution:    make([]model.SequenceConvGraphWeights, 1),
 		OutputNorm:     input(tensor.MustShape(2), 0.03, 0.9),
 		OutputNormBias: input(tensor.MustShape(2), 0.02, -0.03),
 		Output:         input(tensor.MustShape(2, 3), 0.04, -0.1),
 		OutputBias:     input(tensor.MustShape(3), 0.02, -0.03),
 	}
 	for _, block := range []int{0, 1, 3, 4} {
-		weights.PosNet[block] = model.WavPosNetGraphWeights{
+		weights.Residual[block] = model.SequenceResidualGraphWeights{
 			Norm1: input(tensor.MustShape(1, 2), 0.03, 0.9), Norm1Bias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 			Conv1: input(tensor.MustShape(3, 2, 2), 0.03, -0.1), Conv1Bias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 			Norm2: input(tensor.MustShape(1, 2), 0.03, 0.9), Norm2Bias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 			Conv2: input(tensor.MustShape(3, 2, 2), 0.03, -0.1), Conv2Bias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 		}
 	}
-	weights.PosNet[2] = model.WavPosNetGraphWeights{
+	weights.Residual[2] = model.SequenceResidualGraphWeights{
 		AttentionNorm: input(tensor.MustShape(1, 2), 0.03, 0.9), AttentionNormBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 		AttentionQ: input(tensor.MustShape(1, 2, 2), 0.03, -0.1), AttentionQBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 		AttentionK: input(tensor.MustShape(1, 2, 2), 0.03, -0.1), AttentionKBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 		AttentionV: input(tensor.MustShape(1, 2, 2), 0.03, -0.1), AttentionVBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 		AttentionOutput: input(tensor.MustShape(1, 2, 2), 0.03, -0.1), AttentionOutBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 	}
-	weights.PosNet[5] = model.WavPosNetGraphWeights{
+	weights.Residual[5] = model.SequenceResidualGraphWeights{
 		AttentionNorm:     input(tensor.MustShape(1, 2), 0.03, 0.9),
 		AttentionNormBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 	}
-	weights.ConvNext[0] = model.WavConvNextGraphWeights{
+	weights.Convolution[0] = model.SequenceConvGraphWeights{
 		Depthwise: input(tensor.MustShape(7, 1, 2), 0.03, -0.1), DepthwiseBias: input(tensor.MustShape(1, 2), 0.02, -0.03),
 		Norm: input(tensor.MustShape(2), 0.03, 0.9), NormBias: input(tensor.MustShape(2), 0.02, -0.03),
 		Pointwise1: input(tensor.MustShape(2, 4), 0.03, -0.1), Pointwise1Bias: input(tensor.MustShape(4), 0.02, -0.03),
@@ -71,7 +71,7 @@ func TestExecutorWavTokenizerDecoderMatchesReference(t *testing.T) {
 	}
 	embeddings := input(tensor.MustShape(2, 4), 0.1, -0.2)
 	program := fixture.modelPlan(spec)
-	output, err := program.BuildSequenceOutput(builder, embeddings, weights)
+	output, err := program.SequenceOutput().Build(builder, embeddings, weights)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,10 +92,9 @@ func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
 	projection := input("fc", tensor.MustShape(8, 4), 0.03, -0.1)
 	encoderNorm := input("enc_norm", tensor.MustShape(4), 0.03, 0.9)
 	program := fixture.modelPlan(spec)
-	fused, err := program.BuildFeatureProjection(builder, features, projection, encoderNorm)
-	if err != nil {
-		t.Fatal(err)
-	}
+	projected := fixture.projection(program, model.ProjectionFeature,
+		model.ProjectionOperands{Input: features, Primary: projection, Normalization: encoderNorm})
+	fused := projected.Primary
 	weights := model.LayerGraphWeights{
 		AttentionNorm:   input("attn_norm", tensor.MustShape(4), 0.03, 0.9),
 		AttentionQ:      input("q", tensor.MustShape(4, 4), 0.03, -0.1),
@@ -109,7 +108,7 @@ func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
 		FeedForwardUp:   input("up", tensor.MustShape(4, 6), 0.03, -0.1),
 		FeedForwardDown: input("down", tensor.MustShape(6, 4), 0.03, -0.1),
 	}
-	key, value, err := program.BuildCacheProjection(builder, fused, weights, []uint32{0, 1}, nil, nil)
+	key, value, err := program.CacheProjection().Build(builder, fused, weights, []uint32{0, 1}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +123,7 @@ func TestExecutorDFlashPipelineMatchesReference(t *testing.T) {
 
 func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 	fixture := newCUDAReferenceFixture(t, 3)
-	builder, input := fixture.builder, fixture.input
+	input := fixture.input
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "eagle3", BlockCount: 1, EmbeddingLength: 4, TargetHiddenSize: 3,
 		TargetLayers: []int32{1, 3, 5}, FeedForwardLength: 6,
 
@@ -134,10 +133,9 @@ func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 	features := input("features", tensor.MustShape(9, 3), 0.08, -0.1)
 	projection := input("fc", tensor.MustShape(9, 4), 0.03, -0.1)
 	program := fixture.modelPlan(spec)
-	fused, err := program.BuildFeatureProjection(builder, features, projection, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	projected := fixture.projection(program, model.ProjectionFeature,
+		model.ProjectionOperands{Input: features, Primary: projection})
+	fused := projected.Primary
 	weights := model.LayerGraphWeights{
 		AttentionNorm:   input("token_norm", tensor.MustShape(4), 0.03, 0.9),
 		AttentionNorm2:  input("target_norm", tensor.MustShape(4), 0.03, 0.9),
@@ -161,7 +159,7 @@ func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 
 func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 	fixture := newCUDAReferenceFixture(t, 7)
-	builder, input := fixture.builder, fixture.input
+	input := fixture.input
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "gemma4-assistant", BlockCount: 2, EmbeddingLength: 4,
 		TargetHiddenSize: 6, FeedForwardLength: 6,
 
@@ -176,10 +174,9 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 	targetHidden := input("target_hidden", tensor.MustShape(6, 1), 0.05, 0.2)
 	pre := input("pre", tensor.MustShape(12, 4), 0.03, -0.1)
 	program := fixture.modelPlan(spec)
-	current, err := program.BuildFusedInput(builder, targetToken, targetHidden, pre)
-	if err != nil {
-		t.Fatal(err)
-	}
+	fused := fixture.projection(program, model.ProjectionPairedInput,
+		model.ProjectionOperands{Input: targetToken, Paired: targetHidden, Primary: pre})
+	current := fused.Primary
 	for layer := uint32(0); layer < spec.BlockCount; layer++ {
 		keyWidth := uint64(spec.LayerKeyLength(layer))
 		weights := model.LayerGraphWeights{
@@ -205,10 +202,9 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 	outputNorm := input("output_norm", tensor.MustShape(4), 0.03, 0.9)
 	output := input("output", tensor.MustShape(4, 8), 0.03, -0.1)
 	post := input("post", tensor.MustShape(4, 6), 0.03, -0.1)
-	logits, nextHidden, err := program.BuildProjectedOutputs(builder, current, outputNorm, output, post)
-	if err != nil {
-		t.Fatal(err)
-	}
+	projected := fixture.projection(program, model.ProjectionPairedOutput,
+		model.ProjectionOperands{Input: current, Primary: output, Secondary: post, Normalization: outputNorm})
+	logits, nextHidden := projected.Primary, projected.Secondary
 	outputs := []*tensor.Tensor{logits, nextHidden}
 	fixture.requireMatch(outputs, 2e-3)
 }

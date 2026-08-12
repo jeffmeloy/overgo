@@ -15,6 +15,21 @@ func fixtureModelPlan(t *testing.T, spec Spec, weights Weights) ModelPlan {
 	return plan
 }
 
+func fixtureProjection(
+	t *testing.T,
+	builder *tensor.Builder,
+	plan ModelPlan,
+	role ProjectionRole,
+	operands ProjectionOperands,
+) ProjectionResult {
+	t.Helper()
+	result, err := plan.Projection(role).Build(builder, operands)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
 func fixtureLayerPlan(t *testing.T, spec Spec, weights Weights, layer int) LayerPlan {
 	t.Helper()
 	plan, err := fixtureModelPlan(t, spec, weights).Layer(layer)

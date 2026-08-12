@@ -22,8 +22,8 @@ func readWavTokenizerWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 		prefix := fmt.Sprintf("posnet.%d.", block)
 		layer := &wav.PosNet[block]
 		var requirements []tensorRequirement
-		switch block {
-		case 0, 1, 3, 4:
+		switch wavTokenizerResidualProgram[block] {
+		case sequenceResidualConvolution:
 			requirements = []tensorRequirement{
 				requiredTensor("norm1.weight", &layer.Norm1, 1, width),
 				requiredTensor("norm1.bias", &layer.Norm1Bias, 1, width),
@@ -34,7 +34,7 @@ func readWavTokenizerWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 				requiredTensor("conv2.weight", &layer.Conv2, 3, width, width),
 				requiredTensor("conv2.bias", &layer.Conv2Bias, 1, width),
 			}
-		case 2:
+		case sequenceResidualAttention:
 			requirements = []tensorRequirement{
 				requiredTensor("attn_norm.weight", &layer.AttentionNorm, 1, width),
 				requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),
@@ -47,7 +47,7 @@ func readWavTokenizerWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 				requiredTensor("attn_v.weight", &layer.AttentionV, 1, width, width),
 				requiredTensor("attn_output.weight", &layer.AttentionOutput, 1, width, width),
 			}
-		case 5:
+		case sequenceResidualNormalization:
 			requirements = []tensorRequirement{
 				requiredTensor("attn_norm.weight", &layer.AttentionNorm, 1, width),
 				requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),

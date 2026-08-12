@@ -113,10 +113,14 @@ func (r *Runner) AdvanceGemma4Assistant(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	current, err := r.program.Model.BuildFusedInput(runtime.builder, tokenInput, hiddenInput, pre)
+	fused, err := r.program.Model.Projection(model.ProjectionPairedInput).Build(
+		runtime.builder,
+		model.ProjectionOperands{Input: tokenInput, Paired: hiddenInput, Primary: pre},
+	)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
+	current := fused.Primary
 	cacheInputs := make(map[bool][2]*tensor.Tensor, 2)
 	for _, sliding := range []bool{true, false} {
 		source := len(session.TargetCache.Layers) - 1
@@ -157,10 +161,16 @@ func (r *Runner) AdvanceGemma4Assistant(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	logits, nextHidden, err := r.program.Model.BuildProjectedOutputs(runtime.builder, current, outputNorm, output, post)
+	projected, err := r.program.Model.Projection(model.ProjectionPairedOutput).Build(
+		runtime.builder,
+		model.ProjectionOperands{
+			Input: current, Primary: output, Secondary: post, Normalization: outputNorm,
+		},
+	)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
+	logits, nextHidden := projected.Primary, projected.Secondary
 	results, err := runtime.execute(logits, nextHidden)
 	if err != nil {
 		return reference.Value{}, nil, err

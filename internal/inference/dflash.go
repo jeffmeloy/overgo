@@ -207,15 +207,18 @@ func (r *Runner) FuseDFlashFeatures(ctx context.Context, features reference.Valu
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output, err := r.program.Model.BuildFeatureProjection(runtime.builder, input, projection, projectionNorm)
+	result, err := r.program.Model.Projection(model.ProjectionFeature).Build(
+		runtime.builder,
+		model.ProjectionOperands{Input: input, Primary: projection, Normalization: projectionNorm},
+	)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	results, err := runtime.execute(output)
+	results, err := runtime.execute(result.Primary)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	return results[output], nil
+	return results[result.Primary], nil
 }
 
 // InjectDFlashFeatures: appends fused committed-token K/V.
@@ -291,7 +294,7 @@ func (r *Runner) injectDFlashLayer(
 		pastKey = runtime.input("dflash.past_key", past.Key)
 		pastValue = runtime.input("dflash.past_value", past.Value)
 	}
-	key, value, err := r.program.Model.BuildCacheProjection(
+	key, value, err := r.program.Model.CacheProjection().Build(
 		runtime.builder, input, graphWeights, positions, pastKey, pastValue,
 	)
 	if err != nil {

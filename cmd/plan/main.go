@@ -39,20 +39,21 @@ func main() {
 	status := flag.Bool("status", false, "one line per item")
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
 	add := flag.Bool("add", false, "inject a new top-priority task: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
+	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
 	force := flag.String("force", "", "with -advance: skip verify, REQUIRES a reason (logged loudly)")
 	title := flag.String("title", "", "with -add: the task title")
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, advance: *advance, add: *add, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, advance: *advance, add: *add, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	next, prompt, verify, status, advance, add bool
-	force, title, before, verifyCmd            string
+	next, prompt, verify, status, advance, add, stop bool
+	force, title, before, verifyCmd                  string
 }
 
 func run(c cli, args []string) error {
@@ -66,6 +67,8 @@ func run(c cli, args []string) error {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
 		}
 		return addItem(document, args[0], c.title, c.before, c.verifyCmd)
+	case c.stop:
+		return recordStop(strings.Join(args, " "))
 	case c.advance:
 		if len(args) != 2 {
 			return errors.New("usage: plan -advance <item-id> <step-id|.>")
@@ -145,6 +148,39 @@ func insertItem(document plan.Plan, id, title, before, verifyCmd string) (plan.P
 	out = append(out, document.Items[pos:]...)
 	document.Items = out
 	return document, nil
+}
+
+var validStopReasons = []string{"user-stop", "irreversible", "external-prereq"}
+
+// validateStop returns nil iff reason begins with a legitimate stop tag -- the
+// only three reasons that justify ending a turn without plan progress. A
+// self-invented "checkpoint" or "should I continue?" is not among them.
+func validateStop(reason string) error {
+	reason = strings.TrimSpace(reason)
+	for _, v := range validStopReasons {
+		if reason == v || strings.HasPrefix(reason, v+":") {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid stop reason %q -- must begin with one of: user-stop: / irreversible: / external-prereq: <detail>", reason)
+}
+
+// recordStop writes a valid stop marker at the current HEAD; the stop-gate reads
+// it to allow a legitimate turn end. Progress on any later turn supersedes it.
+func recordStop(reason string) error {
+	if err := validateStop(reason); err != nil {
+		return err
+	}
+	head := "unknown"
+	if out, err := exec.Command("git", "rev-parse", "HEAD").Output(); err == nil {
+		head = strings.TrimSpace(string(out))
+	}
+	payload := fmt.Sprintf("{\"reason\":%q,\"head\":%q}\n", strings.TrimSpace(reason), head)
+	if err := os.WriteFile("docs/plan_stop.json", []byte(payload), 0o644); err != nil {
+		return err
+	}
+	fmt.Printf("recorded stop: %s\n", strings.TrimSpace(reason))
+	return nil
 }
 
 func printStatus(document plan.Plan) {

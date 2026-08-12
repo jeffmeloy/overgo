@@ -12,3 +12,5 @@
 coverage.out
 local-models.json
 /.profile_tmp/
+docs/.loop_state
+docs/plan_stop.json

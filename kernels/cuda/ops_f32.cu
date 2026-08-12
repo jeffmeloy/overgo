@@ -512,6 +512,35 @@ extern "C" __global__ void rope_half_backward_f32(
     dx[base + i + half] = -s * d1 + c * d2;
 }
 
+// rope_half_f32: split-half (HF-layout) rotary embedding forward. x is
+// [seq, n_heads*hd]; inv_freq is [hd/2]. Rotates each pair (i, i+hd/2) by angle
+// pos*inv_freq[i]. One thread per (position, head, pair). Forward rotation R;
+// rope_half_backward_f32 applies its transpose.
+extern "C" __global__ void rope_half_f32(
+        float * x,
+        const float * inv_freq,
+        unsigned int seq,
+        unsigned int n_heads,
+        unsigned int hd) {
+    const unsigned int half = hd / 2;
+    const unsigned int total = seq * n_heads * half;
+    const unsigned int t = blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= total) {
+        return;
+    }
+    const unsigned int i = t % half;
+    const unsigned int head = (t / half) % n_heads;
+    const unsigned int pos = (t / half) / n_heads;
+    const float a = (float)pos * inv_freq[i];
+    const float c = cosf(a);
+    const float s = sinf(a);
+    const size_t base = (size_t)pos * n_heads * hd + (size_t)head * hd;
+    const float x1 = x[base + i];
+    const float x2 = x[base + i + half];
+    x[base + i] = c * x1 - s * x2;
+    x[base + i + half] = s * x1 + c * x2;
+}
+
 extern "C" __global__ void activated_gate_f32(
         const float * gate,
         const float * up,

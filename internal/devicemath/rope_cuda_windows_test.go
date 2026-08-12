@@ -31,6 +31,44 @@ func hostRopeHalf(x []float32, invFreq []float64, seq, nHeads, hd int) []float64
 	return out
 }
 
+// TestRoPEHalfForwardMatchesHost verifies device RoPEHalfForward reproduces the
+// float64 split-half rope reference (hostmath.ApplyRotaryHalf's math) within fp32
+// tolerance.
+func TestRoPEHalfForwardMatchesHost(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	const seq, nHeads, hd = 7, 3, 8
+	invF64 := hostmath.RopeInvFreq(10000, hd)
+	invF32 := make([]float32, len(invF64))
+	for i := range invF64 {
+		invF32[i] = float32(invF64[i])
+	}
+	rng := rand.New(rand.NewSource(21))
+	x := randSlice(rng, seq*nHeads*hd)
+
+	got, err := RoPEHalfForward(worker, x, invF32, seq, nHeads, hd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := hostRopeHalf(x, invF64, seq, nHeads, hd)
+	var maxDiff float64
+	for i := range want {
+		if diff := math.Abs(float64(got[i]) - want[i]); diff > maxDiff {
+			maxDiff = diff
+		}
+	}
+	t.Logf("rope forward: max |dev-host| %.3e", maxDiff)
+	const tolerance = 1e-5
+	if maxDiff > tolerance {
+		t.Fatalf("rope forward %.3e > %.1e", maxDiff, tolerance)
+	}
+}
+
 // TestRoPEHalfBackwardGradCheck verifies device RoPEHalfBackward against float64
 // finite differences of L = sum(dOut ⊙ RoPE(x)) w.r.t. x, using the same invFreq
 // as hostmath.

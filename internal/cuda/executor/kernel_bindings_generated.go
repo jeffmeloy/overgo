@@ -131,6 +131,7 @@ const (
 	kernelRopeAppendNeoxF32
 	kernelRopeAppendNormalF32
 	kernelRopeHalfBackwardF32
+	kernelRopeHalfF32
 	kernelRopeMultiF32
 	kernelRopeNeoxF32
 	kernelRopeNormalF32
@@ -296,6 +297,7 @@ var kernelFunctionNames = [...]string{
 	"rope_append_neox_f32",
 	"rope_append_normal_f32",
 	"rope_half_backward_f32",
+	"rope_half_f32",
 	"rope_multi_f32",
 	"rope_neox_f32",
 	"rope_normal_f32",
@@ -459,6 +461,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	18,
 	18,
+	5,
 	5,
 	14,
 	16,

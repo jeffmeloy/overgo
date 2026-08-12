@@ -2,7 +2,6 @@ package capabilityruntime
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"overgo/internal/artifact"
@@ -52,74 +51,25 @@ func JSONScalar[Input, Model, Output any](
 		if err != nil {
 			return nil, err
 		}
-		return executeScalar[Output](ctx, store, modelID, program, input, content, func(runtime *workflowruntime.Runtime) error {
-			return bind(runtime, modelID, model)
-		})
+		definition := program.Definition()
+		runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
+		if err != nil {
+			return nil, err
+		}
+		if definition.Model != modelID {
+			return nil, fmt.Errorf("capability runtime: program model differs from binding")
+		}
+		if err := bind(runtime, modelID, model); err != nil {
+			return nil, err
+		}
+		return workflowruntime.ExecuteScalar[Output](
+			ctx, runtime,
+			"recipe/run/"+definition.ID.String()+"/"+content.Descriptor.ID.String(),
+			program, input, content,
+		)
 	}
 }
 
 func IgnoreInput[Input, Model any](load func(string) (Model, error)) func(string, Input) (Model, error) {
 	return func(path string, _ Input) (Model, error) { return load(path) }
-}
-
-func executeScalar[Output any](
-	ctx context.Context,
-	store artifact.Repository,
-	modelID artifact.ID,
-	program recipe.Program,
-	inputValue any,
-	inputContent artifact.Content,
-	bind func(*workflowruntime.Runtime) error,
-) (Output, error) {
-	definition := program.Definition()
-	if len(definition.Inputs) != 1 {
-		var zero Output
-		return zero, errors.New("capability runtime: scalar execution requires one input")
-	}
-	input := definition.Inputs[0]
-	return Execute[Output](ctx, store, modelID, program,
-		"recipe/run/"+definition.ID.String()+"/"+inputContent.Descriptor.ID.String(),
-		map[recipe.PortName]workflowruntime.Value{
-			input.Name: workflowruntime.ArtifactValue(input.Data, inputValue, inputContent),
-		}, bind)
-}
-
-func Execute[Output any](
-	ctx context.Context,
-	store artifact.Repository,
-	modelID artifact.ID,
-	program recipe.Program,
-	key string,
-	inputs map[recipe.PortName]workflowruntime.Value,
-	bind func(*workflowruntime.Runtime) error,
-) (Output, error) {
-	var zero Output
-	definition := program.Definition()
-	if definition.Model != modelID {
-		return zero, errors.New("capability runtime: program model differs from binding")
-	}
-	if len(definition.Outputs) != 1 {
-		return zero, errors.New("capability runtime: execution requires one output")
-	}
-	output := definition.Outputs[0]
-	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
-	if err != nil {
-		return zero, err
-	}
-	if err := bind(runtime); err != nil {
-		return zero, err
-	}
-	result, err := runtime.ExecuteProgram(ctx, key, program, inputs)
-	if err != nil {
-		return zero, err
-	}
-	datum, ok := result.Outputs[output.Name].Single()
-	if !ok {
-		return zero, fmt.Errorf("capability runtime: output %q has invalid cardinality", output.Name)
-	}
-	decoded, ok := datum.Value.(Output)
-	if !ok {
-		return zero, fmt.Errorf("capability runtime: output %q has invalid value type", output.Name)
-	}
-	return decoded, nil
 }

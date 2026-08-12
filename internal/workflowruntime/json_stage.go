@@ -2,11 +2,45 @@ package workflowruntime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 )
+
+// ExecuteScalar runs a one-input, one-output program.
+func ExecuteScalar[Output any](
+	ctx context.Context,
+	runtime *Runtime,
+	key string,
+	program recipe.Program,
+	inputValue any,
+	inputContent artifact.Content,
+) (Output, error) {
+	var zero Output
+	definition := program.Definition()
+	if len(definition.Inputs) != 1 || len(definition.Outputs) != 1 {
+		return zero, errors.New("workflow runtime: scalar program requires one input and one output")
+	}
+	input := definition.Inputs[0]
+	result, err := runtime.ExecuteProgram(ctx, key, program, map[recipe.PortName]Value{
+		input.Name: ArtifactValue(input.Data, inputValue, inputContent),
+	})
+	if err != nil {
+		return zero, err
+	}
+	output := definition.Outputs[0]
+	datum, ok := result.Outputs[output.Name].Single()
+	if !ok {
+		return zero, fmt.Errorf("workflow runtime: output %q is not scalar", output.Name)
+	}
+	value, ok := datum.Value.(Output)
+	if !ok {
+		return zero, fmt.Errorf("workflow runtime: output %q has invalid value type", output.Name)
+	}
+	return value, nil
+}
 
 // RegisterJSONStage binds typed computation to a catalog-owned scalar module.
 func RegisterJSONStage[Input, Output any](

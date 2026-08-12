@@ -39,21 +39,22 @@ func main() {
 	status := flag.Bool("status", false, "one line per item")
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
 	add := flag.Bool("add", false, "inject a new top-priority task: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
+	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
 	force := flag.String("force", "", "with -advance: skip verify, REQUIRES a reason (logged loudly)")
 	title := flag.String("title", "", "with -add: the task title")
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, advance: *advance, add: *add, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, advance: *advance, add: *add, setverify: *setverify, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	next, prompt, verify, status, advance, add, stop bool
-	force, title, before, verifyCmd                  string
+	next, prompt, verify, status, advance, add, setverify, stop bool
+	force, title, before, verifyCmd                             string
 }
 
 func run(c cli, args []string) error {
@@ -67,6 +68,11 @@ func run(c cli, args []string) error {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
 		}
 		return addItem(document, args[0], c.title, c.before, c.verifyCmd)
+	case c.setverify:
+		if len(args) != 2 || strings.TrimSpace(c.verifyCmd) == "" {
+			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
+		}
+		return setStepVerify(document, args[0], args[1], c.verifyCmd)
 	case c.stop:
 		return recordStop(strings.Join(args, " "))
 	case c.advance:
@@ -148,6 +154,44 @@ func insertItem(document plan.Plan, id, title, before, verifyCmd string) (plan.P
 	out = append(out, document.Items[pos:]...)
 	document.Items = out
 	return document, nil
+}
+
+// assignVerify is the pure core of setStepVerify: returns a plan with the named
+// step's Verify replaced, or an error if the item/step is absent.
+func assignVerify(document plan.Plan, itemID, stepID, cmd string) (plan.Plan, error) {
+	for i := range document.Items {
+		if document.Items[i].ID != itemID {
+			continue
+		}
+		for j := range document.Items[i].Steps {
+			if document.Items[i].Steps[j].ID == stepID {
+				document.Items[i].Steps[j].Verify = strings.TrimSpace(cmd)
+				return document, nil
+			}
+		}
+		return plan.Plan{}, fmt.Errorf("step %q not found in %q", stepID, itemID)
+	}
+	return plan.Plan{}, fmt.Errorf("item %q not found", itemID)
+}
+
+// setStepVerify records an existing step's verify command (closing the gap that
+// forced hand-editing docs/plan.json), then runs it so an unrunnable command --
+// an unquoted shell metachar, a bad -run pattern -- is caught at set-time rather
+// than at the next advance.
+func setStepVerify(document plan.Plan, itemID, stepID, cmd string) error {
+	updated, err := assignVerify(document, itemID, stepID, cmd)
+	if err != nil {
+		return err
+	}
+	if err := plan.Save("", updated); err != nil {
+		return err
+	}
+	fmt.Printf("set verify for %s/%s: %s\n", itemID, stepID, strings.TrimSpace(cmd))
+	it, st, ok := plan.Current(updated)
+	if ok && it.ID == itemID && st.ID == stepID {
+		return runVerify(it, st)
+	}
+	return nil
 }
 
 var validStopReasons = []string{"user-stop", "irreversible", "external-prereq"}

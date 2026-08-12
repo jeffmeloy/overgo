@@ -53,6 +53,31 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 	}
 }
 
+// TestEnforceSetVerify pins the pure verify-assignment: it replaces the named
+// step's verify (closing the hand-edit-plan.json gap) and rejects an absent
+// item or step.
+func TestEnforceSetVerify(t *testing.T) {
+	base := plan.Plan{Items: []plan.Item{
+		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s1", Status: "open"}, {ID: "s2", Status: "open"}}},
+	}}
+	got, err := assignVerify(base, "a", "s2", "  go test ./x  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Items[0].Steps[1].Verify != "go test ./x" {
+		t.Fatalf("verify not set/trimmed: %q", got.Items[0].Steps[1].Verify)
+	}
+	if got.Items[0].Steps[0].Verify != "" {
+		t.Fatal("sibling step's verify must be untouched")
+	}
+	if _, err := assignVerify(base, "a", "nope", "x"); err == nil {
+		t.Fatal("unknown step must be rejected")
+	}
+	if _, err := assignVerify(base, "nope", "s1", "x"); err == nil {
+		t.Fatal("unknown item must be rejected")
+	}
+}
+
 // TestEnforceStopReason pins that only the three legitimate stop reasons are
 // accepted -- a manufactured "checkpoint"/"should I continue?" is refused, so the
 // stop-gate can tell a real stop from an invented one.

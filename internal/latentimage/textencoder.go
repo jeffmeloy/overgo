@@ -37,11 +37,12 @@
 // TestDenoiserExactG3IsHookGapped). This port asserts the tokenizer, the 12-layer
 // SELECTION, encoder forward shapes + finiteness on the real checkpoint, and that
 // the produced conditioning geometry matches the DiT text-stream input -- never
-// bit-exact values. It also does NOT reproduce the Krea conditioner's chat
-// prompt-template wrapping / pad-row layout (a repodb profile fact -- adaptive's
-// text.prompt_template.prefix/suffix + text.max_prompt_tokens -- absent from the
-// overgo tree); the encoder is wired at the tokenized-ids boundary, which is the
-// exact-parity residual, not a structural one.
+// bit-exact values. The Krea conditioner's chat prompt-template wrapping / pad-row
+// layout / attention mask (adaptive's text.prompt_template.prefix/suffix +
+// text.max_prompt_tokens) is now reproduced EXACTLY by RenderKreaTextInput in
+// textinput.go (dtc brick 1/3); this encoder still accepts a raw id slice, so a
+// caller wiring the device text-conditioning path renders via RenderKreaTextInput
+// first. The remaining exact-parity residual is the DEVICE bf16 encoder forward.
 package latentimage
 
 import (

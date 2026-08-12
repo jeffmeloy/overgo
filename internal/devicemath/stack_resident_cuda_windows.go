@@ -126,9 +126,24 @@ func (o *layerOps) runStack(embeds []float32, wp []layerWeightPtrs, gp []layerGr
 	nL := len(wp)
 	seqHidden := d.seq * d.hidden
 
+	// Scratch pool: one arena, sized to a single layer's larger pass, reused by
+	// every layer's transient forward/backward scratch so peak scratch stays
+	// O(1 layer). The activation caches and residuals below persist per-layer.
+	if scratchPoolEnabled {
+		capElems := maxScratchElems(d)
+		base, err := o.s.alloc(capElems)
+		if err != nil {
+			return 0, err
+		}
+		o.arena = &scratchArena{base: base, capElems: capElems}
+	}
+
 	xIn := make([]driver.DevicePtr, nL+1)
 	var err error
 	if xIn[0], err = o.s.upload(embeds); err != nil {
+		return 0, err
+	}
+	if err := o.sampleFree(); err != nil { // baseline before per-layer allocations
 		return 0, err
 	}
 	cp := make([]layerCachePtrs, nL)
@@ -140,6 +155,12 @@ func (o *layerOps) runStack(embeds []float32, wp []layerWeightPtrs, gp []layerGr
 			return 0, err
 		}
 		if err := o.forwardDevice(xIn[i], wp[i], cp[i], xIn[i+1]); err != nil {
+			return 0, err
+		}
+		if o.arena != nil {
+			o.arena.reset() // forward scratch of this layer is dead; rewind
+		}
+		if err := o.sampleFree(); err != nil {
 			return 0, err
 		}
 	}
@@ -168,6 +189,12 @@ func (o *layerOps) runStack(embeds []float32, wp []layerWeightPtrs, gp []layerGr
 			return 0, err
 		}
 		if err := o.backwardDevice(xIn[i], dOutP, cp[i], wp[i], gp[i], dXP); err != nil {
+			return 0, err
+		}
+		if o.arena != nil {
+			o.arena.reset() // backward scratch of this layer is dead; rewind
+		}
+		if err := o.sampleFree(); err != nil {
 			return 0, err
 		}
 		dOutP = dXP // becomes the previous layer's output gradient

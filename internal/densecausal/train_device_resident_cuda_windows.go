@@ -20,6 +20,39 @@ func isLayerMatrixName(name string) bool {
 	return strings.HasPrefix(name, "model.layers.") && strings.HasSuffix(name, "_proj.weight")
 }
 
+// perLayerWeightElems is one layer's total weight element count (nine matrices +
+// two norm vectors), read from layer 0's tensors -- the residency unit's weight
+// footprint for the capacity derivation.
+func (m *Model) perLayerWeightElems() int {
+	total := 0
+	for name, w := range m.Weights {
+		if strings.HasPrefix(name, "model.layers.0.") {
+			total += len(w)
+		}
+	}
+	return total
+}
+
+// DeriveResidentCapacity measures free device memory and the allocator
+// granularity, then derives how many transformer layers of this model can be
+// trained fully resident on the device at sequence length seq -- the scale
+// ceiling computed from measured bytes, not a supplied n_gpu_layers (closes
+// scale-ceiling-measure / YOINK-1).
+func (m *Model) DeriveResidentCapacity(worker *device.Worker, seq int) (devicemath.ResidentCapacity, error) {
+	d := m.Dims
+	g, err := devicemath.MeasureAllocGranularity(worker)
+	if err != nil {
+		return devicemath.ResidentCapacity{}, err
+	}
+	free, err := devicemath.MeasureFreeBytes(worker)
+	if err != nil {
+		return devicemath.ResidentCapacity{}, err
+	}
+	fixed, perLayer := devicemath.ResidentLayerPlanSizes(
+		seq, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, m.perLayerWeightElems())
+	return devicemath.DeriveResidentCapacity(free, g, fixed, perLayer), nil
+}
+
 // TrainDeviceResident runs `steps` Muon updates with the layer weights AND their
 // Muon momentum resident on the device across all steps: the layer matrices upload
 // once at the start and download only at the final checkpoint -- there is NO per-step
@@ -39,6 +72,18 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 	d := m.Dims
 	if d.AttnBias {
 		return nil, fmt.Errorf("TrainDeviceResident: attention bias not supported yet")
+	}
+
+	// Derived scale ceiling: how many layers fit fully resident is DERIVED from
+	// measured free device memory and the measured allocator granularity (not a
+	// supplied n_gpu_layers). Reject up front rather than OOM mid-session.
+	capacity, err := m.DeriveResidentCapacity(worker, len(tokens))
+	if err != nil {
+		return nil, fmt.Errorf("TrainDeviceResident: capacity derivation: %w", err)
+	}
+	if d.Layers > capacity.Layers {
+		return nil, fmt.Errorf("TrainDeviceResident: %d layers exceed derived resident capacity %d (free=%d bytes, G=%d, per-layer=%d bytes)",
+			d.Layers, capacity.Layers, capacity.FreeBytes, capacity.Granularity, capacity.PerLayerBytes)
 	}
 
 	names, weights, gradients, plan, resolvedLR, err := m.trainSetup(baseLR)

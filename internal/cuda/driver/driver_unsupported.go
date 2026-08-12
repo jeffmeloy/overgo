@@ -74,6 +74,12 @@ func (l *Library) MemFree(pointer DevicePtr) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+func (l *Library) MemInfo() (free, total uint64, err error) {
+	return 0, 0, errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+func (l *Library) ResetPeakBytes() {}
+
 func (l *Library) MemoryStats() MemoryStats {
 	return MemoryStats{}
 }

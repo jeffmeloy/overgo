@@ -62,6 +62,7 @@ type Library struct {
 	cuStreamSynchronize  *syscall.Proc
 	cuMemAlloc           *syscall.Proc
 	cuMemFree            *syscall.Proc
+	cuMemGetInfo         *syscall.Proc
 	cuMemcpyHtoD         *syscall.Proc
 	cuMemcpyDtoH         *syscall.Proc
 	cuMemcpyDtoD         *syscall.Proc
@@ -110,6 +111,7 @@ func Open() (*Library, error) {
 		{"cuStreamSynchronize", &lib.cuStreamSynchronize},
 		{"cuMemAlloc_v2", &lib.cuMemAlloc},
 		{"cuMemFree_v2", &lib.cuMemFree},
+		{"cuMemGetInfo_v2", &lib.cuMemGetInfo},
 		{"cuMemcpyHtoD_v2", &lib.cuMemcpyHtoD},
 		{"cuMemcpyDtoH_v2", &lib.cuMemcpyDtoH},
 		{"cuMemcpyDtoD_v2", &lib.cuMemcpyDtoD},
@@ -390,6 +392,21 @@ func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 	return pointer, nil
 }
 
+// MemInfo: returns free and total device memory of the current context
+// (cuMemGetInfo_v2) -- driver-reported bytes, the basis for measured resident
+// capacity and real peak sampling (never a synthetic accounting sum).
+func (l *Library) MemInfo() (free, total uint64, err error) {
+	var f, t uint64
+	result, _, _ := l.cuMemGetInfo.Call(
+		uintptr(unsafe.Pointer(&f)),
+		uintptr(unsafe.Pointer(&t)),
+	)
+	if e := l.result("cuMemGetInfo_v2", result); e != nil {
+		return 0, 0, e
+	}
+	return f, t, nil
+}
+
 // MemFree: frees device allocation
 func (l *Library) MemFree(pointer DevicePtr) error {
 	if pointer == 0 {
@@ -406,6 +423,18 @@ func (l *Library) MemFree(pointer DevicePtr) error {
 	}
 	l.allocationMu.Unlock()
 	return nil
+}
+
+// ResetPeakBytes lowers the tracked allocation high-water to the current live
+// bytes, so a caller can measure the peak of one bounded phase (e.g. one training
+// step) rather than the library-lifetime high-water.
+func (l *Library) ResetPeakBytes() {
+	if l == nil {
+		return
+	}
+	l.allocationMu.Lock()
+	l.peakBytes = l.currentBytes
+	l.allocationMu.Unlock()
 }
 
 func (l *Library) MemoryStats() MemoryStats {

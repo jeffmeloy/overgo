@@ -1064,6 +1064,117 @@ extern "C" __global__ void l2_norm_f32(
     }
 }
 
+// l2_norm_backward_f32: VJP of l2_norm_f32 (per row, width columns). With
+// inv = 1/max(sqrt(sum(x^2)),eps): unclamped (norm>eps)
+// dX = inv*dY - inv^3 * x * (dY.x); clamped (norm<=eps) dX = inv*dY. One thread
+// per row; row math in double to mirror the host f64 golden (L2NormBackward).
+extern "C" __global__ void l2_norm_backward_f32(
+        const float * input,
+        const float * grad_output,
+        float * grad_input,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const unsigned int offset = row * width;
+    double sum_squares = 0.0;
+    for (unsigned int column = 0; column < width; ++column) {
+        const double value = (double)input[offset + column];
+        sum_squares += value * value;
+    }
+    const double norm = sqrt(sum_squares);
+    const double inverse = 1.0 / fmax(norm, (double)epsilon);
+    const bool clamped = norm <= (double)epsilon;
+    double dot = 0.0;
+    if (!clamped) {
+        for (unsigned int column = 0; column < width; ++column) {
+            dot += (double)grad_output[offset + column] * (double)input[offset + column];
+        }
+    }
+    const double inverse_cubed = inverse * inverse * inverse;
+    for (unsigned int column = 0; column < width; ++column) {
+        double gradient = inverse * (double)grad_output[offset + column];
+        if (!clamped) {
+            gradient -= inverse_cubed * (double)input[offset + column] * dot;
+        }
+        grad_input[offset + column] = (float)gradient;
+    }
+}
+
+// short_conv_backward_f32: VJP of SiLU(depthwise causal conv1d, left-pad k-1) --
+// the qwen3.5 GDN-mix short convolution (host ShortConvForward). x/grad_output/
+// grad_input are [channels, tokens] channel-major; weights/grad_weights are
+// [channels, k]; bias/grad_bias are per channel (has_bias==0 skips both). One
+// thread per channel (channels independent). The per-token SiLU'(pre)*dY product
+// is staged into the dconv_scratch double buffer, then reused for grad_weights
+// (per tap) and grad_input (per position); all accumulation in double to mirror
+// the host f64 golden (ShortConvBackward).
+extern "C" __global__ void short_conv_backward_f32(
+        const float * x,
+        const float * grad_output,
+        const float * weights,
+        const float * bias,
+        float * grad_input,
+        float * grad_weights,
+        float * grad_bias,
+        double * dconv_scratch,
+        unsigned int channels,
+        unsigned int tokens,
+        unsigned int k,
+        unsigned int has_bias) {
+    const unsigned int channel = blockIdx.x * blockDim.x + threadIdx.x;
+    if (channel >= channels) {
+        return;
+    }
+    const float * x_row = x + (size_t)channel * tokens;
+    const float * dy_row = grad_output + (size_t)channel * tokens;
+    const float * weight_row = weights + (size_t)channel * k;
+    double * dconv = dconv_scratch + (size_t)channel * tokens;
+    double dbias = 0.0;
+    for (unsigned int t = 0; t < tokens; ++t) {
+        double pre = has_bias ? (double)bias[channel] : 0.0;
+        for (unsigned int j = 0; j < k; ++j) {
+            const int ti = (int)t - (int)(k - 1) + (int)j;
+            if (ti < 0 || ti >= (int)tokens) {
+                continue;
+            }
+            pre += (double)x_row[ti] * (double)weight_row[j];
+        }
+        const double s = 1.0 / (1.0 + exp(-pre));
+        const double dc = (double)dy_row[t] * s * (1.0 + pre * (1.0 - s));
+        dconv[t] = dc;
+        dbias += dc;
+    }
+    if (has_bias) {
+        grad_bias[channel] = (float)dbias;
+    }
+    for (unsigned int j = 0; j < k; ++j) {
+        double dweight = 0.0;
+        for (unsigned int t = 0; t < tokens; ++t) {
+            const int ti = (int)t - (int)(k - 1) + (int)j;
+            if (ti < 0 || ti >= (int)tokens) {
+                continue;
+            }
+            dweight += dconv[t] * (double)x_row[ti];
+        }
+        grad_weights[(size_t)channel * k + j] = (float)dweight;
+    }
+    for (unsigned int p = 0; p < tokens; ++p) {
+        double dx = 0.0;
+        for (unsigned int j = 0; j < k; ++j) {
+            const int t = (int)p + (int)(k - 1) - (int)j;
+            if (t < 0 || t >= (int)tokens) {
+                continue;
+            }
+            dx += dconv[t] * (double)weight_row[j];
+        }
+        grad_input[(size_t)channel * tokens + p] = (float)dx;
+    }
+}
+
 extern "C" __global__ void ssm_conv_f32(
         const float * input,
         const float * weights,

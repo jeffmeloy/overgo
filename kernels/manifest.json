@@ -36,7 +36,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "2a1ac586a52e062191272200dc74b2ceb7ad467093ed55752eec0e49b634cb9e",
+      "sourceSha256": "3cc26713cd8ce3c2281178c2c53c551090f7975a084d2ea8d0239ef65b9c85f3",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -44,7 +44,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "d248c0213bbdedf3127d757add0c85062d3526ba5912c9ca788f3ae33e76b305",
+      "assetSha256": "e6a0bc198aa45c55f341a9640c294945a620c92b2e6c6b82d0615367cf72d6f0",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -120,6 +120,7 @@
         "head_major_f32",
         "head_major_inverse_f32",
         "indexer_score_f32",
+        "l2_norm_backward_f32",
         "l2_norm_f32",
         "layer_norm_f32",
         "layer_norm_modulate_f32",
@@ -181,6 +182,7 @@
         "rwkv7_f32",
         "sam_attention_f32",
         "scale_f32",
+        "short_conv_backward_f32",
         "sigmoid_f32",
         "silu_backward_f32",
         "silu_f32",
@@ -745,6 +747,20 @@
           "parameters": [
             ".u64",
             ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "l2_norm_backward_f32",
+            "weighted_rms_norm_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
             ".u32",
             ".u32",
             ".f32"
@@ -1041,7 +1057,8 @@
             ".u32"
           ],
           "functions": [
-            "rwkv7_f32"
+            "rwkv7_f32",
+            "short_conv_backward_f32"
           ]
         },
         {
@@ -1261,19 +1278,6 @@
           "functions": [
             "weighted_rms_norm_add_f32",
             "weighted_rms_norm_q8_0_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u32",
-            ".u32",
-            ".f32"
-          ],
-          "functions": [
-            "weighted_rms_norm_f32"
           ]
         },
         {

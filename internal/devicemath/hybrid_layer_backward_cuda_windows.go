@@ -25,20 +25,17 @@ import (
 // activations match the host cache within the ops' parity, so the composed grads
 // match hostmath.HybridDecoderLayerBackward to the ~1e-4 kernel-parity class.
 //
-// MILESTONE 1a: full_attention (w.IsLinear == false) only. The linear_attention
-// (GDN mix) variant additionally needs device L2Norm/ShortConv backward kernels;
-// it is rejected here until those land.
+// MILESTONE 1b: both mix variants. full_attention routes through the resident
+// causal GQA attention forward/backward; linear_attention (GDN mix) routes
+// through GatedDeltaMixBackwardDevice (device L2Norm/ShortConv/GDN backward).
 func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state, dOut []float32) (hostmath.HybridDecoderLayerGrads, error) {
 	T, H := d.Tokens, d.Hidden
 	if len(x) != T*H || len(dOut) != T*H {
 		return hostmath.HybridDecoderLayerGrads{}, fmt.Errorf("HybridDecoderLayerBackwardDevice: shape mismatch (T=%d H=%d x=%d dOut=%d)", T, H, len(x), len(dOut))
 	}
-	if w.IsLinear {
-		return hostmath.HybridDecoderLayerGrads{}, fmt.Errorf("HybridDecoderLayerBackwardDevice: linear_attention (GDN) mix not yet supported on device (milestone 1b: needs L2Norm/ShortConv backward kernels)")
-	}
 
 	var g hostmath.HybridDecoderLayerGrads
-	g.IsLinear = false
+	g.IsLinear = w.IsLinear
 	eps := d.Eps
 
 	// --- forward recompute (device): only the intermediates the VJP consumes ---
@@ -46,9 +43,18 @@ func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w host
 	if err != nil {
 		return g, err
 	}
-	mixOut, ac, err := attentionMixForwardDevice(worker, xn, w.Attn, d.Attn)
-	if err != nil {
-		return g, err
+	// mix forward: attention recomputes on device (returns its VJP cache); the GDN
+	// mix reuses the proven host forward for the residual (its VJP recomputes its
+	// own intermediates in GatedDeltaMixBackwardDevice).
+	var mixOut []float32
+	var ac attnMixDeviceCache
+	if w.IsLinear {
+		mixOut, _ = hostmath.GatedDeltaMixForward(xn, w.GDN, d.GDN, state)
+	} else {
+		mixOut, ac, err = attentionMixForwardDevice(worker, xn, w.Attn, d.Attn)
+		if err != nil {
+			return g, err
+		}
 	}
 	h := make([]float32, T*H)
 	for i := range h {
@@ -89,11 +95,23 @@ func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w host
 	}
 
 	// --- mix branch backward: h = x + Mix(RMSNorm(x,InputNorm)) ---
-	dXn, dAttn, err := attentionMixBackwardDevice(worker, xn, w.Attn, d.Attn, dh, ac)
-	if err != nil {
-		return g, err
+	var dXn []float32
+	if w.IsLinear {
+		mg, err := GatedDeltaMixBackwardDevice(worker, xn, w.GDN, d.GDN, state, dh)
+		if err != nil {
+			return g, err
+		}
+		g.DGDN = mg
+		g.DState = mg.DState
+		dXn = mg.DX
+	} else {
+		dxn, dAttn, err := attentionMixBackwardDevice(worker, xn, w.Attn, d.Attn, dh, ac)
+		if err != nil {
+			return g, err
+		}
+		g.DAttn = dAttn
+		dXn = dxn
 	}
-	g.DAttn = dAttn
 	dxNorm, dInputNorm, err := RMSNormBackward(worker, x, w.InputNorm, dXn, T, H, eps)
 	if err != nil {
 		return g, err

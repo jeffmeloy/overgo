@@ -844,12 +844,18 @@
         {
           "id": "dtc-encoder",
           "title": "device-text-cond brick 2/3: DEVICE bf16 Qwen3VL selected-layer encoder (runtimeBF16CausalGQA equivalent) with the 12-layer capture -- overgo textencoder.go is host-f64 telemetry only. Parity vs adaptive device encoder selected-hidden tensors (bf16 band). Consumes dtc-tokenizer ids/mask.",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/latentimage/ -run Encoder -short -count=1"
         },
         {
           "id": "dtc-fusion",
           "title": "device-text-cond brick 3/3: DEVICE text_fusion stream (layerwise/projector/refiner/txt_in) -- host-f64 only today. Parity vs adaptive device fused conditioning tensor (bf16 band). Consumes dtc-encoder selected hiddens; output feeds the denoiser text stream.",
+          "status": "open",
+          "verify": "go test ./internal/latentimage/ -run Fusion -count=1"
+        },
+        {
+          "id": "dtc-mask",
+          "title": "device-text-cond golden-exactness fix (discovered by dtc-encoder 971a1fe): the encoder currently runs MASKLESS-causal (device==host clean, but NOT adaptive-golden), because the cataloged Attention op has no arbitrary per-key PAD mask. Krea's [prefix][prompt][pad][suffix] marks pad rows as unattended KEYS (adaptive runtime_causal_gqa_masked_bf16). Add a masked-attention catalog op (causal + arbitrary key-pad mask) + apply it in encoder_program so the selected hiddens become golden-exact. Shared primitive (neutral op, not a Krea file). Verify: masked device encoder selected-hidden matches the adaptive masked golden band; rxbrain/latentvideo attention regressions unchanged.",
           "status": "open"
         },
         {

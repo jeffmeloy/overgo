@@ -324,17 +324,10 @@ func executeLayerInstruction(
 		if instruction.CacheCount != 4 || instruction.TensorCount != 0 {
 			return errors.New("compiled hybrid-mixing stage is invalid")
 		}
-		var result DenseBlockResult
-		var err error
-		switch instruction.Hybrid {
-		case HybridMixAttentionSSM:
-			result, err = buildAttentionSSMHybridMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3], plan,
-			)
-		default:
-			return errors.New("compiled hybrid-mixing policy is invalid")
-		}
+		result, err := buildAttentionSSMHybridMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3], plan,
+		)
 		if err != nil {
 			return err
 		}

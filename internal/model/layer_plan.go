@@ -98,14 +98,6 @@ const (
 	AttentionMixCompiledProjection
 )
 
-// HybridMixPolicy: parallel mixer implementation.
-type HybridMixPolicy uint8
-
-const (
-	HybridMixNone HybridMixPolicy = iota
-	HybridMixAttentionSSM
-)
-
 // FeedForwardMixPolicy: feed-forward operator implementation.
 type FeedForwardMixPolicy uint8
 
@@ -134,7 +126,6 @@ const (
 type LayerOperatorInstruction struct {
 	Operator    LayerOperator
 	Attention   AttentionMixPolicy
-	Hybrid      HybridMixPolicy
 	FeedForward FeedForwardMixPolicy
 	CacheCount  uint8
 	TensorCount uint8
@@ -886,7 +877,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 	}
 	if block == BlockFalconH1 {
 		return residualMixerProgram(
-			hybridLayerStage(HybridMixAttentionSSM), FeedForwardMixStandardSwiGLU, false,
+			hybridLayerStage(), FeedForwardMixStandardSwiGLU, false,
 		)
 	}
 	if block == BlockGraniteHybrid {
@@ -1161,9 +1152,8 @@ func attentionLayerStageWithoutCache(policy AttentionMixPolicy) LayerOperatorIns
 	return instruction
 }
 
-func hybridLayerStage(policy HybridMixPolicy) LayerOperatorInstruction {
+func hybridLayerStage() LayerOperatorInstruction {
 	instruction := layerStage(LayerOperatorHybridMix)
-	instruction.Hybrid = policy
 	instruction.CacheCount = 4
 	instruction.Caches[0] = RuntimeCachePrimaryKey
 	instruction.Caches[1] = RuntimeCachePrimaryValue

@@ -771,12 +771,12 @@
     {
       "id": "loop-hardening-7",
       "title": "loop-hardening-7: overgo stop-gate gate-running valve misses a background gate during its ~2s 'go run ./cmd/gate' COMPILE phase (before gate.exe exists in tasklist), causing a transient false-block (valve saves it, no wedge). Fix cmd/loophook gateProcessRunning to also consult docs/commit_gate_status.json run_id/status or a launch marker, not only tasklist. Low urgency (valve handles it); observed live 2026-08-12 when the user-level overgo Stop hook activated.",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "loop-hardening-7: overgo stop-gate gate-running valve misses a background gate during its ~2s 'go run ./cmd/gate' COMPILE phase (before gate.exe exists in tasklist), causing a transient false-block (valve saves it, no wedge). Fix cmd/loophook gateProcessRunning to also consult docs/commit_gate_status.json run_id/status or a launch marker, not only tasklist. Low urgency (valve handles it); observed live 2026-08-12 when the user-level overgo Stop hook activated.",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./cmd/loophook/"
         }
       ]
@@ -804,7 +804,8 @@
         {
           "id": "text-conditioning",
           "title": "Qwen3VL encoder + 12 selected-hidden-layer fusion into DiT text stream (Qwen2 tokenizer); vs latentvideo/textcond (UMT5) -- new encoder surface [oracle: telemetry only; exact needs adaptive dump hook (out of scope)]",
-          "status": "open"
+          "status": "open",
+          "verify": "go test ./internal/latentimage/ -run TestEncoder -count=1"
         },
         {
           "id": "denoiser-port",

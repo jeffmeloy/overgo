@@ -47,6 +47,7 @@ type TransformerSpec struct {
 	Intermediate  int     // [cfg intermediate_size] xcheck ff.gate.weight[0], ff.down.weight[1]
 	RopeAxes      [3]int  // [cfg axes_dims_rope] xcheck sum==HeadDim
 	RopeTheta     float64 // [cfg rope_theta]
+	NormEps       float64 // [cfg norm_eps] zero-centered RMSNorm epsilon
 	TimestepEmbed int     // [cfg timestep_embed_dim] xcheck time_embed.linear_1.weight[1]
 	ModFields     int     // [der time_mod_proj.weight[0]/Hidden] xcheck transformer_blocks.0.scale_shift_table[0]
 
@@ -79,12 +80,14 @@ type TextEncoderSpec struct {
 	ModelType    string  // [cfg model_type] == TextEncoderType
 	HiddenLayers int     // [cfg text_config.num_hidden_layers] xcheck count(language_model.layers.N)
 	Hidden       int     // [cfg text_config.hidden_size] xcheck language_model.embed_tokens.weight[1]
+	Intermediate int     // [cfg text_config.intermediate_size] xcheck mlp.down_proj.weight[1]
 	Heads        int     // [cfg text_config.num_attention_heads] xcheck q_proj.weight[0]/HeadDim
 	KVHeads      int     // [cfg text_config.num_key_value_heads] xcheck k_proj.weight[0]/HeadDim
 	HeadDim      int     // [cfg text_config.head_dim] xcheck self_attn.q_norm.weight
 	VocabSize    int     // [cfg text_config.vocab_size] xcheck embed_tokens.weight[0]
 	RopeTheta    float64 // [cfg text_config.rope_parameters.rope_theta]
-	SelectLayers []int   // [cfg model_index.text_encoder_select_layers] fusion pick (0-based)
+	RMSNormEps   float64 // [cfg text_config.rms_norm_eps] standard RMSNorm epsilon
+	SelectLayers []int   // [cfg model_index.text_encoder_select_layers] fusion pick (hidden_states idx)
 }
 
 // Spec: the recognized, geometry-derived artifact description. Serving-only;
@@ -126,6 +129,7 @@ type transformerConfig struct {
 	IntermediateSize  int     `json:"intermediate_size"`
 	NumAttentionHeads int     `json:"num_attention_heads"`
 	NumKeyValueHeads  int     `json:"num_key_value_heads"`
+	NormEps           float64 `json:"norm_eps"`
 	NumLayers         int     `json:"num_layers"`
 	NumLayerwiseText  int     `json:"num_layerwise_text_blocks"`
 	NumRefinerText    int     `json:"num_refiner_text_blocks"`
@@ -152,12 +156,14 @@ type vaeConfig struct {
 type textEncoderConfig struct {
 	ModelType  string `json:"model_type"`
 	TextConfig struct {
-		HeadDim          int `json:"head_dim"`
-		HiddenSize       int `json:"hidden_size"`
-		NumAttentionHead int `json:"num_attention_heads"`
-		NumHiddenLayers  int `json:"num_hidden_layers"`
-		NumKeyValueHeads int `json:"num_key_value_heads"`
-		VocabSize        int `json:"vocab_size"`
+		HeadDim          int     `json:"head_dim"`
+		HiddenSize       int     `json:"hidden_size"`
+		IntermediateSize int     `json:"intermediate_size"`
+		NumAttentionHead int     `json:"num_attention_heads"`
+		NumHiddenLayers  int     `json:"num_hidden_layers"`
+		NumKeyValueHeads int     `json:"num_key_value_heads"`
+		VocabSize        int     `json:"vocab_size"`
+		RMSNormEps       float64 `json:"rms_norm_eps"`
 		RopeParameters   struct {
 			RopeTheta float64 `json:"rope_theta"`
 		} `json:"rope_parameters"`
@@ -255,6 +261,7 @@ func Derive(dir string) (*Spec, error) {
 			Intermediate:        tcfg.IntermediateSize,
 			RopeAxes:            [3]int{tcfg.AxesDimsRope[0], tcfg.AxesDimsRope[1], tcfg.AxesDimsRope[2]},
 			RopeTheta:           tcfg.RopeTheta,
+			NormEps:             tcfg.NormEps,
 			TimestepEmbed:       tcfg.TimestepEmbedDim,
 			ModFields:           0, // derived from tensor shape in VerifyCheckpoint
 			TextLayers:          tcfg.NumTextLayers,
@@ -281,11 +288,13 @@ func Derive(dir string) (*Spec, error) {
 			ModelType:    ecfg.ModelType,
 			HiddenLayers: ecfg.TextConfig.NumHiddenLayers,
 			Hidden:       ecfg.TextConfig.HiddenSize,
+			Intermediate: ecfg.TextConfig.IntermediateSize,
 			Heads:        ecfg.TextConfig.NumAttentionHead,
 			KVHeads:      ecfg.TextConfig.NumKeyValueHeads,
 			HeadDim:      ecfg.TextConfig.HeadDim,
 			VocabSize:    ecfg.TextConfig.VocabSize,
 			RopeTheta:    ecfg.TextConfig.RopeParameters.RopeTheta,
+			RMSNormEps:   ecfg.TextConfig.RMSNormEps,
 			SelectLayers: index.SelectLayers,
 		},
 	}

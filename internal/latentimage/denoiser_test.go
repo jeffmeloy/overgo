@@ -307,7 +307,8 @@ func TestDenoiserExactG3IsHookGapped(t *testing.T) {
 	}
 	t.Logf("HOOK GAP (exact g3 unreachable from host port): "+
 		"(1) text conditioning tensor is needs-hook (%s) -- the Qwen3VL 36-layer encoder's 12 selected hidden states "+
-		"feed text_fusion but are not in the goldens and the encoder is not ported; "+
+		"are now ported (textencoder.go, streamed host forward, telemetry-verified finite on the real ckpt) but their "+
+		"exact values are not in the goldens (the adaptive dump hook is out of scope); "+
 		"(2) seed-42 init noise is torch randn reproduced natively by adaptive, RNG not matched here; "+
 		"(3) the real transformer is 12.82B params (~51GB f32) so a full-scale host forward is not CPU-runnable. "+
 		"Achievable bar met: block shapes verified vs real ckpt + exact forward arithmetic runs finite/deterministic "+

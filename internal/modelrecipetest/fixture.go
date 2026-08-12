@@ -20,14 +20,14 @@ type Capability struct {
 	Runtime *workflowruntime.Runtime
 }
 
-func NewCapability(t testing.TB, name string, definition func(artifact.ID) (recipe.Definition, error)) Capability {
+func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 	t.Helper()
 	store, err := repodb.Open(t.TempDir())
 	check(t, err)
 	t.Cleanup(func() { check(t, store.Close()) })
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 	testutil.PublishArtifact(t, store, modelID)
-	compiled, err := definition(modelID)
+	compiled, err := modelrecipe.CapabilityDefinition(task, modelID)
 	check(t, err)
 	program, err := modelrecipe.CompileCapability(compiled)
 	check(t, err)

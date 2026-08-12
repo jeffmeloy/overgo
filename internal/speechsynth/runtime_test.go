@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/recipe"
 )
 
 const (
@@ -51,7 +51,7 @@ func (f runtimeFixture) decode(latents LatentBatch) (Audio, error) {
 }
 
 func TestRegisteredRuntimeExecutesSpeechProgram(t *testing.T) {
-	fixture := modelrecipetest.NewCapability(t, "speech-model", modelrecipe.SpeechDefinition)
+	fixture := modelrecipetest.NewCapability(t, "speech-model", recipe.TaskSpeech)
 	request := SynthesisRequest{Text: synthesisTextFixture, MaxFrames: synthesisFramesFixture, Seed: synthesisSeedFixture}
 	plan := generationPlan{tokens: synthesisTokenFixture, maxFrames: synthesisFramesFixture, seed: synthesisSeedFixture}
 	latents := LatentBatch{Values: synthesisLatentFixture, Frames: 1, Width: len(synthesisLatentFixture)}

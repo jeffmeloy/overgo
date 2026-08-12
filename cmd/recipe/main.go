@@ -40,20 +40,19 @@ import (
 )
 
 type capabilityCommand struct {
-	inventory  func(string) (modelartifact.Inventory, error)
-	definition func(artifact.ID) (recipe.Definition, error)
-	execute    capabilityruntime.Executor
+	inventory func(string) (modelartifact.Inventory, error)
+	execute   capabilityruntime.Executor
 }
 
 var capabilityCommands = map[recipe.Task]capabilityCommand{
 	recipe.TaskForecast: {
-		inventory: hfInventory, definition: modelrecipe.ForecastDefinition,
+		inventory: hfInventory,
 		execute: capabilityruntime.JSONScalar[[]float32, *seriesforecast.Model, []float32](
 			"forecast", seriesforecast.ValidateRequest,
 			capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime),
 	},
 	recipe.TaskTabular: {
-		inventory: tabularInventory, definition: modelrecipe.TabularDefinition,
+		inventory: tabularInventory,
 		execute: capabilityruntime.JSONScalar[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](
 			"tabular", tabularicl.ValidateRequest,
 			func(path string, request tabularicl.Request) (*tabularicl.Model, error) {
@@ -61,28 +60,28 @@ var capabilityCommands = map[recipe.Task]capabilityCommand{
 			}, tabularicl.RegisterRuntime),
 	},
 	recipe.TaskSeq2Seq: {
-		inventory: hfInventory, definition: modelrecipe.Seq2SeqDefinition,
+		inventory: hfInventory,
 		execute: capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Model, []int](
 			"seq2seq", seq2seq.ValidateGenerateRequest,
 			capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.Load), seq2seq.RegisterRuntime),
 	},
 	recipe.TaskSpeech: {
-		inventory: speechInventory, definition: modelrecipe.SpeechDefinition,
+		inventory: speechInventory,
 		execute: capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
 			"speech", speechsynth.ValidateSynthesisRequest,
 			capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime),
 	},
 	recipe.TaskImageGen: {
-		inventory: imageGenInventory, definition: modelrecipe.ImageGenDefinition,
+		inventory: imageGenInventory,
 		execute: capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
 			"image-gen", oscillatorimage.ValidateRequest,
 			capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime),
 	},
 	recipe.TaskVideoGen: {
-		inventory: videoGenInventory, definition: modelrecipe.VideoGenDefinition,
+		inventory: videoGenInventory,
 	},
 	recipe.TaskVQA: {
-		inventory: hfInventory, definition: modelrecipe.VQADefinition,
+		inventory: hfInventory,
 	},
 }
 
@@ -286,7 +285,7 @@ func activateCapability(
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
-	definition, err := capability.definition(modelID)
+	definition, err := modelrecipe.CapabilityDefinition(task, modelID)
 	if err != nil {
 		return err
 	}

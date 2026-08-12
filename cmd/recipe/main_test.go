@@ -13,7 +13,7 @@ func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 	} {
 		t.Run(string(task), func(t *testing.T) {
 			capability, ok := capabilityCommands[task]
-			if !ok || capability.inventory == nil || capability.definition == nil || capability.execute == nil {
+			if !ok || capability.inventory == nil || capability.execute == nil {
 				t.Fatalf("capability = %+v", capability)
 			}
 		})

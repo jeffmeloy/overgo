@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/recipe"
 )
 
 const (
@@ -68,7 +68,7 @@ func TestRegisteredRuntimeEnforcesTabularOutputContract(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fixture := modelrecipetest.NewCapability(t, "tabular-"+test.name, modelrecipe.TabularDefinition)
+			fixture := modelrecipetest.NewCapability(t, "tabular-"+test.name, recipe.TaskTabular)
 			if err := registerRuntime(fixture.Runtime, fixture.Model, predictorFunc(
 				func(request Request) ([]float32, int, error) {
 					if !reflect.DeepEqual(request, tabularRequestFixture) {

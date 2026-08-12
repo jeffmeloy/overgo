@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/workflowruntime"
@@ -18,7 +17,7 @@ const (
 var imageFixture = Image{Data: []byte("img")}
 
 func TestRegisteredRuntimeExecutesVQAProgram(t *testing.T) {
-	fixture := modelrecipetest.NewCapability(t, "vqa-model", modelrecipe.VQADefinition)
+	fixture := modelrecipetest.NewCapability(t, "vqa-model", recipe.TaskVQA)
 	if err := RegisterRuntime(fixture.Runtime, fixture.Model,
 		func(_ context.Context, image Image, question string) (string, error) {
 			if string(image.Data) != string(imageFixture.Data) || question != questionFixture {

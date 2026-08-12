@@ -25,7 +25,7 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "scalar-model")
 	testutil.PublishArtifact(t, store, modelID)
-	definition, err := modelrecipe.ImageGenDefinition(modelID)
+	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskImageGen, modelID)
 	if err != nil {
 		t.Fatal(err)
 	}

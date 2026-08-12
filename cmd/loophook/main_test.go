@@ -16,6 +16,12 @@ func TestStopDecision(t *testing.T) {
 		{"retry valve", true, false, false, false, true, true, false},
 		{"fresh stop", false, true, false, false, true, true, false},
 		{"gate in flight", false, false, true, false, true, true, false},
+		// loop-hardening-7 accepted residual: during the gate's go-run COMPILE
+		// phase gateRunning is momentarily false, so a wait-turn BLOCKS on dirty
+		// .go (safe direction). Recovery is the "retry valve" row above -- the
+		// next attempt carries stop_hook_active and allows. This pair pins the
+		// self-healing that makes the compile-gap safe without a stale-marker fix.
+		{"gate compile-window (pre-retry)", false, false, false, false, true, true, true},
 		{"plan complete", false, false, false, true, true, true, false},
 		{"clean, nothing armed", false, false, false, false, false, false, false},
 		{"uncommitted go", false, false, false, false, true, false, true},

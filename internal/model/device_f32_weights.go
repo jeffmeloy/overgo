@@ -13,8 +13,6 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-type DeviceF32Tensor = DeviceTensor
-
 // DeviceF32Weights: owns host-dequantized F32 weights in one CUDA context
 // correctness bridge used before native quantized CUDA matmul
 type DeviceF32Weights struct {
@@ -89,18 +87,6 @@ func (w *DeviceF32Weights) Input(
 	return node, value.Pointer, nil
 }
 
-func (w *DeviceF32Weights) LayerGraphInputs(
-	builder *tensor.Builder,
-	info LayerWeights,
-) (LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	return BindDeviceLayerGraphInputs(builder, info, func(
-		builder *tensor.Builder,
-		info gguf.TensorInfo,
-	) (*tensor.Tensor, driver.DevicePtr, error) {
-		return w.Input(builder, info.Name)
-	})
-}
-
 // BindDeviceLayerGraphInputs: shared layer-catalog binding.
 func BindDeviceLayerGraphInputs(
 	builder *tensor.Builder,
@@ -129,9 +115,9 @@ func BindDeviceLayerGraphInputs(
 	return result, feeds, nil
 }
 
-func (w *DeviceF32Weights) Lookup(name string) (DeviceF32Tensor, bool) {
+func (w *DeviceF32Weights) Lookup(name string) (DeviceTensor, bool) {
 	if w == nil {
-		return DeviceF32Tensor{}, false
+		return DeviceTensor{}, false
 	}
 	return w.deviceTensorStore.Lookup(name)
 }

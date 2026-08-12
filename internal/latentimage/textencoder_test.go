@@ -110,7 +110,7 @@ func TestEncoderForwardSyntheticFinite(t *testing.T) {
 		st = st*6364136223846793005 + 1442695040888963407
 		embed[i] = (float64(st>>11)/float64(1<<53) - 0.5) * 0.2
 	}
-	out, err := encodeSelected(e, e.RMSNormEps, seq, e.Intermediate, append([]float64(nil), embed...), storeLayerAt(e, store))
+	out, err := encodeSelected(e, e.RMSNormEps, seq, e.Intermediate, append([]float64(nil), embed...), storeLayerAt(e, store), nil)
 	if err != nil {
 		t.Fatalf("encodeSelected: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestEncoderForwardSyntheticFinite(t *testing.T) {
 		t.Fatal("encoder output not finite")
 	}
 	// determinism
-	out2, err := encodeSelected(e, e.RMSNormEps, seq, e.Intermediate, append([]float64(nil), embed...), storeLayerAt(e, store))
+	out2, err := encodeSelected(e, e.RMSNormEps, seq, e.Intermediate, append([]float64(nil), embed...), storeLayerAt(e, store), nil)
 	if err != nil {
 		t.Fatalf("encodeSelected(2): %v", err)
 	}

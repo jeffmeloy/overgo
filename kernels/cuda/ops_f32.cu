@@ -3294,6 +3294,7 @@ extern "C" __global__ void attention_f32(
         const float * relative_bias,
 		const float * sinks,
 		const float * block_ids,
+		const float * key_bias,
         float * output,
         unsigned int key_width,
         unsigned int value_width,
@@ -3405,6 +3406,7 @@ extern "C" __global__ void attention_f32(
         if (softcap > 0.0f) {
             score = softcap * tanhf(score / softcap);
         }
+        if (key_bias != nullptr) score += key_bias[key_token];
         maximum = fmaxf(maximum, score);
     }
 
@@ -3452,6 +3454,7 @@ extern "C" __global__ void attention_f32(
         if (softcap > 0.0f) {
             score = softcap * tanhf(score / softcap);
         }
+        if (key_bias != nullptr) score += key_bias[key_token];
         const float probability = expf(score - maximum);
         const unsigned int value_offset =
             ((sequence * key_value_tokens + key_token) * key_value_heads + key_value_head) * value_width;
@@ -3529,6 +3532,7 @@ extern "C" __global__ void attention_online_f32(
         const float * relative_bias,
         const float * sinks,
         const float * block_ids,
+        const float * key_bias,
         float * output,
         unsigned int key_width,
         unsigned int value_width,
@@ -3639,6 +3643,7 @@ extern "C" __global__ void attention_online_f32(
                     score += relative_bias[bucket * query_heads + query_head];
                 }
                 if (softcap > 0.0f) score = softcap * tanhf(score / softcap);
+                if (key_bias != nullptr) score += key_bias[key_token];
                 const float next_maximum = fmaxf(shared_maximum, score);
                 shared_alpha = expf(shared_maximum - next_maximum);
                 shared_beta = expf(score - next_maximum);

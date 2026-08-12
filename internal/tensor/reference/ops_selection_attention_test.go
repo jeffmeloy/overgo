@@ -34,14 +34,14 @@ func TestAttentionUsesLogicalTokensWithinCapacity(t *testing.T) {
 	capacityValue := Value{Shape: tensor.MustShape(1, 1, 4), Data: []float32{10, 20, -100, -100}}
 	shape := tensor.MustShape(1, 1, 1)
 	compact, err := attention(
-		shape, query, compactKey, compactValue, nil, nil, nil,
+		shape, query, compactKey, compactValue, nil, nil, nil, nil,
 		tensor.AttentionAttributes{Scale: 1, Causal: true, QueryStart: 1},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	capacity, err := attention(
-		shape, query, capacityKey, capacityValue, nil, nil, nil,
+		shape, query, capacityKey, capacityValue, nil, nil, nil, nil,
 		tensor.AttentionAttributes{
 			Scale: 1, Causal: true, QueryStart: 1, KeyValueTokens: 2,
 		},

@@ -414,17 +414,26 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		if !ok {
 			return Value{}, errors.New("invalid attention attributes")
 		}
-		var bias, sinks, blockIDs *Value
-		if len(inputs) == 4 {
-			if attributes.HasBlockMask {
-				blockIDs = &inputs[3]
-			} else if attributes.HasSinks {
-				sinks = &inputs[3]
-			} else {
-				bias = &inputs[3]
-			}
+		// Optional inputs follow q/k/v from index 3 in a fixed order:
+		// (bias|sinks), blockIDs, keyBias -- each present per its attribute flag.
+		var bias, sinks, blockIDs, keyBias *Value
+		idx := 3
+		if attributes.RelativeBuckets != 0 && idx < len(inputs) {
+			bias = &inputs[idx]
+			idx++
+		} else if attributes.HasSinks && idx < len(inputs) {
+			sinks = &inputs[idx]
+			idx++
 		}
-		return attention(node.Shape, inputs[0], inputs[1], inputs[2], bias, sinks, blockIDs, attributes)
+		if attributes.HasBlockMask && idx < len(inputs) {
+			blockIDs = &inputs[idx]
+			idx++
+		}
+		if attributes.HasKeyBias && idx < len(inputs) {
+			keyBias = &inputs[idx]
+			idx++
+		}
+		return attention(node.Shape, inputs[0], inputs[1], inputs[2], bias, sinks, blockIDs, keyBias, attributes)
 	case tensor.OpConcat:
 		attributes, ok := node.Attrs.(tensor.ConcatAttributes)
 		if !ok {

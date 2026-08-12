@@ -39,7 +39,7 @@ func TestEncoderProgramMatchesHostReference(t *testing.T) {
 	const seq = 5
 	embed := syntheticEncoderEmbed(seq, e.Hidden)
 
-	host, err := encodeSelected(e, e.RMSNormEps, seq, e.Intermediate, append([]float64(nil), embed...), storeLayerAt(e, store))
+	host, err := encodeSelected(e, e.RMSNormEps, seq, e.Intermediate, append([]float64(nil), embed...), storeLayerAt(e, store), nil)
 	if err != nil {
 		t.Fatalf("host encodeSelected: %v", err)
 	}

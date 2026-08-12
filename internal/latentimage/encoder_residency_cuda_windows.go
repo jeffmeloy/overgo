@@ -123,6 +123,9 @@ func (re *ResidentEncoder) Encode(embedRows []float32) (*SelectedHiddenStates, e
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		p.Embed: {Shape: p.Embed.Shape, Data: embedRows},
 	}
+	if p.keyBias != nil {
+		hostFeeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyBiasData}
+	}
 	results, err := re.exec.ExecuteCompiledWithDeviceFeeds(re.ctx, re.compiled, hostFeeds, re.weightPtrs)
 	if err != nil {
 		return nil, fmt.Errorf("resident encode: %w", err)

@@ -200,8 +200,11 @@ func encHeadRMSAndRope(arr []float64, normW []float32, seq, heads, headDim int, 
 
 // causalGQA runs one causal grouped-query attention over the full sequence:
 // each query at position i attends to keys j<=i (lower-triangular), scale
-// 1/sqrt(headDim), softmax in f64. Returns [seq, heads*headDim].
-func causalGQA(q, k, v []float64, seq, heads, kvHeads, headDim int) []float64 {
+// 1/sqrt(headDim), softmax in f64. keyMask (nil = all-attended, else len seq)
+// drops an unattended KEY entirely from every query's softmax -- the f64 oracle
+// form of adaptive runtime_causal_gqa_masked_bf16 (attentionKeyAllowed: a masked
+// key is excluded from max, sum, and output). Returns [seq, heads*headDim].
+func causalGQA(q, k, v []float64, seq, heads, kvHeads, headDim int, keyMask []bool) []float64 {
 	group := heads / kvHeads
 	scale := 1.0 / math.Sqrt(float64(headDim))
 	out := make([]float64, seq*heads*headDim)
@@ -213,6 +216,9 @@ func causalGQA(q, k, v []float64, seq, heads, kvHeads, headDim int) []float64 {
 				qvec := q[(i*heads+hh)*headDim : (i*heads+hh)*headDim+headDim]
 				mx := math.Inf(-1)
 				for j := 0; j <= i; j++ {
+					if keyMask != nil && !keyMask[j] {
+						continue
+					}
 					kvec := k[(j*kvHeads+kvh)*headDim : (j*kvHeads+kvh)*headDim+headDim]
 					var dot float64
 					for c := 0; c < headDim; c++ {
@@ -226,12 +232,18 @@ func causalGQA(q, k, v []float64, seq, heads, kvHeads, headDim int) []float64 {
 				}
 				var sum float64
 				for j := 0; j <= i; j++ {
+					if keyMask != nil && !keyMask[j] {
+						continue
+					}
 					e := math.Exp(scores[j] - mx)
 					scores[j] = e
 					sum += e
 				}
 				dst := out[(i*heads+hh)*headDim : (i*heads+hh)*headDim+headDim]
 				for j := 0; j <= i; j++ {
+					if keyMask != nil && !keyMask[j] {
+						continue
+					}
 					p := scores[j] / sum
 					vvec := v[(j*kvHeads+kvh)*headDim : (j*kvHeads+kvh)*headDim+headDim]
 					for c := 0; c < headDim; c++ {
@@ -246,7 +258,7 @@ func causalGQA(q, k, v []float64, seq, heads, kvHeads, headDim int) []float64 {
 
 // encLayerForward runs one Qwen3 decoder layer in place on x [seq, Hidden],
 // returning the mutated residual stream. inter is the MLP intermediate width.
-func encLayerForward(e TextEncoderSpec, eps float64, x []float64, seq, inter int, w *encLayerWeights, cos, sin []float64) []float64 {
+func encLayerForward(e TextEncoderSpec, eps float64, x []float64, seq, inter int, w *encLayerWeights, cos, sin []float64, keyMask []bool) []float64 {
 	h := e.Hidden
 	qDim := e.Heads * e.HeadDim
 	kvDim := e.KVHeads * e.HeadDim
@@ -257,7 +269,7 @@ func encLayerForward(e TextEncoderSpec, eps float64, x []float64, seq, inter int
 	v := dense(n1, w.vProj, nil, seq, h, kvDim)
 	encHeadRMSAndRope(q, w.qNorm, seq, e.Heads, e.HeadDim, eps, cos, sin)
 	encHeadRMSAndRope(k, w.kNorm, seq, e.KVHeads, e.HeadDim, eps, cos, sin)
-	attn := causalGQA(q, k, v, seq, e.Heads, e.KVHeads, e.HeadDim)
+	attn := causalGQA(q, k, v, seq, e.Heads, e.KVHeads, e.HeadDim, keyMask)
 	ao := dense(attn, w.oProj, nil, seq, qDim, h)
 	for i := range x {
 		x[i] += ao[i]
@@ -278,13 +290,16 @@ func encLayerForward(e TextEncoderSpec, eps float64, x []float64, seq, inter int
 // encodeSelected runs the full encoder over the embedded token rows, capturing
 // the tapped hidden states. embedRows is [seq, Hidden] f64; layerAt supplies one
 // layer's weights on demand (streamed or from a store); inter is the MLP width.
-func encodeSelected(e TextEncoderSpec, eps float64, seq, inter int, embedRows []float64, layerAt func(l int) (*encLayerWeights, error)) (*SelectedHiddenStates, error) {
+func encodeSelected(e TextEncoderSpec, eps float64, seq, inter int, embedRows []float64, layerAt func(l int) (*encLayerWeights, error), keyMask []bool) (*SelectedHiddenStates, error) {
 	slots, err := captureSlots(e)
 	if err != nil {
 		return nil, err
 	}
 	if len(embedRows) != seq*e.Hidden {
 		return nil, fmt.Errorf("textencoder: embed rows len=%d want %d ([%d,%d])", len(embedRows), seq*e.Hidden, seq, e.Hidden)
+	}
+	if keyMask != nil && len(keyMask) != seq {
+		return nil, fmt.Errorf("textencoder: key mask len=%d want seq=%d", len(keyMask), seq)
 	}
 	h := e.Hidden
 	L := len(e.SelectLayers)
@@ -298,7 +313,7 @@ func encodeSelected(e TextEncoderSpec, eps float64, seq, inter int, embedRows []
 		if err != nil {
 			return nil, fmt.Errorf("textencoder: layer %d: %w", l, err)
 		}
-		x = encLayerForward(e, eps, x, seq, inter, w, cos, sin)
+		x = encLayerForward(e, eps, x, seq, inter, w, cos, sin, keyMask)
 		if slot, ok := slots[l+1]; ok {
 			for tok := 0; tok < seq; tok++ {
 				copy(out.Data[(tok*L+slot)*h:(tok*L+slot)*h+h], x[tok*h:tok*h+h])
@@ -319,8 +334,20 @@ func encodeSelected(e TextEncoderSpec, eps float64, seq, inter int, embedRows []
 // embedding rows) and returns the tapped hidden states. Telemetry/structural:
 // the values are finite and correctly shaped, NOT bit-exact vs the CUDA path.
 func EncodeSelectedLayers(modelDir string, spec *Spec, promptIDs []int) (*SelectedHiddenStates, error) {
+	return EncodeSelectedLayersMasked(modelDir, spec, promptIDs, nil)
+}
+
+// EncodeSelectedLayersMasked is EncodeSelectedLayers with an attention key mask:
+// keyMask[i]==false drops token i as an unattended KEY (the Krea pad rows). nil
+// keyMask == the maskless path. This is the f64 host oracle for the MASKED
+// device encoder (CompileEncoderProgramMasked), so masked host==device parity is
+// well-defined.
+func EncodeSelectedLayersMasked(modelDir string, spec *Spec, promptIDs []int, keyMask []bool) (*SelectedHiddenStates, error) {
 	if len(promptIDs) == 0 {
 		return nil, fmt.Errorf("textencoder: empty prompt")
+	}
+	if keyMask != nil && len(keyMask) != len(promptIDs) {
+		return nil, fmt.Errorf("textencoder: key mask len=%d want %d", len(keyMask), len(promptIDs))
 	}
 	e := spec.TextEncoder
 	if e.RMSNormEps <= 0 {
@@ -352,7 +379,7 @@ func EncodeSelectedLayers(modelDir string, spec *Spec, promptIDs []int) (*Select
 	layerAt := func(l int) (*encLayerWeights, error) {
 		return readEncoderLayer(src, e, inter, l)
 	}
-	return encodeSelected(e, e.RMSNormEps, seq, inter, embedRows, layerAt)
+	return encodeSelected(e, e.RMSNormEps, seq, inter, embedRows, layerAt, keyMask)
 }
 
 // encoderCheckpointIntermediate reads the MLP intermediate width from layer 0's

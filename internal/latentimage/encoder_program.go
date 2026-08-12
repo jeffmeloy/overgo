@@ -62,6 +62,13 @@ type EncoderProgram struct {
 
 	Embed *tensor.Tensor // (Hidden, seq)  host-fed per-token embedding rows
 
+	// keyBias, when non-nil, is a graph Input [seq] carrying the additive per-key
+	// pad mask (0.0 attended, encoderPadKeyBias for a pad KEY). keyBiasData holds
+	// its constant per-prompt values, fed automatically by RunHostFeed / the
+	// resident Encode. Absent (nil) => the maskless-causal program (unchanged).
+	keyBias     *tensor.Tensor
+	keyBiasData []float32
+
 	weightInputs map[string]*tensor.Tensor
 
 	// Selected[i] is the residual stream captured after decoder layer
@@ -90,10 +97,35 @@ func (b encWeightBinder) input(name string, dimensions ...uint64) *tensor.Tensor
 	return node
 }
 
-// CompileEncoderProgram builds the Qwen3-VL selected-layer encoder graph for a
-// sequence of seq tokens. matmulType selects rank-2 weight storage (dtype.F32
-// exact reference/CUDA parity path, dtype.BF16 device resident path).
+// encoderPadKeyBias is the additive score bias for a pad KEY: a query's dot with
+// a pad key is driven to ~-inf so it underflows to 0 probability. Mirrors the
+// adaptive runtime_causal_gqa_masked_bf16 sentinel (-3.402823466e38) so the
+// masked softmax result is identical to adaptive's replace-with-lowest form.
+const encoderPadKeyBias = float32(-3.402823466e38)
+
+// CompileEncoderProgram builds the maskless-causal Qwen3-VL selected-layer
+// encoder graph for a sequence of seq tokens (unchanged behavior). matmulType
+// selects rank-2 weight storage (dtype.F32 exact reference/CUDA parity path,
+// dtype.BF16 device resident path).
 func CompileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType dtype.Type) (*EncoderProgram, error) {
+	return compileEncoderProgram(e, eps, seq, matmulType, nil)
+}
+
+// CompileEncoderProgramMasked builds the encoder graph with an additive per-key
+// pad mask applied in the causal GQA: mask[i]==false marks token i as an
+// unattended KEY (the Krea [prefix][prompt][pad][suffix] pad region). len(mask)
+// must equal seq. This makes the selected hidden states golden-exact against the
+// adaptive masked encoder (runtime_causal_gqa_masked_bf16). The same graph runs
+// on the reference backend (host oracle) and the CUDA generic executor (device).
+func CompileEncoderProgramMasked(e TextEncoderSpec, eps float32, seq int, matmulType dtype.Type, mask []bool) (*EncoderProgram, error) {
+	if len(mask) != seq {
+		return nil, fmt.Errorf("encoder program: mask len=%d want seq=%d", len(mask), seq)
+	}
+	return compileEncoderProgram(e, eps, seq, matmulType, mask)
+}
+
+// compileEncoderProgram is the shared builder; mask==nil => maskless causal.
+func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType dtype.Type, mask []bool) (*EncoderProgram, error) {
 	if eps <= 0 {
 		return nil, fmt.Errorf("encoder program: eps must be positive, got %g", eps)
 	}
@@ -138,6 +170,18 @@ func CompileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 	p.Embed = b.Input("encoder_embed", dtype.F32, tensor.MustShape(h, uint64(seq)))
 	hidden := p.Embed
 
+	// Optional additive per-key pad mask: build the [seq] bias input + its
+	// constant values (0.0 attended, encoderPadKeyBias for a pad key).
+	if mask != nil {
+		p.keyBias = b.Input("encoder_key_bias", dtype.F32, tensor.MustShape(uint64(seq)))
+		p.keyBiasData = make([]float32, seq)
+		for i, attended := range mask {
+			if !attended {
+				p.keyBiasData[i] = encoderPadKeyBias
+			}
+		}
+	}
+
 	// selected outputs, ordered by their capture slot.
 	p.Selected = make([]*tensor.Tensor, len(e.SelectLayers))
 	p.CaptureAfter = make([]int, len(e.SelectLayers))
@@ -160,7 +204,12 @@ func CompileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 		q = b.RoPENeoX(q, positions, uint32(headDim), theta)
 		k = b.RoPENeoX(k, positions, uint32(headDim), theta)
 
-		attn := b.Attention(q, k, v, scale, true) // causal GQA
+		var attn *tensor.Tensor
+		if p.keyBias != nil {
+			attn = b.AttentionWithKeyBias(q, k, v, p.keyBias, scale, true) // causal GQA + pad-key mask
+		} else {
+			attn = b.Attention(q, k, v, scale, true) // causal GQA
+		}
 		attn = b.Reshape(attn, qDim, uint64(seq))
 		attn = b.MulMat(bind.input(prefix+"self_attn.o_proj.weight", qDim, h), attn)
 		hidden = b.Add(hidden, attn)
@@ -217,6 +266,9 @@ func (p *EncoderProgram) RunHostFeed(run GraphRunner, weightAt EncoderFeed, embe
 		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
 	}
 	feeds[p.Embed] = reference.Value{Shape: p.Embed.Shape, Data: embedRows}
+	if p.keyBias != nil {
+		feeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyBiasData}
+	}
 
 	results, err := run(append([]*tensor.Tensor(nil), p.Selected...), feeds)
 	if err != nil {

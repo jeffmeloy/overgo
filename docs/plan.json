@@ -738,13 +738,14 @@
         },
         {
           "id": "cuda-serving",
-          "title": "device path through generic executor; oracle parity; at-or-below adaptive (~162s warm/24GiB); persistent residency. PROGRESS: denoise-terminal lane green (flow_condition/flow_head/euler device==oracle); multi-axis rope (per-section theta 64/5e6/T,32/1e4/H,32/1e4/W) now on the generic executor via RoPENeoX-per-section composition, no family kernel, device==host 6e-7 on the real plan (routedlm.RopePlan.DeviceApply; ladder wired 4->5). BLOCKED-EXTERNAL-PREREQ: the 42-layer branch-routed MoT BODY oracle parity (=> ship-bar case) cannot be verified in-repo -- (1) edit lane needs the edit SOURCE image PNG, NOT in the repo (only generation outputs present); (2) generation lane needs a torch-matched randn(seed=42) initial latent (TorchCUDARandn not ported). UNBLOCK: user supplies the edit source image, OR decides to port TorchCUDARandn(seed=42). Same root cause as prefix-layer-stack.",
+          "title": "device path through generic executor; oracle parity; at-or-below adaptive (~162s warm/24GiB); persistent residency. PROGRESS: denoise-terminal lane green (flow_condition/flow_head/euler device==oracle); multi-axis rope (per-section theta 64/5e6/T,32/1e4/H,32/1e4/W) now on the generic executor via RoPENeoX-per-section composition, no family kernel, device==host 6e-7 on the real plan (routedlm.RopePlan.DeviceApply; ladder wired 4-\u003e5). BLOCKED-EXTERNAL-PREREQ: the 42-layer branch-routed MoT BODY oracle parity (=\u003e ship-bar case) cannot be verified in-repo -- (1) edit lane needs the edit SOURCE image PNG, NOT in the repo (only generation outputs present); (2) generation lane needs a torch-matched randn(seed=42) initial latent (TorchCUDARandn not ported). UNBLOCK: user supplies the edit source image, OR decides to port TorchCUDARandn(seed=42). Same root cause as prefix-layer-stack.",
           "status": "blocked-external-prereq"
         },
         {
           "id": "recipe-activation",
           "title": "generation recipe activation + status round-trip; real-image verification per multimodal directive",
-          "status": "open"
+          "status": "open",
+          "verify": "go test ./internal/sensenovarecipe/"
         },
         {
           "id": "training-leg",

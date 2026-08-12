@@ -480,13 +480,14 @@
         {
           "id": "qwen35-hybrid-layer-backward",
           "title": "qwen3.5 hybrid decoder-layer backward: GDN linear_attention layers (GDN VJP) + gated attn output + full_attention dense layers (existing dense VJPs), FD-verified as a composed layer",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/hostmath/ -run TestHybridDecoderLayer -count=1"
         },
         {
           "id": "train-grad-parity",
           "title": "tiny qwen3.5-hybrid torch golden (python) + gradient parity vs it + a real training step (loss decrease) on the hybrid model",
-          "status": "open"
+          "status": "open",
+          "verify": "go test ./internal/hostmath/ -run 'TestHybridDecoderLayerGradParity|TestHybridDecoderLayerTrainStep' -count=1"
         },
         {
           "id": "performance-leg",

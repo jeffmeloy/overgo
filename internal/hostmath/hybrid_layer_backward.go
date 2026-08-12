@@ -52,12 +52,15 @@ func attentionMixBackward(x []float32, w AttentionMixWeights, d AttentionMixDims
 	for i := range dqs {
 		dqs[i] = float32(float64(dqs[i]) * c.scale)
 	}
+	rd := RopeWidth(d.RopeDim, hd)
 	for t := 0; t < T; t++ {
 		for h := 0; h < heads; h++ {
-			RotaryHalfBackward(dqs[(t*heads+h)*hd:(t*heads+h+1)*hd], c.invFreq, t)
+			base := (t*heads + h) * hd
+			RotaryHalfBackward(dqs[base:base+rd], c.invFreq, t)
 		}
 		for h := 0; h < kv; h++ {
-			RotaryHalfBackward(dkr[(t*kv+h)*hd:(t*kv+h+1)*hd], c.invFreq, t)
+			base := (t*kv + h) * hd
+			RotaryHalfBackward(dkr[base:base+rd], c.invFreq, t)
 		}
 	}
 	dqProj, dQNorm := rmsBack(c.qProj, w.QNorm, dqs, T*heads, hd, d.Eps)

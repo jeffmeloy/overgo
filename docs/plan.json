@@ -607,17 +607,31 @@
         {
           "id": "train-scale-device-backward",
           "title": "SHARED training-scale path: DEVICE (CUDA, cgo-free) backward kernels for the training hot path (host-only today); bit-parity vs the FD-verified host backward as golden (gemma3n_backward.go + hostmath GDN/hybrid VJPs). Reuse the existing cudaScope/PTX contract; one kernel set serves qwen35 GDN + e4b mixed-window.",
-          "status": "open"
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/devicemath/ -run 'GatedDeltaNetBackwardMatchesKernel|WindowedCausalAttentionBackwardDeviceMatchesHost' -count=1"
         },
         {
           "id": "train-scale-rope-reconcile",
           "title": "SHARED training-scale path: reconcile serving-vs-training rope (partial-rope / keyLength != headDim) so the training forward matches the serving executor exactly; verify by grad-parity of the affected layers against the serving rope convention.",
-          "status": "open"
+          "status": "open",
+          "verify": "go test ./internal/hostmath/ ./internal/tensor/reference/ -run 'TrainingRopeMatchesServingNeoX|HybridDecoderLayerBackwardFD' -count=1"
         },
         {
           "id": "performance-leg",
           "title": "head-to-head vs adaptive serving, at-or-below -- MEMORY LEVER LANDED (same native-dtype BF16 prefill): E4B peak 41.74-\u003e21.79 GiB (-47.8pct), decode 66.6-\u003e20.05 ms/tok (3.3x, was memory-pressured near-OOM), goldens 3/3 exact. Remaining: head-to-head vs adaptive. -- HEAD-TO-HEAD DONE: overgo 18.5 ms/tok device vs adaptive 341 ms/tok host-only (~18x); adaptive has NO E4B device path -- capability win",
           "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "hybrid-device-train-integration",
+      "title": "hybrid device-training integration: compose the full gemma3n/qwen35 layer BACKWARD on device (assemble the GDN-backward kernel 20d4232 + windowed-attn-backward 5d4ceae + AltUp/Laurel/PLE via existing device Linear/RMSNorm ops) into a resident device training loop for the HYBRID models, bit-parity vs the host assembled-layer golden (inference/gemma3n_backward.go + hostmath hybrid VJPs). Extends the densecausal resident device training (ed95d9d) to the hybrid arch.",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "hybrid device-training integration: compose the full gemma3n/qwen35 layer BACKWARD on device (assemble the GDN-backward kernel 20d4232 + windowed-attn-backward 5d4ceae + AltUp/Laurel/PLE via existing device Linear/RMSNorm ops) into a resident device training loop for the HYBRID models, bit-parity vs the host assembled-layer golden (inference/gemma3n_backward.go + hostmath hybrid VJPs). Extends the densecausal resident device training (ed95d9d) to the hybrid arch.",
+          "status": "open"
         }
       ]
     },

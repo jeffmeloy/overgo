@@ -90,6 +90,30 @@ func TestHybridDecoderLayerBackwardFD(t *testing.T) {
 			}
 		})
 	})
+
+	// Partial rope (qwen3.5 head_dim*partial_rotary_factor): head_dim 8, rotary
+	// width 4 -> only the first 4 of each head's 8 dims rotate, the tail passes
+	// through. FD-checks the analytic backward routes cotangents through the
+	// partial-rope RotaryHalfBackward correctly.
+	t.Run("full_attention_partial_rope", func(t *testing.T) {
+		const phd, ropeDim = 8, 4 // head_dim, partial rotary width
+		heads, kv := 1, 1
+		qDim, kvDim := heads*phd, kv*phd // 8, 8 (== hidden)
+		attn := AttentionMixWeights{
+			Wq: rs(qDim * hidden), Wk: rs(kvDim * hidden), Wv: rs(kvDim * hidden), Wo: rs(hidden * qDim),
+			QNorm: rs(phd), KNorm: rs(phd),
+		}
+		w := HybridLayerWeights{InputNorm: rs(hidden), PostNorm: rs(hidden), IsLinear: false, Attn: attn, MLP: mlp}
+		d := HybridLayerDims{Tokens: T, Hidden: hidden, Inter: inter, Eps: eps,
+			Attn: AttentionMixDims{Tokens: T, Hidden: hidden, Heads: heads, KVHeads: kv, HeadDim: phd, RopeDim: ropeDim, RopeTheta: 1000000, Eps: eps}}
+		run(t, w, d, nil, func(g HybridDecoderLayerGrads) []fdParam {
+			return []fdParam{
+				{"dInputNorm", w.InputNorm, g.DInputNorm}, {"dPostNorm", w.PostNorm, g.DPostNorm},
+				{"dAttn.Wq", w.Attn.Wq, g.DAttn.Wq}, {"dAttn.Wk", w.Attn.Wk, g.DAttn.Wk}, {"dAttn.Wv", w.Attn.Wv, g.DAttn.Wv},
+				{"dAttn.Wo", w.Attn.Wo, g.DAttn.Wo}, {"dAttn.QNorm", w.Attn.QNorm, g.DAttn.QNorm}, {"dAttn.KNorm", w.Attn.KNorm, g.DAttn.KNorm},
+			}
+		})
+	})
 }
 
 type fdParam struct {

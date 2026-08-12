@@ -12,8 +12,18 @@ Go on the server, rendered with our vanilla-JS thin client (canvas/SVG, no plotl
 Python, torch, or transformers anywhere**. See §5A.
 
 Worktree: `C:\Users\jeffm\overgo_gui` (branch `overgo_gui`). Work and commits land here;
-`master` has periodically absorbed the branch (last unification at `d2f2de8`), so the branch
-tracks master plus in-flight GUI work.
+The branch tracks master plus in-flight GUI work; master is merged in periodically (latest at
+`bc47a24`, bringing densecausal device training + capability recipe runtime).
+
+> **Merge note (operational):** on this Windows worktree the repo's `gate -merge` step fails on
+> two master-side cross-platform artifacts unrelated to the GUI: (1) stale-CRLF checkouts of
+> byte-hashed assets — the chat-template testdata is covered by `.gitattributes eol=lf` but only
+> needs a re-checkout, and `*.ptx` is **not** covered so it checks out CRLF; (2) a genuine
+> `kernel-manifest` content mismatch — `vector_add.ptx`'s recorded SHA in `manifest_generated.go`
+> doesn't match the committed `.ptx` even as LF. Both are master/CUDA-infra concerns (owner: the
+> CUDA side); the merge content itself is conflict-free, so `bc47a24` was finalized with a plain
+> `git merge` and verified (server package builds + tests green). Fix upstream: add `*.ptx` (and
+> other manifest-hashed assets) to `.gitattributes`, and regenerate the kernel manifest.
 
 ---
 

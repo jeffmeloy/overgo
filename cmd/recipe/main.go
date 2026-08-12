@@ -283,18 +283,7 @@ func activateCapability(
 	if err != nil {
 		return err
 	}
-	if _, _, err := modelrecipe.PublishCandidate(
-		ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
-	); err != nil {
-		return fmt.Errorf("publish candidate: %w", err)
-	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "recipe/validated/"+definition.ID.String(), definition,
-		recipe.StatusValidated, nil, nil,
-	); err != nil {
-		return fmt.Errorf("transition validated: %w", err)
-	}
-	if err := promoteVerified(ctx, store, definition, verification, reason, nil); err != nil {
+	if err := activateDefinition(ctx, store, definition, verification, reason); err != nil {
 		return err
 	}
 	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
@@ -432,7 +421,21 @@ func activate(
 	if err != nil {
 		return err
 	}
-	// resumable lifecycle: pick up from wherever this definition already is
+	if err := activateDefinition(ctx, store, definition, verification, reason); err != nil {
+		return err
+	}
+	fmt.Printf("activated %s\n  model      %s\n  definition %s\n  recipe     %s\n  reason     %s\n",
+		path, modelID, resolved.Document.ID, definition.ID, reason)
+	return nil
+}
+
+func activateDefinition(
+	ctx context.Context,
+	store artifact.Repository,
+	definition recipe.Definition,
+	verification modelrecipe.Verification,
+	reason string,
+) error {
 	state, published, err := modelrecipe.Status(ctx, store, definition.ID)
 	if err != nil {
 		return err
@@ -456,10 +459,9 @@ func activate(
 	}
 	switch state {
 	case recipe.StatusValidated:
-		// activation supersedes any current active recipe for this model+task
 		var supersedes *artifact.ID
 		if current, active, err := modelrecipe.ActiveRecord(
-			ctx, store, modelID, recipe.TaskInference,
+			ctx, store, definition.Model, definition.Task,
 		); err == nil && active && current.Definition.ID != definition.ID {
 			id := current.Definition.ID
 			supersedes = &id
@@ -471,8 +473,6 @@ func activate(
 	default:
 		return fmt.Errorf("recipe %s is %q; activation resumes only from candidate or validated", definition.ID, state)
 	}
-	fmt.Printf("activated %s\n  model      %s\n  definition %s\n  recipe     %s\n  reason     %s\n",
-		path, modelID, resolved.Document.ID, definition.ID, reason)
 	return nil
 }
 

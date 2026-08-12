@@ -363,7 +363,7 @@ func activate(
 	if err != nil {
 		return err
 	}
-	document, err := modelrecipe.NewModelDefinitionFromGGUF(file, profileDocument, inventory.TensorInventory)
+	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	if err != nil {
 		return err
 	}

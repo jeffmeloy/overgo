@@ -92,7 +92,7 @@ func publishActiveGGUFRecipe(
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, err := modelrecipe.NewModelDefinitionFromGGUF(file, profileDocument, inventory.TensorInventory)
+	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -97,7 +97,11 @@ func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, err := NewModelDefinitionFromGGUF(file, profileDocument, inventory.TensorInventory)
+	spec, err := model.ReadSpecWithProfile(file, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +116,11 @@ func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondDocument, err := NewModelDefinitionFromGGUF(secondFile, profileDocument, secondInventory.TensorInventory)
+	secondSpec, err := model.ReadSpecWithProfile(secondFile, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondDocument, err := NewModelDefinitionDocument(profileDocument, secondInventory.TensorInventory, secondSpec)
 	if err != nil {
 		t.Fatal(err)
 	}

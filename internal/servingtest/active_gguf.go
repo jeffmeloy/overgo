@@ -61,9 +61,7 @@ func ResolveActiveGGUFWithSession(
 		_ = file.Close()
 		return modelrecipe.LoadedProgram{}, err
 	}
-	document, err := modelrecipe.NewModelDefinitionFromGGUF(
-		file, profileDocument, inventory.TensorInventory,
-	)
+	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	closeErr := file.Close()
 	if err != nil || closeErr != nil {
 		return modelrecipe.LoadedProgram{}, errors.Join(err, closeErr)

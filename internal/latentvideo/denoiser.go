@@ -379,6 +379,25 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 	textLen := uint64(c.TextLen)
 	seq := uint64(geometry.Seq)
 	program := &DenoiserProgram{Config: c, Geometry: geometry, weights: weights, matmulWeightType: matmulWeightType}
+	options := model.ConditionedDiffusionBlockOptions{
+		Dim: d, Heads: heads, FFNDim: uint64(c.FFNDim), Epsilon: float32(c.Eps),
+		RotaryBase:            float32(c.Policy.RotaryFrequencyBase),
+		AxisChannels:          model.ThreeAxisRotaryChannels(headWidth),
+		RoundAttentionStorage: precision.RoundAttentionStorage,
+	}
+	for axis := range options.AxisPositions {
+		options.AxisPositions[axis] = make([]uint32, geometry.Seq)
+	}
+	for token := 0; token < geometry.Seq; token++ {
+		spatial := geometry.Grid[1] * geometry.Grid[2]
+		options.AxisPositions[0][token] = uint32(token / spatial)
+		options.AxisPositions[1][token] = uint32(token % spatial / geometry.Grid[2])
+		options.AxisPositions[2][token] = uint32(token % geometry.Grid[2])
+	}
+	diffusion, err := model.CompileConditionedDiffusionProgram(options)
+	if err != nil {
+		return nil, err
+	}
 
 	// Context graph: per-block cross-attention K/V from the text context.
 	contextBuilder := tensor.NewBuilder()
@@ -387,10 +406,8 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 	program.contextInput = contextBuilder.Input("context", dtype.F32, tensor.MustShape(d, textLen))
 	for layer := 0; layer < c.NumLayers; layer++ {
 		prefix := denoiserBlockPrefix(layer) + "cross_attn."
-		key, value, err := model.BuildConditionedDiffusionCrossContext(
-			contextBuilder, program.contextInput,
-			crossAttentionContextWeights(contextBind, prefix, d),
-			heads, float32(c.Eps),
+		key, value, err := diffusion.BuildCrossContext(
+			contextBuilder, program.contextInput, crossAttentionContextWeights(contextBind, prefix, d),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("denoiser program context layer %d: %w", layer, err)
@@ -413,19 +430,6 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 	embedB := bind.input("patch_embedding.bias", d)
 	hidden := builder.Add(builder.MulMat(embedW, program.stepPatch), embedB)
 
-	options := model.ConditionedDiffusionBlockOptions{
-		Dim: d, Heads: heads, FFNDim: uint64(c.FFNDim),
-		Epsilon:               float32(c.Eps),
-		RotaryBase:            float32(c.Policy.RotaryFrequencyBase),
-		AxisChannels:          model.ThreeAxisRotaryChannels(headWidth),
-		RoundAttentionStorage: precision.RoundAttentionStorage,
-	}
-	for token := 0; token < geometry.Seq; token++ {
-		spatial := geometry.Grid[1] * geometry.Grid[2]
-		options.AxisPositions[0] = append(options.AxisPositions[0], uint32(token/spatial))
-		options.AxisPositions[1] = append(options.AxisPositions[1], uint32(token%spatial/geometry.Grid[2]))
-		options.AxisPositions[2] = append(options.AxisPositions[2], uint32(token%geometry.Grid[2]))
-	}
 	for layer := 0; layer < c.NumLayers; layer++ {
 		prefix := denoiserBlockPrefix(layer)
 		crossKey := builder.Input(prefix+"cross_key", dtype.F32, tensor.MustShape(headWidth, heads, textLen))
@@ -443,8 +447,8 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 			FFNContract:     bind.input(prefix+"ffn.2.weight", uint64(c.FFNDim), d),
 			FFNContractBias: bind.input(prefix+"ffn.2.bias", d),
 		}
-		result, err := model.BuildConditionedDiffusionBlock(
-			builder, hidden, program.stepBlockE, crossKey, crossValue, options, blockWeights,
+		result, err := diffusion.BuildBlock(
+			builder, hidden, program.stepBlockE, crossKey, crossValue, blockWeights,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("denoiser program block %d: %w", layer, err)
@@ -452,12 +456,11 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 		program.Blocks = append(program.Blocks, result)
 		hidden = result.Output
 	}
-	head, err := model.BuildConditionedDiffusionHead(
+	head, err := diffusion.BuildHead(
 		builder, hidden, program.stepHeadE,
 		bind.input("head.modulation", 2*d),
 		bind.input("head.head.weight", d, uint64(c.patchOut())),
 		bind.input("head.head.bias", uint64(c.patchOut())),
-		float32(c.Eps),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("denoiser program head: %w", err)

@@ -305,14 +305,7 @@ func executeCapability(
 	}
 	defer store.Close()
 	modelID := inventory.Manifest.ID
-	activation, active, err := modelrecipe.ActiveRecord(ctx, store, modelID, task)
-	if err != nil {
-		return err
-	}
-	if !active {
-		return fmt.Errorf("model %s has no active %s recipe", modelID, task)
-	}
-	program, err := modelrecipe.CompileCapability(activation.Definition)
+	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
 	if err != nil {
 		return err
 	}

@@ -287,6 +287,19 @@ func Active(ctx context.Context, store artifact.Reader, modelID artifact.ID, tas
 	return activation.Definition, ok, err
 }
 
+// ResolveActiveCapability returns the verified executable capability program.
+func ResolveActiveCapability(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (Activation, recipe.Program, error) {
+	activation, active, err := ActiveRecord(ctx, store, modelID, task)
+	if err == nil && !active {
+		err = fmt.Errorf("model recipe: model %s has no active %s recipe", modelID, task)
+	}
+	if err != nil {
+		return Activation{}, recipe.Program{}, err
+	}
+	program, err := CompileCapability(activation.Definition)
+	return activation, program, err
+}
+
 // ActiveProfile: parity-gated policy for runtime ingestion.
 func ActiveProfile(
 	ctx context.Context,

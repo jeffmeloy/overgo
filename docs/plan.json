@@ -826,12 +826,33 @@
         {
           "id": "torch-cuda-randn",
           "title": "port TorchCUDARandn seed-matched RNG (Philox torch_cuda_randn kernel + host stream) to a NEUTRAL shared overgo home (NOT a Krea/family file) -- adaptive has a PyTorch-matched, CUDA-verified impl (go/extmodel/video_runtime_cuda_windows.go NewTorchCUDARandnCUDAStream + TestTorchCUDARandnCUDAStreamMatchesSequentialPyTorchCalls). CORRECTS a mis-classification: gap2 (seed-42 randn) was labeled 'external/out-of-scope' across rung15+rung16 but is PORTABLE in-repo. Unblocks the EXACT ship bar of rung16 (cuda-serving SHA b25fa024 + performance-leg) AND rung15 generation-lane exact parity. One primitive, two rungs.",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/torchrng/ -count=1"
         },
         {
+          "id": "latent-init",
+          "title": "wire torchrng -\u003e seeded initial latent for the Krea device serve: reproduce the golden mediaMixNoise(Seed=42,NoiseWeight=1,NoiseScale=1) over [ZDim,256,256] fill-order/shape via internal/torchrng (tol-0 vs torch.randn). LOWEST-RISK first brick of the re-scoped cuda-serving stack (torchrng already proven). Verify: seeded latent bit-exact vs the golden init contract.",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags cuda ./internal/latentimage/ -run 'TestInitNoiseMixReducesToBF16Randn|TestMixNoiseGeneralFormula|TestMixAliasedEqualsNonAliased|TestSpecLatentShapeDerivation|TestSeededInitLatent' -count=1"
+        },
+        {
+          "id": "device-text-cond",
+          "title": "device bf16 text-conditioning (FIRST-DIVERGENCE stack, refuted cuda-serving 2026-08-12): (1) Qwen2 tokenizer + Krea chat prompt-template prefix/suffix + pad-row + attention mask from a repodb ModelProfile (adaptive prepareSelectedLayerTextInput, joint_transformer_cuda_windows.go:2635) -- overgo textencoder wired at the raw tokenized-ids boundary, no template; (2) DEVICE bf16 Qwen3VL selected-layer encoder (runtimeBF16CausalGQA equiv) -- textencoder.go is host-f64 telemetry only; (3) DEVICE text_fusion stream (layerwise/projector/refiner/txt_in) -- host-f64 only. Parity vs adaptive device text-cond tensors.",
+          "status": "open"
+        },
+        {
+          "id": "device-tiled-vae",
+          "title": "device tiled_fp32 VAE decode (device_tile_gather) matching the golden -- overgo vae.go is host whole-frame f64. Parity vs the g3 decoded-image anchor on device.",
+          "status": "open"
+        },
+        {
+          "id": "denoiser-2048-fit",
+          "title": "prove/scale the 28-block device denoiser to the golden 2048x2048 (imgSeq=16384, O(seq^2) attention) within 48GB -- only 256x256 (imgSeq=256) exercised today; real OOM risk. Measure peak + tile/stream if needed.",
+          "status": "open"
+        },
+        {
           "id": "cuda-serving",
-          "title": "device path through generic executor; exact SHA b25fa024...; retained replay. UNBLOCKED PATH: denoiser device-ready (6810b2e, bit-exact vs host 5e-8) + text-cond (d964545) + sampler (done) + vae decode (verified); the last gap to exact SHA is torch-cuda-randn (seed-42 latent), now a ranked in-repo step above -- so this becomes bit-exact-verifiable once that lands (was NOT external).",
+          "title": "FINAL integration: device e2e Krea serve (seeded latent-init -\u003e device text-cond -\u003e 8-step FlowMatchEuler w/ device denoiser retained replay -\u003e device tiled VAE) == exact SHA b25fa024 (2048x2048, 8 steps, mu=1.15, cfg=0, seed=42, bf16). RE-SCOPED 2026-08-12: was mis-framed 'integration, unblocked' -- a subagent refuted it against source: 3 of 6 stages had NO overgo impl (device tokenizer/template, device bf16 encoder, device text_fusion), VAE host-whole-frame vs golden device-tiled, torchrng unwired, denoiser proven only at 256x256. The over-claim was mine (read 'telemetry-verified' as 'bit-exact-ready'). Gated on the latent-init/device-text-cond/device-tiled-vae/denoiser-2048-fit stack above; all IN-REPO (not external).",
           "status": "open"
         },
         {

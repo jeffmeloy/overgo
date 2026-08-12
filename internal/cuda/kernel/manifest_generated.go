@@ -6,7 +6,7 @@ const (
 	BundleABIVersion = 36
 	BundleTarget     = "compute_89"
 	VectorAddSHA256  = "af74febeae5bb087f35610f7d194695c10374bc7aed4a224da6072a56e59d159"
-	OpsF32SHA256     = "15ae4fce8f9d30410f744344d76bc7c924a671779f38fdda853437ffdf38de0a"
+	OpsF32SHA256     = "26490ade059e64c6d8080e9ec4234cb779ae59c879d641ca8f12b1152b991e1f"
 )
 
 var bundleAssets = [...]bundleAsset{

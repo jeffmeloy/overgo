@@ -77,6 +77,8 @@ const (
 	kernelGetRowsTq20F32
 	kernelGroupNormF32
 	kernelGroupSliceF32
+	kernelHeadMajorF32
+	kernelHeadMajorInverseF32
 	kernelIndexerScoreF32
 	kernelL2NormF32
 	kernelLayerNormF32
@@ -243,6 +245,8 @@ var kernelFunctionNames = [...]string{
 	"get_rows_tq2_0_f32",
 	"group_norm_f32",
 	"group_slice_f32",
+	"head_major_f32",
+	"head_major_inverse_f32",
 	"indexer_score_f32",
 	"l2_norm_f32",
 	"layer_norm_f32",
@@ -408,6 +412,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	9,
 	8,
+	5,
+	5,
 	11,
 	5,
 	5,

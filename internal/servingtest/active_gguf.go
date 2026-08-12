@@ -6,11 +6,11 @@ import (
 	"errors"
 	"os"
 
-	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 )
@@ -93,20 +93,14 @@ func ResolveActiveGGUFWithSession(
 	); err != nil {
 		return modelrecipe.LoadedProgram{}, err
 	}
-	evidence := []byte("serving-fixture-validation")
-	evidenceID, err := artifact.IdentifyBytes(artifact.KindEvidence, evidence)
+	verification, err := modelrecipetest.PublishVerification(
+		ctx, store, prefix+"/verification", definition.ID,
+	)
 	if err != nil {
 		return modelrecipe.LoadedProgram{}, err
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       prefix + "/evidence",
-		Artifacts: []artifact.Descriptor{{ID: evidenceID, Size: uint64(len(evidence))}},
-	}); err != nil {
-		return modelrecipe.LoadedProgram{}, err
-	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, prefix+"/active", definition, recipe.StatusActive,
-		[]artifact.ID{evidenceID}, nil,
+	if _, _, err := modelrecipe.ActivateVerified(
+		ctx, store, prefix+"/active", definition, verification, nil, nil,
 	); err != nil {
 		return modelrecipe.LoadedProgram{}, err
 	}

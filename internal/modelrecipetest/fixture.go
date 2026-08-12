@@ -10,14 +10,56 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
+
+const verificationCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
 type Capability struct {
 	Model   artifact.ID
 	Program recipe.Program
 	Runtime *workflowruntime.Runtime
+}
+
+func PublishVerification(
+	ctx context.Context,
+	store artifact.Repository,
+	key string,
+	recipeID artifact.ID,
+) (modelrecipe.Verification, error) {
+	environment, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(key+"/environment"))
+	if err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: key + "/environment",
+		Artifacts: []artifact.Descriptor{{
+			ID: environment, Size: uint64(len(key + "/environment")),
+		}},
+	}); err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	record, err := runrecord.NewGateRecord(
+		recipeID, environment, verificationCodeCommit,
+		runrecord.OutcomeSucceeded, "", 1,
+		[]runrecord.GateStep{{
+			Name: "verify", Phase: runrecord.PhaseValidate,
+			Outcome: runrecord.StepSucceeded, DurationNS: 1,
+		}},
+	)
+	if err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	batch, err := record.Batch(key + "/gate")
+	if err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	return modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}, nil
 }
 
 func NewCapability(t testing.TB, name string, task recipe.Task) Capability {

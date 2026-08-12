@@ -10,9 +10,9 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
-	"overgo/internal/testutil"
 )
 
 func TestActiveRecipeQwen35Open(t *testing.T) {
@@ -116,16 +116,14 @@ func publishActiveGGUFRecipe(
 	if _, _, err := modelrecipe.Transition(ctx, store, "integration/qwen35/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	evidence := []byte("qwen35-active-recipe")
-	evidenceID := testutil.ArtifactBytesID(t, artifact.KindEvidence, evidence)
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "integration/qwen35/evidence",
-		Artifacts: []artifact.Descriptor{{ID: evidenceID, Size: uint64(len(evidence))}},
-	}); err != nil {
+	verification, err := modelrecipetest.PublishVerification(
+		ctx, store, "integration/qwen35/verification", definition.ID,
+	)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "integration/qwen35/active", definition, recipe.StatusActive, []artifact.ID{evidenceID}, nil,
+	if _, _, err := modelrecipe.ActivateVerified(
+		ctx, store, "integration/qwen35/active", definition, verification, nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

@@ -2,13 +2,12 @@
 // the sealed authority was waiting for (the lifecycle API was complete but
 // uninvoked; the wave-1 probe recorded the refusal that proved it).
 //
-//	recipe activate -reason "..." <model>   publish facts + definition,
-//	                                        candidate -> validated -> active
+//	recipe activate -reason "..." -gate <id> -run-id <id> <model>
+//	                                        verified promotion
 //	recipe status <model>                   show the active recipe and tier
 //
-// Model references resolve through the data-root contract; the store is the
-// data-root store unless -repo overrides. Activation records its reason and
-// decider commit in the decision event, per the store's decision discipline.
+// Model references resolve through the data-root contract. Activation consumes
+// a successful recipe-bound verifier gate/run pair.
 package main
 
 import (
@@ -18,7 +17,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -33,6 +31,7 @@ import (
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/seq2seq"
 	"overgo/internal/seriesforecast"
 	"overgo/internal/speechsynth"
@@ -100,6 +99,8 @@ func run() error {
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
+	gate := flags.String("gate", "", "successful verifier gate artifact ID (activate)")
+	runID := flags.String("run-id", "", "bound verifier run artifact ID (activate)")
 	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen|vqa)")
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
 	input := flags.String("input", "", "task input as JSON (run)")
@@ -125,8 +126,12 @@ func run() error {
 		if strings.TrimSpace(*reason) == "" {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
+		verification, verificationErr := parseVerification(*gate, *runID)
+		if verificationErr != nil {
+			return verificationErr
+		}
 		if capabilityKnown {
-			return activateCapability(repository, path, *reason, selectedTask, capability)
+			return activateCapability(repository, path, *reason, selectedTask, capability, verification)
 		}
 		if selectedTask != recipe.TaskInference {
 			return fmt.Errorf("unsupported model recipe task %q", selectedTask)
@@ -135,7 +140,7 @@ func run() error {
 		if sessionErr != nil {
 			return sessionErr
 		}
-		return activate(repository, path, *reason, sessionOverride)
+		return activate(repository, path, *reason, sessionOverride, verification)
 	case "run":
 		if !capabilityKnown || capability.execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
@@ -149,6 +154,18 @@ func run() error {
 	default:
 		return fmt.Errorf("unknown verb %q", verb)
 	}
+}
+
+func parseVerification(gateText, runText string) (modelrecipe.Verification, error) {
+	gate, err := artifact.ParseID(strings.TrimSpace(gateText))
+	if err != nil || gate.Kind() != artifact.KindEvidence {
+		return modelrecipe.Verification{}, errors.New("activate requires -gate with an evidence artifact ID")
+	}
+	run, err := artifact.ParseID(strings.TrimSpace(runText))
+	if err != nil || run.Kind() != artifact.KindRun {
+		return modelrecipe.Verification{}, errors.New("activate requires -run-id with a run artifact ID")
+	}
+	return modelrecipe.Verification{Gate: gate, Run: run}, nil
 }
 
 func hfInventory(path string) (modelartifact.Inventory, error) {
@@ -237,14 +254,12 @@ func tabularInventory(path string) (modelartifact.Inventory, error) {
 	return modelartifact.FromFiles(path, specs)
 }
 
-// activateCapability drives the shared sealed lifecycle for capability-package
-// models: inventory facts, then candidate -> validated -> active with the
-// decision evidence. Capability packages derive dimensions from the artifact,
-// so no profile document is published.
+// activateCapability: capability facts, candidate, validation, verified promotion.
 func activateCapability(
 	repository, path, reason string,
 	task recipe.Task,
 	capability capabilityCommand,
+	verification modelrecipe.Verification,
 ) error {
 	ctx := context.Background()
 	inventory, err := capability.inventory(path)
@@ -279,13 +294,13 @@ func activateCapability(
 	); err != nil {
 		return fmt.Errorf("transition validated: %w", err)
 	}
-	evidenceID, err := activationEvidence(ctx, store, definition, reason)
+	decisionID, err := activationDecision(ctx, store, definition, verification, reason)
 	if err != nil {
 		return err
 	}
-	if _, _, err := modelrecipe.Transition(
+	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "recipe/active/"+definition.ID.String(), definition,
-		recipe.StatusActive, []artifact.ID{evidenceID}, nil,
+		verification, []artifact.ID{decisionID}, nil,
 	); err != nil {
 		return fmt.Errorf("transition active: %w", err)
 	}
@@ -349,7 +364,11 @@ func parseSessionOverride(text string) (sessionOverride, error) {
 	}
 }
 
-func activate(repository, path, reason string, override sessionOverride) error {
+func activate(
+	repository, path, reason string,
+	override sessionOverride,
+	verification modelrecipe.Verification,
+) error {
 	ctx := context.Background()
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -444,7 +463,7 @@ func activate(repository, path, reason string, override sessionOverride) error {
 	}
 	switch state {
 	case recipe.StatusValidated:
-		evidenceID, err := activationEvidence(ctx, store, definition, reason)
+		decisionID, err := activationDecision(ctx, store, definition, verification, reason)
 		if err != nil {
 			return err
 		}
@@ -456,9 +475,9 @@ func activate(repository, path, reason string, override sessionOverride) error {
 			id := current.Definition.ID
 			supersedes = &id
 		}
-		if _, _, err := modelrecipe.Transition(
+		if _, _, err := modelrecipe.ActivateVerified(
 			ctx, store, "recipe/active/"+definition.ID.String(), definition,
-			recipe.StatusActive, []artifact.ID{evidenceID}, supersedes,
+			verification, []artifact.ID{decisionID}, supersedes,
 		); err != nil {
 			return fmt.Errorf("transition active: %w", err)
 		}
@@ -471,35 +490,48 @@ func activate(repository, path, reason string, override sessionOverride) error {
 	return nil
 }
 
-// activationEvidence records the decision basis: reason, decider commit, and
-// the honest statement that serving-parity evidence follows as run records.
-func activationEvidence(
+// activationDecision: accepted promotion bound to completed verifier facts.
+func activationDecision(
 	ctx context.Context,
 	store artifact.Repository,
 	definition recipe.Definition,
+	verification modelrecipe.Verification,
 	reason string,
 ) (artifact.ID, error) {
-	decider := "unknown"
-	if out, err := exec.Command("git", "rev-parse", "HEAD").Output(); err == nil {
-		decider = strings.TrimSpace(string(out))
-	}
-	payload := []byte("activation decision\nreason: " + reason + "\ndecider_commit: " + decider +
-		"\nfollow_up: serving parity evidence lands as run records against this recipe\n")
-	id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
+	verified, err := runrecord.VerifyGateRun(
+		ctx, store, definition.ID, verification.Gate, verification.Run,
+	)
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	_, err = store.Commit(ctx, artifact.Batch{
-		Key: "recipe/activation-evidence/" + definition.ID.String(),
-		Contents: []artifact.Content{{
-			Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(payload))},
-			Data:       payload,
-		}},
-	})
+	decision, err := recipe.NewDecision(
+		definition.ID, recipe.DecisionAccepted, recipe.EvidenceExperimental, reason,
+		recipe.Decider{CodeCommit: verified.Gate.CodeCommit, Derivation: verified.Gate.ID},
+		[]artifact.ID{verified.Gate.ID, verified.Run.ID},
+	)
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	return id, nil
+	content, err := decision.Content()
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"recipe/activation-decision/"+definition.ID.String(),
+		[]artifact.Content{content},
+		[]artifact.Lineage{
+			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
+			{Child: decision.ID, Parent: verified.Gate.ID, Relation: artifact.RelationDependsOn},
+			{Child: decision.ID, Parent: verified.Run.ID, Relation: artifact.RelationDependsOn},
+		}, nil,
+	)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		return artifact.ID{}, err
+	}
+	return decision.ID, nil
 }
 
 func status(repository, path string, task recipe.Task) error {

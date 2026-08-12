@@ -139,7 +139,7 @@ func ValidateProfileCandidate(
 	}
 	commit, event, err := transition(
 		ctx, store, key, definition, recipe.StatusValidated,
-		[]artifact.ID{evidence.ID}, nil, []artifact.Content{content},
+		[]artifact.ID{evidence.ID}, nil, []artifact.Content{content}, nil,
 	)
 	return commit, event, evidence, err
 }
@@ -149,6 +149,7 @@ func ActivateProfileCandidate(
 	store artifact.Repository,
 	key string,
 	definition recipe.Definition,
+	verification Verification,
 	supersedes *artifact.ID,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
 	document, err := boundProfile(ctx, store, definition)
@@ -163,8 +164,8 @@ func ActivateProfileCandidate(
 	if err != nil {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
-	return Transition(
-		ctx, store, key, definition, recipe.StatusActive, []artifact.ID{evidence.ID}, supersedes,
+	return ActivateVerified(
+		ctx, store, key, definition, verification, []artifact.ID{evidence.ID}, supersedes,
 	)
 }
 

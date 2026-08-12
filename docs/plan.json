@@ -838,13 +838,14 @@
         {
           "id": "dtc-tokenizer",
           "title": "device-text-cond brick 1/3 (FIRST DIVERGENCE): Qwen2 tokenizer + Krea chat prompt-template prefix/suffix + pad-row + attention mask, driven by a repodb ModelProfile (port adaptive prepareSelectedLayerTextInput, joint_transformer_cuda_windows.go:2635). overgo textencoder is wired at the raw tokenized-ids boundary with NO template. Deliver the exact input ids/mask/pad layout. Verify: input-ids + mask sha vs adaptive golden (host, exact -- no device needed).",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/latentimage/ -run 'TestRenderKreaTextInput' -count=1"
         },
         {
           "id": "dtc-encoder",
           "title": "device-text-cond brick 2/3: DEVICE bf16 Qwen3VL selected-layer encoder (runtimeBF16CausalGQA equivalent) with the 12-layer capture -- overgo textencoder.go is host-f64 telemetry only. Parity vs adaptive device encoder selected-hidden tensors (bf16 band). Consumes dtc-tokenizer ids/mask.",
-          "status": "open"
+          "status": "open",
+          "verify": "go test ./internal/latentimage/ -run Encoder -short -count=1"
         },
         {
           "id": "dtc-fusion",

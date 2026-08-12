@@ -3,15 +3,10 @@
 package devicemath
 
 import (
-	"context"
 	"fmt"
-	"runtime"
-	"unsafe"
 
-	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
-	"overgo/internal/cuda/kernel"
 )
 
 // GatedMLPBackwardTResident is the resident counterpart to GatedMLPBackwardT: it
@@ -32,176 +27,115 @@ func GatedMLPBackwardTResident(worker *device.Worker, x, wGate, wUp, wDown, g, a
 	dWUp := make([]float32, inter*d)
 	dWDown := make([]float32, d*inter)
 
-	err := worker.Do(context.Background(), func(state *device.State) error {
-		lib := state.Driver
-		blas, err := cublas.Open()
+	err := withCUDABLAS(worker, func(session *cudaBLAS) error {
+		mulFn, err := session.function("multiply_f32")
 		if err != nil {
 			return err
 		}
-		defer blas.Close()
-		handle, err := blas.Create()
+		addFn, err := session.function("add_f32")
 		if err != nil {
 			return err
 		}
-		defer blas.Destroy(handle)
-		if err := blas.SetStream(handle, state.Stream); err != nil {
-			return err
-		}
-		module, err := lib.ModuleLoadData(kernel.OpsF32PTX)
+		siluFn, err := session.function("silu_backward_f32")
 		if err != nil {
 			return err
-		}
-		defer lib.ModuleUnload(module)
-		mulFn, err := lib.ModuleFunction(module, "multiply_f32")
-		if err != nil {
-			return err
-		}
-		addFn, err := lib.ModuleFunction(module, "add_f32")
-		if err != nil {
-			return err
-		}
-		siluFn, err := lib.ModuleFunction(module, "silu_backward_f32")
-		if err != nil {
-			return err
-		}
-
-		var frees []driver.DevicePtr
-		defer func() {
-			for _, p := range frees {
-				lib.MemFree(p)
-			}
-		}()
-		alloc := func(n int) (driver.DevicePtr, error) {
-			p, err := lib.MemAlloc(uint64(n) * 4)
-			if err != nil {
-				return 0, err
-			}
-			frees = append(frees, p)
-			return p, nil
-		}
-		upload := func(data []float32) (driver.DevicePtr, error) {
-			p, err := alloc(len(data))
-			if err != nil {
-				return 0, err
-			}
-			return p, lib.MemcpyHtoD(p, driver.Bytes(data))
 		}
 
 		// Resident inputs (uploaded once).
-		hnP, err := upload(x)
+		hnP, err := session.upload(x)
 		if err != nil {
 			return err
 		}
-		wGateP, err := upload(wGate)
+		wGateP, err := session.upload(wGate)
 		if err != nil {
 			return err
 		}
-		wUpP, err := upload(wUp)
+		wUpP, err := session.upload(wUp)
 		if err != nil {
 			return err
 		}
-		wDownP, err := upload(wDown)
+		wDownP, err := session.upload(wDown)
 		if err != nil {
 			return err
 		}
-		gP, err := upload(g)
+		gP, err := session.upload(g)
 		if err != nil {
 			return err
 		}
-		aP, err := upload(a)
+		aP, err := session.upload(a)
 		if err != nil {
 			return err
 		}
-		uP, err := upload(u)
+		uP, err := session.upload(u)
 		if err != nil {
 			return err
 		}
-		hP, err := upload(h)
+		hP, err := session.upload(h)
 		if err != nil {
 			return err
 		}
-		dyP, err := upload(dY)
+		dyP, err := session.upload(dY)
 		if err != nil {
 			return err
 		}
 		// Resident intermediates + outputs.
-		dhP, err := alloc(rows * inter)
+		dhP, err := session.alloc(rows * inter)
 		if err != nil {
 			return err
 		}
-		daP, err := alloc(rows * inter)
+		daP, err := session.alloc(rows * inter)
 		if err != nil {
 			return err
 		}
-		duP, err := alloc(rows * inter)
+		duP, err := session.alloc(rows * inter)
 		if err != nil {
 			return err
 		}
-		dgP, err := alloc(rows * inter)
+		dgP, err := session.alloc(rows * inter)
 		if err != nil {
 			return err
 		}
-		dxGateP, err := alloc(rows * d)
+		dxGateP, err := session.alloc(rows * d)
 		if err != nil {
 			return err
 		}
-		dxUpP, err := alloc(rows * d)
+		dxUpP, err := session.alloc(rows * d)
 		if err != nil {
 			return err
 		}
-		dxP, err := alloc(rows * d)
+		dxP, err := session.alloc(rows * d)
 		if err != nil {
 			return err
 		}
-		dwGateP, err := alloc(inter * d)
+		dwGateP, err := session.alloc(inter * d)
 		if err != nil {
 			return err
 		}
-		dwUpP, err := alloc(inter * d)
+		dwUpP, err := session.alloc(inter * d)
 		if err != nil {
 			return err
 		}
-		dwDownP, err := alloc(d * inter)
+		dwDownP, err := session.alloc(d * inter)
 		if err != nil {
 			return err
 		}
 
-		elemwise := func(fn driver.Function, args []unsafe.Pointer, n int) error {
-			const threads = uint32(256)
-			blocks := (uint32(n) + threads - 1) / threads
-			return lib.LaunchKernel(fn, driver.Dim3{X: blocks, Y: 1, Z: 1}, driver.Dim3{X: threads, Y: 1, Z: 1}, 0, state.Stream, args)
-		}
 		mul := func(x, y, out driver.DevicePtr, n int) error {
-			c := uint32(n)
-			err := elemwise(mulFn, []unsafe.Pointer{unsafe.Pointer(&x), unsafe.Pointer(&y), unsafe.Pointer(&out), unsafe.Pointer(&c)}, n)
-			runtime.KeepAlive(x)
-			runtime.KeepAlive(y)
-			runtime.KeepAlive(out)
-			return err
+			return session.launchVector3(mulFn, x, y, out, n)
 		}
 		add := func(x, y, out driver.DevicePtr, n int) error {
-			c := uint32(n)
-			err := elemwise(addFn, []unsafe.Pointer{unsafe.Pointer(&x), unsafe.Pointer(&y), unsafe.Pointer(&out), unsafe.Pointer(&c)}, n)
-			runtime.KeepAlive(x)
-			runtime.KeepAlive(y)
-			runtime.KeepAlive(out)
-			return err
+			return session.launchVector3(addFn, x, y, out, n)
 		}
 		// silu_backward_f32 arg order is (dy, x, out): out = dy * silu'(x).
 		silu := func(x, dy, out driver.DevicePtr, n int) error {
-			c := uint32(n)
-			err := elemwise(siluFn, []unsafe.Pointer{unsafe.Pointer(&dy), unsafe.Pointer(&x), unsafe.Pointer(&out), unsafe.Pointer(&c)}, n)
-			runtime.KeepAlive(x)
-			runtime.KeepAlive(dy)
-			runtime.KeepAlive(out)
-			return err
+			return session.launchVector3(siluFn, dy, x, out, n)
 		}
 
 		// Y = h·Wdownᵀ  ->  dh = dY·Wdown ; dWdown = dYᵀ·h.
-		if err := blas.RowMajorGEMMExF32(handle, false, false, int32(rows), int32(d), int32(inter), dyP, wDownP, dhP); err != nil {
+		if err := session.gemm(false, false, rows, d, inter, dyP, wDownP, dhP); err != nil {
 			return err
 		}
-		if err := blas.RowMajorGEMMExF32(handle, true, false, int32(d), int32(rows), int32(inter), dyP, hP, dwDownP); err != nil {
+		if err := session.gemm(true, false, d, rows, inter, dyP, hP, dwDownP); err != nil {
 			return err
 		}
 		// da = dh⊙u ; du = dh⊙a ; dg = silu'(g)⊙da.
@@ -215,17 +149,17 @@ func GatedMLPBackwardTResident(worker *device.Worker, x, wGate, wUp, wDown, g, a
 			return err
 		}
 		// g = X·Wgateᵀ ->  dXgate = dg·Wgate ; dWgate = dgᵀ·X.
-		if err := blas.RowMajorGEMMExF32(handle, false, false, int32(rows), int32(inter), int32(d), dgP, wGateP, dxGateP); err != nil {
+		if err := session.gemm(false, false, rows, inter, d, dgP, wGateP, dxGateP); err != nil {
 			return err
 		}
-		if err := blas.RowMajorGEMMExF32(handle, true, false, int32(inter), int32(rows), int32(d), dgP, hnP, dwGateP); err != nil {
+		if err := session.gemm(true, false, inter, rows, d, dgP, hnP, dwGateP); err != nil {
 			return err
 		}
 		// u = X·Wupᵀ ->  dXup = du·Wup ; dWup = duᵀ·X.
-		if err := blas.RowMajorGEMMExF32(handle, false, false, int32(rows), int32(inter), int32(d), duP, wUpP, dxUpP); err != nil {
+		if err := session.gemm(false, false, rows, inter, d, duP, wUpP, dxUpP); err != nil {
 			return err
 		}
-		if err := blas.RowMajorGEMMExF32(handle, true, false, int32(inter), int32(rows), int32(d), duP, hnP, dwUpP); err != nil {
+		if err := session.gemm(true, false, inter, rows, d, duP, hnP, dwUpP); err != nil {
 			return err
 		}
 		// dX = dXgate + dXup.
@@ -233,19 +167,10 @@ func GatedMLPBackwardTResident(worker *device.Worker, x, wGate, wUp, wDown, g, a
 			return err
 		}
 
-		if err := lib.StreamSynchronize(state.Stream); err != nil {
-			return err
-		}
-		if err := lib.MemcpyDtoH(driver.Bytes(dX), dxP); err != nil {
-			return err
-		}
-		if err := lib.MemcpyDtoH(driver.Bytes(dWGate), dwGateP); err != nil {
-			return err
-		}
-		if err := lib.MemcpyDtoH(driver.Bytes(dWUp), dwUpP); err != nil {
-			return err
-		}
-		return lib.MemcpyDtoH(driver.Bytes(dWDown), dwDownP)
+		return session.finish(
+			cudaDownload{dX, dxP}, cudaDownload{dWGate, dwGateP},
+			cudaDownload{dWUp, dwUpP}, cudaDownload{dWDown, dwDownP},
+		)
 	})
 	if err != nil {
 		return GatedMLPGrads{}, err

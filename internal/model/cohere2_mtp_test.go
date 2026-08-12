@@ -26,7 +26,8 @@ func TestBuildCohere2MTPPipeline(t *testing.T) {
 	hidden := builder.Input("hidden", dtype.F32, tensor.MustShape(8, 2))
 	norm := builder.Input("norm", dtype.F32, tensor.MustShape(8))
 	projection := builder.Input("projection", dtype.F32, tensor.MustShape(16, 8))
-	current, err := BuildCohere2MTPInput(builder, input, hidden, norm, norm, projection, spec)
+	draft := fixtureDraftProgram(t, spec, Weights{Cohere2MTP: &Cohere2MTPWeights{}}, 0)
+	current, err := draft.BuildDraftInput(builder, input, hidden, norm, norm, projection)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,6 @@ func TestBuildCohere2MTPPipeline(t *testing.T) {
 		FeedForwardSharedUp:      builder.Input("su", dtype.F32, tensor.MustShape(8, 6)),
 		FeedForwardSharedDown:    builder.Input("sd", dtype.F32, tensor.MustShape(6, 8)),
 	}
-	draft := fixtureDraftProgram(t, spec, Weights{Cohere2MTP: &Cohere2MTPWeights{}}, 0)
 	plan := draft.Layer()
 	block, err := draft.Build(CachedBlockContext{
 		Builder: builder, Input: current, Positions: []uint32{0, 1}, Layer: plan.Layer,
@@ -52,7 +52,7 @@ func TestBuildCohere2MTPPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	head := builder.Input("head", dtype.F32, tensor.MustShape(8, 32))
-	logits, nextHidden, err := BuildCohere2MTPOutputs(builder, block.Output, norm, head, spec)
+	logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, norm, head)
 	if err != nil {
 		t.Fatal(err)
 	}

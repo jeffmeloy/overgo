@@ -14,24 +14,55 @@ const (
 )
 
 type mtpPolicy struct {
-	kind          DraftKind
 	label         string
 	normalization mtpNormalization
-	single        bool
 	carryRaw      bool
 	scaleLogits   bool
 }
 
-var (
-	qwen35MTPPolicy  = mtpPolicy{kind: DraftQwen35MTP, label: "Qwen3.5", single: true}
-	step35MTPPolicy  = mtpPolicy{kind: DraftStep35MTP, label: "Step3.5", carryRaw: true}
-	hyv3MTPPolicy    = mtpPolicy{kind: DraftHYV3MTP, label: "HY-V3"}
-	nextNMTPPolicy   = mtpPolicy{kind: DraftNextNMTP, label: "NextN"}
-	cohere2MTPPolicy = mtpPolicy{
-		kind: DraftCohere2MTP, label: "Cohere2-MoE", normalization: mtpArchitectureNorm,
-		single: true, scaleLogits: true,
+var draftMTPPolicies = [...]mtpPolicy{
+	DraftQwen35MTP:  {label: "Qwen3.5"},
+	DraftStep35MTP:  {label: "Step3.5", carryRaw: true},
+	DraftHYV3MTP:    {label: "HY-V3"},
+	DraftNextNMTP:   {label: "NextN"},
+	DraftCohere2MTP: {label: "Cohere2-MoE", normalization: mtpArchitectureNorm, scaleLogits: true},
+}
+
+func draftMTPPolicy(kind DraftKind) (mtpPolicy, bool) {
+	if kind == DraftNone || int(kind) >= len(draftMTPPolicies) {
+		return mtpPolicy{}, false
 	}
-)
+	return draftMTPPolicies[kind], true
+}
+
+// BuildDraftInput executes the compiled draft-input policy.
+func (p CompiledLayerProgram) BuildDraftInput(
+	builder *tensor.Builder,
+	tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection *tensor.Tensor,
+) (*tensor.Tensor, error) {
+	policy, ok := draftMTPPolicy(p.draftKind)
+	if !ok {
+		return nil, errors.New("compiled layer has no draft-input policy")
+	}
+	return buildMTPInput(
+		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection,
+		p.spec, policy,
+	)
+}
+
+// BuildDraftOutputs executes the compiled draft-output policy.
+func (p CompiledLayerProgram) BuildDraftOutputs(
+	builder *tensor.Builder,
+	input, outputNorm, output *tensor.Tensor,
+) (logits, nextHidden *tensor.Tensor, err error) {
+	policy, ok := draftMTPPolicy(p.draftKind)
+	if !ok {
+		return nil, nil, errors.New("compiled layer has no draft-output policy")
+	}
+	return buildMTPOutputs(
+		builder, input, outputNorm, output, p.spec, policy,
+	)
+}
 
 func singleDraftExecutableSpec(spec Spec, kind DraftKind) (Spec, uint32) {
 	switch kind {
@@ -50,23 +81,17 @@ func singleDraftExecutableSpec(spec Spec, kind DraftKind) (Spec, uint32) {
 	}
 }
 
-func (p mtpPolicy) valid(spec Spec, offset uint32) bool {
-	plan := spec.Profile().DraftPlan(spec.NextNPredictLayers)
-	return plan.Kind == p.kind && plan.HasHead(offset) && (!p.single || offset == 0 && plan.SessionEligible())
-}
-
 func buildMTPInput(
 	builder *tensor.Builder,
 	tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection *tensor.Tensor,
 	spec Spec,
 	policy mtpPolicy,
-	offset uint32,
 ) (*tensor.Tensor, error) {
 	if builder == nil || tokenEmbedding == nil || targetHidden == nil || embeddingNorm == nil ||
 		hiddenNorm == nil || projection == nil {
 		return nil, errors.New(policy.label + " MTP input is nil")
 	}
-	if !policy.valid(spec, offset) || tokenEmbedding.Shape.Rank != 2 || !tokenEmbedding.Shape.Equal(targetHidden.Shape) ||
+	if tokenEmbedding.Shape.Rank != 2 || !tokenEmbedding.Shape.Equal(targetHidden.Shape) ||
 		tokenEmbedding.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, errors.New(policy.label + " MTP input shape is incompatible")
 	}
@@ -84,12 +109,11 @@ func buildMTPOutputs(
 	input, outputNorm, output *tensor.Tensor,
 	spec Spec,
 	policy mtpPolicy,
-	offset uint32,
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	if builder == nil || input == nil || outputNorm == nil || output == nil {
 		return nil, nil, errors.New(policy.label + " MTP output is nil")
 	}
-	if !policy.valid(spec, offset) || input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, nil, errors.New(policy.label + " MTP output shape is incompatible")
 	}
 	normalized := normalizeMTP(builder, input, outputNorm, spec, policy.normalization)

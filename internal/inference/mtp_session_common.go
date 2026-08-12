@@ -20,8 +20,6 @@ type singleHeadMTPAdapter struct {
 	program                            model.CompiledLayerProgram
 	embeddingNorm, hiddenNorm, project gguf.TensorInfo
 	tokenEmbedding, outputNorm, output *gguf.TensorInfo
-	buildInput                         func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, error)
-	buildOutputs                       func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, *tensor.Tensor, error)
 }
 
 func (r *Runner) hasDraftSession(kind model.DraftKind, catalogs int) bool {
@@ -66,8 +64,8 @@ func (r *Runner) advanceSingleHeadMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	current, err := adapter.buildInput(
-		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec,
+	current, err := adapter.program.BuildDraftInput(
+		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection,
 	)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -96,7 +94,7 @@ func (r *Runner) advanceSingleHeadMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	logits, nextHidden, err := adapter.buildOutputs(builder, block.Output, outputNorm, output, r.spec)
+	logits, nextHidden, err := adapter.program.BuildDraftOutputs(builder, block.Output, outputNorm, output)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

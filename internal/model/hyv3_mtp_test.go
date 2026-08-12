@@ -20,7 +20,8 @@ func TestBuildHYV3MTPPipeline(t *testing.T) {
 	enorm := builder.Input("enorm", dtype.F32, tensor.MustShape(8))
 	hnorm := builder.Input("hnorm", dtype.F32, tensor.MustShape(8))
 	projection := builder.Input("eh", dtype.F32, tensor.MustShape(16, 8))
-	current, err := BuildHYV3MTPInput(builder, token, hidden, enorm, hnorm, projection, spec, 0)
+	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
+	current, err := draft.BuildDraftInput(builder, token, hidden, enorm, hnorm, projection)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +38,6 @@ func TestBuildHYV3MTPPipeline(t *testing.T) {
 		FeedForwardUp:   builder.Input("up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown: builder.Input("down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
 	plan := draft.Layer()
 	block, err := draft.Build(CachedBlockContext{
 		Builder: builder, Input: current, Positions: []uint32{4}, Layer: plan.Layer,
@@ -47,7 +47,7 @@ func TestBuildHYV3MTPPipeline(t *testing.T) {
 	}
 	outputNorm := builder.Input("output_norm", dtype.F32, tensor.MustShape(8))
 	head := builder.Input("head", dtype.F32, tensor.MustShape(8, 13))
-	logits, nextHidden, err := BuildHYV3MTPOutputs(builder, block.Output, outputNorm, head, spec, 0)
+	logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, outputNorm, head)
 	if err != nil {
 		t.Fatal(err)
 	}

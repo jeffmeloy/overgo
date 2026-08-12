@@ -84,8 +84,6 @@ func (r *Runner) AdvanceQwen35MTP(
 		nodePrefix: "qwen35_mtp", layer: mtp.Layer, program: draftProgram,
 		embeddingNorm: mtp.EmbeddingNorm, hiddenNorm: mtp.HiddenNorm, project: mtp.EHProjection,
 		tokenEmbedding: mtp.TokenEmbedding, outputNorm: mtp.OutputNorm, output: mtp.Output,
-		buildInput:   model.BuildQwen35MTPInput,
-		buildOutputs: model.BuildQwen35MTPOutputs,
 	})
 }
 

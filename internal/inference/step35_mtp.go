@@ -249,16 +249,13 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	var current *tensor.Tensor
-	if r.usesStep35MTPGraph() {
-		current, err = model.BuildStep35MTPInput(
-			runtime.builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, offset,
-		)
-	} else {
-		current, err = model.BuildHYV3MTPInput(
-			runtime.builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec, offset,
-		)
+	draftProgram, err := r.draftLayerProgram(offset)
+	if err != nil {
+		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
+	current, err := draftProgram.BuildDraftInput(
+		runtime.builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection,
+	)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
@@ -266,10 +263,6 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if past != nil && past.Key.Shape.Rank != 0 {
 		pastKey = runtime.input("step35_mtp.past_key", past.Key)
 		pastValue = runtime.input("step35_mtp.past_value", past.Value)
-	}
-	draftProgram, err := r.draftLayerProgram(offset)
-	if err != nil {
-		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	plan := draftProgram.Layer()
 	block, err := draftProgram.Build(model.CachedBlockContext{
@@ -289,16 +282,9 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	var logits, nextHidden *tensor.Tensor
-	if r.usesStep35MTPGraph() {
-		logits, nextHidden, err = model.BuildStep35MTPOutputs(
-			runtime.builder, block.Output, outputNorm, output, r.spec, offset,
-		)
-	} else {
-		logits, nextHidden, err = model.BuildHYV3MTPOutputs(
-			runtime.builder, block.Output, outputNorm, output, r.spec, offset,
-		)
-	}
+	logits, nextHidden, err := draftProgram.BuildDraftOutputs(
+		runtime.builder, block.Output, outputNorm, output,
+	)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}

@@ -77,8 +77,6 @@ func (r *Runner) AdvanceCohere2MTP(
 		nodePrefix: "cohere2_mtp", layer: mtp.Layer, program: draftProgram,
 		embeddingNorm: mtp.EmbeddingNorm, hiddenNorm: mtp.HiddenNorm, project: mtp.EHProjection,
 		tokenEmbedding: mtp.TokenEmbedding, outputNorm: mtp.OutputNorm, output: mtp.Output,
-		buildInput:   model.BuildCohere2MTPInput,
-		buildOutputs: model.BuildCohere2MTPOutputs,
 	})
 }
 

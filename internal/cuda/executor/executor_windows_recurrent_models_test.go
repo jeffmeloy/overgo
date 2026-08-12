@@ -541,8 +541,8 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	} {
 		feeds[node] = value
 	}
-	current, err := model.BuildQwen35MTPInput(
-		builder, token, hidden, embeddingNorm, hiddenNorm, projection, spec,
+	current, err := draft.BuildDraftInput(
+		builder, token, hidden, embeddingNorm, hiddenNorm, projection,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -559,9 +559,7 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	head := builder.Input("mtp_head", dtype.F32, tensor.MustShape(8, 17))
 	feeds[outputNorm] = patternedValue(outputNorm.Shape, 5, 0.02, 0.85)
 	feeds[head] = patternedValue(head.Shape, 23, 0.01, -0.03)
-	logits, nextHidden, err := model.BuildQwen35MTPOutputs(
-		builder, block.Output, outputNorm, head, spec,
-	)
+	logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, outputNorm, head)
 	if err != nil {
 		t.Fatal(err)
 	}

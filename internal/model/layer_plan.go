@@ -756,9 +756,10 @@ func (p ModelPlan) DraftLayer(offset uint32) (LayerPlan, error) {
 
 // CompiledLayerProgram: sealed executable layer contract.
 type CompiledLayerProgram struct {
-	spec Spec
-	plan LayerPlan
-	role layerProgramRole
+	spec      Spec
+	plan      LayerPlan
+	role      layerProgramRole
+	draftKind DraftKind
 }
 
 type layerProgramRole uint8
@@ -835,7 +836,7 @@ func (p ModelPlan) DraftProgram(spec Spec, offset uint32) (CompiledLayerProgram,
 	} else if p.draft.Kind == DraftNextNMTP {
 		spec.BlockCount += p.draft.Heads
 	}
-	return CompiledLayerProgram{spec: spec, plan: layer}, nil
+	return CompiledLayerProgram{spec: spec, plan: layer, draftKind: p.draft.Kind}, nil
 }
 
 // CacheSchema: materialized compiled layer-cache contract.

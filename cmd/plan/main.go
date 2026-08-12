@@ -1,83 +1,81 @@
 // plan: campaign dispatch bookkeeping (owner directive 2026-08-09: the turn
-// is the plan). Reads docs/plan.json — the machine-readable open-work
-// surface — and tracks progress:
+// is the plan). Reads docs/plan.json via internal/plan -- the machine-readable
+// open-work surface -- and both dispatches and ENFORCES the loop protocol:
 //
-//	plan -next                     print the top open action
-//	plan -advance <item> <step>    mark a step done (item closes when all
-//	                               steps are done; step "." closes the item)
+//	plan -next                     print the top open action (one line)
+//	plan -prompt                   print the generated, self-contained task for
+//	                               the top open step (this is what the loop
+//	                               feeds the agent -- NOT free text it rewrites)
+//	plan -verify                   run the top open step's acceptance command
+//	                               (step.verify); exit code is pass/fail
+//	plan -advance <item> <step>    mark a step done -- REFUSED unless that step's
+//	                               verify command exits 0 (step "." closes the
+//	                               item). -force <reason> overrides loudly.
 //	plan -status                   one line per item
 //
-// Dispatch doctrine lives in skill.md: under the campaign directive a
-// session works the plan continuously; the only stops are the ones a human
-// must answer (user-stop, irreversible, external-prereq).
+// Enforcement rationale (owner 2026-08-11, after a session drifted off-plan for
+// ~13 commits with zero -advance): "done" must be machine-checked, not
+// self-declared prose, and the loop task must be GENERATED from the plan so the
+// agent cannot substitute its own agenda. Every step carries a runnable
+// `verify` command; -advance gates on it; commit-gate binds each commit to the
+// active step (internal/plan.Current is the shared source of truth).
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
+	"os/exec"
+	"strings"
 
-	"overgo/internal/jsonfile"
+	"overgo/internal/plan"
 )
-
-const planPath = "docs/plan.json"
-
-type step struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Status string `json:"status"`
-}
-
-type item struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Status string `json:"status"`
-	Steps  []step `json:"steps"`
-}
-
-type plan struct {
-	Campaign string `json:"campaign"`
-	Doctrine string `json:"doctrine"`
-	Items    []item `json:"items"`
-}
 
 func main() {
 	next := flag.Bool("next", false, "print the top open action")
+	prompt := flag.Bool("prompt", false, "print the generated self-contained task for the top open step")
+	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
-	advance := flag.Bool("advance", false, "mark <item> <step> done")
+	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
+	force := flag.String("force", "", "with -advance: skip verify, REQUIRES a reason (logged loudly)")
 	flag.Parse()
-	if err := run(*next, *status, *advance, flag.Args()); err != nil {
+	if err := run(cli{*next, *prompt, *verify, *status, *advance, *force}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(next, status, advance bool, args []string) error {
-	document, err := load()
+type cli struct {
+	next, prompt, verify, status, advance bool
+	force                                 string
+}
+
+func run(c cli, args []string) error {
+	document, err := plan.Load("")
 	if err != nil {
 		return err
 	}
 	switch {
-	case advance:
+	case c.advance:
 		if len(args) != 2 {
 			return errors.New("usage: plan -advance <item-id> <step-id|.>")
 		}
-		return advanceStep(document, args[0], args[1])
-	case status:
-		for _, entry := range document.Items {
-			done, total := 0, len(entry.Steps)
-			for _, s := range entry.Steps {
-				if s.Status == "done" {
-					done++
-				}
-			}
-			fmt.Printf("%-22s %-6s %d/%d %s\n", entry.ID, entry.Status, done, total, entry.Title)
-		}
+		return advanceStep(document, args[0], args[1], c.force)
+	case c.status:
+		printStatus(document)
 		return nil
-	case next:
+	case c.prompt:
+		printPrompt(document)
+		return nil
+	case c.verify:
+		it, st, ok := plan.Current(document)
+		if !ok {
+			fmt.Println("plan complete: nothing to verify")
+			return nil
+		}
+		return runVerify(it, st)
+	case c.next:
 		action, open := nextAction(document)
 		if !open {
 			fmt.Println("plan complete: every item is done")
@@ -86,57 +84,116 @@ func run(next, status, advance bool, args []string) error {
 		fmt.Println(action)
 		return nil
 	default:
-		return errors.New("one of -next, -status, -advance is required")
+		return errors.New("one of -next, -prompt, -verify, -status, -advance is required")
 	}
 }
 
-func load() (plan, error) {
-	var document plan
-	if err := jsonfile.Decode(filepath.FromSlash(planPath), &document); err != nil {
-		return plan{}, fmt.Errorf("parse %s: %w", planPath, err)
-	}
-	return document, nil
-}
-
-func save(document plan) error {
-	raw, err := json.MarshalIndent(document, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.FromSlash(planPath), append(raw, '\n'), 0o644)
-}
-
-// nextAction: first open step of the first open item; items without steps
-// are themselves the action (opening the rung defines its steps).
-func nextAction(document plan) (string, bool) {
+func printStatus(document plan.Plan) {
 	for _, entry := range document.Items {
-		if entry.Status != "open" {
-			continue
-		}
+		done, total := 0, len(entry.Steps)
 		for _, s := range entry.Steps {
-			if s.Status == "open" {
-				return fmt.Sprintf("%s / %s: %s — %s", entry.ID, s.ID, entry.Title, s.Title), true
+			if s.Status == "done" {
+				done++
 			}
 		}
-		return fmt.Sprintf("%s: %s — open the rung (rung export first, then define its steps)", entry.ID, entry.Title), true
+		fmt.Printf("%-22s %-6s %d/%d %s\n", entry.ID, entry.Status, done, total, entry.Title)
 	}
-	return "", false
 }
 
-func advanceStep(document plan, itemID, stepID string) error {
+// nextAction: the one-line form of the current step.
+func nextAction(document plan.Plan) (string, bool) {
+	it, st, ok := plan.Current(document)
+	if !ok {
+		return "", false
+	}
+	if st.ID == "." {
+		return fmt.Sprintf("%s: %s -- open the rung (define its steps)", it.ID, it.Title), true
+	}
+	return fmt.Sprintf("%s / %s: %s -- %s", it.ID, st.ID, it.Title, st.Title), true
+}
+
+// printPrompt emits the self-contained, non-negotiable task for the current
+// step. The loop feeds THIS to the agent; the agent does not author it.
+func printPrompt(document plan.Plan) {
+	it, st, ok := plan.Current(document)
+	if !ok {
+		fmt.Println("PLAN COMPLETE: every item is done. Stop and tell the user.")
+		return
+	}
+	doctrine := document.Doctrine
+	if len(doctrine) > 700 {
+		doctrine = doctrine[:700] + " ...[see docs/plan.json for the full doctrine]"
+	}
+	verify := st.Verify
+	if strings.TrimSpace(verify) == "" {
+		verify = "(NONE DEFINED -- you MUST add a runnable step.verify that exits 0 iff this step's\n" +
+			"         acceptance holds, to docs/plan.json, before this step can be advanced.)"
+	}
+	fmt.Printf(`=== PLAN TASK (generated -- do exactly this step, nothing else) ===
+Campaign: %s
+Item:  %s -- %s
+Step:  %s -- %s
+
+BINDING DOCTRINE (port-first):
+%s
+
+PROTOCOL -- no deviation:
+  1. Do ONLY this step. Port from adaptive_new first, verify against its goldens.
+  2. Do NOT start another step, act on a finding, or refactor off to the side. A
+     finding goes to docs/findings.json; it becomes work ONLY by later appearing
+     here as the top step -- never by you acting on it now.
+  3. If this step is wrong, blocked, or you disagree with it: STOP and tell the
+     user. Do NOT substitute your own work for the dispatched step.
+  4. Commit ONLY via the plan-bound gate:
+       go run ./cmd/gate -plan %s/%s -message-file <msg> -paths <csv>
+     The gate REFUSES any commit whose -plan is not this active step.
+  5. "Done" means: 'go run ./cmd/plan -verify' exits 0 (it runs this step's
+     acceptance command below), THEN 'go run ./cmd/plan -advance %s %s'.
+  6. After advancing, re-rank/refactor the plan from the result (or user input),
+     then 'go run ./cmd/plan -prompt' for the next task. Repeat until complete.
+
+VERIFY (this step's machine-checked acceptance):
+  %s
+=== END TASK ===
+`, document.Campaign, it.ID, it.Title, st.ID, st.Title, doctrine, it.ID, st.ID, it.ID, st.ID, verify)
+}
+
+// runVerify executes the step's verify command; its exit code is the verdict.
+func runVerify(it plan.Item, st plan.Step) error {
+	if strings.TrimSpace(st.Verify) == "" {
+		return fmt.Errorf("no verify defined for %s/%s -- add a runnable step.verify (exits 0 iff accepted) before advancing", it.ID, st.ID)
+	}
+	fmt.Fprintf(os.Stderr, "plan verify %s/%s: %s\n", it.ID, st.ID, st.Verify)
+	cmd := exec.Command("sh", "-c", st.Verify)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("verify FAILED for %s/%s: %w", it.ID, st.ID, err)
+	}
+	fmt.Fprintf(os.Stderr, "plan verify %s/%s: PASS\n", it.ID, st.ID)
+	return nil
+}
+
+func advanceStep(document plan.Plan, itemID, stepID, force string) error {
 	for i := range document.Items {
 		if document.Items[i].ID != itemID {
 			continue
 		}
-		if stepID == "." {
-			document.Items[i].Status = "done"
-			return finishAdvance(document, itemID, stepID)
-		}
-		for j := range document.Items[i].Steps {
-			if document.Items[i].Steps[j].ID != stepID {
-				continue
+		if stepID != "." {
+			var target *plan.Step
+			for j := range document.Items[i].Steps {
+				if document.Items[i].Steps[j].ID == stepID {
+					target = &document.Items[i].Steps[j]
+					break
+				}
 			}
-			document.Items[i].Steps[j].Status = "done"
+			if target == nil {
+				return fmt.Errorf("step %q not found in %q", stepID, itemID)
+			}
+			if err := gateAdvance(document.Items[i], *target, force); err != nil {
+				return err
+			}
+			target.Status = "done"
 			allDone := true
 			for _, s := range document.Items[i].Steps {
 				allDone = allDone && s.Status == "done"
@@ -146,13 +203,27 @@ func advanceStep(document plan, itemID, stepID string) error {
 			}
 			return finishAdvance(document, itemID, stepID)
 		}
-		return fmt.Errorf("step %q not found in %q", stepID, itemID)
+		if err := gateAdvance(document.Items[i], plan.Step{ID: "."}, force); err != nil {
+			return err
+		}
+		document.Items[i].Status = "done"
+		return finishAdvance(document, itemID, stepID)
 	}
 	return fmt.Errorf("item %q not found", itemID)
 }
 
-func finishAdvance(document plan, itemID, stepID string) error {
-	if err := save(document); err != nil {
+// gateAdvance refuses the advance unless the step's verify passes, or a -force
+// reason is given (logged loudly so an override is never silent).
+func gateAdvance(it plan.Item, st plan.Step, force string) error {
+	if force != "" {
+		fmt.Fprintf(os.Stderr, "plan: WARNING -force advance of %s/%s (verify SKIPPED) -- reason: %s\n", it.ID, st.ID, force)
+		return nil
+	}
+	return runVerify(it, st)
+}
+
+func finishAdvance(document plan.Plan, itemID, stepID string) error {
+	if err := plan.Save("", document); err != nil {
 		return err
 	}
 	action, open := nextAction(document)

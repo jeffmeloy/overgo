@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -18,9 +19,15 @@ import (
 	"time"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/projector"
+	"overgo/internal/recipe"
+	"overgo/internal/sampling"
+	"overgo/internal/servingtest"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
+	"overgo/internal/tokenizer"
 )
 
 type e4bVisionGolden struct {
@@ -39,6 +46,15 @@ type e4bAudioGolden struct {
 	SoftDim    int                    `json:"soft_dim"`
 }
 
+type e4bImageLanguageGolden struct {
+	Prefix     []tokenizer.TokenID `json:"prefix"`
+	ImageToken tokenizer.TokenID   `json:"image_token"`
+	ImageCount int                 `json:"image_count"`
+	Suffix     []tokenizer.TokenID `json:"suffix"`
+	NextToken  tokenizer.TokenID   `json:"next_token"`
+	NextPiece  string              `json:"next_piece"`
+}
+
 func TestMultimodalInputMatrix(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip)
@@ -47,9 +63,109 @@ func TestMultimodalInputMatrix(t *testing.T) {
 		t.Skip("set OVERGO_CUDA_TEST=1 for real multimodal parity")
 	}
 	t.Run("gemma-e4b-image", testGemmaE4BImageParity)
+	t.Run("gemma-e4b-image-language", testGemmaE4BImageLanguageParity)
 	t.Run("gemma-e4b-dynamic-resize", testGemmaE4BResizeParity)
 	t.Run("gemma-e4b-video-order", testGemmaE4BVideoOrder)
 	t.Run("gemma-e4b-audio", testGemmaE4BAudioParity)
+}
+
+func testGemmaE4BImageLanguageParity(t *testing.T) {
+	root := testutil.RepoRoot(t)
+	roots, err := dataroot.Resolve(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-mmproj-bf16.gguf")
+	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-bf16.gguf")
+	imagePath := testutil.FixturePath(t, "e4b_vision", "gemma4_mm_image.png")
+	goldenPath := testutil.FixturePath(t, "e4b_vision", "image_language.json")
+	assertSHA256(t, projectorPath, "1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db")
+	assertSHA256(t, modelPath, "cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501")
+	assertSHA256(t, imagePath, "996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e")
+	assertSHA256(t, goldenPath, "49b5624323fc4e2e87a2673d9b8ab8880d285e1bcb736dad7dcbea6ecd919232")
+	var golden e4bImageLanguageGolden
+	goldenRaw, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: E4B image-language golden absent; parity NOT verified: %v", err)
+	}
+	if err := json.Unmarshal(goldenRaw, &golden); err != nil {
+		t.Fatal(err)
+	}
+	imageFile, err := os.Open(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, decodeErr := png.Decode(imageFile)
+	closeErr := imageFile.Close()
+	if decodeErr != nil || closeErr != nil {
+		t.Fatal(errors.Join(decodeErr, closeErr))
+	}
+	projectorRunner, err := projector.OpenGemma4TowerWithOptions(projectorPath, projector.OpenOptions{CUDA: true})
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
+	}
+	input, err := projector.PreprocessGemma4VisionTowerImage(source, projectorRunner.Spec().Vision)
+	if err != nil {
+		_ = projectorRunner.Close()
+		t.Fatal(err)
+	}
+	projected, err := projectorRunner.EncodeVisionPatches(context.Background(), input.PixelValues, input.Positions)
+	projectorCloseErr := projectorRunner.Close()
+	if err != nil || projectorCloseErr != nil {
+		t.Fatal(errors.Join(err, projectorCloseErr))
+	}
+	if projected.SoftTokens != golden.ImageCount {
+		t.Fatalf("E4B image soft tokens = %d, want %d", projected.SoftTokens, golden.ImageCount)
+	}
+	width := int(projected.Embeddings.Shape.Dims[0])
+	overrides := make([]inference.EmbeddingOverride, projected.SoftTokens)
+	for index := range overrides {
+		start := index * width
+		overrides[index] = inference.EmbeddingOverride{
+			TokenIndex: uint32(len(golden.Prefix) + index),
+			Embedding:  slices.Clone(projected.Embeddings.Data[start : start+width]),
+		}
+	}
+	promptIDs := slices.Clone(golden.Prefix)
+	promptIDs = append(promptIDs, slices.Repeat([]tokenizer.TokenID{golden.ImageToken}, golden.ImageCount)...)
+	promptIDs = append(promptIDs, golden.Suffix...)
+	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyHybridNative,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	languageRunner, err := inference.OpenWithProgram(&loaded, inference.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer languageRunner.Close()
+	greedy, err := sampling.New(sampling.Config{Temperature: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var evaluation inference.PromptEvaluation
+	ids, _, err := languageRunner.Generate(context.Background(), "", inference.GenerateOptions{
+		MaxNewTokens:   1,
+		Sampler:        greedy,
+		PromptTokenIDs: promptIDs,
+		ProjectedInputs: &inference.ProjectedInputs{
+			EmbeddingOverrides: overrides,
+			BidirectionalAttentionBlocks: []inference.AttentionBlock{{
+				Start: uint32(len(golden.Prefix)),
+				End:   uint32(len(golden.Prefix) + golden.ImageCount),
+			}},
+		},
+		OnPromptEvaluated: func(got inference.PromptEvaluation) { evaluation = got },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != len(promptIDs)+1 || ids[len(ids)-1] != golden.NextToken {
+		t.Fatalf("E4B image-language next token = %v, want %d (%s)", ids[len(promptIDs):], golden.NextToken, golden.NextPiece)
+	}
+	t.Logf("E4B image-language parity: %d prompt + %d projected tokens -> %d (%s); prefill %s",
+		len(promptIDs), len(overrides), golden.NextToken, golden.NextPiece, evaluation.Duration)
 }
 
 func testGemmaE4BAudioParity(t *testing.T) {

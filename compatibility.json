@@ -208,7 +208,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:25a9b602a7d3c5b40bf849459b8d444ff2e4d1d250c84603f7124a600fb41479"
+          "identity": "evidence:sha256:9896f208fff30356db966c335f458a4cbc47a7e3a763d893d7c62e3380e6ab5c"
         }
       ],
       "id": "gemma-e4b-audio-tower-oracle",
@@ -217,6 +217,28 @@
       "artifact_identity": "sha256:1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db+98c8d1a25f96bbdfff5ca6153c9b18fad9740e300008618a970c18384b35d404+6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca+9de625447fbc7ab1f12d2de6c73700aa2daa9e476f3e4790e6632a4623371bbb",
       "status": "implemented",
       "summary": "Gemma E4B waveform frontend and audio tower match fingerprinted adaptive log-mel, 12-layer conformer, and soft-token evidence on CUDA."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
+          "path": "internal/inference/runner_layers.go",
+          "role": "source",
+          "identity": "file:sha256:a05a69ef61da2a10266690afcc650748c5c6ec54098d6ddb75f3338f8608b0c1"
+        },
+        {
+          "contains": "func TestMultimodalInputMatrix(",
+          "path": "internal/adaptiveparity/multimodal_input_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:9896f208fff30356db966c335f458a4cbc47a7e3a763d893d7c62e3380e6ab5c"
+        }
+      ],
+      "id": "gemma-e4b-image-language-oracle",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v",
+      "artifact_identity": "sha256:1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db+cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e+49b5624323fc4e2e87a2673d9b8ab8880d285e1bcb736dad7dcbea6ecd919232",
+      "status": "implemented",
+      "summary": "Gemma E4B image projection binds the exact adaptive prompt and produces the fingerprinted first language token on CUDA."
     },
     {
       "evidence": [

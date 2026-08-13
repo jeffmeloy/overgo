@@ -16,15 +16,15 @@
       ]
     },
     {
-      "id": "carbon-matched-reference",
-      "title": "Replay adaptive_new's retained Carbon causal CUDA workload from Git history; bind identical artifact, tokens, objective, Muon settings, wall, peak, and trajectory before claiming matched leadership",
+      "id": "sensenova-generation-leadership",
+      "title": "Complete native SenseNova generation from seeded latent through the 42-layer routed MoT body and decoder; match the adaptive generation oracle, then beat Python and adaptive wall plus peak without an image-family runtime",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Replay adaptive_new's retained Carbon causal CUDA workload from Git history; bind identical artifact, tokens, objective, Muon settings, wall, peak, and trajectory before claiming matched leadership",
+          "title": "Complete native SenseNova generation from seeded latent through the 42-layer routed MoT body and decoder; match the adaptive generation oracle, then beat Python and adaptive wall plus peak without an image-family runtime",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DENSE_TRAIN_BASELINE=1 go test ./internal/densecausal -run '^TestCarbonMatchedAdaptiveLeadership$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_BASELINE=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaGenerationLeadership$' -count=1 -v"
         }
       ]
     },

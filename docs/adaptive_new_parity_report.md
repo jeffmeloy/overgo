@@ -27,8 +27,8 @@ best resident implementation.
 - Critical correction: Overgo's E4B item is marked done although the real E4B
   model has not trained end to end. Device VJPs and a synthetic hybrid trainer
   are prerequisites, not E4B closure.
-- Production dense training has a real Carbon-500M resident ratchet; matched
-  adaptive replay, Qwen, hybrid, E4B, checkpoint, and promotion remain open.
+- Production dense training beats adaptive's retained Carbon causal protocol;
+  Qwen, hybrid, E4B, checkpoint, and promotion remain open.
 - Critical evidence gap: 34 compatibility claims are marked `implemented`, but
   the current file does not encode the doctrine's evidence tiers. All 135
   architecture entries are `experimental`; only four name a validated fixture.
@@ -110,7 +110,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | --- | --- | --- | --- |
 | Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` exist only in the design document | Overgo gap |
 | Optimizer | Adaptive optimizer machinery and model-specific use; historical SGD paths remain | Matrix/vector/scalar groups use one compiled Muon path; sign, BF16-SGD and family-local production updates deleted | Muon-only production authority |
-| Dense causal LM | Real Carbon/Qwen/MiniCPM CUDA lanes and save/reload evidence | Carbon frozen-lexical gather/head/CE, stack, final norm, and Muon stay resident; Qwen bias path open | Real Carbon ratchet; matched reference replay open |
+| Dense causal LM | Retained Carbon causal CUDA at `c72b6595d`: four 31-token DNA windows, LR `1.33179e-5`, Muon 0.95, loss `8.43767 -> 7.29179`, 6.816 s loop, 11.47 GiB admitted peak | Same ordered windows and settings: loss `8.437673 -> 7.293611`, 5.05-5.13 s loop, 4.620 GiB measured peak | Matched Carbon wall/peak lead; Qwen bias path open |
 | Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train -freeze-lexical` selects the no-fallback resident contract; full-parameter mode remains explicit | Carbon route reachable; exact checkpoint contract open |
 | Checkpoint/resume | Fine-tune evidence and persistence exist, uneven by trainer | Dense exact-resume tests exist; production save overwrites files and omits optimizer/RNG/data cursor | Test capability only |
 | Qwen3.5 hybrid | Inference active; training unsupported in adaptive inventory | Host/device hybrid layer VJPs and synthetic resident stack train | Overgo primitive lead; real-model gap |
@@ -133,9 +133,13 @@ Overgo's tokenizer total includes a large generated Unicode table.
 - Carbon-500M, 64 tokens, four frozen-lexical Muon steps: loss
   `4.124540 -> 2.630955`, 1.476 s/step, 4.714 GiB peak. Ratchets are
   1.8 s/step and 6 GiB. Adaptive retained 2.018 s/step and later measured a
-  15.06 GB Carbon training peak, but that wall record used FNS rather than
-  Overgo's causal CE. Current adaptive master refuses its Carbon gate at
-  admission; Git-history same-protocol replay is the open comparison.
+  15.06 GB Carbon training peak. A Git-history replay recovered adaptive's
+  causal protocol at `c72b6595d`; current adaptive master refuses that gate at
+  admission.
+- Matched Carbon causal: identical artifact, four ordered DNA windows, LR and
+  Muon setting. Overgo loss `8.437673 -> 7.293611`, resident loop 5.05-5.13 s,
+  total public-call wall 5.89-6.55 s, peak 4.620 GiB. Adaptive loss
+  `8.43767 -> 7.29179`, loop 6.816 s, admitted peak 11.47 GiB.
 - Hybrid resident synthetic stack: loss `15.92 -> 2.56`; host/device trajectory
   difference `2.856e-6`.
 - Synthetic dense medium benchmark: host `85.6 s/step`; device full
@@ -144,9 +148,8 @@ Overgo's tokenizer total includes a large generated Unicode table.
 - Device layer backward, cached forward, loss/gradients, full trainer, and
   resident trainer focused tests pass on the reviewed machine.
 
-These results promote Carbon's frozen-lexical resident route, not matched
-cross-repo leadership. They do not justify Qwen, E4B, 12B, controller, or
-system-wide training closure.
+These results promote matched Carbon frozen-lexical leadership. They do not
+justify Qwen, E4B, 12B, controller, or system-wide training closure.
 
 ## Recorded Performance Scoreboard
 
@@ -161,7 +164,7 @@ system-wide training closure.
 | Wan full generation | Python baselines vary by retained report: 399.1 or 463.4 s; adaptive exact Go 795.1 s warm in the current media report | fresh 331.96 s session+denoise + 38.31 s decode = 370.27 s; stage peaks 7.875 / 10.330 GB | 20.1% wall lead vs retained 463.4 s Python; fresh matched reference rerun still open |
 | Krea 256 generation | adaptive exact Go 25.430 s | 13.804 s / 25.030 GiB; MAE 0.02401, RMSE 0.05459 | 46% wall lead; lower peak; bounded quality lead |
 | Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | 35% lead vs best Python; 60% vs adaptive; 2.2% lower peak |
-| Carbon-500M training, comparable 64-token geometry | retained adaptive FNS 2.018 s/step; later Carbon peak 15.06 GB | causal CE 1.476 s/step / 4.714 GiB; loss 4.1245 -> 2.6310 | Backend ratchet; cross-objective, not matched leadership |
+| Carbon-500M causal training | adaptive `c72b6595d`: 6.816 s loop / 11.47 GiB admitted; loss 8.43767 -> 7.29179 | 5.05-5.13 s loop / 4.620 GiB measured; loss 8.437673 -> 7.293611 | 25% loop-wall lead; about 60% lower peak |
 | SenseNova full generation | Python 366.6 s / 47.58 GiB; adaptive 206.010 s / 19.50 GB | No complete Overgo result | Open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | No complete Overgo result | Open |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |
@@ -191,10 +194,9 @@ stubs.
 
 ### P0: production training leadership is Carbon-only
 
-Carbon now has a reachable frozen-lexical CUDA contract and real-artifact
-ratchet. Replay adaptive's causal workload from Git history before calling it a
-wall/peak lead. Then repeat for Qwen, hybrid, and E4B; add held-out promotion and
-exact checkpoint/resume evidence before broader claims.
+Carbon now has a reachable frozen-lexical CUDA contract and matched wall/peak
+lead. Repeat for Qwen, hybrid, and E4B; add held-out promotion and exact
+checkpoint/resume evidence before broader claims.
 
 ### P0: E4B training is falsely closed
 

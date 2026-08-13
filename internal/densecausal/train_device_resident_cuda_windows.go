@@ -5,6 +5,7 @@ package densecausal
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -74,19 +75,51 @@ func (m *Model) deriveResidentCapacity(worker *device.Worker, seq int, frozenLex
 // the tiny norm-vector sync/grad; weights and momentum are not among them. Matches
 // Train within fp32 tolerance. Attention bias is not supported.
 func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
-	return m.trainDeviceResident(worker, tokens, steps, baseLR, mu, false)
+	return m.trainDeviceResident(worker, repeatedBatches(tokens, steps), baseLR, mu, false, nil)
 }
 
 // TrainDeviceResidentFrozenLexical keeps the production frozen lexical tail on
 // device; only scalar loss and layer norm gradients cross to host per step.
 func (m *Model) TrainDeviceResidentFrozenLexical(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
-	return m.trainDeviceResident(worker, tokens, steps, baseLR, mu, true)
+	return m.trainDeviceResident(worker, repeatedBatches(tokens, steps), baseLR, mu, true, nil)
 }
 
-func (m *Model) trainDeviceResident(worker *device.Worker, tokens []int, steps int, baseLR, mu float64, frozenLexical bool) ([]float64, error) {
-	if len(tokens) < 2 {
-		return nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
+// TrainDeviceResidentFrozenLexicalBatches preserves ordered minibatches under
+// one resident weight, momentum, and allocation lifetime.
+func (m *Model) TrainDeviceResidentFrozenLexicalBatches(worker *device.Worker, batches [][]int, baseLR, mu float64) ([]float64, error) {
+	return m.trainDeviceResident(worker, batches, baseLR, mu, true, nil)
+}
+
+// MeasureDeviceResidentFrozenLexicalBatches returns the resident loop wall;
+// admission, upload, checkpoint, and teardown stay outside that phase.
+func (m *Model) MeasureDeviceResidentFrozenLexicalBatches(worker *device.Worker, batches [][]int, baseLR, mu float64) ([]float64, time.Duration, error) {
+	var wall time.Duration
+	trajectory, err := m.trainDeviceResident(worker, batches, baseLR, mu, true, &wall)
+	return trajectory, wall, err
+}
+
+func repeatedBatches(tokens []int, steps int) [][]int {
+	if steps <= 0 {
+		return nil
 	}
+	batches := make([][]int, steps)
+	for index := range batches {
+		batches[index] = tokens
+	}
+	return batches
+}
+
+func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, loopWall *time.Duration) ([]float64, error) {
+	if len(batches) == 0 || len(batches[0]) < 2 {
+		return nil, fmt.Errorf("densecausal: need at least one batch with two tokens")
+	}
+	tokens := batches[0]
+	for index, batch := range batches {
+		if len(batch) != len(tokens) {
+			return nil, fmt.Errorf("densecausal: batch %d length %d != %d", index, len(batch), len(tokens))
+		}
+	}
+	steps := len(batches)
 	d := m.Dims
 	if ok, reason := DeviceTrainingSupported(d); !ok {
 		return nil, fmt.Errorf("TrainDeviceResident: %s", reason)
@@ -219,7 +252,9 @@ func (m *Model) trainDeviceResident(worker *device.Worker, tokens []int, steps i
 	invF32 := ropeInvF32(hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim))
 	trajectory := make([]float64, 0, steps)
 
+	loopStarted := time.Now()
 	for step := 0; step < steps; step++ {
+		tokens := batches[step]
 		// Host oracle tail only; production frozen lexical gathers on device.
 		embed := m.Weights["model.embed_tokens.weight"]
 		var embeds []float32
@@ -338,6 +373,9 @@ func (m *Model) trainDeviceResident(worker *device.Worker, tokens []int, steps i
 			}
 			off += n
 		}
+	}
+	if loopWall != nil {
+		*loopWall = time.Since(loopStarted)
 	}
 
 	// Checkpoint: pull the resident matrix weights to host, then scatter everything.

@@ -19,9 +19,15 @@ import (
 	"overgo/internal/recipe"
 )
 
+const (
+	imageDevice          = "cuda:0"
+	imageSessionCapacity = 1
+)
+
 func imageCapability() capability {
-	latent := capabilityruntime.JSONScalar[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
-		"image-gen", latentimage.ValidateRequest,
+	latentCache, err := capabilityruntime.NewScalarSessionCache[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
+		"image-gen", imageDevice, imageSessionCapacity,
+		latentimage.ValidateRequest, latentimage.SessionPolicy,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
 			profileID, ok := program.Definition().Dependency(recipe.DependencyProfile, 0)
 			if !ok {
@@ -32,8 +38,20 @@ func imageCapability() capability {
 				return nil, err
 			}
 			return latentimage.LoadGenerator(ctx, path, profile, request)
-		}, latentimage.RegisterRuntime,
+		},
+		func(ctx context.Context, generator *latentimage.Generator, request latentimage.Request) error {
+			return generator.Reset(ctx, request)
+		},
+		latentimage.RegisterRuntime,
 	)
+	var latent capabilityruntime.Executor
+	if err == nil {
+		latent = latentCache.Executor()
+	} else {
+		latent = func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error) {
+			return nil, err
+		}
+	}
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,

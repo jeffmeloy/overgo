@@ -7,7 +7,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
-	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
 )
 
@@ -27,42 +26,21 @@ func JSONScalar[Input, Model, Output any](
 		program recipe.Program,
 		raw string,
 	) (any, error) {
-		definition := program.Definition()
-		if definition.Model != modelID {
-			return nil, fmt.Errorf("capability runtime: program model differs from binding")
-		}
-		if len(definition.Inputs) != 1 {
-			return nil, fmt.Errorf("capability runtime: scalar program requires one input")
-		}
-		var input Input
-		if err := strictjson.DecodeBytes([]byte(raw), &input); err != nil {
-			return nil, fmt.Errorf("decode %s input: %w", name, err)
-		}
-		if err := validate(input); err != nil {
+		input, content, err := decodeInput(name, validate, raw)
+		if err != nil {
 			return nil, err
 		}
-		content, err := artifact.JSONContent(
-			artifact.JSONContract(artifact.KindFile, "overgo."+name+"-input.v1"), input,
-		)
-		if err != nil {
+		if err := validateScalarProgram(modelID, program); err != nil {
 			return nil, err
 		}
 		model, err := load(ctx, store, path, program, input)
 		if err != nil {
 			return nil, err
 		}
-		inputPort := definition.Inputs[0]
-		output, executeErr := Execute[Output](
-			ctx, store, modelID, program,
-			"recipe/run/"+definition.ID.String()+"/"+content.Descriptor.ID.String(),
-			map[recipe.PortName]workflowruntime.Value{
-				inputPort.Name: workflowruntime.ArtifactValue(inputPort.Data, input, content),
-			},
-			func(runtime *workflowruntime.Runtime) error { return bind(runtime, modelID, model) },
+		output, executeErr := executeScalar[Input, Model, Output](
+			ctx, store, modelID, program, content, input, model, bind,
 		)
-		if closer, ok := any(model).(interface{ Close(context.Context) error }); ok {
-			executeErr = errors.Join(executeErr, closer.Close(context.WithoutCancel(ctx)))
-		}
+		executeErr = errors.Join(executeErr, closeModel(context.WithoutCancel(ctx), model))
 		return output, executeErr
 	}
 }

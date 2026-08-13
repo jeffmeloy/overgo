@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "stream-publication",
-          "title": "Eliminate full-image HWC-to-CHW and JSON-float publication copies; emit final layout directly into a streamed typed encoded-image artifact",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_KREA_BASELINE=1 go test ./internal/latentimage ./cmd/recipe -run '^TestImagePublicationStreamsEncodedArtifact$' -count=1 -v"
-        },
-        {
           "id": "cross-request-residency",
           "title": "Reuse resident image weights and compiled graphs across recipe calls through a bounded cache keyed by artifact fingerprint, recipe identity, device, and execution policy",
           "status": "open",

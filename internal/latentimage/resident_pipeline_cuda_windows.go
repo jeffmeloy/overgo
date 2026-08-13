@@ -500,6 +500,23 @@ func (p *ResidentImagePipeline) DecodeHWC(ctx context.Context) ([]float32, int, 
 	return results[p.VAE.Output].Data, p.VAE.OutH, p.VAE.OutW, nil
 }
 
+// Finish releases request-local latent state; compiled graphs remain resident.
+func (p *ResidentImagePipeline) Finish(ctx context.Context) error {
+	if p == nil {
+		return errors.New("resident image pipeline: unavailable")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.runtime == nil || p.latent == nil {
+		return errors.New("resident image pipeline: generation is unavailable")
+	}
+	err := p.latent.outputs.Release(ctx)
+	if err == nil {
+		p.latent = nil
+	}
+	return err
+}
+
 func (c *ResidentConditioning) Release(ctx context.Context) error {
 	if c == nil || c.pipeline == nil {
 		return nil

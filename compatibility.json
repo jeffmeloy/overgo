@@ -69,6 +69,8 @@
         }
       ],
       "id": "bounded-safetensors-repositories",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/safetensors -run '^TestOpenSourceRejectsInvalidRepositories$' -count=1 -v",
       "status": "implemented",
       "summary": "Safetensors repositories apply config, index, shard, header, tensor, dtype, range, overlap, and catalog bounds."
     },
@@ -84,6 +86,8 @@
         }
       ],
       "id": "safetensors-gguf-dense-bridge",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/hfgguf -run '^TestValidateDenseRepositoryUsesRuntimeCatalog$' -count=1 -v",
       "status": "implemented",
       "summary": "Standard Llama and Qwen2 Safetensors metadata, names, shapes, storage, and payload streams bridge to existing GGUF runtime catalogs."
     },
@@ -99,6 +103,8 @@
         }
       ],
       "id": "safetensors-gguf-qwen35-bridge",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/hfgguf -run '^TestValidateQwen35RepositoryUsesRuntimeCatalog$' -count=1 -v",
       "status": "implemented",
       "summary": "Qwen 3.5 Safetensors text, recurrent, and MTP metadata, names, shapes, and payload streams bridge to existing GGUF runtime catalogs."
     },
@@ -114,6 +120,8 @@
         }
       ],
       "id": "bounded-gguf-parsing",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/gguf -run '^TestParseEnforcesLimits$' -count=1 -v",
       "status": "implemented",
       "summary": "GGUF parsing applies allocation, count, alignment, and split limits."
     },
@@ -129,6 +137,8 @@
         }
       ],
       "id": "bounded-server-media",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestValidateMultimodalImagesEnforcesGeometryBudgets$' -count=1 -v",
       "status": "implemented",
       "summary": "Multimodal requests bound encoded bodies, decoded media, dimensions, and pixels."
     },
@@ -144,6 +154,9 @@
         }
       ],
       "id": "gemma4-multimodal-oracle",
+      "evidence_tier": "fixture-gated",
+      "verify": "go test ./internal/projector -run '^TestGemma4RealFixture$' -count=1 -v",
+      "artifact_identity": "env:OVERGO_GEMMA4_MMPROJ+OVERGO_GEMMA4_IMAGE+OVERGO_GEMMA4_GOLDEN",
       "status": "implemented",
       "summary": "Gemma 4 image preprocessing, projector output, and prompt tokens have pinned real-model oracles."
     },
@@ -159,6 +172,8 @@
         }
       ],
       "id": "validated-split-gguf",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/gguf -run '^TestOpenLoadsAndReadsSplitGGUF$' -count=1 -v",
       "status": "implemented",
       "summary": "Split GGUF models load, validate, write, merge, and round-trip."
     },
@@ -174,6 +189,9 @@
         }
       ],
       "id": "pinned-quantization",
+      "evidence_tier": "pinned-oracle",
+      "verify": "go test ./internal/quant -run '^TestQuantizeMatchesPinnedGGMLReference$' -count=1 -v",
+      "source_commit": "42fc243060709331ff9b158a9ed2cbe37219ae83",
       "status": "implemented",
       "summary": "Quantization encoders are checked against pinned GGML references."
     },
@@ -189,6 +207,9 @@
         }
       ],
       "id": "serialized-cuda-worker",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/device -run '^TestWorkerMemoryRoundTrip$' -count=1 -v",
+      "artifact_identity": "hardware:cuda-driver-device-0",
       "status": "implemented",
       "summary": "CUDA driver work executes through one locked-thread context owner."
     },
@@ -204,6 +225,8 @@
         }
       ],
       "id": "compiled-model-plan",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/model -run '^TestCompileModelPlanPinsLayerPolicies$' -count=1 -v",
       "status": "implemented",
       "summary": "Model opening compiles per-layer graph, cache, attention, position, residual, and feed-forward policy before execution."
     },
@@ -219,6 +242,8 @@
         }
       ],
       "id": "compiled-cuda-graph",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/cuda/executor -run '^TestCompilePinsTopologyAndMemoryPlan$' -count=1 -v",
       "status": "implemented",
       "summary": "Repeated CUDA graph execution can reuse validated topology, BLAS selection, and arena planning."
     },
@@ -234,6 +259,8 @@
         }
       ],
       "id": "tensor-operation-catalog",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/tensor -run '^TestOperationCatalogIsDenseAndUnique$' -count=1 -v",
       "status": "implemented",
       "summary": "Tensor operation identity, diagnostic class, and backend coverage share one typed catalog."
     },
@@ -249,6 +276,8 @@
         }
       ],
       "id": "editable-prompt-cache",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/inference -run '^TestProjectedPromptCacheRequiresExactMediaSignature$' -count=1 -v",
       "status": "implemented",
       "summary": "Bounded prompt caches support selection, eviction, context edits, and exact media-signed replay."
     },
@@ -264,6 +293,9 @@
         }
       ],
       "id": "constrained-generation",
+      "evidence_tier": "pinned-oracle",
+      "verify": "go test ./internal/sampling -run '^TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus$' -count=1 -v",
+      "source_commit": "42fc243060709331ff9b158a9ed2cbe37219ae83",
       "status": "implemented",
       "summary": "GBNF and JSON Schema constraints match pinned upstream corpora."
     },
@@ -279,6 +311,8 @@
         }
       ],
       "id": "ordered-multi-image",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestResponsesMultipleImagesPreservesContentOrder$' -count=1 -v",
       "status": "implemented",
       "summary": "Native, Chat, and Responses prompts preserve ordered image/text parts."
     },
@@ -294,6 +328,8 @@
         }
       ],
       "id": "media-history",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestChatImageHistoryPreservesTurnPositionAndReplay$' -count=1 -v",
       "status": "implemented",
       "summary": "Chat and Responses preserve projected images in earlier or final user turns through the complete formatted history."
     },
@@ -309,6 +345,8 @@
         }
       ],
       "id": "mixed-media-history",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestChatMixedImageAudioPreservesChunkOrder$' -count=1 -v",
       "status": "implemented",
       "summary": "Gemma 4 preserves ordered image/audio chunks through native, Chat, and Responses history."
     },
@@ -324,6 +362,8 @@
         }
       ],
       "id": "bounded-remote-media",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestRemoteMediaFetcherRejectsPrivateResolutionByDefault$' -count=1 -v",
       "status": "implemented",
       "summary": "Remote media is opt-in through explicit scheme, host, port, network, redirect, timeout, MIME, concurrency, and byte policy."
     },
@@ -339,6 +379,8 @@
         }
       ],
       "id": "responses-file-inputs",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestResponsesInputFileSources$' -count=1 -v",
       "status": "implemented",
       "summary": "Responses accepts bounded typed inline, policy-mapped file-ID, allowlisted URL, and image file-ID inputs."
     },
@@ -354,6 +396,8 @@
         }
       ],
       "id": "explicit-response-tool-policy",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestResponsesHostedAndCustomToolsUseExplicitPolicy$' -count=1 -v",
       "status": "implemented",
       "summary": "Hosted, MCP, and free-form custom Responses tools are classified and denied unless an external executor contract is added."
     },
@@ -369,6 +413,8 @@
         }
       ],
       "id": "server-encoded-video",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestChatAndResponsesEncodedVideoProjection$' -count=1 -v",
       "status": "implemented",
       "summary": "Chat and Responses decode bounded single-turn encoded video through native GIF or FFmpeg paths."
     },
@@ -384,6 +430,8 @@
         }
       ],
       "id": "multimodal-token-counting",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestMultimodalInputTokenCounting$' -count=1 -v",
       "status": "implemented",
       "summary": "Chat and Responses token counts use the projected media prompt."
     },
@@ -403,6 +451,8 @@
         }
       ],
       "id": "unified-prompt-preparation",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestPreparedPromptGenerationAndTokenCountParity$' -count=1 -v",
       "status": "implemented",
       "summary": "Native generation and the Chat, Responses, and Anthropic protocols share prepared prompts with token counting."
     },
@@ -418,6 +468,8 @@
         }
       ],
       "id": "incremental-tool-streaming",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestStreamingResponsesFunctionCallLifecycle$' -count=1 -v",
       "status": "implemented",
       "summary": "Chat, Responses, and Anthropic stream JSON and Hermes function arguments incrementally."
     },
@@ -433,6 +485,8 @@
         }
       ],
       "id": "multimodal-function-tools",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestChatAndResponsesMultimodalFunctionTools$' -count=1 -v",
       "status": "implemented",
       "summary": "Chat, Responses, and Anthropic preserve projected image/audio history while formatting and streaming function tools."
     },
@@ -448,6 +502,8 @@
         }
       ],
       "id": "anthropic-image-input",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestAnthropicImageToolsAndTokenCounting$' -count=1 -v",
       "status": "implemented",
       "summary": "Anthropic image blocks support bounded base64, allowlisted URL, and mapped file-ID projection with token-count parity."
     },
@@ -463,6 +519,8 @@
         }
       ],
       "id": "anthropic-local-thinking",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestAnthropicThinkingBufferedStreamingImageAndReplay$' -count=1 -v",
       "status": "implemented",
       "summary": "Manual summarized thinking supports buffered/SSE output, projected images, handler-local signed replay, and tamper rejection."
     },
@@ -478,6 +536,8 @@
         }
       ],
       "id": "responses-continuation",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestResponsesPreviousResponseContinuation$' -count=1 -v",
       "status": "implemented",
       "summary": "Bounded handler-local response history supports text, media, tool-call, streaming, and token-count continuations."
     },
@@ -493,6 +553,8 @@
         }
       ],
       "id": "responses-reasoning",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestResponsesReasoningItemsBufferedAndStreaming$' -count=1 -v",
       "status": "implemented",
       "summary": "Responses reasoning summaries support input replay, buffered output, streaming lifecycle events, and continuation retention."
     },
@@ -508,6 +570,8 @@
         }
       ],
       "id": "architecture-profiles",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/model -run '^TestArchitectureRegistryProfiles$' -count=1 -v",
       "status": "implemented",
       "summary": "Model architectures use a central family and capability registry with grouped specifications."
     },
@@ -527,6 +591,8 @@
         }
       ],
       "id": "architecture-family-dispatch",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/model -run '^TestLayerProgramsCoverTypedProfiles$' -count=1 -v",
       "status": "implemented",
       "summary": "Graph construction and tensor catalog validation route through compiled layer programs (per-family compiled policies), superseding the removed compatibility-layer family dispatcher."
     },
@@ -542,6 +608,8 @@
         }
       ],
       "id": "paged-continuous-cache",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/inference -run '^TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState$' -count=1 -v",
       "status": "implemented",
       "summary": "Retained CUDA cache pages and transactional attention/recurrent/hybrid multi-sequence steps support dynamic admission and forks."
     },
@@ -557,6 +625,8 @@
         }
       ],
       "id": "padded-t5-batches",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/inference -run '^TestValidatePaddedTokenBatchMasksSuffixes$' -count=1 -v",
       "status": "implemented",
       "summary": "Rectangular T5 batches use explicit source and decoder lengths so padding never enters attention state."
     },
@@ -572,6 +642,8 @@
         }
       ],
       "id": "reproducible-release",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./cmd/release -run '^TestCreateArchiveIsDeterministic$' -count=1 -v",
       "status": "implemented",
       "summary": "Release archives are deterministic and compared across two builds."
     }

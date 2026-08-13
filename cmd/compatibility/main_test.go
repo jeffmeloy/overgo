@@ -17,7 +17,8 @@ func TestGenerateValidatesEvidenceAndSortsOutput(t *testing.T) {
   "host": {"os": "windows", "arch": "amd64"},
   "go": {"minimum": "1.26", "cgo": false},
   "claims": [
-    {"id": "feature", "status": "implemented", "summary": "Feature works.",
+    {"id": "feature", "status": "implemented", "evidence_tier": "contract-tested",
+     "verify": "go test ./internal -run '^TestFeature$' -count=1 -v", "summary": "Feature works.",
      "evidence": [
        {"path": "internal/feature.go", "contains": "func Feature("},
        {"path": "internal/feature_test.go", "contains": "func TestFeature("}
@@ -52,7 +53,8 @@ func TestGenerateRejectsStaleClaimEvidence(t *testing.T) {
   "host": {"os": "windows", "arch": "amd64"},
   "go": {"minimum": "1.26", "cgo": false},
   "claims": [
-    {"id": "stale", "status": "implemented", "summary": "Stale claim.",
+    {"id": "stale", "status": "implemented", "evidence_tier": "contract-tested",
+     "verify": "go test . -run '^TestMissing$' -count=1 -v", "summary": "Stale claim.",
      "evidence": [{"path": "feature_test.go", "contains": "func TestMissing("}]}
   ],
   "models": {
@@ -62,6 +64,34 @@ func TestGenerateRejectsStaleClaimEvidence(t *testing.T) {
 `)
 	if _, err := generate(root); err == nil || !strings.Contains(err.Error(), "lacks") {
 		t.Fatalf("stale evidence error = %v", err)
+	}
+}
+
+func TestClaimsRequireLiveEvidenceTier(t *testing.T) {
+	base := claim{
+		ID: "feature", Status: "implemented", EvidenceTier: "contract-tested",
+		Verify:   "go test ./internal -run '^TestFeature$' -count=1 -v",
+		Evidence: []evidence{{Path: "internal/feature_test.go", Contains: "func TestFeature("}},
+	}
+	if err := validateClaimEvidenceTier(base); err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*claim){
+		"tier":     func(item *claim) { item.EvidenceTier = "" },
+		"verifier": func(item *claim) { item.Verify = "go test ./internal" },
+		"anchor":   func(item *claim) { item.Verify = "go test ./internal -run '^TestStale$' -count=1 -v" },
+		"source": func(item *claim) {
+			item.EvidenceTier = "pinned-oracle"
+			item.SourceCommit = ""
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			item := base
+			mutate(&item)
+			if err := validateClaimEvidenceTier(item); err == nil {
+				t.Fatal("invalid claim evidence accepted")
+			}
+		})
 	}
 }
 

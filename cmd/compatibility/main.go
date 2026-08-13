@@ -47,10 +47,14 @@ type goRuntime struct {
 }
 
 type claim struct {
-	ID       string     `json:"id"`
-	Status   string     `json:"status"`
-	Summary  string     `json:"summary"`
-	Evidence []evidence `json:"evidence"`
+	ID               string     `json:"id"`
+	Status           string     `json:"status"`
+	EvidenceTier     string     `json:"evidence_tier"`
+	Verify           string     `json:"verify"`
+	SourceCommit     string     `json:"source_commit,omitempty"`
+	ArtifactIdentity string     `json:"artifact_identity,omitempty"`
+	Summary          string     `json:"summary"`
+	Evidence         []evidence `json:"evidence"`
 }
 
 type evidence struct {
@@ -107,7 +111,7 @@ func generate(root string) ([]byte, error) {
 		document.Upstream.Repository, document.Upstream.Commit, document.Host.OS,
 		document.Host.Arch, document.Go.Minimum, document.Go.CGO)
 	output.WriteString("## Verified feature claims\n\n")
-	output.WriteString("| ID | State | Claim | Evidence |\n| --- | --- | --- | --- |\n")
+	output.WriteString("| ID | State | Tier | Claim | Verifier | Evidence |\n| --- | --- | --- | --- | --- | --- |\n")
 	claims := append([]claim(nil), document.Claims...)
 	sort.Slice(claims, func(i, j int) bool { return claims[i].ID < claims[j].ID })
 	for _, item := range claims {
@@ -115,8 +119,9 @@ func generate(root string) ([]byte, error) {
 		for index, proof := range item.Evidence {
 			links[index] = fmt.Sprintf("[`%s`](../%s)", proof.Contains, filepath.ToSlash(proof.Path))
 		}
-		fmt.Fprintf(&output, "| `%s` | %s | %s | %s |\n",
-			item.ID, item.Status, escapeCell(item.Summary), strings.Join(links, "<br>"))
+		fmt.Fprintf(&output, "| `%s` | %s | %s | %s | `%s` | %s |\n",
+			item.ID, item.Status, item.EvidenceTier, escapeCell(item.Summary),
+			escapeCell(item.Verify), strings.Join(links, "<br>"))
 	}
 	output.WriteString("\n## Model families\n\n")
 	output.WriteString("`experimental` means the implementation is guarded by strict metadata/catalog validation but may still lack a local real-model oracle.\n\n")
@@ -189,6 +194,9 @@ func validateManifest(root string, document manifest) error {
 		if len(item.Evidence) == 0 || item.Status == "implemented" && !hasTest {
 			return fmt.Errorf("compatibility manifest: claim %q lacks test evidence", item.ID)
 		}
+		if err := validateClaimEvidenceTier(item); err != nil {
+			return fmt.Errorf("compatibility manifest: claim %q: %w", item.ID, err)
+		}
 	}
 	for name, item := range document.Models {
 		if name == "" || item.Status == "" || len(item.Features) == 0 {
@@ -210,6 +218,34 @@ func validateManifest(root string, document manifest) error {
 		return fmt.Errorf("compatibility manifest: inspect architecture registry: %w", err)
 	}
 	return nil
+}
+
+func validateClaimEvidenceTier(item claim) error {
+	validTier := item.EvidenceTier == "contract-tested" || item.EvidenceTier == "pinned-oracle" ||
+		item.EvidenceTier == "fixture-gated" || item.EvidenceTier == "device-gated"
+	if !validTier {
+		return fmt.Errorf("invalid evidence_tier %q", item.EvidenceTier)
+	}
+	if item.EvidenceTier == "pinned-oracle" && len(item.SourceCommit) != 40 {
+		return errors.New("pinned-oracle evidence needs a source_commit")
+	}
+	if (item.EvidenceTier == "fixture-gated" || item.EvidenceTier == "device-gated") && item.ArtifactIdentity == "" {
+		return fmt.Errorf("%s evidence needs an artifact_identity", item.EvidenceTier)
+	}
+	if !strings.Contains(item.Verify, "go test ") || !strings.Contains(item.Verify, " -run '") ||
+		!strings.Contains(item.Verify, " -count=1") || !strings.Contains(item.Verify, " -v") {
+		return errors.New("verify must be a verbose, uncached, filtered go test command")
+	}
+	for _, proof := range item.Evidence {
+		if !strings.HasSuffix(proof.Path, "_test.go") || !strings.HasPrefix(proof.Contains, "func Test") {
+			continue
+		}
+		name, _, ok := strings.Cut(strings.TrimPrefix(proof.Contains, "func "), "(")
+		if ok && strings.Contains(item.Verify, "^"+name+"$") {
+			return nil
+		}
+	}
+	return errors.New("verify test is not anchored by claim evidence")
 }
 
 func modelHasValidation(item modelClaim) bool {

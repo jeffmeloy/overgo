@@ -35,6 +35,7 @@ type servingGolden struct {
 // Env: OVERGO_GOLDEN_MODEL (gguf), OVERGO_GOLDEN_FIXTURE (json),
 // OVERGO_GOLDEN_SESSION (request|capacity).
 func TestServingGoldenRegression(t *testing.T) {
+	requireIntegration(t)
 	cudatest.Require(t)
 	modelPath := os.Getenv("OVERGO_GOLDEN_MODEL")
 	fixturePath := os.Getenv("OVERGO_GOLDEN_FIXTURE")

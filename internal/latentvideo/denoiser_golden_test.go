@@ -253,7 +253,7 @@ func TestNormalNoiseGoldenG3(t *testing.T) {
 // the real weights vs the g2 host capture (same engine class; tolerance 0).
 func TestTimestepConditioningGoldenG2(t *testing.T) {
 	if testing.Short() {
-		t.Skip("loads the 5.7GB denoiser weight set; skipped in -short")
+		t.Skip("integration excluded by -short: loads the 5.7GB denoiser weight set")
 	}
 	dir := testutil.FixturePath(t, "wan")
 	raw, err := os.ReadFile(filepath.Join(dir, "g2_timestep_conditioning.json"))
@@ -340,7 +340,7 @@ func logHeapPeak(t *testing.T, scope string) {
 // latent. Reference backend executes both graphs.
 func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 	if testing.Short() {
-		t.Skip("runs the full 30-block denoiser on the reference backend; skipped in -short")
+		t.Skip("integration excluded by -short: runs the full 30-block denoiser on the reference backend")
 	}
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	program := newGoldenDenoiserProgram(t, manifest)
@@ -455,7 +455,7 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 // rotary coordinates and a 2-step trajectory vs the g4 capture.
 func TestDenoiserGoldenDenoiseG4(t *testing.T) {
 	if testing.Short() {
-		t.Skip("runs the full 30-block denoiser on the reference backend; skipped in -short")
+		t.Skip("integration excluded by -short: runs the full 30-block denoiser on the reference backend")
 	}
 	manifest, dir := loadDenoiseManifest(t, "g4_denoise.json")
 	program := newGoldenDenoiserProgram(t, manifest)

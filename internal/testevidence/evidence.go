@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+const ShortIntegrationSkip = "integration excluded by -short"
+
 type GoTestReport struct {
 	Skipped     []string
 	Unavailable []string
@@ -30,12 +32,32 @@ func GoTestJSON(out string) error {
 	return nil
 }
 
+// GoTestJSONShort permits only explicitly classified short-mode exclusions.
+func GoTestJSONShort(out string) error {
+	report, err := goTestJSONReport(out, true)
+	if err != nil {
+		return err
+	}
+	if len(report.Unavailable) > 0 {
+		return fmt.Errorf("%s", report.Unavailable[0])
+	}
+	if len(report.Skipped) > 0 {
+		return fmt.Errorf("%s skipped", report.Skipped[0])
+	}
+	return nil
+}
+
 // GoTestJSONReport decodes complete test evidence without crediting skips.
 // Callers decide whether the tested package is in the changed ownership cone.
 func GoTestJSONReport(out string) (GoTestReport, error) {
+	return goTestJSONReport(out, false)
+}
+
+func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 	scanner := bufio.NewScanner(strings.NewReader(out))
 	seen := false
 	var report GoTestReport
+	classified := map[string]bool{}
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -51,10 +73,14 @@ func GoTestJSONReport(out string) (GoTestReport, error) {
 			return GoTestReport{}, fmt.Errorf("decode go test event: %w", err)
 		}
 		seen = true
+		key := event.Package + "\x00" + event.Test
+		if short && strings.Contains(event.Output, ShortIntegrationSkip) {
+			classified[key] = true
+		}
 		if reason := unavailable(event.Output); reason != "" {
 			report.Unavailable = append(report.Unavailable, event.Package+": "+reason)
 		}
-		if event.Action == "skip" && event.Test != "" {
+		if event.Action == "skip" && event.Test != "" && !classified[key] {
 			report.Skipped = append(report.Skipped, event.Package+": "+event.Test)
 		}
 	}

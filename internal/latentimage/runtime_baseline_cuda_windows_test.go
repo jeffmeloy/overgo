@@ -19,6 +19,7 @@ import (
 )
 
 func TestGeneratorRealCheckpointBaseline(t *testing.T) {
+	requireLongTest(t)
 	if os.Getenv("OVERGO_KREA_BASELINE") != "1" {
 		t.Skip("set OVERGO_KREA_BASELINE=1 to measure the real Krea pipeline")
 	}

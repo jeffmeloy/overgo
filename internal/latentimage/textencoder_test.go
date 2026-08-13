@@ -261,9 +261,7 @@ func TestEncoderDerivesFromRealCheckpoint(t *testing.T) {
 // conditioning tensor whose geometry matches the DiT text-stream input. Asserts
 // shapes + finiteness (NOT bit-exact; exact parity needs the adaptive dump hook).
 func TestEncoderRealCheckpointTelemetry(t *testing.T) {
-	if testing.Short() {
-		t.Skip("streams the ~3.7B-param text encoder over the prompt; skipped in -short")
-	}
+	requireLongTest(t)
 	dir := kreaDirOrSkip(t)
 	spec, err := Derive(dir)
 	if err != nil {

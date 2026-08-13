@@ -28,7 +28,7 @@ func (s Spec) LayerHasFullIndexer(layer uint32) bool {
 	if s.Profile().Cadence.FullIndexerEveryLayer && layer < s.BlockCount+s.NextNPredictLayers {
 		return true
 	}
-	return s.Profile().Attention == AttentionDSA && layerValue(s.IndexerFullLayers, layer, false)
+	return s.Profile().Attention == AttentionSparseLatent && layerValue(s.IndexerFullLayers, layer, false)
 }
 
 func (e *UnsupportedArchitectureError) Error() string {
@@ -1103,7 +1103,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			)
 		}
 	}
-	if profile.Has(ArchitectureDeepSeek2Layout) {
+	if profile.Has(ArchitectureLatentKVLayout) {
 		if validation.MLA == MLAValidationDeepSeek32 {
 			if spec.ExpertCount, err = required[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
@@ -1582,7 +1582,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			spec.SlidingWindow = value
 		}
 	}
-	if profile.Attention == AttentionMLA || profile.Attention == AttentionDSA {
+	if profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent {
 		if validation.MLA == MLAValidationMiniCPM3 {
 			if spec.QLoRARank, err = required[uint32](
 				values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32,
@@ -1590,7 +1590,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 				return Spec{}, err
 			}
 		}
-		if profile.Has(ArchitectureDeepSeek2Layout) {
+		if profile.Has(ArchitectureLatentKVLayout) {
 			lite := spec.BlockCount == 26 || spec.BlockCount == 27 || (spec.BlockCount == 48 && spec.VocabularySize == 128256)
 			if !lite {
 				if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
@@ -1608,7 +1608,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		); err != nil {
 			return Spec{}, err
 		}
-		if profile.Has(ArchitectureDeepSeek2Layout) {
+		if profile.Has(ArchitectureLatentKVLayout) {
 			spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 			if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
@@ -1632,7 +1632,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			spec.AttentionTempFloor, _ = optional[uint32](values, prefix+"attention.temperature_length", gguf.ValueTypeUint32)
 		}
 	}
-	if profile.Attention == AttentionDSA {
+	if profile.Attention == AttentionSparseLatent {
 		sections, hasSections, sectionsErr := optionalArray[int32](values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32)
 		if sectionsErr != nil {
 			return Spec{}, sectionsErr

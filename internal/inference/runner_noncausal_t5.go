@@ -73,7 +73,7 @@ func (r *Runner) forwardNonCausalLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	if r.profile().Attention == model.AttentionLFM2 {
+	if r.forwardProgram().NonCausalRecurrent() {
 		for layerIndex, layerInfo := range r.weights.Layers {
 			activation, err = r.runLFM2LayerNonCausal(
 				ctx, activation, layerInfo, layerIndex, positions,
@@ -196,7 +196,7 @@ func (r *Runner) projectAllLogits(
 	return result, nil
 }
 
-func (r *Runner) forwardT5EncoderLocked(
+func (r *Runner) forwardEncoderLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
@@ -223,19 +223,19 @@ func (r *Runner) forwardT5EncoderLocked(
 		layers = r.weights.EncoderLayers
 	}
 	for layerIndex, layerInfo := range layers {
-		activation, err = r.runT5EncoderLayer(ctx, activation, layerInfo, layerIndex)
+		activation, err = r.runEncoderLayer(ctx, activation, layerInfo, layerIndex)
 		if err != nil {
 			return reference.Value{}, fmt.Errorf("inference encoder layer %d: %w", layerIndex, err)
 		}
 	}
 	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
-		return r.runT5EncoderOutputNorm(ctx, activation)
+		return r.runEncoderOutputNorm(ctx, activation)
 	}
 	return r.runOutputNorm(ctx, activation)
 }
 
-// NewT5Session: encodes one source sequence.
-func (r *Runner) NewT5Session(ctx context.Context, sourceIDs []tokenizer.TokenID) (*T5Session, error) {
+// NewEncoderDecoderSession: encodes one source sequence.
+func (r *Runner) NewEncoderDecoderSession(ctx context.Context, sourceIDs []tokenizer.TokenID) (*EncoderDecoderSession, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
 	}
@@ -245,21 +245,20 @@ func (r *Runner) NewT5Session(ctx context.Context, sourceIDs []tokenizer.TokenID
 		return nil, errors.New("inference: runner is closed")
 	}
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
-		return nil, errors.New("inference: T5 session requires T5 architecture")
+		return nil, errors.New("inference: encoder-decoder session requires a compiled session program")
 	}
-	encoder, err := r.forwardT5EncoderLocked(ctx, sourceIDs)
+	encoder, err := r.forwardEncoderLocked(ctx, sourceIDs)
 	if err != nil {
 		return nil, err
 	}
-	return &T5Session{Encoder: encoder}, nil
+	return &EncoderDecoderSession{Encoder: encoder}, nil
 }
 
-// DecodeT5: appends decoder tokens and returns all chunk logits.
-func (r *Runner) DecodeT5(
+// DecodeEncoderDecoder: appends decoder tokens and returns all chunk logits.
+func (r *Runner) DecodeEncoderDecoder(
 	ctx context.Context,
-	session *T5Session,
-	decoderIDs []tokenizer.TokenID,
-) (reference.Value, *T5Session, error) {
+	session *EncoderDecoderSession, decoderIDs []tokenizer.TokenID,
+) (reference.Value, *EncoderDecoderSession, error) {
 	if r == nil {
 		return reference.Value{}, nil, errors.New("inference: runner is nil")
 	}
@@ -269,37 +268,36 @@ func (r *Runner) DecodeT5(
 		return reference.Value{}, nil, errors.New("inference: runner is closed")
 	}
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
-		return reference.Value{}, nil, errors.New("inference: T5 decode requires T5 architecture")
+		return reference.Value{}, nil, errors.New("inference: decoder requires a compiled encoder-decoder program")
 	}
-	return r.decodeT5Locked(ctx, session, decoderIDs)
+	return r.decodeEncoderDecoderLocked(ctx, session, decoderIDs)
 }
 
-func (r *Runner) decodeT5Locked(
+func (r *Runner) decodeEncoderDecoderLocked(
 	ctx context.Context,
-	session *T5Session,
-	decoderIDs []tokenizer.TokenID,
-) (reference.Value, *T5Session, error) {
+	session *EncoderDecoderSession, decoderIDs []tokenizer.TokenID,
+) (reference.Value, *EncoderDecoderSession, error) {
 	if session == nil {
-		return reference.Value{}, nil, errors.New("inference: T5 session is nil")
+		return reference.Value{}, nil, errors.New("inference: encoder-decoder session is nil")
 	}
 	if session.Encoder.Shape.Rank != 2 ||
 		session.Encoder.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) ||
 		session.Encoder.Shape.Dims[1] == 0 {
-		return reference.Value{}, nil, errors.New("inference: T5 encoder state shape is incompatible")
+		return reference.Value{}, nil, errors.New("inference: encoder state shape is incompatible")
 	}
 	if len(decoderIDs) == 0 {
-		return reference.Value{}, nil, errors.New("inference: T5 decoder token sequence is empty")
+		return reference.Value{}, nil, errors.New("inference: decoder token sequence is empty")
 	}
 	var pastTokens, nextPosition uint32
 	if session.Cache != nil {
-		if err := r.validateT5Cache(session.Cache, session.Encoder.Shape.Dims[1]); err != nil {
+		if err := r.validateEncoderDecoderCache(session.Cache, session.Encoder.Shape.Dims[1]); err != nil {
 			return reference.Value{}, nil, err
 		}
 		pastTokens = session.Cache.Tokens
 		nextPosition = effectiveCachePosition(session.Cache)
 	}
 	if uint64(pastTokens)+uint64(len(decoderIDs)) > uint64(r.spec.ContextLength) {
-		return reference.Value{}, nil, errors.New("inference: T5 decoder sequence exceeds context length")
+		return reference.Value{}, nil, errors.New("inference: decoder sequence exceeds context length")
 	}
 	rows, err := r.tokenRows(decoderIDs)
 	if err != nil {
@@ -319,7 +317,7 @@ func (r *Runner) decodeT5Locked(
 		if session.Cache != nil {
 			past = &session.Cache.Layers[layerIndex]
 		}
-		activation, nextCache.Layers[layerIndex], err = r.runT5DecoderLayer(
+		activation, nextCache.Layers[layerIndex], err = r.runDecoderLayer(
 			ctx, activation, session.Encoder, layerInfo, layerIndex, past,
 		)
 		if err != nil {
@@ -334,13 +332,13 @@ func (r *Runner) decodeT5Locked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	return logits, &T5Session{Encoder: session.Encoder, Cache: nextCache}, nil
+	return logits, &EncoderDecoderSession{Encoder: session.Encoder, Cache: nextCache}, nil
 }
 
 // ForwardCached: evaluates prompt chunk and returns host KV/recurrent cache
 // suitable for later incremental call or ShiftCache edit
 
-func (r *Runner) runT5EncoderLayer(
+func (r *Runner) runEncoderLayer(
 	ctx context.Context,
 	activation reference.Value,
 	info model.LayerWeights,
@@ -369,7 +367,7 @@ func (r *Runner) runT5EncoderLayer(
 	return results[result.Output], nil
 }
 
-func (r *Runner) runT5DecoderLayer(
+func (r *Runner) runDecoderLayer(
 	ctx context.Context,
 	activation, encoder reference.Value,
 	info model.LayerWeights,
@@ -392,7 +390,7 @@ func (r *Runner) runT5DecoderLayer(
 		crossKey, hasKey := past.States[model.CacheStateCrossKey]
 		crossValue, hasValue := past.States[model.CacheStateCrossValue]
 		if !hasKey || !hasValue {
-			return reference.Value{}, LayerCache{}, errors.New("T5 decoder cross cache is missing")
+			return reference.Value{}, LayerCache{}, errors.New("encoder-decoder cross cache is missing")
 		}
 		pastCrossKey = runtime.input("past_cross_key", crossKey.Value)
 		pastCrossValue = runtime.input("past_cross_value", crossValue.Value)
@@ -424,12 +422,12 @@ func (r *Runner) runT5DecoderLayer(
 	return results[result.Output], layerCache, nil
 }
 
-func (r *Runner) runT5EncoderOutputNorm(
+func (r *Runner) runEncoderOutputNorm(
 	ctx context.Context,
 	activation reference.Value,
 ) (reference.Value, error) {
 	if r.weights.EncoderOutputNorm == nil {
-		return reference.Value{}, errors.New("inference: T5 encoder output norm is missing")
+		return reference.Value{}, errors.New("inference: encoder output norm is missing")
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	input := runtime.input("enc.output_norm.input", activation)

@@ -233,7 +233,7 @@ func TestHostLayerGraphInputsPermitRWKV6Qwen2(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(feeds) != 17 || graph.TimeMixW1 == nil || graph.TimeMixLerpFused == nil || graph.TimeMixOutput == nil {
-		t.Fatalf("unexpected RWKV6-Qwen2 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+		t.Fatalf("unexpected WKV6-Qwen2 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
 	}
 }
 
@@ -267,7 +267,7 @@ func TestHostLayerGraphInputsPermitRWKV6(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(feeds) != 24 || graph.TimeMixFirst == nil || graph.TimeMixLN == nil || graph.ChannelMixReceptance == nil {
-		t.Fatalf("unexpected RWKV6 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+		t.Fatalf("unexpected WKV6 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
 	}
 }
 
@@ -308,7 +308,7 @@ func TestHostLayerGraphInputsPermitRWKV7(t *testing.T) {
 	if len(feeds) != 28 || graph.TimeMixW0 == nil || graph.TimeMixA2 == nil ||
 		graph.TimeMixV2 == nil || graph.TimeMixG2 == nil || graph.TimeMixRK == nil ||
 		graph.ChannelMixValue == nil {
-		t.Fatalf("unexpected RWKV7 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+		t.Fatalf("unexpected WKV7 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
 	}
 }
 

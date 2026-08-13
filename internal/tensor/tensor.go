@@ -52,9 +52,9 @@ const (
 	OpTanh
 	OpExp
 	OpGatedLinearAttention
-	OpRWKV6
+	OpWKV6
 	OpSumRows
-	OpRWKV7
+	OpWKV7
 	OpFWHT
 	OpTopK
 	OpGatherLast
@@ -63,11 +63,11 @@ const (
 	OpReLU
 	OpConv1DSame
 	OpGroupNorm
-	OpDeepSeek4HCInit
-	OpDeepSeek4HCPre
-	OpDeepSeek4HCPost
-	OpDeepSeek4HCHead
-	OpDeepSeek4Attention
+	OpHyperConnectionInit
+	OpHyperConnectionPre
+	OpHyperConnectionPost
+	OpHyperConnectionHead
+	OpCompressedAttention
 	OpLoRAMerge
 	OpDivide
 	OpBF16Round
@@ -215,46 +215,46 @@ type MoEAttributes struct {
 	SwiGLUClamp        float32
 }
 
-type DeepSeek4HCAttributes struct {
+type HyperConnectionAttributes struct {
 	HyperConnections   uint32
 	SinkhornIterations uint32
 	NormEpsilon        float32
 	Epsilon            float32
 }
 
-// DeepSeek4CompressionRatio: serialized layer compression policy.
-type DeepSeek4CompressionRatio uint32
+// CompressionRatio: serialized layer compression policy.
+type CompressionRatio uint32
 
 const (
-	DeepSeek4CompressionNone    DeepSeek4CompressionRatio = 0
-	DeepSeek4CompressionOverlap DeepSeek4CompressionRatio = 4
-	DeepSeek4CompressionWide    DeepSeek4CompressionRatio = 128
+	CompressionNone    CompressionRatio = 0
+	CompressionOverlap CompressionRatio = 4
+	CompressionWide    CompressionRatio = 128
 )
 
-func (r DeepSeek4CompressionRatio) Valid() bool {
-	return r == DeepSeek4CompressionNone ||
-		r == DeepSeek4CompressionOverlap ||
-		r == DeepSeek4CompressionWide
+func (r CompressionRatio) Valid() bool {
+	return r == CompressionNone ||
+		r == CompressionOverlap ||
+		r == CompressionWide
 }
 
-func (r DeepSeek4CompressionRatio) Enabled() bool {
-	return r != DeepSeek4CompressionNone
+func (r CompressionRatio) Enabled() bool {
+	return r != CompressionNone
 }
 
-func (r DeepSeek4CompressionRatio) UsesIndexer() bool {
-	return r == DeepSeek4CompressionOverlap
+func (r CompressionRatio) UsesIndexer() bool {
+	return r == CompressionOverlap
 }
 
-func (r DeepSeek4CompressionRatio) KVWidthMultiplier() uint64 {
+func (r CompressionRatio) KVWidthMultiplier() uint64 {
 	if r.UsesIndexer() {
 		return 2
 	}
 	return 1
 }
 
-type DeepSeek4AttentionAttributes struct {
+type CompressedAttentionAttributes struct {
 	Positions        []uint32
-	Ratio            DeepSeek4CompressionRatio
+	Ratio            CompressionRatio
 	Window           uint32
 	Heads            uint32
 	IndexerHeads     uint32

@@ -48,7 +48,7 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	if err != nil {
 		return nil, err
 	}
-	if r.hasCachePolicy(model.CacheDeepSeek4) {
+	if r.hasCachePolicy(model.CacheCompressedAttention) {
 		upgradeDeepSeek4CachePositions(cache)
 	}
 	if err := r.validateCache(cache); err != nil {
@@ -130,7 +130,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		if err := validateLayerCacheSchema(layer, schema); err != nil {
 			return fmt.Errorf("inference: KV cache layer %d: %w", index, err)
 		}
-		if plan.Attention == model.AttentionDSA {
+		if plan.Attention == model.AttentionSparseLatent {
 			state, present := layer.States[model.CacheStateIndexerKey]
 			if r.spec.LayerHasFullIndexer(uint32(index)) {
 				want := tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))
@@ -141,7 +141,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				return fmt.Errorf("inference: DSA shared layer %d has indexer state", index)
 			}
 		}
-		if plan.Cache == model.CacheDeepSeek4 {
+		if plan.Cache == model.CacheCompressedAttention {
 			positions := layer.States[model.CacheStatePositions].Value.Data
 			for item, value := range positions {
 				position := uint32(value)
@@ -160,12 +160,12 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				}
 			}
 		}
-		if plan.Cache == model.CacheT5 {
+		if plan.Cache == model.CacheCrossAttention {
 			crossKey := layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2]
 			crossValue := layer.States[model.CacheStateCrossValue].Value.Shape.Dims[2]
 			if crossKey != crossValue {
 				return fmt.Errorf(
-					"inference: T5 cache layer %d cross-attention lengths differ",
+					"inference: encoder-decoder cache layer %d cross-attention lengths differ",
 					index,
 				)
 			}
@@ -249,14 +249,14 @@ func cacheShapeMatches(shape tensor.Shape, schema model.CacheValueSchema) bool {
 	return shape.Dims[last] > 0
 }
 
-func (r *Runner) validateT5Cache(cache *KVCache, encoderTokens uint64) error {
+func (r *Runner) validateEncoderDecoderCache(cache *KVCache, encoderTokens uint64) error {
 	if err := r.validateCache(cache); err != nil {
 		return err
 	}
 	for index, layer := range cache.Layers {
 		if layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2] != encoderTokens {
 			return fmt.Errorf(
-				"inference: T5 cache layer %d encoder length %d, need %d",
+				"inference: encoder-decoder cache layer %d encoder length %d, need %d",
 				index, layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2], encoderTokens,
 			)
 		}
@@ -295,7 +295,7 @@ func (r *Runner) RemoveCacheRange(
 		Tokens:   remaining,
 		Position: effectiveCachePosition(cache),
 	}
-	if r.profile().Family == model.ArchitectureFamilyEncoderDecoder {
+	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
 		// T5 relative positions: translation-invariant; compact rows.
 		result.Position = remaining
 	}

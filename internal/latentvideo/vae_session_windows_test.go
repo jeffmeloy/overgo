@@ -46,7 +46,7 @@ func decodeVAEFrames(t *testing.T, decode func(sink VideoFrameSink) (VAEDecodeSt
 func runVAEDecodeCUDAAgainstHost(t *testing.T, manifestName string) {
 	cudatest.Require(t)
 	if testing.Short() {
-		t.Skip("loads the 293MB VAE decoder weight set; skipped in -short")
+		t.Skip("integration excluded by -short: loads the 293MB VAE decoder weight set")
 	}
 	golden := loadVAEGoldenFrames(t, manifestName)
 	plan, checkpoint := compileRealVAEDecoderPlan(t)
@@ -114,7 +114,7 @@ func loadF32LE(t testing.TB, path string, elements int) []float32 {
 func TestVAEDecodeCUDAProduction(t *testing.T) {
 	cudatest.Require(t)
 	if testing.Short() {
-		t.Skip("production-scale decode; skipped in -short")
+		t.Skip("integration excluded by -short: production-scale decode")
 	}
 	plan, checkpoint := compileRealVAEDecoderPlan(t)
 	stats := vaeG0LatentStats(t)

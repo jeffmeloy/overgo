@@ -385,9 +385,9 @@ func TestReadWeightsGLM4MoE(t *testing.T) {
 	if dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
 		moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
 		moe.FeedForwardSharedGate == nil || moe.FeedForwardNorm.Name != "blk.1.attn_post_norm.weight" ||
-		moe.AttentionQNorm == nil || moe.AttentionKNorm == nil || len(weights.NextNMTP) != 1 ||
-		weights.NextNMTP[0].Layer.FeedForwardRouter == nil || weights.NextNMTP[0].EHProjection.Name == "" {
-		t.Fatalf("unexpected GLM4-MoE catalog: dense=%+v moe=%+v mtp=%+v", dense, moe, weights.NextNMTP)
+		moe.AttentionQNorm == nil || moe.AttentionKNorm == nil || len(weights.AppendedSingleDraft) != 1 ||
+		weights.AppendedSingleDraft[0].Layer.FeedForwardRouter == nil || weights.AppendedSingleDraft[0].EHProjection.Name == "" {
+		t.Fatalf("unexpected GLM4-MoE catalog: dense=%+v moe=%+v mtp=%+v", dense, moe, weights.AppendedSingleDraft)
 	}
 }
 
@@ -441,9 +441,9 @@ func TestReadWeightsMiMo2MixedDenseAndMoE(t *testing.T) {
 		dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
 		moe.AttentionQKV == nil || moe.AttentionSinks != nil || moe.FeedForwardRouter == nil ||
 		moe.FeedForwardExpertBias == nil || moe.FeedForwardGateExperts == nil ||
-		moe.FeedForwardUp.Name != "" || len(weights.NextNMTP) != 1 ||
-		weights.NextNMTP[0].Layer.FeedForwardGate.Name == "" ||
-		weights.NextNMTP[0].LayerOutputNorm == nil {
+		moe.FeedForwardUp.Name != "" || len(weights.AppendedSingleDraft) != 1 ||
+		weights.AppendedSingleDraft[0].Layer.FeedForwardGate.Name == "" ||
+		weights.AppendedSingleDraft[0].LayerOutputNorm == nil {
 		t.Fatalf("unexpected MiMo2 catalog: dense=%+v moe=%+v", dense, moe)
 	}
 	withoutBias := make([]gguf.TensorInfo, 0, len(tensors)-1)
@@ -558,12 +558,12 @@ func TestReadWeightsStep35MTPHeads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(weights.Layers) != 1 || len(weights.Step35MTP) != 2 ||
-		weights.Step35MTP[0].Layer.AttentionQ.Shape[1] != 16 ||
-		weights.Step35MTP[0].TokenEmbedding == nil || weights.Step35MTP[0].OutputNorm != nil ||
-		weights.Step35MTP[1].Layer.AttentionQ.Shape[1] != 8 ||
-		weights.Step35MTP[1].OutputNorm == nil || weights.Step35MTP[1].Output == nil {
-		t.Fatalf("unexpected Step3.5 MTP catalog: %+v", weights.Step35MTP)
+	if len(weights.Layers) != 1 || len(weights.AppendedMultiCarryDraft) != 2 ||
+		weights.AppendedMultiCarryDraft[0].Layer.AttentionQ.Shape[1] != 16 ||
+		weights.AppendedMultiCarryDraft[0].TokenEmbedding == nil || weights.AppendedMultiCarryDraft[0].OutputNorm != nil ||
+		weights.AppendedMultiCarryDraft[1].Layer.AttentionQ.Shape[1] != 8 ||
+		weights.AppendedMultiCarryDraft[1].OutputNorm == nil || weights.AppendedMultiCarryDraft[1].Output == nil {
+		t.Fatalf("unexpected Step3.5 MTP catalog: %+v", weights.AppendedMultiCarryDraft)
 	}
 }
 
@@ -1168,9 +1168,9 @@ func TestReadWeightsBailingMoE2DenseThenMoE(t *testing.T) {
 		moe.AttentionQKV == nil || moe.AttentionQNorm == nil || moe.AttentionKNorm == nil ||
 		moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
 		moe.FeedForwardSharedGate == nil || moe.FeedForwardSharedUp == nil ||
-		moe.FeedForwardSharedDown == nil || len(weights.NextNMTP) != 1 ||
-		weights.NextNMTP[0].Layer.FeedForwardRouter == nil ||
-		weights.NextNMTP[0].LayerOutputNorm == nil {
+		moe.FeedForwardSharedDown == nil || len(weights.AppendedSingleDraft) != 1 ||
+		weights.AppendedSingleDraft[0].Layer.FeedForwardRouter == nil ||
+		weights.AppendedSingleDraft[0].LayerOutputNorm == nil {
 		t.Fatalf("unexpected BailingMoE2 catalog: %+v", weights)
 	}
 }

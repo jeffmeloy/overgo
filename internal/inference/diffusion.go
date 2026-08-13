@@ -73,7 +73,7 @@ func (r *Runner) GenerateDiffusion(
 	if r == nil || r.vocab == nil {
 		return nil, "", errors.New("inference: runner is nil")
 	}
-	if r.profile().Family != model.ArchitectureFamilyDiffusion {
+	if r.forwardProgram().Operation != model.ForwardOperationDiffusion {
 		return nil, "", fmt.Errorf("inference: architecture %q is not a diffusion model", r.spec.Architecture)
 	}
 	r.mu.Lock()

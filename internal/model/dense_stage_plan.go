@@ -7,8 +7,6 @@ import (
 	"overgo/internal/tensor"
 )
 
-const gemmaSpecialQueryScaleBlocks = 46
-
 type qkNormKind uint8
 
 const (
@@ -44,24 +42,25 @@ const (
 	queryScalePolicyTemperatureWithoutRoPE
 	queryScalePolicyConfiguredTemperature
 	queryScalePolicyPreDot
-	queryScalePolicyGemma
+	queryScalePolicyEmbeddingHead
 )
 
 // DenseStagePolicy: architecture-owned dense stage selection.
 type DenseStagePolicy struct {
-	QK                    QKPreprocessPlan
-	QKHeadsMinBlocks      uint32
-	PostRotaryRMSNon128   bool
-	AttentionGate         attentionGateKind
-	AttentionHeadGate     bool
-	AttentionFlatGate     bool
-	AttentionFlatGateElse bool
-	AttentionSubNorm      bool
-	AttentionValueScale   bool
-	Residual              residualStageKind
-	ResidualParallelOnly  bool
-	QueryScale            queryScalePolicy
-	GemmaSpecial          bool
+	QK                       QKPreprocessPlan
+	QKHeadsMinBlocks         uint32
+	NonRecurrentQKNoBias     bool
+	PostRotaryRMSNon128      bool
+	AttentionGate            attentionGateKind
+	AttentionHeadGate        bool
+	AttentionFlatGate        bool
+	AttentionFlatGateElse    bool
+	AttentionSubNorm         bool
+	AttentionValueScale      bool
+	Residual                 residualStageKind
+	ResidualParallelOnly     bool
+	QueryScale               queryScalePolicy
+	EmbeddingHeadScaleBlocks uint32
 }
 
 func (s Spec) qkPreprocessPlan(layer uint32) QKPreprocessPlan {
@@ -73,7 +72,7 @@ func (s Spec) qkPreprocessPlan(layer uint32) QKPreprocessPlan {
 	if policy.PostRotaryRMSNon128 && s.UsesRoPE(layer) && s.ExpertCount != 128 {
 		plan.PostRotary = qkNormRMS
 	}
-	if s.Profile().Validation.Recurrent == RecurrentValidationPLaMo2 && !s.IsRecurrentLayer(layer) {
+	if policy.NonRecurrentQKNoBias && !s.IsRecurrentLayer(layer) {
 		plan.Heads = qkNormConfiguredNoBias
 	}
 	return plan
@@ -84,10 +83,11 @@ func (p QKPreprocessPlan) Apply(
 	query, key *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
+	normalization NormalizationPlan,
 	stage qkStage,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
 	kinds := [...]qkNormKind{p.Projection, p.Heads, p.PostRotary}
-	return applyQKNorm(builder, query, key, spec, weights, kinds[stage])
+	return applyQKNorm(builder, query, key, spec, weights, normalization, kinds[stage])
 }
 
 func applyQKNorm(
@@ -95,6 +95,7 @@ func applyQKNorm(
 	query, key *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
+	normalization NormalizationPlan,
 	kind qkNormKind,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
 	qWeight, kWeight := weights.AttentionQNorm, weights.AttentionKNorm
@@ -117,11 +118,11 @@ func applyQKNorm(
 		query = builder.WeightedRMSNorm(query, qWeight, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, kWeight, spec.RMSNormEpsilon)
 	case qkNormConfigured:
-		query = ApplyNormalization(builder, query, qWeight, weights.AttentionQNormBias, spec)
-		key = ApplyNormalization(builder, key, kWeight, weights.AttentionKNormBias, spec)
+		query = normalization.Apply(builder, query, qWeight, weights.AttentionQNormBias)
+		key = normalization.Apply(builder, key, kWeight, weights.AttentionKNormBias)
 	case qkNormConfiguredNoBias:
-		query = ApplyNormalization(builder, query, qWeight, nil, spec)
-		key = ApplyNormalization(builder, key, kWeight, nil, spec)
+		query = normalization.Apply(builder, query, qWeight, nil)
+		key = normalization.Apply(builder, key, kWeight, nil)
 	case qkNormAffine:
 		query = builder.Multiply(builder.LayerNorm(query, spec.QKNormEpsilon), qWeight)
 		key = builder.Multiply(builder.LayerNorm(key, spec.QKNormEpsilon), kWeight)
@@ -151,8 +152,8 @@ const (
 
 // QueryScalePlan: compiled pre-attention scaling order.
 type QueryScalePlan struct {
-	kind         queryScaleKind
-	gemmaSpecial bool
+	kind          queryScaleKind
+	embeddingHead bool
 }
 
 type attentionGateKind uint8
@@ -275,7 +276,7 @@ type residualStageKind uint8
 const (
 	residualSequential residualStageKind = iota
 	residualShared
-	residualFalcon
+	residualFeedForwardNormalized
 	residualOriginalNorm
 	residualStable
 	residualGPTOSS
@@ -322,12 +323,13 @@ func (p ResidualStagePlan) FeedForwardInput(
 	input, residual, normalized, feedForwardNormalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
+	normalization NormalizationPlan,
 ) *tensor.Tensor {
 	switch p.kind {
-	case residualFalcon:
+	case residualFeedForwardNormalized:
 		return feedForwardNormalized
 	case residualOriginalNorm:
-		return ApplyNormalization(builder, input, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec)
+		return normalization.Apply(builder, input, weights.FeedForwardNorm, weights.FeedForwardNormBias)
 	case residualShared, residualGPTOSS:
 		return normalized
 	case residualStable:
@@ -341,7 +343,7 @@ func (p ResidualStagePlan) FeedForwardInput(
 	if p.kind == residualStable && weights.FeedForwardNormBias == nil {
 		return builder.Multiply(builder.LayerNorm(residual, spec.LayerNormEpsilon), weights.FeedForwardNorm)
 	}
-	return ApplyNormalization(builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec)
+	return normalization.Apply(builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias)
 }
 
 func (p ResidualStagePlan) ApplyFeedForwardOutput(
@@ -377,10 +379,10 @@ func (s Spec) queryScalePlan(profile ArchitectureProfile, layer uint32) QuerySca
 		return QueryScalePlan{kind: queryScaleTemperature}
 	case queryScalePolicyPreDot:
 		return QueryScalePlan{kind: queryScalePreDot}
-	case queryScalePolicyGemma:
+	case queryScalePolicyEmbeddingHead:
 		return QueryScalePlan{
-			kind:         queryScalePreDot,
-			gemmaSpecial: profile.DenseStages.GemmaSpecial && s.BlockCount == gemmaSpecialQueryScaleBlocks,
+			kind:          queryScalePreDot,
+			embeddingHead: profile.DenseStages.EmbeddingHeadScaleBlocks == s.BlockCount,
 		}
 	default:
 		return QueryScalePlan{kind: queryScaleScores}
@@ -398,7 +400,7 @@ func (p QueryScalePlan) Apply(
 	case queryScaleTemperature:
 		return builder.Multiply(query, weights.AttentionTemperatureScale), scale
 	case queryScalePreDot:
-		if p.gemmaSpecial {
+		if p.embeddingHead {
 			scale = float32(1 / math.Sqrt(float64(spec.EmbeddingLength)/float64(spec.HeadCount)))
 		}
 		return builder.Scale(query, scale), 1

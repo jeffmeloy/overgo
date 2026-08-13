@@ -6,9 +6,9 @@ import (
 	"overgo/internal/gguf"
 )
 
-func readT5EncoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
+func readRelativeEncoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
 	required, tensors := catalog.required, catalog.tensors
-	plan := newT5CatalogPlan(spec)
+	plan := newEncoderDecoderCatalogPlan(spec)
 	result := Weights{Layers: make([]LayerWeights, spec.BlockCount)}
 	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
 		requiredTensor("token_embd.weight", &result.TokenEmbedding, plan.width, uint64(spec.VocabularySize)),
@@ -25,9 +25,9 @@ func readT5EncoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, erro
 	return result, nil
 }
 
-func readT5WeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
+func readEncoderDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
 	required, tensors := catalog.required, catalog.tensors
-	plan := newT5CatalogPlan(spec)
+	plan := newEncoderDecoderCatalogPlan(spec)
 	result := Weights{
 		EncoderLayers: make([]LayerWeights, spec.BlockCount),
 		Layers:        make([]LayerWeights, spec.DecoderBlockCount),

@@ -33,9 +33,9 @@ func (r *Runner) hasDraftSession(kind model.DraftKind, catalogs int) bool {
 func (r *Runner) advanceSingleHeadMTP(
 	ctx context.Context,
 	tokenID tokenizer.TokenID,
-	session *Qwen35MTPSession,
+	session *MTPSession,
 	adapter singleHeadMTPAdapter,
-) (reference.Value, *Qwen35MTPSession, error) {
+) (reference.Value, *MTPSession, error) {
 	embeddingInfo := r.weights.TokenEmbedding
 	if adapter.tokenEmbedding != nil {
 		embeddingInfo = *adapter.tokenEmbedding
@@ -104,7 +104,7 @@ func (r *Runner) advanceSingleHeadMTP(
 	}
 	logitValue := results[logits]
 	logitValue.Data = r.finalizeLogits(logitValue.Data)
-	return logitValue, &Qwen35MTPSession{
+	return logitValue, &MTPSession{
 		TrunkCache:    session.TrunkCache,
 		Layer:         LayerCache{Key: results[block.Key], Value: results[block.Value]},
 		PendingHidden: results[nextHidden], MTPStart: session.MTPStart,
@@ -115,7 +115,7 @@ func (r *Runner) advanceSingleHeadMTP(
 func (target *Runner) newSingleHeadMTPSession(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
-) (*Qwen35MTPSession, error) {
+) (*MTPSession, error) {
 	hidden, cache, err := target.ForwardCached(ctx, tokenIDs, nil)
 	if err != nil {
 		return nil, err
@@ -126,7 +126,7 @@ func (target *Runner) newSingleHeadMTPSession(
 		return nil, err
 	}
 	position := effectiveCachePosition(cache)
-	return &Qwen35MTPSession{
+	return &MTPSession{
 		TrunkCache: cache, PendingHidden: last, MTPStart: position, Position: position,
 		targetModel: targetModel,
 	}, nil
@@ -171,17 +171,17 @@ func (r *Runner) advanceSingleHeadMTPVerification(
 	ctx context.Context,
 	target *Runner,
 	token tokenizer.TokenID,
-	session *Qwen35MTPSession,
+	session *MTPSession,
 	targetCache *KVCache,
-	advance func(tokenizer.TokenID, *Qwen35MTPSession) (reference.Value, *Qwen35MTPSession, error),
-) (reference.Value, *Qwen35MTPSession, error) {
+	advance func(tokenizer.TokenID, *MTPSession) (reference.Value, *MTPSession, error),
+) (reference.Value, *MTPSession, error) {
 	return advanceTargetVerification(
 		ctx, target, token, targetCache,
-		func() (*Qwen35MTPSession, error) {
+		func() (*MTPSession, error) {
 			_, next, err := advance(token, session)
 			return next, err
 		},
-		func(next *Qwen35MTPSession, hidden reference.Value, cache *KVCache) {
+		func(next *MTPSession, hidden reference.Value, cache *KVCache) {
 			next.PendingHidden = lastHiddenColumn(hidden)
 			next.TrunkCache = cache
 		},
@@ -189,7 +189,7 @@ func (r *Runner) advanceSingleHeadMTPVerification(
 }
 
 func (r *Runner) validateSingleHeadMTPSession(
-	session *Qwen35MTPSession,
+	session *MTPSession,
 	label string,
 	boundedContext bool,
 ) error {
@@ -226,7 +226,7 @@ func (r *Runner) validateSingleHeadMTPTarget(
 	label string,
 ) error {
 	if !mtpOnly || target == nil || targetMTPOnly ||
-		r.profile() != target.profile() ||
+		!r.program.Model.SameExecutionProfile(target.program.Model) ||
 		r.spec.EmbeddingLength != target.spec.EmbeddingLength ||
 		r.spec.VocabularySize != target.spec.VocabularySize ||
 		r.spec.HeadCount != target.spec.HeadCount || r.spec.HeadCountKV != target.spec.HeadCountKV ||
@@ -242,7 +242,7 @@ func (r *Runner) validateSingleHeadMTPTarget(
 
 func (r *Runner) validateSingleHeadMTPVerificationTarget(
 	target *Runner,
-	session *Qwen35MTPSession,
+	session *MTPSession,
 	mtpOnly bool,
 	label string,
 	validate func(*Runner) error,

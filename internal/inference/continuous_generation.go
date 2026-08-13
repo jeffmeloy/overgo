@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
@@ -222,11 +221,11 @@ func (g *ContinuousGenerator) run() {
 			continue
 		}
 		greedyBatch, greedy := g.batch.(continuousGreedyBatchAPI)
-		greedy = greedy && g.runner.profile().Attention == model.AttentionQwenGDN &&
+		greedy = greedy && g.runner.forwardProgram().DeviceBatchSelection() &&
 			continuousStatesUseDeviceGreedy(stepping)
 		topKBatch, bounded := g.batch.(continuousTopKBatchAPI)
 		topK := 0
-		if !greedy && bounded && !g.runner.profile().Has(model.ArchitectureDiscreteImageTokens) {
+		if !greedy && bounded && !g.runner.program.Model.ProjectedInput().DiscreteTokens {
 			topK, bounded = continuousStatesUseDeviceTopK(stepping, int(g.runner.spec.VocabularySize))
 		} else if !greedy {
 			bounded = false

@@ -16,6 +16,7 @@ import (
 )
 
 func TestActiveRecipeQwen35Open(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")

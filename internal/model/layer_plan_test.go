@@ -72,7 +72,7 @@ func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Draft().Kind != DraftStep35MTP || plan.Draft().Heads != spec.NextNPredictLayers ||
+	if plan.Draft().Kind != DraftAppendedMultiCarry || plan.Draft().Heads != spec.NextNPredictLayers ||
 		plan.Draft().Session != DraftSessionMulti {
 		t.Fatalf("draft plan = %+v", plan.Draft())
 	}
@@ -99,7 +99,7 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 		{
 			name:      "dsa",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
-			attention: AttentionDSA, mode: CacheStateToken,
+			attention: AttentionSparseLatent, mode: CacheStateToken,
 		},
 		{
 			name: "qwen-gdn",
@@ -107,12 +107,12 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 				CommonSpec:    CommonSpec{Architecture: "qwen35", BlockCount: 1},
 				RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}},
 			},
-			attention: AttentionQwenGDN, mode: CacheStateFixed,
+			attention: AttentionGatedDelta, mode: CacheStateFixed,
 		},
 		{
 			name:      "lfm2",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "lfm2", BlockCount: 1}},
-			recurrent: true, attention: AttentionLFM2, mode: CacheStateFixed,
+			recurrent: true, attention: AttentionShortConvolution, mode: CacheStateFixed,
 		},
 	}
 	for _, test := range tests {
@@ -162,16 +162,16 @@ func TestPlanLayerCompilesTensorGraphControls(t *testing.T) {
 
 func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 	tests := []struct {
-		name       string
-		spec       Spec
-		layer      LayerWeights
-		stateSpace stateSpaceKind
-		attention  AttentionPolicy
-		cache      CachePolicy
+		name      string
+		spec      Spec
+		layer     LayerWeights
+		mixer     RecurrentMixerPolicy
+		attention AttentionPolicy
+		cache     CachePolicy
 	}{
 		{
 			name: "mamba", spec: Spec{CommonSpec: CommonSpec{Architecture: "mamba", BlockCount: 1}},
-			stateSpace: stateSpaceMamba, cache: CacheMamba,
+			mixer: recurrentMixerSelectiveScan, cache: CacheSelectiveScan,
 		},
 		{
 			name: "jamba attention", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
@@ -179,18 +179,18 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 		},
 		{
 			name: "jamba recurrent", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
-			layer: LayerWeights{Recurrent: true}, stateSpace: stateSpaceJamba, cache: CacheMamba,
+			layer: LayerWeights{Recurrent: true}, mixer: recurrentMixerWeightedSelectiveScan, cache: CacheSelectiveScan,
 		},
 		{
 			name: "DSA", spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
-			attention: AttentionDSA, cache: CacheAttention,
+			attention: AttentionSparseLatent, cache: CacheAttention,
 		},
 		{
 			name: "DeepSeek 4", spec: Spec{
 				CommonSpec:    CommonSpec{Architecture: "deepseek4", BlockCount: 1},
 				AttentionSpec: AttentionSpec{CompressRatios: []uint32{0}},
 			},
-			cache: CacheDeepSeek4,
+			cache: CacheCompressedAttention,
 		},
 	}
 	for _, test := range tests {
@@ -203,7 +203,7 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 				t.Fatalf("plan = %+v", plan)
 			}
 			layer := plan.layers[0]
-			if layer.StateSpace.kind != test.stateSpace || layer.Attention != test.attention ||
+			if layer.Mixer != test.mixer || layer.Attention != test.attention ||
 				layer.Cache != test.cache {
 				t.Fatalf("plan = %+v", plan)
 			}
@@ -216,15 +216,20 @@ func TestCompileModelPlanWithProfilePinsResolvedPolicy(t *testing.T) {
 	if !ok {
 		t.Fatal("llama profile is absent")
 	}
-	profile.Attention = AttentionLFM2
+	profile.Attention = AttentionShortConvolution
 	plan, err := CompileModelPlanWithProfile(
 		Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}, Weights{}, profile,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Profile().Attention != AttentionLFM2 || plan.layers[0].Attention != AttentionLFM2 {
+	if plan.Profile().Attention != AttentionShortConvolution || plan.layers[0].Attention != AttentionShortConvolution {
 		t.Fatalf("resolved profile was not pinned: %+v", plan)
+	}
+	wantNormalization := plan.Normalization()
+	profile.Normalization = NormalizationLayer
+	if plan.Normalization() != wantNormalization {
+		t.Fatal("compiled normalization followed mutable profile state")
 	}
 
 	profile.Name = "qwen"
@@ -333,7 +338,7 @@ func TestCompileModelPlanAppliesSpecForwardOverride(t *testing.T) {
 	}
 }
 
-func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
+func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 	for _, architecture := range SupportedArchitectures() {
 		spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, BlockCount: 1}}
 		if architecture == "deepseek4" {
@@ -346,15 +351,11 @@ func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
 		if plan.CachedGraph() != CachedGraphDense {
 			continue
 		}
-		if plan.Profile().GraphFamily != ArchitectureFamilyAttention &&
-			plan.Profile().GraphFamily != ArchitectureFamilyMoE {
-			t.Fatalf("%s selected dense graph for family %v", architecture, plan.Profile().GraphFamily)
-		}
-		if plan.Profile().Has(ArchitectureAltUp) {
+		if plan.Forward().AlternatePredictions() {
 			t.Fatalf("%s selected dense graph with AltUp", architecture)
 		}
 		for _, layer := range plan.layers {
-			if layer.StateSpace.kind != stateSpaceNone || layer.Attention != AttentionStandard ||
+			if layer.Mixer != recurrentMixerNone || layer.Attention != AttentionStandard ||
 				layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
 				t.Fatalf("%s selected dense graph for layer %+v", architecture, layer)
 			}
@@ -370,7 +371,7 @@ func TestCompileModelPlanBoundsAndArchitecture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.LayerCount() != 3 || plan.CacheLayerCount() != 2 || !plan.HasCache(CacheT5) {
+	if plan.LayerCount() != 3 || plan.CacheLayerCount() != 2 || !plan.HasCache(CacheCrossAttention) {
 		t.Fatalf("plan = %+v", plan)
 	}
 	if _, err := plan.Layer(3); err == nil {
@@ -480,17 +481,17 @@ func TestPlanLayerCompilesProjectedStreams(t *testing.T) {
 func TestPlanLayerCompilesAuxiliaryFlow(t *testing.T) {
 	rwkv := Spec{CommonSpec: CommonSpec{Architecture: "rwkv7", BlockCount: 2}}
 	first, second := rwkv.PlanLayer(0, false), rwkv.PlanLayer(1, false)
-	if first.AuxiliaryInput != AuxiliaryNone || first.AuxiliaryOutput != AuxiliaryRWKVValue ||
-		second.AuxiliaryInput != AuxiliaryRWKVValue || second.AuxiliaryOutput != AuxiliaryNone {
+	if first.AuxiliaryInput != AuxiliaryNone || first.AuxiliaryOutput != AuxiliaryRecurrentValue ||
+		second.AuxiliaryInput != AuxiliaryRecurrentValue || second.AuxiliaryOutput != AuxiliaryNone {
 		t.Fatalf("RWKV auxiliary plans = %+v / %+v", first, second)
 	}
 	dsa := Spec{
 		CommonSpec:    CommonSpec{Architecture: "glm-dsa", BlockCount: 3},
 		AttentionSpec: AttentionSpec{IndexerFullLayers: []bool{true, false, true}},
 	}
-	for layer, wantInput := range []AuxiliaryFlow{AuxiliaryNone, AuxiliaryDSATopK, AuxiliaryNone} {
+	for layer, wantInput := range []AuxiliaryFlow{AuxiliaryNone, AuxiliarySparseTopK, AuxiliaryNone} {
 		plan := dsa.PlanLayer(uint32(layer), false)
-		if plan.AuxiliaryInput != wantInput || plan.AuxiliaryOutput != AuxiliaryDSATopK {
+		if plan.AuxiliaryInput != wantInput || plan.AuxiliaryOutput != AuxiliarySparseTopK {
 			t.Fatalf("GLM-DSA layer %d auxiliary = %v/%v", layer, plan.AuxiliaryInput, plan.AuxiliaryOutput)
 		}
 	}
@@ -539,7 +540,7 @@ func TestNormPlanCompilesOperationPlacementBiasAndLayout(t *testing.T) {
 		postLayout   PostNormLayoutPolicy
 		ffnLayout    FeedForwardNormLayoutPolicy
 	}{
-		{"bert", 1e-5, NormalizationLayer, false, true, true, PostNormLayoutBERT, FeedForwardNormLayoutStandard},
+		{"bert", 1e-5, NormalizationLayer, false, true, true, PostNormLayoutOutputLayer, FeedForwardNormLayoutStandard},
 		{"olmo2", 0, NormalizationRMS, false, true, false, PostNormLayoutStandard, FeedForwardNormLayoutStandard},
 		{"grok", 0, NormalizationRMS, true, true, false, PostNormLayoutGrok, FeedForwardNormLayoutStandard},
 		{"dbrx", 1e-5, NormalizationLayer, true, false, false, PostNormLayoutStandard, FeedForwardNormLayoutAttentionOutput},

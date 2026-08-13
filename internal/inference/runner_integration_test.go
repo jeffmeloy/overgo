@@ -14,6 +14,7 @@ import (
 )
 
 func TestIncrementalCacheMatchesFullForward(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -191,6 +192,7 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 }
 
 func TestPreloadedCachedLayerInputsMatchFullExtraction(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -238,6 +240,7 @@ func assertMaximumDifference(t *testing.T, label string, got, want []float32, to
 }
 
 func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -286,6 +289,7 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 }
 
 func TestNativeQ8GreedyMatchesOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -294,6 +298,7 @@ func TestNativeQ8GreedyMatchesOracle(t *testing.T) {
 }
 
 func TestNativeQ8DeviceContextShift(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -546,6 +551,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 }
 
 func TestNativeQ6KGreedyMatchesOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_Q6K_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_Q6K_MODEL is not set")
@@ -554,6 +560,7 @@ func TestNativeQ6KGreedyMatchesOracle(t *testing.T) {
 }
 
 func TestNativeQwen35HybridMatchesOracleAndResumes(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
@@ -727,6 +734,7 @@ ws ::= [ \t\n\r]*
 }
 
 func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
@@ -868,6 +876,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 }
 
 func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MTP_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN35_MTP_MODEL is not set")
@@ -880,11 +889,11 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	}
 	defer runner.Close()
 	ctx := context.Background()
-	session, err := runner.NewQwen35MTPSession(ctx, []tokenizer.TokenID{0})
+	session, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	logits, next, err := runner.AdvanceQwen35MTP(ctx, 0, session)
+	logits, next, err := runner.AdvanceMTP(ctx, 0, session)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -893,22 +902,22 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 		session.Layer.Key.Shape.Rank != 0 {
 		t.Fatalf("unexpected Qwen3.5 MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
 	}
-	_, third, err := runner.AdvanceQwen35MTP(ctx, 0, next)
+	_, third, err := runner.AdvanceMTP(ctx, 0, next)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if third.Position != next.Position+1 || third.Layer.Key.Shape.Dims[2] != 2 {
 		t.Fatalf("Qwen3.5 MTP cache did not advance: %+v", third)
 	}
-	coordinatorSession, err := runner.NewQwen35MTPSession(ctx, []tokenizer.TokenID{0})
+	coordinatorSession, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, err := runner.DraftQwen35MTPGreedy(ctx, 0, coordinatorSession, 2, 0)
+	draft, err := runner.DraftMTPGreedy(ctx, 0, coordinatorSession, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := runner.VerifyQwen35MTPGreedy(ctx, runner, draft)
+	verification, err := runner.VerifyMTPGreedy(ctx, runner, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -933,7 +942,7 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := runner.DraftQwen35MTPSampled(
+	sampledDraft, err := runner.DraftMTPSampled(
 		ctx, coordinatorSession, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
 	if err != nil {
@@ -946,7 +955,7 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Qwen3.5 sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := runner.VerifyQwen35MTPSampled(
+	sampledVerification, err := runner.VerifyMTPSampled(
 		ctx, runner, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {
@@ -965,6 +974,7 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 }
 
 func TestGemma4AssistantGreedyVerification(t *testing.T) {
+	requireIntegration(t)
 	assistantPath := os.Getenv("OVERGO_GEMMA4_ASSISTANT_MODEL")
 	targetPath := os.Getenv("OVERGO_GEMMA4_TARGET_MODEL")
 	if assistantPath == "" || targetPath == "" {
@@ -981,12 +991,13 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	}
 	defer target.Close()
 	ctx := context.Background()
-	session, err := assistant.NewGemma4AssistantSession(ctx, target, []tokenizer.TokenID{0})
+	session, err := assistant.NewPairedProjectionSession(ctx, target, []tokenizer.TokenID{0}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectedSession, err := assistant.NewGemma4AssistantProjectedSession(
-		ctx, target, []tokenizer.TokenID{0}, ProjectedInputs{},
+	projected := ProjectedInputs{}
+	projectedSession, err := assistant.NewPairedProjectionSession(
+		ctx, target, []tokenizer.TokenID{0}, &projected,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -995,11 +1006,11 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 		projectedSession.PendingHidden.Shape != session.PendingHidden.Shape {
 		t.Fatalf("projected Gemma 4 assistant session mismatch: text=%+v projected=%+v", session, projectedSession)
 	}
-	draft, err := assistant.DraftGemma4AssistantGreedy(ctx, target, 0, session, 2, 0)
+	draft, err := assistant.DraftPairedProjectionGreedy(ctx, target, 0, session, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := assistant.VerifyGemma4AssistantGreedy(ctx, target, draft)
+	verification, err := assistant.VerifyPairedProjectionGreedy(ctx, target, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1020,7 +1031,7 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := assistant.DraftGemma4AssistantSampled(
+	sampledDraft, err := assistant.DraftPairedProjectionSampled(
 		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
 	if err != nil {
@@ -1033,7 +1044,7 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Gemma 4 assistant sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := assistant.VerifyGemma4AssistantSampled(
+	sampledVerification, err := assistant.VerifyPairedProjectionSampled(
 		ctx, target, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {
@@ -1047,6 +1058,7 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 }
 
 func TestEagle3GreedyAndSampledVerification(t *testing.T) {
+	requireIntegration(t)
 	draftPath := os.Getenv("OVERGO_EAGLE3_MODEL")
 	targetPath := os.Getenv("OVERGO_EAGLE3_TARGET_MODEL")
 	if draftPath == "" || targetPath == "" {
@@ -1063,15 +1075,15 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	}
 	defer target.Close()
 	ctx := context.Background()
-	session, err := draftRunner.NewEagle3Session(ctx, target, []tokenizer.TokenID{0})
+	session, err := draftRunner.NewFeatureDraftSession(ctx, target, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, err := draftRunner.DraftEagle3Greedy(ctx, target, 0, session, 2, 0)
+	draft, err := draftRunner.DraftFeaturesGreedy(ctx, target, 0, session, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := draftRunner.VerifyEagle3Greedy(ctx, target, draft)
+	verification, err := draftRunner.VerifyFeatureDraftGreedy(ctx, target, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1092,7 +1104,7 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := draftRunner.DraftEagle3Sampled(
+	sampledDraft, err := draftRunner.DraftFeaturesSampled(
 		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
 	if err != nil {
@@ -1105,7 +1117,7 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	if !slices.Equal(before, after) {
 		t.Fatal("Eagle3 sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := draftRunner.VerifyEagle3Sampled(
+	sampledVerification, err := draftRunner.VerifyFeatureDraftSampled(
 		ctx, target, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {
@@ -1119,6 +1131,7 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 }
 
 func TestDFlashGreedyAndSampledVerification(t *testing.T) {
+	requireIntegration(t)
 	draftPath := os.Getenv("OVERGO_DFLASH_MODEL")
 	targetPath := os.Getenv("OVERGO_DFLASH_TARGET_MODEL")
 	if draftPath == "" || targetPath == "" {
@@ -1139,15 +1152,15 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 		t.Fatalf("invalid DFlash block size: %d", draftRunner.spec.DFlashBlockSize)
 	}
 	ctx := context.Background()
-	session, err := draftRunner.NewDFlashSession(ctx, target, []tokenizer.TokenID{0})
+	session, err := draftRunner.NewPairedFeatureSession(ctx, target, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, err := draftRunner.DraftDFlashGreedy(ctx, target, 0, session, maximum, 0)
+	draft, err := draftRunner.DraftPairedFeatureGreedy(ctx, target, 0, session, maximum, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := draftRunner.VerifyDFlashGreedy(ctx, target, draft)
+	verification, err := draftRunner.VerifyPairedFeatureGreedy(ctx, target, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1169,7 +1182,7 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := draftRunner.DraftDFlashSampled(
+	sampledDraft, err := draftRunner.DraftPairedFeatureSampled(
 		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, maximum, 0,
 	)
 	if err != nil {
@@ -1182,7 +1195,7 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	if !slices.Equal(before, after) {
 		t.Fatal("DFlash sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := draftRunner.VerifyDFlashSampled(
+	sampledVerification, err := draftRunner.VerifyPairedFeatureSampled(
 		ctx, target, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {
@@ -1197,6 +1210,7 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 }
 
 func TestWavTokenizerDecodeWaveform(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_WAVTOKENIZER_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_WAVTOKENIZER_MODEL is not set")
@@ -1211,16 +1225,17 @@ func TestWavTokenizerDecodeWaveform(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(audio) != 320 {
-		t.Fatalf("WavTokenizer waveform length = %d, want 320", len(audio))
+		t.Fatalf("AudioDecoder waveform length = %d, want 320", len(audio))
 	}
 	for index, sample := range audio {
 		if math.IsNaN(float64(sample)) || math.IsInf(float64(sample), 0) {
-			t.Fatalf("WavTokenizer waveform[%d] is not finite: %g", index, sample)
+			t.Fatalf("AudioDecoder waveform[%d] is not finite: %g", index, sample)
 		}
 	}
 }
 
 func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_COHERE2_MTP_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_COHERE2_MTP_MODEL is not set")
@@ -1233,11 +1248,11 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	}
 	defer runner.Close()
 	ctx := context.Background()
-	session, err := runner.NewCohere2MTPSession(ctx, []tokenizer.TokenID{0})
+	session, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	logits, next, err := runner.AdvanceCohere2MTP(ctx, 0, session)
+	logits, next, err := runner.AdvanceMTP(ctx, 0, session)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1246,22 +1261,22 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 		session.Layer.Key.Shape.Rank != 0 {
 		t.Fatalf("unexpected Cohere2-MoE MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
 	}
-	state, err := runner.SaveCohere2MTPSession(next)
+	state, err := runner.SaveMTPSession(next)
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := runner.LoadCohere2MTPSession(state)
+	restored, err := runner.LoadMTPSession(state)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if restored.Position != next.Position || restored.Layer.Key.Shape.Dims[2] != 1 {
 		t.Fatalf("unexpected restored Cohere2-MoE MTP state: %+v", restored)
 	}
-	draft, err := runner.DraftCohere2MTPGreedy(ctx, 0, session, 2, 0)
+	draft, err := runner.DraftMTPGreedy(ctx, 0, session, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := runner.VerifyCohere2MTPGreedy(ctx, runner, draft)
+	verification, err := runner.VerifyMTPGreedy(ctx, runner, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1286,7 +1301,7 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := runner.DraftCohere2MTPSampled(
+	sampledDraft, err := runner.DraftMTPSampled(
 		ctx, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
 	if err != nil {
@@ -1299,7 +1314,7 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Cohere2-MoE sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := runner.VerifyCohere2MTPSampled(
+	sampledVerification, err := runner.VerifyMTPSampled(
 		ctx, runner, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {
@@ -1313,6 +1328,7 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 }
 
 func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_BONSAI_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_BONSAI_MODEL is not set")
@@ -1344,6 +1360,7 @@ func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_GEMMA3_MODEL is not set")
@@ -1407,6 +1424,7 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 }
 
 func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_UMT5_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_UMT5_MODEL is not set")

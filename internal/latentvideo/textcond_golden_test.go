@@ -111,7 +111,7 @@ const (
 // and uncond contexts (fox prompt / negative prompt).
 func TestTextConditioningGoldenParity(t *testing.T) {
 	if testing.Short() {
-		t.Skip("streams the 11.4GB encoder checkpoint twice; skipped in -short")
+		t.Skip("integration excluded by -short: streams the 11.4GB encoder checkpoint twice")
 	}
 	g, fixtureDir := loadG1(t)
 	modelDir := wanModelDir(t)

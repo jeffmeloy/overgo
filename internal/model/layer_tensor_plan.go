@@ -23,10 +23,10 @@ type rotaryPolicyKind uint8
 const (
 	rotaryPolicyDefault rotaryPolicyKind = iota
 	rotaryPolicyLaguna
-	rotaryPolicyGrokMellum
-	rotaryPolicyLlamaYaRN
+	rotaryPolicyNeoXYaRNDense
+	rotaryPolicyNormalYaRN
 	rotaryPolicyNormal
-	rotaryPolicyGemma
+	rotaryPolicySlidingLinearReset
 )
 
 // RotaryUsagePolicy: layer-level RoPE schedule.
@@ -42,28 +42,28 @@ const (
 
 // RotaryPolicy: architecture-owned rotary selection.
 type RotaryPolicy struct {
-	Kind              rotaryPolicyKind
-	MultiAxis         multiAxisRotaryPolicy
-	Usage             RotaryUsagePolicy
-	SlidingFrequency  bool
-	SlidingScaleReset bool
-	Gemma3            bool
-	FactorPairs       bool
+	Kind                      rotaryPolicyKind
+	MultiAxis                 multiAxisRotaryPolicy
+	Usage                     RotaryUsagePolicy
+	SlidingFrequency          bool
+	SlidingScaleReset         bool
+	ForceScaleAndSlidingReset bool
+	FactorPairs               bool
 }
 
 // AttentionGraphPolicy: architecture-owned attention controls.
 type AttentionGraphPolicy struct {
 	UseSinks      bool
 	ChunkedWindow bool
-	QwenGDN       qwenGDNPolicy
+	GatedDelta    gatedDeltaPolicy
 }
 
-type qwenGDNPolicy uint8
+type gatedDeltaPolicy uint8
 
 const (
-	qwenGDNNone qwenGDNPolicy = iota
-	qwenGDNStandard
-	qwenGDNRepeatInterleave
+	gatedDeltaNone gatedDeltaPolicy = iota
+	gatedDeltaSeparateProjections
+	gatedDeltaInterleavedProjections
 )
 
 func applyRoPEPairWithOptions(
@@ -233,13 +233,13 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		}
 		plan.rotaryDimensions = s.RopeDimensionSWA
 		plan.frequencyBase = s.RopeFrequencySWA
-	case rotaryPolicyGrokMellum:
+	case rotaryPolicyNeoXYaRNDense:
 		if s.RopeScalingType == "yarn" && !s.IsSlidingLayer(layer) {
 			setYaRN(tensor.RoPELayoutNeoX)
 		} else {
 			applyDefault()
 		}
-	case rotaryPolicyLlamaYaRN:
+	case rotaryPolicyNormalYaRN:
 		if s.RopeScalingType == "yarn" {
 			setYaRN(tensor.RoPELayoutNormal)
 		} else {
@@ -247,13 +247,13 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		}
 	case rotaryPolicyNormal:
 		applyNormal()
-	case rotaryPolicyGemma:
-		if policy.Gemma3 || s.RopeScalingType == "linear" {
+	case rotaryPolicySlidingLinearReset:
+		if policy.ForceScaleAndSlidingReset || s.RopeScalingType == "linear" {
 			plan.frequencyScale = 1 / s.RopeScalingFactor
 		}
 		if s.IsSlidingLayer(layer) {
 			plan.frequencyBase = s.RopeFrequencySWA
-			if policy.Gemma3 {
+			if policy.ForceScaleAndSlidingReset {
 				plan.frequencyScale = 1
 			}
 		}
@@ -272,12 +272,13 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 
 // AttentionGraphPlan: compiled per-layer attention graph.
 type AttentionGraphPlan struct {
-	Causal        bool
-	UseSinks      bool
-	ChunkedWindow bool
-	Window        uint32
-	Softcap       float32
-	MaxALiBiBias  float32
+	Causal          bool
+	UseSinks        bool
+	ChunkedWindow   bool
+	deltaProjection gatedDeltaPolicy
+	Window          uint32
+	Softcap         float32
+	MaxALiBiBias    float32
 }
 
 // Build: materializes compiled attention controls.
@@ -303,7 +304,7 @@ func (p AttentionGraphPlan) Build(
 
 func (s Spec) attentionGraphPlan(layer uint32) AttentionGraphPlan {
 	policy := s.Profile().AttentionGraph
-	plan := AttentionGraphPlan{Causal: !s.NonCausalAttention}
+	plan := AttentionGraphPlan{Causal: !s.NonCausalAttention, deltaProjection: policy.GatedDelta}
 	if s.IsSlidingLayer(layer) {
 		plan.Window = s.SlidingWindow
 		plan.ChunkedWindow = policy.ChunkedWindow

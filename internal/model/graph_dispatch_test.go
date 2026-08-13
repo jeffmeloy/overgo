@@ -1,7 +1,6 @@
 package model
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
@@ -21,7 +20,7 @@ func requireLayerProgram(t *testing.T, program LayerProgram, want ...LayerOperat
 
 func typedFixtureLayerProgram(profile ArchitectureProfile, plan LayerPlan) LayerProgram {
 	plan.Attention = profile.Attention
-	plan.StateSpace = Spec{}.withProfile(profile).stateSpacePlan(0, plan.Recurrent)
+	plan.Mixer = Spec{}.withProfile(profile).compileRecurrentMixer(plan.Recurrent)
 	return compileLayerProgram(plan, profile)
 }
 
@@ -42,29 +41,29 @@ func TestLayerProgramsCoverTypedProfiles(t *testing.T) {
 			LayerOperatorFeedForwardInputNorm, LayerOperatorFeedForwardPlanned,
 			LayerOperatorFeedForwardOutput, LayerOperatorResidual,
 		}},
-		{name: "Kimi Linear", profile: ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationKimiLinear}}, want: attentionNorm},
-		{name: "MLA", profile: ArchitectureProfile{Attention: AttentionMLA}, want: attentionNorm},
-		{name: "DSA", profile: ArchitectureProfile{Attention: AttentionDSA}, want: attentionNorm},
-		{name: "DeepSeek 4", profile: ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationDeepSeek4}}, want: []LayerOperator{
+		{name: "keyed delta", profile: ArchitectureProfile{LayerTopology: LayerTopologyKeyedDeltaHybrid, RecurrentMixer: recurrentMixerKeyedDelta}, want: attentionNorm},
+		{name: "MLA", profile: ArchitectureProfile{Attention: AttentionLatent}, want: attentionNorm},
+		{name: "DSA", profile: ArchitectureProfile{Attention: AttentionSparseLatent}, want: attentionNorm},
+		{name: "compressed hyper", profile: ArchitectureProfile{LayerTopology: LayerTopologyCompressedHyper}, want: []LayerOperator{
 			LayerOperatorHyperAttention, LayerOperatorHyperFeedForward,
 		}},
-		{name: "Mamba", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationMamba}}, want: recurrent},
-		{name: "Mamba 2", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationMamba2}}, want: recurrent},
-		{name: "Jamba", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationJamba}}, plan: LayerPlan{Recurrent: true}, want: append(recurrent, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual)},
-		{name: "Granite hybrid", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationGraniteHybrid}}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
+		{name: "selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerSelectiveScan}, want: recurrent},
+		{name: "grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerGroupedSelectiveScan}, want: recurrent},
+		{name: "weighted selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerWeightedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: append(recurrent, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual)},
+		{name: "scaled grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerScaledGroupedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorScale,
 			LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU,
 			LayerOperatorScale, LayerOperatorResidual,
 		}},
-		{name: "PLaMo 2", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationPLaMo2}}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
+		{name: "normalized selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerNormalizedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorAttentionPostNorm,
 			LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardFusedGLU,
 			LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
 		}},
-		{name: "Nemotron H", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationNemotronH}}, plan: LayerPlan{Composition: LayerCompositionAttentionOnly}, want: []LayerOperator{
+		{name: "sparse grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerSparseGroupedSelectiveScan}, plan: LayerPlan{Composition: LayerCompositionAttentionOnly}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorAttentionCausalProjection, LayerOperatorResidual,
 		}},
-		{name: "Falcon H1", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationFalconH1}}, want: []LayerOperator{
+		{name: "attention grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerAttentionGroupedSelectiveScan}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorHybridMix, LayerOperatorResidual,
 			LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
 		}},
@@ -78,7 +77,7 @@ func TestLayerProgramsCoverTypedProfiles(t *testing.T) {
 
 func TestGemma4ProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphGemma4},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologySharedKVAdapter},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorAttentionSharedKVQKNorm, LayerOperatorAttentionPostNorm,
@@ -126,15 +125,15 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 		want    []LayerOperator
 	}{
 		{
-			name: "RWKV6", profile: ArchitectureProfile{DenseGraph: DenseGraphRWKV6},
+			name: "WKV6", profile: ArchitectureProfile{LayerTopology: LayerTopologyDynamicWKV6},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
 				LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual, LayerOperatorPeriodicScale,
 			},
 		},
 		{
-			name: "RWKV7 channel", profile: ArchitectureProfile{
-				DenseGraph: DenseGraphRWKV7, Normalization: NormalizationLayer,
+			name: "WKV7 channel", profile: ArchitectureProfile{
+				LayerTopology: LayerTopologyDynamicWKV7, Normalization: NormalizationLayer,
 			},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -142,8 +141,8 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 			},
 		},
 		{
-			name: "RWKV7 SwiGLU", profile: ArchitectureProfile{
-				DenseGraph: DenseGraphRWKV7, Normalization: NormalizationRMS,
+			name: "WKV7 SwiGLU", profile: ArchitectureProfile{
+				LayerTopology: LayerTopologyDynamicWKV7, Normalization: NormalizationRMS,
 			},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -161,7 +160,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 
 func TestTalkieProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphTalkie},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologyCausalPostQKNormSkip},
 	)
 	want := []LayerOperator{
 		LayerOperatorRMSNorm, LayerOperatorAttentionCausalPostQKNorm, LayerOperatorResidual,
@@ -173,7 +172,7 @@ func TestTalkieProgramUsesNeutralStages(t *testing.T) {
 
 func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphBERT},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologyBidirectionalEncoder},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionBidirectionalEncoder, LayerOperatorAttentionResidualNorm,
@@ -184,7 +183,8 @@ func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 
 func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
 	program := compileLayerProgram(LayerPlan{}, ArchitectureProfile{
-		DenseGraph: DenseGraphBERT, EncoderGraph: EncoderGraphPolicy{Kind: encoderGraphJinaV2},
+		LayerTopology:   LayerTopologyBidirectionalEncoder,
+		EncoderOperator: encoderOperatorPostNormALiBi,
 	})
 	instruction, ok := program.Instruction(2)
 	if !ok || program.Count != 5 || instruction.Operator != LayerOperatorInputResidualNorm {
@@ -194,7 +194,7 @@ func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
 
 func TestGemmaEmbeddingProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphGemmaEmbedding},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologyBidirectionalQKNorm},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorAttentionBidirectionalQKNorm, LayerOperatorAttentionPostNorm,
@@ -214,8 +214,8 @@ func TestDeciSparseProgramUsesNeutralStages(t *testing.T) {
 	requireLayerProgram(t, program, want...)
 }
 
-func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
-	profile := ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationKimiLinear}}
+func TestKeyedDeltaProgramSelectsLinearAttention(t *testing.T) {
+	profile := ArchitectureProfile{LayerTopology: LayerTopologyKeyedDeltaHybrid, RecurrentMixer: recurrentMixerKeyedDelta}
 	program := typedFixtureLayerProgram(profile, LayerPlan{Recurrent: true})
 	requireLayerProgram(t, program,
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -224,18 +224,18 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
 	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
-		withProfile(ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationKimiLinear}}).
-		stateSpacePlan(0, true)
-	if mixer.Operator != LayerOperatorRecurrentMix || state.kind != stateSpaceKeyedDelta ||
+		withProfile(profile).
+		compileRecurrentMixer(true)
+	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerKeyedDelta ||
 		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
-		t.Fatalf("Kimi recurrent policies = %+v/%+v/%d", mixer, feedForward, state.kind)
+		t.Fatalf("keyed-delta policies = %+v/%+v/%d", mixer, feedForward, state)
 	}
 }
 
 func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	program := compileLayerProgram(
 		LayerPlan{Recurrent: true},
-		ArchitectureProfile{Attention: AttentionLFM2},
+		ArchitectureProfile{Attention: AttentionShortConvolution, RecurrentMixer: recurrentMixerShortConvolution},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -245,10 +245,10 @@ func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
 	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
-		withProfile(ArchitectureProfile{Attention: AttentionLFM2}).stateSpacePlan(0, true)
-	if mixer.Operator != LayerOperatorRecurrentMix || state.kind != stateSpaceLFM2 ||
+		withProfile(ArchitectureProfile{RecurrentMixer: recurrentMixerShortConvolution}).compileRecurrentMixer(true)
+	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerShortConvolution ||
 		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
-		t.Fatalf("LFM2 recurrent policies = %+v/%d/%d", mixer, state.kind, feedForward.Operator)
+		t.Fatalf("LFM2 recurrent policies = %+v/%d/%d", mixer, state, feedForward.Operator)
 	}
 }
 
@@ -266,7 +266,7 @@ func TestNemotronLayerProgramsSelectSemanticMixer(t *testing.T) {
 	}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
-			profile := ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationNemotronH}}
+			profile := ArchitectureProfile{RecurrentMixer: recurrentMixerSparseGroupedSelectiveScan}
 			program := typedFixtureLayerProgram(profile, LayerPlan{
 				Recurrent: fixture.recurrent, Composition: fixture.composition,
 			})
@@ -286,15 +286,15 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 	for _, recurrent := range []bool{false, true} {
 		program := compileLayerProgram(
 			LayerPlan{Recurrent: recurrent},
-			ArchitectureProfile{Attention: AttentionQwenGDN},
+			ArchitectureProfile{Attention: AttentionGatedDelta, RecurrentMixer: recurrentMixerGatedDelta},
 		)
 		instruction, ok := program.Instruction(mixerStage)
 		if !ok || program.Count != qwenProgramStageCount {
 			t.Fatalf("Qwen GDN program = %+v", program)
 		}
 		state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{recurrent}}}.
-			withProfile(ArchitectureProfile{Attention: AttentionQwenGDN}).stateSpacePlan(0, recurrent)
-		if recurrent && (instruction.Operator != LayerOperatorRecurrentMix || state.kind != stateSpaceQwenGDN) {
+			withProfile(ArchitectureProfile{RecurrentMixer: recurrentMixerGatedDelta}).compileRecurrentMixer(recurrent)
+		if recurrent && (instruction.Operator != LayerOperatorRecurrentMix || state != recurrentMixerGatedDelta) {
 			t.Fatalf("Qwen recurrent stage = %+v", instruction)
 		}
 		if !recurrent && instruction.Operator != LayerOperatorAttentionGatedProjection {
@@ -303,12 +303,11 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 	}
 }
 
-func TestArchitectureBlockDispatchRoutesFamilies(t *testing.T) {
+func TestCompiledBlockDispatchRequiresPlan(t *testing.T) {
 	_, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: Spec{CommonSpec: CommonSpec{Architecture: "unknown"}},
 	})
-	var unsupported *UnsupportedArchitectureError
-	if !errors.As(err, &unsupported) {
+	if err == nil || !strings.Contains(err.Error(), "compiled layer plan is required") {
 		t.Fatalf("unknown error = %v", err)
 	}
 	t5 := Spec{CommonSpec: CommonSpec{Architecture: "t5"}}
@@ -318,7 +317,8 @@ func TestArchitectureBlockDispatchRoutesFamilies(t *testing.T) {
 		t.Fatalf("T5 dispatch error = %v", err)
 	}
 	external := ArchitectureProfile{
-		Name: "external-encoder-decoder", GraphFamily: ArchitectureFamilyEncoderDecoder,
+		Name:    "external-encoder-decoder",
+		Forward: ForwardProgram{Operation: ForwardOperationSession, Session: ForwardSessionEncoderDecoder},
 	}
 	externalSpec := Spec{CommonSpec: CommonSpec{Architecture: external.Name}}.withProfile(external)
 	externalPlan := externalSpec.PlanLayer(0, false)

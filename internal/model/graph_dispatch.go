@@ -35,21 +35,11 @@ type BlockDispatchOptions struct {
 	Plan    *LayerPlan
 }
 
-// Build constructs the graph owned by a compiled draft layer.
+// Build executes a compiled layer program.
 func (p CompiledLayerProgram) Build(
 	context CachedBlockContext,
 	weights LayerGraphWeights,
 ) (DenseBlockResult, error) {
-	switch p.role {
-	case programEncoder:
-		output, err := buildT5EncoderBlock(context.Builder, context.Input, p.spec, weights)
-		return DenseBlockResult{Output: output}, err
-	case programDecoder:
-		return buildT5DecoderBlockCached(
-			context.Builder, context.Input, context.Encoder, p.spec, weights,
-			context.PastKey, context.PastValue, context.CrossKey, context.CrossValue,
-		)
-	}
 	plan := p.plan
 	return executeCompiledLayer(BlockDispatchOptions{
 		Context: context, Spec: p.spec, Weights: weights, Plan: &plan,
@@ -57,14 +47,13 @@ func (p CompiledLayerProgram) Build(
 }
 
 func executeCompiledLayer(options BlockDispatchOptions) (DenseBlockResult, error) {
-	_, ok := options.Spec.ResolvedProfile()
-	if !ok {
-		return DenseBlockResult{}, &UnsupportedArchitectureError{
-			Architecture: options.Spec.Architecture,
-		}
-	}
 	if options.Plan == nil {
 		return DenseBlockResult{}, errors.New("compiled layer plan is required")
+	}
+	sequence, _ := options.Plan.Program.Instruction(1)
+	if options.Plan.ExplicitEncoder && sequence.Operator != LayerOperatorAttentionRelativeBidirectional &&
+		sequence.Operator != LayerOperatorAttentionRelativeCausal {
+		return DenseBlockResult{}, errors.New("encoder-decoder blocks require explicit encoder state")
 	}
 	context := options.Context
 	if context.MultiPositions != nil {
@@ -77,11 +66,6 @@ func executeCompiledLayer(options BlockDispatchOptions) (DenseBlockResult, error
 	plan := *options.Plan
 	if plan.Layer != context.Layer || plan.Recurrent != context.Recurrent {
 		return DenseBlockResult{}, errors.New("compiled layer plan differs from dispatch context")
-	}
-	if plan.GraphFamily == ArchitectureFamilyEncoderDecoder {
-		return DenseBlockResult{}, errors.New(
-			"encoder-decoder blocks require explicit encoder state",
-		)
 	}
 	return executeLayerProgram(options, plan)
 }
@@ -112,6 +96,10 @@ func resolveLayerOperands(
 			operands.caches[index] = context.PastStates[CacheStateSSM].Value
 		case RuntimeCacheIndexerKey:
 			operands.caches[index] = context.PastStates[CacheStateIndexerKey].Value
+		case RuntimeCacheCrossKey:
+			operands.caches[index] = context.CrossKey
+		case RuntimeCacheCrossValue:
+			operands.caches[index] = context.CrossValue
 		default:
 			return operands, errors.New("compiled layer cache binding is invalid")
 		}
@@ -122,6 +110,8 @@ func resolveLayerOperands(
 			operands.tensors[index] = context.PerLayerInput
 		case RuntimeTensorCurrentPositions:
 			operands.tensors[index] = context.CurrentPositions
+		case RuntimeTensorEncoder:
+			operands.tensors[index] = context.Encoder
 		default:
 			return operands, errors.New("compiled layer tensor binding is invalid")
 		}
@@ -192,9 +182,18 @@ func executeLayerInstruction(
 			options.Weights.AttentionNorm == nil {
 			return errors.New("compiled attention-normalization stage is invalid")
 		}
-		execution.current = ApplyNormalization(
+		execution.current = plan.Normalization.Apply(
 			c.Builder, execution.current, options.Weights.AttentionNorm,
-			options.Weights.AttentionNormBias, options.Spec,
+			options.Weights.AttentionNormBias,
+		)
+		return c.Builder.Err()
+	case LayerOperatorCrossAttentionNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			options.Weights.CrossAttentionNorm == nil {
+			return errors.New("compiled cross-attention normalization stage is invalid")
+		}
+		execution.current = plan.Normalization.Apply(
+			c.Builder, execution.current, options.Weights.CrossAttentionNorm, nil,
 		)
 		return c.Builder.Err()
 	case LayerOperatorRMSNorm:
@@ -238,12 +237,16 @@ func executeLayerInstruction(
 		LayerOperatorAttentionBidirectionalQKNorm, LayerOperatorAttentionCausalPostQKNorm,
 		LayerOperatorAttentionSharedKVQKNorm, LayerOperatorAttentionBidirectionalEncoder,
 		LayerOperatorAttentionPairedCausalProjection, LayerOperatorAttentionSharedCacheQKNorm,
-		LayerOperatorAttentionPlannedProjection:
-		cacheCount := uint8(2)
-		if instruction.Operator == LayerOperatorAttentionOutputProjection {
+		LayerOperatorAttentionPlannedProjection, LayerOperatorAttentionRelativeBidirectional,
+		LayerOperatorAttentionRelativeCausal, LayerOperatorAttentionCross:
+		cacheCount, tensorCount := uint8(2), uint8(0)
+		switch instruction.Operator {
+		case LayerOperatorAttentionOutputProjection, LayerOperatorAttentionRelativeBidirectional:
 			cacheCount = 0
+		case LayerOperatorAttentionCross:
+			tensorCount = 1
 		}
-		if instruction.TensorCount != 0 || instruction.CacheCount != cacheCount {
+		if instruction.TensorCount != tensorCount || instruction.CacheCount != cacheCount {
 			return errors.New("compiled attention-mixing stage is invalid")
 		}
 		var result DenseBlockResult
@@ -263,6 +266,7 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				c.Positions, c.MultiPositions, sequences,
 				operands.caches[0], operands.caches[1], c.CacheWrite,
+				plan.AttentionGraph.deltaProjection,
 			)
 		case LayerOperatorAttentionOutputProjection:
 			if options.Weights.AttentionOutput == nil {
@@ -276,12 +280,12 @@ func executeLayerInstruction(
 		case LayerOperatorAttentionBidirectionalFusedQKV:
 			result, err = buildBidirectionalFusedQKVMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan.Layer,
+				operands.caches[0], operands.caches[1], plan,
 			)
 		case LayerOperatorAttentionBidirectionalQKNorm:
 			result, err = buildBidirectionalQKNormMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan.Layer,
+				operands.caches[0], operands.caches[1], plan,
 			)
 		case LayerOperatorAttentionCausalPostQKNorm:
 			result, err = buildCausalPostQKNormMixCached(
@@ -296,7 +300,7 @@ func executeLayerInstruction(
 		case LayerOperatorAttentionBidirectionalEncoder:
 			result, err = buildBidirectionalEncoderAttentionMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan.Layer,
+				operands.caches[0], operands.caches[1], plan,
 			)
 		case LayerOperatorAttentionPairedCausalProjection:
 			result, err = buildPairedCausalProjectionMixCached(
@@ -313,6 +317,20 @@ func executeLayerInstruction(
 				options, execution.current, execution.feedForwardBase,
 				operands.caches[0], operands.caches[1],
 			)
+		case LayerOperatorAttentionRelativeBidirectional:
+			result, err = buildRelativeSelfAttentionMix(
+				c.Builder, execution.current, options.Spec, options.Weights, nil, nil, false,
+			)
+		case LayerOperatorAttentionRelativeCausal:
+			result, err = buildRelativeSelfAttentionMix(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1], true,
+			)
+		case LayerOperatorAttentionCross:
+			result, err = buildCrossAttentionMix(
+				c.Builder, execution.current, operands.tensors[0], options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1],
+			)
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
 		}
@@ -322,6 +340,9 @@ func executeLayerInstruction(
 		execution.result.Output = result.Output
 		if result.Key != nil || result.Value != nil {
 			execution.result.Key, execution.result.Value = result.Key, result.Value
+		}
+		if len(result.States) > 0 {
+			execution.result.States = result.States
 		}
 		execution.current = result.Output
 		return nil
@@ -345,26 +366,28 @@ func executeLayerInstruction(
 		}
 		var result DenseBlockResult
 		var err error
-		switch plan.StateSpace.kind {
-		case stateSpaceMamba, stateSpaceJamba:
-			result, err = buildMambaMixerCached(
+		switch plan.Mixer {
+		case recurrentMixerSelectiveScan, recurrentMixerWeightedSelectiveScan:
+			result, err = buildSelectiveScanMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1], plan.StateSpace,
+				operands.caches[0], operands.caches[1], plan.Mixer,
 			)
-		case stateSpaceMamba2, stateSpaceGraniteHybrid, stateSpaceNemotronH:
-			if plan.StateSpace.kind == stateSpaceMamba2 && options.Weights.SSMConv1DBias == nil {
-				return errors.New("Mamba2 recurrent-mixing convolution bias is nil")
+		case recurrentMixerGroupedSelectiveScan, recurrentMixerScaledGroupedSelectiveScan,
+			recurrentMixerSparseGroupedSelectiveScan:
+			if plan.Mixer == recurrentMixerGroupedSelectiveScan &&
+				options.Weights.SSMConv1DBias == nil {
+				return errors.New("grouped selective-scan convolution bias is nil")
 			}
-			result, err = buildMamba2MixerCached(
+			result, err = buildGroupedSelectiveScanMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1], plan.StateSpace,
+				operands.caches[0], operands.caches[1], plan.Mixer,
 			)
-		case stateSpacePLaMo2:
-			result, err = buildPLaMo2MixerCached(
+		case recurrentMixerNormalizedSelectiveScan:
+			result, err = buildNormalizedSelectiveScanMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
-		case stateSpaceQwenGDN:
+		case recurrentMixerGatedDelta:
 			sequences := c.Sequences
 			if sequences == 0 {
 				sequences = 1
@@ -372,28 +395,29 @@ func executeLayerInstruction(
 			result, err = buildGatedDeltaMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				c.Positions, sequences, operands.caches[0], operands.caches[1],
+				plan.AttentionGraph.deltaProjection,
 			)
-		case stateSpaceLFM2:
+		case recurrentMixerShortConvolution:
 			result, err = buildShortConvolutionMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1],
 			)
-		case stateSpaceDynamicWKV6:
+		case recurrentMixerDynamicWKV6:
 			result, err = buildDynamicWKV6MixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
-		case stateSpaceAffineWKV6:
+		case recurrentMixerAffineWKV6:
 			result, err = buildAffineWKV6MixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
-		case stateSpaceDynamicWKV7:
+		case recurrentMixerDynamicWKV7:
 			result, err = buildDynamicWKV7MixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1], plan,
 			)
-		case stateSpaceKeyedDelta:
+		case recurrentMixerKeyedDelta:
 			result, err = buildKeyedDeltaAttentionMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1],
@@ -412,9 +436,9 @@ func executeLayerInstruction(
 			options.Weights.FeedForwardNorm == nil {
 			return errors.New("compiled feed-forward normalization stage is invalid")
 		}
-		execution.current = ApplyNormalization(
+		execution.current = plan.Normalization.Apply(
 			c.Builder, execution.residual, options.Weights.FeedForwardNorm,
-			options.Weights.FeedForwardNormBias, options.Spec,
+			options.Weights.FeedForwardNormBias,
 		)
 		return c.Builder.Err()
 	case LayerOperatorFeedForwardInputNorm:
@@ -425,10 +449,10 @@ func executeLayerInstruction(
 		normalized := plan.ResidualStages.AfterAttention(
 			c.Builder, execution.residual, execution.attentionInput, options.Spec, options.Weights,
 		)
-		if plan.ExpertComposition.kind != expertArctic {
+		if plan.ExpertComposition.kind != expertDenseRoutedSeparateNorm {
 			normalized = plan.ResidualStages.FeedForwardInput(
 				c.Builder, c.Input, execution.residual, normalized, execution.feedForwardBase,
-				options.Spec, options.Weights,
+				options.Spec, options.Weights, plan.Normalization,
 			)
 		}
 		execution.current = normalized
@@ -437,7 +461,7 @@ func executeLayerInstruction(
 		LayerOperatorFeedForwardSquaredReLU, LayerOperatorFeedForwardRoutedSquaredReLU,
 		LayerOperatorFeedForwardRoutedSwiGLU, LayerOperatorFeedForwardGatedGELU,
 		LayerOperatorFeedForwardParallelGatedGELU, LayerOperatorFeedForwardEncoder,
-		LayerOperatorFeedForwardPlanned:
+		LayerOperatorFeedForwardPlanned, LayerOperatorFeedForwardRelative:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 {
 			return errors.New("compiled feed-forward stage is invalid")
 		}
@@ -475,11 +499,15 @@ func executeLayerInstruction(
 			)
 		case LayerOperatorFeedForwardEncoder:
 			feedForward, err = buildEncoderFeedForwardMix(
-				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
+				c.Builder, execution.current, options.Spec, options.Weights, plan,
 			)
 		case LayerOperatorFeedForwardPlanned:
 			feedForward, err = buildPolicyFeedForwardMix(
 				options, execution.current, execution.residual,
+			)
+		case LayerOperatorFeedForwardRelative:
+			feedForward, err = buildRelativeFeedForwardMix(
+				c.Builder, execution.current, options.Spec, options.Weights,
 			)
 		default:
 			return errors.New("compiled feed-forward policy is invalid")
@@ -573,8 +601,8 @@ func executeLayerInstruction(
 		if weight == nil || bias == nil {
 			return errors.New("compiled residual-normalization weights are incomplete")
 		}
-		execution.current = ApplyNormalization(
-			c.Builder, c.Builder.Add(residual, execution.current), weight, bias, options.Spec,
+		execution.current = plan.Normalization.Apply(
+			c.Builder, c.Builder.Add(residual, execution.current), weight, bias,
 		)
 		execution.residual = execution.current
 		execution.result.Output = execution.current
@@ -610,7 +638,7 @@ func executeLayerInstruction(
 		}
 		result, err := buildTokenShiftFeedForwardMix(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], execution.result.Key, instruction.Operator,
+			operands.caches[0], execution.result.Key, instruction.Operator, plan.Normalization,
 		)
 		if err != nil {
 			return err
@@ -636,7 +664,7 @@ func executeLayerInstruction(
 		}
 		result, err := buildLatentAttentionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], plan.Layer,
+			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], plan,
 		)
 		if err != nil {
 			return err

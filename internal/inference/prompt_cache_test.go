@@ -136,14 +136,14 @@ func TestT5SourceCacheRequiresExactSequence(t *testing.T) {
 	first := &cachedPrompt{Tokens: []tokenizer.TokenID{1, 2}, Hidden: hidden}
 	second := &cachedPrompt{Tokens: []tokenizer.TokenID{3, 4}, Hidden: hidden}
 	runner := &Runner{runnerState: runnerState{promptCaches: []*cachedPrompt{first, second}}}
-	selected, reused := runner.selectT5SourceCache([]tokenizer.TokenID{3, 4}, 2)
+	selected, reused := runner.selectEncoderSourceCache([]tokenizer.TokenID{3, 4}, 2)
 	if selected != second || reused != 2 || runner.promptCaches[0] != second {
 		t.Fatalf("selected/reused/cache order = %p/%d/%p", selected, reused, runner.promptCaches[0])
 	}
-	if selected, reused = runner.selectT5SourceCache([]tokenizer.TokenID{3, 4, 5}, 2); selected != nil || reused != 0 {
+	if selected, reused = runner.selectEncoderSourceCache([]tokenizer.TokenID{3, 4, 5}, 2); selected != nil || reused != 0 {
 		t.Fatalf("prefix-only source cache was reused: %p/%d", selected, reused)
 	}
-	if selected, reused = runner.selectT5SourceCache([]tokenizer.TokenID{3, 4}, 3); selected != nil || reused != 0 {
+	if selected, reused = runner.selectEncoderSourceCache([]tokenizer.TokenID{3, 4}, 3); selected != nil || reused != 0 {
 		t.Fatalf("below-threshold source cache was reused: %p/%d", selected, reused)
 	}
 }

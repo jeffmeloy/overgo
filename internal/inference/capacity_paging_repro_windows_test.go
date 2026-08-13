@@ -57,6 +57,7 @@ func generateCapacityPagingRepro(
 // OVERGO_REPRO_MODEL to a capacity-eligible GGUF (Carbon/MiniCPM/Qwen35-4B, or the
 // gemma-4-12B). Before the fix the capacity session OOMed at pastTokens=256.
 func TestCapacityPagingReproGeneratesPastPageBoundary(t *testing.T) {
+	requireIntegration(t)
 	cudatest.Require(t)
 	path := os.Getenv("OVERGO_REPRO_MODEL")
 	if path == "" {

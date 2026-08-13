@@ -57,9 +57,7 @@ func TestRecognizePipeline(t *testing.T) {
 // against the real tensor shapes (safetensors headers only, no payload, no
 // forward), and the cross-checks agree. Fails on any single disagreement.
 func TestVerifyCheckpoint(t *testing.T) {
-	if testing.Short() {
-		t.Skip("opens 3 sub-model safetensors headers; skipped in -short")
-	}
+	requireLongTest(t)
 	dir := kreaDirOrSkip(t)
 	spec, err := Derive(dir)
 	if err != nil {

@@ -494,11 +494,11 @@ func (g *gateContext) stepTest() (bool, error) {
 }
 
 func runGoTests(repo string, packages []string) (string, error) {
-	out, err := command(repo, "go", append([]string{"test", "-json", "-count=1"}, packages...)...)
+	out, err := command(repo, "go", append([]string{"test", "-short", "-json", "-count=1"}, packages...)...)
 	if err != nil {
 		return out, err
 	}
-	if err := testevidence.GoTestJSON(out); err != nil {
+	if err := testevidence.GoTestJSONShort(out); err != nil {
 		return out, fmt.Errorf("impacted tests vacuous: %w", err)
 	}
 	return out, nil

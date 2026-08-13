@@ -167,7 +167,11 @@ func TestPersistentDeviceCacheCapabilityProfile(t *testing.T) {
 	}
 	for architecture, want := range tests {
 		spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}}
-		if got := supportsPersistentDeviceCache(spec); got != want {
+		plan, err := model.CompileModelPlan(spec, model.Weights{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := plan.Forward().PersistentDeviceCache(); got != want {
 			t.Fatalf("%s support = %t, want %t", architecture, got, want)
 		}
 	}

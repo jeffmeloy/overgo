@@ -37,7 +37,7 @@ func TestReadWavTokenizerDecoderSpec(t *testing.T) {
 		spec.PosNetBlockCount != 6 || spec.ConvNextBlockCount != 4 ||
 		spec.GroupNormGroups != 3 || !spec.NonCausalAttention || !spec.RopeDisabled ||
 		spec.HeadCount != 1 || spec.HeadCountKV != 1 || spec.KeyLength != 12 || spec.ValueLength != 12 {
-		t.Fatalf("unexpected WavTokenizer decoder spec: %+v", spec)
+		t.Fatalf("unexpected AudioDecoder decoder spec: %+v", spec)
 	}
 }
 

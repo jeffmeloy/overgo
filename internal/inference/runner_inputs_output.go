@@ -26,8 +26,7 @@ func (r *Runner) prepareGemma4PerLayerInputs(
 	activation reference.Value,
 	rows []uint32,
 ) ([]reference.Value, error) {
-	if !r.profile().Has(model.ArchitecturePerLayerEmbeddings) ||
-		r.spec.EmbeddingPerLayer == 0 {
+	if !r.program.Model.ProjectedInput().PerLayerEmbeddings {
 		return nil, nil
 	}
 	if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
@@ -163,7 +162,7 @@ func (r *Runner) applyTokenEmbeddingNorm(
 			return reference.Value{}, err
 		}
 	}
-	output := model.ApplyNormalization(runtime.builder, input, weightInput, biasInput, r.spec)
+	output := r.program.Model.Normalization().Apply(runtime.builder, input, weightInput, biasInput)
 	if err := runtime.builder.Err(); err != nil {
 		return reference.Value{}, err
 	}
@@ -252,7 +251,7 @@ func applyLogitSoftcap(logits []float32, cap float32) []float32 {
 
 func (r *Runner) finalizeLogits(logits []float32) []float32 {
 	logits = applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap)
-	if !r.profile().Has(model.ArchitectureDiscreteImageTokens) || r.spec.VocabularySize == 0 {
+	if !r.program.Model.ProjectedInput().DiscreteTokens || r.spec.VocabularySize == 0 {
 		return logits
 	}
 	vocabulary := int(r.spec.VocabularySize)

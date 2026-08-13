@@ -16,16 +16,16 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-type qwen35DeviceCohortKey struct {
+type deviceCohortKey struct {
 	tokens, position, pageTokens uint32
 }
 
-func (r *Runner) forwardPackedQwen35CohortsLocked(
+func (r *Runner) forwardPackedDeviceCohortsLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, bool, error) {
-	if len(appends) < 2 || r.profile().Attention != model.AttentionQwenGDN {
+	if len(appends) < 2 || !r.forwardProgram().DeviceBatchSelection() {
 		return nil, false, nil
 	}
 	for _, item := range appends {
@@ -33,7 +33,7 @@ func (r *Runner) forwardPackedQwen35CohortsLocked(
 			return nil, false, nil
 		}
 	}
-	packed, fallback := planQwen35DeviceCohorts(appends)
+	packed, fallback := planDeviceCohorts(appends)
 	if len(packed) == 0 {
 		return nil, false, nil
 	}
@@ -54,7 +54,7 @@ func (r *Runner) forwardPackedQwen35CohortsLocked(
 		var caches []*deviceKVCache
 		var err error
 		if packed {
-			caches, err = r.forwardPackedQwen35DeviceBatchLocked(ctx, items, plan)
+			caches, err = r.forwardPackedDeviceBatchLocked(ctx, items, plan)
 		} else {
 			caches, err = r.forwardDeviceCachedBranchedBatchLocked(ctx, items, plan)
 		}
@@ -87,16 +87,16 @@ func (r *Runner) forwardPackedQwen35CohortsLocked(
 	return next, true, nil
 }
 
-func planQwen35DeviceCohorts(appends []deviceBatchAppend) ([][]int, []int) {
+func planDeviceCohorts(appends []deviceBatchAppend) ([][]int, []int) {
 	cohorts := make([][]int, 0)
-	byKey := make(map[qwen35DeviceCohortKey]int)
+	byKey := make(map[deviceCohortKey]int)
 	fallback := make([]int, 0)
 	for index, item := range appends {
 		if item.Past == nil || len(item.Tokens) != 1 {
 			fallback = append(fallback, index)
 			continue
 		}
-		key := qwen35DeviceCohortKey{
+		key := deviceCohortKey{
 			tokens: item.Past.Tokens, position: item.Past.Position, pageTokens: item.PageTokens,
 		}
 		cohort, ok := byKey[key]
@@ -122,7 +122,7 @@ func planQwen35DeviceCohorts(appends []deviceBatchAppend) ([][]int, []int) {
 	return packed, fallback
 }
 
-func (r *Runner) forwardPackedQwen35DeviceBatchLocked(
+func (r *Runner) forwardPackedDeviceBatchLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,

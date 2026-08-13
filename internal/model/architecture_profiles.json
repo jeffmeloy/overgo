@@ -4,7 +4,6 @@
       "Sliding": 3
     },
     "Capabilities": 2052,
-    "CatalogFamily": 1,
     "DenseStages": {
       "AttentionFlatGate": true,
       "AttentionGate": 2,
@@ -26,8 +25,6 @@
       "SelectionBias": true,
       "SharedCatalog": 2
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "afmoe",
     "Validation": {
       "Hybrid": 33
@@ -81,11 +78,9 @@
     "Auxiliary": 1,
     "Cache": 6,
     "Capabilities": 8388618,
-    "CatalogFamily": 2,
-    "DenseGraph": 9,
-    "Family": 2,
-    "GraphFamily": 2,
+    "LayerTopology": 9,
     "Name": "arwkv7",
+    "RecurrentMixer": 12,
     "Validation": {
       "Recurrent": 10
     }
@@ -101,15 +96,12 @@
   },
   {
     "Capabilities": 8396804,
-    "CatalogFamily": 1,
     "Experts": {
       "Catalog": 1,
       "Composition": 1,
       "Normalization": 1,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "bailingmoe",
     "Validation": {
       "Hybrid": 11
@@ -121,7 +113,6 @@
   },
   {
     "Capabilities": 209715204,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -137,8 +128,6 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "ModelCatalog": {
       "DraftLayerOutputNorm": true
     },
@@ -149,15 +138,10 @@
   },
   {
     "Capabilities": 17247246355,
-    "CatalogFamily": 4,
-    "DenseGraph": 1,
-    "EncoderGraph": {
-      "Kind": 1
-    },
-    "Family": 4,
+    "LayerTopology": 1,
+    "EncoderOperator": 1,
     "FeedForward": 3,
     "Forward": {"Operation": 1},
-    "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 5
     },
@@ -275,7 +259,6 @@
       "Sliding": 3
     },
     "Capabilities": 67133444,
-    "CatalogFamily": 1,
     "DraftKind": 5,
     "Experts": {
       "Catalog": 4,
@@ -286,8 +269,6 @@
       "Routing": 1,
       "SharedCatalog": 2
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "cohere2moe",
     "Validation": {
       "Attention": 13
@@ -330,13 +311,10 @@
   },
   {
     "Capabilities": 209715204,
-    "CatalogFamily": 1,
     "Experts": {
       "Catalog": 1
     },
     "FFNNormLayout": 2,
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "dbrx",
     "Validation": {
       "Hybrid": 16
@@ -366,15 +344,12 @@
   },
   {
     "Capabilities": 8196,
-    "CatalogFamily": 1,
     "Experts": {
       "Catalog": 4,
       "Composition": 1,
       "Normalization": 2,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "deepseek",
     "Validation": {
       "Hybrid": 12
@@ -387,7 +362,6 @@
   {
     "Attention": 1,
     "Capabilities": 34359739012,
-    "CatalogFamily": 1,
     "Experts": {
       "BiasCatalog": 1,
       "Catalog": 4,
@@ -397,8 +371,6 @@
       "OptionalSelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Metadata": {
       "MLAHeadLengths": true
     },
@@ -407,7 +379,6 @@
   },
   {
     "Capabilities": 68,
-    "CatalogFamily": 1,
     "Experts": {
       "BiasCatalog": 1,
       "Catalog": 4,
@@ -417,8 +388,6 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "deepseek2-ocr",
     "Validation": {
       "Hybrid": 21
@@ -427,7 +396,6 @@
   {
     "Attention": 2,
     "Capabilities": 34359739268,
-    "CatalogFamily": 1,
     "DraftKind": 4,
     "Experts": {
       "BiasCatalog": 1,
@@ -438,9 +406,7 @@
       "OptionalSelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
-    "MLAVariant": 3,
+    "LatentAttention": 3,
     "Metadata": {
       "MLAHeadLengths": true
     },
@@ -455,13 +421,11 @@
   {
     "Cache": 12,
     "Capabilities": 8196,
-    "CatalogFamily": 1,
-    "Family": 1,
-    "GraphFamily": 1,
     "ModelCatalog": {
       "Weights": 1
     },
     "Name": "deepseek4",
+    "LayerTopology": 11,
     "Validation": {
       "MLA": 2
     },
@@ -475,15 +439,12 @@
       "Sliding": 3
     },
     "Capabilities": 1,
-    "CatalogFamily": 7,
     "DenseStages": {
       "QK": {
         "Heads": 1
       }
     },
-    "Family": 7,
     "Forward": {"Operation": 4, "Session": 1},
-    "GraphFamily": 7,
     "MetadataDefaults": {
       "RopeDimension": 2
     },
@@ -497,7 +458,6 @@
   },
   {
     "Capabilities": 75497476,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -512,8 +472,6 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "dots1",
     "Validation": {
       "Hybrid": 23
@@ -521,18 +479,12 @@
   },
   {
     "Capabilities": 33,
-    "CatalogFamily": 6,
-    "Family": 6,
-    "Forward": {"Operation": 1},
-    "GraphFamily": 6,
+    "Forward": {"Operation": 5},
     "Name": "dream"
   },
   {
     "Capabilities": 8192,
-    "CatalogFamily": 7,
-    "Family": 7,
     "Forward": {"Operation": 4, "Session": 2},
-    "GraphFamily": 7,
     "MetadataDefaults": {
       "RopeDimension": 2
     },
@@ -564,7 +516,6 @@
       "MoE": 3
     },
     "Capabilities": 67117060,
-    "CatalogFamily": 1,
     "DenseWeights": {
       "AllowUngatedExperts": true
     },
@@ -577,8 +528,6 @@
       "SelectionBias": true,
       "SharedCatalog": 2
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "ModelCatalog": {
       "SkipAttentionOutputBias": true
     },
@@ -593,10 +542,7 @@
   },
   {
     "Capabilities": 67108881,
-    "CatalogFamily": 4,
-    "Family": 4,
     "Forward": {"Operation": 1},
-    "GraphFamily": 4,
     "Name": "eurobert"
   },
   {
@@ -607,7 +553,6 @@
       "Sliding": 3
     },
     "Capabilities": 4,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -623,8 +568,6 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "exaone-moe",
     "Validation": {
       "Hybrid": 34
@@ -656,7 +599,7 @@
       "Residual": 2
     },
     "DenseWeights": {
-      "ValidateFalconNorm": true
+      "UseSecondaryAttentionNorm": true
     },
     "FeedForward": 3,
     "Metadata": {
@@ -672,21 +615,20 @@
   {
     "Cache": 10,
     "Capabilities": 8,
-    "CatalogFamily": 3,
     "FFNNormLayout": 1,
-    "Family": 3,
-    "GraphFamily": 3,
     "Name": "falcon-h1",
+    "RecurrentMixer": 5,
     "Validation": {
       "Recurrent": 6
     }
   },
   {
-    "Capabilities": 1024,
+    "Capabilities": 0,
     "DenseStages": {
       "QueryScale": 4
     },
     "Name": "gemma",
+    "FeedForward": 6,
     "Rotary": {
       "Kind": 5
     },
@@ -698,25 +640,21 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Capabilities": 67111953,
-    "CatalogFamily": 4,
-    "DenseGraph": 3,
+    "Capabilities": 67110929,
+    "LayerTopology": 3,
     "DenseStages": {
       "QK": {
         "Heads": 1
       },
       "QueryScale": 4
     },
-    "EncoderGraph": {
-      "Kind": 7
-    },
-    "Family": 4,
+    "EncoderOperator": 7,
     "Forward": {"Operation": 1},
-    "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
     },
     "Name": "gemma-embedding",
+    "FeedForward": 6,
     "Validation": {
       "Attention": 20
     },
@@ -731,12 +669,13 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Capabilities": 3072,
+    "Capabilities": 2048,
     "DenseStages": {
-      "GemmaSpecial": true,
+      "EmbeddingHeadScaleBlocks": 46,
       "QueryScale": 4
     },
     "Name": "gemma2",
+    "FeedForward": 6,
     "Validation": {
       "Attention": 10
     },
@@ -751,7 +690,7 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Capabilities": 3136,
+    "Capabilities": 2112,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -759,11 +698,12 @@
       "QueryScale": 4
     },
     "Name": "gemma3",
+    "FeedForward": 6,
     "Validation": {
       "Attention": 6
     },
     "Rotary": {
-      "Gemma3": true,
+      "ForceScaleAndSlidingReset": true,
       "Kind": 5
     },
     "Runtime": {
@@ -774,8 +714,8 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Capabilities": 7516195904,
-    "DenseGraph": 6,
+    "Capabilities": 5368711232,
+    "LayerTopology": 6,
     "DenseStages": {
       "QueryScale": 4
     },
@@ -783,6 +723,7 @@
       "RopeDimension": 1
     },
     "Name": "gemma3n",
+    "FeedForward": 6,
     "Validation": {
       "Attention": 7
     },
@@ -799,8 +740,8 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Capabilities": 5368712256,
-    "DenseGraph": 5,
+    "Capabilities": 5368711232,
+    "LayerTopology": 5,
     "DenseStages": {
       "QueryScale": 4
     },
@@ -816,6 +757,7 @@
       "SWAHeadLengths": true
     },
     "Name": "gemma4",
+    "FeedForward": 6,
     "Validation": {
       "Attention": 8
     },
@@ -831,10 +773,7 @@
     "Cadence": {
       "Sliding": 3
     },
-    "CatalogFamily": 7,
-    "Family": 7,
     "Forward": {"Operation": 4, "Session": 3},
-    "GraphFamily": 7,
     "Metadata": {
       "SWAHeadLengths": true
     },
@@ -850,7 +789,6 @@
     "Attention": 2,
     "Auxiliary": 2,
     "Capabilities": 34359739140,
-    "CatalogFamily": 1,
     "DraftKind": 4,
     "Experts": {
       "BiasCatalog": 1,
@@ -861,8 +799,6 @@
       "OptionalSelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Metadata": {
       "MLAHeadLengths": true
     },
@@ -885,7 +821,6 @@
   },
   {
     "Capabilities": 71311364,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QK": {
         "Heads": 2
@@ -904,8 +839,6 @@
       "SharedCatalog": 1
     },
     "FFNNormLayout": 3,
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "glm4moe",
     "Validation": {
       "Attention": 29
@@ -924,14 +857,13 @@
       "Sliding": 3
     },
     "Capabilities": 8396804,
-    "CatalogFamily": 1,
     "DenseStages": {
       "Residual": 5
     },
     "DenseWeights": {
       "RequireAttentionOutputBias": true,
       "RequireAttentionSinks": true,
-      "RequireOpenAIBiases": true,
+      "RequireExpertProjectionBiases": true,
       "SkipFeedForwardNorm": true
     },
     "Experts": {
@@ -941,8 +873,6 @@
       "Routing": 2,
       "SupplementalCatalog": 2
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "gpt-oss",
     "Validation": {
       "Hybrid": 30
@@ -1035,7 +965,6 @@
   },
   {
     "Capabilities": 139272,
-    "CatalogFamily": 3,
     "DenseWeights": {
       "AllowUngatedExperts": true
     },
@@ -1047,8 +976,6 @@
       "ResidualScale": true,
       "SharedCatalog": 2
     },
-    "Family": 3,
-    "GraphFamily": 3,
     "Metadata": {
       "KVHeads": 7,
       "PreserveLayerKV": true
@@ -1057,6 +984,7 @@
       "RopeDimension": 2
     },
     "Name": "granitehybrid",
+    "RecurrentMixer": 4,
     "Validation": {
       "Hybrid": 15,
       "Recurrent": 12
@@ -1069,7 +997,6 @@
   },
   {
     "Capabilities": 139268,
-    "CatalogFamily": 1,
     "DenseWeights": {
       "AllowUngatedExperts": true
     },
@@ -1081,8 +1008,6 @@
       "ResidualScale": true,
       "SharedCatalog": 2
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "MetadataDefaults": {
       "RopeDimension": 2
     },
@@ -1098,7 +1023,6 @@
   },
   {
     "Capabilities": 67110916,
-    "CatalogFamily": 1,
     "DenseWeights": {
       "AllowUngatedExperts": true
     },
@@ -1109,8 +1033,6 @@
       "OptionalGate": true,
       "SupplementalCatalog": 8
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "MetadataDefaults": {
       "AttentionOutputScale": 0.08838834764831845,
       "AttentionSoftcap": 30,
@@ -1132,7 +1054,6 @@
   },
   {
     "Capabilities": 4,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -1143,8 +1064,6 @@
       "Composition": 5,
       "SupplementalCatalog": 4
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "grovemoe",
     "Validation": {
       "Hybrid": 5
@@ -1169,7 +1088,6 @@
   },
   {
     "Capabilities": 4,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QK": {
         "PostRotary": 1
@@ -1180,8 +1098,6 @@
       "Composition": 1,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "hunyuan-moe",
     "Validation": {
       "Hybrid": 19
@@ -1206,7 +1122,6 @@
   },
   {
     "Capabilities": 67108868,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -1222,8 +1137,6 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "hy_v3",
     "Validation": {
       "Hybrid": 20
@@ -1263,18 +1176,16 @@
   },
   {
     "Capabilities": 10,
-    "CatalogFamily": 3,
     "Experts": {
       "Catalog": 3,
       "Normalization": 1
     },
-    "Family": 3,
-    "GraphFamily": 3,
     "Metadata": {
       "KVHeads": 7,
       "PreserveLayerKV": true
     },
     "Name": "jamba",
+    "RecurrentMixer": 2,
     "Validation": {
       "Recurrent": 11
     },
@@ -1282,14 +1193,9 @@
   },
   {
     "Capabilities": 17246984211,
-    "CatalogFamily": 4,
-    "DenseGraph": 1,
-    "EncoderGraph": {
-      "Kind": 2
-    },
-    "Family": 4,
+    "LayerTopology": 1,
+    "EncoderOperator": 2,
     "Forward": {"Operation": 1},
-    "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
     },
@@ -1309,19 +1215,14 @@
       "MoE": 1
     },
     "Capabilities": 17247246353,
-    "CatalogFamily": 4,
-    "DenseGraph": 1,
-    "EncoderGraph": {
-      "Kind": 3
-    },
+    "LayerTopology": 1,
+    "EncoderOperator": 3,
     "Experts": {
       "Catalog": 5,
       "OptionalGate": true
     },
-    "Family": 4,
     "FeedForward": 3,
     "Forward": {"Operation": 1},
-    "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
     },
@@ -1335,21 +1236,20 @@
   },
   {
     "Capabilities": 8388618,
-    "CatalogFamily": 2,
     "Experts": {
       "Composition": 1,
       "Normalization": 1,
       "SelectionBias": true
     },
-    "Family": 2,
-    "GraphFamily": 2,
-    "MLAVariant": 4,
+    "LatentAttention": 4,
     "Metadata": {
       "KVHeads": 7,
       "MLAHeadLengths": true,
       "PreserveLayerKV": true
     },
     "Name": "kimi-linear",
+    "LayerTopology": 10,
+    "RecurrentMixer": 13,
     "Validation": {
       "MLA": 3
     },
@@ -1399,18 +1299,16 @@
       "Sliding": 1
     },
     "Capabilities": 2097160,
-    "CatalogFamily": 3,
     "DenseStages": {
       "QK": {
         "Heads": 1
       }
     },
-    "Family": 3,
-    "GraphFamily": 3,
     "Metadata": {
       "KVHeads": 7
     },
     "Name": "lfm2",
+    "RecurrentMixer": 9,
     "Validation": {
       "Hybrid": 35
     },
@@ -1423,7 +1321,6 @@
       "Sliding": 1
     },
     "Capabilities": 2097164,
-    "CatalogFamily": 3,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -1440,12 +1337,11 @@
       "Normalization": 1,
       "SelectionBias": true
     },
-    "Family": 3,
-    "GraphFamily": 3,
     "Metadata": {
       "KVHeads": 7
     },
     "Name": "lfm2moe",
+    "RecurrentMixer": 9,
     "Validation": {
       "Hybrid": 36
     },
@@ -1454,10 +1350,7 @@
   },
   {
     "Capabilities": 8225,
-    "CatalogFamily": 6,
-    "Family": 6,
-    "Forward": {"Operation": 1},
-    "GraphFamily": 6,
+    "Forward": {"Operation": 5},
     "Name": "llada",
     "Position": 1,
     "Rotary": {
@@ -1466,7 +1359,6 @@
   },
   {
     "Capabilities": 8388645,
-    "CatalogFamily": 6,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -1476,9 +1368,7 @@
       "Catalog": 1,
       "Normalization": 2
     },
-    "Family": 6,
     "Forward": {"Operation": 1},
-    "GraphFamily": 6,
     "Name": "llada-moe",
     "Validation": {
       "Hybrid": 8
@@ -1500,13 +1390,10 @@
   },
   {
     "Capabilities": 139281,
-    "CatalogFamily": 4,
     "Experts": {
       "Catalog": 2
     },
-    "Family": 4,
     "Forward": {"Operation": 1},
-    "GraphFamily": 4,
     "Name": "llama-embed",
     "Validation": {
       "Hybrid": 27
@@ -1525,7 +1412,6 @@
       "Sliding": 3
     },
     "Capabilities": 8196,
-    "CatalogFamily": 1,
     "DenseStages": {
       "PostRotaryRMSNon128": true,
       "QueryScale": 1
@@ -1537,8 +1423,6 @@
       "Routing": 1,
       "SharedCatalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "llama4",
     "Validation": {
       "Hybrid": 29
@@ -1566,13 +1450,11 @@
   {
     "Cache": 2,
     "Capabilities": 10,
-    "CatalogFamily": 2,
-    "Family": 2,
-    "GraphFamily": 2,
     "Metadata": {
       "KVHeads": 4
     },
     "Name": "mamba",
+    "RecurrentMixer": 1,
     "Validation": {
       "AttentionFree": true,
       "Recurrent": 4
@@ -1581,13 +1463,11 @@
   {
     "Cache": 3,
     "Capabilities": 10,
-    "CatalogFamily": 2,
-    "Family": 2,
-    "GraphFamily": 2,
     "Metadata": {
       "KVHeads": 4
     },
     "Name": "mamba2",
+    "RecurrentMixer": 3,
     "Validation": {
       "AttentionFree": true,
       "Recurrent": 5
@@ -1663,7 +1543,7 @@
   {
     "Attention": 1,
     "Capabilities": 131584,
-    "MLAVariant": 2,
+    "LatentAttention": 2,
     "Name": "minicpm3",
     "Validation": {
       "MLA": 5
@@ -1671,7 +1551,6 @@
   },
   {
     "Capabilities": 75497476,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QK": {
         "Projection": 1
@@ -1685,8 +1564,6 @@
       "Catalog": 1,
       "SelectionBias": true
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "minimax-m2",
     "Validation": {
       "Hybrid": 24
@@ -1734,15 +1611,10 @@
       "Sliding": 2
     },
     "Capabilities": 201392145,
-    "CatalogFamily": 4,
-    "DenseGraph": 2,
-    "EncoderGraph": {
-      "Kind": 6
-    },
-    "Family": 4,
+    "LayerTopology": 2,
+    "EncoderOperator": 6,
     "FeedForward": 2,
     "Forward": {"Operation": 1},
-    "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
     },
@@ -1792,9 +1664,6 @@
   {
     "CacheFallback": 1,
     "Capabilities": 10,
-    "CatalogFamily": 3,
-    "Family": 3,
-    "GraphFamily": 3,
     "Metadata": {
       "FeedForward": 2,
       "Heads": 2,
@@ -1802,6 +1671,7 @@
       "KVHeads": 2
     },
     "Name": "nemotron_h",
+    "RecurrentMixer": 7,
     "Validation": {
       "Recurrent": 14
     },
@@ -1810,9 +1680,6 @@
   {
     "CacheFallback": 1,
     "Capabilities": 14,
-    "CatalogFamily": 3,
-    "Family": 3,
-    "GraphFamily": 3,
     "Metadata": {
       "FeedForward": 2,
       "Heads": 2,
@@ -1820,6 +1687,7 @@
       "KVHeads": 2
     },
     "Name": "nemotron_h_moe",
+    "RecurrentMixer": 7,
     "Validation": {
       "Recurrent": 15
     },
@@ -1827,11 +1695,8 @@
   },
   {
     "Capabilities": 201400337,
-    "CatalogFamily": 4,
-    "Family": 4,
     "FeedForward": 2,
     "Forward": {"Operation": 1},
-    "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
     },
@@ -1847,14 +1712,9 @@
   },
   {
     "Capabilities": 17246984209,
-    "CatalogFamily": 4,
-    "DenseGraph": 1,
-    "EncoderGraph": {
-      "Kind": 4
-    },
-    "Family": 4,
+    "LayerTopology": 1,
+    "EncoderOperator": 4,
     "Forward": {"Operation": 1},
-    "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
     },
@@ -1871,19 +1731,14 @@
       "MoE": 1
     },
     "Capabilities": 17247246357,
-    "CatalogFamily": 4,
-    "DenseGraph": 1,
-    "EncoderGraph": {
-      "Kind": 5
-    },
+    "LayerTopology": 1,
+    "EncoderOperator": 5,
     "Experts": {
       "Catalog": 5,
       "OptionalGate": true
     },
-    "Family": 4,
     "FeedForward": 3,
     "Forward": {"Operation": 1},
-    "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 6
     },
@@ -1934,7 +1789,6 @@
   },
   {
     "Capabilities": 4,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QK": {
         "Projection": 1
@@ -1944,8 +1798,6 @@
       "Catalog": 1,
       "Normalization": 2
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "olmoe",
     "Validation": {
       "Hybrid": 26
@@ -2023,7 +1875,6 @@
   },
   {
     "Capabilities": 612499460,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QueryScale": 3
     },
@@ -2034,8 +1885,6 @@
     "Experts": {
       "Catalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "ModelCatalog": {
       "RequireOutputBias": true
     },
@@ -2055,20 +1904,19 @@
   },
   {
     "Capabilities": 67184648,
-    "CatalogFamily": 3,
     "DenseStages": {
+      "NonRecurrentQKNoBias": true,
       "QK": {
         "Heads": 1
       }
     },
-    "Family": 3,
     "FeedForward": 2,
-    "GraphFamily": 3,
     "Metadata": {
       "KVHeads": 7,
       "PreserveLayerKV": true
     },
     "Name": "plamo2",
+    "RecurrentMixer": 6,
     "Validation": {
       "Recurrent": 13
     },
@@ -2106,7 +1954,7 @@
     "Attention": 1,
     "Capabilities": 524800,
     "FeedForward": 4,
-    "MLAVariant": 1,
+    "LatentAttention": 1,
     "Name": "plm"
   },
   {
@@ -2124,15 +1972,12 @@
   },
   {
     "Capabilities": 4,
-    "CatalogFamily": 1,
     "Experts": {
       "Catalog": 1,
       "Composition": 4,
       "Normalization": 2,
       "SharedCatalog": 3
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "qwen2moe",
     "Validation": {
       "Hybrid": 9
@@ -2161,13 +2006,12 @@
   {
     "Attention": 3,
     "AttentionGraph": {
-      "QwenGDN": 1
+      "GatedDelta": 1
     },
     "Cadence": {
       "Recurrent": 1
     },
     "Capabilities": 38797320,
-    "CatalogFamily": 3,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -2175,9 +2019,8 @@
     },
     "DraftKind": 1,
     "FFNNormLayout": 4,
-    "Family": 3,
-    "GraphFamily": 3,
     "Name": "qwen35",
+    "RecurrentMixer": 8,
     "Validation": {
       "Hybrid": 2
     },
@@ -2186,13 +2029,12 @@
   {
     "Attention": 3,
     "AttentionGraph": {
-      "QwenGDN": 1
+      "GatedDelta": 1
     },
     "Cadence": {
       "Recurrent": 1
     },
     "Capabilities": 38797324,
-    "CatalogFamily": 3,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -2206,9 +2048,8 @@
       "SharedCatalog": 3
     },
     "FFNNormLayout": 4,
-    "Family": 3,
-    "GraphFamily": 3,
     "Name": "qwen35moe",
+    "RecurrentMixer": 8,
     "Validation": {
       "Hybrid": 3
     },
@@ -2216,7 +2057,6 @@
   },
   {
     "Capabilities": 4,
-    "CatalogFamily": 1,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -2225,8 +2065,6 @@
     "Experts": {
       "Catalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "Name": "qwen3moe",
     "Validation": {
       "Hybrid": 4
@@ -2235,13 +2073,12 @@
   {
     "Attention": 3,
     "AttentionGraph": {
-      "QwenGDN": 2
+      "GatedDelta": 2
     },
     "Cadence": {
       "Recurrent": 1
     },
     "Capabilities": 34603016,
-    "CatalogFamily": 3,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -2254,9 +2091,8 @@
       "SharedCatalog": 3
     },
     "FFNNormLayout": 4,
-    "Family": 3,
-    "GraphFamily": 3,
     "Name": "qwen3next",
+    "RecurrentMixer": 8,
     "Validation": {
       "Hybrid": 1
     },
@@ -2282,7 +2118,6 @@
   },
   {
     "Capabilities": 71303236,
-    "CatalogFamily": 1,
     "Deepstack": 2,
     "DenseStages": {
       "QK": {
@@ -2292,8 +2127,6 @@
     "Experts": {
       "Catalog": 1
     },
-    "Family": 1,
-    "GraphFamily": 1,
     "MetadataRead": 48,
     "Name": "qwen3vlmoe",
     "Rotary": {
@@ -2322,7 +2155,6 @@
   },
   {
     "Capabilities": 33,
-    "CatalogFamily": 6,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -2331,9 +2163,7 @@
     "Experts": {
       "Catalog": 1
     },
-    "Family": 6,
     "Forward": {"Operation": 1},
-    "GraphFamily": 6,
     "Name": "rnd1",
     "Validation": {
       "Hybrid": 4
@@ -2342,14 +2172,12 @@
   {
     "Cache": 4,
     "Capabilities": 8388618,
-    "CatalogFamily": 2,
-    "DenseGraph": 7,
-    "Family": 2,
-    "GraphFamily": 2,
+    "LayerTopology": 7,
     "ModelCatalog": {
       "TokenNorm": 2
     },
     "Name": "rwkv6",
+    "RecurrentMixer": 11,
     "Validation": {
       "Recurrent": 7
     },
@@ -2358,17 +2186,15 @@
   {
     "Cache": 5,
     "Capabilities": 8388618,
-    "CatalogFamily": 2,
-    "DenseGraph": 8,
+    "LayerTopology": 8,
     "DenseWeights": {
       "RMSNormBias": true
     },
-    "Family": 2,
-    "GraphFamily": 2,
     "ModelCatalog": {
       "OptionalOutputNormBias": true
     },
     "Name": "rwkv6qwen2",
+    "RecurrentMixer": 10,
     "Validation": {
       "Recurrent": 8
     }
@@ -2377,14 +2203,12 @@
     "Auxiliary": 1,
     "Cache": 6,
     "Capabilities": 8388618,
-    "CatalogFamily": 2,
-    "DenseGraph": 9,
-    "Family": 2,
-    "GraphFamily": 2,
+    "LayerTopology": 9,
     "ModelCatalog": {
       "TokenNorm": 2
     },
     "Name": "rwkv7",
+    "RecurrentMixer": 12,
     "Validation": {
       "Recurrent": 9
     },
@@ -2497,13 +2321,8 @@
   {
     "Cache": 11,
     "Capabilities": 2,
-    "CatalogFamily": 5,
-    "EncoderGraph": {
-      "Kind": 8
-    },
-    "Family": 5,
+    "EncoderOperator": 8,
     "Forward": {"Operation": 4, "Session": 4},
-    "GraphFamily": 5,
     "Metadata": {
       "KVHeads": 5
     },
@@ -2519,13 +2338,8 @@
   },
   {
     "Capabilities": 16,
-    "CatalogFamily": 4,
-    "EncoderGraph": {
-      "Kind": 9
-    },
-    "Family": 4,
+    "EncoderOperator": 9,
     "Forward": {"Operation": 3},
-    "GraphFamily": 4,
     "Metadata": {
       "KVHeads": 5
     },
@@ -2541,11 +2355,12 @@
   },
   {
     "Capabilities": 8665432064,
-    "DenseGraph": 4,
+    "LayerTopology": 4,
     "MetadataDefaults": {
       "RopeDimension": 1
     },
     "Name": "talkie",
+    "RecurrentMixer": 9,
     "Normalization": 3,
     "Runtime": {
       "LogitScale": 1
@@ -2557,10 +2372,7 @@
   },
   {
     "Capabilities": 19,
-    "CatalogFamily": 4,
-    "Family": 4,
     "Forward": {"Operation": 2},
-    "GraphFamily": 4,
     "Metadata": {
       "GroupNorm": true,
       "Heads": 3,

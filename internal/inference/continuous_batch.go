@@ -8,7 +8,6 @@ import (
 	"sort"
 	"sync"
 
-	"overgo/internal/model"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -103,10 +102,11 @@ func (r *Runner) NewContinuousBatch(
 	if options.Device && !r.hasPreloadedWeights() {
 		return nil, errors.New("inference: device batch requires preloaded weights")
 	}
-	if options.Device && !supportsPersistentDeviceCache(r.spec) {
+	forward := r.forwardProgram()
+	if options.Device && !forward.PersistentDeviceCache() {
 		return nil, errors.New("inference: architecture does not support a retained device cache")
 	}
-	if r.spec.NonCausalAttention || r.profile().Family == model.ArchitectureFamilyEncoderDecoder {
+	if !forward.ContinuousBatch() {
 		return nil, errors.New("inference: architecture does not support continuous KV batching")
 	}
 	return &ContinuousBatch{
@@ -492,12 +492,4 @@ func sequencePages(tokens, pageTokens uint32) []SequenceCachePage {
 		pages = append(pages, SequenceCachePage{Start: start, Tokens: count})
 	}
 	return pages
-}
-
-func supportsPersistentDeviceCache(spec model.Spec) bool {
-	profile, ok := spec.ResolvedProfile()
-	if !ok {
-		return false
-	}
-	return !profile.Has(model.ArchitectureMLA) && !profile.Has(model.ArchitectureAltUp)
 }

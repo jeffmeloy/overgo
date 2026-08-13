@@ -136,7 +136,7 @@ func loadVAEGoldenFrames(t *testing.T, manifestName string) vaeGoldenFrames {
 
 func runVAEDecodeGolden(t *testing.T, manifestName string) {
 	if testing.Short() {
-		t.Skip("loads the 293MB VAE decoder weight set; skipped in -short")
+		t.Skip("integration excluded by -short: loads the 293MB VAE decoder weight set")
 	}
 	golden := loadVAEGoldenFrames(t, manifestName)
 	plan, checkpoint := compileRealVAEDecoderPlan(t)

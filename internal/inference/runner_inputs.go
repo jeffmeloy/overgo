@@ -51,8 +51,8 @@ func (r *Runner) wavTokenizerGraphInputs(
 	var result model.SequenceOutputGraphWeights
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	if r.weights.WavTokenizer == nil {
-		return result, nil, nil, errors.New("inference: WavTokenizer weights are missing")
+	if r.weights.AudioDecoder == nil {
+		return result, nil, nil, errors.New("inference: AudioDecoder weights are missing")
 	}
 	input := func(info gguf.TensorInfo) (*tensor.Tensor, error) {
 		if r.hasPreloadedWeights() {
@@ -78,7 +78,7 @@ func (r *Runner) wavTokenizerGraphInputs(
 		}
 		return err
 	}
-	info := r.weights.WavTokenizer
+	info := r.weights.AudioDecoder
 	for _, item := range []struct {
 		destination **tensor.Tensor
 		info        gguf.TensorInfo
@@ -159,10 +159,11 @@ func (r *Runner) buildOutputNorm(
 	if r.program.Model.Terminal().Normalization == model.OutputNormAbsent {
 		return input, nil
 	}
-	if r.spec.UsesUnweightedLayerNorm() {
+	normalization := r.program.Model.Normalization()
+	if normalization.Operation == model.NormalizationUnweightedLayer {
 		return builder.LayerNorm(input, r.spec.LayerNormEpsilon), builder.Err()
 	}
-	if r.spec.UsesUnweightedRMSNorm() {
+	if normalization.Operation == model.NormalizationUnweightedRMS {
 		return builder.RMSNorm(input, r.spec.RMSNormEpsilon), builder.Err()
 	}
 	weight, err := bind(r.weights.OutputNorm)
@@ -176,7 +177,7 @@ func (r *Runner) buildOutputNorm(
 			return nil, err
 		}
 	}
-	return model.ApplyNormalization(builder, input, weight, bias, r.spec), builder.Err()
+	return r.program.Model.Normalization().Apply(builder, input, weight, bias), builder.Err()
 }
 
 func (r *Runner) layerDeviceInputs(

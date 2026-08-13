@@ -107,8 +107,8 @@ type LayerStates = model.CacheStates[reference.Value]
 
 type KVCache struct {
 	Layers []LayerCache
-	// DSATopK: transient GLM-DSA MTP handoff.
-	DSATopK *reference.Value
+	// SparseTopK: transient sparse-attention MTP handoff.
+	SparseTopK *reference.Value
 	// Tokens: number of active attention tokens retained in Layers
 	Tokens uint32
 	// Position: absolute position assigned to next appended token
@@ -116,8 +116,8 @@ type KVCache struct {
 	Position uint32
 }
 
-// T5Session: encoder state plus decoder cache.
-type T5Session struct {
+// EncoderDecoderSession: encoder state plus decoder cache.
+type EncoderDecoderSession struct {
 	Encoder reference.Value
 	Cache   *KVCache
 }
@@ -250,15 +250,8 @@ func (r *Runner) draftLayerProgram(offset uint32) (model.CompiledLayerProgram, e
 	return r.program.Model.DraftProgram(offset)
 }
 
-func (r *Runner) profile() model.ArchitectureProfile {
-	if r == nil || r.program.Model.Profile().Name == "" {
-		panic("inference: compiled profile is unavailable")
-	}
-	return r.program.Model.Profile()
-}
-
 func (r *Runner) forwardProgram() model.ForwardProgram {
-	if r == nil || r.program.Model.Profile().Name == "" {
+	if r == nil || !r.program.Model.Compiled() {
 		panic("inference: compiled forward program is unavailable")
 	}
 	return r.program.Model.Forward()
@@ -334,16 +327,16 @@ var forwardExecutors = [...]forwardExecutor{
 		return r.forwardWavTokenizerLocked(ctx, ids)
 	},
 	model.ForwardOperationEncoder: func(r *Runner, ctx context.Context, ids []tokenizer.TokenID) (reference.Value, error) {
-		return r.forwardT5EncoderLocked(ctx, ids)
+		return r.forwardEncoderLocked(ctx, ids)
 	},
 	model.ForwardOperationSession: forwardSessionError,
 }
 
 var forwardSessionErrors = [...]error{
-	model.ForwardSessionPairedFeatures:   errors.New("inference: DFlash requires feature fusion, cache injection, and paired target decode"),
-	model.ForwardSessionFeatureDraft:     errors.New("inference: Eagle3 requires NewEagle3Session and AdvanceEagle3"),
-	model.ForwardSessionPairedProjection: errors.New("inference: Gemma 4 assistant requires NewGemma4AssistantSession and AdvanceGemma4Assistant"),
-	model.ForwardSessionEncoderDecoder:   errors.New("inference: T5 requires NewT5Session and DecodeT5"),
+	model.ForwardSessionPairedFeatures:   errors.New("inference: model requires a paired-feature session"),
+	model.ForwardSessionFeatureDraft:     errors.New("inference: model requires a feature-draft session"),
+	model.ForwardSessionPairedProjection: errors.New("inference: model requires a paired projection session"),
+	model.ForwardSessionEncoderDecoder:   errors.New("inference: model requires an encoder-decoder session"),
 }
 
 func forwardSessionError(r *Runner, _ context.Context, _ []tokenizer.TokenID) (reference.Value, error) {
@@ -373,7 +366,7 @@ func (r *Runner) ForwardCached(
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
 	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
-		return reference.Value{}, nil, errors.New("inference: use DecodeT5 for T5 caching")
+		return reference.Value{}, nil, errors.New("inference: use the encoder-decoder session for caching")
 	}
 	return r.forwardCachedLocked(ctx, tokenIDs, cache)
 }
@@ -419,7 +412,7 @@ func (r *Runner) ForwardCachedWithMultimodalInputs(
 	if r.closed {
 		return reference.Value{}, nil, errors.New("inference: runner is closed")
 	}
-	if !r.spec.SupportsMultiAxisPositionsWithProfile(r.profile()) {
+	if !r.program.Model.ProjectedInput().MultiAxis {
 		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
 	}
 	return r.forwardCachedProjectedChunkLocked(
@@ -534,17 +527,14 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	applyOutputNorm bool,
 	capture *layerInputCapture,
 ) (reference.Value, *KVCache, error) {
-	if r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly {
-		return reference.Value{}, nil, errors.New("inference: Qwen3.5 MTP-only model requires a paired target session")
-	}
-	if r.weights.Cohere2MTP != nil && r.weights.Cohere2MTP.MTPOnly {
-		return reference.Value{}, nil, errors.New("inference: Cohere2-MoE MTP-only model requires a paired target session")
+	if _, catalog, ok := r.lookupSingleHeadMTP(); ok && catalog.MTPOnly {
+		return reference.Value{}, nil, fmt.Errorf("inference: %s-only model requires a paired target session", mtpLabel)
 	}
 	if r.forwardProgram().Session == model.ForwardSessionPairedProjection {
 		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")
 	}
 	if r.forwardProgram().Operation == model.ForwardOperationEncoder {
-		return reference.Value{}, nil, errors.New("inference: T5 encoder does not support KV caching")
+		return reference.Value{}, nil, errors.New("inference: encoder-only program does not support KV caching")
 	}
 	projected, err := r.compileProjectedRequestPlan(len(tokenIDs), cache != nil, inputs)
 	if err != nil {
@@ -616,7 +606,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		return reference.Value{}, nil, err
 	}
 	var embeddingSkip reference.Value
-	if r.spec.UsesUnweightedRMSNorm() {
+	if r.program.Model.Normalization().Operation == model.NormalizationUnweightedRMS {
 		activation, err = r.runUnweightedRMSNorm(ctx, activation)
 		if err != nil {
 			return reference.Value{}, nil, err
@@ -627,11 +617,11 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if r.profile().Has(model.ArchitectureAltUp) {
+	if r.forwardProgram().AlternatePredictions() {
 		if capture != nil {
 			return reference.Value{}, nil, errors.New("inference: cached Gemma3n layer extraction is unsupported")
 		}
-		return r.forwardGemma3nCachedLocked(
+		return r.forwardAlternatePredictionsCachedLocked(
 			ctx, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
 		)
 	}
@@ -716,9 +706,9 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		}
 		nextCache.Layers[layerIndex] = layerCache
 	}
-	if topK := auxiliaryValues[model.AuxiliaryDSATopK]; topK != nil {
+	if topK := auxiliaryValues[model.AuxiliarySparseTopK]; topK != nil {
 		value := *topK
-		nextCache.DSATopK = &value
+		nextCache.SparseTopK = &value
 	}
 	if !r.hasPreloadedWeights() && applyOutputNorm {
 		activation, err = r.runOutputNorm(ctx, activation)

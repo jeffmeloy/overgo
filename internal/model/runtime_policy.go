@@ -84,6 +84,10 @@ func (p RuntimePolicy) normalizationPlan(spec Spec, profile ArchitectureProfile)
 		pre, post = false, true
 	}
 	bias := operation == NormalizationLayer
+	epsilon := spec.RMSNormEpsilon
+	if operation == NormalizationLayer || operation == NormalizationUnweightedLayer || operation == NormalizationWeightOnlyLayer {
+		epsilon = spec.LayerNormEpsilon
+	}
 	switch p.NormalizationBias {
 	case NormalizationBiasNever:
 		bias = false
@@ -93,6 +97,8 @@ func (p RuntimePolicy) normalizationPlan(spec Spec, profile ArchitectureProfile)
 	return NormalizationPlan{
 		Operation: operation, PreAttention: pre, PreFeedForward: pre,
 		PostAttention: post, PostFeedForward: post, Bias: bias,
+		RMSBias:        profile.DenseWeights.RMSNormBias,
+		Epsilon:        epsilon,
 		PostNormLayout: profile.PostNormLayout, FeedForwardLayout: profile.FFNNormLayout,
 	}
 }

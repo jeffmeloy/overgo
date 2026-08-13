@@ -7,21 +7,21 @@ import (
 	"overgo/internal/tensor"
 )
 
-func buildMambaMixerCached(
+func buildSelectiveScanMixCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	convState, ssmState *tensor.Tensor,
-	plan StateSpacePlan,
+	mixer RecurrentMixerPolicy,
 ) (DenseBlockResult, error) {
-	useWeightedStateNorm := plan.kind == stateSpaceJamba
+	useWeightedStateNorm := mixer == recurrentMixerWeightedSelectiveScan
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
-		return DenseBlockResult{}, errors.New("Mamba mixer input/state is nil")
+		return DenseBlockResult{}, errors.New("selective-scan input/state is nil")
 	}
 	if input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Mamba mixer input shape is invalid")
+		return DenseBlockResult{}, errors.New("selective-scan input shape is invalid")
 	}
 	required := graphWeights{
 		requireGraphWeight("SSM input", weights.SSMInput),
@@ -34,7 +34,7 @@ func buildMambaMixerCached(
 		requireGraphWeight("SSM D", weights.SSMD),
 		requireGraphWeight("SSM output", weights.SSMOutput),
 	}
-	if err := required.validate("Mamba mixer"); err != nil {
+	if err := required.validate("selective-scan mixer"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if useWeightedStateNorm {
@@ -42,14 +42,14 @@ func buildMambaMixerCached(
 			requireGraphWeight("SSM time-step norm", weights.SSMTimeStepNorm),
 			requireGraphWeight("SSM B norm", weights.SSMBNorm),
 			requireGraphWeight("SSM C norm", weights.SSMCNorm),
-		}).validate("Jamba block"); err != nil {
+		}).validate("weighted selective-scan mixer"); err != nil {
 			return DenseBlockResult{}, err
 		}
 	}
 	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), uint64(spec.SSMInnerSize))
 	ssmShape := tensor.MustShape(uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize))
 	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {
-		return DenseBlockResult{}, errors.New("Mamba recurrent cache shape is invalid")
+		return DenseBlockResult{}, errors.New("selective-scan recurrent cache shape is invalid")
 	}
 	tokens := input.Shape.Dims[1]
 	inner := uint64(spec.SSMInnerSize)
@@ -104,20 +104,20 @@ func buildMambaMixerCached(
 	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState}, nil
 }
 
-func buildMamba2MixerCached(
+func buildGroupedSelectiveScanMixCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	convState, ssmState *tensor.Tensor,
-	plan StateSpacePlan,
+	mixer RecurrentMixerPolicy,
 ) (DenseBlockResult, error) {
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
-		return DenseBlockResult{}, errors.New("Mamba2 block input/state is nil")
+		return DenseBlockResult{}, errors.New("grouped selective-scan input/state is nil")
 	}
 	if input.Shape.Rank != 2 ||
 		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Mamba2 mixer input shape is invalid")
+		return DenseBlockResult{}, errors.New("grouped selective-scan input shape is invalid")
 	}
 	required := graphWeights{
 		requireGraphWeight("SSM input", weights.SSMInput),
@@ -127,10 +127,10 @@ func buildMamba2MixerCached(
 		requireGraphWeight("SSM D", weights.SSMD),
 		requireGraphWeight("SSM output", weights.SSMOutput),
 	}
-	if plan.kind != stateSpaceFalconH1 {
+	if mixer != recurrentMixerAttentionGroupedSelectiveScan {
 		required.add("SSM norm", weights.SSMNorm)
 	}
-	if err := required.validate("Mamba2 block"); err != nil {
+	if err := required.validate("grouped selective-scan mixer"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	inner := uint64(spec.SSMInnerSize)
@@ -142,7 +142,7 @@ func buildMamba2MixerCached(
 	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), convWidth)
 	ssmShape := tensor.MustShape(stateWidth, inner)
 	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {
-		return DenseBlockResult{}, errors.New("Mamba2 recurrent cache shape is invalid")
+		return DenseBlockResult{}, errors.New("grouped selective-scan cache shape is invalid")
 	}
 	tokens := input.Shape.Dims[1]
 	zxBCdt := builder.MulMat(weights.SSMInput, input)
@@ -205,24 +205,24 @@ func buildAttentionSSMHybridMixCached(
 	plan LayerPlan,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
-		return DenseBlockResult{}, errors.New("Falcon-H1 hybrid mix input/state is nil")
+		return DenseBlockResult{}, errors.New("hybrid attention-scan input/state is nil")
 	}
 	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Falcon-H1 hybrid mix input is invalid")
+		return DenseBlockResult{}, errors.New("hybrid attention-scan input is invalid")
 	}
 	if len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Falcon-H1 block position count is invalid")
+		return DenseBlockResult{}, errors.New("hybrid attention-scan position count is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Falcon-H1 KV cache is incomplete"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "hybrid attention-scan KV cache is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if err := (graphWeights{
 		requireGraphWeight("attention output", weights.AttentionOutput),
-	}).validate("Falcon-H1 hybrid mix"); err != nil {
+	}).validate("hybrid attention-scan"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if weights.AttentionQKV == nil && (weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil) {
-		return DenseBlockResult{}, errors.New("Falcon-H1 attention projection catalog is incomplete")
+		return DenseBlockResult{}, errors.New("hybrid attention projection catalog is incomplete")
 	}
 
 	tokens := uint64(len(positions))
@@ -269,7 +269,7 @@ func buildAttentionSSMHybridMixCached(
 	var queryStart uint32
 	if pastKey != nil {
 		if pastKey.Shape.Rank != 3 || pastValue.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, errors.New("Falcon-H1 KV cache shape is invalid")
+			return DenseBlockResult{}, errors.New("hybrid attention-scan KV cache shape is invalid")
 		}
 		queryStart = uint32(pastKey.Shape.Dims[2])
 		cacheKey = builder.Concat(pastKey, key, 2)
@@ -286,7 +286,9 @@ func buildAttentionSSMHybridMixCached(
 		attention = builder.Add(attention, weights.AttentionOutputBias)
 	}
 
-	ssm, err := buildMamba2MixerCached(builder, normalized, spec, weights, convState, ssmState, plan.StateSpace)
+	ssm, err := buildGroupedSelectiveScanMixCached(
+		builder, normalized, spec, weights, convState, ssmState, plan.Mixer,
+	)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -303,7 +305,7 @@ func buildAttentionSSMHybridMixCached(
 	}, nil
 }
 
-func buildPLaMo2MixerCached(
+func buildNormalizedSelectiveScanMixCached(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	spec Spec,
@@ -311,10 +313,10 @@ func buildPLaMo2MixerCached(
 	convState, ssmState *tensor.Tensor,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
-		return DenseBlockResult{}, errors.New("PLaMo2 mixer input/state is nil")
+		return DenseBlockResult{}, errors.New("normalized selective-scan input/state is nil")
 	}
 	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("PLaMo2 mixer input is invalid")
+		return DenseBlockResult{}, errors.New("normalized selective-scan input is invalid")
 	}
 	required := graphWeights{
 		requireGraphWeight("SSM input", weights.SSMInput),
@@ -329,18 +331,18 @@ func buildPLaMo2MixerCached(
 		requireGraphWeight("SSM C norm", weights.SSMCNorm),
 		requireGraphWeight("SSM output", weights.SSMOutput),
 	}
-	if err := required.validate("PLaMo2 mixer"); err != nil {
+	if err := required.validate("normalized selective-scan mixer"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	inner := uint64(spec.SSMInnerSize)
 	stateWidth := uint64(spec.SSMStateSize)
 	heads := uint64(spec.SSMTimeStepRank)
 	headWidth := inner / heads
-	dtWidth := plamo2TimeStepWidth(spec.EmbeddingLength)
+	dtWidth := reducedTimeStepWidth(spec.EmbeddingLength)
 	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), inner)
 	ssmShape := tensor.MustShape(stateWidth, inner)
 	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {
-		return DenseBlockResult{}, errors.New("PLaMo2 recurrent cache shape is invalid")
+		return DenseBlockResult{}, errors.New("normalized selective-scan cache shape is invalid")
 	}
 	tokens := normalized.Shape.Dims[1]
 	zx := builder.MulMat(weights.SSMInput, normalized)
@@ -391,12 +393,12 @@ func buildCausalProjectionMixCached(
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 {
-		return DenseBlockResult{}, errors.New("Nemotron-H attention input is invalid")
+		return DenseBlockResult{}, errors.New("sparse grouped attention input is invalid")
 	}
 	if len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Nemotron-H position count is invalid")
+		return DenseBlockResult{}, errors.New("sparse grouped position count is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Nemotron-H cache must contain both tensors"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "sparse grouped cache must contain both tensors"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if err := (graphWeights{
@@ -404,7 +406,7 @@ func buildCausalProjectionMixCached(
 		requireGraphWeight("attention K", weights.AttentionK),
 		requireGraphWeight("attention V", weights.AttentionV),
 		requireGraphWeight("attention output", weights.AttentionOutput),
-	}).validate("Nemotron-H attention"); err != nil {
+	}).validate("sparse grouped attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := normalized.Shape.Dims[1]
@@ -429,7 +431,7 @@ func buildCausalProjectionMixCached(
 	var queryStart uint32
 	if pastKey != nil {
 		if pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, errors.New("Nemotron-H cache token count exceeds uint32")
+			return DenseBlockResult{}, errors.New("sparse grouped cache token count exceeds uint32")
 		}
 		queryStart = uint32(pastKey.Shape.Dims[2])
 		cacheKey = builder.Concat(pastKey, key, 2)
@@ -455,7 +457,7 @@ func buildRoutedSquaredReLUFeedForwardMix(
 	plan MoEGraphPlan,
 ) (*tensor.Tensor, error) {
 	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 {
-		return nil, errors.New("Nemotron-H feed-forward input is invalid")
+		return nil, errors.New("sparse grouped feed-forward input is invalid")
 	}
 	var feedForward *tensor.Tensor
 	if weights.FeedForwardRouter != nil {
@@ -466,17 +468,17 @@ func buildRoutedSquaredReLUFeedForwardMix(
 			requireGraphWeight("expert down", weights.FeedForwardDownExperts),
 			requireGraphWeight("shared up", weights.FeedForwardSharedUp),
 			requireGraphWeight("shared down", weights.FeedForwardSharedDown),
-		}).validate("Nemotron-H MoE"); err != nil {
+		}).validate("sparse grouped MoE"); err != nil {
 			return nil, err
 		}
 		expertInput := normalized
 		if weights.FeedForwardLatentDown != nil {
 			if weights.FeedForwardLatentUp == nil {
-				return nil, errors.New("Nemotron-H MoE latent projection is incomplete")
+				return nil, errors.New("sparse grouped MoE latent projection is incomplete")
 			}
 			expertInput = builder.MulMat(weights.FeedForwardLatentDown, normalized)
 		} else if weights.FeedForwardLatentUp != nil {
-			return nil, errors.New("Nemotron-H MoE latent projection is incomplete")
+			return nil, errors.New("sparse grouped MoE latent projection is incomplete")
 		}
 		feedForward = plan.BuildLayer(builder, expertInput, normalized, weights)
 		if weights.FeedForwardLatentUp != nil {
@@ -487,7 +489,7 @@ func buildRoutedSquaredReLUFeedForwardMix(
 		feedForward = builder.Add(feedForward, shared)
 	} else {
 		if weights.FeedForwardUp == nil || weights.FeedForwardDown == nil {
-			return nil, errors.New("Nemotron-H dense FFN catalog is incomplete")
+			return nil, errors.New("sparse grouped dense FFN catalog is incomplete")
 		}
 		feedForward = builder.MulMat(weights.FeedForwardUp, normalized)
 		if weights.FeedForwardUpBias != nil {

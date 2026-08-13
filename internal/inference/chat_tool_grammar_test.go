@@ -119,6 +119,7 @@ func TestToolGrammarRejectsUnsupportedTemplatesAndUnsafeNames(t *testing.T) {
 }
 
 func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
+	requireIntegration(t)
 	for _, fixture := range []struct {
 		name string
 		env  string

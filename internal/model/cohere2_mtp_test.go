@@ -26,7 +26,7 @@ func TestBuildCohere2MTPPipeline(t *testing.T) {
 	hidden := builder.Input("hidden", dtype.F32, tensor.MustShape(8, 2))
 	norm := builder.Input("norm", dtype.F32, tensor.MustShape(8))
 	projection := builder.Input("projection", dtype.F32, tensor.MustShape(16, 8))
-	draft := fixtureDraftProgram(t, spec, Weights{Cohere2MTP: &Cohere2MTPWeights{}}, 0)
+	draft := fixtureDraftProgram(t, spec, Weights{OptionalCatalogDraft: &SingleDraftWeights{}}, 0)
 	current, err := draft.BuildDraftInput(builder, input, hidden, norm, norm, projection)
 	if err != nil {
 		t.Fatal(err)

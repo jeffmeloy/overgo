@@ -68,7 +68,7 @@ func TestReadWeightsRWKV7Family(t *testing.T) {
 			}
 			if classic && (layer.TimeMixG2 == nil || layer.TimeMixLN == nil || layer.ChannelMixKey == nil ||
 				weights.TokenEmbeddingNorm == nil || weights.OutputNormBias == nil) {
-				t.Fatalf("incomplete RWKV7 catalog: %+v", layer)
+				t.Fatalf("incomplete WKV7 catalog: %+v", layer)
 			}
 			if !classic && (layer.TimeMixG1 != nil || layer.FeedForwardGate.Name == "" || weights.TokenEmbeddingNorm != nil) {
 				t.Fatalf("incomplete ARWKV7 catalog: %+v", layer)
@@ -173,6 +173,7 @@ func TestReadWeightsQwen3NextRecurrentLayouts(t *testing.T) {
 }
 
 func TestReadRealQwen35Catalog(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
 		t.Skip("set OVERGO_QWEN35_MODEL to run real Qwen3.5 catalog validation")
@@ -197,6 +198,7 @@ func TestReadRealQwen35Catalog(t *testing.T) {
 }
 
 func TestReadRealKimiLinearCatalog(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_KIMI_LINEAR_MODEL")
 	if path == "" {
 		t.Skip("set OVERGO_KIMI_LINEAR_MODEL to run real Kimi Linear catalog validation")
@@ -228,6 +230,7 @@ func TestReadRealKimiLinearCatalog(t *testing.T) {
 }
 
 func TestReadRealGemma3Catalog(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if path == "" {
 		t.Skip("set OVERGO_GEMMA3_MODEL to run real Gemma 3 catalog validation")
@@ -383,11 +386,11 @@ func TestReadWeightsWavTokenizerDecoder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if weights.WavTokenizer == nil || len(weights.WavTokenizer.PosNet) != 6 ||
-		len(weights.WavTokenizer.ConvNext) != 2 || weights.WavTokenizer.PosNet[2].AttentionQ.Name == "" ||
-		weights.WavTokenizer.PosNet[5].AttentionNorm.Name == "" || weights.Output == nil ||
+	if weights.AudioDecoder == nil || len(weights.AudioDecoder.PosNet) != 6 ||
+		len(weights.AudioDecoder.ConvNext) != 2 || weights.AudioDecoder.PosNet[2].AttentionQ.Name == "" ||
+		weights.AudioDecoder.PosNet[5].AttentionNorm.Name == "" || weights.Output == nil ||
 		weights.Output.Shape[1] != 3 {
-		t.Fatalf("unexpected WavTokenizer decoder weights: %+v", weights.WavTokenizer)
+		t.Fatalf("unexpected AudioDecoder decoder weights: %+v", weights.AudioDecoder)
 	}
 }
 
@@ -776,6 +779,7 @@ func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 }
 
 func TestReadRealUMT5Catalog(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_UMT5_MODEL")
 	if path == "" {
 		t.Skip("set OVERGO_UMT5_MODEL to run real UMT5 catalog validation")

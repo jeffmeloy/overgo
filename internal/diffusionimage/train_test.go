@@ -91,9 +91,7 @@ func TestTinyModelTrainDescends(t *testing.T) {
 
 // TestRealCheckpointMuonPlanCompiles: every real tensor has Muon geometry.
 func TestRealCheckpointMuonPlanCompiles(t *testing.T) {
-	if testing.Short() {
-		t.Skip("loads the real artifact; skipped in -short")
-	}
+	requireLongTest(t)
 	dir := artifactDir(t)
 	m, err := Load(dir)
 	if err != nil {

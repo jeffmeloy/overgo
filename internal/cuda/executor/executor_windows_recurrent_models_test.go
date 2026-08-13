@@ -771,7 +771,7 @@ func TestExecutorRWKV7OpsMatchReference(t *testing.T) {
 	a := builder.Input("a", dtype.F32, shape)
 	bVector := builder.Input("b", dtype.F32, shape)
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
-	packed := builder.RWKV7(receptance, decay, key, value, a, bVector, state)
+	packed := builder.WKV7(receptance, decay, key, value, a, bVector, state)
 	reduced := builder.SumRows(builder.Multiply(key, receptance))
 	feeds := map[*tensor.Tensor]reference.Value{
 		receptance: patternedValue(shape, 3, 0.02, 0.1),

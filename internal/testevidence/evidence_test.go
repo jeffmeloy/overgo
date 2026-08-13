@@ -1,6 +1,27 @@
 package testevidence
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
+
+func TestGoTestJSONShort(t *testing.T) {
+	classified := fmt.Sprintf(
+		"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestX\",\"Output\":%q}\n"+
+			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestX\"}\n",
+		ShortIntegrationSkip+"\n",
+	)
+	if err := GoTestJSONShort(classified); err != nil {
+		t.Fatal(err)
+	}
+	if err := GoTestJSON(classified); err == nil {
+		t.Fatal("strict evidence accepted a classified skip")
+	}
+	unclassified := "{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestX\"}\n"
+	if err := GoTestJSONShort(unclassified); err == nil {
+		t.Fatal("short evidence accepted an unclassified skip")
+	}
+}
 
 func TestGoTestJSONReportPreservesSkippedEvidence(t *testing.T) {
 	out := "{\"Action\":\"skip\",\"Package\":\"overgo/example\",\"Test\":\"TestFixture\",\"Output\":\"UNAVAILABLE: fixture\\n\"}\n"

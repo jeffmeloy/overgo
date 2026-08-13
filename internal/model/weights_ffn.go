@@ -8,6 +8,22 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+func loadStandardSwiGLUCatalog(
+	required weightRequirementLoader,
+	tensors map[string]gguf.TensorInfo,
+	prefix string,
+	spec Spec,
+	layer *LayerWeights,
+) error {
+	width, feedForward := uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)
+	return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
+		requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, feedForward),
+		requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, feedForward),
+		requiredTensor("ffn_down.weight", &layer.FeedForwardDown, feedForward, width),
+	})
+}
+
 func loadDenseFFNCatalog(
 	required weightRequirementLoader,
 	tensors map[string]gguf.TensorInfo,
@@ -21,12 +37,12 @@ func loadDenseFFNCatalog(
 	if profile.DeciSparse && feedForwardLength == 0 {
 		return nil
 	}
-	if spec.expertCompositionPlan().kind == expertArctic {
+	if spec.expertCompositionPlan().kind == expertDenseRoutedSeparateNorm {
 		feedForwardLength = spec.EmbeddingLength
 	}
 	shapes := spec.TensorShapes(block)
 	shapes.FeedForward = uint64(feedForwardLength)
-	if profile.EncoderGraph.Kind == encoderGraphJinaV2 {
+	if profile.EncoderOperator.usesALiBiQKNorm() {
 		if gate, ok := tensors[prefix+"ffn_gate.weight"]; ok {
 			if gate.Dimensions != 2 || gate.Shape[0] != uint64(spec.EmbeddingLength) ||
 				gate.Shape[1] != uint64(feedForwardLength) {
@@ -141,7 +157,7 @@ func loadDenseFFNCatalog(
 			return err
 		}
 	}
-	if profile.Overrides == EmbeddingOverrideCogVLM {
+	if profile.Overrides == EmbeddingOverrideVisualSpan {
 		return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("vis_attn_qkv.weight", &layer.VisualAttentionQKV, uint64(spec.EmbeddingLength), 3*uint64(spec.EmbeddingLength)),
 			requiredTensorPointer("vis_attn_output.weight", &layer.VisualAttentionOutput, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)),

@@ -12,8 +12,9 @@ type profileOrdinal interface {
 }
 
 const (
-	allArchitectureCapabilities = (ArchitectureDiscreteImageTokens << 1) - 1
-	allExpertSupplements        = (expertSupplementDenseFFN << 1) - 1
+	allArchitectureCapabilities = ((ArchitectureDiscreteImageTokens << 1) - 1) &^
+		(architectureReservedGEGLU | architectureReservedAltUp)
+	allExpertSupplements = (expertSupplementDenseBranch << 1) - 1
 )
 
 // ValidateArchitectureProfile checks persisted policy domains and relationships.
@@ -22,47 +23,45 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		return err
 	}
 	checks := []error{
-		validateProfileOrdinal("Family", profile.Family, ArchitectureFamilyDraft),
-		validateProfileOrdinal("GraphFamily", profile.GraphFamily, ArchitectureFamilyDraft),
-		validateProfileOrdinal("CatalogFamily", profile.CatalogFamily, ArchitectureFamilyDraft),
-		validateProfileOrdinal("DraftKind", profile.DraftKind, DraftCohere2MTP),
+		validateProfileOrdinal("DraftKind", profile.DraftKind, DraftOptionalSingleCatalog),
 		validateProfileOrdinal("OutputNorm", profile.OutputNorm, OutputNormTokenEmbedding),
 		validateProfileOrdinal("Normalization", profile.Normalization, NormalizationWeightOnlyLayer),
 		validateProfileOrdinal("Position", profile.Position, PositionNormal),
 		validateProfileOrdinal("Residual", profile.Residual, ResidualParallel),
-		validateProfileOrdinal("FeedForward", profile.FeedForward, FeedForwardXIELU),
-		validateProfileOrdinal("Attention", profile.Attention, AttentionLFM2),
-		validateProfileOrdinal("Overrides", profile.Overrides, EmbeddingOverrideDeepstackBase),
+		validateProfileOrdinal("FeedForward", profile.FeedForward, FeedForwardGEGLU),
+		validateProfileOrdinal("Attention", profile.Attention, AttentionShortConvolution),
+		validateProfileOrdinal("Overrides", profile.Overrides, EmbeddingOverrideMappedBase),
 		validateProfileOrdinal("Deepstack", profile.Deepstack, DeepstackSequentialAfter),
 		validateProfileOrdinal("AttentionBlocks", profile.AttentionBlocks, AttentionBlocksUncached),
-		validateProfileOrdinal("Auxiliary", profile.Auxiliary, AuxiliaryDSATopK),
+		validateProfileOrdinal("Auxiliary", profile.Auxiliary, AuxiliarySparseTopK),
 		validateProfileOrdinal("Temperature", profile.Temperature, AttentionTemperatureNoRoPE),
 		validateProfileOrdinal("PostNormLayout", profile.PostNormLayout, PostNormLayoutGrok),
 		validateProfileOrdinal("FFNNormLayout", profile.FFNNormLayout, FeedForwardNormLayoutPostAttention),
-		validateProfileOrdinal("Cache", profile.Cache, CacheDeepSeek4),
-		validateProfileOrdinal("RecurrentCache", profile.RecurrentCache, CacheDeepSeek4),
+		validateProfileOrdinal("Cache", profile.Cache, CacheCompressedAttention),
+		validateProfileOrdinal("RecurrentCache", profile.RecurrentCache, CacheCompressedAttention),
 		validateProfileOrdinal("CacheFallback", profile.CacheFallback, CacheFallbackMissingKV),
-		validateProfileOrdinal("DenseGraph", profile.DenseGraph, DenseGraphRWKV7),
+		validateProfileOrdinal("LayerTopology", profile.LayerTopology, LayerTopologyCompressedHyper),
+		validateProfileOrdinal("RecurrentMixer", profile.RecurrentMixer, recurrentMixerKeyedDelta),
 		validateProfileOrdinal("DenseStages.QK.Projection", profile.DenseStages.QK.Projection, qkNormRMS),
 		validateProfileOrdinal("DenseStages.QK.Heads", profile.DenseStages.QK.Heads, qkNormRMS),
 		validateProfileOrdinal("DenseStages.QK.PostRotary", profile.DenseStages.QK.PostRotary, qkNormRMS),
 		validateProfileOrdinal("DenseStages.AttentionGate", profile.DenseStages.AttentionGate, attentionGateSigmoid),
 		validateProfileOrdinal("DenseStages.Residual", profile.DenseStages.Residual, residualGPTOSS),
-		validateProfileOrdinal("DenseStages.QueryScale", profile.DenseStages.QueryScale, queryScalePolicyGemma),
+		validateProfileOrdinal("DenseStages.QueryScale", profile.DenseStages.QueryScale, queryScalePolicyEmbeddingHead),
 		validateProfileOrdinal("DenseWeights.BiasCatalog", profile.DenseWeights.BiasCatalog, denseBiasCatalogJais),
 		validateProfileOrdinal("ModelCatalog.PositionEmbedding", profile.ModelCatalog.PositionEmbedding, positionEmbeddingOptional),
 		validateProfileOrdinal("ModelCatalog.TokenNorm", profile.ModelCatalog.TokenNorm, tokenNormAffine),
 		validateProfileOrdinal("ModelCatalog.Weights", profile.ModelCatalog.Weights, WeightCatalogEncoderDecoder),
-		validateProfileOrdinal("Rotary.Kind", profile.Rotary.Kind, rotaryPolicyGemma),
+		validateProfileOrdinal("Rotary.Kind", profile.Rotary.Kind, rotaryPolicySlidingLinearReset),
 		validateProfileOrdinal("Rotary.MultiAxis", profile.Rotary.MultiAxis, multiAxisRotaryWithSections),
 		validateProfileOrdinal("Rotary.Usage", profile.Rotary.Usage, RotaryUsageSlidingOnly),
-		validateProfileOrdinal("AttentionGraph.QwenGDN", profile.AttentionGraph.QwenGDN, qwenGDNRepeatInterleave),
-		validateProfileOrdinal("Experts.Composition", profile.Experts.Composition, expertArctic),
+		validateProfileOrdinal("AttentionGraph.GatedDelta", profile.AttentionGraph.GatedDelta, gatedDeltaInterleavedProjections),
+		validateProfileOrdinal("Experts.Composition", profile.Experts.Composition, expertDenseRoutedSeparateNorm),
 		validateProfileOrdinal("Experts.Condition", profile.Experts.Condition, expertCompositionUnlessSigmoidWithoutShared),
 		validateProfileOrdinal("Experts.Normalization", profile.Experts.Normalization, expertNormalizeNever),
 		validateProfileOrdinal("Experts.Routing", profile.Experts.Routing, expertRouteSelectedSoftmax),
 		validateProfileOrdinal("Experts.Activation", profile.Experts.Activation, tensor.MoEActivationReLUSquared),
-		validateProfileOrdinal("Experts.Catalog", profile.Experts.Catalog, expertCatalogAfterDenseExceptNextN),
+		validateProfileOrdinal("Experts.Catalog", profile.Experts.Catalog, expertCatalogAfterDenseExceptDraft),
 		validateProfileOrdinal("Experts.BiasCatalog", profile.Experts.BiasCatalog, expertBiasCatalogRequiredF32),
 		validateProfileOrdinal("Experts.SharedCatalog", profile.Experts.SharedCatalog, sharedExpertCatalogGated),
 		validateProfileOrdinal("Metadata.FeedForward", profile.Metadata.FeedForward, metadataHybridLayers),
@@ -74,8 +73,8 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Validation.MLA", profile.Validation.MLA, MLAValidationMiniCPM3),
 		validateProfileOrdinal("Validation.Recurrent", profile.Validation.Recurrent, RecurrentValidationNemotronHMoE),
 		validateProfileOrdinal("Validation.Hybrid", profile.Validation.Hybrid, HybridValidationLFM2MoE),
-		validateProfileOrdinal("EncoderGraph.Kind", profile.EncoderGraph.Kind, encoderGraphT5Encoder),
-		validateProfileOrdinal("MLAVariant", profile.MLAVariant, mlaVariantKimi),
+		validateProfileOrdinal("EncoderOperator", profile.EncoderOperator, encoderOperatorRelativeEncoder),
+		validateProfileOrdinal("LatentAttention", profile.LatentAttention, latentAttentionNoRoPE),
 		validateProfileOrdinal("Cadence.Recurrent", profile.Cadence.Recurrent, recurrentCadenceAttentionInterval),
 		validateProfileOrdinal("Cadence.MoE", profile.Cadence.MoE, moeCadenceAfterDense),
 		validateProfileOrdinal("Cadence.Sliding", profile.Cadence.Sliding, slidingCadenceExceptLast),
@@ -128,10 +127,10 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		!profile.readsMetadata(MetadataReadALiBi) {
 		return fmt.Errorf("architecture profile %q: zero ALiBi default requires ALiBi metadata", profile.Name)
 	}
-	if profile.readsMetadata(MetadataReadGLMDSAGating) && profile.Attention != AttentionDSA {
+	if profile.readsMetadata(MetadataReadGLMDSAGating) && profile.Attention != AttentionSparseLatent {
 		return fmt.Errorf("architecture profile %q: GLM-DSA metadata requires DSA attention", profile.Name)
 	}
-	if profile.AttentionGraph.QwenGDN != qwenGDNNone && profile.Attention != AttentionQwenGDN {
+	if profile.AttentionGraph.GatedDelta != gatedDeltaNone && profile.Attention != AttentionGatedDelta {
 		return fmt.Errorf("architecture profile %q: Qwen GDN graph requires Qwen GDN attention", profile.Name)
 	}
 	if profile.Rotary.MultiAxis != multiAxisRotaryNone && !profile.Has(ArchitectureMultiAxisPositions) {

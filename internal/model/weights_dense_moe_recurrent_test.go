@@ -44,10 +44,10 @@ func TestReadWeightsGLM4NextNBlock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(weights.Layers) != 1 || len(weights.NextNMTP) != 1 ||
-		weights.NextNMTP[0].Layer.AttentionQKV == nil ||
-		weights.NextNMTP[0].OutputNorm == nil {
-		t.Fatalf("unexpected GLM4 NextN catalog: %+v", weights.NextNMTP)
+	if len(weights.Layers) != 1 || len(weights.AppendedSingleDraft) != 1 ||
+		weights.AppendedSingleDraft[0].Layer.AttentionQKV == nil ||
+		weights.AppendedSingleDraft[0].OutputNorm == nil {
+		t.Fatalf("unexpected GLM4 NextN catalog: %+v", weights.AppendedSingleDraft)
 	}
 }
 
@@ -688,16 +688,16 @@ func TestReadWeightsCohere2MoEMTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(combined.Layers) != 1 || combined.Cohere2MTP == nil || combined.Cohere2MTP.MTPOnly ||
-		combined.Cohere2MTP.Layer.FeedForwardGateUpExperts == nil ||
-		combined.Cohere2MTP.OutputNorm == nil || combined.Cohere2MTP.Output == nil {
-		t.Fatalf("unexpected combined Cohere2-MoE MTP catalog: %+v", combined.Cohere2MTP)
+	if len(combined.Layers) != 1 || combined.OptionalCatalogDraft == nil || combined.OptionalCatalogDraft.MTPOnly ||
+		combined.OptionalCatalogDraft.Layer.FeedForwardGateUpExperts == nil ||
+		combined.OptionalCatalogDraft.OutputNorm == nil || combined.OptionalCatalogDraft.Output == nil {
+		t.Fatalf("unexpected combined Cohere2-MoE MTP catalog: %+v", combined.OptionalCatalogDraft)
 	}
 	sidecar, err := ReadWeights(&gguf.File{Tensors: append(common, mtp...)}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sidecar.Layers) != 0 || sidecar.Cohere2MTP == nil || !sidecar.Cohere2MTP.MTPOnly {
+	if len(sidecar.Layers) != 0 || sidecar.OptionalCatalogDraft == nil || !sidecar.OptionalCatalogDraft.MTPOnly {
 		t.Fatalf("unexpected Cohere2-MoE MTP sidecar catalog: %+v", sidecar)
 	}
 }
@@ -787,10 +787,10 @@ func TestReadWeightsHYV3MTPHeads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(weights.Layers) != 1 || len(weights.HYV3MTP) != 1 ||
-		weights.HYV3MTP[0].Layer.AttentionQNorm == nil ||
-		weights.HYV3MTP[0].OutputNorm == nil || weights.HYV3MTP[0].Output != nil {
-		t.Fatalf("unexpected HY-V3 MTP catalog: %+v", weights.HYV3MTP)
+	if len(weights.Layers) != 1 || len(weights.AppendedMultiDraft) != 1 ||
+		weights.AppendedMultiDraft[0].Layer.AttentionQNorm == nil ||
+		weights.AppendedMultiDraft[0].OutputNorm == nil || weights.AppendedMultiDraft[0].Output != nil {
+		t.Fatalf("unexpected HY-V3 MTP catalog: %+v", weights.AppendedMultiDraft)
 	}
 }
 
@@ -1361,7 +1361,7 @@ func TestReadWeightsRejectsRoPEFactorShape(t *testing.T) {
 }
 
 func TestReadWeightsRejectsShape(t *testing.T) {
-	spec := Spec{CommonSpec: CommonSpec{EmbeddingLength: 8, VocabularySize: 32}}
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", EmbeddingLength: 8, VocabularySize: 32}}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 7, 32),
 	}}
@@ -1471,7 +1471,7 @@ func TestReadWeightsQwen35MTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mtp := weights.Qwen35MTP
+	mtp := weights.SingleCatalogDraft
 	if len(weights.Layers) != 1 || mtp == nil || mtp.Layer.Recurrent ||
 		mtp.Layer.AttentionQNorm == nil || mtp.EHProjection.Name == "" ||
 		mtp.TokenEmbedding == nil || mtp.OutputNorm == nil || mtp.Output == nil {
@@ -1487,7 +1487,7 @@ func TestReadWeightsQwen35MTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sidecar.Layers) != 0 || sidecar.Qwen35MTP == nil || !sidecar.Qwen35MTP.MTPOnly {
+	if len(sidecar.Layers) != 0 || sidecar.SingleCatalogDraft == nil || !sidecar.SingleCatalogDraft.MTPOnly {
 		t.Fatalf("unexpected Qwen3.5 MTP-only catalog: %+v", sidecar)
 	}
 }
@@ -1574,7 +1574,7 @@ func TestReadWeightsRWKV6Qwen2(t *testing.T) {
 	if !layer.Recurrent || layer.TimeMixW1 == nil || layer.TimeMixOutput == nil ||
 		layer.AttentionQBias == nil || layer.AttentionKBias == nil || layer.AttentionVBias == nil ||
 		weights.OutputNormBias == nil || weights.Output == nil {
-		t.Fatalf("unexpected RWKV6-Qwen2 catalog: %+v", layer)
+		t.Fatalf("unexpected WKV6-Qwen2 catalog: %+v", layer)
 	}
 }
 
@@ -1610,7 +1610,7 @@ func TestReadWeightsRWKV6(t *testing.T) {
 		layer.ChannelMixKey == nil || layer.AttentionNorm2Bias == nil ||
 		weights.TokenEmbeddingNorm == nil || weights.TokenEmbeddingNormBias == nil ||
 		weights.OutputNormBias == nil || weights.Output == nil {
-		t.Fatalf("unexpected RWKV6 catalog: %+v", layer)
+		t.Fatalf("unexpected WKV6 catalog: %+v", layer)
 	}
 	legacy := make([]gguf.TensorInfo, 0, len(tensors)+4)
 	for _, item := range tensors {
@@ -1626,6 +1626,6 @@ func TestReadWeightsRWKV6(t *testing.T) {
 		t.Fatal(err)
 	}
 	if legacyWeights.Layers[0].TimeMixLerpFused != nil || legacyWeights.Layers[0].TimeMixLerpW == nil {
-		t.Fatalf("unexpected legacy RWKV6 lerp catalog: %+v", legacyWeights.Layers[0])
+		t.Fatalf("unexpected legacy WKV6 lerp catalog: %+v", legacyWeights.Layers[0])
 	}
 }

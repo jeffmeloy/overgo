@@ -258,7 +258,7 @@ func (b *Builder) MoEOpenAI(
 	})
 }
 
-// MoESqrtSoftplusLimited: DeepSeek 4 routing; optional fixed expert IDs.
+// MoESqrtSoftplusLimited: sqrt-softplus routing; optional fixed expert IDs.
 func (b *Builder) MoESqrtSoftplusLimited(
 	input, router, gate, up, down, selectionBias, selectedExperts *Tensor,
 	topK uint32,

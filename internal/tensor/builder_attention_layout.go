@@ -148,11 +148,11 @@ func (b *Builder) AttentionWithKeyBias(query, key, value, keyBias *Tensor, scale
 	})
 }
 
-// DeepSeek4Attention: raw plus reconstructed compressed attention.
-func (b *Builder) DeepSeek4Attention(
+// CompressedAttention: raw plus reconstructed compressed attention.
+func (b *Builder) CompressedAttention(
 	query, cacheKV, cachePositions, sinks, compressorKV, compressorScore, compressorNorm,
 	indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm *Tensor,
-	attributes DeepSeek4AttentionAttributes,
+	attributes CompressedAttentionAttributes,
 ) *Tensor {
 	if b.err != nil {
 		return nil
@@ -169,7 +169,7 @@ func (b *Builder) DeepSeek4Attention(
 		uint64(attributes.RotaryDimensions) > query.Shape.Dims[0] ||
 		attributes.FrequencyBase <= 0 || attributes.FrequencyScale <= 0 || attributes.NormEpsilon <= 0 ||
 		!attributes.Ratio.Valid() {
-		b.setError(errors.New("DeepSeek 4 attention metadata or base inputs are invalid"))
+		b.setError(errors.New("compressed attention metadata or base inputs are invalid"))
 		return nil
 	}
 	inputs := []*Tensor{query, cacheKV, cachePositions, sinks}
@@ -181,7 +181,7 @@ func (b *Builder) DeepSeek4Attention(
 			compressorKV.Shape != MustShape(coefficient*query.Shape.Dims[0], 1, tokens) ||
 			!compressorScore.Shape.Equal(compressorKV.Shape) ||
 			compressorNorm.Shape != MustShape(query.Shape.Dims[0]) {
-			b.setError(errors.New("DeepSeek 4 compressor inputs are invalid"))
+			b.setError(errors.New("compressed-attention compressor inputs are invalid"))
 			return nil
 		}
 		inputs = append(inputs, compressorKV, compressorScore, compressorNorm)
@@ -196,13 +196,13 @@ func (b *Builder) DeepSeek4Attention(
 			indexerWeights.Shape != MustShape(uint64(attributes.IndexerHeads), query.Shape.Dims[2]) ||
 			indexerKV.Shape != MustShape(2*indexerQuery.Shape.Dims[0], 1, tokens) ||
 			!indexerScore.Shape.Equal(indexerKV.Shape) || indexerNorm.Shape != MustShape(indexerQuery.Shape.Dims[0]) {
-			b.setError(errors.New("DeepSeek 4 indexer inputs are invalid"))
+			b.setError(errors.New("compressed-attention indexer inputs are invalid"))
 			return nil
 		}
 		inputs = append(inputs, indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm)
 	}
 	attributes.Positions = slices.Clone(attributes.Positions)
-	return b.add("", dtype.F32, query.Shape, OpDeepSeek4Attention, inputs, attributes)
+	return b.add("", dtype.F32, query.Shape, OpCompressedAttention, inputs, attributes)
 }
 
 // SparseAttention: top-k indexed grouped-query attention.

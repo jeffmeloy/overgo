@@ -25,7 +25,7 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Recipe.ID != definition.ID || plan.Model.Profile().Family != model.ArchitectureFamilyAttention {
+	if plan.Recipe.ID != definition.ID || plan.Model.Forward().Operation != model.ForwardOperationCached {
 		t.Fatalf("compiled plan = %+v", plan)
 	}
 	if len(plan.Nodes) != 3 || plan.Decode.Session != DecodeSessionRequest ||

@@ -11,7 +11,7 @@ func TestSelectedModelTensorsIncludesGenericNextN(t *testing.T) {
 	info := func(name string) gguf.TensorInfo { return gguf.TensorInfo{Name: name} }
 	outputNorm := info("blk.1.nextn.shared_head_norm.weight")
 	layerOutputNorm := info("blk.1.layer_output_norm.weight")
-	mtp := model.Step35MTPWeights{
+	mtp := model.AppendedDraftWeights{
 		Layer: model.LayerWeights{
 			AttentionNorm: info("blk.1.attn_norm.weight"),
 			AttentionQKV:  pointerTensorInfo(info("blk.1.attn_qkv.weight")),
@@ -22,7 +22,7 @@ func TestSelectedModelTensorsIncludesGenericNextN(t *testing.T) {
 		LayerOutputNorm: &layerOutputNorm,
 		OutputNorm:      &outputNorm,
 	}
-	weights := model.Weights{TokenEmbedding: info("token_embd.weight"), NextNMTP: []model.Step35MTPWeights{mtp}}
+	weights := model.Weights{TokenEmbedding: info("token_embd.weight"), AppendedSingleDraft: []model.AppendedDraftWeights{mtp}}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		weights.TokenEmbedding, mtp.Layer.AttentionNorm, *mtp.Layer.AttentionQKV,
 		mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm, layerOutputNorm, outputNorm,
@@ -41,13 +41,13 @@ func TestSelectedModelTensorsIncludesGenericNextN(t *testing.T) {
 
 func TestValidateGLM4NextNAvailability(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "glm4", NextNPredictLayers: 1}},
-		weights: model.Weights{NextNMTP: []model.Step35MTPWeights{{}}}},
+		weights: model.Weights{AppendedSingleDraft: []model.AppendedDraftWeights{{}}}},
 	}
 	runner = attachFixtureProgram(runner)
 	if err := runner.validateNextNMTP(); err != nil {
 		t.Fatal(err)
 	}
-	runner.weights.NextNMTP = nil
+	runner.weights.AppendedSingleDraft = nil
 	if err := runner.validateNextNMTP(); err == nil {
 		t.Fatal("GLM4 without loaded NextN block was accepted")
 	}

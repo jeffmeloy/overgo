@@ -189,21 +189,21 @@ func (b *Builder) GatedLinearAttention(key, value, receptance, decay, state *Ten
 	return b.add("", dtype.F32, shape, OpGatedLinearAttention, inputs, GatedLinearAttentionAttributes{Scale: scale})
 }
 
-// RWKV6: classic WKV6 recurrence; packed output and state.
-func (b *Builder) RWKV6(key, value, receptance, first, decay, state *Tensor) *Tensor {
+// WKV6: classic WKV6 recurrence; packed output and state.
+func (b *Builder) WKV6(key, value, receptance, first, decay, state *Tensor) *Tensor {
 	if b.err != nil {
 		return nil
 	}
 	inputs := []*Tensor{key, value, receptance, first, decay, state}
 	for _, input := range inputs {
 		if input == nil || input.Type != dtype.F32 {
-			b.setError(errors.New("RWKV6 requires six F32 inputs"))
+			b.setError(errors.New("WKV6 requires six F32 inputs"))
 			return nil
 		}
 	}
 	if key.Shape.Rank != 4 || !key.Shape.Equal(value.Shape) || !key.Shape.Equal(receptance.Shape) ||
 		!key.Shape.Equal(decay.Shape) || first.Shape.Rank != 2 || state.Shape.Rank != 4 {
-		b.setError(errors.New("RWKV6 input shapes are incompatible"))
+		b.setError(errors.New("WKV6 input shapes are incompatible"))
 		return nil
 	}
 	width, heads := key.Shape.Dims[0], key.Shape.Dims[1]
@@ -212,7 +212,7 @@ func (b *Builder) RWKV6(key, value, receptance, first, decay, state *Tensor) *Te
 		first.Shape.Dims[0] != width || first.Shape.Dims[1] != heads ||
 		state.Shape.Dims[0] != width || state.Shape.Dims[1] != width ||
 		state.Shape.Dims[2] != heads || state.Shape.Dims[3] != sequences {
-		b.setError(errors.New("RWKV6 state or time-first shape is invalid"))
+		b.setError(errors.New("WKV6 state or time-first shape is invalid"))
 		return nil
 	}
 	shape, err := NewShape(width*heads, tokens*sequences+width*sequences)
@@ -220,7 +220,7 @@ func (b *Builder) RWKV6(key, value, receptance, first, decay, state *Tensor) *Te
 		b.setError(err)
 		return nil
 	}
-	return b.add("", dtype.F32, shape, OpRWKV6, inputs, nil)
+	return b.add("", dtype.F32, shape, OpWKV6, inputs, nil)
 }
 
 // SumRows: first-dimension reduction.
@@ -351,22 +351,22 @@ func (b *Builder) GatherLast(input, indices *Tensor) *Tensor {
 	return b.add("", dtype.F32, shape, OpGatherLast, []*Tensor{input, indices}, nil)
 }
 
-// RWKV7: vector-valued decay recurrence; packed output and state.
-func (b *Builder) RWKV7(receptance, decay, key, value, a, bVector, state *Tensor) *Tensor {
+// WKV7: vector-valued decay recurrence; packed output and state.
+func (b *Builder) WKV7(receptance, decay, key, value, a, bVector, state *Tensor) *Tensor {
 	if b.err != nil {
 		return nil
 	}
 	inputs := []*Tensor{receptance, decay, key, value, a, bVector, state}
 	for _, input := range inputs {
 		if input == nil || input.Type != dtype.F32 {
-			b.setError(errors.New("RWKV7 requires seven F32 inputs"))
+			b.setError(errors.New("WKV7 requires seven F32 inputs"))
 			return nil
 		}
 	}
 	if receptance.Shape.Rank != 4 || !receptance.Shape.Equal(decay.Shape) ||
 		!receptance.Shape.Equal(key.Shape) || !receptance.Shape.Equal(value.Shape) ||
 		!receptance.Shape.Equal(a.Shape) || !receptance.Shape.Equal(bVector.Shape) || state.Shape.Rank != 4 {
-		b.setError(errors.New("RWKV7 input shapes are incompatible"))
+		b.setError(errors.New("WKV7 input shapes are incompatible"))
 		return nil
 	}
 	width, heads := key.Shape.Dims[0], key.Shape.Dims[1]
@@ -374,7 +374,7 @@ func (b *Builder) RWKV7(receptance, decay, key, value, a, bVector, state *Tensor
 	if width == 0 || heads == 0 || tokens == 0 || sequences == 0 ||
 		state.Shape.Dims[0] != width || state.Shape.Dims[1] != width ||
 		state.Shape.Dims[2] != heads || state.Shape.Dims[3] != sequences {
-		b.setError(errors.New("RWKV7 state shape is invalid"))
+		b.setError(errors.New("WKV7 state shape is invalid"))
 		return nil
 	}
 	shape, err := NewShape(width*heads, tokens*sequences+width*sequences)
@@ -382,5 +382,5 @@ func (b *Builder) RWKV7(receptance, decay, key, value, a, bVector, state *Tensor
 		b.setError(err)
 		return nil
 	}
-	return b.add("", dtype.F32, shape, OpRWKV7, inputs, nil)
+	return b.add("", dtype.F32, shape, OpWKV7, inputs, nil)
 }

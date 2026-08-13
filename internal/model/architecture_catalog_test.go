@@ -30,9 +30,6 @@ func TestArchitectureCatalogStrictParsing(t *testing.T) {
 
 func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 	tests := map[string]func(*ArchitectureProfile){
-		"family": func(profile *ArchitectureProfile) {
-			profile.Family = ArchitectureFamily(unsupportedPolicyValue)
-		},
 		"nested validation": func(profile *ArchitectureProfile) {
 			profile.Validation.Hybrid = HybridValidationPolicy(unsupportedPolicyValue)
 		},
@@ -55,7 +52,7 @@ func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 			profile.MetadataRead = MetadataReadQwen3VLDeepstack
 		},
 		"Qwen GDN graph": func(profile *ArchitectureProfile) {
-			profile.AttentionGraph.QwenGDN = qwenGDNStandard
+			profile.AttentionGraph.GatedDelta = gatedDeltaSeparateProjections
 		},
 		"multi-axis rotary": func(profile *ArchitectureProfile) {
 			profile.Rotary.MultiAxis = multiAxisRotaryAlways

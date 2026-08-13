@@ -262,16 +262,16 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return Value{}, errors.New("invalid group norm attributes")
 		}
 		return groupNorm(node.Shape, inputs[0], inputs[1], inputs[2], attributes.Groups, attributes.Epsilon)
-	case tensor.OpDeepSeek4HCInit:
-		return deepSeek4HCInit(node.Shape, inputs, node.Attrs.(tensor.DeepSeek4HCAttributes))
-	case tensor.OpDeepSeek4HCPre:
-		return deepSeek4HCPre(node.Shape, inputs, node.Attrs.(tensor.DeepSeek4HCAttributes))
-	case tensor.OpDeepSeek4HCPost:
-		return deepSeek4HCPost(node.Shape, inputs, node.Attrs.(tensor.DeepSeek4HCAttributes))
-	case tensor.OpDeepSeek4HCHead:
-		return deepSeek4HCHead(node.Shape, inputs, node.Attrs.(tensor.DeepSeek4HCAttributes))
-	case tensor.OpDeepSeek4Attention:
-		return deepSeek4Attention(node.Shape, inputs, node.Attrs.(tensor.DeepSeek4AttentionAttributes))
+	case tensor.OpHyperConnectionInit:
+		return hyperConnectionInit(node.Shape, inputs, node.Attrs.(tensor.HyperConnectionAttributes))
+	case tensor.OpHyperConnectionPre:
+		return hyperConnectionPre(node.Shape, inputs, node.Attrs.(tensor.HyperConnectionAttributes))
+	case tensor.OpHyperConnectionPost:
+		return hyperConnectionPost(node.Shape, inputs, node.Attrs.(tensor.HyperConnectionAttributes))
+	case tensor.OpHyperConnectionHead:
+		return hyperConnectionHead(node.Shape, inputs, node.Attrs.(tensor.HyperConnectionAttributes))
+	case tensor.OpCompressedAttention:
+		return compressedAttention(node.Shape, inputs, node.Attrs.(tensor.CompressedAttentionAttributes))
 	case tensor.OpXIELU:
 		attributes, ok := node.Attrs.(tensor.XIELUAttributes)
 		if !ok {
@@ -335,12 +335,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return gatedDeltaNet(node.Shape, inputs, node.Attrs.(tensor.GatedDeltaNetAttributes))
 	case tensor.OpGatedLinearAttention:
 		return gatedLinearAttention(node.Shape, inputs, node.Attrs.(tensor.GatedLinearAttentionAttributes))
-	case tensor.OpRWKV6:
-		return rwkv6(node.Shape, inputs)
+	case tensor.OpWKV6:
+		return wkv6(node.Shape, inputs)
 	case tensor.OpSumRows:
 		return sumRows(node.Shape, inputs[0])
-	case tensor.OpRWKV7:
-		return rwkv7(node.Shape, inputs)
+	case tensor.OpWKV7:
+		return wkv7(node.Shape, inputs)
 	case tensor.OpFWHT:
 		return fwht(node.Shape, inputs[0])
 	case tensor.OpTopK:

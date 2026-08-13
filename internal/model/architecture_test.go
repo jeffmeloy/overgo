@@ -20,23 +20,21 @@ const (
 func TestArchitectureRegistryProfiles(t *testing.T) {
 	tests := []struct {
 		name       string
-		family     ArchitectureFamily
 		capability ArchitectureCapability
 	}{
-		{"llama", ArchitectureFamilyAttention, ArchitectureNormalRoPE},
-		{"deepseek32", ArchitectureFamilyMoE, ArchitectureDSA | ArchitectureMLA},
-		{"qwen35moe", ArchitectureFamilyHybrid, ArchitectureMoE | ArchitectureRecurrent},
-		{"t5", ArchitectureFamilyEncoderDecoder, ArchitectureRoPEDisabled},
-		{"llada", ArchitectureFamilyDiffusion, ArchitectureNonCausal | ArchitectureDiffusion},
-		{"qwen3vl", ArchitectureFamilyAttention, ArchitectureMultimodal},
-		{"gemma3n", ArchitectureFamilyAttention, ArchitectureSharedKV | ArchitectureAltUp | ArchitecturePerLayerEmbeddings},
-		{"talkie", ArchitectureFamilyAttention, ArchitectureEmbeddingSkip},
+		{"llama", ArchitectureNormalRoPE},
+		{"deepseek32", ArchitectureSparseLatent | ArchitectureLatent},
+		{"qwen35moe", ArchitectureMoE | ArchitectureRecurrent},
+		{"t5", ArchitectureRoPEDisabled},
+		{"llada", ArchitectureNonCausal | ArchitectureDiffusion},
+		{"qwen3vl", ArchitectureMultimodal},
+		{"gemma3n", ArchitectureSharedKV | ArchitecturePerLayerEmbeddings},
+		{"talkie", ArchitectureEmbeddingSkip},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			profile, ok := LookupArchitecture(test.name)
-			if !ok || profile.Name != test.name || profile.Family != test.family ||
-				profile.GraphFamily != test.family || profile.CatalogFamily != test.family ||
+			if !ok || profile.Name != test.name ||
 				profile.Capabilities&test.capability != test.capability {
 				t.Fatalf("profile = %#v", profile)
 			}
@@ -59,10 +57,10 @@ func TestArchitectureRegistryProfiles(t *testing.T) {
 func TestResolvedProfilePrefersExactBinding(t *testing.T) {
 	bootstrap, _ := LookupArchitecture("llama")
 	bound := bootstrap
-	bound.DenseGraph = DenseGraphTalkie
+	bound.LayerTopology = LayerTopologyCausalPostQKNormSkip
 	spec := Spec{CommonSpec: CommonSpec{Architecture: bootstrap.Name}}.withProfile(bound)
 	resolved, ok := spec.ResolvedProfile()
-	if !ok || resolved.DenseGraph != DenseGraphTalkie {
+	if !ok || resolved.LayerTopology != LayerTopologyCausalPostQKNormSkip {
 		t.Fatalf("resolved profile = (%+v, %t)", resolved, ok)
 	}
 	mismatch := spec.withProfile(ArchitectureProfile{Name: "other"})
@@ -219,11 +217,11 @@ func TestIndexerCadenceUsesBoundProfilePolicy(t *testing.T) {
 
 func TestArchitectureProfileDraftPlan(t *testing.T) {
 	for architecture, want := range map[string]DraftPlan{
-		"qwen35":     {Kind: DraftQwen35MTP, Heads: 1, Label: "Qwen3.5 MTP", SingleCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle},
-		"step35":     {Kind: DraftStep35MTP, Heads: 2, Label: "Step3.5 MTP", AppendedBlocks: true, Session: DraftSessionMulti},
-		"hy_v3":      {Kind: DraftHYV3MTP, Heads: 2, Label: "HY-V3 MTP", AppendedBlocks: true, Session: DraftSessionMulti},
-		"glm4":       {Kind: DraftNextNMTP, Heads: 1, Label: "NextN MTP", AppendedBlocks: true, Session: DraftSessionSingle},
-		"cohere2moe": {Kind: DraftCohere2MTP, Heads: 1, Label: "Cohere2-MoE MTP", SingleCatalog: true, OptionalCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle},
+		"qwen35":     {Kind: DraftSingleCatalog, Heads: 1, SingleCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle},
+		"step35":     {Kind: DraftAppendedMultiCarry, Heads: 2, AppendedBlocks: true, CarryRawHidden: true, Session: DraftSessionMulti},
+		"hy_v3":      {Kind: DraftAppendedMulti, Heads: 2, AppendedBlocks: true, Session: DraftSessionMulti},
+		"glm4":       {Kind: DraftAppendedSingle, Heads: 1, AppendedBlocks: true, Session: DraftSessionSingle},
+		"cohere2moe": {Kind: DraftOptionalSingleCatalog, Heads: 1, SingleCatalog: true, OptionalCatalog: true, SupportsMTPOnly: true, ScaleLogits: true, Normalization: DraftNormalizationArchitecture, Session: DraftSessionSingle},
 	} {
 		profile, _ := LookupArchitecture(architecture)
 		heads := want.Heads
@@ -242,14 +240,14 @@ func TestArchitectureProfileDeepSeekLayoutPolicy(t *testing.T) {
 		"deepseek2": true, "deepseek32": true, "mistral4": true, "glm-dsa": false,
 	} {
 		profile, ok := LookupArchitecture(architecture)
-		if !ok || !profile.Has(ArchitectureDeepSeek2Layout) ||
-			profile.Has(ArchitectureDeepSeek2) != wantGraph {
+		if !ok || !profile.Has(ArchitectureLatentKVLayout) ||
+			profile.Has(ArchitectureLatentYaRNQuery) != wantGraph {
 			t.Fatalf("%s DeepSeek policies = %064b", architecture, profile.Capabilities)
 		}
 	}
 	for _, architecture := range []string{"deepseek", "deepseek2-ocr", "minicpm3"} {
 		profile, _ := LookupArchitecture(architecture)
-		if profile.Has(ArchitectureDeepSeek2Layout) {
+		if profile.Has(ArchitectureLatentKVLayout) {
 			t.Fatalf("%s unexpectedly has DeepSeek2 layout", architecture)
 		}
 	}
@@ -259,7 +257,8 @@ func TestArchitectureProfileForwardProgram(t *testing.T) {
 	for architecture, want := range map[string]ForwardProgram{
 		"llama":            {Operation: ForwardOperationCached},
 		"bert":             {Operation: ForwardOperationBidirectional},
-		"dream":            {Operation: ForwardOperationBidirectional},
+		"dream":            {Operation: ForwardOperationDiffusion},
+		"llada":            {Operation: ForwardOperationDiffusion},
 		"dflash":           {Operation: ForwardOperationSession, Session: ForwardSessionPairedFeatures},
 		"eagle3":           {Operation: ForwardOperationSession, Session: ForwardSessionFeatureDraft},
 		"gemma4-assistant": {Operation: ForwardOperationSession, Session: ForwardSessionPairedProjection},
@@ -292,7 +291,7 @@ func TestArchitectureProfileOutputNormPolicy(t *testing.T) {
 			t.Fatalf("%s output norm = %v/%q, want %v/%q",
 				architecture, profile.OutputNorm, profile.OutputNormTensor(), want.policy, want.tensor)
 		}
-		if want.policy == OutputNormAbsent && !profile.Has(ArchitectureBERTNormLayout) {
+		if want.policy == OutputNormAbsent && !profile.Has(ArchitectureOutputLayerNormLayout) {
 			t.Fatalf("%s has no BERT normalization layout", architecture)
 		}
 	}
@@ -322,9 +321,9 @@ func TestArchitectureProfileProjectedInputPolicies(t *testing.T) {
 		blocks       AttentionBlockPolicy
 	}{
 		{"llama", EmbeddingOverrideStandard, DeepstackNone, AttentionBlocksNone},
-		{"cogvlm", EmbeddingOverrideCogVLM, DeepstackNone, AttentionBlocksNone},
+		{"cogvlm", EmbeddingOverrideVisualSpan, DeepstackNone, AttentionBlocksNone},
 		{"gemma4", EmbeddingOverrideRawScaled, DeepstackNone, AttentionBlocksUncached},
-		{"granite", EmbeddingOverrideDeepstackBase, DeepstackMappedBefore, AttentionBlocksNone},
+		{"granite", EmbeddingOverrideMappedBase, DeepstackMappedBefore, AttentionBlocksNone},
 		{"qwen3vl", EmbeddingOverrideStandard, DeepstackSequentialAfter, AttentionBlocksNone},
 	}
 	for _, test := range tests {
@@ -338,8 +337,8 @@ func TestArchitectureProfileProjectedInputPolicies(t *testing.T) {
 
 func TestArchitectureProfileLayerSideInputPolicies(t *testing.T) {
 	for architecture, want := range map[string]AuxiliaryFlow{
-		"llama": AuxiliaryNone, "rwkv7": AuxiliaryRWKVValue, "arwkv7": AuxiliaryRWKVValue,
-		"glm-dsa": AuxiliaryDSATopK, "deepseek32": AuxiliaryNone,
+		"llama": AuxiliaryNone, "rwkv7": AuxiliaryRecurrentValue, "arwkv7": AuxiliaryRecurrentValue,
+		"glm-dsa": AuxiliarySparseTopK, "deepseek32": AuxiliaryNone,
 	} {
 		profile, _ := LookupArchitecture(architecture)
 		if profile.Auxiliary != want {

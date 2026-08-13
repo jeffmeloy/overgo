@@ -14,9 +14,7 @@ import (
 // blocks each with num_res_blocks+1 resnets, three upsamplers, and every
 // decoder-side tensor consumed.
 func TestVAEDecoderDerivesFromRealCheckpoint(t *testing.T) {
-	if testing.Short() {
-		t.Skip("loads the ~286MB VAE decoder weight set; skipped in -short")
-	}
+	requireLongTest(t)
 	dir := kreaDirOrSkip(t)
 	d, err := LoadVAEDecoder(dir)
 	if err != nil {
@@ -99,9 +97,7 @@ func TestVAEDenormFromConfig(t *testing.T) {
 // clamped to [-1,1], spatially 8x, and deterministic across runs. (Bit-exact
 // g3 parity is NOT asserted here -- see TestVAEExactFinalLatentIsHookGap.)
 func TestVAEDecodeSyntheticImage(t *testing.T) {
-	if testing.Short() {
-		t.Skip("runs the full host decode; skipped in -short")
-	}
+	requireLongTest(t)
 	dir := kreaDirOrSkip(t)
 	d, err := LoadVAEDecoder(dir)
 	if err != nil {

@@ -5,6 +5,7 @@ import "overgo/internal/gguf"
 // DraftWeightCatalog: family-neutral draft tensor view.
 type DraftWeightCatalog struct {
 	Kind            DraftKind
+	MTPOnly         bool
 	Layer           LayerWeights
 	EHProjection    gguf.TensorInfo
 	EmbeddingNorm   gguf.TensorInfo
@@ -15,43 +16,75 @@ type DraftWeightCatalog struct {
 	Output          *gguf.TensorInfo
 }
 
+func draftWeightCatalog(
+	kind DraftKind,
+	mtpOnly bool,
+	layer LayerWeights,
+	eh, embedding, hidden gguf.TensorInfo,
+	token, layerOutput, outputNorm, output *gguf.TensorInfo,
+) DraftWeightCatalog {
+	return DraftWeightCatalog{
+		Kind: kind, MTPOnly: mtpOnly, Layer: layer,
+		EHProjection: eh, EmbeddingNorm: embedding, HiddenNorm: hidden,
+		TokenEmbedding: token, LayerOutputNorm: layerOutput, OutputNorm: outputNorm, Output: output,
+	}
+}
+
+// DraftCatalog returns one indexed compiled draft tensor catalog.
+func (w Weights) DraftCatalog(kind DraftKind, offset uint32) (DraftWeightCatalog, bool) {
+	switch kind {
+	case DraftSingleCatalog:
+		if offset == 0 && w.SingleCatalogDraft != nil {
+			item := w.SingleCatalogDraft
+			return draftWeightCatalog(kind, item.MTPOnly, item.Layer, item.EHProjection, item.EmbeddingNorm,
+				item.HiddenNorm, item.TokenEmbedding, nil, item.OutputNorm, item.Output), true
+		}
+	case DraftAppendedMultiCarry:
+		if offset < uint32(len(w.AppendedMultiCarryDraft)) {
+			item := w.AppendedMultiCarryDraft[offset]
+			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
+				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
+		}
+	case DraftAppendedMulti:
+		if offset < uint32(len(w.AppendedMultiDraft)) {
+			item := w.AppendedMultiDraft[offset]
+			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
+				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
+		}
+	case DraftAppendedSingle:
+		if offset < uint32(len(w.AppendedSingleDraft)) {
+			item := w.AppendedSingleDraft[offset]
+			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
+				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
+		}
+	case DraftOptionalSingleCatalog:
+		if offset == 0 && w.OptionalCatalogDraft != nil {
+			item := w.OptionalCatalogDraft
+			return draftWeightCatalog(kind, item.MTPOnly, item.Layer, item.EHProjection, item.EmbeddingNorm,
+				item.HiddenNorm, item.TokenEmbedding, nil, item.OutputNorm, item.Output), true
+		}
+	}
+	return DraftWeightCatalog{}, false
+}
+
 // DraftCatalogs: ordered speculative-head catalogs.
 func (w Weights) DraftCatalogs() []DraftWeightCatalog {
-	count := len(w.Step35MTP) + len(w.HYV3MTP) + len(w.NextNMTP)
-	if w.Qwen35MTP != nil {
+	count := len(w.AppendedMultiCarryDraft) + len(w.AppendedMultiDraft) + len(w.AppendedSingleDraft)
+	if w.SingleCatalogDraft != nil {
 		count++
 	}
-	if w.Cohere2MTP != nil {
+	if w.OptionalCatalogDraft != nil {
 		count++
 	}
 	result := make([]DraftWeightCatalog, 0, count)
-	appendCommon := func(kind DraftKind, layer LayerWeights, eh, embedding, hidden gguf.TensorInfo,
-		token, layerOutput, outputNorm, output *gguf.TensorInfo,
-	) {
-		result = append(result, DraftWeightCatalog{
-			Kind: kind, Layer: layer, EHProjection: eh, EmbeddingNorm: embedding, HiddenNorm: hidden,
-			TokenEmbedding: token, LayerOutputNorm: layerOutput, OutputNorm: outputNorm, Output: output,
-		})
-	}
-	if item := w.Qwen35MTP; item != nil {
-		appendCommon(DraftQwen35MTP, item.Layer, item.EHProjection, item.EmbeddingNorm, item.HiddenNorm,
-			item.TokenEmbedding, nil, item.OutputNorm, item.Output)
-	}
-	for _, item := range w.Step35MTP {
-		appendCommon(DraftStep35MTP, item.Layer, item.EHProjection, item.EmbeddingNorm, item.HiddenNorm,
-			item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output)
-	}
-	for _, item := range w.HYV3MTP {
-		appendCommon(DraftHYV3MTP, item.Layer, item.EHProjection, item.EmbeddingNorm, item.HiddenNorm,
-			item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output)
-	}
-	for _, item := range w.NextNMTP {
-		appendCommon(DraftNextNMTP, item.Layer, item.EHProjection, item.EmbeddingNorm, item.HiddenNorm,
-			item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output)
-	}
-	if item := w.Cohere2MTP; item != nil {
-		appendCommon(DraftCohere2MTP, item.Layer, item.EHProjection, item.EmbeddingNorm, item.HiddenNorm,
-			item.TokenEmbedding, nil, item.OutputNorm, item.Output)
+	for _, kind := range []DraftKind{DraftSingleCatalog, DraftAppendedMultiCarry, DraftAppendedMulti, DraftAppendedSingle, DraftOptionalSingleCatalog} {
+		for offset := uint32(0); ; offset++ {
+			catalog, ok := w.DraftCatalog(kind, offset)
+			if !ok {
+				break
+			}
+			result = append(result, catalog)
+		}
 	}
 	return result
 }

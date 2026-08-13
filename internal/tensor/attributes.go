@@ -27,8 +27,8 @@ func (Window2DAttributes) tensorAttributes()             {}
 func (SAMAttentionAttributes) tensorAttributes()         {}
 func (GroupNormAttributes) tensorAttributes()            {}
 func (MoEAttributes) tensorAttributes()                  {}
-func (DeepSeek4HCAttributes) tensorAttributes()          {}
-func (DeepSeek4AttentionAttributes) tensorAttributes()   {}
+func (HyperConnectionAttributes) tensorAttributes()      {}
+func (CompressedAttentionAttributes) tensorAttributes()  {}
 func (GatedDeltaNetAttributes) tensorAttributes()        {}
 func (GatedLinearAttentionAttributes) tensorAttributes() {}
 func (RepeatHeadsAttributes) tensorAttributes()          {}
@@ -63,8 +63,8 @@ const (
 	attributeSAMAttention
 	attributeGroupNorm
 	attributeMoE
-	attributeDeepSeek4HC
-	attributeDeepSeek4Attention
+	attributeHyperConnection
+	attributeCompressedAttention
 	attributeGatedDeltaNet
 	attributeGatedLinearAttention
 	attributeRepeatHeads
@@ -99,11 +99,11 @@ var operationAttributeKinds = [...]attributeKind{
 	OpSAMAttention:         attributeSAMAttention,
 	OpGroupNorm:            attributeGroupNorm,
 	OpMoE:                  attributeMoE,
-	OpDeepSeek4HCInit:      attributeDeepSeek4HC,
-	OpDeepSeek4HCPre:       attributeDeepSeek4HC,
-	OpDeepSeek4HCPost:      attributeDeepSeek4HC,
-	OpDeepSeek4HCHead:      attributeDeepSeek4HC,
-	OpDeepSeek4Attention:   attributeDeepSeek4Attention,
+	OpHyperConnectionInit:  attributeHyperConnection,
+	OpHyperConnectionPre:   attributeHyperConnection,
+	OpHyperConnectionPost:  attributeHyperConnection,
+	OpHyperConnectionHead:  attributeHyperConnection,
+	OpCompressedAttention:  attributeCompressedAttention,
 	OpGatedDeltaNet:        attributeGatedDeltaNet,
 	OpGatedLinearAttention: attributeGatedLinearAttention,
 	OpRepeatHeads:          attributeRepeatHeads,
@@ -189,10 +189,10 @@ func attributeKindOf(attributes Attributes) attributeKind {
 		return attributeGroupNorm
 	case MoEAttributes:
 		return attributeMoE
-	case DeepSeek4HCAttributes:
-		return attributeDeepSeek4HC
-	case DeepSeek4AttentionAttributes:
-		return attributeDeepSeek4Attention
+	case HyperConnectionAttributes:
+		return attributeHyperConnection
+	case CompressedAttentionAttributes:
+		return attributeCompressedAttention
 	case GatedDeltaNetAttributes:
 		return attributeGatedDeltaNet
 	case GatedLinearAttentionAttributes:

@@ -13,7 +13,7 @@ const (
 	rwkvKeyNormEpsilon  = 1e-12
 )
 
-// LayerGraphWeights: graph inputs for one dense Llama/Qwen3 block
+// LayerGraphWeights: graph inputs for one dense decoder block
 type LayerGraphWeights struct {
 	AttentionNorm               *tensor.Tensor
 	AttentionNormBias           *tensor.Tensor
@@ -199,30 +199,28 @@ type LayerGraphWeights struct {
 	ChannelMixReceptance *tensor.Tensor
 }
 
-// ApplyNormalization: learned normalization stage.
-func ApplyNormalization(
+// Apply: learned normalization stage.
+func (p NormalizationPlan) Apply(
 	builder *tensor.Builder,
 	input, weight, bias *tensor.Tensor,
-	spec Spec,
 ) *tensor.Tensor {
-	norm := spec.NormPlan()
-	if norm.Operation == NormalizationUnweightedLayer {
-		return builder.LayerNorm(input, spec.LayerNormEpsilon)
+	if p.Operation == NormalizationUnweightedLayer {
+		return builder.LayerNorm(input, p.Epsilon)
 	}
-	if norm.Operation == NormalizationUnweightedRMS {
-		return builder.RMSNorm(input, spec.RMSNormEpsilon)
+	if p.Operation == NormalizationUnweightedRMS {
+		return builder.RMSNorm(input, p.Epsilon)
 	}
-	if norm.Operation == NormalizationWeightOnlyLayer {
-		return builder.Multiply(builder.LayerNorm(input, spec.LayerNormEpsilon), weight)
+	if p.Operation == NormalizationWeightOnlyLayer {
+		return builder.Multiply(builder.LayerNorm(input, p.Epsilon), weight)
 	}
-	if norm.Operation == NormalizationLayer {
+	if p.Operation == NormalizationLayer {
 		if bias == nil {
-			return builder.Multiply(builder.LayerNorm(input, spec.LayerNormEpsilon), weight)
+			return builder.Multiply(builder.LayerNorm(input, p.Epsilon), weight)
 		}
-		return builder.AffineLayerNorm(input, weight, bias, spec.LayerNormEpsilon)
+		return builder.AffineLayerNorm(input, weight, bias, p.Epsilon)
 	}
-	normalized := builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)
-	if spec.Profile().DenseWeights.RMSNormBias && bias != nil {
+	normalized := builder.WeightedRMSNorm(input, weight, p.Epsilon)
+	if p.RMSBias && bias != nil {
 		return builder.Add(normalized, bias)
 	}
 	return normalized
@@ -245,7 +243,6 @@ type denseBlockContext struct {
 	multiPositions     *[4][]uint32
 	pastKey, pastValue *tensor.Tensor
 	plan               LayerPlan
-	profile            ArchitectureProfile
 	layer              uint32
 	cacheWrite         tensor.CacheWriteMode
 }
@@ -256,7 +253,7 @@ func newDenseBlockContext(options BlockDispatchOptions) denseBlockContext {
 		builder: c.Builder, input: c.Input, spec: options.Spec, weights: options.Weights,
 		positions: c.Positions, multiPositions: c.MultiPositions,
 		pastKey: c.PastKey, pastValue: c.PastValue, layer: c.Layer, cacheWrite: c.CacheWrite,
-		plan: *options.Plan, profile: options.Spec.Profile(),
+		plan: *options.Plan,
 	}
 }
 
@@ -270,19 +267,19 @@ func preparePolicyAttentionInputs(
 	if err := c.builder.Err(); err != nil {
 		return nil, nil, err
 	}
-	if c.plan.DenseGraph != DenseGraphStandard || c.plan.DeciSparse {
+	if c.plan.DeciSparse {
 		return nil, nil, errors.New("compiled attention-input stage is incompatible")
 	}
 	if err := c.plan.ExpertComposition.Validate(c.spec); err != nil {
 		return nil, nil, err
 	}
-	if c.profile.FeedForward == FeedForwardXIELU &&
+	if c.plan.FeedForward == FeedForwardXIELU &&
 		(int(c.layer) >= len(c.spec.XIELUAlphaN) || int(c.layer) >= len(c.spec.XIELUAlphaP) ||
 			int(c.layer) >= len(c.spec.XIELUBeta) || int(c.layer) >= len(c.spec.XIELUEpsilon)) {
 		return nil, nil, errors.New("Apertus xIELU parameters are missing for layer")
 	}
 	usesExperts := c.weights.FeedForwardRouter != nil
-	if err := c.plan.DenseWeights.Validate(c.spec, c.profile, c.weights, usesExperts); err != nil {
+	if err := c.plan.DenseWeights.Validate(c.spec, c.weights, usesExperts, c.plan.FeedForward); err != nil {
 		return nil, nil, err
 	}
 	if len(c.positions) == 0 || uint64(len(c.positions)) != c.input.Shape.Dims[1] {
@@ -293,24 +290,24 @@ func preparePolicyAttentionInputs(
 	if err := requireTensorPair(c.pastKey, c.pastValue, "dense block past key/value cache must both be present"); err != nil {
 		return nil, nil, err
 	}
-	if c.spec.NonCausalAttention && c.profile.Forward.Session != ForwardSessionPairedFeatures && c.pastKey != nil {
+	if !c.plan.AttentionGraph.Causal && !c.plan.AllowNonCausalCache && c.pastKey != nil {
 		return nil, nil, errors.New("non-causal dense block does not support a KV cache")
 	}
 	normalized := c.input
 	if c.plan.Normalization.PreAttention && !c.spec.SandwichNorm {
-		normalized = ApplyNormalization(
-			c.builder, c.input, c.weights.AttentionNorm, c.weights.AttentionNormBias, c.spec,
+		normalized = c.plan.Normalization.Apply(
+			c.builder, c.input, c.weights.AttentionNorm, c.weights.AttentionNormBias,
 		)
 	}
 	feedForwardNormalized := normalized
-	if c.plan.DenseWeights.validateFalconNorm && c.weights.AttentionNorm2 != nil {
+	if c.plan.DenseWeights.useSecondaryAttentionNorm && c.weights.AttentionNorm2 != nil {
 		if c.weights.AttentionNorm2Bias == nil {
 			normalized = c.builder.Multiply(
 				c.builder.LayerNorm(c.input, c.spec.LayerNormEpsilon), c.weights.AttentionNorm2,
 			)
 		} else {
-			normalized = ApplyNormalization(
-				c.builder, c.input, c.weights.AttentionNorm2, c.weights.AttentionNorm2Bias, c.spec,
+			normalized = c.plan.Normalization.Apply(
+				c.builder, c.input, c.weights.AttentionNorm2, c.weights.AttentionNorm2Bias,
 			)
 		}
 	}
@@ -326,11 +323,11 @@ func buildPolicyAttentionMix(
 	tokens := uint64(len(c.positions))
 	runtime := denseBlockRuntime{
 		builder: c.builder, spec: c.spec, weights: c.weights, plan: c.plan,
-		profile: c.profile, layer: c.layer, tokens: tokens,
+		layer: c.layer, tokens: tokens,
 	}
 	attentionGate := c.plan.AttentionOutput.PrepareGate(c.builder, gateInput, c.weights)
 	query, key, value := runtime.projectAttention(normalized)
-	query, key, err := c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkProjection)
+	query, key, err := c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, c.plan.Normalization, qkProjection)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -339,14 +336,14 @@ func buildPolicyAttentionMix(
 	query = c.builder.Reshape(query, uint64(c.spec.KeyLength), uint64(headCount), tokens)
 	key = c.builder.Reshape(key, uint64(c.spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = c.builder.Reshape(value, uint64(c.spec.ValueLength), uint64(kvHeadCount), tokens)
-	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkHeads)
+	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, c.plan.Normalization, qkHeads)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
 	query, key = c.plan.Rotary.Apply(
 		c.builder, query, key, c.positions, c.multiPositions, c.weights.RopeFactors,
 	)
-	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkPostRotary)
+	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, c.plan.Normalization, qkPostRotary)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -389,7 +386,7 @@ func buildPolicyFeedForwardMix(
 ) (*tensor.Tensor, error) {
 	c := newDenseBlockContext(options)
 	usesExperts := c.weights.FeedForwardRouter != nil
-	if usesExperts && c.plan.ExpertComposition.kind == expertArctic {
+	if usesExperts && c.plan.ExpertComposition.kind == expertDenseRoutedSeparateNorm {
 		feedForward, err := c.plan.ExpertComposition.Build(
 			c.builder, c.input, residual, normalized, c.spec, c.weights, c.plan,
 		)
@@ -407,7 +404,7 @@ func buildPolicyFeedForwardMix(
 	} else {
 		runtime := denseBlockRuntime{
 			builder: c.builder, spec: c.spec, weights: c.weights, plan: c.plan,
-			profile: c.profile, layer: c.layer, tokens: c.input.Shape.Dims[1],
+			layer: c.layer, tokens: c.input.Shape.Dims[1],
 		}
 		feedForward, err = runtime.buildFeedForward(normalized)
 	}
@@ -422,7 +419,6 @@ type denseBlockRuntime struct {
 	spec    Spec
 	weights LayerGraphWeights
 	plan    LayerPlan
-	profile ArchitectureProfile
 	layer   uint32
 	tokens  uint64
 }
@@ -483,7 +479,7 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 		up = r.builder.Add(up, r.weights.FeedForwardUpBias)
 	}
 	var activation *tensor.Tensor
-	switch r.profile.FeedForward {
+	switch r.plan.FeedForward {
 	case FeedForwardFusedGateUp:
 		width := uint64(r.spec.FeedForwardLength)
 		stride := 2 * width
@@ -499,7 +495,7 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 		activation = r.builder.GELU(up)
 	case FeedForwardSquaredReLU:
 		activation = r.builder.ReLUSquared(up)
-	default:
+	case FeedForwardSwiGLU, FeedForwardGEGLU:
 		gate := r.builder.MulMat(r.weights.FeedForwardGate, normalized)
 		if r.weights.FeedForwardGateScale != nil {
 			gate = r.builder.Multiply(gate, r.weights.FeedForwardGateScale)
@@ -508,13 +504,15 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 			gate = r.builder.Add(gate, r.weights.FeedForwardGateBias)
 		}
 		activation = r.builder.SwiGLU(gate, up)
-		if r.profile.Has(ArchitectureGemma) {
+		if r.plan.FeedForward == FeedForwardGEGLU {
 			activation = r.builder.GEGLU(gate, up)
 		}
+	default:
+		return nil, fmt.Errorf("unsupported feed-forward policy %d", r.plan.FeedForward)
 	}
 	if r.weights.FeedForwardActivationScale != nil {
 		if !r.plan.DenseWeights.allowActivationScale {
-			return nil, errors.New("feed-forward activation scale requires MPT")
+			return nil, errors.New("feed-forward activation scale is not enabled")
 		}
 		activation = r.builder.Divide(activation, r.weights.FeedForwardActivationScale)
 	}
@@ -714,19 +712,19 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	context CachedBlockContext,
 	weights LayerGraphWeights,
 ) (ActivationProjectionResult, error) {
-	if p.plan.DenseGraph != DenseGraphGemma3n || p.plan.Layer != context.Layer ||
+	if !p.plan.SplitProjection || p.plan.Layer != context.Layer ||
 		p.plan.Recurrent != context.Recurrent {
 		return ActivationProjectionResult{}, errors.New("compiled activation-projection program is incompatible")
 	}
 	builder, input, spec := context.Builder, context.Input, p.spec
 	positions, pastKey, pastValue := context.Positions, context.PastKey, context.PastValue
 	layerIndex := p.plan.Layer
-	if builder == nil || input == nil || spec.Profile().DenseGraph != DenseGraphGemma3n ||
+	if builder == nil || input == nil ||
 		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
 		return ActivationProjectionResult{}, errors.New("activation-projection input is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Gemma 3n cache pair is incomplete"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "split-projection cache pair is incomplete"); err != nil {
 		return ActivationProjectionResult{}, err
 	}
 	required := graphWeights{
@@ -742,14 +740,14 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		requireGraphWeight("Laurel right projection", weights.LaurelRight),
 		requireGraphWeight("Laurel post norm", weights.LaurelPostNorm),
 	}
-	if spec.LayerHasKV(layerIndex) {
+	if p.plan.HasKV {
 		required.add("attention key", weights.AttentionK)
 		required.add("attention value", weights.AttentionV)
 		required.add("attention key norm", weights.AttentionKNorm)
 	} else if pastKey == nil {
-		return ActivationProjectionResult{}, errors.New("Gemma 3n shared-KV layer has no source cache")
+		return ActivationProjectionResult{}, errors.New("split-projection shared-KV layer has no source cache")
 	}
-	if err := required.validate("Gemma 3n"); err != nil {
+	if err := required.validate("split projection"); err != nil {
 		return ActivationProjectionResult{}, err
 	}
 	tokens := input.Shape.Dims[1]
@@ -764,13 +762,13 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	query := builder.Reshape(builder.MulMat(weights.AttentionQ, normalized), keyLength, headCount, tokens)
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	frequencyBase := spec.RopeFrequencyBase
-	if spec.IsSlidingLayer(layerIndex) {
+	if p.plan.Sliding {
 		frequencyBase = spec.RopeFrequencySWA
 	}
 	query = builder.RoPENeoXScaled(query, positions, spec.LayerRopeDimensionCount(layerIndex), frequencyBase, 1)
 	cacheKey, cacheValue := pastKey, pastValue
 	queryStart := uint32(0)
-	if spec.LayerHasKV(layerIndex) {
+	if p.plan.HasKV {
 		key := builder.Reshape(builder.MulMat(weights.AttentionK, normalized), keyLength, kvHeadCount, tokens)
 		value := builder.Reshape(builder.MulMat(weights.AttentionV, normalized), valueLength, kvHeadCount, tokens)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
@@ -779,7 +777,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		cacheKey, cacheValue = key, value
 		if pastKey != nil {
 			if pastKey.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
-				return ActivationProjectionResult{}, errors.New("Gemma 3n cache shape is invalid")
+				return ActivationProjectionResult{}, errors.New("split-projection cache shape is invalid")
 			}
 			queryStart = uint32(pastKey.Shape.Dims[2])
 			cacheKey = builder.Concat(pastKey, key, 2)
@@ -790,7 +788,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 			pastKey.Shape.Dims[0] != keyLength || pastValue.Shape.Dims[0] != valueLength ||
 			pastKey.Shape.Dims[1] != kvHeadCount || pastValue.Shape.Dims[1] != kvHeadCount ||
 			pastKey.Shape.Dims[2] != pastValue.Shape.Dims[2] || pastKey.Shape.Dims[2] < tokens {
-			return ActivationProjectionResult{}, errors.New("Gemma 3n shared-KV source shape is invalid")
+			return ActivationProjectionResult{}, errors.New("split-projection shared-KV source shape is invalid")
 		}
 		queryStart = uint32(pastKey.Shape.Dims[2] - tokens)
 	}
@@ -800,7 +798,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		attentionScale = 1 / float32(math.Sqrt(float64(keyLength)))
 	}
 	query = builder.Scale(query, attentionScale)
-	if spec.IsSlidingLayer(layerIndex) {
+	if p.plan.Sliding {
 		attention = builder.AttentionWindowWithOffset(
 			query, cacheKey, cacheValue, 1, true, queryStart, spec.SlidingWindow,
 		)
@@ -830,7 +828,7 @@ func (p CompiledLayerProgram) BuildActivatedOutput(
 	residual, activated *tensor.Tensor,
 	weights LayerGraphWeights,
 ) (*tensor.Tensor, error) {
-	if p.plan.DenseGraph != DenseGraphGemma3n || builder == nil || residual == nil || activated == nil ||
+	if !p.plan.SplitProjection || builder == nil || residual == nil || activated == nil ||
 		weights.FeedForwardDown == nil || weights.FeedForwardPostNorm == nil {
 		return nil, errors.New("compiled activated-output stage is incomplete")
 	}
@@ -850,12 +848,12 @@ func (p ModelPlan) BuildPerLayerInputs(
 ) ([]*tensor.Tensor, error) {
 	spec := p.spec
 	if builder == nil || input == nil || tokenEmbedding == nil || modelProjection == nil || projectionNorm == nil {
-		return nil, errors.New("Gemma 4 per-layer input is incomplete")
+		return nil, errors.New("mapped per-layer input is incomplete")
 	}
 	if !p.profile.Has(ArchitecturePerLayerEmbeddings) ||
 		spec.EmbeddingPerLayer == 0 || spec.BlockCount == 0 ||
 		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, errors.New("Gemma 4 per-layer input configuration is invalid")
+		return nil, errors.New("mapped per-layer input configuration is invalid")
 	}
 	width := uint64(spec.EmbeddingPerLayer)
 	layers := uint64(spec.BlockCount)
@@ -866,7 +864,7 @@ func (p ModelPlan) BuildPerLayerInputs(
 		modelProjection.Shape.Rank != 2 || modelProjection.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		modelProjection.Shape.Dims[1] != combinedWidth ||
 		projectionNorm.Shape.Rank != 1 || projectionNorm.Shape.Dims[0] != width {
-		return nil, errors.New("Gemma 4 per-layer input shape is invalid")
+		return nil, errors.New("mapped per-layer input shape is invalid")
 	}
 	projected := builder.MulMat(modelProjection, input)
 	projected = builder.Scale(projected, 1/float32(math.Sqrt(float64(spec.EmbeddingLength))))
@@ -889,7 +887,7 @@ func (p ModelPlan) BuildPerLayerInputs(
 	return result, nil
 }
 
-func limitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
+func postActivationLimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
 	if limit <= 0 {
 		return builder.SwiGLU(gate, up)
 	}
@@ -908,7 +906,7 @@ func buildSharedSwiGLU(
 	return builder.MulMat(weights.FeedForwardSharedDown, builder.SwiGLU(gate, up))
 }
 
-func deepSeek4LimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
+func inputLimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
 	if limit <= 0 {
 		return builder.SwiGLU(gate, up)
 	}
@@ -927,9 +925,10 @@ func buildGatedProjectionMixCached(
 	sequences uint64,
 	pastKey, pastValue *tensor.Tensor,
 	cacheWrite tensor.CacheWriteMode,
+	deltaProjection gatedDeltaPolicy,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil {
-		return DenseBlockResult{}, errors.New("Qwen3.5 attention mix input is nil")
+		return DenseBlockResult{}, errors.New("gated-delta attention mix input is nil")
 	}
 	required := graphWeights{
 		requireGraphWeight("attention Q/gate", weights.AttentionQ),
@@ -939,15 +938,15 @@ func buildGatedProjectionMixCached(
 		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
 		requireGraphWeight("attention K norm", weights.AttentionKNorm),
 	}
-	if err := required.validate("Qwen3.5 attention mix"); err != nil {
+	if err := required.validate("gated-delta attention mix"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if len(positions) == 0 || sequences == 0 ||
 		uint64(len(positions)) > math.MaxUint64/sequences ||
 		uint64(len(positions))*sequences != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Qwen3.5 attention position count is invalid")
+		return DenseBlockResult{}, errors.New("gated-delta attention position count is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Qwen3.5 attention cache must contain both key and value"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "gated-delta attention cache must contain both key and value"); err != nil {
 		return DenseBlockResult{}, err
 	}
 
@@ -979,7 +978,7 @@ func buildGatedProjectionMixCached(
 	if spec.RopeScalingType == "linear" {
 		frequencyScale = 1 / spec.RopeScalingFactor
 	}
-	if spec.Profile().AttentionGraph.QwenGDN == qwenGDNRepeatInterleave {
+	if deltaProjection == gatedDeltaInterleavedProjections {
 		query = builder.RoPENeoXScaled(
 			query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
 		)
@@ -1009,7 +1008,7 @@ func buildGatedProjectionMixCached(
 	var queryStart uint32
 	if pastKey != nil {
 		if pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, errors.New("Qwen3.5 attention cache exceeds uint32")
+			return DenseBlockResult{}, errors.New("gated-delta attention cache exceeds uint32")
 		}
 		queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
 		cacheKey = builder.WriteCache(pastKey, key, 2, cacheWrite)
@@ -1049,9 +1048,10 @@ func buildGatedDeltaMixCached(
 	positions []uint32,
 	sequences uint64,
 	convState, ssmState *tensor.Tensor,
+	deltaPolicy gatedDeltaPolicy,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
-		return DenseBlockResult{}, errors.New("Qwen3.5 recurrent mix input/state is nil")
+		return DenseBlockResult{}, errors.New("gated-delta recurrent mix input/state is nil")
 	}
 	required := graphWeights{
 		requireGraphWeight("QKV", weights.AttentionQKV),
@@ -1061,8 +1061,7 @@ func buildGatedDeltaMixCached(
 		requireGraphWeight("SSM norm", weights.SSMNorm),
 		requireGraphWeight("SSM output", weights.SSMOutput),
 	}
-	qwenPolicy := spec.Profile().AttentionGraph.QwenGDN
-	if qwenPolicy == qwenGDNRepeatInterleave {
+	if deltaPolicy == gatedDeltaInterleavedProjections {
 		required.add("SSM beta/alpha", weights.SSMBetaAlpha)
 		if weights.AttentionQKV.Shape.Dims[1] == uint64(spec.SSMInnerSize)+
 			2*uint64(spec.SSMStateSize)*uint64(spec.SSMGroupCount) {
@@ -1073,13 +1072,13 @@ func buildGatedDeltaMixCached(
 		required.add("SSM beta", weights.SSMBeta)
 		required.add("SSM alpha", weights.SSMAlpha)
 	}
-	if err := required.validate("Qwen3.5 recurrent mix"); err != nil {
+	if err := required.validate("gated-delta recurrent mix"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if len(positions) == 0 || sequences == 0 ||
 		uint64(len(positions)) > math.MaxUint64/sequences ||
 		uint64(len(positions))*sequences != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Qwen3.5 recurrent position count is invalid")
+		return DenseBlockResult{}, errors.New("gated-delta recurrent position count is invalid")
 	}
 	tokens := uint64(len(positions))
 	stateWidth := uint64(spec.SSMStateSize)
@@ -1094,13 +1093,13 @@ func buildGatedDeltaMixCached(
 	}
 	if !convState.Shape.Equal(wantConvState) ||
 		!ssmState.Shape.Equal(tensor.MustShape(stateWidth, stateWidth, valueHeads, sequences)) {
-		return DenseBlockResult{}, errors.New("Qwen3.5 recurrent cache shape is invalid")
+		return DenseBlockResult{}, errors.New("gated-delta recurrent cache shape is invalid")
 	}
 
 	qkvProjection := builder.MulMat(weights.AttentionQKV, normalized)
 	qkvMixed := qkvProjection
 	var z *tensor.Tensor
-	if qwenPolicy == qwenGDNRepeatInterleave && weights.AttentionGate == nil {
+	if deltaPolicy == gatedDeltaInterleavedProjections && weights.AttentionGate == nil {
 		valueHeadsPerGroup := valueHeads / keyHeads
 		valueWidthPerGroup := stateWidth * valueHeadsPerGroup
 		groupStride := 2*stateWidth + 2*valueWidthPerGroup
@@ -1127,7 +1126,7 @@ func buildGatedDeltaMixCached(
 		z = builder.MulMat(weights.AttentionGate, normalized)
 	}
 	var beta, alpha *tensor.Tensor
-	if qwenPolicy == qwenGDNRepeatInterleave {
+	if deltaPolicy == gatedDeltaInterleavedProjections {
 		valueHeadsPerGroup := valueHeads / keyHeads
 		betaAlpha := builder.MulMat(weights.SSMBetaAlpha, normalized)
 		beta = builder.GroupSlice(
@@ -1189,7 +1188,7 @@ func buildGatedDeltaMixCached(
 	key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
 	value = builder.Reshape(value, stateWidth, valueHeads, tokens, sequences)
 	var packed *tensor.Tensor
-	if qwenPolicy == qwenGDNRepeatInterleave {
+	if deltaPolicy == gatedDeltaInterleavedProjections {
 		packed = builder.GatedDeltaNetRepeatInterleave(query, key, value, gate, beta, ssmState)
 	} else {
 		packed = builder.GatedDeltaNet(query, key, value, gate, beta, ssmState)
@@ -1232,8 +1231,8 @@ func buildRoutedSwiGLUFeedForwardMix(
 	composition ExpertCompositionPlan,
 ) (*tensor.Tensor, error) {
 	required := graphWeights{}
-	addQwen35FeedForwardRequirements(&required, composition, weights)
-	if err := required.validate("Qwen3.5 feed-forward mix"); err != nil {
+	addGatedDeltaFeedForwardRequirements(&required, composition, weights)
+	if err := required.validate("gated-delta feed-forward mix"); err != nil {
 		return nil, err
 	}
 	var feedForward *tensor.Tensor
@@ -1259,7 +1258,7 @@ func buildRoutedSwiGLUFeedForwardMix(
 	return feedForward, builder.Err()
 }
 
-func addQwen35FeedForwardRequirements(
+func addGatedDeltaFeedForwardRequirements(
 	required *graphWeights,
 	composition ExpertCompositionPlan,
 	weights LayerGraphWeights,

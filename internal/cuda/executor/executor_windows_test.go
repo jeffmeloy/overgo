@@ -151,19 +151,19 @@ func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {
 	hcFN := builder.Input("hc_fn", dtype.F32, tensor.MustShape(4, 8))
 	hcScale := builder.Input("hc_scale", dtype.F32, tensor.MustShape(3))
 	hcBase := builder.Input("hc_base", dtype.F32, tensor.MustShape(8))
-	hc := builder.DeepSeek4HCInit(input, 2)
-	branch := builder.DeepSeek4HCPre(hc, hcFN, hcScale, hcBase, 2, 2, 1e-5, 1e-6)
-	hc = builder.DeepSeek4HCPost(branch, hc, hcFN, hcScale, hcBase, 2, 2, 1e-5, 1e-6)
+	hc := builder.HyperConnectionInit(input, 2)
+	branch := builder.HyperConnectionPre(hc, hcFN, hcScale, hcBase, 2, 2, 1e-5, 1e-6)
+	hc = builder.HyperConnectionPost(branch, hc, hcFN, hcScale, hcBase, 2, 2, 1e-5, 1e-6)
 	headFN := builder.Input("head_fn", dtype.F32, tensor.MustShape(4, 2))
 	headScale := builder.Input("head_scale", dtype.F32, tensor.MustShape(1))
 	headBase := builder.Input("head_base", dtype.F32, tensor.MustShape(2))
-	head := builder.DeepSeek4HCHead(hc, headFN, headScale, headBase, 2, 1e-5, 1e-6)
+	head := builder.HyperConnectionHead(hc, headFN, headScale, headBase, 2, 1e-5, 1e-6)
 	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 1, 2))
 	cache := builder.Input("cache", dtype.F32, tensor.MustShape(2, 1, 3))
 	positions := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, 3))
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
-	attention := builder.DeepSeek4Attention(query, cache, positions, sinks, nil, nil, nil, nil, nil, nil, nil, nil,
-		tensor.DeepSeek4AttentionAttributes{
+	attention := builder.CompressedAttention(query, cache, positions, sinks, nil, nil, nil, nil, nil, nil, nil, nil,
+		tensor.CompressedAttentionAttributes{
 			Positions: []uint32{1, 2}, Window: 3, Heads: 1, RotaryDimensions: 2,
 			FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
 		})

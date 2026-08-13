@@ -666,7 +666,7 @@ func (r *Runner) forwardDeviceCachedBatchModeLocked(
 	if len(appends) == 0 {
 		return nil, errors.New("inference: device batch is empty")
 	}
-	if next, handled, err := r.forwardPackedQwen35CohortsLocked(ctx, appends, plan); handled {
+	if next, handled, err := r.forwardPackedDeviceCohortsLocked(ctx, appends, plan); handled {
 		return next, err
 	}
 	return r.forwardDeviceCachedBranchedBatchLocked(ctx, appends, plan)
@@ -1281,15 +1281,15 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 			deviceFeeds[normBias] = pointer
 		}
-		current = model.ApplyNormalization(builder, current, normWeight, normBias, r.spec)
+		current = r.program.Model.Normalization().Apply(builder, current, normWeight, normBias)
 	}
 	embeddingSkip := current
-	if r.spec.UsesUnweightedRMSNorm() {
+	if r.program.Model.Normalization().Operation == model.NormalizationUnweightedRMS {
 		current = builder.RMSNorm(current, r.spec.RMSNormEpsilon)
 		embeddingSkip = current
 	}
 	var perLayerInputs []*tensor.Tensor
-	if r.profile().Has(model.ArchitecturePerLayerEmbeddings) && r.spec.EmbeddingPerLayer > 0 {
+	if r.program.Model.ProjectedInput().PerLayerEmbeddings {
 		if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 			r.weights.PerLayerProjectionNorm == nil {
 			return fail(errors.New("Gemma 4 per-layer weights are incomplete"))

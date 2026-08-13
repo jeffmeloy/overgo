@@ -110,7 +110,7 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	} else if ok {
 		spec.ClassifierLabels = slices.Clone(labels)
 	}
-	if m.profile.Has(ArchitectureDeepSeek2Layout) {
+	if m.profile.Has(ArchitectureLatentKVLayout) {
 		spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
 		if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
 			if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
@@ -300,11 +300,11 @@ func (m specMetadata) readPosition(spec *Spec) error {
 		}
 		if scalingType, ok := optional[string](values, prefix+"rope.scaling.type", gguf.ValueTypeString); ok &&
 			scalingType != "" && scalingType != "none" {
-			qwenGDNMulti := profile.Attention == AttentionQwenGDN && profile.Has(ArchitectureMultiAxisPositions)
+			gatedDeltaMulti := profile.Attention == AttentionGatedDelta && profile.Has(ArchitectureMultiAxisPositions)
 			longRoPE := profile.Has(ArchitectureLongRoPE) && scalingType == "longrope"
-			yarn := scalingType == "yarn" && (profile.Has(ArchitectureDeepSeek2Layout) ||
+			yarn := scalingType == "yarn" && (profile.Has(ArchitectureLatentKVLayout) ||
 				validation.MLA == MLAValidationDeepSeek4 || validation.supportsYaRN())
-			if qwenGDNMulti || scalingType != "linear" && !longRoPE && !yarn {
+			if gatedDeltaMulti || scalingType != "linear" && !longRoPE && !yarn {
 				return fmt.Errorf("model architecture %q uses unsupported RoPE scaling type %q", architecture, scalingType)
 			}
 			spec.RopeScalingType = scalingType
@@ -343,11 +343,11 @@ func (m specMetadata) readPosition(spec *Spec) error {
 			}
 		}
 	}
-	if profile.readsMetadata(MetadataReadALiBi) || profile.EncoderGraph.Kind == encoderGraphJinaV2 {
+	if profile.readsMetadata(MetadataReadALiBi) || profile.EncoderOperator.usesALiBiQKNorm() {
 		if !profile.readsMetadata(MetadataReadZeroALiBiDefault) {
 			spec.MaxALiBiBias = 8
 		}
-		if profile.EncoderGraph.Kind != encoderGraphJinaV2 {
+		if !profile.EncoderOperator.usesALiBiQKNorm() {
 			if value, ok := optional[float32](values, prefix+"attention.max_alibi_bias", gguf.ValueTypeFloat32); ok {
 				spec.MaxALiBiBias = value
 			}

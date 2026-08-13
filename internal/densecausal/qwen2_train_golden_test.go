@@ -61,8 +61,6 @@ func TestQwen2PartialBiasTripleRejected(t *testing.T) {
 }
 
 func TestRealQwen2ArtifactTrainingStepDecreasesLoss(t *testing.T) {
-	if testing.Short() {
-		t.Skip("loads ~1GB weights and runs a 24-layer host backward; skipped in -short")
-	}
+	requireLongTest(t)
 	runRealArtifactStep(t, "Qwen2.5-0.5B")
 }

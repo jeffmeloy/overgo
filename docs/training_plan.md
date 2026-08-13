@@ -46,7 +46,8 @@ Production gaps:
 
 - `TrainingRunPlan` and `TrainingProgram` are design contracts, not implemented
   Go types;
-- `cmd/train` still selects `TrainDeviceFull`, not `TrainDeviceResident`;
+- `cmd/train` selects the resident dense device loop; the displaced per-step
+  weight scatter/gradient gather training adapters are deleted;
 - production checkpoints are not atomic complete-state resumes;
 - vector/scalar updates still use the provisional sign rule;
 - no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed the compiled
@@ -400,9 +401,8 @@ not redefine an earlier rung's correctness contract.
    modalities, processor/projector/codec, objective and policy IDs. Derive the
    applicable/refused multimodal matrix from those facts.
 2. **Resident Muon production path.** Dense device forward/backward, matrix
-   Muon, resident state and synthetic hybrid parity are implemented. Wire the
-   production command to resident execution, add vector/scalar Muon, then delete
-   displaced full/scatter and sign-update paths.
+   Muon, resident state, synthetic hybrid parity, and production command routing
+   are implemented. Add vector/scalar Muon, then delete the sign-update path.
 3. **Exact recovery.** Lower-level dense trajectory tests exist. Implement both
    checkpoint schemas at the production boundary: atomic publication, complete
    Muon/RNG/data/program state and uninterrupted-versus-resumed equality.

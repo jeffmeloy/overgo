@@ -26,7 +26,7 @@ func TestTrainingPlanMatchesImplementation(t *testing.T) {
 	for _, fact := range []string{
 		"Device backward and device Newton–Schulz are implemented",
 		"`TrainingRunPlan` and `TrainingProgram` are design contracts, not implemented Go types",
-		"`cmd/train` still selects `TrainDeviceFull`, not `TrainDeviceResident`",
+		"`cmd/train` selects the resident dense device loop",
 		"production checkpoints are not atomic complete-state resumes",
 		"compiled multimodal training authority is not implemented",
 		"no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed",
@@ -41,8 +41,9 @@ func TestTrainingPlanMatchesImplementation(t *testing.T) {
 			t.Fatalf("training plan retains stale claim %q", stale)
 		}
 	}
-	if !strings.Contains(read("cmd/train/run_cuda_windows.go"), "TrainDeviceFull") {
-		t.Fatal("production trainer changed without training-plan update")
+	production := read("cmd/train/run_cuda_windows.go")
+	if !strings.Contains(production, "TrainDeviceResident") || strings.Contains(production, "TrainDevice"+"Full") {
+		t.Fatal("production trainer does not exclusively select resident execution")
 	}
 	if !strings.Contains(read("internal/densecausal/train_device_resident_cuda_windows.go"), "func (m *Model) TrainDeviceResident") {
 		t.Fatal("resident trainer absent")

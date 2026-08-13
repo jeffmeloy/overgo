@@ -1,7 +1,7 @@
 package densecausal
 
 // DeviceTrainingSupported decides, from model geometry alone, whether the
-// resident device training backend (TrainDeviceFull / TrainDeviceResident) can
+// resident device training backend can
 // serve this model. The decision is host-side and is meant to run at SELECTION
 // time -- before any device session is constructed -- so a model using a
 // device-unsupported architecture trait is refused (or routed to host) up front
@@ -9,7 +9,7 @@ package densecausal
 //
 // It returns (true, "") when every trait the device backend needs is present,
 // or (false, reason) naming the first unsupported trait. Attention bias is the
-// current gap: the resident layer forward/backward and deviceLossAndGrads carry
+// current gap: the resident layer forward/backward carries
 // no bias term. New device-unsupported traits belong in deviceTrainingLimits,
 // not as ad-hoc checks scattered across call sites.
 func DeviceTrainingSupported(d Dims) (bool, string) {

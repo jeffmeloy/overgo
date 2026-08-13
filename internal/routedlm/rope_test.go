@@ -15,9 +15,6 @@ const senseNovaDir = `C:\Users\jeffm\adaptive_new\models\SenseNova-U1-8B-MoT-Inf
 // thetas from the config keys the binding names — verified against the real
 // SenseNova artifact (READ-ONLY).
 func TestCompileRopePlanSenseNovaRealArtifact(t *testing.T) {
-	if testing.Short() {
-		t.Skip("opens the real artifact; skipped in -short")
-	}
 	if _, err := os.Stat(senseNovaDir); err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", senseNovaDir, err)
 	}

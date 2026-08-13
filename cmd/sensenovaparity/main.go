@@ -464,7 +464,7 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 
 	// ---- FRONTIER: guided velocity / next_z (generation oracle) ------------
 	l.stage("velocity_frontier", func() (string, float64, string, error) {
-		detail := "FRONTIER: guided velocity + next_z parity. BLOCKED: needs the full generation pipeline output (see prefix_forward_frontier) AND a torch-matched randn(seed) for z (TorchCUDARandn not ported). The generation oracle carries only terminal probes (no intermediate layer probes), so a failure could not be localized even if the pipeline were ported."
+		detail := "FRONTIER: guided velocity + next_z parity needs the full generation body output (see prefix_forward_frontier). Seeded z is exact through shared torchrng. The generation oracle carries only terminal probes, so the 42-layer body must be verified end-to-end."
 		return verdictFrontier, math.NaN(), detail, nil
 	})
 

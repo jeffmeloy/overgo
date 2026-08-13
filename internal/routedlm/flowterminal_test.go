@@ -298,9 +298,6 @@ func TestRopePatch2DSmallCase(t *testing.T) {
 
 // Real-checkpoint shapes: every derived dim comes from config + tensors.
 func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
-	if testing.Short() {
-		t.Skip("opens the real artifact; skipped in -short")
-	}
 	if _, err := os.Stat(senseNovaDir); err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", senseNovaDir, err)
 	}
@@ -406,9 +403,6 @@ func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
 // Fixture-derivable module checks: the oracle's request reproduces the
 // schedule knots, the z geometry, and the derived noise sigma.
 func TestSenseNovaFlowScheduleMatchesGenerationOracle(t *testing.T) {
-	if testing.Short() {
-		t.Skip("opens the fixture; skipped in -short")
-	}
 	raw, err := os.ReadFile(senseNovaGenerationOracle)
 	if err != nil {
 		t.Skipf("UNAVAILABLE: fixture absent: %v", err)

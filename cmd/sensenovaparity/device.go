@@ -18,18 +18,15 @@ package main
 //      edit_oracle_v3_256) z-trajectory on the aligned probe coordinates — the
 //      only exact absolute-value oracle the sparse (16/64-sample) fixtures admit
 //      on the denoise trajectory. RNG-independent (uses the fixture's own z and
-//      velocity), so the seed-42 randn gap does not touch it.
+//      velocity).
 //
 // What does NOT run here (named honestly in the ladder + the report): the
 // 42-layer branch-routed understanding-prefix + generation-branch cross-attn
 // transformer body that PRODUCES the `hidden` boundary the flow head consumes.
 // Its device port is scaffolded by prefilldevicegraph.go + CompileRopePlan but
-// remains: (a) unverifiable against the edit per-layer oracles without the
-// external source PNG (source vision embedding is a 64/16.7M-sample probe);
-// (b) unverifiable against the generation oracle without a torch-matched
-// randn(seed=42) for the initial latent; (c) the multi-axis rope needs a
-// per-section theta (5e6/1e4/1e4) that RoPEMulti's single-base form does not yet
-// express.
+// remains. Generation has exact seeded-state and terminal oracles but no
+// intermediate-layer probes. Edit per-layer parity still needs the external
+// source PNG. Multi-axis device rope is already shared in routedlm.RopePlan.
 
 import (
 	"context"

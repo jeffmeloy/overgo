@@ -12,7 +12,7 @@ merges `master`.
 | 3 | Draft projections | family draft input/output builders absent | Done |
 | 4 | Session forwards | DFlash/Eagle/Gemma assistant wrappers absent | Done |
 | 5 | Encoder/decoder | T5 family block builders absent | Done |
-| 6 | Layer execution | family leaf policies/builders absent; encoder, recurrent, latent, cache, side-input, draft, and dense/expert selectors neutralized | Active |
+| 6 | Layer execution | family leaf policies/builders absent; encoder, recurrent, latent, cache, side-input, draft, dense/expert, and rotary selectors neutralized | Active |
 | 7 | Weight catalogs | family loaders replaced by indexed catalog plans | Open |
 | 8 | Runtime admission | architecture probes/fallbacks absent | Open |
 

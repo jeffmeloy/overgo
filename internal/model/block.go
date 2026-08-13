@@ -389,7 +389,7 @@ func buildPolicyFeedForwardMix(
 ) (*tensor.Tensor, error) {
 	c := newDenseBlockContext(options)
 	usesExperts := c.weights.FeedForwardRouter != nil
-	if usesExperts && c.plan.ExpertComposition.kind == expertArctic {
+	if usesExperts && c.plan.ExpertComposition.kind == expertDenseRoutedSeparateNorm {
 		feedForward, err := c.plan.ExpertComposition.Build(
 			c.builder, c.input, residual, normalized, c.spec, c.weights, c.plan,
 		)

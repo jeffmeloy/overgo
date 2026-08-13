@@ -41,7 +41,7 @@ type DenseWeightPlan struct {
 	requireSharedRouter        bool
 	requireChunkExperts        bool
 	requireOpenAIBiases        bool
-	requireArcticDense         bool
+	requireSeparateDenseBranch bool
 	requireQKNorm              bool
 	requirePostNorm            bool
 	requireAttentionGate       bool
@@ -85,7 +85,7 @@ func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWe
 	plan.requireSharedRouter = composition.kind == expertSharedGated
 	plan.requireChunkExperts = composition.kind == expertGrouped
 	plan.requireOpenAIBiases = policy.RequireOpenAIBiases
-	plan.requireArcticDense = composition.kind == expertArctic
+	plan.requireSeparateDenseBranch = composition.kind == expertDenseRoutedSeparateNorm
 	plan.requireAttentionGate = policy.RequireAttentionGate
 	plan.requireQKNorm = plan.requirePostNorm || requireQKNorm(qk.Projection) ||
 		requireQKNorm(qk.Heads) || requireQKNorm(qk.PostRotary) || plan.requireAttentionGate
@@ -139,7 +139,7 @@ func (p DenseWeightPlan) Validate(
 			required.add("feed-forward expert up bias", weights.FeedForwardUpBias)
 			required.add("feed-forward expert down bias", weights.FeedForwardDownBias)
 		}
-		if p.requireArcticDense {
+		if p.requireSeparateDenseBranch {
 			required.add("feed-forward expert norm", weights.FeedForwardExpertNorm)
 			required.add("feed-forward gate", weights.FeedForwardGate)
 			required.add("feed-forward up", weights.FeedForwardUp)

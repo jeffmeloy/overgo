@@ -759,7 +759,7 @@
       "Attention": 6
     },
     "Rotary": {
-      "Gemma3": true,
+      "ForceScaleAndSlidingReset": true,
       "Kind": 5
     },
     "Runtime": {

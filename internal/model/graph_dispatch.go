@@ -425,7 +425,7 @@ func executeLayerInstruction(
 		normalized := plan.ResidualStages.AfterAttention(
 			c.Builder, execution.residual, execution.attentionInput, options.Spec, options.Weights,
 		)
-		if plan.ExpertComposition.kind != expertArctic {
+		if plan.ExpertComposition.kind != expertDenseRoutedSeparateNorm {
 			normalized = plan.ResidualStages.FeedForwardInput(
 				c.Builder, c.Input, execution.residual, normalized, execution.feedForwardBase,
 				options.Spec, options.Weights,

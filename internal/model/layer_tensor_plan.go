@@ -23,10 +23,10 @@ type rotaryPolicyKind uint8
 const (
 	rotaryPolicyDefault rotaryPolicyKind = iota
 	rotaryPolicyLaguna
-	rotaryPolicyGrokMellum
-	rotaryPolicyLlamaYaRN
+	rotaryPolicyNeoXYaRNDense
+	rotaryPolicyNormalYaRN
 	rotaryPolicyNormal
-	rotaryPolicyGemma
+	rotaryPolicySlidingLinearReset
 )
 
 // RotaryUsagePolicy: layer-level RoPE schedule.
@@ -42,13 +42,13 @@ const (
 
 // RotaryPolicy: architecture-owned rotary selection.
 type RotaryPolicy struct {
-	Kind              rotaryPolicyKind
-	MultiAxis         multiAxisRotaryPolicy
-	Usage             RotaryUsagePolicy
-	SlidingFrequency  bool
-	SlidingScaleReset bool
-	Gemma3            bool
-	FactorPairs       bool
+	Kind                      rotaryPolicyKind
+	MultiAxis                 multiAxisRotaryPolicy
+	Usage                     RotaryUsagePolicy
+	SlidingFrequency          bool
+	SlidingScaleReset         bool
+	ForceScaleAndSlidingReset bool
+	FactorPairs               bool
 }
 
 // AttentionGraphPolicy: architecture-owned attention controls.
@@ -233,13 +233,13 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		}
 		plan.rotaryDimensions = s.RopeDimensionSWA
 		plan.frequencyBase = s.RopeFrequencySWA
-	case rotaryPolicyGrokMellum:
+	case rotaryPolicyNeoXYaRNDense:
 		if s.RopeScalingType == "yarn" && !s.IsSlidingLayer(layer) {
 			setYaRN(tensor.RoPELayoutNeoX)
 		} else {
 			applyDefault()
 		}
-	case rotaryPolicyLlamaYaRN:
+	case rotaryPolicyNormalYaRN:
 		if s.RopeScalingType == "yarn" {
 			setYaRN(tensor.RoPELayoutNormal)
 		} else {
@@ -247,13 +247,13 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		}
 	case rotaryPolicyNormal:
 		applyNormal()
-	case rotaryPolicyGemma:
-		if policy.Gemma3 || s.RopeScalingType == "linear" {
+	case rotaryPolicySlidingLinearReset:
+		if policy.ForceScaleAndSlidingReset || s.RopeScalingType == "linear" {
 			plan.frequencyScale = 1 / s.RopeScalingFactor
 		}
 		if s.IsSlidingLayer(layer) {
 			plan.frequencyBase = s.RopeFrequencySWA
-			if policy.Gemma3 {
+			if policy.ForceScaleAndSlidingReset {
 				plan.frequencyScale = 1
 			}
 		}

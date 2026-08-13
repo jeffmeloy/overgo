@@ -23,8 +23,8 @@ func syntheticCausalModel(t *testing.T, spec testutil.DenseCausalSpec) *Model {
 }
 
 // TestTrainingWallTimeHostVsGPU measures per-step wall time of host Train (host
-// forward/backward + host Newton-Schulz Muon) vs TrainDeviceFull (host forward +
-// device backward + device Muon) on a medium model. Reports the ratio; makes no
+// forward/backward + host Newton-Schulz Muon) vs resident device training on a
+// medium model. Reports the ratio; makes no
 // speed assertion (informational, the rung's measurement). Named without "Device"
 // so the gate's `-run Device` device lane does NOT run this ~8-minute benchmark;
 // run it manually with -run TestTrainingWallTime.
@@ -73,8 +73,8 @@ func TestTrainingWallTimeHostVsGPU(t *testing.T) {
 		return e
 	})
 	devT := timeTrain(func(m *Model) error {
-		_, e := m.TrainDeviceFull(worker, tokens, steps, 0, 0.9)
+		_, e := m.TrainDeviceResident(worker, tokens, steps, 0, 0.9)
 		return e
 	})
-	t.Logf("per-step: host Train %v, TrainDeviceFull %v (%.2fx)", hostT, devT, float64(hostT)/float64(devT))
+	t.Logf("per-step: host Train %v, resident device %v (%.2fx)", hostT, devT, float64(hostT)/float64(devT))
 }

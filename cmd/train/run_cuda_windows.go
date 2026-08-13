@@ -25,7 +25,7 @@ func runTraining(m *densecausal.Model, tokens []int, steps int, baseLR, mu float
 		worker, err := device.New(0)
 		if err == nil {
 			defer worker.Close()
-			traj, terr := m.TrainDeviceFull(worker, tokens, steps, baseLR, mu)
+			traj, terr := m.TrainDeviceResident(worker, tokens, steps, baseLR, mu)
 			if terr != nil {
 				return nil, "", terr
 			}

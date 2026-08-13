@@ -3,8 +3,6 @@
 package densecausal
 
 import (
-	"fmt"
-
 	"overgo/internal/cuda/device"
 	"overgo/internal/optimizer"
 )
@@ -18,22 +16,6 @@ import (
 func (m *Model) TrainDevice(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
 	return m.trainDevice(worker, steps, baseLR, mu, func() (float64, []float32, Grads, error) {
 		return m.LossAndGrads(tokens)
-	})
-}
-
-// TrainDeviceFull runs `steps` Muon updates with BOTH the backward and the Muon
-// optimizer step on the GPU: deviceLossAndGrads (device layer backward via the
-// resident MLP/attention blocks) plus DeviceMuonStepPlan. Only the forward and
-// the head/norm/embedding tail run on host. Matches Train's host trajectory
-// within fp32 tolerance. Attention bias is not yet supported (refused here at
-// entry via DeviceTrainingSupported so an unsupported model fails before the
-// resident session runs, not mid-step).
-func (m *Model) TrainDeviceFull(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
-	if ok, reason := DeviceTrainingSupported(m.Dims); !ok {
-		return nil, fmt.Errorf("TrainDeviceFull: %s", reason)
-	}
-	return m.trainDevice(worker, steps, baseLR, mu, func() (float64, []float32, Grads, error) {
-		return m.deviceLossAndGrads(worker, tokens)
 	})
 }
 

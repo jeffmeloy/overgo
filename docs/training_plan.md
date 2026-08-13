@@ -46,7 +46,8 @@ Production gaps:
 
 - `TrainingRunPlan` and `TrainingProgram` are design contracts, not implemented
   Go types;
-- `cmd/train` still selects `TrainDeviceFull`, not `TrainDeviceResident`;
+- `cmd/train` selects `TrainDeviceResident`; layer weights and Muon momentum stay
+  device-resident across steps and return to host at checkpoint.
 - production checkpoints are not atomic complete-state resumes;
 - vector/scalar updates still use the provisional sign rule;
 - no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed the compiled

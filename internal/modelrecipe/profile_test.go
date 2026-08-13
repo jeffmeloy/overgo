@@ -15,10 +15,10 @@ import (
 	"overgo/internal/testutil"
 )
 
-const profileCatalogSemanticDigest = "d098583d858e9050962404abf173ece1a7ed32a8c08fc960c14e1f9d84123cc7"
-const architectureProfileFactCount = 142
-const architectureProfileFactDigest = "bf6734daeef564e2c3c0b81f5facc3c2ac654dcb67b4ff52a7ed3f37aea40bc0"
-const architectureProfileFactSchemaDigest = "a15eaf8bbbc0cf4c61ee0ee751f298eaa7cd979a2fe344285a61f4fe07cdbc6e"
+const profileCatalogSemanticDigest = "9edb4b370acc86fc1a943a0ccd6a04f0ca80025394b998efb61a5704fe8c55d7"
+const architectureProfileFactCount = 144
+const architectureProfileFactDigest = "2817d972f131406dea0b7d5364e58c903c171442e8769e6862d6320963069a5e"
+const architectureProfileFactSchemaDigest = "b826d38aecff0410a73fcfb6f0bc3155b47484849d974d941a18b9b0af9dbf49"
 
 const unsupportedProfilePolicyValue = ^uint8(0)
 

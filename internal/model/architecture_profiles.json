@@ -419,6 +419,7 @@
     },
     "LatentAttention": 3,
     "Metadata": {
+      "DraftBeforeShape": true,
       "MLAHeadLengths": true
     },
     "MetadataDefaults": {
@@ -823,6 +824,7 @@
       "SharedCatalog": 1
     },
     "Metadata": {
+      "DraftBeforeShape": true,
       "MLAHeadLengths": true
     },
     "MetadataRead": 256,
@@ -2065,6 +2067,7 @@
     },
     "DraftKind": 1,
     "FFNNormLayout": 4,
+    "Metadata": {"DraftBeforeShape": true},
     "Name": "qwen35",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2094,6 +2097,7 @@
       "SharedCatalog": 3
     },
     "FFNNormLayout": 4,
+    "Metadata": {"DraftBeforeShape": true},
     "Name": "qwen35moe",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2362,6 +2366,7 @@
       "KVHeads": 2
     },
     "Name": "step35",
+    "Metadata": {"PreserveDraftLayers": true},
     "Validation": {
       "ExpertMetadata": 1,
       "Hybrid": 7

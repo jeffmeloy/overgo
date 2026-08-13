@@ -67,6 +67,11 @@ func readSpec(file *gguf.File, resolved *ArchitectureProfile) (Spec, error) {
 	if err := metadata.readAttentionShape(&spec, state); err != nil {
 		return Spec{}, err
 	}
+	if !profile.Metadata.DraftBeforeShape {
+		if err := metadata.readDraftLayers(&spec); err != nil {
+			return Spec{}, err
+		}
+	}
 	if err := metadata.readPosition(&spec); err != nil {
 		return Spec{}, err
 	}
@@ -431,15 +436,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.attentionOneOf(AttentionValidationGLM4, AttentionValidationGLM4MoE) {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](
-			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
-		); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("GLM4 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		if sections, ok, sectionsErr := optionalArray[int32](
 			values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32,
 		); sectionsErr != nil {
@@ -453,14 +449,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.Hybrid == HybridValidationMiMo2 {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("MiMo2 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-			spec.LayerKVHeadCounts = spec.LayerKVHeadCounts[:spec.BlockCount]
-		}
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -512,13 +500,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.Hybrid == HybridValidationStep35 {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("Step3.5 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -543,15 +524,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.Attention == AttentionValidationEXAOne4 {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](
-			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
-		); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("EXAONE 4 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		spec.RopeFrequencySWA = optionalOr(
 			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
 		)
@@ -572,13 +544,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.Hybrid == HybridValidationEXAOneMoE {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("EXAONE-MoE NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		spec.RopeFrequencySWA = optionalOr(
 			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
 		)
@@ -599,13 +564,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.Hybrid == HybridValidationBailingMoE2 {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("BailingMoE2 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 	}
 	if validation.Attention == AttentionValidationFalcon {
 		spec.RopeDimensionCount, _ = optional[uint32](
@@ -1186,13 +1144,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 	}
 	if validation.Attention == AttentionValidationCohere2MoE {
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN != 1 || nextN >= spec.BlockCount {
-				return Spec{}, errors.New("Cohere2-MoE NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		if spec.LeadingDenseBlocks, err = required[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1217,13 +1168,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 	}
 	if validation.Hybrid == HybridValidationHYV3 {
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("HY-V3 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}

@@ -28,14 +28,14 @@ func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {
 	definitions = append(definitions, latentImage)
 
 	required := []Contract{
-		{Task: recipe.TaskForecast, Inputs: []Modality{ModalityTimeSeries}, Outputs: []Modality{ModalityTimeSeries}},
-		{Task: recipe.TaskTabular, Inputs: []Modality{ModalityTable}, Outputs: []Modality{ModalityTable}},
-		{Task: recipe.TaskSeq2Seq, Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityText}},
-		{Task: recipe.TaskSpeech, Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityAudio}},
-		{Task: recipe.TaskImageGen, Inputs: []Modality{ModalityTable}, Outputs: []Modality{ModalityImage}},
-		{Task: recipe.TaskImageGen, Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityImage}},
-		{Task: recipe.TaskVQA, Inputs: []Modality{ModalityImage, ModalityText}, Outputs: []Modality{ModalityText}},
-		{Task: recipe.TaskVideoGen, Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityVideo}},
+		{Task: recipe.TaskForecast, Signature: Signature{Inputs: []Modality{ModalityTimeSeries}, Outputs: []Modality{ModalityTimeSeries}}},
+		{Task: recipe.TaskTabular, Signature: Signature{Inputs: []Modality{ModalityTable}, Outputs: []Modality{ModalityTable}}},
+		{Task: recipe.TaskSeq2Seq, Signature: Signature{Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityText}}},
+		{Task: recipe.TaskSpeech, Signature: Signature{Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityAudio}}},
+		{Task: recipe.TaskImageGen, Signature: Signature{Inputs: []Modality{ModalityTable}, Outputs: []Modality{ModalityImage}}},
+		{Task: recipe.TaskImageGen, Signature: Signature{Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityImage}}},
+		{Task: recipe.TaskVQA, Signature: Signature{Inputs: []Modality{ModalityImage, ModalityText}, Outputs: []Modality{ModalityText}}},
+		{Task: recipe.TaskVideoGen, Signature: Signature{Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityVideo}}},
 	}
 	rows, err := InferenceModalityMatrix(definitions, required)
 	if err != nil {

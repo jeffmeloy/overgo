@@ -3,6 +3,7 @@ package recipecontract
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/recipe"
 )
@@ -19,8 +20,28 @@ const (
 )
 
 type ModalitySignature struct {
-	Inputs  []Modality
-	Outputs []Modality
+	Inputs  []Modality `json:"inputs"`
+	Outputs []Modality `json:"outputs"`
+}
+
+func (signature ModalitySignature) Validate() error {
+	if len(signature.Inputs) == 0 || len(signature.Outputs) == 0 {
+		return errors.New("empty modality signature")
+	}
+	for _, modalities := range [][]Modality{signature.Inputs, signature.Outputs} {
+		for _, modality := range modalities {
+			if !ValidModality(modality) {
+				return fmt.Errorf("invalid modality %q", modality)
+			}
+		}
+	}
+	return nil
+}
+
+func (signature ModalitySignature) Clone() ModalitySignature {
+	signature.Inputs = slices.Clone(signature.Inputs)
+	signature.Outputs = slices.Clone(signature.Outputs)
+	return signature
 }
 
 // CompileModalitySignature derives semantic I/O from ordered recipe ports.

@@ -1,7 +1,6 @@
 package adaptiveparity
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -12,9 +11,8 @@ import (
 )
 
 type Contract struct {
-	Task    recipe.Task
-	Inputs  []Modality
-	Outputs []Modality
+	Task recipe.Task
+	Signature
 }
 
 type ContractStatus string
@@ -75,19 +73,15 @@ func modalityContract(definition recipe.Definition) (Contract, error) {
 	if err != nil {
 		return Contract{}, fmt.Errorf("adaptive parity: recipe %s: %w", definition.ID, err)
 	}
-	return Contract{Task: definition.Task, Inputs: signature.Inputs, Outputs: signature.Outputs}, nil
+	return Contract{Task: definition.Task, Signature: signature}, nil
 }
 
 func validateContract(contract Contract) error {
-	if contract.Task == "" || len(contract.Inputs) == 0 || len(contract.Outputs) == 0 {
-		return errors.New("adaptive parity: invalid required modality contract")
+	if contract.Task == "" {
+		return fmt.Errorf("adaptive parity: invalid required modality contract")
 	}
-	for _, list := range [][]Modality{contract.Inputs, contract.Outputs} {
-		for _, modality := range list {
-			if !recipecontract.ValidModality(modality) {
-				return fmt.Errorf("adaptive parity: invalid modality %q", modality)
-			}
-		}
+	if err := contract.Signature.Validate(); err != nil {
+		return fmt.Errorf("adaptive parity: invalid required modality contract: %w", err)
 	}
 	return nil
 }
@@ -105,7 +99,6 @@ func contractKey(contract Contract) string {
 }
 
 func cloneContract(contract Contract) Contract {
-	contract.Inputs = slices.Clone(contract.Inputs)
-	contract.Outputs = slices.Clone(contract.Outputs)
+	contract.Signature = contract.Signature.Clone()
 	return contract
 }

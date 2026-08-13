@@ -46,10 +46,7 @@ type Reference struct {
 	Identity artifact.ID `json:"identity"`
 }
 
-type Signature struct {
-	Inputs  []Modality `json:"inputs"`
-	Outputs []Modality `json:"outputs"`
-}
+type Signature = recipecontract.ModalitySignature
 
 type Measurement struct {
 	Runtime   string      `json:"runtime"`
@@ -146,7 +143,7 @@ func canonicalize(snapshot *Snapshot) error {
 			return fmt.Errorf("adaptive parity: duplicate capability %q", capability.ID)
 		}
 		capabilityIDs[capability.ID] = struct{}{}
-		if err := validateSignature(capability.Signature); err != nil {
+		if err := capability.Signature.Validate(); err != nil {
 			return fmt.Errorf("adaptive parity: capability %q: %w", capability.ID, err)
 		}
 		for _, references := range []*[]Reference{&capability.Artifacts, &capability.Corpora, &capability.Goldens} {
@@ -188,27 +185,12 @@ func canonicalReferences(references *[]Reference) error {
 	return nil
 }
 
-func validateSignature(signature Signature) error {
-	if len(signature.Inputs) == 0 || len(signature.Outputs) == 0 {
-		return errors.New("empty modality signature")
-	}
-	for _, modalities := range [][]Modality{signature.Inputs, signature.Outputs} {
-		for _, modality := range modalities {
-			if !recipecontract.ValidModality(modality) {
-				return fmt.Errorf("invalid modality %q", modality)
-			}
-		}
-	}
-	return nil
-}
-
 func clone(snapshot Snapshot) Snapshot {
 	snapshot.Sources = slices.Clone(snapshot.Sources)
 	snapshot.Capabilities = slices.Clone(snapshot.Capabilities)
 	for index := range snapshot.Capabilities {
 		capability := &snapshot.Capabilities[index]
-		capability.Signature.Inputs = slices.Clone(capability.Signature.Inputs)
-		capability.Signature.Outputs = slices.Clone(capability.Signature.Outputs)
+		capability.Signature = capability.Signature.Clone()
 		capability.Artifacts = slices.Clone(capability.Artifacts)
 		capability.Corpora = slices.Clone(capability.Corpora)
 		capability.Goldens = slices.Clone(capability.Goldens)

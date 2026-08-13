@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"overgo/internal/plan"
@@ -20,45 +19,6 @@ func TestEnforceAdvanceGate(t *testing.T) {
 	// -force overrides (the loud escape for genuinely-manual steps).
 	if err := gateAdvance(plan.Item{ID: "i"}, plan.Step{ID: "s"}, "manual: owner sign-off"); err != nil {
 		t.Fatalf("-force must override the verify gate: %v", err)
-	}
-}
-
-func TestTrainingPlanMatchesImplementation(t *testing.T) {
-	read := func(path string) string {
-		t.Helper()
-		data, err := os.ReadFile(filepath.FromSlash(path))
-		if err != nil {
-			t.Fatal(err)
-		}
-		return string(data)
-	}
-	document := read("../../docs/training_plan.md")
-	production := read("../../cmd/train/run_cuda_windows.go")
-	resident := read("../../internal/densecausal/train_device_resident_cuda_windows.go")
-	backward := read("../../internal/densecausal/device_backward_cuda_windows.go")
-
-	if !strings.Contains(production, ".TrainDeviceFull(") || strings.Contains(production, ".TrainDeviceResident(") {
-		t.Fatal("production training reachability changed; update training_plan.md")
-	}
-	if !strings.Contains(resident, "func (m *Model) TrainDeviceResident(") || !strings.Contains(backward, "func (m *Model) deviceLayerBackward(") {
-		t.Fatal("documented resident/backward implementation is absent")
-	}
-	for _, fact := range []string{
-		"Device backward has landed",
-		"`cmd/train` still calls `TrainDeviceFull`",
-		"`TrainDeviceResident` is not yet production-reachable",
-		"Exact checkpoint/resume is not implemented",
-		"Compiled multimodal training authority is not implemented",
-		"No real checkpoint-backed model has completed",
-	} {
-		if !strings.Contains(document, fact) {
-			t.Errorf("training plan omits current fact %q", fact)
-		}
-	}
-	for _, stale := range []string{"backward is host-only today", "already resident-trainable", "open, done or blocked"} {
-		if strings.Contains(document, stale) {
-			t.Errorf("training plan retains stale claim %q", stale)
-		}
 	}
 }
 

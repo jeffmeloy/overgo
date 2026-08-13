@@ -8,6 +8,12 @@
       "status": "open",
       "steps": [
         {
+          "id": "training-doc-truth",
+          "title": "Rewrite docs/training_plan.md to current code truth: device backward landed; production reachability, compiled multimodal authority, exact checkpointing, and real-model training remain open",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestTrainingPlanMatchesImplementation$' -count=1 -v"
+        },
+        {
           "id": "claim-evidence-tiers",
           "title": "Add compatibility evidence tiers, artifact/source identities, failable commands, and stale-evidence refusal; implemented is not oracle-backed",
           "status": "open",

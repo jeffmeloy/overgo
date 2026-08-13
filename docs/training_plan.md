@@ -11,27 +11,6 @@ The immediate product objective is not full training of every supported model. I
 is a trustworthy learning loop for a small workflow controller. Larger-model
 offload is scaling infrastructure built after that loop works.
 
-## Current implementation truth
-
-As of this revision:
-
-- Device backward has landed for dense-causal fixtures and the hybrid decoder
-  fixture, with host/device numerical tests.
-- Device Muon and resident multi-step fixture loops exist. Production
-  `cmd/train` still calls `TrainDeviceFull`; `TrainDeviceResident` is not yet production-reachable.
-- Training recipes remain orchestration records. A sealed, executable
-  `TrainingRunPlan` with ordered model and multimodal operators is not yet the
-  sole runtime authority.
-- Exact checkpoint/resume is not implemented for weights, gradients, optimizer
-  state, RNG streams, dataset cursor, schedules, and accumulation boundaries.
-- Compiled multimodal training authority is not implemented. Inference and
-  isolated backward coverage do not establish an end-to-end training contract.
-- No real checkpoint-backed model has completed an end-to-end production
-  training run, exact resume, held-out evaluation, and RepoDB promotion cycle.
-
-Consequently, the current code proves device mathematics on fixtures. It does
-not yet prove the controller milestone or large-model training claims below.
-
 ## 1. First product milestone
 
 A pretrained 350M–1B controller can be fine-tuned on-device, checkpointed and
@@ -50,6 +29,35 @@ This milestone requires all of the following:
 
 E4B, 12B, dynamic quantization and NVMe optimizer paging are not prerequisites
 for this milestone.
+
+### Current implementation boundary (2026-08-12)
+
+Implemented substrate:
+
+- dense host and CUDA forward, loss, backward and Muon matrix updates;
+- device Newton–Schulz and resident dense weights/momentum across steps;
+- host/device parity and descending-loss fixtures for dense and synthetic
+  hybrid stacks;
+- lower-level dense checkpoint/resume trajectory tests;
+- host Gemma3n AltUp, PLE, Laurel and mixed-window VJPs plus shared device
+  operator VJPs.
+
+Production gaps:
+
+- `TrainingRunPlan` and `TrainingProgram` are design contracts, not implemented
+  Go types;
+- `cmd/train` still selects `TrainDeviceFull`, not `TrainDeviceResident`;
+- production checkpoints are not atomic complete-state resumes;
+- vector/scalar updates still use the provisional sign rule;
+- no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed the compiled
+  resident training contract;
+- compiled multimodal training authority is not implemented as a sole runtime
+  owner;
+- real multimodal processor/projector/codec gradient and held-out quality gates
+  remain open.
+
+Device backward and device Newton–Schulz are implemented. Production
+reachability and real-model integration are now the long poles.
 
 ## 2. Authority and compiled contracts
 
@@ -177,12 +185,12 @@ an implicit production fallback. It must either become the explicitly defined
 better normalized Muon rule before controller promotion. Every geometry shares
 one Muon configuration, schedule, checkpoint schema and plan identity.
 
-The first device optimizer milestone therefore includes Newton–Schulz and the
-vector/scalar Muon rules. Each must match the CPU reference trajectory within a
-recorded tolerance. Device Newton–Schulz is streamed per optimizer group. Its
-memory plan includes the current matrix, output, Gram, polynomial scratch and
-conversion buffers. The planner rejects a group whose peak scratch cannot fit its
-assigned capacity class.
+Device Newton–Schulz and matrix Muon are implemented and host/device gated.
+Vector/scalar Muon rules remain open. Each geometry must match the CPU reference
+trajectory within a recorded tolerance. Newton–Schulz streams per optimizer
+group; its memory plan includes the current matrix, output, Gram, polynomial
+scratch and conversion buffers. The planner rejects a group whose peak scratch
+cannot fit its assigned capacity class.
 
 ## 5. Memory hierarchy and execution schedule
 
@@ -310,7 +318,7 @@ evaluation. Monotonic minibatch loss is not required or sufficient.
 The first controller is fine-tuned from a suitable pretrained 350M–1B base.
 Training a new language model from scratch is a later, separately budgeted program.
 
-**Open decision: choose the base and register its RepoDB
+**Open decision (blocks rung 1): choose the base and register its RepoDB
 identity.** Rung 1 cannot seal a `TrainingRunPlan` until the base model is named,
 because the plan owns the initial-model identity. Candidates are Fractale-350M,
 Carbon-500M and Qwen2.5-0.5B. Fixture-level resident training does not make any
@@ -391,14 +399,13 @@ not redefine an earlier rung's correctness contract.
    `TrainingProgram`; bind RepoDB model, dataset, split, ordered input/target
    modalities, processor/projector/codec, objective and policy IDs. Derive the
    applicable/refused multimodal matrix from those facts.
-2. **Production resident FP32 Muon plumbing.** Device backward and resident Muon
-   loops have landed for dense and hybrid fixtures. Route the production command
-   through the resident loop, delete the non-resident `TrainDeviceFull` path, and
-   extend the same compiled program to a selected checkpoint-backed controller.
-   Preserve the host oracle and per-operator gradient parity described in
-   [device_training_rung2.md](device_training_rung2.md).
-3. **Exact recovery.** Implement both checkpoint schemas and bitwise or bounded
-   uninterrupted-versus-resumed trajectory tests.
+2. **Resident Muon production path.** Dense device forward/backward, matrix
+   Muon, resident state and synthetic hybrid parity are implemented. Wire the
+   production command to resident execution, add vector/scalar Muon, then delete
+   displaced full/scatter and sign-update paths.
+3. **Exact recovery.** Lower-level dense trajectory tests exist. Implement both
+   checkpoint schemas at the production boundary: atomic publication, complete
+   Muon/RNG/data/program state and uninterrupted-versus-resumed equality.
 4. **Mixed-precision resident training.** BF16 compute with FP32 accumulation;
    establish loss scaling, clipping and convergence envelopes.
 5. **Muon scale-up.** Stream all Muon geometry groups, reuse Newton–Schulz scratch

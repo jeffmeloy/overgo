@@ -41,6 +41,7 @@ type ResidentImagePipeline struct {
 	vaeOutput     *tensor.Tensor
 	vae           *residentGraph
 	residentBytes uint64
+	modelDir      string
 	mu            sync.Mutex
 	conditioning  *ResidentConditioning
 	latent        *residentLatent
@@ -80,7 +81,7 @@ func NewResidentImagePipeline(
 		return nil, fmt.Errorf("resident image pipeline: device: %w", err)
 	}
 	pipeline = &ResidentImagePipeline{
-		Encoder: encoder, Fusion: fusion, Denoiser: denoiser, VAE: vae, runtime: runtime,
+		Encoder: encoder, Fusion: fusion, Denoiser: denoiser, VAE: vae, runtime: runtime, modelDir: modelDir,
 	}
 	defer func() {
 		if err != nil {
@@ -118,67 +119,73 @@ func NewResidentImagePipeline(
 			return nil, err
 		}
 	}
-	pipeline.timestepPlan, err = compileTimestepProgram(denoiser.T, denoiser.MatmulType)
+	pipeline.residentBytes = runtime.weightBytes
+	return pipeline, nil
+}
+
+func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err error) {
+	modelDir, denoiser, vae := p.modelDir, p.Denoiser, p.VAE
+	p.timestepPlan, err = compileTimestepProgram(denoiser.T, denoiser.MatmulType)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	pipeline.timestep, err = runtime.compile(
+	p.timestep, err = p.runtime.compile(
 		ctx, "resident image timestep", filepath.Join(modelDir, "transformer"),
-		pipeline.timestepPlan.weightInputs,
-		pipeline.timestepPlan.Embedding, pipeline.timestepPlan.Modulation,
+		p.timestepPlan.weightInputs,
+		p.timestepPlan.Embedding, p.timestepPlan.Modulation,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	pipeline.denoiser, err = runtime.compile(
+	p.denoiser, err = p.runtime.compile(
 		ctx, "resident image denoiser", filepath.Join(modelDir, "transformer"),
 		denoiser.weightInputs, denoiser.NextLatent,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if denoiser.keyBias != nil {
-		if err := runtime.bindStatic(
-			ctx, pipeline.denoiser, "resident image denoiser", denoiser.keyBias, denoiser.keyData,
+		if err := p.runtime.bindStatic(
+			ctx, p.denoiser, "resident image denoiser", denoiser.keyBias, denoiser.keyData,
 		); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	pipeline.uploadInput, pipeline.uploadOutput, err = latentUploadGraph(denoiser)
+	p.uploadInput, p.uploadOutput, err = latentUploadGraph(denoiser)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	pipeline.upload, err = runtime.compile(
-		ctx, "resident image latent upload", "", nil, pipeline.uploadOutput,
+	p.upload, err = p.runtime.compile(
+		ctx, "resident image latent upload", "", nil, p.uploadOutput,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	vaeStatic := make(map[*tensor.Tensor][]float32, len(vae.feeds))
 	for _, feed := range vae.feeds {
 		vaeStatic[feed.node] = feed.data
 	}
-	pipeline.vae, err = runtime.compileStatic(
+	p.vae, err = p.runtime.compileStatic(
 		ctx, "resident image VAE", vaeStatic, vae.Output,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	pipeline.vaeInput, pipeline.vaeOutput, vaeStatic, err = latentVAEDecodeBridge(denoiser, vae)
+	p.vaeInput, p.vaeOutput, vaeStatic, err = latentVAEDecodeBridge(denoiser, vae)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	pipeline.vaeBridge, err = runtime.compileStatic(
-		ctx, "resident image VAE bridge", vaeStatic, pipeline.vaeOutput,
+	p.vaeBridge, err = p.runtime.compileStatic(
+		ctx, "resident image VAE bridge", vaeStatic, p.vaeOutput,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for index := range vae.feeds {
 		vae.feeds[index].data = nil
 	}
-	pipeline.residentBytes = runtime.weightBytes
-	return pipeline, nil
+	p.residentBytes = p.runtime.weightBytes
+	return nil
 }
 
 func latentVAEDecodeBridge(
@@ -338,6 +345,22 @@ func (p *ResidentImagePipeline) Condition(
 		_ = fused.Release(ctx)
 		return nil, errors.New("resident image pipeline: fused text is unavailable")
 	}
+	if err := p.runtime.releaseGraphs(ctx, p.encoder); err != nil {
+		_ = fused.Release(ctx)
+		return nil, fmt.Errorf("resident image pipeline: retire encoder graph: %w", err)
+	}
+	p.encoder = nil
+	p.residentBytes = p.runtime.weightBytes
+	if err := p.prepareGeneration(ctx); err != nil {
+		_ = fused.Release(ctx)
+		return nil, fmt.Errorf("resident image pipeline: prepare generation: %w", err)
+	}
+	if err := p.runtime.releaseGraphs(ctx, p.fusion); err != nil {
+		_ = fused.Release(ctx)
+		return nil, fmt.Errorf("resident image pipeline: retire fusion graph: %w", err)
+	}
+	p.fusion = nil
+	p.residentBytes = p.runtime.weightBytes
 	conditioning := &ResidentConditioning{pipeline: p, outputs: fused, value: fusedValue}
 	p.conditioning = conditioning
 	return conditioning, nil

@@ -165,6 +165,7 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 		weightInputs: make(map[string]*tensor.Tensor),
 	}
 	b := tensor.NewBuilder()
+	setBuilderMatmulCompute(b, matmulType)
 	bind := encWeightBinder{builder: b, inputs: p.weightInputs, matmulType: matmulType}
 
 	p.Embed = b.Input("encoder_embed", dtype.F32, tensor.MustShape(h, uint64(seq)))

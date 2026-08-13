@@ -82,7 +82,9 @@ func VerifyOutput(command, out string) error {
 	if strings.Contains(out, "--- SKIP:") {
 		return fmt.Errorf("go test skipped a test")
 	}
-	if strings.Contains(command, "go test") && !strings.Contains(out, "--- PASS:") {
+	if strings.Contains(command, "go test") &&
+		!strings.Contains(out, "--- PASS:") &&
+		!(strings.Contains(out, "Benchmark") && strings.Contains(out, "ns/op") && strings.Contains(out, "\nPASS\n")) {
 		return fmt.Errorf("go test output contains no explicit passing test")
 	}
 	return nil

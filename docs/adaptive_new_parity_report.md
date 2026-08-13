@@ -152,14 +152,16 @@ These results justify promotion of the primitives. They do not justify E4B,
 | MiniCPM decode | adaptive 294.6-295.8 token/s | 321.7-363.0 token/s | Overgo faster |
 | Un-0 generation | 0.01 s test resolution | 0.01 s test resolution | Tie; resolution-limited |
 | Wan full generation | Python baselines vary by retained report: 399.1 or 463.4 s; adaptive exact Go 795.1 s warm in the current media report | fresh 331.96 s session+denoise + 38.31 s decode = 370.27 s; stage peaks 7.875 / 10.330 GB | 20.1% wall lead vs retained 463.4 s Python; fresh matched reference rerun still open |
-| Krea 256 generation | adaptive exact Go 25.430 s | 19.067 s / 32.008 GiB; MAE 0.03284, RMSE 0.06036 | 25% wall lead; exact quality open |
-| Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | Not yet run | Open |
+| Krea 256 generation | adaptive exact Go 25.430 s | 13.804 s / 25.030 GiB; MAE 0.02401, RMSE 0.05459 | 46% wall lead; lower peak; bounded quality lead |
+| Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | 35% lead vs best Python; 60% vs adaptive; 2.2% lower peak |
 | SenseNova full generation | Python 366.6 s / 47.58 GiB; adaptive 206.010 s / 19.50 GB | No complete Overgo result | Open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | No complete Overgo result | Open |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |
 
 Wan's Overgo row is fresh on the reviewed machine. Python and adaptive numbers
 remain retained, cross-revision evidence until one harness reruns all three.
+Krea's Overgo rows are fresh real-artifact runs. The 2048 gate compares the
+hash-verified adaptive PNG with robust pixel MAE; RMSE remains advisory.
 
 ## Corrective Findings
 

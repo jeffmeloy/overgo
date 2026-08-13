@@ -31,6 +31,7 @@ const (
 	kernelConcatF32
 	kernelConv1dSameF32
 	kernelConv2dF32
+	kernelConv2dIm2colF32
 	kernelCopyF32
 	kernelCopyTokenOffsetF32
 	kernelDivideF32
@@ -202,6 +203,7 @@ var kernelFunctionNames = [...]string{
 	"concat_f32",
 	"conv_1d_same_f32",
 	"conv_2d_f32",
+	"conv_2d_im2col_f32",
 	"copy_f32",
 	"copy_token_offset_f32",
 	"divide_f32",
@@ -372,6 +374,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	8,
 	10,
 	20,
+	17,
 	3,
 	5,
 	4,

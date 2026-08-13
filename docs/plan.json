@@ -11,7 +11,7 @@
           "id": "do",
           "title": "Run and optimize the real Krea 2048 pipeline: preserve bounded image quality, fit below adaptive peak, and beat adaptive plus Python wall through shared tensor machinery",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -run '^$' -bench '^BenchmarkKrea2048Leadership$' -benchtime=1x -count=1"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -run '^$' -bench '^BenchmarkKrea2048Leadership$' -benchtime=1x -count=1 -v"
         }
       ]
     },

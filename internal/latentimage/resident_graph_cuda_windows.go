@@ -54,6 +54,7 @@ type residentRuntime struct {
 	worker      *device.Worker
 	exec        *executor.Executor
 	weights     map[residentWeight]driver.DevicePtr
+	weightRefs  map[residentWeight]int
 	allocs      []driver.DevicePtr
 	weightBytes uint64
 }
@@ -68,6 +69,7 @@ type residentWeight struct {
 type residentGraph struct {
 	compiled *executor.CompiledGraph
 	feeds    map[*tensor.Tensor]driver.DevicePtr
+	weights  map[residentWeight]struct{}
 	bytes    uint64
 }
 
@@ -83,6 +85,7 @@ func newResidentRuntime(ordinal int) (*residentRuntime, error) {
 	}
 	return &residentRuntime{
 		worker: worker, exec: exec, weights: make(map[residentWeight]driver.DevicePtr),
+		weightRefs: make(map[residentWeight]int),
 	}, nil
 }
 
@@ -212,8 +215,56 @@ func (r *residentRuntime) bind(
 		r.weightBytes += bytes
 	}
 	graph.feeds[node] = pointer
-	graph.bytes += bytes
+	if graph.weights == nil {
+		graph.weights = make(map[residentWeight]struct{})
+	}
+	if _, bound := graph.weights[key]; !bound {
+		graph.weights[key] = struct{}{}
+		r.weightRefs[key]++
+		graph.bytes += bytes
+	}
 	return nil
+}
+
+func (r *residentRuntime) releaseGraphs(ctx context.Context, graphs ...*residentGraph) error {
+	if r == nil || r.worker == nil {
+		return errors.New("resident graph: runtime is unavailable")
+	}
+	return r.worker.Do(ctx, func(state *device.State) error {
+		var errs []error
+		for _, graph := range graphs {
+			if graph == nil {
+				continue
+			}
+			for key := range graph.weights {
+				refs := r.weightRefs[key] - 1
+				if refs > 0 {
+					r.weightRefs[key] = refs
+					continue
+				}
+				pointer := r.weights[key]
+				if pointer != 0 {
+					errs = append(errs, state.Driver.MemFree(pointer))
+					for index, allocated := range r.allocs {
+						if allocated == pointer {
+							r.allocs[index] = 0
+							break
+						}
+					}
+				}
+				bytes, err := key.shape.Bytes(key.type_)
+				if err == nil && bytes <= r.weightBytes {
+					r.weightBytes -= bytes
+				}
+				delete(r.weights, key)
+				delete(r.weightRefs, key)
+			}
+			graph.feeds = nil
+			graph.weights = nil
+			graph.bytes = 0
+		}
+		return errors.Join(errs...)
+	})
 }
 
 func (r *residentRuntime) execute(
@@ -292,7 +343,9 @@ func (r *residentRuntime) close(ctx context.Context) error {
 		errs = append(errs, r.worker.Do(ctx, func(state *device.State) error {
 			var freeErrors []error
 			for _, pointer := range r.allocs {
-				freeErrors = append(freeErrors, state.Driver.MemFree(pointer))
+				if pointer != 0 {
+					freeErrors = append(freeErrors, state.Driver.MemFree(pointer))
+				}
 			}
 			return errors.Join(freeErrors...)
 		}))

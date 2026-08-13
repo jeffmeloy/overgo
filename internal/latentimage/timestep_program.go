@@ -32,6 +32,7 @@ func compileTimestepProgram(spec TransformerSpec, storage dtype.Type) (*timestep
 		return nil, fmt.Errorf("timestep program: weight type %s unsupported", storage)
 	}
 	builder := tensor.NewBuilder()
+	setBuilderMatmulCompute(builder, storage)
 	program := &timestepProgram{
 		weightInputs: make(map[string]*tensor.Tensor), dim: spec.TimestepEmbed,
 	}

@@ -163,12 +163,9 @@ func launchLinearLayout(
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
 			attributes, hasAttributes := runtimeAttributes.(tensor.MulMatAttributes)
 			tensorCore := hasAttributes && attributes.Compute == tensor.MulMatComputeBF16TensorCore
-			if tensorCore {
+			if tensorCore && rightRows > 1 {
 				if leftNode.Type != dtype.BF16 || rightNode.Type != dtype.F32 {
 					return errors.New("BF16 tensor-core mul_mat has incompatible inputs")
-				}
-				if rightRows == 1 {
-					return errors.New("BF16 tensor-core mul_mat requires multiple rows")
 				}
 				if blas == nil || blas.staging == 0 {
 					return errors.New("BF16 tensor-core mul_mat workspace is unavailable")

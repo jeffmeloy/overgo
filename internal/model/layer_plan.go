@@ -314,7 +314,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	if profile.Attention == AttentionGatedDelta {
 		experts.NormalizeTopKProb = true
 	}
-	if profile.Attention == AttentionLFM2 && recurrent {
+	if profile.Attention == AttentionShortConvolution && recurrent {
 		experts.NormalizeTopKProb = true
 		experts.SelectionBias = true
 	}
@@ -430,11 +430,11 @@ func deepstackSources(s Spec, profile ArchitectureProfile, layer uint32) (Deepst
 
 func auxiliaryFlow(s Spec, profile ArchitectureProfile, layer uint32) (AuxiliaryFlow, AuxiliaryFlow) {
 	switch profile.Auxiliary {
-	case AuxiliaryRWKVValue:
+	case AuxiliaryRecurrentValue:
 		if layer == 0 {
-			return AuxiliaryNone, AuxiliaryRWKVValue
+			return AuxiliaryNone, AuxiliaryRecurrentValue
 		}
-		return AuxiliaryRWKVValue, AuxiliaryNone
+		return AuxiliaryRecurrentValue, AuxiliaryNone
 	case AuxiliarySparseTopK:
 		if s.LayerHasFullIndexer(layer) {
 			return AuxiliaryNone, AuxiliarySparseTopK
@@ -647,9 +647,9 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			return fmt.Errorf("model plan architecture %s has an invalid attention temperature contract", spec.Architecture)
 		}
 	}
-	if norm.PostNormLayout == PostNormLayoutBERT &&
+	if norm.PostNormLayout == PostNormLayoutOutputLayer &&
 		(norm.Operation != NormalizationLayer || norm.PreAttention || !norm.PostAttention || !norm.Bias) {
-		return fmt.Errorf("model plan architecture %s has an invalid BERT normalization layout", spec.Architecture)
+		return fmt.Errorf("model plan architecture %s has an invalid output-layer normalization layout", spec.Architecture)
 	}
 	draft := plan.profile.DraftPlan(spec.NextNPredictLayers)
 	if spec.NextNPredictLayers > 0 && (draft.Kind == DraftNone || !draft.HasHead(0)) {
@@ -839,7 +839,7 @@ func (p ModelPlan) Draft() DraftPlan { return p.draft }
 func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgram {
 	recurrent := plan.Recurrent
 	composition := plan.Composition
-	if profile.Attention == AttentionLFM2 && recurrent {
+	if profile.Attention == AttentionShortConvolution && recurrent {
 		return residualMixerProgram(
 			recurrentLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
 		)

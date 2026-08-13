@@ -582,7 +582,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		}
 		result.PositionEmbedding = &positionEmbedding
 	}
-	if normPlan.PostNormLayout == PostNormLayoutBERT {
+	if normPlan.PostNormLayout == PostNormLayoutOutputLayer {
 		if typeEmbedding, ok := tensors["token_types.weight"]; ok {
 			if typeEmbedding.Dimensions != 2 ||
 				typeEmbedding.Shape[0] != uint64(spec.EmbeddingLength) ||

@@ -141,7 +141,7 @@ func loadDenseFFNCatalog(
 			return err
 		}
 	}
-	if profile.Overrides == EmbeddingOverrideCogVLM {
+	if profile.Overrides == EmbeddingOverrideVisualSpan {
 		return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("vis_attn_qkv.weight", &layer.VisualAttentionQKV, uint64(spec.EmbeddingLength), 3*uint64(spec.EmbeddingLength)),
 			requiredTensorPointer("vis_attn_output.weight", &layer.VisualAttentionOutput, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)),

@@ -141,7 +141,7 @@ func (r *Runner) applyCogVLMVisualWeights(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) error {
-	if r.profile().Overrides != model.EmbeddingOverrideCogVLM {
+	if r.profile().Overrides != model.EmbeddingOverrideVisualSpan {
 		return errors.New("inference: visual expert weights require CogVLM architecture")
 	}
 	if weights == nil {

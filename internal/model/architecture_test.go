@@ -292,7 +292,7 @@ func TestArchitectureProfileOutputNormPolicy(t *testing.T) {
 			t.Fatalf("%s output norm = %v/%q, want %v/%q",
 				architecture, profile.OutputNorm, profile.OutputNormTensor(), want.policy, want.tensor)
 		}
-		if want.policy == OutputNormAbsent && !profile.Has(ArchitectureBERTNormLayout) {
+		if want.policy == OutputNormAbsent && !profile.Has(ArchitectureOutputLayerNormLayout) {
 			t.Fatalf("%s has no BERT normalization layout", architecture)
 		}
 	}
@@ -322,9 +322,9 @@ func TestArchitectureProfileProjectedInputPolicies(t *testing.T) {
 		blocks       AttentionBlockPolicy
 	}{
 		{"llama", EmbeddingOverrideStandard, DeepstackNone, AttentionBlocksNone},
-		{"cogvlm", EmbeddingOverrideCogVLM, DeepstackNone, AttentionBlocksNone},
+		{"cogvlm", EmbeddingOverrideVisualSpan, DeepstackNone, AttentionBlocksNone},
 		{"gemma4", EmbeddingOverrideRawScaled, DeepstackNone, AttentionBlocksUncached},
-		{"granite", EmbeddingOverrideDeepstackBase, DeepstackMappedBefore, AttentionBlocksNone},
+		{"granite", EmbeddingOverrideMappedBase, DeepstackMappedBefore, AttentionBlocksNone},
 		{"qwen3vl", EmbeddingOverrideStandard, DeepstackSequentialAfter, AttentionBlocksNone},
 	}
 	for _, test := range tests {
@@ -338,7 +338,7 @@ func TestArchitectureProfileProjectedInputPolicies(t *testing.T) {
 
 func TestArchitectureProfileLayerSideInputPolicies(t *testing.T) {
 	for architecture, want := range map[string]AuxiliaryFlow{
-		"llama": AuxiliaryNone, "rwkv7": AuxiliaryRWKVValue, "arwkv7": AuxiliaryRWKVValue,
+		"llama": AuxiliaryNone, "rwkv7": AuxiliaryRecurrentValue, "arwkv7": AuxiliaryRecurrentValue,
 		"glm-dsa": AuxiliarySparseTopK, "deepseek32": AuxiliaryNone,
 	} {
 		profile, _ := LookupArchitecture(architecture)

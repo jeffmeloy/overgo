@@ -39,7 +39,7 @@ func (s Spec) compileRecurrentMixer(recurrent bool) recurrentMixerPolicy {
 		policy = recurrentMixerSparseGroupedSelectiveScan
 	case profile.Attention == AttentionGatedDelta:
 		policy = recurrentMixerGatedDelta
-	case profile.Attention == AttentionLFM2 && recurrent:
+	case profile.Attention == AttentionShortConvolution && recurrent:
 		policy = recurrentMixerShortConvolution
 	case profile.LayerTopology == LayerTopologyAffineWKV6:
 		policy = recurrentMixerDynamicWKV6

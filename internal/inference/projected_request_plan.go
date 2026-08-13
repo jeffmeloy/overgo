@@ -50,7 +50,7 @@ func (r *Runner) compileProjectedRequestPlan(
 	if err != nil {
 		return projectedRequestPlan{}, err
 	}
-	visualMode := profile.Overrides == model.EmbeddingOverrideCogVLM && len(inputs.EmbeddingOverrides) > 0
+	visualMode := profile.Overrides == model.EmbeddingOverrideVisualSpan && len(inputs.EmbeddingOverrides) > 0
 	if visualMode {
 		if err := validateCogVLMVisualOverrides(tokens, inputs.EmbeddingOverrides); err != nil {
 			return projectedRequestPlan{}, err
@@ -58,7 +58,7 @@ func (r *Runner) compileProjectedRequestPlan(
 	}
 	var visualBlocks []AttentionBlock
 	if len(inputs.VisualExpertBlocks) > 0 {
-		if profile.Overrides != model.EmbeddingOverrideCogVLM {
+		if profile.Overrides != model.EmbeddingOverrideVisualSpan {
 			return projectedRequestPlan{}, errors.New("inference: visual expert blocks require CogVLM architecture")
 		}
 		if inputs.MultiAxisPositions != nil || len(inputs.DeepstackEmbeddings) > 0 ||
@@ -75,6 +75,6 @@ func (r *Runner) compileProjectedRequestPlan(
 		multiPositions: inputs.MultiAxisPositions, deepstackInputs: inputs.DeepstackEmbeddings,
 		attentionBlockIDs: attentionBlockIDs, visualBlocks: visualBlocks,
 		visualMode:    visualMode,
-		deepstackBase: profile.Overrides == model.EmbeddingOverrideDeepstackBase && len(r.spec.DeepstackMapping) > 0,
+		deepstackBase: profile.Overrides == model.EmbeddingOverrideMappedBase && len(r.spec.DeepstackMapping) > 0,
 	}, nil
 }

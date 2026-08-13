@@ -112,7 +112,7 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 		{
 			name:      "lfm2",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "lfm2", BlockCount: 1}},
-			recurrent: true, attention: AttentionLFM2, mode: CacheStateFixed,
+			recurrent: true, attention: AttentionShortConvolution, mode: CacheStateFixed,
 		},
 	}
 	for _, test := range tests {
@@ -216,14 +216,14 @@ func TestCompileModelPlanWithProfilePinsResolvedPolicy(t *testing.T) {
 	if !ok {
 		t.Fatal("llama profile is absent")
 	}
-	profile.Attention = AttentionLFM2
+	profile.Attention = AttentionShortConvolution
 	plan, err := CompileModelPlanWithProfile(
 		Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}, Weights{}, profile,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Profile().Attention != AttentionLFM2 || plan.layers[0].Attention != AttentionLFM2 {
+	if plan.Profile().Attention != AttentionShortConvolution || plan.layers[0].Attention != AttentionShortConvolution {
 		t.Fatalf("resolved profile was not pinned: %+v", plan)
 	}
 
@@ -480,8 +480,8 @@ func TestPlanLayerCompilesProjectedStreams(t *testing.T) {
 func TestPlanLayerCompilesAuxiliaryFlow(t *testing.T) {
 	rwkv := Spec{CommonSpec: CommonSpec{Architecture: "rwkv7", BlockCount: 2}}
 	first, second := rwkv.PlanLayer(0, false), rwkv.PlanLayer(1, false)
-	if first.AuxiliaryInput != AuxiliaryNone || first.AuxiliaryOutput != AuxiliaryRWKVValue ||
-		second.AuxiliaryInput != AuxiliaryRWKVValue || second.AuxiliaryOutput != AuxiliaryNone {
+	if first.AuxiliaryInput != AuxiliaryNone || first.AuxiliaryOutput != AuxiliaryRecurrentValue ||
+		second.AuxiliaryInput != AuxiliaryRecurrentValue || second.AuxiliaryOutput != AuxiliaryNone {
 		t.Fatalf("RWKV auxiliary plans = %+v / %+v", first, second)
 	}
 	dsa := Spec{
@@ -539,7 +539,7 @@ func TestNormPlanCompilesOperationPlacementBiasAndLayout(t *testing.T) {
 		postLayout   PostNormLayoutPolicy
 		ffnLayout    FeedForwardNormLayoutPolicy
 	}{
-		{"bert", 1e-5, NormalizationLayer, false, true, true, PostNormLayoutBERT, FeedForwardNormLayoutStandard},
+		{"bert", 1e-5, NormalizationLayer, false, true, true, PostNormLayoutOutputLayer, FeedForwardNormLayoutStandard},
 		{"olmo2", 0, NormalizationRMS, false, true, false, PostNormLayoutStandard, FeedForwardNormLayoutStandard},
 		{"grok", 0, NormalizationRMS, true, true, false, PostNormLayoutGrok, FeedForwardNormLayoutStandard},
 		{"dbrx", 1e-5, NormalizationLayer, true, false, false, PostNormLayoutStandard, FeedForwardNormLayoutAttentionOutput},

@@ -140,7 +140,7 @@ const (
 	AttentionLatent
 	AttentionSparseLatent
 	AttentionGatedDelta
-	AttentionLFM2
+	AttentionShortConvolution
 )
 
 // EmbeddingOverridePolicy: projected-embedding application order.
@@ -148,9 +148,9 @@ type EmbeddingOverridePolicy uint8
 
 const (
 	EmbeddingOverrideStandard EmbeddingOverridePolicy = iota
-	EmbeddingOverrideCogVLM
+	EmbeddingOverrideVisualSpan
 	EmbeddingOverrideRawScaled
-	EmbeddingOverrideDeepstackBase
+	EmbeddingOverrideMappedBase
 )
 
 // DeepstackPolicy: projected-stream layer placement.
@@ -175,7 +175,7 @@ type AuxiliaryFlow uint8
 
 const (
 	AuxiliaryNone AuxiliaryFlow = iota
-	AuxiliaryRWKVValue
+	AuxiliaryRecurrentValue
 	AuxiliarySparseTopK
 )
 
@@ -193,7 +193,7 @@ type PostNormLayoutPolicy uint8
 
 const (
 	PostNormLayoutStandard PostNormLayoutPolicy = iota
-	PostNormLayoutBERT
+	PostNormLayoutOutputLayer
 	PostNormLayoutGrok
 )
 
@@ -223,7 +223,7 @@ type NormalizationPlan struct {
 // PostNormTensors: post-norm tensor namespace.
 func (p NormalizationPlan) PostNormTensors() PostNormTensorNames {
 	switch p.PostNormLayout {
-	case PostNormLayoutBERT:
+	case PostNormLayoutOutputLayer:
 		return PostNormTensorNames{
 			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
 			AttentionBias: "attn_output_norm.bias", FeedForwardBias: "layer_output_norm.bias",
@@ -290,7 +290,7 @@ const (
 	ArchitectureGELU
 	ArchitectureSquaredReLU
 	ArchitectureGatedDelta
-	ArchitectureLFM2
+	ArchitectureShortConvolution
 	ArchitectureMultiAxisPositions
 	ArchitectureRequiresOutput
 	ArchitectureClassifierHead
@@ -303,7 +303,7 @@ const (
 	ArchitectureAltUp
 	ArchitecturePerLayerEmbeddings
 	ArchitectureEmbeddingSkip
-	ArchitectureBERTNormLayout
+	ArchitectureOutputLayerNormLayout
 	ArchitectureLatentKVLayout
 	ArchitectureDiscreteImageTokens
 )

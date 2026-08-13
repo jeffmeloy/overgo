@@ -236,7 +236,7 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	program := compileLayerProgram(
 		LayerPlan{Recurrent: true},
-		ArchitectureProfile{Attention: AttentionLFM2},
+		ArchitectureProfile{Attention: AttentionShortConvolution},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -246,7 +246,7 @@ func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
 	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
-		withProfile(ArchitectureProfile{Attention: AttentionLFM2}).compileRecurrentMixer(true)
+		withProfile(ArchitectureProfile{Attention: AttentionShortConvolution}).compileRecurrentMixer(true)
 	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerShortConvolution ||
 		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
 		t.Fatalf("LFM2 recurrent policies = %+v/%d/%d", mixer, state, feedForward.Operator)

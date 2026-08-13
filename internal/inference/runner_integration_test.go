@@ -1152,15 +1152,15 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 		t.Fatalf("invalid DFlash block size: %d", draftRunner.spec.DFlashBlockSize)
 	}
 	ctx := context.Background()
-	session, err := draftRunner.NewDFlashSession(ctx, target, []tokenizer.TokenID{0})
+	session, err := draftRunner.NewPairedFeatureSession(ctx, target, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, err := draftRunner.DraftDFlashGreedy(ctx, target, 0, session, maximum, 0)
+	draft, err := draftRunner.DraftPairedFeatureGreedy(ctx, target, 0, session, maximum, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := draftRunner.VerifyDFlashGreedy(ctx, target, draft)
+	verification, err := draftRunner.VerifyPairedFeatureGreedy(ctx, target, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1182,7 +1182,7 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := draftRunner.DraftDFlashSampled(
+	sampledDraft, err := draftRunner.DraftPairedFeatureSampled(
 		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, maximum, 0,
 	)
 	if err != nil {
@@ -1195,7 +1195,7 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	if !slices.Equal(before, after) {
 		t.Fatal("DFlash sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := draftRunner.VerifyDFlashSampled(
+	sampledVerification, err := draftRunner.VerifyPairedFeatureSampled(
 		ctx, target, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {

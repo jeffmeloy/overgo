@@ -13,7 +13,7 @@ func TestForwardUsesCompiledPolicy(t *testing.T) {
 		architecture string
 		message      string
 	}{
-		{"dflash", "requires feature fusion"},
+		{"dflash", "requires a paired-feature session"},
 		{"eagle3", "requires NewEagle3Session"},
 		{"gemma4-assistant", "requires a paired projection session"},
 		{"t5", "requires NewT5Session"},

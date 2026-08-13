@@ -12,22 +12,22 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// DFlashSession: synchronized target and injected-feature caches.
-type DFlashSession struct {
+// PairedFeatureSession: synchronized target and injected-feature caches.
+type PairedFeatureSession struct {
 	Cache        *KVCache
 	TargetCache  *KVCache
 	TargetTokens []tokenizer.TokenID
 	Position     uint32
 }
 
-// NewDFlashSession: full-prefix target and feature-cache construction.
-func (r *Runner) NewDFlashSession(
+// NewPairedFeatureSession: full-prefix target and feature-cache construction.
+func (r *Runner) NewPairedFeatureSession(
 	ctx context.Context,
 	target *Runner,
 	tokenIDs []tokenizer.TokenID,
-) (*DFlashSession, error) {
+) (*PairedFeatureSession, error) {
 	if r == nil || target == nil || len(tokenIDs) == 0 {
-		return nil, errors.New("inference: DFlash session inputs are invalid")
+		return nil, errors.New("inference: paired-feature session inputs are invalid")
 	}
 	_, targetCache, features, err := target.ForwardCachedExtractLayerInputs(
 		ctx, tokenIDs, nil, r.spec.TargetLayers,
@@ -35,121 +35,43 @@ func (r *Runner) NewDFlashSession(
 	if err != nil {
 		return nil, err
 	}
-	fused, err := r.FuseDFlashFeatures(ctx, features)
+	fused, err := r.FusePairedFeatures(ctx, features)
 	if err != nil {
 		return nil, err
 	}
 	positions := tokenPositions(0, len(tokenIDs))
-	cache, err := r.InjectDFlashFeatures(ctx, fused, positions, nil)
+	cache, err := r.InjectPairedFeatures(ctx, fused, positions, nil)
 	if err != nil {
 		return nil, err
 	}
 	position := uint32(len(tokenIDs))
 	if cache.Position != position || effectiveCachePosition(targetCache) != position {
-		return nil, errors.New("inference: DFlash session cache position is inconsistent")
+		return nil, errors.New("inference: paired-feature session cache position is inconsistent")
 	}
-	return &DFlashSession{
+	return &PairedFeatureSession{
 		Cache: cache, TargetCache: targetCache,
 		TargetTokens: slices.Clone(tokenIDs), Position: position,
 	}, nil
 }
 
-// ExtractLayerInputs: full-sequence pre-layer hidden rows.
-func (r *Runner) ExtractLayerInputs(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-	layerIDs []int32,
-) (reference.Value, error) {
-	if r == nil {
-		return reference.Value{}, errors.New("inference: runner is nil")
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, errors.New("inference: runner is closed")
-	}
-	if len(tokenIDs) == 0 || len(layerIDs) == 0 || len(tokenIDs) > int(r.spec.ContextLength) {
-		return reference.Value{}, errors.New("inference: layer extraction input is invalid")
-	}
-	requested := make(map[int32]struct{}, len(layerIDs))
-	for _, layer := range layerIDs {
-		if layer < 0 || int(layer) >= len(r.weights.Layers) {
-			return reference.Value{}, fmt.Errorf("inference: extraction layer %d is out of range", layer)
-		}
-		requested[layer] = struct{}{}
-	}
-	rows, err := r.tokenRows(tokenIDs)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	positions := tokenPositions(0, len(tokenIDs))
-	activation, err := r.loadEmbeddings(ctx, rows)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	activation, err = r.addTokenTypeEmbedding(ctx, activation)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	activation, err = r.addPositionEmbeddings(ctx, activation, positions)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
-		for index := range activation.Data {
-			activation.Data[index] *= scale
-		}
-	}
-	activation, err = r.applyTokenEmbeddingNorm(ctx, activation)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	extracted := make(map[int32]reference.Value, len(layerIDs))
-	for layerIndex, info := range r.weights.Layers {
-		if _, ok := requested[int32(layerIndex)]; ok {
-			extracted[int32(layerIndex)] = activation
-		}
-		activation, _, err = r.runLayerCached(
-			ctx, activation, info, layerIndex, positions, nil, nil, reference.Value{}, nil, nil, false, nil,
-		)
-		if err != nil {
-			return reference.Value{}, fmt.Errorf("inference extraction layer %d: %w", layerIndex, err)
-		}
-	}
-	width, tokens := int(r.spec.EmbeddingLength), len(tokenIDs)
-	result := reference.Value{
-		Shape: tensor.MustShape(uint64(width*len(layerIDs)), uint64(tokens)),
-		Data:  make([]float32, width*len(layerIDs)*tokens),
-	}
-	for token := 0; token < tokens; token++ {
-		for order, layer := range layerIDs {
-			value := extracted[layer]
-			source := value.Data[token*width : (token+1)*width]
-			destination := (token*len(layerIDs) + order) * width
-			copy(result.Data[destination:destination+width], source)
-		}
-	}
-	return result, nil
-}
-
-// SyncDFlashPrefix: recomputes target inputs; injects unsynced suffix.
-func (r *Runner) SyncDFlashPrefix(
+// SyncPairedFeaturePrefix: recomputes target inputs; injects unsynced suffix.
+func (r *Runner) SyncPairedFeaturePrefix(
 	ctx context.Context,
 	target *Runner,
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
 ) (*KVCache, error) {
 	if r == nil || target == nil || r == target || r.path == target.path {
-		return nil, errors.New("inference: DFlash and target runners are invalid")
+		return nil, errors.New("inference: paired-feature runners are invalid")
 	}
 	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures || target.spec.EmbeddingLength != r.spec.EmbeddingLength {
-		return nil, errors.New("inference: DFlash target model is incompatible")
+		return nil, errors.New("inference: paired-feature target is incompatible")
 	}
 	start := 0
 	if cache != nil {
 		start = int(cache.Tokens)
 		if start > len(tokenIDs) {
-			return nil, errors.New("inference: DFlash cache exceeds target prefix")
+			return nil, errors.New("inference: paired-feature cache exceeds target prefix")
 		}
 		if start == len(tokenIDs) {
 			return cache, nil
@@ -164,7 +86,7 @@ func (r *Runner) SyncDFlashPrefix(
 		Shape: tensor.MustShape(features.Shape.Dims[0], uint64(len(tokenIDs)-start)),
 		Data:  slices.Clone(features.Data[start*featureWidth:]),
 	}
-	fused, err := r.FuseDFlashFeatures(ctx, features)
+	fused, err := r.FusePairedFeatures(ctx, features)
 	if err != nil {
 		return nil, err
 	}
@@ -172,11 +94,11 @@ func (r *Runner) SyncDFlashPrefix(
 	for index := range positions {
 		positions[index] = uint32(start + index)
 	}
-	return r.InjectDFlashFeatures(ctx, fused, positions, cache)
+	return r.InjectPairedFeatures(ctx, fused, positions, cache)
 }
 
-// FuseDFlashFeatures: projects concatenated target-layer inputs.
-func (r *Runner) FuseDFlashFeatures(ctx context.Context, features reference.Value) (reference.Value, error) {
+// FusePairedFeatures: projects concatenated target-layer inputs.
+func (r *Runner) FusePairedFeatures(ctx context.Context, features reference.Value) (reference.Value, error) {
 	if r == nil {
 		return reference.Value{}, errors.New("inference: runner is nil")
 	}
@@ -186,10 +108,10 @@ func (r *Runner) FuseDFlashFeatures(ctx context.Context, features reference.Valu
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
 	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures || r.weights.FeatureProjection == nil || r.weights.EncoderOutputNorm == nil {
-		return reference.Value{}, errors.New("inference: DFlash feature encoder is unavailable")
+		return reference.Value{}, errors.New("inference: paired-feature encoder is unavailable")
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
-	input := runtime.input("dflash.features", features)
+	input := runtime.input("paired_features.input", features)
 	projection, err := runtime.weight(*r.weights.FeatureProjection)
 	if err != nil {
 		return reference.Value{}, err
@@ -212,8 +134,8 @@ func (r *Runner) FuseDFlashFeatures(ctx context.Context, features reference.Valu
 	return results[result.Primary], nil
 }
 
-// InjectDFlashFeatures: appends fused committed-token K/V.
-func (r *Runner) InjectDFlashFeatures(
+// InjectPairedFeatures: appends fused committed-token K/V.
+func (r *Runner) InjectPairedFeatures(
 	ctx context.Context,
 	fused reference.Value,
 	positions []uint32,
@@ -228,21 +150,21 @@ func (r *Runner) InjectDFlashFeatures(
 		return nil, errors.New("inference: runner is closed")
 	}
 	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures {
-		return nil, errors.New("inference: cache injection requires DFlash architecture")
+		return nil, errors.New("inference: cache injection requires a paired-feature program")
 	}
 	if fused.Shape.Rank != 2 || fused.Shape.Dims[1] != uint64(len(positions)) {
-		return nil, errors.New("inference: DFlash fused feature shape is incompatible")
+		return nil, errors.New("inference: paired-feature shape is incompatible")
 	}
 	for index, position := range positions {
 		if index > 0 && position != positions[index-1]+1 {
-			return nil, errors.New("inference: DFlash injection positions are not contiguous")
+			return nil, errors.New("inference: paired-feature positions are not contiguous")
 		}
 		if index == 0 && cache != nil && position != cache.Position {
-			return nil, errors.New("inference: DFlash injection position does not append cache")
+			return nil, errors.New("inference: paired-feature position does not append cache")
 		}
 	}
 	if cache != nil && len(cache.Layers) != len(r.weights.Layers) {
-		return nil, errors.New("inference: DFlash cache layer count is incompatible")
+		return nil, errors.New("inference: paired-feature cache layer count is incompatible")
 	}
 	next := &KVCache{Layers: make([]LayerCache, len(r.weights.Layers))}
 	if cache != nil {
@@ -253,9 +175,9 @@ func (r *Runner) InjectDFlashFeatures(
 		if cache != nil {
 			past = &cache.Layers[layerIndex]
 		}
-		layer, err := r.injectDFlashLayer(ctx, fused, positions, info, layerIndex, past)
+		layer, err := r.injectPairedFeatureLayer(ctx, fused, positions, info, layerIndex, past)
 		if err != nil {
-			return nil, fmt.Errorf("inference DFlash injection layer %d: %w", layerIndex, err)
+			return nil, fmt.Errorf("inference paired-feature injection layer %d: %w", layerIndex, err)
 		}
 		next.Layers[layerIndex] = layer
 	}
@@ -266,7 +188,7 @@ func (r *Runner) InjectDFlashFeatures(
 	return next, nil
 }
 
-func (r *Runner) injectDFlashLayer(
+func (r *Runner) injectPairedFeatureLayer(
 	ctx context.Context,
 	fused reference.Value,
 	positions []uint32,
@@ -275,15 +197,15 @@ func (r *Runner) injectDFlashLayer(
 	past *LayerCache,
 ) (LayerCache, error) {
 	runtime := r.newInferenceGraphRuntime(ctx)
-	input := runtime.input("dflash.fused", fused)
+	input := runtime.input("paired_features.fused", fused)
 	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return LayerCache{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if past != nil && past.Key.Shape.Rank != 0 {
-		pastKey = runtime.input("dflash.past_key", past.Key)
-		pastValue = runtime.input("dflash.past_value", past.Value)
+		pastKey = runtime.input("paired_features.past_key", past.Key)
+		pastValue = runtime.input("paired_features.past_value", past.Value)
 	}
 	key, value, err := r.program.Model.CacheProjection().Build(
 		runtime.builder, input, graphWeights, positions, pastKey, pastValue,
@@ -298,8 +220,8 @@ func (r *Runner) injectDFlashLayer(
 	return LayerCache{Key: results[key], Value: results[value]}, nil
 }
 
-// DecodeDFlashNoiseBlock: paired-target masked-block logits.
-func (r *Runner) DecodeDFlashNoiseBlock(
+// DecodePairedFeatureBlock: paired-target masked-block logits.
+func (r *Runner) DecodePairedFeatureBlock(
 	ctx context.Context,
 	target *Runner,
 	tokenIDs []tokenizer.TokenID,
@@ -307,7 +229,7 @@ func (r *Runner) DecodeDFlashNoiseBlock(
 	cache *KVCache,
 ) (reference.Value, error) {
 	if r == nil || target == nil || r == target || r.path == target.path {
-		return reference.Value{}, errors.New("inference: DFlash and target runners are invalid")
+		return reference.Value{}, errors.New("inference: paired-feature runners are invalid")
 	}
 	first, second := r, target
 	if first.path > second.path {
@@ -322,10 +244,10 @@ func (r *Runner) DecodeDFlashNoiseBlock(
 	}
 	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures || target.spec.EmbeddingLength != r.spec.EmbeddingLength ||
 		target.spec.VocabularySize != r.spec.VocabularySize {
-		return reference.Value{}, errors.New("inference: DFlash target model is incompatible")
+		return reference.Value{}, errors.New("inference: paired-feature target is incompatible")
 	}
 	if len(tokenIDs) == 0 || len(tokenIDs) != len(positions) || cache == nil || len(cache.Layers) != len(r.weights.Layers) {
-		return reference.Value{}, errors.New("inference: DFlash noise block input is incompatible")
+		return reference.Value{}, errors.New("inference: paired-feature block input is incompatible")
 	}
 	rows, err := target.tokenRows(tokenIDs)
 	if err != nil {
@@ -340,7 +262,7 @@ func (r *Runner) DecodeDFlashNoiseBlock(
 			ctx, activation, info, layerIndex, positions, nil, &cache.Layers[layerIndex], reference.Value{}, nil, nil, false, nil,
 		)
 		if err != nil {
-			return reference.Value{}, fmt.Errorf("inference DFlash noise layer %d: %w", layerIndex, err)
+			return reference.Value{}, fmt.Errorf("inference paired-feature layer %d: %w", layerIndex, err)
 		}
 	}
 	if !r.hasPreloadedWeights() {
@@ -352,8 +274,8 @@ func (r *Runner) DecodeDFlashNoiseBlock(
 	return target.projectAllLogits(ctx, activation)
 }
 
-// DraftDFlashBlock: last-token plus MASK-block logits.
-func (r *Runner) DraftDFlashBlock(
+// DraftPairedFeatureBlock: last-token plus MASK-block logits.
+func (r *Runner) DraftPairedFeatureBlock(
 	ctx context.Context,
 	target *Runner,
 	last tokenizer.TokenID,
@@ -361,10 +283,10 @@ func (r *Runner) DraftDFlashBlock(
 	cache *KVCache,
 ) (reference.Value, error) {
 	if r == nil || cache == nil || draftCount < 1 || draftCount >= int(r.spec.DFlashBlockSize) {
-		return reference.Value{}, errors.New("inference: DFlash draft size is invalid")
+		return reference.Value{}, errors.New("inference: paired-feature draft size is invalid")
 	}
 	if r.vocab.Mask == tokenizer.NullToken {
-		return reference.Value{}, errors.New("inference: DFlash vocabulary has no mask token")
+		return reference.Value{}, errors.New("inference: paired-feature vocabulary has no mask token")
 	}
 	ids := make([]tokenizer.TokenID, draftCount+1)
 	positions := tokenPositions(cache.Position, draftCount+1)
@@ -374,5 +296,5 @@ func (r *Runner) DraftDFlashBlock(
 			ids[index] = r.vocab.Mask
 		}
 	}
-	return r.DecodeDFlashNoiseBlock(ctx, target, ids, positions, cache)
+	return r.DecodePairedFeatureBlock(ctx, target, ids, positions, cache)
 }

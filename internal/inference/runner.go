@@ -340,7 +340,7 @@ var forwardExecutors = [...]forwardExecutor{
 }
 
 var forwardSessionErrors = [...]error{
-	model.ForwardSessionPairedFeatures:   errors.New("inference: DFlash requires feature fusion, cache injection, and paired target decode"),
+	model.ForwardSessionPairedFeatures:   errors.New("inference: model requires a paired-feature session"),
 	model.ForwardSessionFeatureDraft:     errors.New("inference: Eagle3 requires NewEagle3Session and AdvanceEagle3"),
 	model.ForwardSessionPairedProjection: errors.New("inference: model requires a paired projection session"),
 	model.ForwardSessionEncoderDecoder:   errors.New("inference: T5 requires NewT5Session and DecodeT5"),

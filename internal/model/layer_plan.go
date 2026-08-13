@@ -139,7 +139,7 @@ const (
 	CacheQwenGDN
 	CacheLFM2
 	CacheFalconH1
-	CacheT5
+	CacheCrossAttention
 	CacheDeepSeek4
 )
 
@@ -755,8 +755,8 @@ func (p ModelPlan) LayerProgram(layer int) (CompiledLayerProgram, error) {
 func (p ModelPlan) sequenceProgram(layer int, role layerProgramRole) (CompiledLayerProgram, error) {
 	encoder := p.profile.EncoderGraph.Kind
 	limit := p.spec.BlockCount
-	if role == programEncoder && encoder != encoderGraphT5 && encoder != encoderGraphT5Encoder {
-		return CompiledLayerProgram{}, fmt.Errorf("model plan has no T5 encoder program for %q", p.spec.Architecture)
+	if role == programEncoder && encoder != encoderGraphRelativeEncoderDecoder && encoder != encoderGraphRelativeEncoder {
+		return CompiledLayerProgram{}, fmt.Errorf("model plan has no relative-attention encoder program for %q", p.spec.Architecture)
 	}
 	if role == programDecoder {
 		if p.profile.Family != ArchitectureFamilyEncoderDecoder || p.profile.Forward.Session != ForwardSessionEncoderDecoder {

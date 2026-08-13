@@ -11,8 +11,8 @@ const (
 	encoderGraphNomicMoE
 	encoderGraphModernBERT
 	encoderGraphGemmaEmbedding
-	encoderGraphT5
-	encoderGraphT5Encoder
+	encoderGraphRelativeEncoderDecoder
+	encoderGraphRelativeEncoder
 )
 
 // EncoderGraphPolicy: encoder leaf semantics.

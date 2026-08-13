@@ -10,8 +10,8 @@ merges `master`.
 | 1 | Single-head MTP | Qwen/Cohere runtime APIs and codecs absent | Done |
 | 2 | Multi-head MTP | Step/HY-V3 wrappers absent; one compiled coordinator | Done |
 | 3 | Draft projections | family draft input/output builders absent | Done |
-| 4 | Session forwards | DFlash/Eagle/Gemma assistant wrappers absent | Active |
-| 5 | Encoder/decoder | T5 family block builders absent | Open |
+| 4 | Session forwards | DFlash/Eagle/Gemma assistant wrappers absent | Done |
+| 5 | Encoder/decoder | T5 family block builders absent | Active |
 | 6 | Layer execution | family leaf policies/builders absent | Open |
 | 7 | Weight catalogs | family loaders replaced by indexed catalog plans | Open |
 | 8 | Runtime admission | architecture probes/fallbacks absent | Open |

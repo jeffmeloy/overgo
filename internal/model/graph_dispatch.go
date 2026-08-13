@@ -42,10 +42,10 @@ func (p CompiledLayerProgram) Build(
 ) (DenseBlockResult, error) {
 	switch p.role {
 	case programEncoder:
-		output, err := buildT5EncoderBlock(context.Builder, context.Input, p.spec, weights)
+		output, err := buildEncoderBlock(context.Builder, context.Input, p.spec, weights)
 		return DenseBlockResult{Output: output}, err
 	case programDecoder:
-		return buildT5DecoderBlockCached(
+		return buildDecoderBlockCached(
 			context.Builder, context.Input, context.Encoder, p.spec, weights,
 			context.PastKey, context.PastValue, context.CrossKey, context.CrossValue,
 		)

@@ -40,10 +40,10 @@ func (r *Runner) Generate(
 		return nil, "", errors.New("inference: runner is nil")
 	}
 	if r.forwardProgram().Operation == model.ForwardOperationEncoder {
-		return nil, "", errors.New("inference: T5 encoder models do not generate tokens")
+		return nil, "", errors.New("inference: encoder-only models do not generate tokens")
 	}
 	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
-		generated, _, _, err := r.GenerateT5(ctx, prompt, options)
+		generated, _, _, err := r.GenerateEncoderDecoder(ctx, prompt, options)
 		if err != nil {
 			return nil, "", err
 		}

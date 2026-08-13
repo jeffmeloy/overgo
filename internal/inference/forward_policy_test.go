@@ -16,7 +16,7 @@ func TestForwardUsesCompiledPolicy(t *testing.T) {
 		{"dflash", "requires a paired-feature session"},
 		{"eagle3", "requires a feature-draft session"},
 		{"gemma4-assistant", "requires a paired projection session"},
-		{"t5", "requires NewT5Session"},
+		{"t5", "requires an encoder-decoder session"},
 	} {
 		t.Run(test.architecture, func(t *testing.T) {
 			spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: test.architecture, BlockCount: 1}}

@@ -93,7 +93,7 @@ func (r *Runner) selectProjectedPromptCache(
 	return nil, 0
 }
 
-func (r *Runner) selectT5SourceCache(
+func (r *Runner) selectEncoderSourceCache(
 	requested []tokenizer.TokenID,
 	minimum int,
 ) (*cachedPrompt, int) {

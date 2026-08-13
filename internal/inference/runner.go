@@ -116,8 +116,8 @@ type KVCache struct {
 	Position uint32
 }
 
-// T5Session: encoder state plus decoder cache.
-type T5Session struct {
+// EncoderDecoderSession: encoder state plus decoder cache.
+type EncoderDecoderSession struct {
 	Encoder reference.Value
 	Cache   *KVCache
 }
@@ -334,7 +334,7 @@ var forwardExecutors = [...]forwardExecutor{
 		return r.forwardWavTokenizerLocked(ctx, ids)
 	},
 	model.ForwardOperationEncoder: func(r *Runner, ctx context.Context, ids []tokenizer.TokenID) (reference.Value, error) {
-		return r.forwardT5EncoderLocked(ctx, ids)
+		return r.forwardEncoderLocked(ctx, ids)
 	},
 	model.ForwardOperationSession: forwardSessionError,
 }
@@ -343,7 +343,7 @@ var forwardSessionErrors = [...]error{
 	model.ForwardSessionPairedFeatures:   errors.New("inference: model requires a paired-feature session"),
 	model.ForwardSessionFeatureDraft:     errors.New("inference: model requires a feature-draft session"),
 	model.ForwardSessionPairedProjection: errors.New("inference: model requires a paired projection session"),
-	model.ForwardSessionEncoderDecoder:   errors.New("inference: T5 requires NewT5Session and DecodeT5"),
+	model.ForwardSessionEncoderDecoder:   errors.New("inference: model requires an encoder-decoder session"),
 }
 
 func forwardSessionError(r *Runner, _ context.Context, _ []tokenizer.TokenID) (reference.Value, error) {
@@ -373,7 +373,7 @@ func (r *Runner) ForwardCached(
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
 	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
-		return reference.Value{}, nil, errors.New("inference: use DecodeT5 for T5 caching")
+		return reference.Value{}, nil, errors.New("inference: use the encoder-decoder session for caching")
 	}
 	return r.forwardCachedLocked(ctx, tokenIDs, cache)
 }
@@ -541,7 +541,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")
 	}
 	if r.forwardProgram().Operation == model.ForwardOperationEncoder {
-		return reference.Value{}, nil, errors.New("inference: T5 encoder does not support KV caching")
+		return reference.Value{}, nil, errors.New("inference: encoder-only program does not support KV caching")
 	}
 	projected, err := r.compileProjectedRequestPlan(len(tokenIDs), cache != nil, inputs)
 	if err != nil {

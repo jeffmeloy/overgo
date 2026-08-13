@@ -13,23 +13,23 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// GenerateT5: source text to generated decoder tokens and resumable session.
-func (r *Runner) GenerateT5(
+// GenerateEncoderDecoder: source text to decoder tokens and resumable session.
+func (r *Runner) GenerateEncoderDecoder(
 	ctx context.Context,
 	source string,
 	options GenerateOptions,
-) ([]tokenizer.TokenID, string, *T5Session, error) {
+) ([]tokenizer.TokenID, string, *EncoderDecoderSession, error) {
 	if r == nil || r.vocab == nil {
 		return nil, "", nil, errors.New("inference: runner is nil")
 	}
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
-		return nil, "", nil, errors.New("inference: T5 generation requires T5 architecture")
+		return nil, "", nil, errors.New("inference: generation requires a compiled encoder-decoder program")
 	}
 	if err := normalizeGenerateOptions(&options); err != nil {
 		return nil, "", nil, err
 	}
 	if options.ProjectedInputs != nil {
-		return nil, "", nil, errors.New("inference: T5 generation does not accept projected decoder inputs")
+		return nil, "", nil, errors.New("inference: encoder-decoder generation does not accept projected decoder inputs")
 	}
 	sourceIDs, err := r.promptTokenIDs(source, options)
 	if err != nil {
@@ -37,7 +37,7 @@ func (r *Runner) GenerateT5(
 	}
 	startID := tokenizer.TokenID(r.spec.DecoderStartTokenID)
 	if startID < 0 || int(startID) >= r.vocab.Len() {
-		return nil, "", nil, errors.New("inference: T5 decoder start token is out of range")
+		return nil, "", nil, errors.New("inference: decoder start token is out of range")
 	}
 
 	r.mu.Lock()
@@ -55,13 +55,13 @@ func (r *Runner) GenerateT5(
 	var encoder reference.Value
 	cached := 0
 	if options.CachePrompt {
-		if selected, reused := r.selectT5SourceCache(sourceIDs, options.MinCacheReuse); selected != nil {
+		if selected, reused := r.selectEncoderSourceCache(sourceIDs, options.MinCacheReuse); selected != nil {
 			encoder = selected.Hidden
 			cached = reused
 		}
 	}
 	if cached == 0 {
-		encoder, err = r.forwardT5EncoderLocked(ctx, sourceIDs)
+		encoder, err = r.forwardEncoderLocked(ctx, sourceIDs)
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -80,7 +80,7 @@ func (r *Runner) GenerateT5(
 			Tokens: len(sourceIDs), Cached: cached, Duration: time.Since(promptStarted),
 		})
 	}
-	session := &T5Session{Encoder: encoder}
+	session := &EncoderDecoderSession{Encoder: encoder}
 	if options.MaxNewTokens == 0 {
 		return []tokenizer.TokenID{}, "", session, nil
 	}
@@ -98,9 +98,9 @@ func (r *Runner) GenerateT5(
 			if shiftErr != nil {
 				return nil, "", nil, shiftErr
 			}
-			session = &T5Session{Encoder: session.Encoder, Cache: shifted}
+			session = &EncoderDecoderSession{Encoder: session.Encoder, Cache: shifted}
 		}
-		logitRows, nextSession, decodeErr := r.decodeT5Locked(
+		logitRows, nextSession, decodeErr := r.decodeEncoderDecoderLocked(
 			ctx, session, []tokenizer.TokenID{pending},
 		)
 		if decodeErr != nil {
@@ -109,7 +109,7 @@ func (r *Runner) GenerateT5(
 		session = nextSession
 		width := int(logitRows.Shape.Dims[0])
 		if width != r.vocab.Len() || len(logitRows.Data) < width {
-			return nil, "", nil, errors.New("inference: T5 logits shape is incompatible")
+			return nil, "", nil, errors.New("inference: decoder logits shape is incompatible")
 		}
 		logits := logitRows.Data[len(logitRows.Data)-width:]
 		event, sampleErr := sampleGenerationToken(logits, history, options)
@@ -134,14 +134,14 @@ func (r *Runner) GenerateT5(
 	if shiftErr != nil {
 		return nil, "", nil, shiftErr
 	}
-	session = &T5Session{Encoder: session.Encoder, Cache: shifted}
-	_, session, err = r.decodeT5Locked(ctx, session, []tokenizer.TokenID{pending})
+	session = &EncoderDecoderSession{Encoder: session.Encoder, Cache: shifted}
+	_, session, err = r.decodeEncoderDecoderLocked(ctx, session, []tokenizer.TokenID{pending})
 	if err != nil {
 		return nil, "", nil, err
 	}
 	text, err := r.vocab.Decode(generated, false)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("inference: decode T5 output: %w", err)
+		return nil, "", nil, fmt.Errorf("inference: decode output: %w", err)
 	}
 	return generated, text, session, nil
 }

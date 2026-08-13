@@ -17,24 +17,24 @@ type PaddedTokenBatch struct {
 	Lengths []uint32
 }
 
-// T5BatchSession: independent encoder states and decoder caches.
-type T5BatchSession struct {
-	Sequences     []*T5Session
+// EncoderDecoderBatchSession: independent encoder states and decoder caches.
+type EncoderDecoderBatchSession struct {
+	Sequences     []*EncoderDecoderSession
 	SourceLengths []uint32
 	SourceWidth   uint32
 }
 
-// T5BatchResult: per-sequence unpadded logits.
-type T5BatchResult struct {
+// EncoderDecoderBatchResult: per-sequence unpadded logits.
+type EncoderDecoderBatchResult struct {
 	Logits  []reference.Value
 	Lengths []uint32
 }
 
-// NewT5BatchSession: masked padded-source encoding.
-func (r *Runner) NewT5BatchSession(
+// NewEncoderDecoderBatchSession: masked padded-source encoding.
+func (r *Runner) NewEncoderDecoderBatchSession(
 	ctx context.Context,
 	batch PaddedTokenBatch,
-) (*T5BatchSession, error) {
+) (*EncoderDecoderBatchSession, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
 	}
@@ -48,82 +48,81 @@ func (r *Runner) NewT5BatchSession(
 		return nil, errors.New("inference: runner is closed")
 	}
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
-		return nil, errors.New("inference: T5 batch session requires T5 architecture")
+		return nil, errors.New("inference: batch session requires a compiled encoder-decoder program")
 	}
-	result := &T5BatchSession{
-		Sequences:     make([]*T5Session, len(batch.Tokens)),
+	result := &EncoderDecoderBatchSession{
+		Sequences:     make([]*EncoderDecoderSession, len(batch.Tokens)),
 		SourceLengths: slices.Clone(batch.Lengths),
 		SourceWidth:   width,
 	}
 	for index, row := range batch.Tokens {
 		length := batch.Lengths[index]
-		encoder, encodeErr := r.forwardT5EncoderLocked(ctx, row[:length])
+		encoder, encodeErr := r.forwardEncoderLocked(ctx, row[:length])
 		if encodeErr != nil {
 			return nil, fmt.Errorf(
-				"inference: T5 batch source %d: %w",
+				"inference: encoder batch source %d: %w",
 				index,
 				encodeErr,
 			)
 		}
-		result.Sequences[index] = &T5Session{Encoder: encoder}
+		result.Sequences[index] = &EncoderDecoderSession{Encoder: encoder}
 	}
 	return result, nil
 }
 
-// DecodeT5Batch: masked padded-decoder append.
-func (r *Runner) DecodeT5Batch(
+// DecodeEncoderDecoderBatch: masked padded-decoder append.
+func (r *Runner) DecodeEncoderDecoderBatch(
 	ctx context.Context,
-	session *T5BatchSession,
-	batch PaddedTokenBatch,
-) (T5BatchResult, *T5BatchSession, error) {
+	session *EncoderDecoderBatchSession, batch PaddedTokenBatch,
+) (EncoderDecoderBatchResult, *EncoderDecoderBatchSession, error) {
 	if r == nil {
-		return T5BatchResult{}, nil, errors.New("inference: runner is nil")
+		return EncoderDecoderBatchResult{}, nil, errors.New("inference: runner is nil")
 	}
 	if session == nil || len(session.Sequences) == 0 {
-		return T5BatchResult{}, nil, errors.New("inference: T5 batch session is empty")
+		return EncoderDecoderBatchResult{}, nil, errors.New("inference: encoder-decoder batch session is empty")
 	}
 	if len(session.SourceLengths) != len(session.Sequences) || session.SourceWidth == 0 {
-		return T5BatchResult{}, nil, errors.New("inference: T5 batch source mask is incompatible")
+		return EncoderDecoderBatchResult{}, nil, errors.New("inference: encoder batch source mask is incompatible")
 	}
 	for index, length := range session.SourceLengths {
 		if length == 0 || length > session.SourceWidth || session.Sequences[index] == nil {
-			return T5BatchResult{}, nil, fmt.Errorf(
-				"inference: T5 batch source %d state is incompatible",
+			return EncoderDecoderBatchResult{}, nil, fmt.Errorf(
+				"inference: encoder batch source %d state is incompatible",
 				index,
 			)
 		}
 	}
 	_, err := validatePaddedTokenBatch(batch, len(session.Sequences))
 	if err != nil {
-		return T5BatchResult{}, nil, err
+		return EncoderDecoderBatchResult{}, nil, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
-		return T5BatchResult{}, nil, errors.New("inference: runner is closed")
+		return EncoderDecoderBatchResult{}, nil, errors.New("inference: runner is closed")
 	}
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
-		return T5BatchResult{}, nil, errors.New("inference: T5 batch decode requires T5 architecture")
+		return EncoderDecoderBatchResult{}, nil, errors.New("inference: batch decode requires a compiled encoder-decoder program")
 	}
-	next := &T5BatchSession{
-		Sequences:     make([]*T5Session, len(session.Sequences)),
+	next := &EncoderDecoderBatchSession{
+		Sequences:     make([]*EncoderDecoderSession, len(session.Sequences)),
 		SourceLengths: slices.Clone(session.SourceLengths),
 		SourceWidth:   session.SourceWidth,
 	}
-	result := T5BatchResult{
+	result := EncoderDecoderBatchResult{
 		Logits:  make([]reference.Value, len(session.Sequences)),
 		Lengths: slices.Clone(batch.Lengths),
 	}
 	for index, row := range batch.Tokens {
 		length := batch.Lengths[index]
-		logits, sequence, decodeErr := r.decodeT5Locked(
+		logits, sequence, decodeErr := r.decodeEncoderDecoderLocked(
 			ctx,
 			session.Sequences[index],
 			row[:length],
 		)
 		if decodeErr != nil {
-			return T5BatchResult{}, nil, fmt.Errorf(
-				"inference: T5 batch decoder %d: %w",
+			return EncoderDecoderBatchResult{}, nil, fmt.Errorf(
+				"inference: batch decoder %d: %w",
 				index,
 				decodeErr,
 			)

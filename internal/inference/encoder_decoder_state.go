@@ -17,12 +17,12 @@ const (
 	t5SessionHeaderSize = 64
 )
 
-// SaveT5Session: model-bound encoder state and decoder cache.
-func (r *Runner) SaveT5Session(session *T5Session) ([]byte, error) {
+// SaveEncoderDecoderSession: model-bound encoder state and decoder cache.
+func (r *Runner) SaveEncoderDecoderSession(session *EncoderDecoderSession) ([]byte, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
 	}
-	if err := r.validateT5Session(session); err != nil {
+	if err := r.validateEncoderDecoderSession(session); err != nil {
 		return nil, err
 	}
 	var cacheData []byte
@@ -49,13 +49,13 @@ func (r *Runner) SaveT5Session(session *T5Session) ([]byte, error) {
 	encoder.Raw(cacheData)
 	output, err := encoder.Data()
 	if err != nil {
-		return nil, errors.New("inference: T5 session exceeds addressable memory")
+		return nil, errors.New("inference: encoder-decoder session exceeds addressable memory")
 	}
 	return output, nil
 }
 
-// LoadT5Session: bounded model-bound restore.
-func (r *Runner) LoadT5Session(data []byte) (*T5Session, error) {
+// LoadEncoderDecoderSession: bounded model-bound restore.
+func (r *Runner) LoadEncoderDecoderSession(data []byte) (*EncoderDecoderSession, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
 	}
@@ -66,33 +66,33 @@ func (r *Runner) LoadT5Session(data []byte) (*T5Session, error) {
 	tokens := decoder.U64()
 	cacheLength := decoder.U64()
 	if decoder.Err() != nil {
-		return nil, errors.New("inference: T5 session is truncated")
+		return nil, errors.New("inference: encoder-decoder session is truncated")
 	}
 	if string(magic) != t5SessionMagic {
-		return nil, errors.New("inference: T5 session has invalid magic or version")
+		return nil, errors.New("inference: encoder-decoder session has invalid magic or version")
 	}
 	signature, err := r.sessionModelSignature()
 	if err != nil {
 		return nil, err
 	}
 	if string(modelSignature) != string(signature[:]) {
-		return nil, errors.New("inference: T5 session belongs to a different model")
+		return nil, errors.New("inference: encoder-decoder session belongs to a different model")
 	}
 	if width != uint64(r.spec.EmbeddingLength) || tokens == 0 ||
 		(r.spec.ContextLength > 0 && tokens > uint64(r.spec.ContextLength)) {
-		return nil, errors.New("inference: T5 session encoder shape is incompatible")
+		return nil, errors.New("inference: encoder-decoder state shape is incompatible")
 	}
 	elements, ok := checked.Mul64(width, tokens)
 	if !ok {
-		return nil, errors.New("inference: T5 session encoder size overflows")
+		return nil, errors.New("inference: encoder-decoder state size overflows")
 	}
 	encoderBytes, ok := checked.Bytes(elements, 4)
 	if !ok {
-		return nil, errors.New("inference: T5 session encoder byte size overflows")
+		return nil, errors.New("inference: encoder-decoder state byte size overflows")
 	}
 	payload := decoder.Remaining()
 	if encoderBytes > payload || cacheLength != payload-encoderBytes {
-		return nil, errors.New("inference: T5 session payload lengths are invalid")
+		return nil, errors.New("inference: encoder-decoder payload lengths are invalid")
 	}
 	encoder := reference.Value{
 		Shape: tensor.MustShape(width, tokens),
@@ -103,39 +103,39 @@ func (r *Runner) LoadT5Session(data []byte) (*T5Session, error) {
 	}
 	cacheData := decoder.Raw(cacheLength)
 	if decoder.Done() != nil {
-		return nil, errors.New("inference: T5 session payload lengths are invalid")
+		return nil, errors.New("inference: encoder-decoder payload lengths are invalid")
 	}
-	session := &T5Session{Encoder: encoder}
+	session := &EncoderDecoderSession{Encoder: encoder}
 	if cacheLength > 0 {
 		cache, cacheErr := r.LoadCache(cacheData)
 		if cacheErr != nil {
-			return nil, fmt.Errorf("inference: load T5 decoder cache: %w", cacheErr)
+			return nil, fmt.Errorf("inference: load decoder cache: %w", cacheErr)
 		}
 		session.Cache = cache
 	}
-	if err := r.validateT5Session(session); err != nil {
+	if err := r.validateEncoderDecoderSession(session); err != nil {
 		return nil, err
 	}
 	return session, nil
 }
 
-func (r *Runner) validateT5Session(session *T5Session) error {
+func (r *Runner) validateEncoderDecoderSession(session *EncoderDecoderSession) error {
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
-		return errors.New("inference: T5 session requires T5 architecture")
+		return errors.New("inference: session requires a compiled encoder-decoder program")
 	}
 	if session == nil || session.Encoder.Shape.Rank != 2 ||
 		session.Encoder.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) ||
 		session.Encoder.Shape.Dims[1] == 0 {
-		return errors.New("inference: T5 encoder state shape is incompatible")
+		return errors.New("inference: encoder state shape is incompatible")
 	}
 	if r.spec.ContextLength > 0 && session.Encoder.Shape.Dims[1] > uint64(r.spec.ContextLength) {
-		return errors.New("inference: T5 encoder state exceeds context length")
+		return errors.New("inference: encoder state exceeds context length")
 	}
 	if err := validateStateValue(session.Encoder); err != nil {
-		return fmt.Errorf("inference: T5 encoder state: %w", err)
+		return fmt.Errorf("inference: encoder state: %w", err)
 	}
 	if session.Cache != nil {
-		return r.validateT5Cache(session.Cache, session.Encoder.Shape.Dims[1])
+		return r.validateEncoderDecoderCache(session.Cache, session.Encoder.Shape.Dims[1])
 	}
 	return nil
 }

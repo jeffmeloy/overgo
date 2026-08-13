@@ -261,13 +261,13 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:fc94fc4a1109da82a8cbe207b5d6201c421746cd009caf974b58836b255cd336"
+          "identity": "file:sha256:911f32a5ba6ff900c23b729641a9a80167c1014c0564ae98b9f2e3bf3879021b"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:3fcc855f2130c8b21b31c739a0729c4bb21079e14227f227cd394adc91039b42"
+          "identity": "evidence:sha256:4e061f7a1462522d627531a80665039a7bd328b9024da1ca16228df65a0727fa"
         }
       ],
       "id": "compiled-model-plan",
@@ -324,13 +324,13 @@
           "contains": "func (r *Runner) selectPromptCache(",
           "path": "internal/inference/prompt_cache.go",
           "role": "source",
-          "identity": "file:sha256:98b9a9c46603c7aabea6fe783de8829b3a921e21a62c4e7b98f9be3782c651b5"
+          "identity": "file:sha256:6cdffdcb9076c3a8e112e9d62bb5a8121d23bdde5715aa031fa918d36d235665"
         },
         {
           "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
           "path": "internal/inference/prompt_cache_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:b25b1169537db9035b3ada4d90c8a4720c1abbaa836645f7e5cff727e7d37ef7"
+          "identity": "evidence:sha256:261bca4524a41e46d47df0a1329719e2b400ca06df362db3713a07264f2251f9"
         }
       ],
       "id": "editable-prompt-cache",
@@ -709,13 +709,13 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:71270e21134fae4c1054685454ce32697156425637bdbf8b7b3453b8ae115d50"
+          "identity": "file:sha256:c71521973b2520637f1047ad6799c770edd4a9b655b29489714dcbff52ee9cec"
         },
         {
           "contains": "func ReadWeights(",
           "path": "internal/model/weights_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:cf49ed51a71ef838213e2e8b6fc4221220175cd23c41d1f2fec83f6a4f8e8da8"
+          "identity": "file:sha256:2c9bc0f962b56ff5ac3d343b08e946355869ffdff5f65136f4d25cc32f171551"
         },
         {
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
@@ -754,23 +754,23 @@
     {
       "evidence": [
         {
-          "contains": "func (r *Runner) NewT5BatchSession(",
-          "path": "internal/inference/t5_batch.go",
+          "contains": "func (r *Runner) NewEncoderDecoderBatchSession(",
+          "path": "internal/inference/encoder_decoder_batch.go",
           "role": "source",
-          "identity": "file:sha256:583bc1df4070f4f94ab0746ef3e816f8929a83f5377861968bdd72fe81cec9fc"
+          "identity": "file:sha256:ebba65abb89655a53296d05054c07400a7e096100756723305031c30b864f273"
         },
         {
           "contains": "func TestValidatePaddedTokenBatchMasksSuffixes(",
-          "path": "internal/inference/t5_batch_test.go",
+          "path": "internal/inference/encoder_decoder_batch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:c837fce311c9f0dac280f02a8ba9685e9e0ae3ff8658e1d4215c6283d8e75e3c"
+          "identity": "evidence:sha256:8cae89ffee386e9c98e26c4fa01db1b33e738d140580a9768d5b0525e24ed2b3"
         }
       ],
-      "id": "padded-t5-batches",
+      "id": "padded-encoder-decoder-batches",
       "evidence_tier": "contract-tested",
       "verify": "go test ./internal/inference -run '^TestValidatePaddedTokenBatchMasksSuffixes$' -count=1 -v",
       "status": "implemented",
-      "summary": "Rectangular T5 batches use explicit source and decoder lengths so padding never enters attention state."
+      "summary": "Rectangular encoder-decoder batches use explicit source and decoder lengths so padding never enters attention state."
     },
     {
       "evidence": [

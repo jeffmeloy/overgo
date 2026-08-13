@@ -264,7 +264,7 @@ func cacheSchemaForPlan(
 		states.state(CacheStateSSM, CacheStateFixed, true, false,
 			uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize))
 	}
-	if plan.Cache == CacheT5 {
+	if plan.Cache == CacheCrossAttention {
 		shapes := spec.TensorShapes(plan.Layer)
 		states.state(CacheStateCrossKey, CacheStateFixed, false, true,
 			shapes.Key, shapes.KVHeads, 1)

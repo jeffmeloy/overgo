@@ -8,11 +8,11 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func TestDecodeT5BatchRejectsInvalidSourceMask(t *testing.T) {
+func TestEncoderDecoderBatchRejectsInvalidSourceMask(t *testing.T) {
 	runner := &Runner{}
-	_, _, err := runner.DecodeT5Batch(
+	_, _, err := runner.DecodeEncoderDecoderBatch(
 		context.Background(),
-		&T5BatchSession{Sequences: []*T5Session{{}}},
+		&EncoderDecoderBatchSession{Sequences: []*EncoderDecoderSession{{}}},
 		PaddedTokenBatch{
 			Tokens: [][]tokenizer.TokenID{{1}}, Lengths: []uint32{1},
 		},

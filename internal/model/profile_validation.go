@@ -74,7 +74,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Validation.MLA", profile.Validation.MLA, MLAValidationMiniCPM3),
 		validateProfileOrdinal("Validation.Recurrent", profile.Validation.Recurrent, RecurrentValidationNemotronHMoE),
 		validateProfileOrdinal("Validation.Hybrid", profile.Validation.Hybrid, HybridValidationLFM2MoE),
-		validateProfileOrdinal("EncoderGraph.Kind", profile.EncoderGraph.Kind, encoderGraphT5Encoder),
+		validateProfileOrdinal("EncoderGraph.Kind", profile.EncoderGraph.Kind, encoderGraphRelativeEncoder),
 		validateProfileOrdinal("MLAVariant", profile.MLAVariant, mlaVariantKimi),
 		validateProfileOrdinal("Cadence.Recurrent", profile.Cadence.Recurrent, recurrentCadenceAttentionInterval),
 		validateProfileOrdinal("Cadence.MoE", profile.Cadence.MoE, moeCadenceAfterDense),

@@ -357,12 +357,12 @@ func loadSharedExpertWeightsForWidth(
 	return loadTensorRequirements(required, nil, prefix, requirements)
 }
 
-type t5CatalogPlan struct {
+type encoderDecoderCatalogPlan struct {
 	width, query, key, value, output, feedForward, heads, relativeBuckets uint64
 }
 
-func newT5CatalogPlan(spec Spec) t5CatalogPlan {
-	return t5CatalogPlan{
+func newEncoderDecoderCatalogPlan(spec Spec) encoderDecoderCatalogPlan {
+	return encoderDecoderCatalogPlan{
 		width:           uint64(spec.EmbeddingLength),
 		query:           uint64(spec.HeadCount) * uint64(spec.KeyLength),
 		key:             uint64(spec.HeadCountKV) * uint64(spec.KeyLength),
@@ -374,7 +374,7 @@ func newT5CatalogPlan(spec Spec) t5CatalogPlan {
 	}
 }
 
-func (p t5CatalogPlan) loadLayer(
+func (p encoderDecoderCatalogPlan) loadLayer(
 	load weightRequirementLoader,
 	tensors map[string]gguf.TensorInfo,
 	prefix string,
@@ -514,9 +514,9 @@ var weightCatalogReaders = [...]weightCatalogReader{
 	WeightCatalogTargetFeatures:   readDFlashWeightCatalog,
 	WeightCatalogHiddenFusion:     readEagle3WeightCatalog,
 	WeightCatalogPairedProjection: readGemma4AssistantWeightCatalog,
-	WeightCatalogEncoder:          readT5EncoderWeightCatalog,
+	WeightCatalogEncoder:          readRelativeEncoderWeightCatalog,
 	WeightCatalogAudioDecoder:     readWavTokenizerWeightCatalog,
-	WeightCatalogEncoderDecoder:   readT5WeightCatalog,
+	WeightCatalogEncoderDecoder:   readEncoderDecoderWeightCatalog,
 }
 
 func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {

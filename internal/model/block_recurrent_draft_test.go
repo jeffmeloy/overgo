@@ -373,7 +373,7 @@ func kimiLinearCommonInputs(builder *tensor.Builder, spec Spec, moe bool) LayerG
 	return weights
 }
 
-func TestBuildT5EncoderBlock(t *testing.T) {
+func TestCompiledEncoderBlockUsesRelativeAttention(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "t5encoder",
 		BlockCount:        1,
@@ -437,7 +437,7 @@ func TestBuildT5EncoderBlock(t *testing.T) {
 	}
 }
 
-func TestBuildT5DecoderBlockCached(t *testing.T) {
+func TestCompiledDecoderBlockUsesCrossAttentionCache(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "t5", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 16,
 

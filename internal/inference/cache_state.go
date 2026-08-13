@@ -160,12 +160,12 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				}
 			}
 		}
-		if plan.Cache == model.CacheT5 {
+		if plan.Cache == model.CacheCrossAttention {
 			crossKey := layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2]
 			crossValue := layer.States[model.CacheStateCrossValue].Value.Shape.Dims[2]
 			if crossKey != crossValue {
 				return fmt.Errorf(
-					"inference: T5 cache layer %d cross-attention lengths differ",
+					"inference: encoder-decoder cache layer %d cross-attention lengths differ",
 					index,
 				)
 			}
@@ -249,14 +249,14 @@ func cacheShapeMatches(shape tensor.Shape, schema model.CacheValueSchema) bool {
 	return shape.Dims[last] > 0
 }
 
-func (r *Runner) validateT5Cache(cache *KVCache, encoderTokens uint64) error {
+func (r *Runner) validateEncoderDecoderCache(cache *KVCache, encoderTokens uint64) error {
 	if err := r.validateCache(cache); err != nil {
 		return err
 	}
 	for index, layer := range cache.Layers {
 		if layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2] != encoderTokens {
 			return fmt.Errorf(
-				"inference: T5 cache layer %d encoder length %d, need %d",
+				"inference: encoder-decoder cache layer %d encoder length %d, need %d",
 				index, layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2], encoderTokens,
 			)
 		}

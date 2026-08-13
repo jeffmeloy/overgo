@@ -354,10 +354,10 @@ func TestT5CacheValidation(t *testing.T) {
 			model.CacheStateCrossValue: {Mode: CacheStateFixed, Value: crossValue},
 		},
 	}}, Tokens: 2, Position: 2}
-	if err := runner.validateT5Cache(cache, 4); err != nil {
+	if err := runner.validateEncoderDecoderCache(cache, 4); err != nil {
 		t.Fatal(err)
 	}
-	if err := runner.validateT5Cache(cache, 3); err == nil {
+	if err := runner.validateEncoderDecoderCache(cache, 3); err == nil {
 		t.Fatal("mismatched T5 encoder extent was accepted")
 	}
 	shifted, err := runner.ShiftCache(cache, 1)

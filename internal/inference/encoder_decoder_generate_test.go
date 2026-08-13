@@ -9,32 +9,32 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func TestGenerateT5Admission(t *testing.T) {
-	if _, _, _, err := (*Runner)(nil).GenerateT5(context.Background(), "", GenerateOptions{}); err == nil {
+func TestEncoderDecoderGenerationAdmission(t *testing.T) {
+	if _, _, _, err := (*Runner)(nil).GenerateEncoderDecoder(context.Background(), "", GenerateOptions{}); err == nil {
 		t.Fatal("nil runner was accepted")
 	}
 	vocab := &tokenizer.Vocab{}
 	wrong := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, vocab: vocab}}
 	wrong = attachFixtureProgram(wrong)
-	if _, _, _, err := wrong.GenerateT5(context.Background(), "", GenerateOptions{}); err == nil ||
-		!strings.Contains(err.Error(), "requires T5 architecture") {
+	if _, _, _, err := wrong.GenerateEncoderDecoder(context.Background(), "", GenerateOptions{}); err == nil ||
+		!strings.Contains(err.Error(), "compiled encoder-decoder program") {
 		t.Fatalf("architecture error = %v", err)
 	}
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "t5"}}, vocab: vocab}}
 	runner = attachFixtureProgram(runner)
-	if _, _, _, err := runner.GenerateT5(context.Background(), "", GenerateOptions{MaxNewTokens: -1}); err == nil {
+	if _, _, _, err := runner.GenerateEncoderDecoder(context.Background(), "", GenerateOptions{MaxNewTokens: -1}); err == nil {
 		t.Fatal("negative token limit was accepted")
 	}
-	if _, _, _, err := runner.GenerateT5(context.Background(), "", GenerateOptions{MinCacheReuse: -1}); err == nil ||
+	if _, _, _, err := runner.GenerateEncoderDecoder(context.Background(), "", GenerateOptions{MinCacheReuse: -1}); err == nil ||
 		!strings.Contains(err.Error(), "minimum cache reuse") {
 		t.Fatalf("minimum-cache error = %v", err)
 	}
-	if _, _, _, err := runner.GenerateT5(context.Background(), "", GenerateOptions{ProjectedInputs: &ProjectedInputs{}}); err == nil ||
+	if _, _, _, err := runner.GenerateEncoderDecoder(context.Background(), "", GenerateOptions{ProjectedInputs: &ProjectedInputs{}}); err == nil ||
 		!strings.Contains(err.Error(), "projected decoder inputs") {
 		t.Fatalf("projected-input error = %v", err)
 	}
 	if _, _, err := runner.Generate(context.Background(), "", GenerateOptions{MaxNewTokens: -1}); err == nil ||
 		!strings.Contains(err.Error(), "max new tokens") {
-		t.Fatalf("generic T5 dispatch error = %v", err)
+		t.Fatalf("generic encoder-decoder dispatch error = %v", err)
 	}
 }

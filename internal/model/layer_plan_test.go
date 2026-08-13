@@ -370,7 +370,7 @@ func TestCompileModelPlanBoundsAndArchitecture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.LayerCount() != 3 || plan.CacheLayerCount() != 2 || !plan.HasCache(CacheT5) {
+	if plan.LayerCount() != 3 || plan.CacheLayerCount() != 2 || !plan.HasCache(CacheCrossAttention) {
 		t.Fatalf("plan = %+v", plan)
 	}
 	if _, err := plan.Layer(3); err == nil {

@@ -64,21 +64,19 @@ func buildDeviceGenerationLayer(
 	g.PrefixValue = b.Input("prefix_value", dtype.F32, tensor.MustShape(hd, kvHeads, prefix))
 	g.Vision = newTypedPrefillBranch(b, "generation", H, qOut, kvOut, hd, f, weightType)
 
-	normed := b.WeightedRMSNorm(g.Row, g.Vision.InputNorm, eps)
+	normed := b.BF16Round(b.WeightedRMSNorm(g.Row, g.Vision.InputNorm, eps))
 	query := b.Reshape(b.MulMat(g.Vision.Q, normed), hd, qHeads, n)
 	key := b.Reshape(b.MulMat(g.Vision.K, normed), hd, kvHeads, n)
-	value := b.Reshape(b.MulMat(g.Vision.V, normed), hd, kvHeads, n)
+	value := b.BF16Round(b.Reshape(b.MulMat(g.Vision.V, normed), hd, kvHeads, n))
 	var err error
-	query, err = rope.DeviceApply(b, query, positions)
+	query, err = rope.DeviceNormalizeApply(b, query, g.Vision.QNorm, positions, eps)
 	if err != nil {
 		return nil, err
 	}
-	key, err = rope.DeviceApply(b, key, positions)
+	key, err = rope.DeviceNormalizeApply(b, key, g.Vision.KNorm, positions, eps)
 	if err != nil {
 		return nil, err
 	}
-	query = b.WeightedRMSNorm(query, g.Vision.QNorm, eps)
-	key = b.WeightedRMSNorm(key, g.Vision.KNorm, eps)
 	key = b.Concat(g.PrefixKey, key, 2)
 	value = b.Concat(g.PrefixValue, value, 2)
 	context := b.AttentionWithOptions(

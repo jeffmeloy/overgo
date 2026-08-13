@@ -68,6 +68,45 @@ func (p RopePlan) DeviceApply(b *tensor.Builder, q *tensor.Tensor, positions []R
 	return out, nil
 }
 
+// DeviceNormalizeApply reproduces routed runtime QK discipline: projection
+// round, per-axis-section weighted RMS norm, then section RoPE with BF16 steps.
+func (p RopePlan) DeviceNormalizeApply(
+	b *tensor.Builder,
+	q, weight *tensor.Tensor,
+	positions []RowPosition,
+	epsilon float32,
+) (*tensor.Tensor, error) {
+	if q == nil || weight == nil || q.Shape.Rank != 3 || weight.Shape.Rank != 1 ||
+		q.Shape.Dims[0] != weight.Shape.Dims[0] || int(q.Shape.Dims[2]) != len(positions) {
+		return nil, fmt.Errorf("routed lm rope device: invalid normalized rotation inputs")
+	}
+	q = b.BF16Round(q)
+	heads, tokens := q.Shape.Dims[1], q.Shape.Dims[2]
+	var out *tensor.Tensor
+	offset := uint64(0)
+	for _, section := range p.Sections {
+		width := uint64(section.Width)
+		window := b.GroupSlice(q, offset, width, 1, width)
+		window = b.Reshape(window, width, heads, tokens)
+		scale := b.FlatSlice(weight, offset, width)
+		window = b.BF16Round(b.WeightedRMSNorm(window, scale, epsilon))
+		window = b.RoPENeoX(
+			window, axisPositions(positions, section.Axis), uint32(width), float32(section.Theta),
+		)
+		window = b.BF16Round(window)
+		if out == nil {
+			out = window
+		} else {
+			out = b.Concat(out, window, 0)
+		}
+		offset += width
+	}
+	if err := b.Err(); err != nil {
+		return nil, fmt.Errorf("routed lm normalized rope device graph: %w", err)
+	}
+	return out, nil
+}
+
 // HostApplyBF16Rows: the reference SenseNova rotation — applyRotary (bf16
 // stepping) over each head row of rows laid out [tokens, heads, head_dim] flat.
 func (p RopePlan) HostApplyBF16Rows(rows []float32, positions []RowPosition, heads, headDim int) error {

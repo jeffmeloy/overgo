@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sensenova-neutral-layer",
-          "title": "Port the SenseNova generation branch as a neutral multi-axis routed layer graph with prefix KV attention; prove reference and CUDA execution without a family runtime",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/routedlm -run '^TestSenseNovaGenerationLayerGraph' -count=1 -v"
-        },
-        {
           "id": "sensenova-prefix-stack",
           "title": "Run prompt and unconditional SenseNova prefix conditioning through the neutral block-causal prefill stack; retain all 42 prefix KV layers and match oracle probes",
           "status": "open",

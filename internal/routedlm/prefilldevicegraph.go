@@ -128,15 +128,52 @@ func newTypedPrefillBranch(
 // BuildDevicePrefillLayer: one branch-routed prompt layer over `tokens` rows
 // with the given attention-block plan.
 func BuildDevicePrefillLayer(cfg Config, tokens int, blocks []PrefillAttnBlock) (*DevicePrefillLayerGraph, error) {
+	rope, err := ropePlanFromConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	positions := make([]RowPosition, tokens)
+	for row := range positions {
+		positions[row] = RowPosition{Time: row}
+	}
+	return buildDevicePrefillLayer(cfg, rope, positions, blocks)
+}
+
+// BuildDeviceBlockPrefillLayer emits multi-axis block-causal prefix math.
+func BuildDeviceBlockPrefillLayer(
+	cfg Config,
+	rope RopePlan,
+	positions []RowPosition,
+) (*DevicePrefillLayerGraph, error) {
+	if len(positions) == 0 {
+		return nil, fmt.Errorf("routed lm device prefill: empty positions")
+	}
+	blocks := make([]PrefillAttnBlock, 0, len(positions))
+	for start := 0; start < len(positions); {
+		end := start + 1
+		for end < len(positions) && positions[end].Time == positions[start].Time {
+			end++
+		}
+		blocks = append(blocks, PrefillAttnBlock{
+			QStart: start, QCount: end - start, KeyStart: 0, KeyEnd: end,
+		})
+		start = end
+	}
+	return buildDevicePrefillLayer(cfg, rope, positions, blocks)
+}
+
+func buildDevicePrefillLayer(
+	cfg Config,
+	rope RopePlan,
+	positions []RowPosition,
+	blocks []PrefillAttnBlock,
+) (*DevicePrefillLayerGraph, error) {
+	tokens := len(positions)
 	if tokens <= 0 {
 		return nil, fmt.Errorf("routed lm device prefill: tokens=%d", tokens)
 	}
 	if len(blocks) == 0 {
 		return nil, fmt.Errorf("routed lm device prefill: empty attention block plan")
-	}
-	base, err := RopeInvFreqBase(cfg)
-	if err != nil {
-		return nil, err
 	}
 	H := uint64(cfg.HiddenSize)
 	hd := uint64(cfg.HeadDim)
@@ -147,13 +184,7 @@ func BuildDevicePrefillLayer(cfg Config, tokens int, blocks []PrefillAttnBlock) 
 	f := uint64(cfg.IntermediateSize)
 	eps := float32(cfg.RMSNormEps)
 	scale := float32(1.0 / math.Sqrt(float64(hd)))
-	rot := uint32(hd)
 	n := uint64(tokens)
-
-	positions := make([]uint32, tokens)
-	for i := range positions {
-		positions[i] = uint32(i)
-	}
 
 	b := tensor.NewBuilder()
 	g := &DevicePrefillLayerGraph{Builder: b, Tokens: tokens}
@@ -186,9 +217,15 @@ func BuildDevicePrefillLayer(cfg Config, tokens int, blocks []PrefillAttnBlock) 
 	vh := b.Reshape(v, hd, kvHeads, n)
 
 	// rope (shared) then per-branch QK-norm, selected.
-	qRope := b.RoPENeoX(qh, positions, rot, float32(base))
+	qRope, err := rope.DeviceApply(b, qh, positions)
+	if err != nil {
+		return nil, err
+	}
 	qh = selectQK(b.WeightedRMSNorm(qRope, g.Text.QNorm, eps), b.WeightedRMSNorm(qRope, g.Vision.QNorm, eps))
-	kRope := b.RoPENeoX(kh, positions, rot, float32(base))
+	kRope, err := rope.DeviceApply(b, kh, positions)
+	if err != nil {
+		return nil, err
+	}
 	kh = selectQK(b.WeightedRMSNorm(kRope, g.Text.KNorm, eps), b.WeightedRMSNorm(kRope, g.Vision.KNorm, eps))
 	g.KeyKV = kh
 	g.ValueKV = vh

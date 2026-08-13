@@ -98,7 +98,7 @@ type bf16AppendFusion struct {
 // the online softmax exact F32; probabilities round to BF16 for the value
 // product (declared kernel semantics, measured by the differential fixture).
 type bf16AttentionFusion struct {
-	query, key, value *tensor.Tensor
+	query, key, value, keyBias *tensor.Tensor
 }
 
 type rewriteContext struct {
@@ -755,7 +755,7 @@ func applyRopeAppendRewrite(context *rewriteContext) {
 func applyBF16AttentionRewrite(context *rewriteContext) {
 	compiled := context.compiled
 	for _, node := range context.order {
-		if node.Op != tensor.OpAttention || len(node.Inputs) != 3 {
+		if node.Op != tensor.OpAttention || (len(node.Inputs) != 3 && len(node.Inputs) != 4) {
 			continue
 		}
 		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
@@ -764,6 +764,9 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 			attributes.Softcap != 0 || attributes.MaxALiBiBias != 0 ||
 			attributes.QueryStart != 0 || attributes.KeyValueTokens != 0 ||
 			attributes.Window != 0 || attributes.RelativeBuckets != 0 {
+			continue
+		}
+		if len(node.Inputs) == 4 && !attributes.HasKeyBias {
 			continue
 		}
 		query, key, value := node.Inputs[0], node.Inputs[1], node.Inputs[2]
@@ -797,6 +800,11 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 		}
 		compiled.bf16Attention[node] = bf16AttentionFusion{
 			query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0],
+		}
+		if attributes.HasKeyBias {
+			compiled.bf16Attention[node] = bf16AttentionFusion{
+				query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0], keyBias: node.Inputs[3],
+			}
 		}
 		compiled.skipped[query] = struct{}{}
 		compiled.skipped[key] = struct{}{}

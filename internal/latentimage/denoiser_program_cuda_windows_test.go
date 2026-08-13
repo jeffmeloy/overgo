@@ -32,7 +32,7 @@ func TestDenoiserProgramCUDAMatchesReference(t *testing.T) {
 	latent, enc := syntheticForwardInputs(spec, textSeq, imgSeq)
 	const sigma = 0.9
 
-	prog, err := CompileDenoiserProgram(spec, 1e-5, textSeq, gh, gw, dtype.F32)
+	prog, err := CompileDenoiserProgram(spec, 1e-5, attendedTextMask(textSeq), gh, gw, dtype.F32)
 	if err != nil {
 		t.Fatalf("CompileDenoiserProgram: %v", err)
 	}

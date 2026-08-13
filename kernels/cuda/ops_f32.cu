@@ -3699,6 +3699,8 @@ extern "C" __global__ void attention_online_softmax_f32(
         float * scores,
         float * output,
         float * stats,
+        const float * key_bias,
+        unsigned int key_start,
         unsigned int keys,
         unsigned int key_chunk,
         unsigned int rows,
@@ -3717,7 +3719,8 @@ extern "C" __global__ void attention_online_softmax_f32(
     const unsigned int stat_rows = heads * chunk;
     float local_maximum = -3.402823466e+38F;
     for (unsigned int j = tid; j < keys; j += blockDim.x) {
-        local_maximum = fmaxf(local_maximum, scores[base + j] * scale);
+        const float bias = key_bias != nullptr ? key_bias[key_start + j] : 0.0f;
+        local_maximum = fmaxf(local_maximum, scores[base + j] * scale + bias);
     }
     reduce_shared[tid] = (double) local_maximum;
     __syncthreads();
@@ -3745,7 +3748,8 @@ extern "C" __global__ void attention_online_softmax_f32(
     }
     double sum = 0.0;
     for (unsigned int j = tid; j < keys; j += blockDim.x) {
-        const float probability = expf(scores[base + j] * scale - maximum);
+        const float bias = key_bias != nullptr ? key_bias[key_start + j] : 0.0f;
+        const float probability = expf(scores[base + j] * scale + bias - maximum);
         scores[base + j] = probability;
         sum += (double) probability;
     }
@@ -3784,8 +3788,8 @@ extern "C" __global__ void attention_online_finalize_f32(
     }
 }
 
-// Tiled exact flash-style attention for large non-causal featureless
-// workloads (no bias/sinks/blocks/softcap/alibi/window). One block owns a
+// Tiled exact flash-style attention for large non-causal workloads with
+// optional per-key bias (no relative bias/sinks/blocks/softcap/alibi/window). One block owns a
 // 32-query-row tile of one head; K/V stream through shared memory in
 // 32-token tiles with an exact online softmax, so scores never touch
 // global memory. Each of 8 warps owns 4 query rows; within a row, lane j
@@ -3796,6 +3800,7 @@ extern "C" __global__ void attention_tiled_f32(
         const float * query,
         const float * key,
         const float * value,
+        const float * key_bias,
         float * output,
         unsigned int key_width,
         unsigned int value_width,
@@ -3877,7 +3882,7 @@ extern "C" __global__ void attention_tiled_f32(
                 for (unsigned int channel = 0; channel < key_width; ++channel) {
                     dot += q_row[channel] * k_column[channel * TILE];
                 }
-                score = dot * scale;
+                score = dot * scale + (key_bias != nullptr ? key_bias[tile_base + lane] : 0.0f);
             }
             float tile_maximum = score;
             for (unsigned int offset = 16; offset > 0; offset >>= 1) {
@@ -4016,6 +4021,7 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
         const float * query,
         const unsigned short * key,
         const unsigned short * value,
+        const float * key_bias,
         float * output,
         unsigned int query_heads,
         unsigned int key_value_heads,
@@ -4164,7 +4170,9 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
             // registers across the max and probability passes.
             float scaled[8];
             for (unsigned int i = 0; i < 8u; ++i) {
-                scaled[i] = s_tile[row * SLD + part + 8u * i] * scale;
+                const unsigned int key_token = tile_base + part + 8u * i;
+                scaled[i] = s_tile[row * SLD + part + 8u * i] * scale +
+                    (key_bias != nullptr && key_token < key_value_tokens ? key_bias[key_token] : 0.0f);
             }
             float local_maximum = -3.402823466e+38F;
             for (unsigned int i = 0; i < 8u; ++i) {

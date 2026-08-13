@@ -63,7 +63,7 @@ type EncoderProgram struct {
 	Embed *tensor.Tensor // (Hidden, seq)  host-fed per-token embedding rows
 
 	// keyBias, when non-nil, is a graph Input [seq] carrying the additive per-key
-	// pad mask (0.0 attended, encoderPadKeyBias for a pad KEY). keyBiasData holds
+	// pad mask (0.0 attended, padKeyBias for a pad KEY). keyBiasData holds
 	// its constant per-prompt values, fed automatically by RunHostFeed / the
 	// resident Encode. Absent (nil) => the maskless-causal program (unchanged).
 	keyBias     *tensor.Tensor
@@ -97,11 +97,11 @@ func (b encWeightBinder) input(name string, dimensions ...uint64) *tensor.Tensor
 	return node
 }
 
-// encoderPadKeyBias is the additive score bias for a pad KEY: a query's dot with
+// padKeyBias is the additive score bias for a pad KEY: a query's dot with
 // a pad key is driven to ~-inf so it underflows to 0 probability. Mirrors the
 // adaptive runtime_causal_gqa_masked_bf16 sentinel (-3.402823466e38) so the
 // masked softmax result is identical to adaptive's replace-with-lowest form.
-const encoderPadKeyBias = float32(-3.402823466e38)
+const padKeyBias = float32(-3.402823466e38)
 
 // CompileEncoderProgram builds the maskless-causal Qwen3-VL selected-layer
 // encoder graph for a sequence of seq tokens (unchanged behavior). matmulType
@@ -171,13 +171,13 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 	hidden := p.Embed
 
 	// Optional additive per-key pad mask: build the [seq] bias input + its
-	// constant values (0.0 attended, encoderPadKeyBias for a pad key).
+	// constant values (0.0 attended, padKeyBias for a pad key).
 	if mask != nil {
 		p.keyBias = b.Input("encoder_key_bias", dtype.F32, tensor.MustShape(uint64(seq)))
 		p.keyBiasData = make([]float32, seq)
 		for i, attended := range mask {
 			if !attended {
-				p.keyBiasData[i] = encoderPadKeyBias
+				p.keyBiasData[i] = padKeyBias
 			}
 		}
 	}

@@ -48,6 +48,8 @@ type DenoiserProgram struct {
 	InTemb    *tensor.Tensor // (Hidden)               host timestep embedding
 	InTembMod *tensor.Tensor // (ModFields*Hidden)      host AdaLN-single vector
 	InDelta   *tensor.Tensor // (1)                     flow Euler delta
+	keyBias   *tensor.Tensor
+	keyData   []float32
 
 	weightInputs map[string]*tensor.Tensor
 
@@ -81,7 +83,8 @@ func (b weightBinder) input(name string, dimensions ...uint64) *tensor.Tensor {
 // CompileDenoiserProgram builds the Krea2 step graph for one text/image
 // geometry. matmulType selects rank-2 weight storage (dtype.F32 exact, dtype.BF16
 // device path). imgSeq must equal gh*gw.
-func CompileDenoiserProgram(t TransformerSpec, eps float32, textSeq, gh, gw int, matmulType dtype.Type) (*DenoiserProgram, error) {
+func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh, gw int, matmulType dtype.Type) (*DenoiserProgram, error) {
+	textSeq := len(textMask)
 	if eps <= 0 {
 		return nil, fmt.Errorf("denoiser program: eps must be positive, got %g", eps)
 	}
@@ -118,6 +121,18 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textSeq, gh, gw int,
 	p.InTemb = b.Input("timestep_embed", dtype.F32, tensor.MustShape(h))
 	p.InTembMod = b.Input("timestep_mod", dtype.F32, tensor.MustShape(uint64(t.ModFields)*h))
 	p.InDelta = b.Input("flow_delta", dtype.F32, tensor.MustShape(1))
+	for _, attended := range textMask {
+		if !attended {
+			p.keyBias = b.Input("denoiser_key_bias", dtype.F32, tensor.MustShape(uint64(seq)))
+			p.keyData = make([]float32, seq)
+			for index, active := range textMask {
+				if !active {
+					p.keyData[index] = padKeyBias
+				}
+			}
+			break
+		}
+	}
 
 	// img_in: (InChannels->Hidden) + bias, over the image tokens only.
 	img := b.Add(
@@ -168,9 +183,14 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textSeq, gh, gw int,
 		q = buildInterleavedRoPE(b, q, axes, positions, theta)
 		k = buildInterleavedRoPE(b, k, axes, positions, theta)
 
-		attn := b.Attention(q, k, v, scale, false) // GQA-native, bidirectional
-		attn = b.Reshape(attn, h, uint64(seq))     // (Hidden, seq)
-		attn = b.Multiply(attn, b.Sigmoid(gate))   // sigmoid output gate
+		var attn *tensor.Tensor
+		if p.keyBias != nil {
+			attn = b.AttentionWithKeyBias(q, k, v, p.keyBias, scale, false)
+		} else {
+			attn = b.Attention(q, k, v, scale, false)
+		}
+		attn = b.Reshape(attn, h, uint64(seq))   // (Hidden, seq)
+		attn = b.Multiply(attn, b.Sigmoid(gate)) // sigmoid output gate
 		attn = b.MulMat(bind.input(prefix+"attn.to_out.0.weight", h, h), attn)
 		hidden = b.Add(hidden, b.Multiply(attn, preGate))
 
@@ -264,7 +284,7 @@ func (p *DenoiserProgram) hostFeeds(
 	if err != nil {
 		return nil, err
 	}
-	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+5)
+	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+6)
 	for name, node := range p.weightInputs {
 		data := d.w(name)
 		elements, _ := node.Shape.Elements()
@@ -278,6 +298,9 @@ func (p *DenoiserProgram) hostFeeds(
 	feeds[p.InTemb] = reference.Value{Shape: p.InTemb.Shape, Data: f32of(temb)}
 	feeds[p.InTembMod] = reference.Value{Shape: p.InTembMod.Shape, Data: f32of(tembMod)}
 	feeds[p.InDelta] = reference.Value{Shape: p.InDelta.Shape, Data: []float32{0}}
+	if p.keyBias != nil {
+		feeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyData}
+	}
 	return feeds, nil
 }
 

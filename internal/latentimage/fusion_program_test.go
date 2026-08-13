@@ -8,6 +8,19 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
+func TestFusionProgramMasksTextPadding(t *testing.T) {
+	program, err := CompileFusionProgram(
+		syntheticSpec(), 1e-5,
+		[]bool{true, false, true}, dtype.F32,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if program.keyBias == nil || len(program.keyData) != 3 || program.keyData[1] != padKeyBias {
+		t.Fatalf("key bias = %v", program.keyData)
+	}
+}
+
 // syntheticFusionInput builds deterministic selected hidden states
 // [textSeq*TextLayers*TextHidden] at synthetic scale (the SelectedHiddenStates.Data
 // layout the fusion consumes).
@@ -44,7 +57,7 @@ func TestFusionProgramMatchesHostReference(t *testing.T) {
 		t.Fatalf("host fused len=%d want %d", len(host), textSeq*spec.Hidden)
 	}
 
-	prog, err := CompileFusionProgram(spec, 1e-5, textSeq, dtype.F32)
+	prog, err := CompileFusionProgram(spec, 1e-5, attendedTextMask(textSeq), dtype.F32)
 	if err != nil {
 		t.Fatalf("CompileFusionProgram: %v", err)
 	}

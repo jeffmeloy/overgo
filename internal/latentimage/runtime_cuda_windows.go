@@ -122,15 +122,16 @@ func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Gene
 	if err != nil {
 		return nil, err
 	}
+	textMask := text.Mask[len(text.Mask)-text.PromptRows:]
 	fusion, err := CompileFusionProgram(
-		spec.Transformer, float32(spec.Transformer.NormEps), text.PromptRows, dtype.BF16,
+		spec.Transformer, float32(spec.Transformer.NormEps), textMask, dtype.BF16,
 	)
 	if err != nil {
 		return nil, err
 	}
 	gridH, gridW := shape.Height/spec.PatchSize, shape.Width/spec.PatchSize
 	denoiser, err := CompileDenoiserProgram(
-		spec.Transformer, float32(spec.Transformer.NormEps), text.PromptRows, gridH, gridW, dtype.BF16,
+		spec.Transformer, float32(spec.Transformer.NormEps), textMask, gridH, gridW, dtype.BF16,
 	)
 	if err != nil {
 		return nil, err

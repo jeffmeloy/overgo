@@ -11,7 +11,7 @@
           "id": "do",
           "title": "Unblock the production Krea image runtime through shared nonstandard safetensors shard-index inventory; prove the real Krea artifact resolves, then establish the first resident-pipeline wall and peak baseline",
           "status": "open",
-          "verify": "go test ./internal/modelartifact ./cmd/recipe -run '^(TestFromFilesInventoriesNonstandardIndexedShards|TestLatentImageInventoryAcceptsDiffusersShards)$' -count=1 -v"
+          "verify": "OVERGO_KREA_BASELINE=1 go test ./internal/latentimage -run '^TestGeneratorRealCheckpointBaseline$' -count=1 -v"
         }
       ]
     },

@@ -23,6 +23,28 @@ func syntheticForwardInputs(t TransformerSpec, textSeq, imgSeq int) (latent, enc
 	return latent, enc
 }
 
+func attendedTextMask(rows int) []bool {
+	mask := make([]bool, rows)
+	for index := range mask {
+		mask[index] = true
+	}
+	return mask
+}
+
+func TestDenoiserProgramMasksTextPadding(t *testing.T) {
+	program, err := CompileDenoiserProgram(
+		syntheticSpec(), 1e-5, []bool{true, false, true}, 1, 2, dtype.F32,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if program.keyBias == nil || len(program.keyData) != 5 ||
+		program.keyData[0] != 0 || program.keyData[1] != padKeyBias || program.keyData[2] != 0 ||
+		program.keyData[3] != 0 || program.keyData[4] != 0 {
+		t.Fatalf("key bias = %v", program.keyData)
+	}
+}
+
 // The graph-based device forward must reproduce the host reference
 // Denoiser.Forward on the reference backend: same img_in, [text,image] concat,
 // 28 (here 2) gated-GQA co-attention blocks, SwiGLU, and final modulated
@@ -47,7 +69,7 @@ func TestDenoiserProgramMatchesHostReference(t *testing.T) {
 		t.Fatalf("host Forward: %v", err)
 	}
 
-	prog, err := CompileDenoiserProgram(spec, 1e-5, textSeq, gh, gw, dtype.F32)
+	prog, err := CompileDenoiserProgram(spec, 1e-5, attendedTextMask(textSeq), gh, gw, dtype.F32)
 	if err != nil {
 		t.Fatalf("CompileDenoiserProgram: %v", err)
 	}

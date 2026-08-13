@@ -33,7 +33,7 @@ func TestFusionProgramCUDAMatchesReference(t *testing.T) {
 	enc := f32slice(syntheticFusionInput(spec, textSeq))
 	weightAt := func(name string) ([]float32, error) { return store[name], nil }
 
-	prog, err := CompileFusionProgram(spec, 1e-5, textSeq, dtype.F32)
+	prog, err := CompileFusionProgram(spec, 1e-5, attendedTextMask(textSeq), dtype.F32)
 	if err != nil {
 		t.Fatalf("CompileFusionProgram: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 	}
 
 	// device bf16 fusion over the same selected hiddens.
-	prog, err := CompileFusionProgram(tspec, float32(tspec.NormEps), selected.Seq, dtype.BF16)
+	prog, err := CompileFusionProgram(tspec, float32(tspec.NormEps), attendedTextMask(selected.Seq), dtype.BF16)
 	if err != nil {
 		t.Fatalf("CompileFusionProgram: %v", err)
 	}

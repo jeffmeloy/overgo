@@ -196,19 +196,19 @@
           "contains": "func (r *Gemma4TowerRunner) EncodeAudioFeatures(",
           "path": "internal/projector/gemma4tower_audio.go",
           "role": "source",
-          "identity": "file:sha256:7583db8c86a3d3d914bf9c8ded44679ae0b44a0cb4d76ce61d5ab02635b8e8fd"
+          "identity": "file:sha256:dbbe472cf9c686daebc102bc0326859f00ed6b8463ac380f436c762fcc540cc8"
         },
         {
           "contains": "func PreprocessGemma4AudioTower(",
           "path": "internal/projector/gemma4tower_audio_frontend.go",
           "role": "source",
-          "identity": "file:sha256:c118ecebbf8a438da61598cf6dbb982071c53fae55868dc4809077d75cc0ff85"
+          "identity": "file:sha256:5bfe6f20fccd159ee848c6872c11853fb11e45b1ae5927d66735ca29bff7406a"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:9896f208fff30356db966c335f458a4cbc47a7e3a763d893d7c62e3380e6ab5c"
+          "identity": "evidence:sha256:65114415b07d050fe97680e325b0f6ca498beb8f68c579dc9b2ab4dc01af9325"
         }
       ],
       "id": "gemma-e4b-audio-tower-oracle",
@@ -230,7 +230,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:9896f208fff30356db966c335f458a4cbc47a7e3a763d893d7c62e3380e6ab5c"
+          "identity": "evidence:sha256:65114415b07d050fe97680e325b0f6ca498beb8f68c579dc9b2ab4dc01af9325"
         }
       ],
       "id": "gemma-e4b-image-language-oracle",
@@ -246,13 +246,13 @@
           "contains": "func Projection(",
           "path": "internal/workflowrecipe/workflow.go",
           "role": "source",
-          "identity": "file:sha256:3555f4978a9a1deabb9fb252dfc4c2ab3de63d9b69cc8906791cc8f6bed6ccce"
+          "identity": "file:sha256:68e2709d41b08983272a77fa6d573c073a92434eb716691142a01019688a8164"
         },
         {
           "contains": "func TestProjectionMediaContracts(",
           "path": "internal/workflowrecipe/workflow_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:c0b1629122cadc468e5b82d7f46e276711943d2088601e76febe6cec7910f687"
+          "identity": "evidence:sha256:6f5db4cca007d9ee33043ee9407b8f8e9e220f6b376161d90c61de81b73ebbda"
         }
       ],
       "id": "typed-multimodal-projection-recipes",
@@ -260,6 +260,27 @@
       "verify": "go test ./internal/workflowrecipe -run '^TestProjectionMediaContracts$' -count=1 -v",
       "status": "implemented",
       "summary": "Image, audio, and video projection recipes name distinct decode/project modules and tensor contracts independent of placement."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func NewAudioProjectionProfile(",
+          "path": "internal/projector/audio_profile.go",
+          "role": "source",
+          "identity": "file:sha256:e99f0e20bcb500a6802dd08f3a7bd964cad8d3d1456bc03236a19a45f5834a8c"
+        },
+        {
+          "contains": "func TestAudioProjectionProfileRoundTrip(",
+          "path": "internal/projector/audio_profile_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:1a154acc46059df8420b3c4cf7e008edf59e61cbf62461b18b98994ee0f1bfa1"
+        }
+      ],
+      "id": "audio-projection-profile",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/projector -run '^TestAudioProjectionProfileRoundTrip$' -count=1 -v",
+      "status": "implemented",
+      "summary": "Audio attention policy is a canonical content-addressed profile bound separately from language architecture policy."
     },
     {
       "evidence": [

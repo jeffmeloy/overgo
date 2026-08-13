@@ -17,7 +17,7 @@ func (r *Gemma4TowerRunner) EncodeAudio(
 	ctx context.Context,
 	samples []float32,
 	sampleRate int,
-	profile Gemma4AudioTowerProfile,
+	profile AudioProjectionProfile,
 ) (Gemma4AudioTowerOutput, error) {
 	if r == nil || r.file == nil {
 		return Gemma4AudioTowerOutput{}, errors.New("projector: runner is closed")
@@ -33,7 +33,7 @@ func (r *Gemma4TowerRunner) EncodeAudioTrace(
 	ctx context.Context,
 	samples []float32,
 	sampleRate int,
-	profile Gemma4AudioTowerProfile,
+	profile AudioProjectionProfile,
 ) (Gemma4AudioTowerOutput, Gemma4AudioTowerTrace, error) {
 	if r == nil || r.file == nil {
 		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, errors.New("projector: runner is closed")

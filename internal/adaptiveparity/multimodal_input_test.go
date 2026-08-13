@@ -200,6 +200,10 @@ func testGemmaE4BAudioParity(t *testing.T) {
 		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
 	}
 	defer runner.Close()
+	profile, err := projector.NewAudioProjectionProfile(10000)
+	if err != nil {
+		t.Fatal(err)
+	}
 	prepared, preparedFrames, err := projector.PreprocessGemma4AudioTower(
 		wave, runner.Spec().Audio.SampleRate, runner.Spec().Audio,
 	)
@@ -219,7 +223,7 @@ func testGemmaE4BAudioParity(t *testing.T) {
 	}
 	start := time.Now()
 	output, trace, err := runner.EncodeAudioTrace(
-		context.Background(), wave, runner.Spec().Audio.SampleRate, projector.Gemma4AudioTowerProfile{RopeFreqBase: 10000},
+		context.Background(), wave, runner.Spec().Audio.SampleRate, profile,
 	)
 	if err != nil {
 		t.Fatal(err)

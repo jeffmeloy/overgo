@@ -240,15 +240,19 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 		t.Fatalf("tower video output = %+v", video)
 	}
 	audioFrames := 7
+	audioProfile, err := projector.NewAudioProjectionProfile(100)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := runner.EncodeAudio(
 		context.Background(), make([]float32, 20), int(processor.Audio.SampleRate)+1,
-		projector.Gemma4AudioTowerProfile{RopeFreqBase: 100},
+		audioProfile,
 	); err == nil {
 		t.Fatal("tower audio accepted mismatched sample rate")
 	}
 	waveAudio, err := runner.EncodeAudio(
 		context.Background(), make([]float32, 20), int(processor.Audio.SampleRate),
-		projector.Gemma4AudioTowerProfile{RopeFreqBase: 100},
+		audioProfile,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -258,13 +262,13 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 	}
 	if _, err := runner.EncodeAudioFeatures(
 		context.Background(), make([]float32, audioFrames*int(processor.Audio.FeatureSize)), audioFrames,
-		projector.Gemma4AudioTowerProfile{},
+		projector.AudioProjectionProfile{},
 	); err == nil {
 		t.Fatal("tower audio accepted absent profile fact")
 	}
 	audio, err := runner.EncodeAudioFeatures(
 		context.Background(), make([]float32, audioFrames*int(processor.Audio.FeatureSize)), audioFrames,
-		projector.Gemma4AudioTowerProfile{RopeFreqBase: 100},
+		audioProfile,
 	)
 	if err != nil {
 		t.Fatal(err)

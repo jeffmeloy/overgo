@@ -16,12 +16,13 @@ type workflowFixture struct {
 func newWorkflowFixture(t *testing.T) workflowFixture {
 	t.Helper()
 	return workflowFixture{bindings: Bindings{
-		Model:      testutil.ArtifactID(t, artifact.KindModel, "model"),
-		Profile:    testutil.ArtifactID(t, artifact.KindProfile, "profile"),
-		Tokenizer:  testutil.ArtifactID(t, artifact.KindTokenizer, "tokenizer"),
-		Projector:  testutil.ArtifactID(t, artifact.KindProjector, "projector"),
-		Dataset:    testutil.ArtifactID(t, artifact.KindDataset, "dataset"),
-		Checkpoint: testutil.ArtifactID(t, artifact.KindCheckpoint, "checkpoint"),
+		Model:             testutil.ArtifactID(t, artifact.KindModel, "model"),
+		Profile:           testutil.ArtifactID(t, artifact.KindProfile, "profile"),
+		ProjectionProfile: testutil.ArtifactID(t, artifact.KindProfile, "projection-profile"),
+		Tokenizer:         testutil.ArtifactID(t, artifact.KindTokenizer, "tokenizer"),
+		Projector:         testutil.ArtifactID(t, artifact.KindProjector, "projector"),
+		Dataset:           testutil.ArtifactID(t, artifact.KindDataset, "dataset"),
+		Checkpoint:        testutil.ArtifactID(t, artifact.KindCheckpoint, "checkpoint"),
 		Adapters: []artifact.ID{
 			testutil.ArtifactID(t, artifact.KindAdapter, "adapter-0"),
 			testutil.ArtifactID(t, artifact.KindAdapter, "adapter-1"),
@@ -136,6 +137,14 @@ func TestWorkflowRecipesRequireTaskDependencies(t *testing.T) {
 	bindings.Projector = artifact.ID{}
 	if _, err := Projection(bindings, MediaImage, recipe.PlacementHost); err == nil {
 		t.Fatal("projection without projector accepted")
+	}
+	bindings = newWorkflowFixture(t).bindings
+	bindings.ProjectionProfile = artifact.ID{}
+	if _, err := Projection(bindings, MediaAudio, recipe.PlacementHost); err == nil {
+		t.Fatal("audio projection without projection profile accepted")
+	}
+	if _, err := Projection(bindings, MediaImage, recipe.PlacementHost); err != nil {
+		t.Fatalf("image projection rejected without audio profile: %v", err)
 	}
 	bindings = newWorkflowFixture(t).bindings
 	bindings.Dataset = artifact.ID{}

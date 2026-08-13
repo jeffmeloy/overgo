@@ -40,13 +40,14 @@ const (
 )
 
 type Bindings struct {
-	Model      artifact.ID
-	Profile    artifact.ID
-	Tokenizer  artifact.ID
-	Projector  artifact.ID
-	Dataset    artifact.ID
-	Checkpoint artifact.ID
-	Adapters   []artifact.ID
+	Model             artifact.ID
+	Profile           artifact.ID
+	ProjectionProfile artifact.ID
+	Tokenizer         artifact.ID
+	Projector         artifact.ID
+	Dataset           artifact.ID
+	Checkpoint        artifact.ID
+	Adapters          []artifact.ID
 }
 
 type Plan struct {
@@ -127,6 +128,9 @@ func Projection(bindings Bindings, media MediaKind, placement recipe.Placement) 
 	if err != nil {
 		return recipe.Definition{}, err
 	}
+	if media == MediaAudio && !bindings.ProjectionProfile.Valid() {
+		return recipe.Definition{}, errors.New("workflow recipe: missing audio projection profile dependency")
+	}
 	decode := node("decode", decodeModule, placement)
 	project := node("project", projectModule, placement)
 	return definition(
@@ -200,7 +204,7 @@ func definition(
 }
 
 func (b Bindings) dependencies() ([]recipe.Dependency, error) {
-	dependencies := make([]recipe.Dependency, 0, 6+len(b.Adapters))
+	dependencies := make([]recipe.Dependency, 0, 7+len(b.Adapters))
 	appendID := func(role recipe.DependencyRole, id artifact.ID) {
 		if id.Valid() {
 			dependencies = append(dependencies, recipe.Dependency{Role: role, Artifact: id})
@@ -208,6 +212,11 @@ func (b Bindings) dependencies() ([]recipe.Dependency, error) {
 	}
 	appendID(recipe.DependencyModel, b.Model)
 	appendID(recipe.DependencyProfile, b.Profile)
+	if b.ProjectionProfile.Valid() {
+		dependencies = append(dependencies, recipe.Dependency{
+			Role: recipe.DependencyProfile, Slot: 1, Artifact: b.ProjectionProfile,
+		})
+	}
 	appendID(recipe.DependencyTokenizer, b.Tokenizer)
 	appendID(recipe.DependencyProjector, b.Projector)
 	appendID(recipe.DependencyDataset, b.Dataset)
@@ -239,7 +248,15 @@ func validateTaskDependencies(definition recipe.Definition) error {
 			return fmt.Errorf("workflow recipe: missing %s dependency", role)
 		}
 	}
+	if definition.Task == recipe.TaskProjection && definitionUsesModule(definition, ModuleProjectAudio) &&
+		!hasDependency(definition.Dependencies, recipe.DependencyProfile, 1) {
+		return errors.New("workflow recipe: missing audio projection profile dependency")
+	}
 	return nil
+}
+
+func definitionUsesModule(definition recipe.Definition, module recipe.ModuleID) bool {
+	return slices.ContainsFunc(definition.Nodes, func(node recipe.Node) bool { return node.Module == module })
 }
 
 func mediaContract(media MediaKind) (

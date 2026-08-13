@@ -11,10 +11,6 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-type Gemma4AudioTowerProfile struct {
-	RopeFreqBase float32
-}
-
 type Gemma4AudioTowerOutput struct {
 	Embeddings reference.Value
 	SoftTokens int
@@ -28,7 +24,7 @@ func (r *Gemma4TowerRunner) EncodeAudioFeatures(
 	ctx context.Context,
 	features []float32,
 	frames int,
-	profile Gemma4AudioTowerProfile,
+	profile AudioProjectionProfile,
 ) (Gemma4AudioTowerOutput, error) {
 	output, _, err := r.encodeAudioFeatures(ctx, features, frames, profile, false)
 	return output, err
@@ -38,7 +34,7 @@ func (r *Gemma4TowerRunner) EncodeAudioFeaturesTrace(
 	ctx context.Context,
 	features []float32,
 	frames int,
-	profile Gemma4AudioTowerProfile,
+	profile AudioProjectionProfile,
 ) (Gemma4AudioTowerOutput, Gemma4AudioTowerTrace, error) {
 	return r.encodeAudioFeatures(ctx, features, frames, profile, true)
 }
@@ -47,7 +43,7 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 	ctx context.Context,
 	features []float32,
 	frames int,
-	profile Gemma4AudioTowerProfile,
+	profile AudioProjectionProfile,
 	trace bool,
 ) (Gemma4AudioTowerOutput, Gemma4AudioTowerTrace, error) {
 	if r == nil || r.file == nil {
@@ -58,8 +54,8 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, fmt.Errorf(
 			"projector: Gemma 4 audio features=%d, want %d x %d", len(features), frames, spec.MelBins)
 	}
-	if profile.RopeFreqBase <= 0 || !finite32(profile.RopeFreqBase) {
-		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, errors.New("projector: Gemma 4 audio profile lacks rope frequency base")
+	if err := profile.ValidateIdentity(); err != nil {
+		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, fmt.Errorf("projector: Gemma 4 audio profile: %w", err)
 	}
 	builder := tensor.NewBuilder()
 	input := builder.Input("audio_features", dtype.F32, tensor.MustShape(1, uint64(spec.MelBins), uint64(frames)))
@@ -69,7 +65,7 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 	hidden, sequence := r.gemma4AudioSubsampleGraph(graph, input, frames)
 	stageNames := []string{"subsample"}
 	stages := []*tensor.Tensor{hidden}
-	position, positionLength := gemma4AudioRelativePositions(spec, profile.RopeFreqBase)
+	position, positionLength := gemma4AudioRelativePositions(spec, profile.AttentionRopeFreqBase)
 	positionInput := builder.Input("audio_relative_positions", dtype.F32,
 		tensor.MustShape(uint64(spec.Hidden), uint64(positionLength)))
 	graph.hostFeeds[positionInput] = reference.Value{Shape: positionInput.Shape, Data: position}

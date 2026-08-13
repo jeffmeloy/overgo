@@ -38,37 +38,8 @@ func (w *DeviceF32Weights) Load(
 	if file == nil {
 		return errors.New("F32 device weights: GGUF file is nil")
 	}
-	return w.load(ctx, infos, func(info gguf.TensorInfo) (DeviceTensor, error) {
-		value, err := LoadHostTensor(ctx, file, info)
-		if err != nil {
-			return DeviceTensor{}, err
-		}
-		if uint64(len(value.Data)) > ^uint64(0)/4 {
-			return DeviceTensor{}, fmt.Errorf("F32 device tensor %q byte size overflows", info.Name)
-		}
-		size := uint64(len(value.Data)) * 4
-		var pointer driver.DevicePtr
-		if err := w.worker.Do(ctx, func(state *device.State) error {
-			var allocateErr error
-			pointer, allocateErr = state.Driver.MemAlloc(size)
-			if allocateErr != nil {
-				return allocateErr
-			}
-			if copyErr := state.Driver.MemcpyHtoD(pointer, f32Bytes(value.Data)); copyErr != nil {
-				_ = state.Driver.MemFree(pointer)
-				pointer = 0
-				return copyErr
-			}
-			return nil
-		}); err != nil {
-			return DeviceTensor{}, fmt.Errorf("upload F32 device tensor %q: %w", info.Name, err)
-		}
-		return DeviceTensor{
-			Info:    info,
-			Shape:   value.Shape,
-			Pointer: pointer,
-			Size:    size,
-		}, nil
+	return w.loadConverted(ctx, file, infos, 4, func(values []float32, _ int) []byte {
+		return f32Bytes(values)
 	})
 }
 

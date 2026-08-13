@@ -29,32 +29,12 @@ func (w *DeviceBF16Weights) Load(ctx context.Context, file *gguf.File, infos []g
 	if file == nil {
 		return errors.New("BF16 device weights: GGUF file is nil")
 	}
-	return w.load(ctx, infos, func(info gguf.TensorInfo) (DeviceTensor, error) {
-		value, err := LoadHostTensor(ctx, file, info)
-		if err != nil {
-			return DeviceTensor{}, err
-		}
-		storage := make([]byte, len(value.Data)*2)
-		for index, item := range value.Data {
+	return w.loadConverted(ctx, file, infos, 2, func(values []float32, size int) []byte {
+		storage := make([]byte, size)
+		for index, item := range values {
 			binary.LittleEndian.PutUint16(storage[index*2:], dtype.Float32ToBF16(item))
 		}
-		var pointer driver.DevicePtr
-		if err := w.worker.Do(ctx, func(state *device.State) error {
-			var allocErr error
-			pointer, allocErr = state.Driver.MemAlloc(uint64(len(storage)))
-			if allocErr != nil {
-				return allocErr
-			}
-			if copyErr := state.Driver.MemcpyHtoD(pointer, storage); copyErr != nil {
-				_ = state.Driver.MemFree(pointer)
-				pointer = 0
-				return copyErr
-			}
-			return nil
-		}); err != nil {
-			return DeviceTensor{}, fmt.Errorf("upload BF16 device tensor %q: %w", info.Name, err)
-		}
-		return DeviceTensor{Info: info, Shape: value.Shape, Pointer: pointer, Size: uint64(len(storage))}, nil
+		return storage
 	})
 }
 

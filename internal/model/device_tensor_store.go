@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
@@ -69,6 +70,50 @@ func (s *deviceTensorStore) load(
 		added = append(added, info.Name)
 	}
 	return nil
+}
+
+func (s *deviceTensorStore) loadConverted(
+	ctx context.Context,
+	file *gguf.File,
+	infos []gguf.TensorInfo,
+	bytesPerValue uint64,
+	encode func([]float32, int) []byte,
+) error {
+	return s.load(ctx, infos, func(info gguf.TensorInfo) (DeviceTensor, error) {
+		value, err := LoadHostTensor(ctx, file, info)
+		if err != nil {
+			return DeviceTensor{}, err
+		}
+		byteCount, ok := checked.Bytes(uint64(len(value.Data)), bytesPerValue)
+		if !ok {
+			return DeviceTensor{}, fmt.Errorf("%s tensor %q byte size overflows", s.kind, info.Name)
+		}
+		storageSize, ok := checked.Int(byteCount)
+		if !ok {
+			return DeviceTensor{}, fmt.Errorf("%s tensor %q exceeds host address space", s.kind, info.Name)
+		}
+		storage := encode(value.Data, storageSize)
+		if len(storage) != storageSize {
+			return DeviceTensor{}, fmt.Errorf("%s tensor %q encoding size differs", s.kind, info.Name)
+		}
+		var pointer driver.DevicePtr
+		if err := s.worker.Do(ctx, func(state *device.State) error {
+			var allocateErr error
+			pointer, allocateErr = state.Driver.MemAlloc(byteCount)
+			if allocateErr != nil {
+				return allocateErr
+			}
+			if copyErr := state.Driver.MemcpyHtoD(pointer, storage); copyErr != nil {
+				_ = state.Driver.MemFree(pointer)
+				pointer = 0
+				return copyErr
+			}
+			return nil
+		}); err != nil {
+			return DeviceTensor{}, fmt.Errorf("upload %s tensor %q: %w", s.kind, info.Name, err)
+		}
+		return DeviceTensor{Info: info, Shape: value.Shape, Pointer: pointer, Size: byteCount}, nil
+	})
 }
 
 func (s *deviceTensorStore) Lookup(name string) (DeviceTensor, bool) {

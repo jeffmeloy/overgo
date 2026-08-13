@@ -51,7 +51,26 @@ func Load(path string) (Plan, error) {
 	if err := jsonfile.Decode(filepath.FromSlash(path), &d); err != nil {
 		return Plan{}, fmt.Errorf("parse %s: %w", path, err)
 	}
+	if err := ValidateOpenOnly(d); err != nil {
+		return Plan{}, fmt.Errorf("validate %s: %w", path, err)
+	}
 	return d, nil
+}
+
+// ValidateOpenOnly rejects completed chronology from the live work queue.
+// Completed and blocked work belongs in commits, evidence, or findings.
+func ValidateOpenOnly(d Plan) error {
+	for _, it := range d.Items {
+		if it.Status != "open" {
+			return fmt.Errorf("item %q has historical status %q", it.ID, it.Status)
+		}
+		for _, step := range it.Steps {
+			if step.Status != "open" {
+				return fmt.Errorf("step %q/%q has historical status %q", it.ID, step.ID, step.Status)
+			}
+		}
+	}
+	return nil
 }
 
 // Save writes the plan back to path (Path when empty).
@@ -66,21 +85,16 @@ func Save(path string, d Plan) error {
 	return os.WriteFile(filepath.FromSlash(path), append(raw, '\n'), 0o644)
 }
 
-// Current returns the first open step of the first open item -- the single
-// action the loop is allowed to work on and the only step a commit may serve.
-// An open item with no open step yields the sentinel step "." (open the rung).
-// ok is false when every item is done.
+// Current returns the first step of the first item -- the single action the
+// loop may work on. Persisted plans contain open work only. An item with no
+// steps yields the sentinel step "." (open the rung).
 func Current(d Plan) (Item, Step, bool) {
-	for _, it := range d.Items {
-		if it.Status != "open" {
-			continue
-		}
-		for _, s := range it.Steps {
-			if s.Status == "open" {
-				return it, s, true
-			}
-		}
+	if len(d.Items) == 0 {
+		return Item{}, Step{}, false
+	}
+	it := d.Items[0]
+	if len(it.Steps) == 0 {
 		return it, Step{ID: ".", Title: "open the rung (define its steps)"}, true
 	}
-	return Item{}, Step{}, false
+	return it, it.Steps[0], true
 }

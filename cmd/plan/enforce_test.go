@@ -93,3 +93,24 @@ func TestEnforceStopReason(t *testing.T) {
 		}
 	}
 }
+
+func TestPlanContainsOpenWorkOnly(t *testing.T) {
+	document := plan.Plan{Items: []plan.Item{
+		{ID: "first", Status: "open", Steps: []plan.Step{
+			{ID: "done", Status: "open"},
+			{ID: "next", Status: "open"},
+		}},
+		{ID: "last", Status: "open", Steps: []plan.Step{{ID: "only", Status: "open"}}},
+	}}
+	document = removeCompleted(document, 0, 0)
+	if got := document.Items[0].Steps[0].ID; got != "next" {
+		t.Fatalf("first remaining step = %q, want next", got)
+	}
+	document = removeCompleted(document, 1, 0)
+	if len(document.Items) != 1 || document.Items[0].ID != "first" {
+		t.Fatalf("last-step completion retained chronology: %+v", document.Items)
+	}
+	if err := plan.ValidateOpenOnly(document); err != nil {
+		t.Fatalf("completion produced historical rows: %v", err)
+	}
+}

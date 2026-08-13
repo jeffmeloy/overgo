@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/recipecontract"
 	"overgo/internal/strictjson"
 )
 
@@ -23,15 +24,15 @@ const (
 	maxSnapshotBytes        = 4 << 20
 )
 
-type Modality string
+type Modality = recipecontract.Modality
 
 const (
-	ModalityText       Modality = "text"
-	ModalityImage      Modality = "image"
-	ModalityAudio      Modality = "audio"
-	ModalityVideo      Modality = "video"
-	ModalityTimeSeries Modality = "time-series"
-	ModalityTable      Modality = "table"
+	ModalityText       = recipecontract.ModalityText
+	ModalityImage      = recipecontract.ModalityImage
+	ModalityAudio      = recipecontract.ModalityAudio
+	ModalityVideo      = recipecontract.ModalityVideo
+	ModalityTimeSeries = recipecontract.ModalityTimeSeries
+	ModalityTable      = recipecontract.ModalityTable
 )
 
 type Source struct {
@@ -193,9 +194,7 @@ func validateSignature(signature Signature) error {
 	}
 	for _, modalities := range [][]Modality{signature.Inputs, signature.Outputs} {
 		for _, modality := range modalities {
-			switch modality {
-			case ModalityText, ModalityImage, ModalityAudio, ModalityVideo, ModalityTimeSeries, ModalityTable:
-			default:
+			if !recipecontract.ValidModality(modality) {
 				return fmt.Errorf("invalid modality %q", modality)
 			}
 		}

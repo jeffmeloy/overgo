@@ -37,12 +37,12 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fusion, err := CompileFusionProgram(transformerSpec, 1e-5, fixtureSeq, dtype.F32)
+	fusion, err := CompileFusionProgram(transformerSpec, 1e-5, attendedTextMask(fixtureSeq), dtype.F32)
 	if err != nil {
 		t.Fatal(err)
 	}
 	denoiser, err := CompileDenoiserProgram(
-		transformerSpec, 1e-5, fixtureSeq, fixtureGrid, fixtureGrid, dtype.F32,
+		transformerSpec, 1e-5, attendedTextMask(fixtureSeq), fixtureGrid, fixtureGrid, dtype.F32,
 	)
 	if err != nil {
 		t.Fatal(err)

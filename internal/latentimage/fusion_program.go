@@ -27,13 +27,6 @@
 // Every norm is the DiT ZERO-CENTERED (1+w) RMSNorm (zeroCenteredRMSNorm, shared
 // with the denoiser), NOT the encoder's standard WeightedRMSNorm. Geometry is
 // DERIVED from TransformerSpec (config-cross-checked in verify.go); no magics.
-//
-// PARITY CAVEAT. Device fused conditioning == the host textConditioning reference
-// within the bf16 band. It is NOT yet adaptive-golden: the encoder that produces
-// the selected hiddens still runs maskless-causal (the dtc-mask brick adds the
-// pad-key masked-attention op). The fusion itself carries no mask -- the host
-// reference is maskless too -- so device==host here is exact and clean, and the
-// telemetry oracle stays until the full e2e SHA (same caveat as the siblings).
 package latentimage
 
 import (
@@ -58,6 +51,8 @@ type FusionProgram struct {
 	// InEncoder (TextHidden, TextLayers*TextSeq): the selected hiddens, layer-minor
 	// within each token (column = tok*TextLayers + l). Host-fed f32.
 	InEncoder *tensor.Tensor
+	keyBias   *tensor.Tensor
+	keyData   []float32
 
 	weightInputs map[string]*tensor.Tensor
 
@@ -97,7 +92,8 @@ func FusionTensorShapes(t TransformerSpec) map[string][]int {
 // CompileFusionProgram builds the text-fusion graph for a sequence of textSeq
 // prompt tokens. matmulType selects rank-2 weight storage (dtype.F32 exact
 // reference/CUDA parity path, dtype.BF16 device resident path).
-func CompileFusionProgram(t TransformerSpec, eps float32, textSeq int, matmulType dtype.Type) (*FusionProgram, error) {
+func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmulType dtype.Type) (*FusionProgram, error) {
+	textSeq := len(textMask)
 	if eps <= 0 {
 		return nil, fmt.Errorf("fusion program: eps must be positive, got %g", eps)
 	}
@@ -132,13 +128,25 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textSeq int, matmulTyp
 	bind := weightBinder{builder: b, inputs: p.weightInputs, matmulType: matmulType}
 
 	p.InEncoder = b.Input("encoder_hidden", dtype.F32, tensor.MustShape(th, L*ts))
+	for _, attended := range textMask {
+		if !attended {
+			p.keyBias = b.Input("fusion_key_bias", dtype.F32, tensor.MustShape(ts))
+			p.keyData = make([]float32, textSeq)
+			for index, active := range textMask {
+				if !active {
+					p.keyData[index] = padKeyBias
+				}
+			}
+			break
+		}
+	}
 
 	// --- layerwise blocks: attend across the tapped-layer axis, per token ---
 	// sequence = TextLayers, batch = textSeq (rank-4 attention).
 	hidden := p.InEncoder
 	for i := 0; i < t.LayerwiseTextBlocks; i++ {
 		prefix := fmt.Sprintf("text_fusion.layerwise_blocks.%d.", i)
-		hidden = fusionAttnFF(b, bind, prefix, hidden, eps, scale, th, headDim, qHeads, kvHeads, qDim, kvDim, inter, L, ts)
+		hidden = fusionAttnFF(b, bind, prefix, hidden, nil, eps, scale, th, headDim, qHeads, kvHeads, qDim, kvDim, inter, L, ts)
 	}
 
 	// --- projector: collapse the layer axis, Linear(TextLayers->1) weight [1,L] ---
@@ -161,7 +169,7 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textSeq int, matmulTyp
 	// --- refiner blocks: attend across the token sequence (batch collapses) ---
 	for i := 0; i < t.RefinerTextBlocks; i++ {
 		prefix := fmt.Sprintf("text_fusion.refiner_blocks.%d.", i)
-		fused = fusionAttnFF(b, bind, prefix, fused, eps, scale, th, headDim, qHeads, kvHeads, qDim, kvDim, inter, ts, 1)
+		fused = fusionAttnFF(b, bind, prefix, fused, p.keyBias, eps, scale, th, headDim, qHeads, kvHeads, qDim, kvDim, inter, ts, 1)
 	}
 
 	// --- txt_in: zero-centered norm -> linear_1 -> gelu(tanh) -> linear_2 ---
@@ -187,7 +195,7 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textSeq int, matmulTyp
 // batch>1 the attention runs rank-4 [head_dim, heads, seqLen, batch] (per-batch
 // bidirectional); when batch==1 it collapses to rank-3. Mirrors host fusionBlock.
 func fusionAttnFF(
-	b *tensor.Builder, bind weightBinder, prefix string, hidden *tensor.Tensor,
+	b *tensor.Builder, bind weightBinder, prefix string, hidden, keyBias *tensor.Tensor,
 	eps, scale float32,
 	th, headDim, qHeads, kvHeads, qDim, kvDim, inter, seqLen, batch uint64,
 ) *tensor.Tensor {
@@ -212,7 +220,12 @@ func fusionAttnFF(
 		k = b.Reshape(k, headDim, kvHeads, seqLen, batch)
 		v = b.Reshape(v, headDim, kvHeads, seqLen, batch)
 	}
-	attn := b.Attention(q, k, v, scale, false) // bidirectional GQA, no mask
+	var attn *tensor.Tensor
+	if keyBias != nil {
+		attn = b.AttentionWithKeyBias(q, k, v, keyBias, scale, false)
+	} else {
+		attn = b.Attention(q, k, v, scale, false)
+	}
 	attn = b.Reshape(attn, th, cols)
 	attn = b.Multiply(attn, b.Sigmoid(gate)) // sigmoid output gate
 	attn = b.MulMat(bind.input(prefix+"attn.to_out.0.weight", th, th), attn)
@@ -241,7 +254,7 @@ func (p *FusionProgram) RunHostFeed(run GraphRunner, weightAt FusionFeed, encode
 	if want := p.TextSeq * p.T.TextLayers * p.T.TextHidden; len(encoderHidden) != want {
 		return nil, fmt.Errorf("fusion RunHostFeed: encoder hidden len=%d want %d", len(encoderHidden), want)
 	}
-	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+1)
+	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+2)
 	for name, node := range p.weightInputs {
 		data, err := weightAt(name)
 		if err != nil {
@@ -254,6 +267,9 @@ func (p *FusionProgram) RunHostFeed(run GraphRunner, weightAt FusionFeed, encode
 		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
 	}
 	feeds[p.InEncoder] = reference.Value{Shape: p.InEncoder.Shape, Data: encoderHidden}
+	if p.keyBias != nil {
+		feeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyData}
+	}
 
 	results, err := run([]*tensor.Tensor{p.Fused}, feeds)
 	if err != nil {

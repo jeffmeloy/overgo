@@ -1,10 +1,8 @@
 # adaptive_new Parity and Performance Report
 
-Validation base: Overgo `09537628a`; adaptive_new `214950b3b`; working trees
-reviewed 2026-08-12. Overgo's tree also contains uncommitted doctrine, plan, and
-root-document cleanup. adaptive_new's tree also contains uncommitted RepoDB,
-plan, finding, manifest, and test work. Those changes are observations, not
-landed evidence.
+Validation base: Overgo `d81caeb16` plus the gated Krea mask/performance slice;
+adaptive_new `214950b3b`; reviewed 2026-08-13. adaptive_new working-tree changes
+remain observations, not landed evidence.
 
 Scope: adaptive_new Go runtime and training code, model-native Python oracles,
 Overgo host/CUDA runtime, recipes, training paths, compatibility claims, and
@@ -22,8 +20,8 @@ best resident implementation.
   GGUF breadth, native quantization, retained device state, smaller Python
   surface.
 - Proven wins: Qwen3.5-4B decode, Gemma E4B text decode, RxBrain VQA,
-  SimpleDiffusion host forward, MiniCPM decode, and Wan exact-quality generation
-  on the recorded protocols.
+  SimpleDiffusion host forward, MiniCPM decode, Wan exact-quality generation,
+  and Krea 256 generation wall time on the recorded protocols.
 - Training lead remains adaptive_new: more objective types, more artifact
   trainers, more promotion/evidence machinery, and real media-training paths.
 - Critical correction: Overgo's E4B item is marked done although the real E4B
@@ -101,7 +99,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Un-0 image/video | Active deterministic Go route | Exact fixture within `3.13e-7`; about 1.25 ms warm generation | Parity | Non-vacuous golden in normal gate; image and video outputs |
 | SimpleDiffusion image | Host generation and real-checkpoint training | Forward max error `3.99e-6`; recorded 0.17 s vs adaptive 0.21 s | Host lead | Device forward/backward; real output quality and peak |
 | Wan text-to-video | Native adaptive exact path; Python oracle | Full Overgo denoise/decode; recorded 383 s, 7.87 GB, exact G3/BF16G3/G4 | Recorded lead | Fresh same-revision Python/adaptive/Overgo run; semantic clip gate |
-| Krea text-to-image | Adaptive full-quality exact SHA: 158.144 s, 33.47 GB device | Core Krea components exist; production 2048 caller and exact full route remain open | Gap | Exact adaptive SHA or approved semantic oracle; beat 158.144 s and 33.47 GB |
+| Krea text-to-image | Matched 256 fixture: 25.430 s; exact u8 SHA `b257e244`; full 2048 record: 158.144 s, 33.47 GB device | Real artifact runs end to end at 256 in 19.067 s; 5.660 s denoise; 32.008 GiB peak; latent/velocity distributions bounded; decoded MAE/RMSE 0.03284/0.06036 | 25% matched wall lead; quality approximate; 2048 open | Exact adaptive SHA or approved semantic oracle; prove 2048 fit and production caller |
 | SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Recipe and generic prerequisites partly ported; generation body remains open | Gap | Native full image and edit routes; exact/quality, wall, peak |
 | LiveEdit video edit | Adaptive complete experimental route; best 109.5 s, 20.61 GB; Python 60.1 s | No complete Overgo route found | Gap | Port shared video primitives; beat Python without temporal degradation |
 | Server/API/session/cache | Mature adaptive-specific multimodal surface | Broad llama-compatible server, resumable caches, tools | Different strengths | Contract matrix: streaming, tools, embeddings, media, sessions, refusal |
@@ -151,7 +149,8 @@ These results justify promotion of the primitives. They do not justify E4B,
 | MiniCPM decode | adaptive 294.6-295.8 token/s | 321.7-363.0 token/s | Overgo faster |
 | Un-0 generation | 0.01 s test resolution | 0.01 s test resolution | Tie; resolution-limited |
 | Wan full generation | Python baselines vary by retained report: 399.1 or 463.4 s; adaptive exact Go 795.1 s warm in the current media report | about 383 s; 7.87 GB recorded | Likely lead; protocol refresh required |
-| Krea full generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | No complete Overgo result | Open |
+| Krea 256 generation | adaptive exact Go 25.430 s | 19.067 s / 32.008 GiB; MAE 0.03284, RMSE 0.06036 | 25% wall lead; exact quality open |
+| Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | Not yet run | Open |
 | SenseNova full generation | Python 366.6 s / 47.58 GiB; adaptive 206.010 s / 19.50 GB | No complete Overgo result | Open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | No complete Overgo result | Open |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |
@@ -217,11 +216,13 @@ encoder name validated fixtures. Add evidence tiers, source commits, artifact
 hashes, failable commands, and expiry/reverification rules. An architecture
 parser is not a promoted model capability.
 
-### P2: Krea components are present but not production-reachable
+### P1: Krea promotion remains approximate and 256-only
 
-The plan correctly leaves the 2048 production caller, device-resident stage
-handoff, selected-output contract, exact artifact hash, and Python performance
-bar open. Finish the route before adding another media family.
+The real pipeline now resolves nonstandard Diffusers shard indexes, masks padded
+text in fusion and every denoiser block, retains stage handoffs, and beats the
+matched adaptive 256 wall. The gate bounds all eight latent/velocity
+distributions and decoded MAE/RMSE. Exact SHA, a production caller, active
+recipe evidence, and the 2048 memory/performance bar remain open.
 
 ## Multimodal Completion Contract
 

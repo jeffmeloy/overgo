@@ -145,13 +145,7 @@ func (r *residentRuntime) compileStatic(
 	}
 	graph := &residentGraph{feeds: make(map[*tensor.Tensor]driver.DevicePtr, len(inputs))}
 	for node, values := range inputs {
-		if node == nil || node.Type != dtype.F32 {
-			return nil, fmt.Errorf("%s: static input must be F32", label)
-		}
-		key := residentWeight{source: "static:" + label, name: node.Name, type_: node.Type, shape: node.Shape}
-		if err := r.bind(ctx, graph, key, node, func() ([]byte, error) {
-			return driver.Bytes(values), nil
-		}); err != nil {
+		if err := r.bindStatic(ctx, graph, label, node, values); err != nil {
 			return nil, fmt.Errorf("%s: tensor %s: %w", label, node.Name, err)
 		}
 	}
@@ -161,6 +155,22 @@ func (r *residentRuntime) compileStatic(
 	}
 	graph.compiled = compiled
 	return graph, nil
+}
+
+func (r *residentRuntime) bindStatic(
+	ctx context.Context,
+	graph *residentGraph,
+	label string,
+	node *tensor.Tensor,
+	values []float32,
+) error {
+	if node == nil || node.Type != dtype.F32 {
+		return fmt.Errorf("%s: static input must be F32", label)
+	}
+	key := residentWeight{source: "static:" + label, name: node.Name, type_: node.Type, shape: node.Shape}
+	return r.bind(ctx, graph, key, node, func() ([]byte, error) {
+		return driver.Bytes(values), nil
+	})
 }
 
 func (r *residentRuntime) bind(

@@ -98,6 +98,7 @@ func launchBF16Attention(
 	query := pointers[queryNode]
 	key := pointers[keyNode]
 	value := pointers[fusion.value]
+	keyBias := pointers[fusion.keyBias]
 	output := pointers[node]
 	scale := attributes.Scale
 	stagingBytes, ok := blasBF16AttentionStagingBytes(fusion)
@@ -125,7 +126,7 @@ func launchBF16Attention(
 	return launchGridSharedABI(
 		state, functions[kernelAttentionTiledBf16F32],
 		grid, driver.Dim3{X: attentionBF16Threads, Y: 1, Z: 1}, attentionBF16SharedBytes,
-		&query, &keyStage, &valueStage, &output,
+		&query, &keyStage, &valueStage, &keyBias, &output,
 		&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
 		&sequences, &scale,
 	)
@@ -173,7 +174,8 @@ func blasAttentionTiles(keyWidth, queryTokens, keyValueTokens uint32) (uint32, u
 // OpAttention nodes the strided-batched SGEMM path will accept.
 func blasAttentionScoreBytes(node *tensor.Tensor) (uint64, bool) {
 	attributes, ok := node.Attrs.(tensor.AttentionAttributes)
-	if !ok || len(node.Inputs) != 3 {
+	if !ok || len(node.Inputs) < 3 || len(node.Inputs) > 4 ||
+		(attributes.HasKeyBias != (len(node.Inputs) == 4)) {
 		return 0, false
 	}
 	queryNode, keyNode, valueNode := node.Inputs[0], node.Inputs[1], node.Inputs[2]
@@ -218,7 +220,7 @@ func launchBlasFullAttention(
 	state *device.State,
 	functions functionSet,
 	blas *blasState,
-	query, key, value, output driver.DevicePtr,
+	query, key, value, keyBias, output driver.DevicePtr,
 	queryHeads, queryTokens, keyValueTokens, keyWidth, sequences, chunk, keyChunk uint32,
 	scale float32,
 ) error {
@@ -273,7 +275,7 @@ func launchBlasFullAttention(
 					driver.Dim3{X: queryHeads * rows, Y: 1, Z: 1},
 					driver.Dim3{X: softmaxThreads, Y: 1, Z: 1}, softmaxThreads*f64Bytes,
 					&scores, &oChunk, &stats,
-					&keys, &keyChunk, &rows, &chunk, &keyWidth, &queryHeads, &scale,
+					&keyBias, &keyStart, &keys, &keyChunk, &rows, &chunk, &keyWidth, &queryHeads, &scale,
 				); err != nil {
 					return err
 				}
@@ -448,7 +450,7 @@ func launchAttentionLayout(
 		// score tile bounded by the derived query chunk; owns every
 		// qualifying dense-MHA workload when the score staging is resident.
 		if !attributes.NaiveF32 && blas != nil && blas.scores != 0 &&
-			relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 {
+			relativeBias == 0 && sinks == 0 && blockIDs == 0 {
 			chunk, keyChunk, scoreBytes, ok := blasAttentionGeometry(
 				queryHeads, keyValueHeads, queryTokens, keyValueTokens, keyCapacityTokens,
 				keyWidth, valueWidth, attributes,
@@ -456,7 +458,7 @@ func launchAttentionLayout(
 			if ok && scoreBytes <= blas.scoreBytes {
 				return launchBlasFullAttention(
 					state, functions, blas,
-					query, key, value, output,
+					query, key, value, keyBias, output,
 					queryHeads, queryTokens, keyValueTokens, keyWidth, sequences, chunk, keyChunk,
 					scale,
 				)
@@ -471,7 +473,7 @@ func launchAttentionLayout(
 			attentionTiledThreads  = uint32(256)
 		)
 		tiledShared := uint64(2*attentionTiledTile*keyWidth+attentionTiledTile*valueWidth) * f32Bytes
-		if causal == 0 && relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 &&
+		if causal == 0 && relativeBias == 0 && sinks == 0 && blockIDs == 0 &&
 			softcap == 0 && maxALiBiBias == 0 && window == 0 && symmetricWindow == 0 &&
 			queryStart == 0 && keyValueTokens == keyCapacityTokens &&
 			keyWidth <= attentionTiledMaxWidth && valueWidth <= attentionTiledMaxWidth &&
@@ -484,7 +486,7 @@ func launchAttentionLayout(
 			return launchGridSharedABI(
 				state, functions[kernelAttentionTiledF32],
 				grid, driver.Dim3{X: attentionTiledThreads, Y: 1, Z: 1}, uint32(tiledShared),
-				&query, &key, &value, &output, &keyWidth, &valueWidth,
+				&query, &key, &value, &keyBias, &output, &keyWidth, &valueWidth,
 				&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
 				&sequences, &scale,
 			)

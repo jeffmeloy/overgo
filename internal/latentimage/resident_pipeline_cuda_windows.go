@@ -111,6 +111,13 @@ func NewResidentImagePipeline(
 	if err != nil {
 		return nil, err
 	}
+	if fusion.keyBias != nil {
+		if err := runtime.bindStatic(
+			ctx, pipeline.fusion, "resident image fusion", fusion.keyBias, fusion.keyData,
+		); err != nil {
+			return nil, err
+		}
+	}
 	pipeline.timestepPlan, err = compileTimestepProgram(denoiser.T, denoiser.MatmulType)
 	if err != nil {
 		return nil, err
@@ -129,6 +136,13 @@ func NewResidentImagePipeline(
 	)
 	if err != nil {
 		return nil, err
+	}
+	if denoiser.keyBias != nil {
+		if err := runtime.bindStatic(
+			ctx, pipeline.denoiser, "resident image denoiser", denoiser.keyBias, denoiser.keyData,
+		); err != nil {
+			return nil, err
+		}
 	}
 	pipeline.uploadInput, pipeline.uploadOutput, err = latentUploadGraph(denoiser)
 	if err != nil {

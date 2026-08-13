@@ -4,8 +4,16 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
+
+func classifyProjectorIntegration(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
+}
 
 func writeProjectorFixture(
 	t *testing.T,

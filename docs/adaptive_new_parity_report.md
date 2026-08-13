@@ -1,6 +1,6 @@
 # adaptive_new Parity and Performance Report
 
-Validation base: Overgo `9ae0983` plus the resident Carbon leadership slice;
+Validation base: Overgo `76e5d84` plus the E4B vision leadership slice;
 adaptive_new `214950b3b`; reviewed 2026-08-13. adaptive_new working-tree changes
 remain observations, not landed evidence.
 
@@ -86,7 +86,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Qwen3.5-4B hybrid text | Active CUDA; 16.76 ms/token retained baseline | 10.96 ms/token; same BF16 weights; about 2.2 GB more peak | Gated tradeoff: wall lead, memory loss | Retain speed while matching or beating adaptive peak |
 | Qwen3.5-9B GGUF | adaptive_new cannot serve the bare Q8_0 GGUF | 11.6 ms/token, 9.3 GB recorded | Overgo-only capability | Re-run real artifact; register oracle-backed claim |
 | Gemma E4B text | adaptive host spine; 341 ms/token comparison | 18.5 ms/token device; exact 3-case serving fixtures; 21.79 GiB self-baseline peak | Large speed lead | Matched peak-memory comparison; keep exact tokens |
-| Gemma E4B image/audio | Adaptive has image/audio fixtures and serving components | Projector/conversion oracles exist; full modality matrix is not reported | Partial | Real image and audio requests, exact boundary/output, wall, peak |
+| Gemma E4B image/audio | Adaptive image path passes the fingerprinted 2,520-patch oracle in 14.56 s focused-test wall; audio fixtures and serving components exist | Retained CUDA vision graph matches patch, all 16 encoder stages, pool, and 280x2,560 soft tokens; worst stage relative `5.81e-4`, final `4.13e-6`; 0.215 s resident body and 1.65 s fingerprint+load+run focused-test wall | Image parity and wall lead; audio gap | Measure image peak; port real audio request and exact boundary/output, wall, peak |
 | Gemma4 12B FP8 text | Active native FP8 CUDA | 24/24 exact tokens; 29.81 ms/token, 18.89 GiB versus Overgo BF16 baseline | Functional; cross-repo performance open | Same FP8 artifact and prompt against adaptive native FP8 |
 | Gemma4 12B image | Active unified multimodal path | Real FP8-native model + BF16 device projector first-token oracle passes; 32.36 s focused-test wall | First-token parity | Multi-token corpus, request-only wall, peak |
 | Gemma4 12B audio/video | Adaptive declares audio/video input coverage | Real audio projector-to-language top-ID oracle passes; 29.80 s focused-test wall. Video remains unproved | Audio first-token parity; video gap | Exact audio envelope + request-only wall/peak; real video case |
@@ -159,6 +159,7 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | --- | ---: | ---: | --- |
 | Qwen3.5-4B decode | adaptive 16.76 ms/token | 10.96 ms/token; +about 2.2 GB peak | Speed win; memory loss |
 | E4B decode | adaptive host 341 ms/token | 18.5 ms/token | About 18x speed win |
+| E4B image tower | adaptive 14.56 s focused test | 1.65 s fingerprint+load+run; 0.215 s resident encode; exact sampled stages | 8.8x focused-test wall lead; peak open |
 | RxBrain full VQA | adaptive 18.4-23.1 s / 11.97 GB | 9.5 s / 10.59 GB | About 2x wall win; lower peak |
 | SimpleDiffusion host forward | adaptive median 0.21 s | median 0.17 s | 0.81x wall |
 | MiniCPM decode | adaptive 294.6-295.8 token/s | 321.7-363.0 token/s | Overgo faster |

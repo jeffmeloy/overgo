@@ -36,6 +36,7 @@ func (qwen3VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.
 }
 
 func TestQwen3VLRealFixture(t *testing.T) {
+	classifyProjectorIntegration(t)
 	projectorPath := os.Getenv("OVERGO_QWEN35_MMPROJ")
 	imagePath := os.Getenv("OVERGO_QWEN35_IMAGE")
 	goldenPath := os.Getenv("OVERGO_QWEN35_GOLDEN")
@@ -378,6 +379,7 @@ func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
 }
 
 func TestQwen3VLRealVideoFixture(t *testing.T) {
+	classifyProjectorIntegration(t)
 	projectorPath := os.Getenv("OVERGO_QWEN35_MMPROJ")
 	goldenPath := os.Getenv("OVERGO_QWEN35_VIDEO_GOLDEN")
 	if projectorPath == "" || goldenPath == "" {

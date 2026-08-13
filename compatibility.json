@@ -174,13 +174,13 @@
           "contains": "func TestGemma4RealFixture(",
           "path": "internal/projector/gemma4_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:a27c77d7b13bf9b6737691b2d9e00861b2fc774af29438345caadee4e274e2f9"
+          "identity": "evidence:sha256:54431682378ae3bdd5c6f71204d2104b761965871efb563c142bbcb055446211"
         },
         {
           "contains": "func TestGemma4RealPromptTokens(",
           "path": "internal/projector/gemma4_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:a27c77d7b13bf9b6737691b2d9e00861b2fc774af29438345caadee4e274e2f9"
+          "identity": "evidence:sha256:54431682378ae3bdd5c6f71204d2104b761965871efb563c142bbcb055446211"
         }
       ],
       "id": "gemma4-multimodal-oracle",

@@ -2,7 +2,9 @@ package gemma4convert
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"image"
 	"os"
 	"path/filepath"
 	"testing"
@@ -214,5 +216,18 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 		spec.Audio.MelBins != int(processor.Audio.FeatureSize) ||
 		len(spec.Audio.SubChannels) != len(config.Audio.SubChannels) {
 		t.Fatalf("spec = %+v", spec)
+	}
+	output, err := runner.EncodeVisionImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 6, 6)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.PatchCount != 9 || output.SoftTokens != 1 ||
+		output.Embeddings.Shape.Dims[0] != uint64(config.Text.HiddenSize) || len(output.Embeddings.Data) != int(config.Text.HiddenSize) {
+		t.Fatalf("tower vision output = %+v", output)
+	}
+	for index, value := range output.Embeddings.Data {
+		if value != 0 {
+			t.Fatalf("tower vision output[%d] = %v, want zero", index, value)
+		}
 	}
 }

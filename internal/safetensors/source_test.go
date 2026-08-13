@@ -39,6 +39,24 @@ func TestOpenSourceUsesShardIndexAndReadsTensor(t *testing.T) {
 	}
 }
 
+func TestOpenSourceUsesDiffusersShardIndex(t *testing.T) {
+	directory := t.TempDir()
+	shard := "diffusion_pytorch_model-00001-of-00001.safetensors"
+	writeShard(t, filepath.Join(directory, shard), map[string]testTensor{
+		"weight": {dataType: "U8", shape: []uint64{1}, data: []byte{7}},
+	})
+	writeNamedIndex(t, directory, "diffusion_pytorch_model.safetensors.index.json", map[string]string{"weight": shard})
+
+	source, err := OpenSource(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	if !source.Indexed() || len(source.Names()) != 1 || source.Names()[0] != "weight" {
+		t.Fatalf("indexed/names = %t/%v", source.Indexed(), source.Names())
+	}
+}
+
 func TestOpenSourceRejectsInvalidRepositories(t *testing.T) {
 	for _, test := range []struct {
 		name  string
@@ -149,12 +167,16 @@ func writeRawShard(t *testing.T, path string, header map[string]tensorHeader, bo
 }
 
 func writeIndex(t *testing.T, directory string, weights map[string]string) {
+	writeNamedIndex(t, directory, "model.safetensors.index.json", weights)
+}
+
+func writeNamedIndex(t *testing.T, directory, name string, weights map[string]string) {
 	t.Helper()
 	encoded, err := json.Marshal(shardIndex{WeightMap: weights})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(directory, "model.safetensors.index.json"), encoded, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(directory, name), encoded, 0o600); err != nil {
 		t.Fatal(err)
 	}
 }

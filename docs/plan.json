@@ -16,15 +16,45 @@
       ]
     },
     {
-      "id": "sensenova-generation-leadership",
-      "title": "Reproduce the SenseNova seed-42 256x256 initial planar latent exactly through shared torchrng and patch layout; verify every generation-oracle z probe",
+      "id": "typed-image-runtime-authority",
+      "title": "Make image recipes name typed conditioning and operator modules; remove placement-selected execution, then repay publication, residency, and gate seams before the SenseNova body port",
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Reproduce the SenseNova seed-42 256x256 initial planar latent exactly through shared torchrng and patch layout; verify every generation-oracle z probe",
+          "id": "typed-modules",
+          "title": "Replace generic image tensor inputs and placement dispatch with typed conditioning plus explicit latent/oscillator operator modules; modality derives from ports, never placement",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_BASELINE=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaSeededLatentMatchesOracle$' -count=1 -v"
+          "verify": "go test ./internal/modelrecipe ./internal/recipecontract ./cmd/recipe -run '^TestTypedImageRecipeSelectsRuntimeWithoutPlacement$' -count=1 -v"
+        },
+        {
+          "id": "recipe-policy",
+          "title": "Move prompt templates, token limits, scheduler defaults, and class policy from latent-image Go constants into validated artifact/profile facts; keep recognition at the artifact boundary",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/latentimage ./cmd/recipe -run '^TestImagePolicyComesFromRecipeProfile$' -count=1 -v"
+        },
+        {
+          "id": "stream-publication",
+          "title": "Eliminate full-image HWC-to-CHW and JSON-float publication copies; emit final layout directly into a streamed typed encoded-image artifact",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_KREA_BASELINE=1 go test ./internal/latentimage ./cmd/recipe -run '^TestImagePublicationStreamsEncodedArtifact$' -count=1 -v"
+        },
+        {
+          "id": "cross-request-residency",
+          "title": "Reuse resident image weights and compiled graphs across recipe calls through a bounded cache keyed by artifact fingerprint, recipe identity, device, and execution policy",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_KREA_BASELINE=1 go test ./internal/capabilityruntime ./internal/latentimage -run '^TestImageSessionCacheReusesResidentRuntime$' -count=1 -v"
+        },
+        {
+          "id": "carbon-evidence-ratchet",
+          "title": "Bind the matched Carbon gate to artifact/config/corpus fingerprints and evidence-derived complete loss trajectory; reject the current permissive 5-percent final-loss regression",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DENSE_TRAIN_BASELINE=1 go test ./internal/densecausal -run '^TestCarbonMatchedAdaptiveLeadership$' -count=1 -v"
+        },
+        {
+          "id": "sensenova-neutral-body",
+          "title": "Port SenseNova prefix conditioning and resident 42-layer routed MoT generation body through the typed neutral image graph; match terminal oracle, then beat adaptive wall and peak",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_BASELINE=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaGenerationLeadership$' -count=1 -v"
         }
       ]
     },
@@ -179,7 +209,7 @@
     },
     {
       "id": "rung15-sensenova",
-      "title": "SenseNova-U1-8B -- CLOSED TO EXTERNAL-PREREQ WALL: all in-repo-verifiable work done (recon/routedlm-generalize/multiaxis-rope/flow-head/prompt-renderer/measure-bar/recipe-activation done; multi-axis rope on the generic executor landed a374f45; recipe activated + discovery round-trip; training-leg ABSENT recorded). CORRECTION (later finding): the two lanes have DIFFERENT blockers. GENERATION lane exact parity is NOT external -- its only gap was seed-42 randn (TorchCUDARandn), which is PORTABLE in-repo (adaptive has a verified impl; ranked as rung16 torch-cuda-randn step). Once that primitive lands, reopen the generation-lane denoise-stack/cuda-serving as follow-up (needs the 42-layer branch-routed device body forward too, in-repo). Only the EDIT lane is genuinely EXTERNAL: prefix-layer-stack needs the edit SOURCE image PNG (absent from repo), which only the user can supply. Item stays blocked-external-prereq on the EDIT-lane source image; generation-lane exact parity is an in-repo follow-up gated on torch-cuda-randn + the device body-forward port. (Tool gap: cmd/plan has no item-level blocked status -- hand-edit.)",
+      "title": "SenseNova edit lane blocked only on its absent source PNG. Generation reopened above: shared torchrng and channels-last packing reproduce seed-42 initial state exactly; the 42-layer routed body remains.",
       "status": "blocked-external-prereq",
       "steps": [
         {
@@ -194,12 +224,12 @@
         },
         {
           "id": "denoise-stack",
-          "title": "generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head); parity vs generation_layers + steps[] z (needs torch-matched randn(seed) for z init) -- DEVICE TERMINAL+SAMPLER verified: flow condition/head as executor graphs device==host (3.1e-2/6.3e-2), euler steps PASS-ORACLE vs real gen+edit oracles (next_z 3.9e-3/1.6e-2/7.8e-3), trajectory continuity exact (step0.next_z==step1.z, |d|=0); 0.844 ms/step terminal, +444MiB (fm_modules streamed, 35GB not resident); ladder oracle=8/derive=6/wired=4/frontier=2. REMAINS: 42-layer transformer body on device. UPDATE (a374f45): the multi-axis rope splicing sub-blocker is now CLOSED -- routedlm.RopePlan.DeviceApply composes per-section RoPENeoX [64/5e6/T,32/1e4/H,32/1e4/W] on the generic executor (device==host 6e-7), so the body port only needs block-causal 42-layer resident forward + gen-branch cross-attn to prefix KV. BUT its verification is gated by source-PNG + probe-sparsity + seed-42 RNG REGARDLESS of the port -- so the remaining body-forward is NOT worth porting until an oracle exists (verification-before-banking). BLOCKED-EXTERNAL-PREREQ on the same inputs as cuda-serving/prefix-layer-stack.",
+          "title": "generation stack: seeded z exact; device flow condition/head/Euler verified; multi-axis rope shared. REMAINS: 42-layer block-causal routed body + generation cross-attention, verified end-to-end against the generation terminal oracle. Edit-only probes remain blocked on the absent source PNG.",
           "status": "blocked-external-prereq"
         },
         {
           "id": "cuda-serving",
-          "title": "device path through generic executor; oracle parity; at-or-below adaptive (~162s warm/24GiB); persistent residency. PROGRESS: denoise-terminal lane green (flow_condition/flow_head/euler device==oracle); multi-axis rope (per-section theta 64/5e6/T,32/1e4/H,32/1e4/W) now on the generic executor via RoPENeoX-per-section composition, no family kernel, device==host 6e-7 on the real plan (routedlm.RopePlan.DeviceApply; ladder wired 4-\u003e5). BLOCKED-EXTERNAL-PREREQ: the 42-layer branch-routed MoT BODY oracle parity (=\u003e ship-bar case) cannot be verified in-repo -- (1) edit lane needs the edit SOURCE image PNG, NOT in the repo (only generation outputs present); (2) generation lane needs a torch-matched randn(seed=42) initial latent (TorchCUDARandn not ported). UNBLOCK: user supplies the edit source image, OR decides to port TorchCUDARandn(seed=42). Same root cause as prefix-layer-stack.",
+          "title": "device generation: seeded z, flow terminal, Euler, and multi-axis rope verified. REMAINS: resident 42-layer routed body, end-to-end generation oracle parity, then beat adaptive (~162s warm/24GiB). Only edit parity is externally blocked on its source PNG.",
           "status": "blocked-external-prereq"
         }
       ]

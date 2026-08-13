@@ -17,7 +17,7 @@ import (
 // ladder step name + experimental tier + frontier residual on the decision.
 const testCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
-const activationReason = "sensenovaparity longest-verifiable-prefix (3 value oracles + structural derivations on the real 35GB checkpoint); end-to-end render FRONTIER (edit source PNG + torch randn seed=42)"
+const activationReason = "sensenovaparity longest-verifiable-prefix (seeded generation state exact + 3 value oracles + structural derivations on the real 35GB checkpoint); 42-layer routed body FRONTIER; edit source PNG external"
 
 // TestSenseNovaImageGenRoundTripSynthetic proves the recipe lifecycle + the
 // discovery/status round-trip WITHOUT the 35GB checkpoint, so it runs in CI:

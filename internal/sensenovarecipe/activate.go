@@ -10,9 +10,8 @@
 // config-owned. Its ACTIVATION evidence is the sensenovaparity
 // longest-verifiable-prefix ladder, an EXPERIMENTAL tier (3 value oracles +
 // structural derivations verified on the real 35GB checkpoint via sparse
-// probes). The end-to-end rendered image stays FRONTIER, externally blocked on
-// the edit source PNG and a torch-matched randn(seed=42); this package never
-// dresses that up as parity.
+// probes). Seeded generation-state parity is exact; the 42-layer routed body
+// remains FRONTIER. Only edit parity is externally blocked on its source PNG.
 package sensenovarecipe
 
 import (

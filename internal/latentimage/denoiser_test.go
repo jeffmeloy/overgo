@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -188,6 +189,26 @@ func TestPackUnpackLatentRoundTrip(t *testing.T) {
 		if back[i] != latent[i] {
 			t.Fatalf("round-trip mismatch at %d: %g vs %g", i, back[i], latent[i])
 		}
+	}
+}
+
+func TestPackPlanarChannelsLastRoundTrip(t *testing.T) {
+	const c, h, w, patch = 2, 2, 2, 2
+	planar := []float32{0, 1, 2, 3, 10, 11, 12, 13}
+	packed, gh, gw, err := PackPlanarF32(planar, c, h, w, patch, PatchChannelsLast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{0, 10, 1, 11, 2, 12, 3, 13}
+	if !slices.Equal(packed, want) || gh != 1 || gw != 1 {
+		t.Fatalf("packed=%v grid=%dx%d, want=%v grid=1x1", packed, gh, gw, want)
+	}
+	back, err := UnpackPlanarF32(packed, c, gh, gw, patch, PatchChannelsLast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(back, planar) {
+		t.Fatalf("round trip=%v, want=%v", back, planar)
 	}
 }
 

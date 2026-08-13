@@ -40,6 +40,19 @@
       ]
     },
     {
+      "id": "neutral-layer-authority",
+      "title": "Replace remaining family leaf graph policies and builders with neutral mathematical operators; migrate callers and delete each displaced path",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace remaining family leaf graph policies and builders with neutral mathematical operators; migrate callers and delete each displaced path",
+          "status": "open",
+          "verify": "go test ./internal/model ./internal/modelrecipe -run 'LayerTopology|ProfileProvenanceHasExactTypedCoverage|RegisteredProfileSemanticDigest' -count=1 -v && ! rg -n 'DenseGraph' internal cmd --glob '*.go' --glob '*.json'"
+        }
+      ]
+    },
+    {
       "id": "adaptive-inference-parity",
       "title": "Port and exceed adaptive_new inference through Overgo recipes and shared processing components",
       "status": "open",

@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "neutral-snapshot",
-          "title": "Define a Go-owned neutral adaptive capability/evidence snapshot: source commits, artifacts, corpora, goldens, entry points, ordered input/output modality signatures, wall, and peak; no cross-repo runtime dependency",
-          "status": "open",
-          "verify": "go test ./internal/adaptiveparity -run '^TestSnapshotImportRoundTrip$' -count=1 -v"
-        },
-        {
           "id": "modality-contract",
           "title": "Compile each active recipe's ordered text/image/audio/video/time-series/table input and output signature; derive the parity matrix and explicit unsupported/refused rows from it",
           "status": "open",

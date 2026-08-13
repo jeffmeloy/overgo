@@ -59,14 +59,14 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 
 func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model generator) error {
 	if err := workflowruntime.RegisterScalarStage(
-		runtime, modelrecipe.ModuleImagePrepare, modelID, model.prepare, nil,
+		runtime, modelrecipe.ModuleOscillatorImagePrepare, modelID, model.prepare, nil,
 	); err != nil {
 		return err
 	}
 	if err := workflowruntime.RegisterScalarStage(
-		runtime, modelrecipe.ModuleImageIntegrate, modelID, model.integrate, nil,
+		runtime, modelrecipe.ModuleOscillatorImageIntegrate, modelID, model.integrate, nil,
 	); err != nil {
 		return err
 	}
-	return workflowruntime.RegisterJSONStage(runtime, modelrecipe.ModuleImageDecode, modelID, imageContract, model.decode)
+	return workflowruntime.RegisterJSONStage(runtime, modelrecipe.ModuleOscillatorImageDecode, modelID, imageContract, model.decode)
 }

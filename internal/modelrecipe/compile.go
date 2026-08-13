@@ -19,18 +19,24 @@ const (
 	ModuleForecastSeries recipe.ModuleID = "model.forecast-series"
 	// ModuleTabularPredict: host forward for tabular ICL capability
 	// packages; input table tensor, output per-row predictions tensor.
-	ModuleTabularPredict recipe.ModuleID = "model.tabular-predict"
-	ModuleSeq2SeqEncode  recipe.ModuleID = "model.seq2seq-encode"
-	ModuleSeq2SeqPrepare recipe.ModuleID = "model.seq2seq-prepare"
-	ModuleSeq2SeqSelect  recipe.ModuleID = "model.seq2seq-select"
-	ModuleSpeechTokenize recipe.ModuleID = "model.speech-tokenize"
-	ModuleSpeechGenerate recipe.ModuleID = "model.speech-generate"
-	ModuleSpeechDecode   recipe.ModuleID = "model.speech-decode"
-	ModuleImagePrepare   recipe.ModuleID = "model.image-prepare"
-	ModuleImageIntegrate recipe.ModuleID = "model.image-integrate"
-	ModuleImageDecode    recipe.ModuleID = "model.image-decode"
-	ModuleVQAPrepare     recipe.ModuleID = "model.vqa-prepare"
-	ModuleVQAGenerate    recipe.ModuleID = "model.vqa-generate"
+	ModuleTabularPredict           recipe.ModuleID = "model.tabular-predict"
+	ModuleSeq2SeqEncode            recipe.ModuleID = "model.seq2seq-encode"
+	ModuleSeq2SeqPrepare           recipe.ModuleID = "model.seq2seq-prepare"
+	ModuleSeq2SeqSelect            recipe.ModuleID = "model.seq2seq-select"
+	ModuleSpeechTokenize           recipe.ModuleID = "model.speech-tokenize"
+	ModuleSpeechGenerate           recipe.ModuleID = "model.speech-generate"
+	ModuleSpeechDecode             recipe.ModuleID = "model.speech-decode"
+	ModuleLatentImagePrepare       recipe.ModuleID = "model.latent-image-prepare"
+	ModuleLatentImageIntegrate     recipe.ModuleID = "model.latent-image-integrate"
+	ModuleLatentImageDecode        recipe.ModuleID = "model.latent-image-decode"
+	ModuleOscillatorImagePrepare   recipe.ModuleID = "model.oscillator-image-prepare"
+	ModuleOscillatorImageIntegrate recipe.ModuleID = "model.oscillator-image-integrate"
+	ModuleOscillatorImageDecode    recipe.ModuleID = "model.oscillator-image-decode"
+	ModuleRoutedImagePrepare       recipe.ModuleID = "model.routed-image-prepare"
+	ModuleRoutedImageIntegrate     recipe.ModuleID = "model.routed-image-integrate"
+	ModuleRoutedImageDecode        recipe.ModuleID = "model.routed-image-decode"
+	ModuleVQAPrepare               recipe.ModuleID = "model.vqa-prepare"
+	ModuleVQAGenerate              recipe.ModuleID = "model.vqa-generate"
 )
 
 var catalog = mustCatalog()
@@ -125,12 +131,8 @@ func (c linearCapability) definition(task recipe.Task, modelID artifact.ID) (rec
 func (c linearCapability) modules(task recipe.Task) []recipe.Module {
 	modules := make([]recipe.Module, len(c.stages))
 	for index, stage := range c.stages {
-		placements := []recipe.Placement{c.placement}
-		if task == recipe.TaskImageGen {
-			placements = append(placements, recipe.PlacementHybrid)
-		}
 		modules[index] = recipe.Module{
-			ID: stage.module, Tasks: []recipe.Task{task}, Placements: placements,
+			ID: stage.module, Tasks: []recipe.Task{task}, Placements: []recipe.Placement{c.placement},
 			Inputs:  []recipe.Port{{Name: stage.input, Data: stage.inputData, Cardinality: recipe.CardinalityOne}},
 			Outputs: []recipe.Port{{Name: stage.output, Data: stage.outData, Cardinality: recipe.CardinalityOne}},
 		}
@@ -155,12 +157,25 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 		{node: "generate", module: ModuleSpeechGenerate, input: "tokens", output: "latents", inputData: recipe.DataTokens, outData: recipe.DataTensor},
 		{node: "decode", module: ModuleSpeechDecode, input: "latents", output: "audio", inputData: recipe.DataTensor, outData: recipe.DataAudio},
 	}},
-	recipe.TaskImageGen: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "prepare", module: ModuleImagePrepare, input: "condition", output: "session", inputData: recipe.DataTensor, outData: recipe.DataSessionPlan},
-		{node: "integrate", module: ModuleImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
-		{node: "decode", module: ModuleImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
-	}},
 }
+
+var latentImageCapability = linearCapability{placement: recipe.PlacementHybrid, stages: []scalarStage{
+	{node: "prepare", module: ModuleLatentImagePrepare, input: "condition", output: "session", inputData: recipe.DataPromptConditioning, outData: recipe.DataSessionPlan},
+	{node: "integrate", module: ModuleLatentImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
+	{node: "decode", module: ModuleLatentImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
+}}
+
+var oscillatorImageCapability = linearCapability{placement: recipe.PlacementHost, stages: []scalarStage{
+	{node: "prepare", module: ModuleOscillatorImagePrepare, input: "condition", output: "session", inputData: recipe.DataClassConditioning, outData: recipe.DataSessionPlan},
+	{node: "integrate", module: ModuleOscillatorImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
+	{node: "decode", module: ModuleOscillatorImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
+}}
+
+var routedImageCapability = linearCapability{placement: recipe.PlacementHybrid, stages: []scalarStage{
+	{node: "prepare", module: ModuleRoutedImagePrepare, input: "condition", output: "session", inputData: recipe.DataPromptConditioning, outData: recipe.DataSessionPlan},
+	{node: "integrate", module: ModuleRoutedImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
+	{node: "decode", module: ModuleRoutedImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
+}}
 
 // CapabilityDefinition: task-indexed executable topology.
 func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
@@ -174,17 +189,19 @@ func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 	return capability.definition(task, modelID)
 }
 
-// CapabilityDefinitionAt: executable topology with explicit placement.
-func CapabilityDefinitionAt(task recipe.Task, modelID artifact.ID, placement recipe.Placement) (recipe.Definition, error) {
-	capability, ok := linearCapabilities[task]
-	if !ok || task == recipe.TaskVQA {
-		return recipe.Definition{}, fmt.Errorf("model recipe: unsupported placed capability task %q", task)
-	}
-	if placement != capability.placement && (task != recipe.TaskImageGen || placement != recipe.PlacementHybrid) {
-		return recipe.Definition{}, fmt.Errorf("model recipe: task %q does not support placement %q", task, placement)
-	}
-	capability.placement = placement
-	return capability.definition(task, modelID)
+// LatentImageDefinition: prompt-conditioned diffusion image graph.
+func LatentImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	return latentImageCapability.definition(recipe.TaskImageGen, modelID)
+}
+
+// OscillatorImageDefinition: class-conditioned oscillator image graph.
+func OscillatorImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	return oscillatorImageCapability.definition(recipe.TaskImageGen, modelID)
+}
+
+// RoutedImageDefinition: prompt-conditioned routed-transformer image graph.
+func RoutedImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	return routedImageCapability.definition(recipe.TaskImageGen, modelID)
 }
 
 func vqaDefinition(modelID artifact.ID) (recipe.Definition, error) {
@@ -454,10 +471,12 @@ func mustCatalog() *recipe.Catalog {
 		},
 	}
 	for _, task := range []recipe.Task{
-		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
-		recipe.TaskSpeech, recipe.TaskImageGen,
+		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech,
 	} {
 		modules = append(modules, linearCapabilities[task].modules(task)...)
+	}
+	for _, capability := range []linearCapability{latentImageCapability, oscillatorImageCapability, routedImageCapability} {
+		modules = append(modules, capability.modules(recipe.TaskImageGen)...)
 	}
 	modules = append(modules,
 		recipe.Module{

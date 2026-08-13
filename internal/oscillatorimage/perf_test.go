@@ -10,9 +10,6 @@ import (
 // real artifact. Evidence probe for the performance leg, not an assertion —
 // the at-or-below verdict lives in the plan measurement.
 func TestGenerateWall(t *testing.T) {
-	if testing.Short() {
-		t.Skip("loads the real artifact; skipped in -short")
-	}
 	dir := artifactDir(t)
 	loadStart := time.Now()
 	m, err := Load(dir)

@@ -49,25 +49,16 @@ func CompileModalitySignature(definition recipe.Definition) (ModalitySignature, 
 	if !definition.ID.Valid() || len(definition.Inputs) == 0 || len(definition.Outputs) == 0 {
 		return ModalitySignature{}, errors.New("recipe: incomplete modality definition")
 	}
-	placement := recipe.Placement("")
-	for _, node := range definition.Nodes {
-		if placement == "" {
-			placement = node.Placement
-		}
-		if node.Placement != placement && definition.Task != recipe.TaskVQA {
-			return ModalitySignature{}, errors.New("recipe: mixed placement has no modality policy")
-		}
-	}
 	signature := ModalitySignature{Inputs: make([]Modality, len(definition.Inputs)), Outputs: make([]Modality, len(definition.Outputs))}
 	for index, input := range definition.Inputs {
-		modality, err := semanticModality(definition.Task, placement, true, input.Data)
+		modality, err := semanticModality(definition.Task, input.Data)
 		if err != nil {
 			return ModalitySignature{}, fmt.Errorf("recipe: input %q: %w", input.Name, err)
 		}
 		signature.Inputs[index] = modality
 	}
 	for index, output := range definition.Outputs {
-		modality, err := semanticModality(definition.Task, placement, false, output.Data)
+		modality, err := semanticModality(definition.Task, output.Data)
 		if err != nil {
 			return ModalitySignature{}, fmt.Errorf("recipe: output %q: %w", output.Name, err)
 		}
@@ -76,10 +67,12 @@ func CompileModalitySignature(definition recipe.Definition) (ModalitySignature, 
 	return signature, nil
 }
 
-func semanticModality(task recipe.Task, placement recipe.Placement, input bool, data recipe.DataKind) (Modality, error) {
+func semanticModality(task recipe.Task, data recipe.DataKind) (Modality, error) {
 	switch data {
-	case recipe.DataText, recipe.DataTokens, recipe.DataEmbeddings, recipe.DataLogits:
+	case recipe.DataText, recipe.DataTokens, recipe.DataEmbeddings, recipe.DataLogits, recipe.DataPromptConditioning:
 		return ModalityText, nil
+	case recipe.DataClassConditioning:
+		return ModalityTable, nil
 	case recipe.DataImage:
 		return ModalityImage, nil
 	case recipe.DataAudio:
@@ -92,13 +85,6 @@ func semanticModality(task recipe.Task, placement recipe.Placement, input bool, 
 			return ModalityTimeSeries, nil
 		case recipe.TaskTabular:
 			return ModalityTable, nil
-		case recipe.TaskImageGen:
-			if input && placement == recipe.PlacementHybrid {
-				return ModalityText, nil
-			}
-			if input {
-				return ModalityTable, nil
-			}
 		}
 	}
 	return "", fmt.Errorf("data kind %q has no semantic modality", data)

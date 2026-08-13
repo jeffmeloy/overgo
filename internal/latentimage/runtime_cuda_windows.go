@@ -245,17 +245,17 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 		return errors.New("latent image: incomplete runtime binding")
 	}
 	if err := workflowruntime.RegisterContextStage(
-		runtime, modelrecipe.ModuleImagePrepare, modelID, generator.prepare, nil,
+		runtime, modelrecipe.ModuleLatentImagePrepare, modelID, generator.prepare, nil,
 	); err != nil {
 		return err
 	}
 	if err := workflowruntime.RegisterContextStage(
-		runtime, modelrecipe.ModuleImageIntegrate, modelID, generator.integrate, nil,
+		runtime, modelrecipe.ModuleLatentImageIntegrate, modelID, generator.integrate, nil,
 	); err != nil {
 		return err
 	}
 	return workflowruntime.RegisterContextStage(
-		runtime, modelrecipe.ModuleImageDecode, modelID, generator.decode,
+		runtime, modelrecipe.ModuleLatentImageDecode, modelID, generator.decode,
 		func(image Image) (artifact.Content, error) {
 			return artifact.JSONContent(generatedImageContract, image)
 		},

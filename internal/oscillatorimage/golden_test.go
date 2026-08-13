@@ -122,9 +122,6 @@ func artifactDir(t *testing.T) string {
 
 func loadArtifactModel(t *testing.T) *Model {
 	t.Helper()
-	if testing.Short() {
-		t.Skip("loads the real artifact; skipped in -short")
-	}
 	dir := artifactDir(t)
 	if _, err := os.Stat(filepath.Join(dir, "config.json")); err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s; parity NOT verified", dir)

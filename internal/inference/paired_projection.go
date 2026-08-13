@@ -11,42 +11,24 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// Gemma4AssistantSession: target KV plus recurrent hidden row.
-type Gemma4AssistantSession struct {
+// PairedProjectionSession: target KV plus recurrent hidden row.
+type PairedProjectionSession struct {
 	TargetCache   *KVCache
 	PendingHidden reference.Value
 	Position      uint32
 }
 
-// NewGemma4AssistantSession: target-prefix shared-context setup.
-func (r *Runner) NewGemma4AssistantSession(
-	ctx context.Context,
-	target *Runner,
-	tokenIDs []tokenizer.TokenID,
-) (*Gemma4AssistantSession, error) {
-	return r.newGemma4AssistantSession(ctx, target, tokenIDs, nil)
-}
-
-// NewGemma4AssistantProjectedSession: media-aware target-prefix setup.
-func (r *Runner) NewGemma4AssistantProjectedSession(
-	ctx context.Context,
-	target *Runner,
-	tokenIDs []tokenizer.TokenID,
-	inputs ProjectedInputs,
-) (*Gemma4AssistantSession, error) {
-	return r.newGemma4AssistantSession(ctx, target, tokenIDs, &inputs)
-}
-
-func (r *Runner) newGemma4AssistantSession(
+// NewPairedProjectionSession creates shared target-prefix context.
+func (r *Runner) NewPairedProjectionSession(
 	ctx context.Context,
 	target *Runner,
 	tokenIDs []tokenizer.TokenID,
 	inputs *ProjectedInputs,
-) (*Gemma4AssistantSession, error) {
+) (*PairedProjectionSession, error) {
 	if r == nil || target == nil || r == target || r.path == target.path || len(tokenIDs) == 0 {
-		return nil, errors.New("inference: Gemma 4 assistant and target inputs are invalid")
+		return nil, errors.New("inference: paired projection inputs are invalid")
 	}
-	if err := r.validateGemma4AssistantTarget(target); err != nil {
+	if err := r.validatePairedProjectionTarget(target); err != nil {
 		return nil, err
 	}
 	var hidden reference.Value
@@ -61,20 +43,20 @@ func (r *Runner) newGemma4AssistantSession(
 		return nil, err
 	}
 	last := lastHiddenColumn(hidden)
-	return &Gemma4AssistantSession{
+	return &PairedProjectionSession{
 		TargetCache: cache, PendingHidden: last, Position: effectiveCachePosition(cache),
 	}, nil
 }
 
-// AdvanceGemma4Assistant: one fixed-position draft step.
-func (r *Runner) AdvanceGemma4Assistant(
+// AdvancePairedProjection executes one fixed-position draft step.
+func (r *Runner) AdvancePairedProjection(
 	ctx context.Context,
 	target *Runner,
 	tokenID tokenizer.TokenID,
-	session *Gemma4AssistantSession,
-) (reference.Value, *Gemma4AssistantSession, error) {
+	session *PairedProjectionSession,
+) (reference.Value, *PairedProjectionSession, error) {
 	if r == nil || target == nil || session == nil || session.TargetCache == nil {
-		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant session is invalid")
+		return reference.Value{}, nil, errors.New("inference: paired projection session is invalid")
 	}
 	first, second := r, target
 	if first.path > second.path {
@@ -85,19 +67,19 @@ func (r *Runner) AdvanceGemma4Assistant(
 	defer second.mu.Unlock()
 	defer first.mu.Unlock()
 	if r.closed || target.closed {
-		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant runner is unavailable")
+		return reference.Value{}, nil, errors.New("inference: paired projection runner is unavailable")
 	}
-	if err := r.validateGemma4AssistantTarget(target); err != nil {
+	if err := r.validatePairedProjectionTarget(target); err != nil {
 		return reference.Value{}, nil, err
 	}
 	if err := target.validateCache(session.TargetCache); err != nil {
-		return reference.Value{}, nil, fmt.Errorf("inference: Gemma 4 target cache: %w", err)
+		return reference.Value{}, nil, fmt.Errorf("inference: paired target cache: %w", err)
 	}
 	if effectiveCachePosition(session.TargetCache) != session.Position ||
 		session.PendingHidden.Shape.Rank != 2 ||
 		session.PendingHidden.Shape.Dims[0] != uint64(r.spec.TargetHiddenSize) ||
 		session.PendingHidden.Shape.Dims[1] != 1 {
-		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant session state is incompatible")
+		return reference.Value{}, nil, errors.New("inference: paired projection session state is incompatible")
 	}
 	if tokenID < 0 || int(tokenID) >= target.vocab.Len() {
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
@@ -107,8 +89,8 @@ func (r *Runner) AdvanceGemma4Assistant(
 		return reference.Value{}, nil, err
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
-	tokenInput := runtime.input("gemma4_assistant.target_token", targetEmbedding)
-	hiddenInput := runtime.input("gemma4_assistant.target_hidden", session.PendingHidden)
+	tokenInput := runtime.input("paired_projection.target_token", targetEmbedding)
+	hiddenInput := runtime.input("paired_projection.target_hidden", session.PendingHidden)
 	pre, err := runtime.weight(*r.weights.FeatureProjection)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -128,8 +110,8 @@ func (r *Runner) AdvanceGemma4Assistant(
 			source--
 		}
 		layerCache := session.TargetCache.Layers[source]
-		key := runtime.input(fmt.Sprintf("gemma4_assistant.shared_%t_key", sliding), layerCache.Key)
-		value := runtime.input(fmt.Sprintf("gemma4_assistant.shared_%t_value", sliding), layerCache.Value)
+		key := runtime.input(fmt.Sprintf("paired_projection.shared_%t_key", sliding), layerCache.Key)
+		value := runtime.input(fmt.Sprintf("paired_projection.shared_%t_value", sliding), layerCache.Value)
 		cacheInputs[sliding] = [2]*tensor.Tensor{key, value}
 	}
 	for layerIndex, info := range r.weights.Layers {
@@ -145,7 +127,7 @@ func (r *Runner) AdvanceGemma4Assistant(
 			PastKey: shared[0], PastValue: shared[1], Layer: plan.Layer,
 		}, graphWeights)
 		if err != nil {
-			return reference.Value{}, nil, fmt.Errorf("inference Gemma 4 assistant layer %d: %w", layerIndex, err)
+			return reference.Value{}, nil, fmt.Errorf("inference paired projection layer %d: %w", layerIndex, err)
 		}
 		current = block.Output
 	}
@@ -175,19 +157,20 @@ func (r *Runner) AdvanceGemma4Assistant(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	next := &Gemma4AssistantSession{
+	next := &PairedProjectionSession{
 		TargetCache: session.TargetCache, PendingHidden: results[nextHidden], Position: session.Position,
 	}
 	return results[logits], next, nil
 }
 
-func (r *Runner) validateGemma4AssistantTarget(target *Runner) error {
-	if r.forwardProgram().Session != model.ForwardSessionPairedProjection || target.profile().DenseGraph != model.DenseGraphGemma4 ||
+func (r *Runner) validatePairedProjectionTarget(target *Runner) error {
+	if r.forwardProgram().Session != model.ForwardSessionPairedProjection ||
+		target.forwardProgram().Operation != model.ForwardOperationCached ||
 		target.spec.EmbeddingLength != r.spec.TargetHiddenSize ||
 		target.spec.VocabularySize != r.spec.VocabularySize || target.spec.BlockCount < 2 ||
 		!target.spec.IsSlidingLayer(target.spec.BlockCount-2) ||
 		target.spec.IsSlidingLayer(target.spec.BlockCount-1) {
-		return errors.New("inference: Gemma 4 assistant target model is incompatible")
+		return errors.New("inference: paired projection target model is incompatible")
 	}
 	return nil
 }

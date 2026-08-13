@@ -991,12 +991,13 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	}
 	defer target.Close()
 	ctx := context.Background()
-	session, err := assistant.NewGemma4AssistantSession(ctx, target, []tokenizer.TokenID{0})
+	session, err := assistant.NewPairedProjectionSession(ctx, target, []tokenizer.TokenID{0}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectedSession, err := assistant.NewGemma4AssistantProjectedSession(
-		ctx, target, []tokenizer.TokenID{0}, ProjectedInputs{},
+	projected := ProjectedInputs{}
+	projectedSession, err := assistant.NewPairedProjectionSession(
+		ctx, target, []tokenizer.TokenID{0}, &projected,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1005,11 +1006,11 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 		projectedSession.PendingHidden.Shape != session.PendingHidden.Shape {
 		t.Fatalf("projected Gemma 4 assistant session mismatch: text=%+v projected=%+v", session, projectedSession)
 	}
-	draft, err := assistant.DraftGemma4AssistantGreedy(ctx, target, 0, session, 2, 0)
+	draft, err := assistant.DraftPairedProjectionGreedy(ctx, target, 0, session, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := assistant.VerifyGemma4AssistantGreedy(ctx, target, draft)
+	verification, err := assistant.VerifyPairedProjectionGreedy(ctx, target, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1030,7 +1031,7 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := assistant.DraftGemma4AssistantSampled(
+	sampledDraft, err := assistant.DraftPairedProjectionSampled(
 		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
 	if err != nil {
@@ -1043,7 +1044,7 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Gemma 4 assistant sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := assistant.VerifyGemma4AssistantSampled(
+	sampledVerification, err := assistant.VerifyPairedProjectionSampled(
 		ctx, target, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {

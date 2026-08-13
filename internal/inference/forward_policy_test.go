@@ -15,7 +15,7 @@ func TestForwardUsesCompiledPolicy(t *testing.T) {
 	}{
 		{"dflash", "requires feature fusion"},
 		{"eagle3", "requires NewEagle3Session"},
-		{"gemma4-assistant", "requires NewGemma4AssistantSession"},
+		{"gemma4-assistant", "requires a paired projection session"},
 		{"t5", "requires NewT5Session"},
 	} {
 		t.Run(test.architecture, func(t *testing.T) {

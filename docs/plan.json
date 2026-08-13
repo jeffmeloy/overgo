@@ -8,14 +8,20 @@
       "status": "open",
       "steps": [
         {
-          "id": "carbon-evidence-ratchet",
-          "title": "Bind the matched Carbon gate to artifact/config/corpus fingerprints and evidence-derived complete loss trajectory; reject the current permissive 5-percent final-loss regression",
+          "id": "sensenova-neutral-layer",
+          "title": "Port the SenseNova generation branch as a neutral multi-axis routed layer graph with prefix KV attention; prove reference and CUDA execution without a family runtime",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DENSE_TRAIN_BASELINE=1 go test ./internal/densecausal -run '^TestCarbonMatchedAdaptiveLeadership$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/routedlm -run '^TestSenseNovaGenerationLayerGraph' -count=1 -v"
+        },
+        {
+          "id": "sensenova-prefix-stack",
+          "title": "Run prompt and unconditional SenseNova prefix conditioning through the neutral block-causal prefill stack; retain all 42 prefix KV layers and match oracle probes",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_BASELINE=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaPrefixStackMatchesOracle$' -count=1 -v"
         },
         {
           "id": "sensenova-neutral-body",
-          "title": "Port SenseNova prefix conditioning and resident 42-layer routed MoT generation body through the typed neutral image graph; match terminal oracle, then beat adaptive wall and peak",
+          "title": "Compose the resident 42-layer routed MoT generation body, guidance, flow head, and sampler through typed image modules; match terminal oracle, then beat adaptive wall and peak",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_BASELINE=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaGenerationLeadership$' -count=1 -v"
         }

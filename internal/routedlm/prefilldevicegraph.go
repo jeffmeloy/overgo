@@ -101,18 +101,27 @@ type DevicePrefillLayerGraph struct {
 }
 
 func newPrefillBranch(bld *tensor.Builder, tag string, H, qOut, kvOut, hd, f uint64) DevicePrefillBranch {
+	return newTypedPrefillBranch(bld, tag, H, qOut, kvOut, hd, f, dtype.BF16)
+}
+
+func newTypedPrefillBranch(
+	bld *tensor.Builder,
+	tag string,
+	H, qOut, kvOut, hd, f uint64,
+	weightType dtype.Type,
+) DevicePrefillBranch {
 	return DevicePrefillBranch{
 		InputNorm: bld.Input(tag+".input_norm", dtype.F32, tensor.MustShape(H)),
-		Q:         bld.Input(tag+".q", dtype.BF16, tensor.MustShape(H, qOut)),
-		K:         bld.Input(tag+".k", dtype.BF16, tensor.MustShape(H, kvOut)),
-		V:         bld.Input(tag+".v", dtype.BF16, tensor.MustShape(H, kvOut)),
-		O:         bld.Input(tag+".o", dtype.BF16, tensor.MustShape(qOut, H)),
+		Q:         bld.Input(tag+".q", weightType, tensor.MustShape(H, qOut)),
+		K:         bld.Input(tag+".k", weightType, tensor.MustShape(H, kvOut)),
+		V:         bld.Input(tag+".v", weightType, tensor.MustShape(H, kvOut)),
+		O:         bld.Input(tag+".o", weightType, tensor.MustShape(qOut, H)),
 		QNorm:     bld.Input(tag+".qnorm", dtype.F32, tensor.MustShape(hd)),
 		KNorm:     bld.Input(tag+".knorm", dtype.F32, tensor.MustShape(hd)),
 		PostNorm:  bld.Input(tag+".post_norm", dtype.F32, tensor.MustShape(H)),
-		Gate:      bld.Input(tag+".gate", dtype.BF16, tensor.MustShape(H, f)),
-		Up:        bld.Input(tag+".up", dtype.BF16, tensor.MustShape(H, f)),
-		Down:      bld.Input(tag+".down", dtype.BF16, tensor.MustShape(f, H)),
+		Gate:      bld.Input(tag+".gate", weightType, tensor.MustShape(H, f)),
+		Up:        bld.Input(tag+".up", weightType, tensor.MustShape(H, f)),
+		Down:      bld.Input(tag+".down", weightType, tensor.MustShape(f, H)),
 	}
 }
 

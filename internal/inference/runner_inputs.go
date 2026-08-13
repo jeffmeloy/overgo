@@ -44,7 +44,7 @@ func (r *Runner) decodeDeviceInput(
 	return r.deviceInput(builder, info)
 }
 
-func (r *Runner) wavTokenizerGraphInputs(
+func (r *Runner) sequenceOutputGraphInputs(
 	ctx context.Context,
 	builder *tensor.Builder,
 ) (model.SequenceOutputGraphWeights, map[*tensor.Tensor]reference.Value, map[*tensor.Tensor]driver.DevicePtr, error) {

@@ -324,7 +324,7 @@ var forwardExecutors = [...]forwardExecutor{
 		return r.forwardNonCausalLocked(ctx, ids)
 	},
 	model.ForwardOperationAudioTokens: func(r *Runner, ctx context.Context, ids []tokenizer.TokenID) (reference.Value, error) {
-		return r.forwardWavTokenizerLocked(ctx, ids)
+		return r.forwardAudioTokensLocked(ctx, ids)
 	},
 	model.ForwardOperationEncoder: func(r *Runner, ctx context.Context, ids []tokenizer.TokenID) (reference.Value, error) {
 		return r.forwardEncoderLocked(ctx, ids)

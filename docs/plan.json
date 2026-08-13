@@ -17,14 +17,14 @@
     },
     {
       "id": "sensenova-generation-leadership",
-      "title": "Complete native SenseNova generation from seeded latent through the 42-layer routed MoT body and decoder; match the adaptive generation oracle, then beat Python and adaptive wall plus peak without an image-family runtime",
+      "title": "Reproduce the SenseNova seed-42 256x256 initial planar latent exactly through shared torchrng and patch layout; verify every generation-oracle z probe",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Complete native SenseNova generation from seeded latent through the 42-layer routed MoT body and decoder; match the adaptive generation oracle, then beat Python and adaptive wall plus peak without an image-family runtime",
+          "title": "Reproduce the SenseNova seed-42 256x256 initial planar latent exactly through shared torchrng and patch layout; verify every generation-oracle z probe",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_BASELINE=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaGenerationLeadership$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_BASELINE=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaSeededLatentMatchesOracle$' -count=1 -v"
         }
       ]
     },

@@ -261,7 +261,7 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:cea9c30a2490c6d0c221f378a56c60901e4b2f3cb7fcb1e6b125235d25aa8e50"
+          "identity": "file:sha256:a6b1587161430fb6b567c53e7736caf23254fd87420597922ef63cf6f7b78dcc"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -736,7 +736,7 @@
           "contains": "func (b *ContinuousBatch) Step(",
           "path": "internal/inference/continuous_batch.go",
           "role": "source",
-          "identity": "file:sha256:429e6bf4905a2a83265ae339bc79806ccb3e49ca6b729f55d85f87180c842218"
+          "identity": "file:sha256:3485e7932d7f6d535a00479cf922071a04bcdc75b2e47b685eef6a2647fd939c"
         },
         {
           "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",

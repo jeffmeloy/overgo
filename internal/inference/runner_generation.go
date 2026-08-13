@@ -106,7 +106,7 @@ func (r *Runner) Generate(
 		projectionSignature = projectedInputsSignature(*options.ProjectedInputs)
 	}
 	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 &&
-		r.hasPreloadedWeights() && supportsPersistentDeviceCache(r.spec)
+		r.hasPreloadedWeights() && r.forwardProgram().PersistentDeviceCache()
 	// deviceGreedy: raw-greedy decode selects on device; only the winning
 	// token id crosses PCIe. Callbacks receive TokenEvent without Logits, so
 	// callback users must opt in via options.DeviceGreedy.

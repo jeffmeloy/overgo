@@ -26,9 +26,26 @@ const (
 
 // ForwardProgram: compiled top-level execution contract.
 type ForwardProgram struct {
-	Operation ForwardOperation
-	Session   ForwardSession
+	Operation             ForwardOperation
+	Session               ForwardSession
+	continuousBatch       bool
+	persistentDeviceCache bool
+	layerCapture          bool
 }
+
+func compileForwardProgram(profile ArchitectureProfile, nonCausal bool) ForwardProgram {
+	forward := resolveForwardProgram(profile.Forward, nonCausal)
+	cached := forward.Operation == ForwardOperationCached
+	altUp := profile.Has(ArchitectureAltUp)
+	forward.continuousBatch = cached
+	forward.persistentDeviceCache = cached && !altUp && !profile.Has(ArchitectureLatent)
+	forward.layerCapture = cached && !altUp
+	return forward
+}
+
+func (p ForwardProgram) ContinuousBatch() bool       { return p.continuousBatch }
+func (p ForwardProgram) PersistentDeviceCache() bool { return p.persistentDeviceCache }
+func (p ForwardProgram) LayerCapture() bool          { return p.layerCapture }
 
 func (p ForwardProgram) valid() bool {
 	if p.Operation >= forwardOperationCount || p.Session >= forwardSessionCount {

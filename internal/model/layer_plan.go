@@ -509,6 +509,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	if profile.Family == ArchitectureFamilyEncoderDecoder {
 		cacheLayers = spec.DecoderBlockCount
 	}
+	forward := compileForwardProgram(profile, spec.NonCausalAttention)
 	plan := ModelPlan{
 		spec: spec, profile: profile, layers: make([]LayerPlan, layers), cacheLayers: cacheLayers,
 		normalization: spec.NormPlan(),
@@ -517,7 +518,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		cacheProject:  compileCacheProjectionProgram(spec, profile),
 		projections:   compileProjectionPrograms(spec, profile),
 		sequenceOut:   compileSequenceOutputProgram(spec, profile),
-		forward:       resolveForwardProgram(profile.Forward, spec.NonCausalAttention),
+		forward:       forward,
 	}
 	if weights.Output != nil {
 		plan.terminal.OutputHead = OutputHeadDedicated
@@ -562,7 +563,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	if plan.normalization != spec.NormPlan() {
 		return fmt.Errorf("model plan architecture %s has invalid normalization", spec.Architecture)
 	}
-	if !plan.forward.valid() || plan.forward != resolveForwardProgram(plan.profile.Forward, spec.NonCausalAttention) {
+	if !plan.forward.valid() || plan.forward != compileForwardProgram(plan.profile, spec.NonCausalAttention) {
 		return fmt.Errorf("model plan architecture %s has invalid forward program", spec.Architecture)
 	}
 	if plan.terminal.OutputHead > OutputHeadDedicated ||

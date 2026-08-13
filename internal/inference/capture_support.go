@@ -1,7 +1,5 @@
 package inference
 
-import "overgo/internal/model"
-
 // SupportsHiddenStateCapture reports whether ExtractLayerInputs can run for the
 // loaded architecture — the same guard ExtractLayerInputs applies: causal,
 // non encoder-decoder, and not AltUp (Gemma3n). Lets the analysis surface gate
@@ -15,8 +13,5 @@ func (r *Runner) SupportsHiddenStateCapture() bool {
 	if r.closed {
 		return false
 	}
-	profile := r.profile()
-	return !r.spec.NonCausalAttention &&
-		profile.Family != model.ArchitectureFamilyEncoderDecoder &&
-		!profile.Has(model.ArchitectureAltUp)
+	return r.forwardProgram().LayerCapture()
 }

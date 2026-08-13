@@ -295,7 +295,7 @@ func (r *Runner) RemoveCacheRange(
 		Tokens:   remaining,
 		Position: effectiveCachePosition(cache),
 	}
-	if r.profile().Family == model.ArchitectureFamilyEncoderDecoder {
+	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
 		// T5 relative positions: translation-invariant; compact rows.
 		result.Position = remaining
 	}

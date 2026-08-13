@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 
-	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -43,9 +42,7 @@ func (r *Runner) ForwardCachedExtractLayerInputs(
 	if r.closed {
 		return reference.Value{}, nil, reference.Value{}, errors.New("inference: runner is closed")
 	}
-	profile := r.profile()
-	if r.spec.NonCausalAttention || profile.Family == model.ArchitectureFamilyEncoderDecoder ||
-		profile.Has(model.ArchitectureAltUp) {
+	if !r.forwardProgram().LayerCapture() {
 		return reference.Value{}, nil, reference.Value{}, errors.New("inference: cached layer extraction is unsupported for this architecture")
 	}
 	capture, err := newLayerInputCapture(layerIDs, len(r.weights.Layers))

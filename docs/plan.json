@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "text-structured-refresh",
-          "title": "Refresh real-artifact dense, hybrid, forecast, tabular, seq2seq, embedding, and rerank rows; exact behavior then wall and peak leadership",
-          "status": "open",
-          "verify": "go test ./internal/adaptiveparity -run '^TestInferenceTextAndStructuredMatrix$' -count=1 -v"
-        },
-        {
           "id": "multimodal-input",
           "title": "Close single and combined image, audio, and video input parity for Qwen3.5, Gemma E4B, Gemma4 12B, RxBrain, and OCR on real catalog cases; preserve ordering, temporal structure, masks, and cross-modal position semantics",
           "status": "open",

@@ -91,7 +91,7 @@ func loadDenseFFNCatalog(
 		}
 		return nil
 	}
-	if profile.FeedForward == FeedForwardSwiGLU {
+	if profile.FeedForward == FeedForwardSwiGLU || profile.FeedForward == FeedForwardGEGLU {
 		gate, err := required(prefix+"ffn_gate.weight", shapes.FeedForwardUp(1)...)
 		if err != nil {
 			return err

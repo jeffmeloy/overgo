@@ -129,31 +129,6 @@ func DeviceMuonMatricesResident(worker *device.Worker, matrices []ResidentMatrix
 // DeviceMuonStepPlan: one flat upload/download; resident matrix updates.
 func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []float32, plan Plan, step int, config Config) error {
 	rate := config.LearningRate(step)
-	muF := float32(config.Momentum)
-
-	// Host-only disjoint groups first.
-	for _, group := range plan.groups {
-		switch {
-		case group.Frozen:
-			clear(gradients[group.Start:group.End])
-		case group.Update == UpdateSign:
-			for i := group.Start; i < group.End; i++ {
-				next := muF*momentum[i] + gradients[i]
-				direction := muF*next + gradients[i]
-				momentum[i] = next
-				if gradients[i] != 0 {
-					switch {
-					case direction > 0:
-						weights[i] -= float32(rate)
-					case direction < 0:
-						weights[i] += float32(rate)
-					}
-				}
-				gradients[i] = 0
-			}
-		}
-	}
-
 	return worker.Do(context.Background(), func(state *device.State) error {
 		ops, err := newDeviceOps(state)
 		if err != nil {
@@ -169,7 +144,7 @@ func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []fl
 		dW, dG, dM := buffers[0], buffers[1], buffers[2]
 
 		for _, group := range plan.groups {
-			if group.Frozen || group.Update != UpdateMuon {
+			if group.Frozen {
 				continue
 			}
 			if err := ops.muonMatrixGroupResident(
@@ -190,7 +165,7 @@ func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []fl
 			return err
 		}
 		for _, group := range plan.groups {
-			if !group.Frozen && group.Update == UpdateMuon {
+			if !group.Frozen {
 				clear(gradients[group.Start:group.End])
 			}
 		}

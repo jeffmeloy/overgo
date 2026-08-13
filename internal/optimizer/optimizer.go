@@ -62,7 +62,7 @@ func (o *Optimizer) Step() StepResult {
 // identically to Step, so a caller that splits a step across two StepGroups calls
 // (e.g. host-side non-matrix groups here, device-side matrix groups elsewhere)
 // must advance the step for only one of them. Used by the device-resident training
-// loop to run the host optimizer on the tail/sign groups while the layer matrices
+// loop to run the host optimizer on non-layer groups while layer matrices
 // are updated on resident device buffers.
 func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 	o.step++
@@ -75,31 +75,9 @@ func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 			clear(o.gradients[group.Start:group.End])
 			continue
 		}
-		switch group.Update {
-		case UpdateMuon:
-			o.stepMuon(group, rate)
-		case UpdateSign:
-			o.stepSign(group, rate)
-		}
+		o.stepMuon(group, rate)
 	}
 	return StepResult{Step: o.step, LearningRate: rate}
-}
-
-func (o *Optimizer) stepSign(group Group, rate float64) {
-	for index := group.Start; index < group.End; index++ {
-		gradient := float64(o.gradients[index])
-		momentum, direction := nesterov(o.config.Momentum, o.momentum[index], gradient)
-		o.momentum[index] = momentum
-		if gradient != 0 {
-			switch {
-			case direction > 0:
-				o.weights[index] -= float32(rate)
-			case direction < 0:
-				o.weights[index] += float32(rate)
-			}
-		}
-		o.gradients[index] = 0
-	}
 }
 
 func (o *Optimizer) stepMuon(group Group, rate float64) {

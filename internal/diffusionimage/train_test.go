@@ -2,8 +2,9 @@ package diffusionimage
 
 import (
 	"math"
-	"math/rand"
 	"testing"
+
+	"overgo/internal/optimizer"
 )
 
 // TestOTFlowObjectiveMatchesTorch: path, target, scaled-MSE loss and
@@ -55,9 +56,7 @@ func fixedFlowPath(t *testing.T, x1 []float32, batch int, sigmaMin float64) (x, 
 	return x, target
 }
 
-// TestTinyModelTrainDescends: SGD on the tiny fixture model over the fixed
-// OT-flow path descends clearly (reference screen: 12 steps to below 0.85x;
-// SGD here, so the horizon is longer — optimizer choice recorded in train.go).
+// TestTinyModelTrainDescends: Muon on a fixed OT-flow path.
 func TestTinyModelTrainDescends(t *testing.T) {
 	fx := loadGolden[uditTinyFixture](t, "udit_tiny")
 	m := compileTiny(t, fx)
@@ -68,9 +67,13 @@ func TestTinyModelTrainDescends(t *testing.T) {
 		maxFrac  = 0.85
 	)
 	x, target := fixedFlowPath(t, fx.X, fx.B, sigmaMin)
+	trainer, err := NewTrainer(m, optimizer.Config{BaseLearningRate: lr, Momentum: 0.95, Schedule: optimizer.ScheduleConstant})
+	if err != nil {
+		t.Fatal(err)
+	}
 	losses := make([]float64, 0, steps)
 	for step := 0; step < steps; step++ {
-		loss, err := m.TrainStepSGD(x, target, fx.B, fx.H, fx.W, lr)
+		loss, err := trainer.Step(x, target, fx.B, fx.H, fx.W)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,16 +83,14 @@ func TestTinyModelTrainDescends(t *testing.T) {
 		losses = append(losses, loss)
 	}
 	first, last := losses[0], losses[len(losses)-1]
-	t.Logf("tiny OT-flow SGD loss %.6f -> %.6f over %d steps (lr %g)", first, last, steps, lr)
+	t.Logf("tiny OT-flow Muon loss %.6f -> %.6f over %d steps (lr %g)", first, last, steps, lr)
 	if !(last < first*maxFrac) {
 		t.Fatalf("loss did not clearly descend: %.6f -> %.6f", first, last)
 	}
 }
 
-// TestRealCheckpointTrainStepDescends: real-artifact train step — SGD on a
-// fixed synthetic batch (vendor data range [-1,1]) decreases the OT-flow
-// loss. Fresh model instance: training mutates weights in place.
-func TestRealCheckpointTrainStepDescends(t *testing.T) {
+// TestRealCheckpointMuonPlanCompiles: every real tensor has Muon geometry.
+func TestRealCheckpointMuonPlanCompiles(t *testing.T) {
 	if testing.Short() {
 		t.Skip("loads the real artifact; skipped in -short")
 	}
@@ -98,30 +99,11 @@ func TestRealCheckpointTrainStepDescends(t *testing.T) {
 	if err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", dir, err)
 	}
-	rng := rand.New(rand.NewSource(7))
-	x1 := make([]float32, 1*m.Cfg.InChannels*32*32)
-	for i := range x1 {
-		x1[i] = 2*rng.Float32() - 1
+	trainer, err := NewTrainer(m, optimizer.Config{BaseLearningRate: 1e-4, Momentum: 0.95, Schedule: optimizer.ScheduleConstant})
+	if err != nil {
+		t.Fatal(err)
 	}
-	const (
-		steps = 3
-		lr    = 1e-4
-	)
-	x, target := fixedFlowPath(t, x1, 1, 0.001)
-	losses := make([]float64, 0, steps)
-	for step := 0; step < steps; step++ {
-		loss, err := m.TrainStepSGD(x, target, 1, 32, 32, lr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		losses = append(losses, loss)
-	}
-	t.Logf("real-artifact OT-flow SGD losses %v (lr %g)", losses, lr)
-	first, last := losses[0], losses[len(losses)-1]
-	if math.IsNaN(last) || math.IsInf(last, 0) {
-		t.Fatalf("non-finite final loss %v", last)
-	}
-	if !(last < first) {
-		t.Fatalf("loss did not decrease: %.6f -> %.6f", first, last)
+	if trainer.pack.ParameterCount() == 0 {
+		t.Fatal("real-artifact Muon plan is empty")
 	}
 }

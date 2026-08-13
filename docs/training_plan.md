@@ -49,13 +49,16 @@ Production gaps:
 - `cmd/train` selects the resident dense device loop; the displaced per-step
   weight scatter/gradient gather training adapters are deleted;
 - production checkpoints are not atomic complete-state resumes;
-- vector/scalar updates still use the provisional sign rule;
+- matrix, vector and scalar groups share the Muon Newton–Schulz path;
 - no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed the compiled
   resident training contract;
 - compiled multimodal training authority is not implemented as a sole runtime
   owner;
 - real multimodal processor/projector/codec gradient and held-out quality gates
   remain open.
+- SimpleDiffusion compiles every real tensor into shared Muon geometry; its
+  real update remains blocked on a device/resident Muon program because host
+  Newton–Schulz at artifact scale is not an admissible production path.
 
 Device backward and device Newton–Schulz are implemented. Production
 reachability and real-model integration are now the long poles.
@@ -167,11 +170,10 @@ Muon is the only optimizer family. The compiled plan assigns an explicit Muon
 geometry to every trainable parameter group rather than routing exceptional shapes
 to a second optimizer:
 
-- `MuonMatrix`: Newton–Schulz orthogonalized Nesterov momentum for eligible
-  two-dimensional weights, including dense embeddings and output projections.
-- `MuonVector`: Nesterov momentum with a compiled vector normalization rule for
-  normalization weights, biases and other one-dimensional groups.
-- `MuonScalar`: explicitly scaled Nesterov momentum for true scalar groups.
+- `MuonMatrix`: Newton–Schulz orthogonalized Nesterov momentum over the compiled
+  two-dimensional view, including dense embeddings and output projections.
+- `MuonVector`: the same update over a compiled `1xN` or `Nx1` view.
+- `MuonScalar`: the same update over a compiled `1x1` view.
 - `Frozen`: no state and no update for parameters excluded by the recipe.
 
 Higher-rank tensors receive a semantic matrix view compiled from their tensor
@@ -180,15 +182,10 @@ have one optimizer binding and one state allocation. Weight decay, clipping and
 loss scaling are orthogonal transforms inside the Muon step, independently typed
 by parameter role, not alternate optimizers.
 
-The existing sign update for non-matrix groups is a host-reference behavior, not
-an implicit production fallback. It must either become the explicitly defined
-`MuonVector`/`MuonScalar` rule with convergence evidence or be replaced by a
-better normalized Muon rule before controller promotion. Every geometry shares
-one Muon configuration, schedule, checkpoint schema and plan identity.
-
-Device Newton–Schulz and matrix Muon are implemented and host/device gated.
-Vector/scalar Muon rules remain open. Each geometry must match the CPU reference
-trajectory within a recorded tolerance. Newton–Schulz streams per optimizer
+The sign and BF16-SGD paths are deleted. Every geometry shares one Muon
+configuration, schedule, checkpoint schema and plan identity. Matrix and vector
+CPU/device trajectories are gated; scalar coverage remains part of production
+program promotion. Newton–Schulz streams per optimizer
 group; its memory plan includes the current matrix, output, Gram, polynomial
 scratch and conversion buffers. The planner rejects a group whose peak scratch
 cannot fit its assigned capacity class.
@@ -402,7 +399,7 @@ not redefine an earlier rung's correctness contract.
    applicable/refused multimodal matrix from those facts.
 2. **Resident Muon production path.** Dense device forward/backward, matrix
    Muon, resident state, synthetic hybrid parity, and production command routing
-   are implemented. Add vector/scalar Muon, then delete the sign-update path.
+   are implemented with matrix/vector/scalar Muon under one compiled plan.
 3. **Exact recovery.** Lower-level dense trajectory tests exist. Implement both
    checkpoint schemas at the production boundary: atomic publication, complete
    Muon/RNG/data/program state and uninterrupted-versus-resumed equality.

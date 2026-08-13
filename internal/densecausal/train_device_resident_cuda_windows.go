@@ -250,8 +250,7 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 			off += n
 		}
 
-		// Host optimizer: non-matrix groups (embed/head Muon, norm-vector/final-norm
-		// sign). Device Muon: layer matrices in place on the resident buffers.
+		// Host Muon: non-layer groups. Device Muon: resident layer matrices.
 		opt.StepGroups(func(gr optimizer.Group) bool { return !isLayerMatrixName(gr.Name) })
 		updates := make([]optimizer.ResidentMatrix, len(mats))
 		for i, mt := range mats {

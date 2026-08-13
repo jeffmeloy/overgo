@@ -8,15 +8,7 @@ import (
 	"hash"
 )
 
-const planIdentityDomain = "overgo.optimizer.plan.v1"
-
-// UpdateKind: derived group update policy.
-type UpdateKind uint8
-
-const (
-	UpdateSign UpdateKind = iota
-	UpdateMuon
-)
+const planIdentityDomain = "overgo.optimizer.plan.v2"
 
 // GroupSpec: named flat parameter matrix.
 type GroupSpec struct {
@@ -28,11 +20,8 @@ type GroupSpec struct {
 	Frozen bool
 }
 
-// Group: validated optimizer group.
-type Group struct {
-	GroupSpec
-	Update UpdateKind
-}
+// Group: validated Muon group.
+type Group struct{ GroupSpec }
 
 // Plan: immutable flat parameter layout.
 type Plan struct {
@@ -74,11 +63,7 @@ func CompilePlan(parameterCount int, specs []GroupSpec) (Plan, error) {
 		if spec.Rows <= 0 || spec.Cols <= 0 || spec.Rows > int(^uint(0)>>1)/spec.Cols || spec.Rows*spec.Cols != spec.End-spec.Start {
 			return Plan{}, fmt.Errorf("optimizer plan: group %q shape %dx%d does not match range [%d,%d)", spec.Name, spec.Rows, spec.Cols, spec.Start, spec.End)
 		}
-		kind := UpdateSign
-		if min(spec.Rows, spec.Cols) >= 2 {
-			kind = UpdateMuon
-		}
-		groups[index] = Group{GroupSpec: spec, Update: kind}
+		groups[index] = Group{GroupSpec: spec}
 		names[spec.Name] = struct{}{}
 		next = spec.End
 	}
@@ -91,7 +76,7 @@ func CompilePlan(parameterCount int, specs []GroupSpec) (Plan, error) {
 func newPlan(parameterCount int, groups []Group) Plan {
 	plan := Plan{parameterCount: parameterCount, groups: groups}
 	for _, group := range groups {
-		if group.Frozen || group.Update != UpdateMuon {
+		if group.Frozen {
 			continue
 		}
 		matrix := group.End - group.Start
@@ -132,7 +117,6 @@ func planIdentity(plan Plan) string {
 		} else {
 			writePlanUint(digest, 0)
 		}
-		writePlanUint(digest, uint64(group.Update))
 	}
 	return fmt.Sprintf("%x", digest.Sum(nil))
 }

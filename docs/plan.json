@@ -11,7 +11,7 @@
           "id": "do",
           "title": "Make Muon the sole optimizer authority: compile matrix/vector/scalar update groups, migrate all callers, delete BF16SGD, TrainBF16SGD, and UpdateSign, then establish the production resident training performance baseline",
           "status": "open",
-          "verify": "go test ./internal/optimizer ./internal/densecausal ./cmd/train -count=1 -v \u0026\u0026 ! rg -n 'BF16SGD|TrainBF16SGD|UpdateSign' internal cmd"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/optimizer ./internal/densecausal ./internal/diffusionimage ./cmd/train -count=1 -v \u0026\u0026 ! rg -n 'BF16SGD|TrainBF16SGD|UpdateSign|TrainStepSGD' internal cmd --glob '*.go'"
         }
       ]
     },

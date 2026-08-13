@@ -11,6 +11,27 @@ The immediate product objective is not full training of every supported model. I
 is a trustworthy learning loop for a small workflow controller. Larger-model
 offload is scaling infrastructure built after that loop works.
 
+## Current implementation truth
+
+As of this revision:
+
+- Device backward has landed for dense-causal fixtures and the hybrid decoder
+  fixture, with host/device numerical tests.
+- Device Muon and resident multi-step fixture loops exist. Production
+  `cmd/train` still calls `TrainDeviceFull`; `TrainDeviceResident` is not yet production-reachable.
+- Training recipes remain orchestration records. A sealed, executable
+  `TrainingRunPlan` with ordered model and multimodal operators is not yet the
+  sole runtime authority.
+- Exact checkpoint/resume is not implemented for weights, gradients, optimizer
+  state, RNG streams, dataset cursor, schedules, and accumulation boundaries.
+- Compiled multimodal training authority is not implemented. Inference and
+  isolated backward coverage do not establish an end-to-end training contract.
+- No real checkpoint-backed model has completed an end-to-end production
+  training run, exact resume, held-out evaluation, and RepoDB promotion cycle.
+
+Consequently, the current code proves device mathematics on fixtures. It does
+not yet prove the controller milestone or large-model training claims below.
+
 ## 1. First product milestone
 
 A pretrained 350M–1B controller can be fine-tuned on-device, checkpointed and
@@ -289,10 +310,11 @@ evaluation. Monotonic minibatch loss is not required or sufficient.
 The first controller is fine-tuned from a suitable pretrained 350M–1B base.
 Training a new language model from scratch is a later, separately budgeted program.
 
-**Open decision (blocks rung 1): choose the base and register its RepoDB
+**Open decision: choose the base and register its RepoDB
 identity.** Rung 1 cannot seal a `TrainingRunPlan` until the base model is named,
 because the plan owns the initial-model identity. Candidates are Fractale-350M,
-Carbon-500M and Qwen2.5-0.5B — all already resident-trainable (§11). Decision
+Carbon-500M and Qwen2.5-0.5B. Fixture-level resident training does not make any
+candidate production-trainable. Decision
 criterion, in order: (a) a device forward/backward already parity-verified in the
 tree, so rung 2 is not gated on a new backward; (b) an instruction/tool-use
 pretraining that transfers to workflow control rather than a bare LM; (c) the
@@ -352,11 +374,12 @@ model.
 
 ## 10. Implementation ladder
 
-`docs/plan.json` (driven by `cmd/plan`) is the single execution owner: it tracks
-which rung and step is open, done or blocked. This section and the §11 model
+`docs/plan.json` (driven by `cmd/plan`) is the single execution owner: it contains
+only dispatchable or externally blocked work. Completed evidence belongs in Git
+and RepoDB, not the live queue. This section and the §11 model
 ladder are rationale and sequencing only — they explain *why* the rungs are
 ordered this way and *what* each proves; they do not record completion. When a
-training rung lands, its status changes in `plan.json`, not here. If this ladder
+training rung lands, it leaves `plan.json`. If this ladder
 and `plan.json` ever disagree on scope, `plan.json` wins and this section is
 corrected to match. Add or rename a training rung in `plan.json` first, then
 reflect the rationale here.
@@ -368,18 +391,12 @@ not redefine an earlier rung's correctness contract.
    `TrainingProgram`; bind RepoDB model, dataset, split, ordered input/target
    modalities, processor/projector/codec, objective and policy IDs. Derive the
    applicable/refused multimodal matrix from those facts.
-2. **Resident FP32 Muon plumbing.** Complete device forward, backward, loss and
-   Muon update for small matrix, vector and scalar fixtures; prove host/device
-   parity. **Device backward is the dominant sub-item and the schedule long
-   pole** — overgo's backward is host-only today, so this rung is not
-   equal-weight with its neighbors. Expect it to decompose in `plan.json` into
-   per-operator backward kernels (matmul, normalization, activation, attention),
-   each grad-parity gated against the FD-verified host VJPs before the rung is
-   marked done. Size the rung accordingly rather than treating "backward" as one
-   step. Grounded kernel decomposition and slice order: see
-   [device_training_rung2.md](device_training_rung2.md) (host loop is the fp64
-   oracle; device fp32 slices are tolerance-gated; first slice = device
-   Newton-Schulz via cuBLAS).
+2. **Production resident FP32 Muon plumbing.** Device backward and resident Muon
+   loops have landed for dense and hybrid fixtures. Route the production command
+   through the resident loop, delete the non-resident `TrainDeviceFull` path, and
+   extend the same compiled program to a selected checkpoint-backed controller.
+   Preserve the host oracle and per-operator gradient parity described in
+   [device_training_rung2.md](device_training_rung2.md).
 3. **Exact recovery.** Implement both checkpoint schemas and bitwise or bounded
    uninterrupted-versus-resumed trajectory tests.
 4. **Mixed-precision resident training.** BF16 compute with FP32 accumulation;
@@ -411,7 +428,7 @@ not redefine an earlier rung's correctness contract.
 | Model or family | Near-term role | Initial tier | Admission condition |
 |---|---|---:|---|
 | Dense fixture | Numerical/device plumbing | VRAM | Forward/backward/update parity |
-| Fractale-350M, Carbon-500M or Qwen2.5-0.5B | Controller candidate | VRAM | Exact resume and promotion-suite definition |
+| Fractale-350M, Carbon-500M or Qwen2.5-0.5B | Controller candidate, not yet production-trained | VRAM | Compiled loading/training authority, resident execution, exact resume and promotion suite |
 | SimpleDiffusion, Un-0, pocket-tts | Image and speech training validation | VRAM | Real modality corpus, processor/codec gradients and native-quality evaluation |
 | MiniCPM5-1B | Resident scale validation | VRAM | Measured peak below safe capacity class |
 | Gemma3n E4B | Tier-1 multimodal scale target | RAM offload | Device backward, checkpointing and every adaptive-declared trainable text/image/audio modality |

@@ -199,9 +199,15 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	if err := r.validateSingleHeadMTPSession(session, "NextN MTP", false); err != nil {
 		return err
 	}
+	program, err := r.draftLayerProgram(0)
+	if err != nil {
+		return err
+	}
+	layer := program.Layer()
+	sparseTopK := layer.AuxiliaryInput == model.AuxiliarySparseTopK ||
+		layer.AuxiliaryOutput == model.AuxiliarySparseTopK
 	indexerState, hasIndexerState := session.Layer.States[model.CacheStateIndexerKey]
-	profile := r.profile()
-	if profile.Attention == model.AttentionSparseLatent && profile.Auxiliary != model.AuxiliarySparseTopK {
+	if layer.Attention == model.AttentionSparseLatent && !sparseTopK {
 		wantTokens := uint64(session.Position - session.MTPStart)
 		if (wantTokens == 0 && hasIndexerState) || (wantTokens > 0 &&
 			(!hasIndexerState || !indexerState.Mode.TokenAligned() ||
@@ -211,7 +217,7 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	} else if hasIndexerState {
 		return errors.New("inference: NextN MTP session has unexpected indexer state")
 	}
-	if profile.Auxiliary == model.AuxiliarySparseTopK {
+	if sparseTopK {
 		if session.Layer.Auxiliary == nil ||
 			session.Layer.Auxiliary.Shape != tensor.MustShape(uint64(r.spec.IndexerTopK), 1) {
 			return errors.New("inference: GLM-DSA NextN MTP top-k handoff is incompatible")

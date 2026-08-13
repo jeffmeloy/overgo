@@ -9,6 +9,7 @@ const (
 	ForwardOperationAudioTokens
 	ForwardOperationEncoder
 	ForwardOperationSession
+	ForwardOperationDiffusion
 	forwardOperationCount
 )
 
@@ -31,6 +32,9 @@ type ForwardProgram struct {
 	continuousBatch       bool
 	persistentDeviceCache bool
 	layerCapture          bool
+	deviceBatchSelection  bool
+	nonCausalRecurrent    bool
+	alternatePredictions  bool
 }
 
 func compileForwardProgram(profile ArchitectureProfile, nonCausal bool) ForwardProgram {
@@ -40,12 +44,18 @@ func compileForwardProgram(profile ArchitectureProfile, nonCausal bool) ForwardP
 	forward.continuousBatch = cached
 	forward.persistentDeviceCache = cached && !altUp && !profile.Has(ArchitectureLatent)
 	forward.layerCapture = cached && !altUp
+	forward.deviceBatchSelection = profile.Attention == AttentionGatedDelta
+	forward.nonCausalRecurrent = profile.Attention == AttentionShortConvolution
+	forward.alternatePredictions = altUp
 	return forward
 }
 
 func (p ForwardProgram) ContinuousBatch() bool       { return p.continuousBatch }
 func (p ForwardProgram) PersistentDeviceCache() bool { return p.persistentDeviceCache }
 func (p ForwardProgram) LayerCapture() bool          { return p.layerCapture }
+func (p ForwardProgram) DeviceBatchSelection() bool  { return p.deviceBatchSelection }
+func (p ForwardProgram) NonCausalRecurrent() bool    { return p.nonCausalRecurrent }
+func (p ForwardProgram) AlternatePredictions() bool  { return p.alternatePredictions }
 
 func (p ForwardProgram) valid() bool {
 	if p.Operation >= forwardOperationCount || p.Session >= forwardSessionCount {

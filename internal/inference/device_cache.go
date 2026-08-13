@@ -666,7 +666,7 @@ func (r *Runner) forwardDeviceCachedBatchModeLocked(
 	if len(appends) == 0 {
 		return nil, errors.New("inference: device batch is empty")
 	}
-	if next, handled, err := r.forwardPackedQwen35CohortsLocked(ctx, appends, plan); handled {
+	if next, handled, err := r.forwardPackedDeviceCohortsLocked(ctx, appends, plan); handled {
 		return next, err
 	}
 	return r.forwardDeviceCachedBranchedBatchLocked(ctx, appends, plan)

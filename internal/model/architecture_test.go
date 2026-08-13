@@ -259,7 +259,8 @@ func TestArchitectureProfileForwardProgram(t *testing.T) {
 	for architecture, want := range map[string]ForwardProgram{
 		"llama":            {Operation: ForwardOperationCached},
 		"bert":             {Operation: ForwardOperationBidirectional},
-		"dream":            {Operation: ForwardOperationBidirectional},
+		"dream":            {Operation: ForwardOperationDiffusion},
+		"llada":            {Operation: ForwardOperationDiffusion},
 		"dflash":           {Operation: ForwardOperationSession, Session: ForwardSessionPairedFeatures},
 		"eagle3":           {Operation: ForwardOperationSession, Session: ForwardSessionFeatureDraft},
 		"gemma4-assistant": {Operation: ForwardOperationSession, Session: ForwardSessionPairedProjection},

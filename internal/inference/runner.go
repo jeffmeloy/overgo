@@ -250,15 +250,8 @@ func (r *Runner) draftLayerProgram(offset uint32) (model.CompiledLayerProgram, e
 	return r.program.Model.DraftProgram(offset)
 }
 
-func (r *Runner) profile() model.ArchitectureProfile {
-	if r == nil || r.program.Model.Profile().Name == "" {
-		panic("inference: compiled profile is unavailable")
-	}
-	return r.program.Model.Profile()
-}
-
 func (r *Runner) forwardProgram() model.ForwardProgram {
-	if r == nil || r.program.Model.Profile().Name == "" {
+	if r == nil || !r.program.Model.Compiled() {
 		panic("inference: compiled forward program is unavailable")
 	}
 	return r.program.Model.Forward()
@@ -624,7 +617,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if r.profile().Has(model.ArchitectureAltUp) {
+	if r.forwardProgram().AlternatePredictions() {
 		if capture != nil {
 			return reference.Value{}, nil, errors.New("inference: cached Gemma3n layer extraction is unsupported")
 		}

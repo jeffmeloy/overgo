@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
@@ -222,7 +221,7 @@ func (g *ContinuousGenerator) run() {
 			continue
 		}
 		greedyBatch, greedy := g.batch.(continuousGreedyBatchAPI)
-		greedy = greedy && g.runner.profile().Attention == model.AttentionGatedDelta &&
+		greedy = greedy && g.runner.forwardProgram().DeviceBatchSelection() &&
 			continuousStatesUseDeviceGreedy(stepping)
 		topKBatch, bounded := g.batch.(continuousTopKBatchAPI)
 		topK := 0

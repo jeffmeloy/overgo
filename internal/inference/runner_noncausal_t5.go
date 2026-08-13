@@ -73,7 +73,7 @@ func (r *Runner) forwardNonCausalLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	if r.profile().Attention == model.AttentionShortConvolution {
+	if r.forwardProgram().NonCausalRecurrent() {
 		for layerIndex, layerInfo := range r.weights.Layers {
 			activation, err = r.runLFM2LayerNonCausal(
 				ctx, activation, layerInfo, layerIndex, positions,

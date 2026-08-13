@@ -523,7 +523,7 @@
     "Capabilities": 33,
     "CatalogFamily": 6,
     "Family": 6,
-    "Forward": {"Operation": 1},
+    "Forward": {"Operation": 5},
     "GraphFamily": 6,
     "Name": "dream"
   },
@@ -1463,7 +1463,7 @@
     "Capabilities": 8225,
     "CatalogFamily": 6,
     "Family": 6,
-    "Forward": {"Operation": 1},
+    "Forward": {"Operation": 5},
     "GraphFamily": 6,
     "Name": "llada",
     "Position": 1,

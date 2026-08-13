@@ -32,7 +32,7 @@ func TestDecodeCandidatePairsSplitsPackedRows(t *testing.T) {
 	}
 }
 
-func TestPlanQwen35DeviceCohorts(t *testing.T) {
+func TestPlanDeviceCohorts(t *testing.T) {
 	const (
 		firstTokens    = 5
 		firstPosition  = 7
@@ -49,7 +49,7 @@ func TestPlanQwen35DeviceCohorts(t *testing.T) {
 		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{6, 7}, PageTokens: pageTokens},
 		{Past: &deviceKVCache{Tokens: firstTokens + 1, Position: firstPosition + 1}, Tokens: []tokenizer.TokenID{8}, PageTokens: pageTokens},
 	}
-	packed, fallback := planQwen35DeviceCohorts(appends)
+	packed, fallback := planDeviceCohorts(appends)
 	wantPacked := [][]int{{0, 2}, {1, 4}}
 	wantFallback := []int{3, 5, 6}
 	if !reflect.DeepEqual(packed, wantPacked) || !reflect.DeepEqual(fallback, wantFallback) {

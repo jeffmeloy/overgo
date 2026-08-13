@@ -752,6 +752,12 @@ func (p ModelPlan) Layer(layer int) (LayerPlan, error) {
 // Profile: compiled architecture policy.
 func (p ModelPlan) Profile() ArchitectureProfile { return p.profile }
 
+// SameExecutionProfile reports whether two sealed plans share one policy contract.
+func (p ModelPlan) SameExecutionProfile(other ModelPlan) bool { return p.profile == other.profile }
+
+// Compiled reports whether the plan has a resolved execution identity.
+func (p ModelPlan) Compiled() bool { return p.profile.Name != "" }
+
 // Forward: compiled top-level execution contract.
 func (p ModelPlan) Forward() ForwardProgram { return p.forward }
 

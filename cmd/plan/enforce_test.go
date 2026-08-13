@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/plan"
@@ -17,6 +19,40 @@ func TestEnforceAdvanceGate(t *testing.T) {
 	// -force overrides (the loud escape for genuinely-manual steps).
 	if err := gateAdvance(plan.Item{ID: "i"}, plan.Step{ID: "s"}, "manual: owner sign-off"); err != nil {
 		t.Fatalf("-force must override the verify gate: %v", err)
+	}
+}
+
+func TestPlanContainsOpenWorkOnly(t *testing.T) {
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+	document := plan.Plan{Items: []plan.Item{{
+		ID: "item", Status: "open", Steps: []plan.Step{
+			{ID: "first", Status: "open"},
+			{ID: "second", Status: "open"},
+		},
+	}}}
+	if err := advanceStep(document, "item", "first", "test-verified"); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := plan.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := plan.ValidateOpenWork(saved); err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Items) != 1 || len(saved.Items[0].Steps) != 1 || saved.Items[0].Steps[0].ID != "second" {
+		t.Fatalf("advanced plan = %+v", saved)
 	}
 }
 
@@ -91,26 +127,5 @@ func TestEnforceStopReason(t *testing.T) {
 		if err := validateStop(r); err == nil {
 			t.Fatalf("manufactured stop %q must be REFUSED", r)
 		}
-	}
-}
-
-func TestPlanContainsOpenWorkOnly(t *testing.T) {
-	document := plan.Plan{Items: []plan.Item{
-		{ID: "first", Status: "open", Steps: []plan.Step{
-			{ID: "done", Status: "open"},
-			{ID: "next", Status: "open"},
-		}},
-		{ID: "last", Status: "open", Steps: []plan.Step{{ID: "only", Status: "open"}}},
-	}}
-	document = removeCompleted(document, 0, 0)
-	if got := document.Items[0].Steps[0].ID; got != "next" {
-		t.Fatalf("first remaining step = %q, want next", got)
-	}
-	document = removeCompleted(document, 1, 0)
-	if len(document.Items) != 1 || document.Items[0].ID != "first" {
-		t.Fatalf("last-step completion retained chronology: %+v", document.Items)
-	}
-	if err := plan.ValidateOpenOnly(document); err != nil {
-		t.Fatalf("completion produced historical rows: %v", err)
 	}
 }

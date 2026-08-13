@@ -8,10 +8,11 @@
 //	                               feeds the agent -- NOT free text it rewrites)
 //	plan -verify                   run the top open step's acceptance command
 //	                               (step.verify); exit code is pass/fail
-//	plan -advance <item> <step>    remove a completed step -- REFUSED unless its
+//	plan -advance <item> <step>    mark a step done -- REFUSED unless that step's
 //	                               verify command exits 0 (step "." closes the
 //	                               item). -force <reason> overrides loudly.
 //	plan -status                   one line per item
+//	plan -compact                  drop completed rows; normalize partial work
 //
 // Enforcement rationale (owner 2026-08-11, after a session drifted off-plan for
 // ~13 commits with zero -advance): "done" must be machine-checked, not
@@ -42,29 +43,42 @@ func main() {
 	prompt := flag.Bool("prompt", false, "print the generated self-contained task for the top open step")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
-	advance := flag.Bool("advance", false, "verify and remove <item> <step> from the open-work queue")
+	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
 	add := flag.Bool("add", false, "inject a new top-priority task: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
+	compact := flag.Bool("compact", false, "drop completed rows and normalize partial rows to open work")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
 	force := flag.String("force", "", "with -advance: skip verify, REQUIRES a reason (logged loudly)")
 	title := flag.String("title", "", "with -add: the task title")
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, advance: *advance, add: *add, setverify: *setverify, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	next, prompt, verify, status, advance, add, setverify, stop bool
-	force, title, before, verifyCmd                             string
+	next, prompt, verify, status, advance, add, setverify, compact, stop bool
+	force, title, before, verifyCmd                                      string
 }
 
 func run(c cli, args []string) error {
 	document, err := plan.Load("")
 	if err != nil {
+		return err
+	}
+	if c.compact {
+		beforeItems := len(document.Items)
+		document = plan.Compact(document)
+		if err := plan.Save("", document); err != nil {
+			return err
+		}
+		fmt.Printf("compacted plan: %d -> %d items\n", beforeItems, len(document.Items))
+		return nil
+	}
+	if err := plan.ValidateOpenWork(document); err != nil {
 		return err
 	}
 	switch {
@@ -234,7 +248,7 @@ func recordStop(reason string) error {
 
 func printStatus(document plan.Plan) {
 	for _, entry := range document.Items {
-		fmt.Printf("%-22s %-6s %d open %s\n", entry.ID, entry.Status, len(entry.Steps), entry.Title)
+		fmt.Printf("%-30s %-24s %d open rows  %s\n", entry.ID, entry.Status, len(entry.Steps), entry.Title)
 	}
 }
 
@@ -366,30 +380,19 @@ func advanceStep(document plan.Plan, itemID, stepID, force string) error {
 			if err := gateAdvance(document.Items[i], document.Items[i].Steps[targetIndex], force); err != nil {
 				return err
 			}
-			document = removeCompleted(document, i, targetIndex)
+			document.Items[i].Steps = append(document.Items[i].Steps[:targetIndex], document.Items[i].Steps[targetIndex+1:]...)
+			if len(document.Items[i].Steps) == 0 {
+				document.Items = append(document.Items[:i], document.Items[i+1:]...)
+			}
 			return finishAdvance(document, itemID, stepID)
 		}
 		if err := gateAdvance(document.Items[i], plan.Step{ID: "."}, force); err != nil {
 			return err
 		}
-		document = removeCompleted(document, i, -1)
+		document.Items = append(document.Items[:i], document.Items[i+1:]...)
 		return finishAdvance(document, itemID, stepID)
 	}
 	return fmt.Errorf("item %q not found", itemID)
-}
-
-// removeCompleted keeps the persisted plan an open-work queue. A negative
-// step index removes the whole item; removing its last step does the same.
-func removeCompleted(document plan.Plan, itemIndex, stepIndex int) plan.Plan {
-	if stepIndex >= 0 {
-		steps := document.Items[itemIndex].Steps
-		document.Items[itemIndex].Steps = append(steps[:stepIndex], steps[stepIndex+1:]...)
-		if len(document.Items[itemIndex].Steps) > 0 {
-			return document
-		}
-	}
-	document.Items = append(document.Items[:itemIndex], document.Items[itemIndex+1:]...)
-	return document
 }
 
 // gateAdvance refuses the advance unless the step's verify passes, or a -force

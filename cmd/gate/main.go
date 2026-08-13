@@ -146,6 +146,9 @@ func checkPlanBinding(repo, ref string) error {
 	if err != nil {
 		return err
 	}
+	if err := plan.ValidateOpenWork(document); err != nil {
+		return err
+	}
 	it, st, open := plan.Current(document)
 	if !open {
 		return fmt.Errorf("gate: -plan %s given but the plan is COMPLETE (no open step) -- nothing to commit against", ref)

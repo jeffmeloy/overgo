@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/jsonfile"
 )
@@ -51,30 +52,14 @@ func Load(path string) (Plan, error) {
 	if err := jsonfile.Decode(filepath.FromSlash(path), &d); err != nil {
 		return Plan{}, fmt.Errorf("parse %s: %w", path, err)
 	}
-	if err := ValidateOpenOnly(d); err != nil {
-		return Plan{}, fmt.Errorf("validate %s: %w", path, err)
-	}
 	return d, nil
-}
-
-// ValidateOpenOnly rejects completed chronology from the live work queue.
-// Completed and blocked work belongs in commits, evidence, or findings.
-func ValidateOpenOnly(d Plan) error {
-	for _, it := range d.Items {
-		if it.Status != "open" {
-			return fmt.Errorf("item %q has historical status %q", it.ID, it.Status)
-		}
-		for _, step := range it.Steps {
-			if step.Status != "open" {
-				return fmt.Errorf("step %q/%q has historical status %q", it.ID, step.ID, step.Status)
-			}
-		}
-	}
-	return nil
 }
 
 // Save writes the plan back to path (Path when empty).
 func Save(path string, d Plan) error {
+	if err := ValidateOpenWork(d); err != nil {
+		return err
+	}
 	if path == "" {
 		path = Path
 	}
@@ -85,16 +70,79 @@ func Save(path string, d Plan) error {
 	return os.WriteFile(filepath.FromSlash(path), append(raw, '\n'), 0o644)
 }
 
-// Current returns the first step of the first item -- the single action the
-// loop may work on. Persisted plans contain open work only. An item with no
-// steps yields the sentinel step "." (open the rung).
-func Current(d Plan) (Item, Step, bool) {
-	if len(d.Items) == 0 {
-		return Item{}, Step{}, false
+// ValidateOpenWork rejects chronology in the live plan. Git and RepoDB own
+// completed evidence; the plan contains only dispatchable or blocked work.
+func ValidateOpenWork(d Plan) error {
+	items := map[string]bool{}
+	for _, item := range d.Items {
+		if item.ID == "" || items[item.ID] {
+			return fmt.Errorf("plan item id %q is empty or duplicated", item.ID)
+		}
+		items[item.ID] = true
+		if !unfinished(item.Status) {
+			return fmt.Errorf("plan item %s has chronology status %q", item.ID, item.Status)
+		}
+		steps := map[string]bool{}
+		for _, step := range item.Steps {
+			if step.ID == "" || steps[step.ID] {
+				return fmt.Errorf("plan step %s/%s is empty or duplicated", item.ID, step.ID)
+			}
+			steps[step.ID] = true
+			if !unfinished(step.Status) {
+				return fmt.Errorf("plan step %s/%s has chronology status %q", item.ID, step.ID, step.Status)
+			}
+		}
 	}
-	it := d.Items[0]
-	if len(it.Steps) == 0 {
+	return nil
+}
+
+// Compact drops completed rows and normalizes partial rows back to open work.
+func Compact(d Plan) Plan {
+	items := d.Items[:0]
+	for _, item := range d.Items {
+		if item.Status == "done" {
+			continue
+		}
+		steps := item.Steps[:0]
+		for _, step := range item.Steps {
+			if step.Status == "done" {
+				continue
+			}
+			if step.Status == "partial" {
+				if strings.HasPrefix(item.Status, "blocked") {
+					step.Status = item.Status
+				} else {
+					step.Status = "open"
+				}
+			}
+			steps = append(steps, step)
+		}
+		item.Steps = steps
+		items = append(items, item)
+	}
+	d.Items = items
+	return d
+}
+
+func unfinished(status string) bool {
+	return status == "open" || strings.HasPrefix(status, "blocked")
+}
+
+// Current returns the first open step of the first open item -- the single
+// action the loop is allowed to work on and the only step a commit may serve.
+// An open item with no open step yields the sentinel step "." (open the rung).
+// ok is false when no open item remains.
+func Current(d Plan) (Item, Step, bool) {
+	for _, it := range d.Items {
+		if it.Status != "open" {
+			continue
+		}
+		for _, s := range it.Steps {
+			if s.Status == "open" {
+				return it, s, true
+			}
+		}
 		return it, Step{ID: ".", Title: "open the rung (define its steps)"}, true
 	}
-	return it, it.Steps[0], true
+	return Item{}, Step{}, false
 }

@@ -2,11 +2,12 @@ package plan
 
 import "testing"
 
-// TestEnforceCurrentFirstOpenStep pins the queue rule shared by cmd/plan and
-// cmd/gate: the first step of the first item, and ok=false for an empty queue.
+// TestEnforceCurrentFirstOpenStep pins the shared dispatch rule.
 func TestEnforceCurrentFirstOpenStep(t *testing.T) {
 	p := Plan{Items: []Item{
-		{ID: "b", Status: "open", Steps: []Step{{ID: "s2", Status: "open"}}},
+		{ID: "b", Status: "open", Steps: []Step{
+			{ID: "s2", Status: "open"},
+		}},
 		{ID: "c", Status: "open", Steps: []Step{{ID: "s1", Status: "open"}}},
 	}}
 	it, st, ok := Current(p)
@@ -26,22 +27,25 @@ func TestEnforceCurrentFirstOpenStep(t *testing.T) {
 }
 
 func TestPlanContainsOpenWorkOnly(t *testing.T) {
-	valid := Plan{Items: []Item{{
-		ID: "item", Status: "open",
-		Steps: []Step{{ID: "step", Status: "open"}},
-	}}}
-	if err := ValidateOpenOnly(valid); err != nil {
-		t.Fatalf("open plan rejected: %v", err)
+	valid := Plan{Items: []Item{
+		{ID: "open", Status: "open", Steps: []Step{{ID: "work", Status: "open"}}},
+		{ID: "blocked", Status: "blocked-external-prereq", Steps: []Step{{ID: "wait", Status: "blocked-external-prereq"}}},
+	}}
+	if err := ValidateOpenWork(valid); err != nil {
+		t.Fatal(err)
 	}
-	for name, invalid := range map[string]Plan{
-		"completed item": {Items: []Item{{ID: "item", Status: "done"}}},
-		"blocked item":   {Items: []Item{{ID: "item", Status: "blocked-external-prereq"}}},
-		"completed step": {Items: []Item{{ID: "item", Status: "open", Steps: []Step{{ID: "step", Status: "done"}}}}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if err := ValidateOpenOnly(invalid); err == nil {
-				t.Fatal("historical row accepted")
-			}
-		})
+	legacy := Plan{Items: []Item{
+		{ID: "done", Status: "done", Steps: []Step{{ID: "old", Status: "done"}}},
+		{ID: "mixed", Status: "open", Steps: []Step{{ID: "old", Status: "done"}, {ID: "next", Status: "partial"}}},
+	}}
+	if err := ValidateOpenWork(legacy); err == nil {
+		t.Fatal("completion ledger passed live-plan validation")
+	}
+	compacted := Compact(legacy)
+	if err := ValidateOpenWork(compacted); err != nil {
+		t.Fatal(err)
+	}
+	if len(compacted.Items) != 1 || len(compacted.Items[0].Steps) != 1 || compacted.Items[0].Steps[0].Status != "open" {
+		t.Fatalf("compacted plan = %+v", compacted)
 	}
 }

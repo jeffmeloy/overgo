@@ -27,8 +27,8 @@ best resident implementation.
 - Critical correction: Overgo's E4B item is marked done although the real E4B
   model has not trained end to end. Device VJPs and a synthetic hybrid trainer
   are prerequisites, not E4B closure.
-- Critical reachability gap: `cmd/train` calls `TrainDeviceFull`; the resident
-  dense and hybrid trainers remain test-only.
+- Production dense training reaches the resident CUDA trainer; matched
+  real-model wall, peak and convergence leadership remain unproven.
 - Critical evidence gap: 34 compatibility claims are marked `implemented`, but
   the current file does not encode the doctrine's evidence tiers. All 135
   architecture entries are `experimental`; only four name a validated fixture.
@@ -109,16 +109,16 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Training concern | adaptive_new | Overgo | Verdict |
 | --- | --- | --- | --- |
 | Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` exist only in the design document | Overgo gap |
-| Optimizer | Adaptive optimizer machinery and model-specific use; historical SGD paths remain | Host/device Muon exists; vector/scalar groups still use `UpdateSign`; BF16SGD remains | Muon-only policy incomplete |
+| Optimizer | Adaptive optimizer machinery and model-specific use; historical SGD paths remain | Matrix/vector/scalar groups use one compiled Muon path; sign, BF16-SGD and family-local production updates deleted | Muon-only production authority |
 | Dense causal LM | Real Carbon/Qwen/MiniCPM CUDA lanes and save/reload evidence | Host, device backward, device Muon, resident trainer, exact resume tests | Primitive parity; production reachability gap |
-| Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train` calls nonresident `TrainDeviceFull` and exposes LR/momentum flags | Behind design target |
+| Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train` selects `TrainDeviceResident`; unsupported architectures compile to host before device construction | Resident reachability lead; matched real-model performance open |
 | Checkpoint/resume | Fine-tune evidence and persistence exist, uneven by trainer | Dense exact-resume tests exist; production save overwrites files and omits optimizer/RNG/data cursor | Test capability only |
 | Qwen3.5 hybrid | Inference active; training unsupported in adaptive inventory | Host/device hybrid layer VJPs and synthetic resident stack train | Overgo primitive lead; real-model gap |
 | Gemma E4B | Adaptive declares streamed CUDA LM scope and supplies real semantics/oracles | Host E4B VJPs plus device primitives; no real E4B end-to-end training | Open; current done status is false closure |
 | Gemma4 12B | Streamed CUDA LM scope | Shared backward prerequisites; no reported real 12B training | Gap |
 | Forecast/latent/FNS | CUDA objectives for LM, FNS, latent L2/sequence, forecast | TimesFM/Un-0 ports; no single compiled production program | Breadth gap |
 | OCR | Host objective; CUDA train/eval absent | No promoted training path | Both incomplete |
-| SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and revive experiments; device path incomplete | Host backward and real loss descent recorded, using SGD | Parity incomplete; optimizer policy violation |
+| SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and revive experiments; device path incomplete | Shared Muon plan covers the real artifact; tiny Muon loss `0.026695 -> 0.002327`; real device update open | Optimizer authority fixed; performance parity incomplete |
 | Pocket-TTS | Latent bridge, flow-net, backbone paths | Port row says scoped, but no current production proof | Unverified |
 | Controller model | Strategic adaptive plan; no promoted controller | Overgo training design targets it | Not started |
 | Tier-1 memory scaling | Adaptive streamed/checkpointed components | Resident dense session and scratch pool exist; no production E4B run | Partial |
@@ -176,11 +176,12 @@ and `cmd/release` still reference the deleted files. Complete caller migration
 and release-contract cleanup in the same slice; do not restore compatibility
 stubs.
 
-### P0: production training bypasses resident training
+### P0: production resident training lacks matched leadership evidence
 
-`cmd/train/run_cuda_windows.go` calls `TrainDeviceFull`. Move the command to
-`TrainDeviceResident`, migrate tests/benchmarks, then delete the displaced full
-path. Keep host fallback only for a compiled unsupported-device decision.
+`cmd/train` now selects `TrainDeviceResident`, with unsupported architectures
+routed to host before device construction. Run the same real artifact, initial
+state, token batches and update contract in both repos; compare trajectory,
+held-out quality, step wall and peak memory.
 
 ### P0: E4B training is falsely closed
 
@@ -196,11 +197,12 @@ directly. It may overwrite an existing artifact, is not atomic, and does not
 persist Muon momentum, RNG, dataset cursor, compiled plan identity, or RepoDB
 lineage. Exact resume tests exist below the command but are not reachable.
 
-### P1: Muon-only policy is not yet true
+### P1: Muon-only production authority needs a scanner
 
-`BF16SGD`, `TrainBF16SGD`, and `UpdateSign` remain. Record any useful BF16
-memory finding, express matrix/vector/scalar updates through compiled Muon
-forms, migrate all callers, and delete displaced optimizer paths.
+Dense and SimpleDiffusion training now express matrix/vector/scalar groups
+through the shared compiled Muon path; sign, BF16-SGD and the image-local SGD
+loop are deleted. Add a production-code scanner so new local weight-update loops
+cannot bypass the optimizer package.
 
 ### P1: plan and training docs contain stale completion prose
 

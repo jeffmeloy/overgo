@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestAdaptiveNewFlatOptimizerParity(t *testing.T) {
+func TestMuonFlatOptimizerFixture(t *testing.T) {
 	const (
 		matrixElements  = 4
 		parameterCount  = 7
@@ -26,8 +26,7 @@ func TestAdaptiveNewFlatOptimizerParity(t *testing.T) {
 		}
 		instance.Step()
 	}
-
-	wantWeights := []float32{0.506821036, -0.261363506, 0.113637798, -0.756814361, 0.219999999, -0.530000031, 0.719999969}
+	wantWeights := []float32{0.506821036, -0.261363506, 0.113637798, -0.756814361, 0.242264956, -0.509281993, 0.739170909}
 	wantMomentum := []float64{0.14863085937499998, 0.29726171874999996, 0.44589257812499999, 0.59452343749999992, 0.74315429687500001, 0.89178515624999999, 1.040416015625}
 	for index := range parameterCount {
 		if difference := math.Abs(float64(weights[index] - wantWeights[index])); difference > weightTolerance {

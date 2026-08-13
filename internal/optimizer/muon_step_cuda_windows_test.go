@@ -86,8 +86,7 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 	}
 }
 
-// TestDeviceMuonStepPlanMatchesHost gates a full-plan device step (matrix group
-// on device, vector/sign group host-side) against host Optimizer.Step.
+// TestDeviceMuonStepPlanMatchesHost gates matrix and vector Muon groups.
 func TestDeviceMuonStepPlanMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)

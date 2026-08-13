@@ -52,9 +52,9 @@ const (
 	OpTanh
 	OpExp
 	OpGatedLinearAttention
-	OpRWKV6
+	OpWKV6
 	OpSumRows
-	OpRWKV7
+	OpWKV7
 	OpFWHT
 	OpTopK
 	OpGatherLast

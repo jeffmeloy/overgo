@@ -377,7 +377,7 @@ func TestExecuteRWKV6(t *testing.T) {
 	first := builder.Input("first", dtype.F32, tensor.MustShape(2, 1))
 	decay := builder.Input("decay", dtype.F32, shape)
 	state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 1, 1))
-	output := builder.RWKV6(key, value, receptance, first, decay, state)
+	output := builder.WKV6(key, value, receptance, first, decay, state)
 	feeds := map[*tensor.Tensor]Value{
 		key:        {Shape: shape, Data: []float32{1, 2, 2, 1}},
 		value:      {Shape: shape, Data: []float32{3, 4, 1, 2}},
@@ -393,7 +393,7 @@ func TestExecuteRWKV6(t *testing.T) {
 	want := []float32{16.5, 22, 10.25, 14.5, 3.5, 6, 4, 6}
 	for index, value := range results[output].Data {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
-			t.Fatalf("RWKV6 output[%d] = %v, want %v", index, value, want[index])
+			t.Fatalf("WKV6 output[%d] = %v, want %v", index, value, want[index])
 		}
 	}
 }
@@ -410,7 +410,7 @@ func TestExecuteSumRowsAndRWKV7(t *testing.T) {
 	a := builder.Input("a", dtype.F32, shape)
 	bVector := builder.Input("b", dtype.F32, shape)
 	state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 1, 1))
-	packed := builder.RWKV7(receptance, decay, key, value, a, bVector, state)
+	packed := builder.WKV7(receptance, decay, key, value, a, bVector, state)
 	results, err := Execute([]*tensor.Tensor{reduced, packed}, map[*tensor.Tensor]Value{
 		rows:       {Shape: rows.Shape, Data: []float32{1, 2, 3, 4, 5, 6}},
 		receptance: {Shape: shape, Data: []float32{5, 6}},
@@ -431,7 +431,7 @@ func TestExecuteSumRowsAndRWKV7(t *testing.T) {
 	}
 	for index, want := range []float32{58.45, 85.79, 3.65, 6.7, 5.83, 9.44} {
 		if math.Abs(float64(results[packed].Data[index]-want)) > 1e-5 {
-			t.Fatalf("RWKV7 output[%d] = %v, want %v", index, results[packed].Data[index], want)
+			t.Fatalf("WKV7 output[%d] = %v, want %v", index, results[packed].Data[index], want)
 		}
 	}
 }

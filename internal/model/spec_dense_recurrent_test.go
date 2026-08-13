@@ -1082,7 +1082,7 @@ func TestReadRWKV6Qwen2Spec(t *testing.T) {
 	if spec.Architecture != "rwkv6qwen2" || !spec.RopeDisabled || spec.WKVHeadSize != 4 ||
 		spec.TimeMixExtraDim != 3 || spec.TimeDecayExtraDim != 2 || spec.RescaleEvery != 2 ||
 		spec.TokenShiftCount != 1 || spec.KeyLength != 4 || spec.ValueLength != 4 {
-		t.Fatalf("unexpected RWKV6-Qwen2 spec: %+v", spec)
+		t.Fatalf("unexpected WKV6-Qwen2 spec: %+v", spec)
 	}
 }
 
@@ -1111,7 +1111,7 @@ func TestReadRWKV6Spec(t *testing.T) {
 	if spec.Architecture != "rwkv6" || !spec.RopeDisabled || !spec.UsesLayerNorm() ||
 		spec.WKVHeadSize != 4 || spec.TimeMixExtraDim != 3 || spec.TimeDecayExtraDim != 2 ||
 		spec.RescaleEvery != 2 || spec.TokenShiftCount != 2 || spec.KeyLength != 4 || spec.ValueLength != 4 {
-		t.Fatalf("unexpected RWKV6 spec: %+v", spec)
+		t.Fatalf("unexpected WKV6 spec: %+v", spec)
 	}
 }
 

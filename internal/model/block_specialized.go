@@ -8,11 +8,11 @@ import (
 )
 
 const (
-	rwkvLayerRescale     = float32(0.5)
-	rwkv6TimeMixStreams  = uint64(5)
-	rwkv7TimeMixStreams  = uint64(5)
-	rwkv7GatedMixStreams = uint64(6)
-	rwkv7DecayScale      = float32(-0.606531)
+	rwkvLayerRescale    = float32(0.5)
+	wkv6TimeMixStreams  = uint64(5)
+	wkv7TimeMixStreams  = uint64(5)
+	wkv7GatedMixStreams = uint64(6)
+	wkv7DecayScale      = float32(-0.606531)
 )
 
 // buildHyperAttentionStage: hyper-connected compressed attention.
@@ -372,7 +372,7 @@ func buildAffineWKV6MixCached(
 	if weights.TimeMixLerpFused == nil &&
 		(weights.TimeMixLerpW == nil || weights.TimeMixLerpK == nil || weights.TimeMixLerpV == nil ||
 			weights.TimeMixLerpR == nil || weights.TimeMixLerpG == nil) {
-		return DenseBlockResult{}, errors.New("RWKV6 time-mix lerp catalog is incomplete")
+		return DenseBlockResult{}, errors.New("WKV6 time-mix lerp catalog is incomplete")
 	}
 	embedding := uint64(spec.EmbeddingLength)
 	width := uint64(spec.WKVHeadSize)
@@ -392,7 +392,7 @@ func buildAffineWKV6MixCached(
 	gate := builder.SiLU(builder.MulMat(weights.TimeMixGate, xg))
 	decay := builder.MulMat(weights.TimeMixDecayW2, builder.Tanh(builder.MulMat(weights.TimeMixDecayW1, xw)))
 	decay = builder.Reshape(builder.Exp(builder.Scale(builder.Exp(builder.Add(decay, weights.TimeMixDecay)), -1)), width, heads, tokens, 1)
-	packed := builder.RWKV6(key, value, receptance, weights.TimeMixFirst, decay, pastState)
+	packed := builder.WKV6(key, value, receptance, weights.TimeMixFirst, decay, pastState)
 	attentionElements := embedding * tokens
 	attention := builder.FlatSlice(packed, 0, embedding, tokens)
 	nextState := builder.FlatSlice(packed, attentionElements, width, width, heads, 1)
@@ -415,7 +415,7 @@ func buildWKV6MixedStreams(
 	normalized, previous *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-) [rwkv6TimeMixStreams]*tensor.Tensor {
+) [wkv6TimeMixStreams]*tensor.Tensor {
 	embedding, tokens := uint64(spec.EmbeddingLength), normalized.Shape.Dims[1]
 	if tokens > 1 {
 		previous = builder.Concat(previous, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
@@ -427,23 +427,23 @@ func buildWKV6MixedStreams(
 	adjustments := builder.Reshape(builder.GroupedMulMat(
 		weights.TimeMixW2, builder.Reshape(
 			builder.Tanh(builder.MulMat(weights.TimeMixW1, base)),
-			uint64(spec.TimeMixExtraDim), rwkv6TimeMixStreams, tokens,
+			uint64(spec.TimeMixExtraDim), wkv6TimeMixStreams, tokens,
 		),
-	), embedding*rwkv6TimeMixStreams, tokens)
-	separate := [rwkv6TimeMixStreams]*tensor.Tensor{
+	), embedding*wkv6TimeMixStreams, tokens)
+	separate := [wkv6TimeMixStreams]*tensor.Tensor{
 		weights.TimeMixLerpW, weights.TimeMixLerpK, weights.TimeMixLerpV,
 		weights.TimeMixLerpR, weights.TimeMixLerpG,
 	}
-	var mixed [rwkv6TimeMixStreams]*tensor.Tensor
-	for index := uint64(0); index < rwkv6TimeMixStreams; index++ {
+	var mixed [wkv6TimeMixStreams]*tensor.Tensor
+	for index := uint64(0); index < wkv6TimeMixStreams; index++ {
 		adjustment := builder.Reshape(builder.GroupSlice(
-			adjustments, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams,
+			adjustments, index*embedding, embedding, 1, embedding*wkv6TimeMixStreams,
 		), embedding, tokens)
 		lerp := separate[index]
 		if weights.TimeMixLerpFused != nil {
 			lerp = builder.GroupSlice(
-				builder.Reshape(weights.TimeMixLerpFused, embedding*rwkv6TimeMixStreams, 1),
-				index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams,
+				builder.Reshape(weights.TimeMixLerpFused, embedding*wkv6TimeMixStreams, 1),
+				index*embedding, embedding, 1, embedding*wkv6TimeMixStreams,
 			)
 		}
 		mixed[index] = builder.Add(normalized, builder.Multiply(
@@ -510,9 +510,9 @@ func buildDynamicWKV7MixCached(
 		attPrev = builder.Concat(attPrev, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
 	}
 	sx := builder.Add(attPrev, builder.Scale(normalized, -1))
-	lerpCount := rwkv7GatedMixStreams
+	lerpCount := wkv7GatedMixStreams
 	if spec.GateLoRARank == 0 {
-		lerpCount = rwkv7TimeMixStreams
+		lerpCount = wkv7TimeMixStreams
 	}
 	lerps := builder.Reshape(weights.TimeMixLerpFused, embedding*lerpCount, 1)
 	mixed := make([]*tensor.Tensor, lerpCount)
@@ -526,18 +526,18 @@ func buildDynamicWKV7MixCached(
 		builder.MulMat(weights.TimeMixW2, builder.Tanh(builder.MulMat(weights.TimeMixW1, xw))),
 		weights.TimeMixW0,
 	)
-	decay = builder.Exp(builder.Scale(builder.Sigmoid(decay), rwkv7DecayScale))
+	decay = builder.Exp(builder.Scale(builder.Sigmoid(decay), wkv7DecayScale))
 	key := builder.MulMat(weights.TimeMixKey, xk)
 	value := builder.MulMat(weights.TimeMixValue, xv)
 	var auxiliary *tensor.Tensor
 	if layerPlan.Layer == 0 {
 		if weights.PerLayerInput != nil {
-			return DenseBlockResult{}, errors.New("RWKV7 first layer received a value residual")
+			return DenseBlockResult{}, errors.New("WKV7 first layer received a value residual")
 		}
 		auxiliary = value
 	} else {
 		if weights.PerLayerInput == nil {
-			return DenseBlockResult{}, errors.New("RWKV7 value residual is missing")
+			return DenseBlockResult{}, errors.New("WKV7 value residual is missing")
 		}
 		valueMix := builder.Sigmoid(builder.Add(
 			builder.MulMat(weights.TimeMixV2, builder.MulMat(weights.TimeMixV1, xv)),
@@ -560,7 +560,7 @@ func buildDynamicWKV7MixCached(
 	key4 := builder.Reshape(key, width, heads, tokens, 1)
 	value4 := builder.Reshape(value, width, heads, tokens, 1)
 	a4 := builder.Reshape(a, width, heads, tokens, 1)
-	packed := builder.RWKV7(receptance4, decay4, key4, value4, builder.Scale(kk, -1), builder.Multiply(kk, a4), pastState)
+	packed := builder.WKV7(receptance4, decay4, key4, value4, builder.Scale(kk, -1), builder.Multiply(kk, a4), pastState)
 	attentionElements := embedding * tokens
 	attention := builder.FlatSlice(packed, 0, embedding, tokens)
 	nextState := builder.FlatSlice(packed, attentionElements, width, width, heads, 1)
@@ -754,18 +754,18 @@ func buildShortConvolutionMixCached(
 		requireGraphWeight("short-convolution kernel", weights.ShortConvKernel),
 		requireGraphWeight("short-convolution output", weights.ShortConvOutput),
 	}
-	if err := required.validate("LFM2 recurrent mixer"); err != nil {
+	if err := required.validate("short-convolution recurrent mixer"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if normalized.Shape.Rank != 2 || len(positions) == 0 ||
 		uint64(len(positions)) != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("LFM2 recurrent mixer input shape is invalid")
+		return DenseBlockResult{}, errors.New("short-convolution recurrent mixer input shape is invalid")
 	}
 	embedding := uint64(spec.EmbeddingLength)
 	window := uint64(spec.ShortConvCacheLength - 1)
 	if !pastKey.Shape.Equal(tensor.MustShape(window, embedding)) ||
 		!pastValue.Shape.Equal(tensor.MustShape(1)) {
-		return DenseBlockResult{}, errors.New("LFM2 recurrent cache shape is invalid")
+		return DenseBlockResult{}, errors.New("short-convolution recurrent cache shape is invalid")
 	}
 	tokens := uint64(len(positions))
 	mixed := builder.MulMat(weights.ShortConvInput, normalized)

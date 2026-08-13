@@ -13,7 +13,7 @@ const (
 	rwkvKeyNormEpsilon  = 1e-12
 )
 
-// LayerGraphWeights: graph inputs for one dense Llama/Qwen3 block
+// LayerGraphWeights: graph inputs for one dense decoder block
 type LayerGraphWeights struct {
 	AttentionNorm               *tensor.Tensor
 	AttentionNormBias           *tensor.Tensor
@@ -508,13 +508,13 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 			gate = r.builder.Add(gate, r.weights.FeedForwardGateBias)
 		}
 		activation = r.builder.SwiGLU(gate, up)
-		if r.profile.Has(ArchitectureGemma) {
+		if r.profile.Has(ArchitectureGEGLU) {
 			activation = r.builder.GEGLU(gate, up)
 		}
 	}
 	if r.weights.FeedForwardActivationScale != nil {
 		if !r.plan.DenseWeights.allowActivationScale {
-			return nil, errors.New("feed-forward activation scale requires MPT")
+			return nil, errors.New("feed-forward activation scale is not enabled")
 		}
 		activation = r.builder.Divide(activation, r.weights.FeedForwardActivationScale)
 	}
@@ -929,7 +929,7 @@ func buildGatedProjectionMixCached(
 	cacheWrite tensor.CacheWriteMode,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil {
-		return DenseBlockResult{}, errors.New("Qwen3.5 attention mix input is nil")
+		return DenseBlockResult{}, errors.New("gated-delta attention mix input is nil")
 	}
 	required := graphWeights{
 		requireGraphWeight("attention Q/gate", weights.AttentionQ),
@@ -939,15 +939,15 @@ func buildGatedProjectionMixCached(
 		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
 		requireGraphWeight("attention K norm", weights.AttentionKNorm),
 	}
-	if err := required.validate("Qwen3.5 attention mix"); err != nil {
+	if err := required.validate("gated-delta attention mix"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if len(positions) == 0 || sequences == 0 ||
 		uint64(len(positions)) > math.MaxUint64/sequences ||
 		uint64(len(positions))*sequences != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Qwen3.5 attention position count is invalid")
+		return DenseBlockResult{}, errors.New("gated-delta attention position count is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Qwen3.5 attention cache must contain both key and value"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "gated-delta attention cache must contain both key and value"); err != nil {
 		return DenseBlockResult{}, err
 	}
 
@@ -1009,7 +1009,7 @@ func buildGatedProjectionMixCached(
 	var queryStart uint32
 	if pastKey != nil {
 		if pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, errors.New("Qwen3.5 attention cache exceeds uint32")
+			return DenseBlockResult{}, errors.New("gated-delta attention cache exceeds uint32")
 		}
 		queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
 		cacheKey = builder.WriteCache(pastKey, key, 2, cacheWrite)
@@ -1051,7 +1051,7 @@ func buildGatedDeltaMixCached(
 	convState, ssmState *tensor.Tensor,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
-		return DenseBlockResult{}, errors.New("Qwen3.5 recurrent mix input/state is nil")
+		return DenseBlockResult{}, errors.New("gated-delta recurrent mix input/state is nil")
 	}
 	required := graphWeights{
 		requireGraphWeight("QKV", weights.AttentionQKV),
@@ -1073,13 +1073,13 @@ func buildGatedDeltaMixCached(
 		required.add("SSM beta", weights.SSMBeta)
 		required.add("SSM alpha", weights.SSMAlpha)
 	}
-	if err := required.validate("Qwen3.5 recurrent mix"); err != nil {
+	if err := required.validate("gated-delta recurrent mix"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if len(positions) == 0 || sequences == 0 ||
 		uint64(len(positions)) > math.MaxUint64/sequences ||
 		uint64(len(positions))*sequences != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Qwen3.5 recurrent position count is invalid")
+		return DenseBlockResult{}, errors.New("gated-delta recurrent position count is invalid")
 	}
 	tokens := uint64(len(positions))
 	stateWidth := uint64(spec.SSMStateSize)
@@ -1094,7 +1094,7 @@ func buildGatedDeltaMixCached(
 	}
 	if !convState.Shape.Equal(wantConvState) ||
 		!ssmState.Shape.Equal(tensor.MustShape(stateWidth, stateWidth, valueHeads, sequences)) {
-		return DenseBlockResult{}, errors.New("Qwen3.5 recurrent cache shape is invalid")
+		return DenseBlockResult{}, errors.New("gated-delta recurrent cache shape is invalid")
 	}
 
 	qkvProjection := builder.MulMat(weights.AttentionQKV, normalized)
@@ -1233,7 +1233,7 @@ func buildRoutedSwiGLUFeedForwardMix(
 ) (*tensor.Tensor, error) {
 	required := graphWeights{}
 	addGatedDeltaFeedForwardRequirements(&required, composition, weights)
-	if err := required.validate("Qwen3.5 feed-forward mix"); err != nil {
+	if err := required.validate("gated-delta feed-forward mix"); err != nil {
 		return nil, err
 	}
 	var feedForward *tensor.Tensor

@@ -1574,7 +1574,7 @@ func TestReadWeightsRWKV6Qwen2(t *testing.T) {
 	if !layer.Recurrent || layer.TimeMixW1 == nil || layer.TimeMixOutput == nil ||
 		layer.AttentionQBias == nil || layer.AttentionKBias == nil || layer.AttentionVBias == nil ||
 		weights.OutputNormBias == nil || weights.Output == nil {
-		t.Fatalf("unexpected RWKV6-Qwen2 catalog: %+v", layer)
+		t.Fatalf("unexpected WKV6-Qwen2 catalog: %+v", layer)
 	}
 }
 
@@ -1610,7 +1610,7 @@ func TestReadWeightsRWKV6(t *testing.T) {
 		layer.ChannelMixKey == nil || layer.AttentionNorm2Bias == nil ||
 		weights.TokenEmbeddingNorm == nil || weights.TokenEmbeddingNormBias == nil ||
 		weights.OutputNormBias == nil || weights.Output == nil {
-		t.Fatalf("unexpected RWKV6 catalog: %+v", layer)
+		t.Fatalf("unexpected WKV6 catalog: %+v", layer)
 	}
 	legacy := make([]gguf.TensorInfo, 0, len(tensors)+4)
 	for _, item := range tensors {
@@ -1626,6 +1626,6 @@ func TestReadWeightsRWKV6(t *testing.T) {
 		t.Fatal(err)
 	}
 	if legacyWeights.Layers[0].TimeMixLerpFused != nil || legacyWeights.Layers[0].TimeMixLerpW == nil {
-		t.Fatalf("unexpected legacy RWKV6 lerp catalog: %+v", legacyWeights.Layers[0])
+		t.Fatalf("unexpected legacy WKV6 lerp catalog: %+v", legacyWeights.Layers[0])
 	}
 }

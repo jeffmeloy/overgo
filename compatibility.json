@@ -303,7 +303,7 @@
           "contains": "func DescribeOperation(",
           "path": "internal/tensor/operation.go",
           "role": "source",
-          "identity": "file:sha256:a36ed7bbe306c06a91e8a357511c1511248159a51570d8768482af91496ef148"
+          "identity": "file:sha256:88526e99641af0a5949a59fd129bd3601ea6ca0f64f468df94131a3e9944edce"
         },
         {
           "contains": "func TestOperationCatalogIsDenseAndUnique(",
@@ -688,7 +688,7 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:c310d2be2fed05b954e75ee3df2a7ba22cff767d97c04fcdb6166aedef1906f8"
+          "identity": "file:sha256:7e04fffc89c93ad71a259efa05bea63e687b6dde09bfde61ea4fea73c75bfe58"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
@@ -721,7 +721,7 @@
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:29553f6526c5bbfd11e35c47b00dd8470b7c6ac6b0463f17c14d5f18177ca4f1"
+          "identity": "evidence:sha256:a64ce1308fe81f540ec09eec7080881317d7e1f8a83885a33add0bb5fe17a6d0"
         }
       ],
       "id": "architecture-family-dispatch",

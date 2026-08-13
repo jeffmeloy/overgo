@@ -68,7 +68,7 @@ func TestReadWeightsRWKV7Family(t *testing.T) {
 			}
 			if classic && (layer.TimeMixG2 == nil || layer.TimeMixLN == nil || layer.ChannelMixKey == nil ||
 				weights.TokenEmbeddingNorm == nil || weights.OutputNormBias == nil) {
-				t.Fatalf("incomplete RWKV7 catalog: %+v", layer)
+				t.Fatalf("incomplete WKV7 catalog: %+v", layer)
 			}
 			if !classic && (layer.TimeMixG1 != nil || layer.FeedForwardGate.Name == "" || weights.TokenEmbeddingNorm != nil) {
 				t.Fatalf("incomplete ARWKV7 catalog: %+v", layer)

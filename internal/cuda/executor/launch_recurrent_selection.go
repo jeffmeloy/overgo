@@ -174,25 +174,14 @@ func launchRecurrentSelection(
 			&key, &value, &receptance, &decay, &inputState, &output,
 			&width, &keyHeads, &heads, &tokens, &sequences, &scale,
 		)
-	case tensor.OpRWKV6:
-		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "RWKV6 width")
+	case tensor.OpWKV6:
+		dimensions, err := shapeDimensions32(node.Inputs[0].Shape)
 		if err != nil {
 			return err
 		}
-		heads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "RWKV6 heads")
-		if err != nil {
-			return err
-		}
-		tokens, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "RWKV6 tokens")
-		if err != nil {
-			return err
-		}
-		sequences, err := uint32Checked(node.Inputs[0].Shape.Dims[3], "RWKV6 sequences")
-		if err != nil {
-			return err
-		}
+		width, heads, tokens, sequences := dimensions[0], dimensions[1], dimensions[2], dimensions[3]
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
-			return errors.New("RWKV6 launch count exceeds uint32")
+			return errors.New("WKV6 launch count exceeds uint32")
 		}
 		key := pointers[node.Inputs[0]]
 		value := pointers[node.Inputs[1]]
@@ -408,25 +397,14 @@ func launchRecurrentSelection(
 			&query, &key, &weights, &output, &width, &heads, &queryTokens,
 			&keyTokens, &scale, &queryStart, &count,
 		)
-	case tensor.OpRWKV7:
-		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "RWKV7 width")
+	case tensor.OpWKV7:
+		dimensions, err := shapeDimensions32(node.Inputs[0].Shape)
 		if err != nil {
 			return err
 		}
-		heads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "RWKV7 heads")
-		if err != nil {
-			return err
-		}
-		tokens, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "RWKV7 tokens")
-		if err != nil {
-			return err
-		}
-		sequences, err := uint32Checked(node.Inputs[0].Shape.Dims[3], "RWKV7 sequences")
-		if err != nil {
-			return err
-		}
+		width, heads, tokens, sequences := dimensions[0], dimensions[1], dimensions[2], dimensions[3]
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
-			return errors.New("RWKV7 launch count exceeds uint32")
+			return errors.New("WKV7 launch count exceeds uint32")
 		}
 		receptance := pointers[node.Inputs[0]]
 		decay := pointers[node.Inputs[1]]

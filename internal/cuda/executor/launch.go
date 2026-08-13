@@ -34,9 +34,9 @@ func launchNode(
 		tensor.OpGroupNorm, tensor.OpL2Norm:
 		return launchMathVision(state, functions, blas, node, pointers, attributePointers)
 	case tensor.OpSSMConv, tensor.OpSSMScan, tensor.OpGatedDeltaNet,
-		tensor.OpGatedLinearAttention, tensor.OpRWKV6, tensor.OpSumRows, tensor.OpFWHT,
+		tensor.OpGatedLinearAttention, tensor.OpWKV6, tensor.OpSumRows, tensor.OpFWHT,
 		tensor.OpTopK, tensor.OpTopKPairs, tensor.OpTopKPartials, tensor.OpGatherLast, tensor.OpSparseAttention, tensor.OpIndexerScore,
-		tensor.OpRWKV7:
+		tensor.OpWKV7:
 		return launchRecurrentSelection(state, functions, blas, node, pointers, attributePointers)
 	case tensor.OpMoE:
 		return launchMoE(state, functions, blas, node, pointers, attributePointers)

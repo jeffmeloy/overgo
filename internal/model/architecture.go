@@ -278,7 +278,7 @@ const (
 	ArchitectureLatentYaRNQuery
 	ArchitectureSparseLatent
 	ArchitectureLatent
-	ArchitectureGemma
+	ArchitectureGEGLU
 	ArchitecturePostNorm
 	ArchitecturePostOnlyNorm
 	ArchitectureNormalRoPE

@@ -205,24 +205,24 @@ func buildAttentionSSMHybridMixCached(
 	plan LayerPlan,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
-		return DenseBlockResult{}, errors.New("Falcon-H1 hybrid mix input/state is nil")
+		return DenseBlockResult{}, errors.New("hybrid attention-scan input/state is nil")
 	}
 	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("Falcon-H1 hybrid mix input is invalid")
+		return DenseBlockResult{}, errors.New("hybrid attention-scan input is invalid")
 	}
 	if len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Falcon-H1 block position count is invalid")
+		return DenseBlockResult{}, errors.New("hybrid attention-scan position count is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Falcon-H1 KV cache is incomplete"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "hybrid attention-scan KV cache is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if err := (graphWeights{
 		requireGraphWeight("attention output", weights.AttentionOutput),
-	}).validate("Falcon-H1 hybrid mix"); err != nil {
+	}).validate("hybrid attention-scan"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if weights.AttentionQKV == nil && (weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil) {
-		return DenseBlockResult{}, errors.New("Falcon-H1 attention projection catalog is incomplete")
+		return DenseBlockResult{}, errors.New("hybrid attention projection catalog is incomplete")
 	}
 
 	tokens := uint64(len(positions))
@@ -269,7 +269,7 @@ func buildAttentionSSMHybridMixCached(
 	var queryStart uint32
 	if pastKey != nil {
 		if pastKey.Shape.Rank != 3 || pastValue.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, errors.New("Falcon-H1 KV cache shape is invalid")
+			return DenseBlockResult{}, errors.New("hybrid attention-scan KV cache shape is invalid")
 		}
 		queryStart = uint32(pastKey.Shape.Dims[2])
 		cacheKey = builder.Concat(pastKey, key, 2)
@@ -393,12 +393,12 @@ func buildCausalProjectionMixCached(
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 {
-		return DenseBlockResult{}, errors.New("Nemotron-H attention input is invalid")
+		return DenseBlockResult{}, errors.New("sparse grouped attention input is invalid")
 	}
 	if len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("Nemotron-H position count is invalid")
+		return DenseBlockResult{}, errors.New("sparse grouped position count is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Nemotron-H cache must contain both tensors"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "sparse grouped cache must contain both tensors"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if err := (graphWeights{
@@ -406,7 +406,7 @@ func buildCausalProjectionMixCached(
 		requireGraphWeight("attention K", weights.AttentionK),
 		requireGraphWeight("attention V", weights.AttentionV),
 		requireGraphWeight("attention output", weights.AttentionOutput),
-	}).validate("Nemotron-H attention"); err != nil {
+	}).validate("sparse grouped attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := normalized.Shape.Dims[1]
@@ -431,7 +431,7 @@ func buildCausalProjectionMixCached(
 	var queryStart uint32
 	if pastKey != nil {
 		if pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, errors.New("Nemotron-H cache token count exceeds uint32")
+			return DenseBlockResult{}, errors.New("sparse grouped cache token count exceeds uint32")
 		}
 		queryStart = uint32(pastKey.Shape.Dims[2])
 		cacheKey = builder.Concat(pastKey, key, 2)
@@ -457,7 +457,7 @@ func buildRoutedSquaredReLUFeedForwardMix(
 	plan MoEGraphPlan,
 ) (*tensor.Tensor, error) {
 	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 {
-		return nil, errors.New("Nemotron-H feed-forward input is invalid")
+		return nil, errors.New("sparse grouped feed-forward input is invalid")
 	}
 	var feedForward *tensor.Tensor
 	if weights.FeedForwardRouter != nil {
@@ -468,17 +468,17 @@ func buildRoutedSquaredReLUFeedForwardMix(
 			requireGraphWeight("expert down", weights.FeedForwardDownExperts),
 			requireGraphWeight("shared up", weights.FeedForwardSharedUp),
 			requireGraphWeight("shared down", weights.FeedForwardSharedDown),
-		}).validate("Nemotron-H MoE"); err != nil {
+		}).validate("sparse grouped MoE"); err != nil {
 			return nil, err
 		}
 		expertInput := normalized
 		if weights.FeedForwardLatentDown != nil {
 			if weights.FeedForwardLatentUp == nil {
-				return nil, errors.New("Nemotron-H MoE latent projection is incomplete")
+				return nil, errors.New("sparse grouped MoE latent projection is incomplete")
 			}
 			expertInput = builder.MulMat(weights.FeedForwardLatentDown, normalized)
 		} else if weights.FeedForwardLatentUp != nil {
-			return nil, errors.New("Nemotron-H MoE latent projection is incomplete")
+			return nil, errors.New("sparse grouped MoE latent projection is incomplete")
 		}
 		feedForward = plan.BuildLayer(builder, expertInput, normalized, weights)
 		if weights.FeedForwardLatentUp != nil {
@@ -489,7 +489,7 @@ func buildRoutedSquaredReLUFeedForwardMix(
 		feedForward = builder.Add(feedForward, shared)
 	} else {
 		if weights.FeedForwardUp == nil || weights.FeedForwardDown == nil {
-			return nil, errors.New("Nemotron-H dense FFN catalog is incomplete")
+			return nil, errors.New("sparse grouped dense FFN catalog is incomplete")
 		}
 		feedForward = builder.MulMat(weights.FeedForwardUp, normalized)
 		if weights.FeedForwardUpBias != nil {

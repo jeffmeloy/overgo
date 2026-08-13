@@ -126,14 +126,14 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 		want    []LayerOperator
 	}{
 		{
-			name: "RWKV6", profile: ArchitectureProfile{LayerTopology: LayerTopologyDynamicWKV6},
+			name: "WKV6", profile: ArchitectureProfile{LayerTopology: LayerTopologyDynamicWKV6},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
 				LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual, LayerOperatorPeriodicScale,
 			},
 		},
 		{
-			name: "RWKV7 channel", profile: ArchitectureProfile{
+			name: "WKV7 channel", profile: ArchitectureProfile{
 				LayerTopology: LayerTopologyDynamicWKV7, Normalization: NormalizationLayer,
 			},
 			want: []LayerOperator{
@@ -142,7 +142,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 			},
 		},
 		{
-			name: "RWKV7 SwiGLU", profile: ArchitectureProfile{
+			name: "WKV7 SwiGLU", profile: ArchitectureProfile{
 				LayerTopology: LayerTopologyDynamicWKV7, Normalization: NormalizationRMS,
 			},
 			want: []LayerOperator{

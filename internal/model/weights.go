@@ -411,7 +411,7 @@ func (p encoderDecoderCatalogPlan) loadLayer(
 	return nil
 }
 
-// Weights: validated initial Llama/Qwen3 tensor catalog
+// Weights: validated model tensor catalog
 type Weights struct {
 	TokenEmbedding          gguf.TensorInfo
 	TokenTypeEmbedding      *gguf.TensorInfo

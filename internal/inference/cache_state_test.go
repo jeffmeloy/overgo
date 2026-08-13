@@ -522,7 +522,7 @@ func TestRWKV7CacheValidation(t *testing.T) {
 				t.Fatal(err)
 			}
 			if restored.Layers[0].Auxiliary != nil {
-				t.Fatal("RWKV7 transient value residual was serialized")
+				t.Fatal("WKV7 transient value residual was serialized")
 			}
 		})
 	}

@@ -1036,9 +1036,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, error) {
 	values, prefix, profile := m.values, m.prefix, m.profile
 	validation := profile.Validation
-	isLlamaMoE := state.llamaMoE
 	var err error
-	if isLlamaMoE || validation.requiresExpertMetadata(spec.ExpertCount > 0) {
+	if state.declaredExperts || validation.requiresExpertMetadata(spec.ExpertCount > 0) {
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
 			metadataDestination("expert_count", &spec.ExpertCount),
@@ -1463,7 +1462,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.SharedExpertFF = value
 		}
 	}
-	if isLlamaMoE || validation.hybridOneOf(HybridValidationOLMoE, HybridValidationPhiMoE) {
+	if state.declaredExperts || validation.hybridOneOf(HybridValidationOLMoE, HybridValidationPhiMoE) {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 	}
 	if validation.Hybrid == HybridValidationAFMoE {

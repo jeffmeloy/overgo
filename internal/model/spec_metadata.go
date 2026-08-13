@@ -24,7 +24,7 @@ type specMetadata struct {
 
 type specReadState struct {
 	declaredBlockCount uint32
-	llamaMoE           bool
+	declaredExperts    bool
 }
 
 type metadataCardinality uint8
@@ -123,9 +123,9 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 		}
 	}
 	state := specReadState{}
-	if m.profile.Validation.Hybrid == HybridValidationLlama {
+	if m.profile.Validation.ProbeExpertCount {
 		count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
-		state.llamaMoE = ok && count > 0
+		state.declaredExperts = ok && count > 0
 	}
 	var err error
 	if spec.BlockCount, err = required[uint32](values, prefix+"block_count", gguf.ValueTypeUint32); err != nil {

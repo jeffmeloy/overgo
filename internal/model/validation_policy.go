@@ -146,6 +146,7 @@ type ValidationPolicy struct {
 	RequireDecoder        bool
 	MultiAxisRoPE         bool
 	BoundDeepstack        bool
+	ProbeExpertCount      bool
 	RopeFrequencyOptional bool
 	BaseRotary            BaseRotaryValidationPolicy
 	Encoder               EncoderValidationPolicy
@@ -171,7 +172,7 @@ func (p ValidationPolicy) encoderOneOf(policies ...EncoderValidationPolicy) bool
 	return policyOneOf(p.Encoder, policies...)
 }
 
-func (p ValidationPolicy) requiresExpertMetadata(graniteExperts bool) bool {
+func (p ValidationPolicy) requiresExpertMetadata(declaredExperts bool) bool {
 	if p.Encoder == EncoderValidationNomicBERTMoE ||
 		p.attentionOneOf(
 			AttentionValidationCohere2MoE, AttentionValidationErnie45MoE,
@@ -180,7 +181,7 @@ func (p ValidationPolicy) requiresExpertMetadata(graniteExperts bool) bool {
 		return true
 	}
 	if p.Hybrid == HybridValidationGranite {
-		return graniteExperts
+		return declaredExperts
 	}
 	return p.hybridOneOf(
 		HybridValidationQwen3Next, HybridValidationQwen35MoE,

@@ -1381,7 +1381,8 @@
     },
     "Name": "llama",
     "Validation": {
-      "Hybrid": 27
+      "Hybrid": 27,
+      "ProbeExpertCount": true
     },
     "Position": 1,
     "Rotary": {
@@ -1396,7 +1397,8 @@
     "Forward": {"Operation": 1},
     "Name": "llama-embed",
     "Validation": {
-      "Hybrid": 27
+      "Hybrid": 27,
+      "ProbeExpertCount": true
     },
     "Position": 1,
     "Rotary": {

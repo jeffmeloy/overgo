@@ -15,5 +15,6 @@ merges `master`.
 | 6 | Layer execution | architecture-family predicates and duplicate registries absent; alternate-state admission, coordination facts, and split execution are plan-owned ordered stages with no serving-time metadata reconstruction; family leaf policies/builders absent; ordered relative encoder/decoder stages plus sealed graph and normalization facts, neutral recurrent, latent, compressed-hyper, WKV, cache, side-input, draft topology/storage, weight catalogs, dense/expert, and rotary IR/selectors | Active |
 | 7 | Weight catalogs | family loaders replaced by indexed catalog plans; empty-profile compatibility read removed; standard SwiGLU schema shared by recurrent and auxiliary readers; remaining staged requirement duplication absent | Active |
 | 8 | Runtime admission | continuous batching, retained-cache, capture, sequence-cache, projected-input, specialized-output, diffusion, recurrent, and packed-device admission compiled; runtime profile probes absent | Done |
+| 9 | Metadata validation | optional expert-count probing is profile-owned; family probes and validation-enum reconstruction absent | Active |
 
 Live ordering and executable verification remain in `docs/plan.json`.

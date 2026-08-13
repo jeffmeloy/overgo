@@ -62,7 +62,9 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 			}
 			return nil
 		},
-		func(path string, request scalarRequest) (int, error) { return len(path) + request.Value, nil },
+		func(_ context.Context, path string, request scalarRequest) (int, error) {
+			return len(path) + request.Value, nil
+		},
 		func(runtime *workflowruntime.Runtime, bound artifact.ID, model int) error {
 			return workflowruntime.RegisterJSONStage[scalarRequest, int](
 				runtime, scalarModule, bound,

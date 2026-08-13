@@ -125,8 +125,12 @@ func (c linearCapability) definition(task recipe.Task, modelID artifact.ID) (rec
 func (c linearCapability) modules(task recipe.Task) []recipe.Module {
 	modules := make([]recipe.Module, len(c.stages))
 	for index, stage := range c.stages {
+		placements := []recipe.Placement{c.placement}
+		if task == recipe.TaskImageGen {
+			placements = append(placements, recipe.PlacementHybrid)
+		}
 		modules[index] = recipe.Module{
-			ID: stage.module, Tasks: []recipe.Task{task}, Placements: []recipe.Placement{c.placement},
+			ID: stage.module, Tasks: []recipe.Task{task}, Placements: placements,
 			Inputs:  []recipe.Port{{Name: stage.input, Data: stage.inputData, Cardinality: recipe.CardinalityOne}},
 			Outputs: []recipe.Port{{Name: stage.output, Data: stage.outData, Cardinality: recipe.CardinalityOne}},
 		}
@@ -167,6 +171,19 @@ func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 	if !ok {
 		return recipe.Definition{}, fmt.Errorf("model recipe: unsupported capability task %q", task)
 	}
+	return capability.definition(task, modelID)
+}
+
+// CapabilityDefinitionAt: executable topology with explicit placement.
+func CapabilityDefinitionAt(task recipe.Task, modelID artifact.ID, placement recipe.Placement) (recipe.Definition, error) {
+	capability, ok := linearCapabilities[task]
+	if !ok || task == recipe.TaskVQA {
+		return recipe.Definition{}, fmt.Errorf("model recipe: unsupported placed capability task %q", task)
+	}
+	if placement != capability.placement && (task != recipe.TaskImageGen || placement != recipe.PlacementHybrid) {
+		return recipe.Definition{}, fmt.Errorf("model recipe: task %q does not support placement %q", task, placement)
+	}
+	capability.placement = placement
 	return capability.definition(task, modelID)
 }
 

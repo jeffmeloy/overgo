@@ -169,6 +169,23 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 	}
 }
 
+func TestImageCapabilitySupportsHybridPlacement(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "hybrid-image-model")
+	definition, err := CapabilityDefinitionAt(recipe.TaskImageGen, modelID, recipe.PlacementHybrid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, stage := range program.Stages() {
+		if stage.Node.Placement != recipe.PlacementHybrid {
+			t.Fatalf("stage[%d] placement = %q", index, stage.Node.Placement)
+		}
+	}
+}
+
 func TestCompileCapabilityRejectsInferenceProgram(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "capability-inference-model")
 	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)

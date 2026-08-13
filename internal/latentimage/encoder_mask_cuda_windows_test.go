@@ -5,6 +5,7 @@ package latentimage
 import (
 	"context"
 	"math"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/cuda/executor"
@@ -124,19 +125,8 @@ func TestEncoderMaskedResidentRealCheckpoint(t *testing.T) {
 		t.Fatalf("CompileEncoderProgramMasked: %v", err)
 	}
 	ctx := context.Background()
-	re, err := NewResidentEncoder(ctx, prog, dir, 0)
-	if err != nil {
-		t.Fatalf("NewResidentEncoder: %v", err)
-	}
-	defer func() {
-		if cerr := re.Close(ctx); cerr != nil {
-			t.Errorf("close: %v", cerr)
-		}
-	}()
-	dev, err := re.Encode(ctx, embed)
-	if err != nil {
-		t.Fatalf("masked resident Encode: %v", err)
-	}
+	re := newResidentFixture(t, ctx, "test masked encoder", filepath.Join(dir, "text_encoder"), prog.weightInputs, prog.Selected...)
+	dev := residentEncode(t, ctx, re, prog, embed)
 	if dev.Seq != host.Seq || dev.LayerCount != host.LayerCount || dev.Hidden != host.Hidden {
 		t.Fatalf("device geometry [%d,%d,%d] != host [%d,%d,%d]", dev.Seq, dev.LayerCount, dev.Hidden, host.Seq, host.LayerCount, host.Hidden)
 	}
@@ -171,19 +161,8 @@ func TestEncoderMaskedResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgram (maskless): %v", err)
 	}
-	mlRe, err := NewResidentEncoder(ctx, mlProg, dir, 0)
-	if err != nil {
-		t.Fatalf("NewResidentEncoder (maskless): %v", err)
-	}
-	defer func() {
-		if cerr := mlRe.Close(ctx); cerr != nil {
-			t.Errorf("close maskless: %v", cerr)
-		}
-	}()
-	ml, err := mlRe.Encode(ctx, embed)
-	if err != nil {
-		t.Fatalf("maskless resident Encode: %v", err)
-	}
+	mlRe := newResidentFixture(t, ctx, "test maskless encoder", filepath.Join(dir, "text_encoder"), mlProg.weightInputs, mlProg.Selected...)
+	ml := residentEncode(t, ctx, mlRe, mlProg, embed)
 	diff := 0.0
 	for i := range ml.Data {
 		diff = math.Max(diff, math.Abs(ml.Data[i]-dev.Data[i]))

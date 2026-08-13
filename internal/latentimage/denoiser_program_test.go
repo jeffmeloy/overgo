@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
@@ -77,6 +78,25 @@ func TestDenoiserProgramMatchesHostReference(t *testing.T) {
 	t.Logf("graph vs host: max_abs=%.3e max_rel=%.3e (%d image velocities, %d block taps)", maxAbs, maxRel, len(golden), len(res.BlockHidden))
 	if maxAbs > 1e-3 {
 		t.Fatalf("graph/host velocity divergence max_abs=%.3e exceeds 1e-3", maxAbs)
+	}
+
+	const fixtureDelta = -0.125
+	feeds, err := prog.hostFeeds(d, goldenPatches, enc, sigma)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feeds[prog.InDelta] = reference.Value{
+		Shape: prog.InDelta.Shape, Data: []float32{fixtureDelta},
+	}
+	advanced, err := reference.Execute([]*tensor.Tensor{prog.NextLatent}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, value := range advanced[prog.NextLatent].Data {
+		want := float32(goldenPatches[index]) + fixtureDelta*res.Velocity[index]
+		if value != want {
+			t.Fatalf("next latent[%d] = %g, want %g", index, value, want)
+		}
 	}
 
 	// determinism: identical replay.

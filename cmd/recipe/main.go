@@ -153,7 +153,12 @@ func activateCapability(
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
-	definition, err := modelrecipe.CapabilityDefinition(task, modelID)
+	var definition recipe.Definition
+	if capability.definition != nil {
+		definition, err = capability.definition(path, modelID)
+	} else {
+		definition, err = modelrecipe.CapabilityDefinition(task, modelID)
+	}
 	if err != nil {
 		return err
 	}

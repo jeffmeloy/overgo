@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,7 +10,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/modelartifact"
-	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
 	"overgo/internal/seq2seq"
 	"overgo/internal/seriesforecast"
@@ -18,8 +18,9 @@ import (
 )
 
 type capability struct {
-	inventory func(string) (modelartifact.Inventory, error)
-	execute   capabilityruntime.Executor
+	inventory  func(string) (modelartifact.Inventory, error)
+	execute    capabilityruntime.Executor
+	definition func(string, artifact.ID) (recipe.Definition, error)
 }
 
 var capabilities = map[recipe.Task]capability{
@@ -28,7 +29,7 @@ var capabilities = map[recipe.Task]capability{
 		capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime)},
 	recipe.TaskTabular: {inventory: tabularInventory, execute: capabilityruntime.JSONScalar[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](
 		"tabular", tabularicl.ValidateRequest,
-		func(path string, request tabularicl.Request) (*tabularicl.Model, error) {
+		func(_ context.Context, path string, request tabularicl.Request) (*tabularicl.Model, error) {
 			return tabularicl.LoadTask(path, request.Task)
 		}, tabularicl.RegisterRuntime)},
 	recipe.TaskSeq2Seq: {inventory: modelartifact.FromHFPath, execute: capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Model, []int](
@@ -37,10 +38,8 @@ var capabilities = map[recipe.Task]capability{
 	recipe.TaskSpeech: {inventory: speechInventory, execute: capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
 		"speech", speechsynth.ValidateSynthesisRequest,
 		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)},
-	recipe.TaskImageGen: {inventory: imageGenInventory, execute: capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
-		"image-gen", oscillatorimage.ValidateRequest,
-		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime)},
-	recipe.TaskVQA: {inventory: modelartifact.FromHFPath},
+	recipe.TaskImageGen: imageCapability(),
+	recipe.TaskVQA:      {inventory: modelartifact.FromHFPath},
 }
 
 func safetensorsInventory(context, path, config string, companions ...modelartifact.FileSpec) (modelartifact.Inventory, error) {

@@ -153,7 +153,9 @@ func g3nPredictBackward(dStates []reference.Value, dPredictCoeff, dRouter, dRout
 	tokens := int(states[0].Shape.Dims[1])
 	width := int(states[0].Shape.Dims[0])
 	// Recompute modalities + coefficients.
-	modalities, _ := gemma3nModalities(states[active], layer, spec)
+	modalities, _ := gemma3nModalities(
+		states[active], layer, spec.EmbeddingLength, spec.RMSNormEpsilon,
+	)
 	coefficients, _ := gemma3nMatMul(*layer.AltUpPredictCoefficient, modalities)
 	dCoeff := reference.Value{Shape: coefficients.Shape, Data: make([]float32, len(coefficients.Data))}
 	// result[o][t,f] = states[o][t,f] + sum_s coeff[t,o*count+s]*states[s][t,f].
@@ -208,7 +210,9 @@ func g3nCorrectAndInjectBackward(dPredictions []reference.Value, dActivated, dPe
 	eps := spec.RMSNormEpsilon
 
 	// --- Recompute forward trace (correction mix + PLE path). ---
-	modalities, _ := gemma3nModalities(activated, layer, spec)
+	modalities, _ := gemma3nModalities(
+		activated, layer, spec.EmbeddingLength, spec.RMSNormEpsilon,
+	)
 	coefficients, _ := gemma3nMatMul(*layer.AltUpCorrectCoefficient, modalities)
 	// result[active] before PLE.
 	resultActive := predictions[active].Clone()

@@ -535,7 +535,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	if profile.Forward.Session == ForwardSessionEncoderDecoder {
 		cacheLayers = spec.DecoderBlockCount
 	}
-	forward := compileForwardProgram(profile, spec.NonCausalAttention)
+	forward := compileForwardProgram(spec, profile)
 	plan := ModelPlan{
 		spec: spec, profile: profile, layers: make([]LayerPlan, layers), cacheLayers: cacheLayers,
 		normalization: spec.NormPlan(),
@@ -592,7 +592,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	if plan.normalization != spec.NormPlan() {
 		return fmt.Errorf("model plan architecture %s has invalid normalization", spec.Architecture)
 	}
-	if !plan.forward.valid() || plan.forward != compileForwardProgram(plan.profile, spec.NonCausalAttention) {
+	if !plan.forward.valid() || plan.forward != compileForwardProgram(spec, plan.profile) {
 		return fmt.Errorf("model plan architecture %s has invalid forward program", spec.Architecture)
 	}
 	if plan.input != compileProjectedInputProgram(spec, plan.profile) {
@@ -717,10 +717,14 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	return nil
 }
 
-func cachedGraphPolicy(recurrent bool, forward ForwardProgram, layers []LayerPlan) CachedGraphPolicy {
+func cachedGraphPolicy(
+	recurrent bool,
+	forward ForwardProgram,
+	layers []LayerPlan,
+) CachedGraphPolicy {
 	if len(layers) == 0 || forward.Operation != ForwardOperationCached ||
 		recurrent ||
-		forward.AlternatePredictions() {
+		forward.AlternateStates() {
 		return CachedGraphLayered
 	}
 	for _, layer := range layers {

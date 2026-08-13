@@ -261,13 +261,13 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:c681d5d82d796631c2ad9d2d191f0d4324e31a7e4cbb24704dcdb91845314eaf"
+          "identity": "file:sha256:5095887ce282312b21ee23f6b2727936a8895290614ae85e99caf1e94cf50bb6"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:d76e6a95d693f47d8581eeb509ff1c1056e902274eda2ceec554b04d7258e581"
+          "identity": "evidence:sha256:fbc9f573750030a0f616d0b12fee34fd28aeb70492135efbd13b3d9725cfb1fa"
         }
       ],
       "id": "compiled-model-plan",

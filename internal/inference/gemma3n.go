@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/model"
 	"overgo/internal/quant"
 	"overgo/internal/tensor"
@@ -14,6 +15,7 @@ import (
 
 func (r *Runner) forwardAlternatePredictionsCachedLocked(
 	ctx context.Context,
+	program model.ForwardProgram,
 	activation reference.Value,
 	perLayerInputs []reference.Value,
 	positions []uint32,
@@ -22,7 +24,7 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 ) (reference.Value, *KVCache, error) {
 	if r.weights.AltUpProjection == nil || r.weights.AltUpUnembedding == nil ||
 		len(perLayerInputs) != len(r.weights.Layers) {
-		return reference.Value{}, nil, errors.New("inference: Gemma 3n top-level weights are incomplete")
+		return reference.Value{}, nil, errors.New("inference: alternate-state top-level weights are incomplete")
 	}
 	projection, err := r.hostTensor(ctx, *r.weights.AltUpProjection)
 	if err != nil {
@@ -32,7 +34,7 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	states, err := gemma3nInitializeAltUp(activation, projection, int(r.spec.AltUpCount))
+	states, err := gemma3nInitializeAltUp(activation, projection, int(program.AlternateStateCount))
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -47,7 +49,9 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 		if loadErr != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, loadErr)
 		}
-		predictions, predictErr := gemma3nPredict(states, hostLayer, r.spec)
+		predictions, predictErr := gemma3nPredict(
+			states, hostLayer, program.ActiveState, program.EmbeddingLength, program.NormalizationEpsilon,
+		)
 		if predictErr != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, predictErr)
 		}
@@ -58,21 +62,22 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 			past = &cache.Layers[layerIndex]
 		}
 		activated, layerCache, stageErr := r.runAlternatePredictionLayer(
-			ctx, predictions[r.spec.AltUpActive], hostLayer, info,
+			ctx, program, predictions[program.ActiveState], hostLayer, info,
 			layerIndex, positions, past,
 		)
 		if stageErr != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, stageErr)
 		}
 		states, err = gemma3nCorrectAndInject(
-			predictions, activated, perLayerInputs[layerIndex], hostLayer, r.spec,
+			predictions, activated, perLayerInputs[layerIndex], hostLayer,
+			program.ActiveState, program.EmbeddingLength, program.NormalizationEpsilon,
 		)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, err)
 		}
 		nextCache.Layers[layerIndex] = layerCache
 	}
-	activation, err = gemma3nMergeAltUp(states, unembedding, int(r.spec.AltUpActive))
+	activation, err = gemma3nMergeAltUp(states, unembedding, int(program.ActiveState))
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -85,6 +90,7 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 
 func (r *Runner) runAlternatePredictionLayer(
 	ctx context.Context,
+	alternate model.ForwardProgram,
 	input reference.Value,
 	hostLayer model.HostLayer,
 	info model.LayerWeights,
@@ -118,7 +124,7 @@ func (r *Runner) runAlternatePredictionLayer(
 	}
 	activated, err := gemma3nActivateFFN(
 		results[stage.Gate], results[stage.Up],
-		layerIndex < int(r.spec.SparseLayerCount), r.spec.SparsityStdMultiplier,
+		alternate.SparseAlternateLayer(layerIndex), alternate.SparsityStdMultiplier,
 	)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
@@ -165,9 +171,16 @@ func gemma3nInitializeAltUp(
 func gemma3nPredict(
 	states []reference.Value,
 	layer model.HostLayer,
-	spec model.Spec,
+	active uint32,
+	embeddingLength uint32,
+	normalizationEpsilon float32,
 ) ([]reference.Value, error) {
-	modalities, err := gemma3nModalities(states[spec.AltUpActive], layer, spec)
+	if active >= uint32(len(states)) {
+		return nil, errors.New("inference: alternate prediction active state is invalid")
+	}
+	modalities, err := gemma3nModalities(
+		states[active], layer, embeddingLength, normalizationEpsilon,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -201,9 +214,13 @@ func gemma3nCorrectAndInject(
 	predictions []reference.Value,
 	activated, perLayer reference.Value,
 	layer model.HostLayer,
-	spec model.Spec,
+	activeState uint32,
+	embeddingLength uint32,
+	normalizationEpsilon float32,
 ) ([]reference.Value, error) {
-	modalities, err := gemma3nModalities(activated, layer, spec)
+	modalities, err := gemma3nModalities(
+		activated, layer, embeddingLength, normalizationEpsilon,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +228,10 @@ func gemma3nCorrectAndInject(
 	if err != nil {
 		return nil, err
 	}
-	active := int(spec.AltUpActive)
+	active := int(activeState)
+	if active < 0 || active >= len(predictions) {
+		return nil, errors.New("inference: alternate correction active state is invalid")
+	}
 	result := make([]reference.Value, len(predictions))
 	for index := range predictions {
 		result[index] = predictions[index].Clone()
@@ -242,7 +262,7 @@ func gemma3nCorrectAndInject(
 	if err != nil {
 		return nil, err
 	}
-	injection, err = gemma3nWeightedRMS(injection, *layer.PerLayerPostNorm, spec.RMSNormEpsilon)
+	injection, err = gemma3nWeightedRMS(injection, *layer.PerLayerPostNorm, normalizationEpsilon)
 	if err != nil {
 		return nil, err
 	}
@@ -257,17 +277,21 @@ func gemma3nCorrectAndInject(
 func gemma3nModalities(
 	input reference.Value,
 	layer model.HostLayer,
-	spec model.Spec,
+	embeddingLength uint32,
+	normalizationEpsilon float32,
 ) (reference.Value, error) {
 	if layer.AltUpRouterNorm == nil || layer.AltUpRouter == nil {
 		return reference.Value{}, errors.New("inference: Gemma 3n router weights are incomplete")
 	}
-	normalized, err := gemma3nWeightedRMS(input, *layer.AltUpRouterNorm, spec.RMSNormEpsilon)
+	if embeddingLength == 0 {
+		return reference.Value{}, errors.New("inference: alternate router embedding width is invalid")
+	}
+	normalized, err := gemma3nWeightedRMS(input, *layer.AltUpRouterNorm, normalizationEpsilon)
 	if err != nil {
 		return reference.Value{}, err
 	}
 	for index := range normalized.Data {
-		normalized.Data[index] /= float32(spec.EmbeddingLength)
+		normalized.Data[index] /= float32(embeddingLength)
 	}
 	result, err := gemma3nMatMul(*layer.AltUpRouter, normalized)
 	if err != nil {
@@ -353,15 +377,7 @@ func gemma3nMatMul(weight, input reference.Value) (reference.Value, error) {
 		Shape: tensor.MustShape(uint64(outputWidth), uint64(tokens)),
 		Data:  make([]float32, outputWidth*tokens),
 	}
-	for token := range tokens {
-		for row := range outputWidth {
-			var sum float64
-			for column := range inner {
-				sum += float64(weight.Data[row*inner+column]) * float64(input.Data[token*inner+column])
-			}
-			output.Data[token*outputWidth+row] = float32(sum)
-		}
-	}
+	hostmath.LinearF64(output.Data, input.Data, weight.Data, nil, tokens, inner, outputWidth)
 	return output, nil
 }
 

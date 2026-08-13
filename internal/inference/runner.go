@@ -617,12 +617,12 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if r.forwardProgram().AlternatePredictions() {
+	if forward := r.forwardProgram(); forward.AlternateStates() {
 		if capture != nil {
-			return reference.Value{}, nil, errors.New("inference: cached Gemma3n layer extraction is unsupported")
+			return reference.Value{}, nil, errors.New("inference: alternate-state layer extraction is unsupported")
 		}
 		return r.forwardAlternatePredictionsCachedLocked(
-			ctx, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
+			ctx, forward, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
 		)
 	}
 	cachePosition := nextPosition + uint32(len(tokenIDs))

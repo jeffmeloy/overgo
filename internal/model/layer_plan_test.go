@@ -83,6 +83,31 @@ func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
 	}
 }
 
+func TestCompileModelPlanOwnsAlternatePredictionPolicy(t *testing.T) {
+	const fixtureNormEpsilon = 1e-6
+	spec := Spec{
+		CommonSpec: CommonSpec{
+			Architecture: "gemma3n", BlockCount: 1, EmbeddingLength: gemma3nLayerEmbeddingWidth,
+			RMSNormEpsilon: fixtureNormEpsilon,
+		},
+		MultimodalSpec: MultimodalSpec{
+			AltUpCount: gemma3nAltUpCount, AltUpActive: gemma3nAltUpActive,
+			SparseLayerCount:      gemma3nSparseLayerCount,
+			SparsityStdMultiplier: gemma3nSparsityStdMultiplier,
+		},
+	}
+	plan, err := CompileModelPlan(spec, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program := plan.Forward()
+	if !program.AlternateStates() || program.AlternateStateCount != spec.AltUpCount ||
+		program.ActiveState != spec.AltUpActive || program.EmbeddingLength != spec.EmbeddingLength ||
+		program.NormalizationEpsilon != spec.RMSNormEpsilon || !program.SparseAlternateLayer(0) {
+		t.Fatalf("alternate-prediction program = %+v", program)
+	}
+}
+
 func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -351,7 +376,7 @@ func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 		if plan.CachedGraph() != CachedGraphDense {
 			continue
 		}
-		if plan.Forward().AlternatePredictions() {
+		if plan.Forward().AlternateStates() {
 			t.Fatalf("%s selected dense graph with AltUp", architecture)
 		}
 		for _, layer := range plan.layers {

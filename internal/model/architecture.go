@@ -331,6 +331,7 @@ type ArchitectureProfile struct {
 	FFNNormLayout    FeedForwardNormLayoutPolicy
 	Cache            CachePolicy
 	RecurrentCache   CachePolicy
+	RecurrentMixer   RecurrentMixerPolicy
 	CacheFallback    CacheFallbackPolicy
 	LayerTopology    LayerTopologyPolicy
 	DenseStages      DenseStagePolicy

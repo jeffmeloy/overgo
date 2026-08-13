@@ -42,29 +42,29 @@ func TestLayerProgramsCoverTypedProfiles(t *testing.T) {
 			LayerOperatorFeedForwardInputNorm, LayerOperatorFeedForwardPlanned,
 			LayerOperatorFeedForwardOutput, LayerOperatorResidual,
 		}},
-		{name: "Kimi Linear", profile: ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationKimiLinear}}, want: attentionNorm},
+		{name: "keyed delta", profile: ArchitectureProfile{LayerTopology: LayerTopologyKeyedDeltaHybrid, RecurrentMixer: recurrentMixerKeyedDelta}, want: attentionNorm},
 		{name: "MLA", profile: ArchitectureProfile{Attention: AttentionLatent}, want: attentionNorm},
 		{name: "DSA", profile: ArchitectureProfile{Attention: AttentionSparseLatent}, want: attentionNorm},
-		{name: "DeepSeek 4", profile: ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationDeepSeek4}}, want: []LayerOperator{
+		{name: "compressed hyper", profile: ArchitectureProfile{LayerTopology: LayerTopologyCompressedHyper}, want: []LayerOperator{
 			LayerOperatorHyperAttention, LayerOperatorHyperFeedForward,
 		}},
-		{name: "Mamba", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationMamba}}, want: recurrent},
-		{name: "Mamba 2", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationMamba2}}, want: recurrent},
-		{name: "Jamba", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationJamba}}, plan: LayerPlan{Recurrent: true}, want: append(recurrent, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual)},
-		{name: "Granite hybrid", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationGraniteHybrid}}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
+		{name: "selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerSelectiveScan}, want: recurrent},
+		{name: "grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerGroupedSelectiveScan}, want: recurrent},
+		{name: "weighted selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerWeightedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: append(recurrent, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual)},
+		{name: "scaled grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerScaledGroupedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorScale,
 			LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU,
 			LayerOperatorScale, LayerOperatorResidual,
 		}},
-		{name: "PLaMo 2", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationPLaMo2}}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
+		{name: "normalized selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerNormalizedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorAttentionPostNorm,
 			LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardFusedGLU,
 			LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
 		}},
-		{name: "Nemotron H", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationNemotronH}}, plan: LayerPlan{Composition: LayerCompositionAttentionOnly}, want: []LayerOperator{
+		{name: "sparse grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerSparseGroupedSelectiveScan}, plan: LayerPlan{Composition: LayerCompositionAttentionOnly}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorAttentionCausalProjection, LayerOperatorResidual,
 		}},
-		{name: "Falcon H1", profile: ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationFalconH1}}, want: []LayerOperator{
+		{name: "attention grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerAttentionGroupedSelectiveScan}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorHybridMix, LayerOperatorResidual,
 			LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
 		}},
@@ -215,8 +215,8 @@ func TestDeciSparseProgramUsesNeutralStages(t *testing.T) {
 	requireLayerProgram(t, program, want...)
 }
 
-func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
-	profile := ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationKimiLinear}}
+func TestKeyedDeltaProgramSelectsLinearAttention(t *testing.T) {
+	profile := ArchitectureProfile{LayerTopology: LayerTopologyKeyedDeltaHybrid, RecurrentMixer: recurrentMixerKeyedDelta}
 	program := typedFixtureLayerProgram(profile, LayerPlan{Recurrent: true})
 	requireLayerProgram(t, program,
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -225,18 +225,18 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
 	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
-		withProfile(ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationKimiLinear}}).
+		withProfile(profile).
 		compileRecurrentMixer(true)
 	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerKeyedDelta ||
 		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
-		t.Fatalf("Kimi recurrent policies = %+v/%+v/%d", mixer, feedForward, state)
+		t.Fatalf("keyed-delta policies = %+v/%+v/%d", mixer, feedForward, state)
 	}
 }
 
 func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	program := compileLayerProgram(
 		LayerPlan{Recurrent: true},
-		ArchitectureProfile{Attention: AttentionShortConvolution},
+		ArchitectureProfile{Attention: AttentionShortConvolution, RecurrentMixer: recurrentMixerShortConvolution},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -246,7 +246,7 @@ func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
 	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
-		withProfile(ArchitectureProfile{Attention: AttentionShortConvolution}).compileRecurrentMixer(true)
+		withProfile(ArchitectureProfile{RecurrentMixer: recurrentMixerShortConvolution}).compileRecurrentMixer(true)
 	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerShortConvolution ||
 		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
 		t.Fatalf("LFM2 recurrent policies = %+v/%d/%d", mixer, state, feedForward.Operator)
@@ -267,7 +267,7 @@ func TestNemotronLayerProgramsSelectSemanticMixer(t *testing.T) {
 	}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
-			profile := ArchitectureProfile{Validation: ValidationPolicy{Recurrent: RecurrentValidationNemotronH}}
+			profile := ArchitectureProfile{RecurrentMixer: recurrentMixerSparseGroupedSelectiveScan}
 			program := typedFixtureLayerProgram(profile, LayerPlan{
 				Recurrent: fixture.recurrent, Composition: fixture.composition,
 			})
@@ -287,14 +287,14 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 	for _, recurrent := range []bool{false, true} {
 		program := compileLayerProgram(
 			LayerPlan{Recurrent: recurrent},
-			ArchitectureProfile{Attention: AttentionGatedDelta},
+			ArchitectureProfile{Attention: AttentionGatedDelta, RecurrentMixer: recurrentMixerGatedDelta},
 		)
 		instruction, ok := program.Instruction(mixerStage)
 		if !ok || program.Count != qwenProgramStageCount {
 			t.Fatalf("Qwen GDN program = %+v", program)
 		}
 		state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{recurrent}}}.
-			withProfile(ArchitectureProfile{Attention: AttentionGatedDelta}).compileRecurrentMixer(recurrent)
+			withProfile(ArchitectureProfile{RecurrentMixer: recurrentMixerGatedDelta}).compileRecurrentMixer(recurrent)
 		if recurrent && (instruction.Operator != LayerOperatorRecurrentMix || state != recurrentMixerGatedDelta) {
 			t.Fatalf("Qwen recurrent stage = %+v", instruction)
 		}

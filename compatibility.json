@@ -261,13 +261,13 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:81112f7718170f3b62aa48343b21d5d2177e929654592fc11555af34af8123f3"
+          "identity": "file:sha256:5ee3fc9c904d639ea6d33ebbed24f116fd58ee372141ec0d7c889b85eaeff465"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:4f19e5972bdd843e485a8250b97e4223b196767c685dc855c0a9d3ef461c9269"
+          "identity": "evidence:sha256:1d3ad4730e5f4e91f65dd4eb501b67fc304abe5c0798df71fa95fd7b4660f26b"
         }
       ],
       "id": "compiled-model-plan",
@@ -688,7 +688,7 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:13e44d2250f784ff69d6ff632d59a3179959bd06e5cecf10653ba03dfab66e42"
+          "identity": "file:sha256:c310d2be2fed05b954e75ee3df2a7ba22cff767d97c04fcdb6166aedef1906f8"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
@@ -721,7 +721,7 @@
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:24b2e0900597f3dfdc761d597b2aadb8883d129a2c99bc591a19fcea68f27ffa"
+          "identity": "evidence:sha256:29553f6526c5bbfd11e35c47b00dd8470b7c6ac6b0463f17c14d5f18177ca4f1"
         }
       ],
       "id": "architecture-family-dispatch",

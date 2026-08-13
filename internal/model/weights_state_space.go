@@ -14,7 +14,7 @@ func loadRecurrentMixerLayer(
 	spec Spec,
 	layer *LayerWeights,
 	block uint32,
-	mixer recurrentMixerPolicy,
+	mixer RecurrentMixerPolicy,
 	deltaProjection gatedDeltaPolicy,
 	recurrent bool,
 	queryLength, keyLength, valueLength, attentionOutputLength uint64,

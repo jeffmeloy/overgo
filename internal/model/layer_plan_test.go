@@ -165,7 +165,7 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 		name      string
 		spec      Spec
 		layer     LayerWeights
-		mixer     recurrentMixerPolicy
+		mixer     RecurrentMixerPolicy
 		attention AttentionPolicy
 		cache     CachePolicy
 	}{

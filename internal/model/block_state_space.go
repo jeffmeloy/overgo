@@ -13,7 +13,7 @@ func buildSelectiveScanMixCached(
 	spec Spec,
 	weights LayerGraphWeights,
 	convState, ssmState *tensor.Tensor,
-	mixer recurrentMixerPolicy,
+	mixer RecurrentMixerPolicy,
 ) (DenseBlockResult, error) {
 	useWeightedStateNorm := mixer == recurrentMixerWeightedSelectiveScan
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
@@ -110,7 +110,7 @@ func buildGroupedSelectiveScanMixCached(
 	spec Spec,
 	weights LayerGraphWeights,
 	convState, ssmState *tensor.Tensor,
-	mixer recurrentMixerPolicy,
+	mixer RecurrentMixerPolicy,
 ) (DenseBlockResult, error) {
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("grouped selective-scan input/state is nil")

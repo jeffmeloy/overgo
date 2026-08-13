@@ -86,6 +86,7 @@
     "Family": 2,
     "GraphFamily": 2,
     "Name": "arwkv7",
+    "RecurrentMixer": 12,
     "Validation": {
       "Recurrent": 10
     }
@@ -460,6 +461,7 @@
       "Weights": 1
     },
     "Name": "deepseek4",
+    "LayerTopology": 11,
     "Validation": {
       "MLA": 2
     },
@@ -675,6 +677,7 @@
     "Family": 3,
     "GraphFamily": 3,
     "Name": "falcon-h1",
+    "RecurrentMixer": 5,
     "Validation": {
       "Recurrent": 6
     }
@@ -1053,6 +1056,7 @@
       "RopeDimension": 2
     },
     "Name": "granitehybrid",
+    "RecurrentMixer": 4,
     "Validation": {
       "Hybrid": 15,
       "Recurrent": 12
@@ -1271,6 +1275,7 @@
       "PreserveLayerKV": true
     },
     "Name": "jamba",
+    "RecurrentMixer": 2,
     "Validation": {
       "Recurrent": 11
     },
@@ -1342,6 +1347,8 @@
       "PreserveLayerKV": true
     },
     "Name": "kimi-linear",
+    "LayerTopology": 10,
+    "RecurrentMixer": 13,
     "Validation": {
       "MLA": 3
     },
@@ -1403,6 +1410,7 @@
       "KVHeads": 7
     },
     "Name": "lfm2",
+    "RecurrentMixer": 9,
     "Validation": {
       "Hybrid": 35
     },
@@ -1438,6 +1446,7 @@
       "KVHeads": 7
     },
     "Name": "lfm2moe",
+    "RecurrentMixer": 9,
     "Validation": {
       "Hybrid": 36
     },
@@ -1565,6 +1574,7 @@
       "KVHeads": 4
     },
     "Name": "mamba",
+    "RecurrentMixer": 1,
     "Validation": {
       "AttentionFree": true,
       "Recurrent": 4
@@ -1580,6 +1590,7 @@
       "KVHeads": 4
     },
     "Name": "mamba2",
+    "RecurrentMixer": 3,
     "Validation": {
       "AttentionFree": true,
       "Recurrent": 5
@@ -1792,6 +1803,7 @@
       "KVHeads": 2
     },
     "Name": "nemotron_h",
+    "RecurrentMixer": 7,
     "Validation": {
       "Recurrent": 14
     },
@@ -1810,6 +1822,7 @@
       "KVHeads": 2
     },
     "Name": "nemotron_h_moe",
+    "RecurrentMixer": 7,
     "Validation": {
       "Recurrent": 15
     },
@@ -2043,6 +2056,7 @@
     "Capabilities": 67184648,
     "CatalogFamily": 3,
     "DenseStages": {
+      "NonRecurrentQKNoBias": true,
       "QK": {
         "Heads": 1
       }
@@ -2055,6 +2069,7 @@
       "PreserveLayerKV": true
     },
     "Name": "plamo2",
+    "RecurrentMixer": 6,
     "Validation": {
       "Recurrent": 13
     },
@@ -2164,6 +2179,7 @@
     "Family": 3,
     "GraphFamily": 3,
     "Name": "qwen35",
+    "RecurrentMixer": 8,
     "Validation": {
       "Hybrid": 2
     },
@@ -2195,6 +2211,7 @@
     "Family": 3,
     "GraphFamily": 3,
     "Name": "qwen35moe",
+    "RecurrentMixer": 8,
     "Validation": {
       "Hybrid": 3
     },
@@ -2243,6 +2260,7 @@
     "Family": 3,
     "GraphFamily": 3,
     "Name": "qwen3next",
+    "RecurrentMixer": 8,
     "Validation": {
       "Hybrid": 1
     },
@@ -2336,6 +2354,7 @@
       "TokenNorm": 2
     },
     "Name": "rwkv6",
+    "RecurrentMixer": 11,
     "Validation": {
       "Recurrent": 7
     },
@@ -2355,6 +2374,7 @@
       "OptionalOutputNormBias": true
     },
     "Name": "rwkv6qwen2",
+    "RecurrentMixer": 10,
     "Validation": {
       "Recurrent": 8
     }
@@ -2371,6 +2391,7 @@
       "TokenNorm": 2
     },
     "Name": "rwkv7",
+    "RecurrentMixer": 12,
     "Validation": {
       "Recurrent": 9
     },
@@ -2528,6 +2549,7 @@
       "RopeDimension": 1
     },
     "Name": "talkie",
+    "RecurrentMixer": 9,
     "Normalization": 3,
     "Runtime": {
       "LogitScale": 1

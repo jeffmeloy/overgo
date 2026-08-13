@@ -49,6 +49,7 @@ const (
 type DenseStagePolicy struct {
 	QK                       QKPreprocessPlan
 	QKHeadsMinBlocks         uint32
+	NonRecurrentQKNoBias     bool
 	PostRotaryRMSNon128      bool
 	AttentionGate            attentionGateKind
 	AttentionHeadGate        bool
@@ -71,7 +72,7 @@ func (s Spec) qkPreprocessPlan(layer uint32) QKPreprocessPlan {
 	if policy.PostRotaryRMSNon128 && s.UsesRoPE(layer) && s.ExpertCount != 128 {
 		plan.PostRotary = qkNormRMS
 	}
-	if s.Profile().Validation.Recurrent == RecurrentValidationPLaMo2 && !s.IsRecurrentLayer(layer) {
+	if policy.NonRecurrentQKNoBias && !s.IsRecurrentLayer(layer) {
 		plan.Heads = qkNormConfiguredNoBias
 	}
 	return plan

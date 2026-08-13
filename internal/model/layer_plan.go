@@ -190,6 +190,8 @@ const (
 	LayerTopologyDynamicWKV6
 	LayerTopologyAffineWKV6
 	LayerTopologyDynamicWKV7
+	LayerTopologyKeyedDeltaHybrid
+	LayerTopologyCompressedHyper
 )
 
 // OutputHeadPolicy: compiled terminal projection source.
@@ -254,7 +256,7 @@ type LayerPlan struct {
 	QueryScale        QueryScalePlan
 	AttentionOutput   AttentionOutputPlan
 	ResidualStages    ResidualStagePlan
-	Mixer             recurrentMixerPolicy
+	Mixer             RecurrentMixerPolicy
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -1018,7 +1020,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			)
 		}
 		return LayerProgram{}
-	case profile.Validation.MLA == MLAValidationKimiLinear:
+	case profile.LayerTopology == LayerTopologyKeyedDeltaHybrid:
 		if !recurrent {
 			return latentLayerProgram(
 				profile,
@@ -1040,7 +1042,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey},
 			[]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
 		)
-	case profile.Validation.MLA == MLAValidationDeepSeek4:
+	case profile.LayerTopology == LayerTopologyCompressedHyper:
 		return newLayerProgram(
 			leafLayerStage(
 				LayerOperatorHyperAttention,

@@ -261,13 +261,13 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:a77c2718267d8ffd26a4381abfde88483ec8cb5709416e9ad31ed620faf15a19"
+          "identity": "file:sha256:2a695c4076c3b058ba927d267662a168ffab2368fa351ff95368d50a2bd5875e"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:1d3ad4730e5f4e91f65dd4eb501b67fc304abe5c0798df71fa95fd7b4660f26b"
+          "identity": "evidence:sha256:27192becce8ae3beae22e0a4932789ac6b493f1ddcb960d7321f1bd34d20d75c"
         }
       ],
       "id": "compiled-model-plan",
@@ -688,7 +688,7 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:24ebf860ce0201c5f1e69d2f429d278616816692b429816d008216bd1ada125c"
+          "identity": "file:sha256:342acfadf7d4efb4fabb6c8ef9720754d2da09bb1dcfc7260e297cd497feac5d"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
@@ -709,7 +709,7 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:812b1f603e3077f7d838077543a70abcf9584143f94295bf097f198bf0cdc0d3"
+          "identity": "file:sha256:7bcec06f5738b30d84ae19f7088c6f3cf2d2790ef93afb0aafb36175b37c6e3d"
         },
         {
           "contains": "func ReadWeights(",

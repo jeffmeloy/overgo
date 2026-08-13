@@ -199,30 +199,28 @@ type LayerGraphWeights struct {
 	ChannelMixReceptance *tensor.Tensor
 }
 
-// ApplyNormalization: learned normalization stage.
-func ApplyNormalization(
+// Apply: learned normalization stage.
+func (p NormalizationPlan) Apply(
 	builder *tensor.Builder,
 	input, weight, bias *tensor.Tensor,
-	spec Spec,
 ) *tensor.Tensor {
-	norm := spec.NormPlan()
-	if norm.Operation == NormalizationUnweightedLayer {
-		return builder.LayerNorm(input, spec.LayerNormEpsilon)
+	if p.Operation == NormalizationUnweightedLayer {
+		return builder.LayerNorm(input, p.Epsilon)
 	}
-	if norm.Operation == NormalizationUnweightedRMS {
-		return builder.RMSNorm(input, spec.RMSNormEpsilon)
+	if p.Operation == NormalizationUnweightedRMS {
+		return builder.RMSNorm(input, p.Epsilon)
 	}
-	if norm.Operation == NormalizationWeightOnlyLayer {
-		return builder.Multiply(builder.LayerNorm(input, spec.LayerNormEpsilon), weight)
+	if p.Operation == NormalizationWeightOnlyLayer {
+		return builder.Multiply(builder.LayerNorm(input, p.Epsilon), weight)
 	}
-	if norm.Operation == NormalizationLayer {
+	if p.Operation == NormalizationLayer {
 		if bias == nil {
-			return builder.Multiply(builder.LayerNorm(input, spec.LayerNormEpsilon), weight)
+			return builder.Multiply(builder.LayerNorm(input, p.Epsilon), weight)
 		}
-		return builder.AffineLayerNorm(input, weight, bias, spec.LayerNormEpsilon)
+		return builder.AffineLayerNorm(input, weight, bias, p.Epsilon)
 	}
-	normalized := builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)
-	if norm.RMSBias && bias != nil {
+	normalized := builder.WeightedRMSNorm(input, weight, p.Epsilon)
+	if p.RMSBias && bias != nil {
 		return builder.Add(normalized, bias)
 	}
 	return normalized
@@ -297,8 +295,8 @@ func preparePolicyAttentionInputs(
 	}
 	normalized := c.input
 	if c.plan.Normalization.PreAttention && !c.spec.SandwichNorm {
-		normalized = ApplyNormalization(
-			c.builder, c.input, c.weights.AttentionNorm, c.weights.AttentionNormBias, c.spec,
+		normalized = c.plan.Normalization.Apply(
+			c.builder, c.input, c.weights.AttentionNorm, c.weights.AttentionNormBias,
 		)
 	}
 	feedForwardNormalized := normalized
@@ -308,8 +306,8 @@ func preparePolicyAttentionInputs(
 				c.builder.LayerNorm(c.input, c.spec.LayerNormEpsilon), c.weights.AttentionNorm2,
 			)
 		} else {
-			normalized = ApplyNormalization(
-				c.builder, c.input, c.weights.AttentionNorm2, c.weights.AttentionNorm2Bias, c.spec,
+			normalized = c.plan.Normalization.Apply(
+				c.builder, c.input, c.weights.AttentionNorm2, c.weights.AttentionNorm2Bias,
 			)
 		}
 	}
@@ -329,7 +327,7 @@ func buildPolicyAttentionMix(
 	}
 	attentionGate := c.plan.AttentionOutput.PrepareGate(c.builder, gateInput, c.weights)
 	query, key, value := runtime.projectAttention(normalized)
-	query, key, err := c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkProjection)
+	query, key, err := c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, c.plan.Normalization, qkProjection)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -338,14 +336,14 @@ func buildPolicyAttentionMix(
 	query = c.builder.Reshape(query, uint64(c.spec.KeyLength), uint64(headCount), tokens)
 	key = c.builder.Reshape(key, uint64(c.spec.KeyLength), uint64(kvHeadCount), tokens)
 	value = c.builder.Reshape(value, uint64(c.spec.ValueLength), uint64(kvHeadCount), tokens)
-	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkHeads)
+	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, c.plan.Normalization, qkHeads)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
 	query, key = c.plan.Rotary.Apply(
 		c.builder, query, key, c.positions, c.multiPositions, c.weights.RopeFactors,
 	)
-	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, qkPostRotary)
+	query, key, err = c.plan.QKPreprocess.Apply(c.builder, query, key, c.spec, c.weights, c.plan.Normalization, qkPostRotary)
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -742,7 +740,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		requireGraphWeight("Laurel right projection", weights.LaurelRight),
 		requireGraphWeight("Laurel post norm", weights.LaurelPostNorm),
 	}
-	if spec.LayerHasKV(layerIndex) {
+	if p.plan.HasKV {
 		required.add("attention key", weights.AttentionK)
 		required.add("attention value", weights.AttentionV)
 		required.add("attention key norm", weights.AttentionKNorm)
@@ -764,13 +762,13 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	query := builder.Reshape(builder.MulMat(weights.AttentionQ, normalized), keyLength, headCount, tokens)
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	frequencyBase := spec.RopeFrequencyBase
-	if spec.IsSlidingLayer(layerIndex) {
+	if p.plan.Sliding {
 		frequencyBase = spec.RopeFrequencySWA
 	}
 	query = builder.RoPENeoXScaled(query, positions, spec.LayerRopeDimensionCount(layerIndex), frequencyBase, 1)
 	cacheKey, cacheValue := pastKey, pastValue
 	queryStart := uint32(0)
-	if spec.LayerHasKV(layerIndex) {
+	if p.plan.HasKV {
 		key := builder.Reshape(builder.MulMat(weights.AttentionK, normalized), keyLength, kvHeadCount, tokens)
 		value := builder.Reshape(builder.MulMat(weights.AttentionV, normalized), valueLength, kvHeadCount, tokens)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
@@ -800,7 +798,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		attentionScale = 1 / float32(math.Sqrt(float64(keyLength)))
 	}
 	query = builder.Scale(query, attentionScale)
-	if spec.IsSlidingLayer(layerIndex) {
+	if p.plan.Sliding {
 		attention = builder.AttentionWindowWithOffset(
 			query, cacheKey, cacheValue, 1, true, queryStart, spec.SlidingWindow,
 		)

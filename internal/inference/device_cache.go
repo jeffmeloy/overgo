@@ -1281,10 +1281,10 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 			deviceFeeds[normBias] = pointer
 		}
-		current = model.ApplyNormalization(builder, current, normWeight, normBias, r.spec)
+		current = r.program.Model.Normalization().Apply(builder, current, normWeight, normBias)
 	}
 	embeddingSkip := current
-	if r.spec.UsesUnweightedRMSNorm() {
+	if r.program.Model.Normalization().Operation == model.NormalizationUnweightedRMS {
 		current = builder.RMSNorm(current, r.spec.RMSNormEpsilon)
 		embeddingSkip = current
 	}

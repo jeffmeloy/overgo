@@ -16,7 +16,7 @@ func (p CompiledLayerProgram) BuildDraftInput(
 	}
 	return buildMTPInput(
 		builder, tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection,
-		p.spec, p.draft,
+		p.spec, p.plan.Normalization, p.draft,
 	)
 }
 
@@ -29,7 +29,7 @@ func (p CompiledLayerProgram) BuildDraftOutputs(
 		return nil, nil, errors.New("compiled layer has no draft-output policy")
 	}
 	return buildMTPOutputs(
-		builder, input, outputNorm, output, p.spec, p.draft,
+		builder, input, outputNorm, output, p.spec, p.plan.Normalization, p.draft,
 	)
 }
 
@@ -54,6 +54,7 @@ func buildMTPInput(
 	builder *tensor.Builder,
 	tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection *tensor.Tensor,
 	spec Spec,
+	architectureNormalization NormalizationPlan,
 	plan DraftPlan,
 ) (*tensor.Tensor, error) {
 	if builder == nil || tokenEmbedding == nil || targetHidden == nil || embeddingNorm == nil ||
@@ -64,8 +65,8 @@ func buildMTPInput(
 		tokenEmbedding.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, errors.New("draft input shape is incompatible")
 	}
-	embedding := normalizeMTP(builder, tokenEmbedding, embeddingNorm, spec, plan.Normalization)
-	hidden := normalizeMTP(builder, targetHidden, hiddenNorm, spec, plan.Normalization)
+	embedding := normalizeMTP(builder, tokenEmbedding, embeddingNorm, spec, architectureNormalization, plan.Normalization)
+	hidden := normalizeMTP(builder, targetHidden, hiddenNorm, spec, architectureNormalization, plan.Normalization)
 	output := builder.MulMat(projection, builder.Concat(embedding, hidden, 0))
 	if err := builder.Err(); err != nil {
 		return nil, err
@@ -77,6 +78,7 @@ func buildMTPOutputs(
 	builder *tensor.Builder,
 	input, outputNorm, output *tensor.Tensor,
 	spec Spec,
+	architectureNormalization NormalizationPlan,
 	plan DraftPlan,
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	if builder == nil || input == nil || outputNorm == nil || output == nil {
@@ -85,7 +87,7 @@ func buildMTPOutputs(
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, nil, errors.New("draft output shape is incompatible")
 	}
-	normalized := normalizeMTP(builder, input, outputNorm, spec, plan.Normalization)
+	normalized := normalizeMTP(builder, input, outputNorm, spec, architectureNormalization, plan.Normalization)
 	nextHidden = normalized
 	if plan.CarryRawHidden {
 		nextHidden = input
@@ -106,10 +108,11 @@ func normalizeMTP(
 	builder *tensor.Builder,
 	input, weight *tensor.Tensor,
 	spec Spec,
+	architecture NormalizationPlan,
 	normalization DraftNormalizationPolicy,
 ) *tensor.Tensor {
 	if normalization == DraftNormalizationArchitecture {
-		return ApplyNormalization(builder, input, weight, nil, spec)
+		return architecture.Apply(builder, input, weight, nil)
 	}
 	return builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)
 }

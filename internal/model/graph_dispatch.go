@@ -187,9 +187,9 @@ func executeLayerInstruction(
 			options.Weights.AttentionNorm == nil {
 			return errors.New("compiled attention-normalization stage is invalid")
 		}
-		execution.current = ApplyNormalization(
+		execution.current = plan.Normalization.Apply(
 			c.Builder, execution.current, options.Weights.AttentionNorm,
-			options.Weights.AttentionNormBias, options.Spec,
+			options.Weights.AttentionNormBias,
 		)
 		return c.Builder.Err()
 	case LayerOperatorRMSNorm:
@@ -272,12 +272,12 @@ func executeLayerInstruction(
 		case LayerOperatorAttentionBidirectionalFusedQKV:
 			result, err = buildBidirectionalFusedQKVMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan.Layer,
+				operands.caches[0], operands.caches[1], plan,
 			)
 		case LayerOperatorAttentionBidirectionalQKNorm:
 			result, err = buildBidirectionalQKNormMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan.Layer,
+				operands.caches[0], operands.caches[1], plan,
 			)
 		case LayerOperatorAttentionCausalPostQKNorm:
 			result, err = buildCausalPostQKNormMixCached(
@@ -411,9 +411,9 @@ func executeLayerInstruction(
 			options.Weights.FeedForwardNorm == nil {
 			return errors.New("compiled feed-forward normalization stage is invalid")
 		}
-		execution.current = ApplyNormalization(
+		execution.current = plan.Normalization.Apply(
 			c.Builder, execution.residual, options.Weights.FeedForwardNorm,
-			options.Weights.FeedForwardNormBias, options.Spec,
+			options.Weights.FeedForwardNormBias,
 		)
 		return c.Builder.Err()
 	case LayerOperatorFeedForwardInputNorm:
@@ -427,7 +427,7 @@ func executeLayerInstruction(
 		if plan.ExpertComposition.kind != expertDenseRoutedSeparateNorm {
 			normalized = plan.ResidualStages.FeedForwardInput(
 				c.Builder, c.Input, execution.residual, normalized, execution.feedForwardBase,
-				options.Spec, options.Weights,
+				options.Spec, options.Weights, plan.Normalization,
 			)
 		}
 		execution.current = normalized
@@ -572,8 +572,8 @@ func executeLayerInstruction(
 		if weight == nil || bias == nil {
 			return errors.New("compiled residual-normalization weights are incomplete")
 		}
-		execution.current = ApplyNormalization(
-			c.Builder, c.Builder.Add(residual, execution.current), weight, bias, options.Spec,
+		execution.current = plan.Normalization.Apply(
+			c.Builder, c.Builder.Add(residual, execution.current), weight, bias,
 		)
 		execution.residual = execution.current
 		execution.result.Output = execution.current
@@ -609,7 +609,7 @@ func executeLayerInstruction(
 		}
 		result, err := buildTokenShiftFeedForwardMix(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], execution.result.Key, instruction.Operator,
+			operands.caches[0], execution.result.Key, instruction.Operator, plan.Normalization,
 		)
 		if err != nil {
 			return err

@@ -159,10 +159,11 @@ func (r *Runner) buildOutputNorm(
 	if r.program.Model.Terminal().Normalization == model.OutputNormAbsent {
 		return input, nil
 	}
-	if r.spec.UsesUnweightedLayerNorm() {
+	normalization := r.program.Model.Normalization()
+	if normalization.Operation == model.NormalizationUnweightedLayer {
 		return builder.LayerNorm(input, r.spec.LayerNormEpsilon), builder.Err()
 	}
-	if r.spec.UsesUnweightedRMSNorm() {
+	if normalization.Operation == model.NormalizationUnweightedRMS {
 		return builder.RMSNorm(input, r.spec.RMSNormEpsilon), builder.Err()
 	}
 	weight, err := bind(r.weights.OutputNorm)
@@ -176,7 +177,7 @@ func (r *Runner) buildOutputNorm(
 			return nil, err
 		}
 	}
-	return model.ApplyNormalization(builder, input, weight, bias, r.spec), builder.Err()
+	return r.program.Model.Normalization().Apply(builder, input, weight, bias), builder.Err()
 }
 
 func (r *Runner) layerDeviceInputs(

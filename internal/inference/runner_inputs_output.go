@@ -163,7 +163,7 @@ func (r *Runner) applyTokenEmbeddingNorm(
 			return reference.Value{}, err
 		}
 	}
-	output := model.ApplyNormalization(runtime.builder, input, weightInput, biasInput, r.spec)
+	output := r.program.Model.Normalization().Apply(runtime.builder, input, weightInput, biasInput)
 	if err := runtime.builder.Err(); err != nil {
 		return reference.Value{}, err
 	}

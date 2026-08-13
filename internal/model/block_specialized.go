@@ -596,6 +596,7 @@ func buildTokenShiftFeedForwardMix(
 	weights LayerGraphWeights,
 	pastShift, nextAttentionShift *tensor.Tensor,
 	operator LayerOperator,
+	normalization NormalizationPlan,
 ) (DenseBlockResult, error) {
 	required := graphWeights{
 		requireGraphWeight("channel norm", weights.AttentionNorm2),
@@ -620,7 +621,7 @@ func buildTokenShiftFeedForwardMix(
 		return DenseBlockResult{}, errors.New("token-shift feed-forward input/cache shape is invalid")
 	}
 	tokens := input.Shape.Dims[1]
-	normalized := ApplyNormalization(builder, input, weights.AttentionNorm2, weights.AttentionNorm2Bias, spec)
+	normalized := normalization.Apply(builder, input, weights.AttentionNorm2, weights.AttentionNorm2Bias)
 	previous := builder.Reshape(builder.FlatSlice(pastShift, embedding, embedding), embedding, 1)
 	if tokens > 1 {
 		previous = builder.Concat(previous, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)

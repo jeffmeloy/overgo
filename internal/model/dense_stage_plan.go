@@ -83,10 +83,11 @@ func (p QKPreprocessPlan) Apply(
 	query, key *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
+	normalization NormalizationPlan,
 	stage qkStage,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
 	kinds := [...]qkNormKind{p.Projection, p.Heads, p.PostRotary}
-	return applyQKNorm(builder, query, key, spec, weights, kinds[stage])
+	return applyQKNorm(builder, query, key, spec, weights, normalization, kinds[stage])
 }
 
 func applyQKNorm(
@@ -94,6 +95,7 @@ func applyQKNorm(
 	query, key *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
+	normalization NormalizationPlan,
 	kind qkNormKind,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
 	qWeight, kWeight := weights.AttentionQNorm, weights.AttentionKNorm
@@ -116,11 +118,11 @@ func applyQKNorm(
 		query = builder.WeightedRMSNorm(query, qWeight, spec.RMSNormEpsilon)
 		key = builder.WeightedRMSNorm(key, kWeight, spec.RMSNormEpsilon)
 	case qkNormConfigured:
-		query = ApplyNormalization(builder, query, qWeight, weights.AttentionQNormBias, spec)
-		key = ApplyNormalization(builder, key, kWeight, weights.AttentionKNormBias, spec)
+		query = normalization.Apply(builder, query, qWeight, weights.AttentionQNormBias)
+		key = normalization.Apply(builder, key, kWeight, weights.AttentionKNormBias)
 	case qkNormConfiguredNoBias:
-		query = ApplyNormalization(builder, query, qWeight, nil, spec)
-		key = ApplyNormalization(builder, key, kWeight, nil, spec)
+		query = normalization.Apply(builder, query, qWeight, nil)
+		key = normalization.Apply(builder, key, kWeight, nil)
 	case qkNormAffine:
 		query = builder.Multiply(builder.LayerNorm(query, spec.QKNormEpsilon), qWeight)
 		key = builder.Multiply(builder.LayerNorm(key, spec.QKNormEpsilon), kWeight)
@@ -321,12 +323,13 @@ func (p ResidualStagePlan) FeedForwardInput(
 	input, residual, normalized, feedForwardNormalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
+	normalization NormalizationPlan,
 ) *tensor.Tensor {
 	switch p.kind {
 	case residualFeedForwardNormalized:
 		return feedForwardNormalized
 	case residualOriginalNorm:
-		return ApplyNormalization(builder, input, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec)
+		return normalization.Apply(builder, input, weights.FeedForwardNorm, weights.FeedForwardNormBias)
 	case residualShared, residualGPTOSS:
 		return normalized
 	case residualStable:
@@ -340,7 +343,7 @@ func (p ResidualStagePlan) FeedForwardInput(
 	if p.kind == residualStable && weights.FeedForwardNormBias == nil {
 		return builder.Multiply(builder.LayerNorm(residual, spec.LayerNormEpsilon), weights.FeedForwardNorm)
 	}
-	return ApplyNormalization(builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias, spec)
+	return normalization.Apply(builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias)
 }
 
 func (p ResidualStagePlan) ApplyFeedForwardOutput(

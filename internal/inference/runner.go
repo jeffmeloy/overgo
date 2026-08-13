@@ -613,7 +613,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		return reference.Value{}, nil, err
 	}
 	var embeddingSkip reference.Value
-	if r.spec.UsesUnweightedRMSNorm() {
+	if r.program.Model.Normalization().Operation == model.NormalizationUnweightedRMS {
 		activation, err = r.runUnweightedRMSNorm(ctx, activation)
 		if err != nil {
 			return reference.Value{}, nil, err

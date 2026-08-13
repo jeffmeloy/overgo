@@ -457,19 +457,20 @@ func auxiliaryFlow(s Spec, profile ArchitectureProfile, layer uint32) (Auxiliary
 
 // ModelPlan: immutable model and per-layer execution contract.
 type ModelPlan struct {
-	spec         Spec
-	profile      ArchitectureProfile
-	layers       []LayerPlan
-	draftLayers  []LayerPlan
-	cacheSchemas []LayerCacheSchema
-	cacheLayers  uint32
-	cachedGraph  CachedGraphPolicy
-	terminal     TerminalPlan
-	draft        DraftPlan
-	cacheProject CacheProjectionProgram
-	projections  [projectionRoleCount]ProjectionProgram
-	sequenceOut  SequenceOutputProgram
-	forward      ForwardProgram
+	spec          Spec
+	profile       ArchitectureProfile
+	layers        []LayerPlan
+	draftLayers   []LayerPlan
+	cacheSchemas  []LayerCacheSchema
+	cacheLayers   uint32
+	cachedGraph   CachedGraphPolicy
+	normalization NormalizationPlan
+	terminal      TerminalPlan
+	draft         DraftPlan
+	cacheProject  CacheProjectionProgram
+	projections   [projectionRoleCount]ProjectionProgram
+	sequenceOut   SequenceOutputProgram
+	forward       ForwardProgram
 }
 
 // CompileModelPlan: resolves architecture decisions before execution.
@@ -502,12 +503,13 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	}
 	plan := ModelPlan{
 		spec: spec, profile: profile, layers: make([]LayerPlan, layers), cacheLayers: cacheLayers,
-		terminal:     TerminalPlan{Normalization: profile.OutputNorm},
-		draft:        profile.DraftPlan(spec.NextNPredictLayers),
-		cacheProject: compileCacheProjectionProgram(spec, profile),
-		projections:  compileProjectionPrograms(spec, profile),
-		sequenceOut:  compileSequenceOutputProgram(spec, profile),
-		forward:      resolveForwardProgram(profile.Forward, spec.NonCausalAttention),
+		normalization: spec.NormPlan(),
+		terminal:      TerminalPlan{Normalization: profile.OutputNorm},
+		draft:         profile.DraftPlan(spec.NextNPredictLayers),
+		cacheProject:  compileCacheProjectionProgram(spec, profile),
+		projections:   compileProjectionPrograms(spec, profile),
+		sequenceOut:   compileSequenceOutputProgram(spec, profile),
+		forward:       resolveForwardProgram(profile.Forward, spec.NonCausalAttention),
 	}
 	if weights.Output != nil {
 		plan.terminal.OutputHead = OutputHeadDedicated
@@ -545,7 +547,13 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	return plan, nil
 }
 
+// Normalization returns the immutable model normalization contract.
+func (p ModelPlan) Normalization() NormalizationPlan { return p.normalization }
+
 func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
+	if plan.normalization != spec.NormPlan() {
+		return fmt.Errorf("model plan architecture %s has invalid normalization", spec.Architecture)
+	}
 	if !plan.forward.valid() || plan.forward != resolveForwardProgram(plan.profile.Forward, spec.NonCausalAttention) {
 		return fmt.Errorf("model plan architecture %s has invalid forward program", spec.Architecture)
 	}
@@ -590,7 +598,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		return fmt.Errorf("model plan architecture %s has invalid shared-KV layer count %d", spec.Architecture, spec.SharedKVLayers)
 	}
 	producedAuxiliary := make(map[AuxiliaryFlow]bool)
-	norm := spec.NormPlan()
+	norm := plan.normalization
 	for index, layer := range plan.layers {
 		if layer.Layer != uint32(index) {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)

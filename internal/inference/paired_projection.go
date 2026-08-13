@@ -121,7 +121,7 @@ func (r *Runner) AdvancePairedProjection(
 		if layerErr != nil {
 			return reference.Value{}, nil, layerErr
 		}
-		shared := cacheInputs[r.spec.IsSlidingLayer(uint32(layerIndex))]
+		shared := cacheInputs[plan.Sliding]
 		block, err := program.Build(model.CachedBlockContext{
 			Builder: runtime.builder, Input: current, Positions: []uint32{session.Position},
 			PastKey: shared[0], PastValue: shared[1], Layer: plan.Layer,
@@ -164,12 +164,13 @@ func (r *Runner) AdvancePairedProjection(
 }
 
 func (r *Runner) validatePairedProjectionTarget(target *Runner) error {
+	penultimate, penultimateErr := target.program.Model.Layer(int(target.spec.BlockCount) - 2)
+	last, lastErr := target.program.Model.Layer(int(target.spec.BlockCount) - 1)
 	if r.forwardProgram().Session != model.ForwardSessionPairedProjection ||
 		target.forwardProgram().Operation != model.ForwardOperationCached ||
 		target.spec.EmbeddingLength != r.spec.TargetHiddenSize ||
 		target.spec.VocabularySize != r.spec.VocabularySize || target.spec.BlockCount < 2 ||
-		!target.spec.IsSlidingLayer(target.spec.BlockCount-2) ||
-		target.spec.IsSlidingLayer(target.spec.BlockCount-1) {
+		penultimateErr != nil || lastErr != nil || !penultimate.Sliding || last.Sliding {
 		return errors.New("inference: paired projection target model is incompatible")
 	}
 	return nil

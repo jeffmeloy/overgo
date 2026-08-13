@@ -47,10 +47,10 @@ func buildBidirectionalEncoderAttentionMix(
 	query, key, value := runtime.projectAttention(input)
 	if encoder.usesALiBiQKNorm() {
 		if weights.AttentionQNorm != nil {
-			query = ApplyNormalization(builder, query, weights.AttentionQNorm, weights.AttentionQNormBias, spec)
+			query = plan.Normalization.Apply(builder, query, weights.AttentionQNorm, weights.AttentionQNormBias)
 		}
 		if weights.AttentionKNorm != nil {
-			key = ApplyNormalization(builder, key, weights.AttentionKNorm, weights.AttentionKNormBias, spec)
+			key = plan.Normalization.Apply(builder, key, weights.AttentionKNorm, weights.AttentionKNormBias)
 		}
 	}
 	query = builder.Reshape(query, uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
@@ -164,8 +164,9 @@ func buildBidirectionalFusedQKVMix(
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
-	layerIndex uint32,
+	plan LayerPlan,
 ) (DenseBlockResult, error) {
+	layerIndex := plan.Layer
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("fused-QKV sliding attention input shape is incompatible")
 	}
@@ -188,7 +189,7 @@ func buildBidirectionalFusedQKVMix(
 	tokens := uint64(len(positions))
 	normalized := input
 	if weights.AttentionNorm != nil {
-		normalized = ApplyNormalization(builder, input, weights.AttentionNorm, nil, spec)
+		normalized = plan.Normalization.Apply(builder, input, weights.AttentionNorm, nil)
 	}
 	mixed := builder.MulMat(weights.AttentionQKV, normalized)
 	if weights.AttentionQKVBias != nil {
@@ -202,7 +203,7 @@ func buildBidirectionalFusedQKVMix(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
 	frequencyBase := spec.RopeFrequencyBase
-	if spec.IsSlidingLayer(layerIndex) {
+	if plan.Sliding {
 		frequencyBase = spec.RopeFrequencySWA
 	}
 	frequencyScale := float32(1)
@@ -216,7 +217,7 @@ func buildBidirectionalFusedQKVMix(
 	})
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	attentionOptions := tensor.AttentionOptions{Scale: attentionScale}
-	if spec.IsSlidingLayer(layerIndex) {
+	if plan.Sliding {
 		attentionOptions.SymmetricWindow = true
 		attentionOptions.Window = spec.SlidingWindow
 	}
@@ -236,8 +237,9 @@ func buildBidirectionalQKNormMix(
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
-	layerIndex uint32,
+	plan LayerPlan,
 ) (DenseBlockResult, error) {
+	layerIndex := plan.Layer
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("bidirectional Q/K-normalized attention input shape is incompatible")
 	}
@@ -283,7 +285,7 @@ func buildBidirectionalQKNormMix(
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	frequencyBase := spec.RopeFrequencyBase
-	if spec.IsSlidingLayer(layerIndex) {
+	if plan.Sliding {
 		frequencyBase = spec.RopeFrequencySWA
 	}
 	frequencyScale := float32(1)
@@ -297,7 +299,7 @@ func buildBidirectionalQKNormMix(
 	})
 	query = builder.Scale(query, float32(1/math.Sqrt(float64(spec.KeyLength))))
 	attentionOptions := tensor.AttentionOptions{Scale: 1}
-	if spec.IsSlidingLayer(layerIndex) {
+	if plan.Sliding {
 		attentionOptions.SymmetricWindow = true
 		attentionOptions.Window = spec.SlidingWindow
 	}

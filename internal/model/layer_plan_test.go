@@ -226,6 +226,11 @@ func TestCompileModelPlanWithProfilePinsResolvedPolicy(t *testing.T) {
 	if plan.Profile().Attention != AttentionShortConvolution || plan.layers[0].Attention != AttentionShortConvolution {
 		t.Fatalf("resolved profile was not pinned: %+v", plan)
 	}
+	wantNormalization := plan.Normalization()
+	profile.Normalization = NormalizationLayer
+	if plan.Normalization() != wantNormalization {
+		t.Fatal("compiled normalization followed mutable profile state")
+	}
 
 	profile.Name = "qwen"
 	if _, err := CompileModelPlanWithProfile(

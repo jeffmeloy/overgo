@@ -217,6 +217,7 @@ type NormalizationPlan struct {
 	PostFeedForward   bool
 	Bias              bool
 	RMSBias           bool
+	Epsilon           float32
 	PostNormLayout    PostNormLayoutPolicy
 	FeedForwardLayout FeedForwardNormLayoutPolicy
 }

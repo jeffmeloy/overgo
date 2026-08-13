@@ -27,6 +27,14 @@ type Gemma4VisionTowerTrace struct {
 type Gemma4VisionTowerInput struct {
 	PixelValues []float32
 	Positions   []int32
+	GridH       int
+	GridW       int
+}
+
+type Gemma4VisionTowerVideoOutput struct {
+	Embeddings     reference.Value
+	Frames         int
+	TokensPerFrame int
 }
 
 func PreprocessGemma4VisionTowerImage(source image.Image, spec Gemma4VisionTowerSpec) (Gemma4VisionTowerInput, error) {
@@ -38,11 +46,16 @@ func PreprocessGemma4VisionTowerImage(source image.Image, spec Gemma4VisionTower
 	}
 	bounds := source.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
-	if width <= 0 || height <= 0 || width%spec.PatchSize != 0 || height%spec.PatchSize != 0 {
-		return Gemma4VisionTowerInput{}, fmt.Errorf(
-			"projector: Gemma 4 vision image=%dx%d is not patch-aligned to %d", width, height, spec.PatchSize)
+	resizedH, resizedW, err := gemma4TowerResizeTarget(height, width, spec)
+	if err != nil {
+		return Gemma4VisionTowerInput{}, err
 	}
-	gridW, gridH := width/spec.PatchSize, height/spec.PatchSize
+	resized := source
+	if resizedH != height || resizedW != width {
+		resized = resizeImageBicubic(source, resizedW, resizedH)
+	}
+	resizedBounds := resized.Bounds()
+	gridW, gridH := resizedW/spec.PatchSize, resizedH/spec.PatchSize
 	rows := gridW * gridH
 	if rows%(spec.PoolKernel*spec.PoolKernel) != 0 || rows/(spec.PoolKernel*spec.PoolKernel) > spec.MaxImageTokens {
 		return Gemma4VisionTowerInput{}, fmt.Errorf("projector: Gemma 4 vision image=%dx%d exceeds token contract", width, height)
@@ -51,13 +64,15 @@ func PreprocessGemma4VisionTowerImage(source image.Image, spec Gemma4VisionTower
 	result := Gemma4VisionTowerInput{
 		PixelValues: make([]float32, rows*patchWidth),
 		Positions:   make([]int32, rows*2),
+		GridH:       gridH,
+		GridW:       gridW,
 	}
 	for patchY := range gridH {
 		for patchX := range gridW {
 			row := patchY*gridW + patchX
 			for y := range spec.PatchSize {
 				for x := range spec.PatchSize {
-					r, g, b, _ := source.At(bounds.Min.X+patchX*spec.PatchSize+x, bounds.Min.Y+patchY*spec.PatchSize+y).RGBA()
+					r, g, b, _ := resized.At(resizedBounds.Min.X+patchX*spec.PatchSize+x, resizedBounds.Min.Y+patchY*spec.PatchSize+y).RGBA()
 					offset := row*patchWidth + (y*spec.PatchSize+x)*3
 					result.PixelValues[offset] = normalizedImageChannel(r)
 					result.PixelValues[offset+1] = normalizedImageChannel(g)
@@ -69,6 +84,33 @@ func PreprocessGemma4VisionTowerImage(source image.Image, spec Gemma4VisionTower
 		}
 	}
 	return result, nil
+}
+
+func gemma4TowerResizeTarget(height, width int, spec Gemma4VisionTowerSpec) (int, int, error) {
+	if height <= 0 || width <= 0 || spec.PatchSize <= 0 || spec.PoolKernel <= 0 || spec.MaxImageTokens <= 0 {
+		return 0, 0, fmt.Errorf("projector: invalid Gemma 4 tower image geometry %dx%d", width, height)
+	}
+	alignment := spec.PatchSize * spec.PoolKernel
+	maxPatches := spec.MaxImageTokens * spec.PoolKernel * spec.PoolKernel
+	targetPixels := float64(maxPatches * spec.PatchSize * spec.PatchSize)
+	factor := math.Sqrt(targetPixels / float64(height*width))
+	resizedH := int(math.Floor(factor*float64(height)/float64(alignment))) * alignment
+	resizedW := int(math.Floor(factor*float64(width)/float64(alignment))) * alignment
+	if resizedH == 0 && resizedW == 0 {
+		return 0, 0, fmt.Errorf("projector: Gemma 4 tower image %dx%d rounds to zero", width, height)
+	}
+	maxSide := spec.MaxImageTokens * alignment
+	if resizedH == 0 {
+		resizedH = alignment
+		resizedW = min(width/height*alignment, maxSide)
+	} else if resizedW == 0 {
+		resizedW = alignment
+		resizedH = min(height/width*alignment, maxSide)
+	}
+	if resizedH*resizedW > maxPatches*spec.PatchSize*spec.PatchSize {
+		return 0, 0, errors.New("projector: Gemma 4 tower resize exceeds patch budget")
+	}
+	return resizedH, resizedW, nil
 }
 
 func (r *Gemma4TowerRunner) EncodeVisionImage(
@@ -83,6 +125,45 @@ func (r *Gemma4TowerRunner) EncodeVisionImage(
 		return Gemma4VisionTowerOutput{}, err
 	}
 	return r.EncodeVisionPatches(ctx, input.PixelValues, input.Positions)
+}
+
+func (r *Gemma4TowerRunner) EncodeVisionFrames(
+	ctx context.Context,
+	frames []image.Image,
+) (Gemma4VisionTowerVideoOutput, error) {
+	if r == nil || r.file == nil {
+		return Gemma4VisionTowerVideoOutput{}, errors.New("projector: runner is closed")
+	}
+	if len(frames) == 0 {
+		return Gemma4VisionTowerVideoOutput{}, errors.New("projector: video has no frames")
+	}
+	videoSpec := r.spec.Vision
+	videoSpec.MaxImageTokens = videoSpec.MaxVideoTokens
+	var combined []float32
+	tokensPerFrame := 0
+	for index, frame := range frames {
+		input, err := PreprocessGemma4VisionTowerImage(frame, videoSpec)
+		if err != nil {
+			return Gemma4VisionTowerVideoOutput{}, fmt.Errorf("projector: preprocess Gemma 4 video frame %d: %w", index, err)
+		}
+		output, err := r.EncodeVisionPatches(ctx, input.PixelValues, input.Positions)
+		if err != nil {
+			return Gemma4VisionTowerVideoOutput{}, fmt.Errorf("projector: encode Gemma 4 video frame %d: %w", index, err)
+		}
+		if index == 0 {
+			tokensPerFrame = output.SoftTokens
+		} else if output.SoftTokens != tokensPerFrame {
+			return Gemma4VisionTowerVideoOutput{}, errors.New("projector: Gemma 4 video frames produce inconsistent token counts")
+		}
+		combined = append(combined, output.Embeddings.Data...)
+	}
+	value, err := reference.NewValue(
+		tensor.MustShape(uint64(r.spec.Vision.ProjectionDim), uint64(tokensPerFrame*len(frames))), combined,
+	)
+	if err != nil {
+		return Gemma4VisionTowerVideoOutput{}, err
+	}
+	return Gemma4VisionTowerVideoOutput{Embeddings: value, Frames: len(frames), TokensPerFrame: tokensPerFrame}, nil
 }
 
 func (r *Gemma4TowerRunner) EncodeVisionPatches(

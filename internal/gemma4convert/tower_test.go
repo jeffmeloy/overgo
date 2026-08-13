@@ -60,7 +60,7 @@ func towerTestConfig() (modelConfig, processorConfig) {
 	vision := &config.Vision
 	vision.HiddenSize, vision.HiddenLayers, vision.AttentionHeads = 8, 2, 2
 	vision.KVHeads, vision.HeadDim, vision.IntermediateSize = 2, 4, 12
-	vision.PatchSize, vision.PoolingSize, vision.PositionEmbedding = 2, 3, 5
+	vision.PatchSize, vision.PoolingSize, vision.PositionEmbedding = 2, 3, 8
 	vision.RMSEpsilon, vision.Rope.Theta, vision.HiddenAct = 1e-6, 100, "gelu_pytorch_tanh"
 	audio := &config.Audio
 	audio.HiddenSize, audio.HiddenLayers, audio.AttentionHeads = 8, 2, 2
@@ -221,13 +221,22 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if output.PatchCount != 9 || output.SoftTokens != 1 ||
-		output.Embeddings.Shape.Dims[0] != uint64(config.Text.HiddenSize) || len(output.Embeddings.Data) != int(config.Text.HiddenSize) {
+	if output.PatchCount != 36 || output.SoftTokens != 4 ||
+		output.Embeddings.Shape.Dims[0] != uint64(config.Text.HiddenSize) || len(output.Embeddings.Data) != 4*int(config.Text.HiddenSize) {
 		t.Fatalf("tower vision output = %+v", output)
 	}
 	for index, value := range output.Embeddings.Data {
 		if value != 0 {
 			t.Fatalf("tower vision output[%d] = %v, want zero", index, value)
 		}
+	}
+	video, err := runner.EncodeVisionFrames(context.Background(), []image.Image{
+		image.NewRGBA(image.Rect(0, 0, 6, 6)), image.NewRGBA(image.Rect(0, 0, 6, 6)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if video.Frames != 2 || video.TokensPerFrame != 1 || len(video.Embeddings.Data) != 2*int(config.Text.HiddenSize) {
+		t.Fatalf("tower video output = %+v", video)
 	}
 }

@@ -28,6 +28,38 @@ type generationStackBranch struct {
 	hidden   []float32
 }
 
+type branchLayerLoad struct {
+	layer   int
+	weights BranchLayerWeights
+	err     error
+}
+
+func streamBranchLayers(
+	ctx context.Context,
+	source *safetensors.Source,
+	cfg Config,
+	binding BranchBinding,
+	branch int,
+) <-chan branchLayerLoad {
+	loads := make(chan branchLayerLoad, 1)
+	go func() {
+		defer close(loads)
+		for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
+			weights, err := LoadBranchLayerWeights(source, cfg, binding, layer, branch)
+			result := branchLayerLoad{layer: layer, weights: weights, err: err}
+			select {
+			case loads <- result:
+			case <-ctx.Done():
+				return
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+	return loads
+}
+
 // RunDeviceGenerationStack streams one routed image branch per checkpoint
 // layer, sharing each weight upload across all guidance branches.
 func RunDeviceGenerationStack(
@@ -86,12 +118,14 @@ func RunDeviceGenerationStackObserved(
 	}
 	uploader := branchDeviceUploader{worker: worker, ctx: ctx}
 	defer uploader.free()
-	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-		weights, err := LoadBranchLayerWeights(source, cfg, binding, layer, 1)
-		if err != nil {
-			return nil, stats, err
+	streamCtx, cancelStream := context.WithCancel(ctx)
+	defer cancelStream()
+	for load := range streamBranchLayers(streamCtx, source, cfg, binding, 1) {
+		if load.err != nil {
+			return nil, stats, load.err
 		}
-		shared, err := uploader.uploadBranchWeights(weights)
+		layer := load.layer
+		shared, err := uploader.uploadBranchWeights(load.weights)
 		if err != nil {
 			return nil, stats, err
 		}

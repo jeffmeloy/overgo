@@ -68,6 +68,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Metadata.Heads", profile.Metadata.Heads, metadataHybridLayers),
 		validateProfileOrdinal("Metadata.KVHeads", profile.Metadata.KVHeads, metadataHybridLayers),
 		validateProfileOrdinal("Validation.BaseRotary", profile.Validation.BaseRotary, BaseRotaryValidationHalfWidth),
+		validateProfileOrdinal("Validation.ExpertMetadata", profile.Validation.ExpertMetadata, ExpertMetadataWhenDeclared),
 		validateProfileOrdinal("Validation.Encoder", profile.Validation.Encoder, EncoderValidationNomicBERTMoE),
 		validateProfileOrdinal("Validation.Attention", profile.Validation.Attention, AttentionValidationRefact),
 		validateProfileOrdinal("Validation.MLA", profile.Validation.MLA, MLAValidationMiniCPM3),

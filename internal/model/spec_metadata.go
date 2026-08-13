@@ -123,7 +123,7 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 		}
 	}
 	state := specReadState{}
-	if m.profile.Validation.ProbeExpertCount {
+	if m.profile.Validation.ExpertMetadata == ExpertMetadataWhenDeclared {
 		count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
 		state.declaredExperts = ok && count > 0
 	}

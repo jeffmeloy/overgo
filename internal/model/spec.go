@@ -259,15 +259,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			ropeEnabled = value
 		}
 		spec.RopeDisabled = !ropeEnabled
-		if validation.Hybrid == HybridValidationGranite {
-			if expertCount, ok := optional[uint32](
-				values,
-				prefix+"expert_count",
-				gguf.ValueTypeUint32,
-			); ok {
-				spec.ExpertCount = expertCount
-			}
-		}
 		if mapping, ok, mappingErr := optionalArray[int32](
 			values,
 			prefix+"deepstack_mapping",
@@ -1037,7 +1028,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 	values, prefix, profile := m.values, m.prefix, m.profile
 	validation := profile.Validation
 	var err error
-	if state.declaredExperts || validation.requiresExpertMetadata(spec.ExpertCount > 0) {
+	if validation.ExpertMetadata == ExpertMetadataRequired || state.declaredExperts {
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
 			metadataDestination("expert_count", &spec.ExpertCount),

@@ -32,5 +32,9 @@
     "unconditional_boundary": 0.949583408,
     "guided_velocity": 0.218418721,
     "next_z": 0.863618878
+  },
+  "performance": {
+    "adaptive_matched_wall_seconds": 6.88,
+    "overgo_reusable_body_max_seconds": 6.88
   }
 }

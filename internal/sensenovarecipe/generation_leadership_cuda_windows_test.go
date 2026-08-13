@@ -65,6 +65,10 @@ type generationAdaptiveOracle struct {
 		NextZ                 []float32 `json:"next_z"`
 	} `json:"step0"`
 	AdaptiveUpstreamCosine map[string]float64 `json:"adaptive_upstream_cosine"`
+	Performance            struct {
+		AdaptiveMatchedWallSeconds   float64 `json:"adaptive_matched_wall_seconds"`
+		OvergoReusableBodyMaxSeconds float64 `json:"overgo_reusable_body_max_seconds"`
+	} `json:"performance"`
 }
 
 func TestSenseNovaGenerationLeadership(t *testing.T) {
@@ -204,6 +208,9 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if stats.Wall.Seconds() > adaptive.Performance.OvergoReusableBodyMaxSeconds {
+			t.Fatalf("SenseNova reusable body wall=%.3fs exceeds adaptive %.3fs", stats.Wall.Seconds(), adaptive.Performance.AdaptiveMatchedWallSeconds)
 		}
 		final := make([][]float32, len(branches))
 		for index := range branches {

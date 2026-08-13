@@ -142,13 +142,21 @@ func RunDeviceGenerationStackObserved(
 				return nil, stats, err
 			}
 			feeds[branch.graph.PrefixKey], feeds[branch.graph.PrefixValue] = key, value
-			result, err := cuda.ExecuteCompiledWithDeviceFeeds(ctx, branch.compiled, map[*tensor.Tensor]reference.Value{
+			retained, err := cuda.ExecuteRetainedCompiledWithDeviceFeeds(ctx, branch.compiled, map[*tensor.Tensor]reference.Value{
 				branch.graph.Row: {Shape: branch.graph.Row.Shape, Data: branch.hidden},
 			}, feeds)
 			if err != nil {
 				return nil, stats, fmt.Errorf("routed lm generation stack: branch=%d layer=%d: %w", index, layer, err)
 			}
-			branch.hidden = result[branch.graph.Output].Data
+			outputValue, err := retained.CopyToHost(ctx, branch.graph.Output)
+			if err != nil {
+				_ = retained.Release(ctx)
+				return nil, stats, fmt.Errorf("routed lm generation stack: branch=%d layer=%d copy: %w", index, layer, err)
+			}
+			if err := retained.Release(ctx); err != nil {
+				return nil, stats, err
+			}
+			branch.hidden = outputValue.Data
 			if observe != nil {
 				observe(index, layer, branch.hidden)
 			}
@@ -202,9 +210,9 @@ func (u *branchDeviceUploader) uploadF32(values []float32) (driver.DevicePtr, er
 func (u *branchDeviceUploader) uploadBranchWeights(w BranchLayerWeights) (branchDeviceWeights, error) {
 	var out branchDeviceWeights
 	raw := [][]byte{
-		driver.Bytes(w.InputNorm), driver.Bytes(w.Q.Data), driver.Bytes(w.K.Data), driver.Bytes(w.V.Data),
-		driver.Bytes(w.O.Data), driver.Bytes(w.QNorm), driver.Bytes(w.KNorm), driver.Bytes(w.PostNorm),
-		driver.Bytes(w.Gate.Data), driver.Bytes(w.Up.Data), driver.Bytes(w.Down.Data),
+		driver.Bytes(w.InputNorm), bf16MatrixBytes(w.Q), bf16MatrixBytes(w.K), bf16MatrixBytes(w.V),
+		bf16MatrixBytes(w.O), driver.Bytes(w.QNorm), driver.Bytes(w.KNorm), driver.Bytes(w.PostNorm),
+		bf16MatrixBytes(w.Gate), bf16MatrixBytes(w.Up), bf16MatrixBytes(w.Down),
 	}
 	for index := range raw {
 		pointer, err := u.upload(raw[index])
@@ -215,6 +223,13 @@ func (u *branchDeviceUploader) uploadBranchWeights(w BranchLayerWeights) (branch
 		out.count++
 	}
 	return out, nil
+}
+
+func bf16MatrixBytes(matrix BF16Matrix) []byte {
+	if len(matrix.Raw) != 0 {
+		return matrix.Raw
+	}
+	return driver.Bytes(matrix.Data)
 }
 
 func bindBranchWeights(nodes DevicePrefillBranch, weights branchDeviceWeights) map[*tensor.Tensor]driver.DevicePtr {

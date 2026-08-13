@@ -92,14 +92,32 @@ func RunDevicePrefixStacks(
 		}
 		for branchIndex := range branches {
 			branch := &branches[branchIndex]
-			result, err := cuda.ExecuteCompiledWithDeviceFeeds(ctx, branch.compiled, map[*tensor.Tensor]reference.Value{
+			retained, err := cuda.ExecuteRetainedCompiledWithDeviceFeeds(ctx, branch.compiled, map[*tensor.Tensor]reference.Value{
 				branch.graph.Row: {Shape: branch.graph.Row.Shape, Data: branch.hidden},
 			}, bindBranchWeights(branch.graph.Weights, shared))
 			if err != nil {
 				return nil, stats, fmt.Errorf("routed lm prefix stacks: branch=%d layer=%d: %w", branchIndex, layer, err)
 			}
-			branch.hidden = result[branch.graph.Output].Data
-			key, value := result[branch.graph.KeyKV].Data, result[branch.graph.ValueKV].Data
+			hiddenValue, err := retained.CopyToHost(ctx, branch.graph.Output)
+			if err != nil {
+				_ = retained.Release(ctx)
+				return nil, stats, err
+			}
+			keyValue, err := retained.CopyToHost(ctx, branch.graph.KeyKV)
+			if err != nil {
+				_ = retained.Release(ctx)
+				return nil, stats, err
+			}
+			valueValue, err := retained.CopyToHost(ctx, branch.graph.ValueKV)
+			if err != nil {
+				_ = retained.Release(ctx)
+				return nil, stats, err
+			}
+			if err := retained.Release(ctx); err != nil {
+				return nil, stats, err
+			}
+			branch.hidden = hiddenValue.Data
+			key, value := keyValue.Data, valueValue.Data
 			if err := branch.state.SetLayer(layer, key, value); err != nil {
 				return nil, stats, err
 			}

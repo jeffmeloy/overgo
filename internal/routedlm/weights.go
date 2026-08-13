@@ -58,7 +58,7 @@ func LoadBranchLayerWeights(src *safetensors.Source, cfg Config, b BranchBinding
 	var err error
 	mat := func(dst *BF16Matrix, suffix string, in, out int) {
 		if err == nil {
-			*dst, err = materializeBF16(src, b.LayerTensorName(layer, branch, suffix), in, out)
+			*dst, err = materializeBF16Raw(src, b.LayerTensorName(layer, branch, suffix), in, out)
 		}
 	}
 	vec := func(dst *[]float32, suffix string, dim int) {
@@ -94,25 +94,41 @@ func LoadBranchLayerWeights(src *safetensors.Source, cfg Config, b BranchBinding
 }
 
 func materializeBF16(src *safetensors.Source, name string, in, out int) (BF16Matrix, error) {
-	t, ok := src.Tensors[name]
-	if !ok {
-		return BF16Matrix{}, fmt.Errorf("routed lm: missing tensor %s", name)
-	}
-	if t.DType != "BF16" {
-		return BF16Matrix{}, fmt.Errorf("routed lm: tensor %s dtype %s, want BF16", name, t.DType)
-	}
-	if int(t.Elements()) != in*out {
-		return BF16Matrix{}, fmt.Errorf("routed lm: tensor %s elements %d != %dx%d (shape %v)", name, t.Elements(), out, in, t.Shape)
-	}
-	raw := make([]byte, in*out*2)
-	if _, err := t.ReadAt(raw, 0); err != nil {
-		return BF16Matrix{}, fmt.Errorf("routed lm: %s read: %w", name, err)
+	raw, err := readBF16Raw(src, name, in, out)
+	if err != nil {
+		return BF16Matrix{}, err
 	}
 	data := make([]uint16, in*out)
 	for i := range data {
 		data[i] = binary.LittleEndian.Uint16(raw[i*2:])
 	}
 	return BF16Matrix{Data: data, In: in, Out: out}, nil
+}
+
+func materializeBF16Raw(src *safetensors.Source, name string, in, out int) (BF16Matrix, error) {
+	raw, err := readBF16Raw(src, name, in, out)
+	if err != nil {
+		return BF16Matrix{}, err
+	}
+	return BF16Matrix{Raw: raw, In: in, Out: out}, nil
+}
+
+func readBF16Raw(src *safetensors.Source, name string, in, out int) ([]byte, error) {
+	t, ok := src.Tensors[name]
+	if !ok {
+		return nil, fmt.Errorf("routed lm: missing tensor %s", name)
+	}
+	if t.DType != "BF16" {
+		return nil, fmt.Errorf("routed lm: tensor %s dtype %s, want BF16", name, t.DType)
+	}
+	if int(t.Elements()) != in*out {
+		return nil, fmt.Errorf("routed lm: tensor %s elements %d != %dx%d (shape %v)", name, t.Elements(), out, in, t.Shape)
+	}
+	raw := make([]byte, in*out*2)
+	if _, err := t.ReadAt(raw, 0); err != nil {
+		return nil, fmt.Errorf("routed lm: %s read: %w", name, err)
+	}
+	return raw, nil
 }
 
 func materializeVectorF32(src *safetensors.Source, name string, dim int) ([]float32, error) {

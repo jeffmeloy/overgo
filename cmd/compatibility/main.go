@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/model"
 )
@@ -47,16 +48,35 @@ type goRuntime struct {
 }
 
 type claim struct {
-	ID       string     `json:"id"`
-	Status   string     `json:"status"`
-	Summary  string     `json:"summary"`
-	Evidence []evidence `json:"evidence"`
+	ID       string       `json:"id"`
+	Status   string       `json:"status"`
+	Tier     evidenceTier `json:"tier"`
+	Summary  string       `json:"summary"`
+	Evidence []evidence   `json:"evidence"`
 }
 
 type evidence struct {
-	Path     string `json:"path"`
-	Contains string `json:"contains"`
+	Path     string       `json:"path"`
+	Contains string       `json:"contains"`
+	Role     evidenceRole `json:"role"`
+	Identity string       `json:"identity"`
 }
+
+type evidenceTier string
+
+const (
+	tierImplementation evidenceTier = "implementation"
+	tierFixture        evidenceTier = "fixture"
+	tierOracle         evidenceTier = "oracle"
+	tierProduction     evidenceTier = "production"
+)
+
+type evidenceRole string
+
+const (
+	roleSource   evidenceRole = "source"
+	roleArtifact evidenceRole = "artifact"
+)
 
 type modelClaim struct {
 	Status                     string   `json:"status"`
@@ -107,16 +127,20 @@ func generate(root string) ([]byte, error) {
 		document.Upstream.Repository, document.Upstream.Commit, document.Host.OS,
 		document.Host.Arch, document.Go.Minimum, document.Go.CGO)
 	output.WriteString("## Verified feature claims\n\n")
-	output.WriteString("| ID | State | Claim | Evidence |\n| --- | --- | --- | --- |\n")
+	output.WriteString("State describes implementation completeness; tier describes evidence strength. `implemented` does not imply `oracle`.\n\n")
+	output.WriteString("| ID | State | Tier | Claim | Evidence |\n| --- | --- | --- | --- | --- |\n")
 	claims := append([]claim(nil), document.Claims...)
 	sort.Slice(claims, func(i, j int) bool { return claims[i].ID < claims[j].ID })
 	for _, item := range claims {
-		links := make([]string, len(item.Evidence))
-		for index, proof := range item.Evidence {
-			links[index] = fmt.Sprintf("[`%s`](../%s)", proof.Contains, filepath.ToSlash(proof.Path))
+		links := make([]string, 0, len(item.Evidence)+1)
+		for _, proof := range item.Evidence {
+			links = append(links, fmt.Sprintf("%s: [`%s`](../%s) `%s`", proof.Role, proof.Contains, filepath.ToSlash(proof.Path), proof.Identity))
+			if command, ok := evidenceCommand(proof); ok {
+				links = append(links, "verify: `"+command+"`")
+			}
 		}
-		fmt.Fprintf(&output, "| `%s` | %s | %s | %s |\n",
-			item.ID, item.Status, escapeCell(item.Summary), strings.Join(links, "<br>"))
+		fmt.Fprintf(&output, "| `%s` | %s | %s | %s | %s |\n",
+			item.ID, item.Status, item.Tier, escapeCell(item.Summary), strings.Join(links, "<br>"))
 	}
 	output.WriteString("\n## Model families\n\n")
 	output.WriteString("`experimental` means the implementation is guarded by strict metadata/catalog validation but may still lack a local real-model oracle.\n\n")
@@ -163,7 +187,7 @@ func loadManifest(root string) (manifest, error) {
 }
 
 func validateManifest(root string, document manifest) error {
-	if document.Schema != 1 || document.Upstream.Repository == "" || len(document.Upstream.Commit) != 40 ||
+	if document.Schema != 2 || document.Upstream.Repository == "" || len(document.Upstream.Commit) != 40 ||
 		document.Host.OS == "" || document.Host.Arch == "" || document.Go.Minimum == "" {
 		return errors.New("compatibility manifest: baseline is incomplete")
 	}
@@ -172,22 +196,23 @@ func validateManifest(root string, document manifest) error {
 	}
 	seen := make(map[string]struct{}, len(document.Claims))
 	for index, item := range document.Claims {
-		if item.ID == "" || item.Summary == "" || (item.Status != "implemented" && item.Status != "partial" && item.Status != "blocked") {
+		if item.ID == "" || item.Summary == "" || !item.Tier.valid() || (item.Status != "implemented" && item.Status != "partial" && item.Status != "blocked") {
 			return fmt.Errorf("compatibility manifest: claim %d is incomplete", index)
 		}
 		if _, exists := seen[item.ID]; exists {
 			return fmt.Errorf("compatibility manifest: duplicate claim %q", item.ID)
 		}
 		seen[item.ID] = struct{}{}
-		hasTest := false
+		hasSource, hasArtifact := false, false
 		for _, proof := range item.Evidence {
 			if err := validateEvidence(root, item.ID, proof); err != nil {
 				return err
 			}
-			hasTest = hasTest || strings.HasSuffix(proof.Path, "_test.go")
+			hasSource = hasSource || proof.Role == roleSource
+			hasArtifact = hasArtifact || proof.Role == roleArtifact
 		}
-		if len(item.Evidence) == 0 || item.Status == "implemented" && !hasTest {
-			return fmt.Errorf("compatibility manifest: claim %q lacks test evidence", item.ID)
+		if !hasSource || !hasArtifact {
+			return fmt.Errorf("compatibility manifest: claim %q requires source and artifact identities", item.ID)
 		}
 	}
 	for name, item := range document.Models {
@@ -262,7 +287,45 @@ func validateEvidence(root, claimID string, proof evidence) error {
 	if !bytes.Contains(data, []byte(proof.Contains)) {
 		return fmt.Errorf("compatibility manifest: claim %q evidence %q lacks %q", claimID, proof.Path, proof.Contains)
 	}
+	kind := artifact.KindFile
+	switch proof.Role {
+	case roleSource:
+	case roleArtifact:
+		kind = artifact.KindEvidence
+		if _, ok := evidenceCommand(proof); !ok {
+			return fmt.Errorf("compatibility manifest: claim %q artifact %q lacks an exact failable Go test command", claimID, proof.Path)
+		}
+	default:
+		return fmt.Errorf("compatibility manifest: claim %q evidence %q has invalid role %q", claimID, proof.Path, proof.Role)
+	}
+	want, err := artifact.IdentifyBytes(kind, data)
+	if err != nil {
+		return err
+	}
+	if proof.Identity != want.String() {
+		return fmt.Errorf("compatibility manifest: claim %q evidence %q is stale: have %q want %q", claimID, proof.Path, proof.Identity, want)
+	}
 	return nil
+}
+
+func (tier evidenceTier) valid() bool {
+	return tier == tierImplementation || tier == tierFixture || tier == tierOracle || tier == tierProduction
+}
+
+func evidenceCommand(proof evidence) (string, bool) {
+	if proof.Role != roleArtifact || !strings.HasSuffix(proof.Path, "_test.go") {
+		return "", false
+	}
+	name, ok := strings.CutPrefix(proof.Contains, "func Test")
+	if !ok {
+		return "", false
+	}
+	name, _, ok = strings.Cut(name, "(")
+	if !ok || name == "" || strings.ContainsAny(name, " \\/") {
+		return "", false
+	}
+	directory := filepath.ToSlash(filepath.Dir(proof.Path))
+	return fmt.Sprintf("go test ./%s -run '^Test%s$' -count=1 -v", directory, name), true
 }
 
 func scalarText(value any) string {

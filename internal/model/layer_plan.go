@@ -374,7 +374,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		ExpertComposition: s.expertCompositionPlan(),
 		DenseWeights:      s.denseWeightPlan(profile, layer),
 		SplitProjection:   profile.LayerTopology == LayerTopologySplitProjection,
-		ExplicitEncoder: profile.GraphFamily == ArchitectureFamilyEncoderDecoder ||
+		ExplicitEncoder: profile.Family == ArchitectureFamilyEncoderDecoder ||
 			profile.Forward.Session == ForwardSessionEncoderDecoder,
 		AllowNonCausalCache: profile.Forward.Session == ForwardSessionPairedFeatures,
 		DeciSparse:          deciSparse,
@@ -580,7 +580,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	if err := validateModelPlan(spec, weights, plan); err != nil {
 		return ModelPlan{}, err
 	}
-	plan.cachedGraph = cachedGraphPolicy(profile, plan.layers)
+	plan.cachedGraph = cachedGraphPolicy(profile.Family, plan.forward, plan.layers)
 	return plan, nil
 }
 
@@ -716,10 +716,10 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	return nil
 }
 
-func cachedGraphPolicy(profile ArchitectureProfile, layers []LayerPlan) CachedGraphPolicy {
-	if len(layers) == 0 || profile.Has(ArchitectureAltUp) ||
-		profile.GraphFamily != ArchitectureFamilyAttention &&
-			profile.GraphFamily != ArchitectureFamilyMoE {
+func cachedGraphPolicy(family ArchitectureFamily, forward ForwardProgram, layers []LayerPlan) CachedGraphPolicy {
+	if len(layers) == 0 || forward.Operation != ForwardOperationCached ||
+		family != ArchitectureFamilyAttention && family != ArchitectureFamilyMoE ||
+		forward.AlternatePredictions() {
 		return CachedGraphLayered
 	}
 	for _, layer := range layers {

@@ -351,10 +351,6 @@ func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 		if plan.CachedGraph() != CachedGraphDense {
 			continue
 		}
-		if plan.Profile().GraphFamily != ArchitectureFamilyAttention &&
-			plan.Profile().GraphFamily != ArchitectureFamilyMoE {
-			t.Fatalf("%s selected dense graph for family %v", architecture, plan.Profile().GraphFamily)
-		}
 		if plan.Profile().Has(ArchitectureAltUp) {
 			t.Fatalf("%s selected dense graph with AltUp", architecture)
 		}

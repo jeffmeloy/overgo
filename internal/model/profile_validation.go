@@ -23,8 +23,6 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	}
 	checks := []error{
 		validateProfileOrdinal("Family", profile.Family, ArchitectureFamilyDraft),
-		validateProfileOrdinal("GraphFamily", profile.GraphFamily, ArchitectureFamilyDraft),
-		validateProfileOrdinal("CatalogFamily", profile.CatalogFamily, ArchitectureFamilyDraft),
 		validateProfileOrdinal("DraftKind", profile.DraftKind, DraftOptionalSingleCatalog),
 		validateProfileOrdinal("OutputNorm", profile.OutputNorm, OutputNormTokenEmbedding),
 		validateProfileOrdinal("Normalization", profile.Normalization, NormalizationWeightOnlyLayer),

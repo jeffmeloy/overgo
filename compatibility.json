@@ -261,13 +261,13 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:2bb68bfd00c1e930fcdfd9f3848375bfb90e352398d934557a3f5d28d5d1a51f"
+          "identity": "file:sha256:856483fb13865d7912d8ab5d80e265524c42f3a048da904cfbd8c3548d998ae1"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:27192becce8ae3beae22e0a4932789ac6b493f1ddcb960d7321f1bd34d20d75c"
+          "identity": "evidence:sha256:9da402dbdebcaa00958ecc3e0d1944c3dd19f97ca747b3a3cdfde7a0abe4eaf0"
         }
       ],
       "id": "compiled-model-plan",
@@ -688,13 +688,13 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:342acfadf7d4efb4fabb6c8ef9720754d2da09bb1dcfc7260e297cd497feac5d"
+          "identity": "file:sha256:88c7ded78c90c9c6fdda68ccc032909d4c609bb151b8b99ed9ca3142a205a87c"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
           "path": "internal/model/architecture_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:15b6af5c65fc4b6532ea94ef63ec4651896871654281818c58b421c9cc99b824"
+          "identity": "evidence:sha256:789de3cf6ee52a2f6f7cf3a646d99f9a81de94d66abd272a1c52b6b2142f9bba"
         }
       ],
       "id": "architecture-profiles",
@@ -721,7 +721,7 @@
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:53d558aa0923120e883d6f1670029e78f8dd0c9e74a22488c556759e724ab57e"
+          "identity": "evidence:sha256:8ffd2897143f9d4bfb4d0af290eebc0eb150c43c879be2abe65c7cc47f92c2c0"
         }
       ],
       "id": "architecture-family-dispatch",

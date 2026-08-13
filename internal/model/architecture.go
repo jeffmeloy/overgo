@@ -314,8 +314,6 @@ const (
 type ArchitectureProfile struct {
 	Name             string
 	Family           ArchitectureFamily
-	GraphFamily      ArchitectureFamily
-	CatalogFamily    ArchitectureFamily
 	DraftKind        DraftKind
 	Forward          ForwardProgram
 	OutputNorm       OutputNormPolicy

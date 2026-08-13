@@ -12,6 +12,7 @@
 //	                               verify command exits 0 (step "." closes the
 //	                               item). -force <reason> overrides loudly.
 //	plan -status                   one line per item
+//	plan -compact                  drop completed rows; normalize partial work
 //
 // Enforcement rationale (owner 2026-08-11, after a session drifted off-plan for
 // ~13 commits with zero -advance): "done" must be machine-checked, not
@@ -45,26 +46,39 @@ func main() {
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
 	add := flag.Bool("add", false, "inject a new top-priority task: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
+	compact := flag.Bool("compact", false, "drop completed rows and normalize partial rows to open work")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
 	force := flag.String("force", "", "with -advance: skip verify, REQUIRES a reason (logged loudly)")
 	title := flag.String("title", "", "with -add: the task title")
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, advance: *advance, add: *add, setverify: *setverify, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	next, prompt, verify, status, advance, add, setverify, stop bool
-	force, title, before, verifyCmd                             string
+	next, prompt, verify, status, advance, add, setverify, compact, stop bool
+	force, title, before, verifyCmd                                      string
 }
 
 func run(c cli, args []string) error {
 	document, err := plan.Load("")
 	if err != nil {
+		return err
+	}
+	if c.compact {
+		beforeItems := len(document.Items)
+		document = plan.Compact(document)
+		if err := plan.Save("", document); err != nil {
+			return err
+		}
+		fmt.Printf("compacted plan: %d -> %d items\n", beforeItems, len(document.Items))
+		return nil
+	}
+	if err := plan.ValidateOpenWork(document); err != nil {
 		return err
 	}
 	switch {
@@ -234,13 +248,7 @@ func recordStop(reason string) error {
 
 func printStatus(document plan.Plan) {
 	for _, entry := range document.Items {
-		done, total := 0, len(entry.Steps)
-		for _, s := range entry.Steps {
-			if s.Status == "done" {
-				done++
-			}
-		}
-		fmt.Printf("%-22s %-6s %d/%d %s\n", entry.ID, entry.Status, done, total, entry.Title)
+		fmt.Printf("%-30s %-24s %d open rows  %s\n", entry.ID, entry.Status, len(entry.Steps), entry.Title)
 	}
 }
 
@@ -359,33 +367,29 @@ func advanceStep(document plan.Plan, itemID, stepID, force string) error {
 			continue
 		}
 		if stepID != "." {
-			var target *plan.Step
+			targetIndex := -1
 			for j := range document.Items[i].Steps {
 				if document.Items[i].Steps[j].ID == stepID {
-					target = &document.Items[i].Steps[j]
+					targetIndex = j
 					break
 				}
 			}
-			if target == nil {
+			if targetIndex < 0 {
 				return fmt.Errorf("step %q not found in %q", stepID, itemID)
 			}
-			if err := gateAdvance(document.Items[i], *target, force); err != nil {
+			if err := gateAdvance(document.Items[i], document.Items[i].Steps[targetIndex], force); err != nil {
 				return err
 			}
-			target.Status = "done"
-			allDone := true
-			for _, s := range document.Items[i].Steps {
-				allDone = allDone && s.Status == "done"
-			}
-			if allDone {
-				document.Items[i].Status = "done"
+			document.Items[i].Steps = append(document.Items[i].Steps[:targetIndex], document.Items[i].Steps[targetIndex+1:]...)
+			if len(document.Items[i].Steps) == 0 {
+				document.Items = append(document.Items[:i], document.Items[i+1:]...)
 			}
 			return finishAdvance(document, itemID, stepID)
 		}
 		if err := gateAdvance(document.Items[i], plan.Step{ID: "."}, force); err != nil {
 			return err
 		}
-		document.Items[i].Status = "done"
+		document.Items = append(document.Items[:i], document.Items[i+1:]...)
 		return finishAdvance(document, itemID, stepID)
 	}
 	return fmt.Errorf("item %q not found", itemID)

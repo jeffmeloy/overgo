@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/jsonfile"
 )
@@ -56,6 +57,9 @@ func Load(path string) (Plan, error) {
 
 // Save writes the plan back to path (Path when empty).
 func Save(path string, d Plan) error {
+	if err := ValidateOpenWork(d); err != nil {
+		return err
+	}
 	if path == "" {
 		path = Path
 	}
@@ -66,10 +70,68 @@ func Save(path string, d Plan) error {
 	return os.WriteFile(filepath.FromSlash(path), append(raw, '\n'), 0o644)
 }
 
+// ValidateOpenWork rejects chronology in the live plan. Git and RepoDB own
+// completed evidence; the plan contains only dispatchable or blocked work.
+func ValidateOpenWork(d Plan) error {
+	items := map[string]bool{}
+	for _, item := range d.Items {
+		if item.ID == "" || items[item.ID] {
+			return fmt.Errorf("plan item id %q is empty or duplicated", item.ID)
+		}
+		items[item.ID] = true
+		if !unfinished(item.Status) {
+			return fmt.Errorf("plan item %s has chronology status %q", item.ID, item.Status)
+		}
+		steps := map[string]bool{}
+		for _, step := range item.Steps {
+			if step.ID == "" || steps[step.ID] {
+				return fmt.Errorf("plan step %s/%s is empty or duplicated", item.ID, step.ID)
+			}
+			steps[step.ID] = true
+			if !unfinished(step.Status) {
+				return fmt.Errorf("plan step %s/%s has chronology status %q", item.ID, step.ID, step.Status)
+			}
+		}
+	}
+	return nil
+}
+
+// Compact drops completed rows and normalizes partial rows back to open work.
+func Compact(d Plan) Plan {
+	items := d.Items[:0]
+	for _, item := range d.Items {
+		if item.Status == "done" {
+			continue
+		}
+		steps := item.Steps[:0]
+		for _, step := range item.Steps {
+			if step.Status == "done" {
+				continue
+			}
+			if step.Status == "partial" {
+				if strings.HasPrefix(item.Status, "blocked") {
+					step.Status = item.Status
+				} else {
+					step.Status = "open"
+				}
+			}
+			steps = append(steps, step)
+		}
+		item.Steps = steps
+		items = append(items, item)
+	}
+	d.Items = items
+	return d
+}
+
+func unfinished(status string) bool {
+	return status == "open" || strings.HasPrefix(status, "blocked")
+}
+
 // Current returns the first open step of the first open item -- the single
 // action the loop is allowed to work on and the only step a commit may serve.
 // An open item with no open step yields the sentinel step "." (open the rung).
-// ok is false when every item is done.
+// ok is false when no open item remains.
 func Current(d Plan) (Item, Step, bool) {
 	for _, it := range d.Items {
 		if it.Status != "open" {

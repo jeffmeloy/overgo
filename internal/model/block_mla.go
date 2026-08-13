@@ -18,12 +18,11 @@ func buildLatentAttentionMixCached(
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
 	profile := spec.Profile()
-	attentionPolicy := profile.Attention
-	isMiniCPM3 := profile.MLAVariant == mlaVariantMiniCPM3
-	isDeepSeek2 := profile.Has(ArchitectureDeepSeek2)
-	isDSA := attentionPolicy == AttentionDSA
-	isDeepSeek32 := profile.MLAVariant == mlaVariantDeepSeek32
-	isKimi := profile.MLAVariant == mlaVariantKimi
+	usesNeoXResidualScale := profile.LatentAttention == latentAttentionNeoXResidualScale
+	usesYaRNQuery := profile.Has(ArchitectureLatentYaRNQuery)
+	usesSparseIndexer := profile.Attention == AttentionSparseLatent
+	usesSparseNeoXIndexer := profile.LatentAttention == latentAttentionSparseNeoXIndexer
+	omitsRoPE := profile.LatentAttention == latentAttentionNoRoPE
 	required := graphWeights{
 		requireGraphWeight("attention Q", weights.AttentionQ),
 		requireGraphWeight("attention KV-A", weights.AttentionKVAMQA),
@@ -36,29 +35,29 @@ func buildLatentAttentionMixCached(
 		required.add("attention K-B", weights.AttentionKB)
 		required.add("attention V-B", weights.AttentionVB)
 	}
-	if isMiniCPM3 || ((isDeepSeek2 || isDSA || isKimi) && spec.QLoRARank > 0) {
+	if usesNeoXResidualScale || ((usesYaRNQuery || usesSparseIndexer || omitsRoPE) && spec.QLoRARank > 0) {
 		required.add("attention Q-B", weights.AttentionQB)
 		required.add("attention Q-A norm", weights.AttentionQNorm)
 	}
-	if isDSA && spec.LayerHasFullIndexer(layerIndex) {
+	if usesSparseIndexer && spec.LayerHasFullIndexer(layerIndex) {
 		if err := (graphWeights{
 			requireGraphWeight("indexer K norm", weights.IndexerKNorm),
 			requireGraphWeight("indexer K norm bias", weights.IndexerKNormBias),
 			requireGraphWeight("indexer projection", weights.IndexerProjection),
 			requireGraphWeight("indexer K", weights.IndexerAttentionK),
 			requireGraphWeight("indexer Q-B", weights.IndexerAttentionQB),
-		}).validate("DSA"); err != nil {
+		}).validate("sparse latent indexer"); err != nil {
 			return DenseBlockResult{}, err
 		}
 	}
-	if err := required.validate("MLA block"); err != nil {
+	if err := required.validate("latent-attention block"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 || len(positions) == 0 ||
 		uint64(len(positions)) != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("MLA block input shape is invalid")
+		return DenseBlockResult{}, errors.New("latent-attention input shape is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "MLA cache must contain both key and value"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "latent-attention cache must contain both key and value"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := uint64(len(positions))
@@ -68,11 +67,11 @@ func buildLatentAttentionMixCached(
 	nopeWidth := keyWidth - ropeWidth
 	valueWidth := uint64(spec.ValueLength)
 	queryMixed := builder.MulMat(weights.AttentionQ, normalized)
-	if isMiniCPM3 || ((isDeepSeek2 || isDSA || isKimi) && spec.QLoRARank > 0) {
+	if usesNeoXResidualScale || ((usesYaRNQuery || usesSparseIndexer || omitsRoPE) && spec.QLoRARank > 0) {
 		queryMixed = builder.WeightedRMSNorm(queryMixed, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	}
 	queryRank := queryMixed
-	if isMiniCPM3 || ((isDeepSeek2 || isDSA || isKimi) && spec.QLoRARank > 0) {
+	if usesNeoXResidualScale || ((usesYaRNQuery || usesSparseIndexer || omitsRoPE) && spec.QLoRARank > 0) {
 		queryMixed = builder.MulMat(weights.AttentionQB, queryMixed)
 	}
 	qNoPE := builder.GroupSlice(queryMixed, 0, nopeWidth, heads, keyWidth)
@@ -91,16 +90,16 @@ func buildLatentAttentionMixCached(
 	if (spec.RopeScalingType == "linear" || spec.RopeScalingType == "yarn") && spec.RopeScalingFactor > 0 {
 		frequencyScale = 1 / spec.RopeScalingFactor
 	}
-	if isKimi {
-		// Kimi: no RoPE.
-	} else if (isDeepSeek2 || isDSA) && spec.RopeScalingType == "yarn" {
+	if omitsRoPE {
+		// No rotary transform.
+	} else if (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == "yarn" {
 		qPE = builder.RoPENormalYaRN(qPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
 			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
 			spec.YaRNBetaFast, spec.YaRNBetaSlow)
 		kPE = builder.RoPENormalYaRN(kPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
 			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
 			spec.YaRNBetaFast, spec.YaRNBetaSlow)
-	} else if isMiniCPM3 {
+	} else if usesNeoXResidualScale {
 		if weights.RopeFactors != nil {
 			qPE = builder.RoPENeoXScaledWithFactors(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
 			kPE = builder.RoPENeoXScaledWithFactors(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
@@ -120,7 +119,7 @@ func buildLatentAttentionMixCached(
 		kPE = builder.Scale(kPE, spec.RopeAttentionFactor)
 	}
 	var indexerKey, topK *tensor.Tensor
-	if isDSA {
+	if usesSparseIndexer {
 		if spec.LayerHasFullIndexer(layerIndex) {
 			indexerWidth := uint64(spec.IndexerKeyLength)
 			indexerHeads := uint64(spec.IndexerHeadCount)
@@ -128,7 +127,7 @@ func buildLatentAttentionMixCached(
 			indexerQPE := builder.GroupSlice(indexerQuery, 0, ropeWidth, indexerHeads, indexerWidth)
 			indexerQNoPE := builder.GroupSlice(indexerQuery, ropeWidth, indexerWidth-ropeWidth, indexerHeads, indexerWidth)
 			if spec.RopeScalingType == "yarn" {
-				if isDeepSeek32 {
+				if usesSparseNeoXIndexer {
 					indexerQPE = builder.RoPENeoXYaRN(indexerQPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
 						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
 						spec.YaRNBetaFast, spec.YaRNBetaSlow)
@@ -144,14 +143,14 @@ func buildLatentAttentionMixCached(
 
 			indexerKey = builder.MulMat(weights.IndexerAttentionK, normalized)
 			indexerEpsilon := spec.RMSNormEpsilon
-			if isDeepSeek32 {
+			if usesSparseNeoXIndexer {
 				indexerEpsilon = spec.LayerNormEpsilon
 			}
 			indexerKey = builder.AffineLayerNorm(indexerKey, weights.IndexerKNorm, weights.IndexerKNormBias, indexerEpsilon)
 			indexerKPE := builder.GroupSlice(indexerKey, 0, ropeWidth, 1, indexerWidth)
 			indexerKNoPE := builder.GroupSlice(indexerKey, ropeWidth, indexerWidth-ropeWidth, 1, indexerWidth)
 			if spec.RopeScalingType == "yarn" {
-				if isDeepSeek32 {
+				if usesSparseNeoXIndexer {
 					indexerKPE = builder.RoPENeoXYaRN(indexerKPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
 						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
 						spec.YaRNBetaFast, spec.YaRNBetaSlow)
@@ -177,7 +176,7 @@ func buildLatentAttentionMixCached(
 			topK = builder.TopK(scores, selected)
 		} else {
 			if previousTopK == nil {
-				return DenseBlockResult{}, errors.New("DSA shared indexer has no previous top-k")
+				return DenseBlockResult{}, errors.New("sparse latent shared indexer has no previous top-k")
 			}
 			topK = previousTopK
 		}
@@ -198,7 +197,7 @@ func buildLatentAttentionMixCached(
 		query = builder.Concat(qNoPE, qPE, 0)
 		key = builder.Concat(kNoPE, kPEHeads, 0)
 	}
-	if isDeepSeek2 && weights.AttentionTemperatureScale != nil {
+	if usesYaRNQuery && weights.AttentionTemperatureScale != nil {
 		query = builder.Multiply(query, weights.AttentionTemperatureScale)
 	}
 	cacheKey, cacheValue := key, value
@@ -209,14 +208,14 @@ func buildLatentAttentionMixCached(
 		cacheValue = builder.Concat(pastValue, value, 2)
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
-	if (isDeepSeek2 || isDSA) && spec.RopeScalingType == "yarn" {
+	if (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == "yarn" {
 		logScale := float32(math.Log(float64(1 / frequencyScale)))
 		originalFactor := spec.YaRNAttentionFactor * (1 + yarnLogFactorStep*logScale)
 		magnitude := originalFactor * (1 + yarnLogFactorStep*spec.RopeYaRNLogMultiplier*logScale)
 		attentionScale *= magnitude * magnitude
 	}
 	var attention *tensor.Tensor
-	if isDSA {
+	if usesSparseIndexer {
 		attention = builder.SparseAttentionWithOffset(query, cacheKey, cacheValue, topK, attentionScale, true, queryStart)
 	} else {
 		attention = builder.AttentionWithOffset(query, cacheKey, cacheValue, attentionScale, true, queryStart)
@@ -226,7 +225,7 @@ func buildLatentAttentionMixCached(
 	}
 	attention = builder.Reshape(attention, heads*valueWidth, tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
-	if isMiniCPM3 {
+	if usesNeoXResidualScale {
 		attention = builder.Scale(attention, spec.ResidualScale)
 	}
 	states := CacheStates[*tensor.Tensor](nil)
@@ -236,7 +235,7 @@ func buildLatentAttentionMixCached(
 		}
 	}
 	auxiliary := topK
-	if isDeepSeek32 {
+	if usesSparseNeoXIndexer {
 		auxiliary = nil
 	}
 	if err := builder.Err(); err != nil {

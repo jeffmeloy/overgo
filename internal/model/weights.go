@@ -1273,9 +1273,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			); err != nil {
 				return Weights{}, err
 			}
-		} else if profile.Attention == AttentionMLA || profile.Attention == AttentionDSA {
+		} else if profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-			if profile.MLAVariant == mlaVariantMiniCPM3 || (profile.Has(ArchitectureDeepSeek2Layout) && spec.QLoRARank > 0) {
+			if profile.LatentAttention == latentAttentionNeoXResidualScale || (profile.Has(ArchitectureLatentKVLayout) && spec.QLoRARank > 0) {
 				if layer.AttentionQ, err = required(
 					prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank),
 				); err != nil {

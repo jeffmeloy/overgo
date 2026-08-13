@@ -24,7 +24,7 @@ func TestArchitectureRegistryProfiles(t *testing.T) {
 		capability ArchitectureCapability
 	}{
 		{"llama", ArchitectureFamilyAttention, ArchitectureNormalRoPE},
-		{"deepseek32", ArchitectureFamilyMoE, ArchitectureDSA | ArchitectureMLA},
+		{"deepseek32", ArchitectureFamilyMoE, ArchitectureSparseLatent | ArchitectureLatent},
 		{"qwen35moe", ArchitectureFamilyHybrid, ArchitectureMoE | ArchitectureRecurrent},
 		{"t5", ArchitectureFamilyEncoderDecoder, ArchitectureRoPEDisabled},
 		{"llada", ArchitectureFamilyDiffusion, ArchitectureNonCausal | ArchitectureDiffusion},
@@ -242,14 +242,14 @@ func TestArchitectureProfileDeepSeekLayoutPolicy(t *testing.T) {
 		"deepseek2": true, "deepseek32": true, "mistral4": true, "glm-dsa": false,
 	} {
 		profile, ok := LookupArchitecture(architecture)
-		if !ok || !profile.Has(ArchitectureDeepSeek2Layout) ||
-			profile.Has(ArchitectureDeepSeek2) != wantGraph {
+		if !ok || !profile.Has(ArchitectureLatentKVLayout) ||
+			profile.Has(ArchitectureLatentYaRNQuery) != wantGraph {
 			t.Fatalf("%s DeepSeek policies = %064b", architecture, profile.Capabilities)
 		}
 	}
 	for _, architecture := range []string{"deepseek", "deepseek2-ocr", "minicpm3"} {
 		profile, _ := LookupArchitecture(architecture)
-		if profile.Has(ArchitectureDeepSeek2Layout) {
+		if profile.Has(ArchitectureLatentKVLayout) {
 			t.Fatalf("%s unexpectedly has DeepSeek2 layout", architecture)
 		}
 	}
@@ -339,7 +339,7 @@ func TestArchitectureProfileProjectedInputPolicies(t *testing.T) {
 func TestArchitectureProfileLayerSideInputPolicies(t *testing.T) {
 	for architecture, want := range map[string]AuxiliaryFlow{
 		"llama": AuxiliaryNone, "rwkv7": AuxiliaryRWKVValue, "arwkv7": AuxiliaryRWKVValue,
-		"glm-dsa": AuxiliaryDSATopK, "deepseek32": AuxiliaryNone,
+		"glm-dsa": AuxiliarySparseTopK, "deepseek32": AuxiliaryNone,
 	} {
 		profile, _ := LookupArchitecture(architecture)
 		if profile.Auxiliary != want {

@@ -261,13 +261,13 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:584814cbf5ead56431f95a722acb901946e1a6b618b0ebd11e2ce5bf789dce59"
+          "identity": "file:sha256:f8e99abc9457b4d47f78d428160c324aff0cae864ec931383dacba52e7a1dc1c"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:12dc8307853f4a66428efcc451af5786190c786c1785da20b4de87bb07a80cd7"
+          "identity": "evidence:sha256:80cac02e440cbb4db1aa371fe355041eaf224383d6f7417234362c5398cccf45"
         }
       ],
       "id": "compiled-model-plan",
@@ -688,13 +688,13 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:b58f9da860dd86efaffb9c3552b995a942b5eb71c9f59db7aa4b311326c44324"
+          "identity": "file:sha256:7d4b376ddcefd8ef4bb819d77e2262ae20a90c6fed3039ee11854b4ba017be09"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
           "path": "internal/model/architecture_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:fc9090329558eb3cfebd1ad8fffdf4487deaee3bc17ec3a9c13035cce0711637"
+          "identity": "evidence:sha256:c548aa55e9167b3ae315dba22aa6947eb57ce16644238a5c7d59941a2c34c007"
         }
       ],
       "id": "architecture-profiles",
@@ -721,7 +721,7 @@
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:8bbc7953b29dfad93784ee9de59b60da04d4c6ca3c94df2de87dc99da3f28405"
+          "identity": "evidence:sha256:32fd0bf9a3ecb447002497394d91d415255d9c0e75af8086281885f6d49fa3cf"
         }
       ],
       "id": "architecture-family-dispatch",
@@ -736,7 +736,7 @@
           "contains": "func (b *ContinuousBatch) Step(",
           "path": "internal/inference/continuous_batch.go",
           "role": "source",
-          "identity": "file:sha256:2dc623fd299ebb95db9295ade903cebd743dc1d819b980c771bcd028521cd018"
+          "identity": "file:sha256:429e6bf4905a2a83265ae339bc79806ccb3e49ca6b729f55d85f87180c842218"
         },
         {
           "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",

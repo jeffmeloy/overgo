@@ -499,5 +499,5 @@ func supportsPersistentDeviceCache(spec model.Spec) bool {
 	if !ok {
 		return false
 	}
-	return !profile.Has(model.ArchitectureMLA) && !profile.Has(model.ArchitectureAltUp)
+	return !profile.Has(model.ArchitectureLatent) && !profile.Has(model.ArchitectureAltUp)
 }

@@ -35,7 +35,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Overrides", profile.Overrides, EmbeddingOverrideDeepstackBase),
 		validateProfileOrdinal("Deepstack", profile.Deepstack, DeepstackSequentialAfter),
 		validateProfileOrdinal("AttentionBlocks", profile.AttentionBlocks, AttentionBlocksUncached),
-		validateProfileOrdinal("Auxiliary", profile.Auxiliary, AuxiliaryDSATopK),
+		validateProfileOrdinal("Auxiliary", profile.Auxiliary, AuxiliarySparseTopK),
 		validateProfileOrdinal("Temperature", profile.Temperature, AttentionTemperatureNoRoPE),
 		validateProfileOrdinal("PostNormLayout", profile.PostNormLayout, PostNormLayoutGrok),
 		validateProfileOrdinal("FFNNormLayout", profile.FFNNormLayout, FeedForwardNormLayoutPostAttention),
@@ -75,7 +75,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Validation.Recurrent", profile.Validation.Recurrent, RecurrentValidationNemotronHMoE),
 		validateProfileOrdinal("Validation.Hybrid", profile.Validation.Hybrid, HybridValidationLFM2MoE),
 		validateProfileOrdinal("EncoderOperator", profile.EncoderOperator, encoderOperatorRelativeEncoder),
-		validateProfileOrdinal("MLAVariant", profile.MLAVariant, mlaVariantKimi),
+		validateProfileOrdinal("LatentAttention", profile.LatentAttention, latentAttentionNoRoPE),
 		validateProfileOrdinal("Cadence.Recurrent", profile.Cadence.Recurrent, recurrentCadenceAttentionInterval),
 		validateProfileOrdinal("Cadence.MoE", profile.Cadence.MoE, moeCadenceAfterDense),
 		validateProfileOrdinal("Cadence.Sliding", profile.Cadence.Sliding, slidingCadenceExceptLast),
@@ -128,7 +128,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		!profile.readsMetadata(MetadataReadALiBi) {
 		return fmt.Errorf("architecture profile %q: zero ALiBi default requires ALiBi metadata", profile.Name)
 	}
-	if profile.readsMetadata(MetadataReadGLMDSAGating) && profile.Attention != AttentionDSA {
+	if profile.readsMetadata(MetadataReadGLMDSAGating) && profile.Attention != AttentionSparseLatent {
 		return fmt.Errorf("architecture profile %q: GLM-DSA metadata requires DSA attention", profile.Name)
 	}
 	if profile.AttentionGraph.GatedDelta != gatedDeltaNone && profile.Attention != AttentionGatedDelta {

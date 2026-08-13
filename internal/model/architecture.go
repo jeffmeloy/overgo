@@ -137,8 +137,8 @@ type AttentionPolicy uint8
 
 const (
 	AttentionStandard AttentionPolicy = iota
-	AttentionMLA
-	AttentionDSA
+	AttentionLatent
+	AttentionSparseLatent
 	AttentionGatedDelta
 	AttentionLFM2
 )
@@ -176,7 +176,7 @@ type AuxiliaryFlow uint8
 const (
 	AuxiliaryNone AuxiliaryFlow = iota
 	AuxiliaryRWKVValue
-	AuxiliaryDSATopK
+	AuxiliarySparseTopK
 )
 
 // AttentionTemperaturePolicy: scheduled query-scale contract.
@@ -276,9 +276,9 @@ const (
 	ArchitectureEncoderOnly
 	ArchitectureDiffusion
 	ArchitectureMultimodal
-	ArchitectureDeepSeek2
-	ArchitectureDSA
-	ArchitectureMLA
+	ArchitectureLatentYaRNQuery
+	ArchitectureSparseLatent
+	ArchitectureLatent
 	ArchitectureGemma
 	ArchitecturePostNorm
 	ArchitecturePostOnlyNorm
@@ -304,7 +304,7 @@ const (
 	ArchitecturePerLayerEmbeddings
 	ArchitectureEmbeddingSkip
 	ArchitectureBERTNormLayout
-	ArchitectureDeepSeek2Layout
+	ArchitectureLatentKVLayout
 	ArchitectureDiscreteImageTokens
 )
 
@@ -345,7 +345,7 @@ type ArchitectureProfile struct {
 	MetadataDefaults MetadataDefaultPolicy
 	Validation       ValidationPolicy
 	EncoderOperator  EncoderOperatorPolicy
-	MLAVariant       mlaVariantPolicy
+	LatentAttention  latentAttentionPolicy
 	Cadence          LayerCadencePolicy
 	Runtime          RuntimePolicy
 	DeciSparse       bool

@@ -130,7 +130,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		if err := validateLayerCacheSchema(layer, schema); err != nil {
 			return fmt.Errorf("inference: KV cache layer %d: %w", index, err)
 		}
-		if plan.Attention == model.AttentionDSA {
+		if plan.Attention == model.AttentionSparseLatent {
 			state, present := layer.States[model.CacheStateIndexerKey]
 			if r.spec.LayerHasFullIndexer(uint32(index)) {
 				want := tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))

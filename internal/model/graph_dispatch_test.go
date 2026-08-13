@@ -43,8 +43,8 @@ func TestLayerProgramsCoverTypedProfiles(t *testing.T) {
 			LayerOperatorFeedForwardOutput, LayerOperatorResidual,
 		}},
 		{name: "Kimi Linear", profile: ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationKimiLinear}}, want: attentionNorm},
-		{name: "MLA", profile: ArchitectureProfile{Attention: AttentionMLA}, want: attentionNorm},
-		{name: "DSA", profile: ArchitectureProfile{Attention: AttentionDSA}, want: attentionNorm},
+		{name: "MLA", profile: ArchitectureProfile{Attention: AttentionLatent}, want: attentionNorm},
+		{name: "DSA", profile: ArchitectureProfile{Attention: AttentionSparseLatent}, want: attentionNorm},
 		{name: "DeepSeek 4", profile: ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationDeepSeek4}}, want: []LayerOperator{
 			LayerOperatorHyperAttention, LayerOperatorHyperFeedForward,
 		}},

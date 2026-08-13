@@ -30,12 +30,12 @@ func (p EncoderOperatorPolicy) usesExperts() bool {
 
 func (p EncoderOperatorPolicy) usesALiBiQKNorm() bool { return p == encoderOperatorPostNormALiBi }
 
-type mlaVariantPolicy uint8
+type latentAttentionPolicy uint8
 
 const (
-	mlaVariantDefault mlaVariantPolicy = iota
-	mlaVariantPLM
-	mlaVariantMiniCPM3
-	mlaVariantDeepSeek32
-	mlaVariantKimi
+	latentAttentionDefault latentAttentionPolicy = iota
+	latentAttentionSplitProjection
+	latentAttentionNeoXResidualScale
+	latentAttentionSparseNeoXIndexer
+	latentAttentionNoRoPE
 )

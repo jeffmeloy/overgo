@@ -99,7 +99,7 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 		{
 			name:      "dsa",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
-			attention: AttentionDSA, mode: CacheStateToken,
+			attention: AttentionSparseLatent, mode: CacheStateToken,
 		},
 		{
 			name: "qwen-gdn",
@@ -183,7 +183,7 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 		},
 		{
 			name: "DSA", spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
-			attention: AttentionDSA, cache: CacheAttention,
+			attention: AttentionSparseLatent, cache: CacheAttention,
 		},
 		{
 			name: "DeepSeek 4", spec: Spec{
@@ -488,9 +488,9 @@ func TestPlanLayerCompilesAuxiliaryFlow(t *testing.T) {
 		CommonSpec:    CommonSpec{Architecture: "glm-dsa", BlockCount: 3},
 		AttentionSpec: AttentionSpec{IndexerFullLayers: []bool{true, false, true}},
 	}
-	for layer, wantInput := range []AuxiliaryFlow{AuxiliaryNone, AuxiliaryDSATopK, AuxiliaryNone} {
+	for layer, wantInput := range []AuxiliaryFlow{AuxiliaryNone, AuxiliarySparseTopK, AuxiliaryNone} {
 		plan := dsa.PlanLayer(uint32(layer), false)
-		if plan.AuxiliaryInput != wantInput || plan.AuxiliaryOutput != AuxiliaryDSATopK {
+		if plan.AuxiliaryInput != wantInput || plan.AuxiliaryOutput != AuxiliarySparseTopK {
 			t.Fatalf("GLM-DSA layer %d auxiliary = %v/%v", layer, plan.AuxiliaryInput, plan.AuxiliaryOutput)
 		}
 	}

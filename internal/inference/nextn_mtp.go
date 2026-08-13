@@ -39,15 +39,15 @@ func (r *Runner) NewNextNMTPSession(
 		TrunkCache: cache, PendingHidden: lastHiddenColumn(hidden), MTPStart: position,
 		Position: position, targetModel: targetModel,
 	}
-	if cache.DSATopK != nil {
-		if cache.DSATopK.Shape.Rank != 2 || cache.DSATopK.Shape.Dims[0] != uint64(r.spec.IndexerTopK) ||
-			cache.DSATopK.Shape.Dims[1] == 0 {
+	if cache.SparseTopK != nil {
+		if cache.SparseTopK.Shape.Rank != 2 || cache.SparseTopK.Shape.Dims[0] != uint64(r.spec.IndexerTopK) ||
+			cache.SparseTopK.Shape.Dims[1] == 0 {
 			return nil, errors.New("inference: GLM-DSA trunk top-k handoff is incompatible")
 		}
-		width := int(cache.DSATopK.Shape.Dims[0])
+		width := int(cache.SparseTopK.Shape.Dims[0])
 		value := reference.Value{
 			Shape: tensor.MustShape(uint64(width), 1),
-			Data:  slices.Clone(cache.DSATopK.Data[len(cache.DSATopK.Data)-width:]),
+			Data:  slices.Clone(cache.SparseTopK.Data[len(cache.SparseTopK.Data)-width:]),
 		}
 		session.Layer.Auxiliary = &value
 	}
@@ -201,7 +201,7 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	}
 	indexerState, hasIndexerState := session.Layer.States[model.CacheStateIndexerKey]
 	profile := r.profile()
-	if profile.Attention == model.AttentionDSA && profile.Auxiliary != model.AuxiliaryDSATopK {
+	if profile.Attention == model.AttentionSparseLatent && profile.Auxiliary != model.AuxiliarySparseTopK {
 		wantTokens := uint64(session.Position - session.MTPStart)
 		if (wantTokens == 0 && hasIndexerState) || (wantTokens > 0 &&
 			(!hasIndexerState || !indexerState.Mode.TokenAligned() ||
@@ -211,7 +211,7 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	} else if hasIndexerState {
 		return errors.New("inference: NextN MTP session has unexpected indexer state")
 	}
-	if profile.Auxiliary == model.AuxiliaryDSATopK {
+	if profile.Auxiliary == model.AuxiliarySparseTopK {
 		if session.Layer.Auxiliary == nil ||
 			session.Layer.Auxiliary.Shape != tensor.MustShape(uint64(r.spec.IndexerTopK), 1) {
 			return errors.New("inference: GLM-DSA NextN MTP top-k handoff is incompatible")

@@ -110,7 +110,7 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	} else if ok {
 		spec.ClassifierLabels = slices.Clone(labels)
 	}
-	if m.profile.Has(ArchitectureDeepSeek2Layout) {
+	if m.profile.Has(ArchitectureLatentKVLayout) {
 		spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
 		if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
 			if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
@@ -302,7 +302,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 			scalingType != "" && scalingType != "none" {
 			gatedDeltaMulti := profile.Attention == AttentionGatedDelta && profile.Has(ArchitectureMultiAxisPositions)
 			longRoPE := profile.Has(ArchitectureLongRoPE) && scalingType == "longrope"
-			yarn := scalingType == "yarn" && (profile.Has(ArchitectureDeepSeek2Layout) ||
+			yarn := scalingType == "yarn" && (profile.Has(ArchitectureLatentKVLayout) ||
 				validation.MLA == MLAValidationDeepSeek4 || validation.supportsYaRN())
 			if gatedDeltaMulti || scalingType != "linear" && !longRoPE && !yarn {
 				return fmt.Errorf("model architecture %q uses unsupported RoPE scaling type %q", architecture, scalingType)

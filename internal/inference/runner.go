@@ -107,8 +107,8 @@ type LayerStates = model.CacheStates[reference.Value]
 
 type KVCache struct {
 	Layers []LayerCache
-	// DSATopK: transient GLM-DSA MTP handoff.
-	DSATopK *reference.Value
+	// SparseTopK: transient sparse-attention MTP handoff.
+	SparseTopK *reference.Value
 	// Tokens: number of active attention tokens retained in Layers
 	Tokens uint32
 	// Position: absolute position assigned to next appended token
@@ -713,9 +713,9 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		}
 		nextCache.Layers[layerIndex] = layerCache
 	}
-	if topK := auxiliaryValues[model.AuxiliaryDSATopK]; topK != nil {
+	if topK := auxiliaryValues[model.AuxiliarySparseTopK]; topK != nil {
 		value := *topK
-		nextCache.DSATopK = &value
+		nextCache.SparseTopK = &value
 	}
 	if !r.hasPreloadedWeights() && applyOutputNorm {
 		activation, err = r.runOutputNorm(ctx, activation)

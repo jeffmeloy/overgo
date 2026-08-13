@@ -438,7 +438,7 @@
     },
     "Family": 1,
     "GraphFamily": 1,
-    "MLAVariant": 3,
+    "LatentAttention": 3,
     "Metadata": {
       "MLAHeadLengths": true
     },
@@ -1335,7 +1335,7 @@
     },
     "Family": 2,
     "GraphFamily": 2,
-    "MLAVariant": 4,
+    "LatentAttention": 4,
     "Metadata": {
       "KVHeads": 7,
       "MLAHeadLengths": true,
@@ -1655,7 +1655,7 @@
   {
     "Attention": 1,
     "Capabilities": 131584,
-    "MLAVariant": 2,
+    "LatentAttention": 2,
     "Name": "minicpm3",
     "Validation": {
       "MLA": 5
@@ -2092,7 +2092,7 @@
     "Attention": 1,
     "Capabilities": 524800,
     "FeedForward": 4,
-    "MLAVariant": 1,
+    "LatentAttention": 1,
     "Name": "plm"
   },
   {

@@ -135,7 +135,7 @@ const (
 	CacheRWKV6
 	CacheRWKV6Qwen2
 	CacheRWKV7
-	CacheKimiLinear
+	CacheKeyedDelta
 	CacheGatedDelta
 	CacheLFM2
 	CacheFalconH1
@@ -146,7 +146,7 @@ const (
 func (p CachePolicy) PrimaryMode() CacheStateMode {
 	switch p {
 	case CacheMamba, CacheMamba2, CacheRWKV6, CacheRWKV6Qwen2, CacheRWKV7,
-		CacheKimiLinear, CacheGatedDelta, CacheLFM2:
+		CacheKeyedDelta, CacheGatedDelta, CacheLFM2:
 		return CacheStateFixed
 	default:
 		return CacheStateToken
@@ -438,11 +438,11 @@ func auxiliaryFlow(s Spec, profile ArchitectureProfile, layer uint32) (Auxiliary
 			return AuxiliaryNone, AuxiliaryRWKVValue
 		}
 		return AuxiliaryRWKVValue, AuxiliaryNone
-	case AuxiliaryDSATopK:
+	case AuxiliarySparseTopK:
 		if s.LayerHasFullIndexer(layer) {
-			return AuxiliaryNone, AuxiliaryDSATopK
+			return AuxiliaryNone, AuxiliarySparseTopK
 		}
-		return AuxiliaryDSATopK, AuxiliaryDSATopK
+		return AuxiliarySparseTopK, AuxiliarySparseTopK
 	default:
 		return AuxiliaryNone, AuxiliaryNone
 	}
@@ -1032,12 +1032,12 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			recurrentLayerStage(),
 			LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
-	case plan.Attention == AttentionMLA:
+	case plan.Attention == AttentionLatent:
 		return latentLayerProgram(
 			profile,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 		)
-	case plan.Attention == AttentionDSA:
+	case plan.Attention == AttentionSparseLatent:
 		return latentLayerProgram(
 			profile,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey},
@@ -1081,7 +1081,7 @@ func latentLayerProgram(
 		layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
 		feedForwardLayerStage(mix),
 	}
-	if profile.MLAVariant == mlaVariantMiniCPM3 {
+	if profile.LatentAttention == latentAttentionNeoXResidualScale {
 		stages = append(stages, layerStage(LayerOperatorScale))
 	}
 	return newLayerProgram(append(stages, layerStage(LayerOperatorResidual))...)

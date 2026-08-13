@@ -127,6 +127,9 @@ Overgo's tokenizer total includes a large generated Unicode table.
 
 - Dense resident: 12 steps; recorded loss difference `1.545e-5`, final-weight
   difference `3.613e-4`; loss `3.48 -> 2.17`.
+- Dense resident scale fixture (12 layers, hidden 256, sequence 64): two pooled
+  CUDA Muon steps stay below 2 s total; live allocation peak 120.1 MiB versus
+  143.5 MiB unpooled. This is an Overgo ratchet, not adaptive parity.
 - Hybrid resident synthetic stack: loss `15.92 -> 2.56`; host/device trajectory
   difference `2.856e-6`.
 - Synthetic dense medium benchmark: host `85.6 s/step`; device full

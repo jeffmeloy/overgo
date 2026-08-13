@@ -136,6 +136,7 @@ type Source struct {
 	Tensors  map[string]Tensor
 	Metadata map[string]map[string]string
 	files    []*os.File
+	indexed  bool
 }
 
 // OpenSource: open a repository with production bounds.
@@ -155,6 +156,7 @@ func OpenSourceWithLimits(directory string, limits Limits) (*Source, error) {
 	source := &Source{
 		Tensors:  make(map[string]Tensor),
 		Metadata: make(map[string]map[string]string),
+		indexed:  weightMap != nil,
 	}
 	for _, path := range paths {
 		if err := source.openShard(directory, path, limits); err != nil {
@@ -169,6 +171,11 @@ func OpenSourceWithLimits(directory string, limits Limits) (*Source, error) {
 		}
 	}
 	return source, nil
+}
+
+// Indexed reports whether a shard index owns the source catalog.
+func (s *Source) Indexed() bool {
+	return s != nil && s.indexed
 }
 
 // Names: sorted tensor names.
@@ -224,47 +231,74 @@ func validateLimits(limits Limits) error {
 }
 
 func shardPaths(directory string, limits Limits) ([]string, map[string]string, error) {
-	indexPath := filepath.Join(directory, "model.safetensors.index.json")
-	indexFile, err := os.Open(indexPath)
-	if err == nil {
-		defer indexFile.Close()
-		var index shardIndex
-		if err := strictjson.DecodeBounded(indexFile, limits.MaxIndexBytes, &index); err != nil {
-			return nil, nil, fmt.Errorf("safetensors: parse shard index: %w", err)
-		}
-		if len(index.WeightMap) == 0 {
-			return nil, nil, errors.New("safetensors: shard index has no weights")
-		}
-		shards := make(map[string]string)
-		weightMap := make(map[string]string, len(index.WeightMap))
-		for name, shard := range index.WeightMap {
-			if name == "" || len(name) > limits.MaxNameBytes {
-				return nil, nil, errors.New("safetensors: shard index has invalid tensor name")
-			}
-			clean, path, err := localShardPath(directory, shard)
-			if err != nil {
-				return nil, nil, err
-			}
-			shards[clean] = path
-			weightMap[name] = clean
-		}
-		if len(shards) > limits.MaxShards {
-			return nil, nil, fmt.Errorf("safetensors: shard count %d exceeds limit %d", len(shards), limits.MaxShards)
-		}
-		names := make([]string, 0, len(shards))
-		for name := range shards {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		paths := make([]string, len(names))
-		for index, name := range names {
-			paths[index] = shards[name]
-		}
-		return paths, weightMap, nil
+	indexPath, err := shardIndexPath(directory)
+	if err != nil {
+		return nil, nil, err
 	}
-	if !errors.Is(err, os.ErrNotExist) {
+	if indexPath == "" {
+		return unindexedShardPaths(directory, limits)
+	}
+	indexFile, err := os.Open(indexPath)
+	if err != nil {
 		return nil, nil, fmt.Errorf("safetensors: open shard index: %w", err)
 	}
+	defer indexFile.Close()
+	var index shardIndex
+	if err := strictjson.DecodeBounded(indexFile, limits.MaxIndexBytes, &index); err != nil {
+		return nil, nil, fmt.Errorf("safetensors: parse shard index: %w", err)
+	}
+	if len(index.WeightMap) == 0 {
+		return nil, nil, errors.New("safetensors: shard index has no weights")
+	}
+	shards := make(map[string]string)
+	weightMap := make(map[string]string, len(index.WeightMap))
+	for name, shard := range index.WeightMap {
+		if name == "" || len(name) > limits.MaxNameBytes {
+			return nil, nil, errors.New("safetensors: shard index has invalid tensor name")
+		}
+		clean, path, err := localShardPath(directory, shard)
+		if err != nil {
+			return nil, nil, err
+		}
+		shards[clean] = path
+		weightMap[name] = clean
+	}
+	if len(shards) > limits.MaxShards {
+		return nil, nil, fmt.Errorf("safetensors: shard count %d exceeds limit %d", len(shards), limits.MaxShards)
+	}
+	names := make([]string, 0, len(shards))
+	for name := range shards {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	paths := make([]string, len(names))
+	for index, name := range names {
+		paths[index] = shards[name]
+	}
+	return paths, weightMap, nil
+}
+
+func shardIndexPath(directory string) (string, error) {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return "", fmt.Errorf("safetensors: read directory: %w", err)
+	}
+	var indexes []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".safetensors.index.json") {
+			indexes = append(indexes, entry.Name())
+		}
+	}
+	if len(indexes) > 1 {
+		return "", fmt.Errorf("safetensors: multiple shard indexes: %v", indexes)
+	}
+	if len(indexes) == 0 {
+		return "", nil
+	}
+	return filepath.Join(directory, indexes[0]), nil
+}
+
+func unindexedShardPaths(directory string, limits Limits) ([]string, map[string]string, error) {
 	entries, err := os.ReadDir(directory)
 	if err != nil {
 		return nil, nil, fmt.Errorf("safetensors: read directory: %w", err)

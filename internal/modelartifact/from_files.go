@@ -3,7 +3,6 @@ package modelartifact
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -115,11 +114,7 @@ func namespacedTensorFacts(source *safetensors.Source, path, namespace string) (
 	shards := source.Shards()
 	base := filepath.Base(path)
 	if len(shards) != 1 || shards[0] != base {
-		indexPath := filepath.Join(filepath.Dir(path), "model.safetensors.index.json")
-		if _, err := filepath.Abs(indexPath); err != nil {
-			return nil, err
-		}
-		if _, err := os.Stat(indexPath); err != nil || !slices.Contains(shards, base) {
+		if !source.Indexed() || !slices.Contains(shards, base) {
 			return nil, fmt.Errorf("weights file %s does not stand alone in its directory (shards %v)", base, shards)
 		}
 	}

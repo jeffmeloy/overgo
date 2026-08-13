@@ -453,27 +453,42 @@ func (g *gateContext) stepTest() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	var impacted []string
+	var direct, dependent []string
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		importPath, deps, _ := strings.Cut(line, " ")
 		if changed[importPath] {
-			impacted = append(impacted, importPath)
+			direct = append(direct, importPath)
 			continue
 		}
 		for _, dep := range strings.Split(deps, ",") {
 			if changed[dep] {
-				impacted = append(impacted, importPath)
+				dependent = append(dependent, importPath)
 				break
 			}
 		}
 	}
-	if len(impacted) == 0 {
+	if len(direct)+len(dependent) == 0 {
 		g.honesty = append(g.honesty, "tests skipped: changed packages have no importers and no tests resolved")
 		return true, nil
 	}
-	g.honesty = append(g.honesty, fmt.Sprintf("test scope: %d packages (derived from import graph)", len(impacted)))
-	if _, err := runGoTests(g.repo, impacted); err != nil {
+	g.honesty = append(g.honesty, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
+	if len(direct) > 0 {
+		if _, err := runGoTests(g.repo, direct); err != nil {
+			return false, err
+		}
+	}
+	if len(dependent) == 0 {
+		return false, nil
+	}
+	report, err := runGoTestsAdvisory(g.repo, dependent)
+	if err != nil {
 		return false, err
+	}
+	if len(report.Skipped)+len(report.Unavailable) > 0 {
+		g.honesty = append(g.honesty, fmt.Sprintf(
+			"dependent fixture evidence not credited: %d skipped, %d unavailable",
+			len(report.Skipped), len(report.Unavailable),
+		))
 	}
 	return false, nil
 }
@@ -487,6 +502,18 @@ func runGoTests(repo string, packages []string) (string, error) {
 		return out, fmt.Errorf("impacted tests vacuous: %w", err)
 	}
 	return out, nil
+}
+
+func runGoTestsAdvisory(repo string, packages []string) (testevidence.GoTestReport, error) {
+	out, err := command(repo, "go", append([]string{"test", "-json", "-count=1"}, packages...)...)
+	if err != nil {
+		return testevidence.GoTestReport{}, err
+	}
+	report, err := testevidence.GoTestJSONReport(out)
+	if err != nil {
+		return testevidence.GoTestReport{}, fmt.Errorf("dependent test evidence: %w", err)
+	}
+	return report, nil
 }
 
 func (g *gateContext) stepManifest() (bool, error) {

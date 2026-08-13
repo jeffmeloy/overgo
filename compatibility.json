@@ -63,13 +63,13 @@
           "contains": "func OpenSourceWithLimits(",
           "path": "internal/safetensors/source.go",
           "role": "source",
-          "identity": "file:sha256:d62e2725f4b0e3044a3cd037306743939627a21ee4349ad313f06026b0c765c1"
+          "identity": "file:sha256:514bea1e788374c6da813075e608132a841d965d6839f75c0cfc491d8595df54"
         },
         {
           "contains": "func TestOpenSourceRejectsInvalidRepositories(",
           "path": "internal/safetensors/source_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:83651d040c0af21f0c28551a9808d0206706072b226f6b5e4ffba36e753cf2a2"
+          "identity": "evidence:sha256:b8bba7286e5a92e016d96c94ae1603c217b9600686f6bce50acdd81c76cb63e8"
         }
       ],
       "id": "bounded-safetensors-repositories",
@@ -324,13 +324,13 @@
           "contains": "func (r *Runner) selectPromptCache(",
           "path": "internal/inference/prompt_cache.go",
           "role": "source",
-          "identity": "file:sha256:9bab04867b7df67409a63b41a0d8f24c827318c38a20a4761c62a7b57d683049"
+          "identity": "file:sha256:98b9a9c46603c7aabea6fe783de8829b3a921e21a62c4e7b98f9be3782c651b5"
         },
         {
           "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
           "path": "internal/inference/prompt_cache_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:dfc9eb6a6a14ffb5f6a15edd6801d39412bcd3e6e79a1f9b51ac5837bef51058"
+          "identity": "evidence:sha256:b25b1169537db9035b3ada4d90c8a4720c1abbaa836645f7e5cff727e7d37ef7"
         }
       ],
       "id": "editable-prompt-cache",
@@ -562,7 +562,7 @@
           "contains": "func (s *chatOutputStream) Accept(",
           "path": "internal/inference/chat_stream.go",
           "role": "source",
-          "identity": "file:sha256:367bddce110ee6ab973b3b1852474690f3a3015b1199e428fd3bcc3e86b4540e"
+          "identity": "file:sha256:83954e203e3b73e6193b83b5e1f849bc54a56f5b18791843cfdee4dc08dc5a5a"
         },
         {
           "contains": "func TestStreamingResponsesFunctionCallLifecycle(",
@@ -736,13 +736,13 @@
           "contains": "func (b *ContinuousBatch) Step(",
           "path": "internal/inference/continuous_batch.go",
           "role": "source",
-          "identity": "file:sha256:b0362faa4fa2ff2b6e6eb466cdc40b214efd2503512d793815ae5e8f3c9400d0"
+          "identity": "file:sha256:2dc623fd299ebb95db9295ade903cebd743dc1d819b980c771bcd028521cd018"
         },
         {
           "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
           "path": "internal/inference/device_cache_paging_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0143e28abbeeb3d9c46b45581dbe802f48c474334cae219af049a8cc552a9316"
+          "identity": "evidence:sha256:9142f34cc6e30cb747bf48bfba82843f7cb0a3c90b40ead5de89eab4926afd80"
         }
       ],
       "id": "paged-continuous-cache",
@@ -763,7 +763,7 @@
           "contains": "func TestValidatePaddedTokenBatchMasksSuffixes(",
           "path": "internal/inference/t5_batch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:66ef50b4c24244359040211c1dcef6c13abee32ac048e2178087cf3aab64bd89"
+          "identity": "evidence:sha256:c837fce311c9f0dac280f02a8ba9685e9e0ae3ff8658e1d4215c6283d8e75e3c"
         }
       ],
       "id": "padded-t5-batches",

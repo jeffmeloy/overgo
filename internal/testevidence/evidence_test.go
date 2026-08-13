@@ -23,6 +23,20 @@ func TestGoTestJSONShort(t *testing.T) {
 	}
 }
 
+func TestGoTestJSONReportPreservesSkippedEvidence(t *testing.T) {
+	out := "{\"Action\":\"skip\",\"Package\":\"overgo/example\",\"Test\":\"TestFixture\",\"Output\":\"UNAVAILABLE: fixture\\n\"}\n"
+	report, err := GoTestJSONReport(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Skipped) != 1 || len(report.Unavailable) != 1 {
+		t.Fatalf("report = %+v", report)
+	}
+	if err := GoTestJSON(out); err == nil {
+		t.Fatal("strict evidence accepted a skipped fixture")
+	}
+}
+
 func TestVerifyOutput(t *testing.T) {
 	tests := []struct {
 		name, command, output string

@@ -10,12 +10,9 @@ import (
 )
 
 const (
-	chameleonQKNormEpsilon      = 1e-5
-	deepSeek32BlockCount        = 62
-	deepSeek32LayerNormEpsilon  = 1e-6
-	deepSeekDenseIndexerContext = 1 << 20
-	deepSeekInitialFullIndexers = 2
-	deepSeekFullIndexerPeriod   = 4
+	chameleonQKNormEpsilon     = 1e-5
+	deepSeek32BlockCount       = 62
+	deepSeek32LayerNormEpsilon = 1e-6
 )
 
 // UnsupportedArchitectureError: valid, unsupported GGUF architecture.
@@ -1642,15 +1639,8 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			return Spec{}, err
 		}
 		spec.IndexerFullLayers = make([]bool, spec.BlockCount)
-		if validation.MLA == MLAValidationDeepSeek32 || spec.ContextLength < deepSeekDenseIndexerContext {
-			for index := range spec.IndexerFullLayers {
-				spec.IndexerFullLayers[index] = true
-			}
-		} else {
-			for index := range spec.IndexerFullLayers {
-				spec.IndexerFullLayers[index] = index < deepSeekInitialFullIndexers ||
-					(index-deepSeekInitialFullIndexers)%deepSeekFullIndexerPeriod == 0
-			}
+		for index := range spec.IndexerFullLayers {
+			spec.IndexerFullLayers[index] = profile.Cadence.fullIndexer(spec.ContextLength, uint32(index))
 		}
 		indexerTypesKey := prefix + "attention.indexer.types"
 		if value, present := values[indexerTypesKey]; present && value.Type == gguf.ValueTypeUint32 {

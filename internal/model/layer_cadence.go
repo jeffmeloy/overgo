@@ -25,12 +25,23 @@ const (
 	slidingCadenceExceptLast
 )
 
+const contextualIndexerDenseContext, contextualIndexerPrefix, contextualIndexerPeriod uint32 = 1 << 20, 2, 4
+
 // LayerCadencePolicy: recurrent, expert, and sliding layer schedules.
 type LayerCadencePolicy struct {
 	Recurrent             recurrentCadence
 	MoE                   moeCadence
 	Sliding               slidingCadence
 	FullIndexerEveryLayer bool
+	ContextualIndexer     bool
+}
+
+func (p LayerCadencePolicy) fullIndexer(context, layer uint32) bool {
+	if p.FullIndexerEveryLayer || p.ContextualIndexer && context < contextualIndexerDenseContext {
+		return true
+	}
+	return p.ContextualIndexer && (layer < contextualIndexerPrefix ||
+		(layer-contextualIndexerPrefix)%contextualIndexerPeriod == 0)
 }
 
 func (p LayerCadencePolicy) recurrent(spec Spec, block uint32) bool {

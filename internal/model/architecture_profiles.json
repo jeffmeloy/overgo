@@ -799,6 +799,7 @@
   {
     "Attention": 2,
     "Auxiliary": 2,
+    "Cadence": {"ContextualIndexer": true},
     "Capabilities": 34359739140,
     "DraftKind": 4,
     "Experts": {

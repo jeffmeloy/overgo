@@ -134,6 +134,9 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	if profile.AttentionGraph.GatedDelta != gatedDeltaNone && profile.Attention != AttentionGatedDelta {
 		return fmt.Errorf("architecture profile %q: Qwen GDN graph requires Qwen GDN attention", profile.Name)
 	}
+	if profile.Cadence.FullIndexerEveryLayer && profile.Cadence.ContextualIndexer {
+		return fmt.Errorf("architecture profile %q: full-indexer cadences conflict", profile.Name)
+	}
 	if profile.Rotary.MultiAxis != multiAxisRotaryNone && !profile.Has(ArchitectureMultiAxisPositions) {
 		return fmt.Errorf("architecture profile %q: multi-axis rotary policy requires multi-axis positions", profile.Name)
 	}

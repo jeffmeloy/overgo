@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"testing"
+	"time"
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
@@ -67,6 +68,7 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 		freePeak  uint64
 		allocPeak uint64
 		traj      []float64
+		wall      time.Duration
 	}
 	run := func(pool bool) peakResult {
 		m := syntheticCausalModel(t, scaleModelSpec) // identical seeded weights each run
@@ -81,7 +83,9 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
+		started := time.Now()
 		traj, err := m.TrainDeviceResident(worker, tokens, steps, 0, 0.9)
+		wall := time.Since(started)
 		if err != nil {
 			t.Fatalf("TrainDeviceResident(pool=%v): %v", pool, err)
 		}
@@ -89,7 +93,7 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return peakResult{freePeak: probe.PeakBytes(), allocPeak: stats.PeakBytes, traj: traj}
+		return peakResult{freePeak: probe.PeakBytes(), allocPeak: stats.PeakBytes, traj: traj, wall: wall}
 	}
 
 	unpooled := run(false)
@@ -121,6 +125,8 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 		unpooled.allocPeak, float64(unpooled.allocPeak)/(1<<20),
 		pooled.allocPeak, float64(pooled.allocPeak)/(1<<20),
 		float64(unpooled.allocPeak-pooled.allocPeak)/(1<<20))
+	t.Logf("resident training wall: unpooled=%s pooled=%s (%d steps, %.1f ms/step)",
+		unpooled.wall, pooled.wall, steps, float64(pooled.wall.Microseconds())/1000/steps)
 	if pooledPeak == 0 || unpooledPeak == 0 {
 		t.Fatalf("peak probe returned zero (unpooled=%d pooled=%d)", unpooledPeak, pooledPeak)
 	}
@@ -129,6 +135,9 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 	}
 	if pooled.allocPeak >= unpooled.allocPeak {
 		t.Fatalf("scratch pool did not lower live-alloc peak: pooled=%d >= unpooled=%d", pooled.allocPeak, unpooled.allocPeak)
+	}
+	if pooled.wall > 2*time.Second {
+		t.Fatalf("pooled resident training wall %s exceeds 2s baseline", pooled.wall)
 	}
 }
 

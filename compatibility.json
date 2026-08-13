@@ -261,7 +261,7 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:5ee3fc9c904d639ea6d33ebbed24f116fd58ee372141ec0d7c889b85eaeff465"
+          "identity": "file:sha256:a77c2718267d8ffd26a4381abfde88483ec8cb5709416e9ad31ed620faf15a19"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -688,7 +688,7 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:7e04fffc89c93ad71a259efa05bea63e687b6dde09bfde61ea4fea73c75bfe58"
+          "identity": "file:sha256:24ebf860ce0201c5f1e69d2f429d278616816692b429816d008216bd1ada125c"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
@@ -709,7 +709,7 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:7a827d069ec7fc94f6ddbe55e560c59ad629d78e493808aa4d33d70b6c2ff970"
+          "identity": "file:sha256:812b1f603e3077f7d838077543a70abcf9584143f94295bf097f198bf0cdc0d3"
         },
         {
           "contains": "func ReadWeights(",
@@ -721,7 +721,7 @@
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:a64ce1308fe81f540ec09eec7080881317d7e1f8a83885a33add0bb5fe17a6d0"
+          "identity": "evidence:sha256:53d558aa0923120e883d6f1670029e78f8dd0c9e74a22488c556759e724ab57e"
         }
       ],
       "id": "architecture-family-dispatch",

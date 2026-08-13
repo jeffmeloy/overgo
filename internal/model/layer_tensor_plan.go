@@ -272,12 +272,13 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 
 // AttentionGraphPlan: compiled per-layer attention graph.
 type AttentionGraphPlan struct {
-	Causal        bool
-	UseSinks      bool
-	ChunkedWindow bool
-	Window        uint32
-	Softcap       float32
-	MaxALiBiBias  float32
+	Causal          bool
+	UseSinks        bool
+	ChunkedWindow   bool
+	deltaProjection gatedDeltaPolicy
+	Window          uint32
+	Softcap         float32
+	MaxALiBiBias    float32
 }
 
 // Build: materializes compiled attention controls.
@@ -303,7 +304,7 @@ func (p AttentionGraphPlan) Build(
 
 func (s Spec) attentionGraphPlan(layer uint32) AttentionGraphPlan {
 	policy := s.Profile().AttentionGraph
-	plan := AttentionGraphPlan{Causal: !s.NonCausalAttention}
+	plan := AttentionGraphPlan{Causal: !s.NonCausalAttention, deltaProjection: policy.GatedDelta}
 	if s.IsSlidingLayer(layer) {
 		plan.Window = s.SlidingWindow
 		plan.ChunkedWindow = policy.ChunkedWindow

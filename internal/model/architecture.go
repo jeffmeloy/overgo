@@ -129,6 +129,7 @@ const (
 	FeedForwardGELU
 	FeedForwardSquaredReLU
 	FeedForwardXIELU
+	FeedForwardGEGLU
 )
 
 // AttentionPolicy: primary attention implementation.
@@ -215,6 +216,7 @@ type NormalizationPlan struct {
 	PostAttention     bool
 	PostFeedForward   bool
 	Bias              bool
+	RMSBias           bool
 	PostNormLayout    PostNormLayoutPolicy
 	FeedForwardLayout FeedForwardNormLayoutPolicy
 }
@@ -278,7 +280,7 @@ const (
 	ArchitectureLatentYaRNQuery
 	ArchitectureSparseLatent
 	ArchitectureLatent
-	ArchitectureGEGLU
+	architectureReservedGEGLU
 	ArchitecturePostNorm
 	ArchitecturePostOnlyNorm
 	ArchitectureNormalRoPE

@@ -1,7 +1,6 @@
 package model
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
@@ -304,12 +303,11 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 	}
 }
 
-func TestArchitectureBlockDispatchRoutesFamilies(t *testing.T) {
+func TestCompiledBlockDispatchRequiresPlan(t *testing.T) {
 	_, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: Spec{CommonSpec: CommonSpec{Architecture: "unknown"}},
 	})
-	var unsupported *UnsupportedArchitectureError
-	if !errors.As(err, &unsupported) {
+	if err == nil || !strings.Contains(err.Error(), "compiled layer plan is required") {
 		t.Fatalf("unknown error = %v", err)
 	}
 	t5 := Spec{CommonSpec: CommonSpec{Architecture: "t5"}}

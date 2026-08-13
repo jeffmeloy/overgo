@@ -42,12 +42,15 @@ func (p CompiledLayerProgram) Build(
 ) (DenseBlockResult, error) {
 	switch p.role {
 	case programEncoder:
-		output, err := buildEncoderBlock(context.Builder, context.Input, p.spec, weights)
+		output, err := buildEncoderBlock(
+			context.Builder, context.Input, p.spec, weights, p.plan.EncoderOperator,
+		)
 		return DenseBlockResult{Output: output}, err
 	case programDecoder:
 		return buildDecoderBlockCached(
 			context.Builder, context.Input, context.Encoder, p.spec, weights,
 			context.PastKey, context.PastValue, context.CrossKey, context.CrossValue,
+			p.plan.EncoderOperator,
 		)
 	}
 	plan := p.plan
@@ -57,12 +60,6 @@ func (p CompiledLayerProgram) Build(
 }
 
 func executeCompiledLayer(options BlockDispatchOptions) (DenseBlockResult, error) {
-	_, ok := options.Spec.ResolvedProfile()
-	if !ok {
-		return DenseBlockResult{}, &UnsupportedArchitectureError{
-			Architecture: options.Spec.Architecture,
-		}
-	}
 	if options.Plan == nil {
 		return DenseBlockResult{}, errors.New("compiled layer plan is required")
 	}
@@ -261,6 +258,7 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				c.Positions, c.MultiPositions, sequences,
 				operands.caches[0], operands.caches[1], c.CacheWrite,
+				plan.AttentionGraph.deltaProjection,
 			)
 		case LayerOperatorAttentionOutputProjection:
 			if options.Weights.AttentionOutput == nil {
@@ -294,7 +292,7 @@ func executeLayerInstruction(
 		case LayerOperatorAttentionBidirectionalEncoder:
 			result, err = buildBidirectionalEncoderAttentionMix(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan.Layer,
+				operands.caches[0], operands.caches[1], plan,
 			)
 		case LayerOperatorAttentionPairedCausalProjection:
 			result, err = buildPairedCausalProjectionMixCached(
@@ -372,6 +370,7 @@ func executeLayerInstruction(
 			result, err = buildGatedDeltaMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				c.Positions, sequences, operands.caches[0], operands.caches[1],
+				plan.AttentionGraph.deltaProjection,
 			)
 		case recurrentMixerShortConvolution:
 			result, err = buildShortConvolutionMixCached(
@@ -475,7 +474,7 @@ func executeLayerInstruction(
 			)
 		case LayerOperatorFeedForwardEncoder:
 			feedForward, err = buildEncoderFeedForwardMix(
-				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
+				c.Builder, execution.current, options.Spec, options.Weights, plan,
 			)
 		case LayerOperatorFeedForwardPlanned:
 			feedForward, err = buildPolicyFeedForwardMix(
@@ -636,7 +635,7 @@ func executeLayerInstruction(
 		}
 		result, err := buildLatentAttentionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], plan.Layer,
+			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], plan,
 		)
 		if err != nil {
 			return err

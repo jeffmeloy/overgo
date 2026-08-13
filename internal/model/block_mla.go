@@ -15,14 +15,14 @@ func buildLatentAttentionMixCached(
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor,
-	layerIndex uint32,
+	plan LayerPlan,
 ) (DenseBlockResult, error) {
-	profile := spec.Profile()
-	usesNeoXResidualScale := profile.LatentAttention == latentAttentionNeoXResidualScale
-	usesYaRNQuery := profile.Has(ArchitectureLatentYaRNQuery)
-	usesSparseIndexer := profile.Attention == AttentionSparseLatent
-	usesSparseNeoXIndexer := profile.LatentAttention == latentAttentionSparseNeoXIndexer
-	omitsRoPE := profile.LatentAttention == latentAttentionNoRoPE
+	layerIndex := plan.Layer
+	usesNeoXResidualScale := plan.LatentAttention == latentAttentionNeoXResidualScale
+	usesYaRNQuery := plan.LatentYaRNQuery
+	usesSparseIndexer := plan.Attention == AttentionSparseLatent
+	usesSparseNeoXIndexer := plan.LatentAttention == latentAttentionSparseNeoXIndexer
+	omitsRoPE := plan.LatentAttention == latentAttentionNoRoPE
 	required := graphWeights{
 		requireGraphWeight("attention Q", weights.AttentionQ),
 		requireGraphWeight("attention KV-A", weights.AttentionKVAMQA),

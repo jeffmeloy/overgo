@@ -835,7 +835,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		layer := &result.Layers[block]
-		if profile.DenseWeights.ValidateOptionalQKNorm && profile.DenseWeights.AllowActivationScale {
+		if layerPlan.DenseWeights.validateOptionalQKNorm && layerPlan.DenseWeights.allowActivationScale {
 			_, hasQNorm := tensors[prefix+"attn_q_norm.weight"]
 			_, hasKNorm := tensors[prefix+"attn_k_norm.weight"]
 			if hasQNorm != hasKNorm {
@@ -958,7 +958,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_norm.weight")
 			}
 		} else if normPlan.PreAttention &&
-			(!profile.DeciSparse || spec.LayerHeadCount(block) > 0) &&
+			(!layerPlan.DeciSparse || spec.LayerHeadCount(block) > 0) &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
@@ -1188,7 +1188,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 			continue
 		}
-		if profile.DenseWeights.UseSecondaryAttentionNorm {
+		if layerPlan.DenseWeights.useSecondaryAttentionNorm {
 			if normErr := loadOptionalWeightBias(
 				required, tensors, prefix,
 				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, uint64(spec.EmbeddingLength)),
@@ -1198,7 +1198,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, normErr
 			}
 		}
-		if profile.DenseWeights.RequireSubNorm {
+		if layerPlan.DenseWeights.requireSubNorm {
 			attentionSubNorm, subNormErr := required(
 				prefix+"attn_sub_norm.weight", uint64(spec.EmbeddingLength),
 			)
@@ -1225,9 +1225,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, scaleErr
 			}
 		}
-		if profile.DeciSparse && spec.LayerHeadCount(block) == 0 {
+		if layerPlan.DeciSparse && spec.LayerHeadCount(block) == 0 {
 			// Attention-free layer.
-		} else if profile.DeciSparse && spec.LayerKVHeadCount(block) == 0 {
+		} else if layerPlan.DeciSparse && spec.LayerKVHeadCount(block) == 0 {
 			if layer.AttentionOutput, err = required(
 				prefix+"attn_output.weight",
 				uint64(spec.EmbeddingLength),
@@ -1237,7 +1237,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		} else if handled, mixerErr := loadRecurrentMixerLayer(
 			required, tensors, prefix, spec, layer, block, layerPlan.Mixer,
-			profile.AttentionGraph.GatedDelta, layerPlan.Recurrent,
+			layerPlan.AttentionGraph.deltaProjection, layerPlan.Recurrent,
 			queryLength, keyLength, valueLength, attentionOutputLength,
 		); mixerErr != nil {
 			return Weights{}, mixerErr
@@ -1260,7 +1260,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 						return Weights{}, valueErr
 					}
 					layer.AttentionV = value
-				} else if profile.LayerTopology == LayerTopologySplitProjection {
+				} else if layerPlan.SplitProjection {
 					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_v.weight")
 				}
 			}
@@ -1269,7 +1269,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			); err != nil {
 				return Weights{}, err
 			}
-		} else if profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent {
+		} else if layerPlan.Attention == AttentionLatent || layerPlan.Attention == AttentionSparseLatent {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
 			if profile.LatentAttention == latentAttentionNeoXResidualScale || (profile.Has(ArchitectureLatentKVLayout) && spec.QLoRARank > 0) {
 				if layer.AttentionQ, err = required(
@@ -1333,7 +1333,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		); attentionErr != nil {
 			return Weights{}, attentionErr
 		}
-		qkPlan := spec.qkPreprocessPlan(block)
+		qkPlan := layerPlan.QKPreprocess
 		if !layer.Recurrent && (qkPlan.Heads == qkNormWeighted || qkPlan.PostRotary == qkNormWeighted) {
 			shape := []uint64{uint64(spec.KeyLength)}
 			if normErr := loadQKNormPair(required, tensors, prefix, layer, shape, shape, ""); normErr != nil {
@@ -1359,7 +1359,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, normErr
 			}
 		}
-		if qkPlan.Heads == qkNormOptionalWeighted && profile.DenseStages.AttentionGate != attentionGateNone {
+		if qkPlan.Heads == qkNormOptionalWeighted && layerPlan.AttentionOutput.gate != attentionGateNone {
 			if gateErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				optionalTensorPointer("attn_gate.weight", &layer.AttentionOutputGate,
 					uint64(spec.EmbeddingLength), uint64(spec.LayerHeadCount(block))),
@@ -1367,11 +1367,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, gateErr
 			}
 		}
-		if profile.AttentionGraph.UseSinks {
+		if layerPlan.AttentionGraph.UseSinks {
 			sinkRequirement := optionalF32TensorPointer(
 				"attn_sinks.weight", &layer.AttentionSinks, uint64(spec.LayerHeadCount(block)))
 			requirements := []tensorRequirement{sinkRequirement}
-			if profile.DenseWeights.RequireAttentionSinks {
+			if layerPlan.DenseWeights.requireAttentionSinks {
 				requirements[0] = requiredF32TensorPointer(
 					"attn_sinks.weight", &layer.AttentionSinks, uint64(spec.LayerHeadCount(block)))
 				requirements = append(requirements, requiredTensorPointer(
@@ -1381,7 +1381,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, sinkErr
 			}
 		}
-		if profile.DenseWeights.RequireAttentionGate {
+		if layerPlan.DenseWeights.requireAttentionGate {
 			gate, ok := tensors[prefix+"attn_gate.weight"]
 			if !ok {
 				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_gate.weight")
@@ -1390,10 +1390,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", gate.Name, gate.Shape)
 			}
 			heads := uint64(spec.LayerHeadCount(block))
-			if profile.DenseStages.AttentionFlatGate && gate.Shape[1] != heads*uint64(spec.ValueLength) {
+			if layerPlan.AttentionOutput.flatGate && gate.Shape[1] != heads*uint64(spec.ValueLength) {
 				return Weights{}, fmt.Errorf("tensor %q has gate width %d, need %d", gate.Name, gate.Shape[1], heads*uint64(spec.ValueLength))
 			}
-			if profile.DenseStages.AttentionFlatGateElse && gate.Shape[1] != heads && gate.Shape[1] != heads*uint64(spec.ValueLength) {
+			if layerPlan.AttentionOutput.flatGateElse && gate.Shape[1] != heads && gate.Shape[1] != heads*uint64(spec.ValueLength) {
 				return Weights{}, fmt.Errorf("tensor %q has gate width %d, need %d or %d", gate.Name, gate.Shape[1], heads, heads*uint64(spec.ValueLength))
 			}
 			layer.AttentionOutputGate = &gate
@@ -1483,11 +1483,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, biasErr
 			}
 		}
-		if profile.DenseWeights.RequireAttentionOutputBias && layer.AttentionOutputBias == nil {
+		if layerPlan.DenseWeights.requireAttentionOutputBias && layer.AttentionOutputBias == nil {
 			return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
 		}
 		if !layer.Recurrent && layer.AttentionQKV == nil &&
-			(!profile.DeciSparse || spec.LayerKVHeadCount(block) > 0) {
+			(!layerPlan.DeciSparse || spec.LayerKVHeadCount(block) > 0) {
 			if biasErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, layer.AttentionQ.Shape[1]),
 				optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, layer.AttentionK.Shape[1]),
@@ -1536,7 +1536,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 			}
 		}
-		if profile.LayerTopology == LayerTopologySplitProjection {
+		if layerPlan.SplitProjection {
 			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				requiredTensorPointer("altup_correct_coef.weight", &layer.AltUpCorrectCoefficient, uint64(spec.AltUpCount), uint64(spec.AltUpCount)),
 				requiredTensorPointer("altup_correct_scale.weight", &layer.AltUpCorrectScale, uint64(spec.EmbeddingLength)),
@@ -1554,7 +1554,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			continue
 		}
 		feedForwardNormName := normPlan.FeedForwardNormTensor()
-		if profile.DenseStages.Residual == residualStable {
+		if layerPlan.ResidualStages.kind == residualStable {
 			if normErr := loadOptionalWeightBias(
 				required, tensors, prefix,
 				requiredTensor(feedForwardNormName, &layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
@@ -1563,8 +1563,8 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			); normErr != nil {
 				return Weights{}, normErr
 			}
-		} else if !profile.DenseWeights.RequireExpertProjectionBiases && normPlan.PreFeedForward &&
-			(!profile.DeciSparse || spec.LayerFeedForwardLength(block) > 0) &&
+		} else if !layerPlan.DenseWeights.requireExpertProjectionBiases && normPlan.PreFeedForward &&
+			(!layerPlan.DeciSparse || spec.LayerFeedForwardLength(block) > 0) &&
 			profile.Residual != ResidualParallel &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {

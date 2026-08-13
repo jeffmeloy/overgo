@@ -93,6 +93,7 @@ func (p RuntimePolicy) normalizationPlan(spec Spec, profile ArchitectureProfile)
 	return NormalizationPlan{
 		Operation: operation, PreAttention: pre, PreFeedForward: pre,
 		PostAttention: post, PostFeedForward: post, Bias: bias,
+		RMSBias:        profile.DenseWeights.RMSNormBias,
 		PostNormLayout: profile.PostNormLayout, FeedForwardLayout: profile.FFNNormLayout,
 	}
 }

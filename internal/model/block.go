@@ -222,7 +222,7 @@ func ApplyNormalization(
 		return builder.AffineLayerNorm(input, weight, bias, spec.LayerNormEpsilon)
 	}
 	normalized := builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)
-	if spec.Profile().DenseWeights.RMSNormBias && bias != nil {
+	if norm.RMSBias && bias != nil {
 		return builder.Add(normalized, bias)
 	}
 	return normalized
@@ -245,7 +245,6 @@ type denseBlockContext struct {
 	multiPositions     *[4][]uint32
 	pastKey, pastValue *tensor.Tensor
 	plan               LayerPlan
-	profile            ArchitectureProfile
 	layer              uint32
 	cacheWrite         tensor.CacheWriteMode
 }
@@ -256,7 +255,7 @@ func newDenseBlockContext(options BlockDispatchOptions) denseBlockContext {
 		builder: c.Builder, input: c.Input, spec: options.Spec, weights: options.Weights,
 		positions: c.Positions, multiPositions: c.MultiPositions,
 		pastKey: c.PastKey, pastValue: c.PastValue, layer: c.Layer, cacheWrite: c.CacheWrite,
-		plan: *options.Plan, profile: options.Spec.Profile(),
+		plan: *options.Plan,
 	}
 }
 
@@ -276,13 +275,13 @@ func preparePolicyAttentionInputs(
 	if err := c.plan.ExpertComposition.Validate(c.spec); err != nil {
 		return nil, nil, err
 	}
-	if c.profile.FeedForward == FeedForwardXIELU &&
+	if c.plan.FeedForward == FeedForwardXIELU &&
 		(int(c.layer) >= len(c.spec.XIELUAlphaN) || int(c.layer) >= len(c.spec.XIELUAlphaP) ||
 			int(c.layer) >= len(c.spec.XIELUBeta) || int(c.layer) >= len(c.spec.XIELUEpsilon)) {
 		return nil, nil, errors.New("Apertus xIELU parameters are missing for layer")
 	}
 	usesExperts := c.weights.FeedForwardRouter != nil
-	if err := c.plan.DenseWeights.Validate(c.spec, c.profile, c.weights, usesExperts); err != nil {
+	if err := c.plan.DenseWeights.Validate(c.spec, c.weights, usesExperts, c.plan.FeedForward); err != nil {
 		return nil, nil, err
 	}
 	if len(c.positions) == 0 || uint64(len(c.positions)) != c.input.Shape.Dims[1] {
@@ -293,7 +292,7 @@ func preparePolicyAttentionInputs(
 	if err := requireTensorPair(c.pastKey, c.pastValue, "dense block past key/value cache must both be present"); err != nil {
 		return nil, nil, err
 	}
-	if c.spec.NonCausalAttention && c.profile.Forward.Session != ForwardSessionPairedFeatures && c.pastKey != nil {
+	if !c.plan.AttentionGraph.Causal && !c.plan.AllowNonCausalCache && c.pastKey != nil {
 		return nil, nil, errors.New("non-causal dense block does not support a KV cache")
 	}
 	normalized := c.input
@@ -326,7 +325,7 @@ func buildPolicyAttentionMix(
 	tokens := uint64(len(c.positions))
 	runtime := denseBlockRuntime{
 		builder: c.builder, spec: c.spec, weights: c.weights, plan: c.plan,
-		profile: c.profile, layer: c.layer, tokens: tokens,
+		layer: c.layer, tokens: tokens,
 	}
 	attentionGate := c.plan.AttentionOutput.PrepareGate(c.builder, gateInput, c.weights)
 	query, key, value := runtime.projectAttention(normalized)
@@ -407,7 +406,7 @@ func buildPolicyFeedForwardMix(
 	} else {
 		runtime := denseBlockRuntime{
 			builder: c.builder, spec: c.spec, weights: c.weights, plan: c.plan,
-			profile: c.profile, layer: c.layer, tokens: c.input.Shape.Dims[1],
+			layer: c.layer, tokens: c.input.Shape.Dims[1],
 		}
 		feedForward, err = runtime.buildFeedForward(normalized)
 	}
@@ -422,7 +421,6 @@ type denseBlockRuntime struct {
 	spec    Spec
 	weights LayerGraphWeights
 	plan    LayerPlan
-	profile ArchitectureProfile
 	layer   uint32
 	tokens  uint64
 }
@@ -483,7 +481,7 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 		up = r.builder.Add(up, r.weights.FeedForwardUpBias)
 	}
 	var activation *tensor.Tensor
-	switch r.profile.FeedForward {
+	switch r.plan.FeedForward {
 	case FeedForwardFusedGateUp:
 		width := uint64(r.spec.FeedForwardLength)
 		stride := 2 * width
@@ -499,7 +497,7 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 		activation = r.builder.GELU(up)
 	case FeedForwardSquaredReLU:
 		activation = r.builder.ReLUSquared(up)
-	default:
+	case FeedForwardSwiGLU, FeedForwardGEGLU:
 		gate := r.builder.MulMat(r.weights.FeedForwardGate, normalized)
 		if r.weights.FeedForwardGateScale != nil {
 			gate = r.builder.Multiply(gate, r.weights.FeedForwardGateScale)
@@ -508,9 +506,11 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 			gate = r.builder.Add(gate, r.weights.FeedForwardGateBias)
 		}
 		activation = r.builder.SwiGLU(gate, up)
-		if r.profile.Has(ArchitectureGEGLU) {
+		if r.plan.FeedForward == FeedForwardGEGLU {
 			activation = r.builder.GEGLU(gate, up)
 		}
+	default:
+		return nil, fmt.Errorf("unsupported feed-forward policy %d", r.plan.FeedForward)
 	}
 	if r.weights.FeedForwardActivationScale != nil {
 		if !r.plan.DenseWeights.allowActivationScale {
@@ -927,6 +927,7 @@ func buildGatedProjectionMixCached(
 	sequences uint64,
 	pastKey, pastValue *tensor.Tensor,
 	cacheWrite tensor.CacheWriteMode,
+	deltaProjection gatedDeltaPolicy,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil {
 		return DenseBlockResult{}, errors.New("gated-delta attention mix input is nil")
@@ -979,7 +980,7 @@ func buildGatedProjectionMixCached(
 	if spec.RopeScalingType == "linear" {
 		frequencyScale = 1 / spec.RopeScalingFactor
 	}
-	if spec.Profile().AttentionGraph.GatedDelta == gatedDeltaInterleavedProjections {
+	if deltaProjection == gatedDeltaInterleavedProjections {
 		query = builder.RoPENeoXScaled(
 			query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
 		)
@@ -1049,6 +1050,7 @@ func buildGatedDeltaMixCached(
 	positions []uint32,
 	sequences uint64,
 	convState, ssmState *tensor.Tensor,
+	deltaPolicy gatedDeltaPolicy,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("gated-delta recurrent mix input/state is nil")
@@ -1061,7 +1063,6 @@ func buildGatedDeltaMixCached(
 		requireGraphWeight("SSM norm", weights.SSMNorm),
 		requireGraphWeight("SSM output", weights.SSMOutput),
 	}
-	deltaPolicy := spec.Profile().AttentionGraph.GatedDelta
 	if deltaPolicy == gatedDeltaInterleavedProjections {
 		required.add("SSM beta/alpha", weights.SSMBetaAlpha)
 		if weights.AttentionQKV.Shape.Dims[1] == uint64(spec.SSMInnerSize)+

@@ -14,9 +14,9 @@ func buildBidirectionalEncoderAttentionMix(
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
-	layerIndex uint32,
+	plan LayerPlan,
 ) (DenseBlockResult, error) {
-	encoder := spec.Profile().EncoderOperator
+	layerIndex, encoder := plan.Layer, plan.EncoderOperator
 	if !encoder.bidirectionalProjection() {
 		return DenseBlockResult{}, errors.New("bidirectional projection requires a compatible encoder policy")
 	}
@@ -41,7 +41,7 @@ func buildBidirectionalEncoderAttentionMix(
 		return DenseBlockResult{}, errors.New("post-normalized encoder attention Q/K/V weights are incomplete")
 	}
 	runtime := denseBlockRuntime{
-		builder: builder, spec: spec, weights: weights, profile: spec.Profile(),
+		builder: builder, spec: spec, weights: weights,
 		layer: layerIndex, tokens: tokens,
 	}
 	query, key, value := runtime.projectAttention(input)
@@ -89,9 +89,9 @@ func buildEncoderFeedForwardMix(
 	input *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-	layerIndex uint32,
+	plan LayerPlan,
 ) (*tensor.Tensor, error) {
-	encoder := spec.Profile().EncoderOperator
+	encoder := plan.EncoderOperator
 	if !encoder.bidirectionalProjection() {
 		return nil, errors.New("encoder feed-forward requires a bidirectional projection policy")
 	}
@@ -99,7 +99,7 @@ func buildEncoderFeedForwardMix(
 		return nil, errors.New("post-normalized encoder feed-forward input shape is incompatible")
 	}
 	required := graphWeights{}
-	usesExperts := encoder.usesExperts() && spec.IsInterleavedMoELayer(layerIndex)
+	usesExperts := encoder.usesExperts() && weights.FeedForwardRouter != nil
 	if usesExperts {
 		required.add("feed-forward router", weights.FeedForwardRouter)
 		required.add("feed-forward expert up", weights.FeedForwardUpExperts)
@@ -117,10 +117,10 @@ func buildEncoderFeedForwardMix(
 	tokens := input.Shape.Dims[1]
 	var feedForward *tensor.Tensor
 	if usesExperts {
-		plan := spec.moeGraphPlan(layerIndex)
-		plan.Activation = tensor.MoEActivationGELU
-		plan.NormalizeTopKProb = true
-		feedForward = plan.BuildLayer(builder, input, nil, weights)
+		experts := plan.Experts
+		experts.Activation = tensor.MoEActivationGELU
+		experts.NormalizeTopKProb = true
+		feedForward = experts.BuildLayer(builder, input, nil, weights)
 	} else {
 		feedForward = builder.MulMat(weights.FeedForwardUp, input)
 		if weights.FeedForwardUpBias != nil {
@@ -166,9 +166,6 @@ func buildBidirectionalFusedQKVMix(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Profile().EncoderOperator != encoderOperatorFusedQKVSliding {
-		return DenseBlockResult{}, errors.New("fused-QKV sliding attention requires a compatible encoder policy")
-	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("fused-QKV sliding attention input shape is incompatible")
 	}
@@ -241,9 +238,6 @@ func buildBidirectionalQKNormMix(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Profile().EncoderOperator != encoderOperatorQKNormProjection {
-		return DenseBlockResult{}, errors.New("bidirectional Q/K-normalized attention requires a compatible encoder policy")
-	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("bidirectional Q/K-normalized attention input shape is incompatible")
 	}
@@ -279,7 +273,7 @@ func buildBidirectionalQKNormMix(
 	shapes := spec.TensorShapes(layerIndex)
 	headCount, kvHeadCount := uint64(shapes.QueryHeads), uint64(shapes.KVHeads)
 	runtime := denseBlockRuntime{
-		builder: builder, spec: spec, weights: weights, profile: spec.Profile(),
+		builder: builder, spec: spec, weights: weights,
 		layer: layerIndex, tokens: tokens,
 	}
 	query, key, value := runtime.projectAttention(input)
@@ -325,9 +319,6 @@ func buildCausalPostQKNormMixCached(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Profile().LayerTopology != LayerTopologyCausalPostQKNormSkip {
-		return DenseBlockResult{}, errors.New("causal post-Q/K-normalized attention requires Talkie policy")
-	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("causal post-Q/K-normalized attention input shape is incompatible")
 	}
@@ -363,7 +354,7 @@ func buildCausalPostQKNormMixCached(
 	shapes := spec.TensorShapes(layerIndex)
 	headCount, kvHeadCount := uint64(shapes.QueryHeads), uint64(shapes.KVHeads)
 	runtime := denseBlockRuntime{
-		builder: builder, spec: spec, weights: weights, profile: spec.Profile(),
+		builder: builder, spec: spec, weights: weights,
 		layer: layerIndex, tokens: tokens,
 	}
 	query, key, value := runtime.projectAttention(input)
@@ -456,11 +447,11 @@ func buildEncoderBlock(
 	input *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
+	encoder EncoderOperatorPolicy,
 ) (*tensor.Tensor, error) {
 	if builder == nil || input == nil {
 		return nil, errors.New("encoder block input is nil")
 	}
-	encoder := spec.Profile().EncoderOperator
 	if encoder != encoderOperatorRelativeEncoderDecoder && encoder != encoderOperatorRelativeEncoder {
 		return nil, errors.New("encoder block requires a compiled relative-attention program")
 	}
@@ -499,15 +490,16 @@ func buildEncoderBlock(
 // buildDecoderBlockCached: causal self-attention plus fixed cross-attention.
 func buildDecoderBlockCached(
 	builder *tensor.Builder,
-	input, encoder *tensor.Tensor,
+	input, encoderState *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
 	pastSelfKey, pastSelfValue, pastCrossKey, pastCrossValue *tensor.Tensor,
+	encoderPolicy EncoderOperatorPolicy,
 ) (DenseBlockResult, error) {
 	if builder == nil || input == nil {
 		return DenseBlockResult{}, errors.New("decoder block input is nil")
 	}
-	if spec.Profile().EncoderOperator != encoderOperatorRelativeEncoderDecoder {
+	if encoderPolicy != encoderOperatorRelativeEncoderDecoder {
 		return DenseBlockResult{}, errors.New("decoder block requires a compiled relative-attention program")
 	}
 	if err := validateEncoderDecoderWeights(weights, true); err != nil {
@@ -522,7 +514,7 @@ func buildDecoderBlockCached(
 	if err := requireTensorPair(pastCrossKey, pastCrossValue, "decoder cross cache is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if pastCrossKey == nil && encoder == nil {
+	if pastCrossKey == nil && encoderState == nil {
 		return DenseBlockResult{}, errors.New("decoder encoder state is nil")
 	}
 	tokens := input.Shape.Dims[1]
@@ -550,12 +542,12 @@ func buildDecoderBlockCached(
 	crossQuery := headedProjection(builder, normalized, weights.CrossAttentionQ, spec.KeyLength, spec.HeadCount, tokens)
 	crossKey, crossValue := pastCrossKey, pastCrossValue
 	if crossKey == nil {
-		if encoder.Shape.Rank != 2 || encoder.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		if encoderState.Shape.Rank != 2 || encoderState.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 			return DenseBlockResult{}, errors.New("decoder encoder state shape is incompatible")
 		}
-		encoderTokens := encoder.Shape.Dims[1]
-		crossKey = headedProjection(builder, encoder, weights.CrossAttentionK, spec.KeyLength, spec.HeadCountKV, encoderTokens)
-		crossValue = headedProjection(builder, encoder, weights.CrossAttentionV, spec.ValueLength, spec.HeadCountKV, encoderTokens)
+		encoderTokens := encoderState.Shape.Dims[1]
+		crossKey = headedProjection(builder, encoderState, weights.CrossAttentionK, spec.KeyLength, spec.HeadCountKV, encoderTokens)
+		crossValue = headedProjection(builder, encoderState, weights.CrossAttentionV, spec.ValueLength, spec.HeadCountKV, encoderTokens)
 	}
 	crossAttention := builder.AttentionWithOffset(crossQuery, crossKey, crossValue, 1, false, 0)
 	crossAttention = builder.Reshape(crossAttention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)

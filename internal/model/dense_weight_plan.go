@@ -45,6 +45,7 @@ type DenseWeightPlan struct {
 	requireQKNorm                 bool
 	requirePostNorm               bool
 	requireAttentionGate          bool
+	requireAttentionSinks         bool
 	requireAttentionOutputBias    bool
 	requireTemperature            bool
 	requireSubNorm                bool
@@ -87,6 +88,7 @@ func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWe
 	plan.requireExpertProjectionBiases = policy.RequireExpertProjectionBiases
 	plan.requireSeparateDenseBranch = composition.kind == expertDenseRoutedSeparateNorm
 	plan.requireAttentionGate = policy.RequireAttentionGate
+	plan.requireAttentionSinks = policy.RequireAttentionSinks
 	plan.requireQKNorm = plan.requirePostNorm || requireQKNorm(qk.Projection) ||
 		requireQKNorm(qk.Heads) || requireQKNorm(qk.PostRotary) || plan.requireAttentionGate
 	plan.requireBaseNorm = !postOnly && !s.UsesUnweightedLayerNorm()
@@ -98,9 +100,9 @@ func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWe
 
 func (p DenseWeightPlan) Validate(
 	spec Spec,
-	profile ArchitectureProfile,
 	weights LayerGraphWeights,
 	usesExperts bool,
+	feedForward FeedForwardPolicy,
 ) error {
 	required := graphWeights{requireGraphWeight("attention output", weights.AttentionOutput)}
 	if usesExperts {
@@ -148,7 +150,7 @@ func (p DenseWeightPlan) Validate(
 	} else {
 		required.add("feed-forward up", weights.FeedForwardUp)
 		required.add("feed-forward down", weights.FeedForwardDown)
-		if profile.FeedForward == FeedForwardSwiGLU {
+		if feedForward == FeedForwardSwiGLU || feedForward == FeedForwardGEGLU {
 			required.add("feed-forward gate", weights.FeedForwardGate)
 		}
 	}
@@ -172,7 +174,7 @@ func (p DenseWeightPlan) Validate(
 		required.add("attention sub norm", weights.AttentionSubNorm)
 		required.add("feed-forward sub norm", weights.FeedForwardSubNorm)
 	}
-	if profile.FeedForward == FeedForwardSequentialGELU {
+	if feedForward == FeedForwardSequentialGELU {
 		required.add("feed-forward up bias", weights.FeedForwardUpBias)
 		required.add("feed-forward down bias", weights.FeedForwardDownBias)
 	}
@@ -199,7 +201,7 @@ func (p DenseWeightPlan) Validate(
 	if p.requireAttentionOutputBias {
 		required.add("attention output bias", weights.AttentionOutputBias)
 	}
-	if profile.DenseWeights.RequireAttentionSinks {
+	if p.requireAttentionSinks {
 		required.add("attention sinks", weights.AttentionSinks)
 		required.add("attention post norm", weights.AttentionPostNorm)
 	}

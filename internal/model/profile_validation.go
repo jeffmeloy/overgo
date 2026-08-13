@@ -30,7 +30,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Normalization", profile.Normalization, NormalizationWeightOnlyLayer),
 		validateProfileOrdinal("Position", profile.Position, PositionNormal),
 		validateProfileOrdinal("Residual", profile.Residual, ResidualParallel),
-		validateProfileOrdinal("FeedForward", profile.FeedForward, FeedForwardXIELU),
+		validateProfileOrdinal("FeedForward", profile.FeedForward, FeedForwardGEGLU),
 		validateProfileOrdinal("Attention", profile.Attention, AttentionShortConvolution),
 		validateProfileOrdinal("Overrides", profile.Overrides, EmbeddingOverrideMappedBase),
 		validateProfileOrdinal("Deepstack", profile.Deepstack, DeepstackSequentialAfter),

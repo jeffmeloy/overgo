@@ -218,45 +218,49 @@ const (
 
 // LayerPlan: derived layer execution contract.
 type LayerPlan struct {
-	Layer             uint32
-	Program           LayerProgram
-	Composition       LayerCompositionPolicy
-	Cache             CachePolicy
-	Attention         AttentionPolicy
-	Position          PositionPolicy
-	Residual          ResidualPolicy
-	FeedForward       FeedForwardPolicy
-	CacheMode         CacheStateMode
-	CacheWrite        CacheWritePolicy
-	Recurrent         bool
-	Sliding           bool
-	UsesRoPE          bool
-	MultiAxis         bool
-	HasKV             bool
-	SharedKV          bool
-	KVSource          uint32
-	DeepstackBefore   DeepstackSource
-	DeepstackAfter    DeepstackSource
-	AuxiliaryInput    AuxiliaryFlow
-	AuxiliaryOutput   AuxiliaryFlow
-	Temperature       AttentionTemperaturePolicy
-	AttentionBlocks   AttentionBlockPolicy
-	EmbeddingSkip     bool
-	PerLayerInput     bool
-	Normalization     NormalizationPlan
-	Rotary            RotaryPlan
-	AttentionGraph    AttentionGraphPlan
-	Experts           MoEGraphPlan
-	ExpertComposition ExpertCompositionPlan
-	DenseWeights      DenseWeightPlan
-	SplitProjection   bool
-	ExplicitEncoder   bool
-	DeciSparse        bool
-	QKPreprocess      QKPreprocessPlan
-	QueryScale        QueryScalePlan
-	AttentionOutput   AttentionOutputPlan
-	ResidualStages    ResidualStagePlan
-	Mixer             RecurrentMixerPolicy
+	Layer               uint32
+	Program             LayerProgram
+	Composition         LayerCompositionPolicy
+	Cache               CachePolicy
+	Attention           AttentionPolicy
+	EncoderOperator     EncoderOperatorPolicy
+	LatentAttention     latentAttentionPolicy
+	LatentYaRNQuery     bool
+	Position            PositionPolicy
+	Residual            ResidualPolicy
+	FeedForward         FeedForwardPolicy
+	CacheMode           CacheStateMode
+	CacheWrite          CacheWritePolicy
+	Recurrent           bool
+	Sliding             bool
+	UsesRoPE            bool
+	MultiAxis           bool
+	HasKV               bool
+	SharedKV            bool
+	KVSource            uint32
+	DeepstackBefore     DeepstackSource
+	DeepstackAfter      DeepstackSource
+	AuxiliaryInput      AuxiliaryFlow
+	AuxiliaryOutput     AuxiliaryFlow
+	Temperature         AttentionTemperaturePolicy
+	AttentionBlocks     AttentionBlockPolicy
+	EmbeddingSkip       bool
+	PerLayerInput       bool
+	Normalization       NormalizationPlan
+	Rotary              RotaryPlan
+	AttentionGraph      AttentionGraphPlan
+	Experts             MoEGraphPlan
+	ExpertComposition   ExpertCompositionPlan
+	DenseWeights        DenseWeightPlan
+	SplitProjection     bool
+	ExplicitEncoder     bool
+	AllowNonCausalCache bool
+	DeciSparse          bool
+	QKPreprocess        QKPreprocessPlan
+	QueryScale          QueryScalePlan
+	AttentionOutput     AttentionOutputPlan
+	ResidualStages      ResidualStagePlan
+	Mixer               RecurrentMixerPolicy
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -330,6 +334,9 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	plan := LayerPlan{
 		Layer:             layer,
 		Attention:         profile.Attention,
+		EncoderOperator:   profile.EncoderOperator,
+		LatentAttention:   profile.LatentAttention,
+		LatentYaRNQuery:   profile.Has(ArchitectureLatentYaRNQuery),
 		Position:          profile.Position,
 		Residual:          profile.Residual,
 		FeedForward:       profile.FeedForward,
@@ -361,12 +368,13 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		SplitProjection:   profile.LayerTopology == LayerTopologySplitProjection,
 		ExplicitEncoder: profile.GraphFamily == ArchitectureFamilyEncoderDecoder ||
 			profile.Forward.Session == ForwardSessionEncoderDecoder,
-		DeciSparse:      deciSparse,
-		QKPreprocess:    s.qkPreprocessPlan(layer),
-		QueryScale:      s.queryScalePlan(profile, layer),
-		AttentionOutput: s.attentionOutputPlan(normalization),
-		ResidualStages:  residualStages,
-		Mixer:           mixer,
+		AllowNonCausalCache: profile.Forward.Session == ForwardSessionPairedFeatures,
+		DeciSparse:          deciSparse,
+		QKPreprocess:        s.qkPreprocessPlan(layer),
+		QueryScale:          s.queryScalePlan(profile, layer),
+		AttentionOutput:     s.attentionOutputPlan(normalization),
+		ResidualStages:      residualStages,
+		Mixer:               mixer,
 	}
 	plan.Program = compileLayerProgram(plan, profile)
 	return plan

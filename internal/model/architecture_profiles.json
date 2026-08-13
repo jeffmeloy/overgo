@@ -683,11 +683,12 @@
     }
   },
   {
-    "Capabilities": 1024,
+    "Capabilities": 0,
     "DenseStages": {
       "QueryScale": 4
     },
     "Name": "gemma",
+    "FeedForward": 6,
     "Rotary": {
       "Kind": 5
     },
@@ -699,7 +700,7 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Capabilities": 67111953,
+    "Capabilities": 67110929,
     "CatalogFamily": 4,
     "LayerTopology": 3,
     "DenseStages": {
@@ -716,6 +717,7 @@
       "KVHeads": 6
     },
     "Name": "gemma-embedding",
+    "FeedForward": 6,
     "Validation": {
       "Attention": 20
     },
@@ -730,12 +732,13 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Capabilities": 3072,
+    "Capabilities": 2048,
     "DenseStages": {
       "EmbeddingHeadScaleBlocks": 46,
       "QueryScale": 4
     },
     "Name": "gemma2",
+    "FeedForward": 6,
     "Validation": {
       "Attention": 10
     },
@@ -750,7 +753,7 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Capabilities": 3136,
+    "Capabilities": 2112,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -758,6 +761,7 @@
       "QueryScale": 4
     },
     "Name": "gemma3",
+    "FeedForward": 6,
     "Validation": {
       "Attention": 6
     },
@@ -773,7 +777,7 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Capabilities": 7516195904,
+    "Capabilities": 7516194880,
     "LayerTopology": 6,
     "DenseStages": {
       "QueryScale": 4
@@ -782,6 +786,7 @@
       "RopeDimension": 1
     },
     "Name": "gemma3n",
+    "FeedForward": 6,
     "Validation": {
       "Attention": 7
     },
@@ -798,7 +803,7 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Capabilities": 5368712256,
+    "Capabilities": 5368711232,
     "LayerTopology": 5,
     "DenseStages": {
       "QueryScale": 4
@@ -815,6 +820,7 @@
       "SWAHeadLengths": true
     },
     "Name": "gemma4",
+    "FeedForward": 6,
     "Validation": {
       "Attention": 8
     },

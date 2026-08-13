@@ -15,7 +15,7 @@ import (
 	"overgo/internal/testutil"
 )
 
-const profileCatalogSemanticDigest = "eef8d0a81db06e4533e5f9a141d4193529a0b5b91ef206c008ea3e009cffa6c2"
+const profileCatalogSemanticDigest = "0c7c03033dfc74f89603d943c6c7eb5ed6bf3c68a3b938e7253cc0bd91e4fe7c"
 const architectureProfileFactCount = 132
 const architectureProfileFactDigest = "1f9ea38af06bbc91d6f93fd36f834bb9fedc75c59ea52b2f5f839b8ed7f9c9f5"
 const architectureProfileFactSchemaDigest = "c43f66f0d04fbe276bb1c167322e07c41075953b715bc91da8411a9fed0d6e0a"

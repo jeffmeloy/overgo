@@ -317,7 +317,8 @@ func TestCompiledBlockDispatchRequiresPlan(t *testing.T) {
 		t.Fatalf("T5 dispatch error = %v", err)
 	}
 	external := ArchitectureProfile{
-		Name: "external-encoder-decoder", Family: ArchitectureFamilyEncoderDecoder,
+		Name:    "external-encoder-decoder",
+		Forward: ForwardProgram{Operation: ForwardOperationSession, Session: ForwardSessionEncoderDecoder},
 	}
 	externalSpec := Spec{CommonSpec: CommonSpec{Architecture: external.Name}}.withProfile(external)
 	externalPlan := externalSpec.PlanLayer(0, false)

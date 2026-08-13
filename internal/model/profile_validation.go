@@ -22,7 +22,6 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		return err
 	}
 	checks := []error{
-		validateProfileOrdinal("Family", profile.Family, ArchitectureFamilyDraft),
 		validateProfileOrdinal("DraftKind", profile.DraftKind, DraftOptionalSingleCatalog),
 		validateProfileOrdinal("OutputNorm", profile.OutputNorm, OutputNormTokenEmbedding),
 		validateProfileOrdinal("Normalization", profile.Normalization, NormalizationWeightOnlyLayer),

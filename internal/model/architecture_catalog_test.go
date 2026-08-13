@@ -30,9 +30,6 @@ func TestArchitectureCatalogStrictParsing(t *testing.T) {
 
 func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 	tests := map[string]func(*ArchitectureProfile){
-		"family": func(profile *ArchitectureProfile) {
-			profile.Family = ArchitectureFamily(unsupportedPolicyValue)
-		},
 		"nested validation": func(profile *ArchitectureProfile) {
 			profile.Validation.Hybrid = HybridValidationPolicy(unsupportedPolicyValue)
 		},

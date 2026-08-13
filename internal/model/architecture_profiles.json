@@ -25,7 +25,6 @@
       "SelectionBias": true,
       "SharedCatalog": 2
     },
-    "Family": 1,
     "Name": "afmoe",
     "Validation": {
       "Hybrid": 33
@@ -80,7 +79,6 @@
     "Cache": 6,
     "Capabilities": 8388618,
     "LayerTopology": 9,
-    "Family": 2,
     "Name": "arwkv7",
     "RecurrentMixer": 12,
     "Validation": {
@@ -104,7 +102,6 @@
       "Normalization": 1,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "Name": "bailingmoe",
     "Validation": {
       "Hybrid": 11
@@ -131,7 +128,6 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "ModelCatalog": {
       "DraftLayerOutputNorm": true
     },
@@ -144,7 +140,6 @@
     "Capabilities": 17247246355,
     "LayerTopology": 1,
     "EncoderOperator": 1,
-    "Family": 4,
     "FeedForward": 3,
     "Forward": {"Operation": 1},
     "Metadata": {
@@ -274,7 +269,6 @@
       "Routing": 1,
       "SharedCatalog": 2
     },
-    "Family": 1,
     "Name": "cohere2moe",
     "Validation": {
       "Attention": 13
@@ -321,7 +315,6 @@
       "Catalog": 1
     },
     "FFNNormLayout": 2,
-    "Family": 1,
     "Name": "dbrx",
     "Validation": {
       "Hybrid": 16
@@ -357,7 +350,6 @@
       "Normalization": 2,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "Name": "deepseek",
     "Validation": {
       "Hybrid": 12
@@ -379,7 +371,6 @@
       "OptionalSelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "Metadata": {
       "MLAHeadLengths": true
     },
@@ -397,7 +388,6 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "Name": "deepseek2-ocr",
     "Validation": {
       "Hybrid": 21
@@ -416,7 +406,6 @@
       "OptionalSelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "LatentAttention": 3,
     "Metadata": {
       "MLAHeadLengths": true
@@ -432,7 +421,6 @@
   {
     "Cache": 12,
     "Capabilities": 8196,
-    "Family": 1,
     "ModelCatalog": {
       "Weights": 1
     },
@@ -456,7 +444,6 @@
         "Heads": 1
       }
     },
-    "Family": 7,
     "Forward": {"Operation": 4, "Session": 1},
     "MetadataDefaults": {
       "RopeDimension": 2
@@ -485,7 +472,6 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "Name": "dots1",
     "Validation": {
       "Hybrid": 23
@@ -493,13 +479,11 @@
   },
   {
     "Capabilities": 33,
-    "Family": 6,
     "Forward": {"Operation": 5},
     "Name": "dream"
   },
   {
     "Capabilities": 8192,
-    "Family": 7,
     "Forward": {"Operation": 4, "Session": 2},
     "MetadataDefaults": {
       "RopeDimension": 2
@@ -544,7 +528,6 @@
       "SelectionBias": true,
       "SharedCatalog": 2
     },
-    "Family": 1,
     "ModelCatalog": {
       "SkipAttentionOutputBias": true
     },
@@ -559,7 +542,6 @@
   },
   {
     "Capabilities": 67108881,
-    "Family": 4,
     "Forward": {"Operation": 1},
     "Name": "eurobert"
   },
@@ -586,7 +568,6 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "Name": "exaone-moe",
     "Validation": {
       "Hybrid": 34
@@ -635,7 +616,6 @@
     "Cache": 10,
     "Capabilities": 8,
     "FFNNormLayout": 1,
-    "Family": 3,
     "Name": "falcon-h1",
     "RecurrentMixer": 5,
     "Validation": {
@@ -669,7 +649,6 @@
       "QueryScale": 4
     },
     "EncoderOperator": 7,
-    "Family": 4,
     "Forward": {"Operation": 1},
     "Metadata": {
       "KVHeads": 6
@@ -794,7 +773,6 @@
     "Cadence": {
       "Sliding": 3
     },
-    "Family": 7,
     "Forward": {"Operation": 4, "Session": 3},
     "Metadata": {
       "SWAHeadLengths": true
@@ -821,7 +799,6 @@
       "OptionalSelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "Metadata": {
       "MLAHeadLengths": true
     },
@@ -862,7 +839,6 @@
       "SharedCatalog": 1
     },
     "FFNNormLayout": 3,
-    "Family": 1,
     "Name": "glm4moe",
     "Validation": {
       "Attention": 29
@@ -897,7 +873,6 @@
       "Routing": 2,
       "SupplementalCatalog": 2
     },
-    "Family": 1,
     "Name": "gpt-oss",
     "Validation": {
       "Hybrid": 30
@@ -1001,7 +976,6 @@
       "ResidualScale": true,
       "SharedCatalog": 2
     },
-    "Family": 3,
     "Metadata": {
       "KVHeads": 7,
       "PreserveLayerKV": true
@@ -1034,7 +1008,6 @@
       "ResidualScale": true,
       "SharedCatalog": 2
     },
-    "Family": 1,
     "MetadataDefaults": {
       "RopeDimension": 2
     },
@@ -1060,7 +1033,6 @@
       "OptionalGate": true,
       "SupplementalCatalog": 8
     },
-    "Family": 1,
     "MetadataDefaults": {
       "AttentionOutputScale": 0.08838834764831845,
       "AttentionSoftcap": 30,
@@ -1092,7 +1064,6 @@
       "Composition": 5,
       "SupplementalCatalog": 4
     },
-    "Family": 1,
     "Name": "grovemoe",
     "Validation": {
       "Hybrid": 5
@@ -1127,7 +1098,6 @@
       "Composition": 1,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "Name": "hunyuan-moe",
     "Validation": {
       "Hybrid": 19
@@ -1167,7 +1137,6 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "Name": "hy_v3",
     "Validation": {
       "Hybrid": 20
@@ -1211,7 +1180,6 @@
       "Catalog": 3,
       "Normalization": 1
     },
-    "Family": 3,
     "Metadata": {
       "KVHeads": 7,
       "PreserveLayerKV": true
@@ -1227,7 +1195,6 @@
     "Capabilities": 17246984211,
     "LayerTopology": 1,
     "EncoderOperator": 2,
-    "Family": 4,
     "Forward": {"Operation": 1},
     "Metadata": {
       "KVHeads": 6
@@ -1254,7 +1221,6 @@
       "Catalog": 5,
       "OptionalGate": true
     },
-    "Family": 4,
     "FeedForward": 3,
     "Forward": {"Operation": 1},
     "Metadata": {
@@ -1275,7 +1241,6 @@
       "Normalization": 1,
       "SelectionBias": true
     },
-    "Family": 2,
     "LatentAttention": 4,
     "Metadata": {
       "KVHeads": 7,
@@ -1339,7 +1304,6 @@
         "Heads": 1
       }
     },
-    "Family": 3,
     "Metadata": {
       "KVHeads": 7
     },
@@ -1373,7 +1337,6 @@
       "Normalization": 1,
       "SelectionBias": true
     },
-    "Family": 3,
     "Metadata": {
       "KVHeads": 7
     },
@@ -1387,7 +1350,6 @@
   },
   {
     "Capabilities": 8225,
-    "Family": 6,
     "Forward": {"Operation": 5},
     "Name": "llada",
     "Position": 1,
@@ -1406,7 +1368,6 @@
       "Catalog": 1,
       "Normalization": 2
     },
-    "Family": 6,
     "Forward": {"Operation": 1},
     "Name": "llada-moe",
     "Validation": {
@@ -1432,7 +1393,6 @@
     "Experts": {
       "Catalog": 2
     },
-    "Family": 4,
     "Forward": {"Operation": 1},
     "Name": "llama-embed",
     "Validation": {
@@ -1463,7 +1423,6 @@
       "Routing": 1,
       "SharedCatalog": 1
     },
-    "Family": 1,
     "Name": "llama4",
     "Validation": {
       "Hybrid": 29
@@ -1491,7 +1450,6 @@
   {
     "Cache": 2,
     "Capabilities": 10,
-    "Family": 2,
     "Metadata": {
       "KVHeads": 4
     },
@@ -1505,7 +1463,6 @@
   {
     "Cache": 3,
     "Capabilities": 10,
-    "Family": 2,
     "Metadata": {
       "KVHeads": 4
     },
@@ -1607,7 +1564,6 @@
       "Catalog": 1,
       "SelectionBias": true
     },
-    "Family": 1,
     "Name": "minimax-m2",
     "Validation": {
       "Hybrid": 24
@@ -1657,7 +1613,6 @@
     "Capabilities": 201392145,
     "LayerTopology": 2,
     "EncoderOperator": 6,
-    "Family": 4,
     "FeedForward": 2,
     "Forward": {"Operation": 1},
     "Metadata": {
@@ -1709,7 +1664,6 @@
   {
     "CacheFallback": 1,
     "Capabilities": 10,
-    "Family": 3,
     "Metadata": {
       "FeedForward": 2,
       "Heads": 2,
@@ -1726,7 +1680,6 @@
   {
     "CacheFallback": 1,
     "Capabilities": 14,
-    "Family": 3,
     "Metadata": {
       "FeedForward": 2,
       "Heads": 2,
@@ -1742,7 +1695,6 @@
   },
   {
     "Capabilities": 201400337,
-    "Family": 4,
     "FeedForward": 2,
     "Forward": {"Operation": 1},
     "Metadata": {
@@ -1762,7 +1714,6 @@
     "Capabilities": 17246984209,
     "LayerTopology": 1,
     "EncoderOperator": 4,
-    "Family": 4,
     "Forward": {"Operation": 1},
     "Metadata": {
       "KVHeads": 6
@@ -1786,7 +1737,6 @@
       "Catalog": 5,
       "OptionalGate": true
     },
-    "Family": 4,
     "FeedForward": 3,
     "Forward": {"Operation": 1},
     "Metadata": {
@@ -1848,7 +1798,6 @@
       "Catalog": 1,
       "Normalization": 2
     },
-    "Family": 1,
     "Name": "olmoe",
     "Validation": {
       "Hybrid": 26
@@ -1936,7 +1885,6 @@
     "Experts": {
       "Catalog": 1
     },
-    "Family": 1,
     "ModelCatalog": {
       "RequireOutputBias": true
     },
@@ -1962,7 +1910,6 @@
         "Heads": 1
       }
     },
-    "Family": 3,
     "FeedForward": 2,
     "Metadata": {
       "KVHeads": 7,
@@ -2031,7 +1978,6 @@
       "Normalization": 2,
       "SharedCatalog": 3
     },
-    "Family": 1,
     "Name": "qwen2moe",
     "Validation": {
       "Hybrid": 9
@@ -2073,7 +2019,6 @@
     },
     "DraftKind": 1,
     "FFNNormLayout": 4,
-    "Family": 3,
     "Name": "qwen35",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2103,7 +2048,6 @@
       "SharedCatalog": 3
     },
     "FFNNormLayout": 4,
-    "Family": 3,
     "Name": "qwen35moe",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2121,7 +2065,6 @@
     "Experts": {
       "Catalog": 1
     },
-    "Family": 1,
     "Name": "qwen3moe",
     "Validation": {
       "Hybrid": 4
@@ -2148,7 +2091,6 @@
       "SharedCatalog": 3
     },
     "FFNNormLayout": 4,
-    "Family": 3,
     "Name": "qwen3next",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2185,7 +2127,6 @@
     "Experts": {
       "Catalog": 1
     },
-    "Family": 1,
     "MetadataRead": 48,
     "Name": "qwen3vlmoe",
     "Rotary": {
@@ -2222,7 +2163,6 @@
     "Experts": {
       "Catalog": 1
     },
-    "Family": 6,
     "Forward": {"Operation": 1},
     "Name": "rnd1",
     "Validation": {
@@ -2233,7 +2173,6 @@
     "Cache": 4,
     "Capabilities": 8388618,
     "LayerTopology": 7,
-    "Family": 2,
     "ModelCatalog": {
       "TokenNorm": 2
     },
@@ -2251,7 +2190,6 @@
     "DenseWeights": {
       "RMSNormBias": true
     },
-    "Family": 2,
     "ModelCatalog": {
       "OptionalOutputNormBias": true
     },
@@ -2266,7 +2204,6 @@
     "Cache": 6,
     "Capabilities": 8388618,
     "LayerTopology": 9,
-    "Family": 2,
     "ModelCatalog": {
       "TokenNorm": 2
     },
@@ -2385,7 +2322,6 @@
     "Cache": 11,
     "Capabilities": 2,
     "EncoderOperator": 8,
-    "Family": 5,
     "Forward": {"Operation": 4, "Session": 4},
     "Metadata": {
       "KVHeads": 5
@@ -2403,7 +2339,6 @@
   {
     "Capabilities": 16,
     "EncoderOperator": 9,
-    "Family": 4,
     "Forward": {"Operation": 3},
     "Metadata": {
       "KVHeads": 5
@@ -2437,7 +2372,6 @@
   },
   {
     "Capabilities": 19,
-    "Family": 4,
     "Forward": {"Operation": 2},
     "Metadata": {
       "GroupNorm": true,

@@ -20,22 +20,21 @@ const (
 func TestArchitectureRegistryProfiles(t *testing.T) {
 	tests := []struct {
 		name       string
-		family     ArchitectureFamily
 		capability ArchitectureCapability
 	}{
-		{"llama", ArchitectureFamilyAttention, ArchitectureNormalRoPE},
-		{"deepseek32", ArchitectureFamilyMoE, ArchitectureSparseLatent | ArchitectureLatent},
-		{"qwen35moe", ArchitectureFamilyHybrid, ArchitectureMoE | ArchitectureRecurrent},
-		{"t5", ArchitectureFamilyEncoderDecoder, ArchitectureRoPEDisabled},
-		{"llada", ArchitectureFamilyDiffusion, ArchitectureNonCausal | ArchitectureDiffusion},
-		{"qwen3vl", ArchitectureFamilyAttention, ArchitectureMultimodal},
-		{"gemma3n", ArchitectureFamilyAttention, ArchitectureSharedKV | ArchitectureAltUp | ArchitecturePerLayerEmbeddings},
-		{"talkie", ArchitectureFamilyAttention, ArchitectureEmbeddingSkip},
+		{"llama", ArchitectureNormalRoPE},
+		{"deepseek32", ArchitectureSparseLatent | ArchitectureLatent},
+		{"qwen35moe", ArchitectureMoE | ArchitectureRecurrent},
+		{"t5", ArchitectureRoPEDisabled},
+		{"llada", ArchitectureNonCausal | ArchitectureDiffusion},
+		{"qwen3vl", ArchitectureMultimodal},
+		{"gemma3n", ArchitectureSharedKV | ArchitectureAltUp | ArchitecturePerLayerEmbeddings},
+		{"talkie", ArchitectureEmbeddingSkip},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			profile, ok := LookupArchitecture(test.name)
-			if !ok || profile.Name != test.name || profile.Family != test.family ||
+			if !ok || profile.Name != test.name ||
 				profile.Capabilities&test.capability != test.capability {
 				t.Fatalf("profile = %#v", profile)
 			}

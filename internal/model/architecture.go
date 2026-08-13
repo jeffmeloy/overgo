@@ -4,20 +4,6 @@ import (
 	"sort"
 )
 
-// ArchitectureFamily: primary runtime dispatch family.
-type ArchitectureFamily uint8
-
-const (
-	ArchitectureFamilyAttention ArchitectureFamily = iota
-	ArchitectureFamilyMoE
-	ArchitectureFamilyRecurrent
-	ArchitectureFamilyHybrid
-	ArchitectureFamilyEncoder
-	ArchitectureFamilyEncoderDecoder
-	ArchitectureFamilyDiffusion
-	ArchitectureFamilyDraft
-)
-
 type DraftKind uint8
 
 const (
@@ -313,7 +299,6 @@ const (
 // ArchitectureProfile: registry entry and capability set.
 type ArchitectureProfile struct {
 	Name             string
-	Family           ArchitectureFamily
 	DraftKind        DraftKind
 	Forward          ForwardProgram
 	OutputNorm       OutputNormPolicy

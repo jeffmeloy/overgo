@@ -340,42 +340,41 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		}
 	}
 	plan := LayerPlan{
-		Layer:             layer,
-		Attention:         profile.Attention,
-		EncoderOperator:   profile.EncoderOperator,
-		LatentAttention:   profile.LatentAttention,
-		LatentYaRNQuery:   profile.Has(ArchitectureLatentYaRNQuery),
-		Position:          profile.Position,
-		Residual:          profile.Residual,
-		FeedForward:       profile.FeedForward,
-		Composition:       composition,
-		Cache:             cache,
-		CacheMode:         cache.PrimaryMode(),
-		CacheWrite:        cacheWrite,
-		Recurrent:         recurrent,
-		Sliding:           s.IsSlidingLayer(layer),
-		UsesRoPE:          s.UsesRoPE(layer),
-		MultiAxis:         profile.Has(ArchitectureMultiAxisPositions),
-		HasKV:             hasKV,
-		SharedKV:          sharedKV,
-		KVSource:          kvSource,
-		DeepstackBefore:   deepstackBefore,
-		DeepstackAfter:    deepstackAfter,
-		AuxiliaryInput:    auxiliaryInput,
-		AuxiliaryOutput:   auxiliaryOutput,
-		Temperature:       temperature,
-		AttentionBlocks:   profile.AttentionBlocks,
-		EmbeddingSkip:     profile.Has(ArchitectureEmbeddingSkip),
-		PerLayerInput:     profile.Has(ArchitecturePerLayerEmbeddings) && s.EmbeddingPerLayer > 0,
-		Normalization:     normalization,
-		Rotary:            s.rotaryPlan(profile, layer),
-		AttentionGraph:    s.attentionGraphPlan(layer),
-		Experts:           experts,
-		ExpertComposition: s.expertCompositionPlan(),
-		DenseWeights:      s.denseWeightPlan(profile, layer),
-		SplitProjection:   profile.LayerTopology == LayerTopologySplitProjection,
-		ExplicitEncoder: profile.Family == ArchitectureFamilyEncoderDecoder ||
-			profile.Forward.Session == ForwardSessionEncoderDecoder,
+		Layer:               layer,
+		Attention:           profile.Attention,
+		EncoderOperator:     profile.EncoderOperator,
+		LatentAttention:     profile.LatentAttention,
+		LatentYaRNQuery:     profile.Has(ArchitectureLatentYaRNQuery),
+		Position:            profile.Position,
+		Residual:            profile.Residual,
+		FeedForward:         profile.FeedForward,
+		Composition:         composition,
+		Cache:               cache,
+		CacheMode:           cache.PrimaryMode(),
+		CacheWrite:          cacheWrite,
+		Recurrent:           recurrent,
+		Sliding:             s.IsSlidingLayer(layer),
+		UsesRoPE:            s.UsesRoPE(layer),
+		MultiAxis:           profile.Has(ArchitectureMultiAxisPositions),
+		HasKV:               hasKV,
+		SharedKV:            sharedKV,
+		KVSource:            kvSource,
+		DeepstackBefore:     deepstackBefore,
+		DeepstackAfter:      deepstackAfter,
+		AuxiliaryInput:      auxiliaryInput,
+		AuxiliaryOutput:     auxiliaryOutput,
+		Temperature:         temperature,
+		AttentionBlocks:     profile.AttentionBlocks,
+		EmbeddingSkip:       profile.Has(ArchitectureEmbeddingSkip),
+		PerLayerInput:       profile.Has(ArchitecturePerLayerEmbeddings) && s.EmbeddingPerLayer > 0,
+		Normalization:       normalization,
+		Rotary:              s.rotaryPlan(profile, layer),
+		AttentionGraph:      s.attentionGraphPlan(layer),
+		Experts:             experts,
+		ExpertComposition:   s.expertCompositionPlan(),
+		DenseWeights:        s.denseWeightPlan(profile, layer),
+		SplitProjection:     profile.LayerTopology == LayerTopologySplitProjection,
+		ExplicitEncoder:     profile.Forward.Session == ForwardSessionEncoderDecoder,
 		AllowNonCausalCache: profile.Forward.Session == ForwardSessionPairedFeatures,
 		DeciSparse:          deciSparse,
 		QKPreprocess:        s.qkPreprocessPlan(layer),
@@ -529,11 +528,11 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	}
 	spec = spec.withProfile(profile)
 	layers := spec.BlockCount
-	if profile.Family == ArchitectureFamilyEncoderDecoder && spec.DecoderBlockCount > layers {
+	if profile.Forward.Session == ForwardSessionEncoderDecoder && spec.DecoderBlockCount > layers {
 		layers = spec.DecoderBlockCount
 	}
 	cacheLayers := spec.BlockCount
-	if profile.Family == ArchitectureFamilyEncoderDecoder {
+	if profile.Forward.Session == ForwardSessionEncoderDecoder {
 		cacheLayers = spec.DecoderBlockCount
 	}
 	forward := compileForwardProgram(profile, spec.NonCausalAttention)
@@ -580,7 +579,9 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	if err := validateModelPlan(spec, weights, plan); err != nil {
 		return ModelPlan{}, err
 	}
-	plan.cachedGraph = cachedGraphPolicy(profile.Family, plan.forward, plan.layers)
+	plan.cachedGraph = cachedGraphPolicy(
+		profile.RecurrentMixer != recurrentMixerNone, plan.forward, plan.layers,
+	)
 	return plan, nil
 }
 
@@ -716,9 +717,9 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	return nil
 }
 
-func cachedGraphPolicy(family ArchitectureFamily, forward ForwardProgram, layers []LayerPlan) CachedGraphPolicy {
+func cachedGraphPolicy(recurrent bool, forward ForwardProgram, layers []LayerPlan) CachedGraphPolicy {
 	if len(layers) == 0 || forward.Operation != ForwardOperationCached ||
-		family != ArchitectureFamilyAttention && family != ArchitectureFamilyMoE ||
+		recurrent ||
 		forward.AlternatePredictions() {
 		return CachedGraphLayered
 	}
@@ -812,7 +813,7 @@ func (p ModelPlan) sequenceProgram(layer int, decoder bool) (CompiledLayerProgra
 		return CompiledLayerProgram{}, fmt.Errorf("model plan has no relative-attention encoder program for %q", p.spec.Architecture)
 	}
 	if decoder {
-		if p.profile.Family != ArchitectureFamilyEncoderDecoder || p.profile.Forward.Session != ForwardSessionEncoderDecoder {
+		if p.profile.Forward.Session != ForwardSessionEncoderDecoder {
 			return CompiledLayerProgram{}, fmt.Errorf("model plan has no decoder program for %q", p.spec.Architecture)
 		}
 		limit = p.spec.DecoderBlockCount

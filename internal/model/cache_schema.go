@@ -238,7 +238,7 @@ func cacheSchemaForPlan(
 				"compressed-attention ratio for layer %d is unavailable", layerIndex,
 			)
 		}
-		ratio := tensor.DeepSeek4CompressionRatio(spec.CompressRatios[layerIndex])
+		ratio := tensor.CompressionRatio(spec.CompressRatios[layerIndex])
 		schema.StrictStates = true
 		states.state(CacheStatePositions, CacheStateToken, false, false, 1, 1, 1)
 		if ratio.Enabled() {

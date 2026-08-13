@@ -1274,15 +1274,15 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 	var moe tensor.MoEAttributes
 	for _, node := range nodes {
 		switch node.Op {
-		case tensor.OpDeepSeek4Attention:
+		case tensor.OpCompressedAttention:
 			attention++
-		case tensor.OpDeepSeek4HCInit:
+		case tensor.OpHyperConnectionInit:
 			hcInit++
-		case tensor.OpDeepSeek4HCPre:
+		case tensor.OpHyperConnectionPre:
 			hcPre++
-		case tensor.OpDeepSeek4HCPost:
+		case tensor.OpHyperConnectionPost:
 			hcPost++
-		case tensor.OpDeepSeek4HCHead:
+		case tensor.OpHyperConnectionHead:
 			hcHead++
 		case tensor.OpMoE:
 			moe = node.Attrs.(tensor.MoEAttributes)

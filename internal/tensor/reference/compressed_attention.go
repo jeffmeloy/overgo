@@ -9,9 +9,9 @@ import (
 	"overgo/internal/tensor"
 )
 
-func deepSeek4HCInit(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4HCAttributes) (Value, error) {
+func hyperConnectionInit(shape tensor.Shape, inputs []Value, attributes tensor.HyperConnectionAttributes) (Value, error) {
 	if len(inputs) != 1 || attributes.HyperConnections == 0 {
-		return Value{}, errors.New("invalid DeepSeek 4 HC init")
+		return Value{}, errors.New("invalid hyper-connection init")
 	}
 	hidden := int(inputs[0].Shape.Dims[0])
 	tokens := int(inputs[0].Shape.Dims[1])
@@ -26,13 +26,13 @@ func deepSeek4HCInit(shape tensor.Shape, inputs []Value, attributes tensor.DeepS
 	return Value{Shape: shape, Data: output}, nil
 }
 
-func deepSeek4HCMixes(input, fn Value, hc int, epsilon float32) ([]float64, error) {
+func hyperConnectionMixes(input, fn Value, hc int, epsilon float32) ([]float64, error) {
 	hidden := int(input.Shape.Dims[0])
 	tokens := int(input.Shape.Dims[2])
 	hcDim := hidden * hc
 	mixDim := int(fn.Shape.Dims[1])
 	if hc <= 0 || int(input.Shape.Dims[1]) != hc || int(fn.Shape.Dims[0]) != hcDim {
-		return nil, errors.New("invalid DeepSeek 4 HC mix dimensions")
+		return nil, errors.New("invalid hyper-connection mix dimensions")
 	}
 	mixes := make([]float64, mixDim*tokens)
 	for token := range tokens {
@@ -54,15 +54,15 @@ func deepSeek4HCMixes(input, fn Value, hc int, epsilon float32) ([]float64, erro
 	return mixes, nil
 }
 
-func deepSeek4HCPre(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4HCAttributes) (Value, error) {
+func hyperConnectionPre(shape tensor.Shape, inputs []Value, attributes tensor.HyperConnectionAttributes) (Value, error) {
 	if len(inputs) != 4 {
-		return Value{}, errors.New("invalid DeepSeek 4 HC pre inputs")
+		return Value{}, errors.New("invalid hyper-connection pre inputs")
 	}
 	input, fn, scale, base := inputs[0], inputs[1], inputs[2], inputs[3]
 	hidden := int(input.Shape.Dims[0])
 	hc := int(attributes.HyperConnections)
 	tokens := int(input.Shape.Dims[2])
-	mixes, err := deepSeek4HCMixes(input, fn, hc, attributes.NormEpsilon)
+	mixes, err := hyperConnectionMixes(input, fn, hc, attributes.NormEpsilon)
 	if err != nil {
 		return Value{}, err
 	}
@@ -80,15 +80,15 @@ func deepSeek4HCPre(shape tensor.Shape, inputs []Value, attributes tensor.DeepSe
 	return Value{Shape: shape, Data: output}, nil
 }
 
-func deepSeek4HCPost(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4HCAttributes) (Value, error) {
+func hyperConnectionPost(shape tensor.Shape, inputs []Value, attributes tensor.HyperConnectionAttributes) (Value, error) {
 	if len(inputs) != 5 {
-		return Value{}, errors.New("invalid DeepSeek 4 HC post inputs")
+		return Value{}, errors.New("invalid hyper-connection post inputs")
 	}
 	branch, residual, fn, scale, base := inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
 	hidden := int(residual.Shape.Dims[0])
 	hc := int(attributes.HyperConnections)
 	tokens := int(residual.Shape.Dims[2])
-	mixes, err := deepSeek4HCMixes(residual, fn, hc, attributes.NormEpsilon)
+	mixes, err := hyperConnectionMixes(residual, fn, hc, attributes.NormEpsilon)
 	if err != nil {
 		return Value{}, err
 	}
@@ -116,7 +116,7 @@ func deepSeek4HCPost(shape tensor.Shape, inputs []Value, attributes tensor.DeepS
 				comb[index] = comb[index]/sum + float64(attributes.Epsilon)
 			}
 		}
-		normalizeDeepSeek4HCColumns(comb, hc, attributes.Epsilon)
+		normalizeHyperConnectionColumns(comb, hc, attributes.Epsilon)
 		for iteration := uint32(1); iteration < attributes.SinkhornIterations; iteration++ {
 			for src := range hc {
 				var sum float64
@@ -128,7 +128,7 @@ func deepSeek4HCPost(shape tensor.Shape, inputs []Value, attributes tensor.DeepS
 					comb[dst+hc*src] /= sum
 				}
 			}
-			normalizeDeepSeek4HCColumns(comb, hc, attributes.Epsilon)
+			normalizeHyperConnectionColumns(comb, hc, attributes.Epsilon)
 		}
 		for dst := range hc {
 			post := 2 / (1 + math.Exp(-(mixes[mixBase+hc+dst]*float64(scale.Data[1]) + float64(base.Data[hc+dst]))))
@@ -144,7 +144,7 @@ func deepSeek4HCPost(shape tensor.Shape, inputs []Value, attributes tensor.DeepS
 	return Value{Shape: shape, Data: output}, nil
 }
 
-func normalizeDeepSeek4HCColumns(comb []float64, hc int, epsilon float32) {
+func normalizeHyperConnectionColumns(comb []float64, hc int, epsilon float32) {
 	for dst := range hc {
 		var sum float64
 		for src := range hc {
@@ -157,15 +157,15 @@ func normalizeDeepSeek4HCColumns(comb []float64, hc int, epsilon float32) {
 	}
 }
 
-func deepSeek4HCHead(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4HCAttributes) (Value, error) {
+func hyperConnectionHead(shape tensor.Shape, inputs []Value, attributes tensor.HyperConnectionAttributes) (Value, error) {
 	if len(inputs) != 4 {
-		return Value{}, errors.New("invalid DeepSeek 4 HC head inputs")
+		return Value{}, errors.New("invalid hyper-connection head inputs")
 	}
 	input, fn, scale, base := inputs[0], inputs[1], inputs[2], inputs[3]
 	hidden := int(input.Shape.Dims[0])
 	hc := int(attributes.HyperConnections)
 	tokens := int(input.Shape.Dims[2])
-	mixes, err := deepSeek4HCMixes(input, fn, hc, attributes.NormEpsilon)
+	mixes, err := hyperConnectionMixes(input, fn, hc, attributes.NormEpsilon)
 	if err != nil {
 		return Value{}, err
 	}
@@ -181,17 +181,17 @@ func deepSeek4HCHead(shape tensor.Shape, inputs []Value, attributes tensor.DeepS
 	return Value{Shape: shape, Data: output}, nil
 }
 
-type deepSeek4CompressedBlock struct {
+type compressedAttentionBlock struct {
 	position uint32
 	value    []float32
 }
 
-func deepSeek4CompressedBlocks(
+func compressedAttentionBlocks(
 	kv, score, norm Value,
 	ratio, width uint32,
 	positions []uint32,
-	attributes tensor.DeepSeek4AttentionAttributes,
-) ([]deepSeek4CompressedBlock, error) {
+	attributes tensor.CompressedAttentionAttributes,
+) ([]compressedAttentionBlock, error) {
 	tokens := uint32(kv.Shape.Dims[2])
 	overlap := ratio == 4
 	coefficient := uint32(1)
@@ -199,16 +199,16 @@ func deepSeek4CompressedBlocks(
 		coefficient = 2
 	}
 	if uint32(kv.Shape.Dims[0]) != coefficient*width || !score.Shape.Equal(kv.Shape) || uint32(norm.Shape.Dims[0]) != width {
-		return nil, errors.New("invalid DeepSeek 4 compressor state")
+		return nil, errors.New("invalid compressed-attention compressor state")
 	}
 	if len(positions) != int(tokens) {
-		return nil, errors.New("invalid DeepSeek 4 compressor positions")
+		return nil, errors.New("invalid compressed-attention compressor positions")
 	}
 	rows := make(map[uint32]uint32, len(positions))
 	for row, position := range positions {
 		rows[position] = uint32(row)
 	}
-	blocks := make([]deepSeek4CompressedBlock, 0, tokens/ratio)
+	blocks := make([]compressedAttentionBlock, 0, tokens/ratio)
 	for _, start := range positions {
 		if start%ratio != 0 {
 			continue
@@ -270,13 +270,13 @@ func deepSeek4CompressedBlocks(
 		for channel := range result {
 			result[channel] = float32(float64(result[channel]) * inverseRMS * float64(norm.Data[channel]))
 		}
-		deepSeek4RotateTail(result, start, false, attributes)
-		blocks = append(blocks, deepSeek4CompressedBlock{position: start, value: result})
+		rotateCompressedAttentionTail(result, start, false, attributes)
+		blocks = append(blocks, compressedAttentionBlock{position: start, value: result})
 	}
 	return blocks, nil
 }
 
-func deepSeek4RotateTail(vector []float32, position uint32, inverse bool, attributes tensor.DeepSeek4AttentionAttributes) {
+func rotateCompressedAttentionTail(vector []float32, position uint32, inverse bool, attributes tensor.CompressedAttentionAttributes) {
 	rotary := int(attributes.RotaryDimensions)
 	start := len(vector) - rotary
 	rope := tensor.RoPEAttributes{
@@ -297,7 +297,7 @@ func deepSeek4RotateTail(vector []float32, position uint32, inverse bool, attrib
 	}
 }
 
-func deepSeek4FWHT(vector []float32) {
+func compressedAttentionFWHT(vector []float32) {
 	for stride := 1; stride < len(vector); stride *= 2 {
 		for base := 0; base < len(vector); base += 2 * stride {
 			for offset := 0; offset < stride; offset++ {
@@ -313,9 +313,9 @@ func deepSeek4FWHT(vector []float32) {
 	}
 }
 
-func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.DeepSeek4AttentionAttributes) (Value, error) {
+func compressedAttention(shape tensor.Shape, inputs []Value, attributes tensor.CompressedAttentionAttributes) (Value, error) {
 	if len(inputs) < 4 || len(attributes.Positions) == 0 {
-		return Value{}, errors.New("invalid DeepSeek 4 attention inputs")
+		return Value{}, errors.New("invalid compressed attention inputs")
 	}
 	query, cache, positionState, sinks := inputs[0], inputs[1], inputs[2], inputs[3]
 	width := uint32(query.Shape.Dims[0])
@@ -323,30 +323,30 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 	newTokens := uint32(query.Shape.Dims[2])
 	totalTokens := uint32(cache.Shape.Dims[2])
 	if totalTokens < newTokens {
-		return Value{}, errors.New("DeepSeek 4 attention cache is shorter than query")
+		return Value{}, errors.New("compressed attention cache is shorter than query")
 	}
 	if len(positionState.Data) != int(totalTokens) {
-		return Value{}, errors.New("invalid DeepSeek 4 cache position shape")
+		return Value{}, errors.New("invalid compressed-attention cache position shape")
 	}
 	cachePositions := make([]uint32, totalTokens)
 	for index, value := range positionState.Data {
 		position := uint32(value)
 		if value < 0 || float32(position) != value ||
 			(index > 0 && position <= cachePositions[index-1]) {
-			return Value{}, errors.New("invalid DeepSeek 4 cache positions")
+			return Value{}, errors.New("invalid compressed-attention cache positions")
 		}
 		cachePositions[index] = position
 	}
 	pastTokens := totalTokens - newTokens
 	for index, position := range attributes.Positions {
 		if cachePositions[int(pastTokens)+index] != position {
-			return Value{}, errors.New("DeepSeek 4 appended positions differ from cache state")
+			return Value{}, errors.New("compressed-attention appended positions differ from cache state")
 		}
 	}
-	var compressed, indexerCompressed []deepSeek4CompressedBlock
+	var compressed, indexerCompressed []compressedAttentionBlock
 	var err error
 	if attributes.Ratio.Enabled() {
-		compressed, err = deepSeek4CompressedBlocks(
+		compressed, err = compressedAttentionBlocks(
 			inputs[4], inputs[5], inputs[6], uint32(attributes.Ratio), width, cachePositions, attributes,
 		)
 		if err != nil {
@@ -355,15 +355,15 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 	}
 	if attributes.Ratio.UsesIndexer() {
 		indexerWidth := uint32(inputs[7].Shape.Dims[0])
-		indexerCompressed, err = deepSeek4CompressedBlocks(
+		indexerCompressed, err = compressedAttentionBlocks(
 			inputs[9], inputs[10], inputs[11],
-			uint32(tensor.DeepSeek4CompressionOverlap), indexerWidth, cachePositions, attributes,
+			uint32(tensor.CompressionOverlap), indexerWidth, cachePositions, attributes,
 		)
 		if err != nil {
 			return Value{}, err
 		}
 		for index := range indexerCompressed {
-			deepSeek4FWHT(indexerCompressed[index].value)
+			compressedAttentionFWHT(indexerCompressed[index].value)
 		}
 	}
 	output := make([]float32, int(width*heads*newTokens))
@@ -387,8 +387,8 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 				var score float64
 				for head := uint32(0); head < attributes.IndexerHeads; head++ {
 					queryVector := slices.Clone(inputs[7].Data[int((token*attributes.IndexerHeads+head)*indexerWidth):int((token*attributes.IndexerHeads+head+1)*indexerWidth)])
-					deepSeek4RotateTail(queryVector, position, false, attributes)
-					deepSeek4FWHT(queryVector)
+					rotateCompressedAttentionTail(queryVector, position, false, attributes)
+					compressedAttentionFWHT(queryVector)
 					var dot float64
 					for channel := uint32(0); channel < indexerWidth; channel++ {
 						dot += float64(queryVector[channel]) * float64(indexerCompressed[blockIndex].value[channel])
@@ -417,7 +417,7 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 		for head := uint32(0); head < heads; head++ {
 			queryBase := int((token*heads + head) * width)
 			queryVector := slices.Clone(query.Data[queryBase : queryBase+int(width)])
-			deepSeek4RotateTail(queryVector, position, false, attributes)
+			rotateCompressedAttentionTail(queryVector, position, false, attributes)
 			maximum := float64(sinks.Data[head])
 			type candidate struct {
 				value []float32
@@ -439,7 +439,7 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 				}
 				base := row * int(width)
 				raw := slices.Clone(cache.Data[base : base+int(width)])
-				deepSeek4RotateTail(raw, rawPosition, false, attributes)
+				rotateCompressedAttentionTail(raw, rawPosition, false, attributes)
 				add(raw)
 			}
 			for _, blockIndex := range visibleCompressed {
@@ -456,7 +456,7 @@ func deepSeek4Attention(shape tensor.Shape, inputs []Value, attributes tensor.De
 					result[channel] += float32(weight * float64(candidate.value[channel]))
 				}
 			}
-			deepSeek4RotateTail(result, position, true, attributes)
+			rotateCompressedAttentionTail(result, position, true, attributes)
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil

@@ -221,7 +221,7 @@ func (p ExpertCompositionPlan) Build(
 		up := builder.MulMat(weights.FeedForwardSharedUp, normalized)
 		shared := builder.MulMat(
 			weights.FeedForwardSharedDown,
-			limitedSwiGLU(builder, gate, up, spec.LayerSharedSwiGLUClampLimit(layerPlan.Layer)),
+			postActivationLimitedSwiGLU(builder, gate, up, spec.LayerSharedSwiGLUClampLimit(layerPlan.Layer)),
 		)
 		routed = builder.Add(routed, shared)
 	case expertSharedGated:

@@ -102,7 +102,7 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("DeepSeek 4 YaRN metadata is invalid")
 		}
 		for block, ratio := range s.CompressRatios {
-			if !tensor.DeepSeek4CompressionRatio(ratio).Valid() {
+			if !tensor.CompressionRatio(ratio).Valid() {
 				return fmt.Errorf("DeepSeek 4 layer %d compression ratio is invalid", block)
 			}
 			for _, limit := range []float32{s.LayerSwiGLUClamp[block], s.LayerSharedSwiGLUClamp[block]} {

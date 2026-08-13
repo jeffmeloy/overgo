@@ -17,8 +17,8 @@ func launchReferenceFamily(
 	attributePointers map[*tensor.Tensor]driver.DevicePtr,
 ) error {
 	switch node.Op {
-	case tensor.OpDeepSeek4HCInit, tensor.OpDeepSeek4HCPre, tensor.OpDeepSeek4HCPost,
-		tensor.OpDeepSeek4HCHead, tensor.OpDeepSeek4Attention:
+	case tensor.OpHyperConnectionInit, tensor.OpHyperConnectionPre, tensor.OpHyperConnectionPost,
+		tensor.OpHyperConnectionHead, tensor.OpCompressedAttention:
 		return launchReferenceNode(state, node, pointers)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)

@@ -23,8 +23,8 @@ func launchNode(
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
 	switch node.Op {
-	case tensor.OpDeepSeek4HCInit, tensor.OpDeepSeek4HCPre, tensor.OpDeepSeek4HCPost,
-		tensor.OpDeepSeek4HCHead, tensor.OpDeepSeek4Attention:
+	case tensor.OpHyperConnectionInit, tensor.OpHyperConnectionPre, tensor.OpHyperConnectionPost,
+		tensor.OpHyperConnectionHead, tensor.OpCompressedAttention:
 		return launchReferenceFamily(state, functions, blas, node, pointers, attributePointers)
 	case tensor.OpLoRAMerge, tensor.OpAdd, tensor.OpMultiply, tensor.OpDivide, tensor.OpScale,
 		tensor.OpClamp, tensor.OpBF16Round, tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf,

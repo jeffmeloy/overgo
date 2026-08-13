@@ -7,7 +7,7 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-func readDeepSeek4WeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
+func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
 	required, tensors := catalog.required, catalog.tensors
 	width := uint64(spec.EmbeddingLength)
 	headWidth := uint64(spec.KeyLength)
@@ -68,7 +68,7 @@ func readDeepSeek4WeightCatalog(catalog weightCatalog, spec Spec) (Weights, erro
 			}
 			layer.FeedForwardRouterBias = &loaded
 		}
-		if ratio := tensor.DeepSeek4CompressionRatio(spec.CompressRatios[block]); ratio.Enabled() {
+		if ratio := tensor.CompressionRatio(spec.CompressRatios[block]); ratio.Enabled() {
 			coefficient := ratio.KVWidthMultiplier()
 			if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				requiredTensorPointer("attn_compressor_kv.weight", &layer.AttentionCompressorKV, width, coefficient*headWidth),
@@ -79,7 +79,7 @@ func readDeepSeek4WeightCatalog(catalog weightCatalog, spec Spec) (Weights, erro
 				return Weights{}, err
 			}
 		}
-		if tensor.DeepSeek4CompressionRatio(spec.CompressRatios[block]).UsesIndexer() {
+		if tensor.CompressionRatio(spec.CompressRatios[block]).UsesIndexer() {
 			indexerWidth := uint64(spec.IndexerKeyLength)
 			if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				requiredTensorPointer("indexer.proj.weight", &layer.IndexerProjection, width, uint64(spec.IndexerHeadCount)),
@@ -90,7 +90,7 @@ func readDeepSeek4WeightCatalog(catalog weightCatalog, spec Spec) (Weights, erro
 					"indexer_compressor_ape.weight",
 					&layer.IndexerCompressorAPE,
 					2*indexerWidth,
-					uint64(tensor.DeepSeek4CompressionOverlap),
+					uint64(tensor.CompressionOverlap),
 				),
 				requiredTensorPointer("indexer_compressor_norm.weight", &layer.IndexerCompressorNorm, indexerWidth),
 			}); err != nil {

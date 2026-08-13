@@ -36,11 +36,11 @@ func buildHyperAttentionStage(
 	}
 	if layerIndex == 0 {
 		if input.Shape.Rank != 2 {
-			return DenseBlockResult{}, errors.New("DeepSeek 4 initial input must be rank 2")
+			return DenseBlockResult{}, errors.New("initial hyper-connection input must be rank 2")
 		}
-		input = builder.DeepSeek4HCInit(input, spec.HyperConnectionCount)
+		input = builder.HyperConnectionInit(input, spec.HyperConnectionCount)
 	} else if input.Shape.Rank != 3 || input.Shape.Dims[1] != uint64(spec.HyperConnectionCount) {
-		return DenseBlockResult{}, errors.New("DeepSeek 4 HC input is invalid")
+		return DenseBlockResult{}, errors.New("hyper-connection input is invalid")
 	}
 	required := graphWeights{
 		requireGraphWeight("attention norm", weights.AttentionNorm),
@@ -71,7 +71,7 @@ func buildHyperAttentionStage(
 		required.add("indexer compressor APE", weights.IndexerCompressorAPE)
 		required.add("indexer compressor norm", weights.IndexerCompressorNorm)
 	}
-	if err := required.validate("DeepSeek 4 attention"); err != nil {
+	if err := required.validate("compressed attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := uint64(len(positions))
@@ -79,7 +79,7 @@ func buildHyperAttentionStage(
 	headWidth := uint64(spec.KeyLength)
 	hc := spec.HyperConnectionCount
 	residual := input
-	current := builder.DeepSeek4HCPre(input, weights.HyperAttentionFN, weights.HyperAttentionScale,
+	current := builder.HyperConnectionPre(input, weights.HyperAttentionFN, weights.HyperAttentionScale,
 		weights.HyperAttentionBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	current = builder.WeightedRMSNorm(current, weights.AttentionNorm, spec.RMSNormEpsilon)
 	queryRank := builder.WeightedRMSNorm(builder.MulMat(weights.AttentionQ, current), weights.AttentionQNorm, spec.RMSNormEpsilon)
@@ -108,7 +108,7 @@ func buildHyperAttentionStage(
 	cacheKV := kv
 	if pastKV != nil {
 		if pastKV.Shape.Rank != 3 || pastKV.Shape.Dims[0] != headWidth || pastKV.Shape.Dims[1] != 1 {
-			return DenseBlockResult{}, errors.New("DeepSeek 4 raw cache shape is invalid")
+			return DenseBlockResult{}, errors.New("compressed-attention raw cache shape is invalid")
 		}
 		cacheKV = builder.Concat(pastKV, kv, 2)
 	}
@@ -155,14 +155,14 @@ func buildHyperAttentionStage(
 			builder.MulMat(weights.IndexerCompressorGate, current), builder.GetRows(weights.IndexerCompressorAPE, rows),
 		))
 	}
-	attributes := tensor.DeepSeek4AttentionAttributes{
-		Positions: positions, Ratio: tensor.DeepSeek4CompressionRatio(ratio), Window: spec.SlidingWindow, Heads: spec.HeadCount,
+	attributes := tensor.CompressedAttentionAttributes{
+		Positions: positions, Ratio: tensor.CompressionRatio(ratio), Window: spec.SlidingWindow, Heads: spec.HeadCount,
 		IndexerHeads: spec.IndexerHeadCount, IndexerTopK: spec.IndexerTopK,
 		RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: frequencyBase, FrequencyScale: frequencyScale,
 		OriginalContext: originalContext, ExtFactor: extFactor, AttentionFactor: attentionFactor,
 		BetaFast: betaFast, BetaSlow: betaSlow, NormEpsilon: spec.RMSNormEpsilon,
 	}
-	attention := builder.DeepSeek4Attention(query, cacheKV, cachePositions, weights.AttentionSinks,
+	attention := builder.CompressedAttention(query, cacheKV, cachePositions, weights.AttentionSinks,
 		compressorKV, compressorScore, weights.AttentionCompressorNorm,
 		indexerQuery, indexerWeights, indexerKV, indexerScore, weights.IndexerCompressorNorm, attributes)
 	groupDimension := uint64(spec.HeadCount/spec.AttentionOutputGroups) * headWidth
@@ -170,14 +170,12 @@ func buildHyperAttentionStage(
 	outputA := builder.Reshape(weights.AttentionOutputA, groupDimension, uint64(spec.AttentionOutputRank), uint64(spec.AttentionOutputGroups))
 	attention = builder.Reshape(builder.GroupedMulMat(outputA, attention), uint64(spec.AttentionOutputRank*spec.AttentionOutputGroups), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
-	input = builder.DeepSeek4HCPost(attention, residual, weights.HyperAttentionFN, weights.HyperAttentionScale,
+	input = builder.HyperConnectionPost(attention, residual, weights.HyperAttentionFN, weights.HyperAttentionScale,
 		weights.HyperAttentionBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	// distinct node per cache stream: retained-output indexing rejects the
-	// same tensor as both Key and Value (same class as buildSentinelCache);
-	// Reshape always emits a new node, values identical
+	// Unique cache-value node: retained outputs require distinct K/V identities.
 	cacheValue := builder.Reshape(cacheKV, cacheKV.Shape.Dims[:cacheKV.Shape.Rank]...)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
@@ -216,7 +214,7 @@ func buildHyperFeedForwardStage(
 	if layerIndex < spec.HashLayerCount {
 		required.add("hash routing table", weights.FeedForwardHashExperts)
 		if len(tokenRows) != int(input.Shape.Dims[2]) {
-			return nil, errors.New("DeepSeek 4 hash routing rows are missing")
+			return nil, errors.New("compressed-hyper hash routing rows are missing")
 		}
 	} else {
 		required.add("router bias", weights.FeedForwardRouterBias)
@@ -226,12 +224,12 @@ func buildHyperFeedForwardStage(
 		required.add("output HC base", weights.HyperHeadBase)
 		required.add("output HC scale", weights.HyperHeadScale)
 	}
-	if err := required.validate("DeepSeek 4 feed-forward"); err != nil {
+	if err := required.validate("compressed-hyper feed-forward"); err != nil {
 		return nil, err
 	}
 	hc := spec.HyperConnectionCount
 	residual := input
-	current := builder.DeepSeek4HCPre(input, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
+	current := builder.HyperConnectionPre(input, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
 		weights.HyperFeedForwardBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	current = builder.WeightedRMSNorm(current, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	var selected *tensor.Tensor
@@ -250,12 +248,12 @@ func buildHyperFeedForwardStage(
 	sharedGate := builder.MulMat(weights.FeedForwardSharedGate, current)
 	sharedUp := builder.MulMat(weights.FeedForwardSharedUp, current)
 	shared := builder.MulMat(weights.FeedForwardSharedDown,
-		deepSeek4LimitedSwiGLU(builder, sharedGate, sharedUp, spec.LayerSharedSwiGLUClampLimit(layerIndex)))
+		inputLimitedSwiGLU(builder, sharedGate, sharedUp, spec.LayerSharedSwiGLUClampLimit(layerIndex)))
 	current = builder.Add(moe, shared)
-	output := builder.DeepSeek4HCPost(current, residual, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
+	output := builder.HyperConnectionPost(current, residual, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
 		weights.HyperFeedForwardBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	if layerIndex+1 == spec.BlockCount {
-		output = builder.DeepSeek4HCHead(output, weights.HyperHeadFN, weights.HyperHeadScale,
+		output = builder.HyperConnectionHead(output, weights.HyperHeadFN, weights.HyperHeadScale,
 			weights.HyperHeadBase, hc, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	}
 	if err := builder.Err(); err != nil {

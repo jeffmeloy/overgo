@@ -505,7 +505,7 @@ type weightCatalogReader func(weightCatalog, Spec) (Weights, error)
 
 var weightCatalogReaders = [...]weightCatalogReader{
 	WeightCatalogLayered:          readLayeredWeightCatalog,
-	WeightCatalogCompressedHyper:  readDeepSeek4WeightCatalog,
+	WeightCatalogCompressedHyper:  readCompressedHyperWeightCatalog,
 	WeightCatalogTargetFeatures:   readDFlashWeightCatalog,
 	WeightCatalogHiddenFusion:     readEagle3WeightCatalog,
 	WeightCatalogPairedProjection: readGemma4AssistantWeightCatalog,

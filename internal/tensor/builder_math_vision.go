@@ -279,13 +279,13 @@ func (b *Builder) GroupNorm(input, weight, bias *Tensor, groups uint32, epsilon 
 	return b.add("", input.Type, input.Shape, OpGroupNorm, []*Tensor{input, weight, bias}, GroupNormAttributes{Groups: groups, Epsilon: epsilon})
 }
 
-// DeepSeek4HCInit: replicate embedding across hyper streams.
-func (b *Builder) DeepSeek4HCInit(input *Tensor, hyperConnections uint32) *Tensor {
+// HyperConnectionInit: replicate embedding across hyper streams.
+func (b *Builder) HyperConnectionInit(input *Tensor, hyperConnections uint32) *Tensor {
 	if b.err != nil {
 		return nil
 	}
 	if input == nil || input.Type != dtype.F32 || input.Shape.Rank != 2 || hyperConnections == 0 {
-		b.setError(errors.New("DeepSeek 4 HC init input is invalid"))
+		b.setError(errors.New("hyper-connection init input is invalid"))
 		return nil
 	}
 	shape, err := NewShape(input.Shape.Dims[0], uint64(hyperConnections), input.Shape.Dims[1])
@@ -293,55 +293,55 @@ func (b *Builder) DeepSeek4HCInit(input *Tensor, hyperConnections uint32) *Tenso
 		b.setError(err)
 		return nil
 	}
-	return b.add("", dtype.F32, shape, OpDeepSeek4HCInit, []*Tensor{input}, DeepSeek4HCAttributes{HyperConnections: hyperConnections})
+	return b.add("", dtype.F32, shape, OpHyperConnectionInit, []*Tensor{input}, HyperConnectionAttributes{HyperConnections: hyperConnections})
 }
 
-// DeepSeek4HCPre: hyper-stream branch input.
-func (b *Builder) DeepSeek4HCPre(
+// HyperConnectionPre: hyper-stream branch input.
+func (b *Builder) HyperConnectionPre(
 	input, fn, scale, base *Tensor,
 	hyperConnections, sinkhornIterations uint32,
 	normEpsilon, epsilon float32,
 ) *Tensor {
-	if !b.validateDeepSeek4HC(input, fn, scale, base, hyperConnections, sinkhornIterations, normEpsilon, epsilon, false) {
+	if !b.validateHyperConnection(input, fn, scale, base, hyperConnections, sinkhornIterations, normEpsilon, epsilon, false) {
 		return nil
 	}
 	shape, _ := NewShape(input.Shape.Dims[0], input.Shape.Dims[2])
-	return b.add("", dtype.F32, shape, OpDeepSeek4HCPre, []*Tensor{input, fn, scale, base}, DeepSeek4HCAttributes{
+	return b.add("", dtype.F32, shape, OpHyperConnectionPre, []*Tensor{input, fn, scale, base}, HyperConnectionAttributes{
 		HyperConnections: hyperConnections, SinkhornIterations: sinkhornIterations, NormEpsilon: normEpsilon, Epsilon: epsilon,
 	})
 }
 
-// DeepSeek4HCPost: branch merge into hyper streams.
-func (b *Builder) DeepSeek4HCPost(
+// HyperConnectionPost: branch merge into hyper streams.
+func (b *Builder) HyperConnectionPost(
 	branch, residual, fn, scale, base *Tensor,
 	hyperConnections, sinkhornIterations uint32,
 	normEpsilon, epsilon float32,
 ) *Tensor {
-	if !b.validateDeepSeek4HC(residual, fn, scale, base, hyperConnections, sinkhornIterations, normEpsilon, epsilon, false) {
+	if !b.validateHyperConnection(residual, fn, scale, base, hyperConnections, sinkhornIterations, normEpsilon, epsilon, false) {
 		return nil
 	}
 	if branch == nil || branch.Type != dtype.F32 || branch.Shape.Rank != 2 ||
 		branch.Shape.Dims[0] != residual.Shape.Dims[0] || branch.Shape.Dims[1] != residual.Shape.Dims[2] {
-		b.setError(errors.New("DeepSeek 4 HC post branch shape is invalid"))
+		b.setError(errors.New("hyper-connection post branch shape is invalid"))
 		return nil
 	}
-	return b.add("", dtype.F32, residual.Shape, OpDeepSeek4HCPost, []*Tensor{branch, residual, fn, scale, base}, DeepSeek4HCAttributes{
+	return b.add("", dtype.F32, residual.Shape, OpHyperConnectionPost, []*Tensor{branch, residual, fn, scale, base}, HyperConnectionAttributes{
 		HyperConnections: hyperConnections, SinkhornIterations: sinkhornIterations, NormEpsilon: normEpsilon, Epsilon: epsilon,
 	})
 }
 
-// DeepSeek4HCHead: collapse final hyper streams.
-func (b *Builder) DeepSeek4HCHead(input, fn, scale, base *Tensor, hyperConnections uint32, normEpsilon, epsilon float32) *Tensor {
-	if !b.validateDeepSeek4HC(input, fn, scale, base, hyperConnections, 1, normEpsilon, epsilon, true) {
+// HyperConnectionHead: collapse final hyper streams.
+func (b *Builder) HyperConnectionHead(input, fn, scale, base *Tensor, hyperConnections uint32, normEpsilon, epsilon float32) *Tensor {
+	if !b.validateHyperConnection(input, fn, scale, base, hyperConnections, 1, normEpsilon, epsilon, true) {
 		return nil
 	}
 	shape, _ := NewShape(input.Shape.Dims[0], input.Shape.Dims[2])
-	return b.add("", dtype.F32, shape, OpDeepSeek4HCHead, []*Tensor{input, fn, scale, base}, DeepSeek4HCAttributes{
+	return b.add("", dtype.F32, shape, OpHyperConnectionHead, []*Tensor{input, fn, scale, base}, HyperConnectionAttributes{
 		HyperConnections: hyperConnections, SinkhornIterations: 1, NormEpsilon: normEpsilon, Epsilon: epsilon,
 	})
 }
 
-func (b *Builder) validateDeepSeek4HC(
+func (b *Builder) validateHyperConnection(
 	input, fn, scale, base *Tensor,
 	hyperConnections, sinkhornIterations uint32,
 	normEpsilon, epsilon float32,
@@ -357,7 +357,7 @@ func (b *Builder) validateDeepSeek4HC(
 		math.IsNaN(float64(normEpsilon)) || math.IsInf(float64(normEpsilon), 0) ||
 		math.IsNaN(float64(epsilon)) || math.IsInf(float64(epsilon), 0) ||
 		input.Shape.Dims[1] != uint64(hyperConnections) || fn.Shape.Dims[0] != input.Shape.Dims[0]*uint64(hyperConnections) {
-		b.setError(errors.New("DeepSeek 4 HC metadata or input shape is invalid"))
+		b.setError(errors.New("hyper-connection metadata or input shape is invalid"))
 		return false
 	}
 	mix := uint64(hyperConnections)
@@ -367,7 +367,7 @@ func (b *Builder) validateDeepSeek4HC(
 		scaleWidth = 3
 	}
 	if fn.Shape.Dims[1] != mix || scale.Shape.Dims[0] != scaleWidth || base.Shape.Dims[0] != mix {
-		b.setError(errors.New("DeepSeek 4 HC weight shape is invalid"))
+		b.setError(errors.New("hyper-connection weight shape is invalid"))
 		return false
 	}
 	return true

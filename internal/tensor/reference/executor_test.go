@@ -1492,8 +1492,8 @@ func TestExecuteDeepSeek4RawAttention(t *testing.T) {
 	cache := builder.Input("cache", dtype.F32, tensor.MustShape(2, 1, 1))
 	positions := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, 1))
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
-	output := builder.DeepSeek4Attention(query, cache, positions, sinks, nil, nil, nil, nil, nil, nil, nil, nil,
-		tensor.DeepSeek4AttentionAttributes{
+	output := builder.CompressedAttention(query, cache, positions, sinks, nil, nil, nil, nil, nil, nil, nil, nil,
+		tensor.CompressedAttentionAttributes{
 			Positions: []uint32{0}, Window: 4, Heads: 1, RotaryDimensions: 2,
 			FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
 		})
@@ -1521,13 +1521,13 @@ func TestExecuteDeepSeek4RawAttentionHonorsPositionGaps(t *testing.T) {
 	positionsWithGap := builder.Input("positions_with_gap", dtype.F32, tensor.MustShape(1, 1, 3))
 	cacheWithoutOld := builder.Input("cache_without_old", dtype.F32, tensor.MustShape(2, 1, 2))
 	positionsWithoutOld := builder.Input("positions_without_old", dtype.F32, tensor.MustShape(1, 1, 2))
-	attributes := tensor.DeepSeek4AttentionAttributes{
+	attributes := tensor.CompressedAttentionAttributes{
 		Positions: []uint32{3}, Window: 3, Heads: 1, RotaryDimensions: 2,
 		FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
 	}
-	withGap := builder.DeepSeek4Attention(query, cacheWithGap, positionsWithGap, sinks,
+	withGap := builder.CompressedAttention(query, cacheWithGap, positionsWithGap, sinks,
 		nil, nil, nil, nil, nil, nil, nil, nil, attributes)
-	withoutOld := builder.DeepSeek4Attention(query, cacheWithoutOld, positionsWithoutOld, sinks,
+	withoutOld := builder.CompressedAttention(query, cacheWithoutOld, positionsWithoutOld, sinks,
 		nil, nil, nil, nil, nil, nil, nil, nil, attributes)
 	results, err := Execute([]*tensor.Tensor{withGap, withoutOld}, map[*tensor.Tensor]Value{
 		query:               {Shape: query.Shape, Data: []float32{0, 0}},
@@ -1552,8 +1552,8 @@ func TestDeepSeek4CompressedBlocksSkipIncompletePositionGroup(t *testing.T) {
 	kv := Value{Shape: shape, Data: make([]float32, 8)}
 	score := Value{Shape: shape, Data: make([]float32, 8)}
 	norm := Value{Shape: tensor.MustShape(1), Data: []float32{1}}
-	attributes := tensor.DeepSeek4AttentionAttributes{RotaryDimensions: 0, NormEpsilon: 1e-5}
-	blocks, err := deepSeek4CompressedBlocks(kv, score, norm, 4, 1, []uint32{0, 1, 3, 4}, attributes)
+	attributes := tensor.CompressedAttentionAttributes{RotaryDimensions: 0, NormEpsilon: 1e-5}
+	blocks, err := compressedAttentionBlocks(kv, score, norm, 4, 1, []uint32{0, 1, 3, 4}, attributes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1565,10 +1565,10 @@ func TestDeepSeek4CompressedBlocksSkipIncompletePositionGroup(t *testing.T) {
 func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 	for _, test := range []struct {
 		name  string
-		ratio tensor.DeepSeek4CompressionRatio
+		ratio tensor.CompressionRatio
 	}{
-		{"overlap", tensor.DeepSeek4CompressionOverlap},
-		{"wide", tensor.DeepSeek4CompressionWide},
+		{"overlap", tensor.CompressionOverlap},
+		{"wide", tensor.CompressionWide},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ratio := test.ratio
@@ -1591,10 +1591,10 @@ func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 				indexerScore = builder.Input("indexer_score", dtype.F32, indexerKV.Shape)
 				indexerNorm = builder.Input("indexer_norm", dtype.F32, tensor.MustShape(2))
 			}
-			output := builder.DeepSeek4Attention(
+			output := builder.CompressedAttention(
 				query, cache, positions, sinks, compressorKV, compressorScore, compressorNorm,
 				indexerQuery, indexerWeights, indexerKV, indexerScore, indexerNorm,
-				tensor.DeepSeek4AttentionAttributes{
+				tensor.CompressedAttentionAttributes{
 					Positions: []uint32{position}, Ratio: ratio, Window: 1, Heads: 1,
 					IndexerHeads: 1, IndexerTopK: 1, RotaryDimensions: 2,
 					FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
@@ -1651,11 +1651,11 @@ func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 func TestExecuteDeepSeek4HCAndFixedRouting(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
-	hcInput := builder.DeepSeek4HCInit(input, 2)
+	hcInput := builder.HyperConnectionInit(input, 2)
 	fn := builder.Input("hc_fn", dtype.F32, tensor.MustShape(4, 2))
 	scale := builder.Input("hc_scale", dtype.F32, tensor.MustShape(1))
 	base := builder.Input("hc_base", dtype.F32, tensor.MustShape(2))
-	head := builder.DeepSeek4HCHead(hcInput, fn, scale, base, 2, 1e-5, 1e-6)
+	head := builder.HyperConnectionHead(hcInput, fn, scale, base, 2, 1e-5, 1e-6)
 	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))

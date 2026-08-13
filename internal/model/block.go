@@ -889,7 +889,7 @@ func (p ModelPlan) BuildPerLayerInputs(
 	return result, nil
 }
 
-func limitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
+func postActivationLimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
 	if limit <= 0 {
 		return builder.SwiGLU(gate, up)
 	}
@@ -908,7 +908,7 @@ func buildSharedSwiGLU(
 	return builder.MulMat(weights.FeedForwardSharedDown, builder.SwiGLU(gate, up))
 }
 
-func deepSeek4LimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
+func inputLimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
 	if limit <= 0 {
 		return builder.SwiGLU(gate, up)
 	}

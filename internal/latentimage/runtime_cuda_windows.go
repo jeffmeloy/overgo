@@ -36,7 +36,9 @@ func readEmbedRowsF32(modelDir string, spec TextEncoderSpec, ids []int) ([]float
 	return result, nil
 }
 
-var generatedImageContract = artifact.JSONContract(artifact.KindOutput, "overgo.generated-image.v1")
+var encodedImageContract = artifact.DocumentContract{
+	Kind: artifact.KindOutput, MediaType: encodedImageMediaType, Schema: "overgo.encoded-image.png.v1",
+}
 
 type Request struct {
 	Prompt            string  `json:"prompt"`
@@ -46,13 +48,6 @@ type Request struct {
 	Seed              int64   `json:"seed"`
 	DynamicShiftMu    float64 `json:"mu,omitempty"`
 	NumTrainTimesteps int     `json:"num_train_timesteps,omitempty"`
-}
-
-type Image struct {
-	Pixels   []float32 `json:"pixels"`
-	Channels int       `json:"channels"`
-	Height   int       `json:"height"`
-	Width    int       `json:"width"`
 }
 
 type Generator struct {
@@ -220,15 +215,15 @@ func (g *Generator) integrate(ctx context.Context, session *Generator) (*Generat
 	return g, nil
 }
 
-func (g *Generator) decode(ctx context.Context, session *Generator) (Image, error) {
+func (g *Generator) decode(ctx context.Context, session *Generator) (EncodedImage, error) {
 	if g == nil || session != g || !g.integrated {
-		return Image{}, errors.New("latent image: decode session is unavailable")
+		return EncodedImage{}, errors.New("latent image: decode session is unavailable")
 	}
-	pixels, height, width, err := g.pipeline.Decode(ctx)
+	pixels, height, width, err := g.pipeline.DecodeHWC(ctx)
 	if err != nil {
-		return Image{}, err
+		return EncodedImage{}, err
 	}
-	return Image{Pixels: pixels, Channels: g.pipeline.VAE.OutChannels, Height: height, Width: width}, nil
+	return encodePNG(pixels, height, width)
 }
 
 func (g *Generator) Close(ctx context.Context) error {
@@ -257,8 +252,11 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 	}
 	return workflowruntime.RegisterContextStage(
 		runtime, modelrecipe.ModuleLatentImageDecode, modelID, generator.decode,
-		func(image Image) (artifact.Content, error) {
-			return artifact.JSONContent(generatedImageContract, image)
+		func(image EncodedImage) (artifact.Content, error) {
+			if image.MediaType != encodedImageMediaType {
+				return artifact.Content{}, errors.New("latent image: invalid encoded media type")
+			}
+			return encodedImageContract.OwnedContentBytes(image.Data)
 		},
 	)
 }

@@ -469,7 +469,8 @@ func (p *ResidentImagePipeline) Latent(ctx context.Context) ([]float32, error) {
 	return value.Data, nil
 }
 
-func (p *ResidentImagePipeline) Decode(ctx context.Context) ([]float32, int, int, error) {
+// DecodeHWC downloads the VAE's native HWC output without a planar copy.
+func (p *ResidentImagePipeline) DecodeHWC(ctx context.Context) ([]float32, int, int, error) {
 	if p == nil {
 		return nil, 0, 0, errors.New("resident image pipeline: unavailable")
 	}
@@ -496,15 +497,7 @@ func (p *ResidentImagePipeline) Decode(ctx context.Context) ([]float32, int, int
 	if err != nil || releaseErr != nil {
 		return nil, 0, 0, errors.Join(err, releaseErr)
 	}
-	hwc := results[p.VAE.Output].Data
-	chw := make([]float32, len(hwc))
-	plane := p.VAE.OutH * p.VAE.OutW
-	for position := range plane {
-		for channel := range p.VAE.OutChannels {
-			chw[channel*plane+position] = hwc[position*p.VAE.OutChannels+channel]
-		}
-	}
-	return chw, p.VAE.OutH, p.VAE.OutW, nil
+	return results[p.VAE.Output].Data, p.VAE.OutH, p.VAE.OutW, nil
 }
 
 func (c *ResidentConditioning) Release(ctx context.Context) error {

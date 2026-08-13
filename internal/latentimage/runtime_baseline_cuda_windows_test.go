@@ -3,10 +3,12 @@
 package latentimage
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"image/png"
 	"math"
 	"os"
 	"path/filepath"
@@ -18,7 +20,7 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-func TestGeneratorRealCheckpointBaseline(t *testing.T) {
+func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	requireLongTest(t)
 	if os.Getenv("OVERGO_KREA_BASELINE") != "1" {
 		t.Skip("set OVERGO_KREA_BASELINE=1 to measure the real Krea pipeline")
@@ -89,31 +91,36 @@ func TestGeneratorRealCheckpointBaseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	decodeWall := time.Since(decodeStart)
-	if image.Channels != 3 || image.Height != 256 || image.Width != 256 || len(image.Pixels) != 3*256*256 {
-		t.Fatalf("image geometry = %d/%dx%d/%d", image.Channels, image.Width, image.Height, len(image.Pixels))
+	if image.Channels != 3 || image.Height != 256 || image.Width != 256 || len(image.Data) == 0 || image.MediaType != "image/png" {
+		t.Fatalf("image geometry = %d/%dx%d bytes=%d type=%q", image.Channels, image.Width, image.Height, len(image.Data), image.MediaType)
 	}
-	encoded := make([]byte, len(image.Pixels))
-	minimum, maximum := float32(math.Inf(1)), float32(math.Inf(-1))
+	if len(image.Data) >= image.Channels*image.Width*image.Height*4 {
+		t.Fatalf("PNG bytes=%d, raw float bytes=%d", len(image.Data), image.Channels*image.Width*image.Height*4)
+	}
+	decoded, err := png.Decode(bytes.NewReader(image.Data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	minimum, maximum := image.Minimum, image.Maximum
 	golden, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "krea", "raw", "g3_decoded_rgb_f32le.bin"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(golden) != 4*len(image.Pixels) {
-		t.Fatalf("golden bytes = %d, want %d", len(golden), 4*len(image.Pixels))
+	plane := image.Width * image.Height
+	if len(golden) != 4*image.Channels*plane {
+		t.Fatalf("golden bytes = %d, want %d", len(golden), 4*image.Channels*plane)
 	}
 	var absoluteError, squaredError float64
-	for index, value := range image.Pixels {
-		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
-			t.Fatalf("pixel %d is not finite", index)
+	for position := range plane {
+		r, g, b, _ := decoded.At(position%image.Width, position/image.Width).RGBA()
+		for channel, component := range []uint32{r, g, b} {
+			normalized := float32(component) / 65535
+			index := channel*plane + position
+			want := math.Float32frombits(binary.LittleEndian.Uint32(golden[4*index:]))
+			delta := float64(normalized - want)
+			absoluteError += math.Abs(delta)
+			squaredError += delta * delta
 		}
-		minimum = min(minimum, value)
-		maximum = max(maximum, value)
-		normalized := min(max((value+1)*0.5, 0), 1)
-		encoded[index] = byte(math.Round(float64(normalized * 255)))
-		want := math.Float32frombits(binary.LittleEndian.Uint32(golden[4*index:]))
-		delta := float64(normalized - want)
-		absoluteError += math.Abs(delta)
-		squaredError += delta * delta
 	}
 	if maximum-minimum < 0.1 {
 		t.Fatalf("image is degenerate: range [%g,%g]", minimum, maximum)
@@ -125,12 +132,12 @@ func TestGeneratorRealCheckpointBaseline(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	hash := sha256.Sum256(encoded)
+	hash := sha256.Sum256(image.Data)
 	totalWall := time.Since(totalStart)
-	mae := absoluteError / float64(len(image.Pixels))
-	rmse := math.Sqrt(squaredError / float64(len(image.Pixels)))
+	mae := absoluteError / float64(image.Channels*plane)
+	rmse := math.Sqrt(squaredError / float64(image.Channels*plane))
 	t.Logf(
-		"Krea 256 seed42 load=%.3fs prepare=%.3fs integrate=%.3fs decode=%.3fs total=%.3fs peak_device=%.3fGiB resident=%.3fGiB u8_sha256=%s range=[%g,%g]",
+		"Krea 256 seed42 load=%.3fs prepare=%.3fs integrate=%.3fs decode+png=%.3fs total=%.3fs peak_device=%.3fGiB resident=%.3fGiB png_sha256=%s range=[%g,%g]",
 		loadWall.Seconds(), prepareWall.Seconds(), integrateWall.Seconds(), decodeWall.Seconds(), totalWall.Seconds(),
 		float64(memory.PeakBytes)/(1<<30), float64(generator.pipeline.ResidentBytes())/(1<<30),
 		hex.EncodeToString(hash[:]), minimum, maximum,

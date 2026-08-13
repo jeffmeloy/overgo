@@ -116,3 +116,23 @@ func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 		t.Fatalf("profile binding = (%s, %v), facts=%+v", profileID, ok, facts)
 	}
 }
+
+func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "encoded-image-runtime")
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "encoded-image-profile")
+	definition, err := modelrecipe.LatentImageDefinition(modelID, profileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := modelrecipe.CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if imageProgramModule(program) != modelrecipe.ModuleLatentImagePrepare ||
+		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataImage {
+		t.Fatalf("latent image program=%+v", definition)
+	}
+	if capability := imageCapability(); capability.execute == nil {
+		t.Fatal("typed image runtime has no executor")
+	}
+}

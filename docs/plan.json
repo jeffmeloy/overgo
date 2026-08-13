@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "recipe-policy",
-          "title": "Move prompt templates, token limits, scheduler defaults, and class policy from latent-image Go constants into validated artifact/profile facts; keep recognition at the artifact boundary",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/latentimage ./cmd/recipe -run '^TestImagePolicyComesFromRecipeProfile$' -count=1 -v"
-        },
-        {
           "id": "stream-publication",
           "title": "Eliminate full-image HWC-to-CHW and JSON-float publication copies; emit final layout directly into a streamed typed encoded-image artifact",
           "status": "open",
@@ -48,7 +42,7 @@
           "id": "do",
           "title": "Replace remaining family leaf graph policies and builders with neutral mathematical operators; migrate callers and delete each displaced path",
           "status": "open",
-          "verify": "go test ./internal/model ./internal/modelrecipe -run 'LayerTopology|ProfileProvenanceHasExactTypedCoverage|RegisteredProfileSemanticDigest' -count=1 -v && ! rg -n 'DenseGraph' internal cmd --glob '*.go' --glob '*.json'"
+          "verify": "go test ./internal/model ./internal/modelrecipe -run 'LayerTopology|ProfileProvenanceHasExactTypedCoverage|RegisteredProfileSemanticDigest' -count=1 -v \u0026\u0026 ! rg -n 'DenseGraph' internal cmd --glob '*.go' --glob '*.json'"
         }
       ]
     },

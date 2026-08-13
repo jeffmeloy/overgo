@@ -20,7 +20,7 @@ import (
 )
 
 func imageCapability() capability {
-	latent := capabilityruntime.JSONScalar[latentimage.Request, *latentimage.Generator, latentimage.Image](
+	latent := capabilityruntime.JSONScalar[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
 		"image-gen", latentimage.ValidateRequest,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
 			profileID, ok := program.Definition().Dependency(recipe.DependencyProfile, 0)

@@ -13,7 +13,7 @@ type profileOrdinal interface {
 
 const (
 	allArchitectureCapabilities = (ArchitectureDiscreteImageTokens << 1) - 1
-	allExpertSupplements        = (expertSupplementDenseFFN << 1) - 1
+	allExpertSupplements        = (expertSupplementDenseBranch << 1) - 1
 )
 
 // ValidateArchitectureProfile checks persisted policy domains and relationships.
@@ -48,7 +48,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("DenseStages.QK.PostRotary", profile.DenseStages.QK.PostRotary, qkNormRMS),
 		validateProfileOrdinal("DenseStages.AttentionGate", profile.DenseStages.AttentionGate, attentionGateSigmoid),
 		validateProfileOrdinal("DenseStages.Residual", profile.DenseStages.Residual, residualGPTOSS),
-		validateProfileOrdinal("DenseStages.QueryScale", profile.DenseStages.QueryScale, queryScalePolicyGemma),
+		validateProfileOrdinal("DenseStages.QueryScale", profile.DenseStages.QueryScale, queryScalePolicyEmbeddingHead),
 		validateProfileOrdinal("DenseWeights.BiasCatalog", profile.DenseWeights.BiasCatalog, denseBiasCatalogJais),
 		validateProfileOrdinal("ModelCatalog.PositionEmbedding", profile.ModelCatalog.PositionEmbedding, positionEmbeddingOptional),
 		validateProfileOrdinal("ModelCatalog.TokenNorm", profile.ModelCatalog.TokenNorm, tokenNormAffine),

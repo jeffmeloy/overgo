@@ -729,7 +729,7 @@
     },
     "Capabilities": 3072,
     "DenseStages": {
-      "GemmaSpecial": true,
+      "EmbeddingHeadScaleBlocks": 46,
       "QueryScale": 4
     },
     "Name": "gemma2",

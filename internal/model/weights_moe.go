@@ -36,15 +36,15 @@ func loadMoECatalog(
 			return false, err
 		}
 	}
-	if policy.SupplementalCatalog.has(expertSupplementGemma4) {
-		if err := loadGemma4MoECatalog(required, tensors, prefix, spec, layer); err != nil {
+	if policy.SupplementalCatalog.has(expertSupplementScaledSandwichNorm) {
+		if err := loadScaledSandwichNormCatalog(required, tensors, prefix, spec, layer); err != nil {
 			return false, err
 		}
 	}
 	if err := loadMoEPolicyCatalog(required, tensors, prefix, spec, layer, policy); err != nil {
 		return false, err
 	}
-	if policy.SupplementalCatalog.has(expertSupplementOpenAIBiases) {
+	if policy.SupplementalCatalog.has(expertSupplementRequiredProjectionBiases) {
 		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredF32TensorPointer("ffn_gate_inp.bias", &layer.FeedForwardRouterBias, uint64(spec.ExpertCount)),
 			requiredF32TensorPointer("ffn_gate_exps.bias", &layer.FeedForwardGateBias, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
@@ -54,7 +54,7 @@ func loadMoECatalog(
 			return false, err
 		}
 	}
-	if policy.SupplementalCatalog.has(expertSupplementGrouped) {
+	if policy.SupplementalCatalog.has(expertSupplementChunkExperts) {
 		chunkExperts := uint64(spec.ExpertCount / spec.ExpertsPerGroup)
 		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("ffn_gate_chexps.weight", &layer.FeedForwardGateChunkExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertChunkFeedForward), chunkExperts),
@@ -64,17 +64,17 @@ func loadMoECatalog(
 			return false, err
 		}
 	}
-	if policy.SupplementalCatalog.has(expertSupplementGrokDense) {
-		return false, loadGrokDenseCatalog(required, tensors, prefix, spec, layer)
+	if policy.SupplementalCatalog.has(expertSupplementOptionalDenseGEGLU) {
+		return false, loadOptionalDenseGEGLUCatalog(required, tensors, prefix, spec, layer)
 	}
-	if policy.SupplementalCatalog.has(expertSupplementExpertNorm) {
+	if policy.SupplementalCatalog.has(expertSupplementExpertInputNorm) {
 		expertNorm, err := required(prefix+"ffn_norm_exps.weight", uint64(spec.EmbeddingLength))
 		if err != nil {
 			return false, err
 		}
 		layer.FeedForwardExpertNorm = &expertNorm
 	}
-	return policy.SupplementalCatalog.has(expertSupplementDenseFFN), nil
+	return policy.SupplementalCatalog.has(expertSupplementDenseBranch), nil
 }
 
 func loadMoECoreCatalog(
@@ -127,7 +127,7 @@ func loadOptionalExpertGate(tensors map[string]gguf.TensorInfo, prefix string, s
 	return nil
 }
 
-func loadGemma4MoECatalog(
+func loadScaledSandwichNormCatalog(
 	required weightRequirementLoader,
 	tensors map[string]gguf.TensorInfo,
 	prefix string,
@@ -212,7 +212,7 @@ func loadOptionalF32ExpertBias(
 	return nil
 }
 
-func loadGrokDenseCatalog(
+func loadOptionalDenseGEGLUCatalog(
 	required weightRequirementLoader,
 	tensors map[string]gguf.TensorInfo,
 	prefix string,
@@ -227,7 +227,7 @@ func loadGrokDenseCatalog(
 		}
 	}
 	if present != 0 && present != len(names) {
-		return errors.New("Grok dense FFN tensors must be all present or all absent")
+		return errors.New("optional dense GEGLU tensors must be all present or all absent")
 	}
 	if present == 0 {
 		return nil

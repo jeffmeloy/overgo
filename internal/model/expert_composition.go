@@ -79,12 +79,12 @@ const (
 type expertSupplementalCatalog uint8
 
 const (
-	expertSupplementGemma4 expertSupplementalCatalog = 1 << iota
-	expertSupplementOpenAIBiases
-	expertSupplementGrouped
-	expertSupplementGrokDense
-	expertSupplementExpertNorm
-	expertSupplementDenseFFN
+	expertSupplementScaledSandwichNorm expertSupplementalCatalog = 1 << iota
+	expertSupplementRequiredProjectionBiases
+	expertSupplementChunkExperts
+	expertSupplementOptionalDenseGEGLU
+	expertSupplementExpertInputNorm
+	expertSupplementDenseBranch
 )
 
 func (c expertSupplementalCatalog) has(item expertSupplementalCatalog) bool {

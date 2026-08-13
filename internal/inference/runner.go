@@ -40,7 +40,7 @@ type PromptEvaluation struct {
 type GenerateOptions struct {
 	MaxNewTokens int
 	Sampler      *sampling.Sampler
-	// DeviceGreedy: raw Qwen argmax; TokenEvent.Logits omitted.
+	// DeviceGreedy: device argmax; TokenEvent.Logits omitted.
 	DeviceGreedy bool
 	// DeviceTopK: exact bounded sampling; TokenEvent.Logits omitted.
 	DeviceTopK bool
@@ -324,7 +324,7 @@ var forwardExecutors = [...]forwardExecutor{
 		return r.forwardNonCausalLocked(ctx, ids)
 	},
 	model.ForwardOperationAudioTokens: func(r *Runner, ctx context.Context, ids []tokenizer.TokenID) (reference.Value, error) {
-		return r.forwardWavTokenizerLocked(ctx, ids)
+		return r.forwardAudioTokensLocked(ctx, ids)
 	},
 	model.ForwardOperationEncoder: func(r *Runner, ctx context.Context, ids []tokenizer.TokenID) (reference.Value, error) {
 		return r.forwardEncoderLocked(ctx, ids)
@@ -531,7 +531,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		return reference.Value{}, nil, fmt.Errorf("inference: %s-only model requires a paired target session", mtpLabel)
 	}
 	if r.forwardProgram().Session == model.ForwardSessionPairedProjection {
-		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")
+		return reference.Value{}, nil, errors.New("inference: paired-projection session requires shared target context")
 	}
 	if r.forwardProgram().Operation == model.ForwardOperationEncoder {
 		return reference.Value{}, nil, errors.New("inference: encoder-only program does not support KV caching")
@@ -585,7 +585,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 			return reference.Value{}, nil, err
 		}
 	} else if projected.overridePolicy == model.EmbeddingOverrideRawScaled && len(overrides) > 0 {
-		if err := applyGemmaRawEmbeddingOverrides(&activation, overrides, r.spec.InputEmbeddingScale()); err != nil {
+		if err := applyScaledRawEmbeddingOverrides(&activation, overrides, r.spec.InputEmbeddingScale()); err != nil {
 			return reference.Value{}, nil, err
 		}
 		embeddingScaleApplied = true
@@ -613,16 +613,16 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		}
 		embeddingSkip = activation
 	}
-	perLayerInputs, err := r.prepareGemma4PerLayerInputs(ctx, activation, rows)
+	perLayerInputs, err := r.preparePerLayerInputs(ctx, activation, rows)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if r.forwardProgram().AlternatePredictions() {
+	if forward := r.forwardProgram(); forward.AlternateStates() {
 		if capture != nil {
-			return reference.Value{}, nil, errors.New("inference: cached Gemma3n layer extraction is unsupported")
+			return reference.Value{}, nil, errors.New("inference: alternate-state layer extraction is unsupported")
 		}
 		return r.forwardAlternatePredictionsCachedLocked(
-			ctx, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
+			ctx, forward, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
 		)
 	}
 	cachePosition := nextPosition + uint32(len(tokenIDs))

@@ -12,8 +12,8 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// DecodeWavTokenizer: decodes semantic tokens into audio-feature frames.
-func (r *Runner) DecodeWavTokenizer(
+// DecodeAudioTokens: semantic tokens to audio-feature frames.
+func (r *Runner) DecodeAudioTokens(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
@@ -26,9 +26,9 @@ func (r *Runner) DecodeWavTokenizer(
 		return reference.Value{}, errors.New("inference: runner is closed")
 	}
 	if r.forwardProgram().Operation != model.ForwardOperationAudioTokens {
-		return reference.Value{}, errors.New("inference: audio decode requires wavtokenizer-dec architecture")
+		return reference.Value{}, errors.New("inference: model has no audio-token decoder")
 	}
-	return r.forwardWavTokenizerLocked(ctx, tokenIDs)
+	return r.forwardAudioTokensLocked(ctx, tokenIDs)
 }
 
 func (r *Runner) forwardNonCausalLocked(
@@ -36,7 +36,7 @@ func (r *Runner) forwardNonCausalLocked(
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
 	if r.forwardProgram().Operation == model.ForwardOperationAudioTokens {
-		return r.forwardWavTokenizerLocked(ctx, tokenIDs)
+		return r.forwardAudioTokensLocked(ctx, tokenIDs)
 	}
 	if len(tokenIDs) == 0 {
 		return reference.Value{}, errors.New("inference: token sequence is empty")
@@ -98,7 +98,7 @@ func (r *Runner) forwardNonCausalLocked(
 	return r.runOutputNorm(ctx, activation)
 }
 
-func (r *Runner) forwardWavTokenizerLocked(
+func (r *Runner) forwardAudioTokensLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
@@ -120,8 +120,8 @@ func (r *Runner) forwardWavTokenizerLocked(
 		return reference.Value{}, err
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
-	input := runtime.input("wavtokenizer.embeddings", embeddings)
-	graphWeights, hostFeeds, deviceFeeds, err := r.wavTokenizerGraphInputs(ctx, runtime.builder)
+	input := runtime.input("audio_tokens.embeddings", embeddings)
+	graphWeights, hostFeeds, deviceFeeds, err := r.sequenceOutputGraphInputs(ctx, runtime.builder)
 	if err != nil {
 		return reference.Value{}, err
 	}

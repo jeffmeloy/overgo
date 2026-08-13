@@ -1292,7 +1292,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if r.program.Model.ProjectedInput().PerLayerEmbeddings {
 		if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 			r.weights.PerLayerProjectionNorm == nil {
-			return fail(errors.New("Gemma 4 per-layer weights are incomplete"))
+			return fail(errors.New("per-layer input weights are incomplete"))
 		}
 		perLayerTable, pointer, inputErr := r.deviceInput(builder, *r.weights.PerLayerTokenEmbedding)
 		if inputErr != nil {

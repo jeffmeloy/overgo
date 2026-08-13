@@ -1220,7 +1220,7 @@ func TestWavTokenizerDecodeWaveform(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	audio, err := runner.DecodeWavTokenizerWaveform(context.Background(), []tokenizer.TokenID{0})
+	audio, err := runner.DecodeAudioWaveform(context.Background(), []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}

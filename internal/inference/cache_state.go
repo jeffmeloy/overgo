@@ -49,7 +49,7 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 		return nil, err
 	}
 	if r.hasCachePolicy(model.CacheCompressedAttention) {
-		upgradeDeepSeek4CachePositions(cache)
+		materializeCompressedCachePositions(cache)
 	}
 	if err := r.validateCache(cache); err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	return cache, nil
 }
 
-func upgradeDeepSeek4CachePositions(cache *KVCache) {
+func materializeCompressedCachePositions(cache *KVCache) {
 	if cache == nil || cache.Tokens == 0 || effectiveCachePosition(cache) < cache.Tokens {
 		return
 	}
@@ -147,7 +147,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				position := uint32(value)
 				if value < 0 || float32(position) != value || position >= effectiveCachePosition(cache) ||
 					(item > 0 && position <= uint32(positions[item-1])) {
-					return fmt.Errorf("inference: DeepSeek 4 cache layer %d positions are invalid", index)
+					return fmt.Errorf("inference: compressed cache layer %d positions are invalid", index)
 				}
 			}
 			if index == 0 {
@@ -155,7 +155,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			} else {
 				for item := range positions {
 					if positions[item] != deepSeekPositions[item] {
-						return fmt.Errorf("inference: DeepSeek 4 cache layer %d positions differ", index)
+						return fmt.Errorf("inference: compressed cache layer %d positions differ", index)
 					}
 				}
 			}

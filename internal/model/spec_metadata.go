@@ -24,7 +24,7 @@ type specMetadata struct {
 
 type specReadState struct {
 	declaredBlockCount uint32
-	llamaMoE           bool
+	declaredExperts    bool
 }
 
 type metadataCardinality uint8
@@ -50,6 +50,8 @@ type MetadataShapePolicy struct {
 	GroupNorm                 bool
 	MLAHeadLengths            bool
 	SWAHeadLengths            bool
+	DraftBeforeShape          bool
+	PreserveDraftLayers       bool
 }
 
 func newSpecMetadata(file *gguf.File) (specMetadata, error) {
@@ -94,7 +96,6 @@ func newSpecMetadataWithProfile(file *gguf.File, resolved *ArchitectureProfile) 
 func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	values, prefix := m.values, m.prefix
 	if m.profile.Validation.Attention == AttentionValidationChameleon {
-		spec.QKNormEpsilon = chameleonQKNormEpsilon
 		spec.SandwichNorm, _ = optional[bool](values, "chameleon.swin_norm", gguf.ValueTypeBool)
 	}
 	if value, ok := optional[string](values, "general.name", gguf.ValueTypeString); ok {
@@ -123,17 +124,19 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 		}
 	}
 	state := specReadState{}
-	if m.profile.Validation.Hybrid == HybridValidationLlama {
+	if m.profile.Validation.ExpertMetadata == ExpertMetadataWhenDeclared {
 		count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
-		state.llamaMoE = ok && count > 0
+		state.declaredExperts = ok && count > 0
 	}
 	var err error
 	if spec.BlockCount, err = required[uint32](values, prefix+"block_count", gguf.ValueTypeUint32); err != nil {
 		return specReadState{}, err
 	}
 	state.declaredBlockCount = spec.BlockCount
-	if err := m.readDraftLayers(spec); err != nil {
-		return specReadState{}, err
+	if m.profile.Metadata.DraftBeforeShape {
+		if err := m.readDraftLayers(spec); err != nil {
+			return specReadState{}, err
+		}
 	}
 	if err = readRequiredMetadataFields(
 		values, prefix, gguf.ValueTypeUint32,
@@ -367,35 +370,23 @@ func (m specMetadata) readPosition(spec *Spec) error {
 }
 
 func (m specMetadata) readDraftLayers(spec *Spec) error {
+	if m.profile.DraftKind == DraftNone {
+		return nil
+	}
 	key := m.prefix + "nextn_predict_layers"
 	nextN, _ := optional[uint32](m.values, key, gguf.ValueTypeUint32)
-	validation := m.profile.Validation
-	switch {
-	case validation.hybridOneOf(HybridValidationQwen35, HybridValidationQwen35MoE):
-		if nextN == 0 {
-			return nil
-		}
-		if nextN != 1 || nextN >= spec.BlockCount {
-			return errors.New("Qwen3.5 NextN/MTP layer count is invalid")
-		}
-	case validation.MLA == MLAValidationDeepSeek32 ||
-		m.profile.readsMetadata(MetadataReadGLMDSAGating):
-		label := "GLM-DSA"
-		if validation.MLA == MLAValidationDeepSeek32 {
-			spec.LayerNormEpsilon = deepSeek32LayerNormEpsilon
-			label = "DeepSeek 3.2"
-		}
-		if nextN == 0 {
-			return nil
-		}
-		if nextN >= spec.BlockCount {
-			return fmt.Errorf("%s NextN/MTP layer count is invalid", label)
-		}
-	default:
+	if nextN == 0 {
 		return nil
+	}
+	if nextN >= spec.BlockCount ||
+		(m.profile.DraftKind == DraftSingleCatalog || m.profile.DraftKind == DraftOptionalSingleCatalog) && nextN != 1 {
+		return errors.New("draft layer count is invalid")
 	}
 	spec.NextNPredictLayers = nextN
 	spec.BlockCount -= nextN
+	if limit := int(spec.BlockCount); !m.profile.Metadata.PreserveDraftLayers && len(spec.LayerKVHeadCounts) > limit {
+		spec.LayerKVHeadCounts = spec.LayerKVHeadCounts[:limit]
+	}
 	return nil
 }
 

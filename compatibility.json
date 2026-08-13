@@ -261,13 +261,13 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:3aecac0a88dc8e09384e3b92fea20c45a75b734c8131177fe5d6e81fb42e9fd2"
+          "identity": "file:sha256:5095887ce282312b21ee23f6b2727936a8895290614ae85e99caf1e94cf50bb6"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:d76e6a95d693f47d8581eeb509ff1c1056e902274eda2ceec554b04d7258e581"
+          "identity": "evidence:sha256:fbc9f573750030a0f616d0b12fee34fd28aeb70492135efbd13b3d9725cfb1fa"
         }
       ],
       "id": "compiled-model-plan",
@@ -736,7 +736,7 @@
           "contains": "func (b *ContinuousBatch) Step(",
           "path": "internal/inference/continuous_batch.go",
           "role": "source",
-          "identity": "file:sha256:3485e7932d7f6d535a00479cf922071a04bcdc75b2e47b685eef6a2647fd939c"
+          "identity": "file:sha256:ce9ca364f5ff8029b68163156de66cf6ecec0ffac63481cc458f38fcfa144d4a"
         },
         {
           "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",

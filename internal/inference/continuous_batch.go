@@ -124,7 +124,7 @@ func (b *ContinuousBatch) Step(
 	return b.step(ctx, inputs, deviceOutputPlan{})
 }
 
-// StepGreedy: Qwen device argmax with retained token feedback.
+// StepGreedy: device argmax with retained token feedback.
 func (b *ContinuousBatch) StepGreedy(
 	ctx context.Context,
 	inputs []SequenceBatchInput,

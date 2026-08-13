@@ -27,6 +27,7 @@
     },
     "Name": "afmoe",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 33
     },
     "Rotary": {
@@ -67,6 +68,7 @@
     },
     "Name": "arctic",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 10
     },
     "Position": 1,
@@ -104,6 +106,7 @@
     },
     "Name": "bailingmoe",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 11
     },
     "Position": 1,
@@ -133,6 +136,7 @@
     },
     "Name": "bailingmoe2",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 25
     }
   },
@@ -184,6 +188,9 @@
       "QK": {
         "Heads": 5
       }
+    },
+    "MetadataDefaults": {
+      "QKNormEpsilon": 0.00001
     },
     "Name": "chameleon",
     "Validation": {
@@ -271,7 +278,8 @@
     },
     "Name": "cohere2moe",
     "Validation": {
-      "Attention": 13
+      "Attention": 13,
+      "ExpertMetadata": 1
     },
     "Normalization": 4,
     "Position": 1,
@@ -317,6 +325,7 @@
     "FFNNormLayout": 2,
     "Name": "dbrx",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 16
     },
     "Normalization": 1,
@@ -352,6 +361,7 @@
     },
     "Name": "deepseek",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 12
     },
     "Position": 1,
@@ -390,6 +400,7 @@
     },
     "Name": "deepseek2-ocr",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 21
     }
   },
@@ -408,14 +419,19 @@
     },
     "LatentAttention": 3,
     "Metadata": {
+      "DraftBeforeShape": true,
       "MLAHeadLengths": true
+    },
+    "MetadataDefaults": {
+      "LayerNormEpsilon": 0.000001
     },
     "Name": "deepseek32",
     "Cadence": {
       "FullIndexerEveryLayer": true
     },
     "Validation": {
-      "MLA": 1
+      "MLA": 1,
+      "RequiredBlockCount": 62
     }
   },
   {
@@ -474,6 +490,7 @@
     },
     "Name": "dots1",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 23
     }
   },
@@ -533,7 +550,8 @@
     },
     "Name": "ernie4_5-moe",
     "Validation": {
-      "Attention": 14
+      "Attention": 14,
+      "ExpertMetadata": 1
     },
     "Position": 1,
     "Rotary": {
@@ -570,6 +588,7 @@
     },
     "Name": "exaone-moe",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 34
     },
     "Rotary": {
@@ -788,6 +807,11 @@
   {
     "Attention": 2,
     "Auxiliary": 2,
+    "Cadence": {
+      "FullIndexerContext": 1048576,
+      "FullIndexerPeriod": 4,
+      "FullIndexerPrefix": 2
+    },
     "Capabilities": 34359739140,
     "DraftKind": 4,
     "Experts": {
@@ -800,6 +824,7 @@
       "SharedCatalog": 1
     },
     "Metadata": {
+      "DraftBeforeShape": true,
       "MLAHeadLengths": true
     },
     "MetadataRead": 256,
@@ -841,7 +866,8 @@
     "FFNNormLayout": 3,
     "Name": "glm4moe",
     "Validation": {
-      "Attention": 29
+      "Attention": 29,
+      "ExpertMetadata": 1
     },
     "Position": 1,
     "Rotary": {
@@ -875,6 +901,7 @@
     },
     "Name": "gpt-oss",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 30
     },
     "Position": 1,
@@ -959,6 +986,7 @@
       "Kind": 4
     },
     "Validation": {
+      "ExpertMetadata": 2,
       "Hybrid": 13,
       "RequireLogitScale": true
     }
@@ -1017,6 +1045,7 @@
       "Kind": 4
     },
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 14,
       "RequireLogitScale": true
     }
@@ -1042,6 +1071,7 @@
     },
     "Name": "grok",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 17
     },
     "PostNormLayout": 2,
@@ -1066,6 +1096,7 @@
     },
     "Name": "grovemoe",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 5
     }
   },
@@ -1100,6 +1131,7 @@
     },
     "Name": "hunyuan-moe",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 19
     }
   },
@@ -1139,6 +1171,7 @@
     },
     "Name": "hy_v3",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 20
     }
   },
@@ -1187,6 +1220,7 @@
     "Name": "jamba",
     "RecurrentMixer": 2,
     "Validation": {
+      "ExpertMetadata": 1,
       "Recurrent": 11
     },
     "RecurrentCache": 2
@@ -1251,6 +1285,7 @@
     "LayerTopology": 10,
     "RecurrentMixer": 13,
     "Validation": {
+      "ExpertMetadata": 1,
       "MLA": 3
     },
     "RecurrentCache": 7
@@ -1287,6 +1322,7 @@
     },
     "Name": "laguna",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 32
     },
     "Rotary": {
@@ -1343,6 +1379,7 @@
     "Name": "lfm2moe",
     "RecurrentMixer": 9,
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 36
     },
     "OutputNorm": 4,
@@ -1371,6 +1408,7 @@
     "Forward": {"Operation": 1},
     "Name": "llada-moe",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 8
     }
   },
@@ -1381,6 +1419,7 @@
     },
     "Name": "llama",
     "Validation": {
+      "ExpertMetadata": 2,
       "Hybrid": 27
     },
     "Position": 1,
@@ -1396,6 +1435,7 @@
     "Forward": {"Operation": 1},
     "Name": "llama-embed",
     "Validation": {
+      "ExpertMetadata": 2,
       "Hybrid": 27
     },
     "Position": 1,
@@ -1425,6 +1465,7 @@
     },
     "Name": "llama4",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 29
     },
     "Position": 1,
@@ -1488,6 +1529,7 @@
     },
     "Name": "mellum",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 18
     },
     "Rotary": {
@@ -1522,6 +1564,7 @@
     },
     "Name": "mimo2",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 6
     },
     "Rotary": {
@@ -1566,6 +1609,7 @@
     },
     "Name": "minimax-m2",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 24
     }
   },
@@ -1747,7 +1791,8 @@
     "OutputNorm": 1,
     "PostNormLayout": 1,
     "Validation": {
-      "Encoder": 6
+      "Encoder": 6,
+      "ExpertMetadata": 1
     }
   },
   {
@@ -1800,6 +1845,7 @@
     },
     "Name": "olmoe",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 26
     }
   },
@@ -1891,6 +1937,7 @@
     "Name": "phimoe",
     "Validation": {
       "Attention": 17,
+      "ExpertMetadata": 1,
       "Hybrid": 31
     },
     "Runtime": {
@@ -1980,6 +2027,7 @@
     },
     "Name": "qwen2moe",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 9
     }
   },
@@ -2019,6 +2067,7 @@
     },
     "DraftKind": 1,
     "FFNNormLayout": 4,
+    "Metadata": {"DraftBeforeShape": true},
     "Name": "qwen35",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2048,9 +2097,11 @@
       "SharedCatalog": 3
     },
     "FFNNormLayout": 4,
+    "Metadata": {"DraftBeforeShape": true},
     "Name": "qwen35moe",
     "RecurrentMixer": 8,
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 3
     },
     "RecurrentCache": 8
@@ -2067,6 +2118,7 @@
     },
     "Name": "qwen3moe",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 4
     }
   },
@@ -2094,6 +2146,7 @@
     "Name": "qwen3next",
     "RecurrentMixer": 8,
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 1
     },
     "RecurrentCache": 8
@@ -2134,6 +2187,7 @@
     },
     "Validation": {
       "BoundDeepstack": true,
+      "ExpertMetadata": 1,
       "Hybrid": 4,
       "MultiAxisRoPE": true
     }
@@ -2166,6 +2220,7 @@
     "Forward": {"Operation": 1},
     "Name": "rnd1",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 4
     }
   },
@@ -2230,6 +2285,7 @@
     },
     "Name": "smallthinker",
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 22
     },
     "Rotary": {
@@ -2310,7 +2366,9 @@
       "KVHeads": 2
     },
     "Name": "step35",
+    "Metadata": {"PreserveDraftLayers": true},
     "Validation": {
+      "ExpertMetadata": 1,
       "Hybrid": 7
     },
     "Rotary": {

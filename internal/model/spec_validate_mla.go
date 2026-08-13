@@ -39,8 +39,9 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("DSA indexer metadata is invalid")
 		case len(s.IndexerFullLayers) != int(s.BlockCount) || !s.IndexerFullLayers[0]:
 			return errors.New("DSA indexer schedule is invalid")
-		case validation == MLAValidationDeepSeek32 &&
-			(s.BlockCount != deepSeek32BlockCount || s.LayerNormEpsilon != deepSeek32LayerNormEpsilon):
+		case profile.Validation.RequiredBlockCount > 0 &&
+			(s.BlockCount != profile.Validation.RequiredBlockCount ||
+				s.LayerNormEpsilon != profile.MetadataDefaults.LayerNormEpsilon):
 			return errors.New("DeepSeek 3.2 layer metadata is invalid")
 		}
 		var sectionPairs int32

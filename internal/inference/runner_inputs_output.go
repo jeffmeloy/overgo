@@ -21,7 +21,7 @@ func (r *Runner) loadEmbeddings(ctx context.Context, rows []uint32) (reference.V
 	return r.loadRows(ctx, r.weights.TokenEmbedding, rows)
 }
 
-func (r *Runner) prepareGemma4PerLayerInputs(
+func (r *Runner) preparePerLayerInputs(
 	ctx context.Context,
 	activation reference.Value,
 	rows []uint32,
@@ -31,15 +31,15 @@ func (r *Runner) prepareGemma4PerLayerInputs(
 	}
 	if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 		r.weights.PerLayerProjectionNorm == nil {
-		return nil, errors.New("inference: Gemma per-layer weights are incomplete")
+		return nil, errors.New("inference: per-layer input weights are incomplete")
 	}
 	selected, err := r.loadRows(ctx, *r.weights.PerLayerTokenEmbedding, rows)
 	if err != nil {
-		return nil, fmt.Errorf("inference: load Gemma per-layer embeddings: %w", err)
+		return nil, fmt.Errorf("inference: load per-layer embeddings: %w", err)
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
-	input := runtime.input("gemma4.per_layer.input", activation)
-	selectedInput := runtime.input("gemma4.per_layer.selected", selected)
+	input := runtime.input("per_layer.input", activation)
+	selectedInput := runtime.input("per_layer.selected", selected)
 	projection, err := runtime.weight(*r.weights.PerLayerModelProjection)
 	if err != nil {
 		return nil, err

@@ -239,4 +239,27 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 	if video.Frames != 2 || video.TokensPerFrame != 1 || len(video.Embeddings.Data) != 2*int(config.Text.HiddenSize) {
 		t.Fatalf("tower video output = %+v", video)
 	}
+	audioFrames := 7
+	if _, err := runner.EncodeAudioFeatures(
+		context.Background(), make([]float32, audioFrames*int(processor.Audio.FeatureSize)), audioFrames,
+		projector.Gemma4AudioTowerProfile{},
+	); err == nil {
+		t.Fatal("tower audio accepted absent profile fact")
+	}
+	audio, err := runner.EncodeAudioFeatures(
+		context.Background(), make([]float32, audioFrames*int(processor.Audio.FeatureSize)), audioFrames,
+		projector.Gemma4AudioTowerProfile{RopeFreqBase: 100},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if audio.SoftTokens != 2 || audio.Embeddings.Shape.Dims[0] != uint64(config.Text.HiddenSize) ||
+		len(audio.Embeddings.Data) != 2*int(config.Text.HiddenSize) {
+		t.Fatalf("tower audio output = %+v", audio)
+	}
+	for index, value := range audio.Embeddings.Data {
+		if value != 0 {
+			t.Fatalf("tower audio output[%d] = %v, want zero", index, value)
+		}
+	}
 }

@@ -1,6 +1,6 @@
 # adaptive_new Parity and Performance Report
 
-Validation base: Overgo `76e5d84` plus the E4B vision leadership slice;
+Validation base: Overgo `ceb22c6` plus the E4B audio parity slice;
 adaptive_new `214950b3b`; reviewed 2026-08-13. adaptive_new working-tree changes
 remain observations, not landed evidence.
 
@@ -86,7 +86,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Qwen3.5-4B hybrid text | Active CUDA; 16.76 ms/token retained baseline | 10.96 ms/token; same BF16 weights; about 2.2 GB more peak | Gated tradeoff: wall lead, memory loss | Retain speed while matching or beating adaptive peak |
 | Qwen3.5-9B GGUF | adaptive_new cannot serve the bare Q8_0 GGUF | 11.6 ms/token, 9.3 GB recorded | Overgo-only capability | Re-run real artifact; register oracle-backed claim |
 | Gemma E4B text | adaptive host spine; 341 ms/token comparison | 18.5 ms/token device; exact 3-case serving fixtures; 21.79 GiB self-baseline peak | Large speed lead | Matched peak-memory comparison; keep exact tokens |
-| Gemma E4B image/video/audio | Adaptive image path passes the fingerprinted 2,520-patch oracle in 14.56 s focused-test wall; dynamic-resize and audio fixtures exist | Retained CUDA vision graph matches patch, all 16 encoder stages, pool, and 280x2,560 soft tokens; worst stage relative `5.81e-4`, final `4.13e-6`; 0.210-0.215 s resident body and 1.64-1.65 s fingerprint+load+run wall. Odd-size resize matches 912x672/266 tokens with `7.1e-6` uint8 probe error. Video preserves exact frame-major order at 70 tokens/frame | Image parity and wall lead; video ordering contract; audio and video-language gaps | Measure peak; port audio; gate video through language output on a real clip |
+| Gemma E4B image/video/audio | Adaptive image path passes the fingerprinted 2,520-patch oracle in 14.56 s focused-test wall. Its audio fixture runs wave -> mel -> tower in 1.03 s | Retained CUDA vision graph matches all 16 stages and 280x2,560 soft tokens; 0.210-0.215 s resident body. Resize matches 912x672/266 tokens. Video preserves frame-major order at 70 tokens/frame. Audio matches all 12 encoder stages from fingerprinted features: worst relative `5.62e-5`, final `5.64e-6`, 0.134-0.156 s resident body | Image parity and wall lead; audio tower parity; video ordering contract | Measure image/audio peaks; bind audio frontend and profile fact through recipes; gate audio/video language output on real media |
 | Gemma4 12B FP8 text | Active native FP8 CUDA | 24/24 exact tokens; 29.81 ms/token, 18.89 GiB versus Overgo BF16 baseline | Functional; cross-repo performance open | Same FP8 artifact and prompt against adaptive native FP8 |
 | Gemma4 12B image | Active unified multimodal path | Real FP8-native model + BF16 device projector first-token oracle passes; 32.36 s focused-test wall | First-token parity | Multi-token corpus, request-only wall, peak |
 | Gemma4 12B audio/video | Adaptive declares audio/video input coverage | Real audio projector-to-language top-ID oracle passes; 29.80 s focused-test wall. Video remains unproved | Audio first-token parity; video gap | Exact audio envelope + request-only wall/peak; real video case |
@@ -160,6 +160,7 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | Qwen3.5-4B decode | adaptive 16.76 ms/token | 10.96 ms/token; +about 2.2 GB peak | Speed win; memory loss |
 | E4B decode | adaptive host 341 ms/token | 18.5 ms/token | About 18x speed win |
 | E4B image tower | adaptive 14.56 s focused test | 1.65 s fingerprint+load+run; 0.215 s resident encode; exact sampled stages | 8.8x focused-test wall lead; peak open |
+| E4B audio tower | adaptive wave -> mel -> tower focused test 1.03 s | 0.134-0.156 s resident tower from fingerprinted features; exact sampled stages | Tower parity; cross-repo wall lead unclaimed until frontend scope and peak match |
 | RxBrain full VQA | adaptive 18.4-23.1 s / 11.97 GB | 9.5 s / 10.59 GB | About 2x wall win; lower peak |
 | SimpleDiffusion host forward | adaptive median 0.21 s | median 0.17 s | 0.81x wall |
 | MiniCPM decode | adaptive 294.6-295.8 token/s | 321.7-363.0 token/s | Overgo faster |

@@ -1,8 +1,10 @@
 package adaptiveparity
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -29,6 +31,14 @@ type e4bVisionGolden struct {
 	SoftDim    int                    `json:"soft_dim"`
 }
 
+type e4bAudioGolden struct {
+	InputShape []int                  `json:"input_features_shape"`
+	Layers     map[string][][]float64 `json:"layers"`
+	SoftTokens [][]float64            `json:"soft_tokens"`
+	SoftCount  int                    `json:"n_soft_tokens"`
+	SoftDim    int                    `json:"soft_dim"`
+}
+
 func TestMultimodalInputMatrix(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip)
@@ -39,6 +49,85 @@ func TestMultimodalInputMatrix(t *testing.T) {
 	t.Run("gemma-e4b-image", testGemmaE4BImageParity)
 	t.Run("gemma-e4b-dynamic-resize", testGemmaE4BResizeParity)
 	t.Run("gemma-e4b-video-order", testGemmaE4BVideoOrder)
+	t.Run("gemma-e4b-audio", testGemmaE4BAudioParity)
+}
+
+func testGemmaE4BAudioParity(t *testing.T) {
+	root := testutil.RepoRoot(t)
+	roots, err := dataroot.Resolve(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-mmproj-bf16.gguf")
+	featurePath := testutil.FixturePath(t, "e4b_audio", "input_features.f32")
+	goldenPath := testutil.FixturePath(t, "e4b_audio", "g_audio_f32.json")
+	assertSHA256(t, projectorPath, "1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db")
+	assertSHA256(t, featurePath, "6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca")
+	assertSHA256(t, goldenPath, "9de625447fbc7ab1f12d2de6c73700aa2daa9e476f3e4790e6632a4623371bbb")
+	goldenRaw, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: E4B audio golden absent; parity NOT verified: %v", err)
+	}
+	var golden e4bAudioGolden
+	if err := json.Unmarshal(goldenRaw, &golden); err != nil {
+		t.Fatal(err)
+	}
+	if len(golden.InputShape) != 3 || golden.InputShape[0] != 1 {
+		t.Fatalf("E4B audio golden input shape = %v", golden.InputShape)
+	}
+	featureRaw, err := os.ReadFile(featurePath)
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: E4B audio features absent; parity NOT verified: %v", err)
+	}
+	if len(featureRaw)%4 != 0 {
+		t.Fatal("E4B audio feature storage is invalid")
+	}
+	features := make([]float32, len(featureRaw)/4)
+	if err := binary.Read(bytes.NewReader(featureRaw), binary.LittleEndian, features); err != nil {
+		t.Fatalf("read E4B audio features: %v", err)
+	}
+	runner, err := projector.OpenGemma4TowerWithOptions(projectorPath, projector.OpenOptions{CUDA: true})
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
+	}
+	defer runner.Close()
+	start := time.Now()
+	output, trace, err := runner.EncodeAudioFeaturesTrace(
+		context.Background(), features, golden.InputShape[1], projector.Gemma4AudioTowerProfile{RopeFreqBase: 10000},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wall := time.Since(start)
+	if output.SoftTokens != golden.SoftCount || int(output.Embeddings.Shape.Dims[0]) != golden.SoftDim {
+		t.Fatalf("E4B audio shape = [%d,%d], want [%d,%d]",
+			output.SoftTokens, output.Embeddings.Shape.Dims[0], golden.SoftCount, golden.SoftDim)
+	}
+	worstName, worstRelative := "", 0.0
+	stageNames := []string{"subsample"}
+	for layer := range runner.Spec().Audio.Layers {
+		stageNames = append(stageNames, fmt.Sprintf("enc%d", layer))
+	}
+	for _, name := range stageNames {
+		got, ok := trace.Stages[name]
+		if !ok {
+			t.Fatalf("E4B audio trace lacks %s", name)
+		}
+		relative := sampledRelative(got.Data, golden.Layers[name], int(got.Shape.Dims[0]))
+		if relative > worstRelative {
+			worstName, worstRelative = name, relative
+		}
+		if relative > 5e-3 {
+			t.Errorf("E4B audio %s relative = %.6g, limit 0.005", name, relative)
+		}
+	}
+	soft := trace.Stages["soft_tokens"]
+	softRelative := sampledRelative(soft.Data, golden.SoftTokens, int(soft.Shape.Dims[0]))
+	if softRelative > 5e-3 {
+		t.Fatalf("E4B audio soft-token relative = %.6g, limit 0.005", softRelative)
+	}
+	t.Logf("E4B audio parity: %d feature frames -> %d x %d soft tokens in %s; worst stage %s %.6g; soft %.6g",
+		golden.InputShape[1], output.SoftTokens, output.Embeddings.Shape.Dims[0], wall, worstName, worstRelative, softRelative)
 }
 
 func testGemmaE4BImageParity(t *testing.T) {

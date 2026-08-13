@@ -15,7 +15,7 @@ import (
 
 func TestSelectedModelTensorsIncludesQwen35MTP(t *testing.T) {
 	info := func(name string) gguf.TensorInfo { return gguf.TensorInfo{Name: name} }
-	mtp := &model.Qwen35MTPWeights{
+	mtp := &model.SingleDraftWeights{
 		Layer: model.LayerWeights{
 			AttentionNorm: info("blk.1.attn_norm.weight"),
 			AttentionQ:    info("blk.1.attn_q.weight"),
@@ -31,7 +31,7 @@ func TestSelectedModelTensorsIncludesQwen35MTP(t *testing.T) {
 		mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm, privateHead,
 	}}
 	selected := selectedModelTensors(file, model.Weights{
-		TokenEmbedding: info("token_embd.weight"), Qwen35MTP: mtp,
+		TokenEmbedding: info("token_embd.weight"), SingleCatalogDraft: mtp,
 	})
 	names := make(map[string]bool, len(selected))
 	for _, item := range selected {
@@ -50,7 +50,7 @@ func TestSelectedModelTensorsIncludesStep35MTP(t *testing.T) {
 		item := info(name)
 		return &item
 	}
-	mtp := model.Step35MTPWeights{
+	mtp := model.AppendedDraftWeights{
 		Layer: model.LayerWeights{
 			AttentionNorm: info("blk.1.attn_norm.weight"),
 			AttentionQ:    info("blk.1.attn_q.weight"),
@@ -63,8 +63,8 @@ func TestSelectedModelTensorsIncludesStep35MTP(t *testing.T) {
 		Output:         pointer("blk.1.nextn.shared_head_head.weight"),
 	}
 	weights := model.Weights{
-		TokenEmbedding: info("token_embd.weight"),
-		Step35MTP:      []model.Step35MTPWeights{mtp},
+		TokenEmbedding:          info("token_embd.weight"),
+		AppendedMultiCarryDraft: []model.AppendedDraftWeights{mtp},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		weights.TokenEmbedding, mtp.Layer.AttentionNorm, mtp.Layer.AttentionQ,
@@ -104,13 +104,13 @@ func TestGreedyLogitProbability(t *testing.T) {
 
 func TestSingleHeadMTPRequiresCompiledCatalog(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", NextNPredictLayers: 1}},
-		weights: model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{}}},
+		weights: model.Weights{SingleCatalogDraft: &model.SingleDraftWeights{}}},
 	}
 	runner = attachFixtureProgram(runner)
 	if _, _, err := runner.singleHeadMTP(); err != nil {
 		t.Fatal(err)
 	}
-	runner.weights.Qwen35MTP = nil
+	runner.weights.SingleCatalogDraft = nil
 	if _, _, err := runner.singleHeadMTP(); err == nil {
 		t.Fatal("missing Qwen3.5 MTP metadata was accepted")
 	}
@@ -122,7 +122,7 @@ func TestQwen35MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 	spec.NextNPredictLayers = 1
 	spec.VocabularySize = 2
 	vocab := &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "b"}}}
-	draft := fixtureRunner(spec, model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{MTPOnly: true}})
+	draft := fixtureRunner(spec, model.Weights{SingleCatalogDraft: &model.SingleDraftWeights{MTPOnly: true}})
 	draft.path, draft.vocab = "draft", vocab
 	target := fixtureRunner(spec, model.Weights{Layers: make([]model.LayerWeights, spec.BlockCount)})
 	target.path, target.vocab = "target", vocab

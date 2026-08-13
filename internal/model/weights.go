@@ -226,7 +226,8 @@ type WavTokenizerWeights struct {
 	Output, OutputBias         gguf.TensorInfo
 }
 
-type singleMTPWeights struct {
+// SingleDraftWeights: one retained draft block.
+type SingleDraftWeights struct {
 	MTPOnly        bool
 	Layer          LayerWeights
 	EHProjection   gguf.TensorInfo
@@ -237,11 +238,8 @@ type singleMTPWeights struct {
 	Output         *gguf.TensorInfo
 }
 
-// Qwen35MTPWeights: one pinned dense NextN block.
-type Qwen35MTPWeights singleMTPWeights
-
-// Step35MTPWeights: one full Step3.5 draft head.
-type Step35MTPWeights struct {
+// AppendedDraftWeights: one appended draft head.
+type AppendedDraftWeights struct {
 	Layer           LayerWeights
 	EHProjection    gguf.TensorInfo
 	EmbeddingNorm   gguf.TensorInfo
@@ -251,9 +249,6 @@ type Step35MTPWeights struct {
 	OutputNorm      *gguf.TensorInfo
 	Output          *gguf.TensorInfo
 }
-
-// Cohere2MTPWeights: one full Cohere2-MoE draft block.
-type Cohere2MTPWeights singleMTPWeights
 
 type weightRequirementLoader func(string, ...uint64) (gguf.TensorInfo, error)
 
@@ -442,11 +437,11 @@ type Weights struct {
 	Layers                  []LayerWeights
 	EncoderLayers           []LayerWeights
 	WavTokenizer            *WavTokenizerWeights
-	Qwen35MTP               *Qwen35MTPWeights
-	Step35MTP               []Step35MTPWeights
-	HYV3MTP                 []Step35MTPWeights
-	Cohere2MTP              *Cohere2MTPWeights
-	NextNMTP                []Step35MTPWeights
+	SingleCatalogDraft      *SingleDraftWeights
+	AppendedMultiCarryDraft []AppendedDraftWeights
+	AppendedMultiDraft      []AppendedDraftWeights
+	OptionalCatalogDraft    *SingleDraftWeights
+	AppendedSingleDraft     []AppendedDraftWeights
 }
 
 type weightCatalog struct {
@@ -1607,7 +1602,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 	cohere2HasMTP, cohere2MTPOnly := l.cohere2HasMTP, l.cohere2MTPOnly
 	if draftPlan.Kind == DraftSingleCatalog && draftPlan.SessionEligible() {
 		prefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, 0))
-		mtp := &Qwen35MTPWeights{}
+		mtp := &SingleDraftWeights{}
 		mtp.MTPOnly = mtpOnly
 		mtp.Layer.Recurrent = false
 		shapes := spec.TensorShapes(0)
@@ -1642,10 +1637,10 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			return Weights{}, loadErr
 		}
 		mtp.Layer.AttentionQNorm, mtp.Layer.AttentionKNorm = &qNorm, &kNorm
-		result.Qwen35MTP = mtp
+		result.SingleCatalogDraft = mtp
 	}
 	if (draftPlan.Kind == DraftAppendedMultiCarry || draftPlan.Kind == DraftAppendedMulti) && draftPlan.HasHead(0) {
-		heads := make([]Step35MTPWeights, draftPlan.Heads)
+		heads := make([]AppendedDraftWeights, draftPlan.Heads)
 		for offset := range draftPlan.Heads {
 			block := draftPlan.Block(spec.BlockCount, offset)
 			prefix := fmt.Sprintf("blk.%d.", block)
@@ -1659,23 +1654,23 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if draftPlan.Kind == DraftAppendedMulti {
-			result.HYV3MTP = heads
+			result.AppendedMultiDraft = heads
 		} else {
-			result.Step35MTP = heads
+			result.AppendedMultiCarryDraft = heads
 		}
 		result.Layers = result.Layers[:spec.BlockCount]
 	}
 	if cohere2HasMTP {
 		block := draftPlan.Block(spec.BlockCount, 0)
 		prefix := fmt.Sprintf("blk.%d.", block)
-		mtp := &Cohere2MTPWeights{MTPOnly: cohere2MTPOnly, Layer: result.Layers[block]}
+		mtp := &SingleDraftWeights{MTPOnly: cohere2MTPOnly, Layer: result.Layers[block]}
 		if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
 			ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 			tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
 		}); loadErr != nil {
 			return Weights{}, loadErr
 		}
-		result.Cohere2MTP = mtp
+		result.OptionalCatalogDraft = mtp
 		if cohere2MTPOnly {
 			result.Layers = result.Layers[:0]
 		} else {
@@ -1683,11 +1678,11 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		}
 	}
 	if draftPlan.Kind == DraftAppendedSingle && draftPlan.HasHead(0) {
-		result.NextNMTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
+		result.AppendedSingleDraft = make([]AppendedDraftWeights, spec.NextNPredictLayers)
 		for offset := range draftPlan.Heads {
 			block := draftPlan.Block(spec.BlockCount, offset)
 			prefix := fmt.Sprintf("blk.%d.", block)
-			mtp := &result.NextNMTP[offset]
+			mtp := &result.AppendedSingleDraft[offset]
 			mtp.Layer = result.Layers[block]
 			if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
 				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,

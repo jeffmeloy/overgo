@@ -80,7 +80,7 @@ func (r *Runner) AdvanceNextNMTP(
 	if tokenID < 0 || int(tokenID) >= r.vocab.Len() {
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
-	mtp := &r.weights.NextNMTP[0]
+	mtp := &r.weights.AppendedSingleDraft[0]
 	embeddingInfo := r.weights.TokenEmbedding
 	if mtp.TokenEmbedding != nil {
 		embeddingInfo = *mtp.TokenEmbedding
@@ -189,7 +189,7 @@ func (r *Runner) AdvanceNextNMTP(
 }
 
 func (r *Runner) validateNextNMTP() error {
-	if r == nil || !r.hasDraftSession(model.DraftAppendedSingle, len(r.weights.NextNMTP)) {
+	if r == nil || !r.hasDraftSession(model.DraftAppendedSingle, len(r.weights.AppendedSingleDraft)) {
 		return errors.New("inference: model has no supported NextN MTP block")
 	}
 	return nil

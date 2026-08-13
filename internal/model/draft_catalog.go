@@ -34,32 +34,32 @@ func draftWeightCatalog(
 func (w Weights) DraftCatalog(kind DraftKind, offset uint32) (DraftWeightCatalog, bool) {
 	switch kind {
 	case DraftSingleCatalog:
-		if offset == 0 && w.Qwen35MTP != nil {
-			item := w.Qwen35MTP
+		if offset == 0 && w.SingleCatalogDraft != nil {
+			item := w.SingleCatalogDraft
 			return draftWeightCatalog(kind, item.MTPOnly, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, nil, item.OutputNorm, item.Output), true
 		}
 	case DraftAppendedMultiCarry:
-		if offset < uint32(len(w.Step35MTP)) {
-			item := w.Step35MTP[offset]
+		if offset < uint32(len(w.AppendedMultiCarryDraft)) {
+			item := w.AppendedMultiCarryDraft[offset]
 			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
 		}
 	case DraftAppendedMulti:
-		if offset < uint32(len(w.HYV3MTP)) {
-			item := w.HYV3MTP[offset]
+		if offset < uint32(len(w.AppendedMultiDraft)) {
+			item := w.AppendedMultiDraft[offset]
 			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
 		}
 	case DraftAppendedSingle:
-		if offset < uint32(len(w.NextNMTP)) {
-			item := w.NextNMTP[offset]
+		if offset < uint32(len(w.AppendedSingleDraft)) {
+			item := w.AppendedSingleDraft[offset]
 			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
 		}
 	case DraftOptionalSingleCatalog:
-		if offset == 0 && w.Cohere2MTP != nil {
-			item := w.Cohere2MTP
+		if offset == 0 && w.OptionalCatalogDraft != nil {
+			item := w.OptionalCatalogDraft
 			return draftWeightCatalog(kind, item.MTPOnly, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, nil, item.OutputNorm, item.Output), true
 		}
@@ -69,11 +69,11 @@ func (w Weights) DraftCatalog(kind DraftKind, offset uint32) (DraftWeightCatalog
 
 // DraftCatalogs: ordered speculative-head catalogs.
 func (w Weights) DraftCatalogs() []DraftWeightCatalog {
-	count := len(w.Step35MTP) + len(w.HYV3MTP) + len(w.NextNMTP)
-	if w.Qwen35MTP != nil {
+	count := len(w.AppendedMultiCarryDraft) + len(w.AppendedMultiDraft) + len(w.AppendedSingleDraft)
+	if w.SingleCatalogDraft != nil {
 		count++
 	}
-	if w.Cohere2MTP != nil {
+	if w.OptionalCatalogDraft != nil {
 		count++
 	}
 	result := make([]DraftWeightCatalog, 0, count)

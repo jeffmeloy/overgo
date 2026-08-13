@@ -42,8 +42,8 @@ func TestMultiHeadMTPSessionStateRoundTrip(t *testing.T) {
 func TestAlternateMultiHeadMTPSessionStateRoundTrip(t *testing.T) {
 	runner := multiHeadMTPStateRunner()
 	runner.spec.Architecture = "hy_v3"
-	runner.weights.HYV3MTP = runner.weights.Step35MTP
-	runner.weights.Step35MTP = nil
+	runner.weights.AppendedMultiDraft = runner.weights.AppendedMultiCarryDraft
+	runner.weights.AppendedMultiCarryDraft = nil
 	runner = attachFixtureProgram(runner)
 	session := multiHeadMTPStateFixture(t, runner, true)
 	data, err := runner.SaveMultiHeadMTPSession(session)
@@ -101,8 +101,8 @@ func multiHeadMTPStateRunner() *Runner {
 		SlidingWindow: 16, SlidingLayers: []bool{false, true, false}},
 	}
 	return fixtureRunner(spec, model.Weights{
-		Layers:    make([]model.LayerWeights, 1),
-		Step35MTP: make([]model.Step35MTPWeights, 2),
+		Layers:                  make([]model.LayerWeights, 1),
+		AppendedMultiCarryDraft: make([]model.AppendedDraftWeights, 2),
 	})
 }
 

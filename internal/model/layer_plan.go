@@ -524,7 +524,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 			plan.draftLayers[offset] = executable.PlanLayer(spec.BlockCount+uint32(offset), false)
 		}
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
-		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.Cohere2MTP != nil) {
+		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
 		executable, layer := singleDraftExecutableSpec(spec, plan.draft.Kind)
 		plan.draftLayers = []LayerPlan{executable.PlanLayer(layer, false)}
 	}
@@ -551,7 +551,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	if plan.draft.AppendedBlocks {
 		wantDraftLayers = int(plan.draft.Heads)
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
-		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.Cohere2MTP != nil) {
+		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
 		wantDraftLayers = 1
 	}
 	if len(plan.draftLayers) != wantDraftLayers {

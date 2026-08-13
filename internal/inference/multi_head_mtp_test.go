@@ -19,10 +19,10 @@ func TestCompiledMultiHeadMTPRequiresCompleteCatalog(t *testing.T) {
 		weights      model.Weights
 		truncate     func(*model.Weights)
 	}{
-		{architecture: "step35", weights: model.Weights{Step35MTP: make([]model.Step35MTPWeights, 2)},
-			truncate: func(weights *model.Weights) { weights.Step35MTP = weights.Step35MTP[:1] }},
-		{architecture: "hy_v3", weights: model.Weights{HYV3MTP: make([]model.Step35MTPWeights, 2)},
-			truncate: func(weights *model.Weights) { weights.HYV3MTP = weights.HYV3MTP[:1] }},
+		{architecture: "step35", weights: model.Weights{AppendedMultiCarryDraft: make([]model.AppendedDraftWeights, 2)},
+			truncate: func(weights *model.Weights) { weights.AppendedMultiCarryDraft = weights.AppendedMultiCarryDraft[:1] }},
+		{architecture: "hy_v3", weights: model.Weights{AppendedMultiDraft: make([]model.AppendedDraftWeights, 2)},
+			truncate: func(weights *model.Weights) { weights.AppendedMultiDraft = weights.AppendedMultiDraft[:1] }},
 	} {
 		runner := attachFixtureProgram(&Runner{preparedModel: preparedModel{
 			spec: model.Spec{CommonSpec: model.CommonSpec{

@@ -80,7 +80,7 @@ func qwen35MTPStateRunner() *Runner {
 	spec.Name = "state-test"
 	spec.NextNPredictLayers = 1
 	spec.ContextLength = 32
-	return fixtureRunner(spec, model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{MTPOnly: true}})
+	return fixtureRunner(spec, model.Weights{SingleCatalogDraft: &model.SingleDraftWeights{MTPOnly: true}})
 }
 
 func qwen35MTPStateFixture() *MTPSession {

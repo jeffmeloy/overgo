@@ -425,8 +425,8 @@ func TestReadWeightsEXAOneMoE(t *testing.T) {
 	layer := weights.Layers[0]
 	if layer.AttentionQNorm == nil || layer.FeedForwardRouter == nil ||
 		layer.FeedForwardExpertBias == nil || layer.FeedForwardSharedDown == nil ||
-		len(weights.NextNMTP) != 1 || weights.NextNMTP[0].Layer.FeedForwardRouter != nil ||
-		weights.NextNMTP[0].Layer.FeedForwardGate.Name == "" {
+		len(weights.AppendedSingleDraft) != 1 || weights.AppendedSingleDraft[0].Layer.FeedForwardRouter != nil ||
+		weights.AppendedSingleDraft[0].Layer.FeedForwardGate.Name == "" {
 		t.Fatalf("unexpected EXAONE-MoE catalog: %+v", layer)
 	}
 }
@@ -670,8 +670,8 @@ func TestReadWeightsGLMDSAIndexer(t *testing.T) {
 	}
 	if weights.Layers[0].IndexerAttentionQB == nil || weights.Layers[0].IndexerKNormBias == nil ||
 		weights.Layers[1].IndexerAttentionQB != nil || weights.Layers[1].FeedForwardRouter == nil ||
-		len(weights.NextNMTP) != 1 || weights.NextNMTP[0].Layer.IndexerAttentionQB != nil ||
-		weights.NextNMTP[0].Layer.FeedForwardRouter == nil {
+		len(weights.AppendedSingleDraft) != 1 || weights.AppendedSingleDraft[0].Layer.IndexerAttentionQB != nil ||
+		weights.AppendedSingleDraft[0].Layer.FeedForwardRouter == nil {
 		t.Fatalf("unexpected GLM-DSA catalog: %+v", weights.Layers)
 	}
 }
@@ -730,9 +730,9 @@ func TestReadWeightsDeepSeek32IndexerEveryLayer(t *testing.T) {
 			t.Fatalf("DeepSeek 3.2 layer %d lacks indexer tensors", block)
 		}
 	}
-	if len(weights.NextNMTP) != 1 || weights.NextNMTP[0].Layer.IndexerAttentionQB == nil ||
-		weights.NextNMTP[0].Layer.FeedForwardRouter == nil {
-		t.Fatalf("DeepSeek 3.2 NextN tail is incomplete: %+v", weights.NextNMTP)
+	if len(weights.AppendedSingleDraft) != 1 || weights.AppendedSingleDraft[0].Layer.IndexerAttentionQB == nil ||
+		weights.AppendedSingleDraft[0].Layer.FeedForwardRouter == nil {
+		t.Fatalf("DeepSeek 3.2 NextN tail is incomplete: %+v", weights.AppendedSingleDraft)
 	}
 }
 

@@ -3,6 +3,7 @@ package sensenovarecipe
 import (
 	"context"
 	"os"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -17,7 +18,7 @@ import (
 // ladder step name + experimental tier + frontier residual on the decision.
 const testCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
-const activationReason = "sensenovaparity longest-verifiable-prefix (seeded generation state exact + 3 value oracles + structural derivations on the real 35GB checkpoint); 42-layer routed body FRONTIER; edit source PNG external"
+const activationReason = "SenseNova neutral prefix/body, guidance, flow terminal, and sampler match current adaptive evidence; reusable body beats adaptive wall; upstream trajectory and production decode/edit binding remain open"
 
 // TestSenseNovaImageGenRoundTripSynthetic proves the recipe lifecycle + the
 // discovery/status round-trip WITHOUT the 35GB checkpoint, so it runs in CI:
@@ -146,6 +147,9 @@ func assertSenseNovaFacts(t *testing.T, facts DerivedFacts) {
 	}
 	if facts.HeadDim != 128 {
 		t.Fatalf("head_dim = %d, want 128", facts.HeadDim)
+	}
+	if !slices.Equal(facts.NormSections, []int{64, 64}) {
+		t.Fatalf("norm sections = %v, want [64 64]", facts.NormSections)
 	}
 	want := []routedlm.RopeSection{
 		{Width: 64, Theta: 5e6, Axis: routedlm.AxisTime},

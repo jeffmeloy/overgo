@@ -139,6 +139,31 @@ type Source struct {
 	indexed  bool
 }
 
+// Snapshot: borrowed immutable catalog for concurrent consumers. Payload
+// handles remain owned by the source; close only the source.
+func (s *Source) Snapshot() *Source {
+	if s == nil {
+		return nil
+	}
+	out := &Source{
+		Tensors:  make(map[string]Tensor, len(s.Tensors)),
+		Metadata: make(map[string]map[string]string, len(s.Metadata)),
+		indexed:  s.indexed,
+	}
+	for name, tensor := range s.Tensors {
+		tensor.Shape = slices.Clone(tensor.Shape)
+		out.Tensors[name] = tensor
+	}
+	for shard, metadata := range s.Metadata {
+		copy := make(map[string]string, len(metadata))
+		for key, value := range metadata {
+			copy[key] = value
+		}
+		out.Metadata[shard] = copy
+	}
+	return out
+}
+
 // OpenSource: open a repository with production bounds.
 func OpenSource(directory string) (*Source, error) {
 	return OpenSourceWithLimits(directory, DefaultLimits())

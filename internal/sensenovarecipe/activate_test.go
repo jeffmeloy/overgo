@@ -18,7 +18,7 @@ import (
 // ladder step name + experimental tier + frontier residual on the decision.
 const testCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
-const activationReason = "SenseNova neutral prefix/body, guidance, flow terminal, and sampler match current adaptive evidence; reusable body beats adaptive wall; upstream trajectory and production decode/edit binding remain open"
+const activationReason = "SenseNova neutral prefix/body, guidance, flow terminal, and sampler match a fingerprinted native two-step trajectory; reusable body beats adaptive wall; production decode/edit binding remains open"
 
 // TestSenseNovaImageGenRoundTripSynthetic proves the recipe lifecycle + the
 // discovery/status round-trip WITHOUT the 35GB checkpoint, so it runs in CI:

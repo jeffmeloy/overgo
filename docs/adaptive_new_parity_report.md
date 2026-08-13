@@ -100,7 +100,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | SimpleDiffusion image | Host generation and real-checkpoint training | Forward max error `3.99e-6`; recorded 0.17 s vs adaptive 0.21 s | Host lead | Device forward/backward; real output quality and peak |
 | Wan text-to-video | Native adaptive exact path; Python oracle | Fresh session+denoise 331.96 s / 7.875 GB; decode 38.31 s / 10.330 GB; exact G3/G4 bounded, BF16 G3 cosine 0.999899, frame-0 CUDA/host max error 8.04e-6 | 370.27 s staged wall beats retained 463.4 s Python wall | Fresh same-revision Python/adaptive run; semantic clip gate |
 | Krea text-to-image | Matched 256 fixture: 25.430 s; exact u8 SHA `b257e244`; full 2048 record: 158.144 s, 33.47 GB device | 256: 13.804 s / 25.030 GiB, MAE 0.02401. 2048: 63.510 s / 32.732 GB, MAE 0.03910; production caller and phased residency gated | Wall/peak lead at both sizes; bounded image quality | Exact SHA remains numerically unstable; retain robust pixel oracle and RMSE advisory |
-| SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Recipe and generic prerequisites partly ported; generation body remains open | Gap | Native full image and edit routes; exact/quality, wall, peak |
+| SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Fingerprinted native two-step core: boundary cosine >=0.99914, velocity >=0.99863, final state >=0.99832; reusable 42-layer body 5.64-5.69 s / 0.623 GiB versus adaptive 6.88 s | Core lead; production gap | Bind production decode/publication and session reuse; edit route still needs its absent source PNG |
 | LiveEdit video edit | Adaptive complete experimental route; best 109.5 s, 20.61 GB; Python 60.1 s | No complete Overgo route found | Gap | Port shared video primitives; beat Python without temporal degradation |
 | Server/API/session/cache | Mature adaptive-specific multimodal surface | Broad llama-compatible server, resumable caches, tools | Different strengths | Contract matrix: streaming, tools, embeddings, media, sessions, refusal |
 
@@ -165,7 +165,7 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | Krea 256 generation | adaptive exact Go 25.430 s | 13.804 s / 25.030 GiB; MAE 0.02401, RMSE 0.05459 | 46% wall lead; lower peak; bounded quality lead |
 | Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | 35% lead vs best Python; 60% vs adaptive; 2.2% lower peak |
 | Carbon-500M causal training | adaptive `c72b6595d`: 6.816 s loop / 11.47 GiB admitted; loss 8.43767 -> 7.29179 | 5.05-5.13 s loop / 4.620 GiB measured; loss 8.437673 -> 7.293611 | 25% loop-wall lead; about 60% lower peak |
-| SenseNova full generation | Python 366.6 s / 47.58 GiB; adaptive 206.010 s / 19.50 GB | No complete Overgo result | Open |
+| SenseNova generation core | Adaptive matched reusable body 6.88 s | Overgo 5.64-5.69 s / 0.623 GiB, two native steps gated | 17% reusable-body wall lead; full image route open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | No complete Overgo result | Open |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |
 
@@ -235,9 +235,11 @@ parser is not a promoted model capability.
 
 ### P1: media breadth remains SenseNova and LiveEdit
 
-Krea and Wan now have production performance gates. SenseNova generation and
-LiveEdit remain the highest-value image/video gaps; edit-input evidence stays
-explicitly blocked when its source artifact is absent.
+Krea and Wan now have production performance gates. SenseNova's neutral
+generation core is native-gated and faster than adaptive; production decode,
+publication, and request-session binding remain. LiveEdit is still the largest
+video gap; edit-input evidence stays explicitly blocked when its source artifact
+is absent.
 
 ## Multimodal Completion Contract
 

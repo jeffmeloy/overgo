@@ -179,8 +179,8 @@
     },
     {
       "id": "rung15-sensenova",
-      "title": "SenseNova edit lane blocked only on its absent source PNG. Generation reopened above: shared torchrng and channels-last packing reproduce seed-42 initial state exactly; the 42-layer routed body remains.",
-      "status": "blocked-external-prereq",
+      "title": "SenseNova generation core matches a fingerprinted native two-step trajectory and beats adaptive reusable-body wall. Bind the neutral core to production decode/publication; edit parity remains blocked on its absent source PNG.",
+      "status": "open",
       "steps": [
         {
           "id": "reference-parity",
@@ -193,14 +193,10 @@
           "status": "blocked-external-prereq"
         },
         {
-          "id": "denoise-stack",
-          "title": "generation stack: seeded z exact; device flow condition/head/Euler verified; multi-axis rope shared. REMAINS: 42-layer block-causal routed body + generation cross-attention, verified end-to-end against the generation terminal oracle. Edit-only probes remain blocked on the absent source PNG.",
-          "status": "blocked-external-prereq"
-        },
-        {
           "id": "cuda-serving",
-          "title": "device generation: seeded z, flow terminal, Euler, and multi-axis rope verified. REMAINS: resident 42-layer routed body, end-to-end generation oracle parity, then beat adaptive (~162s warm/24GiB). Only edit parity is externally blocked on its source PNG.",
-          "status": "blocked-external-prereq"
+          "title": "Bind the verified neutral two-step generation core to production image decode/publication and a reusable request session. Preserve the native trajectory floors (boundary >=0.999, velocity >=0.995, final state >=0.998), reusable body <=6.2s, and 0.623GiB peak; add an encoded-image artifact quality gate.",
+          "status": "open",
+          "verify": "set OVERGO_CUDA_TEST=1; set OVERGO_SENSENOVA_BASELINE=1; go test ./internal/sensenovarecipe -run '^TestSenseNovaGenerationLeadership$' -count=2 -v"
         }
       ]
     },

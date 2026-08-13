@@ -4,8 +4,8 @@
     "adaptive_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
     "media_runtime_sha256": "06848fd31f34fbb546931a9a0ef519a34e6464ab014241816d46fad7037571be",
     "bf16_runtime_sha256": "5e2102deabcdf01d0948e3ad5e320fa650a0add3b937a98f29e1f7df48673891",
-    "upstream_oracle": "generation_oracle_256.json",
-    "upstream_status": "red"
+    "native_oracle": "generation_native_256.json",
+    "native_status": "green"
   },
   "layers": {
     "0": {
@@ -27,14 +27,8 @@
     "guided_velocity": [-0.69921875, -1.65625, 0.66796875, 0.859375, 1.7890625, 0.64453125, -0.70703125, 1.0234375, -0.58203125, -0.376953125, 0.90625, -0.609375, 0.5703125, 1.2578125, -0.37109375, -0.328125],
     "next_z": [0.01953125, 0.58203125, -0.0361328125, -1.421875, -1.0078125, -0.4375, -0.26953125, -0.380859375, 0.7734375, 0.62890625, -1.25, -1.25, 1, 0.41796875, 0.5078125, 0.75]
   },
-  "adaptive_upstream_cosine": {
-    "conditional_boundary": 0.830302963,
-    "unconditional_boundary": 0.949583408,
-    "guided_velocity": 0.218418721,
-    "next_z": 0.863618878
-  },
   "performance": {
     "adaptive_matched_wall_seconds": 6.88,
-    "overgo_reusable_body_max_seconds": 6.88
+    "overgo_reusable_body_max_seconds": 6.2
   }
 }

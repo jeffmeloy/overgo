@@ -79,14 +79,13 @@ func RunDevicePrefixStacks(
 	}
 	uploader := branchDeviceUploader{worker: worker, ctx: ctx}
 	defer uploader.free()
-	streamCtx, cancelStream := context.WithCancel(ctx)
-	defer cancelStream()
-	for load := range streamBranchLayers(streamCtx, source, cfg, binding, 0) {
-		if load.err != nil {
-			return nil, stats, load.err
+	catalog := source.Snapshot()
+	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
+		weights, err := LoadBranchLayerWeights(catalog, cfg, binding, layer, 0)
+		if err != nil {
+			return nil, stats, err
 		}
-		layer := load.layer
-		shared, err := uploader.uploadBranchWeights(load.weights)
+		shared, err := uploader.uploadBranchWeights(weights)
 		if err != nil {
 			return nil, stats, err
 		}

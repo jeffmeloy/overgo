@@ -4,7 +4,10 @@ package sensenovarecipe
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -38,9 +41,18 @@ type generationStep struct {
 }
 
 type generationLeadershipOracle struct {
-	Schema  string `json:"schema"`
+	Schema string `json:"schema"`
+	Source struct {
+		InferencePath  string `json:"inference_path"`
+		InferenceSHA   string `json:"inference_sha256"`
+		ModelingPath   string `json:"modeling_path"`
+		ModelingSHA    string `json:"modeling_sha256"`
+		ConfigSHA      string `json:"config_sha256"`
+		TensorIndexSHA string `json:"tensor_index_sha256"`
+	} `json:"source"`
 	Request struct {
 		Width, Height int
+		Steps         int
 		Seed          int64
 		CFGScale      float32 `json:"cfg_scale"`
 	} `json:"request"`
@@ -64,8 +76,7 @@ type generationAdaptiveOracle struct {
 		GuidedVelocity        []float32 `json:"guided_velocity"`
 		NextZ                 []float32 `json:"next_z"`
 	} `json:"step0"`
-	AdaptiveUpstreamCosine map[string]float64 `json:"adaptive_upstream_cosine"`
-	Performance            struct {
+	Performance struct {
 		AdaptiveMatchedWallSeconds   float64 `json:"adaptive_matched_wall_seconds"`
 		OvergoReusableBodyMaxSeconds float64 `json:"overgo_reusable_body_max_seconds"`
 	} `json:"performance"`
@@ -80,9 +91,10 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	if err := jsonfile.Decode(senseNovaGenerationGold, &oracle); err != nil {
 		t.Fatal(err)
 	}
-	if oracle.Schema != "adaptive_gpt.sensenova_generation_oracle/v1" || len(oracle.Steps) == 0 {
+	if oracle.Schema != "overgo.sensenova-generation-native/v1" || len(oracle.Steps) != oracle.Request.Steps {
 		t.Fatalf("generation oracle schema=%q steps=%d", oracle.Schema, len(oracle.Steps))
 	}
+	checkGenerationSource(t, oracle)
 	var adaptive generationAdaptiveOracle
 	if err := jsonfile.Decode(filepath.Join("..", "..", "fixtures", "sensenova", "generation_body_adaptive.json"), &adaptive); err != nil {
 		t.Fatal(err)
@@ -172,8 +184,12 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for stepIndex, want := range oracle.Steps[:1] {
-		checkGenerationSample(t, "z", z, want.Z)
+	for stepIndex, want := range oracle.Steps {
+		zFloor := 0.999
+		if stepIndex == 0 {
+			zFloor = 0.999999
+		}
+		checkGenerationSample(t, "z", z, want.Z, zFloor)
 		planar, err := latentimage.UnpackPlanarF32(z, flow.VisionChannels, image.TokenHeight, image.TokenWidth, image.TokenPatch, latentimage.PatchChannelsLast)
 		if err != nil {
 			t.Fatal(err)
@@ -210,7 +226,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 			t.Fatal(err)
 		}
 		if stats.Wall.Seconds() > adaptive.Performance.OvergoReusableBodyMaxSeconds {
-			t.Fatalf("SenseNova reusable body wall=%.3fs exceeds adaptive %.3fs", stats.Wall.Seconds(), adaptive.Performance.AdaptiveMatchedWallSeconds)
+			t.Fatalf("SenseNova reusable body wall=%.3fs exceeds ratchet %.3fs (adaptive %.3fs)", stats.Wall.Seconds(), adaptive.Performance.OvergoReusableBodyMaxSeconds, adaptive.Performance.AdaptiveMatchedWallSeconds)
 		}
 		final := make([][]float32, len(branches))
 		for index := range branches {
@@ -219,8 +235,12 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		checkAdaptiveValues(t, "conditional boundary", final[0], adaptive.Step0.ConditionalBoundary)
-		checkAdaptiveValues(t, "unconditional boundary", final[1], adaptive.Step0.UnconditionalBoundary)
+		if stepIndex == 0 {
+			checkAdaptiveValues(t, "conditional boundary", final[0], adaptive.Step0.ConditionalBoundary)
+			checkAdaptiveValues(t, "unconditional boundary", final[1], adaptive.Step0.UnconditionalBoundary)
+		}
+		checkGenerationSample(t, "conditional boundary native", final[0], want.ConditionalBoundary, 0.999)
+		checkGenerationSample(t, "unconditional boundary native", final[1], want.UnconditionalBoundary, 0.999)
 		velocities := make([][]float32, len(final))
 		for index := range final {
 			velocities[index], err = routedlm.FlowHeadVelocity(flowTerminal.Head, flow, final[index], z, want.Timestep)
@@ -232,37 +252,27 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		checkAdaptiveValues(t, "guided velocity", guided, adaptive.Step0.GuidedVelocity)
+		if stepIndex == 0 {
+			checkAdaptiveValues(t, "guided velocity", guided, adaptive.Step0.GuidedVelocity)
+		}
+		checkGenerationSample(t, "guided velocity native", guided, want.GuidedVelocity, 0.995)
 		if err := routedlm.FlowEulerStep(z, guided, float32(want.NextTimestep-want.Timestep)); err != nil {
 			t.Fatal(err)
 		}
-		checkAdaptiveValues(t, "next z", z, adaptive.Step0.NextZ)
-		for name, comparison := range map[string]struct {
-			got  []float32
-			want generationSample
-		}{
-			"conditional_boundary":   {final[0], want.ConditionalBoundary},
-			"unconditional_boundary": {final[1], want.UnconditionalBoundary},
-			"guided_velocity":        {guided, want.GuidedVelocity},
-			"next_z":                 {z, want.NextZ},
-		} {
-			cosine := generationSampleCosine(comparison.got, comparison.want)
-			floor := adaptive.AdaptiveUpstreamCosine[name] - 0.002
-			if cosine < floor {
-				t.Fatalf("%s upstream cosine=%.9f below adaptive floor=%.9f", name, cosine, floor)
-			}
-			t.Logf("%s upstream cosine=%.9f adaptive=%.9f status=red", name, cosine, adaptive.AdaptiveUpstreamCosine[name])
+		if stepIndex == 0 {
+			checkAdaptiveValues(t, "next z", z, adaptive.Step0.NextZ)
 		}
+		checkGenerationSample(t, "next z native", z, want.NextZ, 0.998)
 		t.Logf("SenseNova neutral generation step=%d layers=%d branches=%d body=%.3fs", stepIndex, stats.Layers, stats.Branches, stats.Wall.Seconds())
 	}
 	memory, err := worker.MemoryStats(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("SenseNova neutral generation leadership: steps=1 wall=%.3fs peak=%.3fGiB", time.Since(started).Seconds(), float64(memory.PeakBytes)/(1<<30))
+	t.Logf("SenseNova neutral generation leadership: steps=%d wall=%.3fs peak=%.3fGiB", len(oracle.Steps), time.Since(started).Seconds(), float64(memory.PeakBytes)/(1<<30))
 }
 
-func checkGenerationSample(t *testing.T, name string, got []float32, want generationSample) {
+func checkGenerationSample(t *testing.T, name string, got []float32, want generationSample, floor float64) {
 	t.Helper()
 	if len(got) != want.Elements || len(want.Indices) != len(want.Values) || len(want.Indices) == 0 {
 		t.Fatalf("%s invalid elements/probes got=%d want=%d", name, len(got), want.Elements)
@@ -276,7 +286,6 @@ func checkGenerationSample(t *testing.T, name string, got []float32, want genera
 		worst = max(worst, math.Abs(gotValue-wantValue))
 	}
 	cosine := dot / math.Sqrt(gotNorm*wantNorm)
-	const floor = 1 - 8.0/256
 	if cosine < floor {
 		gotValues := make([]float32, len(want.Indices))
 		for probe, index := range want.Indices {
@@ -290,6 +299,34 @@ func checkGenerationSample(t *testing.T, name string, got []float32, want genera
 		}
 	}
 	t.Logf("%s probes=%d cosine=%.9f worst=%.3e", name, len(want.Indices), cosine, worst)
+}
+
+func checkGenerationSource(t *testing.T, oracle generationLeadershipOracle) {
+	t.Helper()
+	checks := map[string]string{
+		filepath.Join(senseNovaModelDir, "config.json"):                               oracle.Source.ConfigSHA,
+		filepath.Join(senseNovaModelDir, "model.safetensors.index.json"):              oracle.Source.TensorIndexSHA,
+		filepath.Join(senseNovaModelDir, "SenseNova-U1", oracle.Source.InferencePath): oracle.Source.InferenceSHA,
+		filepath.Join(senseNovaModelDir, "SenseNova-U1", oracle.Source.ModelingPath):  oracle.Source.ModelingSHA,
+	}
+	for path, want := range checks {
+		file, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		hash := sha256.New()
+		_, copyErr := io.Copy(hash, file)
+		closeErr := file.Close()
+		if copyErr != nil {
+			t.Fatal(copyErr)
+		}
+		if closeErr != nil {
+			t.Fatal(closeErr)
+		}
+		if got := hex.EncodeToString(hash.Sum(nil)); got != want {
+			t.Fatalf("generation source %s sha256=%s want %s", path, got, want)
+		}
+	}
 }
 
 func checkAdaptiveValues(t *testing.T, name string, got, want []float32) {
@@ -315,15 +352,4 @@ func checkAdaptiveValues(t *testing.T, name string, got, want []float32) {
 		t.Fatalf("%s adaptive cosine=%.9f floor=%.9f got=%v want=%v", name, cosine, floor, samples, want)
 	}
 	t.Logf("%s adaptive probes=%d cosine=%.9f worst=%.3e", name, len(samples), cosine, worst)
-}
-
-func generationSampleCosine(got []float32, want generationSample) float64 {
-	dot, gotNorm, wantNorm := 0.0, 0.0, 0.0
-	for probe, index := range want.Indices {
-		g, w := float64(got[index]), float64(want.Values[probe])
-		dot += g * w
-		gotNorm += g * g
-		wantNorm += w * w
-	}
-	return dot / math.Sqrt(gotNorm*wantNorm)
 }

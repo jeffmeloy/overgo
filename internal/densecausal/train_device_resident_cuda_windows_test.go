@@ -4,6 +4,7 @@ package densecausal
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -69,5 +70,35 @@ func TestTrainDeviceResidentMatchesHost(t *testing.T) {
 	t.Logf("final weight worst |d|=%.3e", worstW)
 	if worstW > 1e-3 {
 		t.Fatalf("resident device final weights diverge from host: worst |d|=%.3e > 1e-3", worstW)
+	}
+}
+
+func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	model := tinyMuonModel(t)
+	tokens := []int{1, 5, 9, 3, 7, 2, 11, 4}
+	want, _, err := model.Loss(tokens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	embedBefore := slices.Clone(model.Weights["model.embed_tokens.weight"])
+	trajectory, err := model.TrainDeviceResidentFrozenLexical(worker, tokens, 8, 0, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if delta := math.Abs(trajectory[0] - want); delta > 2e-4 {
+		t.Fatalf("initial loss delta %.3e exceeds device floor", delta)
+	}
+	if !(trajectory[len(trajectory)-1] < trajectory[0]) {
+		t.Fatalf("frozen resident loss %.6f -> %.6f", trajectory[0], trajectory[len(trajectory)-1])
+	}
+	if !slices.Equal(embedBefore, model.Weights["model.embed_tokens.weight"]) {
+		t.Fatal("frozen lexical table changed")
 	}
 }

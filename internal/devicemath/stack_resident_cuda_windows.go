@@ -122,6 +122,28 @@ func StackForwardBackwardResident(
 // dX after layer 0 (the embedding-input gradient); the caller downloads what it
 // needs. The layer math is forwardDevice/backwardDevice (single owner).
 func (o *layerOps) runStack(embeds []float32, wp []layerWeightPtrs, gp []layerGradPtrs, tail func(final []float32) ([]float32, error)) (driver.DevicePtr, error) {
+	input, err := o.s.upload(embeds)
+	if err != nil {
+		return 0, err
+	}
+	return o.runStackDevice(input, wp, gp, func(final driver.DevicePtr) (driver.DevicePtr, error) {
+		host := make([]float32, o.d.seq*o.d.hidden)
+		if err := o.s.finish(cudaDownload{host, final}); err != nil {
+			return 0, err
+		}
+		gradient, err := tail(host)
+		if err != nil {
+			return 0, err
+		}
+		if len(gradient) != len(host) {
+			return 0, fmt.Errorf("runStack: tail dOut len %d != %d", len(gradient), len(host))
+		}
+		return o.s.upload(gradient)
+	})
+}
+
+// runStackDevice keeps both boundary tensors in the active CUDA session.
+func (o *layerOps) runStackDevice(input driver.DevicePtr, wp []layerWeightPtrs, gp []layerGradPtrs, tail func(driver.DevicePtr) (driver.DevicePtr, error)) (driver.DevicePtr, error) {
 	d := o.d
 	nL := len(wp)
 	seqHidden := d.seq * d.hidden
@@ -139,10 +161,8 @@ func (o *layerOps) runStack(embeds []float32, wp []layerWeightPtrs, gp []layerGr
 	}
 
 	xIn := make([]driver.DevicePtr, nL+1)
+	xIn[0] = input
 	var err error
-	if xIn[0], err = o.s.upload(embeds); err != nil {
-		return 0, err
-	}
 	if err := o.sampleFree(); err != nil { // baseline before per-layer allocations
 		return 0, err
 	}
@@ -165,21 +185,7 @@ func (o *layerOps) runStack(embeds []float32, wp []layerWeightPtrs, gp []layerGr
 		}
 	}
 
-	// Only host round-trip out: the final pre-norm stream for the head/norm/CE tail.
-	final := make([]float32, seqHidden)
-	if err := o.s.finish(cudaDownload{final, xIn[nL]}); err != nil {
-		return 0, err
-	}
-	dOutHost, err := tail(final)
-	if err != nil {
-		return 0, err
-	}
-	if len(dOutHost) != seqHidden {
-		return 0, fmt.Errorf("runStack: tail dOut len %d != %d", len(dOutHost), seqHidden)
-	}
-
-	// Backward: caches consumed resident; dOut flows device-to-device.
-	dOutP, err := o.s.upload(dOutHost)
+	dOutP, err := tail(xIn[nL])
 	if err != nil {
 		return 0, err
 	}

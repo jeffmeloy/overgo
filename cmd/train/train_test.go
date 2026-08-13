@@ -91,7 +91,7 @@ func TestTrainAttnBiasRoutedToHostAtSelection(t *testing.T) {
 	}
 
 	tokens := []int{1, 2, 3, 4, 5}
-	traj, backend, err := runTraining(model, tokens, 1, 0, 0.9, true) // prefer device
+	traj, backend, err := runTraining(model, tokens, 1, 0, 0.9, true, false) // prefer device
 	if err != nil {
 		t.Fatalf("runTraining routed a bias model into a device session (mid-session failure): %v", err)
 	}
@@ -100,6 +100,9 @@ func TestTrainAttnBiasRoutedToHostAtSelection(t *testing.T) {
 	}
 	if len(traj) != 1 || math.IsNaN(traj[0]) || math.IsInf(traj[0], 0) {
 		t.Fatalf("trajectory = %v, want one finite loss", traj)
+	}
+	if _, _, err := runTraining(model, tokens, 1, 0, 0.9, true, true); err == nil {
+		t.Fatal("frozen lexical request silently fell back to host")
 	}
 }
 
@@ -123,7 +126,7 @@ func TestTrainGlueLoadStepSaveReload(t *testing.T) {
 
 	before := append([]float32(nil), model.Weights["model.embed_tokens.weight"]...)
 	tokens := []int{1, 2, 3, 4, 5}
-	traj, backend, err := runTraining(model, tokens, 1, 0, 0.9, false) // host path
+	traj, backend, err := runTraining(model, tokens, 1, 0, 0.9, false, false) // host path
 	if err != nil {
 		t.Fatalf("runTraining: %v", err)
 	}

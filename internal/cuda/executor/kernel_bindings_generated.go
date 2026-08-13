@@ -35,6 +35,7 @@ const (
 	kernelCopyF32
 	kernelCopyTokenOffsetF32
 	kernelDivideF32
+	kernelEmbeddingGatherRowsF32
 	kernelExpF32
 	kernelF16ToF32
 	kernelF32ToBf16
@@ -149,6 +150,7 @@ const (
 	kernelSiluBackwardF32
 	kernelSiluF32
 	kernelSoftmaxBackwardF32
+	kernelSoftmaxCeGradRowsF32
 	kernelSoftmaxF32
 	kernelSoftplusF32
 	kernelSparseAttentionF32
@@ -207,6 +209,7 @@ var kernelFunctionNames = [...]string{
 	"copy_f32",
 	"copy_token_offset_f32",
 	"divide_f32",
+	"embedding_gather_rows_f32",
 	"exp_f32",
 	"f16_to_f32",
 	"f32_to_bf16",
@@ -321,6 +324,7 @@ var kernelFunctionNames = [...]string{
 	"silu_backward_f32",
 	"silu_f32",
 	"softmax_backward_f32",
+	"softmax_ce_grad_rows_f32",
 	"softmax_f32",
 	"softplus_f32",
 	"sparse_attention_f32",
@@ -378,6 +382,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	5,
 	4,
+	5,
 	3,
 	3,
 	3,
@@ -492,6 +497,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	3,
 	5,
+	6,
 	4,
 	3,
 	16,

@@ -16,15 +16,15 @@
       ]
     },
     {
-      "id": "dense-training-leadership",
-      "title": "Move Carbon-500M embedding, final norm, tied head, cross-entropy, and gradients into the resident CUDA program; match adaptive trajectory and beat its wall plus peak on one fixed real-artifact Muon step",
+      "id": "carbon-matched-reference",
+      "title": "Replay adaptive_new's retained Carbon causal CUDA workload from Git history; bind identical artifact, tokens, objective, Muon settings, wall, peak, and trajectory before claiming matched leadership",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Move Carbon-500M embedding, final norm, tied head, cross-entropy, and gradients into the resident CUDA program; match adaptive trajectory and beat its wall plus peak on one fixed real-artifact Muon step",
+          "title": "Replay adaptive_new's retained Carbon causal CUDA workload from Git history; bind identical artifact, tokens, objective, Muon settings, wall, peak, and trajectory before claiming matched leadership",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DENSE_TRAIN_BASELINE=1 go test ./internal/densecausal -run '^TestCarbonResidentTrainingLeadership$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DENSE_TRAIN_BASELINE=1 go test ./internal/densecausal -run '^TestCarbonMatchedAdaptiveLeadership$' -count=1 -v"
         }
       ]
     },

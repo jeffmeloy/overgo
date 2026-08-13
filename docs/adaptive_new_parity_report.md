@@ -1,6 +1,6 @@
 # adaptive_new Parity and Performance Report
 
-Validation base: Overgo `d81caeb16` plus the gated Krea mask/performance slice;
+Validation base: Overgo `9ae0983` plus the resident Carbon leadership slice;
 adaptive_new `214950b3b`; reviewed 2026-08-13. adaptive_new working-tree changes
 remain observations, not landed evidence.
 
@@ -21,14 +21,14 @@ best resident implementation.
   surface.
 - Proven wins: Qwen3.5-4B decode, Gemma E4B text decode, RxBrain VQA,
   SimpleDiffusion host forward, MiniCPM decode, Wan exact-quality generation,
-  and Krea 256 generation wall time on the recorded protocols.
+  and Krea 256/2048 generation on the recorded protocols.
 - Training lead remains adaptive_new: more objective types, more artifact
   trainers, more promotion/evidence machinery, and real media-training paths.
 - Critical correction: Overgo's E4B item is marked done although the real E4B
   model has not trained end to end. Device VJPs and a synthetic hybrid trainer
   are prerequisites, not E4B closure.
-- Production dense training reaches the resident CUDA trainer; matched
-  real-model wall, peak and convergence leadership remain unproven.
+- Production dense training has a real Carbon-500M resident ratchet; matched
+  adaptive replay, Qwen, hybrid, E4B, checkpoint, and promotion remain open.
 - Critical evidence gap: 34 compatibility claims are marked `implemented`, but
   the current file does not encode the doctrine's evidence tiers. All 135
   architecture entries are `experimental`; only four name a validated fixture.
@@ -99,7 +99,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Un-0 image/video | Active deterministic Go route | Exact fixture within `3.13e-7`; about 1.25 ms warm generation | Parity | Non-vacuous golden in normal gate; image and video outputs |
 | SimpleDiffusion image | Host generation and real-checkpoint training | Forward max error `3.99e-6`; recorded 0.17 s vs adaptive 0.21 s | Host lead | Device forward/backward; real output quality and peak |
 | Wan text-to-video | Native adaptive exact path; Python oracle | Fresh session+denoise 331.96 s / 7.875 GB; decode 38.31 s / 10.330 GB; exact G3/G4 bounded, BF16 G3 cosine 0.999899, frame-0 CUDA/host max error 8.04e-6 | 370.27 s staged wall beats retained 463.4 s Python wall | Fresh same-revision Python/adaptive run; semantic clip gate |
-| Krea text-to-image | Matched 256 fixture: 25.430 s; exact u8 SHA `b257e244`; full 2048 record: 158.144 s, 33.47 GB device | Real artifact runs end to end at 256 in 19.067 s; 5.660 s denoise; 32.008 GiB peak; latent/velocity distributions bounded; decoded MAE/RMSE 0.03284/0.06036 | 25% matched wall lead; quality approximate; 2048 open | Exact adaptive SHA or approved semantic oracle; prove 2048 fit and production caller |
+| Krea text-to-image | Matched 256 fixture: 25.430 s; exact u8 SHA `b257e244`; full 2048 record: 158.144 s, 33.47 GB device | 256: 13.804 s / 25.030 GiB, MAE 0.02401. 2048: 63.510 s / 32.732 GB, MAE 0.03910; production caller and phased residency gated | Wall/peak lead at both sizes; bounded image quality | Exact SHA remains numerically unstable; retain robust pixel oracle and RMSE advisory |
 | SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Recipe and generic prerequisites partly ported; generation body remains open | Gap | Native full image and edit routes; exact/quality, wall, peak |
 | LiveEdit video edit | Adaptive complete experimental route; best 109.5 s, 20.61 GB; Python 60.1 s | No complete Overgo route found | Gap | Port shared video primitives; beat Python without temporal degradation |
 | Server/API/session/cache | Mature adaptive-specific multimodal surface | Broad llama-compatible server, resumable caches, tools | Different strengths | Contract matrix: streaming, tools, embeddings, media, sessions, refusal |
@@ -110,8 +110,8 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | --- | --- | --- | --- |
 | Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` exist only in the design document | Overgo gap |
 | Optimizer | Adaptive optimizer machinery and model-specific use; historical SGD paths remain | Matrix/vector/scalar groups use one compiled Muon path; sign, BF16-SGD and family-local production updates deleted | Muon-only production authority |
-| Dense causal LM | Real Carbon/Qwen/MiniCPM CUDA lanes and save/reload evidence | Host, device backward, device Muon, resident trainer, exact resume tests | Primitive parity; production reachability gap |
-| Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train` selects `TrainDeviceResident`; unsupported architectures compile to host before device construction | Resident reachability lead; matched real-model performance open |
+| Dense causal LM | Real Carbon/Qwen/MiniCPM CUDA lanes and save/reload evidence | Carbon frozen-lexical gather/head/CE, stack, final norm, and Muon stay resident; Qwen bias path open | Real Carbon ratchet; matched reference replay open |
+| Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train -freeze-lexical` selects the no-fallback resident contract; full-parameter mode remains explicit | Carbon route reachable; exact checkpoint contract open |
 | Checkpoint/resume | Fine-tune evidence and persistence exist, uneven by trainer | Dense exact-resume tests exist; production save overwrites files and omits optimizer/RNG/data cursor | Test capability only |
 | Qwen3.5 hybrid | Inference active; training unsupported in adaptive inventory | Host/device hybrid layer VJPs and synthetic resident stack train | Overgo primitive lead; real-model gap |
 | Gemma E4B | Adaptive declares streamed CUDA LM scope and supplies real semantics/oracles | Host E4B VJPs plus device primitives; no real E4B end-to-end training | Open; current done status is false closure |
@@ -130,6 +130,12 @@ Overgo's tokenizer total includes a large generated Unicode table.
 - Dense resident scale fixture (12 layers, hidden 256, sequence 64): two pooled
   CUDA Muon steps stay below 2 s total; live allocation peak 120.1 MiB versus
   143.5 MiB unpooled. This is an Overgo ratchet, not adaptive parity.
+- Carbon-500M, 64 tokens, four frozen-lexical Muon steps: loss
+  `4.124540 -> 2.630955`, 1.476 s/step, 4.714 GiB peak. Ratchets are
+  1.8 s/step and 6 GiB. Adaptive retained 2.018 s/step and later measured a
+  15.06 GB Carbon training peak, but that wall record used FNS rather than
+  Overgo's causal CE. Current adaptive master refuses its Carbon gate at
+  admission; Git-history same-protocol replay is the open comparison.
 - Hybrid resident synthetic stack: loss `15.92 -> 2.56`; host/device trajectory
   difference `2.856e-6`.
 - Synthetic dense medium benchmark: host `85.6 s/step`; device full
@@ -138,8 +144,9 @@ Overgo's tokenizer total includes a large generated Unicode table.
 - Device layer backward, cached forward, loss/gradients, full trainer, and
   resident trainer focused tests pass on the reviewed machine.
 
-These results justify promotion of the primitives. They do not justify E4B,
-12B, controller, or production-training closure.
+These results promote Carbon's frozen-lexical resident route, not matched
+cross-repo leadership. They do not justify Qwen, E4B, 12B, controller, or
+system-wide training closure.
 
 ## Recorded Performance Scoreboard
 
@@ -154,6 +161,7 @@ These results justify promotion of the primitives. They do not justify E4B,
 | Wan full generation | Python baselines vary by retained report: 399.1 or 463.4 s; adaptive exact Go 795.1 s warm in the current media report | fresh 331.96 s session+denoise + 38.31 s decode = 370.27 s; stage peaks 7.875 / 10.330 GB | 20.1% wall lead vs retained 463.4 s Python; fresh matched reference rerun still open |
 | Krea 256 generation | adaptive exact Go 25.430 s | 13.804 s / 25.030 GiB; MAE 0.02401, RMSE 0.05459 | 46% wall lead; lower peak; bounded quality lead |
 | Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | 35% lead vs best Python; 60% vs adaptive; 2.2% lower peak |
+| Carbon-500M training, comparable 64-token geometry | retained adaptive FNS 2.018 s/step; later Carbon peak 15.06 GB | causal CE 1.476 s/step / 4.714 GiB; loss 4.1245 -> 2.6310 | Backend ratchet; cross-objective, not matched leadership |
 | SenseNova full generation | Python 366.6 s / 47.58 GiB; adaptive 206.010 s / 19.50 GB | No complete Overgo result | Open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | No complete Overgo result | Open |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |
@@ -181,12 +189,12 @@ and `cmd/release` still reference the deleted files. Complete caller migration
 and release-contract cleanup in the same slice; do not restore compatibility
 stubs.
 
-### P0: production resident training lacks matched leadership evidence
+### P0: production training leadership is Carbon-only
 
-`cmd/train` now selects `TrainDeviceResident`, with unsupported architectures
-routed to host before device construction. Run the same real artifact, initial
-state, token batches and update contract in both repos; compare trajectory,
-held-out quality, step wall and peak memory.
+Carbon now has a reachable frozen-lexical CUDA contract and real-artifact
+ratchet. Replay adaptive's causal workload from Git history before calling it a
+wall/peak lead. Then repeat for Qwen, hybrid, and E4B; add held-out promotion and
+exact checkpoint/resume evidence before broader claims.
 
 ### P0: E4B training is falsely closed
 
@@ -223,13 +231,11 @@ encoder name validated fixtures. Add evidence tiers, source commits, artifact
 hashes, failable commands, and expiry/reverification rules. An architecture
 parser is not a promoted model capability.
 
-### P1: Krea promotion remains approximate and 256-only
+### P1: media breadth remains SenseNova and LiveEdit
 
-The real pipeline now resolves nonstandard Diffusers shard indexes, masks padded
-text in fusion and every denoiser block, retains stage handoffs, and beats the
-matched adaptive 256 wall. The gate bounds all eight latent/velocity
-distributions and decoded MAE/RMSE. Exact SHA, a production caller, active
-recipe evidence, and the 2048 memory/performance bar remain open.
+Krea and Wan now have production performance gates. SenseNova generation and
+LiveEdit remain the highest-value image/video gaps; edit-input evidence stays
+explicitly blocked when its source artifact is absent.
 
 ## Multimodal Completion Contract
 

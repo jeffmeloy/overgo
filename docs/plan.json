@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "modality-contract",
-          "title": "Compile each active recipe's ordered text/image/audio/video/time-series/table input and output signature; derive the parity matrix and explicit unsupported/refused rows from it",
-          "status": "open",
-          "verify": "go test ./internal/adaptiveparity -run '^TestInferenceModalityMatrixDerivedFromRecipes$' -count=1 -v"
-        },
-        {
           "id": "text-structured-refresh",
           "title": "Refresh real-artifact dense, hybrid, forecast, tabular, seq2seq, embedding, and rerank rows; exact behavior then wall and peak leadership",
           "status": "open",

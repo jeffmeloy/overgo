@@ -13,7 +13,7 @@ merges `master`.
 | 4 | Session forwards | DFlash/Eagle/Gemma assistant wrappers absent | Done |
 | 5 | Encoder/decoder | T5 family block builders absent | Done |
 | 6 | Layer execution | architecture-family predicates and duplicate registries absent; alternate-prediction admission is topology-owned; family leaf policies/builders absent; ordered relative encoder/decoder stages plus sealed graph and normalization facts, neutral recurrent, latent, compressed-hyper, WKV, cache, side-input, draft topology/storage, weight catalogs, dense/expert, and rotary IR/selectors | Active |
-| 7 | Weight catalogs | family loaders replaced by indexed catalog plans | Open |
+| 7 | Weight catalogs | family loaders replaced by indexed catalog plans; empty-profile compatibility read removed; remaining staged requirement duplication absent | Active |
 | 8 | Runtime admission | continuous batching, retained-cache, capture, sequence-cache, projected-input, specialized-output, diffusion, recurrent, and packed-device admission compiled; runtime profile probes absent | Done |
 
 Live ordering and executable verification remain in `docs/plan.json`.

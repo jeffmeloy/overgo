@@ -1361,7 +1361,7 @@ func TestReadWeightsRejectsRoPEFactorShape(t *testing.T) {
 }
 
 func TestReadWeightsRejectsShape(t *testing.T) {
-	spec := Spec{CommonSpec: CommonSpec{EmbeddingLength: 8, VocabularySize: 32}}
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", EmbeddingLength: 8, VocabularySize: 32}}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 7, 32),
 	}}

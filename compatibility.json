@@ -715,7 +715,7 @@
           "contains": "func ReadWeights(",
           "path": "internal/model/weights_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:2c9bc0f962b56ff5ac3d343b08e946355869ffdff5f65136f4d25cc32f171551"
+          "identity": "file:sha256:cca039ef2c0b311551ec428d1227702b82e115d9e6f40b13bb9dff542ff90b58"
         },
         {
           "contains": "func TestLayerProgramsCoverTypedProfiles(",

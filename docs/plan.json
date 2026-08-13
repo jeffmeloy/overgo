@@ -4,14 +4,14 @@
   "items": [
     {
       "id": "wan-video-leadership",
-      "title": "Refresh Wan text-to-video leadership on the real artifact: exact output quality first, then beat adaptive_new and model-native Python on matched wall and peak without a family runtime",
+      "title": "Restore explicit shared BF16 tensor-core compute policy and ratchet production Wan denoise plus decode leadership",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Refresh Wan text-to-video leadership on the real artifact: exact output quality first, then beat adaptive_new and model-native Python on matched wall and peak without a family runtime",
+          "title": "Restore explicit shared BF16 tensor-core compute policy and ratchet production Wan denoise plus decode leadership",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_WAN_BASELINE=1 go test ./internal/latentvideo -run '^TestWanRealArtifactLeadership$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestVAEDecodeCUDAProduction$' -count=1 -v && OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^$' -bench '^BenchmarkWanRealArtifactLeadership$' -benchtime=1x -count=1"
         }
       ]
     },

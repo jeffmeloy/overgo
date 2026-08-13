@@ -75,7 +75,7 @@ func loadG1Tensor(t *testing.T, dir string, spec g1Tensor) []float32 {
 	return out
 }
 
-func wanModelDir(t *testing.T) string {
+func wanModelDir(t testing.TB) string {
 	t.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

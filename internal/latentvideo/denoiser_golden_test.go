@@ -110,7 +110,7 @@ func (m goldenDenoiseManifest) trace(t *testing.T, dir, name string) []float32 {
 	return loadG1Tensor(t, dir, spec)
 }
 
-func loadRawContext(t *testing.T, dir, file string, elements int) []float32 {
+func loadRawContext(t testing.TB, dir, file string, elements int) []float32 {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(file)))
 	if err != nil {
@@ -137,7 +137,7 @@ var denoiserFixtureShared denoiserFixtureState
 
 // denoiserFixture: the 5.7GB F32 weight set loads once for the whole test
 // binary (no duplication; both graphs reference the same slices).
-func denoiserFixture(t *testing.T) (DenoiserConfig, *DenoiserWeights) {
+func denoiserFixture(t testing.TB) (DenoiserConfig, *DenoiserWeights) {
 	t.Helper()
 	dir := wanModelDir(t)
 	denoiserFixtureShared.once.Do(func() {

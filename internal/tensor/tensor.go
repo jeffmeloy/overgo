@@ -109,6 +109,18 @@ type XIELUAttributes struct {
 	Epsilon float32
 }
 
+// MulMatCompute selects backend arithmetic. Zero preserves exact F32 operands.
+type MulMatCompute uint8
+
+const (
+	MulMatComputeExact MulMatCompute = iota
+	MulMatComputeBF16TensorCore
+)
+
+type MulMatAttributes struct {
+	Compute MulMatCompute
+}
+
 type GetRowsAttributes struct {
 	Rows []uint32
 }
@@ -359,12 +371,13 @@ type LoRAMergeAttributes struct {
 
 // Builder: graph constructor and validator.
 type Builder struct {
-	nextID      uint64
-	nodes       []*Tensor
-	err         error
-	loras       map[string][]LoRADefinition
-	loraInputs  map[string]*Tensor
-	cacheAppend *CacheAppendPlan
+	nextID        uint64
+	nodes         []*Tensor
+	err           error
+	loras         map[string][]LoRADefinition
+	loraInputs    map[string]*Tensor
+	cacheAppend   *CacheAppendPlan
+	mulMatCompute MulMatCompute
 }
 
 // CacheAppendPlan: logical range inside fixed-capacity cache storage.
@@ -392,6 +405,22 @@ func (b *Builder) Err() error {
 
 func (b *Builder) Nodes() []*Tensor {
 	return append([]*Tensor(nil), b.nodes...)
+}
+
+// SetMulMatCompute sets graph-default projection arithmetic.
+func (b *Builder) SetMulMatCompute(compute MulMatCompute) {
+	if b.err != nil {
+		return
+	}
+	if len(b.nodes) != 0 {
+		b.setError(errors.New("mul_mat compute policy must be set before graph construction"))
+		return
+	}
+	if compute != MulMatComputeExact && compute != MulMatComputeBF16TensorCore {
+		b.setError(fmt.Errorf("mul_mat compute policy %d is invalid", compute))
+		return
+	}
+	b.mulMatCompute = compute
 }
 
 // SetCacheAppendPlan: fixed-capacity cache construction.

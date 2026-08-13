@@ -16,6 +16,7 @@ func (RMSNormAttributes) tensorAttributes()              {}
 func (LayerNormAttributes) tensorAttributes()            {}
 func (L2NormAttributes) tensorAttributes()               {}
 func (XIELUAttributes) tensorAttributes()                {}
+func (MulMatAttributes) tensorAttributes()               {}
 func (GetRowsAttributes) tensorAttributes()              {}
 func (RoPEAttributes) tensorAttributes()                 {}
 func (RoPEMultiAttributes) tensorAttributes()            {}
@@ -51,6 +52,7 @@ const (
 	attributeLayerNorm
 	attributeL2Norm
 	attributeXIELU
+	attributeMulMat
 	attributeGetRows
 	attributeRoPE
 	attributeRoPEMulti
@@ -84,6 +86,7 @@ var operationAttributeKinds = [...]attributeKind{
 	OpLayerNorm:            attributeLayerNorm,
 	OpL2Norm:               attributeL2Norm,
 	OpXIELU:                attributeXIELU,
+	OpMulMat:               attributeMulMat,
 	OpGetRows:              attributeGetRows,
 	OpRoPENeoX:             attributeRoPE,
 	OpRoPENormal:           attributeRoPE,
@@ -129,6 +132,9 @@ func validateOperationAttributes(op Op, attributes Attributes) error {
 		}
 		return errors.New("input attributes are invalid")
 	}
+	if op == OpMulMat && attributes == nil {
+		return nil
+	}
 	expected := attributeNone
 	if int(op) < len(operationAttributeKinds) {
 		expected = operationAttributeKinds[op]
@@ -161,6 +167,8 @@ func attributeKindOf(attributes Attributes) attributeKind {
 		return attributeL2Norm
 	case XIELUAttributes:
 		return attributeXIELU
+	case MulMatAttributes:
+		return attributeMulMat
 	case GetRowsAttributes:
 		return attributeGetRows
 	case RoPEAttributes:

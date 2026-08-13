@@ -62,7 +62,12 @@ func (b *Builder) GELUTanhExact(x *Tensor) *Tensor {
 // MulMat: follows ggml semantics; Left has shape [K,M], right has shape [K,N],
 // and result has shape [M,N]
 func (b *Builder) MulMat(left, right *Tensor) *Tensor {
-	result := b.mulMat(left, right)
+	return b.MulMatWithCompute(left, right, b.mulMatCompute)
+}
+
+// MulMatWithCompute declares backend arithmetic for one projection.
+func (b *Builder) MulMatWithCompute(left, right *Tensor, compute MulMatCompute) *Tensor {
+	result := b.mulMat(left, right, compute)
 	if result == nil || left == nil || left.Name == "" {
 		return result
 	}
@@ -72,18 +77,26 @@ func (b *Builder) MulMat(left, right *Tensor) *Tensor {
 		}
 		a := b.loraInput(definition.AName, definition.AShape, definition.AData)
 		c := b.loraInput(definition.BName, definition.BShape, definition.BData)
-		delta := b.mulMat(c, b.mulMat(a, right))
+		delta := b.mulMat(c, b.mulMat(a, right, MulMatComputeExact), MulMatComputeExact)
 		result = b.Add(result, b.Scale(delta, definition.Scale))
 	}
 	return result
 }
 
-func (b *Builder) mulMat(left, right *Tensor) *Tensor {
+func (b *Builder) mulMat(left, right *Tensor, compute MulMatCompute) *Tensor {
 	if b.err != nil {
 		return nil
 	}
 	if left == nil || right == nil {
 		b.setError(errors.New("mul_mat input is nil"))
+		return nil
+	}
+	if compute != MulMatComputeExact && compute != MulMatComputeBF16TensorCore {
+		b.setError(fmt.Errorf("mul_mat compute policy %d is invalid", compute))
+		return nil
+	}
+	if compute == MulMatComputeBF16TensorCore && (left.Type != dtype.BF16 || right.Type != dtype.F32) {
+		b.setError(fmt.Errorf("BF16 tensor-core mul_mat requires BF16 x F32, got %s x %s", left.Type, right.Type))
 		return nil
 	}
 	if left.Shape.Rank != 2 || right.Shape.Rank != 2 {
@@ -111,7 +124,11 @@ func (b *Builder) mulMat(left, right *Tensor) *Tensor {
 		b.setError(err)
 		return nil
 	}
-	return b.add("", outputType, shape, OpMulMat, []*Tensor{left, right}, nil)
+	var attributes Attributes
+	if compute != MulMatComputeExact {
+		attributes = MulMatAttributes{Compute: compute}
+	}
+	return b.add("", outputType, shape, OpMulMat, []*Tensor{left, right}, attributes)
 }
 
 // GroupedMulMat: per-group ggml matmul; [K,M,G] x [K,G,N] -> [M,G,N]
@@ -172,7 +189,7 @@ func (b *Builder) GetRows(table *Tensor, rows []uint32) *Tensor {
 		}
 		a := b.loraInput(definition.AName, definition.AShape, definition.AData)
 		c := b.loraInput(definition.BName, definition.BShape, definition.BData)
-		delta := b.mulMat(c, b.getRows(a, rows))
+		delta := b.mulMat(c, b.getRows(a, rows), MulMatComputeExact)
 		result = b.Add(result, b.Scale(delta, definition.Scale))
 	}
 	return result

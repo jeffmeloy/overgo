@@ -404,144 +404,115 @@ func headedProjection(
 	return builder.Reshape(builder.MulMat(weight, input), uint64(width), uint64(heads), tokens)
 }
 
-func buildEncoderDecoderFeedForward(
+func buildRelativeFeedForwardMix(
 	builder *tensor.Builder,
 	residual *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-) *tensor.Tensor {
+) (*tensor.Tensor, error) {
+	required := graphWeights{
+		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
+		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
+		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+	}
+	if err := required.validate("relative feed-forward"); err != nil {
+		return nil, err
+	}
 	normalized := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	up := builder.MulMat(weights.FeedForwardUp, normalized)
 	activated := builder.ReLU(up)
 	if weights.FeedForwardGate != nil {
 		activated = builder.GEGLU(builder.MulMat(weights.FeedForwardGate, normalized), up)
 	}
-	return builder.Add(residual, builder.MulMat(weights.FeedForwardDown, activated))
+	return builder.MulMat(weights.FeedForwardDown, activated), builder.Err()
 }
 
-func validateEncoderDecoderWeights(weights LayerGraphWeights, cross bool) error {
+func buildRelativeSelfAttentionMix(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	spec Spec,
+	weights LayerGraphWeights,
+	pastKey, pastValue *tensor.Tensor,
+	causal bool,
+) (DenseBlockResult, error) {
+	if builder == nil || input == nil || input.Shape.Rank != 2 ||
+		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("relative self-attention input is invalid")
+	}
+	if err := requireTensorPair(pastKey, pastValue, "relative self-attention cache is incomplete"); err != nil {
+		return DenseBlockResult{}, err
+	}
+	if !causal && pastKey != nil {
+		return DenseBlockResult{}, errors.New("bidirectional relative attention does not support a cache")
+	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
 		requireGraphWeight("attention Q", weights.AttentionQ),
 		requireGraphWeight("attention K", weights.AttentionK),
 		requireGraphWeight("attention V", weights.AttentionV),
 		requireGraphWeight("attention output", weights.AttentionOutput),
 		requireGraphWeight("attention relative bias", weights.AttentionRelativeBias),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
 	}
-	if cross {
-		required = append(required,
-			requireGraphWeight("cross-attention norm", weights.CrossAttentionNorm),
-			requireGraphWeight("cross-attention Q", weights.CrossAttentionQ),
-			requireGraphWeight("cross-attention K", weights.CrossAttentionK),
-			requireGraphWeight("cross-attention V", weights.CrossAttentionV),
-			requireGraphWeight("cross-attention output", weights.CrossAttentionOutput),
-		)
-	}
-	return required.validate("relative-attention block")
-}
-
-// buildEncoderBlock: full bidirectional relative-attention block.
-func buildEncoderBlock(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	encoder EncoderOperatorPolicy,
-) (*tensor.Tensor, error) {
-	if builder == nil || input == nil {
-		return nil, errors.New("encoder block input is nil")
-	}
-	if encoder != encoderOperatorRelativeEncoderDecoder && encoder != encoderOperatorRelativeEncoder {
-		return nil, errors.New("encoder block requires a compiled relative-attention program")
-	}
-	if err := validateEncoderDecoderWeights(weights, false); err != nil {
-		return nil, err
-	}
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, errors.New("encoder block input shape is incompatible")
+	if err := required.validate("relative self-attention"); err != nil {
+		return DenseBlockResult{}, err
 	}
 	tokens := input.Shape.Dims[1]
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
-	query := headedProjection(builder, normalized, weights.AttentionQ, spec.KeyLength, spec.HeadCount, tokens)
-	key := headedProjection(builder, normalized, weights.AttentionK, spec.KeyLength, spec.HeadCountKV, tokens)
-	value := headedProjection(builder, normalized, weights.AttentionV, spec.ValueLength, spec.HeadCountKV, tokens)
-	attention := builder.AttentionWithRelativeBias(
-		query,
-		key,
-		value,
-		weights.AttentionRelativeBias,
-		1,
-	)
-	attention = builder.Reshape(
-		attention,
-		uint64(spec.HeadCount)*uint64(spec.ValueLength),
-		tokens,
-	)
-	attention = builder.MulMat(weights.AttentionOutput, attention)
-	residual := builder.Add(input, attention)
-	output := buildEncoderDecoderFeedForward(builder, residual, spec, weights)
-	if err := builder.Err(); err != nil {
-		return nil, err
+	query := headedProjection(builder, input, weights.AttentionQ, spec.KeyLength, spec.HeadCount, tokens)
+	key := headedProjection(builder, input, weights.AttentionK, spec.KeyLength, spec.HeadCountKV, tokens)
+	value := headedProjection(builder, input, weights.AttentionV, spec.ValueLength, spec.HeadCountKV, tokens)
+	cacheKey, cacheValue := key, value
+	var queryStart uint32
+	if pastKey != nil {
+		if pastKey.Shape.Rank != 3 || pastValue.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
+			return DenseBlockResult{}, errors.New("relative self-attention cache shape is incompatible")
+		}
+		queryStart = uint32(pastKey.Shape.Dims[2])
+		cacheKey = builder.Concat(pastKey, key, 2)
+		cacheValue = builder.Concat(pastValue, value, 2)
 	}
-	return output, nil
+	var attention *tensor.Tensor
+	if causal {
+		attention = builder.AttentionWithRelativeBiasAndOffset(
+			query, cacheKey, cacheValue, weights.AttentionRelativeBias, 1, queryStart,
+		)
+	} else {
+		attention = builder.AttentionWithRelativeBias(query, cacheKey, cacheValue, weights.AttentionRelativeBias, 1)
+	}
+	attention = builder.Reshape(attention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
+	result := DenseBlockResult{Output: builder.MulMat(weights.AttentionOutput, attention)}
+	if causal {
+		result.Key, result.Value = cacheKey, cacheValue
+	}
+	return result, builder.Err()
 }
 
-// buildDecoderBlockCached: causal self-attention plus fixed cross-attention.
-func buildDecoderBlockCached(
+func buildCrossAttentionMix(
 	builder *tensor.Builder,
 	input, encoderState *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-	pastSelfKey, pastSelfValue, pastCrossKey, pastCrossValue *tensor.Tensor,
-	encoderPolicy EncoderOperatorPolicy,
+	pastCrossKey, pastCrossValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
-	if builder == nil || input == nil {
-		return DenseBlockResult{}, errors.New("decoder block input is nil")
+	if builder == nil || input == nil || input.Shape.Rank != 2 ||
+		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+		return DenseBlockResult{}, errors.New("cross-attention input is invalid")
 	}
-	if encoderPolicy != encoderOperatorRelativeEncoderDecoder {
-		return DenseBlockResult{}, errors.New("decoder block requires a compiled relative-attention program")
-	}
-	if err := validateEncoderDecoderWeights(weights, true); err != nil {
-		return DenseBlockResult{}, err
-	}
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("decoder block input shape is incompatible")
-	}
-	if err := requireTensorPair(pastSelfKey, pastSelfValue, "decoder self cache is incomplete"); err != nil {
-		return DenseBlockResult{}, err
-	}
-	if err := requireTensorPair(pastCrossKey, pastCrossValue, "decoder cross cache is incomplete"); err != nil {
+	if err := requireTensorPair(pastCrossKey, pastCrossValue, "cross-attention cache is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if pastCrossKey == nil && encoderState == nil {
-		return DenseBlockResult{}, errors.New("decoder encoder state is nil")
+		return DenseBlockResult{}, errors.New("cross-attention encoder state is nil")
+	}
+	required := graphWeights{
+		requireGraphWeight("cross-attention Q", weights.CrossAttentionQ),
+		requireGraphWeight("cross-attention K", weights.CrossAttentionK),
+		requireGraphWeight("cross-attention V", weights.CrossAttentionV),
+		requireGraphWeight("cross-attention output", weights.CrossAttentionOutput),
+	}
+	if err := required.validate("cross-attention"); err != nil {
+		return DenseBlockResult{}, err
 	}
 	tokens := input.Shape.Dims[1]
-	normalized := builder.WeightedRMSNorm(input, weights.AttentionNorm, spec.RMSNormEpsilon)
-	query := headedProjection(builder, normalized, weights.AttentionQ, spec.KeyLength, spec.HeadCount, tokens)
-	key := headedProjection(builder, normalized, weights.AttentionK, spec.KeyLength, spec.HeadCountKV, tokens)
-	value := headedProjection(builder, normalized, weights.AttentionV, spec.ValueLength, spec.HeadCountKV, tokens)
-	cacheKey, cacheValue := key, value
-	var queryStart uint32
-	if pastSelfKey != nil {
-		if pastSelfKey.Shape.Rank != 3 || pastSelfValue.Shape.Rank != 3 || pastSelfKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, errors.New("decoder self cache shape is incompatible")
-		}
-		queryStart = uint32(pastSelfKey.Shape.Dims[2])
-		cacheKey = builder.Concat(pastSelfKey, key, 2)
-		cacheValue = builder.Concat(pastSelfValue, value, 2)
-	}
-	attention := builder.AttentionWithRelativeBiasAndOffset(
-		query, cacheKey, cacheValue, weights.AttentionRelativeBias, 1, queryStart,
-	)
-	attention = builder.Reshape(attention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
-	residual := builder.Add(input, builder.MulMat(weights.AttentionOutput, attention))
-
-	normalized = builder.WeightedRMSNorm(residual, weights.CrossAttentionNorm, spec.RMSNormEpsilon)
-	crossQuery := headedProjection(builder, normalized, weights.CrossAttentionQ, spec.KeyLength, spec.HeadCount, tokens)
+	crossQuery := headedProjection(builder, input, weights.CrossAttentionQ, spec.KeyLength, spec.HeadCount, tokens)
 	crossKey, crossValue := pastCrossKey, pastCrossValue
 	if crossKey == nil {
 		if encoderState.Shape.Rank != 2 || encoderState.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
@@ -553,19 +524,11 @@ func buildDecoderBlockCached(
 	}
 	crossAttention := builder.AttentionWithOffset(crossQuery, crossKey, crossValue, 1, false, 0)
 	crossAttention = builder.Reshape(crossAttention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
-	residual = builder.Add(residual, builder.MulMat(weights.CrossAttentionOutput, crossAttention))
-
-	output := buildEncoderDecoderFeedForward(builder, residual, spec, weights)
-	if err := builder.Err(); err != nil {
-		return DenseBlockResult{}, err
-	}
 	return DenseBlockResult{
-		Output: output,
-		Key:    cacheKey,
-		Value:  cacheValue,
+		Output: builder.MulMat(weights.CrossAttentionOutput, crossAttention),
 		States: CacheStates[*tensor.Tensor]{
 			CacheStateCrossKey:   {Mode: CacheStateFixed, Value: crossKey},
 			CacheStateCrossValue: {Mode: CacheStateFixed, Value: crossValue},
 		},
-	}, nil
+	}, builder.Err()
 }

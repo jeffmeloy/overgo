@@ -35,24 +35,11 @@ type BlockDispatchOptions struct {
 	Plan    *LayerPlan
 }
 
-// Build constructs the graph owned by a compiled draft layer.
+// Build executes a compiled layer program.
 func (p CompiledLayerProgram) Build(
 	context CachedBlockContext,
 	weights LayerGraphWeights,
 ) (DenseBlockResult, error) {
-	switch p.role {
-	case programEncoder:
-		output, err := buildEncoderBlock(
-			context.Builder, context.Input, p.spec, weights, p.plan.EncoderOperator,
-		)
-		return DenseBlockResult{Output: output}, err
-	case programDecoder:
-		return buildDecoderBlockCached(
-			context.Builder, context.Input, context.Encoder, p.spec, weights,
-			context.PastKey, context.PastValue, context.CrossKey, context.CrossValue,
-			p.plan.EncoderOperator,
-		)
-	}
 	plan := p.plan
 	return executeCompiledLayer(BlockDispatchOptions{
 		Context: context, Spec: p.spec, Weights: weights, Plan: &plan,
@@ -63,7 +50,9 @@ func executeCompiledLayer(options BlockDispatchOptions) (DenseBlockResult, error
 	if options.Plan == nil {
 		return DenseBlockResult{}, errors.New("compiled layer plan is required")
 	}
-	if options.Plan.ExplicitEncoder {
+	sequence, _ := options.Plan.Program.Instruction(1)
+	if options.Plan.ExplicitEncoder && sequence.Operator != LayerOperatorAttentionRelativeBidirectional &&
+		sequence.Operator != LayerOperatorAttentionRelativeCausal {
 		return DenseBlockResult{}, errors.New("encoder-decoder blocks require explicit encoder state")
 	}
 	context := options.Context
@@ -107,6 +96,10 @@ func resolveLayerOperands(
 			operands.caches[index] = context.PastStates[CacheStateSSM].Value
 		case RuntimeCacheIndexerKey:
 			operands.caches[index] = context.PastStates[CacheStateIndexerKey].Value
+		case RuntimeCacheCrossKey:
+			operands.caches[index] = context.CrossKey
+		case RuntimeCacheCrossValue:
+			operands.caches[index] = context.CrossValue
 		default:
 			return operands, errors.New("compiled layer cache binding is invalid")
 		}
@@ -117,6 +110,8 @@ func resolveLayerOperands(
 			operands.tensors[index] = context.PerLayerInput
 		case RuntimeTensorCurrentPositions:
 			operands.tensors[index] = context.CurrentPositions
+		case RuntimeTensorEncoder:
+			operands.tensors[index] = context.Encoder
 		default:
 			return operands, errors.New("compiled layer tensor binding is invalid")
 		}
@@ -192,6 +187,15 @@ func executeLayerInstruction(
 			options.Weights.AttentionNormBias,
 		)
 		return c.Builder.Err()
+	case LayerOperatorCrossAttentionNorm:
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 ||
+			options.Weights.CrossAttentionNorm == nil {
+			return errors.New("compiled cross-attention normalization stage is invalid")
+		}
+		execution.current = plan.Normalization.Apply(
+			c.Builder, execution.current, options.Weights.CrossAttentionNorm, nil,
+		)
+		return c.Builder.Err()
 	case LayerOperatorRMSNorm:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil {
 			return errors.New("compiled RMS-normalization stage is invalid")
@@ -233,12 +237,16 @@ func executeLayerInstruction(
 		LayerOperatorAttentionBidirectionalQKNorm, LayerOperatorAttentionCausalPostQKNorm,
 		LayerOperatorAttentionSharedKVQKNorm, LayerOperatorAttentionBidirectionalEncoder,
 		LayerOperatorAttentionPairedCausalProjection, LayerOperatorAttentionSharedCacheQKNorm,
-		LayerOperatorAttentionPlannedProjection:
-		cacheCount := uint8(2)
-		if instruction.Operator == LayerOperatorAttentionOutputProjection {
+		LayerOperatorAttentionPlannedProjection, LayerOperatorAttentionRelativeBidirectional,
+		LayerOperatorAttentionRelativeCausal, LayerOperatorAttentionCross:
+		cacheCount, tensorCount := uint8(2), uint8(0)
+		switch instruction.Operator {
+		case LayerOperatorAttentionOutputProjection, LayerOperatorAttentionRelativeBidirectional:
 			cacheCount = 0
+		case LayerOperatorAttentionCross:
+			tensorCount = 1
 		}
-		if instruction.TensorCount != 0 || instruction.CacheCount != cacheCount {
+		if instruction.TensorCount != tensorCount || instruction.CacheCount != cacheCount {
 			return errors.New("compiled attention-mixing stage is invalid")
 		}
 		var result DenseBlockResult
@@ -309,6 +317,20 @@ func executeLayerInstruction(
 				options, execution.current, execution.feedForwardBase,
 				operands.caches[0], operands.caches[1],
 			)
+		case LayerOperatorAttentionRelativeBidirectional:
+			result, err = buildRelativeSelfAttentionMix(
+				c.Builder, execution.current, options.Spec, options.Weights, nil, nil, false,
+			)
+		case LayerOperatorAttentionRelativeCausal:
+			result, err = buildRelativeSelfAttentionMix(
+				c.Builder, execution.current, options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1], true,
+			)
+		case LayerOperatorAttentionCross:
+			result, err = buildCrossAttentionMix(
+				c.Builder, execution.current, operands.tensors[0], options.Spec, options.Weights,
+				operands.caches[0], operands.caches[1],
+			)
 		default:
 			return errors.New("compiled attention-mixing policy is invalid")
 		}
@@ -318,6 +340,9 @@ func executeLayerInstruction(
 		execution.result.Output = result.Output
 		if result.Key != nil || result.Value != nil {
 			execution.result.Key, execution.result.Value = result.Key, result.Value
+		}
+		if len(result.States) > 0 {
+			execution.result.States = result.States
 		}
 		execution.current = result.Output
 		return nil
@@ -436,7 +461,7 @@ func executeLayerInstruction(
 		LayerOperatorFeedForwardSquaredReLU, LayerOperatorFeedForwardRoutedSquaredReLU,
 		LayerOperatorFeedForwardRoutedSwiGLU, LayerOperatorFeedForwardGatedGELU,
 		LayerOperatorFeedForwardParallelGatedGELU, LayerOperatorFeedForwardEncoder,
-		LayerOperatorFeedForwardPlanned:
+		LayerOperatorFeedForwardPlanned, LayerOperatorFeedForwardRelative:
 		if instruction.CacheCount != 0 || instruction.TensorCount != 0 {
 			return errors.New("compiled feed-forward stage is invalid")
 		}
@@ -479,6 +504,10 @@ func executeLayerInstruction(
 		case LayerOperatorFeedForwardPlanned:
 			feedForward, err = buildPolicyFeedForwardMix(
 				options, execution.current, execution.residual,
+			)
+		case LayerOperatorFeedForwardRelative:
+			feedForward, err = buildRelativeFeedForwardMix(
+				c.Builder, execution.current, options.Spec, options.Weights,
 			)
 		default:
 			return errors.New("compiled feed-forward policy is invalid")

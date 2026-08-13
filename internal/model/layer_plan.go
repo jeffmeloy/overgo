@@ -17,6 +17,8 @@ const (
 	RuntimeCacheConvolution
 	RuntimeCacheSSM
 	RuntimeCacheIndexerKey
+	RuntimeCacheCrossKey
+	RuntimeCacheCrossValue
 )
 
 // RuntimeTensorBinding: indexed auxiliary tensor operand.
@@ -26,6 +28,7 @@ const (
 	RuntimeTensorNone RuntimeTensorBinding = iota
 	RuntimeTensorPerLayerInput
 	RuntimeTensorCurrentPositions
+	RuntimeTensorEncoder
 )
 
 // LayerOperator: semantic execution stage.
@@ -38,6 +41,7 @@ const (
 	LayerOperatorHyperAttention
 	LayerOperatorHyperFeedForward
 	LayerOperatorAttentionNorm
+	LayerOperatorCrossAttentionNorm
 	LayerOperatorAttentionPostNorm
 	LayerOperatorAttentionCausalProjection
 	LayerOperatorAttentionGatedProjection
@@ -50,6 +54,9 @@ const (
 	LayerOperatorAttentionPairedCausalProjection
 	LayerOperatorAttentionSharedCacheQKNorm
 	LayerOperatorAttentionPlannedProjection
+	LayerOperatorAttentionRelativeBidirectional
+	LayerOperatorAttentionRelativeCausal
+	LayerOperatorAttentionCross
 	LayerOperatorHybridMix
 	LayerOperatorRecurrentMix
 	LayerOperatorFeedForwardNorm
@@ -62,6 +69,7 @@ const (
 	LayerOperatorFeedForwardParallelGatedGELU
 	LayerOperatorFeedForwardEncoder
 	LayerOperatorFeedForwardPlanned
+	LayerOperatorFeedForwardRelative
 	LayerOperatorFeedForwardPostNorm
 	LayerOperatorCacheSentinel
 	LayerOperatorScale
@@ -733,17 +741,8 @@ func (p ModelPlan) DraftLayer(offset uint32) (LayerPlan, error) {
 type CompiledLayerProgram struct {
 	spec  Spec
 	plan  LayerPlan
-	role  layerProgramRole
 	draft DraftPlan
 }
-
-type layerProgramRole uint8
-
-const (
-	programLayer layerProgramRole = iota
-	programEncoder
-	programDecoder
-)
 
 // Layer returns the immutable compiled layer facts.
 func (p CompiledLayerProgram) Layer() LayerPlan { return p.plan }
@@ -765,13 +764,13 @@ func (p ModelPlan) LayerProgram(layer int) (CompiledLayerProgram, error) {
 	return CompiledLayerProgram{spec: p.spec, plan: compiled}, nil
 }
 
-func (p ModelPlan) sequenceProgram(layer int, role layerProgramRole) (CompiledLayerProgram, error) {
+func (p ModelPlan) sequenceProgram(layer int, decoder bool) (CompiledLayerProgram, error) {
 	encoder := p.profile.EncoderOperator
 	limit := p.spec.BlockCount
-	if role == programEncoder && encoder != encoderOperatorRelativeEncoderDecoder && encoder != encoderOperatorRelativeEncoder {
+	if !decoder && encoder != encoderOperatorRelativeEncoderDecoder && encoder != encoderOperatorRelativeEncoder {
 		return CompiledLayerProgram{}, fmt.Errorf("model plan has no relative-attention encoder program for %q", p.spec.Architecture)
 	}
-	if role == programDecoder {
+	if decoder {
 		if p.profile.Family != ArchitectureFamilyEncoderDecoder || p.profile.Forward.Session != ForwardSessionEncoderDecoder {
 			return CompiledLayerProgram{}, fmt.Errorf("model plan has no decoder program for %q", p.spec.Architecture)
 		}
@@ -781,18 +780,22 @@ func (p ModelPlan) sequenceProgram(layer int, role layerProgramRole) (CompiledLa
 		return CompiledLayerProgram{}, fmt.Errorf("model plan sequence layer %d is outside [0,%d)", layer, limit)
 	}
 	program, err := p.LayerProgram(layer)
-	program.role = role
+	if decoder {
+		program.plan.Program = relativeDecoderProgram()
+	} else {
+		program.plan.Program = relativeEncoderProgram()
+	}
 	return program, err
 }
 
 // EncoderProgram returns one compiled encoder layer.
 func (p ModelPlan) EncoderProgram(layer int) (CompiledLayerProgram, error) {
-	return p.sequenceProgram(layer, programEncoder)
+	return p.sequenceProgram(layer, false)
 }
 
 // DecoderProgram returns one compiled causal/cross-attention decoder layer.
 func (p ModelPlan) DecoderProgram(layer int) (CompiledLayerProgram, error) {
-	return p.sequenceProgram(layer, programDecoder)
+	return p.sequenceProgram(layer, true)
 }
 
 // DraftProgram: bounds-checked executable draft contract.
@@ -1180,6 +1183,33 @@ func cacheSentinelLayerStage() LayerOperatorInstruction {
 	instruction.Caches[0] = RuntimeCachePrimaryKey
 	instruction.Caches[1] = RuntimeCachePrimaryValue
 	return instruction
+}
+
+func relativeEncoderProgram() LayerProgram {
+	return newLayerProgram(
+		layerStage(LayerOperatorAttentionNorm),
+		layerStage(LayerOperatorAttentionRelativeBidirectional),
+		layerStage(LayerOperatorResidual),
+		layerStage(LayerOperatorFeedForwardRelative),
+		layerStage(LayerOperatorResidual),
+	)
+}
+
+func relativeDecoderProgram() LayerProgram {
+	return newLayerProgram(
+		layerStage(LayerOperatorAttentionNorm),
+		attentionLayerStage(LayerOperatorAttentionRelativeCausal),
+		layerStage(LayerOperatorResidual),
+		layerStage(LayerOperatorCrossAttentionNorm),
+		leafLayerStage(
+			LayerOperatorAttentionCross,
+			[]RuntimeCacheBinding{RuntimeCacheCrossKey, RuntimeCacheCrossValue},
+			[]RuntimeTensorBinding{RuntimeTensorEncoder},
+		),
+		layerStage(LayerOperatorResidual),
+		layerStage(LayerOperatorFeedForwardRelative),
+		layerStage(LayerOperatorResidual),
+	)
 }
 
 func newLayerProgram(stages ...LayerOperatorInstruction) LayerProgram {

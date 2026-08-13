@@ -12,7 +12,7 @@ merges `master`.
 | 3 | Draft projections | family draft input/output builders absent | Done |
 | 4 | Session forwards | DFlash/Eagle/Gemma assistant wrappers absent | Done |
 | 5 | Encoder/decoder | T5 family block builders absent | Done |
-| 6 | Layer execution | family leaf policies/builders absent; sealed graph and model-wide normalization facts plus neutral recurrent, encoder, latent, compressed-hyper, WKV, cache, side-input, draft topology/storage, weight catalogs, dense/expert, and rotary IR/selectors | Active |
+| 6 | Layer execution | family leaf policies/builders absent; ordered relative encoder/decoder stages plus sealed graph and normalization facts, neutral recurrent, latent, compressed-hyper, WKV, cache, side-input, draft topology/storage, weight catalogs, dense/expert, and rotary IR/selectors | Active |
 | 7 | Weight catalogs | family loaders replaced by indexed catalog plans | Open |
 | 8 | Runtime admission | architecture probes/fallbacks absent | Open |
 

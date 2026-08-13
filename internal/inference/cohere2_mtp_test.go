@@ -50,14 +50,14 @@ func TestCohere2MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 	draft.path, draft.vocab = "draft", vocab
 	target := fixtureRunner(spec, model.Weights{Layers: make([]model.LayerWeights, spec.BlockCount)})
 	target.path, target.vocab = "target", vocab
-	if err := draft.validateCohere2MTPTarget(target); err != nil {
+	if err := draft.validateMTPTarget(target); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := draft.forwardCachedLocked(context.Background(), []tokenizer.TokenID{0}, nil); err == nil {
 		t.Fatal("ordinary forward accepted Cohere2-MoE MTP-only model")
 	}
 	target.vocab = &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "c"}}}
-	if err := draft.validateCohere2MTPTarget(target); err == nil {
+	if err := draft.validateMTPTarget(target); err == nil {
 		t.Fatal("Cohere2-MoE MTP sidecar accepted mismatched target vocabulary")
 	}
 }

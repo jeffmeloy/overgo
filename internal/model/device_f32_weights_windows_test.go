@@ -17,6 +17,7 @@ import (
 )
 
 func TestDeviceF32WeightsFeedExecutor(t *testing.T) {
+	requireIntegration(t)
 	cudatest.Require(t)
 	data := hostTensorFixture(t)
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())

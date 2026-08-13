@@ -534,11 +534,8 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	applyOutputNorm bool,
 	capture *layerInputCapture,
 ) (reference.Value, *KVCache, error) {
-	if r.weights.Qwen35MTP != nil && r.weights.Qwen35MTP.MTPOnly {
-		return reference.Value{}, nil, errors.New("inference: Qwen3.5 MTP-only model requires a paired target session")
-	}
-	if r.weights.Cohere2MTP != nil && r.weights.Cohere2MTP.MTPOnly {
-		return reference.Value{}, nil, errors.New("inference: Cohere2-MoE MTP-only model requires a paired target session")
+	if plan, catalog, ok := r.lookupSingleHeadMTP(); ok && catalog.MTPOnly {
+		return reference.Value{}, nil, fmt.Errorf("inference: %s-only model requires a paired target session", plan.Label)
 	}
 	if r.forwardProgram().Session == model.ForwardSessionPairedProjection {
 		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")

@@ -102,16 +102,16 @@ func TestGreedyLogitProbability(t *testing.T) {
 	}
 }
 
-func TestValidateQwen35MTP(t *testing.T) {
+func TestSingleHeadMTPRequiresCompiledCatalog(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35", NextNPredictLayers: 1}},
 		weights: model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{}}},
 	}
 	runner = attachFixtureProgram(runner)
-	if err := runner.validateQwen35MTP(); err != nil {
+	if _, _, err := runner.singleHeadMTP(); err != nil {
 		t.Fatal(err)
 	}
 	runner.weights.Qwen35MTP = nil
-	if err := runner.validateQwen35MTP(); err == nil {
+	if _, _, err := runner.singleHeadMTP(); err == nil {
 		t.Fatal("missing Qwen3.5 MTP metadata was accepted")
 	}
 }
@@ -126,7 +126,7 @@ func TestQwen35MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 	draft.path, draft.vocab = "draft", vocab
 	target := fixtureRunner(spec, model.Weights{Layers: make([]model.LayerWeights, spec.BlockCount)})
 	target.path, target.vocab = "target", vocab
-	if err := draft.validateQwen35MTPTarget(target); err != nil {
+	if err := draft.validateMTPTarget(target); err != nil {
 		t.Fatal(err)
 	}
 	cache := &KVCache{
@@ -149,7 +149,7 @@ func TestQwen35MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 		t.Fatal("ordinary forward accepted Qwen3.5 MTP-only model")
 	}
 	target.vocab = &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "c"}}}
-	if err := draft.validateQwen35MTPTarget(target); err == nil {
+	if err := draft.validateMTPTarget(target); err == nil {
 		t.Fatal("Qwen3.5 MTP sidecar accepted mismatched target vocabulary")
 	}
 }

@@ -11,14 +11,14 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func TestQwen35MTPSessionStateRoundTrip(t *testing.T) {
+func TestMTPSessionStateRoundTrip(t *testing.T) {
 	runner := qwen35MTPStateRunner()
 	session := qwen35MTPStateFixture()
-	data, err := runner.SaveQwen35MTPSession(session)
+	data, err := runner.SaveMTPSession(session)
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := runner.LoadQwen35MTPSession(data)
+	restored, err := runner.LoadMTPSession(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,11 +29,11 @@ func TestQwen35MTPSessionStateRoundTrip(t *testing.T) {
 	fresh := qwen35MTPStateFixture()
 	fresh.Position = fresh.MTPStart
 	fresh.Layer = LayerCache{}
-	freshData, err := runner.SaveQwen35MTPSession(fresh)
+	freshData, err := runner.SaveMTPSession(fresh)
 	if err != nil {
 		t.Fatal(err)
 	}
-	freshRestored, err := runner.LoadQwen35MTPSession(freshData)
+	freshRestored, err := runner.LoadMTPSession(freshData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,34 +42,34 @@ func TestQwen35MTPSessionStateRoundTrip(t *testing.T) {
 	}
 }
 
-func TestQwen35MTPSessionStateRejectsCorruption(t *testing.T) {
+func TestMTPSessionStateRejectsCorruption(t *testing.T) {
 	runner := qwen35MTPStateRunner()
-	data, err := runner.SaveQwen35MTPSession(qwen35MTPStateFixture())
+	data, err := runner.SaveMTPSession(qwen35MTPStateFixture())
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, length := range []int{0, singleHeadMTPStateHeader - 1, len(data) - 1} {
-		if _, err := runner.LoadQwen35MTPSession(data[:length]); err == nil {
+		if _, err := runner.LoadMTPSession(data[:length]); err == nil {
 			t.Fatalf("truncated Qwen3.5 MTP state length %d was accepted", length)
 		}
 	}
 	trailing := append(append([]byte(nil), data...), 0)
-	if _, err := runner.LoadQwen35MTPSession(trailing); err == nil {
+	if _, err := runner.LoadMTPSession(trailing); err == nil {
 		t.Fatal("Qwen3.5 MTP state trailing data was accepted")
 	}
 	zeroTarget := append([]byte(nil), data...)
 	clear(zeroTarget[40:72])
-	if _, err := runner.LoadQwen35MTPSession(zeroTarget); err == nil {
+	if _, err := runner.LoadMTPSession(zeroTarget); err == nil {
 		t.Fatal("Qwen3.5 MTP state without target binding was accepted")
 	}
 	badPosition := append([]byte(nil), data...)
 	binary.LittleEndian.PutUint32(badPosition[76:], binary.LittleEndian.Uint32(badPosition[72:]))
-	if _, err := runner.LoadQwen35MTPSession(badPosition); err == nil {
+	if _, err := runner.LoadMTPSession(badPosition); err == nil {
 		t.Fatal("Qwen3.5 MTP state with inconsistent layer position was accepted")
 	}
 	other := qwen35MTPStateRunner()
 	other.spec.Name = "different"
-	if _, err := other.LoadQwen35MTPSession(data); err == nil {
+	if _, err := other.LoadMTPSession(data); err == nil {
 		t.Fatal("Qwen3.5 MTP state from another draft model was accepted")
 	}
 }
@@ -83,12 +83,12 @@ func qwen35MTPStateRunner() *Runner {
 	return fixtureRunner(spec, model.Weights{Qwen35MTP: &model.Qwen35MTPWeights{MTPOnly: true}})
 }
 
-func qwen35MTPStateFixture() *Qwen35MTPSession {
+func qwen35MTPStateFixture() *MTPSession {
 	var targetModel [32]byte
 	for index := range targetModel {
 		targetModel[index] = byte(index + 1)
 	}
-	return &Qwen35MTPSession{
+	return &MTPSession{
 		TrunkCache: &KVCache{
 			Tokens: 1, Position: 1,
 			Layers: []LayerCache{

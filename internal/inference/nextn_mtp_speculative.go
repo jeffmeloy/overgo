@@ -9,10 +9,10 @@ import (
 )
 
 // NextNMTPDraft: greedy dense-tail proposals.
-type NextNMTPDraft = Qwen35MTPDraft
+type NextNMTPDraft = MTPDraft
 
 // NextNMTPVerification: accepted prefix plus correction.
-type NextNMTPVerification = Qwen35MTPVerification
+type NextNMTPVerification = MTPVerification
 
 // DraftNextNMTPGreedy: bounded confident proposals.
 func (r *Runner) DraftNextNMTPGreedy(
@@ -58,7 +58,7 @@ func (r *Runner) VerifyNextNMTPGreedy(
 	) (reference.Value, *NextNMTPSession, error) {
 		return r.advanceSingleHeadMTPVerification(
 			ctx, target, token, state, state.TrunkCache,
-			func(token tokenizer.TokenID, state *Qwen35MTPSession) (reference.Value, *Qwen35MTPSession, error) {
+			func(token tokenizer.TokenID, state *MTPSession) (reference.Value, *MTPSession, error) {
 				return r.AdvanceNextNMTP(ctx, token, state)
 			},
 		)

@@ -13,7 +13,7 @@ import (
 )
 
 // NextNMTPSession: trunk snapshot plus draft state.
-type NextNMTPSession = Qwen35MTPSession
+type NextNMTPSession = MTPSession
 
 // NewNextNMTPSession: bundled dense-tail setup.
 func (r *Runner) NewNextNMTPSession(

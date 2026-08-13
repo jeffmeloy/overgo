@@ -173,6 +173,7 @@ func TestReadWeightsQwen3NextRecurrentLayouts(t *testing.T) {
 }
 
 func TestReadRealQwen35Catalog(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
 		t.Skip("set OVERGO_QWEN35_MODEL to run real Qwen3.5 catalog validation")
@@ -197,6 +198,7 @@ func TestReadRealQwen35Catalog(t *testing.T) {
 }
 
 func TestReadRealKimiLinearCatalog(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_KIMI_LINEAR_MODEL")
 	if path == "" {
 		t.Skip("set OVERGO_KIMI_LINEAR_MODEL to run real Kimi Linear catalog validation")
@@ -228,6 +230,7 @@ func TestReadRealKimiLinearCatalog(t *testing.T) {
 }
 
 func TestReadRealGemma3Catalog(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if path == "" {
 		t.Skip("set OVERGO_GEMMA3_MODEL to run real Gemma 3 catalog validation")
@@ -776,6 +779,7 @@ func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 }
 
 func TestReadRealUMT5Catalog(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_UMT5_MODEL")
 	if path == "" {
 		t.Skip("set OVERGO_UMT5_MODEL to run real UMT5 catalog validation")

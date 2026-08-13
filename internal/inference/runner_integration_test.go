@@ -889,11 +889,11 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	}
 	defer runner.Close()
 	ctx := context.Background()
-	session, err := runner.NewQwen35MTPSession(ctx, []tokenizer.TokenID{0})
+	session, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	logits, next, err := runner.AdvanceQwen35MTP(ctx, 0, session)
+	logits, next, err := runner.AdvanceMTP(ctx, 0, session)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -902,22 +902,22 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 		session.Layer.Key.Shape.Rank != 0 {
 		t.Fatalf("unexpected Qwen3.5 MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
 	}
-	_, third, err := runner.AdvanceQwen35MTP(ctx, 0, next)
+	_, third, err := runner.AdvanceMTP(ctx, 0, next)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if third.Position != next.Position+1 || third.Layer.Key.Shape.Dims[2] != 2 {
 		t.Fatalf("Qwen3.5 MTP cache did not advance: %+v", third)
 	}
-	coordinatorSession, err := runner.NewQwen35MTPSession(ctx, []tokenizer.TokenID{0})
+	coordinatorSession, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, err := runner.DraftQwen35MTPGreedy(ctx, 0, coordinatorSession, 2, 0)
+	draft, err := runner.DraftMTPGreedy(ctx, 0, coordinatorSession, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := runner.VerifyQwen35MTPGreedy(ctx, runner, draft)
+	verification, err := runner.VerifyMTPGreedy(ctx, runner, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -942,7 +942,7 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := runner.DraftQwen35MTPSampled(
+	sampledDraft, err := runner.DraftMTPSampled(
 		ctx, coordinatorSession, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
 	if err != nil {
@@ -955,7 +955,7 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Qwen3.5 sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := runner.VerifyQwen35MTPSampled(
+	sampledVerification, err := runner.VerifyMTPSampled(
 		ctx, runner, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {
@@ -1247,11 +1247,11 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	}
 	defer runner.Close()
 	ctx := context.Background()
-	session, err := runner.NewCohere2MTPSession(ctx, []tokenizer.TokenID{0})
+	session, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	logits, next, err := runner.AdvanceCohere2MTP(ctx, 0, session)
+	logits, next, err := runner.AdvanceMTP(ctx, 0, session)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1260,22 +1260,22 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 		session.Layer.Key.Shape.Rank != 0 {
 		t.Fatalf("unexpected Cohere2-MoE MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
 	}
-	state, err := runner.SaveCohere2MTPSession(next)
+	state, err := runner.SaveMTPSession(next)
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := runner.LoadCohere2MTPSession(state)
+	restored, err := runner.LoadMTPSession(state)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if restored.Position != next.Position || restored.Layer.Key.Shape.Dims[2] != 1 {
 		t.Fatalf("unexpected restored Cohere2-MoE MTP state: %+v", restored)
 	}
-	draft, err := runner.DraftCohere2MTPGreedy(ctx, 0, session, 2, 0)
+	draft, err := runner.DraftMTPGreedy(ctx, 0, session, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := runner.VerifyCohere2MTPGreedy(ctx, runner, draft)
+	verification, err := runner.VerifyMTPGreedy(ctx, runner, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1300,7 +1300,7 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := runner.DraftCohere2MTPSampled(
+	sampledDraft, err := runner.DraftMTPSampled(
 		ctx, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
 	if err != nil {
@@ -1313,7 +1313,7 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Cohere2-MoE sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := runner.VerifyCohere2MTPSampled(
+	sampledVerification, err := runner.VerifyMTPSampled(
 		ctx, runner, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {

@@ -751,6 +751,8 @@ type CompiledGraph struct {
 
 const graphArenaAlignment = 256
 
+const conv2DStagingBytes = uint64(128 << 20)
+
 type retainedStorageView struct {
 	source     *tensor.Tensor
 	byteOffset uint64
@@ -931,6 +933,14 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 			if bytes, ok := blasAttentionScoreBytes(node); ok {
 				compiled.needBlas = true
 				compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
+			}
+		}
+		if node.Op == tensor.OpConv2D {
+			attributes, ok := node.Attrs.(tensor.Conv2DAttributes)
+			if ok && !attributes.Depthwise && node.Inputs[0].Type == dtype.F32 &&
+				node.Inputs[1].Type == dtype.F32 {
+				compiled.needBlas = true
+				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, conv2DStagingBytes)
 			}
 		}
 		if node.Op == tensor.OpMulMat && node.Inputs[0].Type == dtype.Q8_0 &&
@@ -1923,15 +1933,15 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 	if r.arena != 0 && r.arenaSize >= size {
 		return r.arena, nil
 	}
+	if r.arena != 0 {
+		if err := state.Driver.MemFree(r.arena); err != nil {
+			return 0, err
+		}
+		r.arena, r.arenaSize = 0, 0
+	}
 	next, err := state.Driver.MemAlloc(size)
 	if err != nil {
 		return 0, err
-	}
-	if r.arena != 0 {
-		if err := state.Driver.MemFree(r.arena); err != nil {
-			_ = state.Driver.MemFree(next)
-			return 0, err
-		}
 	}
 	r.arena, r.arenaSize = next, size
 	return r.arena, nil

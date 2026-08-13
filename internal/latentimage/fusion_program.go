@@ -125,6 +125,7 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmu
 		weightInputs: make(map[string]*tensor.Tensor),
 	}
 	b := tensor.NewBuilder()
+	setBuilderMatmulCompute(b, matmulType)
 	bind := weightBinder{builder: b, inputs: p.weightInputs, matmulType: matmulType}
 
 	p.InEncoder = b.Input("encoder_hidden", dtype.F32, tensor.MustShape(th, L*ts))
@@ -220,6 +221,7 @@ func fusionAttnFF(
 		k = b.Reshape(k, headDim, kvHeads, seqLen, batch)
 		v = b.Reshape(v, headDim, kvHeads, seqLen, batch)
 	}
+	q, k, v = roundAttentionForStorage(b, bind.matmulType, q, k, v)
 	var attn *tensor.Tensor
 	if keyBias != nil {
 		attn = b.AttentionWithKeyBias(q, k, v, keyBias, scale, false)

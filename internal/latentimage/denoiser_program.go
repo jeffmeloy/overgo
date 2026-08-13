@@ -114,6 +114,7 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 		weightInputs: make(map[string]*tensor.Tensor),
 	}
 	b := tensor.NewBuilder()
+	setBuilderMatmulCompute(b, matmulType)
 	bind := weightBinder{builder: b, inputs: p.weightInputs, matmulType: matmulType}
 
 	p.InLatent = b.Input("latent_patches", dtype.F32, tensor.MustShape(inCh, uint64(imgSeq)))
@@ -182,7 +183,7 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 		k = zeroCenteredRMSNorm(b, k, bind.input(prefix+"attn.norm_k.weight", headDim), eps)
 		q = buildInterleavedRoPE(b, q, axes, positions, theta)
 		k = buildInterleavedRoPE(b, k, axes, positions, theta)
-
+		q, k, v = roundAttentionForStorage(b, matmulType, q, k, v)
 		var attn *tensor.Tensor
 		if p.keyBias != nil {
 			attn = b.AttentionWithKeyBias(q, k, v, p.keyBias, scale, false)

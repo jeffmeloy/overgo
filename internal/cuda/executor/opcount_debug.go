@@ -6,10 +6,26 @@ import (
 	"sort"
 
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/planner"
 )
 
 // OVERGO_OP_COUNTS=1: dump per-graph launch composition at compile time.
 func dumpOpCounts(compiled *CompiledGraph) {
+	if os.Getenv("OVERGO_OP_COUNTS") == "" && os.Getenv("OVERGO_MEMORY_PLAN") == "" {
+		return
+	}
+	if os.Getenv("OVERGO_MEMORY_PLAN") != "" {
+		allocations := make([]planner.Allocation, 0, len(compiled.memory.Allocations))
+		for _, allocation := range compiled.memory.Allocations {
+			allocations = append(allocations, allocation)
+		}
+		sort.Slice(allocations, func(i, j int) bool { return allocations[i].Size > allocations[j].Size })
+		fmt.Fprintf(os.Stderr, "[memory-plan] arena=%d allocations=%d\n", compiled.memory.ArenaSize, len(allocations))
+		for _, allocation := range allocations[:min(20, len(allocations))] {
+			fmt.Fprintf(os.Stderr, "[memory-plan]   id=%d op=%s size=%d live=%d..%d shape=%v\n",
+				allocation.Tensor.ID, allocation.Tensor.Op, allocation.Size, allocation.First, allocation.Last, allocation.Tensor.Shape.Dims)
+		}
+	}
 	if os.Getenv("OVERGO_OP_COUNTS") == "" {
 		return
 	}

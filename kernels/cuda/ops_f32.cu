@@ -808,6 +808,48 @@ extern "C" __global__ void conv_2d_f32(
 	output[index] = sum;
 }
 
+// conv_2d_im2col_f32: bounded spatial tile lowering for cuBLAS Conv2D.
+extern "C" __global__ void conv_2d_im2col_f32(
+		const float * input,
+		float * lowered,
+		unsigned int channels_in,
+		unsigned int input_w,
+		unsigned int input_h,
+		unsigned int kernel_w,
+		unsigned int kernel_h,
+		unsigned int output_w,
+		unsigned int output_h,
+		unsigned int stride_x,
+		unsigned int stride_y,
+		unsigned int pad_left,
+		unsigned int pad_top,
+		unsigned int start,
+		unsigned int columns,
+		unsigned int inner,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int column = index / inner;
+	unsigned int reduction = index - column * inner;
+	const unsigned int kx = reduction % kernel_w;
+	reduction /= kernel_w;
+	const unsigned int ky = reduction % kernel_h;
+	const unsigned int channel = reduction / kernel_h;
+	const unsigned int spatial = start + column;
+	const unsigned int x = spatial % output_w;
+	const unsigned int y = spatial / output_w;
+	const int source_x = (int) (x * stride_x + kx) - (int) pad_left;
+	const int source_y = (int) (y * stride_y + ky) - (int) pad_top;
+	float value = 0.0f;
+	if (source_x >= 0 && source_x < (int) input_w &&
+			source_y >= 0 && source_y < (int) input_h) {
+		value = input[channel + channels_in * ((unsigned int) source_x + input_w * (unsigned int) source_y)];
+	}
+	lowered[index] = value;
+}
+
 extern "C" __global__ void window_partition_2d_f32(
 		const float * input,
 		float * output,

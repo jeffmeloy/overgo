@@ -351,7 +351,7 @@ func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 		if plan.CachedGraph() != CachedGraphDense {
 			continue
 		}
-		if plan.Profile().Has(ArchitectureAltUp) {
+		if plan.Forward().AlternatePredictions() {
 			t.Fatalf("%s selected dense graph with AltUp", architecture)
 		}
 		for _, layer := range plan.layers {

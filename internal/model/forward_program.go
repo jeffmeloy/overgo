@@ -40,7 +40,7 @@ type ForwardProgram struct {
 func compileForwardProgram(profile ArchitectureProfile, nonCausal bool) ForwardProgram {
 	forward := resolveForwardProgram(profile.Forward, nonCausal)
 	cached := forward.Operation == ForwardOperationCached
-	altUp := profile.Has(ArchitectureAltUp)
+	altUp := profile.LayerTopology == LayerTopologySplitProjection
 	forward.continuousBatch = cached
 	forward.persistentDeviceCache = cached && !altUp && !profile.Has(ArchitectureLatent)
 	forward.layerCapture = cached && !altUp

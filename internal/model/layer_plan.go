@@ -644,7 +644,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		if layer.Layer != uint32(index) {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
-		if !layer.Program.valid() || layer.Program.Count == 0 && !plan.profile.Has(ArchitectureAltUp) {
+		if !layer.Program.valid() || layer.Program.Count == 0 && !plan.forward.AlternatePredictions() {
 			return fmt.Errorf(
 				"model plan layer %d operator program has %d instructions; capacity is %d",
 				index, layer.Program.Count, len(layer.Program.Instructions),

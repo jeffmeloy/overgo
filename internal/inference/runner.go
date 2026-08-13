@@ -621,7 +621,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		if capture != nil {
 			return reference.Value{}, nil, errors.New("inference: cached Gemma3n layer extraction is unsupported")
 		}
-		return r.forwardGemma3nCachedLocked(
+		return r.forwardAlternatePredictionsCachedLocked(
 			ctx, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
 		)
 	}

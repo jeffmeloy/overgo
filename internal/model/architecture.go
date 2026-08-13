@@ -288,7 +288,7 @@ const (
 	ArchitectureRequiresFusedQKVBias
 	ArchitectureRejectsOrphanFusedQKVBias
 	ArchitectureSharedKV
-	ArchitectureAltUp
+	architectureReservedAltUp
 	ArchitecturePerLayerEmbeddings
 	ArchitectureEmbeddingSkip
 	ArchitectureOutputLayerNormLayout

@@ -12,7 +12,7 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *Runner) forwardGemma3nCachedLocked(
+func (r *Runner) forwardAlternatePredictionsCachedLocked(
 	ctx context.Context,
 	activation reference.Value,
 	perLayerInputs []reference.Value,
@@ -57,7 +57,7 @@ func (r *Runner) forwardGemma3nCachedLocked(
 		} else if cache != nil {
 			past = &cache.Layers[layerIndex]
 		}
-		activated, layerCache, stageErr := r.runGemma3nActiveLayer(
+		activated, layerCache, stageErr := r.runAlternatePredictionLayer(
 			ctx, predictions[r.spec.AltUpActive], hostLayer, info,
 			layerIndex, positions, past,
 		)
@@ -83,7 +83,7 @@ func (r *Runner) forwardGemma3nCachedLocked(
 	return activation, nextCache, nil
 }
 
-func (r *Runner) runGemma3nActiveLayer(
+func (r *Runner) runAlternatePredictionLayer(
 	ctx context.Context,
 	input reference.Value,
 	hostLayer model.HostLayer,

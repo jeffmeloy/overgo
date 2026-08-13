@@ -28,7 +28,7 @@ func TestArchitectureRegistryProfiles(t *testing.T) {
 		{"t5", ArchitectureRoPEDisabled},
 		{"llada", ArchitectureNonCausal | ArchitectureDiffusion},
 		{"qwen3vl", ArchitectureMultimodal},
-		{"gemma3n", ArchitectureSharedKV | ArchitectureAltUp | ArchitecturePerLayerEmbeddings},
+		{"gemma3n", ArchitectureSharedKV | ArchitecturePerLayerEmbeddings},
 		{"talkie", ArchitectureEmbeddingSkip},
 	}
 	for _, test := range tests {

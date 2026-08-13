@@ -72,7 +72,7 @@ func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Draft().Kind != DraftStep35MTP || plan.Draft().Heads != spec.NextNPredictLayers ||
+	if plan.Draft().Kind != DraftAppendedMultiCarry || plan.Draft().Heads != spec.NextNPredictLayers ||
 		plan.Draft().Session != DraftSessionMulti {
 		t.Fatalf("draft plan = %+v", plan.Draft())
 	}

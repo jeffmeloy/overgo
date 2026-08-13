@@ -534,8 +534,8 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	applyOutputNorm bool,
 	capture *layerInputCapture,
 ) (reference.Value, *KVCache, error) {
-	if plan, catalog, ok := r.lookupSingleHeadMTP(); ok && catalog.MTPOnly {
-		return reference.Value{}, nil, fmt.Errorf("inference: %s-only model requires a paired target session", plan.Label)
+	if _, catalog, ok := r.lookupSingleHeadMTP(); ok && catalog.MTPOnly {
+		return reference.Value{}, nil, fmt.Errorf("inference: %s-only model requires a paired target session", mtpLabel)
 	}
 	if r.forwardProgram().Session == model.ForwardSessionPairedProjection {
 		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")

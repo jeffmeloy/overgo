@@ -51,12 +51,12 @@ func (r *Runner) NewMTPSession(ctx context.Context, tokenIDs []tokenizer.TokenID
 	if len(tokenIDs) == 0 {
 		return nil, errors.New("inference: MTP inputs are empty")
 	}
-	plan, catalog, err := r.singleHeadMTP()
+	_, catalog, err := r.singleHeadMTP()
 	if err != nil {
 		return nil, err
 	}
 	if catalog.MTPOnly {
-		return nil, fmt.Errorf("inference: %s-only model requires a paired target session", plan.Label)
+		return nil, fmt.Errorf("inference: %s-only model requires a paired target session", mtpLabel)
 	}
 	return r.newSingleHeadMTPSession(ctx, tokenIDs)
 }
@@ -112,11 +112,11 @@ func (r *Runner) AdvanceMTP(
 }
 
 func (r *Runner) validateMTPSession(session *MTPSession) error {
-	plan, _, err := r.singleHeadMTP()
+	_, _, err := r.singleHeadMTP()
 	if err != nil {
 		return err
 	}
-	return r.validateSingleHeadMTPSession(session, plan.Label, true)
+	return r.validateSingleHeadMTPSession(session, mtpLabel, true)
 }
 
 func (r *Runner) validateMTPTarget(target *Runner) error {
@@ -130,5 +130,5 @@ func (r *Runner) validateMTPTarget(target *Runner) error {
 			targetMTPOnly = targetCatalog.MTPOnly
 		}
 	}
-	return r.validateSingleHeadMTPTarget(target, catalog.MTPOnly, targetMTPOnly, plan.Label)
+	return r.validateSingleHeadMTPTarget(target, catalog.MTPOnly, targetMTPOnly, mtpLabel)
 }

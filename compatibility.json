@@ -261,13 +261,13 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:c0e9ca63db5e9b88888cb385e01fc4fd7aee6588181c8e9a388f6e151fa914ad"
+          "identity": "file:sha256:34acb10c03a60ed31ad84c28624696f2f4a1a58e49258b3cc743e29c12ec35ab"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:00c02b0a5d8c9060195230624ac59bf3a4ff6203d4d11e250028273b805a0e7a"
+          "identity": "evidence:sha256:4f19e5972bdd843e485a8250b97e4223b196767c685dc855c0a9d3ef461c9269"
         }
       ],
       "id": "compiled-model-plan",
@@ -688,13 +688,13 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:a9c99bcce4f9746eadca60c84293ee0b4d60977167fc39537b7fa4b1e9650af2"
+          "identity": "file:sha256:13e44d2250f784ff69d6ff632d59a3179959bd06e5cecf10653ba03dfab66e42"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
           "path": "internal/model/architecture_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:a4fbfc7a6f4b7366cc9e815a1999b52bc12ab9e8f3147a4e1e573d498fb27b2f"
+          "identity": "evidence:sha256:efc609f9a574054f83da1965c57abd8fcba7eac91d28c7ab5bba799528816cc9"
         }
       ],
       "id": "architecture-profiles",

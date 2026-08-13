@@ -33,7 +33,7 @@ func (r *Runner) DraftMultiHeadMTPSampled(
 	}
 	maximum = min(maximum, int(plan.Heads))
 	return draftSampled(
-		session, sampler, history, maximum, minimumProbability, plan.Label, r.vocab.IsEOG,
+		session, sampler, history, maximum, minimumProbability, mtpLabel, r.vocab.IsEOG,
 		func(token tokenizer.TokenID, state *MultiHeadMTPSession, _ int) ([]float32, *MultiHeadMTPSession, error) {
 			logits, next, advanceErr := r.AdvanceMultiHeadMTP(ctx, token, state)
 			return logits.Data, next, advanceErr
@@ -73,7 +73,7 @@ func (r *Runner) VerifyMultiHeadMTPSampled(
 		hidden: make([]reference.Value, 0, len(draft.Tokens)+1),
 	}
 	return verifySampled(
-		draft, state, draftSampler, targetSampler, plan.Label,
+		draft, state, draftSampler, targetSampler, mtpLabel,
 		func(token tokenizer.TokenID, state multiHeadVerificationState) (reference.Value, multiHeadVerificationState, error) {
 			logits, hidden, cache, advanceErr := target.multiHeadMTPTargetAdvance(ctx, token, state.cache)
 			if advanceErr != nil {

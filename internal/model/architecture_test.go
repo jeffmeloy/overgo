@@ -219,11 +219,11 @@ func TestIndexerCadenceUsesBoundProfilePolicy(t *testing.T) {
 
 func TestArchitectureProfileDraftPlan(t *testing.T) {
 	for architecture, want := range map[string]DraftPlan{
-		"qwen35":     {Kind: DraftQwen35MTP, Heads: 1, Label: "Qwen3.5 MTP", SingleCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle},
-		"step35":     {Kind: DraftStep35MTP, Heads: 2, Label: "Step3.5 MTP", AppendedBlocks: true, CarryRawHidden: true, Session: DraftSessionMulti},
-		"hy_v3":      {Kind: DraftHYV3MTP, Heads: 2, Label: "HY-V3 MTP", AppendedBlocks: true, Session: DraftSessionMulti},
-		"glm4":       {Kind: DraftNextNMTP, Heads: 1, Label: "NextN MTP", AppendedBlocks: true, Session: DraftSessionSingle},
-		"cohere2moe": {Kind: DraftCohere2MTP, Heads: 1, Label: "Cohere2-MoE MTP", SingleCatalog: true, OptionalCatalog: true, SupportsMTPOnly: true, ScaleLogits: true, Normalization: DraftNormalizationArchitecture, Session: DraftSessionSingle},
+		"qwen35":     {Kind: DraftSingleCatalog, Heads: 1, SingleCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle},
+		"step35":     {Kind: DraftAppendedMultiCarry, Heads: 2, AppendedBlocks: true, CarryRawHidden: true, Session: DraftSessionMulti},
+		"hy_v3":      {Kind: DraftAppendedMulti, Heads: 2, AppendedBlocks: true, Session: DraftSessionMulti},
+		"glm4":       {Kind: DraftAppendedSingle, Heads: 1, AppendedBlocks: true, Session: DraftSessionSingle},
+		"cohere2moe": {Kind: DraftOptionalSingleCatalog, Heads: 1, SingleCatalog: true, OptionalCatalog: true, SupportsMTPOnly: true, ScaleLogits: true, Normalization: DraftNormalizationArchitecture, Session: DraftSessionSingle},
 	} {
 		profile, _ := LookupArchitecture(architecture)
 		heads := want.Heads

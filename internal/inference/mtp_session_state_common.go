@@ -14,6 +14,7 @@ import (
 const (
 	singleHeadMTPStateHeader = 96
 	singleHeadMTPStateMagic  = "L2GMTP02"
+	mtpLabel                 = "MTP"
 )
 
 // SaveMTPSession encodes compiled-program-bound single-head draft state.
@@ -21,7 +22,7 @@ func (r *Runner) SaveMTPSession(session *MTPSession) ([]byte, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
 	}
-	plan, _, err := r.singleHeadMTP()
+	_, _, err := r.singleHeadMTP()
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +30,7 @@ func (r *Runner) SaveMTPSession(session *MTPSession) ([]byte, error) {
 		return nil, err
 	}
 	if session.targetModel == [32]byte{} {
-		return nil, fmt.Errorf("inference: %s target model binding is missing", plan.Label)
+		return nil, fmt.Errorf("inference: %s target model binding is missing", mtpLabel)
 	}
 	trunkData, err := r.SaveCache(session.TrunkCache)
 	if err != nil {
@@ -42,7 +43,7 @@ func (r *Runner) SaveMTPSession(session *MTPSession) ([]byte, error) {
 			Layers: []LayerCache{session.Layer}, Tokens: draftTokens, Position: session.Position,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("inference: save %s layer cache: %w", plan.Label, err)
+			return nil, fmt.Errorf("inference: save %s layer cache: %w", mtpLabel, err)
 		}
 	}
 	draftModel, err := r.sessionModelSignature()
@@ -64,7 +65,7 @@ func (r *Runner) SaveMTPSession(session *MTPSession) ([]byte, error) {
 	encoder.Raw(layerData)
 	output, err := encoder.Data()
 	if err != nil {
-		return nil, fmt.Errorf("inference: %s state exceeds addressable memory", plan.Label)
+		return nil, fmt.Errorf("inference: %s state exceeds addressable memory", mtpLabel)
 	}
 	return output, nil
 }
@@ -74,7 +75,7 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
 	}
-	plan, _, err := r.singleHeadMTP()
+	_, _, err := r.singleHeadMTP()
 	if err != nil {
 		return nil, err
 	}
@@ -87,35 +88,35 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 	trunkLength := decoder.U64()
 	layerLength := decoder.U64()
 	if decoder.Err() != nil {
-		return nil, fmt.Errorf("inference: %s state is truncated", plan.Label)
+		return nil, fmt.Errorf("inference: %s state is truncated", mtpLabel)
 	}
 	if string(magic) != singleHeadMTPStateMagic {
-		return nil, fmt.Errorf("inference: %s state has invalid magic or version", plan.Label)
+		return nil, fmt.Errorf("inference: %s state has invalid magic or version", mtpLabel)
 	}
 	draftModel, err := r.sessionModelSignature()
 	if err != nil {
 		return nil, err
 	}
 	if string(draftSignature) != string(draftModel[:]) {
-		return nil, fmt.Errorf("inference: %s state belongs to a different draft model", plan.Label)
+		return nil, fmt.Errorf("inference: %s state belongs to a different draft model", mtpLabel)
 	}
 	var targetModel [32]byte
 	copy(targetModel[:], targetSignature)
 	if targetModel == [32]byte{} {
-		return nil, fmt.Errorf("inference: %s state target binding is invalid", plan.Label)
+		return nil, fmt.Errorf("inference: %s state target binding is invalid", mtpLabel)
 	}
 	if position < mtpStart || position == math.MaxUint32 ||
 		(position == mtpStart) != (layerLength == 0) {
-		return nil, fmt.Errorf("inference: %s state positions are invalid", plan.Label)
+		return nil, fmt.Errorf("inference: %s state positions are invalid", mtpLabel)
 	}
 	hiddenBytes, ok := checked.Bytes(uint64(r.spec.EmbeddingLength), 4)
 	if !ok {
-		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", plan.Label)
+		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", mtpLabel)
 	}
 	payload := decoder.Remaining()
 	if hiddenBytes > payload || trunkLength > payload-hiddenBytes ||
 		layerLength != payload-hiddenBytes-trunkLength || trunkLength == 0 {
-		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", plan.Label)
+		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", mtpLabel)
 	}
 	hidden := reference.Value{
 		Shape: tensor.MustShape(uint64(r.spec.EmbeddingLength), 1),
@@ -127,11 +128,11 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 	trunkData := decoder.Raw(trunkLength)
 	layerData := decoder.Raw(layerLength)
 	if decoder.Done() != nil {
-		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", plan.Label)
+		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", mtpLabel)
 	}
 	trunk, err := r.LoadCache(trunkData)
 	if err != nil {
-		return nil, fmt.Errorf("inference: load %s trunk cache: %w", plan.Label, err)
+		return nil, fmt.Errorf("inference: load %s trunk cache: %w", mtpLabel, err)
 	}
 	session := &MTPSession{
 		TrunkCache: trunk, PendingHidden: hidden, MTPStart: mtpStart,
@@ -140,11 +141,11 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 	if layerLength > 0 {
 		layerCache, err := unmarshalCache(layerData)
 		if err != nil {
-			return nil, fmt.Errorf("inference: load %s layer cache: %w", plan.Label, err)
+			return nil, fmt.Errorf("inference: load %s layer cache: %w", mtpLabel, err)
 		}
 		if len(layerCache.Layers) != 1 || layerCache.Tokens != position-mtpStart ||
 			layerCache.Position != position {
-			return nil, fmt.Errorf("inference: %s layer cache metadata is invalid", plan.Label)
+			return nil, fmt.Errorf("inference: %s layer cache metadata is invalid", mtpLabel)
 		}
 		session.Layer = layerCache.Layers[0]
 	}

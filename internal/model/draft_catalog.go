@@ -33,31 +33,31 @@ func draftWeightCatalog(
 // DraftCatalog returns one indexed compiled draft tensor catalog.
 func (w Weights) DraftCatalog(kind DraftKind, offset uint32) (DraftWeightCatalog, bool) {
 	switch kind {
-	case DraftQwen35MTP:
+	case DraftSingleCatalog:
 		if offset == 0 && w.Qwen35MTP != nil {
 			item := w.Qwen35MTP
 			return draftWeightCatalog(kind, item.MTPOnly, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, nil, item.OutputNorm, item.Output), true
 		}
-	case DraftStep35MTP:
+	case DraftAppendedMultiCarry:
 		if offset < uint32(len(w.Step35MTP)) {
 			item := w.Step35MTP[offset]
 			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
 		}
-	case DraftHYV3MTP:
+	case DraftAppendedMulti:
 		if offset < uint32(len(w.HYV3MTP)) {
 			item := w.HYV3MTP[offset]
 			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
 		}
-	case DraftNextNMTP:
+	case DraftAppendedSingle:
 		if offset < uint32(len(w.NextNMTP)) {
 			item := w.NextNMTP[offset]
 			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
 		}
-	case DraftCohere2MTP:
+	case DraftOptionalSingleCatalog:
 		if offset == 0 && w.Cohere2MTP != nil {
 			item := w.Cohere2MTP
 			return draftWeightCatalog(kind, item.MTPOnly, item.Layer, item.EHProjection, item.EmbeddingNorm,
@@ -77,7 +77,7 @@ func (w Weights) DraftCatalogs() []DraftWeightCatalog {
 		count++
 	}
 	result := make([]DraftWeightCatalog, 0, count)
-	for _, kind := range []DraftKind{DraftQwen35MTP, DraftStep35MTP, DraftHYV3MTP, DraftNextNMTP, DraftCohere2MTP} {
+	for _, kind := range []DraftKind{DraftSingleCatalog, DraftAppendedMultiCarry, DraftAppendedMulti, DraftAppendedSingle, DraftOptionalSingleCatalog} {
 		for offset := uint32(0); ; offset++ {
 			catalog, ok := w.DraftCatalog(kind, offset)
 			if !ok {

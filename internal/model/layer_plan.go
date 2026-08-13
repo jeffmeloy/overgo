@@ -517,14 +517,14 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	if plan.draft.AppendedBlocks {
 		plan.draftLayers = make([]LayerPlan, plan.draft.Heads)
 		executable := spec
-		if plan.draft.Kind == DraftNextNMTP {
+		if plan.draft.Kind == DraftAppendedSingle {
 			executable.BlockCount += plan.draft.Heads
 		}
 		for offset := range plan.draftLayers {
 			plan.draftLayers[offset] = executable.PlanLayer(spec.BlockCount+uint32(offset), false)
 		}
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
-		(plan.draft.Kind != DraftCohere2MTP || weights.Cohere2MTP != nil) {
+		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.Cohere2MTP != nil) {
 		executable, layer := singleDraftExecutableSpec(spec, plan.draft.Kind)
 		plan.draftLayers = []LayerPlan{executable.PlanLayer(layer, false)}
 	}
@@ -551,7 +551,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	if plan.draft.AppendedBlocks {
 		wantDraftLayers = int(plan.draft.Heads)
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
-		(plan.draft.Kind != DraftCohere2MTP || weights.Cohere2MTP != nil) {
+		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.Cohere2MTP != nil) {
 		wantDraftLayers = 1
 	}
 	if len(plan.draftLayers) != wantDraftLayers {
@@ -562,7 +562,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	}
 	for offset, layer := range plan.draftLayers {
 		wantLayer := spec.BlockCount + uint32(offset)
-		if plan.draft.Kind == DraftQwen35MTP {
+		if plan.draft.Kind == DraftSingleCatalog {
 			wantLayer = 0
 		}
 		if layer.Layer != wantLayer {
@@ -791,7 +791,7 @@ func (p ModelPlan) DraftProgram(offset uint32) (CompiledLayerProgram, error) {
 	spec := p.spec
 	if p.draft.SingleCatalog {
 		spec, _ = singleDraftExecutableSpec(spec, p.draft.Kind)
-	} else if p.draft.Kind == DraftNextNMTP {
+	} else if p.draft.Kind == DraftAppendedSingle {
 		spec.BlockCount += p.draft.Heads
 	}
 	return CompiledLayerProgram{spec: spec, plan: layer, draft: p.draft}, nil

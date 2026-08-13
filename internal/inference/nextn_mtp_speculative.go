@@ -14,8 +14,8 @@ type NextNMTPDraft = MTPDraft
 // NextNMTPVerification: accepted prefix plus correction.
 type NextNMTPVerification = MTPVerification
 
-// DraftNextNMTPGreedy: bounded confident proposals.
-func (r *Runner) DraftNextNMTPGreedy(
+// DraftAppendedSingleGreedy: bounded confident proposals.
+func (r *Runner) DraftAppendedSingleGreedy(
 	ctx context.Context,
 	initialToken tokenizer.TokenID,
 	session *NextNMTPSession,

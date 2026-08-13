@@ -19,7 +19,7 @@ func TestWeightsDraftCatalogs(t *testing.T) {
 		}},
 	}
 	catalogs := weights.DraftCatalogs()
-	if len(catalogs) != 2 || catalogs[0].Kind != DraftQwen35MTP || catalogs[1].Kind != DraftNextNMTP ||
+	if len(catalogs) != 2 || catalogs[0].Kind != DraftSingleCatalog || catalogs[1].Kind != DraftAppendedSingle ||
 		catalogs[1].LayerOutputNorm == nil || catalogs[1].LayerOutputNorm.Name != "next_layer_norm" {
 		t.Fatalf("draft catalogs = %+v", catalogs)
 	}

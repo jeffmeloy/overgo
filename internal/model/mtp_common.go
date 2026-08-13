@@ -11,7 +11,7 @@ func (p CompiledLayerProgram) BuildDraftInput(
 	builder *tensor.Builder,
 	tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection *tensor.Tensor,
 ) (*tensor.Tensor, error) {
-	if p.draft.Kind == DraftNone || p.draft.Label == "" {
+	if p.draft.Kind == DraftNone {
 		return nil, errors.New("compiled layer has no draft-input policy")
 	}
 	return buildMTPInput(
@@ -25,7 +25,7 @@ func (p CompiledLayerProgram) BuildDraftOutputs(
 	builder *tensor.Builder,
 	input, outputNorm, output *tensor.Tensor,
 ) (logits, nextHidden *tensor.Tensor, err error) {
-	if p.draft.Kind == DraftNone || p.draft.Label == "" {
+	if p.draft.Kind == DraftNone {
 		return nil, nil, errors.New("compiled layer has no draft-output policy")
 	}
 	return buildMTPOutputs(
@@ -35,11 +35,11 @@ func (p CompiledLayerProgram) BuildDraftOutputs(
 
 func singleDraftExecutableSpec(spec Spec, kind DraftKind) (Spec, uint32) {
 	switch kind {
-	case DraftQwen35MTP:
+	case DraftSingleCatalog:
 		profile, _ := LookupArchitecture("qwen35")
 		spec.Architecture = profile.Name
 		return spec.withProfile(profile), 0
-	case DraftCohere2MTP:
+	case DraftOptionalSingleCatalog:
 		layer := spec.BlockCount
 		spec.BlockCount++
 		spec.LeadingDenseBlocks = spec.BlockCount
@@ -58,11 +58,11 @@ func buildMTPInput(
 ) (*tensor.Tensor, error) {
 	if builder == nil || tokenEmbedding == nil || targetHidden == nil || embeddingNorm == nil ||
 		hiddenNorm == nil || projection == nil {
-		return nil, errors.New(plan.Label + " input is nil")
+		return nil, errors.New("draft input is nil")
 	}
 	if tokenEmbedding.Shape.Rank != 2 || !tokenEmbedding.Shape.Equal(targetHidden.Shape) ||
 		tokenEmbedding.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, errors.New(plan.Label + " input shape is incompatible")
+		return nil, errors.New("draft input shape is incompatible")
 	}
 	embedding := normalizeMTP(builder, tokenEmbedding, embeddingNorm, spec, plan.Normalization)
 	hidden := normalizeMTP(builder, targetHidden, hiddenNorm, spec, plan.Normalization)
@@ -80,10 +80,10 @@ func buildMTPOutputs(
 	plan DraftPlan,
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	if builder == nil || input == nil || outputNorm == nil || output == nil {
-		return nil, nil, errors.New(plan.Label + " output is nil")
+		return nil, nil, errors.New("draft output is nil")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, nil, errors.New(plan.Label + " output shape is incompatible")
+		return nil, nil, errors.New("draft output shape is incompatible")
 	}
 	normalized := normalizeMTP(builder, input, outputNorm, spec, plan.Normalization)
 	nextHidden = normalized

@@ -764,7 +764,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	}
 	cohere2HasMTP := false
 	cohere2MTPOnly := false
-	if draftPlan.Kind == DraftCohere2MTP && draftPlan.SessionEligible() {
+	if draftPlan.Kind == DraftOptionalSingleCatalog && draftPlan.SessionEligible() {
 		mtpPrefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, 0))
 		_, cohere2HasMTP = tensors[mtpPrefix+"nextn.eh_proj.weight"]
 		_, hasTrunk := tensors["blk.0.attn_norm.weight"]
@@ -773,7 +773,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 			trunkBlockCount++
 		}
 	}
-	mtpOnly := draftPlan.Kind == DraftQwen35MTP && draftPlan.SessionEligible()
+	mtpOnly := draftPlan.Kind == DraftSingleCatalog && draftPlan.SessionEligible()
 	if mtpOnly {
 		_, hasTrunk := tensors["blk.0.attn_norm.weight"]
 		mtpOnly = !hasTrunk
@@ -1605,7 +1605,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 	tensors, required := l.catalog.tensors, l.catalog.required
 	spec, profile, draftPlan, mtpOnly := l.spec, l.profile, l.draftPlan, l.mtpOnly
 	cohere2HasMTP, cohere2MTPOnly := l.cohere2HasMTP, l.cohere2MTPOnly
-	if draftPlan.Kind == DraftQwen35MTP && draftPlan.SessionEligible() {
+	if draftPlan.Kind == DraftSingleCatalog && draftPlan.SessionEligible() {
 		prefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, 0))
 		mtp := &Qwen35MTPWeights{}
 		mtp.MTPOnly = mtpOnly
@@ -1644,7 +1644,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		mtp.Layer.AttentionQNorm, mtp.Layer.AttentionKNorm = &qNorm, &kNorm
 		result.Qwen35MTP = mtp
 	}
-	if (draftPlan.Kind == DraftStep35MTP || draftPlan.Kind == DraftHYV3MTP) && draftPlan.HasHead(0) {
+	if (draftPlan.Kind == DraftAppendedMultiCarry || draftPlan.Kind == DraftAppendedMulti) && draftPlan.HasHead(0) {
 		heads := make([]Step35MTPWeights, draftPlan.Heads)
 		for offset := range draftPlan.Heads {
 			block := draftPlan.Block(spec.BlockCount, offset)
@@ -1658,7 +1658,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 				return Weights{}, loadErr
 			}
 		}
-		if draftPlan.Kind == DraftHYV3MTP {
+		if draftPlan.Kind == DraftAppendedMulti {
 			result.HYV3MTP = heads
 		} else {
 			result.Step35MTP = heads
@@ -1682,7 +1682,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			result.Layers = result.Layers[:spec.BlockCount]
 		}
 	}
-	if draftPlan.Kind == DraftNextNMTP && draftPlan.HasHead(0) {
+	if draftPlan.Kind == DraftAppendedSingle && draftPlan.HasHead(0) {
 		result.NextNMTP = make([]Step35MTPWeights, spec.NextNPredictLayers)
 		for offset := range draftPlan.Heads {
 			block := draftPlan.Block(spec.BlockCount, offset)

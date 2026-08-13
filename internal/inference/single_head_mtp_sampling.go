@@ -23,12 +23,12 @@ func (r *Runner) DraftMTPSampled(
 		!validSampledLimits(maximum, minimumProbability) {
 		return nil, errors.New("inference: MTP sampled draft inputs are invalid")
 	}
-	plan, _, err := r.singleHeadMTP()
+	_, _, err := r.singleHeadMTP()
 	if err != nil {
 		return nil, err
 	}
 	return draftSampled(
-		session, sampler, history, maximum, minimumProbability, plan.Label, r.vocab.IsEOG,
+		session, sampler, history, maximum, minimumProbability, mtpLabel, r.vocab.IsEOG,
 		func(token tokenizer.TokenID, state *MTPSession, _ int) ([]float32, *MTPSession, error) {
 			logits, next, advanceErr := r.AdvanceMTP(ctx, token, state)
 			return logits.Data, next, advanceErr
@@ -50,12 +50,12 @@ func (r *Runner) VerifyMTPSampled(
 	if err := r.validateMTPVerificationTarget(target, draft.Base); err != nil {
 		return nil, err
 	}
-	plan, _, err := r.singleHeadMTP()
+	_, _, err := r.singleHeadMTP()
 	if err != nil {
 		return nil, err
 	}
 	return verifySampled(
-		draft, draft.Base, draftSampler, targetSampler, plan.Label,
+		draft, draft.Base, draftSampler, targetSampler, mtpLabel,
 		func(token tokenizer.TokenID, state *MTPSession) (reference.Value, *MTPSession, error) {
 			return r.advanceMTPVerification(ctx, target, token, state, state.TrunkCache)
 		},
@@ -66,11 +66,11 @@ func (r *Runner) VerifyMTPSampled(
 }
 
 func (r *Runner) validateMTPVerificationTarget(target *Runner, session *MTPSession) error {
-	plan, catalog, err := r.singleHeadMTP()
+	_, catalog, err := r.singleHeadMTP()
 	if err != nil {
 		return err
 	}
 	return r.validateSingleHeadMTPVerificationTarget(
-		target, session, catalog.MTPOnly, plan.Label, r.validateMTPTarget,
+		target, session, catalog.MTPOnly, mtpLabel, r.validateMTPTarget,
 	)
 }

@@ -25,7 +25,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Family", profile.Family, ArchitectureFamilyDraft),
 		validateProfileOrdinal("GraphFamily", profile.GraphFamily, ArchitectureFamilyDraft),
 		validateProfileOrdinal("CatalogFamily", profile.CatalogFamily, ArchitectureFamilyDraft),
-		validateProfileOrdinal("DraftKind", profile.DraftKind, DraftCohere2MTP),
+		validateProfileOrdinal("DraftKind", profile.DraftKind, DraftOptionalSingleCatalog),
 		validateProfileOrdinal("OutputNorm", profile.OutputNorm, OutputNormTokenEmbedding),
 		validateProfileOrdinal("Normalization", profile.Normalization, NormalizationWeightOnlyLayer),
 		validateProfileOrdinal("Position", profile.Position, PositionNormal),

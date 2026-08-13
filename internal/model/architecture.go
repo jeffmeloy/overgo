@@ -344,7 +344,7 @@ type ArchitectureProfile struct {
 	MetadataRead     MetadataReadPolicy
 	MetadataDefaults MetadataDefaultPolicy
 	Validation       ValidationPolicy
-	EncoderGraph     EncoderGraphPolicy
+	EncoderOperator  EncoderOperatorPolicy
 	MLAVariant       mlaVariantPolicy
 	Cadence          LayerCadencePolicy
 	Runtime          RuntimePolicy

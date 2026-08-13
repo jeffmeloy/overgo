@@ -751,9 +751,9 @@ func (p ModelPlan) LayerProgram(layer int) (CompiledLayerProgram, error) {
 }
 
 func (p ModelPlan) sequenceProgram(layer int, role layerProgramRole) (CompiledLayerProgram, error) {
-	encoder := p.profile.EncoderGraph.Kind
+	encoder := p.profile.EncoderOperator
 	limit := p.spec.BlockCount
-	if role == programEncoder && encoder != encoderGraphRelativeEncoderDecoder && encoder != encoderGraphRelativeEncoder {
+	if role == programEncoder && encoder != encoderOperatorRelativeEncoderDecoder && encoder != encoderOperatorRelativeEncoder {
 		return CompiledLayerProgram{}, fmt.Errorf("model plan has no relative-attention encoder program for %q", p.spec.Architecture)
 	}
 	if role == programDecoder {
@@ -987,7 +987,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				attentionLayerStage(LayerOperatorAttentionBidirectionalEncoder),
 				layerStage(LayerOperatorAttentionResidualNorm),
 			}
-			if profile.EncoderGraph.Kind == encoderGraphJinaV2 {
+			if profile.EncoderOperator.usesALiBiQKNorm() {
 				stages = append(stages, layerStage(LayerOperatorInputResidualNorm))
 			}
 			return newLayerProgram(append(stages,

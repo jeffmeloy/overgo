@@ -151,9 +151,7 @@
     "Capabilities": 17247246355,
     "CatalogFamily": 4,
     "LayerTopology": 1,
-    "EncoderGraph": {
-      "Kind": 1
-    },
+    "EncoderOperator": 1,
     "Family": 4,
     "FeedForward": 3,
     "Forward": {"Operation": 1},
@@ -707,9 +705,7 @@
       },
       "QueryScale": 4
     },
-    "EncoderGraph": {
-      "Kind": 7
-    },
+    "EncoderOperator": 7,
     "Family": 4,
     "Forward": {"Operation": 1},
     "GraphFamily": 4,
@@ -1284,9 +1280,7 @@
     "Capabilities": 17246984211,
     "CatalogFamily": 4,
     "LayerTopology": 1,
-    "EncoderGraph": {
-      "Kind": 2
-    },
+    "EncoderOperator": 2,
     "Family": 4,
     "Forward": {"Operation": 1},
     "GraphFamily": 4,
@@ -1311,9 +1305,7 @@
     "Capabilities": 17247246353,
     "CatalogFamily": 4,
     "LayerTopology": 1,
-    "EncoderGraph": {
-      "Kind": 3
-    },
+    "EncoderOperator": 3,
     "Experts": {
       "Catalog": 5,
       "OptionalGate": true
@@ -1736,9 +1728,7 @@
     "Capabilities": 201392145,
     "CatalogFamily": 4,
     "LayerTopology": 2,
-    "EncoderGraph": {
-      "Kind": 6
-    },
+    "EncoderOperator": 6,
     "Family": 4,
     "FeedForward": 2,
     "Forward": {"Operation": 1},
@@ -1849,9 +1839,7 @@
     "Capabilities": 17246984209,
     "CatalogFamily": 4,
     "LayerTopology": 1,
-    "EncoderGraph": {
-      "Kind": 4
-    },
+    "EncoderOperator": 4,
     "Family": 4,
     "Forward": {"Operation": 1},
     "GraphFamily": 4,
@@ -1873,9 +1861,7 @@
     "Capabilities": 17247246357,
     "CatalogFamily": 4,
     "LayerTopology": 1,
-    "EncoderGraph": {
-      "Kind": 5
-    },
+    "EncoderOperator": 5,
     "Experts": {
       "Catalog": 5,
       "OptionalGate": true
@@ -2498,9 +2484,7 @@
     "Cache": 11,
     "Capabilities": 2,
     "CatalogFamily": 5,
-    "EncoderGraph": {
-      "Kind": 8
-    },
+    "EncoderOperator": 8,
     "Family": 5,
     "Forward": {"Operation": 4, "Session": 4},
     "GraphFamily": 5,
@@ -2520,9 +2504,7 @@
   {
     "Capabilities": 16,
     "CatalogFamily": 4,
-    "EncoderGraph": {
-      "Kind": 9
-    },
+    "EncoderOperator": 9,
     "Family": 4,
     "Forward": {"Operation": 3},
     "GraphFamily": 4,

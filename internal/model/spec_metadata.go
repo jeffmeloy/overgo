@@ -343,11 +343,11 @@ func (m specMetadata) readPosition(spec *Spec) error {
 			}
 		}
 	}
-	if profile.readsMetadata(MetadataReadALiBi) || profile.EncoderGraph.Kind == encoderGraphJinaV2 {
+	if profile.readsMetadata(MetadataReadALiBi) || profile.EncoderOperator.usesALiBiQKNorm() {
 		if !profile.readsMetadata(MetadataReadZeroALiBiDefault) {
 			spec.MaxALiBiBias = 8
 		}
-		if profile.EncoderGraph.Kind != encoderGraphJinaV2 {
+		if !profile.EncoderOperator.usesALiBiQKNorm() {
 			if value, ok := optional[float32](values, prefix+"attention.max_alibi_bias", gguf.ValueTypeFloat32); ok {
 				spec.MaxALiBiBias = value
 			}

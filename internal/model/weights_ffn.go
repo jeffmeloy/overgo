@@ -26,7 +26,7 @@ func loadDenseFFNCatalog(
 	}
 	shapes := spec.TensorShapes(block)
 	shapes.FeedForward = uint64(feedForwardLength)
-	if profile.EncoderGraph.Kind == encoderGraphJinaV2 {
+	if profile.EncoderOperator.usesALiBiQKNorm() {
 		if gate, ok := tensors[prefix+"ffn_gate.weight"]; ok {
 			if gate.Dimensions != 2 || gate.Shape[0] != uint64(spec.EmbeddingLength) ||
 				gate.Shape[1] != uint64(feedForwardLength) {

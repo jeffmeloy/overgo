@@ -16,18 +16,18 @@ func buildBidirectionalEncoderAttentionMix(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	encoder := spec.Profile().EncoderGraph
-	if !encoder.bertFamily() {
-		return DenseBlockResult{}, errors.New("BERT-family block requires a supported encoder architecture")
+	encoder := spec.Profile().EncoderOperator
+	if !encoder.bidirectionalProjection() {
+		return DenseBlockResult{}, errors.New("bidirectional projection requires a compatible encoder policy")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("BERT-family block input shape is incompatible")
+		return DenseBlockResult{}, errors.New("bidirectional projection input shape is incompatible")
 	}
 	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("BERT-family block position count is incompatible")
+		return DenseBlockResult{}, errors.New("bidirectional projection position count is incompatible")
 	}
 	if pastKey != nil || pastValue != nil {
-		return DenseBlockResult{}, errors.New("BERT-family block does not support a KV cache")
+		return DenseBlockResult{}, errors.New("bidirectional projection does not support a KV cache")
 	}
 	required := graphWeights{
 		requireGraphWeight("attention output", weights.AttentionOutput),
@@ -45,7 +45,7 @@ func buildBidirectionalEncoderAttentionMix(
 		layer: layerIndex, tokens: tokens,
 	}
 	query, key, value := runtime.projectAttention(input)
-	if encoder.Kind == encoderGraphJinaV2 {
+	if encoder.usesALiBiQKNorm() {
 		if weights.AttentionQNorm != nil {
 			query = ApplyNormalization(builder, query, weights.AttentionQNorm, weights.AttentionQNormBias, spec)
 		}
@@ -69,7 +69,7 @@ func buildBidirectionalEncoderAttentionMix(
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	attentionOptions := tensor.AttentionOptions{Scale: attentionScale}
-	if encoder.Kind == encoderGraphJinaV2 {
+	if encoder.usesALiBiQKNorm() {
 		attentionOptions.MaxALiBiBias = spec.MaxALiBiBias
 	}
 	attention := builder.AttentionWithOptions(query, key, value, attentionOptions)
@@ -91,9 +91,9 @@ func buildEncoderFeedForwardMix(
 	weights LayerGraphWeights,
 	layerIndex uint32,
 ) (*tensor.Tensor, error) {
-	encoder := spec.Profile().EncoderGraph
-	if !encoder.bertFamily() {
-		return nil, errors.New("post-normalized encoder feed-forward requires a BERT-family architecture")
+	encoder := spec.Profile().EncoderOperator
+	if !encoder.bidirectionalProjection() {
+		return nil, errors.New("encoder feed-forward requires a bidirectional projection policy")
 	}
 	if input == nil || input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return nil, errors.New("post-normalized encoder feed-forward input shape is incompatible")
@@ -111,8 +111,8 @@ func buildEncoderFeedForwardMix(
 	if err := required.validate("encoder feed-forward"); err != nil {
 		return nil, err
 	}
-	if encoder.Kind == encoderGraphNomic && weights.FeedForwardGate == nil {
-		return nil, errors.New("NomicBERT feed-forward gate weight is nil")
+	if encoder == encoderOperatorPreNormRoPEGated && weights.FeedForwardGate == nil {
+		return nil, errors.New("gated encoder feed-forward weight is nil")
 	}
 	tokens := input.Shape.Dims[1]
 	var feedForward *tensor.Tensor
@@ -128,7 +128,7 @@ func buildEncoderFeedForwardMix(
 		}
 	}
 	if !usesExperts {
-		if encoder.Kind == encoderGraphJinaV2 {
+		if encoder.usesALiBiQKNorm() {
 			width := uint64(spec.FeedForwardLength)
 			if weights.FeedForwardGate != nil {
 				gate := builder.MulMat(weights.FeedForwardGate, input)
@@ -140,7 +140,7 @@ func buildEncoderFeedForwardMix(
 			} else {
 				feedForward = builder.GELU(feedForward)
 			}
-		} else if encoder.Kind == encoderGraphNomic {
+		} else if encoder == encoderOperatorPreNormRoPEGated {
 			gate := builder.MulMat(weights.FeedForwardGate, input)
 			feedForward = builder.SwiGLU(gate, feedForward)
 		} else {
@@ -166,17 +166,17 @@ func buildBidirectionalFusedQKVMix(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Profile().EncoderGraph.Kind != encoderGraphModernBERT {
-		return DenseBlockResult{}, errors.New("ModernBERT block requires ModernBERT architecture")
+	if spec.Profile().EncoderOperator != encoderOperatorFusedQKVSliding {
+		return DenseBlockResult{}, errors.New("fused-QKV sliding attention requires a compatible encoder policy")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return DenseBlockResult{}, errors.New("ModernBERT block input shape is incompatible")
+		return DenseBlockResult{}, errors.New("fused-QKV sliding attention input shape is incompatible")
 	}
 	if len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("ModernBERT block position count is incompatible")
+		return DenseBlockResult{}, errors.New("fused-QKV sliding attention position count is incompatible")
 	}
 	if pastKey != nil || pastValue != nil {
-		return DenseBlockResult{}, errors.New("ModernBERT block does not support a KV cache")
+		return DenseBlockResult{}, errors.New("fused-QKV sliding attention does not support a KV cache")
 	}
 	required := graphWeights{
 		requireGraphWeight("attention QKV", weights.AttentionQKV),
@@ -185,7 +185,7 @@ func buildBidirectionalFusedQKVMix(
 	if layerIndex > 0 {
 		required.add("attention norm", weights.AttentionNorm)
 	}
-	if err := required.validate("ModernBERT block"); err != nil {
+	if err := required.validate("fused-QKV sliding attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := uint64(len(positions))
@@ -241,8 +241,8 @@ func buildBidirectionalQKNormMix(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Profile().EncoderGraph.Kind != encoderGraphGemmaEmbedding {
-		return DenseBlockResult{}, errors.New("bidirectional Q/K-normalized attention requires gemma-embedding architecture")
+	if spec.Profile().EncoderOperator != encoderOperatorQKNormProjection {
+		return DenseBlockResult{}, errors.New("bidirectional Q/K-normalized attention requires a compatible encoder policy")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
 		return DenseBlockResult{}, errors.New("bidirectional Q/K-normalized attention input shape is incompatible")
@@ -460,8 +460,8 @@ func buildEncoderBlock(
 	if builder == nil || input == nil {
 		return nil, errors.New("encoder block input is nil")
 	}
-	encoder := spec.Profile().EncoderGraph.Kind
-	if encoder != encoderGraphRelativeEncoderDecoder && encoder != encoderGraphRelativeEncoder {
+	encoder := spec.Profile().EncoderOperator
+	if encoder != encoderOperatorRelativeEncoderDecoder && encoder != encoderOperatorRelativeEncoder {
 		return nil, errors.New("encoder block requires a compiled relative-attention program")
 	}
 	if err := validateEncoderDecoderWeights(weights, false); err != nil {
@@ -507,7 +507,7 @@ func buildDecoderBlockCached(
 	if builder == nil || input == nil {
 		return DenseBlockResult{}, errors.New("decoder block input is nil")
 	}
-	if spec.Profile().EncoderGraph.Kind != encoderGraphRelativeEncoderDecoder {
+	if spec.Profile().EncoderOperator != encoderOperatorRelativeEncoderDecoder {
 		return DenseBlockResult{}, errors.New("decoder block requires a compiled relative-attention program")
 	}
 	if err := validateEncoderDecoderWeights(weights, true); err != nil {

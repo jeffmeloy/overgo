@@ -184,7 +184,8 @@ func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 
 func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
 	program := compileLayerProgram(LayerPlan{}, ArchitectureProfile{
-		LayerTopology: LayerTopologyBidirectionalEncoder, EncoderGraph: EncoderGraphPolicy{Kind: encoderGraphJinaV2},
+		LayerTopology:   LayerTopologyBidirectionalEncoder,
+		EncoderOperator: encoderOperatorPostNormALiBi,
 	})
 	instruction, ok := program.Instruction(2)
 	if !ok || program.Count != 5 || instruction.Operator != LayerOperatorInputResidualNorm {

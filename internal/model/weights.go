@@ -1447,7 +1447,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, normErr
 			}
 		}
-		if profile.EncoderGraph.Kind == encoderGraphJinaV2 {
+		if profile.EncoderOperator.usesALiBiQKNorm() {
 			for _, binding := range []struct {
 				name   string
 				weight **gguf.TensorInfo

@@ -261,7 +261,7 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:9964a500ca4a6dd90b0505471c33eeb5516573f33b6e8f685ff69500a8e5e4b7"
+          "identity": "file:sha256:af580e25d6b420d4b798fcd0441f5a0fc4bf82baeb62a76399b318c9cebc5eaf"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -688,7 +688,7 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:5a05d8fe863f30858c377eda909843d63bfdc79b1677355c994e9f3a4e7ba7f6"
+          "identity": "file:sha256:11911213f78d847929831bf2caa8e1238e4295cff9f247eded73ce1c339bd7c3"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
@@ -721,14 +721,14 @@
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:37d572304b2b6045e27ff57c17f2559ece67c6af50863e2c83b770f3352ad630"
+          "identity": "evidence:sha256:a45ffc30e39e57a59f74c08bf867f707015d48e21715dbaf5c7f68bd59ab3f95"
         }
       ],
       "id": "architecture-family-dispatch",
       "evidence_tier": "contract-tested",
       "verify": "go test ./internal/model -run '^TestLayerProgramsCoverTypedProfiles$' -count=1 -v",
       "status": "implemented",
-      "summary": "Graph construction and tensor catalog validation route through compiled layer programs (per-family compiled policies), superseding the removed compatibility-layer family dispatcher."
+      "summary": "Graph construction and tensor catalog validation route through compiled neutral layer programs, superseding the removed compatibility-layer family dispatcher."
     },
     {
       "evidence": [

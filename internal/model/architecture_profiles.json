@@ -189,6 +189,9 @@
         "Heads": 5
       }
     },
+    "MetadataDefaults": {
+      "QKNormEpsilon": 0.00001
+    },
     "Name": "chameleon",
     "Validation": {
       "Attention": 1
@@ -418,12 +421,16 @@
     "Metadata": {
       "MLAHeadLengths": true
     },
+    "MetadataDefaults": {
+      "LayerNormEpsilon": 0.000001
+    },
     "Name": "deepseek32",
     "Cadence": {
       "FullIndexerEveryLayer": true
     },
     "Validation": {
-      "MLA": 1
+      "MLA": 1,
+      "RequiredBlockCount": 62
     }
   },
   {
@@ -799,7 +806,11 @@
   {
     "Attention": 2,
     "Auxiliary": 2,
-    "Cadence": {"ContextualIndexer": true},
+    "Cadence": {
+      "FullIndexerContext": 1048576,
+      "FullIndexerPeriod": 4,
+      "FullIndexerPrefix": 2
+    },
     "Capabilities": 34359739140,
     "DraftKind": 4,
     "Experts": {

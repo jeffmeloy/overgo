@@ -9,12 +9,6 @@ import (
 	"overgo/internal/gguf"
 )
 
-const (
-	chameleonQKNormEpsilon     = 1e-5
-	deepSeek32BlockCount       = 62
-	deepSeek32LayerNormEpsilon = 1e-6
-)
-
 // UnsupportedArchitectureError: valid, unsupported GGUF architecture.
 type UnsupportedArchitectureError struct {
 	Architecture string

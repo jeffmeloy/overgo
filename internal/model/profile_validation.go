@@ -111,6 +111,8 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		{"MetadataDefaults.AttentionOutputScale", profile.MetadataDefaults.AttentionOutputScale},
 		{"MetadataDefaults.EmbeddingScale", profile.MetadataDefaults.EmbeddingScale},
 		{"MetadataDefaults.LogitScale", profile.MetadataDefaults.LogitScale},
+		{"MetadataDefaults.LayerNormEpsilon", profile.MetadataDefaults.LayerNormEpsilon},
+		{"MetadataDefaults.QKNormEpsilon", profile.MetadataDefaults.QKNormEpsilon},
 	} {
 		if scalar.value < 0 || math.IsNaN(float64(scalar.value)) || math.IsInf(float64(scalar.value), 0) {
 			return fmt.Errorf("architecture profile %q: %s must be finite and nonnegative", profile.Name, scalar.name)
@@ -134,8 +136,11 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	if profile.AttentionGraph.GatedDelta != gatedDeltaNone && profile.Attention != AttentionGatedDelta {
 		return fmt.Errorf("architecture profile %q: Qwen GDN graph requires Qwen GDN attention", profile.Name)
 	}
-	if profile.Cadence.FullIndexerEveryLayer && profile.Cadence.ContextualIndexer {
-		return fmt.Errorf("architecture profile %q: full-indexer cadences conflict", profile.Name)
+	indexer := profile.Cadence
+	if indexer.FullIndexerEveryLayer &&
+		(indexer.FullIndexerContext != 0 || indexer.FullIndexerPrefix != 0 || indexer.FullIndexerPeriod != 0) ||
+		!indexer.FullIndexerEveryLayer && indexer.FullIndexerContext > 0 && indexer.FullIndexerPeriod == 0 {
+		return fmt.Errorf("architecture profile %q: invalid full-indexer cadence", profile.Name)
 	}
 	if profile.Rotary.MultiAxis != multiAxisRotaryNone && !profile.Has(ArchitectureMultiAxisPositions) {
 		return fmt.Errorf("architecture profile %q: multi-axis rotary policy requires multi-axis positions", profile.Name)

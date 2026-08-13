@@ -94,7 +94,6 @@ func newSpecMetadataWithProfile(file *gguf.File, resolved *ArchitectureProfile) 
 func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	values, prefix := m.values, m.prefix
 	if m.profile.Validation.Attention == AttentionValidationChameleon {
-		spec.QKNormEpsilon = chameleonQKNormEpsilon
 		spec.SandwichNorm, _ = optional[bool](values, "chameleon.swin_norm", gguf.ValueTypeBool)
 	}
 	if value, ok := optional[string](values, "general.name", gguf.ValueTypeString); ok {
@@ -382,7 +381,6 @@ func (m specMetadata) readDraftLayers(spec *Spec) error {
 		m.profile.readsMetadata(MetadataReadGLMDSAGating):
 		label := "GLM-DSA"
 		if validation.MLA == MLAValidationDeepSeek32 {
-			spec.LayerNormEpsilon = deepSeek32LayerNormEpsilon
 			label = "DeepSeek 3.2"
 		}
 		if nextN == 0 {

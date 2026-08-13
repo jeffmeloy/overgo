@@ -29,6 +29,19 @@
       ]
     },
     {
+      "id": "train-wire-resident",
+      "title": "SQA #3 (owner review): the production trainer bypasses the resident implementation. cmd/train (run_cuda_windows.go:28) calls TrainDeviceFull, whose loop scatters weights + gathers gradients every step (train_device_cuda_windows.go:55); the newer TrainDeviceResident (train_device_resident_cuda_windows.go:68) -- and the fully-resident hybrid path -- remain TEST-ONLY. Same 'build generic path, migrate later' present-but-inert pattern as the media lane. Wire cmd/train to the resident path and DELETE TrainDeviceFull when displaced (atomic compatibility removal).",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "SQA #3 (owner review): the production trainer bypasses the resident implementation. cmd/train (run_cuda_windows.go:28) calls TrainDeviceFull, whose loop scatters weights + gathers gradients every step (train_device_cuda_windows.go:55); the newer TrainDeviceResident (train_device_resident_cuda_windows.go:68) -- and the fully-resident hybrid path -- remain TEST-ONLY. Same 'build generic path, migrate later' present-but-inert pattern as the media lane. Wire cmd/train to the resident path and DELETE TrainDeviceFull when displaced (atomic compatibility removal).",
+          "status": "open",
+          "verify": "! grep -q TrainDeviceFull cmd/train/run_cuda_windows.go"
+        }
+      ]
+    },
+    {
       "id": "session-repo-scoping",
       "title": "AUTOMATION session-repo-scoping: a foreign repo's Stop hook fires on EVERY turn-end when its dir is the session cwd -- adaptive_new's scripts/stop_gate.sh spuriously blocked every overgo turn this whole session (huge friction-to-signal). Provide a session-repo-scope so an overgo-rooted session mutes non-overgo repo Stop hooks (e.g. hook checks whether the active work-repo matches its own repo root before blocking).",
       "status": "open",
@@ -63,7 +76,7 @@
           "id": "do",
           "title": "AUTOMATION (session retrospective, HIGHEST VALUE): the commit gate + plan -verify treat a SKIPPED test as exit-0 = PASSED, so a capability step whose golden test SKIPs (absent fixture / UNAVAILABLE) advances while the capability silently regresses -- the un0 oscillatorimage batch hole this session (tightening's gate passed the b=1 regression because the un0 fixture was absent -\u003e test skipped). Make plan -verify and the gate PARSE test output and REFUSE advancement when a capability-bearing step's verify SKIPs rather than PASSes (require \u003e=1 real assertion / no-skip for capability steps). The plan doc already mandates 'report skips, never silently substitute' -- enforce it in code.",
           "status": "open",
-          "verify": "go test ./cmd/gate/ -run TestSkipIsNotPassForCapabilitySteps -count=1"
+          "verify": "go test ./cmd/plan/ ./cmd/gate/ -run Vacuous -count=1"
         }
       ]
     },
@@ -1054,7 +1067,7 @@
         },
         {
           "id": "cuda-serving",
-          "title": "FINAL integration: device e2e Krea serve (seeded latent-init -\u003e device text-cond -\u003e 8-step FlowMatchEuler w/ device denoiser retained replay -\u003e device tiled VAE) == exact SHA b25fa024 (2048x2048, 8 steps, mu=1.15, cfg=0, seed=42, bf16). RE-SCOPED 2026-08-12: was mis-framed 'integration, unblocked' -- a subagent refuted it against source: 3 of 6 stages had NO overgo impl (device tokenizer/template, device bf16 encoder, device text_fusion), VAE host-whole-frame vs golden device-tiled, torchrng unwired, denoiser proven only at 256x256. The over-claim was mine (read 'telemetry-verified' as 'bit-exact-ready'). Gated on the latent-init/device-text-cond/device-tiled-vae/denoiser-2048-fit stack above; all IN-REPO (not external).",
+          "title": "FINAL integration: device e2e Krea serve (seeded latent-init -\u003e device text-cond -\u003e 8-step FlowMatchEuler w/ device denoiser retained replay -\u003e device tiled VAE) == exact SHA b25fa024 (2048x2048, 8 steps, mu=1.15, cfg=0, seed=42, bf16). RE-SCOPED 2026-08-12: was mis-framed 'integration, unblocked' -- a subagent refuted it against source: 3 of 6 stages had NO overgo impl (device tokenizer/template, device bf16 encoder, device text_fusion), VAE host-whole-frame vs golden device-tiled, torchrng unwired, denoiser proven only at 256x256. The over-claim was mine (read 'telemetry-verified' as 'bit-exact-ready'). Gated on the latent-init/device-text-cond/device-tiled-vae/denoiser-2048-fit stack above; all IN-REPO (not external). ARCHITECTURE ACCEPTANCE (owner concern 2026-08-12 -- the stage-by-stage components are parity SCAFFOLDING that must be PAID DOWN here, not merely glued; else it is a direction failure): (1) a PRODUCTION CALLER outside internal/latentimage (image-out/serve entry) must consume the pipeline -- today the ~3000 device-component lines have no external caller (present-but-inert). (2) SERVE-MODE denoiser forward outputs ONLY Velocity; the 28 per-block BlockOutputs (denoiser_program.go, g2-oracle taps) are gated behind a verification flag, NOT materialized every step in serving. (3) DEVICE-RESIDENT stage hand-off: the once-per-prompt encoder-\u003efusion-\u003edenoiser-text conditioning stays on device (no host []float32 boundary in the serve path; the residency workers hand off resident pointers), matching the training-lane resident-pipeline standard. Component device==host parity is necessary but NOT sufficient for this step.",
           "status": "open"
         },
         {

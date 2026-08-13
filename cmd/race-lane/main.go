@@ -1,17 +1,5 @@
-// race-lane: host and device data-race verification, honestly gated.
-//
-// Host races: the Go race detector (ThreadSanitizer). It requires cgo, so this
-// lane sets CGO_ENABLED=1 -- test-only instrumentation, never a runtime
-// dependency; the shipped binary stays cgo-free. A missing C compiler is
-// UNAVAILABLE and FAILs, never silently skipped.
-//
-// Device races: CUDA compute-sanitizer (racecheck + synccheck) wrapping a
-// compiled device test binary -- the only tool that sees kernel and
-// shared-memory hazards, which the Go race detector cannot. A missing GPU/driver
-// or a missing compute-sanitizer is UNAVAILABLE and FAILs.
-//
-// The two tools are complementary: -race cannot see kernels; compute-sanitizer
-// cannot see goroutines. One command for the dev agent:
+// race-lane: host ThreadSanitizer plus CUDA racecheck/synccheck.
+// Missing compiler, device, driver, or sanitizer fails as UNAVAILABLE.
 //
 //	go run ./cmd/race-lane            # both lanes
 //	go run ./cmd/race-lane -host      # host goroutine races only
@@ -30,19 +18,13 @@ import (
 )
 
 const (
-	cudaTestEnv   = "OVERGO_CUDA_TEST"
-	sanitizerTool = "compute-sanitizer"
-	// deviceRacePkg is the package whose device tests are compiled and run under
-	// compute-sanitizer. Widen it as more kernel-exercising device tests land.
-	deviceRacePkg = "./internal/cuda/executor"
+	cudaTestEnv       = "OVERGO_CUDA_TEST"
+	hostRacePattern   = "./internal/..."
+	sanitizerTool     = "compute-sanitizer"
+	deviceRacePackage = "./internal/cuda/executor"
+	outputTailBytes   = 2000
 )
 
-// hostRacePkgs are the goroutine-bearing packages worth ThreadSanitizer
-// coverage; keep in sync with the host concurrency owners.
-var hostRacePkgs = []string{"./internal/server", "./internal/inference", "./internal/model"}
-
-// deviceRaceTools are the compute-sanitizer tools that detect device races:
-// racecheck (shared-memory hazards) and synccheck (invalid barrier use).
 var deviceRaceTools = []string{"racecheck", "synccheck"}
 
 func main() {
@@ -76,13 +58,6 @@ func run(hostOnly, deviceOnly bool) error {
 	return nil
 }
 
-// hostRaceCmd is the ThreadSanitizer command (CGO_ENABLED is supplied via env).
-func hostRaceCmd() []string {
-	return append([]string{"go", "test", "-race", "-count=1"}, hostRacePkgs...)
-}
-
-// sanitizerCmd wraps a compiled binary in compute-sanitizer for one tool.
-// --error-exitcode makes a detected hazard a nonzero exit, i.e. a real FAIL.
 func sanitizerCmd(tool, bin string, args ...string) []string {
 	cmd := []string{sanitizerTool, "--tool", tool, "--error-exitcode", "1", bin}
 	return append(cmd, args...)
@@ -93,12 +68,12 @@ func hostRace() error {
 	if _, err := exec.LookPath(cc); err != nil {
 		return unavailable("host", fmt.Sprintf("C compiler %q not found; the race detector needs cgo", cc))
 	}
-	cmd := hostRaceCmd()
+	cmd := []string{"go", "test", "-race", "-count=1", hostRacePattern}
 	began := time.Now()
 	out, err := commandEnv(append(os.Environ(), "CGO_ENABLED=1"), cmd[0], cmd[1:]...)
-	report("host", strings.Join(hostRacePkgs, " "), began, err)
+	report("host", hostRacePattern, began, err)
 	if err != nil {
-		fmt.Print(tail(out, 2000))
+		fmt.Print(tail(out, outputTailBytes))
 		return fmt.Errorf("host race lane failed")
 	}
 	return nil
@@ -107,7 +82,7 @@ func hostRace() error {
 func deviceRace() error {
 	// cuda-info is the availability probe: failure means no usable device.
 	if out, err := command("go", "run", "./cmd/cuda-info"); err != nil {
-		fmt.Print(tail(out, 800))
+		fmt.Print(tail(out, outputTailBytes))
 		return unavailable("device", "cuda-info failed; no usable GPU/driver")
 	}
 	if _, err := exec.LookPath(sanitizerTool); err != nil {
@@ -122,24 +97,23 @@ func deviceRace() error {
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
 	}
-	if out, err := command("go", "test", "-c", "-o", bin, deviceRacePkg); err != nil {
-		fmt.Print(tail(out, 2000))
+	if out, err := command("go", "test", "-c", "-o", bin, deviceRacePackage); err != nil {
+		fmt.Print(tail(out, outputTailBytes))
 		return fmt.Errorf("building device test binary failed")
 	}
 	for _, tool := range deviceRaceTools {
 		cmd := sanitizerCmd(tool, bin, "-test.run", "Device", "-test.count=1")
 		began := time.Now()
 		out, err := commandEnv(append(os.Environ(), cudaTestEnv+"=1"), cmd[0], cmd[1:]...)
-		report("device:"+tool, deviceRacePkg, began, err)
+		report("device:"+tool, deviceRacePackage, began, err)
 		if err != nil {
-			fmt.Print(tail(out, 2000))
+			fmt.Print(tail(out, outputTailBytes))
 			return fmt.Errorf("device %s failed", tool)
 		}
 	}
 	return nil
 }
 
-// cCompiler is the C compiler the race detector will invoke: `go env CC`, or gcc.
 func cCompiler() string {
 	out, err := command("go", "env", "CC")
 	if err == nil {

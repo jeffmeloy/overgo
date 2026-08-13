@@ -816,7 +816,7 @@ func TestReadWeightsMamba(t *testing.T) {
 		tensorInfo("blk.0.attn_norm.weight", 4),
 	}
 	fixtures = append(fixtures, tensorRequirementFixtures(
-		"blk.0.", mambaTensorRequirements(spec, &LayerWeights{}), nil,
+		"blk.0.", selectiveScanTensorRequirements(spec, &LayerWeights{}), nil,
 	)...)
 	file := &gguf.File{Tensors: fixtures}
 	weights, err := ReadWeights(file, spec)

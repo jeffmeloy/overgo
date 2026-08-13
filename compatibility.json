@@ -261,13 +261,13 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:af580e25d6b420d4b798fcd0441f5a0fc4bf82baeb62a76399b318c9cebc5eaf"
+          "identity": "file:sha256:584814cbf5ead56431f95a722acb901946e1a6b618b0ebd11e2ce5bf789dce59"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:4f734ea452cd234d402ffc6eb5dae88c6c68d68d417c21fb2b7cc391c4b68e63"
+          "identity": "evidence:sha256:12dc8307853f4a66428efcc451af5786190c786c1785da20b4de87bb07a80cd7"
         }
       ],
       "id": "compiled-model-plan",
@@ -688,7 +688,7 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:11911213f78d847929831bf2caa8e1238e4295cff9f247eded73ce1c339bd7c3"
+          "identity": "file:sha256:b58f9da860dd86efaffb9c3552b995a942b5eb71c9f59db7aa4b311326c44324"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
@@ -709,7 +709,7 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:e96264a63bd55b5c33014cc1a4920c1066542aac468f4cc80eb557de585d2db0"
+          "identity": "file:sha256:3e173286003fd36d3e6b19e9bd2659d4383b8920107c0ce524bbd9705424f8de"
         },
         {
           "contains": "func ReadWeights(",
@@ -721,7 +721,7 @@
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:a45ffc30e39e57a59f74c08bf867f707015d48e21715dbaf5c7f68bd59ab3f95"
+          "identity": "evidence:sha256:8bbc7953b29dfad93784ee9de59b60da04d4c6ca3c94df2de87dc99da3f28405"
         }
       ],
       "id": "architecture-family-dispatch",

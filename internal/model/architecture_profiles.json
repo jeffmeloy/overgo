@@ -2147,7 +2147,7 @@
   {
     "Attention": 3,
     "AttentionGraph": {
-      "QwenGDN": 1
+      "GatedDelta": 1
     },
     "Cadence": {
       "Recurrent": 1
@@ -2172,7 +2172,7 @@
   {
     "Attention": 3,
     "AttentionGraph": {
-      "QwenGDN": 1
+      "GatedDelta": 1
     },
     "Cadence": {
       "Recurrent": 1
@@ -2221,7 +2221,7 @@
   {
     "Attention": 3,
     "AttentionGraph": {
-      "QwenGDN": 2
+      "GatedDelta": 2
     },
     "Cadence": {
       "Recurrent": 1

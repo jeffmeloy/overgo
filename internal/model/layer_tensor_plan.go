@@ -55,15 +55,15 @@ type RotaryPolicy struct {
 type AttentionGraphPolicy struct {
 	UseSinks      bool
 	ChunkedWindow bool
-	QwenGDN       qwenGDNPolicy
+	GatedDelta    gatedDeltaPolicy
 }
 
-type qwenGDNPolicy uint8
+type gatedDeltaPolicy uint8
 
 const (
-	qwenGDNNone qwenGDNPolicy = iota
-	qwenGDNStandard
-	qwenGDNRepeatInterleave
+	gatedDeltaNone gatedDeltaPolicy = iota
+	gatedDeltaSeparateProjections
+	gatedDeltaInterleavedProjections
 )
 
 func applyRoPEPairWithOptions(

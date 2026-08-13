@@ -222,7 +222,7 @@ func (g *ContinuousGenerator) run() {
 			continue
 		}
 		greedyBatch, greedy := g.batch.(continuousGreedyBatchAPI)
-		greedy = greedy && g.runner.profile().Attention == model.AttentionQwenGDN &&
+		greedy = greedy && g.runner.profile().Attention == model.AttentionGatedDelta &&
 			continuousStatesUseDeviceGreedy(stepping)
 		topKBatch, bounded := g.batch.(continuousTopKBatchAPI)
 		topK := 0

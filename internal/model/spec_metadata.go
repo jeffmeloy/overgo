@@ -300,11 +300,11 @@ func (m specMetadata) readPosition(spec *Spec) error {
 		}
 		if scalingType, ok := optional[string](values, prefix+"rope.scaling.type", gguf.ValueTypeString); ok &&
 			scalingType != "" && scalingType != "none" {
-			qwenGDNMulti := profile.Attention == AttentionQwenGDN && profile.Has(ArchitectureMultiAxisPositions)
+			gatedDeltaMulti := profile.Attention == AttentionGatedDelta && profile.Has(ArchitectureMultiAxisPositions)
 			longRoPE := profile.Has(ArchitectureLongRoPE) && scalingType == "longrope"
 			yarn := scalingType == "yarn" && (profile.Has(ArchitectureDeepSeek2Layout) ||
 				validation.MLA == MLAValidationDeepSeek4 || validation.supportsYaRN())
-			if qwenGDNMulti || scalingType != "linear" && !longRoPE && !yarn {
+			if gatedDeltaMulti || scalingType != "linear" && !longRoPE && !yarn {
 				return fmt.Errorf("model architecture %q uses unsupported RoPE scaling type %q", architecture, scalingType)
 			}
 			spec.RopeScalingType = scalingType

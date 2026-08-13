@@ -298,7 +298,7 @@ func cacheSchemaForPlan(
 	}
 	shapes := spec.TensorShapes(uint32(layerIndex))
 	keyWidth, valueWidth, heads := shapes.Key, shapes.Value, shapes.KVHeads
-	if plan.Attention == AttentionMLA || plan.Attention == AttentionDSA || plan.StateSpace.kind == stateSpaceKeyedDelta {
+	if plan.Attention == AttentionMLA || plan.Attention == AttentionDSA || plan.Mixer == recurrentMixerKeyedDelta {
 		heads = uint64(spec.HeadCount)
 		if info.AttentionKB != nil {
 			keyWidth = uint64(spec.KVLoRARank + spec.RopeDimensionCount)
@@ -359,7 +359,7 @@ func recurrentCacheSchema(
 			[]uint64{previous, 3 * uint64(spec.SSMInnerSize)},
 			[]uint64{uint64(spec.KDAHeadDim), uint64(spec.KDAHeadDim), uint64(spec.HeadCount), 1},
 		)
-	case CacheQwenGDN:
+	case CacheGatedDelta:
 		previous, err := previousCacheElements(spec.SSMConvKernel, "GDN convolution kernel")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err

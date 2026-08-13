@@ -894,7 +894,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			ropeFactors, hasRopeFactors = tensors["rope_freqs.weight"]
 		}
 		if hasRopeFactors {
-			if layerPlan.Attention == AttentionQwenGDN {
+			if layerPlan.Attention == AttentionGatedDelta {
 				return Weights{}, fmt.Errorf(
 					"tensor %q requires unsupported hybrid RoPE factors",
 					ropeFactors.Name,
@@ -979,7 +979,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				layer.AttentionNormBias = &attentionNormBias
 			}
 		}
-		if layerPlan.StateSpace.kind == stateSpaceKeyedDelta {
+		if layerPlan.Mixer == recurrentMixerKeyedDelta {
 			layer.Recurrent = spec.IsRecurrentLayer(block)
 			if layer.Recurrent {
 				inner := uint64(spec.SSMInnerSize)
@@ -1126,13 +1126,13 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		} else if handled {
 			continue
 		}
-		if layerPlan.StateSpace.kind == stateSpaceNemotronH {
+		if layerPlan.Mixer == recurrentMixerSparseGroupedSelectiveScan {
 			if spec.IsRecurrentLayer(block) {
 				layer.Recurrent = true
 				convDimension := uint64(spec.SSMInnerSize) +
 					2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 				requirements := append(
-					mamba2TensorRequirements(spec, layer, true),
+					groupedSelectiveScanTensorRequirements(spec, layer, true),
 					optionalTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension),
 				)
 				if itemErr := loadTensorRequirements(required, tensors, prefix, requirements); itemErr != nil {
@@ -1239,11 +1239,12 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			); err != nil {
 				return Weights{}, err
 			}
-		} else if handled, familyErr := loadStateSpaceLayer(
-			required, tensors, prefix, spec, layer, block, layerPlan.StateSpace,
+		} else if handled, mixerErr := loadRecurrentMixerLayer(
+			required, tensors, prefix, spec, layer, block, layerPlan.Mixer,
+			profile.AttentionGraph.GatedDelta, layerPlan.Recurrent,
 			queryLength, keyLength, valueLength, attentionOutputLength,
-		); familyErr != nil {
-			return Weights{}, familyErr
+		); mixerErr != nil {
+			return Weights{}, mixerErr
 		} else if handled {
 		} else if profile.Has(ArchitectureSharedKV) {
 			if layer.AttentionQ, err = required(
@@ -1553,7 +1554,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, itemErr
 			}
 		}
-		if layerPlan.StateSpace.kind == stateSpaceMamba || layerPlan.StateSpace.kind == stateSpaceMamba2 {
+		if layerPlan.Mixer == recurrentMixerSelectiveScan || layerPlan.Mixer == recurrentMixerGroupedSelectiveScan {
 			continue
 		}
 		feedForwardNormName := normPlan.FeedForwardNormTensor()

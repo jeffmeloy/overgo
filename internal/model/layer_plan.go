@@ -136,7 +136,7 @@ const (
 	CacheRWKV6Qwen2
 	CacheRWKV7
 	CacheKimiLinear
-	CacheQwenGDN
+	CacheGatedDelta
 	CacheLFM2
 	CacheFalconH1
 	CacheCrossAttention
@@ -146,7 +146,7 @@ const (
 func (p CachePolicy) PrimaryMode() CacheStateMode {
 	switch p {
 	case CacheMamba, CacheMamba2, CacheRWKV6, CacheRWKV6Qwen2, CacheRWKV7,
-		CacheKimiLinear, CacheQwenGDN, CacheLFM2:
+		CacheKimiLinear, CacheGatedDelta, CacheLFM2:
 		return CacheStateFixed
 	default:
 		return CacheStateToken
@@ -257,7 +257,7 @@ type LayerPlan struct {
 	QueryScale        QueryScalePlan
 	AttentionOutput   AttentionOutputPlan
 	ResidualStages    ResidualStagePlan
-	StateSpace        StateSpacePlan
+	Mixer             recurrentMixerPolicy
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -278,9 +278,9 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	}
 	normalization := s.NormPlan()
 	cache := cachePolicy(s, profile, layer, recurrent)
-	stateSpace := s.stateSpacePlan(layer, recurrent)
+	mixer := s.compileRecurrentMixer(recurrent)
 	composition := LayerCompositionStandard
-	if stateSpace.kind == stateSpaceNemotronH {
+	if mixer == recurrentMixerSparseGroupedSelectiveScan {
 		switch {
 		case recurrent:
 			composition = LayerCompositionRecurrentOnly
@@ -309,12 +309,12 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		}
 	}
 	experts := s.moeGraphPlan(layer)
-	if stateSpace.kind == stateSpaceNemotronH {
+	if mixer == recurrentMixerSparseGroupedSelectiveScan {
 		experts.Routing = tensor.MoERoutingSigmoid
 		experts.Activation = tensor.MoEActivationReLUSquared
 		experts.SelectionBias = true
 	}
-	if profile.Attention == AttentionQwenGDN {
+	if profile.Attention == AttentionGatedDelta {
 		experts.NormalizeTopKProb = true
 	}
 	if profile.Attention == AttentionLFM2 && recurrent {
@@ -324,7 +324,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	cacheWrite := CacheWriteFixed
 	if cache.PrimaryMode().TokenAligned() {
 		cacheWrite = CacheWriteConcatOnly
-		if stateSpace.kind == stateSpaceNone || profile.Attention == AttentionQwenGDN {
+		if mixer == recurrentMixerNone || profile.Attention == AttentionGatedDelta {
 			cacheWrite = CacheWriteConcatOrAppend
 		}
 	}
@@ -367,7 +367,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		QueryScale:      s.queryScalePlan(profile, layer),
 		AttentionOutput: s.attentionOutputPlan(normalization),
 		ResidualStages:  residualStages,
-		StateSpace:      stateSpace,
+		Mixer:           mixer,
 	}
 	plan.Program = compileLayerProgram(plan, profile)
 	return plan
@@ -621,7 +621,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		if layer.Normalization != norm {
 			return fmt.Errorf("model plan layer %d normalization drifted from model policy", index)
 		}
-		if layer.StateSpace != spec.stateSpacePlan(uint32(index), layer.Recurrent) {
+		if layer.Mixer != spec.compileRecurrentMixer(layer.Recurrent) {
 			return fmt.Errorf("model plan layer %d state-space policy is inconsistent", index)
 		}
 	}
@@ -668,7 +668,7 @@ func cachedGraphPolicy(profile ArchitectureProfile, layers []LayerPlan) CachedGr
 		return CachedGraphLayered
 	}
 	for _, layer := range layers {
-		if layer.StateSpace.kind != stateSpaceNone || layer.Attention != AttentionStandard ||
+		if layer.Mixer != recurrentMixerNone || layer.Attention != AttentionStandard ||
 			layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
 			return CachedGraphLayered
 		}
@@ -853,19 +853,19 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			plan.ResidualStages.residualScale > 0,
 		)
 	}
-	if profile.Attention == AttentionQwenGDN {
+	if profile.Attention == AttentionGatedDelta {
 		mixer := attentionLayerStage(LayerOperatorAttentionGatedProjection)
 		if recurrent {
 			mixer = recurrentLayerStage()
 		}
 		return residualMixerProgram(mixer, LayerOperatorFeedForwardRoutedSwiGLU, false)
 	}
-	if plan.StateSpace.kind == stateSpaceFalconH1 {
+	if plan.Mixer == recurrentMixerAttentionGroupedSelectiveScan {
 		return residualMixerProgram(
 			hybridLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
 	}
-	if plan.StateSpace.kind == stateSpaceGraniteHybrid {
+	if plan.Mixer == recurrentMixerScaledGroupedSelectiveScan {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
@@ -873,12 +873,12 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
 		)
 	}
-	if plan.StateSpace.kind == stateSpaceJamba {
+	if plan.Mixer == recurrentMixerWeightedSelectiveScan {
 		return residualMixerProgram(
 			recurrentLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
 	}
-	if plan.StateSpace.kind == stateSpacePLaMo2 {
+	if plan.Mixer == recurrentMixerNormalizedSelectiveScan {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 			layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
@@ -886,7 +886,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
 		)
 	}
-	if plan.StateSpace.kind == stateSpaceNemotronH {
+	if plan.Mixer == recurrentMixerSparseGroupedSelectiveScan {
 		switch composition {
 		case LayerCompositionRecurrentOnly:
 			return newLayerProgram(
@@ -907,7 +907,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			return LayerProgram{}
 		}
 	}
-	if plan.StateSpace.kind == stateSpaceMamba || plan.StateSpace.kind == stateSpaceMamba2 {
+	if plan.Mixer == recurrentMixerSelectiveScan || plan.Mixer == recurrentMixerGroupedSelectiveScan {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm),
 			recurrentLayerStage(),

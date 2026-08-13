@@ -139,7 +139,7 @@ const (
 	AttentionStandard AttentionPolicy = iota
 	AttentionMLA
 	AttentionDSA
-	AttentionQwenGDN
+	AttentionGatedDelta
 	AttentionLFM2
 )
 
@@ -289,7 +289,7 @@ const (
 	ArchitectureLongRoPE
 	ArchitectureGELU
 	ArchitectureSquaredReLU
-	ArchitectureQwenGDN
+	ArchitectureGatedDelta
 	ArchitectureLFM2
 	ArchitectureMultiAxisPositions
 	ArchitectureRequiresOutput

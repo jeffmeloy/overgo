@@ -25,7 +25,7 @@ func (r *Runner) forwardPackedQwen35CohortsLocked(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, bool, error) {
-	if len(appends) < 2 || r.profile().Attention != model.AttentionQwenGDN {
+	if len(appends) < 2 || r.profile().Attention != model.AttentionGatedDelta {
 		return nil, false, nil
 	}
 	for _, item := range appends {

@@ -56,7 +56,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Rotary.Kind", profile.Rotary.Kind, rotaryPolicyGemma),
 		validateProfileOrdinal("Rotary.MultiAxis", profile.Rotary.MultiAxis, multiAxisRotaryWithSections),
 		validateProfileOrdinal("Rotary.Usage", profile.Rotary.Usage, RotaryUsageSlidingOnly),
-		validateProfileOrdinal("AttentionGraph.QwenGDN", profile.AttentionGraph.QwenGDN, qwenGDNRepeatInterleave),
+		validateProfileOrdinal("AttentionGraph.GatedDelta", profile.AttentionGraph.GatedDelta, gatedDeltaInterleavedProjections),
 		validateProfileOrdinal("Experts.Composition", profile.Experts.Composition, expertArctic),
 		validateProfileOrdinal("Experts.Condition", profile.Experts.Condition, expertCompositionUnlessSigmoidWithoutShared),
 		validateProfileOrdinal("Experts.Normalization", profile.Experts.Normalization, expertNormalizeNever),
@@ -131,7 +131,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	if profile.readsMetadata(MetadataReadGLMDSAGating) && profile.Attention != AttentionDSA {
 		return fmt.Errorf("architecture profile %q: GLM-DSA metadata requires DSA attention", profile.Name)
 	}
-	if profile.AttentionGraph.QwenGDN != qwenGDNNone && profile.Attention != AttentionQwenGDN {
+	if profile.AttentionGraph.GatedDelta != gatedDeltaNone && profile.Attention != AttentionGatedDelta {
 		return fmt.Errorf("architecture profile %q: Qwen GDN graph requires Qwen GDN attention", profile.Name)
 	}
 	if profile.Rotary.MultiAxis != multiAxisRotaryNone && !profile.Has(ArchitectureMultiAxisPositions) {

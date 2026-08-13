@@ -343,26 +343,28 @@ func executeLayerInstruction(
 		}
 		var result DenseBlockResult
 		var err error
-		switch plan.StateSpace.kind {
-		case stateSpaceMamba, stateSpaceJamba:
-			result, err = buildMambaMixerCached(
+		switch plan.Mixer {
+		case recurrentMixerSelectiveScan, recurrentMixerWeightedSelectiveScan:
+			result, err = buildSelectiveScanMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1], plan.StateSpace,
+				operands.caches[0], operands.caches[1], plan.Mixer,
 			)
-		case stateSpaceMamba2, stateSpaceGraniteHybrid, stateSpaceNemotronH:
-			if plan.StateSpace.kind == stateSpaceMamba2 && options.Weights.SSMConv1DBias == nil {
-				return errors.New("Mamba2 recurrent-mixing convolution bias is nil")
+		case recurrentMixerGroupedSelectiveScan, recurrentMixerScaledGroupedSelectiveScan,
+			recurrentMixerSparseGroupedSelectiveScan:
+			if plan.Mixer == recurrentMixerGroupedSelectiveScan &&
+				options.Weights.SSMConv1DBias == nil {
+				return errors.New("grouped selective-scan convolution bias is nil")
 			}
-			result, err = buildMamba2MixerCached(
+			result, err = buildGroupedSelectiveScanMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1], plan.StateSpace,
+				operands.caches[0], operands.caches[1], plan.Mixer,
 			)
-		case stateSpacePLaMo2:
-			result, err = buildPLaMo2MixerCached(
+		case recurrentMixerNormalizedSelectiveScan:
+			result, err = buildNormalizedSelectiveScanMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
-		case stateSpaceQwenGDN:
+		case recurrentMixerGatedDelta:
 			sequences := c.Sequences
 			if sequences == 0 {
 				sequences = 1
@@ -371,27 +373,27 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				c.Positions, sequences, operands.caches[0], operands.caches[1],
 			)
-		case stateSpaceLFM2:
+		case recurrentMixerShortConvolution:
 			result, err = buildShortConvolutionMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1],
 			)
-		case stateSpaceDynamicWKV6:
+		case recurrentMixerDynamicWKV6:
 			result, err = buildDynamicWKV6MixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
-		case stateSpaceAffineWKV6:
+		case recurrentMixerAffineWKV6:
 			result, err = buildAffineWKV6MixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1],
 			)
-		case stateSpaceDynamicWKV7:
+		case recurrentMixerDynamicWKV7:
 			result, err = buildDynamicWKV7MixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
 				operands.caches[0], operands.caches[1], plan,
 			)
-		case stateSpaceKeyedDelta:
+		case recurrentMixerKeyedDelta:
 			result, err = buildKeyedDeltaAttentionMixCached(
 				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
 				operands.caches[0], operands.caches[1],

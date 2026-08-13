@@ -979,7 +979,7 @@ func buildGatedProjectionMixCached(
 	if spec.RopeScalingType == "linear" {
 		frequencyScale = 1 / spec.RopeScalingFactor
 	}
-	if spec.Profile().AttentionGraph.QwenGDN == qwenGDNRepeatInterleave {
+	if spec.Profile().AttentionGraph.GatedDelta == gatedDeltaInterleavedProjections {
 		query = builder.RoPENeoXScaled(
 			query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
 		)
@@ -1061,8 +1061,8 @@ func buildGatedDeltaMixCached(
 		requireGraphWeight("SSM norm", weights.SSMNorm),
 		requireGraphWeight("SSM output", weights.SSMOutput),
 	}
-	qwenPolicy := spec.Profile().AttentionGraph.QwenGDN
-	if qwenPolicy == qwenGDNRepeatInterleave {
+	deltaPolicy := spec.Profile().AttentionGraph.GatedDelta
+	if deltaPolicy == gatedDeltaInterleavedProjections {
 		required.add("SSM beta/alpha", weights.SSMBetaAlpha)
 		if weights.AttentionQKV.Shape.Dims[1] == uint64(spec.SSMInnerSize)+
 			2*uint64(spec.SSMStateSize)*uint64(spec.SSMGroupCount) {
@@ -1100,7 +1100,7 @@ func buildGatedDeltaMixCached(
 	qkvProjection := builder.MulMat(weights.AttentionQKV, normalized)
 	qkvMixed := qkvProjection
 	var z *tensor.Tensor
-	if qwenPolicy == qwenGDNRepeatInterleave && weights.AttentionGate == nil {
+	if deltaPolicy == gatedDeltaInterleavedProjections && weights.AttentionGate == nil {
 		valueHeadsPerGroup := valueHeads / keyHeads
 		valueWidthPerGroup := stateWidth * valueHeadsPerGroup
 		groupStride := 2*stateWidth + 2*valueWidthPerGroup
@@ -1127,7 +1127,7 @@ func buildGatedDeltaMixCached(
 		z = builder.MulMat(weights.AttentionGate, normalized)
 	}
 	var beta, alpha *tensor.Tensor
-	if qwenPolicy == qwenGDNRepeatInterleave {
+	if deltaPolicy == gatedDeltaInterleavedProjections {
 		valueHeadsPerGroup := valueHeads / keyHeads
 		betaAlpha := builder.MulMat(weights.SSMBetaAlpha, normalized)
 		beta = builder.GroupSlice(
@@ -1189,7 +1189,7 @@ func buildGatedDeltaMixCached(
 	key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
 	value = builder.Reshape(value, stateWidth, valueHeads, tokens, sequences)
 	var packed *tensor.Tensor
-	if qwenPolicy == qwenGDNRepeatInterleave {
+	if deltaPolicy == gatedDeltaInterleavedProjections {
 		packed = builder.GatedDeltaNetRepeatInterleave(query, key, value, gate, beta, ssmState)
 	} else {
 		packed = builder.GatedDeltaNet(query, key, value, gate, beta, ssmState)

@@ -7,18 +7,20 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-func loadStateSpaceLayer(
+func loadRecurrentMixerLayer(
 	required weightRequirementLoader,
 	tensors map[string]gguf.TensorInfo,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
 	block uint32,
-	plan StateSpacePlan,
+	mixer recurrentMixerPolicy,
+	deltaProjection gatedDeltaPolicy,
+	recurrent bool,
 	queryLength, keyLength, valueLength, attentionOutputLength uint64,
 ) (bool, error) {
 	var err error
-	if plan.kind == stateSpaceJamba {
+	if mixer == recurrentMixerWeightedSelectiveScan {
 		layer.Recurrent = true
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
@@ -36,9 +38,9 @@ func loadStateSpaceLayer(
 		}); itemErr != nil {
 			return true, itemErr
 		}
-	} else if plan.kind == stateSpacePLaMo2 {
+	} else if mixer == recurrentMixerNormalizedSelectiveScan {
 		layer.Recurrent = true
-		dtDimension := plamo2TimeStepWidth(spec.EmbeddingLength)
+		dtDimension := reducedTimeStepWidth(spec.EmbeddingLength)
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
 			requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
@@ -54,16 +56,16 @@ func loadStateSpaceLayer(
 		}); itemErr != nil {
 			return true, itemErr
 		}
-	} else if plan.kind == stateSpaceMamba {
+	} else if mixer == recurrentMixerSelectiveScan {
 		layer.Recurrent = true
-		if itemErr := loadTensorRequirements(required, tensors, prefix, mambaTensorRequirements(spec, layer)); itemErr != nil {
+		if itemErr := loadTensorRequirements(required, tensors, prefix, selectiveScanTensorRequirements(spec, layer)); itemErr != nil {
 			return true, itemErr
 		}
-	} else if plan.kind == stateSpaceFalconH1 {
+	} else if mixer == recurrentMixerAttentionGroupedSelectiveScan {
 		convDimension := uint64(spec.SSMInnerSize) +
 			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 		if itemErr := loadTensorRequirements(
-			required, tensors, prefix, mamba2TensorRequirements(spec, layer, false),
+			required, tensors, prefix, groupedSelectiveScanTensorRequirements(spec, layer, false),
 		); itemErr != nil {
 			return true, itemErr
 		}
@@ -112,12 +114,12 @@ func loadStateSpaceLayer(
 		); err != nil {
 			return true, err
 		}
-	} else if plan.kind == stateSpaceMamba2 || plan.kind == stateSpaceGraniteHybrid {
+	} else if mixer == recurrentMixerGroupedSelectiveScan || mixer == recurrentMixerScaledGroupedSelectiveScan {
 		layer.Recurrent = true
 		convDimension := uint64(spec.SSMInnerSize) +
 			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 		if itemErr := loadTensorRequirements(
-			required, tensors, prefix, mamba2TensorRequirements(spec, layer, true),
+			required, tensors, prefix, groupedSelectiveScanTensorRequirements(spec, layer, true),
 		); itemErr != nil {
 			return true, itemErr
 		}
@@ -126,15 +128,15 @@ func loadStateSpaceLayer(
 				return true, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
 			}
 			layer.SSMConv1DBias = &item
-		} else if plan.kind == stateSpaceMamba2 {
+		} else if mixer == recurrentMixerGroupedSelectiveScan {
 			return true, fmt.Errorf("required tensor %q is missing", prefix+"ssm_conv1d.bias")
 		}
-	} else if plan.kind == stateSpaceQwenGDN {
-		layer.Recurrent = plan.recurrent
+	} else if mixer == recurrentMixerGatedDelta {
+		layer.Recurrent = recurrent
 		if layer.Recurrent {
 			keyDimension := uint64(spec.SSMStateSize) * uint64(spec.SSMGroupCount)
 			valueDimension := uint64(spec.SSMInnerSize)
-			if plan.qwen == qwenGDNRepeatInterleave {
+			if deltaProjection == gatedDeltaInterleavedProjections {
 				if _, ok := tensors[prefix+"attn_qkv.weight"]; ok {
 					qkv, qkvErr := required(
 						prefix+"attn_qkv.weight", uint64(spec.EmbeddingLength),
@@ -195,7 +197,7 @@ func loadStateSpaceLayer(
 			}); itemErr != nil {
 				return true, itemErr
 			}
-			if plan.qwen != qwenGDNRepeatInterleave {
+			if deltaProjection != gatedDeltaInterleavedProjections {
 				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 					requiredTensorPointer("ssm_beta.weight", &layer.SSMBeta, uint64(spec.EmbeddingLength), uint64(spec.SSMTimeStepRank)),
 					requiredTensorPointer("ssm_alpha.weight", &layer.SSMAlpha, uint64(spec.EmbeddingLength), uint64(spec.SSMTimeStepRank)),
@@ -233,7 +235,7 @@ func loadStateSpaceLayer(
 				return true, err
 			}
 		}
-	} else if plan.kind == stateSpaceLFM2 {
+	} else if mixer == recurrentMixerShortConvolution {
 		layer.Recurrent = true
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("shortconv.conv.weight", &layer.ShortConvKernel, uint64(spec.ShortConvCacheLength), uint64(spec.EmbeddingLength)),
@@ -248,7 +250,7 @@ func loadStateSpaceLayer(
 	return true, nil
 }
 
-func mambaTensorRequirements(spec Spec, layer *LayerWeights) []tensorRequirement {
+func selectiveScanTensorRequirements(spec Spec, layer *LayerWeights) []tensorRequirement {
 	return []tensorRequirement{
 		requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
 		requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
@@ -262,7 +264,7 @@ func mambaTensorRequirements(spec Spec, layer *LayerWeights) []tensorRequirement
 	}
 }
 
-func mamba2TensorRequirements(spec Spec, layer *LayerWeights, includeNorm bool) []tensorRequirement {
+func groupedSelectiveScanTensorRequirements(spec Spec, layer *LayerWeights, includeNorm bool) []tensorRequirement {
 	convDimension := uint64(spec.SSMInnerSize) +
 		2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 	inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)

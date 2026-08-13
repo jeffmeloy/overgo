@@ -55,7 +55,7 @@ func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 			profile.MetadataRead = MetadataReadQwen3VLDeepstack
 		},
 		"Qwen GDN graph": func(profile *ArchitectureProfile) {
-			profile.AttentionGraph.QwenGDN = qwenGDNStandard
+			profile.AttentionGraph.GatedDelta = gatedDeltaSeparateProjections
 		},
 		"multi-axis rotary": func(profile *ArchitectureProfile) {
 			profile.Rotary.MultiAxis = multiAxisRotaryAlways

@@ -1,64 +1,54 @@
 package model
 
-type stateSpaceKind uint8
+type recurrentMixerPolicy uint8
 
 const (
-	stateSpaceNone stateSpaceKind = iota
-	stateSpaceMamba
-	stateSpaceJamba
-	stateSpaceMamba2
-	stateSpaceGraniteHybrid
-	stateSpaceFalconH1
-	stateSpacePLaMo2
-	stateSpaceNemotronH
-	stateSpaceQwenGDN
-	stateSpaceLFM2
-	stateSpaceDynamicWKV6
-	stateSpaceAffineWKV6
-	stateSpaceDynamicWKV7
-	stateSpaceKeyedDelta
+	recurrentMixerNone recurrentMixerPolicy = iota
+	recurrentMixerSelectiveScan
+	recurrentMixerWeightedSelectiveScan
+	recurrentMixerGroupedSelectiveScan
+	recurrentMixerScaledGroupedSelectiveScan
+	recurrentMixerAttentionGroupedSelectiveScan
+	recurrentMixerNormalizedSelectiveScan
+	recurrentMixerSparseGroupedSelectiveScan
+	recurrentMixerGatedDelta
+	recurrentMixerShortConvolution
+	recurrentMixerDynamicWKV6
+	recurrentMixerAffineWKV6
+	recurrentMixerDynamicWKV7
+	recurrentMixerKeyedDelta
 )
 
-// StateSpacePlan: recurrent graph/catalog contract.
-type StateSpacePlan struct {
-	kind      stateSpaceKind
-	recurrent bool
-	qwen      qwenGDNPolicy
-}
-
-func (s Spec) stateSpacePlan(layer uint32, recurrent bool) StateSpacePlan {
+func (s Spec) compileRecurrentMixer(recurrent bool) recurrentMixerPolicy {
 	profile := s.Profile()
-	plan := StateSpacePlan{
-		recurrent: recurrent || s.IsRecurrentLayer(layer),
-		qwen:      profile.AttentionGraph.QwenGDN,
-	}
+	policy := recurrentMixerNone
 	switch {
 	case profile.Validation.Recurrent == RecurrentValidationMamba:
-		plan.kind, plan.recurrent = stateSpaceMamba, true
-	case profile.Validation.Recurrent == RecurrentValidationJamba && plan.recurrent:
-		plan.kind = stateSpaceJamba
+		policy = recurrentMixerSelectiveScan
+	case profile.Validation.Recurrent == RecurrentValidationJamba && recurrent:
+		policy = recurrentMixerWeightedSelectiveScan
 	case profile.Validation.Recurrent == RecurrentValidationMamba2:
-		plan.kind, plan.recurrent = stateSpaceMamba2, true
-	case profile.Validation.Recurrent == RecurrentValidationGraniteHybrid && plan.recurrent:
-		plan.kind = stateSpaceGraniteHybrid
+		policy = recurrentMixerGroupedSelectiveScan
+	case profile.Validation.Recurrent == RecurrentValidationGraniteHybrid && recurrent:
+		policy = recurrentMixerScaledGroupedSelectiveScan
 	case profile.Validation.Recurrent == RecurrentValidationFalconH1:
-		plan.kind = stateSpaceFalconH1
-	case profile.Validation.Recurrent == RecurrentValidationPLaMo2 && plan.recurrent:
-		plan.kind = stateSpacePLaMo2
+		policy = recurrentMixerAttentionGroupedSelectiveScan
+	case profile.Validation.Recurrent == RecurrentValidationPLaMo2 && recurrent:
+		policy = recurrentMixerNormalizedSelectiveScan
 	case profile.Validation.recurrentOneOf(RecurrentValidationNemotronH, RecurrentValidationNemotronHMoE):
-		plan.kind = stateSpaceNemotronH
-	case profile.Attention == AttentionQwenGDN:
-		plan.kind = stateSpaceQwenGDN
-	case profile.Attention == AttentionLFM2 && plan.recurrent:
-		plan.kind = stateSpaceLFM2
+		policy = recurrentMixerSparseGroupedSelectiveScan
+	case profile.Attention == AttentionGatedDelta:
+		policy = recurrentMixerGatedDelta
+	case profile.Attention == AttentionLFM2 && recurrent:
+		policy = recurrentMixerShortConvolution
 	case profile.LayerTopology == LayerTopologyAffineWKV6:
-		plan.kind, plan.recurrent = stateSpaceDynamicWKV6, true
+		policy = recurrentMixerDynamicWKV6
 	case profile.LayerTopology == LayerTopologyDynamicWKV6:
-		plan.kind, plan.recurrent = stateSpaceAffineWKV6, true
+		policy = recurrentMixerAffineWKV6
 	case profile.LayerTopology == LayerTopologyDynamicWKV7:
-		plan.kind, plan.recurrent = stateSpaceDynamicWKV7, true
+		policy = recurrentMixerDynamicWKV7
 	case profile.Validation.MLA == MLAValidationKimiLinear:
-		plan.kind = stateSpaceKeyedDelta
+		policy = recurrentMixerKeyedDelta
 	}
-	return plan
+	return policy
 }

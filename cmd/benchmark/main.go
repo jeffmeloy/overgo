@@ -383,7 +383,7 @@ func executeContinuousBatch(
 		return runMetrics{}, err
 	}
 	started := time.Now()
-	deviceGreedy := device && options.Temperature == 0 && runner.Spec().Profile().Attention == model.AttentionQwenGDN
+	deviceGreedy := device && options.Temperature == 0 && runner.Spec().Profile().Attention == model.AttentionGatedDelta
 	step := batch.Step
 	if deviceGreedy {
 		step = batch.StepGreedy

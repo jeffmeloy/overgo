@@ -21,7 +21,7 @@ func requireLayerProgram(t *testing.T, program LayerProgram, want ...LayerOperat
 
 func typedFixtureLayerProgram(profile ArchitectureProfile, plan LayerPlan) LayerProgram {
 	plan.Attention = profile.Attention
-	plan.StateSpace = Spec{}.withProfile(profile).stateSpacePlan(0, plan.Recurrent)
+	plan.Mixer = Spec{}.withProfile(profile).compileRecurrentMixer(plan.Recurrent)
 	return compileLayerProgram(plan, profile)
 }
 
@@ -226,10 +226,10 @@ func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
 	feedForward, _ := program.Instruction(4)
 	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
 		withProfile(ArchitectureProfile{Validation: ValidationPolicy{MLA: MLAValidationKimiLinear}}).
-		stateSpacePlan(0, true)
-	if mixer.Operator != LayerOperatorRecurrentMix || state.kind != stateSpaceKeyedDelta ||
+		compileRecurrentMixer(true)
+	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerKeyedDelta ||
 		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
-		t.Fatalf("Kimi recurrent policies = %+v/%+v/%d", mixer, feedForward, state.kind)
+		t.Fatalf("Kimi recurrent policies = %+v/%+v/%d", mixer, feedForward, state)
 	}
 }
 
@@ -246,10 +246,10 @@ func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
 	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
-		withProfile(ArchitectureProfile{Attention: AttentionLFM2}).stateSpacePlan(0, true)
-	if mixer.Operator != LayerOperatorRecurrentMix || state.kind != stateSpaceLFM2 ||
+		withProfile(ArchitectureProfile{Attention: AttentionLFM2}).compileRecurrentMixer(true)
+	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerShortConvolution ||
 		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
-		t.Fatalf("LFM2 recurrent policies = %+v/%d/%d", mixer, state.kind, feedForward.Operator)
+		t.Fatalf("LFM2 recurrent policies = %+v/%d/%d", mixer, state, feedForward.Operator)
 	}
 }
 
@@ -287,15 +287,15 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 	for _, recurrent := range []bool{false, true} {
 		program := compileLayerProgram(
 			LayerPlan{Recurrent: recurrent},
-			ArchitectureProfile{Attention: AttentionQwenGDN},
+			ArchitectureProfile{Attention: AttentionGatedDelta},
 		)
 		instruction, ok := program.Instruction(mixerStage)
 		if !ok || program.Count != qwenProgramStageCount {
 			t.Fatalf("Qwen GDN program = %+v", program)
 		}
 		state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{recurrent}}}.
-			withProfile(ArchitectureProfile{Attention: AttentionQwenGDN}).stateSpacePlan(0, recurrent)
-		if recurrent && (instruction.Operator != LayerOperatorRecurrentMix || state.kind != stateSpaceQwenGDN) {
+			withProfile(ArchitectureProfile{Attention: AttentionGatedDelta}).compileRecurrentMixer(recurrent)
+		if recurrent && (instruction.Operator != LayerOperatorRecurrentMix || state != recurrentMixerGatedDelta) {
 			t.Fatalf("Qwen recurrent stage = %+v", instruction)
 		}
 		if !recurrent && instruction.Operator != LayerOperatorAttentionGatedProjection {

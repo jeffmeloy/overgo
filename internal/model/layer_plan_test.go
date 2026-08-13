@@ -107,7 +107,7 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 				CommonSpec:    CommonSpec{Architecture: "qwen35", BlockCount: 1},
 				RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}},
 			},
-			attention: AttentionQwenGDN, mode: CacheStateFixed,
+			attention: AttentionGatedDelta, mode: CacheStateFixed,
 		},
 		{
 			name:      "lfm2",
@@ -162,16 +162,16 @@ func TestPlanLayerCompilesTensorGraphControls(t *testing.T) {
 
 func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 	tests := []struct {
-		name       string
-		spec       Spec
-		layer      LayerWeights
-		stateSpace stateSpaceKind
-		attention  AttentionPolicy
-		cache      CachePolicy
+		name      string
+		spec      Spec
+		layer     LayerWeights
+		mixer     recurrentMixerPolicy
+		attention AttentionPolicy
+		cache     CachePolicy
 	}{
 		{
 			name: "mamba", spec: Spec{CommonSpec: CommonSpec{Architecture: "mamba", BlockCount: 1}},
-			stateSpace: stateSpaceMamba, cache: CacheMamba,
+			mixer: recurrentMixerSelectiveScan, cache: CacheMamba,
 		},
 		{
 			name: "jamba attention", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
@@ -179,7 +179,7 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 		},
 		{
 			name: "jamba recurrent", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
-			layer: LayerWeights{Recurrent: true}, stateSpace: stateSpaceJamba, cache: CacheMamba,
+			layer: LayerWeights{Recurrent: true}, mixer: recurrentMixerWeightedSelectiveScan, cache: CacheMamba,
 		},
 		{
 			name: "DSA", spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
@@ -203,7 +203,7 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 				t.Fatalf("plan = %+v", plan)
 			}
 			layer := plan.layers[0]
-			if layer.StateSpace.kind != test.stateSpace || layer.Attention != test.attention ||
+			if layer.Mixer != test.mixer || layer.Attention != test.attention ||
 				layer.Cache != test.cache {
 				t.Fatalf("plan = %+v", plan)
 			}
@@ -354,7 +354,7 @@ func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 			t.Fatalf("%s selected dense graph with AltUp", architecture)
 		}
 		for _, layer := range plan.layers {
-			if layer.StateSpace.kind != stateSpaceNone || layer.Attention != AttentionStandard ||
+			if layer.Mixer != recurrentMixerNone || layer.Attention != AttentionStandard ||
 				layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
 				t.Fatalf("%s selected dense graph for layer %+v", architecture, layer)
 			}

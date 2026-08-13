@@ -154,7 +154,7 @@ func gemma3nInitializeAltUp(
 	count int,
 ) ([]reference.Value, error) {
 	if count < 2 || projection.Shape.Rank != 3 || projection.Shape.Dims[2] != uint64(count-1) {
-		return nil, errors.New("inference: Gemma 3n AltUp projection shape is invalid")
+		return nil, errors.New("inference: alternate-state projection shape is invalid")
 	}
 	states := make([]reference.Value, count)
 	states[0] = input.Clone()
@@ -190,7 +190,7 @@ func gemma3nPredict(
 	}
 	count := len(states)
 	if coefficients.Shape.Dims[0] != uint64(count*count) {
-		return nil, errors.New("inference: Gemma 3n prediction coefficient shape is invalid")
+		return nil, errors.New("inference: alternate-state prediction coefficient shape is invalid")
 	}
 	result := make([]reference.Value, count)
 	for output := range count {
@@ -253,7 +253,7 @@ func gemma3nCorrectAndInject(
 		return nil, err
 	}
 	if !gate.Shape.Equal(perLayer.Shape) {
-		return nil, errors.New("inference: Gemma 3n per-layer input shape differs")
+		return nil, errors.New("inference: alternate-state per-layer input shape differs")
 	}
 	for index := range gate.Data {
 		gate.Data[index] = gemma3nGELU(gate.Data[index]) * perLayer.Data[index]
@@ -281,7 +281,7 @@ func gemma3nModalities(
 	normalizationEpsilon float32,
 ) (reference.Value, error) {
 	if layer.AltUpRouterNorm == nil || layer.AltUpRouter == nil {
-		return reference.Value{}, errors.New("inference: Gemma 3n router weights are incomplete")
+		return reference.Value{}, errors.New("inference: alternate-state router weights are incomplete")
 	}
 	if embeddingLength == 0 {
 		return reference.Value{}, errors.New("inference: alternate router embedding width is invalid")
@@ -309,7 +309,7 @@ func gemma3nActivateFFN(
 	standardDeviationMultiplier float32,
 ) (reference.Value, error) {
 	if !gate.Shape.Equal(up.Shape) || gate.Shape.Rank != 2 || gate.Shape.Dims[0] < 2 {
-		return reference.Value{}, errors.New("inference: Gemma 3n FFN projection shape is invalid")
+		return reference.Value{}, errors.New("inference: alternate-state FFN projection shape is invalid")
 	}
 	result := reference.Value{Shape: gate.Shape, Data: make([]float32, len(gate.Data))}
 	width := int(gate.Shape.Dims[0])
@@ -347,7 +347,7 @@ func gemma3nMergeAltUp(
 ) (reference.Value, error) {
 	if len(states) < 2 || active < 0 || active >= len(states) ||
 		unembedding.Shape.Rank != 3 || unembedding.Shape.Dims[2] != uint64(len(states)-1) {
-		return reference.Value{}, errors.New("inference: Gemma 3n unembedding shape is invalid")
+		return reference.Value{}, errors.New("inference: alternate-state unembedding shape is invalid")
 	}
 	result := states[active].Clone()
 	for index := 1; index < len(states); index++ {
@@ -368,7 +368,7 @@ func gemma3nMergeAltUp(
 
 func gemma3nMatMul(weight, input reference.Value) (reference.Value, error) {
 	if weight.Shape.Rank != 2 || input.Shape.Rank != 2 || weight.Shape.Dims[0] != input.Shape.Dims[0] {
-		return reference.Value{}, errors.New("inference: Gemma 3n matrix dimensions differ")
+		return reference.Value{}, errors.New("inference: alternate-state matrix dimensions differ")
 	}
 	inner := int(weight.Shape.Dims[0])
 	outputWidth := int(weight.Shape.Dims[1])
@@ -383,7 +383,7 @@ func gemma3nMatMul(weight, input reference.Value) (reference.Value, error) {
 
 func gemma3nMatMulSlice(weight reference.Value, slice int, input reference.Value) (reference.Value, error) {
 	if weight.Shape.Rank != 3 || slice < 0 || uint64(slice) >= weight.Shape.Dims[2] {
-		return reference.Value{}, errors.New("inference: Gemma 3n grouped projection slice is invalid")
+		return reference.Value{}, errors.New("inference: alternate-state grouped projection slice is invalid")
 	}
 	size := int(weight.Shape.Dims[0] * weight.Shape.Dims[1])
 	start := slice * size
@@ -398,7 +398,7 @@ func gemma3nWeightedRMS(
 	epsilon float32,
 ) (reference.Value, error) {
 	if input.Shape.Rank != 2 || weight.Shape.Rank != 1 || input.Shape.Dims[0] != weight.Shape.Dims[0] {
-		return reference.Value{}, errors.New("inference: Gemma 3n RMS norm shape is invalid")
+		return reference.Value{}, errors.New("inference: alternate-state RMS norm shape is invalid")
 	}
 	result := input.Clone()
 	width := int(input.Shape.Dims[0])

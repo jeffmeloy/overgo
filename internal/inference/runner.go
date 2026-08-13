@@ -40,7 +40,7 @@ type PromptEvaluation struct {
 type GenerateOptions struct {
 	MaxNewTokens int
 	Sampler      *sampling.Sampler
-	// DeviceGreedy: raw Qwen argmax; TokenEvent.Logits omitted.
+	// DeviceGreedy: device argmax; TokenEvent.Logits omitted.
 	DeviceGreedy bool
 	// DeviceTopK: exact bounded sampling; TokenEvent.Logits omitted.
 	DeviceTopK bool
@@ -531,7 +531,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		return reference.Value{}, nil, fmt.Errorf("inference: %s-only model requires a paired target session", mtpLabel)
 	}
 	if r.forwardProgram().Session == model.ForwardSessionPairedProjection {
-		return reference.Value{}, nil, errors.New("inference: Gemma 4 assistant requires shared target context")
+		return reference.Value{}, nil, errors.New("inference: paired-projection session requires shared target context")
 	}
 	if r.forwardProgram().Operation == model.ForwardOperationEncoder {
 		return reference.Value{}, nil, errors.New("inference: encoder-only program does not support KV caching")

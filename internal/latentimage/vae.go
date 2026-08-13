@@ -82,8 +82,12 @@ func LoadVAEDecoder(modelDir string) (*VAEDecoder, error) {
 	if err := readJSON(filepath.Join(vaeDir, "config.json"), &cfg); err != nil {
 		return nil, err
 	}
-	if cfg.ClassName != VAEClass {
-		return nil, fmt.Errorf("latentimage vae: class %q != %q", cfg.ClassName, VAEClass)
+	profile, err := imageProfileFromDir(modelDir)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.ClassName != profile.Recognition.VAE {
+		return nil, fmt.Errorf("latentimage vae: class %q != profile %q", cfg.ClassName, profile.Recognition.VAE)
 	}
 	if cfg.ZDim <= 0 || len(cfg.DimMult) == 0 || cfg.NumResBlks <= 0 {
 		return nil, fmt.Errorf("latentimage vae: bad config z=%d dim_mult=%v res=%d", cfg.ZDim, cfg.DimMult, cfg.NumResBlks)

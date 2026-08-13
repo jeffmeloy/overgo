@@ -15,7 +15,7 @@ import (
 // exact forward + capture logic runs CPU-cheaply. The real encoder is ~3.7B params.
 func syntheticEncoderSpec() TextEncoderSpec {
 	return TextEncoderSpec{
-		ModelType:    TextEncoderType,
+		ModelType:    "qwen3_vl",
 		HiddenLayers: 6,
 		Hidden:       16,
 		Intermediate: 24,

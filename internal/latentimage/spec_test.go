@@ -3,6 +3,8 @@ package latentimage
 import (
 	"os"
 	"testing"
+
+	"overgo/internal/modelrecipe"
 )
 
 // kreaModelDir: the real Krea-2-Turbo artifact (READ-ONLY). Absent -> skip
@@ -29,10 +31,10 @@ func TestRecognizePipeline(t *testing.T) {
 	if !ok {
 		t.Fatal("RecognizePipeline: not recognized")
 	}
-	if spec.Pipeline != PipelineClass || spec.Family != FamilyTag || !spec.ServingOnly {
+	if spec.Pipeline != spec.Profile.Recognition.Pipeline || spec.Family != spec.Profile.Family || !spec.ServingOnly {
 		t.Fatalf("tags: pipeline=%q family=%q servingOnly=%v", spec.Pipeline, spec.Family, spec.ServingOnly)
 	}
-	if spec.Tokenizer != TokenizerQwen2 {
+	if string(spec.Tokenizer) != spec.Profile.Recognition.Tokenizer {
 		t.Fatalf("tokenizer=%q", spec.Tokenizer)
 	}
 	t.Logf("recognized: pipeline=%s family=%s scheduler=%s distilled=%v patch=%d serving_only=%v tokenizer=%s",
@@ -51,6 +53,19 @@ func TestRecognizePipeline(t *testing.T) {
 		spec.TextEncoder.ModelType, spec.TextEncoder.HiddenLayers, spec.TextEncoder.Hidden, spec.TextEncoder.Heads,
 		spec.TextEncoder.KVHeads, spec.TextEncoder.HeadDim, spec.TextEncoder.VocabSize, spec.TextEncoder.RopeTheta,
 		spec.TextEncoder.SelectLayers)
+}
+
+func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
+	spec, err := Derive(kreaDirOrSkip(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := spec.Profile
+	if policy.ID == "" || policy.Conditioning.MaxPromptTokens != 512 || policy.Sampling.Steps != 8 ||
+		policy.Sampling.NumTrainTimesteps != 1000 || policy.Sampling.DynamicShiftMu != 1.15 ||
+		spec.Scheduler != policy.Recognition.Scheduler || string(spec.Tokenizer) != policy.Recognition.Tokenizer {
+		t.Fatalf("spec/profile mismatch: %+v", policy)
+	}
 }
 
 // TestVerifyCheckpoint: the CPU structural oracle -- every derived dim asserted
@@ -86,8 +101,12 @@ func TestEnumerate(t *testing.T) {
 		t.Fatalf("Enumerate: %v", err)
 	}
 	var found *MediaModel
+	profile, ok, err := modelrecipe.ImageProfileForPipeline("Krea2Pipeline")
+	if err != nil || !ok {
+		t.Fatalf("image profile: present=%v err=%v", ok, err)
+	}
 	for i := range models {
-		if models[i].Spec.Pipeline == PipelineClass {
+		if models[i].Spec.Pipeline == profile.Recognition.Pipeline {
 			found = &models[i]
 		}
 		t.Logf("enumerated: dir=%s family=%s kind=%s status=%q serving=%v",
@@ -96,7 +115,7 @@ func TestEnumerate(t *testing.T) {
 	if found == nil {
 		t.Fatal("Krea-2-Turbo not enumerated from models root")
 	}
-	if found.Serving || found.Status != StatusRecognized || found.Kind != mediaKind || found.Family != FamilyTag {
+	if found.Serving || found.Status != StatusRecognized || found.Kind != mediaKind || found.Family != profile.Family {
 		t.Fatalf("bad descriptor: %+v", *found)
 	}
 }

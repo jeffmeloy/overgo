@@ -4,8 +4,8 @@
 // Qwen2 tokenizer) packaged as one artifact directory. Geometry is DERIVED:
 // every Spec field is READ from a config key or DERIVED from another config
 // field, and cross-checked against real tensor shapes by VerifyCheckpoint. No
-// magic numbers, no vendor branching in the executor types -- the family tag is
-// discovery/recipe metadata (FamilyTag), the types are functional. Parallels
+// magic numbers, no vendor branching in executor types. Recognition and policy
+// come from modelrecipe.ImageProfile. Parallels
 // internal/latentvideo (Wan) for the media spine; this rung is arch recognition
 // + shape-derived spec only (serving/denoise is a later rung).
 package latentimage
@@ -15,23 +15,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-)
 
-// Recognition constants: the pipeline/sub-model class strings this package
-// binds. Class strings are data read from the artifact, matched here.
-const (
-	PipelineClass    = "Krea2Pipeline"           // model_index.json _class_name
-	TransformerClass = "Krea2Transformer2DModel" // transformer/config.json _class_name
-	VAEClass         = "AutoencoderKLQwenImage"  // vae/config.json _class_name
-	TextEncoderType  = "qwen3_vl"                // text_encoder/config.json model_type
-	FamilyTag        = "krea"                    // discovery/recipe scope tag (NOT an executor id)
+	"overgo/internal/modelrecipe"
 )
 
 // TokenizerKind names the tokenizer class from model_index.json.
 type TokenizerKind string
-
-// TokenizerQwen2 is the Qwen2 BPE tokenizer.
-const TokenizerQwen2 TokenizerKind = "Qwen2Tokenizer"
 
 // TransformerSpec: dual-stream latent-image diffusion transformer geometry.
 // Field comments name the SOURCE: [cfg K] a config key, [der ...] a derivation,
@@ -77,7 +66,7 @@ type VAESpec struct {
 
 // TextEncoderSpec: Qwen3-VL text encoder + selected-layer fusion contract.
 type TextEncoderSpec struct {
-	ModelType    string  // [cfg model_type] == TextEncoderType
+	ModelType    string  // [cfg model_type] == profile recognition
 	HiddenLayers int     // [cfg text_config.num_hidden_layers] xcheck count(language_model.layers.N)
 	Hidden       int     // [cfg text_config.hidden_size] xcheck language_model.embed_tokens.weight[1]
 	Intermediate int     // [cfg text_config.intermediate_size] xcheck mlp.down_proj.weight[1]
@@ -93,8 +82,9 @@ type TextEncoderSpec struct {
 // Spec: the recognized, geometry-derived artifact description. Serving-only;
 // no training lane. Sub-specs are functional; Family/Pipeline carry the tag.
 type Spec struct {
-	Pipeline    string // model_index _class_name (== PipelineClass)
-	Family      string // FamilyTag (discovery/recipe scope)
+	Profile     modelrecipe.ImageProfile
+	Pipeline    string // model_index _class_name
+	Family      string // profile discovery scope
 	Scheduler   string // model_index scheduler class
 	ServingOnly bool   // always true for this pipeline
 	Distilled   bool   // model_index is_distilled
@@ -170,11 +160,22 @@ type textEncoderConfig struct {
 	} `json:"text_config"`
 }
 
+type schedulerConfig struct {
+	ClassName         string  `json:"_class_name"`
+	NumTrainTimesteps int     `json:"num_train_timesteps"`
+	MaxShift          float64 `json:"max_shift"`
+}
+
+type tokenizerConfig struct {
+	ClassName string `json:"tokenizer_class"`
+	PadToken  string `json:"pad_token"`
+}
+
 // ---- recognition + config-level derivation ---------------------------------
 
 // RecognizePipeline reports whether dir holds this pipeline (model_index.json
-// _class_name == PipelineClass). A directory without model_index.json, or with
-// a different class, reports (nil,false,nil) -- not an error, so discovery can
+// _class_name resolves a recipe profile. A directory without model_index.json,
+// or with an unknown class, reports (nil,false,nil), so discovery can
 // probe any directory. Malformed JSON reports an error.
 func RecognizePipeline(dir string) (*Spec, bool, error) {
 	recognized, err := IsPipeline(dir)
@@ -202,7 +203,23 @@ func IsPipeline(dir string) (bool, error) {
 	if err := json.Unmarshal(raw, &index); err != nil {
 		return false, fmt.Errorf("latentimage: parse model_index: %w", err)
 	}
-	return index.ClassName == PipelineClass, nil
+	_, recognized, err := modelrecipe.ImageProfileForPipeline(index.ClassName)
+	return recognized, err
+}
+
+func imageProfileFromDir(dir string) (modelrecipe.ImageProfile, error) {
+	var index modelIndex
+	if err := readJSON(filepath.Join(dir, "model_index.json"), &index); err != nil {
+		return modelrecipe.ImageProfile{}, err
+	}
+	profile, ok, err := modelrecipe.ImageProfileForPipeline(index.ClassName)
+	if err != nil {
+		return modelrecipe.ImageProfile{}, err
+	}
+	if !ok {
+		return modelrecipe.ImageProfile{}, fmt.Errorf("latentimage: pipeline class %q has no image profile", index.ClassName)
+	}
+	return profile, nil
 }
 
 // Derive reads model_index.json + the three sub-configs and builds the Spec,
@@ -216,29 +233,49 @@ func Derive(dir string) (*Spec, error) {
 	if err := readJSON(filepath.Join(dir, "model_index.json"), &index); err != nil {
 		return nil, err
 	}
-	if index.ClassName != PipelineClass {
-		return nil, fmt.Errorf("latentimage: pipeline class %q != %q", index.ClassName, PipelineClass)
+	profile, recognized, err := modelrecipe.ImageProfileForPipeline(index.ClassName)
+	if err != nil {
+		return nil, err
+	}
+	if !recognized {
+		return nil, fmt.Errorf("latentimage: pipeline class %q has no image profile", index.ClassName)
 	}
 	var tcfg transformerConfig
 	if err := readJSON(filepath.Join(dir, "transformer", "config.json"), &tcfg); err != nil {
 		return nil, err
 	}
-	if tcfg.ClassName != TransformerClass {
-		return nil, fmt.Errorf("latentimage: transformer class %q != %q", tcfg.ClassName, TransformerClass)
+	if tcfg.ClassName != profile.Recognition.Transformer {
+		return nil, fmt.Errorf("latentimage: transformer class %q != profile %q", tcfg.ClassName, profile.Recognition.Transformer)
 	}
 	var vcfg vaeConfig
 	if err := readJSON(filepath.Join(dir, "vae", "config.json"), &vcfg); err != nil {
 		return nil, err
 	}
-	if vcfg.ClassName != VAEClass {
-		return nil, fmt.Errorf("latentimage: vae class %q != %q", vcfg.ClassName, VAEClass)
+	if vcfg.ClassName != profile.Recognition.VAE {
+		return nil, fmt.Errorf("latentimage: vae class %q != profile %q", vcfg.ClassName, profile.Recognition.VAE)
 	}
 	var ecfg textEncoderConfig
 	if err := readJSON(filepath.Join(dir, "text_encoder", "config.json"), &ecfg); err != nil {
 		return nil, err
 	}
-	if ecfg.ModelType != TextEncoderType {
-		return nil, fmt.Errorf("latentimage: text_encoder model_type %q != %q", ecfg.ModelType, TextEncoderType)
+	if ecfg.ModelType != profile.Recognition.TextEncoder {
+		return nil, fmt.Errorf("latentimage: text_encoder model_type %q != profile %q", ecfg.ModelType, profile.Recognition.TextEncoder)
+	}
+	var scfg schedulerConfig
+	if err := readJSON(filepath.Join(dir, "scheduler", "scheduler_config.json"), &scfg); err != nil {
+		return nil, err
+	}
+	if index.Scheduler[1] != profile.Recognition.Scheduler || scfg.ClassName != profile.Recognition.Scheduler ||
+		scfg.NumTrainTimesteps != profile.Sampling.NumTrainTimesteps || scfg.MaxShift != profile.Sampling.DynamicShiftMu {
+		return nil, fmt.Errorf("latentimage: scheduler artifact disagrees with profile %q", profile.ID)
+	}
+	var tokcfg tokenizerConfig
+	if err := readJSON(filepath.Join(dir, "tokenizer", "tokenizer_config.json"), &tokcfg); err != nil {
+		return nil, err
+	}
+	if index.Tokenizer[1] != profile.Recognition.Tokenizer || tokcfg.ClassName != profile.Recognition.Tokenizer ||
+		tokcfg.PadToken != profile.Conditioning.PadToken {
+		return nil, fmt.Errorf("latentimage: tokenizer artifact disagrees with profile %q", profile.ID)
 	}
 
 	if len(tcfg.AxesDimsRope) != 3 {
@@ -249,8 +286,9 @@ func Derive(dir string) (*Spec, error) {
 	}
 
 	spec := &Spec{
+		Profile:     profile,
 		Pipeline:    index.ClassName,
-		Family:      FamilyTag,
+		Family:      profile.Family,
 		Scheduler:   index.Scheduler[1],
 		ServingOnly: true,
 		Distilled:   index.IsDistilled,

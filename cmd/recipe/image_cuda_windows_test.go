@@ -99,3 +99,14 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 		}
 	}
 }
+
+func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
+	profile, ok, err := modelrecipe.ImageProfileForPipeline("Krea2Pipeline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok || profile.Recognition.Scheduler != "FlowMatchEulerDiscreteScheduler" ||
+		profile.Conditioning.PadToken != "<|endoftext|>" || profile.Sampling.Steps != 8 {
+		t.Fatalf("image recipe profile=%+v present=%v", profile, ok)
+	}
+}

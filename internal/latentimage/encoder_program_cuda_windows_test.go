@@ -72,7 +72,7 @@ func TestEncoderProgramCUDAMatchesReference(t *testing.T) {
 // encoder on the device (resident BF16 weights, generic executor) over the REAL
 // Krea-2-Turbo checkpoint and asserts the device selected-hidden tensors match the
 // host f64 reference (textencoder.go EncodeSelectedLayers) within the bf16 band.
-// Also exercises the dtc-tokenizer templated ids/mask (RenderKreaTextInput) on the
+// Also exercises profile-templated ids/mask (RenderTextInput) on the
 // device and reports peak device weight residency.
 func TestEncoderResidentRealCheckpoint(t *testing.T) {
 	cudatest.Require(t)
@@ -148,9 +148,9 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 	}
 
 	// --- dtc-tokenizer templated ids/mask consumed on the device ---
-	in, err := RenderKreaTextInput(tok, prompt, KreaChatPromptTemplate())
+	in, err := RenderTextInput(tok, prompt, spec.Profile.Conditioning)
 	if err != nil {
-		t.Fatalf("RenderKreaTextInput: %v", err)
+		t.Fatalf("RenderTextInput: %v", err)
 	}
 	attended := 0
 	for _, m := range in.Mask {

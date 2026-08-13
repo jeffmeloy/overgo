@@ -36,12 +36,6 @@ func readEmbedRowsF32(modelDir string, spec TextEncoderSpec, ids []int) ([]float
 	return result, nil
 }
 
-const (
-	DefaultSteps             = 8
-	DefaultNumTrainTimesteps = 1000
-	DefaultDynamicShiftMu    = 1.15
-)
-
 var generatedImageContract = artifact.JSONContract(artifact.KindOutput, "overgo.generated-image.v1")
 
 type Request struct {
@@ -89,11 +83,11 @@ func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Gene
 	if err := ValidateRequest(request); err != nil {
 		return nil, err
 	}
-	request = request.withDefaults()
 	spec, err := Derive(modelDir)
 	if err != nil {
 		return nil, err
 	}
+	request = request.withDefaults(spec.Profile.Sampling)
 	if _, err := spec.VerifyCheckpoint(modelDir); err != nil {
 		return nil, err
 	}
@@ -108,7 +102,7 @@ func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Gene
 	if err != nil {
 		return nil, err
 	}
-	text, err := RenderKreaTextInput(tokenizer, request.Prompt, KreaChatPromptTemplate())
+	text, err := RenderTextInput(tokenizer, request.Prompt, spec.Profile.Conditioning)
 	if err != nil {
 		return nil, err
 	}
@@ -159,21 +153,21 @@ func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Gene
 	}, nil
 }
 
-func (r Request) withDefaults() Request {
+func (r Request) withDefaults(policy modelrecipe.ImageSampling) Request {
 	if r.Steps == 0 {
-		r.Steps = DefaultSteps
+		r.Steps = policy.Steps
 	}
 	if r.NumTrainTimesteps == 0 {
-		r.NumTrainTimesteps = DefaultNumTrainTimesteps
+		r.NumTrainTimesteps = policy.NumTrainTimesteps
 	}
 	if r.DynamicShiftMu == 0 {
-		r.DynamicShiftMu = DefaultDynamicShiftMu
+		r.DynamicShiftMu = policy.DynamicShiftMu
 	}
 	return r
 }
 
 func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, error) {
-	if g == nil || g.pipeline == nil || request.withDefaults() != g.request || g.prepared {
+	if g == nil || g.pipeline == nil || request.withDefaults(g.spec.Profile.Sampling) != g.request || g.prepared {
 		return nil, errors.New("latent image: generation session is unavailable")
 	}
 	if _, err := g.pipeline.Condition(ctx, g.embed); err != nil {

@@ -1,0 +1,522 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "role": "implementation-and-golden-harness",
+      "repository": "adaptive_new",
+      "commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "gemma4-audio-to-text",
+      "kind": "generation",
+      "entry_points": [
+        {
+          "runtime": "go",
+          "path": "go/extmodel/alternating_window_decoder_cuda_windows.go",
+          "symbol": "AlternatingWindowDeviceForward.GenerateMultimodalAdaptiveTopKContextTimed"
+        }
+      ],
+      "signature": {
+        "inputs": [
+          "text",
+          "audio"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      "artifacts": [
+        {
+          "identity": "gemma4-12b",
+          "locator": "repodb:model/gemma4-12b"
+        }
+      ],
+      "corpora": [
+        {
+          "identity": "gemma4-audio-eval",
+          "locator": "repodb:dataset/gemma4-audio-eval"
+        }
+      ],
+      "goldens": [
+        {
+          "identity": "gemma4-audio",
+          "locator": "fixtures/gemma4_audio_golden.json",
+          "sha256": "273b9b00522ab9d8c8c74e5f333475f9c1bd70c50bf4f52d7c570b6a0fd2da97"
+        }
+      ],
+      "performance": {
+        "cold_wall": {
+          "state": "unmeasured",
+          "reason": "no matched cold-run record in imported evidence"
+        },
+        "warm_wall": {
+          "state": "unmeasured",
+          "reason": "no matched warm-run record in imported evidence"
+        },
+        "peak_device": {
+          "state": "unmeasured",
+          "reason": "no matched peak-device record in imported evidence"
+        },
+        "peak_host": {
+          "state": "unmeasured",
+          "reason": "no matched peak-host record in imported evidence"
+        }
+      }
+    },
+    {
+      "id": "pockettts-text-to-audio",
+      "kind": "synthesis",
+      "entry_points": [
+        {
+          "runtime": "go",
+        "path": "go/extmodel/speech_flow_synthesis.go",
+        "symbol": "CompileAudioFlowSynthesis"
+        }
+      ],
+      "signature": {
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "audio"
+        ]
+      },
+      "artifacts": [
+        {
+          "identity": "pocket-tts",
+          "locator": "repodb:model/pocket-tts"
+        }
+      ],
+      "corpora": [
+        {
+          "identity": "pockettts-local-eval",
+          "locator": "repodb:dataset/pockettts-local-eval"
+        }
+      ],
+      "goldens": [
+        {
+          "identity": "pockettts-local",
+          "locator": "fixtures/pockettts/pockettts_local_golden.yaml",
+          "sha256": "dc28764a395fe9bf0a77b9dd32a28668e7363ea5af6479aef6ce08db4d4e0c9d"
+        }
+      ],
+      "performance": {
+        "cold_wall": {
+          "state": "unmeasured",
+          "reason": "no matched cold-run record in imported evidence"
+        },
+        "warm_wall": {
+          "state": "unmeasured",
+          "reason": "no matched warm-run record in imported evidence"
+        },
+        "peak_device": {
+          "state": "unmeasured",
+          "reason": "no matched peak-device record in imported evidence"
+        },
+        "peak_host": {
+          "state": "unmeasured",
+          "reason": "no matched peak-host record in imported evidence"
+        }
+      }
+    },
+    {
+      "id": "qwen35-image-to-text",
+      "kind": "generation",
+      "entry_points": [
+        {
+          "runtime": "go",
+        "path": "go/extmodel/hybrid_recurrent_decoder.go",
+        "symbol": "CompileMergedPatchVisionProgram"
+        }
+      ],
+      "signature": {
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      "artifacts": [
+        {
+          "identity": "qwen3.5-4b",
+          "locator": "repodb:model/qwen3.5-4b"
+        }
+      ],
+      "corpora": [
+        {
+          "identity": "qwen35-image-eval",
+          "locator": "repodb:dataset/qwen35-image-eval"
+        }
+      ],
+      "goldens": [
+        {
+          "identity": "qwen35-mm",
+          "locator": "fixtures/qwen35_mm_golden.json",
+          "sha256": "774a9e8ffe2ea3ba37e142123ee35ddcf91c24baa43647b0a9af96fce74f8ea1"
+        }
+      ],
+      "performance": {
+        "cold_wall": {
+          "state": "unmeasured",
+          "reason": "no matched cold-run record in imported evidence"
+        },
+        "warm_wall": {
+          "state": "unmeasured",
+          "reason": "no matched warm-run record in imported evidence"
+        },
+        "peak_device": {
+          "state": "unmeasured",
+          "reason": "no matched peak-device record in imported evidence"
+        },
+        "peak_host": {
+          "state": "unmeasured",
+          "reason": "no matched peak-host record in imported evidence"
+        }
+      }
+    },
+    {
+      "id": "qwen35-video-to-text",
+      "kind": "generation",
+      "entry_points": [
+        {
+          "runtime": "go",
+        "path": "go/extmodel/hybrid_recurrent_decoder.go",
+        "symbol": "CompileMergedPatchVisionProgram"
+        }
+      ],
+      "signature": {
+        "inputs": [
+          "text",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      "artifacts": [
+        {
+          "identity": "qwen3.5-4b",
+          "locator": "repodb:model/qwen3.5-4b"
+        }
+      ],
+      "corpora": [
+        {
+          "identity": "qwen35-video-eval",
+          "locator": "repodb:dataset/qwen35-video-eval"
+        }
+      ],
+      "goldens": [
+        {
+          "identity": "qwen35-video",
+          "locator": "fixtures/qwen35_video_golden.json",
+          "sha256": "38d61519eb39e98e577aeeebec6159be5efd6b2680e3b4c52d87da0047967505"
+        }
+      ],
+      "performance": {
+        "cold_wall": {
+          "state": "unmeasured",
+          "reason": "no matched cold-run record in imported evidence"
+        },
+        "warm_wall": {
+          "state": "unmeasured",
+          "reason": "no matched warm-run record in imported evidence"
+        },
+        "peak_device": {
+          "state": "unmeasured",
+          "reason": "no matched peak-device record in imported evidence"
+        },
+        "peak_host": {
+          "state": "unmeasured",
+          "reason": "no matched peak-host record in imported evidence"
+        }
+      }
+    },
+    {
+      "id": "rxbrain-image-to-text",
+      "kind": "generation",
+      "entry_points": [
+        {
+          "runtime": "go",
+          "path": "go/extmodel/hybrid_recurrent_decoder.go",
+          "symbol": "MergedPatchVisionProgram"
+        }
+      ],
+      "signature": {
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      "artifacts": [
+        {
+          "identity": "rxbrain-vqa",
+          "locator": "repodb:model/rxbrain-vqa"
+        }
+      ],
+      "corpora": [
+        {
+          "identity": "rxbrain-vqa-eval",
+          "locator": "repodb:dataset/rxbrain-vqa-eval"
+        }
+      ],
+      "goldens": [
+        {
+          "identity": "rxbrain-vqa",
+          "locator": "fixtures/rxbrain_vqa_golden.json",
+          "sha256": "2c28c29429eaf1f794555758e9cf5e6aaa12dbd30e9e184d045343d27fe61b7e"
+        }
+      ],
+      "performance": {
+        "cold_wall": {
+          "state": "unmeasured",
+          "reason": "no matched cold-run record in imported evidence"
+        },
+        "warm_wall": {
+          "state": "unmeasured",
+          "reason": "no matched warm-run record in imported evidence"
+        },
+        "peak_device": {
+          "state": "unmeasured",
+          "reason": "no matched peak-device record in imported evidence"
+        },
+        "peak_host": {
+          "state": "unmeasured",
+          "reason": "no matched peak-host record in imported evidence"
+        }
+      }
+    },
+    {
+      "id": "tabfm-table-to-table",
+      "kind": "prediction",
+      "entry_points": [
+        {
+          "runtime": "go",
+          "path": "go/extmodel/tabular_set_transformer.go",
+          "symbol": "TabularSetServing.Predict"
+        }
+      ],
+      "signature": {
+        "inputs": [
+          "table"
+        ],
+        "outputs": [
+          "table"
+        ]
+      },
+      "artifacts": [
+        {
+          "identity": "tabfm",
+          "locator": "repodb:model/tabfm"
+        }
+      ],
+      "corpora": [
+        {
+          "identity": "tabfm-regression-eval",
+          "locator": "repodb:dataset/tabfm-regression-eval"
+        }
+      ],
+      "goldens": [
+        {
+          "identity": "tabfm-regression",
+          "locator": "fixtures/tabfm/tabfm_regression_golden.json",
+          "sha256": "c4b9209218ac7bc28fb1c359cb77c514fd66f61826b970572c87ea039d58fdc4"
+        }
+      ],
+      "performance": {
+        "cold_wall": {
+          "state": "unmeasured",
+          "reason": "no matched cold-run record in imported evidence"
+        },
+        "warm_wall": {
+          "state": "unmeasured",
+          "reason": "no matched warm-run record in imported evidence"
+        },
+        "peak_device": {
+          "state": "unmeasured",
+          "reason": "no matched peak-device record in imported evidence"
+        },
+        "peak_host": {
+          "state": "unmeasured",
+          "reason": "no matched peak-host record in imported evidence"
+        }
+      }
+    },
+    {
+      "id": "timesfm-series-to-series",
+      "kind": "forecast",
+      "entry_points": [
+        {
+          "runtime": "go",
+        "path": "go/extmodel/patched_time_series.go",
+        "symbol": "CompileSeriesForecastRuntime"
+        }
+      ],
+      "signature": {
+        "inputs": [
+          "time-series"
+        ],
+        "outputs": [
+          "time-series"
+        ]
+      },
+      "artifacts": [
+        {
+          "identity": "timesfm-2.5",
+          "locator": "repodb:model/timesfm-2.5"
+        }
+      ],
+      "corpora": [
+        {
+          "identity": "utsd-eval",
+          "locator": "repodb:dataset/utsd-eval"
+        }
+      ],
+      "goldens": [
+        {
+          "identity": "timesfm",
+          "locator": "fixtures/timesfm_golden.json",
+          "sha256": "4ea782a5ac1173f7dfa829f9e618615e8cccd0faf3b06a3ade40a50cd5f0ff17"
+        }
+      ],
+      "performance": {
+        "cold_wall": {
+          "state": "unmeasured",
+          "reason": "no matched cold-run record in imported evidence"
+        },
+        "warm_wall": {
+          "state": "unmeasured",
+          "reason": "no matched warm-run record in imported evidence"
+        },
+        "peak_device": {
+          "state": "unmeasured",
+          "reason": "no matched peak-device record in imported evidence"
+        },
+        "peak_host": {
+          "state": "unmeasured",
+          "reason": "no matched peak-host record in imported evidence"
+        }
+      }
+    },
+    {
+      "id": "un0-text-to-image",
+      "kind": "generation",
+      "entry_points": [
+        {
+          "runtime": "go",
+        "path": "go/extmodel/conditional_oscillator_image.go",
+          "symbol": "ConditionalOscillatorProgram.GenerateContext"
+        }
+      ],
+      "signature": {
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "image"
+        ]
+      },
+      "artifacts": [
+        {
+          "identity": "un0",
+          "locator": "repodb:model/un0"
+        }
+      ],
+      "corpora": [
+        {
+          "identity": "un0-generation-eval",
+          "locator": "repodb:dataset/un0-generation-eval"
+        }
+      ],
+      "goldens": [
+        {
+          "identity": "un0-generator",
+          "locator": "fixtures/un0_generator_golden.json",
+          "sha256": "cb91f31af16eb02ec5bab66f306b4737d23d387c8a25caca0f6ef7f629d841ca"
+        }
+      ],
+      "performance": {
+        "cold_wall": {
+          "state": "unmeasured",
+          "reason": "no matched cold-run record in imported evidence"
+        },
+        "warm_wall": {
+          "state": "measured",
+          "value": 1.25,
+          "unit": "ms/generation",
+          "evidence": "image_gen_report.md#un-0"
+        },
+        "peak_device": {
+          "state": "unmeasured",
+          "reason": "no matched peak-device record in imported evidence"
+        },
+        "peak_host": {
+          "state": "unmeasured",
+          "reason": "no matched peak-host record in imported evidence"
+        }
+      }
+    },
+    {
+      "id": "unlimitedocr-image-to-text",
+      "kind": "recognition",
+      "entry_points": [
+        {
+          "runtime": "go",
+          "path": "go/extmodel/document_vision.go",
+          "symbol": "ImageTokenPromptProgram.Prepare"
+        }
+      ],
+      "signature": {
+        "inputs": [
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      "artifacts": [
+        {
+          "identity": "unlimited-ocr",
+          "locator": "repodb:model/unlimited-ocr"
+        }
+      ],
+      "corpora": [
+        {
+          "identity": "unlimitedocr-image-eval",
+          "locator": "repodb:dataset/unlimitedocr-image-eval"
+        }
+      ],
+      "goldens": [
+        {
+          "identity": "unlimitedocr",
+          "locator": "fixtures/unlimitedocr_golden.json",
+          "sha256": "72339f0f4aece7c793d8c77a0c804ba2b121af3caf96340bf850d89bb744acd5"
+        }
+      ],
+      "performance": {
+        "cold_wall": {
+          "state": "unmeasured",
+          "reason": "no matched cold-run record in imported evidence"
+        },
+        "warm_wall": {
+          "state": "unmeasured",
+          "reason": "no matched warm-run record in imported evidence"
+        },
+        "peak_device": {
+          "state": "unmeasured",
+          "reason": "no matched peak-device record in imported evidence"
+        },
+        "peak_host": {
+          "state": "unmeasured",
+          "reason": "no matched peak-host record in imported evidence"
+        }
+      }
+    }
+  ]
+}

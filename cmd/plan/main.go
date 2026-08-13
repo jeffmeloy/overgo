@@ -29,9 +29,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"overgo/internal/plan"
+	"overgo/internal/testevidence"
 )
 
 func main() {
@@ -306,17 +309,38 @@ func runVerify(it plan.Item, st plan.Step) error {
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: %s\n", it.ID, st.ID, st.Verify)
 	var buf bytes.Buffer
-	cmd := exec.Command("sh", "-c", st.Verify)
+	shell, err := verificationShell()
+	if err != nil {
+		return fmt.Errorf("verify %s/%s: %w", it.ID, st.ID, err)
+	}
+	cmd := exec.Command(shell, "-c", st.Verify)
 	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("verify FAILED for %s/%s: %w", it.ID, st.ID, err)
 	}
-	if reason := vacuousVerify(buf.String()); reason != "" {
-		return fmt.Errorf("verify VACUOUS for %s/%s: %s -- a skip is NOT a pass; run the oracle against the real prerequisite (on hardware / with the fixture) or record an honest stop, but do not advance on unverified parity", it.ID, st.ID, reason)
+	if err := testevidence.VerifyOutput(st.Verify, buf.String()); err != nil {
+		return fmt.Errorf("verify VACUOUS for %s/%s: %v -- a skip is NOT a pass; run the oracle against the real prerequisite (on hardware / with the fixture) or record an honest stop, but do not advance on unverified parity", it.ID, st.ID, err)
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: PASS\n", it.ID, st.ID)
 	return nil
+}
+
+func verificationShell() (string, error) {
+	if shell, err := exec.LookPath("sh"); err == nil {
+		return shell, nil
+	}
+	if runtime.GOOS == "windows" {
+		for _, path := range []string{
+			`C:\Program Files\Git\bin\bash.exe`,
+			`C:\Program Files\Git\usr\bin\bash.exe`,
+		} {
+			if info, err := os.Stat(filepath.Clean(path)); err == nil && !info.IsDir() {
+				return path, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("POSIX shell unavailable")
 }
 
 // vacuousVerify reports why a 0-exit verify is NOT real evidence, or "" when it
@@ -328,19 +352,6 @@ func runVerify(it plan.Item, st plan.Step) error {
 // "parity NOT verified", and an empty/over-filtered run emits "[no test(s)...]".
 // Environment-gated skips that DID run real assertions elsewhere still print a
 // package "ok" without these markers and are unaffected.
-func vacuousVerify(out string) string {
-	switch {
-	case strings.Contains(out, "UNAVAILABLE"):
-		return "output contains UNAVAILABLE (a prerequisite was absent, so parity was NOT verified)"
-	case strings.Contains(out, "parity NOT verified"):
-		return "output reports 'parity NOT verified'"
-	case strings.Contains(out, "[no tests to run]"):
-		return "the verify filtered out every test ([no tests to run]) -- it asserted nothing"
-	case strings.Contains(out, "[no test files]"):
-		return "the verify ran a package with no tests ([no test files]) -- it asserted nothing"
-	}
-	return ""
-}
 
 func advanceStep(document plan.Plan, itemID, stepID, force string) error {
 	for i := range document.Items {

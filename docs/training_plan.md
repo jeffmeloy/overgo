@@ -60,6 +60,26 @@ liveness, gradient destinations and optimizer-group bindings. CUDA launch detail
 remain executor concerns. Missing compiled facts are initialization errors; no
 production fallback reconstructs training policy from model-family predicates.
 
+### 2.1 Multimodal contract
+
+Each plan compiles an ordered input/target modality signature from RepoDB:
+text, image, audio, video, time series or table. It also binds processor,
+projector, merger, codec, mask/position, augmentation, objective and
+modality-native evaluation identities. Train/freeze boundaries are explicit;
+every declared trainable connector, trunk and head receives gradient evidence.
+
+Applicable objective pairs include text-to-text, image/audio/video-to-text,
+text-to-audio, text/image-to-image, text/image/video-to-video, forecast and
+table prediction. A pair enters training only with adaptive_new evidence or an
+approved objective and real corpus. Inference support alone does not create a
+training claim. Missing pairs compile to explicit non-trainable/refused rows;
+synthetic tensors cannot substitute for real modality evidence.
+
+Checkpoint identity includes processors/codecs and RNG/augmentation state.
+Promotion requires end-to-end processor-to-output evidence: exact boundaries
+where deterministic, modality-native held-out quality otherwise, plus matched
+wall and peak memory. Scalar loss descent alone is insufficient.
+
 ## 3. Memory models
 
 Memory claims must name the representation they describe. Current and target
@@ -345,7 +365,9 @@ Each rung produces a runnable artifact and an evidence record. A later rung does
 not redefine an earlier rung's correctness contract.
 
 1. **Compile training authority.** Add sealed `TrainingRunPlan` and model-level
-   `TrainingProgram`; bind RepoDB model, dataset, split, objective and policy IDs.
+   `TrainingProgram`; bind RepoDB model, dataset, split, ordered input/target
+   modalities, processor/projector/codec, objective and policy IDs. Derive the
+   applicable/refused multimodal matrix from those facts.
 2. **Resident FP32 Muon plumbing.** Complete device forward, backward, loss and
    Muon update for small matrix, vector and scalar fixtures; prove host/device
    parity. **Device backward is the dominant sub-item and the schedule long
@@ -364,8 +386,9 @@ not redefine an earlier rung's correctness contract.
    establish loss scaling, clipping and convergence envelopes.
 5. **Muon scale-up.** Stream all Muon geometry groups, reuse Newton–Schulz scratch
    by capacity class and compare complete CPU/device update trajectories.
-6. **Controller proof.** Fine-tune the intended 350M–1B controller and pass the
-   immutable held-out promotion suite across multiple seeds.
+6. **Controller proof.** Fine-tune the intended controller and pass the
+   immutable held-out promotion suite across multiple seeds, including typed
+   text/image/audio/video component and workflow actions.
 7. **Forced Tier-1 streaming.** Artificially cap VRAM on the small model; prove
    double-buffered weight/gradient transfer, overlap and exact results.
 8. **Checkpointed activations.** Prove recomputation independently, then compose
@@ -389,10 +412,10 @@ not redefine an earlier rung's correctness contract.
 |---|---|---:|---|
 | Dense fixture | Numerical/device plumbing | VRAM | Forward/backward/update parity |
 | Fractale-350M, Carbon-500M or Qwen2.5-0.5B | Controller candidate | VRAM | Exact resume and promotion-suite definition |
-| SimpleDiffusion, Un-0, pocket-tts | Family-specific training validation | VRAM | Existing host step evidence promoted to device program |
+| SimpleDiffusion, Un-0, pocket-tts | Image and speech training validation | VRAM | Real modality corpus, processor/codec gradients and native-quality evaluation |
 | MiniCPM5-1B | Resident scale validation | VRAM | Measured peak below safe capacity class |
-| Gemma3n E4B | Tier-1 scale target | RAM offload | Device backward, checkpointing and streamed optimizer complete |
-| Qwen3.5 4B/9B | Optional hybrid training | RAM offload | Concrete objective plus SSM/GDN and gated-attention VJPs |
+| Gemma3n E4B | Tier-1 multimodal scale target | RAM offload | Device backward, checkpointing and every adaptive-declared trainable text/image/audio modality |
+| Qwen3.5 4B/9B | Optional hybrid/multimodal training | RAM offload | Concrete text/image/video objective plus SSM/GDN and gated-attention VJPs |
 | Gemma4 12B | Late scale target | RAM, optional NVMe | Measured state layout and safe host headroom |
 | Wan, RxBrain, SenseNova, Krea | Serving/generation | N/A | No training work without an approved learning objective |
 | TimesFM, TabFM, needle | Serving/evaluation | N/A | Add only with a concrete fine-tuning recipe and dataset |
@@ -405,6 +428,8 @@ state schemas. This table expresses sequence, not authoritative byte counts.
 Every rung records:
 
 - exact artifact and source revision identities;
+- ordered input/target modality signature and applicable/refused matrix;
+- processor, projector, merger, codec and augmentation identities;
 - hardware, driver and capacity class;
 - compiled program and calibration identities;
 - peak VRAM and host-RAM usage;
@@ -412,7 +437,7 @@ Every rung records:
 - forward, backward, recompute, transfer and optimizer timing;
 - numerical parity and convergence measurements;
 - checkpoint/resume evidence;
-- evaluation results across required seeds;
+- modality-native evaluation results across required seeds;
 - explicit pass, halt or rollback decision.
 
 A result is not promoted when evidence is missing, stale, hardware-incompatible or

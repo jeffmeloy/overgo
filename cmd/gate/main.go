@@ -34,6 +34,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testevidence"
 )
 
 const (
@@ -468,32 +469,21 @@ func (g *gateContext) stepTest() (bool, error) {
 		return true, nil
 	}
 	g.honesty = append(g.honesty, fmt.Sprintf("test scope: %d packages (derived from import graph)", len(impacted)))
-	testOut, testErr := command(g.repo, "go", append([]string{"test", "-count=1"}, impacted...)...)
-	if testErr != nil {
-		return false, testErr
-	}
-	// A skip exits 0; refuse it as passing evidence. On the gate's real hardware
-	// an UNAVAILABLE / "parity NOT verified" marker means a genuinely-absent
-	// prerequisite (e.g. the un0 golden that let a regression through
-	// tightening's gate), not a CI environment skip. UNAVAILABLE is never
-	// passing evidence (cuda-parity-lane doctrine).
-	if reason := vacuousTestEvidence(testOut); reason != "" {
-		return false, fmt.Errorf("impacted tests VACUOUS: %s -- a skip is not a pass; supply the prerequisite on the gate host or gate the step honestly", reason)
+	if _, err := runGoTests(g.repo, impacted); err != nil {
+		return false, err
 	}
 	return false, nil
 }
 
-// vacuousTestEvidence mirrors cmd/plan's vacuousVerify: a 0-exit go test run
-// that skipped its oracle asserted nothing. Keys on the repo conventions for an
-// absent prerequisite (UNAVAILABLE / "parity NOT verified") and empty runs.
-func vacuousTestEvidence(out string) string {
-	switch {
-	case strings.Contains(out, "UNAVAILABLE"):
-		return "output contains UNAVAILABLE (a prerequisite was absent; parity NOT verified)"
-	case strings.Contains(out, "parity NOT verified"):
-		return "output reports 'parity NOT verified'"
+func runGoTests(repo string, packages []string) (string, error) {
+	out, err := command(repo, "go", append([]string{"test", "-json", "-count=1"}, packages...)...)
+	if err != nil {
+		return out, err
 	}
-	return ""
+	if err := testevidence.GoTestJSON(out); err != nil {
+		return out, fmt.Errorf("impacted tests vacuous: %w", err)
+	}
+	return out, nil
 }
 
 func (g *gateContext) stepManifest() (bool, error) {

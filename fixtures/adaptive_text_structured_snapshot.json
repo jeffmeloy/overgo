@@ -1,0 +1,136 @@
+{
+  "version": 2,
+  "sources": [
+    {
+      "name": "adaptive",
+      "repository": "local/adaptive_new",
+      "commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "dense-carbon",
+      "source": "adaptive",
+      "entry_point": "go/extmodel/operators_forward.go:ForwardDenseCausal",
+      "signature": {"inputs": ["text"], "outputs": ["text"]},
+      "state": "parity",
+      "artifacts": [{"name": "weights", "identity": "tensor-set:sha256:2b1059a8f6091f6a092c0d6996a21765562e534af96d6f250609973b58e42d18"}],
+      "corpora": [{"name": "serving-cases", "identity": "dataset:sha256:964ca1d714233666e6f7ca66223036057ced4dce704b0d391b2d1fdac8c96e59"}],
+      "goldens": [{"name": "exact-tokens", "identity": "evidence:sha256:964ca1d714233666e6f7ca66223036057ced4dce704b0d391b2d1fdac8c96e59"}]
+    },
+    {
+      "id": "dense-minicpm5",
+      "source": "adaptive",
+      "entry_point": "go/extmodel/operators_forward.go:ForwardDenseCausal",
+      "signature": {"inputs": ["text"], "outputs": ["text"]},
+      "state": "wall-lead",
+      "artifacts": [{"name": "weights", "identity": "tensor-set:sha256:e37577c45aec2255ac437ae6e86518ea99745d6616dd8c59b1fe7e26a04606f7"}],
+      "corpora": [{"name": "serving-cases", "identity": "dataset:sha256:1b177a279b58dfd98940dffce3c8381bda816a1bfcadd5411c6a645b398753ef"}],
+      "goldens": [{"name": "exact-tokens", "identity": "evidence:sha256:1b177a279b58dfd98940dffce3c8381bda816a1bfcadd5411c6a645b398753ef"}],
+      "measurements": [
+        {"role": "reference", "runtime": "adaptive", "protocol": "cuda; warm; greedy; milliseconds-per-token", "wall_nanos": 3400000, "evidence": "evidence:sha256:992f760c127a147cbf2815bb8352ad13ea041735e2e05b46d27897f5659ff63e"},
+        {"role": "candidate", "runtime": "overgo", "protocol": "cuda; warm; greedy; milliseconds-per-token", "wall_nanos": 3109000, "evidence": "evidence:sha256:992f760c127a147cbf2815bb8352ad13ea041735e2e05b46d27897f5659ff63e"}
+      ]
+    },
+    {
+      "id": "dense-qwen25",
+      "source": "adaptive",
+      "entry_point": "go/extmodel/operators_forward.go:ForwardDenseCausal",
+      "signature": {"inputs": ["text"], "outputs": ["text"]},
+      "state": "parity",
+      "artifacts": [{"name": "weights", "identity": "tensor-set:sha256:764daf929f9d93ae9b2ffe886e6bb5871dd5cb85ebb5e0d94700c2158931e471"}],
+      "corpora": [{"name": "serving-cases", "identity": "dataset:sha256:5de6027bafa11e209e20b8f758b1d77946e034b4af14e815f18164cf992d90f1"}],
+      "goldens": [{"name": "exact-tokens", "identity": "evidence:sha256:5de6027bafa11e209e20b8f758b1d77946e034b4af14e815f18164cf992d90f1"}]
+    },
+    {
+      "id": "embedding",
+      "source": "adaptive",
+      "entry_point": "none",
+      "signature": {"inputs": ["text"], "outputs": ["table"]},
+      "state": "refused",
+      "refusal": "no evidence-qualified encoder artifact is present; causal hidden states are not an embedding model"
+    },
+    {
+      "id": "forecast-timesfm",
+      "source": "adaptive",
+      "entry_point": "go/extmodel/patched_time_series.go:Predict",
+      "signature": {"inputs": ["time-series"], "outputs": ["time-series"]},
+      "state": "wall-lead",
+      "artifacts": [{"name": "weights", "identity": "tensor-set:sha256:b53f6d52114e2ad786890f3c4637ce05f580b7800d6e24401f88b398b76035ef"}],
+      "corpora": [{"name": "forecast-cases", "identity": "dataset:sha256:4ea782a5ac1173f7dfa829f9e618615e8cccd0faf3b06a3ade40a50cd5f0ff17"}],
+      "goldens": [{"name": "forecast-values", "identity": "evidence:sha256:4ea782a5ac1173f7dfa829f9e618615e8cccd0faf3b06a3ade40a50cd5f0ff17"}],
+      "measurements": [
+        {"role": "reference", "runtime": "adaptive", "protocol": "host; both-golden-cases; median", "wall_nanos": 873000000, "evidence": "evidence:sha256:2ebf8b4c48db3b0fa319da9ad545505679c94c0ede2ea2af810bcf4f116d08a2"},
+        {"role": "candidate", "runtime": "overgo", "protocol": "host; both-golden-cases; median", "wall_nanos": 684000000, "evidence": "evidence:sha256:2ebf8b4c48db3b0fa319da9ad545505679c94c0ede2ea2af810bcf4f116d08a2"}
+      ]
+    },
+    {
+      "id": "hybrid-qwen35",
+      "source": "adaptive",
+      "entry_point": "go/extmodel/hybrid_recurrent_decoder.go:compileHybridRecurrentDecoderSpec",
+      "signature": {"inputs": ["text"], "outputs": ["text"]},
+      "state": "tradeoff",
+      "artifacts": [{"name": "weights", "identity": "tensor-set:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec"}],
+      "corpora": [{"name": "serving-cases", "identity": "dataset:sha256:6dcce666b1ebf776b9ee9e9df9107b068204affc602e94949e5c4c039894ea1a"}],
+      "goldens": [{"name": "exact-tokens", "identity": "evidence:sha256:6dcce666b1ebf776b9ee9e9df9107b068204affc602e94949e5c4c039894ea1a"}],
+      "measurements": [
+        {"role": "reference", "runtime": "adaptive", "protocol": "cuda; warm; greedy; retained-peak", "wall_nanos": 16760000, "peak_bytes": 9201963008, "evidence": "evidence:sha256:992f760c127a147cbf2815bb8352ad13ea041735e2e05b46d27897f5659ff63e"},
+        {"role": "candidate", "runtime": "overgo", "protocol": "cuda; warm; greedy; retained-peak", "wall_nanos": 10960000, "peak_bytes": 11564215500, "evidence": "evidence:sha256:992f760c127a147cbf2815bb8352ad13ea041735e2e05b46d27897f5659ff63e"}
+      ]
+    },
+    {
+      "id": "rerank",
+      "source": "adaptive",
+      "entry_point": "none",
+      "signature": {"inputs": ["text", "text"], "outputs": ["table"]},
+      "state": "refused",
+      "refusal": "no evidence-qualified classifier-head reranker artifact is present"
+    },
+    {
+      "id": "seq2seq-needle",
+      "source": "adaptive",
+      "entry_point": "go/extmodel/attention_seq2seq.go:CompileAttentionSeq2SeqGeneration",
+      "signature": {"inputs": ["text"], "outputs": ["text"]},
+      "state": "wall-lead",
+      "artifacts": [{"name": "weights", "identity": "tensor-set:sha256:c5f9a3016e4537e492c362da5cb8ba05107d8595bec0d5ea5d8a65801db46531"}],
+      "corpora": [{"name": "oracle-case", "identity": "dataset:sha256:3bf4214e92d34a26872c0cf9a21001670534d0a7b6fed0872313f7a1ded69eb6"}],
+      "goldens": [{"name": "jax-logits", "identity": "evidence:sha256:3bf4214e92d34a26872c0cf9a21001670534d0a7b6fed0872313f7a1ded69eb6"}],
+      "measurements": [
+        {"role": "reference", "runtime": "adaptive", "protocol": "host; load-plus-generate-8; retained-envelope", "wall_nanos": 420000000, "evidence": "evidence:sha256:a8ebe4eb64f4d9dc292ed3cb47e27fb1eefd110ee69ee3cd50eb8c5d98a8d4e9"},
+        {"role": "candidate", "runtime": "overgo", "protocol": "host; load-plus-generate-8; retained-envelope", "wall_nanos": 250000000, "evidence": "evidence:sha256:a8ebe4eb64f4d9dc292ed3cb47e27fb1eefd110ee69ee3cd50eb8c5d98a8d4e9"}
+      ]
+    },
+    {
+      "id": "tabular-classification",
+      "source": "adaptive",
+      "entry_point": "go/extmodel/tabular_set_transformer.go:Predict",
+      "signature": {"inputs": ["table"], "outputs": ["table"]},
+      "state": "wall-lead",
+      "artifacts": [{"name": "weights", "identity": "tensor-set:sha256:928cb350becdc77cdb7a9e8c36deda88917bfd14a3091894a2dc516db58a2085"}],
+      "corpora": [{"name": "predict-cases", "identity": "dataset:sha256:3dccd24c99d26194d9ce7aff3fe0b83aefb78d68f0abfee83c6e2461ee2295c4"}],
+      "goldens": [{"name": "prediction-values", "identity": "evidence:sha256:3dccd24c99d26194d9ce7aff3fe0b83aefb78d68f0abfee83c6e2461ee2295c4"}],
+      "measurements": [
+        {"role": "reference", "runtime": "adaptive", "protocol": "host; warm; cls-blobs", "wall_nanos": 2232000000, "evidence": "evidence:sha256:31dca4c4a4e65ff5991298a2eb487d8af9247983955f5759cbba4fd2fc3ab9df"},
+        {"role": "candidate", "runtime": "overgo", "protocol": "host; warm; cls-blobs", "wall_nanos": 1804000000, "evidence": "evidence:sha256:31dca4c4a4e65ff5991298a2eb487d8af9247983955f5759cbba4fd2fc3ab9df"},
+        {"role": "reference", "runtime": "adaptive", "protocol": "host; warm; cls-wide", "wall_nanos": 3877000000, "evidence": "evidence:sha256:31dca4c4a4e65ff5991298a2eb487d8af9247983955f5759cbba4fd2fc3ab9df"},
+        {"role": "candidate", "runtime": "overgo", "protocol": "host; warm; cls-wide", "wall_nanos": 2544000000, "evidence": "evidence:sha256:31dca4c4a4e65ff5991298a2eb487d8af9247983955f5759cbba4fd2fc3ab9df"}
+      ]
+    },
+    {
+      "id": "tabular-regression",
+      "source": "adaptive",
+      "entry_point": "go/extmodel/tabular_set_transformer.go:Predict",
+      "signature": {"inputs": ["table"], "outputs": ["table"]},
+      "state": "wall-lead",
+      "artifacts": [{"name": "weights", "identity": "tensor-set:sha256:bd5a615b0322a8f04a895038de6df6fbd71430eca750e1d792f31048654674a9"}],
+      "corpora": [{"name": "predict-cases", "identity": "dataset:sha256:3dccd24c99d26194d9ce7aff3fe0b83aefb78d68f0abfee83c6e2461ee2295c4"}],
+      "goldens": [{"name": "prediction-values", "identity": "evidence:sha256:3dccd24c99d26194d9ce7aff3fe0b83aefb78d68f0abfee83c6e2461ee2295c4"}],
+      "measurements": [
+        {"role": "reference", "runtime": "adaptive", "protocol": "host; warm; reg-linear", "wall_nanos": 2334500000, "evidence": "evidence:sha256:31dca4c4a4e65ff5991298a2eb487d8af9247983955f5759cbba4fd2fc3ab9df"},
+        {"role": "candidate", "runtime": "overgo", "protocol": "host; warm; reg-linear", "wall_nanos": 1826100000, "evidence": "evidence:sha256:31dca4c4a4e65ff5991298a2eb487d8af9247983955f5759cbba4fd2fc3ab9df"},
+        {"role": "reference", "runtime": "adaptive", "protocol": "host; warm; reg-wide", "wall_nanos": 3863800000, "evidence": "evidence:sha256:31dca4c4a4e65ff5991298a2eb487d8af9247983955f5759cbba4fd2fc3ab9df"},
+        {"role": "candidate", "runtime": "overgo", "protocol": "host; warm; reg-wide", "wall_nanos": 2509800000, "evidence": "evidence:sha256:31dca4c4a4e65ff5991298a2eb487d8af9247983955f5759cbba4fd2fc3ab9df"}
+      ]
+    }
+  ]
+}

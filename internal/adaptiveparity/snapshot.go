@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	Version          uint16 = 1
-	Schema                  = "overgo/adaptive-parity-snapshot/v1"
+	Version          uint16 = 2
+	Schema                  = "overgo/adaptive-parity-snapshot/v2"
 	MediaType               = "application/vnd.overgo.adaptive-parity-snapshot+json"
 	maxSnapshotBytes        = 4 << 20
 )
@@ -49,22 +49,42 @@ type Reference struct {
 type Signature = recipecontract.ModalitySignature
 
 type Measurement struct {
-	Runtime   string      `json:"runtime"`
-	Protocol  string      `json:"protocol"`
-	WallNanos uint64      `json:"wall_nanos,omitempty"`
-	PeakBytes uint64      `json:"peak_bytes,omitempty"`
-	Evidence  artifact.ID `json:"evidence"`
+	Role      MeasurementRole `json:"role"`
+	Runtime   string          `json:"runtime"`
+	Protocol  string          `json:"protocol"`
+	WallNanos uint64          `json:"wall_nanos,omitempty"`
+	PeakBytes uint64          `json:"peak_bytes,omitempty"`
+	Evidence  artifact.ID     `json:"evidence"`
 }
 
+type MeasurementRole string
+
+const (
+	MeasurementReference MeasurementRole = "reference"
+	MeasurementCandidate MeasurementRole = "candidate"
+)
+
+type PromotionState string
+
+const (
+	PromotionRefused  PromotionState = "refused"
+	PromotionParity   PromotionState = "parity"
+	PromotionWallLead PromotionState = "wall-lead"
+	PromotionLead     PromotionState = "lead"
+	PromotionTradeoff PromotionState = "tradeoff"
+)
+
 type Capability struct {
-	ID           string        `json:"id"`
-	Source       string        `json:"source"`
-	EntryPoint   string        `json:"entry_point"`
-	Signature    Signature     `json:"signature"`
-	Artifacts    []Reference   `json:"artifacts"`
-	Corpora      []Reference   `json:"corpora"`
-	Goldens      []Reference   `json:"goldens"`
-	Measurements []Measurement `json:"measurements,omitempty"`
+	ID           string         `json:"id"`
+	Source       string         `json:"source"`
+	EntryPoint   string         `json:"entry_point"`
+	Signature    Signature      `json:"signature"`
+	State        PromotionState `json:"state"`
+	Refusal      string         `json:"refusal,omitempty"`
+	Artifacts    []Reference    `json:"artifacts"`
+	Corpora      []Reference    `json:"corpora"`
+	Goldens      []Reference    `json:"goldens"`
+	Measurements []Measurement  `json:"measurements,omitempty"`
 }
 
 type Snapshot struct {
@@ -151,8 +171,8 @@ func canonicalize(snapshot *Snapshot) error {
 				return fmt.Errorf("adaptive parity: capability %q: %w", capability.ID, err)
 			}
 		}
-		if len(capability.Artifacts) == 0 || len(capability.Corpora) == 0 || len(capability.Goldens) == 0 {
-			return fmt.Errorf("adaptive parity: capability %q lacks artifact, corpus, or golden evidence", capability.ID)
+		if err := validatePromotionEvidence(*capability); err != nil {
+			return fmt.Errorf("adaptive parity: capability %q: %w", capability.ID, err)
 		}
 		slices.SortFunc(capability.Measurements, func(a, b Measurement) int {
 			if order := strings.Compare(a.Runtime, b.Runtime); order != 0 {
@@ -161,9 +181,91 @@ func canonicalize(snapshot *Snapshot) error {
 			return strings.Compare(a.Protocol, b.Protocol)
 		})
 		for _, measurement := range capability.Measurements {
-			if !validName(measurement.Runtime) || !validText(measurement.Protocol) ||
+			if !validMeasurementRole(measurement.Role) || !validName(measurement.Runtime) || !validText(measurement.Protocol) ||
 				measurement.WallNanos == 0 && measurement.PeakBytes == 0 || measurement.Evidence.Kind() != artifact.KindEvidence {
 				return fmt.Errorf("adaptive parity: capability %q has invalid measurement", capability.ID)
+			}
+		}
+		if err := validateMeasurementVerdict(*capability); err != nil {
+			return fmt.Errorf("adaptive parity: capability %q: %w", capability.ID, err)
+		}
+	}
+	return nil
+}
+
+func validatePromotionEvidence(capability Capability) error {
+	switch capability.State {
+	case PromotionRefused:
+		if !validText(capability.Refusal) {
+			return errors.New("refusal lacks reason")
+		}
+		if len(capability.Artifacts)+len(capability.Corpora)+len(capability.Goldens)+len(capability.Measurements) != 0 {
+			return errors.New("refusal carries support evidence")
+		}
+	case PromotionParity, PromotionWallLead, PromotionLead, PromotionTradeoff:
+		if capability.Refusal != "" {
+			return errors.New("supported capability carries refusal")
+		}
+		if len(capability.Artifacts) == 0 || len(capability.Corpora) == 0 || len(capability.Goldens) == 0 {
+			return errors.New("lacks artifact, corpus, or golden evidence")
+		}
+	default:
+		return errors.New("invalid promotion state")
+	}
+	return nil
+}
+
+func validMeasurementRole(role MeasurementRole) bool {
+	return role == MeasurementReference || role == MeasurementCandidate
+}
+
+func validateMeasurementVerdict(capability Capability) error {
+	if capability.State == PromotionRefused {
+		return nil
+	}
+	type pair struct{ reference, candidate *Measurement }
+	pairs := make(map[string]pair)
+	for index := range capability.Measurements {
+		measurement := &capability.Measurements[index]
+		current := pairs[measurement.Protocol]
+		if measurement.Role == MeasurementReference {
+			if current.reference != nil {
+				return fmt.Errorf("duplicate reference measurement for %q", measurement.Protocol)
+			}
+			current.reference = measurement
+		} else {
+			if current.candidate != nil {
+				return fmt.Errorf("duplicate candidate measurement for %q", measurement.Protocol)
+			}
+			current.candidate = measurement
+		}
+		pairs[measurement.Protocol] = current
+	}
+	if capability.State == PromotionParity {
+		return nil
+	}
+	if len(pairs) == 0 {
+		return errors.New("measured verdict lacks measurements")
+	}
+	for protocol, measurements := range pairs {
+		if measurements.reference == nil || measurements.candidate == nil {
+			return fmt.Errorf("protocol %q lacks matched measurements", protocol)
+		}
+		reference, candidate := measurements.reference, measurements.candidate
+		wallLead := reference.WallNanos > 0 && candidate.WallNanos > 0 && candidate.WallNanos <= reference.WallNanos
+		peakLead := reference.PeakBytes > 0 && candidate.PeakBytes > 0 && candidate.PeakBytes <= reference.PeakBytes
+		switch capability.State {
+		case PromotionWallLead:
+			if !wallLead || reference.PeakBytes != 0 || candidate.PeakBytes != 0 {
+				return fmt.Errorf("protocol %q does not prove a wall-only lead", protocol)
+			}
+		case PromotionLead:
+			if !wallLead || !peakLead {
+				return fmt.Errorf("protocol %q does not prove wall and peak leadership", protocol)
+			}
+		case PromotionTradeoff:
+			if reference.WallNanos == 0 || candidate.WallNanos == 0 || reference.PeakBytes == 0 || candidate.PeakBytes == 0 || wallLead == peakLead {
+				return fmt.Errorf("protocol %q does not prove a wall/peak tradeoff", protocol)
 			}
 		}
 	}

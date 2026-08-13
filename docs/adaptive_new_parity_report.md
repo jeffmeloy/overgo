@@ -82,8 +82,8 @@ Overgo's tokenizer total includes a large generated Unicode table.
 
 | Capability | adaptive_new Go / Python | Overgo | Verdict | Required promotion gate |
 | --- | --- | --- | --- | --- |
-| Dense causal text: Carbon, Qwen2.5, MiniCPM | Active CUDA inference, real artifacts, capability floors | Converted/activated; exact token/logit or text fixtures; native quantized CUDA | Parity or lead on recorded rows | Refresh all three on one protocol; wall, peak, exact tokens |
-| Qwen3.5-4B hybrid text | Active CUDA; 16.76 ms/token retained baseline | 10.96 ms/token; same BF16 weights; about 2.2 GB more peak | Speed lead, memory loss | Retain speed while matching or beating adaptive peak |
+| Dense causal text: Carbon, Qwen2.5, MiniCPM | Active CUDA inference, real artifacts, capability floors | Weight and golden identities are live-gated; exact-token parity for all three; MiniCPM 3.109 vs 3.400 ms/token | Parity; MiniCPM wall lead | Refresh Carbon/Qwen2.5 wall and all three matched peaks |
+| Qwen3.5-4B hybrid text | Active CUDA; 16.76 ms/token retained baseline | 10.96 ms/token; same BF16 weights; about 2.2 GB more peak | Gated tradeoff: wall lead, memory loss | Retain speed while matching or beating adaptive peak |
 | Qwen3.5-9B GGUF | adaptive_new cannot serve the bare Q8_0 GGUF | 11.6 ms/token, 9.3 GB recorded | Overgo-only capability | Re-run real artifact; register oracle-backed claim |
 | Gemma E4B text | adaptive host spine; 341 ms/token comparison | 18.5 ms/token device; exact 3-case serving fixtures; 21.79 GiB self-baseline peak | Large speed lead | Matched peak-memory comparison; keep exact tokens |
 | Gemma E4B image/audio | Adaptive has image/audio fixtures and serving components | Projector/conversion oracles exist; full modality matrix is not reported | Partial | Real image and audio requests, exact boundary/output, wall, peak |
@@ -92,9 +92,11 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Gemma4 12B audio/video | Adaptive declares audio/video input coverage | No complete Overgo end-to-end evidence in the reviewed plan | Gap | Real audio and video corpus cases through compiled recipe |
 | RxBrain VQA | Native path; retained 18.4-23.1 s and 11.97 GB comparison | Exact answer; 9.5 s, 10.59 GB, 6.19 ms/token | Lead on both axes | Re-run nonfixture corpus cases; stop-contract and semantic scoring |
 | Unlimited OCR | Active adaptive multimodal recipe | No promoted Overgo parity row found | Gap | Port typed OCR contract; exact text and layout metrics |
-| TimesFM forecasting | Active host recipe | Neutral series forecast port, recipe, backward fixtures | Implemented; freshness unknown | Real artifact forecast metrics and matched wall/peak |
-| TabFM prediction | Active host classification/regression | Neutral tabular port and recipe | Implemented; freshness unknown | Real classification/regression corpus and latency |
-| Needle seq2seq | Partial adaptive forward/backward | Neutral port recorded | Unverified under current gates | Real artifact forward, decode, and training fixture |
+| TimesFM forecasting | Active host recipe | Fingerprinted real weights/golden; 684 vs 873 ms matched host wall | Exact parity; wall lead | Matched peak measurement |
+| TabFM prediction | Active host classification/regression | Both 6.5 GB heads and shared golden fingerprinted; all four warm cases 0.65-0.81x reference wall | Exact parity; wall lead | Matched peak measurement |
+| Needle seq2seq | Partial adaptive forward/backward | Fingerprinted real weights/JAX oracle; retained load+generate envelope <=250 vs 420 ms | Exact parity; wall lead | Matched peak measurement |
+| Text embedding | No evidence-qualified encoder artifact in configured roots | Runtime and recipe exist; causal hidden-state substitution refused | Explicit refusal | Add a real encoder artifact, corpus, golden, wall, and peak |
+| Text rerank | No evidence-qualified classifier-head artifact in configured roots | Runtime and recipe exist; causal LM substitution refused | Explicit refusal | Add a real reranker artifact, pair corpus, scores, wall, and peak |
 | Pocket-TTS speech | Active adaptive host audio recipe; codec and training scaffolds | Backbone/codec/recipe rows recorded done | Unverified production audio quality | Real text-to-waveform: exact stages, audio metrics, wall, peak |
 | Un-0 image/video | Active deterministic Go route | Exact fixture within `3.13e-7`; about 1.25 ms warm generation | Parity | Non-vacuous golden in normal gate; image and video outputs |
 | SimpleDiffusion image | Host generation and real-checkpoint training | Forward max error `3.99e-6`; recorded 0.17 s vs adaptive 0.21 s | Host lead | Device forward/backward; real output quality and peak |
@@ -173,6 +175,15 @@ Wan's Overgo row is fresh on the reviewed machine. Python and adaptive numbers
 remain retained, cross-revision evidence until one harness reruns all three.
 Krea's Overgo rows are fresh real-artifact runs. The 2048 gate compares the
 hash-verified adaptive PNG with robust pixel MAE; RMSE remains advisory.
+
+The text/structured matrix is now a v2 content-addressed snapshot. Its normal
+gate hashes every referenced GGUF/safetensors file plus its corpus/golden, so a
+path-compatible artifact substitution cannot retain a promotion. Verdicts are
+typed: `lead` requires matched wall and peak, `wall-lead` cannot carry an
+unmeasured peak, `tradeoff` requires opposite-axis results, and `refused`
+cannot carry support evidence. Current rows intentionally contain no full
+wall+peak lead: structured peak measurements remain open, Qwen3.5 is a measured
+memory loss, and encoder/reranker artifacts are absent.
 
 ## Corrective Findings
 

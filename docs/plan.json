@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "cross-request-residency",
-          "title": "Reuse resident image weights and compiled graphs across recipe calls through a bounded cache keyed by artifact fingerprint, recipe identity, device, and execution policy",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_KREA_BASELINE=1 go test ./internal/capabilityruntime ./internal/latentimage -run '^TestImageSessionCacheReusesResidentRuntime$' -count=1 -v"
-        },
-        {
           "id": "carbon-evidence-ratchet",
           "title": "Bind the matched Carbon gate to artifact/config/corpus fingerprints and evidence-derived complete loss trajectory; reject the current permissive 5-percent final-loss regression",
           "status": "open",

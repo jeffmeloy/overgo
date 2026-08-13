@@ -4,8 +4,14 @@ package densecausal
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
+	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -17,7 +23,17 @@ const (
 	// Adaptive retained: 2.018 s/step (9c80f6ab0); 15.06 GB peak (4faffd8f2).
 	carbonStepWallRatchet = 1800 * time.Millisecond
 	carbonPeakRatchet     = uint64(6 << 30)
+
+	carbonCheckpointSHA  = "e257506988203fdb8bb46976ee81c97e24f29073754bbff70137c7704dbadaa8"
+	carbonModelConfigSHA = "48874135ba22268f6817fac7c9142cd3a30844fcb90fe5e17186da283809f515"
+	carbonCorpusSHA      = "9f8d05339ebcac466ba90953fa56b80f9a12ef445ea4d359fc4f7b8e06b1f48e"
+	carbonProtocol       = "adaptive:c72b6595d;optimizer:muon;lr:0.0000133179;mu:0.95;frozen:lexical;windows:ordered"
+	carbonProtocolSHA    = "c893959187c4868ef4f017f2c8c46c8947d124a1b99bf2465a2edb2ea4cad6f0"
+	// Endpoint cross-runtime delta 0.001821; 0.005 admits measured drift.
+	carbonLossTolerance = 0.005
 )
+
+var carbonMatchedLoss = [...]float64{8.437672883, 8.295337230, 7.796769112, 7.293610655}
 
 var carbonAdaptiveCausalWindows = [][]int{
 	{151669, 154337, 154656, 154674, 152581, 153742, 154236, 154503, 153824, 152624, 153810, 153761, 155384, 154435, 155623, 153169, 154707, 152390, 154190, 153393, 155460, 153561, 152593, 153068, 154772, 153675, 154235, 151812, 154071, 152533, 155065},
@@ -31,11 +47,21 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 	if os.Getenv("OVERGO_DENSE_TRAIN_BASELINE") != "1" {
 		t.Skip("set OVERGO_DENSE_TRAIN_BASELINE=1 for matched Carbon training")
 	}
-	model, err := Load(artifactDir(t, "Carbon-500M"))
+	modelDir := artifactDir(t, "Carbon-500M")
+	checkpoint := fileSHA256(t, filepath.Join(modelDir, "model.safetensors"))
+	config := fileSHA256(t, filepath.Join(modelDir, "config.json"))
+	corpus := windowSHA256(carbonAdaptiveCausalWindows)
+	protocol := fmt.Sprintf("%x", sha256.Sum256([]byte(carbonProtocol)))
+	t.Logf("Carbon evidence checkpoint=%s config=%s corpus=%s protocol=%s", checkpoint, config, corpus, protocol)
+	if checkpoint != carbonCheckpointSHA || config != carbonModelConfigSHA ||
+		corpus != carbonCorpusSHA || protocol != carbonProtocolSHA {
+		t.Fatal("Carbon artifact, config, corpus, or protocol fingerprint differs")
+	}
+	model, err := Load(modelDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	warmModel, err := Load(artifactDir(t, "Carbon-500M"))
+	warmModel, err := Load(modelDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,20 +85,22 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("matched Carbon trajectory: %.9f", trajectory)
 	memory, err := worker.MemoryStats(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	const (
-		adaptiveInitial = 8.43767
-		adaptiveWall    = 6816 * time.Millisecond
-		adaptivePeak    = uint64(12315818721)
+		adaptiveWall = 6816 * time.Millisecond
+		adaptivePeak = uint64(12315818721)
 	)
-	if delta := math.Abs(trajectory[0] - adaptiveInitial); delta > 0.02 {
-		t.Fatalf("initial loss %.6f differs from adaptive %.6f by %.3e", trajectory[0], adaptiveInitial, delta)
+	if len(trajectory) != len(carbonMatchedLoss) {
+		t.Fatalf("matched Carbon trajectory len=%d want=%d", len(trajectory), len(carbonMatchedLoss))
 	}
-	if trajectory[len(trajectory)-1] > trajectory[0]*1.05 {
-		t.Fatalf("matched Carbon loss %.6f -> %.6f", trajectory[0], trajectory[len(trajectory)-1])
+	for step, want := range carbonMatchedLoss {
+		if delta := math.Abs(trajectory[step] - want); delta > carbonLossTolerance {
+			t.Fatalf("matched Carbon loss[%d]=%.6f want %.6f within %.3f", step, trajectory[step], want, carbonLossTolerance)
+		}
 	}
 	if loopWall >= adaptiveWall {
 		t.Fatalf("matched Carbon loop wall %s does not beat adaptive %s", loopWall, adaptiveWall)
@@ -82,6 +110,36 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 	}
 	t.Logf("matched Carbon causal: windows=%d seq=%d loss %.6f->%.6f loop=%.3fs total=%.3fs peak=%.3fGiB adaptive_loop=%.3fs/%.3fGiB",
 		len(trajectory), len(carbonAdaptiveCausalWindows[0]), trajectory[0], trajectory[len(trajectory)-1], loopWall.Seconds(), totalWall.Seconds(), float64(memory.PeakBytes)/(1<<30), adaptiveWall.Seconds(), float64(adaptivePeak)/(1<<30))
+}
+
+func fileSHA256(t *testing.T, path string) string {
+	t.Helper()
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		t.Fatal(err)
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func windowSHA256(windows [][]int) string {
+	hash := sha256.New()
+	var encoded [4]byte
+	binary.LittleEndian.PutUint32(encoded[:], uint32(len(windows)))
+	_, _ = hash.Write(encoded[:])
+	for _, window := range windows {
+		binary.LittleEndian.PutUint32(encoded[:], uint32(len(window)))
+		_, _ = hash.Write(encoded[:])
+		for _, token := range window {
+			binary.LittleEndian.PutUint32(encoded[:], uint32(token))
+			_, _ = hash.Write(encoded[:])
+		}
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 func TestCarbonResidentTrainingLeadership(t *testing.T) {

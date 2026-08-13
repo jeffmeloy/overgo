@@ -199,18 +199,24 @@
           "identity": "file:sha256:7583db8c86a3d3d914bf9c8ded44679ae0b44a0cb4d76ce61d5ab02635b8e8fd"
         },
         {
+          "contains": "func PreprocessGemma4AudioTower(",
+          "path": "internal/projector/gemma4tower_audio_frontend.go",
+          "role": "source",
+          "identity": "file:sha256:c118ecebbf8a438da61598cf6dbb982071c53fae55868dc4809077d75cc0ff85"
+        },
+        {
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:2449fcfce55adce0aa9a4cdedbb781701b4350095dea63615ce7f76b8bc868b5"
+          "identity": "evidence:sha256:25a9b602a7d3c5b40bf849459b8d444ff2e4d1d250c84603f7124a600fb41479"
         }
       ],
       "id": "gemma-e4b-audio-tower-oracle",
       "evidence_tier": "device-gated",
       "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v",
-      "artifact_identity": "sha256:1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db+6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca+9de625447fbc7ab1f12d2de6c73700aa2daa9e476f3e4790e6632a4623371bbb",
+      "artifact_identity": "sha256:1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db+98c8d1a25f96bbdfff5ca6153c9b18fad9740e300008618a970c18384b35d404+6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca+9de625447fbc7ab1f12d2de6c73700aa2daa9e476f3e4790e6632a4623371bbb",
       "status": "implemented",
-      "summary": "Gemma E4B audio tower matches fingerprinted adaptive subsample, 12-layer conformer, and soft-token evidence on CUDA."
+      "summary": "Gemma E4B waveform frontend and audio tower match fingerprinted adaptive log-mel, 12-layer conformer, and soft-token evidence on CUDA."
     },
     {
       "evidence": [

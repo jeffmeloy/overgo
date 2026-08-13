@@ -61,9 +61,11 @@ func testGemmaE4BAudioParity(t *testing.T) {
 	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-mmproj-bf16.gguf")
 	featurePath := testutil.FixturePath(t, "e4b_audio", "input_features.f32")
 	goldenPath := testutil.FixturePath(t, "e4b_audio", "g_audio_f32.json")
+	wavePath := testutil.FixturePath(t, "e4b_audio", "wave.f32")
 	assertSHA256(t, projectorPath, "1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db")
 	assertSHA256(t, featurePath, "6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca")
 	assertSHA256(t, goldenPath, "9de625447fbc7ab1f12d2de6c73700aa2daa9e476f3e4790e6632a4623371bbb")
+	assertSHA256(t, wavePath, "98c8d1a25f96bbdfff5ca6153c9b18fad9740e300008618a970c18384b35d404")
 	goldenRaw, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: E4B audio golden absent; parity NOT verified: %v", err)
@@ -75,25 +77,33 @@ func testGemmaE4BAudioParity(t *testing.T) {
 	if len(golden.InputShape) != 3 || golden.InputShape[0] != 1 {
 		t.Fatalf("E4B audio golden input shape = %v", golden.InputShape)
 	}
-	featureRaw, err := os.ReadFile(featurePath)
-	if err != nil {
-		t.Fatalf("UNAVAILABLE: E4B audio features absent; parity NOT verified: %v", err)
-	}
-	if len(featureRaw)%4 != 0 {
-		t.Fatal("E4B audio feature storage is invalid")
-	}
-	features := make([]float32, len(featureRaw)/4)
-	if err := binary.Read(bytes.NewReader(featureRaw), binary.LittleEndian, features); err != nil {
-		t.Fatalf("read E4B audio features: %v", err)
-	}
+	features := readFloat32Evidence(t, featurePath, "E4B audio features")
+	wave := readFloat32Evidence(t, wavePath, "E4B audio wave")
 	runner, err := projector.OpenGemma4TowerWithOptions(projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
 	}
 	defer runner.Close()
+	prepared, preparedFrames, err := projector.PreprocessGemma4AudioTower(
+		wave, runner.Spec().Audio.SampleRate, runner.Spec().Audio,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	featureError := 0.0
+	if preparedFrames != golden.InputShape[1] || len(prepared) != len(features) {
+		t.Fatalf("E4B audio frontend shape = [%d,%d], want [%d,%d]",
+			preparedFrames, len(prepared), golden.InputShape[1], len(features))
+	}
+	for index, value := range prepared {
+		featureError = max(featureError, math.Abs(float64(value-features[index])))
+	}
+	if featureError > 1e-2 {
+		t.Fatalf("E4B audio frontend max error = %.6g, adaptive limit 0.01", featureError)
+	}
 	start := time.Now()
-	output, trace, err := runner.EncodeAudioFeaturesTrace(
-		context.Background(), features, golden.InputShape[1], projector.Gemma4AudioTowerProfile{RopeFreqBase: 10000},
+	output, trace, err := runner.EncodeAudioTrace(
+		context.Background(), wave, runner.Spec().Audio.SampleRate, projector.Gemma4AudioTowerProfile{RopeFreqBase: 10000},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -126,8 +136,25 @@ func testGemmaE4BAudioParity(t *testing.T) {
 	if softRelative > 5e-3 {
 		t.Fatalf("E4B audio soft-token relative = %.6g, limit 0.005", softRelative)
 	}
-	t.Logf("E4B audio parity: %d feature frames -> %d x %d soft tokens in %s; worst stage %s %.6g; soft %.6g",
-		golden.InputShape[1], output.SoftTokens, output.Embeddings.Shape.Dims[0], wall, worstName, worstRelative, softRelative)
+	t.Logf("E4B audio parity: %d samples -> %d feature frames -> %d x %d soft tokens in %s; frontend %.6g; worst stage %s %.6g; soft %.6g",
+		len(wave), golden.InputShape[1], output.SoftTokens, output.Embeddings.Shape.Dims[0], wall,
+		featureError, worstName, worstRelative, softRelative)
+}
+
+func readFloat32Evidence(t *testing.T, path, label string) []float32 {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: %s absent; parity NOT verified: %v", label, err)
+	}
+	if len(raw)%4 != 0 {
+		t.Fatalf("%s storage is invalid", label)
+	}
+	values := make([]float32, len(raw)/4)
+	if err := binary.Read(bytes.NewReader(raw), binary.LittleEndian, values); err != nil {
+		t.Fatalf("read %s: %v", label, err)
+	}
+	return values
 }
 
 func testGemmaE4BImageParity(t *testing.T) {

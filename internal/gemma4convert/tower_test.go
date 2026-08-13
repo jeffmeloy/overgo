@@ -240,6 +240,22 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 		t.Fatalf("tower video output = %+v", video)
 	}
 	audioFrames := 7
+	if _, err := runner.EncodeAudio(
+		context.Background(), make([]float32, 20), int(processor.Audio.SampleRate)+1,
+		projector.Gemma4AudioTowerProfile{RopeFreqBase: 100},
+	); err == nil {
+		t.Fatal("tower audio accepted mismatched sample rate")
+	}
+	waveAudio, err := runner.EncodeAudio(
+		context.Background(), make([]float32, 20), int(processor.Audio.SampleRate),
+		projector.Gemma4AudioTowerProfile{RopeFreqBase: 100},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if waveAudio.SoftTokens != 3 || len(waveAudio.Embeddings.Data) != 3*int(config.Text.HiddenSize) {
+		t.Fatalf("tower waveform output = %+v", waveAudio)
+	}
 	if _, err := runner.EncodeAudioFeatures(
 		context.Background(), make([]float32, audioFrames*int(processor.Audio.FeatureSize)), audioFrames,
 		projector.Gemma4AudioTowerProfile{},

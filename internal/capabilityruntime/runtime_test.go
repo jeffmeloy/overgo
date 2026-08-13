@@ -87,3 +87,66 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 		t.Fatalf("task = %s", program.Definition().Task)
 	}
 }
+
+type cachedScalarModel struct {
+	bias   int
+	closed *int
+}
+
+func (m *cachedScalarModel) Close(context.Context) error {
+	*m.closed++
+	return nil
+}
+
+func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
+	store, modelID, program := capabilityFixture(t, "cached-scalar-model")
+	loads, resets, closes := 0, 0, 0
+	cache, err := NewScalarSessionCache[scalarRequest, *cachedScalarModel, int](
+		"scalar", "cuda:0", 1,
+		func(request scalarRequest) error {
+			if request.Value <= 0 {
+				return errors.New("positive value required")
+			}
+			return nil
+		},
+		func(scalarRequest) (string, error) { return "shape:scalar", nil },
+		func(_ context.Context, _ string, request scalarRequest) (*cachedScalarModel, error) {
+			loads++
+			return &cachedScalarModel{bias: request.Value, closed: &closes}, nil
+		},
+		func(_ context.Context, model *cachedScalarModel, request scalarRequest) error {
+			resets++
+			model.bias = request.Value
+			return nil
+		},
+		func(runtime *workflowruntime.Runtime, bound artifact.ID, model *cachedScalarModel) error {
+			return workflowruntime.RegisterJSONStage[scalarRequest, int](
+				runtime, scalarModule, bound,
+				artifact.JSONContract(artifact.KindOutput, "test.cached-scalar-output.v1"),
+				func(request scalarRequest) (int, error) { return request.Value + model.bias, nil },
+			)
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execute := cache.Executor()
+	for raw, want := range map[string]int{`{"value":4}`: 8, `{"value":5}`: 10} {
+		got, err := execute(context.Background(), store, "model", modelID, program, raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Fatalf("output=%v want=%d", got, want)
+		}
+	}
+	if loads != 1 || resets != 1 {
+		t.Fatalf("loads=%d resets=%d", loads, resets)
+	}
+	if err := cache.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if closes != 1 {
+		t.Fatalf("closes=%d", closes)
+	}
+}

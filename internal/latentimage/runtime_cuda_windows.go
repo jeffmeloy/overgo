@@ -4,6 +4,7 @@ package latentimage
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math"
@@ -59,6 +60,7 @@ type Generator struct {
 	shape      LatentShape
 	prepared   bool
 	integrated bool
+	completed  bool
 }
 
 func ValidateRequest(request Request) error {
@@ -161,12 +163,44 @@ func (r Request) withDefaults(policy modelrecipe.ImageSampling) Request {
 	return r
 }
 
+// SessionPolicy identifies graph- and conditioning-compatible requests.
+func SessionPolicy(request Request) (string, error) {
+	if err := ValidateRequest(request); err != nil {
+		return "", err
+	}
+	prompt := sha256.Sum256([]byte(request.Prompt))
+	return fmt.Sprintf("%dx%d/prompt:%x", request.Width, request.Height, prompt), nil
+}
+
+// Reset reuses resident graphs for compatible request-local sampling state.
+func (g *Generator) Reset(ctx context.Context, request Request) error {
+	if g == nil || g.pipeline == nil || !g.completed {
+		return errors.New("latent image: resident session is unavailable")
+	}
+	if err := ValidateRequest(request); err != nil {
+		return err
+	}
+	request = request.withDefaults(g.spec.Profile.Sampling)
+	if request.Prompt != g.request.Prompt || request.Width != g.request.Width || request.Height != g.request.Height {
+		return errors.New("latent image: request requires another resident session")
+	}
+	schedule, err := CompileFlowSchedule(request.Steps, request.NumTrainTimesteps, request.DynamicShiftMu)
+	if err != nil {
+		return err
+	}
+	g.request, g.schedule = request, schedule
+	g.prepared, g.integrated, g.completed = false, false, false
+	return nil
+}
+
 func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, error) {
 	if g == nil || g.pipeline == nil || request.withDefaults(g.spec.Profile.Sampling) != g.request || g.prepared {
 		return nil, errors.New("latent image: generation session is unavailable")
 	}
-	if _, err := g.pipeline.Condition(ctx, g.embed); err != nil {
-		return nil, err
+	if g.pipeline.conditioning == nil {
+		if _, err := g.pipeline.Condition(ctx, g.embed); err != nil {
+			return nil, err
+		}
 	}
 	var latent []float32
 	err := g.pipeline.runtime.worker.Do(ctx, func(state *device.State) error {
@@ -216,6 +250,10 @@ func (g *Generator) decode(ctx context.Context, session *Generator) (EncodedImag
 	if err != nil {
 		return EncodedImage{}, err
 	}
+	if err := g.pipeline.Finish(ctx); err != nil {
+		return EncodedImage{}, err
+	}
+	g.completed = true
 	return encodePNG(pixels, height, width)
 }
 

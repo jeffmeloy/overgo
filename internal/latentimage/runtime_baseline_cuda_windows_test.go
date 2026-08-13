@@ -151,6 +151,68 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	}
 }
 
+func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
+	requireLongTest(t)
+	if os.Getenv("OVERGO_KREA_BASELINE") != "1" {
+		t.Skip("set OVERGO_KREA_BASELINE=1 to measure Krea residency")
+	}
+	request := Request{
+		Prompt: "a red fox licking a vanilla ice cream cone in snow",
+		Width:  256, Height: 256, Steps: 8, Seed: 42, DynamicShiftMu: 1.15,
+	}
+	ctx := context.Background()
+	generator, err := LoadGenerator(ctx, kreaModelDir, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := generator.Close(ctx); err != nil {
+			t.Errorf("close: %v", err)
+		}
+	}()
+	first, firstWall := runResidentGeneration(t, ctx, generator, request)
+	request.Seed++
+	if err := generator.Reset(ctx, request); err != nil {
+		t.Fatal(err)
+	}
+	second, secondWall := runResidentGeneration(t, ctx, generator, request)
+	if bytes.Equal(first.Data, second.Data) {
+		t.Fatal("seed change reused request-local latent")
+	}
+	if secondWall >= firstWall {
+		t.Fatalf("resident replay=%s cold conditioning=%s", secondWall, firstWall)
+	}
+	const adaptiveWall = 25_430_488_300 * time.Nanosecond
+	if secondWall >= adaptiveWall {
+		t.Fatalf("resident replay=%s adaptive=%s", secondWall, adaptiveWall)
+	}
+	t.Logf("Krea resident replay cold=%.3fs warm=%.3fs speedup=%.2fx resident=%.3fGiB",
+		firstWall.Seconds(), secondWall.Seconds(), firstWall.Seconds()/secondWall.Seconds(),
+		float64(generator.pipeline.ResidentBytes())/(1<<30))
+}
+
+func runResidentGeneration(
+	t *testing.T,
+	ctx context.Context,
+	generator *Generator,
+	request Request,
+) (EncodedImage, time.Duration) {
+	t.Helper()
+	started := time.Now()
+	session, err := generator.prepare(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := generator.integrate(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	image, err := generator.decode(ctx, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return image, time.Since(started)
+}
+
 func medianMAD(values []float32) (float64, float64) {
 	ordered := append([]float32(nil), values...)
 	slices.Sort(ordered)

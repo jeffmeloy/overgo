@@ -20,9 +20,18 @@ import (
 )
 
 func imageCapability() capability {
-	latent := capabilityruntime.JSONScalar[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
-		"image-gen", latentimage.ValidateRequest, latentimage.LoadGenerator, latentimage.RegisterRuntime,
+	latentCache, err := capabilityruntime.NewScalarSessionCache[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
+		"image-gen", "cuda:0", 1,
+		latentimage.ValidateRequest, latentimage.SessionPolicy, latentimage.LoadGenerator,
+		func(ctx context.Context, generator *latentimage.Generator, request latentimage.Request) error {
+			return generator.Reset(ctx, request)
+		},
+		latentimage.RegisterRuntime,
 	)
+	if err != nil {
+		panic(err)
+	}
+	latent := latentCache.Executor()
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,

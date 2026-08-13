@@ -130,27 +130,24 @@ type CachePolicy uint8
 const (
 	CacheAttention CachePolicy = iota
 	CacheSentinel
-	CacheMamba
-	CacheMamba2
-	CacheRWKV6
-	CacheRWKV6Qwen2
-	CacheRWKV7
+	CacheSelectiveScan
+	CacheGroupedSelectiveScan
+	CacheDoubleTokenShiftRecurrence
+	CacheSingleTokenShiftRecurrence
+	CacheVariableTokenShiftRecurrence
 	CacheKeyedDelta
 	CacheGatedDelta
-	CacheLFM2
-	CacheFalconH1
+	CacheShortConvolution
+	CacheHybridAttentionScan
 	CacheCrossAttention
-	CacheDeepSeek4
+	CacheCompressedAttention
 )
 
 func (p CachePolicy) PrimaryMode() CacheStateMode {
-	switch p {
-	case CacheMamba, CacheMamba2, CacheRWKV6, CacheRWKV6Qwen2, CacheRWKV7,
-		CacheKeyedDelta, CacheGatedDelta, CacheLFM2:
+	if p >= CacheSelectiveScan && p <= CacheShortConvolution {
 		return CacheStateFixed
-	default:
-		return CacheStateToken
 	}
+	return CacheStateToken
 }
 
 // CacheFallbackPolicy: non-primary per-layer cache selection.
@@ -615,8 +612,8 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		if layer.AuxiliaryOutput != AuxiliaryNone {
 			producedAuxiliary[layer.AuxiliaryOutput] = true
 		}
-		if layer.Cache == CacheDeepSeek4 && len(spec.CompressRatios) <= index {
-			return fmt.Errorf("model plan layer %d has no DeepSeek4 compression ratio", index)
+		if layer.Cache == CacheCompressedAttention && len(spec.CompressRatios) <= index {
+			return fmt.Errorf("model plan layer %d has no compression ratio", index)
 		}
 		if layer.Normalization != norm {
 			return fmt.Errorf("model plan layer %d normalization drifted from model policy", index)

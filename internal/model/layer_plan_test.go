@@ -171,7 +171,7 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 	}{
 		{
 			name: "mamba", spec: Spec{CommonSpec: CommonSpec{Architecture: "mamba", BlockCount: 1}},
-			mixer: recurrentMixerSelectiveScan, cache: CacheMamba,
+			mixer: recurrentMixerSelectiveScan, cache: CacheSelectiveScan,
 		},
 		{
 			name: "jamba attention", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
@@ -179,7 +179,7 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 		},
 		{
 			name: "jamba recurrent", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
-			layer: LayerWeights{Recurrent: true}, mixer: recurrentMixerWeightedSelectiveScan, cache: CacheMamba,
+			layer: LayerWeights{Recurrent: true}, mixer: recurrentMixerWeightedSelectiveScan, cache: CacheSelectiveScan,
 		},
 		{
 			name: "DSA", spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
@@ -190,7 +190,7 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 				CommonSpec:    CommonSpec{Architecture: "deepseek4", BlockCount: 1},
 				AttentionSpec: AttentionSpec{CompressRatios: []uint32{0}},
 			},
-			cache: CacheDeepSeek4,
+			cache: CacheCompressedAttention,
 		},
 	}
 	for _, test := range tests {

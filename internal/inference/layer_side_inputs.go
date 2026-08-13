@@ -47,7 +47,7 @@ func bindLayerSideInputs(
 		return boundLayerSideInputs{}, err
 	}
 	var result boundLayerSideInputs
-	if plan.Cache == model.CacheDeepSeek4 {
+	if plan.Cache == model.CacheCompressedAttention {
 		data := make([]float32, len(positions))
 		for index, position := range positions {
 			if position > maxExactFloat32Position {

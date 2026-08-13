@@ -44,7 +44,7 @@ func TestDeepSeek4PositionRequiresExactF32Representation(t *testing.T) {
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	weights := model.LayerGraphWeights{}
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek4"}}
-	plan := model.LayerPlan{Cache: model.CacheDeepSeek4}
+	plan := model.LayerPlan{Cache: model.CacheCompressedAttention}
 	if _, err := bindLayerSideInputs(
 		builder,
 		spec,
@@ -81,7 +81,7 @@ func TestBindLayerSideInputs(t *testing.T) {
 		model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek4"}},
 		[]uint32{4, 9},
 		model.LayerPlan{
-			Layer: 3, Cache: model.CacheDeepSeek4, EmbeddingSkip: true,
+			Layer: 3, Cache: model.CacheCompressedAttention, EmbeddingSkip: true,
 			PerLayerInput: true, AttentionBlocks: model.AttentionBlocksUncached,
 		},
 		feeds,

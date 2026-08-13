@@ -48,7 +48,7 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	if err != nil {
 		return nil, err
 	}
-	if r.hasCachePolicy(model.CacheDeepSeek4) {
+	if r.hasCachePolicy(model.CacheCompressedAttention) {
 		upgradeDeepSeek4CachePositions(cache)
 	}
 	if err := r.validateCache(cache); err != nil {
@@ -141,7 +141,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				return fmt.Errorf("inference: DSA shared layer %d has indexer state", index)
 			}
 		}
-		if plan.Cache == model.CacheDeepSeek4 {
+		if plan.Cache == model.CacheCompressedAttention {
 			positions := layer.States[model.CacheStatePositions].Value.Data
 			for item, value := range positions {
 				position := uint32(value)

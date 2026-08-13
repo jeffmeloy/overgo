@@ -141,7 +141,7 @@ func (r *Runner) applyCogVLMVisualWeights(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) error {
-	if r.profile().Overrides != model.EmbeddingOverrideVisualSpan {
+	if r.program.Model.ProjectedInput().Overrides != model.EmbeddingOverrideVisualSpan {
 		return errors.New("inference: visual expert weights require CogVLM architecture")
 	}
 	if weights == nil {
@@ -206,26 +206,22 @@ func selectCogVLMVisualGraphWeights(
 	return nil
 }
 
-func supportsDeepstackInputs(spec model.Spec, profile model.ArchitectureProfile) bool {
-	return spec.DeepstackLayerCount > 0 && profile.Deepstack != model.DeepstackNone
-}
-
 func validateDeepstackInputs(
 	spec model.Spec,
-	profile model.ArchitectureProfile,
+	streams uint32,
 	tokens int,
 	inputs []reference.Value,
 ) error {
 	if len(inputs) == 0 {
 		return nil
 	}
-	if !supportsDeepstackInputs(spec, profile) {
+	if streams == 0 {
 		return errors.New("inference: model does not support deepstack embeddings")
 	}
-	if len(inputs) != int(spec.DeepstackLayerCount) {
+	if len(inputs) != int(streams) {
 		return fmt.Errorf(
 			"inference: received %d deepstack streams, need %d",
-			len(inputs), spec.DeepstackLayerCount,
+			len(inputs), streams,
 		)
 	}
 	want := tensor.MustShape(uint64(spec.EmbeddingLength), uint64(tokens))

@@ -22,7 +22,7 @@ type RankResult struct {
 
 func (r *Runner) SupportsRank() bool {
 	return r != nil && r.weights.ClassifierOutput != nil &&
-		r.profile().Has(model.ArchitectureClassifierHead)
+		r.program.Model.ProjectedInput().ClassifierHead
 }
 
 func (r *Runner) RankPair(
@@ -134,7 +134,8 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	if r.closed {
 		return RankResult{}, errors.New("inference: runner is closed")
 	}
-	if !r.profile().Has(model.ArchitectureClassifierHead) {
+	program := r.program.Model.ProjectedInput()
+	if !program.ClassifierHead {
 		return RankResult{}, fmt.Errorf(
 			"inference: architecture %q has no pinned Qwen rank graph",
 			r.spec.Architecture,
@@ -146,10 +147,10 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	if len(input) == 0 {
 		return RankResult{}, errors.New("inference: rank token list is empty")
 	}
-	if inputs.MultiAxisPositions != nil && !r.spec.SupportsMultiAxisPositionsWithProfile(r.profile()) {
+	if inputs.MultiAxisPositions != nil && !program.MultiAxis {
 		return RankResult{}, errors.New("inference: model does not support multi-axis positions")
 	}
-	if len(inputs.DeepstackEmbeddings) > 0 && !supportsDeepstackInputs(r.spec, r.profile()) {
+	if len(inputs.DeepstackEmbeddings) > 0 && program.DeepstackStreams == 0 {
 		return RankResult{}, errors.New("inference: model does not support deepstack embeddings")
 	}
 	hidden, _, err := r.forwardCachedProjectedChunkLocked(ctx, slices.Clone(input), nil, inputs)

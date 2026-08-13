@@ -1289,7 +1289,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		embeddingSkip = current
 	}
 	var perLayerInputs []*tensor.Tensor
-	if r.profile().Has(model.ArchitecturePerLayerEmbeddings) && r.spec.EmbeddingPerLayer > 0 {
+	if r.program.Model.ProjectedInput().PerLayerEmbeddings {
 		if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 			r.weights.PerLayerProjectionNorm == nil {
 			return fail(errors.New("Gemma 4 per-layer weights are incomplete"))

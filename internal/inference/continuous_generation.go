@@ -226,7 +226,7 @@ func (g *ContinuousGenerator) run() {
 			continuousStatesUseDeviceGreedy(stepping)
 		topKBatch, bounded := g.batch.(continuousTopKBatchAPI)
 		topK := 0
-		if !greedy && bounded && !g.runner.profile().Has(model.ArchitectureDiscreteImageTokens) {
+		if !greedy && bounded && !g.runner.program.Model.ProjectedInput().DiscreteTokens {
 			topK, bounded = continuousStatesUseDeviceTopK(stepping, int(g.runner.spec.VocabularySize))
 		} else if !greedy {
 			bounded = false

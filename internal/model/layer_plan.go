@@ -479,6 +479,33 @@ type ModelPlan struct {
 	projections   [projectionRoleCount]ProjectionProgram
 	sequenceOut   SequenceOutputProgram
 	forward       ForwardProgram
+	input         ProjectedInputProgram
+}
+
+// ProjectedInputProgram: compiled projected-input and specialized-output admission.
+type ProjectedInputProgram struct {
+	Overrides          EmbeddingOverridePolicy
+	AttentionBlocks    AttentionBlockPolicy
+	DeepstackStreams   uint32
+	MultiAxis          bool
+	PerLayerEmbeddings bool
+	ClassifierHead     bool
+	DiscreteTokens     bool
+}
+
+func compileProjectedInputProgram(spec Spec, profile ArchitectureProfile) ProjectedInputProgram {
+	deepstackStreams := spec.DeepstackLayerCount
+	if profile.Deepstack == DeepstackNone {
+		deepstackStreams = 0
+	}
+	return ProjectedInputProgram{
+		Overrides: profile.Overrides, AttentionBlocks: profile.AttentionBlocks,
+		DeepstackStreams:   deepstackStreams,
+		MultiAxis:          spec.SupportsMultiAxisPositionsWithProfile(profile),
+		PerLayerEmbeddings: profile.Has(ArchitecturePerLayerEmbeddings) && spec.EmbeddingPerLayer > 0,
+		ClassifierHead:     profile.Has(ArchitectureClassifierHead),
+		DiscreteTokens:     profile.Has(ArchitectureDiscreteImageTokens),
+	}
 }
 
 // CompileModelPlan: resolves architecture decisions before execution.
@@ -519,6 +546,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		projections:   compileProjectionPrograms(spec, profile),
 		sequenceOut:   compileSequenceOutputProgram(spec, profile),
 		forward:       forward,
+		input:         compileProjectedInputProgram(spec, profile),
 	}
 	if weights.Output != nil {
 		plan.terminal.OutputHead = OutputHeadDedicated
@@ -565,6 +593,9 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	}
 	if !plan.forward.valid() || plan.forward != compileForwardProgram(plan.profile, spec.NonCausalAttention) {
 		return fmt.Errorf("model plan architecture %s has invalid forward program", spec.Architecture)
+	}
+	if plan.input != compileProjectedInputProgram(spec, plan.profile) {
+		return fmt.Errorf("model plan architecture %s has invalid projected-input program", spec.Architecture)
 	}
 	if plan.terminal.OutputHead > OutputHeadDedicated ||
 		plan.terminal.Normalization != plan.profile.OutputNorm ||
@@ -723,6 +754,9 @@ func (p ModelPlan) Profile() ArchitectureProfile { return p.profile }
 
 // Forward: compiled top-level execution contract.
 func (p ModelPlan) Forward() ForwardProgram { return p.forward }
+
+// ProjectedInput returns compiled projected-input admission.
+func (p ModelPlan) ProjectedInput() ProjectedInputProgram { return p.input }
 
 // LayerCount: compiled trunk layer count.
 func (p ModelPlan) LayerCount() int { return len(p.layers) }

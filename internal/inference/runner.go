@@ -419,7 +419,7 @@ func (r *Runner) ForwardCachedWithMultimodalInputs(
 	if r.closed {
 		return reference.Value{}, nil, errors.New("inference: runner is closed")
 	}
-	if !r.spec.SupportsMultiAxisPositionsWithProfile(r.profile()) {
+	if !r.program.Model.ProjectedInput().MultiAxis {
 		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
 	}
 	return r.forwardCachedProjectedChunkLocked(

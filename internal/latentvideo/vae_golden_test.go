@@ -24,7 +24,7 @@ import (
 // margin only covers a future golden recapture on different CUDA hardware).
 const goldenVAEDecodeTolerance = 1e-5
 
-func wanVAECheckpointPath(t *testing.T) string {
+func wanVAECheckpointPath(t testing.TB) string {
 	t.Helper()
 	path := filepath.Join(wanModelDir(t), "Wan2.1_VAE.pth")
 	if _, err := os.Stat(path); err != nil {
@@ -35,7 +35,7 @@ func wanVAECheckpointPath(t *testing.T) string {
 
 // vaeG0LatentStats: published per-channel latent statistics mirrored by the
 // g0 capture (the checkpoint carries no config; g0 is the committed source).
-func vaeG0LatentStats(t *testing.T) VAELatentStats {
+func vaeG0LatentStats(t testing.TB) VAELatentStats {
 	t.Helper()
 	raw, err := os.ReadFile(testutil.FixturePath(t, "wan", "g0_config.json"))
 	if err != nil {
@@ -58,7 +58,7 @@ func vaeG0LatentStats(t *testing.T) VAELatentStats {
 	return stats
 }
 
-func compileRealVAEDecoderPlan(t *testing.T) (VAEDecoderPlan, string) {
+func compileRealVAEDecoderPlan(t testing.TB) (VAEDecoderPlan, string) {
 	t.Helper()
 	checkpoint := wanVAECheckpointPath(t)
 	metas, err := pytorchzip.ReadTensorMetadata(checkpoint)
@@ -136,7 +136,7 @@ func loadVAEGoldenFrames(t *testing.T, manifestName string) vaeGoldenFrames {
 
 func runVAEDecodeGolden(t *testing.T, manifestName string) {
 	if testing.Short() {
-		t.Skip("loads the 293MB VAE decoder weight set; skipped in -short")
+		t.Skip("integration excluded by -short: loads the 293MB VAE decoder weight set")
 	}
 	golden := loadVAEGoldenFrames(t, manifestName)
 	plan, checkpoint := compileRealVAEDecoderPlan(t)

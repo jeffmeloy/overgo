@@ -743,10 +743,8 @@ type CompiledGraph struct {
 	skipped           map[*tensor.Tensor]struct{}
 	needBlas          bool
 	q8InputBytes      uint64
-	// weightUpconvertBytes: F32 staging for the prefill half-precision-weight
-	// upconvert (largest multi-token F16/BF16 mul_mat weight, in F32 bytes).
-	// Decode reads the 2-byte weight natively; one workspace serves both dtypes.
-	weightUpconvertBytes uint64
+	// matmulStagingBytes: shared exact-weight or tensor-core-input scratch.
+	matmulStagingBytes uint64
 	// attentionScoreBytes: cuBLAS attention score staging ([heads][chunk][keys] F32)
 	attentionScoreBytes uint64
 }
@@ -907,20 +905,26 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		if node.Op == tensor.OpMulMat &&
 			(node.Inputs[0].Type == dtype.F16 || node.Inputs[0].Type == dtype.BF16 ||
 				node.Inputs[0].Type == dtype.F8E4M3) {
-			// prefill (multi-token) upconverts the native-dtype weight to F32
-			// and runs SGEMM; single-token decode reads the packed weight natively
-			// via the custom kernel and needs no cuBLAS. One staging size covers
-			// F16/BF16 (2 bytes, bit-exact upconvert) and F8E4M3 (1 byte e4m3 with
-			// the per-row scale folded into the staged F32 weight).
+			// Multi-token exact paths stage F32 weights. Explicit BF16 tensor-core
+			// paths stage BF16 activations. Decode reads native weights directly.
 			inner := node.Inputs[0].Shape.Dims[0]
 			leftRows := node.Inputs[0].Shape.Dims[1]
 			rightRows := node.Inputs[1].Shape.Dims[1]
 			if rightRows != 1 {
 				compiled.needBlas = true
-				if inner > math.MaxUint64/leftRows || inner*leftRows > math.MaxUint64/4 {
-					return nil, errors.New("half-precision mul_mat weight staging size overflows")
+				stagingRows, stagingWidth := leftRows, uint64(4)
+				if attributes, ok := node.Attrs.(tensor.MulMatAttributes); ok &&
+					attributes.Compute == tensor.MulMatComputeBF16TensorCore {
+					stagingRows, stagingWidth = rightRows, 2
 				}
-				compiled.weightUpconvertBytes = max(compiled.weightUpconvertBytes, inner*leftRows*4)
+				if inner > math.MaxUint64/stagingRows {
+					return nil, errors.New("half-precision mul_mat staging size overflows")
+				}
+				stagingElements := inner * stagingRows
+				if stagingElements > math.MaxUint64/stagingWidth {
+					return nil, errors.New("half-precision mul_mat staging size overflows")
+				}
+				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, stagingElements*stagingWidth)
 			}
 		}
 		if node.Op == tensor.OpAttention {
@@ -1143,7 +1147,7 @@ func (e *Executor) runCompiled(
 	err := e.worker.Do(ctx, func(state *device.State) error {
 		resources, resourceErr := e.ensureResources(
 			state, compiled.needBlas, compiled.q8InputBytes,
-			compiled.attentionScoreBytes, compiled.weightUpconvertBytes,
+			compiled.attentionScoreBytes, compiled.matmulStagingBytes,
 		)
 		if resourceErr != nil {
 			return resourceErr
@@ -1522,6 +1526,9 @@ func execute(
 
 	capturing := retainOutputs && execCache != nil
 	resetStaged := func() {
+		if blas != nil {
+			blas.stagedNode = nil
+		}
 		if q8Input != nil {
 			q8Input.stagedNode = nil
 		}
@@ -1799,12 +1806,11 @@ var quantKernels = map[dtype.Type]quantKernelDescriptor{
 }
 
 type blasState struct {
-	library *cublas.Library
-	handle  cublas.Handle
-	// weightStaging: F32 upconvert scratch for the prefill half-precision-weight
-	// SGEMM path (F16/BF16); one workspace serves both dtypes.
-	weightStaging      driver.DevicePtr
-	weightStagingBytes uint64
+	library      *cublas.Library
+	handle       cublas.Handle
+	staging      driver.DevicePtr
+	stagingBytes uint64
+	stagedNode   *tensor.Tensor
 	// scores: attention score staging for the strided-batched SGEMM path
 	scores     driver.DevicePtr
 	scoreBytes uint64
@@ -1826,7 +1832,7 @@ func (e *Executor) ensureResources(
 	needBlas bool,
 	q8InputBytes uint64,
 	attentionScoreBytes uint64,
-	weightUpconvertBytes uint64,
+	matmulStagingBytes uint64,
 ) (*executorResources, error) {
 	if e.resources.module == 0 {
 		if err := kernel.ValidateAssets(); err != nil {
@@ -1865,19 +1871,19 @@ func (e *Executor) ensureResources(
 		}
 		e.resources.blas = &blasState{library: library, handle: handle}
 	}
-	if weightUpconvertBytes > 0 && e.resources.blas != nil && e.resources.blas.weightStagingBytes < weightUpconvertBytes {
-		staging, err := state.Driver.MemAlloc(weightUpconvertBytes)
+	if matmulStagingBytes > 0 && e.resources.blas != nil && e.resources.blas.stagingBytes < matmulStagingBytes {
+		staging, err := state.Driver.MemAlloc(matmulStagingBytes)
 		if err != nil {
 			return nil, err
 		}
-		if e.resources.blas.weightStaging != 0 {
-			if err := state.Driver.MemFree(e.resources.blas.weightStaging); err != nil {
+		if e.resources.blas.staging != 0 {
+			if err := state.Driver.MemFree(e.resources.blas.staging); err != nil {
 				_ = state.Driver.MemFree(staging)
 				return nil, err
 			}
 		}
-		e.resources.blas.weightStaging = staging
-		e.resources.blas.weightStagingBytes = weightUpconvertBytes
+		e.resources.blas.staging = staging
+		e.resources.blas.stagingBytes = matmulStagingBytes
 	}
 	if attentionScoreBytes > 0 && e.resources.blas != nil && e.resources.blas.scoreBytes < attentionScoreBytes {
 		scores, err := state.Driver.MemAlloc(attentionScoreBytes)
@@ -1947,10 +1953,11 @@ func (e *Executor) closeResources(state *device.State) error {
 		errs = append(errs, err)
 	}
 	if e.resources.blas != nil {
-		if e.resources.blas.weightStaging != 0 {
-			errs = append(errs, state.Driver.MemFree(e.resources.blas.weightStaging))
-			e.resources.blas.weightStaging = 0
-			e.resources.blas.weightStagingBytes = 0
+		if e.resources.blas.staging != 0 {
+			errs = append(errs, state.Driver.MemFree(e.resources.blas.staging))
+			e.resources.blas.staging = 0
+			e.resources.blas.stagingBytes = 0
+			e.resources.blas.stagedNode = nil
 		}
 		if e.resources.blas.scores != 0 {
 			errs = append(errs, state.Driver.MemFree(e.resources.blas.scores))

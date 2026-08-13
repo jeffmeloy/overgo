@@ -367,6 +367,10 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 	if matmulWeightType != dtype.F32 && matmulWeightType != dtype.BF16 {
 		return nil, fmt.Errorf("denoiser program: matmul weight type %s is unsupported", matmulWeightType)
 	}
+	matmulCompute := tensor.MulMatComputeExact
+	if matmulWeightType == dtype.BF16 {
+		matmulCompute = tensor.MulMatComputeBF16TensorCore
+	}
 	d := uint64(c.Dim)
 	heads := uint64(c.NumHeads)
 	headWidth := d / heads
@@ -395,6 +399,7 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 
 	// Context graph: per-block cross-attention K/V from the text context.
 	contextBuilder := tensor.NewBuilder()
+	contextBuilder.SetMulMatCompute(matmulCompute)
 	program.contextWeightInputs = make(map[string]*tensor.Tensor)
 	contextBind := weightInputBinder{builder: contextBuilder, inputs: program.contextWeightInputs, matmulType: matmulWeightType}
 	program.contextInput = contextBuilder.Input("context", dtype.F32, tensor.MustShape(d, textLen))
@@ -415,6 +420,7 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 
 	// Step graph: patch embedding -> blocks -> head.
 	builder := tensor.NewBuilder()
+	builder.SetMulMatCompute(matmulCompute)
 	program.stepWeightInputs = make(map[string]*tensor.Tensor)
 	bind := weightInputBinder{builder: builder, inputs: program.stepWeightInputs, matmulType: matmulWeightType}
 	program.stepPatch = builder.Input("patch_tokens", dtype.F32, tensor.MustShape(uint64(c.patchIn()), seq))

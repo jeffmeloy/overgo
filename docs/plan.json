@@ -16,15 +16,15 @@
       ]
     },
     {
-      "id": "wan-video-leadership",
-      "title": "Refresh Wan text-to-video leadership on the real artifact: exact output quality first, then beat adaptive_new and model-native Python on matched wall and peak without a family runtime",
+      "id": "krea-2048-leadership",
+      "title": "Run and optimize the real Krea 2048 pipeline: preserve bounded image quality, fit below adaptive peak, and beat adaptive plus Python wall through shared tensor machinery",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Refresh Wan text-to-video leadership on the real artifact: exact output quality first, then beat adaptive_new and model-native Python on matched wall and peak without a family runtime",
+          "title": "Run and optimize the real Krea 2048 pipeline: preserve bounded image quality, fit below adaptive peak, and beat adaptive plus Python wall through shared tensor machinery",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_WAN_BASELINE=1 go test ./internal/latentvideo -run '^TestWanRealArtifactLeadership$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -run '^$' -bench '^BenchmarkKrea2048Leadership$' -benchtime=1x -count=1"
         }
       ]
     },

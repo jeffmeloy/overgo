@@ -27,7 +27,7 @@ var (
 // CUDA-capture accumulation noise the g1 golden gate absorbs.
 func TestEncodeTokensStreamedMatchesReferenceHost(t *testing.T) {
 	if testing.Short() {
-		t.Skip("streams the full encoder checkpoint; skipped in -short")
+		t.Skip("integration excluded by -short: streams the full encoder checkpoint")
 	}
 	modelDir := wanModelDir(t)
 	checkpoint := filepath.Join(modelDir, "models_t5_umt5-xxl-enc-bf16.pth")

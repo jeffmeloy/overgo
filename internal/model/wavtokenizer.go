@@ -88,7 +88,7 @@ func (p SequenceOutputProgram) Build(
 		requireGraphWeight("output norm bias", weights.OutputNormBias),
 		requireGraphWeight("output", weights.Output),
 		requireGraphWeight("output bias", weights.OutputBias),
-	}).validate("WavTokenizer decoder"); err != nil {
+	}).validate("AudioDecoder decoder"); err != nil {
 		return nil, err
 	}
 

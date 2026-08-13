@@ -13,10 +13,10 @@ func layerUsesMoECatalog(
 	prefix string,
 	spec Spec,
 	block uint32,
-	isNextNBlock bool,
+	isDraftBlock bool,
 ) bool {
 	_, routerPresent := tensors[prefix+"ffn_gate_inp.weight"]
-	return spec.Profile().Experts.usesCatalog(spec, block, routerPresent, isNextNBlock)
+	return spec.Profile().Experts.usesCatalog(spec, block, routerPresent, isDraftBlock)
 }
 
 func loadMoECatalog(

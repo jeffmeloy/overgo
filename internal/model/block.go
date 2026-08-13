@@ -303,7 +303,7 @@ func preparePolicyAttentionInputs(
 		)
 	}
 	feedForwardNormalized := normalized
-	if c.plan.DenseWeights.validateFalconNorm && c.weights.AttentionNorm2 != nil {
+	if c.plan.DenseWeights.useSecondaryAttentionNorm && c.weights.AttentionNorm2 != nil {
 		if c.weights.AttentionNorm2Bias == nil {
 			normalized = c.builder.Multiply(
 				c.builder.LayerNorm(c.input, c.spec.LayerNormEpsilon), c.weights.AttentionNorm2,
@@ -850,12 +850,12 @@ func (p ModelPlan) BuildPerLayerInputs(
 ) ([]*tensor.Tensor, error) {
 	spec := p.spec
 	if builder == nil || input == nil || tokenEmbedding == nil || modelProjection == nil || projectionNorm == nil {
-		return nil, errors.New("Gemma 4 per-layer input is incomplete")
+		return nil, errors.New("mapped per-layer input is incomplete")
 	}
 	if !p.profile.Has(ArchitecturePerLayerEmbeddings) ||
 		spec.EmbeddingPerLayer == 0 || spec.BlockCount == 0 ||
 		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, errors.New("Gemma 4 per-layer input configuration is invalid")
+		return nil, errors.New("mapped per-layer input configuration is invalid")
 	}
 	width := uint64(spec.EmbeddingPerLayer)
 	layers := uint64(spec.BlockCount)
@@ -866,7 +866,7 @@ func (p ModelPlan) BuildPerLayerInputs(
 		modelProjection.Shape.Rank != 2 || modelProjection.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		modelProjection.Shape.Dims[1] != combinedWidth ||
 		projectionNorm.Shape.Rank != 1 || projectionNorm.Shape.Dims[0] != width {
-		return nil, errors.New("Gemma 4 per-layer input shape is invalid")
+		return nil, errors.New("mapped per-layer input shape is invalid")
 	}
 	projected := builder.MulMat(modelProjection, input)
 	projected = builder.Scale(projected, 1/float32(math.Sqrt(float64(spec.EmbeddingLength))))
@@ -1232,7 +1232,7 @@ func buildRoutedSwiGLUFeedForwardMix(
 	composition ExpertCompositionPlan,
 ) (*tensor.Tensor, error) {
 	required := graphWeights{}
-	addQwen35FeedForwardRequirements(&required, composition, weights)
+	addGatedDeltaFeedForwardRequirements(&required, composition, weights)
 	if err := required.validate("Qwen3.5 feed-forward mix"); err != nil {
 		return nil, err
 	}
@@ -1259,7 +1259,7 @@ func buildRoutedSwiGLUFeedForwardMix(
 	return feedForward, builder.Err()
 }
 
-func addQwen35FeedForwardRequirements(
+func addGatedDeltaFeedForwardRequirements(
 	required *graphWeights,
 	composition ExpertCompositionPlan,
 	weights LayerGraphWeights,

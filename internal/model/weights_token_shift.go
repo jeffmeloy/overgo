@@ -2,18 +2,18 @@ package model
 
 import "overgo/internal/gguf"
 
-func loadRWKVLayer(
+func loadTokenShiftRecurrentLayer(
 	required weightRequirementLoader,
 	tensors map[string]gguf.TensorInfo,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
 	block uint32,
-) (bool, error) {
+	mixer RecurrentMixerPolicy,
+) error {
 	var err error
-	profile := spec.Profile()
-	if profile.LayerTopology == LayerTopologyDynamicWKV6 {
-		layer.Recurrent = true
+	layer.Recurrent = true
+	if mixer == recurrentMixerAffineWKV6 {
 		embedding := uint64(spec.EmbeddingLength)
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, embedding),
@@ -38,12 +38,12 @@ func loadRWKVLayer(
 			requiredTensorPointer("channel_mix_value.weight", &layer.ChannelMixValue, uint64(spec.FeedForwardLength), embedding),
 			requiredTensorPointer("channel_mix_receptance.weight", &layer.ChannelMixReceptance, embedding, embedding),
 		}); itemErr != nil {
-			return true, itemErr
+			return itemErr
 		}
 		if item, ok := tensors[prefix+"time_mix_lerp_fused.weight"]; ok {
 			validated, itemErr := required(item.Name, embedding, 1, 1, 5)
 			if itemErr != nil {
-				return true, itemErr
+				return itemErr
 			}
 			layer.TimeMixLerpFused = &validated
 		} else {
@@ -54,14 +54,13 @@ func loadRWKVLayer(
 				requiredTensorPointer("time_mix_lerp_r.weight", &layer.TimeMixLerpR, embedding, 1, 1),
 				requiredTensorPointer("time_mix_lerp_g.weight", &layer.TimeMixLerpG, embedding, 1, 1),
 			}); itemErr != nil {
-				return true, itemErr
+				return itemErr
 			}
 		}
-		return true, nil
+		return nil
 	}
-	if profile.LayerTopology == LayerTopologyDynamicWKV7 {
-		layer.Recurrent = true
-		channelMix := profile.Normalization == NormalizationLayer
+	if mixer == recurrentMixerDynamicWKV7 {
+		channelMix := spec.Profile().Normalization == NormalizationLayer
 		embedding := uint64(spec.EmbeddingLength)
 		valueRank := uint64(spec.ValueMixLoRARank)
 		if block == 0 {
@@ -90,16 +89,16 @@ func loadRWKVLayer(
 			requiredTensorPointer("time_mix_receptance.weight", &layer.TimeMixReceptance, embedding, embedding),
 			requiredTensorPointer("time_mix_output.weight", &layer.TimeMixOutput, embedding, embedding),
 		}); itemErr != nil {
-			return true, itemErr
+			return itemErr
 		}
 		if spec.GateLoRARank > 0 {
 			g1, itemErr := required(prefix+"time_mix_g1.weight", embedding, uint64(spec.GateLoRARank))
 			if itemErr != nil {
-				return true, itemErr
+				return itemErr
 			}
 			g2, itemErr := required(prefix+"time_mix_g2.weight", uint64(spec.GateLoRARank), embedding)
 			if itemErr != nil {
-				return true, itemErr
+				return itemErr
 			}
 			layer.TimeMixG1, layer.TimeMixG2 = &g1, &g2
 		}
@@ -113,35 +112,34 @@ func loadRWKVLayer(
 				requiredTensorPointer("channel_mix_key.weight", &layer.ChannelMixKey, embedding, uint64(spec.FeedForwardLength)),
 				requiredTensorPointer("channel_mix_value.weight", &layer.ChannelMixValue, uint64(spec.FeedForwardLength), embedding),
 			}); itemErr != nil {
-				return true, itemErr
+				return itemErr
 			}
 		} else {
 			if item, ok := tensors[prefix+"time_mix_ln.weight"]; ok {
 				norm, itemErr := required(item.Name, embedding)
 				if itemErr != nil {
-					return true, itemErr
+					return itemErr
 				}
 				bias, itemErr := required(prefix+"time_mix_ln.bias", embedding)
 				if itemErr != nil {
-					return true, itemErr
+					return itemErr
 				}
 				layer.TimeMixLN, layer.TimeMixLNBias = &norm, &bias
 			}
 			if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", embedding); err != nil {
-				return true, err
+				return err
 			}
 			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, embedding, uint64(spec.FeedForwardLength)),
 				requiredTensor("ffn_up.weight", &layer.FeedForwardUp, embedding, uint64(spec.FeedForwardLength)),
 				requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), embedding),
 			}); itemErr != nil {
-				return true, itemErr
+				return itemErr
 			}
 		}
-		return true, nil
+		return nil
 	}
-	if profile.LayerTopology == LayerTopologyAffineWKV6 {
-		layer.Recurrent = true
+	if mixer == recurrentMixerDynamicWKV6 {
 		embedding := uint64(spec.EmbeddingLength)
 		keyValue := uint64(spec.HeadCountKV) * uint64(spec.WKVHeadSize)
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
@@ -161,19 +159,19 @@ func loadRWKVLayer(
 			optionalTensorPointer("time_mix_value.bias", &layer.AttentionVBias, keyValue),
 			optionalTensorPointer("time_mix_receptance.bias", &layer.AttentionQBias, embedding),
 		}); itemErr != nil {
-			return true, itemErr
+			return itemErr
 		}
 		if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", embedding); err != nil {
-			return true, err
+			return err
 		}
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 			requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, embedding, uint64(spec.FeedForwardLength)),
 			requiredTensor("ffn_up.weight", &layer.FeedForwardUp, embedding, uint64(spec.FeedForwardLength)),
 			requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), embedding),
 		}); itemErr != nil {
-			return true, itemErr
+			return itemErr
 		}
-		return true, nil
+		return nil
 	}
-	return false, nil
+	return nil
 }

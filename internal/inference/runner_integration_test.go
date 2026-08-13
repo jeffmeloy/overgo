@@ -1225,11 +1225,11 @@ func TestWavTokenizerDecodeWaveform(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(audio) != 320 {
-		t.Fatalf("WavTokenizer waveform length = %d, want 320", len(audio))
+		t.Fatalf("AudioDecoder waveform length = %d, want 320", len(audio))
 	}
 	for index, sample := range audio {
 		if math.IsNaN(float64(sample)) || math.IsInf(float64(sample), 0) {
-			t.Fatalf("WavTokenizer waveform[%d] is not finite: %g", index, sample)
+			t.Fatalf("AudioDecoder waveform[%d] is not finite: %g", index, sample)
 		}
 	}
 }

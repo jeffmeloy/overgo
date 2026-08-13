@@ -386,11 +386,11 @@ func TestReadWeightsWavTokenizerDecoder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if weights.WavTokenizer == nil || len(weights.WavTokenizer.PosNet) != 6 ||
-		len(weights.WavTokenizer.ConvNext) != 2 || weights.WavTokenizer.PosNet[2].AttentionQ.Name == "" ||
-		weights.WavTokenizer.PosNet[5].AttentionNorm.Name == "" || weights.Output == nil ||
+	if weights.AudioDecoder == nil || len(weights.AudioDecoder.PosNet) != 6 ||
+		len(weights.AudioDecoder.ConvNext) != 2 || weights.AudioDecoder.PosNet[2].AttentionQ.Name == "" ||
+		weights.AudioDecoder.PosNet[5].AttentionNorm.Name == "" || weights.Output == nil ||
 		weights.Output.Shape[1] != 3 {
-		t.Fatalf("unexpected WavTokenizer decoder weights: %+v", weights.WavTokenizer)
+		t.Fatalf("unexpected AudioDecoder decoder weights: %+v", weights.AudioDecoder)
 	}
 }
 

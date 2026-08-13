@@ -16,44 +16,44 @@ const (
 
 // DenseWeightPolicy: architecture-owned dense tensor requirements.
 type DenseWeightPolicy struct {
-	AllowUngatedExperts        bool
-	RequireExpertBias          bool
-	RequirePostNorm            bool
-	RequireSubNorm             bool
-	RequireAttentionOutputBias bool
-	ValidateOptionalQKNorm     bool
-	ValidateFalconNorm         bool
-	RequireOpenAIBiases        bool
-	RequireAttentionGate       bool
-	RequireAttentionSinks      bool
-	SkipFeedForwardNorm        bool
-	RMSNormBias                bool
-	AllowActivationScale       bool
-	BiasCatalog                denseBiasCatalogPolicy
+	AllowUngatedExperts           bool
+	RequireExpertBias             bool
+	RequirePostNorm               bool
+	RequireSubNorm                bool
+	RequireAttentionOutputBias    bool
+	ValidateOptionalQKNorm        bool
+	UseSecondaryAttentionNorm     bool
+	RequireExpertProjectionBiases bool
+	RequireAttentionGate          bool
+	RequireAttentionSinks         bool
+	SkipFeedForwardNorm           bool
+	RMSNormBias                   bool
+	AllowActivationScale          bool
+	BiasCatalog                   denseBiasCatalogPolicy
 }
 
 // DenseWeightPlan: compiled dense graph tensor contract.
 type DenseWeightPlan struct {
-	supportsExperts            bool
-	allowUngatedExperts        bool
-	requireExpertBias          bool
-	requireShared              bool
-	requireSharedRouter        bool
-	requireChunkExperts        bool
-	requireOpenAIBiases        bool
-	requireSeparateDenseBranch bool
-	requireQKNorm              bool
-	requirePostNorm            bool
-	requireAttentionGate       bool
-	requireAttentionOutputBias bool
-	requireTemperature         bool
-	requireSubNorm             bool
-	requireBaseNorm            bool
-	requireFeedForwardNorm     bool
-	requireNormBias            bool
-	validateOptionalQKNorm     bool
-	validateFalconNorm         bool
-	allowActivationScale       bool
+	supportsExperts               bool
+	allowUngatedExperts           bool
+	requireExpertBias             bool
+	requireShared                 bool
+	requireSharedRouter           bool
+	requireChunkExperts           bool
+	requireExpertProjectionBiases bool
+	requireSeparateDenseBranch    bool
+	requireQKNorm                 bool
+	requirePostNorm               bool
+	requireAttentionGate          bool
+	requireAttentionOutputBias    bool
+	requireTemperature            bool
+	requireSubNorm                bool
+	requireBaseNorm               bool
+	requireFeedForwardNorm        bool
+	requireNormBias               bool
+	validateOptionalQKNorm        bool
+	useSecondaryAttentionNorm     bool
+	allowActivationScale          bool
 }
 
 func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWeightPlan {
@@ -72,10 +72,10 @@ func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWe
 		requireSubNorm:  policy.RequireSubNorm,
 		requireAttentionOutputBias: profile.FeedForward == FeedForwardSequentialGELU ||
 			policy.RequireAttentionOutputBias,
-		requireTemperature:     queryScale.kind == queryScaleTemperature,
-		validateOptionalQKNorm: policy.ValidateOptionalQKNorm,
-		validateFalconNorm:     policy.ValidateFalconNorm,
-		allowActivationScale:   policy.AllowActivationScale,
+		requireTemperature:        queryScale.kind == queryScaleTemperature,
+		validateOptionalQKNorm:    policy.ValidateOptionalQKNorm,
+		useSecondaryAttentionNorm: policy.UseSecondaryAttentionNorm,
+		allowActivationScale:      policy.AllowActivationScale,
 	}
 	plan.allowUngatedExperts = policy.AllowUngatedExperts
 	plan.requireExpertBias = policy.RequireExpertBias
@@ -84,7 +84,7 @@ func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWe
 			composition.kind == expertSharedLimited || composition.kind == expertSharedGated)
 	plan.requireSharedRouter = composition.kind == expertSharedGated
 	plan.requireChunkExperts = composition.kind == expertGrouped
-	plan.requireOpenAIBiases = policy.RequireOpenAIBiases
+	plan.requireExpertProjectionBiases = policy.RequireExpertProjectionBiases
 	plan.requireSeparateDenseBranch = composition.kind == expertDenseRoutedSeparateNorm
 	plan.requireAttentionGate = policy.RequireAttentionGate
 	plan.requireQKNorm = plan.requirePostNorm || requireQKNorm(qk.Projection) ||
@@ -133,7 +133,7 @@ func (p DenseWeightPlan) Validate(
 			required.add("feed-forward chunk expert up", weights.FeedForwardUpChunkExperts)
 			required.add("feed-forward chunk expert down", weights.FeedForwardDownChunkExperts)
 		}
-		if p.requireOpenAIBiases {
+		if p.requireExpertProjectionBiases {
 			required.add("feed-forward router bias", weights.FeedForwardRouterBias)
 			required.add("feed-forward expert gate bias", weights.FeedForwardGateBias)
 			required.add("feed-forward expert up bias", weights.FeedForwardUpBias)
@@ -165,8 +165,8 @@ func (p DenseWeightPlan) Validate(
 			return errors.New("dense fused QKV bias has no fused projection")
 		}
 	}
-	if p.validateFalconNorm && weights.AttentionNorm2 == nil && weights.AttentionNorm2Bias != nil {
-		return errors.New("Falcon secondary attention norm bias has no weight")
+	if p.useSecondaryAttentionNorm && weights.AttentionNorm2 == nil && weights.AttentionNorm2Bias != nil {
+		return errors.New("secondary attention norm bias has no weight")
 	}
 	if p.requireSubNorm {
 		required.add("attention sub norm", weights.AttentionSubNorm)

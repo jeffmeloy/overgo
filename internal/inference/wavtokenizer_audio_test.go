@@ -38,6 +38,6 @@ func TestWavTokenizerFeaturesToWaveformRejectsShape(t *testing.T) {
 		Data:  make([]float32, wavTokenizerFrameWidth-1),
 	})
 	if err == nil {
-		t.Fatal("accepted incompatible WavTokenizer feature shape")
+		t.Fatal("accepted incompatible AudioDecoder feature shape")
 	}
 }

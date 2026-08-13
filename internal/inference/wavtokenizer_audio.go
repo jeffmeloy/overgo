@@ -43,11 +43,11 @@ func (r *Runner) DecodeWavTokenizerWaveform(
 func WavTokenizerFeaturesToWaveform(features reference.Value) ([]float32, error) {
 	if features.Shape.Rank != 2 || features.Shape.Dims[0] != wavTokenizerFrameWidth ||
 		features.Shape.Dims[1] == 0 || features.Shape.Dims[1] > uint64(math.MaxInt/wavTokenizerFrameWidth) {
-		return nil, errors.New("inference: WavTokenizer feature shape is incompatible")
+		return nil, errors.New("inference: AudioDecoder feature shape is incompatible")
 	}
 	frames := int(features.Shape.Dims[1])
 	if len(features.Data) != frames*wavTokenizerFrameWidth || frames > math.MaxInt/wavTokenizerFFTSize {
-		return nil, errors.New("inference: WavTokenizer feature data is incompatible")
+		return nil, errors.New("inference: AudioDecoder feature data is incompatible")
 	}
 	wavTokenizerTablesOnce.Do(initWavTokenizerTables)
 	windows := make([]float32, frames*wavTokenizerFFTSize)
@@ -104,11 +104,11 @@ func WavTokenizerFeaturesToWaveform(features reference.Value) ([]float32, error)
 	audio = audio[:trimmedSize]
 	for index := range audio {
 		if envelope[index] == 0 {
-			return nil, errors.New("inference: WavTokenizer overlap envelope is zero")
+			return nil, errors.New("inference: AudioDecoder overlap envelope is zero")
 		}
 		audio[index] /= envelope[index]
 		if math.IsNaN(float64(audio[index])) || math.IsInf(float64(audio[index]), 0) {
-			return nil, errors.New("inference: WavTokenizer waveform is not finite")
+			return nil, errors.New("inference: AudioDecoder waveform is not finite")
 		}
 	}
 	return audio, nil

@@ -2,12 +2,12 @@ package model
 
 import "fmt"
 
-func readWavTokenizerWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
+func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
 	required, tensors := catalog.required, catalog.tensors
 	width := uint64(spec.PosNetEmbeddingLength)
 	ffn := uint64(spec.FeedForwardLength)
 	result := Weights{}
-	wav := &WavTokenizerWeights{
+	wav := &AudioDecoderWeights{
 		PosNet:   make([]WavPosNetWeights, spec.PosNetBlockCount),
 		ConvNext: make([]WavConvNextWeights, spec.ConvNextBlockCount),
 	}
@@ -88,7 +88,7 @@ func readWavTokenizerWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 	}); err != nil {
 		return Weights{}, err
 	}
-	result.WavTokenizer = wav
+	result.AudioDecoder = wav
 	result.Output = &wav.Output
 	result.OutputBias = &wav.OutputBias
 	return result, nil

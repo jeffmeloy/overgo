@@ -216,8 +216,8 @@ type WavConvNextWeights struct {
 	Gamma                      gguf.TensorInfo
 }
 
-// WavTokenizerWeights: decoder-only audio tensors
-type WavTokenizerWeights struct {
+// AudioDecoderWeights: decoder-only audio tensors
+type AudioDecoderWeights struct {
 	InputConv, InputConvBias   gguf.TensorInfo
 	PosNet                     []WavPosNetWeights
 	TokenNorm, TokenNormBias   gguf.TensorInfo
@@ -436,7 +436,7 @@ type Weights struct {
 	AltUpUnembedding        *gguf.TensorInfo
 	Layers                  []LayerWeights
 	EncoderLayers           []LayerWeights
-	WavTokenizer            *WavTokenizerWeights
+	AudioDecoder            *AudioDecoderWeights
 	SingleCatalogDraft      *SingleDraftWeights
 	AppendedMultiCarryDraft []AppendedDraftWeights
 	AppendedMultiDraft      []AppendedDraftWeights
@@ -506,11 +506,11 @@ type weightCatalogReader func(weightCatalog, Spec) (Weights, error)
 var weightCatalogReaders = [...]weightCatalogReader{
 	WeightCatalogLayered:          readLayeredWeightCatalog,
 	WeightCatalogCompressedHyper:  readCompressedHyperWeightCatalog,
-	WeightCatalogTargetFeatures:   readDFlashWeightCatalog,
-	WeightCatalogHiddenFusion:     readEagle3WeightCatalog,
-	WeightCatalogPairedProjection: readGemma4AssistantWeightCatalog,
+	WeightCatalogTargetFeatures:   readTargetFeatureWeightCatalog,
+	WeightCatalogHiddenFusion:     readHiddenFusionWeightCatalog,
+	WeightCatalogPairedProjection: readPairedProjectionWeightCatalog,
 	WeightCatalogEncoder:          readRelativeEncoderWeightCatalog,
-	WeightCatalogAudioDecoder:     readWavTokenizerWeightCatalog,
+	WeightCatalogAudioDecoder:     readAudioDecoderWeightCatalog,
 	WeightCatalogEncoderDecoder:   readEncoderDecoderWeightCatalog,
 }
 
@@ -794,7 +794,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			continue
 		}
 		prefix := fmt.Sprintf("blk.%d.", block)
-		isNextNBlock := block >= spec.BlockCount
+		isDraftBlock := block >= spec.BlockCount
 		layerPlan := spec.PlanLayer(block, false)
 		shapes := spec.TensorShapes(block)
 		queryLength := shapes.QueryProjectionWidth()
@@ -1116,9 +1116,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 			continue
 		}
-		if handled, familyErr := loadRWKVLayer(required, tensors, prefix, spec, layer, block); familyErr != nil {
-			return Weights{}, familyErr
-		} else if handled {
+		if mixer := layerPlan.Mixer; mixer >= recurrentMixerDynamicWKV6 && mixer <= recurrentMixerDynamicWKV7 {
+			if mixerErr := loadTokenShiftRecurrentLayer(required, tensors, prefix, spec, layer, block, layerPlan.Mixer); mixerErr != nil {
+				return Weights{}, mixerErr
+			}
 			continue
 		}
 		if layerPlan.Mixer == recurrentMixerSparseGroupedSelectiveScan {
@@ -1187,12 +1188,12 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 			continue
 		}
-		if profile.DenseWeights.ValidateFalconNorm {
+		if profile.DenseWeights.UseSecondaryAttentionNorm {
 			if normErr := loadOptionalWeightBias(
 				required, tensors, prefix,
 				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, uint64(spec.EmbeddingLength)),
 				requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, uint64(spec.EmbeddingLength)),
-				"Falcon secondary attention norm bias has no weight",
+				"secondary attention norm bias has no weight",
 			); normErr != nil {
 				return Weights{}, normErr
 			}
@@ -1562,7 +1563,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			); normErr != nil {
 				return Weights{}, normErr
 			}
-		} else if !profile.DenseWeights.RequireOpenAIBiases && normPlan.PreFeedForward &&
+		} else if !profile.DenseWeights.RequireExpertProjectionBiases && normPlan.PreFeedForward &&
 			(!profile.DeciSparse || spec.LayerFeedForwardLength(block) > 0) &&
 			profile.Residual != ResidualParallel &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
@@ -1580,7 +1581,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if layerUsesMoECatalog(tensors, prefix, spec, block, isNextNBlock) {
+		if layerUsesMoECatalog(tensors, prefix, spec, block, isDraftBlock) {
 			loadDense, moeErr := loadMoECatalog(required, tensors, prefix, spec, layer)
 			if moeErr != nil {
 				return Weights{}, moeErr

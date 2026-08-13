@@ -51,8 +51,8 @@ func (r *Runner) wavTokenizerGraphInputs(
 	var result model.SequenceOutputGraphWeights
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	if r.weights.WavTokenizer == nil {
-		return result, nil, nil, errors.New("inference: WavTokenizer weights are missing")
+	if r.weights.AudioDecoder == nil {
+		return result, nil, nil, errors.New("inference: AudioDecoder weights are missing")
 	}
 	input := func(info gguf.TensorInfo) (*tensor.Tensor, error) {
 		if r.hasPreloadedWeights() {
@@ -78,7 +78,7 @@ func (r *Runner) wavTokenizerGraphInputs(
 		}
 		return err
 	}
-	info := r.weights.WavTokenizer
+	info := r.weights.AudioDecoder
 	for _, item := range []struct {
 		destination **tensor.Tensor
 		info        gguf.TensorInfo

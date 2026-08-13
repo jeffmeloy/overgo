@@ -8,7 +8,7 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-func readDFlashWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
+func readTargetFeatureWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
 	required, tensors := catalog.required, catalog.tensors
 	width := uint64(spec.EmbeddingLength)
 	result := Weights{Layers: make([]LayerWeights, spec.BlockCount)}
@@ -44,7 +44,7 @@ func readDFlashWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) 
 	return result, nil
 }
 
-func readEagle3WeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
+func readHiddenFusionWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
 	required, tensors := catalog.required, catalog.tensors
 	width := uint64(spec.EmbeddingLength)
 	draftVocabulary := uint64(spec.VocabularySize)
@@ -64,7 +64,7 @@ func readEagle3WeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) 
 		return Weights{}, err
 	}
 	if result.DraftToTarget != nil && result.Output == nil {
-		return Weights{}, errors.New(`required tensor "output.weight" is missing for Eagle3 vocabulary mapping`)
+		return Weights{}, errors.New(`required tensor "output.weight" is missing for hidden-fusion vocabulary mapping`)
 	}
 	layer := &result.Layers[0]
 	query := uint64(spec.HeadCount) * uint64(spec.KeyLength)
@@ -88,7 +88,7 @@ func readEagle3WeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) 
 	return result, nil
 }
 
-func readGemma4AssistantWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
+func readPairedProjectionWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
 	required, tensors := catalog.required, catalog.tensors
 	width, targetWidth := uint64(spec.EmbeddingLength), uint64(spec.TargetHiddenSize)
 	result := Weights{Layers: make([]LayerWeights, spec.BlockCount)}
@@ -130,10 +130,10 @@ func readGemma4AssistantWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 				rope, ok = *sharedRope, true
 			}
 			if !ok {
-				return Weights{}, fmt.Errorf("required Gemma 4 assistant RoPE factors for layer %d are missing", block)
+				return Weights{}, fmt.Errorf("required paired-projection RoPE factors for layer %d are missing", block)
 			}
 			if rope.Type != dtype.F32 || rope.Dimensions != 1 || rope.Shape[0] != uint64(spec.RopeDimensionCount/2) {
-				return Weights{}, fmt.Errorf("tensor %q has incompatible Gemma 4 assistant RoPE factors", rope.Name)
+				return Weights{}, fmt.Errorf("tensor %q has incompatible paired-projection RoPE factors", rope.Name)
 			}
 			layer.RopeFactors, sharedRope = &rope, &rope
 		}

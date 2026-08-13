@@ -656,7 +656,7 @@
       "Residual": 2
     },
     "DenseWeights": {
-      "ValidateFalconNorm": true
+      "UseSecondaryAttentionNorm": true
     },
     "FeedForward": 3,
     "Metadata": {
@@ -930,7 +930,7 @@
     "DenseWeights": {
       "RequireAttentionOutputBias": true,
       "RequireAttentionSinks": true,
-      "RequireOpenAIBiases": true,
+      "RequireExpertProjectionBiases": true,
       "SkipFeedForwardNorm": true
     },
     "Experts": {

@@ -54,7 +54,7 @@ const (
 	expertCatalogWithRouter
 	expertCatalogAfterDense
 	expertCatalogInterleaved
-	expertCatalogAfterDenseExceptNextN
+	expertCatalogAfterDenseExceptDraft
 )
 
 type expertBiasCatalogPolicy uint8
@@ -123,7 +123,7 @@ func (p ExpertPolicy) usesCatalog(spec Spec, block uint32, routerPresent, nextN 
 		return block >= spec.LeadingDenseBlocks
 	case expertCatalogInterleaved:
 		return spec.IsInterleavedMoELayer(block)
-	case expertCatalogAfterDenseExceptNextN:
+	case expertCatalogAfterDenseExceptDraft:
 		return block >= spec.LeadingDenseBlocks && !nextN
 	default:
 		return false

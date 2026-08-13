@@ -223,7 +223,7 @@ func TestArchitectureProfileDraftPlan(t *testing.T) {
 		"step35":     {Kind: DraftStep35MTP, Heads: 2, Label: "Step3.5 MTP", AppendedBlocks: true, CarryRawHidden: true, Session: DraftSessionMulti},
 		"hy_v3":      {Kind: DraftHYV3MTP, Heads: 2, Label: "HY-V3 MTP", AppendedBlocks: true, Session: DraftSessionMulti},
 		"glm4":       {Kind: DraftNextNMTP, Heads: 1, Label: "NextN MTP", AppendedBlocks: true, Session: DraftSessionSingle},
-		"cohere2moe": {Kind: DraftCohere2MTP, Heads: 1, Label: "Cohere2-MoE MTP", SingleCatalog: true, OptionalCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle},
+		"cohere2moe": {Kind: DraftCohere2MTP, Heads: 1, Label: "Cohere2-MoE MTP", SingleCatalog: true, OptionalCatalog: true, SupportsMTPOnly: true, ScaleLogits: true, Normalization: DraftNormalizationArchitecture, Session: DraftSessionSingle},
 	} {
 		profile, _ := LookupArchitecture(architecture)
 		heads := want.Heads

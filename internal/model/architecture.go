@@ -38,6 +38,14 @@ const (
 	DraftSessionMulti
 )
 
+// DraftNormalizationPolicy: draft projection normalization operator.
+type DraftNormalizationPolicy uint8
+
+const (
+	DraftNormalizationWeightedRMS DraftNormalizationPolicy = iota
+	DraftNormalizationArchitecture
+)
+
 // DraftPlan: compiled catalog and session contract.
 type DraftPlan struct {
 	Kind            DraftKind
@@ -48,6 +56,8 @@ type DraftPlan struct {
 	OptionalCatalog bool
 	SupportsMTPOnly bool
 	CarryRawHidden  bool
+	ScaleLogits     bool
+	Normalization   DraftNormalizationPolicy
 	Session         DraftSessionPolicy
 }
 
@@ -363,6 +373,7 @@ func (p ArchitectureProfile) DraftPlan(heads uint32) DraftPlan {
 	case DraftCohere2MTP:
 		plan.Label, plan.SingleCatalog, plan.OptionalCatalog = "Cohere2-MoE MTP", true, true
 		plan.SupportsMTPOnly, plan.Session = true, DraftSessionSingle
+		plan.Normalization, plan.ScaleLogits = DraftNormalizationArchitecture, true
 	}
 	return plan
 }

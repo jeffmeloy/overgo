@@ -48,11 +48,14 @@ type goRuntime struct {
 }
 
 type claim struct {
-	ID       string       `json:"id"`
-	Status   string       `json:"status"`
-	Tier     evidenceTier `json:"tier"`
-	Summary  string       `json:"summary"`
-	Evidence []evidence   `json:"evidence"`
+	ID               string       `json:"id"`
+	Status           string       `json:"status"`
+	EvidenceTier     evidenceTier `json:"evidence_tier"`
+	Verify           string       `json:"verify"`
+	SourceCommit     string       `json:"source_commit,omitempty"`
+	ArtifactIdentity string       `json:"artifact_identity,omitempty"`
+	Summary          string       `json:"summary"`
+	Evidence         []evidence   `json:"evidence"`
 }
 
 type evidence struct {
@@ -65,10 +68,10 @@ type evidence struct {
 type evidenceTier string
 
 const (
-	tierImplementation evidenceTier = "implementation"
-	tierFixture        evidenceTier = "fixture"
-	tierOracle         evidenceTier = "oracle"
-	tierProduction     evidenceTier = "production"
+	tierContract evidenceTier = "contract-tested"
+	tierFixture  evidenceTier = "fixture-gated"
+	tierOracle   evidenceTier = "pinned-oracle"
+	tierDevice   evidenceTier = "device-gated"
 )
 
 type evidenceRole string
@@ -135,12 +138,9 @@ func generate(root string) ([]byte, error) {
 		links := make([]string, 0, len(item.Evidence)+1)
 		for _, proof := range item.Evidence {
 			links = append(links, fmt.Sprintf("%s: [`%s`](../%s) `%s`", proof.Role, proof.Contains, filepath.ToSlash(proof.Path), proof.Identity))
-			if command, ok := evidenceCommand(proof); ok {
-				links = append(links, "verify: `"+command+"`")
-			}
 		}
 		fmt.Fprintf(&output, "| `%s` | %s | %s | %s | %s |\n",
-			item.ID, item.Status, item.Tier, escapeCell(item.Summary), strings.Join(links, "<br>"))
+			item.ID, item.Status, item.EvidenceTier, escapeCell(item.Summary), strings.Join(append(links, "verify: `"+item.Verify+"`"), "<br>"))
 	}
 	output.WriteString("\n## Model families\n\n")
 	output.WriteString("`experimental` means the implementation is guarded by strict metadata/catalog validation but may still lack a local real-model oracle.\n\n")
@@ -196,7 +196,7 @@ func validateManifest(root string, document manifest) error {
 	}
 	seen := make(map[string]struct{}, len(document.Claims))
 	for index, item := range document.Claims {
-		if item.ID == "" || item.Summary == "" || !item.Tier.valid() || (item.Status != "implemented" && item.Status != "partial" && item.Status != "blocked") {
+		if item.ID == "" || item.Summary == "" || !item.EvidenceTier.valid() || (item.Status != "implemented" && item.Status != "partial" && item.Status != "blocked") {
 			return fmt.Errorf("compatibility manifest: claim %d is incomplete", index)
 		}
 		if _, exists := seen[item.ID]; exists {
@@ -213,6 +213,9 @@ func validateManifest(root string, document manifest) error {
 		}
 		if !hasSource || !hasArtifact {
 			return fmt.Errorf("compatibility manifest: claim %q requires source and artifact identities", item.ID)
+		}
+		if err := validateClaimEvidenceTier(item); err != nil {
+			return fmt.Errorf("compatibility manifest: claim %q: %w", item.ID, err)
 		}
 	}
 	for name, item := range document.Models {
@@ -309,7 +312,24 @@ func validateEvidence(root, claimID string, proof evidence) error {
 }
 
 func (tier evidenceTier) valid() bool {
-	return tier == tierImplementation || tier == tierFixture || tier == tierOracle || tier == tierProduction
+	return tier == tierContract || tier == tierFixture || tier == tierOracle || tier == tierDevice
+}
+
+func validateClaimEvidenceTier(item claim) error {
+	if item.EvidenceTier == tierOracle && len(item.SourceCommit) != 40 {
+		return errors.New("pinned-oracle evidence needs a source_commit")
+	}
+	if (item.EvidenceTier == tierFixture || item.EvidenceTier == tierDevice) && item.ArtifactIdentity == "" {
+		return fmt.Errorf("%s evidence needs an artifact_identity", item.EvidenceTier)
+	}
+	for _, proof := range item.Evidence {
+		if command, ok := evidenceCommand(proof); ok {
+			if item.Verify == command || item.EvidenceTier == tierDevice && item.Verify == "OVERGO_CUDA_TEST=1 "+command {
+				return nil
+			}
+		}
+	}
+	return errors.New("verify must exactly name an uncached, verbose test artifact")
 }
 
 func evidenceCommand(proof evidence) (string, bool) {
@@ -325,7 +345,11 @@ func evidenceCommand(proof evidence) (string, bool) {
 		return "", false
 	}
 	directory := filepath.ToSlash(filepath.Dir(proof.Path))
-	return fmt.Sprintf("go test ./%s -run '^Test%s$' -count=1 -v", directory, name), true
+	target := "./" + directory
+	if directory == "." {
+		target = "."
+	}
+	return fmt.Sprintf("go test %s -run '^Test%s$' -count=1 -v", target, name), true
 }
 
 func scalarText(value any) string {

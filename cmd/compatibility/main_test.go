@@ -15,7 +15,8 @@ func TestGenerateValidatesEvidenceAndSortsOutput(t *testing.T) {
 	source := writeEvidence(t, root, "internal/feature.go", "package feature\nfunc Feature() {}\n", "func Feature(", roleSource)
 	proof := writeEvidence(t, root, "internal/feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", roleArtifact)
 	writeTestManifest(t, root, []claim{{
-		ID: "feature", Status: "implemented", Tier: tierFixture, Summary: "Feature works.",
+		ID: "feature", Status: "implemented", EvidenceTier: tierContract,
+		Verify: "go test ./internal -run '^TestFeature$' -count=1 -v", Summary: "Feature works.",
 		Evidence: []evidence{source, proof},
 	}}, map[string]modelClaim{
 		"zeta":       {Status: "experimental", Features: []string{"z"}, RealModelValidation: "pending-fixture"},
@@ -41,7 +42,8 @@ func TestGenerateRejectsStaleClaimEvidence(t *testing.T) {
 	proof := writeEvidence(t, root, "feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", roleArtifact)
 	writeTestFile(t, root, "feature_test.go", "package feature\nfunc TestFeature() { panic(\"changed\") }\n")
 	writeTestManifest(t, root, []claim{{
-		ID: "stale", Status: "implemented", Tier: tierFixture, Summary: "Stale claim.",
+		ID: "stale", Status: "implemented", EvidenceTier: tierContract,
+		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Stale claim.",
 		Evidence: []evidence{source, proof},
 	}}, testModels())
 	if _, err := generate(root); err == nil || !strings.Contains(err.Error(), "is stale") {
@@ -53,17 +55,21 @@ func TestClaimsRequireLiveEvidenceTier(t *testing.T) {
 	root := t.TempDir()
 	source := writeEvidence(t, root, "feature.go", "package feature\nfunc Feature() {}\n", "func Feature(", roleSource)
 	proof := writeEvidence(t, root, "feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", roleArtifact)
-	valid := claim{ID: "feature", Status: "implemented", Tier: tierFixture, Summary: "Feature works.", Evidence: []evidence{source, proof}}
+	valid := claim{
+		ID: "feature", Status: "implemented", EvidenceTier: tierContract,
+		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Feature works.",
+		Evidence: []evidence{source, proof},
+	}
 	writeTestManifest(t, root, []claim{valid}, testModels())
 	if _, err := generate(root); err != nil {
 		t.Fatalf("live claim rejected: %v", err)
 	}
 
 	for name, mutate := range map[string]func(*claim){
-		"tier":     func(item *claim) { item.Tier = "" },
+		"tier":     func(item *claim) { item.EvidenceTier = "" },
 		"source":   func(item *claim) { item.Evidence = item.Evidence[1:] },
 		"artifact": func(item *claim) { item.Evidence = item.Evidence[:1] },
-		"command":  func(item *claim) { item.Evidence[1].Contains = "package feature" },
+		"command":  func(item *claim) { item.Verify = "go test . -run '^TestOther$' -count=1 -v" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			item := valid

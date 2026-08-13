@@ -712,7 +712,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	context CachedBlockContext,
 	weights LayerGraphWeights,
 ) (ActivationProjectionResult, error) {
-	if !p.plan.SplitProjection || p.plan.Layer != context.Layer ||
+	if !p.plan.splitProjection() || p.plan.Layer != context.Layer ||
 		p.plan.Recurrent != context.Recurrent {
 		return ActivationProjectionResult{}, errors.New("compiled activation-projection program is incompatible")
 	}
@@ -828,7 +828,7 @@ func (p CompiledLayerProgram) BuildActivatedOutput(
 	residual, activated *tensor.Tensor,
 	weights LayerGraphWeights,
 ) (*tensor.Tensor, error) {
-	if !p.plan.SplitProjection || builder == nil || residual == nil || activated == nil ||
+	if !p.plan.splitProjection() || builder == nil || residual == nil || activated == nil ||
 		weights.FeedForwardDown == nil || weights.FeedForwardPostNorm == nil {
 		return nil, errors.New("compiled activated-output stage is incomplete")
 	}

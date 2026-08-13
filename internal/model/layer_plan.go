@@ -87,6 +87,8 @@ const (
 	LayerOperatorResidualScale
 	LayerOperatorFeedForwardInputNorm
 	LayerOperatorFeedForwardOutput
+	LayerOperatorActivationProjection
+	LayerOperatorActivatedOutput
 )
 
 const (
@@ -260,7 +262,6 @@ type LayerPlan struct {
 	Experts             MoEGraphPlan
 	ExpertComposition   ExpertCompositionPlan
 	DenseWeights        DenseWeightPlan
-	SplitProjection     bool
 	ExplicitEncoder     bool
 	AllowNonCausalCache bool
 	DeciSparse          bool
@@ -373,7 +374,6 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Experts:             experts,
 		ExpertComposition:   s.expertCompositionPlan(),
 		DenseWeights:        s.denseWeightPlan(profile, layer),
-		SplitProjection:     profile.LayerTopology == LayerTopologySplitProjection,
 		ExplicitEncoder:     profile.Forward.Session == ForwardSessionEncoderDecoder,
 		AllowNonCausalCache: profile.Forward.Session == ForwardSessionPairedFeatures,
 		DeciSparse:          deciSparse,
@@ -644,7 +644,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		if layer.Layer != uint32(index) {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
-		if !layer.Program.valid() || layer.Program.Count == 0 && !plan.forward.AlternatePredictions() {
+		if !layer.Program.valid() || layer.Program.Count == 0 {
 			return fmt.Errorf(
 				"model plan layer %d operator program has %d instructions; capacity is %d",
 				index, layer.Program.Count, len(layer.Program.Instructions),
@@ -902,6 +902,12 @@ func (p ModelPlan) Draft() DraftPlan { return p.draft }
 func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgram {
 	recurrent := plan.Recurrent
 	composition := plan.Composition
+	if profile.LayerTopology == LayerTopologySplitProjection {
+		return newLayerProgram(
+			layerStage(LayerOperatorActivationProjection),
+			layerStage(LayerOperatorActivatedOutput),
+		)
+	}
 	if profile.Attention == AttentionShortConvolution && recurrent {
 		return residualMixerProgram(
 			recurrentLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
@@ -1113,6 +1119,13 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			layerStage(LayerOperatorHyperFeedForward),
 		)
 	}
+}
+
+func (p LayerPlan) splitProjection() bool {
+	prefix, prefixOK := p.Program.Instruction(0)
+	suffix, suffixOK := p.Program.Instruction(1)
+	return prefixOK && suffixOK && prefix.Operator == LayerOperatorActivationProjection &&
+		suffix.Operator == LayerOperatorActivatedOutput
 }
 
 func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale bool) LayerProgram {

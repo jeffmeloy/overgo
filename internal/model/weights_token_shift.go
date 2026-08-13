@@ -11,7 +11,6 @@ func loadTokenShiftRecurrentLayer(
 	block uint32,
 	mixer RecurrentMixerPolicy,
 ) error {
-	var err error
 	layer.Recurrent = true
 	if mixer == recurrentMixerAffineWKV6 {
 		embedding := uint64(spec.EmbeddingLength)
@@ -126,14 +125,7 @@ func loadTokenShiftRecurrentLayer(
 				}
 				layer.TimeMixLN, layer.TimeMixLNBias = &norm, &bias
 			}
-			if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", embedding); err != nil {
-				return err
-			}
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-				requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, embedding, uint64(spec.FeedForwardLength)),
-				requiredTensor("ffn_up.weight", &layer.FeedForwardUp, embedding, uint64(spec.FeedForwardLength)),
-				requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), embedding),
-			}); itemErr != nil {
+			if itemErr := loadStandardSwiGLUCatalog(required, tensors, prefix, spec, layer); itemErr != nil {
 				return itemErr
 			}
 		}
@@ -161,14 +153,7 @@ func loadTokenShiftRecurrentLayer(
 		}); itemErr != nil {
 			return itemErr
 		}
-		if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", embedding); err != nil {
-			return err
-		}
-		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
-			requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, embedding, uint64(spec.FeedForwardLength)),
-			requiredTensor("ffn_up.weight", &layer.FeedForwardUp, embedding, uint64(spec.FeedForwardLength)),
-			requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), embedding),
-		}); itemErr != nil {
+		if itemErr := loadStandardSwiGLUCatalog(required, tensors, prefix, spec, layer); itemErr != nil {
 			return itemErr
 		}
 		return nil

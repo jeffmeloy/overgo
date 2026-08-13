@@ -13,8 +13,8 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// Eagle3Session: shifted feature plus draft KV.
-type Eagle3Session struct {
+// FeatureDraftSession: shifted feature plus draft KV.
+type FeatureDraftSession struct {
 	Cache          *KVCache
 	TargetCache    *KVCache
 	TargetTokens   []tokenizer.TokenID
@@ -22,54 +22,24 @@ type Eagle3Session struct {
 	Position       uint32
 }
 
-// Eagle3StepResult: logits, pre-norm feature, and cache.
-type Eagle3StepResult struct {
+// featureDraftStep: logits, pre-norm feature, and cache.
+type featureDraftStep struct {
 	Logits      reference.Value
 	NextFeature reference.Value
 	Cache       *KVCache
 }
 
-// FuseEagle3Features: projects three target-layer inputs.
-func (r *Runner) FuseEagle3Features(ctx context.Context, features reference.Value) (reference.Value, error) {
-	if r == nil {
-		return reference.Value{}, errors.New("inference: runner is nil")
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed || r.forwardProgram().Session != model.ForwardSessionFeatureDraft || r.weights.FeatureProjection == nil {
-		return reference.Value{}, errors.New("inference: Eagle3 feature encoder is unavailable")
-	}
-	runtime := r.newInferenceGraphRuntime(ctx)
-	input := runtime.input("eagle3.features", features)
-	projection, err := runtime.weight(*r.weights.FeatureProjection)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	result, err := r.program.Model.Projection(model.ProjectionFeature).Build(
-		runtime.builder,
-		model.ProjectionOperands{Input: input, Primary: projection},
-	)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	results, err := runtime.execute(result.Primary)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	return results[result.Primary], nil
-}
-
-// NewEagle3Session: full-prefix shifted-cache construction.
-func (r *Runner) NewEagle3Session(
+// NewFeatureDraftSession: full-prefix shifted-cache construction.
+func (r *Runner) NewFeatureDraftSession(
 	ctx context.Context,
 	target *Runner,
 	tokenIDs []tokenizer.TokenID,
-) (*Eagle3Session, error) {
+) (*FeatureDraftSession, error) {
 	if r == nil || target == nil || r == target || r.path == target.path || len(tokenIDs) == 0 {
-		return nil, errors.New("inference: Eagle3 and target inputs are invalid")
+		return nil, errors.New("inference: feature-draft inputs are invalid")
 	}
 	if r.forwardProgram().Session != model.ForwardSessionFeatureDraft || target.spec.EmbeddingLength != r.spec.TargetHiddenSize {
-		return nil, errors.New("inference: Eagle3 target model is incompatible")
+		return nil, errors.New("inference: feature-draft target is incompatible")
 	}
 	_, targetCache, features, err := target.ForwardCachedExtractLayerInputs(
 		ctx, tokenIDs, nil, r.spec.TargetLayers,
@@ -77,7 +47,7 @@ func (r *Runner) NewEagle3Session(
 	if err != nil {
 		return nil, err
 	}
-	fused, err := r.FuseEagle3Features(ctx, features)
+	fused, err := r.projectFeatures(ctx, features)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +56,7 @@ func (r *Runner) NewEagle3Session(
 		Shape: tensor.MustShape(uint64(width), 1),
 		Data:  slices.Clone(fused.Data[(len(tokenIDs)-1)*width:]),
 	}
-	session := &Eagle3Session{
+	session := &FeatureDraftSession{
 		TargetCache: targetCache, TargetTokens: slices.Clone(tokenIDs),
 		PendingFeature: pending, Position: uint32(len(tokenIDs) - 1),
 	}
@@ -95,7 +65,7 @@ func (r *Runner) NewEagle3Session(
 			Shape: tensor.MustShape(uint64(width), 1),
 			Data:  slices.Clone(fused.Data[index*width : (index+1)*width]),
 		}
-		step, stepErr := r.stepEagle3(ctx, target, tokenIDs[index+1], feature, uint32(index), session.Cache)
+		step, stepErr := r.stepFeatureDraft(ctx, target, tokenIDs[index+1], feature, uint32(index), session.Cache)
 		if stepErr != nil {
 			return nil, stepErr
 		}
@@ -104,21 +74,21 @@ func (r *Runner) NewEagle3Session(
 	return session, nil
 }
 
-// AdvanceEagle3: one autoregressive draft step.
-func (r *Runner) AdvanceEagle3(
+// AdvanceFeatureDraft: one autoregressive draft step.
+func (r *Runner) AdvanceFeatureDraft(
 	ctx context.Context,
 	target *Runner,
 	tokenID tokenizer.TokenID,
-	session *Eagle3Session,
-) (reference.Value, *Eagle3Session, error) {
+	session *FeatureDraftSession,
+) (reference.Value, *FeatureDraftSession, error) {
 	if session == nil || session.PendingFeature.Shape.Rank != 2 {
-		return reference.Value{}, nil, errors.New("inference: Eagle3 session is invalid")
+		return reference.Value{}, nil, errors.New("inference: feature-draft session is invalid")
 	}
-	step, err := r.stepEagle3(ctx, target, tokenID, session.PendingFeature, session.Position, session.Cache)
+	step, err := r.stepFeatureDraft(ctx, target, tokenID, session.PendingFeature, session.Position, session.Cache)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	next := &Eagle3Session{
+	next := &FeatureDraftSession{
 		Cache: step.Cache, TargetCache: session.TargetCache,
 		TargetTokens:   slices.Clone(session.TargetTokens),
 		PendingFeature: step.NextFeature, Position: session.Position + 1,
@@ -126,16 +96,16 @@ func (r *Runner) AdvanceEagle3(
 	return step.Logits, next, nil
 }
 
-func (r *Runner) stepEagle3(
+func (r *Runner) stepFeatureDraft(
 	ctx context.Context,
 	target *Runner,
 	tokenID tokenizer.TokenID,
 	feature reference.Value,
 	position uint32,
 	cache *KVCache,
-) (Eagle3StepResult, error) {
+) (featureDraftStep, error) {
 	if r == nil || target == nil || r == target || r.path == target.path {
-		return Eagle3StepResult{}, errors.New("inference: Eagle3 and target runners are invalid")
+		return featureDraftStep{}, errors.New("inference: feature-draft runners are invalid")
 	}
 	first, second := r, target
 	if first.path > second.path {
@@ -146,16 +116,16 @@ func (r *Runner) stepEagle3(
 	defer second.mu.Unlock()
 	defer first.mu.Unlock()
 	if r.closed || target.closed || r.forwardProgram().Session != model.ForwardSessionFeatureDraft {
-		return Eagle3StepResult{}, errors.New("inference: Eagle3 runner is unavailable")
+		return featureDraftStep{}, errors.New("inference: feature-draft runner is unavailable")
 	}
 	if tokenID < 0 || int(tokenID) >= target.vocab.Len() {
-		return Eagle3StepResult{}, fmt.Errorf("inference: token ID %d is out of range", tokenID)
+		return featureDraftStep{}, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
 	if feature.Shape.Rank != 2 || feature.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) || feature.Shape.Dims[1] != 1 {
-		return Eagle3StepResult{}, errors.New("inference: Eagle3 feature shape is incompatible")
+		return featureDraftStep{}, errors.New("inference: feature-draft input shape is incompatible")
 	}
 	if cache != nil && (len(cache.Layers) != 1 || cache.Position != position) {
-		return Eagle3StepResult{}, errors.New("inference: Eagle3 cache position is incompatible")
+		return featureDraftStep{}, errors.New("inference: feature-draft cache position is incompatible")
 	}
 	rows := []uint32{uint32(tokenID)}
 	var tokenEmbedding reference.Value
@@ -166,19 +136,19 @@ func (r *Runner) stepEagle3(
 		tokenEmbedding, err = target.loadEmbeddings(ctx, rows)
 	}
 	if err != nil {
-		return Eagle3StepResult{}, err
+		return featureDraftStep{}, err
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
-	tokenInput := runtime.input("eagle3.token", tokenEmbedding)
-	featureInput := runtime.input("eagle3.feature", feature)
+	tokenInput := runtime.input("feature_draft.token", tokenEmbedding)
+	featureInput := runtime.input("feature_draft.feature", feature)
 	graphWeights, err := runtime.layer(r.weights.Layers[0], "blk.0.")
 	if err != nil {
-		return Eagle3StepResult{}, err
+		return featureDraftStep{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if cache != nil {
-		pastKey = runtime.input("eagle3.past_key", cache.Layers[0].Key)
-		pastValue = runtime.input("eagle3.past_value", cache.Layers[0].Value)
+		pastKey = runtime.input("feature_draft.past_key", cache.Layers[0].Key)
+		pastValue = runtime.input("feature_draft.past_value", cache.Layers[0].Value)
 	}
 	program := r.layerProgram(0)
 	plan := program.Layer()
@@ -188,11 +158,11 @@ func (r *Runner) stepEagle3(
 		Layer: plan.Layer, CacheWrite: tensor.CacheWriteConcat,
 	}, graphWeights)
 	if err != nil {
-		return Eagle3StepResult{}, err
+		return featureDraftStep{}, err
 	}
 	norm, err := runtime.weight(r.weights.OutputNorm)
 	if err != nil {
-		return Eagle3StepResult{}, err
+		return featureDraftStep{}, err
 	}
 	normalized := runtime.builder.WeightedRMSNorm(block.Output, norm, r.spec.RMSNormEpsilon)
 	outputInfo := target.outputTensor()
@@ -211,29 +181,29 @@ func (r *Runner) stepEagle3(
 		}
 	}
 	if err != nil {
-		return Eagle3StepResult{}, err
+		return featureDraftStep{}, err
 	}
 	logits := runtime.builder.MulMat(output, normalized)
 	outputs := []*tensor.Tensor{block.Output, block.Key, block.Value, logits}
 	results, err := runtime.execute(outputs...)
 	if err != nil {
-		return Eagle3StepResult{}, err
+		return featureDraftStep{}, err
 	}
 	logitValue := results[logits]
 	if r.weights.DraftToTarget != nil {
-		logitValue, err = r.remapEagle3Logits(ctx, logitValue)
+		logitValue, err = r.remapFeatureDraftLogits(ctx, logitValue)
 		if err != nil {
-			return Eagle3StepResult{}, err
+			return featureDraftStep{}, err
 		}
 	}
 	nextCache := &KVCache{
 		Layers: []LayerCache{{Key: results[block.Key], Value: results[block.Value]}},
 		Tokens: uint32(results[block.Key].Shape.Dims[2]), Position: position + 1,
 	}
-	return Eagle3StepResult{Logits: logitValue, NextFeature: results[block.Output], Cache: nextCache}, nil
+	return featureDraftStep{Logits: logitValue, NextFeature: results[block.Output], Cache: nextCache}, nil
 }
 
-func (r *Runner) remapEagle3Logits(ctx context.Context, logits reference.Value) (reference.Value, error) {
+func (r *Runner) remapFeatureDraftLogits(ctx context.Context, logits reference.Value) (reference.Value, error) {
 	mapping, err := r.hostTensor(ctx, *r.weights.DraftToTarget)
 	if err != nil {
 		return reference.Value{}, err
@@ -245,7 +215,7 @@ func (r *Runner) remapEagle3Logits(ctx context.Context, logits reference.Value) 
 	for draft, rawTarget := range mapping.Data {
 		target := int(rawTarget)
 		if target < 0 || target >= len(result.Data) || draft >= len(logits.Data) {
-			return reference.Value{}, errors.New("inference: Eagle3 vocabulary map is invalid")
+			return reference.Value{}, errors.New("inference: feature-draft vocabulary map is invalid")
 		}
 		result.Data[target] = logits.Data[draft]
 	}

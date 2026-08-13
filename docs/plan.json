@@ -11,7 +11,7 @@
           "id": "do",
           "title": "Make compiled forward programs solely own paired projection and verification sessions; remove family session wrappers",
           "status": "open",
-          "verify": "go test ./internal/inference -run '^(TestPairedFeatureLogitRowSkipsLastTokenRow|TestForwardUsesCompiledPolicy)$' -count=1 -v \u0026\u0026 ! rg -n 'DFlash(Session|Draft|Verification|SampledDraft)|NewDFlash|SyncDFlash|FuseDFlash|InjectDFlash|DecodeDFlash|DraftDFlash|VerifyDFlash|validDFlash|advanceDFlash|dflashLogitRow' internal cmd --glob '*.go'"
+          "verify": "go test ./internal/inference -run '^(TestPairedProjectionCoordinatorRejectsInvalidState|TestPairedFeatureLogitRowSkipsLastTokenRow|TestFeatureDraftCoordinatorRejectsInvalidState|TestForwardUsesCompiledPolicy)$' -count=1 -v \u0026\u0026 ! rg -n 'Gemma4Assistant(Session|Draft|Verification|Sampled)|NewGemma4Assistant|AdvanceGemma4Assistant|DraftGemma4Assistant|VerifyGemma4Assistant|DFlash(Session|Draft|Verification|SampledDraft)|NewDFlash|SyncDFlash|FuseDFlash|InjectDFlash|DecodeDFlash|DraftDFlash|VerifyDFlash|Eagle3(Session|Draft|Verification|SampledDraft|StepResult)|NewEagle3|AdvanceEagle3|DraftEagle3|VerifyEagle3|FuseEagle3' internal cmd --glob '*.go'"
         }
       ]
     },

@@ -10,63 +10,63 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// Eagle3Draft: bounded greedy proposals.
-type Eagle3Draft = greedyDraft[*Eagle3Session]
+// FeatureDraft: bounded greedy proposals.
+type FeatureDraft = greedyDraft[*FeatureDraftSession]
 
-// Eagle3Verification: accepted prefix plus correction.
-type Eagle3Verification = greedyVerification[*Eagle3Session]
+// FeatureDraftVerification: accepted prefix plus correction.
+type FeatureDraftVerification = greedyVerification[*FeatureDraftSession]
 
-// DraftEagle3Greedy: bounded confident proposals.
-func (r *Runner) DraftEagle3Greedy(
+// DraftFeaturesGreedy: bounded confident proposals.
+func (r *Runner) DraftFeaturesGreedy(
 	ctx context.Context,
 	target *Runner,
 	initialToken tokenizer.TokenID,
-	session *Eagle3Session,
+	session *FeatureDraftSession,
 	maximum int,
 	minimumProbability float64,
-) (*Eagle3Draft, error) {
-	if r == nil || target == nil || session == nil ||
+) (*FeatureDraft, error) {
+	if r == nil || target == nil || !validFeatureDraftSession(session) ||
 		!validSampledLimits(maximum, minimumProbability) {
-		return nil, errors.New("inference: Eagle3 draft inputs are invalid")
+		return nil, errors.New("inference: feature-draft inputs are invalid")
 	}
 	return draftGreedy(
 		initialToken, session, maximum, minimumProbability, target.vocab.IsEOG,
-		func(token tokenizer.TokenID, state *Eagle3Session) (reference.Value, *Eagle3Session, error) {
-			return r.AdvanceEagle3(ctx, target, token, state)
+		func(token tokenizer.TokenID, state *FeatureDraftSession) (reference.Value, *FeatureDraftSession, error) {
+			return r.AdvanceFeatureDraft(ctx, target, token, state)
 		},
 	)
 }
 
-// VerifyEagle3Greedy: target verification and feature resync.
-func (r *Runner) VerifyEagle3Greedy(
+// VerifyFeatureDraftGreedy: target verification and feature resync.
+func (r *Runner) VerifyFeatureDraftGreedy(
 	ctx context.Context,
 	target *Runner,
-	draft *Eagle3Draft,
-) (*Eagle3Verification, error) {
+	draft *FeatureDraft,
+) (*FeatureDraftVerification, error) {
 	if r == nil || target == nil || !validGreedyDraft(draft) ||
-		!validEagle3CoordinatorSession(draft.Base) {
-		return nil, errors.New("inference: Eagle3 verification inputs are invalid")
+		!validFeatureDraftSession(draft.Base) {
+		return nil, errors.New("inference: feature-draft verification inputs are invalid")
 	}
 	return verifyGreedy(draft, func(
 		token tokenizer.TokenID,
-		state *Eagle3Session,
-	) (reference.Value, *Eagle3Session, error) {
-		return r.advanceEagle3Verification(ctx, target, token, state)
+		state *FeatureDraftSession,
+	) (reference.Value, *FeatureDraftSession, error) {
+		return r.advanceFeatureDraftVerification(ctx, target, token, state)
 	})
 }
 
-func validEagle3CoordinatorSession(session *Eagle3Session) bool {
+func validFeatureDraftSession(session *FeatureDraftSession) bool {
 	return session != nil && session.TargetCache != nil && len(session.TargetTokens) > 0 &&
 		effectiveCachePosition(session.TargetCache) == uint32(len(session.TargetTokens)) &&
 		session.Position+1 == uint32(len(session.TargetTokens))
 }
 
-func (r *Runner) advanceEagle3Verification(
+func (r *Runner) advanceFeatureDraftVerification(
 	ctx context.Context,
 	target *Runner,
 	currentToken tokenizer.TokenID,
-	session *Eagle3Session,
-) (reference.Value, *Eagle3Session, error) {
+	session *FeatureDraftSession,
+) (reference.Value, *FeatureDraftSession, error) {
 	hidden, targetCache, features, err := target.ForwardCachedExtractLayerInputs(
 		ctx, []tokenizer.TokenID{currentToken}, session.TargetCache, r.spec.TargetLayers,
 	)
@@ -77,12 +77,12 @@ func (r *Runner) advanceEagle3Verification(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	_, next, err := r.AdvanceEagle3(ctx, target, currentToken, session)
+	_, next, err := r.AdvanceFeatureDraft(ctx, target, currentToken, session)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
 	tokens := append(slices.Clone(session.TargetTokens), currentToken)
-	fused, err := r.FuseEagle3Features(ctx, features)
+	fused, err := r.projectFeatures(ctx, features)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

@@ -35,7 +35,7 @@ func (r *Runner) NewPairedFeatureSession(
 	if err != nil {
 		return nil, err
 	}
-	fused, err := r.FusePairedFeatures(ctx, features)
+	fused, err := r.projectFeatures(ctx, features)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (r *Runner) SyncPairedFeaturePrefix(
 		Shape: tensor.MustShape(features.Shape.Dims[0], uint64(len(tokenIDs)-start)),
 		Data:  slices.Clone(features.Data[start*featureWidth:]),
 	}
-	fused, err := r.FusePairedFeatures(ctx, features)
+	fused, err := r.projectFeatures(ctx, features)
 	if err != nil {
 		return nil, err
 	}
@@ -95,43 +95,6 @@ func (r *Runner) SyncPairedFeaturePrefix(
 		positions[index] = uint32(start + index)
 	}
 	return r.InjectPairedFeatures(ctx, fused, positions, cache)
-}
-
-// FusePairedFeatures: projects concatenated target-layer inputs.
-func (r *Runner) FusePairedFeatures(ctx context.Context, features reference.Value) (reference.Value, error) {
-	if r == nil {
-		return reference.Value{}, errors.New("inference: runner is nil")
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, errors.New("inference: runner is closed")
-	}
-	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures || r.weights.FeatureProjection == nil || r.weights.EncoderOutputNorm == nil {
-		return reference.Value{}, errors.New("inference: paired-feature encoder is unavailable")
-	}
-	runtime := r.newInferenceGraphRuntime(ctx)
-	input := runtime.input("paired_features.input", features)
-	projection, err := runtime.weight(*r.weights.FeatureProjection)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	projectionNorm, err := runtime.weight(*r.weights.EncoderOutputNorm)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	result, err := r.program.Model.Projection(model.ProjectionFeature).Build(
-		runtime.builder,
-		model.ProjectionOperands{Input: input, Primary: projection, Normalization: projectionNorm},
-	)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	results, err := runtime.execute(result.Primary)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	return results[result.Primary], nil
 }
 
 // InjectPairedFeatures: appends fused committed-token K/V.

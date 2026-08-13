@@ -1075,15 +1075,15 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	}
 	defer target.Close()
 	ctx := context.Background()
-	session, err := draftRunner.NewEagle3Session(ctx, target, []tokenizer.TokenID{0})
+	session, err := draftRunner.NewFeatureDraftSession(ctx, target, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, err := draftRunner.DraftEagle3Greedy(ctx, target, 0, session, 2, 0)
+	draft, err := draftRunner.DraftFeaturesGreedy(ctx, target, 0, session, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := draftRunner.VerifyEagle3Greedy(ctx, target, draft)
+	verification, err := draftRunner.VerifyFeatureDraftGreedy(ctx, target, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1104,7 +1104,7 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := draftRunner.DraftEagle3Sampled(
+	sampledDraft, err := draftRunner.DraftFeaturesSampled(
 		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
 	if err != nil {
@@ -1117,7 +1117,7 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	if !slices.Equal(before, after) {
 		t.Fatal("Eagle3 sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := draftRunner.VerifyEagle3Sampled(
+	sampledVerification, err := draftRunner.VerifyFeatureDraftSampled(
 		ctx, target, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {

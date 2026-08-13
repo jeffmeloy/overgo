@@ -14,7 +14,7 @@ func TestForwardUsesCompiledPolicy(t *testing.T) {
 		message      string
 	}{
 		{"dflash", "requires a paired-feature session"},
-		{"eagle3", "requires NewEagle3Session"},
+		{"eagle3", "requires a feature-draft session"},
 		{"gemma4-assistant", "requires a paired projection session"},
 		{"t5", "requires NewT5Session"},
 	} {

@@ -8,7 +8,7 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func TestGemma4AssistantCoordinatorRejectsInvalidState(t *testing.T) {
+func TestPairedProjectionCoordinatorRejectsInvalidState(t *testing.T) {
 	runner, target := &Runner{}, &Runner{}
 	if _, err := runner.DraftPairedProjectionGreedy(context.Background(), target, 0, nil, 1, 0); err == nil {
 		t.Fatal("nil draft session was accepted")

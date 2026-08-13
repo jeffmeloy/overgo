@@ -84,7 +84,7 @@ func (r *Runner) advancePairedFeatureVerification(
 		return reference.Value{}, nil, err
 	}
 	tokens := append(slices.Clone(session.TargetTokens), currentToken)
-	fused, err := r.FusePairedFeatures(ctx, features)
+	fused, err := r.projectFeatures(ctx, features)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

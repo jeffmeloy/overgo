@@ -22,7 +22,9 @@ const (
 	ModuleDecodeImage     recipe.ModuleID = "media.decode-image"
 	ModuleDecodeAudio     recipe.ModuleID = "media.decode-audio"
 	ModuleDecodeVideo     recipe.ModuleID = "media.decode-video"
-	ModuleProject         recipe.ModuleID = "projector.project"
+	ModuleProjectImage    recipe.ModuleID = "projector.image"
+	ModuleProjectAudio    recipe.ModuleID = "projector.audio"
+	ModuleProjectVideo    recipe.ModuleID = "projector.video"
 	ModuleBatchDataset    recipe.ModuleID = "training.batch-dataset"
 	ModuleTrainingForward recipe.ModuleID = "training.forward"
 	ModuleBackward        recipe.ModuleID = "training.backward"
@@ -121,17 +123,17 @@ func Rerank(bindings Bindings, placement recipe.Placement) (recipe.Definition, e
 }
 
 func Projection(bindings Bindings, media MediaKind, placement recipe.Placement) (recipe.Definition, error) {
-	module, data, err := mediaContract(media)
+	decodeModule, projectModule, mediaData, err := mediaContract(media)
 	if err != nil {
 		return recipe.Definition{}, err
 	}
-	decode := node("decode", module, placement)
-	project := node("project", ModuleProject, placement)
+	decode := node("decode", decodeModule, placement)
+	project := node("project", projectModule, placement)
 	return definition(
 		recipe.TaskProjection, bindings, []recipe.DependencyRole{recipe.DependencyProjector},
 		[]recipe.Node{decode, project},
 		[]recipe.Edge{edge(decode, "tensor", project, "tensor")},
-		[]recipe.Input{input("media", data, decode, "media")},
+		[]recipe.Input{input("media", mediaData, decode, "media")},
 		[]recipe.Output{output("embeddings", recipe.DataEmbeddings, project, "embeddings")},
 	)
 }
@@ -240,16 +242,21 @@ func validateTaskDependencies(definition recipe.Definition) error {
 	return nil
 }
 
-func mediaContract(media MediaKind) (recipe.ModuleID, recipe.DataKind, error) {
+func mediaContract(media MediaKind) (
+	decode recipe.ModuleID,
+	project recipe.ModuleID,
+	mediaData recipe.DataKind,
+	err error,
+) {
 	switch media {
 	case MediaImage:
-		return ModuleDecodeImage, recipe.DataImage, nil
+		return ModuleDecodeImage, ModuleProjectImage, recipe.DataImage, nil
 	case MediaAudio:
-		return ModuleDecodeAudio, recipe.DataAudio, nil
+		return ModuleDecodeAudio, ModuleProjectAudio, recipe.DataAudio, nil
 	case MediaVideo:
-		return ModuleDecodeVideo, recipe.DataVideo, nil
+		return ModuleDecodeVideo, ModuleProjectVideo, recipe.DataVideo, nil
 	default:
-		return "", "", errors.New("workflow recipe: invalid media kind")
+		return "", "", "", errors.New("workflow recipe: invalid media kind")
 	}
 }
 

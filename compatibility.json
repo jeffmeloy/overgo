@@ -243,6 +243,27 @@
     {
       "evidence": [
         {
+          "contains": "func Projection(",
+          "path": "internal/workflowrecipe/workflow.go",
+          "role": "source",
+          "identity": "file:sha256:3555f4978a9a1deabb9fb252dfc4c2ab3de63d9b69cc8906791cc8f6bed6ccce"
+        },
+        {
+          "contains": "func TestProjectionMediaContracts(",
+          "path": "internal/workflowrecipe/workflow_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:c0b1629122cadc468e5b82d7f46e276711943d2088601e76febe6cec7910f687"
+        }
+      ],
+      "id": "typed-multimodal-projection-recipes",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/workflowrecipe -run '^TestProjectionMediaContracts$' -count=1 -v",
+      "status": "implemented",
+      "summary": "Image, audio, and video projection recipes name distinct decode/project modules and tensor contracts independent of placement."
+    },
+    {
+      "evidence": [
+        {
           "contains": "func splitPathPrefix(",
           "path": "internal/gguf/reader.go",
           "role": "source",

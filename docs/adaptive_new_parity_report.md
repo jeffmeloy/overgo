@@ -72,7 +72,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Concern | adaptive_new | Overgo | Preferred owner |
 | --- | --- | --- | --- |
 | Model/artifact facts | RepoDB plus extmodel/config scans | RepoDB, recipes, GGUF/safetensors catalogs | Overgo RepoDB + compiled recipe |
-| Runtime topology | Shared primitives plus large extmodel assembly | `recipe.Program`, model plans, neutral packages | Overgo compiled program |
+| Runtime topology | Shared primitives plus large extmodel assembly | `recipe.Program`, model plans, neutral packages; image/audio/video projection modules and decoded tensor kinds are typed independently of placement | Overgo compiled program |
 | CUDA | Go loaders plus family-heavy extmodel kernels | Manifested binaries, driver API, executor graph | Overgo executor + kernel manifest |
 | Serving | Mature multimodal endpoints and evidence | llama-compatible server plus growing typed workflows | Overgo, after API parity matrix |
 | Training | Broad objective/trainer set; uneven authority | Strong dense/hybrid primitives; thin production assembly | Overgo `TrainingRunPlan` + `TrainingProgram` |

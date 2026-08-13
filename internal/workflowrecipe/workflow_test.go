@@ -1,6 +1,7 @@
 package workflowrecipe
 
 import (
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -86,13 +87,38 @@ func TestWorkflowRecipesCompileCanonicalPlans(t *testing.T) {
 
 func TestProjectionMediaContracts(t *testing.T) {
 	bindings := newWorkflowFixture(t).bindings
-	for _, media := range []MediaKind{MediaImage, MediaAudio, MediaVideo} {
-		definition, err := Projection(bindings, media, recipe.PlacementHost)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := Compile(definition); err != nil {
-			t.Fatalf("media %d: %v", media, err)
+	tests := []struct {
+		media   MediaKind
+		decode  recipe.ModuleID
+		project recipe.ModuleID
+		tensor  recipe.DataKind
+	}{
+		{MediaImage, ModuleDecodeImage, ModuleProjectImage, recipe.DataImageTensor},
+		{MediaAudio, ModuleDecodeAudio, ModuleProjectAudio, recipe.DataAudioTensor},
+		{MediaVideo, ModuleDecodeVideo, ModuleProjectVideo, recipe.DataVideoTensor},
+	}
+	for _, test := range tests {
+		var priorModules []recipe.ModuleID
+		for _, placement := range []recipe.Placement{recipe.PlacementHost, recipe.PlacementDevice, recipe.PlacementHybrid} {
+			definition, err := Projection(bindings, test.media, placement)
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan, err := Compile(definition)
+			if err != nil {
+				t.Fatalf("media %d: %v", test.media, err)
+			}
+			stages := plan.Program.Stages()
+			modules := []recipe.ModuleID{stages[0].Module.ID, stages[1].Module.ID}
+			if !slices.Equal(modules, []recipe.ModuleID{test.decode, test.project}) ||
+				stages[0].Module.Outputs[0].Data != test.tensor || stages[1].Module.Inputs[0].Data != test.tensor {
+				t.Fatalf("media %d contract = modules %v, edge %s -> %s", test.media, modules,
+					stages[0].Module.Outputs[0].Data, stages[1].Module.Inputs[0].Data)
+			}
+			if priorModules != nil && !slices.Equal(modules, priorModules) {
+				t.Fatalf("media %d modules changed with placement: %v -> %v", test.media, priorModules, modules)
+			}
+			priorModules = modules
 		}
 	}
 	if _, err := Projection(bindings, 0, recipe.PlacementHost); err == nil {

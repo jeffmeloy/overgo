@@ -51,7 +51,7 @@ func validateVisualExpertBlocks(tokenCount int, blocks []AttentionBlock, overrid
 	return ordered, nil
 }
 
-func applyGemmaRawEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingOverride, scale float32) error {
+func applyScaledRawEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingOverride, scale float32) error {
 	if activation == nil {
 		return errors.New("inference: embedding activation is nil")
 	}

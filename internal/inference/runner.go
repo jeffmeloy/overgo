@@ -585,7 +585,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 			return reference.Value{}, nil, err
 		}
 	} else if projected.overridePolicy == model.EmbeddingOverrideRawScaled && len(overrides) > 0 {
-		if err := applyGemmaRawEmbeddingOverrides(&activation, overrides, r.spec.InputEmbeddingScale()); err != nil {
+		if err := applyScaledRawEmbeddingOverrides(&activation, overrides, r.spec.InputEmbeddingScale()); err != nil {
 			return reference.Value{}, nil, err
 		}
 		embeddingScaleApplied = true
@@ -613,7 +613,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		}
 		embeddingSkip = activation
 	}
-	perLayerInputs, err := r.prepareGemma4PerLayerInputs(ctx, activation, rows)
+	perLayerInputs, err := r.preparePerLayerInputs(ctx, activation, rows)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

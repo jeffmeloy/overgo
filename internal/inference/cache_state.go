@@ -49,7 +49,7 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 		return nil, err
 	}
 	if r.hasCachePolicy(model.CacheCompressedAttention) {
-		upgradeDeepSeek4CachePositions(cache)
+		materializeCompressedCachePositions(cache)
 	}
 	if err := r.validateCache(cache); err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	return cache, nil
 }
 
-func upgradeDeepSeek4CachePositions(cache *KVCache) {
+func materializeCompressedCachePositions(cache *KVCache) {
 	if cache == nil || cache.Tokens == 0 || effectiveCachePosition(cache) < cache.Tokens {
 		return
 	}

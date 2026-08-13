@@ -1,13 +1,5 @@
 //go:build windows
 
-// Resident device execution for the Krea2 step graph: every transformer weight
-// uploads to the 4090D exactly once (BF16 for the rank-2 projections, F32 for
-// norms/biases/tables), streamed from the sharded checkpoint so no full-model
-// F32 host copy is ever materialized. Per step the graph runs through the
-// generic executor with the resident weights as device feeds and the tiny
-// per-step conditioning (latent, text, timestep) as host feeds. This is the
-// 12.82B-param dual-stream forward on the device; the g2 per-step distribution
-// oracle drives it.
 package latentimage
 
 import (
@@ -17,195 +9,129 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"path/filepath"
 
-	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
-	"overgo/internal/cuda/executor"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
 
-// ResidentDenoiser: the compiled step graph plus device-resident weights.
 type ResidentDenoiser struct {
 	Program     *DenoiserProgram
 	WeightBytes uint64
-
-	worker     *device.Worker
-	exec       *executor.Executor
-	compiled   *executor.CompiledGraph
-	weightPtrs map[*tensor.Tensor]driver.DevicePtr
-	allocs     []driver.DevicePtr
-	ctx        context.Context
+	runtime     *residentRuntime
+	graph       *residentGraph
 }
 
-// NewResidentDenoiser uploads every step-graph weight resident (streamed from
-// modelDir/transformer) and compiles the graph. The caller owns Close.
-func NewResidentDenoiser(program *DenoiserProgram, modelDir string, ordinal int) (rd *ResidentDenoiser, err error) {
+func NewResidentDenoiser(
+	ctx context.Context,
+	program *DenoiserProgram,
+	modelDir string,
+	ordinal int,
+) (denoiser *ResidentDenoiser, err error) {
 	if program == nil {
 		return nil, errors.New("resident denoiser: program is nil")
 	}
-	worker, err := device.New(ordinal)
+	runtime, err := newResidentRuntime(ordinal)
 	if err != nil {
 		return nil, fmt.Errorf("resident denoiser: device: %w", err)
 	}
-	exec, err := executor.NewWithWorker(worker)
-	if err != nil {
-		worker.Close()
-		return nil, fmt.Errorf("resident denoiser: executor: %w", err)
-	}
-	rd = &ResidentDenoiser{
-		Program:    program,
-		worker:     worker,
-		exec:       exec,
-		weightPtrs: make(map[*tensor.Tensor]driver.DevicePtr, len(program.weightInputs)),
-		ctx:        context.Background(),
-	}
+	denoiser = &ResidentDenoiser{Program: program, runtime: runtime}
 	defer func() {
 		if err != nil {
-			rd.Close()
+			_ = denoiser.Close(ctx)
 		}
 	}()
-
-	src, err := safetensors.OpenSource(modelDir + `\transformer`)
-	if err != nil {
-		return nil, fmt.Errorf("resident denoiser: open transformer: %w", err)
-	}
-	defer src.Close()
-
-	for name, node := range program.weightInputs {
-		tt, ok := src.Tensors[name]
-		if !ok {
-			return nil, fmt.Errorf("resident denoiser: missing tensor %s", name)
-		}
-		payload, perr := weightPayload(tt, node.Type)
-		if perr != nil {
-			return nil, fmt.Errorf("resident denoiser: %s: %w", name, perr)
-		}
-		elements, _ := node.Shape.Elements()
-		want := int(elements) * storageBytes(node.Type)
-		if len(payload) != want {
-			return nil, fmt.Errorf("resident denoiser: %s payload=%d want %d", name, len(payload), want)
-		}
-		var ptr driver.DevicePtr
-		if derr := worker.Do(rd.ctx, func(state *device.State) error {
-			p, allocErr := state.Driver.MemAlloc(uint64(len(payload)))
-			if allocErr != nil {
-				return allocErr
-			}
-			if copyErr := state.Driver.MemcpyHtoD(p, payload); copyErr != nil {
-				freeErr := state.Driver.MemFree(p)
-				return errors.Join(copyErr, freeErr)
-			}
-			ptr = p
-			return nil
-		}); derr != nil {
-			return nil, fmt.Errorf("resident denoiser: upload %s: %w", name, derr)
-		}
-		rd.allocs = append(rd.allocs, ptr)
-		rd.weightPtrs[node] = ptr
-		rd.WeightBytes += uint64(len(payload))
-	}
-
 	outputs := append(append([]*tensor.Tensor(nil), program.BlockOutputs...), program.Velocity)
-	rd.compiled, err = executor.Compile(outputs...)
+	denoiser.graph, err = runtime.compile(
+		ctx, "resident denoiser", filepath.Join(modelDir, "transformer"),
+		program.weightInputs, outputs...,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("resident denoiser: compile: %w", err)
+		return nil, err
 	}
-	return rd, nil
+	denoiser.WeightBytes = denoiser.graph.bytes
+	return denoiser, nil
 }
 
-// Step runs one denoise step with resident weights. latentPatches
-// ([imgSeq*InChannels]), text ([textSeq*Hidden]), temb ([Hidden]) and tembMod
-// ([6*Hidden]) are token-major F32 host feeds. Returns per-block hidden states
-// and the image-token velocity.
-func (rd *ResidentDenoiser) Step(latentPatches, text, temb, tembMod []float32) (ForwardResult, error) {
-	p := rd.Program
-	for _, chk := range []struct {
+func (r *ResidentDenoiser) Step(
+	ctx context.Context,
+	latentPatches, text, temb, tembMod []float32,
+) (ForwardResult, error) {
+	if r == nil || r.Program == nil {
+		return ForwardResult{}, errors.New("resident denoiser: unavailable")
+	}
+	program := r.Program
+	for _, check := range []struct {
 		name      string
 		got, want int
 	}{
-		{"latent", len(latentPatches), p.ImgSeq * p.T.InChannels},
-		{"text", len(text), p.TextSeq * p.T.Hidden},
-		{"temb", len(temb), p.T.Hidden},
-		{"tembMod", len(tembMod), 6 * p.T.Hidden},
+		{"latent", len(latentPatches), program.ImgSeq * program.T.InChannels},
+		{"text", len(text), program.TextSeq * program.T.Hidden},
+		{"temb", len(temb), program.T.Hidden},
+		{"tembMod", len(tembMod), 6 * program.T.Hidden},
 	} {
-		if chk.got != chk.want {
-			return ForwardResult{}, fmt.Errorf("resident step: %s len=%d want %d", chk.name, chk.got, chk.want)
+		if check.got != check.want {
+			return ForwardResult{}, fmt.Errorf("resident step: %s len=%d want %d", check.name, check.got, check.want)
 		}
 	}
-	hostFeeds := map[*tensor.Tensor]reference.Value{
-		p.InLatent:  {Shape: p.InLatent.Shape, Data: latentPatches},
-		p.InText:    {Shape: p.InText.Shape, Data: text},
-		p.InTemb:    {Shape: p.InTemb.Shape, Data: temb},
-		p.InTembMod: {Shape: p.InTembMod.Shape, Data: tembMod},
-	}
-	results, err := rd.exec.ExecuteCompiledWithDeviceFeeds(rd.ctx, rd.compiled, hostFeeds, rd.weightPtrs)
+	results, err := r.runtime.execute(ctx, r.graph, map[*tensor.Tensor]reference.Value{
+		program.InLatent:  {Shape: program.InLatent.Shape, Data: latentPatches},
+		program.InText:    {Shape: program.InText.Shape, Data: text},
+		program.InTemb:    {Shape: program.InTemb.Shape, Data: temb},
+		program.InTembMod: {Shape: program.InTembMod.Shape, Data: tembMod},
+	})
 	if err != nil {
 		return ForwardResult{}, fmt.Errorf("resident step: %w", err)
 	}
-	full := results[p.Velocity].Data
-	if len(full) != p.Seq*p.T.InChannels {
-		return ForwardResult{}, fmt.Errorf("resident step: velocity len=%d want %d", len(full), p.Seq*p.T.InChannels)
+	full := results[program.Velocity].Data
+	if len(full) != program.Seq*program.T.InChannels {
+		return ForwardResult{}, fmt.Errorf(
+			"resident step: velocity len=%d want %d", len(full), program.Seq*program.T.InChannels,
+		)
 	}
-	res := ForwardResult{
-		Velocity:    append([]float32(nil), full[p.TextSeq*p.T.InChannels:]...),
-		BlockHidden: make([][]float32, len(p.BlockOutputs)),
+	result := ForwardResult{
+		Velocity:    append([]float32(nil), full[program.TextSeq*program.T.InChannels:]...),
+		BlockHidden: make([][]float32, len(program.BlockOutputs)),
 	}
-	for i, node := range p.BlockOutputs {
-		res.BlockHidden[i] = results[node].Data
+	for index, node := range program.BlockOutputs {
+		result.BlockHidden[index] = results[node].Data
 	}
-	return res, nil
+	return result, nil
 }
 
-// Close releases every device allocation and the worker.
-func (rd *ResidentDenoiser) Close() error {
-	var errs []error
-	if rd.exec != nil {
-		errs = append(errs, rd.exec.Close())
-		rd.exec = nil
+func (r *ResidentDenoiser) Close(ctx context.Context) error {
+	if r == nil || r.runtime == nil {
+		return nil
 	}
-	if rd.worker != nil && len(rd.allocs) > 0 {
-		errs = append(errs, rd.worker.Do(rd.ctx, func(state *device.State) error {
-			var e []error
-			for _, ptr := range rd.allocs {
-				e = append(e, state.Driver.MemFree(ptr))
-			}
-			return errors.Join(e...)
-		}))
-		rd.allocs = nil
-	}
-	if rd.worker != nil {
-		rd.worker.Close()
-		rd.worker = nil
-	}
-	return errors.Join(errs...)
+	err := r.runtime.close(ctx)
+	r.runtime = nil
+	r.graph = nil
+	return err
 }
 
-func storageBytes(t dtype.Type) int {
-	if t == dtype.BF16 {
+func storageBytes(dataType dtype.Type) int {
+	if dataType == dtype.BF16 {
 		return 2
 	}
 	return 4
 }
 
-// weightPayload streams tensor tt into a device payload of storage type. BF16
-// node + BF16 source is a raw byte copy (no conversion); otherwise the tensor is
-// promoted to F32 and (for a BF16 node) round-to-nearest-even encoded.
-func weightPayload(tt safetensors.Tensor, storage dtype.Type) ([]byte, error) {
+// weightPayload converts checkpoint storage to graph input storage.
+func weightPayload(value safetensors.Tensor, storage dtype.Type) ([]byte, error) {
 	elements := 1
-	for _, d := range tt.Shape {
-		elements *= int(d)
+	for _, dimension := range value.Shape {
+		elements *= int(dimension)
 	}
-	if storage == dtype.BF16 && tt.DType == "BF16" {
-		buf := make([]byte, elements*2)
-		if _, err := io.ReadFull(tt.Reader(), buf); err != nil {
+	if storage == dtype.BF16 && value.DType == "BF16" {
+		buffer := make([]byte, elements*2)
+		if _, err := io.ReadFull(value.Reader(), buffer); err != nil {
 			return nil, err
 		}
-		return buf, nil
+		return buffer, nil
 	}
-	reader, err := safetensors.F32Reader(tt)
+	reader, err := safetensors.F32Reader(value)
 	if err != nil {
 		return nil, err
 	}
@@ -216,11 +142,10 @@ func weightPayload(tt safetensors.Tensor, storage dtype.Type) ([]byte, error) {
 	if storage == dtype.F32 {
 		return raw, nil
 	}
-	// F32 source -> BF16 node.
-	out := make([]byte, elements*2)
-	for i := 0; i < elements; i++ {
-		f := math.Float32frombits(binary.LittleEndian.Uint32(raw[4*i:]))
-		binary.LittleEndian.PutUint16(out[2*i:], dtype.Float32ToBF16(f))
+	result := make([]byte, elements*2)
+	for index := range elements {
+		item := math.Float32frombits(binary.LittleEndian.Uint32(raw[4*index:]))
+		binary.LittleEndian.PutUint16(result[2*index:], dtype.Float32ToBF16(item))
 	}
-	return out, nil
+	return result, nil
 }

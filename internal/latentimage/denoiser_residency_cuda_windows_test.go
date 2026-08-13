@@ -3,6 +3,7 @@
 package latentimage
 
 import (
+	"context"
 	"io"
 	"math"
 	"testing"
@@ -49,12 +50,13 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 	t.Logf("real geometry: layers=%d hidden=%d heads=%d/%d headDim=%d imgSeq=%d textSeq=%d seq=%d inCh=%d",
 		tr.Layers, tr.Hidden, tr.Heads, tr.KVHeads, tr.HeadDim, imgSeq, textSeq, prog.Seq, tr.InChannels)
 
-	rd, err := NewResidentDenoiser(prog, dir, 0)
+	ctx := context.Background()
+	rd, err := NewResidentDenoiser(ctx, prog, dir, 0)
 	if err != nil {
 		t.Fatalf("NewResidentDenoiser: %v", err)
 	}
 	defer func() {
-		if err := rd.Close(); err != nil {
+		if err := rd.Close(ctx); err != nil {
 			t.Errorf("close: %v", err)
 		}
 	}()
@@ -99,7 +101,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 			t.Fatalf("grid %dx%d want %dx%d", pgh, pgw, gh, gw)
 		}
 		temb, tembMod := hostTimestep(t, src, tr, sigma)
-		res, err := rd.Step(f32of(patches), text, temb, tembMod)
+		res, err := rd.Step(ctx, f32of(patches), text, temb, tembMod)
 		if err != nil {
 			t.Fatalf("resident Step %d: %v", step, err)
 		}
@@ -128,7 +130,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 		// determinism: step 0 replayed must be bit-identical.
 		if step == 0 {
 			firstVel = append([]float32(nil), res.Velocity...)
-			res2, err := rd.Step(f32of(patches), text, temb, tembMod)
+			res2, err := rd.Step(ctx, f32of(patches), text, temb, tembMod)
 			if err != nil {
 				t.Fatalf("resident Step replay: %v", err)
 			}

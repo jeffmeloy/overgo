@@ -123,16 +123,17 @@ func TestEncoderMaskedResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgramMasked: %v", err)
 	}
-	re, err := NewResidentEncoder(prog, dir, 0)
+	ctx := context.Background()
+	re, err := NewResidentEncoder(ctx, prog, dir, 0)
 	if err != nil {
 		t.Fatalf("NewResidentEncoder: %v", err)
 	}
 	defer func() {
-		if cerr := re.Close(); cerr != nil {
+		if cerr := re.Close(ctx); cerr != nil {
 			t.Errorf("close: %v", cerr)
 		}
 	}()
-	dev, err := re.Encode(embed)
+	dev, err := re.Encode(ctx, embed)
 	if err != nil {
 		t.Fatalf("masked resident Encode: %v", err)
 	}
@@ -170,16 +171,16 @@ func TestEncoderMaskedResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgram (maskless): %v", err)
 	}
-	mlRe, err := NewResidentEncoder(mlProg, dir, 0)
+	mlRe, err := NewResidentEncoder(ctx, mlProg, dir, 0)
 	if err != nil {
 		t.Fatalf("NewResidentEncoder (maskless): %v", err)
 	}
 	defer func() {
-		if cerr := mlRe.Close(); cerr != nil {
+		if cerr := mlRe.Close(ctx); cerr != nil {
 			t.Errorf("close maskless: %v", cerr)
 		}
 	}()
-	ml, err := mlRe.Encode(embed)
+	ml, err := mlRe.Encode(ctx, embed)
 	if err != nil {
 		t.Fatalf("maskless resident Encode: %v", err)
 	}

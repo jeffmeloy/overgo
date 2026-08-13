@@ -111,18 +111,19 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgram: %v", err)
 	}
-	re, err := NewResidentEncoder(prog, dir, 0)
+	ctx := context.Background()
+	re, err := NewResidentEncoder(ctx, prog, dir, 0)
 	if err != nil {
 		t.Fatalf("NewResidentEncoder: %v", err)
 	}
 	defer func() {
-		if cerr := re.Close(); cerr != nil {
+		if cerr := re.Close(ctx); cerr != nil {
 			t.Errorf("close: %v", cerr)
 		}
 	}()
 	t.Logf("resident encoder weights: %.3f GiB (%d tapped layers, seq=%d)", float64(re.WeightBytes)/(1<<30), prog.CaptureAfter[len(prog.CaptureAfter)-1]+1, len(ids))
 
-	dev, err := re.Encode(embed)
+	dev, err := re.Encode(ctx, embed)
 	if err != nil {
 		t.Fatalf("resident Encode: %v", err)
 	}
@@ -176,16 +177,16 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgram(templated): %v", err)
 	}
-	tre, err := NewResidentEncoder(tprog, dir, 0)
+	tre, err := NewResidentEncoder(ctx, tprog, dir, 0)
 	if err != nil {
 		t.Fatalf("NewResidentEncoder(templated): %v", err)
 	}
 	defer func() {
-		if cerr := tre.Close(); cerr != nil {
+		if cerr := tre.Close(ctx); cerr != nil {
 			t.Errorf("close templated: %v", cerr)
 		}
 	}()
-	tdev, err := tre.Encode(tmplEmbed)
+	tdev, err := tre.Encode(ctx, tmplEmbed)
 	if err != nil {
 		t.Fatalf("resident Encode(templated): %v", err)
 	}

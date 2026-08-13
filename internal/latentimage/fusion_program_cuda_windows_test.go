@@ -166,12 +166,13 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileFusionProgram: %v", err)
 	}
-	rf, err := NewResidentFusion(prog, dir, 0)
+	ctx := context.Background()
+	rf, err := NewResidentFusion(ctx, prog, dir, 0)
 	if err != nil {
 		t.Fatalf("NewResidentFusion: %v", err)
 	}
 	defer func() {
-		if cerr := rf.Close(); cerr != nil {
+		if cerr := rf.Close(ctx); cerr != nil {
 			t.Errorf("close: %v", cerr)
 		}
 	}()
@@ -182,7 +183,7 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 	for i, v := range selected.Data {
 		encF32[i] = float32(v)
 	}
-	devFused, err := rf.Fuse(encF32)
+	devFused, err := rf.Fuse(ctx, encF32)
 	if err != nil {
 		t.Fatalf("resident Fuse: %v", err)
 	}

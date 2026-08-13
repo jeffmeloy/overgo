@@ -87,7 +87,7 @@ func syntheticVAEDecoder(t *testing.T) *VAEDecoder {
 		std[i] = 1.0 + 0.1*float64(i)
 	}
 	cfg := vaeConfigJSON{
-		ClassName: VAEClass, BaseDim: base, DimMult: dimMult, ZDim: z,
+		ClassName: "fixture-vae", BaseDim: base, DimMult: dimMult, ZDim: z,
 		NumResBlks: 1, LatentsMean: mean, LatentsStd: std,
 	}
 	d := &VAEDecoder{ZDim: z, LatentsMean: f64sToF32(mean), LatentsStd: f64sToF32(std)}

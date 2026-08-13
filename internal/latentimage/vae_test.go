@@ -16,7 +16,7 @@ import (
 func TestVAEDecoderDerivesFromRealCheckpoint(t *testing.T) {
 	requireLongTest(t)
 	dir := kreaDirOrSkip(t)
-	d, err := LoadVAEDecoder(dir)
+	d, err := loadVAEDecoder(dir, kreaProfileOrSkip(t).Classes.VAE)
 	if err != nil {
 		t.Fatalf("LoadVAEDecoder: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestVAEDenormFromConfig(t *testing.T) {
 		}
 		return
 	}
-	d, err := LoadVAEDecoder(dir)
+	d, err := loadVAEDecoder(dir, kreaProfileOrSkip(t).Classes.VAE)
 	if err != nil {
 		t.Fatalf("LoadVAEDecoder: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestVAEDenormFromConfig(t *testing.T) {
 func TestVAEDecodeSyntheticImage(t *testing.T) {
 	requireLongTest(t)
 	dir := kreaDirOrSkip(t)
-	d, err := LoadVAEDecoder(dir)
+	d, err := loadVAEDecoder(dir, kreaProfileOrSkip(t).Classes.VAE)
 	if err != nil {
 		t.Fatalf("LoadVAEDecoder: %v", err)
 	}

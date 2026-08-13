@@ -16,5 +16,6 @@ merges `master`.
 | 7 | Weight catalogs | family loaders replaced by indexed catalog plans; empty-profile compatibility read removed; standard SwiGLU schema and converted device-upload transaction shared; remaining staged requirement duplication absent | Active |
 | 8 | Runtime admission | continuous batching, retained-cache, capture, sequence-cache, projected-input, specialized-output, diffusion, recurrent, and packed-device admission compiled; runtime profile probes absent | Done |
 | 9 | Metadata validation | expert admission, draft-layer staging/cardinality, sparse-indexer cadence, normalization defaults, and structural bounds are serialized profile facts; family predicates, duplicate reads, probes, and validation-enum reconstruction absent | Active |
+| 10 | Image execution | typed operators and content-addressed profile facts own dispatch, classes, conditioning, and sampling; invocation-scoped device teardown absent | Active |
 
 Live ordering and executable verification remain in `docs/plan.json`.

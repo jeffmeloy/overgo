@@ -36,12 +36,6 @@ func readEmbedRowsF32(modelDir string, spec TextEncoderSpec, ids []int) ([]float
 	return result, nil
 }
 
-const (
-	DefaultSteps             = 8
-	DefaultNumTrainTimesteps = 1000
-	DefaultDynamicShiftMu    = 1.15
-)
-
 var generatedImageContract = artifact.JSONContract(artifact.KindOutput, "overgo.generated-image.v1")
 
 type Request struct {
@@ -63,6 +57,7 @@ type Image struct {
 
 type Generator struct {
 	request    Request
+	profile    Profile
 	spec       *Spec
 	pipeline   *ResidentImagePipeline
 	embed      []float32
@@ -85,14 +80,19 @@ func ValidateRequest(request Request) error {
 	return nil
 }
 
-func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Generator, error) {
+func LoadGenerator(ctx context.Context, modelDir string, profile Profile, request Request) (*Generator, error) {
 	if err := ValidateRequest(request); err != nil {
 		return nil, err
 	}
-	request = request.withDefaults()
+	if err := profile.validateIdentity(); err != nil {
+		return nil, err
+	}
 	spec, err := Derive(modelDir)
 	if err != nil {
 		return nil, err
+	}
+	if spec.Profile != profile.ID {
+		return nil, errors.New("latent image: recipe profile differs from artifact")
 	}
 	if _, err := spec.VerifyCheckpoint(modelDir); err != nil {
 		return nil, err
@@ -104,11 +104,13 @@ func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Gene
 	if spec.PatchSize <= 0 || shape.Height%spec.PatchSize != 0 || shape.Width%spec.PatchSize != 0 {
 		return nil, fmt.Errorf("latent image: latent extent %dx%d is incompatible with patch %d", shape.Width, shape.Height, spec.PatchSize)
 	}
+	gridH, gridW := shape.Height/spec.PatchSize, shape.Width/spec.PatchSize
+	request = request.withPolicy(profile.Sampling, gridH*gridW)
 	tokenizer, err := hfbpe.Load(filepath.Join(modelDir, "tokenizer"))
 	if err != nil {
 		return nil, err
 	}
-	text, err := RenderKreaTextInput(tokenizer, request.Prompt, KreaChatPromptTemplate())
+	text, err := renderTextInput(tokenizer, request.Prompt, profile.Prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -129,14 +131,13 @@ func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Gene
 	if err != nil {
 		return nil, err
 	}
-	gridH, gridW := shape.Height/spec.PatchSize, shape.Width/spec.PatchSize
 	denoiser, err := CompileDenoiserProgram(
 		spec.Transformer, float32(spec.Transformer.NormEps), textMask, gridH, gridW, dtype.BF16,
 	)
 	if err != nil {
 		return nil, err
 	}
-	decoder, err := LoadVAEDecoder(modelDir)
+	decoder, err := loadVAEDecoder(modelDir, profile.Classes.VAE)
 	if err != nil {
 		return nil, err
 	}
@@ -154,26 +155,26 @@ func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Gene
 		return nil, err
 	}
 	return &Generator{
-		request: request, spec: spec, pipeline: pipeline, embed: embed,
+		request: request, profile: profile, spec: spec, pipeline: pipeline, embed: embed,
 		schedule: schedule, shape: shape,
 	}, nil
 }
 
-func (r Request) withDefaults() Request {
+func (r Request) withPolicy(policy samplingPolicy, imageSequence int) Request {
 	if r.Steps == 0 {
-		r.Steps = DefaultSteps
+		r.Steps = policy.DefaultSteps
 	}
 	if r.NumTrainTimesteps == 0 {
-		r.NumTrainTimesteps = DefaultNumTrainTimesteps
+		r.NumTrainTimesteps = policy.TrainTimesteps
 	}
 	if r.DynamicShiftMu == 0 {
-		r.DynamicShiftMu = DefaultDynamicShiftMu
+		r.DynamicShiftMu = policy.dynamicShiftMu(imageSequence)
 	}
 	return r
 }
 
 func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, error) {
-	if g == nil || g.pipeline == nil || request.withDefaults() != g.request || g.prepared {
+	if g == nil || g.pipeline == nil || request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW) != g.request || g.prepared {
 		return nil, errors.New("latent image: generation session is unavailable")
 	}
 	if _, err := g.pipeline.Condition(ctx, g.embed); err != nil {

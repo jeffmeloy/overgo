@@ -78,11 +78,14 @@ func writeInventorySafetensor(t *testing.T, path, tensor string) {
 
 func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-image-runtime")
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-image-profile")
 	tests := []struct {
 		define func(artifact.ID) (recipe.Definition, error)
 		want   recipe.ModuleID
 	}{
-		{modelrecipe.LatentImageDefinition, modelrecipe.ModuleLatentImagePrepare},
+		{func(model artifact.ID) (recipe.Definition, error) {
+			return modelrecipe.LatentImageDefinition(model, profileID)
+		}, modelrecipe.ModuleLatentImagePrepare},
 		{modelrecipe.OscillatorImageDefinition, modelrecipe.ModuleOscillatorImagePrepare},
 	}
 	for _, test := range tests {
@@ -97,5 +100,19 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 		if got := imageProgramModule(program); got != test.want {
 			t.Fatalf("operator module=%q, want %q", got, test.want)
 		}
+	}
+}
+
+func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
+	root := t.TempDir()
+	testutil.WriteImageProfileFixture(t, root)
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "profile-bound-image")
+	definition, facts, err := imageCapability().bind(root, modelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
+	if !ok || len(facts) != 1 || facts[0].Descriptor.ID != profileID {
+		t.Fatalf("profile binding = (%s, %v), facts=%+v", profileID, ok, facts)
 	}
 }

@@ -93,9 +93,9 @@ func TestEncoderMaskedResidentRealCheckpoint(t *testing.T) {
 
 	// Real templated masked input at a tractable pad budget (still 34 prefix + 5
 	// suffix + a genuine pad region between prompt and suffix).
-	tmpl := KreaChatPromptTemplate()
-	tmpl.MaxPromptTokens = 24
-	in, err := RenderKreaTextInput(tok, "a red fox eating ice cream, studio photograph", tmpl)
+	tmpl := kreaProfileOrSkip(t).Prompt
+	tmpl.MaxTokens = 24
+	in, err := renderTextInput(tok, "a red fox eating ice cream, studio photograph", tmpl)
 	if err != nil {
 		t.Fatalf("RenderKreaTextInput: %v", err)
 	}

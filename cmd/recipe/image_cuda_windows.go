@@ -21,7 +21,18 @@ import (
 
 func imageCapability() capability {
 	latent := capabilityruntime.JSONScalar[latentimage.Request, *latentimage.Generator, latentimage.Image](
-		"image-gen", latentimage.ValidateRequest, latentimage.LoadGenerator, latentimage.RegisterRuntime,
+		"image-gen", latentimage.ValidateRequest,
+		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
+			profileID, ok := program.Definition().Dependency(recipe.DependencyProfile, 0)
+			if !ok {
+				return nil, fmt.Errorf("image-gen: compiled recipe has no profile")
+			}
+			profile, err := latentimage.ReadProfile(ctx, store, profileID)
+			if err != nil {
+				return nil, err
+			}
+			return latentimage.LoadGenerator(ctx, path, profile, request)
+		}, latentimage.RegisterRuntime,
 	)
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
 		"image-gen", oscillatorimage.ValidateRequest,
@@ -48,15 +59,25 @@ func imageCapability() capability {
 				return nil, fmt.Errorf("image-gen: compiled recipe has no registered operator")
 			}
 		},
-		definition: func(path string, modelID artifact.ID) (recipe.Definition, error) {
+		bind: func(path string, modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
 			recognized, err := latentimage.IsPipeline(path)
 			if err != nil {
-				return recipe.Definition{}, err
+				return recipe.Definition{}, nil, err
 			}
 			if recognized {
-				return modelrecipe.LatentImageDefinition(modelID)
+				profile, err := latentimage.ResolveProfile(path)
+				if err != nil {
+					return recipe.Definition{}, nil, err
+				}
+				content, err := profile.Content()
+				if err != nil {
+					return recipe.Definition{}, nil, err
+				}
+				definition, err := modelrecipe.LatentImageDefinition(modelID, profile.ID)
+				return definition, []artifact.Content{content}, err
 			}
-			return modelrecipe.OscillatorImageDefinition(modelID)
+			definition, err := modelrecipe.OscillatorImageDefinition(modelID)
+			return definition, nil, err
 		},
 	}
 }

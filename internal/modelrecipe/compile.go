@@ -107,7 +107,7 @@ type linearCapability struct {
 	stages    []scalarStage
 }
 
-func (c linearCapability) definition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
+func (c linearCapability) definition(task recipe.Task, modelID artifact.ID, dependencies ...recipe.Dependency) (recipe.Definition, error) {
 	nodes := make([]recipe.Node, len(c.stages))
 	edges := make([]recipe.Edge, len(c.stages)-1)
 	for index, stage := range c.stages {
@@ -121,8 +121,9 @@ func (c linearCapability) definition(task recipe.Task, modelID artifact.ID) (rec
 		}
 	}
 	first, last := c.stages[0], c.stages[len(c.stages)-1]
+	dependencies = append([]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, dependencies...)
 	return recipe.NewDefinitionWithDependencies(
-		task, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, nodes, edges,
+		task, dependencies, nodes, edges,
 		[]recipe.Input{{Name: first.input, Data: first.inputData, Target: recipe.Endpoint{Node: first.node, Port: first.input}}},
 		[]recipe.Output{{Name: last.output, Data: last.outData, Source: recipe.Endpoint{Node: last.node, Port: last.output}}},
 	)
@@ -190,8 +191,10 @@ func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 }
 
 // LatentImageDefinition: prompt-conditioned diffusion image graph.
-func LatentImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return latentImageCapability.definition(recipe.TaskImageGen, modelID)
+func LatentImageDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
+	return latentImageCapability.definition(recipe.TaskImageGen, modelID, recipe.Dependency{
+		Role: recipe.DependencyProfile, Artifact: profileID,
+	})
 }
 
 // OscillatorImageDefinition: class-conditioned oscillator image graph.

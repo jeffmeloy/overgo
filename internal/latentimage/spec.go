@@ -15,23 +15,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"overgo/internal/artifact"
 )
 
-// Recognition constants: the pipeline/sub-model class strings this package
-// binds. Class strings are data read from the artifact, matched here.
-const (
-	PipelineClass    = "Krea2Pipeline"           // model_index.json _class_name
-	TransformerClass = "Krea2Transformer2DModel" // transformer/config.json _class_name
-	VAEClass         = "AutoencoderKLQwenImage"  // vae/config.json _class_name
-	TextEncoderType  = "qwen3_vl"                // text_encoder/config.json model_type
-	FamilyTag        = "krea"                    // discovery/recipe scope tag (NOT an executor id)
-)
+// FamilyTag is discovery metadata, not execution authority.
+const FamilyTag = "krea"
 
 // TokenizerKind names the tokenizer class from model_index.json.
 type TokenizerKind string
-
-// TokenizerQwen2 is the Qwen2 BPE tokenizer.
-const TokenizerQwen2 TokenizerKind = "Qwen2Tokenizer"
 
 // TransformerSpec: dual-stream latent-image diffusion transformer geometry.
 // Field comments name the SOURCE: [cfg K] a config key, [der ...] a derivation,
@@ -93,6 +85,7 @@ type TextEncoderSpec struct {
 // Spec: the recognized, geometry-derived artifact description. Serving-only;
 // no training lane. Sub-specs are functional; Family/Pipeline carry the tag.
 type Spec struct {
+	Profile     artifact.ID
 	Pipeline    string // model_index _class_name (== PipelineClass)
 	Family      string // FamilyTag (discovery/recipe scope)
 	Scheduler   string // model_index scheduler class
@@ -202,7 +195,7 @@ func IsPipeline(dir string) (bool, error) {
 	if err := json.Unmarshal(raw, &index); err != nil {
 		return false, fmt.Errorf("latentimage: parse model_index: %w", err)
 	}
-	return index.ClassName == PipelineClass, nil
+	return supportsPipeline(index.ClassName)
 }
 
 // Derive reads model_index.json + the three sub-configs and builds the Spec,
@@ -212,33 +205,37 @@ func IsPipeline(dir string) (bool, error) {
 // cross-model text_hidden_dim == text_encoder.hidden_size fusion boundary.
 // VerifyCheckpoint then asserts the config values against real tensor shapes.
 func Derive(dir string) (*Spec, error) {
+	profile, err := ResolveProfile(dir)
+	if err != nil {
+		return nil, err
+	}
 	var index modelIndex
 	if err := readJSON(filepath.Join(dir, "model_index.json"), &index); err != nil {
 		return nil, err
 	}
-	if index.ClassName != PipelineClass {
-		return nil, fmt.Errorf("latentimage: pipeline class %q != %q", index.ClassName, PipelineClass)
+	if index.ClassName != profile.Classes.Pipeline {
+		return nil, fmt.Errorf("latentimage: pipeline class %q != %q", index.ClassName, profile.Classes.Pipeline)
 	}
 	var tcfg transformerConfig
 	if err := readJSON(filepath.Join(dir, "transformer", "config.json"), &tcfg); err != nil {
 		return nil, err
 	}
-	if tcfg.ClassName != TransformerClass {
-		return nil, fmt.Errorf("latentimage: transformer class %q != %q", tcfg.ClassName, TransformerClass)
+	if tcfg.ClassName != profile.Classes.Transformer {
+		return nil, fmt.Errorf("latentimage: transformer class %q != %q", tcfg.ClassName, profile.Classes.Transformer)
 	}
 	var vcfg vaeConfig
 	if err := readJSON(filepath.Join(dir, "vae", "config.json"), &vcfg); err != nil {
 		return nil, err
 	}
-	if vcfg.ClassName != VAEClass {
-		return nil, fmt.Errorf("latentimage: vae class %q != %q", vcfg.ClassName, VAEClass)
+	if vcfg.ClassName != profile.Classes.VAE {
+		return nil, fmt.Errorf("latentimage: vae class %q != %q", vcfg.ClassName, profile.Classes.VAE)
 	}
 	var ecfg textEncoderConfig
 	if err := readJSON(filepath.Join(dir, "text_encoder", "config.json"), &ecfg); err != nil {
 		return nil, err
 	}
-	if ecfg.ModelType != TextEncoderType {
-		return nil, fmt.Errorf("latentimage: text_encoder model_type %q != %q", ecfg.ModelType, TextEncoderType)
+	if ecfg.ModelType != profile.Classes.TextEncoder {
+		return nil, fmt.Errorf("latentimage: text_encoder model_type %q != %q", ecfg.ModelType, profile.Classes.TextEncoder)
 	}
 
 	if len(tcfg.AxesDimsRope) != 3 {
@@ -249,6 +246,7 @@ func Derive(dir string) (*Spec, error) {
 	}
 
 	spec := &Spec{
+		Profile:     profile.ID,
 		Pipeline:    index.ClassName,
 		Family:      FamilyTag,
 		Scheduler:   index.Scheduler[1],

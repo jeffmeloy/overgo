@@ -29,7 +29,8 @@ func TestGeneratorRealCheckpointBaseline(t *testing.T) {
 	}
 	ctx := context.Background()
 	totalStart := time.Now()
-	generator, err := LoadGenerator(ctx, kreaModelDir, request)
+	profile := kreaProfileOrSkip(t)
+	generator, err := LoadGenerator(ctx, kreaModelDir, profile, request)
 	if err != nil {
 		t.Fatal(err)
 	}

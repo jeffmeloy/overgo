@@ -148,7 +148,7 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 	}
 
 	// --- dtc-tokenizer templated ids/mask consumed on the device ---
-	in, err := RenderKreaTextInput(tok, prompt, KreaChatPromptTemplate())
+	in, err := renderTextInput(tok, prompt, kreaProfileOrSkip(t).Prompt)
 	if err != nil {
 		t.Fatalf("RenderKreaTextInput: %v", err)
 	}

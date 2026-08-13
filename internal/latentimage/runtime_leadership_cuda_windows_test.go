@@ -43,7 +43,11 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	b.Helper()
 	ctx := context.Background()
 	totalStart := time.Now()
-	generator, err := LoadGenerator(ctx, kreaModelDir, request)
+	profile, err := ResolveProfile(kreaModelDir)
+	if err != nil {
+		b.Fatal(err)
+	}
+	generator, err := LoadGenerator(ctx, kreaModelDir, profile, request)
 	if err != nil {
 		b.Fatal(err)
 	}

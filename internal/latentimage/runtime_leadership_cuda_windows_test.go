@@ -6,9 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"errors"
 	"fmt"
-	"image"
 	"image/png"
 	"math"
 	"os"
@@ -72,10 +70,7 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	}
 	decodeWall := time.Since(decodeStart)
 	encodeStart := time.Now()
-	encoded, minimum, maximum, err := encodeAdaptivePNG(generated)
-	if err != nil {
-		b.Fatal(err)
-	}
+	encoded, minimum, maximum := generated.Data, generated.Minimum, generated.Maximum
 	encodeWall := time.Since(encodeStart)
 	var memory driver.MemoryStats
 	if err := generator.pipeline.runtime.worker.Do(ctx, func(state *device.State) error {
@@ -143,44 +138,4 @@ func compareAdaptivePNG(generated []byte, goldenPath string) (float64, float64, 
 	}
 	count := float64(got.Bounds().Dx() * got.Bounds().Dy() * 3)
 	return absoluteError / count, math.Sqrt(squaredError / count), nil
-}
-
-func encodeAdaptivePNG(generated Image) ([]byte, float32, float32, error) {
-	if generated.Channels != 3 || generated.Width <= 0 || generated.Height <= 0 {
-		return nil, 0, 0, fmt.Errorf("image geometry = %d/%dx%d", generated.Channels, generated.Width, generated.Height)
-	}
-	plane := generated.Width * generated.Height
-	if len(generated.Pixels) != generated.Channels*plane {
-		return nil, 0, 0, fmt.Errorf("image pixels = %d, want %d", len(generated.Pixels), generated.Channels*plane)
-	}
-	output := image.NewRGBA(image.Rect(0, 0, generated.Width, generated.Height))
-	minimum, maximum := float32(math.Inf(1)), float32(math.Inf(-1))
-	pixelByte := func(value float32) (uint8, error) {
-		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
-			return 0, errors.New("image contains non-finite pixels")
-		}
-		minimum = min(minimum, value)
-		maximum = max(maximum, value)
-		scaled := (float64(value) + 1) * 127.5
-		return uint8(min(max(scaled, 0), 255)), nil
-	}
-	for position := range plane {
-		offset := position * 4
-		for channel := range 3 {
-			value, err := pixelByte(generated.Pixels[channel*plane+position])
-			if err != nil {
-				return nil, 0, 0, err
-			}
-			output.Pix[offset+channel] = value
-		}
-		output.Pix[offset+3] = 255
-	}
-	if maximum-minimum < 0.1 {
-		return nil, 0, 0, fmt.Errorf("image is degenerate: range [%g,%g]", minimum, maximum)
-	}
-	var encoded bytes.Buffer
-	if err := png.Encode(&encoded, output); err != nil {
-		return nil, 0, 0, err
-	}
-	return encoded.Bytes(), minimum, maximum, nil
 }

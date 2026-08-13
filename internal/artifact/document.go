@@ -63,6 +63,19 @@ func (c DocumentContract) ContentBytes(data []byte) (Content, error) {
 	return c.Content(id, data)
 }
 
+// OwnedContentBytes binds bytes without a clone. Caller must not mutate them.
+func (c DocumentContract) OwnedContentBytes(data []byte) (Content, error) {
+	id, err := c.Identify(data)
+	if err != nil {
+		return Content{}, err
+	}
+	descriptor, err := c.Descriptor(id, uint64(len(data)))
+	if err != nil {
+		return Content{}, err
+	}
+	return Content{Descriptor: descriptor, Data: data}, nil
+}
+
 func (c DocumentContract) ValidateContent(content Content, id ID) error {
 	if id.Kind() != c.Kind || content.Descriptor.ID != id || content.Descriptor.MediaType != c.MediaType ||
 		content.Descriptor.Schema != c.Schema {

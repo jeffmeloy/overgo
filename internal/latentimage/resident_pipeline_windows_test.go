@@ -107,7 +107,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 			t.Fatalf("latent[%d] = %g, want %g (delta %g)", index, value, want, delta)
 		}
 	}
-	pixels, height, width, err := pipeline.Decode(ctx)
+	pixels, height, width, err := pipeline.DecodeHWC(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,9 +123,13 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 		t.Fatalf("decoded geometry = %dx%d, want %dx%d", width, height, wantWidth, wantHeight)
 	}
 	const vaeTolerance = 5e-3
-	for index, value := range pixels {
-		if delta := math.Abs(float64(value - wantPixels[index])); delta > vaeTolerance {
-			t.Fatalf("pixel[%d] = %g, want %g (delta %g)", index, value, wantPixels[index], delta)
+	plane := height * width
+	for position := range plane {
+		for channel := range vaeDecoder.OutChannels {
+			gotIndex, wantIndex := position*vaeDecoder.OutChannels+channel, channel*plane+position
+			if delta := math.Abs(float64(pixels[gotIndex] - wantPixels[wantIndex])); delta > vaeTolerance {
+				t.Fatalf("pixel[%d,%d] = %g, want %g (delta %g)", position, channel, pixels[gotIndex], wantPixels[wantIndex], delta)
+			}
 		}
 	}
 }

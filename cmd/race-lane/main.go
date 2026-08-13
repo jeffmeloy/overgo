@@ -22,7 +22,6 @@ const (
 	hostRacePattern   = "./internal/..."
 	sanitizerTool     = "compute-sanitizer"
 	deviceRacePackage = "./internal/cuda/executor"
-	outputTailBytes   = 2000
 )
 
 var deviceRaceTools = []string{"racecheck", "synccheck"}
@@ -73,7 +72,7 @@ func hostRace() error {
 	out, err := commandEnv(append(os.Environ(), "CGO_ENABLED=1"), cmd[0], cmd[1:]...)
 	report("host", hostRacePattern, began, err)
 	if err != nil {
-		fmt.Print(tail(out, outputTailBytes))
+		fmt.Print(out)
 		return fmt.Errorf("host race lane failed")
 	}
 	return nil
@@ -82,7 +81,7 @@ func hostRace() error {
 func deviceRace() error {
 	// cuda-info is the availability probe: failure means no usable device.
 	if out, err := command("go", "run", "./cmd/cuda-info"); err != nil {
-		fmt.Print(tail(out, outputTailBytes))
+		fmt.Print(out)
 		return unavailable("device", "cuda-info failed; no usable GPU/driver")
 	}
 	if _, err := exec.LookPath(sanitizerTool); err != nil {
@@ -98,7 +97,7 @@ func deviceRace() error {
 		bin += ".exe"
 	}
 	if out, err := command("go", "test", "-c", "-o", bin, deviceRacePackage); err != nil {
-		fmt.Print(tail(out, outputTailBytes))
+		fmt.Print(out)
 		return fmt.Errorf("building device test binary failed")
 	}
 	for _, tool := range deviceRaceTools {
@@ -107,7 +106,7 @@ func deviceRace() error {
 		out, err := commandEnv(append(os.Environ(), cudaTestEnv+"=1"), cmd[0], cmd[1:]...)
 		report("device:"+tool, deviceRacePackage, began, err)
 		if err != nil {
-			fmt.Print(tail(out, outputTailBytes))
+			fmt.Print(out)
 			return fmt.Errorf("device %s failed", tool)
 		}
 	}
@@ -156,11 +155,4 @@ func commandEnv(env []string, name string, args ...string) (string, error) {
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	return string(out), err
-}
-
-func tail(s string, limit int) string {
-	if len(s) <= limit {
-		return s
-	}
-	return "..." + s[len(s)-limit:]
 }

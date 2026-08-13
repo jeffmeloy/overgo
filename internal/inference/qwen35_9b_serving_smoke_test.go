@@ -74,6 +74,7 @@ func qwen35_9BServingPath(t *testing.T) string {
 }
 
 func TestQwen35_9BServingSmoke(t *testing.T) {
+	requireIntegration(t)
 	path := qwen35_9BServingPath(t)
 
 	loadStart := time.Now()

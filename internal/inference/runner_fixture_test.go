@@ -7,7 +7,15 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testevidence"
 )
+
+func requireIntegration(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
+}
 
 func TestBindResidency(t *testing.T) {
 	binding, err := bindResidency(recipe.ResidencyHybridNative)

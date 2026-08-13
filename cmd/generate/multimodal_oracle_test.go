@@ -34,6 +34,7 @@ func openFixtureRunner(
 }
 
 func TestQwen35VideoEndToEndOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	projectorPath := os.Getenv("OVERGO_QWEN35_MMPROJ")
 	goldenPath := os.Getenv("OVERGO_QWEN35_VIDEO_GOLDEN")
@@ -101,6 +102,7 @@ func TestQwen35VideoEndToEndOracle(t *testing.T) {
 }
 
 func TestGemma4ImageEndToEndOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_GEMMA4_MODEL")
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
 	imagePath := os.Getenv("OVERGO_GEMMA4_IMAGE")
@@ -167,6 +169,7 @@ func TestGemma4ImageEndToEndOracle(t *testing.T) {
 // language path executes on-device. Closes the single-process device-projector +
 // device-language combination.
 func TestGemma4ImageDeviceProjectorEndToEndOracle(t *testing.T) {
+	requireIntegration(t)
 	cudatest.Require(t)
 	modelPath := os.Getenv("OVERGO_GEMMA4_MODEL")
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
@@ -230,6 +233,7 @@ func TestGemma4ImageDeviceProjectorEndToEndOracle(t *testing.T) {
 }
 
 func TestGemma4AudioEndToEndOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_GEMMA4_MODEL")
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
 	wavePath := os.Getenv("OVERGO_GEMMA4_AUDIO_WAVE")

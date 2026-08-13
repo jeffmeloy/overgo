@@ -8,12 +8,24 @@ import (
 	"strings"
 )
 
+const ShortIntegrationSkip = "integration excluded by -short"
+
 // GoTestJSON rejects skipped tests and unavailable oracle markers in go test
 // -json output. Package rows without tests remain neutral: derived gate scope
 // may include importers that intentionally own no tests.
 func GoTestJSON(out string) error {
+	return goTestJSON(out, false)
+}
+
+// GoTestJSONShort permits only explicitly classified short-mode exclusions.
+func GoTestJSONShort(out string) error {
+	return goTestJSON(out, true)
+}
+
+func goTestJSON(out string, short bool) error {
 	scanner := bufio.NewScanner(strings.NewReader(out))
 	seen := false
+	classified := map[string]bool{}
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -29,10 +41,14 @@ func GoTestJSON(out string) error {
 			return fmt.Errorf("decode go test event: %w", err)
 		}
 		seen = true
+		key := event.Package + "\x00" + event.Test
+		if short && strings.Contains(event.Output, ShortIntegrationSkip) {
+			classified[key] = true
+		}
 		if reason := unavailable(event.Output); reason != "" {
 			return fmt.Errorf("%s", reason)
 		}
-		if event.Action == "skip" && event.Test != "" {
+		if event.Action == "skip" && event.Test != "" && !classified[key] {
 			return fmt.Errorf("%s: %s skipped", event.Package, event.Test)
 		}
 	}

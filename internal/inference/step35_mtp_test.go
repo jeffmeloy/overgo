@@ -56,6 +56,7 @@ func TestLastValueColumn(t *testing.T) {
 }
 
 func TestStep35MTPChainsIndependentHeads(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_STEP35_MTP_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_STEP35_MTP_MODEL is not set")
@@ -162,6 +163,7 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 }
 
 func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_HYV3_MTP_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_HYV3_MTP_MODEL is not set")

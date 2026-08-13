@@ -14,6 +14,7 @@ import (
 )
 
 func TestIncrementalCacheMatchesFullForward(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -191,6 +192,7 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 }
 
 func TestPreloadedCachedLayerInputsMatchFullExtraction(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -238,6 +240,7 @@ func assertMaximumDifference(t *testing.T, label string, got, want []float32, to
 }
 
 func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -286,6 +289,7 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 }
 
 func TestNativeQ8GreedyMatchesOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -294,6 +298,7 @@ func TestNativeQ8GreedyMatchesOracle(t *testing.T) {
 }
 
 func TestNativeQ8DeviceContextShift(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -546,6 +551,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 }
 
 func TestNativeQ6KGreedyMatchesOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_Q6K_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN3_Q6K_MODEL is not set")
@@ -554,6 +560,7 @@ func TestNativeQ6KGreedyMatchesOracle(t *testing.T) {
 }
 
 func TestNativeQwen35HybridMatchesOracleAndResumes(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
@@ -727,6 +734,7 @@ ws ::= [ \t\n\r]*
 }
 
 func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
@@ -868,6 +876,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 }
 
 func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MTP_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_QWEN35_MTP_MODEL is not set")
@@ -965,6 +974,7 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 }
 
 func TestGemma4AssistantGreedyVerification(t *testing.T) {
+	requireIntegration(t)
 	assistantPath := os.Getenv("OVERGO_GEMMA4_ASSISTANT_MODEL")
 	targetPath := os.Getenv("OVERGO_GEMMA4_TARGET_MODEL")
 	if assistantPath == "" || targetPath == "" {
@@ -1047,6 +1057,7 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 }
 
 func TestEagle3GreedyAndSampledVerification(t *testing.T) {
+	requireIntegration(t)
 	draftPath := os.Getenv("OVERGO_EAGLE3_MODEL")
 	targetPath := os.Getenv("OVERGO_EAGLE3_TARGET_MODEL")
 	if draftPath == "" || targetPath == "" {
@@ -1119,6 +1130,7 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 }
 
 func TestDFlashGreedyAndSampledVerification(t *testing.T) {
+	requireIntegration(t)
 	draftPath := os.Getenv("OVERGO_DFLASH_MODEL")
 	targetPath := os.Getenv("OVERGO_DFLASH_TARGET_MODEL")
 	if draftPath == "" || targetPath == "" {
@@ -1197,6 +1209,7 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 }
 
 func TestWavTokenizerDecodeWaveform(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_WAVTOKENIZER_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_WAVTOKENIZER_MODEL is not set")
@@ -1221,6 +1234,7 @@ func TestWavTokenizerDecodeWaveform(t *testing.T) {
 }
 
 func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_COHERE2_MTP_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_COHERE2_MTP_MODEL is not set")
@@ -1313,6 +1327,7 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 }
 
 func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_BONSAI_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_BONSAI_MODEL is not set")
@@ -1344,6 +1359,7 @@ func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_GEMMA3_MODEL is not set")
@@ -1407,6 +1423,7 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 }
 
 func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_UMT5_MODEL")
 	if modelPath == "" {
 		t.Skip("OVERGO_UMT5_MODEL is not set")

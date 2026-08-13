@@ -460,6 +460,53 @@ extern "C" __global__ void rms_norm_backward_f32(
     }
 }
 
+// embedding_gather_rows_f32: frozen lexical lookup for resident training.
+extern "C" __global__ void embedding_gather_rows_f32(
+		const float * table,
+		const unsigned int * ids,
+		float * output,
+		unsigned int rows,
+		unsigned int width) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const unsigned int count = rows * width;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int row = index / width;
+	const unsigned int column = index - row * width;
+	output[index] = table[(size_t) ids[row] * width + column];
+}
+
+// softmax_ce_grad_rows_f32: mean next-token CE; logits become dLogits.
+extern "C" __global__ void softmax_ce_grad_rows_f32(
+		float * logits,
+		const unsigned int * targets,
+		float * losses,
+		unsigned int rows,
+		unsigned int columns,
+		float scale) {
+	const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+	if (row >= rows) {
+		return;
+	}
+	float * values = logits + (size_t) row * columns;
+	float maximum = -3.402823466e+38F;
+	for (unsigned int column = 0; column < columns; ++column) {
+		maximum = fmaxf(maximum, values[column]);
+	}
+	float sum = 0.0F;
+	for (unsigned int column = 0; column < columns; ++column) {
+		sum += expf(values[column] - maximum);
+	}
+	const unsigned int target = targets[row];
+	losses[row] = (logf(sum) + maximum - values[target]) * scale;
+	const float inverse = scale / sum;
+	for (unsigned int column = 0; column < columns; ++column) {
+		values[column] = expf(values[column] - maximum) * inverse;
+	}
+	values[target] -= scale;
+}
+
 // softmax_backward_f32: VJP of a row-wise softmax. Given the softmax output p
 // and its cotangent dp, ds_i = p_i*(dp_i - sum_j p_j*dp_j). One thread per row.
 extern "C" __global__ void softmax_backward_f32(

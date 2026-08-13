@@ -84,26 +84,9 @@ func StackForwardBackwardResidentWeights(
 		if err != nil {
 			return err
 		}
-		wp := make([]layerWeightPtrs, nL)
-		gp := make([]layerGradPtrs, nL)
-		for i, off := range offsets {
-			// Refresh the host-owned norm vectors into the resident weight buffer.
-			if err := s.state.Driver.MemcpyHtoD(ptrAt(dW, off.InLN), driver.Bytes(normWeights[i].InLN)); err != nil {
-				return err
-			}
-			if err := s.state.Driver.MemcpyHtoD(ptrAt(dW, off.PostLN), driver.Bytes(normWeights[i].PostLN)); err != nil {
-				return err
-			}
-			wp[i] = layerWeightPtrs{
-				inLN: ptrAt(dW, off.InLN), postLN: ptrAt(dW, off.PostLN),
-				q: ptrAt(dW, off.Q), k: ptrAt(dW, off.K), v: ptrAt(dW, off.V), o: ptrAt(dW, off.O),
-				gate: ptrAt(dW, off.Gate), up: ptrAt(dW, off.Up), down: ptrAt(dW, off.Down),
-			}
-			gp[i] = layerGradPtrs{
-				dInLN: ptrAt(dG, off.InLN), dPostLN: ptrAt(dG, off.PostLN),
-				dQ: ptrAt(dG, off.Q), dK: ptrAt(dG, off.K), dV: ptrAt(dG, off.V), dO: ptrAt(dG, off.O),
-				dGate: ptrAt(dG, off.Gate), dUp: ptrAt(dG, off.Up), dDown: ptrAt(dG, off.Down),
-			}
+		wp, gp, err := residentLayerPointers(s, dW, dG, offsets, normWeights, d.hidden)
+		if err != nil {
+			return err
 		}
 		dOutP, err := ops.runStack(embeds, wp, gp, tail)
 		if err != nil {

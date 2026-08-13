@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/devicemath"
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
@@ -39,6 +40,10 @@ func (m *Model) perLayerWeightElems() int {
 // ceiling computed from measured bytes, not a supplied n_gpu_layers (closes
 // scale-ceiling-measure / YOINK-1).
 func (m *Model) DeriveResidentCapacity(worker *device.Worker, seq int) (devicemath.ResidentCapacity, error) {
+	return m.deriveResidentCapacity(worker, seq, false)
+}
+
+func (m *Model) deriveResidentCapacity(worker *device.Worker, seq int, frozenLexical bool) (devicemath.ResidentCapacity, error) {
 	d := m.Dims
 	g, err := devicemath.MeasureAllocGranularity(worker)
 	if err != nil {
@@ -50,6 +55,9 @@ func (m *Model) DeriveResidentCapacity(worker *device.Worker, seq int) (devicema
 	}
 	fixed, perLayer := devicemath.ResidentLayerPlanSizes(
 		seq, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, m.perLayerWeightElems())
+	if frozenLexical {
+		fixed = append(fixed, devicemath.FrozenCausalTailPlanSizes(seq, d.Vocab, d.Hidden)...)
+	}
 	return devicemath.DeriveResidentCapacity(free, g, fixed, perLayer), nil
 }
 
@@ -66,6 +74,16 @@ func (m *Model) DeriveResidentCapacity(worker *device.Worker, seq int) (devicema
 // the tiny norm-vector sync/grad; weights and momentum are not among them. Matches
 // Train within fp32 tolerance. Attention bias is not supported.
 func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
+	return m.trainDeviceResident(worker, tokens, steps, baseLR, mu, false)
+}
+
+// TrainDeviceResidentFrozenLexical keeps the production frozen lexical tail on
+// device; only scalar loss and layer norm gradients cross to host per step.
+func (m *Model) TrainDeviceResidentFrozenLexical(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
+	return m.trainDeviceResident(worker, tokens, steps, baseLR, mu, true)
+}
+
+func (m *Model) trainDeviceResident(worker *device.Worker, tokens []int, steps int, baseLR, mu float64, frozenLexical bool) ([]float64, error) {
 	if len(tokens) < 2 {
 		return nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
@@ -77,7 +95,7 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 	// Derived scale ceiling: how many layers fit fully resident is DERIVED from
 	// measured free device memory and the measured allocator granularity (not a
 	// supplied n_gpu_layers). Reject up front rather than OOM mid-session.
-	capacity, err := m.DeriveResidentCapacity(worker, len(tokens))
+	capacity, err := m.deriveResidentCapacity(worker, len(tokens), frozenLexical)
 	if err != nil {
 		return nil, fmt.Errorf("TrainDeviceResident: capacity derivation: %w", err)
 	}
@@ -174,18 +192,45 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 	}
 	defer func() { _ = devicemath.FreeResident(worker, dW, dG, dM) }()
 
+	var dHead, dFinalW, dFinalG, dFinalM driver.DevicePtr
+	if frozenLexical {
+		dHead, err = devicemath.AllocResidentF32(worker, len(m.head()), m.head())
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = devicemath.FreeResident(worker, dHead) }()
+		dFinalW, err = devicemath.AllocResidentF32(worker, d.Hidden, m.Weights["model.norm.weight"])
+		if err != nil {
+			return nil, err
+		}
+		dFinalG, err = devicemath.AllocResidentF32(worker, d.Hidden, nil)
+		if err != nil {
+			_ = devicemath.FreeResident(worker, dFinalW)
+			return nil, err
+		}
+		dFinalM, err = devicemath.AllocResidentF32(worker, d.Hidden, nil)
+		if err != nil {
+			_ = devicemath.FreeResident(worker, dFinalW, dFinalG)
+			return nil, err
+		}
+		defer func() { _ = devicemath.FreeResident(worker, dFinalW, dFinalG, dFinalM) }()
+	}
+
 	invF32 := ropeInvF32(hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim))
 	trajectory := make([]float64, 0, steps)
 
 	for step := 0; step < steps; step++ {
-		// Embedding lookup (host): current embedding, host-updated + scattered below.
+		// Host oracle tail only; production frozen lexical gathers on device.
 		embed := m.Weights["model.embed_tokens.weight"]
-		embeds := make([]float32, len(tokens)*d.Hidden)
-		for token, id := range tokens {
-			if id < 0 || id >= d.Vocab {
-				return nil, fmt.Errorf("densecausal: token %d out of vocab %d", id, d.Vocab)
+		var embeds []float32
+		if !frozenLexical {
+			embeds = make([]float32, len(tokens)*d.Hidden)
+			for token, id := range tokens {
+				if id < 0 || id >= d.Vocab {
+					return nil, fmt.Errorf("densecausal: token %d out of vocab %d", id, d.Vocab)
+				}
+				copy(embeds[token*d.Hidden:(token+1)*d.Hidden], embed[id*d.Hidden:(id+1)*d.Hidden])
 			}
-			copy(embeds[token*d.Hidden:(token+1)*d.Hidden], embed[id*d.Hidden:(id+1)*d.Hidden])
 		}
 
 		// Current host-owned norm vectors (from the flat weights buffer) to sync into
@@ -220,10 +265,19 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 			return dx, nil
 		}
 
-		dxEmbed, normGrads, err := devicemath.StackForwardBackwardResidentWeights(
-			worker, embeds, dW, dG, offsets, normW, invF32,
-			seq, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, d.RMSEps, tail,
-		)
+		var dxEmbed []float32
+		var normGrads []devicemath.LayerNormPair
+		if frozenLexical {
+			loss, normGrads, err = devicemath.StackForwardBackwardResidentFrozenCausal(
+				worker, tokens, dW, dG, offsets, normW, invF32, dHead, dFinalW, dFinalG,
+				seq, d.Vocab, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, d.RMSEps,
+			)
+		} else {
+			dxEmbed, normGrads, err = devicemath.StackForwardBackwardResidentWeights(
+				worker, embeds, dW, dG, offsets, normW, invF32,
+				seq, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, d.RMSEps, tail,
+			)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -235,8 +289,10 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 			copy(g.slot(p+"input_layernorm.weight", d.Hidden), normGrads[i].InLN)
 			copy(g.slot(p+"post_attention_layernorm.weight", d.Hidden), normGrads[i].PostLN)
 		}
-		gradEmbed := g.slot("model.embed_tokens.weight", len(embed))
-		scatterEmbeddingGradient(gradEmbed, dxEmbed, tokens, d.Hidden)
+		if !frozenLexical {
+			gradEmbed := g.slot("model.embed_tokens.weight", len(embed))
+			scatterEmbeddingGradient(gradEmbed, dxEmbed, tokens, d.Hidden)
+		}
 		off := 0
 		for _, name := range names {
 			n := len(m.Weights[name])
@@ -251,7 +307,9 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 		}
 
 		// Host Muon: non-layer groups. Device Muon: resident layer matrices.
-		opt.StepGroups(func(gr optimizer.Group) bool { return !isLayerMatrixName(gr.Name) })
+		opt.StepGroups(func(gr optimizer.Group) bool {
+			return !isLayerMatrixName(gr.Name) && !(frozenLexical && (gr.Name == m.headName() || gr.Name == "model.norm.weight"))
+		})
 		updates := make([]optimizer.ResidentMatrix, len(mats))
 		for i, mt := range mats {
 			updates[i] = optimizer.ResidentMatrix{
@@ -260,6 +318,11 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 				Momentum: devicemath.ResidentPtr(dM, mt.relOff),
 				Rows:     mt.rows, Cols: mt.cols,
 			}
+		}
+		if frozenLexical {
+			updates = append(updates, optimizer.ResidentMatrix{
+				Weights: dFinalW, Gradient: dFinalG, Momentum: dFinalM, Rows: d.Hidden, Cols: 1,
+			})
 		}
 		if err := optimizer.DeviceMuonMatricesResident(worker, updates, step+1, config); err != nil {
 			return nil, err
@@ -270,7 +333,7 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 		off = 0
 		for _, name := range names {
 			n := len(m.Weights[name])
-			if !isLayerMatrixName(name) {
+			if !isLayerMatrixName(name) && !(frozenLexical && name == "model.norm.weight") {
 				copy(m.Weights[name], weights[off:off+n])
 			}
 			off += n
@@ -284,6 +347,12 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 	}
 	if err := devicemath.ReadResident(worker, dW, slices...); err != nil {
 		return nil, err
+	}
+	if frozenLexical {
+		finalOffset := offset["model.norm.weight"]
+		if err := devicemath.ReadResident(worker, dFinalW, devicemath.ResidentSlice{Data: weights[finalOffset : finalOffset+d.Hidden]}); err != nil {
+			return nil, err
+		}
 	}
 	scatter(m, names, weights)
 	return trajectory, nil

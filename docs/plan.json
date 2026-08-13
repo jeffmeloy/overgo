@@ -1,30 +1,47 @@
 {
-  "campaign": "adaptive_new -\u003e overgo merge: model ladder",
-  "doctrine": "PORT-FIRST (owner, 2026-08-09, standing): the point of this campaign is to PORT adaptive_new into overgo, never to start from scratch. Every capability AND performance slice STARTS from adaptive_new's verified implementation: read it end-to-end, port its structure/kernels/math, verify against its goldens. Novel design is admissible ONLY after the port matches the reference, and only as a measured improvement on top of it. A slice that reinvents what adaptive already ships is the named failure mode. The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/.claude/worktrees/image_gen/image_gen_report.md -- Wan python 463.4s/8.8GB vs exact-Go 739.9s/22.54GB (denoise 690.9s dominates) vs quality-fast 424.3s/11.95GB (FAILS single-complete-cone); safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; the quality-fast attention approximation is the degradation to avoid. Owner note: route media denoise through overgo's OWN tensor machinery (retained CUDA-graph replay, bf16-native decode catalog, GEMV/epilogue fusion rewrites, calibrated dispatch) rather than porting adaptive's slower path -- that machinery already beat adaptive on rungs 3-4 and is the intended edge over Python.",
+  "campaign": "adaptive_new parity and performance leadership",
+  "doctrine": "PARITY-LEAD (owner, 2026-08-12): adaptive_new supplies verified Go behavior, model-native Python oracles, fixtures, and training breadth; Overgo is the destination. Port capabilities through neutral compiled contracts, then exceed the reference on matched wall and peak memory without quality loss. Multimodality is a recipe-derived contract, not a family checklist: every applicable ordered input/output modality combination (text, image, audio, video, time series, table) must be reachable, evaluated with modality-native evidence, and measured; absent training objectives are explicit refusals, never synthetic substitutes. docs/adaptive_new_parity_report.md is the current assessment; docs/plan.json contains executable open work, never a completion ledger. Every step has a non-vacuous verify; unavailable or skipped evidence fails. PORT-FIRST (owner, 2026-08-09, standing): the point of this campaign is to PORT adaptive_new into overgo, never to start from scratch. Every capability AND performance slice STARTS from adaptive_new's verified implementation: read it end-to-end, port its structure/kernels/math, verify against its goldens. Novel design is admissible ONLY after the port matches the reference, and only as a measured improvement on top of it. A slice that reinvents what adaptive already ships is the named failure mode. The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/image_gen_report.md. Safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; quality-fast approximations that fail artifact assertions do not count. Route media denoise through Overgo tensor machinery (retained CUDA-graph replay, BF16-native decode catalog, fusion rewrites, calibrated dispatch), not a second adaptive runtime.",
   "items": [
     {
-      "id": "tighten-merged-runtime",
-      "title": "Tighten merged image runtime: shared context-aware resident graph owner, production recipe composition, device-retained stage handoff, shared program mechanics, compiled cache ordering, and resident-training session consolidation",
+      "id": "parity-foundation-cleanup",
+      "title": "Make the parity campaign honest and gate-executable before adding capability surface",
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Tighten merged image runtime: shared context-aware resident graph owner, production recipe composition, device-retained stage handoff, shared program mechanics, compiled cache ordering, and resident-training session consolidation",
-          "status": "open",
-          "verify": "go test ./internal/latentimage ./internal/model ./internal/inference ./internal/densecausal ./internal/hybridtrain"
-        }
-      ]
-    },
-    {
-      "id": "merge-current-master",
-      "title": "Merge current master into overgo_tightening and verify the integrated tree",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge current master into overgo_tightening and verify the integrated tree",
+          "id": "baseline-report",
+          "title": "Assess adaptive_new Go/Python inference and training against Overgo; record measured wins, gaps, false closures, and the promotion contract",
           "status": "done",
-          "verify": "go test ./..."
+          "verify": "test -s docs/adaptive_new_parity_report.md \u0026\u0026 grep -q '^## Multimodal Completion Contract' docs/adaptive_new_parity_report.md \u0026\u0026 grep -q '^## Promotion Contract' docs/adaptive_new_parity_report.md \u0026\u0026 grep -q '^## Definition of Exceeds adaptive_new' docs/adaptive_new_parity_report.md"
+        },
+        {
+          "id": "nonvacuous-go-tests",
+          "title": "Parse verbose Go test events in cmd/gate and cmd/plan; refuse a skipped capability test even when the package exits zero",
+          "status": "done",
+          "verify": "go test ./cmd/gate -run '^TestGateRejectsSkippedCapabilityTest$' -count=1 -v"
+        },
+        {
+          "id": "root-doc-authority",
+          "title": "Complete root-doc deletion atomically: migrate README, kernel docs, implementation log, and release callers; add no compatibility files",
+          "status": "open",
+          "verify": "! rg -n 'PORT_PLAN\\.md|IMPLEMENTATION_STATUS\\.md|overgo_gui_plan\\.md|overgo_tightening_plan\\.md' README.md kernels/README.md docs/IMPLEMENTATION_LOG.md cmd/release"
+        },
+        {
+          "id": "open-plan-only",
+          "title": "Remove completed plan rows after their evidence is anchored in Git, RepoDB, or the parity report; teach the plan gate to reject chronology rows",
+          "status": "open",
+          "verify": "go test ./internal/plan ./cmd/plan -run '^TestPlanContainsOpenWorkOnly$' -count=1 -v"
+        },
+        {
+          "id": "training-doc-truth",
+          "title": "Rewrite docs/training_plan.md to current code truth: device backward landed; production reachability, compiled multimodal authority, exact checkpointing, and real-model training remain open",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestTrainingPlanMatchesImplementation$' -count=1 -v"
+        },
+        {
+          "id": "claim-evidence-tiers",
+          "title": "Add compatibility evidence tiers, artifact/source identities, failable commands, and stale-evidence refusal; implemented is not oracle-backed",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestClaimsRequireLiveEvidenceTier$' -count=1 -v"
         }
       ]
     },
@@ -37,7 +54,129 @@
           "id": "do",
           "title": "SQA #3 (owner review): the production trainer bypasses the resident implementation. cmd/train (run_cuda_windows.go:28) calls TrainDeviceFull, whose loop scatters weights + gathers gradients every step (train_device_cuda_windows.go:55); the newer TrainDeviceResident (train_device_resident_cuda_windows.go:68) -- and the fully-resident hybrid path -- remain TEST-ONLY. Same 'build generic path, migrate later' present-but-inert pattern as the media lane. Wire cmd/train to the resident path and DELETE TrainDeviceFull when displaced (atomic compatibility removal).",
           "status": "open",
-          "verify": "! grep -q TrainDeviceFull cmd/train/run_cuda_windows.go"
+          "verify": "! rg -n 'TrainDeviceFull' cmd internal --glob '*.go'"
+        }
+      ]
+    },
+    {
+      "id": "adaptive-inference-parity",
+      "title": "Port and exceed adaptive_new inference through Overgo recipes and shared processing components",
+      "status": "open",
+      "steps": [
+        {
+          "id": "neutral-snapshot",
+          "title": "Define a Go-owned neutral adaptive capability/evidence snapshot: source commits, artifacts, corpora, goldens, entry points, ordered input/output modality signatures, wall, and peak; no cross-repo runtime dependency",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity -run '^TestSnapshotImportRoundTrip$' -count=1 -v"
+        },
+        {
+          "id": "modality-contract",
+          "title": "Compile each active recipe's ordered text/image/audio/video/time-series/table input and output signature; derive the parity matrix and explicit unsupported/refused rows from it",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity -run '^TestInferenceModalityMatrixDerivedFromRecipes$' -count=1 -v"
+        },
+        {
+          "id": "text-structured-refresh",
+          "title": "Refresh real-artifact dense, hybrid, forecast, tabular, seq2seq, embedding, and rerank rows; exact behavior then wall and peak leadership",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity -run '^TestInferenceTextAndStructuredMatrix$' -count=1 -v"
+        },
+        {
+          "id": "multimodal-input",
+          "title": "Close single and combined image, audio, and video input parity for Qwen3.5, Gemma E4B, Gemma4 12B, RxBrain, and OCR on real catalog cases; preserve ordering, temporal structure, masks, and cross-modal position semantics",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v"
+        },
+        {
+          "id": "speech-output",
+          "title": "Promote Pocket-TTS and every adaptive-declared audio-output recipe with real waveforms, stage parity, sample-rate/channel contracts, audio quality, wall, and peak evidence",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestPocketTTSProductionParity$' -count=1 -v"
+        },
+        {
+          "id": "image-output",
+          "title": "Promote applicable text-to-image, image-to-image/edit, and structured-to-image routes for Un-0, SimpleDiffusion, Krea, and SenseNova; exact or oracle-repeatability quality and better wall plus peak",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestImageGenerationLeadership$' -count=1 -v"
+        },
+        {
+          "id": "video-output",
+          "title": "Refresh text-to-video Wan leadership and port reference-conditioned LiveEdit; full clips, temporal/conditioning quality, exact bounded seams, wall, and peak",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestVideoGenerationLeadership$' -count=1 -v"
+        },
+        {
+          "id": "serve-contract",
+          "title": "Close server parity for streaming, tools, embeddings, media, sessions, cache editing, cancellation, and explicit refusal",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity ./internal/server -run '^TestAdaptiveServingContractMatrix$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "adaptive-training-parity",
+      "title": "Make Overgo the Muon-only production training system and exceed adaptive_new on matched real-model runs",
+      "status": "open",
+      "steps": [
+        {
+          "id": "compiled-authority",
+          "title": "Implement sealed TrainingRunPlan and TrainingProgram; bind model, dataset split, ordered input/target modalities, processors/projectors/codecs, train/freeze sets, objective, precision, placement, memory, checkpoint, modality-native evaluation, and promotion identities from RepoDB",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram -run '^TestCompiledTrainingAuthority$' -count=1 -v"
+        },
+        {
+          "id": "muon-only",
+          "title": "Compile Muon matrix/vector/scalar groups; migrate every caller; delete BF16SGD, TrainBF16SGD, and UpdateSign compatibility paths",
+          "status": "open",
+          "verify": "go test ./internal/optimizer ./internal/densecausal -run '^TestMuonOwnsEveryTrainableGeometry$' -count=1 -v \u0026\u0026 ! rg -n 'BF16SGD|UpdateSign' internal cmd"
+        },
+        {
+          "id": "exact-production-resume",
+          "title": "Make production checkpoints atomic and non-overwriting; persist weights, Muon state, RNG/augmentation state, modality processors/codecs, dataset cursor, compiled identities, and RepoDB lineage; resume exactly at accumulation boundaries",
+          "status": "open",
+          "verify": "go test ./cmd/train ./internal/trainingprogram -run '^TestProductionCheckpointResumeExact$' -count=1 -v"
+        },
+        {
+          "id": "dense-real-models",
+          "title": "Train Carbon and Qwen2.5 from identical adaptive checkpoints and ordered corpora; gradient/update/trajectory parity, then beat adaptive wall and peak",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestDenseTrainingLeadership$' -count=1 -v"
+        },
+        {
+          "id": "qwen35-real-model",
+          "title": "Replace synthetic hybrid closure with a real Qwen3.5 training trajectory through the compiled resident program; exercise every adaptive-declared trainable text/image/video modality and explicitly refuse reference-absent objectives",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestQwen35RealTraining$' -count=1 -v"
+        },
+        {
+          "id": "e4b-real-model",
+          "title": "Train the real Gemma E4B artifact with AltUp, PLE, Laurel, SharedKV, mixed-window semantics, device Muon, exact resume, and matched adaptive evidence across every adaptive-declared trainable text/image/audio modality",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestGemmaE4BRealTraining$' -count=1 -v"
+        },
+        {
+          "id": "multimodal-objectives",
+          "title": "Compile the training modality matrix from RepoDB objectives: text-to-text, image/audio/video-to-text, text-to-audio, text/image-to-image, text/image/video-to-video, forecast, and table only where adaptive evidence or an approved objective exists; run real corpora through processor/projector/codec gradients and modality-native evaluation; record all other pairs refused",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalTrainingMatrix$' -count=1 -v"
+        },
+        {
+          "id": "objective-breadth",
+          "title": "Port adaptive FNS, latent, forecast, OCR, flow-matching, image-latent, and distillation objectives only through shared TrainingPrograms; delete family loops as displaced",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity -run '^TestTrainingObjectiveMatrix$' -count=1 -v"
+        },
+        {
+          "id": "controller-promotion",
+          "title": "Construct and train the small workflow controller; immutable Git/RepoDB corpus, typed text/image/audio/video component and workflow actions, held-out action/modality validity, multi-seed gains, external champion/challenger promotion and rollback",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestControllerPromotionContract$' -count=1 -v"
+        },
+        {
+          "id": "tier1-scale",
+          "title": "Force the promoted small model through Tier-1 memory scheduling, including applicable multimodal activations and connector states; add checkpointing, layer-major accumulation, and paging only when measured",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestTier1TrainingSchedule$' -count=1 -v"
         }
       ]
     },
@@ -70,12 +209,12 @@
     {
       "id": "gate-skip-not-pass",
       "title": "AUTOMATION (session retrospective, HIGHEST VALUE): the commit gate + plan -verify treat a SKIPPED test as exit-0 = PASSED, so a capability step whose golden test SKIPs (absent fixture / UNAVAILABLE) advances while the capability silently regresses -- the un0 oscillatorimage batch hole this session (tightening's gate passed the b=1 regression because the un0 fixture was absent -\u003e test skipped). Make plan -verify and the gate PARSE test output and REFUSE advancement when a capability-bearing step's verify SKIPs rather than PASSes (require \u003e=1 real assertion / no-skip for capability steps). The plan doc already mandates 'report skips, never silently substitute' -- enforce it in code.",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "AUTOMATION (session retrospective, HIGHEST VALUE): the commit gate + plan -verify treat a SKIPPED test as exit-0 = PASSED, so a capability step whose golden test SKIPs (absent fixture / UNAVAILABLE) advances while the capability silently regresses -- the un0 oscillatorimage batch hole this session (tightening's gate passed the b=1 regression because the un0 fixture was absent -\u003e test skipped). Make plan -verify and the gate PARSE test output and REFUSE advancement when a capability-bearing step's verify SKIPs rather than PASSes (require \u003e=1 real assertion / no-skip for capability steps). The plan doc already mandates 'report skips, never silently substitute' -- enforce it in code.",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./cmd/plan/ ./cmd/gate/ -run Vacuous -count=1"
         }
       ]
@@ -83,12 +222,12 @@
     {
       "id": "go-doctrine-second-sweep-close",
       "title": "Close the second Go-doctrine tightening sweep: record all deletion-led waves, totals, verification, and remaining measured cache-order seam without creating speculative authority",
-      "status": "done",
+      "status": "open",
       "steps": [
         {
           "id": "do",
           "title": "Close the second Go-doctrine tightening sweep: record all deletion-led waves, totals, verification, and remaining measured cache-order seam without creating speculative authority",
-          "status": "done",
+          "status": "open",
           "verify": "go test ./internal/artifact ./internal/model ./internal/inference"
         }
       ]
@@ -758,7 +897,7 @@
     },
     {
       "id": "rung13-e4b",
-      "title": "gemma-4-E4B",
+      "title": "gemma-4-E4B inference and training prerequisites; real training owned by adaptive-training-parity/e4b-real-model",
       "status": "done",
       "steps": [
         {

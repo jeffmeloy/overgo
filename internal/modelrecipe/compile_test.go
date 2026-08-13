@@ -125,7 +125,6 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 		{recipe.TaskTabular, []recipe.Placement{recipe.PlacementHost}, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleTabularPredict}},
 		{recipe.TaskSeq2Seq, []recipe.Placement{recipe.PlacementHost, recipe.PlacementHost, recipe.PlacementHost}, []recipe.DataKind{recipe.DataTokens}, recipe.DataTokens, []recipe.ModuleID{ModuleSeq2SeqEncode, ModuleSeq2SeqPrepare, ModuleSeq2SeqSelect}},
 		{recipe.TaskSpeech, []recipe.Placement{recipe.PlacementHost, recipe.PlacementHost, recipe.PlacementHost}, []recipe.DataKind{recipe.DataText}, recipe.DataAudio, []recipe.ModuleID{ModuleSpeechTokenize, ModuleSpeechGenerate, ModuleSpeechDecode}},
-		{recipe.TaskImageGen, []recipe.Placement{recipe.PlacementHost, recipe.PlacementHost, recipe.PlacementHost}, []recipe.DataKind{recipe.DataTensor}, recipe.DataImage, []recipe.ModuleID{ModuleImagePrepare, ModuleImageIntegrate, ModuleImageDecode}},
 		{recipe.TaskVQA, []recipe.Placement{recipe.PlacementHost, recipe.PlacementDevice}, []recipe.DataKind{recipe.DataImage, recipe.DataText}, recipe.DataText, []recipe.ModuleID{ModuleVQAPrepare, ModuleVQAGenerate}},
 	}
 	for _, test := range tests {
@@ -169,20 +168,41 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 	}
 }
 
-func TestImageCapabilitySupportsHybridPlacement(t *testing.T) {
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "hybrid-image-model")
-	definition, err := CapabilityDefinitionAt(recipe.TaskImageGen, modelID, recipe.PlacementHybrid)
-	if err != nil {
-		t.Fatal(err)
+func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-image-model")
+	tests := []struct {
+		name      string
+		define    func(artifact.ID) (recipe.Definition, error)
+		input     recipe.DataKind
+		placement recipe.Placement
+		modules   []recipe.ModuleID
+	}{
+		{"latent", LatentImageDefinition, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleLatentImagePrepare, ModuleLatentImageIntegrate, ModuleLatentImageDecode}},
+		{"oscillator", OscillatorImageDefinition, recipe.DataClassConditioning, recipe.PlacementHost, []recipe.ModuleID{ModuleOscillatorImagePrepare, ModuleOscillatorImageIntegrate, ModuleOscillatorImageDecode}},
+		{"routed", RoutedImageDefinition, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode}},
 	}
-	program, err := CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			definition, err := test.define(modelID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if definition.Inputs[0].Data != test.input {
+				t.Fatalf("input=%q, want %q", definition.Inputs[0].Data, test.input)
+			}
+			program, err := CompileCapability(definition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for index, stage := range program.Stages() {
+				if stage.Module.ID != test.modules[index] || stage.Node.Placement != test.placement {
+					t.Fatalf("stage[%d]=%+v", index, stage)
+				}
+			}
+		})
 	}
-	for index, stage := range program.Stages() {
-		if stage.Node.Placement != recipe.PlacementHybrid {
-			t.Fatalf("stage[%d] placement = %q", index, stage.Node.Placement)
-		}
+	if _, err := CapabilityDefinition(recipe.TaskImageGen, modelID); err == nil {
+		t.Fatal("ambiguous image recipe accepted")
 	}
 }
 

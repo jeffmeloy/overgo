@@ -39,31 +39,34 @@ func imageCapability() capability {
 			return imageGenInventory(path)
 		},
 		execute: func(ctx context.Context, store artifact.Repository, path string, modelID artifact.ID, program recipe.Program, raw string) (any, error) {
-			if programPlacement(program) == recipe.PlacementHybrid {
+			switch imageProgramModule(program) {
+			case modelrecipe.ModuleLatentImagePrepare:
 				return latent(ctx, store, path, modelID, program, raw)
+			case modelrecipe.ModuleOscillatorImagePrepare:
+				return oscillator(ctx, store, path, modelID, program, raw)
+			default:
+				return nil, fmt.Errorf("image-gen: compiled recipe has no registered operator")
 			}
-			return oscillator(ctx, store, path, modelID, program, raw)
 		},
 		definition: func(path string, modelID artifact.ID) (recipe.Definition, error) {
 			recognized, err := latentimage.IsPipeline(path)
 			if err != nil {
 				return recipe.Definition{}, err
 			}
-			placement := recipe.PlacementHost
 			if recognized {
-				placement = recipe.PlacementHybrid
+				return modelrecipe.LatentImageDefinition(modelID)
 			}
-			return modelrecipe.CapabilityDefinitionAt(recipe.TaskImageGen, modelID, placement)
+			return modelrecipe.OscillatorImageDefinition(modelID)
 		},
 	}
 }
 
-func programPlacement(program recipe.Program) recipe.Placement {
-	nodes := program.Definition().Nodes
-	if len(nodes) == 0 {
+func imageProgramModule(program recipe.Program) recipe.ModuleID {
+	stages := program.Stages()
+	if len(stages) == 0 {
 		return ""
 	}
-	return nodes[0].Placement
+	return stages[0].Module.ID
 }
 
 func latentImageInventory(path string) (modelartifact.Inventory, error) {

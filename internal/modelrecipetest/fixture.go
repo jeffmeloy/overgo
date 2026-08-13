@@ -69,7 +69,12 @@ func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 	t.Cleanup(func() { check(t, store.Close()) })
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 	testutil.PublishArtifact(t, store, modelID)
-	compiled, err := modelrecipe.CapabilityDefinition(task, modelID)
+	var compiled recipe.Definition
+	if task == recipe.TaskImageGen {
+		compiled, err = modelrecipe.OscillatorImageDefinition(modelID)
+	} else {
+		compiled, err = modelrecipe.CapabilityDefinition(task, modelID)
+	}
 	check(t, err)
 	program, err := modelrecipe.CompileCapability(compiled)
 	check(t, err)

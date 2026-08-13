@@ -8,6 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
+	"overgo/internal/testutil"
 )
 
 func TestLatentImageInventoryAcceptsDiffusersShards(t *testing.T) {
@@ -68,5 +73,29 @@ func writeInventorySafetensor(t *testing.T, path, tensor string) {
 	data = append(data, 1)
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-image-runtime")
+	tests := []struct {
+		define func(artifact.ID) (recipe.Definition, error)
+		want   recipe.ModuleID
+	}{
+		{modelrecipe.LatentImageDefinition, modelrecipe.ModuleLatentImagePrepare},
+		{modelrecipe.OscillatorImageDefinition, modelrecipe.ModuleOscillatorImagePrepare},
+	}
+	for _, test := range tests {
+		definition, err := test.define(modelID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		program, err := modelrecipe.CompileCapability(definition)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := imageProgramModule(program); got != test.want {
+			t.Fatalf("operator module=%q, want %q", got, test.want)
+		}
 	}
 }

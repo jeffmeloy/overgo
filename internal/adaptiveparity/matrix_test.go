@@ -13,7 +13,7 @@ func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {
 	definitions := make([]recipe.Definition, 0, 7)
 	for _, task := range []recipe.Task{
 		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
-		recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVQA,
+		recipe.TaskSpeech, recipe.TaskVQA,
 	} {
 		definition, err := modelrecipe.CapabilityDefinition(task, model)
 		if err != nil {
@@ -21,7 +21,12 @@ func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {
 		}
 		definitions = append(definitions, definition)
 	}
-	latentImage, err := modelrecipe.CapabilityDefinitionAt(recipe.TaskImageGen, model, recipe.PlacementHybrid)
+	oscillatorImage, err := modelrecipe.OscillatorImageDefinition(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definitions = append(definitions, oscillatorImage)
+	latentImage, err := modelrecipe.LatentImageDefinition(model)
 	if err != nil {
 		t.Fatal(err)
 	}

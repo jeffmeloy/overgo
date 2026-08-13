@@ -203,7 +203,7 @@ func Activate(
 	modelID artifact.ID,
 	codeCommit, reason string,
 ) (recipe.Definition, error) {
-	definition, err := modelrecipe.CapabilityDefinition(Task, modelID)
+	definition, err := modelrecipe.RoutedImageDefinition(modelID)
 	if err != nil {
 		return recipe.Definition{}, err
 	}

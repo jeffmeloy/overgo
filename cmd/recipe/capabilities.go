@@ -18,9 +18,9 @@ import (
 )
 
 type capability struct {
-	inventory  func(string) (modelartifact.Inventory, error)
-	execute    capabilityruntime.Executor
-	definition func(string, artifact.ID) (recipe.Definition, error)
+	inventory func(string) (modelartifact.Inventory, error)
+	execute   capabilityruntime.Executor
+	bind      func(string, artifact.ID) (recipe.Definition, []artifact.Content, error)
 }
 
 var capabilities = map[recipe.Task]capability{
@@ -29,7 +29,7 @@ var capabilities = map[recipe.Task]capability{
 		capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime)},
 	recipe.TaskTabular: {inventory: tabularInventory, execute: capabilityruntime.JSONScalar[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](
 		"tabular", tabularicl.ValidateRequest,
-		func(_ context.Context, path string, request tabularicl.Request) (*tabularicl.Model, error) {
+		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, request tabularicl.Request) (*tabularicl.Model, error) {
 			return tabularicl.LoadTask(path, request.Task)
 		}, tabularicl.RegisterRuntime)},
 	recipe.TaskSeq2Seq: {inventory: modelartifact.FromHFPath, execute: capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Model, []int](

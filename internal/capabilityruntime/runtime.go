@@ -15,7 +15,7 @@ type Executor func(context.Context, artifact.Repository, string, artifact.ID, re
 func JSONScalar[Input, Model, Output any](
 	name string,
 	validate func(Input) error,
-	load func(context.Context, string, Input) (Model, error),
+	load func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error),
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
 ) Executor {
 	return func(
@@ -30,7 +30,10 @@ func JSONScalar[Input, Model, Output any](
 		if err != nil {
 			return nil, err
 		}
-		model, err := load(ctx, path, input)
+		if err := validateScalarProgram(modelID, program); err != nil {
+			return nil, err
+		}
+		model, err := load(ctx, store, path, program, input)
 		if err != nil {
 			return nil, err
 		}
@@ -42,8 +45,10 @@ func JSONScalar[Input, Model, Output any](
 	}
 }
 
-func IgnoreInput[Input, Model any](load func(string) (Model, error)) func(context.Context, string, Input) (Model, error) {
-	return func(_ context.Context, path string, _ Input) (Model, error) { return load(path) }
+func IgnoreInput[Input, Model any](load func(string) (Model, error)) func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error) {
+	return func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ Input) (Model, error) {
+		return load(path)
+	}
 }
 
 // Execute binds adapters and runs a program with one typed output.

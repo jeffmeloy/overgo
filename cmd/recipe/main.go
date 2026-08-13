@@ -146,21 +146,23 @@ func activateCapability(
 	}
 	defer store.Close()
 	modelID := inventory.Manifest.ID
-	batch, err := inventory.Batch("recipe/facts/" + modelID.String())
-	if err != nil {
-		return err
-	}
-	if _, err := store.Commit(ctx, batch); err != nil {
-		return fmt.Errorf("publish model facts: %w", err)
-	}
 	var definition recipe.Definition
-	if capability.definition != nil {
-		definition, err = capability.definition(path, modelID)
+	var facts []artifact.Content
+	if capability.bind != nil {
+		definition, facts, err = capability.bind(path, modelID)
 	} else {
 		definition, err = modelrecipe.CapabilityDefinition(task, modelID)
 	}
 	if err != nil {
 		return err
+	}
+	batch, err := inventory.Batch("recipe/facts/" + modelID.String())
+	if err != nil {
+		return err
+	}
+	batch.Contents = append(batch.Contents, facts...)
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return fmt.Errorf("publish model facts: %w", err)
 	}
 	if err := activateDefinition(ctx, store, definition, verification, reason); err != nil {
 		return err

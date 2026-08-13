@@ -98,6 +98,7 @@ func assertFileIdentity(t *testing.T, path string, want artifact.ID) {
 
 func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {
 	model := identify(t, artifact.KindModel, "modality-model")
+	profile := identify(t, artifact.KindProfile, "image-profile")
 	definitions := make([]recipe.Definition, 0, 7)
 	for _, task := range []recipe.Task{
 		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
@@ -114,7 +115,7 @@ func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {
 		t.Fatal(err)
 	}
 	definitions = append(definitions, oscillatorImage)
-	latentImage, err := modelrecipe.LatentImageDefinition(model)
+	latentImage, err := modelrecipe.LatentImageDefinition(model, profile)
 	if err != nil {
 		t.Fatal(err)
 	}

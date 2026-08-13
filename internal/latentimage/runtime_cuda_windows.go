@@ -53,6 +53,7 @@ type Request struct {
 
 type Generator struct {
 	request    Request
+	profile    Profile
 	spec       *Spec
 	pipeline   *ResidentImagePipeline
 	embed      []float32
@@ -76,15 +77,20 @@ func ValidateRequest(request Request) error {
 	return nil
 }
 
-func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Generator, error) {
+func LoadGenerator(ctx context.Context, modelDir string, profile Profile, request Request) (*Generator, error) {
 	if err := ValidateRequest(request); err != nil {
+		return nil, err
+	}
+	if err := profile.validateIdentity(); err != nil {
 		return nil, err
 	}
 	spec, err := Derive(modelDir)
 	if err != nil {
 		return nil, err
 	}
-	request = request.withDefaults(spec.Profile.Sampling)
+	if spec.Profile != profile.ID {
+		return nil, errors.New("latent image: recipe profile differs from artifact")
+	}
 	if _, err := spec.VerifyCheckpoint(modelDir); err != nil {
 		return nil, err
 	}
@@ -95,11 +101,13 @@ func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Gene
 	if spec.PatchSize <= 0 || shape.Height%spec.PatchSize != 0 || shape.Width%spec.PatchSize != 0 {
 		return nil, fmt.Errorf("latent image: latent extent %dx%d is incompatible with patch %d", shape.Width, shape.Height, spec.PatchSize)
 	}
+	gridH, gridW := shape.Height/spec.PatchSize, shape.Width/spec.PatchSize
+	request = request.withPolicy(profile.Sampling, gridH*gridW)
 	tokenizer, err := hfbpe.Load(filepath.Join(modelDir, "tokenizer"))
 	if err != nil {
 		return nil, err
 	}
-	text, err := RenderTextInput(tokenizer, request.Prompt, spec.Profile.Conditioning)
+	text, err := renderTextInput(tokenizer, request.Prompt, profile.Prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -120,14 +128,13 @@ func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Gene
 	if err != nil {
 		return nil, err
 	}
-	gridH, gridW := shape.Height/spec.PatchSize, shape.Width/spec.PatchSize
 	denoiser, err := CompileDenoiserProgram(
 		spec.Transformer, float32(spec.Transformer.NormEps), textMask, gridH, gridW, dtype.BF16,
 	)
 	if err != nil {
 		return nil, err
 	}
-	decoder, err := LoadVAEDecoder(modelDir)
+	decoder, err := loadVAEDecoder(modelDir, profile.Classes.VAE)
 	if err != nil {
 		return nil, err
 	}
@@ -145,20 +152,20 @@ func LoadGenerator(ctx context.Context, modelDir string, request Request) (*Gene
 		return nil, err
 	}
 	return &Generator{
-		request: request, spec: spec, pipeline: pipeline, embed: embed,
+		request: request, profile: profile, spec: spec, pipeline: pipeline, embed: embed,
 		schedule: schedule, shape: shape,
 	}, nil
 }
 
-func (r Request) withDefaults(policy modelrecipe.ImageSampling) Request {
+func (r Request) withPolicy(policy samplingPolicy, imageSequence int) Request {
 	if r.Steps == 0 {
-		r.Steps = policy.Steps
+		r.Steps = policy.DefaultSteps
 	}
 	if r.NumTrainTimesteps == 0 {
-		r.NumTrainTimesteps = policy.NumTrainTimesteps
+		r.NumTrainTimesteps = policy.TrainTimesteps
 	}
 	if r.DynamicShiftMu == 0 {
-		r.DynamicShiftMu = policy.DynamicShiftMu
+		r.DynamicShiftMu = policy.dynamicShiftMu(imageSequence)
 	}
 	return r
 }
@@ -180,7 +187,7 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if err := ValidateRequest(request); err != nil {
 		return err
 	}
-	request = request.withDefaults(g.spec.Profile.Sampling)
+	request = request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW)
 	if request.Prompt != g.request.Prompt || request.Width != g.request.Width || request.Height != g.request.Height {
 		return errors.New("latent image: request requires another resident session")
 	}
@@ -194,7 +201,7 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 }
 
 func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, error) {
-	if g == nil || g.pipeline == nil || request.withDefaults(g.spec.Profile.Sampling) != g.request || g.prepared {
+	if g == nil || g.pipeline == nil || request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW) != g.request || g.prepared {
 		return nil, errors.New("latent image: generation session is unavailable")
 	}
 	if g.pipeline.conditioning == nil {

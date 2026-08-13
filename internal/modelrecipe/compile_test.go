@@ -170,6 +170,7 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 
 func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-image-model")
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-image-profile")
 	tests := []struct {
 		name      string
 		define    func(artifact.ID) (recipe.Definition, error)
@@ -177,7 +178,7 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 		placement recipe.Placement
 		modules   []recipe.ModuleID
 	}{
-		{"latent", LatentImageDefinition, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleLatentImagePrepare, ModuleLatentImageIntegrate, ModuleLatentImageDecode}},
+		{"latent", func(model artifact.ID) (recipe.Definition, error) { return LatentImageDefinition(model, profileID) }, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleLatentImagePrepare, ModuleLatentImageIntegrate, ModuleLatentImageDecode}},
 		{"oscillator", OscillatorImageDefinition, recipe.DataClassConditioning, recipe.PlacementHost, []recipe.ModuleID{ModuleOscillatorImagePrepare, ModuleOscillatorImageIntegrate, ModuleOscillatorImageDecode}},
 		{"routed", RoutedImageDefinition, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode}},
 	}
@@ -203,6 +204,18 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	}
 	if _, err := CapabilityDefinition(recipe.TaskImageGen, modelID); err == nil {
 		t.Fatal("ambiguous image recipe accepted")
+	}
+}
+
+func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "profiled-image-model")
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "profiled-image-policy")
+	definition, err := LatentImageDefinition(modelID, profileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bound, ok := definition.Dependency(recipe.DependencyProfile, 0); !ok || bound != profileID {
+		t.Fatalf("image profile dependency = (%s, %v)", bound, ok)
 	}
 }
 

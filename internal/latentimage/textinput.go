@@ -4,85 +4,93 @@ import (
 	"fmt"
 
 	"overgo/internal/hfbpe"
-	"overgo/internal/modelrecipe"
 )
 
-// Krea text-input renderer: prompt string -> Qwen2 BPE ids -> chat prompt-template
-// prefix/suffix wrap -> pad to a fixed row count -> ids + attention mask. This is
-// the DEVICE-text-conditioning input boundary (dtc brick 1/3): the exact templated
-// input the Krea Qwen3-VL conditioner consumes, which the raw tokenized-ids path in
-// textencoder.go does NOT reproduce (see the ORACLE SCOPE note there).
-//
-// Ported VERBATIM from adaptive_new go/extmodel:
-//   - models.go prepareSelectedLayerTextInput (the fixed-row prefix/prompt/pad/
-//     suffix layout + attention mask), and
-//   - models.go loadSelectedLayerTextEncoderConfig (prefix/suffix are tokenized
-//     independently; pad row id resolved from the tokenizer_config pad_token).
-//
-// The Krea conditioner reference (models/Krea-2-Turbo/krea-2/encoder.py
-// Qwen3VLConditioner.forward) tokenizes prefix+prompt with padding="max_length" to
-//   max_length + prompt_template_encode_start_idx - prompt_template_encode_suffix_start_idx
-// then concatenates the separately-tokenized suffix. With RIGHT padding this is the
-// exact [prefix][prompt][pad...][suffix] layout adaptive reproduces; the encoder
-// then drops the first prefix rows (hiddens[:, prefix_idx:]).
+// Profile-driven text conditioning: template, fixed rows, pad mask.
 
-// TextInput is the rendered conditioner input: the full padded id sequence,
-// its attention mask, and PromptRows -- the count the encoder keeps after dropping
-// the prefix (len(IDs) - len(prefix tokens) == MaxPromptTokens). IDs/Mask both have
-// length MaxPromptTokens + len(prefix tokens).
-type TextInput struct {
+// textTemplate: recipe-bound conditioner facts.
+type textTemplate struct {
+	// Prefix is prepended to the user prompt before tokenization. Verbatim from
+	// krea-2/encoder.py:35 Qwen3VLConditioner.prompt_template_encode_prefix
+	// (adaptive repodb fact text.prompt_template.prefix).
+	Prefix string `json:"prefix"`
+	// Suffix is tokenized independently and appended after the pad region.
+	// Verbatim from krea-2/encoder.py:36 prompt_template_encode_suffix
+	// (adaptive repodb fact text.prompt_template.suffix).
+	Suffix string `json:"suffix"`
+	// MaxPromptTokens is the prompt/pad row budget between prefix and suffix.
+	// krea-2/encoder.py:15 TextEncoderConfig.max_length = 512
+	// (adaptive repodb fact text.max_prompt_tokens, sourced from that field).
+	MaxTokens int `json:"max_tokens"`
+	// PadToken is the literal filling the unattended pad rows. tokenizer/
+	// tokenizer_config.json "pad_token" = "<|endoftext|>"; resolved to an id via
+	// the tokenizer at render time (never a hardcoded id).
+	PadToken string `json:"pad_token"`
+	// PrefixTokens / SuffixTokens are the reference conditioner's asserted token
+	// counts for the prefix / suffix (krea-2/encoder.py:37-38
+	// prompt_template_encode_start_idx = 34, prompt_template_encode_suffix_start_idx
+	// = 5). They are NOT used to build the layout (which derives the counts from the
+	// actual tokenization, exactly like adaptive); they are the independent anchor
+	// the renderer cross-checks the tokenizer against, so a tokenizer/template drift
+	// is caught at the template boundary.
+	PrefixTokens int `json:"prefix_tokens"`
+	SuffixTokens int `json:"suffix_tokens"`
+}
+
+// textInput: rendered conditioner rows and mask.
+type textInput struct {
 	IDs        []int
 	Mask       []bool
 	PromptRows int
 }
 
-// RenderTextInput builds profile-owned templated ids + attention mask.
-func RenderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl modelrecipe.ImageConditioning) (TextInput, error) {
-	var out TextInput
+// renderTextInput builds templated ids plus the attention mask.
+func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (textInput, error) {
+	var out textInput
 	if tmpl.Prefix == "" || tmpl.Suffix == "" {
-		return out, fmt.Errorf("krea text template prefix/suffix is empty")
+		return out, fmt.Errorf("image text template prefix/suffix is empty")
 	}
-	if tmpl.MaxPromptTokens <= 0 {
-		return out, fmt.Errorf("krea text template max_prompt_tokens must be positive, got %d", tmpl.MaxPromptTokens)
+	if tmpl.MaxTokens <= 0 {
+		return out, fmt.Errorf("image text template max_tokens must be positive, got %d", tmpl.MaxTokens)
 	}
 	padID, ok := tok.SpecialID(tmpl.PadToken)
 	if !ok {
-		return out, fmt.Errorf("krea pad token %q is not in tokenizer", tmpl.PadToken)
+		return out, fmt.Errorf("image pad token %q is not in tokenizer", tmpl.PadToken)
 	}
 	prefixIDs, err := tok.Encode(tmpl.Prefix)
 	if err != nil {
-		return out, fmt.Errorf("encode krea template prefix: %w", err)
+		return out, fmt.Errorf("encode image template prefix: %w", err)
 	}
 	suffixIDs, err := tok.Encode(tmpl.Suffix)
 	if err != nil {
-		return out, fmt.Errorf("encode krea template suffix: %w", err)
+		return out, fmt.Errorf("encode image template suffix: %w", err)
 	}
 	// Cross-check the tokenization against the reference conditioner's asserted
 	// token counts (encoder.py prompt_template_encode_start_idx / suffix_start_idx).
 	// A mismatch means the tokenizer or the template strings drifted from the golden.
 	if tmpl.PrefixTokens != 0 && len(prefixIDs) != tmpl.PrefixTokens {
-		return out, fmt.Errorf("krea prefix tokenized to %d ids, reference asserts %d", len(prefixIDs), tmpl.PrefixTokens)
+		return out, fmt.Errorf("image prefix tokenized to %d ids, profile asserts %d", len(prefixIDs), tmpl.PrefixTokens)
 	}
 	if tmpl.SuffixTokens != 0 && len(suffixIDs) != tmpl.SuffixTokens {
-		return out, fmt.Errorf("krea suffix tokenized to %d ids, reference asserts %d", len(suffixIDs), tmpl.SuffixTokens)
+		return out, fmt.Errorf("image suffix tokenized to %d ids, profile asserts %d", len(suffixIDs), tmpl.SuffixTokens)
 	}
 	if len(prefixIDs) == 0 || len(suffixIDs) == 0 {
-		return out, fmt.Errorf("krea template prefix/suffix tokenized empty")
+		return out, fmt.Errorf("image template prefix/suffix tokenized empty")
 	}
 	promptIDs, err := tok.Encode(prompt)
 	if err != nil {
-		return out, fmt.Errorf("encode krea prompt: %w", err)
+		return out, fmt.Errorf("encode image prompt: %w", err)
 	}
-	return assembleTextRows(prefixIDs, promptIDs, suffixIDs, tmpl.MaxPromptTokens, padID), nil
+	return assembleTextRows(prefixIDs, promptIDs, suffixIDs, tmpl.MaxTokens, padID), nil
 }
 
-// assembleTextRows builds the fixed-row [prefix][prompt][pad...][suffix] id
+// assembleKreaRows builds the fixed-row [prefix][prompt][pad...][suffix] id
 // sequence + attention mask from the already-tokenized parts. Pure port of the
 // adaptive prepareSelectedLayerTextInput body (no tokenizer), so the layout math
 // is exercised in CI without the checkpoint. The prompt is truncated to
 // maxPromptTokens; padded = maxPromptTokens + len(prefix) - len(suffix); the pad
 // region between prompt and suffix is unattended (mask false).
-func assembleTextRows(prefixIDs, promptIDs, suffixIDs []int, maxPromptTokens, padID int) TextInput {
+func assembleTextRows(prefixIDs, promptIDs, suffixIDs []int, maxPromptTokens, padID int) textInput {
 	if len(promptIDs) > maxPromptTokens {
 		promptIDs = promptIDs[:maxPromptTokens]
 	}
@@ -101,5 +109,5 @@ func assembleTextRows(prefixIDs, promptIDs, suffixIDs []int, maxPromptTokens, pa
 	for i := padded; i < len(ids); i++ {
 		mask[i] = true
 	}
-	return TextInput{IDs: ids, Mask: mask, PromptRows: len(ids) - len(prefixIDs)}
+	return textInput{IDs: ids, Mask: mask, PromptRows: len(ids) - len(prefixIDs)}
 }

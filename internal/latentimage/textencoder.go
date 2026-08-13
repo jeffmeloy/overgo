@@ -39,9 +39,9 @@
 // the produced conditioning geometry matches the DiT text-stream input -- never
 // bit-exact values. The Krea conditioner's chat prompt-template wrapping / pad-row
 // layout / attention mask (adaptive's text.prompt_template.prefix/suffix +
-// text.max_prompt_tokens) is now reproduced EXACTLY by RenderTextInput in
+// text.max_prompt_tokens) is reproduced by renderTextInput in
 // textinput.go (dtc brick 1/3); this encoder still accepts a raw id slice, so a
-// caller wiring the device text-conditioning path renders via RenderTextInput
+// caller wiring the device text-conditioning path renders via renderTextInput
 // first. The remaining exact-parity residual is the DEVICE bf16 encoder forward.
 package latentimage
 

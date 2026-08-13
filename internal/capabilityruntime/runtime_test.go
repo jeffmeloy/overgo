@@ -62,7 +62,7 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 			}
 			return nil
 		},
-		func(_ context.Context, path string, request scalarRequest) (int, error) {
+		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, request scalarRequest) (int, error) {
 			return len(path) + request.Value, nil
 		},
 		func(runtime *workflowruntime.Runtime, bound artifact.ID, model int) error {
@@ -110,7 +110,7 @@ func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 			return nil
 		},
 		func(scalarRequest) (string, error) { return "shape:scalar", nil },
-		func(_ context.Context, _ string, request scalarRequest) (*cachedScalarModel, error) {
+		func(_ context.Context, _ artifact.Repository, _ string, _ recipe.Program, request scalarRequest) (*cachedScalarModel, error) {
 			loads++
 			return &cachedScalarModel{bias: request.Value, closed: &closes}, nil
 		},
@@ -131,6 +131,13 @@ func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	execute := cache.Executor()
+	foreign := testutil.ArtifactID(t, artifact.KindModel, "foreign-cached-model")
+	if _, err := execute(context.Background(), store, "model", foreign, program, `{"value":4}`); err == nil {
+		t.Fatal("foreign model loaded into session cache")
+	}
+	if loads != 0 {
+		t.Fatalf("foreign admission loaded %d models", loads)
+	}
 	for raw, want := range map[string]int{`{"value":4}`: 8, `{"value":5}`: 10} {
 		got, err := execute(context.Background(), store, "model", modelID, program, raw)
 		if err != nil {

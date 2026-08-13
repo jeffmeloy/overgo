@@ -19,19 +19,39 @@ import (
 	"overgo/internal/recipe"
 )
 
+const (
+	imageDevice          = "cuda:0"
+	imageSessionCapacity = 1
+)
+
 func imageCapability() capability {
 	latentCache, err := capabilityruntime.NewScalarSessionCache[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
-		"image-gen", "cuda:0", 1,
-		latentimage.ValidateRequest, latentimage.SessionPolicy, latentimage.LoadGenerator,
+		"image-gen", imageDevice, imageSessionCapacity,
+		latentimage.ValidateRequest, latentimage.SessionPolicy,
+		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
+			profileID, ok := program.Definition().Dependency(recipe.DependencyProfile, 0)
+			if !ok {
+				return nil, fmt.Errorf("image-gen: compiled recipe has no profile")
+			}
+			profile, err := latentimage.ReadProfile(ctx, store, profileID)
+			if err != nil {
+				return nil, err
+			}
+			return latentimage.LoadGenerator(ctx, path, profile, request)
+		},
 		func(ctx context.Context, generator *latentimage.Generator, request latentimage.Request) error {
 			return generator.Reset(ctx, request)
 		},
 		latentimage.RegisterRuntime,
 	)
-	if err != nil {
-		panic(err)
+	var latent capabilityruntime.Executor
+	if err == nil {
+		latent = latentCache.Executor()
+	} else {
+		latent = func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error) {
+			return nil, err
+		}
 	}
-	latent := latentCache.Executor()
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
@@ -57,15 +77,25 @@ func imageCapability() capability {
 				return nil, fmt.Errorf("image-gen: compiled recipe has no registered operator")
 			}
 		},
-		definition: func(path string, modelID artifact.ID) (recipe.Definition, error) {
+		bind: func(path string, modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
 			recognized, err := latentimage.IsPipeline(path)
 			if err != nil {
-				return recipe.Definition{}, err
+				return recipe.Definition{}, nil, err
 			}
 			if recognized {
-				return modelrecipe.LatentImageDefinition(modelID)
+				profile, err := latentimage.ResolveProfile(path)
+				if err != nil {
+					return recipe.Definition{}, nil, err
+				}
+				content, err := profile.Content()
+				if err != nil {
+					return recipe.Definition{}, nil, err
+				}
+				definition, err := modelrecipe.LatentImageDefinition(modelID, profile.ID)
+				return definition, []artifact.Content{content}, err
 			}
-			return modelrecipe.OscillatorImageDefinition(modelID)
+			definition, err := modelrecipe.OscillatorImageDefinition(modelID)
+			return definition, nil, err
 		},
 	}
 }

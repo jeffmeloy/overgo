@@ -13,7 +13,8 @@ import (
 )
 
 type sessionKey struct {
-	model, recipe, device, policy string
+	model, recipe  artifact.ID
+	device, policy string
 }
 
 type sessionEntry[Model any] struct {
@@ -28,7 +29,7 @@ type ScalarSessionCache[Input, Model, Output any] struct {
 	capacity int
 	validate func(Input) error
 	policy   func(Input) (string, error)
-	load     func(context.Context, string, Input) (Model, error)
+	load     func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error)
 	reset    func(context.Context, Model, Input) error
 	bind     func(*workflowruntime.Runtime, artifact.ID, Model) error
 
@@ -42,7 +43,7 @@ func NewScalarSessionCache[Input, Model, Output any](
 	capacity int,
 	validate func(Input) error,
 	policy func(Input) (string, error),
-	load func(context.Context, string, Input) (Model, error),
+	load func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error),
 	reset func(context.Context, Model, Input) error,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
 ) (*ScalarSessionCache[Input, Model, Output], error) {
@@ -82,13 +83,16 @@ func (c *ScalarSessionCache[Input, Model, Output]) execute(
 	if err != nil {
 		return zero, err
 	}
+	if err := validateScalarProgram(modelID, program); err != nil {
+		return zero, err
+	}
 	policy, err := c.policy(input)
 	if err != nil || policy == "" {
 		return zero, errors.Join(errors.New("capability runtime: invalid execution policy"), err)
 	}
 	definition := program.Definition()
 	key := sessionKey{
-		model: modelID.String(), recipe: definition.ID.String(), device: c.device, policy: policy,
+		model: modelID, recipe: definition.ID, device: c.device, policy: policy,
 	}
 
 	// A cached model is a mutable session. Serialize lease, execution, reset.
@@ -98,15 +102,14 @@ func (c *ScalarSessionCache[Input, Model, Output]) execute(
 	entry, hit := c.entries[key]
 	if hit {
 		if err := c.reset(ctx, entry.model, input); err != nil {
-			_ = closeModel(context.WithoutCancel(ctx), entry.model)
 			delete(c.entries, key)
-			return zero, err
+			return zero, errors.Join(err, closeModel(context.WithoutCancel(ctx), entry.model))
 		}
 	} else {
 		if err := c.evict(ctx); err != nil {
 			return zero, err
 		}
-		model, err := c.load(ctx, path, input)
+		model, err := c.load(ctx, store, path, program, input)
 		if err != nil {
 			return zero, err
 		}
@@ -118,8 +121,8 @@ func (c *ScalarSessionCache[Input, Model, Output]) execute(
 		ctx, store, modelID, program, content, input, entry.model, c.bind,
 	)
 	if err != nil {
-		_ = closeModel(context.WithoutCancel(ctx), entry.model)
 		delete(c.entries, key)
+		err = errors.Join(err, closeModel(context.WithoutCancel(ctx), entry.model))
 	}
 	return output, err
 }
@@ -145,7 +148,7 @@ func (c *ScalarSessionCache[Input, Model, Output]) Close(ctx context.Context) er
 	defer c.mu.Unlock()
 	var result error
 	for key, entry := range c.entries {
-		result = errors.Join(result, closeModel(ctx, entry.model))
+		result = errors.Join(result, closeModel(context.WithoutCancel(ctx), entry.model))
 		delete(c.entries, key)
 	}
 	return result
@@ -175,11 +178,7 @@ func executeScalar[Input, Model, Output any](
 	model Model,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
 ) (Output, error) {
-	var zero Output
 	definition := program.Definition()
-	if definition.Model != modelID || len(definition.Inputs) != 1 {
-		return zero, errors.New("capability runtime: scalar program identity differs")
-	}
 	inputPort := definition.Inputs[0]
 	return Execute[Output](
 		ctx, store, modelID, program,
@@ -189,6 +188,14 @@ func executeScalar[Input, Model, Output any](
 		},
 		func(runtime *workflowruntime.Runtime) error { return bind(runtime, modelID, model) },
 	)
+}
+
+func validateScalarProgram(modelID artifact.ID, program recipe.Program) error {
+	definition := program.Definition()
+	if definition.Model != modelID || len(definition.Inputs) != 1 {
+		return errors.New("capability runtime: scalar program identity differs")
+	}
+	return nil
 }
 
 func closeModel[Model any](ctx context.Context, model Model) error {

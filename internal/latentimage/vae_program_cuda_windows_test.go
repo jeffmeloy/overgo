@@ -102,7 +102,7 @@ func TestVAEDecodeCUDARealModelMatchesHost(t *testing.T) {
 		t.Skip("loads the ~286MB Krea VAE decoder; skipped in -short")
 	}
 	dir := kreaDirOrSkip(t)
-	d, err := LoadVAEDecoder(dir)
+	d, err := loadVAEDecoder(dir, kreaProfileOrSkip(t).Classes.VAE)
 	if err != nil {
 		t.Fatalf("LoadVAEDecoder: %v", err)
 	}

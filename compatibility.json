@@ -816,11 +816,11 @@
           "identity": "evidence:sha256:eec91789d29c66ecae29b756b2170030142091067cd9e87d97d06a5f6a8323c6"
         }
       ],
-      "id": "architecture-family-dispatch",
+      "id": "neutral-layer-dispatch",
       "evidence_tier": "contract-tested",
       "verify": "go test ./internal/model -run '^TestLayerProgramsCoverTypedProfiles$' -count=1 -v",
       "status": "implemented",
-      "summary": "Graph construction and tensor catalog validation route through compiled layer programs (per-family compiled policies), superseding the removed compatibility-layer family dispatcher."
+      "summary": "Graph construction and tensor catalog validation route through compiled neutral layer programs, superseding the removed compatibility-layer family dispatcher."
     },
     {
       "evidence": [
@@ -858,11 +858,11 @@
           "identity": "evidence:sha256:8cae89ffee386e9c98e26c4fa01db1b33e738d140580a9768d5b0525e24ed2b3"
         }
       ],
-      "id": "padded-t5-batches",
+      "id": "padded-encoder-decoder-batches",
       "evidence_tier": "contract-tested",
       "verify": "go test ./internal/inference -run '^TestValidatePaddedTokenBatchMasksSuffixes$' -count=1 -v",
       "status": "implemented",
-      "summary": "Rectangular T5 batches use explicit source and decoder lengths so padding never enters attention state."
+      "summary": "Rectangular encoder-decoder batches use explicit source and decoder lengths so padding never enters attention state."
     },
     {
       "evidence": [

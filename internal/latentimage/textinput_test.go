@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"overgo/internal/hfbpe"
-	"overgo/internal/modelrecipe"
 )
 
 // leInt64SHA hashes a sequence of ints as concatenated little-endian int64 -- the
@@ -49,7 +48,7 @@ const (
 	kreaGoldenMaskSHA = "be1a811db02b1ffb5f5bff0fec67336803eb66c5cbca199e23bea4c1f6799c63"
 )
 
-// TestRenderKreaTextInputLayout exercises pure fixed-row layout math (no
+// TestRenderKreaTextInputLayout exercises the pure fixed-row layout math (no
 // tokenizer, runs in CI): [prefix][prompt][pad...][suffix] with the pad region
 // unattended and PromptRows == maxPromptTokens.
 func TestRenderKreaTextInputLayout(t *testing.T) {
@@ -100,33 +99,29 @@ func TestRenderKreaTextInputGoldenSHA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load Qwen2 tokenizer: %v", err)
 	}
-	spec, err := Derive(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tmpl := spec.Profile.Conditioning
+	tmpl := kreaProfileOrSkip(t).Prompt
 
 	// Live-citation checks: the cited pad token + template counts vs the artifact.
 	assertKreaTemplateCitations(t, dir, tok, tmpl)
 
-	in, err := RenderTextInput(tok, kreaGoldenPrompt, tmpl)
+	in, err := renderTextInput(tok, kreaGoldenPrompt, tmpl)
 	if err != nil {
-		t.Fatalf("RenderTextInput: %v", err)
+		t.Fatalf("RenderKreaTextInput: %v", err)
 	}
 
 	// Row geometry: total = MaxPromptTokens + len(prefix)=34; PromptRows=512.
-	wantTotal := tmpl.MaxPromptTokens + tmpl.PrefixTokens // 512 + 34 = 546
+	wantTotal := tmpl.MaxTokens + tmpl.PrefixTokens // 512 + 34 = 546
 	if len(in.IDs) != wantTotal || len(in.Mask) != wantTotal {
 		t.Fatalf("ids=%d mask=%d want %d", len(in.IDs), len(in.Mask), wantTotal)
 	}
-	if in.PromptRows != tmpl.MaxPromptTokens {
-		t.Fatalf("PromptRows=%d want %d", in.PromptRows, tmpl.MaxPromptTokens)
+	if in.PromptRows != tmpl.MaxTokens {
+		t.Fatalf("PromptRows=%d want %d", in.PromptRows, tmpl.MaxTokens)
 	}
 
 	// Layout invariants: prefix rows attended; a pad gap (padID, unattended)
 	// precedes the 5 attended suffix rows at [padded:].
 	padID, _ := tok.SpecialID(tmpl.PadToken)
-	padded := tmpl.MaxPromptTokens + tmpl.PrefixTokens - tmpl.SuffixTokens // 541
+	padded := tmpl.MaxTokens + tmpl.PrefixTokens - tmpl.SuffixTokens // 541
 	trueMask := 0
 	padRows := 0
 	for i, id := range in.IDs {
@@ -147,7 +142,7 @@ func TestRenderKreaTextInputGoldenSHA(t *testing.T) {
 	}
 	// prompt token count P = attended - prefix(34) - suffix(5); pad rows = 507 - P.
 	promptLen := trueMask - tmpl.PrefixTokens - tmpl.SuffixTokens
-	if padRows != tmpl.MaxPromptTokens-tmpl.SuffixTokens-promptLen {
+	if padRows != tmpl.MaxTokens-tmpl.SuffixTokens-promptLen {
 		t.Fatalf("pad rows=%d inconsistent with prompt len=%d", padRows, promptLen)
 	}
 
@@ -172,7 +167,7 @@ func TestRenderKreaTextInputGoldenSHA(t *testing.T) {
 // artifact's tokenizer_config.json, and the prefix/suffix tokenize to the reference
 // conditioner's asserted counts (encoder.py prompt_template_encode_start_idx=34 /
 // suffix_start_idx=5) -- so a stale citation or tokenizer drift fails loudly.
-func assertKreaTemplateCitations(t *testing.T, dir string, tok *hfbpe.Tokenizer, tmpl modelrecipe.ImageConditioning) {
+func assertKreaTemplateCitations(t *testing.T, dir string, tok *hfbpe.Tokenizer, tmpl textTemplate) {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(dir, "tokenizer", "tokenizer_config.json"))
 	if err != nil {

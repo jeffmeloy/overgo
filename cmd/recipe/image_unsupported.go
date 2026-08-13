@@ -17,8 +17,9 @@ func imageCapability() capability {
 			"image-gen", oscillatorimage.ValidateRequest,
 			capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
 		),
-		definition: func(_ string, modelID artifact.ID) (recipe.Definition, error) {
-			return modelrecipe.OscillatorImageDefinition(modelID)
+		bind: func(_ string, modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+			definition, err := modelrecipe.OscillatorImageDefinition(modelID)
+			return definition, nil, err
 		},
 	}
 }

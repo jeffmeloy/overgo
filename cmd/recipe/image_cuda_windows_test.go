@@ -78,11 +78,14 @@ func writeInventorySafetensor(t *testing.T, path, tensor string) {
 
 func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-image-runtime")
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-image-profile")
 	tests := []struct {
 		define func(artifact.ID) (recipe.Definition, error)
 		want   recipe.ModuleID
 	}{
-		{modelrecipe.LatentImageDefinition, modelrecipe.ModuleLatentImagePrepare},
+		{func(model artifact.ID) (recipe.Definition, error) {
+			return modelrecipe.LatentImageDefinition(model, profileID)
+		}, modelrecipe.ModuleLatentImagePrepare},
 		{modelrecipe.OscillatorImageDefinition, modelrecipe.ModuleOscillatorImagePrepare},
 	}
 	for _, test := range tests {
@@ -101,19 +104,23 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 }
 
 func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
-	profile, ok, err := modelrecipe.ImageProfileForPipeline("Krea2Pipeline")
+	root := t.TempDir()
+	testutil.WriteImageProfileFixture(t, root)
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "profile-bound-image")
+	definition, facts, err := imageCapability().bind(root, modelID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ok || profile.Recognition.Scheduler != "FlowMatchEulerDiscreteScheduler" ||
-		profile.Conditioning.PadToken != "<|endoftext|>" || profile.Sampling.Steps != 8 {
-		t.Fatalf("image recipe profile=%+v present=%v", profile, ok)
+	profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
+	if !ok || len(facts) != 1 || facts[0].Descriptor.ID != profileID {
+		t.Fatalf("profile binding = (%s, %v), facts=%+v", profileID, ok, facts)
 	}
 }
 
 func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "encoded-image-runtime")
-	definition, err := modelrecipe.LatentImageDefinition(modelID)
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "encoded-image-profile")
+	definition, err := modelrecipe.LatentImageDefinition(modelID, profileID)
 	if err != nil {
 		t.Fatal(err)
 	}

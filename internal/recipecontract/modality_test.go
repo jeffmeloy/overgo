@@ -13,11 +13,14 @@ import (
 
 func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-image-modality")
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-image-profile")
 	tests := []struct {
 		define func(artifact.ID) (recipe.Definition, error)
 		want   []recipecontract.Modality
 	}{
-		{modelrecipe.LatentImageDefinition, []recipecontract.Modality{recipecontract.ModalityText}},
+		{func(model artifact.ID) (recipe.Definition, error) {
+			return modelrecipe.LatentImageDefinition(model, profileID)
+		}, []recipecontract.Modality{recipecontract.ModalityText}},
 		{modelrecipe.OscillatorImageDefinition, []recipecontract.Modality{recipecontract.ModalityTable}},
 		{modelrecipe.RoutedImageDefinition, []recipecontract.Modality{recipecontract.ModalityText}},
 	}

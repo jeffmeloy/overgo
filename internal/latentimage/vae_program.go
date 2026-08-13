@@ -81,7 +81,7 @@ func (g *vaeGraphBuilder) weight(data []float32, dims ...uint64) *tensor.Tensor 
 }
 
 // CompileVAEProgram builds the decode graph for a latent of extent h x w from
-// an already-derived, weight-resident VAEDecoder (vae.go LoadVAEDecoder). The
+// an already-derived, weight-resident VAEDecoder (vae.go loadVAEDecoder). The
 // op list, channel chain and every weight come from d, so the graph and the
 // host reference cannot drift. matmulType selects rank-2 weight storage; only
 // dtype.F32 is supported here (the host-feed exact-parity path -- the VAE decode

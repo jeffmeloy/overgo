@@ -3,8 +3,6 @@ package latentimage
 import (
 	"os"
 	"testing"
-
-	"overgo/internal/modelrecipe"
 )
 
 // kreaModelDir: the real Krea-2-Turbo artifact (READ-ONLY). Absent -> skip
@@ -20,10 +18,20 @@ func kreaDirOrSkip(t *testing.T) string {
 	return kreaModelDir
 }
 
+func kreaProfileOrSkip(t *testing.T) Profile {
+	t.Helper()
+	profile, err := ResolveProfile(kreaDirOrSkip(t))
+	if err != nil {
+		t.Fatalf("ResolveProfile: %v", err)
+	}
+	return profile
+}
+
 // TestRecognizePipeline: the recognizer classifies the real artifact by
 // model_index.json class and returns a fully config-cross-checked spec.
 func TestRecognizePipeline(t *testing.T) {
 	dir := kreaDirOrSkip(t)
+	profile := kreaProfileOrSkip(t)
 	spec, ok, err := RecognizePipeline(dir)
 	if err != nil {
 		t.Fatalf("RecognizePipeline: %v", err)
@@ -31,10 +39,10 @@ func TestRecognizePipeline(t *testing.T) {
 	if !ok {
 		t.Fatal("RecognizePipeline: not recognized")
 	}
-	if spec.Pipeline != spec.Profile.Recognition.Pipeline || spec.Family != spec.Profile.Family || !spec.ServingOnly {
+	if spec.Pipeline != profile.Classes.Pipeline || spec.Profile != profile.ID || spec.Family != FamilyTag || !spec.ServingOnly {
 		t.Fatalf("tags: pipeline=%q family=%q servingOnly=%v", spec.Pipeline, spec.Family, spec.ServingOnly)
 	}
-	if string(spec.Tokenizer) != spec.Profile.Recognition.Tokenizer {
+	if spec.Tokenizer != TokenizerKind(profile.Classes.Tokenizer) {
 		t.Fatalf("tokenizer=%q", spec.Tokenizer)
 	}
 	t.Logf("recognized: pipeline=%s family=%s scheduler=%s distilled=%v patch=%d serving_only=%v tokenizer=%s",
@@ -53,19 +61,6 @@ func TestRecognizePipeline(t *testing.T) {
 		spec.TextEncoder.ModelType, spec.TextEncoder.HiddenLayers, spec.TextEncoder.Hidden, spec.TextEncoder.Heads,
 		spec.TextEncoder.KVHeads, spec.TextEncoder.HeadDim, spec.TextEncoder.VocabSize, spec.TextEncoder.RopeTheta,
 		spec.TextEncoder.SelectLayers)
-}
-
-func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
-	spec, err := Derive(kreaDirOrSkip(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	policy := spec.Profile
-	if policy.ID == "" || policy.Conditioning.MaxPromptTokens != 512 || policy.Sampling.Steps != 8 ||
-		policy.Sampling.NumTrainTimesteps != 1000 || policy.Sampling.DynamicShiftMu != 1.15 ||
-		spec.Scheduler != policy.Recognition.Scheduler || string(spec.Tokenizer) != policy.Recognition.Tokenizer {
-		t.Fatalf("spec/profile mismatch: %+v", policy)
-	}
 }
 
 // TestVerifyCheckpoint: the CPU structural oracle -- every derived dim asserted
@@ -95,18 +90,15 @@ func TestVerifyCheckpoint(t *testing.T) {
 // serving-in-progress image-diffusion media model (serving path not yet built).
 func TestEnumerate(t *testing.T) {
 	kreaDirOrSkip(t)
+	profile := kreaProfileOrSkip(t)
 	root := `C:\Users\jeffm\adaptive_new\models`
 	models, err := Enumerate(root)
 	if err != nil {
 		t.Fatalf("Enumerate: %v", err)
 	}
 	var found *MediaModel
-	profile, ok, err := modelrecipe.ImageProfileForPipeline("Krea2Pipeline")
-	if err != nil || !ok {
-		t.Fatalf("image profile: present=%v err=%v", ok, err)
-	}
 	for i := range models {
-		if models[i].Spec.Pipeline == profile.Recognition.Pipeline {
+		if models[i].Spec.Pipeline == profile.Classes.Pipeline {
 			found = &models[i]
 		}
 		t.Logf("enumerated: dir=%s family=%s kind=%s status=%q serving=%v",
@@ -115,7 +107,7 @@ func TestEnumerate(t *testing.T) {
 	if found == nil {
 		t.Fatal("Krea-2-Turbo not enumerated from models root")
 	}
-	if found.Serving || found.Status != StatusRecognized || found.Kind != mediaKind || found.Family != profile.Family {
+	if found.Serving || found.Status != StatusRecognized || found.Kind != mediaKind || found.Family != FamilyTag {
 		t.Fatalf("bad descriptor: %+v", *found)
 	}
 }

@@ -70,7 +70,7 @@ func TestEncoderProgramMaskedCUDAMatchesReference(t *testing.T) {
 
 // TestEncoderMaskedResidentRealCheckpoint drives the MASKED device bf16 encoder
 // over the REAL Krea-2-Turbo checkpoint on the templated [prefix][prompt][pad]
-// [suffix] layout (RenderTextInput) and asserts the device selected-hidden
+// [suffix] layout (RenderKreaTextInput) and asserts the device selected-hidden
 // matches the MASKED f64 host oracle (EncodeSelectedLayersMasked) within the
 // bf16 band -- closing the pad-key masking residual dtc-encoder documented. A
 // reduced max_prompt_tokens keeps the f64 oracle tractable while still exercising
@@ -93,11 +93,11 @@ func TestEncoderMaskedResidentRealCheckpoint(t *testing.T) {
 
 	// Real templated masked input at a tractable pad budget (still 34 prefix + 5
 	// suffix + a genuine pad region between prompt and suffix).
-	tmpl := spec.Profile.Conditioning
-	tmpl.MaxPromptTokens = 24
-	in, err := RenderTextInput(tok, "a red fox eating ice cream, studio photograph", tmpl)
+	tmpl := kreaProfileOrSkip(t).Prompt
+	tmpl.MaxTokens = 24
+	in, err := renderTextInput(tok, "a red fox eating ice cream, studio photograph", tmpl)
 	if err != nil {
-		t.Fatalf("RenderTextInput: %v", err)
+		t.Fatalf("RenderKreaTextInput: %v", err)
 	}
 	attended, pad := 0, 0
 	for _, m := range in.Mask {

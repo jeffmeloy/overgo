@@ -13,31 +13,30 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func TestValidateStep35MTP(t *testing.T) {
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "step35", NextNPredictLayers: 2}},
-		weights: model.Weights{Step35MTP: make([]model.Step35MTPWeights, 2)}},
-	}
-	runner = attachFixtureProgram(runner)
-	if err := runner.validateStep35MTP(); err != nil {
-		t.Fatal(err)
-	}
-	runner.weights.Step35MTP = runner.weights.Step35MTP[:1]
-	if err := runner.validateStep35MTP(); err == nil {
-		t.Fatal("incomplete Step3.5 MTP head catalog was accepted")
-	}
-}
-
-func TestValidateHYV3MTP(t *testing.T) {
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "hy_v3", NextNPredictLayers: 2}},
-		weights: model.Weights{HYV3MTP: make([]model.Step35MTPWeights, 2)}},
-	}
-	runner = attachFixtureProgram(runner)
-	if err := runner.validateHYV3MTP(); err != nil {
-		t.Fatal(err)
-	}
-	runner.weights.HYV3MTP = runner.weights.HYV3MTP[:1]
-	if err := runner.validateHYV3MTP(); err == nil {
-		t.Fatal("incomplete HY-V3 MTP head catalog was accepted")
+func TestCompiledMultiHeadMTPRequiresCompleteCatalog(t *testing.T) {
+	for _, fixture := range []struct {
+		architecture string
+		weights      model.Weights
+		truncate     func(*model.Weights)
+	}{
+		{architecture: "step35", weights: model.Weights{Step35MTP: make([]model.Step35MTPWeights, 2)},
+			truncate: func(weights *model.Weights) { weights.Step35MTP = weights.Step35MTP[:1] }},
+		{architecture: "hy_v3", weights: model.Weights{HYV3MTP: make([]model.Step35MTPWeights, 2)},
+			truncate: func(weights *model.Weights) { weights.HYV3MTP = weights.HYV3MTP[:1] }},
+	} {
+		runner := attachFixtureProgram(&Runner{preparedModel: preparedModel{
+			spec: model.Spec{CommonSpec: model.CommonSpec{
+				Architecture: fixture.architecture, NextNPredictLayers: 2,
+			}},
+			weights: fixture.weights,
+		}})
+		if _, err := runner.multiHeadMTP(); err != nil {
+			t.Fatalf("%s complete catalog: %v", fixture.architecture, err)
+		}
+		fixture.truncate(&runner.weights)
+		if _, err := runner.multiHeadMTP(); err == nil {
+			t.Fatalf("%s incomplete catalog was accepted", fixture.architecture)
+		}
 	}
 }
 
@@ -69,14 +68,14 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	}
 	defer runner.Close()
 	ctx := context.Background()
-	session, err := runner.NewStep35MTPSession(ctx, []tokenizer.TokenID{0})
+	session, err := runner.NewMultiHeadMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(session.Heads) != int(runner.spec.NextNPredictLayers) {
 		t.Fatalf("Step3.5 MTP head count = %d", len(session.Heads))
 	}
-	logits, next, err := runner.AdvanceStep35MTP(ctx, 0, session)
+	logits, next, err := runner.AdvanceMultiHeadMTP(ctx, 0, session)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +87,7 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	if len(next.Heads) < 2 {
 		return
 	}
-	_, third, err := runner.AdvanceStep35MTP(ctx, 0, next)
+	_, third, err := runner.AdvanceMultiHeadMTP(ctx, 0, next)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,18 +95,18 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 		third.Heads[1].Key.Shape.Dims[2] != uint64(session.MTPStart+2) {
 		t.Fatalf("Step3.5 head-1 cache did not rebuild the draft prefix: %+v", third)
 	}
-	coordinatorSession, err := runner.NewStep35MTPSession(ctx, []tokenizer.TokenID{0})
+	coordinatorSession, err := runner.NewMultiHeadMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, err := runner.DraftStep35MTPGreedy(ctx, 0, coordinatorSession, 10, 0)
+	draft, err := runner.DraftMultiHeadMTPGreedy(ctx, 0, coordinatorSession, 10, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(draft.Tokens) > int(runner.spec.NextNPredictLayers) {
 		t.Fatalf("Step3.5 greedy draft exceeded trained heads: %+v", draft)
 	}
-	verification, err := runner.VerifyStep35MTPGreedy(ctx, runner, draft)
+	verification, err := runner.VerifyMultiHeadMTPGreedy(ctx, runner, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +132,7 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sampledDraft, err := runner.DraftStep35MTPSampled(
+	sampledDraft, err := runner.DraftMultiHeadMTPSampled(
 		ctx, coordinatorSession, draftSampler, []tokenizer.TokenID{0}, 10, 0,
 	)
 	if err != nil {
@@ -146,7 +145,7 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Step3.5 sampled drafting changed caller sampler state")
 	}
-	sampledVerification, err := runner.VerifyStep35MTPSampled(
+	sampledVerification, err := runner.VerifyMultiHeadMTPSampled(
 		ctx, runner, sampledDraft, draftSampler, targetSampler,
 	)
 	if err != nil {
@@ -176,11 +175,11 @@ func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
 	}
 	defer runner.Close()
 	ctx := context.Background()
-	session, err := runner.NewHYV3MTPSession(ctx, []tokenizer.TokenID{0})
+	session, err := runner.NewMultiHeadMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	logits, next, err := runner.AdvanceHYV3MTP(ctx, 0, session)
+	logits, next, err := runner.AdvanceMultiHeadMTP(ctx, 0, session)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,15 +187,15 @@ func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
 		next.Position != session.Position+1 || len(next.DraftTokens) != 1 {
 		t.Fatalf("unexpected HY-V3 MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
 	}
-	coordinatorSession, err := runner.NewHYV3MTPSession(ctx, []tokenizer.TokenID{0})
+	coordinatorSession, err := runner.NewMultiHeadMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, err := runner.DraftHYV3MTPGreedy(ctx, 0, coordinatorSession, 10, 0)
+	draft, err := runner.DraftMultiHeadMTPGreedy(ctx, 0, coordinatorSession, 10, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	verification, err := runner.VerifyHYV3MTPGreedy(ctx, runner, draft)
+	verification, err := runner.VerifyMultiHeadMTPGreedy(ctx, runner, draft)
 	if err != nil {
 		t.Fatal(err)
 	}

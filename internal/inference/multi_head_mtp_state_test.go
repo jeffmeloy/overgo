@@ -11,87 +11,87 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func TestStep35MTPSessionStateRoundTrip(t *testing.T) {
-	runner := step35MTPStateRunner()
-	session := step35MTPStateFixture(t, runner, true)
-	data, err := runner.SaveStep35MTPSession(session)
+func TestMultiHeadMTPSessionStateRoundTrip(t *testing.T) {
+	runner := multiHeadMTPStateRunner()
+	session := multiHeadMTPStateFixture(t, runner, true)
+	data, err := runner.SaveMultiHeadMTPSession(session)
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := runner.LoadStep35MTPSession(data)
+	restored, err := runner.LoadMultiHeadMTPSession(data)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(restored, session) {
-		t.Fatalf("restored Step3.5 MTP session differs:\n got %+v\nwant %+v", restored, session)
+		t.Fatalf("restored multi-head MTP session differs:\n got %+v\nwant %+v", restored, session)
 	}
-	fresh := step35MTPStateFixture(t, runner, false)
-	freshData, err := runner.SaveStep35MTPSession(fresh)
+	fresh := multiHeadMTPStateFixture(t, runner, false)
+	freshData, err := runner.SaveMultiHeadMTPSession(fresh)
 	if err != nil {
 		t.Fatal(err)
 	}
-	freshRestored, err := runner.LoadStep35MTPSession(freshData)
+	freshRestored, err := runner.LoadMultiHeadMTPSession(freshData)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(freshRestored, fresh) {
-		t.Fatalf("fresh Step3.5 MTP session differs: got %+v want %+v", freshRestored, fresh)
+		t.Fatalf("fresh multi-head MTP session differs: got %+v want %+v", freshRestored, fresh)
 	}
 }
 
-func TestHYV3MTPSessionStateRoundTrip(t *testing.T) {
-	runner := step35MTPStateRunner()
+func TestAlternateMultiHeadMTPSessionStateRoundTrip(t *testing.T) {
+	runner := multiHeadMTPStateRunner()
 	runner.spec.Architecture = "hy_v3"
 	runner.weights.HYV3MTP = runner.weights.Step35MTP
 	runner.weights.Step35MTP = nil
 	runner = attachFixtureProgram(runner)
-	session := step35MTPStateFixture(t, runner, true)
-	data, err := runner.SaveHYV3MTPSession(session)
+	session := multiHeadMTPStateFixture(t, runner, true)
+	data, err := runner.SaveMultiHeadMTPSession(session)
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := runner.LoadHYV3MTPSession(data)
+	restored, err := runner.LoadMultiHeadMTPSession(data)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(restored, session) {
-		t.Fatalf("restored HY-V3 MTP session differs:\n got %+v\nwant %+v", restored, session)
+		t.Fatalf("restored alternate multi-head MTP session differs:\n got %+v\nwant %+v", restored, session)
 	}
 }
 
-func TestStep35MTPSessionStateRejectsCorruption(t *testing.T) {
-	runner := step35MTPStateRunner()
-	data, err := runner.SaveStep35MTPSession(step35MTPStateFixture(t, runner, true))
+func TestMultiHeadMTPSessionStateRejectsCorruption(t *testing.T) {
+	runner := multiHeadMTPStateRunner()
+	data, err := runner.SaveMultiHeadMTPSession(multiHeadMTPStateFixture(t, runner, true))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, length := range []int{0, step35MTPStateHeader - 1, len(data) - 1} {
-		if _, err := runner.LoadStep35MTPSession(data[:length]); err == nil {
-			t.Fatalf("truncated Step3.5 MTP state length %d was accepted", length)
+	for _, length := range []int{0, multiHeadMTPStateHeader - 1, len(data) - 1} {
+		if _, err := runner.LoadMultiHeadMTPSession(data[:length]); err == nil {
+			t.Fatalf("truncated multi-head MTP state length %d was accepted", length)
 		}
 	}
 	trailing := append(append([]byte(nil), data...), 0)
-	if _, err := runner.LoadStep35MTPSession(trailing); err == nil {
-		t.Fatal("Step3.5 MTP state trailing data was accepted")
+	if _, err := runner.LoadMultiHeadMTPSession(trailing); err == nil {
+		t.Fatal("multi-head MTP state trailing data was accepted")
 	}
 	badHeads := append([]byte(nil), data...)
 	binary.LittleEndian.PutUint32(badHeads[80:], 1)
-	if _, err := runner.LoadStep35MTPSession(badHeads); err == nil {
-		t.Fatal("Step3.5 MTP state with incomplete heads was accepted")
+	if _, err := runner.LoadMultiHeadMTPSession(badHeads); err == nil {
+		t.Fatal("multi-head MTP state with incomplete heads was accepted")
 	}
 	zeroTarget := append([]byte(nil), data...)
 	clear(zeroTarget[40:72])
-	if _, err := runner.LoadStep35MTPSession(zeroTarget); err == nil {
-		t.Fatal("Step3.5 MTP state without target binding was accepted")
+	if _, err := runner.LoadMultiHeadMTPSession(zeroTarget); err == nil {
+		t.Fatal("multi-head MTP state without target binding was accepted")
 	}
-	other := step35MTPStateRunner()
+	other := multiHeadMTPStateRunner()
 	other.spec.Name = "different"
-	if _, err := other.LoadStep35MTPSession(data); err == nil {
-		t.Fatal("Step3.5 MTP state from another model was accepted")
+	if _, err := other.LoadMultiHeadMTPSession(data); err == nil {
+		t.Fatal("multi-head MTP state from another model was accepted")
 	}
 }
 
-func step35MTPStateRunner() *Runner {
+func multiHeadMTPStateRunner() *Runner {
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "step35", Name: "state-test", BlockCount: 1, NextNPredictLayers: 2,
 		ContextLength: 32, EmbeddingLength: 8, FeedForwardLength: 16,
 
@@ -106,7 +106,7 @@ func step35MTPStateRunner() *Runner {
 	})
 }
 
-func step35MTPStateFixture(t *testing.T, runner *Runner, active bool) *Step35MTPSession {
+func multiHeadMTPStateFixture(t *testing.T, runner *Runner, active bool) *MultiHeadMTPSession {
 	t.Helper()
 	signature, err := runner.sessionModelSignature()
 	if err != nil {
@@ -139,7 +139,7 @@ func step35MTPStateFixture(t *testing.T, runner *Runner, active bool) *Step35MTP
 			Shape: tensor.MustShape(8, 1), Data: []float32{9, 10, 11, 12, 13, 14, 15, 16},
 		}}
 	}
-	return &Step35MTPSession{
+	return &MultiHeadMTPSession{
 		TrunkCache: &KVCache{Layers: []LayerCache{trunk}, Tokens: 2, Position: 2},
 		Heads: []LayerCache{
 			{

@@ -47,6 +47,7 @@ type DraftPlan struct {
 	SingleCatalog   bool
 	OptionalCatalog bool
 	SupportsMTPOnly bool
+	CarryRawHidden  bool
 	Session         DraftSessionPolicy
 }
 
@@ -354,6 +355,7 @@ func (p ArchitectureProfile) DraftPlan(heads uint32) DraftPlan {
 		plan.SupportsMTPOnly, plan.Session = true, DraftSessionSingle
 	case DraftStep35MTP:
 		plan.Label, plan.AppendedBlocks, plan.Session = "Step3.5 MTP", true, DraftSessionMulti
+		plan.CarryRawHidden = true
 	case DraftHYV3MTP:
 		plan.Label, plan.AppendedBlocks, plan.Session = "HY-V3 MTP", true, DraftSessionMulti
 	case DraftNextNMTP:

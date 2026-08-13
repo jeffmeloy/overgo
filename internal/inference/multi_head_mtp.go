@@ -13,8 +13,8 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// Step35MTPSession: trunk snapshot plus per-head draft state.
-type Step35MTPSession struct {
+// MultiHeadMTPSession: trunk snapshot plus per-head draft state.
+type MultiHeadMTPSession struct {
 	TrunkCache    *KVCache
 	Heads         []LayerCache
 	PendingHidden reference.Value
@@ -25,50 +25,26 @@ type Step35MTPSession struct {
 	targetModel   [32]byte
 }
 
-// HYV3MTPSession: HY-V3 multi-head draft state.
-type HYV3MTPSession = Step35MTPSession
-
-// NewStep35MTPSession: trunk prefill plus per-head catch-up.
-func (r *Runner) NewStep35MTPSession(
+// NewMultiHeadMTPSession compiles trunk prefill plus per-head catch-up.
+func (r *Runner) NewMultiHeadMTPSession(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
-) (*Step35MTPSession, error) {
-	if err := r.validateStep35MTP(); err != nil {
-		return nil, err
-	}
-	return r.newMultiHeadMTPSession(ctx, tokenIDs)
-}
-
-// NewHYV3MTPSession: HY-V3 trunk and head prefill.
-func (r *Runner) NewHYV3MTPSession(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-) (*HYV3MTPSession, error) {
-	if err := r.validateHYV3MTP(); err != nil {
-		return nil, err
-	}
-	return r.newMultiHeadMTPSession(ctx, tokenIDs)
-}
-
-func (r *Runner) newMultiHeadMTPSession(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-) (*Step35MTPSession, error) {
+) (*MultiHeadMTPSession, error) {
 	if r == nil || len(tokenIDs) == 0 {
-		return nil, errors.New("inference: Step3.5 MTP inputs are invalid")
+		return nil, errors.New("inference: multi-head MTP inputs are invalid")
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
-		return nil, errors.New("inference: Step3.5 MTP runner is unavailable")
+		return nil, errors.New("inference: multi-head MTP runner is unavailable")
 	}
-	if err := r.validateMultiHeadMTP(); err != nil {
+	plan, err := r.multiHeadMTP()
+	if err != nil {
 		return nil, err
 	}
 	var hidden reference.Value
 	var cache *KVCache
-	var err error
-	if r.usesStep35MTPGraph() {
+	if plan.CarryRawHidden {
 		hidden, cache, err = r.forwardCachedPreOutputNormLocked(ctx, tokenIDs, nil)
 	} else {
 		hidden, cache, err = r.forwardCachedLocked(ctx, tokenIDs, nil)
@@ -85,13 +61,13 @@ func (r *Runner) newMultiHeadMTPSession(
 		copy(shifted.Data[width:], hidden.Data[:len(hidden.Data)-width])
 	}
 	positions := tokenPositions(0, len(tokenIDs))
-	heads := make([]LayerCache, len(r.multiHeadMTPWeights()))
+	heads := make([]LayerCache, int(plan.Heads))
 	for offset := range heads {
 		_, _, headCache, runErr := r.runMultiHeadMTPHeadLocked(
 			ctx, tokenIDs, shifted, positions, nil, uint32(offset),
 		)
 		if runErr != nil {
-			return nil, fmt.Errorf("inference: Step3.5 MTP head %d prefill: %w", offset, runErr)
+			return nil, fmt.Errorf("inference: multi-head MTP head %d prefill: %w", offset, runErr)
 		}
 		heads[offset] = headCache
 	}
@@ -101,61 +77,39 @@ func (r *Runner) newMultiHeadMTPSession(
 	}
 	last := lastHiddenColumn(hidden)
 	position := effectiveCachePosition(cache)
-	return &Step35MTPSession{
+	return &MultiHeadMTPSession{
 		TrunkCache: cache, Heads: heads, PendingHidden: last,
 		MTPStart: position, Position: position, targetModel: targetModel,
 	}, nil
 }
 
-// AdvanceStep35MTP: next trained head over growing draft prefix.
-func (r *Runner) AdvanceStep35MTP(
+// AdvanceMultiHeadMTP executes the next compiled trained head.
+func (r *Runner) AdvanceMultiHeadMTP(
 	ctx context.Context,
 	tokenID tokenizer.TokenID,
-	session *Step35MTPSession,
-) (reference.Value, *Step35MTPSession, error) {
-	if err := r.validateStep35MTP(); err != nil {
-		return reference.Value{}, nil, err
-	}
-	return r.advanceMultiHeadMTP(ctx, tokenID, session)
-}
-
-// AdvanceHYV3MTP: next HY-V3 trained head.
-func (r *Runner) AdvanceHYV3MTP(
-	ctx context.Context,
-	tokenID tokenizer.TokenID,
-	session *HYV3MTPSession,
-) (reference.Value, *HYV3MTPSession, error) {
-	if err := r.validateHYV3MTP(); err != nil {
-		return reference.Value{}, nil, err
-	}
-	return r.advanceMultiHeadMTP(ctx, tokenID, session)
-}
-
-func (r *Runner) advanceMultiHeadMTP(
-	ctx context.Context,
-	tokenID tokenizer.TokenID,
-	session *Step35MTPSession,
-) (reference.Value, *Step35MTPSession, error) {
+	session *MultiHeadMTPSession,
+) (reference.Value, *MultiHeadMTPSession, error) {
 	if r == nil || session == nil {
-		return reference.Value{}, nil, errors.New("inference: Step3.5 MTP session is invalid")
+		return reference.Value{}, nil, errors.New("inference: multi-head MTP session is invalid")
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
-		return reference.Value{}, nil, errors.New("inference: Step3.5 MTP runner is unavailable")
+		return reference.Value{}, nil, errors.New("inference: multi-head MTP runner is unavailable")
 	}
-	if err := r.validateMultiHeadMTP(); err != nil {
+	plan, err := r.multiHeadMTP()
+	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if err := r.validateStep35MTPSession(session); err != nil {
+	if err := r.validateMultiHeadMTPSession(session); err != nil {
 		return reference.Value{}, nil, err
 	}
 	if tokenID < 0 || int(tokenID) >= r.vocab.Len() {
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
 	offset := len(session.DraftTokens)
-	if offset >= len(r.multiHeadMTPWeights()) {
-		return reference.Value{}, nil, errors.New("inference: Step3.5 MTP head chain is exhausted")
+	if offset >= int(plan.Heads) {
+		return reference.Value{}, nil, errors.New("inference: multi-head MTP head chain is exhausted")
 	}
 	tokens := append(slices.Clone(session.DraftTokens), tokenID)
 	width := int(r.spec.EmbeddingLength)
@@ -182,7 +136,7 @@ func (r *Runner) advanceMultiHeadMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	next := &Step35MTPSession{
+	next := &MultiHeadMTPSession{
 		TrunkCache: session.TrunkCache,
 		Heads:      slices.Clone(session.Heads),
 		PendingHidden: reference.Value{
@@ -208,15 +162,18 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	past *LayerCache,
 	offset uint32,
 ) (reference.Value, reference.Value, LayerCache, error) {
-	mtpWeights := r.multiHeadMTPWeights()
-	if offset >= uint32(len(mtpWeights)) || len(tokenIDs) == 0 || len(positions) != len(tokenIDs) {
-		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: Step3.5 MTP head inputs are invalid")
+	plan, err := r.multiHeadMTP()
+	if err != nil || !plan.HasHead(offset) || len(tokenIDs) == 0 || len(positions) != len(tokenIDs) {
+		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: multi-head MTP head inputs are invalid")
 	}
 	rows, err := r.tokenRows(tokenIDs)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
-	mtp := mtpWeights[offset]
+	mtp, ok := r.weights.DraftCatalog(plan.Kind, offset)
+	if !ok {
+		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: compiled MTP catalog is unavailable")
+	}
 	embeddingInfo := r.weights.TokenEmbedding
 	if mtp.TokenEmbedding != nil {
 		embeddingInfo = *mtp.TokenEmbedding
@@ -226,13 +183,13 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	if !hidden.Shape.Equal(tokenEmbedding.Shape) {
-		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: Step3.5 MTP hidden shape is incompatible")
+		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: multi-head MTP hidden shape is incompatible")
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
-	tokenInput := runtime.input("step35_mtp.token", tokenEmbedding)
-	hiddenInput := runtime.input("step35_mtp.hidden", hidden)
+	tokenInput := runtime.input("multi_head_mtp.token", tokenEmbedding)
+	hiddenInput := runtime.input("multi_head_mtp.hidden", hidden)
 	graphWeights, err := runtime.layer(
-		mtp.Layer, fmt.Sprintf("blk.%d.", r.spec.BlockCount+offset),
+		mtp.Layer, fmt.Sprintf("blk.%d.", plan.Block(r.spec.BlockCount, offset)),
 	)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
@@ -261,13 +218,13 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if past != nil && past.Key.Shape.Rank != 0 {
-		pastKey = runtime.input("step35_mtp.past_key", past.Key)
-		pastValue = runtime.input("step35_mtp.past_value", past.Value)
+		pastKey = runtime.input("multi_head_mtp.past_key", past.Key)
+		pastValue = runtime.input("multi_head_mtp.past_value", past.Value)
 	}
-	plan := draftProgram.Layer()
+	layerPlan := draftProgram.Layer()
 	block, err := draftProgram.Build(model.CachedBlockContext{
 		Builder: runtime.builder, Input: current, Positions: positions,
-		PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
+		PastKey: pastKey, PastValue: pastValue, Layer: layerPlan.Layer,
 	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
@@ -297,62 +254,54 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	}, nil
 }
 
-func (r *Runner) validateStep35MTP() error {
-	if r == nil || !r.hasDraftSession(model.DraftStep35MTP, len(r.weights.Step35MTP)) {
-		return errors.New("inference: model has no supported Step3.5 MTP heads")
-	}
-	return nil
-}
-
-func (r *Runner) usesStep35MTPGraph() bool {
-	return r != nil && r.program.Model.Draft().Kind == model.DraftStep35MTP
-}
-
-func (r *Runner) validateHYV3MTP() error {
-	if r == nil || !r.hasDraftSession(model.DraftHYV3MTP, len(r.weights.HYV3MTP)) {
-		return errors.New("inference: model has no supported HY-V3 MTP heads")
-	}
-	return nil
-}
-
-func (r *Runner) validateMultiHeadMTP() error {
+func (r *Runner) multiHeadMTP() (model.DraftPlan, error) {
 	if r == nil {
-		return errors.New("inference: MTP runner is nil")
+		return model.DraftPlan{}, errors.New("inference: MTP runner is nil")
 	}
-	if r.program.Model.Draft().Kind == model.DraftHYV3MTP {
-		return r.validateHYV3MTP()
+	plan, ok := r.lookupMultiHeadMTP()
+	if !ok {
+		return model.DraftPlan{}, errors.New("inference: model has no complete multi-head MTP program")
 	}
-	return r.validateStep35MTP()
+	return plan, nil
 }
 
-func (r *Runner) multiHeadMTPWeights() []model.Step35MTPWeights {
-	if r != nil && r.program.Model.Draft().Kind == model.DraftHYV3MTP {
-		return r.weights.HYV3MTP
-	}
+func (r *Runner) lookupMultiHeadMTP() (model.DraftPlan, bool) {
 	if r == nil {
-		return nil
+		return model.DraftPlan{}, false
 	}
-	return r.weights.Step35MTP
+	plan := r.program.Model.Draft()
+	if plan.Session != model.DraftSessionMulti || !plan.AppendedBlocks || !plan.SessionEligible() {
+		return model.DraftPlan{}, false
+	}
+	catalog, ok := r.weights.DraftCatalog(plan.Kind, plan.Heads-1)
+	if !ok || catalog.Kind != plan.Kind {
+		return model.DraftPlan{}, false
+	}
+	return plan, true
 }
 
-func (r *Runner) validateStep35MTPSession(session *Step35MTPSession) error {
-	if session == nil || session.TrunkCache == nil || len(session.Heads) != len(r.multiHeadMTPWeights()) ||
+func (r *Runner) validateMultiHeadMTPSession(session *MultiHeadMTPSession) error {
+	plan, err := r.multiHeadMTP()
+	if err != nil {
+		return err
+	}
+	if session == nil || session.TrunkCache == nil || len(session.Heads) != int(plan.Heads) ||
 		len(session.DraftTokens) != len(session.DraftHidden) || len(session.DraftTokens) > len(session.Heads) ||
 		session.Position != session.MTPStart+uint32(len(session.DraftTokens)) || session.Position == math.MaxUint32 {
-		return errors.New("inference: Step3.5 MTP session state is incompatible")
+		return errors.New("inference: multi-head MTP session state is incompatible")
 	}
 	if err := r.validateCache(session.TrunkCache); err != nil {
-		return fmt.Errorf("inference: Step3.5 MTP trunk cache: %w", err)
+		return fmt.Errorf("inference: multi-head MTP trunk cache: %w", err)
 	}
 	if session.MTPStart != effectiveCachePosition(session.TrunkCache) ||
 		session.PendingHidden.Shape.Rank != 2 ||
 		session.PendingHidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) ||
 		session.PendingHidden.Shape.Dims[1] != 1 {
-		return errors.New("inference: Step3.5 MTP session state is incompatible")
+		return errors.New("inference: multi-head MTP session state is incompatible")
 	}
 	for _, hidden := range session.DraftHidden {
 		if !hidden.Shape.Equal(session.PendingHidden.Shape) {
-			return errors.New("inference: Step3.5 MTP draft hidden state is incompatible")
+			return errors.New("inference: multi-head MTP draft hidden state is incompatible")
 		}
 	}
 	for offset, layer := range session.Heads {
@@ -373,7 +322,7 @@ func (r *Runner) validateStep35MTPSession(session *Step35MTPSession) error {
 		)
 		if !layer.Key.Shape.Equal(keyShape) || !layer.Value.Shape.Equal(valueShape) ||
 			len(layer.Key.Data) == 0 || len(layer.Value.Data) == 0 {
-			return fmt.Errorf("inference: Step3.5 MTP head %d cache is incompatible", offset)
+			return fmt.Errorf("inference: multi-head MTP head %d cache is incompatible", offset)
 		}
 	}
 	return nil

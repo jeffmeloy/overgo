@@ -16,13 +16,12 @@ const (
 type mtpPolicy struct {
 	label         string
 	normalization mtpNormalization
-	carryRaw      bool
 	scaleLogits   bool
 }
 
 var draftMTPPolicies = [...]mtpPolicy{
 	DraftQwen35MTP:  {label: "Qwen3.5"},
-	DraftStep35MTP:  {label: "Step3.5", carryRaw: true},
+	DraftStep35MTP:  {label: "Step3.5"},
 	DraftHYV3MTP:    {label: "HY-V3"},
 	DraftNextNMTP:   {label: "NextN"},
 	DraftCohere2MTP: {label: "Cohere2-MoE", normalization: mtpArchitectureNorm, scaleLogits: true},
@@ -61,6 +60,7 @@ func (p CompiledLayerProgram) BuildDraftOutputs(
 	}
 	return buildMTPOutputs(
 		builder, input, outputNorm, output, p.spec, policy,
+		p.spec.Profile().DraftPlan(p.spec.NextNPredictLayers).CarryRawHidden,
 	)
 }
 
@@ -109,6 +109,7 @@ func buildMTPOutputs(
 	input, outputNorm, output *tensor.Tensor,
 	spec Spec,
 	policy mtpPolicy,
+	carryRaw bool,
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	if builder == nil || input == nil || outputNorm == nil || output == nil {
 		return nil, nil, errors.New(policy.label + " MTP output is nil")
@@ -118,7 +119,7 @@ func buildMTPOutputs(
 	}
 	normalized := normalizeMTP(builder, input, outputNorm, spec, policy.normalization)
 	nextHidden = normalized
-	if policy.carryRaw {
+	if carryRaw {
 		nextHidden = input
 	}
 	logits = builder.MulMat(output, normalized)

@@ -220,8 +220,6 @@ const (
 // LayerPlan: derived layer execution contract.
 type LayerPlan struct {
 	Layer             uint32
-	GraphFamily       ArchitectureFamily
-	CatalogFamily     ArchitectureFamily
 	Program           LayerProgram
 	Composition       LayerCompositionPolicy
 	Cache             CachePolicy
@@ -252,7 +250,8 @@ type LayerPlan struct {
 	Experts           MoEGraphPlan
 	ExpertComposition ExpertCompositionPlan
 	DenseWeights      DenseWeightPlan
-	DenseGraph        DenseGraphPolicy
+	SplitProjection   bool
+	ExplicitEncoder   bool
 	DeciSparse        bool
 	QKPreprocess      QKPreprocessPlan
 	QueryScale        QueryScalePlan
@@ -331,8 +330,6 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	}
 	plan := LayerPlan{
 		Layer:             layer,
-		GraphFamily:       profile.GraphFamily,
-		CatalogFamily:     profile.CatalogFamily,
 		Attention:         profile.Attention,
 		Position:          profile.Position,
 		Residual:          profile.Residual,
@@ -362,13 +359,15 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Experts:           experts,
 		ExpertComposition: s.expertCompositionPlan(),
 		DenseWeights:      s.denseWeightPlan(profile, layer),
-		DenseGraph:        profile.DenseGraph,
-		DeciSparse:        deciSparse,
-		QKPreprocess:      s.qkPreprocessPlan(layer),
-		QueryScale:        s.queryScalePlan(profile, layer),
-		AttentionOutput:   s.attentionOutputPlan(normalization),
-		ResidualStages:    residualStages,
-		StateSpace:        stateSpace,
+		SplitProjection:   profile.DenseGraph == DenseGraphGemma3n,
+		ExplicitEncoder: profile.GraphFamily == ArchitectureFamilyEncoderDecoder ||
+			profile.Forward.Session == ForwardSessionEncoderDecoder,
+		DeciSparse:      deciSparse,
+		QKPreprocess:    s.qkPreprocessPlan(layer),
+		QueryScale:      s.queryScalePlan(profile, layer),
+		AttentionOutput: s.attentionOutputPlan(normalization),
+		ResidualStages:  residualStages,
+		StateSpace:      stateSpace,
 	}
 	plan.Program = compileLayerProgram(plan, profile)
 	return plan
@@ -586,8 +585,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	producedAuxiliary := make(map[AuxiliaryFlow]bool)
 	norm := spec.NormPlan()
 	for index, layer := range plan.layers {
-		if layer.Layer != uint32(index) || layer.GraphFamily != plan.profile.GraphFamily ||
-			layer.CatalogFamily != plan.profile.CatalogFamily {
+		if layer.Layer != uint32(index) {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
 		if !layer.Program.valid() || layer.Program.Count == 0 && !plan.profile.Has(ArchitectureAltUp) {

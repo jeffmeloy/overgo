@@ -270,7 +270,7 @@ func preparePolicyAttentionInputs(
 	if err := c.builder.Err(); err != nil {
 		return nil, nil, err
 	}
-	if c.plan.DenseGraph != DenseGraphStandard || c.plan.DeciSparse {
+	if c.plan.DeciSparse {
 		return nil, nil, errors.New("compiled attention-input stage is incompatible")
 	}
 	if err := c.plan.ExpertComposition.Validate(c.spec); err != nil {
@@ -714,19 +714,19 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	context CachedBlockContext,
 	weights LayerGraphWeights,
 ) (ActivationProjectionResult, error) {
-	if p.plan.DenseGraph != DenseGraphGemma3n || p.plan.Layer != context.Layer ||
+	if !p.plan.SplitProjection || p.plan.Layer != context.Layer ||
 		p.plan.Recurrent != context.Recurrent {
 		return ActivationProjectionResult{}, errors.New("compiled activation-projection program is incompatible")
 	}
 	builder, input, spec := context.Builder, context.Input, p.spec
 	positions, pastKey, pastValue := context.Positions, context.PastKey, context.PastValue
 	layerIndex := p.plan.Layer
-	if builder == nil || input == nil || spec.Profile().DenseGraph != DenseGraphGemma3n ||
+	if builder == nil || input == nil ||
 		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
 		len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
 		return ActivationProjectionResult{}, errors.New("activation-projection input is invalid")
 	}
-	if err := requireTensorPair(pastKey, pastValue, "Gemma 3n cache pair is incomplete"); err != nil {
+	if err := requireTensorPair(pastKey, pastValue, "split-projection cache pair is incomplete"); err != nil {
 		return ActivationProjectionResult{}, err
 	}
 	required := graphWeights{
@@ -747,9 +747,9 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		required.add("attention value", weights.AttentionV)
 		required.add("attention key norm", weights.AttentionKNorm)
 	} else if pastKey == nil {
-		return ActivationProjectionResult{}, errors.New("Gemma 3n shared-KV layer has no source cache")
+		return ActivationProjectionResult{}, errors.New("split-projection shared-KV layer has no source cache")
 	}
-	if err := required.validate("Gemma 3n"); err != nil {
+	if err := required.validate("split projection"); err != nil {
 		return ActivationProjectionResult{}, err
 	}
 	tokens := input.Shape.Dims[1]
@@ -779,7 +779,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		cacheKey, cacheValue = key, value
 		if pastKey != nil {
 			if pastKey.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
-				return ActivationProjectionResult{}, errors.New("Gemma 3n cache shape is invalid")
+				return ActivationProjectionResult{}, errors.New("split-projection cache shape is invalid")
 			}
 			queryStart = uint32(pastKey.Shape.Dims[2])
 			cacheKey = builder.Concat(pastKey, key, 2)
@@ -790,7 +790,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 			pastKey.Shape.Dims[0] != keyLength || pastValue.Shape.Dims[0] != valueLength ||
 			pastKey.Shape.Dims[1] != kvHeadCount || pastValue.Shape.Dims[1] != kvHeadCount ||
 			pastKey.Shape.Dims[2] != pastValue.Shape.Dims[2] || pastKey.Shape.Dims[2] < tokens {
-			return ActivationProjectionResult{}, errors.New("Gemma 3n shared-KV source shape is invalid")
+			return ActivationProjectionResult{}, errors.New("split-projection shared-KV source shape is invalid")
 		}
 		queryStart = uint32(pastKey.Shape.Dims[2] - tokens)
 	}
@@ -830,7 +830,7 @@ func (p CompiledLayerProgram) BuildActivatedOutput(
 	residual, activated *tensor.Tensor,
 	weights LayerGraphWeights,
 ) (*tensor.Tensor, error) {
-	if p.plan.DenseGraph != DenseGraphGemma3n || builder == nil || residual == nil || activated == nil ||
+	if !p.plan.SplitProjection || builder == nil || residual == nil || activated == nil ||
 		weights.FeedForwardDown == nil || weights.FeedForwardPostNorm == nil {
 		return nil, errors.New("compiled activated-output stage is incomplete")
 	}

@@ -66,6 +66,9 @@ func executeCompiledLayer(options BlockDispatchOptions) (DenseBlockResult, error
 	if options.Plan == nil {
 		return DenseBlockResult{}, errors.New("compiled layer plan is required")
 	}
+	if options.Plan.ExplicitEncoder {
+		return DenseBlockResult{}, errors.New("encoder-decoder blocks require explicit encoder state")
+	}
 	context := options.Context
 	if context.MultiPositions != nil {
 		if !options.Spec.SupportsMultiAxisPositions() {
@@ -77,11 +80,6 @@ func executeCompiledLayer(options BlockDispatchOptions) (DenseBlockResult, error
 	plan := *options.Plan
 	if plan.Layer != context.Layer || plan.Recurrent != context.Recurrent {
 		return DenseBlockResult{}, errors.New("compiled layer plan differs from dispatch context")
-	}
-	if plan.GraphFamily == ArchitectureFamilyEncoderDecoder {
-		return DenseBlockResult{}, errors.New(
-			"encoder-decoder blocks require explicit encoder state",
-		)
 	}
 	return executeLayerProgram(options, plan)
 }

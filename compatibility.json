@@ -261,7 +261,7 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:911f32a5ba6ff900c23b729641a9a80167c1014c0564ae98b9f2e3bf3879021b"
+          "identity": "file:sha256:282dde9639666e1ce24374ac961f1e4db75af03ec93f1510ad325ee107a197ea"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -709,7 +709,7 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:c71521973b2520637f1047ad6799c770edd4a9b655b29489714dcbff52ee9cec"
+          "identity": "file:sha256:e96264a63bd55b5c33014cc1a4920c1066542aac468f4cc80eb557de585d2db0"
         },
         {
           "contains": "func ReadWeights(",

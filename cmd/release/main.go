@@ -42,11 +42,11 @@ var releaseCommands = []string{
 
 var releaseDocuments = []string{
 	"README.md",
-	"IMPLEMENTATION_STATUS.md",
 	"docs/COMPATIBILITY.md",
 	"docs/IMPLEMENTATION_LOG.md",
 	"docs/REPODB_IMPORT.md",
-	"PORT_PLAN.md",
+	"docs/adaptive_new_parity_report.md",
+	"docs/training_plan.md",
 	"compatibility.json",
 	"media_policy.json",
 	"resource_policy.json",

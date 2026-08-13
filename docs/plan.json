@@ -11,12 +11,12 @@
           "id": "baseline-report",
           "title": "Assess adaptive_new Go/Python inference and training against Overgo; record measured wins, gaps, false closures, and the promotion contract",
           "status": "done",
-          "verify": "test -s docs/adaptive_new_parity_report.md && grep -q '^## Multimodal Completion Contract' docs/adaptive_new_parity_report.md && grep -q '^## Promotion Contract' docs/adaptive_new_parity_report.md && grep -q '^## Definition of Exceeds adaptive_new' docs/adaptive_new_parity_report.md"
+          "verify": "test -s docs/adaptive_new_parity_report.md \u0026\u0026 grep -q '^## Multimodal Completion Contract' docs/adaptive_new_parity_report.md \u0026\u0026 grep -q '^## Promotion Contract' docs/adaptive_new_parity_report.md \u0026\u0026 grep -q '^## Definition of Exceeds adaptive_new' docs/adaptive_new_parity_report.md"
         },
         {
           "id": "nonvacuous-go-tests",
           "title": "Parse verbose Go test events in cmd/gate and cmd/plan; refuse a skipped capability test even when the package exits zero",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./cmd/gate -run '^TestGateRejectsSkippedCapabilityTest$' -count=1 -v"
         },
         {
@@ -128,7 +128,7 @@
           "id": "muon-only",
           "title": "Compile Muon matrix/vector/scalar groups; migrate every caller; delete BF16SGD, TrainBF16SGD, and UpdateSign compatibility paths",
           "status": "open",
-          "verify": "go test ./internal/optimizer ./internal/densecausal -run '^TestMuonOwnsEveryTrainableGeometry$' -count=1 -v && ! rg -n 'BF16SGD|UpdateSign' internal cmd"
+          "verify": "go test ./internal/optimizer ./internal/densecausal -run '^TestMuonOwnsEveryTrainableGeometry$' -count=1 -v \u0026\u0026 ! rg -n 'BF16SGD|UpdateSign' internal cmd"
         },
         {
           "id": "exact-production-resume",

@@ -59,10 +59,10 @@ func TestArchitectureRegistryProfiles(t *testing.T) {
 func TestResolvedProfilePrefersExactBinding(t *testing.T) {
 	bootstrap, _ := LookupArchitecture("llama")
 	bound := bootstrap
-	bound.DenseGraph = DenseGraphTalkie
+	bound.LayerTopology = LayerTopologyCausalPostQKNormSkip
 	spec := Spec{CommonSpec: CommonSpec{Architecture: bootstrap.Name}}.withProfile(bound)
 	resolved, ok := spec.ResolvedProfile()
-	if !ok || resolved.DenseGraph != DenseGraphTalkie {
+	if !ok || resolved.LayerTopology != LayerTopologyCausalPostQKNormSkip {
 		t.Fatalf("resolved profile = (%+v, %t)", resolved, ok)
 	}
 	mismatch := spec.withProfile(ArchitectureProfile{Name: "other"})

@@ -179,20 +179,20 @@ const (
 	CachedGraphDense
 )
 
-// DenseGraphPolicy: dense-family leaf graph.
-type DenseGraphPolicy uint8
+// LayerTopologyPolicy: compiled operator-sequence topology.
+type LayerTopologyPolicy uint8
 
 const (
-	DenseGraphStandard DenseGraphPolicy = iota
-	DenseGraphBERT
-	DenseGraphModernBERT
-	DenseGraphGemmaEmbedding
-	DenseGraphTalkie
-	DenseGraphGemma4
-	DenseGraphGemma3n
-	DenseGraphRWKV6
-	DenseGraphRWKV6Qwen2
-	DenseGraphRWKV7
+	LayerTopologyPlannedDecoder LayerTopologyPolicy = iota
+	LayerTopologyBidirectionalEncoder
+	LayerTopologyBidirectionalFusedQKV
+	LayerTopologyBidirectionalQKNorm
+	LayerTopologyCausalPostQKNormSkip
+	LayerTopologySharedKVAdapter
+	LayerTopologySplitProjection
+	LayerTopologyDynamicWKV6
+	LayerTopologyAffineWKV6
+	LayerTopologyDynamicWKV7
 )
 
 // OutputHeadPolicy: compiled terminal projection source.
@@ -302,7 +302,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		}
 	}
 	residualStages := s.residualStagePlan(profile, normalization)
-	if profile.DenseGraph == DenseGraphRWKV6Qwen2 {
+	if profile.LayerTopology == LayerTopologyAffineWKV6 {
 		residualStages.residualScale = 0
 		if s.RescaleEvery > 0 && (layer+1)%s.RescaleEvery == 0 {
 			residualStages.residualScale = rwkvLayerRescale
@@ -359,7 +359,7 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		Experts:           experts,
 		ExpertComposition: s.expertCompositionPlan(),
 		DenseWeights:      s.denseWeightPlan(profile, layer),
-		SplitProjection:   profile.DenseGraph == DenseGraphGemma3n,
+		SplitProjection:   profile.LayerTopology == LayerTopologySplitProjection,
 		ExplicitEncoder: profile.GraphFamily == ArchitectureFamilyEncoderDecoder ||
 			profile.Forward.Session == ForwardSessionEncoderDecoder,
 		DeciSparse:      deciSparse,
@@ -847,7 +847,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			recurrentLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
 		)
 	}
-	if profile.DenseGraph == DenseGraphRWKV6Qwen2 {
+	if profile.LayerTopology == LayerTopologyAffineWKV6 {
 		return residualMixerProgram(
 			recurrentLayerStage(), LayerOperatorFeedForwardStandardSwiGLU,
 			plan.ResidualStages.residualScale > 0,
@@ -931,14 +931,14 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				feedForwardLayerStage(LayerOperatorFeedForwardStandardSwiGLU), layerStage(LayerOperatorResidual),
 			)
 		}
-		if profile.DenseGraph == DenseGraphRWKV6 {
+		if profile.LayerTopology == LayerTopologyDynamicWKV6 {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 				layerStage(LayerOperatorResidual), tokenShiftLayerStage(LayerOperatorGatedTokenShiftSquaredReLU),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorPeriodicScale),
 			)
 		}
-		if profile.DenseGraph == DenseGraphRWKV7 {
+		if profile.LayerTopology == LayerTopologyDynamicWKV7 {
 			stages := []LayerOperatorInstruction{
 				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 				layerStage(LayerOperatorResidual),
@@ -951,7 +951,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			}
 			return newLayerProgram(append(stages, layerStage(LayerOperatorResidual))...)
 		}
-		if profile.DenseGraph == DenseGraphGemma4 {
+		if profile.LayerTopology == LayerTopologySharedKVAdapter {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionSharedKVQKNorm),
 				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
@@ -959,7 +959,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorOutputAdapter),
 			)
 		}
-		if profile.DenseGraph == DenseGraphTalkie {
+		if profile.LayerTopology == LayerTopologyCausalPostQKNormSkip {
 			return newLayerProgram(
 				layerStage(LayerOperatorRMSNorm), attentionLayerStage(LayerOperatorAttentionCausalPostQKNorm),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorRMSNorm),
@@ -967,7 +967,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorScaledSkip),
 			)
 		}
-		if profile.DenseGraph == DenseGraphGemmaEmbedding {
+		if profile.LayerTopology == LayerTopologyBidirectionalQKNorm {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionBidirectionalQKNorm),
 				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
@@ -975,14 +975,14 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
 			)
 		}
-		if profile.DenseGraph == DenseGraphModernBERT {
+		if profile.LayerTopology == LayerTopologyBidirectionalFusedQKV {
 			return newLayerProgram(
 				attentionLayerStage(LayerOperatorAttentionBidirectionalFusedQKV), layerStage(LayerOperatorResidual),
 				layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(LayerOperatorFeedForwardFusedGLU),
 				layerStage(LayerOperatorResidual),
 			)
 		}
-		if profile.DenseGraph == DenseGraphBERT {
+		if profile.LayerTopology == LayerTopologyBidirectionalEncoder {
 			stages := []LayerOperatorInstruction{
 				attentionLayerStage(LayerOperatorAttentionBidirectionalEncoder),
 				layerStage(LayerOperatorAttentionResidualNorm),
@@ -1011,7 +1011,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorResidual),
 			)...)
 		}
-		if profile.DenseGraph == DenseGraphStandard && !plan.DeciSparse {
+		if profile.LayerTopology == LayerTopologyPlannedDecoder && !plan.DeciSparse {
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionInputNorm),
 				attentionLayerStage(LayerOperatorAttentionPlannedProjection),

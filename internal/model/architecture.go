@@ -333,7 +333,7 @@ type ArchitectureProfile struct {
 	Cache            CachePolicy
 	RecurrentCache   CachePolicy
 	CacheFallback    CacheFallbackPolicy
-	DenseGraph       DenseGraphPolicy
+	LayerTopology    LayerTopologyPolicy
 	DenseStages      DenseStagePolicy
 	DenseWeights     DenseWeightPolicy
 	ModelCatalog     ModelCatalogPolicy

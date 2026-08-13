@@ -78,7 +78,7 @@ func TestLayerProgramsCoverTypedProfiles(t *testing.T) {
 
 func TestGemma4ProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphGemma4},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologySharedKVAdapter},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorAttentionSharedKVQKNorm, LayerOperatorAttentionPostNorm,
@@ -126,7 +126,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 		want    []LayerOperator
 	}{
 		{
-			name: "RWKV6", profile: ArchitectureProfile{DenseGraph: DenseGraphRWKV6},
+			name: "RWKV6", profile: ArchitectureProfile{LayerTopology: LayerTopologyDynamicWKV6},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
 				LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual, LayerOperatorPeriodicScale,
@@ -134,7 +134,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 		},
 		{
 			name: "RWKV7 channel", profile: ArchitectureProfile{
-				DenseGraph: DenseGraphRWKV7, Normalization: NormalizationLayer,
+				LayerTopology: LayerTopologyDynamicWKV7, Normalization: NormalizationLayer,
 			},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -143,7 +143,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 		},
 		{
 			name: "RWKV7 SwiGLU", profile: ArchitectureProfile{
-				DenseGraph: DenseGraphRWKV7, Normalization: NormalizationRMS,
+				LayerTopology: LayerTopologyDynamicWKV7, Normalization: NormalizationRMS,
 			},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
@@ -161,7 +161,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 
 func TestTalkieProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphTalkie},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologyCausalPostQKNormSkip},
 	)
 	want := []LayerOperator{
 		LayerOperatorRMSNorm, LayerOperatorAttentionCausalPostQKNorm, LayerOperatorResidual,
@@ -173,7 +173,7 @@ func TestTalkieProgramUsesNeutralStages(t *testing.T) {
 
 func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphBERT},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologyBidirectionalEncoder},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionBidirectionalEncoder, LayerOperatorAttentionResidualNorm,
@@ -184,7 +184,7 @@ func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 
 func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
 	program := compileLayerProgram(LayerPlan{}, ArchitectureProfile{
-		DenseGraph: DenseGraphBERT, EncoderGraph: EncoderGraphPolicy{Kind: encoderGraphJinaV2},
+		LayerTopology: LayerTopologyBidirectionalEncoder, EncoderGraph: EncoderGraphPolicy{Kind: encoderGraphJinaV2},
 	})
 	instruction, ok := program.Instruction(2)
 	if !ok || program.Count != 5 || instruction.Operator != LayerOperatorInputResidualNorm {
@@ -194,7 +194,7 @@ func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
 
 func TestGemmaEmbeddingProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{}, ArchitectureProfile{DenseGraph: DenseGraphGemmaEmbedding},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologyBidirectionalQKNorm},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorAttentionBidirectionalQKNorm, LayerOperatorAttentionPostNorm,

@@ -42,7 +42,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Cache", profile.Cache, CacheDeepSeek4),
 		validateProfileOrdinal("RecurrentCache", profile.RecurrentCache, CacheDeepSeek4),
 		validateProfileOrdinal("CacheFallback", profile.CacheFallback, CacheFallbackMissingKV),
-		validateProfileOrdinal("DenseGraph", profile.DenseGraph, DenseGraphRWKV7),
+		validateProfileOrdinal("LayerTopology", profile.LayerTopology, LayerTopologyDynamicWKV7),
 		validateProfileOrdinal("DenseStages.QK.Projection", profile.DenseStages.QK.Projection, qkNormRMS),
 		validateProfileOrdinal("DenseStages.QK.Heads", profile.DenseStages.QK.Heads, qkNormRMS),
 		validateProfileOrdinal("DenseStages.QK.PostRotary", profile.DenseStages.QK.PostRotary, qkNormRMS),

@@ -325,7 +325,7 @@ func buildCausalPostQKNormMixCached(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if spec.Profile().DenseGraph != DenseGraphTalkie {
+	if spec.Profile().LayerTopology != LayerTopologyCausalPostQKNormSkip {
 		return DenseBlockResult{}, errors.New("causal post-Q/K-normalized attention requires Talkie policy")
 	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {

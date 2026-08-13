@@ -33,7 +33,7 @@ const (
 
 func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	profile, _ := model.LookupArchitecture(definitionArchitecture)
-	profile.DenseGraph = model.DenseGraphTalkie
+	profile.LayerTopology = model.LayerTopologyCausalPostQKNormSkip
 	profileDocument, err := NewProfileDocument(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if parsed.ID != document.ID || plan.Model.Profile().DenseGraph != model.DenseGraphTalkie {
+	if parsed.ID != document.ID || plan.Model.Profile().LayerTopology != model.LayerTopologyCausalPostQKNormSkip {
 		t.Fatalf("resolved definition/plan = (%s, %+v)", parsed.ID, plan.Model.Profile())
 	}
 }

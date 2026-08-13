@@ -333,7 +333,7 @@ func TestCompileModelPlanAppliesSpecForwardOverride(t *testing.T) {
 	}
 }
 
-func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
+func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 	for _, architecture := range SupportedArchitectures() {
 		spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, BlockCount: 1}}
 		if architecture == "deepseek4" {

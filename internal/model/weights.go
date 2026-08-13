@@ -685,7 +685,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	if profile.ModelCatalog.RequireOutputBias && result.OutputBias == nil {
 		return Weights{}, errors.New(`required tensor "output.bias" is missing`)
 	}
-	if profile.DenseGraph == DenseGraphGemmaEmbedding {
+	if profile.LayerTopology == LayerTopologyBidirectionalQKNorm {
 		if item, ok := tensors["dense_2.weight"]; ok {
 			if spec.Dense2FeatureIn == 0 || spec.Dense2FeatureOut == 0 {
 				return Weights{}, errors.New("Gemma embedding dense-2 tensor has no shape metadata")
@@ -742,7 +742,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		result.PerLayerModelProjection = &perLayerModelProjection
 		result.PerLayerProjectionNorm = &perLayerProjectionNorm
 	}
-	if profile.DenseGraph == DenseGraphGemma3n {
+	if profile.LayerTopology == LayerTopologySplitProjection {
 		projection, itemErr := required(
 			"altup_proj.weight", uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength), uint64(spec.AltUpCount-1),
 		)
@@ -890,7 +890,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		ropeFactors, hasRopeFactors := tensors[prefix+"rope_freqs.weight"]
-		if (profile.Rotary.FactorPairs || profile.DenseGraph == DenseGraphGemma4 && !layerPlan.Sliding) && !hasRopeFactors {
+		if (profile.Rotary.FactorPairs || profile.LayerTopology == LayerTopologySharedKVAdapter && !layerPlan.Sliding) && !hasRopeFactors {
 			ropeFactors, hasRopeFactors = tensors["rope_freqs.weight"]
 		}
 		if hasRopeFactors {
@@ -953,7 +953,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 			}
 		}
-		if profile.DenseGraph == DenseGraphModernBERT {
+		if profile.LayerTopology == LayerTopologyBidirectionalFusedQKV {
 			if item, ok := tensors[prefix+"attn_norm.weight"]; ok {
 				if item.Dimensions != 1 || item.Shape[0] != uint64(spec.EmbeddingLength) {
 					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
@@ -1263,7 +1263,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 						return Weights{}, valueErr
 					}
 					layer.AttentionV = value
-				} else if profile.DenseGraph == DenseGraphGemma3n {
+				} else if profile.LayerTopology == LayerTopologySplitProjection {
 					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_v.weight")
 				}
 			}
@@ -1426,7 +1426,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, biasErr
 			}
 		}
-		if profile.DenseGraph == DenseGraphTalkie {
+		if profile.LayerTopology == LayerTopologyCausalPostQKNormSkip {
 			qNorm, normErr := required(
 				prefix+"attn_q_norm.weight", 1, uint64(spec.HeadCount),
 			)
@@ -1522,7 +1522,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if profile.Has(ArchitecturePerLayerEmbeddings) {
-			if profile.DenseGraph == DenseGraphGemma4 {
+			if profile.LayerTopology == LayerTopologySharedKVAdapter {
 				if scaleErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 					optionalF32TensorPointer("layer_output_scale.weight", &layer.LayerOutputScale, 1),
 				}); scaleErr != nil {
@@ -1539,7 +1539,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 			}
 		}
-		if profile.DenseGraph == DenseGraphGemma3n {
+		if profile.LayerTopology == LayerTopologySplitProjection {
 			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 				requiredTensorPointer("altup_correct_coef.weight", &layer.AltUpCorrectCoefficient, uint64(spec.AltUpCount), uint64(spec.AltUpCount)),
 				requiredTensorPointer("altup_correct_scale.weight", &layer.AltUpCorrectScale, uint64(spec.EmbeddingLength)),

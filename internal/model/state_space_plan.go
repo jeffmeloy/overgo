@@ -51,11 +51,11 @@ func (s Spec) stateSpacePlan(layer uint32, recurrent bool) StateSpacePlan {
 		plan.kind = stateSpaceQwenGDN
 	case profile.Attention == AttentionLFM2 && plan.recurrent:
 		plan.kind = stateSpaceLFM2
-	case profile.DenseGraph == DenseGraphRWKV6Qwen2:
+	case profile.LayerTopology == LayerTopologyAffineWKV6:
 		plan.kind, plan.recurrent = stateSpaceDynamicWKV6, true
-	case profile.DenseGraph == DenseGraphRWKV6:
+	case profile.LayerTopology == LayerTopologyDynamicWKV6:
 		plan.kind, plan.recurrent = stateSpaceAffineWKV6, true
-	case profile.DenseGraph == DenseGraphRWKV7:
+	case profile.LayerTopology == LayerTopologyDynamicWKV7:
 		plan.kind, plan.recurrent = stateSpaceDynamicWKV7, true
 	case profile.Validation.MLA == MLAValidationKimiLinear:
 		plan.kind = stateSpaceKeyedDelta

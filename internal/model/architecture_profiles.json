@@ -82,7 +82,7 @@
     "Cache": 6,
     "Capabilities": 8388618,
     "CatalogFamily": 2,
-    "DenseGraph": 9,
+    "LayerTopology": 9,
     "Family": 2,
     "GraphFamily": 2,
     "Name": "arwkv7",
@@ -150,7 +150,7 @@
   {
     "Capabilities": 17247246355,
     "CatalogFamily": 4,
-    "DenseGraph": 1,
+    "LayerTopology": 1,
     "EncoderGraph": {
       "Kind": 1
     },
@@ -700,7 +700,7 @@
     },
     "Capabilities": 67111953,
     "CatalogFamily": 4,
-    "DenseGraph": 3,
+    "LayerTopology": 3,
     "DenseStages": {
       "QK": {
         "Heads": 1
@@ -775,7 +775,7 @@
       "Sliding": 3
     },
     "Capabilities": 7516195904,
-    "DenseGraph": 6,
+    "LayerTopology": 6,
     "DenseStages": {
       "QueryScale": 4
     },
@@ -800,7 +800,7 @@
       "Sliding": 3
     },
     "Capabilities": 5368712256,
-    "DenseGraph": 5,
+    "LayerTopology": 5,
     "DenseStages": {
       "QueryScale": 4
     },
@@ -1283,7 +1283,7 @@
   {
     "Capabilities": 17246984211,
     "CatalogFamily": 4,
-    "DenseGraph": 1,
+    "LayerTopology": 1,
     "EncoderGraph": {
       "Kind": 2
     },
@@ -1310,7 +1310,7 @@
     },
     "Capabilities": 17247246353,
     "CatalogFamily": 4,
-    "DenseGraph": 1,
+    "LayerTopology": 1,
     "EncoderGraph": {
       "Kind": 3
     },
@@ -1735,7 +1735,7 @@
     },
     "Capabilities": 201392145,
     "CatalogFamily": 4,
-    "DenseGraph": 2,
+    "LayerTopology": 2,
     "EncoderGraph": {
       "Kind": 6
     },
@@ -1848,7 +1848,7 @@
   {
     "Capabilities": 17246984209,
     "CatalogFamily": 4,
-    "DenseGraph": 1,
+    "LayerTopology": 1,
     "EncoderGraph": {
       "Kind": 4
     },
@@ -1872,7 +1872,7 @@
     },
     "Capabilities": 17247246357,
     "CatalogFamily": 4,
-    "DenseGraph": 1,
+    "LayerTopology": 1,
     "EncoderGraph": {
       "Kind": 5
     },
@@ -2343,7 +2343,7 @@
     "Cache": 4,
     "Capabilities": 8388618,
     "CatalogFamily": 2,
-    "DenseGraph": 7,
+    "LayerTopology": 7,
     "Family": 2,
     "GraphFamily": 2,
     "ModelCatalog": {
@@ -2359,7 +2359,7 @@
     "Cache": 5,
     "Capabilities": 8388618,
     "CatalogFamily": 2,
-    "DenseGraph": 8,
+    "LayerTopology": 8,
     "DenseWeights": {
       "RMSNormBias": true
     },
@@ -2378,7 +2378,7 @@
     "Cache": 6,
     "Capabilities": 8388618,
     "CatalogFamily": 2,
-    "DenseGraph": 9,
+    "LayerTopology": 9,
     "Family": 2,
     "GraphFamily": 2,
     "ModelCatalog": {
@@ -2541,7 +2541,7 @@
   },
   {
     "Capabilities": 8665432064,
-    "DenseGraph": 4,
+    "LayerTopology": 4,
     "MetadataDefaults": {
       "RopeDimension": 1
     },

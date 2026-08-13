@@ -12,7 +12,7 @@ func loadRWKVLayer(
 ) (bool, error) {
 	var err error
 	profile := spec.Profile()
-	if profile.DenseGraph == DenseGraphRWKV6 {
+	if profile.LayerTopology == LayerTopologyDynamicWKV6 {
 		layer.Recurrent = true
 		embedding := uint64(spec.EmbeddingLength)
 		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
@@ -59,7 +59,7 @@ func loadRWKVLayer(
 		}
 		return true, nil
 	}
-	if profile.DenseGraph == DenseGraphRWKV7 {
+	if profile.LayerTopology == LayerTopologyDynamicWKV7 {
 		layer.Recurrent = true
 		channelMix := profile.Normalization == NormalizationLayer
 		embedding := uint64(spec.EmbeddingLength)
@@ -140,7 +140,7 @@ func loadRWKVLayer(
 		}
 		return true, nil
 	}
-	if profile.DenseGraph == DenseGraphRWKV6Qwen2 {
+	if profile.LayerTopology == LayerTopologyAffineWKV6 {
 		layer.Recurrent = true
 		embedding := uint64(spec.EmbeddingLength)
 		keyValue := uint64(spec.HeadCountKV) * uint64(spec.WKVHeadSize)

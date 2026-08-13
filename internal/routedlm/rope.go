@@ -46,13 +46,32 @@ type RopeSection struct {
 // Ported from adaptive causalPrefixRuntimeShape + runtimeAxisRoPEInto:
 // angle = position[axis] * theta^(-2i/section_width).
 type RopePlan struct {
-	Sections []RopeSection
-	invFreq  [][]float64
+	NormWidths []int
+	Sections   []RopeSection
+	invFreq    [][]float64
 }
 
 func newRopePlan(headDim int, sections []RopeSection) (RopePlan, error) {
+	widths := make([]int, len(sections))
+	for index, section := range sections {
+		widths[index] = section.Width
+	}
+	return newRopePlanWithNorms(headDim, widths, sections)
+}
+
+func newRopePlanWithNorms(headDim int, normWidths []int, sections []RopeSection) (RopePlan, error) {
 	total := 0
-	plan := RopePlan{Sections: sections, invFreq: make([][]float64, len(sections))}
+	plan := RopePlan{NormWidths: append([]int(nil), normWidths...), Sections: sections, invFreq: make([][]float64, len(sections))}
+	normTotal := 0
+	for _, width := range normWidths {
+		if width <= 0 {
+			return RopePlan{}, fmt.Errorf("routed lm rope plan: invalid norm width %d", width)
+		}
+		normTotal += width
+	}
+	if normTotal != headDim {
+		return RopePlan{}, fmt.Errorf("routed lm rope plan: norm sections span %d, head_dim %d", normTotal, headDim)
+	}
 	for i, section := range sections {
 		if section.Width <= 0 || section.Width%2 != 0 || section.Theta <= 0 || section.Axis < 0 || section.Axis >= axisCount {
 			return RopePlan{}, fmt.Errorf("routed lm rope plan: invalid section %+v", section)
@@ -142,7 +161,7 @@ func CompileRopePlan(src *safetensors.Source, cfg Config, b BranchBinding) (Rope
 	default:
 		return RopePlan{}, fmt.Errorf("routed lm rope plan: unsupported norm section count %d", len(widths))
 	}
-	return newRopePlan(cfg.HeadDim, sections)
+	return newRopePlanWithNorms(cfg.HeadDim, widths, sections)
 }
 
 func normSectionWidth(src *safetensors.Source, name string) (int, error) {

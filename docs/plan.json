@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sensenova-prefix-stack",
-          "title": "Run prompt and unconditional SenseNova prefix conditioning through the neutral block-causal prefill stack; retain all 42 prefix KV layers and match oracle probes",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_BASELINE=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaPrefixStackMatchesOracle$' -count=1 -v"
-        },
-        {
           "id": "sensenova-neutral-body",
           "title": "Compose the resident 42-layer routed MoT generation body, guidance, flow head, and sampler through typed image modules; match terminal oracle, then beat adaptive wall and peak",
           "status": "open",

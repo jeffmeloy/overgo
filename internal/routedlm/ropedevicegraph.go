@@ -69,7 +69,7 @@ func (p RopePlan) DeviceApply(b *tensor.Builder, q *tensor.Tensor, positions []R
 }
 
 // DeviceNormalizeApply reproduces routed runtime QK discipline: projection
-// round, per-axis-section weighted RMS norm, then section RoPE with BF16 steps.
+// round, checkpoint norm spans, then independent rotary spans with BF16 steps.
 func (p RopePlan) DeviceNormalizeApply(
 	b *tensor.Builder,
 	q, weight *tensor.Tensor,
@@ -82,14 +82,27 @@ func (p RopePlan) DeviceNormalizeApply(
 	}
 	q = b.BF16Round(q)
 	heads, tokens := q.Shape.Dims[1], q.Shape.Dims[2]
-	var out *tensor.Tensor
+	var normalized *tensor.Tensor
 	offset := uint64(0)
-	for _, section := range p.Sections {
-		width := uint64(section.Width)
+	for _, rawWidth := range p.NormWidths {
+		width := uint64(rawWidth)
 		window := b.GroupSlice(q, offset, width, 1, width)
 		window = b.Reshape(window, width, heads, tokens)
 		scale := b.FlatSlice(weight, offset, width)
 		window = b.BF16Round(b.WeightedRMSNorm(window, scale, epsilon))
+		if normalized == nil {
+			normalized = window
+		} else {
+			normalized = b.Concat(normalized, window, 0)
+		}
+		offset += width
+	}
+	var out *tensor.Tensor
+	offset = 0
+	for _, section := range p.Sections {
+		width := uint64(section.Width)
+		window := b.GroupSlice(normalized, offset, width, 1, width)
+		window = b.Reshape(window, width, heads, tokens)
 		window = b.RoPENeoX(
 			window, axisPositions(positions, section.Axis), uint32(width), float32(section.Theta),
 		)

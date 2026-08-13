@@ -92,11 +92,14 @@ func BuildDevicePrefixLayer(
 		}
 	}
 	context = b.BF16Round(context)
-	residual := b.Add(g.Row, b.MulMat(w.O, context))
-	postNorm := b.WeightedRMSNorm(residual, w.PostNorm, eps)
-	gate := b.MulMat(w.Gate, postNorm)
-	up := b.MulMat(w.Up, postNorm)
-	g.Output = b.Add(residual, b.MulMat(w.Down, b.SwiGLU(gate, up)))
+	projected := b.BF16Round(b.MulMat(w.O, context))
+	residual := b.BF16Round(b.Add(g.Row, projected))
+	postNorm := b.BF16Round(b.WeightedRMSNorm(residual, w.PostNorm, eps))
+	gate := b.BF16Round(b.MulMat(w.Gate, postNorm))
+	up := b.BF16Round(b.MulMat(w.Up, postNorm))
+	activated := b.BF16Round(b.Multiply(b.BF16Round(b.SiLU(gate)), up))
+	down := b.BF16Round(b.MulMat(w.Down, activated))
+	g.Output = b.BF16Round(b.Add(residual, down))
 	if err := b.Err(); err != nil {
 		return nil, fmt.Errorf("routed lm prefix graph: %w", err)
 	}

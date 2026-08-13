@@ -84,12 +84,14 @@ func buildDeviceGenerationLayer(
 		tensor.AttentionOptions{Scale: scale},
 	)
 	context = b.Reshape(b.BF16Round(context), qOut, n)
-	projected := b.MulMat(g.Vision.O, context)
-	residual := b.Add(g.Row, projected)
-	postNorm := b.WeightedRMSNorm(residual, g.Vision.PostNorm, eps)
-	gate := b.MulMat(g.Vision.Gate, postNorm)
-	up := b.MulMat(g.Vision.Up, postNorm)
-	g.Output = b.Add(residual, b.MulMat(g.Vision.Down, b.SwiGLU(gate, up)))
+	projected := b.BF16Round(b.MulMat(g.Vision.O, context))
+	residual := b.BF16Round(b.Add(g.Row, projected))
+	postNorm := b.BF16Round(b.WeightedRMSNorm(residual, g.Vision.PostNorm, eps))
+	gate := b.BF16Round(b.MulMat(g.Vision.Gate, postNorm))
+	up := b.BF16Round(b.MulMat(g.Vision.Up, postNorm))
+	activated := b.BF16Round(b.Multiply(b.BF16Round(b.SiLU(gate)), up))
+	down := b.BF16Round(b.MulMat(g.Vision.Down, activated))
+	g.Output = b.BF16Round(b.Add(residual, down))
 	if err := b.Err(); err != nil {
 		return nil, fmt.Errorf("routed lm generation graph: %w", err)
 	}

@@ -3,12 +3,15 @@
 package latentimage
 
 import (
+	"context"
 	"io"
 	"math"
+	"path/filepath"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
 
@@ -49,16 +52,10 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 	t.Logf("real geometry: layers=%d hidden=%d heads=%d/%d headDim=%d imgSeq=%d textSeq=%d seq=%d inCh=%d",
 		tr.Layers, tr.Hidden, tr.Heads, tr.KVHeads, tr.HeadDim, imgSeq, textSeq, prog.Seq, tr.InChannels)
 
-	rd, err := NewResidentDenoiser(prog, dir, 0)
-	if err != nil {
-		t.Fatalf("NewResidentDenoiser: %v", err)
-	}
-	defer func() {
-		if err := rd.Close(); err != nil {
-			t.Errorf("close: %v", err)
-		}
-	}()
-	t.Logf("resident weights uploaded: %.2f GiB", float64(rd.WeightBytes)/(1<<30))
+	ctx := context.Background()
+	outputs := append(append([]*tensor.Tensor(nil), prog.BlockOutputs...), prog.Velocity)
+	rd := newResidentFixture(t, ctx, "test denoiser", filepath.Join(dir, "transformer"), prog.weightInputs, outputs...)
+	t.Logf("resident weights uploaded: %.2f GiB", float64(rd.graph.bytes)/(1<<30))
 
 	src, err := safetensors.OpenSource(dir + `\transformer`)
 	if err != nil {
@@ -99,10 +96,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 			t.Fatalf("grid %dx%d want %dx%d", pgh, pgw, gh, gw)
 		}
 		temb, tembMod := hostTimestep(t, src, tr, sigma)
-		res, err := rd.Step(f32of(patches), text, temb, tembMod)
-		if err != nil {
-			t.Fatalf("resident Step %d: %v", step, err)
-		}
+		res := residentDenoise(t, ctx, rd, prog, f32of(patches), text, temb, tembMod)
 		// per-block distribution + finiteness.
 		for l, hidden := range res.BlockHidden {
 			if len(hidden) != prog.Seq*tr.Hidden {
@@ -128,10 +122,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 		// determinism: step 0 replayed must be bit-identical.
 		if step == 0 {
 			firstVel = append([]float32(nil), res.Velocity...)
-			res2, err := rd.Step(f32of(patches), text, temb, tembMod)
-			if err != nil {
-				t.Fatalf("resident Step replay: %v", err)
-			}
+			res2 := residentDenoise(t, ctx, rd, prog, f32of(patches), text, temb, tembMod)
 			for i := range firstVel {
 				if firstVel[i] != res2.Velocity[i] {
 					t.Fatalf("nondeterministic device forward at %d: %g vs %g", i, firstVel[i], res2.Velocity[i])

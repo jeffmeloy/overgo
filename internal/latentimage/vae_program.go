@@ -53,7 +53,9 @@ type VAEProgram struct {
 	Latent *tensor.Tensor
 	Output *tensor.Tensor
 
-	feeds []vaeFeed
+	feeds      []vaeFeed
+	latentMean []float32
+	latentStd  []float32
 }
 
 // vaeFeed binds a graph Input node to its static weight payload.
@@ -95,7 +97,11 @@ func CompileVAEProgram(d *VAEDecoder, h, w int, matmulType dtype.Type) (*VAEProg
 		return nil, fmt.Errorf("vae program: matmul weight type %s unsupported (host-feed exact path only)", matmulType)
 	}
 
-	p := &VAEProgram{ZDim: d.ZDim, OutChannels: d.OutChannels, SpatialScale: d.SpatialScale, H: h, W: w}
+	p := &VAEProgram{
+		ZDim: d.ZDim, OutChannels: d.OutChannels, SpatialScale: d.SpatialScale, H: h, W: w,
+		latentMean: append([]float32(nil), d.LatentsMean...),
+		latentStd:  append([]float32(nil), d.LatentsStd...),
+	}
 	b := tensor.NewBuilder()
 	g := &vaeGraphBuilder{b: b, feeds: &p.feeds}
 

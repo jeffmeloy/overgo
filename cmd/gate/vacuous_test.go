@@ -28,3 +28,17 @@ func TestGateAcceptsPassingCapabilityTest(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGateReportsUnchangedImporterSkipWithoutCreditingIt(t *testing.T) {
+	repo, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := runGoTestsAdvisory(repo, []string{"./internal/testevidence/testdata/skipfixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Skipped) != 1 {
+		t.Fatalf("report = %+v", report)
+	}
+}

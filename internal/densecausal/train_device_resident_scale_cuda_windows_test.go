@@ -22,6 +22,16 @@ var scaleModelSpec = testutil.DenseCausalSpec{
 	KVHeads: 2, Intermediate: 768, Layers: 12, Seed: 3,
 }
 
+func syntheticCausalModel(t *testing.T, spec testutil.DenseCausalSpec) *Model {
+	t.Helper()
+	weights, shapes := testutil.DenseCausalWeights(t, spec)
+	model, err := NewModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return model
+}
+
 func scaleTokens() []int {
 	tokens := make([]int, 64)
 	rng := rand.New(rand.NewSource(11))

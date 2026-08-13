@@ -537,6 +537,10 @@ func (d *Denoiser) Forward(latentPatches, encoderHidden []float64, sigma float64
 // sequence [gh*gw, C*patch*patch] where gh=H/patch, gw=W/patch and the per-patch
 // row order is (channel, ph, pw) -- exactly diffusers _pack_latents.
 func PackLatent(latent []float64, c, hh, ww, patch int) ([]float64, int, int, error) {
+	return packLatent(latent, c, hh, ww, patch)
+}
+
+func packLatent[T ~float32 | ~float64](latent []T, c, hh, ww, patch int) ([]T, int, int, error) {
 	if hh%patch != 0 || ww%patch != 0 {
 		return nil, 0, 0, fmt.Errorf("pack: %dx%d not divisible by patch %d", hh, ww, patch)
 	}
@@ -545,7 +549,7 @@ func PackLatent(latent []float64, c, hh, ww, patch int) ([]float64, int, int, er
 	}
 	gh, gw := hh/patch, ww/patch
 	inCh := c * patch * patch
-	out := make([]float64, gh*gw*inCh)
+	out := make([]T, gh*gw*inCh)
 	for r := 0; r < gh; r++ {
 		for col := 0; col < gw; col++ {
 			row := out[(r*gw+col)*inCh : (r*gw+col+1)*inCh]
@@ -566,12 +570,16 @@ func PackLatent(latent []float64, c, hh, ww, patch int) ([]float64, int, int, er
 // UnpackLatent is the inverse of PackLatent: image sequence [gh*gw, C*patch^2]
 // -> channel-major latent [C, H, W].
 func UnpackLatent(patches []float64, c, gh, gw, patch int) ([]float64, error) {
+	return unpackLatent(patches, c, gh, gw, patch)
+}
+
+func unpackLatent[T ~float32 | ~float64](patches []T, c, gh, gw, patch int) ([]T, error) {
 	inCh := c * patch * patch
 	if len(patches) != gh*gw*inCh {
 		return nil, fmt.Errorf("unpack: patches len=%d want %d", len(patches), gh*gw*inCh)
 	}
 	hh, ww := gh*patch, gw*patch
-	out := make([]float64, c*hh*ww)
+	out := make([]T, c*hh*ww)
 	for r := 0; r < gh; r++ {
 		for col := 0; col < gw; col++ {
 			row := patches[(r*gw+col)*inCh : (r*gw+col+1)*inCh]

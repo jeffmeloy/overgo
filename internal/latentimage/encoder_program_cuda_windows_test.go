@@ -5,6 +5,7 @@ package latentimage
 import (
 	"context"
 	"math"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/cuda/executor"
@@ -111,21 +112,10 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgram: %v", err)
 	}
-	re, err := NewResidentEncoder(prog, dir, 0)
-	if err != nil {
-		t.Fatalf("NewResidentEncoder: %v", err)
-	}
-	defer func() {
-		if cerr := re.Close(); cerr != nil {
-			t.Errorf("close: %v", cerr)
-		}
-	}()
-	t.Logf("resident encoder weights: %.3f GiB (%d tapped layers, seq=%d)", float64(re.WeightBytes)/(1<<30), prog.CaptureAfter[len(prog.CaptureAfter)-1]+1, len(ids))
-
-	dev, err := re.Encode(embed)
-	if err != nil {
-		t.Fatalf("resident Encode: %v", err)
-	}
+	ctx := context.Background()
+	re := newResidentFixture(t, ctx, "test encoder", filepath.Join(dir, "text_encoder"), prog.weightInputs, prog.Selected...)
+	t.Logf("resident encoder weights: %.3f GiB (%d tapped layers, seq=%d)", float64(re.graph.bytes)/(1<<30), prog.CaptureAfter[len(prog.CaptureAfter)-1]+1, len(ids))
+	dev := residentEncode(t, ctx, re, prog, embed)
 	if dev.Seq != host.Seq || dev.LayerCount != host.LayerCount || dev.Hidden != host.Hidden {
 		t.Fatalf("device geometry [%d,%d,%d] != host [%d,%d,%d]", dev.Seq, dev.LayerCount, dev.Hidden, host.Seq, host.LayerCount, host.Hidden)
 	}
@@ -176,19 +166,8 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgram(templated): %v", err)
 	}
-	tre, err := NewResidentEncoder(tprog, dir, 0)
-	if err != nil {
-		t.Fatalf("NewResidentEncoder(templated): %v", err)
-	}
-	defer func() {
-		if cerr := tre.Close(); cerr != nil {
-			t.Errorf("close templated: %v", cerr)
-		}
-	}()
-	tdev, err := tre.Encode(tmplEmbed)
-	if err != nil {
-		t.Fatalf("resident Encode(templated): %v", err)
-	}
+	tre := newResidentFixture(t, ctx, "test templated encoder", filepath.Join(dir, "text_encoder"), tprog.weightInputs, tprog.Selected...)
+	tdev := residentEncode(t, ctx, tre, tprog, tmplEmbed)
 	if tdev.Seq != len(in.IDs) || tdev.LayerCount != spec.Transformer.TextLayers || tdev.Hidden != spec.Transformer.TextHidden {
 		t.Fatalf("templated device geometry [%d,%d,%d]", tdev.Seq, tdev.LayerCount, tdev.Hidden)
 	}
@@ -196,5 +175,5 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 		t.Fatal("templated device selected-hidden not finite")
 	}
 	t.Logf("dtc-tokenizer templated: %d rows (%d attended, %d pad), device encoder [%d,%d,%d] finite; peak device weights %.3f GiB. Pad-key masking is the documented residual (telemetry oracle stays until full e2e SHA).",
-		len(in.IDs), attended, len(in.IDs)-attended, tdev.Seq, tdev.LayerCount, tdev.Hidden, float64(tre.WeightBytes)/(1<<30))
+		len(in.IDs), attended, len(in.IDs)-attended, tdev.Seq, tdev.LayerCount, tdev.Hidden, float64(tre.graph.bytes)/(1<<30))
 }

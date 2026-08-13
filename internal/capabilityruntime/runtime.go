@@ -2,6 +2,7 @@ package capabilityruntime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"overgo/internal/artifact"
@@ -15,7 +16,7 @@ type Executor func(context.Context, artifact.Repository, string, artifact.ID, re
 func JSONScalar[Input, Model, Output any](
 	name string,
 	validate func(Input) error,
-	load func(string, Input) (Model, error),
+	load func(context.Context, string, Input) (Model, error),
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
 ) Executor {
 	return func(
@@ -46,12 +47,12 @@ func JSONScalar[Input, Model, Output any](
 		if err != nil {
 			return nil, err
 		}
-		model, err := load(path, input)
+		model, err := load(ctx, path, input)
 		if err != nil {
 			return nil, err
 		}
 		inputPort := definition.Inputs[0]
-		return Execute[Output](
+		output, executeErr := Execute[Output](
 			ctx, store, modelID, program,
 			"recipe/run/"+definition.ID.String()+"/"+content.Descriptor.ID.String(),
 			map[recipe.PortName]workflowruntime.Value{
@@ -59,11 +60,15 @@ func JSONScalar[Input, Model, Output any](
 			},
 			func(runtime *workflowruntime.Runtime) error { return bind(runtime, modelID, model) },
 		)
+		if closer, ok := any(model).(interface{ Close(context.Context) error }); ok {
+			executeErr = errors.Join(executeErr, closer.Close(context.WithoutCancel(ctx)))
+		}
+		return output, executeErr
 	}
 }
 
-func IgnoreInput[Input, Model any](load func(string) (Model, error)) func(string, Input) (Model, error) {
-	return func(path string, _ Input) (Model, error) { return load(path) }
+func IgnoreInput[Input, Model any](load func(string) (Model, error)) func(context.Context, string, Input) (Model, error) {
+	return func(_ context.Context, path string, _ Input) (Model, error) { return load(path) }
 }
 
 // Execute binds adapters and runs a program with one typed output.

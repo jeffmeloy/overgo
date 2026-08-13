@@ -249,11 +249,6 @@ because inference exists.
 
 ## Promotion Contract
 
-The imported reference boundary is [adaptive_snapshot.json](adaptive_snapshot.json).
-`internal/adaptiveparity` strictly validates and canonically exports it. Locators
-are source-relative or RepoDB identities; Overgo never reads adaptive_new at
-runtime. Missing wall or peak evidence is `unmeasured` with a reason.
-
 For each adaptive capability, one machine-readable parity row owns:
 
 1. Adaptive source commit and model-native Python source commit when used.

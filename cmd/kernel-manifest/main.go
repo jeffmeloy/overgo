@@ -238,6 +238,7 @@ func fileHash(root, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
 }

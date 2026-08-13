@@ -43,6 +43,22 @@ func RegisterScalarStage[Input, Output any](
 	execute func(Input) (Output, error),
 	encode func(Output) (artifact.Content, error),
 ) error {
+	if execute == nil {
+		return fmt.Errorf("workflow runtime: incomplete scalar stage")
+	}
+	return RegisterContextStage(runtime, moduleID, modelID,
+		func(_ context.Context, input Input) (Output, error) { return execute(input) }, encode,
+	)
+}
+
+// RegisterContextStage binds context-aware scalar computation.
+func RegisterContextStage[Input, Output any](
+	runtime *Runtime,
+	moduleID recipe.ModuleID,
+	modelID artifact.ID,
+	execute func(context.Context, Input) (Output, error),
+	encode func(Output) (artifact.Content, error),
+) error {
 	if runtime == nil || runtime.catalog == nil || execute == nil || modelID.Kind() != artifact.KindModel {
 		return fmt.Errorf("workflow runtime: incomplete scalar stage")
 	}
@@ -57,13 +73,13 @@ func RegisterScalarStage[Input, Output any](
 	}
 	inputPort := module.Inputs[0]
 	return RegisterResolvedStage(runtime, moduleID, modelID,
-		func(_ context.Context, request StepRequest) (Output, error) {
+		func(ctx context.Context, request StepRequest) (Output, error) {
 			input, err := ScalarInput[Input](request, inputPort.Name)
 			if err != nil {
 				var zero Output
 				return zero, err
 			}
-			return execute(input)
+			return execute(ctx, input)
 		}, encode,
 	)
 }

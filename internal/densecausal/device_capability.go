@@ -9,7 +9,7 @@ package densecausal
 //
 // It returns (true, "") when every trait the device backend needs is present,
 // or (false, reason) naming the first unsupported trait. Attention bias is the
-// current gap: the resident layer forward/backward and deviceLossAndGrads carry
+// current gap: the resident layer forward/backward carries
 // no bias term. New device-unsupported traits belong in deviceTrainingLimits,
 // not as ad-hoc checks scattered across call sites.
 func DeviceTrainingSupported(d Dims) (bool, string) {

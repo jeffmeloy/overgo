@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"math"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/cuda/executor"
@@ -166,26 +167,16 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileFusionProgram: %v", err)
 	}
-	rf, err := NewResidentFusion(prog, dir, 0)
-	if err != nil {
-		t.Fatalf("NewResidentFusion: %v", err)
-	}
-	defer func() {
-		if cerr := rf.Close(); cerr != nil {
-			t.Errorf("close: %v", cerr)
-		}
-	}()
+	ctx := context.Background()
+	rf := newResidentFixture(t, ctx, "test fusion", filepath.Join(dir, "transformer"), prog.weightInputs, prog.Fused)
 	t.Logf("resident fusion weights: %.3f GiB (%d layerwise + %d refiner blocks, textSeq=%d)",
-		float64(rf.WeightBytes)/(1<<30), tspec.LayerwiseTextBlocks, tspec.RefinerTextBlocks, selected.Seq)
+		float64(rf.graph.bytes)/(1<<30), tspec.LayerwiseTextBlocks, tspec.RefinerTextBlocks, selected.Seq)
 
 	encF32 := make([]float32, len(selected.Data))
 	for i, v := range selected.Data {
 		encF32[i] = float32(v)
 	}
-	devFused, err := rf.Fuse(encF32)
-	if err != nil {
-		t.Fatalf("resident Fuse: %v", err)
-	}
+	devFused := residentFuse(t, ctx, rf, prog, encF32)
 	if len(devFused) != len(hostFused) {
 		t.Fatalf("device fused len=%d want %d", len(devFused), len(hostFused))
 	}
@@ -203,7 +194,7 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 	}
 	rel := sumAbs / (sa + 1e-9)
 	t.Logf("device vs host fused conditioning: max_abs=%.3e mean|h-d|/mean|h|=%.3e (bf16 band); peak device weights %.3f GiB",
-		maxAbs, rel, float64(rf.WeightBytes)/(1<<30))
+		maxAbs, rel, float64(rf.graph.bytes)/(1<<30))
 	if rel > 2e-1 {
 		t.Fatalf("device/host fused mean-relative=%.3e exceeds bf16 band 2e-1", rel)
 	}

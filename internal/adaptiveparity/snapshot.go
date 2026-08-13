@@ -1,5 +1,6 @@
-// Package adaptiveparity owns imported reference evidence. Imports are inert:
-// Overgo never executes or reads the source repository at runtime.
+// Package adaptiveparity owns the neutral import contract for reference
+// capabilities and evidence. Imported snapshots become content-addressed Overgo
+// documents; no runtime code imports or calls the source repository.
 package adaptiveparity
 
 import (
@@ -11,172 +12,205 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/artifact"
+	"overgo/internal/recipecontract"
 	"overgo/internal/strictjson"
 )
 
-const Schema = 1
+const (
+	Version          uint16 = 1
+	Schema                  = "overgo/adaptive-parity-snapshot/v1"
+	MediaType               = "application/vnd.overgo.adaptive-parity-snapshot+json"
+	maxSnapshotBytes        = 4 << 20
+)
 
-type Snapshot struct {
-	Schema       int          `json:"schema"`
-	Sources      []Source     `json:"sources"`
-	Capabilities []Capability `json:"capabilities"`
-}
+type Modality = recipecontract.Modality
+
+const (
+	ModalityText       = recipecontract.ModalityText
+	ModalityImage      = recipecontract.ModalityImage
+	ModalityAudio      = recipecontract.ModalityAudio
+	ModalityVideo      = recipecontract.ModalityVideo
+	ModalityTimeSeries = recipecontract.ModalityTimeSeries
+	ModalityTable      = recipecontract.ModalityTable
+)
 
 type Source struct {
-	Role       string `json:"role"`
+	Name       string `json:"name"`
 	Repository string `json:"repository"`
 	Commit     string `json:"commit"`
 }
 
+type Reference struct {
+	Name     string      `json:"name"`
+	Identity artifact.ID `json:"identity"`
+}
+
+type Signature = recipecontract.ModalitySignature
+
+type Measurement struct {
+	Runtime   string      `json:"runtime"`
+	Protocol  string      `json:"protocol"`
+	WallNanos uint64      `json:"wall_nanos,omitempty"`
+	PeakBytes uint64      `json:"peak_bytes,omitempty"`
+	Evidence  artifact.ID `json:"evidence"`
+}
+
 type Capability struct {
-	ID          string       `json:"id"`
-	Kind        string       `json:"kind"`
-	EntryPoints []EntryPoint `json:"entry_points"`
-	Signature   Signature    `json:"signature"`
-	Artifacts   []Asset      `json:"artifacts"`
-	Corpora     []Asset      `json:"corpora"`
-	Goldens     []Asset      `json:"goldens"`
-	Performance Performance  `json:"performance"`
+	ID           string        `json:"id"`
+	Source       string        `json:"source"`
+	EntryPoint   string        `json:"entry_point"`
+	Signature    Signature     `json:"signature"`
+	Artifacts    []Reference   `json:"artifacts"`
+	Corpora      []Reference   `json:"corpora"`
+	Goldens      []Reference   `json:"goldens"`
+	Measurements []Measurement `json:"measurements,omitempty"`
 }
 
-type EntryPoint struct {
-	Runtime string `json:"runtime"`
-	Path    string `json:"path"`
-	Symbol  string `json:"symbol"`
+type Snapshot struct {
+	Version      uint16       `json:"version"`
+	Sources      []Source     `json:"sources"`
+	Capabilities []Capability `json:"capabilities"`
+	ID           artifact.ID  `json:"-"`
 }
 
-type Signature struct {
-	Inputs  []string `json:"inputs"`
-	Outputs []string `json:"outputs"`
+var codec = artifact.DocumentCodec[Snapshot]{
+	Name: "adaptive parity snapshot",
+	Contract: artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: MediaType, Schema: Schema,
+	},
+	Decode: func(data []byte, snapshot *Snapshot) error { return strictjson.DecodeBytes(data, snapshot) },
+	Encode: func(snapshot Snapshot) ([]byte, error) {
+		snapshot.ID = artifact.ID{}
+		return json.Marshal(snapshot)
+	},
+	Canonicalize: canonicalize,
+	Clone:        clone,
+	Identity:     func(snapshot Snapshot) artifact.ID { return snapshot.ID },
+	SetIdentity:  func(snapshot *Snapshot, id artifact.ID) { snapshot.ID = id },
 }
 
-type Asset struct {
-	Identity string `json:"identity"`
-	Locator  string `json:"locator"`
-	SHA256   string `json:"sha256,omitempty"`
+func New(sources []Source, capabilities []Capability) (Snapshot, error) {
+	return codec.New(Snapshot{Version: Version, Sources: slices.Clone(sources), Capabilities: slices.Clone(capabilities)})
 }
 
-type Performance struct {
-	ColdWall   Metric `json:"cold_wall"`
-	WarmWall   Metric `json:"warm_wall"`
-	PeakDevice Metric `json:"peak_device"`
-	PeakHost   Metric `json:"peak_host"`
-}
+func Parse(data []byte) (Snapshot, error)             { return codec.Parse(data) }
+func Normalize(data []byte) (Snapshot, []byte, error) { return codec.Normalize(data) }
+func (s Snapshot) Content() (artifact.Content, error) { return codec.Content(s) }
+func (s Snapshot) ValidateIdentity() error            { return codec.ValidateIdentity(s) }
 
-type Metric struct {
-	State    string  `json:"state"`
-	Value    float64 `json:"value,omitempty"`
-	Unit     string  `json:"unit,omitempty"`
-	Evidence string  `json:"evidence,omitempty"`
-	Reason   string  `json:"reason,omitempty"`
-}
-
-// Import strictly decodes and validates a neutral snapshot.
-func Import(reader io.Reader) (Snapshot, error) {
-	var snapshot Snapshot
-	if err := strictjson.Decode(reader, &snapshot); err != nil {
-		return Snapshot{}, fmt.Errorf("adaptive parity snapshot: %w", err)
+// Import admits one bounded snapshot and returns its canonical stored bytes.
+func Import(reader io.Reader) (Snapshot, []byte, error) {
+	if reader == nil {
+		return Snapshot{}, nil, errors.New("adaptive parity: nil snapshot reader")
 	}
-	if err := snapshot.Validate(); err != nil {
-		return Snapshot{}, err
+	data, err := io.ReadAll(io.LimitReader(reader, maxSnapshotBytes+1))
+	if err != nil {
+		return Snapshot{}, nil, fmt.Errorf("adaptive parity: read snapshot: %w", err)
 	}
-	return snapshot, nil
+	if len(data) > maxSnapshotBytes {
+		return Snapshot{}, nil, errors.New("adaptive parity: snapshot exceeds limit")
+	}
+	return Normalize(data)
 }
 
-// Export writes deterministic JSON independent of source-repository layout.
-func Export(writer io.Writer, snapshot Snapshot) error {
-	if err := snapshot.Validate(); err != nil {
-		return err
+func canonicalize(snapshot *Snapshot) error {
+	if snapshot == nil || snapshot.Version != Version || len(snapshot.Sources) == 0 || len(snapshot.Capabilities) == 0 {
+		return errors.New("adaptive parity: invalid snapshot")
 	}
-	snapshot.Capabilities = slices.Clone(snapshot.Capabilities)
-	slices.SortFunc(snapshot.Capabilities, func(a, b Capability) int { return strings.Compare(a.ID, b.ID) })
-	encoder := json.NewEncoder(writer)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(snapshot)
-}
-
-func (snapshot Snapshot) Validate() error {
-	if snapshot.Schema != Schema {
-		return fmt.Errorf("adaptive parity snapshot: schema %d, want %d", snapshot.Schema, Schema)
-	}
-	if len(snapshot.Sources) == 0 {
-		return errors.New("adaptive parity snapshot: no pinned sources")
-	}
+	slices.SortFunc(snapshot.Sources, func(a, b Source) int { return strings.Compare(a.Name, b.Name) })
+	sourceNames := make(map[string]struct{}, len(snapshot.Sources))
 	for _, source := range snapshot.Sources {
-		if source.Role == "" || source.Repository == "" || !validCommit(source.Commit) {
-			return errors.New("adaptive parity snapshot: source role, repository, and 40-hex commit required")
+		if !validName(source.Name) || !validText(source.Repository) || !validCommit(source.Commit) {
+			return errors.New("adaptive parity: invalid source")
 		}
+		if _, exists := sourceNames[source.Name]; exists {
+			return fmt.Errorf("adaptive parity: duplicate source %q", source.Name)
+		}
+		sourceNames[source.Name] = struct{}{}
 	}
-	if len(snapshot.Capabilities) == 0 {
-		return errors.New("adaptive parity snapshot: no capabilities")
-	}
-	seen := map[string]bool{}
-	for _, capability := range snapshot.Capabilities {
-		if capability.ID == "" || capability.Kind == "" || seen[capability.ID] {
-			return fmt.Errorf("adaptive parity snapshot: invalid or duplicate capability %q", capability.ID)
+	slices.SortFunc(snapshot.Capabilities, func(a, b Capability) int { return strings.Compare(a.ID, b.ID) })
+	capabilityIDs := make(map[string]struct{}, len(snapshot.Capabilities))
+	for index := range snapshot.Capabilities {
+		capability := &snapshot.Capabilities[index]
+		if !validName(capability.ID) || !validText(capability.EntryPoint) || strings.Contains(capability.EntryPoint, "\\") {
+			return errors.New("adaptive parity: invalid capability")
 		}
-		seen[capability.ID] = true
-		if len(capability.EntryPoints) == 0 || len(capability.Signature.Inputs) == 0 || len(capability.Signature.Outputs) == 0 {
-			return fmt.Errorf("adaptive parity snapshot: capability %q lacks entry point or modality signature", capability.ID)
+		if _, exists := sourceNames[capability.Source]; !exists {
+			return fmt.Errorf("adaptive parity: capability %q names unknown source %q", capability.ID, capability.Source)
 		}
-		for _, entry := range capability.EntryPoints {
-			if entry.Runtime == "" || entry.Path == "" || entry.Symbol == "" || !neutralLocator(entry.Path) {
-				return fmt.Errorf("adaptive parity snapshot: capability %q has invalid entry point", capability.ID)
+		if _, exists := capabilityIDs[capability.ID]; exists {
+			return fmt.Errorf("adaptive parity: duplicate capability %q", capability.ID)
+		}
+		capabilityIDs[capability.ID] = struct{}{}
+		if err := capability.Signature.Validate(); err != nil {
+			return fmt.Errorf("adaptive parity: capability %q: %w", capability.ID, err)
+		}
+		for _, references := range []*[]Reference{&capability.Artifacts, &capability.Corpora, &capability.Goldens} {
+			if err := canonicalReferences(references); err != nil {
+				return fmt.Errorf("adaptive parity: capability %q: %w", capability.ID, err)
 			}
 		}
-		for _, modality := range append(slices.Clone(capability.Signature.Inputs), capability.Signature.Outputs...) {
-			if !slices.Contains([]string{"text", "image", "audio", "video", "time-series", "table"}, modality) {
-				return fmt.Errorf("adaptive parity snapshot: capability %q has invalid modality %q", capability.ID, modality)
+		if len(capability.Artifacts) == 0 || len(capability.Corpora) == 0 || len(capability.Goldens) == 0 {
+			return fmt.Errorf("adaptive parity: capability %q lacks artifact, corpus, or golden evidence", capability.ID)
+		}
+		slices.SortFunc(capability.Measurements, func(a, b Measurement) int {
+			if order := strings.Compare(a.Runtime, b.Runtime); order != 0 {
+				return order
+			}
+			return strings.Compare(a.Protocol, b.Protocol)
+		})
+		for _, measurement := range capability.Measurements {
+			if !validName(measurement.Runtime) || !validText(measurement.Protocol) ||
+				measurement.WallNanos == 0 && measurement.PeakBytes == 0 || measurement.Evidence.Kind() != artifact.KindEvidence {
+				return fmt.Errorf("adaptive parity: capability %q has invalid measurement", capability.ID)
 			}
 		}
-		for kind, assets := range map[string][]Asset{"artifact": capability.Artifacts, "corpus": capability.Corpora, "golden": capability.Goldens} {
-			if len(assets) == 0 {
-				return fmt.Errorf("adaptive parity snapshot: capability %q lacks %s identity", capability.ID, kind)
-			}
-			for _, asset := range assets {
-				if asset.Identity == "" || !neutralLocator(asset.Locator) || kind == "golden" && !validDigest(asset.SHA256) {
-					return fmt.Errorf("adaptive parity snapshot: capability %q has invalid %s identity", capability.ID, kind)
-				}
-			}
-		}
-		for name, metric := range map[string]Metric{
-			"cold_wall": capability.Performance.ColdWall, "warm_wall": capability.Performance.WarmWall,
-			"peak_device": capability.Performance.PeakDevice, "peak_host": capability.Performance.PeakHost,
-		} {
-			if err := validateMetric(metric); err != nil {
-				return fmt.Errorf("adaptive parity snapshot: capability %q %s: %w", capability.ID, name, err)
-			}
-		}
-	}
-	return nil
-}
-
-func validateMetric(metric Metric) error {
-	switch metric.State {
-	case "measured":
-		if metric.Value < 0 || metric.Unit == "" || metric.Evidence == "" || metric.Reason != "" {
-			return errors.New("measured metric needs non-negative value, unit, evidence, and no reason")
-		}
-	case "unmeasured":
-		if metric.Reason == "" || metric.Value != 0 || metric.Unit != "" || metric.Evidence != "" {
-			return errors.New("unmeasured metric needs only a reason")
-		}
-	default:
-		return fmt.Errorf("invalid state %q", metric.State)
 	}
 	return nil
 }
 
-func validCommit(value string) bool { return len(value) == 40 && validHex(value) }
-func validDigest(value string) bool { return len(value) == 64 && validHex(value) }
+func canonicalReferences(references *[]Reference) error {
+	slices.SortFunc(*references, func(a, b Reference) int { return strings.Compare(a.Name, b.Name) })
+	seen := make(map[string]struct{}, len(*references))
+	for _, reference := range *references {
+		if !validName(reference.Name) || !reference.Identity.Valid() {
+			return errors.New("invalid reference")
+		}
+		if _, exists := seen[reference.Name]; exists {
+			return fmt.Errorf("duplicate reference %q", reference.Name)
+		}
+		seen[reference.Name] = struct{}{}
+	}
+	return nil
+}
 
-func validHex(value string) bool {
+func clone(snapshot Snapshot) Snapshot {
+	snapshot.Sources = slices.Clone(snapshot.Sources)
+	snapshot.Capabilities = slices.Clone(snapshot.Capabilities)
+	for index := range snapshot.Capabilities {
+		capability := &snapshot.Capabilities[index]
+		capability.Signature = capability.Signature.Clone()
+		capability.Artifacts = slices.Clone(capability.Artifacts)
+		capability.Corpora = slices.Clone(capability.Corpora)
+		capability.Goldens = slices.Clone(capability.Goldens)
+		capability.Measurements = slices.Clone(capability.Measurements)
+	}
+	return snapshot
+}
+
+func validCommit(value string) bool {
+	if len(value) != 40 {
+		return false
+	}
 	_, err := hex.DecodeString(value)
 	return err == nil
 }
 
-func neutralLocator(value string) bool {
-	return value != "" && !strings.Contains(value, "\\") && !strings.HasPrefix(value, "/") &&
-		!strings.Contains(value, "../") && !strings.Contains(value, ":/")
+func validName(value string) bool {
+	return value != "" && len(value) <= 128 && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\x00\r/\\")
+}
+
+func validText(value string) bool {
+	return value != "" && len(value) <= 4096 && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\x00\r")
 }

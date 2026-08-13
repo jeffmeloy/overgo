@@ -46,7 +46,8 @@ type DenoiserProgram struct {
 	InLatent  *tensor.Tensor // (InChannels, imgSeq)   image patch columns
 	InText    *tensor.Tensor // (Hidden, textSeq)      host text conditioning
 	InTemb    *tensor.Tensor // (Hidden)               host timestep embedding
-	InTembMod *tensor.Tensor // (6*Hidden)             host AdaLN-single vector
+	InTembMod *tensor.Tensor // (ModFields*Hidden)      host AdaLN-single vector
+	InDelta   *tensor.Tensor // (1)                     flow Euler delta
 
 	weightInputs map[string]*tensor.Tensor
 
@@ -55,6 +56,7 @@ type DenoiserProgram struct {
 	// [InChannels, seq] flow-matching output (image columns sliced host-side).
 	BlockOutputs []*tensor.Tensor
 	Velocity     *tensor.Tensor
+	NextLatent   *tensor.Tensor
 }
 
 // weightBinder binds named weight inputs; rank-2 projections take matmulType.
@@ -114,7 +116,8 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textSeq, gh, gw int,
 	p.InLatent = b.Input("latent_patches", dtype.F32, tensor.MustShape(inCh, uint64(imgSeq)))
 	p.InText = b.Input("text_conditioning", dtype.F32, tensor.MustShape(h, uint64(textSeq)))
 	p.InTemb = b.Input("timestep_embed", dtype.F32, tensor.MustShape(h))
-	p.InTembMod = b.Input("timestep_mod", dtype.F32, tensor.MustShape(6*h))
+	p.InTembMod = b.Input("timestep_mod", dtype.F32, tensor.MustShape(uint64(t.ModFields)*h))
+	p.InDelta = b.Input("flow_delta", dtype.F32, tensor.MustShape(1))
 
 	// img_in: (InChannels->Hidden) + bias, over the image tokens only.
 	img := b.Add(
@@ -194,6 +197,10 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textSeq, gh, gw int,
 		b.MulMat(bind.input("final_layer.linear.weight", h, inCh), fn),
 		bind.input("final_layer.linear.bias", inCh),
 	)
+	imageVelocity := b.FlatSlice(
+		p.Velocity, uint64(textSeq)*inCh, inCh, uint64(imgSeq),
+	)
+	p.NextLatent = b.Add(p.InLatent, b.Multiply(imageVelocity, p.InDelta))
 
 	if err := b.Err(); err != nil {
 		return nil, fmt.Errorf("denoiser program graph: %w", err)
@@ -218,31 +225,10 @@ type ForwardResult struct {
 // f64). This host-feed path requires F32 weight storage (BF16 weights ride
 // resident device feeds, not host values).
 func (p *DenoiserProgram) Forward(run GraphRunner, d *Denoiser, latentPatches, encoderHidden []float64, sigma float64) (ForwardResult, error) {
-	if p.MatmulType != dtype.F32 {
-		return ForwardResult{}, fmt.Errorf("denoiser forward: host-feed path needs F32 weights, program compiled %s", p.MatmulType)
-	}
-	if len(latentPatches) != p.ImgSeq*p.T.InChannels {
-		return ForwardResult{}, fmt.Errorf("denoiser forward: latent patches len=%d want %d", len(latentPatches), p.ImgSeq*p.T.InChannels)
-	}
-	temb, tembMod := d.timestepConditioning(sigma)
-	txt, err := d.textConditioning(encoderHidden, p.TextSeq)
+	feeds, err := p.hostFeeds(d, latentPatches, encoderHidden, sigma)
 	if err != nil {
 		return ForwardResult{}, err
 	}
-	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+4)
-	for name, node := range p.weightInputs {
-		data := d.w(name)
-		elements, _ := node.Shape.Elements()
-		if uint64(len(data)) != elements {
-			return ForwardResult{}, fmt.Errorf("denoiser forward: weight %s len=%d want %d", name, len(data), elements)
-		}
-		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
-	}
-	feeds[p.InLatent] = reference.Value{Shape: p.InLatent.Shape, Data: f32of(latentPatches)}
-	feeds[p.InText] = reference.Value{Shape: p.InText.Shape, Data: f32of(txt)}
-	feeds[p.InTemb] = reference.Value{Shape: p.InTemb.Shape, Data: f32of(temb)}
-	feeds[p.InTembMod] = reference.Value{Shape: p.InTembMod.Shape, Data: f32of(tembMod)}
-
 	outputs := append(append([]*tensor.Tensor(nil), p.BlockOutputs...), p.Velocity)
 	results, err := run(outputs, feeds)
 	if err != nil {
@@ -260,6 +246,39 @@ func (p *DenoiserProgram) Forward(run GraphRunner, d *Denoiser, latentPatches, e
 		res.BlockHidden[i] = results[node].Data
 	}
 	return res, nil
+}
+
+func (p *DenoiserProgram) hostFeeds(
+	d *Denoiser,
+	latentPatches, encoderHidden []float64,
+	sigma float64,
+) (map[*tensor.Tensor]reference.Value, error) {
+	if p.MatmulType != dtype.F32 {
+		return nil, fmt.Errorf("denoiser forward: host-feed path needs F32 weights, program compiled %s", p.MatmulType)
+	}
+	if len(latentPatches) != p.ImgSeq*p.T.InChannels {
+		return nil, fmt.Errorf("denoiser forward: latent patches len=%d want %d", len(latentPatches), p.ImgSeq*p.T.InChannels)
+	}
+	temb, tembMod := d.timestepConditioning(sigma)
+	txt, err := d.textConditioning(encoderHidden, p.TextSeq)
+	if err != nil {
+		return nil, err
+	}
+	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+5)
+	for name, node := range p.weightInputs {
+		data := d.w(name)
+		elements, _ := node.Shape.Elements()
+		if uint64(len(data)) != elements {
+			return nil, fmt.Errorf("denoiser forward: weight %s len=%d want %d", name, len(data), elements)
+		}
+		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
+	}
+	feeds[p.InLatent] = reference.Value{Shape: p.InLatent.Shape, Data: f32of(latentPatches)}
+	feeds[p.InText] = reference.Value{Shape: p.InText.Shape, Data: f32of(txt)}
+	feeds[p.InTemb] = reference.Value{Shape: p.InTemb.Shape, Data: f32of(temb)}
+	feeds[p.InTembMod] = reference.Value{Shape: p.InTembMod.Shape, Data: f32of(tembMod)}
+	feeds[p.InDelta] = reference.Value{Shape: p.InDelta.Shape, Data: []float32{0}}
+	return feeds, nil
 }
 
 func f32of(v []float64) []float32 {

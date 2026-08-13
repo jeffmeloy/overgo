@@ -46,12 +46,14 @@ Production gaps:
 
 - `TrainingRunPlan` and `TrainingProgram` are design contracts, not implemented
   Go types;
-- `cmd/train` selects `TrainDeviceResident`; layer weights and Muon momentum stay
-  device-resident across steps and return to host at checkpoint.
+- `cmd/train` selects the resident dense device loop; the displaced per-step
+  weight scatter/gradient gather training adapters are deleted;
 - production checkpoints are not atomic complete-state resumes;
 - vector/scalar updates still use the provisional sign rule;
 - no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed the compiled
   resident training contract;
+- compiled multimodal training authority is not implemented as a sole runtime
+  owner;
 - real multimodal processor/projector/codec gradient and held-out quality gates
   remain open.
 
@@ -320,7 +322,8 @@ Training a new language model from scratch is a later, separately budgeted progr
 **Open decision (blocks rung 1): choose the base and register its RepoDB
 identity.** Rung 1 cannot seal a `TrainingRunPlan` until the base model is named,
 because the plan owns the initial-model identity. Candidates are Fractale-350M,
-Carbon-500M and Qwen2.5-0.5B — all already resident-trainable (§11). Decision
+Carbon-500M and Qwen2.5-0.5B. Fixture-level resident training does not make any
+candidate production-trainable. Decision
 criterion, in order: (a) a device forward/backward already parity-verified in the
 tree, so rung 2 is not gated on a new backward; (b) an instruction/tool-use
 pretraining that transfers to workflow control rather than a bare LM; (c) the
@@ -380,11 +383,12 @@ model.
 
 ## 10. Implementation ladder
 
-`docs/plan.json` (driven by `cmd/plan`) is the single execution owner: it tracks
-which rung and step is open, done or blocked. This section and the §11 model
+`docs/plan.json` (driven by `cmd/plan`) is the single execution owner: it contains
+only dispatchable or externally blocked work. Completed evidence belongs in Git
+and RepoDB, not the live queue. This section and the §11 model
 ladder are rationale and sequencing only — they explain *why* the rungs are
 ordered this way and *what* each proves; they do not record completion. When a
-training rung lands, its status changes in `plan.json`, not here. If this ladder
+training rung lands, it leaves `plan.json`. If this ladder
 and `plan.json` ever disagree on scope, `plan.json` wins and this section is
 corrected to match. Add or rename a training rung in `plan.json` first, then
 reflect the rationale here.
@@ -397,9 +401,8 @@ not redefine an earlier rung's correctness contract.
    modalities, processor/projector/codec, objective and policy IDs. Derive the
    applicable/refused multimodal matrix from those facts.
 2. **Resident Muon production path.** Dense device forward/backward, matrix
-   Muon, resident state and synthetic hybrid parity are implemented. Wire the
-   production command to resident execution, add vector/scalar Muon, then delete
-   displaced full/scatter and sign-update paths.
+   Muon, resident state, synthetic hybrid parity, and production command routing
+   are implemented. Add vector/scalar Muon, then delete the sign-update path.
 3. **Exact recovery.** Lower-level dense trajectory tests exist. Implement both
    checkpoint schemas at the production boundary: atomic publication, complete
    Muon/RNG/data/program state and uninterrupted-versus-resumed equality.
@@ -432,7 +435,7 @@ not redefine an earlier rung's correctness contract.
 | Model or family | Near-term role | Initial tier | Admission condition |
 |---|---|---:|---|
 | Dense fixture | Numerical/device plumbing | VRAM | Forward/backward/update parity |
-| Fractale-350M, Carbon-500M or Qwen2.5-0.5B | Controller candidate | VRAM | Exact resume and promotion-suite definition |
+| Fractale-350M, Carbon-500M or Qwen2.5-0.5B | Controller candidate, not yet production-trained | VRAM | Compiled loading/training authority, resident execution, exact resume and promotion suite |
 | SimpleDiffusion, Un-0, pocket-tts | Image and speech training validation | VRAM | Real modality corpus, processor/codec gradients and native-quality evaluation |
 | MiniCPM5-1B | Resident scale validation | VRAM | Measured peak below safe capacity class |
 | Gemma3n E4B | Tier-1 multimodal scale target | RAM offload | Device backward, checkpointing and every adaptive-declared trainable text/image/audio modality |

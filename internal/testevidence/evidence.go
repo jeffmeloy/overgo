@@ -8,12 +8,34 @@ import (
 	"strings"
 )
 
+type GoTestReport struct {
+	Skipped     []string
+	Unavailable []string
+}
+
 // GoTestJSON rejects skipped tests and unavailable oracle markers in go test
 // -json output. Package rows without tests remain neutral: derived gate scope
 // may include importers that intentionally own no tests.
 func GoTestJSON(out string) error {
+	report, err := GoTestJSONReport(out)
+	if err != nil {
+		return err
+	}
+	if len(report.Unavailable) > 0 {
+		return fmt.Errorf("%s", report.Unavailable[0])
+	}
+	if len(report.Skipped) > 0 {
+		return fmt.Errorf("%s skipped", report.Skipped[0])
+	}
+	return nil
+}
+
+// GoTestJSONReport decodes complete test evidence without crediting skips.
+// Callers decide whether the tested package is in the changed ownership cone.
+func GoTestJSONReport(out string) (GoTestReport, error) {
 	scanner := bufio.NewScanner(strings.NewReader(out))
 	seen := false
+	var report GoTestReport
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -26,23 +48,23 @@ func GoTestJSON(out string) error {
 			Output  string
 		}
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			return fmt.Errorf("decode go test event: %w", err)
+			return GoTestReport{}, fmt.Errorf("decode go test event: %w", err)
 		}
 		seen = true
 		if reason := unavailable(event.Output); reason != "" {
-			return fmt.Errorf("%s", reason)
+			report.Unavailable = append(report.Unavailable, event.Package+": "+reason)
 		}
 		if event.Action == "skip" && event.Test != "" {
-			return fmt.Errorf("%s: %s skipped", event.Package, event.Test)
+			report.Skipped = append(report.Skipped, event.Package+": "+event.Test)
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("read go test events: %w", err)
+		return GoTestReport{}, fmt.Errorf("read go test events: %w", err)
 	}
 	if !seen {
-		return fmt.Errorf("go test emitted no events")
+		return GoTestReport{}, fmt.Errorf("go test emitted no events")
 	}
-	return nil
+	return report, nil
 }
 
 // VerifyOutput rejects successful shell verification that did not prove its

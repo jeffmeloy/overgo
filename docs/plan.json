@@ -66,15 +66,15 @@
       ]
     },
     {
-      "id": "merge-overgo-gui",
-      "title": "Merge overgo_gui; reconcile shared analysis owners and verify master",
+      "id": "merge-overgo-tightening-2",
+      "title": "Merge latest overgo_tightening; reconcile indexed runtime owners and verify master",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Merge overgo_gui; reconcile shared analysis owners and verify master",
+          "title": "Merge latest overgo_tightening; reconcile indexed runtime owners and verify master",
           "status": "open",
-          "verify": "git merge-base --is-ancestor 11c3ad7b6a9efc659c414eab6dd8e8c20bf893a6 HEAD"
+          "verify": "git merge-base --is-ancestor c0d75dafc3282af2b2cbf48c332ecaff165f6466 HEAD"
         }
       ]
     },

@@ -14,7 +14,7 @@ func launchNode(
 	q8Input *q8InputState,
 	node *tensor.Tensor,
 	attributes tensor.Attributes,
-	pointers devicePointerTable,
+	pointers launchPointerFrame,
 	attributePointers devicePointerTable,
 ) error {
 	descriptor, ok := tensor.DescribeOperation(node.Op)

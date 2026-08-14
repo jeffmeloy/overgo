@@ -48,29 +48,32 @@ func dumpOpCounts(compiled *CompiledGraph) {
 			continue
 		}
 		key := node.Op.String()
-		switch {
-		case compiled.weightedRMS != nil && func() bool { _, ok := compiled.weightedRMS[node]; return ok }():
-			key = "fused:weighted_rms"
-			if compiled.weightedRMS[node].addLeft != nil {
-				key = "fused:weighted_rms_add"
+		fusion := compiled.nodes[compiled.orderIndexes[node]].fusion
+		if fusion != nil {
+			switch fusion.kind {
+			case compiledFusionWeightedRMS:
+				key = "fused:weighted_rms"
+				if fusion.weightedRMS.addLeft != nil {
+					key = "fused:weighted_rms_add"
+				}
+			case compiledFusionActivatedGate:
+				key = "fused:activated_gate"
+			case compiledFusionWeightedRMSGate:
+				key = "fused:weighted_rms_gate"
+			case compiledFusionQ8ArgmaxPartials, compiledFusionQ8ArgmaxReduction:
+				key = "fused:q8_argmax"
+			case compiledFusionBF16Gate:
+				key = "fused:bf16_gate"
+			case compiledFusionBF16ProjAdd:
+				key = "fused:bf16_projection_add"
+			case compiledFusionBF16Append:
+				key = "fused:bf16_append"
+			case compiledFusionBF16ArgmaxPartials, compiledFusionBF16ArgmaxReduction:
+				key = "fused:bf16_argmax"
+			case compiledFusionRopeAppend:
+				key = "fused:rope_append"
 			}
-		case compiled.activatedGate != nil && func() bool { _, ok := compiled.activatedGate[node]; return ok }():
-			key = "fused:activated_gate"
-		case compiled.weightedRMSGate != nil && func() bool { _, ok := compiled.weightedRMSGate[node]; return ok }():
-			key = "fused:weighted_rms_gate"
-		case compiled.q8Argmax != nil && func() bool { _, ok := compiled.q8Argmax[node]; return ok }():
-			key = "fused:q8_argmax"
-		case compiled.bf16Gate != nil && func() bool { _, ok := compiled.bf16Gate[node]; return ok }():
-			key = "fused:bf16_gate"
-		case compiled.bf16ProjAdd != nil && func() bool { _, ok := compiled.bf16ProjAdd[node]; return ok }():
-			key = "fused:bf16_projection_add"
-		case compiled.bf16Append != nil && func() bool { _, ok := compiled.bf16Append[node]; return ok }():
-			key = "fused:bf16_append"
-		case compiled.bf16Argmax != nil && func() bool { _, ok := compiled.bf16Argmax[node]; return ok }():
-			key = "fused:bf16_argmax"
-		case compiled.ropeAppend != nil && func() bool { _, ok := compiled.ropeAppend[node]; return ok }():
-			key = "fused:rope_append"
-		case node.Op == tensor.OpMulMat:
+		} else if node.Op == tensor.OpMulMat {
 			left, right := node.Inputs[0], node.Inputs[1]
 			key = fmt.Sprintf("mul_mat[%s %dx%d rhs=%d]",
 				left.Type, left.Shape.Dims[0], left.Shape.Dims[1], right.Shape.Dims[1])

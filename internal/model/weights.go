@@ -251,19 +251,16 @@ type AppendedDraftWeights struct {
 	Output          *gguf.TensorInfo
 }
 
-type weightRequirementLoader func(string, ...uint64) (gguf.TensorInfo, error)
-
 func loadQKNormPair(
-	load weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	layer *LayerWeights,
 	queryShape, keyShape []uint64,
 	optionalLabel string,
 ) error {
 	if optionalLabel != "" {
-		_, hasQuery := tensors[prefix+"attn_q_norm.weight"]
-		_, hasKey := tensors[prefix+"attn_k_norm.weight"]
+		_, hasQuery := catalog.tensor(prefix + "attn_q_norm.weight")
+		_, hasKey := catalog.tensor(prefix + "attn_k_norm.weight")
 		if hasQuery != hasKey {
 			return fmt.Errorf("%s Q/K norm tensors must both be present or absent", optionalLabel)
 		}
@@ -271,21 +268,20 @@ func loadQKNormPair(
 			return nil
 		}
 	}
-	return loadTensorRequirements(load, tensors, prefix, []tensorRequirement{
+	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
 		requiredTensorPointer("attn_q_norm.weight", &layer.AttentionQNorm, queryShape...),
 		requiredTensorPointer("attn_k_norm.weight", &layer.AttentionKNorm, keyShape...),
 	})
 }
 
 func loadOptionalWeightBias(
-	load weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	weight, bias tensorRequirement,
 	orphanError string,
 ) error {
-	_, hasWeight := tensors[prefix+weight.name]
-	_, hasBias := tensors[prefix+bias.name]
+	_, hasWeight := catalog.tensor(prefix + weight.name)
+	_, hasBias := catalog.tensor(prefix + bias.name)
 	if !hasWeight {
 		if hasBias {
 			return errors.New(orphanError)
@@ -296,7 +292,7 @@ func loadOptionalWeightBias(
 	if hasBias {
 		requirements = append(requirements, bias)
 	}
-	return loadTensorRequirements(load, tensors, prefix, requirements)
+	return loadTensorRequirements(catalog, prefix, requirements)
 }
 
 type mtpCommonDestinations struct {
@@ -305,14 +301,13 @@ type mtpCommonDestinations struct {
 }
 
 func loadMTPCommonWeights(
-	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	destination mtpCommonDestinations,
 ) error {
 	width := uint64(spec.EmbeddingLength)
-	return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
 		requiredTensor("nextn.eh_proj.weight", destination.ehProjection, 2*width, width),
 		requiredTensor("nextn.enorm.weight", destination.embeddingNorm, width),
 		requiredTensor("nextn.hnorm.weight", destination.hiddenNorm, width),
@@ -323,17 +318,17 @@ func loadMTPCommonWeights(
 }
 
 func loadSharedExpertWeights(
-	required weightRequirementLoader,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
 	withRouter bool,
 ) error {
-	return loadSharedExpertWeightsForWidth(required, prefix, uint64(spec.EmbeddingLength), spec, layer, withRouter)
+	return loadSharedExpertWeightsForWidth(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, withRouter)
 }
 
 func loadSharedExpertWeightsForWidth(
-	required weightRequirementLoader,
+	catalog weightCatalog,
 	prefix string,
 	width uint64,
 	spec Spec,
@@ -350,7 +345,7 @@ func loadSharedExpertWeightsForWidth(
 			requiredTensorPointer("ffn_gate_inp_shexp.weight", &layer.FeedForwardSharedRouter, width),
 		)
 	}
-	return loadTensorRequirements(required, nil, prefix, requirements)
+	return loadTensorRequirements(catalog, prefix, requirements)
 }
 
 type encoderDecoderCatalogPlan struct {
@@ -371,8 +366,7 @@ func newEncoderDecoderCatalogPlan(spec Spec) encoderDecoderCatalogPlan {
 }
 
 func (p encoderDecoderCatalogPlan) loadLayer(
-	load weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	layer *LayerWeights,
 	requireGate bool,
@@ -380,7 +374,7 @@ func (p encoderDecoderCatalogPlan) loadLayer(
 ) error {
 	gate := optionalTensor("ffn_gate.weight", &layer.FeedForwardGate, p.width, p.feedForward)
 	gate.optional = !requireGate
-	if err := loadTensorRequirements(load, tensors, prefix, []tensorRequirement{
+	if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 		requiredTensor("attn_norm.weight", &layer.AttentionNorm, p.width),
 		requiredTensor("attn_q.weight", &layer.AttentionQ, p.width, p.query),
 		requiredTensor("attn_k.weight", &layer.AttentionK, p.width, p.key),
@@ -396,7 +390,7 @@ func (p encoderDecoderCatalogPlan) loadLayer(
 	bias := requiredTensorPointer(
 		"attn_rel_b.weight", &layer.AttentionRelativeBias, p.heads, p.relativeBuckets)
 	bias.optional = inheritedBias != nil
-	if err := loadTensorRequirements(load, tensors, prefix, []tensorRequirement{bias}); err != nil {
+	if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{bias}); err != nil {
 		return err
 	}
 	if inheritedBias == nil {
@@ -446,25 +440,34 @@ type Weights struct {
 }
 
 type weightCatalog struct {
-	tensors map[string]gguf.TensorInfo
+	tensors map[string]int
+	items   []gguf.TensorInfo
 }
 
 func newWeightCatalog(file *gguf.File) (weightCatalog, error) {
 	if file == nil {
 		return weightCatalog{}, errors.New("model file is nil")
 	}
-	tensors := make(map[string]gguf.TensorInfo, len(file.Tensors))
-	for _, item := range file.Tensors {
+	tensors := make(map[string]int, len(file.Tensors))
+	for index, item := range file.Tensors {
 		if _, exists := tensors[item.Name]; exists {
 			return weightCatalog{}, fmt.Errorf("duplicate tensor %q", item.Name)
 		}
-		tensors[item.Name] = item
+		tensors[item.Name] = index
 	}
-	return weightCatalog{tensors: tensors}, nil
+	return weightCatalog{tensors: tensors, items: file.Tensors}, nil
+}
+
+func (c weightCatalog) tensor(name string) (gguf.TensorInfo, bool) {
+	index, ok := c.tensors[name]
+	if !ok {
+		return gguf.TensorInfo{}, false
+	}
+	return c.items[index], true
 }
 
 func (c weightCatalog) required(name string, shape ...uint64) (gguf.TensorInfo, error) {
-	item, ok := c.tensors[name]
+	item, ok := c.tensor(name)
 	if !ok {
 		return gguf.TensorInfo{}, fmt.Errorf("required tensor %q is missing", name)
 	}
@@ -538,16 +541,16 @@ type layerCatalogLoader struct {
 }
 
 func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
-	tensors, required := l.catalog.tensors, l.catalog.required
+	catalog := l.catalog
 	spec, profile, draftPlan, normPlan := l.spec, l.profile, l.draftPlan, l.normPlan
 	var err error
 	tokenEmbeddingName := "token_embd.weight"
 	if profile.ModelCatalog.TokenEmbeddingFallback {
-		if _, ok := tensors[tokenEmbeddingName]; !ok {
+		if _, ok := catalog.tensors[tokenEmbeddingName]; !ok {
 			tokenEmbeddingName = "output.weight"
 		}
 	}
-	if result.TokenEmbedding, err = required(
+	if result.TokenEmbedding, err = catalog.required(
 		tokenEmbeddingName,
 		uint64(spec.EmbeddingLength),
 		uint64(spec.VocabularySize),
@@ -555,7 +558,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		return Weights{}, err
 	}
 	if profile.ModelCatalog.PositionEmbedding == positionEmbeddingRequired {
-		positionEmbedding, positionErr := required(
+		positionEmbedding, positionErr := catalog.required(
 			"position_embd.weight",
 			uint64(spec.EmbeddingLength),
 			uint64(spec.ContextLength),
@@ -571,14 +574,14 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 			uint64(spec.EmbeddingLength), uint64(spec.TokenTypeCount),
 		)
 		tokenTypes.optional = !profile.ModelCatalog.RequireTokenTypes
-		if typeErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{tokenTypes}); typeErr != nil {
+		if typeErr := loadTensorRequirements(catalog, "", []tensorRequirement{tokenTypes}); typeErr != nil {
 			return Weights{}, typeErr
 		}
-		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
+		tokenNorm, normErr := catalog.required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
 		if normErr != nil {
 			return Weights{}, normErr
 		}
-		tokenNormBias, normErr := required("token_embd_norm.bias", uint64(spec.EmbeddingLength))
+		tokenNormBias, normErr := catalog.required("token_embd_norm.bias", uint64(spec.EmbeddingLength))
 		if normErr != nil {
 			return Weights{}, normErr
 		}
@@ -586,7 +589,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		result.TokenEmbeddingNormBias = &tokenNormBias
 	}
 	if profile.ModelCatalog.TokenNorm == tokenNormWeight {
-		if normErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+		if normErr := loadTensorRequirements(catalog, "", []tensorRequirement{
 			requiredTensorPointer("token_embd_norm.weight", &result.TokenEmbeddingNorm,
 				uint64(spec.EmbeddingLength)),
 		}); normErr != nil {
@@ -594,7 +597,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		}
 	}
 	if profile.ModelCatalog.PositionEmbedding == positionEmbeddingOptional {
-		if positionErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+		if positionErr := loadTensorRequirements(catalog, "", []tensorRequirement{
 			optionalTensorPointer("position_embd.weight", &result.PositionEmbedding,
 				uint64(spec.EmbeddingLength), uint64(spec.ContextLength)),
 		}); positionErr != nil {
@@ -602,11 +605,11 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		}
 	}
 	if profile.ModelCatalog.TokenNorm == tokenNormAffine {
-		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
+		tokenNorm, normErr := catalog.required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
 		if normErr != nil {
 			return Weights{}, normErr
 		}
-		tokenNormBias, normErr := required("token_embd_norm.bias", uint64(spec.EmbeddingLength))
+		tokenNormBias, normErr := catalog.required("token_embd_norm.bias", uint64(spec.EmbeddingLength))
 		if normErr != nil {
 			return Weights{}, normErr
 		}
@@ -615,19 +618,19 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	}
 	if !spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() &&
 		profile.OutputNorm != OutputNormAbsent {
-		if result.OutputNorm, err = required(profile.OutputNormTensor(), uint64(spec.EmbeddingLength)); err != nil {
+		if result.OutputNorm, err = catalog.required(profile.OutputNormTensor(), uint64(spec.EmbeddingLength)); err != nil {
 			return Weights{}, err
 		}
 	}
 	if spec.RequiresLayerNormBias() && profile.OutputNorm != OutputNormAbsent {
-		outputNormBias, biasErr := required("output_norm.bias", uint64(spec.EmbeddingLength))
+		outputNormBias, biasErr := catalog.required("output_norm.bias", uint64(spec.EmbeddingLength))
 		if biasErr != nil {
 			return Weights{}, biasErr
 		}
 		result.OutputNormBias = &outputNormBias
 	}
 	if profile.ModelCatalog.OptionalOutputNormBias {
-		if biasErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+		if biasErr := loadTensorRequirements(catalog, "", []tensorRequirement{
 			optionalTensorPointer("output_norm.bias", &result.OutputNormBias,
 				uint64(spec.EmbeddingLength)),
 		}); biasErr != nil {
@@ -635,7 +638,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		}
 	}
 	if !profile.ModelCatalog.SkipOutput {
-		if outputErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+		if outputErr := loadTensorRequirements(catalog, "", []tensorRequirement{
 			optionalTensorPointer("output.weight", &result.Output,
 				uint64(spec.EmbeddingLength), uint64(spec.VocabularySize)),
 		}); outputErr != nil {
@@ -645,7 +648,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	if profile.Has(ArchitectureRequiresOutput) && result.Output == nil {
 		return Weights{}, errors.New(`required tensor "output.weight" is missing`)
 	}
-	if outputErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+	if outputErr := loadTensorRequirements(catalog, "", []tensorRequirement{
 		optionalF32TensorPointer("output.bias", &result.OutputBias, uint64(spec.VocabularySize)),
 	}); outputErr != nil {
 		return Weights{}, outputErr
@@ -655,7 +658,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		if len(spec.ClassifierLabels) > 0 {
 			outputCount = uint64(len(spec.ClassifierLabels))
 		}
-		if classifierErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+		if classifierErr := loadTensorRequirements(catalog, "", []tensorRequirement{
 			optionalTensorPointer("cls.output.weight", &result.ClassifierOutput,
 				uint64(spec.EmbeddingLength), outputCount),
 		}); classifierErr != nil {
@@ -666,11 +669,11 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		return Weights{}, errors.New(`required tensor "output.bias" is missing`)
 	}
 	if profile.LayerTopology == LayerTopologyBidirectionalQKNorm {
-		if item, ok := tensors["dense_2.weight"]; ok {
+		if item, ok := l.catalog.tensor("dense_2.weight"); ok {
 			if spec.Dense2FeatureIn == 0 || spec.Dense2FeatureOut == 0 {
 				return Weights{}, errors.New("Gemma embedding dense-2 tensor has no shape metadata")
 			}
-			validated, denseErr := required(
+			validated, denseErr := catalog.required(
 				item.Name, uint64(spec.Dense2FeatureIn), uint64(spec.Dense2FeatureOut),
 			)
 			if denseErr != nil {
@@ -678,11 +681,11 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 			}
 			result.Dense2Output = &validated
 		}
-		if item, ok := tensors["dense_3.weight"]; ok {
+		if item, ok := l.catalog.tensor("dense_3.weight"); ok {
 			if spec.Dense3FeatureIn == 0 || spec.Dense3FeatureOut == 0 {
 				return Weights{}, errors.New("Gemma embedding dense-3 tensor has no shape metadata")
 			}
-			validated, denseErr := required(
+			validated, denseErr := catalog.required(
 				item.Name, uint64(spec.Dense3FeatureIn), uint64(spec.Dense3FeatureOut),
 			)
 			if denseErr != nil {
@@ -696,7 +699,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		}
 	}
 	if profile.Has(ArchitecturePerLayerEmbeddings) && spec.EmbeddingPerLayer > 0 {
-		perLayerTokenEmbedding, itemErr := required(
+		perLayerTokenEmbedding, itemErr := catalog.required(
 			"per_layer_token_embd.weight",
 			uint64(spec.EmbeddingPerLayer)*uint64(spec.BlockCount),
 			uint64(spec.VocabularySize),
@@ -704,7 +707,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		if itemErr != nil {
 			return Weights{}, itemErr
 		}
-		perLayerModelProjection, itemErr := required(
+		perLayerModelProjection, itemErr := catalog.required(
 			"per_layer_model_proj.weight",
 			uint64(spec.EmbeddingLength),
 			uint64(spec.EmbeddingPerLayer)*uint64(spec.BlockCount),
@@ -712,7 +715,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		if itemErr != nil {
 			return Weights{}, itemErr
 		}
-		perLayerProjectionNorm, itemErr := required(
+		perLayerProjectionNorm, itemErr := catalog.required(
 			"per_layer_proj_norm.weight", uint64(spec.EmbeddingPerLayer),
 		)
 		if itemErr != nil {
@@ -723,13 +726,13 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		result.PerLayerProjectionNorm = &perLayerProjectionNorm
 	}
 	if profile.LayerTopology == LayerTopologySplitProjection {
-		projection, itemErr := required(
+		projection, itemErr := catalog.required(
 			"altup_proj.weight", uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength), uint64(spec.AltUpCount-1),
 		)
 		if itemErr != nil {
 			return Weights{}, itemErr
 		}
-		unembedding, itemErr := required(
+		unembedding, itemErr := catalog.required(
 			"altup_unembd_proj.weight", uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength), uint64(spec.AltUpCount-1),
 		)
 		if itemErr != nil {
@@ -746,8 +749,8 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	cohere2MTPOnly := false
 	if draftPlan.Kind == DraftOptionalSingleCatalog && draftPlan.SessionEligible() {
 		mtpPrefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, 0))
-		_, cohere2HasMTP = tensors[mtpPrefix+"nextn.eh_proj.weight"]
-		_, hasTrunk := tensors["blk.0.attn_norm.weight"]
+		_, cohere2HasMTP = catalog.tensors[mtpPrefix+"nextn.eh_proj.weight"]
+		_, hasTrunk := catalog.tensors["blk.0.attn_norm.weight"]
 		cohere2MTPOnly = cohere2HasMTP && !hasTrunk
 		if cohere2HasMTP {
 			trunkBlockCount++
@@ -755,7 +758,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	}
 	mtpOnly := draftPlan.Kind == DraftSingleCatalog && draftPlan.SessionEligible()
 	if mtpOnly {
-		_, hasTrunk := tensors["blk.0.attn_norm.weight"]
+		_, hasTrunk := catalog.tensors["blk.0.attn_norm.weight"]
 		mtpOnly = !hasTrunk
 	}
 	if mtpOnly {
@@ -770,7 +773,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 }
 
 func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) {
-	tensors, required := l.catalog.tensors, l.catalog.required
+	catalog := l.catalog
 	spec, profile, normPlan := l.spec, l.profile, l.normPlan
 	trunkBlockCount, cohere2MTPOnly := l.trunkBlockCount, l.cohere2MTPOnly
 	var err error
@@ -780,7 +783,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		prefix := fmt.Sprintf("blk.%d.", block)
 		isDraftBlock := block >= spec.BlockCount
-		layerPlan := spec.planLayer(profile, block, false)
+		layerPlan, planErr := spec.planLayer(profile, block, false)
+		if planErr != nil {
+			return Weights{}, planErr
+		}
 		shapes := spec.TensorShapes(block)
 		queryLength := shapes.QueryProjectionWidth()
 		keyLength := shapes.KeyProjectionWidth()
@@ -797,7 +803,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		if profile.Has(ArchitectureBiasFreeProjections) {
 			for _, name := range biasNames {
-				if _, ok := tensors[prefix+name]; ok {
+				if _, ok := catalog.tensors[prefix+name]; ok {
 					return Weights{}, fmt.Errorf(
 						"tensor %q requires unsupported %s projection biases",
 						prefix+name, spec.Architecture,
@@ -809,7 +815,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			"rope_factors_long.weight",
 			"rope_factors_short.weight",
 		} {
-			if _, ok := tensors[prefix+unsupported]; ok {
+			if _, ok := catalog.tensors[prefix+unsupported]; ok {
 				if profile.Has(ArchitectureLongRoPE) {
 					continue
 				}
@@ -821,8 +827,8 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		layer := &result.Layers[block]
 		if layerPlan.DenseWeights.validateOptionalQKNorm && layerPlan.DenseWeights.allowActivationScale {
-			_, hasQNorm := tensors[prefix+"attn_q_norm.weight"]
-			_, hasKNorm := tensors[prefix+"attn_k_norm.weight"]
+			_, hasQNorm := catalog.tensors[prefix+"attn_q_norm.weight"]
+			_, hasKNorm := catalog.tensors[prefix+"attn_k_norm.weight"]
 			if hasQNorm != hasKNorm {
 				return Weights{}, errors.New("MPT Q/K norm tensors must both be present or absent")
 			}
@@ -830,7 +836,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				if queryLength != uint64(spec.EmbeddingLength) || keyLength != uint64(spec.EmbeddingLength) {
 					return Weights{}, errors.New("MPT Q/K norm requires full-width Q/K projections")
 				}
-				if normErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if normErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredF32TensorPointer("attn_q_norm.weight", &layer.AttentionQNorm, uint64(spec.EmbeddingLength)),
 					requiredF32TensorPointer("attn_k_norm.weight", &layer.AttentionKNorm, uint64(spec.EmbeddingLength)),
 					optionalF32TensorPointer("attn_q_norm.bias", &layer.AttentionQNormBias, uint64(spec.EmbeddingLength)),
@@ -838,21 +844,21 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}); normErr != nil {
 					return Weights{}, normErr
 				}
-			} else if _, hasQBias := tensors[prefix+"attn_q_norm.bias"]; hasQBias {
+			} else if _, hasQBias := catalog.tensors[prefix+"attn_q_norm.bias"]; hasQBias {
 				return Weights{}, errors.New("MPT Q norm bias has no weight")
-			} else if _, hasKBias := tensors[prefix+"attn_k_norm.bias"]; hasKBias {
+			} else if _, hasKBias := catalog.tensors[prefix+"attn_k_norm.bias"]; hasKBias {
 				return Weights{}, errors.New("MPT K norm bias has no weight")
 			}
-			if scaleErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if scaleErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				optionalF32TensorPointer("ffn_act.scales", &layer.FeedForwardActivationScale,
 					uint64(spec.FeedForwardLength)),
 			}); scaleErr != nil {
 				return Weights{}, scaleErr
 			}
 		}
-		ropeFactors, hasRopeFactors := tensors[prefix+"rope_freqs.weight"]
+		ropeFactors, hasRopeFactors := l.catalog.tensor(prefix + "rope_freqs.weight")
 		if (profile.Rotary.FactorPairs || profile.LayerTopology == LayerTopologySharedKVAdapter && !layerPlan.Sliding) && !hasRopeFactors {
-			ropeFactors, hasRopeFactors = tensors["rope_freqs.weight"]
+			ropeFactors, hasRopeFactors = l.catalog.tensor("rope_freqs.weight")
 		}
 		if hasRopeFactors {
 			if layerPlan.Attention == AttentionGatedDelta {
@@ -882,14 +888,14 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				longName = "rope_factors_long.weight"
 				shortName = "rope_factors_short.weight"
 			}
-			longFactors, hasLong := tensors[longName]
-			shortFactors, hasShort := tensors[shortName]
+			longFactors, hasLong := l.catalog.tensor(longName)
+			shortFactors, hasShort := l.catalog.tensor(shortName)
 			if block > 0 {
 				if !hasLong {
-					longFactors, hasLong = tensors["blk.0.rope_factors_long.weight"]
+					longFactors, hasLong = l.catalog.tensor("blk.0.rope_factors_long.weight")
 				}
 				if !hasShort {
-					shortFactors, hasShort = tensors["blk.0.rope_factors_short.weight"]
+					shortFactors, hasShort = l.catalog.tensor("blk.0.rope_factors_short.weight")
 				}
 			}
 			if hasLong != hasShort {
@@ -916,17 +922,17 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		if profile.LayerTopology == LayerTopologyBidirectionalFusedQKV {
 			norm := optionalTensor("attn_norm.weight", &layer.AttentionNorm, uint64(spec.EmbeddingLength))
 			norm.optional = block == 0
-			if normErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{norm}); normErr != nil {
+			if normErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{norm}); normErr != nil {
 				return Weights{}, normErr
 			}
 		} else if normPlan.PreAttention &&
 			(!layerPlan.DeciSparse || spec.LayerHeadCount(block) > 0) &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
-			if layer.AttentionNorm, err = required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
+			if layer.AttentionNorm, err = catalog.required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}
 			if spec.RequiresLayerNormBias() {
-				attentionNormBias, biasErr := required(
+				attentionNormBias, biasErr := catalog.required(
 					prefix+"attn_norm.bias",
 					uint64(spec.EmbeddingLength),
 				)
@@ -941,7 +947,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			if layer.Recurrent {
 				inner := uint64(spec.SSMInnerSize)
 				width := uint64(spec.EmbeddingLength)
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredTensor("attn_q.weight", &layer.AttentionQ, width, inner),
 					requiredTensor("attn_k.weight", &layer.AttentionK, width, inner),
 					requiredTensor("attn_v.weight", &layer.AttentionV, width, inner),
@@ -951,7 +957,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 				convShape := []uint64{uint64(spec.SSMConvKernel), 1, inner}
 				convShape4D := append(slices.Clone(convShape), 1)
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredTensorPointerShapes("ssm_conv1d_q.weight", &layer.SSMQueryConv, convShape, convShape4D),
 					requiredTensorPointerShapes("ssm_conv1d_k.weight", &layer.SSMKeyConv, convShape, convShape4D),
 					requiredTensorPointerShapes("ssm_conv1d_v.weight", &layer.SSMValueConv, convShape, convShape4D),
@@ -965,7 +971,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}); itemErr != nil {
 					return Weights{}, itemErr
 				}
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredTensorPointerShapes("ssm_a", &layer.SSMA,
 						[]uint64{1, uint64(spec.HeadCount)},
 						[]uint64{1, uint64(spec.HeadCount), 1, 1}),
@@ -974,63 +980,63 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 			} else {
 				if spec.QLoRARank > 0 {
-					item, itemErr := required(prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank))
+					item, itemErr := catalog.required(prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank))
 					if itemErr != nil {
 						return Weights{}, itemErr
 					}
 					layer.AttentionQ = item
-					item, itemErr = required(prefix+"attn_q_a_norm.weight", uint64(spec.QLoRARank))
+					item, itemErr = catalog.required(prefix+"attn_q_a_norm.weight", uint64(spec.QLoRARank))
 					if itemErr != nil {
 						return Weights{}, itemErr
 					}
 					layer.AttentionQNorm = &item
-					item, itemErr = required(prefix+"attn_q_b.weight", uint64(spec.QLoRARank), queryLength)
+					item, itemErr = catalog.required(prefix+"attn_q_b.weight", uint64(spec.QLoRARank), queryLength)
 					if itemErr != nil {
 						return Weights{}, itemErr
 					}
 					layer.AttentionQB = &item
-				} else if layer.AttentionQ, err = required(prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength); err != nil {
+				} else if layer.AttentionQ, err = catalog.required(prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength); err != nil {
 					return Weights{}, err
 				}
-				if layer.AttentionOutput, err = required(prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength)); err != nil {
+				if layer.AttentionOutput, err = catalog.required(prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength)); err != nil {
 					return Weights{}, err
 				}
-				kvA, itemErr := required(prefix+"attn_kv_a_mqa.weight", uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank+spec.RopeDimensionCount))
+				kvA, itemErr := catalog.required(prefix+"attn_kv_a_mqa.weight", uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank+spec.RopeDimensionCount))
 				if itemErr != nil {
 					return Weights{}, itemErr
 				}
 				layer.AttentionKVAMQA = &kvA
-				kvNorm, itemErr := required(prefix+"attn_kv_a_norm.weight", uint64(spec.KVLoRARank))
+				kvNorm, itemErr := catalog.required(prefix+"attn_kv_a_norm.weight", uint64(spec.KVLoRARank))
 				if itemErr != nil {
 					return Weights{}, itemErr
 				}
 				layer.AttentionKVANorm = &kvNorm
 				nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-				if item, ok := tensors[prefix+"attn_k_b.weight"]; ok {
-					validated, itemErr := required(item.Name, nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount))
+				if _, ok := catalog.tensors[prefix+"attn_k_b.weight"]; ok {
+					validated, itemErr := catalog.required(prefix+"attn_k_b.weight", nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount))
 					if itemErr != nil {
 						return Weights{}, itemErr
 					}
 					layer.AttentionKB = &validated
-					validated, itemErr = required(prefix+"attn_v_b.weight", uint64(spec.KVLoRARank), uint64(spec.ValueLength), uint64(spec.HeadCount))
+					validated, itemErr = catalog.required(prefix+"attn_v_b.weight", uint64(spec.KVLoRARank), uint64(spec.ValueLength), uint64(spec.HeadCount))
 					if itemErr != nil {
 						return Weights{}, itemErr
 					}
 					layer.AttentionVB = &validated
 				} else {
-					validated, itemErr := required(prefix+"attn_kv_b.weight", uint64(spec.KVLoRARank), uint64(spec.HeadCount)*(nope+uint64(spec.ValueLength)))
+					validated, itemErr := catalog.required(prefix+"attn_kv_b.weight", uint64(spec.KVLoRARank), uint64(spec.HeadCount)*(nope+uint64(spec.ValueLength)))
 					if itemErr != nil {
 						return Weights{}, itemErr
 					}
 					layer.AttentionKVB = &validated
 				}
 			}
-			if layer.FeedForwardNorm, err = required(prefix+"ffn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
+			if layer.FeedForwardNorm, err = catalog.required(prefix+"ffn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}
 			if block < spec.LeadingDenseBlocks {
 				width := uint64(spec.EmbeddingLength)
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
 					requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
 					requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
@@ -1039,7 +1045,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 			} else {
 				width := uint64(spec.EmbeddingLength)
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, width, uint64(spec.ExpertCount)),
 					requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
 					requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
@@ -1048,14 +1054,14 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}); itemErr != nil {
 					return Weights{}, itemErr
 				}
-				if itemErr := loadSharedExpertWeights(required, prefix, spec, layer, false); itemErr != nil {
+				if itemErr := loadSharedExpertWeights(catalog, prefix, spec, layer, false); itemErr != nil {
 					return Weights{}, itemErr
 				}
 			}
 			continue
 		}
 		if mixer := layerPlan.Mixer; mixer >= recurrentMixerDynamicWKV6 && mixer <= recurrentMixerDynamicWKV7 {
-			if mixerErr := loadTokenShiftRecurrentLayer(required, tensors, prefix, spec, layer, block, layerPlan.Mixer); mixerErr != nil {
+			if mixerErr := loadTokenShiftRecurrentLayer(catalog, prefix, spec, layer, block, layerPlan.Mixer); mixerErr != nil {
 				return Weights{}, mixerErr
 			}
 			continue
@@ -1069,13 +1075,13 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					groupedSelectiveScanTensorRequirements(spec, layer, true),
 					optionalTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension),
 				)
-				if itemErr := loadTensorRequirements(required, tensors, prefix, requirements); itemErr != nil {
+				if itemErr := loadTensorRequirements(catalog, prefix, requirements); itemErr != nil {
 					return Weights{}, itemErr
 				}
 				continue
 			}
 			if spec.LayerFeedForwardLength(block) == 0 {
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredTensor("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
 					requiredTensor("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
 					requiredTensor("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
@@ -1090,7 +1096,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				continue
 			}
 			if !profile.Has(ArchitectureMoE) {
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredTensor("ffn_up.weight", &layer.FeedForwardUp, uint64(spec.EmbeddingLength), uint64(spec.LayerFeedForwardLength(block))),
 					requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.LayerFeedForwardLength(block)), uint64(spec.EmbeddingLength)),
 					optionalF32TensorPointer("ffn_up.bias", &layer.FeedForwardUpBias, uint64(spec.LayerFeedForwardLength(block))),
@@ -1103,18 +1109,18 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			moeWidth := uint64(spec.EmbeddingLength)
 			if spec.MoELatentSize > 0 {
 				moeWidth = uint64(spec.MoELatentSize)
-				latentDown, latentErr := required(prefix+"ffn_latent_down.weight", uint64(spec.EmbeddingLength), moeWidth)
+				latentDown, latentErr := catalog.required(prefix+"ffn_latent_down.weight", uint64(spec.EmbeddingLength), moeWidth)
 				if latentErr != nil {
 					return Weights{}, latentErr
 				}
-				latentUp, latentErr := required(prefix+"ffn_latent_up.weight", moeWidth, uint64(spec.EmbeddingLength))
+				latentUp, latentErr := catalog.required(prefix+"ffn_latent_up.weight", moeWidth, uint64(spec.EmbeddingLength))
 				if latentErr != nil {
 					return Weights{}, latentErr
 				}
 				layer.FeedForwardLatentDown = &latentDown
 				layer.FeedForwardLatentUp = &latentUp
 			}
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)),
 				requiredF32TensorPointer("exp_probs_b.bias", &layer.FeedForwardExpertBias, uint64(spec.ExpertCount)),
 				requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, moeWidth, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
@@ -1128,7 +1134,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		if layerPlan.DenseWeights.useSecondaryAttentionNorm {
 			if normErr := loadOptionalWeightBias(
-				required, tensors, prefix,
+				catalog, prefix,
 				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, uint64(spec.EmbeddingLength)),
 				requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, uint64(spec.EmbeddingLength)),
 				"secondary attention norm bias has no weight",
@@ -1137,13 +1143,13 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if layerPlan.DenseWeights.requireSubNorm {
-			attentionSubNorm, subNormErr := required(
+			attentionSubNorm, subNormErr := catalog.required(
 				prefix+"attn_sub_norm.weight", uint64(spec.EmbeddingLength),
 			)
 			if subNormErr != nil {
 				return Weights{}, subNormErr
 			}
-			feedForwardSubNorm, subNormErr := required(
+			feedForwardSubNorm, subNormErr := catalog.required(
 				prefix+"ffn_sub_norm.weight", uint64(spec.FeedForwardLength),
 			)
 			if subNormErr != nil {
@@ -1151,7 +1157,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 			layer.AttentionSubNorm = &attentionSubNorm
 			layer.FeedForwardSubNorm = &feedForwardSubNorm
-			if scaleErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if scaleErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				optionalF32TensorPointer("attn_q.scale", &layer.AttentionQScale, 1),
 				optionalF32TensorPointer("attn_k.scale", &layer.AttentionKScale, 1),
 				optionalF32TensorPointer("attn_v.scale", &layer.AttentionVScale, 1),
@@ -1166,7 +1172,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		if layerPlan.DeciSparse && spec.LayerHeadCount(block) == 0 {
 			// Attention-free layer.
 		} else if layerPlan.DeciSparse && spec.LayerKVHeadCount(block) == 0 {
-			if layer.AttentionOutput, err = required(
+			if layer.AttentionOutput, err = catalog.required(
 				prefix+"attn_output.weight",
 				uint64(spec.EmbeddingLength),
 				uint64(spec.EmbeddingLength),
@@ -1174,26 +1180,26 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, err
 			}
 		} else if handled, mixerErr := loadRecurrentMixerLayer(
-			required, tensors, prefix, spec, layer, block, layerPlan.Mixer,
+			catalog, prefix, spec, layer, block, layerPlan.Mixer,
 			layerPlan.AttentionGraph.deltaProjection, layerPlan.Recurrent,
 			queryLength, keyLength, valueLength, attentionOutputLength,
 		); mixerErr != nil {
 			return Weights{}, mixerErr
 		} else if handled {
 		} else if profile.Has(ArchitectureSharedKV) {
-			if layer.AttentionQ, err = required(
+			if layer.AttentionQ, err = catalog.required(
 				prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength,
 			); err != nil {
 				return Weights{}, err
 			}
 			if spec.LayerHasKV(block) {
-				if layer.AttentionK, err = required(
+				if layer.AttentionK, err = catalog.required(
 					prefix+"attn_k.weight", uint64(spec.EmbeddingLength), keyLength,
 				); err != nil {
 					return Weights{}, err
 				}
-				if item, ok := tensors[prefix+"attn_v.weight"]; ok {
-					value, valueErr := required(item.Name, uint64(spec.EmbeddingLength), valueLength)
+				if _, ok := catalog.tensors[prefix+"attn_v.weight"]; ok {
+					value, valueErr := catalog.required(prefix+"attn_v.weight", uint64(spec.EmbeddingLength), valueLength)
 					if valueErr != nil {
 						return Weights{}, valueErr
 					}
@@ -1202,7 +1208,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_v.weight")
 				}
 			}
-			if layer.AttentionOutput, err = required(
+			if layer.AttentionOutput, err = catalog.required(
 				prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength),
 			); err != nil {
 				return Weights{}, err
@@ -1210,22 +1216,22 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		} else if layerPlan.Attention == AttentionLatent || layerPlan.Attention == AttentionSparseLatent {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
 			if profile.LatentAttention == latentAttentionNeoXResidualScale || (profile.Has(ArchitectureLatentKVLayout) && spec.QLoRARank > 0) {
-				if layer.AttentionQ, err = required(
+				if layer.AttentionQ, err = catalog.required(
 					prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank),
 				); err != nil {
 					return Weights{}, err
 				}
-				qB, qBErr := required(prefix+"attn_q_b.weight", uint64(spec.QLoRARank), queryLength)
+				qB, qBErr := catalog.required(prefix+"attn_q_b.weight", uint64(spec.QLoRARank), queryLength)
 				if qBErr != nil {
 					return Weights{}, qBErr
 				}
 				layer.AttentionQB = &qB
-				qNorm, qNormErr := required(prefix+"attn_q_a_norm.weight", uint64(spec.QLoRARank))
+				qNorm, qNormErr := catalog.required(prefix+"attn_q_a_norm.weight", uint64(spec.QLoRARank))
 				if qNormErr != nil {
 					return Weights{}, qNormErr
 				}
 				layer.AttentionQNorm = &qNorm
-			} else if layer.AttentionQ, err = required(
+			} else if layer.AttentionQ, err = catalog.required(
 				prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength,
 			); err != nil {
 				return Weights{}, err
@@ -1235,7 +1241,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank+spec.RopeDimensionCount)),
 				requiredTensorPointer("attn_kv_a_norm.weight", &layer.AttentionKVANorm, uint64(spec.KVLoRARank)),
 			}
-			if _, modern := tensors[prefix+"attn_k_b.weight"]; modern {
+			if _, modern := catalog.tensors[prefix+"attn_k_b.weight"]; modern {
 				mlaTensors = append(mlaTensors,
 					requiredTensorPointer("attn_k_b.weight", &layer.AttentionKB, nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount)),
 					requiredTensorPointer("attn_v_b.weight", &layer.AttentionVB, uint64(spec.KVLoRARank), uint64(spec.ValueLength), uint64(spec.HeadCount)),
@@ -1246,11 +1252,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					uint64(spec.KVLoRARank), uint64(spec.HeadCount)*(nope+uint64(spec.ValueLength)),
 				))
 			}
-			if itemErr := loadTensorRequirements(required, tensors, prefix, mlaTensors); itemErr != nil {
+			if itemErr := loadTensorRequirements(catalog, prefix, mlaTensors); itemErr != nil {
 				return Weights{}, itemErr
 			}
 			if spec.LayerHasFullIndexer(block) {
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredTensorPointer("indexer.k_norm.weight", &layer.IndexerKNorm, uint64(spec.IndexerKeyLength)),
 					requiredTensorPointer("indexer.k_norm.bias", &layer.IndexerKNormBias, uint64(spec.IndexerKeyLength)),
 					requiredTensorPointer("indexer.proj.weight", &layer.IndexerProjection, uint64(spec.EmbeddingLength), uint64(spec.IndexerHeadCount)),
@@ -1260,13 +1266,13 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					return Weights{}, itemErr
 				}
 			}
-			if layer.AttentionOutput, err = required(
+			if layer.AttentionOutput, err = catalog.required(
 				prefix+"attn_output.weight", uint64(spec.HeadCount)*uint64(spec.ValueLength), uint64(spec.EmbeddingLength),
 			); err != nil {
 				return Weights{}, err
 			}
 		} else if attentionErr := loadStandardAttentionCatalog(
-			required, tensors, prefix, spec, layer,
+			catalog, prefix, spec, layer,
 			queryLength, keyLength, valueLength, attentionOutputLength,
 		); attentionErr != nil {
 			return Weights{}, attentionErr
@@ -1274,7 +1280,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		qkPlan := layerPlan.QKPreprocess
 		if !layer.Recurrent && (qkPlan.Heads == qkNormWeighted || qkPlan.PostRotary == qkNormWeighted) {
 			shape := []uint64{uint64(spec.KeyLength)}
-			if normErr := loadQKNormPair(required, tensors, prefix, layer, shape, shape, ""); normErr != nil {
+			if normErr := loadQKNormPair(catalog, prefix, layer, shape, shape, ""); normErr != nil {
 				return Weights{}, normErr
 			}
 		}
@@ -1287,18 +1293,18 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				requirements = append(requirements,
 					requiredTensorPointer("attn_k_norm.weight", &layer.AttentionKNorm, shape...))
 			}
-			if normErr := loadTensorRequirements(required, tensors, prefix, requirements); normErr != nil {
+			if normErr := loadTensorRequirements(catalog, prefix, requirements); normErr != nil {
 				return Weights{}, normErr
 			}
 		}
 		if qkPlan.Heads == qkNormOptionalWeighted {
 			shape := []uint64{uint64(spec.KeyLength)}
-			if normErr := loadQKNormPair(required, tensors, prefix, layer, shape, shape, spec.Architecture); normErr != nil {
+			if normErr := loadQKNormPair(catalog, prefix, layer, shape, shape, spec.Architecture); normErr != nil {
 				return Weights{}, normErr
 			}
 		}
 		if qkPlan.Heads == qkNormOptionalWeighted && layerPlan.AttentionOutput.gate != attentionGateNone {
-			if gateErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if gateErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				optionalTensorPointer("attn_gate.weight", &layer.AttentionOutputGate,
 					uint64(spec.EmbeddingLength), uint64(spec.LayerHeadCount(block))),
 			}); gateErr != nil {
@@ -1315,7 +1321,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				requirements = append(requirements, requiredTensorPointer(
 					"post_attention_norm.weight", &layer.AttentionPostNorm, uint64(spec.EmbeddingLength)))
 			}
-			if sinkErr := loadTensorRequirements(required, tensors, prefix, requirements); sinkErr != nil {
+			if sinkErr := loadTensorRequirements(catalog, prefix, requirements); sinkErr != nil {
 				return Weights{}, sinkErr
 			}
 		}
@@ -1326,7 +1332,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			if layerPlan.AttentionOutput.flatGateElse {
 				shapes = append(shapes, []uint64{uint64(spec.EmbeddingLength), heads})
 			}
-			if gateErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if gateErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				requiredTensorPointerShapes("attn_gate.weight", &layer.AttentionOutputGate, shapes...),
 			}); gateErr != nil {
 				return Weights{}, gateErr
@@ -1340,7 +1346,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				optionalLabel = spec.Architecture
 			}
 			if normErr := loadQKNormPair(
-				required, tensors, prefix, layer,
+				catalog, prefix, layer,
 				[]uint64{uint64(spec.KeyLength), uint64(spec.HeadCount)},
 				[]uint64{uint64(spec.KeyLength), uint64(spec.HeadCountKV)}, optionalLabel,
 			); normErr != nil {
@@ -1348,7 +1354,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if qkPlan.Heads == qkNormAffine {
-			if biasErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if biasErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				optionalTensorPointer("attn_q_norm.bias", &layer.AttentionQNormBias,
 					uint64(spec.KeyLength), uint64(spec.HeadCount)),
 				optionalTensorPointer("attn_k_norm.bias", &layer.AttentionKNormBias,
@@ -1358,14 +1364,14 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if profile.LayerTopology == LayerTopologyCausalPostQKNormSkip {
-			qNorm, normErr := required(
+			qNorm, normErr := catalog.required(
 				prefix+"attn_q_norm.weight", 1, uint64(spec.HeadCount),
 			)
 			if normErr != nil {
 				return Weights{}, normErr
 			}
 			layer.AttentionQNorm = &qNorm
-			layerScale, scaleErr := required(prefix+"layer_out_scale.weight", 1)
+			layerScale, scaleErr := catalog.required(prefix+"layer_out_scale.weight", 1)
 			if scaleErr != nil {
 				return Weights{}, scaleErr
 			}
@@ -1373,7 +1379,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		if qkPlan.Projection == qkNormWeighted {
 			if normErr := loadQKNormPair(
-				required, tensors, prefix, layer, []uint64{queryLength}, []uint64{keyLength}, "",
+				catalog, prefix, layer, []uint64{queryLength}, []uint64{keyLength}, "",
 			); normErr != nil {
 				return Weights{}, normErr
 			}
@@ -1389,7 +1395,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			} {
 				shape := []uint64{uint64(spec.EmbeddingLength)}
 				if normErr := loadOptionalWeightBias(
-					required, tensors, prefix,
+					catalog, prefix,
 					requiredTensorPointer(binding.name+".weight", binding.weight, shape...),
 					requiredTensorPointer(binding.name+".bias", binding.bias, shape...),
 					"JinaBERT v2 "+binding.name+" bias has no weight",
@@ -1401,7 +1407,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, errors.New("JinaBERT v2 K norm requires full-width KV projection")
 			}
 			if normErr := loadOptionalWeightBias(
-				required, tensors, prefix,
+				catalog, prefix,
 				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, uint64(spec.EmbeddingLength)),
 				requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, uint64(spec.EmbeddingLength)),
 				"JinaBERT v2 secondary norm bias has no weight",
@@ -1410,7 +1416,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if !layer.Recurrent && !profile.ModelCatalog.SkipAttentionOutputBias {
-			if biasErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if biasErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				optionalF32TensorPointer("attn_output.bias", &layer.AttentionOutputBias,
 					uint64(spec.EmbeddingLength)),
 			}); biasErr != nil {
@@ -1422,7 +1428,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		if !layer.Recurrent && layer.AttentionQKV == nil &&
 			(!layerPlan.DeciSparse || spec.LayerKVHeadCount(block) > 0) {
-			if biasErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if biasErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, layer.AttentionQ.Shape[1]),
 				optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, layer.AttentionK.Shape[1]),
 				optionalF32TensorPointer("attn_v.bias", &layer.AttentionVBias, layer.AttentionV.Shape[1]),
@@ -1433,7 +1439,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		if normPlan.PostAttention {
 			normNames := normPlan.PostNormTensors()
 			if normNames.FeedForwardFallback != "" {
-				if _, ok := tensors[prefix+normNames.FeedForwardWeight]; !ok {
+				if _, ok := catalog.tensors[prefix+normNames.FeedForwardWeight]; !ok {
 					normNames.FeedForwardWeight = normNames.FeedForwardFallback
 				}
 			}
@@ -1448,20 +1454,20 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					requiredTensorPointer(normNames.FeedForwardBias, &layer.FeedForwardPostNormBias, width),
 				)
 			}
-			if normErr := loadTensorRequirements(required, tensors, prefix, requirements); normErr != nil {
+			if normErr := loadTensorRequirements(catalog, prefix, requirements); normErr != nil {
 				return Weights{}, normErr
 			}
 		}
 		if profile.Has(ArchitecturePerLayerEmbeddings) {
 			if profile.LayerTopology == LayerTopologySharedKVAdapter {
-				if scaleErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if scaleErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					optionalF32TensorPointer("layer_output_scale.weight", &layer.LayerOutputScale, 1),
 				}); scaleErr != nil {
 					return Weights{}, scaleErr
 				}
 			}
 			if spec.EmbeddingPerLayer > 0 {
-				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredTensorPointer("per_layer_inp_gate.weight", &layer.PerLayerInputGate, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingPerLayer)),
 					requiredTensorPointer("per_layer_proj.weight", &layer.PerLayerProjection, uint64(spec.EmbeddingPerLayer), uint64(spec.EmbeddingLength)),
 					requiredTensorPointer("per_layer_post_norm.weight", &layer.PerLayerPostNorm, uint64(spec.EmbeddingLength)),
@@ -1471,7 +1477,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if layerPlan.splitProjection() {
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				requiredTensorPointer("altup_correct_coef.weight", &layer.AltUpCorrectCoefficient, uint64(spec.AltUpCount), uint64(spec.AltUpCount)),
 				requiredTensorPointer("altup_correct_scale.weight", &layer.AltUpCorrectScale, uint64(spec.EmbeddingLength)),
 				requiredTensorPointer("altup_predict_coef.weight", &layer.AltUpPredictCoefficient, uint64(spec.AltUpCount), uint64(spec.AltUpCount*spec.AltUpCount)),
@@ -1490,7 +1496,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		feedForwardNormName := normPlan.FeedForwardNormTensor()
 		if layerPlan.ResidualStages.kind == residualStable {
 			if normErr := loadOptionalWeightBias(
-				required, tensors, prefix,
+				catalog, prefix,
 				requiredTensor(feedForwardNormName, &layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
 				requiredTensorPointer("ffn_norm.bias", &layer.FeedForwardNormBias, uint64(spec.EmbeddingLength)),
 				"StableLM FFN norm bias has no weight",
@@ -1501,11 +1507,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			(!layerPlan.DeciSparse || spec.LayerFeedForwardLength(block) > 0) &&
 			profile.Residual != ResidualParallel &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
-			if layer.FeedForwardNorm, err = required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
+			if layer.FeedForwardNorm, err = catalog.required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}
 			if spec.RequiresLayerNormBias() {
-				feedForwardNormBias, biasErr := required(
+				feedForwardNormBias, biasErr := catalog.required(
 					prefix+"ffn_norm.bias",
 					uint64(spec.EmbeddingLength),
 				)
@@ -1515,8 +1521,8 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				layer.FeedForwardNormBias = &feedForwardNormBias
 			}
 		}
-		if layerUsesMoECatalog(tensors, prefix, spec, block, isDraftBlock) {
-			loadDense, moeErr := loadMoECatalog(required, tensors, prefix, spec, layer)
+		if layerUsesMoECatalog(catalog, prefix, spec, block, isDraftBlock) {
+			loadDense, moeErr := loadMoECatalog(catalog, prefix, spec, layer)
 			if moeErr != nil {
 				return Weights{}, moeErr
 			}
@@ -1524,7 +1530,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				continue
 			}
 		}
-		if ffnErr := loadDenseFFNCatalog(required, tensors, prefix, spec, layer, block); ffnErr != nil {
+		if ffnErr := loadDenseFFNCatalog(catalog, prefix, spec, layer, block); ffnErr != nil {
 			return Weights{}, ffnErr
 		}
 	}
@@ -1532,7 +1538,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 }
 
 func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) {
-	tensors, required := l.catalog.tensors, l.catalog.required
+	catalog := l.catalog
 	spec, profile, draftPlan, mtpOnly := l.spec, l.profile, l.draftPlan, l.mtpOnly
 	cohere2HasMTP, cohere2MTPOnly := l.cohere2HasMTP, l.cohere2MTPOnly
 	if draftPlan.Kind == DraftSingleCatalog && draftPlan.SessionEligible() {
@@ -1544,7 +1550,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		queryLength := shapes.QueryProjectionWidth()
 		keyLength := shapes.KeyProjectionWidth()
 		valueLength := shapes.ValueProjectionWidth()
-		if loadErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if loadErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredTensor("attn_norm.weight", &mtp.Layer.AttentionNorm, uint64(spec.EmbeddingLength)),
 			requiredTensor("post_attention_norm.weight", &mtp.Layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
 			requiredTensor("attn_q.weight", &mtp.Layer.AttentionQ, uint64(spec.EmbeddingLength), 2*queryLength),
@@ -1557,17 +1563,17 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		}); loadErr != nil {
 			return Weights{}, loadErr
 		}
-		if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
+		if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
 			ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 			tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
 		}); loadErr != nil {
 			return Weights{}, loadErr
 		}
-		qNorm, loadErr := required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
+		qNorm, loadErr := catalog.required(prefix+"attn_q_norm.weight", uint64(spec.KeyLength))
 		if loadErr != nil {
 			return Weights{}, loadErr
 		}
-		kNorm, loadErr := required(prefix+"attn_k_norm.weight", uint64(spec.KeyLength))
+		kNorm, loadErr := catalog.required(prefix+"attn_k_norm.weight", uint64(spec.KeyLength))
 		if loadErr != nil {
 			return Weights{}, loadErr
 		}
@@ -1581,7 +1587,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			prefix := fmt.Sprintf("blk.%d.", block)
 			mtp := &heads[offset]
 			mtp.Layer = result.Layers[block]
-			if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
+			if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
 				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 				tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
 			}); loadErr != nil {
@@ -1599,7 +1605,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		block := draftPlan.Block(spec.BlockCount, 0)
 		prefix := fmt.Sprintf("blk.%d.", block)
 		mtp := &SingleDraftWeights{MTPOnly: cohere2MTPOnly, Layer: result.Layers[block]}
-		if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
+		if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
 			ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 			tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
 		}); loadErr != nil {
@@ -1619,14 +1625,14 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			prefix := fmt.Sprintf("blk.%d.", block)
 			mtp := &result.AppendedSingleDraft[offset]
 			mtp.Layer = result.Layers[block]
-			if loadErr := loadMTPCommonWeights(required, tensors, prefix, spec, mtpCommonDestinations{
+			if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
 				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 				tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
 			}); loadErr != nil {
 				return Weights{}, loadErr
 			}
 			if profile.ModelCatalog.DraftLayerOutputNorm {
-				loaded, loadErr := required(prefix+"layer_output_norm.weight", uint64(spec.EmbeddingLength))
+				loaded, loadErr := catalog.required(prefix+"layer_output_norm.weight", uint64(spec.EmbeddingLength))
 				if loadErr != nil {
 					return Weights{}, loadErr
 				}

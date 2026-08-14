@@ -1,9 +1,4 @@
-// Full-CUDA denoiser execution: one session owns device-resident weights,
-// retained per-branch cross-attention K/V, and both compiled graphs. The
-// step graph executes through the executor's retained path, so after the
-// first capture every further step replays one instantiated CUDA graph per
-// branch (per-step contents flow through the host-feed uploads and the
-// stable retained head target; the launch trace stays byte-identical).
+// CUDA denoiser: resident weights, branch K/V, compiled graphs.
 package latentvideo
 
 import (
@@ -20,17 +15,15 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-// DenoiserCUDASession: device residency plus compiled/retained execution
-// state for one DenoiserProgram.
+// DenoiserCUDASession: one program's resident execution state.
 type DenoiserCUDASession struct {
 	Program *DenoiserProgram
 
 	worker *device.Worker
 	cuda   *executor.Executor
 
-	weightPointers map[string]driver.DevicePtr
-	weightAllocs   []driver.DevicePtr
-	WeightBytes    uint64
+	weightAllocs []driver.DevicePtr
+	WeightBytes  uint64
 
 	contextCompiled    *executor.CompiledGraph
 	stepCompiled       *executor.CompiledGraph
@@ -45,16 +38,13 @@ type DenoiserCUDASession struct {
 	ctx context.Context
 }
 
-// sessionBranchContext: one branch's retained cross-attention K/V plus the
-// complete step-graph device feed map (weights + K/V pointers).
+// sessionBranchContext: retained branch K/V and step feeds.
 type sessionBranchContext struct {
 	retained *executor.RetainedOutputs
 	feeds    map[*tensor.Tensor]driver.DevicePtr
 }
 
-// NewDenoiserCUDASession: compiles both graphs, uploads every weight tensor
-// once (BF16 rank-2 projections when the program was compiled BF16), and
-// prepares the stable retained head target.
+// NewDenoiserCUDASession: compile, upload once, bind retained head.
 func NewDenoiserCUDASession(program *DenoiserProgram, ordinal int) (session *DenoiserCUDASession, err error) {
 	if program == nil {
 		return nil, errors.New("denoiser session: program is nil")
@@ -68,11 +58,10 @@ func NewDenoiserCUDASession(program *DenoiserProgram, ordinal int) (session *Den
 		return nil, errors.Join(err, worker.Close())
 	}
 	session = &DenoiserCUDASession{
-		Program:        program,
-		worker:         worker,
-		cuda:           cuda,
-		weightPointers: make(map[string]driver.DevicePtr),
-		ctx:            context.Background(),
+		Program: program,
+		worker:  worker,
+		cuda:    cuda,
+		ctx:     context.Background(),
 	}
 	defer func() {
 		if err != nil {
@@ -88,11 +77,12 @@ func NewDenoiserCUDASession(program *DenoiserProgram, ordinal int) (session *Den
 	if err != nil {
 		return session, fmt.Errorf("denoiser session step graph: %w", err)
 	}
-	if err = session.uploadWeights(); err != nil {
+	weightPointers, err := session.uploadWeights()
+	if err != nil {
 		return session, err
 	}
-	session.contextWeightFeeds = session.bindWeightFeeds(program.contextWeightInputs)
-	session.stepWeightFeeds = session.bindWeightFeeds(program.stepWeightInputs)
+	session.contextWeightFeeds = bindWeightFeeds(program.contextWeightInputs, weightPointers)
+	session.stepWeightFeeds = bindWeightFeeds(program.stepWeightInputs, weightPointers)
 	headBytes, err := program.Head.Shape.Bytes(dtype.F32)
 	if err != nil {
 		return session, err
@@ -109,6 +99,9 @@ func NewDenoiserCUDASession(program *DenoiserProgram, ordinal int) (session *Den
 	if err = session.headTargets.Set(program.Head, headValue); err != nil {
 		return session, err
 	}
+	program.weights = nil
+	program.contextWeightInputs = nil
+	program.stepWeightInputs = nil
 	return session, nil
 }
 
@@ -119,9 +112,8 @@ func contextGraphOutputs(program *DenoiserProgram) []*tensor.Tensor {
 	return outputs
 }
 
-// uploadWeights: every unique weight name uploads exactly once, in the
-// node's storage type (F32 raw bits; BF16 round-to-nearest-even).
-func (s *DenoiserCUDASession) uploadWeights() error {
+// uploadWeights: unique names; declared storage type.
+func (s *DenoiserCUDASession) uploadWeights() (map[string]driver.DevicePtr, error) {
 	type upload struct {
 		name string
 		node *tensor.Tensor
@@ -132,7 +124,7 @@ func (s *DenoiserCUDASession) uploadWeights() error {
 		for name, node := range inputs {
 			if prior, ok := seen[name]; ok {
 				if prior.Type != node.Type || !prior.Shape.Equal(node.Shape) {
-					return fmt.Errorf("denoiser session weight %s: graphs disagree on storage", name)
+					return nil, fmt.Errorf("denoiser session weight %s: graphs disagree on storage", name)
 				}
 				continue
 			}
@@ -140,15 +132,16 @@ func (s *DenoiserCUDASession) uploadWeights() error {
 			uploads = append(uploads, upload{name: name, node: node})
 		}
 	}
+	pointers := make(map[string]driver.DevicePtr, len(uploads))
 	for _, item := range uploads {
 		data := s.Program.weights.tensor(item.name)
 		elements, err := item.node.Shape.Elements()
 		if err != nil || uint64(len(data)) != elements {
-			return fmt.Errorf("denoiser session weight %s: have %d elements, need %d", item.name, len(data), elements)
+			return nil, fmt.Errorf("denoiser session weight %s: have %d elements, need %d", item.name, len(data), elements)
 		}
 		payload, err := encodeWeightPayload(data, item.node.Type)
 		if err != nil {
-			return fmt.Errorf("denoiser session weight %s: %w", item.name, err)
+			return nil, fmt.Errorf("denoiser session weight %s: %w", item.name, err)
 		}
 		var pointer driver.DevicePtr
 		if err := s.worker.Do(s.ctx, func(state *device.State) error {
@@ -164,13 +157,13 @@ func (s *DenoiserCUDASession) uploadWeights() error {
 			}
 			return nil
 		}); err != nil {
-			return fmt.Errorf("denoiser session upload %s: %w", item.name, err)
+			return nil, fmt.Errorf("denoiser session upload %s: %w", item.name, err)
 		}
 		s.weightAllocs = append(s.weightAllocs, pointer)
-		s.weightPointers[item.name] = pointer
+		pointers[item.name] = pointer
 		s.WeightBytes += uint64(len(payload))
 	}
-	return nil
+	return pointers, nil
 }
 
 func encodeWeightPayload(data []float32, storage dtype.Type) ([]byte, error) {
@@ -188,16 +181,15 @@ func encodeWeightPayload(data []float32, storage dtype.Type) ([]byte, error) {
 	}
 }
 
-func (s *DenoiserCUDASession) bindWeightFeeds(inputs map[string]*tensor.Tensor) map[*tensor.Tensor]driver.DevicePtr {
+func bindWeightFeeds(inputs map[string]*tensor.Tensor, pointers map[string]driver.DevicePtr) map[*tensor.Tensor]driver.DevicePtr {
 	feeds := make(map[*tensor.Tensor]driver.DevicePtr, len(inputs))
 	for name, node := range inputs {
-		feeds[node] = s.weightPointers[name]
+		feeds[node] = pointers[name]
 	}
 	return feeds
 }
 
-// ProjectBranchContext: runs the context graph once and retains every
-// per-block K/V on device for the session lifetime.
+// ProjectBranchContext: run once; retain per-block K/V.
 func (s *DenoiserCUDASession) ProjectBranchContext(context []float32) (any, error) {
 	value, err := feedValue(s.Program.contextInput, context, "context")
 	if err != nil {
@@ -295,9 +287,7 @@ func (s *DenoiserCUDASession) ReleaseRequestResources() error {
 	return errors.Join(errs...)
 }
 
-// ReleaseDenoiseResources: frees the retained branch contexts and the head
-// target ahead of decode (pre-decode lifetime release); the session stays
-// usable for telemetry until Close.
+// ReleaseDenoiseResources: release branch, head, and weight storage.
 func (s *DenoiserCUDASession) ReleaseDenoiseResources() error {
 	var errs []error
 	errs = append(errs, s.ReleaseRequestResources())
@@ -312,11 +302,10 @@ func (s *DenoiserCUDASession) ReleaseDenoiseResources() error {
 		}))
 	}
 	s.weightAllocs = nil
-	s.weightPointers = map[string]driver.DevicePtr{}
 	return errors.Join(errs...)
 }
 
-// Close: full teardown (denoise resources, executor pools, worker).
+// Close: release resources, executor, worker.
 func (s *DenoiserCUDASession) Close() error {
 	if s == nil {
 		return nil

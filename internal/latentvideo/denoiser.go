@@ -274,7 +274,8 @@ type DenoiserProgram struct {
 	// (F32 exact; BF16 = storage rounding for the device tensor-core path).
 	matmulWeightType dtype.Type
 
-	weights *DenoiserWeights
+	weights         *DenoiserWeights
+	timestepWeights TimestepConditioningWeights
 
 	contextInput        *tensor.Tensor
 	contextWeightInputs map[string]*tensor.Tensor
@@ -376,7 +377,10 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 	headWidth := d / heads
 	textLen := uint64(c.TextLen)
 	seq := uint64(geometry.Seq)
-	program := &DenoiserProgram{Config: c, Geometry: geometry, weights: weights, matmulWeightType: matmulWeightType}
+	program := &DenoiserProgram{
+		Config: c, Geometry: geometry, weights: weights,
+		timestepWeights: weights.TimestepWeights(c), matmulWeightType: matmulWeightType,
+	}
 	options := model.ConditionedDiffusionBlockOptions{
 		Dim: d, Heads: heads, FFNDim: uint64(c.FFNDim), Epsilon: float32(c.Eps),
 		RotaryBase:            float32(c.Policy.RotaryFrequencyBase),
@@ -473,6 +477,9 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 }
 
 func (p *DenoiserProgram) weightFeeds(inputs map[string]*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) error {
+	if p.weights == nil {
+		return fmt.Errorf("denoiser host weights released to resident session")
+	}
 	for name, node := range inputs {
 		if node.Type != dtype.F32 {
 			return fmt.Errorf("denoiser weight feed %s: host feeds require F32 storage, program compiled %s", name, node.Type)
@@ -729,11 +736,10 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend DenoiseBackend, request Den
 	if err != nil {
 		return result, err
 	}
-	timestepWeights := p.weights.TimestepWeights(p.Config)
 	next := make([]float32, elements)
 	guided := make([]float32, elements)
 	for i, timestep := range timesteps {
-		headE, blockE, err := CompileTimestepConditioning([]float64{float64(timestep)}, timestepWeights)
+		headE, blockE, err := CompileTimestepConditioning([]float64{float64(timestep)}, p.timestepWeights)
 		if err != nil {
 			return result, err
 		}

@@ -115,6 +115,26 @@ type graphRewrite struct {
 	apply func(*rewriteContext)
 }
 
+func (c *CompiledGraph) setFusion(node *tensor.Tensor, fusion *compiledFusion) {
+	if c.fusions == nil {
+		c.fusions = make(map[*tensor.Tensor]*compiledFusion)
+	}
+	c.fusions[node] = fusion
+}
+
+func (c *CompiledGraph) hasFusion(node *tensor.Tensor, kinds ...compiledFusionKind) bool {
+	fusion := c.fusions[node]
+	if fusion == nil {
+		return false
+	}
+	for _, kind := range kinds {
+		if fusion.kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
 var graphRewriteCatalog = [...]graphRewrite{
 	{name: "weighted-rms", apply: applyWeightedRMSRewrite},
 	{name: "activated-gate", apply: applyActivatedGateRewrite},
@@ -170,8 +190,7 @@ func applyWeightedRMSRewrite(context *rewriteContext) {
 			continue
 		}
 		compiled := context.compiled
-		if compiled.weightedRMS == nil {
-			compiled.weightedRMS = make(map[*tensor.Tensor]weightedRMSFusion)
+		if compiled.skipped == nil {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
 		fusion := weightedRMSFusion{normalization: normalization, weight: weight}
@@ -184,7 +203,11 @@ func applyWeightedRMSRewrite(context *rewriteContext) {
 				compiled.skipped[source] = struct{}{}
 			}
 		}
-		compiled.weightedRMS[node] = fusion
+		operands := []*tensor.Tensor{fusion.normalization.Inputs[0], fusion.weight}
+		if fusion.addLeft != nil {
+			operands = append(operands, fusion.addLeft, fusion.addRight)
+		}
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionWeightedRMS, operands: operands, weightedRMS: fusion})
 		compiled.skipped[normalization] = struct{}{}
 	}
 }
@@ -208,31 +231,30 @@ func applyActivatedGateRewrite(context *rewriteContext) {
 		if _, retained := context.outputSet[activation]; retained {
 			continue
 		}
-		if weighted, fused := compiled.weightedRMS[up]; fused && context.uses[up] == 1 {
+		if prior := compiled.fusions[up]; prior != nil && prior.kind == compiledFusionWeightedRMS && context.uses[up] == 1 {
 			if _, retained := context.outputSet[up]; !retained {
-				if compiled.weightedRMSGate == nil {
-					compiled.weightedRMSGate = make(map[*tensor.Tensor]weightedRMSGateFusion)
+				weighted := prior.weightedRMS
+				operands := []*tensor.Tensor{weighted.normalization.Inputs[0], activation.Inputs[0], weighted.weight}
+				if weighted.addLeft != nil {
+					operands = append(operands, weighted.addLeft, weighted.addRight)
 				}
-				compiled.weightedRMSGate[node] = weightedRMSGateFusion{
+				compiled.setFusion(node, &compiledFusion{kind: compiledFusionWeightedRMSGate, operands: operands, weightedGate: weightedRMSGateFusion{
 					weightedRMSFusion: weighted,
 					gate:              activation.Inputs[0],
 					kind:              kind,
-				}
-				delete(compiled.weightedRMS, up)
+				}})
+				delete(compiled.fusions, up)
 				compiled.skipped[up] = struct{}{}
 				compiled.skipped[activation] = struct{}{}
 				continue
 			}
 		}
-		if compiled.activatedGate == nil {
-			compiled.activatedGate = make(map[*tensor.Tensor]activatedGateFusion)
-		}
 		if compiled.skipped == nil {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
-		compiled.activatedGate[node] = activatedGateFusion{
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionActivatedGate, operands: []*tensor.Tensor{activation.Inputs[0], up}, activatedGate: activatedGateFusion{
 			gate: activation.Inputs[0], up: up, activation: activation, kind: kind,
-		}
+		}})
 		compiled.skipped[activation] = struct{}{}
 	}
 }
@@ -345,9 +367,6 @@ func applyGELUTanhRewrite(context *rewriteContext) {
 			innerScale:       innerScale,
 			halfScale:        halfScale,
 		}
-		if compiled.geluTanh == nil {
-			compiled.geluTanh = make(map[*tensor.Tensor]geluTanhFusion)
-		}
 		if compiled.skipped == nil {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
@@ -365,7 +384,11 @@ func applyGELUTanhRewrite(context *rewriteContext) {
 				compiled.skipped[x] = struct{}{}
 			}
 		}
-		compiled.geluTanh[node] = fusion
+		operands := []*tensor.Tensor{fusion.input}
+		if fusion.bias != nil {
+			operands = append(operands, fusion.bias)
+		}
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionGELUTanh, operands: operands, geluTanh: fusion})
 		for _, interior := range [...]*tensor.Tensor{
 			half, product, hyperbolic, inner, shifted, scaledCubic, cubic, squared,
 		} {
@@ -393,7 +416,7 @@ func applyLayerNormModulateRewrite(context *rewriteContext) {
 		if _, skipped := compiled.skipped[node]; skipped {
 			continue
 		}
-		if _, fused := compiled.geluTanh[node]; fused {
+		if compiled.hasFusion(node, compiledFusionGELUTanh) {
 			continue
 		}
 		inner, shift := node.Inputs[0], node.Inputs[1]
@@ -452,13 +475,14 @@ func applyLayerNormModulateRewrite(context *rewriteContext) {
 		} else {
 			continue
 		}
-		if compiled.layerNormModulate == nil {
-			compiled.layerNormModulate = make(map[*tensor.Tensor]layerNormModulateFusion)
-		}
 		if compiled.skipped == nil {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
-		compiled.layerNormModulate[node] = fusion
+		compiled.setFusion(node, &compiledFusion{
+			kind:      compiledFusionLayerNormModulate,
+			operands:  []*tensor.Tensor{fusion.normalization.Inputs[0], fusion.scaleVector, fusion.shiftVector},
+			layerNorm: fusion,
+		})
 		for _, item := range interior {
 			compiled.skipped[item] = struct{}{}
 		}
@@ -476,10 +500,10 @@ func applyBroadcastGateAddRewrite(context *rewriteContext) {
 		if _, skipped := compiled.skipped[node]; skipped {
 			continue
 		}
-		if _, fused := compiled.geluTanh[node]; fused {
+		if compiled.hasFusion(node, compiledFusionGELUTanh) {
 			continue
 		}
-		if _, fused := compiled.layerNormModulate[node]; fused {
+		if compiled.hasFusion(node, compiledFusionLayerNormModulate) {
 			continue
 		}
 		product, residual := node.Inputs[0], node.Inputs[1]
@@ -500,15 +524,12 @@ func applyBroadcastGateAddRewrite(context *rewriteContext) {
 		if !context.fusableIntermediate(product, 1) {
 			continue
 		}
-		if compiled.broadcastGateAdd == nil {
-			compiled.broadcastGateAdd = make(map[*tensor.Tensor]broadcastGateAddFusion)
-		}
 		if compiled.skipped == nil {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
-		compiled.broadcastGateAdd[node] = broadcastGateAddFusion{
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionBroadcastGateAdd, operands: []*tensor.Tensor{value, gate, residual}, broadcastGate: broadcastGateAddFusion{
 			value: value, gate: gate, residual: residual,
-		}
+		}})
 		compiled.skipped[product] = struct{}{}
 		if os.Getenv("OVERGO_FUSION_DEBUG") != "" {
 			fmt.Printf("gate-add: node=%d %v value=%d(%s %v) gate=%d(%s %v) residual=%d(%s %v)\n",
@@ -528,12 +549,10 @@ func applyQ8EmissionRewrite(context *rewriteContext) {
 			continue
 		}
 		producer := node.Inputs[1]
-		if _, weighted := compiled.weightedRMS[producer]; !weighted {
-			if _, activated := compiled.activatedGate[producer]; !activated {
-				if _, gatedNorm := compiled.weightedRMSGate[producer]; !gatedNorm {
-					continue
-				}
-			}
+		if !compiled.hasFusion(
+			producer, compiledFusionWeightedRMS, compiledFusionActivatedGate, compiledFusionWeightedRMSGate,
+		) {
+			continue
 		}
 		if compiled.q8Emit == nil {
 			compiled.q8Emit = make(map[*tensor.Tensor]struct{})
@@ -561,11 +580,8 @@ func applyQ8ArgmaxRewrite(context *rewriteContext) {
 			!partialsOK || q8ArgmaxPartialValues*uint64(partials) > rows {
 			continue
 		}
-		if compiled.q8Argmax == nil {
-			compiled.q8Argmax = make(map[*tensor.Tensor]*tensor.Tensor)
-		}
-		compiled.q8Argmax[projection] = selection
-		compiled.q8Argmax[selection] = projection
+		compiled.setFusion(projection, &compiledFusion{kind: compiledFusionQ8ArgmaxPartials, operands: projection.Inputs, peer: selection})
+		compiled.setFusion(selection, &compiledFusion{kind: compiledFusionQ8ArgmaxReduction, operands: []*tensor.Tensor{projection}, peer: projection})
 	}
 }
 
@@ -591,7 +607,11 @@ func (context *rewriteContext) bf16DecodeProjection(node *tensor.Tensor) bool {
 
 func applyBF16GateRewrite(context *rewriteContext) {
 	compiled := context.compiled
-	for node, fusion := range compiled.activatedGate {
+	for node, descriptor := range compiled.fusions {
+		if descriptor.kind != compiledFusionActivatedGate {
+			continue
+		}
+		fusion := descriptor.activatedGate
 		if _, emit := compiled.q8Emit[node]; emit {
 			continue
 		}
@@ -600,11 +620,9 @@ func applyBF16GateRewrite(context *rewriteContext) {
 			gate.Inputs[1] != up.Inputs[1] || gate == up {
 			continue
 		}
-		if compiled.bf16Gate == nil {
-			compiled.bf16Gate = make(map[*tensor.Tensor]bf16GateFusion)
-		}
-		compiled.bf16Gate[node] = bf16GateFusion{gate: gate, up: up, kind: fusion.kind}
-		delete(compiled.activatedGate, node)
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionBF16Gate, operands: []*tensor.Tensor{gate.Inputs[0], up.Inputs[0], gate.Inputs[1]}, bf16Gate: bf16GateFusion{
+			gate: gate, up: up, kind: fusion.kind,
+		}})
 		compiled.skipped[gate] = struct{}{}
 		compiled.skipped[up] = struct{}{}
 	}
@@ -627,13 +645,12 @@ func applyBF16ProjAddRewrite(context *rewriteContext) {
 			!node.Shape.Equal(projection.Shape) || !addendEpilogueCompatible(node, addend) {
 			continue
 		}
-		if compiled.bf16ProjAdd == nil {
-			compiled.bf16ProjAdd = make(map[*tensor.Tensor]bf16ProjAddFusion)
-		}
 		if compiled.skipped == nil {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
-		compiled.bf16ProjAdd[node] = bf16ProjAddFusion{projection: projection, addend: addend}
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionBF16ProjAdd, operands: []*tensor.Tensor{projection.Inputs[0], projection.Inputs[1], addend}, bf16ProjAdd: bf16ProjAddFusion{
+			projection: projection, addend: addend,
+		}})
 		compiled.skipped[projection] = struct{}{}
 	}
 }
@@ -658,7 +675,7 @@ func applyBF16AppendRewrite(context *rewriteContext) {
 		if node.Op != tensor.OpCacheAppend || len(node.Inputs) != 2 {
 			continue
 		}
-		if _, fused := compiled.ropeAppend[node]; fused {
+		if compiled.hasFusion(node, compiledFusionRopeAppend) {
 			continue
 		}
 		view := node.Inputs[1]
@@ -672,16 +689,15 @@ func applyBF16AppendRewrite(context *rewriteContext) {
 		if !context.bf16DecodeProjection(projection) {
 			continue
 		}
-		if _, fused := compiled.bf16ProjAdd[projection]; fused {
+		if compiled.hasFusion(projection, compiledFusionBF16ProjAdd) {
 			continue
-		}
-		if compiled.bf16Append == nil {
-			compiled.bf16Append = make(map[*tensor.Tensor]bf16AppendFusion)
 		}
 		if compiled.elided == nil {
 			compiled.elided = make(map[*tensor.Tensor]struct{})
 		}
-		compiled.bf16Append[node] = bf16AppendFusion{projection: projection}
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionBF16Append, operands: []*tensor.Tensor{node.Inputs[0], projection.Inputs[0], projection.Inputs[1]}, bf16Append: bf16AppendFusion{
+			projection: projection,
+		}})
 		compiled.elided[projection] = struct{}{}
 	}
 }
@@ -695,7 +711,7 @@ func applyBF16ArgmaxRewrite(context *rewriteContext) {
 		if !context.bf16DecodeProjection(projection) {
 			continue
 		}
-		if _, fused := compiled.bf16ProjAdd[projection]; fused {
+		if compiled.hasFusion(projection, compiledFusionBF16ProjAdd) {
 			continue
 		}
 		if _, elided := compiled.elided[projection]; elided {
@@ -709,11 +725,8 @@ func applyBF16ArgmaxRewrite(context *rewriteContext) {
 			!partialsOK || q8ArgmaxPartialValues*uint64(partials) > rows {
 			continue
 		}
-		if compiled.bf16Argmax == nil {
-			compiled.bf16Argmax = make(map[*tensor.Tensor]*tensor.Tensor)
-		}
-		compiled.bf16Argmax[projection] = selection
-		compiled.bf16Argmax[selection] = projection
+		compiled.setFusion(projection, &compiledFusion{kind: compiledFusionBF16ArgmaxPartials, operands: projection.Inputs, peer: selection})
+		compiled.setFusion(selection, &compiledFusion{kind: compiledFusionBF16ArgmaxReduction, operands: []*tensor.Tensor{projection}, peer: projection})
 	}
 }
 
@@ -736,15 +749,13 @@ func applyRopeAppendRewrite(context *rewriteContext) {
 		if _, retained := context.outputSet[rope]; retained {
 			continue
 		}
-		if compiled.ropeAppend == nil {
-			compiled.ropeAppend = make(map[*tensor.Tensor]ropeAppendFusion)
-		}
 		if compiled.elided == nil {
 			compiled.elided = make(map[*tensor.Tensor]struct{})
 		}
 		// launch-only elision: the retained cache output's alias validation
 		// still addresses the rope buffer
-		compiled.ropeAppend[node] = ropeAppendFusion{rope: rope}
+		operands := append([]*tensor.Tensor{node.Inputs[0]}, rope.Inputs...)
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionRopeAppend, operands: operands, ropeAppend: ropeAppendFusion{rope: rope}})
 		compiled.elided[rope] = struct{}{}
 	}
 }
@@ -792,20 +803,22 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 		if !fusable {
 			continue
 		}
-		if compiled.bf16Attention == nil {
-			compiled.bf16Attention = make(map[*tensor.Tensor]bf16AttentionFusion)
-		}
 		if compiled.skipped == nil {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
-		compiled.bf16Attention[node] = bf16AttentionFusion{
+		fusion := bf16AttentionFusion{
 			query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0],
 		}
 		if attributes.HasKeyBias {
-			compiled.bf16Attention[node] = bf16AttentionFusion{
+			fusion = bf16AttentionFusion{
 				query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0], keyBias: node.Inputs[3],
 			}
 		}
+		operands := []*tensor.Tensor{fusion.query, fusion.key, fusion.value}
+		if fusion.keyBias != nil {
+			operands = append(operands, fusion.keyBias)
+		}
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionBF16Attention, operands: operands, bf16Attention: fusion})
 		compiled.skipped[query] = struct{}{}
 		compiled.skipped[key] = struct{}{}
 		compiled.skipped[value] = struct{}{}
@@ -813,63 +826,16 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 }
 
 func (context *rewriteContext) compileDependencies() {
-	for node, fusion := range context.compiled.weightedRMS {
-		if fusion.addLeft != nil {
-			context.dependency[node] = append(context.dependency[node], fusion.addLeft, fusion.addRight)
-		} else {
-			context.dependency[node] = append(context.dependency[node], fusion.normalization.Inputs[0])
+	for node, descriptor := range context.compiled.fusions {
+		for _, operand := range descriptor.operands {
+			if _, skipped := context.compiled.skipped[operand]; skipped {
+				continue
+			}
+			if _, elided := context.compiled.elided[operand]; elided {
+				continue
+			}
+			context.dependency[node] = append(context.dependency[node], operand)
 		}
-	}
-	for node, fusion := range context.compiled.activatedGate {
-		context.dependency[node] = append(context.dependency[node], fusion.gate)
-	}
-	for node, fusion := range context.compiled.geluTanh {
-		context.dependency[node] = append(context.dependency[node], fusion.input)
-		if fusion.bias != nil {
-			context.dependency[node] = append(context.dependency[node], fusion.bias)
-		}
-	}
-	for node, fusion := range context.compiled.layerNormModulate {
-		context.dependency[node] = append(
-			context.dependency[node],
-			fusion.normalization.Inputs[0], fusion.scaleVector, fusion.shiftVector,
-		)
-	}
-	for node, fusion := range context.compiled.broadcastGateAdd {
-		context.dependency[node] = append(
-			context.dependency[node], fusion.value, fusion.gate, fusion.residual,
-		)
-	}
-	for node, fusion := range context.compiled.weightedRMSGate {
-		context.dependency[node] = append(context.dependency[node], fusion.gate, fusion.weight)
-		if fusion.addLeft != nil {
-			context.dependency[node] = append(context.dependency[node], fusion.addLeft, fusion.addRight)
-		} else {
-			context.dependency[node] = append(context.dependency[node], fusion.normalization.Inputs[0])
-		}
-	}
-	for node, fusion := range context.compiled.bf16Gate {
-		context.dependency[node] = append(
-			context.dependency[node],
-			fusion.gate.Inputs[0], fusion.gate.Inputs[1], fusion.up.Inputs[0],
-		)
-	}
-	for node, fusion := range context.compiled.bf16ProjAdd {
-		context.dependency[node] = append(
-			context.dependency[node],
-			fusion.projection.Inputs[0], fusion.projection.Inputs[1],
-		)
-	}
-	for node, fusion := range context.compiled.ropeAppend {
-		context.dependency[node] = append(context.dependency[node], fusion.rope.Inputs...)
-	}
-	for node, fusion := range context.compiled.bf16Append {
-		context.dependency[node] = append(context.dependency[node], fusion.projection.Inputs...)
-	}
-	for node, fusion := range context.compiled.bf16Attention {
-		context.dependency[node] = append(
-			context.dependency[node], fusion.query, fusion.key, fusion.value,
-		)
 	}
 }
 

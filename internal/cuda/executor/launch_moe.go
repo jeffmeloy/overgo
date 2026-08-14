@@ -16,10 +16,10 @@ func launchMoE(
 	functions functionSet,
 	blas *blasState,
 	node *tensor.Tensor,
-	pointers devicePointerTable,
+	pointers launchPointerFrame,
 	attributePointers devicePointerTable,
 ) error {
-	output := pointers.get(node)
+	output := pointers.output()
 	switch node.Op {
 	case tensor.OpMoE:
 		attributes, ok := node.Attrs.(tensor.MoEAttributes)
@@ -72,7 +72,7 @@ func launchMoE(
 		next := 3
 		var gate driver.DevicePtr
 		if attributes.Gated && !attributes.FusedGateUp {
-			gate = pointers.get(node.Inputs[next])
+			gate = pointers.input(next)
 			next++
 		}
 		upNode, downNode := node.Inputs[next], node.Inputs[next+1]
@@ -80,11 +80,11 @@ func launchMoE(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
-		routerInput := pointers.get(node.Inputs[1])
-		router := pointers.get(node.Inputs[2])
-		up := pointers.get(upNode)
-		down := pointers.get(downNode)
+		input := pointers.input(0)
+		routerInput := pointers.input(1)
+		router := pointers.input(2)
+		up := pointers.input(next)
+		down := pointers.input(next + 1)
 		if attributes.FusedGateUp {
 			gate = up
 			intermediate /= 2
@@ -103,28 +103,28 @@ func launchMoE(
 		var selectionBias driver.DevicePtr
 		optionalIndex := wantInputs
 		if attributes.HasSelectionBias {
-			selectionBias = pointers.get(node.Inputs[optionalIndex])
+			selectionBias = pointers.input(optionalIndex)
 			optionalIndex++
 		}
 		var expertScale driver.DevicePtr
 		if attributes.HasExpertScale {
-			expertScale = pointers.get(node.Inputs[optionalIndex])
+			expertScale = pointers.input(optionalIndex)
 			optionalIndex++
 		}
 		var routerBias, gateBias, upBias, downBias driver.DevicePtr
 		if attributes.HasRouterBias {
-			routerBias = pointers.get(node.Inputs[optionalIndex])
+			routerBias = pointers.input(optionalIndex)
 			optionalIndex++
 		}
 		if attributes.HasExpertBiases {
-			gateBias = pointers.get(node.Inputs[optionalIndex])
-			upBias = pointers.get(node.Inputs[optionalIndex+1])
-			downBias = pointers.get(node.Inputs[optionalIndex+2])
+			gateBias = pointers.input(optionalIndex)
+			upBias = pointers.input(optionalIndex + 1)
+			downBias = pointers.input(optionalIndex + 2)
 			optionalIndex += 3
 		}
 		var selectedExperts driver.DevicePtr
 		if attributes.HasSelectedExperts {
-			selectedExperts = pointers.get(node.Inputs[optionalIndex])
+			selectedExperts = pointers.input(optionalIndex)
 		}
 		experts := attributes.Experts
 		expertIndexDivisor := attributes.ExpertIndexDivisor

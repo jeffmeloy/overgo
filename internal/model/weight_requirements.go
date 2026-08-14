@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensorcatalog"
@@ -10,10 +12,25 @@ import (
 type tensorRequirement struct {
 	name        string
 	shapes      [][]uint64
+	rank        uint32
+	nonempty    bool
 	storages    []dtype.Type
 	destination *gguf.TensorInfo
 	pointer     **gguf.TensorInfo
 	optional    bool
+}
+
+func optionalRelationalTensorPointer(
+	name string,
+	destination **gguf.TensorInfo,
+	rank uint32,
+	nonempty bool,
+	storages ...dtype.Type,
+) tensorRequirement {
+	return tensorRequirement{
+		name: name, rank: rank, nonempty: nonempty, storages: storages,
+		pointer: destination, optional: true,
+	}
 }
 
 func requiredTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorRequirement {
@@ -85,24 +102,22 @@ func requiredTensorShapes(
 }
 
 func loadTensorRequirements(
-	load weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	requirements []tensorRequirement,
 ) error {
 	for _, requirement := range requirements {
 		name := prefix + requirement.name
-		if requirement.optional {
-			if _, ok := tensors[name]; !ok {
+		item, ok := catalog.tensor(name)
+		if !ok {
+			if requirement.optional {
 				continue
 			}
-		}
-		item, err := load(name)
-		if err != nil {
-			return err
+			return fmt.Errorf("required tensor %q is missing", name)
 		}
 		catalogRequirement := tensorcatalog.Requirement{
-			Name: name, Shapes: requirement.shapes, Storages: requirement.storages,
+			Name: name, Shapes: requirement.shapes, Rank: requirement.rank,
+			NonEmpty: requirement.nonempty, Storages: requirement.storages,
 		}
 		if err := tensorcatalog.ValidateInfo(item, catalogRequirement); err != nil {
 			return err

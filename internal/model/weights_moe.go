@@ -3,48 +3,46 @@ package model
 import (
 	"errors"
 
-	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
 )
 
 func layerUsesMoECatalog(
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	block uint32,
 	isDraftBlock bool,
 ) bool {
-	_, routerPresent := tensors[prefix+"ffn_gate_inp.weight"]
+	_, routerPresent := catalog.tensors[prefix+"ffn_gate_inp.weight"]
 	return spec.Profile().Experts.usesCatalog(spec, block, routerPresent, isDraftBlock)
 }
 
 func loadMoECatalog(
-	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
 ) (bool, error) {
 	policy := spec.Profile().Experts
-	_, err := loadMoECoreCatalog(required, tensors, prefix, spec, layer)
+	_, err := loadMoECoreCatalog(catalog, prefix, spec, layer)
 	if err != nil {
 		return false, err
 	}
 	if policy.OptionalGate {
-		if err := loadOptionalExpertGate(tensors, prefix, spec, layer); err != nil {
+		if err := loadOptionalExpertGate(catalog, prefix, spec, layer); err != nil {
 			return false, err
 		}
 	}
 	if policy.SupplementalCatalog.has(expertSupplementScaledSandwichNorm) {
-		if err := loadScaledSandwichNormCatalog(required, tensors, prefix, spec, layer); err != nil {
+		if err := loadScaledSandwichNormCatalog(catalog, prefix, spec, layer); err != nil {
 			return false, err
 		}
 	}
-	if err := loadMoEPolicyCatalog(required, tensors, prefix, spec, layer, policy); err != nil {
+	if err := loadMoEPolicyCatalog(catalog, prefix, spec, layer, policy); err != nil {
 		return false, err
 	}
 	if policy.SupplementalCatalog.has(expertSupplementRequiredProjectionBiases) {
-		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredF32TensorPointer("ffn_gate_inp.bias", &layer.FeedForwardRouterBias, uint64(spec.ExpertCount)),
 			requiredF32TensorPointer("ffn_gate_exps.bias", &layer.FeedForwardGateBias, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
 			requiredF32TensorPointer("ffn_up_exps.bias", &layer.FeedForwardUpBias, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
@@ -55,7 +53,7 @@ func loadMoECatalog(
 	}
 	if policy.SupplementalCatalog.has(expertSupplementChunkExperts) {
 		chunkExperts := uint64(spec.ExpertCount / spec.ExpertsPerGroup)
-		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredTensorPointer("ffn_gate_chexps.weight", &layer.FeedForwardGateChunkExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertChunkFeedForward), chunkExperts),
 			requiredTensorPointer("ffn_up_chexps.weight", &layer.FeedForwardUpChunkExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertChunkFeedForward), chunkExperts),
 			requiredTensorPointer("ffn_down_chexps.weight", &layer.FeedForwardDownChunkExperts, uint64(spec.ExpertChunkFeedForward), uint64(spec.EmbeddingLength), chunkExperts),
@@ -64,10 +62,10 @@ func loadMoECatalog(
 		}
 	}
 	if policy.SupplementalCatalog.has(expertSupplementOptionalDenseGEGLU) {
-		return false, loadOptionalDenseGEGLUCatalog(required, tensors, prefix, spec, layer)
+		return false, loadOptionalDenseGEGLUCatalog(catalog, prefix, spec, layer)
 	}
 	if policy.SupplementalCatalog.has(expertSupplementExpertInputNorm) {
-		expertNorm, err := required(prefix+"ffn_norm_exps.weight", uint64(spec.EmbeddingLength))
+		expertNorm, err := catalog.required(prefix+"ffn_norm_exps.weight", uint64(spec.EmbeddingLength))
 		if err != nil {
 			return false, err
 		}
@@ -77,8 +75,7 @@ func loadMoECatalog(
 }
 
 func loadMoECoreCatalog(
-	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -87,7 +84,7 @@ func loadMoECoreCatalog(
 	policy := spec.Profile().Experts
 	shapes := spec.TensorShapes(0)
 	if policy.FusedGateUp {
-		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			optionalTensorPointer("ffn_gate_up_exps.weight", &layer.FeedForwardGateUpExperts, shapes.ExpertUp(2)...),
 		}); err != nil {
 			return false, err
@@ -110,37 +107,40 @@ func loadMoECoreCatalog(
 			requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, shapes.ExpertUp(1)...),
 		)
 	}
-	return fusedGateUp, loadTensorRequirements(required, tensors, prefix, requirements)
+	return fusedGateUp, loadTensorRequirements(catalog, prefix, requirements)
 }
 
-func loadOptionalExpertGate(tensors map[string]gguf.TensorInfo, prefix string, spec Spec, layer *LayerWeights) error {
-	catalog := weightCatalog{tensors: tensors}
-	return loadTensorRequirements(catalog.required, tensors, prefix, []tensorRequirement{
+func loadOptionalExpertGate(
+	catalog weightCatalog,
+	prefix string,
+	spec Spec,
+	layer *LayerWeights,
+) error {
+	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
 		optionalTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts,
 			spec.TensorShapes(0).ExpertUp(1)...),
 	})
 }
 
 func loadScaledSandwichNormCatalog(
-	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
 ) error {
-	routerScale, err := required(prefix+"ffn_gate_inp.scale", uint64(spec.EmbeddingLength))
+	routerScale, err := catalog.required(prefix+"ffn_gate_inp.scale", uint64(spec.EmbeddingLength))
 	if err != nil {
 		return err
 	}
 	layer.FeedForwardRouterScale = &routerScale
-	if _, ok := tensors[prefix+"ffn_down_exps.scale"]; ok {
-		downScale, err := required(prefix+"ffn_down_exps.scale", uint64(spec.ExpertCount))
+	if _, ok := catalog.tensors[prefix+"ffn_down_exps.scale"]; ok {
+		downScale, err := catalog.required(prefix+"ffn_down_exps.scale", uint64(spec.ExpertCount))
 		if err != nil {
 			return err
 		}
 		layer.FeedForwardDownExpertsScale = &downScale
 	}
-	return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
 		requiredTensorPointer("pre_ffw_norm_2.weight", &layer.FeedForwardPreNorm2, uint64(spec.EmbeddingLength)),
 		requiredTensorPointer("post_ffw_norm_1.weight", &layer.FeedForwardPostNorm1, uint64(spec.EmbeddingLength)),
 		requiredTensorPointer("post_ffw_norm_2.weight", &layer.FeedForwardPostNorm2, uint64(spec.EmbeddingLength)),
@@ -148,8 +148,7 @@ func loadScaledSandwichNormCatalog(
 }
 
 func loadMoEPolicyCatalog(
-	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -158,7 +157,7 @@ func loadMoEPolicyCatalog(
 	switch policy.BiasCatalog {
 	case expertBiasCatalogOptionalF32, expertBiasCatalogOptionalF32Bare:
 		if err := loadOptionalF32ExpertBias(
-			tensors, prefix, spec, layer, policy.BiasCatalog == expertBiasCatalogOptionalF32Bare,
+			catalog, prefix, spec, layer, policy.BiasCatalog == expertBiasCatalogOptionalF32Bare,
 		); err != nil {
 			return err
 		}
@@ -169,48 +168,46 @@ func loadMoEPolicyCatalog(
 		if policy.BiasCatalog == expertBiasCatalogRequiredF32 {
 			requirement.storages = []dtype.Type{dtype.F32}
 		}
-		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{requirement}); err != nil {
+		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{requirement}); err != nil {
 			return err
 		}
 	}
 	switch policy.SharedCatalog {
 	case sharedExpertCatalogAlways:
-		return loadSharedExpertWeights(required, prefix, spec, layer, false)
+		return loadSharedExpertWeights(catalog, prefix, spec, layer, false)
 	case sharedExpertCatalogWithWidth:
 		if spec.SharedExpertFF > 0 {
-			return loadSharedExpertWeights(required, prefix, spec, layer, false)
+			return loadSharedExpertWeights(catalog, prefix, spec, layer, false)
 		}
 	case sharedExpertCatalogGated:
-		return loadSharedExpertWeights(required, prefix, spec, layer, true)
+		return loadSharedExpertWeights(catalog, prefix, spec, layer, true)
 	}
 	return nil
 }
 
 func loadOptionalF32ExpertBias(
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
 	allowBare bool,
 ) error {
 	name := "exp_probs_b"
-	_, ok := tensors[prefix+name]
+	_, ok := catalog.tensors[prefix+name]
 	if !allowBare || !ok {
 		name = "exp_probs_b.bias"
-		_, ok = tensors[prefix+name]
+		_, ok = catalog.tensors[prefix+name]
 	}
 	if !ok {
 		return nil
 	}
-	catalog := weightCatalog{tensors: tensors}
-	return loadTensorRequirements(catalog.required, tensors, prefix, []tensorRequirement{
+	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
 		requiredF32TensorPointer(name, &layer.FeedForwardExpertBias, uint64(spec.ExpertCount)),
 	})
 }
 
 func loadOptionalDenseGEGLUCatalog(
-	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -218,7 +215,7 @@ func loadOptionalDenseGEGLUCatalog(
 	names := []string{"ffn_gate.weight", "ffn_up.weight", "ffn_down.weight"}
 	present := 0
 	for _, name := range names {
-		if _, ok := tensors[prefix+name]; ok {
+		if _, ok := catalog.tensors[prefix+name]; ok {
 			present++
 		}
 	}
@@ -229,12 +226,12 @@ func loadOptionalDenseGEGLUCatalog(
 		return nil
 	}
 	var err error
-	if layer.FeedForwardGate, err = required(prefix+names[0], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
+	if layer.FeedForwardGate, err = catalog.required(prefix+names[0], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
 		return err
 	}
-	if layer.FeedForwardUp, err = required(prefix+names[1], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
+	if layer.FeedForwardUp, err = catalog.required(prefix+names[1], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
 		return err
 	}
-	layer.FeedForwardDown, err = required(prefix+names[2], uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength))
+	layer.FeedForwardDown, err = catalog.required(prefix+names[2], uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength))
 	return err
 }

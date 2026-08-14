@@ -12,7 +12,7 @@ func launchReferenceFamily(
 	functions functionSet,
 	blas *blasState,
 	node *tensor.Tensor,
-	pointers devicePointerTable,
+	pointers launchPointerFrame,
 	attributePointers devicePointerTable,
 ) error {
 	switch node.Op {

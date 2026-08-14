@@ -185,9 +185,13 @@ func TestCompileFusesSingleUseWeightedRMSNorm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fusion, ok := compiled.weightedRMS[output]
-	if !ok || fusion.normalization != normalized || fusion.weight != weight {
-		t.Fatalf("weighted RMSNorm fusion = %+v, available %t", fusion, ok)
+	descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionWeightedRMS ||
+		descriptor.weightedRMS.normalization != normalized || descriptor.weightedRMS.weight != weight {
+		t.Fatalf("weighted RMSNorm fusion = %+v", descriptor)
+	}
+	if compiled.fusions != nil || descriptor.operands != nil || descriptor.operandCount == 0 {
+		t.Fatal("fusion compile state remains resident")
 	}
 	if _, skipped := compiled.skipped[normalized]; !skipped {
 		t.Fatal("fused RMSNorm launch was not skipped")
@@ -208,9 +212,10 @@ func TestCompileFusesResidualAddIntoWeightedRMSNorm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fusion, ok := compiled.weightedRMS[output]
-	if !ok || fusion.addLeft != left || fusion.addRight != right {
-		t.Fatalf("weighted residual RMSNorm fusion = %+v, available %t", fusion, ok)
+	descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionWeightedRMS ||
+		descriptor.weightedRMS.addLeft != left || descriptor.weightedRMS.addRight != right {
+		t.Fatalf("weighted residual RMSNorm fusion = %+v", descriptor)
 	}
 	if _, skipped := compiled.skipped[residual]; !skipped {
 		t.Fatal("fused residual launch was not skipped")
@@ -233,10 +238,12 @@ func TestCompileKeepsBroadcastAddOutOfWeightedRMSNorm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fusion, ok := compiled.weightedRMS[output]
-	if !ok || fusion.normalization != normalized {
-		t.Fatalf("weighted RMSNorm fusion = %+v, available %t", fusion, ok)
+	descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionWeightedRMS ||
+		descriptor.weightedRMS.normalization != normalized {
+		t.Fatalf("weighted RMSNorm fusion = %+v", descriptor)
 	}
+	fusion := descriptor.weightedRMS
 	if fusion.addLeft != nil || fusion.addRight != nil {
 		t.Fatal("broadcast bias add was folded into the fused RMSNorm")
 	}
@@ -260,17 +267,21 @@ func TestCompileFusesWeightedRMSNormAndActivatedGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fusion, ok := compiled.weightedRMSGate[output]
-	if !ok || fusion.normalization != normalized || fusion.weight != weight ||
+	descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionWeightedRMSGate {
+		t.Fatalf("weighted RMS gate fusion = %+v", descriptor)
+	}
+	fusion := descriptor.weightedGate
+	if fusion.normalization != normalized || fusion.weight != weight ||
 		fusion.gate != gate || fusion.kind != activatedGateSiLU {
-		t.Fatalf("weighted RMS gate fusion = %+v, available %t", fusion, ok)
+		t.Fatalf("weighted RMS gate fusion = %+v", fusion)
 	}
 	for _, skipped := range []*tensor.Tensor{normalized, weighted, activation} {
 		if _, ok := compiled.skipped[skipped]; !ok {
 			t.Fatalf("fused tensor %d was not skipped", skipped.ID)
 		}
 	}
-	if _, exists := compiled.weightedRMS[weighted]; exists {
+	if compiled.nodes[compiled.orderIndexes[weighted]].fusion != nil {
 		t.Fatal("subsumed weighted RMS fusion remains active")
 	}
 }

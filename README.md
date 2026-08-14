@@ -97,11 +97,12 @@ concurrently.
 | Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea promoted with bounded pixel evidence; SenseNova full decode/publication remains open |
 | Video generation | Resident Wan denoise and CUDA VAE decode | Fresh Overgo result; retained Python reference still needs a same-revision rerun |
 | Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Promotion varies; consult the parity report and compatibility tiers |
-| Training | Muon-only dense and hybrid primitives; resident CUDA dense path | Frozen-lexical Carbon is promoted; universal compiled training is not complete |
+| Training | Muon-only dense and hybrid primitives; resident CUDA dense path | Frozen-lexical Carbon is promoted; compiled model construction and universal training are not complete |
 
 Explicit gaps include production SenseNova image/edit publication, LiveEdit,
 Unlimited OCR parity, Pocket-TTS output-quality evidence, complete-state
-training resume, and real-model Qwen3.5/E4B/Gemma4 training.
+training resume, model-from-scratch construction, and real-model
+Qwen3.5/E4B/Gemma4 training.
 
 ## Recorded performance
 
@@ -292,7 +293,9 @@ reference and cannot be combined with it. A non-positive `-lr` derives
 Current production evidence is the frozen-lexical Carbon route. The CLI writes
 model weights plus `config.json` and `tokenizer.json`; it is not yet an atomic,
 complete-state resume containing optimizer, RNG, and data cursor. The planned
-`TrainingRunPlan` and model-level `TrainingProgram` remain design contracts.
+`TrainingRunPlan`, `ScratchConstruction`, and model-level `TrainingProgram` remain
+design contracts; `cmd/train` cannot yet derive and initialize a new model from a
+dataset.
 See the [training plan](docs/training_plan.md) for the exact boundary.
 
 ## Commands
@@ -382,7 +385,7 @@ read-only to automation for delete, move, and permission-changing operations.
   status with evidence tiers and verification commands.
 - [Adaptive_new parity report](docs/adaptive_new_parity_report.md): capability,
   quality, wall, peak-memory, and remaining-gap assessment.
-- [Training plan](docs/training_plan.md): controller-first Muon training design
+- [Training plan](docs/training_plan.md): scratch-controller-first Muon design
   and current implementation boundary.
 - [RepoDB](docs/REPODB.md): artifact identity, lineage, and store contracts.
 - [Merge floor](docs/MERGE_FLOOR_PLAN.md): automation-floor component status.

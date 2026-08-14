@@ -75,7 +75,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Runtime topology | Shared primitives plus large extmodel assembly | `recipe.Program`, model plans, neutral packages; image/audio/video projection modules and decoded tensor kinds are typed independently of placement | Overgo compiled program |
 | CUDA | Go loaders plus family-heavy extmodel kernels | Manifested binaries, driver API, executor graph | Overgo executor + kernel manifest |
 | Serving | Mature multimodal endpoints and evidence | llama-compatible server plus growing typed workflows | Overgo, after API parity matrix |
-| Training | Broad objective/trainer set; uneven authority | Strong dense/hybrid primitives; thin production assembly | Overgo `TrainingRunPlan` + `TrainingProgram` |
+| Training | Broad objective/trainer set plus a working corpus-to-new-model path; uneven authority | Strong dense/hybrid primitives; no production model construction | Overgo `TrainingRunPlan` + `ScratchConstruction` + `TrainingProgram` |
 | Evidence | RepoDB, capability budgets, media artifacts, fixtures | RepoDB, compatibility claims, plan fixtures | Overgo RepoDB; Git owns chronology |
 
 ## Inference and Generation Matrix
@@ -111,6 +111,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Training concern | adaptive_new | Overgo | Verdict |
 | --- | --- | --- | --- |
 | Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` exist only in the design document | Overgo gap |
+| Model from scratch | `RunFromProviderRich` derives split, rune vocabulary, topology, initialization, batching, causal training and metrics from documents | Loads existing artifacts only; no construction profile, parameter manifest, initializer or initialized-artifact publication | Major Overgo gap; port exact semantics, then use resident CUDA/Muon |
 | Optimizer | Adaptive optimizer machinery and model-specific use; historical SGD paths remain | Matrix/vector/scalar groups use one compiled Muon path; sign, BF16-SGD and family-local production updates deleted | Muon-only production authority |
 | Dense causal LM | Retained Carbon causal CUDA at `c72b6595d`: four 31-token DNA windows, LR `1.33179e-5`, Muon 0.95, loss `8.43767 -> 7.29179`, 6.816 s loop, 11.47 GiB admitted peak | Same ordered windows and settings: loss `8.437673 -> 7.293611`, 5.05-5.13 s loop, 4.620 GiB measured peak | Matched Carbon wall/peak lead; Qwen bias path open |
 | Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train -freeze-lexical` selects the no-fallback resident contract; full-parameter mode remains explicit | Carbon route reachable; exact checkpoint contract open |
@@ -319,14 +320,20 @@ The authoritative steps live in `docs/plan.json`. Order:
 5. Build a Go-owned neutral adaptive parity snapshot/import and scoreboard.
 6. Derive inference modality signatures from recipes; close text, structured,
    combined multimodal input, speech, image, video, then API/session behavior.
-7. Compile `TrainingRunPlan` and `TrainingProgram`; bind immutable RepoDB facts.
-8. Make Muon the only optimizer family; delete SGD/sign compatibility paths.
-9. Make checkpoint/resume atomic, exact, lineage-bound, and production-reachable.
-10. Prove dense real-artifact training parity; then real Qwen hybrid and E4B,
+7. Capture the pinned adaptive_new scratch oracle: derivation, initialization,
+   batches, gradients, Muon updates, trajectory and resume boundary.
+8. Compile `TrainingRunPlan`, `ScratchConstruction` and `TrainingProgram`; bind
+   immutable RepoDB facts and publish the initialized model artifact.
+9. Match the scratch host trajectory, then beat adaptive_new with retained CUDA
+   graphs and resident Muon state on identical work.
+10. Make Muon the only optimizer family; delete SGD/sign compatibility paths.
+11. Make checkpoint/resume atomic, exact, lineage-bound, and production-reachable.
+12. Prove dense real-artifact training parity; then real Qwen hybrid and E4B,
     exercising every adaptive-declared trainable modality.
-11. Compile the multimodal training matrix; port remaining adaptive objective
+13. Compile the multimodal training matrix; port remaining adaptive objective
     families through shared programs and explicitly refuse absent objectives.
-12. Train and promote the small workflow controller; scale only after evidence.
+14. Train and promote the scratch workflow controller; keep recursive candidate
+    proposal inside the model but data admission and promotion external.
 
 ## Definition of Exceeds adaptive_new
 

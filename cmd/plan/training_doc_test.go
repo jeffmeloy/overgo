@@ -26,6 +26,9 @@ func TestTrainingPlanMatchesImplementation(t *testing.T) {
 	for _, fact := range []string{
 		"Device backward and device Newton–Schulz are implemented",
 		"`TrainingRunPlan` and `TrainingProgram` are design contracts, not implemented Go types",
+		"no production type derives a new model vocabulary, topology, parameter manifest and initialized checkpoint",
+		"`ScratchConstruction`",
+		"Adaptive_new is an offline oracle, not a runtime dependency",
 		"`cmd/train` selects the resident dense device loop",
 		"production checkpoints are not atomic complete-state resumes",
 		"compiled multimodal training authority is not implemented",

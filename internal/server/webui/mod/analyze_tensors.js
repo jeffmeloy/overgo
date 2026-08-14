@@ -87,7 +87,7 @@
           return;
         }
         clear(detail);
-        detail.appendChild(el("div", { class: "section-title", text: "Nearest to " + name + " — by distribution shape" }));
+        detail.appendChild(el("div", { class: "section-title", text: "Nearest to " + name + " — by distribution shape (" + (data.metric || "rank") + ", d in [0,1])" }));
         const list = el("div", { style: "display:flex;flex-direction:column;gap:4px" });
         for (const n of (data.neighbors || [])) {
           const row = el("div", {

@@ -89,6 +89,7 @@ type tensorSimilarNeighbor struct {
 // nearest-neighbor over scale-free descriptors.
 type analyzeTensorsSimilarResponse struct {
 	Target    modelartifact.TensorCharacterization `json:"target"`
+	Metric    string                               `json:"metric"`
 	Neighbors []tensorSimilarNeighbor              `json:"neighbors"`
 }
 
@@ -147,13 +148,14 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 		writeError(response, http.StatusNotFound, "not_found", "tensor "+name+" is not in the model")
 		return
 	}
-	nearest := tensorstats.Nearest(pool[targetIndex], pool, k, targetIndex)
+	nearest := tensorstats.Nearest(pool, targetIndex, k)
 	neighbors := make([]tensorSimilarNeighbor, len(nearest))
 	for i, n := range nearest {
 		neighbors[i] = tensorSimilarNeighbor{Distance: n.Distance, TensorCharacterization: profiles[n.Index]}
 	}
 	writeJSON(response, http.StatusOK, analyzeTensorsSimilarResponse{
 		Target:    profiles[targetIndex],
+		Metric:    "rank-footrule",
 		Neighbors: neighbors,
 	})
 }

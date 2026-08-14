@@ -96,7 +96,6 @@ func (r *Runner) Generate(
 		len(ids),
 		r.spec.ContextLength,
 	)
-	outputTable := r.outputTensor()
 	var hidden reference.Value
 	var cache *KVCache
 	var deviceCache *deviceKVCache
@@ -298,72 +297,65 @@ func (r *Runner) Generate(
 			})
 		}
 	}
+	if !useDeviceCache {
+		ids, cache, err = r.generateCachedHost(
+			ctx, ids, hidden, cache, options, false, keepTokens, options.DiscardTokens,
+		)
+		if err != nil {
+			return nil, "", err
+		}
+		text, decodeErr := r.vocab.Decode(ids, false)
+		return ids, text, decodeErr
+	}
+
 	var generatedText strings.Builder
 	for generatedIndex := range options.MaxNewTokens {
 		if generatedIndex > 0 {
-			if useDeviceCache {
-				if options.ContextShift {
-					var shiftedDeviceCache *deviceKVCache
-					shiftedDeviceCache, err = r.compactDeviceCacheForAppend(
-						ctx,
-						deviceCache,
-						1,
-						keepTokens,
-						options.DiscardTokens,
-						r.ownsDevicePromptCache(deviceCache),
-					)
-					if err != nil {
-						return nil, "", err
-					}
-					if shiftedDeviceCache != deviceCache {
-						oldDeviceCache := deviceCache
-						deviceCache = shiftedDeviceCache
-						if !r.ownsDevicePromptCache(oldDeviceCache) {
-							if releaseErr := oldDeviceCache.Release(ctx); releaseErr != nil {
-								return nil, "", releaseErr
-							}
-						}
-					}
-				}
-				var nextDeviceCache *deviceKVCache
-				if deviceGreedy {
-					nextDeviceCache, err = r.forwardDeviceCachedGreedyStepLocked(
-						ctx,
-						[]tokenizer.TokenID{ids[len(ids)-1]},
-						deviceCache,
-					)
-				} else {
-					hidden, nextDeviceCache, err = r.forwardDeviceCachedLocked(
-						ctx,
-						[]tokenizer.TokenID{ids[len(ids)-1]},
-						deviceCache,
-					)
-				}
-				if err == nil {
-					oldDeviceCache := deviceCache
-					deviceCache = nextDeviceCache
-					if !r.ownsDevicePromptCache(oldDeviceCache) {
-						err = oldDeviceCache.Release(ctx)
-					}
-				} else if nextDeviceCache != nil {
-					_ = nextDeviceCache.Release(context.Background())
-				}
-			} else {
-				cache, err = r.cacheForAppendKeeping(
-					cache,
+			if options.ContextShift {
+				var shiftedDeviceCache *deviceKVCache
+				shiftedDeviceCache, err = r.compactDeviceCacheForAppend(
+					ctx,
+					deviceCache,
 					1,
-					options.ContextShift,
 					keepTokens,
 					options.DiscardTokens,
+					r.ownsDevicePromptCache(deviceCache),
 				)
 				if err != nil {
 					return nil, "", err
 				}
-				hidden, cache, err = r.forwardCachedLocked(
+				if shiftedDeviceCache != deviceCache {
+					oldDeviceCache := deviceCache
+					deviceCache = shiftedDeviceCache
+					if !r.ownsDevicePromptCache(oldDeviceCache) {
+						if releaseErr := oldDeviceCache.Release(ctx); releaseErr != nil {
+							return nil, "", releaseErr
+						}
+					}
+				}
+			}
+			var nextDeviceCache *deviceKVCache
+			if deviceGreedy {
+				nextDeviceCache, err = r.forwardDeviceCachedGreedyStepLocked(
 					ctx,
 					[]tokenizer.TokenID{ids[len(ids)-1]},
-					cache,
+					deviceCache,
 				)
+			} else {
+				_, nextDeviceCache, err = r.forwardDeviceCachedLocked(
+					ctx,
+					[]tokenizer.TokenID{ids[len(ids)-1]},
+					deviceCache,
+				)
+			}
+			if err == nil {
+				oldDeviceCache := deviceCache
+				deviceCache = nextDeviceCache
+				if !r.ownsDevicePromptCache(oldDeviceCache) {
+					err = oldDeviceCache.Release(ctx)
+				}
+			} else if nextDeviceCache != nil {
+				_ = nextDeviceCache.Release(context.Background())
 			}
 			if err != nil {
 				return nil, "", err
@@ -373,20 +365,8 @@ func (r *Runner) Generate(
 		if deviceGreedy {
 			event = TokenEvent{ID: deviceCache.Selected}
 		} else {
-			var logits []float32
-			var logitsErr error
-			if useDeviceCache {
-				logits = deviceCache.Logits
-			} else {
-				width := int(hidden.Shape.Dims[0])
-				last := hidden.Data[len(hidden.Data)-width:]
-				logits, logitsErr = r.logits(ctx, outputTable, last)
-			}
-			if logitsErr != nil {
-				return nil, "", logitsErr
-			}
 			var sampleErr error
-			event, sampleErr = sampleGenerationToken(logits, ids, options)
+			event, sampleErr = sampleGenerationToken(deviceCache.Logits, ids, options)
 			if sampleErr != nil {
 				return nil, "", sampleErr
 			}

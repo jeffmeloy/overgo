@@ -43,6 +43,8 @@ active recipe + resolved artifact facts
 | Invocation-time graph schema discovery | 0 | Reflect once; bind by indexed descriptors |
 | Registry-backed model-plan compilation APIs | 0 | Commands pass resolved profile explicitly |
 | Unbound `Spec` policy fallback lookups | 0 | Metadata admission binds the exact profile |
+| Host cached-generation loops | 1 | Generate and resumable sessions share one loop |
+| Continuous token-acceptance paths | 1 | Greedy, top-K, and full-logit sampling converge |
 | Dead graph-runtime feed mutators | 0 | Weight/layer binders own feed registration |
 | Hardcoded Gemma3N validation facts | 0 | Serialized typed profile facts |
 | Exported registry-backed profile resolution APIs | 0 | Bootstrap stays inside model package |
@@ -53,8 +55,8 @@ Family-named production files: none.
 
 ## Ordered Work
 
-1. Remove family identity from the remaining post-resolution parsing/binding files.
-2. Thread sealed policy through remaining weight-catalog helpers and delete repeated `Spec.Profile` reads.
+1. Consolidate runner admission/locking without moving callbacks across lock boundaries.
+2. Reuse continuous scheduler cohort and candidate buffers across token steps.
 
 ## Per-Wave Gate
 

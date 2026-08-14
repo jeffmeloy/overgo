@@ -42,36 +42,9 @@ func (r *Runner) StartSession(
 	if err != nil {
 		return nil, "", err
 	}
-	outputTable := r.outputTensor()
-	var generatedText strings.Builder
-	for generatedIndex := range options.MaxNewTokens {
-		if generatedIndex > 0 {
-			cache, err = r.cacheForAppend(cache, 1, options.ContextShift)
-			if err != nil {
-				return nil, "", err
-			}
-			hidden, cache, err = r.forwardCachedLocked(
-				ctx,
-				[]tokenizer.TokenID{ids[len(ids)-1]},
-				cache,
-			)
-			if err != nil {
-				return nil, "", err
-			}
-		}
-		event, sampleErr := r.sampleHidden(ctx, outputTable, hidden, ids, options)
-		if sampleErr != nil {
-			return nil, "", sampleErr
-		}
-		event.Index = generatedIndex
-		ids = append(ids, event.ID)
-		stop, deliverErr := r.deliverGenerationToken(&event, options, &generatedText)
-		if deliverErr != nil {
-			return nil, "", deliverErr
-		}
-		if stop {
-			break
-		}
+	ids, cache, err = r.generateCachedHost(ctx, ids, hidden, cache, options, false, 0, -1)
+	if err != nil {
+		return nil, "", err
 	}
 	session := &Session{TokenIDs: ids, Cache: cache}
 	if err := r.validateSession(session); err != nil {
@@ -111,36 +84,12 @@ func (r *Runner) ContinueSession(
 	ids := slices.Clone(session.TokenIDs)
 	cache := session.Cache
 	if options.MaxNewTokens > 0 && !r.isTerminal(ids[len(ids)-1]) {
-		outputTable := r.outputTensor()
-		var generatedText strings.Builder
-		for generatedIndex := range options.MaxNewTokens {
-			shiftedCache, shiftErr := r.cacheForAppend(cache, 1, options.ContextShift)
-			if shiftErr != nil {
-				return nil, "", shiftErr
-			}
-			cache = shiftedCache
-			hidden, nextCache, err := r.forwardCachedLocked(
-				ctx,
-				[]tokenizer.TokenID{ids[len(ids)-1]},
-				cache,
-			)
-			if err != nil {
-				return nil, "", err
-			}
-			event, err := r.sampleHidden(ctx, outputTable, hidden, ids, options)
-			if err != nil {
-				return nil, "", err
-			}
-			cache = nextCache
-			event.Index = generatedIndex
-			ids = append(ids, event.ID)
-			stop, deliverErr := r.deliverGenerationToken(&event, options, &generatedText)
-			if deliverErr != nil {
-				return nil, "", deliverErr
-			}
-			if stop {
-				break
-			}
+		var err error
+		ids, cache, err = r.generateCachedHost(
+			ctx, ids, reference.Value{}, cache, options, true, 0, -1,
+		)
+		if err != nil {
+			return nil, "", err
 		}
 	}
 	result := &Session{TokenIDs: ids, Cache: cache}
@@ -152,6 +101,51 @@ func (r *Runner) ContinueSession(
 		return nil, "", err
 	}
 	return result, text, nil
+}
+
+func (r *Runner) generateCachedHost(
+	ctx context.Context,
+	ids []tokenizer.TokenID,
+	hidden reference.Value,
+	cache *KVCache,
+	options GenerateOptions,
+	advanceFirst bool,
+	keep uint32,
+	discard int,
+) ([]tokenizer.TokenID, *KVCache, error) {
+	outputTable := r.outputTensor()
+	var generatedText strings.Builder
+	for generatedIndex := range options.MaxNewTokens {
+		if advanceFirst || generatedIndex > 0 {
+			var err error
+			cache, err = r.cacheForAppendKeeping(
+				cache, 1, options.ContextShift, keep, discard,
+			)
+			if err != nil {
+				return nil, nil, err
+			}
+			hidden, cache, err = r.forwardCachedLocked(
+				ctx, []tokenizer.TokenID{ids[len(ids)-1]}, cache,
+			)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+		event, err := r.sampleHidden(ctx, outputTable, hidden, ids, options)
+		if err != nil {
+			return nil, nil, err
+		}
+		event.Index = generatedIndex
+		ids = append(ids, event.ID)
+		stop, err := r.deliverGenerationToken(&event, options, &generatedText)
+		if err != nil {
+			return nil, nil, err
+		}
+		if stop {
+			break
+		}
+	}
+	return ids, cache, nil
 }
 
 func (r *Runner) outputTensor() gguf.TensorInfo {

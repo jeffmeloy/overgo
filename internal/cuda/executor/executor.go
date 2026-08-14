@@ -734,18 +734,19 @@ func (t *RetainedTargets) SetSlot(slot OutputSlot, value DeviceValue) error {
 
 // CompiledGraph: validated order and memory plan for repeated execution.
 type CompiledGraph struct {
-	outputs         []*tensor.Tensor
-	outputIndexes   map[*tensor.Tensor]int
-	outputViews     []retainedStorageView
-	outputAliases   []bool
-	order           []*tensor.Tensor
-	orderIndexes    map[*tensor.Tensor]int
-	operandSlots    []int
-	nodes           []compiledNode
-	launches        []compiledNode
-	attributeSlots  []dynamicAttributeSlot
-	attributeWords  int
-	memory          planner.Plan
+	outputs        []*tensor.Tensor
+	outputIndexes  map[*tensor.Tensor]int
+	outputViews    []retainedStorageView
+	outputAliases  []bool
+	order          []*tensor.Tensor
+	orderIndexes   map[*tensor.Tensor]int
+	operandSlots   []int
+	nodes          []compiledNode
+	launches       []int
+	attributeSlots []dynamicAttributeSlot
+	attributeWords int
+	memory         planner.Plan
+	// fusions: rewrite-only descriptors; released after launch compilation.
 	fusions         map[*tensor.Tensor]*compiledFusion
 	elided          map[*tensor.Tensor]struct{}
 	q8Emit          map[*tensor.Tensor]struct{}
@@ -760,8 +761,6 @@ type CompiledGraph struct {
 }
 
 type compiledNode struct {
-	node          *tensor.Tensor
-	index         int
 	operandOffset int
 	fusion        *compiledFusion
 	view          tensor.StorageView
@@ -792,6 +791,7 @@ const (
 type compiledFusion struct {
 	kind          compiledFusionKind
 	operandOffset int
+	operandCount  int
 	operands      []*tensor.Tensor
 	emitQ8        bool
 	peer          *tensor.Tensor
@@ -938,6 +938,7 @@ func compileFusion(compiled *CompiledGraph, node *tensor.Tensor) (*compiledFusio
 		return nil, nil
 	}
 	fusion.operandOffset = len(compiled.operandSlots)
+	fusion.operandCount = len(fusion.operands) + 1
 	fusion.emitQ8 = hasTensor(compiled.q8Emit, node)
 	appendSlot := func(operand *tensor.Tensor) error {
 		slot, ok := compiled.orderIndexes[operand]
@@ -955,6 +956,7 @@ func compileFusion(compiled *CompiledGraph, node *tensor.Tensor) (*compiledFusio
 			return nil, err
 		}
 	}
+	fusion.operands = nil
 	return fusion, nil
 }
 
@@ -1225,16 +1227,17 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 			return nil, fusionErr
 		}
 		frame := compiledNode{
-			node: node, index: index, operandOffset: offset, fusion: fusion,
+			operandOffset: offset, fusion: fusion,
 			view: view, aliases: aliases, skipped: skipped,
 		}
 		compiled.nodes[index] = frame
 		_, elided := compiled.elided[node]
 		if node.Op != tensor.OpInput && !skipped && !elided {
-			compiled.launches = append(compiled.launches, frame)
+			compiled.launches = append(compiled.launches, index)
 		}
 	}
 	dumpOpCounts(compiled)
+	compiled.fusions = nil
 	return compiled, nil
 }
 
@@ -1643,8 +1646,8 @@ func execute(
 			buffers.release(lease)
 		}
 	}()
-	for _, frame := range compiled.nodes {
-		node, nodeIndex := frame.node, frame.index
+	for nodeIndex, frame := range compiled.nodes {
+		node := compiled.order[nodeIndex]
 		if node.Op != tensor.OpInput && node.Type != dtype.F32 {
 			return nil, fmt.Errorf("CUDA executor does not support %s for tensor %d", node.Type, node.ID)
 		}
@@ -1844,8 +1847,9 @@ func execute(
 	}
 	resetStaged()
 	runLaunches := func() error {
-		for _, frame := range compiled.launches {
-			node := frame.node
+		for _, nodeIndex := range compiled.launches {
+			frame := compiled.nodes[nodeIndex]
+			node := compiled.order[nodeIndex]
 			operands := launchPointerFrame{
 				values: pointers.values,
 				slots:  compiled.operandSlots[frame.operandOffset : frame.operandOffset+len(node.Inputs)+1],
@@ -1861,7 +1865,7 @@ func execute(
 			if frame.fusion != nil {
 				fusionOperands = launchPointerFrame{
 					values: pointers.values,
-					slots:  compiled.operandSlots[frame.fusion.operandOffset : frame.fusion.operandOffset+len(frame.fusion.operands)+1],
+					slots:  compiled.operandSlots[frame.fusion.operandOffset : frame.fusion.operandOffset+frame.fusion.operandCount],
 				}
 			}
 			if label, err := launchCompiledFusion(

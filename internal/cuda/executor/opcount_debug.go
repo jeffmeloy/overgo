@@ -48,7 +48,7 @@ func dumpOpCounts(compiled *CompiledGraph) {
 			continue
 		}
 		key := node.Op.String()
-		fusion := compiled.fusions[node]
+		fusion := compiled.nodes[compiled.orderIndexes[node]].fusion
 		if fusion != nil {
 			switch fusion.kind {
 			case compiledFusionWeightedRMS:

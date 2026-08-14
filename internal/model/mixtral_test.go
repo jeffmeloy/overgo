@@ -38,7 +38,7 @@ func TestMixtralMetadataCatalogAndGraph(t *testing.T) {
 		tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4), tensorInfo("blk.0.ffn_gate_exps.weight", 8, 12, 4),
 		tensorInfo("blk.0.ffn_up_exps.weight", 8, 12, 4), tensorInfo("blk.0.ffn_down_exps.weight", 12, 8, 4),
 	}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}

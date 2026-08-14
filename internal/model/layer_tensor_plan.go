@@ -302,8 +302,8 @@ func (p AttentionGraphPlan) Build(
 	})
 }
 
-func (s Spec) attentionGraphPlan(layer uint32) AttentionGraphPlan {
-	policy := s.Profile().AttentionGraph
+func (s Spec) attentionGraphPlan(profile ArchitectureProfile, layer uint32) AttentionGraphPlan {
+	policy := profile.AttentionGraph
 	plan := AttentionGraphPlan{Causal: !s.NonCausalAttention, deltaProjection: policy.GatedDelta}
 	if s.IsSlidingLayer(layer) {
 		plan.Window = s.SlidingWindow
@@ -392,8 +392,8 @@ func (p MoEGraphPlan) BuildLayer(
 	})
 }
 
-func (s Spec) moeGraphPlan(layer uint32) MoEGraphPlan {
-	policy := s.Profile().Experts
+func (s Spec) moeGraphPlan(profile ArchitectureProfile, layer uint32) MoEGraphPlan {
+	policy := profile.Experts
 	routing := tensor.MoERoutingSoftmax
 	if s.ExpertGatingFunc == expertGatingSigmoid {
 		routing = tensor.MoERoutingSigmoid

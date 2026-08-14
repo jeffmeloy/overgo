@@ -50,20 +50,20 @@ func executeCompiledLayer(options BlockDispatchOptions) (DenseBlockResult, error
 	if options.Plan == nil {
 		return DenseBlockResult{}, errors.New("compiled layer plan is required")
 	}
-	sequence, _ := options.Plan.Program.Instruction(1)
-	if options.Plan.ExplicitEncoder && sequence.Operator != LayerOperatorAttentionRelativeBidirectional &&
+	plan := *options.Plan
+	sequence, _ := plan.Program.Instruction(1)
+	if plan.ExplicitEncoder && sequence.Operator != LayerOperatorAttentionRelativeBidirectional &&
 		sequence.Operator != LayerOperatorAttentionRelativeCausal {
 		return DenseBlockResult{}, errors.New("encoder-decoder blocks require explicit encoder state")
 	}
 	context := options.Context
 	if context.MultiPositions != nil {
-		if !options.Spec.SupportsMultiAxisPositions() {
+		if !plan.MultiAxis {
 			return DenseBlockResult{}, errors.New("layer architecture does not support multi-axis positions")
 		}
 		context.Positions = context.MultiPositions[0]
 		options.Context = context
 	}
-	plan := *options.Plan
 	if plan.Layer != context.Layer || plan.Recurrent != context.Recurrent {
 		return DenseBlockResult{}, errors.New("compiled layer plan differs from dispatch context")
 	}

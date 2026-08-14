@@ -63,8 +63,8 @@ type DenseStagePolicy struct {
 	EmbeddingHeadScaleBlocks uint32
 }
 
-func (s Spec) qkPreprocessPlan(layer uint32) QKPreprocessPlan {
-	policy := s.Profile().DenseStages
+func (s Spec) qkPreprocessPlan(profile ArchitectureProfile, layer uint32) QKPreprocessPlan {
+	policy := profile.DenseStages
 	plan := policy.QK
 	if policy.QKHeadsMinBlocks > 0 && s.BlockCount < policy.QKHeadsMinBlocks {
 		plan.Heads = qkNormNone
@@ -184,8 +184,8 @@ type AttentionOutputPlan struct {
 	residualScale float32
 }
 
-func (s Spec) attentionOutputPlan(norm NormalizationPlan) AttentionOutputPlan {
-	policy := s.Profile().DenseStages
+func (s Spec) attentionOutputPlan(profile ArchitectureProfile, norm NormalizationPlan) AttentionOutputPlan {
+	policy := profile.DenseStages
 	plan := AttentionOutputPlan{
 		valueScale: s.AttentionValueScale, sandwichNorm: s.SandwichNorm,
 		postNorm: norm.PostAttention, residualScale: s.ResidualScale,

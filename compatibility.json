@@ -397,13 +397,13 @@
           "contains": "func CompileModelPlanWithProfile(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:b3fe91af026225607697af66eccffa2565c45946ad819592d739e78d3b17c4f6"
+          "identity": "file:sha256:77d5299cb0c772f546cf28143f934c5820ea37a7072e9eeeefbf01d7c2e48ed5"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:594fc50a3d576258e59348834420d7455197f3be1d5fe2635d390eeb02d245ae"
+          "identity": "evidence:sha256:ccdea85741f61c75efc2b2a3e4392995ef92c356c5c96104db853fed6741ef61"
         }
       ],
       "id": "compiled-model-plan",
@@ -824,13 +824,13 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:7d4cc76fec58f8eeb9c612f59c84f13dd2545c2b979ab30453d92b7ba982aee6"
+          "identity": "file:sha256:64ec30347e54386f1fa63911e3067f0377696db4b2a0e77d8ee4409c0a6f9c1c"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
           "path": "internal/model/architecture_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:59423faf76f1032c6f3dc7a10ba9c725ac38fbecf908e41e4b8c44afae7a9501"
+          "identity": "evidence:sha256:5c06fdbb0c32934c1fbcd8c7979911db9c18ff1348f81b923e295826f9a2aee1"
         }
       ],
       "id": "architecture-profiles",
@@ -845,19 +845,19 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:82e1775b160bfccf2f42084f29753410e3a9add7b0b3aeb16d39741575c6c2db"
+          "identity": "file:sha256:d1a796673ae1a83d0aa3b4d6056f27261fa39483b570a5569b01f81b74d175e0"
         },
         {
           "contains": "func ReadWeights(",
           "path": "internal/model/weights_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:dad76c86580e27bbf0de4e2010a3bbd8852ff062251f73cafe857e308f1c0059"
+          "identity": "file:sha256:a7b5c26d71d11edd38a553c53fce82fbb9243742d695917286de8383538296f3"
         },
         {
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:c23227528a56647fa8bb21fa17cdc34b8432cd17428db220b42cb509a6bda9e8"
+          "identity": "evidence:sha256:8cb1490ace7d4f9d2609d9092b4f173ae85b50b215128b4ad647e2b5477a13f0"
         }
       ],
       "id": "neutral-layer-dispatch",

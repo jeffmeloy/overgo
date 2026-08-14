@@ -25,8 +25,8 @@ func (p RecurrentMixerPolicy) recurrentOnly() bool {
 		p == recurrentMixerNormalizedSelectiveScan || p == recurrentMixerShortConvolution
 }
 
-func (s Spec) compileRecurrentMixer(recurrent bool) RecurrentMixerPolicy {
-	policy := s.Profile().RecurrentMixer
+func compileRecurrentMixer(profile ArchitectureProfile, recurrent bool) RecurrentMixerPolicy {
+	policy := profile.RecurrentMixer
 	if !recurrent && policy.recurrentOnly() {
 		return recurrentMixerNone
 	}

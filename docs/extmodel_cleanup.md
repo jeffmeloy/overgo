@@ -1,7 +1,7 @@
 # Model Runtime Cleanup
 
 Status: active  
-Updated: 2026-08-13  
+Updated: 2026-08-14
 Scope: `internal/model`, `internal/inference`, model recipes, direct callers
 
 ## Endpoint
@@ -42,6 +42,7 @@ active recipe + resolved artifact facts
 | Inference-owned sequence tensor catalogs | 0 | Model binder consumes compiled catalog |
 | Invocation-time graph schema discovery | 0 | Reflect once; bind by indexed descriptors |
 | Registry-backed model-plan compilation APIs | 0 | Commands pass resolved profile explicitly |
+| Unbound `Spec` policy fallback lookups | 0 | Metadata admission binds the exact profile |
 | Dead graph-runtime feed mutators | 0 | Weight/layer binders own feed registration |
 | Hardcoded Gemma3N validation facts | 0 | Serialized typed profile facts |
 | Exported registry-backed profile resolution APIs | 0 | Bootstrap stays inside model package |
@@ -53,7 +54,7 @@ Family-named production files: none.
 ## Ordered Work
 
 1. Remove family identity from the remaining post-resolution parsing/binding files.
-2. Remove the remaining `Spec.Profile` registry fallback after fixture migration.
+2. Thread sealed policy through remaining weight-catalog helpers and delete repeated `Spec.Profile` reads.
 
 ## Per-Wave Gate
 

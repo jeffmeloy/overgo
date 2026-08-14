@@ -163,8 +163,8 @@ func (p ExpertCompositionPlan) Validate(spec Spec) error {
 	return nil
 }
 
-func (s Spec) expertCompositionPlan() ExpertCompositionPlan {
-	policy := s.Profile().Experts
+func (s Spec) expertCompositionPlan(profile ArchitectureProfile) ExpertCompositionPlan {
+	policy := profile.Experts
 	plan := ExpertCompositionPlan{
 		kind: policy.compositionKind(s), routerInputOriginal: policy.RouterInputOriginal,
 	}

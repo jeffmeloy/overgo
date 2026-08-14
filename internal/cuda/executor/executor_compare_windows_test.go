@@ -155,19 +155,16 @@ func (f *cudaReferenceFixture) projection(
 func (f *cudaReferenceFixture) layer(
 	program model.ModelPlan,
 	layer int,
-	spec model.Spec,
 	weights model.LayerGraphWeights,
 	context model.CachedBlockContext,
 ) model.DenseBlockResult {
 	f.t.Helper()
-	plan, err := program.Layer(layer)
+	compiled, err := program.LayerProgram(layer)
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	context.Builder, context.Layer = f.builder, plan.Layer
-	result, err := buildCompiledLayer(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan, Context: context,
-	})
+	context.Builder, context.Layer = f.builder, compiled.Layer().Layer
+	result, err := compiled.Build(context, weights)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -356,13 +353,12 @@ func buildFixtureCachedBlock(
 	layer uint32,
 	recurrent bool,
 ) (model.DenseBlockResult, error) {
-	plan := spec.PlanLayer(layer, recurrent)
 	return buildCompiledLayer(model.BlockDispatchOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer, Recurrent: recurrent,
 		},
-		Spec: spec, Weights: weights, Plan: &plan,
+		Spec: spec, Weights: weights,
 	})
 }
 
@@ -402,13 +398,12 @@ func buildFixtureDenseBlockCachedWithMultiPositions(
 	pastKey, pastValue *tensor.Tensor,
 	layer uint32,
 ) (model.DenseBlockResult, error) {
-	plan := spec.PlanLayer(layer, false)
 	return buildCompiledLayer(model.BlockDispatchOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, MultiPositions: &positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer,
 		},
-		Spec: spec, Weights: weights, Plan: &plan,
+		Spec: spec, Weights: weights,
 	})
 }
 

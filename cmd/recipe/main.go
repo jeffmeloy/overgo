@@ -238,10 +238,7 @@ func activate(
 	if err != nil {
 		return err
 	}
-	profile, ok := model.LookupArchitecture(spec.Architecture)
-	if !ok {
-		return fmt.Errorf("architecture %q has no registered profile", spec.Architecture)
-	}
+	profile := spec.Profile()
 	profileDocument, err := modelrecipe.NewProfileDocument(profile)
 	if err != nil {
 		return err

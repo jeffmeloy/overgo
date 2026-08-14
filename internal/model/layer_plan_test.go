@@ -171,7 +171,7 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			plan := test.spec.PlanLayer(0, test.recurrent)
+			plan := bindFixtureSpec(test.spec).PlanLayer(0, test.recurrent)
 			if plan.Attention != test.attention || plan.CacheMode != test.mode {
 				t.Fatalf("plan = %+v", plan)
 			}
@@ -190,7 +190,7 @@ func TestPlanLayerCompilesTensorGraphControls(t *testing.T) {
 			LayerSwiGLUClamp: []float32{7},
 		},
 	}
-	plan := step.PlanLayer(0, false)
+	plan := bindFixtureSpec(step).PlanLayer(0, false)
 	if plan.Rotary.kind != rotaryGraphSingle ||
 		plan.Rotary.layout != tensor.RoPELayoutNeoX || plan.Rotary.factorPairs != 1 ||
 		plan.Experts.Routing != tensor.MoERoutingSigmoid ||
@@ -205,7 +205,7 @@ func TestPlanLayerCompilesTensorGraphControls(t *testing.T) {
 		},
 		MoESpec: MoESpec{ExpertUsedCount: 2, ExpertWeightsScale: 1},
 	}
-	plan = gptOSS.PlanLayer(0, false)
+	plan = bindFixtureSpec(gptOSS).PlanLayer(0, false)
 	if !plan.AttentionGraph.UseSinks || plan.AttentionGraph.Window != 128 ||
 		plan.Experts.Routing != tensor.MoERoutingSelectedSoftmax ||
 		plan.Experts.Activation != tensor.MoEActivationSwiGLUOAI ||
@@ -495,8 +495,8 @@ func TestPlanLayerPinsSharedKVSource(t *testing.T) {
 			SharedKVLayers: 2,
 		},
 	}
-	owned := spec.PlanLayer(1, false)
-	shared := spec.PlanLayer(2, false)
+	owned := bindFixtureSpec(spec).PlanLayer(1, false)
+	shared := bindFixtureSpec(spec).PlanLayer(2, false)
 	if !owned.HasKV || owned.SharedKV || shared.HasKV || !shared.SharedKV || shared.KVSource != 1 {
 		t.Fatalf("owned = %+v, shared = %+v", owned, shared)
 	}
@@ -511,7 +511,7 @@ func TestPlanLayerCompilesProjectedStreams(t *testing.T) {
 	}
 	want := []DeepstackSource{DeepstackSourceNone, 1, DeepstackSourceNone, 0}
 	for layer, source := range want {
-		plan := granite.PlanLayer(uint32(layer), false)
+		plan := bindFixtureSpec(granite).PlanLayer(uint32(layer), false)
 		if plan.DeepstackBefore != source || plan.DeepstackAfter != DeepstackSourceNone {
 			t.Fatalf("Granite layer %d deepstack = %d/%d, want %d/none", layer, plan.DeepstackBefore, plan.DeepstackAfter, source)
 		}
@@ -521,7 +521,7 @@ func TestPlanLayerCompilesProjectedStreams(t *testing.T) {
 		MultimodalSpec: MultimodalSpec{DeepstackLayerCount: 2},
 	}
 	for layer := range uint32(3) {
-		plan := qwen.PlanLayer(layer, false)
+		plan := bindFixtureSpec(qwen).PlanLayer(layer, false)
 		wantAfter := DeepstackSourceNone
 		if layer < 2 {
 			wantAfter = DeepstackSource(layer)
@@ -534,7 +534,7 @@ func TestPlanLayerCompilesProjectedStreams(t *testing.T) {
 
 func TestPlanLayerCompilesAuxiliaryFlow(t *testing.T) {
 	rwkv := Spec{CommonSpec: CommonSpec{Architecture: "rwkv7", BlockCount: 2}}
-	first, second := rwkv.PlanLayer(0, false), rwkv.PlanLayer(1, false)
+	first, second := bindFixtureSpec(rwkv).PlanLayer(0, false), bindFixtureSpec(rwkv).PlanLayer(1, false)
 	if first.AuxiliaryInput != AuxiliaryNone || first.AuxiliaryOutput != AuxiliaryRecurrentValue ||
 		second.AuxiliaryInput != AuxiliaryRecurrentValue || second.AuxiliaryOutput != AuxiliaryNone {
 		t.Fatalf("RWKV auxiliary plans = %+v / %+v", first, second)
@@ -544,7 +544,7 @@ func TestPlanLayerCompilesAuxiliaryFlow(t *testing.T) {
 		AttentionSpec: AttentionSpec{IndexerFullLayers: []bool{true, false, true}},
 	}
 	for layer, wantInput := range []AuxiliaryFlow{AuxiliaryNone, AuxiliarySparseTopK, AuxiliaryNone} {
-		plan := dsa.PlanLayer(uint32(layer), false)
+		plan := bindFixtureSpec(dsa).PlanLayer(uint32(layer), false)
 		if plan.AuxiliaryInput != wantInput || plan.AuxiliaryOutput != AuxiliarySparseTopK {
 			t.Fatalf("GLM-DSA layer %d auxiliary = %v/%v", layer, plan.AuxiliaryInput, plan.AuxiliaryOutput)
 		}
@@ -553,17 +553,17 @@ func TestPlanLayerCompilesAuxiliaryFlow(t *testing.T) {
 
 func TestPlanLayerCompilesAttentionTemperature(t *testing.T) {
 	configured := Spec{CommonSpec: CommonSpec{Architecture: "mistral3", BlockCount: 1}}
-	if got := configured.PlanLayer(0, false).Temperature; got != AttentionTemperatureConfigured {
+	if got := bindFixtureSpec(configured).PlanLayer(0, false).Temperature; got != AttentionTemperatureConfigured {
 		t.Fatalf("Mistral3 temperature = %v", got)
 	}
 	llama4 := Spec{
 		CommonSpec:    CommonSpec{Architecture: "llama4", BlockCount: 2},
 		AttentionSpec: AttentionSpec{NoRopeLayerStep: 2},
 	}
-	if got := llama4.PlanLayer(0, false).Temperature; got != AttentionTemperatureNone {
+	if got := bindFixtureSpec(llama4).PlanLayer(0, false).Temperature; got != AttentionTemperatureNone {
 		t.Fatalf("Llama4 RoPE layer temperature = %v", got)
 	}
-	if got := llama4.PlanLayer(1, false).Temperature; got != AttentionTemperatureNoRoPE {
+	if got := bindFixtureSpec(llama4).PlanLayer(1, false).Temperature; got != AttentionTemperatureNoRoPE {
 		t.Fatalf("Llama4 no-RoPE layer temperature = %v", got)
 	}
 }
@@ -573,11 +573,11 @@ func TestPlanLayerCompilesSideInputPolicies(t *testing.T) {
 		CommonSpec:     CommonSpec{Architecture: "gemma4"},
 		MultimodalSpec: MultimodalSpec{EmbeddingPerLayer: 2},
 	}
-	plan := gemma4.PlanLayer(0, false)
+	plan := bindFixtureSpec(gemma4).PlanLayer(0, false)
 	if !plan.PerLayerInput || plan.AttentionBlocks != AttentionBlocksUncached || plan.EmbeddingSkip {
 		t.Fatalf("Gemma4 side-input plan = %+v", plan)
 	}
-	talkie := Spec{CommonSpec: CommonSpec{Architecture: "talkie"}}.PlanLayer(0, false)
+	talkie := bindFixtureSpec(Spec{CommonSpec: CommonSpec{Architecture: "talkie"}}).PlanLayer(0, false)
 	if !talkie.EmbeddingSkip || talkie.PerLayerInput || talkie.AttentionBlocks != AttentionBlocksNone {
 		t.Fatalf("Talkie side-input plan = %+v", talkie)
 	}
@@ -603,7 +603,7 @@ func TestNormPlanCompilesOperationPlacementBiasAndLayout(t *testing.T) {
 	}
 	for _, test := range tests {
 		spec := Spec{CommonSpec: CommonSpec{Architecture: test.architecture, LayerNormEpsilon: test.epsilon}}
-		plan := spec.NormPlan()
+		plan := bindFixtureSpec(spec).NormPlan()
 		if plan.Operation != test.operation || plan.PreAttention != test.pre ||
 			plan.PreFeedForward != test.pre || plan.PostAttention != test.post ||
 			plan.PostFeedForward != test.post || plan.Bias != test.bias ||

@@ -41,14 +41,20 @@ func fixtureModelPlan(spec model.Spec, weights model.Weights) (model.ModelPlan, 
 }
 
 func fixtureRunner(spec model.Spec, weights model.Weights) *Runner {
+	program := fixtureProgram(spec, weights)
 	return &Runner{preparedModel: preparedModel{
-		spec: spec, weights: weights, program: fixtureProgram(spec, weights),
+		spec: program.Model.Spec(), weights: weights, program: program,
 	}}
 }
 
 func attachFixtureProgram(runner *Runner) *Runner {
 	runner.program = fixtureProgram(runner.spec, runner.weights)
+	runner.spec = runner.program.Model.Spec()
 	return runner
+}
+
+func bindFixtureSpec(spec model.Spec) model.Spec {
+	return fixtureProgram(spec, model.Weights{}).Model.Spec()
 }
 
 func openFixtureRunner(path string, deviceOrdinal int) (*Runner, error) {

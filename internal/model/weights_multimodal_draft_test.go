@@ -56,7 +56,7 @@ func TestReadWeightsRWKV7Family(t *testing.T) {
 					tensorInfo("blk.0.ffn_up.weight", 8, 12), tensorInfo("blk.0.ffn_down.weight", 12, 8),
 				)
 			}
-			weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+			weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -104,7 +104,7 @@ func TestReadWeightsQwen35MoEAttention(t *testing.T) {
 		tensorInfo("blk.0.ffn_up_shexp.weight", 8, 10),
 		tensorInfo("blk.0.ffn_down_shexp.weight", 10, 8),
 	}}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestReadWeightsQwen3NextRecurrentLayouts(t *testing.T) {
 					tensorInfo("blk.0.attn_gate.weight", 8, 4),
 				)
 			}
-			weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+			weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -187,7 +187,7 @@ func TestReadRealQwen35Catalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestReadRealKimiLinearCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +244,7 @@ func TestReadRealGemma3Catalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +280,7 @@ func TestReadWeightsT5Encoder(t *testing.T) {
 		tensorInfo("enc.blk.0.ffn_up.weight", 8, 16),
 		tensorInfo("enc.blk.0.ffn_down.weight", 16, 8),
 	}}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +329,7 @@ func TestReadWeightsT5EncoderDecoder(t *testing.T) {
 			tensorInfo(prefix+"cross_attn_o.weight", 8, 8),
 		)
 	}
-	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,7 +382,7 @@ func TestReadWeightsWavTokenizerDecoder(t *testing.T) {
 			tensorInfo(prefix+"gamma.weight", 6),
 		)
 	}
-	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +415,7 @@ func TestReadWeightsDFlash(t *testing.T) {
 			tensorInfo(prefix+"ffn_up.weight", 8, 16), tensorInfo(prefix+"ffn_down.weight", 16, 8),
 		)
 	}
-	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -445,7 +445,7 @@ func TestReadWeightsEagle3(t *testing.T) {
 		tensorInfo("blk.0.rope_freqs.weight", 2),
 	}
 	tensors[0].Type = dtype.I64
-	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,14 +457,14 @@ func TestReadWeightsEagle3(t *testing.T) {
 }
 
 func TestReadWeightsErnie45MoEInterleavesDenseAndExpertLayers(t *testing.T) {
-	spec := Spec{CommonSpec: CommonSpec{Architecture: "ernie4_5-moe", BlockCount: 4, EmbeddingLength: 8,
+	spec := bindFixtureSpec(Spec{CommonSpec: CommonSpec{Architecture: "ernie4_5-moe", BlockCount: 4, EmbeddingLength: 8,
 		FeedForwardLength: 12,
 		VocabularySize:    32,
 		RMSNormEpsilon:    1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
 		KeyLength: 4, ValueLength: 4}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2,
 		ExpertFeedForward: 6, ExpertWeightsScale: 1.25,
 		LeadingDenseBlocks: 1, MoELayerStep: 2, SharedExpertFF: 5},
-	}
+	})
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 	}
@@ -498,7 +498,7 @@ func TestReadWeightsErnie45MoEInterleavesDenseAndExpertLayers(t *testing.T) {
 			)
 		}
 	}
-	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -584,7 +584,7 @@ func TestReadWeightsGemma4SharedKVMoEAndPerLayerInputs(t *testing.T) {
 			)
 		}
 	}
-	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +630,7 @@ func TestReadWeightsGemma4Assistant(t *testing.T) {
 			tensorInfo(prefix+"layer_output_scale.weight", 1),
 		)
 	}
-	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -693,7 +693,7 @@ func TestReadWeightsGemma3nAltUpAndLaurel(t *testing.T) {
 			)
 		}
 	}
-	weights, err := ReadWeights(&gguf.File{Tensors: tensors}, spec)
+	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -732,7 +732,7 @@ func TestReadWeightsQwen3VLMoE(t *testing.T) {
 		tensorInfo("blk.0.ffn_up_exps.weight", 8, 12, 4),
 		tensorInfo("blk.0.ffn_down_exps.weight", 12, 8, 4),
 	}}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -766,7 +766,7 @@ func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 		)
 		spec.ClassifierLabels = []string{"no", "yes"}
 	}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -794,7 +794,7 @@ func TestReadRealUMT5Catalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -817,7 +817,7 @@ func TestReadWeightsTalkieUsesEmbeddingSkipCatalog(t *testing.T) {
 		tensorInfo("blk.0.ffn_gate.weight", 8, 12), tensorInfo("blk.0.ffn_up.weight", 8, 12),
 		tensorInfo("blk.0.ffn_down.weight", 12, 8), tensorInfo("blk.0.layer_out_scale.weight", 1),
 	}}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -860,7 +860,7 @@ func TestReadWeightsAcceptsDenseProjectionBiases(t *testing.T) {
 		tensorInfo("blk.0.ffn_up.bias", 16),
 		tensorInfo("blk.0.ffn_down.bias", 8),
 	}}
-	weights, err := ReadWeights(file, spec)
+	weights, err := readFixtureWeights(file, spec)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -406,16 +406,16 @@ func SupportedArchitectures() []string {
 	return names
 }
 
-func (s Spec) resolvedProfile() (ArchitectureProfile, bool) {
-	if s.profile != nil {
-		return *s.profile, s.profile.Name == s.Architecture
+func (s Spec) boundProfile() (ArchitectureProfile, bool) {
+	if s.profile == nil {
+		return ArchitectureProfile{}, false
 	}
-	return LookupArchitecture(s.Architecture)
+	return *s.profile, s.profile.Name == s.Architecture
 }
 
-// Profile: resolved policy; zero profile for invalid specs.
+// Profile: bound policy; zero profile for invalid specs.
 func (s Spec) Profile() ArchitectureProfile {
-	profile, _ := s.resolvedProfile()
+	profile, _ := s.boundProfile()
 	return profile
 }
 

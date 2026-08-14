@@ -20,7 +20,7 @@ func requireLayerProgram(t *testing.T, program LayerProgram, want ...LayerOperat
 
 func typedFixtureLayerProgram(profile ArchitectureProfile, plan LayerPlan) LayerProgram {
 	plan.Attention = profile.Attention
-	plan.Mixer = Spec{}.withProfile(profile).compileRecurrentMixer(plan.Recurrent)
+	plan.Mixer = compileRecurrentMixer(profile, plan.Recurrent)
 	return compileLayerProgram(plan, profile)
 }
 
@@ -231,9 +231,7 @@ func TestKeyedDeltaProgramSelectsLinearAttention(t *testing.T) {
 	)
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
-	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
-		withProfile(profile).
-		compileRecurrentMixer(true)
+	state := compileRecurrentMixer(profile, true)
 	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerKeyedDelta ||
 		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
 		t.Fatalf("keyed-delta policies = %+v/%+v/%d", mixer, feedForward, state)
@@ -252,8 +250,9 @@ func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	requireLayerProgram(t, program, want...)
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
-	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
-		withProfile(ArchitectureProfile{RecurrentMixer: recurrentMixerShortConvolution}).compileRecurrentMixer(true)
+	state := compileRecurrentMixer(
+		ArchitectureProfile{RecurrentMixer: recurrentMixerShortConvolution}, true,
+	)
 	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerShortConvolution ||
 		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
 		t.Fatalf("LFM2 recurrent policies = %+v/%d/%d", mixer, state, feedForward.Operator)
@@ -300,8 +299,9 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 		if !ok || program.Count != qwenProgramStageCount {
 			t.Fatalf("Qwen GDN program = %+v", program)
 		}
-		state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{recurrent}}}.
-			withProfile(ArchitectureProfile{RecurrentMixer: recurrentMixerGatedDelta}).compileRecurrentMixer(recurrent)
+		state := compileRecurrentMixer(
+			ArchitectureProfile{RecurrentMixer: recurrentMixerGatedDelta}, recurrent,
+		)
 		if recurrent && (instruction.Operator != LayerOperatorRecurrentMix || state != recurrentMixerGatedDelta) {
 			t.Fatalf("Qwen recurrent stage = %+v", instruction)
 		}
@@ -319,7 +319,7 @@ func TestCompiledBlockDispatchRequiresPlan(t *testing.T) {
 		t.Fatalf("unknown error = %v", err)
 	}
 	t5 := Spec{CommonSpec: CommonSpec{Architecture: "t5"}}
-	t5Plan := t5.PlanLayer(0, false)
+	t5Plan := bindFixtureSpec(t5).PlanLayer(0, false)
 	_, err = executeCompiledLayer(BlockDispatchOptions{Spec: t5, Plan: &t5Plan})
 	if err == nil || !strings.Contains(err.Error(), "explicit encoder state") {
 		t.Fatalf("T5 dispatch error = %v", err)
@@ -329,7 +329,7 @@ func TestCompiledBlockDispatchRequiresPlan(t *testing.T) {
 		Forward: ForwardProgram{Operation: ForwardOperationSession, Session: ForwardSessionEncoderDecoder},
 	}
 	externalSpec := Spec{CommonSpec: CommonSpec{Architecture: external.Name}}.withProfile(external)
-	externalPlan := externalSpec.PlanLayer(0, false)
+	externalPlan := bindFixtureSpec(externalSpec).PlanLayer(0, false)
 	_, err = executeCompiledLayer(BlockDispatchOptions{
 		Spec: externalSpec, Plan: &externalPlan,
 	})

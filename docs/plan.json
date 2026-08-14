@@ -8,16 +8,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "speech-output",
-          "title": "Promote Pocket-TTS and every adaptive-declared audio-output recipe with real waveforms, stage parity, sample-rate/channel contracts, audio quality, wall, and peak evidence",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestPocketTTSProductionParity$' -count=1 -v"
-        },
-        {
           "id": "image-output",
-          "title": "Promote applicable text-to-image, image-to-image/edit, and structured-to-image routes for Un-0, SimpleDiffusion, Krea, and SenseNova; exact or oracle-repeatability quality and better wall plus peak",
+          "title": "Publish the fingerprinted SenseNova terminal state as a typed PNG through the shared planar encoder; retain native trajectory, cold/warm wall, and peak gates",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestImageGenerationLeadership$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaGenerationLeadership$' -count=1 -v"
         },
         {
           "id": "video-output",

@@ -83,11 +83,10 @@ type generationAdaptiveOracle struct {
 	} `json:"performance"`
 }
 
+const senseNovaTerminalPNG = "d439b8ce349eb71451efb69124eb9191e855e0e5bf237d88ebcec42b3defb4e8"
+
 func TestSenseNovaGenerationLeadership(t *testing.T) {
 	cudatest.Require(t)
-	if os.Getenv("OVERGO_SENSENOVA_BASELINE") != "1" {
-		t.Skip("set OVERGO_SENSENOVA_BASELINE=1 for SenseNova generation evidence")
-	}
 	var oracle generationLeadershipOracle
 	if err := jsonfile.Decode(senseNovaGenerationGold, &oracle); err != nil {
 		t.Fatal(err)
@@ -289,6 +288,20 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		t.Logf("SenseNova neutral generation step=%d lifecycle=%s layers=%d branches=%d body=%.3fs htod=%d dtoh=%d",
 			stepIndex, lifecycle, stats.Layers, stats.Branches, stats.Wall.Seconds(), stats.HostToDevice, stats.DeviceToHost)
 	}
+	generated, err := DecodeGeneratedImage(z, flow, image)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generated.Width != oracle.Request.Width || generated.Height != oracle.Request.Height ||
+		generated.Channels != 3 || len(generated.Data) == 0 {
+		t.Fatalf("SenseNova generated image = %+v", generated)
+	}
+	hash := fmt.Sprintf("%x", sha256.Sum256(generated.Data))
+	if hash != senseNovaTerminalPNG {
+		t.Fatalf("SenseNova terminal PNG sha256=%s, want %s", hash, senseNovaTerminalPNG)
+	}
+	t.Logf("SenseNova terminal PNG: bytes=%d sha256=%s range=[%g,%g]",
+		len(generated.Data), hash, generated.Minimum, generated.Maximum)
 	memory, err := worker.MemoryStats(context.Background())
 	if err != nil {
 		t.Fatal(err)

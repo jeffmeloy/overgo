@@ -15,7 +15,7 @@ import (
 	"overgo/internal/testutil"
 )
 
-const activationReason = "SenseNova neutral prefix/body, guidance, flow terminal, and sampler match a fingerprinted native two-step trajectory; reusable body beats adaptive wall; production decode/edit binding remains open"
+const activationReason = "SenseNova neutral prefix/body, guidance, flow terminal, sampler, and PNG publication match a fingerprinted native two-step trajectory; reusable body beats adaptive wall; compiled request and edit-input binding remain open"
 
 // TestSenseNovaImageGenRoundTripSynthetic proves the recipe lifecycle + the
 // discovery/status round-trip WITHOUT the 35GB checkpoint, so it runs in CI:

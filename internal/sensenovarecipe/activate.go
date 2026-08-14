@@ -10,8 +10,8 @@
 // config-owned. Its ACTIVATION evidence is the sensenovaparity
 // generation leadership gate, an EXPERIMENTAL tier. Seeded state is exact;
 // neutral prefix/body, guidance, terminal, and sampler match current adaptive
-// evidence and beat its reusable-body wall. Upstream trajectory and production
-// image decode/edit binding remain open.
+// evidence and beat its reusable-body wall. Terminal PNG publication is gated;
+// compiled request execution and edit input remain open.
 package sensenovarecipe
 
 import (

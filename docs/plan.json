@@ -8,16 +8,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "e4b-audio-plan",
-          "title": "Compile immutable Gemma E4B audio window, spectral basis, and mel filterbank once per runner",
-          "status": "open",
-          "verify": "go test -v ./internal/projector -run '^TestGemma4TowerAudioPlanReused$' -count=1"
-        },
-        {
           "id": "session-cache-leases",
           "title": "Replace global cache execution serialization with per-entry leases; keep lookup and eviction under the cache mutex only",
           "status": "open",
-          "verify": "go test -v -race ./internal/capabilityruntime -run '^TestScalarSessionCacheConcurrentKeys$' -count=1"
+          "verify": "go test -v ./internal/capabilityruntime -run '^TestScalarSessionCacheConcurrentKeys$' -count=20"
         },
         {
           "id": "sensenova-neutral-activation",

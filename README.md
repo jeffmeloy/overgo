@@ -8,26 +8,9 @@ Adaptive_new supplies capability oracles and performance baselines. Overgo owns
 the compiled recipes, runtime, Muon training path, evidence, and artifact
 lifecycle.
 
-**Current host:** Windows amd64, Go 1.26, NVIDIA CUDA driver,
-`CGO_ENABLED=0`. `github.com/dlclark/regexp2/v2` is the sole third-party Go
-runtime dependency. The implementation and public interfaces remain
-experimental.
-
-## Contents
-
-- [System contract](#system-contract)
-- [Architecture](#architecture)
-- [Capability status](#capability-status)
-- [Recorded performance](#recorded-performance)
-- [Requirements and data roots](#requirements-and-data-roots)
-- [Quick start](#quick-start)
-- [Multimodal processing](#multimodal-processing)
-- [HTTP server](#http-server)
-- [Training](#training)
-- [Commands](#commands)
-- [Development and gates](#development-and-gates)
-- [Repository map](#repository-map)
-- [Authoritative documentation](#authoritative-documentation)
+**Current host:** Windows amd64, Go 1.26, NVIDIA CUDA driver, `CGO_ENABLED=0`.
+`github.com/dlclark/regexp2/v2` is the sole third-party Go runtime dependency.
+The implementation and public interfaces remain experimental.
 
 ## System contract
 
@@ -46,8 +29,17 @@ successful recipe-bound gate and run; missing evidence is an error, never a
 fallback.
 
 The generated [compatibility matrix](docs/COMPATIBILITY.md) is the model and
-feature authority. Its evidence tiers matter: implemented, synthetic-fixture,
-real-artifact parity, and promoted performance are different claims.
+feature authority. Status terms are strict:
+
+- **Cataloged:** metadata, tensor requirements, and graph policy compile; this
+  does not claim every matching checkpoint runs correctly.
+- **Implemented:** a checked claim names live source and a failable command.
+- **Verified:** the named fixture/artifact passed its stated contract, fixture,
+  pinned-oracle, or device evidence.
+- **Promoted:** an identity-bound recipe has a successful gate/run pair.
+
+Claims do not generalize beyond their named artifact, input, lifecycle, and
+evidence tier. Unverified catalog rows remain experimental.
 
 ## Architecture
 
@@ -74,17 +66,22 @@ Placement chooses an executor; it cannot change modality or select a different
 operator implementation. Prompt templates, normalization, token budgets,
 schedulers, and codecs come from validated artifact/profile facts.
 
+Model opening builds one indexed weight catalog. A compiled requirement schema
+validates alternative shapes, storage, and cross-tensor relations. Layer
+programs carry indexed bindings; execution does not rediscover family policy.
+
 The CUDA runtime loads installed NVIDIA DLLs directly. A locked-thread worker
 owns each driver context. Compiled graphs reuse validated topology, BLAS
-selection, and arena plans. Manifest-pinned CUDA/PTX assets are the only
-project-owned non-Go runtime components.
+selection, arena plans, indexed operands, and replay frames. Graph rewrites
+compile typed fusion launch descriptors before execution. Manifest-pinned
+CUDA/PTX assets are the only project-owned non-Go runtime components.
 
 Preloaded decoding retains model weights, KV state, recurrent state, and graph
 outputs on device; only sampling boundaries cross to Go. Media generation
 sessions retain compiled branch graphs, prefix KV, and hidden state across
-denoise steps. Capability sessions are cached by model artifact, recipe,
-device, and execution policy. Per-entry leases allow unrelated keys to execute
-concurrently.
+denoise steps, then release host weights and binding maps after device upload.
+Capability sessions are cached by model artifact, recipe, device, and execution
+policy. Per-entry leases allow unrelated keys to execute concurrently.
 
 ## Capability status
 
@@ -94,15 +91,14 @@ concurrently.
 | Quantized execution | GGUF parsing/conversion plus native quantized weights and experts through recipe-selected residency | Exact type/family coverage is generated in `docs/COMPATIBILITY.md` |
 | Serving | Native llama.cpp-style routes; OpenAI Chat/Completions/Embeddings/Responses; Anthropic Messages; built-in inference, RepoDB browse, and model-analysis UI | Protocol features are contract-tested; model quality remains recipe-specific |
 | Multimodal input | Typed image, audio, and video projection; bounded local/allowlisted remote media; mixed-media history | E4B, Gemma/Qwen, RxBrain, and Unlimited OCR have real evidence; many catalog rows remain fixture-only |
-| Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea is promoted; SenseNova text request-to-PNG executes through routed recipe modules at the pinned 256px case; edit input remains open |
-| Video generation | Resident Wan denoise and CUDA VAE decode | Fresh Overgo result; retained Python reference still needs a same-revision rerun |
+| Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea has retained 2048 evidence; SenseNova has a device-gated text request-to-PNG recipe at the pinned 256px case; full-size and edit evidence remain open |
+| Video generation | Resident Wan denoise and CUDA VAE decode; LiveEdit schedule, checkpoint binding, neutral trajectory, and shared text conditioning | Wan has full-clip evidence; LiveEdit source encode, retained denoise integration, production activation, and output leadership remain open |
 | Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Pocket-TTS has real recipe, latent/EOS, PCM/WAV, channel/rate, wall, and heap evidence; other promotions vary |
 | Training | Muon-only dense/hybrid primitives plus corpus-derived scratch construction through shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the pinned scratch profile lead; complete-state resume and universal objectives remain open |
 
-Explicit gaps include full-size SenseNova image/edit evidence, LiveEdit,
-Unlimited OCR exact full-sequence numerics and matched peak evidence, complete-state
-training resume, scratch artifact publication/controller promotion, and
-real-model Qwen3.5/E4B/Gemma4 training.
+Explicit gaps include full-size SenseNova image/edit evidence, the remaining
+LiveEdit device pipeline, Unlimited OCR exact full-sequence numerics and matched peak
+evidence, complete-state resume, scratch publication/controller promotion, and real-model Qwen3.5/E4B/Gemma4 training.
 
 ## Recorded performance
 
@@ -175,9 +171,8 @@ go run ./cmd/compatibility -check
 go test ./...
 ```
 
-`go test ./...` expects the configured evidence artifacts referenced by the
-parity matrix. Missing required evidence is UNAVAILABLE and fails rather than
-silently passing.
+`go test ./...` is model-free. Real-artifact/device lanes are explicit; missing
+required prerequisites are UNAVAILABLE and fail rather than silently passing.
 
 Inspect a model:
 
@@ -269,8 +264,9 @@ Primary protocol surfaces:
 - public health, metrics, and model discovery;
 - a built-in web UI on otherwise unmatched GET routes. It includes chat,
   read-only dataset/run browsing, model/vocabulary/logit/hidden-state analysis,
-  and exact host-replayed attention heatmaps where the compiled attention policy
-  is plain causal and contains no sinks, windows, softcap, or ALiBi.
+  bounded distribution-free tensor characterization and rank-based nearest-shape
+  search, and exact host-replayed attention heatmaps for plain-causal policies
+  without sinks, windows, softcap, or ALiBi.
 
 Set `OVERGO_API_KEY` or `-api-key-file` to protect generation and model-action
 routes. Health, metrics, and model discovery remain public. Request sizes,
@@ -334,6 +330,8 @@ Model and format tools:
 | `cmd/gguf-quantize` | GGUF quantization through pinned encoders |
 | `cmd/tokenize`, `cmd/json-schema-grammar` | Token and constrained-generation tooling |
 | `cmd/cuda-info`, `cmd/cuda-smoke` | Driver/device inspection and smoke execution |
+| `cmd/compatibility` | Check claims or refresh canonical evidence identities and the generated matrix |
+| `cmd/repodb-query` | Query typed artifacts, runs, evaluations, findings, and decisions |
 
 Run `go run ./cmd/<name> -h` for standard command flags. `cmd/recipe` uses
 `activate`, `run`, and `status` before its options; for example,
@@ -380,10 +378,12 @@ read-only to automation for delete, move, and permission-changing operations.
 | --- | --- |
 | `cmd/` | Thin executable composition roots |
 | `internal/model`, `internal/inference` | Compiled model programs, runners, cache/session behavior |
+| `internal/modelartifact`, `internal/tensorstats` | Bounded model inventories; L-moment, energy, rank-neighbor, and small-matrix spectral characterization |
 | `internal/recipe`, `internal/modelrecipe`, `internal/workflowruntime` | Typed capability definitions, lifecycle, and execution |
 | `internal/cuda`, `kernels/` | Driver binding, executor, generated bindings, manifested CUDA assets |
 | `internal/projector`, `internal/latentimage`, `internal/latentvideo` | Multimodal projection and media generation |
 | `internal/optimizer`, `internal/densecausal`, `internal/hybridtrain` | Muon and training implementations |
+| `internal/trainingprogram`, `internal/scratchmodel` | Compiled training authority and corpus-derived scratch construction/execution |
 | `internal/artifact`, `internal/repodb`, `internal/runrecord` | Identity, lineage, decisions, runs, and evidence |
 | `internal/server`, `internal/server/webui` | HTTP contracts and embedded thin-client console/workbench |
 | `compatibility.json` | Machine-checked feature and model claims |

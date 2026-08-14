@@ -95,11 +95,143 @@ func TestMultimodalInputMatrix(t *testing.T) {
 		t.Skip("set OVERGO_CUDA_TEST=1 for real multimodal parity")
 	}
 	t.Run("qwen35-image-video-language", testQwen35ImageVideoParity)
+	t.Run("gemma4-12b-image-audio-video", testGemma4InputParity)
 	t.Run("gemma-e4b-image", testGemmaE4BImageParity)
 	t.Run("gemma-e4b-image-language", testGemmaE4BImageLanguageParity)
 	t.Run("gemma-e4b-dynamic-resize", testGemmaE4BResizeParity)
 	t.Run("gemma-e4b-video-order", testGemmaE4BVideoOrder)
 	t.Run("gemma-e4b-audio", testGemmaE4BAudioParity)
+}
+
+func testGemma4InputParity(t *testing.T) {
+	root := testutil.RepoRoot(t)
+	roots, err := dataroot.Resolve(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixtureRoot := filepath.Join(filepath.Dir(roots.Models), "fixtures")
+	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-12B-it-fp8-mmproj-bf16.gguf")
+	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-12B-it-fp8-native.gguf")
+	imagePath := filepath.Join(fixtureRoot, "gemma4_mm_image.png")
+	imageGoldenPath := filepath.Join(fixtureRoot, "gemma4_mm_golden.json")
+	wavePath := filepath.Join(fixtureRoot, "gemma4_audio_wave.f32")
+	audioGoldenPath := filepath.Join(fixtureRoot, "gemma4_audio_golden.json")
+	assertSHA256(t, projectorPath, "24489a6d072466fb288c43474ab9890e77eebe2503b0d7c514e626ee3a08e930")
+	assertSHA256(t, modelPath, "64fb17f3c324dcbf9f83861e5d2ea1534a66ea0970223047e788a482b080853c")
+	assertSHA256(t, imagePath, "996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e")
+	assertSHA256(t, imageGoldenPath, "f2e50cd5619ce5dfb92b91d8547daa930a5a9d974e01852e6fde81a0b2435d54")
+	assertSHA256(t, wavePath, "98c8d1a25f96bbdfff5ca6153c9b18fad9740e300008618a970c18384b35d404")
+	assertSHA256(t, audioGoldenPath, "273b9b00522ab9d8c8c74e5f333475f9c1bd70c50bf4f52d7c570b6a0fd2da97")
+	var imageGolden struct {
+		InputIDs          []tokenizer.TokenID `json:"input_ids"`
+		GeneratedTokenIDs []tokenizer.TokenID `json:"generated_token_ids"`
+	}
+	var audioGolden struct {
+		InputIDs          []tokenizer.TokenID `json:"input_ids"`
+		GeneratedTokenIDs []tokenizer.TokenID `json:"generated_token_ids"`
+		Steps             []struct {
+			TopIDs []tokenizer.TokenID `json:"top_ids"`
+		} `json:"steps"`
+	}
+	decodeJSONEvidence(t, imageGoldenPath, &imageGolden)
+	decodeJSONEvidence(t, audioGoldenPath, &audioGolden)
+	file, err := os.Open(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	imageSource, decodeErr := png.Decode(file)
+	closeErr := file.Close()
+	if decodeErr != nil || closeErr != nil {
+		t.Fatal(errors.Join(decodeErr, closeErr))
+	}
+	runner, err := projector.OpenGemma4WithOptions(projectorPath, projector.OpenOptions{CUDA: true})
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: Gemma4 projector or CUDA absent; parity NOT verified: %v", err)
+	}
+	defer runner.Close()
+	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyDeviceNative,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	language, err := inference.OpenWithProgram(&loaded, inference.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer language.Close()
+	imagePrompt, err := runner.BuildImagePrompt(
+		context.Background(), language, imageSource, "", "What color dominates this image? One word.", false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(imagePrompt.TokenIDs, imageGolden.InputIDs) {
+		t.Fatalf("Gemma4 image prompt IDs = %d, want %d", len(imagePrompt.TokenIDs), len(imageGolden.InputIDs))
+	}
+	imageToken := generatePromptFirstToken(t, language, imagePrompt)
+	if len(imageGolden.GeneratedTokenIDs) == 0 || imageToken != imageGolden.GeneratedTokenIDs[0] {
+		t.Fatalf("Gemma4 image first token = %d, want %v", imageToken, imageGolden.GeneratedTokenIDs)
+	}
+	wave := readFloat32Evidence(t, wavePath, "Gemma4 audio wave")
+	audioPrompt, err := runner.BuildAudioPrompt(
+		context.Background(), language, wave, "", "What note do you hear? One word.",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(audioPrompt.TokenIDs, audioGolden.InputIDs) {
+		t.Fatalf("Gemma4 audio prompt IDs = %d, want %d", len(audioPrompt.TokenIDs), len(audioGolden.InputIDs))
+	}
+	audioToken := generatePromptFirstToken(t, language, audioPrompt)
+	if len(audioGolden.Steps) == 0 || !slices.Contains(audioGolden.Steps[0].TopIDs, audioToken) {
+		t.Fatalf("Gemma4 audio first token = %d, outside oracle top IDs", audioToken)
+	}
+	second := flipHorizontal(imageSource)
+	forward, err := runner.BuildVideoPrompt(
+		context.Background(), language, []image.Image{imageSource, second}, "", "Describe the motion.", 2, false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reverse, err := runner.BuildVideoPrompt(
+		context.Background(), language, []image.Image{second, imageSource}, "", "Describe the motion.", 2, false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(forward.AttentionBlocks) != 2 || !slices.Equal(forward.TokenIDs, reverse.TokenIDs) {
+		t.Fatalf("Gemma4 video prompt contract = blocks %v/%v", forward.AttentionBlocks, reverse.AttentionBlocks)
+	}
+	chunk := len(forward.Embeddings) / 2
+	if chunk == 0 || !slices.Equal(forward.Embeddings[:chunk], reverse.Embeddings[chunk:]) ||
+		!slices.Equal(forward.Embeddings[chunk:], reverse.Embeddings[:chunk]) {
+		t.Fatal("Gemma4 video frame order is not retained")
+	}
+	videoToken := generatePromptFirstToken(t, language, forward)
+	t.Logf("Gemma4 12B real matrix: image exact token %d; audio top-set token %d; video ordered token %d", imageToken, audioToken, videoToken)
+}
+
+func generatePromptFirstToken(t *testing.T, runner *inference.Runner, prompt projector.MultimodalPrompt) tokenizer.TokenID {
+	t.Helper()
+	ids, projected, err := inference.ProjectedInputsForPrompt(runner, prompt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	greedy, err := sampling.New(sampling.Config{Temperature: 0, TopK: 1, TopP: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, _, err := runner.Generate(context.Background(), "", inference.GenerateOptions{
+		MaxNewTokens: 1, Sampler: greedy, PromptTokenIDs: ids, ProjectedInputs: &projected,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(generated) != len(ids)+1 {
+		t.Fatalf("multimodal generation returned %d tokens, want %d", len(generated), len(ids)+1)
+	}
+	return generated[len(ids)]
 }
 
 func testQwen35ImageVideoParity(t *testing.T) {

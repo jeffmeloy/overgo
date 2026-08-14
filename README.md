@@ -115,6 +115,7 @@ checks, and open caveats are in the
 | --- | ---: | ---: | --- |
 | Qwen3.5-4B decode | adaptive 16.76 ms/token | 10.96 ms/token; about 2.2 GB more peak | Wall lead, memory loss |
 | Qwen3.5-4B image/video | Python image and 16-frame video goldens | Exact prompt IDs, MRoPE, and first tokens; CUDA projector probes pass | Real input parity; peak open |
+| Gemma4 12B image/audio/video | Adaptive image/audio oracles; declared video route | Image exact token, audio top-set token, ordered real-frame video through language | Video output oracle and peaks open |
 | RxBrain VQA | adaptive 18.4-23.1 s / 11.97 GB | 9.5 s / 10.59 GB | Wall and peak lead |
 | Carbon-500M causal Muon | adaptive 6.816 s loop / 11.47 GiB | 5.05-5.13 s / 4.620 GiB; matched trajectory | About 25% loop-wall and 60% peak lead |
 | Corpus-derived scratch causal | adaptive 221.4-231.8 ms / 3.13-3.18 MB peak | 64.4-66.2 ms matched steps / 2.38-2.43 MB combined peak; cold 44.7-49 ms, warm 8.7-11.6 ms | At least 3.34x wall and 22% peak lead on pinned profile |

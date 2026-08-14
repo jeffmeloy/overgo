@@ -28,6 +28,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/mod/analyze_logits.js", "text/javascript; charset=utf-8", "completion_probabilities"},
 		{"/mod/analyze_states.js", "text/javascript; charset=utf-8", "/analyze/states"},
 		{"/mod/analyze_attention.js", "text/javascript; charset=utf-8", "/analyze/attention"},
+		{"/mod/analyze_tensors.js", "text/javascript; charset=utf-8", "/analyze/tensors"},
 	}
 	for _, testCase := range cases {
 		response := serveTestRequest(handler, http.MethodGet, testCase.path, "")

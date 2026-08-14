@@ -94,7 +94,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Gemma4 12B FP8 text | Active native FP8 CUDA | 24/24 exact tokens; 29.81 ms/token, 18.89 GiB versus Overgo BF16 baseline | Functional; cross-repo performance open | Same FP8 artifact and prompt against adaptive native FP8 |
 | Gemma4 12B image | Active unified multimodal path | Real FP8-native model + BF16 CUDA projector exact first-token oracle passes inside the promoted matrix | First-token parity | Multi-token corpus, request-only wall, peak |
 | Gemma4 12B audio/video | Adaptive declares audio/video input coverage | Real audio projector-to-language top-ID oracle passes. A two-frame real-image video preserves frame order and block masks through language generation; no adaptive video output oracle exists | Audio first-token parity; video execution contract | Mint a native video output oracle; exact audio envelope; request-only wall/peak |
-| RxBrain VQA | Native path; retained 18.4-23.1 s and 11.97 GB comparison | Exact answer; 9.5 s, 10.59 GB, 6.19 ms/token | Lead on both axes | Re-run nonfixture corpus cases; stop-contract and semantic scoring |
+| RxBrain VQA | Native path; retained 18.4-23.1 s and 11.97 GB comparison | Real processor and image execute through compiled recipe, publish a bound verifier gate/run, activate, then replay bit-exactly; two gates measured 10.211-10.273 s verify and 9.529-9.982 s active, 6.06-6.28 ms/token, 3.940 GiB coarse device peak | Exact golden prefix and coherent EOS answer; lead on both recorded axes | Re-run nonfixture corpus cases; semantic scoring |
 | Unlimited OCR | Active adaptive multimodal recipe | No promoted Overgo parity row found | Gap | Port typed OCR contract; exact text and layout metrics |
 | TimesFM forecasting | Active host recipe | Fingerprinted real weights/golden; 684 vs 873 ms matched host wall | Exact parity; wall lead | Matched peak measurement |
 | TabFM prediction | Active host classification/regression | Both 6.5 GB heads and shared golden fingerprinted; all four warm cases 0.65-0.81x reference wall | Exact parity; wall lead | Matched peak measurement |
@@ -171,7 +171,7 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | E4B decode | adaptive host 341 ms/token | 18.5 ms/token | About 18x speed win |
 | E4B image tower | adaptive 14.56 s focused test | 1.65 s fingerprint+load+run; 0.215 s resident encode; exact sampled stages | 8.8x focused-test wall lead; peak open |
 | E4B audio input | adaptive wave -> mel -> tower focused test 1.03 s | 0.129 s resident wave -> mel -> tower; fingerprinted frontend/stages | Functional parity; wall lead unclaimed until matched lifecycle and peak |
-| RxBrain full VQA | adaptive 18.4-23.1 s / 11.97 GB | 9.5 s / 10.59 GB | About 2x wall win; lower peak |
+| RxBrain full VQA | adaptive 18.4-23.1 s / 11.97 GB | 10.211-10.273 s verifier / 9.529-9.982 s active replay; 3.940 GiB coarse device peak | 1.8-2.4x wall lead; lower recorded peak; exact deterministic answer |
 | SimpleDiffusion host forward | adaptive median 0.21 s | median 0.17 s | 0.81x wall |
 | MiniCPM decode | adaptive 294.6-295.8 token/s | 321.7-363.0 token/s | Overgo faster |
 | Un-0 generation | 0.01 s test resolution | 0.01 s test resolution | Tie; resolution-limited |

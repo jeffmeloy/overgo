@@ -21,6 +21,34 @@ func F32Reader(tensor Tensor) (io.Reader, error) {
 	return PromoteF32Reader(tensor.Reader(), tensor.DType)
 }
 
+// ReadF32 promotes one tensor into its final F32 slab without a tensor-sized
+// byte copy.
+func ReadF32(tensor Tensor) ([]float32, error) {
+	elements := tensor.Elements()
+	count := int(elements)
+	if count < 0 || uint64(count) != elements {
+		return nil, errors.New("safetensors: tensor is too large for host memory")
+	}
+	reader, err := F32Reader(tensor)
+	if err != nil {
+		return nil, err
+	}
+	values := make([]float32, count)
+	var encoded [f32PromotionBufferBytes]byte
+	for offset := 0; offset < count; {
+		batch := min(count-offset, len(encoded)/float32StorageBytes)
+		payload := encoded[:batch*float32StorageBytes]
+		if _, err := io.ReadFull(reader, payload); err != nil {
+			return nil, err
+		}
+		for index := range batch {
+			values[offset+index] = math.Float32frombits(binary.LittleEndian.Uint32(payload[index*float32StorageBytes:]))
+		}
+		offset += batch
+	}
+	return values, nil
+}
+
 // PromoteF32Reader: stream one floating storage type as F32.
 func PromoteF32Reader(source io.Reader, dataType string) (io.Reader, error) {
 	switch dataType {

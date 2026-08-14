@@ -78,3 +78,16 @@ func TestAttentionWeightsRejectsMismatchedGeometry(t *testing.T) {
 		t.Fatal("expected error for mismatched query length")
 	}
 }
+
+func TestAttentionWeightsRejectsInvalidGQAAndNonFiniteInputs(t *testing.T) {
+	tests := []inference.AttentionCapture{
+		{Heads: 3, KVHeads: 2, HeadDim: 1, Scale: 1, Query: reference.Value{Data: make([]float32, 3)}, Key: reference.Value{Data: make([]float32, 2)}},
+		{Heads: 1, KVHeads: 1, HeadDim: 1, Scale: 1, Query: reference.Value{Data: []float32{float32(math.NaN())}}, Key: reference.Value{Data: []float32{1}}},
+		{Heads: 1, KVHeads: 1, HeadDim: 1, Scale: float32(math.Inf(1)), Query: reference.Value{Data: []float32{1}}, Key: reference.Value{Data: []float32{1}}},
+	}
+	for index, capture := range tests {
+		if _, err := attentionWeights(capture, 1); err == nil {
+			t.Fatalf("case %d accepted", index)
+		}
+	}
+}

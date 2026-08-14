@@ -521,7 +521,7 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 		profile: spec.Profile(),
 	}
 	loader.draftPlan = loader.profile.DraftPlan(spec.NextNPredictLayers)
-	loader.normPlan = spec.NormPlan()
+	loader.normPlan = loader.profile.Runtime.normalizationPlan(spec, loader.profile)
 	var result Weights
 	var err error
 	for _, stage := range []func(Weights) (Weights, error){
@@ -795,7 +795,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		prefix := fmt.Sprintf("blk.%d.", block)
 		isDraftBlock := block >= spec.BlockCount
-		layerPlan := spec.PlanLayer(block, false)
+		layerPlan := spec.planLayer(profile, block, false)
 		shapes := spec.TensorShapes(block)
 		queryLength := shapes.QueryProjectionWidth()
 		keyLength := shapes.KeyProjectionWidth()

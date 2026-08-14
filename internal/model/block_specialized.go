@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	rwkvLayerRescale    = float32(0.5)
 	wkv6TimeMixStreams  = uint64(5)
 	wkv7TimeMixStreams  = uint64(5)
 	wkv7GatedMixStreams = uint64(6)
@@ -346,6 +345,7 @@ func buildAffineWKV6MixCached(
 	spec Spec,
 	weights LayerGraphWeights,
 	pastShift, pastState *tensor.Tensor,
+	layerPlan LayerPlan,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || pastShift == nil || pastState == nil {
 		return DenseBlockResult{}, errors.New("affine WKV6 input/state is invalid")
@@ -379,7 +379,7 @@ func buildAffineWKV6MixCached(
 	heads := uint64(spec.HeadCount)
 	tokens := normalized.Shape.Dims[1]
 	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != embedding || tokens == 0 ||
-		!pastShift.Shape.Equal(tensor.MustShape(embedding, 2)) ||
+		!pastShift.Shape.Equal(tensor.MustShape(embedding, uint64(layerPlan.RecurrentRuntime.TokenShiftCount))) ||
 		!pastState.Shape.Equal(tensor.MustShape(width, width, heads, 1)) {
 		return DenseBlockResult{}, errors.New("affine WKV6 input/cache shape is invalid")
 	}
@@ -396,9 +396,10 @@ func buildAffineWKV6MixCached(
 	attentionElements := embedding * tokens
 	attention := builder.FlatSlice(packed, 0, embedding, tokens)
 	nextState := builder.FlatSlice(packed, attentionElements, width, width, heads, 1)
-	attention = builder.Reshape(
-		builder.LayerNorm(builder.Reshape(attention, width, heads, tokens), rwkvHeadNormEpsilon), embedding, tokens,
-	)
+	attention = builder.Reshape(builder.LayerNorm(
+		builder.Reshape(attention, width, heads, tokens),
+		layerPlan.RecurrentRuntime.HeadNormEpsilon,
+	), embedding, tokens)
 	attention = builder.Add(builder.Multiply(attention, weights.TimeMixLN), weights.TimeMixLNBias)
 	attention = builder.MulMat(weights.TimeMixOutput, builder.Multiply(attention, gate))
 	nextShift := builder.Reshape(
@@ -499,7 +500,7 @@ func buildDynamicWKV7MixCached(
 	width := uint64(spec.WKVHeadSize)
 	heads := uint64(spec.HeadCount)
 	tokens := normalized.Shape.Dims[1]
-	shiftCount := uint64(spec.TokenShiftCount)
+	shiftCount := uint64(layerPlan.RecurrentRuntime.TokenShiftCount)
 	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != embedding || tokens == 0 ||
 		!pastShift.Shape.Equal(tensor.MustShape(embedding, shiftCount)) ||
 		!pastState.Shape.Equal(tensor.MustShape(width, width, heads, 1)) {
@@ -551,7 +552,7 @@ func buildDynamicWKV7MixCached(
 	))
 	kk := builder.L2Norm(
 		builder.Reshape(builder.Multiply(key, weights.TimeMixKK), width, heads, tokens, 1),
-		rwkvKeyNormEpsilon,
+		layerPlan.RecurrentRuntime.KeyNormEpsilon,
 	)
 	ka := builder.Multiply(key, weights.TimeMixKA)
 	key = builder.Add(key, builder.Add(builder.Multiply(a, ka), builder.Scale(ka, -1)))
@@ -565,9 +566,10 @@ func buildDynamicWKV7MixCached(
 	attention := builder.FlatSlice(packed, 0, embedding, tokens)
 	nextState := builder.FlatSlice(packed, attentionElements, width, width, heads, 1)
 	if weights.TimeMixLN != nil && weights.TimeMixLNBias != nil {
-		attention = builder.Reshape(
-			builder.LayerNorm(builder.Reshape(attention, width, heads, tokens), rwkvHeadNormEpsilon), embedding, tokens,
-		)
+		attention = builder.Reshape(builder.LayerNorm(
+			builder.Reshape(attention, width, heads, tokens),
+			layerPlan.RecurrentRuntime.HeadNormEpsilon,
+		), embedding, tokens)
 		attention = builder.Add(builder.Multiply(attention, weights.TimeMixLN), weights.TimeMixLNBias)
 	}
 	rkWeight := builder.Reshape(weights.TimeMixRK, width, heads, 1, 1)
@@ -597,6 +599,7 @@ func buildTokenShiftFeedForwardMix(
 	pastShift, nextAttentionShift *tensor.Tensor,
 	operator LayerOperator,
 	normalization NormalizationPlan,
+	tokenShiftCount uint32,
 ) (DenseBlockResult, error) {
 	required := graphWeights{
 		requireGraphWeight("channel norm", weights.AttentionNorm2),
@@ -616,7 +619,7 @@ func buildTokenShiftFeedForwardMix(
 	}
 	embedding := uint64(spec.EmbeddingLength)
 	if input == nil || input.Shape.Rank != 2 || input.Shape.Dims[0] != embedding || input.Shape.Dims[1] == 0 ||
-		pastShift == nil || !pastShift.Shape.Equal(tensor.MustShape(embedding, 2)) ||
+		pastShift == nil || !pastShift.Shape.Equal(tensor.MustShape(embedding, uint64(tokenShiftCount))) ||
 		nextAttentionShift == nil || !nextAttentionShift.Shape.Equal(tensor.MustShape(embedding, 1)) {
 		return DenseBlockResult{}, errors.New("token-shift feed-forward input/cache shape is invalid")
 	}

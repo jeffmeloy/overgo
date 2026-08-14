@@ -149,7 +149,7 @@ func TestExecutorEagle3PipelineMatchesReference(t *testing.T) {
 		FeedForwardDown: input("down", tensor.MustShape(6, 4), 0.03, -0.1),
 	}
 	tokens := input("tokens", tensor.MustShape(4, 3), 0.08, -0.1)
-	result := fixture.layer(fixture.modelPlan(spec), 0, spec, weights, model.CachedBlockContext{
+	result := fixture.layer(fixture.modelPlan(spec), 0, weights, model.CachedBlockContext{
 		Input: tokens, Positions: []uint32{0, 1, 2}, PerLayerInput: fused,
 		CacheWrite: tensor.CacheWriteConcat,
 	})
@@ -194,7 +194,7 @@ func TestExecutorGemma4AssistantPipelineMatchesReference(t *testing.T) {
 		}
 		sharedKey := input(fmt.Sprintf("shared_key_%d", layer), tensor.MustShape(keyWidth, 1, 3), 0.04, -0.1)
 		sharedValue := input(fmt.Sprintf("shared_value_%d", layer), tensor.MustShape(keyWidth, 1, 3), 0.04, -0.1)
-		block := fixture.layer(program, int(layer), spec, weights, model.CachedBlockContext{
+		block := fixture.layer(program, int(layer), weights, model.CachedBlockContext{
 			Input: current, Positions: []uint32{3}, PastKey: sharedKey, PastValue: sharedValue,
 		})
 		current = block.Output

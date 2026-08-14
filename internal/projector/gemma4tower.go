@@ -32,8 +32,8 @@ type Gemma4VisionTowerSpec struct {
 	MaxVideoTokens   int
 	RMSNormEpsilon   float32
 	RopeFreqBase     float32
-	ImageMean        [3]float32
-	ImageStd         [3]float32
+	InputScale       [3]float32
+	InputBias        [3]float32
 	HiddenActivation string
 }
 
@@ -181,20 +181,21 @@ func ReadGemma4TowerSpec(file *gguf.File) (Gemma4TowerSpec, error) {
 		}
 		*field.target = value
 	}
-	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
+	inputScale, err := metadataFloat32Array(file, "clip.vision.input_scale", 3)
 	if err != nil {
 		return spec, err
 	}
-	std, err := metadataFloat32Array(file, "clip.vision.image_std", 3)
+	inputBias, err := metadataFloat32Array(file, "clip.vision.input_bias", 3)
 	if err != nil {
 		return spec, err
 	}
-	copy(vision.ImageMean[:], mean)
-	copy(vision.ImageStd[:], std)
-	audio.SubChannels, err = metadataInt32ArrayValues(file, "clip.audio.subsampling_conv_channels")
+	copy(vision.InputScale[:], inputScale)
+	copy(vision.InputBias[:], inputBias)
+	subChannels, err := metadataInt32ArrayValues(file, "clip.audio.subsampling_conv_channels")
 	if err != nil {
 		return spec, err
 	}
+	audio.SubChannels = subChannels
 	if err := spec.validate(); err != nil {
 		return spec, err
 	}
@@ -247,9 +248,9 @@ func (vision Gemma4VisionTowerSpec) validate() error {
 		vision.RMSNormEpsilon <= 0 || vision.RopeFreqBase <= 0 || vision.HiddenActivation == "" {
 		return fmt.Errorf("projector: invalid Gemma 4 vision tower metadata: %+v", vision)
 	}
-	for channel := range vision.ImageStd {
-		if vision.ImageStd[channel] <= 0 || !finite32(vision.ImageMean[channel]) || !finite32(vision.ImageStd[channel]) {
-			return fmt.Errorf("projector: invalid Gemma 4 vision normalization channel %d", channel)
+	for channel := range vision.InputScale {
+		if vision.InputScale[channel] == 0 || !finite32(vision.InputScale[channel]) || !finite32(vision.InputBias[channel]) {
+			return fmt.Errorf("projector: invalid Gemma 4 vision input affine channel %d", channel)
 		}
 	}
 	return nil

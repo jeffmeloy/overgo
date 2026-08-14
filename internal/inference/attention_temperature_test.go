@@ -16,6 +16,7 @@ func TestMistral3AttentionTemperatureInput(t *testing.T) {
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	weights := model.LayerGraphWeights{}
 	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "mistral3"}, AttentionSpec: model.AttentionSpec{AttentionTempScale: 0.1, AttentionTempFloor: 8}}
+	spec = bindFixtureSpec(spec)
 	plan := spec.PlanLayer(0, false)
 	if _, err := bindLayerSideInputs(
 		builder, spec, []uint32{0, 7, 8, 16}, plan, feeds, &weights, layerSideInputs{},

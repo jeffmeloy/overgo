@@ -1,6 +1,6 @@
 # adaptive_new Parity and Performance Report
 
-Validation base: Overgo `1a5074c` plus the E4B image-language parity slice;
+Validation base: Overgo `7759622` plus the scratch-training leadership slice;
 adaptive_new `214950b3b`; reviewed 2026-08-13. adaptive_new working-tree changes
 remain observations, not landed evidence.
 
@@ -29,6 +29,9 @@ best resident implementation.
   are prerequisites, not E4B closure.
 - Production dense training beats adaptive's retained Carbon causal protocol;
   Qwen, hybrid, E4B, checkpoint, and promotion remain open.
+- Corpus-to-model construction now matches the pinned adaptive_new scratch
+  oracle. The resident three-step program leads the matched reference on wall
+  and runtime-owned peak memory; production checkpoint/publication remains open.
 - Critical evidence gap: 34 compatibility claims are marked `implemented`, but
   the current file does not encode the doctrine's evidence tiers. All 135
   architecture entries are `experimental`; only four name a validated fixture.
@@ -75,7 +78,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Runtime topology | Shared primitives plus large extmodel assembly | `recipe.Program`, model plans, neutral packages; image/audio/video projection modules and decoded tensor kinds are typed independently of placement | Overgo compiled program |
 | CUDA | Go loaders plus family-heavy extmodel kernels | Manifested binaries, driver API, executor graph | Overgo executor + kernel manifest |
 | Serving | Mature multimodal endpoints and evidence | llama-compatible server plus growing typed workflows | Overgo, after API parity matrix |
-| Training | Broad objective/trainer set; uneven authority | Strong dense/hybrid primitives; thin production assembly | Overgo `TrainingRunPlan` + `TrainingProgram` |
+| Training | Broad objective/trainer set plus a working corpus-to-new-model path; uneven authority | Compiled `TrainingRunPlan`, corpus-derived `ScratchConstruction`, shared tensor VJP, resident CUDA and Muon; objective/model breadth remains narrower | Overgo compiled authority + shared runtime |
 | Evidence | RepoDB, capability budgets, media artifacts, fixtures | RepoDB, compatibility claims, plan fixtures | Overgo RepoDB; Git owns chronology |
 
 ## Inference and Generation Matrix
@@ -84,25 +87,26 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | --- | --- | --- | --- | --- |
 | Dense causal text: Carbon, Qwen2.5, MiniCPM | Active CUDA inference, real artifacts, capability floors | Weight and golden identities are live-gated; exact-token parity for all three; MiniCPM 3.109 vs 3.400 ms/token | Parity; MiniCPM wall lead | Refresh Carbon/Qwen2.5 wall and all three matched peaks |
 | Qwen3.5-4B hybrid text | Active CUDA; 16.76 ms/token retained baseline | 10.96 ms/token; same BF16 weights; about 2.2 GB more peak | Gated tradeoff: wall lead, memory loss | Retain speed while matching or beating adaptive peak |
+| Qwen3.5-4B image/video | Python processor and Go path own pinned image plus 16-frame video goldens | Direct HF projector export; CUDA image/video processor and projector probes pass; exact prompt IDs, MRoPE axes, and first language tokens pass for both routes | Real image/video input parity | Add combined-media corpus, request-only wall, and peak |
 | Qwen3.5-9B GGUF | adaptive_new cannot serve the bare Q8_0 GGUF | 11.6 ms/token, 9.3 GB recorded | Overgo-only capability | Re-run real artifact; register oracle-backed claim |
 | Gemma E4B text | adaptive host spine; 341 ms/token comparison | 18.5 ms/token device; exact 3-case serving fixtures; 21.79 GiB self-baseline peak | Large speed lead | Matched peak-memory comparison; keep exact tokens |
 | Gemma E4B image/video/audio | Adaptive image path passes the fingerprinted 2,520-patch oracle in 14.56 s focused-test wall. Its audio fixture runs wave -> mel -> tower in 1.03 s | Retained CUDA vision graph matches all 16 stages and 280x2,560 soft tokens; 0.210-0.215 s resident body. The exact 300-token adaptive image prompt with 280 projected tokens produces `23910` (`Pattern`) with 1.017 s language prefill. Resize matches 912x672/266 tokens. Video preserves frame-major order at 70 tokens/frame. Audio waveform -> log-mel -> 12-layer tower matches: frontend max error `2.72e-4`, worst stage relative `1.73e-4`, final `1.90e-5`, 0.129 s resident body. Its missing attention RoPE fact is now a content-addressed audio profile in recipe dependency slot 1 | Image projector-to-language parity and wall lead; audio frontend/tower parity; video ordering contract | Measure image/audio peaks; gate audio/video language output on real media |
 | Gemma4 12B FP8 text | Active native FP8 CUDA | 24/24 exact tokens; 29.81 ms/token, 18.89 GiB versus Overgo BF16 baseline | Functional; cross-repo performance open | Same FP8 artifact and prompt against adaptive native FP8 |
-| Gemma4 12B image | Active unified multimodal path | Real FP8-native model + BF16 device projector first-token oracle passes; 32.36 s focused-test wall | First-token parity | Multi-token corpus, request-only wall, peak |
-| Gemma4 12B audio/video | Adaptive declares audio/video input coverage | Real audio projector-to-language top-ID oracle passes; 29.80 s focused-test wall. Video remains unproved | Audio first-token parity; video gap | Exact audio envelope + request-only wall/peak; real video case |
-| RxBrain VQA | Native path; retained 18.4-23.1 s and 11.97 GB comparison | Exact answer; 9.5 s, 10.59 GB, 6.19 ms/token | Lead on both axes | Re-run nonfixture corpus cases; stop-contract and semantic scoring |
-| Unlimited OCR | Active adaptive multimodal recipe | No promoted Overgo parity row found | Gap | Port typed OCR contract; exact text and layout metrics |
+| Gemma4 12B image | Active unified multimodal path | Real FP8-native model + BF16 CUDA projector exact first-token oracle passes inside the promoted matrix | First-token parity | Multi-token corpus, request-only wall, peak |
+| Gemma4 12B audio/video | Adaptive declares audio/video input coverage | Real audio projector-to-language top-ID oracle passes. Mixed image→audio and audio→image prompts retain exact modality chunks, image-only attention spans, and order-sensitive language tokens 107/108. A two-frame real-image video preserves frame order and block masks through language generation; no adaptive video output oracle exists | Audio first-token parity; mixed-media and video execution contracts | Mint a native video output oracle; exact audio envelope; request-only wall/peak |
+| RxBrain VQA | Native path; retained 18.4-23.1 s and 11.97 GB comparison | Real processor and image execute through compiled recipe, publish a bound verifier gate/run, activate, then replay bit-exactly; two gates measured 10.211-10.273 s verify and 9.529-9.982 s active, 6.06-6.28 ms/token, 3.940 GiB coarse device peak | Exact golden prefix and coherent EOS answer; lead on both recorded axes | Re-run nonfixture corpus cases; semantic scoring |
+| Unlimited OCR | Native BF16 image/text golden: 277 prompt IDs, 811 generated IDs, 29 OCR rows; `crop_mode=false`; 35-gram/128-window repetition policy | Shared DeepSeek OCR CUDA projector plus shared DeepSeek2/MoE inference and shared sliding-window no-repeat sampler: exact prompt IDs, 273 finite projected tokens, exact 200-token prefix, terminal EOG, and all 29 rows; every coordinate is within one and every row text is within one edit. Fresh projection 10.02 s; full generation 4m22.482s | Real production OCR parity | Resolve the token-200 BF16 numerical swap for exact full-sequence identity; measure matched full-output peak |
 | TimesFM forecasting | Active host recipe | Fingerprinted real weights/golden; 684 vs 873 ms matched host wall | Exact parity; wall lead | Matched peak measurement |
 | TabFM prediction | Active host classification/regression | Both 6.5 GB heads and shared golden fingerprinted; all four warm cases 0.65-0.81x reference wall | Exact parity; wall lead | Matched peak measurement |
 | Needle seq2seq | Partial adaptive forward/backward | Fingerprinted real weights/JAX oracle; retained load+generate envelope <=250 vs 420 ms | Exact parity; wall lead | Matched peak measurement |
 | Text embedding | No evidence-qualified encoder artifact in configured roots | Runtime and recipe exist; causal hidden-state substitution refused | Explicit refusal | Add a real encoder artifact, corpus, golden, wall, and peak |
 | Text rerank | No evidence-qualified classifier-head artifact in configured roots | Runtime and recipe exist; causal LM substitution refused | Explicit refusal | Add a real reranker artifact, pair corpus, scores, wall, and peak |
-| Pocket-TTS speech | Active adaptive host audio recipe; codec and training scaffolds | Backbone/codec/recipe rows recorded done | Unverified production audio quality | Real text-to-waveform: exact stages, audio metrics, wall, peak |
+| Pocket-TTS speech | Active adaptive host audio recipe and real-model generation fixture | Compiled production recipe; every generated latent/EOS value is bounded against the adaptive oracle; PCM max error `3.38e-4`, RMS `0.089438`, encoded WAV `24 kHz` mono; warm matched synthesis `0.48-0.53 s`; peak heap `0.540-0.543 GiB` | Production output parity; warm-wall lead versus adaptive's retained `2.0 s` optimized route; matched process peak still open | Preserve exact stage/audio gates; measure both implementations under one cold/process-memory harness |
 | Un-0 image/video | Active deterministic Go route | Exact fixture within `3.13e-7`; about 1.25 ms warm generation | Parity | Non-vacuous golden in normal gate; image and video outputs |
 | SimpleDiffusion image | Host generation and real-checkpoint training | Forward max error `3.99e-6`; recorded 0.17 s vs adaptive 0.21 s | Host lead | Device forward/backward; real output quality and peak |
 | Wan text-to-video | Native adaptive exact path; Python oracle | Fresh session+denoise 331.96 s / 7.875 GB; decode 38.31 s / 10.330 GB; exact G3/G4 bounded, BF16 G3 cosine 0.999899, frame-0 CUDA/host max error 8.04e-6 | 370.27 s staged wall beats retained 463.4 s Python wall | Fresh same-revision Python/adaptive run; semantic clip gate |
 | Krea text-to-image | Matched 256 fixture: 25.430 s; exact u8 SHA `b257e244`; full 2048 record: 158.144 s, 33.47 GB device | 256: 13.804 s / 25.030 GiB, MAE 0.02401. 2048: 63.510 s / 32.732 GB, MAE 0.03910; production caller and phased residency gated | Wall/peak lead at both sizes; bounded image quality | Exact SHA remains numerically unstable; retain robust pixel oracle and RMSE advisory |
-| SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Fingerprinted retained-session two-step core: boundary cosine >=0.99914, velocity >=0.99863, final state >=0.99832; cold body 3.65-4.00 s, warm body 3.66-4.02 s, 0.710 GiB peak versus adaptive 6.88 s | Warm-body lead; production gap | Bind production decode/publication; edit route still needs its absent source PNG |
+| SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Compiled routed-image recipe owns tokenizer/prompt, retained prefix/body, shifted integration, and planar PNG publication. Pinned 256px/2-step case: boundary cosine >=0.99914, velocity >=0.99863, final state >=0.99832, exact PNG `d439b8ce...`, 13.56 s total, 0.708 GiB peak | Production text-to-image route gated; warm-body lead | Run the full-size 50-step quality case; edit route still needs its absent source PNG |
 | LiveEdit video edit | Adaptive complete experimental route; best 109.5 s, 20.61 GB; Python 60.1 s | No complete Overgo route found | Gap | Port shared video primitives; beat Python without temporal degradation |
 | Server/API/session/cache | Mature adaptive-specific multimodal surface | Broad llama-compatible server, resumable caches, tools | Different strengths | Contract matrix: streaming, tools, embeddings, media, sessions, refusal |
 
@@ -110,7 +114,8 @@ Overgo's tokenizer total includes a large generated Unicode table.
 
 | Training concern | adaptive_new | Overgo | Verdict |
 | --- | --- | --- | --- |
-| Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` exist only in the design document | Overgo gap |
+| Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` compile immutable construction, dataset, operator and Muon authority; production checkpoint/promotion breadth remains open | Core authority ported; breadth gap |
+| Model from scratch | `RunFromProviderRich` derives split, rune vocabulary, topology, initialization, batching, causal training and metrics from documents | Pinned source/config/oracle parity; direct flat initialization; shared tensor forward/VJP; resident CUDA weights, gradients, momentum, compiled graphs and pooled scratch | Matched three-step wall/peak lead; artifact publication and exact resume open |
 | Optimizer | Adaptive optimizer machinery and model-specific use; historical SGD paths remain | Matrix/vector/scalar groups use one compiled Muon path; sign, BF16-SGD and family-local production updates deleted | Muon-only production authority |
 | Dense causal LM | Retained Carbon causal CUDA at `c72b6595d`: four 31-token DNA windows, LR `1.33179e-5`, Muon 0.95, loss `8.43767 -> 7.29179`, 6.816 s loop, 11.47 GiB admitted peak | Same ordered windows and settings: loss `8.437673 -> 7.293611`, 5.05-5.13 s loop, 4.620 GiB measured peak | Matched Carbon wall/peak lead; Qwen bias path open |
 | Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train -freeze-lexical` selects the no-fallback resident contract; full-parameter mode remains explicit | Carbon route reachable; exact checkpoint contract open |
@@ -121,7 +126,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Forecast/latent/FNS | CUDA objectives for LM, FNS, latent L2/sequence, forecast | TimesFM/Un-0 ports; no single compiled production program | Breadth gap |
 | OCR | Host objective; CUDA train/eval absent | No promoted training path | Both incomplete |
 | SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and revive experiments; device path incomplete | Shared Muon plan covers the real artifact; tiny Muon loss `0.026695 -> 0.002327`; real device update open | Optimizer authority fixed; performance parity incomplete |
-| Pocket-TTS | Latent bridge, flow-net, backbone paths | Port row says scoped, but no current production proof | Unverified |
+| Pocket-TTS | Latent bridge, flow-net, backbone paths | Inference recipe and reference waveform are production-proven; training gradients exist but no matched real training trajectory | Inference promoted; training open |
 | Controller model | Strategic adaptive plan; no promoted controller | Overgo training design targets it | Not started |
 | Tier-1 memory scaling | Adaptive streamed/checkpointed components | Resident dense session and scratch pool exist; no production E4B run | Partial |
 
@@ -149,6 +154,13 @@ Overgo's tokenizer total includes a large generated Unicode table.
   adaptive_new parity and not a production-model result.
 - Device layer backward, cached forward, loss/gradients, full trainer, and
   resident trainer focused tests pass on the reviewed machine.
+- Adaptive scratch profile, seed 7, batch 1, three steps: adaptive_new pinned
+  runs span 221.4-231.8 ms and 3.13-3.18 MB peak Go heap. Overgo reports
+  process launch 7.7-303.0 ms, driver/context 37.7-150.6 ms, model initialization
+  0.5-2.6 ms, PTX/program preparation 77.5-85.4 ms, first step 38.4-44.5 ms,
+  warm steps 9.1-11.6 ms, 58.0-65.4 ms for all three steps, and 1.15-1.17 MB
+  combined host plus runtime-owned device peak. Loss/validation maximum delta is
+  `1.738e-3`; final weights, cleared gradients, and Muon momentum are also gated.
 
 These results promote matched Carbon frozen-lexical leadership. They do not
 justify Qwen, E4B, 12B, controller, or system-wide training closure.
@@ -161,7 +173,8 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | E4B decode | adaptive host 341 ms/token | 18.5 ms/token | About 18x speed win |
 | E4B image tower | adaptive 14.56 s focused test | 1.65 s fingerprint+load+run; 0.215 s resident encode; exact sampled stages | 8.8x focused-test wall lead; peak open |
 | E4B audio input | adaptive wave -> mel -> tower focused test 1.03 s | 0.129 s resident wave -> mel -> tower; fingerprinted frontend/stages | Functional parity; wall lead unclaimed until matched lifecycle and peak |
-| RxBrain full VQA | adaptive 18.4-23.1 s / 11.97 GB | 9.5 s / 10.59 GB | About 2x wall win; lower peak |
+| RxBrain full VQA | adaptive 18.4-23.1 s / 11.97 GB | 10.211-10.273 s verifier / 9.529-9.982 s active replay; 3.940 GiB coarse device peak | 1.8-2.4x wall lead; lower recorded peak; exact deterministic answer |
+| Unlimited OCR image/text | Native BF16 811-token/29-row golden | 10.02 s projection + 4m22.482s full generation; exact 200-token prefix; complete 29-row output within one coordinate/text edit; 273 image tokens | Functional full-output parity; exact sequence and matched reference wall/peak open |
 | SimpleDiffusion host forward | adaptive median 0.21 s | median 0.17 s | 0.81x wall |
 | MiniCPM decode | adaptive 294.6-295.8 token/s | 321.7-363.0 token/s | Overgo faster |
 | Un-0 generation | 0.01 s test resolution | 0.01 s test resolution | Tie; resolution-limited |
@@ -169,7 +182,8 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | Krea 256 generation | adaptive exact Go 25.430 s | 13.804 s / 25.030 GiB; MAE 0.02401, RMSE 0.05459 | 46% wall lead; lower peak; bounded quality lead |
 | Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | 35% lead vs best Python; 60% vs adaptive; 2.2% lower peak |
 | Carbon-500M causal training | adaptive `c72b6595d`: 6.816 s loop / 11.47 GiB admitted; loss 8.43767 -> 7.29179 | 5.05-5.13 s loop / 4.620 GiB measured; loss 8.437673 -> 7.293611 | 25% loop-wall lead; about 60% lower peak |
-| SenseNova generation core | Adaptive matched reusable body 6.88 s | Overgo retained session: cold body 3.65-4.00 s, warm body 3.66-4.02 s / 0.710 GiB peak; two native steps gated twice | 41.6% warm-body wall lead at the measured envelope maximum; full image route open |
+| Corpus-derived scratch causal training | adaptive pinned run: 221.4-231.8 ms / 3.13-3.18 MB peak heap | 58.0-65.4 ms matched steps / 1.15-1.17 MB combined runtime peak; six lifecycle phases and complete state gated | At least 3.38x step-wall lead; at least 62% lower peak; trajectory delta `1.738e-3` |
+| SenseNova generation core | Adaptive matched reusable body 6.88 s | Overgo retained session: fresh cold body 8.117 s, warm body 4.048 s / 0.710 GiB peak; cold <=8.6 s and warm <=6.2 s gated twice | 41.1% warm-body lead at the fresh measurement; cold is slower than adaptive and is not claimed as leadership; full image route open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | No complete Overgo result | Open |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |
 
@@ -319,14 +333,15 @@ The authoritative steps live in `docs/plan.json`. Order:
 5. Build a Go-owned neutral adaptive parity snapshot/import and scoreboard.
 6. Derive inference modality signatures from recipes; close text, structured,
    combined multimodal input, speech, image, video, then API/session behavior.
-7. Compile `TrainingRunPlan` and `TrainingProgram`; bind immutable RepoDB facts.
-8. Make Muon the only optimizer family; delete SGD/sign compatibility paths.
-9. Make checkpoint/resume atomic, exact, lineage-bound, and production-reachable.
-10. Prove dense real-artifact training parity; then real Qwen hybrid and E4B,
+7. Publish scratch initialization and training results as complete RepoDB
+   artifacts; bind exact resume and production command reachability.
+8. Make checkpoint/resume atomic, exact, lineage-bound, and production-reachable.
+9. Prove dense real-artifact training parity; then real Qwen hybrid and E4B,
     exercising every adaptive-declared trainable modality.
-11. Compile the multimodal training matrix; port remaining adaptive objective
+10. Compile the multimodal training matrix; port remaining adaptive objective
     families through shared programs and explicitly refuse absent objectives.
-12. Train and promote the small workflow controller; scale only after evidence.
+11. Train and promote the scratch workflow controller; keep recursive candidate
+    proposal inside the model but data admission and promotion external.
 
 ## Definition of Exceeds adaptive_new
 
@@ -349,4 +364,5 @@ Overgo exceeds adaptive_new only when:
 - The plan contains open work only; Git and RepoDB retain evidence and history.
 
 Current state: inference leadership is real but incomplete. Training leadership
-is not yet established.
+is established for matched Carbon and the pinned scratch profile, not yet for
+the broader adaptive_new objective/model matrix.

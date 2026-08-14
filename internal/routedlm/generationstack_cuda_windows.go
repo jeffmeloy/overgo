@@ -29,9 +29,6 @@ type generationStackBranch struct {
 	compiled     *executor.CompiledGraph
 	prefixKeys   []driver.DevicePtr
 	prefixValues []driver.DevicePtr
-	prefixKey    driver.DevicePtr
-	prefixValue  driver.DevicePtr
-	prefixBytes  uint64
 	row          driver.DevicePtr
 	output       driver.DevicePtr
 	target       *executor.RetainedTargets
@@ -113,15 +110,7 @@ func NewDeviceGenerationSession(
 		if err != nil {
 			return fail(err)
 		}
-		branch.prefixBytes = uint64(len(prefix.Layers[0].Key)) * 4
-		branch.prefixKey, err = session.resources.allocate(branch.prefixBytes)
-		if err != nil {
-			return fail(err)
-		}
-		branch.prefixValue, err = session.resources.allocate(branch.prefixBytes)
-		if err != nil {
-			return fail(err)
-		}
+		prefixBytes := uint64(len(prefix.Layers[0].Key)) * 4
 		branch.target = compiled.NewRetainedTargets()
 		if err := branch.target.Set(graph.Output, executor.DeviceValue{
 			Pointer: branch.output, Shape: graph.Output.Shape, CapacityBytes: inputBytes,
@@ -129,7 +118,7 @@ func NewDeviceGenerationSession(
 			return fail(err)
 		}
 		for layer, kv := range prefix.Layers {
-			if uint64(len(kv.Key))*4 != branch.prefixBytes || len(kv.Value) != len(kv.Key) {
+			if uint64(len(kv.Key))*4 != prefixBytes || len(kv.Value) != len(kv.Key) {
 				return fail(fmt.Errorf("routed lm generation session: prefix %d layer %d changed geometry", index, layer))
 			}
 			branch.prefixKeys[layer], err = session.resources.uploadF32(kv.Key)
@@ -221,29 +210,13 @@ func (s *DeviceGenerationSession) Run(
 		if layer+1 < s.cfg.NumHiddenLayers {
 			pending = load(layer + 1)
 		}
-		if err := s.worker.Do(ctx, func(state *device.State) error {
-			for index := range s.branches {
-				branch := &s.branches[index]
-				if err := state.Driver.MemcpyDtoD(branch.prefixKey, branch.prefixKeys[layer], branch.prefixBytes); err != nil {
-					return err
-				}
-				if err := state.Driver.MemcpyDtoD(branch.prefixValue, branch.prefixValues[layer], branch.prefixBytes); err != nil {
-					return err
-				}
-			}
-			return nil
-		}); err != nil {
-			return nil, stats, err
-		}
 		shared, err := uploader.uploadBranchWeights(loaded.weights)
 		if err != nil {
 			return nil, stats, err
 		}
 		for index := range s.branches {
 			branch := &s.branches[index]
-			feeds := bindBranchWeights(branch.graph.Vision, shared)
-			feeds[branch.graph.PrefixKey], feeds[branch.graph.PrefixValue] = branch.prefixKey, branch.prefixValue
-			feeds[branch.graph.Row] = branch.row
+			feeds := bindGenerationBranch(branch, shared, layer)
 			retained, err := s.cuda.ExecuteRetainedCompiledWithTargets(ctx, branch.compiled, nil, feeds, branch.target)
 			if err != nil {
 				return nil, stats, fmt.Errorf("routed lm generation stack: branch=%d layer=%d: %w", index, layer, err)
@@ -282,6 +255,14 @@ func (s *DeviceGenerationSession) Run(
 	}
 	stats.Wall = time.Since(started)
 	return out, stats, nil
+}
+
+func bindGenerationBranch(branch *generationStackBranch, weights branchDeviceWeights, layer int) map[*tensor.Tensor]driver.DevicePtr {
+	feeds := bindBranchWeights(branch.graph.Vision, weights)
+	feeds[branch.graph.PrefixKey] = branch.prefixKeys[layer]
+	feeds[branch.graph.PrefixValue] = branch.prefixValues[layer]
+	feeds[branch.graph.Row] = branch.row
+	return feeds
 }
 
 // Close releases retained prefix KV and input storage.

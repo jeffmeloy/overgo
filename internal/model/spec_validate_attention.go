@@ -6,21 +6,9 @@ import (
 	"math"
 )
 
-const (
-	gemma3nSmallBlockCount        = 30
-	gemma3nLargeBlockCount        = 35
-	gemma3nKVStartLayer           = 20
-	gemma3nAltUpCount             = 4
-	gemma3nAltUpActive            = 0
-	gemma3nLaurelRank             = 64
-	gemma3nLayerEmbeddingWidth    = 256
-	gemma3nSparseLayerCount       = 10
-	gemma3nSparsityStdMultiplier  = 1.6448533535003662
-	gemma3nSlidingAttentionPeriod = 5
-)
-
 func (s Spec) validateAttentionFamilies() error {
 	validation := s.Profile().Validation
+	defaults := s.Profile().MetadataDefaults
 	attention := validation.Attention
 	if attention == AttentionValidationChameleon && s.QKNormEpsilon <= 0 {
 		return errors.New("Chameleon Q/K LayerNorm epsilon must be positive")
@@ -118,22 +106,27 @@ func (s Spec) validateAttentionFamilies() error {
 	}
 	if attention == AttentionValidationGemma3N {
 		switch {
-		case s.BlockCount != gemma3nSmallBlockCount && s.BlockCount != gemma3nLargeBlockCount:
-			return errors.New("Gemma 3n block count must be 30 or 35")
-		case s.KVFromStart != gemma3nKVStartLayer || s.SharedKVLayers != s.BlockCount-s.KVFromStart:
+		case s.BlockCount != validation.RequiredBlockCount &&
+			s.BlockCount != validation.AlternateBlockCount:
+			return fmt.Errorf(
+				"Gemma 3n block count must be %d or %d",
+				validation.RequiredBlockCount, validation.AlternateBlockCount,
+			)
+		case s.KVFromStart != defaults.SharedKVStartLayer || s.SharedKVLayers != s.BlockCount-s.KVFromStart:
 			return errors.New("Gemma 3n shared-KV boundary is invalid")
-		case s.AltUpCount != gemma3nAltUpCount || s.AltUpActive != gemma3nAltUpActive ||
-			s.LaurelRank != gemma3nLaurelRank || s.EmbeddingPerLayer != gemma3nLayerEmbeddingWidth:
+		case s.AltUpCount != defaults.AlternateStateCount || s.AltUpActive != defaults.AlternateStateActive ||
+			s.LaurelRank != defaults.LowRankResidualWidth ||
+			s.EmbeddingPerLayer != defaults.PerLayerEmbeddingWidth:
 			return errors.New("Gemma 3n AltUp/Laurel dimensions are invalid")
-		case s.SparseLayerCount != gemma3nSparseLayerCount ||
-			s.SparsityStdMultiplier != gemma3nSparsityStdMultiplier:
+		case s.SparseLayerCount != defaults.SparseLayerCount ||
+			s.SparsityStdMultiplier != defaults.SparsityStdMultiplier:
 			return errors.New("Gemma 3n sparsity parameters are invalid")
 		case s.KeyLength == 0 || s.KeyLength != s.ValueLength || s.HeadCount == 0 ||
 			s.HeadCountKV == 0 || s.HeadCount%s.HeadCountKV != 0:
 			return errors.New("Gemma 3n attention dimensions are invalid")
 		case s.RopeDimensionCount != s.KeyLength || s.KeyLength%2 != 0 ||
 			s.RopeFrequencySWA <= 0 || s.SlidingWindow == 0 ||
-			s.SlidingPattern != gemma3nSlidingAttentionPeriod:
+			s.SlidingPattern != validation.SlidingPeriod:
 			return errors.New("Gemma 3n rotary/sliding metadata is invalid")
 		case s.FinalLogitSoftcap <= 0:
 			return errors.New("Gemma 3n final logit softcap must be positive")

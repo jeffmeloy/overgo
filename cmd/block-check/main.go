@@ -58,7 +58,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	modelPlan, err := model.CompileModelPlan(spec, weights)
+	modelPlan, err := model.CompileModelPlanWithProfile(spec, weights, spec.Profile())
 	if err != nil {
 		return err
 	}

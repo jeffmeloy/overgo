@@ -40,7 +40,7 @@ func TestBuildKimiLinearKDAAndMLABlocks(t *testing.T) {
 		state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 2, 1))
 		result, err := buildFixtureLayerWithPlan(
 			builder, input, spec, weights, []uint32{0, 1}, conv, state,
-			spec.PlanLayer(0, true),
+			bindFixtureSpec(spec).PlanLayer(0, true),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -80,7 +80,7 @@ func TestBuildKimiLinearKDAAndMLABlocks(t *testing.T) {
 		weights.AttentionOutput = builder.Input("o", dtype.F32, tensor.MustShape(4, 8))
 		result, err := buildFixtureLayerWithPlan(
 			builder, input, spec, weights, []uint32{0, 1}, nil, nil,
-			spec.PlanLayer(1, false),
+			bindFixtureSpec(spec).PlanLayer(1, false),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -398,7 +398,7 @@ func TestCompiledEncoderBlockUsesRelativeAttention(t *testing.T) {
 		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
-	plan, err := CompileModelPlan(spec, Weights{})
+	plan, err := compileFixtureModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +461,7 @@ func TestCompiledDecoderBlockUsesCrossAttentionCache(t *testing.T) {
 		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
-	plan, err := CompileModelPlan(spec, Weights{})
+	plan, err := compileFixtureModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1061,7 +1061,7 @@ func TestBuildNemotronHMoEBlockUsesLatentSquaredReLUExperts(t *testing.T) {
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 8)),
 	}
 	const fixtureLayer = 2
-	plan := spec.PlanLayer(fixtureLayer, false)
+	plan := bindFixtureSpec(spec).PlanLayer(fixtureLayer, false)
 	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{

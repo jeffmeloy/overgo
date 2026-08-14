@@ -5,22 +5,19 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"slices"
 
 	"overgo/internal/inference"
 	"overgo/internal/tokenizer"
 )
 
-// AttentionCaptureAPI: one cacheless forward that records, for a single layer,
-// the scaled per-head query and the post-RoPE key exactly as handed to the
-// attention op, so the host can recompute softmax(scale·Q·Kᵀ) per head without
-// touching the CUDA attention kernel. Implemented by the inference Runner.
+// AttentionCaptureAPI exposes exact host-replay attention boundaries.
 type AttentionCaptureAPI interface {
+	AttentionCaptureLayers() []int32
 	ExtractAttention(ctx context.Context, tokenIDs []tokenizer.TokenID, layer int32) (inference.AttentionCapture, error)
 }
 
-// analyzeAttentionMaxPositions bounds captured tokens; attention weights are
-// O(heads·positions²), so this is a smaller cap than the hidden-state tab. It is
-// surfaced to the caller, not a hidden choice.
+// Attention materialization is O(heads*positions^2).
 const analyzeAttentionMaxPositions = 48
 
 type analyzeAttentionRequest struct {
@@ -48,18 +45,11 @@ type analyzeAttentionResponse struct {
 	GroupSize          int                     `json:"group_size"`
 	Scale              float64                 `json:"scale"`
 	Tokens             []analyzeAttentionToken `json:"tokens"`
-	// Weights[head][queryPos][keyPos]: the causal softmax attention weight;
-	// entries above the diagonal are zero. Exact per the captured tensors.
+	// Weights[head][query][key]; upper triangle is zero.
 	Weights [][][]float64 `json:"weights"`
 }
 
-// analyzeAttention: capture one layer's query/key over the prompt and report the
-// exact per-head causal attention weights softmax(scale·Q·Kᵀ). This recomputes
-// the attention distribution on the host from tensors captured at the op
-// boundary, so it faithfully reproduces the kernel's pre-softmax logits (any
-// query pre-scaling is already folded into the captured query and scale). No
-// distribution or shape assumption is made: the weights are the model's own
-// normalized attention, reported verbatim.
+// analyzeAttention replays one supported causal attention layer on host.
 func (h *Handler) analyzeAttention(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodPost) {
 		return
@@ -98,16 +88,21 @@ func (h *Handler) analyzeAttention(response http.ResponseWriter, request *http.R
 		return
 	}
 
+	layers := capture.AttentionCaptureLayers()
+	if len(layers) == 0 {
+		writeError(response, http.StatusNotImplemented, "unsupported_operation", "exact attention capture is unavailable")
+		return
+	}
 	blockCount := 0
 	if properties, ok := h.generator.(ModelPropertiesAPI); ok {
 		blockCount = int(properties.ModelProperties().BlockCount)
 	}
-	layer := blockCount / 2
+	layer := int(layers[len(layers)/2])
 	if body.Layer != nil {
 		layer = *body.Layer
 	}
-	if blockCount > 0 && (layer < 0 || layer >= blockCount) {
-		writeInvalidRequest(response, errors.New("layer is out of range"))
+	if !slices.Contains(layers, int32(layer)) {
+		writeInvalidRequest(response, errors.New("layer does not support exact attention replay"))
 		return
 	}
 
@@ -155,14 +150,11 @@ func (h *Handler) analyzeAttention(response http.ResponseWriter, request *http.R
 	})
 }
 
-// attentionWeights: recompute causal softmax(scale·Q·Kᵀ) per head from the
-// captured query/key tensors. Both are row-major with the last dim outermost, so
-// element [dim d, head h, token t] lives at Data[d + h*headDim + t*headDim*heads]
-// (queries use heads, keys use kvHeads). GQA maps query head h to key head
-// h/groupSize. Softmax uses the standard max-shift for numerical stability.
+// attentionWeights replays causal softmax(scale*Q*K^T), including GQA mapping.
 func attentionWeights(capture inference.AttentionCapture, tokens int) ([][][]float64, error) {
 	heads, kvHeads, headDim := capture.Heads, capture.KVHeads, capture.HeadDim
-	if heads <= 0 || kvHeads <= 0 || headDim <= 0 || tokens <= 0 {
+	if heads <= 0 || kvHeads <= 0 || heads%kvHeads != 0 || headDim <= 0 || tokens <= 0 ||
+		capture.Scale <= 0 || math.IsNaN(float64(capture.Scale)) || math.IsInf(float64(capture.Scale), 0) {
 		return nil, errors.New("attention capture geometry is invalid")
 	}
 	query := capture.Query.Data
@@ -190,6 +182,9 @@ func attentionWeights(capture inference.AttentionCapture, tokens int) ([][][]flo
 				for d := 0; d < headDim; d++ {
 					q := float64(query[d+head*headDim+queryPos*headDim*heads])
 					k := float64(key[d+kvHead*headDim+keyPos*headDim*kvHeads])
+					if math.IsNaN(q) || math.IsInf(q, 0) || math.IsNaN(k) || math.IsInf(k, 0) {
+						return nil, errors.New("attention capture contains non-finite values")
+					}
 					dot += q * k
 				}
 				logit := scale * dot

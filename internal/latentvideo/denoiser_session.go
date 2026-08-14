@@ -283,10 +283,8 @@ func (s *DenoiserCUDASession) ExecutionStats() (driver.ExecutionStats, error) {
 	return s.worker.ExecutionStats(s.ctx)
 }
 
-// ReleaseDenoiseResources: frees the retained branch contexts and the head
-// target ahead of decode (pre-decode lifetime release); the session stays
-// usable for telemetry until Close.
-func (s *DenoiserCUDASession) ReleaseDenoiseResources() error {
+// ReleaseRequestResources: drop prompt projections; retain model and graphs.
+func (s *DenoiserCUDASession) ReleaseRequestResources() error {
 	var errs []error
 	for _, branch := range s.branches {
 		if branch.retained != nil {
@@ -294,6 +292,15 @@ func (s *DenoiserCUDASession) ReleaseDenoiseResources() error {
 		}
 	}
 	s.branches = nil
+	return errors.Join(errs...)
+}
+
+// ReleaseDenoiseResources: frees the retained branch contexts and the head
+// target ahead of decode (pre-decode lifetime release); the session stays
+// usable for telemetry until Close.
+func (s *DenoiserCUDASession) ReleaseDenoiseResources() error {
+	var errs []error
+	errs = append(errs, s.ReleaseRequestResources())
 	if s.headBuffer != nil {
 		errs = append(errs, s.headBuffer.Release(s.ctx))
 		s.headBuffer = nil

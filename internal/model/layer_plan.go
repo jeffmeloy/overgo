@@ -270,11 +270,17 @@ type LayerPlan struct {
 	AttentionOutput     AttentionOutputPlan
 	ResidualStages      ResidualStagePlan
 	Mixer               RecurrentMixerPolicy
+	RecurrentRuntime    RecurrentRuntimePolicy
+	PeriodicScale       float32
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
 func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	profile := s.Profile()
+	return s.planLayer(profile, layer, recurrent)
+}
+
+func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent bool) LayerPlan {
 	recurrent = recurrent || s.IsRecurrentLayer(layer)
 	hasKV := s.LayerHasKV(layer)
 	sharedKV := profile.Has(ArchitectureSharedKV) && !hasKV
@@ -288,9 +294,9 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 	if temperature == AttentionTemperatureNoRoPE && s.UsesRoPE(layer) {
 		temperature = AttentionTemperatureNone
 	}
-	normalization := s.NormPlan()
+	normalization := profile.Runtime.normalizationPlan(s, profile)
 	cache := cachePolicy(s, profile, layer, recurrent)
-	mixer := s.compileRecurrentMixer(recurrent)
+	mixer := compileRecurrentMixer(profile, recurrent)
 	composition := LayerCompositionStandard
 	if mixer == recurrentMixerSparseGroupedSelectiveScan {
 		switch {
@@ -314,13 +320,15 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		}
 	}
 	residualStages := s.residualStagePlan(profile, normalization)
-	if profile.LayerTopology == LayerTopologyAffineWKV6 {
-		residualStages.residualScale = 0
-		if s.RescaleEvery > 0 && (layer+1)%s.RescaleEvery == 0 {
-			residualStages.residualScale = rwkvLayerRescale
-		}
+	periodicScale := float32(0)
+	if (profile.LayerTopology == LayerTopologyDynamicWKV6 || profile.LayerTopology == LayerTopologyAffineWKV6) &&
+		s.RescaleEvery > 0 && (layer+1)%s.RescaleEvery == 0 {
+		periodicScale = profile.Runtime.Recurrent.PeriodicResidualScale
 	}
-	experts := s.moeGraphPlan(layer)
+	if profile.LayerTopology == LayerTopologyAffineWKV6 {
+		residualStages.residualScale = periodicScale
+	}
+	experts := s.moeGraphPlan(profile, layer)
 	if mixer == recurrentMixerSparseGroupedSelectiveScan {
 		experts.Routing = tensor.MoERoutingSigmoid
 		experts.Activation = tensor.MoEActivationReLUSquared
@@ -370,18 +378,20 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		PerLayerInput:       profile.Has(ArchitecturePerLayerEmbeddings) && s.EmbeddingPerLayer > 0,
 		Normalization:       normalization,
 		Rotary:              s.rotaryPlan(profile, layer),
-		AttentionGraph:      s.attentionGraphPlan(layer),
+		AttentionGraph:      s.attentionGraphPlan(profile, layer),
 		Experts:             experts,
-		ExpertComposition:   s.expertCompositionPlan(),
+		ExpertComposition:   s.expertCompositionPlan(profile),
 		DenseWeights:        s.denseWeightPlan(profile, layer),
 		ExplicitEncoder:     profile.Forward.Session == ForwardSessionEncoderDecoder,
 		AllowNonCausalCache: profile.Forward.Session == ForwardSessionPairedFeatures,
 		DeciSparse:          deciSparse,
-		QKPreprocess:        s.qkPreprocessPlan(layer),
+		QKPreprocess:        s.qkPreprocessPlan(profile, layer),
 		QueryScale:          s.queryScalePlan(profile, layer),
-		AttentionOutput:     s.attentionOutputPlan(normalization),
+		AttentionOutput:     s.attentionOutputPlan(profile, normalization),
 		ResidualStages:      residualStages,
 		Mixer:               mixer,
+		RecurrentRuntime:    profile.Runtime.Recurrent,
+		PeriodicScale:       periodicScale,
 	}
 	plan.Program = compileLayerProgram(plan, profile)
 	return plan
@@ -399,11 +409,6 @@ func (p ModelPlan) SupportsCapacityCache() bool {
 		}
 	}
 	return true
-}
-
-// SupportsMultiAxisPositions: model-level MRoPE contract.
-func (s Spec) SupportsMultiAxisPositions() bool {
-	return s.SupportsMultiAxisPositionsWithProfile(s.Profile())
 }
 
 // SupportsMultiAxisPositionsWithProfile: bound-profile MRoPE contract.
@@ -508,15 +513,6 @@ func compileProjectedInputProgram(spec Spec, profile ArchitectureProfile) Projec
 	}
 }
 
-// CompileModelPlan: resolves architecture decisions before execution.
-func CompileModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
-	profile := spec.Profile()
-	if profile.Name == "" {
-		return ModelPlan{}, &UnsupportedArchitectureError{Architecture: spec.Architecture}
-	}
-	return CompileModelPlanWithProfile(spec, weights, profile)
-}
-
 // CompileModelPlanWithProfile: compiles a resolved policy without registry lookup.
 func CompileModelPlanWithProfile(spec Spec, weights Weights, profile ArchitectureProfile) (ModelPlan, error) {
 	if err := ValidateArchitectureProfile(profile); err != nil {
@@ -539,7 +535,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	forward := compileForwardProgram(spec, profile)
 	plan := ModelPlan{
 		spec: spec, profile: profile, layers: make([]LayerPlan, layers), cacheLayers: cacheLayers,
-		normalization: spec.NormPlan(),
+		normalization: profile.Runtime.normalizationPlan(spec, profile),
 		terminal:      TerminalPlan{Normalization: profile.OutputNorm},
 		draft:         profile.DraftPlan(spec.NextNPredictLayers),
 		cacheProject:  compileCacheProjectionProgram(spec, profile),
@@ -554,7 +550,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	}
 	for layer := range layers {
 		recurrent := int(layer) < len(weights.Layers) && weights.Layers[layer].Recurrent
-		plan.layers[layer] = spec.PlanLayer(layer, recurrent)
+		plan.layers[layer] = spec.planLayer(profile, layer, recurrent)
 	}
 	cacheSchemas, cacheErr := compileCacheSchemas(spec, plan.layers, weights.Layers)
 	if cacheErr != nil {
@@ -571,12 +567,14 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 			executable.BlockCount += plan.draft.Heads
 		}
 		for offset := range plan.draftLayers {
-			plan.draftLayers[offset] = executable.PlanLayer(spec.BlockCount+uint32(offset), false)
+			plan.draftLayers[offset] = executable.planLayer(
+				executable.Profile(), spec.BlockCount+uint32(offset), false,
+			)
 		}
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
 		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
 		executable, layer := draftExecutableSpec(spec, plan.draft)
-		plan.draftLayers = []LayerPlan{executable.PlanLayer(layer, false)}
+		plan.draftLayers = []LayerPlan{executable.planLayer(executable.Profile(), layer, false)}
 	}
 	if err := validateModelPlan(spec, weights, plan); err != nil {
 		return ModelPlan{}, err
@@ -590,8 +588,11 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 // Normalization returns the immutable model normalization contract.
 func (p ModelPlan) Normalization() NormalizationPlan { return p.normalization }
 
+// Spec returns the immutable bound model metadata.
+func (p ModelPlan) Spec() Spec { return p.spec }
+
 func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
-	if plan.normalization != spec.NormPlan() {
+	if plan.normalization != plan.profile.Runtime.normalizationPlan(spec, plan.profile) {
 		return fmt.Errorf("model plan architecture %s has invalid normalization", spec.Architecture)
 	}
 	if !plan.forward.valid() || plan.forward != compileForwardProgram(spec, plan.profile) {
@@ -679,7 +680,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		if layer.Normalization != norm {
 			return fmt.Errorf("model plan layer %d normalization drifted from model policy", index)
 		}
-		if layer.Mixer != spec.compileRecurrentMixer(layer.Recurrent) {
+		if layer.Mixer != compileRecurrentMixer(plan.profile, layer.Recurrent) {
 			return fmt.Errorf("model plan layer %d state-space policy is inconsistent", index)
 		}
 	}
@@ -1007,11 +1008,15 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			)
 		}
 		if profile.LayerTopology == LayerTopologyDynamicWKV6 {
-			return newLayerProgram(
+			stages := []LayerOperatorInstruction{
 				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 				layerStage(LayerOperatorResidual), tokenShiftLayerStage(LayerOperatorGatedTokenShiftSquaredReLU),
-				layerStage(LayerOperatorResidual), layerStage(LayerOperatorPeriodicScale),
-			)
+				layerStage(LayerOperatorResidual),
+			}
+			if plan.PeriodicScale > 0 {
+				stages = append(stages, layerStage(LayerOperatorPeriodicScale))
+			}
+			return newLayerProgram(stages...)
 		}
 		if profile.LayerTopology == LayerTopologyDynamicWKV7 {
 			stages := []LayerOperatorInstruction{

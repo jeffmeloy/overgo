@@ -41,7 +41,7 @@ func launchNode(
 	case tensor.OpMoE:
 		return launchMoE(state, functions, blas, node, pointers, attributePointers)
 	case tensor.OpRepeatHeads, tensor.OpTranspose2D, tensor.OpGroupSlice, tensor.OpFlatSlice,
-		tensor.OpRMSNorm, tensor.OpLayerNorm, tensor.OpSoftmax, tensor.OpMulMat,
+		tensor.OpRMSNorm, tensor.OpMADNorm, tensor.OpLayerNorm, tensor.OpSoftmax, tensor.OpMulMat,
 		tensor.OpGroupedMulMat, tensor.OpGetRows:
 		return launchLinearLayout(
 			state, functions, blas, q8Input, node, attributes, pointers, attributePointers,

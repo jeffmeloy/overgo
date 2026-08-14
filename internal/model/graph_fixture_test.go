@@ -8,11 +8,19 @@ import (
 
 func fixtureModelPlan(t *testing.T, spec Spec, weights Weights) ModelPlan {
 	t.Helper()
-	plan, err := CompileModelPlan(spec, weights)
+	plan, err := compileFixtureModelPlan(spec, weights)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return plan
+}
+
+func compileFixtureModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
+	profile, ok := LookupArchitecture(spec.Architecture)
+	if !ok {
+		return ModelPlan{}, &UnsupportedArchitectureError{Architecture: spec.Architecture}
+	}
+	return CompileModelPlanWithProfile(spec, weights, profile)
 }
 
 func fixtureProjection(
@@ -84,6 +92,7 @@ type qwen35BlockFixtureResult struct {
 }
 
 func buildQwen35BlockWithOptions(options qwen35BlockOptions) (qwen35BlockFixtureResult, error) {
+	options.Spec = bindFixtureSpec(options.Spec)
 	plan := options.Spec.PlanLayer(0, options.Recurrent)
 	pastKey, pastValue := options.PastKey, options.PastValue
 	if options.Recurrent {
@@ -129,6 +138,7 @@ func buildFixtureLayerWithAuxiliary(
 	pastKey, pastValue, pastIndexerKey, perLayerInput *tensor.Tensor,
 	plan LayerPlan,
 ) (DenseBlockResult, error) {
+	spec = bindFixtureSpec(spec)
 	states := CacheStates[*tensor.Tensor](nil)
 	if pastIndexerKey != nil {
 		states = CacheStates[*tensor.Tensor]{
@@ -154,6 +164,7 @@ func buildFixtureDenseBlockCachedForLayer(
 	pastKey, pastValue *tensor.Tensor,
 	layer uint32,
 ) (DenseBlockResult, error) {
+	spec = bindFixtureSpec(spec)
 	return buildFixtureLayerWithPlan(
 		builder, input, spec, weights, positions, pastKey, pastValue,
 		spec.PlanLayer(layer, false),
@@ -195,6 +206,7 @@ func buildFixtureDenseBlockCachedWithMultiPositions(
 	pastKey, pastValue *tensor.Tensor,
 	layer uint32,
 ) (DenseBlockResult, error) {
+	spec = bindFixtureSpec(spec)
 	plan := spec.PlanLayer(layer, false)
 	return executeCompiledLayer(BlockDispatchOptions{
 		Context: CachedBlockContext{

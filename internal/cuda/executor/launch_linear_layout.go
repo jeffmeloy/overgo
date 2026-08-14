@@ -124,6 +124,18 @@ func launchLinearLayout(
 		input := pointers[node.Inputs[0]]
 		epsilon := attributes.Epsilon
 		return launchNormalizationABI(state, functions[kernelRmsNormF32], rows, &input, &output, &width, &rows, &epsilon)
+	case tensor.OpMADNorm:
+		attributes, ok := runtimeAttributes.(tensor.MADNormAttributes)
+		if !ok {
+			return errors.New("invalid MADNorm attributes")
+		}
+		width, rows, err := rowDimensions32(node.Shape)
+		if err != nil {
+			return err
+		}
+		input := pointers[node.Inputs[0]]
+		epsilon := attributes.Epsilon
+		return launch1DABI(state, functions[kernelMadNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpLayerNorm:
 		attributes, ok := runtimeAttributes.(tensor.LayerNormAttributes)
 		if !ok {

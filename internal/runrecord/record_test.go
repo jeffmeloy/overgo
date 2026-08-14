@@ -114,8 +114,8 @@ func TestRunAndEvaluationRejectInvalidFacts(t *testing.T) {
 }
 
 func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
-	environment, err := environmentCodec.New(Environment{
-		Version: EnvironmentVersion, Host: "fixture-host", OS: "windows", Arch: "amd64",
+	environment, err := NewEnvironment(Environment{
+		Host: "fixture-host", OS: "windows", Arch: "amd64",
 		Device: "RTX 4090", Backend: "cuda", Driver: "591.44", Runtime: "go1.25",
 	})
 	if err != nil {

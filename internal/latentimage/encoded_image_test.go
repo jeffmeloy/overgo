@@ -38,3 +38,19 @@ func TestEncodePNGAcceptsFiniteLowContrast(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestEncodePlanarPNGMatchesHWC(t *testing.T) {
+	hwc := []float32{-1, 0, 1, 1, 0, -1}
+	planar := []float32{-1, 1, 0, 0, 1, -1}
+	want, err := encodePNG(hwc, 1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := EncodePlanarPNG(planar, 1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got.Data, want.Data) || got.Width != want.Width || got.Height != want.Height || got.Channels != 3 {
+		t.Fatalf("planar publication differs: got=%+v want=%+v", got, want)
+	}
+}

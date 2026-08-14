@@ -48,6 +48,12 @@ func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 		"metadata default scalar": func(profile *ArchitectureProfile) {
 			profile.MetadataDefaults.AttentionSoftcap = -1
 		},
+		"alternate-state defaults": func(profile *ArchitectureProfile) {
+			profile.Validation.Attention = AttentionValidationGemma3N
+		},
+		"paired-feature draft default": func(profile *ArchitectureProfile) {
+			profile.Validation.Recurrent = RecurrentValidationDFlash
+		},
 		"metadata read relationship": func(profile *ArchitectureProfile) {
 			profile.MetadataRead = MetadataReadQwen3VLDeepstack
 		},

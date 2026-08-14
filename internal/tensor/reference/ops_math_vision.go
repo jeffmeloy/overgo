@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -372,6 +373,15 @@ func rmsNorm(shape tensor.Shape, input Value, epsilon float32) (Value, error) {
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil
+}
+
+func madNorm(shape tensor.Shape, input Value, epsilon float32) (Value, error) {
+	width := int(shape.Dims[0])
+	if width == 0 || len(input.Data)%width != 0 {
+		return Value{}, errors.New("invalid MADNorm row width")
+	}
+	output, err := hostmath.MADNorm(input.Data, len(input.Data)/width, width, float64(epsilon))
+	return Value{Shape: shape, Data: output}, err
 }
 
 func layerNorm(shape tensor.Shape, input Value, epsilon float32) (Value, error) {

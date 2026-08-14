@@ -58,10 +58,10 @@ type DenseWeightPlan struct {
 }
 
 func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWeightPlan {
-	postOnly := !s.NormPlan().PreAttention
-	composition := s.expertCompositionPlan()
+	postOnly := !profile.Runtime.normalizationPlan(s, profile).PreAttention
+	composition := s.expertCompositionPlan(profile)
 	policy := profile.DenseWeights
-	qk := s.qkPreprocessPlan(layer)
+	qk := s.qkPreprocessPlan(profile, layer)
 	requireQKNorm := func(kind qkNormKind) bool {
 		return kind == qkNormWeighted || kind == qkNormConfiguredNoBias ||
 			kind == qkNormAffine || kind == qkNormRMS

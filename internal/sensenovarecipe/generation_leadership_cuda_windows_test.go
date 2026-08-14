@@ -51,10 +51,12 @@ type generationLeadershipOracle struct {
 		TensorIndexSHA string `json:"tensor_index_sha256"`
 	} `json:"source"`
 	Request struct {
+		Prompt        string
 		Width, Height int
 		Steps         int
 		Seed          int64
 		CFGScale      float32 `json:"cfg_scale"`
+		TimestepShift float64 `json:"timestep_shift"`
 	} `json:"request"`
 	TextInputs struct {
 		Conditional   []int `json:"conditional_ids"`
@@ -78,15 +80,15 @@ type generationAdaptiveOracle struct {
 	} `json:"step0"`
 	Performance struct {
 		AdaptiveMatchedWallSeconds   float64 `json:"adaptive_matched_wall_seconds"`
+		OvergoColdBodyMaxSeconds     float64 `json:"overgo_cold_body_max_seconds"`
 		OvergoReusableBodyMaxSeconds float64 `json:"overgo_reusable_body_max_seconds"`
 	} `json:"performance"`
 }
 
+const senseNovaTerminalPNG = "d439b8ce349eb71451efb69124eb9191e855e0e5bf237d88ebcec42b3defb4e8"
+
 func TestSenseNovaGenerationLeadership(t *testing.T) {
 	cudatest.Require(t)
-	if os.Getenv("OVERGO_SENSENOVA_BASELINE") != "1" {
-		t.Skip("set OVERGO_SENSENOVA_BASELINE=1 for SenseNova generation evidence")
-	}
 	var oracle generationLeadershipOracle
 	if err := jsonfile.Decode(senseNovaGenerationGold, &oracle); err != nil {
 		t.Fatal(err)
@@ -101,6 +103,10 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	}
 	if adaptive.Schema != "overgo.sensenova-generation-adaptive/v1" {
 		t.Fatalf("adaptive generation schema=%q", adaptive.Schema)
+	}
+	if adaptive.Performance.AdaptiveMatchedWallSeconds <= 0 || adaptive.Performance.OvergoColdBodyMaxSeconds <= 0 ||
+		adaptive.Performance.OvergoReusableBodyMaxSeconds <= 0 {
+		t.Fatal("SenseNova lifecycle performance envelope is incomplete")
 	}
 	var prefixGold prefixOracle
 	if err := jsonfile.Decode(filepath.Join("..", "..", "fixtures", "sensenova", "prefix_oracle.json"), &prefixGold); err != nil {
@@ -233,8 +239,14 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if stepIndex > 0 && stats.Wall.Seconds() > adaptive.Performance.OvergoReusableBodyMaxSeconds {
-			t.Fatalf("SenseNova reusable body wall=%.3fs exceeds ratchet %.3fs (adaptive %.3fs)", stats.Wall.Seconds(), adaptive.Performance.OvergoReusableBodyMaxSeconds, adaptive.Performance.AdaptiveMatchedWallSeconds)
+		limit := adaptive.Performance.OvergoColdBodyMaxSeconds
+		lifecycle := "cold"
+		if stepIndex > 0 {
+			limit = adaptive.Performance.OvergoReusableBodyMaxSeconds
+			lifecycle = "warm"
+		}
+		if stats.Wall.Seconds() > limit {
+			t.Fatalf("SenseNova %s body wall=%.3fs exceeds ratchet %.3fs (adaptive %.3fs)", lifecycle, stats.Wall.Seconds(), limit, adaptive.Performance.AdaptiveMatchedWallSeconds)
 		}
 		final := make([][]float32, len(branches))
 		for index := range branches {
@@ -271,13 +283,27 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 			checkAdaptiveValues(t, "next z", z, adaptive.Step0.NextZ)
 		}
 		checkGenerationSample(t, "next z native", z, want.NextZ, 0.998)
-		lifecycle := "cold-body"
+		lifecycle = "cold-body"
 		if stepIndex > 0 {
 			lifecycle = "warm-body"
 		}
 		t.Logf("SenseNova neutral generation step=%d lifecycle=%s layers=%d branches=%d body=%.3fs htod=%d dtoh=%d",
 			stepIndex, lifecycle, stats.Layers, stats.Branches, stats.Wall.Seconds(), stats.HostToDevice, stats.DeviceToHost)
 	}
+	generated, err := DecodeGeneratedImage(z, flow, image)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generated.Width != oracle.Request.Width || generated.Height != oracle.Request.Height ||
+		generated.Channels != 3 || len(generated.Data) == 0 {
+		t.Fatalf("SenseNova generated image = %+v", generated)
+	}
+	hash := fmt.Sprintf("%x", sha256.Sum256(generated.Data))
+	if hash != senseNovaTerminalPNG {
+		t.Fatalf("SenseNova terminal PNG sha256=%s, want %s", hash, senseNovaTerminalPNG)
+	}
+	t.Logf("SenseNova terminal PNG: bytes=%d sha256=%s range=[%g,%g]",
+		len(generated.Data), hash, generated.Minimum, generated.Maximum)
 	memory, err := worker.MemoryStats(context.Background())
 	if err != nil {
 		t.Fatal(err)

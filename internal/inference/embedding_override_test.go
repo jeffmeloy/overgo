@@ -331,9 +331,10 @@ func TestDeepstackLayerMapping(t *testing.T) {
 		{Shape: base.Shape, Data: []float32{20}},
 		{Shape: base.Shape, Data: []float32{30}},
 	}
-	granite := model.Spec{CommonSpec: model.CommonSpec{Architecture: "granite"}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 2,
+	granite := model.Spec{CommonSpec: model.CommonSpec{Architecture: "granite", BlockCount: 4}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 2,
 		DeepstackMapping: []int32{0, 2, -1, 1}},
 	}
+	granite = bindFixtureSpec(granite)
 	for _, test := range []struct {
 		layer uint32
 		want  float32
@@ -350,7 +351,8 @@ func TestDeepstackLayerMapping(t *testing.T) {
 		}
 	}
 	for _, architecture := range []string{"qwen3vl", "qwen3vlmoe"} {
-		qwen := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 2}}
+		qwen := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture, BlockCount: 2}, MultimodalSpec: model.MultimodalSpec{DeepstackLayerCount: 2}}
+		qwen = bindFixtureSpec(qwen)
 		for layer, want := range []float32{20, 30} {
 			got := deepstackInputForLayer(qwen.PlanLayer(uint32(layer), false).DeepstackAfter, base, streams)
 			if got == nil || got.Data[0] != want {

@@ -9,11 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/dataroot"
 	"overgo/internal/hfbpe"
 	"overgo/internal/patchtower"
+	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
 )
@@ -108,10 +110,112 @@ func prepareVQA(modelDir string, image []byte, question string) (preparedVQA, er
 	}, nil
 }
 
+type vqaExecution struct {
+	chain  []int
+	text   string
+	result fullResult
+}
+
+func executeVQAProgram(
+	l *ladder,
+	ctx context.Context,
+	store artifact.Repository,
+	modelID artifact.ID,
+	program recipe.Program,
+	imagePath, question, tag string,
+) (vqaExecution, error) {
+	if _, statErr := os.Stat(imagePath); statErr != nil {
+		return vqaExecution{}, fmt.Errorf("serve image not found: %s", imagePath)
+	}
+	rawImg, err := os.ReadFile(imagePath)
+	if err != nil {
+		return vqaExecution{}, err
+	}
+	const maxSteps = 64
+
+	var execution vqaExecution
+	var pipelineErr error
+	answer, err := executeVQA(
+		ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), rawImg, question,
+		func(image []byte, question string) (preparedVQA, error) {
+			prepared, prepareErr := prepareVQA(l.modelDir, image, question)
+			if prepareErr == nil {
+				l.log(fmt.Sprintf("RECIPE serve %s PROCESSOR image=%s grid=[%d,%d,%d] promptLen=%d imageTokens=%d question=%q",
+					tag, filepath.Base(imagePath), prepared.gridT, prepared.gridH, prepared.gridW,
+					len(prepared.inputIDs), len(prepared.positions), question))
+			}
+			return prepared, prepareErr
+		},
+		func(
+			executeContext context.Context,
+			prepared preparedVQA,
+		) (string, error) {
+			pc, openErr := newPrefillContext(
+				l.modelDir, prepared.inputIDs, prepared.positions,
+				prepared.gridT, prepared.gridH, prepared.gridW,
+			)
+			if openErr != nil {
+				return "", openErr
+			}
+			defer pc.src.Close()
+			worker, openErr := device.New(0)
+			if openErr != nil {
+				return "", fmt.Errorf("recipe serve worker: %w", openErr)
+			}
+			defer worker.Close()
+			exe, openErr := executor.NewWithWorker(worker)
+			if openErr != nil {
+				return "", fmt.Errorf("recipe serve executor: %w", openErr)
+			}
+			defer exe.Close()
+			execution.result, pipelineErr = runFullPipeline(
+				l, executeContext, worker, exe, pc, prepared.pixels,
+				fullOpts{maxSteps: maxSteps, eosIDs: prepared.eosIDs},
+			)
+			if pipelineErr != nil {
+				return "", pipelineErr
+			}
+			execution.chain = execution.result.generated
+			execution.text, pipelineErr = decodeChain(l.modelDir, execution.chain)
+			return execution.text, pipelineErr
+		},
+	)
+	if err != nil {
+		return vqaExecution{}, err
+	}
+	execution.text = answer
+	l.log(fmt.Sprintf("RECIPE serve %s chain=%v", tag, execution.chain))
+	l.log(fmt.Sprintf("RECIPE serve %s TEXT %q", tag, execution.text))
+	l.log(fmt.Sprintf("RECIPE serve %s MEASURE e2e=%s decode=%s (%d steps, %.3f ms/token) peak gpu.used=%dMiB",
+		tag, execution.result.e2eWall.Round(time.Millisecond), execution.result.decodeWall.Round(time.Millisecond),
+		execution.result.steps, float64(execution.result.decodeWall.Microseconds())/1000.0/float64(max1(execution.result.steps)),
+		execution.result.peakMiB))
+	return execution, nil
+}
+
+func validateCanonicalVQA(l *ladder, execution vqaExecution, tag string) error {
+	dg, err := loadGoldenJSON[decodeStepsGolden](l.fixturesDir, "rxbrain_vqa_decode_steps_golden.json")
+	if err != nil {
+		return err
+	}
+	if len(execution.chain) < len(dg.GeneratedTokens) {
+		return fmt.Errorf("recipe serve chain len %d < golden prefix %d", len(execution.chain), len(dg.GeneratedTokens))
+	}
+	if err := requireIntSliceEqual("recipe serve golden-prefix chain", execution.chain[:len(dg.GeneratedTokens)], dg.GeneratedTokens); err != nil {
+		return err
+	}
+	const wantPrefix = "The stovetop holds a metal pot on the left burner"
+	if !strings.HasPrefix(execution.text, wantPrefix) {
+		return fmt.Errorf("recipe serve answer %q does not start with %q", execution.text, wantPrefix)
+	}
+	l.log(fmt.Sprintf("RECIPE serve %s EXACT golden-prefix (%d tokens) + phrase; full answer %d tokens, first=%d e2e=%s",
+		tag, len(dg.GeneratedTokens), len(execution.chain), execution.chain[0], execution.result.e2eWall.Round(time.Millisecond)))
+	return nil
+}
+
 // runRecipeServe: canonical case through the active recipe.
 func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	ctx := context.Background()
-
 	store, err := openRecipeStore(repo)
 	if err != nil {
 		return err
@@ -124,120 +228,28 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	recipeID := program.Definition().ID.String()
 	l.log(fmt.Sprintf("RECIPE serve active vqa recipe resolved model=%s recipe=%s", modelID, recipeID))
 
-	if _, statErr := os.Stat(imagePath); statErr != nil {
-		return fmt.Errorf("serve image not found: %s", imagePath)
-	}
-	rawImg, err := os.ReadFile(imagePath)
+	first, err := executeVQAProgram(l, ctx, store, modelID, program, imagePath, question, "RUN1")
 	if err != nil {
 		return err
 	}
-
-	// Golden chain: required prefix; serve continues to EOS.
-	dg, err := loadGoldenJSON[decodeStepsGolden](l.fixturesDir, "rxbrain_vqa_decode_steps_golden.json")
-	if err != nil {
+	if err := validateCanonicalVQA(l, first, "RUN1"); err != nil {
 		return err
 	}
-	goldenChain := dg.GeneratedTokens
-	const wantPrefix = "The stovetop holds a metal pot on the left burner"
-	const maxSteps = 64
-
-	serveOnce := func(
-		executeContext context.Context,
-		prepared preparedVQA,
-		tag string,
-	) ([]int, string, time.Duration, fullResult, error) {
-		pc, err := newPrefillContext(
-			l.modelDir, prepared.inputIDs, prepared.positions,
-			prepared.gridT, prepared.gridH, prepared.gridW,
-		)
-		if err != nil {
-			return nil, "", 0, fullResult{}, err
-		}
-		defer pc.src.Close()
-		worker, err := device.New(0)
-		if err != nil {
-			return nil, "", 0, fullResult{}, fmt.Errorf("recipe serve worker: %w", err)
-		}
-		defer worker.Close()
-		exe, err := executor.NewWithWorker(worker)
-		if err != nil {
-			return nil, "", 0, fullResult{}, fmt.Errorf("recipe serve executor: %w", err)
-		}
-		defer exe.Close()
-		res, err := runFullPipeline(
-			l, executeContext, worker, exe, pc, prepared.pixels,
-			fullOpts{maxSteps: maxSteps, eosIDs: prepared.eosIDs},
-		)
-		if err != nil {
-			return nil, "", 0, fullResult{}, err
-		}
-		text, err := decodeChain(l.modelDir, res.generated)
-		if err != nil {
-			return nil, "", 0, fullResult{}, err
-		}
-		l.log(fmt.Sprintf("RECIPE serve %s chain=%v", tag, res.generated))
-		l.log(fmt.Sprintf("RECIPE serve %s TEXT %q", tag, text))
-		l.log(fmt.Sprintf("RECIPE serve %s MEASURE e2e=%s decode=%s (%d steps, %.3f ms/token) peak gpu.used=%dMiB",
-			tag, res.e2eWall.Round(time.Millisecond), res.decodeWall.Round(time.Millisecond), res.steps,
-			float64(res.decodeWall.Microseconds())/1000.0/float64(max1(res.steps)), res.peakMiB))
-		return res.generated, text, res.e2eWall, res, nil
-	}
-
-	executeRecipe := func(tag string) ([]int, string, time.Duration, fullResult, error) {
-		var chain []int
-		var wall time.Duration
-		var result fullResult
-		var pipelineErr error
-		answer, err := executeVQA(
-			ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), rawImg, question,
-			func(image []byte, question string) (preparedVQA, error) {
-				prepared, prepareErr := prepareVQA(l.modelDir, image, question)
-				if prepareErr == nil {
-					l.log(fmt.Sprintf("RECIPE serve %s PROCESSOR image=%s grid=[%d,%d,%d] promptLen=%d imageTokens=%d question=%q",
-						tag, filepath.Base(imagePath), prepared.gridT, prepared.gridH, prepared.gridW,
-						len(prepared.inputIDs), len(prepared.positions), question))
-				}
-				return prepared, prepareErr
-			},
-			func(executeContext context.Context, prepared preparedVQA) (string, error) {
-				var text string
-				chain, text, wall, result, pipelineErr = serveOnce(executeContext, prepared, tag)
-				return text, pipelineErr
-			},
-		)
-		return chain, answer, wall, result, err
-	}
-
-	chain1, text1, e2e1, _, err := executeRecipe("RUN1")
-	if err != nil {
-		return err
-	}
-	if len(chain1) < len(goldenChain) {
-		return fmt.Errorf("recipe serve chain len %d < golden prefix %d", len(chain1), len(goldenChain))
-	}
-	if err := requireIntSliceEqual("recipe serve golden-prefix chain", chain1[:len(goldenChain)], goldenChain); err != nil {
-		return err
-	}
-	if !strings.HasPrefix(text1, wantPrefix) {
-		return fmt.Errorf("recipe serve answer %q does not start with %q", text1, wantPrefix)
-	}
-	l.log(fmt.Sprintf("RECIPE serve RUN1 EXACT golden-prefix (%d tokens) + phrase; full answer %d tokens, first=%d e2e=%s",
-		len(goldenChain), len(chain1), chain1[0], e2e1.Round(time.Millisecond)))
 
 	// Second pass: bit-exact determinism.
-	chain2, text2, e2e2, _, err := executeRecipe("RUN2")
+	second, err := executeVQAProgram(l, ctx, store, modelID, program, imagePath, question, "RUN2")
 	if err != nil {
 		return err
 	}
-	if err := requireIntSliceEqual("recipe serve determinism chain", chain2, chain1); err != nil {
+	if err := requireIntSliceEqual("recipe serve determinism chain", second.chain, first.chain); err != nil {
 		return err
 	}
-	if text2 != text1 {
-		return fmt.Errorf("recipe serve RUN2 answer %q != RUN1 %q", text2, text1)
+	if second.text != first.text {
+		return fmt.Errorf("recipe serve RUN2 answer %q != RUN1 %q", second.text, first.text)
 	}
 	l.log(fmt.Sprintf("RECIPE serve DETERMINISTIC RUN1==RUN2 chain (%d tokens) e2e1=%s e2e2=%s",
-		len(chain1), e2e1.Round(time.Millisecond), e2e2.Round(time.Millisecond)))
-	l.log(fmt.Sprintf("RECIPE serve ANSWER %q", text1))
+		len(first.chain), first.result.e2eWall.Round(time.Millisecond), second.result.e2eWall.Round(time.Millisecond)))
+	l.log(fmt.Sprintf("RECIPE serve ANSWER %q", first.text))
 	l.log("RECIPE serve LANE GREEN (served THROUGH activated recipe " + recipeID + ")")
 	return nil
 }

@@ -92,20 +92,21 @@ concurrently.
 | --- | --- | --- |
 | Text inference | Dense, MoE, recurrent, hybrid, encoder, encoder-decoder, diffusion-text, and speculative components | Real-artifact evidence remains model-specific |
 | Quantized execution | GGUF parsing/conversion plus native quantized weights and experts through recipe-selected residency | Exact type/family coverage is generated in `docs/COMPATIBILITY.md` |
-| Serving | Native llama.cpp-style routes plus OpenAI Chat/Completions/Embeddings/Responses and Anthropic Messages | Protocol features are contract-tested; model quality remains recipe-specific |
-| Multimodal input | Typed image, audio, and video projection; bounded local/allowlisted remote media; mixed-media history | E4B image/audio and selected Gemma/Qwen projectors have real evidence; many catalog rows remain fixture-only |
-| Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea promoted with bounded pixel evidence; SenseNova full decode/publication remains open |
+| Serving | Native llama.cpp-style routes; OpenAI Chat/Completions/Embeddings/Responses; Anthropic Messages; built-in inference, RepoDB browse, and model-analysis UI | Protocol features are contract-tested; model quality remains recipe-specific |
+| Multimodal input | Typed image, audio, and video projection; bounded local/allowlisted remote media; mixed-media history | E4B, Gemma/Qwen, RxBrain, and Unlimited OCR have real evidence; many catalog rows remain fixture-only |
+| Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea is promoted; SenseNova text request-to-PNG executes through routed recipe modules at the pinned 256px case; edit input remains open |
 | Video generation | Resident Wan denoise and CUDA VAE decode | Fresh Overgo result; retained Python reference still needs a same-revision rerun |
-| Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Promotion varies; consult the parity report and compatibility tiers |
-| Training | Muon-only dense and hybrid primitives; resident CUDA dense path | Frozen-lexical Carbon is promoted; universal compiled training is not complete |
+| Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Pocket-TTS has real recipe, latent/EOS, PCM/WAV, channel/rate, wall, and heap evidence; other promotions vary |
+| Training | Muon-only dense/hybrid primitives plus corpus-derived scratch construction through shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the pinned scratch profile lead; complete-state resume and universal objectives remain open |
 
-Explicit gaps include production SenseNova image/edit publication, LiveEdit,
-Unlimited OCR parity, Pocket-TTS output-quality evidence, complete-state
-training resume, and real-model Qwen3.5/E4B/Gemma4 training.
+Explicit gaps include full-size SenseNova image/edit evidence, LiveEdit,
+Unlimited OCR exact full-sequence numerics and matched peak evidence, complete-state
+training resume, scratch artifact publication/controller promotion, and
+real-model Qwen3.5/E4B/Gemma4 training.
 
 ## Recorded performance
 
-Snapshot reviewed 2026-08-13. These are retained single-machine results, not
+Snapshot reviewed 2026-08-14. These are retained single-machine results, not
 portable guarantees. The authoritative protocol, artifact identities, quality
 checks, and open caveats are in the
 [adaptive_new parity report](docs/adaptive_new_parity_report.md).
@@ -113,11 +114,16 @@ checks, and open caveats are in the
 | Workload | Reference | Overgo | Verdict |
 | --- | ---: | ---: | --- |
 | Qwen3.5-4B decode | adaptive 16.76 ms/token | 10.96 ms/token; about 2.2 GB more peak | Wall lead, memory loss |
-| RxBrain VQA | adaptive 18.4-23.1 s / 11.97 GB | 9.5 s / 10.59 GB | Wall and peak lead |
+| Qwen3.5-4B image/video | Python image and 16-frame video goldens | Exact prompt IDs, MRoPE, and first tokens; CUDA projector probes pass | Real input parity; peak open |
+| Gemma4 12B image/audio/video | Adaptive image/audio oracles; declared video route | Image exact token, audio top-set token, ordered mixed image/audio tokens 107/108, and ordered real-frame video through language | Video output oracle and peaks open |
+| RxBrain VQA | adaptive 18.4-23.1 s / 11.97 GB | Fresh device sessions 9.529-10.273 s; 3.940 GiB coarse device peak | Exact answer; wall and peak lead |
+| Unlimited OCR | Native BF16 image/text golden | Exact 277-token prompt and 200-token output prefix; 273 projected tokens; complete 29-row output within one coordinate/text edit; native 35-gram/128-window policy | Real production OCR parity; exact full sequence and peak open |
+| Pocket-TTS speech | Adaptive real-model generation fixture | Compiled recipe plus full latent/EOS/PCM/WAV oracle; 24 kHz mono; 0.48-0.53 s warm matched synthesis; 0.540-0.543 GiB peak heap | Output parity and warm-wall lead; matched process peak open |
 | Carbon-500M causal Muon | adaptive 6.816 s loop / 11.47 GiB | 5.05-5.13 s / 4.620 GiB; matched trajectory | About 25% loop-wall and 60% peak lead |
+| Corpus-derived scratch causal | adaptive 221.4-231.8 ms / 3.13-3.18 MB peak | 58.0-65.4 ms matched steps / 1.15-1.17 MB combined peak; process, driver, model, PTX/program, cold, and warm phases separately gated | At least 3.38x wall and 62% peak lead on pinned profile |
 | Krea 2048 image | Python 97.5-135.4 s; adaptive 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | Bounded-quality wall/peak lead |
 | Wan video | retained Python 463.4 s; adaptive 795.1 s | 370.27 s; stage peaks 7.875/10.330 GB | Lead vs retained references; matched rerun open |
-| SenseNova generation core | adaptive reusable body 6.88 s | cold 3.65-4.00 s; warm 3.66-4.02 s / 0.710 GiB | 41.6% warm-body lead; full route open |
+| SenseNova generation core | adaptive reusable body 6.88 s | compiled 256px/2-step recipe 13.56 s total; body cold 3.26-7.37 s, warm 3.24-3.32 s / 0.708 GiB; exact PNG `d439b8ce...` | Warm-body lead; production text-to-image route gated; full-size/edit evidence open |
 | Gemma E4B image tower | adaptive 14.56 s focused test | 1.65 s load+run; 0.210-0.215 s resident body | Sampled-stage parity; peak open |
 | Gemma E4B audio tower | adaptive 1.03 s focused test | 0.129 s resident body | Numerical parity; matched lifecycle/peak open |
 
@@ -261,7 +267,10 @@ Primary protocol surfaces:
 - llama.cpp-style completion, infill, embedding, tokenize/detokenize,
   apply-template, slots, LoRA adapters, and properties;
 - public health, metrics, and model discovery;
-- a small built-in web UI on otherwise unmatched GET routes.
+- a built-in web UI on otherwise unmatched GET routes. It includes chat,
+  read-only dataset/run browsing, model/vocabulary/logit/hidden-state analysis,
+  and exact host-replayed attention heatmaps where the compiled attention policy
+  is plain causal and contains no sinks, windows, softcap, or ALiBi.
 
 Set `OVERGO_API_KEY` or `-api-key-file` to protect generation and model-action
 routes. Health, metrics, and model discovery remain public. Request sizes,
@@ -291,8 +300,11 @@ reference and cannot be combined with it. A non-positive `-lr` derives
 
 Current production evidence is the frozen-lexical Carbon route. The CLI writes
 model weights plus `config.json` and `tokenizer.json`; it is not yet an atomic,
-complete-state resume containing optimizer, RNG, and data cursor. The planned
-`TrainingRunPlan` and model-level `TrainingProgram` remain design contracts.
+complete-state resume containing optimizer, RNG, and data cursor. Internal
+scratch construction compiles corpus-derived topology, a flat initialized slab,
+shared tensor forward/VJP, and host/resident Muon programs with matched evidence.
+`cmd/train` does not yet publish that construction as a complete model artifact
+or expose scratch construction as its production CLI path.
 See the [training plan](docs/training_plan.md) for the exact boundary.
 
 ## Commands
@@ -309,7 +321,7 @@ Core user commands:
 | `cmd/embedding` | Encoder embeddings with selectable pooling/normalization |
 | `cmd/rerank` | Qwen3/Qwen3-VL pair scoring |
 | `cmd/diffusion` | Dream, LLaDA, LLaDA-MoE, and RND1 diffusion-text generation |
-| `cmd/latentvideo-run` | Wan latent-video generation and optional VAE decode |
+| `cmd/latentvideo-run` | Resident Wan denoise, causal VAE decode, and full-clip evidence |
 | `cmd/perplexity` | Next-token or disjoint-window perplexity |
 
 Model and format tools:
@@ -373,6 +385,7 @@ read-only to automation for delete, move, and permission-changing operations.
 | `internal/projector`, `internal/latentimage`, `internal/latentvideo` | Multimodal projection and media generation |
 | `internal/optimizer`, `internal/densecausal`, `internal/hybridtrain` | Muon and training implementations |
 | `internal/artifact`, `internal/repodb`, `internal/runrecord` | Identity, lineage, decisions, runs, and evidence |
+| `internal/server`, `internal/server/webui` | HTTP contracts and embedded thin-client console/workbench |
 | `compatibility.json` | Machine-checked feature and model claims |
 | `docs/plan.json` | Current gate-executable work |
 
@@ -382,7 +395,7 @@ read-only to automation for delete, move, and permission-changing operations.
   status with evidence tiers and verification commands.
 - [Adaptive_new parity report](docs/adaptive_new_parity_report.md): capability,
   quality, wall, peak-memory, and remaining-gap assessment.
-- [Training plan](docs/training_plan.md): controller-first Muon training design
+- [Training plan](docs/training_plan.md): scratch-controller-first Muon design
   and current implementation boundary.
 - [RepoDB](docs/REPODB.md): artifact identity, lineage, and store contracts.
 - [Merge floor](docs/MERGE_FLOOR_PLAN.md): automation-floor component status.

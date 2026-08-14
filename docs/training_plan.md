@@ -1,4 +1,4 @@
-# Training plan — controller-first, measured, memory-hierarchy-aware
+# Training plan — scratch-controller-first, measured, memory-hierarchy-aware
 
 This plan targets one measured workstation:
 
@@ -8,29 +8,35 @@ This plan targets one measured workstation:
 - Local storage: Gen4 NVMe with approximately 1.1 TB free.
 
 The immediate product objective is not full training of every supported model. It
-is a trustworthy learning loop for a small workflow controller. Larger-model
-offload is scaling infrastructure built after that loop works.
+is a trustworthy model-from-scratch learning loop for a small workflow controller.
+Adaptive_new supplies the verified construction and training semantics; Overgo
+supplies compiled recipes, resident CUDA execution, Muon, artifact lineage and
+promotion. Larger-model offload follows after that loop works.
 
 ## 1. First product milestone
 
-A pretrained 350M–1B controller can be fine-tuned on-device, checkpointed and
-resumed exactly, improves across multiple seeds on immutable held-out workflow
-tasks, passes regression and tool-validity gates, and is promoted or rolled back
-entirely through RepoDB identities.
+A small causal controller can be derived from an immutable Git/RepoDB corpus,
+initialized from a sealed recipe, trained on-device, checkpointed and resumed
+exactly, and promoted or rolled back entirely through RepoDB identities. It must
+improve across multiple seeds on immutable held-out workflow tasks and pass
+regression plus typed-action validity gates. A pretrained 350M–1B candidate remains
+a comparison rung, not a prerequisite for proving the scratch pipeline.
 
 This milestone requires all of the following:
 
-1. Device forward, backward, loss and optimizer execution.
-2. Exact step-boundary and accumulation-boundary checkpoint contracts.
-3. Immutable dataset splits and complete artifact lineage.
-4. Fixed-seed host/device numerical evidence.
-5. Multi-seed held-out task improvement.
-6. Candidate, evaluated, promoted and rollback lifecycle.
+1. Corpus-derived vocabulary, shape and batch facts with immutable identities.
+2. Deterministic parameter manifest and initialization.
+3. Device forward, backward, loss and Muon execution.
+4. Exact step-boundary and accumulation-boundary checkpoint contracts.
+5. Immutable dataset splits and complete artifact lineage.
+6. Fixed-seed adaptive/host/device trajectory evidence.
+7. Multi-seed held-out task improvement.
+8. Candidate, evaluated, promoted and rollback lifecycle.
 
 E4B, 12B, dynamic quantization and NVMe optimizer paging are not prerequisites
 for this milestone.
 
-### Current implementation boundary (2026-08-12)
+### Current implementation boundary (2026-08-14)
 
 Implemented substrate:
 
@@ -41,11 +47,20 @@ Implemented substrate:
 - lower-level dense checkpoint/resume trajectory tests;
 - host Gemma3n AltUp, PLE, Laurel and mixed-window VJPs plus shared device
   operator VJPs.
+- pinned adaptive_new scratch derivation, initialization, gradient/update and
+  trajectory oracle;
+- compiled scratch construction/program authority, direct flat initialization,
+  shared tensor forward/VJP, resident CUDA/Muon sessions, liveness arena and
+  pooled Newton–Schulz scratch;
+- matched scratch leadership: 58.0-65.4 ms versus adaptive_new 221.4 ms minimum
+  and 1.15-1.17 MB combined runtime peak versus 3.13 MB minimum.
 
 Production gaps:
 
-- `TrainingRunPlan` and `TrainingProgram` are design contracts, not implemented
-  Go types;
+- scratch construction and program types are implemented; generalized
+  multimodal/objective compilation is incomplete;
+- scratch initialization is content-addressed in memory but initialized-model,
+  checkpoint and run publication are not yet production-reachable RepoDB flows;
 - `cmd/train` selects the resident dense device loop; the displaced per-step
   weight scatter/gradient gather training adapters are deleted;
 - production checkpoints are not atomic complete-state resumes;
@@ -60,14 +75,16 @@ Production gaps:
   real update remains blocked on a device/resident Muon program because host
   Newton–Schulz at artifact scale is not an admissible production path.
 
-Device backward and device Newton–Schulz are implemented. Production
-reachability and real-model integration are now the long poles.
+Scratch device training and Newton–Schulz are resident and gated. Artifact
+publication, exact resume, controller promotion and real-model integration are
+now the long poles.
 
 ## 2. Authority and compiled contracts
 
 RepoDB owns the identities and lineage for:
 
-- initial model and tokenizer;
+- construction profile, tokenizer, parameter manifest and initializer;
+- initial model or scratch-initialized checkpoint;
 - dataset source, normalization and immutable split;
 - training recipe and compiled program;
 - objective mixture and sampling policy;
@@ -77,7 +94,9 @@ RepoDB owns the identities and lineage for:
 - candidate, promotion and rollback decision.
 
 A training workflow recipe currently describes orchestration. It must compile to
-a sealed `TrainingRunPlan` before production training begins. That plan owns:
+a sealed `TrainingRunPlan` before production training begins. Its initial-state
+union names exactly one pretrained artifact, resume checkpoint or sealed scratch
+construction. The plan owns:
 
 - model, dataset, split and recipe identities;
 - a compiled model-level `TrainingProgram`;
@@ -93,7 +112,68 @@ liveness, gradient destinations and optimizer-group bindings. CUDA launch detail
 remain executor concerns. Missing compiled facts are initialization errors; no
 production fallback reconstructs training policy from model-family predicates.
 
-### 2.1 Multimodal contract
+### 2.1 Scratch construction contract
+
+The first port preserves the behavior of adaptive_new
+`training.RunFromProviderRich` at explicit boundaries:
+
+1. normalize and fingerprint the document provider;
+2. derive deterministic train, validation and test membership;
+3. derive the character vocabulary, context, width, heads, MLP width, depth,
+   learning rate, initialization scale and batch facts from the train partition;
+4. compile the adaptive causal topology and ordered parameter manifest;
+5. initialize each tensor from the named seed and initializer algorithm;
+6. compile causal forward, cross-entropy backward and Muon groups;
+7. execute ordered batches, validation and shift evaluation;
+8. publish checkpoint, run, evaluation and promotion lineage.
+
+Overgo adds a sealed `ScratchConstruction` to `TrainingRunPlan`. It contains the
+source dataset/split identities, derivation-policy identity, topology profile,
+tokenizer contract, tensor roles/shapes, tying rules, initializer algorithm and
+independent split/init/data/augmentation RNG stream identities. Derived values are
+stored as facts in the compiled plan; production callers do not expose them as a
+bag of hyperparameter flags.
+
+The parity profile first reproduces adaptive_new's sorted rune vocabulary,
+corpus/horizon laws, uniform `[-InitStd,+InitStd]` weights, zero-initialized
+positional terms, fused QKV layout, attention/MLP math and batch order. It is a
+neutral model program, not a copy of adaptive_new autograd or an approximation to
+Llama. Exact reference mode may retain adaptive_new's coupled RNG sequence for
+oracle replay. Production profiles use versioned independent RNG streams so a
+data-order change cannot silently change initial weights.
+
+Construction emits a canonical initialized model artifact plus tokenizer,
+parameter-manifest and compiled-program identities before the first update. This
+makes scratch initialization an inspectable checkpoint boundary and lets serving,
+training, evaluation and descendants consume the same artifact contract.
+
+### 2.2 Port and performance boundary
+
+Adaptive_new is an offline oracle, not a runtime dependency. One fingerprinted
+export records source commit, dataset/split IDs, derived facts, parameter probes or
+digests, token batches, logits, loss, gradients, first Muon update, multi-step
+trajectory and resume boundary. Overgo must match that host oracle before CUDA or
+fusion work can claim correctness.
+
+After parity, Overgo compiles the same semantic graph onto its tensor executor and
+retains weights, gradients, Muon momentum, activations/recompute state and reusable
+scratch for the session. Optimization order is:
+
+1. compile once; retain topology, buffers and CUDA graphs;
+2. keep initialization, token batches, forward/backward and Muon state on device
+   where measured beneficial;
+3. reuse liveness-planned activation and Newton–Schulz scratch by capacity class;
+4. fuse only oracle-covered operator boundaries;
+5. admit BF16 or alternate initializer streams only as new fingerprinted profiles
+   with matched convergence and quality evidence.
+
+Leadership compares identical corpus, split, derived configuration, initial
+weights, batches, objective, seed, update count and validation cadence. Record
+compile/init wall, cold and warm step wall, peak VRAM/host RAM, transfers, launches,
+loss trajectory, gradient error and final-weight error. Faster initialization does
+not compensate for a changed training trajectory.
+
+### 2.3 Multimodal contract
 
 Each plan compiles an ordered input/target modality signature from RepoDB:
 text, image, audio, video, time series or table. It also binds processor,
@@ -313,20 +393,20 @@ evaluation. Monotonic minibatch loss is not required or sufficient.
 
 ## 9. Controller learning plan
 
-The first controller is fine-tuned from a suitable pretrained 350M–1B base.
-Training a new language model from scratch is a later, separately budgeted program.
+The first controller campaign trains a small model from scratch through the ported
+adaptive construction semantics and Overgo execution. Its exact size is derived
+from the admitted corpus, training horizon and memory policy; the compiled facts,
+not a marketing size label, define the candidate. The first three evidence rungs
+are a tiny deterministic fixture, the matched adaptive scratch profile and the
+full workflow corpus.
 
-**Open decision (blocks rung 1): choose the base and register its RepoDB
-identity.** Rung 1 cannot seal a `TrainingRunPlan` until the base model is named,
-because the plan owns the initial-model identity. Candidates are Fractale-350M,
-Carbon-500M and Qwen2.5-0.5B. Fixture-level resident training does not make any
-candidate production-trainable. Decision
-criterion, in order: (a) a device forward/backward already parity-verified in the
-tree, so rung 2 is not gated on a new backward; (b) an instruction/tool-use
-pretraining that transfers to workflow control rather than a bare LM; (c) the
-smallest base that clears the promotion suite, to keep the loop fast. Record the
-choice and its evidence as the rung-1 decision in `plan.json`; until then rung 1
-is design-blocked, not started.
+Fractale-350M, Carbon-500M and Qwen2.5-0.5B remain pretrained comparison
+candidates. They use the same dataset, objective and promotion suite where their
+tokenizer/context contracts permit a fair comparison. A scratch candidate is not
+promoted merely for being self-constructed; it must beat the current controller
+on held-out utility per unit wall, memory and inference cost. Conversely, a
+pretrained candidate cannot displace construction authority by requiring a
+family-local trainer.
 
 ### Dataset composition
 
@@ -358,8 +438,10 @@ The recipe defines weights and sampling policy for:
 - preference or ranking examples;
 - optional auxiliary state/value prediction.
 
-The initial milestone uses supervised fine-tuning or adapters. Selective and then
-full-model fine-tuning follow only when the same evaluation suite shows a useful
+The scratch milestone uses full-model causal training. Auxiliary structured-action
+and state/value heads enter only after the causal baseline is reproducible.
+Pretrained comparisons may use supervised fine-tuning or adapters, then selective
+or full-model fine-tuning only when the same evaluation suite shows a useful
 increment.
 
 ### Evaluation
@@ -393,38 +475,54 @@ reflect the rationale here.
 Each rung produces a runnable artifact and an evidence record. A later rung does
 not redefine an earlier rung's correctness contract.
 
-1. **Compile training authority.** Add sealed `TrainingRunPlan` and model-level
-   `TrainingProgram`; bind RepoDB model, dataset, split, ordered input/target
-   modalities, processor/projector/codec, objective and policy IDs. Derive the
+1. **Capture the adaptive scratch oracle.** Export one content-addressed corpus,
+   split, derived config, initialization, token-batch, forward/backward, Muon,
+   trajectory and resume evidence bundle from a pinned adaptive_new commit.
+2. **Compile training and construction authority.** Add sealed `TrainingRunPlan`,
+   `ScratchConstruction` and model-level `TrainingProgram`; bind RepoDB dataset,
+   split, topology, initializer, ordered input/target modalities,
+   processor/projector/codec, objective and policy IDs. Derive the
    applicable/refused multimodal matrix from those facts.
-2. **Resident Muon production path.** Dense device forward/backward, matrix
-   Muon, resident state, synthetic hybrid parity, and production command routing
-   are implemented with matrix/vector/scalar Muon under one compiled plan.
-3. **Exact recovery.** Lower-level dense trajectory tests exist. Implement both
+3. **Match the adaptive host path.** Compile the adaptive causal topology without
+   importing scalar autograd; match derived facts, parameters, logits, loss,
+   gradients, first update, multi-step trajectory and reload.
+4. **Resident scratch Muon path.** Route the matched program through device
+   forward/backward, matrix/vector/scalar Muon, retained model/optimizer state,
+   pooled scratch and production command routing.
+5. **Exact recovery.** Lower-level dense trajectory tests exist. Implement both
    checkpoint schemas at the production boundary: atomic publication, complete
-   Muon/RNG/data/program state and uninterrupted-versus-resumed equality.
-4. **Mixed-precision resident training.** BF16 compute with FP32 accumulation;
+   Muon/RNG/data/program/construction state and uninterrupted-versus-resumed
+   equality.
+6. **Beat adaptive_new on the matched scratch run.** Separate compile/init, cold
+   and warm training phases; require equal quality with lower repeated wall and
+   peak memory before recording leadership.
+7. **Mixed-precision resident training.** BF16 compute with FP32 accumulation;
    establish loss scaling, clipping and convergence envelopes.
-5. **Muon scale-up.** Stream all Muon geometry groups, reuse Newton–Schulz scratch
+8. **Muon scale-up.** Stream all Muon geometry groups, reuse Newton–Schulz scratch
    by capacity class and compare complete CPU/device update trajectories.
-6. **Controller proof.** Fine-tune the intended controller and pass the
-   immutable held-out promotion suite across multiple seeds, including typed
-   text/image/audio/video component and workflow actions.
-7. **Forced Tier-1 streaming.** Artificially cap VRAM on the small model; prove
+9. **Scratch controller proof.** Build the workflow corpus explicitly from Git
+   and RepoDB evidence, train multiple scratch seeds, and pass the immutable
+   held-out promotion suite, including typed text/image/audio/video component and
+   workflow actions. Compare against pretrained candidates under the same suite.
+10. **Recursive improvement boundary.** Let the promoted controller propose data,
+    recipe and component-composition candidates, but keep corpus admission,
+    evaluation and promotion outside the model. Every descendant names parent,
+    data, recipe, evaluator and decision identities; no model self-promotes.
+11. **Forced Tier-1 streaming.** Artificially cap VRAM on the small model; prove
    double-buffered weight/gradient transfer, overlap and exact results.
-8. **Checkpointed activations.** Prove recomputation independently, then compose
+12. **Checkpointed activations.** Prove recomputation independently, then compose
    it with Tier-1 streaming.
-9. **Layer-major accumulation.** Reuse each loaded layer across microbatches;
+13. **Layer-major accumulation.** Reuse each loaded layer across microbatches;
    measure the activation-versus-transfer tradeoff.
-10. **E4B Tier-1 training.** Compile a measured BF16 schedule; train only after
+14. **E4B Tier-1 training.** Compile a measured BF16 schedule; train only after
     peak memory and recovery gates pass.
-11. **Quantized transport.** Admit FP8 and other policies incrementally against
+15. **Quantized transport.** Admit FP8 and other policies incrementally against
     the BF16 E4B baseline.
-12. **Hybrid backward.** Add SSM/GDN and gated-attention VJPs only for a concrete
+16. **Hybrid backward.** Add SSM/GDN and gated-attention VJPs only for a concrete
     Qwen training objective.
-13. **12B scale-up.** Attempt RAM-resident or compressed Tier-1 training only
+17. **12B scale-up.** Attempt RAM-resident or compressed Tier-1 training only
     after measured headroom exists.
-14. **NVMe optimizer paging.** Last-resort experiment with explicit latency,
+18. **NVMe optimizer paging.** Last-resort experiment with explicit latency,
     write-volume and endurance budgets.
 
 ## 11. Model ladder
@@ -432,7 +530,9 @@ not redefine an earlier rung's correctness contract.
 | Model or family | Near-term role | Initial tier | Admission condition |
 |---|---|---:|---|
 | Dense fixture | Numerical/device plumbing | VRAM | Forward/backward/update parity |
-| Fractale-350M, Carbon-500M or Qwen2.5-0.5B | Controller candidate, not yet production-trained | VRAM | Compiled loading/training authority, resident execution, exact resume and promotion suite |
+| Adaptive causal scratch profile | Construction/parity oracle | VRAM | Derived-fact, initialization and complete trajectory parity |
+| Scratch workflow controller | Primary controller candidate | VRAM | Resident leadership, exact resume and multi-seed promotion suite |
+| Fractale-350M, Carbon-500M or Qwen2.5-0.5B | Pretrained controller comparison | VRAM | Same corpus/objective/evaluation contract; compiled resident execution |
 | SimpleDiffusion, Un-0, pocket-tts | Image and speech training validation | VRAM | Real modality corpus, processor/codec gradients and native-quality evaluation |
 | MiniCPM5-1B | Resident scale validation | VRAM | Measured peak below safe capacity class |
 | Gemma3n E4B | Tier-1 multimodal scale target | RAM offload | Device backward, checkpointing and every adaptive-declared trainable text/image/audio modality |
@@ -468,7 +568,8 @@ seed, precision, objective and stopping rule.
 ## 13. Non-goals for the first milestone
 
 - Training every model that Overgo can serve.
-- Pretraining a general language model from scratch.
+- Pretraining a broad general-purpose foundation model; the scratch target is the
+  bounded workflow controller.
 - Treating inference quantization as proven training quantization.
 - Hiding NVMe traffic behind theoretical peak-compute arithmetic.
 - Mixing optimizer families or silently routing parameter shapes to another

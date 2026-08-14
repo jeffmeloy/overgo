@@ -43,6 +43,13 @@ type Environment struct {
 	ID      artifact.ID `json:"-"`
 }
 
+// NewEnvironment identifies a typed execution-platform record.
+func NewEnvironment(environment Environment) (Environment, error) {
+	environment.Version = EnvironmentVersion
+	environment.ID = artifact.ID{}
+	return environmentCodec.New(environment)
+}
+
 func (e Environment) ValidateIdentity() error {
 	return environmentCodec.ValidateIdentity(e)
 }

@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"overgo/internal/optimizer"
+	"overgo/internal/testevidence"
 )
 
 // muonJointStep flattens the joint trained set (sorted names), applies one
@@ -80,7 +81,7 @@ func TestJointMuonStepTinyDecreasesLoss(t *testing.T) {
 // NOT needed: latents are synthetic, exactly as in the reference FD gates.
 func TestRealArtifactJointTrainingStepDecreasesLoss(t *testing.T) {
 	if testing.Short() {
-		t.Skip("full-artifact 6-layer host backward; skipped in -short")
+		t.Skip(testevidence.ShortIntegrationSkip)
 	}
 	dir := artifactDir(t)
 	if _, err := os.Stat(filepath.Join(dir, configFileName)); err != nil {

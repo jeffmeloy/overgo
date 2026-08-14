@@ -10,8 +10,8 @@
 // config-owned. Its ACTIVATION evidence is the sensenovaparity
 // generation leadership gate, an EXPERIMENTAL tier. Seeded state is exact;
 // neutral prefix/body, guidance, terminal, and sampler match current adaptive
-// evidence and beat its reusable-body wall. Upstream trajectory and production
-// image decode/edit binding remain open.
+// evidence and beat its reusable-body wall. Compiled request-to-PNG execution
+// is gated; edit input remains open.
 package sensenovarecipe
 
 import (
@@ -19,15 +19,32 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/hfrepo"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 )
+
+func Recognize(modelDir string) (bool, error) {
+	var config struct {
+		Architectures []string `json:"architectures"`
+		ModelType     string   `json:"model_type"`
+	}
+	if err := jsonfile.Decode(filepath.Join(modelDir, "config.json"), &config); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return config.ModelType == "neo_chat" && slices.Contains(config.Architectures, "NEOChatModel"), nil
+}
 
 // Task: SenseNova serves a generation-only image-gen recipe (not inference,
 // not VQA). The linear image-gen topology is the recipe.CapabilityDefinition

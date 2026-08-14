@@ -4,6 +4,7 @@ package optimizer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -32,20 +33,50 @@ func (o *deviceOps) muonMatrixGroupResident(dW, dG, dM driver.DevicePtr, rows, c
 	if uint64(n) > math.MaxUint32 {
 		return fmt.Errorf("muonMatrixGroupResident: group too large for a 32-bit element count")
 	}
-	scale := math.Sqrt(float64(max(rows, cols))) * stepRMS(mu) * rate
-
 	gramN := gramDim(rows, cols)
 	gramN *= gramN
-	nsb, err := o.allocBuffers(n, gramN)
+	scratch, err := o.allocMuonScratch(n, gramN)
 	if err != nil {
 		return err
 	}
-	defer nsb.free(o.lib)
-	dTmp, err := o.allocF32(n)
+	defer scratch.free(o.lib)
+	return o.muonMatrixGroupResidentWithScratch(dW, dG, dM, rows, cols, mu, rate, scratch)
+}
+
+type muonScratch struct {
+	ns  nsBuffers
+	tmp driver.DevicePtr
+}
+
+func (o *deviceOps) allocMuonScratch(matrix, square int) (muonScratch, error) {
+	ns, err := o.allocBuffers(matrix, square)
 	if err != nil {
-		return err
+		return muonScratch{}, err
 	}
-	defer freeDevicePointers(o.lib, dTmp)
+	tmp, err := o.allocF32(matrix)
+	if err != nil {
+		ns.free(o.lib)
+		return muonScratch{}, err
+	}
+	return muonScratch{ns: ns, tmp: tmp}, nil
+}
+
+func (s muonScratch) free(lib *driver.Library) {
+	s.ns.free(lib)
+	freeDevicePointers(lib, s.tmp)
+}
+
+func (o *deviceOps) muonMatrixGroupResidentWithScratch(
+	dW, dG, dM driver.DevicePtr,
+	rows, cols int,
+	mu, rate float64,
+	scratch muonScratch,
+) error {
+	n := rows * cols
+	if rows <= 0 || cols <= 0 || n <= 0 || scratch.ns.dX == 0 || scratch.tmp == 0 {
+		return fmt.Errorf("muonMatrixGroupResidentWithScratch: invalid group or scratch")
+	}
+	scale := math.Sqrt(float64(max(rows, cols))) * stepRMS(mu) * rate
 
 	muF := float32(mu)
 	if err := o.scale(dM, dM, muF, n); err != nil {
@@ -54,20 +85,20 @@ func (o *deviceOps) muonMatrixGroupResident(dW, dG, dM driver.DevicePtr, rows, c
 	if err := o.add(dM, dG, dM, n); err != nil {
 		return err
 	}
-	if err := o.scale(dM, nsb.dX, muF, n); err != nil {
+	if err := o.scale(dM, scratch.ns.dX, muF, n); err != nil {
 		return err
 	}
-	if err := o.add(nsb.dX, dG, nsb.dX, n); err != nil {
+	if err := o.add(scratch.ns.dX, dG, scratch.ns.dX, n); err != nil {
 		return err
 	}
-	final, err := o.newtonSchulz(nsb, rows, cols)
+	final, err := o.newtonSchulz(scratch.ns, rows, cols)
 	if err != nil {
 		return err
 	}
-	if err := o.scale(final, dTmp, float32(-scale), n); err != nil {
+	if err := o.scale(final, scratch.tmp, float32(-scale), n); err != nil {
 		return err
 	}
-	return o.add(dW, dTmp, dW, n)
+	return o.add(dW, scratch.tmp, dW, n)
 }
 
 // muonMatrixGroup: stage, update, return weights and momentum.
@@ -103,6 +134,85 @@ type ResidentMatrix struct {
 	Rows, Cols                  int
 }
 
+// ResidentMuonPlan retains optimizer module, cuBLAS handle, and NS scratch.
+type ResidentMuonPlan struct {
+	worker  *device.Worker
+	plan    Plan
+	config  Config
+	ops     *deviceOps
+	scratch muonScratch
+	closed  bool
+}
+
+func NewResidentMuonPlan(worker *device.Worker, plan Plan, config Config) (*ResidentMuonPlan, error) {
+	if worker == nil || plan.Identity() == "" || plan.ParameterCount() <= 0 {
+		return nil, errors.New("resident Muon plan: invalid authority")
+	}
+	if err := config.validate(); err != nil {
+		return nil, err
+	}
+	session := &ResidentMuonPlan{worker: worker, plan: plan, config: config}
+	err := worker.Do(context.Background(), func(state *device.State) error {
+		ops, err := newDeviceOps(state)
+		if err != nil {
+			return err
+		}
+		var scratch muonScratch
+		if plan.maxMatrix > 0 {
+			scratch, err = ops.allocMuonScratch(plan.maxMatrix, plan.maxSquare)
+			if err != nil {
+				ops.close()
+				return err
+			}
+		}
+		session.ops, session.scratch = ops, scratch
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func (s *ResidentMuonPlan) Step(weights, gradients, momentum driver.DevicePtr, step int) error {
+	if s == nil || s.closed || s.ops == nil || weights == 0 || gradients == 0 || momentum == 0 || step <= 0 {
+		return errors.New("resident Muon plan: unavailable")
+	}
+	rate := s.config.LearningRate(step)
+	return s.worker.Do(context.Background(), func(_ *device.State) error {
+		for _, group := range s.plan.groups {
+			if group.Frozen {
+				continue
+			}
+			if err := s.ops.muonMatrixGroupResidentWithScratch(
+				offsetF32(weights, group.Start), offsetF32(gradients, group.Start), offsetF32(momentum, group.Start),
+				group.Rows, group.Cols, s.config.Momentum, rate, s.scratch,
+			); err != nil {
+				return err
+			}
+		}
+		if err := s.ops.lib.MemsetD32Async(gradients, 0, uint64(s.plan.ParameterCount()), s.ops.stream); err != nil {
+			return err
+		}
+		return s.ops.lib.StreamSynchronize(s.ops.stream)
+	})
+}
+
+func (s *ResidentMuonPlan) Close() error {
+	if s == nil || s.closed {
+		return nil
+	}
+	s.closed = true
+	return s.worker.Do(context.Background(), func(_ *device.State) error {
+		if s.scratch.tmp != 0 {
+			s.scratch.free(s.ops.lib)
+		}
+		s.ops.close()
+		s.ops, s.scratch = nil, muonScratch{}
+		return nil
+	})
+}
+
 // DeviceMuonMatricesResident applies one Muon step to already-resident device
 // matrices: nothing is uploaded or downloaded. Weights, gradient and momentum stay
 // on the device across calls; the caller uploads them once at the start of training
@@ -124,6 +234,28 @@ func DeviceMuonMatricesResident(worker *device.Worker, matrices []ResidentMatrix
 		}
 		return ops.lib.StreamSynchronize(ops.stream)
 	})
+}
+
+// DeviceMuonPlanResident applies and clears one flat resident Muon plan.
+func DeviceMuonPlanResident(
+	worker *device.Worker,
+	weights, gradients, momentum driver.DevicePtr,
+	plan Plan,
+	step int,
+	config Config,
+) error {
+	if worker == nil || weights == 0 || gradients == 0 || momentum == 0 || plan.Identity() == "" || step <= 0 {
+		return fmt.Errorf("DeviceMuonPlanResident: invalid buffer, plan, or step")
+	}
+	if err := config.validate(); err != nil {
+		return err
+	}
+	session, err := NewResidentMuonPlan(worker, plan, config)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+	return session.Step(weights, gradients, momentum, step)
 }
 
 // DeviceMuonStepPlan: one flat upload/download; resident matrix updates.

@@ -83,6 +83,13 @@
     "LayerTopology": 9,
     "Name": "arwkv7",
     "RecurrentMixer": 12,
+    "Runtime": {
+      "Recurrent": {
+        "HeadNormEpsilon": 0.00064,
+        "KeyNormEpsilon": 1e-12,
+        "TokenShiftCount": 1
+      }
+    },
     "Validation": {
       "Recurrent": 10
     }
@@ -462,6 +469,7 @@
     },
     "Forward": {"Operation": 4, "Session": 1},
     "MetadataDefaults": {
+      "DraftBlockSize": 16,
       "RopeDimension": 2
     },
     "ModelCatalog": {
@@ -739,12 +747,22 @@
       "QueryScale": 4
     },
     "MetadataDefaults": {
-      "RopeDimension": 1
+      "AlternateStateCount": 4,
+      "AlternateStateActive": 0,
+      "LowRankResidualWidth": 64,
+      "PerLayerEmbeddingWidth": 256,
+      "RopeDimension": 1,
+      "SharedKVStartLayer": 20,
+      "SparseLayerCount": 10,
+      "SparsityStdMultiplier": 1.6448533535003662
     },
     "Name": "gemma3n",
     "FeedForward": 6,
     "Validation": {
-      "Attention": 7
+      "Attention": 7,
+      "RequiredBlockCount": 30,
+      "AlternateBlockCount": 35,
+      "SlidingPeriod": 5
     },
     "Overrides": 2,
     "Rotary": {
@@ -2233,6 +2251,13 @@
     },
     "Name": "rwkv6",
     "RecurrentMixer": 11,
+    "Runtime": {
+      "Recurrent": {
+        "HeadNormEpsilon": 0.00064,
+        "PeriodicResidualScale": 0.5,
+        "TokenShiftCount": 2
+      }
+    },
     "Validation": {
       "Recurrent": 7
     },
@@ -2250,6 +2275,12 @@
     },
     "Name": "rwkv6qwen2",
     "RecurrentMixer": 10,
+    "Runtime": {
+      "Recurrent": {
+        "PeriodicResidualScale": 0.5,
+        "TokenShiftCount": 1
+      }
+    },
     "Validation": {
       "Recurrent": 8
     }
@@ -2264,6 +2295,13 @@
     },
     "Name": "rwkv7",
     "RecurrentMixer": 12,
+    "Runtime": {
+      "Recurrent": {
+        "HeadNormEpsilon": 0.00064,
+        "KeyNormEpsilon": 1e-12,
+        "TokenShiftCount": 2
+      }
+    },
     "Validation": {
       "Recurrent": 9
     },

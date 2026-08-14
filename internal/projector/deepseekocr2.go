@@ -25,10 +25,11 @@ type DeepSeekOCR2Spec struct {
 }
 
 type DeepSeekOCR2Runner struct {
-	file        *gguf.File
-	spec        DeepSeekOCR2Spec
-	samPosition reference.Value
-	cuda        *projectorCUDA
+	file         *gguf.File
+	spec         DeepSeekOCR2Spec
+	samPosition  reference.Value
+	cuda         *projectorCUDA
+	dynamicTiles bool
 }
 
 type DeepSeekOCR2OpenOptions = OpenOptions
@@ -43,7 +44,7 @@ func OpenDeepSeekOCR2WithOptions(path string, options DeepSeekOCR2OpenOptions) (
 		if err != nil {
 			return nil, err
 		}
-		runner := &DeepSeekOCR2Runner{file: file, spec: spec}
+		runner := &DeepSeekOCR2Runner{file: file, spec: spec, dynamicTiles: !options.DisableDynamicTiles}
 		runner.samPosition, err = loadProjectorHostTensor(context.Background(), file, "v.sam.pos_embd.weight")
 		if err != nil {
 			return nil, err
@@ -137,8 +138,13 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 		}
 	}
 	grid := uint64(spec.ImageSize / spec.PatchSize)
+	position, _ := file.Tensor("v.sam.pos_embd.weight")
+	positionShape := []uint64{uint64(spec.SAMHidden), grid, grid}
+	if position.Dimensions == 4 {
+		positionShape = append(positionShape, 1)
+	}
 	requiredShapes := map[string][]uint64{
-		"v.sam.pos_embd.weight":   {uint64(spec.SAMHidden), grid, grid},
+		"v.sam.pos_embd.weight":   positionShape,
 		"v.sam.patch_embd.weight": {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.SAMHidden)},
 		"v.sam.patch_embd.bias":   {uint64(spec.SAMHidden)},
 		"v.resample_query_768.weight": {uint64(spec.Hidden), uint64(
@@ -177,7 +183,7 @@ func (r *DeepSeekOCR2Runner) EncodeImage(ctx context.Context, source image.Image
 	if r == nil || r.file == nil {
 		return reference.Value{}, errors.New("projector: runner is closed")
 	}
-	input, err := PreprocessDeepSeekOCRImage(source, r.spec.DeepSeekOCRSpec)
+	input, err := preprocessDeepSeekOCRImage(source, r.spec.DeepSeekOCRSpec, r.dynamicTiles)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -335,12 +341,12 @@ func (r *DeepSeekOCR2Runner) BuildImagesHistoryPrompt(ctx context.Context, token
 	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
 }
 
-func (r *DeepSeekOCR2Runner) buildImagesPrompt(ctx context.Context, tokenizer ImageTokenizer, sources []image.Image, text []string, history bool) (MultimodalPrompt, error) {
+func (r *DeepSeekOCR2Runner) buildImagesPrompt(ctx context.Context, tokenizer ImageTokenizer, sources []image.Image, text []string, _ bool) (MultimodalPrompt, error) {
 	return executeImagePromptPlan(ctx, tokenizer, sources, text, imagePromptPlan{
 		Family: "DeepSeek-OCR-2", Placeholder: DeepSeekOCRImagePad, PlaceholderLabel: "DeepSeek-OCR-2 placeholder",
-		History: history, EmbeddingWidth: r.spec.OutputHidden,
+		AddSpecial: true, EmbeddingWidth: r.spec.OutputHidden,
 		Render: func(text []string, items []imagePromptItem) string {
-			return renderDelimitedImagePrompt(text, items, DeepSeekOCRImagePad, "", "\n")
+			return renderDelimitedImagePrompt(text, items, DeepSeekOCRImagePad, "", "")
 		},
 	}, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		value, err := r.EncodeImage(ctx, source)

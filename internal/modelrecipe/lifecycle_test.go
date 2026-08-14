@@ -2,6 +2,7 @@ package modelrecipe
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -124,6 +125,29 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 	activation, active, err := ActiveRecord(ctx, store, modelID, definition.Task)
 	if err != nil || !active || activation.Definition.ID != definition.ID {
 		t.Fatalf("active = (%s, %v, %v)", activation.Definition.ID, active, err)
+	}
+	refreshed := publishVerification(t, store, definition.ID, "fixture/activation/refreshed")
+	if err := ActivateCapability(
+		ctx, store, definition, refreshed, recipe.EvidenceParity, "refreshed verifier",
+	); err != nil {
+		t.Fatal(err)
+	}
+	activation, active, err = ActiveRecord(ctx, store, modelID, definition.Task)
+	if err != nil || !active || activation.Tier != recipe.EvidenceParity ||
+		!slices.Contains(activation.Event.Evidence, refreshed.Gate) ||
+		!slices.Contains(activation.Event.Evidence, refreshed.Run) {
+		t.Fatalf("refreshed active = (%+v, %v, %v)", activation, active, err)
+	}
+	secondRefresh := publishVerification(t, store, definition.ID, "fixture/activation/refreshed-again")
+	if err := ActivateCapability(
+		ctx, store, definition, secondRefresh, recipe.EvidenceProduction, "refreshed verifier again",
+	); err != nil {
+		t.Fatal(err)
+	}
+	activation, active, err = ActiveRecord(ctx, store, modelID, definition.Task)
+	if err != nil || !active || activation.Tier != recipe.EvidenceProduction ||
+		!slices.Contains(activation.Event.Evidence, secondRefresh.Gate) {
+		t.Fatalf("second refreshed active = (%+v, %v, %v)", activation, active, err)
 	}
 }
 
@@ -263,6 +287,23 @@ func TestActiveRecordRejectsLegacyIntentEvidence(t *testing.T) {
 	if _, ok, err := ActiveRecord(ctx, store, modelID, definition.Task); err == nil || ok ||
 		!strings.Contains(err.Error(), "lacks verified evidence") {
 		t.Fatalf("legacy intent activation = (%v, %v)", ok, err)
+	}
+	replacement, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := PublishCandidate(ctx, store, "fixture/legacy/replacement/candidate", replacement); err != nil {
+		t.Fatal(err)
+	}
+	verification := publishVerification(t, store, replacement.ID, "fixture/legacy/replacement/verification")
+	if err := ActivateCapability(
+		ctx, store, replacement, verification, recipe.EvidenceParity, "replace legacy evidence",
+	); err != nil {
+		t.Fatal(err)
+	}
+	activation, ok, err := ActiveRecord(ctx, store, modelID, definition.Task)
+	if err != nil || !ok || activation.Definition.ID != replacement.ID {
+		t.Fatalf("replacement activation = (%s, %v, %v)", activation.Definition.ID, ok, err)
 	}
 }
 

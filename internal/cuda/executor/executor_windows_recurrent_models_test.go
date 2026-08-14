@@ -59,9 +59,8 @@ func TestExecutorMambaBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, false)
 	result, err := buildCompiledLayer(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan,
+		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
 		},
@@ -109,9 +108,8 @@ func TestExecutorMamba2BlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, false)
 	result, err := buildCompiledLayer(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan,
+		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
 		},
@@ -174,9 +172,8 @@ func TestExecutorFalconH1BlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, false)
 	result, err := buildCompiledLayer(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan,
+		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, Positions: fixturePositions,
 			PastStates: model.CacheStates[*tensor.Tensor]{
@@ -232,9 +229,8 @@ func TestExecutorGraniteHybridRecurrentBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, true)
 	result, err := buildCompiledLayer(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan,
+		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
 			Recurrent: true,
@@ -291,9 +287,8 @@ func TestExecutorPLaMo2RecurrentBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, true)
 	result, err := buildCompiledLayer(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan,
+		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
 			Recurrent: true,
@@ -355,9 +350,8 @@ func TestExecutorJambaRecurrentMoEBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, true)
 	result, err := buildCompiledLayer(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan,
+		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
 			Recurrent: true,
@@ -480,13 +474,12 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 					feeds[convState] = patternedValue(convState.Shape, 7, 0.03, -0.02)
 					feeds[ssmState] = patternedValue(ssmState.Shape, 11, 0.02, 0.01)
 				}
-				plan := spec.PlanLayer(0, recurrent)
 				var result model.DenseBlockResult
 				var err error
 				if !recurrent && architecture != "qwen3next" {
 					positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
 					result, err = buildCompiledLayer(model.BlockDispatchOptions{
-						Spec: spec, Weights: weights, Plan: &plan,
+						Spec: spec, Weights: weights,
 						Context: model.CachedBlockContext{
 							Builder: builder, Input: input, Positions: positions[0], MultiPositions: &positions,
 							Sequences: 1, CacheWrite: tensor.CacheWriteConcat,
@@ -494,7 +487,7 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 					})
 				} else {
 					result, err = buildCompiledLayer(model.BlockDispatchOptions{
-						Spec: spec, Weights: weights, Plan: &plan,
+						Spec: spec, Weights: weights,
 						Context: model.CachedBlockContext{
 							Builder: builder, Input: input, Positions: []uint32{0, 1},
 							PastKey: convState, PastValue: ssmState, Recurrent: recurrent,
@@ -518,7 +511,7 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	spec := modeltest.Qwen35().Spec
 	spec.Architecture = "qwen35moe"
 	spec.NextNPredictLayers = 1
-	program, err := model.CompileModelPlan(spec, model.Weights{})
+	program, err := compileFixtureModelPlan(spec, model.Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}

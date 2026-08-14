@@ -37,7 +37,7 @@ func loadDenseFFNCatalog(
 	if profile.DeciSparse && feedForwardLength == 0 {
 		return nil
 	}
-	if spec.expertCompositionPlan().kind == expertDenseRoutedSeparateNorm {
+	if spec.expertCompositionPlan(profile).kind == expertDenseRoutedSeparateNorm {
 		feedForwardLength = spec.EmbeddingLength
 	}
 	shapes := spec.TensorShapes(block)

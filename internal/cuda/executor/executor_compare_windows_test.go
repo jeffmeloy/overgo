@@ -28,6 +28,14 @@ func buildCompiledLayer(options model.BlockDispatchOptions) (model.DenseBlockRes
 	return program.Build(context, options.Weights)
 }
 
+func compileFixtureModelPlan(spec model.Spec, weights model.Weights) (model.ModelPlan, error) {
+	profile, ok := model.LookupArchitecture(spec.Architecture)
+	if !ok {
+		return model.ModelPlan{}, &model.UnsupportedArchitectureError{Architecture: spec.Architecture}
+	}
+	return model.CompileModelPlanWithProfile(spec, weights, profile)
+}
+
 func compileFixtureLayerProgram(
 	spec model.Spec,
 	layer uint32,
@@ -42,7 +50,7 @@ func compileFixtureLayerProgram(
 	if int(layer) < len(layers) {
 		layers[layer].Recurrent = recurrent
 	}
-	plan, err := model.CompileModelPlan(spec, model.Weights{Layers: layers})
+	plan, err := compileFixtureModelPlan(spec, model.Weights{Layers: layers})
 	if err != nil {
 		return model.CompiledLayerProgram{}, err
 	}
@@ -124,7 +132,7 @@ func (f *cudaReferenceFixture) nextInput(
 
 func (f *cudaReferenceFixture) modelPlan(spec model.Spec) model.ModelPlan {
 	f.t.Helper()
-	plan, err := model.CompileModelPlan(spec, model.Weights{})
+	plan, err := compileFixtureModelPlan(spec, model.Weights{})
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -147,19 +155,16 @@ func (f *cudaReferenceFixture) projection(
 func (f *cudaReferenceFixture) layer(
 	program model.ModelPlan,
 	layer int,
-	spec model.Spec,
 	weights model.LayerGraphWeights,
 	context model.CachedBlockContext,
 ) model.DenseBlockResult {
 	f.t.Helper()
-	plan, err := program.Layer(layer)
+	compiled, err := program.LayerProgram(layer)
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	context.Builder, context.Layer = f.builder, plan.Layer
-	result, err := buildCompiledLayer(model.BlockDispatchOptions{
-		Spec: spec, Weights: weights, Plan: &plan, Context: context,
-	})
+	context.Builder, context.Layer = f.builder, compiled.Layer().Layer
+	result, err := compiled.Build(context, weights)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -348,13 +353,12 @@ func buildFixtureCachedBlock(
 	layer uint32,
 	recurrent bool,
 ) (model.DenseBlockResult, error) {
-	plan := spec.PlanLayer(layer, recurrent)
 	return buildCompiledLayer(model.BlockDispatchOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer, Recurrent: recurrent,
 		},
-		Spec: spec, Weights: weights, Plan: &plan,
+		Spec: spec, Weights: weights,
 	})
 }
 
@@ -394,13 +398,12 @@ func buildFixtureDenseBlockCachedWithMultiPositions(
 	pastKey, pastValue *tensor.Tensor,
 	layer uint32,
 ) (model.DenseBlockResult, error) {
-	plan := spec.PlanLayer(layer, false)
 	return buildCompiledLayer(model.BlockDispatchOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, MultiPositions: &positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer,
 		},
-		Spec: spec, Weights: weights, Plan: &plan,
+		Spec: spec, Weights: weights,
 	})
 }
 

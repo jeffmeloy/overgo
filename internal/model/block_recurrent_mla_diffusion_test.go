@@ -361,7 +361,7 @@ func TestBuildLFM2ShortConvolutionBlock(t *testing.T) {
 	}
 	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	plan := spec.PlanLayer(0, true)
+	plan := bindFixtureSpec(spec).PlanLayer(0, true)
 	result, err := buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1}, state, reserved, plan,
 	)
@@ -404,7 +404,7 @@ func TestBuildLFM2CenteredShortConvolutionBlock(t *testing.T) {
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
 	result, err := buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1, 2}, state, reserved,
-		spec.PlanLayer(0, true),
+		bindFixtureSpec(spec).PlanLayer(0, true),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -446,7 +446,7 @@ func TestBuildLFM2CenteredShortConvolutionSupportsEvenKernel(t *testing.T) {
 	result, err := buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1},
 		builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(3, 4)),
-		builder.Input("reserved", dtype.F32, tensor.MustShape(1)), spec.PlanLayer(0, true),
+		builder.Input("reserved", dtype.F32, tensor.MustShape(1)), bindFixtureSpec(spec).PlanLayer(0, true),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -493,7 +493,7 @@ func TestBuildLFM2MoEShortConvolutionBlock(t *testing.T) {
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
 	result, err := buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1}, state, reserved,
-		spec.PlanLayer(2, true),
+		bindFixtureSpec(spec).PlanLayer(2, true),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -539,7 +539,7 @@ func TestBuildPLMMLABlock(t *testing.T) {
 		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, spec.PlanLayer(0, false))
+	result, err := buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -598,7 +598,7 @@ func TestBuildMambaBlock(t *testing.T) {
 	}
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, false)
+	plan := bindFixtureSpec(spec).PlanLayer(0, false)
 	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
@@ -644,7 +644,7 @@ func TestBuildMamba2Block(t *testing.T) {
 	}
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, false)
+	plan := bindFixtureSpec(spec).PlanLayer(0, false)
 	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
@@ -701,7 +701,7 @@ func TestBuildFalconH1Block(t *testing.T) {
 	}
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, false)
+	plan := bindFixtureSpec(spec).PlanLayer(0, false)
 	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
@@ -766,7 +766,7 @@ func TestBuildGraniteHybridRecurrentMoEBlock(t *testing.T) {
 	}
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, true)
+	plan := bindFixtureSpec(spec).PlanLayer(0, true)
 	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
@@ -828,7 +828,7 @@ func TestBuildPLaMo2HybridBlocks(t *testing.T) {
 	}
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
-	plan := spec.PlanLayer(0, true)
+	plan := bindFixtureSpec(spec).PlanLayer(0, true)
 	recurrent, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: recurrentWeights, Plan: &plan,
 		Context: CachedBlockContext{
@@ -960,7 +960,7 @@ func testBuildDeepSeek2FamilyAbsorbedMLABlock(t *testing.T, architecture string)
 		FeedForwardSharedUp:       builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 6)),
 		FeedForwardSharedDown:     builder.Input("shared_down", dtype.F32, tensor.MustShape(6, 8)),
 	}
-	result, err := buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, spec.PlanLayer(1, false))
+	result, err := buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, bindFixtureSpec(spec).PlanLayer(1, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1019,7 +1019,7 @@ func TestBuildMiniCPM3MLABlock(t *testing.T) {
 		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, spec.PlanLayer(0, false))
+	result, err := buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1077,7 +1077,7 @@ func TestBuildGLMDSAFullAndSharedIndexer(t *testing.T) {
 		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(8, 8)),
 		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
 	}
-	full, err := buildFixtureLayerWithAuxiliary(builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, spec.PlanLayer(0, false))
+	full, err := buildFixtureLayerWithAuxiliary(builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1120,7 +1120,7 @@ func TestBuildGLMDSAFullAndSharedIndexer(t *testing.T) {
 		FeedForwardDown:  sharedBuilder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
 	previous := sharedBuilder.Input("top_k", dtype.F32, tensor.MustShape(2, 2))
-	shared, err := buildFixtureLayerWithAuxiliary(sharedBuilder, sharedInput, spec, sharedWeights, []uint32{0, 1}, nil, nil, nil, previous, spec.PlanLayer(1, false))
+	shared, err := buildFixtureLayerWithAuxiliary(sharedBuilder, sharedInput, spec, sharedWeights, []uint32{0, 1}, nil, nil, nil, previous, bindFixtureSpec(spec).PlanLayer(1, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1167,7 +1167,7 @@ func TestBuildDeepSeek32FullIndexer(t *testing.T) {
 		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
 	}
 	result, err := buildFixtureLayerWithAuxiliary(
-		builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, spec.PlanLayer(0, false),
+		builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1252,7 +1252,7 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 		HyperHeadScale:          builder.Input("hc_head_scale", dtype.F32, tensor.MustShape(1)),
 	}
 	positionState := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, 2))
-	plan := spec.PlanLayer(0, false)
+	plan := bindFixtureSpec(spec).PlanLayer(0, false)
 	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: []uint32{0, 1}, TokenRows: []uint32{3, 4},

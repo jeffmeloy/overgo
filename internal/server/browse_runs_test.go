@@ -1,11 +1,15 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 )
 
 func TestShapeRunProjectsRecord(t *testing.T) {
@@ -40,5 +44,47 @@ func TestBrowseRunsUnconfigured(t *testing.T) {
 	response := serveTestRequest(handler, http.MethodGet, "/runs", "")
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("status=%d, want 501", response.Code)
+	}
+}
+
+func TestBrowseRunsReadsRepoDBRecords(t *testing.T) {
+	root := t.TempDir()
+	store, err := repodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "browse-recipe")
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "browse-output")
+	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "fixture/facts", Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: outputID}}}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{outputID}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := run.Batch("fixture/run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, RepoDBPath: root}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := serveTestRequest(handler, http.MethodGet, "/runs?limit=1", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	var result browseRunsResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Count != 1 || len(result.Runs) != 1 || result.Runs[0].ID != run.ID.String() {
+		t.Fatalf("runs=%+v", result)
 	}
 }

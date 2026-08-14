@@ -18,9 +18,9 @@ type layerGraphField struct {
 	name       string
 	inputName  string
 	optional   bool
-	infoIndex  []int
-	hostIndex  []int
-	graphIndex []int
+	infoIndex  int
+	hostIndex  int
+	graphIndex int
 }
 
 var layerGraphFields = compileLayerGraphFields()
@@ -46,7 +46,7 @@ func loadHostLayerGraphFieldsWith(
 	infoValue := reflect.ValueOf(info).Elem()
 	hostValue := reflect.ValueOf(result).Elem()
 	for _, field := range layerGraphFields {
-		tensorField := infoValue.FieldByIndex(field.infoIndex)
+		tensorField := infoValue.Field(field.infoIndex)
 		var tensorInfo *gguf.TensorInfo
 		if field.optional {
 			if tensorField.IsNil() {
@@ -65,9 +65,9 @@ func loadHostLayerGraphFieldsWith(
 			return err
 		}
 		if field.optional {
-			hostValue.FieldByIndex(field.hostIndex).Set(reflect.ValueOf(&value))
+			hostValue.Field(field.hostIndex).Set(reflect.ValueOf(&value))
 		} else {
-			hostValue.FieldByIndex(field.hostIndex).Set(reflect.ValueOf(value))
+			hostValue.Field(field.hostIndex).Set(reflect.ValueOf(value))
 		}
 	}
 	return nil
@@ -77,28 +77,21 @@ func compileLayerGraphFields() []layerGraphField {
 	infoType := reflect.TypeOf(LayerWeights{})
 	hostType := reflect.TypeOf(HostLayer{})
 	graphType := reflect.TypeOf(LayerGraphWeights{})
-	infoPointer := reflect.TypeOf((*gguf.TensorInfo)(nil))
-	infoValue := reflect.TypeOf(gguf.TensorInfo{})
 	hostPointer := reflect.TypeOf((*reference.Value)(nil))
 	hostValue := reflect.TypeOf(reference.Value{})
-	graphPointer := reflect.TypeOf((*tensor.Tensor)(nil))
 	fields := make([]layerGraphField, 0, infoType.NumField())
-	for index := range infoType.NumField() {
-		infoField := infoType.Field(index)
-		hostField, hostOK := hostType.FieldByName(infoField.Name)
-		graphField, graphOK := graphType.FieldByName(infoField.Name)
-		if !hostOK || !graphOK {
+	for _, graphField := range compileGraphWeightFields(infoType, graphType) {
+		hostField, ok := hostType.FieldByName(graphField.name)
+		if !ok {
 			continue
 		}
-		optional := infoField.Type == infoPointer && hostField.Type == hostPointer
-		required := infoField.Type == infoValue && hostField.Type == hostValue
-		if (!optional && !required) || graphField.Type != graphPointer {
-			panic(fmt.Sprintf("layer graph field %s has incompatible mirror types", infoField.Name))
+		if graphField.optional && hostField.Type != hostPointer ||
+			!graphField.optional && hostField.Type != hostValue {
+			panic(fmt.Sprintf("layer graph field %s has incompatible mirror types", graphField.name))
 		}
 		fields = append(fields, layerGraphField{
-			name: infoField.Name, inputName: graphInputName(infoField.Name),
-			optional:  optional,
-			infoIndex: infoField.Index, hostIndex: hostField.Index, graphIndex: graphField.Index,
+			name: graphField.name, inputName: graphInputName(graphField.name), optional: graphField.optional,
+			infoIndex: graphField.source, hostIndex: hostField.Index[0], graphIndex: graphField.graph,
 		})
 	}
 	return fields
@@ -128,7 +121,7 @@ func bindHostLayerGraphFields(
 	hostValue := reflect.ValueOf(layer).Elem()
 	graphValue := reflect.ValueOf(result).Elem()
 	for _, field := range layerGraphFields {
-		value := hostValue.FieldByIndex(field.hostIndex)
+		value := hostValue.Field(field.hostIndex)
 		var host reference.Value
 		if field.optional {
 			if value.IsNil() {
@@ -145,7 +138,7 @@ func bindHostLayerGraphFields(
 		if node != nil {
 			feeds[node] = host
 		}
-		graphValue.FieldByIndex(field.graphIndex).Set(reflect.ValueOf(node))
+		graphValue.Field(field.graphIndex).Set(reflect.ValueOf(node))
 	}
 }
 
@@ -165,7 +158,7 @@ func bindDeviceLayerGraphFields(
 	infoValue := reflect.ValueOf(info).Elem()
 	graphValue := reflect.ValueOf(result).Elem()
 	for _, field := range layerGraphFields {
-		value := infoValue.FieldByIndex(field.infoIndex)
+		value := infoValue.Field(field.infoIndex)
 		var tensorInfo *gguf.TensorInfo
 		if field.optional {
 			if value.IsNil() {
@@ -184,7 +177,7 @@ func bindDeviceLayerGraphFields(
 			return err
 		}
 		feeds[node] = pointer
-		graphValue.FieldByIndex(field.graphIndex).Set(reflect.ValueOf(node))
+		graphValue.Field(field.graphIndex).Set(reflect.ValueOf(node))
 	}
 	return nil
 }

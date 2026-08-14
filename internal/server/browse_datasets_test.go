@@ -62,3 +62,27 @@ func TestBrowseDatasetsRejectsNonGet(t *testing.T) {
 		t.Fatalf("status=%d, want 405", response.Code)
 	}
 }
+
+func TestBrowseDatasetsRejectsOversizedManifest(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.json")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Truncate(browseDatasetManifestMaxBytes + 1); err != nil {
+		file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, DatasetsRoot: dir}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := serveTestRequest(handler, http.MethodGet, "/datasets", "")
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status=%d, want 413", response.Code)
+	}
+}

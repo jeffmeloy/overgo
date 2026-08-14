@@ -1,7 +1,7 @@
 # Model Runtime Cleanup
 
 Status: active  
-Updated: 2026-08-13  
+Updated: 2026-08-14
 Scope: `internal/model`, `internal/inference`, model recipes, direct callers
 
 ## Endpoint
@@ -35,16 +35,26 @@ active recipe + resolved artifact facts
 | Alternate-state facts on generic forward program | 0 | Hold at zero |
 | Alternate-state magnitude-rescale copies | 0 | Hold at zero |
 | Global audio waveform codec facts | 0 | Hold at zero |
+| Hardcoded alternate/draft metadata defaults | 0 | Hold at zero |
+| Host-load tensor-topology probes | 0 | Compiled recipe/model admission owns topology |
+| Device-bind tensor-topology probes | 0 | Compiled recipe/model admission owns topology |
+| Runner graph-binding pass-through helpers | 0 | Runtime owns feeds and placement branch |
+| Inference-owned sequence tensor catalogs | 0 | Model binder consumes compiled catalog |
+| Invocation-time graph schema discovery | 0 | Reflect once; bind by indexed descriptors |
+| Registry-backed model-plan compilation APIs | 0 | Commands pass resolved profile explicitly |
+| Unbound `Spec` policy fallback lookups | 0 | Metadata admission binds the exact profile |
+| Dead graph-runtime feed mutators | 0 | Weight/layer binders own feed registration |
+| Hardcoded Gemma3N validation facts | 0 | Serialized typed profile facts |
+| Exported registry-backed profile resolution APIs | 0 | Bootstrap stays inside model package |
+| Hardcoded RWKV execution/validation scalars | 0 | Serialized typed recurrent profile facts |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named production files: none.
 
 ## Ordered Work
 
-1. Fold feature-draft, paired-cache, DFlash, and audio-token leaves into typed projection/session programs; delete family wrappers and filenames.
-2. Make encoder/decoder and audio-token coordinators consume sealed session programs; remove T5 and WavTokenizer runtime ownership.
-3. Move remaining architecture validation constants into resolved profile facts or derived artifact relationships.
-4. Remove duplicate host/reference probes once operator-level host/CUDA evidence owns the same contract.
+1. Remove family identity from the remaining post-resolution parsing/binding files.
+2. Thread sealed policy through remaining weight-catalog helpers and delete repeated `Spec.Profile` reads.
 
 ## Per-Wave Gate
 

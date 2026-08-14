@@ -1133,6 +1133,29 @@ func (e *Executor) ExecuteRetainedCompiledParameterized(
 	}, nil
 }
 
+// PrepareCompiled loads modules and sizes persistent execution storage.
+func (e *Executor) PrepareCompiled(ctx context.Context, compiled *CompiledGraph) error {
+	if e == nil || compiled == nil {
+		return errors.New("CUDA executor or compiled graph absent")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed || e.worker == nil {
+		return errors.New("CUDA executor is closed")
+	}
+	return e.worker.Do(ctx, func(state *device.State) error {
+		resources, err := e.ensureResources(
+			state, compiled.needBlas, compiled.q8InputBytes,
+			compiled.attentionScoreBytes, compiled.matmulStagingBytes,
+		)
+		if err != nil {
+			return err
+		}
+		_, err = resources.ensureArena(state, compiled.memory.ArenaSize)
+		return err
+	})
+}
+
 func (e *Executor) runCompiled(
 	ctx context.Context,
 	compiled *CompiledGraph,

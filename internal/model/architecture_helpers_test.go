@@ -1,8 +1,22 @@
 package model
 
+import "overgo/internal/gguf"
+
 func testProfile(architecture string) ArchitectureProfile {
 	profile, _ := LookupArchitecture(architecture)
 	return profile
+}
+
+func bindFixtureSpec(spec Spec) Spec {
+	profile, ok := LookupArchitecture(spec.Architecture)
+	if !ok {
+		return spec
+	}
+	return spec.withProfile(profile)
+}
+
+func readFixtureWeights(file *gguf.File, spec Spec) (Weights, error) {
+	return ReadWeights(file, bindFixtureSpec(spec))
 }
 
 func hasPostNorm(architecture string) bool {

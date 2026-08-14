@@ -13,6 +13,7 @@ type Attributes interface {
 func (ScaleAttributes) tensorAttributes()                {}
 func (ClampAttributes) tensorAttributes()                {}
 func (RMSNormAttributes) tensorAttributes()              {}
+func (MADNormAttributes) tensorAttributes()              {}
 func (LayerNormAttributes) tensorAttributes()            {}
 func (L2NormAttributes) tensorAttributes()               {}
 func (XIELUAttributes) tensorAttributes()                {}
@@ -77,6 +78,7 @@ const (
 	attributeEmbeddedInput
 	attributeLoRAMerge
 	attributeCacheAppend
+	attributeMADNorm
 )
 
 var operationAttributeKinds = [...]attributeKind{
@@ -117,6 +119,7 @@ var operationAttributeKinds = [...]attributeKind{
 	OpIndexerScore:         attributeIndexerScore,
 	OpLoRAMerge:            attributeLoRAMerge,
 	OpCacheAppend:          attributeCacheAppend,
+	OpMADNorm:              attributeMADNorm,
 }
 
 func validateOperationAttributes(op Op, attributes Attributes) error {
@@ -161,6 +164,8 @@ func attributeKindOf(attributes Attributes) attributeKind {
 		return attributeClamp
 	case RMSNormAttributes:
 		return attributeRMSNorm
+	case MADNormAttributes:
+		return attributeMADNorm
 	case LayerNormAttributes:
 		return attributeLayerNorm
 	case L2NormAttributes:

@@ -6,7 +6,10 @@ import (
 	"overgo/internal/gguf"
 )
 
-var tensorInfoType = reflect.TypeOf(gguf.TensorInfo{})
+var (
+	tensorInfoType        = reflect.TypeOf(gguf.TensorInfo{})
+	tensorInfoPointerType = reflect.TypeOf((*gguf.TensorInfo)(nil))
+)
 
 // TensorInfos returns every populated tensor in the weight catalog.
 func (w Weights) TensorInfos() []gguf.TensorInfo {

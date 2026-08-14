@@ -3,6 +3,7 @@ package sensenovarecipe
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -12,10 +13,31 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
+	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
-const activationReason = "SenseNova neutral prefix/body, guidance, flow terminal, and sampler match a fingerprinted native two-step trajectory; reusable body beats adaptive wall; production decode/edit binding remains open"
+func TestRecognizeRequiresSenseNovaArchitecture(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "config.json")
+	if recognized, err := Recognize(directory); err != nil || recognized {
+		t.Fatalf("missing config recognition = %v, %v", recognized, err)
+	}
+	if err := os.WriteFile(path, []byte(`{"architectures":["Other"],"model_type":"other"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if recognized, err := Recognize(directory); err != nil || recognized {
+		t.Fatalf("foreign recognition = %v, %v", recognized, err)
+	}
+	if err := os.WriteFile(path, []byte(`{"architectures":["NEOChatModel"],"model_type":"neo_chat"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if recognized, err := Recognize(directory); err != nil || !recognized {
+		t.Fatalf("SenseNova recognition = %v, %v", recognized, err)
+	}
+}
+
+const activationReason = "SenseNova compiled text request, retained prefix/body, flow integration, and PNG publication match a fingerprinted native two-step trajectory; reusable body beats adaptive wall; edit-input binding remains open"
 
 // TestSenseNovaImageGenRoundTripSynthetic proves the recipe lifecycle + the
 // discovery/status round-trip WITHOUT the 35GB checkpoint, so it runs in CI:
@@ -75,11 +97,11 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 // prove the model bytes are present. Gated by OVERGO_SENSENOVA_MODEL so CI and
 // plan-verify honestly skip (mirrors TestActiveRecipeQwen35Open).
 func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
 	modelDir := os.Getenv("OVERGO_SENSENOVA_MODEL")
 	if modelDir == "" {
-		if testing.Short() {
-			return
-		}
 		t.Skip("OVERGO_SENSENOVA_MODEL is not set")
 	}
 	ctx := context.Background()

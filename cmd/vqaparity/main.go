@@ -94,11 +94,19 @@ func main() {
 	devicePrefillMode := flag.Bool("device-prefill", false, "run the CUDA device branch-routed prefill parity + measurement")
 	deviceFullMode := flag.Bool("device-full", false, "run the CUDA device full pipeline (merger->prefill->decode) + measurement")
 	recipeServeMode := flag.Bool("recipe-serve", false, "serve the canonical case THROUGH the activated VQA recipe (gate on active recipe, real processor, decode-until-EOS)")
-	repoFlag := flag.String("repo", "", "RepoDB store for -recipe-serve; empty resolves via the data-root contract")
+	recipeVerifyMode := flag.Bool("recipe-verify-activate", false, "verify the canonical real-device VQA case, activate its recipe, then replay through the active recipe")
+	repoFlag := flag.String("repo", "", "RepoDB store for recipe modes; empty resolves via the data-root contract")
 	imageFlag := flag.String("image", `C:\Users\jeffm\adaptive_new\models\Hy-Embodied-RxBrain-1.0\Hy-Embodied-RxBrain-1.0\demo_cases\bridgev2_move_toy\input\obs_1.jpg`, "serve image path")
 	questionFlag := flag.String("question", "What objects are on the stovetop, and where is the green toy?", "serve question")
 	flag.Parse()
 	l := &ladder{modelDir: *modelDir, fixturesDir: *fixturesDir, logPath: *logPath}
+	if *recipeVerifyMode {
+		if err := verifyActivateVQA(l, *repoFlag, *imageFlag, *questionFlag); err != nil {
+			l.log("RECIPE verify ERROR " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 	if *recipeServeMode {
 		if err := runRecipeServe(l, *repoFlag, *imageFlag, *questionFlag); err != nil {
 			l.log("RECIPE serve ERROR " + err.Error())

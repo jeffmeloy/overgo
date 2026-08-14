@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -15,9 +16,7 @@ type layerInputCapture struct {
 	order     []int32
 	requested map[int32]struct{}
 	values    map[int32]reference.Value
-	// Attention capture (optional): for attnLayer (>=0) the forward records the
-	// scaled per-head query and the post-RoPE key of that layer plus the op's
-	// scale/head geometry, for the read-only attention workbench.
+	// Optional exact-attention inputs.
 	attnLayer int32
 	attnScale float32
 	attnHeads int
@@ -27,8 +26,7 @@ type layerInputCapture struct {
 	attnKey   reference.Value
 }
 
-// AttentionCapture: one layer's attention inputs on host, for recomputing
-// softmax(scale·Q·Kᵀ) per head. Query/Key are row-major with the given shapes.
+// AttentionCapture holds one layer's exact host-replay inputs.
 type AttentionCapture struct {
 	Layer   int
 	Tokens  int
@@ -40,8 +38,32 @@ type AttentionCapture struct {
 	Key     reference.Value
 }
 
-// ExtractAttention: one cacheless forward that records the scaled query and key
-// of a single layer, for host recomputation of attention weights. Read-only.
+// AttentionCaptureLayers reports exactly replayable layers.
+func (r *Runner) AttentionCaptureLayers() []int32 {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed || !r.forwardProgram().LayerCapture() {
+		return nil
+	}
+	result := make([]int32, 0, len(r.weights.Layers))
+	for layer := range r.weights.Layers {
+		if exactAttentionCapture(r.layerProgram(layer).Layer()) {
+			result = append(result, int32(layer))
+		}
+	}
+	return result
+}
+
+func exactAttentionCapture(plan model.LayerPlan) bool {
+	attention := plan.AttentionGraph
+	return plan.HasKV && attention.Causal && !attention.UseSinks && !attention.ChunkedWindow &&
+		attention.Window == 0 && attention.Softcap == 0 && attention.MaxALiBiBias == 0
+}
+
+// ExtractAttention records one exact-replay query/key boundary.
 func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.TokenID, layer int32) (AttentionCapture, error) {
 	if r == nil {
 		return AttentionCapture{}, errors.New("inference: runner is nil")
@@ -56,6 +78,9 @@ func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.Toke
 	}
 	if layer < 0 || int(layer) >= len(r.weights.Layers) {
 		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d is out of range", layer)
+	}
+	if !exactAttentionCapture(r.layerProgram(int(layer)).Layer()) {
+		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d policy cannot be replayed exactly", layer)
 	}
 	capture := &layerInputCapture{
 		requested: map[int32]struct{}{},

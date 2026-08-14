@@ -13,13 +13,21 @@ const (
 
 // MetadataDefaultPolicy: serialized architecture defaults and override keys.
 type MetadataDefaultPolicy struct {
-	AttentionSoftcap     float32
-	AttentionOutputScale float32
-	EmbeddingScale       float32
-	LogitScale           float32
-	LayerNormEpsilon     float32
-	QKNormEpsilon        float32
-	RopeDimension        RopeDimensionDefaultPolicy
+	AttentionSoftcap       float32
+	AttentionOutputScale   float32
+	EmbeddingScale         float32
+	LogitScale             float32
+	LayerNormEpsilon       float32
+	QKNormEpsilon          float32
+	AlternateStateCount    uint32
+	AlternateStateActive   uint32
+	LowRankResidualWidth   uint32
+	PerLayerEmbeddingWidth uint32
+	SharedKVStartLayer     uint32
+	SparseLayerCount       uint32
+	SparsityStdMultiplier  float32
+	DraftBlockSize         uint32
+	RopeDimension          RopeDimensionDefaultPolicy
 }
 
 func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string, spec *Spec) {

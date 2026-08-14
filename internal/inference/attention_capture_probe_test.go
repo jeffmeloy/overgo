@@ -5,8 +5,29 @@ import (
 	"os"
 	"testing"
 
+	"overgo/internal/model"
 	"overgo/internal/tokenizer"
 )
+
+func TestExactAttentionCaptureRejectsModifiedScorePolicies(t *testing.T) {
+	base := model.LayerPlan{HasKV: true, AttentionGraph: model.AttentionGraphPlan{Causal: true}}
+	if !exactAttentionCapture(base) {
+		t.Fatal("plain causal attention rejected")
+	}
+	for name, graph := range map[string]model.AttentionGraphPlan{
+		"noncausal": {Causal: false},
+		"sinks":     {Causal: true, UseSinks: true},
+		"window":    {Causal: true, Window: 128},
+		"softcap":   {Causal: true, Softcap: 30},
+		"alibi":     {Causal: true, MaxALiBiBias: 8},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if exactAttentionCapture(model.LayerPlan{HasKV: true, AttentionGraph: graph}) {
+				t.Fatal("modified score policy accepted")
+			}
+		})
+	}
+}
 
 // TestExtractAttentionShapeGeometry is a live probe that pins the memory layout
 // the /analyze/attention host recompute depends on: the captured query/key must

@@ -393,6 +393,7 @@ func (m specMetadata) readDraftLayers(spec *Spec) error {
 func (m specMetadata) readFamilyShape(spec *Spec) error {
 	values, prefix := m.values, m.prefix
 	validation := m.profile.Validation
+	defaults := m.profile.MetadataDefaults
 	var err error
 	switch {
 	case m.profile.Forward.Session == ForwardSessionPairedProjection:
@@ -407,12 +408,12 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 			return errors.New("Gemma 4 assistant NextN layer count must match block count")
 		}
 	case validation.Attention == AttentionValidationGemma3N:
-		spec.AltUpCount = 4
-		spec.LaurelRank = 64
-		spec.EmbeddingPerLayer = 256
-		spec.KVFromStart = 20
-		spec.SparseLayerCount = 10
-		spec.SparsityStdMultiplier = 1.6448533535003662
+		spec.AltUpCount = defaults.AlternateStateCount
+		spec.LaurelRank = defaults.LowRankResidualWidth
+		spec.EmbeddingPerLayer = defaults.PerLayerEmbeddingWidth
+		spec.KVFromStart = defaults.SharedKVStartLayer
+		spec.SparseLayerCount = defaults.SparseLayerCount
+		spec.SparsityStdMultiplier = defaults.SparsityStdMultiplier
 		if spec.BlockCount >= spec.KVFromStart {
 			spec.SharedKVLayers = spec.BlockCount - spec.KVFromStart
 		}
@@ -434,7 +435,7 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
 			return err
 		}
-		spec.DFlashBlockSize = 16
+		spec.DFlashBlockSize = defaults.DraftBlockSize
 		if value, ok := optional[uint32](values, prefix+"block_size", gguf.ValueTypeUint32); ok {
 			spec.DFlashBlockSize = value
 		}

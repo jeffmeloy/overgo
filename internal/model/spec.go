@@ -1991,6 +1991,9 @@ func (s Spec) NormPlan() NormalizationPlan {
 }
 
 func (s Spec) validate() error {
+	if _, ok := s.boundProfile(); !ok {
+		return fmt.Errorf("model profile for %q is not bound", s.Architecture)
+	}
 	if err := s.validateBaseMetadata(); err != nil {
 		return err
 	}

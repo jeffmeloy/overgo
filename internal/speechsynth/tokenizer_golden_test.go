@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	"overgo/internal/testevidence"
 )
 
 type g8Golden struct {
@@ -87,7 +89,7 @@ func TestTokenizerGoldenCases(t *testing.T) {
 // score, unk id) and the g1 encoding.
 func TestTokenizerModelFileMatchesFixture(t *testing.T) {
 	if testing.Short() {
-		t.Skip("reads the artifact tokenizer; skipped in -short")
+		t.Skip(testevidence.ShortIntegrationSkip)
 	}
 	path := filepath.Join(artifactDir(t), "tokenizer.model")
 	if _, err := os.Stat(path); err != nil {

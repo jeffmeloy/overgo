@@ -23,6 +23,7 @@ type SynthesisRequest struct {
 type Audio struct {
 	PCM        []float32 `json:"pcm"`
 	SampleRate int       `json:"sample_rate"`
+	Channels   int       `json:"channels"`
 }
 
 type generationPlan struct {
@@ -100,7 +101,7 @@ func (s *Synthesizer) decode(latents LatentBatch) (Audio, error) {
 	if err != nil {
 		return Audio{}, err
 	}
-	return Audio{PCM: pcm, SampleRate: s.model.Codec.SampleRate}, nil
+	return Audio{PCM: pcm, SampleRate: s.model.Codec.SampleRate, Channels: 1}, nil
 }
 
 type runtimeStages interface {

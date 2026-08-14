@@ -171,24 +171,18 @@
           "identity": "file:sha256:b8ab6ff38c62646d280c5efdc7abbfab00c4885ade46cca03d424628f9763f2c"
         },
         {
-          "contains": "func TestGemma4RealFixture(",
-          "path": "internal/projector/gemma4_test.go",
+          "contains": "func TestMultimodalInputMatrix(",
+          "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:54431682378ae3bdd5c6f71204d2104b761965871efb563c142bbcb055446211"
-        },
-        {
-          "contains": "func TestGemma4RealPromptTokens(",
-          "path": "internal/projector/gemma4_test.go",
-          "role": "artifact",
-          "identity": "evidence:sha256:54431682378ae3bdd5c6f71204d2104b761965871efb563c142bbcb055446211"
+          "identity": "evidence:sha256:ca746481b31d4a18ceabb6c34391a66f1d37489ccf47b98235487b9ddaba003a"
         }
       ],
       "id": "gemma4-multimodal-oracle",
-      "evidence_tier": "fixture-gated",
-      "verify": "go test ./internal/projector -run '^TestGemma4RealFixture$' -count=1 -v",
-      "artifact_identity": "env:OVERGO_GEMMA4_MMPROJ+OVERGO_GEMMA4_IMAGE+OVERGO_GEMMA4_GOLDEN",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v",
+      "artifact_identity": "sha256:24489a6d072466fb288c43474ab9890e77eebe2503b0d7c514e626ee3a08e930+64fb17f3c324dcbf9f83861e5d2ea1534a66ea0970223047e788a482b080853c+996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e+f2e50cd5619ce5dfb92b91d8547daa930a5a9d974e01852e6fde81a0b2435d54+98c8d1a25f96bbdfff5ca6153c9b18fad9740e300008618a970c18384b35d404+273b9b00522ab9d8c8c74e5f333475f9c1bd70c50bf4f52d7c570b6a0fd2da97",
       "status": "implemented",
-      "summary": "Gemma 4 image preprocessing, projector output, and prompt tokens have pinned real-model oracles."
+      "summary": "Gemma4 12B image and audio prompts reach language on CUDA with pinned first-token evidence; real video retains frame order and block masks through language."
     },
     {
       "evidence": [
@@ -208,13 +202,13 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:65114415b07d050fe97680e325b0f6ca498beb8f68c579dc9b2ab4dc01af9325"
+          "identity": "evidence:sha256:ca746481b31d4a18ceabb6c34391a66f1d37489ccf47b98235487b9ddaba003a"
         }
       ],
       "id": "gemma-e4b-audio-tower-oracle",
       "evidence_tier": "device-gated",
       "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v",
-      "artifact_identity": "sha256:1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db+98c8d1a25f96bbdfff5ca6153c9b18fad9740e300008618a970c18384b35d404+6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca+9de625447fbc7ab1f12d2de6c73700aa2daa9e476f3e4790e6632a4623371bbb",
+      "artifact_identity": "sha256:185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e+98c8d1a25f96bbdfff5ca6153c9b18fad9740e300008618a970c18384b35d404+6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca+9de625447fbc7ab1f12d2de6c73700aa2daa9e476f3e4790e6632a4623371bbb",
       "status": "implemented",
       "summary": "Gemma E4B waveform frontend and audio tower match fingerprinted adaptive log-mel, 12-layer conformer, and soft-token evidence on CUDA."
     },
@@ -230,15 +224,65 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:65114415b07d050fe97680e325b0f6ca498beb8f68c579dc9b2ab4dc01af9325"
+          "identity": "evidence:sha256:ca746481b31d4a18ceabb6c34391a66f1d37489ccf47b98235487b9ddaba003a"
         }
       ],
       "id": "gemma-e4b-image-language-oracle",
       "evidence_tier": "device-gated",
       "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v",
-      "artifact_identity": "sha256:1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db+cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e+49b5624323fc4e2e87a2673d9b8ab8880d285e1bcb736dad7dcbea6ecd919232",
+      "artifact_identity": "sha256:185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e+cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e+49b5624323fc4e2e87a2673d9b8ab8880d285e1bcb736dad7dcbea6ecd919232",
       "status": "implemented",
       "summary": "Gemma E4B image projection binds the exact adaptive prompt and produces the fingerprinted first language token on CUDA."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func Qwen35ProjectorConversion(",
+          "path": "internal/hfgguf/qwen35_projector.go",
+          "role": "source",
+          "identity": "file:sha256:6107ad4e605e77ca851a8aecc9cf1a70c1796ea4c75651d6dcb2b8ae0b15b2dc"
+        },
+        {
+          "contains": "func ProjectedInputsForPrompt(",
+          "path": "internal/inference/multimodal_prompt.go",
+          "role": "source",
+          "identity": "file:sha256:4183a74c818e9e5d280a2deb7ca88d08363bfcdfd730ca934bf40a52c3075a5e"
+        },
+        {
+          "contains": "func TestMultimodalInputMatrix(",
+          "path": "internal/adaptiveparity/multimodal_input_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:ca746481b31d4a18ceabb6c34391a66f1d37489ccf47b98235487b9ddaba003a"
+        }
+      ],
+      "id": "qwen35-image-video-language-oracle",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v",
+      "artifact_identity": "sha256:3bc43ac6246bd2c312cd7cd5df95c55ba3ddb7019d6d22910cd25936cd656186+c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec+ccacbf46fc6dfe7545aed8a791f8ac343e1302ffbb7a1e899297afb68aa517b7+774a9e8ffe2ea3ba37e142123ee35ddcf91c24baa43647b0a9af96fce74f8ea1+38d61519eb39e98e577aeeebec6159be5efd6b2680e3b4c52d87da0047967505",
+      "status": "implemented",
+      "summary": "Qwen3.5 image and 16-frame video inputs match pinned Python processor, projector, prompt, MRoPE, and first-language-token oracles on CUDA."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func executeVQAProgram(",
+          "path": "cmd/vqaparity/recipeserve.go",
+          "role": "source",
+          "identity": "file:sha256:36d5ec9cf41a0c86c301c35a283c1081c39eb9f65be0bd82ce43c75e85c7b1bf"
+        },
+        {
+          "contains": "func TestRxBrainProductionParity(",
+          "path": "cmd/vqaparity/recipeverify_windows_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:5dbc9b53136a430495e980ae9b5bfc48f08954108254a5d53422862cab49f70b"
+        }
+      ],
+      "id": "rxbrain-vqa-production-oracle",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/vqaparity -run '^TestRxBrainProductionParity$' -count=1 -v",
+      "artifact_identity": "sha256:97d121be90fba86b42effe71d2a67c68095a7a74fadd2bb0b848a3c72ed38879+6de406a2da4e3342f6b0186e6e8890a3d73d84f6da3b2f8ac3b8bc6b82721b35+c3e8ab04b94ea11d96ebac29e44e5501c88ed7383525787d4af9b24e9130ccc3",
+      "status": "implemented",
+      "summary": "RxBrain real-image VQA executes through a compiled and verified recipe, reproduces the exact golden token prefix and coherent EOS answer, then replays bit-exactly through the active alias."
     },
     {
       "evidence": [
@@ -350,16 +394,16 @@
     {
       "evidence": [
         {
-          "contains": "func CompileModelPlan(",
+          "contains": "func CompileModelPlanWithProfile(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:c750fc2b079d045d080c44852d79c93d6073c7b8c9a60e477304f87ca890c3b7"
+          "identity": "file:sha256:77d5299cb0c772f546cf28143f934c5820ea37a7072e9eeeefbf01d7c2e48ed5"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:8505a6df1a5b9f766cebce59899e9a7fea3fbf899c4244395c7fa359c4de764b"
+          "identity": "evidence:sha256:ccdea85741f61c75efc2b2a3e4392995ef92c356c5c96104db853fed6741ef61"
         }
       ],
       "id": "compiled-model-plan",
@@ -374,7 +418,7 @@
           "contains": "func Compile(",
           "path": "internal/cuda/executor/executor.go",
           "role": "source",
-          "identity": "file:sha256:00978a8ebdc25928029cf6d5c8d54d3808974a66e176e8bf5543e13600203d1f"
+          "identity": "file:sha256:8188eb3d4f68700bebc525f216f7e66a323531a5adc403c0a92a4c8d977ebcc9"
         },
         {
           "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
@@ -395,13 +439,13 @@
           "contains": "func DescribeOperation(",
           "path": "internal/tensor/operation.go",
           "role": "source",
-          "identity": "file:sha256:88526e99641af0a5949a59fd129bd3601ea6ca0f64f468df94131a3e9944edce"
+          "identity": "file:sha256:dca9e9d78f6388a03bc7c47a3d5c2bb7f7838acd60e2e5e0a1feac739611e697"
         },
         {
           "contains": "func TestOperationCatalogIsDenseAndUnique(",
           "path": "internal/tensor/operation_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:82674d99bb9a27b3a64ec88fb8e4abb64c7dc466eb64f21d636965f09ff9a95f"
+          "identity": "evidence:sha256:17aa538899344181d8c22440447775488c1875ddf9ac5e27cca3b70dda3d4d15"
         }
       ],
       "id": "tensor-operation-catalog",
@@ -459,7 +503,7 @@
           "contains": "func (r *Qwen3VLRunner) BuildImagesPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:ee0086920063910929477057a305906fba48728160307f06fee440c8ffa517fa"
+          "identity": "file:sha256:677f14ead69aeb3d862f6288afa87be60e81cfe35161ab8840fe0d55cf068278"
         },
         {
           "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -480,7 +524,7 @@
           "contains": "func (r *Gemma4Runner) BuildImagesHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:ee0086920063910929477057a305906fba48728160307f06fee440c8ffa517fa"
+          "identity": "file:sha256:677f14ead69aeb3d862f6288afa87be60e81cfe35161ab8840fe0d55cf068278"
         },
         {
           "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -501,7 +545,7 @@
           "contains": "func (r *Gemma4Runner) BuildMediaHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:ee0086920063910929477057a305906fba48728160307f06fee440c8ffa517fa"
+          "identity": "file:sha256:677f14ead69aeb3d862f6288afa87be60e81cfe35161ab8840fe0d55cf068278"
         },
         {
           "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
@@ -780,13 +824,13 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:e867d8d683ac8887ed39c8de282a09b585469bf5aa2bccd1528f2e67bde78815"
+          "identity": "file:sha256:64ec30347e54386f1fa63911e3067f0377696db4b2a0e77d8ee4409c0a6f9c1c"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
           "path": "internal/model/architecture_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:8309c24d0f2f9bac3e9875766976d70bdc6bbee7f801faf39fbb3cf897eb7983"
+          "identity": "evidence:sha256:5c06fdbb0c32934c1fbcd8c7979911db9c18ff1348f81b923e295826f9a2aee1"
         }
       ],
       "id": "architecture-profiles",
@@ -801,19 +845,19 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:ced27bf856a999fdf4aa2da1f48b1b318f8763ba226ed1a420950cbf0b425838"
+          "identity": "file:sha256:31a7ade29e9f7c4863f8598746a080b02477e0a46f959399720609fc0f216338"
         },
         {
           "contains": "func ReadWeights(",
           "path": "internal/model/weights_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:cca039ef2c0b311551ec428d1227702b82e115d9e6f40b13bb9dff542ff90b58"
+          "identity": "file:sha256:a7b5c26d71d11edd38a553c53fce82fbb9243742d695917286de8383538296f3"
         },
         {
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:eec91789d29c66ecae29b756b2170030142091067cd9e87d97d06a5f6a8323c6"
+          "identity": "evidence:sha256:8cb1490ace7d4f9d2609d9092b4f173ae85b50b215128b4ad647e2b5477a13f0"
         }
       ],
       "id": "neutral-layer-dispatch",
@@ -884,6 +928,125 @@
       "verify": "go test ./cmd/release -run '^TestCreateArchiveIsDeterministic$' -count=1 -v",
       "status": "implemented",
       "summary": "Release archives are deterministic and compared across two builds."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func LoadSynthesizer(",
+          "path": "internal/speechsynth/runtime.go",
+          "role": "source",
+          "identity": "file:sha256:8ce2e50ca348c6ac36354fc8c5568f2c17c88f48e1c3f2b57038a1c5f475b9ca"
+        },
+        {
+          "contains": "func TestPocketTTSProductionParity(",
+          "path": "internal/adaptiveparity/pocket_tts_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:c33bfb2050d02792734964f0bd7d9d6dd8a80362fe9d58c973bdec3cf6ff728b"
+        }
+      ],
+      "id": "pocket-tts-production-oracle",
+      "evidence_tier": "pinned-oracle",
+      "verify": "go test ./internal/adaptiveparity -run '^TestPocketTTSProductionParity$' -count=1 -v",
+      "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
+      "status": "implemented",
+      "summary": "Pocket-TTS executes through its compiled speech recipe and matches pinned latent, EOS, PCM, WAV, rate, channel, and heap evidence."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (h *Handler) analyzeAttention(",
+          "path": "internal/server/analyze_attention.go",
+          "role": "source",
+          "identity": "file:sha256:dd6bb2e9fa234a16ea62c08866044867c1d0e2c18d224742c17b32f2ea299e9c"
+        },
+        {
+          "contains": "func TestAttentionWeightsHostMath(",
+          "path": "internal/server/analyze_attention_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:3385061cca10197f9f9b3d70d8ef5bd507670f43cd8eb096011361d1ff3729aa"
+        },
+        {
+          "contains": "func TestExactAttentionCaptureRejectsModifiedScorePolicies(",
+          "path": "internal/inference/attention_capture_probe_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:00fe9df390b7a7d0525e7d3712fb696b529b66490422dfd9bcbec05e32cf66a1"
+        }
+      ],
+      "id": "exact-attention-workbench",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestAttentionWeightsHostMath$' -count=1 -v",
+      "status": "implemented",
+      "summary": "The embedded workbench replays bounded plain-causal attention on host and refuses compiled score policies it cannot reproduce exactly."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (h *Handler) browseDatasets(",
+          "path": "internal/server/browse_datasets.go",
+          "role": "source",
+          "identity": "file:sha256:c3f3cb5b115c0f9e4b7f0e5a928f4673743099bdb5617c6fd277ee0dc3d70783"
+        },
+        {
+          "contains": "func TestBrowseDatasetsReadsManifest(",
+          "path": "internal/server/browse_datasets_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:d221dd41d790f8435b033f1cac533ed33fe8fb476bdac92ba4f87561fcb4b196"
+        }
+      ],
+      "id": "bounded-dataset-browser",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestBrowseDatasetsReadsManifest$' -count=1 -v",
+      "status": "implemented",
+      "summary": "The authenticated GUI reads a bounded dataset registry manifest without dataset mutation or payload access."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (h *Handler) browseRuns(",
+          "path": "internal/server/browse_runs.go",
+          "role": "source",
+          "identity": "file:sha256:3c70b9f37e41434b2a382e4a33511dbb0fd844dc3b7fb062aa6ddb78b7048eba"
+        },
+        {
+          "contains": "func TestBrowseRunsReadsRepoDBRecords(",
+          "path": "internal/server/browse_runs_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:efb38882338ca18a945a390531e64e6f50496e62363f440ddcafc7d465ae6b28"
+        }
+      ],
+      "id": "repodb-run-browser",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestBrowseRunsReadsRepoDBRecords$' -count=1 -v",
+      "status": "implemented",
+      "summary": "The authenticated GUI pages bounded read-only RepoDB run records through the canonical run decoder."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func LoadGenerator(",
+          "path": "internal/sensenovarecipe/runtime_cuda_windows.go",
+          "role": "source",
+          "identity": "file:sha256:06fe49ba629e837a5ab8106e211e34c537e88dfa64a9c5559e2aa9b1f019919e"
+        },
+        {
+          "contains": "case modelrecipe.ModuleRoutedImagePrepare:",
+          "path": "cmd/recipe/image_cuda_windows.go",
+          "role": "source",
+          "identity": "file:sha256:c19b7fdcdc9bf47fb447e7f8690b0287a1c813df259649f3eceebd8a2a3dcc46"
+        },
+        {
+          "contains": "func TestSenseNovaProductionImageGeneration(",
+          "path": "internal/sensenovarecipe/runtime_cuda_windows_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:a99c9b2d55f629f00057b657e19f060f9453664effb1bc1c6d8d4c28d08888cd"
+        }
+      ],
+      "id": "sensenova-production-image-oracle",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaProductionImageGeneration$' -count=1 -v",
+      "artifact_identity": "sha256:f719811ee14aae6b4d3742c780f0d93f215c061f4c5928298ae7d3ecd2e4807e+7a20dee9983268c4598ac9f6c04a3afd377e3a39ec6a5a12f87b537637dfc5c9+f9b7a9b925fcf3b104349713ced8415a59aa1b001f192b55f483054899dc994f",
+      "status": "implemented",
+      "summary": "SenseNova text requests execute through compiled routed-image recipe modules, retained CUDA generation, and fingerprinted PNG publication."
     }
   ],
   "cuda": {

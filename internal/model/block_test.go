@@ -163,7 +163,7 @@ func TestBuildGemma4BlockHonorsAppendCacheWrite(t *testing.T) {
 	pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(2, 1, uint64(sourceCapacity)))
 	pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(2, 1, uint64(sourceCapacity)))
 	// Layer 1 is a full (non-sliding) KV-owning layer.
-	plan := spec.PlanLayer(1, false)
+	plan := bindFixtureSpec(spec).PlanLayer(1, false)
 	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: []uint32{activeTokens},

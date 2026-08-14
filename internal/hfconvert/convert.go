@@ -70,15 +70,17 @@ var archProfiles = map[string]archProfile{
 
 // Options: one HF checkpoint export.
 type Options struct {
-	Directory  string
-	OutputPath string
-	Name       string
+	Directory     string
+	OutputPath    string
+	ProjectorPath string
+	Name          string
 }
 
 type Report struct {
-	Tensors     int
-	VocabSize   int
-	OutputBytes int64
+	Tensors          int
+	ProjectorTensors int
+	VocabSize        int
+	OutputBytes      int64
 }
 
 func Convert(options Options) (Report, error) {
@@ -86,8 +88,8 @@ func Convert(options Options) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	if strings.TrimSpace(options.OutputPath) == "" {
-		return Report{}, errors.New("HF converter: output path is required")
+	if strings.TrimSpace(options.OutputPath) == "" && strings.TrimSpace(options.ProjectorPath) == "" {
+		return Report{}, errors.New("HF converter: model or projector output is required")
 	}
 	// Shard discovery (single file or index) is OpenSource's contract.
 	config, err := readConfig(directory)
@@ -96,6 +98,9 @@ func Convert(options Options) (Report, error) {
 	}
 	if config.ModelType == "qwen3_5" {
 		return convertQwen35(directory, options)
+	}
+	if strings.TrimSpace(options.ProjectorPath) != "" {
+		return Report{}, fmt.Errorf("HF converter: projector output is unsupported for %q", config.ModelType)
 	}
 	profile, ok := archProfiles[config.ModelType]
 	if !ok {

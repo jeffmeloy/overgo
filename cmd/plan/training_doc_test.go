@@ -24,8 +24,11 @@ func TestTrainingPlanMatchesImplementation(t *testing.T) {
 	doc := read("docs/training_plan.md")
 	normalized := strings.Join(strings.Fields(doc), " ")
 	for _, fact := range []string{
-		"Device backward and device Newton–Schulz are implemented",
-		"`TrainingRunPlan` and `TrainingProgram` are design contracts, not implemented Go types",
+		"dense host and CUDA forward, loss, backward and Muon matrix updates",
+		"compiled scratch construction/program authority",
+		"scratch construction and program types are implemented",
+		"`ScratchConstruction`",
+		"Adaptive_new is an offline oracle, not a runtime dependency",
 		"`cmd/train` selects the resident dense device loop",
 		"production checkpoints are not atomic complete-state resumes",
 		"compiled multimodal training authority is not implemented",

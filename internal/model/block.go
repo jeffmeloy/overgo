@@ -8,11 +8,6 @@ import (
 	"overgo/internal/tensor"
 )
 
-const (
-	rwkvHeadNormEpsilon = 64e-5
-	rwkvKeyNormEpsilon  = 1e-12
-)
-
 // LayerGraphWeights: graph inputs for one dense decoder block
 type LayerGraphWeights struct {
 	AttentionNorm               *tensor.Tensor
@@ -232,10 +227,7 @@ type DenseBlockResult struct {
 	Value     *tensor.Tensor
 	Auxiliary *tensor.Tensor
 	States    CacheStates[*tensor.Tensor]
-	// Query and AttentionScale expose the attention op's inputs for read-only
-	// analysis (the attention workbench recomputes softmax(scale·Q·Kᵀ) on the
-	// host). Query is the scaled per-head query passed to the attention op; it is
-	// set only by the dense-causal build. Nil elsewhere.
+	// Optional exact-attention replay inputs.
 	Query          *tensor.Tensor
 	AttentionScale float32
 }

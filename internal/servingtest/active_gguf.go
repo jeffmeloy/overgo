@@ -63,11 +63,7 @@ func ResolveActiveGGUFWithPolicy(
 		_ = file.Close()
 		return modelrecipe.LoadedProgram{}, err
 	}
-	profile, ok := model.LookupArchitecture(spec.Architecture)
-	if !ok {
-		_ = file.Close()
-		return modelrecipe.LoadedProgram{}, errors.New("serving test: architecture profile is unavailable")
-	}
+	profile := spec.Profile()
 	profileDocument, err := modelrecipe.NewProfileDocument(profile)
 	if err != nil {
 		_ = file.Close()

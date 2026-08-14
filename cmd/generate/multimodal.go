@@ -22,8 +22,6 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/media"
 	"overgo/internal/projector"
-	"overgo/internal/tensor"
-	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
 
@@ -51,7 +49,7 @@ func imageProjectedPrompt(
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode image: %w", err)
 	}
-	return projectedInputsForPrompt(runner, prompt)
+	return inference.ProjectedInputsForPrompt(runner, prompt)
 }
 
 func audioProjectedPrompt(
@@ -89,7 +87,7 @@ func audioProjectedPrompt(
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode audio: %w", err)
 	}
-	return projectedInputsForPrompt(runner, prompt)
+	return inference.ProjectedInputsForPrompt(runner, prompt)
 }
 
 func videoProjectedPrompt(
@@ -134,7 +132,7 @@ func videoProjectedPrompt(
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode video: %w", err)
 	}
-	return projectedInputsForPrompt(runner, prompt)
+	return inference.ProjectedInputsForPrompt(runner, prompt)
 }
 
 func decodeVideoFile(ctx context.Context, path, configuredFFmpeg string, fps float64, maxFrames int) ([]image.Image, error) {
@@ -215,68 +213,4 @@ func resolveFFmpeg(configured string) (string, error) {
 		}
 	}
 	return "", errors.New("FFmpeg is unavailable; set -ffmpeg or OVERGO_FFMPEG")
-}
-
-func projectedInputsForPrompt(
-	runner *inference.Runner,
-	prompt projector.MultimodalPrompt,
-) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	if prompt.EmbeddingWidth != int(runner.Spec().EmbeddingLength) {
-		return nil, inference.ProjectedInputs{}, fmt.Errorf(
-			"generate: projector width %d differs from model width %d",
-			prompt.EmbeddingWidth, runner.Spec().EmbeddingLength,
-		)
-	}
-	imageTokens := len(prompt.EmbeddingTokenIndices)
-	if len(prompt.Embeddings) != imageTokens*prompt.EmbeddingWidth {
-		return nil, inference.ProjectedInputs{}, errors.New("generate: projector returned invalid embedding indices")
-	}
-	overrides := make([]inference.EmbeddingOverride, imageTokens)
-	for index := range overrides {
-		start := index * prompt.EmbeddingWidth
-		overrides[index] = inference.EmbeddingOverride{
-			TokenIndex: prompt.EmbeddingTokenIndices[index],
-			Embedding:  prompt.Embeddings[start : start+prompt.EmbeddingWidth],
-		}
-	}
-	projected := inference.ProjectedInputs{EmbeddingOverrides: overrides}
-	projected.DeepstackEmbeddings = make([]reference.Value, len(prompt.DeepstackEmbeddings))
-	for streamIndex, stream := range prompt.DeepstackEmbeddings {
-		if len(stream) != imageTokens*prompt.EmbeddingWidth {
-			return nil, inference.ProjectedInputs{}, fmt.Errorf(
-				"generate: projector deepstack stream %d has invalid length", streamIndex,
-			)
-		}
-		data := make([]float32, len(prompt.TokenIDs)*prompt.EmbeddingWidth)
-		for index, tokenIndex := range prompt.EmbeddingTokenIndices {
-			if uint64(tokenIndex) >= uint64(len(prompt.TokenIDs)) {
-				return nil, inference.ProjectedInputs{}, errors.New("generate: projector embedding index exceeds prompt")
-			}
-			source := stream[index*prompt.EmbeddingWidth : (index+1)*prompt.EmbeddingWidth]
-			copy(data[int(tokenIndex)*prompt.EmbeddingWidth:], source)
-		}
-		projected.DeepstackEmbeddings[streamIndex] = reference.Value{
-			Shape: tensor.MustShape(uint64(prompt.EmbeddingWidth), uint64(len(prompt.TokenIDs))),
-			Data:  data,
-		}
-	}
-	projected.BidirectionalAttentionBlocks = make([]inference.AttentionBlock, len(prompt.AttentionBlocks))
-	for index, block := range prompt.AttentionBlocks {
-		projected.BidirectionalAttentionBlocks[index] = inference.AttentionBlock{
-			Start: block.Start, End: block.End,
-		}
-	}
-	projected.VisualExpertBlocks = make([]inference.AttentionBlock, len(prompt.VisualBlocks))
-	for index, block := range prompt.VisualBlocks {
-		projected.VisualExpertBlocks[index] = inference.AttentionBlock{Start: block.Start, End: block.End}
-	}
-	hasMultiAxis := false
-	for _, axis := range prompt.MultiAxisPositions {
-		hasMultiAxis = hasMultiAxis || len(axis) > 0
-	}
-	if hasMultiAxis {
-		positions := inference.MultiAxisPositions(prompt.MultiAxisPositions)
-		projected.MultiAxisPositions = &positions
-	}
-	return prompt.TokenIDs, projected, nil
 }

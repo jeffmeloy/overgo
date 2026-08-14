@@ -121,12 +121,10 @@ func (r *Runner) forwardAudioTokensLocked(
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	input := runtime.input("audio_tokens.embeddings", embeddings)
-	graphWeights, hostFeeds, deviceFeeds, err := r.sequenceOutputGraphInputs(ctx, runtime.builder)
+	graphWeights, err := model.BindSequenceOutputGraphWeights(r.weights.AudioDecoder, runtime.weight)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	runtime.addHostFeeds(hostFeeds)
-	runtime.addDeviceFeeds(deviceFeeds)
 	output, err := r.program.Model.SequenceOutput().Build(runtime.builder, input, graphWeights)
 	if err != nil {
 		return reference.Value{}, err

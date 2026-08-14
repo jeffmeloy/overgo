@@ -23,6 +23,7 @@ const (
 type cudaScope struct {
 	state       *device.State
 	module      driver.Module
+	moduleOwned bool
 	allocations []driver.DevicePtr
 }
 
@@ -116,6 +117,7 @@ func (s *cudaScope) function(name string) (driver.Function, error) {
 			return 0, err
 		}
 		s.module = module
+		s.moduleOwned = true
 	}
 	return s.state.Driver.ModuleFunction(s.module, name)
 }
@@ -163,7 +165,7 @@ func (s *cudaScope) close() error {
 	for index := len(s.allocations) - 1; index >= 0; index-- {
 		result = errors.Join(result, s.state.Driver.MemFree(s.allocations[index]))
 	}
-	if s.module != 0 {
+	if s.moduleOwned && s.module != 0 {
 		result = errors.Join(result, s.state.Driver.ModuleUnload(s.module))
 	}
 	return result

@@ -104,10 +104,7 @@ func (h *Handler) analyzeModel(response http.ResponseWriter, request *http.Reque
 	writeJSON(response, http.StatusOK, result)
 }
 
-// analysisCapabilities: which analysis tabs the loaded model/build can serve.
-// Logits (the /completion n_probs + entropy lens) is always available; the
-// others depend on generator capability. Attention is a Tier-3 feature not yet
-// wired.
+// analysisCapabilities reports executable analysis surfaces.
 func (h *Handler) analysisCapabilities() analyzeCapabilities {
 	capabilities := analyzeCapabilities{Logits: true}
 	if _, ok := h.generator.(ModelPropertiesAPI); ok {
@@ -118,11 +115,8 @@ func (h *Handler) analysisCapabilities() analyzeCapabilities {
 	}
 	if support, ok := h.generator.(HiddenStateCaptureSupportAPI); ok {
 		capabilities.HiddenStates = support.SupportsHiddenStateCapture()
-		// Attention capture rides the same graph-capture mechanism (the layer
-		// capture flag), so it is available exactly when hidden-state capture is
-		// and the generator exposes the attention extractor.
-		if _, hasAttention := h.generator.(AttentionCaptureAPI); hasAttention {
-			capabilities.Attention = capabilities.HiddenStates
+		if attention, ok := h.generator.(AttentionCaptureAPI); ok {
+			capabilities.Attention = len(attention.AttentionCaptureLayers()) > 0
 		}
 	}
 	return capabilities

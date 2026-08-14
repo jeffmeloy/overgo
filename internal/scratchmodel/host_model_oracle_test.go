@@ -3,6 +3,7 @@ package scratchmodel
 import (
 	"errors"
 	"math"
+	"math/rand"
 	"slices"
 	"sort"
 	"strconv"
@@ -46,22 +47,43 @@ func (c Construction) Probe(documents []string) (HostProbe, error) {
 }
 
 func (c Construction) hostState() hostState {
+	flat := c.oracleWeights()
 	state := make(hostState, len(c.parameters))
 	for _, parameter := range c.parameters {
-		flat, ok := c.weightView(parameter.Name)
+		binding, ok := c.bindings[parameter.Name]
 		if !ok {
 			panic("scratch oracle: parameter binding absent")
 		}
+		values := flat[binding.start:binding.end]
 		matrix := make([][]*value, parameter.Rows)
 		for row := range parameter.Rows {
 			matrix[row] = make([]*value, parameter.Cols)
 			for column := range parameter.Cols {
-				matrix[row][column] = &value{data: flat[row*parameter.Cols+column]}
+				matrix[row][column] = &value{data: values[row*parameter.Cols+column]}
 			}
 		}
 		state[parameter.Name] = matrix
 	}
 	return state
+}
+
+func (c Construction) oracleWeights() []float64 {
+	ordered := slices.Clone(c.parameters)
+	sort.Slice(ordered, func(left, right int) bool {
+		return c.bindings[ordered[left].Name].start < c.bindings[ordered[right].Name].start
+	})
+	rng := rand.New(rand.NewSource(c.seed))
+	weights := make([]float64, len(c.weights))
+	for _, parameter := range ordered {
+		binding := c.bindings[parameter.Name]
+		if parameter.Initializer != InitializerUniform {
+			continue
+		}
+		for index := binding.start; index < binding.end; index++ {
+			weights[index] = (rng.Float64()*2 - 1) * c.config.InitStd
+		}
+	}
+	return weights
 }
 
 func flattenHostState(state hostState) []HostGroup {

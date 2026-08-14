@@ -3,6 +3,7 @@ package scratchmodel
 import (
 	"errors"
 	"math"
+	"slices"
 	"strconv"
 
 	"overgo/internal/hostmath"
@@ -20,9 +21,8 @@ func (c Construction) TrainShared(totalSteps int) (TrainingResult, error) {
 	if totalSteps <= 0 || len(c.split.Train) == 0 || len(c.split.Validation) == 0 {
 		return TrainingResult{}, errors.New("scratch model: invalid shared training run")
 	}
-	weights := make([]float32, len(c.weights))
-	for index, value := range c.weights {
-		weights[index] = float32(value)
+	weights := slices.Clone(c.weights)
+	for index := range weights {
 		if math.IsNaN(float64(weights[index])) || math.IsInf(float64(weights[index]), 0) {
 			return TrainingResult{}, errors.New("scratch model: non-finite initialized weight")
 		}

@@ -81,8 +81,9 @@ type Construction struct {
 	config     Config
 	split      Split
 	parameters []Parameter
-	weights    []float64
+	weights    []float32
 	bindings   map[string]parameterBinding
+	seed       int64
 	authority  trainingprogram.ScratchConstruction
 	optimizer  optimizer.Plan
 	program    trainingprogram.TrainingProgram
@@ -191,7 +192,7 @@ func Compile(facts CorpusFacts) (Construction, error) {
 	}
 	return Construction{
 		id: modelID, dataset: datasetID, splitID: splitID, config: cloneConfig(config),
-		split: cloneSplit(split), parameters: slices.Clone(parameters), weights: weights, bindings: bindings,
+		split: cloneSplit(split), parameters: slices.Clone(parameters), weights: weights, bindings: bindings, seed: facts.Seed,
 		authority: authority, optimizer: optimizerPlan, program: program,
 	}, nil
 }
@@ -206,12 +207,12 @@ func (c Construction) Authority() trainingprogram.ScratchConstruction { return c
 func (c Construction) OptimizerPlan() optimizer.Plan                  { return c.optimizer }
 func (c Construction) Program() trainingprogram.TrainingProgram       { return c.program }
 
-func (c Construction) Weights(name string) ([]float64, bool) {
+func (c Construction) Weights(name string) ([]float32, bool) {
 	values, ok := c.weightView(name)
 	return slices.Clone(values), ok
 }
 
-func (c Construction) weightView(name string) ([]float64, bool) {
+func (c Construction) weightView(name string) ([]float32, bool) {
 	binding, ok := c.bindings[name]
 	if !ok || binding.start < 0 || binding.start > binding.end || binding.end > len(c.weights) {
 		return nil, false
@@ -338,25 +339,27 @@ type parameterShape struct {
 	digest      string
 }
 
-func initialize(config Config, seed int64) ([]float64, map[string]parameterBinding, []Parameter) {
+func initialize(config Config, seed int64) ([]float32, map[string]parameterBinding, []Parameter) {
 	rng := rand.New(rand.NewSource(seed))
 	parameterCount := 2*config.VocabSize*config.Embedding + config.BlockSize*config.Embedding +
 		config.BlockSize + config.LayerCount*config.HeadCount +
 		config.LayerCount*(4*config.Embedding*config.Embedding+2*config.MLPWidth*config.Embedding)
-	weights := make([]float64, 0, parameterCount)
+	weights := make([]float32, 0, parameterCount)
 	bindings := make(map[string]parameterBinding, 5+4*config.LayerCount)
 	shapes := make([]parameterShape, 0, 5+4*config.LayerCount)
 	add := func(name, role string, rows, cols int, initializer Initializer) {
-		values := make([]float64, rows*cols)
+		values := make([]float32, rows*cols)
+		digestValues := make([]float64, len(values))
 		if initializer == InitializerUniform {
 			for index := range values {
-				values[index] = (rng.Float64()*2 - 1) * config.InitStd
+				digestValues[index] = (rng.Float64()*2 - 1) * config.InitStd
+				values[index] = float32(digestValues[index])
 			}
 		}
 		start := len(weights)
 		weights = append(weights, values...)
 		bindings[name] = parameterBinding{start: start, end: len(weights)}
-		shapes = append(shapes, parameterShape{name, role, rows, cols, initializer, digestFloats(values)})
+		shapes = append(shapes, parameterShape{name, role, rows, cols, initializer, digestFloats(digestValues)})
 	}
 	add("wte", "token-embedding", config.VocabSize, config.Embedding, InitializerUniform)
 	add("lm_head", "output-projection", config.VocabSize, config.Embedding, InitializerUniform)

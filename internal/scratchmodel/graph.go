@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -125,11 +126,7 @@ func (g ForwardGraph) Feeds(c Construction, slab []float32) (map[*tensor.Tensor]
 }
 
 func (c Construction) initialF32() []float32 {
-	result := make([]float32, len(c.weights))
-	for index, value := range c.weights {
-		result[index] = float32(value)
-	}
-	return result
+	return slices.Clone(c.weights)
 }
 
 func causalWindowMask(positions, window int) []float32 {

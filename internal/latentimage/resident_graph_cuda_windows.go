@@ -75,24 +75,9 @@ type residentWeightSlot struct {
 type residentGraph struct {
 	compiled *executor.CompiledGraph
 	inputs   *executor.DeviceInputs
+	dynamic  []executor.InputSlot
 	weights  []int
 	bytes    uint64
-}
-
-type dynamicDeviceInput struct {
-	slot    executor.InputSlot
-	pointer driver.DevicePtr
-}
-
-func compileDynamicDeviceInput(graph *residentGraph, node *tensor.Tensor) (dynamicDeviceInput, error) {
-	if graph == nil || graph.compiled == nil {
-		return dynamicDeviceInput{}, errors.New("resident graph: compiled graph is unavailable")
-	}
-	slot, ok := graph.compiled.InputSlot(node)
-	if !ok {
-		return dynamicDeviceInput{}, errors.New("resident graph: dynamic input is not compiled")
-	}
-	return dynamicDeviceInput{slot: slot}, nil
 }
 
 func newResidentRuntime(ordinal int) (*residentRuntime, error) {
@@ -114,6 +99,7 @@ func (r *residentRuntime) compile(
 	ctx context.Context,
 	label, sourcePath string,
 	inputs map[string]*tensor.Tensor,
+	dynamic []*tensor.Tensor,
 	outputs ...*tensor.Tensor,
 ) (*residentGraph, error) {
 	if r == nil || r.worker == nil || r.exec == nil {
@@ -122,7 +108,7 @@ func (r *residentRuntime) compile(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	graph, err := compileResidentGraph(label, outputs)
+	graph, err := compileResidentGraph(label, dynamic, outputs)
 	if err != nil || len(inputs) == 0 {
 		return graph, err
 	}
@@ -153,12 +139,13 @@ func (r *residentRuntime) compileStatic(
 	ctx context.Context,
 	label string,
 	inputs map[*tensor.Tensor][]float32,
+	dynamic []*tensor.Tensor,
 	outputs ...*tensor.Tensor,
 ) (*residentGraph, error) {
 	if r == nil || r.worker == nil || r.exec == nil {
 		return nil, errors.New("resident graph: runtime is unavailable")
 	}
-	graph, err := compileResidentGraph(label, outputs)
+	graph, err := compileResidentGraph(label, dynamic, outputs)
 	if err != nil {
 		return nil, err
 	}
@@ -170,12 +157,23 @@ func (r *residentRuntime) compileStatic(
 	return graph, nil
 }
 
-func compileResidentGraph(label string, outputs []*tensor.Tensor) (*residentGraph, error) {
+func compileResidentGraph(label string, dynamic, outputs []*tensor.Tensor) (*residentGraph, error) {
 	compiled, err := executor.Compile(outputs...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: compile: %w", label, err)
 	}
-	return &residentGraph{compiled: compiled, inputs: compiled.NewDeviceInputs()}, nil
+	graph := &residentGraph{
+		compiled: compiled, inputs: compiled.NewDeviceInputs(),
+		dynamic: make([]executor.InputSlot, len(dynamic)),
+	}
+	for index, input := range dynamic {
+		slot, ok := compiled.InputSlot(input)
+		if !ok {
+			return nil, fmt.Errorf("%s: dynamic input is not compiled", label)
+		}
+		graph.dynamic[index] = slot
+	}
+	return graph, nil
 }
 
 func (r *residentRuntime) bindStatic(
@@ -201,14 +199,8 @@ func (r *residentRuntime) bind(
 	node *tensor.Tensor,
 	payload func() ([]byte, error),
 ) error {
-	if r.weightIndexes == nil {
-		return errors.New("resident graph: weight ownership is sealed")
-	}
-	if graph == nil || graph.compiled == nil || graph.inputs == nil {
-		return errors.New("resident graph: static input graph is unavailable")
-	}
 	slot, ok := graph.compiled.InputSlot(node)
-	if !ok || graph.inputs.Pointers[slot] != 0 {
+	if r.weightIndexes == nil || !ok || graph.inputs.Pointers[slot] != 0 {
 		return errors.New("resident graph: static input is invalid")
 	}
 	elements, err := node.Shape.Elements()
@@ -247,9 +239,6 @@ func (r *residentRuntime) bind(
 		r.weightBytes += bytes
 	} else {
 		pointer = r.weightSlots[slotIndex].pointer
-	}
-	if pointer == 0 {
-		return errors.New("resident graph: static input is invalid")
 	}
 	graph.inputs.Pointers[slot] = pointer
 	graph.weights = append(graph.weights, slotIndex)
@@ -313,12 +302,12 @@ func (r *residentRuntime) executeWithDevices(
 	ctx context.Context,
 	graph *residentGraph,
 	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceInputs []dynamicDeviceInput,
+	devicePointers []driver.DevicePtr,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	if err := bindDynamicDeviceInputs(graph, deviceInputs); err != nil {
+	if err := graph.bindDynamic(devicePointers); err != nil {
 		return nil, err
 	}
-	defer clearDynamicDeviceInputs(graph, deviceInputs)
+	defer graph.clearDynamic(len(devicePointers))
 	return r.exec.ExecuteCompiledWithDeviceInputs(ctx, graph.compiled, hostFeeds, graph.inputs)
 }
 
@@ -326,42 +315,33 @@ func (r *residentRuntime) retain(
 	ctx context.Context,
 	graph *residentGraph,
 	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceInputs []dynamicDeviceInput,
+	devicePointers []driver.DevicePtr,
 ) (*executor.RetainedOutputs, error) {
-	if err := bindDynamicDeviceInputs(graph, deviceInputs); err != nil {
+	if err := graph.bindDynamic(devicePointers); err != nil {
 		return nil, err
 	}
-	defer clearDynamicDeviceInputs(graph, deviceInputs)
+	defer graph.clearDynamic(len(devicePointers))
 	return r.exec.ExecuteRetainedCompiledWithDeviceInputs(ctx, graph.compiled, hostFeeds, graph.inputs, nil)
 }
 
-func bindDynamicDeviceInputs(
-	graph *residentGraph,
-	dynamic []dynamicDeviceInput,
-) error {
-	if graph == nil || graph.compiled == nil || graph.inputs == nil {
-		return errors.New("resident graph: execution is unavailable")
+func (g *residentGraph) bindDynamic(pointers []driver.DevicePtr) error {
+	if g == nil || g.inputs == nil || len(pointers) != len(g.dynamic) {
+		return errors.New("resident graph: dynamic inputs do not match compiled slots")
 	}
-	for index, input := range dynamic {
-		if graph.inputs.Pointers[input.slot] != 0 {
-			clearDynamicDeviceInputs(graph, dynamic[:index])
-			return errors.New("resident graph: dynamic device input replaces a weight")
+	for index, pointer := range pointers {
+		slot := g.dynamic[index]
+		if pointer == 0 || g.inputs.Pointers[slot] != 0 {
+			g.clearDynamic(index)
+			return errors.New("resident graph: dynamic input is invalid")
 		}
-		if input.pointer == 0 {
-			clearDynamicDeviceInputs(graph, dynamic[:index])
-			return errors.New("resident graph: dynamic device input is empty")
-		}
-		graph.inputs.Pointers[input.slot] = input.pointer
+		g.inputs.Pointers[slot] = pointer
 	}
 	return nil
 }
 
-func clearDynamicDeviceInputs(graph *residentGraph, dynamic []dynamicDeviceInput) {
-	if graph == nil || graph.inputs == nil {
-		return
-	}
-	for _, input := range dynamic {
-		graph.inputs.Pointers[input.slot] = 0
+func (g *residentGraph) clearDynamic(count int) {
+	for index := range min(count, len(g.dynamic)) {
+		g.inputs.Pointers[g.dynamic[index]] = 0
 	}
 }
 

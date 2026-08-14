@@ -557,6 +557,13 @@ type executionResult struct {
 	leases []deviceBufferLease
 }
 
+func hostResult(result *executionResult, err error) (map[*tensor.Tensor]reference.Value, error) {
+	if err != nil {
+		return nil, err
+	}
+	return result.host, nil
+}
+
 // RetainedTargets: graph-indexed stable output destinations.
 type RetainedTargets struct {
 	compiled *CompiledGraph
@@ -577,10 +584,10 @@ func (c *CompiledGraph) InputSlot(input *tensor.Tensor) (InputSlot, bool) {
 		return 0, false
 	}
 	index, ok := c.orderIndexes[input]
-	if !ok || c.nodes[index].inputSlot == 0 {
+	if !ok || c.nodes[index].operandOffset >= 0 {
 		return 0, false
 	}
-	return InputSlot(c.nodes[index].inputSlot - 1), true
+	return InputSlot(-c.nodes[index].operandOffset - 1), true
 }
 
 func (c *CompiledGraph) NewDeviceInputs() *DeviceInputs {
@@ -794,7 +801,6 @@ type compiledNode struct {
 	view          tensor.StorageView
 	aliases       bool
 	skipped       bool
-	inputSlot     uint32
 }
 
 type compiledFusionKind uint8
@@ -1246,10 +1252,15 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 			return nil, viewErr
 		}
 		_, skipped := compiled.skipped[node]
-		offset := len(compiled.operandSlots)
-		compiled.operandSlots = append(compiled.operandSlots, index)
-		for _, input := range node.Inputs {
-			compiled.operandSlots = append(compiled.operandSlots, compiled.orderIndexes[input])
+		offset := -int(compiled.inputCount) - 1
+		if node.Op != tensor.OpInput {
+			offset = len(compiled.operandSlots)
+			compiled.operandSlots = append(compiled.operandSlots, index)
+			for _, input := range node.Inputs {
+				compiled.operandSlots = append(compiled.operandSlots, compiled.orderIndexes[input])
+			}
+		} else {
+			compiled.inputCount++
 		}
 		fusion, fusionErr := compileFusion(compiled, node)
 		if fusionErr != nil {
@@ -1258,10 +1269,6 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		frame := compiledNode{
 			operandOffset: offset, fusion: fusion,
 			view: view, aliases: aliases, skipped: skipped,
-		}
-		if node.Op == tensor.OpInput {
-			compiled.inputCount++
-			frame.inputSlot = compiled.inputCount
 		}
 		compiled.nodes[index] = frame
 		_, elided := compiled.elided[node]
@@ -1340,11 +1347,7 @@ func (e *Executor) ExecuteCompiled(
 	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	result, err := e.runCompiled(ctx, compiled, feeds, nil, nil, nil, nil, false)
-	if err != nil {
-		return nil, err
-	}
-	return result.host, nil
+	return hostResult(e.runCompiled(ctx, compiled, feeds, nil, nil, nil, nil, false))
 }
 
 // ExecuteWithDeviceFeeds: evaluates graph with selected F32 input nodes
@@ -1369,11 +1372,7 @@ func (e *Executor) ExecuteCompiledWithDeviceFeeds(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	result, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, nil, nil, nil, false)
-	if err != nil {
-		return nil, err
-	}
-	return result.host, nil
+	return hostResult(e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, nil, nil, nil, false))
 }
 
 // ExecuteCompiledWithDeviceInputs: compiled graph plus indexed resident inputs.
@@ -1383,11 +1382,7 @@ func (e *Executor) ExecuteCompiledWithDeviceInputs(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceInputs *DeviceInputs,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	result, err := e.runCompiled(ctx, compiled, hostFeeds, nil, deviceInputs, nil, nil, false)
-	if err != nil {
-		return nil, err
-	}
-	return result.host, nil
+	return hostResult(e.runCompiled(ctx, compiled, hostFeeds, nil, deviceInputs, nil, nil, false))
 }
 
 // ExecuteRetainedWithDeviceFeeds: evaluates graph but leaves each requested
@@ -1797,8 +1792,8 @@ func execute(
 			continue
 		}
 		pointer, deviceFed := driver.DevicePtr(0), false
-		if deviceInputs != nil && frame.inputSlot != 0 && deviceInputs.Pointers[frame.inputSlot-1] != 0 {
-			pointer, deviceFed = deviceInputs.Pointers[frame.inputSlot-1], true
+		if inputSlot := -frame.operandOffset - 1; deviceInputs != nil && deviceInputs.Pointers[inputSlot] != 0 {
+			pointer, deviceFed = deviceInputs.Pointers[inputSlot], true
 		} else if deviceFeeds != nil {
 			pointer, deviceFed = deviceFeeds[node]
 		}

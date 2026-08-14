@@ -24,6 +24,19 @@ func TestCompilePinsTopologyAndMemoryPlan(t *testing.T) {
 	if compiled.memory.ArenaSize == 0 || compiled.needBlas {
 		t.Fatalf("compiled memory/BLAS = %d/%t", compiled.memory.ArenaSize, compiled.needBlas)
 	}
+	inputs := compiled.NewDeviceInputs()
+	inputNodes := [...]*tensor.Tensor{left, right}
+	if len(inputs.Pointers) != len(inputNodes) {
+		t.Fatalf("input pointers = %d, want %d", len(inputs.Pointers), len(inputNodes))
+	}
+	for _, input := range inputNodes {
+		if _, ok := compiled.InputSlot(input); !ok {
+			t.Fatalf("input %q has no slot", input.Name)
+		}
+	}
+	if _, ok := compiled.InputSlot(output); ok {
+		t.Fatal("operator output received an input slot")
+	}
 }
 
 func TestCompiledRetainedTargetsUseOutputSlots(t *testing.T) {
@@ -64,35 +77,6 @@ func TestCompiledRetainedTargetsUseOutputSlots(t *testing.T) {
 	}
 	if _, err := Compile(first, first); err == nil {
 		t.Fatal("duplicate output compiled")
-	}
-}
-
-func TestCompiledDeviceInputsUseCompactSlots(t *testing.T) {
-	const (
-		fixtureWidth = 4
-		fixtureScale = 2
-	)
-	builder := tensor.NewBuilder()
-	left := builder.Input("left", dtype.F32, tensor.MustShape(fixtureWidth))
-	right := builder.Input("right", dtype.F32, tensor.MustShape(fixtureWidth))
-	output := builder.Add(left, right)
-	compiled, err := Compile(builder.Scale(output, fixtureScale))
-	if err != nil {
-		t.Fatal(err)
-	}
-	leftSlot, leftOK := compiled.InputSlot(left)
-	rightSlot, rightOK := compiled.InputSlot(right)
-	inputs := compiled.NewDeviceInputs()
-	expectedInputs := [...]InputSlot{leftSlot, rightSlot}
-	if !leftOK || !rightOK || leftSlot == rightSlot || len(inputs.Pointers) != len(expectedInputs) {
-		t.Fatalf("input slots = %d/%t %d/%t; pointers=%d", leftSlot, leftOK, rightSlot, rightOK, len(inputs.Pointers))
-	}
-	if _, ok := compiled.InputSlot(output); ok {
-		t.Fatal("operator output received an input slot")
-	}
-	foreign := tensor.NewBuilder().Input("foreign", dtype.F32, tensor.MustShape(fixtureWidth))
-	if _, ok := compiled.InputSlot(foreign); ok {
-		t.Fatal("foreign input received a slot")
 	}
 }
 

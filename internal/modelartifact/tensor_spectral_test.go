@@ -2,42 +2,21 @@ package modelartifact
 
 import (
 	"bytes"
-	"encoding/binary"
 	"math"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testutil"
 )
 
-func spectralF32(values []float32) []byte {
-	out := make([]byte, len(values)*4)
-	for i, v := range values {
-		binary.LittleEndian.PutUint32(out[i*4:], math.Float32bits(v))
-	}
-	return out
-}
-
-func openSpectralGGUF(t *testing.T, tensors []gguf.TensorData) *gguf.File {
+func openGGUF(t *testing.T, tensors []gguf.TensorData) *gguf.File {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "spectral.gguf")
-	f, err := os.Create(path)
+	file, err := gguf.Open(testutil.TempGGUF(t, "fixture.gguf", nil, tensors))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := gguf.Write(f, nil, tensors, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-	opened, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { opened.Close() })
-	return opened
+	t.Cleanup(func() { file.Close() })
+	return file
 }
 
 func measure(t *testing.T, file *gguf.File, policy MeasurementPolicy) map[string]TensorMeasurement {
@@ -64,10 +43,10 @@ func TestMeasureGGUFComputesEffectiveRank(t *testing.T) {
 	}
 	identity := []float32{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1} // 4x4 -> full rank -> 1
 	bias := []float32{1, 2, 3, 4}                                         // 1-D -> not applicable
-	file := openSpectralGGUF(t, []gguf.TensorData{
-		{Name: "rank1", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(spectralF32(ones))},
-		{Name: "full", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(spectralF32(identity))},
-		{Name: "bias", Shape: []uint64{4}, Type: gguf.DTypeF32, Data: bytes.NewReader(spectralF32(bias))},
+	file := openGGUF(t, []gguf.TensorData{
+		{Name: "rank1", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(ones))},
+		{Name: "full", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(identity))},
+		{Name: "bias", Shape: []uint64{4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(bias))},
 	})
 	got := measure(t, file, MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20, SpectralMaxDim: 8})
 
@@ -87,8 +66,8 @@ func TestMeasureGGUFDefersOversizeSpectral(t *testing.T) {
 	for i := range big {
 		big[i] = float32(i % 7)
 	}
-	file := openSpectralGGUF(t, []gguf.TensorData{
-		{Name: "big", Shape: []uint64{8, 8}, Type: gguf.DTypeF32, Data: bytes.NewReader(spectralF32(big))},
+	file := openGGUF(t, []gguf.TensorData{
+		{Name: "big", Shape: []uint64{8, 8}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(big))},
 	})
 	got := measure(t, file, MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20, SpectralMaxDim: 4})
 	if m := got["big"]; m.SpectralStatus != SpectralDeferred || m.EffectiveRank != 0 {
@@ -98,8 +77,8 @@ func TestMeasureGGUFDefersOversizeSpectral(t *testing.T) {
 
 func TestMeasureGGUFSpectralOffByDefault(t *testing.T) {
 	weight := make([]float32, 16)
-	file := openSpectralGGUF(t, []gguf.TensorData{
-		{Name: "w", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(spectralF32(weight))},
+	file := openGGUF(t, []gguf.TensorData{
+		{Name: "w", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(weight))},
 	})
 	got := measure(t, file, MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20})
 	if m := got["w"]; m.SpectralStatus != "" || m.EffectiveRank != 0 {

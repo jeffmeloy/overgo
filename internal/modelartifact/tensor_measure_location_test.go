@@ -10,24 +10,17 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
+	"overgo/internal/testutil"
 )
 
 func TestMeasureAtLocationGGUF(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "model.gguf")
-	values := make([]byte, 512*4)
-	for i := 0; i < 512; i++ {
-		binary.LittleEndian.PutUint32(values[i*4:], math.Float32bits(float32(i)))
+	values := make([]float32, 512)
+	for i := range values {
+		values[i] = float32(i)
 	}
-	f, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(f, nil, []gguf.TensorData{
-		{Name: "w", Shape: []uint64{512}, Type: gguf.DTypeF32, Data: bytes.NewReader(values)},
-	}, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
+	path := testutil.TempGGUF(t, "model.gguf", nil, []gguf.TensorData{
+		{Name: "w", Shape: []uint64{512}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(values))},
+	})
 	file, err := gguf.Open(path)
 	if err != nil {
 		t.Fatal(err)

@@ -39,6 +39,7 @@ active recipe + resolved artifact facts
 | Host-load tensor-topology probes | 0 | Compiled recipe/model admission owns topology |
 | Device-bind tensor-topology probes | 0 | Compiled recipe/model admission owns topology |
 | Runner graph-binding pass-through helpers | 0 | Runtime owns feeds and placement branch |
+| Inference-owned sequence tensor catalogs | 0 | Model binder consumes compiled catalog |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named production files: none.
@@ -46,7 +47,7 @@ Family-named production files: none.
 ## Ordered Work
 
 1. Remove family identity from the remaining post-resolution parsing/binding files.
-2. Seal sequence-output tensor bindings behind compiled storage schemas.
+2. Consolidate layer and sequence graph-field schemas without per-invocation reflection.
 
 ## Per-Wave Gate
 

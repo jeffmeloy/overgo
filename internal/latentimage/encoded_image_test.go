@@ -24,3 +24,17 @@ func TestEncodePNGStreamsHWC(t *testing.T) {
 		t.Fatalf("pixel=(%d,%d,%d)", r, g, b)
 	}
 }
+
+func TestEncodePNGAcceptsFiniteLowContrast(t *testing.T) {
+	pixels := []float32{0.25, 0.25, 0.25}
+	got, err := encodePNG(pixels, 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Minimum != 0.25 || got.Maximum != 0.25 {
+		t.Fatalf("range=[%g,%g]", got.Minimum, got.Maximum)
+	}
+	if _, err := png.Decode(bytes.NewReader(got.Data)); err != nil {
+		t.Fatal(err)
+	}
+}

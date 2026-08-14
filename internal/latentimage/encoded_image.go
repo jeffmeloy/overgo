@@ -58,9 +58,6 @@ func encodePNG(pixels []float32, height, width int) (EncodedImage, error) {
 		}
 		minimum, maximum = min(minimum, value), max(maximum, value)
 	}
-	if maximum-minimum < 0.1 {
-		return EncodedImage{}, errors.New("latent image: degenerate output")
-	}
 	var encoded bytes.Buffer
 	encoder := png.Encoder{CompressionLevel: png.BestSpeed}
 	if err := encoder.Encode(&encoded, hwcRGB{pixels: pixels, width: width, height: height}); err != nil {

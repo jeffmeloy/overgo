@@ -81,6 +81,26 @@ func LinearBackwardT(worker *device.Worker, x, w, dY []float32, rows, in, outDim
 	return linearBackward(worker, "LinearBackwardT", linearOutputInput, x, w, dY, rows, in, outDim)
 }
 
+// LinearBackwardTResident writes the HF-layout VJP between resident buffers.
+func LinearBackwardTResident(
+	worker *device.Worker,
+	x, weight, dY, dX, dWeight driver.DevicePtr,
+	rows, in, out int,
+) error {
+	if worker == nil || x == 0 || weight == 0 || dY == 0 || dX == 0 || dWeight == 0 || rows <= 0 || in <= 0 || out <= 0 {
+		return fmt.Errorf("LinearBackwardTResident: invalid buffer or geometry")
+	}
+	return withCUDABLAS(worker, func(session *cudaBLAS) error {
+		if err := session.gemm(false, false, rows, out, in, dY, weight, dX); err != nil {
+			return err
+		}
+		if err := session.gemm(true, false, out, rows, in, dY, x, dWeight); err != nil {
+			return err
+		}
+		return session.finish()
+	})
+}
+
 func linearBackward(
 	worker *device.Worker,
 	operator string,

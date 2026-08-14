@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 )
 
@@ -17,6 +18,57 @@ func randSlice(rng *rand.Rand, n int) []float32 {
 		s[i] = float32(rng.NormFloat64())
 	}
 	return s
+}
+
+func TestLinearBackwardTResidentMatchesShared(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	const rows, in, out = 7, 5, 9
+	rng := rand.New(rand.NewSource(41))
+	x, weight, dY := randSlice(rng, rows*in), randSlice(rng, out*in), randSlice(rng, rows*out)
+	wantX, wantWeight, err := LinearBackwardT(worker, x, weight, dY, rows, in, out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pointers []driver.DevicePtr
+	allocate := func(count int, initial []float32) driver.DevicePtr {
+		t.Helper()
+		pointer, err := AllocResidentF32(worker, count, initial)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pointers = append(pointers, pointer)
+		return pointer
+	}
+	defer func() {
+		if err := FreeResident(worker, pointers...); err != nil {
+			t.Error(err)
+		}
+	}()
+	xPtr := allocate(len(x), x)
+	weightPtr := allocate(len(weight), weight)
+	dYPtr := allocate(len(dY), dY)
+	dXPtr := allocate(len(wantX), nil)
+	dWeightPtr := allocate(len(wantWeight), nil)
+	if err := LinearBackwardTResident(worker, xPtr, weightPtr, dYPtr, dXPtr, dWeightPtr, rows, in, out); err != nil {
+		t.Fatal(err)
+	}
+	gotX, gotWeight := make([]float32, len(wantX)), make([]float32, len(wantWeight))
+	if err := ReadResident(worker, dXPtr, ResidentSlice{Data: gotX}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReadResident(worker, dWeightPtr, ResidentSlice{Data: gotWeight}); err != nil {
+		t.Fatal(err)
+	}
+	xDelta, weightDelta := maxAbsDiff(gotX, wantX), maxAbsDiff(gotWeight, wantWeight)
+	t.Logf("resident/shared linear VJP dX=%.3e dW=%.3e", xDelta, weightDelta)
+	if xDelta != 0 || weightDelta != 0 {
+		t.Fatalf("resident linear VJP differs: dX=%.3e dW=%.3e", xDelta, weightDelta)
+	}
 }
 
 // hostLinearLoss returns L = sum(dY ⊙ (X·W)) in fp64 -- the scalar whose

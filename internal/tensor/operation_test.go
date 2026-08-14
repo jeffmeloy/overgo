@@ -8,7 +8,7 @@ import (
 
 func TestOperationCatalogIsDenseAndUnique(t *testing.T) {
 	descriptors := Operations()
-	if len(descriptors) != int(OpCacheAppend)+1 {
+	if len(descriptors) != int(OpCount) {
 		t.Fatalf("descriptor count = %d", len(descriptors))
 	}
 	names := make(map[string]struct{}, len(descriptors))

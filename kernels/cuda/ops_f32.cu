@@ -6262,3 +6262,131 @@ extern "C" __global__ void vae_temporal_cache_update_f32(
     const int src = ti - (prior_frames > 0 ? 1 : 0);
     out[index] = current[(ch * current_frames + src) * spatial + pos];
 }
+
+__device__ __forceinline__ unsigned int mad_value_rank(
+        const float * row,
+        unsigned int width,
+        unsigned int index) {
+    unsigned int rank = 0;
+    const float value = row[index];
+    for (unsigned int other = 0; other < width; ++other) {
+        rank += row[other] < value || (row[other] == value && other < index);
+    }
+    return rank;
+}
+
+__device__ __forceinline__ float mad_raw_weight(unsigned int rank, unsigned int width) {
+    return 2.0f * ((float)rank + 0.5f) / (float)width - 1.0f;
+}
+
+__device__ __forceinline__ unsigned int mad_distance_rank(
+        const float * row,
+        unsigned int width,
+        double location,
+        unsigned int index) {
+    const double distance = fabs((double)row[index] - location);
+    const unsigned int value_rank = mad_value_rank(row, width, index);
+    const bool left = (double)row[index] < location;
+    unsigned int rank = 0;
+    for (unsigned int other = 0; other < width; ++other) {
+        if (other == index) {
+            continue;
+        }
+        const double other_distance = fabs((double)row[other] - location);
+        if (other_distance < distance) {
+            ++rank;
+            continue;
+        }
+        if (other_distance != distance) {
+            continue;
+        }
+        const bool other_left = (double)row[other] < location;
+        const unsigned int other_value_rank = mad_value_rank(row, width, other);
+        if ((other_left && !left) ||
+            (other_left == left && left && other_value_rank > value_rank) ||
+            (other_left == left && !left && other_value_rank < value_rank)) {
+            ++rank;
+        }
+    }
+    return rank;
+}
+
+__device__ __forceinline__ void mad_row_facts(
+        const float * row,
+        unsigned int width,
+        float epsilon,
+        double * location_out,
+        double * inverse_out,
+        double * c_out) {
+    double location = 0.0;
+    for (unsigned int index = 0; index < width; ++index) {
+        const float normalized = mad_raw_weight(mad_value_rank(row, width, index), width) / (float)width;
+        location += (double)row[index] * (double)normalized;
+    }
+    const double two_over_width = 2.0 / (double)width;
+    double scale = 0.0;
+    double c = 0.0;
+    for (unsigned int index = 0; index < width; ++index) {
+        const double distance = fabs((double)row[index] - location);
+        const float raw = mad_raw_weight(mad_distance_rank(row, width, location, index), width);
+        scale += distance * (double)raw;
+        c += (double)raw * two_over_width * ((double)row[index] >= location ? 1.0 : -1.0);
+    }
+    *location_out = location;
+    *inverse_out = 1.0 / (scale * two_over_width + (double)epsilon);
+    *c_out = c;
+}
+
+extern "C" __global__ void mad_norm_f32(
+        const float * input,
+        float * output,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    const unsigned int row_index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row_index >= rows) {
+        return;
+    }
+    const float * row = input + (size_t)row_index * width;
+    float * out = output + (size_t)row_index * width;
+    double location, inverse, c;
+    mad_row_facts(row, width, epsilon, &location, &inverse, &c);
+    for (unsigned int index = 0; index < width; ++index) {
+        out[index] = (float)(((double)row[index] - location) * inverse);
+    }
+}
+
+extern "C" __global__ void mad_norm_backward_f32(
+        const float * incoming,
+        const float * input,
+        const float * output,
+        float * gradient,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    const unsigned int row_index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row_index >= rows) {
+        return;
+    }
+    const float * row = input + (size_t)row_index * width;
+    const float * dy = incoming + (size_t)row_index * width;
+    const float * normalized = output + (size_t)row_index * width;
+    float * dx = gradient + (size_t)row_index * width;
+    double location, inverse, c;
+    mad_row_facts(row, width, epsilon, &location, &inverse, &c);
+    double sum = 0.0;
+    double weighted = 0.0;
+    for (unsigned int index = 0; index < width; ++index) {
+        sum += (double)dy[index];
+        weighted += (double)dy[index] * (double)normalized[index];
+    }
+    const double t1 = inverse * (sum + c * weighted);
+    const double t2 = inverse * weighted;
+    const double two_over_width = 2.0 / (double)width;
+    for (unsigned int index = 0; index < width; ++index) {
+        const float a = mad_raw_weight(mad_value_rank(row, width, index), width) / (float)width;
+        const float raw = mad_raw_weight(mad_distance_rank(row, width, location, index), width);
+        const float b = (float)((double)raw * two_over_width * ((double)row[index] >= location ? 1.0 : -1.0));
+        dx[index] = (float)(inverse * (double)dy[index] - (double)a * t1 - (double)b * t2);
+    }
+}

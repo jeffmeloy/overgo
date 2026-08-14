@@ -395,13 +395,13 @@
           "contains": "func DescribeOperation(",
           "path": "internal/tensor/operation.go",
           "role": "source",
-          "identity": "file:sha256:88526e99641af0a5949a59fd129bd3601ea6ca0f64f468df94131a3e9944edce"
+          "identity": "file:sha256:dca9e9d78f6388a03bc7c47a3d5c2bb7f7838acd60e2e5e0a1feac739611e697"
         },
         {
           "contains": "func TestOperationCatalogIsDenseAndUnique(",
           "path": "internal/tensor/operation_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:82674d99bb9a27b3a64ec88fb8e4abb64c7dc466eb64f21d636965f09ff9a95f"
+          "identity": "evidence:sha256:17aa538899344181d8c22440447775488c1875ddf9ac5e27cca3b70dda3d4d15"
         }
       ],
       "id": "tensor-operation-catalog",

@@ -88,6 +88,8 @@ const (
 	kernelLayerNormF32
 	kernelLayerNormModulateF32
 	kernelLoraMergeF32
+	kernelMadNormBackwardF32
+	kernelMadNormF32
 	kernelMoeF32
 	kernelMoeGroupedF32
 	kernelMulMatBf16AddF32
@@ -262,6 +264,8 @@ var kernelFunctionNames = [...]string{
 	"layer_norm_f32",
 	"layer_norm_modulate_f32",
 	"lora_merge_f32",
+	"mad_norm_backward_f32",
+	"mad_norm_f32",
 	"moe_f32",
 	"moe_grouped_f32",
 	"mul_mat_bf16_add_f32",
@@ -435,6 +439,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	8,
 	10,
+	7,
+	5,
 	30,
 	29,
 	6,

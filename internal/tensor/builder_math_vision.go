@@ -44,6 +44,15 @@ func (b *Builder) RMSNorm(input *Tensor, epsilon float32) *Tensor {
 	return b.unary(OpRMSNorm, input, RMSNormAttributes{Epsilon: epsilon})
 }
 
+// MADNorm applies row-wise rank/MAD normalization.
+func (b *Builder) MADNorm(input *Tensor, epsilon float32) *Tensor {
+	if input == nil || epsilon <= 0 || math.IsNaN(float64(epsilon)) || math.IsInf(float64(epsilon), 0) {
+		b.setError(errors.New("mad norm requires input and positive finite epsilon"))
+		return nil
+	}
+	return b.unary(OpMADNorm, input, MADNormAttributes{Epsilon: epsilon})
+}
+
 // WeightedRMSNorm: applies RMSNorm and learned per-channel weight
 func (b *Builder) WeightedRMSNorm(input, weight *Tensor, epsilon float32) *Tensor {
 	return b.Multiply(b.RMSNorm(input, epsilon), weight)

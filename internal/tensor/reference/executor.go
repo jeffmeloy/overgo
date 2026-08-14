@@ -188,6 +188,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return Value{}, errors.New("invalid RMSNorm attributes")
 		}
 		return rmsNorm(node.Shape, inputs[0], attributes.Epsilon)
+	case tensor.OpMADNorm:
+		attributes, ok := node.Attrs.(tensor.MADNormAttributes)
+		if !ok {
+			return Value{}, errors.New("invalid MADNorm attributes")
+		}
+		return madNorm(node.Shape, inputs[0], attributes.Epsilon)
 	case tensor.OpLayerNorm:
 		attributes, ok := node.Attrs.(tensor.LayerNormAttributes)
 		if !ok {

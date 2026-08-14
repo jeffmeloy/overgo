@@ -138,6 +138,7 @@ var operationDescriptors = [...]OperationDescriptor{
 	{OpTopKPairs, "top_k_pairs", OperationLinear, allExecutionBackends},
 	{OpTopKPartials, "top_k_partials", OperationLinear, allExecutionBackends},
 	{OpCacheAppend, "cache_append", OperationLayout, allExecutionBackends},
+	{OpMADNorm, "mad_norm", OperationElementwise, allExecutionBackends},
 }
 
 // DescribeOperation: typed operation lookup.

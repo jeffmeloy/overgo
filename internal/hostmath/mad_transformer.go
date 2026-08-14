@@ -43,6 +43,27 @@ type madForward struct {
 	probability []float32
 }
 
+// MADNorm applies rank/MAD normalization independently to each row.
+func MADNorm(input []float32, rows, width int, epsilon float64) ([]float32, error) {
+	if rows <= 0 || width <= 0 || len(input) != rows*width || epsilon <= 0 || math.IsNaN(epsilon) || math.IsInf(epsilon, 0) {
+		return nil, errors.New("mad norm: invalid geometry or epsilon")
+	}
+	output, _ := madForwardRows(input, rows, width, epsilon)
+	return output, nil
+}
+
+// MADNormBackward returns the input VJP for rank/MAD normalization.
+func MADNormBackward(incoming, input []float32, rows, width int, epsilon float64) ([]float32, error) {
+	if rows <= 0 || width <= 0 || len(input) != rows*width || epsilon <= 0 || math.IsNaN(epsilon) || math.IsInf(epsilon, 0) {
+		return nil, errors.New("mad norm: invalid geometry or epsilon")
+	}
+	if len(incoming) != len(input) {
+		return nil, errors.New("mad norm: incoming geometry differs")
+	}
+	_, state := madForwardRows(input, rows, width, epsilon)
+	return madBackwardRows(incoming, state, rows, width), nil
+}
+
 // MADTransformerLoss evaluates mean causal cross entropy.
 func MADTransformerLoss(model MADTransformer, tokens []int) (float64, error) {
 	forward, err := madTransformerForward(model, tokens)

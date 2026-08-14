@@ -79,6 +79,8 @@ const (
 	OpTopKPairs
 	OpTopKPartials
 	OpCacheAppend
+	OpMADNorm
+	OpCount
 )
 
 type ScaleAttributes struct {
@@ -91,6 +93,10 @@ type ClampAttributes struct {
 }
 
 type RMSNormAttributes struct {
+	Epsilon float32
+}
+
+type MADNormAttributes struct {
 	Epsilon float32
 }
 

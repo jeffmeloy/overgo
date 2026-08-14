@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"overgo/internal/plan"
+	"overgo/internal/repoanalysis"
 )
 
 const markerPath = "docs/.dispatch_pending"
@@ -142,7 +143,7 @@ func hasDirtyPlannedScope() bool {
 }
 
 func dirtyPlannedScope(status []byte) (bool, error) {
-	paths, err := plan.ParseDirtyStatus(status)
+	paths, err := repoanalysis.ParseDirtyStatus(status)
 	if err != nil {
 		return false, err
 	}

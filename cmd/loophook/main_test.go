@@ -36,7 +36,7 @@ func TestStopDecision(t *testing.T) {
 	}
 }
 
-func TestDirtyPlannedScope(t *testing.T) {
+func TestLoopDirtySnapshot(t *testing.T) {
 	for _, path := range []string{
 		"internal/model/model.go",
 		"internal/model/architecture_profiles.json",

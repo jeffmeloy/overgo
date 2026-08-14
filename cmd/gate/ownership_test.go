@@ -4,7 +4,20 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/repoanalysis"
 )
+
+func TestGateScopeSnapshot(t *testing.T) {
+	dirty := []repoanalysis.DirtyPath{{Path: "new.go", OriginalPath: "old.go", IndexStatus: "R"}, {Path: "other.go", WorktreeStatus: "M"}}
+	visible, unplanned := scopeDirty([]string{"new.go"}, dirty)
+	if !visible["new.go"] || !visible["old.go"] || !visible["other.go"] {
+		t.Fatalf("visible = %v", visible)
+	}
+	if len(unplanned) != 2 || unplanned[0] != "old.go" || unplanned[1] != "other.go" {
+		t.Fatalf("unplanned = %v", unplanned)
+	}
+}
 
 func TestNonGoOwnershipGateScope(t *testing.T) {
 	repo, err := filepath.Abs(filepath.Join("..", ".."))

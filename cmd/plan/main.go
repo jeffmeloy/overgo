@@ -40,6 +40,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/plan"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
@@ -177,7 +178,7 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 	if err != nil {
 		return plan.ContextFacts{}, fmt.Errorf("git status: %w", err)
 	}
-	dirty, err := plan.ParseDirtyStatus(status)
+	dirty, err := repoanalysis.ParseDirtyStatus(status)
 	if err != nil {
 		return plan.ContextFacts{}, err
 	}

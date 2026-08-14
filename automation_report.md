@@ -16,11 +16,10 @@ the shared GPU, integrates branches, and decides promotion. The next automation
 phase should strengthen observation, isolation, independent SQA, and merge
 eligibility without prematurely taking scheduling authority away from the owner.
 
-The principal risk is inconsistent enforcement across surfaces. The plan-bound
-gate is stricter than CI, the loop hook watches only dirty Go files, non-Go assets
-do not receive the same derived test treatment as Go packages, and a successful
-commit can outlive a failed RepoDB gate-record write. These are narrow,
-repairable gaps in an otherwise coherent design.
+The principal remaining risk is governance without independent admission: typed
+developer/SQA identities exist, but target-head review, findings disposition,
+and verdict enforcement do not yet control promotion. Manual worktree/resource
+state also remains largely in the owner's head.
 
 ## Incremental implementation status
 
@@ -137,6 +136,64 @@ Implementation follows Overgo's Go-code doctrine:
 
 The acceptance question for each automation slice is: **what deterministic Go
 result can the next model invocation trust without reconstructing the work?**
+
+## AST-driven structural profile
+
+Overgo should track code structure as a versioned evidence vector, not optimize
+one scalar quality score. A compact `internal/repoanalysis` substrate will own
+baseline/candidate file inventories, worktree overlays, content identities,
+generated/test classification, and lazy parse-once Go ASTs. It is a data plane,
+not a plugin framework: analyzers remain normal typed Go functions with no
+registration system, policy DSL, scheduler, or independent state.
+
+Normalized dirty-state facts move first because plan context, loophook, and gate
+already consume them. The AST snapshot waits until code profiling lands, when
+the new profile and existing `internal/closurescan` become two real consumers;
+closure scanning's old walk/parser is deleted in that slice. The profile is
+deliberately small:
+
+- normalized syntax mass, separated into production and test code;
+- duplicate excess tokens, clone count, longest clone, and cross-package clone
+  mass, with deterministic source spans for every reported cluster;
+- function syntax size and branch-count distributions plus the largest outliers;
+- exported declaration counts and package import-edge counts.
+
+Clone detection will retain operators, types, calls, and selectors while
+canonicalizing local bindings and literal values. A rolling fingerprint over
+normalized syntax will find exact and renamed statement sequences, extend and
+coalesce overlapping matches, and ignore short boilerplate. Canonical generated
+files are excluded; tests are never mixed with production results. Parse errors
+are unavailable evidence rather than zero measurements.
+
+The comparison unit is the candidate versus its merge base, including staged,
+unstaged, and untracked candidate content when used before commit. Files shared
+by both trees are recognized by content identity and analyzed once. One inventory
+walk and one parse per unique blob feed all requested analyzers; deterministic
+parse-count tests make reuse observable. Output is a concise summary plus a
+complete versioned RepoDB document, and changed clone clusters and structural
+outliers are attributed back to candidate spans.
+
+Broader AST checks migrate onto this substrate only when a focused slice deletes
+their old walker or demonstrates a measured wall/allocation improvement. The
+substrate does not accumulate speculative facts for hypothetical analyzers, and
+it gains no persistent cache until repository-scale benchmarks show that the
+in-process content-identity reuse is insufficient.
+
+This profile is a review instrument, not a ratchet:
+
+- there is no composite score, ceiling, growth budget, exception workflow, or
+  suppression ledger;
+- the gate requires honest profile evidence, never a favorable metric direction;
+- independent SQA acknowledges the largest deltas and decides whether they are
+  missing abstractions, intentional parallel structure, or incidental syntax;
+- reduced duplication is not credited when it merely concentrates branches,
+  expands API, weakens tests, or creates a one-consumer abstraction;
+- no shared abstraction is extracted without two real consumers.
+
+The first implementation must be calibrated against small checked-in clone
+fixtures and several known repository examples. If the highest-ranked findings
+are not useful, the detector is deleted rather than surrounded with tuning and
+waiver machinery.
 
 ## Capability inventory
 
@@ -382,52 +439,6 @@ the same build, test, and review system as the runtime.
 
 ## Weaknesses and failure modes
 
-### A1: CI can still pass skipped evidence
-
-The commit gate uses `go test -json` plus `internal/testevidence`; the GitHub test
-and release workflows use plain `go test ./...`. Environment-gated CUDA, real
-artifact, or parity tests can therefore skip while CI remains green. The most
-visible automation surface does not yet enforce the repository's central
-skip-is-not-a-pass rule.
-
-Required direction: give CI explicit hermetic and evidence-required lanes. Parse
-JSON in both, publish a skip/unavailable inventory, and make every claimed tier
-declare which lane must supply non-vacuous evidence.
-
-### A2: Loop orphan detection covers only Go files
-
-`cmd/loophook.hasDirtyGo` asks Git only about `*.go`. A turn may end with
-uncommitted CUDA, shell, workflow, JSON, manifest, recipe, documentation, or web
-asset changes unless a dispatch marker happens to be armed. That is inconsistent
-with the general claim that the loop prevents orphaned work.
-
-Required direction: derive dirty ownership from the current plan's declared path
-scope, with a conservative fallback to all meaningful repository changes. Ignore
-only known generated/transient paths.
-
-### A3: Non-Go changes receive weak derived testing
-
-The gate's test scope begins with changed Go files. A JavaScript, HTML, CUDA,
-recipe, workflow, or policy-only change can skip build and ordinary tests even
-when a Go package owns or embeds that asset. Special cases cover kernels,
-compatibility, and dependency inputs, but there is no general asset-to-owner
-derivation.
-
-Required direction: introduce a small ownership graph derived from `go:embed`,
-kernel manifests, generators, workflow contracts, recipe schemas, and explicit
-artifact relations. Do not build a manually maintained family/path matrix.
-
-### A4: Gate-record persistence is not atomic with the commit
-
-The gate commits first and writes the RepoDB record afterward. If the store write
-fails, the commit stands and the record is merely reported as owed. That is a
-reasonable availability trade during development, but it means RepoDB is not yet
-an exhaustive system of record for commits said to be gated.
-
-Required direction: create a prepared gate intent before commit, finalize it
-afterward, and provide a deterministic reconciliation command. Promotion should
-refuse candidates with an unresolved gate-record debt.
-
 ### A5: Independent SQA is not mechanically represented
 
 Overgo references adversarial SQA but has no candidate/review role model. A
@@ -452,16 +463,6 @@ RepoDB leases. Record `worktree`, `role`, `depends_on`, `conflicts_with`,
 `cpu_threads`, `host_ram_gib`, `vram_gib`, `gpu_exclusive`, and required evidence
 lanes. The initial automation should report conflicts and fit; it should not
 assign work without owner approval.
-
-### A7: Retry-cache identity omits the execution environment
-
-The gate retry key covers repository tree state but not Go version, compiler,
-OS, architecture, environment flags, or relevant device identity. Cached build,
-test, and vet success may be reused after an environment change.
-
-Required direction: bind cache entries to the same normalized environment
-identity used by run records. Retain fast retries only when both tree and
-environment identities match.
 
 ### A8: Statistical guarantees exceed current calibration depth
 
@@ -517,15 +518,12 @@ necessarily the whole manually managed campaign.
 
 ## Prioritized roadmap
 
-### Phase 1: close honesty gaps without changing owner control
+### Phase 1: establish independent development and SQA
 
-1. Make CI use the same structured skip/unavailable classifier as the gate.
-2. Expand loop orphan detection from `*.go` to current-plan scope plus meaningful
-   repository dirt.
-3. Add a gate-record debt/reconciliation mechanism and block promotion on debt.
-4. Bind retry-cache entries to normalized environment identity.
-5. Return typed lane outcomes and make empty smoke coverage non-passing unless a
-   caller explicitly accepts it.
+1. Enforce distinct identities and clean worktrees for protected surfaces.
+2. Freeze evaluators and holdouts before the SQA run.
+3. Require target-head findings disposition, rerun evidence, and an independent
+   verdict while keeping promotion under owner/external authority.
 
 ### Phase 2: make manual orchestration observable
 
@@ -538,15 +536,7 @@ necessarily the whole manually managed campaign.
 
 No automatic assignment or lane termination is required in this phase.
 
-### Phase 3: establish independent development and SQA
-
-1. Define immutable candidate and review records.
-2. Enforce distinct identities and clean worktrees for protected surfaces.
-3. Freeze evaluators and holdouts before the SQA run.
-4. Require findings disposition, rerun evidence, and an independent verdict.
-5. Keep final promotion under owner/external authority.
-
-### Phase 4: calibrate scheduling before delegating it
+### Phase 3: calibrate scheduling before delegating it
 
 1. Record predicted and actual CPU, RAM, VRAM, wall time, and interference.
 2. Measure packing quality, collision rate, abandonment rate, and recovery cost.
@@ -554,7 +544,7 @@ No automatic assignment or lane termination is required in this phase.
 4. Delegate only low-risk scheduling classes whose recommendations demonstrate
    sustained benefit and reliable recovery.
 
-### Phase 5: bounded autonomous operation
+### Phase 4: bounded autonomous operation
 
 Autonomous dispatch is appropriate only after leases, independent SQA, sealed
 promotion evidence, containment stops, rollback, and scheduler calibration are

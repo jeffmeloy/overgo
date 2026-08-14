@@ -35,6 +35,7 @@ import (
 	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
@@ -392,27 +393,43 @@ func (g *gateContext) stepScope() (bool, error) {
 	if len(rogue) > 0 {
 		return false, fmt.Errorf("staged outside -paths (would ship): %s", strings.Join(rogue, ", "))
 	}
-	dirty, err := gitLines(g.repo, "status", "--porcelain")
+	status, err := command(g.repo, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
 		return false, err
 	}
-	for _, line := range dirty {
-		if len(line) < 4 {
-			continue
-		}
-		p := filepath.ToSlash(strings.TrimSpace(line[3:]))
-		if !slices.Contains(g.paths, p) {
-			g.honesty = append(g.honesty, "unplanned dirty (not shipped): "+p)
-		}
+	dirty, err := repoanalysis.ParseDirtyStatus([]byte(status))
+	if err != nil {
+		return false, err
+	}
+	dirtyPaths, unplanned := scopeDirty(g.paths, dirty)
+	for _, path := range unplanned {
+		g.honesty = append(g.honesty, "unplanned dirty (not shipped): "+path)
 	}
 	for _, p := range g.paths {
 		if _, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(p))); err != nil {
-			if deleted, _ := gitLines(g.repo, "status", "--porcelain", "--", p); len(deleted) == 0 {
+			if !dirtyPaths[p] {
 				return false, fmt.Errorf("planned path %s neither exists nor is a tracked deletion", p)
 			}
 		}
 	}
 	return false, nil
+}
+
+func scopeDirty(planned []string, dirty []repoanalysis.DirtyPath) (map[string]bool, []string) {
+	visible := map[string]bool{}
+	var unplanned []string
+	for _, entry := range dirty {
+		for _, path := range []string{entry.Path, entry.OriginalPath} {
+			if path == "" || visible[path] {
+				continue
+			}
+			visible[path] = true
+			if !slices.Contains(planned, path) {
+				unplanned = append(unplanned, path)
+			}
+		}
+	}
+	return visible, unplanned
 }
 
 func (g *gateContext) changedGoFiles() []string {

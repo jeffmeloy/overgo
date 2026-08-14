@@ -14,7 +14,7 @@ import (
 	"overgo/internal/runrecord"
 )
 
-func TestAutomationContextCommandEncoding(t *testing.T) {
+func TestAutomationContextSnapshotEncoding(t *testing.T) {
 	document := plan.Plan{Items: []plan.Item{{
 		ID: "automation", Title: "Automation", Status: "open",
 		Steps: []plan.Step{{ID: "context", Title: "Context", Status: "open", Verify: "go test ./..."}},

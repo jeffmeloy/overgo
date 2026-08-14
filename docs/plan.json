@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "projector-lifecycle",
-          "title": "Open projector artifacts once through context-aware catalog constructors and consolidate duplicated runner lifecycle mechanics",
-          "status": "open",
-          "verify": "go test ./internal/projector ./cmd/generate ./cmd/server -count=1 -v"
-        },
-        {
           "id": "compiled-layer-validation",
           "title": "Move static layer validation and leaf selection into compiled programs; remove test-only public runtime APIs and family fixture wrappers",
           "status": "open",

@@ -41,7 +41,11 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 		t.Fatalf("resolved Qwen3.5 program = %+v", runner.program.Identity)
 	}
 	dense, recurrent := false, false
-	for _, layer := range runner.program.Model.Layers() {
+	for index := range runner.program.Model.LayerCount() {
+		layer, layerErr := runner.program.Model.Layer(index)
+		if layerErr != nil {
+			t.Fatal(layerErr)
+		}
 		dense = dense || !layer.Recurrent
 		recurrent = recurrent || layer.Recurrent
 	}

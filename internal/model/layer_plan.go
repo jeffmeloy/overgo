@@ -636,6 +636,9 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 				offset, layer.Program.Count, len(layer.Program.Instructions),
 			)
 		}
+		if layer.Program != compileLayerProgram(layer, plan.profile) {
+			return fmt.Errorf("model plan draft layer %d operator program is inconsistent", offset)
+		}
 	}
 	if spec.SharedKVLayers > 0 && (!plan.profile.Has(ArchitectureSharedKV) ||
 		spec.SharedKVLayers >= spec.BlockCount) {
@@ -774,9 +777,6 @@ func (p ModelPlan) ProjectedInput() ProjectedInputProgram { return p.input }
 
 // LayerCount: compiled trunk layer count.
 func (p ModelPlan) LayerCount() int { return len(p.layers) }
-
-// Layers: owned trunk layer-program copy.
-func (p ModelPlan) Layers() []LayerPlan { return append([]LayerPlan(nil), p.layers...) }
 
 // DraftLayer: bounds-checked appended draft contract.
 func (p ModelPlan) DraftLayer(offset uint32) (LayerPlan, error) {

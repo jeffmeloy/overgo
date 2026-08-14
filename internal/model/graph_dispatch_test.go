@@ -318,24 +318,6 @@ func TestCompiledBlockDispatchRequiresPlan(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "compiled layer plan is required") {
 		t.Fatalf("unknown error = %v", err)
 	}
-	t5 := Spec{CommonSpec: CommonSpec{Architecture: "t5"}}
-	t5Plan := bindFixtureSpec(t5).PlanLayer(0, false)
-	_, err = executeCompiledLayer(BlockDispatchOptions{Spec: t5, Plan: &t5Plan})
-	if err == nil || !strings.Contains(err.Error(), "explicit encoder state") {
-		t.Fatalf("T5 dispatch error = %v", err)
-	}
-	external := ArchitectureProfile{
-		Name:    "external-encoder-decoder",
-		Forward: ForwardProgram{Operation: ForwardOperationSession, Session: ForwardSessionEncoderDecoder},
-	}
-	externalSpec := Spec{CommonSpec: CommonSpec{Architecture: external.Name}}.withProfile(external)
-	externalPlan := bindFixtureSpec(externalSpec).PlanLayer(0, false)
-	_, err = executeCompiledLayer(BlockDispatchOptions{
-		Spec: externalSpec, Plan: &externalPlan,
-	})
-	if err == nil || !strings.Contains(err.Error(), "explicit encoder state") {
-		t.Fatalf("bound external dispatch error = %v", err)
-	}
 	llama, _ := LookupArchitecture("llama")
 	_, err = executeCompiledLayer(BlockDispatchOptions{
 		Spec: Spec{CommonSpec: CommonSpec{Architecture: llama.Name}}.withProfile(llama),

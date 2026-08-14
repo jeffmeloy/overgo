@@ -138,6 +138,17 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 		!slices.Contains(activation.Event.Evidence, refreshed.Run) {
 		t.Fatalf("refreshed active = (%+v, %v, %v)", activation, active, err)
 	}
+	secondRefresh := publishVerification(t, store, definition.ID, "fixture/activation/refreshed-again")
+	if err := ActivateCapability(
+		ctx, store, definition, secondRefresh, recipe.EvidenceProduction, "refreshed verifier again",
+	); err != nil {
+		t.Fatal(err)
+	}
+	activation, active, err = ActiveRecord(ctx, store, modelID, definition.Task)
+	if err != nil || !active || activation.Tier != recipe.EvidenceProduction ||
+		!slices.Contains(activation.Event.Evidence, secondRefresh.Gate) {
+		t.Fatalf("second refreshed active = (%+v, %v, %v)", activation, active, err)
+	}
 }
 
 func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {

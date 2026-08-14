@@ -123,7 +123,7 @@ func ActivateCapability(
 		return err
 	}
 	decisionBatch, err := artifact.NewDocumentBatch(
-		"recipe/activation-decision/"+definition.ID.String(),
+		"recipe/activation-decision/"+definition.ID.String()+"/"+decision.ID.String(),
 		[]artifact.Content{content},
 		[]artifact.Lineage{
 			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
@@ -201,7 +201,7 @@ func reverifyActiveCapability(
 		return err
 	}
 	batch, err := artifact.NewDocumentBatch(
-		"recipe/reverified/"+definition.ID.String(),
+		"recipe/reverified/"+definition.ID.String()+"/"+event.ID.String(),
 		[]artifact.Content{decisionContent, eventContent},
 		[]artifact.Lineage{
 			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},

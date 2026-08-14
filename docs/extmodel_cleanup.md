@@ -49,6 +49,7 @@ active recipe + resolved artifact facts
 | Default runner lock/open admission implementations | 1 | Shared nil, lock, closed, and unlock-on-rejection contract |
 | Scalar capability request-admission paths | 1 | Decode, validate, and identity-check once for resident and ephemeral execution |
 | Image stage topology declarations | 1 | Shared prepare, integrate, and decode schema; modules supply math |
+| Resident capability construction/failure adapters | 1 | One typed executor adapter owns ready/error conversion |
 | Dead graph-runtime feed mutators | 0 | Weight/layer binders own feed registration |
 | Hardcoded Gemma3N validation facts | 0 | Serialized typed profile facts |
 | Exported registry-backed profile resolution APIs | 0 | Bootstrap stays inside model package |
@@ -59,8 +60,8 @@ Family-named production files: none.
 
 ## Ordered Work
 
-1. Consolidate resident image-session construction and failure executors.
-2. Separate specialized runner availability errors from shared lock admission.
+1. Separate specialized runner availability errors from shared lock admission.
+2. Consolidate capability inventory recognition shared by activation and execution.
 
 ## Per-Wave Gate
 

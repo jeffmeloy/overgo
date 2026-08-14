@@ -421,17 +421,11 @@ func executeLayerInstruction(
 		var feedForward *tensor.Tensor
 		var err error
 		switch instruction.Operator {
-		case LayerOperatorFeedForwardStandardSwiGLU:
-			feedForward, err = buildStandardFeedForwardMix(
-				c.Builder, execution.current, plan, options.Spec, options.Weights,
-			)
-		case LayerOperatorFeedForwardFusedGLU:
-			feedForward, err = buildFusedFeedForwardMix(
-				c.Builder, execution.current, options.Spec, options.Weights, plan.Layer,
-			)
-		case LayerOperatorFeedForwardSquaredReLU:
-			feedForward, err = buildSquaredReLUFeedForwardMix(
-				c.Builder, execution.current, options.Weights,
+		case LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorFeedForwardFusedGLU,
+			LayerOperatorFeedForwardSquaredReLU, LayerOperatorFeedForwardGatedGELU,
+			LayerOperatorFeedForwardPlanned:
+			feedForward, err = buildPolicyFeedForwardMix(
+				options, execution.current, execution.residual,
 			)
 		case LayerOperatorFeedForwardRoutedSquaredReLU:
 			feedForward, err = buildRoutedSquaredReLUFeedForwardMix(
@@ -442,10 +436,6 @@ func executeLayerInstruction(
 				c.Builder, execution.current, options.Weights,
 				plan.Experts, plan.ExpertComposition,
 			)
-		case LayerOperatorFeedForwardGatedGELU:
-			feedForward, err = buildGatedGELUFeedForwardMix(
-				c.Builder, execution.current, options.Weights,
-			)
 		case LayerOperatorFeedForwardParallelGatedGELU:
 			feedForward, err = buildParallelGatedGELUFeedForwardMix(
 				c.Builder, execution.current, options.Spec, options.Weights, plan,
@@ -453,10 +443,6 @@ func executeLayerInstruction(
 		case LayerOperatorFeedForwardEncoder:
 			feedForward, err = buildEncoderFeedForwardMix(
 				c.Builder, execution.current, options.Spec, options.Weights, plan,
-			)
-		case LayerOperatorFeedForwardPlanned:
-			feedForward, err = buildPolicyFeedForwardMix(
-				options, execution.current, execution.residual,
 			)
 		case LayerOperatorFeedForwardRelative:
 			feedForward, err = buildRelativeFeedForwardMix(
@@ -671,131 +657,4 @@ func buildSentinelCache(
 		cacheValue = builder.Concat(pastValue, cacheValue, cacheTokenDimension)
 	}
 	return cacheKey, cacheValue, builder.Err()
-}
-
-func buildFusedFeedForwardMix(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	spec Spec,
-	weights LayerGraphWeights,
-	layer uint32,
-) (*tensor.Tensor, error) {
-	if err := (graphWeights{
-		requireGraphWeight("feed-forward fused gate/up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-	}).validate("compiled fused feed-forward stage"); err != nil {
-		return nil, err
-	}
-	width := uint64(spec.LayerFeedForwardLength(layer))
-	tokens := input.Shape.Dims[1]
-	fusedWidth := 2 * width
-	fused := builder.MulMat(weights.FeedForwardUp, input)
-	gate := builder.Reshape(builder.GroupSlice(fused, 0, width, 1, fusedWidth), width, tokens)
-	up := builder.Reshape(builder.GroupSlice(fused, width, width, 1, fusedWidth), width, tokens)
-	var activated *tensor.Tensor
-	switch spec.HiddenActivation {
-	case "reglu":
-		activated = builder.ReGLU(gate, up)
-	case "gelu", "geglu":
-		activated = builder.GEGLU(gate, up)
-	default:
-		activated = builder.SwiGLU(gate, up)
-	}
-	return builder.MulMat(weights.FeedForwardDown, activated), builder.Err()
-}
-
-func buildSquaredReLUFeedForwardMix(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	weights LayerGraphWeights,
-) (*tensor.Tensor, error) {
-	if err := (graphWeights{
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-	}).validate("compiled squared-ReLU feed-forward stage"); err != nil {
-		return nil, err
-	}
-	up := builder.MulMat(weights.FeedForwardUp, input)
-	return builder.MulMat(weights.FeedForwardDown, builder.ReLUSquared(up)), builder.Err()
-}
-
-func buildGatedGELUFeedForwardMix(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	weights LayerGraphWeights,
-) (*tensor.Tensor, error) {
-	if err := (graphWeights{
-		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-	}).validate("compiled gated-GELU feed-forward stage"); err != nil {
-		return nil, err
-	}
-	gate := builder.MulMat(weights.FeedForwardGate, input)
-	up := builder.MulMat(weights.FeedForwardUp, input)
-	return builder.MulMat(weights.FeedForwardDown, builder.GEGLU(gate, up)), builder.Err()
-}
-
-func buildStandardFeedForwardMix(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	plan LayerPlan,
-	spec Spec,
-	weights LayerGraphWeights,
-) (*tensor.Tensor, error) {
-	if weights.FeedForwardRouter != nil {
-		if plan.Experts.OptionalSelectionBias {
-			plan.Experts.SelectionBias = weights.FeedForwardExpertBias != nil
-		}
-		required := graphWeights{
-			requireGraphWeight("feed-forward router", weights.FeedForwardRouter),
-			requireGraphWeight("feed-forward expert down", weights.FeedForwardDownExperts),
-		}
-		if weights.FeedForwardGateUpExperts != nil {
-			required.add("feed-forward fused expert gate/up", weights.FeedForwardGateUpExperts)
-		} else {
-			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
-			if !plan.DenseWeights.allowUngatedExperts || weights.FeedForwardGateExperts != nil {
-				required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
-			}
-		}
-		if plan.Experts.SelectionBias {
-			required.add("feed-forward selection bias", weights.FeedForwardExpertBias)
-		}
-		switch plan.ExpertComposition.kind {
-		case expertSharedAdd, expertSharedAverage, expertSharedLimited:
-			required.add("shared expert gate", weights.FeedForwardSharedGate)
-			required.add("shared expert up", weights.FeedForwardSharedUp)
-			required.add("shared expert down", weights.FeedForwardSharedDown)
-		case expertSharedGated:
-			required.add("shared expert router", weights.FeedForwardSharedRouter)
-			required.add("shared expert gate", weights.FeedForwardSharedGate)
-			required.add("shared expert up", weights.FeedForwardSharedUp)
-			required.add("shared expert down", weights.FeedForwardSharedDown)
-		}
-		if err := required.validate("compiled feed-forward stage"); err != nil {
-			return nil, err
-		}
-		return plan.ExpertComposition.Build(builder, input, input, input, spec, weights, plan)
-	}
-	if err := (graphWeights{
-		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-	}).validate("compiled feed-forward stage"); err != nil {
-		return nil, err
-	}
-	gate := builder.MulMat(weights.FeedForwardGate, input)
-	up := builder.MulMat(weights.FeedForwardUp, input)
-	if weights.FeedForwardGateBias != nil {
-		gate = builder.Add(gate, weights.FeedForwardGateBias)
-	}
-	if weights.FeedForwardUpBias != nil {
-		up = builder.Add(up, weights.FeedForwardUpBias)
-	}
-	feedForward := builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
-	if weights.FeedForwardDownBias != nil {
-		feedForward = builder.Add(feedForward, weights.FeedForwardDownBias)
-	}
-	return feedForward, builder.Err()
 }

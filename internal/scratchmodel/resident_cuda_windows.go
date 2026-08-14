@@ -763,8 +763,17 @@ func (c Construction) TrainResident(totalSteps int) (TrainingResult, error) {
 	}
 	defer trainer.Close()
 	result := TrainingResult{Losses: make([]float64, totalSteps)}
+	materialized, batcher, err := c.documentBatcher(c.split.Train)
+	if err != nil {
+		return TrainingResult{}, err
+	}
+	defer materialized.Close()
 	for step := range totalSteps {
-		tokens, err := c.Tokens(c.split.Train[step%len(c.split.Train)])
+		document, err := nextDocument(context.Background(), batcher)
+		if err != nil {
+			return TrainingResult{}, err
+		}
+		tokens, err := c.Tokens(document)
 		if err != nil {
 			return TrainingResult{}, err
 		}

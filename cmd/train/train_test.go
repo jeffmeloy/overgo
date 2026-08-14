@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"testing"
 
@@ -11,6 +13,28 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
 )
+
+func TestTokenBatchesUseResumableDatasetStream(t *testing.T) {
+	encode := func(text string) ([]int, error) {
+		result := make([]int, len(text))
+		for index := range text {
+			result[index] = int(text[index])
+		}
+		return result, nil
+	}
+	batches, state, err := tokenBatches(context.Background(), []byte("abcdef"), 3, 4, encode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Position != 3 || len(batches) != 3 {
+		t.Fatalf("state=%+v batches=%d", state, len(batches))
+	}
+	for index, batch := range batches {
+		if len(batch) != 4 || !reflect.DeepEqual(batch, batches[0]) {
+			t.Fatalf("batch %d = %v", index, batch)
+		}
+	}
+}
 
 func writeArtifactDir(t *testing.T, dir string, weights map[string][]float32, shapes map[string][]int) {
 	t.Helper()
@@ -91,7 +115,7 @@ func TestTrainAttnBiasRoutedToHostAtSelection(t *testing.T) {
 	}
 
 	tokens := []int{1, 2, 3, 4, 5}
-	traj, backend, err := runTraining(model, tokens, 1, 0, 0.9, true, false) // prefer device
+	traj, backend, err := runTraining(model, [][]int{tokens}, 0, 0.9, true, false) // prefer device
 	if err != nil {
 		t.Fatalf("runTraining routed a bias model into a device session (mid-session failure): %v", err)
 	}
@@ -101,7 +125,7 @@ func TestTrainAttnBiasRoutedToHostAtSelection(t *testing.T) {
 	if len(traj) != 1 || math.IsNaN(traj[0]) || math.IsInf(traj[0], 0) {
 		t.Fatalf("trajectory = %v, want one finite loss", traj)
 	}
-	if _, _, err := runTraining(model, tokens, 1, 0, 0.9, true, true); err == nil {
+	if _, _, err := runTraining(model, [][]int{tokens}, 0, 0.9, true, true); err == nil {
 		t.Fatal("frozen lexical request silently fell back to host")
 	}
 }
@@ -126,7 +150,7 @@ func TestTrainGlueLoadStepSaveReload(t *testing.T) {
 
 	before := append([]float32(nil), model.Weights["model.embed_tokens.weight"]...)
 	tokens := []int{1, 2, 3, 4, 5}
-	traj, backend, err := runTraining(model, tokens, 1, 0, 0.9, false, false) // host path
+	traj, backend, err := runTraining(model, [][]int{tokens}, 0, 0.9, false, false) // host path
 	if err != nil {
 		t.Fatalf("runTraining: %v", err)
 	}

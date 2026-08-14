@@ -224,37 +224,13 @@ func buildAttentionSSMHybridMixCached(
 	if weights.AttentionQKV == nil && (weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil) {
 		return DenseBlockResult{}, errors.New("hybrid attention projection catalog is incomplete")
 	}
-
 	tokens := uint64(len(positions))
 	heads := uint64(spec.HeadCount)
 	kvHeads := uint64(spec.HeadCountKV)
-	queryWidth := heads * uint64(spec.KeyLength)
-	keyWidth := kvHeads * uint64(spec.KeyLength)
-	valueWidth := kvHeads * uint64(spec.ValueLength)
-	var query, key, value *tensor.Tensor
-	if weights.AttentionQKV != nil {
-		mixed := builder.MulMat(weights.AttentionQKV, normalized)
-		if weights.AttentionQKVBias != nil {
-			mixed = builder.Add(mixed, weights.AttentionQKVBias)
-		}
-		stride := queryWidth + keyWidth + valueWidth
-		query = builder.Reshape(builder.GroupSlice(mixed, 0, queryWidth, 1, stride), queryWidth, tokens)
-		key = builder.Reshape(builder.GroupSlice(mixed, queryWidth, keyWidth, 1, stride), keyWidth, tokens)
-		value = builder.Reshape(builder.GroupSlice(mixed, queryWidth+keyWidth, valueWidth, 1, stride), valueWidth, tokens)
-	} else {
-		query = builder.MulMat(weights.AttentionQ, normalized)
-		key = builder.MulMat(weights.AttentionK, normalized)
-		value = builder.MulMat(weights.AttentionV, normalized)
-		if weights.AttentionQBias != nil {
-			query = builder.Add(query, weights.AttentionQBias)
-		}
-		if weights.AttentionKBias != nil {
-			key = builder.Add(key, weights.AttentionKBias)
-		}
-		if weights.AttentionVBias != nil {
-			value = builder.Add(value, weights.AttentionVBias)
-		}
-	}
+	query, key, value := (denseBlockRuntime{
+		builder: builder, spec: spec, weights: weights, plan: plan,
+		layer: plan.Layer, tokens: tokens,
+	}).projectAttention(normalized)
 	query = builder.Reshape(query, uint64(spec.KeyLength), heads, tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeads, tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeads, tokens)

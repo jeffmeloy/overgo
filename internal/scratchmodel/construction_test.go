@@ -1,7 +1,10 @@
 package scratchmodel
 
 import (
+	"go/ast"
 	"go/build"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -26,7 +29,7 @@ func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
 	return oracle
 }
 
-func TestScratchSharedTrainingAuthority(t *testing.T) {
+func TestScratchProgramOwnsResidentExecution(t *testing.T) {
 	oracle := loadOracle(t)
 	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps})
 	if err != nil {
@@ -41,8 +44,8 @@ func TestScratchSharedTrainingAuthority(t *testing.T) {
 	}
 	operators := program.Operators()
 	wantPhases := []trainingprogram.OperatorPhase{
-		trainingprogram.PhaseBatch, trainingprogram.PhaseForward, trainingprogram.PhaseLoss,
-		trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize, trainingprogram.PhaseEvaluate,
+		trainingprogram.PhaseBatch, trainingprogram.PhaseForward, trainingprogram.PhaseBackward,
+		trainingprogram.PhaseOptimize, trainingprogram.PhaseEvaluate,
 	}
 	if len(operators) != len(wantPhases) {
 		t.Fatalf("operator count=%d want=%d", len(operators), len(wantPhases))
@@ -73,6 +76,30 @@ func TestScratchSharedTrainingAuthority(t *testing.T) {
 		if strings.Contains(text, "func muonUpdate") || strings.Contains(text, "type value struct") || strings.Contains(text, "type hostState") {
 			t.Fatalf("production scratch runtime owns forbidden primitive in %s", name)
 		}
+	}
+
+	file, err := parser.ParseFile(token.NewFileSet(), "resident_cuda_windows.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundProgramRun, foundHardCoded := false, false
+	for _, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || function.Name.Name != "Step" || function.Recv == nil {
+			continue
+		}
+		ast.Inspect(function.Body, func(node ast.Node) bool {
+			selector, ok := node.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			foundProgramRun = foundProgramRun || selector.Sel.Name == "RunPhases"
+			foundHardCoded = foundHardCoded || selector.Sel.Name == "forward" || selector.Sel.Name == "backward"
+			return true
+		})
+	}
+	if !foundProgramRun || foundHardCoded {
+		t.Fatalf("resident Step program authority=%t hard-coded forward/backward=%t", foundProgramRun, foundHardCoded)
 	}
 }
 

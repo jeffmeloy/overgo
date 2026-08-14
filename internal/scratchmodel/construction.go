@@ -410,18 +410,25 @@ func compileSharedProgram(parameters []Parameter, bindings map[string]parameterB
 	}
 	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
 		Operators: []trainingprogram.OperatorSpec{
-			{ID: "token-batch", Phase: trainingprogram.PhaseBatch},
-			{ID: "adaptive-causal-forward", Phase: trainingprogram.PhaseForward},
-			{ID: "causal-cross-entropy", Phase: trainingprogram.PhaseLoss},
-			{ID: "adaptive-causal-vjp", Phase: trainingprogram.PhaseBackward},
-			{ID: "muon", Phase: trainingprogram.PhaseOptimize},
-			{ID: "held-out-cross-entropy", Phase: trainingprogram.PhaseEvaluate},
+			{ID: scratchOperatorBatch, Phase: trainingprogram.PhaseBatch},
+			{ID: scratchOperatorForward, Phase: trainingprogram.PhaseForward},
+			{ID: scratchOperatorLossVJP, Phase: trainingprogram.PhaseBackward},
+			{ID: scratchOperatorMuon, Phase: trainingprogram.PhaseOptimize},
+			{ID: scratchOperatorEvaluate, Phase: trainingprogram.PhaseEvaluate},
 		},
 		Parameters: manifest,
 		Optimizer:  plan,
 	})
 	return plan, program, err
 }
+
+const (
+	scratchOperatorBatch    = "token-batch"
+	scratchOperatorForward  = "adaptive-causal-forward"
+	scratchOperatorLossVJP  = "adaptive-causal-loss-vjp"
+	scratchOperatorMuon     = "muon"
+	scratchOperatorEvaluate = "held-out-cross-entropy"
+)
 
 func digestFloats(values []float64) string {
 	digest := sha256.New()

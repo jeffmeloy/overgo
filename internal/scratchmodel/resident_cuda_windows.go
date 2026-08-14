@@ -16,6 +16,7 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/trainingprogram"
 )
 
 // ResidentTrainer owns one scratch model's device training lifecycle.
@@ -30,7 +31,25 @@ type ResidentTrainer struct {
 	momentum     driver.DevicePtr
 	config       optimizer.Config
 	programs     []residentForwardProgram
+	program      trainingprogram.Execution[residentTrainingState]
 	closed       bool
+}
+
+type residentTrainingState struct {
+	trainer   *ResidentTrainer
+	tokens    []int
+	step      int
+	positions int
+	graph     ForwardGraph
+	retained  *executor.RetainedOutputs
+	loss      float64
+}
+
+func (s *residentTrainingState) release() {
+	if s != nil && s.retained != nil {
+		s.retained.Release(context.Background())
+		s.retained = nil
+	}
 }
 
 type residentForwardProgram struct {
@@ -84,6 +103,10 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 	if err != nil {
 		return fail(err)
 	}
+	trainer.program, err = bindResidentProgram(trainer)
+	if err != nil {
+		return fail(err)
+	}
 	for _, documents := range [][]string{construction.split.Train, construction.split.Validation, construction.split.Test} {
 		for _, document := range documents {
 			tokens, tokenErr := construction.Tokens(document)
@@ -124,38 +147,31 @@ func (t *ResidentTrainer) Step(tokens []int, step int) (float64, error) {
 	if t == nil || t.closed || step <= 0 {
 		return 0, errors.New("scratch model: resident trainer unavailable")
 	}
-	graph, retained, err := t.forward(tokens)
-	if err != nil {
-		return 0, err
-	}
-	defer retained.Release(context.Background())
-	loss, err := t.backward(graph, retained, tokens)
-	if err != nil {
-		return 0, err
-	}
-	if err := t.muon.Step(t.weights, t.gradients, t.momentum, step); err != nil {
-		return 0, err
-	}
-	return loss, nil
+	state := residentTrainingState{trainer: t, tokens: tokens, step: step}
+	defer state.release()
+	err := t.program.RunPhases(
+		&state,
+		trainingprogram.PhaseBatch,
+		trainingprogram.PhaseForward,
+		trainingprogram.PhaseBackward,
+		trainingprogram.PhaseOptimize,
+	)
+	return state.loss, err
 }
 
 func (t *ResidentTrainer) Evaluate(tokens []int) (float64, error) {
 	if t == nil || t.closed {
 		return 0, errors.New("scratch model: resident trainer unavailable")
 	}
-	graph, retained, err := t.forward(tokens)
-	if err != nil {
-		return 0, err
-	}
-	defer retained.Release(context.Background())
-	value, err := retained.CopyToHost(context.Background(), graph.Output)
-	if err != nil {
-		return 0, err
-	}
-	gradient := make([]float32, len(value.Data))
-	return hostmath.SoftmaxCrossEntropy(
-		gradient, value.Data, tokens[1:graph.positions+1], graph.positions, t.construction.config.VocabSize,
-	), nil
+	state := residentTrainingState{trainer: t, tokens: tokens}
+	defer state.release()
+	err := t.program.RunPhases(
+		&state,
+		trainingprogram.PhaseBatch,
+		trainingprogram.PhaseForward,
+		trainingprogram.PhaseEvaluate,
+	)
+	return state.loss, err
 }
 
 func (t *ResidentTrainer) Snapshot() (weights, momentum []float32, err error) {
@@ -189,19 +205,26 @@ func (t *ResidentTrainer) MemoryStats() (driver.MemoryStats, error) {
 	return t.worker.MemoryStats(context.Background())
 }
 
-func (t *ResidentTrainer) forward(tokens []int) (ForwardGraph, *executor.RetainedOutputs, error) {
+func (t *ResidentTrainer) validateTokens(tokens []int) (int, error) {
 	if len(tokens) < 2 {
-		return ForwardGraph{}, nil, errors.New("scratch model: forward tokens absent")
+		return 0, errors.New("scratch model: forward tokens absent")
 	}
 	positions := min(t.construction.config.BlockSize, len(tokens)-1)
 	for _, token := range tokens[:positions+1] {
 		if token < 0 || token >= t.construction.config.VocabSize {
-			return ForwardGraph{}, nil, errors.New("scratch model: forward token outside vocabulary")
+			return 0, errors.New("scratch model: forward token outside vocabulary")
 		}
 	}
+	return positions, nil
+}
+
+func (t *ResidentTrainer) forward(tokens []int, positions int) (ForwardGraph, *executor.RetainedOutputs, error) {
 	program, err := t.forwardProgram(tokens)
 	if err != nil {
 		return ForwardGraph{}, nil, err
+	}
+	if program.graph.positions != positions {
+		return ForwardGraph{}, nil, errors.New("scratch model: compiled batch extent differs")
 	}
 	rows := make([]uint32, program.graph.positions)
 	for index, token := range tokens[:program.graph.positions] {
@@ -215,6 +238,42 @@ func (t *ResidentTrainer) forward(tokens []int) (ForwardGraph, *executor.Retaine
 		context.Background(), program.compiled, program.hostFeeds, program.deviceFeeds, nil, attributes,
 	)
 	return program.graph, retained, err
+}
+
+func bindResidentProgram(trainer *ResidentTrainer) (trainingprogram.Execution[residentTrainingState], error) {
+	bindings := []trainingprogram.Binding[residentTrainingState]{
+		{Operator: scratchOperatorBatch, Execute: func(state *residentTrainingState) error {
+			positions, err := state.trainer.validateTokens(state.tokens)
+			state.positions = positions
+			return err
+		}},
+		{Operator: scratchOperatorForward, Execute: func(state *residentTrainingState) error {
+			var err error
+			state.graph, state.retained, err = state.trainer.forward(state.tokens, state.positions)
+			return err
+		}},
+		{Operator: scratchOperatorLossVJP, Execute: func(state *residentTrainingState) error {
+			var err error
+			state.loss, err = state.trainer.backward(state.graph, state.retained, state.tokens)
+			return err
+		}},
+		{Operator: scratchOperatorMuon, Execute: func(state *residentTrainingState) error {
+			return state.trainer.muon.Step(state.trainer.weights, state.trainer.gradients, state.trainer.momentum, state.step)
+		}},
+		{Operator: scratchOperatorEvaluate, Execute: func(state *residentTrainingState) error {
+			value, err := state.retained.CopyToHost(context.Background(), state.graph.Output)
+			if err != nil {
+				return err
+			}
+			gradient := make([]float32, len(value.Data))
+			state.loss = hostmath.SoftmaxCrossEntropy(
+				gradient, value.Data, state.tokens[1:state.graph.positions+1],
+				state.graph.positions, state.trainer.construction.config.VocabSize,
+			)
+			return nil
+		}},
+	}
+	return trainingprogram.Bind(trainer.construction.Program(), bindings)
 }
 
 func (t *ResidentTrainer) forwardProgram(tokens []int) (*residentForwardProgram, error) {

@@ -1,6 +1,7 @@
 package trainingprogram
 
 import (
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -141,4 +142,49 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 			t.Fatal("backward-before-forward program accepted")
 		}
 	})
+}
+
+func TestBoundTrainingProgramOwnsOrder(t *testing.T) {
+	plan, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "scalar", Start: 0, End: 1, Rows: 1, Cols: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := CompileTrainingProgram(ProgramSpec{
+		Operators: []OperatorSpec{
+			{ID: "forward", Phase: PhaseForward},
+			{ID: "backward", Phase: PhaseBackward},
+			{ID: "optimize", Phase: PhaseOptimize},
+			{ID: "evaluate", Phase: PhaseEvaluate},
+		},
+		Parameters: []ParameterSpec{{Name: "scalar", Rows: 1, Cols: 1, Trainable: true}},
+		Optimizer:  plan,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	type state struct{ order []string }
+	binding := func(id string) Binding[state] {
+		return Binding[state]{Operator: id, Execute: func(value *state) error {
+			value.order = append(value.order, id)
+			return nil
+		}}
+	}
+	execution, err := Bind(program, []Binding[state]{binding("optimize"), binding("evaluate"), binding("backward"), binding("forward")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := state{}
+	if err := execution.RunPhases(&value, PhaseForward, PhaseBackward, PhaseOptimize); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"forward", "backward", "optimize"}
+	if !slices.Equal(value.order, want) {
+		t.Fatalf("bound order = %v, want %v", value.order, want)
+	}
+	if _, err := Bind(program, []Binding[state]{binding("forward")}); err == nil {
+		t.Fatal("partial binding accepted")
+	}
+	if _, err := Bind(program, []Binding[state]{binding("forward"), binding("backward"), binding("optimize"), binding("evaluate"), binding("foreign")}); err == nil {
+		t.Fatal("foreign binding accepted")
+	}
 }

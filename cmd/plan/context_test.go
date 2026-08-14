@@ -2,10 +2,16 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/plan"
+	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 )
 
 func TestAutomationContextCommandEncoding(t *testing.T) {
@@ -32,5 +38,45 @@ func TestAutomationContextCommandEncoding(t *testing.T) {
 	}
 	if decoded.Role != "sqa" || decoded.CurrentTask == nil || decoded.CurrentTask.ItemID != "automation" || decoded.CurrentTask.StepID != "context" {
 		t.Fatalf("encoded context = %+v", decoded)
+	}
+}
+
+func TestGateDebtAutomationContext(t *testing.T) {
+	worktree := t.TempDir()
+	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+		Host: "test", OS: "test", Arch: "test", Device: "host",
+		Backend: "go", Driver: "cgo=0", Runtime: "go-test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := runrecord.NewGatePreparation(
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		environment.ID, time.Unix(100, 0),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	environmentContent, _ := environment.Content()
+	preparedContent, _ := prepared.Content()
+	batch, err := artifact.NewDocumentBatch(
+		"test/context-debt", []artifact.Content{environmentContent, preparedContent}, prepared.Lineage(), nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := repodb.Open(filepath.Join(worktree, "repodb-store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	debt := authoritativeEvidenceDebt(worktree)
+	if debt.State != "present" || debt.Source != "repodb:repodb-store" || debt.ResultID != prepared.ID.String() {
+		t.Fatalf("authoritative debt = %+v", debt)
 	}
 }

@@ -8,16 +8,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "honesty",
-          "title": "Unify CI and gate skip classification, derive loop dirtiness from planned meaningful paths, and route non-Go assets through their owning tests",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/loophook ./cmd/test-lane ./internal/testevidence ./internal/testscope -run 'Test(CIRequiredEvidence|DirtyPlannedScope|NonGoOwnership)' -count=1 -v"
-        },
-        {
           "id": "gate-lifecycle",
           "title": "Add typed gate lifecycle, environment-bound retry identity, Go heartbeat/watchdog state, and deterministic RepoDB record-debt reconciliation",
           "status": "open",
-          "verify": "go test ./internal/runrecord ./cmd/gate -run 'Test(GateLifecycle|GateDebt|GateHeartbeat|EnvironmentBoundRetry)' -count=1"
+          "verify": "go test ./internal/runrecord ./cmd/gate ./cmd/plan -run 'Test(GateLifecycle|GateDebt|GateHeartbeat|EnvironmentBoundRetry)' -count=1 -v"
         },
         {
           "id": "independent-sqa",

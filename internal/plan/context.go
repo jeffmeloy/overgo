@@ -45,11 +45,9 @@ type DirtyPath struct {
 	OriginalPath   string `json:"original_path,omitempty"`
 }
 
-// EvidenceDebt is deliberately conservative in context version 1. The gate
-// status file is an advisory mirror, so anything except an exact successful
-// HEAD match is possible debt, never proof that authoritative RepoDB evidence
-// is absent. The gate-lifecycle plan slice will replace this mirror inference
-// with authoritative prepared/finalized debt records.
+// EvidenceDebt is deliberately conservative. Current automation derives it
+// from authoritative RepoDB prepared/finalized lifecycle records. The mirror
+// classifier below remains for older callers but cannot prove debt absence.
 type EvidenceDebt struct {
 	State          string `json:"state"`
 	Source         string `json:"source"`

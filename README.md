@@ -353,10 +353,26 @@ go run ./cmd/gate \
   -plan item-id/step-id
 ```
 
-The gate derives affected tests from the import graph and conditionally checks
-formatting, vet, build, kernel manifest, SBOM, compatibility claims, magic
-closures, and device evidence. Every result states what ran and what did not.
-UNAVAILABLE evidence fails a claim that requires it.
+The gate derives affected tests from the import graph and compiler-resolved
+`go:embed` ownership, then conditionally checks formatting, vet, build, kernel
+manifest, SBOM, compatibility claims, magic closures, and device evidence.
+Every result states what ran and what did not. UNAVAILABLE evidence fails a
+claim that requires it. CI and release use the same Go-owned classifier through
+`go run ./cmd/test-lane ./...`; classified short exclusions remain visible and
+are not credited as passing tests.
+
+Before Git can advance, the gate commits a typed preparation to RepoDB. It then
+finalizes that lifecycle with the gate result. A post-commit RepoDB failure is a
+failing gate with a deterministic local reconciliation payload:
+
+```bash
+go run ./cmd/gate -watchdog
+go run ./cmd/gate -reconcile
+```
+
+`-watchdog` classifies the Go heartbeat as `running`, `stale`, `finalized`,
+`record_debt`, or `absent`. `-reconcile` replays only the validated batch bound
+to the authoritative preparation; it never creates another Git commit.
 
 Additional lanes:
 

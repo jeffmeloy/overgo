@@ -17,6 +17,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -25,6 +26,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"overgo/internal/artifact"
@@ -51,6 +53,8 @@ type gateContext struct {
 	steps       []runrecord.GateStep
 	honesty     []string
 	start       time.Time
+	environment runrecord.Environment
+	preparation runrecord.GateLifecycle
 }
 
 func main() {
@@ -66,13 +70,22 @@ func run() error {
 	storePath := flag.String("store", "repodb-store", "RepoDB store directory (relative to repo root)")
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
 	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the plan's current open step (see `go run ./cmd/plan -next`). Required unless -merge. Off-plan commits are refused.")
+	reconcile := flag.Bool("reconcile", false, "finalize the deterministic RepoDB batch in bin/gate_debt.json")
+	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
+	staleAfter := flag.Duration("stale-after", 30*time.Second, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
-	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
-		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
-	}
 	repo, err := os.Getwd()
 	if err != nil {
 		return err
+	}
+	if *reconcile {
+		return reconcileGateDebt(repo, *storePath)
+	}
+	if *watchdog {
+		return printGateWatchdog(repo, *staleAfter)
+	}
+	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
+		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
 	}
 	// Every commit -- including a merge finalize -- is bound to the plan's current
 	// open step. Merges are no longer exempt: a sync/merge is a first-class plan
@@ -113,6 +126,15 @@ func run() error {
 	if err := g.expandDirectoryPaths(); err != nil {
 		return err
 	}
+	g.environment, err = discoverEnvironment(repo)
+	if err != nil {
+		return err
+	}
+	if err := g.prepare(); err != nil {
+		return err
+	}
+	stopHeartbeat := g.startHeartbeat()
+	defer stopHeartbeat()
 
 	outcome := runrecord.OutcomeSucceeded
 	failure := ""
@@ -121,12 +143,19 @@ func run() error {
 		failure = err.Error()
 	}
 	recordErr := g.record(outcome, failure)
+	stopHeartbeat()
 	g.printSummary(outcome, failure)
 	if recordErr != nil {
+		g.writeHeartbeat(runrecord.HeartbeatRecordDebt)
 		fmt.Fprintf(os.Stderr, "gate: store record failed (result stands, record owed): %v\n", recordErr)
+	} else {
+		g.writeHeartbeat(runrecord.HeartbeatFinalized)
 	}
 	if outcome != runrecord.OutcomeSucceeded {
 		return fmt.Errorf("%s", failure)
+	}
+	if recordErr != nil {
+		return fmt.Errorf("commit landed but RepoDB record debt remains: %w", recordErr)
 	}
 	return nil
 }
@@ -219,8 +248,9 @@ func (g *gateContext) pipeline() error {
 }
 
 type retryCache struct {
-	TreeKey string            `json:"tree_key"`
-	Steps   map[string]string `json:"steps"`
+	TreeKey     string            `json:"tree_key"`
+	Environment string            `json:"environment"`
+	Steps       map[string]string `json:"steps"`
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,
@@ -266,7 +296,7 @@ func (g *gateContext) loadRetryCache() (string, retryCache) {
 		return key, empty
 	}
 	var cache retryCache
-	if json.Unmarshal(raw, &cache) != nil || cache.TreeKey != key || cache.Steps == nil {
+	if json.Unmarshal(raw, &cache) != nil || !retryReusable(cache, key, g.environment.ID.String()) {
 		return key, empty
 	}
 	return key, cache
@@ -277,6 +307,7 @@ func (g *gateContext) saveRetryCache(key string, cache retryCache) {
 		return
 	}
 	cache.TreeKey = key
+	cache.Environment = g.environment.ID.String()
 	raw, err := json.MarshalIndent(cache, "", "  ")
 	if err != nil {
 		return
@@ -286,6 +317,27 @@ func (g *gateContext) saveRetryCache(key string, cache retryCache) {
 		return
 	}
 	_ = os.WriteFile(filepath.Join(dir, "gate_cache.json"), append(raw, '\n'), 0o644)
+}
+
+func retryReusable(cache retryCache, treeKey, environment string) bool {
+	return cache.TreeKey == treeKey && cache.Environment == environment && cache.Steps != nil
+}
+
+func discoverEnvironment(repo string) (runrecord.Environment, error) {
+	out, err := command(repo, "go", "env", "CGO_ENABLED", "GOFLAGS", "GOEXPERIMENT", "GOTOOLCHAIN")
+	if err != nil {
+		return runrecord.Environment{}, err
+	}
+	values := strings.Split(strings.ReplaceAll(out, "\r\n", "\n"), "\n")
+	for len(values) < 4 {
+		values = append(values, "")
+	}
+	return runrecord.NewEnvironment(runrecord.Environment{
+		Host: hostname(), OS: runtime.GOOS, Arch: runtime.GOARCH,
+		Device: "host", Backend: "go", Driver: "cgo=" + strings.TrimSpace(values[0]),
+		Runtime: fmt.Sprintf("%s;goflags=%s;goexperiment=%s;gotoolchain=%s",
+			runtime.Version(), strings.TrimSpace(values[1]), strings.TrimSpace(values[2]), strings.TrimSpace(values[3])),
+	})
 }
 
 // expandDirectoryPaths rewrites a -paths entry naming a directory into that
@@ -713,6 +765,190 @@ func (g *gateContext) stepCommit() (bool, error) {
 	return false, nil
 }
 
+func (g *gateContext) prepare() error {
+	if _, err := os.Stat(filepath.Join(g.repo, "bin", "gate_debt.json")); err == nil {
+		return errors.New("gate: unresolved bin/gate_debt.json; run `go run ./cmd/gate -reconcile` before another gate")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	treeKey, err := g.treeStateKey()
+	if err != nil {
+		return err
+	}
+	g.preparation, err = runrecord.NewGatePreparation(treeKey, g.environment.ID, g.start)
+	if err != nil {
+		return err
+	}
+	preparationContent, err := g.preparation.Content()
+	if err != nil {
+		return err
+	}
+	environmentContent, err := g.environment.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"gate/prepared/"+g.preparation.ID.String(),
+		[]artifact.Content{environmentContent, preparationContent},
+		g.preparation.Lineage(), nil,
+	)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(filepath.Join(g.repo, g.storePath))
+	if err != nil {
+		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
+	}
+	defer store.Close()
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
+	}
+	return nil
+}
+
+func (g *gateContext) startHeartbeat() func() {
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	var once sync.Once
+	g.writeHeartbeat(runrecord.HeartbeatRunning)
+	go func() {
+		defer close(finished)
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				g.writeHeartbeat(runrecord.HeartbeatRunning)
+			case <-done:
+				return
+			}
+		}
+	}()
+	return func() {
+		once.Do(func() {
+			close(done)
+			<-finished
+		})
+	}
+}
+
+func (g *gateContext) writeHeartbeat(state runrecord.GateHeartbeatState) {
+	heartbeat := runrecord.GateHeartbeat{
+		Version: runrecord.GateHeartbeatVersion, State: state, Preparation: g.preparation.ID,
+		TreeKey: g.preparation.TreeKey, Environment: g.environment.ID,
+		PID: os.Getpid(), Updated: time.Now().UTC(),
+	}
+	raw, err := json.MarshalIndent(heartbeat, "", "  ")
+	if err != nil {
+		return
+	}
+	dir := filepath.Join(g.repo, "bin")
+	if os.MkdirAll(dir, 0o755) == nil {
+		_ = os.WriteFile(filepath.Join(dir, "gate_lifecycle.json"), append(raw, '\n'), 0o644)
+	}
+}
+
+type gateDebtEnvelope struct {
+	Version     uint16         `json:"version"`
+	Preparation artifact.ID    `json:"preparation"`
+	Batch       artifact.Batch `json:"batch"`
+}
+
+func (g *gateContext) oweRecord(batch artifact.Batch, cause error) error {
+	envelope := gateDebtEnvelope{Version: 1, Preparation: g.preparation.ID, Batch: batch}
+	raw, err := json.MarshalIndent(envelope, "", "  ")
+	if err != nil {
+		return fmt.Errorf("%w; encode record debt: %v", cause, err)
+	}
+	dir := filepath.Join(g.repo, "bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("%w; create record debt directory: %v", cause, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "gate_debt.json"), append(raw, '\n'), 0o600); err != nil {
+		return fmt.Errorf("%w; persist record debt: %v", cause, err)
+	}
+	return cause
+}
+
+func reconcileGateDebt(repo, storePath string) error {
+	path := filepath.Join(repo, "bin", "gate_debt.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read gate debt: %w", err)
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.DisallowUnknownFields()
+	var debt gateDebtEnvelope
+	if err := decoder.Decode(&debt); err != nil || debt.Version != 1 || debt.Preparation.Kind() != artifact.KindEvidence {
+		return fmt.Errorf("invalid gate debt envelope: %v", err)
+	}
+	if err := debt.Batch.Validate(); err != nil {
+		return fmt.Errorf("invalid gate debt batch: %w", err)
+	}
+	store, err := repodb.Open(filepath.Join(repo, storePath))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if _, ok, err := store.Content(context.Background(), debt.Preparation); err != nil {
+		return err
+	} else if !ok {
+		return errors.New("gate debt preparation is absent from RepoDB")
+	}
+	if debt.Batch.Key != "gate/final/"+debt.Preparation.String() {
+		return errors.New("gate debt batch key is not bound to its preparation")
+	}
+	finalizations := 0
+	for _, content := range debt.Batch.Contents {
+		if content.Descriptor.MediaType != runrecord.GateLifecycleMediaType || content.Descriptor.Schema != runrecord.GateLifecycleSchema {
+			continue
+		}
+		lifecycle, err := runrecord.ParseGateLifecycle(content.Data)
+		if err != nil {
+			return err
+		}
+		if lifecycle.State == runrecord.GateFinalized && lifecycle.Preparation != nil && *lifecycle.Preparation == debt.Preparation {
+			finalizations++
+		}
+	}
+	if finalizations != 1 {
+		return fmt.Errorf("gate debt batch has %d matching finalizations, want 1", finalizations)
+	}
+	if _, err := store.Commit(context.Background(), debt.Batch); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+	fmt.Printf("gate: reconciled RepoDB record debt for %s\n", debt.Preparation)
+	return nil
+}
+
+func printGateWatchdog(repo string, staleAfter time.Duration) error {
+	raw, err := os.ReadFile(filepath.Join(repo, "bin", "gate_lifecycle.json"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Printf("{\"version\":%d,\"state\":%q}\n", runrecord.GateHeartbeatVersion, runrecord.HeartbeatAbsent)
+			return nil
+		}
+		return err
+	}
+	var heartbeat runrecord.GateHeartbeat
+	if err := json.Unmarshal(raw, &heartbeat); err != nil {
+		return err
+	}
+	if heartbeat.Version != runrecord.GateHeartbeatVersion {
+		return errors.New("unsupported gate heartbeat version")
+	}
+	heartbeat.State = heartbeat.Watchdog(time.Now().UTC(), staleAfter)
+	out, err := json.MarshalIndent(heartbeat, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(out))
+	return nil
+}
+
 func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	codeCommit, err := command(g.repo, "git", "rev-parse", "HEAD")
 	if err != nil {
@@ -724,29 +960,32 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	if err != nil {
 		return err
 	}
-	envDoc, err := json.Marshal(map[string]string{
-		"os": runtime.GOOS, "arch": runtime.GOARCH, "go": runtime.Version(), "host": hostname(),
-	})
-	if err != nil {
-		return err
-	}
-	environmentID, err := artifact.IdentifyBytes(artifact.KindEvidence, envDoc)
-	if err != nil {
-		return err
-	}
 	record, err := runrecord.NewGateRecord(
-		recipeID, environmentID, codeCommit, outcome, failure,
+		recipeID, g.environment.ID, codeCommit, outcome, failure,
 		uint64(time.Since(g.start).Nanoseconds()), g.steps,
 	)
 	if err != nil {
 		return err
 	}
-	batch, err := record.Batch("gate/" + codeCommit)
+	batch, err := record.Batch("gate/final/" + g.preparation.ID.String())
 	if err != nil {
 		return err
 	}
-	batch.Artifacts = append(batch.Artifacts,
-		artifact.Descriptor{ID: recipeID}, artifact.Descriptor{ID: environmentID})
+	environmentContent, err := g.environment.Content()
+	if err != nil {
+		return err
+	}
+	finalized, err := runrecord.NewGateFinalization(g.preparation, codeCommit, record.Result.ID, outcome)
+	if err != nil {
+		return err
+	}
+	finalizedContent, err := finalized.Content()
+	if err != nil {
+		return err
+	}
+	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
+	batch.Contents = append(batch.Contents, environmentContent, finalizedContent)
+	batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
 	// A wall-time evaluation rides every successful run: evaluations are the
 	// advisory layer's observation unit, so the gate's own history becomes
 	// the calibration corpus (first run calibrates, second enforces).
@@ -773,13 +1012,17 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 
 	store, err := repodb.Open(filepath.Join(g.repo, g.storePath))
 	if err != nil {
-		return err
+		return g.oweRecord(batch, err)
 	}
 	defer store.Close()
 	if _, err := store.Commit(context.Background(), batch); err != nil {
-		return err
+		return g.oweRecord(batch, err)
 	}
-	return g.writeStatus(record, codeCommit, outcome, failure)
+	_ = os.Remove(filepath.Join(g.repo, "bin", "gate_debt.json"))
+	if err := g.writeStatus(record, codeCommit, outcome, failure); err != nil {
+		g.honesty = append(g.honesty, "advisory gate status mirror write failed: "+err.Error())
+	}
+	return nil
 }
 
 // writeStatus mirrors the store record for cheap shell consumption; the store
@@ -787,6 +1030,7 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 func (g *gateContext) writeStatus(record runrecord.GateRecord, codeCommit string, outcome runrecord.Outcome, failure string) error {
 	status := map[string]any{
 		"result_id": record.Result.ID.String(), "code_commit": codeCommit,
+		"preparation_id": g.preparation.ID.String(), "environment_id": g.environment.ID.String(),
 		"outcome": outcome, "failure": failure, "steps": record.Result.Steps,
 		"honesty": g.honesty, "written": time.Now().UTC().Format(time.RFC3339),
 	}

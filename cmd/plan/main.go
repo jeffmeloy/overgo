@@ -26,6 +26,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -37,7 +38,10 @@ import (
 	"runtime"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/plan"
+	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 )
 
@@ -180,11 +184,51 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 	if strings.TrimSpace(role) == "" {
 		role = os.Getenv("OVERGO_AUTOMATION_ROLE")
 	}
-	statusRaw, statusErr := os.ReadFile(filepath.Join(worktree, filepath.FromSlash("bin/gate_status.json")))
+	debt := authoritativeEvidenceDebt(worktree)
 	return plan.ContextFacts{
 		Head: head, Branch: branch, Worktree: worktree, Role: role, Dirty: dirty,
-		EvidenceDebt: plan.EvidenceDebtFromMirror(head, statusRaw, statusErr),
+		EvidenceDebt: debt,
 	}, nil
+}
+
+func authoritativeEvidenceDebt(worktree string) plan.EvidenceDebt {
+	const source = "repodb:repodb-store"
+	store, err := repodb.OpenReadOnly(filepath.Join(worktree, "repodb-store"))
+	if err != nil {
+		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
+	}
+	defer store.Close()
+	result, err := store.Query(context.Background(), repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
+	if err != nil {
+		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
+	}
+	if result.Truncated {
+		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: "RepoDB evidence query was truncated"}
+	}
+	contents := make([]artifact.Content, 0)
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != runrecord.GateLifecycleMediaType || descriptor.Schema != runrecord.GateLifecycleSchema {
+			continue
+		}
+		content, ok, err := store.Content(context.Background(), descriptor.ID)
+		if err != nil {
+			return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
+		}
+		if ok {
+			contents = append(contents, content)
+		}
+	}
+	debt, err := runrecord.OutstandingGateDebt(contents)
+	if err != nil {
+		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
+	}
+	if len(debt) == 0 {
+		return plan.EvidenceDebt{State: "none_observed", Source: source}
+	}
+	return plan.EvidenceDebt{
+		State: "present", Source: source, ResultID: debt[0].ID.String(),
+		Reason: fmt.Sprintf("%d prepared gate lifecycle record(s) lack finalization", len(debt)),
+	}
 }
 
 // addItem injects a new task as a top-priority item (one step "do"), inserted

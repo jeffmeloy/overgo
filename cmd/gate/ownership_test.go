@@ -23,3 +23,13 @@ func TestNonGoOwnershipGateScope(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestEnvironmentBoundRetry(t *testing.T) {
+	cache := retryCache{TreeKey: "tree", Environment: "env-a", Steps: map[string]string{"test": "succeeded"}}
+	if !retryReusable(cache, "tree", "env-a") {
+		t.Fatal("matching environment did not reuse cache")
+	}
+	if retryReusable(cache, "tree", "env-b") {
+		t.Fatal("retry cache crossed environment identity")
+	}
+}

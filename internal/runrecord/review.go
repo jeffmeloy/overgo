@@ -114,6 +114,17 @@ type ReviewVerdict struct {
 	ID         artifact.ID          `json:"-"`
 }
 
+type ReviewAdmission struct {
+	Developer         ReviewActor
+	Reviewer          ReviewActor
+	DeveloperWorktree ReviewWorktree
+	ReviewWorktree    ReviewWorktree
+	Evaluator         ReviewEvaluator
+	Candidate         ReviewCandidate
+	Findings          []ReviewFinding
+	Verdict           ReviewVerdict
+}
+
 var reviewActorCodec = evidenceDocumentCodec("review actor", ReviewActorMediaType, ReviewActorSchema,
 	func(value *ReviewActor) error {
 		if value == nil || value.Version != ReviewVersion || !validReviewText(value.Principal) ||
@@ -268,6 +279,72 @@ func (value ReviewVerdict) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Candidate, value.Reviewer, value.Worktree, value.Evaluator}
 	parents = append(parents, value.Findings...)
 	return dependencyLineage(value.ID, parents...)
+}
+
+// AdmitReview verifies that an approved verdict covers one immutable candidate
+// at the exact target head and was produced independently on frozen evidence.
+func AdmitReview(targetHead string, admission ReviewAdmission) error {
+	if !validCodeCommit(targetHead) {
+		return errors.New("run record: review admission target is invalid")
+	}
+	identities := []error{
+		admission.Developer.ValidateIdentity(), admission.Reviewer.ValidateIdentity(),
+		admission.DeveloperWorktree.ValidateIdentity(), admission.ReviewWorktree.ValidateIdentity(),
+		admission.Evaluator.ValidateIdentity(), admission.Candidate.ValidateIdentity(), admission.Verdict.ValidateIdentity(),
+	}
+	for _, finding := range admission.Findings {
+		identities = append(identities, finding.ValidateIdentity())
+	}
+	for _, err := range identities {
+		if err != nil {
+			return fmt.Errorf("run record: review admission identity: %w", err)
+		}
+	}
+	if admission.Developer.Role != ReviewDeveloper || admission.Reviewer.Role != ReviewSQA ||
+		admission.Developer.ID == admission.Reviewer.ID || admission.Developer.Principal == admission.Reviewer.Principal {
+		return errors.New("run record: review admission requires distinct developer and SQA identities")
+	}
+	if !admission.DeveloperWorktree.Clean || !admission.ReviewWorktree.Clean ||
+		admission.DeveloperWorktree.ID == admission.ReviewWorktree.ID ||
+		admission.DeveloperWorktree.Path == admission.ReviewWorktree.Path {
+		return errors.New("run record: review admission requires clean separate worktrees")
+	}
+	candidate, verdict := admission.Candidate, admission.Verdict
+	if candidate.Developer != admission.Developer.ID || candidate.Worktree != admission.DeveloperWorktree.ID ||
+		candidate.Evaluator != admission.Evaluator.ID || verdict.Candidate != candidate.ID ||
+		verdict.Reviewer != admission.Reviewer.ID || verdict.Worktree != admission.ReviewWorktree.ID ||
+		verdict.Evaluator != admission.Evaluator.ID {
+		return errors.New("run record: review admission identity graph is inconsistent")
+	}
+	if admission.Evaluator.Revision != candidate.BaseCommit || candidate.CodeCommit != targetHead ||
+		admission.DeveloperWorktree.Head != targetHead || admission.ReviewWorktree.Head != targetHead ||
+		verdict.TargetHead != targetHead {
+		return errors.New("run record: review admission is not frozen at the target head")
+	}
+	findings := make(map[artifact.ID]ReviewFinding, len(admission.Findings))
+	for _, finding := range admission.Findings {
+		if _, duplicate := findings[finding.ID]; duplicate || finding.Candidate != candidate.ID ||
+			finding.Reviewer != admission.Reviewer.ID || finding.Evaluator != admission.Evaluator.ID {
+			return errors.New("run record: review admission finding graph is inconsistent")
+		}
+		findings[finding.ID] = finding
+	}
+	if len(findings) != len(verdict.Findings) {
+		return errors.New("run record: review admission verdict omits findings")
+	}
+	for _, id := range verdict.Findings {
+		finding, ok := findings[id]
+		if !ok {
+			return errors.New("run record: review admission verdict names an unknown finding")
+		}
+		if finding.Status == ReviewFindingOpen {
+			return errors.New("run record: review admission has an open finding")
+		}
+	}
+	if verdict.Outcome != ReviewApproved {
+		return errors.New("run record: review admission verdict is not approved")
+	}
+	return nil
 }
 
 func validReviewText(value string) bool {

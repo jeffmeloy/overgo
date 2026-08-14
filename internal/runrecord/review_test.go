@@ -15,7 +15,7 @@ func TestIndependentSQAIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	devTree, err := NewReviewWorktree("C:/repo/dev", "codex/dev", reviewCommitA, true)
+	devTree, err := NewReviewWorktree("C:/repo/dev", "codex/dev", reviewCommitB, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,6 +63,12 @@ func TestIndependentSQAIdentities(t *testing.T) {
 	if len(candidate.Lineage()) != 5 || len(finding.Lineage()) != 3 || len(verdict.Lineage()) != 5 {
 		t.Fatal("review identity graph omitted a required dependency")
 	}
+	if err := AdmitReview(reviewCommitB, ReviewAdmission{
+		Developer: developer, Reviewer: reviewer, DeveloperWorktree: devTree, ReviewWorktree: sqaTree,
+		Evaluator: evaluator, Candidate: candidate, Findings: []ReviewFinding{finding}, Verdict: verdict,
+	}); err != nil {
+		t.Fatalf("valid review admission failed: %v", err)
+	}
 
 	mutated := verdict
 	mutated.TargetHead = reviewCommitA
@@ -77,6 +83,78 @@ func TestIndependentSQAIdentities(t *testing.T) {
 		Evaluator: evaluator.ID, TargetHead: reviewCommitB, Findings: nil, Outcome: ReviewApproved,
 	}); err == nil {
 		t.Fatal("verdict with an ambiguous nil findings set accepted")
+	}
+}
+
+func TestReviewAdmission(t *testing.T) {
+	developer, _ := NewReviewActor("local:developer", ReviewDeveloper)
+	reviewer, _ := NewReviewActor("local:sqa", ReviewSQA)
+	devTree, _ := NewReviewWorktree("C:/repo/dev", "codex/dev", reviewCommitB, true)
+	reviewTree, _ := NewReviewWorktree("C:/repo/review", "codex/review", reviewCommitB, true)
+	evaluator, _ := NewReviewEvaluator("review", reviewID(t, artifact.KindRecipe, "definition"), reviewCommitA)
+	candidate, _ := NewReviewCandidate(ReviewCandidate{
+		BaseCommit: reviewCommitA, CodeCommit: reviewCommitB, Developer: developer.ID,
+		Worktree: devTree.ID, Evaluator: evaluator.ID,
+		GateResult: reviewID(t, artifact.KindEvidence, "result"), GateRun: reviewID(t, artifact.KindEvidence, "run"),
+	})
+	resolved, _ := NewReviewFinding(ReviewFinding{
+		Candidate: candidate.ID, Reviewer: reviewer.ID, Evaluator: evaluator.ID,
+		Severity: ReviewMajor, Status: ReviewFindingResolved, Summary: "fixed", Check: "go test ./...",
+	})
+	verdict, _ := NewReviewVerdict(ReviewVerdict{
+		Candidate: candidate.ID, Reviewer: reviewer.ID, Worktree: reviewTree.ID, Evaluator: evaluator.ID,
+		TargetHead: reviewCommitB, Findings: []artifact.ID{resolved.ID}, Outcome: ReviewApproved,
+	})
+	valid := ReviewAdmission{
+		Developer: developer, Reviewer: reviewer, DeveloperWorktree: devTree, ReviewWorktree: reviewTree,
+		Evaluator: evaluator, Candidate: candidate, Findings: []ReviewFinding{resolved}, Verdict: verdict,
+	}
+	if err := AdmitReview(reviewCommitB, valid); err != nil {
+		t.Fatal(err)
+	}
+	wrongActor := valid
+	wrongActor.Reviewer = developer
+	if err := AdmitReview(reviewCommitB, wrongActor); err == nil {
+		t.Fatal("developer admitted as own SQA reviewer")
+	}
+	dirtyTree, _ := NewReviewWorktree("C:/repo/review", "codex/review", reviewCommitB, false)
+	dirty := valid
+	dirty.ReviewWorktree = dirtyTree
+	dirty.Verdict, _ = NewReviewVerdict(ReviewVerdict{
+		Candidate: candidate.ID, Reviewer: reviewer.ID, Worktree: dirtyTree.ID, Evaluator: evaluator.ID,
+		TargetHead: reviewCommitB, Findings: []artifact.ID{resolved.ID}, Outcome: ReviewApproved,
+	})
+	if err := AdmitReview(reviewCommitB, dirty); err == nil {
+		t.Fatal("dirty review worktree admitted")
+	}
+	if err := AdmitReview(reviewCommitA, valid); err == nil {
+		t.Fatal("verdict admitted at a different target head")
+	}
+	open, _ := NewReviewFinding(ReviewFinding{
+		Candidate: candidate.ID, Reviewer: reviewer.ID, Evaluator: evaluator.ID,
+		Severity: ReviewMajor, Status: ReviewFindingOpen, Summary: "open", Check: "go test ./...",
+	})
+	openPacket := valid
+	openPacket.Findings = []ReviewFinding{open}
+	openPacket.Verdict, _ = NewReviewVerdict(ReviewVerdict{
+		Candidate: candidate.ID, Reviewer: reviewer.ID, Worktree: reviewTree.ID, Evaluator: evaluator.ID,
+		TargetHead: reviewCommitB, Findings: []artifact.ID{open.ID}, Outcome: ReviewApproved,
+	})
+	if err := AdmitReview(reviewCommitB, openPacket); err == nil {
+		t.Fatal("open finding admitted")
+	}
+	omitted := valid
+	omitted.Findings = nil
+	if err := AdmitReview(reviewCommitB, omitted); err == nil {
+		t.Fatal("omitted finding admitted")
+	}
+	notApproved := valid
+	notApproved.Verdict, _ = NewReviewVerdict(ReviewVerdict{
+		Candidate: candidate.ID, Reviewer: reviewer.ID, Worktree: reviewTree.ID, Evaluator: evaluator.ID,
+		TargetHead: reviewCommitB, Findings: []artifact.ID{resolved.ID}, Outcome: ReviewChangesRequired,
+	})
+	if err := AdmitReview(reviewCommitB, notApproved); err == nil {
+		t.Fatal("changes-required verdict admitted")
 	}
 }
 

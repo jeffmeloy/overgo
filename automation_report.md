@@ -16,10 +16,11 @@ the shared GPU, integrates branches, and decides promotion. The next automation
 phase should strengthen observation, isolation, independent SQA, and merge
 eligibility without prematurely taking scheduling authority away from the owner.
 
-The principal remaining risk is governance without independent admission: typed
-developer/SQA identities exist, but target-head review, findings disposition,
-and verdict enforcement do not yet control promotion. Manual worktree/resource
-state also remains largely in the owner's head.
+Independent admission now validates immutable developer/SQA identities, clean
+separate worktrees, frozen evaluators, exact target heads, complete findings,
+and approved verdicts from RepoDB. The remaining governance risk is orchestration:
+review packet creation/priority and manual worktree/resource state still live
+largely in the owner's head.
 
 ## Incremental implementation status
 
@@ -438,18 +439,6 @@ adapter. This reduces platform-specific orchestration drift and keeps policy in
 the same build, test, and review system as the runtime.
 
 ## Weaknesses and failure modes
-
-### A5: Independent SQA is not mechanically represented
-
-Overgo references adversarial SQA but has no candidate/review role model. A
-single actor can implement, run tests, and provide the evidence used for
-promotion. Adaptive_new's explicit SQA phase was not transferred into Overgo's
-plan and RepoDB authority.
-
-Required direction: bind candidate commit, developer identity, SQA identity,
-clean review worktree, frozen evaluator identities, findings, and verdict in one
-review record. For high-risk surfaces, require different development and SQA
-identities and prohibit the reviewer from modifying the candidate under review.
 
 ### A6: Plan state cannot describe manual orchestration decisions
 

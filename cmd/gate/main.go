@@ -76,6 +76,7 @@ func run() error {
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
 	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the plan's current open step (see `go run ./cmd/plan -next`). Required unless -merge. Off-plan commits are refused.")
 	reconcile := flag.Bool("reconcile", false, "finalize the deterministic RepoDB batch in bin/gate_debt.json")
+	admitReview := flag.String("admit-review", "", "read-only: admit a RepoDB review-verdict ID against the current HEAD")
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
 	staleAfter := flag.Duration("stale-after", 30*time.Second, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
@@ -93,6 +94,17 @@ func run() error {
 			fmt.Printf("gate: reconciled RepoDB record debt for %s\n", preparation)
 		}
 		return err
+	}
+	if *admitReview != "" {
+		head, err := command(repo, "git", "rev-parse", "HEAD")
+		if err != nil {
+			return err
+		}
+		if err := admitStoredReview(repo, cleanStore, *admitReview, strings.TrimSpace(head)); err != nil {
+			return err
+		}
+		fmt.Printf("gate: review %s admitted at %s\n", *admitReview, strings.TrimSpace(head))
+		return nil
 	}
 	if *watchdog {
 		return printGateWatchdog(repo, *staleAfter)

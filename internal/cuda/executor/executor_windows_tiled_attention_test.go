@@ -56,8 +56,8 @@ func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(compiled.bf16Attention) != 1 {
-				t.Fatalf("bf16 attention fusion did not apply: %d entries", len(compiled.bf16Attention))
+			if fusion := compiled.fusions[attention]; fusion == nil || fusion.kind != compiledFusionBF16Attention {
+				t.Fatalf("bf16 attention fusion did not apply: %+v", fusion)
 			}
 			feeds := map[*tensor.Tensor]reference.Value{
 				query: patternedValue(query.Shape, 1, 0.11, 0),

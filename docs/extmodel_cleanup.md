@@ -26,7 +26,8 @@ active recipe + resolved artifact facts
 
 | Surface | Count | Treatment |
 |---|---:|---|
-| Model/inference production files | 140 | Diagnostic |
+| Model/inference production files | 143 | Diagnostic; ownership matters, not file count |
+| Model/inference production functions | 952 | Reduce by caller migration and deletion |
 | Family-named production files | 0 | Hold at zero |
 | Family-identity-bearing production files | 21 | Restrict to parsing/wire facts, then remove runtime uses |
 | Post-resolution architecture catalog lookups in execution compilation | 0 | Hold at zero |
@@ -57,12 +58,25 @@ active recipe + resolved artifact facts
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 | Generic projector artifact reopens | 0 | Probe and build share one admitted handle |
 | Projector runner lifecycle implementations | 1 | Embedded resource owner closes file and device state |
+| Manual variable-length auxiliary tensor checks | 0 | Relational tensor requirements own rank/type/nonempty |
+| Invalid layer-program sentinels | 0 | Compilation returns explicit errors |
+| Duplicated tensor-descriptor maps per model load | 0 | Borrowed indexed catalog owns descriptors |
+| Ordinary CUDA launch tensor-pointer lookups | 0 | Flat compiled operand slots |
+| CUDA launch tensor-pointer lookups | 0 | Ordinary and fused launches use compiled slots |
+| CUDA fusion descriptor maps | 1 | Compile-only typed rewrite authority |
+| Hybrid-local Q/K/V projection implementations | 0 | Shared projection stage owns fused/separate binding |
+| Resident video full host-weight owners after upload | 0 | Retain timestep bundle only |
+| General recipe VQA runtime adapters | 0 | Extract command-local processor/device pipeline |
+| Production video recipe activation paths | 0 | Bind profile artifact; require active recipe |
 
 Family-named production files: none.
 
 ## Ordered Work
 
-1. Compile alternative tensor shapes/storage into shared weight requirements.
+1. Decompose latent attention, hyper attention/feed-forward, recurrent, and hybrid operators only where an existing stage replaces displaced code.
+2. Move VQA prepare/generate execution from `cmd/vqaparity` into the general capability runtime; delete command-local orchestration.
+3. Bind latent-video config/policy as a profile artifact; activate and resolve production video through its recipe.
+4. Compile video artifact names and codec selection from the active profile; remove command/runtime literals.
 
 ## Per-Wave Gate
 

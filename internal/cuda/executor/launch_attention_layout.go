@@ -58,7 +58,7 @@ func launchBF16Attention(
 	blas *blasState,
 	node *tensor.Tensor,
 	fusion bf16AttentionFusion,
-	pointers devicePointerTable,
+	pointers launchPointerFrame,
 ) error {
 	attributes, ok := node.Attrs.(tensor.AttentionAttributes)
 	if !ok {
@@ -95,11 +95,14 @@ func launchBF16Attention(
 			return err
 		}
 	}
-	query := pointers.get(queryNode)
-	key := pointers.get(keyNode)
-	value := pointers.get(fusion.value)
-	keyBias := pointers.get(fusion.keyBias)
-	output := pointers.get(node)
+	query := pointers.input(0)
+	key := pointers.input(1)
+	value := pointers.input(2)
+	var keyBias driver.DevicePtr
+	if fusion.keyBias != nil {
+		keyBias = pointers.input(3)
+	}
+	output := pointers.output()
 	scale := attributes.Scale
 	stagingBytes, ok := blasBF16AttentionStagingBytes(fusion)
 	if !ok || blas == nil || blas.scores == 0 || stagingBytes > blas.scoreBytes {

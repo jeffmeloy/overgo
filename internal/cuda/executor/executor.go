@@ -746,26 +746,13 @@ type CompiledGraph struct {
 	attributeSlots  []dynamicAttributeSlot
 	attributeWords  int
 	memory          planner.Plan
-	weightedRMS     map[*tensor.Tensor]weightedRMSFusion
-	activatedGate   map[*tensor.Tensor]activatedGateFusion
-	geluTanh        map[*tensor.Tensor]geluTanhFusion
-	weightedRMSGate map[*tensor.Tensor]weightedRMSGateFusion
-
-	layerNormModulate map[*tensor.Tensor]layerNormModulateFusion
-	broadcastGateAdd  map[*tensor.Tensor]broadcastGateAddFusion
-	bf16Gate          map[*tensor.Tensor]bf16GateFusion
-	bf16ProjAdd       map[*tensor.Tensor]bf16ProjAddFusion
-	bf16Append        map[*tensor.Tensor]bf16AppendFusion
-	bf16Attention     map[*tensor.Tensor]bf16AttentionFusion
-	bf16Argmax        map[*tensor.Tensor]*tensor.Tensor
-	ropeAppend        map[*tensor.Tensor]ropeAppendFusion
-	elided            map[*tensor.Tensor]struct{}
-	q8Emit            map[*tensor.Tensor]struct{}
-	q8Argmax          map[*tensor.Tensor]*tensor.Tensor
-	targetContracts   []tensor.OutputTargetContract
-	skipped           map[*tensor.Tensor]struct{}
-	needBlas          bool
-	q8InputBytes      uint64
+	fusions         map[*tensor.Tensor]*compiledFusion
+	elided          map[*tensor.Tensor]struct{}
+	q8Emit          map[*tensor.Tensor]struct{}
+	targetContracts []tensor.OutputTargetContract
+	skipped         map[*tensor.Tensor]struct{}
+	needBlas        bool
+	q8InputBytes    uint64
 	// matmulStagingBytes: shared exact-weight or tensor-core-input scratch.
 	matmulStagingBytes uint64
 	// attentionScoreBytes: cuBLAS attention score staging ([heads][chunk][keys] F32)
@@ -776,9 +763,49 @@ type compiledNode struct {
 	node          *tensor.Tensor
 	index         int
 	operandOffset int
+	fusion        *compiledFusion
 	view          tensor.StorageView
 	aliases       bool
 	skipped       bool
+}
+
+type compiledFusionKind uint8
+
+const (
+	compiledFusionWeightedRMS compiledFusionKind = iota + 1
+	compiledFusionActivatedGate
+	compiledFusionGELUTanh
+	compiledFusionLayerNormModulate
+	compiledFusionBroadcastGateAdd
+	compiledFusionWeightedRMSGate
+	compiledFusionBF16Append
+	compiledFusionBF16ArgmaxPartials
+	compiledFusionBF16ArgmaxReduction
+	compiledFusionRopeAppend
+	compiledFusionBF16Gate
+	compiledFusionBF16ProjAdd
+	compiledFusionBF16Attention
+	compiledFusionQ8ArgmaxPartials
+	compiledFusionQ8ArgmaxReduction
+)
+
+type compiledFusion struct {
+	kind          compiledFusionKind
+	operandOffset int
+	operands      []*tensor.Tensor
+	emitQ8        bool
+	peer          *tensor.Tensor
+	weightedRMS   weightedRMSFusion
+	activatedGate activatedGateFusion
+	geluTanh      geluTanhFusion
+	layerNorm     layerNormModulateFusion
+	broadcastGate broadcastGateAddFusion
+	weightedGate  weightedRMSGateFusion
+	bf16Append    bf16AppendFusion
+	ropeAppend    ropeAppendFusion
+	bf16Gate      bf16GateFusion
+	bf16ProjAdd   bf16ProjAddFusion
+	bf16Attention bf16AttentionFusion
 }
 
 type dynamicAttributeSlot struct {
@@ -903,6 +930,37 @@ func (p launchPointerFrame) output() driver.DevicePtr {
 
 func (p launchPointerFrame) input(index int) driver.DevicePtr {
 	return p.values[p.slots[index+1]]
+}
+
+func compileFusion(compiled *CompiledGraph, node *tensor.Tensor) (*compiledFusion, error) {
+	fusion := compiled.fusions[node]
+	if fusion == nil {
+		return nil, nil
+	}
+	fusion.operandOffset = len(compiled.operandSlots)
+	fusion.emitQ8 = hasTensor(compiled.q8Emit, node)
+	appendSlot := func(operand *tensor.Tensor) error {
+		slot, ok := compiled.orderIndexes[operand]
+		if !ok {
+			return errors.New("CUDA fusion operand is outside the compiled graph")
+		}
+		compiled.operandSlots = append(compiled.operandSlots, slot)
+		return nil
+	}
+	if err := appendSlot(node); err != nil {
+		return nil, err
+	}
+	for _, operand := range fusion.operands {
+		if err := appendSlot(operand); err != nil {
+			return nil, err
+		}
+	}
+	return fusion, nil
+}
+
+func hasTensor[T any](values map[*tensor.Tensor]T, node *tensor.Tensor) bool {
+	_, ok := values[node]
+	return ok
 }
 
 const graphArenaAlignment = 256
@@ -1132,8 +1190,11 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		}
 	}
 	dependencies := compileGraphRewrites(compiled, order, uses, consumers, outputSet)
-	for _, fusion := range compiled.bf16Attention {
-		bytes, ok := blasBF16AttentionStagingBytes(fusion)
+	for _, descriptor := range compiled.fusions {
+		if descriptor.kind != compiledFusionBF16Attention {
+			continue
+		}
+		bytes, ok := blasBF16AttentionStagingBytes(descriptor.bf16Attention)
 		if !ok {
 			return nil, errors.New("fused attention BF16 staging size overflows")
 		}
@@ -1159,8 +1220,12 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		for _, input := range node.Inputs {
 			compiled.operandSlots = append(compiled.operandSlots, compiled.orderIndexes[input])
 		}
+		fusion, fusionErr := compileFusion(compiled, node)
+		if fusionErr != nil {
+			return nil, fusionErr
+		}
 		frame := compiledNode{
-			node: node, index: index, operandOffset: offset,
+			node: node, index: index, operandOffset: offset, fusion: fusion,
 			view: view, aliases: aliases, skipped: skipped,
 		}
 		compiled.nodes[index] = frame
@@ -1410,62 +1475,51 @@ func (e *Executor) runCompiled(
 
 func launchCompiledFusion(
 	state *device.State,
-	compiled *CompiledGraph,
 	functions functionSet,
 	blas *blasState,
 	q8Input *q8InputState,
 	node *tensor.Tensor,
-	pointers, attributePointers devicePointerTable,
+	fusion *compiledFusion,
+	pointers launchPointerFrame,
+	attributePointers devicePointerTable,
 ) (string, error) {
-	if fusion, ok := compiled.weightedRMS[node]; ok {
-		_, emitQ8 := compiled.q8Emit[node]
-		return "weighted_rms_norm", launchWeightedRMSNorm(state, functions, q8Input, node, fusion, emitQ8, pointers)
+	if fusion == nil {
+		return "", nil
 	}
-	if fusion, ok := compiled.activatedGate[node]; ok {
-		_, emitQ8 := compiled.q8Emit[node]
-		return "activated_gate", launchActivatedGate(state, functions, q8Input, node, fusion, emitQ8, pointers)
+	switch fusion.kind {
+	case compiledFusionWeightedRMS:
+		return "weighted_rms_norm", launchWeightedRMSNorm(state, functions, q8Input, node, fusion.weightedRMS, fusion.emitQ8, pointers)
+	case compiledFusionActivatedGate:
+		return "activated_gate", launchActivatedGate(state, functions, q8Input, node, fusion.activatedGate, fusion.emitQ8, pointers)
+	case compiledFusionGELUTanh:
+		return "gelu_tanh", launchGELUTanh(state, functions, node, fusion.geluTanh, pointers)
+	case compiledFusionLayerNormModulate:
+		return "layer_norm_modulate", launchLayerNormModulate(state, functions, node, fusion.layerNorm, pointers)
+	case compiledFusionBroadcastGateAdd:
+		return "broadcast_gate_add", launchBroadcastGateAdd(state, functions, node, fusion.broadcastGate, pointers)
+	case compiledFusionWeightedRMSGate:
+		return "weighted_rms_gate", launchWeightedRMSGate(state, functions, q8Input, node, fusion.weightedGate, fusion.emitQ8, pointers)
+	case compiledFusionBF16Append:
+		return "bf16_append", launchBF16Append(state, functions, node, fusion.bf16Append, pointers, attributePointers)
+	case compiledFusionBF16ArgmaxPartials:
+		return "bf16_argmax", launchBF16ArgmaxPartials(state, functions, node, pointers)
+	case compiledFusionBF16ArgmaxReduction:
+		return "bf16_argmax", launchQ8ArgmaxReduction(state, functions, fusion.peer, node, pointers)
+	case compiledFusionRopeAppend:
+		return "rope_append", launchRopeAppend(state, functions, node, fusion.ropeAppend, pointers, attributePointers)
+	case compiledFusionBF16Gate:
+		return "bf16_gate", launchBF16Gate(state, functions, node, fusion.bf16Gate, pointers)
+	case compiledFusionBF16ProjAdd:
+		return "bf16_projection_add", launchBF16ProjAdd(state, functions, node, fusion.bf16ProjAdd, pointers)
+	case compiledFusionBF16Attention:
+		return "bf16_attention", launchBF16Attention(state, functions, blas, node, fusion.bf16Attention, pointers)
+	case compiledFusionQ8ArgmaxPartials:
+		return "q8_argmax", launchQ8ArgmaxPartials(state, functions, q8Input, node, pointers)
+	case compiledFusionQ8ArgmaxReduction:
+		return "q8_argmax", launchQ8ArgmaxReduction(state, functions, fusion.peer, node, pointers)
+	default:
+		return "", errors.New("compiled CUDA fusion is invalid")
 	}
-	if fusion, ok := compiled.geluTanh[node]; ok {
-		return "gelu_tanh", launchGELUTanh(state, functions, node, fusion, pointers)
-	}
-	if fusion, ok := compiled.layerNormModulate[node]; ok {
-		return "layer_norm_modulate", launchLayerNormModulate(state, functions, node, fusion, pointers)
-	}
-	if fusion, ok := compiled.broadcastGateAdd[node]; ok {
-		return "broadcast_gate_add", launchBroadcastGateAdd(state, functions, node, fusion, pointers)
-	}
-	if fusion, ok := compiled.weightedRMSGate[node]; ok {
-		_, emitQ8 := compiled.q8Emit[node]
-		return "weighted_rms_gate", launchWeightedRMSGate(state, functions, q8Input, node, fusion, emitQ8, pointers)
-	}
-	if fusion, ok := compiled.bf16Append[node]; ok {
-		return "bf16_append", launchBF16Append(state, functions, node, fusion, pointers, attributePointers)
-	}
-	if paired, ok := compiled.bf16Argmax[node]; ok {
-		if node.Op == tensor.OpMulMat {
-			return "bf16_argmax", launchBF16ArgmaxPartials(state, functions, node, pointers)
-		}
-		return "bf16_argmax", launchQ8ArgmaxReduction(state, functions, paired, node, pointers)
-	}
-	if fusion, ok := compiled.ropeAppend[node]; ok {
-		return "rope_append", launchRopeAppend(state, functions, node, fusion, pointers, attributePointers)
-	}
-	if fusion, ok := compiled.bf16Gate[node]; ok {
-		return "bf16_gate", launchBF16Gate(state, functions, node, fusion, pointers)
-	}
-	if fusion, ok := compiled.bf16ProjAdd[node]; ok {
-		return "bf16_projection_add", launchBF16ProjAdd(state, functions, node, fusion, pointers)
-	}
-	if fusion, ok := compiled.bf16Attention[node]; ok {
-		return "bf16_attention", launchBF16Attention(state, functions, blas, node, fusion, pointers)
-	}
-	if paired, ok := compiled.q8Argmax[node]; ok {
-		if node.Op == tensor.OpMulMat {
-			return "q8_argmax", launchQ8ArgmaxPartials(state, functions, q8Input, node, pointers)
-		}
-		return "q8_argmax", launchQ8ArgmaxReduction(state, functions, paired, node, pointers)
-	}
-	return "", nil
 }
 
 func execute(
@@ -1803,8 +1857,15 @@ func execute(
 					continue
 				}
 			}
+			var fusionOperands launchPointerFrame
+			if frame.fusion != nil {
+				fusionOperands = launchPointerFrame{
+					values: pointers.values,
+					slots:  compiled.operandSlots[frame.fusion.operandOffset : frame.fusion.operandOffset+len(frame.fusion.operands)+1],
+				}
+			}
 			if label, err := launchCompiledFusion(
-				state, compiled, functions, blas, q8Input, node, pointers, attributePointers,
+				state, functions, blas, q8Input, node, frame.fusion, fusionOperands, attributePointers,
 			); label != "" {
 				if err != nil {
 					return fmt.Errorf("launch tensor %d (%s): %w", node.ID, label, err)

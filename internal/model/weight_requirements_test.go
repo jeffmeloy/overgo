@@ -23,8 +23,10 @@ func TestLoadTensorRequirementsPreservesOrderAndBindings(t *testing.T) {
 	}
 	fixtures := tensorRequirementFixtures("blk.", requirements, map[string]bool{"optional": true})
 	catalog := make(map[string]gguf.TensorInfo, len(fixtures))
+	indexes := make(map[string]int, len(fixtures))
 	for _, fixture := range fixtures {
 		catalog[fixture.Name] = fixture
+		indexes[fixture.Name] = len(indexes)
 	}
 	var names []string
 	load := func(name string, shape ...uint64) (gguf.TensorInfo, error) {
@@ -35,7 +37,7 @@ func TestLoadTensorRequirementsPreservesOrderAndBindings(t *testing.T) {
 		}
 		return item, nil
 	}
-	err := loadTensorRequirements(load, catalog, "blk.", requirements)
+	err := loadTensorRequirements(load, indexes, "blk.", requirements)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +91,7 @@ func TestLoadTensorRequirementsEnforcesStorage(t *testing.T) {
 	var destination *gguf.TensorInfo
 	err := loadTensorRequirements(
 		func(_ string, _ ...uint64) (gguf.TensorInfo, error) { return item, nil },
-		map[string]gguf.TensorInfo{"bias": item}, "",
+		map[string]int{"bias": 0}, "",
 		[]tensorRequirement{requiredF32TensorPointer("bias", &destination, 2)},
 	)
 	if err == nil || destination != nil {

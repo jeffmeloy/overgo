@@ -101,7 +101,7 @@ func requiredTensorShapes(
 
 func loadTensorRequirements(
 	load weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	requirements []tensorRequirement,
 ) error {

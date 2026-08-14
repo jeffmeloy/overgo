@@ -2,13 +2,11 @@ package model
 
 import (
 	"fmt"
-
-	"overgo/internal/gguf"
 )
 
 func loadStandardAttentionCatalog(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,

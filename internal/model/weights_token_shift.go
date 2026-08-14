@@ -1,10 +1,8 @@
 package model
 
-import "overgo/internal/gguf"
-
 func loadTokenShiftRecurrentLayer(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -39,8 +37,8 @@ func loadTokenShiftRecurrentLayer(
 		}); itemErr != nil {
 			return itemErr
 		}
-		if item, ok := tensors[prefix+"time_mix_lerp_fused.weight"]; ok {
-			validated, itemErr := required(item.Name, embedding, 1, 1, 5)
+		if _, ok := tensors[prefix+"time_mix_lerp_fused.weight"]; ok {
+			validated, itemErr := required(prefix+"time_mix_lerp_fused.weight", embedding, 1, 1, 5)
 			if itemErr != nil {
 				return itemErr
 			}
@@ -114,8 +112,8 @@ func loadTokenShiftRecurrentLayer(
 				return itemErr
 			}
 		} else {
-			if item, ok := tensors[prefix+"time_mix_ln.weight"]; ok {
-				norm, itemErr := required(item.Name, embedding)
+			if _, ok := tensors[prefix+"time_mix_ln.weight"]; ok {
+				norm, itemErr := required(prefix+"time_mix_ln.weight", embedding)
 				if itemErr != nil {
 					return itemErr
 				}

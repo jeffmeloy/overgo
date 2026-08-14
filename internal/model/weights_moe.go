@@ -3,12 +3,11 @@ package model
 import (
 	"errors"
 
-	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
 )
 
 func layerUsesMoECatalog(
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	block uint32,
@@ -20,7 +19,7 @@ func layerUsesMoECatalog(
 
 func loadMoECatalog(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -31,7 +30,7 @@ func loadMoECatalog(
 		return false, err
 	}
 	if policy.OptionalGate {
-		if err := loadOptionalExpertGate(tensors, prefix, spec, layer); err != nil {
+		if err := loadOptionalExpertGate(required, tensors, prefix, spec, layer); err != nil {
 			return false, err
 		}
 	}
@@ -78,7 +77,7 @@ func loadMoECatalog(
 
 func loadMoECoreCatalog(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -113,9 +112,14 @@ func loadMoECoreCatalog(
 	return fusedGateUp, loadTensorRequirements(required, tensors, prefix, requirements)
 }
 
-func loadOptionalExpertGate(tensors map[string]gguf.TensorInfo, prefix string, spec Spec, layer *LayerWeights) error {
-	catalog := weightCatalog{tensors: tensors}
-	return loadTensorRequirements(catalog.required, tensors, prefix, []tensorRequirement{
+func loadOptionalExpertGate(
+	required weightRequirementLoader,
+	tensors map[string]int,
+	prefix string,
+	spec Spec,
+	layer *LayerWeights,
+) error {
+	return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 		optionalTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts,
 			spec.TensorShapes(0).ExpertUp(1)...),
 	})
@@ -123,7 +127,7 @@ func loadOptionalExpertGate(tensors map[string]gguf.TensorInfo, prefix string, s
 
 func loadScaledSandwichNormCatalog(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -149,7 +153,7 @@ func loadScaledSandwichNormCatalog(
 
 func loadMoEPolicyCatalog(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -158,7 +162,7 @@ func loadMoEPolicyCatalog(
 	switch policy.BiasCatalog {
 	case expertBiasCatalogOptionalF32, expertBiasCatalogOptionalF32Bare:
 		if err := loadOptionalF32ExpertBias(
-			tensors, prefix, spec, layer, policy.BiasCatalog == expertBiasCatalogOptionalF32Bare,
+			required, tensors, prefix, spec, layer, policy.BiasCatalog == expertBiasCatalogOptionalF32Bare,
 		); err != nil {
 			return err
 		}
@@ -187,7 +191,8 @@ func loadMoEPolicyCatalog(
 }
 
 func loadOptionalF32ExpertBias(
-	tensors map[string]gguf.TensorInfo,
+	required weightRequirementLoader,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -202,15 +207,14 @@ func loadOptionalF32ExpertBias(
 	if !ok {
 		return nil
 	}
-	catalog := weightCatalog{tensors: tensors}
-	return loadTensorRequirements(catalog.required, tensors, prefix, []tensorRequirement{
+	return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
 		requiredF32TensorPointer(name, &layer.FeedForwardExpertBias, uint64(spec.ExpertCount)),
 	})
 }
 
 func loadOptionalDenseGEGLUCatalog(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,

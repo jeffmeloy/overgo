@@ -1,10 +1,8 @@
 package model
 
-import "overgo/internal/gguf"
-
 func loadRecurrentMixerLayer(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,

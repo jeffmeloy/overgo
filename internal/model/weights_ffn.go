@@ -9,7 +9,7 @@ import (
 
 func loadStandardSwiGLUCatalog(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -25,7 +25,7 @@ func loadStandardSwiGLUCatalog(
 
 func loadDenseFFNCatalog(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,

@@ -255,7 +255,7 @@ type weightRequirementLoader func(string, ...uint64) (gguf.TensorInfo, error)
 
 func loadQKNormPair(
 	load weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	layer *LayerWeights,
 	queryShape, keyShape []uint64,
@@ -279,7 +279,7 @@ func loadQKNormPair(
 
 func loadOptionalWeightBias(
 	load weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	weight, bias tensorRequirement,
 	orphanError string,
@@ -306,7 +306,7 @@ type mtpCommonDestinations struct {
 
 func loadMTPCommonWeights(
 	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	spec Spec,
 	destination mtpCommonDestinations,
@@ -372,7 +372,7 @@ func newEncoderDecoderCatalogPlan(spec Spec) encoderDecoderCatalogPlan {
 
 func (p encoderDecoderCatalogPlan) loadLayer(
 	load weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	tensors map[string]int,
 	prefix string,
 	layer *LayerWeights,
 	requireGate bool,
@@ -446,28 +446,38 @@ type Weights struct {
 }
 
 type weightCatalog struct {
-	tensors map[string]gguf.TensorInfo
+	tensors map[string]int
+	items   []gguf.TensorInfo
 }
 
 func newWeightCatalog(file *gguf.File) (weightCatalog, error) {
 	if file == nil {
 		return weightCatalog{}, errors.New("model file is nil")
 	}
-	tensors := make(map[string]gguf.TensorInfo, len(file.Tensors))
-	for _, item := range file.Tensors {
+	tensors := make(map[string]int, len(file.Tensors))
+	for index, item := range file.Tensors {
 		if _, exists := tensors[item.Name]; exists {
 			return weightCatalog{}, fmt.Errorf("duplicate tensor %q", item.Name)
 		}
-		tensors[item.Name] = item
+		tensors[item.Name] = index
 	}
-	return weightCatalog{tensors: tensors}, nil
+	return weightCatalog{tensors: tensors, items: file.Tensors}, nil
+}
+
+func (c weightCatalog) tensor(name string) (gguf.TensorInfo, bool) {
+	index, ok := c.tensors[name]
+	if !ok {
+		return gguf.TensorInfo{}, false
+	}
+	return c.items[index], true
 }
 
 func (c weightCatalog) required(name string, shape ...uint64) (gguf.TensorInfo, error) {
-	item, ok := c.tensors[name]
+	index, ok := c.tensors[name]
 	if !ok {
 		return gguf.TensorInfo{}, fmt.Errorf("required tensor %q is missing", name)
 	}
+	item := c.items[index]
 	if len(shape) == 0 {
 		return item, nil
 	}
@@ -666,7 +676,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		return Weights{}, errors.New(`required tensor "output.bias" is missing`)
 	}
 	if profile.LayerTopology == LayerTopologyBidirectionalQKNorm {
-		if item, ok := tensors["dense_2.weight"]; ok {
+		if item, ok := l.catalog.tensor("dense_2.weight"); ok {
 			if spec.Dense2FeatureIn == 0 || spec.Dense2FeatureOut == 0 {
 				return Weights{}, errors.New("Gemma embedding dense-2 tensor has no shape metadata")
 			}
@@ -678,7 +688,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 			}
 			result.Dense2Output = &validated
 		}
-		if item, ok := tensors["dense_3.weight"]; ok {
+		if item, ok := l.catalog.tensor("dense_3.weight"); ok {
 			if spec.Dense3FeatureIn == 0 || spec.Dense3FeatureOut == 0 {
 				return Weights{}, errors.New("Gemma embedding dense-3 tensor has no shape metadata")
 			}
@@ -853,9 +863,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, scaleErr
 			}
 		}
-		ropeFactors, hasRopeFactors := tensors[prefix+"rope_freqs.weight"]
+		ropeFactors, hasRopeFactors := l.catalog.tensor(prefix + "rope_freqs.weight")
 		if (profile.Rotary.FactorPairs || profile.LayerTopology == LayerTopologySharedKVAdapter && !layerPlan.Sliding) && !hasRopeFactors {
-			ropeFactors, hasRopeFactors = tensors["rope_freqs.weight"]
+			ropeFactors, hasRopeFactors = l.catalog.tensor("rope_freqs.weight")
 		}
 		if hasRopeFactors {
 			if layerPlan.Attention == AttentionGatedDelta {
@@ -885,14 +895,14 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				longName = "rope_factors_long.weight"
 				shortName = "rope_factors_short.weight"
 			}
-			longFactors, hasLong := tensors[longName]
-			shortFactors, hasShort := tensors[shortName]
+			longFactors, hasLong := l.catalog.tensor(longName)
+			shortFactors, hasShort := l.catalog.tensor(shortName)
 			if block > 0 {
 				if !hasLong {
-					longFactors, hasLong = tensors["blk.0.rope_factors_long.weight"]
+					longFactors, hasLong = l.catalog.tensor("blk.0.rope_factors_long.weight")
 				}
 				if !hasShort {
-					shortFactors, hasShort = tensors["blk.0.rope_factors_short.weight"]
+					shortFactors, hasShort = l.catalog.tensor("blk.0.rope_factors_short.weight")
 				}
 			}
 			if hasLong != hasShort {
@@ -1009,8 +1019,8 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 				layer.AttentionKVANorm = &kvNorm
 				nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-				if item, ok := tensors[prefix+"attn_k_b.weight"]; ok {
-					validated, itemErr := required(item.Name, nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount))
+				if _, ok := tensors[prefix+"attn_k_b.weight"]; ok {
+					validated, itemErr := required(prefix+"attn_k_b.weight", nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount))
 					if itemErr != nil {
 						return Weights{}, itemErr
 					}
@@ -1195,8 +1205,8 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				); err != nil {
 					return Weights{}, err
 				}
-				if item, ok := tensors[prefix+"attn_v.weight"]; ok {
-					value, valueErr := required(item.Name, uint64(spec.EmbeddingLength), valueLength)
+				if _, ok := tensors[prefix+"attn_v.weight"]; ok {
+					value, valueErr := required(prefix+"attn_v.weight", uint64(spec.EmbeddingLength), valueLength)
 					if valueErr != nil {
 						return Weights{}, valueErr
 					}

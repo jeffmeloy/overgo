@@ -121,9 +121,9 @@ func readPairedProjectionWeightCatalog(catalog weightCatalog, spec Spec) (Weight
 			return Weights{}, err
 		}
 		if !spec.IsSlidingLayer(block) {
-			rope, ok := tensors[prefix+"rope_freqs.weight"]
+			rope, ok := catalog.tensor(prefix + "rope_freqs.weight")
 			if !ok {
-				rope, ok = tensors["rope_freqs.weight"]
+				rope, ok = catalog.tensor("rope_freqs.weight")
 			}
 			if !ok && sharedRope != nil {
 				rope, ok = *sharedRope, true

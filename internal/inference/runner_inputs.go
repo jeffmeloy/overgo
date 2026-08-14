@@ -179,20 +179,3 @@ func (r *Runner) buildOutputNorm(
 	}
 	return r.program.Model.Normalization().Apply(builder, input, weight, bias), builder.Err()
 }
-
-func (r *Runner) layerDeviceInputs(
-	builder *tensor.Builder,
-	info model.LayerWeights,
-) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	if r.deviceWeights == nil {
-		return model.LayerGraphWeights{}, nil, errors.New("inference: device weights are unavailable")
-	}
-	return model.BindDeviceLayerGraphInputs(builder, info, r.deviceInput)
-}
-
-func (r *Runner) layerDecodeDeviceInputs(
-	builder *tensor.Builder,
-	info model.LayerWeights,
-) (model.LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	return model.BindDeviceLayerGraphInputs(builder, info, r.decodeDeviceInput)
-}

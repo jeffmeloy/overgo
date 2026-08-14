@@ -1321,17 +1321,16 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	states := make([]deviceGraphStates, len(r.weights.Layers))
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
 	decodeCatalog := plan.mode == deviceOutputGreedy && tokensPerSequence == 1 && r.decodeWeights != nil
+	bindLayerTensor := model.DeviceTensorBinder(r.deviceInput)
+	if decodeCatalog {
+		bindLayerTensor = r.decodeDeviceInput
+	}
 	for layerIndex, info := range r.weights.Layers {
 		program := r.layerProgram(layerIndex)
 		plan := program.Layer()
-		var graphWeights model.LayerGraphWeights
-		var layerFeeds map[*tensor.Tensor]driver.DevicePtr
-		var layerErr error
-		if decodeCatalog {
-			graphWeights, layerFeeds, layerErr = r.layerDecodeDeviceInputs(builder, info)
-		} else {
-			graphWeights, layerFeeds, layerErr = r.layerDeviceInputs(builder, info)
-		}
+		graphWeights, layerFeeds, layerErr := model.BindDeviceLayerGraphInputs(
+			builder, info, bindLayerTensor,
+		)
 		if layerErr != nil {
 			return fail(layerErr)
 		}

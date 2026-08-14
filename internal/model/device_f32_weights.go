@@ -70,11 +70,6 @@ func BindDeviceLayerGraphInputs(
 	if bind == nil {
 		return LayerGraphWeights{}, nil, errors.New("device layer graph binder is nil")
 	}
-	if info.FeedForwardRouter != nil &&
-		((info.FeedForwardUpExperts == nil && info.FeedForwardGateUpExperts == nil) ||
-			info.FeedForwardDownExperts == nil) {
-		return LayerGraphWeights{}, nil, errors.New("device expert layer catalog is incomplete")
-	}
 	feeds := make(map[*tensor.Tensor]driver.DevicePtr, 11)
 	result := LayerGraphWeights{}
 	if err := bindDeviceLayerGraphFields(bind, builder, &info, &result, feeds); err != nil {

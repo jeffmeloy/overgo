@@ -69,7 +69,9 @@ func (runtime *inferenceGraphRuntime) layerWithHost(
 	hostLayer *model.HostLayer,
 ) (model.LayerGraphWeights, error) {
 	if runtime.runner.hasPreloadedWeights() {
-		weights, feeds, err := runtime.runner.layerDeviceInputs(runtime.builder, layer)
+		weights, feeds, err := model.BindDeviceLayerGraphInputs(
+			runtime.builder, layer, runtime.runner.deviceInput,
+		)
 		if err == nil {
 			runtime.feeds.AddDevice(feeds)
 		}

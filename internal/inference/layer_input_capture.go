@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -15,6 +16,90 @@ type layerInputCapture struct {
 	order     []int32
 	requested map[int32]struct{}
 	values    map[int32]reference.Value
+	// Optional exact-attention inputs.
+	attnLayer int32
+	attnScale float32
+	attnHeads int
+	attnKV    int
+	attnDim   int
+	attnQuery reference.Value
+	attnKey   reference.Value
+}
+
+// AttentionCapture holds one layer's exact host-replay inputs.
+type AttentionCapture struct {
+	Layer   int
+	Tokens  int
+	Heads   int
+	KVHeads int
+	HeadDim int
+	Scale   float32
+	Query   reference.Value
+	Key     reference.Value
+}
+
+// AttentionCaptureLayers reports exactly replayable layers.
+func (r *Runner) AttentionCaptureLayers() []int32 {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed || !r.forwardProgram().LayerCapture() {
+		return nil
+	}
+	result := make([]int32, 0, len(r.weights.Layers))
+	for layer := range r.weights.Layers {
+		if exactAttentionCapture(r.layerProgram(layer).Layer()) {
+			result = append(result, int32(layer))
+		}
+	}
+	return result
+}
+
+func exactAttentionCapture(plan model.LayerPlan) bool {
+	attention := plan.AttentionGraph
+	return plan.HasKV && attention.Causal && !attention.UseSinks && !attention.ChunkedWindow &&
+		attention.Window == 0 && attention.Softcap == 0 && attention.MaxALiBiBias == 0
+}
+
+// ExtractAttention records one exact-replay query/key boundary.
+func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.TokenID, layer int32) (AttentionCapture, error) {
+	if r == nil {
+		return AttentionCapture{}, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return AttentionCapture{}, errors.New("inference: runner is closed")
+	}
+	if !r.forwardProgram().LayerCapture() {
+		return AttentionCapture{}, errors.New("inference: attention capture is unsupported for this architecture")
+	}
+	if layer < 0 || int(layer) >= len(r.weights.Layers) {
+		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d is out of range", layer)
+	}
+	if !exactAttentionCapture(r.layerProgram(int(layer)).Layer()) {
+		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d policy cannot be replayed exactly", layer)
+	}
+	capture := &layerInputCapture{
+		requested: map[int32]struct{}{},
+		values:    map[int32]reference.Value{},
+		attnLayer: layer,
+	}
+	if _, _, err := r.forwardCachedProjectedChunkModeLocked(
+		ctx, tokenIDs, nil, ProjectedInputs{}, true, capture,
+	); err != nil {
+		return AttentionCapture{}, err
+	}
+	if capture.attnQuery.Data == nil || capture.attnKey.Data == nil {
+		return AttentionCapture{}, fmt.Errorf("inference: layer %d does not expose attention query (unsupported block type)", layer)
+	}
+	return AttentionCapture{
+		Layer: int(layer), Tokens: len(tokenIDs),
+		Heads: capture.attnHeads, KVHeads: capture.attnKV, HeadDim: capture.attnDim,
+		Scale: capture.attnScale, Query: capture.attnQuery, Key: capture.attnKey,
+	}, nil
 }
 
 // ExtractLayerInputs: full-sequence pre-layer hidden rows.
@@ -70,6 +155,7 @@ func newLayerInputCapture(layerIDs []int32, layers int) (*layerInputCapture, err
 		order:     slices.Clone(layerIDs),
 		requested: make(map[int32]struct{}, len(layerIDs)),
 		values:    make(map[int32]reference.Value, len(layerIDs)),
+		attnLayer: -1,
 	}
 	for _, layer := range layerIDs {
 		if layer < 0 || int(layer) >= layers {

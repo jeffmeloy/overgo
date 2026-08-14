@@ -92,14 +92,14 @@ concurrently.
 | --- | --- | --- |
 | Text inference | Dense, MoE, recurrent, hybrid, encoder, encoder-decoder, diffusion-text, and speculative components | Real-artifact evidence remains model-specific |
 | Quantized execution | GGUF parsing/conversion plus native quantized weights and experts through recipe-selected residency | Exact type/family coverage is generated in `docs/COMPATIBILITY.md` |
-| Serving | Native llama.cpp-style routes plus OpenAI Chat/Completions/Embeddings/Responses and Anthropic Messages | Protocol features are contract-tested; model quality remains recipe-specific |
+| Serving | Native llama.cpp-style routes; OpenAI Chat/Completions/Embeddings/Responses; Anthropic Messages; built-in inference, RepoDB browse, and model-analysis UI | Protocol features are contract-tested; model quality remains recipe-specific |
 | Multimodal input | Typed image, audio, and video projection; bounded local/allowlisted remote media; mixed-media history | E4B, Gemma/Qwen, RxBrain, and Unlimited OCR have real evidence; many catalog rows remain fixture-only |
 | Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea is promoted; SenseNova text request-to-PNG executes through routed recipe modules at the pinned 256px case; edit input remains open |
 | Video generation | Resident Wan denoise and CUDA VAE decode | Fresh Overgo result; retained Python reference still needs a same-revision rerun |
 | Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Pocket-TTS has real recipe, latent/EOS, PCM/WAV, channel/rate, wall, and heap evidence; other promotions vary |
 | Training | Muon-only dense/hybrid primitives plus corpus-derived scratch construction through shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the pinned scratch profile lead; complete-state resume and universal objectives remain open |
 
-Explicit gaps include production SenseNova image/edit publication, LiveEdit,
+Explicit gaps include full-size SenseNova image/edit evidence, LiveEdit,
 Unlimited OCR exact full-sequence numerics and matched peak evidence, complete-state
 training resume, scratch artifact publication/controller promotion, and
 real-model Qwen3.5/E4B/Gemma4 training.
@@ -267,7 +267,10 @@ Primary protocol surfaces:
 - llama.cpp-style completion, infill, embedding, tokenize/detokenize,
   apply-template, slots, LoRA adapters, and properties;
 - public health, metrics, and model discovery;
-- a small built-in web UI on otherwise unmatched GET routes.
+- a built-in web UI on otherwise unmatched GET routes. It includes chat,
+  read-only dataset/run browsing, model/vocabulary/logit/hidden-state analysis,
+  and exact host-replayed attention heatmaps where the compiled attention policy
+  is plain causal and contains no sinks, windows, softcap, or ALiBi.
 
 Set `OVERGO_API_KEY` or `-api-key-file` to protect generation and model-action
 routes. Health, metrics, and model discovery remain public. Request sizes,
@@ -297,10 +300,11 @@ reference and cannot be combined with it. A non-positive `-lr` derives
 
 Current production evidence is the frozen-lexical Carbon route. The CLI writes
 model weights plus `config.json` and `tokenizer.json`; it is not yet an atomic,
-complete-state resume containing optimizer, RNG, and data cursor. The planned
-`TrainingRunPlan`, `ScratchConstruction`, and model-level `TrainingProgram` remain
-design contracts; `cmd/train` cannot yet derive and initialize a new model from a
-dataset.
+complete-state resume containing optimizer, RNG, and data cursor. Internal
+scratch construction compiles corpus-derived topology, a flat initialized slab,
+shared tensor forward/VJP, and host/resident Muon programs with matched evidence.
+`cmd/train` does not yet publish that construction as a complete model artifact
+or expose scratch construction as its production CLI path.
 See the [training plan](docs/training_plan.md) for the exact boundary.
 
 ## Commands
@@ -381,6 +385,7 @@ read-only to automation for delete, move, and permission-changing operations.
 | `internal/projector`, `internal/latentimage`, `internal/latentvideo` | Multimodal projection and media generation |
 | `internal/optimizer`, `internal/densecausal`, `internal/hybridtrain` | Muon and training implementations |
 | `internal/artifact`, `internal/repodb`, `internal/runrecord` | Identity, lineage, decisions, runs, and evidence |
+| `internal/server`, `internal/server/webui` | HTTP contracts and embedded thin-client console/workbench |
 | `compatibility.json` | Machine-checked feature and model claims |
 | `docs/plan.json` | Current gate-executable work |
 

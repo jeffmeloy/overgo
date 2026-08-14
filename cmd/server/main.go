@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/inference"
 	"overgo/internal/projector"
 	llamaserver "overgo/internal/server"
@@ -105,6 +106,15 @@ func run() error {
 		return err
 	}
 	defer runner.Close()
+	// Read-only browse roots for the /datasets and /runs surfaces. Best-effort:
+	// if the data-root contract can't resolve, the endpoints stay disabled.
+	datasetsRoot, repoPath := "", strings.TrimSpace(*modelFlags.Repository)
+	if roots, rootsErr := dataroot.ResolveCurrent(); rootsErr == nil {
+		datasetsRoot = roots.Datasets
+		if repoPath == "" {
+			repoPath = roots.Store
+		}
+	}
 	var vision projector.ImageProjector
 	var audio projector.AudioProjector
 	if *projectorPath != "" {
@@ -167,6 +177,8 @@ func run() error {
 		FFmpegPath:         *ffmpegPath,
 		VideoFPS:           *videoFPS,
 		VideoMaxFrames:     *videoMaxFrames,
+		DatasetsRoot:       datasetsRoot,
+		RepoDBPath:         repoPath,
 	}, runner)
 	if err != nil {
 		return err

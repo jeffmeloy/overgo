@@ -257,6 +257,11 @@ type Config struct {
 	FFmpegPath         string
 	VideoFPS           float64
 	VideoMaxFrames     int
+	// Browse surfaces (read-only): the datasets root (holding manifest.json) and
+	// the RepoDB store path (for run/artifact browsing). Empty disables the
+	// corresponding /datasets or /runs endpoint.
+	DatasetsRoot string
+	RepoDBPath   string
 }
 
 type slotRuntimeStats struct {
@@ -591,6 +596,9 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/analyze/model" ||
 		request.URL.Path == "/analyze/vocab" ||
 		request.URL.Path == "/analyze/states" ||
+		request.URL.Path == "/analyze/attention" ||
+		request.URL.Path == "/datasets" ||
+		request.URL.Path == "/runs" ||
 		request.URL.Path == "/completion" ||
 		request.URL.Path == "/completions" ||
 		request.URL.Path == "/infill" ||
@@ -663,6 +671,12 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.analyzeVocab(response, request)
 	case "/analyze/states":
 		h.analyzeStates(response, request)
+	case "/analyze/attention":
+		h.analyzeAttention(response, request)
+	case "/datasets":
+		h.browseDatasets(response, request)
+	case "/runs":
+		h.browseRuns(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

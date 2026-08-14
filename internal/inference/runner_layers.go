@@ -40,6 +40,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	captured := make(map[int32]*tensor.Tensor)
+	var attnQueryNode *tensor.Tensor
 	for layerIndex, info := range r.weights.Layers {
 		program := r.layerProgram(layerIndex)
 		plan := program.Layer()
@@ -119,6 +120,13 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		}
 		keys[layerIndex] = result.Key
 		values[layerIndex] = result.Value
+		if capture != nil && capture.attnLayer == int32(layerIndex) && result.Query != nil {
+			attnQueryNode = result.Query
+			capture.attnScale = result.AttentionScale
+			capture.attnHeads = int(r.spec.LayerHeadCount(plan.Layer))
+			capture.attnKV = int(r.spec.LayerKVHeadCount(plan.Layer))
+			capture.attnDim = int(r.spec.KeyLength)
+		}
 	}
 	if applyOutputNorm {
 		normalized, normErr := r.applyDeviceOutputNorm(builder, current, deviceFeeds)
@@ -139,6 +147,9 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			}
 		}
 	}
+	if attnQueryNode != nil {
+		outputs = appendUniqueGraphOutputs(outputs, seenOutputs, attnQueryNode)
+	}
 	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -151,6 +162,10 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	}
 	for layer, node := range captured {
 		capture.set(int(layer), results[node])
+	}
+	if attnQueryNode != nil {
+		capture.attnQuery = results[attnQueryNode].Clone()
+		capture.attnKey = results[keys[capture.attnLayer]].Clone()
 	}
 	return results[current], nextCache, nil
 }

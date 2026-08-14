@@ -218,7 +218,7 @@
           "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
           "path": "internal/inference/runner_layers.go",
           "role": "source",
-          "identity": "file:sha256:a05a69ef61da2a10266690afcc650748c5c6ec54098d6ddb75f3338f8608b0c1"
+          "identity": "file:sha256:acaa2b9d153f4170cfd477b2cded57c6d862d2dfa03f9bb1fadfefa464e1194e"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",
@@ -845,7 +845,7 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:d1a796673ae1a83d0aa3b4d6056f27261fa39483b570a5569b01f81b74d175e0"
+          "identity": "file:sha256:31a7ade29e9f7c4863f8598746a080b02477e0a46f959399720609fc0f216338"
         },
         {
           "contains": "func ReadWeights(",
@@ -950,6 +950,75 @@
       "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
       "status": "implemented",
       "summary": "Pocket-TTS executes through its compiled speech recipe and matches pinned latent, EOS, PCM, WAV, rate, channel, wall, and heap evidence."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (h *Handler) analyzeAttention(",
+          "path": "internal/server/analyze_attention.go",
+          "role": "source",
+          "identity": "file:sha256:dd6bb2e9fa234a16ea62c08866044867c1d0e2c18d224742c17b32f2ea299e9c"
+        },
+        {
+          "contains": "func TestAttentionWeightsHostMath(",
+          "path": "internal/server/analyze_attention_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:3385061cca10197f9f9b3d70d8ef5bd507670f43cd8eb096011361d1ff3729aa"
+        },
+        {
+          "contains": "func TestExactAttentionCaptureRejectsModifiedScorePolicies(",
+          "path": "internal/inference/attention_capture_probe_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:00fe9df390b7a7d0525e7d3712fb696b529b66490422dfd9bcbec05e32cf66a1"
+        }
+      ],
+      "id": "exact-attention-workbench",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestAttentionWeightsHostMath$' -count=1 -v",
+      "status": "implemented",
+      "summary": "The embedded workbench replays bounded plain-causal attention on host and refuses compiled score policies it cannot reproduce exactly."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (h *Handler) browseDatasets(",
+          "path": "internal/server/browse_datasets.go",
+          "role": "source",
+          "identity": "file:sha256:c3f3cb5b115c0f9e4b7f0e5a928f4673743099bdb5617c6fd277ee0dc3d70783"
+        },
+        {
+          "contains": "func TestBrowseDatasetsReadsManifest(",
+          "path": "internal/server/browse_datasets_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:d221dd41d790f8435b033f1cac533ed33fe8fb476bdac92ba4f87561fcb4b196"
+        }
+      ],
+      "id": "bounded-dataset-browser",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestBrowseDatasetsReadsManifest$' -count=1 -v",
+      "status": "implemented",
+      "summary": "The authenticated GUI reads a bounded dataset registry manifest without dataset mutation or payload access."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (h *Handler) browseRuns(",
+          "path": "internal/server/browse_runs.go",
+          "role": "source",
+          "identity": "file:sha256:3c70b9f37e41434b2a382e4a33511dbb0fd844dc3b7fb062aa6ddb78b7048eba"
+        },
+        {
+          "contains": "func TestBrowseRunsReadsRepoDBRecords(",
+          "path": "internal/server/browse_runs_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:efb38882338ca18a945a390531e64e6f50496e62363f440ddcafc7d465ae6b28"
+        }
+      ],
+      "id": "repodb-run-browser",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestBrowseRunsReadsRepoDBRecords$' -count=1 -v",
+      "status": "implemented",
+      "summary": "The authenticated GUI pages bounded read-only RepoDB run records through the canonical run decoder."
     },
     {
       "evidence": [

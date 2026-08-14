@@ -341,6 +341,10 @@ func executeLayerInstruction(
 		if result.Key != nil || result.Value != nil {
 			execution.result.Key, execution.result.Value = result.Key, result.Value
 		}
+		// Preserve optional exact-attention inputs.
+		if result.Query != nil {
+			execution.result.Query, execution.result.AttentionScale = result.Query, result.AttentionScale
+		}
 		if len(result.States) > 0 {
 			execution.result.States = result.States
 		}

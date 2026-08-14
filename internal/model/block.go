@@ -227,6 +227,9 @@ type DenseBlockResult struct {
 	Value     *tensor.Tensor
 	Auxiliary *tensor.Tensor
 	States    CacheStates[*tensor.Tensor]
+	// Optional exact-attention replay inputs.
+	Query          *tensor.Tensor
+	AttentionScale float32
 }
 
 type denseBlockContext struct {
@@ -372,7 +375,10 @@ func buildPolicyAttentionMix(
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, c.builder.Err()
+	return DenseBlockResult{
+		Output: attention, Key: cacheKey, Value: cacheValue,
+		Query: query, AttentionScale: attentionScale,
+	}, c.builder.Err()
 }
 
 func buildPolicyFeedForwardMix(

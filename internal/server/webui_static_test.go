@@ -21,12 +21,13 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/boot.js", "text/javascript; charset=utf-8", "window.overgo"},
 		{"/viz.js", "text/javascript; charset=utf-8", "sparkline"},
 		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/chat/completions"},
-		{"/mod/datasets.js", "text/javascript; charset=utf-8", "Dataset browser"},
-		{"/mod/training.js", "text/javascript; charset=utf-8", "Training runs"},
+		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
+		{"/mod/training.js", "text/javascript; charset=utf-8", "/runs"},
 		{"/mod/analyze_model.js", "text/javascript; charset=utf-8", "/analyze/model"},
 		{"/mod/analyze_vocab.js", "text/javascript; charset=utf-8", "/analyze/vocab"},
 		{"/mod/analyze_logits.js", "text/javascript; charset=utf-8", "completion_probabilities"},
 		{"/mod/analyze_states.js", "text/javascript; charset=utf-8", "/analyze/states"},
+		{"/mod/analyze_attention.js", "text/javascript; charset=utf-8", "/analyze/attention"},
 	}
 	for _, testCase := range cases {
 		response := serveTestRequest(handler, http.MethodGet, testCase.path, "")

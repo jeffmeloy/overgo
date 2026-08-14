@@ -928,6 +928,28 @@
       "verify": "go test ./cmd/release -run '^TestCreateArchiveIsDeterministic$' -count=1 -v",
       "status": "implemented",
       "summary": "Release archives are deterministic and compared across two builds."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func LoadSynthesizer(",
+          "path": "internal/speechsynth/runtime.go",
+          "role": "source",
+          "identity": "file:sha256:8ce2e50ca348c6ac36354fc8c5568f2c17c88f48e1c3f2b57038a1c5f475b9ca"
+        },
+        {
+          "contains": "func TestPocketTTSProductionParity(",
+          "path": "internal/adaptiveparity/pocket_tts_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:af0289f8f2418d1e9c8817baba80cfd59175733182e2069396e64098c8e70221"
+        }
+      ],
+      "id": "pocket-tts-production-oracle",
+      "evidence_tier": "pinned-oracle",
+      "verify": "go test ./internal/adaptiveparity -run '^TestPocketTTSProductionParity$' -count=1 -v",
+      "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
+      "status": "implemented",
+      "summary": "Pocket-TTS executes through its compiled speech recipe and matches pinned latent, EOS, PCM, WAV, rate, channel, wall, and heap evidence."
     }
   ],
   "cuda": {

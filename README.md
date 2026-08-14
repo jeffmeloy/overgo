@@ -96,11 +96,11 @@ concurrently.
 | Multimodal input | Typed image, audio, and video projection; bounded local/allowlisted remote media; mixed-media history | E4B, Gemma/Qwen, RxBrain, and Unlimited OCR have real evidence; many catalog rows remain fixture-only |
 | Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea promoted with bounded pixel evidence; SenseNova full decode/publication remains open |
 | Video generation | Resident Wan denoise and CUDA VAE decode | Fresh Overgo result; retained Python reference still needs a same-revision rerun |
-| Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Promotion varies; consult the parity report and compatibility tiers |
+| Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Pocket-TTS has real recipe, latent/EOS, PCM/WAV, channel/rate, wall, and heap evidence; other promotions vary |
 | Training | Muon-only dense/hybrid primitives plus corpus-derived scratch construction through shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the pinned scratch profile lead; complete-state resume and universal objectives remain open |
 
 Explicit gaps include production SenseNova image/edit publication, LiveEdit,
-Unlimited OCR exact full-sequence numerics and matched peak evidence, Pocket-TTS output-quality evidence, complete-state
+Unlimited OCR exact full-sequence numerics and matched peak evidence, complete-state
 training resume, scratch artifact publication/controller promotion, and
 real-model Qwen3.5/E4B/Gemma4 training.
 
@@ -118,6 +118,7 @@ checks, and open caveats are in the
 | Gemma4 12B image/audio/video | Adaptive image/audio oracles; declared video route | Image exact token, audio top-set token, ordered mixed image/audio tokens 107/108, and ordered real-frame video through language | Video output oracle and peaks open |
 | RxBrain VQA | adaptive 18.4-23.1 s / 11.97 GB | Fresh device sessions 9.529-10.273 s; 3.940 GiB coarse device peak | Exact answer; wall and peak lead |
 | Unlimited OCR | Native BF16 image/text golden | Exact 277-token prompt and 200-token output prefix; 273 projected tokens; complete 29-row output within one coordinate/text edit; native 35-gram/128-window policy | Real production OCR parity; exact full sequence and peak open |
+| Pocket-TTS speech | Adaptive real-model generation fixture | Compiled recipe plus full latent/EOS/PCM/WAV oracle; 24 kHz mono; 0.48-0.53 s warm matched synthesis; 0.540-0.543 GiB peak heap | Output parity and warm-wall lead; matched process peak open |
 | Carbon-500M causal Muon | adaptive 6.816 s loop / 11.47 GiB | 5.05-5.13 s / 4.620 GiB; matched trajectory | About 25% loop-wall and 60% peak lead |
 | Corpus-derived scratch causal | adaptive 221.4-231.8 ms / 3.13-3.18 MB peak | 64.4-66.2 ms matched steps / 2.38-2.43 MB combined peak; cold 44.7-49 ms, warm 8.7-11.6 ms | At least 3.34x wall and 22% peak lead on pinned profile |
 | Krea 2048 image | Python 97.5-135.4 s; adaptive 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | Bounded-quality wall/peak lead |

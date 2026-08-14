@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "multimodal-input",
-          "title": "Close single and combined image, audio, and video input parity for Qwen3.5, Gemma E4B, Gemma4 12B, RxBrain, and OCR on real catalog cases; preserve ordering, temporal structure, masks, and cross-modal position semantics",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./cmd/vqaparity -run '^TestRxBrainProductionParity$' -count=1 -v \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestUnlimitedOCRProductionParity$' -count=1 -v"
-        },
-        {
           "id": "speech-output",
           "title": "Promote Pocket-TTS and every adaptive-declared audio-output recipe with real waveforms, stage parity, sample-rate/channel contracts, audio quality, wall, and peak evidence",
           "status": "open",

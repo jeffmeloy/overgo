@@ -101,7 +101,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Needle seq2seq | Partial adaptive forward/backward | Fingerprinted real weights/JAX oracle; retained load+generate envelope <=250 vs 420 ms | Exact parity; wall lead | Matched peak measurement |
 | Text embedding | No evidence-qualified encoder artifact in configured roots | Runtime and recipe exist; causal hidden-state substitution refused | Explicit refusal | Add a real encoder artifact, corpus, golden, wall, and peak |
 | Text rerank | No evidence-qualified classifier-head artifact in configured roots | Runtime and recipe exist; causal LM substitution refused | Explicit refusal | Add a real reranker artifact, pair corpus, scores, wall, and peak |
-| Pocket-TTS speech | Active adaptive host audio recipe; codec and training scaffolds | Backbone/codec/recipe rows recorded done | Unverified production audio quality | Real text-to-waveform: exact stages, audio metrics, wall, peak |
+| Pocket-TTS speech | Active adaptive host audio recipe and real-model generation fixture | Compiled production recipe; every generated latent/EOS value is bounded against the adaptive oracle; PCM max error `3.38e-4`, RMS `0.089438`, encoded WAV `24 kHz` mono; warm matched synthesis `0.48-0.53 s`; peak heap `0.540-0.543 GiB` | Production output parity; warm-wall lead versus adaptive's retained `2.0 s` optimized route; matched process peak still open | Preserve exact stage/audio gates; measure both implementations under one cold/process-memory harness |
 | Un-0 image/video | Active deterministic Go route | Exact fixture within `3.13e-7`; about 1.25 ms warm generation | Parity | Non-vacuous golden in normal gate; image and video outputs |
 | SimpleDiffusion image | Host generation and real-checkpoint training | Forward max error `3.99e-6`; recorded 0.17 s vs adaptive 0.21 s | Host lead | Device forward/backward; real output quality and peak |
 | Wan text-to-video | Native adaptive exact path; Python oracle | Fresh session+denoise 331.96 s / 7.875 GB; decode 38.31 s / 10.330 GB; exact G3/G4 bounded, BF16 G3 cosine 0.999899, frame-0 CUDA/host max error 8.04e-6 | 370.27 s staged wall beats retained 463.4 s Python wall | Fresh same-revision Python/adaptive run; semantic clip gate |
@@ -126,7 +126,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Forecast/latent/FNS | CUDA objectives for LM, FNS, latent L2/sequence, forecast | TimesFM/Un-0 ports; no single compiled production program | Breadth gap |
 | OCR | Host objective; CUDA train/eval absent | No promoted training path | Both incomplete |
 | SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and revive experiments; device path incomplete | Shared Muon plan covers the real artifact; tiny Muon loss `0.026695 -> 0.002327`; real device update open | Optimizer authority fixed; performance parity incomplete |
-| Pocket-TTS | Latent bridge, flow-net, backbone paths | Port row says scoped, but no current production proof | Unverified |
+| Pocket-TTS | Latent bridge, flow-net, backbone paths | Inference recipe and reference waveform are production-proven; training gradients exist but no matched real training trajectory | Inference promoted; training open |
 | Controller model | Strategic adaptive plan; no promoted controller | Overgo training design targets it | Not started |
 | Tier-1 memory scaling | Adaptive streamed/checkpointed components | Resident dense session and scratch pool exist; no production E4B run | Partial |
 

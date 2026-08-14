@@ -55,14 +55,14 @@ func TestRegisteredRuntimeExecutesSpeechProgram(t *testing.T) {
 	request := SynthesisRequest{Text: synthesisTextFixture, MaxFrames: synthesisFramesFixture, Seed: synthesisSeedFixture}
 	plan := generationPlan{tokens: synthesisTokenFixture, maxFrames: synthesisFramesFixture, seed: synthesisSeedFixture}
 	latents := LatentBatch{Values: synthesisLatentFixture, Frames: 1, Width: len(synthesisLatentFixture)}
-	audio := Audio{PCM: synthesisPCMFixture, SampleRate: synthesisRateFixture}
+	audio := Audio{PCM: synthesisPCMFixture, SampleRate: synthesisRateFixture, Channels: 1}
 	if err := registerRuntime(fixture.Runtime, fixture.Model, runtimeFixture{
 		t: t, request: request, plan: plan, latents: latents, audio: audio,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	got := modelrecipetest.MustExecuteScalar[Audio](t, fixture, "speech/runtime", request)
-	if got.SampleRate != synthesisRateFixture || !slices.Equal(got.PCM, synthesisPCMFixture) {
+	if got.SampleRate != synthesisRateFixture || got.Channels != 1 || !slices.Equal(got.PCM, synthesisPCMFixture) {
 		t.Fatalf("audio = %+v", got)
 	}
 }

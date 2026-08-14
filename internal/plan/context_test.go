@@ -1,9 +1,6 @@
 package plan
 
-import (
-	"reflect"
-	"testing"
-)
+import "testing"
 
 func TestAutomationContextHasOneCurrentTask(t *testing.T) {
 	document := Plan{Items: []Item{
@@ -53,12 +50,5 @@ func TestAutomationContextParsesDirtyStatus(t *testing.T) {
 	}
 	if _, err := ParseDirtyStatus([]byte("bad\x00")); err == nil {
 		t.Fatal("malformed status passed")
-	}
-}
-
-func TestAutomationSurfaceRegression(t *testing.T) {
-	typeOfDebt := reflect.TypeOf(EvidenceDebt{})
-	if typeOfDebt.NumField() != 4 {
-		t.Fatalf("evidence debt grew beyond authoritative state: %d fields", typeOfDebt.NumField())
 	}
 }

@@ -45,31 +45,38 @@ repairable gaps in an otherwise coherent design.
   context derives record debt from RepoDB rather than the advisory status mirror.
 - Immutable developer, SQA, worktree, evaluator, candidate, finding, and verdict
   identities landed at `98fd512` as the evidence substrate for review admission.
-- Three tightening passes moved lifecycle persistence into `internal/gatecontrol`
-  (`7a8774a`), centralized strict evidence-document construction (`1f88d21`),
-  and consolidated RepoDB debt, retry-cache, and environment discovery while
-  deleting the obsolete advisory-mirror classifier.
+- The initial `internal/gatecontrol` extraction (`7a8774a`) improved ownership
+  locally but increased total production Go. It was removed after measuring the
+  full delta: lifecycle, retry, and environment mechanics each have one command
+  consumer and therefore remain local. Shared domain behavior stays in
+  `runrecord`, `artifact`, and `repodb`.
+- Strict evidence-document construction is shared across review, lifecycle, and
+  environment records (`1f88d21`); the obsolete advisory-mirror classifier is
+  deleted.
 
 The next highest-priority gap is enforceable independence between developer and
 SQA identities, including target-head review admission and immutable findings.
 
 ### Tightening measurements
 
-The refactor reduced policy in command adapters and family-local record code:
+The fixed baseline is `fa67865`; measurements use `git diff --numstat` over Go
+files, with `_test.go` reported separately. The first three passes had actually
+grown production Go by 109 lines and tests by 177 lines. The correction removes
+the one-consumer `gatecontrol` abstraction while preserving its behavior.
 
-| Surface | Before | After | Change |
-| --- | ---: | ---: | ---: |
-| `cmd/gate/main.go` | 1,054 lines | 886 lines | -168 (-15.9%) |
-| `cmd/plan/main.go` | 498 lines | 475 lines | -23 (-4.6%) |
-| `internal/plan/context.go` | 183 lines | 137 lines | -46 (-25.1%) |
-| `internal/runrecord/review.go` | 283 lines | 260 lines | -23 (-8.1%) |
+| Surface vs `fa67865` | Net change |
+| --- | ---: |
+| Production Go | -52 lines |
+| Go tests | +45 lines |
+| `internal/plan/context.go` | -48 lines |
+| Run-record document family | -9 production lines |
+| `cmd/gate/main.go` | -12 lines |
 
-For the final integration pass, the measured production owner set stayed
-essentially flat (1,837 to 1,835 lines) while 133 lines left commands and legacy
-projection code. The replacement is shared, strictly decoded Go code covering
-all gate consumers. The more important surface reduction is semantic: one owner
-now answers each of lifecycle debt, retry admission, environment identity,
-evidence codec construction, and dependency lineage.
+The result has no `gatecontrol` package or exported automation API. Common code
+is retained only where multiple real consumers exist: record codecs and lineage
+use the document-family primitive; gate and plan use `internal/jsonfile` for
+strict decoding and canonical writes. Command-specific coordination stays in
+its command.
 
 ## Operating boundary
 

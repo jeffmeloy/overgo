@@ -38,8 +38,10 @@ import (
 	"runtime"
 	"strings"
 
-	"overgo/internal/gatecontrol"
+	"overgo/internal/artifact"
 	"overgo/internal/plan"
+	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 )
 
@@ -191,11 +193,32 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 
 func authoritativeEvidenceDebt(worktree string) plan.EvidenceDebt {
 	const source = "repodb:repodb-store"
-	control, err := gatecontrol.New(worktree, "repodb-store")
+	store, err := repodb.OpenReadOnly(filepath.Join(worktree, "repodb-store"))
 	if err != nil {
 		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
 	}
-	debt, err := control.OutstandingDebt(context.Background())
+	defer store.Close()
+	result, err := store.Query(context.Background(), repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
+	if err != nil {
+		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
+	}
+	if result.Truncated {
+		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: "RepoDB evidence query was truncated"}
+	}
+	contents := make([]artifact.Content, 0)
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != runrecord.GateLifecycleMediaType || descriptor.Schema != runrecord.GateLifecycleSchema {
+			continue
+		}
+		content, ok, err := store.Content(context.Background(), descriptor.ID)
+		if err != nil {
+			return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
+		}
+		if ok {
+			contents = append(contents, content)
+		}
+	}
+	debt, err := runrecord.OutstandingGateDebt(contents)
 	if err != nil {
 		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
 	}

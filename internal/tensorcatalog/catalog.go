@@ -10,22 +10,29 @@ import (
 )
 
 type Requirement struct {
-	Name         string
-	Shape        []uint64
-	Optional     bool
-	Storage      dtype.Type
-	CheckStorage bool
+	Name     string
+	Shapes   [][]uint64
+	Optional bool
+	Storages []dtype.Type
 }
 
 func ValidateInfo(info gguf.TensorInfo, requirement Requirement) error {
-	if info.Dimensions > uint32(len(info.Shape)) || int(info.Dimensions) != len(requirement.Shape) {
-		return fmt.Errorf("tensor %q rank %d, want %d", info.Name, info.Dimensions, len(requirement.Shape))
+	if info.Dimensions > uint32(len(info.Shape)) {
+		return fmt.Errorf("tensor %q rank %d exceeds stored shape", info.Name, info.Dimensions)
 	}
-	if !slices.Equal(info.Shape[:info.Dimensions], requirement.Shape) {
-		return fmt.Errorf("tensor %q shape %v, want %v", info.Name, info.Shape[:info.Dimensions], requirement.Shape)
+	shape := info.Shape[:info.Dimensions]
+	shapeOK := false
+	for _, expected := range requirement.Shapes {
+		if slices.Equal(shape, expected) {
+			shapeOK = true
+			break
+		}
 	}
-	if requirement.CheckStorage && info.Type != requirement.Storage {
-		return fmt.Errorf("tensor %q must use %s storage", info.Name, requirement.Storage)
+	if !shapeOK {
+		return fmt.Errorf("tensor %q shape %v, want one of %v", info.Name, shape, requirement.Shapes)
+	}
+	if len(requirement.Storages) > 0 && !slices.Contains(requirement.Storages, info.Type) {
+		return fmt.Errorf("tensor %q storage %s, want one of %v", info.Name, info.Type, requirement.Storages)
 	}
 	return nil
 }

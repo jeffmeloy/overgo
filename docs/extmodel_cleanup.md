@@ -62,8 +62,7 @@ Family-named production files: none.
 
 ## Ordered Work
 
-1. Compile indexed CUDA replay state and persistent dynamic attributes.
-2. Compile alternative tensor shapes/storage into shared weight requirements.
+1. Compile alternative tensor shapes/storage into shared weight requirements.
 
 ## Per-Wave Gate
 

@@ -129,8 +129,10 @@ func readPairedProjectionWeightCatalog(catalog weightCatalog, spec Spec) (Weight
 			if !ok {
 				return Weights{}, fmt.Errorf("required paired-projection RoPE factors for layer %d are missing", block)
 			}
-			if rope.Type != dtype.F32 || rope.Dimensions != 1 || rope.Shape[0] != uint64(spec.RopeDimensionCount/2) {
-				return Weights{}, fmt.Errorf("tensor %q has incompatible paired-projection RoPE factors", rope.Name)
+			if ropeErr := validateTensorInfo(
+				rope, []dtype.Type{dtype.F32}, []uint64{uint64(spec.RopeDimensionCount / 2)},
+			); ropeErr != nil {
+				return Weights{}, ropeErr
 			}
 			layer.RopeFactors, sharedRope = &rope, &rope
 		}

@@ -1,11 +1,6 @@
 package model
 
-import (
-	"slices"
-
-	"overgo/internal/gguf"
-	"overgo/internal/tensor"
-)
+import "overgo/internal/tensor"
 
 // TensorShapePlan: layer tensor and cache dimensions.
 type TensorShapePlan struct {
@@ -74,9 +69,4 @@ func (p TensorShapePlan) KeyCacheShape(tokens uint32) (tensor.Shape, error) {
 
 func (p TensorShapePlan) ValueCacheShape(tokens uint32) (tensor.Shape, error) {
 	return tensor.NewShape(p.Value, p.KVHeads, uint64(tokens))
-}
-
-func tensorInfoMatches(info gguf.TensorInfo, shape []uint64) bool {
-	return info.Dimensions <= uint32(len(info.Shape)) && int(info.Dimensions) == len(shape) &&
-		slices.Equal(info.Shape[:info.Dimensions], shape)
 }

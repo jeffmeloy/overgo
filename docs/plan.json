@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "indexed-cuda-replay",
-          "title": "Compile indexed CUDA execution frames and persistent dynamic-attribute slots; remove replay scans and per-execution maps",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor ./internal/inference -count=1 -v"
-        },
-        {
           "id": "weight-requirement-schema",
           "title": "Compile alternative tensor shapes and storage types into the shared weight requirement schema; delete manual loader validation",
           "status": "open",

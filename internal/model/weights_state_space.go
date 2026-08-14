@@ -1,11 +1,6 @@
 package model
 
-import (
-	"fmt"
-
-	"overgo/internal/gguf"
-	"overgo/internal/tensor/dtype"
-)
+import "overgo/internal/gguf"
 
 func loadRecurrentMixerLayer(
 	required weightRequirementLoader,
@@ -69,36 +64,21 @@ func loadRecurrentMixerLayer(
 		); itemErr != nil {
 			return true, itemErr
 		}
-		if item, ok := tensors[prefix+"ssm_conv1d.bias"]; ok {
-			if item.Type != dtype.F32 || item.Dimensions != 1 || item.Shape[0] != convDimension {
-				return true, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-			}
-			layer.SSMConv1DBias = &item
+		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			optionalF32TensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension),
+			optionalTensorPointer("ssm_norm.weight", &layer.SSMNorm,
+				uint64(spec.SSMInnerSize/spec.SSMGroupCount), uint64(spec.SSMGroupCount)),
+		}); itemErr != nil {
+			return true, itemErr
 		}
-		if item, ok := tensors[prefix+"ssm_norm.weight"]; ok {
-			norm, itemErr := required(
-				item.Name, uint64(spec.SSMInnerSize/spec.SSMGroupCount), uint64(spec.SSMGroupCount),
-			)
-			if itemErr != nil {
+		if _, ok := tensors[prefix+"attn_qkv.weight"]; ok {
+			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("attn_qkv.weight", &layer.AttentionQKV,
+					uint64(spec.EmbeddingLength), queryLength+keyLength+valueLength),
+				optionalF32TensorPointer("attn_qkv.bias", &layer.AttentionQKVBias,
+					queryLength+keyLength+valueLength),
+			}); itemErr != nil {
 				return true, itemErr
-			}
-			layer.SSMNorm = &norm
-		}
-		if item, ok := tensors[prefix+"attn_qkv.weight"]; ok {
-			qkv, itemErr := required(item.Name, uint64(spec.EmbeddingLength), queryLength+keyLength+valueLength)
-			if itemErr != nil {
-				return true, itemErr
-			}
-			layer.AttentionQKV = &qkv
-			if bias, ok := tensors[prefix+"attn_qkv.bias"]; ok {
-				validated, biasErr := required(bias.Name, queryLength+keyLength+valueLength)
-				if biasErr != nil {
-					return true, biasErr
-				}
-				if validated.Type != dtype.F32 {
-					return true, fmt.Errorf("tensor %q must use F32 bias storage", validated.Name)
-				}
-				layer.AttentionQKVBias = &validated
 			}
 		} else {
 			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
@@ -123,13 +103,12 @@ func loadRecurrentMixerLayer(
 		); itemErr != nil {
 			return true, itemErr
 		}
-		if item, ok := tensors[prefix+"ssm_conv1d.bias"]; ok {
-			if item.Dimensions != 1 || item.Shape[0] != convDimension {
-				return true, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-			}
-			layer.SSMConv1DBias = &item
-		} else if mixer == recurrentMixerGroupedSelectiveScan {
-			return true, fmt.Errorf("required tensor %q is missing", prefix+"ssm_conv1d.bias")
+		bias := optionalTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension)
+		if mixer == recurrentMixerGroupedSelectiveScan {
+			bias.optional = false
+		}
+		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{bias}); itemErr != nil {
+			return true, itemErr
 		}
 	} else if mixer == recurrentMixerGatedDelta {
 		layer.Recurrent = recurrent

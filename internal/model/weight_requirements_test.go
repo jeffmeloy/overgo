@@ -57,7 +57,7 @@ func tensorRequirementFixtures(
 		if requirement.optional && !optional[requirement.name] {
 			continue
 		}
-		fixtures = append(fixtures, tensorInfo(prefix+requirement.name, requirement.shape...))
+		fixtures = append(fixtures, tensorInfo(prefix+requirement.name, requirement.shapes[0]...))
 	}
 	return fixtures
 }

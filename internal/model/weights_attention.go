@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"overgo/internal/gguf"
-	"overgo/internal/tensor/dtype"
 )
 
 func loadStandardAttentionCatalog(
@@ -19,26 +18,16 @@ func loadStandardAttentionCatalog(
 	if profile.Has(ArchitectureFusedQKV) {
 		_, present := tensors[prefix+"attn_qkv.weight"]
 		if present || profile.Has(ArchitectureRequiresFusedQKV) {
-			qkv, err := required(
-				prefix+"attn_qkv.weight", uint64(spec.EmbeddingLength),
-				queryLength+keyLength+valueLength,
+			bias := optionalF32TensorPointer(
+				"attn_qkv.bias", &layer.AttentionQKVBias, queryLength+keyLength+valueLength,
 			)
-			if err != nil {
+			bias.optional = !profile.Has(ArchitectureRequiresFusedQKVBias)
+			if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointer("attn_qkv.weight", &layer.AttentionQKV,
+					uint64(spec.EmbeddingLength), queryLength+keyLength+valueLength),
+				bias,
+			}); err != nil {
 				return err
-			}
-			layer.AttentionQKV = &qkv
-			if _, present := tensors[prefix+"attn_qkv.bias"]; present {
-				bias, err := required(prefix+"attn_qkv.bias", queryLength+keyLength+valueLength)
-				if err != nil {
-					return err
-				}
-				if bias.Type != dtype.F32 {
-					return fmt.Errorf("tensor %q must use F32 bias storage", bias.Name)
-				}
-				layer.AttentionQKVBias = &bias
-			}
-			if profile.Has(ArchitectureRequiresFusedQKVBias) && layer.AttentionQKVBias == nil {
-				return fmt.Errorf("required tensor %q is missing", prefix+"attn_qkv.bias")
 			}
 		}
 	}

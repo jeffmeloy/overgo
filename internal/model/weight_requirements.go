@@ -9,35 +9,79 @@ import (
 // tensorRequirement: ordered catalog binding
 type tensorRequirement struct {
 	name        string
-	shape       []uint64
+	shapes      [][]uint64
+	storages    []dtype.Type
 	destination *gguf.TensorInfo
 	pointer     **gguf.TensorInfo
 	optional    bool
-	f32         bool
 }
 
 func requiredTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorRequirement {
-	return tensorRequirement{name: name, shape: shape, destination: destination}
+	return tensorRequirement{name: name, shapes: [][]uint64{shape}, destination: destination}
 }
 
 func optionalTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorRequirement {
-	return tensorRequirement{name: name, shape: shape, destination: destination, optional: true}
+	return tensorRequirement{name: name, shapes: [][]uint64{shape}, destination: destination, optional: true}
 }
 
 func requiredTensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
-	return tensorRequirement{name: name, shape: shape, pointer: destination}
+	return tensorRequirement{name: name, shapes: [][]uint64{shape}, pointer: destination}
 }
 
 func optionalTensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
-	return tensorRequirement{name: name, shape: shape, pointer: destination, optional: true}
+	return tensorRequirement{name: name, shapes: [][]uint64{shape}, pointer: destination, optional: true}
 }
 
 func optionalF32TensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
-	return tensorRequirement{name: name, shape: shape, pointer: destination, optional: true, f32: true}
+	return optionalStoredTensorPointer(name, destination, dtype.F32, shape...)
 }
 
 func requiredF32TensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
-	return tensorRequirement{name: name, shape: shape, pointer: destination, f32: true}
+	return requiredStoredTensorPointer(name, destination, dtype.F32, shape...)
+}
+
+func requiredStoredTensorPointer(
+	name string,
+	destination **gguf.TensorInfo,
+	storage dtype.Type,
+	shape ...uint64,
+) tensorRequirement {
+	return tensorRequirement{name: name, shapes: [][]uint64{shape}, storages: []dtype.Type{storage}, pointer: destination}
+}
+
+func optionalStoredTensorPointer(
+	name string,
+	destination **gguf.TensorInfo,
+	storage dtype.Type,
+	shape ...uint64,
+) tensorRequirement {
+	requirement := requiredStoredTensorPointer(name, destination, storage, shape...)
+	requirement.optional = true
+	return requirement
+}
+
+func optionalTensorPointerShapes(
+	name string,
+	destination **gguf.TensorInfo,
+	shapes ...[]uint64,
+) tensorRequirement {
+	return tensorRequirement{name: name, shapes: shapes, pointer: destination, optional: true}
+}
+
+func requiredTensorPointerShapes(
+	name string,
+	destination **gguf.TensorInfo,
+	shapes ...[]uint64,
+) tensorRequirement {
+	return tensorRequirement{name: name, shapes: shapes, pointer: destination}
+}
+
+func requiredTensorShapes(
+	name string,
+	destination *gguf.TensorInfo,
+	shapes ...[]uint64,
+) tensorRequirement {
+	return tensorRequirement{name: name, shapes: shapes, destination: destination}
 }
 
 func loadTensorRequirements(
@@ -53,12 +97,12 @@ func loadTensorRequirements(
 				continue
 			}
 		}
-		item, err := load(name, requirement.shape...)
+		item, err := load(name)
 		if err != nil {
 			return err
 		}
 		catalogRequirement := tensorcatalog.Requirement{
-			Name: name, Shape: requirement.shape, Storage: dtype.F32, CheckStorage: requirement.f32,
+			Name: name, Shapes: requirement.shapes, Storages: requirement.storages,
 		}
 		if err := tensorcatalog.ValidateInfo(item, catalogRequirement); err != nil {
 			return err
@@ -70,4 +114,14 @@ func loadTensorRequirements(
 		}
 	}
 	return nil
+}
+
+func validateTensorInfo(
+	item gguf.TensorInfo,
+	storages []dtype.Type,
+	shapes ...[]uint64,
+) error {
+	return tensorcatalog.ValidateInfo(item, tensorcatalog.Requirement{
+		Name: item.Name, Shapes: shapes, Storages: storages,
+	})
 }

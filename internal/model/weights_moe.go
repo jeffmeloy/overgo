@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"fmt"
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
@@ -88,13 +87,12 @@ func loadMoECoreCatalog(
 	policy := spec.Profile().Experts
 	shapes := spec.TensorShapes(0)
 	if policy.FusedGateUp {
-		if item, ok := tensors[prefix+"ffn_gate_up_exps.weight"]; ok {
-			if !tensorInfoMatches(item, shapes.ExpertUp(2)) {
-				return false, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-			}
-			layer.FeedForwardGateUpExperts = &item
-			fusedGateUp = true
+		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			optionalTensorPointer("ffn_gate_up_exps.weight", &layer.FeedForwardGateUpExperts, shapes.ExpertUp(2)...),
+		}); err != nil {
+			return false, err
 		}
+		fusedGateUp = layer.FeedForwardGateUpExperts != nil
 	}
 	requirements := []tensorRequirement{
 		requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, shapes.ExpertRouter()...),
@@ -116,15 +114,11 @@ func loadMoECoreCatalog(
 }
 
 func loadOptionalExpertGate(tensors map[string]gguf.TensorInfo, prefix string, spec Spec, layer *LayerWeights) error {
-	item, ok := tensors[prefix+"ffn_gate_exps.weight"]
-	if !ok {
-		return nil
-	}
-	if !tensorInfoMatches(item, spec.TensorShapes(0).ExpertUp(1)) {
-		return fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-	}
-	layer.FeedForwardGateExperts = &item
-	return nil
+	catalog := weightCatalog{tensors: tensors}
+	return loadTensorRequirements(catalog.required, tensors, prefix, []tensorRequirement{
+		optionalTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts,
+			spec.TensorShapes(0).ExpertUp(1)...),
+	})
 }
 
 func loadScaledSandwichNormCatalog(
@@ -169,14 +163,15 @@ func loadMoEPolicyCatalog(
 			return err
 		}
 	case expertBiasCatalogRequired, expertBiasCatalogRequiredF32:
-		bias, err := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
-		if err != nil {
+		requirement := requiredTensorPointer(
+			"exp_probs_b.bias", &layer.FeedForwardExpertBias, uint64(spec.ExpertCount),
+		)
+		if policy.BiasCatalog == expertBiasCatalogRequiredF32 {
+			requirement.storages = []dtype.Type{dtype.F32}
+		}
+		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{requirement}); err != nil {
 			return err
 		}
-		if policy.BiasCatalog == expertBiasCatalogRequiredF32 && bias.Type != dtype.F32 {
-			return fmt.Errorf("tensor %q must use F32 bias storage", bias.Name)
-		}
-		layer.FeedForwardExpertBias = &bias
 	}
 	switch policy.SharedCatalog {
 	case sharedExpertCatalogAlways:
@@ -198,18 +193,19 @@ func loadOptionalF32ExpertBias(
 	layer *LayerWeights,
 	allowBare bool,
 ) error {
-	bias, ok := tensors[prefix+"exp_probs_b"]
+	name := "exp_probs_b"
+	_, ok := tensors[prefix+name]
 	if !allowBare || !ok {
-		bias, ok = tensors[prefix+"exp_probs_b.bias"]
+		name = "exp_probs_b.bias"
+		_, ok = tensors[prefix+name]
 	}
 	if !ok {
 		return nil
 	}
-	if bias.Type != dtype.F32 || bias.Dimensions != 1 || bias.Shape[0] != uint64(spec.ExpertCount) {
-		return fmt.Errorf("tensor %q has incompatible shape %v", bias.Name, bias.Shape)
-	}
-	layer.FeedForwardExpertBias = &bias
-	return nil
+	catalog := weightCatalog{tensors: tensors}
+	return loadTensorRequirements(catalog.required, tensors, prefix, []tensorRequirement{
+		requiredF32TensorPointer(name, &layer.FeedForwardExpertBias, uint64(spec.ExpertCount)),
+	})
 }
 
 func loadOptionalDenseGEGLUCatalog(

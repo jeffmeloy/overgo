@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
@@ -467,24 +468,11 @@ func (c weightCatalog) required(name string, shape ...uint64) (gguf.TensorInfo, 
 	if !ok {
 		return gguf.TensorInfo{}, fmt.Errorf("required tensor %q is missing", name)
 	}
-	if item.Dimensions != uint32(len(shape)) {
-		return gguf.TensorInfo{}, fmt.Errorf(
-			"tensor %q has rank %d, need %d",
-			name,
-			item.Dimensions,
-			len(shape),
-		)
+	if len(shape) == 0 {
+		return item, nil
 	}
-	for index, dimension := range shape {
-		if item.Shape[index] != dimension {
-			return gguf.TensorInfo{}, fmt.Errorf(
-				"tensor %q dimension %d is %d, need %d",
-				name,
-				index,
-				item.Shape[index],
-				dimension,
-			)
-		}
+	if err := validateTensorInfo(item, nil, shape); err != nil {
+		return gguf.TensorInfo{}, err
 	}
 	return item, nil
 }
@@ -578,16 +566,13 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		result.PositionEmbedding = &positionEmbedding
 	}
 	if normPlan.PostNormLayout == PostNormLayoutOutputLayer {
-		if typeEmbedding, ok := tensors["token_types.weight"]; ok {
-			if typeEmbedding.Dimensions != 2 ||
-				typeEmbedding.Shape[0] != uint64(spec.EmbeddingLength) ||
-				typeEmbedding.Shape[1] != uint64(spec.TokenTypeCount) {
-				return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", typeEmbedding.Name, typeEmbedding.Shape)
-			}
-			result.TokenTypeEmbedding = &typeEmbedding
-		}
-		if profile.ModelCatalog.RequireTokenTypes && result.TokenTypeEmbedding == nil {
-			return Weights{}, errors.New(`required tensor "token_types.weight" is missing`)
+		tokenTypes := optionalTensorPointer(
+			"token_types.weight", &result.TokenTypeEmbedding,
+			uint64(spec.EmbeddingLength), uint64(spec.TokenTypeCount),
+		)
+		tokenTypes.optional = !profile.ModelCatalog.RequireTokenTypes
+		if typeErr := loadTensorRequirements(required, tensors, "", []tensorRequirement{tokenTypes}); typeErr != nil {
+			return Weights{}, typeErr
 		}
 		tokenNorm, normErr := required("token_embd_norm.weight", uint64(spec.EmbeddingLength))
 		if normErr != nil {
@@ -845,20 +830,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				if queryLength != uint64(spec.EmbeddingLength) || keyLength != uint64(spec.EmbeddingLength) {
 					return Weights{}, errors.New("MPT Q/K norm requires full-width Q/K projections")
 				}
-				qNorm, normErr := required(prefix+"attn_q_norm.weight", uint64(spec.EmbeddingLength))
-				if normErr != nil {
-					return Weights{}, normErr
-				}
-				kNorm, normErr := required(prefix+"attn_k_norm.weight", uint64(spec.EmbeddingLength))
-				if normErr != nil {
-					return Weights{}, normErr
-				}
-				if qNorm.Type != dtype.F32 || kNorm.Type != dtype.F32 {
-					return Weights{}, errors.New("MPT Q/K norm tensors must use F32 storage")
-				}
-				layer.AttentionQNorm = &qNorm
-				layer.AttentionKNorm = &kNorm
 				if normErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredF32TensorPointer("attn_q_norm.weight", &layer.AttentionQNorm, uint64(spec.EmbeddingLength)),
+					requiredF32TensorPointer("attn_k_norm.weight", &layer.AttentionKNorm, uint64(spec.EmbeddingLength)),
 					optionalF32TensorPointer("attn_q_norm.bias", &layer.AttentionQNormBias, uint64(spec.EmbeddingLength)),
 					optionalF32TensorPointer("attn_k_norm.bias", &layer.AttentionKNormBias, uint64(spec.EmbeddingLength)),
 				}); normErr != nil {
@@ -869,19 +843,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			} else if _, hasKBias := tensors[prefix+"attn_k_norm.bias"]; hasKBias {
 				return Weights{}, errors.New("MPT K norm bias has no weight")
 			}
-			if _, ok := tensors[prefix+"ffn_act.scales"]; ok {
-				activationScale, scaleErr := required(
-					prefix+"ffn_act.scales", uint64(spec.FeedForwardLength),
-				)
-				if scaleErr != nil {
-					return Weights{}, scaleErr
-				}
-				if activationScale.Type != dtype.F32 {
-					return Weights{}, fmt.Errorf(
-						"tensor %q must use F32 activation-scale storage", activationScale.Name,
-					)
-				}
-				layer.FeedForwardActivationScale = &activationScale
+			if scaleErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				optionalF32TensorPointer("ffn_act.scales", &layer.FeedForwardActivationScale,
+					uint64(spec.FeedForwardLength)),
+			}); scaleErr != nil {
+				return Weights{}, scaleErr
 			}
 		}
 		ropeFactors, hasRopeFactors := tensors[prefix+"rope_freqs.weight"]
@@ -899,15 +865,13 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			if spec.RopeDimensionCount > 0 {
 				rotaryDimensions = spec.RopeDimensionCount
 			}
-			if rotaryDimensions%2 != 0 ||
-				ropeFactors.Type != dtype.F32 ||
-				ropeFactors.Dimensions != 1 ||
-				ropeFactors.Shape[0] != uint64(rotaryDimensions/2) {
-				return Weights{}, fmt.Errorf(
-					"tensor %q has incompatible shape %v",
-					ropeFactors.Name,
-					ropeFactors.Shape,
-				)
+			if rotaryDimensions%2 != 0 {
+				return Weights{}, fmt.Errorf("tensor %q has odd rotary width %d", ropeFactors.Name, rotaryDimensions)
+			}
+			if validateErr := validateTensorInfo(
+				ropeFactors, []dtype.Type{dtype.F32}, []uint64{uint64(rotaryDimensions / 2)},
+			); validateErr != nil {
+				return Weights{}, validateErr
 			}
 			layer.RopeFactors = &ropeFactors
 		}
@@ -936,9 +900,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 			if hasLong {
 				for _, item := range []gguf.TensorInfo{longFactors, shortFactors} {
-					if item.Type != dtype.F32 || item.Dimensions != 1 ||
-						item.Shape[0] != uint64(spec.RopeDimensionCount/2) {
-						return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
+					if itemErr := validateTensorInfo(
+						item, []dtype.Type{dtype.F32}, []uint64{uint64(spec.RopeDimensionCount / 2)},
+					); itemErr != nil {
+						return Weights{}, itemErr
 					}
 				}
 				if spec.ContextLength > spec.OriginalContextLength {
@@ -949,13 +914,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if profile.LayerTopology == LayerTopologyBidirectionalFusedQKV {
-			if item, ok := tensors[prefix+"attn_norm.weight"]; ok {
-				if item.Dimensions != 1 || item.Shape[0] != uint64(spec.EmbeddingLength) {
-					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-				}
-				layer.AttentionNorm = item
-			} else if block > 0 {
-				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_norm.weight")
+			norm := optionalTensor("attn_norm.weight", &layer.AttentionNorm, uint64(spec.EmbeddingLength))
+			norm.optional = block == 0
+			if normErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{norm}); normErr != nil {
+				return Weights{}, normErr
 			}
 		} else if normPlan.PreAttention &&
 			(!layerPlan.DeciSparse || spec.LayerHeadCount(block) > 0) &&
@@ -987,33 +949,12 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}); itemErr != nil {
 					return Weights{}, itemErr
 				}
-				conv := func(name string) (*gguf.TensorInfo, error) {
-					item, ok := tensors[prefix+name]
-					if !ok {
-						return nil, fmt.Errorf("required tensor %q is missing", prefix+name)
-					}
-					valid3 := item.Dimensions == 3 && item.Shape[0] == uint64(spec.SSMConvKernel) && item.Shape[1] == 1 && item.Shape[2] == inner
-					valid4 := item.Dimensions == 4 && item.Shape[0] == uint64(spec.SSMConvKernel) && item.Shape[1] == 1 && item.Shape[2] == inner && item.Shape[3] == 1
-					if !valid3 && !valid4 {
-						return nil, fmt.Errorf("tensor %q has incompatible shape %v", item.Name, item.Shape)
-					}
-					return &item, nil
-				}
-				for _, binding := range []struct {
-					name        string
-					destination **gguf.TensorInfo
-				}{
-					{name: "ssm_conv1d_q.weight", destination: &layer.SSMQueryConv},
-					{name: "ssm_conv1d_k.weight", destination: &layer.SSMKeyConv},
-					{name: "ssm_conv1d_v.weight", destination: &layer.SSMValueConv},
-				} {
-					item, itemErr := conv(binding.name)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					*binding.destination = item
-				}
+				convShape := []uint64{uint64(spec.SSMConvKernel), 1, inner}
+				convShape4D := append(slices.Clone(convShape), 1)
 				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointerShapes("ssm_conv1d_q.weight", &layer.SSMQueryConv, convShape, convShape4D),
+					requiredTensorPointerShapes("ssm_conv1d_k.weight", &layer.SSMKeyConv, convShape, convShape4D),
+					requiredTensorPointerShapes("ssm_conv1d_v.weight", &layer.SSMValueConv, convShape, convShape4D),
 					requiredTensorPointer("ssm_f_a.weight", &layer.SSMForgetA, width, uint64(spec.KDAHeadDim)),
 					requiredTensorPointer("ssm_f_b.weight", &layer.SSMForgetB, uint64(spec.KDAHeadDim), inner),
 					requiredTensorPointer("ssm_beta.weight", &layer.SSMBeta, width, uint64(spec.HeadCount)),
@@ -1024,16 +965,13 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}); itemErr != nil {
 					return Weights{}, itemErr
 				}
-				ssmA, ok := tensors[prefix+"ssm_a"]
-				if !ok {
-					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"ssm_a")
+				if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+					requiredTensorPointerShapes("ssm_a", &layer.SSMA,
+						[]uint64{1, uint64(spec.HeadCount)},
+						[]uint64{1, uint64(spec.HeadCount), 1, 1}),
+				}); itemErr != nil {
+					return Weights{}, itemErr
 				}
-				validA2 := ssmA.Dimensions == 2 && ssmA.Shape[0] == 1 && ssmA.Shape[1] == uint64(spec.HeadCount)
-				validA4 := ssmA.Dimensions == 4 && ssmA.Shape[0] == 1 && ssmA.Shape[1] == uint64(spec.HeadCount) && ssmA.Shape[2] == 1 && ssmA.Shape[3] == 1
-				if !validA2 && !validA4 {
-					return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", ssmA.Name, ssmA.Shape)
-				}
-				layer.SSMA = &ssmA
 			} else {
 				if spec.QLoRARank > 0 {
 					item, itemErr := required(prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank))
@@ -1382,21 +1320,17 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if layerPlan.DenseWeights.requireAttentionGate {
-			gate, ok := tensors[prefix+"attn_gate.weight"]
-			if !ok {
-				return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_gate.weight")
-			}
-			if gate.Dimensions != 2 || gate.Shape[0] != uint64(spec.EmbeddingLength) {
-				return Weights{}, fmt.Errorf("tensor %q has incompatible shape %v", gate.Name, gate.Shape)
-			}
 			heads := uint64(spec.LayerHeadCount(block))
-			if layerPlan.AttentionOutput.flatGate && gate.Shape[1] != heads*uint64(spec.ValueLength) {
-				return Weights{}, fmt.Errorf("tensor %q has gate width %d, need %d", gate.Name, gate.Shape[1], heads*uint64(spec.ValueLength))
+			wide := heads * uint64(spec.ValueLength)
+			shapes := [][]uint64{{uint64(spec.EmbeddingLength), wide}}
+			if layerPlan.AttentionOutput.flatGateElse {
+				shapes = append(shapes, []uint64{uint64(spec.EmbeddingLength), heads})
 			}
-			if layerPlan.AttentionOutput.flatGateElse && gate.Shape[1] != heads && gate.Shape[1] != heads*uint64(spec.ValueLength) {
-				return Weights{}, fmt.Errorf("tensor %q has gate width %d, need %d or %d", gate.Name, gate.Shape[1], heads, heads*uint64(spec.ValueLength))
+			if gateErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredTensorPointerShapes("attn_gate.weight", &layer.AttentionOutputGate, shapes...),
+			}); gateErr != nil {
+				return Weights{}, gateErr
 			}
-			layer.AttentionOutputGate = &gate
 		}
 		headQKNorm := qkPlan.Heads == qkNormAffine || qkPlan.Heads == qkNormConfiguredNoBias ||
 			qkPlan.Heads == qkNormLayer

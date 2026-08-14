@@ -16,7 +16,7 @@ func validateProjectorTensorShapes(file *gguf.File, required map[string][]uint64
 		if info, ok := file.Tensor(name); ok {
 			tensors[name] = info
 		}
-		requirements = append(requirements, tensorcatalog.Requirement{Name: name, Shape: shape})
+		requirements = append(requirements, tensorcatalog.Requirement{Name: name, Shapes: [][]uint64{shape}})
 	}
 	if err := tensorcatalog.Validate(tensors, "", requirements); err != nil {
 		return fmt.Errorf("projector: %w", err)

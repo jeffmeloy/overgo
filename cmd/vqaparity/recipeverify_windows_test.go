@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/testevidence"
+	"overgo/internal/testutil"
 )
 
 func TestRxBrainProductionParity(t *testing.T) {
@@ -18,7 +19,7 @@ func TestRxBrainProductionParity(t *testing.T) {
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
 		t.Skip("set OVERGO_CUDA_TEST=1 for real RxBrain parity")
 	}
-	roots, err := dataroot.ResolveCurrent()
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}

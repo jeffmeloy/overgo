@@ -128,6 +128,7 @@ func run() error {
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
 	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
 	imagePath := flag.String("image", "", "image input for multimodal generation")
+	imageDynamicTiles := flag.Bool("image-dynamic-tiles", true, "enable dynamic local image tiles when supported")
 	audioPath := flag.String("audio", "", "Gemma 4 mono 16 kHz WAV or raw float32-LE audio")
 	videoFrames := stringListFlag{}
 	flag.Var(&videoFrames, "video-frame", "ordered multimodal video frame; repeatable")
@@ -350,7 +351,10 @@ func run() error {
 		var promptIDs []tokenizer.TokenID
 		var projected inference.ProjectedInputs
 		var projectedErr error
-		projectorOptions := projector.OpenOptions{CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal}
+		projectorOptions := projector.OpenOptions{
+			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
+			DisableDynamicTiles: !*imageDynamicTiles,
+		}
 		if *imagePath != "" {
 			promptIDs, projected, projectedErr = imageProjectedPrompt(
 				context.Background(), runner, *projectorPath, *imagePath, flag.Arg(1), *imageThinking,

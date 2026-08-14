@@ -274,7 +274,7 @@
           "contains": "func TestRxBrainProductionParity(",
           "path": "cmd/vqaparity/recipeverify_windows_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:300eb43dfbf54f5a7c163b5e647ad3311eb9cc5c5aaedc865100d0c5fd2d650e"
+          "identity": "evidence:sha256:5dbc9b53136a430495e980ae9b5bfc48f08954108254a5d53422862cab49f70b"
         }
       ],
       "id": "rxbrain-vqa-production-oracle",
@@ -503,7 +503,7 @@
           "contains": "func (r *Qwen3VLRunner) BuildImagesPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:ee0086920063910929477057a305906fba48728160307f06fee440c8ffa517fa"
+          "identity": "file:sha256:677f14ead69aeb3d862f6288afa87be60e81cfe35161ab8840fe0d55cf068278"
         },
         {
           "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -524,7 +524,7 @@
           "contains": "func (r *Gemma4Runner) BuildImagesHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:ee0086920063910929477057a305906fba48728160307f06fee440c8ffa517fa"
+          "identity": "file:sha256:677f14ead69aeb3d862f6288afa87be60e81cfe35161ab8840fe0d55cf068278"
         },
         {
           "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -545,7 +545,7 @@
           "contains": "func (r *Gemma4Runner) BuildMediaHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:ee0086920063910929477057a305906fba48728160307f06fee440c8ffa517fa"
+          "identity": "file:sha256:677f14ead69aeb3d862f6288afa87be60e81cfe35161ab8840fe0d55cf068278"
         },
         {
           "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",

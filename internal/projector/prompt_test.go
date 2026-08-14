@@ -53,7 +53,7 @@ func TestMixedMediaPromptPlan(t *testing.T) {
 	prompt, err := executeMixedMediaPromptPlan(
 		context.Background(), gemma4PromptTokenizer{}, media, []string{"a", "b", "c"},
 		mixedMediaPromptPlan{
-			Family: "test", History: true, PromptLabel: "test history", Render: renderMixedMediaHistory,
+			Family: "test", AddSpecial: true, PromptLabel: "test history", Render: renderMixedMediaHistory,
 			Kinds: map[MediaKind]mixedMediaKindPlan{
 				MediaImage: {Placeholder: "<|image|>", PlaceholderLabel: "image placeholder", Open: "<i>", Close: "</i>", Attention: true, Encode: encode(2)},
 				MediaAudio: {Placeholder: "<|audio|>", PlaceholderLabel: "audio placeholder", Open: "<a>", Close: "</a>", Encode: encode(1)},

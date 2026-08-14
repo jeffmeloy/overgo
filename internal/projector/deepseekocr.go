@@ -52,6 +52,7 @@ type DeepSeekOCRRunner struct {
 	attention                 visionAttentionPlan
 	samPosition, clipPosition reference.Value
 	cuda                      *projectorCUDA
+	dynamicTiles              bool
 }
 
 type DeepSeekOCROpenOptions = OpenOptions
@@ -66,7 +67,10 @@ func OpenDeepSeekOCRWithOptions(path string, options DeepSeekOCROpenOptions) (*D
 		if err != nil {
 			return nil, err
 		}
-		runner := &DeepSeekOCRRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
+		runner := &DeepSeekOCRRunner{
+			file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads),
+			dynamicTiles: !options.DisableDynamicTiles,
+		}
 		runner.samPosition, err = loadProjectorHostTensor(context.Background(), file, "v.sam.pos_embd.weight")
 		if err != nil {
 			return nil, err
@@ -127,10 +131,7 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, max
 	}
 	var spec DeepSeekOCRSpec
 	for key, target := range map[string]*int{
-		"clip.vision.image_size":           &spec.ImageSize,
-		"clip.vision.patch_size":           &spec.PatchSize,
 		"clip.vision.embedding_length":     &spec.Hidden,
-		"clip.vision.feed_forward_length":  &spec.FeedForward,
 		"clip.vision.block_count":          &spec.Layers,
 		"clip.vision.attention.head_count": &spec.Heads,
 		"clip.vision.sam.embedding_length": &spec.SAMHidden,
@@ -142,6 +143,9 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, max
 		if err != nil {
 			return DeepSeekOCRSpec{}, err
 		}
+	}
+	if err := deriveDeepSeekOCRDimensions(file, &spec); err != nil {
+		return DeepSeekOCRSpec{}, err
 	}
 	spec.TileSize = tileSize
 	if value, ok, valueErr := optionalMetadataUint32(file, "clip.vision.preproc_image_size"); valueErr != nil {
@@ -183,6 +187,28 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, max
 		return DeepSeekOCRSpec{}, err
 	}
 	return spec, nil
+}
+
+func deriveDeepSeekOCRDimensions(file *gguf.File, spec *DeepSeekOCRSpec) error {
+	patch, ok := file.Tensor("v.sam.patch_embd.weight")
+	if !ok || patch.Dimensions != 4 || patch.Shape[0] == 0 || patch.Shape[0] != patch.Shape[1] ||
+		patch.Shape[2] != rgbChannelCount || patch.Shape[3] != uint64(spec.SAMHidden) {
+		return errors.New("projector: DeepSeek-OCR SAM patch tensor is invalid")
+	}
+	position, ok := file.Tensor("v.sam.pos_embd.weight")
+	if !ok || position.Dimensions < 3 || position.Dimensions > 4 || position.Shape[0] != uint64(spec.SAMHidden) ||
+		position.Shape[1] == 0 || position.Shape[1] != position.Shape[2] ||
+		(position.Dimensions == 4 && position.Shape[3] != 1) {
+		return errors.New("projector: DeepSeek-OCR SAM position tensor is invalid")
+	}
+	feedForward, ok := file.Tensor("v.blk.0.ffn_up.weight")
+	if !ok || feedForward.Dimensions != 2 || feedForward.Shape[0] != uint64(spec.Hidden) || feedForward.Shape[1] == 0 {
+		return errors.New("projector: DeepSeek-OCR feed-forward tensor is invalid")
+	}
+	spec.PatchSize = int(patch.Shape[0])
+	spec.ImageSize = int(position.Shape[1]) * spec.PatchSize
+	spec.FeedForward = int(feedForward.Shape[1])
+	return nil
 }
 
 func (s DeepSeekOCRSpec) validate() error {
@@ -255,8 +281,13 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 			return fmt.Errorf("projector: tensor %q rank %d is invalid", name, info.Dimensions)
 		}
 	}
+	position, _ := file.Tensor("v.sam.pos_embd.weight")
+	positionShape := []uint64{uint64(spec.SAMHidden), uint64(spec.ImageSize / spec.PatchSize), uint64(spec.ImageSize / spec.PatchSize)}
+	if position.Dimensions == 4 {
+		positionShape = append(positionShape, 1)
+	}
 	requiredShapes := map[string][]uint64{
-		"v.sam.pos_embd.weight":   {uint64(spec.SAMHidden), uint64(spec.ImageSize / spec.PatchSize), uint64(spec.ImageSize / spec.PatchSize)},
+		"v.sam.pos_embd.weight":   positionShape,
 		"v.sam.patch_embd.weight": {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.SAMHidden)},
 		"v.sam.patch_embd.bias":   {uint64(spec.SAMHidden)},
 		"v.position_embd.weight": {uint64(spec.Hidden), uint64(
@@ -290,6 +321,10 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 }
 
 func PreprocessDeepSeekOCRImage(source image.Image, spec DeepSeekOCRSpec) (DeepSeekOCRInput, error) {
+	return preprocessDeepSeekOCRImage(source, spec, true)
+}
+
+func preprocessDeepSeekOCRImage(source image.Image, spec DeepSeekOCRSpec, dynamicTiles bool) (DeepSeekOCRInput, error) {
 	if source == nil {
 		return DeepSeekOCRInput{}, errors.New("projector: image is nil")
 	}
@@ -301,7 +336,7 @@ func PreprocessDeepSeekOCRImage(source image.Image, spec DeepSeekOCRSpec) (DeepS
 		return DeepSeekOCRInput{}, errors.New("projector: image bounds are empty")
 	}
 	input := DeepSeekOCRInput{}
-	if bounds.Dx() > spec.TileSize || bounds.Dy() > spec.TileSize {
+	if dynamicTiles && (bounds.Dx() > spec.TileSize || bounds.Dy() > spec.TileSize) {
 		input.GridW, input.GridH = deepSeekOCRBestGrid(bounds.Dx(), bounds.Dy(), spec.TileSize, spec.MinTiles, spec.MaxTiles)
 		refined := resizeImageBicubic(source, input.GridW*spec.TileSize, input.GridH*spec.TileSize)
 		for y := 0; y < input.GridH; y++ {
@@ -364,7 +399,7 @@ func (r *DeepSeekOCRRunner) EncodeImage(ctx context.Context, source image.Image)
 	if r == nil || r.file == nil {
 		return reference.Value{}, errors.New("projector: runner is closed")
 	}
-	input, err := PreprocessDeepSeekOCRImage(source, r.spec)
+	input, err := preprocessDeepSeekOCRImage(source, r.spec, r.dynamicTiles)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -559,7 +594,7 @@ func cubicWeight(value float64) float64 {
 func interpolateSpatialPosition(source reference.Value, channels, width, height int, classLast bool) reference.Value {
 	classTokens := 0
 	spatialTokens := int(source.Shape.Dims[1])
-	if source.Shape.Rank == 3 {
+	if source.Shape.Rank >= 3 {
 		spatialTokens *= int(source.Shape.Dims[2])
 	}
 	if classLast {
@@ -671,12 +706,12 @@ func (r *DeepSeekOCRRunner) BuildImagesHistoryPrompt(ctx context.Context, tokeni
 	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
 }
 
-func (r *DeepSeekOCRRunner) buildImagesPrompt(ctx context.Context, tokenizer ImageTokenizer, sources []image.Image, text []string, history bool) (MultimodalPrompt, error) {
+func (r *DeepSeekOCRRunner) buildImagesPrompt(ctx context.Context, tokenizer ImageTokenizer, sources []image.Image, text []string, _ bool) (MultimodalPrompt, error) {
 	return executeImagePromptPlan(ctx, tokenizer, sources, text, imagePromptPlan{
 		Family: "DeepSeek-OCR", Placeholder: DeepSeekOCRImagePad, PlaceholderLabel: "DeepSeek-OCR placeholder",
-		History: history, EmbeddingWidth: r.spec.OutputHidden,
+		AddSpecial: true, EmbeddingWidth: r.spec.OutputHidden,
 		Render: func(text []string, items []imagePromptItem) string {
-			return renderDelimitedImagePrompt(text, items, DeepSeekOCRImagePad, "", "\n")
+			return renderDelimitedImagePrompt(text, items, DeepSeekOCRImagePad, "", "")
 		},
 	}, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		value, err := r.EncodeImage(ctx, source)

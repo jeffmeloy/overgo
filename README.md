@@ -93,20 +93,20 @@ concurrently.
 | Text inference | Dense, MoE, recurrent, hybrid, encoder, encoder-decoder, diffusion-text, and speculative components | Real-artifact evidence remains model-specific |
 | Quantized execution | GGUF parsing/conversion plus native quantized weights and experts through recipe-selected residency | Exact type/family coverage is generated in `docs/COMPATIBILITY.md` |
 | Serving | Native llama.cpp-style routes plus OpenAI Chat/Completions/Embeddings/Responses and Anthropic Messages | Protocol features are contract-tested; model quality remains recipe-specific |
-| Multimodal input | Typed image, audio, and video projection; bounded local/allowlisted remote media; mixed-media history | E4B image/audio and selected Gemma/Qwen projectors have real evidence; many catalog rows remain fixture-only |
+| Multimodal input | Typed image, audio, and video projection; bounded local/allowlisted remote media; mixed-media history | E4B, Gemma/Qwen, RxBrain, and Unlimited OCR have real evidence; many catalog rows remain fixture-only |
 | Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea promoted with bounded pixel evidence; SenseNova full decode/publication remains open |
 | Video generation | Resident Wan denoise and CUDA VAE decode | Fresh Overgo result; retained Python reference still needs a same-revision rerun |
 | Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Promotion varies; consult the parity report and compatibility tiers |
 | Training | Muon-only dense/hybrid primitives plus corpus-derived scratch construction through shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the pinned scratch profile lead; complete-state resume and universal objectives remain open |
 
 Explicit gaps include production SenseNova image/edit publication, LiveEdit,
-Unlimited OCR parity, Pocket-TTS output-quality evidence, complete-state
+Unlimited OCR full-output repetition-policy parity, Pocket-TTS output-quality evidence, complete-state
 training resume, scratch artifact publication/controller promotion, and
 real-model Qwen3.5/E4B/Gemma4 training.
 
 ## Recorded performance
 
-Snapshot reviewed 2026-08-13. These are retained single-machine results, not
+Snapshot reviewed 2026-08-14. These are retained single-machine results, not
 portable guarantees. The authoritative protocol, artifact identities, quality
 checks, and open caveats are in the
 [adaptive_new parity report](docs/adaptive_new_parity_report.md).
@@ -117,6 +117,7 @@ checks, and open caveats are in the
 | Qwen3.5-4B image/video | Python image and 16-frame video goldens | Exact prompt IDs, MRoPE, and first tokens; CUDA projector probes pass | Real input parity; peak open |
 | Gemma4 12B image/audio/video | Adaptive image/audio oracles; declared video route | Image exact token, audio top-set token, ordered real-frame video through language | Video output oracle and peaks open |
 | RxBrain VQA | adaptive 18.4-23.1 s / 11.97 GB | Fresh device sessions 9.529-10.273 s; 3.940 GiB coarse device peak | Exact answer; wall and peak lead |
+| Unlimited OCR | Native BF16 image/text golden | Exact 277-token prompt and 128-token output prefix; 273 projected tokens; 29-row oracle | Real production prefix parity; full no-repeat replay open |
 | Carbon-500M causal Muon | adaptive 6.816 s loop / 11.47 GiB | 5.05-5.13 s / 4.620 GiB; matched trajectory | About 25% loop-wall and 60% peak lead |
 | Corpus-derived scratch causal | adaptive 221.4-231.8 ms / 3.13-3.18 MB peak | 64.4-66.2 ms matched steps / 2.38-2.43 MB combined peak; cold 44.7-49 ms, warm 8.7-11.6 ms | At least 3.34x wall and 22% peak lead on pinned profile |
 | Krea 2048 image | Python 97.5-135.4 s; adaptive 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | Bounded-quality wall/peak lead |

@@ -132,8 +132,9 @@ type VideoProjector interface {
 }
 
 type OpenOptions struct {
-	CUDA          bool
-	DeviceOrdinal int
+	CUDA                bool
+	DeviceOrdinal       int
+	DisableDynamicTiles bool
 }
 
 func validateImagePromptInputs(
@@ -326,7 +327,7 @@ func (r *Granite4VisionRunner) buildImagesPrompt(
 ) (MultimodalPrompt, error) {
 	plan := imagePromptPlan{
 		Family: "Granite 4 Vision", Placeholder: Granite4VisionImageToken,
-		PlaceholderLabel: "Granite 4 Vision image token", History: history,
+		PlaceholderLabel: "Granite 4 Vision image token", AddSpecial: history,
 		EmbeddingWidth: r.spec.ProjectionDim, EmbeddingOffset: 1,
 		Render: func(text []string, items []imagePromptItem) string {
 			var prompt strings.Builder
@@ -398,7 +399,7 @@ func (r *Llama4VisionRunner) buildImagesPrompt(
 ) (MultimodalPrompt, error) {
 	plan := imagePromptPlan{
 		Family: "Llama-4", Placeholder: Llama4ImagePad, PlaceholderLabel: "Llama-4 placeholder",
-		History: history, EmbeddingWidth: r.spec.OutputHidden,
+		AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden,
 		Render: func(text []string, items []imagePromptItem) string {
 			var prompt strings.Builder
 			if !history {
@@ -464,7 +465,7 @@ func (r *HunyuanVLRunner) buildImagesPrompt(
 ) (MultimodalPrompt, error) {
 	plan := imagePromptPlan{
 		Family: "Hunyuan-VL", Placeholder: HunyuanVLImagePad, PlaceholderLabel: "Hunyuan-VL placeholder",
-		History: history, EmbeddingWidth: r.spec.OutputHidden, Positions: hunyuanImagePromptPositions,
+		AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden, Positions: hunyuanImagePromptPositions,
 		Render: func(text []string, items []imagePromptItem) string {
 			var prompt strings.Builder
 			if !history {
@@ -533,7 +534,7 @@ func (r *PaddleOCRRunner) buildImagesPrompt(
 ) (MultimodalPrompt, error) {
 	plan := imagePromptPlan{
 		Family: "PaddleOCR", Placeholder: PaddleOCRImagePad, PlaceholderLabel: "PaddleOCR placeholder",
-		History: history, EmbeddingWidth: r.spec.OutputHidden, Positions: qwenImagePromptPositions,
+		AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden, Positions: qwenImagePromptPositions,
 		Render: func(text []string, items []imagePromptItem) string {
 			var prompt strings.Builder
 			if !history {
@@ -644,7 +645,7 @@ func (r *MiMoVLRunner) buildImagesPrompt(
 ) (MultimodalPrompt, error) {
 	plan := imagePromptPlan{
 		Family: "MiMo-VL", Placeholder: Qwen3VLImagePad, PlaceholderLabel: "MiMo-VL placeholder",
-		History: history, EmbeddingWidth: r.spec.ProjectionDim,
+		AddSpecial: history, EmbeddingWidth: r.spec.ProjectionDim,
 		Render: func(text []string, items []imagePromptItem) string {
 			var prompt strings.Builder
 			if !history {
@@ -816,7 +817,7 @@ func (r *Gemma4Runner) BuildImagesHistoryPrompt(
 ) (MultimodalPrompt, error) {
 	plan := imagePromptPlan{
 		Family: "Gemma 4 history", Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
-		History: true, AttentionBlocks: imagePromptBlocks,
+		AddSpecial: true, AttentionBlocks: imagePromptBlocks,
 		Render: func(text []string, items []imagePromptItem) string {
 			var prompt strings.Builder
 			for index, item := range items {
@@ -851,7 +852,7 @@ func (r *Gemma4Runner) BuildMediaHistoryPrompt(
 	text []string,
 ) (MultimodalPrompt, error) {
 	plan := mixedMediaPromptPlan{
-		Family: "Gemma 4", History: true, PromptLabel: "Gemma 4 media history",
+		Family: "Gemma 4", AddSpecial: true, PromptLabel: "Gemma 4 media history",
 		Render: renderMixedMediaHistory,
 		Kinds: map[MediaKind]mixedMediaKindPlan{
 			MediaImage: {

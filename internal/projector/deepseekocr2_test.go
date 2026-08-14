@@ -53,7 +53,7 @@ func TestDeepSeekOCR2PromptContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tok.texts) < 2 || tok.texts[0] != "before"+strings.Repeat(DeepSeekOCRImagePad, 2)+"\nafter" {
+	if len(tok.texts) < 2 || tok.texts[0] != "before"+strings.Repeat(DeepSeekOCRImagePad, 2)+"after" {
 		t.Fatalf("prompt text = %q", tok.texts)
 	}
 	if prompt.EmbeddingWidth != 3 || len(prompt.EmbeddingTokenIndices) != 2 || len(prompt.Embeddings) != 6 {

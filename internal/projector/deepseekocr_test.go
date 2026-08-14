@@ -57,6 +57,23 @@ func TestDeepSeekOCRPreprocessesLocalTilesBeforeOverview(t *testing.T) {
 	}
 }
 
+func TestDeepSeekOCRCanDisableDynamicTiles(t *testing.T) {
+	runner, err := OpenDeepSeekOCRWithOptions(
+		writeTinyDeepSeekOCR(t, false), DeepSeekOCROpenOptions{DisableDynamicTiles: true},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	output, err := runner.EncodeImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 128, 64)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !output.Shape.Equal(mustShape(3, 3)) {
+		t.Fatalf("output shape = %v", output.Shape)
+	}
+}
+
 func TestDeepSeekOCRPromptContract(t *testing.T) {
 	runner, err := OpenDeepSeekOCR(writeTinyDeepSeekOCR(t, false))
 	if err != nil {
@@ -68,7 +85,7 @@ func TestDeepSeekOCRPromptContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tok.texts) < 2 || tok.texts[0] != "before"+strings.Repeat(DeepSeekOCRImagePad, 3)+"\nafter" {
+	if len(tok.texts) < 2 || tok.texts[0] != "before"+strings.Repeat(DeepSeekOCRImagePad, 3)+"after" {
 		t.Fatalf("prompt text = %q", tok.texts)
 	}
 	if prompt.EmbeddingWidth != 3 || len(prompt.EmbeddingTokenIndices) != 3 || len(prompt.Embeddings) != 9 {

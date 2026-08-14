@@ -25,7 +25,7 @@ type imagePromptPlan struct {
 	Family           string
 	Placeholder      string
 	PlaceholderLabel string
-	History          bool
+	AddSpecial       bool
 	EmbeddingWidth   int
 	EmbeddingOffset  int
 	Render           func([]string, []imagePromptItem) string
@@ -58,7 +58,7 @@ type mixedMediaKindPlan struct {
 
 type mixedMediaPromptPlan struct {
 	Family      string
-	History     bool
+	AddSpecial  bool
 	PromptLabel string
 	Kinds       map[MediaKind]mixedMediaKindPlan
 	Render      func([]string, []mixedMediaPromptItem) string
@@ -66,7 +66,7 @@ type mixedMediaPromptPlan struct {
 
 type mediaPromptRunPlan struct {
 	Prompt           string
-	History          bool
+	AddSpecial       bool
 	Placeholder      string
 	Runs             int
 	TokensPerRun     int
@@ -115,7 +115,7 @@ func compileMediaPromptRuns(tokenizer ImageTokenizer, plan mediaPromptRunPlan) (
 		counts[index] = plan.TokensPerRun
 	}
 	ids, starts, err := tokenizePromptRuns(
-		tokenizer, plan.Prompt, plan.History, plan.Placeholder, counts,
+		tokenizer, plan.Prompt, plan.AddSpecial, plan.Placeholder, counts,
 		plan.PromptLabel, plan.PlaceholderLabel, plan.RunsLabel,
 	)
 	if err != nil {
@@ -263,14 +263,14 @@ func executeImagePromptPlan(
 	var err error
 	if compact {
 		ids, starts, err = markerTokenizer.TokenizeTextMarkers(
-			prompt, plan.Placeholder, counts, plan.History,
+			prompt, plan.Placeholder, counts, plan.AddSpecial,
 		)
 		if err != nil {
 			err = fmt.Errorf("projector: tokenize %s image prompt: %w", plan.Family, err)
 		}
 	} else {
 		ids, starts, err = tokenizeImagePromptRuns(
-			tokenizerAPI, prompt, plan.History, plan.Placeholder, counts,
+			tokenizerAPI, prompt, plan.AddSpecial, plan.Placeholder, counts,
 			plan.Family, plan.PlaceholderLabel,
 		)
 	}
@@ -356,7 +356,7 @@ func executeMixedMediaPromptPlan(
 	for _, item := range items {
 		embeddings = append(embeddings, item.Embeddings...)
 	}
-	ids, err := tokenizerAPI.TokenizeText(plan.Render(text, items), plan.History, true)
+	ids, err := tokenizerAPI.TokenizeText(plan.Render(text, items), plan.AddSpecial, true)
 	if err != nil {
 		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize %s: %w", plan.PromptLabel, err)
 	}
@@ -426,7 +426,7 @@ func qwenImagePlan(
 ) imagePromptPlan {
 	return imagePromptPlan{
 		Family: family, Placeholder: Qwen3VLImagePad, PlaceholderLabel: "image placeholder",
-		History: history, EmbeddingWidth: width, Render: render, Positions: qwenImagePromptPositions,
+		AddSpecial: history, EmbeddingWidth: width, Render: render, Positions: qwenImagePromptPositions,
 	}
 }
 

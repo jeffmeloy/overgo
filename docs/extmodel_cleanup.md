@@ -27,7 +27,7 @@ active recipe + resolved artifact facts
 | Surface | Count | Treatment |
 |---|---:|---|
 | Model/inference production files | 140 | Diagnostic |
-| Family-named production files | 2 | Delete through vertical migration |
+| Family-named production files | 0 | Hold at zero |
 | Family-identity-bearing production files | 21 | Restrict to parsing/wire facts, then remove runtime uses |
 | Post-resolution architecture catalog lookups in execution compilation | 0 | Hold at zero |
 | Family switches in compiled layer execution | 0 | Hold at zero |
@@ -36,10 +36,7 @@ active recipe + resolved artifact facts
 | Alternate-state magnitude-rescale copies | 0 | Hold at zero |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
-Family-named files still live:
-
-- `internal/inference/runner_noncausal_t5.go`
-- `internal/inference/wavtokenizer_audio.go`
+Family-named production files: none.
 
 ## Ordered Work
 

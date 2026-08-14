@@ -21,8 +21,29 @@ func TestASTStructuralProfileGate(t *testing.T) {
 	}
 	g := gateContext{repo: root, paths: []string{"internal/p/p.go"}}
 	skipped, err := g.stepProfile()
-	if err != nil || skipped || len(g.honesty) != 1 || !strings.Contains(g.honesty[0], "production=1 files") {
+	if err != nil || skipped || len(g.honesty) != 2 || !strings.Contains(g.honesty[0], "production=1 files") {
 		t.Fatalf("profile step = skipped %v, err %v, honesty %v", skipped, err, g.honesty)
+	}
+}
+
+func TestASTProfileReviewFocus(t *testing.T) {
+	profile := codeprofile.Profile{
+		Functions: []codeprofile.Function{
+			{File: "internal/other/large.go", Name: "larger", Nodes: 40, Branches: 8},
+			{File: "internal/p/p.go", Name: "changed", Nodes: 20, Branches: 3},
+		},
+		Clones: []codeprofile.Clone{
+			{Nodes: 12, Functions: []string{"internal/p/p.go:changed", "internal/q/q.go:peer"}},
+		},
+	}
+	want := "code review focus: largest_changed_function=internal/p/p.go:changed nodes=20 branches=3; " +
+		"largest_changed_clone=nodes=12 functions=internal/p/p.go:changed,internal/q/q.go:peer"
+	if got := profileReviewFocus(profile, []string{"internal/p/p.go"}); got != want {
+		t.Fatalf("review focus = %q, want %q", got, want)
+	}
+	if got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); !strings.HasSuffix(got, "largest_changed_clone=none") ||
+		!strings.Contains(got, "largest_changed_function=none") {
+		t.Fatalf("empty review focus = %q", got)
 	}
 }
 

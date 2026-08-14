@@ -140,61 +140,26 @@ result can the next model invocation trust without reconstructing the work?**
 
 ## AST-driven structural profile
 
-Overgo should track code structure as a versioned evidence vector, not optimize
-one scalar quality score. A compact `internal/repoanalysis` substrate will own
-baseline/candidate file inventories, worktree overlays, content identities,
-generated/test classification, and lazy parse-once Go ASTs. It is a data plane,
-not a plugin framework: analyzers remain normal typed Go functions with no
-registration system, policy DSL, scheduler, or independent state.
+Overgo tracks code structure as a versioned evidence vector, not one quality
+score. `internal/repoanalysis` owns content-identified, generated/test-aware,
+parse-once Go snapshots; `internal/codeprofile` and `internal/closurescan` are
+its two consumers. The profile records production/test AST mass, function node
+and branch counts, exported declarations, import edges, and normalized exact
+whole-function clone groups. Operators, selectors, and control structure remain
+significant; local identifiers and literal values are canonicalized. Tests and
+production are never grouped together.
 
-Normalized dirty-state facts move first because plan context, loophook, and gate
-already consume them. The AST snapshot waits until code profiling lands, when
-the new profile and existing `internal/closurescan` become two real consumers;
-closure scanning's old walk/parser is deleted in that slice. The profile is
-deliberately small:
+The gate stores the complete profile and reports two deterministic review
+anchors from the changed Go paths: the largest changed function and the largest
+whole-function clone group touching changed code. These are inspection order,
+not defect verdicts. There is no composite score, ceiling, growth budget,
+exception workflow, suppression ledger, or mandatory favorable direction.
+Independent review decides whether a highlighted structure should be deleted,
+shared by two real consumers, or retained as clearer parallel code.
 
-- normalized syntax mass, separated into production and test code;
-- duplicate excess tokens, clone count, longest clone, and cross-package clone
-  mass, with deterministic source spans for every reported cluster;
-- function syntax size and branch-count distributions plus the largest outliers;
-- exported declaration counts and package import-edge counts.
-
-Clone detection will retain operators, types, calls, and selectors while
-canonicalizing local bindings and literal values. A rolling fingerprint over
-normalized syntax will find exact and renamed statement sequences, extend and
-coalesce overlapping matches, and ignore short boilerplate. Canonical generated
-files are excluded; tests are never mixed with production results. Parse errors
-are unavailable evidence rather than zero measurements.
-
-The comparison unit is the candidate versus its merge base, including staged,
-unstaged, and untracked candidate content when used before commit. Files shared
-by both trees are recognized by content identity and analyzed once. One inventory
-walk and one parse per unique blob feed all requested analyzers; deterministic
-parse-count tests make reuse observable. Output is a concise summary plus a
-complete versioned RepoDB document, and changed clone clusters and structural
-outliers are attributed back to candidate spans.
-
-Broader AST checks migrate onto this substrate only when a focused slice deletes
-their old walker or demonstrates a measured wall/allocation improvement. The
-substrate does not accumulate speculative facts for hypothetical analyzers, and
-it gains no persistent cache until repository-scale benchmarks show that the
-in-process content-identity reuse is insufficient.
-
-This profile is a review instrument, not a ratchet:
-
-- there is no composite score, ceiling, growth budget, exception workflow, or
-  suppression ledger;
-- the gate requires honest profile evidence, never a favorable metric direction;
-- independent SQA acknowledges the largest deltas and decides whether they are
-  missing abstractions, intentional parallel structure, or incidental syntax;
-- reduced duplication is not credited when it merely concentrates branches,
-  expands API, weakens tests, or creates a one-consumer abstraction;
-- no shared abstraction is extracted without two real consumers.
-
-The first implementation must be calibrated against small checked-in clone
-fixtures and several known repository examples. If the highest-ranked findings
-are not useful, the detector is deleted rather than surrounded with tuning and
-waiver machinery.
+Candidate-versus-base deltas and partial statement-sequence clones are not yet
+implemented. They should land only if whole-function focus misses demonstrated
+recurring hygiene problems; otherwise the smaller detector remains authoritative.
 
 ## Capability inventory
 

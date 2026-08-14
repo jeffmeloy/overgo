@@ -308,8 +308,41 @@ func (g *gateContext) stepProfile() (bool, error) {
 		profile.Production.Files, profile.Production.Nodes, profile.Test.Files, profile.Test.Nodes,
 		profile.DuplicateExcessNodes, len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
+	g.honesty = append(g.honesty, profileReviewFocus(profile, g.changedGoFiles()))
 	g.profile = &profile
 	return false, nil
+}
+
+func profileReviewFocus(profile codeprofile.Profile, changed []string) string {
+	paths := make(map[string]bool, len(changed))
+	for _, path := range changed {
+		paths[path] = true
+	}
+	functionText := "none"
+	for _, function := range profile.Functions {
+		if paths[function.File] {
+			functionText = fmt.Sprintf("%s:%s nodes=%d branches=%d", function.File, function.Name, function.Nodes, function.Branches)
+			break
+		}
+	}
+	cloneText := "none"
+	for _, clone := range profile.Clones {
+		if cloneTouchesPaths(clone, paths) {
+			cloneText = fmt.Sprintf("nodes=%d functions=%s", clone.Nodes, strings.Join(clone.Functions, ","))
+			break
+		}
+	}
+	return "code review focus: largest_changed_function=" + functionText + "; largest_changed_clone=" + cloneText
+}
+
+func cloneTouchesPaths(clone codeprofile.Clone, paths map[string]bool) bool {
+	for _, function := range clone.Functions {
+		path, _, ok := strings.Cut(function, ":")
+		if ok && paths[path] {
+			return true
+		}
+	}
+	return false
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,

@@ -57,16 +57,28 @@
       "status": "open",
       "steps": [
         {
-          "id": "wan-production-runtime",
-          "title": "Move the verified Wan CUDA harness behind a reusable resident generator; retain model, conditioning, denoise state, and causal VAE across the request",
+          "id": "liveedit-text-conditioning",
+          "title": "Stream LiveEdit text projection weights from the compiled checkpoint and reuse the neutral semantic encoder/projection contract",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestWanProductionRuntime$' -count=1 -v"
+          "verify": "go test ./internal/latentvideo -run '^TestLiveEditTextConditioning$' -count=1 -v"
         },
         {
-          "id": "liveedit-port",
-          "title": "Port adaptive_new LiveEdit conditioning, flow schedule, bounded seam, denoise, and decode through neutral latentvideo components with reference-oracle parity",
+          "id": "liveedit-source-codec",
+          "title": "Port the adaptive causal VAE source encoder to the shared video codec owner; preserve channel-major geometry and source-latent oracle seams",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditReferenceParity$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditSourceCodec$' -count=1 -v"
+        },
+        {
+          "id": "liveedit-retained-denoiser",
+          "title": "Execute LiveEdit checkpoint blocks with retained text KV and bounded self-attention history through shared CUDA graph owners",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditRetainedDenoiser$' -count=1 -v"
+        },
+        {
+          "id": "liveedit-device-runtime",
+          "title": "Integrate source encode, text conditioning, retained denoise, sampler, and causal decode into the typed reference-video runtime; match the adaptive oracle",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditDeviceRuntime$' -count=1 -v"
         },
         {
           "id": "video-production-activation",

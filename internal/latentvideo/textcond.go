@@ -57,6 +57,14 @@ type projectionWeights struct {
 // to SequenceLength rows (pad rows repeat the first inactive projected row,
 // the reference's padding convention).
 func TextConditioning(spec TextConditioningSpec, prompt string) (TextConditioningResult, error) {
+	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
+	if err != nil {
+		return TextConditioningResult{}, err
+	}
+	return textConditioningWithWeights(spec, prompt, weights, sourceBytes)
+}
+
+func textConditioningWithWeights(spec TextConditioningSpec, prompt string, weights projectionWeights, sourceBytes int64) (TextConditioningResult, error) {
 	var out TextConditioningResult
 	if spec.SequenceLength <= 0 {
 		return out, fmt.Errorf("text conditioning: positive sequence length required")
@@ -75,10 +83,6 @@ func TextConditioning(spec TextConditioningSpec, prompt string) (TextConditionin
 	}
 	if !plan.OK {
 		return out, fmt.Errorf("text conditioning encoder contract: missing=%v unexpected=%v dtype=%v shape=%v", plan.Missing, plan.Unexpected, plan.DTypeMismatches, plan.ShapeMismatches)
-	}
-	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
-	if err != nil {
-		return out, err
 	}
 	textDim := plan.Config.Dim
 	if len(weights.Linear0W)%textDim != 0 {

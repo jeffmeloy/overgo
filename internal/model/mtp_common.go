@@ -33,21 +33,21 @@ func (p CompiledLayerProgram) BuildDraftOutputs(
 	)
 }
 
-func singleDraftExecutableSpec(spec Spec, kind DraftKind) (Spec, uint32) {
-	switch kind {
-	case DraftSingleCatalog:
-		profile, _ := LookupArchitecture("qwen35")
-		spec.Architecture = profile.Name
-		return spec.withProfile(profile), 0
-	case DraftOptionalSingleCatalog:
+func draftExecutableSpec(spec Spec, plan DraftPlan) (Spec, uint32) {
+	if plan.OptionalCatalog {
 		layer := spec.BlockCount
 		spec.BlockCount++
 		spec.LeadingDenseBlocks = spec.BlockCount
 		spec.SlidingWindow = 0
 		return spec, layer
-	default:
+	}
+	if !plan.SingleCatalog {
 		return spec, spec.BlockCount
 	}
+	profile := spec.Profile()
+	profile.Capabilities &^= ArchitectureMoE
+	profile.Experts = ExpertPolicy{}
+	return spec.withProfile(profile), 0
 }
 
 func buildMTPInput(

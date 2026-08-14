@@ -465,7 +465,7 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 					spec.ExpertWeightsScale = 1.25
 				}
 				input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
-				weights, feeds := qwen35ExecutorWeights(builder, spec, recurrent)
+				weights, feeds := qwen35ExecutorWeights(builder, spec, recurrent, spec.ExpertCount > 0)
 				if architecture == "qwen3next-legacy" {
 					legacyQKVZ := builder.Input("ssm_in", dtype.F32, tensor.MustShape(8, 12))
 					feeds[legacyQKVZ] = patternedValue(legacyQKVZ.Shape, 61, 0.02, -0.03)
@@ -531,7 +531,7 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	embeddingNorm := builder.Input("mtp_enorm", dtype.F32, tensor.MustShape(8))
 	hiddenNorm := builder.Input("mtp_hnorm", dtype.F32, tensor.MustShape(8))
 	projection := builder.Input("mtp_eh", dtype.F32, tensor.MustShape(16, 8))
-	weights, feeds := qwen35ExecutorWeights(builder, draft.Spec(), false)
+	weights, feeds := qwen35ExecutorWeights(builder, draft.Spec(), false, false)
 	for node, value := range map[*tensor.Tensor]reference.Value{
 		token:         patternedValue(token.Shape, 7, 0.03, -0.04),
 		hidden:        patternedValue(hidden.Shape, 11, 0.04, 0.02),
@@ -875,6 +875,7 @@ func qwen35ExecutorWeights(
 	builder *tensor.Builder,
 	spec model.Spec,
 	recurrent bool,
+	routed bool,
 ) (model.LayerGraphWeights, map[*tensor.Tensor]reference.Value) {
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	seed := 1
@@ -894,7 +895,7 @@ func qwen35ExecutorWeights(
 			0.9,
 		),
 	}
-	if spec.Architecture == "qwen35moe" || spec.Architecture == "qwen3next" {
+	if routed {
 		expertWidth := uint64(spec.ExpertFeedForward)
 		experts := uint64(spec.ExpertCount)
 		sharedWidth := uint64(spec.SharedExpertFF)

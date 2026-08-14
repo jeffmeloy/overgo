@@ -573,7 +573,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		}
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
 		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
-		executable, layer := singleDraftExecutableSpec(spec, plan.draft.Kind)
+		executable, layer := draftExecutableSpec(spec, plan.draft)
 		plan.draftLayers = []LayerPlan{executable.PlanLayer(layer, false)}
 	}
 	if err := validateModelPlan(spec, weights, plan); err != nil {
@@ -857,7 +857,7 @@ func (p ModelPlan) DraftProgram(offset uint32) (CompiledLayerProgram, error) {
 	}
 	spec := p.spec
 	if p.draft.SingleCatalog {
-		spec, _ = singleDraftExecutableSpec(spec, p.draft.Kind)
+		spec, _ = draftExecutableSpec(spec, p.draft)
 	} else if p.draft.Kind == DraftAppendedSingle {
 		spec.BlockCount += p.draft.Heads
 	}

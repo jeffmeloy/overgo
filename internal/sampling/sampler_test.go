@@ -644,6 +644,35 @@ func TestSamplerRejectsInvalidExtendedConfig(t *testing.T) {
 	}
 }
 
+func TestSamplerBlocksSlidingWindowNgram(t *testing.T) {
+	base := Config{Temperature: 0, NoRepeatNgramSize: 3, NgramWindow: 6}
+	sampler, err := New(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logits := []float32{8, 7, 6, 5, 10}
+	if token, sampleErr := sampler.SampleWithHistory(logits, []int{1, 2, 3, 4, 2, 3}); sampleErr != nil || token != 0 {
+		t.Fatalf("blocked sample = %d, %v; want 0", token, sampleErr)
+	}
+	base.NgramWindow = 2
+	sampler, err = New(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token, sampleErr := sampler.SampleWithHistory(logits, []int{1, 2, 3, 4, 2, 3}); sampleErr != nil || token != 4 {
+		t.Fatalf("windowed sample = %d, %v; want 4", token, sampleErr)
+	}
+}
+
+func TestSamplerRejectsNegativeNgramPolicy(t *testing.T) {
+	if _, err := New(Config{NoRepeatNgramSize: -1}); err == nil {
+		t.Fatal("negative no-repeat n-gram size accepted")
+	}
+	if _, err := New(Config{NgramWindow: -1}); err == nil {
+		t.Fatal("negative n-gram window accepted")
+	}
+}
+
 func TestMirostatV1IsDeterministicAndAdaptive(t *testing.T) {
 	config := Config{
 		Temperature: 1,

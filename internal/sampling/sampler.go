@@ -40,37 +40,39 @@ type InfillVocabulary struct {
 }
 
 type Config struct {
-	Temperature      float32
-	DynatempRange    float32
-	DynatempExponent float32
-	TopK             int
-	TopP             float32
-	MinP             float32
-	TypicalP         float32
-	TopNSigma        float32
-	XTCProbability   float32
-	XTCThreshold     float32
-	MinKeep          int
-	AdaptiveTarget   float32
-	AdaptiveDecay    float32
-	RepeatLastN      int
-	RepeatPenalty    float32
-	PresencePenalty  float32
-	FrequencyPenalty float32
-	DryMultiplier    float32
-	DryBase          float32
-	DryAllowedLength int
-	DryPenaltyLastN  int
-	DryBreakers      [][]int
-	Mirostat         int
-	MirostatTau      float32
-	MirostatEta      float32
-	Seed             int64
-	Grammar          *TokenGrammar
-	GBNF             *GBNFGrammar
-	Samplers         []SamplerStage
-	LogitBiases      []LogitBias
-	Infill           *InfillVocabulary
+	Temperature       float32
+	DynatempRange     float32
+	DynatempExponent  float32
+	TopK              int
+	TopP              float32
+	MinP              float32
+	TypicalP          float32
+	TopNSigma         float32
+	XTCProbability    float32
+	XTCThreshold      float32
+	MinKeep           int
+	AdaptiveTarget    float32
+	AdaptiveDecay     float32
+	RepeatLastN       int
+	RepeatPenalty     float32
+	PresencePenalty   float32
+	FrequencyPenalty  float32
+	NoRepeatNgramSize int
+	NgramWindow       int
+	DryMultiplier     float32
+	DryBase           float32
+	DryAllowedLength  int
+	DryPenaltyLastN   int
+	DryBreakers       [][]int
+	Mirostat          int
+	MirostatTau       float32
+	MirostatEta       float32
+	Seed              int64
+	Grammar           *TokenGrammar
+	GBNF              *GBNFGrammar
+	Samplers          []SamplerStage
+	LogitBiases       []LogitBias
+	Infill            *InfillVocabulary
 }
 
 type Sampler struct {
@@ -224,6 +226,9 @@ func New(config Config) (*Sampler, error) {
 		math.IsInf(float64(config.FrequencyPenalty), 0) {
 		return nil, errors.New("sampling frequency penalty must be finite")
 	}
+	if config.NoRepeatNgramSize < 0 || config.NgramWindow < 0 {
+		return nil, errors.New("sampling no-repeat n-gram size and window must be non-negative")
+	}
 	if config.DryMultiplier < 0 || math.IsNaN(float64(config.DryMultiplier)) ||
 		math.IsInf(float64(config.DryMultiplier), 0) {
 		return nil, errors.New("sampling DRY multiplier must be finite and non-negative")
@@ -336,7 +341,7 @@ func (s *Sampler) IsRawGreedy() bool {
 	config := s.config
 	return config.Temperature == 0 && config.DynatempRange == 0 && config.Mirostat == 0 &&
 		config.RepeatPenalty == 1 && config.PresencePenalty == 0 &&
-		config.FrequencyPenalty == 0 && config.DryMultiplier == 0 &&
+		config.FrequencyPenalty == 0 && config.NoRepeatNgramSize == 0 && config.DryMultiplier == 0 &&
 		config.XTCProbability == 0 && config.Grammar == nil && config.GBNF == nil &&
 		len(config.LogitBiases) == 0 && config.Infill == nil &&
 		slices.Contains(config.Samplers, SamplerTemperature) &&
@@ -350,7 +355,7 @@ func (s *Sampler) BoundedTopK() (int, bool) {
 		return 0, false
 	}
 	config := s.config
-	if config.TopK <= 0 || config.Mirostat != 0 || config.Grammar != nil ||
+	if config.TopK <= 0 || config.Mirostat != 0 || config.NoRepeatNgramSize != 0 || config.Grammar != nil ||
 		config.GBNF != nil || config.Infill != nil || len(config.LogitBiases) != 0 {
 		return 0, false
 	}
@@ -436,6 +441,9 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 	if err := s.applyGrammar(adjusted); err != nil {
 		return 0, err
 	}
+	if err := applyNoRepeatNgram(adjusted, history, s.config.NoRepeatNgramSize, s.config.NgramWindow); err != nil {
+		return 0, err
+	}
 	if s.IsRawGreedy() {
 		// full candidate pipeline reduces to argmax; skip vocab-wide sort
 		best := 0
@@ -477,6 +485,32 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 		candidates[index] = candidate{id: index, scaledLogit: float64(value)}
 	}
 	return s.sampleCandidatePipeline(candidates, len(logits), history, s.config.Samplers)
+}
+
+func applyNoRepeatNgram(logits []float32, history []int, size, window int) error {
+	if size <= 0 || len(history) < size {
+		return nil
+	}
+	start := 0
+	if window > 0 && len(history) > window {
+		start = len(history) - window
+	}
+	end := len(history) - size + 1
+	if end <= start {
+		return nil
+	}
+	prefix := history[len(history)-size+1:]
+	for index := start; index < end; index++ {
+		if size > 1 && !slices.Equal(history[index:index+size-1], prefix) {
+			continue
+		}
+		token := history[index+size-1]
+		if token < 0 || token >= len(logits) {
+			return fmt.Errorf("sampling no-repeat token %d exceeds vocabulary size %d", token, len(logits))
+		}
+		logits[token] = float32(math.Inf(-1))
+	}
+	return nil
 }
 
 // SampleTopK: complete descending top-K prefix.

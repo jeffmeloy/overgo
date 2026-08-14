@@ -104,6 +104,8 @@ func run() error {
 	repeatPenalty := flag.Float64("repeat-penalty", 1, "multiplicative repetition penalty")
 	presencePenalty := flag.Float64("presence-penalty", 0, "penalty applied once to tokens in history")
 	frequencyPenalty := flag.Float64("frequency-penalty", 0, "penalty applied per token occurrence in history")
+	noRepeatNgramSize := flag.Int("no-repeat-ngram-size", 0, "block repeated n-grams; zero disables")
+	ngramWindow := flag.Int("ngram-window", 0, "history window for no-repeat n-grams; zero uses all")
 	dryMultiplier := flag.Float64("dry-multiplier", 0, "DRY repetition penalty multiplier; zero disables")
 	dryBase := flag.Float64("dry-base", 1.75, "DRY exponential penalty base")
 	dryAllowedLength := flag.Int("dry-allowed-length", 2, "repetition length allowed before DRY penalties")
@@ -251,37 +253,39 @@ func run() error {
 		}
 	}
 	sampler, err := sampling.New(sampling.Config{
-		Temperature:      float32(*temperature),
-		DynatempRange:    float32(*dynatempRange),
-		DynatempExponent: float32(*dynatempExponent),
-		TopK:             *topK,
-		TopP:             float32(*topP),
-		MinP:             float32(*minP),
-		TypicalP:         float32(*typicalP),
-		TopNSigma:        float32(*topNSigma),
-		XTCProbability:   float32(*xtcProbability),
-		XTCThreshold:     float32(*xtcThreshold),
-		MinKeep:          *minKeep,
-		AdaptiveTarget:   float32(*adaptiveTarget),
-		AdaptiveDecay:    float32(*adaptiveDecay),
-		RepeatLastN:      *repeatLastN,
-		RepeatPenalty:    float32(*repeatPenalty),
-		PresencePenalty:  float32(*presencePenalty),
-		FrequencyPenalty: float32(*frequencyPenalty),
-		DryMultiplier:    float32(*dryMultiplier),
-		DryBase:          float32(*dryBase),
-		DryAllowedLength: *dryAllowedLength,
-		DryPenaltyLastN:  *dryPenaltyLastN,
-		DryBreakers:      tokenBreakers,
-		Mirostat:         *mirostat,
-		MirostatTau:      float32(*mirostatTau),
-		MirostatEta:      float32(*mirostatEta),
-		Seed:             *seed,
-		Grammar:          grammar,
-		GBNF:             gbnf,
-		Samplers:         samplerOrder,
-		LogitBiases:      logitBiases,
-		Infill:           infillVocabulary,
+		Temperature:       float32(*temperature),
+		DynatempRange:     float32(*dynatempRange),
+		DynatempExponent:  float32(*dynatempExponent),
+		TopK:              *topK,
+		TopP:              float32(*topP),
+		MinP:              float32(*minP),
+		TypicalP:          float32(*typicalP),
+		TopNSigma:         float32(*topNSigma),
+		XTCProbability:    float32(*xtcProbability),
+		XTCThreshold:      float32(*xtcThreshold),
+		MinKeep:           *minKeep,
+		AdaptiveTarget:    float32(*adaptiveTarget),
+		AdaptiveDecay:     float32(*adaptiveDecay),
+		RepeatLastN:       *repeatLastN,
+		RepeatPenalty:     float32(*repeatPenalty),
+		PresencePenalty:   float32(*presencePenalty),
+		FrequencyPenalty:  float32(*frequencyPenalty),
+		NoRepeatNgramSize: *noRepeatNgramSize,
+		NgramWindow:       *ngramWindow,
+		DryMultiplier:     float32(*dryMultiplier),
+		DryBase:           float32(*dryBase),
+		DryAllowedLength:  *dryAllowedLength,
+		DryPenaltyLastN:   *dryPenaltyLastN,
+		DryBreakers:       tokenBreakers,
+		Mirostat:          *mirostat,
+		MirostatTau:       float32(*mirostatTau),
+		MirostatEta:       float32(*mirostatEta),
+		Seed:              *seed,
+		Grammar:           grammar,
+		GBNF:              gbnf,
+		Samplers:          samplerOrder,
+		LogitBiases:       logitBiases,
+		Infill:            infillVocabulary,
 	})
 	if err != nil {
 		return err

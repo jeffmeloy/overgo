@@ -195,6 +195,11 @@ func configSignature(config Config) uint64 {
 	writeUint64(uint64(math.Float32bits(config.RepeatPenalty)))
 	writeUint64(uint64(math.Float32bits(config.PresencePenalty)))
 	writeUint64(uint64(math.Float32bits(config.FrequencyPenalty)))
+	if config.NoRepeatNgramSize > 0 {
+		writeUint64(^uint64(7))
+		writeUint64(uint64(config.NoRepeatNgramSize))
+		writeUint64(uint64(config.NgramWindow))
+	}
 	writeUint64(uint64(math.Float32bits(config.DryMultiplier)))
 	writeUint64(uint64(math.Float32bits(config.DryBase)))
 	writeUint64(uint64(config.DryAllowedLength))

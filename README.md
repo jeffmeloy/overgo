@@ -100,7 +100,7 @@ concurrently.
 | Training | Muon-only dense/hybrid primitives plus corpus-derived scratch construction through shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the pinned scratch profile lead; complete-state resume and universal objectives remain open |
 
 Explicit gaps include production SenseNova image/edit publication, LiveEdit,
-Unlimited OCR full-output repetition-policy parity, Pocket-TTS output-quality evidence, complete-state
+Unlimited OCR exact full-sequence numerics and matched peak evidence, Pocket-TTS output-quality evidence, complete-state
 training resume, scratch artifact publication/controller promotion, and
 real-model Qwen3.5/E4B/Gemma4 training.
 
@@ -117,7 +117,7 @@ checks, and open caveats are in the
 | Qwen3.5-4B image/video | Python image and 16-frame video goldens | Exact prompt IDs, MRoPE, and first tokens; CUDA projector probes pass | Real input parity; peak open |
 | Gemma4 12B image/audio/video | Adaptive image/audio oracles; declared video route | Image exact token, audio top-set token, ordered real-frame video through language | Video output oracle and peaks open |
 | RxBrain VQA | adaptive 18.4-23.1 s / 11.97 GB | Fresh device sessions 9.529-10.273 s; 3.940 GiB coarse device peak | Exact answer; wall and peak lead |
-| Unlimited OCR | Native BF16 image/text golden | Exact 277-token prompt and 128-token output prefix; 273 projected tokens; 29-row oracle | Real production prefix parity; full no-repeat replay open |
+| Unlimited OCR | Native BF16 image/text golden | Exact 277-token prompt and 200-token output prefix; 273 projected tokens; complete 29-row output within one coordinate/text edit; native 35-gram/128-window policy | Real production OCR parity; exact full sequence and peak open |
 | Carbon-500M causal Muon | adaptive 6.816 s loop / 11.47 GiB | 5.05-5.13 s / 4.620 GiB; matched trajectory | About 25% loop-wall and 60% peak lead |
 | Corpus-derived scratch causal | adaptive 221.4-231.8 ms / 3.13-3.18 MB peak | 64.4-66.2 ms matched steps / 2.38-2.43 MB combined peak; cold 44.7-49 ms, warm 8.7-11.6 ms | At least 3.34x wall and 22% peak lead on pinned profile |
 | Krea 2048 image | Python 97.5-135.4 s; adaptive 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | Bounded-quality wall/peak lead |

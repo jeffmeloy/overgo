@@ -1,9 +1,11 @@
 package graphruntime
 
 import (
+	"context"
 	"errors"
 
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -39,28 +41,19 @@ func (f *Feeds) AddDevice(values map[*tensor.Tensor]driver.DevicePtr) {
 	}
 }
 
-type HostExecutor func([]*tensor.Tensor, map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error)
-
-type DeviceExecutor func(
-	[]*tensor.Tensor,
-	map[*tensor.Tensor]reference.Value,
-	map[*tensor.Tensor]driver.DevicePtr,
-) (map[*tensor.Tensor]reference.Value, error)
-
 func (f *Feeds) Execute(
+	ctx context.Context,
 	outputs []*tensor.Tensor,
-	device bool,
-	host HostExecutor,
-	deviceExecutor DeviceExecutor,
+	device *executor.Executor,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	if device {
-		if deviceExecutor == nil {
-			return nil, errors.New("graph runtime device executor is nil")
-		}
-		return deviceExecutor(outputs, f.Host, f.Device)
+	if f == nil {
+		return nil, errors.New("graph runtime feeds are nil")
 	}
-	if host == nil {
-		return nil, errors.New("graph runtime host executor is nil")
+	if device == nil {
+		return reference.Execute(outputs, f.Host)
 	}
-	return host(outputs, f.Host)
+	if len(f.Device) == 0 {
+		return device.Execute(ctx, outputs, f.Host)
+	}
+	return device.ExecuteWithDeviceFeeds(ctx, outputs, f.Host, f.Device)
 }

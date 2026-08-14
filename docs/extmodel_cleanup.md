@@ -27,7 +27,7 @@ active recipe + resolved artifact facts
 | Surface | Count | Treatment |
 |---|---:|---|
 | Model/inference production files | 140 | Diagnostic |
-| Family-named production files | 5 | Delete through vertical migration |
+| Family-named production files | 2 | Delete through vertical migration |
 | Family-identity-bearing production files | 21 | Restrict to parsing/wire facts, then remove runtime uses |
 | Post-resolution architecture catalog lookups in execution compilation | 0 | Hold at zero |
 | Family switches in compiled layer execution | 0 | Hold at zero |
@@ -38,9 +38,6 @@ active recipe + resolved artifact facts
 
 Family-named files still live:
 
-- `internal/model/eagle3.go`
-- `internal/model/gemma4_assistant.go`
-- `internal/model/wavtokenizer.go`
 - `internal/inference/runner_noncausal_t5.go`
 - `internal/inference/wavtokenizer_audio.go`
 

@@ -37,12 +37,14 @@ type ScratchConfig struct {
 }
 
 type ScratchGroupOracle struct {
-	Name           string `json:"name"`
-	Rows           int    `json:"rows"`
-	Cols           int    `json:"cols"`
-	WeightSHA256   string `json:"weight_sha256"`
-	GradientSHA256 string `json:"gradient_sha256"`
-	UpdateSHA256   string `json:"update_sha256"`
+	Name               string `json:"name"`
+	Rows               int    `json:"rows"`
+	Cols               int    `json:"cols"`
+	WeightSHA256       string `json:"weight_sha256"`
+	GradientSHA256     string `json:"gradient_sha256"`
+	Gradient1e12SHA256 string `json:"gradient_1e12_sha256"`
+	UpdateSHA256       string `json:"update_sha256"`
+	Update1e8SHA256    string `json:"update_1e8_sha256"`
 }
 
 type ScratchOracle struct {
@@ -161,7 +163,8 @@ func validateScratchOracle(oracle *ScratchOracle) error {
 	previous := ""
 	for _, group := range oracle.Groups {
 		if group.Name == "" || group.Name <= previous || group.Rows <= 0 || group.Cols <= 0 ||
-			!sha256Hex(group.WeightSHA256) || !sha256Hex(group.GradientSHA256) || !sha256Hex(group.UpdateSHA256) {
+			!sha256Hex(group.WeightSHA256) || !sha256Hex(group.GradientSHA256) ||
+			!sha256Hex(group.Gradient1e12SHA256) || !sha256Hex(group.UpdateSHA256) || !sha256Hex(group.Update1e8SHA256) {
 			return errors.New("adaptive scratch oracle: invalid parameter group")
 		}
 		if group.Rows > math.MaxInt/group.Cols {

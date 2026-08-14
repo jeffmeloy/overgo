@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/adaptiveparity"
 	"overgo/internal/artifact"
+	"overgo/internal/trainingprogram"
 )
 
 func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
@@ -23,6 +24,56 @@ func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
 		t.Fatal(err)
 	}
 	return oracle
+}
+
+func TestScratchSharedTrainingAuthority(t *testing.T) {
+	oracle := loadOracle(t)
+	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, program := construction.OptimizerPlan(), construction.Program()
+	if plan.ParameterCount() != oracle.ParameterCount || plan.GroupCount() != len(oracle.Groups) {
+		t.Fatalf("optimizer coverage=%d/%d want=%d/%d", plan.ParameterCount(), plan.GroupCount(), oracle.ParameterCount, len(oracle.Groups))
+	}
+	if program.OptimizerIdentity() != plan.Identity() || program.ID().Kind() != artifact.KindRecipe {
+		t.Fatalf("program/optimizer authority=%s/%s", program.ID(), program.OptimizerIdentity())
+	}
+	operators := program.Operators()
+	wantPhases := []trainingprogram.OperatorPhase{
+		trainingprogram.PhaseBatch, trainingprogram.PhaseForward, trainingprogram.PhaseLoss,
+		trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize, trainingprogram.PhaseEvaluate,
+	}
+	if len(operators) != len(wantPhases) {
+		t.Fatalf("operator count=%d want=%d", len(operators), len(wantPhases))
+	}
+	for index, phase := range wantPhases {
+		if operators[index].Phase != phase {
+			t.Fatalf("operator %d phase=%s want=%s", index, operators[index].Phase, phase)
+		}
+	}
+	for index := 0; index < plan.GroupCount(); index++ {
+		group, _ := plan.Group(index)
+		parameter := program.Parameters()[index]
+		if group.Name != parameter.Name || group.Rows != parameter.Rows || group.Cols != parameter.Cols || !parameter.Trainable {
+			t.Fatalf("shared group %d differs: %+v / %+v", index, group, parameter)
+		}
+	}
+
+	pkg, err := build.Default.ImportDir(".", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range pkg.GoFiles {
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(data)
+		if strings.Contains(text, "func muonUpdate") || strings.Contains(text, "type value struct") || strings.Contains(text, "type hostState") {
+			t.Fatalf("production scratch runtime owns forbidden primitive in %s", name)
+		}
+	}
 }
 
 func TestScratchConstructionAuthority(t *testing.T) {

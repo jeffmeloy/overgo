@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"overgo/internal/artifact"
+	"overgo/internal/optimizer"
 	"overgo/internal/trainingprogram"
 )
 
@@ -81,6 +82,8 @@ type Construction struct {
 	weights    []float64
 	bindings   map[string]parameterBinding
 	authority  trainingprogram.ScratchConstruction
+	optimizer  optimizer.Plan
+	program    trainingprogram.TrainingProgram
 }
 
 type parameterBinding struct{ start, end int }
@@ -106,6 +109,10 @@ func Compile(facts CorpusFacts) (Construction, error) {
 	}
 	config := deriveConfig(split.Train, facts.Steps)
 	weights, bindings, parameters := initialize(config, facts.Seed)
+	optimizerPlan, program, err := compileSharedProgram(parameters, bindings, len(weights))
+	if err != nil {
+		return Construction{}, err
+	}
 
 	derivationProfile, err := identifyJSON(artifact.KindProfile, struct {
 		Version string `json:"version"`
@@ -183,7 +190,7 @@ func Compile(facts CorpusFacts) (Construction, error) {
 	return Construction{
 		id: modelID, dataset: datasetID, splitID: splitID, config: cloneConfig(config),
 		split: cloneSplit(split), parameters: slices.Clone(parameters), weights: weights, bindings: bindings,
-		authority: authority,
+		authority: authority, optimizer: optimizerPlan, program: program,
 	}, nil
 }
 
@@ -194,6 +201,8 @@ func (c Construction) Config() Config                                 { return c
 func (c Construction) Split() Split                                   { return cloneSplit(c.split) }
 func (c Construction) Parameters() []Parameter                        { return slices.Clone(c.parameters) }
 func (c Construction) Authority() trainingprogram.ScratchConstruction { return c.authority }
+func (c Construction) OptimizerPlan() optimizer.Plan                  { return c.optimizer }
+func (c Construction) Program() trainingprogram.TrainingProgram       { return c.program }
 
 func (c Construction) Weights(name string) ([]float64, bool) {
 	values, ok := c.weightView(name)
@@ -368,6 +377,45 @@ func initialize(config Config, seed int64) ([]float64, map[string]parameterBindi
 		}
 	}
 	return weights, bindings, parameters
+}
+
+func compileSharedProgram(parameters []Parameter, bindings map[string]parameterBinding, parameterCount int) (optimizer.Plan, trainingprogram.TrainingProgram, error) {
+	ordered := slices.Clone(parameters)
+	sort.Slice(ordered, func(left, right int) bool {
+		return bindings[ordered[left].Name].start < bindings[ordered[right].Name].start
+	})
+	groups := make([]optimizer.GroupSpec, len(ordered))
+	manifest := make([]trainingprogram.ParameterSpec, len(ordered))
+	for index, parameter := range ordered {
+		binding, ok := bindings[parameter.Name]
+		if !ok {
+			return optimizer.Plan{}, trainingprogram.TrainingProgram{}, fmt.Errorf("scratch model: parameter %q has no slab binding", parameter.Name)
+		}
+		groups[index] = optimizer.GroupSpec{
+			Name: parameter.Name, Start: binding.start, End: binding.end,
+			Rows: parameter.Rows, Cols: parameter.Cols,
+		}
+		manifest[index] = trainingprogram.ParameterSpec{
+			Name: parameter.Name, Rows: parameter.Rows, Cols: parameter.Cols, Trainable: true,
+		}
+	}
+	plan, err := optimizer.CompilePlan(parameterCount, groups)
+	if err != nil {
+		return optimizer.Plan{}, trainingprogram.TrainingProgram{}, err
+	}
+	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
+		Operators: []trainingprogram.OperatorSpec{
+			{ID: "token-batch", Phase: trainingprogram.PhaseBatch},
+			{ID: "adaptive-causal-forward", Phase: trainingprogram.PhaseForward},
+			{ID: "causal-cross-entropy", Phase: trainingprogram.PhaseLoss},
+			{ID: "adaptive-causal-vjp", Phase: trainingprogram.PhaseBackward},
+			{ID: "muon", Phase: trainingprogram.PhaseOptimize},
+			{ID: "held-out-cross-entropy", Phase: trainingprogram.PhaseEvaluate},
+		},
+		Parameters: manifest,
+		Optimizer:  plan,
+	})
+	return plan, program, err
 }
 
 func digestFloats(values []float64) string {

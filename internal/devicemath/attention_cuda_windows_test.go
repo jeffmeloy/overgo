@@ -96,9 +96,26 @@ func TestAttentionCoreBackwardGradCheck(t *testing.T) {
 		return maxDiff
 	}
 	const tolerance = 3e-3
+	worstScore := 0.0
+	for query := range seq {
+		dp := make([]float64, seq)
+		var expectation float64
+		for key := 0; key <= query; key++ {
+			for channel := range hd {
+				dp[key] += float64(dOut[query*hd+channel]) * float64(v[key*hd+channel])
+			}
+			expectation += float64(p[query*seq+key]) * dp[key]
+		}
+		for key := range seq {
+			want := float64(p[query*seq+key]) * (dp[key] - expectation)
+			worstScore = max(worstScore, math.Abs(float64(grads.DScores[query*seq+key])-want))
+		}
+	}
+	t.Logf("dScores: max |device-host| %.3e", worstScore)
 	worst := gradCheck("dQ", q, grads.DQ)
 	worst = math.Max(worst, gradCheck("dK", k, grads.DK))
 	worst = math.Max(worst, gradCheck("dV", v, grads.DV))
+	worst = math.Max(worst, worstScore)
 	if worst > tolerance {
 		t.Fatalf("worst grad-check %.3e > %.1e", worst, tolerance)
 	}

@@ -43,9 +43,10 @@ func deviceGEMM(worker *device.Worker, transA, transB bool, m, k, n int, a, b []
 
 // AttentionGrads holds the query/key/value gradients of one attention head.
 type AttentionGrads struct {
-	DQ []float32 // [seq, hd]
-	DK []float32 // [seq, hd]
-	DV []float32 // [seq, hd]
+	DQ      []float32 // [seq, hd]
+	DK      []float32 // [seq, hd]
+	DV      []float32 // [seq, hd]
+	DScores []float32 // [seq, seq]
 }
 
 // AttentionCoreBackward computes the dQ/dK/dV of single-head scaled dot-product
@@ -91,5 +92,5 @@ func AttentionCoreBackward(worker *device.Worker, q, k, v, p, dOut []float32, se
 		dQ[i] *= s
 		dK[i] *= s
 	}
-	return AttentionGrads{DQ: dQ, DK: dK, DV: dV}, nil
+	return AttentionGrads{DQ: dQ, DK: dK, DV: dV, DScores: dscores}, nil
 }

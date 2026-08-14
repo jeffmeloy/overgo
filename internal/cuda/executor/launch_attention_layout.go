@@ -58,7 +58,7 @@ func launchBF16Attention(
 	blas *blasState,
 	node *tensor.Tensor,
 	fusion bf16AttentionFusion,
-	pointers devicePointerTable,
+	pointers launchPointerFrame,
 ) error {
 	attributes, ok := node.Attrs.(tensor.AttentionAttributes)
 	if !ok {
@@ -95,11 +95,14 @@ func launchBF16Attention(
 			return err
 		}
 	}
-	query := pointers.get(queryNode)
-	key := pointers.get(keyNode)
-	value := pointers.get(fusion.value)
-	keyBias := pointers.get(fusion.keyBias)
-	output := pointers.get(node)
+	query := pointers.input(0)
+	key := pointers.input(1)
+	value := pointers.input(2)
+	var keyBias driver.DevicePtr
+	if fusion.keyBias != nil {
+		keyBias = pointers.input(3)
+	}
+	output := pointers.output()
 	scale := attributes.Scale
 	stagingBytes, ok := blasBF16AttentionStagingBytes(fusion)
 	if !ok || blas == nil || blas.scores == 0 || stagingBytes > blas.scoreBytes {
@@ -314,17 +317,17 @@ func launchAttentionLayout(
 	blas *blasState,
 	node *tensor.Tensor,
 	runtimeAttributes tensor.Attributes,
-	pointers devicePointerTable,
+	pointers launchPointerFrame,
 	attributePointers devicePointerTable,
 ) error {
-	output := pointers.get(node)
+	output := pointers.output()
 	switch node.Op {
 	case tensor.OpReshape:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelCopyF32], count, &input, &output, &count)
 	case tensor.OpAttention:
 		attributes, ok := runtimeAttributes.(tensor.AttentionAttributes)
@@ -379,9 +382,9 @@ func launchAttentionLayout(
 		if sequences > 1 && keyValueTokens != keyCapacityTokens {
 			return errors.New("parameterized attention capacity requires one sequence")
 		}
-		query := pointers.get(queryNode)
-		key := pointers.get(keyNode)
-		value := pointers.get(valueNode)
+		query := pointers.input(0)
+		key := pointers.input(1)
+		value := pointers.input(2)
 		var relativeBias driver.DevicePtr
 		var sinks driver.DevicePtr
 		var blockIDs driver.DevicePtr
@@ -390,18 +393,18 @@ func launchAttentionLayout(
 		// (bias|sinks), blockIDs, keyBias -- each present per its attribute flag.
 		optIdx := 3
 		if attributes.RelativeBuckets != 0 && optIdx < len(node.Inputs) {
-			relativeBias = pointers.get(node.Inputs[optIdx])
+			relativeBias = pointers.input(optIdx)
 			optIdx++
 		} else if attributes.HasSinks && optIdx < len(node.Inputs) {
-			sinks = pointers.get(node.Inputs[optIdx])
+			sinks = pointers.input(optIdx)
 			optIdx++
 		}
 		if attributes.HasBlockMask && optIdx < len(node.Inputs) {
-			blockIDs = pointers.get(node.Inputs[optIdx])
+			blockIDs = pointers.input(optIdx)
 			optIdx++
 		}
 		if attributes.HasKeyBias && optIdx < len(node.Inputs) {
-			keyBias = pointers.get(node.Inputs[optIdx])
+			keyBias = pointers.input(optIdx)
 			optIdx++
 		}
 		relativeBuckets := attributes.RelativeBuckets
@@ -523,8 +526,8 @@ func launchAttentionLayout(
 		if err != nil {
 			return err
 		}
-		left := pointers.get(node.Inputs[0])
-		right := pointers.get(node.Inputs[1])
+		left := pointers.input(0)
+		right := pointers.input(1)
 		if output == left && attributes.Axis+1 == uint32(node.Shape.Rank) {
 			leftBytes, sizeErr := node.Inputs[0].Shape.Bytes(dtype.F32)
 			if sizeErr != nil || uint64(output) > math.MaxUint64-leftBytes {
@@ -566,8 +569,8 @@ func launchAttentionLayout(
 		if !ok || attributes.Axis+1 != uint32(node.Shape.Rank) {
 			return errors.New("invalid cache append attributes")
 		}
-		left := pointers.get(node.Inputs[0])
-		right := pointers.get(node.Inputs[1])
+		left := pointers.input(0)
+		right := pointers.input(1)
 		leftCount, err := elementCount32(node.Inputs[0].Shape)
 		if err != nil {
 			return err

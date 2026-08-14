@@ -27,20 +27,9 @@ func TestLayerProgramOverflowCannotMasqueradeAsEmpty(t *testing.T) {
 	for index := range stages {
 		stages[index] = layerStage(LayerOperatorResidual)
 	}
-	program := newLayerProgram(stages...)
-	if program.Count != maxLayerInstructions+1 || program.valid() {
-		t.Fatalf("overflow program = %+v", program)
-	}
-
-	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
-	plan, err := compileFixtureModelPlan(spec, Weights{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	plan.layers[0].Program = program
-	if err := validateModelPlan(spec, Weights{}, plan); err == nil ||
-		!strings.Contains(err.Error(), "instructions; capacity") {
-		t.Fatalf("overflow program error = %v", err)
+	program, err := newLayerProgram(stages...)
+	if err == nil || !strings.Contains(err.Error(), "instructions; capacity") || program != (LayerProgram{}) {
+		t.Fatalf("overflow result = %+v, %v", program, err)
 	}
 }
 

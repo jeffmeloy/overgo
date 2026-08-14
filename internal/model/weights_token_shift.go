@@ -1,10 +1,7 @@
 package model
 
-import "overgo/internal/gguf"
-
 func loadTokenShiftRecurrentLayer(
-	required weightRequirementLoader,
-	tensors map[string]gguf.TensorInfo,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -14,7 +11,7 @@ func loadTokenShiftRecurrentLayer(
 	layer.Recurrent = true
 	if mixer == recurrentMixerAffineWKV6 {
 		embedding := uint64(spec.EmbeddingLength)
-		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, embedding),
 			requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, embedding),
 			requiredTensorPointer("time_mix_w1.weight", &layer.TimeMixW1, embedding, uint64(spec.TimeMixExtraDim)*5),
@@ -39,14 +36,14 @@ func loadTokenShiftRecurrentLayer(
 		}); itemErr != nil {
 			return itemErr
 		}
-		if item, ok := tensors[prefix+"time_mix_lerp_fused.weight"]; ok {
-			validated, itemErr := required(item.Name, embedding, 1, 1, 5)
+		if _, ok := catalog.tensors[prefix+"time_mix_lerp_fused.weight"]; ok {
+			validated, itemErr := catalog.required(prefix+"time_mix_lerp_fused.weight", embedding, 1, 1, 5)
 			if itemErr != nil {
 				return itemErr
 			}
 			layer.TimeMixLerpFused = &validated
 		} else {
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				requiredTensorPointer("time_mix_lerp_w.weight", &layer.TimeMixLerpW, embedding, 1, 1),
 				requiredTensorPointer("time_mix_lerp_k.weight", &layer.TimeMixLerpK, embedding, 1, 1),
 				requiredTensorPointer("time_mix_lerp_v.weight", &layer.TimeMixLerpV, embedding, 1, 1),
@@ -69,7 +66,7 @@ func loadTokenShiftRecurrentLayer(
 		if !channelMix && spec.GateLoRARank == 0 {
 			lerpCount = 5
 		}
-		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredTensorPointer("time_mix_w0.weight", &layer.TimeMixW0, embedding),
 			requiredTensorPointer("time_mix_w1.weight", &layer.TimeMixW1, embedding, uint64(spec.DecayLoRARank)),
 			requiredTensorPointer("time_mix_w2.weight", &layer.TimeMixW2, uint64(spec.DecayLoRARank), embedding),
@@ -91,18 +88,18 @@ func loadTokenShiftRecurrentLayer(
 			return itemErr
 		}
 		if spec.GateLoRARank > 0 {
-			g1, itemErr := required(prefix+"time_mix_g1.weight", embedding, uint64(spec.GateLoRARank))
+			g1, itemErr := catalog.required(prefix+"time_mix_g1.weight", embedding, uint64(spec.GateLoRARank))
 			if itemErr != nil {
 				return itemErr
 			}
-			g2, itemErr := required(prefix+"time_mix_g2.weight", uint64(spec.GateLoRARank), embedding)
+			g2, itemErr := catalog.required(prefix+"time_mix_g2.weight", uint64(spec.GateLoRARank), embedding)
 			if itemErr != nil {
 				return itemErr
 			}
 			layer.TimeMixG1, layer.TimeMixG2 = &g1, &g2
 		}
 		if channelMix {
-			if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, embedding),
 				requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, embedding),
 				requiredTensorPointer("time_mix_ln.weight", &layer.TimeMixLN, embedding),
@@ -114,18 +111,18 @@ func loadTokenShiftRecurrentLayer(
 				return itemErr
 			}
 		} else {
-			if item, ok := tensors[prefix+"time_mix_ln.weight"]; ok {
-				norm, itemErr := required(item.Name, embedding)
+			if _, ok := catalog.tensors[prefix+"time_mix_ln.weight"]; ok {
+				norm, itemErr := catalog.required(prefix+"time_mix_ln.weight", embedding)
 				if itemErr != nil {
 					return itemErr
 				}
-				bias, itemErr := required(prefix+"time_mix_ln.bias", embedding)
+				bias, itemErr := catalog.required(prefix+"time_mix_ln.bias", embedding)
 				if itemErr != nil {
 					return itemErr
 				}
 				layer.TimeMixLN, layer.TimeMixLNBias = &norm, &bias
 			}
-			if itemErr := loadStandardSwiGLUCatalog(required, tensors, prefix, spec, layer); itemErr != nil {
+			if itemErr := loadStandardSwiGLUCatalog(catalog, prefix, spec, layer); itemErr != nil {
 				return itemErr
 			}
 		}
@@ -134,7 +131,7 @@ func loadTokenShiftRecurrentLayer(
 	if mixer == recurrentMixerDynamicWKV6 {
 		embedding := uint64(spec.EmbeddingLength)
 		keyValue := uint64(spec.HeadCountKV) * uint64(spec.WKVHeadSize)
-		if itemErr := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredTensorPointer("time_mix_w1.weight", &layer.TimeMixW1, embedding, uint64(spec.TimeMixExtraDim)*5),
 			requiredTensorPointer("time_mix_w2.weight", &layer.TimeMixW2, uint64(spec.TimeMixExtraDim), embedding, 5),
 			requiredTensorPointer("time_mix_lerp_x.weight", &layer.TimeMixLerpX, embedding, 1, 1),
@@ -153,7 +150,7 @@ func loadTokenShiftRecurrentLayer(
 		}); itemErr != nil {
 			return itemErr
 		}
-		if itemErr := loadStandardSwiGLUCatalog(required, tensors, prefix, spec, layer); itemErr != nil {
+		if itemErr := loadStandardSwiGLUCatalog(catalog, prefix, spec, layer); itemErr != nil {
 			return itemErr
 		}
 		return nil

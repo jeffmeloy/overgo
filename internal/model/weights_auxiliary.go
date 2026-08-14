@@ -9,10 +9,9 @@ import (
 )
 
 func readTargetFeatureWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
-	required, tensors := catalog.required, catalog.tensors
 	width := uint64(spec.EmbeddingLength)
 	result := Weights{Layers: make([]LayerWeights, spec.BlockCount)}
-	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
 		requiredTensorPointer("fc.weight", &result.FeatureProjection, uint64(len(spec.TargetLayers))*width, width),
 		requiredTensorPointer("enc.output_norm.weight", &result.EncoderOutputNorm, width),
 		requiredTensor("output_norm.weight", &result.OutputNorm, width),
@@ -25,7 +24,7 @@ func readTargetFeatureWeightCatalog(catalog weightCatalog, spec Spec) (Weights, 
 	for block := uint32(0); block < spec.BlockCount; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		layer := &result.Layers[block]
-		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
 			requiredTensor("attn_q.weight", &layer.AttentionQ, width, query),
 			requiredTensor("attn_k.weight", &layer.AttentionK, width, key),
@@ -36,7 +35,7 @@ func readTargetFeatureWeightCatalog(catalog weightCatalog, spec Spec) (Weights, 
 		}); err != nil {
 			return Weights{}, err
 		}
-		if err := loadStandardSwiGLUCatalog(required, tensors, prefix, spec, layer); err != nil {
+		if err := loadStandardSwiGLUCatalog(catalog, prefix, spec, layer); err != nil {
 			return Weights{}, err
 		}
 	}
@@ -44,17 +43,18 @@ func readTargetFeatureWeightCatalog(catalog weightCatalog, spec Spec) (Weights, 
 }
 
 func readHiddenFusionWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
-	required, tensors := catalog.required, catalog.tensors
 	width := uint64(spec.EmbeddingLength)
 	draftVocabulary := uint64(spec.VocabularySize)
 	result := Weights{Layers: make([]LayerWeights, 1)}
-	if item, ok := tensors["d2t"]; ok {
-		if item.Type != dtype.I64 || item.Dimensions != 1 || item.Shape[0] == 0 {
-			return Weights{}, fmt.Errorf("tensor %q has incompatible shape/type", item.Name)
-		}
-		draftVocabulary, result.DraftToTarget = item.Shape[0], &item
+	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
+		optionalRelationalTensorPointer("d2t", &result.DraftToTarget, 1, true, dtype.I64),
+	}); err != nil {
+		return Weights{}, err
 	}
-	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+	if result.DraftToTarget != nil {
+		draftVocabulary = result.DraftToTarget.Shape[0]
+	}
+	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
 		requiredTensorPointer("fc.weight", &result.FeatureProjection, 3*uint64(spec.TargetHiddenSize), width),
 		requiredTensor("output_norm.weight", &result.OutputNorm, width),
 		optionalTensor("token_embd.weight", &result.TokenEmbedding, width, uint64(spec.VocabularySize)),
@@ -69,7 +69,7 @@ func readHiddenFusionWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 	query := uint64(spec.HeadCount) * uint64(spec.KeyLength)
 	key := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
 	value := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
-	if err := loadTensorRequirements(required, tensors, "blk.0.", []tensorRequirement{
+	if err := loadTensorRequirements(catalog, "blk.0.", []tensorRequirement{
 		requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
 		requiredTensor("attn_q.weight", &layer.AttentionQ, 2*width, query),
 		requiredTensor("attn_k.weight", &layer.AttentionK, 2*width, key),
@@ -80,17 +80,16 @@ func readHiddenFusionWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 	}); err != nil {
 		return Weights{}, err
 	}
-	if err := loadStandardSwiGLUCatalog(required, tensors, "blk.0.", spec, layer); err != nil {
+	if err := loadStandardSwiGLUCatalog(catalog, "blk.0.", spec, layer); err != nil {
 		return Weights{}, err
 	}
 	return result, nil
 }
 
 func readPairedProjectionWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
-	required, tensors := catalog.required, catalog.tensors
 	width, targetWidth := uint64(spec.EmbeddingLength), uint64(spec.TargetHiddenSize)
 	result := Weights{Layers: make([]LayerWeights, spec.BlockCount)}
-	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
 		requiredTensor("token_embd.weight", &result.TokenEmbedding, width, uint64(spec.VocabularySize)),
 		requiredTensor("output_norm.weight", &result.OutputNorm, width),
 		requiredTensorPointer("blk.0.nextn.pre_projection.weight", &result.FeatureProjection, 2*targetWidth, width),
@@ -104,7 +103,7 @@ func readPairedProjectionWeightCatalog(catalog weightCatalog, spec Spec) (Weight
 		layer := &result.Layers[block]
 		query := uint64(spec.HeadCount) * uint64(spec.LayerKeyLength(block))
 		output := uint64(spec.HeadCount) * uint64(spec.LayerValueLength(block))
-		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
 			requiredTensor("attn_q.weight", &layer.AttentionQ, width, query),
 			requiredTensor("attn_output.weight", &layer.AttentionOutput, output, width),
@@ -115,13 +114,13 @@ func readPairedProjectionWeightCatalog(catalog weightCatalog, spec Spec) (Weight
 		}); err != nil {
 			return Weights{}, err
 		}
-		if err := loadStandardSwiGLUCatalog(required, tensors, prefix, spec, layer); err != nil {
+		if err := loadStandardSwiGLUCatalog(catalog, prefix, spec, layer); err != nil {
 			return Weights{}, err
 		}
 		if !spec.IsSlidingLayer(block) {
-			rope, ok := tensors[prefix+"rope_freqs.weight"]
+			rope, ok := catalog.tensor(prefix + "rope_freqs.weight")
 			if !ok {
-				rope, ok = tensors["rope_freqs.weight"]
+				rope, ok = catalog.tensor("rope_freqs.weight")
 			}
 			if !ok && sharedRope != nil {
 				rope, ok = *sharedRope, true

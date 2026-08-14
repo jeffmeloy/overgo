@@ -16,10 +16,10 @@ func launchMathVision(
 	functions functionSet,
 	blas *blasState,
 	node *tensor.Tensor,
-	pointers devicePointerTable,
+	pointers launchPointerFrame,
 	attributePointers devicePointerTable,
 ) error {
-	output := pointers.get(node)
+	output := pointers.output()
 	switch node.Op {
 	case tensor.OpLoRAMerge:
 		attributes, ok := node.Attrs.(tensor.LoRAMergeAttributes)
@@ -49,7 +49,7 @@ func launchMathVision(
 				return err
 			}
 		}
-		base, a, b := pointers.get(node.Inputs[0]), pointers.get(node.Inputs[1]), pointers.get(node.Inputs[2])
+		base, a, b := pointers.input(0), pointers.input(1), pointers.input(2)
 		scale := attributes.Scale
 		return launch1DABI(
 			state, functions[kernelLoraMergeF32], count,
@@ -60,8 +60,8 @@ func launchMathVision(
 		if err != nil {
 			return err
 		}
-		left := pointers.get(node.Inputs[0])
-		right := pointers.get(node.Inputs[1])
+		left := pointers.input(0)
+		right := pointers.input(1)
 		if node.Inputs[0].Shape.Equal(node.Shape) && node.Inputs[1].Shape.Equal(node.Shape) {
 			function := functions[kernelAddF32]
 			if node.Op == tensor.OpMultiply {
@@ -104,7 +104,7 @@ func launchMathVision(
 		if !ok {
 			return errors.New("invalid scale attributes")
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		scale := attributes.Value
 		return launch1DABI(state, functions[kernelScaleF32], count, &input, &output, &scale, &count)
 	case tensor.OpClamp:
@@ -116,7 +116,7 @@ func launchMathVision(
 		if !ok {
 			return errors.New("invalid clamp attributes")
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		minimum, maximum := attributes.Minimum, attributes.Maximum
 		return launch1DABI(
 			state, functions[kernelClampF32], count, &input, &output, &minimum, &maximum, &count,
@@ -126,14 +126,14 @@ func launchMathVision(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelBf16RoundF32], count, &input, &output, &count)
 	case tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpExp:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		function := functions[kernelSiluF32]
 		if node.Op == tensor.OpGELU {
 			function = functions[kernelGeluF32]
@@ -162,7 +162,7 @@ func launchMathVision(
 		if !ok {
 			return errors.New("invalid xIELU attributes")
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		alphaN := attributes.AlphaN
 		alphaP := attributes.AlphaP
 		beta := attributes.Beta
@@ -180,7 +180,7 @@ func launchMathVision(
 		if err != nil {
 			return err
 		}
-		input, weight, bias := pointers.get(node.Inputs[0]), pointers.get(node.Inputs[1]), pointers.get(node.Inputs[2])
+		input, weight, bias := pointers.input(0), pointers.input(1), pointers.input(2)
 		channelsIn := uint32(node.Inputs[0].Shape.Dims[0])
 		tokens := uint32(node.Inputs[0].Shape.Dims[1])
 		kernelWidth := uint32(node.Inputs[1].Shape.Dims[0])
@@ -200,10 +200,10 @@ func launchMathVision(
 		if err != nil {
 			return err
 		}
-		input, weight := pointers.get(node.Inputs[0]), pointers.get(node.Inputs[1])
+		input, weight := pointers.input(0), pointers.input(1)
 		bias := input
 		if attributes.HasBias {
-			bias = pointers.get(node.Inputs[2])
+			bias = pointers.input(2)
 		}
 		channelsIn := uint32(node.Inputs[0].Shape.Dims[0])
 		inputW, inputH := uint32(node.Inputs[0].Shape.Dims[1]), uint32(node.Inputs[0].Shape.Dims[2])
@@ -241,7 +241,7 @@ func launchMathVision(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		channels := uint32(node.Shape.Dims[0])
 		width, height, window := attributes.Width, attributes.Height, attributes.Window
 		function := functions[kernelWindowPartition2dF32]
@@ -260,8 +260,8 @@ func launchMathVision(
 		if err != nil {
 			return err
 		}
-		query, key, value := pointers.get(node.Inputs[0]), pointers.get(node.Inputs[1]), pointers.get(node.Inputs[2])
-		relativeW, relativeH := pointers.get(node.Inputs[3]), pointers.get(node.Inputs[4])
+		query, key, value := pointers.input(0), pointers.input(1), pointers.input(2)
+		relativeW, relativeH := pointers.input(3), pointers.input(4)
 		keyWidth := uint32(node.Inputs[0].Shape.Dims[0])
 		valueWidth := uint32(node.Inputs[2].Shape.Dims[0])
 		queryHeads := uint32(node.Inputs[0].Shape.Dims[1])
@@ -287,7 +287,7 @@ func launchMathVision(
 		if err != nil {
 			return err
 		}
-		input, weight, bias := pointers.get(node.Inputs[0]), pointers.get(node.Inputs[1]), pointers.get(node.Inputs[2])
+		input, weight, bias := pointers.input(0), pointers.input(1), pointers.input(2)
 		channels := uint32(node.Shape.Dims[0])
 		tokens := uint32(node.Shape.Dims[1])
 		groups := attributes.Groups
@@ -305,7 +305,7 @@ func launchMathVision(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		epsilon := attributes.Epsilon
 		return launchNormalizationABI(state, functions[kernelL2NormF32], rows, &input, &output, &width, &rows, &epsilon)
 	default:

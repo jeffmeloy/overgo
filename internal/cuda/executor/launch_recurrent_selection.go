@@ -15,10 +15,10 @@ func launchRecurrentSelection(
 	functions functionSet,
 	blas *blasState,
 	node *tensor.Tensor,
-	pointers devicePointerTable,
+	pointers launchPointerFrame,
 	attributePointers devicePointerTable,
 ) error {
-	output := pointers.get(node)
+	output := pointers.output()
 	switch node.Op {
 	case tensor.OpSSMConv:
 		count, err := elementCount32(node.Shape)
@@ -37,8 +37,8 @@ func launchRecurrentSelection(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
-		weights := pointers.get(node.Inputs[1])
+		input := pointers.input(0)
+		weights := pointers.input(1)
 		return launch1DABI(
 			state, functions[kernelSsmConvF32], count,
 			&input, &weights, &output, &window, &channels, &tokens, &count,
@@ -75,12 +75,12 @@ func launchRecurrentSelection(
 		if err != nil {
 			return err
 		}
-		inputState := pointers.get(node.Inputs[0])
-		x := pointers.get(node.Inputs[1])
-		dt := pointers.get(node.Inputs[2])
-		a := pointers.get(node.Inputs[3])
-		beta := pointers.get(node.Inputs[4])
-		c := pointers.get(node.Inputs[5])
+		inputState := pointers.input(0)
+		x := pointers.input(1)
+		dt := pointers.input(2)
+		a := pointers.input(3)
+		beta := pointers.input(4)
+		c := pointers.input(5)
 		return launch1DABI(
 			state, functions[kernelSsmScanF32], heads*sequences,
 			&inputState, &x, &dt, &a, &beta, &c, &output, &stateWidth, &dimension,
@@ -122,12 +122,12 @@ func launchRecurrentSelection(
 		count := heads * sequences
 		const gatedDeltaNetThreads = uint32(1024)
 		repeatInterleave := kernelBool(attributes.RepeatInterleave)
-		query := pointers.get(node.Inputs[0])
-		key := pointers.get(node.Inputs[1])
-		value := pointers.get(node.Inputs[2])
-		gate := pointers.get(node.Inputs[3])
-		beta := pointers.get(node.Inputs[4])
-		stateInput := pointers.get(node.Inputs[5])
+		query := pointers.input(0)
+		key := pointers.input(1)
+		value := pointers.input(2)
+		gate := pointers.input(3)
+		beta := pointers.input(4)
+		stateInput := pointers.input(5)
 		return launchGridABI(
 			state, functions[kernelGatedDeltaNetF32],
 			driver.Dim3{X: count, Y: 1, Z: 1},
@@ -163,11 +163,11 @@ func launchRecurrentSelection(
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
 			return errors.New("GatedLinearAttention launch count exceeds uint32")
 		}
-		key := pointers.get(node.Inputs[0])
-		value := pointers.get(node.Inputs[1])
-		receptance := pointers.get(node.Inputs[2])
-		decay := pointers.get(node.Inputs[3])
-		inputState := pointers.get(node.Inputs[4])
+		key := pointers.input(0)
+		value := pointers.input(1)
+		receptance := pointers.input(2)
+		decay := pointers.input(3)
+		inputState := pointers.input(4)
 		scale := attributes.Scale
 		return launch1DABI(
 			state, functions[kernelGatedLinearAttentionF32], heads*sequences,
@@ -183,12 +183,12 @@ func launchRecurrentSelection(
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
 			return errors.New("WKV6 launch count exceeds uint32")
 		}
-		key := pointers.get(node.Inputs[0])
-		value := pointers.get(node.Inputs[1])
-		receptance := pointers.get(node.Inputs[2])
-		first := pointers.get(node.Inputs[3])
-		decay := pointers.get(node.Inputs[4])
-		inputState := pointers.get(node.Inputs[5])
+		key := pointers.input(0)
+		value := pointers.input(1)
+		receptance := pointers.input(2)
+		first := pointers.input(3)
+		decay := pointers.input(4)
+		inputState := pointers.input(5)
 		return launch1DABI(
 			state, functions[kernelRwkv6F32], heads*sequences,
 			&key, &value, &receptance, &first, &decay, &inputState, &output,
@@ -204,14 +204,14 @@ func launchRecurrentSelection(
 			return errors.New("SumRows row count exceeds uint32")
 		}
 		rows := uint32(elements / uint64(width))
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelSumRowsF32], rows, &input, &output, &width, &rows)
 	case tensor.OpFWHT:
 		width, rows, err := rowDimensions32(node.Inputs[0].Shape)
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelFwhtF32], rows, &input, &output, &width, &rows)
 	case tensor.OpTopK:
 		attributes, ok := node.Attrs.(tensor.TopKAttributes)
@@ -222,7 +222,7 @@ func launchRecurrentSelection(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		k := attributes.K
 		if k == 1 {
 			return launchGridABI(
@@ -247,7 +247,7 @@ func launchRecurrentSelection(
 			return errors.New("TopKPairs output dimensions are invalid")
 		}
 		rows := uint32(outputElements / (uint64(attributes.K) * 2))
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		k := attributes.K
 		candidates := k * chunks
 		return launchGridABI(
@@ -268,7 +268,7 @@ func launchRecurrentSelection(
 		if err != nil || uint64(chunks)*uint64(rows) > uint64(^uint32(0)) {
 			return errors.New("TopKPartials launch count exceeds uint32")
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		k, chunk := attributes.K, attributes.Chunk
 		return launchGridABI(
 			state, functions[kernelTopKPartialsF32],
@@ -304,7 +304,7 @@ func launchRecurrentSelection(
 		if err != nil {
 			return err
 		}
-		input, indices := pointers.get(inputNode), pointers.get(indicesNode)
+		input, indices := pointers.input(0), pointers.input(1)
 		function := functions[kernelGatherLastF32]
 		if inputNode.Type == dtype.Q8_0 {
 			traits, _ := inputNode.Type.Traits()
@@ -354,8 +354,8 @@ func launchRecurrentSelection(
 		if err != nil {
 			return err
 		}
-		query, key := pointers.get(node.Inputs[0]), pointers.get(node.Inputs[1])
-		value, indices := pointers.get(node.Inputs[2]), pointers.get(node.Inputs[3])
+		query, key := pointers.input(0), pointers.input(1)
+		value, indices := pointers.input(2), pointers.input(3)
 		scale := attributes.Scale
 		causal := kernelBool(attributes.Causal)
 		queryStart := attributes.QueryStart
@@ -390,7 +390,7 @@ func launchRecurrentSelection(
 		if err != nil {
 			return err
 		}
-		query, key, weights := pointers.get(node.Inputs[0]), pointers.get(node.Inputs[1]), pointers.get(node.Inputs[2])
+		query, key, weights := pointers.input(0), pointers.input(1), pointers.input(2)
 		scale, queryStart := attributes.Scale, attributes.QueryStart
 		return launch1DABI(
 			state, functions[kernelIndexerScoreF32], count,
@@ -406,13 +406,13 @@ func launchRecurrentSelection(
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
 			return errors.New("WKV7 launch count exceeds uint32")
 		}
-		receptance := pointers.get(node.Inputs[0])
-		decay := pointers.get(node.Inputs[1])
-		key := pointers.get(node.Inputs[2])
-		value := pointers.get(node.Inputs[3])
-		a := pointers.get(node.Inputs[4])
-		bVector := pointers.get(node.Inputs[5])
-		inputState := pointers.get(node.Inputs[6])
+		receptance := pointers.input(0)
+		decay := pointers.input(1)
+		key := pointers.input(2)
+		value := pointers.input(3)
+		a := pointers.input(4)
+		bVector := pointers.input(5)
+		inputState := pointers.input(6)
 		return launch1DABI(
 			state, functions[kernelRwkv7F32], heads*sequences,
 			&receptance, &decay, &key, &value, &a, &bVector, &inputState, &output,

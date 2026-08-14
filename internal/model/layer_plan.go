@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
@@ -274,7 +275,7 @@ type LayerPlan struct {
 	PeriodicScale       float32
 }
 
-func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent bool) LayerPlan {
+func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent bool) (LayerPlan, error) {
 	recurrent = recurrent || s.IsRecurrentLayer(layer)
 	hasKV := s.LayerHasKV(layer)
 	sharedKV := profile.Has(ArchitectureSharedKV) && !hasKV
@@ -387,8 +388,12 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 		RecurrentRuntime:    profile.Runtime.Recurrent,
 		PeriodicScale:       periodicScale,
 	}
-	plan.Program = compileLayerProgram(plan, profile)
-	return plan
+	program, err := compileLayerProgram(plan, profile)
+	if err != nil {
+		return LayerPlan{}, fmt.Errorf("model plan layer %d: %w", layer, err)
+	}
+	plan.Program = program
+	return plan, nil
 }
 
 // SupportsCapacityCache: all token caches admit bounded append.
@@ -544,7 +549,11 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	}
 	for layer := range layers {
 		recurrent := int(layer) < len(weights.Layers) && weights.Layers[layer].Recurrent
-		plan.layers[layer] = spec.planLayer(profile, layer, recurrent)
+		var err error
+		plan.layers[layer], err = spec.planLayer(profile, layer, recurrent)
+		if err != nil {
+			return ModelPlan{}, err
+		}
 	}
 	cacheSchemas, cacheErr := compileCacheSchemas(spec, plan.layers, weights.Layers)
 	if cacheErr != nil {
@@ -561,14 +570,22 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 			executable.BlockCount += plan.draft.Heads
 		}
 		for offset := range plan.draftLayers {
-			plan.draftLayers[offset] = executable.planLayer(
+			var err error
+			plan.draftLayers[offset], err = executable.planLayer(
 				executable.Profile(), spec.BlockCount+uint32(offset), false,
 			)
+			if err != nil {
+				return ModelPlan{}, err
+			}
 		}
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
 		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
 		executable, layer := draftExecutableSpec(spec, plan.draft)
-		plan.draftLayers = []LayerPlan{executable.planLayer(executable.Profile(), layer, false)}
+		draftLayer, err := executable.planLayer(executable.Profile(), layer, false)
+		if err != nil {
+			return ModelPlan{}, err
+		}
+		plan.draftLayers = []LayerPlan{draftLayer}
 	}
 	if err := validateModelPlan(spec, weights, plan); err != nil {
 		return ModelPlan{}, err
@@ -630,7 +647,11 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 				offset, layer.Program.Count, len(layer.Program.Instructions),
 			)
 		}
-		if layer.Program != compileLayerProgram(layer, plan.profile) {
+		expected, err := compileLayerProgram(layer, plan.profile)
+		if err != nil {
+			return fmt.Errorf("model plan draft layer %d: %w", offset, err)
+		}
+		if layer.Program != expected {
 			return fmt.Errorf("model plan draft layer %d operator program is inconsistent", offset)
 		}
 	}
@@ -650,7 +671,11 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 				index, layer.Program.Count, len(layer.Program.Instructions),
 			)
 		}
-		if layer.Program != compileLayerProgram(layer, plan.profile) {
+		expected, err := compileLayerProgram(layer, plan.profile)
+		if err != nil {
+			return fmt.Errorf("model plan layer %d: %w", index, err)
+		}
+		if layer.Program != expected {
 			return fmt.Errorf("model plan layer %d operator program is inconsistent", index)
 		}
 		if layer.SharedKV {
@@ -823,10 +848,13 @@ func (p ModelPlan) sequenceProgram(layer int, decoder bool) (CompiledLayerProgra
 		return CompiledLayerProgram{}, fmt.Errorf("model plan sequence layer %d is outside [0,%d)", layer, limit)
 	}
 	program, err := p.LayerProgram(layer)
+	if err != nil {
+		return CompiledLayerProgram{}, err
+	}
 	if decoder {
-		program.plan.Program = relativeDecoderProgram()
+		program.plan.Program, err = relativeDecoderProgram()
 	} else {
-		program.plan.Program = relativeEncoderProgram()
+		program.plan.Program, err = relativeEncoderProgram()
 	}
 	return program, err
 }
@@ -903,7 +931,7 @@ func (p ModelPlan) AudioWaveform() AudioWaveformPlan { return p.waveform }
 // Draft: compiled speculative policy.
 func (p ModelPlan) Draft() DraftPlan { return p.draft }
 
-func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgram {
+func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProgram, error) {
 	recurrent := plan.Recurrent
 	composition := plan.Composition
 	if profile.LayerTopology == LayerTopologySplitProjection {
@@ -974,7 +1002,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				feedForwardLayerStage(LayerOperatorFeedForwardRoutedSquaredReLU), layerStage(LayerOperatorResidual),
 			)
 		default:
-			return LayerProgram{}
+			return LayerProgram{}, errors.New("layer program has unsupported sparse composition")
 		}
 	}
 	if plan.Mixer == recurrentMixerSelectiveScan || plan.Mixer == recurrentMixerGroupedSelectiveScan {
@@ -1094,7 +1122,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 				layerStage(LayerOperatorFeedForwardOutput), layerStage(LayerOperatorResidual),
 			)
 		}
-		return LayerProgram{}
+		return LayerProgram{}, errors.New("layer program has no compiled topology")
 	case profile.LayerTopology == LayerTopologyKeyedDeltaHybrid:
 		if !recurrent {
 			return latentLayerProgram(
@@ -1136,7 +1164,7 @@ func (p LayerPlan) splitProjection() bool {
 		suffix.Operator == LayerOperatorActivatedOutput
 }
 
-func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale bool) LayerProgram {
+func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale bool) (LayerProgram, error) {
 	stages := []LayerOperatorInstruction{
 		layerStage(LayerOperatorAttentionNorm), mixer, layerStage(LayerOperatorResidual),
 		layerStage(LayerOperatorFeedForwardNorm), feedForwardLayerStage(feedForward), layerStage(LayerOperatorResidual),
@@ -1151,7 +1179,7 @@ func latentLayerProgram(
 	profile ArchitectureProfile,
 	caches []RuntimeCacheBinding,
 	tensors []RuntimeTensorBinding,
-) LayerProgram {
+) (LayerProgram, error) {
 	mix := LayerOperatorFeedForwardStandardSwiGLU
 	if profile.FeedForward == FeedForwardSquaredReLU {
 		mix = LayerOperatorFeedForwardSquaredReLU
@@ -1166,14 +1194,6 @@ func latentLayerProgram(
 		stages = append(stages, layerStage(LayerOperatorScale))
 	}
 	return newLayerProgram(append(stages, layerStage(LayerOperatorResidual))...)
-}
-
-func leafLayerProgram(
-	operator LayerOperator,
-	caches []RuntimeCacheBinding,
-	tensors []RuntimeTensorBinding,
-) LayerProgram {
-	return newLayerProgram(leafLayerStage(operator, caches, tensors))
 }
 
 func leafLayerStage(
@@ -1248,7 +1268,7 @@ func cacheSentinelLayerStage() LayerOperatorInstruction {
 	return instruction
 }
 
-func relativeEncoderProgram() LayerProgram {
+func relativeEncoderProgram() (LayerProgram, error) {
 	return newLayerProgram(
 		layerStage(LayerOperatorAttentionNorm),
 		layerStage(LayerOperatorAttentionRelativeBidirectional),
@@ -1258,7 +1278,7 @@ func relativeEncoderProgram() LayerProgram {
 	)
 }
 
-func relativeDecoderProgram() LayerProgram {
+func relativeDecoderProgram() (LayerProgram, error) {
 	return newLayerProgram(
 		layerStage(LayerOperatorAttentionNorm),
 		attentionLayerStage(LayerOperatorAttentionRelativeCausal),
@@ -1275,13 +1295,15 @@ func relativeDecoderProgram() LayerProgram {
 	)
 }
 
-func newLayerProgram(stages ...LayerOperatorInstruction) LayerProgram {
+func newLayerProgram(stages ...LayerOperatorInstruction) (LayerProgram, error) {
 	if len(stages) > maxLayerInstructions {
-		return LayerProgram{Count: uint8(len(stages))}
+		return LayerProgram{}, fmt.Errorf(
+			"layer program has %d instructions; capacity is %d", len(stages), maxLayerInstructions,
+		)
 	}
 	program := LayerProgram{Count: uint8(len(stages))}
 	copy(program.Instructions[:], stages)
-	return program
+	return program, nil
 }
 
 func cachePolicy(spec Spec, profile ArchitectureProfile, layer uint32, recurrent bool) CachePolicy {

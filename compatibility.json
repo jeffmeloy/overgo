@@ -397,13 +397,13 @@
           "contains": "func CompileModelPlanWithProfile(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:902e732e9c461063bf0ad4c4ea416046b7eb8e9a4e337b9c9a7f6d126601df8d"
+          "identity": "file:sha256:f161bdc0a44f441b6e13244ccc3788a5e3b2261634bf6ba082ce981b9f6958b7"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:ccdea85741f61c75efc2b2a3e4392995ef92c356c5c96104db853fed6741ef61"
+          "identity": "evidence:sha256:14f3d88660d54e4c19809edf6934d2212886c5248b76deea92935367d79a8dd5"
         }
       ],
       "id": "compiled-model-plan",
@@ -418,13 +418,13 @@
           "contains": "func Compile(",
           "path": "internal/cuda/executor/executor.go",
           "role": "source",
-          "identity": "file:sha256:aa311a2fdda7a95ddd0b8cda8492e9e6948e191ac6d1d78415061fe27301c1cd"
+          "identity": "file:sha256:0a94ee2c00dcfd908701620ca0b2c4302fb5be5815ad02a222943d92cdf95a0f"
         },
         {
           "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
           "path": "internal/cuda/executor/compile_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:a97979576eabe08c3c0c28264c9dfb7d28a81a2e83ebd0edbf5185169eb0f9a9"
+          "identity": "evidence:sha256:33e114c564058240ce79e05c961663b3cecce106d96a19a28d0ca8a74bcc6cb5"
         }
       ],
       "id": "compiled-cuda-graph",
@@ -857,7 +857,7 @@
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0659a76b0759db8616e1b3af9b72e0341835ac7dfbb6beba32a7095ef452884f"
+          "identity": "evidence:sha256:7bb553b237b8e809f78def1f20b111234644c8d29ed189f9a444619f8337c073"
         }
       ],
       "id": "neutral-layer-dispatch",

@@ -29,6 +29,9 @@ func runSessionGoldenDenoise(t *testing.T, name string) {
 	if program.weights != nil {
 		t.Fatal("resident session retained host denoiser weights")
 	}
+	if program.contextWeightInputs != nil || program.stepWeightInputs != nil {
+		t.Fatal("resident session retained named weight bindings")
+	}
 	defer func() {
 		if err := session.Close(); err != nil {
 			t.Errorf("close session: %v", err)

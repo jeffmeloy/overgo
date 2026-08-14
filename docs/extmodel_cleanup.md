@@ -63,9 +63,11 @@ active recipe + resolved artifact facts
 | Duplicated tensor-descriptor maps per model load | 0 | Borrowed indexed catalog owns descriptors |
 | Ordinary CUDA launch tensor-pointer lookups | 0 | Flat compiled operand slots |
 | CUDA launch tensor-pointer lookups | 0 | Ordinary and fused launches use compiled slots |
-| CUDA fusion descriptor maps | 1 | Compile-only typed rewrite authority |
+| Runtime CUDA fusion descriptor maps | 0 | Rewrite map released after indexed launch compilation |
+| Duplicated CUDA launch frames | 0 | Node frames plus compact launch indices |
 | Hybrid-local Q/K/V projection implementations | 0 | Shared projection stage owns fused/separate binding |
 | Resident video full host-weight owners after upload | 0 | Retain timestep bundle only |
+| Resident video named weight maps after binding | 0 | Node-to-device feeds own execution bindings |
 | General recipe VQA runtime adapters | 0 | Extract command-local processor/device pipeline |
 | Production video recipe activation paths | 0 | Bind profile artifact; require active recipe |
 

@@ -22,7 +22,7 @@ func (r *Gemma4TowerRunner) EncodeAudio(
 	if r == nil || r.file == nil {
 		return Gemma4AudioTowerOutput{}, errors.New("projector: runner is closed")
 	}
-	features, frames, err := PreprocessGemma4AudioTower(samples, sampleRate, r.spec.Audio)
+	features, frames, err := r.audioPlan.preprocess(samples, sampleRate)
 	if err != nil {
 		return Gemma4AudioTowerOutput{}, err
 	}
@@ -38,7 +38,7 @@ func (r *Gemma4TowerRunner) EncodeAudioTrace(
 	if r == nil || r.file == nil {
 		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, errors.New("projector: runner is closed")
 	}
-	features, frames, err := PreprocessGemma4AudioTower(samples, sampleRate, r.spec.Audio)
+	features, frames, err := r.audioPlan.preprocess(samples, sampleRate)
 	if err != nil {
 		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, err
 	}
@@ -54,6 +54,35 @@ func PreprocessGemma4AudioTower(
 	if err := validateGemma4AudioFrontend(spec); err != nil {
 		return nil, 0, err
 	}
+	return newGemma4AudioFrontendPlan(spec).preprocess(samples, sampleRate)
+}
+
+type gemma4AudioFrontendPlan struct {
+	spec         Gemma4AudioTowerSpec
+	window       []float64
+	cosine, sine []float64
+	filterbank   []float64
+	bins         int
+}
+
+func newGemma4AudioFrontendPlan(spec Gemma4AudioTowerSpec) *gemma4AudioFrontendPlan {
+	window := make([]float64, spec.FrameLength)
+	for index := range window {
+		window[index] = 0.5 - 0.5*math.Cos(2*math.Pi*float64(index)/float64(spec.FrameLength))
+	}
+	bins := spec.FFTLength/2 + 1
+	cosine, sine := gemma4AudioDFTBasis(bins, spec.FrameLength, spec.FFTLength)
+	return &gemma4AudioFrontendPlan{
+		spec: spec, window: window, cosine: cosine, sine: sine,
+		filterbank: gemma4AudioMelFilterbank(spec, bins), bins: bins,
+	}
+}
+
+func (p *gemma4AudioFrontendPlan) preprocess(samples []float32, sampleRate int) ([]float32, int, error) {
+	if p == nil {
+		return nil, 0, errors.New("projector: Gemma 4 audio frontend plan is unavailable")
+	}
+	spec := p.spec
 	if sampleRate != spec.SampleRate {
 		return nil, 0, fmt.Errorf("projector: Gemma 4 audio sample rate=%d, want %d", sampleRate, spec.SampleRate)
 	}
@@ -75,34 +104,27 @@ func PreprocessGemma4AudioTower(
 	for index, sample := range samples {
 		padded[padding+index] = float64(sample)
 	}
-	window := make([]float64, spec.FrameLength)
-	for index := range window {
-		window[index] = 0.5 - 0.5*math.Cos(2*math.Pi*float64(index)/float64(spec.FrameLength))
-	}
-	bins := spec.FFTLength/2 + 1
-	cosine, sine := gemma4AudioDFTBasis(bins, spec.FrameLength, spec.FFTLength)
-	filterbank := gemma4AudioMelFilterbank(spec, bins)
 	features := make([]float32, frames*spec.MelBins)
 	windowed := make([]float64, spec.FrameLength)
-	magnitudes := make([]float64, bins)
+	magnitudes := make([]float64, p.bins)
 	for frame := range frames {
 		base := frame * spec.HopLength
 		for index := range windowed {
-			windowed[index] = padded[base+index] * window[index]
+			windowed[index] = padded[base+index] * p.window[index]
 		}
-		for bin := range bins {
+		for bin := range p.bins {
 			var real, imaginary float64
 			basis := bin * spec.FrameLength
 			for index, value := range windowed {
-				real += value * cosine[basis+index]
-				imaginary += value * sine[basis+index]
+				real += value * p.cosine[basis+index]
+				imaginary += value * p.sine[basis+index]
 			}
 			magnitudes[bin] = math.Sqrt(real*real + imaginary*imaginary)
 		}
 		for mel := range spec.MelBins {
 			var sum float64
 			for bin, magnitude := range magnitudes {
-				sum += magnitude * filterbank[bin*spec.MelBins+mel]
+				sum += magnitude * p.filterbank[bin*spec.MelBins+mel]
 			}
 			features[frame*spec.MelBins+mel] = float32(math.Log(sum + float64(spec.MelFloor)))
 		}

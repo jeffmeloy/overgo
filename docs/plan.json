@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "e4b-vision-normalization",
-          "title": "Derive Gemma E4B vision normalization from the bound projection profile",
-          "status": "open",
-          "verify": "go test -v ./internal/projector -run '^TestGemma4TowerVisionNormalizationUsesProfile$' -count=1"
-        },
-        {
           "id": "e4b-audio-plan",
           "title": "Compile immutable Gemma E4B audio window, spectral basis, and mel filterbank once per runner",
           "status": "open",

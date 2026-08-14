@@ -1,12 +1,16 @@
 # overgo
 
-`overgo` 0.1 is a no-cgo Go reimplementation of the llama.cpp CUDA runtime: a
-Go-owned model and tensor runtime that calls NVIDIA's installed Windows DLLs
-directly. CUDA kernels are reproducible binary assets and the only project-owned
-non-Go runtime components. The implementation is experimental.
+`overgo` 0.1 is an experimental, no-cgo Go system for model inference,
+training, evaluation, and composition on consumer hardware. It inherits pinned
+formats, semantics, and kernel behavior from llama.cpp; adaptive_new supplies
+capability oracles and evidence. Overgo owns the compiled recipes, runtime,
+training path, and artifact lifecycle.
 
-**Status:** experimental · Go 1.26 · `CGO_ENABLED=0` runtime · Windows amd64 +
-NVIDIA CUDA driver · one Go module, `github.com/dlclark/regexp2` the sole
+The runtime calls NVIDIA's installed Windows DLLs directly. Manifest-pinned
+CUDA/PTX assets are the only project-owned non-Go runtime components.
+
+**Status:** experimental | Go 1.26 | `CGO_ENABLED=0` runtime | Windows amd64 +
+NVIDIA CUDA driver | one Go module | `github.com/dlclark/regexp2` is the sole
 third-party runtime dependency.
 
 ## Contents
@@ -20,7 +24,7 @@ third-party runtime dependency.
 - [Agent automation](#agent-automation)
 - [CLI tools](#cli-tools)
 - [Generation modes](#generation-modes)
-- [Multimodal input](#multimodal-input)
+- [Multimodal processing](#multimodal-processing)
 - [Sampling, tokenization, and grammars](#sampling-tokenization-and-grammars)
 - [HTTP server API](#http-server-api)
 - [CUDA execution](#cuda-execution)
@@ -29,8 +33,9 @@ third-party runtime dependency.
 ## Code structure
 
 The runtime is one Go module (`overgo`, Go 1.26). Library code lives in
-`internal/`; every executable is a thin `main` under `cmd/`. CUDA kernels are
-binary assets in `kernels/`, admitted only through `kernels/manifest.json`.
+`internal/`; every executable is a thin `main` under `cmd/`. CUDA source,
+generated PTX, and binary assets live under `kernels/` and
+`internal/cuda/kernel/`; admission is controlled by `kernels/manifest.json`.
 
 Library packages (`internal/`), by concern:
 
@@ -54,6 +59,20 @@ Executables (`cmd/`), by role:
 | Training & media | `train`, `latentvideo-run`, `recipe`, `vqaparity`, `sensenovaparity` |
 | Provenance, gate & automation | `gate`, `plan`, `guard`, `loophook`, `sbom`, `advisories`, `closure-scan`, `compatibility`, `repodb-import`, `repodb-query`, `smoke-lane`, `release` |
 
+Runtime authority flows one way:
+
+```text
+artifact + profile -> typed recipe modules -> compiled program
+                   -> reusable session -> neutral Go/CUDA operators
+                   -> typed output artifact + evidence
+```
+
+Recipes select typed conditioning and operator modules. Placement selects an
+executor; it does not change modality or implementation. Artifact/profile facts
+own prompt, normalization, scheduler, and codec policy. Reusable sessions are
+keyed by model artifact, recipe, device, and execution policy; different keys
+lease independently.
+
 ## Validated performance
 
 Numbers below are the current recorded scoreboard; the authoritative, evidence-
@@ -71,6 +90,9 @@ Go/CUDA.
 | Carbon-500M training (resident Muon) | adaptive 6.816 s loop / 11.47 GiB, matched loss | 5.05–5.13 s / 4.620 GiB, matched loss | ~25% loop-wall lead, ~60% lower peak |
 | Krea text-to-image (2048) | Python 97.5–135.4 s; adaptive 158.1 s / 33.47 GB | 63.5 s / 32.7 GB, MAE 0.039 | ~35% vs Python, ~60% vs adaptive; bounded quality |
 | Wan text-to-video | retained Python 463.4 s; adaptive 795.1 s | 370.3 s, stage peaks 7.9/10.3 GB | ~20% wall lead vs retained Python |
+| SenseNova generation core | adaptive reusable body 6.88 s | cold 3.65–4.00 s; warm 3.66–4.02 s / 0.710 GiB | 41.6% warm-body lead; full image route open |
+| Gemma E4B image tower | adaptive 14.56 s focused test | 1.65 s load+run; 0.210–0.215 s resident body | exact sampled-stage parity; peak open |
+| Gemma E4B audio tower | adaptive 1.03 s focused test | 0.129 s resident body | numerical parity; matched lifecycle/peak open |
 | Qwen3.5-9B Q8_0 GGUF | not servable by adaptive | 11.6 ms/tok / 9.3 GB | Overgo-only capability |
 | Gemma4-12B FP8 decode | cross-repo comparison open | 29.81 ms/tok / 18.89 GiB | functional (self-baseline) |
 | Gemma E4B decode | adaptive **host** 341 ms/tok | 18.5 ms/tok | device-vs-host — not a like-for-like runtime win |
@@ -80,18 +102,18 @@ that are **not exercised in CI** (the CI race/test lanes are cgo/host only), so
 treat them as recorded evidence, not reproduced-here results. The Krea, Wan, and
 Carbon-training rows are fresh real-artifact runs on the reviewed machine; the
 Wan reference is retained and cross-revision until one harness reruns all three.
-The E4B row compares Overgo's device path against adaptive's host path and is
-flagged accordingly. Cross-repo speed claims hold only under the report's
-protocol (same artifact, inputs, seed, precision, output contract, warm/cold
-policy, and uncontended GPU).
+The E4B decode row compares Overgo's device path against adaptive's host path
+and is flagged accordingly. Image/audio tower timings preserve their reported
+lifecycle; unmatched peak remains open. Cross-repo speed claims hold only under
+the report's protocol (same artifact, inputs, seed, precision, output contract,
+warm/cold policy, and uncontended GPU).
 
 ## Training and the universal Muon optimizer
 
-Overgo trains every parameter with one optimizer: **Muon is the sole optimizer
-authority** — no SGD or sign-update fallbacks exist (`BF16SGD`, `TrainBF16SGD`,
-and `UpdateSign` were migrated to Muon and deleted). A single compiled, immutable
-parameter plan (`optimizer.CompilePlan`) validates the full ordered partition and
-applies the same update across every geometry:
+Production training has one optimizer authority: **Muon**. SGD and sign-update
+fallbacks were migrated and deleted. A compiled, immutable parameter plan
+(`optimizer.CompilePlan`) validates the ordered partition and applies one update
+policy across every geometry:
 
 - **Matrix** groups use Newton–Schulz orthogonalization of the momentum-filtered
   gradient; the update is scale-invariant and consumes its gradients each step.
@@ -103,29 +125,26 @@ The update runs as a host reference and as CUDA; the fp32 device Newton–Schulz
 gated bit-tolerance against an fp64 host oracle across tall, wide, and square
 shapes (`internal/optimizer/newton_schulz_cuda_windows.go`).
 
-**Resident device training is the production path.** Weights, gradients, and
-momentum stay on the GPU across steps (`DeviceMuonMatricesResident`): the loop
-never scatters weights or gathers gradients per step — it uploads once and
-downloads only at checkpoint. Learning-rate policy is a compiled schedule
-(`optimizer.Schedule`). See
+The promoted production evidence is currently the frozen-lexical Carbon route.
+Its resident device loop keeps weights, gradients, and momentum on the GPU
+across steps (`DeviceMuonMatricesResident`), uploads once, and downloads at the
+checkpoint boundary. Learning-rate policy is a compiled schedule
+(`optimizer.Schedule`). `TrainingRunPlan` and the model-level
+`TrainingProgram` remain design contracts; real Qwen3.5, E4B, Gemma4, complete
+checkpoint/resume, and multimodal training promotion remain open. See
 [`docs/training_plan.md`](docs/training_plan.md).
 
 ## Model support
 
-`overgo`'s current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1/2/3.2/4, DeepSeek2-OCR with DeepSeek-OCR v1/v2 image projection, GLM-DSA, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
-through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
-gated-delta-net models, Apertus, Arcee, Baichuan 7B/13B, BitNet, Bloom, ChatGLM, CogVLM text/projected-visual decoding, CodeShell,
-dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal diffusion generation, Falcon/Falcon-H1, Gemma 1/2/3/4, Gemma 3n with MobileNetV5 image projection, and Gemma Embedding,
-ERNIE 4.5/ERNIE 4.5-MoE, BERT/EuroBERT/JinaBERT v2/v3/Llama Embed/ModernBERT/NeoBERT/NomicBERT/NomicBERT-MoE encoders, GLM4/GLM4-MoE multimodal-coordinate decoding, GPT-2/GPT-NeoX, Granite/GraniteMoE with Granite 4 vision projection and deepstack injection, GroveMoE, Grok, Hunyuan-Dense/Hunyuan-MoE and Hunyuan-VL image projection/text-coordinate decoding, HY-V3 decoder trunks, Chameleon decoders with projected soft-token input,
-InternLM2, EXAONE/EXAONE 4/EXAONE-MoE, XVERSE, Jais/Jais2, Jamba, Granite Hybrid, Maincoder, Mamba v1/v2, RWKV6/RWKV6-Qwen2/RWKV7/ARWKV7, Mellum, MiMo2 with MiMo-VL image projection, MiniCPM/MiniCPM3, MPT,
-Mistral 3 dense/MoE, Laguna hybrid-attention MoE, hybrid LFM2/LFM2-MoE, MiniMax-M2, SmallThinker, Nemotron, OLMo/OLMo2/OLMoE, OpenELM,
-Orion, PaddleOCR text-coordinate decoding, Qwen2-VL and dense/MoE Qwen3-VL image/video projection and text-coordinate decoding, Pangu Embedded, Phi-2/Phi-3/PhiMoE, PLaMo/PLaMo 2/PLaMo 3/PLM MLA, dense Refact, Talkie,
-RND1 non-causal MoE diffusion generation, Seed-OSS, StableLM, StarCoder/StarCoder2 and SmolLM3 decoders, T5 encoder-decoder models and UMT5
-encoders, GPT-J with partial normal RoPE and parallel GELU-New residual blocks, and dense or Mixtral Llama-family decoders, including projection biases and converted Llama 3
-per-pair RoPE factors plus metadata-driven linear RoPE scaling. Optional output
-projection biases and Gemma attention/final-logit softcapping are honored in
-every inference mode. MPT includes fused-QKV clamping, optional full-projection
-affine Q/K LayerNorm, and optional AWQ post-GELU activation scaling.
+The executable catalog spans dense, MoE, recurrent, hybrid, encoder,
+encoder-decoder, speculative, diffusion-text, vision-language, audio, image,
+video, forecasting, tabular, and speech components. Support is deliberately not
+repeated here as a hand-maintained family list.
+
+[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) is generated from
+[`compatibility.json`](compatibility.json) and is the authoritative model and
+feature matrix. Read its evidence tier: implemented, synthetic-fixture,
+real-artifact parity, and promoted performance are distinct claims.
 
 ## Documentation
 
@@ -135,7 +154,6 @@ affine Q/K LayerNorm, and optional AWQ post-GELU activation scaling.
   performance assessment;
 - `docs/training_plan.md` for the compiled Muon training design;
 - `docs/COMPATIBILITY.md` for the generated model/feature matrix;
-- `docs/IMPLEMENTATION_LOG.md` for archived validation history;
 - `docs/REPODB.md` for artifact identity and provenance-store contracts;
 - `compatibility.json` for machine-checked compatibility claims;
 - `SBOM.cdx.json` and `LICENSES.md` for dependency/kernel provenance and the
@@ -147,7 +165,9 @@ Commits go through the gate, which owns hygiene (fmt/vet/build), derived-scope
 tests, manifest/SBOM/claims verification, and the store record:
 
 ```bash
-go run ./cmd/gate -message-file msg.txt -paths internal/foo/bar.go
+go run ./cmd/plan -next
+go run ./cmd/gate -message-file msg.txt \
+  -paths internal/foo/bar.go -plan item-id/step-id
 ```
 
 Standalone checks and lanes:
@@ -320,7 +340,14 @@ Attention, recurrent, and hybrid families retain per-sequence KV, convolution,
 SSM, WKV, short-convolution, and named fixed/token-aligned state. Device-cache
 forks share immutable retained allocations until either branch advances.
 
-## Multimodal input
+## Multimodal processing
+
+Recipes bind typed image, audio, video, and text conditioning modules directly;
+device placement cannot select a different modality implementation. Processor
+normalization, prompt templates, token budgets, schedulers, and codecs come
+from validated artifact/profile facts. Image workflows publish typed PNG
+artifacts; runtime publication validates shape and finiteness, while quality
+thresholds remain evidence-gate policy.
 
 The Go runner's `ForwardCachedWithMultimodalInputs` accepts projected visual
 token embeddings plus distinct temporal, height, width, and extra MRoPE
@@ -714,8 +741,8 @@ For preloaded dense models, embedding lookup, all decoder layers, final
 normalization, last-token slicing, and output projection execute as one CUDA
 submission per token. KV state uses explicitly owned device outputs between
 steps; only the vocabulary logits cross to Go for sampling. Identical RoPE
-attribute buffers are uploaded once per graph. Editable sessions,
-and streamed-weight compatibility paths retain their host-cache behavior.
+attribute buffers are uploaded once per graph. Editable sessions and
+streamed-weight paths retain their host-cache behavior.
 Prompt-cache-plus-context-shift requests preserve the immutable device prompt
 with a range copy before the first destructive edit. Ordinary rolling context
 shift uses zero-copy device-pointer views over the retained attention cache,
@@ -723,6 +750,10 @@ while prefix-preserving `n_keep` compaction copies only retained device ranges. 
 Qwen3.5 generation retains both attention
 KV and recurrent convolution/SSM state on-device; its initial zero state uses
 stream-ordered device memsets rather than host uploads.
+Retained generation sessions compile branch graphs once, retain prefix KV and
+hidden rows across denoise steps, and copy only requested evidence/final
+boundaries. Capability sessions reuse loaded models across requests; per-entry
+leases allow different model/device/policy keys to execute concurrently.
 Cancellation propagates through execution, and overload returns HTTP 429.
 Metrics expose request concurrency/counts, generation attempts and errors,
 generated tokens, uptime, and readiness without an external package.

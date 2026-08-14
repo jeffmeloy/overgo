@@ -114,9 +114,27 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		{"MetadataDefaults.LayerNormEpsilon", profile.MetadataDefaults.LayerNormEpsilon},
 		{"MetadataDefaults.QKNormEpsilon", profile.MetadataDefaults.QKNormEpsilon},
 		{"MetadataDefaults.SparsityStdMultiplier", profile.MetadataDefaults.SparsityStdMultiplier},
+		{"Runtime.Recurrent.HeadNormEpsilon", profile.Runtime.Recurrent.HeadNormEpsilon},
+		{"Runtime.Recurrent.KeyNormEpsilon", profile.Runtime.Recurrent.KeyNormEpsilon},
+		{"Runtime.Recurrent.PeriodicResidualScale", profile.Runtime.Recurrent.PeriodicResidualScale},
 	} {
 		if scalar.value < 0 || math.IsNaN(float64(scalar.value)) || math.IsInf(float64(scalar.value), 0) {
 			return fmt.Errorf("architecture profile %q: %s must be finite and nonnegative", profile.Name, scalar.name)
+		}
+	}
+	recurrent := profile.Runtime.Recurrent
+	switch profile.Validation.Recurrent {
+	case RecurrentValidationRWKV6:
+		if recurrent.TokenShiftCount == 0 || recurrent.HeadNormEpsilon <= 0 || recurrent.PeriodicResidualScale <= 0 {
+			return fmt.Errorf("architecture profile %q: RWKV6 runtime policy is incomplete", profile.Name)
+		}
+	case RecurrentValidationRWKV6Qwen2:
+		if recurrent.TokenShiftCount == 0 || recurrent.PeriodicResidualScale <= 0 {
+			return fmt.Errorf("architecture profile %q: RWKV6-Qwen2 runtime policy is incomplete", profile.Name)
+		}
+	case RecurrentValidationRWKV7, RecurrentValidationARWKV7:
+		if recurrent.TokenShiftCount == 0 || recurrent.HeadNormEpsilon <= 0 || recurrent.KeyNormEpsilon <= 0 {
+			return fmt.Errorf("architecture profile %q: RWKV7 runtime policy is incomplete", profile.Name)
 		}
 	}
 	if profile.readsMetadata(MetadataReadVisualSections) &&

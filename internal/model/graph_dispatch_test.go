@@ -128,7 +128,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 			name: "WKV6", profile: ArchitectureProfile{LayerTopology: LayerTopologyDynamicWKV6},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-				LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual, LayerOperatorPeriodicScale,
+				LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual,
 			},
 		},
 		{
@@ -156,6 +156,14 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 			requireLayerProgram(t, program, test.want...)
 		})
 	}
+	periodic := compileLayerProgram(
+		LayerPlan{PeriodicScale: 0.5},
+		ArchitectureProfile{LayerTopology: LayerTopologyDynamicWKV6},
+	)
+	requireLayerProgram(t, periodic,
+		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
+		LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual, LayerOperatorPeriodicScale,
+	)
 }
 
 func TestTalkieProgramUsesNeutralStages(t *testing.T) {

@@ -11,8 +11,6 @@ const (
 	stateSpaceWidthFactor    = uint32(2)
 	eagle3BlockCount         = uint32(1)
 	eagle3TargetLayerCount   = 3
-	rwkvStandardTokenShifts  = uint32(2)
-	rwkvQwenTokenShifts      = uint32(1)
 	rotaryPairAlignment      = uint32(2)
 )
 
@@ -118,10 +116,7 @@ func validateNonNegativeTargetLayers(family string, layers []int32) error {
 }
 
 func (s Spec) validateRWKV6(validation RecurrentValidationPolicy) error {
-	wantShifts := rwkvStandardTokenShifts
-	if validation == RecurrentValidationRWKV6Qwen2 {
-		wantShifts = rwkvQwenTokenShifts
-	}
+	wantShifts := s.Profile().Runtime.Recurrent.TokenShiftCount
 	switch {
 	case s.WKVHeadSize == 0 || s.EmbeddingLength%s.WKVHeadSize != 0 || s.HeadCount != s.EmbeddingLength/s.WKVHeadSize:
 		return fmt.Errorf("%s WKV head metadata is invalid", s.Architecture)
@@ -137,10 +132,7 @@ func (s Spec) validateRWKV6(validation RecurrentValidationPolicy) error {
 }
 
 func (s Spec) validateRWKV7(validation RecurrentValidationPolicy) error {
-	wantShifts := rwkvStandardTokenShifts
-	if validation == RecurrentValidationARWKV7 {
-		wantShifts = rwkvQwenTokenShifts
-	}
+	wantShifts := s.Profile().Runtime.Recurrent.TokenShiftCount
 	switch {
 	case s.WKVHeadSize == 0 || s.EmbeddingLength%s.WKVHeadSize != 0 || s.HeadCount != s.EmbeddingLength/s.WKVHeadSize:
 		return fmt.Errorf("%s WKV head metadata is invalid", s.Architecture)

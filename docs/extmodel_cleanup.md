@@ -45,6 +45,7 @@ active recipe + resolved artifact facts
 | Dead graph-runtime feed mutators | 0 | Weight/layer binders own feed registration |
 | Hardcoded Gemma3N validation facts | 0 | Serialized typed profile facts |
 | Exported registry-backed profile resolution APIs | 0 | Bootstrap stays inside model package |
+| Hardcoded RWKV execution/validation scalars | 0 | Serialized typed recurrent profile facts |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named production files: none.

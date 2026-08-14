@@ -83,6 +83,13 @@
     "LayerTopology": 9,
     "Name": "arwkv7",
     "RecurrentMixer": 12,
+    "Runtime": {
+      "Recurrent": {
+        "HeadNormEpsilon": 0.00064,
+        "KeyNormEpsilon": 1e-12,
+        "TokenShiftCount": 1
+      }
+    },
     "Validation": {
       "Recurrent": 10
     }
@@ -2244,6 +2251,13 @@
     },
     "Name": "rwkv6",
     "RecurrentMixer": 11,
+    "Runtime": {
+      "Recurrent": {
+        "HeadNormEpsilon": 0.00064,
+        "PeriodicResidualScale": 0.5,
+        "TokenShiftCount": 2
+      }
+    },
     "Validation": {
       "Recurrent": 7
     },
@@ -2261,6 +2275,12 @@
     },
     "Name": "rwkv6qwen2",
     "RecurrentMixer": 10,
+    "Runtime": {
+      "Recurrent": {
+        "PeriodicResidualScale": 0.5,
+        "TokenShiftCount": 1
+      }
+    },
     "Validation": {
       "Recurrent": 8
     }
@@ -2275,6 +2295,13 @@
     },
     "Name": "rwkv7",
     "RecurrentMixer": 12,
+    "Runtime": {
+      "Recurrent": {
+        "HeadNormEpsilon": 0.00064,
+        "KeyNormEpsilon": 1e-12,
+        "TokenShiftCount": 2
+      }
+    },
     "Validation": {
       "Recurrent": 9
     },

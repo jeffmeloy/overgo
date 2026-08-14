@@ -50,6 +50,15 @@ type RuntimePolicy struct {
 	NormalizationPlacement NormalizationPlacementPolicy
 	NormalizationBias      NormalizationBiasPolicy
 	NormalizationFallback  NormalizationFallbackPolicy
+	Recurrent              RecurrentRuntimePolicy
+}
+
+// RecurrentRuntimePolicy: recurrent scalar contract.
+type RecurrentRuntimePolicy struct {
+	HeadNormEpsilon       float32
+	KeyNormEpsilon        float32
+	PeriodicResidualScale float32
+	TokenShiftCount       uint32
 }
 
 func (p RuntimePolicy) inputEmbeddingScale(spec Spec) float32 {

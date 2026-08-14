@@ -270,6 +270,8 @@ type LayerPlan struct {
 	AttentionOutput     AttentionOutputPlan
 	ResidualStages      ResidualStagePlan
 	Mixer               RecurrentMixerPolicy
+	RecurrentRuntime    RecurrentRuntimePolicy
+	PeriodicScale       float32
 }
 
 // PlanLayer: derives graph and cache behavior once per layer.
@@ -314,11 +316,13 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		}
 	}
 	residualStages := s.residualStagePlan(profile, normalization)
+	periodicScale := float32(0)
+	if (profile.LayerTopology == LayerTopologyDynamicWKV6 || profile.LayerTopology == LayerTopologyAffineWKV6) &&
+		s.RescaleEvery > 0 && (layer+1)%s.RescaleEvery == 0 {
+		periodicScale = profile.Runtime.Recurrent.PeriodicResidualScale
+	}
 	if profile.LayerTopology == LayerTopologyAffineWKV6 {
-		residualStages.residualScale = 0
-		if s.RescaleEvery > 0 && (layer+1)%s.RescaleEvery == 0 {
-			residualStages.residualScale = rwkvLayerRescale
-		}
+		residualStages.residualScale = periodicScale
 	}
 	experts := s.moeGraphPlan(layer)
 	if mixer == recurrentMixerSparseGroupedSelectiveScan {
@@ -382,6 +386,8 @@ func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
 		AttentionOutput:     s.attentionOutputPlan(normalization),
 		ResidualStages:      residualStages,
 		Mixer:               mixer,
+		RecurrentRuntime:    profile.Runtime.Recurrent,
+		PeriodicScale:       periodicScale,
 	}
 	plan.Program = compileLayerProgram(plan, profile)
 	return plan
@@ -998,11 +1004,15 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) LayerProgr
 			)
 		}
 		if profile.LayerTopology == LayerTopologyDynamicWKV6 {
-			return newLayerProgram(
+			stages := []LayerOperatorInstruction{
 				layerStage(LayerOperatorAttentionNorm), recurrentLayerStage(),
 				layerStage(LayerOperatorResidual), tokenShiftLayerStage(LayerOperatorGatedTokenShiftSquaredReLU),
-				layerStage(LayerOperatorResidual), layerStage(LayerOperatorPeriodicScale),
-			)
+				layerStage(LayerOperatorResidual),
+			}
+			if plan.PeriodicScale > 0 {
+				stages = append(stages, layerStage(LayerOperatorPeriodicScale))
+			}
+			return newLayerProgram(stages...)
 		}
 		if profile.LayerTopology == LayerTopologyDynamicWKV7 {
 			stages := []LayerOperatorInstruction{

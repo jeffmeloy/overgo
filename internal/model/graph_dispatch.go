@@ -410,7 +410,7 @@ func executeLayerInstruction(
 		case recurrentMixerAffineWKV6:
 			result, err = buildAffineWKV6MixCached(
 				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1],
+				operands.caches[0], operands.caches[1], plan,
 			)
 		case recurrentMixerDynamicWKV7:
 			result, err = buildDynamicWKV7MixCached(
@@ -639,6 +639,7 @@ func executeLayerInstruction(
 		result, err := buildTokenShiftFeedForwardMix(
 			c.Builder, execution.current, options.Spec, options.Weights,
 			operands.caches[0], execution.result.Key, instruction.Operator, plan.Normalization,
+			plan.RecurrentRuntime.TokenShiftCount,
 		)
 		if err != nil {
 			return err
@@ -647,14 +648,13 @@ func executeLayerInstruction(
 		execution.result.Key = result.Key
 		return nil
 	case LayerOperatorPeriodicScale:
-		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil {
+		if instruction.CacheCount != 0 || instruction.TensorCount != 0 || execution.current == nil ||
+			plan.PeriodicScale <= 0 {
 			return errors.New("compiled periodic-scale stage is invalid")
 		}
-		if options.Spec.RescaleEvery > 0 && (plan.Layer+1)%options.Spec.RescaleEvery == 0 {
-			execution.current = c.Builder.Scale(execution.current, rwkvLayerRescale)
-			execution.residual = execution.current
-			execution.result.Output = execution.current
-		}
+		execution.current = c.Builder.Scale(execution.current, plan.PeriodicScale)
+		execution.residual = execution.current
+		execution.result.Output = execution.current
 		return c.Builder.Err()
 	case LayerOperatorLatentAttention:
 		valid := instruction.CacheCount == 2 && instruction.TensorCount == 0 ||

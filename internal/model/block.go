@@ -8,11 +8,6 @@ import (
 	"overgo/internal/tensor"
 )
 
-const (
-	rwkvHeadNormEpsilon = 64e-5
-	rwkvKeyNormEpsilon  = 1e-12
-)
-
 // LayerGraphWeights: graph inputs for one dense decoder block
 type LayerGraphWeights struct {
 	AttentionNorm               *tensor.Tensor

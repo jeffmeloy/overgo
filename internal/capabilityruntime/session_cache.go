@@ -18,8 +18,14 @@ type sessionKey struct {
 }
 
 type sessionEntry[Model any] struct {
-	model Model
-	used  uint64
+	mu        sync.Mutex
+	model     Model
+	ready     chan struct{}
+	loadErr   error
+	used      uint64
+	borrowers int
+	dead      bool
+	closed    bool
 }
 
 // ScalarSessionCache owns bounded reusable model sessions.
@@ -35,7 +41,9 @@ type ScalarSessionCache[Input, Model, Output any] struct {
 
 	mu      sync.Mutex
 	tick    uint64
-	entries map[sessionKey]sessionEntry[Model]
+	entries map[sessionKey]*sessionEntry[Model]
+	changed chan struct{}
+	closed  bool
 }
 
 func NewScalarSessionCache[Input, Model, Output any](
@@ -53,7 +61,7 @@ func NewScalarSessionCache[Input, Model, Output any](
 	return &ScalarSessionCache[Input, Model, Output]{
 		name: name, device: device, capacity: capacity,
 		validate: validate, policy: policy, load: load, reset: reset, bind: bind,
-		entries: make(map[sessionKey]sessionEntry[Model]),
+		entries: make(map[sessionKey]*sessionEntry[Model]), changed: make(chan struct{}),
 	}, nil
 }
 
@@ -95,63 +103,190 @@ func (c *ScalarSessionCache[Input, Model, Output]) execute(
 		model: modelID, recipe: definition.ID, device: c.device, policy: policy,
 	}
 
-	// A cached model is a mutable session. Serialize lease, execution, reset.
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.tick++
-	entry, hit := c.entries[key]
-	if hit {
-		if err := c.reset(ctx, entry.model, input); err != nil {
-			delete(c.entries, key)
-			return zero, errors.Join(err, closeModel(context.WithoutCancel(ctx), entry.model))
-		}
-	} else {
-		if err := c.evict(ctx); err != nil {
-			return zero, err
-		}
-		model, err := c.load(ctx, store, path, program, input)
-		if err != nil {
-			return zero, err
-		}
-		entry = sessionEntry[Model]{model: model}
+	entry, fresh, err := c.lease(ctx, store, path, key, program, input)
+	if err != nil {
+		return zero, err
 	}
-	entry.used = c.tick
-	c.entries[key] = entry
+	defer c.release(entry)
+	if !fresh {
+		if err := c.reset(ctx, entry.model, input); err != nil {
+			return zero, c.retire(ctx, key, entry, err)
+		}
+	}
 	output, err := executeScalar[Input, Model, Output](
 		ctx, store, modelID, program, content, input, entry.model, c.bind,
 	)
 	if err != nil {
-		delete(c.entries, key)
-		err = errors.Join(err, closeModel(context.WithoutCancel(ctx), entry.model))
+		err = c.retire(ctx, key, entry, err)
 	}
 	return output, err
 }
 
-func (c *ScalarSessionCache[Input, Model, Output]) evict(ctx context.Context) error {
-	if len(c.entries) < c.capacity {
-		return nil
-	}
-	var oldest sessionKey
-	oldestTick := ^uint64(0)
-	for key, entry := range c.entries {
-		if entry.used < oldestTick {
-			oldest, oldestTick = key, entry.used
+func (c *ScalarSessionCache[Input, Model, Output]) lease(
+	ctx context.Context,
+	store artifact.Repository,
+	path string,
+	key sessionKey,
+	program recipe.Program,
+	input Input,
+) (*sessionEntry[Model], bool, error) {
+	for {
+		c.mu.Lock()
+		if c.closed {
+			c.mu.Unlock()
+			return nil, false, errors.New("capability runtime: session cache is closed")
 		}
+		c.tick++
+		if entry, ok := c.entries[key]; ok {
+			entry.borrowers++
+			entry.used = c.tick
+			c.mu.Unlock()
+			select {
+			case <-entry.ready:
+			case <-ctx.Done():
+				c.releaseBorrower(entry)
+				return nil, false, ctx.Err()
+			}
+			if entry.loadErr != nil {
+				c.releaseBorrower(entry)
+				return nil, false, entry.loadErr
+			}
+			entry.mu.Lock()
+			c.mu.Lock()
+			dead := entry.dead
+			c.mu.Unlock()
+			if dead {
+				entry.mu.Unlock()
+				c.releaseBorrower(entry)
+				continue
+			}
+			return entry, false, nil
+		}
+		if len(c.entries) >= c.capacity {
+			oldestKey, oldest := c.oldestIdle()
+			if oldest == nil {
+				changed := c.changed
+				c.mu.Unlock()
+				select {
+				case <-changed:
+					continue
+				case <-ctx.Done():
+					return nil, false, ctx.Err()
+				}
+			}
+			oldest.dead = true
+			delete(c.entries, oldestKey)
+			c.notify()
+			c.mu.Unlock()
+			oldest.mu.Lock()
+			err := closeEntry(context.WithoutCancel(ctx), oldest)
+			oldest.mu.Unlock()
+			if err != nil {
+				return nil, false, err
+			}
+			continue
+		}
+		entry := &sessionEntry[Model]{ready: make(chan struct{}), used: c.tick, borrowers: 1}
+		c.entries[key] = entry
+		c.notify()
+		c.mu.Unlock()
+		model, err := c.load(ctx, store, path, program, input)
+		entry.model, entry.loadErr = model, err
+		close(entry.ready)
+		if err != nil {
+			c.mu.Lock()
+			entry.dead = true
+			if c.entries[key] == entry {
+				delete(c.entries, key)
+			}
+			c.notify()
+			c.mu.Unlock()
+			c.releaseBorrower(entry)
+			return nil, false, err
+		}
+		entry.mu.Lock()
+		c.mu.Lock()
+		dead := entry.dead
+		c.mu.Unlock()
+		if dead {
+			entry.mu.Unlock()
+			c.releaseBorrower(entry)
+			return nil, false, errors.New("capability runtime: session cache is closed")
+		}
+		return entry, true, nil
 	}
-	entry := c.entries[oldest]
-	delete(c.entries, oldest)
-	return closeModel(context.WithoutCancel(ctx), entry.model)
 }
 
 func (c *ScalarSessionCache[Input, Model, Output]) Close(ctx context.Context) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	var result error
+	if c.closed {
+		c.mu.Unlock()
+		return nil
+	}
+	c.closed = true
+	entries := make([]*sessionEntry[Model], 0, len(c.entries))
 	for key, entry := range c.entries {
-		result = errors.Join(result, closeModel(context.WithoutCancel(ctx), entry.model))
+		entry.dead = true
+		entries = append(entries, entry)
 		delete(c.entries, key)
 	}
+	c.notify()
+	c.mu.Unlock()
+	var result error
+	for _, entry := range entries {
+		<-entry.ready
+		entry.mu.Lock()
+		result = errors.Join(result, closeEntry(context.WithoutCancel(ctx), entry))
+		entry.mu.Unlock()
+	}
 	return result
+}
+
+func (c *ScalarSessionCache[Input, Model, Output]) oldestIdle() (sessionKey, *sessionEntry[Model]) {
+	var oldestKey sessionKey
+	var oldest *sessionEntry[Model]
+	for key, entry := range c.entries {
+		if entry.borrowers == 0 && (oldest == nil || entry.used < oldest.used) {
+			oldestKey, oldest = key, entry
+		}
+	}
+	return oldestKey, oldest
+}
+
+func (c *ScalarSessionCache[Input, Model, Output]) retire(ctx context.Context, key sessionKey, entry *sessionEntry[Model], cause error) error {
+	c.mu.Lock()
+	entry.dead = true
+	if c.entries[key] == entry {
+		delete(c.entries, key)
+	}
+	c.notify()
+	c.mu.Unlock()
+	return errors.Join(cause, closeEntry(context.WithoutCancel(ctx), entry))
+}
+
+func (c *ScalarSessionCache[Input, Model, Output]) release(entry *sessionEntry[Model]) {
+	entry.mu.Unlock()
+	c.releaseBorrower(entry)
+}
+
+func (c *ScalarSessionCache[Input, Model, Output]) releaseBorrower(entry *sessionEntry[Model]) {
+	c.mu.Lock()
+	entry.borrowers--
+	c.notify()
+	c.mu.Unlock()
+}
+
+func (c *ScalarSessionCache[Input, Model, Output]) notify() {
+	close(c.changed)
+	c.changed = make(chan struct{})
+}
+
+func closeEntry[Model any](ctx context.Context, entry *sessionEntry[Model]) error {
+	if entry.closed {
+		return nil
+	}
+	entry.closed = true
+	return closeModel(ctx, entry.model)
 }
 
 func decodeInput[Input any](name string, validate func(Input) error, raw string) (Input, artifact.Content, error) {

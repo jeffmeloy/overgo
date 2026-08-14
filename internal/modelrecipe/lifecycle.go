@@ -68,6 +68,89 @@ type Verification struct {
 	Run  artifact.ID
 }
 
+// ActivateCapability advances one definition through verified activation.
+func ActivateCapability(
+	ctx context.Context,
+	store artifact.Repository,
+	definition recipe.Definition,
+	verification Verification,
+	tier recipe.EvidenceTier,
+	reason string,
+) error {
+	if reason == "" {
+		return errors.New("model recipe: activation reason is empty")
+	}
+	state, published, err := Status(ctx, store, definition.ID)
+	if err != nil {
+		return err
+	}
+	if !published {
+		if _, _, err := PublishCandidate(ctx, store, "recipe/candidate/"+definition.ID.String(), definition); err != nil {
+			return fmt.Errorf("model recipe: publish candidate: %w", err)
+		}
+		state = recipe.StatusCandidate
+	}
+	if state == recipe.StatusCandidate {
+		if _, _, err := Transition(
+			ctx, store, "recipe/validated/"+definition.ID.String(), definition,
+			recipe.StatusValidated, nil, nil,
+		); err != nil {
+			return fmt.Errorf("model recipe: transition validated: %w", err)
+		}
+		state = recipe.StatusValidated
+	}
+	switch state {
+	case recipe.StatusActive:
+		return nil
+	case recipe.StatusValidated:
+	default:
+		return fmt.Errorf("model recipe: recipe %s is %q; activation resumes only from candidate or validated", definition.ID, state)
+	}
+	verified, err := runrecord.VerifyGateRun(ctx, store, definition.ID, verification.Gate, verification.Run)
+	if err != nil {
+		return err
+	}
+	decision, err := recipe.NewDecision(
+		definition.ID, recipe.DecisionAccepted, tier, reason,
+		recipe.Decider{CodeCommit: verified.Gate.CodeCommit, Derivation: verified.Gate.ID},
+		[]artifact.ID{verified.Gate.ID, verified.Run.ID},
+	)
+	if err != nil {
+		return err
+	}
+	content, err := decision.Content()
+	if err != nil {
+		return err
+	}
+	decisionBatch, err := artifact.NewDocumentBatch(
+		"recipe/activation-decision/"+definition.ID.String(),
+		[]artifact.Content{content},
+		[]artifact.Lineage{
+			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
+			{Child: decision.ID, Parent: verified.Gate.ID, Relation: artifact.RelationDependsOn},
+			{Child: decision.ID, Parent: verified.Run.ID, Relation: artifact.RelationDependsOn},
+		}, nil,
+	)
+	if err != nil {
+		return err
+	}
+	if _, err := artifact.CommitBatch(ctx, store, decisionBatch); err != nil {
+		return err
+	}
+	var supersedes *artifact.ID
+	if current, active, err := ActiveRecord(ctx, store, definition.Model, definition.Task); err == nil && active && current.Definition.ID != definition.ID {
+		id := current.Definition.ID
+		supersedes = &id
+	}
+	if _, _, err := ActivateVerified(
+		ctx, store, "recipe/active/"+definition.ID.String(), definition,
+		verification, []artifact.ID{decision.ID}, supersedes,
+	); err != nil {
+		return fmt.Errorf("model recipe: transition active: %w", err)
+	}
+	return nil
+}
+
 // ActivateVerified: promote only from a successful recipe-bound verifier run.
 func ActivateVerified(
 	ctx context.Context,

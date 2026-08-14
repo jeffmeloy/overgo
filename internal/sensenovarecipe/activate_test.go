@@ -7,16 +7,13 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
 	"overgo/internal/testutil"
 )
-
-// testCodeCommit: the 40-hex commit the sensenovaparity ladder evidence binds
-// gate to run under. A stable fixture value here; the honest evidence is the
-// ladder step name + experimental tier + frontier residual on the decision.
-const testCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
 const activationReason = "SenseNova neutral prefix/body, guidance, flow terminal, and sampler match a fingerprinted native two-step trajectory; reusable body beats adaptive wall; production decode/edit binding remains open"
 
@@ -36,7 +33,22 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-u1-8b-mot-infographic-v3")
 	testutil.PublishArtifact(t, store, modelID)
 
-	definition, err := Activate(ctx, store, modelID, testCodeCommit, activationReason)
+	definition, err := modelrecipe.RoutedImageDefinition(modelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.PublishCandidate(
+		ctx, store, "fixture/sensenova/candidate", definition,
+	); err != nil {
+		t.Fatal(err)
+	}
+	verification, err := modelrecipetest.PublishVerification(
+		ctx, store, "fixture/sensenova/verification", definition.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err = Activate(ctx, store, modelID, verification, activationReason)
 	if err != nil {
 		t.Fatalf("activate: %v", err)
 	}
@@ -51,7 +63,7 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 
 	// Re-activation is an idempotent resume (already active => no-op), so the
 	// status round-trip is stable across repeated activations.
-	if _, err := Activate(ctx, store, modelID, testCodeCommit, activationReason); err != nil {
+	if _, err := Activate(ctx, store, modelID, verification, activationReason); err != nil {
 		t.Fatalf("re-activate (idempotent resume): %v", err)
 	}
 	assertRoundTrip(t, ctx, store, modelID, definition)
@@ -65,6 +77,9 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	modelDir := os.Getenv("OVERGO_SENSENOVA_MODEL")
 	if modelDir == "" {
+		if testing.Short() {
+			return
+		}
 		t.Skip("OVERGO_SENSENOVA_MODEL is not set")
 	}
 	ctx := context.Background()
@@ -90,7 +105,29 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	}
 	defer store.Close()
 
-	definition, err := RegisterAndActivate(ctx, store, inventory, testCodeCommit, activationReason)
+	definition, err := modelrecipe.RoutedImageDefinition(modelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := inventory.Batch("fixture/sensenova/checkpoint/facts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.PublishCandidate(
+		ctx, store, "fixture/sensenova/checkpoint/candidate", definition,
+	); err != nil {
+		t.Fatal(err)
+	}
+	verification, err := modelrecipetest.PublishVerification(
+		ctx, store, "fixture/sensenova/checkpoint/verification", definition.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err = Activate(ctx, store, modelID, verification, activationReason)
 	if err != nil {
 		t.Fatalf("register + activate: %v", err)
 	}

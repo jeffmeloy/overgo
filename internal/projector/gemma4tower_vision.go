@@ -221,10 +221,7 @@ func (r *Gemma4TowerRunner) encodeVisionPatches(
 			"projector: Gemma 4 vision soft tokens=%d exceed %d", softTokens, spec.MaxImageTokens)
 	}
 
-	scaled := make([]float32, len(pixels))
-	for index, value := range pixels {
-		scaled[index] = 2*value - 1
-	}
+	scaled := gemma4TowerNormalizePixels(pixels, spec.ImageMean, spec.ImageStd)
 	builder := tensor.NewBuilder()
 	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
@@ -311,6 +308,15 @@ func (r *Gemma4TowerRunner) encodeVisionPatches(
 		traced.Stages["soft_tokens"] = results[targets[len(targets)-1]]
 	}
 	return output, traced, nil
+}
+
+func gemma4TowerNormalizePixels(pixels []float32, mean, std [3]float32) []float32 {
+	scaled := make([]float32, len(pixels))
+	for index, value := range pixels {
+		channel := index % len(mean)
+		scaled[index] = (value - mean[channel]) / std[channel]
+	}
+	return scaled
 }
 
 func (r *Gemma4TowerRunner) gemma4TowerClippedLinearGraph(

@@ -70,9 +70,10 @@ type Gemma4TowerSpec struct {
 }
 
 type Gemma4TowerRunner struct {
-	file *gguf.File
-	spec Gemma4TowerSpec
-	cuda *projectorCUDA
+	file      *gguf.File
+	spec      Gemma4TowerSpec
+	cuda      *projectorCUDA
+	audioPlan *gemma4AudioFrontendPlan
 }
 
 func OpenGemma4Tower(path string) (*Gemma4TowerRunner, error) {
@@ -83,7 +84,9 @@ func OpenGemma4TowerWithOptions(path string, options OpenOptions) (*Gemma4TowerR
 	return openCatalogProjector(path, options, "Gemma 4 tower", nil,
 		ReadGemma4TowerSpec, validateGemma4TowerCatalog,
 		func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
-			return &Gemma4TowerRunner{file: file, spec: spec, cuda: cuda}
+			return &Gemma4TowerRunner{
+				file: file, spec: spec, cuda: cuda, audioPlan: newGemma4AudioFrontendPlan(spec.Audio),
+			}
 		})
 }
 

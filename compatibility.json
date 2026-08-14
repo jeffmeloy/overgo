@@ -202,7 +202,7 @@
           "contains": "func PreprocessGemma4AudioTower(",
           "path": "internal/projector/gemma4tower_audio_frontend.go",
           "role": "source",
-          "identity": "file:sha256:5bfe6f20fccd159ee848c6872c11853fb11e45b1ae5927d66735ca29bff7406a"
+          "identity": "file:sha256:743cad2c9ed44d071416ca6b9e782d6e3bcb73de72eb04a8becaeb7532a3bb1e"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",

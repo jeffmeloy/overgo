@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 )
 
 // MADNormForward applies row-wise rank/MAD normalization on device.
@@ -38,6 +39,32 @@ func MADNormForward(worker *device.Worker, input []float32, rows, width int, eps
 		return scope.finish(cudaDownload{output, outputPtr})
 	})
 	return output, err
+}
+
+// MADNormBackwardResident writes the rank/MAD input VJP between device buffers.
+func MADNormBackwardResident(
+	worker *device.Worker,
+	incoming, input, output, gradient driver.DevicePtr,
+	rows, width int,
+	epsilon float64,
+) error {
+	if worker == nil || incoming == 0 || input == 0 || output == 0 || gradient == 0 || rows <= 0 || width <= 0 || epsilon <= 0 || math.IsNaN(epsilon) || math.IsInf(epsilon, 0) {
+		return fmt.Errorf("MADNormBackwardResident: invalid buffer, geometry, or epsilon")
+	}
+	return withCUDA(worker, func(scope *cudaScope) error {
+		function, err := scope.function("mad_norm_backward_f32")
+		if err != nil {
+			return err
+		}
+		widthU, rowsU, epsilonF := uint32(width), uint32(rows), float32(epsilon)
+		if err := scope.launch1D(function, rowsU,
+			unsafe.Pointer(&incoming), unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&gradient),
+			unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&epsilonF),
+		); err != nil {
+			return err
+		}
+		return scope.finish()
+	})
 }
 
 // MADNormBackward computes the rank/MAD input VJP on device.

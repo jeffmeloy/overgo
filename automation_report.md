@@ -1,0 +1,356 @@
+# Overgo automation report
+
+Status: baseline assessment at `9352fda` on 2026-08-14.
+
+## Executive assessment
+
+Overgo already has a strong verification control plane. It can bind a commit to
+one declared plan step, derive affected Go tests from the import graph, reject
+vacuous test evidence, verify generated manifests and claims, record structured
+run evidence, exercise CUDA-specific lanes, and produce reproducible release
+archives. The automation is unusually good at saying what did *not* run.
+
+The system does not yet have an autonomous orchestration control plane. That is
+intentional: the owner currently assigns worktrees, resolves conflicts, allocates
+the shared GPU, integrates branches, and decides promotion. The next automation
+phase should strengthen observation, isolation, independent SQA, and merge
+eligibility without prematurely taking scheduling authority away from the owner.
+
+The principal risk is inconsistent enforcement across surfaces. The plan-bound
+gate is stricter than CI, the loop hook watches only dirty Go files, non-Go assets
+do not receive the same derived test treatment as Go packages, and a successful
+commit can outlive a failed RepoDB gate-record write. These are narrow,
+repairable gaps in an otherwise coherent design.
+
+## Operating boundary
+
+Current division of responsibility:
+
+| Responsibility | Current owner | Desired near-term state |
+| --- | --- | --- |
+| Select and assign worktree tasks | Human owner | Human, assisted by ranked candidates and resource estimates |
+| Allocate CPU, RAM, and GPU capacity | Human owner | Human-approved reservations with measured estimates |
+| Implement a capability slice | Development lane | Unchanged |
+| Adversarially review a candidate | Informal/separately requested lane | Distinct, recorded SQA identity and clean worktree |
+| Determine merge eligibility | Human plus gate output | Machine-generated eligibility packet; human decision |
+| Promote model/runtime evidence | Human owner | External authority over sealed evidence |
+| Recover abandoned or conflicting lanes | Human owner | Detect and recommend; do not mutate automatically yet |
+
+This boundary is appropriate for the current embryo stage. Automation should
+first make the owner's decisions cheaper, better grounded, and auditable. Full
+dispatch autonomy should be earned later from measured scheduling and recovery
+performance.
+
+## Capability inventory
+
+### Plan and loop control
+
+- `cmd/plan` owns a compact, open-work-only queue and selects the first open
+  step. It can add work, define verification, generate a task prompt, verify,
+  advance, compact, and record one of three recognized stop reasons.
+- `cmd/loophook` and the thin shell adapters inject doctrine at session start,
+  arm a post-commit dispatch marker, and block a turn end that would leave
+  uncommitted Go work or a committed-but-undispatched boundary.
+- The gate requires every normal and merge commit to name the current plan
+  item/step. Off-plan commits are refused inside the configured harness.
+
+### Commit gate
+
+`cmd/gate` owns the repository's strongest automation path:
+
+1. Verify plan binding and exact changed-path scope.
+2. Check formatting for changed Go files.
+3. Run repository vet/build work when Go ownership is touched.
+4. Derive direct and transitive dependent test packages from the Go import
+   graph.
+5. Reject skips and unavailable prerequisites for direct evidence; report
+   dependent fixture gaps without crediting them.
+6. Verify kernel manifest, SBOM, compatibility claims, and magic-ledger coverage
+   when their owning paths are touched.
+7. Route CUDA-cone changes to the device lane.
+8. Commit through a message file and write a structured RepoDB gate record.
+
+Successful expensive tree-dependent steps are cached against a hash of HEAD,
+staged changes, unstaged changes, and planned untracked content. The final
+honesty section lists skipped, reused, unavailable, and advisory evidence.
+
+### Safety guard
+
+The PreToolUse guard carries useful incident lineage. It detects common forms of
+force deletion, protected data-path mutation, dangerous worktree removal, raw
+commit bypass, nested shell wrappers, and source-writing heredocs. It explicitly
+describes itself as accident prevention rather than an adversarial security
+boundary, which is the correct claim.
+
+### Evidence and provenance
+
+- RepoDB provides content identities, atomic batches, lineage, relations,
+  snapshots, read-only discovery, and compare-and-set authority.
+- Gate, smoke, benchmark, evaluation, advisory, and promotion records share the
+  run-record model.
+- Compatibility claims carry explicit evidence tiers and verification targets.
+- Kernel manifests bind generated PTX, CUDA sources, entry points, and argument
+  layouts.
+- The SBOM generator binds modules and important generated/kernel files by hash.
+- Closure scanning and the magic ledger expose unexplained constants and
+  capability-transfer closure rather than hiding them in prose.
+
+### Verification lanes
+
+- The device lane treats a missing CUDA device or driver as unavailable and
+  non-passing.
+- The race lane combines Go's host race detector with CUDA racecheck and
+  synccheck; missing tools fail as unavailable.
+- The smoke lane derives its matrix from RepoDB's servable predicate and records
+  each real serve against its active recipe.
+- Benchmarking emits structured wall, memory, token, and execution metrics.
+- Advisory generation compares recorded observations and can escalate repeated
+  regressions into findings.
+
+### CI and release
+
+- GitHub CI runs formatting, tests, vet, SBOM, kernel-manifest, and compatibility
+  checks on Windows and Linux, plus a focused Linux race job.
+- The release workflow builds a Windows archive twice and requires byte-for-byte
+  reproducibility before publishing the archive and checksum artifact.
+
+## Strengths
+
+### Evidence honesty
+
+The strongest recurring design choice is that absence is named. Device and race
+lanes fail unavailable, the commit gate parses structured Go test output, plan
+verification looks for known vacuity markers, and the gate prints skipped work.
+This directly addresses the common failure mode where a green process merely
+means the meaningful test never executed.
+
+### Derived scope instead of hand-maintained mappings
+
+Affected Go tests come from the import graph. Smoke coverage comes from the
+servable predicate. Kernel ABI checks come from manifests. Compatibility pages
+come from structured claims. These are durable derivations and align with the
+repository's anti-magic philosophy.
+
+### Plan-bound change control
+
+The plan, verification command, changed path set, commit, and gate record form a
+traceable chain. The gate refuses staged paths outside the declared slice and
+reports unrelated worktree dirt without sweeping it into the commit. This is
+well suited to parallel worktrees.
+
+### Incident-driven hardening
+
+Automation comments name the failures that shaped each control: destructive
+worktree removal, shell-eaten commit prose, stale running markers, staged-path
+leakage, skipped oracles, and retry-loop tax. This is valuable operational memory
+when it remains attached to the mechanism rather than duplicated in status docs.
+
+### Go-native ownership
+
+Core policy lives in testable Go packages. Shell is generally a small hook
+adapter. This reduces platform-specific orchestration drift and keeps policy in
+the same build, test, and review system as the runtime.
+
+## Weaknesses and failure modes
+
+### A1: CI can still pass skipped evidence
+
+The commit gate uses `go test -json` plus `internal/testevidence`; the GitHub test
+and release workflows use plain `go test ./...`. Environment-gated CUDA, real
+artifact, or parity tests can therefore skip while CI remains green. The most
+visible automation surface does not yet enforce the repository's central
+skip-is-not-a-pass rule.
+
+Required direction: give CI explicit hermetic and evidence-required lanes. Parse
+JSON in both, publish a skip/unavailable inventory, and make every claimed tier
+declare which lane must supply non-vacuous evidence.
+
+### A2: Loop orphan detection covers only Go files
+
+`cmd/loophook.hasDirtyGo` asks Git only about `*.go`. A turn may end with
+uncommitted CUDA, shell, workflow, JSON, manifest, recipe, documentation, or web
+asset changes unless a dispatch marker happens to be armed. That is inconsistent
+with the general claim that the loop prevents orphaned work.
+
+Required direction: derive dirty ownership from the current plan's declared path
+scope, with a conservative fallback to all meaningful repository changes. Ignore
+only known generated/transient paths.
+
+### A3: Non-Go changes receive weak derived testing
+
+The gate's test scope begins with changed Go files. A JavaScript, HTML, CUDA,
+recipe, workflow, or policy-only change can skip build and ordinary tests even
+when a Go package owns or embeds that asset. Special cases cover kernels,
+compatibility, and dependency inputs, but there is no general asset-to-owner
+derivation.
+
+Required direction: introduce a small ownership graph derived from `go:embed`,
+kernel manifests, generators, workflow contracts, recipe schemas, and explicit
+artifact relations. Do not build a manually maintained family/path matrix.
+
+### A4: Gate-record persistence is not atomic with the commit
+
+The gate commits first and writes the RepoDB record afterward. If the store write
+fails, the commit stands and the record is merely reported as owed. That is a
+reasonable availability trade during development, but it means RepoDB is not yet
+an exhaustive system of record for commits said to be gated.
+
+Required direction: create a prepared gate intent before commit, finalize it
+afterward, and provide a deterministic reconciliation command. Promotion should
+refuse candidates with an unresolved gate-record debt.
+
+### A5: Independent SQA is not mechanically represented
+
+Overgo references adversarial SQA but has no candidate/review role model. A
+single actor can implement, run tests, and provide the evidence used for
+promotion. Adaptive_new's explicit SQA phase was not transferred into Overgo's
+plan and RepoDB authority.
+
+Required direction: bind candidate commit, developer identity, SQA identity,
+clean review worktree, frozen evaluator identities, findings, and verdict in one
+review record. For high-risk surfaces, require different development and SQA
+identities and prohibit the reviewer from modifying the candidate under review.
+
+### A6: Plan state cannot describe manual orchestration decisions
+
+The FIFO plan intentionally leaves scheduling to the owner, but it also lacks a
+place to record dependencies, conflicting surfaces, worktree assignment,
+resource estimates, or active leases. The human scheduler therefore carries
+important transient state mentally.
+
+Required direction: keep dispatch manual while adding advisory task metadata and
+RepoDB leases. Record `worktree`, `role`, `depends_on`, `conflicts_with`,
+`cpu_threads`, `host_ram_gib`, `vram_gib`, `gpu_exclusive`, and required evidence
+lanes. The initial automation should report conflicts and fit; it should not
+assign work without owner approval.
+
+### A7: Retry-cache identity omits the execution environment
+
+The gate retry key covers repository tree state but not Go version, compiler,
+OS, architecture, environment flags, or relevant device identity. Cached build,
+test, and vet success may be reused after an environment change.
+
+Required direction: bind cache entries to the same normalized environment
+identity used by run records. Retain fast retries only when both tree and
+environment identities match.
+
+### A8: Statistical guarantees exceed current calibration depth
+
+Advisories permit very small baselines, and repeated confirmation windows can
+overlap. The implementation is useful as a regression signal, but the terms
+"distribution-free" and "independent windows" currently claim more than the
+mechanism guarantees.
+
+Required direction: define rank/conformal or permutation calibration, derive
+minimum history from the alarm budget, require non-overlapping confirmation
+windows, and account for sequential testing and regime changes. Until then,
+label the output directional/advisory.
+
+### A9: Hook and guard enforcement is harness-local and fail-open
+
+The guard and loop are wired through `.claude/settings.json`; the shell guard
+allows execution when its binary is absent. Raw Git and other clients can bypass
+the controls. This matches the guard's stated accident-prevention scope, but it
+is not repository-wide enforcement.
+
+Required direction: retain fail-open interactive safety, but add repository-side
+verification for integration and protected branches. Report whether hooks were
+active in each run record rather than assuming they were.
+
+### A10: Lane and release coverage remains uneven
+
+- The device lane runs the full device set; manifest-scoped selection remains a
+  documented target.
+- `cmd/device-lane` has no direct unit tests around selection or reporting.
+- Hosted CI has no real-GPU lane and the race workflow covers only server and
+  inference packages.
+- The smoke lane returns success for an empty servable matrix while saying the
+  result is "not green"; callers relying on exit status cannot distinguish it.
+- Release output still includes historical documents that conflict with the
+  doctrine that Git owns chronology.
+- The current baseline SBOM is stale, and project-owned source remains
+  `NOASSERTION` in `LICENSES.md`.
+
+Required direction: make lane outcomes typed (`pass`, `fail`, `unavailable`,
+`empty`) and ensure callers declare which outcomes they accept. Separate durable
+release contracts from historical assessment documents.
+
+### A11: Override and stop controls are too narrow for later autonomy
+
+`plan -advance -force` prints a reason but does not create a durable structured
+override record. The three valid stop reasons omit evidence corruption,
+evaluator contamination, worktree collision, device instability, and loss of
+rollback guarantees.
+
+Required direction: record overrides as immutable evidence and add typed
+containment stops. These should stop the affected lane or promotion, not
+necessarily the whole manually managed campaign.
+
+## Prioritized roadmap
+
+### Phase 1: close honesty gaps without changing owner control
+
+1. Make CI use the same structured skip/unavailable classifier as the gate.
+2. Expand loop orphan detection from `*.go` to current-plan scope plus meaningful
+   repository dirt.
+3. Add a gate-record debt/reconciliation mechanism and block promotion on debt.
+4. Bind retry-cache entries to normalized environment identity.
+5. Return typed lane outcomes and make empty smoke coverage non-passing unless a
+   caller explicitly accepts it.
+
+### Phase 2: make manual orchestration observable
+
+1. Add advisory resource, dependency, conflict, worktree, and role metadata.
+2. Add compare-and-set worktree leases in RepoDB.
+3. Produce an owner dashboard/report showing active lanes, GPU/RAM reservations,
+   stale leases, merge conflicts, evidence status, and suggested next candidates.
+4. Add target-head merge eligibility packets and rerun required gates after
+   integration.
+
+No automatic assignment or lane termination is required in this phase.
+
+### Phase 3: establish independent development and SQA
+
+1. Define immutable candidate and review records.
+2. Enforce distinct identities and clean worktrees for protected surfaces.
+3. Freeze evaluators and holdouts before the SQA run.
+4. Require findings disposition, rerun evidence, and an independent verdict.
+5. Keep final promotion under owner/external authority.
+
+### Phase 4: calibrate scheduling before delegating it
+
+1. Record predicted and actual CPU, RAM, VRAM, wall time, and interference.
+2. Measure packing quality, collision rate, abandonment rate, and recovery cost.
+3. Let automation recommend assignments and compare them with owner choices.
+4. Delegate only low-risk scheduling classes whose recommendations demonstrate
+   sustained benefit and reliable recovery.
+
+### Phase 5: bounded autonomous operation
+
+Autonomous dispatch is appropriate only after leases, independent SQA, sealed
+promotion evidence, containment stops, rollback, and scheduler calibration are
+all enforced. The owner should then move from being the dispatch loop to being
+the objective, exception, and promotion authority.
+
+## Suggested success measures
+
+- Zero CI-green runs with required skipped or unavailable evidence.
+- Zero turn ends with unreported meaningful worktree dirt.
+- Every gated commit has either a finalized RepoDB gate record or visible debt.
+- Every protected candidate has distinct developer and SQA identities.
+- Every merge-eligible packet is evaluated at the target head.
+- Resource predictions include error bounds and improve against recorded actuals.
+- No autonomous scheduling class is enabled without measured recovery behavior.
+- The owner can understand active work, evidence gaps, and resource use from one
+  concise view without surrendering control.
+
+## Immediate baseline findings
+
+- Focused automation packages pass their tests at this snapshot:
+  `cmd/loophook`, `cmd/plan`, `cmd/gate`, `internal/guard`,
+  `internal/testevidence`, `internal/runrecord`, and `internal/repodb`.
+- Kernel-manifest and compatibility checks pass.
+- `go run ./cmd/sbom -check` fails because `SBOM.cdx.json` is stale.
+- Project-owned Go and CUDA sources have no declared distribution license.
+- The scheduler remains intentionally human-operated; this report does not
+  classify that boundary itself as a defect.

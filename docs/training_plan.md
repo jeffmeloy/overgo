@@ -52,8 +52,8 @@ Implemented substrate:
 - compiled scratch construction/program authority, direct flat initialization,
   shared tensor forward/VJP, resident CUDA/Muon sessions, liveness arena and
   pooled Newton–Schulz scratch;
-- matched scratch leadership: 64.4-66.2 ms versus adaptive_new 221.4 ms minimum
-  and 2.38-2.43 MB combined runtime peak versus 3.13 MB minimum.
+- matched scratch leadership: 58.0-65.4 ms versus adaptive_new 221.4 ms minimum
+  and 1.15-1.17 MB combined runtime peak versus 3.13 MB minimum.
 
 Production gaps:
 

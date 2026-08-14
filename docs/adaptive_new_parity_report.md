@@ -156,9 +156,11 @@ Overgo's tokenizer total includes a large generated Unicode table.
   resident trainer focused tests pass on the reviewed machine.
 - Adaptive scratch profile, seed 7, batch 1, three steps: adaptive_new pinned
   runs span 221.4-231.8 ms and 3.13-3.18 MB peak Go heap. Overgo reports
-  compile separately, 105-155 ms initialization, 44.7-49 ms cold, 8.7-11.6 ms
-  warm, 64.4-66.2 ms for the matched three steps, and 2.38-2.43 MB combined host plus
-  runtime-owned device peak. Loss/validation maximum delta is `1.738e-3`.
+  process launch 7.7-303.0 ms, driver/context 37.7-150.6 ms, model initialization
+  0.5-2.6 ms, PTX/program preparation 77.5-85.4 ms, first step 38.4-44.5 ms,
+  warm steps 9.1-11.6 ms, 58.0-65.4 ms for all three steps, and 1.15-1.17 MB
+  combined host plus runtime-owned device peak. Loss/validation maximum delta is
+  `1.738e-3`; final weights, cleared gradients, and Muon momentum are also gated.
 
 These results promote matched Carbon frozen-lexical leadership. They do not
 justify Qwen, E4B, 12B, controller, or system-wide training closure.
@@ -180,7 +182,7 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | Krea 256 generation | adaptive exact Go 25.430 s | 13.804 s / 25.030 GiB; MAE 0.02401, RMSE 0.05459 | 46% wall lead; lower peak; bounded quality lead |
 | Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | 35% lead vs best Python; 60% vs adaptive; 2.2% lower peak |
 | Carbon-500M causal training | adaptive `c72b6595d`: 6.816 s loop / 11.47 GiB admitted; loss 8.43767 -> 7.29179 | 5.05-5.13 s loop / 4.620 GiB measured; loss 8.437673 -> 7.293611 | 25% loop-wall lead; about 60% lower peak |
-| Corpus-derived scratch causal training | adaptive pinned run: 221.4-231.8 ms / 3.13-3.18 MB peak heap | 64.4-66.2 ms matched steps / 2.38-2.43 MB combined runtime peak; cold 44.7-49 ms, warm 8.7-11.6 ms | At least 3.34x step-wall lead; at least 22% lower peak; trajectory delta `1.738e-3` |
+| Corpus-derived scratch causal training | adaptive pinned run: 221.4-231.8 ms / 3.13-3.18 MB peak heap | 58.0-65.4 ms matched steps / 1.15-1.17 MB combined runtime peak; six lifecycle phases and complete state gated | At least 3.38x step-wall lead; at least 62% lower peak; trajectory delta `1.738e-3` |
 | SenseNova generation core | Adaptive matched reusable body 6.88 s | Overgo retained session: fresh cold body 8.117 s, warm body 4.048 s / 0.710 GiB peak; cold <=8.6 s and warm <=6.2 s gated twice | 41.1% warm-body lead at the fresh measurement; cold is slower than adaptive and is not claimed as leadership; full image route open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | No complete Overgo result | Open |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |

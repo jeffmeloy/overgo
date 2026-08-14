@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -32,7 +33,15 @@ type ResidentTrainer struct {
 	config       optimizer.Config
 	programs     []residentForwardProgram
 	program      trainingprogram.Execution[residentTrainingState]
+	lifecycle    ResidentLifecycle
 	closed       bool
+}
+
+// ResidentLifecycle separates preparation from execution evidence.
+type ResidentLifecycle struct {
+	DriverPreparation   time.Duration
+	ModelInitialization time.Duration
+	ProgramPreparation  time.Duration
 }
 
 type residentTrainingState struct {
@@ -63,12 +72,14 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 	if totalSteps <= 0 || construction.optimizer.Identity() == "" || len(construction.weights) == 0 {
 		return nil, errors.New("scratch model: invalid resident trainer")
 	}
+	driverStarted := time.Now()
 	worker, err := device.New(0)
 	if err != nil {
 		return nil, err
 	}
 	trainer := &ResidentTrainer{
 		construction: construction, worker: worker,
+		lifecycle: ResidentLifecycle{DriverPreparation: time.Since(driverStarted)},
 		config: optimizer.Config{
 			BaseLearningRate: construction.config.BaseLR,
 			Momentum:         construction.config.MuonMomentum,
@@ -83,6 +94,7 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 	if err != nil {
 		return fail(err)
 	}
+	modelStarted := time.Now()
 	trainer.weights, err = devicemath.AllocResidentF32(worker, len(construction.weights), construction.weights)
 	if err != nil {
 		return fail(err)
@@ -92,18 +104,6 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 		return fail(err)
 	}
 	trainer.momentum, err = devicemath.AllocResidentF32(worker, len(construction.weights), nil)
-	if err != nil {
-		return fail(err)
-	}
-	trainer.residentOps, err = devicemath.NewResidentOpsSession(worker)
-	if err != nil {
-		return fail(err)
-	}
-	trainer.muon, err = optimizer.NewResidentMuonPlan(worker, construction.optimizer, trainer.config)
-	if err != nil {
-		return fail(err)
-	}
-	trainer.program, err = bindResidentProgram(trainer)
 	if err != nil {
 		return fail(err)
 	}
@@ -118,7 +118,34 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 			}
 		}
 	}
+	trainer.lifecycle.ModelInitialization = time.Since(modelStarted)
+	programStarted := time.Now()
+	trainer.residentOps, err = devicemath.NewResidentOpsSession(worker)
+	if err != nil {
+		return fail(err)
+	}
+	trainer.muon, err = optimizer.NewResidentMuonPlan(worker, construction.optimizer, trainer.config)
+	if err != nil {
+		return fail(err)
+	}
+	trainer.program, err = bindResidentProgram(trainer)
+	if err != nil {
+		return fail(err)
+	}
+	for index := range trainer.programs {
+		if err := trainer.executor.PrepareCompiled(context.Background(), trainer.programs[index].compiled); err != nil {
+			return fail(err)
+		}
+	}
+	trainer.lifecycle.ProgramPreparation = time.Since(programStarted)
 	return trainer, nil
+}
+
+func (t *ResidentTrainer) Lifecycle() (ResidentLifecycle, error) {
+	if t == nil || t.closed {
+		return ResidentLifecycle{}, errors.New("scratch model: resident trainer unavailable")
+	}
+	return t.lifecycle, nil
 }
 
 func (t *ResidentTrainer) Close() error {

@@ -1,15 +1,12 @@
 package runrecord
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 )
 
 const (
@@ -26,17 +23,11 @@ const (
 	GateFinalized GateLifecycleState = "finalized"
 )
 
-var gateLifecycleContract = artifact.DocumentContract{
-	Kind: artifact.KindEvidence, MediaType: GateLifecycleMediaType, Schema: GateLifecycleSchema,
-}
-
-var gateLifecycleCodec = artifact.DocumentCodec[GateLifecycle]{
-	Name: "gate lifecycle", Contract: gateLifecycleContract,
-	Decode: func(data []byte, value *GateLifecycle) error { return strictjson.DecodeBytes(data, value) },
-	Encode: gateLifecycleContent, Canonicalize: canonicalizeGateLifecycle,
-	Identity:    func(value GateLifecycle) artifact.ID { return value.ID },
-	SetIdentity: func(value *GateLifecycle, id artifact.ID) { value.ID = id },
-}
+var gateLifecycleCodec = evidenceDocumentCodec(
+	"gate lifecycle", GateLifecycleMediaType, GateLifecycleSchema, canonicalizeGateLifecycle,
+	func(value GateLifecycle) artifact.ID { return value.ID },
+	func(value *GateLifecycle, id artifact.ID) { value.ID = id }, nil,
+)
 
 // GateLifecycle is an immutable two-phase record. A preparation is committed
 // before Git can advance; its absence from the finalized set is authoritative
@@ -116,15 +107,6 @@ func canonicalizeGateLifecycle(lifecycle *GateLifecycle) error {
 		return errors.New("run record: invalid gate lifecycle state")
 	}
 	return nil
-}
-
-func gateLifecycleContent(lifecycle GateLifecycle) ([]byte, error) {
-	lifecycle.ID = artifact.ID{}
-	content, err := json.Marshal(lifecycle)
-	if err != nil {
-		return nil, fmt.Errorf("run record: encode gate lifecycle: %w", err)
-	}
-	return content, nil
 }
 
 // OutstandingGateDebt derives preparations lacking a finalization from RepoDB

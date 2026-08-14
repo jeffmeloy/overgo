@@ -1,14 +1,12 @@
 package runrecord
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 )
 
 const ReviewVersion uint16 = 1
@@ -116,34 +114,34 @@ type ReviewVerdict struct {
 	ID         artifact.ID          `json:"-"`
 }
 
-var reviewActorCodec = reviewCodec("review actor", ReviewActorMediaType, ReviewActorSchema,
+var reviewActorCodec = evidenceDocumentCodec("review actor", ReviewActorMediaType, ReviewActorSchema,
 	func(value *ReviewActor) error {
 		if value == nil || value.Version != ReviewVersion || !validReviewText(value.Principal) ||
 			value.Role != ReviewDeveloper && value.Role != ReviewSQA {
 			return errors.New("run record: invalid review actor")
 		}
 		return nil
-	}, func(value ReviewActor) artifact.ID { return value.ID }, func(value *ReviewActor, id artifact.ID) { value.ID = id })
+	}, func(value ReviewActor) artifact.ID { return value.ID }, func(value *ReviewActor, id artifact.ID) { value.ID = id }, nil)
 
-var reviewWorktreeCodec = reviewCodec("review worktree", ReviewWorktreeMediaType, ReviewWorktreeSchema,
+var reviewWorktreeCodec = evidenceDocumentCodec("review worktree", ReviewWorktreeMediaType, ReviewWorktreeSchema,
 	func(value *ReviewWorktree) error {
 		if value == nil || value.Version != ReviewVersion || !validReviewText(value.Path) ||
 			strings.Contains(value.Path, "\\") || !validReviewText(value.Branch) || !validCodeCommit(value.Head) {
 			return errors.New("run record: invalid review worktree")
 		}
 		return nil
-	}, func(value ReviewWorktree) artifact.ID { return value.ID }, func(value *ReviewWorktree, id artifact.ID) { value.ID = id })
+	}, func(value ReviewWorktree) artifact.ID { return value.ID }, func(value *ReviewWorktree, id artifact.ID) { value.ID = id }, nil)
 
-var reviewEvaluatorCodec = reviewCodec("review evaluator", ReviewEvaluatorMediaType, ReviewEvaluatorSchema,
+var reviewEvaluatorCodec = evidenceDocumentCodec("review evaluator", ReviewEvaluatorMediaType, ReviewEvaluatorSchema,
 	func(value *ReviewEvaluator) error {
 		if value == nil || value.Version != ReviewVersion || !validReviewText(value.Name) ||
 			!value.Definition.Valid() || !validCodeCommit(value.Revision) {
 			return errors.New("run record: invalid review evaluator")
 		}
 		return nil
-	}, func(value ReviewEvaluator) artifact.ID { return value.ID }, func(value *ReviewEvaluator, id artifact.ID) { value.ID = id })
+	}, func(value ReviewEvaluator) artifact.ID { return value.ID }, func(value *ReviewEvaluator, id artifact.ID) { value.ID = id }, nil)
 
-var reviewCandidateCodec = reviewCodec("review candidate", ReviewCandidateMediaType, ReviewCandidateSchema,
+var reviewCandidateCodec = evidenceDocumentCodec("review candidate", ReviewCandidateMediaType, ReviewCandidateSchema,
 	func(value *ReviewCandidate) error {
 		if value == nil || value.Version != ReviewVersion || !validCodeCommit(value.BaseCommit) ||
 			!validCodeCommit(value.CodeCommit) || value.BaseCommit == value.CodeCommit ||
@@ -151,9 +149,9 @@ var reviewCandidateCodec = reviewCodec("review candidate", ReviewCandidateMediaT
 			return errors.New("run record: invalid review candidate")
 		}
 		return nil
-	}, func(value ReviewCandidate) artifact.ID { return value.ID }, func(value *ReviewCandidate, id artifact.ID) { value.ID = id })
+	}, func(value ReviewCandidate) artifact.ID { return value.ID }, func(value *ReviewCandidate, id artifact.ID) { value.ID = id }, nil)
 
-var reviewFindingCodec = reviewCodec("review finding", ReviewFindingMediaType, ReviewFindingSchema,
+var reviewFindingCodec = evidenceDocumentCodec("review finding", ReviewFindingMediaType, ReviewFindingSchema,
 	func(value *ReviewFinding) error {
 		if value == nil || value.Version != ReviewVersion || !allEvidenceIDs(value.Candidate, value.Reviewer, value.Evaluator) ||
 			!validReviewText(value.Summary) || !validReviewText(value.Check) ||
@@ -162,9 +160,9 @@ var reviewFindingCodec = reviewCodec("review finding", ReviewFindingMediaType, R
 			return errors.New("run record: invalid review finding")
 		}
 		return nil
-	}, func(value ReviewFinding) artifact.ID { return value.ID }, func(value *ReviewFinding, id artifact.ID) { value.ID = id })
+	}, func(value ReviewFinding) artifact.ID { return value.ID }, func(value *ReviewFinding, id artifact.ID) { value.ID = id }, nil)
 
-var reviewVerdictCodec = reviewCodec("review verdict", ReviewVerdictMediaType, ReviewVerdictSchema,
+var reviewVerdictCodec = evidenceDocumentCodec("review verdict", ReviewVerdictMediaType, ReviewVerdictSchema,
 	func(value *ReviewVerdict) error {
 		if value == nil || value.Version != ReviewVersion || !allEvidenceIDs(value.Candidate, value.Reviewer, value.Worktree, value.Evaluator) ||
 			!validCodeCommit(value.TargetHead) || value.Findings == nil ||
@@ -179,17 +177,8 @@ var reviewVerdictCodec = reviewCodec("review verdict", ReviewVerdictMediaType, R
 			seen[id] = true
 		}
 		return nil
-	}, func(value ReviewVerdict) artifact.ID { return value.ID }, func(value *ReviewVerdict, id artifact.ID) { value.ID = id })
-
-func reviewCodec[T any](name, mediaType, schema string, canonicalize func(*T) error, identity func(T) artifact.ID, setIdentity func(*T, artifact.ID)) artifact.DocumentCodec[T] {
-	contract := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: mediaType, Schema: schema}
-	return artifact.DocumentCodec[T]{
-		Name: name, Contract: contract,
-		Decode: func(data []byte, value *T) error { return strictjson.DecodeBytes(data, value) },
-		Encode: func(value T) ([]byte, error) { return json.Marshal(value) }, Canonicalize: canonicalize,
-		Identity: identity, SetIdentity: setIdentity,
-	}
-}
+	}, func(value ReviewVerdict) artifact.ID { return value.ID }, func(value *ReviewVerdict, id artifact.ID) { value.ID = id },
+	func(value ReviewVerdict) ReviewVerdict { value.Findings = slices.Clone(value.Findings); return value })
 
 func NewReviewActor(principal string, role ReviewRole) (ReviewActor, error) {
 	return reviewActorCodec.New(ReviewActor{Version: ReviewVersion, Principal: principal, Role: role})
@@ -215,7 +204,6 @@ func NewReviewFinding(finding ReviewFinding) (ReviewFinding, error) {
 
 func NewReviewVerdict(verdict ReviewVerdict) (ReviewVerdict, error) {
 	verdict.Version = ReviewVersion
-	verdict.Findings = slices.Clone(verdict.Findings)
 	return reviewVerdictCodec.New(verdict)
 }
 
@@ -264,34 +252,22 @@ func ParseReviewFinding(data []byte) (ReviewFinding, error) { return reviewFindi
 func ParseReviewVerdict(data []byte) (ReviewVerdict, error) { return reviewVerdictCodec.Parse(data) }
 
 func (value ReviewEvaluator) Lineage() []artifact.Lineage {
-	return []artifact.Lineage{{Child: value.ID, Parent: value.Definition, Relation: artifact.RelationDependsOn}}
+	return dependencyLineage(value.ID, value.Definition)
 }
 
 func (value ReviewCandidate) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Developer, value.Worktree, value.Evaluator, value.GateResult, value.GateRun}
-	lineage := make([]artifact.Lineage, 0, len(parents))
-	for _, parent := range parents {
-		lineage = append(lineage, artifact.Lineage{Child: value.ID, Parent: parent, Relation: artifact.RelationDependsOn})
-	}
-	return lineage
+	return dependencyLineage(value.ID, parents...)
 }
 
 func (value ReviewFinding) Lineage() []artifact.Lineage {
-	return []artifact.Lineage{
-		{Child: value.ID, Parent: value.Candidate, Relation: artifact.RelationDependsOn},
-		{Child: value.ID, Parent: value.Reviewer, Relation: artifact.RelationDependsOn},
-		{Child: value.ID, Parent: value.Evaluator, Relation: artifact.RelationDependsOn},
-	}
+	return dependencyLineage(value.ID, value.Candidate, value.Reviewer, value.Evaluator)
 }
 
 func (value ReviewVerdict) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Candidate, value.Reviewer, value.Worktree, value.Evaluator}
 	parents = append(parents, value.Findings...)
-	lineage := make([]artifact.Lineage, 0, len(parents))
-	for _, parent := range parents {
-		lineage = append(lineage, artifact.Lineage{Child: value.ID, Parent: parent, Relation: artifact.RelationDependsOn})
-	}
-	return lineage
+	return dependencyLineage(value.ID, parents...)
 }
 
 func validReviewText(value string) bool {

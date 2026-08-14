@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "lifecycle-owner",
-          "title": "Move gate debt persistence, reconciliation, and heartbeat/watchdog IO out of cmd/gate into the common run-record lifecycle owner",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/gatecontrol ./cmd/gate -run '^TestGate(LifecycleAndDebt|LifecycleStore|Heartbeat|HeartbeatStore|DebtReconciliation|CommandLifecycleAdapter)$' -count=1 -v"
-        },
-        {
           "id": "document-family",
           "title": "Reduce review identity codec and lineage repetition through one reusable typed document-family primitive without weakening schemas",
           "status": "open",

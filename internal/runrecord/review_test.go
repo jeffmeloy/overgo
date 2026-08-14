@@ -80,6 +80,57 @@ func TestIndependentSQAIdentities(t *testing.T) {
 	}
 }
 
+func TestReviewDocumentFamily(t *testing.T) {
+	actor, err := NewReviewActor("local:sqa", ReviewSQA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := actor.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseReviewActor(content.Data)
+	if err != nil || parsed.ID != actor.ID {
+		t.Fatalf("shared document codec round trip = (%+v, %v)", parsed, err)
+	}
+	if _, err := ParseReviewActor([]byte(`{"version":1,"principal":"local:sqa","role":"sqa","unknown":true}`)); err == nil {
+		t.Fatal("shared document codec accepted an unknown field")
+	}
+
+	findings := []artifact.ID{reviewID(t, artifact.KindEvidence, "finding")}
+	verdict, err := NewReviewVerdict(ReviewVerdict{
+		Candidate:  reviewID(t, artifact.KindEvidence, "candidate"),
+		Reviewer:   reviewID(t, artifact.KindEvidence, "reviewer"),
+		Worktree:   reviewID(t, artifact.KindEvidence, "worktree"),
+		Evaluator:  reviewID(t, artifact.KindEvidence, "evaluator"),
+		TargetHead: reviewCommitA,
+		Findings:   findings,
+		Outcome:    ReviewApproved,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	findings[0] = reviewID(t, artifact.KindEvidence, "mutated finding")
+	if verdict.Findings[0] == findings[0] {
+		t.Fatal("shared document codec retained mutable input")
+	}
+}
+
+func TestReviewIdentityContracts(t *testing.T) {
+	actor, err := NewReviewActor("local:developer", ReviewDeveloper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutated := actor
+	mutated.Principal = "local:someone-else"
+	if err := mutated.ValidateIdentity(); err == nil {
+		t.Fatal("identity validation accepted mutated review content")
+	}
+	if got := dependencyLineage(actor.ID, reviewID(t, artifact.KindEvidence, "parent")); len(got) != 1 || got[0].Child != actor.ID {
+		t.Fatalf("shared dependency lineage = %+v", got)
+	}
+}
+
 const (
 	reviewCommitA = "0123456789abcdef0123456789abcdef01234567"
 	reviewCommitB = "89abcdef0123456789abcdef0123456789abcdef"

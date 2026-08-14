@@ -28,42 +28,17 @@ func MeasureGGUF(
 	measurements := make([]TensorMeasurement, 0, len(file.Tensors))
 	var readBytes uint64
 	for _, tensor := range file.Tensors {
-		traits, ok := tensor.Type.Traits()
-		if !ok {
-			return TensorMeasurementDocument{}, fmt.Errorf("model artifact: tensor %q has unsupported storage", tensor.Name)
-		}
-		elements, err := ggufTensorElements(tensor)
-		if err != nil || elements%traits.BlockSize != 0 {
-			return TensorMeasurementDocument{}, fmt.Errorf("model artifact: tensor %q has invalid block geometry", tensor.Name)
-		}
 		fact, ok := inventory.Tensor(tensor.Name)
 		if !ok || fact.Storage != strings.ToLower(tensor.Type.String()) || fact.Bytes != tensor.Size ||
 			!slices.Equal(fact.Shape, tensor.Shape[:tensor.Dimensions]) {
 			return TensorMeasurementDocument{}, fmt.Errorf("model artifact: tensor %q differs from inventory", tensor.Name)
 		}
-		blocks := elements / traits.BlockSize
-		blockSamples := min(blocks, policy.MaxSamplesPerTensor/traits.BlockSize)
-		if blockSamples == 0 || blockSamples > math.MaxInt || blockSamples > math.MaxUint64/traits.TypeSize {
-			return TensorMeasurementDocument{}, errors.New("model artifact: invalid GGUF measurement policy")
+		samples, elements, bytesNeeded, err := sampleGGUFTensorValues(file, tensor, policy.MaxSamplesPerTensor)
+		if err != nil {
+			return TensorMeasurementDocument{}, err
 		}
-		bytesNeeded := blockSamples * traits.TypeSize
 		if readBytes > policy.MaxReadBytes || bytesNeeded > policy.MaxReadBytes-readBytes {
 			return TensorMeasurementDocument{}, errors.New("model artifact: GGUF measurement exceeds read budget")
-		}
-		samples := make([]float64, 0, blockSamples*traits.BlockSize)
-		storage := make([]byte, traits.TypeSize)
-		for sample := uint64(0); sample < blockSamples; sample++ {
-			block := evenlySpacedIndex(sample, blockSamples, blocks)
-			if err := file.ReadTensorRange(tensor, block*traits.TypeSize, storage); err != nil {
-				return TensorMeasurementDocument{}, err
-			}
-			values, err := quant.Dequantize(tensor.Type, storage, traits.BlockSize)
-			if err != nil {
-				return TensorMeasurementDocument{}, err
-			}
-			for _, value := range values {
-				samples = append(samples, float64(value))
-			}
 		}
 		measurement, err := measurementFromSamples(tensor.Name, elements, samples)
 		if err != nil {
@@ -73,6 +48,42 @@ func MeasureGGUF(
 		readBytes += bytesNeeded
 	}
 	return newTensorMeasurementDocument(inventory.ID, policy, readBytes, measurements)
+}
+
+// sampleGGUFTensorValues evenly samples up to maxSamples stored values from one
+// GGUF tensor, dequantizing each sampled block to float64. It returns the
+// samples, the tensor's total element count, and the bytes read. The sampling
+// is deterministic (evenly spaced blocks) so repeated reads agree.
+func sampleGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo, maxSamples uint64) ([]float64, uint64, uint64, error) {
+	traits, ok := tensor.Type.Traits()
+	if !ok {
+		return nil, 0, 0, fmt.Errorf("model artifact: tensor %q has unsupported storage", tensor.Name)
+	}
+	elements, err := ggufTensorElements(tensor)
+	if err != nil || elements%traits.BlockSize != 0 {
+		return nil, 0, 0, fmt.Errorf("model artifact: tensor %q has invalid block geometry", tensor.Name)
+	}
+	blocks := elements / traits.BlockSize
+	blockSamples := min(blocks, maxSamples/traits.BlockSize)
+	if blockSamples == 0 || blockSamples > math.MaxInt || blockSamples > math.MaxUint64/traits.TypeSize {
+		return nil, 0, 0, errors.New("model artifact: invalid GGUF measurement policy")
+	}
+	samples := make([]float64, 0, blockSamples*traits.BlockSize)
+	storage := make([]byte, traits.TypeSize)
+	for sample := uint64(0); sample < blockSamples; sample++ {
+		block := evenlySpacedIndex(sample, blockSamples, blocks)
+		if err := file.ReadTensorRange(tensor, block*traits.TypeSize, storage); err != nil {
+			return nil, 0, 0, err
+		}
+		values, err := quant.Dequantize(tensor.Type, storage, traits.BlockSize)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		for _, value := range values {
+			samples = append(samples, float64(value))
+		}
+	}
+	return samples, elements, blockSamples * traits.TypeSize, nil
 }
 
 func MeasureSafetensors(

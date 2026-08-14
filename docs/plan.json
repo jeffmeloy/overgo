@@ -8,16 +8,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "draft-program-authority",
-          "title": "Remove post-resolution family lookup from compiled draft execution; preserve bound profile identity and dense draft semantics",
-          "status": "open",
-          "verify": "go test ./internal/model -run '^TestDraftProgramPreservesBoundProfileIdentity$' -count=1 -v"
-        },
-        {
           "id": "alternate-state-program",
           "title": "Compile alternate-state initialization, prediction, correction, injection, activation, and merge as neutral operators; migrate serving and training and delete family orchestration",
           "status": "open",
-          "verify": "go test ./internal/model ./internal/inference -run '^TestAlternateState' -count=1 -v"
+          "verify": "go test ./internal/inference -run '^TestGemma3n' -count=1 -v"
         },
         {
           "id": "family-leaf-programs",

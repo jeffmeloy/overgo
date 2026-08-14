@@ -1,6 +1,4 @@
-// Host-backward (VJP) for the gemma3n-specific blocks whose forwards live in
-// gemma3n.go: AltUp (initialize/modalities/predict/correct+inject/merge), the
-// per-layer-embedding (PLE) injection, and the sparse/dense FFN activation.
+// Test-only host VJPs for alternate-state finite-difference parity.
 // Every op works on the reference.Value layout used by the forward (Data index
 // = token*width + feature, width = Shape.Dims[0], tokens = Shape.Dims[1]) and
 // is composed from the FD-verified hostmath VJPs. Each function is checkpoint

@@ -31,7 +31,7 @@ func (paddleOCRPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenize
 
 func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 	path := writeTinyPaddleOCR(t, tinyPaddleOCRTensors())
-	runner, err := OpenPaddleOCR(path)
+	runner, err := OpenPaddleOCRWithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesPaddleOCR(t *testing.T) {
-	projector, err := OpenImageProjector(context.Background(), writeTinyPaddleOCR(t, tinyPaddleOCRTensors()))
+	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestOpenImageProjectorDispatchesPaddleOCR(t *testing.T) {
 }
 
 func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {
-	runner, err := OpenPaddleOCR(writeTinyPaddleOCR(t, tinyPaddleOCRTensors()))
+	runner, err := OpenPaddleOCRWithOptions(writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestPreprocessPaddleOCRImageRasterPatchOrder(t *testing.T) {
 func TestPaddleOCRCatalogRejectsIncompletePreNorm(t *testing.T) {
 	tensors := append(tinyPaddleOCRTensors(), f32Tensor("v.pre_ln.weight", []uint64{4}, []float32{1, 1, 1, 1}))
 	path := writeTinyPaddleOCR(t, tensors)
-	if _, err := OpenPaddleOCR(path); err == nil || !strings.Contains(err.Error(), "must be paired") {
+	if _, err := OpenPaddleOCRWithOptions(path, OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -144,7 +144,7 @@ func TestPaddleOCRCatalogRejectsIncompletePreNorm(t *testing.T) {
 func TestPaddleOCRCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyPaddleOCR(t, nonzeroTinyPaddleOCRTensors())
-	cpu, err := OpenPaddleOCR(path)
+	cpu, err := OpenPaddleOCRWithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

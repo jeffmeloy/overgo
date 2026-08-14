@@ -32,7 +32,7 @@ func (t *gemma3nPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokeniz
 }
 
 func TestGemma3nVisionTinyFixture(t *testing.T) {
-	runner, err := OpenGemma3nVision(writeTinyGemma3nVision(t, false))
+	runner, err := OpenGemma3nVisionWithOptions(writeTinyGemma3nVision(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestGemma3nVisionTinyFixture(t *testing.T) {
 }
 
 func TestGemma3nVisionPromptContract(t *testing.T) {
-	runner, err := OpenGemma3nVision(writeTinyGemma3nVision(t, false))
+	runner, err := OpenGemma3nVisionWithOptions(writeTinyGemma3nVision(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestGemma3nVisionPromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesGemma3nVision(t *testing.T) {
-	projector, err := OpenImageProjector(context.Background(), writeTinyGemma3nVision(t, false))
+	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyGemma3nVision(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestOpenImageProjectorDispatchesGemma3nVision(t *testing.T) {
 func TestGemma3nVisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyGemma3nVision(t, true)
-	cpu, err := OpenGemma3nVision(path)
+	cpu, err := OpenGemma3nVisionWithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

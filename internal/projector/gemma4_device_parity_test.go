@@ -34,7 +34,7 @@ func TestGemma4RealDeviceHostParity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cpu, err := OpenGemma4(projectorPath)
+	cpu, err := OpenGemma4WithOptions(projectorPath, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

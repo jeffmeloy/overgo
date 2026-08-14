@@ -29,6 +29,8 @@ type DevicePrefixStackStats struct {
 type devicePrefixBranch struct {
 	graph    *DevicePrefixLayerGraph
 	compiled *executor.CompiledGraph
+	inputs   branchInputProgram
+	host     map[*tensor.Tensor]reference.Value
 	state    *PrefixState
 	hidden   []float32
 }
@@ -75,25 +77,34 @@ func RunDevicePrefixStacks(
 		if err != nil {
 			return nil, stats, err
 		}
-		branches[index] = devicePrefixBranch{graph: graph, compiled: compiled, state: state, hidden: hidden}
+		inputProgram, err := compileBranchInputProgram(compiled, graph.Weights)
+		if err != nil {
+			return nil, stats, err
+		}
+		branches[index] = devicePrefixBranch{
+			graph: graph, compiled: compiled, inputs: inputProgram,
+			host: make(map[*tensor.Tensor]reference.Value, 1), state: state, hidden: hidden,
+		}
 	}
-	uploader := branchDeviceUploader{worker: worker, ctx: ctx}
-	defer uploader.free()
+	uploads := device.NewAllocationSet(worker)
+	defer uploads.Close(context.WithoutCancel(ctx))
 	catalog := source.Snapshot()
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
 		weights, err := LoadBranchLayerWeights(catalog, cfg, binding, layer, 0)
 		if err != nil {
 			return nil, stats, err
 		}
-		shared, err := uploader.uploadBranchWeights(weights)
+		shared, err := uploadBranchWeights(ctx, &uploads, weights)
 		if err != nil {
 			return nil, stats, err
 		}
 		for branchIndex := range branches {
 			branch := &branches[branchIndex]
-			retained, err := cuda.ExecuteRetainedCompiledWithDeviceFeeds(ctx, branch.compiled, map[*tensor.Tensor]reference.Value{
-				branch.graph.Row: {Shape: branch.graph.Row.Shape, Data: branch.hidden},
-			}, bindBranchWeights(branch.graph.Weights, shared))
+			branch.inputs.bindWeights(shared)
+			branch.host[branch.graph.Row] = reference.Value{Shape: branch.graph.Row.Shape, Data: branch.hidden}
+			retained, err := cuda.ExecuteRetainedCompiled(
+				ctx, branch.compiled, branch.host, branch.inputs.inputs, nil, nil,
+			)
 			if err != nil {
 				return nil, stats, fmt.Errorf("routed lm prefix stacks: branch=%d layer=%d: %w", branchIndex, layer, err)
 			}
@@ -124,7 +135,9 @@ func RunDevicePrefixStacks(
 				observe(branchIndex, layer, branch.hidden, key, value)
 			}
 		}
-		uploader.free()
+		if err := uploads.Close(ctx); err != nil {
+			return nil, stats, err
+		}
 	}
 	states := make([]*PrefixState, len(branches))
 	for index := range branches {

@@ -229,21 +229,15 @@ func (runtime *projectorGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*t
 	if err := runtime.builder.Err(); err != nil {
 		return nil, err
 	}
-	device := runtime.binding != nil
-	if device {
+	if runtime.binding != nil {
 		deviceFeeds, err := runtime.binding.result()
 		if err != nil {
 			return nil, err
 		}
 		runtime.feeds.AddDevice(deviceFeeds)
 	}
-	return runtime.feeds.Execute(
-		outputs, device,
-		func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
-			return reference.Execute(outputs, feeds)
-		},
-		func(outputs []*tensor.Tensor, host map[*tensor.Tensor]reference.Value, device map[*tensor.Tensor]driver.DevicePtr) (map[*tensor.Tensor]reference.Value, error) {
-			return runtime.cuda.executor.ExecuteWithDeviceFeeds(runtime.ctx, outputs, host, device)
-		},
-	)
+	if runtime.cuda == nil {
+		return runtime.feeds.Execute(runtime.ctx, outputs, nil)
+	}
+	return runtime.feeds.Execute(runtime.ctx, outputs, runtime.cuda.executor)
 }

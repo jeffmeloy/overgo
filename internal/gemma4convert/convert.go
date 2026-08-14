@@ -177,9 +177,10 @@ func Convert(options Options) (Report, error) {
 		report.ModelTensors = len(tensors)
 	}
 	if options.MMProjPath != "" {
+		tower := towerLayout(config)
 		var metadata []gguf.Metadata
 		var tensors []gguf.TensorData
-		if towerLayout(config) {
+		if tower {
 			processor, processorErr := readProcessorConfig(directory)
 			if processorErr != nil {
 				return report, processorErr
@@ -211,11 +212,13 @@ func Convert(options Options) (Report, error) {
 		if err := writeOutput(options.MMProjPath, metadata, tensors); err != nil {
 			return report, err
 		}
-		openProjector := func(path string) (io.Closer, error) { return projector.OpenGemma4(path) }
-		if towerLayout(config) {
-			openProjector = func(path string) (io.Closer, error) { return projector.OpenGemma4Tower(path) }
+		var runner io.Closer
+		var openErr error
+		if tower {
+			runner, openErr = projector.OpenGemma4TowerWithOptions(options.MMProjPath, projector.OpenOptions{})
+		} else {
+			runner, openErr = projector.OpenGemma4WithOptions(options.MMProjPath, projector.OpenOptions{})
 		}
-		runner, openErr := openProjector(options.MMProjPath)
 		if openErr != nil {
 			_ = os.Remove(options.MMProjPath)
 			return report, fmt.Errorf("Gemma 4 converter: generated projector: %w", openErr)

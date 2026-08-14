@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"overgo/internal/cuda/executor"
+	"overgo/internal/model"
 	"overgo/internal/tensor"
 )
 
@@ -46,9 +47,23 @@ func (i decodeSessionIdentity) matches(
 }
 
 type decodeSessionBranchPlan struct {
-	cacheInputs []layerGraphCacheInputs
-	feedback    *tensor.Tensor
-	tokenRows   *tensor.Tensor
+	cacheInputs []decodeCacheInputPlan
+	feedback    decodeInputSlot
+}
+
+type decodeInputSlot struct {
+	slot    executor.InputSlot
+	present bool
+}
+
+type decodeStateInputSlot struct {
+	name model.CacheStateName
+	slot executor.InputSlot
+}
+
+type decodeCacheInputPlan struct {
+	key, value decodeInputSlot
+	states     []decodeStateInputSlot
 }
 
 type decodeSessionPlan struct {
@@ -92,9 +107,31 @@ func compileDecodeSessionPlan(
 		if graph.feedback == nil && graph.tokenRows == nil {
 			return decodeSessionPlan{}, errors.New("inference: decode session has no parameterized token input")
 		}
-		plan.branches[branch] = decodeSessionBranchPlan{
-			cacheInputs: graph.cacheInputs, feedback: graph.feedback, tokenRows: graph.tokenRows,
+		branchPlan := decodeSessionBranchPlan{cacheInputs: make([]decodeCacheInputPlan, len(graph.cacheInputs))}
+		var err error
+		branchPlan.feedback, err = compileDecodeInputSlot(compiled, graph.feedback)
+		if err != nil {
+			return decodeSessionPlan{}, err
 		}
+		for layer, inputs := range graph.cacheInputs {
+			compiledInputs := &branchPlan.cacheInputs[layer]
+			compiledInputs.key, err = compileDecodeInputSlot(compiled, inputs.key)
+			if err != nil {
+				return decodeSessionPlan{}, err
+			}
+			compiledInputs.value, err = compileDecodeInputSlot(compiled, inputs.value)
+			if err != nil {
+				return decodeSessionPlan{}, err
+			}
+			for _, name := range inputs.states.SortedNames() {
+				slot, slotErr := compileDecodeInputSlot(compiled, inputs.states[name].Value)
+				if slotErr != nil {
+					return decodeSessionPlan{}, slotErr
+				}
+				compiledInputs.states = append(compiledInputs.states, decodeStateInputSlot{name: name, slot: slot.slot})
+			}
+		}
+		plan.branches[branch] = branchPlan
 		nodes, err := tensor.Topological(decodeGraphOutputs(graph, identity.output)...)
 		if err != nil {
 			return decodeSessionPlan{}, err
@@ -140,6 +177,17 @@ func compileDecodeSessionPlan(
 		}
 	}
 	return plan, nil
+}
+
+func compileDecodeInputSlot(compiled *executor.CompiledGraph, node *tensor.Tensor) (decodeInputSlot, error) {
+	if node == nil {
+		return decodeInputSlot{}, nil
+	}
+	slot, ok := compiled.InputSlot(node)
+	if !ok {
+		return decodeInputSlot{}, fmt.Errorf("inference: decode input %q is not compiled", node.Name)
+	}
+	return decodeInputSlot{slot: slot, present: true}, nil
 }
 
 func decodeGraphOutputs(graph deviceBatchGraph, output deviceOutputPlan) []*tensor.Tensor {

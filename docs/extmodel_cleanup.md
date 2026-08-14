@@ -45,6 +45,7 @@ active recipe + resolved artifact facts
 | Unbound `Spec` policy fallback lookups | 0 | Metadata admission binds the exact profile |
 | Host cached-generation loops | 1 | Generate and resumable sessions share one loop |
 | Continuous token-acceptance paths | 1 | Greedy, top-K, and full-logit sampling converge |
+| Continuous scheduler cohort allocations per decode step | 0 | Reuse bounded scheduler scratch |
 | Dead graph-runtime feed mutators | 0 | Weight/layer binders own feed registration |
 | Hardcoded Gemma3N validation facts | 0 | Serialized typed profile facts |
 | Exported registry-backed profile resolution APIs | 0 | Bootstrap stays inside model package |
@@ -56,7 +57,7 @@ Family-named production files: none.
 ## Ordered Work
 
 1. Consolidate runner admission/locking without moving callbacks across lock boundaries.
-2. Reuse continuous scheduler cohort and candidate buffers across token steps.
+2. Consolidate recipe stage construction and execution mechanics across capabilities.
 
 ## Per-Wave Gate
 

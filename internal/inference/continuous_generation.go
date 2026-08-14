@@ -174,6 +174,9 @@ func (g *ContinuousGenerator) run() {
 	defer close(g.done)
 	defer g.batch.Close(context.Background())
 	active := make(map[SequenceID]*continuousGenerateState)
+	stateIDs := make([]SequenceID, 0, g.options.MaxSequences)
+	inputs := make([]SequenceBatchInput, 0, g.options.MaxSequences)
+	stepping := make([]*continuousGenerateState, 0, g.options.MaxSequences)
 	var nextID SequenceID
 	for {
 		if len(active) == 0 {
@@ -201,10 +204,10 @@ func (g *ContinuousGenerator) run() {
 			g.rejectQueued(g.ctx.Err())
 			return
 		}
-		ids := sortedContinuousStateIDs(active)
-		inputs := make([]SequenceBatchInput, 0, len(ids))
-		stepping := make([]*continuousGenerateState, 0, len(ids))
-		for _, id := range ids {
+		stateIDs = sortedContinuousStateIDs(active, stateIDs[:0])
+		inputs = inputs[:0]
+		stepping = stepping[:0]
+		for _, id := range stateIDs {
 			state := active[id]
 			if err := state.request.ctx.Err(); err != nil {
 				_ = g.batch.Remove(context.Background(), id)
@@ -397,8 +400,10 @@ func (g *ContinuousGenerator) acceptSampleEvent(
 	return continuousGenerateResult{ids: slices.Clone(state.ids), text: text, err: decodeErr}, true
 }
 
-func sortedContinuousStateIDs(active map[SequenceID]*continuousGenerateState) []SequenceID {
-	ids := make([]SequenceID, 0, len(active))
+func sortedContinuousStateIDs(
+	active map[SequenceID]*continuousGenerateState,
+	ids []SequenceID,
+) []SequenceID {
 	for id := range active {
 		ids = append(ids, id)
 	}

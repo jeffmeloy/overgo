@@ -8,16 +8,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "session-cache-leases",
-          "title": "Replace global cache execution serialization with per-entry leases; keep lookup and eviction under the cache mutex only",
-          "status": "open",
-          "verify": "go test -v ./internal/capabilityruntime -run '^TestScalarSessionCacheConcurrentKeys$' -count=20"
-        },
-        {
           "id": "sensenova-neutral-activation",
           "title": "Move reusable routed-generation activation into neutral recipe/runtime ownership and delete displaced SenseNova-specific production ownership",
           "status": "open",
-          "verify": "go test -v ./internal/routedlm ./internal/sensenovarecipe -run 'Generation|Activation' -count=1"
+          "verify": "go test -v ./internal/modelrecipe ./internal/sensenovarecipe -run '^(TestActivateCapabilityRequiresBoundVerification|TestSenseNovaImageGenRoundTripSynthetic)$' -count=1"
         }
       ]
     },

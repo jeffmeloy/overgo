@@ -217,7 +217,7 @@ func (s *DenoiserCUDASession) ProjectBranchContext(context []float32) (any, erro
 		return nil, err
 	}
 	hostFeeds := map[*tensor.Tensor]reference.Value{s.Program.contextInput: value}
-	retained, err := s.cuda.ExecuteRetainedCompiledWithDeviceInputs(s.ctx, s.contextCompiled, hostFeeds, s.contextInputs, nil)
+	retained, err := s.cuda.ExecuteRetainedCompiled(s.ctx, s.contextCompiled, hostFeeds, s.contextInputs, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("denoiser session context projection: %w", err)
 	}
@@ -263,8 +263,8 @@ func (s *DenoiserCUDASession) ForwardHead(patchTokens, blockE, headE []float32, 
 		}
 		hostFeeds[feed.node] = value
 	}
-	retained, err := s.cuda.ExecuteRetainedCompiledWithDeviceInputs(
-		s.ctx, s.stepCompiled, hostFeeds, branch.inputs, s.headTargets,
+	retained, err := s.cuda.ExecuteRetainedCompiled(
+		s.ctx, s.stepCompiled, hostFeeds, branch.inputs, s.headTargets, nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("denoiser session step execution: %w", err)

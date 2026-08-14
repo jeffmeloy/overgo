@@ -29,6 +29,8 @@ type DevicePrefixStackStats struct {
 type devicePrefixBranch struct {
 	graph    *DevicePrefixLayerGraph
 	compiled *executor.CompiledGraph
+	inputs   branchInputProgram
+	host     map[*tensor.Tensor]reference.Value
 	state    *PrefixState
 	hidden   []float32
 }
@@ -75,7 +77,14 @@ func RunDevicePrefixStacks(
 		if err != nil {
 			return nil, stats, err
 		}
-		branches[index] = devicePrefixBranch{graph: graph, compiled: compiled, state: state, hidden: hidden}
+		inputProgram, err := compileBranchInputProgram(compiled, graph.Weights)
+		if err != nil {
+			return nil, stats, err
+		}
+		branches[index] = devicePrefixBranch{
+			graph: graph, compiled: compiled, inputs: inputProgram,
+			host: make(map[*tensor.Tensor]reference.Value, 1), state: state, hidden: hidden,
+		}
 	}
 	uploader := branchDeviceUploader{worker: worker, ctx: ctx}
 	defer uploader.free()
@@ -91,9 +100,11 @@ func RunDevicePrefixStacks(
 		}
 		for branchIndex := range branches {
 			branch := &branches[branchIndex]
-			retained, err := cuda.ExecuteRetainedCompiledWithDeviceFeeds(ctx, branch.compiled, map[*tensor.Tensor]reference.Value{
-				branch.graph.Row: {Shape: branch.graph.Row.Shape, Data: branch.hidden},
-			}, bindBranchWeights(branch.graph.Weights, shared))
+			branch.inputs.bindWeights(shared)
+			branch.host[branch.graph.Row] = reference.Value{Shape: branch.graph.Row.Shape, Data: branch.hidden}
+			retained, err := cuda.ExecuteRetainedCompiled(
+				ctx, branch.compiled, branch.host, branch.inputs.inputs, nil, nil,
+			)
 			if err != nil {
 				return nil, stats, fmt.Errorf("routed lm prefix stacks: branch=%d layer=%d: %w", branchIndex, layer, err)
 			}

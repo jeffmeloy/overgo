@@ -27,6 +27,9 @@ type DeviceGenerationStackStats struct {
 type generationStackBranch struct {
 	graph        *DeviceGenerationLayerGraph
 	compiled     *executor.CompiledGraph
+	inputs       branchInputProgram
+	prefixKey    executor.InputSlot
+	prefixValue  executor.InputSlot
 	prefixKeys   []driver.DevicePtr
 	prefixValues []driver.DevicePtr
 	row          driver.DevicePtr
@@ -102,10 +105,27 @@ func NewDeviceGenerationSession(
 			graph: graph, compiled: compiled,
 			prefixKeys: make([]driver.DevicePtr, cfg.NumHiddenLayers), prefixValues: make([]driver.DevicePtr, cfg.NumHiddenLayers),
 		}
+		branch.inputs, err = compileBranchInputProgram(compiled, graph.Vision)
+		if err != nil {
+			return fail(err)
+		}
+		branch.prefixKey, err = compiledInputSlot(compiled, graph.PrefixKey)
+		if err != nil {
+			return fail(err)
+		}
+		branch.prefixValue, err = compiledInputSlot(compiled, graph.PrefixValue)
+		if err != nil {
+			return fail(err)
+		}
+		rowSlot, err := compiledInputSlot(compiled, graph.Row)
+		if err != nil {
+			return fail(err)
+		}
 		branch.row, err = session.resources.allocate(inputBytes)
 		if err != nil {
 			return fail(err)
 		}
+		branch.inputs.inputs.Pointers[rowSlot] = branch.row
 		branch.output, err = session.resources.allocate(inputBytes)
 		if err != nil {
 			return fail(err)
@@ -216,8 +236,11 @@ func (s *DeviceGenerationSession) Run(
 		}
 		for index := range s.branches {
 			branch := &s.branches[index]
-			feeds := bindGenerationBranch(branch, shared, layer)
-			retained, err := s.cuda.ExecuteRetainedCompiledWithTargets(ctx, branch.compiled, nil, feeds, branch.target)
+			branch.inputs.bindWeights(shared)
+			branch.bindPrefix(layer)
+			retained, err := s.cuda.ExecuteRetainedCompiled(
+				ctx, branch.compiled, nil, branch.inputs.inputs, branch.target, nil,
+			)
 			if err != nil {
 				return nil, stats, fmt.Errorf("routed lm generation stack: branch=%d layer=%d: %w", index, layer, err)
 			}
@@ -257,12 +280,9 @@ func (s *DeviceGenerationSession) Run(
 	return out, stats, nil
 }
 
-func bindGenerationBranch(branch *generationStackBranch, weights branchDeviceWeights, layer int) map[*tensor.Tensor]driver.DevicePtr {
-	feeds := bindBranchWeights(branch.graph.Vision, weights)
-	feeds[branch.graph.PrefixKey] = branch.prefixKeys[layer]
-	feeds[branch.graph.PrefixValue] = branch.prefixValues[layer]
-	feeds[branch.graph.Row] = branch.row
-	return feeds
+func (b *generationStackBranch) bindPrefix(layer int) {
+	b.inputs.inputs.Pointers[b.prefixKey] = b.prefixKeys[layer]
+	b.inputs.inputs.Pointers[b.prefixValue] = b.prefixValues[layer]
 }
 
 // Close releases retained prefix KV and input storage.
@@ -352,13 +372,39 @@ func bf16MatrixBytes(matrix BF16Matrix) []byte {
 	return driver.Bytes(matrix.Data)
 }
 
-func bindBranchWeights(nodes DevicePrefillBranch, weights branchDeviceWeights) map[*tensor.Tensor]driver.DevicePtr {
-	inputs := []*tensor.Tensor{nodes.InputNorm, nodes.Q, nodes.K, nodes.V, nodes.O, nodes.QNorm, nodes.KNorm, nodes.PostNorm, nodes.Gate, nodes.Up, nodes.Down}
-	feeds := make(map[*tensor.Tensor]driver.DevicePtr, len(inputs)+2)
-	for index, input := range inputs {
-		feeds[input] = weights.pointers[index]
+type branchInputProgram struct {
+	inputs  *executor.DeviceInputs
+	weights [11]executor.InputSlot
+}
+
+func compileBranchInputProgram(compiled *executor.CompiledGraph, nodes DevicePrefillBranch) (branchInputProgram, error) {
+	program := branchInputProgram{inputs: compiled.NewDeviceInputs()}
+	weightNodes := [...]*tensor.Tensor{
+		nodes.InputNorm, nodes.Q, nodes.K, nodes.V, nodes.O, nodes.QNorm,
+		nodes.KNorm, nodes.PostNorm, nodes.Gate, nodes.Up, nodes.Down,
 	}
-	return feeds
+	for index, node := range weightNodes {
+		slot, err := compiledInputSlot(compiled, node)
+		if err != nil {
+			return branchInputProgram{}, err
+		}
+		program.weights[index] = slot
+	}
+	return program, nil
+}
+
+func compiledInputSlot(compiled *executor.CompiledGraph, node *tensor.Tensor) (executor.InputSlot, error) {
+	slot, ok := compiled.InputSlot(node)
+	if !ok {
+		return 0, fmt.Errorf("routed lm: input %q is not compiled", node.Name)
+	}
+	return slot, nil
+}
+
+func (p *branchInputProgram) bindWeights(weights branchDeviceWeights) {
+	for index, slot := range p.weights {
+		p.inputs.Pointers[slot] = weights.pointers[index]
+	}
 }
 
 func (u *branchDeviceUploader) releaseAfter(keep int) error {

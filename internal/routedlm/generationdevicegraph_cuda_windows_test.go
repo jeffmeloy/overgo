@@ -95,7 +95,11 @@ func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	result, err := cuda.ExecuteCompiledWithDeviceFeeds(context.Background(), compiled, nil, feeds)
+	inputs, err := compiled.BindDeviceInputs(feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := cuda.ExecuteCompiled(context.Background(), compiled, nil, inputs)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -295,7 +295,7 @@ func (r *residentRuntime) execute(
 	if r == nil || r.exec == nil || graph == nil || graph.compiled == nil {
 		return nil, errors.New("resident graph: execution is unavailable")
 	}
-	return r.exec.ExecuteCompiledWithDeviceInputs(ctx, graph.compiled, feeds, graph.inputs)
+	return r.exec.ExecuteCompiled(ctx, graph.compiled, feeds, graph.inputs)
 }
 
 func (r *residentRuntime) executeWithDevices(
@@ -308,7 +308,7 @@ func (r *residentRuntime) executeWithDevices(
 		return nil, err
 	}
 	defer graph.clearDynamic(len(devicePointers))
-	return r.exec.ExecuteCompiledWithDeviceInputs(ctx, graph.compiled, hostFeeds, graph.inputs)
+	return r.exec.ExecuteCompiled(ctx, graph.compiled, hostFeeds, graph.inputs)
 }
 
 func (r *residentRuntime) retain(
@@ -321,7 +321,7 @@ func (r *residentRuntime) retain(
 		return nil, err
 	}
 	defer graph.clearDynamic(len(devicePointers))
-	return r.exec.ExecuteRetainedCompiledWithDeviceInputs(ctx, graph.compiled, hostFeeds, graph.inputs, nil)
+	return r.exec.ExecuteRetainedCompiled(ctx, graph.compiled, hostFeeds, graph.inputs, nil, nil)
 }
 
 func (g *residentGraph) bindDynamic(pointers []driver.DevicePtr) error {

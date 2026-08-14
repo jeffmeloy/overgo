@@ -597,6 +597,22 @@ func (c *CompiledGraph) NewDeviceInputs() *DeviceInputs {
 	return &DeviceInputs{compiled: c, Pointers: make([]driver.DevicePtr, c.inputCount)}
 }
 
+// BindDeviceInputs compiles tensor-keyed bindings into input slots.
+func (c *CompiledGraph) BindDeviceInputs(feeds map[*tensor.Tensor]driver.DevicePtr) (*DeviceInputs, error) {
+	inputs := c.NewDeviceInputs()
+	if inputs == nil {
+		return nil, errors.New("CUDA compiled graph is unavailable")
+	}
+	for node, pointer := range feeds {
+		slot, ok := c.InputSlot(node)
+		if !ok {
+			return nil, fmt.Errorf("CUDA device input %q is not compiled", node.Name)
+		}
+		inputs.Pointers[slot] = pointer
+	}
+	return inputs, nil
+}
+
 // RuntimeAttributes: graph-indexed per-execution attribute overrides.
 type RuntimeAttributes struct {
 	compiled *CompiledGraph
@@ -1338,7 +1354,7 @@ func (e *Executor) Execute(
 	if err != nil {
 		return nil, err
 	}
-	return e.ExecuteCompiled(ctx, compiled, feeds)
+	return e.ExecuteCompiled(ctx, compiled, feeds, nil)
 }
 
 // ExecuteCompiled: reuses validated topology and memory planning.
@@ -1346,8 +1362,9 @@ func (e *Executor) ExecuteCompiled(
 	ctx context.Context,
 	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
+	inputs *DeviceInputs,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	return hostResult(e.runCompiled(ctx, compiled, feeds, nil, nil, nil, nil, false))
+	return hostResult(e.runCompiled(ctx, compiled, feeds, inputs, nil, nil, false))
 }
 
 // ExecuteWithDeviceFeeds: evaluates graph with selected F32 input nodes
@@ -1362,27 +1379,11 @@ func (e *Executor) ExecuteWithDeviceFeeds(
 	if err != nil {
 		return nil, err
 	}
-	return e.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, deviceFeeds)
-}
-
-// ExecuteCompiledWithDeviceFeeds: compiled graph plus resident inputs.
-func (e *Executor) ExecuteCompiledWithDeviceFeeds(
-	ctx context.Context,
-	compiled *CompiledGraph,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-) (map[*tensor.Tensor]reference.Value, error) {
-	return hostResult(e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, nil, nil, nil, false))
-}
-
-// ExecuteCompiledWithDeviceInputs: compiled graph plus indexed resident inputs.
-func (e *Executor) ExecuteCompiledWithDeviceInputs(
-	ctx context.Context,
-	compiled *CompiledGraph,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceInputs *DeviceInputs,
-) (map[*tensor.Tensor]reference.Value, error) {
-	return hostResult(e.runCompiled(ctx, compiled, hostFeeds, nil, deviceInputs, nil, nil, false))
+	inputs, err := compiled.BindDeviceInputs(deviceFeeds)
+	if err != nil {
+		return nil, err
+	}
+	return e.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 }
 
 // ExecuteRetainedWithDeviceFeeds: evaluates graph but leaves each requested
@@ -1397,61 +1398,23 @@ func (e *Executor) ExecuteRetainedWithDeviceFeeds(
 	if err != nil {
 		return nil, err
 	}
-	return e.ExecuteRetainedCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, deviceFeeds)
+	inputs, err := compiled.BindDeviceInputs(deviceFeeds)
+	if err != nil {
+		return nil, err
+	}
+	return e.ExecuteRetainedCompiled(ctx, compiled, hostFeeds, inputs, nil, nil)
 }
 
-// ExecuteRetainedCompiledWithDeviceFeeds: compiled retained execution.
-func (e *Executor) ExecuteRetainedCompiledWithDeviceFeeds(
-	ctx context.Context,
-	compiled *CompiledGraph,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-) (*RetainedOutputs, error) {
-	return e.ExecuteRetainedCompiledWithTargets(ctx, compiled, hostFeeds, deviceFeeds, nil)
-}
-
-// ExecuteRetainedCompiledWithDeviceInputs: indexed retained execution.
-func (e *Executor) ExecuteRetainedCompiledWithDeviceInputs(
+// ExecuteRetainedCompiled: indexed retained execution.
+func (e *Executor) ExecuteRetainedCompiled(
 	ctx context.Context,
 	compiled *CompiledGraph,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceInputs *DeviceInputs,
 	targets *RetainedTargets,
-) (*RetainedOutputs, error) {
-	execution, err := e.runCompiled(ctx, compiled, hostFeeds, nil, deviceInputs, targets, nil, true)
-	if err != nil {
-		return nil, err
-	}
-	return &RetainedOutputs{
-		executor: e, compiled: compiled, values: execution.values, leases: execution.leases,
-	}, nil
-}
-
-// ExecuteRetainedCompiledWithTargets: retained execution into selected stable buffers.
-func (e *Executor) ExecuteRetainedCompiledWithTargets(
-	ctx context.Context,
-	compiled *CompiledGraph,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-	targets *RetainedTargets,
-) (*RetainedOutputs, error) {
-	return e.ExecuteRetainedCompiledParameterized(
-		ctx, compiled, hostFeeds, deviceFeeds, targets, nil,
-	)
-}
-
-// ExecuteRetainedCompiledParameterized: indexed targets and attributes.
-func (e *Executor) ExecuteRetainedCompiledParameterized(
-	ctx context.Context,
-	compiled *CompiledGraph,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-	targets *RetainedTargets,
 	attributes *RuntimeAttributes,
 ) (*RetainedOutputs, error) {
-	execution, err := e.runCompiled(
-		ctx, compiled, hostFeeds, deviceFeeds, nil, targets, attributes, true,
-	)
+	execution, err := e.runCompiled(ctx, compiled, hostFeeds, deviceInputs, targets, attributes, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1487,7 +1450,6 @@ func (e *Executor) runCompiled(
 	ctx context.Context,
 	compiled *CompiledGraph,
 	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 	deviceInputs *DeviceInputs,
 	targets *RetainedTargets,
 	attributes *RuntimeAttributes,
@@ -1525,7 +1487,6 @@ func (e *Executor) runCompiled(
 			state,
 			compiled,
 			hostFeeds,
-			deviceFeeds,
 			deviceInputs,
 			targets,
 			attributes,
@@ -1596,7 +1557,6 @@ func execute(
 	state *device.State,
 	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 	deviceInputs *DeviceInputs,
 	retainedTargets *RetainedTargets,
 	runtimeAttributes *RuntimeAttributes,
@@ -1794,8 +1754,6 @@ func execute(
 		pointer, deviceFed := driver.DevicePtr(0), false
 		if inputSlot := -frame.operandOffset - 1; deviceInputs != nil && deviceInputs.Pointers[inputSlot] != 0 {
 			pointer, deviceFed = deviceInputs.Pointers[inputSlot], true
-		} else if deviceFeeds != nil {
-			pointer, deviceFed = deviceFeeds[node]
 		}
 		if deviceFed {
 			if node.Type != dtype.F32 && node.Type != dtype.BF16 && node.Type != dtype.F16 &&

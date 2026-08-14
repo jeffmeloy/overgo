@@ -9,19 +9,25 @@ import (
 	"overgo/internal/tensorstats"
 )
 
-// Neighbor-count bounds for /analyze/tensors/similar.
+// Bounds for the read-only tensor-statistics endpoints. Sampling is per-tensor
+// evenly spaced and the total read is capped, so the calls are cheap and
+// constant regardless of model size.
 const (
+	analyzeTensorMaxSamplesPerTensor = 4096
+	analyzeTensorMaxReadBytes        = 64 << 20
+
 	analyzeTensorSimilarDefaultK = 8
 	analyzeTensorSimilarMaxK     = 64
 )
 
-// Bounds for the read-only tensor-statistics endpoint. Sampling is per-tensor
-// evenly spaced and the total read is capped, so the call is cheap and constant
-// regardless of model size.
-const (
-	analyzeTensorMaxSamplesPerTensor = 4096
-	analyzeTensorMaxReadBytes        = 64 << 20
-)
+// analyzeTensor is one tensor's storage identity plus its distribution-free
+// value profile (the embedded characterization flattens into the JSON object).
+type analyzeTensor struct {
+	Name    string   `json:"name"`
+	Storage string   `json:"storage"`
+	Shape   []uint64 `json:"shape"`
+	tensorstats.Characterization
+}
 
 // analyzeTensorsResponse returns a distribution-free value profile for every
 // tensor in the loaded GGUF model. Each profile reports robust L-moments and
@@ -29,10 +35,10 @@ const (
 // empirical distribution, never a fitted shape (see the workbench's
 // distribution-free analysis principle).
 type analyzeTensorsResponse struct {
-	Model   string                                 `json:"model"`
-	Policy  analyzeTensorPolicy                    `json:"policy"`
-	Count   int                                    `json:"count"`
-	Tensors []modelartifact.TensorCharacterization `json:"tensors"`
+	Model   string              `json:"model"`
+	Policy  analyzeTensorPolicy `json:"policy"`
+	Count   int                 `json:"count"`
+	Tensors []analyzeTensor     `json:"tensors"`
 }
 
 type analyzeTensorPolicy struct {
@@ -45,34 +51,13 @@ func (h *Handler) analyzeTensors(response http.ResponseWriter, request *http.Req
 		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
 		return
 	}
-	api, ok := h.generator.(ModelPropertiesAPI)
+	profiles, ok := h.characterizeLoadedModel(response)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model properties are unavailable")
-		return
-	}
-	path := api.ModelProperties().Path
-	if path == "" {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model path is unavailable for tensor analysis")
-		return
-	}
-	file, err := gguf.Open(path)
-	if err != nil {
-		writeError(response, http.StatusInternalServerError, "model_read_failed", "open model: "+err.Error())
-		return
-	}
-	defer file.Close()
-	policy := modelartifact.MeasurementPolicy{
-		MaxSamplesPerTensor: analyzeTensorMaxSamplesPerTensor,
-		MaxReadBytes:        analyzeTensorMaxReadBytes,
-	}
-	profiles, err := modelartifact.CharacterizeGGUFTensors(file, policy)
-	if err != nil {
-		writeError(response, http.StatusInternalServerError, "tensor_characterization_failed", err.Error())
 		return
 	}
 	writeJSON(response, http.StatusOK, analyzeTensorsResponse{
 		Model:   h.config.ModelID,
-		Policy:  analyzeTensorPolicy{policy.MaxSamplesPerTensor, policy.MaxReadBytes},
+		Policy:  analyzeTensorPolicy{analyzeTensorMaxSamplesPerTensor, analyzeTensorMaxReadBytes},
 		Count:   len(profiles),
 		Tensors: profiles,
 	})
@@ -81,16 +66,16 @@ func (h *Handler) analyzeTensors(response http.ResponseWriter, request *http.Req
 // tensorSimilarNeighbor is one nearby tensor and its shape-feature distance.
 type tensorSimilarNeighbor struct {
 	Distance float64 `json:"distance"`
-	modelartifact.TensorCharacterization
+	analyzeTensor
 }
 
 // analyzeTensorsSimilarResponse returns the tensors whose value distributions
 // are closest in shape to a named tensor, by exact distribution-free
 // nearest-neighbor over scale-free descriptors.
 type analyzeTensorsSimilarResponse struct {
-	Target    modelartifact.TensorCharacterization `json:"target"`
-	Metric    string                               `json:"metric"`
-	Neighbors []tensorSimilarNeighbor              `json:"neighbors"`
+	Target    analyzeTensor           `json:"target"`
+	Metric    string                  `json:"metric"`
+	Neighbors []tensorSimilarNeighbor `json:"neighbors"`
 }
 
 func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *http.Request) {
@@ -112,28 +97,8 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 		}
 		k = min(parsed, analyzeTensorSimilarMaxK)
 	}
-	api, ok := h.generator.(ModelPropertiesAPI)
+	profiles, ok := h.characterizeLoadedModel(response)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model properties are unavailable")
-		return
-	}
-	path := api.ModelProperties().Path
-	if path == "" {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model path is unavailable for tensor analysis")
-		return
-	}
-	file, err := gguf.Open(path)
-	if err != nil {
-		writeError(response, http.StatusInternalServerError, "model_read_failed", "open model: "+err.Error())
-		return
-	}
-	defer file.Close()
-	profiles, err := modelartifact.CharacterizeGGUFTensors(file, modelartifact.MeasurementPolicy{
-		MaxSamplesPerTensor: analyzeTensorMaxSamplesPerTensor,
-		MaxReadBytes:        analyzeTensorMaxReadBytes,
-	})
-	if err != nil {
-		writeError(response, http.StatusInternalServerError, "tensor_characterization_failed", err.Error())
 		return
 	}
 	targetIndex := -1
@@ -151,11 +116,66 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 	nearest := tensorstats.Nearest(pool, targetIndex, k)
 	neighbors := make([]tensorSimilarNeighbor, len(nearest))
 	for i, n := range nearest {
-		neighbors[i] = tensorSimilarNeighbor{Distance: n.Distance, TensorCharacterization: profiles[n.Index]}
+		neighbors[i] = tensorSimilarNeighbor{Distance: n.Distance, analyzeTensor: profiles[n.Index]}
 	}
 	writeJSON(response, http.StatusOK, analyzeTensorsSimilarResponse{
 		Target:    profiles[targetIndex],
 		Metric:    "rank-footrule",
 		Neighbors: neighbors,
 	})
+}
+
+// characterizeLoadedModel opens the served model and profiles every tensor via
+// the shared measurement pipeline, or writes an HTTP error and returns false.
+func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analyzeTensor, bool) {
+	api, ok := h.generator.(ModelPropertiesAPI)
+	if !ok {
+		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model properties are unavailable")
+		return nil, false
+	}
+	path := api.ModelProperties().Path
+	if path == "" {
+		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model path is unavailable for tensor analysis")
+		return nil, false
+	}
+	file, err := gguf.Open(path)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "model_read_failed", "open model: "+err.Error())
+		return nil, false
+	}
+	defer file.Close()
+	profiles, err := characterizeGGUF(file)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "tensor_characterization_failed", err.Error())
+		return nil, false
+	}
+	return profiles, true
+}
+
+// characterizeGGUF builds the tensor inventory and measures every tensor through
+// the shared, identity-keyed measurement pipeline, pairing each characterization
+// with its storage and shape facts.
+func characterizeGGUF(file *gguf.File) ([]analyzeTensor, error) {
+	inventory, err := modelartifact.FromGGUF(file)
+	if err != nil {
+		return nil, err
+	}
+	document, err := modelartifact.MeasureGGUF(inventory.TensorInventory, file, modelartifact.MeasurementPolicy{
+		MaxSamplesPerTensor: analyzeTensorMaxSamplesPerTensor,
+		MaxReadBytes:        analyzeTensorMaxReadBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	profiles := make([]analyzeTensor, len(document.Measurements))
+	for i, measurement := range document.Measurements {
+		fact, _ := inventory.TensorInventory.Tensor(measurement.Name)
+		profiles[i] = analyzeTensor{
+			Name:             measurement.Name,
+			Storage:          fact.Storage,
+			Shape:            fact.Shape,
+			Characterization: measurement.Characterization,
+		}
+	}
+	return profiles, nil
 }

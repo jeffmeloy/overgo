@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sensenova-retained-session",
-          "title": "Retain compiled branch graphs, prefix KV, and hidden state across the complete SenseNova denoise session; split cold, warm, and full-publication evidence",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_BASELINE=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaGenerationLeadership$' -count=2 -v"
-        },
-        {
           "id": "e4b-vision-normalization",
           "title": "Derive Gemma E4B vision normalization from the bound projection profile",
           "status": "open",

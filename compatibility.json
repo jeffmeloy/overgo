@@ -941,7 +941,7 @@
           "contains": "func TestPocketTTSProductionParity(",
           "path": "internal/adaptiveparity/pocket_tts_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:af0289f8f2418d1e9c8817baba80cfd59175733182e2069396e64098c8e70221"
+          "identity": "evidence:sha256:c33bfb2050d02792734964f0bd7d9d6dd8a80362fe9d58c973bdec3cf6ff728b"
         }
       ],
       "id": "pocket-tts-production-oracle",
@@ -949,7 +949,7 @@
       "verify": "go test ./internal/adaptiveparity -run '^TestPocketTTSProductionParity$' -count=1 -v",
       "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
       "status": "implemented",
-      "summary": "Pocket-TTS executes through its compiled speech recipe and matches pinned latent, EOS, PCM, WAV, rate, channel, wall, and heap evidence."
+      "summary": "Pocket-TTS executes through its compiled speech recipe and matches pinned latent, EOS, PCM, WAV, rate, channel, and heap evidence."
     },
     {
       "evidence": [

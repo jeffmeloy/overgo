@@ -10,10 +10,25 @@ import (
 type tensorRequirement struct {
 	name        string
 	shapes      [][]uint64
+	rank        uint32
+	nonempty    bool
 	storages    []dtype.Type
 	destination *gguf.TensorInfo
 	pointer     **gguf.TensorInfo
 	optional    bool
+}
+
+func optionalRelationalTensorPointer(
+	name string,
+	destination **gguf.TensorInfo,
+	rank uint32,
+	nonempty bool,
+	storages ...dtype.Type,
+) tensorRequirement {
+	return tensorRequirement{
+		name: name, rank: rank, nonempty: nonempty, storages: storages,
+		pointer: destination, optional: true,
+	}
 }
 
 func requiredTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorRequirement {
@@ -102,7 +117,8 @@ func loadTensorRequirements(
 			return err
 		}
 		catalogRequirement := tensorcatalog.Requirement{
-			Name: name, Shapes: requirement.shapes, Storages: requirement.storages,
+			Name: name, Shapes: requirement.shapes, Rank: requirement.rank,
+			NonEmpty: requirement.nonempty, Storages: requirement.storages,
 		}
 		if err := tensorcatalog.ValidateInfo(item, catalogRequirement); err != nil {
 			return err

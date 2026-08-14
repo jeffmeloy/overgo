@@ -16,7 +16,11 @@ func bindFixtureSpec(spec Spec) Spec {
 }
 
 func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
-	return s.planLayer(s.Profile(), layer, recurrent)
+	plan, err := s.planLayer(s.Profile(), layer, recurrent)
+	if err != nil {
+		panic(err)
+	}
+	return plan
 }
 
 func readFixtureWeights(file *gguf.File, spec Spec) (Weights, error) {

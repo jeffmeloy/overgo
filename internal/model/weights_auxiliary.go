@@ -48,11 +48,13 @@ func readHiddenFusionWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 	width := uint64(spec.EmbeddingLength)
 	draftVocabulary := uint64(spec.VocabularySize)
 	result := Weights{Layers: make([]LayerWeights, 1)}
-	if item, ok := tensors["d2t"]; ok {
-		if item.Type != dtype.I64 || item.Dimensions != 1 || item.Shape[0] == 0 {
-			return Weights{}, fmt.Errorf("tensor %q has incompatible shape/type", item.Name)
-		}
-		draftVocabulary, result.DraftToTarget = item.Shape[0], &item
+	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+		optionalRelationalTensorPointer("d2t", &result.DraftToTarget, 1, true, dtype.I64),
+	}); err != nil {
+		return Weights{}, err
+	}
+	if result.DraftToTarget != nil {
+		draftVocabulary = result.DraftToTarget.Shape[0]
 	}
 	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
 		requiredTensorPointer("fc.weight", &result.FeatureProjection, 3*uint64(spec.TargetHiddenSize), width),

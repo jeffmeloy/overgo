@@ -780,7 +780,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		prefix := fmt.Sprintf("blk.%d.", block)
 		isDraftBlock := block >= spec.BlockCount
-		layerPlan := spec.planLayer(profile, block, false)
+		layerPlan, planErr := spec.planLayer(profile, block, false)
+		if planErr != nil {
+			return Weights{}, planErr
+		}
 		shapes := spec.TensorShapes(block)
 		queryLength := shapes.QueryProjectionWidth()
 		keyLength := shapes.KeyProjectionWidth()

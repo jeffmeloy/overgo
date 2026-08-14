@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
+	"overgo/internal/tensorstats"
 	"overgo/internal/testutil"
 )
 
@@ -53,7 +54,7 @@ func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
 	measurement := first.Measurements[0]
 	if first.ID != second.ID || first.ReadBytes != 1024 || measurement.Samples != 256 ||
 		measurement.Elements != 512 || float64(measurement.Samples)/float64(measurement.Elements) != 0.5 ||
-		measurement.MAD <= 0 {
+		measurement.InterquartileRange <= 0 {
 		t.Fatalf("GGUF measurement = %+v", first)
 	}
 	content, err := first.Content()
@@ -99,7 +100,7 @@ func TestMeasureSafetensorsUsesElementReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if document.ReadBytes != 1024 || document.Measurements[0].Median != 254 {
+	if document.ReadBytes != 1024 || math.Abs(document.Measurements[0].Median-255) > 1 {
 		t.Fatalf("Safetensors measurement = %+v", document)
 	}
 }
@@ -109,7 +110,8 @@ func TestTensorMeasurementEnforcesReadBudget(t *testing.T) {
 	if _, err := newTensorMeasurementDocument(
 		fixtureInventoryID(t), policy, 2,
 		[]TensorMeasurement{{
-			Name: "weight", Elements: 1, Samples: 1, FiniteSamples: 1,
+			Name:             "weight",
+			Characterization: tensorstats.Characterization{Elements: 1, Samples: 1, FiniteSamples: 1},
 		}},
 	); err == nil {
 		t.Fatal("measurement beyond read budget accepted")

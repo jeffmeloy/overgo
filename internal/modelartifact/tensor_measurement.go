@@ -11,12 +11,13 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/tensorstats"
 )
 
 const (
-	TensorMeasurementVersion   uint16 = 1
+	TensorMeasurementVersion   uint16 = 2
 	TensorMeasurementMediaType        = "application/vnd.overgo.tensor-measurement+json"
-	TensorMeasurementSchema           = "overgo/tensor-measurement/v1"
+	TensorMeasurementSchema           = "overgo/tensor-measurement/v2"
 
 	minimumMeasurementSamples = 256
 	maximumMeasurementSamples = 1 << 20
@@ -45,16 +46,12 @@ type MeasurementPolicy struct {
 	MaxReadBytes        uint64 `json:"max_read_bytes"`
 }
 
+// TensorMeasurement is one tensor's distribution-free characterization: robust
+// L-moments, order statistics, and energy descriptors over a bounded sample.
+// The statistics come from the shared tensorstats package; only Name is local.
 type TensorMeasurement struct {
-	Name             string  `json:"name"`
-	Elements         uint64  `json:"elements"`
-	Samples          uint64  `json:"samples"`
-	FiniteSamples    uint64  `json:"finite_samples"`
-	NonFiniteSamples uint64  `json:"non_finite_samples"`
-	P05              float64 `json:"p05"`
-	Median           float64 `json:"median"`
-	P95              float64 `json:"p95"`
-	MAD              float64 `json:"mad"`
+	Name string `json:"name"`
+	tensorstats.Characterization
 }
 
 // TensorMeasurementDocument: bounded sampled tensor evidence.
@@ -101,35 +98,11 @@ func (d TensorMeasurementDocument) Batch(key string) (artifact.Batch, error) {
 }
 
 func measurementFromSamples(name string, elements uint64, samples []float64) (TensorMeasurement, error) {
-	measurement := TensorMeasurement{Name: name, Elements: elements, Samples: uint64(len(samples))}
-	finite := make([]float64, 0, len(samples))
-	for _, value := range samples {
-		if math.IsNaN(value) || math.IsInf(value, 0) {
-			measurement.NonFiniteSamples++
-		} else {
-			finite = append(finite, value)
-		}
-	}
-	measurement.FiniteSamples = uint64(len(finite))
-	if len(finite) == 0 {
+	characterization, ok := tensorstats.Characterize(elements, samples)
+	if !ok {
 		return TensorMeasurement{}, errors.New("model artifact: tensor sample has no finite values")
 	}
-	sort.Float64s(finite)
-	measurement.P05 = sampleQuantile(finite, 5, 100)
-	measurement.Median = sampleQuantile(finite, 1, 2)
-	measurement.P95 = sampleQuantile(finite, 95, 100)
-	deviations := make([]float64, len(finite))
-	for index, value := range finite {
-		deviations[index] = math.Abs(value - measurement.Median)
-	}
-	sort.Float64s(deviations)
-	measurement.MAD = sampleQuantile(deviations, 1, 2)
-	return measurement, nil
-}
-
-func sampleQuantile(sorted []float64, numerator, denominator uint64) float64 {
-	index := uint64(len(sorted)-1) * numerator / denominator
-	return sorted[index]
+	return TensorMeasurement{Name: name, Characterization: characterization}, nil
 }
 
 func canonicalizeTensorMeasurements(document *TensorMeasurementDocument) error {
@@ -146,14 +119,14 @@ func canonicalizeTensorMeasurements(document *TensorMeasurementDocument) error {
 		return document.Measurements[i].Name < document.Measurements[j].Name
 	})
 	for index, measurement := range document.Measurements {
+		c := measurement.Characterization
 		if measurement.Name == "" || strings.TrimSpace(measurement.Name) != measurement.Name ||
-			measurement.Elements == 0 || measurement.Samples == 0 || measurement.Samples > measurement.Elements ||
-			measurement.Samples > document.Policy.MaxSamplesPerTensor ||
-			measurement.FiniteSamples+measurement.NonFiniteSamples != measurement.Samples ||
-			measurement.FiniteSamples == 0 || !finiteMeasurement(measurement.P05) ||
-			!finiteMeasurement(measurement.Median) || !finiteMeasurement(measurement.P95) ||
-			!finiteMeasurement(measurement.MAD) || measurement.MAD < 0 ||
-			measurement.P05 > measurement.Median || measurement.Median > measurement.P95 ||
+			c.Elements == 0 || c.Samples == 0 || c.Samples > c.Elements ||
+			c.Samples > document.Policy.MaxSamplesPerTensor ||
+			c.FiniteSamples == 0 || c.FiniteSamples > c.Samples ||
+			!finiteMeasurement(c.LowerQuartile) || !finiteMeasurement(c.Median) ||
+			!finiteMeasurement(c.UpperQuartile) || c.InterquartileRange < 0 ||
+			c.LowerQuartile > c.Median || c.Median > c.UpperQuartile ||
 			index > 0 && document.Measurements[index-1].Name == measurement.Name {
 			return errors.New("model artifact: invalid tensor measurement")
 		}

@@ -7,12 +7,12 @@ package closurescan
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"overgo/internal/repoanalysis"
 )
 
 type Candidate struct {
@@ -26,53 +26,47 @@ type Candidate struct {
 
 // ScanRoot walks internal/ and cmd/ under root.
 func ScanRoot(root string) ([]Candidate, error) {
-	var files []string
-	for _, top := range []string{"internal", "cmd"} {
-		err := filepath.WalkDir(filepath.Join(root, top), func(path string, entry os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if entry.IsDir() {
-				if entry.Name() == "testdata" || entry.Name() == "generated" {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
-				relative, err := filepath.Rel(root, path)
-				if err != nil {
-					return err
-				}
-				files = append(files, filepath.ToSlash(relative))
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	if err != nil {
+		return nil, err
 	}
-	return ScanFiles(root, files)
+	return ScanSnapshot(snapshot, nil)
 }
 
 // ScanFiles scans exactly the given root-relative production files; non-Go,
 // test, and missing files are skipped so callers can pass a commit's path
 // set unfiltered.
 func ScanFiles(root string, relatives []string) ([]Candidate, error) {
+	snapshot, err := repoanalysis.LoadGo(root, relatives)
+	if err != nil {
+		return nil, err
+	}
+	return ScanSnapshot(snapshot, nil)
+}
+
+// ScanSnapshot reuses parsed source and optionally limits findings to paths.
+func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]Candidate, error) {
 	var out []Candidate
-	fileSet := token.NewFileSet()
+	wanted := map[string]bool{}
 	for _, relative := range relatives {
-		if !strings.HasSuffix(relative, ".go") || strings.HasSuffix(relative, "_test.go") {
+		wanted[filepath.ToSlash(relative)] = true
+	}
+	for _, source := range snapshot.Files {
+		if source.Test || len(wanted) > 0 && !wanted[source.Path] {
 			continue
 		}
-		path := filepath.Join(root, filepath.FromSlash(relative))
-		if _, err := os.Stat(path); err != nil {
-			continue // deleted in this change set
-		}
-		parsed, err := parser.ParseFile(fileSet, path, nil, parser.ParseComments)
+		generated, err := source.Generated()
 		if err != nil {
 			return nil, err
 		}
-		collect(parsed, filepath.ToSlash(relative), &out)
+		if generated {
+			continue
+		}
+		parsed, err := source.Syntax()
+		if err != nil {
+			return nil, err
+		}
+		collect(parsed, source.Path, &out)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Score != out[j].Score {

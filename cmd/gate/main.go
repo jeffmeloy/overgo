@@ -32,6 +32,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/codeprofile"
 	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
@@ -60,6 +61,7 @@ type gateContext struct {
 	start       time.Time
 	environment runrecord.Environment
 	preparation runrecord.GateLifecycle
+	source      *repoanalysis.SourceSnapshot
 }
 
 func main() {
@@ -225,6 +227,7 @@ func (g *gateContext) pipeline() error {
 	}
 	steps := []step{
 		{"scope", runrecord.PhaseValidate, g.stepScope},
+		{"profile", runrecord.PhaseValidate, g.stepProfile},
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
 		{"vet", runrecord.PhaseVet, g.stepVet},
 		{"build", runrecord.PhaseBuild, g.stepBuild},
@@ -273,6 +276,37 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	return nil
+}
+
+func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
+	if g.source != nil {
+		return *g.source, nil
+	}
+	snapshot, err := repoanalysis.DiscoverGo(g.repo, "internal", "cmd")
+	if err == nil {
+		g.source = &snapshot
+	}
+	return snapshot, err
+}
+
+func (g *gateContext) stepProfile() (bool, error) {
+	if len(g.changedGoFiles()) == 0 {
+		return true, nil
+	}
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	profile, err := codeprofile.Build(snapshot)
+	if err != nil {
+		return false, err
+	}
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"code profile: production=%d files/%d nodes test=%d/%d duplicate_excess=%d clones=%d functions=%d exported=%d imports=%d",
+		profile.Production.Files, profile.Production.Nodes, profile.Test.Files, profile.Test.Nodes,
+		profile.DuplicateExcessNodes, len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
+	))
+	return false, nil
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,
@@ -672,7 +706,11 @@ func (g *gateContext) stepClaims() (bool, error) {
 // enforcement hardens once the 530-constant backlog is triaged
 // (first-run-calibrates applied to enforcement itself).
 func (g *gateContext) stepMagics() (bool, error) {
-	candidates, err := closurescan.ScanFiles(g.repo, g.paths)
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	candidates, err := closurescan.ScanSnapshot(snapshot, g.paths)
 	if err != nil {
 		return false, err
 	}

@@ -18,7 +18,7 @@ import (
 
 const (
 	senseNovaModelDir       = `C:\Users\jeffm\adaptive_new\models\SenseNova-U1-8B-MoT-Infographic-V3`
-	senseNovaGenerationGold = `C:\Users\jeffm\adaptive_new\fixtures\sensenova\generation_oracle_256.json`
+	senseNovaGenerationGold = `..\..\fixtures\sensenova\generation_native_256.json`
 )
 
 type seededLatentOracle struct {

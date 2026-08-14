@@ -1,6 +1,6 @@
 # adaptive_new Parity and Performance Report
 
-Validation base: Overgo `9ae0983` plus the resident Carbon leadership slice;
+Validation base: Overgo `1a5074c` plus the E4B image-language parity slice;
 adaptive_new `214950b3b`; reviewed 2026-08-13. adaptive_new working-tree changes
 remain observations, not landed evidence.
 
@@ -72,7 +72,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Concern | adaptive_new | Overgo | Preferred owner |
 | --- | --- | --- | --- |
 | Model/artifact facts | RepoDB plus extmodel/config scans | RepoDB, recipes, GGUF/safetensors catalogs | Overgo RepoDB + compiled recipe |
-| Runtime topology | Shared primitives plus large extmodel assembly | `recipe.Program`, model plans, neutral packages | Overgo compiled program |
+| Runtime topology | Shared primitives plus large extmodel assembly | `recipe.Program`, model plans, neutral packages; image/audio/video projection modules and decoded tensor kinds are typed independently of placement | Overgo compiled program |
 | CUDA | Go loaders plus family-heavy extmodel kernels | Manifested binaries, driver API, executor graph | Overgo executor + kernel manifest |
 | Serving | Mature multimodal endpoints and evidence | llama-compatible server plus growing typed workflows | Overgo, after API parity matrix |
 | Training | Broad objective/trainer set; uneven authority | Strong dense/hybrid primitives; thin production assembly | Overgo `TrainingRunPlan` + `TrainingProgram` |
@@ -82,25 +82,27 @@ Overgo's tokenizer total includes a large generated Unicode table.
 
 | Capability | adaptive_new Go / Python | Overgo | Verdict | Required promotion gate |
 | --- | --- | --- | --- | --- |
-| Dense causal text: Carbon, Qwen2.5, MiniCPM | Active CUDA inference, real artifacts, capability floors | Converted/activated; exact token/logit or text fixtures; native quantized CUDA | Parity or lead on recorded rows | Refresh all three on one protocol; wall, peak, exact tokens |
-| Qwen3.5-4B hybrid text | Active CUDA; 16.76 ms/token retained baseline | 10.96 ms/token; same BF16 weights; about 2.2 GB more peak | Speed lead, memory loss | Retain speed while matching or beating adaptive peak |
+| Dense causal text: Carbon, Qwen2.5, MiniCPM | Active CUDA inference, real artifacts, capability floors | Weight and golden identities are live-gated; exact-token parity for all three; MiniCPM 3.109 vs 3.400 ms/token | Parity; MiniCPM wall lead | Refresh Carbon/Qwen2.5 wall and all three matched peaks |
+| Qwen3.5-4B hybrid text | Active CUDA; 16.76 ms/token retained baseline | 10.96 ms/token; same BF16 weights; about 2.2 GB more peak | Gated tradeoff: wall lead, memory loss | Retain speed while matching or beating adaptive peak |
 | Qwen3.5-9B GGUF | adaptive_new cannot serve the bare Q8_0 GGUF | 11.6 ms/token, 9.3 GB recorded | Overgo-only capability | Re-run real artifact; register oracle-backed claim |
 | Gemma E4B text | adaptive host spine; 341 ms/token comparison | 18.5 ms/token device; exact 3-case serving fixtures; 21.79 GiB self-baseline peak | Large speed lead | Matched peak-memory comparison; keep exact tokens |
-| Gemma E4B image/audio | Adaptive has image/audio fixtures and serving components | Projector/conversion oracles exist; full modality matrix is not reported | Partial | Real image and audio requests, exact boundary/output, wall, peak |
+| Gemma E4B image/video/audio | Adaptive image path passes the fingerprinted 2,520-patch oracle in 14.56 s focused-test wall. Its audio fixture runs wave -> mel -> tower in 1.03 s | Retained CUDA vision graph matches all 16 stages and 280x2,560 soft tokens; 0.210-0.215 s resident body. The exact 300-token adaptive image prompt with 280 projected tokens produces `23910` (`Pattern`) with 1.017 s language prefill. Resize matches 912x672/266 tokens. Video preserves frame-major order at 70 tokens/frame. Audio waveform -> log-mel -> 12-layer tower matches: frontend max error `2.72e-4`, worst stage relative `1.73e-4`, final `1.90e-5`, 0.129 s resident body. Its missing attention RoPE fact is now a content-addressed audio profile in recipe dependency slot 1 | Image projector-to-language parity and wall lead; audio frontend/tower parity; video ordering contract | Measure image/audio peaks; gate audio/video language output on real media |
 | Gemma4 12B FP8 text | Active native FP8 CUDA | 24/24 exact tokens; 29.81 ms/token, 18.89 GiB versus Overgo BF16 baseline | Functional; cross-repo performance open | Same FP8 artifact and prompt against adaptive native FP8 |
-| Gemma4 12B image | Active unified multimodal path | Device projector stages pass; end-to-end first token matches | Partial parity | Multi-token image prompt; output, wall, peak |
-| Gemma4 12B audio/video | Adaptive declares audio/video input coverage | No complete Overgo end-to-end evidence in the reviewed plan | Gap | Real audio and video corpus cases through compiled recipe |
+| Gemma4 12B image | Active unified multimodal path | Real FP8-native model + BF16 device projector first-token oracle passes; 32.36 s focused-test wall | First-token parity | Multi-token corpus, request-only wall, peak |
+| Gemma4 12B audio/video | Adaptive declares audio/video input coverage | Real audio projector-to-language top-ID oracle passes; 29.80 s focused-test wall. Video remains unproved | Audio first-token parity; video gap | Exact audio envelope + request-only wall/peak; real video case |
 | RxBrain VQA | Native path; retained 18.4-23.1 s and 11.97 GB comparison | Exact answer; 9.5 s, 10.59 GB, 6.19 ms/token | Lead on both axes | Re-run nonfixture corpus cases; stop-contract and semantic scoring |
 | Unlimited OCR | Active adaptive multimodal recipe | No promoted Overgo parity row found | Gap | Port typed OCR contract; exact text and layout metrics |
-| TimesFM forecasting | Active host recipe | Neutral series forecast port, recipe, backward fixtures | Implemented; freshness unknown | Real artifact forecast metrics and matched wall/peak |
-| TabFM prediction | Active host classification/regression | Neutral tabular port and recipe | Implemented; freshness unknown | Real classification/regression corpus and latency |
-| Needle seq2seq | Partial adaptive forward/backward | Neutral port recorded | Unverified under current gates | Real artifact forward, decode, and training fixture |
+| TimesFM forecasting | Active host recipe | Fingerprinted real weights/golden; 684 vs 873 ms matched host wall | Exact parity; wall lead | Matched peak measurement |
+| TabFM prediction | Active host classification/regression | Both 6.5 GB heads and shared golden fingerprinted; all four warm cases 0.65-0.81x reference wall | Exact parity; wall lead | Matched peak measurement |
+| Needle seq2seq | Partial adaptive forward/backward | Fingerprinted real weights/JAX oracle; retained load+generate envelope <=250 vs 420 ms | Exact parity; wall lead | Matched peak measurement |
+| Text embedding | No evidence-qualified encoder artifact in configured roots | Runtime and recipe exist; causal hidden-state substitution refused | Explicit refusal | Add a real encoder artifact, corpus, golden, wall, and peak |
+| Text rerank | No evidence-qualified classifier-head artifact in configured roots | Runtime and recipe exist; causal LM substitution refused | Explicit refusal | Add a real reranker artifact, pair corpus, scores, wall, and peak |
 | Pocket-TTS speech | Active adaptive host audio recipe; codec and training scaffolds | Backbone/codec/recipe rows recorded done | Unverified production audio quality | Real text-to-waveform: exact stages, audio metrics, wall, peak |
 | Un-0 image/video | Active deterministic Go route | Exact fixture within `3.13e-7`; about 1.25 ms warm generation | Parity | Non-vacuous golden in normal gate; image and video outputs |
 | SimpleDiffusion image | Host generation and real-checkpoint training | Forward max error `3.99e-6`; recorded 0.17 s vs adaptive 0.21 s | Host lead | Device forward/backward; real output quality and peak |
 | Wan text-to-video | Native adaptive exact path; Python oracle | Fresh session+denoise 331.96 s / 7.875 GB; decode 38.31 s / 10.330 GB; exact G3/G4 bounded, BF16 G3 cosine 0.999899, frame-0 CUDA/host max error 8.04e-6 | 370.27 s staged wall beats retained 463.4 s Python wall | Fresh same-revision Python/adaptive run; semantic clip gate |
 | Krea text-to-image | Matched 256 fixture: 25.430 s; exact u8 SHA `b257e244`; full 2048 record: 158.144 s, 33.47 GB device | 256: 13.804 s / 25.030 GiB, MAE 0.02401. 2048: 63.510 s / 32.732 GB, MAE 0.03910; production caller and phased residency gated | Wall/peak lead at both sizes; bounded image quality | Exact SHA remains numerically unstable; retain robust pixel oracle and RMSE advisory |
-| SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Recipe and generic prerequisites partly ported; generation body remains open | Gap | Native full image and edit routes; exact/quality, wall, peak |
+| SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Fingerprinted native two-step core: boundary cosine >=0.99914, velocity >=0.99863, final state >=0.99832; reusable 42-layer body 5.64-5.69 s / 0.623 GiB versus adaptive 6.88 s | Core lead; production gap | Bind production decode/publication and session reuse; edit route still needs its absent source PNG |
 | LiveEdit video edit | Adaptive complete experimental route; best 109.5 s, 20.61 GB; Python 60.1 s | No complete Overgo route found | Gap | Port shared video primitives; beat Python without temporal degradation |
 | Server/API/session/cache | Mature adaptive-specific multimodal surface | Broad llama-compatible server, resumable caches, tools | Different strengths | Contract matrix: streaming, tools, embeddings, media, sessions, refusal |
 
@@ -157,6 +159,8 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | --- | ---: | ---: | --- |
 | Qwen3.5-4B decode | adaptive 16.76 ms/token | 10.96 ms/token; +about 2.2 GB peak | Speed win; memory loss |
 | E4B decode | adaptive host 341 ms/token | 18.5 ms/token | About 18x speed win |
+| E4B image tower | adaptive 14.56 s focused test | 1.65 s fingerprint+load+run; 0.215 s resident encode; exact sampled stages | 8.8x focused-test wall lead; peak open |
+| E4B audio input | adaptive wave -> mel -> tower focused test 1.03 s | 0.129 s resident wave -> mel -> tower; fingerprinted frontend/stages | Functional parity; wall lead unclaimed until matched lifecycle and peak |
 | RxBrain full VQA | adaptive 18.4-23.1 s / 11.97 GB | 9.5 s / 10.59 GB | About 2x wall win; lower peak |
 | SimpleDiffusion host forward | adaptive median 0.21 s | median 0.17 s | 0.81x wall |
 | MiniCPM decode | adaptive 294.6-295.8 token/s | 321.7-363.0 token/s | Overgo faster |
@@ -165,7 +169,7 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | Krea 256 generation | adaptive exact Go 25.430 s | 13.804 s / 25.030 GiB; MAE 0.02401, RMSE 0.05459 | 46% wall lead; lower peak; bounded quality lead |
 | Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | 35% lead vs best Python; 60% vs adaptive; 2.2% lower peak |
 | Carbon-500M causal training | adaptive `c72b6595d`: 6.816 s loop / 11.47 GiB admitted; loss 8.43767 -> 7.29179 | 5.05-5.13 s loop / 4.620 GiB measured; loss 8.437673 -> 7.293611 | 25% loop-wall lead; about 60% lower peak |
-| SenseNova full generation | Python 366.6 s / 47.58 GiB; adaptive 206.010 s / 19.50 GB | No complete Overgo result | Open |
+| SenseNova generation core | Adaptive matched reusable body 6.88 s | Overgo 5.64-5.69 s / 0.623 GiB, two native steps gated | 17% reusable-body wall lead; full image route open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | No complete Overgo result | Open |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |
 
@@ -173,6 +177,15 @@ Wan's Overgo row is fresh on the reviewed machine. Python and adaptive numbers
 remain retained, cross-revision evidence until one harness reruns all three.
 Krea's Overgo rows are fresh real-artifact runs. The 2048 gate compares the
 hash-verified adaptive PNG with robust pixel MAE; RMSE remains advisory.
+
+The text/structured matrix is now a v2 content-addressed snapshot. Its normal
+gate hashes every referenced GGUF/safetensors file plus its corpus/golden, so a
+path-compatible artifact substitution cannot retain a promotion. Verdicts are
+typed: `lead` requires matched wall and peak, `wall-lead` cannot carry an
+unmeasured peak, `tradeoff` requires opposite-axis results, and `refused`
+cannot carry support evidence. Current rows intentionally contain no full
+wall+peak lead: structured peak measurements remain open, Qwen3.5 is a measured
+memory loss, and encoder/reranker artifacts are absent.
 
 ## Corrective Findings
 
@@ -235,9 +248,11 @@ parser is not a promoted model capability.
 
 ### P1: media breadth remains SenseNova and LiveEdit
 
-Krea and Wan now have production performance gates. SenseNova generation and
-LiveEdit remain the highest-value image/video gaps; edit-input evidence stays
-explicitly blocked when its source artifact is absent.
+Krea and Wan now have production performance gates. SenseNova's neutral
+generation core is native-gated and faster than adaptive; production decode,
+publication, and request-session binding remain. LiveEdit is still the largest
+video gap; edit-input evidence stays explicitly blocked when its source artifact
+is absent.
 
 ## Multimodal Completion Contract
 

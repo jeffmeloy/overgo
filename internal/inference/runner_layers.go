@@ -127,15 +127,15 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		}
 		current = normalized
 	}
-	outputs := make([]*tensor.Tensor, 1, 1+2*len(keys))
-	outputs[0] = current
+	outputs := []*tensor.Tensor{current}
+	seenOutputs := map[*tensor.Tensor]struct{}{current: {}}
 	for layerIndex := range keys {
-		outputs = append(outputs, keys[layerIndex], values[layerIndex])
+		outputs = appendUniqueGraphOutputs(outputs, seenOutputs, keys[layerIndex], values[layerIndex])
 	}
 	if capture != nil {
 		for _, layer := range capture.order {
 			if node := captured[layer]; node != nil {
-				outputs = append(outputs, node)
+				outputs = appendUniqueGraphOutputs(outputs, seenOutputs, node)
 			}
 		}
 	}

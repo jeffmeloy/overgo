@@ -64,21 +64,19 @@ func buildDeviceGenerationLayer(
 	g.PrefixValue = b.Input("prefix_value", dtype.F32, tensor.MustShape(hd, kvHeads, prefix))
 	g.Vision = newTypedPrefillBranch(b, "generation", H, qOut, kvOut, hd, f, weightType)
 
-	normed := b.WeightedRMSNorm(g.Row, g.Vision.InputNorm, eps)
+	normed := b.BF16Round(b.WeightedRMSNorm(g.Row, g.Vision.InputNorm, eps))
 	query := b.Reshape(b.MulMat(g.Vision.Q, normed), hd, qHeads, n)
 	key := b.Reshape(b.MulMat(g.Vision.K, normed), hd, kvHeads, n)
-	value := b.Reshape(b.MulMat(g.Vision.V, normed), hd, kvHeads, n)
+	value := b.BF16Round(b.Reshape(b.MulMat(g.Vision.V, normed), hd, kvHeads, n))
 	var err error
-	query, err = rope.DeviceApply(b, query, positions)
+	query, err = rope.DeviceNormalizeApply(b, query, g.Vision.QNorm, positions, eps)
 	if err != nil {
 		return nil, err
 	}
-	key, err = rope.DeviceApply(b, key, positions)
+	key, err = rope.DeviceNormalizeApply(b, key, g.Vision.KNorm, positions, eps)
 	if err != nil {
 		return nil, err
 	}
-	query = b.WeightedRMSNorm(query, g.Vision.QNorm, eps)
-	key = b.WeightedRMSNorm(key, g.Vision.KNorm, eps)
 	key = b.Concat(g.PrefixKey, key, 2)
 	value = b.Concat(g.PrefixValue, value, 2)
 	context := b.AttentionWithOptions(
@@ -86,12 +84,14 @@ func buildDeviceGenerationLayer(
 		tensor.AttentionOptions{Scale: scale},
 	)
 	context = b.Reshape(b.BF16Round(context), qOut, n)
-	projected := b.MulMat(g.Vision.O, context)
-	residual := b.Add(g.Row, projected)
-	postNorm := b.WeightedRMSNorm(residual, g.Vision.PostNorm, eps)
-	gate := b.MulMat(g.Vision.Gate, postNorm)
-	up := b.MulMat(g.Vision.Up, postNorm)
-	g.Output = b.Add(residual, b.MulMat(g.Vision.Down, b.SwiGLU(gate, up)))
+	projected := b.BF16Round(b.MulMat(g.Vision.O, context))
+	residual := b.BF16Round(b.Add(g.Row, projected))
+	postNorm := b.BF16Round(b.WeightedRMSNorm(residual, g.Vision.PostNorm, eps))
+	gate := b.BF16Round(b.MulMat(g.Vision.Gate, postNorm))
+	up := b.BF16Round(b.MulMat(g.Vision.Up, postNorm))
+	activated := b.BF16Round(b.Multiply(b.BF16Round(b.SiLU(gate)), up))
+	down := b.BF16Round(b.MulMat(g.Vision.Down, activated))
+	g.Output = b.BF16Round(b.Add(residual, down))
 	if err := b.Err(); err != nil {
 		return nil, fmt.Errorf("routed lm generation graph: %w", err)
 	}

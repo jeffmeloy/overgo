@@ -8,10 +8,10 @@
 // routedlm (SenseNovaBinding/LoadConfig/LoadFlowConfig/CompileRopePlan/
 // CompileFlowPlan) -- no new family file, no magics: every dim is tensor- or
 // config-owned. Its ACTIVATION evidence is the sensenovaparity
-// longest-verifiable-prefix ladder, an EXPERIMENTAL tier (3 value oracles +
-// structural derivations verified on the real 35GB checkpoint via sparse
-// probes). Seeded generation-state parity is exact; the 42-layer routed body
-// remains FRONTIER. Only edit parity is externally blocked on its source PNG.
+// generation leadership gate, an EXPERIMENTAL tier. Seeded state is exact;
+// neutral prefix/body, guidance, terminal, and sampler match current adaptive
+// evidence and beat its reusable-body wall. Upstream trajectory and production
+// image decode/edit binding remain open.
 package sensenovarecipe
 
 import (
@@ -32,7 +32,7 @@ import (
 
 // Task: SenseNova serves a generation-only image-gen recipe (not inference,
 // not VQA). The linear image-gen topology is the recipe.CapabilityDefinition
-// contract; the forward that fills it is FRONTIER.
+// contract; production binding remains separate from activation truth.
 const Task = recipe.TaskImageGen
 
 // EvidenceTier: the honest activation tier -- the sensenovaparity ladder is a
@@ -40,7 +40,7 @@ const Task = recipe.TaskImageGen
 const EvidenceTier = recipe.EvidenceExperimental
 
 // LadderStepName: the gate step that names the evidence source.
-const LadderStepName = "sensenovaparity"
+const LadderStepName = "sensenova-generation-leadership"
 
 // DerivedFacts: recipe-relevant model facts derived from the checkpoint via
 // routedlm. Every field is tensor- or config-owned (cited in sensenovaparity's
@@ -53,6 +53,7 @@ type DerivedFacts struct {
 	ImageMerge   int                    // dense_embedding kernel (tensor-owned)
 	FlowDim      int                    // fm_head output = channels*(patch*merge)^2
 	FrequencyDim int                    // timestep mlp.0 input width
+	NormSections []int                  // checkpoint QK norm spans [64,64]
 	RopeSections []routedlm.RopeSection // [64/5e6/T, 32/1e4/H, 32/1e4/W]
 }
 
@@ -91,6 +92,7 @@ func Derive(modelDir string) (DerivedFacts, error) {
 		ImageMerge:   flow.ImageMerge,
 		FlowDim:      flow.FlowDim,
 		FrequencyDim: flow.FrequencyDim,
+		NormSections: append([]int(nil), rope.NormWidths...),
 		RopeSections: rope.Sections,
 	}
 	return facts, facts.validate()
@@ -102,7 +104,7 @@ func (f DerivedFacts) validate() error {
 	}
 	// flow_dim = channels*(patch*merge)^2 is enforced inside CompileFlowPlan;
 	// here we only assert the pixel-space head is non-trivial.
-	if f.ImageMerge <= 0 || f.FrequencyDim <= 0 {
+	if f.ImageMerge <= 0 || f.FrequencyDim <= 0 || len(f.NormSections) == 0 {
 		return fmt.Errorf("sensenova recipe: degenerate flow facts %+v", f)
 	}
 	return nil

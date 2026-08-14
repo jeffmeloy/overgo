@@ -7,14 +7,15 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// BF16Matrix: row-major [Out, In] bf16 weight storage; linear expands
-// exactly and accumulates in f64 (identical arithmetic to materializing f32).
+// BF16Matrix: row-major [Out, In] BF16. Data serves host math; Raw serves
+// device-only streaming without a duplicate word conversion.
 type BF16Matrix struct {
 	Data    []uint16
+	Raw     []byte
 	In, Out int
 }
 
-func (m BF16Matrix) empty() bool { return len(m.Data) == 0 }
+func (m BF16Matrix) empty() bool { return len(m.Data) == 0 && len(m.Raw) == 0 }
 
 // linearRounded: out = bf16(x * W^T) — the reference projection discipline
 // (f64-accumulate linear followed by bf16 rounding of the outputs).

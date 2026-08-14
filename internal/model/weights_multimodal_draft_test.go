@@ -589,6 +589,7 @@ func TestReadWeightsGemma4SharedKVMoEAndPerLayerInputs(t *testing.T) {
 		t.Fatal(err)
 	}
 	if weights.PerLayerTokenEmbedding == nil || weights.Layers[0].AttentionV.Name != "" ||
+		weights.Layers[0].FeedForwardGate.Name == "" || weights.Layers[2].FeedForwardGate.Name == "" ||
 		weights.Layers[2].AttentionK.Name != "" || weights.Layers[2].FeedForwardRouter == nil ||
 		weights.Layers[2].FeedForwardDownExpertsScale == nil ||
 		weights.Layers[3].PerLayerProjection == nil {

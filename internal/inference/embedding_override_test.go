@@ -283,6 +283,19 @@ func TestProjectedAttentionBlockIDs(t *testing.T) {
 	}
 }
 
+func TestAppendUniqueGraphOutputs(t *testing.T) {
+	builder := tensor.NewBuilder()
+	first := builder.Input("first", dtype.F32, tensor.MustShape(1))
+	second := builder.Input("second", dtype.F32, tensor.MustShape(1))
+	outputs := []*tensor.Tensor{first}
+	outputs = appendUniqueGraphOutputs(
+		outputs, map[*tensor.Tensor]struct{}{first: {}}, first, second, second,
+	)
+	if !slices.Equal(outputs, []*tensor.Tensor{first, second}) {
+		t.Fatalf("unique graph outputs = %v", outputs)
+	}
+}
+
 func TestCompileProjectedRequestPlan(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{
 		CommonSpec: model.CommonSpec{Architecture: "gemma4", ContextLength: 2, EmbeddingLength: 4},

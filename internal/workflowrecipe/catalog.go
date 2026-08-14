@@ -37,12 +37,12 @@ func mustCatalog() *recipe.Catalog {
 		module(ModuleOrder, tasks(recipe.TaskRerank),
 			ports(port("scores", recipe.DataScores, recipe.CardinalityOneOrMany)),
 			ports(port("ranking", recipe.DataRanking, recipe.CardinalityOne))),
-		decodeModule(ModuleDecodeImage, recipe.DataImage),
-		decodeModule(ModuleDecodeAudio, recipe.DataAudio),
-		decodeModule(ModuleDecodeVideo, recipe.DataVideo),
-		module(ModuleProject, tasks(recipe.TaskProjection),
-			ports(port("tensor", recipe.DataTensor, recipe.CardinalityOne)),
-			ports(port("embeddings", recipe.DataEmbeddings, recipe.CardinalityOne))),
+		decodeModule(ModuleDecodeImage, recipe.DataImage, recipe.DataImageTensor),
+		decodeModule(ModuleDecodeAudio, recipe.DataAudio, recipe.DataAudioTensor),
+		decodeModule(ModuleDecodeVideo, recipe.DataVideo, recipe.DataVideoTensor),
+		projectModule(ModuleProjectImage, recipe.DataImageTensor),
+		projectModule(ModuleProjectAudio, recipe.DataAudioTensor),
+		projectModule(ModuleProjectVideo, recipe.DataVideoTensor),
 		module(ModuleBatchDataset, tasks(recipe.TaskTraining), nil,
 			ports(port("batch", recipe.DataBatch, recipe.CardinalityOne))),
 		module(ModuleTrainingForward, tasks(recipe.TaskTraining),
@@ -71,10 +71,16 @@ func module(
 	}
 }
 
-func decodeModule(id recipe.ModuleID, data recipe.DataKind) recipe.Module {
+func decodeModule(id recipe.ModuleID, mediaData, tensorData recipe.DataKind) recipe.Module {
 	return module(id, tasks(recipe.TaskProjection),
-		ports(port("media", data, recipe.CardinalityOne)),
-		ports(port("tensor", recipe.DataTensor, recipe.CardinalityOne)))
+		ports(port("media", mediaData, recipe.CardinalityOne)),
+		ports(port("tensor", tensorData, recipe.CardinalityOne)))
+}
+
+func projectModule(id recipe.ModuleID, tensorData recipe.DataKind) recipe.Module {
+	return module(id, tasks(recipe.TaskProjection),
+		ports(port("tensor", tensorData, recipe.CardinalityOne)),
+		ports(port("embeddings", recipe.DataEmbeddings, recipe.CardinalityOne)))
 }
 
 func tasks(values ...recipe.Task) []recipe.Task { return values }

@@ -300,6 +300,7 @@ func TestOrderedVariableTokenRunsPreserveMediaKinds(t *testing.T) {
 }
 
 func TestGemma4RealFixture(t *testing.T) {
+	classifyProjectorIntegration(t)
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
 	imagePath := os.Getenv("OVERGO_GEMMA4_IMAGE")
 	goldenPath := os.Getenv("OVERGO_GEMMA4_GOLDEN")
@@ -442,6 +443,7 @@ func gemma4InterleavePatchRows(values []float32, width int) []float32 {
 }
 
 func TestGemma4RealPromptTokens(t *testing.T) {
+	classifyProjectorIntegration(t)
 	vocabPath := os.Getenv("OVERGO_GEMMA4_VOCAB")
 	goldenPath := os.Getenv("OVERGO_GEMMA4_GOLDEN")
 	if vocabPath == "" || goldenPath == "" {
@@ -483,6 +485,7 @@ func TestGemma4RealPromptTokens(t *testing.T) {
 }
 
 func TestGemma4RealAudioFixture(t *testing.T) {
+	classifyProjectorIntegration(t)
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
 	wavePath := os.Getenv("OVERGO_GEMMA4_AUDIO_WAVE")
 	goldenPath := os.Getenv("OVERGO_GEMMA4_AUDIO_GOLDEN")
@@ -555,6 +558,7 @@ func TestGemma4RealAudioFixture(t *testing.T) {
 }
 
 func TestGemma4RealAudioPromptTokens(t *testing.T) {
+	classifyProjectorIntegration(t)
 	vocabPath := os.Getenv("OVERGO_GEMMA4_VOCAB")
 	goldenPath := os.Getenv("OVERGO_GEMMA4_AUDIO_GOLDEN")
 	if vocabPath == "" || goldenPath == "" {
@@ -596,6 +600,7 @@ func TestGemma4RealAudioPromptTokens(t *testing.T) {
 }
 
 func TestGemma4RealResizeFixture(t *testing.T) {
+	classifyProjectorIntegration(t)
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
 	imagePath := os.Getenv("OVERGO_GEMMA4_RESIZE_IMAGE")
 	goldenPath := os.Getenv("OVERGO_GEMMA4_RESIZE_GOLDEN")

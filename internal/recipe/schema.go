@@ -74,10 +74,13 @@ const (
 	DataCache              DataKind = "cache"
 	DataLogits             DataKind = "logits"
 	DataImage              DataKind = "image"
+	DataImageTensor        DataKind = "image-tensor"
 	DataPromptConditioning DataKind = "prompt-conditioning"
 	DataClassConditioning  DataKind = "class-conditioning"
 	DataAudio              DataKind = "audio"
+	DataAudioTensor        DataKind = "audio-tensor"
 	DataVideo              DataKind = "video"
+	DataVideoTensor        DataKind = "video-tensor"
 	DataMetrics            DataKind = "metrics"
 	DataCheckpoint         DataKind = "checkpoint"
 	DataScores             DataKind = "scores"
@@ -276,7 +279,8 @@ func validatePlacement(placement Placement) error {
 func validateDataKind(kind DataKind) error {
 	switch kind {
 	case DataArtifact, DataText, DataTokens, DataEmbeddings, DataTensor, DataModelPlan, DataSessionPlan,
-		DataCache, DataLogits, DataImage, DataPromptConditioning, DataClassConditioning, DataAudio, DataVideo, DataMetrics, DataCheckpoint,
+		DataCache, DataLogits, DataImage, DataImageTensor, DataPromptConditioning, DataClassConditioning,
+		DataAudio, DataAudioTensor, DataVideo, DataVideoTensor, DataMetrics, DataCheckpoint,
 		DataScores, DataRanking, DataBatch, DataLoss, DataGradients:
 		return nil
 	default:

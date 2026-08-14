@@ -3,12 +3,14 @@ package sensenovarecipe
 import (
 	"context"
 	"os"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
+	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
@@ -17,7 +19,7 @@ import (
 // ladder step name + experimental tier + frontier residual on the decision.
 const testCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
-const activationReason = "sensenovaparity longest-verifiable-prefix (seeded generation state exact + 3 value oracles + structural derivations on the real 35GB checkpoint); 42-layer routed body FRONTIER; edit source PNG external"
+const activationReason = "SenseNova neutral prefix/body, guidance, flow terminal, and sampler match a fingerprinted native two-step trajectory; reusable body beats adaptive wall; production decode/edit binding remains open"
 
 // TestSenseNovaImageGenRoundTripSynthetic proves the recipe lifecycle + the
 // discovery/status round-trip WITHOUT the 35GB checkpoint, so it runs in CI:
@@ -62,6 +64,9 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 // prove the model bytes are present. Gated by OVERGO_SENSENOVA_MODEL so CI and
 // plan-verify honestly skip (mirrors TestActiveRecipeQwen35Open).
 func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
 	modelDir := os.Getenv("OVERGO_SENSENOVA_MODEL")
 	if modelDir == "" {
 		t.Skip("OVERGO_SENSENOVA_MODEL is not set")
@@ -146,6 +151,9 @@ func assertSenseNovaFacts(t *testing.T, facts DerivedFacts) {
 	}
 	if facts.HeadDim != 128 {
 		t.Fatalf("head_dim = %d, want 128", facts.HeadDim)
+	}
+	if !slices.Equal(facts.NormSections, []int{64, 64}) {
+		t.Fatalf("norm sections = %v, want [64 64]", facts.NormSections)
 	}
 	want := []routedlm.RopeSection{
 		{Width: 64, Theta: 5e6, Axis: routedlm.AxisTime},

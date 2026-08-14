@@ -65,6 +65,7 @@ active recipe + resolved artifact facts
 | Ordinary CUDA launch tensor-pointer lookups | 0 | Flat compiled operand slots |
 | CUDA launch tensor-pointer lookups | 0 | Ordinary and fused launches use compiled slots |
 | Runtime CUDA fusion descriptor maps | 0 | Rewrite map released after indexed launch compilation |
+| Runtime CUDA rewrite decision maps | 0 | Node and fusion frames retain compiled decisions |
 | Duplicated CUDA launch frames | 0 | Node frames plus compact launch indices |
 | Hybrid-local Q/K/V projection implementations | 0 | Shared projection stage owns fused/separate binding |
 | Resident video full host-weight owners after upload | 0 | Retain timestep bundle only |

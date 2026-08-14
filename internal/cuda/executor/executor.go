@@ -1238,6 +1238,9 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	}
 	dumpOpCounts(compiled)
 	compiled.fusions = nil
+	compiled.skipped = nil
+	compiled.elided = nil
+	compiled.q8Emit = nil
 	return compiled, nil
 }
 

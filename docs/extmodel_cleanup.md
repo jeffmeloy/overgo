@@ -27,17 +27,17 @@ active recipe + resolved artifact facts
 | Surface | Count | Treatment |
 |---|---:|---|
 | Model/inference production files | 140 | Diagnostic |
-| Family-named production files | 6 | Delete through vertical migration |
+| Family-named production files | 5 | Delete through vertical migration |
 | Family-identity-bearing production files | 21 | Restrict to parsing/wire facts, then remove runtime uses |
 | Post-resolution architecture catalog lookups in execution compilation | 0 | Hold at zero |
 | Family switches in compiled layer execution | 0 | Hold at zero |
 | Family-owned alternate-state production files | 0 | Hold at zero |
+| Alternate-state facts on generic forward program | 0 | Hold at zero |
 | Alternate-state magnitude-rescale copies | 0 | Hold at zero |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named files still live:
 
-- `internal/model/dflash.go`
 - `internal/model/eagle3.go`
 - `internal/model/gemma4_assistant.go`
 - `internal/model/wavtokenizer.go`
@@ -46,11 +46,10 @@ Family-named files still live:
 
 ## Ordered Work
 
-1. Compile the now-neutral alternate-state initialization, prediction, correction, injection, activation, and merge sequence into the sealed forward program; delete the residual host coordinator.
-2. Fold feature-draft, paired-cache, DFlash, and audio-token leaves into typed projection/session programs; delete family wrappers and filenames.
-3. Make encoder/decoder and audio-token coordinators consume sealed session programs; remove T5 and WavTokenizer runtime ownership.
-4. Move remaining architecture validation constants into resolved profile facts or derived artifact relationships.
-5. Remove duplicate host/reference probes once operator-level host/CUDA evidence owns the same contract.
+1. Fold feature-draft, paired-cache, DFlash, and audio-token leaves into typed projection/session programs; delete family wrappers and filenames.
+2. Make encoder/decoder and audio-token coordinators consume sealed session programs; remove T5 and WavTokenizer runtime ownership.
+3. Move remaining architecture validation constants into resolved profile facts or derived artifact relationships.
+4. Remove duplicate host/reference probes once operator-level host/CUDA evidence owns the same contract.
 
 ## Per-Wave Gate
 

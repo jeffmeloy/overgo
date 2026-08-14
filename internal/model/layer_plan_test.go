@@ -128,9 +128,9 @@ func TestCompileModelPlanOwnsAlternatePredictionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	program := plan.Forward()
-	if !program.AlternateStates() || program.AlternateStateCount != spec.AltUpCount ||
-		program.ActiveState != spec.AltUpActive || program.EmbeddingLength != spec.EmbeddingLength ||
-		program.NormalizationEpsilon != spec.RMSNormEpsilon || !program.SparseAlternateLayer(0) {
+	if !program.AlternateStates() || program.Alternate.StateCount != spec.AltUpCount ||
+		program.Alternate.ActiveState != spec.AltUpActive || program.Alternate.EmbeddingLength != spec.EmbeddingLength ||
+		program.Alternate.NormalizationEpsilon != spec.RMSNormEpsilon || !program.Alternate.SparseLayer(0) {
 		t.Fatalf("alternate-prediction program = %+v", program)
 	}
 }

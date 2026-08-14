@@ -622,7 +622,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 			return reference.Value{}, nil, errors.New("inference: alternate-state layer extraction is unsupported")
 		}
 		return r.forwardAlternatePredictionsCachedLocked(
-			ctx, forward, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
+			ctx, forward.Alternate, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
 		)
 	}
 	cachePosition := nextPosition + uint32(len(tokenIDs))

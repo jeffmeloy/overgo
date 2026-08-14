@@ -359,7 +359,7 @@
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:d1a770c1295c8ccc32614c70cd98c88427e0c0c2d9e751324de1b6bc54c6943e"
+          "identity": "evidence:sha256:8505a6df1a5b9f766cebce59899e9a7fea3fbf899c4244395c7fa359c4de764b"
         }
       ],
       "id": "compiled-model-plan",

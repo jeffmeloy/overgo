@@ -15,7 +15,7 @@ import (
 
 func (r *Runner) forwardAlternatePredictionsCachedLocked(
 	ctx context.Context,
-	program model.ForwardProgram,
+	program model.AlternateStateProgram,
 	activation reference.Value,
 	perLayerInputs []reference.Value,
 	positions []uint32,
@@ -34,7 +34,7 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	states, err := initializeAlternateStates(activation, projection, int(program.AlternateStateCount))
+	states, err := initializeAlternateStates(activation, projection, int(program.StateCount))
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -90,7 +90,7 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 
 func (r *Runner) runAlternatePredictionLayer(
 	ctx context.Context,
-	alternate model.ForwardProgram,
+	alternate model.AlternateStateProgram,
 	input reference.Value,
 	hostLayer model.HostLayer,
 	info model.LayerWeights,
@@ -124,7 +124,7 @@ func (r *Runner) runAlternatePredictionLayer(
 	}
 	activated, err := activateAlternateFFN(
 		results[stage.Gate], results[stage.Up],
-		alternate.SparseAlternateLayer(layerIndex), alternate.SparsityStdMultiplier,
+		alternate.SparseLayer(layerIndex), alternate.SparsityStdMultiplier,
 	)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err

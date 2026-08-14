@@ -189,6 +189,17 @@ type GateHeartbeat struct {
 	Updated     time.Time          `json:"updated"`
 }
 
+func (heartbeat GateHeartbeat) Validate() error {
+	if heartbeat.Version != GateHeartbeatVersion ||
+		heartbeat.State != HeartbeatRunning && heartbeat.State != HeartbeatFinalized && heartbeat.State != HeartbeatRecordDebt ||
+		heartbeat.Preparation.Kind() != artifact.KindEvidence || heartbeat.Environment.Kind() != artifact.KindEvidence ||
+		len(heartbeat.TreeKey) != 64 || strings.Trim(heartbeat.TreeKey, "0123456789abcdef") != "" ||
+		heartbeat.PID <= 0 || heartbeat.Updated.IsZero() {
+		return errors.New("run record: invalid gate heartbeat")
+	}
+	return nil
+}
+
 func (heartbeat GateHeartbeat) Watchdog(now time.Time, staleAfter time.Duration) GateHeartbeatState {
 	if heartbeat.State != HeartbeatRunning {
 		return heartbeat.State

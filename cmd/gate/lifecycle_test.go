@@ -1,79 +1,38 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/gatecontrol"
 	"overgo/internal/runrecord"
 )
 
-func TestGateDebtReconciliation(t *testing.T) {
-	repo := t.TempDir()
-	storePath := "store"
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
-		Host: "test", OS: "test", Arch: "test", Device: "host",
-		Backend: "go", Driver: "cgo=0", Runtime: "go-test",
-	})
+func TestGateCommandLifecycleAdapter(t *testing.T) {
+	control, err := gatecontrol.New(t.TempDir(), "store")
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepared, err := runrecord.NewGatePreparation(
-		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		environment.ID, time.Unix(100, 0),
-	)
-	if err != nil {
+	preparation, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("preparation"))
+	environment, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("environment"))
+	g := gateContext{
+		control: control,
+		preparation: runrecord.GateLifecycle{
+			ID: preparation, TreeKey: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		environment: runrecord.Environment{ID: environment},
+	}
+	heartbeat := g.heartbeat(runrecord.HeartbeatRunning)
+	if heartbeat.Preparation != preparation || heartbeat.Environment != environment || heartbeat.PID != os.Getpid() || heartbeat.Updated.IsZero() {
+		t.Fatalf("heartbeat adapter omitted gate facts: %+v", heartbeat)
+	}
+	if err := g.control.WriteHeartbeat(heartbeat); err != nil {
 		t.Fatal(err)
 	}
-	preparationContent, _ := prepared.Content()
-	environmentContent, _ := environment.Content()
-	prepareBatch, err := artifact.NewDocumentBatch(
-		"test/prepared", []artifact.Content{environmentContent, preparationContent}, prepared.Lineage(), nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	store, err := repodb.Open(filepath.Join(repo, storePath))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Commit(context.Background(), prepareBatch); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	resultID, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("result"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	finalized, err := runrecord.NewGateFinalization(
-		prepared, "0123456789abcdef0123456789abcdef01234567", resultID, runrecord.OutcomeSucceeded,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	finalizedContent, _ := finalized.Content()
-	batch := artifact.Batch{
-		Key:       "gate/final/" + prepared.ID.String(),
-		Artifacts: []artifact.Descriptor{{ID: resultID}},
-		Contents:  []artifact.Content{finalizedContent},
-		Lineage:   finalized.Lineage(),
-	}
-	g := gateContext{repo: repo, preparation: prepared}
-	if err := g.oweRecord(batch, errors.New("injected RepoDB outage")); err == nil {
-		t.Fatal("oweRecord hid the triggering failure")
-	}
-	if err := reconcileGateDebt(repo, storePath); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(repo, "bin", "gate_debt.json")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("debt payload remains after reconciliation: %v", err)
+	status, err := g.control.Watchdog(time.Now().UTC(), time.Minute)
+	if err != nil || status.State != runrecord.HeartbeatRunning {
+		t.Fatalf("watchdog adapter = (%+v, %v)", status, err)
 	}
 }

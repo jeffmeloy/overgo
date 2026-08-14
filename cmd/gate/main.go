@@ -26,12 +26,12 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gatecontrol"
 	"overgo/internal/guard"
 	"overgo/internal/plan"
 	"overgo/internal/repodb"
@@ -55,6 +55,7 @@ type gateContext struct {
 	start       time.Time
 	environment runrecord.Environment
 	preparation runrecord.GateLifecycle
+	control     gatecontrol.Store
 }
 
 func main() {
@@ -78,11 +79,25 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	control, err := gatecontrol.New(repo, *storePath)
+	if err != nil {
+		return err
+	}
 	if *reconcile {
-		return reconcileGateDebt(repo, *storePath)
+		preparation, err := control.Reconcile(context.Background())
+		if err == nil {
+			fmt.Printf("gate: reconciled RepoDB record debt for %s\n", preparation)
+		}
+		return err
 	}
 	if *watchdog {
-		return printGateWatchdog(repo, *staleAfter)
+		status, err := control.Watchdog(time.Now().UTC(), *staleAfter)
+		if err != nil {
+			return err
+		}
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(status)
 	}
 	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
 		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
@@ -94,7 +109,7 @@ func run() error {
 		return err
 	}
 	g := &gateContext{
-		repo: repo, messageFile: *messageFile, storePath: *storePath, start: time.Now(),
+		repo: repo, messageFile: *messageFile, storePath: *storePath, start: time.Now(), control: control,
 	}
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
@@ -133,7 +148,10 @@ func run() error {
 	if err := g.prepare(); err != nil {
 		return err
 	}
-	stopHeartbeat := g.startHeartbeat()
+	stopHeartbeat, err := g.control.StartHeartbeat(g.heartbeat(runrecord.HeartbeatRunning), 5*time.Second, time.Now)
+	if err != nil {
+		return err
+	}
 	defer stopHeartbeat()
 
 	outcome := runrecord.OutcomeSucceeded
@@ -146,10 +164,10 @@ func run() error {
 	stopHeartbeat()
 	g.printSummary(outcome, failure)
 	if recordErr != nil {
-		g.writeHeartbeat(runrecord.HeartbeatRecordDebt)
+		_ = g.control.WriteHeartbeat(g.heartbeat(runrecord.HeartbeatRecordDebt))
 		fmt.Fprintf(os.Stderr, "gate: store record failed (result stands, record owed): %v\n", recordErr)
 	} else {
-		g.writeHeartbeat(runrecord.HeartbeatFinalized)
+		_ = g.control.WriteHeartbeat(g.heartbeat(runrecord.HeartbeatFinalized))
 	}
 	if outcome != runrecord.OutcomeSucceeded {
 		return fmt.Errorf("%s", failure)
@@ -766,10 +784,12 @@ func (g *gateContext) stepCommit() (bool, error) {
 }
 
 func (g *gateContext) prepare() error {
-	if _, err := os.Stat(filepath.Join(g.repo, "bin", "gate_debt.json")); err == nil {
-		return errors.New("gate: unresolved bin/gate_debt.json; run `go run ./cmd/gate -reconcile` before another gate")
-	} else if !errors.Is(err, os.ErrNotExist) {
+	debt, err := g.control.DebtExists()
+	if err != nil {
 		return err
+	}
+	if debt {
+		return errors.New("gate: unresolved bin/gate_debt.json; run `go run ./cmd/gate -reconcile` before another gate")
 	}
 	treeKey, err := g.treeStateKey()
 	if err != nil {
@@ -806,147 +826,19 @@ func (g *gateContext) prepare() error {
 	return nil
 }
 
-func (g *gateContext) startHeartbeat() func() {
-	done := make(chan struct{})
-	finished := make(chan struct{})
-	var once sync.Once
-	g.writeHeartbeat(runrecord.HeartbeatRunning)
-	go func() {
-		defer close(finished)
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				g.writeHeartbeat(runrecord.HeartbeatRunning)
-			case <-done:
-				return
-			}
-		}
-	}()
-	return func() {
-		once.Do(func() {
-			close(done)
-			<-finished
-		})
-	}
-}
-
-func (g *gateContext) writeHeartbeat(state runrecord.GateHeartbeatState) {
-	heartbeat := runrecord.GateHeartbeat{
+func (g *gateContext) heartbeat(state runrecord.GateHeartbeatState) runrecord.GateHeartbeat {
+	return runrecord.GateHeartbeat{
 		Version: runrecord.GateHeartbeatVersion, State: state, Preparation: g.preparation.ID,
 		TreeKey: g.preparation.TreeKey, Environment: g.environment.ID,
 		PID: os.Getpid(), Updated: time.Now().UTC(),
 	}
-	raw, err := json.MarshalIndent(heartbeat, "", "  ")
-	if err != nil {
-		return
-	}
-	dir := filepath.Join(g.repo, "bin")
-	if os.MkdirAll(dir, 0o755) == nil {
-		_ = os.WriteFile(filepath.Join(dir, "gate_lifecycle.json"), append(raw, '\n'), 0o644)
-	}
-}
-
-type gateDebtEnvelope struct {
-	Version     uint16         `json:"version"`
-	Preparation artifact.ID    `json:"preparation"`
-	Batch       artifact.Batch `json:"batch"`
 }
 
 func (g *gateContext) oweRecord(batch artifact.Batch, cause error) error {
-	envelope := gateDebtEnvelope{Version: 1, Preparation: g.preparation.ID, Batch: batch}
-	raw, err := json.MarshalIndent(envelope, "", "  ")
-	if err != nil {
-		return fmt.Errorf("%w; encode record debt: %v", cause, err)
-	}
-	dir := filepath.Join(g.repo, "bin")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("%w; create record debt directory: %v", cause, err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "gate_debt.json"), append(raw, '\n'), 0o600); err != nil {
+	if err := g.control.PersistDebt(g.preparation.ID, batch); err != nil {
 		return fmt.Errorf("%w; persist record debt: %v", cause, err)
 	}
 	return cause
-}
-
-func reconcileGateDebt(repo, storePath string) error {
-	path := filepath.Join(repo, "bin", "gate_debt.json")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read gate debt: %w", err)
-	}
-	decoder := json.NewDecoder(strings.NewReader(string(raw)))
-	decoder.DisallowUnknownFields()
-	var debt gateDebtEnvelope
-	if err := decoder.Decode(&debt); err != nil || debt.Version != 1 || debt.Preparation.Kind() != artifact.KindEvidence {
-		return fmt.Errorf("invalid gate debt envelope: %v", err)
-	}
-	if err := debt.Batch.Validate(); err != nil {
-		return fmt.Errorf("invalid gate debt batch: %w", err)
-	}
-	store, err := repodb.Open(filepath.Join(repo, storePath))
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	if _, ok, err := store.Content(context.Background(), debt.Preparation); err != nil {
-		return err
-	} else if !ok {
-		return errors.New("gate debt preparation is absent from RepoDB")
-	}
-	if debt.Batch.Key != "gate/final/"+debt.Preparation.String() {
-		return errors.New("gate debt batch key is not bound to its preparation")
-	}
-	finalizations := 0
-	for _, content := range debt.Batch.Contents {
-		if content.Descriptor.MediaType != runrecord.GateLifecycleMediaType || content.Descriptor.Schema != runrecord.GateLifecycleSchema {
-			continue
-		}
-		lifecycle, err := runrecord.ParseGateLifecycle(content.Data)
-		if err != nil {
-			return err
-		}
-		if lifecycle.State == runrecord.GateFinalized && lifecycle.Preparation != nil && *lifecycle.Preparation == debt.Preparation {
-			finalizations++
-		}
-	}
-	if finalizations != 1 {
-		return fmt.Errorf("gate debt batch has %d matching finalizations, want 1", finalizations)
-	}
-	if _, err := store.Commit(context.Background(), debt.Batch); err != nil {
-		return err
-	}
-	if err := os.Remove(path); err != nil {
-		return err
-	}
-	fmt.Printf("gate: reconciled RepoDB record debt for %s\n", debt.Preparation)
-	return nil
-}
-
-func printGateWatchdog(repo string, staleAfter time.Duration) error {
-	raw, err := os.ReadFile(filepath.Join(repo, "bin", "gate_lifecycle.json"))
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			fmt.Printf("{\"version\":%d,\"state\":%q}\n", runrecord.GateHeartbeatVersion, runrecord.HeartbeatAbsent)
-			return nil
-		}
-		return err
-	}
-	var heartbeat runrecord.GateHeartbeat
-	if err := json.Unmarshal(raw, &heartbeat); err != nil {
-		return err
-	}
-	if heartbeat.Version != runrecord.GateHeartbeatVersion {
-		return errors.New("unsupported gate heartbeat version")
-	}
-	heartbeat.State = heartbeat.Watchdog(time.Now().UTC(), staleAfter)
-	out, err := json.MarshalIndent(heartbeat, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(out))
-	return nil
 }
 
 func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {

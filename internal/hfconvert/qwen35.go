@@ -46,7 +46,7 @@ func convertQwen35(directory string, options Options) (Report, error) {
 		if err := writeOutput(options.ProjectorPath, metadata, tensors); err != nil {
 			return report, err
 		}
-		runner, openErr := projector.OpenQwen3VL(options.ProjectorPath)
+		runner, openErr := projector.OpenQwen3VLWithOptions(options.ProjectorPath, projector.OpenOptions{})
 		if openErr != nil {
 			_ = os.Remove(options.ProjectorPath)
 			return report, fmt.Errorf("HF converter: generated Qwen 3.5 projector: %w", openErr)

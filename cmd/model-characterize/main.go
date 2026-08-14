@@ -1,11 +1,12 @@
-// model-characterize reads a GGUF model, computes its distribution-free tensor
-// characterization (robust L-moments, order statistics, and energy descriptors),
-// and persists it to a RepoDB store. The measurement is lineage-bound to the
-// model's tensor inventory (itself bound to the model), so the profiles are
-// durable, identity-addressed, and queryable by model rather than recomputed on
-// demand.
+// model-characterize characterizes every servable model that RepoDB references
+// -- any format -- and persists a distribution-free tensor characterization per
+// model to the store. It is driven by the RepoDB catalog (discovery.Servable),
+// not the filesystem: a model is fodder when RepoDB references it with an active
+// inference recipe and present bytes. The measurement is lineage-bound to the
+// model's existing tensor inventory, so profiles are durable and queryable by
+// model.
 //
-//	go run ./cmd/model-characterize -store repodb-store <model.gguf>
+//	go run ./cmd/model-characterize [-store dir] [-spectral-max-dim n]
 package main
 
 import (
@@ -15,78 +16,111 @@ import (
 	"os"
 
 	"overgo/internal/artifact"
-	"overgo/internal/gguf"
+	"overgo/internal/dataroot"
+	"overgo/internal/discovery"
 	"overgo/internal/modelartifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 )
 
 func main() {
-	store := flag.String("store", "repodb-store", "RepoDB store directory")
+	store := flag.String("store", "", "RepoDB store directory (default: the dataroot store)")
+	limit := flag.Int("limit", 4096, "max models to consider")
 	samples := flag.Uint64("samples", 4096, "max sampled values per tensor")
 	maxRead := flag.Uint64("max-read", 64<<20, "max bytes read across all tensors")
 	spectralMaxDim := flag.Uint64("spectral-max-dim", 0, "compute effective rank for 2-D tensors whose dimensions are both within this budget (0 disables)")
 	flag.Parse()
-	if flag.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "usage: model-characterize [-store dir] [-samples n] [-max-read bytes] [-spectral-max-dim n] <model.gguf>")
-		os.Exit(2)
-	}
 	policy := modelartifact.MeasurementPolicy{
 		MaxSamplesPerTensor: *samples,
 		MaxReadBytes:        *maxRead,
 		SpectralMaxDim:      *spectralMaxDim,
 	}
-	if err := run(*store, flag.Arg(0), policy); err != nil {
+	if err := run(*store, *limit, policy); err != nil {
 		fmt.Fprintf(os.Stderr, "model-characterize: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(storePath, modelPath string, policy modelartifact.MeasurementPolicy) error {
+func run(storePath string, limit int, policy modelartifact.MeasurementPolicy) error {
+	if storePath == "" {
+		roots, err := dataroot.ResolveCurrent()
+		if err != nil {
+			return fmt.Errorf("resolve data roots: %w", err)
+		}
+		storePath = roots.Store
+	}
 	store, err := repodb.Open(storePath)
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)
 	}
 	defer store.Close()
-	file, err := gguf.Open(modelPath)
-	if err != nil {
-		return fmt.Errorf("open model: %w", err)
-	}
-	defer file.Close()
-	id, err := characterizeAndStore(context.Background(), store, file, policy)
+	count, err := characterizeCatalog(context.Background(), store, limit, policy)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("stored characterization %s\n", id)
+	fmt.Printf("characterized %d servable model(s)\n", count)
 	return nil
 }
 
-// characterizeAndStore commits the model inventory and its tensor
-// characterization to the store, returning the stored measurement's identity.
-// Both commits are content-addressed and idempotent: re-characterizing an
-// already-registered model with the same policy is a no-op.
-func characterizeAndStore(
-	ctx context.Context, store *repodb.Store, file *gguf.File, policy modelartifact.MeasurementPolicy,
+// characterizeCatalog characterizes every present servable model RepoDB
+// references and stores the measurement, returning the count. Per-model failures
+// are reported and skipped; the catalog pass is best-effort.
+func characterizeCatalog(
+	ctx context.Context, store *repodb.Store, limit int, policy modelartifact.MeasurementPolicy,
+) (int, error) {
+	entries, err := discovery.Servable(ctx, store, limit)
+	if err != nil {
+		return 0, fmt.Errorf("enumerate servable models: %w", err)
+	}
+	count := 0
+	for _, entry := range entries {
+		if !entry.Present {
+			fmt.Fprintf(os.Stderr, "skip %s: bytes not present\n", entry.Model)
+			continue
+		}
+		id, err := characterizeServable(ctx, store, entry, policy)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "skip %s: %v\n", entry.Model, err)
+			continue
+		}
+		fmt.Printf("%s\t%s\t%s\n", id, entry.Model, entry.Location)
+		count++
+	}
+	return count, nil
+}
+
+// characterizeServable resolves a servable model's inventory (via its active
+// model definition), measures it at its recorded location (format-agnostic), and
+// commits the measurement lineage-bound to that existing inventory. No
+// re-registration: the model and inventory are already in the store.
+func characterizeServable(
+	ctx context.Context, store *repodb.Store, entry discovery.Entry, policy modelartifact.MeasurementPolicy,
 ) (artifact.ID, error) {
-	inventory, err := modelartifact.FromGGUF(file)
-	if err != nil {
-		return artifact.ID{}, fmt.Errorf("build inventory: %w", err)
-	}
-	inventoryBatch, err := inventory.Batch("characterize-inventory:" + inventory.TensorInventory.ID.String())
+	activation, active, err := modelrecipe.ActiveRecord(ctx, store, entry.Model, recipe.TaskInference)
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	if _, err := store.Commit(ctx, inventoryBatch); err != nil {
-		return artifact.ID{}, fmt.Errorf("commit inventory: %w", err)
+	if !active {
+		return artifact.ID{}, fmt.Errorf("no active inference recipe")
 	}
-	document, err := modelartifact.MeasureGGUF(inventory.TensorInventory, file, policy)
-	if err != nil {
-		return artifact.ID{}, fmt.Errorf("measure tensors: %w", err)
+	definitionID, ok := activation.Definition.Dependency(recipe.DependencyDefinition, 0)
+	if !ok {
+		return artifact.ID{}, fmt.Errorf("active recipe has no model definition")
 	}
-	measurementBatch, err := document.Batch("characterize-measurement:" + document.ID.String())
+	resolved, err := modelrecipe.ResolveModelDefinition(ctx, store, definitionID)
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	if _, err := store.Commit(ctx, measurementBatch); err != nil {
+	document, err := modelartifact.MeasureAtLocation(resolved.Tensors, entry.Location, policy)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	batch, err := document.Batch("characterize:" + document.ID.String())
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
 		return artifact.ID{}, fmt.Errorf("commit measurement: %w", err)
 	}
 	return document.ID, nil

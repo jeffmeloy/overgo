@@ -52,16 +52,18 @@ const (
 )
 
 type gateContext struct {
-	repo        string
-	paths       []string
-	messageFile string
-	storePath   string
-	steps       []runrecord.GateStep
-	honesty     []string
-	start       time.Time
-	environment runrecord.Environment
-	preparation runrecord.GateLifecycle
-	source      *repoanalysis.SourceSnapshot
+	repo         string
+	paths        []string
+	messageFile  string
+	storePath    string
+	steps        []runrecord.GateStep
+	honesty      []string
+	start        time.Time
+	environment  runrecord.Environment
+	preparation  runrecord.GateLifecycle
+	source       *repoanalysis.SourceSnapshot
+	profile      *codeprofile.Profile
+	profileDirty bool
 }
 
 func main() {
@@ -306,6 +308,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 		profile.Production.Files, profile.Production.Nodes, profile.Test.Files, profile.Test.Nodes,
 		profile.DuplicateExcessNodes, len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
+	g.profile = &profile
 	return false, nil
 }
 
@@ -450,6 +453,7 @@ func (g *gateContext) stepScope() (bool, error) {
 	dirtyPaths, unplanned := scopeDirty(g.paths, dirty)
 	for _, path := range unplanned {
 		g.honesty = append(g.honesty, "unplanned dirty (not shipped): "+path)
+		g.profileDirty = g.profileDirty || strings.HasSuffix(path, ".go")
 	}
 	for _, p := range g.paths {
 		if _, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(p))); err != nil {
@@ -1043,6 +1047,11 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
 	batch.Contents = append(batch.Contents, environmentContent, finalizedContent)
 	batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
+	if outcome == runrecord.OutcomeSucceeded {
+		if err := g.appendProfileEvidence(&batch, codeCommit, record.Result.ID); err != nil {
+			return err
+		}
+	}
 	// A wall-time evaluation rides every successful run: evaluations are the
 	// advisory layer's observation unit, so the gate's own history becomes
 	// the calibration corpus (first run calibrates, second enforces).
@@ -1079,6 +1088,27 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	if err := g.writeStatus(record, codeCommit, outcome, failure); err != nil {
 		g.honesty = append(g.honesty, "advisory gate status mirror write failed: "+err.Error())
 	}
+	return nil
+}
+
+func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit string, gateResult artifact.ID) error {
+	if g.profile == nil {
+		return nil
+	}
+	if g.profileDirty {
+		g.honesty = append(g.honesty, "code profile evidence not persisted: unplanned Go dirt is outside the committed target")
+		return nil
+	}
+	evidence, err := codeprofile.NewEvidence(codeCommit, gateResult, *g.profile)
+	if err != nil {
+		return err
+	}
+	content, err := evidence.Content()
+	if err != nil {
+		return err
+	}
+	batch.Contents = append(batch.Contents, content)
+	batch.Lineage = append(batch.Lineage, evidence.Lineage()...)
 	return nil
 }
 

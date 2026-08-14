@@ -13,7 +13,7 @@ import (
 )
 
 func TestDeepSeekOCR2TinyFixture(t *testing.T) {
-	runner, err := OpenDeepSeekOCR2(writeTinyDeepSeekOCR2(t, false))
+	runner, err := OpenDeepSeekOCR2WithOptions(writeTinyDeepSeekOCR2(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestDeepSeekOCR2TinyFixture(t *testing.T) {
 }
 
 func TestDeepSeekOCR2LocalTilesRemainIndependent(t *testing.T) {
-	runner, err := OpenDeepSeekOCR2(writeTinyDeepSeekOCR2(t, false))
+	runner, err := OpenDeepSeekOCR2WithOptions(writeTinyDeepSeekOCR2(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestDeepSeekOCR2LocalTilesRemainIndependent(t *testing.T) {
 }
 
 func TestDeepSeekOCR2PromptContract(t *testing.T) {
-	runner, err := OpenDeepSeekOCR2(writeTinyDeepSeekOCR2(t, false))
+	runner, err := OpenDeepSeekOCR2WithOptions(writeTinyDeepSeekOCR2(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestDeepSeekOCR2PromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesDeepSeekOCR2(t *testing.T) {
-	projector, err := OpenImageProjector(context.Background(), writeTinyDeepSeekOCR2(t, false))
+	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyDeepSeekOCR2(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestOpenImageProjectorDispatchesDeepSeekOCR2(t *testing.T) {
 func TestDeepSeekOCR2CUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyDeepSeekOCR2(t, true)
-	cpu, err := OpenDeepSeekOCR2(path)
+	cpu, err := OpenDeepSeekOCR2WithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

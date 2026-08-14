@@ -38,10 +38,6 @@ type CogVLMVisionRunner struct {
 	attention visionAttentionPlan
 }
 
-func OpenCogVLMVision(path string) (*CogVLMVisionRunner, error) {
-	return OpenCogVLMVisionWithOptions(path, OpenOptions{})
-}
-
 func OpenCogVLMVisionWithOptions(path string, options OpenOptions) (*CogVLMVisionRunner, error) {
 	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*CogVLMVisionRunner, error) {
 		return openCogVLMVision(context.Background(), file, options)

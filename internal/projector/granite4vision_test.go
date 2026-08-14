@@ -30,7 +30,7 @@ func (granite4VisionPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tok
 }
 
 func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
-	runner, err := OpenGranite4Vision(writeTinyGranite4Vision(t, tinyGranite4VisionTensors()))
+	runner, err := OpenGranite4VisionWithOptions(writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesGranite4Vision(t *testing.T) {
-	projector, err := OpenImageProjector(context.Background(), writeTinyGranite4Vision(t, tinyGranite4VisionTensors()))
+	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestPreprocessGranite4VisionOverviewAndTileNewlines(t *testing.T) {
 }
 
 func TestGranite4VisionPromptCarriesDeepstack(t *testing.T) {
-	runner, err := OpenGranite4Vision(writeTinyGranite4Vision(t, tinyGranite4VisionTensors()))
+	runner, err := OpenGranite4VisionWithOptions(writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestGranite4VisionCatalogRejectsMissingQFormerTensor(t *testing.T) {
 	tensors := slices.DeleteFunc(tinyGranite4VisionTensors(), func(item gguf.TensorData) bool {
 		return item.Name == "v.proj_blk.1.cross_attn_q.weight"
 	})
-	if _, err := OpenGranite4Vision(writeTinyGranite4Vision(t, tensors)); err == nil || !strings.Contains(err.Error(), "missing tensor") {
+	if _, err := OpenGranite4VisionWithOptions(writeTinyGranite4Vision(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "missing tensor") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -119,7 +119,7 @@ func TestGranite4VisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyGranite4Vision(t, nonzeroGranite4VisionTensors(true))
 	rewriteGranite4VisionMetadata(t, path, granite4VisionMultiwindowMetadata(), nonzeroGranite4VisionTensors(true))
-	cpu, err := OpenGranite4Vision(path)
+	cpu, err := OpenGranite4VisionWithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

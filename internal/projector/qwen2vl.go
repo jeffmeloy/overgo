@@ -38,10 +38,6 @@ type Qwen2VLImage = Qwen3VLImage
 type Qwen2VLOutput = Qwen3VLOutput
 type Qwen2VLPreprocessOptions = Qwen3VLPreprocessOptions
 
-func OpenQwen2VL(path string) (*Qwen2VLRunner, error) {
-	return OpenQwen2VLWithOptions(path, OpenOptions{})
-}
-
 func OpenQwen2VLWithOptions(path string, options OpenOptions) (*Qwen2VLRunner, error) {
 	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Qwen2VLRunner, error) {
 		return openQwen2VL(context.Background(), file, options)

@@ -76,10 +76,6 @@ type Gemma4TowerRunner struct {
 	audioPlan *gemma4AudioFrontendPlan
 }
 
-func OpenGemma4Tower(path string) (*Gemma4TowerRunner, error) {
-	return OpenGemma4TowerWithOptions(path, OpenOptions{})
-}
-
 func OpenGemma4TowerWithOptions(path string, options OpenOptions) (*Gemma4TowerRunner, error) {
 	ctx := context.Background()
 	return openProjectorResource(ctx, path, func(file *gguf.File) (*Gemma4TowerRunner, error) {

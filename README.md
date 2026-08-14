@@ -115,7 +115,7 @@ checks, and open caveats are in the
 | --- | ---: | ---: | --- |
 | Qwen3.5-4B decode | adaptive 16.76 ms/token | 10.96 ms/token; about 2.2 GB more peak | Wall lead, memory loss |
 | Qwen3.5-4B image/video | Python image and 16-frame video goldens | Exact prompt IDs, MRoPE, and first tokens; CUDA projector probes pass | Real input parity; peak open |
-| Gemma4 12B image/audio/video | Adaptive image/audio oracles; declared video route | Image exact token, audio top-set token, ordered real-frame video through language | Video output oracle and peaks open |
+| Gemma4 12B image/audio/video | Adaptive image/audio oracles; declared video route | Image exact token, audio top-set token, ordered mixed image/audio tokens 107/108, and ordered real-frame video through language | Video output oracle and peaks open |
 | RxBrain VQA | adaptive 18.4-23.1 s / 11.97 GB | Fresh device sessions 9.529-10.273 s; 3.940 GiB coarse device peak | Exact answer; wall and peak lead |
 | Unlimited OCR | Native BF16 image/text golden | Exact 277-token prompt and 200-token output prefix; 273 projected tokens; complete 29-row output within one coordinate/text edit; native 35-gram/128-window policy | Real production OCR parity; exact full sequence and peak open |
 | Carbon-500M causal Muon | adaptive 6.816 s loop / 11.47 GiB | 5.05-5.13 s / 4.620 GiB; matched trajectory | About 25% loop-wall and 60% peak lead |

@@ -187,6 +187,42 @@ func testGemma4InputParity(t *testing.T) {
 	if len(audioGolden.Steps) == 0 || !slices.Contains(audioGolden.Steps[0].TopIDs, audioToken) {
 		t.Fatalf("Gemma4 audio first token = %d, outside oracle top IDs", audioToken)
 	}
+	imageAudio, err := runner.BuildMediaHistoryPrompt(
+		context.Background(), language,
+		[]projector.MediaInput{projector.NewImageMediaInput(imageSource), projector.NewAudioMediaInput(wave)},
+		[]string{"Image: ", " Audio: ", " Compare them."},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	audioImage, err := runner.BuildMediaHistoryPrompt(
+		context.Background(), language,
+		[]projector.MediaInput{projector.NewAudioMediaInput(wave), projector.NewImageMediaInput(imageSource)},
+		[]string{"Audio: ", " Image: ", " Compare them."},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	imageElements, audioElements := len(imagePrompt.Embeddings), len(audioPrompt.Embeddings)
+	if len(imageAudio.Embeddings) != imageElements+audioElements ||
+		!slices.Equal(imageAudio.Embeddings[:imageElements], imagePrompt.Embeddings) ||
+		!slices.Equal(imageAudio.Embeddings[imageElements:], audioPrompt.Embeddings) ||
+		!slices.Equal(audioImage.Embeddings[:audioElements], audioPrompt.Embeddings) ||
+		!slices.Equal(audioImage.Embeddings[audioElements:], imagePrompt.Embeddings) {
+		t.Fatal("Gemma4 mixed-media embedding order differs")
+	}
+	imageTokens, audioTokens := len(imagePrompt.EmbeddingTokenIndices), len(audioPrompt.EmbeddingTokenIndices)
+	if len(imageAudio.EmbeddingTokenIndices) != imageTokens+audioTokens ||
+		len(audioImage.EmbeddingTokenIndices) != imageTokens+audioTokens ||
+		len(imageAudio.AttentionBlocks) != 1 || len(audioImage.AttentionBlocks) != 1 ||
+		imageAudio.AttentionBlocks[0].Start != imageAudio.EmbeddingTokenIndices[0] ||
+		imageAudio.AttentionBlocks[0].End != imageAudio.EmbeddingTokenIndices[imageTokens-1]+1 ||
+		audioImage.AttentionBlocks[0].Start != audioImage.EmbeddingTokenIndices[audioTokens] ||
+		audioImage.AttentionBlocks[0].End != audioImage.EmbeddingTokenIndices[len(audioImage.EmbeddingTokenIndices)-1]+1 {
+		t.Fatal("Gemma4 mixed-media token or attention order differs")
+	}
+	imageAudioToken := generatePromptFirstToken(t, language, imageAudio)
+	audioImageToken := generatePromptFirstToken(t, language, audioImage)
 	second := flipHorizontal(imageSource)
 	forward, err := runner.BuildVideoPrompt(
 		context.Background(), language, []image.Image{imageSource, second}, "", "Describe the motion.", 2, false,
@@ -209,7 +245,8 @@ func testGemma4InputParity(t *testing.T) {
 		t.Fatal("Gemma4 video frame order is not retained")
 	}
 	videoToken := generatePromptFirstToken(t, language, forward)
-	t.Logf("Gemma4 12B real matrix: image exact token %d; audio top-set token %d; video ordered token %d", imageToken, audioToken, videoToken)
+	t.Logf("Gemma4 12B real matrix: image exact token %d; audio top-set token %d; mixed ordered tokens %d/%d; video ordered token %d",
+		imageToken, audioToken, imageAudioToken, audioImageToken, videoToken)
 }
 
 func generatePromptFirstToken(t *testing.T, runner *inference.Runner, prompt projector.MultimodalPrompt) tokenizer.TokenID {

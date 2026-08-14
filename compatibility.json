@@ -84,13 +84,13 @@
           "contains": "func ValidateDenseRepository(",
           "path": "internal/hfgguf/catalog.go",
           "role": "source",
-          "identity": "file:sha256:8408344b3932dd14d5252e5ed5a53f7bd1eeedd0d9ce05dc95e32c88387cbda6"
+          "identity": "file:sha256:6b6984c0dbb476d0aa2d2d2efa92cde771439b790dec545e39e398ea76ab434a"
         },
         {
           "contains": "func TestValidateDenseRepositoryUsesRuntimeCatalog(",
           "path": "internal/hfgguf/catalog_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:bf4a5cb8df79ef7f2be44d27111969ae10326312da6e2b714d490f466b363b42"
+          "identity": "evidence:sha256:5cd9b2b8cfa16dedcae06b8a4d50adc24a5ec12de74541ac85085c561ed583a1"
         }
       ],
       "id": "safetensors-gguf-dense-bridge",
@@ -105,13 +105,13 @@
           "contains": "func ValidateQwen35Repository(",
           "path": "internal/hfgguf/qwen35.go",
           "role": "source",
-          "identity": "file:sha256:6a4e87bf753e23b698a7d4bc1c375c8ac177fa54b44ca9d0e2e290ad8e2cd931"
+          "identity": "file:sha256:5c7096e1e943db612370eee2c09ae6a643f7bb22a3e42c00939359cb3ff4e7ec"
         },
         {
           "contains": "func TestValidateQwen35RepositoryUsesRuntimeCatalog(",
           "path": "internal/hfgguf/catalog_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:bf4a5cb8df79ef7f2be44d27111969ae10326312da6e2b714d490f466b363b42"
+          "identity": "evidence:sha256:5cd9b2b8cfa16dedcae06b8a4d50adc24a5ec12de74541ac85085c561ed583a1"
         }
       ],
       "id": "safetensors-gguf-qwen35-bridge",
@@ -126,13 +126,13 @@
           "contains": "func OpenWithOptions(",
           "path": "internal/gguf/reader.go",
           "role": "source",
-          "identity": "file:sha256:478425718f47c54dee1ccc96336bdcdfe87f256a1cc30a94ce1ca677eedf1475"
+          "identity": "file:sha256:5511f808af0b24ef2d3a6f9f44b22924a62f5c9c77ddbc2d573e3dc9db789214"
         },
         {
           "contains": "func TestParseEnforcesLimits(",
           "path": "internal/gguf/reader_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:23d35a4d40ecfac67a48827b67d455fb0ea35a3b1880d3fa64a0391d59a5b879"
+          "identity": "evidence:sha256:7a621643a57df8c8d2a3c6c87e1e8708a4d24ab456357a2a4045ae86dc8ae0e3"
         }
       ],
       "id": "bounded-gguf-parsing",
@@ -147,13 +147,13 @@
           "contains": "func validateMultimodalImages(",
           "path": "internal/server/server_native_prompt.go",
           "role": "source",
-          "identity": "file:sha256:08e6e7f83282b8c3b922b505d848341a55e0dc710f9672b954f7d6113b3c4d94"
+          "identity": "file:sha256:b886963790bc5c82f09da8af1d5d899ce244e8688ed2e1cce109e2dfce979920"
         },
         {
           "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
           "path": "internal/server/server_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:4bba9c6977a3ad191caf2f01eb25c2d624c30df8b7354b25f411f070fc694d33"
+          "identity": "evidence:sha256:ace71310551d3d6b5053c8d19aa12e3f7456f3005a2807b446b0f03788b95094"
         }
       ],
       "id": "bounded-server-media",
@@ -332,13 +332,13 @@
           "contains": "func splitPathPrefix(",
           "path": "internal/gguf/reader.go",
           "role": "source",
-          "identity": "file:sha256:478425718f47c54dee1ccc96336bdcdfe87f256a1cc30a94ce1ca677eedf1475"
+          "identity": "file:sha256:5511f808af0b24ef2d3a6f9f44b22924a62f5c9c77ddbc2d573e3dc9db789214"
         },
         {
           "contains": "func TestOpenLoadsAndReadsSplitGGUF(",
           "path": "internal/gguf/split_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0506567d0c91c9e6d7b32340d8f89b26fef5547f4c3dbeb7ad2e10172c88fb60"
+          "identity": "evidence:sha256:f554bca640e277d017610ac621fffd13822d550ac9466008c4aa9b6ac14eb5ab"
         }
       ],
       "id": "validated-split-gguf",
@@ -353,13 +353,13 @@
           "contains": "func Quantize(",
           "path": "internal/quant/quantize.go",
           "role": "source",
-          "identity": "file:sha256:f4d06ec4e723b0cdb9d3dc58644a64b8be471d2925a40760944322ae08a366f8"
+          "identity": "file:sha256:c3f2da0c3830f759a3a20eed0e2af6ba4f092332683df001f39716ff970f03cc"
         },
         {
           "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
           "path": "internal/quant/quantize_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:17ac050721b30b70334845aacd86519da8e2b36c880435fbcb2915ad732f0468"
+          "identity": "evidence:sha256:c4bf6c84b9d5f235ad5f190601dcdbf9e4123339cb4110a2143277ed4601d1e8"
         }
       ],
       "id": "pinned-quantization",
@@ -375,13 +375,13 @@
           "contains": "func (w *Worker) Do(",
           "path": "internal/cuda/device/worker.go",
           "role": "source",
-          "identity": "file:sha256:66be88e49a8e9b5a2b003d43866e1c9bd7a5d7173501e39b1d66b7aac4095b16"
+          "identity": "file:sha256:bbd0460a7d195e32bbef1c0a1e91855e01a59c11b3e4685e6caa9eee958aef33"
         },
         {
           "contains": "func TestWorkerMemoryRoundTrip(",
           "path": "internal/cuda/device/worker_windows_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:afaafbde5401ff47aaff362a64f3ddfa6cccc70f7a21913d06f4b158f0ffa49a"
+          "identity": "evidence:sha256:e7c8ac353b4bf63bc608cf10d5bda272b5cd36a621d05dfaf4c2cf61f4c42694"
         }
       ],
       "id": "serialized-cuda-worker",
@@ -424,7 +424,7 @@
           "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
           "path": "internal/cuda/executor/compile_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:48c833c8b154c4ef83b4609f9ea29f85b6c465a09af5c1ce92cde9f641e5c5c0"
+          "identity": "evidence:sha256:03918cd4b2ca791dfa75f9243333bbe25b7aad1db0f1e9d07d8343eb406fd2fd"
         }
       ],
       "id": "compiled-cuda-graph",
@@ -460,7 +460,7 @@
           "contains": "func (r *Runner) selectPromptCache(",
           "path": "internal/inference/prompt_cache.go",
           "role": "source",
-          "identity": "file:sha256:6cdffdcb9076c3a8e112e9d62bb5a8121d23bdde5715aa031fa918d36d235665"
+          "identity": "file:sha256:b9a5560b11020ba5793d99b4cdf795a6085ed32dcfcbd57ff6ae0c0a3b4d4975"
         },
         {
           "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
@@ -481,13 +481,13 @@
           "contains": "func NewGBNFGrammar(",
           "path": "internal/sampling/gbnf.go",
           "role": "source",
-          "identity": "file:sha256:1a6a26b90372717a8cf28985b1bd7d60e3cb5c896865dbd990eae688bce9ace5"
+          "identity": "file:sha256:598d44d7af9424aa728cc318431d24203248868eaf5944688b81246aae6718a1"
         },
         {
           "contains": "func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(",
           "path": "internal/sampling/json_schema_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:e5691ad89c6db6245f87ff3f309c8366cde5ff07faf1e138f9d6e5738a0e9d82"
+          "identity": "evidence:sha256:74627bcff87e4da17c05cf06651ad9c445b8b163decd58aa071b31fee3c5fa0e"
         }
       ],
       "id": "constrained-generation",
@@ -509,7 +509,7 @@
           "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
           "path": "internal/server/server_responses_anthropic_runtime_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
+          "identity": "evidence:sha256:913d76c672d87928bae019010d3c6b7cd6c038109c903233d589b484695dc7b8"
         }
       ],
       "id": "ordered-multi-image",
@@ -530,7 +530,7 @@
           "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
           "path": "internal/server/server_completion_chat_embedding_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
+          "identity": "evidence:sha256:32680746d2bb8a73b1fee565be0aa885854d02f71dc5452ef3ba820ec9b45b59"
         }
       ],
       "id": "media-history",
@@ -551,7 +551,7 @@
           "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
           "path": "internal/server/server_completion_chat_embedding_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
+          "identity": "evidence:sha256:32680746d2bb8a73b1fee565be0aa885854d02f71dc5452ef3ba820ec9b45b59"
         }
       ],
       "id": "mixed-media-history",
@@ -593,7 +593,7 @@
           "contains": "func TestResponsesInputFileSources(",
           "path": "internal/server/resource_policy_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:41301bc9c5f6e68d5c89c4fe73378433efb221692f0096aaf30336efd982cbeb"
+          "identity": "evidence:sha256:6a9feafcf6872ef9a6ff375561cdfb07386251cb0dfcb37faf4732ef1bc5d007"
         }
       ],
       "id": "responses-file-inputs",
@@ -608,13 +608,13 @@
           "contains": "by response_tools.%s policy",
           "path": "internal/server/responses_tools.go",
           "role": "source",
-          "identity": "file:sha256:a082f783ec4c07caafb437bbae02474f4bec8bc57ddffc42e3468ec839273d19"
+          "identity": "file:sha256:0271a32f697a17e8c80ef079b22026abdbb8db98a0682e796580aa4a617f0118"
         },
         {
           "contains": "func TestResponsesHostedAndCustomToolsUseExplicitPolicy(",
           "path": "internal/server/resource_policy_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:41301bc9c5f6e68d5c89c4fe73378433efb221692f0096aaf30336efd982cbeb"
+          "identity": "evidence:sha256:6a9feafcf6872ef9a6ff375561cdfb07386251cb0dfcb37faf4732ef1bc5d007"
         }
       ],
       "id": "explicit-response-tool-policy",
@@ -635,7 +635,7 @@
           "contains": "func TestChatAndResponsesEncodedVideoProjection(",
           "path": "internal/server/server_responses_anthropic_runtime_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
+          "identity": "evidence:sha256:913d76c672d87928bae019010d3c6b7cd6c038109c903233d589b484695dc7b8"
         }
       ],
       "id": "server-encoded-video",
@@ -650,13 +650,13 @@
           "contains": "func (h *Handler) responsesInputTokens(",
           "path": "internal/server/protocol_responses.go",
           "role": "source",
-          "identity": "file:sha256:91af65c737e732504da96093f3de18d3146b5bb1b7e9991349d62ec63e5bc1d6"
+          "identity": "file:sha256:192c3c00d834f68d8cda89c78cb1e782ec441dfe809e59bdff8b3cc3c2d48966"
         },
         {
           "contains": "func TestMultimodalInputTokenCounting(",
           "path": "internal/server/server_completion_chat_embedding_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
+          "identity": "evidence:sha256:32680746d2bb8a73b1fee565be0aa885854d02f71dc5452ef3ba820ec9b45b59"
         }
       ],
       "id": "multimodal-token-counting",
@@ -671,19 +671,19 @@
           "contains": "func (h *Handler) preparePrompt(",
           "path": "internal/server/server_native_prompt.go",
           "role": "source",
-          "identity": "file:sha256:08e6e7f83282b8c3b922b505d848341a55e0dc710f9672b954f7d6113b3c4d94"
+          "identity": "file:sha256:b886963790bc5c82f09da8af1d5d899ce244e8688ed2e1cce109e2dfce979920"
         },
         {
           "contains": "func (h *Handler) prepareProtocolGeneration(",
           "path": "internal/server/protocol_common.go",
           "role": "source",
-          "identity": "file:sha256:395cefcb4efe0bd58410654edb70cddf9bb8a7ce935fc96331f61a62582f0846"
+          "identity": "file:sha256:3a2901fa6250528c87609d2f4eda3f3c89772bcc3c842154b739a8e3d37c2e04"
         },
         {
           "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
           "path": "internal/server/server_completion_chat_embedding_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
+          "identity": "evidence:sha256:32680746d2bb8a73b1fee565be0aa885854d02f71dc5452ef3ba820ec9b45b59"
         }
       ],
       "id": "unified-prompt-preparation",
@@ -704,7 +704,7 @@
           "contains": "func TestStreamingResponsesFunctionCallLifecycle(",
           "path": "internal/server/server_responses_anthropic_runtime_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
+          "identity": "evidence:sha256:913d76c672d87928bae019010d3c6b7cd6c038109c903233d589b484695dc7b8"
         }
       ],
       "id": "incremental-tool-streaming",
@@ -719,13 +719,13 @@
           "contains": "promptTools []inference.ChatTool",
           "path": "internal/server/protocol_chat.go",
           "role": "source",
-          "identity": "file:sha256:f07cb406e09f54181c703b85cb269871369c333ffce83537bc7e199c27281683"
+          "identity": "file:sha256:a31e6cbf46392f362db58b02c2e9264f1e60776230fc6da6d4173eb757eeab3f"
         },
         {
           "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
           "path": "internal/server/server_responses_anthropic_runtime_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
+          "identity": "evidence:sha256:913d76c672d87928bae019010d3c6b7cd6c038109c903233d589b484695dc7b8"
         }
       ],
       "id": "multimodal-function-tools",
@@ -740,13 +740,13 @@
           "contains": "case \"image\":",
           "path": "internal/server/anthropic_tools.go",
           "role": "source",
-          "identity": "file:sha256:71326a2252920aaba3a0b416dce99238a656411a04b87cf37b1f6a61d5af532b"
+          "identity": "file:sha256:3a40e99ec476bc61a787c6e9b6cce16d30dd48d890e95791fa27d7f4660fece8"
         },
         {
           "contains": "func TestAnthropicImageToolsAndTokenCounting(",
           "path": "internal/server/server_responses_anthropic_runtime_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
+          "identity": "evidence:sha256:913d76c672d87928bae019010d3c6b7cd6c038109c903233d589b484695dc7b8"
         }
       ],
       "id": "anthropic-image-input",
@@ -761,13 +761,13 @@
           "contains": "func validateAnthropicThinking(",
           "path": "internal/server/anthropic_thinking.go",
           "role": "source",
-          "identity": "file:sha256:c7f7cd5886ed7ed2a6571c9877b0a84be1aa8a12ecdb0e97343fb6fb8ef3ef53"
+          "identity": "file:sha256:3177f887773313f2beac9e6a0d0b2ac3af0285556aa381cec6246a8575526bc9"
         },
         {
           "contains": "func TestAnthropicThinkingBufferedStreamingImageAndReplay(",
           "path": "internal/server/server_responses_anthropic_runtime_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
+          "identity": "evidence:sha256:913d76c672d87928bae019010d3c6b7cd6c038109c903233d589b484695dc7b8"
         }
       ],
       "id": "anthropic-local-thinking",
@@ -782,13 +782,13 @@
           "contains": "func (s *responseHistoryStore) put(",
           "path": "internal/server/response_history.go",
           "role": "source",
-          "identity": "file:sha256:7d92c43a2a5a183b1560bdbd5a15633a2a4d63d69e90c48db6961cfa8e9a5995"
+          "identity": "file:sha256:8f38c8625233b9d7ad100c4f3e2b2974ea45e81ee8276a1575175000bc4325b9"
         },
         {
           "contains": "func TestResponsesPreviousResponseContinuation(",
           "path": "internal/server/server_completion_chat_embedding_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
+          "identity": "evidence:sha256:32680746d2bb8a73b1fee565be0aa885854d02f71dc5452ef3ba820ec9b45b59"
         }
       ],
       "id": "responses-continuation",
@@ -803,13 +803,13 @@
           "contains": "func validateResponsesReasoning(",
           "path": "internal/server/protocol_responses.go",
           "role": "source",
-          "identity": "file:sha256:91af65c737e732504da96093f3de18d3146b5bb1b7e9991349d62ec63e5bc1d6"
+          "identity": "file:sha256:192c3c00d834f68d8cda89c78cb1e782ec441dfe809e59bdff8b3cc3c2d48966"
         },
         {
           "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
           "path": "internal/server/server_responses_anthropic_runtime_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
+          "identity": "evidence:sha256:913d76c672d87928bae019010d3c6b7cd6c038109c903233d589b484695dc7b8"
         }
       ],
       "id": "responses-reasoning",
@@ -872,7 +872,7 @@
           "contains": "func (b *ContinuousBatch) Step(",
           "path": "internal/inference/continuous_batch.go",
           "role": "source",
-          "identity": "file:sha256:ce9ca364f5ff8029b68163156de66cf6ecec0ffac63481cc458f38fcfa144d4a"
+          "identity": "file:sha256:8b5a32f217dc6821910cc39aeb64a0437b312d574256d07734df408029531131"
         },
         {
           "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
@@ -893,7 +893,7 @@
           "contains": "func (r *Runner) NewEncoderDecoderBatchSession(",
           "path": "internal/inference/encoder_decoder_batch.go",
           "role": "source",
-          "identity": "file:sha256:ebba65abb89655a53296d05054c07400a7e096100756723305031c30b864f273"
+          "identity": "file:sha256:2a8f9a3c77309e8ea4b4e8c1bc0fcbf590a8a225e25273788e7baa317884e8b9"
         },
         {
           "contains": "func TestValidatePaddedTokenBatchMasksSuffixes(",

@@ -266,11 +266,10 @@ func (r *Runner) SetLoRAScales(scales []LoRAScale) error {
 	if r == nil {
 		return errors.New("inference: runner is nil")
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return err
 	}
+	defer r.mu.Unlock()
 	next, err := validatedLoRAScales(len(r.loraAdapters), scales)
 	if err != nil {
 		return err

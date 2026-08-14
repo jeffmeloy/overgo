@@ -23,11 +23,10 @@ func (r *Runner) ClearPromptCaches(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("inference: prompt-cache context is nil")
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return err
 	}
+	defer r.mu.Unlock()
 	return r.runnerState.release(ctx)
 }
 

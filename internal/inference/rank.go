@@ -129,11 +129,10 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	if r == nil || r.vocab == nil {
 		return RankResult{}, errors.New("inference: runner is nil")
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return RankResult{}, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return RankResult{}, err
 	}
+	defer r.mu.Unlock()
 	program := r.program.Model.ProjectedInput()
 	if !program.ClassifierHead {
 		return RankResult{}, fmt.Errorf(

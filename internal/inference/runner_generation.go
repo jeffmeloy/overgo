@@ -61,11 +61,10 @@ func (r *Runner) Generate(
 	if err := normalizeGenerateOptions(&options); err != nil {
 		return nil, "", err
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return nil, "", errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return nil, "", err
 	}
+	defer r.mu.Unlock()
 	restoreLoRA, err := r.applyGenerationLoRA(options)
 	if err != nil {
 		return nil, "", err

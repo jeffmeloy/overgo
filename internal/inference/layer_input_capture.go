@@ -68,11 +68,10 @@ func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.Toke
 	if r == nil {
 		return AttentionCapture{}, errors.New("inference: runner is nil")
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return AttentionCapture{}, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return AttentionCapture{}, err
 	}
+	defer r.mu.Unlock()
 	if !r.forwardProgram().LayerCapture() {
 		return AttentionCapture{}, errors.New("inference: attention capture is unsupported for this architecture")
 	}
@@ -122,11 +121,10 @@ func (r *Runner) ForwardCachedExtractLayerInputs(
 	if r == nil {
 		return reference.Value{}, nil, reference.Value{}, errors.New("inference: runner is nil")
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, nil, reference.Value{}, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return reference.Value{}, nil, reference.Value{}, err
 	}
+	defer r.mu.Unlock()
 	if !r.forwardProgram().LayerCapture() {
 		return reference.Value{}, nil, reference.Value{}, errors.New("inference: cached layer extraction is unsupported for this architecture")
 	}

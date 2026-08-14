@@ -40,11 +40,10 @@ func (r *Runner) GenerateEncoderDecoder(
 		return nil, "", nil, errors.New("inference: decoder start token is out of range")
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return nil, "", nil, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return nil, "", nil, err
 	}
+	defer r.mu.Unlock()
 	restoreLoRA, err := r.applyGenerationLoRA(options)
 	if err != nil {
 		return nil, "", nil, err

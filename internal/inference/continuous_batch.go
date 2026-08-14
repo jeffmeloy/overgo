@@ -94,11 +94,10 @@ func (r *Runner) NewContinuousBatch(
 	if options.PageTokens == 0 {
 		options.PageTokens = resolveCachePageTokens(r.cachePageTokens)
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return nil, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return nil, err
 	}
+	defer r.mu.Unlock()
 	if options.Device && !r.hasPreloadedWeights() {
 		return nil, errors.New("inference: device batch requires preloaded weights")
 	}
@@ -185,11 +184,10 @@ func (b *ContinuousBatch) step(
 	}
 	b.mu.Unlock()
 	r := b.runner
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return nil, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return nil, err
 	}
+	defer r.mu.Unlock()
 	if b.options.Device {
 		return b.stepDeviceLocked(ctx, inputs, plan)
 	}

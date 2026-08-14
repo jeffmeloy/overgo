@@ -18,7 +18,7 @@ func TestLiveEditCheckpointBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if checkpoint.Config.InDim != 2*base.InDim || checkpoint.SourceChannels != base.InDim || checkpoint.Layers != base.NumLayers || len(checkpoint.bindings) != len(denoiserTensorLengths(checkpoint.Config)) {
+	if checkpoint.Config.InDim != 2*base.InDim || checkpoint.SourceChannels != base.InDim || checkpoint.Layers != base.NumLayers || len(checkpoint.bindings) != len(denoiserTensorLengths(checkpoint.Config))+len(projectionTensorNames) {
 		t.Fatalf("checkpoint=%+v bindings=%d", checkpoint, len(checkpoint.bindings))
 	}
 	patch, ok := checkpoint.Binding("patch_embedding.weight")

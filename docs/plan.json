@@ -8,16 +8,16 @@
       "status": "open",
       "steps": [
         {
-          "id": "liveedit-checkpoint-binding",
-          "title": "Compile the real LiveEdit PyTorch checkpoint into normalized, shape-validated Wan bindings; derive doubled source conditioning and stream weights without a family loader",
+          "id": "liveedit-text-conditioning",
+          "title": "Stream LiveEdit text projection weights from the compiled checkpoint and reuse the neutral semantic encoder/projection contract",
           "status": "open",
-          "verify": "go test ./internal/latentvideo -run '^TestLiveEditCheckpointBinding$' -count=1 -v"
+          "verify": "go test ./internal/latentvideo -run '^TestLiveEditTextConditioning$' -count=1 -v"
         },
         {
-          "id": "liveedit-conditioning-codec",
-          "title": "Bind source-video causal encode and semantic text projection to the neutral edit request; preserve channel-major geometry and oracle seams",
+          "id": "liveedit-source-codec",
+          "title": "Port the adaptive causal VAE source encoder to the shared video codec owner; preserve channel-major geometry and source-latent oracle seams",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditConditioningCodec$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditSourceCodec$' -count=1 -v"
         },
         {
           "id": "liveedit-retained-denoiser",

@@ -78,6 +78,13 @@ func CompileReferenceEditCheckpoint(path string, base DenoiserConfig) (Reference
 		}
 		byName[names[index]] = binding
 	}
+	textBindings, err := pytorchzip.CompileBindings(normalized, projectionTensorNames[:])
+	if err != nil {
+		return plan, fmt.Errorf("reference edit checkpoint text projection: %w", err)
+	}
+	for index, binding := range textBindings {
+		byName[projectionTensorNames[index]] = binding
+	}
 	return ReferenceEditCheckpoint{Path: path, Config: live, SourceChannels: sourceChannels, Layers: len(layers), bindings: byName}, nil
 }
 
@@ -120,4 +127,38 @@ func (p ReferenceEditCheckpoint) LoadWeights() (*DenoiserWeights, error) {
 		weights.Bytes += int64(len(values) * 4)
 	}
 	return weights, nil
+}
+
+func (p ReferenceEditCheckpoint) loadTextProjection() (projectionWeights, int64, error) {
+	var weights projectionWeights
+	reader, err := pytorchzip.Open(p.Path)
+	if err != nil {
+		return weights, 0, err
+	}
+	defer reader.Close()
+	values := make([][]float32, len(projectionTensorNames))
+	var bytes int64
+	for index, name := range projectionTensorNames {
+		binding, ok := p.bindings[name]
+		if !ok {
+			return weights, 0, fmt.Errorf("reference edit checkpoint: text projection %s is absent", name)
+		}
+		values[index], err = reader.ReadBinding(binding)
+		if err != nil {
+			return weights, 0, err
+		}
+		bytes += int64(len(values[index]) * 4)
+	}
+	weights.Linear0W, weights.Linear0B = values[0], values[1]
+	weights.Linear2W, weights.Linear2B = values[2], values[3]
+	return weights, bytes, nil
+}
+
+// ReferenceEditTextConditioning: shared encoder, checkpoint-owned projection.
+func ReferenceEditTextConditioning(spec TextConditioningSpec, prompt string, checkpoint ReferenceEditCheckpoint) (TextConditioningResult, error) {
+	weights, bytes, err := checkpoint.loadTextProjection()
+	if err != nil {
+		return TextConditioningResult{}, err
+	}
+	return textConditioningWithWeights(spec, prompt, weights, bytes)
 }

@@ -26,11 +26,8 @@ func JSONScalar[Input, Model, Output any](
 		program recipe.Program,
 		raw string,
 	) (any, error) {
-		input, content, err := decodeInput(name, validate, raw)
+		input, content, err := decodeScalarInput(name, validate, modelID, program, raw)
 		if err != nil {
-			return nil, err
-		}
-		if err := validateScalarProgram(modelID, program); err != nil {
 			return nil, err
 		}
 		model, err := load(ctx, store, path, program, input)

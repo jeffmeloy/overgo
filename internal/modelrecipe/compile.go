@@ -160,23 +160,23 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 	}},
 }
 
-var latentImageCapability = linearCapability{placement: recipe.PlacementHybrid, stages: []scalarStage{
-	{node: "prepare", module: ModuleLatentImagePrepare, input: "condition", output: "session", inputData: recipe.DataPromptConditioning, outData: recipe.DataSessionPlan},
-	{node: "integrate", module: ModuleLatentImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
-	{node: "decode", module: ModuleLatentImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
-}}
+func imageCapability(
+	placement recipe.Placement,
+	condition recipe.DataKind,
+	prepare, integrate, decode recipe.ModuleID,
+) linearCapability {
+	return linearCapability{placement: placement, stages: []scalarStage{
+		{node: "prepare", module: prepare, input: "condition", output: "session", inputData: condition, outData: recipe.DataSessionPlan},
+		{node: "integrate", module: integrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
+		{node: "decode", module: decode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
+	}}
+}
 
-var oscillatorImageCapability = linearCapability{placement: recipe.PlacementHost, stages: []scalarStage{
-	{node: "prepare", module: ModuleOscillatorImagePrepare, input: "condition", output: "session", inputData: recipe.DataClassConditioning, outData: recipe.DataSessionPlan},
-	{node: "integrate", module: ModuleOscillatorImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
-	{node: "decode", module: ModuleOscillatorImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
-}}
+var latentImageCapability = imageCapability(recipe.PlacementHybrid, recipe.DataPromptConditioning, ModuleLatentImagePrepare, ModuleLatentImageIntegrate, ModuleLatentImageDecode)
 
-var routedImageCapability = linearCapability{placement: recipe.PlacementHybrid, stages: []scalarStage{
-	{node: "prepare", module: ModuleRoutedImagePrepare, input: "condition", output: "session", inputData: recipe.DataPromptConditioning, outData: recipe.DataSessionPlan},
-	{node: "integrate", module: ModuleRoutedImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
-	{node: "decode", module: ModuleRoutedImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
-}}
+var oscillatorImageCapability = imageCapability(recipe.PlacementHost, recipe.DataClassConditioning, ModuleOscillatorImagePrepare, ModuleOscillatorImageIntegrate, ModuleOscillatorImageDecode)
+
+var routedImageCapability = imageCapability(recipe.PlacementHybrid, recipe.DataPromptConditioning, ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode)
 
 // CapabilityDefinition: task-indexed executable topology.
 func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {

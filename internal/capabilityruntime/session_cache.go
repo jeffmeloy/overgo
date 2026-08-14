@@ -66,16 +66,7 @@ func NewScalarSessionCache[Input, Model, Output any](
 }
 
 func (c *ScalarSessionCache[Input, Model, Output]) Executor() Executor {
-	return func(
-		ctx context.Context,
-		store artifact.Repository,
-		path string,
-		modelID artifact.ID,
-		program recipe.Program,
-		raw string,
-	) (any, error) {
-		return c.execute(ctx, store, path, modelID, program, raw)
-	}
+	return c.execute
 }
 
 func (c *ScalarSessionCache[Input, Model, Output]) execute(
@@ -85,13 +76,10 @@ func (c *ScalarSessionCache[Input, Model, Output]) execute(
 	modelID artifact.ID,
 	program recipe.Program,
 	raw string,
-) (Output, error) {
+) (any, error) {
 	var zero Output
-	input, content, err := decodeInput(c.name, c.validate, raw)
+	input, content, err := decodeScalarInput(c.name, c.validate, modelID, program, raw)
 	if err != nil {
-		return zero, err
-	}
-	if err := validateScalarProgram(modelID, program); err != nil {
 		return zero, err
 	}
 	policy, err := c.policy(input)
@@ -289,12 +277,21 @@ func closeEntry[Model any](ctx context.Context, entry *sessionEntry[Model]) erro
 	return closeModel(ctx, entry.model)
 }
 
-func decodeInput[Input any](name string, validate func(Input) error, raw string) (Input, artifact.Content, error) {
+func decodeScalarInput[Input any](
+	name string,
+	validate func(Input) error,
+	modelID artifact.ID,
+	program recipe.Program,
+	raw string,
+) (Input, artifact.Content, error) {
 	var input Input
 	if err := strictjson.DecodeBytes([]byte(raw), &input); err != nil {
 		return input, artifact.Content{}, fmt.Errorf("decode %s input: %w", name, err)
 	}
 	if err := validate(input); err != nil {
+		return input, artifact.Content{}, err
+	}
+	if err := validateScalarProgram(modelID, program); err != nil {
 		return input, artifact.Content{}, err
 	}
 	content, err := artifact.JSONContent(

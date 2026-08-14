@@ -35,6 +35,7 @@ import (
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
+	"overgo/internal/testscope"
 )
 
 const (
@@ -424,8 +425,8 @@ func (g *gateContext) pathsTouchAny(prefixes ...string) bool {
 }
 
 func (g *gateContext) stepBuild() (bool, error) {
-	if !g.pathsTouchGo() {
-		g.honesty = append(g.honesty, "build skipped: no Go source or module files in -paths")
+	if !g.pathsTouchGo() && !g.pathsTouchAny("cmd/", "internal/") {
+		g.honesty = append(g.honesty, "build skipped: no Go-owned source or asset paths in -paths")
 		return true, nil
 	}
 	_, err := command(g.repo, "go", "build", "./...")
@@ -436,17 +437,12 @@ func (g *gateContext) stepBuild() (bool, error) {
 // files plus every package whose transitive deps include one. A hand-listed
 // impact table is a process magic; the graph is the derivation.
 func (g *gateContext) stepTest() (bool, error) {
-	changed := map[string]bool{}
-	for _, f := range g.changedGoFiles() {
-		dir := filepath.ToSlash(filepath.Dir(f))
-		out, err := command(g.repo, "go", "list", "./"+dir)
-		if err != nil {
-			continue // deleted package: its importers still test below
-		}
-		changed[strings.TrimSpace(out)] = true
+	changed, err := g.directChangedPackages()
+	if err != nil {
+		return false, err
 	}
 	if len(changed) == 0 {
-		g.honesty = append(g.honesty, "tests skipped: no .go in -paths")
+		g.honesty = append(g.honesty, "tests skipped: no Go package owns a source or embedded asset in -paths")
 		return true, nil
 	}
 	out, err := command(g.repo, "go", "list", "-f", "{{.ImportPath}} {{join .Deps \",\"}}", "./...")
@@ -491,6 +487,22 @@ func (g *gateContext) stepTest() (bool, error) {
 		))
 	}
 	return false, nil
+}
+
+func (g *gateContext) directChangedPackages() (map[string]bool, error) {
+	out, err := command(g.repo, "go", "list", "-json", "./...")
+	if err != nil {
+		return nil, fmt.Errorf("derive Go ownership: %w", err)
+	}
+	packages, err := testscope.DecodePackages(strings.NewReader(out))
+	if err != nil {
+		return nil, err
+	}
+	changed := map[string]bool{}
+	for _, importPath := range testscope.DirectPackages(g.repo, g.paths, packages) {
+		changed[importPath] = true
+	}
+	return changed, nil
 }
 
 func runGoTests(repo string, packages []string) (string, error) {

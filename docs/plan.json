@@ -8,16 +8,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "context",
-          "title": "Emit one typed JSON automation context from existing plan and Git owners: HEAD, worktree, current task, dirty scope, evidence debt, and role; expose exactly one current-task identity",
-          "status": "open",
-          "verify": "go test ./internal/plan ./cmd/plan -run '^TestAutomationContext' -count=1 -v"
-        },
-        {
           "id": "honesty",
           "title": "Unify CI and gate skip classification, derive loop dirtiness from planned meaningful paths, and route non-Go assets through their owning tests",
           "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/loophook ./internal/testevidence -run 'Test(CIRequiredEvidence|DirtyPlannedScope|NonGoOwnership)' -count=1"
+          "verify": "go test ./cmd/gate ./cmd/loophook ./cmd/test-lane ./internal/testevidence ./internal/testscope -run 'Test(CIRequiredEvidence|DirtyPlannedScope|NonGoOwnership)' -count=1 -v"
         },
         {
           "id": "gate-lifecycle",

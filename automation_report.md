@@ -22,6 +22,23 @@ do not receive the same derived test treatment as Go packages, and a successful
 commit can outlive a failed RepoDB gate-record write. These are narrow,
 repairable gaps in an otherwise coherent design.
 
+## Incremental implementation status
+
+- Current `master` was merged into the automation lane at `57a5749`; the merge
+  passed the repository gate, including the device lane.
+- `cmd/plan -context` now emits one deterministic task context containing exact
+  Git/worktree identity, explicit role, one current task, normalized dirt, and
+  conservative evidence debt (`e5fe81f`).
+- The first evidence-honesty slice is implemented and awaiting its gated commit:
+  CI and release use a Go-owned hermetic test lane, unclassified skips and
+  unavailable evidence fail that lane, classified short exclusions are reported
+  but not credited, loop orphan detection covers all Git-visible work, and
+  changed embedded assets inherit their package tests from compiler-resolved
+  `go:embed` metadata.
+
+The remaining highest-priority gap is gate lifecycle debt: a successful commit
+can still exist without a finalized authoritative RepoDB gate record.
+
 ## Operating boundary
 
 Current division of responsibility:

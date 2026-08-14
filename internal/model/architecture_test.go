@@ -59,12 +59,12 @@ func TestResolvedProfilePrefersExactBinding(t *testing.T) {
 	bound := bootstrap
 	bound.LayerTopology = LayerTopologyCausalPostQKNormSkip
 	spec := Spec{CommonSpec: CommonSpec{Architecture: bootstrap.Name}}.withProfile(bound)
-	resolved, ok := spec.ResolvedProfile()
+	resolved, ok := spec.resolvedProfile()
 	if !ok || resolved.LayerTopology != LayerTopologyCausalPostQKNormSkip {
 		t.Fatalf("resolved profile = (%+v, %t)", resolved, ok)
 	}
 	mismatch := spec.withProfile(ArchitectureProfile{Name: "other"})
-	if _, ok := mismatch.ResolvedProfile(); ok {
+	if _, ok := mismatch.resolvedProfile(); ok {
 		t.Fatal("mismatched bound profile accepted")
 	}
 }

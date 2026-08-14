@@ -780,13 +780,13 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:e867d8d683ac8887ed39c8de282a09b585469bf5aa2bccd1528f2e67bde78815"
+          "identity": "file:sha256:7d4cc76fec58f8eeb9c612f59c84f13dd2545c2b979ab30453d92b7ba982aee6"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
           "path": "internal/model/architecture_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:8309c24d0f2f9bac3e9875766976d70bdc6bbee7f801faf39fbb3cf897eb7983"
+          "identity": "evidence:sha256:59423faf76f1032c6f3dc7a10ba9c725ac38fbecf908e41e4b8c44afae7a9501"
         }
       ],
       "id": "architecture-profiles",
@@ -807,7 +807,7 @@
           "contains": "func ReadWeights(",
           "path": "internal/model/weights_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:cca039ef2c0b311551ec428d1227702b82e115d9e6f40b13bb9dff542ff90b58"
+          "identity": "file:sha256:dad76c86580e27bbf0de4e2010a3bbd8852ff062251f73cafe857e308f1c0059"
         },
         {
           "contains": "func TestLayerProgramsCoverTypedProfiles(",

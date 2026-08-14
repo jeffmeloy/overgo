@@ -97,12 +97,12 @@ concurrently.
 | Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea promoted with bounded pixel evidence; SenseNova full decode/publication remains open |
 | Video generation | Resident Wan denoise and CUDA VAE decode | Fresh Overgo result; retained Python reference still needs a same-revision rerun |
 | Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Promotion varies; consult the parity report and compatibility tiers |
-| Training | Muon-only dense and hybrid primitives; resident CUDA dense path | Frozen-lexical Carbon is promoted; compiled model construction and universal training are not complete |
+| Training | Muon-only dense/hybrid primitives plus corpus-derived scratch construction through shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the pinned scratch profile lead; complete-state resume and universal objectives remain open |
 
 Explicit gaps include production SenseNova image/edit publication, LiveEdit,
 Unlimited OCR parity, Pocket-TTS output-quality evidence, complete-state
-training resume, model-from-scratch construction, and real-model
-Qwen3.5/E4B/Gemma4 training.
+training resume, scratch artifact publication/controller promotion, and
+real-model Qwen3.5/E4B/Gemma4 training.
 
 ## Recorded performance
 
@@ -116,9 +116,10 @@ checks, and open caveats are in the
 | Qwen3.5-4B decode | adaptive 16.76 ms/token | 10.96 ms/token; about 2.2 GB more peak | Wall lead, memory loss |
 | RxBrain VQA | adaptive 18.4-23.1 s / 11.97 GB | 9.5 s / 10.59 GB | Wall and peak lead |
 | Carbon-500M causal Muon | adaptive 6.816 s loop / 11.47 GiB | 5.05-5.13 s / 4.620 GiB; matched trajectory | About 25% loop-wall and 60% peak lead |
+| Corpus-derived scratch causal | adaptive 221.4-231.8 ms / 3.13-3.18 MB peak | 64.4-66.2 ms matched steps / 2.38-2.43 MB combined peak; cold 44.7-49 ms, warm 8.7-11.6 ms | At least 3.34x wall and 22% peak lead on pinned profile |
 | Krea 2048 image | Python 97.5-135.4 s; adaptive 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | Bounded-quality wall/peak lead |
 | Wan video | retained Python 463.4 s; adaptive 795.1 s | 370.27 s; stage peaks 7.875/10.330 GB | Lead vs retained references; matched rerun open |
-| SenseNova generation core | adaptive reusable body 6.88 s | cold 3.65-4.00 s; warm 3.66-4.02 s / 0.710 GiB | 41.6% warm-body lead; full route open |
+| SenseNova generation core | adaptive reusable body 6.88 s | fresh cold 8.117 s; warm 4.048 s / 0.710 GiB | 41.1% warm-body lead; cold bounded but slower; full route open |
 | Gemma E4B image tower | adaptive 14.56 s focused test | 1.65 s load+run; 0.210-0.215 s resident body | Sampled-stage parity; peak open |
 | Gemma E4B audio tower | adaptive 1.03 s focused test | 0.129 s resident body | Numerical parity; matched lifecycle/peak open |
 

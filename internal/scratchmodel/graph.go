@@ -20,6 +20,7 @@ type ForwardGraph struct {
 	positions  int
 	mask       []float32
 	embedding  *tensor.Tensor
+	tokenRows  *tensor.Tensor
 	layers     []forwardLayer
 }
 
@@ -58,7 +59,8 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 	for position := range positions {
 		tokenRows[position], positionRows[position] = uint32(tokens[position]), uint32(position)
 	}
-	embedding := builder.Add(builder.GetRows(parameters["wte"], tokenRows), builder.GetRows(parameters["wpe"], positionRows))
+	tokenLookup := builder.GetRows(parameters["wte"], tokenRows)
+	embedding := builder.Add(tokenLookup, builder.GetRows(parameters["wpe"], positionRows))
 	hidden := builder.MADNorm(embedding, float32(c.config.Epsilon))
 	maskValues := causalWindowMask(positions, c.config.AttentionWindow)
 	mask := builder.Input("causal-window-mask", dtype.F32, tensor.MustShape(uint64(positions), uint64(positions)))
@@ -123,7 +125,7 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 	}
 	return ForwardGraph{
 		Output: output, Parameters: parameters, Mask: mask, Hidden: hidden,
-		positions: positions, mask: maskValues, embedding: embedding, layers: layers,
+		positions: positions, mask: maskValues, embedding: embedding, tokenRows: tokenLookup, layers: layers,
 	}, nil
 }
 

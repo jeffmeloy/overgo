@@ -1,0 +1,26 @@
+{
+    "schema": "overgo/adaptive-scratch-performance/v1",
+    "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
+    "source_entrypoint": "go/training/run_from_docs.go:RunFromDocsRich",
+    "source_options": "seed=7;steps=3;batch_size_override=1",
+    "oracle_sha256": "3ce06259f3987b467e92a4bd3783186e0425b861333a7de6fe7f91933e059332",
+    "environment": {
+        "go": "go1.26.2",
+        "os_arch": "windows/amd64",
+        "cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+        "logical_processors": 32
+    },
+    "runs": [
+        {"wall_nanos": 223869600, "peak_heap_bytes": 3129984, "total_alloc_bytes": 18252328},
+        {"wall_nanos": 221413400, "peak_heap_bytes": 3166136, "total_alloc_bytes": 18253648},
+        {"wall_nanos": 231794600, "peak_heap_bytes": 3134096, "total_alloc_bytes": 18254808},
+        {"wall_nanos": 227614100, "peak_heap_bytes": 3164144, "total_alloc_bytes": 18249056},
+        {"wall_nanos": 222847400, "peak_heap_bytes": 3160888, "total_alloc_bytes": 18250608},
+        {"wall_nanos": 222680300, "peak_heap_bytes": 3176992, "total_alloc_bytes": 18250320},
+        {"wall_nanos": 224607500, "peak_heap_bytes": 3145528, "total_alloc_bytes": 18249472}
+    ],
+    "candidate_bounds": {
+        "cold_step_nanos": 160000000,
+        "warm_step_nanos": 40000000
+    }
+}

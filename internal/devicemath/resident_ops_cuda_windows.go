@@ -3,18 +3,103 @@
 package devicemath
 
 import (
+	"context"
 	"errors"
 	"math"
 	"unsafe"
 
+	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/kernel"
 )
 
 // ResidentOps shares one CUDA/cuBLAS scope across a composed device program.
 type ResidentOps struct {
 	session   *cudaBLAS
 	functions map[string]driver.Function
+}
+
+// ResidentOpsSession retains one module and cuBLAS handle across programs.
+type ResidentOpsSession struct {
+	worker  *device.Worker
+	library *cublas.Library
+	handle  cublas.Handle
+	module  driver.Module
+	closed  bool
+}
+
+func NewResidentOpsSession(worker *device.Worker) (*ResidentOpsSession, error) {
+	if worker == nil {
+		return nil, errors.New("resident ops session: worker absent")
+	}
+	session := &ResidentOpsSession{worker: worker}
+	err := worker.Do(context.Background(), func(state *device.State) (result error) {
+		if err := kernel.ValidateAssets(); err != nil {
+			return err
+		}
+		library, err := cublas.Open()
+		if err != nil {
+			return err
+		}
+		session.library = library
+		handle, err := library.Create()
+		if err != nil {
+			_ = library.Close()
+			session.library = nil
+			return err
+		}
+		session.handle = handle
+		if err := library.SetStream(handle, state.Stream); err != nil {
+			_ = library.Destroy(handle)
+			_ = library.Close()
+			session.library, session.handle = nil, 0
+			return err
+		}
+		module, err := state.Driver.ModuleLoadData(kernel.OpsF32PTX)
+		if err != nil {
+			_ = library.Destroy(handle)
+			_ = library.Close()
+			session.library, session.handle = nil, 0
+			return err
+		}
+		session.module = module
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func (s *ResidentOpsSession) Run(run func(*ResidentOps) error) error {
+	if s == nil || s.closed || s.worker == nil || s.library == nil || s.handle == 0 || s.module == 0 || run == nil {
+		return errors.New("resident ops session: unavailable")
+	}
+	return s.worker.Do(context.Background(), func(state *device.State) (result error) {
+		scope := &cudaScope{state: state, module: s.module}
+		defer func() { result = errors.Join(result, scope.close()) }()
+		ops := &ResidentOps{
+			session:   &cudaBLAS{cudaScope: scope, library: s.library, handle: s.handle},
+			functions: map[string]driver.Function{},
+		}
+		if err := run(ops); err != nil {
+			return err
+		}
+		return ops.session.finish()
+	})
+}
+
+func (s *ResidentOpsSession) Close() error {
+	if s == nil || s.closed {
+		return nil
+	}
+	s.closed = true
+	return s.worker.Do(context.Background(), func(state *device.State) error {
+		result := errors.Join(state.Driver.ModuleUnload(s.module), s.library.Destroy(s.handle), s.library.Close())
+		s.module, s.handle, s.library = 0, 0, nil
+		return result
+	})
 }
 
 // ResidentArena reuses one scope-owned device slab by liveness mark.

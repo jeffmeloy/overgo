@@ -23,11 +23,21 @@ type ResidentTrainer struct {
 	construction Construction
 	worker       *device.Worker
 	executor     *executor.Executor
+	residentOps  *devicemath.ResidentOpsSession
+	muon         *optimizer.ResidentMuonPlan
 	weights      driver.DevicePtr
 	gradients    driver.DevicePtr
 	momentum     driver.DevicePtr
 	config       optimizer.Config
+	programs     []residentForwardProgram
 	closed       bool
+}
+
+type residentForwardProgram struct {
+	graph       ForwardGraph
+	compiled    *executor.CompiledGraph
+	hostFeeds   map[*tensor.Tensor]reference.Value
+	deviceFeeds map[*tensor.Tensor]driver.DevicePtr
 }
 
 func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTrainer, error) {
@@ -66,6 +76,25 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 	if err != nil {
 		return fail(err)
 	}
+	trainer.residentOps, err = devicemath.NewResidentOpsSession(worker)
+	if err != nil {
+		return fail(err)
+	}
+	trainer.muon, err = optimizer.NewResidentMuonPlan(worker, construction.optimizer, trainer.config)
+	if err != nil {
+		return fail(err)
+	}
+	for _, documents := range [][]string{construction.split.Train, construction.split.Validation, construction.split.Test} {
+		for _, document := range documents {
+			tokens, tokenErr := construction.Tokens(document)
+			if tokenErr != nil {
+				return fail(tokenErr)
+			}
+			if _, programErr := trainer.forwardProgram(tokens); programErr != nil {
+				return fail(programErr)
+			}
+		}
+	}
 	return trainer, nil
 }
 
@@ -75,6 +104,12 @@ func (t *ResidentTrainer) Close() error {
 	}
 	t.closed = true
 	var result error
+	if t.muon != nil {
+		result = errors.Join(result, t.muon.Close())
+	}
+	if t.residentOps != nil {
+		result = errors.Join(result, t.residentOps.Close())
+	}
 	if t.executor != nil {
 		result = errors.Join(result, t.executor.Close())
 	}
@@ -98,10 +133,7 @@ func (t *ResidentTrainer) Step(tokens []int, step int) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if err := optimizer.DeviceMuonPlanResident(
-		t.worker, t.weights, t.gradients, t.momentum,
-		t.construction.optimizer, step, t.config,
-	); err != nil {
+	if err := t.muon.Step(t.weights, t.gradients, t.momentum, step); err != nil {
 		return 0, err
 	}
 	return loss, nil
@@ -140,23 +172,75 @@ func (t *ResidentTrainer) Snapshot() (weights, momentum []float32, err error) {
 	return weights, momentum, nil
 }
 
+func (t *ResidentTrainer) ResetPeakMemory() error {
+	if t == nil || t.closed {
+		return errors.New("scratch model: resident trainer unavailable")
+	}
+	return t.worker.Do(context.Background(), func(state *device.State) error {
+		state.Driver.ResetPeakBytes()
+		return nil
+	})
+}
+
+func (t *ResidentTrainer) MemoryStats() (driver.MemoryStats, error) {
+	if t == nil || t.closed {
+		return driver.MemoryStats{}, errors.New("scratch model: resident trainer unavailable")
+	}
+	return t.worker.MemoryStats(context.Background())
+}
+
 func (t *ResidentTrainer) forward(tokens []int) (ForwardGraph, *executor.RetainedOutputs, error) {
-	graph, err := t.construction.CompileForwardGraph(tokens)
+	if len(tokens) < 2 {
+		return ForwardGraph{}, nil, errors.New("scratch model: forward tokens absent")
+	}
+	positions := min(t.construction.config.BlockSize, len(tokens)-1)
+	for _, token := range tokens[:positions+1] {
+		if token < 0 || token >= t.construction.config.VocabSize {
+			return ForwardGraph{}, nil, errors.New("scratch model: forward token outside vocabulary")
+		}
+	}
+	program, err := t.forwardProgram(tokens)
 	if err != nil {
 		return ForwardGraph{}, nil, err
+	}
+	rows := make([]uint32, program.graph.positions)
+	for index, token := range tokens[:program.graph.positions] {
+		rows[index] = uint32(token)
+	}
+	attributes := program.compiled.NewRuntimeAttributes()
+	if err := attributes.Set(program.graph.tokenRows, tensor.GetRowsAttributes{Rows: rows}); err != nil {
+		return ForwardGraph{}, nil, err
+	}
+	retained, err := t.executor.ExecuteRetainedCompiledParameterized(
+		context.Background(), program.compiled, program.hostFeeds, program.deviceFeeds, nil, attributes,
+	)
+	return program.graph, retained, err
+}
+
+func (t *ResidentTrainer) forwardProgram(tokens []int) (*residentForwardProgram, error) {
+	positions := min(t.construction.config.BlockSize, len(tokens)-1)
+	for index := range t.programs {
+		if t.programs[index].graph.positions == positions {
+			return &t.programs[index], nil
+		}
+	}
+	graph, err := t.construction.CompileForwardGraph(tokens)
+	if err != nil {
+		return nil, err
 	}
 	hostFeeds, deviceFeeds, err := graph.residentFeeds(t.construction, t.weights)
 	if err != nil {
-		return ForwardGraph{}, nil, err
+		return nil, err
 	}
 	compiled, err := executor.Compile(graph.cacheOutputs()...)
 	if err != nil {
-		return ForwardGraph{}, nil, err
+		return nil, err
 	}
-	retained, err := t.executor.ExecuteRetainedCompiledWithDeviceFeeds(
-		context.Background(), compiled, hostFeeds, deviceFeeds,
-	)
-	return graph, retained, err
+	t.programs = append(t.programs, residentForwardProgram{
+		graph: graph, compiled: compiled,
+		hostFeeds: hostFeeds, deviceFeeds: deviceFeeds,
+	})
+	return &t.programs[len(t.programs)-1], nil
 }
 
 func (g ForwardGraph) residentFeeds(
@@ -184,7 +268,7 @@ func (g ForwardGraph) residentFeeds(
 
 func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {
 	var loss float64
-	err := devicemath.WithResidentOps(t.worker, func(ops *devicemath.ResidentOps) error {
+	err := t.residentOps.Run(func(ops *devicemath.ResidentOps) error {
 		var err error
 		loss, err = t.backwardWithOps(ops, graph, retained, tokens)
 		return err

@@ -1,6 +1,6 @@
 # adaptive_new Parity and Performance Report
 
-Validation base: Overgo `1a5074c` plus the E4B image-language parity slice;
+Validation base: Overgo `7759622` plus the scratch-training leadership slice;
 adaptive_new `214950b3b`; reviewed 2026-08-13. adaptive_new working-tree changes
 remain observations, not landed evidence.
 
@@ -29,6 +29,9 @@ best resident implementation.
   are prerequisites, not E4B closure.
 - Production dense training beats adaptive's retained Carbon causal protocol;
   Qwen, hybrid, E4B, checkpoint, and promotion remain open.
+- Corpus-to-model construction now matches the pinned adaptive_new scratch
+  oracle. The resident three-step program leads the matched reference on wall
+  and runtime-owned peak memory; production checkpoint/publication remains open.
 - Critical evidence gap: 34 compatibility claims are marked `implemented`, but
   the current file does not encode the doctrine's evidence tiers. All 135
   architecture entries are `experimental`; only four name a validated fixture.
@@ -75,7 +78,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Runtime topology | Shared primitives plus large extmodel assembly | `recipe.Program`, model plans, neutral packages; image/audio/video projection modules and decoded tensor kinds are typed independently of placement | Overgo compiled program |
 | CUDA | Go loaders plus family-heavy extmodel kernels | Manifested binaries, driver API, executor graph | Overgo executor + kernel manifest |
 | Serving | Mature multimodal endpoints and evidence | llama-compatible server plus growing typed workflows | Overgo, after API parity matrix |
-| Training | Broad objective/trainer set plus a working corpus-to-new-model path; uneven authority | Strong dense/hybrid primitives; no production model construction | Overgo `TrainingRunPlan` + `ScratchConstruction` + `TrainingProgram` |
+| Training | Broad objective/trainer set plus a working corpus-to-new-model path; uneven authority | Compiled `TrainingRunPlan`, corpus-derived `ScratchConstruction`, shared tensor VJP, resident CUDA and Muon; objective/model breadth remains narrower | Overgo compiled authority + shared runtime |
 | Evidence | RepoDB, capability budgets, media artifacts, fixtures | RepoDB, compatibility claims, plan fixtures | Overgo RepoDB; Git owns chronology |
 
 ## Inference and Generation Matrix
@@ -110,8 +113,8 @@ Overgo's tokenizer total includes a large generated Unicode table.
 
 | Training concern | adaptive_new | Overgo | Verdict |
 | --- | --- | --- | --- |
-| Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` exist only in the design document | Overgo gap |
-| Model from scratch | `RunFromProviderRich` derives split, rune vocabulary, topology, initialization, batching, causal training and metrics from documents | Loads existing artifacts only; no construction profile, parameter manifest, initializer or initialized-artifact publication | Major Overgo gap; port exact semantics, then use resident CUDA/Muon |
+| Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` compile immutable construction, dataset, operator and Muon authority; production checkpoint/promotion breadth remains open | Core authority ported; breadth gap |
+| Model from scratch | `RunFromProviderRich` derives split, rune vocabulary, topology, initialization, batching, causal training and metrics from documents | Pinned source/config/oracle parity; direct flat initialization; shared tensor forward/VJP; resident CUDA weights, gradients, momentum, compiled graphs and pooled scratch | Matched three-step wall/peak lead; artifact publication and exact resume open |
 | Optimizer | Adaptive optimizer machinery and model-specific use; historical SGD paths remain | Matrix/vector/scalar groups use one compiled Muon path; sign, BF16-SGD and family-local production updates deleted | Muon-only production authority |
 | Dense causal LM | Retained Carbon causal CUDA at `c72b6595d`: four 31-token DNA windows, LR `1.33179e-5`, Muon 0.95, loss `8.43767 -> 7.29179`, 6.816 s loop, 11.47 GiB admitted peak | Same ordered windows and settings: loss `8.437673 -> 7.293611`, 5.05-5.13 s loop, 4.620 GiB measured peak | Matched Carbon wall/peak lead; Qwen bias path open |
 | Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train -freeze-lexical` selects the no-fallback resident contract; full-parameter mode remains explicit | Carbon route reachable; exact checkpoint contract open |
@@ -150,6 +153,11 @@ Overgo's tokenizer total includes a large generated Unicode table.
   adaptive_new parity and not a production-model result.
 - Device layer backward, cached forward, loss/gradients, full trainer, and
   resident trainer focused tests pass on the reviewed machine.
+- Adaptive scratch profile, seed 7, batch 1, three steps: adaptive_new pinned
+  runs span 221.4-231.8 ms and 3.13-3.18 MB peak Go heap. Overgo reports
+  compile separately, 105-155 ms initialization, 44.7-49 ms cold, 8.7-11.6 ms
+  warm, 64.4-66.2 ms for the matched three steps, and 2.38-2.43 MB combined host plus
+  runtime-owned device peak. Loss/validation maximum delta is `1.738e-3`.
 
 These results promote matched Carbon frozen-lexical leadership. They do not
 justify Qwen, E4B, 12B, controller, or system-wide training closure.
@@ -170,6 +178,7 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | Krea 256 generation | adaptive exact Go 25.430 s | 13.804 s / 25.030 GiB; MAE 0.02401, RMSE 0.05459 | 46% wall lead; lower peak; bounded quality lead |
 | Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | 35% lead vs best Python; 60% vs adaptive; 2.2% lower peak |
 | Carbon-500M causal training | adaptive `c72b6595d`: 6.816 s loop / 11.47 GiB admitted; loss 8.43767 -> 7.29179 | 5.05-5.13 s loop / 4.620 GiB measured; loss 8.437673 -> 7.293611 | 25% loop-wall lead; about 60% lower peak |
+| Corpus-derived scratch causal training | adaptive pinned run: 221.4-231.8 ms / 3.13-3.18 MB peak heap | 64.4-66.2 ms matched steps / 2.38-2.43 MB combined runtime peak; cold 44.7-49 ms, warm 8.7-11.6 ms | At least 3.34x step-wall lead; at least 22% lower peak; trajectory delta `1.738e-3` |
 | SenseNova generation core | Adaptive matched reusable body 6.88 s | Overgo retained session: fresh cold body 8.117 s, warm body 4.048 s / 0.710 GiB peak; cold <=8.6 s and warm <=6.2 s gated twice | 41.1% warm-body lead at the fresh measurement; cold is slower than adaptive and is not claimed as leadership; full image route open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | No complete Overgo result | Open |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |
@@ -320,19 +329,14 @@ The authoritative steps live in `docs/plan.json`. Order:
 5. Build a Go-owned neutral adaptive parity snapshot/import and scoreboard.
 6. Derive inference modality signatures from recipes; close text, structured,
    combined multimodal input, speech, image, video, then API/session behavior.
-7. Capture the pinned adaptive_new scratch oracle: derivation, initialization,
-   batches, gradients, Muon updates, trajectory and resume boundary.
-8. Compile `TrainingRunPlan`, `ScratchConstruction` and `TrainingProgram`; bind
-   immutable RepoDB facts and publish the initialized model artifact.
-9. Match the scratch host trajectory, then beat adaptive_new with retained CUDA
-   graphs and resident Muon state on identical work.
-10. Make Muon the only optimizer family; delete SGD/sign compatibility paths.
-11. Make checkpoint/resume atomic, exact, lineage-bound, and production-reachable.
-12. Prove dense real-artifact training parity; then real Qwen hybrid and E4B,
+7. Publish scratch initialization and training results as complete RepoDB
+   artifacts; bind exact resume and production command reachability.
+8. Make checkpoint/resume atomic, exact, lineage-bound, and production-reachable.
+9. Prove dense real-artifact training parity; then real Qwen hybrid and E4B,
     exercising every adaptive-declared trainable modality.
-13. Compile the multimodal training matrix; port remaining adaptive objective
+10. Compile the multimodal training matrix; port remaining adaptive objective
     families through shared programs and explicitly refuse absent objectives.
-14. Train and promote the scratch workflow controller; keep recursive candidate
+11. Train and promote the scratch workflow controller; keep recursive candidate
     proposal inside the model but data admission and promotion external.
 
 ## Definition of Exceeds adaptive_new
@@ -356,4 +360,5 @@ Overgo exceeds adaptive_new only when:
 - The plan contains open work only; Git and RepoDB retain evidence and history.
 
 Current state: inference leadership is real but incomplete. Training leadership
-is not yet established.
+is established for matched Carbon and the pinned scratch profile, not yet for
+the broader adaptive_new objective/model matrix.

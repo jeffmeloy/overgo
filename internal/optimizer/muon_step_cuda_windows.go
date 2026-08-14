@@ -4,6 +4,7 @@ package optimizer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -133,6 +134,85 @@ type ResidentMatrix struct {
 	Rows, Cols                  int
 }
 
+// ResidentMuonPlan retains optimizer module, cuBLAS handle, and NS scratch.
+type ResidentMuonPlan struct {
+	worker  *device.Worker
+	plan    Plan
+	config  Config
+	ops     *deviceOps
+	scratch muonScratch
+	closed  bool
+}
+
+func NewResidentMuonPlan(worker *device.Worker, plan Plan, config Config) (*ResidentMuonPlan, error) {
+	if worker == nil || plan.Identity() == "" || plan.ParameterCount() <= 0 {
+		return nil, errors.New("resident Muon plan: invalid authority")
+	}
+	if err := config.validate(); err != nil {
+		return nil, err
+	}
+	session := &ResidentMuonPlan{worker: worker, plan: plan, config: config}
+	err := worker.Do(context.Background(), func(state *device.State) error {
+		ops, err := newDeviceOps(state)
+		if err != nil {
+			return err
+		}
+		var scratch muonScratch
+		if plan.maxMatrix > 0 {
+			scratch, err = ops.allocMuonScratch(plan.maxMatrix, plan.maxSquare)
+			if err != nil {
+				ops.close()
+				return err
+			}
+		}
+		session.ops, session.scratch = ops, scratch
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func (s *ResidentMuonPlan) Step(weights, gradients, momentum driver.DevicePtr, step int) error {
+	if s == nil || s.closed || s.ops == nil || weights == 0 || gradients == 0 || momentum == 0 || step <= 0 {
+		return errors.New("resident Muon plan: unavailable")
+	}
+	rate := s.config.LearningRate(step)
+	return s.worker.Do(context.Background(), func(_ *device.State) error {
+		for _, group := range s.plan.groups {
+			if group.Frozen {
+				continue
+			}
+			if err := s.ops.muonMatrixGroupResidentWithScratch(
+				offsetF32(weights, group.Start), offsetF32(gradients, group.Start), offsetF32(momentum, group.Start),
+				group.Rows, group.Cols, s.config.Momentum, rate, s.scratch,
+			); err != nil {
+				return err
+			}
+		}
+		if err := s.ops.lib.MemsetD32Async(gradients, 0, uint64(s.plan.ParameterCount()), s.ops.stream); err != nil {
+			return err
+		}
+		return s.ops.lib.StreamSynchronize(s.ops.stream)
+	})
+}
+
+func (s *ResidentMuonPlan) Close() error {
+	if s == nil || s.closed {
+		return nil
+	}
+	s.closed = true
+	return s.worker.Do(context.Background(), func(_ *device.State) error {
+		if s.scratch.tmp != 0 {
+			s.scratch.free(s.ops.lib)
+		}
+		s.ops.close()
+		s.ops, s.scratch = nil, muonScratch{}
+		return nil
+	})
+}
+
 // DeviceMuonMatricesResident applies one Muon step to already-resident device
 // matrices: nothing is uploaded or downloaded. Weights, gradient and momentum stay
 // on the device across calls; the caller uploads them once at the start of training
@@ -170,36 +250,12 @@ func DeviceMuonPlanResident(
 	if err := config.validate(); err != nil {
 		return err
 	}
-	rate := config.LearningRate(step)
-	return worker.Do(context.Background(), func(state *device.State) error {
-		ops, err := newDeviceOps(state)
-		if err != nil {
-			return err
-		}
-		defer ops.close()
-		if plan.maxMatrix > 0 {
-			scratch, err := ops.allocMuonScratch(plan.maxMatrix, plan.maxSquare)
-			if err != nil {
-				return err
-			}
-			defer scratch.free(ops.lib)
-			for _, group := range plan.groups {
-				if group.Frozen {
-					continue
-				}
-				if err := ops.muonMatrixGroupResidentWithScratch(
-					offsetF32(weights, group.Start), offsetF32(gradients, group.Start), offsetF32(momentum, group.Start),
-					group.Rows, group.Cols, config.Momentum, rate, scratch,
-				); err != nil {
-					return err
-				}
-			}
-		}
-		if err := ops.lib.MemsetD32Async(gradients, 0, uint64(plan.ParameterCount()), ops.stream); err != nil {
-			return err
-		}
-		return ops.lib.StreamSynchronize(ops.stream)
-	})
+	session, err := NewResidentMuonPlan(worker, plan, config)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+	return session.Step(weights, gradients, momentum, step)
 }
 
 // DeviceMuonStepPlan: one flat upload/download; resident matrix updates.

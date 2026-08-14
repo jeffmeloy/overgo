@@ -36,7 +36,7 @@ This milestone requires all of the following:
 E4B, 12B, dynamic quantization and NVMe optimizer paging are not prerequisites
 for this milestone.
 
-### Current implementation boundary (2026-08-13)
+### Current implementation boundary (2026-08-14)
 
 Implemented substrate:
 
@@ -47,15 +47,20 @@ Implemented substrate:
 - lower-level dense checkpoint/resume trajectory tests;
 - host Gemma3n AltUp, PLE, Laurel and mixed-window VJPs plus shared device
   operator VJPs.
+- pinned adaptive_new scratch derivation, initialization, gradient/update and
+  trajectory oracle;
+- compiled scratch construction/program authority, direct flat initialization,
+  shared tensor forward/VJP, resident CUDA/Muon sessions, liveness arena and
+  pooled Newton–Schulz scratch;
+- matched scratch leadership: 64.4-66.2 ms versus adaptive_new 221.4 ms minimum
+  and 2.38-2.43 MB combined runtime peak versus 3.13 MB minimum.
 
 Production gaps:
 
-- `TrainingRunPlan` and `TrainingProgram` are design contracts, not implemented
-  Go types;
-- no production type derives a new model vocabulary, topology, parameter manifest
-  and initialized checkpoint from a dataset artifact;
-- adaptive_new's scratch path is not yet captured as fingerprinted construction,
-  initialization, batch-order and training-trajectory oracles;
+- scratch construction and program types are implemented; generalized
+  multimodal/objective compilation is incomplete;
+- scratch initialization is content-addressed in memory but initialized-model,
+  checkpoint and run publication are not yet production-reachable RepoDB flows;
 - `cmd/train` selects the resident dense device loop; the displaced per-step
   weight scatter/gradient gather training adapters are deleted;
 - production checkpoints are not atomic complete-state resumes;
@@ -70,8 +75,9 @@ Production gaps:
   real update remains blocked on a device/resident Muon program because host
   Newton–Schulz at artifact scale is not an admissible production path.
 
-Device backward and device Newton–Schulz are implemented. Production
-reachability and real-model integration are now the long poles.
+Scratch device training and Newton–Schulz are resident and gated. Artifact
+publication, exact resume, controller promotion and real-model integration are
+now the long poles.
 
 ## 2. Authority and compiled contracts
 

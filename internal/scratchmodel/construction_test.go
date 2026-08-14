@@ -1,9 +1,11 @@
 package scratchmodel
 
 import (
+	"go/build"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"overgo/internal/adaptiveparity"
@@ -90,6 +92,26 @@ func TestScratchConstructionAuthority(t *testing.T) {
 	}
 	if count != oracle.ParameterCount {
 		t.Fatalf("parameter count = %d, want %d", count, oracle.ParameterCount)
+	}
+}
+
+func TestScratchConstructionRejectsEmptyCorpus(t *testing.T) {
+	for _, documents := range [][]string{{"", "", ""}, {"abc", "", "cab"}} {
+		if _, err := Compile(CorpusFacts{Documents: documents, Seed: 7, Steps: 3}); err == nil {
+			t.Fatalf("empty corpus document accepted: %q", documents)
+		}
+	}
+}
+
+func TestScratchOracleRuntimeExcludedFromProduction(t *testing.T) {
+	pkg, err := build.Default.ImportDir(".", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range pkg.GoFiles {
+		if strings.Contains(name, "oracle") || strings.HasPrefix(name, "host_") {
+			t.Fatalf("oracle runtime compiled into production: %s", name)
+		}
 	}
 }
 

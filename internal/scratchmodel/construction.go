@@ -78,17 +78,20 @@ type Construction struct {
 	config     Config
 	split      Split
 	parameters []Parameter
-	weights    map[string][]float64
+	weights    []float64
+	bindings   map[string]parameterBinding
 	authority  trainingprogram.ScratchConstruction
 }
+
+type parameterBinding struct{ start, end int }
 
 func Compile(facts CorpusFacts) (Construction, error) {
 	if len(facts.Documents) < 3 || facts.Steps <= 0 {
 		return Construction{}, errors.New("scratch model: invalid corpus facts")
 	}
 	for _, document := range facts.Documents {
-		if !utf8.ValidString(document) {
-			return Construction{}, errors.New("scratch model: corpus is not UTF-8")
+		if !utf8.ValidString(document) || utf8.RuneCountInString(document) == 0 {
+			return Construction{}, errors.New("scratch model: corpus document is empty or not UTF-8")
 		}
 	}
 
@@ -102,7 +105,7 @@ func Compile(facts CorpusFacts) (Construction, error) {
 		return Construction{}, err
 	}
 	config := deriveConfig(split.Train, facts.Steps)
-	weights, parameters := initialize(config, facts.Seed)
+	weights, bindings, parameters := initialize(config, facts.Seed)
 
 	derivationProfile, err := identifyJSON(artifact.KindProfile, struct {
 		Version string `json:"version"`
@@ -179,7 +182,7 @@ func Compile(facts CorpusFacts) (Construction, error) {
 	}
 	return Construction{
 		id: modelID, dataset: datasetID, splitID: splitID, config: cloneConfig(config),
-		split: cloneSplit(split), parameters: slices.Clone(parameters), weights: cloneWeights(weights),
+		split: cloneSplit(split), parameters: slices.Clone(parameters), weights: weights, bindings: bindings,
 		authority: authority,
 	}, nil
 }
@@ -193,8 +196,16 @@ func (c Construction) Parameters() []Parameter                        { return s
 func (c Construction) Authority() trainingprogram.ScratchConstruction { return c.authority }
 
 func (c Construction) Weights(name string) ([]float64, bool) {
-	values, ok := c.weights[name]
+	values, ok := c.weightView(name)
 	return slices.Clone(values), ok
+}
+
+func (c Construction) weightView(name string) ([]float64, bool) {
+	binding, ok := c.bindings[name]
+	if !ok || binding.start < 0 || binding.start > binding.end || binding.end > len(c.weights) {
+		return nil, false
+	}
+	return c.weights[binding.start:binding.end], true
 }
 
 func (c Construction) Tokens(document string) ([]int, error) {
@@ -313,11 +324,16 @@ type parameterShape struct {
 	name, role  string
 	rows, cols  int
 	initializer Initializer
+	digest      string
 }
 
-func initialize(config Config, seed int64) (map[string][]float64, []Parameter) {
+func initialize(config Config, seed int64) ([]float64, map[string]parameterBinding, []Parameter) {
 	rng := rand.New(rand.NewSource(seed))
-	weights := make(map[string][]float64, 5+4*config.LayerCount)
+	parameterCount := 2*config.VocabSize*config.Embedding + config.BlockSize*config.Embedding +
+		config.BlockSize + config.LayerCount*config.HeadCount +
+		config.LayerCount*(4*config.Embedding*config.Embedding+2*config.MLPWidth*config.Embedding)
+	weights := make([]float64, 0, parameterCount)
+	bindings := make(map[string]parameterBinding, 5+4*config.LayerCount)
 	shapes := make([]parameterShape, 0, 5+4*config.LayerCount)
 	add := func(name, role string, rows, cols int, initializer Initializer) {
 		values := make([]float64, rows*cols)
@@ -326,8 +342,10 @@ func initialize(config Config, seed int64) (map[string][]float64, []Parameter) {
 				values[index] = (rng.Float64()*2 - 1) * config.InitStd
 			}
 		}
-		weights[name] = values
-		shapes = append(shapes, parameterShape{name, role, rows, cols, initializer})
+		start := len(weights)
+		weights = append(weights, values...)
+		bindings[name] = parameterBinding{start: start, end: len(weights)}
+		shapes = append(shapes, parameterShape{name, role, rows, cols, initializer, digestFloats(values)})
 	}
 	add("wte", "token-embedding", config.VocabSize, config.Embedding, InitializerUniform)
 	add("lm_head", "output-projection", config.VocabSize, config.Embedding, InitializerUniform)
@@ -346,10 +364,10 @@ func initialize(config Config, seed int64) (map[string][]float64, []Parameter) {
 	for index, shape := range shapes {
 		parameters[index] = Parameter{
 			Name: shape.name, Role: shape.role, Rows: shape.rows, Cols: shape.cols,
-			Initializer: shape.initializer, Digest: digestFloats(weights[shape.name]),
+			Initializer: shape.initializer, Digest: shape.digest,
 		}
 	}
-	return weights, parameters
+	return weights, bindings, parameters
 }
 
 func digestFloats(values []float64) string {

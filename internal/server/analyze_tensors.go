@@ -15,6 +15,11 @@ import (
 const (
 	analyzeTensorMaxSamplesPerTensor = 4096
 	analyzeTensorMaxReadBytes        = 64 << 20
+	// analyzeTensorSpectralMaxDim bounds inline effective-rank computation: only
+	// small 2-D matrices are analyzed per request (larger ones report deferred);
+	// the offline producer handles full coverage. A compute budget, not a metric
+	// threshold.
+	analyzeTensorSpectralMaxDim = 512
 
 	analyzeTensorSimilarDefaultK = 8
 	analyzeTensorSimilarMaxK     = 64
@@ -27,6 +32,8 @@ type analyzeTensor struct {
 	Storage string   `json:"storage"`
 	Shape   []uint64 `json:"shape"`
 	tensorstats.Characterization
+	EffectiveRank  float64 `json:"effective_rank,omitempty"`
+	SpectralStatus string  `json:"spectral_status,omitempty"`
 }
 
 // analyzeTensorsResponse returns a distribution-free value profile for every
@@ -163,6 +170,7 @@ func characterizeGGUF(file *gguf.File) ([]analyzeTensor, error) {
 	document, err := modelartifact.MeasureGGUF(inventory.TensorInventory, file, modelartifact.MeasurementPolicy{
 		MaxSamplesPerTensor: analyzeTensorMaxSamplesPerTensor,
 		MaxReadBytes:        analyzeTensorMaxReadBytes,
+		SpectralMaxDim:      analyzeTensorSpectralMaxDim,
 	})
 	if err != nil {
 		return nil, err
@@ -175,6 +183,8 @@ func characterizeGGUF(file *gguf.File) ([]analyzeTensor, error) {
 			Storage:          fact.Storage,
 			Shape:            fact.Shape,
 			Characterization: measurement.Characterization,
+			EffectiveRank:    measurement.EffectiveRank,
+			SpectralStatus:   measurement.SpectralStatus,
 		}
 	}
 	return profiles, nil

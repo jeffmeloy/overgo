@@ -185,6 +185,41 @@ func TestAnalyzeTensorsSimilarValidation(t *testing.T) {
 	}
 }
 
+func TestAnalyzeTensorsSurfacesEffectiveRank(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "matrix.gguf")
+	ones := make([]float32, 16) // 4x4 all-ones -> rank 1 -> effective rank 0.25
+	for i := range ones {
+		ones[i] = 1
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gguf.Write(f, nil, []gguf.TensorData{
+		{Name: "attn.weight", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(f32Bytes(ones))},
+	}, gguf.WriteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: path})
+	response := serveTestRequest(handler, http.MethodGet, "/analyze/tensors", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var result analyzeTensorsResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(result.Tensors) != 1 {
+		t.Fatalf("want 1 tensor, got %d", len(result.Tensors))
+	}
+	m := result.Tensors[0]
+	if m.SpectralStatus != "computed" || math.Abs(m.EffectiveRank-0.25) > 1e-6 {
+		t.Errorf("effective rank: status=%q value=%.4f, want computed 0.25", m.SpectralStatus, m.EffectiveRank)
+	}
+}
+
 func TestAnalyzeModelAdvertisesTensorCapability(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/model", "")

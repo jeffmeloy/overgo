@@ -8,16 +8,16 @@
       "status": "open",
       "steps": [
         {
-          "id": "wan-production-runtime",
-          "title": "Move the verified Wan CUDA harness behind a reusable resident generator; retain model, conditioning, denoise state, and causal VAE across the request",
+          "id": "liveedit-neutral-core",
+          "title": "Port adaptive_new LiveEdit flow schedule, chunk/cache geometry, channel-major seams, and no-pruning sampler through neutral latentvideo contracts",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestWanProductionRuntime$' -count=1 -v"
+          "verify": "go test ./internal/latentvideo -run '^TestLiveEditReferenceParity$' -count=1 -v"
         },
         {
-          "id": "liveedit-port",
-          "title": "Port adaptive_new LiveEdit conditioning, flow schedule, bounded seam, denoise, and decode through neutral latentvideo components with reference-oracle parity",
+          "id": "liveedit-device-runtime",
+          "title": "Bind the neutral LiveEdit core to source encode, semantic text conditioning, retained CUDA denoise, bounded KV history, and causal decode; match the adaptive oracle",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditReferenceParity$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditDeviceRuntime$' -count=1 -v"
         },
         {
           "id": "video-production-activation",

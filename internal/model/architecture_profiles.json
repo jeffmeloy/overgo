@@ -462,6 +462,7 @@
     },
     "Forward": {"Operation": 4, "Session": 1},
     "MetadataDefaults": {
+      "DraftBlockSize": 16,
       "RopeDimension": 2
     },
     "ModelCatalog": {
@@ -739,7 +740,13 @@
       "QueryScale": 4
     },
     "MetadataDefaults": {
-      "RopeDimension": 1
+      "AlternateStateCount": 4,
+      "LowRankResidualWidth": 64,
+      "PerLayerEmbeddingWidth": 256,
+      "RopeDimension": 1,
+      "SharedKVStartLayer": 20,
+      "SparseLayerCount": 10,
+      "SparsityStdMultiplier": 1.6448533535003662
     },
     "Name": "gemma3n",
     "FeedForward": 6,

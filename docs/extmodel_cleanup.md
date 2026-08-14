@@ -35,16 +35,15 @@ active recipe + resolved artifact facts
 | Alternate-state facts on generic forward program | 0 | Hold at zero |
 | Alternate-state magnitude-rescale copies | 0 | Hold at zero |
 | Global audio waveform codec facts | 0 | Hold at zero |
+| Hardcoded alternate/draft metadata defaults | 0 | Hold at zero |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named production files: none.
 
 ## Ordered Work
 
-1. Fold feature-draft, paired-cache, DFlash, and audio-token leaves into typed projection/session programs; delete family wrappers and filenames.
-2. Make encoder/decoder and audio-token coordinators consume sealed session programs; remove T5 and WavTokenizer runtime ownership.
-3. Move remaining architecture validation constants into resolved profile facts or derived artifact relationships.
-4. Remove duplicate host/reference probes once operator-level host/CUDA evidence owns the same contract.
+1. Move remaining architecture validation constants into resolved profile facts or derived artifact relationships.
+2. Remove duplicate host/reference probes once operator-level host/CUDA evidence owns the same contract.
 
 ## Per-Wave Gate
 

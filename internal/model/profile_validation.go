@@ -113,6 +113,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		{"MetadataDefaults.LogitScale", profile.MetadataDefaults.LogitScale},
 		{"MetadataDefaults.LayerNormEpsilon", profile.MetadataDefaults.LayerNormEpsilon},
 		{"MetadataDefaults.QKNormEpsilon", profile.MetadataDefaults.QKNormEpsilon},
+		{"MetadataDefaults.SparsityStdMultiplier", profile.MetadataDefaults.SparsityStdMultiplier},
 	} {
 		if scalar.value < 0 || math.IsNaN(float64(scalar.value)) || math.IsInf(float64(scalar.value), 0) {
 			return fmt.Errorf("architecture profile %q: %s must be finite and nonnegative", profile.Name, scalar.name)
@@ -135,6 +136,16 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	}
 	if profile.AttentionGraph.GatedDelta != gatedDeltaNone && profile.Attention != AttentionGatedDelta {
 		return fmt.Errorf("architecture profile %q: Qwen GDN graph requires Qwen GDN attention", profile.Name)
+	}
+	defaults := profile.MetadataDefaults
+	if profile.Validation.Attention == AttentionValidationGemma3N &&
+		(defaults.AlternateStateCount == 0 || defaults.LowRankResidualWidth == 0 ||
+			defaults.PerLayerEmbeddingWidth == 0 || defaults.SharedKVStartLayer == 0 ||
+			defaults.SparseLayerCount == 0 || defaults.SparsityStdMultiplier <= 0) {
+		return fmt.Errorf("architecture profile %q: alternate-state metadata defaults are incomplete", profile.Name)
+	}
+	if profile.Validation.Recurrent == RecurrentValidationDFlash && defaults.DraftBlockSize == 0 {
+		return fmt.Errorf("architecture profile %q: paired-feature draft block default is absent", profile.Name)
 	}
 	indexer := profile.Cadence
 	if indexer.FullIndexerEveryLayer &&

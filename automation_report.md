@@ -59,15 +59,16 @@ SQA identities, including target-head review admission and immutable findings.
 
 ### Tightening measurements
 
-The fixed baseline is `fa67865`; measurements use `git diff --numstat` over Go
-files, with `_test.go` reported separately. The first three passes had actually
-grown production Go by 109 lines and tests by 177 lines. The correction removes
-the one-consumer `gatecontrol` abstraction while preserving its behavior.
+The fixed baseline is `fa67865`; measurements use committed
+`git diff --no-renames --numstat` over Go files, with `_test.go` reported
+separately. The first three passes had actually grown production Go by 109 lines
+and tests by 177 lines. The correction removes the one-consumer `gatecontrol`
+abstraction while preserving its behavior.
 
 | Surface vs `fa67865` | Net change |
 | --- | ---: |
 | Production Go | -52 lines |
-| Go tests | +45 lines |
+| Go tests | +72 lines |
 | `internal/plan/context.go` | -48 lines |
 | Run-record document family | -9 production lines |
 | `cmd/gate/main.go` | -12 lines |

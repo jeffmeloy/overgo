@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"slices"
 	"sort"
+	"strings"
 	"unicode/utf8"
 
 	"overgo/internal/artifact"
@@ -19,17 +20,42 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-const (
-	defaultLayerCount = 2
-	minMLPFactor      = 2
-	cltMinimum        = 30
-	adaptiveMuon      = 29.0 / 31.0
-)
-
 type CorpusFacts struct {
 	Documents []string
 	Seed      int64
 	Steps     int
+}
+
+// DerivationProfile owns corpus-to-topology policy.
+type DerivationProfile struct {
+	Version            string  `json:"version"`
+	SplitDenominator   int     `json:"split_denominator"`
+	StableSplitMinimum int     `json:"stable_split_minimum"`
+	MinimumLayers      int     `json:"minimum_layers"`
+	MinimumMLPFactor   int     `json:"minimum_mlp_factor"`
+	MLPBudget          int     `json:"mlp_budget"`
+	Epsilon            float64 `json:"epsilon"`
+	MuonMomentum       float64 `json:"muon_momentum"`
+}
+
+func AdaptiveDerivationProfile() DerivationProfile {
+	return DerivationProfile{
+		Version:          "adaptive-corpus-derivation-v1",
+		SplitDenominator: 10, StableSplitMinimum: 30,
+		MinimumLayers: 2, MinimumMLPFactor: 2, MLPBudget: 256,
+		Epsilon: 1e-8, MuonMomentum: 29.0 / 31.0,
+	}
+}
+
+func (p DerivationProfile) validate() error {
+	if strings.TrimSpace(p.Version) == "" || strings.ContainsAny(p.Version, "\x00\r\n") ||
+		p.SplitDenominator <= 0 || p.StableSplitMinimum <= 0 ||
+		p.MinimumLayers <= 0 || p.MinimumMLPFactor <= 0 || p.MLPBudget <= 0 ||
+		p.Epsilon <= 0 || math.IsNaN(p.Epsilon) || math.IsInf(p.Epsilon, 0) ||
+		p.MuonMomentum <= 0 || p.MuonMomentum >= 1 || math.IsNaN(p.MuonMomentum) || math.IsInf(p.MuonMomentum, 0) {
+		return errors.New("scratch model: invalid derivation profile")
+	}
+	return nil
 }
 
 type Split struct {
@@ -91,9 +117,12 @@ type Construction struct {
 
 type parameterBinding struct{ start, end int }
 
-func Compile(facts CorpusFacts) (Construction, error) {
+func Compile(facts CorpusFacts, profile DerivationProfile) (Construction, error) {
 	if len(facts.Documents) < 3 || facts.Steps <= 0 {
 		return Construction{}, errors.New("scratch model: invalid corpus facts")
+	}
+	if err := profile.validate(); err != nil {
+		return Construction{}, err
 	}
 	for _, document := range facts.Documents {
 		if !utf8.ValidString(document) || utf8.RuneCountInString(document) == 0 {
@@ -105,12 +134,12 @@ func Compile(facts CorpusFacts) (Construction, error) {
 	if err != nil {
 		return Construction{}, err
 	}
-	split := splitDocuments(facts.Documents, facts.Seed)
+	split := splitDocuments(facts.Documents, facts.Seed, profile)
 	splitID, err := identifyJSON(artifact.KindDatasetShard, split)
 	if err != nil {
 		return Construction{}, err
 	}
-	config := deriveConfig(split.Train, facts.Steps)
+	config := deriveConfig(split.Train, facts.Steps, profile)
 	weights, bindings, parameters := initialize(config, facts.Seed)
 	optimizerPlan, program, err := compileSharedProgram(parameters, bindings, len(weights))
 	if err != nil {
@@ -118,9 +147,9 @@ func Compile(facts CorpusFacts) (Construction, error) {
 	}
 
 	derivationProfile, err := identifyJSON(artifact.KindProfile, struct {
-		Version string `json:"version"`
-		Steps   int    `json:"steps"`
-	}{Version: "adaptive-corpus-derivation-v1", Steps: facts.Steps})
+		Profile DerivationProfile `json:"profile"`
+		Steps   int               `json:"steps"`
+	}{Profile: profile, Steps: facts.Steps})
 	if err != nil {
 		return Construction{}, err
 	}
@@ -233,7 +262,7 @@ func (c Construction) Tokens(document string) ([]int, error) {
 	return append(tokens, c.config.BOS), nil
 }
 
-func splitDocuments(documents []string, seed int64) Split {
+func splitDocuments(documents []string, seed int64, profile DerivationProfile) Split {
 	indices := make([]int, len(documents))
 	for index := range indices {
 		indices[index] = index
@@ -241,11 +270,11 @@ func splitDocuments(documents []string, seed int64) Split {
 	rand.New(rand.NewSource(seed)).Shuffle(len(indices), func(left, right int) {
 		indices[left], indices[right] = indices[right], indices[left]
 	})
-	validationCount := max(1, len(indices)/10)
-	testCount := max(1, len(indices)/10)
-	if len(indices) >= 3*cltMinimum {
-		validationCount = max(validationCount, cltMinimum)
-		testCount = max(testCount, cltMinimum)
+	validationCount := max(1, len(indices)/profile.SplitDenominator)
+	testCount := max(1, len(indices)/profile.SplitDenominator)
+	if len(indices)/3 >= profile.StableSplitMinimum {
+		validationCount = max(validationCount, profile.StableSplitMinimum)
+		testCount = max(testCount, profile.StableSplitMinimum)
 	}
 	if validationCount+testCount >= len(indices) {
 		validationCount, testCount = 1, 1
@@ -266,7 +295,7 @@ func splitDocuments(documents []string, seed int64) Split {
 	}
 }
 
-func deriveConfig(documents []string, steps int) Config {
+func deriveConfig(documents []string, steps int, profile DerivationProfile) Config {
 	counts := map[rune]int{}
 	maxLength, tokenCount := 0, 0
 	for _, document := range documents {
@@ -300,27 +329,27 @@ func deriveConfig(documents []string, steps int) Config {
 	headDim = embedding / headCount
 	effectiveVocab := effectiveVocabulary(counts, tokenCount)
 	mlpFactor := int(math.Ceil(math.Sqrt(float64(vocabSize)) + effectiveVocab/float64(embedding)))
-	mlpFactor = max(minMLPFactor, min(mlpFactor, int(math.Round(256/math.Sqrt(float64(vocabSize))))))
-	layerCount := deriveLayerCount(steps, blockSize, embedding, tokenCount)
+	mlpFactor = max(profile.MinimumMLPFactor, min(mlpFactor, int(math.Round(float64(profile.MLPBudget)/math.Sqrt(float64(vocabSize))))))
+	layerCount := deriveLayerCount(steps, blockSize, embedding, tokenCount, profile.MinimumLayers)
 	estimated := 2*vocabSize*embedding + blockSize*embedding + layerCount*(4*embedding*embedding+2*embedding*(embedding*mlpFactor))
 	return Config{
 		VocabSize: vocabSize, BlockSize: blockSize, Embedding: embedding,
 		HeadDim: headDim, HeadCount: headCount, LayerCount: layerCount,
 		MLPWidth: embedding * mlpFactor, AttentionWindow: min(blockSize, embedding),
 		BaseLR: 1 / math.Sqrt(float64(estimated)), InitStd: 1 / math.Sqrt(float64(embedding)),
-		Epsilon: 1e-8, MuonMomentum: adaptiveMuon, Characters: characters, BOS: len(characters),
+		Epsilon: profile.Epsilon, MuonMomentum: profile.MuonMomentum, Characters: characters, BOS: len(characters),
 		CharacterIndex: index, EstimatedParams: estimated,
 	}
 }
 
-func deriveLayerCount(steps, blockSize, embedding, tokenCount int) int {
+func deriveLayerCount(steps, blockSize, embedding, tokenCount, minimumLayers int) int {
 	rho := float64(steps*blockSize*embedding) / float64(tokenCount)
 	request := int(math.Floor(math.Sqrt(rho)))
 	scale := 1
 	for scale <= request/2 {
 		scale *= 2
 	}
-	return min(max(defaultLayerCount, defaultLayerCount*scale), max(defaultLayerCount, embedding/2))
+	return min(max(minimumLayers, minimumLayers*scale), max(minimumLayers, embedding/2))
 }
 
 func effectiveVocabulary(counts map[rune]int, total int) float64 {

@@ -31,7 +31,7 @@ func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
 
 func TestScratchProgramOwnsResidentExecution(t *testing.T) {
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps})
+	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, AdaptiveDerivationProfile())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestScratchProgramOwnsResidentExecution(t *testing.T) {
 
 func TestScratchConstructionAuthority(t *testing.T) {
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps})
+	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, AdaptiveDerivationProfile())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,9 +173,44 @@ func TestScratchConstructionAuthority(t *testing.T) {
 	}
 }
 
+func TestAdaptiveDerivationProfileAuthority(t *testing.T) {
+	oracle := loadOracle(t)
+	facts := CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}
+	profile := AdaptiveDerivationProfile()
+	construction, err := Compile(facts, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantProfile, err := identifyJSON(artifact.KindProfile, struct {
+		Profile DerivationProfile `json:"profile"`
+		Steps   int               `json:"steps"`
+	}{Profile: profile, Steps: facts.Steps})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if construction.Authority().DerivationProfile() != wantProfile {
+		t.Fatal("construction derivation profile differs")
+	}
+	if construction.Config().Epsilon != profile.Epsilon || construction.Config().MuonMomentum != profile.MuonMomentum {
+		t.Fatal("construction ignored profile numerical policy")
+	}
+	changed := profile
+	changed.Epsilon *= 2
+	second, err := Compile(facts, changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Config().Epsilon != changed.Epsilon || second.Authority().DerivationProfile() == wantProfile {
+		t.Fatal("changed derivation profile did not change authority")
+	}
+	if _, err := Compile(facts, DerivationProfile{}); err == nil {
+		t.Fatal("implicit derivation policy accepted")
+	}
+}
+
 func TestScratchConstructionRejectsEmptyCorpus(t *testing.T) {
 	for _, documents := range [][]string{{"", "", ""}, {"abc", "", "cab"}} {
-		if _, err := Compile(CorpusFacts{Documents: documents, Seed: 7, Steps: 3}); err == nil {
+		if _, err := Compile(CorpusFacts{Documents: documents, Seed: 7, Steps: 3}, AdaptiveDerivationProfile()); err == nil {
 			t.Fatalf("empty corpus document accepted: %q", documents)
 		}
 	}
@@ -196,11 +231,11 @@ func TestScratchOracleRuntimeExcludedFromProduction(t *testing.T) {
 func TestScratchInitializedArtifactIdentity(t *testing.T) {
 	oracle := loadOracle(t)
 	facts := CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}
-	first, err := Compile(facts)
+	first, err := Compile(facts, AdaptiveDerivationProfile())
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := Compile(facts)
+	second, err := Compile(facts, AdaptiveDerivationProfile())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +260,7 @@ func TestScratchInitializedArtifactIdentity(t *testing.T) {
 	changed := facts
 	changed.Documents = append([]string(nil), facts.Documents...)
 	changed.Documents[0] += "a"
-	third, err := Compile(changed)
+	third, err := Compile(changed, AdaptiveDerivationProfile())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,7 +9,7 @@ import (
 
 func TestScratchSharedHostRuntimeParity(t *testing.T) {
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps})
+	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, AdaptiveDerivationProfile())
 	if err != nil {
 		t.Fatal(err)
 	}

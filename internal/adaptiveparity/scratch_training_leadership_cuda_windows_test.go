@@ -120,7 +120,10 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	}
 
 	compileStarted := time.Now()
-	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps})
+	construction, err := scratchmodel.Compile(
+		scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps},
+		scratchmodel.AdaptiveDerivationProfile(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

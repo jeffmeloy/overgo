@@ -597,6 +597,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/analyze/vocab" ||
 		request.URL.Path == "/analyze/states" ||
 		request.URL.Path == "/datasets" ||
+		request.URL.Path == "/runs" ||
 		request.URL.Path == "/completion" ||
 		request.URL.Path == "/completions" ||
 		request.URL.Path == "/infill" ||
@@ -671,6 +672,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.analyzeStates(response, request)
 	case "/datasets":
 		h.browseDatasets(response, request)
+	case "/runs":
+		h.browseRuns(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

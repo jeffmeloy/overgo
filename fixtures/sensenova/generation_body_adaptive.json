@@ -29,6 +29,7 @@
   },
   "performance": {
     "adaptive_matched_wall_seconds": 6.88,
+    "overgo_cold_body_max_seconds": 8.6,
     "overgo_reusable_body_max_seconds": 6.2
   }
 }

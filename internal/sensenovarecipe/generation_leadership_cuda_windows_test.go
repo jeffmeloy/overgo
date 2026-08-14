@@ -78,6 +78,7 @@ type generationAdaptiveOracle struct {
 	} `json:"step0"`
 	Performance struct {
 		AdaptiveMatchedWallSeconds   float64 `json:"adaptive_matched_wall_seconds"`
+		OvergoColdBodyMaxSeconds     float64 `json:"overgo_cold_body_max_seconds"`
 		OvergoReusableBodyMaxSeconds float64 `json:"overgo_reusable_body_max_seconds"`
 	} `json:"performance"`
 }
@@ -101,6 +102,10 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	}
 	if adaptive.Schema != "overgo.sensenova-generation-adaptive/v1" {
 		t.Fatalf("adaptive generation schema=%q", adaptive.Schema)
+	}
+	if adaptive.Performance.AdaptiveMatchedWallSeconds <= 0 || adaptive.Performance.OvergoColdBodyMaxSeconds <= 0 ||
+		adaptive.Performance.OvergoReusableBodyMaxSeconds <= 0 {
+		t.Fatal("SenseNova lifecycle performance envelope is incomplete")
 	}
 	var prefixGold prefixOracle
 	if err := jsonfile.Decode(filepath.Join("..", "..", "fixtures", "sensenova", "prefix_oracle.json"), &prefixGold); err != nil {
@@ -233,8 +238,14 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if stepIndex > 0 && stats.Wall.Seconds() > adaptive.Performance.OvergoReusableBodyMaxSeconds {
-			t.Fatalf("SenseNova reusable body wall=%.3fs exceeds ratchet %.3fs (adaptive %.3fs)", stats.Wall.Seconds(), adaptive.Performance.OvergoReusableBodyMaxSeconds, adaptive.Performance.AdaptiveMatchedWallSeconds)
+		limit := adaptive.Performance.OvergoColdBodyMaxSeconds
+		lifecycle := "cold"
+		if stepIndex > 0 {
+			limit = adaptive.Performance.OvergoReusableBodyMaxSeconds
+			lifecycle = "warm"
+		}
+		if stats.Wall.Seconds() > limit {
+			t.Fatalf("SenseNova %s body wall=%.3fs exceeds ratchet %.3fs (adaptive %.3fs)", lifecycle, stats.Wall.Seconds(), limit, adaptive.Performance.AdaptiveMatchedWallSeconds)
 		}
 		final := make([][]float32, len(branches))
 		for index := range branches {
@@ -271,7 +282,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 			checkAdaptiveValues(t, "next z", z, adaptive.Step0.NextZ)
 		}
 		checkGenerationSample(t, "next z native", z, want.NextZ, 0.998)
-		lifecycle := "cold-body"
+		lifecycle = "cold-body"
 		if stepIndex > 0 {
 			lifecycle = "warm-body"
 		}

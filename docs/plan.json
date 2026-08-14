@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "context-cleanup",
-          "title": "Propagate caller contexts through model loading; detach blocking resource release from runtime locks",
-          "status": "open",
-          "verify": "go test ./internal/inference ./internal/clioptions ./internal/projector -count=1 -v"
-        },
-        {
           "id": "typed-model-facts",
           "title": "Replace dimension-derived model behavior and duplicate dtype whitelists with admitted typed profile and storage policies",
           "status": "open",

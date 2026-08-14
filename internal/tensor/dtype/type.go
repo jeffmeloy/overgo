@@ -111,6 +111,12 @@ func (t Type) Traits() (Traits, bool) {
 	return value, ok
 }
 
+// IsQuantized reports the physical block-layout class.
+func (t Type) IsQuantized() bool {
+	value, ok := traits[t]
+	return ok && value.Quantized
+}
+
 // StorageBytes: physical byte size of a tensor of this type whose logical shape
 // has `elements` elements laid out as rows of width `rowWidth` (dims[0]). This
 // is the single owner of tensor storage-byte accounting shared by Shape.Bytes,

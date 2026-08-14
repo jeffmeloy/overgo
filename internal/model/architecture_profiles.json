@@ -594,6 +594,9 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
+    "MetadataDefaults": {
+      "SlidingPattern": 4
+    },
     "Name": "exaone-moe",
     "Validation": {
       "ExpertMetadata": 1,
@@ -615,6 +618,10 @@
       }
     },
     "DraftKind": 4,
+    "MetadataDefaults": {
+      "SlidingPattern": 4,
+      "SlidingWindow": 4096
+    },
     "Name": "exaone4",
     "Validation": {
       "Attention": 30

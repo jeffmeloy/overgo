@@ -67,6 +67,7 @@ func readSpec(file *gguf.File, resolved *ArchitectureProfile) (Spec, error) {
 	if err := metadata.readAttentionShape(&spec, state); err != nil {
 		return Spec{}, err
 	}
+	profile.MetadataDefaults.readPosition(&spec)
 	if !profile.Metadata.DraftBeforeShape {
 		if err := metadata.readDraftLayers(&spec); err != nil {
 			return Spec{}, err
@@ -527,18 +528,15 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		spec.RopeFrequencySWA = optionalOr(
 			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
 		)
-		if spec.BlockCount == 64 {
-			spec.SlidingWindow = 4096
-		}
 		if value, ok := optional[uint32](
 			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
 		); ok {
 			spec.SlidingWindow = value
 		}
 		if spec.SlidingWindow > 0 {
-			spec.SlidingPattern = optionalOr(
-				values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(4),
-			)
+			if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
+				spec.SlidingPattern = value
+			}
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
@@ -550,7 +548,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		spec.SlidingPattern = 4
+		spec.SlidingPattern = m.profile.MetadataDefaults.SlidingPattern
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
 			spec.SlidingPattern = value
 		} else if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); arrayErr != nil {
@@ -1063,6 +1061,12 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		)
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 		spec.ExpertGatingFunc = expertGatingSoftmax
+		switch profile.Experts.Routing {
+		case expertRouteSigmoid:
+			spec.ExpertGatingFunc = expertGatingSigmoid
+		case expertRouteSelectedSoftmax:
+			spec.ExpertGatingFunc = expertGatingSelectedSoftmax
+		}
 		if profile.readsMetadata(MetadataReadGLMDSAGating) {
 			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
@@ -1072,8 +1076,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 		} else if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
 			spec.ExpertGatingFunc = value
-		} else if (spec.BlockCount == 47 || spec.BlockCount == 48) && spec.VocabularySize == 154880 {
-			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
 	}
 	if validation.Hybrid == HybridValidationMiMo2 {
@@ -1516,11 +1518,10 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			}
 		}
 		if profile.Has(ArchitectureLatentKVLayout) {
-			lite := spec.BlockCount == 26 || spec.BlockCount == 27 || (spec.BlockCount == 48 && spec.VocabularySize == 128256)
-			if !lite {
-				if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
-					return Spec{}, err
-				}
+			if validation.QLoRARankOptional {
+				spec.QLoRARank, _ = optional[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32)
+			} else if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
+				return Spec{}, err
 			}
 		}
 		if spec.KVLoRARank, err = required[uint32](

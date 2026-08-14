@@ -365,6 +365,15 @@ func TestReadDeepSeek2Spec(t *testing.T) {
 	if math.Abs(float64(spec.YaRNAttentionFactor-wantAttentionFactor)) > 1e-6 {
 		t.Fatalf("DeepSeek2 YaRN attention factor = %v, want %v", spec.YaRNAttentionFactor, wantAttentionFactor)
 	}
+	profile := spec.Profile()
+	profile.Experts.Routing = expertRouteSigmoid
+	sigmoid, err := ReadSpecWithProfile(file, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sigmoid.ExpertGatingFunc != expertGatingSigmoid {
+		t.Fatalf("profile-selected expert gating = %d", sigmoid.ExpertGatingFunc)
+	}
 }
 
 func TestReadGLMDSASpec(t *testing.T) {
@@ -583,7 +592,12 @@ func TestReadDenseDeepSeek2LiteSpec(t *testing.T) {
 		metadata("deepseek2.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
 		metadata("deepseek2.expert_shared_count", gguf.ValueTypeUint32, uint32(0)),
 	}}
-	spec, err := ReadSpec(file)
+	profile, ok := LookupArchitecture("deepseek2")
+	if !ok {
+		t.Fatal("DeepSeek2 profile is absent")
+	}
+	profile.Validation.QLoRARankOptional = true
+	spec, err := ReadSpecWithProfile(file, profile)
 	if err != nil {
 		t.Fatal(err)
 	}

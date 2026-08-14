@@ -215,33 +215,7 @@ func loadResidentWeights(
 				quantized = append(quantized, info)
 				continue
 			}
-			if !adapted && !requiresF32 && (info.Type == dtype.Q4_0 ||
-				info.Type == dtype.Q4_1 ||
-				info.Type == dtype.Q5_0 ||
-				info.Type == dtype.Q5_1 ||
-				info.Type == dtype.Q1_0 ||
-				info.Type == dtype.Q2_0 ||
-				info.Type == dtype.TQ1_0 ||
-				info.Type == dtype.TQ2_0 ||
-				info.Type == dtype.Q8_0 ||
-				info.Type == dtype.Q8_1 ||
-				info.Type == dtype.Q2K ||
-				info.Type == dtype.Q3K ||
-				info.Type == dtype.Q4K ||
-				info.Type == dtype.Q5K ||
-				info.Type == dtype.Q6K ||
-				info.Type == dtype.Q8K ||
-				info.Type == dtype.IQ2XXS ||
-				info.Type == dtype.IQ2XS ||
-				info.Type == dtype.IQ2S ||
-				info.Type == dtype.IQ3XXS ||
-				info.Type == dtype.IQ3S ||
-				info.Type == dtype.IQ1S ||
-				info.Type == dtype.IQ1M ||
-				info.Type == dtype.IQ4NL ||
-				info.Type == dtype.IQ4XS ||
-				info.Type == dtype.MXFP4 ||
-				info.Type == dtype.NVFP4) {
+			if !adapted && !requiresF32 && info.Type.IsQuantized() {
 				quantized = append(quantized, info)
 			} else {
 				f32Tensors = append(f32Tensors, info)

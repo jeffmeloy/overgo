@@ -112,7 +112,7 @@ func (b *Builder) mulMat(left, right *Tensor, compute MulMatCompute) *Tensor {
 		return nil
 	}
 	outputType := left.Type
-	if (nativeQuantizedType(left.Type) || left.Type == dtype.BF16 || left.Type == dtype.F16 ||
+	if (left.Type.IsQuantized() || left.Type == dtype.BF16 || left.Type == dtype.F16 ||
 		left.Type == dtype.F8E4M3) && right.Type == dtype.F32 {
 		outputType = dtype.F32
 	} else if left.Type != right.Type {
@@ -162,7 +162,7 @@ func (b *Builder) groupedMulMat(left, right *Tensor) *Tensor {
 		return nil
 	}
 	outputType := left.Type
-	if nativeQuantizedType(left.Type) && right.Type == dtype.F32 {
+	if left.Type.IsQuantized() && right.Type == dtype.F32 {
 		outputType = dtype.F32
 	} else if left.Type != right.Type {
 		b.setError(fmt.Errorf("grouped_mul_mat types are unsupported: %s and %s", left.Type, right.Type))
@@ -224,21 +224,8 @@ func (b *Builder) getRows(table *Tensor, rows []uint32) *Tensor {
 	}
 	attributes := GetRowsAttributes{Rows: slices.Clone(rows)}
 	outputType := table.Type
-	if nativeQuantizedType(table.Type) {
+	if table.Type.IsQuantized() {
 		outputType = dtype.F32
 	}
 	return b.add("", outputType, shape, OpGetRows, []*Tensor{table}, attributes)
-}
-
-func nativeQuantizedType(value dtype.Type) bool {
-	switch value {
-	case dtype.Q4_0, dtype.Q4_1, dtype.Q5_0, dtype.Q5_1,
-		dtype.Q8_0, dtype.Q8_1, dtype.Q2K, dtype.Q3K, dtype.Q4K, dtype.Q5K, dtype.Q6K, dtype.Q8K,
-		dtype.IQ2XXS, dtype.IQ2XS, dtype.IQ2S, dtype.IQ3XXS, dtype.IQ3S, dtype.IQ1S, dtype.IQ1M,
-		dtype.IQ4NL, dtype.IQ4XS, dtype.MXFP4, dtype.NVFP4,
-		dtype.Q1_0, dtype.Q2_0, dtype.TQ1_0, dtype.TQ2_0:
-		return true
-	default:
-		return false
-	}
 }

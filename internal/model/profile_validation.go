@@ -113,6 +113,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		{"MetadataDefaults.LogitScale", profile.MetadataDefaults.LogitScale},
 		{"MetadataDefaults.LayerNormEpsilon", profile.MetadataDefaults.LayerNormEpsilon},
 		{"MetadataDefaults.QKNormEpsilon", profile.MetadataDefaults.QKNormEpsilon},
+		{"MetadataDefaults.MaxALiBiBias", profile.MetadataDefaults.MaxALiBiBias},
 		{"MetadataDefaults.SparsityStdMultiplier", profile.MetadataDefaults.SparsityStdMultiplier},
 		{"Runtime.Recurrent.HeadNormEpsilon", profile.Runtime.Recurrent.HeadNormEpsilon},
 		{"Runtime.Recurrent.KeyNormEpsilon", profile.Runtime.Recurrent.KeyNormEpsilon},
@@ -151,6 +152,15 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	}
 	if profile.readsMetadata(MetadataReadGLMDSAGating) && profile.Attention != AttentionSparseLatent {
 		return fmt.Errorf("architecture profile %q: GLM-DSA metadata requires DSA attention", profile.Name)
+	}
+	if profile.Validation.QLoRARankOptional && !profile.Has(ArchitectureLatentKVLayout) {
+		return fmt.Errorf("architecture profile %q: optional Q-LoRA rank requires latent KV layout", profile.Name)
+	}
+	if profile.MetadataDefaults.MaxALiBiBias > 0 && !profile.MetadataDefaults.RopeDisabled {
+		return fmt.Errorf("architecture profile %q: ALiBi default requires disabled RoPE", profile.Name)
+	}
+	if profile.MetadataDefaults.SlidingWindow > 0 && profile.MetadataDefaults.SlidingPattern < 2 {
+		return fmt.Errorf("architecture profile %q: sliding-window default requires a period", profile.Name)
 	}
 	if profile.AttentionGraph.GatedDelta != gatedDeltaNone && profile.Attention != AttentionGatedDelta {
 		return fmt.Errorf("architecture profile %q: Qwen GDN graph requires Qwen GDN attention", profile.Name)

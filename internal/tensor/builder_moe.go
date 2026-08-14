@@ -314,7 +314,7 @@ func (b *Builder) buildMoE(
 	}
 	expertType := up.Type
 	if up.Type != down.Type || gate != nil && gate.Type != up.Type ||
-		(expertType != dtype.F32 && !nativeQuantizedType(expertType)) {
+		(expertType != dtype.F32 && !expertType.IsQuantized()) {
 		b.setError(errors.New("MoE experts must share F32 or native quantized storage"))
 		return nil
 	}
@@ -376,7 +376,7 @@ func (b *Builder) buildMoE(
 		b.setError(errors.New("MoE SwiGLU clamp is invalid"))
 		return nil
 	}
-	if nativeQuantizedType(expertType) {
+	if expertType.IsQuantized() {
 		traits, _ := expertType.Traits()
 		if hidden%traits.BlockSize != 0 || intermediate%traits.BlockSize != 0 {
 			b.setError(fmt.Errorf("%s MoE hidden and intermediate widths must be block aligned", expertType))

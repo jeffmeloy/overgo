@@ -27,6 +27,10 @@ type MetadataDefaultPolicy struct {
 	SparseLayerCount       uint32
 	SparsityStdMultiplier  float32
 	DraftBlockSize         uint32
+	SlidingWindow          uint32
+	SlidingPattern         uint32
+	MaxALiBiBias           float32
+	RopeDisabled           bool
 	RopeDimension          RopeDimensionDefaultPolicy
 }
 
@@ -55,6 +59,12 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 	if p.QKNormEpsilon > 0 && spec.QKNormEpsilon == 0 {
 		spec.QKNormEpsilon = p.QKNormEpsilon
 	}
+	if p.SlidingWindow > 0 {
+		spec.SlidingWindow = p.SlidingWindow
+	}
+	if p.SlidingPattern > 0 {
+		spec.SlidingPattern = p.SlidingPattern
+	}
 	if p.RopeDimension != RopeDimensionDefaultNone {
 		spec.RopeDimensionCount = spec.KeyLength
 		if p.RopeDimension == RopeDimensionDefaultKeyLengthOverride {
@@ -62,5 +72,12 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 				spec.RopeDimensionCount = value
 			}
 		}
+	}
+}
+
+func (p MetadataDefaultPolicy) readPosition(spec *Spec) {
+	if p.RopeDisabled {
+		spec.RopeDisabled = true
+		spec.MaxALiBiBias = p.MaxALiBiBias
 	}
 }

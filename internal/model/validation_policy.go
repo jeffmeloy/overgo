@@ -156,6 +156,7 @@ type ValidationPolicy struct {
 	MultiAxisRoPE         bool
 	BoundDeepstack        bool
 	RopeFrequencyOptional bool
+	QLoRARankOptional     bool
 	RequiredBlockCount    uint32
 	AlternateBlockCount   uint32
 	SlidingPeriod         uint32

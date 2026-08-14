@@ -511,7 +511,13 @@ func TestReadBaichuanVariantsSpec(t *testing.T) {
 
 	metadataValues[1] = metadata("baichuan.block_count", gguf.ValueTypeUint32, uint32(40))
 	metadataValues = append(metadataValues[:7], metadataValues[8:]...)
-	spec, err = ReadSpec(&gguf.File{Metadata: metadataValues})
+	profile, ok := LookupArchitecture("baichuan")
+	if !ok {
+		t.Fatal("Baichuan profile is absent")
+	}
+	profile.MetadataDefaults.RopeDisabled = true
+	profile.MetadataDefaults.MaxALiBiBias = 8
+	spec, err = ReadSpecWithProfile(&gguf.File{Metadata: metadataValues}, profile)
 	if err != nil {
 		t.Fatal(err)
 	}

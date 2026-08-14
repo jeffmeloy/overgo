@@ -427,6 +427,78 @@ extern "C" __global__ void silu_backward_f32(
     }
 }
 
+extern "C" __global__ void relu_backward_f32(
+        const float * grad_output,
+        const float * input,
+        float * grad_input,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        grad_input[index] = input[index] > 0.0f ? grad_output[index] : 0.0f;
+    }
+}
+
+extern "C" __global__ void strided_row_copy_f32(
+        const float * source,
+        float * destination,
+        unsigned int rows,
+        unsigned int width,
+        unsigned int source_stride,
+        unsigned int source_offset,
+        unsigned int destination_stride,
+        unsigned int destination_offset) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < rows * width) {
+        const unsigned int row = index / width;
+        const unsigned int column = index - row * width;
+        destination[(size_t) row * destination_stride + destination_offset + column] =
+            source[(size_t) row * source_stride + source_offset + column];
+    }
+}
+
+extern "C" __global__ void indexed_row_scatter_add_f32(
+        const float * source,
+        const unsigned int * rows,
+        float * destination,
+        unsigned int count,
+        unsigned int width) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count * width) {
+        const unsigned int row = index / width;
+        const unsigned int column = index - row * width;
+        atomicAdd(&destination[(size_t) rows[row] * width + column], source[index]);
+    }
+}
+
+extern "C" __global__ void attention_score_affine_backward_f32(
+        const float * grad_scores,
+        const float * query,
+        const float * key,
+        float * grad_lag_bias,
+        float * grad_scale,
+        unsigned int sequence,
+        unsigned int head_dim,
+        unsigned int lag_count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int query_row = index / sequence;
+    const unsigned int key_row = index - query_row * sequence;
+    if (query_row >= sequence || key_row > query_row) {
+        return;
+    }
+    const float grad = grad_scores[index];
+    if (grad == 0.0f) {
+        return;
+    }
+    const unsigned int lag = min(lag_count - 1, query_row - key_row);
+    float dot = 0.0f;
+    for (unsigned int channel = 0; channel < head_dim; ++channel) {
+        dot += query[(size_t) query_row * head_dim + channel] *
+            key[(size_t) key_row * head_dim + channel];
+    }
+    atomicAdd(&grad_lag_bias[lag], grad);
+    atomicAdd(grad_scale, grad * dot);
+}
+
 // rms_norm_backward_f32: VJP of affine RMSNorm y = x * rsqrt(mean(x^2)+eps) * w.
 // One thread per row. dscale (the weight gradient) accumulates across rows via
 // atomicAdd, so the caller must zero-initialize it before launch.

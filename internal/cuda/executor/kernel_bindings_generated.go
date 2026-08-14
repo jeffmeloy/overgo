@@ -18,6 +18,7 @@ const (
 	kernelAttentionOnlineFinalizeF32
 	kernelAttentionOnlineInitF32
 	kernelAttentionOnlineSoftmaxF32
+	kernelAttentionScoreAffineBackwardF32
 	kernelAttentionTiledBf16F32
 	kernelAttentionTiledF32
 	kernelBf16RoundF32
@@ -83,6 +84,7 @@ const (
 	kernelHeadMajorF32
 	kernelHeadMajorInverseF32
 	kernelIndexerScoreF32
+	kernelIndexedRowScatterAddF32
 	kernelL2NormBackwardF32
 	kernelL2NormF32
 	kernelLayerNormF32
@@ -132,6 +134,7 @@ const (
 	kernelMultiplyF32
 	kernelQuantizeQ80InputF32
 	kernelReluF32
+	kernelReluBackwardF32
 	kernelReluSquaredF32
 	kernelRepeatHeadsF32
 	kernelRmsNormBackwardF32
@@ -158,6 +161,7 @@ const (
 	kernelSparseAttentionF32
 	kernelSsmConvF32
 	kernelSsmScanF32
+	kernelStridedRowCopyF32
 	kernelSumRowsF32
 	kernelTanhF32
 	kernelTopKF32
@@ -194,6 +198,7 @@ var kernelFunctionNames = [...]string{
 	"attention_online_finalize_f32",
 	"attention_online_init_f32",
 	"attention_online_softmax_f32",
+	"attention_score_affine_backward_f32",
 	"attention_tiled_bf16_f32",
 	"attention_tiled_f32",
 	"bf16_round_f32",
@@ -259,6 +264,7 @@ var kernelFunctionNames = [...]string{
 	"head_major_f32",
 	"head_major_inverse_f32",
 	"indexer_score_f32",
+	"indexed_row_scatter_add_f32",
 	"l2_norm_backward_f32",
 	"l2_norm_f32",
 	"layer_norm_f32",
@@ -308,6 +314,7 @@ var kernelFunctionNames = [...]string{
 	"multiply_f32",
 	"quantize_q8_0_input_f32",
 	"relu_f32",
+	"relu_backward_f32",
 	"relu_squared_f32",
 	"repeat_heads_f32",
 	"rms_norm_backward_f32",
@@ -334,6 +341,7 @@ var kernelFunctionNames = [...]string{
 	"sparse_attention_f32",
 	"ssm_conv_f32",
 	"ssm_scan_f32",
+	"strided_row_copy_f32",
 	"sum_rows_f32",
 	"tanh_f32",
 	"top_k_f32",
@@ -369,6 +377,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	5,
 	12,
+	8,
 	11,
 	13,
 	3,
@@ -434,6 +443,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	11,
+	5,
 	6,
 	5,
 	5,
@@ -483,6 +493,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	3,
 	3,
+	4,
 	3,
 	6,
 	8,
@@ -509,6 +520,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	16,
 	7,
 	14,
+	8,
 	4,
 	3,
 	5,

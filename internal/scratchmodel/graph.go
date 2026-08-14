@@ -16,8 +16,22 @@ type ForwardGraph struct {
 	Output     *tensor.Tensor
 	Parameters map[string]*tensor.Tensor
 	Mask       *tensor.Tensor
+	Hidden     *tensor.Tensor
 	positions  int
 	mask       []float32
+	embedding  *tensor.Tensor
+	layers     []forwardLayer
+}
+
+type forwardHead struct {
+	query, key, value, probability *tensor.Tensor
+}
+
+type forwardLayer struct {
+	input, qkvNorm, qkv                *tensor.Tensor
+	attention, attentionOutput         *tensor.Tensor
+	mlpNorm, preactivation, activation *tensor.Tensor
+	heads                              []forwardHead
 }
 
 // CompileForwardGraph emits the corpus-derived model without a family runtime.
@@ -44,10 +58,8 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 	for position := range positions {
 		tokenRows[position], positionRows[position] = uint32(tokens[position]), uint32(position)
 	}
-	hidden := builder.MADNorm(
-		builder.Add(builder.GetRows(parameters["wte"], tokenRows), builder.GetRows(parameters["wpe"], positionRows)),
-		float32(c.config.Epsilon),
-	)
+	embedding := builder.Add(builder.GetRows(parameters["wte"], tokenRows), builder.GetRows(parameters["wpe"], positionRows))
+	hidden := builder.MADNorm(embedding, float32(c.config.Epsilon))
 	maskValues := causalWindowMask(positions, c.config.AttentionWindow)
 	mask := builder.Input("causal-window-mask", dtype.F32, tensor.MustShape(uint64(positions), uint64(positions)))
 	lagRows := make([]uint32, positions*positions)
@@ -60,44 +72,67 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 	}
 	positionBias := builder.Reshape(parameters["pos_bias"], 1, uint64(c.config.BlockSize))
 	lagBias := builder.Reshape(builder.GetRows(positionBias, lagRows), uint64(positions), uint64(positions))
+	layers := make([]forwardLayer, c.config.LayerCount)
 	for layer := range c.config.LayerCount {
 		prefix := fmt.Sprintf("l%d.", layer)
-		qkv := builder.MulMat(parameters[prefix+"wqkv"], builder.MADNorm(hidden, float32(c.config.Epsilon)))
+		cache := forwardLayer{input: hidden, heads: make([]forwardHead, c.config.HeadCount)}
+		cache.qkvNorm = builder.MADNorm(hidden, float32(c.config.Epsilon))
+		cache.qkv = builder.MulMat(parameters[prefix+"wqkv"], cache.qkvNorm)
 		var attention *tensor.Tensor
 		temperature := builder.GetRows(parameters["lt"], []uint32{uint32(layer)})
 		for head := range c.config.HeadCount {
 			offset := uint64(head * c.config.HeadDim)
 			q := builder.Reshape(
-				builder.GroupSlice(qkv, offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
+				builder.GroupSlice(cache.qkv, offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
 				uint64(c.config.HeadDim), uint64(positions),
 			)
 			k := builder.Reshape(
-				builder.GroupSlice(qkv, uint64(c.config.Embedding)+offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
+				builder.GroupSlice(cache.qkv, uint64(c.config.Embedding)+offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
 				uint64(c.config.HeadDim), uint64(positions),
 			)
 			v := builder.Reshape(
-				builder.GroupSlice(qkv, uint64(2*c.config.Embedding)+offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
+				builder.GroupSlice(cache.qkv, uint64(2*c.config.Embedding)+offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
 				uint64(c.config.HeadDim), uint64(positions),
 			)
 			temperatureScale := builder.Exp(builder.Scale(builder.FlatSlice(temperature, uint64(head), 1, 1), -1))
 			scaledQuery := builder.Scale(builder.Multiply(q, temperatureScale), float32(1/math.Sqrt(float64(c.config.HeadDim))))
 			scores := builder.Add(builder.Add(builder.MulMat(k, scaledQuery), lagBias), mask)
-			context := builder.MulMat(builder.Transpose2D(v), builder.Softmax(scores))
+			probability := builder.Softmax(scores)
+			context := builder.MulMat(builder.Transpose2D(v), probability)
+			cache.heads[head] = forwardHead{query: q, key: k, value: v, probability: probability}
 			if attention == nil {
 				attention = context
 			} else {
 				attention = builder.Concat(attention, context, 0)
 			}
 		}
-		hidden = builder.Add(hidden, builder.MulMat(parameters[prefix+"wo"], attention))
-		normalized := builder.MADNorm(hidden, float32(c.config.Epsilon))
-		hidden = builder.Add(hidden, builder.MulMat(parameters[prefix+"w2"], builder.ReLU(builder.MulMat(parameters[prefix+"w1"], normalized))))
+		cache.attention = attention
+		cache.attentionOutput = builder.Add(hidden, builder.MulMat(parameters[prefix+"wo"], attention))
+		cache.mlpNorm = builder.MADNorm(cache.attentionOutput, float32(c.config.Epsilon))
+		cache.preactivation = builder.MulMat(parameters[prefix+"w1"], cache.mlpNorm)
+		cache.activation = builder.ReLU(cache.preactivation)
+		hidden = builder.Add(cache.attentionOutput, builder.MulMat(parameters[prefix+"w2"], cache.activation))
+		layers[layer] = cache
 	}
 	output := builder.MulMat(parameters["lm_head"], hidden)
 	if err := builder.Err(); err != nil {
 		return ForwardGraph{}, err
 	}
-	return ForwardGraph{Output: output, Parameters: parameters, Mask: mask, positions: positions, mask: maskValues}, nil
+	return ForwardGraph{
+		Output: output, Parameters: parameters, Mask: mask, Hidden: hidden,
+		positions: positions, mask: maskValues, embedding: embedding, layers: layers,
+	}, nil
+}
+
+func (g ForwardGraph) cacheOutputs() []*tensor.Tensor {
+	outputs := []*tensor.Tensor{g.Output, g.Hidden, g.embedding}
+	for _, layer := range g.layers {
+		outputs = append(outputs, layer.input, layer.qkvNorm, layer.qkv, layer.attention, layer.attentionOutput, layer.mlpNorm, layer.preactivation, layer.activation)
+		for _, head := range layer.heads {
+			outputs = append(outputs, head.query, head.key, head.value, head.probability)
+		}
+	}
+	return outputs
 }
 
 // Feeds materializes graph feeds from one flat parameter slab.

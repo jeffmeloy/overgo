@@ -41,6 +41,45 @@ first make the owner's decisions cheaper, better grounded, and auditable. Full
 dispatch autonomy should be earned later from measured scheduling and recovery
 performance.
 
+## Automation implementation doctrine
+
+Automation exists to remove recurring cognitive work from the model. A proposed
+mechanism is valuable when it converts a repeated interpretation, calculation,
+scope decision, or bookkeeping obligation into deterministic, inspectable, and
+tested behavior. Automation that merely adds another state surface for the model
+to reconcile is negative value.
+
+Implementation follows Overgo's Go-code doctrine:
+
+- Go owns automation policy, state transitions, derivations, validation, and
+  reusable mechanisms whenever feasible.
+- Search for and extend the existing common Go owner before creating a new
+  package or command-local implementation. One fact and one behavior have one
+  owner.
+- Commands should be thin adapters over testable `internal` packages: parse
+  inputs, call the common mechanism, render a typed result, and select an exit
+  code.
+- Bash is limited to unavoidable hook and external-tool boundaries. It must not
+  become a second policy implementation. Repository automation never uses
+  PowerShell.
+- Python is reserved for externally native reference/oracle generation or a
+  dependency that cannot reasonably be expressed through the Go runtime. It is
+  not an alternate orchestration or state-management surface.
+- Prefer structured, stable machine output with a concise human rendering. Later
+  automation and models should consume the same typed result rather than parse
+  narrative text.
+- Derive scope and constants from Go/package graphs, manifests, RepoDB evidence,
+  and typed decisions. Do not replace model guesswork with hand-maintained path
+  tables or unexplained automation literals.
+- Every extracted mechanism carries focused tests, including the incident or
+  repeated model failure that justified extracting it.
+- Deletion is part of the transfer: once common Go code owns a behavior, remove
+  duplicate shell logic, prompt instructions, and command-local variants in the
+  same slice where feasible.
+
+The acceptance question for each automation slice is: **what deterministic Go
+result can the next model invocation trust without reconstructing the work?**
+
 ## Capability inventory
 
 ### Plan and loop control

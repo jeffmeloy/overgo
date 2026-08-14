@@ -119,32 +119,12 @@ func applyEffectiveRank(measurement *TensorMeasurement, file *gguf.File, tensor 
 }
 
 // fullGGUFTensorValues reads and dequantizes every element of a GGUF tensor in
-// storage order. Callers must bound the tensor size (see SpectralMaxDim).
+// storage order. It is sampleGGUFTensorValues at full coverage: with the sample
+// count equal to the block count, evenlySpacedIndex is the identity, so the read
+// is sequential. Callers must bound the tensor size (see SpectralMaxDim).
 func fullGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo) ([]float64, error) {
-	traits, ok := tensor.Type.Traits()
-	if !ok {
-		return nil, fmt.Errorf("model artifact: tensor %q has unsupported storage", tensor.Name)
-	}
-	elements, err := ggufTensorElements(tensor)
-	if err != nil || elements%traits.BlockSize != 0 {
-		return nil, fmt.Errorf("model artifact: tensor %q has invalid block geometry", tensor.Name)
-	}
-	blocks := elements / traits.BlockSize
-	values := make([]float64, 0, elements)
-	storage := make([]byte, traits.TypeSize)
-	for block := uint64(0); block < blocks; block++ {
-		if err := file.ReadTensorRange(tensor, block*traits.TypeSize, storage); err != nil {
-			return nil, err
-		}
-		decoded, err := quant.Dequantize(tensor.Type, storage, traits.BlockSize)
-		if err != nil {
-			return nil, err
-		}
-		for _, value := range decoded {
-			values = append(values, float64(value))
-		}
-	}
-	return values, nil
+	values, _, _, err := sampleGGUFTensorValues(file, tensor, math.MaxUint64)
+	return values, err
 }
 
 // sampleGGUFTensorValues evenly samples up to maxSamples stored values from one

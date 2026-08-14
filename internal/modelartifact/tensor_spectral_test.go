@@ -61,6 +61,19 @@ func TestMeasureGGUFComputesEffectiveRank(t *testing.T) {
 	}
 }
 
+func TestMeasureGGUFEffectiveRankIsOrderSensitive(t *testing.T) {
+	// [[2,0],[0,1]] has singular values {2,1} -> effective rank ~0.9449, a value a
+	// scrambled element order would not reproduce. Guards the sequential full read
+	// (fullGGUFTensorValues == sampleGGUFTensorValues at full coverage).
+	file := openGGUF(t, []gguf.TensorData{
+		{Name: "diag", Shape: []uint64{2, 2}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE([]float32{2, 0, 0, 1}))},
+	})
+	got := measure(t, file, MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20, SpectralMaxDim: 8})
+	if m := got["diag"]; m.SpectralStatus != SpectralComputed || math.Abs(m.EffectiveRank-0.9449) > 1e-3 {
+		t.Errorf("diag: status=%q effective_rank=%.5f, want computed ~0.9449", m.SpectralStatus, m.EffectiveRank)
+	}
+}
+
 func TestMeasureGGUFDefersOversizeSpectral(t *testing.T) {
 	big := make([]float32, 64) // 8x8, budget 4 -> deferred
 	for i := range big {

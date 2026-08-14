@@ -12,6 +12,7 @@ import (
 	"overgo/internal/quant"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensorstats"
 )
 
 func MeasureGGUF(
@@ -44,10 +45,72 @@ func MeasureGGUF(
 		if err != nil {
 			return TensorMeasurementDocument{}, err
 		}
+		if policy.SpectralMaxDim > 0 {
+			if err := applyEffectiveRank(&measurement, file, tensor, policy.SpectralMaxDim); err != nil {
+				return TensorMeasurementDocument{}, err
+			}
+		}
 		measurements = append(measurements, measurement)
 		readBytes += bytesNeeded
 	}
 	return newTensorMeasurementDocument(inventory.ID, policy, readBytes, measurements)
+}
+
+// applyEffectiveRank sets a measurement's spectral fields: the normalized
+// effective rank of a 2-D matrix whose dimensions are both within maxDim,
+// deferred when larger (the compute is O(dim³)), not-applicable otherwise.
+// Effective rank is transpose-invariant, so the row/col assignment is immaterial.
+func applyEffectiveRank(measurement *TensorMeasurement, file *gguf.File, tensor gguf.TensorInfo, maxDim uint64) error {
+	dims := tensor.Shape[:tensor.Dimensions]
+	if tensor.Dimensions != 2 {
+		measurement.SpectralStatus = SpectralNotApplicable
+		return nil
+	}
+	if dims[0] > maxDim || dims[1] > maxDim {
+		measurement.SpectralStatus = SpectralDeferred
+		return nil
+	}
+	data, err := fullGGUFTensorValues(file, tensor)
+	if err != nil {
+		return err
+	}
+	value, ok := tensorstats.EffectiveRankOf(data, int(dims[1]), int(dims[0]))
+	if !ok {
+		measurement.SpectralStatus = SpectralNotApplicable
+		return nil
+	}
+	measurement.EffectiveRank = value
+	measurement.SpectralStatus = SpectralComputed
+	return nil
+}
+
+// fullGGUFTensorValues reads and dequantizes every element of a GGUF tensor in
+// storage order. Callers must bound the tensor size (see SpectralMaxDim).
+func fullGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo) ([]float64, error) {
+	traits, ok := tensor.Type.Traits()
+	if !ok {
+		return nil, fmt.Errorf("model artifact: tensor %q has unsupported storage", tensor.Name)
+	}
+	elements, err := ggufTensorElements(tensor)
+	if err != nil || elements%traits.BlockSize != 0 {
+		return nil, fmt.Errorf("model artifact: tensor %q has invalid block geometry", tensor.Name)
+	}
+	blocks := elements / traits.BlockSize
+	values := make([]float64, 0, elements)
+	storage := make([]byte, traits.TypeSize)
+	for block := uint64(0); block < blocks; block++ {
+		if err := file.ReadTensorRange(tensor, block*traits.TypeSize, storage); err != nil {
+			return nil, err
+		}
+		decoded, err := quant.Dequantize(tensor.Type, storage, traits.BlockSize)
+		if err != nil {
+			return nil, err
+		}
+		for _, value := range decoded {
+			values = append(values, float64(value))
+		}
+	}
+	return values, nil
 }
 
 // sampleGGUFTensorValues evenly samples up to maxSamples stored values from one

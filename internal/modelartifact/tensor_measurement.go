@@ -15,12 +15,20 @@ import (
 )
 
 const (
-	TensorMeasurementVersion   uint16 = 2
+	TensorMeasurementVersion   uint16 = 3
 	TensorMeasurementMediaType        = "application/vnd.overgo.tensor-measurement+json"
-	TensorMeasurementSchema           = "overgo/tensor-measurement/v2"
+	TensorMeasurementSchema           = "overgo/tensor-measurement/v3"
 
 	minimumMeasurementSamples = 256
 	maximumMeasurementSamples = 1 << 20
+)
+
+// Spectral status for a tensor's normalized effective rank. Empty means spectral
+// analysis was not requested (policy SpectralMaxDim == 0).
+const (
+	SpectralComputed      = "computed"       // effective rank is present
+	SpectralNotApplicable = "not-applicable" // not a 2-D matrix, or a zero matrix
+	SpectralDeferred      = "deferred"       // 2-D but larger than the compute budget
 )
 
 var tensorMeasurementContract = artifact.DocumentContract{
@@ -44,6 +52,11 @@ var tensorMeasurementCodec = artifact.DocumentCodec[TensorMeasurementDocument]{
 type MeasurementPolicy struct {
 	MaxSamplesPerTensor uint64 `json:"max_samples_per_tensor"`
 	MaxReadBytes        uint64 `json:"max_read_bytes"`
+	// SpectralMaxDim enables normalized effective rank for 2-D tensors whose
+	// dimensions are both within it (0 disables spectral analysis). The bound is
+	// a compute budget — exact singular values are O(dim³) — not a metric
+	// threshold; larger matrices are reported deferred.
+	SpectralMaxDim uint64 `json:"spectral_max_dim,omitempty"`
 }
 
 // TensorMeasurement is one tensor's distribution-free characterization: robust
@@ -52,6 +65,10 @@ type MeasurementPolicy struct {
 type TensorMeasurement struct {
 	Name string `json:"name"`
 	tensorstats.Characterization
+	// EffectiveRank is the normalized effective rank (spectral flatness) of a
+	// 2-D tensor, present only when SpectralStatus is "computed".
+	EffectiveRank  float64 `json:"effective_rank,omitempty"`
+	SpectralStatus string  `json:"spectral_status,omitempty"`
 }
 
 // TensorMeasurementDocument: bounded sampled tensor evidence.
@@ -127,11 +144,26 @@ func canonicalizeTensorMeasurements(document *TensorMeasurementDocument) error {
 			!finiteMeasurement(c.LowerQuartile) || !finiteMeasurement(c.Median) ||
 			!finiteMeasurement(c.UpperQuartile) || c.InterquartileRange < 0 ||
 			c.LowerQuartile > c.Median || c.Median > c.UpperQuartile ||
+			!validSpectralMeasurement(measurement) ||
 			index > 0 && document.Measurements[index-1].Name == measurement.Name {
 			return errors.New("model artifact: invalid tensor measurement")
 		}
 	}
 	return nil
+}
+
+// validSpectralMeasurement checks the optional effective-rank fields: it is
+// present and in (0,1] exactly when the status is "computed", and absent
+// otherwise.
+func validSpectralMeasurement(m TensorMeasurement) bool {
+	switch m.SpectralStatus {
+	case "", SpectralNotApplicable, SpectralDeferred:
+		return m.EffectiveRank == 0
+	case SpectralComputed:
+		return finiteMeasurement(m.EffectiveRank) && m.EffectiveRank > 0 && m.EffectiveRank <= 1
+	default:
+		return false
+	}
 }
 
 func finiteMeasurement(value float64) bool {

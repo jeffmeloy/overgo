@@ -24,12 +24,17 @@ func main() {
 	store := flag.String("store", "repodb-store", "RepoDB store directory")
 	samples := flag.Uint64("samples", 4096, "max sampled values per tensor")
 	maxRead := flag.Uint64("max-read", 64<<20, "max bytes read across all tensors")
+	spectralMaxDim := flag.Uint64("spectral-max-dim", 0, "compute effective rank for 2-D tensors whose dimensions are both within this budget (0 disables)")
 	flag.Parse()
 	if flag.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "usage: model-characterize [-store dir] [-samples n] [-max-read bytes] <model.gguf>")
+		fmt.Fprintln(os.Stderr, "usage: model-characterize [-store dir] [-samples n] [-max-read bytes] [-spectral-max-dim n] <model.gguf>")
 		os.Exit(2)
 	}
-	policy := modelartifact.MeasurementPolicy{MaxSamplesPerTensor: *samples, MaxReadBytes: *maxRead}
+	policy := modelartifact.MeasurementPolicy{
+		MaxSamplesPerTensor: *samples,
+		MaxReadBytes:        *maxRead,
+		SpectralMaxDim:      *spectralMaxDim,
+	}
 	if err := run(*store, flag.Arg(0), policy); err != nil {
 		fmt.Fprintf(os.Stderr, "model-characterize: %v\n", err)
 		os.Exit(1)

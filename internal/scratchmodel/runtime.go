@@ -10,10 +10,13 @@ import (
 	"overgo/internal/optimizer"
 )
 
-// TrainingResult reports the shared runtime's pre-update trajectory.
+// TrainingResult reports losses and final shared state.
 type TrainingResult struct {
 	Losses         []float64
 	ValidationLoss float64
+	Weights        []float32
+	Gradients      []float32
+	Momentum       []float64
 }
 
 // TrainShared executes the compiled scratch program through hostmath and Muon.
@@ -62,6 +65,9 @@ func (c Construction) TrainShared(totalSteps int) (TrainingResult, error) {
 		return TrainingResult{}, err
 	}
 	result.ValidationLoss, err = hostmath.MADTransformerLoss(model, validation)
+	result.Weights = weights
+	result.Gradients = gradients
+	result.Momentum = muon.Snapshot().Momentum
 	return result, err
 }
 

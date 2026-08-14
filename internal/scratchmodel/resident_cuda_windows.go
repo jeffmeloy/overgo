@@ -174,18 +174,23 @@ func (t *ResidentTrainer) Evaluate(tokens []int) (float64, error) {
 	return state.loss, err
 }
 
-func (t *ResidentTrainer) Snapshot() (weights, momentum []float32, err error) {
+func (t *ResidentTrainer) Snapshot() (weights, gradients, momentum []float32, err error) {
 	if t == nil || t.closed {
-		return nil, nil, errors.New("scratch model: resident trainer unavailable")
+		return nil, nil, nil, errors.New("scratch model: resident trainer unavailable")
 	}
-	weights, momentum = make([]float32, len(t.construction.weights)), make([]float32, len(t.construction.weights))
+	weights = make([]float32, len(t.construction.weights))
+	gradients = make([]float32, len(t.construction.weights))
+	momentum = make([]float32, len(t.construction.weights))
 	if err := devicemath.ReadResident(t.worker, t.weights, devicemath.ResidentSlice{Data: weights}); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	if err := devicemath.ReadResident(t.worker, t.gradients, devicemath.ResidentSlice{Data: gradients}); err != nil {
+		return nil, nil, nil, err
 	}
 	if err := devicemath.ReadResident(t.worker, t.momentum, devicemath.ResidentSlice{Data: momentum}); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return weights, momentum, nil
+	return weights, gradients, momentum, nil
 }
 
 func (t *ResidentTrainer) ResetPeakMemory() error {

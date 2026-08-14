@@ -65,6 +65,7 @@ type ScratchOracle struct {
 	FirstLoss         float64              `json:"first_loss"`
 	LossHistory       []float64            `json:"loss_history"`
 	FinalValLoss      float64              `json:"final_val_loss"`
+	LossTolerance     float64              `json:"loss_tolerance"`
 	Groups            []ScratchGroupOracle `json:"groups"`
 	ID                artifact.ID          `json:"-"`
 }
@@ -149,7 +150,7 @@ func validateScratchOracle(oracle *ScratchOracle) error {
 		}
 	}
 	if len(oracle.LossHistory) != oracle.Steps || oracle.FirstLoss != oracle.LossHistory[0] ||
-		!finite(oracle.FirstLoss) || !finite(oracle.FinalValLoss) {
+		!finite(oracle.FirstLoss) || !finite(oracle.FinalValLoss) || !positiveFinite(oracle.LossTolerance) {
 		return errors.New("adaptive scratch oracle: invalid loss trajectory")
 	}
 	for _, loss := range oracle.LossHistory {

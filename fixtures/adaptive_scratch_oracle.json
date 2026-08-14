@@ -137,6 +137,7 @@
         1.660797282109651
     ],
     "final_val_loss": 2.17824882011284,
+    "loss_tolerance": 0.002,
     "groups": [
         {
             "name": "l0.w1",

@@ -20,13 +20,12 @@ func TestScratchSharedHostRuntimeParity(t *testing.T) {
 	if len(result.Losses) != len(oracle.LossHistory) {
 		t.Fatalf("shared trajectory length=%d want=%d", len(result.Losses), len(oracle.LossHistory))
 	}
-	const trajectoryTolerance = 0.002
 	for step, loss := range result.Losses {
-		if math.IsNaN(loss) || math.IsInf(loss, 0) || math.Abs(loss-oracle.LossHistory[step]) > trajectoryTolerance {
+		if math.IsNaN(loss) || math.IsInf(loss, 0) || math.Abs(loss-oracle.LossHistory[step]) > oracle.LossTolerance {
 			t.Fatalf("shared loss[%d]=%.9f oracle=%.9f", step, loss, oracle.LossHistory[step])
 		}
 	}
-	if math.IsNaN(result.ValidationLoss) || math.IsInf(result.ValidationLoss, 0) || math.Abs(result.ValidationLoss-oracle.FinalValLoss) > trajectoryTolerance {
+	if math.IsNaN(result.ValidationLoss) || math.IsInf(result.ValidationLoss, 0) || math.Abs(result.ValidationLoss-oracle.FinalValLoss) > oracle.LossTolerance {
 		t.Fatalf("shared validation=%.9f oracle=%.9f", result.ValidationLoss, oracle.FinalValLoss)
 	}
 

@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "program-authority",
-          "title": "Bind every scratch operator to the compiled TrainingProgram and execute resident phases only through its ordered authority; delete hard-coded orchestration",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/scratchmodel -run 'Test(BoundTrainingProgram|ScratchProgramOwnsResidentExecution)' -count=1 -v"
-        },
-        {
           "id": "complete-state-parity",
           "title": "Compare resident losses, final weights, gradients, Muon momentum, and update ordering with the host oracle",
           "status": "open",

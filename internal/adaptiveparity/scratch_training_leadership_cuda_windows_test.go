@@ -82,6 +82,10 @@ func TestScratchTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	compileWall := time.Since(compileStarted)
+	host, err := construction.TrainShared(oracle.Steps)
+	if err != nil {
+		t.Fatal(err)
+	}
 	initStarted := time.Now()
 	trainer, err := scratchmodel.NewResidentTrainer(construction, oracle.Steps)
 	if err != nil {
@@ -129,6 +133,10 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	weights, gradients, momentum, err := trainer.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
 	hostPeak := peak.Load() - baseline.HeapAlloc
 	candidatePeak := memory.PeakBytes + hostPeak
 	stepWall := walls[0] + walls[1] + walls[2]
@@ -136,9 +144,15 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	for index := range losses {
 		worst = max(worst, math.Abs(losses[index]-oracle.LossHistory[index]))
 	}
-	t.Logf("scratch leadership compile=%s init=%s cold=%s warm=%s/%s steps=%s peak=%d host=%d device=%d heap_base=%d heap_final=%d alloc=%d reference_steps=%s reference_peak=%d delta=%.3e", compileWall, initWall, walls[0], walls[1], walls[2], stepWall, candidatePeak, hostPeak, memory.PeakBytes, baseline.HeapAlloc, finalHeap.HeapAlloc, finalHeap.TotalAlloc-baseline.TotalAlloc, time.Duration(referenceWall), referencePeak, worst)
-	if worst > 3e-3 {
+	weightDelta := maxF32Delta(weights, host.Weights)
+	gradientDelta := maxF32Delta(gradients, host.Gradients)
+	momentumDelta := maxF32F64Delta(momentum, host.Momentum)
+	t.Logf("scratch leadership compile=%s init=%s cold=%s warm=%s/%s steps=%s peak=%d host=%d device=%d heap_base=%d heap_final=%d alloc=%d reference_steps=%s reference_peak=%d loss=%.3e weight=%.3e gradient=%.3e momentum=%.3e", compileWall, initWall, walls[0], walls[1], walls[2], stepWall, candidatePeak, hostPeak, memory.PeakBytes, baseline.HeapAlloc, finalHeap.HeapAlloc, finalHeap.TotalAlloc-baseline.TotalAlloc, time.Duration(referenceWall), referencePeak, worst, weightDelta, gradientDelta, momentumDelta)
+	if worst > oracle.LossTolerance {
 		t.Fatalf("scratch trajectory delta %.3e", worst)
+	}
+	if weightDelta > f32Bound(host.Weights) || gradientDelta > f32Bound(host.Gradients) || momentumDelta > f64AsF32Bound(host.Momentum) {
+		t.Fatal("scratch final state differs from host oracle")
 	}
 	if uint64(walls[0]) > evidence.CandidateBounds.ColdStepNanos || uint64(walls[1]) > evidence.CandidateBounds.WarmStepNanos || uint64(walls[2]) > evidence.CandidateBounds.WarmStepNanos {
 		t.Fatalf("scratch lifecycle exceeds cold/warm ratchet: %v", walls)
@@ -149,6 +163,44 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	if candidatePeak >= referencePeak {
 		t.Fatalf("scratch peak %d does not beat adaptive %d", candidatePeak, referencePeak)
 	}
+}
+
+func maxF32Delta(left, right []float32) float64 {
+	if len(left) != len(right) {
+		return math.Inf(1)
+	}
+	var worst float64
+	for index := range left {
+		worst = max(worst, math.Abs(float64(left[index]-right[index])))
+	}
+	return worst
+}
+
+func maxF32F64Delta(left []float32, right []float64) float64 {
+	if len(left) != len(right) {
+		return math.Inf(1)
+	}
+	var worst float64
+	for index := range left {
+		worst = max(worst, math.Abs(float64(left[index])-right[index]))
+	}
+	return worst
+}
+
+func f32Bound(reference []float32) float64 {
+	scale := float64(1)
+	for _, value := range reference {
+		scale = max(scale, math.Abs(float64(value)))
+	}
+	return math.Sqrt(float64(math.Nextafter32(1, 2)-1)) * scale
+}
+
+func f64AsF32Bound(reference []float64) float64 {
+	scale := float64(1)
+	for _, value := range reference {
+		scale = max(scale, math.Abs(value))
+	}
+	return math.Sqrt(float64(math.Nextafter32(1, 2)-1)) * scale
 }
 
 func sampleHeap(done <-chan struct{}, peak *atomic.Uint64) {

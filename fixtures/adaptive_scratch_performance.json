@@ -3,7 +3,7 @@
     "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
     "source_entrypoint": "go/training/run_from_docs.go:RunFromDocsRich",
     "source_options": "seed=7;steps=3;batch_size_override=1",
-    "oracle_sha256": "3ce06259f3987b467e92a4bd3783186e0425b861333a7de6fe7f91933e059332",
+    "oracle_sha256": "5d29b1c0dfd06eb95d310c811c52124da5882833c8fdcbc0404c3cbd5ccec20d",
     "environment": {
         "go": "go1.26.2",
         "os_arch": "windows/amd64",

@@ -36,7 +36,7 @@ func TestFeatureDistanceSeparatesShapes(t *testing.T) {
 
 func TestNearestOrdersByDistanceAndSkipsSelf(t *testing.T) {
 	pool := []Characterization{
-		mustCharacterize(t, []float64{1, 2, 3, 4, 5, 6, 7, 8}),    // 0: target-like
+		mustCharacterize(t, []float64{1, 2, 3, 4, 5, 6, 7, 8}),     // 0: target-like
 		mustCharacterize(t, []float64{2, 4, 6, 8, 10, 12, 14, 16}), // 1: same shape, scaled -> nearest
 		mustCharacterize(t, []float64{1, 1, 1, 1, 1, 1, 1, 50}),    // 2: heavy right tail -> far
 		mustCharacterize(t, []float64{0, 0, 0, 3, 0, 0, 6, 0}),     // 3: sparse -> far

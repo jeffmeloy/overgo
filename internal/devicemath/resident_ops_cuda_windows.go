@@ -17,6 +17,12 @@ type ResidentOps struct {
 	functions map[string]driver.Function
 }
 
+// ResidentArena reuses one scope-owned device slab by liveness mark.
+type ResidentArena struct {
+	cursor, capacity int
+	pointer          driver.DevicePtr
+}
+
 // WithResidentOps runs one composed resident program and synchronizes once.
 func WithResidentOps(worker *device.Worker, run func(*ResidentOps) error) error {
 	if worker == nil || run == nil {
@@ -47,6 +53,38 @@ func (o *ResidentOps) AllocF32(count int) (driver.DevicePtr, error) {
 		return 0, errors.New("resident ops: invalid scratch allocation")
 	}
 	return o.session.alloc(count)
+}
+
+func (o *ResidentOps) NewArena(count int) (*ResidentArena, error) {
+	pointer, err := o.AllocF32(count)
+	if err != nil {
+		return nil, err
+	}
+	return &ResidentArena{pointer: pointer, capacity: count}, nil
+}
+
+func (a *ResidentArena) AllocF32(count int) (driver.DevicePtr, error) {
+	if a == nil || a.pointer == 0 || count <= 0 || a.cursor+count > a.capacity {
+		return 0, errors.New("resident arena: capacity exceeded")
+	}
+	pointer := ResidentPtr(a.pointer, a.cursor)
+	a.cursor += count
+	return pointer, nil
+}
+
+func (a *ResidentArena) Mark() int {
+	if a == nil {
+		return 0
+	}
+	return a.cursor
+}
+
+func (a *ResidentArena) Reset(mark int) error {
+	if a == nil || mark < 0 || mark > a.cursor {
+		return errors.New("resident arena: invalid liveness mark")
+	}
+	a.cursor = mark
+	return nil
 }
 
 func (o *ResidentOps) UploadU32(values []uint32) (driver.DevicePtr, error) {
@@ -109,6 +147,17 @@ func (o *ResidentOps) AttentionCoreBackward(
 	dProbability, err := o.AllocF32(sequence * sequence)
 	if err != nil {
 		return err
+	}
+	return o.AttentionCoreBackwardWithScratch(q, k, v, probability, dOut, dQ, dK, dV, dScores, dProbability, sequence, headDim, scale)
+}
+
+func (o *ResidentOps) AttentionCoreBackwardWithScratch(
+	q, k, v, probability, dOut, dQ, dK, dV, dScores, dProbability driver.DevicePtr,
+	sequence, headDim int,
+	scale float64,
+) error {
+	if q == 0 || k == 0 || v == 0 || probability == 0 || dOut == 0 || dQ == 0 || dK == 0 || dV == 0 || dScores == 0 || dProbability == 0 || sequence <= 0 || headDim <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) {
+		return errors.New("resident ops: invalid attention VJP scratch")
 	}
 	if err := o.session.gemm(false, true, sequence, headDim, sequence, dOut, v, dProbability); err != nil {
 		return err

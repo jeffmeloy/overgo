@@ -192,6 +192,13 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 	return loss, err
 }
 
+func scratchBackwardArenaElems(config Config, positions int) int {
+	hidden := positions * config.Embedding
+	base := positions*config.MLPWidth + 7*hidden
+	head := 4*positions*config.HeadDim + 2*positions*positions + 1
+	return max(hidden, base+max(head, 2*hidden))
+}
+
 func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {
 	c := t.construction
 	positions, hidden, vocab := graph.positions, c.config.Embedding, c.config.VocabSize
@@ -216,7 +223,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		}
 		return devicemath.ResidentPtr(t.gradients, binding.start), nil
 	}
-	allocate := func(count int, initial []float32) (driver.DevicePtr, error) {
+	allocatePersistent := func(count int, initial []float32) (driver.DevicePtr, error) {
 		if initial != nil {
 			return 0, errors.New("scratch model: resident scratch initialization unsupported")
 		}
@@ -238,7 +245,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 	if err != nil {
 		return 0, err
 	}
-	lossesPtr, err := allocate(positions, nil)
+	lossesPtr, err := allocatePersistent(positions, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -249,7 +256,11 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 	if err != nil {
 		return 0, err
 	}
-	dHidden, err := allocate(positions*hidden, nil)
+	dHidden, err := allocatePersistent(positions*hidden, nil)
+	if err != nil {
+		return 0, err
+	}
+	dHiddenNext, err := allocatePersistent(positions*hidden, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -264,8 +275,13 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 	if err := ops.LinearBackwardT(finalHidden, head, logits, dHidden, dHead, positions, hidden, vocab); err != nil {
 		return 0, err
 	}
+	arena, err := ops.NewArena(scratchBackwardArenaElems(c.config, positions))
+	if err != nil {
+		return 0, err
+	}
 
 	for layer := len(graph.layers) - 1; layer >= 0; layer-- {
+		layerMark := arena.Mark()
 		cache := graph.layers[layer]
 		prefix := fmt.Sprintf("l%d.", layer)
 		attentionOutput, err := pointer(cache.attentionOutput)
@@ -284,7 +300,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err != nil {
 			return 0, err
 		}
-		dActivation, err := allocate(positions*c.config.MLPWidth, nil)
+		dActivation, err := arena.AllocF32(positions * c.config.MLPWidth)
 		if err != nil {
 			return 0, err
 		}
@@ -302,7 +318,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err := ops.ReLUBackward(dActivation, preactivation, dActivation, positions*c.config.MLPWidth); err != nil {
 			return 0, err
 		}
-		dMLPNorm, err := allocate(positions*hidden, nil)
+		dMLPNorm, err := arena.AllocF32(positions * hidden)
 		if err != nil {
 			return 0, err
 		}
@@ -317,14 +333,14 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err := ops.LinearBackwardT(mlpNorm, w1, dActivation, dMLPNorm, dW1, positions, hidden, c.config.MLPWidth); err != nil {
 			return 0, err
 		}
-		dMLPInput, err := allocate(positions*hidden, nil)
+		dMLPInput, err := arena.AllocF32(positions * hidden)
 		if err != nil {
 			return 0, err
 		}
 		if err := ops.MADNormBackward(dMLPNorm, attentionOutput, mlpNorm, dMLPInput, positions, hidden, c.config.Epsilon); err != nil {
 			return 0, err
 		}
-		dAttentionOutput, err := allocate(positions*hidden, nil)
+		dAttentionOutput, err := arena.AllocF32(positions * hidden)
 		if err != nil {
 			return 0, err
 		}
@@ -335,7 +351,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err != nil {
 			return 0, err
 		}
-		dAttention, err := allocate(positions*hidden, nil)
+		dAttention, err := arena.AllocF32(positions * hidden)
 		if err != nil {
 			return 0, err
 		}
@@ -350,14 +366,11 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err := ops.LinearBackwardT(attention, wo, dAttentionOutput, dAttention, dWO, positions, hidden, hidden); err != nil {
 			return 0, err
 		}
-		dInput, err := allocate(positions*hidden, nil)
-		if err != nil {
-			return 0, err
-		}
+		dInput := dHiddenNext
 		if err := ops.StridedRowCopy(dAttentionOutput, dInput, positions, hidden, hidden, 0, hidden, 0); err != nil {
 			return 0, err
 		}
-		dQKV, err := allocate(positions*3*hidden, nil)
+		dQKV, err := arena.AllocF32(positions * 3 * hidden)
 		if err != nil {
 			return 0, err
 		}
@@ -370,6 +383,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 			return 0, err
 		}
 		for headIndex, headCache := range cache.heads {
+			headMark := arena.Mark()
 			q, err := pointer(headCache.query)
 			if err != nil {
 				return 0, err
@@ -386,7 +400,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 			if err != nil {
 				return 0, err
 			}
-			dHeadAttention, err := allocate(positions*c.config.HeadDim, nil)
+			dHeadAttention, err := arena.AllocF32(positions * c.config.HeadDim)
 			if err != nil {
 				return 0, err
 			}
@@ -396,19 +410,23 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 			); err != nil {
 				return 0, err
 			}
-			dQ, err := allocate(positions*c.config.HeadDim, nil)
+			dQ, err := arena.AllocF32(positions * c.config.HeadDim)
 			if err != nil {
 				return 0, err
 			}
-			dK, err := allocate(positions*c.config.HeadDim, nil)
+			dK, err := arena.AllocF32(positions * c.config.HeadDim)
 			if err != nil {
 				return 0, err
 			}
-			dV, err := allocate(positions*c.config.HeadDim, nil)
+			dV, err := arena.AllocF32(positions * c.config.HeadDim)
 			if err != nil {
 				return 0, err
 			}
-			dScores, err := allocate(positions*positions, nil)
+			dScores, err := arena.AllocF32(positions * positions)
+			if err != nil {
+				return 0, err
+			}
+			dProbability, err := arena.AllocF32(positions * positions)
 			if err != nil {
 				return 0, err
 			}
@@ -420,9 +438,9 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 			if err != nil {
 				return 0, err
 			}
-			if err := ops.AttentionCoreBackward(
+			if err := ops.AttentionCoreBackwardWithScratch(
 				scaledQuery, k, v, probability, dHeadAttention,
-				dQ, dK, dV, dScores, positions, c.config.HeadDim, 1,
+				dQ, dK, dV, dScores, dProbability, positions, c.config.HeadDim, 1,
 			); err != nil {
 				return 0, err
 			}
@@ -444,7 +462,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 					return 0, err
 				}
 			}
-			dScale, err := allocate(1, nil)
+			dScale, err := arena.AllocF32(1)
 			if err != nil {
 				return 0, err
 			}
@@ -465,12 +483,15 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 			); err != nil {
 				return 0, err
 			}
+			if err := arena.Reset(headMark); err != nil {
+				return 0, err
+			}
 		}
 		qkvNorm, err := pointer(cache.qkvNorm)
 		if err != nil {
 			return 0, err
 		}
-		dQKVNorm, err := allocate(positions*hidden, nil)
+		dQKVNorm, err := arena.AllocF32(positions * hidden)
 		if err != nil {
 			return 0, err
 		}
@@ -489,7 +510,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err != nil {
 			return 0, err
 		}
-		dQKVInput, err := allocate(positions*hidden, nil)
+		dQKVInput, err := arena.AllocF32(positions * hidden)
 		if err != nil {
 			return 0, err
 		}
@@ -499,7 +520,10 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err := ops.Add(dInput, dQKVInput, dInput, positions*hidden); err != nil {
 			return 0, err
 		}
-		dHidden = dInput
+		dHidden, dHiddenNext = dInput, dHidden
+		if err := arena.Reset(layerMark); err != nil {
+			return 0, err
+		}
 	}
 
 	embedding, err := pointer(graph.embedding)
@@ -510,7 +534,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 	if err != nil {
 		return 0, err
 	}
-	dEmbedding, err := allocate(positions*hidden, nil)
+	dEmbedding, err := arena.AllocF32(positions * hidden)
 	if err != nil {
 		return 0, err
 	}

@@ -3,6 +3,7 @@
 package devicemath
 
 import (
+	"errors"
 	"math/rand"
 	"testing"
 
@@ -179,5 +180,44 @@ func TestResidentOpsSessionMatchesWrappers(t *testing.T) {
 	t.Logf("resident session/wrappers delta=%.3e", delta)
 	if delta != 0 {
 		t.Fatalf("resident session differs: %.3e", delta)
+	}
+}
+
+func TestResidentArenaReusesStorage(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	if err := WithResidentOps(worker, func(ops *ResidentOps) error {
+		arena, err := ops.NewArena(12)
+		if err != nil {
+			return err
+		}
+		if _, err := arena.AllocF32(4); err != nil {
+			return err
+		}
+		mark := arena.Mark()
+		first, err := arena.AllocF32(8)
+		if err != nil {
+			return err
+		}
+		if _, err := arena.AllocF32(1); err == nil {
+			return errors.New("resident arena accepted overflow")
+		}
+		if err := arena.Reset(mark); err != nil {
+			return err
+		}
+		second, err := arena.AllocF32(8)
+		if err != nil {
+			return err
+		}
+		if first != second {
+			return errors.New("resident arena rewind changed address")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
 	}
 }

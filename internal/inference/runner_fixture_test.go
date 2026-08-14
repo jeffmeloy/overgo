@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"context"
 	"testing"
 
 	"overgo/internal/model"
@@ -40,6 +41,18 @@ func fixtureModelPlan(spec model.Spec, weights model.Weights) (model.ModelPlan, 
 	return model.CompileModelPlanWithProfile(spec, weights, profile)
 }
 
+func fixtureLayerPlan(spec model.Spec, layer int) model.LayerPlan {
+	plan, err := fixtureModelPlan(spec, model.Weights{})
+	if err != nil {
+		panic(err)
+	}
+	result, err := plan.Layer(layer)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
 func fixtureRunner(spec model.Spec, weights model.Weights) *Runner {
 	program := fixtureProgram(spec, weights)
 	return &Runner{preparedModel: preparedModel{
@@ -74,7 +87,7 @@ func openFixtureRunnerWithResidency(
 	if err != nil {
 		return nil, err
 	}
-	return OpenWithProgram(&loaded, options)
+	return OpenWithProgram(context.Background(), &loaded, options)
 }
 
 func openNativeFixtureRunner(path string, options OpenOptions) (*Runner, error) {

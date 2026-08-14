@@ -51,7 +51,7 @@ func TestLlama4VisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesLlama4(t *testing.T) {
-	projector, err := OpenImageProjector(writeTinyLlama4Vision(t, tinyLlama4VisionTensors()))
+	projector, err := OpenImageProjector(context.Background(), writeTinyLlama4Vision(t, tinyLlama4VisionTensors()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestLlama4VisionCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenLlama4VisionWithOptions(path, Llama4VisionOpenOptions{CUDA: true})
+	cuda, err := OpenLlama4VisionWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

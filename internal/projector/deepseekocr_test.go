@@ -59,7 +59,7 @@ func TestDeepSeekOCRPreprocessesLocalTilesBeforeOverview(t *testing.T) {
 
 func TestDeepSeekOCRCanDisableDynamicTiles(t *testing.T) {
 	runner, err := OpenDeepSeekOCRWithOptions(
-		writeTinyDeepSeekOCR(t, false), DeepSeekOCROpenOptions{DisableDynamicTiles: true},
+		writeTinyDeepSeekOCR(t, false), OpenOptions{DisableDynamicTiles: true},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestDeepSeekOCRPromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesDeepSeekOCR(t *testing.T) {
-	projector, err := OpenImageProjector(writeTinyDeepSeekOCR(t, false))
+	projector, err := OpenImageProjector(context.Background(), writeTinyDeepSeekOCR(t, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestDeepSeekOCRCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenDeepSeekOCRWithOptions(path, DeepSeekOCROpenOptions{CUDA: true})
+	cuda, err := OpenDeepSeekOCRWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

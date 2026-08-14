@@ -264,17 +264,30 @@ func (r *Runner) Vocab() *tokenizer.Vocab {
 	return r.vocab
 }
 
+var (
+	errRunnerNil    = errors.New("inference: runner is nil")
+	errRunnerClosed = errors.New("inference: runner is closed")
+)
+
+func (r *Runner) lockOpen() error {
+	if r == nil {
+		return errRunnerNil
+	}
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return errRunnerClosed
+	}
+	return nil
+}
+
 // Forward: evaluates all layers and returns final normalized hidden states in
 // ggml shape [embedding, tokens]
 func (r *Runner) Forward(ctx context.Context, tokenIDs []tokenizer.TokenID) (reference.Value, error) {
-	if r == nil {
-		return reference.Value{}, errors.New("inference: runner is nil")
+	if err := r.lockOpen(); err != nil {
+		return reference.Value{}, err
 	}
-	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, errors.New("inference: runner is closed")
-	}
 	return r.forwardLocked(ctx, tokenIDs)
 }
 
@@ -285,14 +298,10 @@ func (r *Runner) ForwardWithEmbeddingOverrides(
 	tokenIDs []tokenizer.TokenID,
 	overrides []EmbeddingOverride,
 ) (reference.Value, error) {
-	if r == nil {
-		return reference.Value{}, errors.New("inference: runner is nil")
+	if err := r.lockOpen(); err != nil {
+		return reference.Value{}, err
 	}
-	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, errors.New("inference: runner is closed")
-	}
 	if r.forwardProgram().Operation == model.ForwardOperationEncoder || r.spec.NonCausalAttention {
 		return reference.Value{}, errors.New("inference: embedding overrides currently require a causal decoder")
 	}
@@ -354,14 +363,10 @@ func (r *Runner) ForwardCached(
 	tokenIDs []tokenizer.TokenID,
 	cache *KVCache,
 ) (reference.Value, *KVCache, error) {
-	if r == nil {
-		return reference.Value{}, nil, errors.New("inference: runner is nil")
+	if err := r.lockOpen(); err != nil {
+		return reference.Value{}, nil, err
 	}
-	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, nil, errors.New("inference: runner is closed")
-	}
 	if r.spec.NonCausalAttention {
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
@@ -380,14 +385,10 @@ func (r *Runner) ForwardCachedWithEmbeddingOverrides(
 	cache *KVCache,
 	overrides []EmbeddingOverride,
 ) (reference.Value, *KVCache, error) {
-	if r == nil {
-		return reference.Value{}, nil, errors.New("inference: runner is nil")
+	if err := r.lockOpen(); err != nil {
+		return reference.Value{}, nil, err
 	}
-	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, nil, errors.New("inference: runner is closed")
-	}
 	if r.spec.NonCausalAttention {
 		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
 	}
@@ -404,14 +405,10 @@ func (r *Runner) ForwardCachedWithMultimodalInputs(
 	positions MultiAxisPositions,
 	overrides []EmbeddingOverride,
 ) (reference.Value, *KVCache, error) {
-	if r == nil {
-		return reference.Value{}, nil, errors.New("inference: runner is nil")
+	if err := r.lockOpen(); err != nil {
+		return reference.Value{}, nil, err
 	}
-	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, nil, errors.New("inference: runner is closed")
-	}
 	if !r.program.Model.ProjectedInput().MultiAxis {
 		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
 	}
@@ -429,14 +426,10 @@ func (r *Runner) ForwardCachedWithProjectedInputs(
 	cache *KVCache,
 	inputs ProjectedInputs,
 ) (reference.Value, *KVCache, error) {
-	if r == nil {
-		return reference.Value{}, nil, errors.New("inference: runner is nil")
+	if err := r.lockOpen(); err != nil {
+		return reference.Value{}, nil, err
 	}
-	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, nil, errors.New("inference: runner is closed")
-	}
 	return r.forwardCachedWithProjectedInputsLocked(ctx, tokenIDs, cache, inputs)
 }
 

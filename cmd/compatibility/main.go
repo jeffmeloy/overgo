@@ -100,19 +100,62 @@ func main() {
 func run() error {
 	check := flag.Bool("check", false, "verify compatibility claims and generated matrix")
 	update := flag.Bool("update", false, "write generated compatibility matrix")
+	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
 	flag.Parse()
-	if flag.NArg() != 0 || *check && *update {
-		return errors.New("usage: compatibility [-check|-update]")
+	if flag.NArg() != 0 || *check && (*update || *refresh) {
+		return errors.New("usage: compatibility [-check|-update|-refresh-identities]")
+	}
+	if *refresh {
+		if err := refreshEvidenceIdentities("."); err != nil {
+			return err
+		}
 	}
 	data, err := generate(".")
 	if err != nil {
 		return err
 	}
 	return clioptions.OutputGenerated(
-		data, matrixPath, *check, *update,
+		data, matrixPath, *check, *update || *refresh,
 		"docs/COMPATIBILITY.md is stale; regenerate with: go run ./cmd/compatibility -update",
 		os.Stdout,
 	)
+}
+
+func refreshEvidenceIdentities(root string) error {
+	document, err := loadManifest(root)
+	if err != nil {
+		return err
+	}
+	manifestFile := filepath.Join(root, manifestPath)
+	raw, err := os.ReadFile(manifestFile)
+	if err != nil {
+		return err
+	}
+	for i := range document.Claims {
+		for j := range document.Claims[i].Evidence {
+			proof := &document.Claims[i].Evidence[j]
+			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(proof.Path)))
+			if err != nil {
+				return err
+			}
+			kind := artifact.KindFile
+			if proof.Role == roleArtifact {
+				kind = artifact.KindEvidence
+			}
+			id, err := artifact.IdentifyBytes(kind, canonicalEvidence(data))
+			if err != nil {
+				return err
+			}
+			before := []byte(proof.Identity)
+			after := []byte(id.String())
+			if bytes.Contains(raw, before) {
+				raw = bytes.ReplaceAll(raw, before, after)
+			} else if !bytes.Contains(raw, after) {
+				return fmt.Errorf("compatibility manifest: identity %q not found", proof.Identity)
+			}
+		}
+	}
+	return os.WriteFile(manifestFile, raw, 0o644)
 }
 
 func generate(root string) ([]byte, error) {
@@ -214,7 +257,7 @@ func validateManifest(root string, document manifest) error {
 		if !hasSource || !hasArtifact {
 			return fmt.Errorf("compatibility manifest: claim %q requires source and artifact identities", item.ID)
 		}
-		if err := validateClaimEvidenceTier(item); err != nil {
+		if err := validateClaimEvidenceTier(root, item); err != nil {
 			return fmt.Errorf("compatibility manifest: claim %q: %w", item.ID, err)
 		}
 	}
@@ -295,13 +338,13 @@ func validateEvidence(root, claimID string, proof evidence) error {
 	case roleSource:
 	case roleArtifact:
 		kind = artifact.KindEvidence
-		if _, ok := evidenceCommand(proof); !ok {
+		if _, ok := evidenceCommand(proof, data); !ok {
 			return fmt.Errorf("compatibility manifest: claim %q artifact %q lacks an exact failable Go test command", claimID, proof.Path)
 		}
 	default:
 		return fmt.Errorf("compatibility manifest: claim %q evidence %q has invalid role %q", claimID, proof.Path, proof.Role)
 	}
-	want, err := artifact.IdentifyBytes(kind, data)
+	want, err := artifact.IdentifyBytes(kind, canonicalEvidence(data))
 	if err != nil {
 		return err
 	}
@@ -311,11 +354,15 @@ func validateEvidence(root, claimID string, proof evidence) error {
 	return nil
 }
 
+func canonicalEvidence(data []byte) []byte {
+	return bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+}
+
 func (tier evidenceTier) valid() bool {
 	return tier == tierContract || tier == tierFixture || tier == tierOracle || tier == tierDevice
 }
 
-func validateClaimEvidenceTier(item claim) error {
+func validateClaimEvidenceTier(root string, item claim) error {
 	if item.EvidenceTier == tierOracle && len(item.SourceCommit) != 40 {
 		return errors.New("pinned-oracle evidence needs a source_commit")
 	}
@@ -323,7 +370,11 @@ func validateClaimEvidenceTier(item claim) error {
 		return fmt.Errorf("%s evidence needs an artifact_identity", item.EvidenceTier)
 	}
 	for _, proof := range item.Evidence {
-		if command, ok := evidenceCommand(proof); ok {
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(proof.Path)))
+		if err != nil {
+			return err
+		}
+		if command, ok := evidenceCommand(proof, data); ok {
 			if item.Verify == command || item.EvidenceTier == tierDevice && item.Verify == "OVERGO_CUDA_TEST=1 "+command {
 				return nil
 			}
@@ -332,7 +383,7 @@ func validateClaimEvidenceTier(item claim) error {
 	return errors.New("verify must exactly name an uncached, verbose test artifact")
 }
 
-func evidenceCommand(proof evidence) (string, bool) {
+func evidenceCommand(proof evidence, data []byte) (string, bool) {
 	if proof.Role != roleArtifact || !strings.HasSuffix(proof.Path, "_test.go") {
 		return "", false
 	}
@@ -349,7 +400,11 @@ func evidenceCommand(proof evidence) (string, bool) {
 	if directory == "." {
 		target = "."
 	}
-	return fmt.Sprintf("go test %s -run '^Test%s$' -count=1 -v", target, name), true
+	tags := ""
+	if bytes.Contains(data, []byte("//go:build integration")) {
+		tags = " -tags integration"
+	}
+	return fmt.Sprintf("go test%s %s -run '^Test%s$' -count=1 -v", tags, target, name), true
 }
 
 func scalarText(value any) string {

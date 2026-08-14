@@ -93,7 +93,7 @@ func OpenRunner(
 		_ = loaded.Close()
 		return nil, errors.Join(resolveErr, closeErr)
 	}
-	return inference.OpenWithProgram(&loaded, options)
+	return inference.OpenWithProgram(ctx, &loaded, options)
 }
 
 // OpenOptions: inference model-loading options.

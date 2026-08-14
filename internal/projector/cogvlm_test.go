@@ -69,7 +69,7 @@ func TestCogVLMPromptMarksVisualExpertBlock(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesCogVLM(t *testing.T) {
-	projector, err := OpenImageProjector(writeTinyCogVLM(t, false))
+	projector, err := OpenImageProjector(context.Background(), writeTinyCogVLM(t, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestCogVLMCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenCogVLMVisionWithOptions(path, CogVLMVisionOpenOptions{CUDA: true})
+	cuda, err := OpenCogVLMVisionWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

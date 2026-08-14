@@ -20,11 +20,10 @@ func (r *Runner) DecodeAudioTokens(
 	if r == nil {
 		return reference.Value{}, errors.New("inference: runner is nil")
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return reference.Value{}, err
 	}
+	defer r.mu.Unlock()
 	if r.forwardProgram().Operation != model.ForwardOperationAudioTokens {
 		return reference.Value{}, errors.New("inference: model has no audio-token decoder")
 	}
@@ -237,11 +236,10 @@ func (r *Runner) NewEncoderDecoderSession(ctx context.Context, sourceIDs []token
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return nil, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return nil, err
 	}
+	defer r.mu.Unlock()
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return nil, errors.New("inference: encoder-decoder session requires a compiled session program")
 	}
@@ -260,11 +258,10 @@ func (r *Runner) DecodeEncoderDecoder(
 	if r == nil {
 		return reference.Value{}, nil, errors.New("inference: runner is nil")
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return reference.Value{}, nil, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return reference.Value{}, nil, err
 	}
+	defer r.mu.Unlock()
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return reference.Value{}, nil, errors.New("inference: decoder requires a compiled encoder-decoder program")
 	}

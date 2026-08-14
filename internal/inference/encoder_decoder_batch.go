@@ -42,11 +42,10 @@ func (r *Runner) NewEncoderDecoderBatchSession(
 	if err != nil {
 		return nil, err
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return nil, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return nil, err
 	}
+	defer r.mu.Unlock()
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return nil, errors.New("inference: batch session requires a compiled encoder-decoder program")
 	}
@@ -96,11 +95,10 @@ func (r *Runner) DecodeEncoderDecoderBatch(
 	if err != nil {
 		return EncoderDecoderBatchResult{}, nil, err
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return EncoderDecoderBatchResult{}, nil, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return EncoderDecoderBatchResult{}, nil, err
 	}
+	defer r.mu.Unlock()
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return EncoderDecoderBatchResult{}, nil, errors.New("inference: batch decode requires a compiled encoder-decoder program")
 	}

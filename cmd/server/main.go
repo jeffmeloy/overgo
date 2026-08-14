@@ -99,8 +99,10 @@ func run() error {
 	}
 	openOptions := modelFlags.OpenOptions(loraScale)
 	openOptions.PromptCacheEntries = *promptCacheEntries
+	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	runner, err := clioptions.OpenRunner(
-		context.Background(), *modelFlags.Repository, flag.Arg(0), openOptions,
+		shutdownContext, *modelFlags.Repository, flag.Arg(0), openOptions,
 	)
 	if err != nil {
 		return err
@@ -118,7 +120,7 @@ func run() error {
 	var vision projector.ImageProjector
 	var audio projector.AudioProjector
 	if *projectorPath != "" {
-		vision, err = projector.OpenImageProjectorWithOptions(*projectorPath, projector.OpenOptions{
+		vision, err = projector.OpenImageProjectorWithOptions(shutdownContext, *projectorPath, projector.OpenOptions{
 			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
 		})
 		if err != nil {
@@ -194,8 +196,6 @@ func run() error {
 		MaxHeaderBytes:    serverMaxHeaderBytes,
 	}
 	log.Printf("serving model %q on http://%s", *modelID, *address)
-	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	serverError := make(chan error, 1)
 	go func() {
 		serverError <- httpServer.ListenAndServe()

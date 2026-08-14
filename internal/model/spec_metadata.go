@@ -286,9 +286,6 @@ func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error 
 func (m specMetadata) readPosition(spec *Spec) error {
 	values, architecture, prefix, profile := m.values, m.architecture, m.prefix, m.profile
 	validation := profile.Validation
-	if profile.readsMetadata(MetadataReadBaichuanBlocks) && spec.BlockCount == 40 {
-		spec.RopeDisabled, spec.MaxALiBiBias = true, 8
-	}
 	if !spec.RopeDisabled && profile.Forward.Operation != ForwardOperationEncoder {
 		optionalBase := validation.optionalRopeBase()
 		if optionalBase {

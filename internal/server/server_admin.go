@@ -354,7 +354,7 @@ func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Reque
 			return
 		}
 		if ok {
-			if err := controller.SetLoRAScales(adapters); err != nil {
+			if err := controller.SetLoRAScales(request.Context(), adapters); err != nil {
 				writeInvalidRequest(response, err)
 				return
 			}

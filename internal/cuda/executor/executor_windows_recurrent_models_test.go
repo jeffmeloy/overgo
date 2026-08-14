@@ -59,7 +59,7 @@ func TestExecutorMambaBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := buildCompiledLayer(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(compiledLayerOptions{
 		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
@@ -108,7 +108,7 @@ func TestExecutorMamba2BlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := buildCompiledLayer(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(compiledLayerOptions{
 		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
@@ -172,7 +172,7 @@ func TestExecutorFalconH1BlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := buildCompiledLayer(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(compiledLayerOptions{
 		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, Positions: fixturePositions,
@@ -229,7 +229,7 @@ func TestExecutorGraniteHybridRecurrentBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := buildCompiledLayer(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(compiledLayerOptions{
 		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
@@ -287,7 +287,7 @@ func TestExecutorPLaMo2RecurrentBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := buildCompiledLayer(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(compiledLayerOptions{
 		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
@@ -350,7 +350,7 @@ func TestExecutorJambaRecurrentMoEBlockMatchesReference(t *testing.T) {
 	}
 	convState := builder.Input("conv_state", dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input("ssm_state", dtype.F32, tensor.MustShape(2, 8))
-	result, err := buildCompiledLayer(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(compiledLayerOptions{
 		Spec: spec, Weights: weights,
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
@@ -478,7 +478,7 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 				var err error
 				if !recurrent && architecture != "qwen3next" {
 					positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
-					result, err = buildCompiledLayer(model.BlockDispatchOptions{
+					result, err = buildCompiledLayer(compiledLayerOptions{
 						Spec: spec, Weights: weights,
 						Context: model.CachedBlockContext{
 							Builder: builder, Input: input, Positions: positions[0], MultiPositions: &positions,
@@ -486,7 +486,7 @@ func TestExecutorQwen35BlocksMatchReference(t *testing.T) {
 						},
 					})
 				} else {
-					result, err = buildCompiledLayer(model.BlockDispatchOptions{
+					result, err = buildCompiledLayer(compiledLayerOptions{
 						Spec: spec, Weights: weights,
 						Context: model.CachedBlockContext{
 							Builder: builder, Input: input, Positions: []uint32{0, 1},

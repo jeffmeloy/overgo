@@ -53,14 +53,12 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 			return Weights{}, err
 		}
 		if block < spec.HashLayerCount {
-			loaded, err := required(prefix+"ffn_gate_tid2eid.weight", uint64(spec.ExpertUsedCount), uint64(spec.VocabularySize))
-			if err != nil {
+			if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+				requiredStoredTensorPointer("ffn_gate_tid2eid.weight", &layer.FeedForwardHashExperts,
+					dtype.I32, uint64(spec.ExpertUsedCount), uint64(spec.VocabularySize)),
+			}); err != nil {
 				return Weights{}, err
 			}
-			if loaded.Type != dtype.I32 {
-				return Weights{}, fmt.Errorf("tensor %q must use I32 storage", loaded.Name)
-			}
-			layer.FeedForwardHashExperts = &loaded
 		} else {
 			loaded, err := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
 			if err != nil {

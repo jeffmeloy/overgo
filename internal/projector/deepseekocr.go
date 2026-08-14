@@ -47,56 +47,57 @@ type DeepSeekOCRInput struct {
 }
 
 type DeepSeekOCRRunner struct {
-	file                      *gguf.File
+	projectorResources
 	spec                      DeepSeekOCRSpec
 	attention                 visionAttentionPlan
 	samPosition, clipPosition reference.Value
-	cuda                      *projectorCUDA
+	newline, separator        reference.Value
 	dynamicTiles              bool
 }
 
-type DeepSeekOCROpenOptions = OpenOptions
-
 func OpenDeepSeekOCR(path string) (*DeepSeekOCRRunner, error) {
-	return OpenDeepSeekOCRWithOptions(path, DeepSeekOCROpenOptions{})
+	return OpenDeepSeekOCRWithOptions(path, OpenOptions{})
 }
 
-func OpenDeepSeekOCRWithOptions(path string, options DeepSeekOCROpenOptions) (*DeepSeekOCRRunner, error) {
-	return openProjectorResource(path, func(file *gguf.File) (*DeepSeekOCRRunner, error) {
-		spec, err := ReadDeepSeekOCRSpec(file)
-		if err != nil {
-			return nil, err
-		}
-		runner := &DeepSeekOCRRunner{
-			file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads),
-			dynamicTiles: !options.DisableDynamicTiles,
-		}
-		runner.samPosition, err = loadProjectorHostTensor(context.Background(), file, "v.sam.pos_embd.weight")
-		if err != nil {
-			return nil, err
-		}
-		runner.clipPosition, err = loadProjectorHostTensor(context.Background(), file, "v.position_embd.weight")
-		if err != nil {
-			return nil, err
-		}
-		if err := runner.validateGraph(); err != nil {
-			return nil, err
-		}
-		if options.CUDA {
-			runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
-			if err != nil {
-				return nil, fmt.Errorf("projector: initialize DeepSeek-OCR CUDA: %w", err)
-			}
-		}
-		return runner, nil
+func OpenDeepSeekOCRWithOptions(path string, options OpenOptions) (*DeepSeekOCRRunner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*DeepSeekOCRRunner, error) {
+		return openDeepSeekOCR(context.Background(), file, options)
 	})
 }
 
-func (r *DeepSeekOCRRunner) Close() error {
-	if r == nil {
-		return nil
+func openDeepSeekOCR(ctx context.Context, file *gguf.File, options OpenOptions) (*DeepSeekOCRRunner, error) {
+	spec, err := ReadDeepSeekOCRSpec(file)
+	if err != nil {
+		return nil, err
 	}
-	return closeProjectorResources(&r.file, &r.cuda)
+	runner := &DeepSeekOCRRunner{
+		projectorResources: projectorResources{file: file}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads),
+		dynamicTiles: !options.DisableDynamicTiles,
+	}
+	runner.samPosition, err = loadProjectorHostTensor(ctx, file, "v.sam.pos_embd.weight")
+	if err != nil {
+		return nil, err
+	}
+	runner.clipPosition, err = loadProjectorHostTensor(ctx, file, "v.position_embd.weight")
+	if err != nil {
+		return nil, err
+	}
+	runner.newline, runner.separator, err = loadProjectorHostTensorPair(
+		ctx, file, "v.image_newline", "v.view_seperator",
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := runner.validateGraph(); err != nil {
+		return nil, err
+	}
+	if options.CUDA {
+		runner.cuda, err = openProjectorCUDA(ctx, file, spec.TensorNames, nil, options.DeviceOrdinal)
+		if err != nil {
+			return nil, fmt.Errorf("projector: initialize DeepSeek-OCR CUDA: %w", err)
+		}
+	}
+	return runner, nil
 }
 
 func (r *DeepSeekOCRRunner) Spec() DeepSeekOCRSpec {
@@ -633,14 +634,6 @@ func (r *DeepSeekOCRRunner) assemble(values []reference.Value, gridW, gridH int)
 	if len(values) != gridW*gridH+1 {
 		return reference.Value{}, errors.New("projector: DeepSeek-OCR tile grid is inconsistent")
 	}
-	newline, err := loadProjectorHostTensor(context.Background(), r.file, "v.image_newline")
-	if err != nil {
-		return reference.Value{}, err
-	}
-	separator, err := loadProjectorHostTensor(context.Background(), r.file, "v.view_seperator")
-	if err != nil {
-		return reference.Value{}, err
-	}
 	hidden := r.spec.OutputHidden
 	var output []float32
 	appendToken := func(value reference.Value, token int) {
@@ -659,7 +652,7 @@ func (r *DeepSeekOCRRunner) assemble(values []reference.Value, gridW, gridH int)
 						appendToken(value, patchX+patchSide*patchY)
 					}
 				}
-				output = append(output, newline.Data...)
+				output = append(output, r.newline.Data...)
 			}
 		}
 	}
@@ -672,9 +665,9 @@ func (r *DeepSeekOCRRunner) assemble(values []reference.Value, gridW, gridH int)
 		for x := 0; x < patchSide; x++ {
 			appendToken(overview, x+patchSide*y)
 		}
-		output = append(output, newline.Data...)
+		output = append(output, r.newline.Data...)
 	}
-	output = append(output, separator.Data...)
+	output = append(output, r.separator.Data...)
 	return reference.Value{Shape: tensor.MustShape(uint64(hidden), uint64(len(output)/hidden)), Data: output}, nil
 }
 

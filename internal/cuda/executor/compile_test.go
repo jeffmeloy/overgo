@@ -152,20 +152,24 @@ func TestRetainedOutputLayoutUsesOneAlignedSpan(t *testing.T) {
 	input := builder.Input("input", dtype.F32, tensor.MustShape(fixtureWidth, 1))
 	first := builder.SiLU(input)
 	second := builder.Sigmoid(first)
-	order, err := tensor.Topological(second)
+	compiled, err := Compile(second)
 	if err != nil {
 		t.Fatal(err)
 	}
-	offsets, bytes, err := retainedOutputLayout(order, map[*tensor.Tensor]struct{}{
-		first: {}, second: {},
-	})
+	storage := make([]bool, len(compiled.order))
+	offsets := make([]uint64, len(compiled.order))
+	storage[compiled.orderIndexes[first]] = true
+	storage[compiled.orderIndexes[second]] = true
+	bytes, err := retainedOutputLayout(compiled, storage, offsets)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if offsets[first]%graphArenaAlignment != 0 || offsets[second]%graphArenaAlignment != 0 {
+	firstOffset := offsets[compiled.orderIndexes[first]]
+	secondOffset := offsets[compiled.orderIndexes[second]]
+	if firstOffset%graphArenaAlignment != 0 || secondOffset%graphArenaAlignment != 0 {
 		t.Fatalf("retained offsets are not aligned: %v", offsets)
 	}
-	if offsets[first] == offsets[second] || bytes <= offsets[second] {
+	if firstOffset == secondOffset || bytes <= secondOffset {
 		t.Fatalf("retained layout overlaps or truncates: offsets %v bytes %d", offsets, bytes)
 	}
 }

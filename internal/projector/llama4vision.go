@@ -59,31 +59,27 @@ type Llama4VisionOutput struct {
 }
 
 type Llama4VisionRunner struct {
-	file      *gguf.File
+	projectorResources
 	spec      Llama4VisionSpec
 	attention visionAttentionPlan
-	cuda      *projectorCUDA
 }
-
-type Llama4VisionOpenOptions = OpenOptions
 
 func OpenLlama4Vision(path string) (*Llama4VisionRunner, error) {
-	return OpenLlama4VisionWithOptions(path, Llama4VisionOpenOptions{})
+	return OpenLlama4VisionWithOptions(path, OpenOptions{})
 }
 
-func OpenLlama4VisionWithOptions(path string, options Llama4VisionOpenOptions) (*Llama4VisionRunner, error) {
-	return openCatalogProjector(path, options, "Llama-4", nil,
+func OpenLlama4VisionWithOptions(path string, options OpenOptions) (*Llama4VisionRunner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Llama4VisionRunner, error) {
+		return openLlama4Vision(context.Background(), file, options)
+	})
+}
+
+func openLlama4Vision(ctx context.Context, file *gguf.File, options OpenOptions) (*Llama4VisionRunner, error) {
+	return buildCatalogProjector(ctx, file, options, "Llama-4", nil,
 		ReadLlama4VisionSpec, validateLlama4VisionCatalog,
 		func(file *gguf.File, spec Llama4VisionSpec, cuda *projectorCUDA) *Llama4VisionRunner {
-			return &Llama4VisionRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads), cuda: cuda}
+			return &Llama4VisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
 		})
-}
-
-func (r *Llama4VisionRunner) Close() error {
-	if r == nil {
-		return nil
-	}
-	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *Llama4VisionRunner) Spec() Llama4VisionSpec {

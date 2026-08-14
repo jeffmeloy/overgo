@@ -318,7 +318,7 @@ func (f *fakeLoRAGenerator) LoRAAdapters() []inference.LoRAAdapterInfo {
 	return append([]inference.LoRAAdapterInfo(nil), f.adapters...)
 }
 
-func (f *fakeLoRAGenerator) SetLoRAScales(scales []inference.LoRAScale) error {
+func (f *fakeLoRAGenerator) SetLoRAScales(_ context.Context, scales []inference.LoRAScale) error {
 	f.requested = append([]inference.LoRAScale(nil), scales...)
 	return nil
 }

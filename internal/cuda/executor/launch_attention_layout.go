@@ -58,7 +58,7 @@ func launchBF16Attention(
 	blas *blasState,
 	node *tensor.Tensor,
 	fusion bf16AttentionFusion,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	attributes, ok := node.Attrs.(tensor.AttentionAttributes)
 	if !ok {
@@ -95,11 +95,11 @@ func launchBF16Attention(
 			return err
 		}
 	}
-	query := pointers[queryNode]
-	key := pointers[keyNode]
-	value := pointers[fusion.value]
-	keyBias := pointers[fusion.keyBias]
-	output := pointers[node]
+	query := pointers.get(queryNode)
+	key := pointers.get(keyNode)
+	value := pointers.get(fusion.value)
+	keyBias := pointers.get(fusion.keyBias)
+	output := pointers.get(node)
 	scale := attributes.Scale
 	stagingBytes, ok := blasBF16AttentionStagingBytes(fusion)
 	if !ok || blas == nil || blas.scores == 0 || stagingBytes > blas.scoreBytes {
@@ -314,17 +314,17 @@ func launchAttentionLayout(
 	blas *blasState,
 	node *tensor.Tensor,
 	runtimeAttributes tensor.Attributes,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
-	attributePointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
+	attributePointers devicePointerTable,
 ) error {
-	output := pointers[node]
+	output := pointers.get(node)
 	switch node.Op {
 	case tensor.OpReshape:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
+		input := pointers.get(node.Inputs[0])
 		return launch1DABI(state, functions[kernelCopyF32], count, &input, &output, &count)
 	case tensor.OpAttention:
 		attributes, ok := runtimeAttributes.(tensor.AttentionAttributes)
@@ -379,9 +379,9 @@ func launchAttentionLayout(
 		if sequences > 1 && keyValueTokens != keyCapacityTokens {
 			return errors.New("parameterized attention capacity requires one sequence")
 		}
-		query := pointers[queryNode]
-		key := pointers[keyNode]
-		value := pointers[valueNode]
+		query := pointers.get(queryNode)
+		key := pointers.get(keyNode)
+		value := pointers.get(valueNode)
 		var relativeBias driver.DevicePtr
 		var sinks driver.DevicePtr
 		var blockIDs driver.DevicePtr
@@ -390,18 +390,18 @@ func launchAttentionLayout(
 		// (bias|sinks), blockIDs, keyBias -- each present per its attribute flag.
 		optIdx := 3
 		if attributes.RelativeBuckets != 0 && optIdx < len(node.Inputs) {
-			relativeBias = pointers[node.Inputs[optIdx]]
+			relativeBias = pointers.get(node.Inputs[optIdx])
 			optIdx++
 		} else if attributes.HasSinks && optIdx < len(node.Inputs) {
-			sinks = pointers[node.Inputs[optIdx]]
+			sinks = pointers.get(node.Inputs[optIdx])
 			optIdx++
 		}
 		if attributes.HasBlockMask && optIdx < len(node.Inputs) {
-			blockIDs = pointers[node.Inputs[optIdx]]
+			blockIDs = pointers.get(node.Inputs[optIdx])
 			optIdx++
 		}
 		if attributes.HasKeyBias && optIdx < len(node.Inputs) {
-			keyBias = pointers[node.Inputs[optIdx]]
+			keyBias = pointers.get(node.Inputs[optIdx])
 			optIdx++
 		}
 		relativeBuckets := attributes.RelativeBuckets
@@ -427,7 +427,7 @@ func launchAttentionLayout(
 			f32Bytes                     = uint64(4)
 		)
 		// shared memory sized to capacity; logical KV count is device-resident
-		tokenCountPointer, hasTokenCount := attributePointers[node]
+		tokenCountPointer, hasTokenCount := attributePointers.lookup(node)
 		sharedBytes := (uint64(keyCapacityTokens) + attentionDecodePartialFloats) * f32Bytes
 		if queryTokens == 1 && causal != 0 && queryStart+1 == keyValueTokens &&
 			relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 && softcap == 0 &&
@@ -523,8 +523,8 @@ func launchAttentionLayout(
 		if err != nil {
 			return err
 		}
-		left := pointers[node.Inputs[0]]
-		right := pointers[node.Inputs[1]]
+		left := pointers.get(node.Inputs[0])
+		right := pointers.get(node.Inputs[1])
 		if output == left && attributes.Axis+1 == uint32(node.Shape.Rank) {
 			leftBytes, sizeErr := node.Inputs[0].Shape.Bytes(dtype.F32)
 			if sizeErr != nil || uint64(output) > math.MaxUint64-leftBytes {
@@ -566,8 +566,8 @@ func launchAttentionLayout(
 		if !ok || attributes.Axis+1 != uint32(node.Shape.Rank) {
 			return errors.New("invalid cache append attributes")
 		}
-		left := pointers[node.Inputs[0]]
-		right := pointers[node.Inputs[1]]
+		left := pointers.get(node.Inputs[0])
+		right := pointers.get(node.Inputs[1])
 		leftCount, err := elementCount32(node.Inputs[0].Shape)
 		if err != nil {
 			return err
@@ -603,7 +603,7 @@ func launchAttentionLayout(
 		}
 		// destination base stays fixed; the row offset is device-resident so
 		// decode launches stay byte-identical across steps
-		offsetPointer, ok := attributePointers[node]
+		offsetPointer, ok := attributePointers.lookup(node)
 		if !ok {
 			return errors.New("cache append offset storage is unavailable")
 		}

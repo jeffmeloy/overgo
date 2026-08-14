@@ -1355,8 +1355,8 @@ func TestReadWeightsRejectsRoPEFactorShape(t *testing.T) {
 		tensorInfo("blk.0.ffn_down.weight", 16, 8),
 	}}
 	_, err := readFixtureWeights(file, spec)
-	if err == nil || !strings.Contains(err.Error(), "incompatible shape") {
-		t.Fatalf("error = %v, want incompatible RoPE factor shape", err)
+	if err == nil || !strings.Contains(err.Error(), "shape") {
+		t.Fatalf("error = %v, want RoPE shape rejection", err)
 	}
 }
 
@@ -1366,7 +1366,7 @@ func TestReadWeightsRejectsShape(t *testing.T) {
 		tensorInfo("token_embd.weight", 7, 32),
 	}}
 	_, err := readFixtureWeights(file, spec)
-	if err == nil || !strings.Contains(err.Error(), "dimension 0") {
+	if err == nil || !strings.Contains(err.Error(), "shape") {
 		t.Fatalf("error = %v", err)
 	}
 }

@@ -39,30 +39,26 @@ type MiMoVLInput gridImage
 type MiMoVLOutput gridOutput
 
 type MiMoVLRunner struct {
-	file *gguf.File
+	projectorResources
 	spec MiMoVLSpec
-	cuda *projectorCUDA
 }
-
-type MiMoVLOpenOptions = OpenOptions
 
 func OpenMiMoVL(path string) (*MiMoVLRunner, error) {
-	return OpenMiMoVLWithOptions(path, MiMoVLOpenOptions{})
+	return OpenMiMoVLWithOptions(path, OpenOptions{})
 }
 
-func OpenMiMoVLWithOptions(path string, options MiMoVLOpenOptions) (*MiMoVLRunner, error) {
-	return openCatalogProjector(path, options, "MiMo-VL", nil,
+func OpenMiMoVLWithOptions(path string, options OpenOptions) (*MiMoVLRunner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*MiMoVLRunner, error) {
+		return openMiMoVL(context.Background(), file, options)
+	})
+}
+
+func openMiMoVL(ctx context.Context, file *gguf.File, options OpenOptions) (*MiMoVLRunner, error) {
+	return buildCatalogProjector(ctx, file, options, "MiMo-VL", nil,
 		ReadMiMoVLSpec, validateMiMoVLCatalog,
 		func(file *gguf.File, spec MiMoVLSpec, cuda *projectorCUDA) *MiMoVLRunner {
-			return &MiMoVLRunner{file: file, spec: spec, cuda: cuda}
+			return &MiMoVLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
 		})
-}
-
-func (r *MiMoVLRunner) Close() error {
-	if r == nil {
-		return nil
-	}
-	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *MiMoVLRunner) Spec() MiMoVLSpec {

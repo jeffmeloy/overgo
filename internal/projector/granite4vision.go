@@ -63,31 +63,27 @@ type Granite4VisionOutput struct {
 }
 
 type Granite4VisionRunner struct {
-	file      *gguf.File
+	projectorResources
 	spec      Granite4VisionSpec
 	attention visionAttentionPlan
-	cuda      *projectorCUDA
 }
-
-type Granite4VisionOpenOptions = OpenOptions
 
 func OpenGranite4Vision(path string) (*Granite4VisionRunner, error) {
-	return OpenGranite4VisionWithOptions(path, Granite4VisionOpenOptions{})
+	return OpenGranite4VisionWithOptions(path, OpenOptions{})
 }
 
-func OpenGranite4VisionWithOptions(path string, options Granite4VisionOpenOptions) (*Granite4VisionRunner, error) {
-	return openCatalogProjector(path, options, "Granite 4 Vision", nil,
+func OpenGranite4VisionWithOptions(path string, options OpenOptions) (*Granite4VisionRunner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Granite4VisionRunner, error) {
+		return openGranite4Vision(context.Background(), file, options)
+	})
+}
+
+func openGranite4Vision(ctx context.Context, file *gguf.File, options OpenOptions) (*Granite4VisionRunner, error) {
+	return buildCatalogProjector(ctx, file, options, "Granite 4 Vision", nil,
 		ReadGranite4VisionSpec, validateGranite4VisionCatalog,
 		func(file *gguf.File, spec Granite4VisionSpec, cuda *projectorCUDA) *Granite4VisionRunner {
-			return &Granite4VisionRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads), cuda: cuda}
+			return &Granite4VisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
 		})
-}
-
-func (r *Granite4VisionRunner) Close() error {
-	if r == nil {
-		return nil
-	}
-	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *Granite4VisionRunner) Spec() Granite4VisionSpec {

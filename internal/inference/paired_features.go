@@ -107,11 +107,10 @@ func (r *Runner) InjectPairedFeatures(
 	if r == nil {
 		return nil, errors.New("inference: runner is nil")
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return nil, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return nil, err
 	}
+	defer r.mu.Unlock()
 	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures {
 		return nil, errors.New("inference: cache injection requires a paired-feature program")
 	}

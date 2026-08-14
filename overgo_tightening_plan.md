@@ -17,5 +17,8 @@ merges `master`.
 | 8 | Runtime admission | continuous batching, retained-cache, capture, sequence-cache, projected-input, specialized-output, diffusion, recurrent, and packed-device admission compiled; runtime profile probes absent | Done |
 | 9 | Metadata validation | expert admission, draft-layer staging/cardinality, sparse-indexer cadence, normalization defaults, and structural bounds are serialized profile facts; family predicates, duplicate reads, probes, and validation-enum reconstruction absent | Active |
 | 10 | Image execution | typed operators and content-addressed profile facts own dispatch, classes, conditioning, and sampling; invocation-scoped device teardown absent | Active |
+| 11 | Runtime lifecycle | caller cancellation reaches model loads; blocking release never runs under owner locks | Done |
+| 12 | Hot-path state | sampling, quantization, and CUDA replay reuse compiled indexed scratch; per-token maps/scans absent | Done |
+| 13 | Artifact authority | typed profile/storage facts and shared weight requirements replace dimension heuristics and loader whitelists | Active |
 
 Live ordering and executable verification remain in `docs/plan.json`.

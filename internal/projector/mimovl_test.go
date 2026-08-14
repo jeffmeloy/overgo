@@ -47,7 +47,7 @@ func TestMiMoVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesMiMoVL(t *testing.T) {
-	projector, err := OpenImageProjector(writeTinyMiMoVL(t, tinyMiMoVLTensors(false)))
+	projector, err := OpenImageProjector(context.Background(), writeTinyMiMoVL(t, tinyMiMoVLTensors(false)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestMiMoVLCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenMiMoVLWithOptions(path, MiMoVLOpenOptions{CUDA: true})
+	cuda, err := OpenMiMoVLWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

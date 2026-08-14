@@ -82,7 +82,7 @@ func (s *Sampler) SpeculativeSample(
 func (s *Sampler) speculativeCandidates(
 	logits []float32,
 	history []int,
-) ([]candidate, float64, map[int]float64, bool, error) {
+) ([]candidate, float64, []float64, bool, error) {
 	adjusted := s.copyLogits(logits)
 	for index, value := range adjusted {
 		if math.IsNaN(float64(value)) {
@@ -131,7 +131,7 @@ func (s *Sampler) speculativeCandidates(
 		}
 	}
 	if useAdaptive {
-		original, total, err := s.adaptiveCandidates(candidates)
+		original, total, err := s.adaptiveCandidates(candidates, len(logits))
 		if err != nil {
 			return nil, 0, nil, false, err
 		}
@@ -210,7 +210,7 @@ func (s *Sampler) speculativeMirostatCandidates(logits []float32) ([]candidate, 
 func (s *Sampler) commitSpeculativeToken(
 	token int,
 	probability float64,
-	original map[int]float64,
+	original []float64,
 	mirostat bool,
 ) error {
 	if probability <= 0 || math.IsNaN(probability) || math.IsInf(probability, 0) {

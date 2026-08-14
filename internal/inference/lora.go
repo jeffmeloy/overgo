@@ -262,17 +262,19 @@ func (r *Runner) LoRAAdapters() []LoRAAdapterInfo {
 }
 
 // SetLoRAScales: replaces global scales; omitted adapters disabled.
-func (r *Runner) SetLoRAScales(scales []LoRAScale) error {
+func (r *Runner) SetLoRAScales(ctx context.Context, scales []LoRAScale) error {
 	if r == nil {
 		return errors.New("inference: runner is nil")
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return errors.New("inference: runner is closed")
+	if ctx == nil {
+		return errors.New("inference: LoRA context is nil")
+	}
+	if err := r.lockOpen(); err != nil {
+		return err
 	}
 	next, err := validatedLoRAScales(len(r.loraAdapters), scales)
 	if err != nil {
+		r.mu.Unlock()
 		return err
 	}
 	changed := false
@@ -283,7 +285,23 @@ func (r *Runner) SetLoRAScales(scales []LoRAScale) error {
 		}
 	}
 	if !changed {
+		r.mu.Unlock()
 		return nil
 	}
-	return r.runnerState.release(context.Background())
+	caches := r.detachPromptCaches()
+	r.mu.Unlock()
+	failed, releaseErr := releasePromptCaches(ctx, caches)
+	if len(failed) > 0 {
+		r.mu.Lock()
+		closed := r.closed
+		if !closed {
+			r.promptCaches = append(r.promptCaches, failed...)
+		}
+		r.mu.Unlock()
+		if closed {
+			_, retryErr := releasePromptCaches(context.Background(), failed)
+			releaseErr = errors.Join(releaseErr, retryErr)
+		}
+	}
+	return releaseErr
 }

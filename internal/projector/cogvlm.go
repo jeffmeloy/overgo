@@ -33,31 +33,27 @@ type CogVLMVisionSpec struct {
 }
 
 type CogVLMVisionRunner struct {
-	file      *gguf.File
+	projectorResources
 	spec      CogVLMVisionSpec
 	attention visionAttentionPlan
-	cuda      *projectorCUDA
 }
-
-type CogVLMVisionOpenOptions = OpenOptions
 
 func OpenCogVLMVision(path string) (*CogVLMVisionRunner, error) {
-	return OpenCogVLMVisionWithOptions(path, CogVLMVisionOpenOptions{})
+	return OpenCogVLMVisionWithOptions(path, OpenOptions{})
 }
 
-func OpenCogVLMVisionWithOptions(path string, options CogVLMVisionOpenOptions) (*CogVLMVisionRunner, error) {
-	return openCatalogProjector(path, options, "CogVLM", nil,
+func OpenCogVLMVisionWithOptions(path string, options OpenOptions) (*CogVLMVisionRunner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*CogVLMVisionRunner, error) {
+		return openCogVLMVision(context.Background(), file, options)
+	})
+}
+
+func openCogVLMVision(ctx context.Context, file *gguf.File, options OpenOptions) (*CogVLMVisionRunner, error) {
+	return buildCatalogProjector(ctx, file, options, "CogVLM", nil,
 		ReadCogVLMVisionSpec, validateCogVLMVisionCatalog,
 		func(file *gguf.File, spec CogVLMVisionSpec, cuda *projectorCUDA) *CogVLMVisionRunner {
-			return &CogVLMVisionRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads), cuda: cuda}
+			return &CogVLMVisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
 		})
-}
-
-func (r *CogVLMVisionRunner) Close() error {
-	if r == nil {
-		return nil
-	}
-	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *CogVLMVisionRunner) Spec() CogVLMVisionSpec {

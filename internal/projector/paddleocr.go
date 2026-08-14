@@ -49,31 +49,27 @@ type PaddleOCRImage gridImage
 type PaddleOCROutput gridOutput
 
 type PaddleOCRRunner struct {
-	file      *gguf.File
+	projectorResources
 	spec      PaddleOCRSpec
 	attention visionAttentionPlan
-	cuda      *projectorCUDA
 }
-
-type PaddleOCROpenOptions = OpenOptions
 
 func OpenPaddleOCR(path string) (*PaddleOCRRunner, error) {
-	return OpenPaddleOCRWithOptions(path, PaddleOCROpenOptions{})
+	return OpenPaddleOCRWithOptions(path, OpenOptions{})
 }
 
-func OpenPaddleOCRWithOptions(path string, options PaddleOCROpenOptions) (*PaddleOCRRunner, error) {
-	return openCatalogProjector(path, options, "PaddleOCR", nil,
+func OpenPaddleOCRWithOptions(path string, options OpenOptions) (*PaddleOCRRunner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*PaddleOCRRunner, error) {
+		return openPaddleOCR(context.Background(), file, options)
+	})
+}
+
+func openPaddleOCR(ctx context.Context, file *gguf.File, options OpenOptions) (*PaddleOCRRunner, error) {
+	return buildCatalogProjector(ctx, file, options, "PaddleOCR", nil,
 		ReadPaddleOCRSpec, validatePaddleOCRCatalog,
 		func(file *gguf.File, spec PaddleOCRSpec, cuda *projectorCUDA) *PaddleOCRRunner {
-			return &PaddleOCRRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads), cuda: cuda}
+			return &PaddleOCRRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
 		})
-}
-
-func (r *PaddleOCRRunner) Close() error {
-	if r == nil {
-		return nil
-	}
-	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *PaddleOCRRunner) Spec() PaddleOCRSpec {

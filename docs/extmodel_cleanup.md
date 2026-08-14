@@ -43,18 +43,26 @@ active recipe + resolved artifact facts
 | Invocation-time graph schema discovery | 0 | Reflect once; bind by indexed descriptors |
 | Registry-backed model-plan compilation APIs | 0 | Commands pass resolved profile explicitly |
 | Unbound `Spec` policy fallback lookups | 0 | Metadata admission binds the exact profile |
+| Host cached-generation loops | 1 | Generate and resumable sessions share one loop |
+| Continuous token-acceptance paths | 1 | Greedy, top-K, and full-logit sampling converge |
+| Continuous scheduler cohort allocations per decode step | 0 | Reuse bounded scheduler scratch |
+| Default runner lock/open admission implementations | 1 | Shared nil, lock, closed, and unlock-on-rejection contract |
+| Scalar capability request-admission paths | 1 | Decode, validate, and identity-check once for resident and ephemeral execution |
+| Image stage topology declarations | 1 | Shared prepare, integrate, and decode schema; modules supply math |
+| Resident capability construction/failure adapters | 1 | One typed executor adapter owns ready/error conversion |
 | Dead graph-runtime feed mutators | 0 | Weight/layer binders own feed registration |
 | Hardcoded Gemma3N validation facts | 0 | Serialized typed profile facts |
 | Exported registry-backed profile resolution APIs | 0 | Bootstrap stays inside model package |
 | Hardcoded RWKV execution/validation scalars | 0 | Serialized typed recurrent profile facts |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
+| Generic projector artifact reopens | 0 | Probe and build share one admitted handle |
+| Projector runner lifecycle implementations | 1 | Embedded resource owner closes file and device state |
 
 Family-named production files: none.
 
 ## Ordered Work
 
-1. Remove family identity from the remaining post-resolution parsing/binding files.
-2. Thread sealed policy through remaining weight-catalog helpers and delete repeated `Spec.Profile` reads.
+1. Compile alternative tensor shapes/storage into shared weight requirements.
 
 ## Per-Wave Gate
 

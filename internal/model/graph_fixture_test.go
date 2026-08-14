@@ -98,7 +98,7 @@ func buildQwen35BlockWithOptions(options qwen35BlockOptions) (qwen35BlockFixture
 	if options.Recurrent {
 		pastKey, pastValue = options.ConvState, options.SSMState
 	}
-	result, err := executeCompiledLayer(BlockDispatchOptions{
+	result, err := executeCompiledLayer(blockDispatchOptions{
 		Spec: options.Spec, Weights: options.Weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: options.Builder, Input: options.Input, Positions: options.Positions,
@@ -145,7 +145,7 @@ func buildFixtureLayerWithAuxiliary(
 			CacheStateIndexerKey: {Mode: CacheStateToken, Value: pastIndexerKey},
 		}
 	}
-	return executeCompiledLayer(BlockDispatchOptions{
+	return executeCompiledLayer(blockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
 			PastKey: pastKey, PastValue: pastValue, PastStates: states,
@@ -208,7 +208,7 @@ func buildFixtureDenseBlockCachedWithMultiPositions(
 ) (DenseBlockResult, error) {
 	spec = bindFixtureSpec(spec)
 	plan := spec.PlanLayer(layer, false)
-	return executeCompiledLayer(BlockDispatchOptions{
+	return executeCompiledLayer(blockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, MultiPositions: &positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer,

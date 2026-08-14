@@ -51,6 +51,52 @@ func TestGenerateRejectsStaleClaimEvidence(t *testing.T) {
 	}
 }
 
+func TestGenerateNormalizesEvidenceLineEndings(t *testing.T) {
+	root := t.TempDir()
+	sourceText := "package feature\nfunc Feature() {}\n"
+	proofText := "package feature\nfunc TestFeature() {}\n"
+	source := writeEvidence(t, root, "feature.go", sourceText, "func Feature(", roleSource)
+	proof := writeEvidence(t, root, "feature_test.go", proofText, "func TestFeature(", roleArtifact)
+	writeTestFile(t, root, "feature.go", strings.ReplaceAll(sourceText, "\n", "\r\n"))
+	writeTestFile(t, root, "feature_test.go", strings.ReplaceAll(proofText, "\n", "\r\n"))
+	writeTestManifest(t, root, []claim{{
+		ID: "portable", Status: "implemented", EvidenceTier: tierContract,
+		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Portable evidence.",
+		Evidence: []evidence{source, proof},
+	}}, testModels())
+	if _, err := generate(root); err != nil {
+		t.Fatalf("line-ending-equivalent evidence rejected: %v", err)
+	}
+}
+
+func TestRefreshEvidenceIdentitiesUsesCanonicalBytes(t *testing.T) {
+	root := t.TempDir()
+	source := writeEvidence(t, root, "feature.go", "package feature\r\nfunc Feature() {}\r\n", "func Feature(", roleSource)
+	proof := writeEvidence(t, root, "feature_test.go", "package feature\r\nfunc TestFeature() {}\r\n", "func TestFeature(", roleArtifact)
+	source.Identity = "file:sha256:" + strings.Repeat("0", 64)
+	proof.Identity = "evidence:sha256:" + strings.Repeat("0", 64)
+	writeTestManifest(t, root, []claim{{
+		ID: "refresh", Status: "implemented", EvidenceTier: tierContract,
+		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Refresh evidence.",
+		Evidence: []evidence{source, proof},
+	}}, testModels())
+	if err := refreshEvidenceIdentities(root); err != nil {
+		t.Fatal(err)
+	}
+	document, err := loadManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range document.Claims[0].Evidence {
+		if strings.Contains(item.Identity, strings.Repeat("0", 64)) {
+			t.Fatalf("identity not refreshed: %s", item.Identity)
+		}
+	}
+	if _, err := generate(root); err != nil {
+		t.Fatalf("refreshed evidence rejected: %v", err)
+	}
+}
+
 func TestClaimsRequireLiveEvidenceTier(t *testing.T) {
 	root := t.TempDir()
 	source := writeEvidence(t, root, "feature.go", "package feature\nfunc Feature() {}\n", "func Feature(", roleSource)

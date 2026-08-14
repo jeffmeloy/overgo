@@ -79,11 +79,10 @@ func (r *Runner) PerplexityWithOptions(
 		)
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return PerplexityResult{}, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return PerplexityResult{}, err
 	}
+	defer r.mu.Unlock()
 	outputTable := r.outputTensor()
 	result := PerplexityResult{
 		TokenCount: len(ids),

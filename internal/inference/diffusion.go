@@ -76,11 +76,10 @@ func (r *Runner) GenerateDiffusion(
 	if r.forwardProgram().Operation != model.ForwardOperationDiffusion {
 		return nil, "", fmt.Errorf("inference: architecture %q is not a diffusion model", r.spec.Architecture)
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return nil, "", errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return nil, "", err
 	}
+	defer r.mu.Unlock()
 	for _, adapter := range r.loraAdapters {
 		if adapter.scale != 0 && adapter.adapter != nil && len(adapter.adapter.InvocationTokens) != 0 {
 			return nil, "", errors.New("inference: aLoRA is unsupported for non-causal diffusion")

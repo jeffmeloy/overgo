@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
 )
 
@@ -13,8 +12,8 @@ func launchReferenceFamily(
 	functions functionSet,
 	blas *blasState,
 	node *tensor.Tensor,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
-	attributePointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
+	attributePointers devicePointerTable,
 ) error {
 	switch node.Op {
 	case tensor.OpHyperConnectionInit, tensor.OpHyperConnectionPre, tensor.OpHyperConnectionPost,

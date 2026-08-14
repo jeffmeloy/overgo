@@ -39,7 +39,7 @@ func TestGemma4RealDeviceHostParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenGemma4WithOptions(projectorPath, Gemma4OpenOptions{CUDA: true})
+	cuda, err := OpenGemma4WithOptions(projectorPath, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

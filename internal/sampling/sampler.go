@@ -94,6 +94,13 @@ type Sampler struct {
 	adjustedScratch  []float32
 	logitScratch     []float32
 	candidateScratch []candidate
+	topKSeen         map[int]struct{}
+	adaptiveScratch  []float64
+	penaltyCounts    map[int]int
+	dryReversed      []int
+	dryRepeatCount   []int
+	dryMaxRepeat     map[int]int
+	infillScratch    [2][]candidate
 }
 
 type candidate struct {
@@ -526,16 +533,16 @@ func (s *Sampler) SampleTopK(ids []int, logits []float32, vocabularySize int) (i
 	if vocabularySize <= 0 || len(ids) != expected || len(logits) != expected {
 		return 0, errors.New("sampling top-K candidates are incomplete")
 	}
-	seen := make(map[int]struct{}, len(ids))
+	s.topKSeen = resetScratchMap(s.topKSeen, len(ids))
 	candidates := s.candidates(len(ids))
 	for index, id := range ids {
 		if id < 0 || id >= vocabularySize {
 			return 0, fmt.Errorf("sampling top-K token %d exceeds vocabulary", id)
 		}
-		if _, duplicate := seen[id]; duplicate {
+		if _, duplicate := s.topKSeen[id]; duplicate {
 			return 0, fmt.Errorf("sampling top-K token %d is duplicated", id)
 		}
-		seen[id] = struct{}{}
+		s.topKSeen[id] = struct{}{}
 		if math.IsNaN(float64(logits[index])) {
 			return 0, fmt.Errorf("sampling top-K logit %d is NaN", index)
 		}
@@ -572,7 +579,7 @@ func (s *Sampler) sampleCandidatePipeline(
 		}
 	}
 	if useAdaptive {
-		selected, originalProbability, sampleErr := s.sampleAdaptiveP(candidates)
+		selected, originalProbability, sampleErr := s.sampleAdaptiveP(candidates, vocabularySize)
 		if sampleErr != nil {
 			return 0, sampleErr
 		}
@@ -677,8 +684,8 @@ func (s *Sampler) recordCandidateProbabilities(
 	s.lastProbability = result
 }
 
-func (s *Sampler) sampleAdaptiveP(candidates []candidate) (int, float64, error) {
-	original, total, err := s.adaptiveCandidates(candidates)
+func (s *Sampler) sampleAdaptiveP(candidates []candidate, vocabularySize int) (int, float64, error) {
+	original, total, err := s.adaptiveCandidates(candidates, vocabularySize)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -687,12 +694,13 @@ func (s *Sampler) sampleAdaptiveP(candidates []candidate) (int, float64, error) 
 	return token, original[token], nil
 }
 
-func (s *Sampler) adaptiveCandidates(candidates []candidate) (map[int]float64, float64, error) {
+func (s *Sampler) adaptiveCandidates(candidates []candidate, vocabularySize int) ([]float64, float64, error) {
 	total, err := candidateProbabilities(candidates)
 	if err != nil {
 		return nil, 0, err
 	}
-	original := make(map[int]float64, len(candidates))
+	s.adaptiveScratch = resizeScratch(s.adaptiveScratch, vocabularySize)
+	original := s.adaptiveScratch
 	for _, item := range candidates {
 		original[item.id] = item.probability / total
 	}
@@ -913,7 +921,7 @@ func (s *Sampler) applySamplerStage(
 		}
 	case SamplerInfill:
 		var err error
-		candidates, err = applyInfill(candidates, s.config.Infill)
+		candidates, err = s.applyInfill(candidates, s.config.Infill)
 		if err != nil {
 			return nil, err
 		}
@@ -923,7 +931,7 @@ func (s *Sampler) applySamplerStage(
 	return candidates, nil
 }
 
-func applyInfill(
+func (s *Sampler) applyInfill(
 	candidates []candidate,
 	vocabulary *InfillVocabulary,
 ) ([]candidate, error) {
@@ -945,7 +953,7 @@ func applyInfill(
 		}
 	}
 	if 3*eogProbability*float64(len(candidates)) > textProbability {
-		result := make([]candidate, 0, len(candidates))
+		result := s.infillCandidates(0, len(candidates))
 		for _, item := range candidates {
 			if vocabulary.EOG[item.id] {
 				result = append(result, item)
@@ -985,7 +993,7 @@ func applyInfill(
 			}
 		}
 	}
-	firstPass := make([]candidate, 0, len(candidates))
+	firstPass := s.infillCandidates(0, len(candidates))
 	nonEOG := 0
 	for _, item := range candidates {
 		isEOG := vocabulary.EOG[item.id]
@@ -1016,7 +1024,7 @@ func applyInfill(
 		return nil, err
 	}
 	threshold := 1 / float64(nonEOG+1)
-	secondPass := make([]candidate, 0, len(firstPass))
+	secondPass := s.infillCandidates(1, len(firstPass))
 	for _, item := range firstPass {
 		if item.probability < threshold &&
 			!vocabulary.EOG[item.id] {
@@ -1124,6 +1132,32 @@ func (s *Sampler) candidates(count int) []candidate {
 		clear(s.candidateScratch)
 	}
 	return s.candidateScratch
+}
+
+func (s *Sampler) infillCandidates(index, capacity int) []candidate {
+	result := s.infillScratch[index][:0]
+	if cap(result) < capacity {
+		result = make([]candidate, 0, capacity)
+	}
+	s.infillScratch[index] = result
+	return result
+}
+
+func resizeScratch[T any](scratch []T, count int) []T {
+	if cap(scratch) < count {
+		return make([]T, count)
+	}
+	scratch = scratch[:count]
+	clear(scratch)
+	return scratch
+}
+
+func resetScratchMap[K comparable, V any](scratch map[K]V, capacity int) map[K]V {
+	if scratch == nil {
+		return make(map[K]V, capacity)
+	}
+	clear(scratch)
+	return scratch
 }
 
 func updateCandidateLogits(candidates []candidate, logits []float32) {
@@ -1437,13 +1471,13 @@ func (s *Sampler) applyPenalties(logits []float32, history []int) error {
 	if s.config.RepeatLastN >= 0 && len(history) > s.config.RepeatLastN {
 		first = len(history) - s.config.RepeatLastN
 	}
-	counts := make(map[int]int, len(history)-first)
+	s.penaltyCounts = resetScratchMap(s.penaltyCounts, len(history)-first)
 	for _, id := range history[first:] {
 		if id >= 0 && id < len(logits) {
-			counts[id]++
+			s.penaltyCounts[id]++
 		}
 	}
-	for id, count := range counts {
+	for id, count := range s.penaltyCounts {
 		value := logits[id]
 		if value <= 0 {
 			value *= s.config.RepeatPenalty
@@ -1472,7 +1506,8 @@ func (s *Sampler) applyDry(logits []float32, history []int) {
 	if lastN <= s.config.DryAllowedLength {
 		return
 	}
-	reversed := make([]int, lastN)
+	s.dryReversed = resizeScratch(s.dryReversed, lastN)
+	reversed := s.dryReversed
 	for index := range lastN {
 		reversed[index] = history[len(history)-1-index]
 	}
@@ -1502,7 +1537,8 @@ func (s *Sampler) applyDry(logits []float32, history []int) {
 	if repLimit < s.config.DryAllowedLength {
 		return
 	}
-	repeatCount := make([]int, lastN)
+	s.dryRepeatCount = resizeScratch(s.dryRepeatCount, lastN)
+	repeatCount := s.dryRepeatCount
 	last := lastN - 1
 	right, left := 0, 0
 	for k := 1; k < lastN; k++ {
@@ -1532,7 +1568,8 @@ func (s *Sampler) applyDry(logits []float32, history []int) {
 			}
 		}
 	}
-	maxRepeat := make(map[int]int)
+	s.dryMaxRepeat = resetScratchMap(s.dryMaxRepeat, lastN)
+	maxRepeat := s.dryMaxRepeat
 	for index := 0; index < lastN-1; index++ {
 		repeatLength := repeatCount[index]
 		if repeatLength < s.config.DryAllowedLength {

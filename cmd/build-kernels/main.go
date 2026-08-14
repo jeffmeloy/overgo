@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -116,6 +117,10 @@ func refreshPins(validationPath string) error {
 	for name, asset := range runtimePins {
 		payload, err := os.ReadFile(filepath.FromSlash(asset))
 		if err != nil {
+			return err
+		}
+		payload = bytes.ReplaceAll(payload, []byte("\r\n"), []byte("\n"))
+		if err := os.WriteFile(filepath.FromSlash(asset), payload, 0o644); err != nil {
 			return err
 		}
 		digest := sha256.Sum256(payload)

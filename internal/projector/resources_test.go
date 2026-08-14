@@ -1,6 +1,7 @@
 package projector
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -26,7 +27,7 @@ func TestOpenProjectorResourceClosesFileOnBuildFailure(t *testing.T) {
 	}
 	want := errors.New("build failed")
 	var captured *gguf.File
-	result, err := openProjectorResource(path, func(file *gguf.File) (*gguf.File, error) {
+	result, err := openProjectorResource(context.Background(), path, func(file *gguf.File) (*gguf.File, error) {
 		captured = file
 		return nil, want
 	})
@@ -39,5 +40,18 @@ func TestOpenProjectorResourceClosesFileOnBuildFailure(t *testing.T) {
 	}
 	if err := captured.ReadTensorData(info, make([]byte, info.Size)); err == nil {
 		t.Fatal("failed build left GGUF handle open")
+	}
+}
+
+func TestOpenProjectorResourceRejectsCanceledContextBeforeOpen(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	called := false
+	_, err := openProjectorResource(ctx, "missing.gguf", func(*gguf.File) (struct{}, error) {
+		called = true
+		return struct{}{}, nil
+	})
+	if !errors.Is(err, context.Canceled) || called {
+		t.Fatalf("error/build = %v/%t", err, called)
 	}
 }

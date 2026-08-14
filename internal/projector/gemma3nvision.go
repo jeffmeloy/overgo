@@ -48,42 +48,36 @@ type Gemma3nVisionSpec struct {
 }
 
 type Gemma3nVisionRunner struct {
-	file *gguf.File
+	projectorResources
 	spec Gemma3nVisionSpec
-	cuda *projectorCUDA
 }
-
-type Gemma3nVisionOpenOptions = OpenOptions
 
 func OpenGemma3nVision(path string) (*Gemma3nVisionRunner, error) {
-	return OpenGemma3nVisionWithOptions(path, Gemma3nVisionOpenOptions{})
+	return OpenGemma3nVisionWithOptions(path, OpenOptions{})
 }
 
-func OpenGemma3nVisionWithOptions(path string, options Gemma3nVisionOpenOptions) (*Gemma3nVisionRunner, error) {
-	return openProjectorResource(path, func(file *gguf.File) (*Gemma3nVisionRunner, error) {
-		spec, err := ReadGemma3nVisionSpec(file)
-		if err != nil {
-			return nil, err
-		}
-		runner := &Gemma3nVisionRunner{file: file, spec: spec}
-		if err := runner.validateGraph(); err != nil {
-			return nil, err
-		}
-		if options.CUDA {
-			runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
-			if err != nil {
-				return nil, fmt.Errorf("projector: initialize Gemma 3n CUDA: %w", err)
-			}
-		}
-		return runner, nil
+func OpenGemma3nVisionWithOptions(path string, options OpenOptions) (*Gemma3nVisionRunner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Gemma3nVisionRunner, error) {
+		return openGemma3nVision(context.Background(), file, options)
 	})
 }
 
-func (r *Gemma3nVisionRunner) Close() error {
-	if r == nil {
-		return nil
+func openGemma3nVision(ctx context.Context, file *gguf.File, options OpenOptions) (*Gemma3nVisionRunner, error) {
+	spec, err := ReadGemma3nVisionSpec(file)
+	if err != nil {
+		return nil, err
 	}
-	return closeProjectorResources(&r.file, &r.cuda)
+	runner := &Gemma3nVisionRunner{projectorResources: projectorResources{file: file}, spec: spec}
+	if err := runner.validateGraph(); err != nil {
+		return nil, err
+	}
+	if options.CUDA {
+		runner.cuda, err = openProjectorCUDA(ctx, file, spec.TensorNames, nil, options.DeviceOrdinal)
+		if err != nil {
+			return nil, fmt.Errorf("projector: initialize Gemma 3n CUDA: %w", err)
+		}
+	}
+	return runner, nil
 }
 
 func (r *Gemma3nVisionRunner) Spec() Gemma3nVisionSpec {

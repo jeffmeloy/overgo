@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"overgo/internal/gguf"
-	"overgo/internal/tensor/dtype"
 )
 
 func loadStandardSwiGLUCatalog(
@@ -43,49 +42,25 @@ func loadDenseFFNCatalog(
 	shapes := spec.TensorShapes(block)
 	shapes.FeedForward = uint64(feedForwardLength)
 	if profile.EncoderOperator.usesALiBiQKNorm() {
-		if gate, ok := tensors[prefix+"ffn_gate.weight"]; ok {
-			if gate.Dimensions != 2 || gate.Shape[0] != uint64(spec.EmbeddingLength) ||
-				gate.Shape[1] != uint64(feedForwardLength) {
-				return fmt.Errorf("tensor %q has incompatible shape %v", gate.Name, gate.Shape)
-			}
-			layer.FeedForwardGate = gate
-		}
-		up, ok := tensors[prefix+"ffn_up.weight"]
-		if !ok {
-			return fmt.Errorf("required tensor %q is missing", prefix+"ffn_up.weight")
-		}
 		upWidth := uint64(feedForwardLength)
-		if up.Dimensions != 2 || up.Shape[0] != uint64(spec.EmbeddingLength) ||
-			(up.Shape[1] != upWidth && up.Shape[1] != 2*upWidth) {
-			return fmt.Errorf("tensor %q has incompatible shape %v", up.Name, up.Shape)
+		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			optionalTensor("ffn_gate.weight", &layer.FeedForwardGate, uint64(spec.EmbeddingLength), upWidth),
+			requiredTensorShapes("ffn_up.weight", &layer.FeedForwardUp,
+				[]uint64{uint64(spec.EmbeddingLength), upWidth},
+				[]uint64{uint64(spec.EmbeddingLength), 2 * upWidth}),
+		}); err != nil {
+			return err
 		}
-		if layer.FeedForwardGate.Name != "" && up.Shape[1] != upWidth {
+		if layer.FeedForwardGate.Name != "" && layer.FeedForwardUp.Shape[1] != upWidth {
 			return errors.New("JinaBERT v2 separate and fused FFN gates cannot be combined")
 		}
-		layer.FeedForwardUp = up
-		if _, ok := tensors[prefix+"ffn_up.bias"]; ok {
-			bias, err := required(prefix+"ffn_up.bias", up.Shape[1])
-			if err != nil {
-				return err
-			}
-			if bias.Type != dtype.F32 {
-				return fmt.Errorf("tensor %q must use F32 bias storage", bias.Name)
-			}
-			layer.FeedForwardUpBias = &bias
-		}
-		down, err := required(prefix+"ffn_down.weight", upWidth, uint64(spec.EmbeddingLength))
-		if err != nil {
+		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			optionalF32TensorPointer("ffn_up.bias", &layer.FeedForwardUpBias, layer.FeedForwardUp.Shape[1]),
+			requiredTensor("ffn_down.weight", &layer.FeedForwardDown, upWidth, uint64(spec.EmbeddingLength)),
+			requiredF32TensorPointer("ffn_down.bias", &layer.FeedForwardDownBias, uint64(spec.EmbeddingLength)),
+		}); err != nil {
 			return err
 		}
-		layer.FeedForwardDown = down
-		downBias, err := required(prefix+"ffn_down.bias", uint64(spec.EmbeddingLength))
-		if err != nil {
-			return err
-		}
-		if downBias.Type != dtype.F32 {
-			return fmt.Errorf("tensor %q must use F32 bias storage", downBias.Name)
-		}
-		layer.FeedForwardDownBias = &downBias
 		if layer.AttentionOutputBias == nil {
 			return fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
 		}

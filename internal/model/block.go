@@ -245,7 +245,7 @@ type denseBlockContext struct {
 	cacheWrite         tensor.CacheWriteMode
 }
 
-func newDenseBlockContext(options BlockDispatchOptions) denseBlockContext {
+func newDenseBlockContext(options blockDispatchOptions) denseBlockContext {
 	c := options.Context
 	return denseBlockContext{
 		builder: c.Builder, input: c.Input, spec: options.Spec, weights: options.Weights,
@@ -256,7 +256,7 @@ func newDenseBlockContext(options BlockDispatchOptions) denseBlockContext {
 }
 
 func preparePolicyAttentionInputs(
-	options BlockDispatchOptions,
+	options blockDispatchOptions,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
 	c := newDenseBlockContext(options)
 	if c.builder == nil || c.input == nil {
@@ -313,7 +313,7 @@ func preparePolicyAttentionInputs(
 }
 
 func buildPolicyAttentionMix(
-	options BlockDispatchOptions,
+	options blockDispatchOptions,
 	normalized, gateInput, pastKey, pastValue *tensor.Tensor,
 ) (DenseBlockResult, error) {
 	c := newDenseBlockContext(options)
@@ -382,7 +382,7 @@ func buildPolicyAttentionMix(
 }
 
 func buildPolicyFeedForwardMix(
-	options BlockDispatchOptions,
+	options blockDispatchOptions,
 	normalized, residual *tensor.Tensor,
 ) (*tensor.Tensor, error) {
 	c := newDenseBlockContext(options)

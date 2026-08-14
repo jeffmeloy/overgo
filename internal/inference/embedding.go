@@ -99,11 +99,10 @@ func (r *Runner) EmbedTokensAdvanced(
 			)
 		}
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closed {
-		return EmbeddingResult{}, errors.New("inference: runner is closed")
+	if err := r.lockOpen(); err != nil {
+		return EmbeddingResult{}, err
 	}
+	defer r.mu.Unlock()
 	hidden, err := r.forwardLocked(ctx, ids)
 	if err != nil {
 		return EmbeddingResult{}, err

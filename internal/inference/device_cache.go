@@ -196,11 +196,11 @@ func (c *deviceKVCache) Release(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := c.owner.release(context.Background()); err != nil {
+	if err := c.owner.release(ctx); err != nil {
 		return err
 	}
 	c.owner = nil
-	if err := c.storage.release(context.Background()); err != nil {
+	if err := c.storage.release(ctx); err != nil {
 		return err
 	}
 	c.storage = nil

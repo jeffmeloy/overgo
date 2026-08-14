@@ -5,9 +5,9 @@ package kernel
 const (
 	BundleABIVersion     = 40
 	BundleTarget         = "compute_89"
-	VectorAddSHA256      = "af74febeae5bb087f35610f7d194695c10374bc7aed4a224da6072a56e59d159"
-	TorchCudaRandnSHA256 = "68e0165a1251f63b53a4f94ff8f8c2e95a419f6fc7a148c9f45c9a6ac902a85f"
-	OpsF32SHA256         = "64cbdf511135052b43d0139d954491155d9eb5df2bc57a517788311fc5e8170b"
+	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
+	TorchCudaRandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
+	OpsF32SHA256         = "07162c6c9bf75aa68d824d9678d6f8fcd61ca5c2b80621d0276b283aa9c19fae"
 )
 
 var bundleAssets = [...]bundleAsset{

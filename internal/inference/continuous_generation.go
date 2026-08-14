@@ -62,13 +62,15 @@ type continuousGenerateResult struct {
 }
 
 type continuousGenerateState struct {
-	id        SequenceID
-	request   continuousGenerateRequest
-	ids       []tokenizer.TokenID
-	generated strings.Builder
-	index     int
-	started   time.Time
-	evaluated bool
+	id         SequenceID
+	request    continuousGenerateRequest
+	ids        []tokenizer.TokenID
+	generated  strings.Builder
+	topKIDs    []int
+	topKLogits []float32
+	index      int
+	started    time.Time
+	evaluated  bool
 }
 
 // NewContinuousGenerator: fused device scheduler.
@@ -172,6 +174,9 @@ func (g *ContinuousGenerator) run() {
 	defer close(g.done)
 	defer g.batch.Close(context.Background())
 	active := make(map[SequenceID]*continuousGenerateState)
+	stateIDs := make([]SequenceID, 0, g.options.MaxSequences)
+	inputs := make([]SequenceBatchInput, 0, g.options.MaxSequences)
+	stepping := make([]*continuousGenerateState, 0, g.options.MaxSequences)
 	var nextID SequenceID
 	for {
 		if len(active) == 0 {
@@ -199,10 +204,10 @@ func (g *ContinuousGenerator) run() {
 			g.rejectQueued(g.ctx.Err())
 			return
 		}
-		ids := sortedContinuousStateIDs(active)
-		inputs := make([]SequenceBatchInput, 0, len(ids))
-		stepping := make([]*continuousGenerateState, 0, len(ids))
-		for _, id := range ids {
+		stateIDs = sortedContinuousStateIDs(active, stateIDs[:0])
+		inputs = inputs[:0]
+		stepping = stepping[:0]
+		for _, id := range stateIDs {
 			state := active[id]
 			if err := state.request.ctx.Err(); err != nil {
 				_ = g.batch.Remove(context.Background(), id)
@@ -256,7 +261,7 @@ func (g *ContinuousGenerator) run() {
 			var result continuousGenerateResult
 			var complete bool
 			if greedy {
-				result, complete = g.acceptSelected(state, output.Token)
+				result, complete = g.acceptSampleEvent(state, TokenEvent{ID: output.Token})
 			} else if bounded {
 				result, complete = g.sampleTopK(state, output.Candidates)
 			} else {
@@ -353,13 +358,18 @@ func (g *ContinuousGenerator) sampleTopK(
 	state *continuousGenerateState,
 	candidates []LogitCandidate,
 ) (continuousGenerateResult, bool) {
-	ids := make([]int, len(candidates))
-	logits := make([]float32, len(candidates))
+	if cap(state.topKIDs) < len(candidates) {
+		state.topKIDs = make([]int, len(candidates))
+		state.topKLogits = make([]float32, len(candidates))
+	} else {
+		state.topKIDs = state.topKIDs[:len(candidates)]
+		state.topKLogits = state.topKLogits[:len(candidates)]
+	}
 	for index, candidate := range candidates {
-		ids[index], logits[index] = int(candidate.ID), candidate.Logit
+		state.topKIDs[index], state.topKLogits[index] = int(candidate.ID), candidate.Logit
 	}
 	next, err := state.request.options.Sampler.SampleTopK(
-		ids, logits, int(g.runner.spec.VocabularySize),
+		state.topKIDs, state.topKLogits, int(g.runner.spec.VocabularySize),
 	)
 	if err != nil {
 		return continuousGenerateResult{err: err}, true
@@ -390,30 +400,10 @@ func (g *ContinuousGenerator) acceptSampleEvent(
 	return continuousGenerateResult{ids: slices.Clone(state.ids), text: text, err: decodeErr}, true
 }
 
-func (g *ContinuousGenerator) acceptSelected(
-	state *continuousGenerateState,
-	token tokenizer.TokenID,
-) (continuousGenerateResult, bool) {
-	if err := state.request.ctx.Err(); err != nil {
-		return continuousGenerateResult{err: err}, true
-	}
-	options := state.request.options
-	event := TokenEvent{ID: token, Index: state.index}
-	state.ids = append(state.ids, token)
-	stop, err := g.runner.deliverGenerationToken(&event, options, &state.generated)
-	if err != nil {
-		return continuousGenerateResult{err: err}, true
-	}
-	state.index++
-	if state.index < options.MaxNewTokens && !stop {
-		return continuousGenerateResult{}, false
-	}
-	text, decodeErr := g.runner.vocab.Decode(state.ids, false)
-	return continuousGenerateResult{ids: slices.Clone(state.ids), text: text, err: decodeErr}, true
-}
-
-func sortedContinuousStateIDs(active map[SequenceID]*continuousGenerateState) []SequenceID {
-	ids := make([]SequenceID, 0, len(active))
+func sortedContinuousStateIDs(
+	active map[SequenceID]*continuousGenerateState,
+	ids []SequenceID,
+) []SequenceID {
 	for id := range active {
 		ids = append(ids, id)
 	}

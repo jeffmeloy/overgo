@@ -153,7 +153,7 @@
           "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
           "path": "internal/server/server_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:4bba9c6977a3ad191caf2f01eb25c2d624c30df8b7354b25f411f070fc694d33"
+          "identity": "evidence:sha256:7ded643989885af5c582161409ed35010bc3a9886042da70aed940477b4c6171"
         }
       ],
       "id": "bounded-server-media",
@@ -168,13 +168,13 @@
           "contains": "func OpenGemma4(",
           "path": "internal/projector/gemma4.go",
           "role": "source",
-          "identity": "file:sha256:b8ab6ff38c62646d280c5efdc7abbfab00c4885ade46cca03d424628f9763f2c"
+          "identity": "file:sha256:f2c4d2bceb6bca578dfc290a2ee9fb95e2b81f2760246b7b70b27a3e989f5b8d"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:ca746481b31d4a18ceabb6c34391a66f1d37489ccf47b98235487b9ddaba003a"
+          "identity": "evidence:sha256:286f032664a62ee435101d2e5ed1b3128e005deaedbda8e3d54de93803d82b7c"
         }
       ],
       "id": "gemma4-multimodal-oracle",
@@ -202,7 +202,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:ca746481b31d4a18ceabb6c34391a66f1d37489ccf47b98235487b9ddaba003a"
+          "identity": "evidence:sha256:286f032664a62ee435101d2e5ed1b3128e005deaedbda8e3d54de93803d82b7c"
         }
       ],
       "id": "gemma-e4b-audio-tower-oracle",
@@ -224,7 +224,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:ca746481b31d4a18ceabb6c34391a66f1d37489ccf47b98235487b9ddaba003a"
+          "identity": "evidence:sha256:286f032664a62ee435101d2e5ed1b3128e005deaedbda8e3d54de93803d82b7c"
         }
       ],
       "id": "gemma-e4b-image-language-oracle",
@@ -252,7 +252,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:ca746481b31d4a18ceabb6c34391a66f1d37489ccf47b98235487b9ddaba003a"
+          "identity": "evidence:sha256:286f032664a62ee435101d2e5ed1b3128e005deaedbda8e3d54de93803d82b7c"
         }
       ],
       "id": "qwen35-image-video-language-oracle",
@@ -353,7 +353,7 @@
           "contains": "func Quantize(",
           "path": "internal/quant/quantize.go",
           "role": "source",
-          "identity": "file:sha256:f4d06ec4e723b0cdb9d3dc58644a64b8be471d2925a40760944322ae08a366f8"
+          "identity": "file:sha256:de19b1a8af70b00c1deedf69e48d8f5fbf79bc4b832a1aaa7b009dc28bb41b21"
         },
         {
           "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
@@ -397,7 +397,7 @@
           "contains": "func CompileModelPlanWithProfile(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:77d5299cb0c772f546cf28143f934c5820ea37a7072e9eeeefbf01d7c2e48ed5"
+          "identity": "file:sha256:902e732e9c461063bf0ad4c4ea416046b7eb8e9a4e337b9c9a7f6d126601df8d"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -418,13 +418,13 @@
           "contains": "func Compile(",
           "path": "internal/cuda/executor/executor.go",
           "role": "source",
-          "identity": "file:sha256:8188eb3d4f68700bebc525f216f7e66a323531a5adc403c0a92a4c8d977ebcc9"
+          "identity": "file:sha256:aa311a2fdda7a95ddd0b8cda8492e9e6948e191ac6d1d78415061fe27301c1cd"
         },
         {
           "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
           "path": "internal/cuda/executor/compile_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:48c833c8b154c4ef83b4609f9ea29f85b6c465a09af5c1ce92cde9f641e5c5c0"
+          "identity": "evidence:sha256:a97979576eabe08c3c0c28264c9dfb7d28a81a2e83ebd0edbf5185169eb0f9a9"
         }
       ],
       "id": "compiled-cuda-graph",
@@ -460,7 +460,7 @@
           "contains": "func (r *Runner) selectPromptCache(",
           "path": "internal/inference/prompt_cache.go",
           "role": "source",
-          "identity": "file:sha256:6cdffdcb9076c3a8e112e9d62bb5a8121d23bdde5715aa031fa918d36d235665"
+          "identity": "file:sha256:c0b13b561a3f9c3a62051732c7b07540e3c225317be9a724910b2ae6ee39ca38"
         },
         {
           "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
@@ -503,7 +503,7 @@
           "contains": "func (r *Qwen3VLRunner) BuildImagesPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:677f14ead69aeb3d862f6288afa87be60e81cfe35161ab8840fe0d55cf068278"
+          "identity": "file:sha256:309e669547555f910cf19525614bf0ef361d67a1fb99ad5a759e7f3b44f89afe"
         },
         {
           "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -524,7 +524,7 @@
           "contains": "func (r *Gemma4Runner) BuildImagesHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:677f14ead69aeb3d862f6288afa87be60e81cfe35161ab8840fe0d55cf068278"
+          "identity": "file:sha256:309e669547555f910cf19525614bf0ef361d67a1fb99ad5a759e7f3b44f89afe"
         },
         {
           "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -545,7 +545,7 @@
           "contains": "func (r *Gemma4Runner) BuildMediaHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:677f14ead69aeb3d862f6288afa87be60e81cfe35161ab8840fe0d55cf068278"
+          "identity": "file:sha256:309e669547555f910cf19525614bf0ef361d67a1fb99ad5a759e7f3b44f89afe"
         },
         {
           "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
@@ -845,7 +845,7 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:31a7ade29e9f7c4863f8598746a080b02477e0a46f959399720609fc0f216338"
+          "identity": "file:sha256:c4a087a88ba0b15d327cf16576cd5334ba894fe452c25d760827b26d309b8d77"
         },
         {
           "contains": "func ReadWeights(",
@@ -857,7 +857,7 @@
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:8cb1490ace7d4f9d2609d9092b4f173ae85b50b215128b4ad647e2b5477a13f0"
+          "identity": "evidence:sha256:0659a76b0759db8616e1b3af9b72e0341835ac7dfbb6beba32a7095ef452884f"
         }
       ],
       "id": "neutral-layer-dispatch",
@@ -872,7 +872,7 @@
           "contains": "func (b *ContinuousBatch) Step(",
           "path": "internal/inference/continuous_batch.go",
           "role": "source",
-          "identity": "file:sha256:ce9ca364f5ff8029b68163156de66cf6ecec0ffac63481cc458f38fcfa144d4a"
+          "identity": "file:sha256:b687d385942dafe496d4732fbbbac4f2087f0852fc3321d7ddcd3e613790f7eb"
         },
         {
           "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
@@ -893,7 +893,7 @@
           "contains": "func (r *Runner) NewEncoderDecoderBatchSession(",
           "path": "internal/inference/encoder_decoder_batch.go",
           "role": "source",
-          "identity": "file:sha256:ebba65abb89655a53296d05054c07400a7e096100756723305031c30b864f273"
+          "identity": "file:sha256:2a8f9a3c77309e8ea4b4e8c1bc0fcbf590a8a225e25273788e7baa317884e8b9"
         },
         {
           "contains": "func TestValidatePaddedTokenBatchMasksSuffixes(",
@@ -941,12 +941,12 @@
           "contains": "func TestPocketTTSProductionParity(",
           "path": "internal/adaptiveparity/pocket_tts_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:c33bfb2050d02792734964f0bd7d9d6dd8a80362fe9d58c973bdec3cf6ff728b"
+          "identity": "evidence:sha256:7c7749e15a802fa55c3712aadd66a9fbe0ac6e2cc232ef17a2c059adaff67439"
         }
       ],
       "id": "pocket-tts-production-oracle",
       "evidence_tier": "pinned-oracle",
-      "verify": "go test ./internal/adaptiveparity -run '^TestPocketTTSProductionParity$' -count=1 -v",
+      "verify": "go test -tags integration ./internal/adaptiveparity -run '^TestPocketTTSProductionParity$' -count=1 -v",
       "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
       "status": "implemented",
       "summary": "Pocket-TTS executes through its compiled speech recipe and matches pinned latent, EOS, PCM, WAV, rate, channel, and heap evidence."
@@ -1032,7 +1032,7 @@
           "contains": "case modelrecipe.ModuleRoutedImagePrepare:",
           "path": "cmd/recipe/image_cuda_windows.go",
           "role": "source",
-          "identity": "file:sha256:c19b7fdcdc9bf47fb447e7f8690b0287a1c813df259649f3eceebd8a2a3dcc46"
+          "identity": "file:sha256:2fa9c73f84d603cf29d47a83c16942b14e9bf2878c32c06e93555e0308841042"
         },
         {
           "contains": "func TestSenseNovaProductionImageGeneration(",

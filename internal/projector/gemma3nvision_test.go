@@ -67,7 +67,7 @@ func TestGemma3nVisionPromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesGemma3nVision(t *testing.T) {
-	projector, err := OpenImageProjector(writeTinyGemma3nVision(t, false))
+	projector, err := OpenImageProjector(context.Background(), writeTinyGemma3nVision(t, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestGemma3nVisionCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenGemma3nVisionWithOptions(path, Gemma3nVisionOpenOptions{CUDA: true})
+	cuda, err := OpenGemma3nVisionWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

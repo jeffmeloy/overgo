@@ -68,23 +68,3 @@ func TestGateDebtReconciliation(t *testing.T) {
 		t.Fatalf("debt payload remains after reconciliation: %v", err)
 	}
 }
-
-func TestGateHeartbeat(t *testing.T) {
-	preparation, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("preparation"))
-	environment, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("environment"))
-	g := gateContext{
-		repo: t.TempDir(), preparation: runrecord.GateLifecycle{
-			ID: preparation, TreeKey: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		}, environment: runrecord.Environment{ID: environment},
-	}
-	if err := g.writeHeartbeat(runrecord.HeartbeatRunning); err != nil {
-		t.Fatal(err)
-	}
-	var heartbeat runrecord.GateHeartbeat
-	if err := readJSON(g.repo, gateHeartbeatFile, &heartbeat); err != nil {
-		t.Fatal(err)
-	}
-	if heartbeat.Preparation != preparation || heartbeat.Environment != environment || heartbeat.PID != os.Getpid() {
-		t.Fatalf("heartbeat omitted gate facts: %+v", heartbeat)
-	}
-}

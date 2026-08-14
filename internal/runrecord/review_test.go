@@ -114,13 +114,6 @@ func TestReviewDocumentFamily(t *testing.T) {
 	if verdict.Findings[0] == findings[0] {
 		t.Fatal("shared document codec retained mutable input")
 	}
-}
-
-func TestReviewIdentityContracts(t *testing.T) {
-	actor, err := NewReviewActor("local:developer", ReviewDeveloper)
-	if err != nil {
-		t.Fatal(err)
-	}
 	mutated := actor
 	mutated.Principal = "local:someone-else"
 	if err := mutated.ValidateIdentity(); err == nil {

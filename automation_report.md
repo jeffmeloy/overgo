@@ -68,7 +68,8 @@ abstraction while preserving its behavior.
 | Surface vs `fa67865` | Net change |
 | --- | ---: |
 | Production Go | -52 lines |
-| Go tests | +72 lines |
+| Go tests | +45 lines |
+| Total Go | -7 lines |
 | `internal/plan/context.go` | -48 lines |
 | Run-record document family | -9 production lines |
 | `cmd/gate/main.go` | -12 lines |

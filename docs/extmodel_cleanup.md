@@ -36,14 +36,15 @@ active recipe + resolved artifact facts
 | Alternate-state magnitude-rescale copies | 0 | Hold at zero |
 | Global audio waveform codec facts | 0 | Hold at zero |
 | Hardcoded alternate/draft metadata defaults | 0 | Hold at zero |
+| Host-load tensor-topology probes | 0 | Compiled recipe/model admission owns topology |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named production files: none.
 
 ## Ordered Work
 
-1. Move remaining architecture validation constants into resolved profile facts or derived artifact relationships.
-2. Remove duplicate host/reference probes once operator-level host/CUDA evidence owns the same contract.
+1. Remove duplicate host/reference probes once operator-level host/CUDA evidence owns the same contract.
+2. Consolidate repeated host/device graph bindings without reintroducing runtime topology inference.
 
 ## Per-Wave Gate
 

@@ -63,9 +63,6 @@ func (s *HostTensorStore) LoadLayer(
 	}
 	s.mu.Unlock()
 	var result HostLayer
-	if err := validateHostLayerCatalog(info); err != nil {
-		return HostLayer{}, err
-	}
 	if err := loadHostLayerGraphFieldsWith(ctx, file, &info, &result, s.Load); err != nil {
 		return HostLayer{}, err
 	}

@@ -31,10 +31,11 @@ type browseRunEntry struct {
 }
 
 type browseRunsResponse struct {
-	Count  int              `json:"count"`
-	Offset int              `json:"offset"`
-	Limit  int              `json:"limit"`
-	Runs   []browseRunEntry `json:"runs"`
+	Count     int              `json:"count"`
+	Offset    int              `json:"offset"`
+	Limit     int              `json:"limit"`
+	Truncated bool             `json:"truncated"`
+	Runs      []browseRunEntry `json:"runs"`
 }
 
 // browseRuns: read-only listing of training/run artifacts from the RepoDB —
@@ -54,7 +55,9 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 		return
 	}
 	defer store.Close()
-	result, err := store.Query(request.Context(), repodb.Query{Kind: artifact.KindRun})
+	// MaxResults must be a positive bound; fetch up to the store's cap so the
+	// full set is pageable here. Truncated is surfaced if the cap is hit.
+	result, err := store.Query(request.Context(), repodb.Query{Kind: artifact.KindRun, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
 		return
@@ -91,7 +94,7 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 		}
 		runs = append(runs, shapeRun(run))
 	}
-	writeJSON(response, http.StatusOK, browseRunsResponse{Count: total, Offset: offset, Limit: limit, Runs: runs})
+	writeJSON(response, http.StatusOK, browseRunsResponse{Count: total, Offset: offset, Limit: limit, Truncated: result.Truncated, Runs: runs})
 }
 
 // shapeRun: a run record projected to the browse response (pure; nanoseconds

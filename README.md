@@ -94,7 +94,7 @@ concurrently.
 | Quantized execution | GGUF parsing/conversion plus native quantized weights and experts through recipe-selected residency | Exact type/family coverage is generated in `docs/COMPATIBILITY.md` |
 | Serving | Native llama.cpp-style routes plus OpenAI Chat/Completions/Embeddings/Responses and Anthropic Messages | Protocol features are contract-tested; model quality remains recipe-specific |
 | Multimodal input | Typed image, audio, and video projection; bounded local/allowlisted remote media; mixed-media history | E4B, Gemma/Qwen, RxBrain, and Unlimited OCR have real evidence; many catalog rows remain fixture-only |
-| Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea promoted with bounded pixel evidence; SenseNova terminal PNG is gated, compiled request execution remains open |
+| Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea is promoted; SenseNova text request-to-PNG executes through routed recipe modules at the pinned 256px case; edit input remains open |
 | Video generation | Resident Wan denoise and CUDA VAE decode | Fresh Overgo result; retained Python reference still needs a same-revision rerun |
 | Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Pocket-TTS has real recipe, latent/EOS, PCM/WAV, channel/rate, wall, and heap evidence; other promotions vary |
 | Training | Muon-only dense/hybrid primitives plus corpus-derived scratch construction through shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the pinned scratch profile lead; complete-state resume and universal objectives remain open |
@@ -123,7 +123,7 @@ checks, and open caveats are in the
 | Corpus-derived scratch causal | adaptive 221.4-231.8 ms / 3.13-3.18 MB peak | 64.4-66.2 ms matched steps / 2.38-2.43 MB combined peak; cold 44.7-49 ms, warm 8.7-11.6 ms | At least 3.34x wall and 22% peak lead on pinned profile |
 | Krea 2048 image | Python 97.5-135.4 s; adaptive 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | Bounded-quality wall/peak lead |
 | Wan video | retained Python 463.4 s; adaptive 795.1 s | 370.27 s; stage peaks 7.875/10.330 GB | Lead vs retained references; matched rerun open |
-| SenseNova generation core | adaptive reusable body 6.88 s | cold 3.33-7.37 s; warm 3.28-3.32 s / 0.708 GiB; exact terminal 256px PNG `d439b8ce...` | Warm-body lead; terminal publication gated; compiled request route open |
+| SenseNova generation core | adaptive reusable body 6.88 s | compiled 256px/2-step recipe 13.56 s total; body cold 3.26-7.37 s, warm 3.24-3.32 s / 0.708 GiB; exact PNG `d439b8ce...` | Warm-body lead; production text-to-image route gated; full-size/edit evidence open |
 | Gemma E4B image tower | adaptive 14.56 s focused test | 1.65 s load+run; 0.210-0.215 s resident body | Sampled-stage parity; peak open |
 | Gemma E4B audio tower | adaptive 1.03 s focused test | 0.129 s resident body | Numerical parity; matched lifecycle/peak open |
 

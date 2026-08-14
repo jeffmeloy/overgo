@@ -17,6 +17,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
+	"overgo/internal/sensenovarecipe"
 )
 
 const (
@@ -25,6 +26,25 @@ const (
 )
 
 func imageCapability() capability {
+	routedCache, routedErr := capabilityruntime.NewScalarSessionCache[sensenovarecipe.GenerationRequest, *sensenovarecipe.Generator, latentimage.EncodedImage](
+		"image-gen", imageDevice, imageSessionCapacity,
+		sensenovarecipe.ValidateGenerationRequest, sensenovarecipe.GenerationSessionPolicy,
+		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ sensenovarecipe.GenerationRequest) (*sensenovarecipe.Generator, error) {
+			return sensenovarecipe.LoadGenerator(path)
+		},
+		func(ctx context.Context, generator *sensenovarecipe.Generator, request sensenovarecipe.GenerationRequest) error {
+			return generator.Reset(ctx, request)
+		},
+		sensenovarecipe.RegisterRuntime,
+	)
+	var routed capabilityruntime.Executor
+	if routedErr == nil {
+		routed = routedCache.Executor()
+	} else {
+		routed = func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error) {
+			return nil, routedErr
+		}
+	}
 	latentCache, err := capabilityruntime.NewScalarSessionCache[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
 		latentimage.ValidateRequest, latentimage.SessionPolicy,
@@ -58,6 +78,13 @@ func imageCapability() capability {
 	)
 	return capability{
 		inventory: func(path string) (modelartifact.Inventory, error) {
+			routedModel, err := sensenovarecipe.Recognize(path)
+			if err != nil {
+				return modelartifact.Inventory{}, err
+			}
+			if routedModel {
+				return sensenovarecipe.Inventory(path)
+			}
 			recognized, err := latentimage.IsPipeline(path)
 			if err != nil {
 				return modelartifact.Inventory{}, err
@@ -69,6 +96,8 @@ func imageCapability() capability {
 		},
 		execute: func(ctx context.Context, store artifact.Repository, path string, modelID artifact.ID, program recipe.Program, raw string) (any, error) {
 			switch imageProgramModule(program) {
+			case modelrecipe.ModuleRoutedImagePrepare:
+				return routed(ctx, store, path, modelID, program, raw)
 			case modelrecipe.ModuleLatentImagePrepare:
 				return latent(ctx, store, path, modelID, program, raw)
 			case modelrecipe.ModuleOscillatorImagePrepare:
@@ -78,6 +107,14 @@ func imageCapability() capability {
 			}
 		},
 		bind: func(path string, modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+			routedModel, err := sensenovarecipe.Recognize(path)
+			if err != nil {
+				return recipe.Definition{}, nil, err
+			}
+			if routedModel {
+				definition, err := modelrecipe.RoutedImageDefinition(modelID)
+				return definition, nil, err
+			}
 			recognized, err := latentimage.IsPipeline(path)
 			if err != nil {
 				return recipe.Definition{}, nil, err

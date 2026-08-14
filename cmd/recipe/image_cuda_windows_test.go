@@ -87,6 +87,7 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 			return modelrecipe.LatentImageDefinition(model, profileID)
 		}, modelrecipe.ModuleLatentImagePrepare},
 		{modelrecipe.OscillatorImageDefinition, modelrecipe.ModuleOscillatorImagePrepare},
+		{modelrecipe.RoutedImageDefinition, modelrecipe.ModuleRoutedImagePrepare},
 	}
 	for _, test := range tests {
 		definition, err := test.define(modelID)
@@ -114,6 +115,32 @@ func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
 	if !ok || len(facts) != 1 || facts[0].Descriptor.ID != profileID {
 		t.Fatalf("profile binding = (%s, %v), facts=%+v", profileID, ok, facts)
+	}
+}
+
+func TestImageCapabilityBindsSenseNovaByArchitecture(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(root, "config.json"),
+		[]byte(`{"architectures":["NEOChatModel"],"model_type":"neo_chat"}`),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-image")
+	definition, facts, err := imageCapability().bind(root, modelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(facts) != 0 || definition.Model != modelID {
+		t.Fatalf("SenseNova binding model=%s facts=%d", definition.Model, len(facts))
+	}
+	program, err := modelrecipe.CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := imageProgramModule(program); got != modelrecipe.ModuleRoutedImagePrepare {
+		t.Fatalf("SenseNova operator=%q", got)
 	}
 }
 

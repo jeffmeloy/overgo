@@ -3,6 +3,7 @@ package sensenovarecipe
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -15,7 +16,27 @@ import (
 	"overgo/internal/testutil"
 )
 
-const activationReason = "SenseNova neutral prefix/body, guidance, flow terminal, sampler, and PNG publication match a fingerprinted native two-step trajectory; reusable body beats adaptive wall; compiled request and edit-input binding remain open"
+func TestRecognizeRequiresSenseNovaArchitecture(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "config.json")
+	if recognized, err := Recognize(directory); err != nil || recognized {
+		t.Fatalf("missing config recognition = %v, %v", recognized, err)
+	}
+	if err := os.WriteFile(path, []byte(`{"architectures":["Other"],"model_type":"other"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if recognized, err := Recognize(directory); err != nil || recognized {
+		t.Fatalf("foreign recognition = %v, %v", recognized, err)
+	}
+	if err := os.WriteFile(path, []byte(`{"architectures":["NEOChatModel"],"model_type":"neo_chat"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if recognized, err := Recognize(directory); err != nil || !recognized {
+		t.Fatalf("SenseNova recognition = %v, %v", recognized, err)
+	}
+}
+
+const activationReason = "SenseNova compiled text request, retained prefix/body, flow integration, and PNG publication match a fingerprinted native two-step trajectory; reusable body beats adaptive wall; edit-input binding remains open"
 
 // TestSenseNovaImageGenRoundTripSynthetic proves the recipe lifecycle + the
 // discovery/status round-trip WITHOUT the 35GB checkpoint, so it runs in CI:

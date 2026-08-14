@@ -954,24 +954,30 @@
     {
       "evidence": [
         {
-          "contains": "func DecodeGeneratedImage(",
-          "path": "internal/sensenovarecipe/publication.go",
+          "contains": "func LoadGenerator(",
+          "path": "internal/sensenovarecipe/runtime_cuda_windows.go",
           "role": "source",
-          "identity": "file:sha256:3d46298443ff145219c64377199baeac03e3984deed3d55ac2aea4af70780be2"
+          "identity": "file:sha256:06fe49ba629e837a5ab8106e211e34c537e88dfa64a9c5559e2aa9b1f019919e"
         },
         {
-          "contains": "func TestSenseNovaGenerationLeadership(",
-          "path": "internal/sensenovarecipe/generation_leadership_cuda_windows_test.go",
+          "contains": "case modelrecipe.ModuleRoutedImagePrepare:",
+          "path": "cmd/recipe/image_cuda_windows.go",
+          "role": "source",
+          "identity": "file:sha256:c19b7fdcdc9bf47fb447e7f8690b0287a1c813df259649f3eceebd8a2a3dcc46"
+        },
+        {
+          "contains": "func TestSenseNovaProductionImageGeneration(",
+          "path": "internal/sensenovarecipe/runtime_cuda_windows_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:6d709c9927926e3a47571787c6c995b27b965682e12469bfe61c53a016cc7ada"
+          "identity": "evidence:sha256:a99c9b2d55f629f00057b657e19f060f9453664effb1bc1c6d8d4c28d08888cd"
         }
       ],
-      "id": "sensenova-terminal-image-oracle",
+      "id": "sensenova-production-image-oracle",
       "evidence_tier": "device-gated",
-      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaGenerationLeadership$' -count=1 -v",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaProductionImageGeneration$' -count=1 -v",
       "artifact_identity": "sha256:f719811ee14aae6b4d3742c780f0d93f215c061f4c5928298ae7d3ecd2e4807e+7a20dee9983268c4598ac9f6c04a3afd377e3a39ec6a5a12f87b537637dfc5c9+f9b7a9b925fcf3b104349713ced8415a59aa1b001f192b55f483054899dc994f",
       "status": "implemented",
-      "summary": "SenseNova retained generation preserves native trajectory bounds and publishes a fingerprinted terminal PNG through the shared planar encoder."
+      "summary": "SenseNova text requests execute through compiled routed-image recipe modules, retained CUDA generation, and fingerprinted PNG publication."
     }
   ],
   "cuda": {

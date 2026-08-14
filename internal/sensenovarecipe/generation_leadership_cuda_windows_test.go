@@ -51,10 +51,12 @@ type generationLeadershipOracle struct {
 		TensorIndexSHA string `json:"tensor_index_sha256"`
 	} `json:"source"`
 	Request struct {
+		Prompt        string
 		Width, Height int
 		Steps         int
 		Seed          int64
 		CFGScale      float32 `json:"cfg_scale"`
+		TimestepShift float64 `json:"timestep_shift"`
 	} `json:"request"`
 	TextInputs struct {
 		Conditional   []int `json:"conditional_ids"`

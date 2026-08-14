@@ -30,6 +30,7 @@ type ScratchConfig struct {
 	BaseLearningRate float64        `json:"base_lr"`
 	Initialization   float64        `json:"init_std"`
 	Epsilon          float64        `json:"eps"`
+	MuonMomentum     float64        `json:"muon_momentum"`
 	Characters       []string       `json:"uchars"`
 	BOS              int            `json:"BOS"`
 	CharacterToIndex map[string]int `json:"char_to_idx"`
@@ -186,7 +187,8 @@ func validateScratchConfig(config ScratchConfig) error {
 		config.HeadDim != config.Embedding/config.Heads || config.BOS != len(config.Characters) ||
 		config.VocabSize != len(config.Characters)+1 || len(config.CharacterToIndex) != len(config.Characters) ||
 		config.EstimatedParams <= 0 || !positiveFinite(config.BaseLearningRate) ||
-		!positiveFinite(config.Initialization) || !positiveFinite(config.Epsilon) {
+		!positiveFinite(config.Initialization) || !positiveFinite(config.Epsilon) ||
+		config.MuonMomentum <= 0 || config.MuonMomentum >= 1 || !finite(config.MuonMomentum) {
 		return errors.New("adaptive scratch oracle: invalid derived config")
 	}
 	if !slices.IsSorted(config.Characters) {

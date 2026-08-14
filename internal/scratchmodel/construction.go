@@ -23,6 +23,7 @@ const (
 	defaultLayerCount = 2
 	minMLPFactor      = 2
 	cltMinimum        = 30
+	adaptiveMuon      = 29.0 / 31.0
 )
 
 type CorpusFacts struct {
@@ -49,6 +50,7 @@ type Config struct {
 	BaseLR          float64        `json:"base_lr"`
 	InitStd         float64        `json:"init_std"`
 	Epsilon         float64        `json:"eps"`
+	MuonMomentum    float64        `json:"muon_momentum"`
 	Characters      []string       `json:"uchars"`
 	BOS             int            `json:"BOS"`
 	CharacterIndex  map[string]int `json:"char_to_idx"`
@@ -305,7 +307,7 @@ func deriveConfig(documents []string, steps int) Config {
 		HeadDim: headDim, HeadCount: headCount, LayerCount: layerCount,
 		MLPWidth: embedding * mlpFactor, AttentionWindow: min(blockSize, embedding),
 		BaseLR: 1 / math.Sqrt(float64(estimated)), InitStd: 1 / math.Sqrt(float64(embedding)),
-		Epsilon: 1e-8, Characters: characters, BOS: len(characters),
+		Epsilon: 1e-8, MuonMomentum: adaptiveMuon, Characters: characters, BOS: len(characters),
 		CharacterIndex: index, EstimatedParams: estimated,
 	}
 }

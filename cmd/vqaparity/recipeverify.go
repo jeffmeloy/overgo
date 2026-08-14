@@ -87,7 +87,7 @@ func publishVQAVerification(
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}
-	batch, err := record.Batch("vqa/verification/" + definition.ID.String())
+	batch, err := record.Batch("vqa/verification/" + definition.ID.String() + "/" + record.Result.ID.String())
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}

@@ -67,6 +67,8 @@ active recipe + resolved artifact facts
 | Runtime CUDA fusion descriptor maps | 0 | Rewrite map released after indexed launch compilation |
 | Runtime CUDA rewrite decision maps | 0 | Node and fusion frames retain compiled decisions |
 | Duplicated CUDA launch frames | 0 | Node frames plus compact launch indices |
+| Resident image per-execution device-feed maps | 0 | Compiled input slots; reusable pointer slabs |
+| Resident image parallel weight ownership maps | 0 | Indexed pointer/refcount/byte slots |
 | Hybrid-local Q/K/V projection implementations | 0 | Shared projection stage owns fused/separate binding |
 | Resident video full host-weight owners after upload | 0 | Retain timestep bundle only |
 | Resident video named weight maps after binding | 0 | Node-to-device feeds own execution bindings |

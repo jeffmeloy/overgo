@@ -563,6 +563,33 @@ type RetainedTargets struct {
 	values   []DeviceValue
 }
 
+// InputSlot: compiled input ordinal.
+type InputSlot uint32
+
+// DeviceInputs: graph-indexed resident input pointers.
+type DeviceInputs struct {
+	compiled *CompiledGraph
+	Pointers []driver.DevicePtr
+}
+
+func (c *CompiledGraph) InputSlot(input *tensor.Tensor) (InputSlot, bool) {
+	if c == nil || input == nil || input.Op != tensor.OpInput {
+		return 0, false
+	}
+	index, ok := c.orderIndexes[input]
+	if !ok || c.nodes[index].inputSlot == 0 {
+		return 0, false
+	}
+	return InputSlot(c.nodes[index].inputSlot - 1), true
+}
+
+func (c *CompiledGraph) NewDeviceInputs() *DeviceInputs {
+	if c == nil {
+		return nil
+	}
+	return &DeviceInputs{compiled: c, Pointers: make([]driver.DevicePtr, c.inputCount)}
+}
+
 // RuntimeAttributes: graph-indexed per-execution attribute overrides.
 type RuntimeAttributes struct {
 	compiled *CompiledGraph
@@ -740,6 +767,7 @@ type CompiledGraph struct {
 	outputAliases  []bool
 	order          []*tensor.Tensor
 	orderIndexes   map[*tensor.Tensor]int
+	inputCount     uint32
 	operandSlots   []int
 	nodes          []compiledNode
 	launches       []int
@@ -766,6 +794,7 @@ type compiledNode struct {
 	view          tensor.StorageView
 	aliases       bool
 	skipped       bool
+	inputSlot     uint32
 }
 
 type compiledFusionKind uint8
@@ -1230,6 +1259,10 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 			operandOffset: offset, fusion: fusion,
 			view: view, aliases: aliases, skipped: skipped,
 		}
+		if node.Op == tensor.OpInput {
+			compiled.inputCount++
+			frame.inputSlot = compiled.inputCount
+		}
 		compiled.nodes[index] = frame
 		_, elided := compiled.elided[node]
 		if node.Op != tensor.OpInput && !skipped && !elided {
@@ -1307,7 +1340,7 @@ func (e *Executor) ExecuteCompiled(
 	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	result, err := e.runCompiled(ctx, compiled, feeds, nil, nil, nil, false)
+	result, err := e.runCompiled(ctx, compiled, feeds, nil, nil, nil, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1336,7 +1369,21 @@ func (e *Executor) ExecuteCompiledWithDeviceFeeds(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	result, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, nil, nil, false)
+	result, err := e.runCompiled(ctx, compiled, hostFeeds, deviceFeeds, nil, nil, nil, false)
+	if err != nil {
+		return nil, err
+	}
+	return result.host, nil
+}
+
+// ExecuteCompiledWithDeviceInputs: compiled graph plus indexed resident inputs.
+func (e *Executor) ExecuteCompiledWithDeviceInputs(
+	ctx context.Context,
+	compiled *CompiledGraph,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceInputs *DeviceInputs,
+) (map[*tensor.Tensor]reference.Value, error) {
+	result, err := e.runCompiled(ctx, compiled, hostFeeds, nil, deviceInputs, nil, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1368,6 +1415,22 @@ func (e *Executor) ExecuteRetainedCompiledWithDeviceFeeds(
 	return e.ExecuteRetainedCompiledWithTargets(ctx, compiled, hostFeeds, deviceFeeds, nil)
 }
 
+// ExecuteRetainedCompiledWithDeviceInputs: indexed retained execution.
+func (e *Executor) ExecuteRetainedCompiledWithDeviceInputs(
+	ctx context.Context,
+	compiled *CompiledGraph,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceInputs *DeviceInputs,
+) (*RetainedOutputs, error) {
+	execution, err := e.runCompiled(ctx, compiled, hostFeeds, nil, deviceInputs, nil, nil, true)
+	if err != nil {
+		return nil, err
+	}
+	return &RetainedOutputs{
+		executor: e, compiled: compiled, values: execution.values, leases: execution.leases,
+	}, nil
+}
+
 // ExecuteRetainedCompiledWithTargets: retained execution into selected stable buffers.
 func (e *Executor) ExecuteRetainedCompiledWithTargets(
 	ctx context.Context,
@@ -1391,7 +1454,7 @@ func (e *Executor) ExecuteRetainedCompiledParameterized(
 	attributes *RuntimeAttributes,
 ) (*RetainedOutputs, error) {
 	execution, err := e.runCompiled(
-		ctx, compiled, hostFeeds, deviceFeeds, targets, attributes, true,
+		ctx, compiled, hostFeeds, deviceFeeds, nil, targets, attributes, true,
 	)
 	if err != nil {
 		return nil, err
@@ -1429,6 +1492,7 @@ func (e *Executor) runCompiled(
 	compiled *CompiledGraph,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	deviceInputs *DeviceInputs,
 	targets *RetainedTargets,
 	attributes *RuntimeAttributes,
 	retain bool,
@@ -1438,6 +1502,9 @@ func (e *Executor) runCompiled(
 	}
 	if compiled == nil {
 		return nil, errors.New("CUDA compiled graph is nil")
+	}
+	if deviceInputs != nil && (deviceInputs.compiled != compiled || len(deviceInputs.Pointers) != int(compiled.inputCount)) {
+		return nil, errors.New("CUDA device inputs belong to another compiled graph")
 	}
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -1463,6 +1530,7 @@ func (e *Executor) runCompiled(
 			compiled,
 			hostFeeds,
 			deviceFeeds,
+			deviceInputs,
 			targets,
 			attributes,
 			resources.functions,
@@ -1533,6 +1601,7 @@ func execute(
 	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	deviceInputs *DeviceInputs,
 	retainedTargets *RetainedTargets,
 	runtimeAttributes *RuntimeAttributes,
 	functions functionSet,
@@ -1726,7 +1795,13 @@ func execute(
 			pointers.set(node, arena+driver.DevicePtr(allocation.Offset))
 			continue
 		}
-		if pointer, ok := deviceFeeds[node]; ok {
+		pointer, deviceFed := driver.DevicePtr(0), false
+		if deviceInputs != nil && frame.inputSlot != 0 && deviceInputs.Pointers[frame.inputSlot-1] != 0 {
+			pointer, deviceFed = deviceInputs.Pointers[frame.inputSlot-1], true
+		} else if deviceFeeds != nil {
+			pointer, deviceFed = deviceFeeds[node]
+		}
+		if deviceFed {
 			if node.Type != dtype.F32 && node.Type != dtype.BF16 && node.Type != dtype.F16 &&
 				node.Type != dtype.F8E4M3 && !nativeQuantizedType(node.Type) {
 				return nil, fmt.Errorf("CUDA device feed %q has unsupported type %s", node.Name, node.Type)

@@ -67,6 +67,35 @@ func TestCompiledRetainedTargetsUseOutputSlots(t *testing.T) {
 	}
 }
 
+func TestCompiledDeviceInputsUseCompactSlots(t *testing.T) {
+	const (
+		fixtureWidth = 4
+		fixtureScale = 2
+	)
+	builder := tensor.NewBuilder()
+	left := builder.Input("left", dtype.F32, tensor.MustShape(fixtureWidth))
+	right := builder.Input("right", dtype.F32, tensor.MustShape(fixtureWidth))
+	output := builder.Add(left, right)
+	compiled, err := Compile(builder.Scale(output, fixtureScale))
+	if err != nil {
+		t.Fatal(err)
+	}
+	leftSlot, leftOK := compiled.InputSlot(left)
+	rightSlot, rightOK := compiled.InputSlot(right)
+	inputs := compiled.NewDeviceInputs()
+	expectedInputs := [...]InputSlot{leftSlot, rightSlot}
+	if !leftOK || !rightOK || leftSlot == rightSlot || len(inputs.Pointers) != len(expectedInputs) {
+		t.Fatalf("input slots = %d/%t %d/%t; pointers=%d", leftSlot, leftOK, rightSlot, rightOK, len(inputs.Pointers))
+	}
+	if _, ok := compiled.InputSlot(output); ok {
+		t.Fatal("operator output received an input slot")
+	}
+	foreign := tensor.NewBuilder().Input("foreign", dtype.F32, tensor.MustShape(fixtureWidth))
+	if _, ok := compiled.InputSlot(foreign); ok {
+		t.Fatal("foreign input received a slot")
+	}
+}
+
 func TestCompiledRuntimeAttributesUseNodeIndexes(t *testing.T) {
 	builder := tensor.NewBuilder()
 	builder.SetCacheAppendPlan(tensor.CacheAppendPlan{ActiveTokens: 2, CapacityTokens: 4})

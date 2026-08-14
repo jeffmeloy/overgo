@@ -8,11 +8,19 @@ import (
 
 func fixtureModelPlan(t *testing.T, spec Spec, weights Weights) ModelPlan {
 	t.Helper()
-	plan, err := CompileModelPlan(spec, weights)
+	plan, err := compileFixtureModelPlan(spec, weights)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return plan
+}
+
+func compileFixtureModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
+	profile, ok := LookupArchitecture(spec.Architecture)
+	if !ok {
+		return ModelPlan{}, &UnsupportedArchitectureError{Architecture: spec.Architecture}
+	}
+	return CompileModelPlanWithProfile(spec, weights, profile)
 }
 
 func fixtureProjection(

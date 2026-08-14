@@ -48,7 +48,11 @@ func compileInferenceFixture(
 	weights model.Weights,
 ) (Plan, error) {
 	return compileDefinition(definition, func() (model.ModelPlan, error) {
-		return model.CompileModelPlan(spec, weights)
+		profile, ok := model.LookupArchitecture(spec.Architecture)
+		if !ok {
+			return model.ModelPlan{}, &model.UnsupportedArchitectureError{Architecture: spec.Architecture}
+		}
+		return model.CompileModelPlanWithProfile(spec, weights, profile)
 	})
 }
 

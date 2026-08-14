@@ -260,7 +260,7 @@ func activate(
 	if err != nil {
 		return err
 	}
-	modelPlan, err := model.CompileModelPlan(spec, weights)
+	modelPlan, err := model.CompileModelPlanWithProfile(spec, weights, profile)
 	if err != nil {
 		return err
 	}

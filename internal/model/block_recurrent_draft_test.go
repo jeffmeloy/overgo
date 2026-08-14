@@ -398,7 +398,7 @@ func TestCompiledEncoderBlockUsesRelativeAttention(t *testing.T) {
 		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
-	plan, err := CompileModelPlan(spec, Weights{})
+	plan, err := compileFixtureModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +461,7 @@ func TestCompiledDecoderBlockUsesCrossAttentionCache(t *testing.T) {
 		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
-	plan, err := CompileModelPlan(spec, Weights{})
+	plan, err := compileFixtureModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}

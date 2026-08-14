@@ -518,7 +518,7 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	spec := modeltest.Qwen35().Spec
 	spec.Architecture = "qwen35moe"
 	spec.NextNPredictLayers = 1
-	program, err := model.CompileModelPlan(spec, model.Weights{})
+	program, err := compileFixtureModelPlan(spec, model.Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}

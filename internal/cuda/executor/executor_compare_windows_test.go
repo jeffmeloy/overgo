@@ -28,6 +28,14 @@ func buildCompiledLayer(options model.BlockDispatchOptions) (model.DenseBlockRes
 	return program.Build(context, options.Weights)
 }
 
+func compileFixtureModelPlan(spec model.Spec, weights model.Weights) (model.ModelPlan, error) {
+	profile, ok := model.LookupArchitecture(spec.Architecture)
+	if !ok {
+		return model.ModelPlan{}, &model.UnsupportedArchitectureError{Architecture: spec.Architecture}
+	}
+	return model.CompileModelPlanWithProfile(spec, weights, profile)
+}
+
 func compileFixtureLayerProgram(
 	spec model.Spec,
 	layer uint32,
@@ -42,7 +50,7 @@ func compileFixtureLayerProgram(
 	if int(layer) < len(layers) {
 		layers[layer].Recurrent = recurrent
 	}
-	plan, err := model.CompileModelPlan(spec, model.Weights{Layers: layers})
+	plan, err := compileFixtureModelPlan(spec, model.Weights{Layers: layers})
 	if err != nil {
 		return model.CompiledLayerProgram{}, err
 	}
@@ -124,7 +132,7 @@ func (f *cudaReferenceFixture) nextInput(
 
 func (f *cudaReferenceFixture) modelPlan(spec model.Spec) model.ModelPlan {
 	f.t.Helper()
-	plan, err := model.CompileModelPlan(spec, model.Weights{})
+	plan, err := compileFixtureModelPlan(spec, model.Weights{})
 	if err != nil {
 		f.t.Fatal(err)
 	}

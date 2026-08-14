@@ -41,6 +41,7 @@ active recipe + resolved artifact facts
 | Runner graph-binding pass-through helpers | 0 | Runtime owns feeds and placement branch |
 | Inference-owned sequence tensor catalogs | 0 | Model binder consumes compiled catalog |
 | Invocation-time graph schema discovery | 0 | Reflect once; bind by indexed descriptors |
+| Registry-backed model-plan compilation APIs | 0 | Commands pass resolved profile explicitly |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named production files: none.
@@ -48,7 +49,7 @@ Family-named production files: none.
 ## Ordered Work
 
 1. Remove family identity from the remaining post-resolution parsing/binding files.
-2. Consolidate remaining output/input tensor binders around indexed descriptors.
+2. Remove the remaining `Spec.Profile` registry fallback after fixture migration.
 
 ## Per-Wave Gate
 

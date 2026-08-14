@@ -25,11 +25,19 @@ func TestBindResidency(t *testing.T) {
 }
 
 func fixtureProgram(spec model.Spec, weights model.Weights) modelrecipe.Plan {
-	plan, err := model.CompileModelPlan(spec, weights)
+	plan, err := fixtureModelPlan(spec, weights)
 	if err != nil {
 		panic(err)
 	}
 	return modelrecipe.Plan{Model: plan}
+}
+
+func fixtureModelPlan(spec model.Spec, weights model.Weights) (model.ModelPlan, error) {
+	profile, ok := model.LookupArchitecture(spec.Architecture)
+	if !ok {
+		return model.ModelPlan{}, &model.UnsupportedArchitectureError{Architecture: spec.Architecture}
+	}
+	return model.CompileModelPlanWithProfile(spec, weights, profile)
 }
 
 func fixtureRunner(spec model.Spec, weights model.Weights) *Runner {

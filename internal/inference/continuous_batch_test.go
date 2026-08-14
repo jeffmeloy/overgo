@@ -167,7 +167,7 @@ func TestPersistentDeviceCacheCapabilityProfile(t *testing.T) {
 	}
 	for architecture, want := range tests {
 		spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}}
-		plan, err := model.CompileModelPlan(spec, model.Weights{})
+		plan, err := fixtureModelPlan(spec, model.Weights{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -237,7 +237,7 @@ func TestRecurrentPrimaryStateShapesCoverFusedFamilies(t *testing.T) {
 				},
 			}
 			info := model.LayerWeights{Recurrent: test.recurrent}
-			plan, err := model.CompileModelPlan(spec, model.Weights{Layers: []model.LayerWeights{info}})
+			plan, err := fixtureModelPlan(spec, model.Weights{Layers: []model.LayerWeights{info}})
 			if err != nil {
 				t.Fatal(err)
 			}

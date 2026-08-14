@@ -508,15 +508,6 @@ func compileProjectedInputProgram(spec Spec, profile ArchitectureProfile) Projec
 	}
 }
 
-// CompileModelPlan: resolves architecture decisions before execution.
-func CompileModelPlan(spec Spec, weights Weights) (ModelPlan, error) {
-	profile := spec.Profile()
-	if profile.Name == "" {
-		return ModelPlan{}, &UnsupportedArchitectureError{Architecture: spec.Architecture}
-	}
-	return CompileModelPlanWithProfile(spec, weights, profile)
-}
-
 // CompileModelPlanWithProfile: compiles a resolved policy without registry lookup.
 func CompileModelPlanWithProfile(spec Spec, weights Weights, profile ArchitectureProfile) (ModelPlan, error) {
 	if err := ValidateArchitectureProfile(profile); err != nil {

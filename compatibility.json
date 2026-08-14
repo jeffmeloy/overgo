@@ -350,16 +350,16 @@
     {
       "evidence": [
         {
-          "contains": "func CompileModelPlan(",
+          "contains": "func CompileModelPlanWithProfile(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:c750fc2b079d045d080c44852d79c93d6073c7b8c9a60e477304f87ca890c3b7"
+          "identity": "file:sha256:678afd60ae479313da56dd54ad6604dace309fdccf74b1b12d724c82c055f9d1"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:8505a6df1a5b9f766cebce59899e9a7fea3fbf899c4244395c7fa359c4de764b"
+          "identity": "evidence:sha256:62f0688f5dbcc4fe997f88bbe6b28b8cbb24a9fb973537e29883b0c5700f2094"
         }
       ],
       "id": "compiled-model-plan",

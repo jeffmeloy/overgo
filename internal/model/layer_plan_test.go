@@ -11,7 +11,7 @@ import (
 
 func TestValidateModelPlanRejectsMutatedProgram(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
-	plan, err := CompileModelPlan(spec, Weights{})
+	plan, err := compileFixtureModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestLayerProgramOverflowCannotMasqueradeAsEmpty(t *testing.T) {
 	}
 
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
-	plan, err := CompileModelPlan(spec, Weights{})
+	plan, err := compileFixtureModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestLayerProgramOverflowCannotMasqueradeAsEmpty(t *testing.T) {
 
 func TestCompileModelPlanOwnsTerminalPolicy(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
-	tied, err := CompileModelPlan(spec, Weights{})
+	tied, err := compileFixtureModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestCompileModelPlanOwnsTerminalPolicy(t *testing.T) {
 		t.Fatalf("tied terminal = %+v", tied.Terminal())
 	}
 	output := gguf.TensorInfo{Name: "output.weight"}
-	dedicated, err := CompileModelPlan(spec, Weights{Output: &output})
+	dedicated, err := compileFixtureModelPlan(spec, Weights{Output: &output})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{
 		Architecture: "step35", BlockCount: 1, NextNPredictLayers: 2,
 	}}
-	plan, err := CompileModelPlan(spec, Weights{})
+	plan, err := compileFixtureModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestCompileModelPlanOwnsAlternatePredictionPolicy(t *testing.T) {
 			SparsityStdMultiplier: gemma3nSparsityStdMultiplier,
 		},
 	}
-	plan, err := CompileModelPlan(spec, Weights{})
+	plan, err := compileFixtureModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			plan, err := CompileModelPlan(test.spec, Weights{Layers: []LayerWeights{test.layer}})
+			plan, err := compileFixtureModelPlan(test.spec, Weights{Layers: []LayerWeights{test.layer}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -366,7 +366,7 @@ func TestCompileModelPlanSelectsCachedGraphPolicy(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			plan, err := CompileModelPlan(test.spec, test.weights)
+			plan, err := compileFixtureModelPlan(test.spec, test.weights)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -378,7 +378,7 @@ func TestCompileModelPlanSelectsCachedGraphPolicy(t *testing.T) {
 }
 
 func TestCompileModelPlanAppliesSpecForwardOverride(t *testing.T) {
-	plan, err := CompileModelPlan(Spec{
+	plan, err := compileFixtureModelPlan(Spec{
 		CommonSpec:    CommonSpec{Architecture: "llama", BlockCount: 1},
 		AttentionSpec: AttentionSpec{NonCausalAttention: true},
 	}, Weights{})
@@ -396,7 +396,7 @@ func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 		if architecture == "deepseek4" {
 			spec.CompressRatios = []uint32{0}
 		}
-		plan, err := CompileModelPlan(spec, Weights{})
+		plan, err := compileFixtureModelPlan(spec, Weights{})
 		if err != nil {
 			t.Fatalf("%s: %v", architecture, err)
 		}
@@ -416,7 +416,7 @@ func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 }
 
 func TestCompileModelPlanBoundsAndArchitecture(t *testing.T) {
-	plan, err := CompileModelPlan(Spec{
+	plan, err := compileFixtureModelPlan(Spec{
 		CommonSpec:  CommonSpec{Architecture: "t5", BlockCount: 3},
 		EncoderSpec: EncoderSpec{DecoderBlockCount: 2},
 	}, Weights{})
@@ -429,7 +429,7 @@ func TestCompileModelPlanBoundsAndArchitecture(t *testing.T) {
 	if _, err := plan.Layer(3); err == nil {
 		t.Fatal("out-of-range layer accepted")
 	}
-	_, err = CompileModelPlan(Spec{CommonSpec: CommonSpec{Architecture: "missing"}}, Weights{})
+	_, err = compileFixtureModelPlan(Spec{CommonSpec: CommonSpec{Architecture: "missing"}}, Weights{})
 	var unsupported *UnsupportedArchitectureError
 	if !errors.As(err, &unsupported) {
 		t.Fatalf("error = %v", err)
@@ -472,8 +472,8 @@ func TestCompileModelPlanRejectsCrossPolicyConflicts(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := CompileModelPlan(test.spec, Weights{}); err == nil {
-				t.Fatalf("CompileModelPlan(%+v) succeeded", test.spec)
+			if _, err := compileFixtureModelPlan(test.spec, Weights{}); err == nil {
+				t.Fatalf("compileFixtureModelPlan(%+v) succeeded", test.spec)
 			}
 		})
 	}
@@ -481,7 +481,7 @@ func TestCompileModelPlanRejectsCrossPolicyConflicts(t *testing.T) {
 		CommonSpec:    CommonSpec{Architecture: "glm-dsa", BlockCount: 2},
 		AttentionSpec: AttentionSpec{IndexerFullLayers: []bool{true, false}},
 	}
-	if _, err := CompileModelPlan(valid, Weights{}); err != nil {
+	if _, err := compileFixtureModelPlan(valid, Weights{}); err != nil {
 		t.Fatalf("valid auxiliary flow: %v", err)
 	}
 }

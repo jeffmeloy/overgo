@@ -1,3 +1,5 @@
+//go:build integration
+
 package latentvideo
 
 import (
@@ -10,7 +12,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/dataroot"
 	"overgo/internal/testutil"
 )
 
@@ -77,13 +78,12 @@ func loadG1Tensor(t *testing.T, dir string, spec g1Tensor) []float32 {
 
 func wanModelDir(t testing.TB) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
+	dir := os.Getenv("OVERGO_WAN_MODEL")
+	if dir == "" {
+		t.Skip("set OVERGO_WAN_MODEL to run real Wan integration tests")
 	}
-	dir := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
 	if _, err := os.Stat(dir); err != nil {
-		t.Skipf("UNAVAILABLE: model dir absent at %s: %v", dir, err)
+		t.Fatalf("Wan model directory %s: %v", dir, err)
 	}
 	return dir
 }

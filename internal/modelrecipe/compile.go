@@ -35,6 +35,12 @@ const (
 	ModuleRoutedImagePrepare       recipe.ModuleID = "model.routed-image-prepare"
 	ModuleRoutedImageIntegrate     recipe.ModuleID = "model.routed-image-integrate"
 	ModuleRoutedImageDecode        recipe.ModuleID = "model.routed-image-decode"
+	ModuleLatentVideoPrepare       recipe.ModuleID = "model.latent-video-prepare"
+	ModuleLatentVideoIntegrate     recipe.ModuleID = "model.latent-video-integrate"
+	ModuleLatentVideoDecode        recipe.ModuleID = "model.latent-video-decode"
+	ModuleReferenceVideoPrepare    recipe.ModuleID = "model.reference-video-prepare"
+	ModuleReferenceVideoIntegrate  recipe.ModuleID = "model.reference-video-integrate"
+	ModuleReferenceVideoDecode     recipe.ModuleID = "model.reference-video-decode"
 	ModuleVQAPrepare               recipe.ModuleID = "model.vqa-prepare"
 	ModuleVQAGenerate              recipe.ModuleID = "model.vqa-generate"
 )
@@ -178,6 +184,12 @@ var oscillatorImageCapability = imageCapability(recipe.PlacementHost, recipe.Dat
 
 var routedImageCapability = imageCapability(recipe.PlacementHybrid, recipe.DataPromptConditioning, ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode)
 
+var latentVideoCapability = linearCapability{placement: recipe.PlacementHybrid, stages: []scalarStage{
+	{node: "prepare", module: ModuleLatentVideoPrepare, input: "condition", output: "session", inputData: recipe.DataPromptConditioning, outData: recipe.DataSessionPlan},
+	{node: "integrate", module: ModuleLatentVideoIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataVideoTensor},
+	{node: "decode", module: ModuleLatentVideoDecode, input: "features", output: "video", inputData: recipe.DataVideoTensor, outData: recipe.DataVideo},
+}}
+
 // CapabilityDefinition: task-indexed executable topology.
 func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
 	if task == recipe.TaskVQA {
@@ -205,6 +217,37 @@ func OscillatorImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
 // RoutedImageDefinition: prompt-conditioned routed-transformer image graph.
 func RoutedImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	return routedImageCapability.definition(recipe.TaskImageGen, modelID)
+}
+
+// LatentVideoDefinition: prompt-conditioned latent-video graph.
+func LatentVideoDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
+	return latentVideoCapability.definition(recipe.TaskVideoGen, modelID, recipe.Dependency{
+		Role: recipe.DependencyProfile, Artifact: profileID,
+	})
+}
+
+// ReferenceVideoEditDefinition: prompt and source-video conditioned graph.
+func ReferenceVideoEditDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
+	prepare := recipe.Node{ID: "prepare", Module: ModuleReferenceVideoPrepare, Placement: recipe.PlacementHybrid}
+	integrate := recipe.Node{ID: "integrate", Module: ModuleReferenceVideoIntegrate, Placement: recipe.PlacementHybrid}
+	decode := recipe.Node{ID: "decode", Module: ModuleReferenceVideoDecode, Placement: recipe.PlacementHybrid}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskVideoGen,
+		[]recipe.Dependency{
+			{Role: recipe.DependencyModel, Artifact: modelID},
+			{Role: recipe.DependencyProfile, Artifact: profileID},
+		},
+		[]recipe.Node{prepare, integrate, decode},
+		[]recipe.Edge{
+			{From: recipe.Endpoint{Node: prepare.ID, Port: "session"}, To: recipe.Endpoint{Node: integrate.ID, Port: "session"}},
+			{From: recipe.Endpoint{Node: integrate.ID, Port: "features"}, To: recipe.Endpoint{Node: decode.ID, Port: "features"}},
+		},
+		[]recipe.Input{
+			{Name: "condition", Data: recipe.DataPromptConditioning, Target: recipe.Endpoint{Node: prepare.ID, Port: "condition"}},
+			{Name: "source", Data: recipe.DataVideo, Target: recipe.Endpoint{Node: prepare.ID, Port: "source"}},
+		},
+		[]recipe.Output{{Name: "video", Data: recipe.DataVideo, Source: recipe.Endpoint{Node: decode.ID, Port: "video"}}},
+	)
 }
 
 func vqaDefinition(modelID artifact.ID) (recipe.Definition, error) {
@@ -481,6 +524,27 @@ func mustCatalog() *recipe.Catalog {
 	for _, capability := range []linearCapability{latentImageCapability, oscillatorImageCapability, routedImageCapability} {
 		modules = append(modules, capability.modules(recipe.TaskImageGen)...)
 	}
+	modules = append(modules, latentVideoCapability.modules(recipe.TaskVideoGen)...)
+	modules = append(modules,
+		recipe.Module{
+			ID: ModuleReferenceVideoPrepare, Tasks: []recipe.Task{recipe.TaskVideoGen}, Placements: []recipe.Placement{recipe.PlacementHybrid},
+			Inputs: []recipe.Port{
+				{Name: "condition", Data: recipe.DataPromptConditioning, Cardinality: recipe.CardinalityOne},
+				{Name: "source", Data: recipe.DataVideo, Cardinality: recipe.CardinalityOne},
+			},
+			Outputs: []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleReferenceVideoIntegrate, Tasks: []recipe.Task{recipe.TaskVideoGen}, Placements: []recipe.Placement{recipe.PlacementHybrid},
+			Inputs:  []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
+			Outputs: []recipe.Port{{Name: "features", Data: recipe.DataVideoTensor, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleReferenceVideoDecode, Tasks: []recipe.Task{recipe.TaskVideoGen}, Placements: []recipe.Placement{recipe.PlacementHybrid},
+			Inputs:  []recipe.Port{{Name: "features", Data: recipe.DataVideoTensor, Cardinality: recipe.CardinalityOne}},
+			Outputs: []recipe.Port{{Name: "video", Data: recipe.DataVideo, Cardinality: recipe.CardinalityOne}},
+		},
+	)
 	modules = append(modules,
 		recipe.Module{
 			ID: ModuleVQAPrepare, Tasks: []recipe.Task{recipe.TaskVQA},

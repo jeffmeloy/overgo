@@ -321,7 +321,7 @@ Core user commands:
 | `cmd/embedding` | Encoder embeddings with selectable pooling/normalization |
 | `cmd/rerank` | Qwen3/Qwen3-VL pair scoring |
 | `cmd/diffusion` | Dream, LLaDA, LLaDA-MoE, and RND1 diffusion-text generation |
-| `cmd/latentvideo-run` | Wan latent-video generation and optional VAE decode |
+| `cmd/latentvideo-run` | Resident Wan denoise, causal VAE decode, and full-clip evidence |
 | `cmd/perplexity` | Next-token or disjoint-window perplexity |
 
 Model and format tools:

@@ -164,7 +164,46 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 		t.Fatal("inference accepted as capability definition")
 	}
 	if _, err := CapabilityDefinition(recipe.TaskVideoGen, artifact.ID{}); err == nil {
-		t.Fatal("video recipe accepted without an executable adapter")
+		t.Fatal("ambiguous video recipe accepted")
+	}
+}
+
+func TestTypedVideoRecipesSelectRuntimeWithoutPlacement(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-video-model")
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-video-profile")
+	tests := []struct {
+		name    string
+		define  func(artifact.ID, artifact.ID) (recipe.Definition, error)
+		inputs  []recipe.DataKind
+		modules []recipe.ModuleID
+	}{
+		{"generate", LatentVideoDefinition, []recipe.DataKind{recipe.DataPromptConditioning}, []recipe.ModuleID{ModuleLatentVideoPrepare, ModuleLatentVideoIntegrate, ModuleLatentVideoDecode}},
+		{"edit", ReferenceVideoEditDefinition, []recipe.DataKind{recipe.DataPromptConditioning, recipe.DataVideo}, []recipe.ModuleID{ModuleReferenceVideoPrepare, ModuleReferenceVideoIntegrate, ModuleReferenceVideoDecode}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			definition, err := test.define(modelID, profileID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(definition.Inputs) != len(test.inputs) || definition.Outputs[0].Data != recipe.DataVideo {
+				t.Fatalf("definition = %+v", definition)
+			}
+			for index, input := range test.inputs {
+				if definition.Inputs[index].Data != input {
+					t.Fatalf("input[%d] = %+v", index, definition.Inputs[index])
+				}
+			}
+			program, err := CompileCapability(definition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for index, stage := range program.Stages() {
+				if stage.Module.ID != test.modules[index] || stage.Node.Placement != recipe.PlacementHybrid {
+					t.Fatalf("stage[%d] = %+v", index, stage)
+				}
+			}
+		})
 	}
 }
 

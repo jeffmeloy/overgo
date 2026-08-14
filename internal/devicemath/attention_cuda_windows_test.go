@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 )
 
@@ -44,6 +45,64 @@ func hostAttention(q, k, v []float32, seq, hd int, scale float64) (p []float32, 
 		}
 	}
 	return p, out
+}
+
+func TestAttentionCoreBackwardResidentMatchesShared(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	const seq, headDim = 8, 6
+	scale := 1 / math.Sqrt(float64(headDim))
+	rng := rand.New(rand.NewSource(47))
+	q, k, v, dOut := randSlice(rng, seq*headDim), randSlice(rng, seq*headDim), randSlice(rng, seq*headDim), randSlice(rng, seq*headDim)
+	probability, _ := hostAttention(q, k, v, seq, headDim, scale)
+	want, err := AttentionCoreBackward(worker, q, k, v, probability, dOut, seq, headDim, scale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pointers []driver.DevicePtr
+	allocate := func(count int, initial []float32) driver.DevicePtr {
+		t.Helper()
+		pointer, err := AllocResidentF32(worker, count, initial)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pointers = append(pointers, pointer)
+		return pointer
+	}
+	defer func() {
+		if err := FreeResident(worker, pointers...); err != nil {
+			t.Error(err)
+		}
+	}()
+	qPtr, kPtr, vPtr := allocate(len(q), q), allocate(len(k), k), allocate(len(v), v)
+	probabilityPtr, dOutPtr := allocate(len(probability), probability), allocate(len(dOut), dOut)
+	dQPtr, dKPtr, dVPtr := allocate(len(q), nil), allocate(len(k), nil), allocate(len(v), nil)
+	dScoresPtr := allocate(len(probability), nil)
+	if err := AttentionCoreBackwardResident(
+		worker, qPtr, kPtr, vPtr, probabilityPtr, dOutPtr,
+		dQPtr, dKPtr, dVPtr, dScoresPtr, seq, headDim, scale,
+	); err != nil {
+		t.Fatal(err)
+	}
+	gotQ, gotK, gotV, gotScores := make([]float32, len(q)), make([]float32, len(k)), make([]float32, len(v)), make([]float32, len(probability))
+	for _, read := range []struct {
+		pointer driver.DevicePtr
+		data    []float32
+	}{{dQPtr, gotQ}, {dKPtr, gotK}, {dVPtr, gotV}, {dScoresPtr, gotScores}} {
+		if err := ReadResident(worker, read.pointer, ResidentSlice{Data: read.data}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	qDelta, kDelta := maxAbsDiff(gotQ, want.DQ), maxAbsDiff(gotK, want.DK)
+	vDelta, scoreDelta := maxAbsDiff(gotV, want.DV), maxAbsDiff(gotScores, want.DScores)
+	t.Logf("resident/shared attention VJP dQ=%.3e dK=%.3e dV=%.3e dS=%.3e", qDelta, kDelta, vDelta, scoreDelta)
+	if max(qDelta, kDelta, vDelta, scoreDelta) > 2e-7 {
+		t.Fatalf("resident attention VJP differs")
+	}
 }
 
 // TestAttentionCoreBackwardGradCheck verifies device AttentionCoreBackward

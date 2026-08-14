@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"io"
 	"math"
@@ -55,6 +56,37 @@ type e4bImageLanguageGolden struct {
 	NextPiece  string              `json:"next_piece"`
 }
 
+type qwen35Probe struct {
+	Shape      []int     `json:"shape"`
+	ProbeIndex []int     `json:"probe_index"`
+	ProbeValue []float32 `json:"probe_value"`
+	L2         float64   `json:"l2"`
+}
+
+type qwen35VisionGolden struct {
+	Grid             []int               `json:"image_grid_thw"`
+	Tokens           int                 `json:"num_image_tokens"`
+	InputIDs         []tokenizer.TokenID `json:"input_ids"`
+	Pixels           qwen35Probe         `json:"pixel_values"`
+	GeneratedTokenID []tokenizer.TokenID `json:"generated_token_ids"`
+	Intermediates    struct {
+		Merger qwen35Probe `json:"merger"`
+	} `json:"vit_intermediates"`
+}
+
+type qwen35VideoGolden struct {
+	Grid             []int               `json:"video_grid_thw"`
+	Tokens           int                 `json:"num_video_tokens"`
+	InputIDs         []tokenizer.TokenID `json:"input_ids"`
+	PromptText       string              `json:"prompt_text"`
+	Question         string              `json:"question"`
+	Pixels           qwen35Probe         `json:"pixel_values_videos"`
+	GeneratedTokenID []tokenizer.TokenID `json:"generated_token_ids"`
+	Intermediates    struct {
+		Merger qwen35Probe `json:"merger"`
+	} `json:"vit_intermediates"`
+}
+
 func TestMultimodalInputMatrix(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip)
@@ -62,11 +94,193 @@ func TestMultimodalInputMatrix(t *testing.T) {
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
 		t.Skip("set OVERGO_CUDA_TEST=1 for real multimodal parity")
 	}
+	t.Run("qwen35-image-video-language", testQwen35ImageVideoParity)
 	t.Run("gemma-e4b-image", testGemmaE4BImageParity)
 	t.Run("gemma-e4b-image-language", testGemmaE4BImageLanguageParity)
 	t.Run("gemma-e4b-dynamic-resize", testGemmaE4BResizeParity)
 	t.Run("gemma-e4b-video-order", testGemmaE4BVideoOrder)
 	t.Run("gemma-e4b-audio", testGemmaE4BAudioParity)
+}
+
+func testQwen35ImageVideoParity(t *testing.T) {
+	root := testutil.RepoRoot(t)
+	roots, err := dataroot.Resolve(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Qwen3.5-4B-mmproj-bf16.gguf")
+	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Qwen3.5-4B-f16.gguf")
+	imagePath := filepath.Join(roots.Models, "..", "fixtures", "qwen35_mm_image.png")
+	imageGoldenPath := filepath.Join(roots.Models, "..", "fixtures", "qwen35_mm_golden.json")
+	videoGoldenPath := filepath.Join(roots.Models, "..", "fixtures", "qwen35_video_golden.json")
+	assertSHA256(t, projectorPath, "3bc43ac6246bd2c312cd7cd5df95c55ba3ddb7019d6d22910cd25936cd656186")
+	assertSHA256(t, imagePath, "ccacbf46fc6dfe7545aed8a791f8ac343e1302ffbb7a1e899297afb68aa517b7")
+	assertSHA256(t, imageGoldenPath, "774a9e8ffe2ea3ba37e142123ee35ddcf91c24baa43647b0a9af96fce74f8ea1")
+	assertSHA256(t, videoGoldenPath, "38d61519eb39e98e577aeeebec6159be5efd6b2680e3b4c52d87da0047967505")
+	var imageGolden qwen35VisionGolden
+	var videoGolden qwen35VideoGolden
+	decodeJSONEvidence(t, imageGoldenPath, &imageGolden)
+	decodeJSONEvidence(t, videoGoldenPath, &videoGolden)
+	imageFile, err := os.Open(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	imageSource, decodeErr := png.Decode(imageFile)
+	closeErr := imageFile.Close()
+	if decodeErr != nil || closeErr != nil {
+		t.Fatal(errors.Join(decodeErr, closeErr))
+	}
+	vision, err := projector.OpenQwen3VLWithOptions(projectorPath, projector.OpenOptions{CUDA: true})
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: Qwen3.5 projector or CUDA absent; parity NOT verified: %v", err)
+	}
+	defer vision.Close()
+	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyDeviceF32,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	language, err := inference.OpenWithProgram(&loaded, inference.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer language.Close()
+	processedImage, err := projector.PreprocessQwen3VLImage(imageSource, vision.Spec(), projector.DefaultQwen3VLPreprocessOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertQwen35Grid(t, "image", processedImage, imageGolden.Grid)
+	assertQwen35Probe(t, "image pixels", processedImage.PixelValues, imageGolden.Pixels, 0.15, 0)
+	imagePrompt, err := vision.BuildImagePrompt(
+		context.Background(), language, imageSource, "", "What color dominates this image? One word.", true,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertQwen35Prompt(t, "image", imagePrompt, imageGolden.InputIDs, imageGolden.Tokens, imageGolden.Intermediates.Merger)
+	assertQwen35FirstToken(t, language, imagePrompt, imageGolden.GeneratedTokenID)
+
+	frames := qwen35GoldenFrames()
+	processedVideo, err := projector.PreprocessQwen3VLFrames(frames, vision.Spec(), projector.DefaultQwen3VLVideoPreprocessOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertQwen35Grid(t, "video", processedVideo, videoGolden.Grid)
+	assertQwen35Probe(t, "video pixels", processedVideo.PixelValues, videoGolden.Pixels, 0.15, 0)
+	videoPrompt, err := vision.BuildQwen35VideoPrompt(
+		context.Background(), language, frames, "", videoGolden.Question, 24, true,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := projector.Qwen35VideoPromptText("", videoGolden.Question, processedVideo.GridT,
+		(processedVideo.GridH/vision.Spec().MergeSize)*(processedVideo.GridW/vision.Spec().MergeSize), 24, true); got != videoGolden.PromptText {
+		t.Fatal("Qwen3.5 video prompt text differs from Python oracle")
+	}
+	assertQwen35Prompt(t, "video", videoPrompt, videoGolden.InputIDs, videoGolden.Tokens, videoGolden.Intermediates.Merger)
+	assertQwen35FirstToken(t, language, videoPrompt, videoGolden.GeneratedTokenID)
+	t.Logf("Qwen3.5 real matrix: image %v/%d tokens; video %v/%d tokens; exact prompts, MRoPE, first tokens",
+		imageGolden.Grid, imageGolden.Tokens, videoGolden.Grid, videoGolden.Tokens)
+}
+
+func decodeJSONEvidence(t *testing.T, path string, destination any) {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, destination); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertQwen35Grid(t *testing.T, label string, input projector.Qwen3VLImage, want []int) {
+	t.Helper()
+	if len(want) != 3 || input.GridT != want[0] || input.GridH != want[1] || input.GridW != want[2] {
+		t.Fatalf("Qwen3.5 %s grid = [%d %d %d], want %v", label, input.GridT, input.GridH, input.GridW, want)
+	}
+}
+
+func assertQwen35Probe(t *testing.T, label string, values []float32, record qwen35Probe, absolute, l2Relative float64) {
+	t.Helper()
+	if len(record.ProbeIndex) != len(record.ProbeValue) {
+		t.Fatalf("%s probe record is invalid", label)
+	}
+	for index, offset := range record.ProbeIndex {
+		if offset < 0 || offset >= len(values) || math.Abs(float64(values[offset]-record.ProbeValue[index])) > absolute {
+			t.Fatalf("%s probe %d differs", label, offset)
+		}
+	}
+	if l2Relative <= 0 {
+		return
+	}
+	var sum float64
+	for _, value := range values {
+		sum += float64(value) * float64(value)
+	}
+	if relative := math.Abs(math.Sqrt(sum)-record.L2) / record.L2; relative > l2Relative {
+		t.Fatalf("%s L2 relative = %.6g, limit %.6g", label, relative, l2Relative)
+	}
+}
+
+func assertQwen35Prompt(
+	t *testing.T, label string, prompt projector.MultimodalPrompt,
+	wantIDs []tokenizer.TokenID, wantTokens int, merger qwen35Probe,
+) {
+	t.Helper()
+	if !slices.Equal(prompt.TokenIDs, wantIDs) || len(prompt.EmbeddingTokenIndices) != wantTokens {
+		t.Fatalf("Qwen3.5 %s prompt = %d IDs/%d media, want %d/%d",
+			label, len(prompt.TokenIDs), len(prompt.EmbeddingTokenIndices), len(wantIDs), wantTokens)
+	}
+	for axis := range prompt.MultiAxisPositions {
+		if len(prompt.MultiAxisPositions[axis]) != len(prompt.TokenIDs) {
+			t.Fatalf("Qwen3.5 %s MRoPE axis %d = %d, want %d",
+				label, axis, len(prompt.MultiAxisPositions[axis]), len(prompt.TokenIDs))
+		}
+	}
+	assertQwen35Probe(t, label+" merger", prompt.Embeddings, merger, 0.35, 0.03)
+}
+
+func assertQwen35FirstToken(t *testing.T, runner *inference.Runner, prompt projector.MultimodalPrompt, want []tokenizer.TokenID) {
+	t.Helper()
+	if len(want) == 0 {
+		t.Fatal("Qwen3.5 generated-token oracle is empty")
+	}
+	ids, projected, err := inference.ProjectedInputsForPrompt(runner, prompt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	greedy, err := sampling.New(sampling.Config{Temperature: 0, TopK: 1, TopP: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, _, err := runner.Generate(context.Background(), "", inference.GenerateOptions{
+		MaxNewTokens: 1, Sampler: greedy, PromptTokenIDs: ids, ProjectedInputs: &projected,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(generated) != len(ids)+1 || generated[len(ids)] != want[0] {
+		t.Fatalf("Qwen3.5 first token = %v, want %d", generated[len(ids):], want[0])
+	}
+}
+
+func qwen35GoldenFrames() []image.Image {
+	frames := make([]image.Image, 16)
+	for temporal := range frames {
+		frame := image.NewRGBA(image.Rect(0, 0, 224, 224))
+		for y := range 224 {
+			for x := range 224 {
+				frame.SetRGBA(x, y, color.RGBA{
+					R: uint8((x*4 + temporal*8) % 256), G: uint8((y*5 + temporal*4) % 256),
+					B: uint8(((x+y)*3 + temporal*16) % 256), A: 255,
+				})
+			}
+		}
+		frames[temporal] = frame
+	}
+	return frames
 }
 
 func testGemmaE4BImageLanguageParity(t *testing.T) {

@@ -208,7 +208,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0e820ba202050dd71dcdd87cd5cb0d54a361fbb35132be27dfb3ad232d8dbca5"
+          "identity": "evidence:sha256:37a6944ae64317d9190661f300bf55ed589a554187fe31241c1f6197f5adabc7"
         }
       ],
       "id": "gemma-e4b-audio-tower-oracle",
@@ -230,7 +230,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0e820ba202050dd71dcdd87cd5cb0d54a361fbb35132be27dfb3ad232d8dbca5"
+          "identity": "evidence:sha256:37a6944ae64317d9190661f300bf55ed589a554187fe31241c1f6197f5adabc7"
         }
       ],
       "id": "gemma-e4b-image-language-oracle",
@@ -239,6 +239,34 @@
       "artifact_identity": "sha256:185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e+cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e+49b5624323fc4e2e87a2673d9b8ab8880d285e1bcb736dad7dcbea6ecd919232",
       "status": "implemented",
       "summary": "Gemma E4B image projection binds the exact adaptive prompt and produces the fingerprinted first language token on CUDA."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func Qwen35ProjectorConversion(",
+          "path": "internal/hfgguf/qwen35_projector.go",
+          "role": "source",
+          "identity": "file:sha256:6107ad4e605e77ca851a8aecc9cf1a70c1796ea4c75651d6dcb2b8ae0b15b2dc"
+        },
+        {
+          "contains": "func ProjectedInputsForPrompt(",
+          "path": "internal/inference/multimodal_prompt.go",
+          "role": "source",
+          "identity": "file:sha256:4183a74c818e9e5d280a2deb7ca88d08363bfcdfd730ca934bf40a52c3075a5e"
+        },
+        {
+          "contains": "func TestMultimodalInputMatrix(",
+          "path": "internal/adaptiveparity/multimodal_input_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:37a6944ae64317d9190661f300bf55ed589a554187fe31241c1f6197f5adabc7"
+        }
+      ],
+      "id": "qwen35-image-video-language-oracle",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v",
+      "artifact_identity": "sha256:3bc43ac6246bd2c312cd7cd5df95c55ba3ddb7019d6d22910cd25936cd656186+c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec+ccacbf46fc6dfe7545aed8a791f8ac343e1302ffbb7a1e899297afb68aa517b7+774a9e8ffe2ea3ba37e142123ee35ddcf91c24baa43647b0a9af96fce74f8ea1+38d61519eb39e98e577aeeebec6159be5efd6b2680e3b4c52d87da0047967505",
+      "status": "implemented",
+      "summary": "Qwen3.5 image and 16-frame video inputs match pinned Python processor, projector, prompt, MRoPE, and first-language-token oracles on CUDA."
     },
     {
       "evidence": [

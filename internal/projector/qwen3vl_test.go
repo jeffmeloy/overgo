@@ -69,7 +69,7 @@ func TestQwen3VLRealFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenQwen3VL(projectorPath)
+	runner, err := openQwen3VLFixture(projectorPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -418,7 +418,7 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 		}
 		frames[temporal] = frame
 	}
-	runner, err := OpenQwen3VL(projectorPath)
+	runner, err := openQwen3VLFixture(projectorPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,6 +475,12 @@ func tinyQwen3VLMetadata() []gguf.Metadata {
 		{Key: "clip.vision.image_std", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{1, 1, 1}}},
 		{Key: "clip.vision.is_deepstack_layers", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeBool, Data: []bool{false}}},
 	}
+}
+
+func openQwen3VLFixture(path string) (*Qwen3VLRunner, error) {
+	return OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions{
+		CUDA: os.Getenv("OVERGO_QWEN35_PROJECTOR_CUDA") != "",
+	})
 }
 
 func tinyQwen3VLDeepstackMetadata() []gguf.Metadata {

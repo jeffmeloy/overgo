@@ -16,6 +16,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/hfgguf"
 	"overgo/internal/hfrepo"
+	"overgo/internal/projector"
 )
 
 type qwen35TokenConfig struct {
@@ -29,6 +30,41 @@ func convertQwen35(directory string, options Options) (Report, error) {
 		return Report{}, err
 	}
 	defer repository.Close()
+	report := Report{}
+	if options.OutputPath != "" {
+		modelReport, modelErr := writeQwen35Model(directory, repository, options)
+		if modelErr != nil {
+			return report, modelErr
+		}
+		report = modelReport
+	}
+	if options.ProjectorPath != "" {
+		metadata, tensors, projectorErr := hfgguf.Qwen35ProjectorConversion(repository)
+		if projectorErr != nil {
+			return report, projectorErr
+		}
+		if err := writeOutput(options.ProjectorPath, metadata, tensors); err != nil {
+			return report, err
+		}
+		runner, openErr := projector.OpenQwen3VL(options.ProjectorPath)
+		if openErr != nil {
+			_ = os.Remove(options.ProjectorPath)
+			return report, fmt.Errorf("HF converter: generated Qwen 3.5 projector: %w", openErr)
+		}
+		if closeErr := runner.Close(); closeErr != nil {
+			return report, closeErr
+		}
+		written, statErr := os.Stat(options.ProjectorPath)
+		if statErr != nil {
+			return report, statErr
+		}
+		report.ProjectorTensors = len(tensors)
+		report.OutputBytes += written.Size()
+	}
+	return report, nil
+}
+
+func writeQwen35Model(directory string, repository *hfrepo.Repository, options Options) (Report, error) {
 	metadata, tensors, err := hfgguf.Qwen35Conversion(repository)
 	if err != nil {
 		return Report{}, err

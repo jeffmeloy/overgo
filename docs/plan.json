@@ -11,7 +11,44 @@
           "id": "do",
           "title": "Document the automation control plane, evidence strengths, failure modes, and prioritized hardening roadmap",
           "status": "open",
-          "verify": "test -s automation_report.md \u0026\u0026 grep -q '^## Prioritized roadmap' automation_report.md"
+          "verify": "test -s automation_report.md \u0026\u0026 grep -q '^## adaptive_new automation transfer review' automation_report.md \u0026\u0026 grep -q '^## Prioritized roadmap' automation_report.md"
+        }
+      ]
+    },
+    {
+      "id": "automation-foundation",
+      "title": "Port selected adaptive_new automation mechanisms through compact common Go owners",
+      "status": "open",
+      "steps": [
+        {
+          "id": "context",
+          "title": "Emit one typed JSON automation context from existing plan and Git owners: HEAD, worktree, current task, dirty scope, evidence debt, and role; expose exactly one current-task identity",
+          "status": "open",
+          "verify": "go test ./internal/plan ./cmd/plan -run TestAutomationContext -count=1"
+        },
+        {
+          "id": "honesty",
+          "title": "Unify CI and gate skip classification, derive loop dirtiness from planned meaningful paths, and route non-Go assets through their owning tests",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./cmd/loophook ./internal/testevidence -run 'Test(CIRequiredEvidence|DirtyPlannedScope|NonGoOwnership)' -count=1"
+        },
+        {
+          "id": "gate-lifecycle",
+          "title": "Add typed gate lifecycle, environment-bound retry identity, Go heartbeat/watchdog state, and deterministic RepoDB record-debt reconciliation",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./cmd/gate -run 'Test(GateLifecycle|GateDebt|GateHeartbeat|EnvironmentBoundRetry)' -count=1"
+        },
+        {
+          "id": "independent-sqa",
+          "title": "Enforce Git and RepoDB-derived developer to independent-SQA to priority ordering with immutable candidate, actor, evaluator, worktree, findings, and verdict identities",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/repodb ./cmd/gate -run 'Test(IndependentSQA|ReviewAdmission)' -count=1"
+        },
+        {
+          "id": "manual-orchestration",
+          "title": "Record advisory worktree leases, conflicts, resources, and target-head merge eligibility while preserving owner-controlled dispatch and promotion",
+          "status": "open",
+          "verify": "go test ./internal/plan ./internal/repodb ./cmd/plan -run 'Test(WorkLease|MergeEligibility|ResourceAdvisory)' -count=1"
         }
       ]
     },

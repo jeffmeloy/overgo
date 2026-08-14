@@ -153,6 +153,138 @@ boundary, which is the correct claim.
 - The release workflow builds a Windows archive twice and requires byte-for-byte
   reproducibility before publishing the archive and checksum artifact.
 
+## adaptive_new automation transfer review
+
+Review baseline: adaptive_new commit `214950b3b` plus a read-only inspection of
+its concurrent working tree on 2026-08-14. The working tree contained unrelated
+edits, so no adaptive_new files were changed. Focused tests for `cmd/state`,
+`cmd/commit-gate`, `internal/gateorch`, `cmd/hygiene`, `cmd/check-doc-drift`,
+`cmd/check-magic-drift`, and `cmd/gate-watchdog` pass. `cmd/state -validate`
+reports no state or process invariant violations.
+
+Adaptive_new contains valuable operational DNA, but its automation is also an
+example of the cognitive surface Overgo must avoid recreating. `cmd/state` alone
+has roughly 6,900 production lines across 66 files, backed by about 4,800 test
+lines. Its commit gate adds roughly 1,300 production and 1,000 test lines. The
+right transfer unit is one proven mechanism re-expressed through an existing
+Overgo Go owner, followed by deletion of any superseded prompt or script logic.
+
+### Transfer decisions
+
+| Adaptive_new mechanism | Decision | Overgo form | Important correction |
+| --- | --- | --- | --- |
+| Machine-readable dispatch context | Port early | Extend `internal/plan` and `cmd/plan` with one typed JSON context containing HEAD, worktree, current step, dirty scope, evidence debt, and role | Expose exactly one current-task identity; adaptive_new emits both state rank-1 and plan live-rank-1 |
+| Git-derived implementation -> SQA -> priority phase | Port with stronger authority | Derive phase from candidate/review records and Git, enforce it in `cmd/gate` | A distinct findings commit is not a distinct reviewer; bind developer and SQA identities |
+| Immutable cycle event -> deterministic state projection | Port the pattern | RepoDB run/review/decision events own history; generate any human view | Do not add mutable `state.json` and `cycle.json` as competing authorities |
+| Structured findings and failable closure checks | Port | RepoDB finding documents with severity, status, owner, evidence, closure/refutation check, decision, and reopen trigger | Keep checks typed where possible; do not grow prose-ledger records into mini reports |
+| Typed gate step catalog and lifecycle | Port | Extend `internal/runrecord` and `cmd/gate` with run ID, PID/process identity, step state, terminal reason, and prepared/finalized record debt | RepoDB remains authoritative; status files are disposable projections |
+| CPU/GPU/file-progress watchdog | Port after lifecycle state | Common Go watchdog driven by typed gate status and measured step history | Derive deadlines from Overgo evidence; do not copy adaptive_new's fixed 600/3600 second defaults |
+| Build-constraint-aware CUDA routing | Port the compiler-derived part | Parse Go build constraints and manifest ownership; retain conservative fallback and standing census tests | Reject adaptive_new's family/file-name routing tables as a long-term owner |
+| Hygiene coverage plan with selected/skipped reasons | Port the contract | Gate emits required, selected, skipped, unavailable, and why for every impact class | Derive coverage from owners/manifests/imports rather than a large ordered string catalog |
+| Gate timing baselines, replay, alarm-rate and injected-regression checks | Adapt | Reuse Overgo run records; add walk-forward false-alarm and injected-power reports before enforcing thresholds | Replace fixed MAD ladders and overlapping windows with calibrated Overgo statistics |
+| Process-guard registry | Adapt by derivation | Gate/hook step catalogs generate the guard inventory and verify configured hooks resolve | Do not maintain a second manual JSON statement of code that already owns the guards |
+| Doc/schema drift checks | Port selectively | Verify live links, schema-field coverage, generated/snapshot status, skill anchors, and deleted-code references | Prefer deleting stale documents over expanding a large regex rule corpus |
+| Resumable close-cycle transaction | Port the idempotence properties | Prepared/final gate records and deterministic reconciliation make interrupted closes resumable | Do not recreate a monolithic close-cycle CLI around mutable docs |
+| Run-drought and repeated-axis detectors | Defer as advisory | Add only when their output changes an owner decision and can be derived from RepoDB history | They must never become a governance loop that consumes more attention than it saves |
+| `y*p*unblock/wall` priority scoring | Retain as human judgment for now | Optional recommendation evidence later | Inputs are subjective estimates; encoding the formula does not make the ranking objective |
+| Monolithic `cmd/state` surface | Reject | Small capabilities in existing Go owners with typed composition | One command with dozens of modes becomes a second cognitive system the model must reconstruct |
+
+### High-value lessons
+
+#### One grounding payload materially reduces model work
+
+Adaptive_new's `-dispatch-context` combines HEAD, dirty paths, workflow phase,
+state summary, current priority, plan anchor, and last cycle into JSON. This is
+the clearest direct example of the desired cognitive-load transfer: the model no
+longer needs to run several commands, reconcile outputs, and infer the legal
+phase. Overgo should make this the first implementation slice.
+
+The adaptive_new payload also demonstrates the failure mode. Its current output
+names `media-execution-maturity` in the state rank-1 while separately naming
+`controller-training-system` as plan live-rank-1. Validation deliberately allows
+any active plan row because parallel lanes made exact equality oscillate. That
+choice is reasonable internally, but presenting both as rank-1 pushes ambiguity
+back onto the consumer. Overgo should distinguish `current_task` from
+`campaign_focus`, or omit the latter from task dispatch.
+
+#### Workflow phase ordering is proven; actor independence is not
+
+Adaptive_new derives workflow phase from Git history instead of storing a phase
+marker. After an implementation commit, another implementation is refused until
+a distinct findings update lands, followed by a fresh priority update. Open SQA
+findings can also require reviewed commit, prototype worktree, branch, prototype
+commit, and paired checks.
+
+This is worth porting, but no field establishes who performed development versus
+review. Overgo's version should retain Git-derived ordering and add immutable
+actor/run identities, candidate bytes, evaluator identities, and a rule that the
+SQA actor cannot modify the candidate being judged.
+
+#### Gate lifecycle and watchdog semantics are mature
+
+`internal/gateorch` declares step IDs, dependencies, optional conditions,
+mutation classes, evidence owners, lifecycle states, run IDs, refusal records,
+and terminal outcomes. The watchdog waits until protection is observably ready,
+tracks process-tree CPU, GPU utilization and artifact progress, preserves run
+identity across malformed status reads, and stamps abandoned or killed runs
+loudly. Tests cover concurrent-run refusal, stale status, early watchdog exit,
+and terminal persistence.
+
+This is a stronger basis than Overgo's current process-name probe and shell
+stall check. The transfer should use Overgo's RepoDB/run-record model and should
+solve gate-record debt at the same time.
+
+#### Impact classification contains both a model and an anti-model
+
+Adaptive_new correctly extracted one common Go owner for impact classification
+and parses actual Go build constraints to find CUDA-only files. It also carries
+large regex, filename, package, model-area, and test-prefix tables accumulated
+from incidents. Those tables are useful evidence of what goes wrong, not the
+desired Overgo architecture.
+
+Port the constraint parser, additive conservative fallback, and standing census
+test. Derive the remaining ownership from Go imports/embeds, kernel manifests,
+recipe relations, generated-file provenance, and declared external boundaries.
+
+#### Finding and drift discipline contains useful falsifiers
+
+Adaptive_new's finding validator captures several strong rules:
+
+- A finding title names the defect; drifting measurements live in evidence.
+- Trend claims cite deltas, not only endpoints.
+- Checks identify checkout-specific prerequisites and exact paths.
+- Go-test closures must prove a named test ran rather than accept package-level
+  success.
+- Claims against a gate first run the actual gate and cite its output.
+- Differenced measurements state instrument noise first.
+- Closure proposals are not treated as validated plans.
+
+These rules belong in typed finding validation and SQA templates. Their lengthy
+historical explanations should remain in Git or incident tests rather than being
+copied into Overgo's live documentation.
+
+#### Guard registries are useful only when mechanically cross-checked
+
+Adaptive_new validates that hook commands resolve, registered blocking guards
+have an executable nonzero path, and every configured hook guard appears in the
+registry. That closes the common gap where a document claims a guard exists but
+the hook is missing. Overgo can go one step further: generate the inventory from
+the Go gate/guard catalogs and compare it with installed hook configuration,
+leaving no manually duplicated command list.
+
+### Transfer order
+
+1. Typed automation context with one current-task identity.
+2. Unified evidence honesty across CI, gate, loop dirtiness, and non-Go owners.
+3. Typed gate lifecycle, environment-bound retry, heartbeat, and record-debt
+   reconciliation.
+4. Git/RepoDB-derived review phase with independently identified SQA.
+5. Advisory worktree leases, resource estimates, and target-head merge
+   eligibility while the owner continues to dispatch manually.
+
+This order first reduces immediate model reconstruction, then makes evidence and
+long-running execution trustworthy, and only then adds coordination state.
+
 ## Strengths
 
 ### Evidence honesty

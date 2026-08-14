@@ -25,15 +25,12 @@ const (
 	analyzeTensorSimilarMaxK     = 64
 )
 
-// analyzeTensor is one tensor's storage identity plus its distribution-free
-// value profile (the embedded characterization flattens into the JSON object).
+// analyzeTensor is one tensor's storage identity plus its persisted measurement
+// (name, characterization, and effective rank flatten into the JSON object).
 type analyzeTensor struct {
-	Name    string   `json:"name"`
 	Storage string   `json:"storage"`
 	Shape   []uint64 `json:"shape"`
-	tensorstats.Characterization
-	EffectiveRank  float64 `json:"effective_rank,omitempty"`
-	SpectralStatus string  `json:"spectral_status,omitempty"`
+	modelartifact.TensorMeasurement
 }
 
 // analyzeTensorsResponse returns a distribution-free value profile for every
@@ -179,12 +176,9 @@ func characterizeGGUF(file *gguf.File) ([]analyzeTensor, error) {
 	for i, measurement := range document.Measurements {
 		fact, _ := inventory.TensorInventory.Tensor(measurement.Name)
 		profiles[i] = analyzeTensor{
-			Name:             measurement.Name,
-			Storage:          fact.Storage,
-			Shape:            fact.Shape,
-			Characterization: measurement.Characterization,
-			EffectiveRank:    measurement.EffectiveRank,
-			SpectralStatus:   measurement.SpectralStatus,
+			Storage:           fact.Storage,
+			Shape:             fact.Shape,
+			TensorMeasurement: measurement,
 		}
 	}
 	return profiles, nil

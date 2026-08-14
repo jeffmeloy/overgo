@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -141,7 +140,7 @@ func run() error {
 	if err := g.expandDirectoryPaths(); err != nil {
 		return err
 	}
-	g.environment, err = discoverEnvironment(repo)
+	g.environment, err = gatecontrol.DiscoverEnvironment(repo)
 	if err != nil {
 		return err
 	}
@@ -226,7 +225,8 @@ func (g *gateContext) pipeline() error {
 		{"device", runrecord.PhaseTest, g.stepDevice},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
 	}
-	treeKey, cache := g.loadRetryCache()
+	treeKey, _ := g.treeStateKey()
+	cache := g.control.Retry(treeKey, g.environment.ID.String())
 	// Verification steps whose result depends only on tree state may reuse a
 	// prior identical-tree success (the retry-loop tax: a failed commit step
 	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
@@ -236,7 +236,7 @@ func (g *gateContext) pipeline() error {
 		began := time.Now()
 		var skipped bool
 		var err error
-		if cacheable[s.name] && cache.Steps[s.name] == string(runrecord.StepSucceeded) {
+		if cacheable[s.name] && cache.Succeeded(s.name) {
 			skipped = true
 			g.honesty = append(g.honesty, s.name+" reused: identical tree already passed this step")
 		} else {
@@ -255,20 +255,14 @@ func (g *gateContext) pipeline() error {
 		g.steps = append(g.steps, record)
 		fmt.Printf("[gate] %-8s %-9s %6.2fs\n", s.name, record.Outcome, time.Since(began).Seconds())
 		if err == nil && cacheable[s.name] && !skipped {
-			cache.Steps[s.name] = string(runrecord.StepSucceeded)
-			g.saveRetryCache(treeKey, cache)
+			cache.MarkSucceeded(s.name)
+			_ = g.control.SaveRetry(cache)
 		}
 		if err != nil {
 			return fmt.Errorf("%s: %w", s.name, err)
 		}
 	}
 	return nil
-}
-
-type retryCache struct {
-	TreeKey     string            `json:"tree_key"`
-	Environment string            `json:"environment"`
-	Steps       map[string]string `json:"steps"`
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,
@@ -300,62 +294,6 @@ func (g *gateContext) treeStateKey() (string, error) {
 		hasher.Write(raw)
 	}
 	return hex.EncodeToString(hasher.Sum(nil)), nil
-}
-
-func (g *gateContext) loadRetryCache() (string, retryCache) {
-	empty := retryCache{Steps: map[string]string{}}
-	key, err := g.treeStateKey()
-	if err != nil {
-		return "", empty
-	}
-	empty.TreeKey = key
-	raw, err := os.ReadFile(filepath.Join(g.repo, "bin", "gate_cache.json"))
-	if err != nil {
-		return key, empty
-	}
-	var cache retryCache
-	if json.Unmarshal(raw, &cache) != nil || !retryReusable(cache, key, g.environment.ID.String()) {
-		return key, empty
-	}
-	return key, cache
-}
-
-func (g *gateContext) saveRetryCache(key string, cache retryCache) {
-	if key == "" {
-		return
-	}
-	cache.TreeKey = key
-	cache.Environment = g.environment.ID.String()
-	raw, err := json.MarshalIndent(cache, "", "  ")
-	if err != nil {
-		return
-	}
-	dir := filepath.Join(g.repo, "bin")
-	if os.MkdirAll(dir, 0o755) != nil {
-		return
-	}
-	_ = os.WriteFile(filepath.Join(dir, "gate_cache.json"), append(raw, '\n'), 0o644)
-}
-
-func retryReusable(cache retryCache, treeKey, environment string) bool {
-	return cache.TreeKey == treeKey && cache.Environment == environment && cache.Steps != nil
-}
-
-func discoverEnvironment(repo string) (runrecord.Environment, error) {
-	out, err := command(repo, "go", "env", "CGO_ENABLED", "GOFLAGS", "GOEXPERIMENT", "GOTOOLCHAIN")
-	if err != nil {
-		return runrecord.Environment{}, err
-	}
-	values := strings.Split(strings.ReplaceAll(out, "\r\n", "\n"), "\n")
-	for len(values) < 4 {
-		values = append(values, "")
-	}
-	return runrecord.NewEnvironment(runrecord.Environment{
-		Host: hostname(), OS: runtime.GOOS, Arch: runtime.GOARCH,
-		Device: "host", Backend: "go", Driver: "cgo=" + strings.TrimSpace(values[0]),
-		Runtime: fmt.Sprintf("%s;goflags=%s;goexperiment=%s;gotoolchain=%s",
-			runtime.Version(), strings.TrimSpace(values[1]), strings.TrimSpace(values[2]), strings.TrimSpace(values[3])),
-	})
 }
 
 // expandDirectoryPaths rewrites a -paths entry naming a directory into that
@@ -979,14 +917,6 @@ func gitLines(dir string, args ...string) ([]string, error) {
 		}
 	}
 	return lines, nil
-}
-
-func hostname() string {
-	name, err := os.Hostname()
-	if err != nil {
-		return "unknown"
-	}
-	return name
 }
 
 func tail(s string, limit int) string {

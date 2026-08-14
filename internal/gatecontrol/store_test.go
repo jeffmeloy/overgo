@@ -73,6 +73,44 @@ func TestGateDebtReconciliation(t *testing.T) {
 	}
 }
 
+func TestAutomationCommonOwners(t *testing.T) {
+	store, prepared, batch := lifecycleFixture(t)
+	debt, err := store.OutstandingDebt(context.Background())
+	if err != nil || len(debt) != 1 || debt[0].ID != prepared.ID {
+		t.Fatalf("authoritative debt = (%+v, %v)", debt, err)
+	}
+	if err := store.PersistDebt(prepared.ID, batch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Reconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	debt, err = store.OutstandingDebt(context.Background())
+	if err != nil || len(debt) != 0 {
+		t.Fatalf("finalized debt = (%+v, %v)", debt, err)
+	}
+
+	retry := store.Retry("tree", "env-a")
+	retry.MarkSucceeded("test")
+	if err := store.SaveRetry(retry); err != nil {
+		t.Fatal(err)
+	}
+	if !store.Retry("tree", "env-a").Succeeded("test") {
+		t.Fatal("matching environment did not reuse cache")
+	}
+	if store.Retry("tree", "env-b").Succeeded("test") {
+		t.Fatal("retry cache crossed environment identity")
+	}
+
+	environment, err := environmentFromValues("host", "os", "arch", "go-test", "1\n-trimpath\nexp\nlocal\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if environment.Driver != "cgo=1" || environment.Runtime != "go-test;goflags=-trimpath;goexperiment=exp;gotoolchain=local" {
+		t.Fatalf("environment identity = %+v", environment)
+	}
+}
+
 func lifecycleFixture(t *testing.T) (Store, runrecord.GateLifecycle, artifact.Batch) {
 	t.Helper()
 	root := t.TempDir()

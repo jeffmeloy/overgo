@@ -1,7 +1,7 @@
 package plan
 
 import (
-	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -17,7 +17,7 @@ func TestAutomationContextHasOneCurrentTask(t *testing.T) {
 		Head: "0123456789abcdef0123456789abcdef01234567", Branch: "codex/automation",
 		Worktree: `C:\repo`, Role: "developer",
 		Dirty:        []DirtyPath{{Path: `z\file.go`, WorktreeStatus: "M"}, {Path: "a/file.go", IndexStatus: "A"}},
-		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: gateStatusMirrorPath},
+		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "repodb:repodb-store"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -56,16 +56,9 @@ func TestAutomationContextParsesDirtyStatus(t *testing.T) {
 	}
 }
 
-func TestAutomationContextClassifiesAdvisoryEvidenceDebt(t *testing.T) {
-	head := "0123456789abcdef0123456789abcdef01234567"
-	current := []byte(`{"result_id":"evidence:abc","code_commit":"` + head + `","outcome":"succeeded"}`)
-	if got := EvidenceDebtFromMirror(head, current, nil); got.State != "none_observed" {
-		t.Fatalf("current mirror debt = %+v", got)
-	}
-	if got := EvidenceDebtFromMirror("other", current, nil); got.State != "possible" || got.Reason == "" {
-		t.Fatalf("stale mirror debt = %+v", got)
-	}
-	if got := EvidenceDebtFromMirror(head, nil, errors.New("read failed")); got.State != "possible" || got.Reason == "" {
-		t.Fatalf("read failure debt = %+v", got)
+func TestAutomationSurfaceRegression(t *testing.T) {
+	typeOfDebt := reflect.TypeOf(EvidenceDebt{})
+	if typeOfDebt.NumField() != 4 {
+		t.Fatalf("evidence debt grew beyond authoritative state: %d fields", typeOfDebt.NumField())
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,15 +68,7 @@ func (store Store) PersistDebt(preparation artifact.ID, batch artifact.Batch) er
 	if err := validateDebt(envelope); err != nil {
 		return err
 	}
-	raw, err := json.MarshalIndent(envelope, "", "  ")
-	if err != nil {
-		return fmt.Errorf("gate control: encode record debt: %w", err)
-	}
-	path := filepath.Join(store.root, filepath.FromSlash(DebtFile))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(path, append(raw, '\n'), 0o600); err != nil {
+	if err := store.writeJSON(DebtFile, envelope, 0o600); err != nil {
 		return fmt.Errorf("gate control: persist record debt: %w", err)
 	}
 	return nil
@@ -173,15 +166,19 @@ func (store Store) WriteHeartbeat(heartbeat runrecord.GateHeartbeat) error {
 	if err := heartbeat.Validate(); err != nil {
 		return err
 	}
-	raw, err := json.MarshalIndent(heartbeat, "", "  ")
+	return store.writeJSON(HeartbeatFile, heartbeat, 0o644)
+}
+
+func (store Store) writeJSON(relative string, value any, mode fs.FileMode) error {
+	raw, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(store.root, filepath.FromSlash(HeartbeatFile))
+	path := filepath.Join(store.root, filepath.FromSlash(relative))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(raw, '\n'), 0o644)
+	return os.WriteFile(path, append(raw, '\n'), mode)
 }
 
 func (store Store) StartHeartbeat(heartbeat runrecord.GateHeartbeat, interval time.Duration, now func() time.Time) (func(), error) {

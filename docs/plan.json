@@ -8,16 +8,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "document-family",
-          "title": "Reduce review identity codec and lineage repetition through one reusable typed document-family primitive without weakening schemas",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run '^TestReview(DocumentFamily|IdentityContracts)$' -count=1 -v"
-        },
-        {
           "id": "integration-prune",
           "title": "Consolidate RepoDB lifecycle queries and environment/cache derivation, prune superseded helpers, and measure the resulting code surface",
           "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/plan ./cmd/gate ./cmd/plan -run '^TestAutomation(CommonOwners|SurfaceRegression)$' -count=1 -v"
+          "verify": "go test ./internal/gatecontrol ./internal/plan ./cmd/gate ./cmd/plan -run '^TestAutomation(CommonOwners|SurfaceRegression)$' -count=1 -v"
         }
       ]
     },

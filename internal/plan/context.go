@@ -1,19 +1,14 @@
 package plan
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 )
 
-const (
-	AutomationContextVersion = 1
-	gateStatusMirrorPath     = "bin/gate_status.json"
-)
+const AutomationContextVersion = 1
 
 // AutomationContext is the compact machine grounding for one automation turn.
 // It intentionally exposes one current task; campaign strategy remains in the
@@ -45,16 +40,13 @@ type DirtyPath struct {
 	OriginalPath   string `json:"original_path,omitempty"`
 }
 
-// EvidenceDebt is deliberately conservative. Current automation derives it
-// from authoritative RepoDB prepared/finalized lifecycle records. The mirror
-// classifier below remains for older callers but cannot prove debt absence.
+// EvidenceDebt is deliberately conservative and derives from authoritative
+// RepoDB prepared/finalized lifecycle records.
 type EvidenceDebt struct {
-	State          string `json:"state"`
-	Source         string `json:"source"`
-	Reason         string `json:"reason,omitempty"`
-	ObservedCommit string `json:"observed_commit,omitempty"`
-	ResultID       string `json:"result_id,omitempty"`
-	Outcome        string `json:"outcome,omitempty"`
+	State    string `json:"state"`
+	Source   string `json:"source"`
+	Reason   string `json:"reason,omitempty"`
+	ResultID string `json:"result_id,omitempty"`
 }
 
 type ContextFacts struct {
@@ -152,44 +144,4 @@ func ParseDirtyStatus(raw []byte) ([]DirtyPath, error) {
 		paths = append(paths, path)
 	}
 	return normalizeDirty(paths), nil
-}
-
-type gateStatusMirror struct {
-	ResultID   string `json:"result_id"`
-	CodeCommit string `json:"code_commit"`
-	Outcome    string `json:"outcome"`
-}
-
-// EvidenceDebtFromMirror classifies only the cheap advisory mirror. It cannot
-// claim authoritative debt because a RepoDB write may exist when its mirror is
-// missing or stale.
-func EvidenceDebtFromMirror(head string, raw []byte, readErr error) EvidenceDebt {
-	debt := EvidenceDebt{State: "possible", Source: gateStatusMirrorPath}
-	if readErr != nil {
-		if errors.Is(readErr, os.ErrNotExist) {
-			debt.Reason = "advisory gate status mirror is absent; authoritative RepoDB was not inspected"
-		} else {
-			debt.Reason = "advisory gate status mirror is unreadable: " + readErr.Error()
-		}
-		return debt
-	}
-	var mirror gateStatusMirror
-	if err := json.Unmarshal(raw, &mirror); err != nil {
-		debt.Reason = "advisory gate status mirror is invalid JSON: " + err.Error()
-		return debt
-	}
-	debt.ObservedCommit = strings.TrimSpace(mirror.CodeCommit)
-	debt.ResultID = strings.TrimSpace(mirror.ResultID)
-	debt.Outcome = strings.TrimSpace(mirror.Outcome)
-	switch {
-	case debt.ObservedCommit != strings.TrimSpace(head):
-		debt.Reason = "advisory gate status mirror names a different commit"
-	case debt.Outcome != "succeeded":
-		debt.Reason = "advisory gate status mirror does not report success"
-	case debt.ResultID == "":
-		debt.Reason = "advisory gate status mirror lacks a result identity"
-	default:
-		debt.State = "none_observed"
-	}
-	return debt
 }

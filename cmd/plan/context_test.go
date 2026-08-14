@@ -41,7 +41,7 @@ func TestAutomationContextCommandEncoding(t *testing.T) {
 	}
 }
 
-func TestGateDebtAutomationContext(t *testing.T) {
+func TestAutomationCommonOwners(t *testing.T) {
 	worktree := t.TempDir()
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "test", OS: "test", Arch: "test", Device: "host",

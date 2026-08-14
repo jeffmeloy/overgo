@@ -1,6 +1,6 @@
 # Overgo automation report
 
-Status: baseline assessment at `9352fda` on 2026-08-14.
+Status: living assessment for `codex/overgo_automation` on 2026-08-14.
 
 ## Executive assessment
 
@@ -24,8 +24,9 @@ repairable gaps in an otherwise coherent design.
 
 ## Incremental implementation status
 
-- Current `master` was merged into the automation lane at `57a5749`; the merge
-  passed the repository gate, including the device lane.
+- Current `master` was refreshed into the automation lane at `fa67865`; the
+  original merge at `57a5749` passed the repository gate, including the device
+  lane.
 - `cmd/plan -context` now emits one deterministic task context containing exact
   Git/worktree identity, explicit role, one current task, normalized dirt, and
   conservative evidence debt (`e5fe81f`).
@@ -36,15 +37,39 @@ repairable gaps in an otherwise coherent design.
   changed embedded assets inherit their package tests from compiler-resolved
   `go:embed` metadata.
 
-- The gate-lifecycle slice is implemented and awaiting its gated commit. A typed
+- The gate-lifecycle slice landed at `fc822ac`. A typed
   preparation now lands in RepoDB before Git can advance; finalization closes it
   atomically with result evidence. Post-commit record failure is non-green and
   leaves a validated reconciliation batch. Retry reuse is bound to the typed
   environment identity, a Go heartbeat supports stale detection, and automation
   context derives record debt from RepoDB rather than the advisory status mirror.
+- Immutable developer, SQA, worktree, evaluator, candidate, finding, and verdict
+  identities landed at `98fd512` as the evidence substrate for review admission.
+- Three tightening passes moved lifecycle persistence into `internal/gatecontrol`
+  (`7a8774a`), centralized strict evidence-document construction (`1f88d21`),
+  and consolidated RepoDB debt, retry-cache, and environment discovery while
+  deleting the obsolete advisory-mirror classifier.
 
 The next highest-priority gap is enforceable independence between developer and
 SQA identities, including target-head review admission and immutable findings.
+
+### Tightening measurements
+
+The refactor reduced policy in command adapters and family-local record code:
+
+| Surface | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| `cmd/gate/main.go` | 1,054 lines | 886 lines | -168 (-15.9%) |
+| `cmd/plan/main.go` | 498 lines | 475 lines | -23 (-4.6%) |
+| `internal/plan/context.go` | 183 lines | 137 lines | -46 (-25.1%) |
+| `internal/runrecord/review.go` | 283 lines | 260 lines | -23 (-8.1%) |
+
+For the final integration pass, the measured production owner set stayed
+essentially flat (1,837 to 1,835 lines) while 133 lines left commands and legacy
+projection code. The replacement is shared, strictly decoded Go code covering
+all gate consumers. The more important surface reduction is semantic: one owner
+now answers each of lifecycle debt, retry admission, environment identity,
+evidence codec construction, and dependency lineage.
 
 ## Operating boundary
 

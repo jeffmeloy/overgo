@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/gatecontrol"
 )
 
 func TestNonGoOwnershipGateScope(t *testing.T) {
@@ -24,12 +26,20 @@ func TestNonGoOwnershipGateScope(t *testing.T) {
 	}
 }
 
-func TestEnvironmentBoundRetry(t *testing.T) {
-	cache := retryCache{TreeKey: "tree", Environment: "env-a", Steps: map[string]string{"test": "succeeded"}}
-	if !retryReusable(cache, "tree", "env-a") {
+func TestAutomationCommonOwners(t *testing.T) {
+	control, err := gatecontrol.New(t.TempDir(), "store")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := control.Retry("tree", "env-a")
+	cache.MarkSucceeded("test")
+	if err := control.SaveRetry(cache); err != nil {
+		t.Fatal(err)
+	}
+	if !control.Retry("tree", "env-a").Succeeded("test") {
 		t.Fatal("matching environment did not reuse cache")
 	}
-	if retryReusable(cache, "tree", "env-b") {
+	if control.Retry("tree", "env-b").Succeeded("test") {
 		t.Fatal("retry cache crossed environment identity")
 	}
 }

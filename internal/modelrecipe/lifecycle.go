@@ -138,9 +138,12 @@ func ActivateCapability(
 		return err
 	}
 	var supersedes *artifact.ID
-	if current, active, err := ActiveRecord(ctx, store, definition.Model, definition.Task); err == nil && active && current.Definition.ID != definition.ID {
-		id := current.Definition.ID
-		supersedes = &id
+	activeID, active, err := artifact.ResolveAlias(ctx, store, activeAlias(definition.Model, definition.Task))
+	if err != nil {
+		return err
+	}
+	if active && activeID != definition.ID {
+		supersedes = &activeID
 	}
 	if _, _, err := ActivateVerified(
 		ctx, store, "recipe/active/"+definition.ID.String(), definition,

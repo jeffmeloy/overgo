@@ -277,6 +277,23 @@ func TestActiveRecordRejectsLegacyIntentEvidence(t *testing.T) {
 		!strings.Contains(err.Error(), "lacks verified evidence") {
 		t.Fatalf("legacy intent activation = (%v, %v)", ok, err)
 	}
+	replacement, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := PublishCandidate(ctx, store, "fixture/legacy/replacement/candidate", replacement); err != nil {
+		t.Fatal(err)
+	}
+	verification := publishVerification(t, store, replacement.ID, "fixture/legacy/replacement/verification")
+	if err := ActivateCapability(
+		ctx, store, replacement, verification, recipe.EvidenceParity, "replace legacy evidence",
+	); err != nil {
+		t.Fatal(err)
+	}
+	activation, ok, err := ActiveRecord(ctx, store, modelID, definition.Task)
+	if err != nil || !ok || activation.Definition.ID != replacement.ID {
+		t.Fatalf("replacement activation = (%s, %v, %v)", activation.Definition.ID, ok, err)
+	}
 }
 
 func publishDecision(t *testing.T, store artifact.Repository, key string, decision recipe.Decision) {

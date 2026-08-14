@@ -56,7 +56,7 @@ func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesPaddleOCR(t *testing.T) {
-	projector, err := OpenImageProjector(writeTinyPaddleOCR(t, tinyPaddleOCRTensors()))
+	projector, err := OpenImageProjector(context.Background(), writeTinyPaddleOCR(t, tinyPaddleOCRTensors()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestPaddleOCRCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenPaddleOCRWithOptions(path, PaddleOCROpenOptions{CUDA: true})
+	cuda, err := OpenPaddleOCRWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

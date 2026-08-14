@@ -53,7 +53,7 @@ func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesGranite4Vision(t *testing.T) {
-	projector, err := OpenImageProjector(writeTinyGranite4Vision(t, tinyGranite4VisionTensors()))
+	projector, err := OpenImageProjector(context.Background(), writeTinyGranite4Vision(t, tinyGranite4VisionTensors()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestGranite4VisionCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenGranite4VisionWithOptions(path, Granite4VisionOpenOptions{CUDA: true})
+	cuda, err := OpenGranite4VisionWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

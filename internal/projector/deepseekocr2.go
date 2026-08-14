@@ -25,48 +25,47 @@ type DeepSeekOCR2Spec struct {
 }
 
 type DeepSeekOCR2Runner struct {
-	file         *gguf.File
+	projectorResources
 	spec         DeepSeekOCR2Spec
 	samPosition  reference.Value
-	cuda         *projectorCUDA
+	separator    reference.Value
 	dynamicTiles bool
 }
 
-type DeepSeekOCR2OpenOptions = OpenOptions
-
 func OpenDeepSeekOCR2(path string) (*DeepSeekOCR2Runner, error) {
-	return OpenDeepSeekOCR2WithOptions(path, DeepSeekOCR2OpenOptions{})
+	return OpenDeepSeekOCR2WithOptions(path, OpenOptions{})
 }
 
-func OpenDeepSeekOCR2WithOptions(path string, options DeepSeekOCR2OpenOptions) (*DeepSeekOCR2Runner, error) {
-	return openProjectorResource(path, func(file *gguf.File) (*DeepSeekOCR2Runner, error) {
-		spec, err := ReadDeepSeekOCR2Spec(file)
-		if err != nil {
-			return nil, err
-		}
-		runner := &DeepSeekOCR2Runner{file: file, spec: spec, dynamicTiles: !options.DisableDynamicTiles}
-		runner.samPosition, err = loadProjectorHostTensor(context.Background(), file, "v.sam.pos_embd.weight")
-		if err != nil {
-			return nil, err
-		}
-		if err := runner.validateGraphs(); err != nil {
-			return nil, err
-		}
-		if options.CUDA {
-			runner.cuda, err = openProjectorCUDA(context.Background(), file, spec.TensorNames, nil, options.DeviceOrdinal)
-			if err != nil {
-				return nil, fmt.Errorf("projector: initialize DeepSeek-OCR-2 CUDA: %w", err)
-			}
-		}
-		return runner, nil
+func OpenDeepSeekOCR2WithOptions(path string, options OpenOptions) (*DeepSeekOCR2Runner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*DeepSeekOCR2Runner, error) {
+		return openDeepSeekOCR2(context.Background(), file, options)
 	})
 }
 
-func (r *DeepSeekOCR2Runner) Close() error {
-	if r == nil {
-		return nil
+func openDeepSeekOCR2(ctx context.Context, file *gguf.File, options OpenOptions) (*DeepSeekOCR2Runner, error) {
+	spec, err := ReadDeepSeekOCR2Spec(file)
+	if err != nil {
+		return nil, err
 	}
-	return closeProjectorResources(&r.file, &r.cuda)
+	runner := &DeepSeekOCR2Runner{projectorResources: projectorResources{file: file}, spec: spec, dynamicTiles: !options.DisableDynamicTiles}
+	runner.samPosition, err = loadProjectorHostTensor(ctx, file, "v.sam.pos_embd.weight")
+	if err != nil {
+		return nil, err
+	}
+	runner.separator, err = loadProjectorHostTensor(ctx, file, "v.view_seperator")
+	if err != nil {
+		return nil, err
+	}
+	if err := runner.validateGraphs(); err != nil {
+		return nil, err
+	}
+	if options.CUDA {
+		runner.cuda, err = openProjectorCUDA(ctx, file, spec.TensorNames, nil, options.DeviceOrdinal)
+		if err != nil {
+			return nil, fmt.Errorf("projector: initialize DeepSeek-OCR-2 CUDA: %w", err)
+		}
+	}
+	return runner, nil
 }
 
 func (r *DeepSeekOCR2Runner) Spec() DeepSeekOCR2Spec {
@@ -291,10 +290,6 @@ func (r *DeepSeekOCR2Runner) assemble(values []reference.Value, gridW, gridH int
 	if len(values) != gridW*gridH+1 {
 		return reference.Value{}, errors.New("projector: DeepSeek-OCR-2 tile grid is inconsistent")
 	}
-	separator, err := loadProjectorHostTensor(context.Background(), r.file, "v.view_seperator")
-	if err != nil {
-		return reference.Value{}, err
-	}
 	var output []float32
 	for _, value := range values {
 		if value.Shape.Rank != 2 || value.Shape.Dims[0] != uint64(r.spec.OutputHidden) {
@@ -302,7 +297,7 @@ func (r *DeepSeekOCR2Runner) assemble(values []reference.Value, gridW, gridH int
 		}
 		output = append(output, value.Data...)
 	}
-	output = append(output, separator.Data...)
+	output = append(output, r.separator.Data...)
 	return reference.Value{Shape: tensor.MustShape(uint64(r.spec.OutputHidden), uint64(len(output)/r.spec.OutputHidden)), Data: output}, nil
 }
 

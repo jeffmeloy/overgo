@@ -199,7 +199,7 @@ func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions{CUDA: true})
+	cuda, err := OpenQwen3VLWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions{CUDA: true})
+	cuda, err := OpenQwen3VLWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +478,7 @@ func tinyQwen3VLMetadata() []gguf.Metadata {
 }
 
 func openQwen3VLFixture(path string) (*Qwen3VLRunner, error) {
-	return OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions{
+	return OpenQwen3VLWithOptions(path, OpenOptions{
 		CUDA: os.Getenv("OVERGO_QWEN35_PROJECTOR_CUDA") != "",
 	})
 }

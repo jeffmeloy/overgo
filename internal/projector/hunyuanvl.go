@@ -37,31 +37,27 @@ type HunyuanVLImage gridImage
 type HunyuanVLOutput gridOutput
 
 type HunyuanVLRunner struct {
-	file      *gguf.File
+	projectorResources
 	spec      HunyuanVLSpec
 	attention visionAttentionPlan
-	cuda      *projectorCUDA
 }
-
-type HunyuanVLOpenOptions = OpenOptions
 
 func OpenHunyuanVL(path string) (*HunyuanVLRunner, error) {
-	return OpenHunyuanVLWithOptions(path, HunyuanVLOpenOptions{})
+	return OpenHunyuanVLWithOptions(path, OpenOptions{})
 }
 
-func OpenHunyuanVLWithOptions(path string, options HunyuanVLOpenOptions) (*HunyuanVLRunner, error) {
-	return openCatalogProjector(path, options, "Hunyuan-VL", nil,
+func OpenHunyuanVLWithOptions(path string, options OpenOptions) (*HunyuanVLRunner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*HunyuanVLRunner, error) {
+		return openHunyuanVL(context.Background(), file, options)
+	})
+}
+
+func openHunyuanVL(ctx context.Context, file *gguf.File, options OpenOptions) (*HunyuanVLRunner, error) {
+	return buildCatalogProjector(ctx, file, options, "Hunyuan-VL", nil,
 		ReadHunyuanVLSpec, validateHunyuanVLCatalog,
 		func(file *gguf.File, spec HunyuanVLSpec, cuda *projectorCUDA) *HunyuanVLRunner {
-			return &HunyuanVLRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads), cuda: cuda}
+			return &HunyuanVLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
 		})
-}
-
-func (r *HunyuanVLRunner) Close() error {
-	if r == nil {
-		return nil
-	}
-	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *HunyuanVLRunner) Spec() HunyuanVLSpec {

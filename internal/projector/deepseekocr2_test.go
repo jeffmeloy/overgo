@@ -62,7 +62,7 @@ func TestDeepSeekOCR2PromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesDeepSeekOCR2(t *testing.T) {
-	projector, err := OpenImageProjector(writeTinyDeepSeekOCR2(t, false))
+	projector, err := OpenImageProjector(context.Background(), writeTinyDeepSeekOCR2(t, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestDeepSeekOCR2CUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenDeepSeekOCR2WithOptions(path, DeepSeekOCR2OpenOptions{CUDA: true})
+	cuda, err := OpenDeepSeekOCR2WithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -51,9 +51,8 @@ type Qwen3VLOutput struct {
 }
 
 type Qwen3VLRunner struct {
-	file *gguf.File
+	projectorResources
 	spec Qwen3VLSpec
-	cuda *projectorCUDA
 }
 
 func DefaultQwen3VLPreprocessOptions() Qwen3VLPreprocessOptions {
@@ -73,24 +72,21 @@ func DefaultQwen3VLVideoPreprocessOptions() Qwen3VLPreprocessOptions {
 }
 
 func OpenQwen3VL(path string) (*Qwen3VLRunner, error) {
-	return OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions{})
+	return OpenQwen3VLWithOptions(path, OpenOptions{})
 }
 
-type Qwen3VLOpenOptions = OpenOptions
+func OpenQwen3VLWithOptions(path string, options OpenOptions) (*Qwen3VLRunner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Qwen3VLRunner, error) {
+		return openQwen3VL(context.Background(), file, options)
+	})
+}
 
-func OpenQwen3VLWithOptions(path string, options Qwen3VLOpenOptions) (*Qwen3VLRunner, error) {
-	return openCatalogProjector(path, options, "Qwen3-VL", nil,
+func openQwen3VL(ctx context.Context, file *gguf.File, options OpenOptions) (*Qwen3VLRunner, error) {
+	return buildCatalogProjector(ctx, file, options, "Qwen3-VL", nil,
 		ReadQwen3VLSpec, validateQwen3VLCatalog,
 		func(file *gguf.File, spec Qwen3VLSpec, cuda *projectorCUDA) *Qwen3VLRunner {
-			return &Qwen3VLRunner{file: file, spec: spec, cuda: cuda}
+			return &Qwen3VLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
 		})
-}
-
-func (r *Qwen3VLRunner) Close() error {
-	if r == nil {
-		return nil
-	}
-	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *Qwen3VLRunner) Spec() Qwen3VLSpec {

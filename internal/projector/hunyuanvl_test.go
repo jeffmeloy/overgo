@@ -54,7 +54,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
-	projector, err := OpenImageProjector(writeTinyHunyuanVL(t, tinyHunyuanVLTensors()))
+	projector, err := OpenImageProjector(context.Background(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenHunyuanVLWithOptions(path, HunyuanVLOpenOptions{CUDA: true})
+	cuda, err := OpenHunyuanVLWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

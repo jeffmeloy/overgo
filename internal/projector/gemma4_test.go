@@ -110,7 +110,7 @@ func TestGemma4RunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenGemma4WithOptions(path, Gemma4OpenOptions{CUDA: true})
+	cuda, err := OpenGemma4WithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -681,7 +681,7 @@ func tinyGemma4Metadata() []gguf.Metadata {
 }
 
 func openGemma4Fixture(path string) (*Gemma4Runner, error) {
-	return OpenGemma4WithOptions(path, Gemma4OpenOptions{
+	return OpenGemma4WithOptions(path, OpenOptions{
 		CUDA: os.Getenv("OVERGO_GEMMA4_PROJECTOR_CUDA") != "",
 	})
 }

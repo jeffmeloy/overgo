@@ -240,53 +240,50 @@ func embeddingTokenIndices(starts, counts []int, offset int) []uint32 {
 	return indices
 }
 
-func OpenImageProjector(path string) (ImageProjector, error) {
-	return OpenImageProjectorWithOptions(path, OpenOptions{})
+func OpenImageProjector(ctx context.Context, path string) (ImageProjector, error) {
+	return OpenImageProjectorWithOptions(ctx, path, OpenOptions{})
 }
 
-func OpenImageProjectorWithOptions(path string, options OpenOptions) (ImageProjector, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	projectorType := ""
-	for _, key := range []string{"clip.projector_type", "clip.vision.projector_type"} {
-		if value, ok := file.MetadataValue(key); ok && value.Type == gguf.ValueTypeString {
-			projectorType, _ = value.Data.(string)
-			if projectorType != "" {
-				break
+func OpenImageProjectorWithOptions(ctx context.Context, path string, options OpenOptions) (ImageProjector, error) {
+	return openProjectorResource(ctx, path, func(file *gguf.File) (ImageProjector, error) {
+		projectorType := ""
+		for _, key := range []string{"clip.projector_type", "clip.vision.projector_type"} {
+			if value, ok := file.MetadataValue(key); ok && value.Type == gguf.ValueTypeString {
+				projectorType, _ = value.Data.(string)
+				if projectorType != "" {
+					break
+				}
 			}
 		}
-	}
-	_ = file.Close()
-	switch projectorType {
-	case deepSeekOCR2ProjectorType:
-		return OpenDeepSeekOCR2WithOptions(path, DeepSeekOCR2OpenOptions(options))
-	case deepSeekOCRProjectorType:
-		return OpenDeepSeekOCRWithOptions(path, DeepSeekOCROpenOptions(options))
-	case cogVLMProjectorType:
-		return OpenCogVLMVisionWithOptions(path, CogVLMVisionOpenOptions(options))
-	case gemma3nVisionProjectorType:
-		return OpenGemma3nVisionWithOptions(path, Gemma3nVisionOpenOptions(options))
-	case mimoVLProjectorType:
-		return OpenMiMoVLWithOptions(path, MiMoVLOpenOptions(options))
-	case granite4VisionProjectorType:
-		return OpenGranite4VisionWithOptions(path, Granite4VisionOpenOptions(options))
-	case llama4ProjectorType:
-		return OpenLlama4VisionWithOptions(path, Llama4VisionOpenOptions(options))
-	case hunyuanVLProjectorType:
-		return OpenHunyuanVLWithOptions(path, HunyuanVLOpenOptions(options))
-	case paddleOCRProjectorType:
-		return OpenPaddleOCRWithOptions(path, PaddleOCROpenOptions(options))
-	case qwen2VLProjectorType:
-		return OpenQwen2VLWithOptions(path, Qwen2VLOpenOptions(options))
-	case qwen3VLProjectorType:
-		return OpenQwen3VLWithOptions(path, Qwen3VLOpenOptions(options))
-	case gemma4UVProjectorType:
-		return OpenGemma4WithOptions(path, Gemma4OpenOptions(options))
-	default:
-		return nil, fmt.Errorf("projector: image projector type %q is unsupported", projectorType)
-	}
+		switch projectorType {
+		case deepSeekOCR2ProjectorType:
+			return openDeepSeekOCR2(ctx, file, options)
+		case deepSeekOCRProjectorType:
+			return openDeepSeekOCR(ctx, file, options)
+		case cogVLMProjectorType:
+			return openCogVLMVision(ctx, file, options)
+		case gemma3nVisionProjectorType:
+			return openGemma3nVision(ctx, file, options)
+		case mimoVLProjectorType:
+			return openMiMoVL(ctx, file, options)
+		case granite4VisionProjectorType:
+			return openGranite4Vision(ctx, file, options)
+		case llama4ProjectorType:
+			return openLlama4Vision(ctx, file, options)
+		case hunyuanVLProjectorType:
+			return openHunyuanVL(ctx, file, options)
+		case paddleOCRProjectorType:
+			return openPaddleOCR(ctx, file, options)
+		case qwen2VLProjectorType:
+			return openQwen2VL(ctx, file, options)
+		case qwen3VLProjectorType:
+			return openQwen3VL(ctx, file, options)
+		case gemma4UVProjectorType:
+			return openGemma4(ctx, file, options)
+		default:
+			return nil, fmt.Errorf("projector: image projector type %q is unsupported", projectorType)
+		}
+	})
 }
 
 func (r *Granite4VisionRunner) BuildImagePrompt(
@@ -572,30 +569,27 @@ func (r *PaddleOCRRunner) buildImagesPrompt(
 	})
 }
 
-func OpenAudioProjector(path string) (AudioProjector, error) {
-	return OpenAudioProjectorWithOptions(path, OpenOptions{})
+func OpenAudioProjector(ctx context.Context, path string) (AudioProjector, error) {
+	return OpenAudioProjectorWithOptions(ctx, path, OpenOptions{})
 }
 
-func OpenAudioProjectorWithOptions(path string, options OpenOptions) (AudioProjector, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	projectorType := ""
-	if value, ok := file.MetadataValue("clip.audio.projector_type"); ok && value.Type == gguf.ValueTypeString {
-		projectorType, _ = value.Data.(string)
-	}
-	_ = file.Close()
-	switch projectorType {
-	case gemma4UAProjectorType:
-		return OpenGemma4WithOptions(path, Gemma4OpenOptions(options))
-	default:
-		return nil, fmt.Errorf("projector: audio projector type %q is unsupported", projectorType)
-	}
+func OpenAudioProjectorWithOptions(ctx context.Context, path string, options OpenOptions) (AudioProjector, error) {
+	return openProjectorResource(ctx, path, func(file *gguf.File) (AudioProjector, error) {
+		projectorType := ""
+		if value, ok := file.MetadataValue("clip.audio.projector_type"); ok && value.Type == gguf.ValueTypeString {
+			projectorType, _ = value.Data.(string)
+		}
+		switch projectorType {
+		case gemma4UAProjectorType:
+			return openGemma4(ctx, file, options)
+		default:
+			return nil, fmt.Errorf("projector: audio projector type %q is unsupported", projectorType)
+		}
+	})
 }
 
-func OpenVideoProjectorWithOptions(path string, options OpenOptions) (VideoProjector, error) {
-	projector, err := OpenImageProjectorWithOptions(path, options)
+func OpenVideoProjectorWithOptions(ctx context.Context, path string, options OpenOptions) (VideoProjector, error) {
+	projector, err := OpenImageProjectorWithOptions(ctx, path, options)
 	if err != nil {
 		return nil, err
 	}

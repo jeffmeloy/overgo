@@ -53,30 +53,26 @@ type Gemma4VideoOutput struct {
 }
 
 type Gemma4Runner struct {
-	file *gguf.File
+	projectorResources
 	spec Gemma4Spec
-	cuda *projectorCUDA
 }
 
 func OpenGemma4(path string) (*Gemma4Runner, error) {
-	return OpenGemma4WithOptions(path, Gemma4OpenOptions{})
+	return OpenGemma4WithOptions(path, OpenOptions{})
 }
 
-type Gemma4OpenOptions = OpenOptions
+func OpenGemma4WithOptions(path string, options OpenOptions) (*Gemma4Runner, error) {
+	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Gemma4Runner, error) {
+		return openGemma4(context.Background(), file, options)
+	})
+}
 
-func OpenGemma4WithOptions(path string, options Gemma4OpenOptions) (*Gemma4Runner, error) {
-	return openCatalogProjector(path, options, "Gemma 4", []string{"mm.a.input_projection.weight"},
+func openGemma4(ctx context.Context, file *gguf.File, options OpenOptions) (*Gemma4Runner, error) {
+	return buildCatalogProjector(ctx, file, options, "Gemma 4", []string{"mm.a.input_projection.weight"},
 		ReadGemma4Spec, validateGemma4Catalog,
 		func(file *gguf.File, spec Gemma4Spec, cuda *projectorCUDA) *Gemma4Runner {
-			return &Gemma4Runner{file: file, spec: spec, cuda: cuda}
+			return &Gemma4Runner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
 		})
-}
-
-func (r *Gemma4Runner) Close() error {
-	if r == nil {
-		return nil
-	}
-	return closeProjectorResources(&r.file, &r.cuda)
 }
 
 func (r *Gemma4Runner) Spec() Gemma4Spec {

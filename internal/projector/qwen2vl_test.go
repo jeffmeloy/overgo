@@ -128,7 +128,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	opened, err := OpenImageProjector(path)
+	opened, err := OpenImageProjector(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenQwen2VLWithOptions(path, Qwen2VLOpenOptions{CUDA: true})
+	cuda, err := OpenQwen2VLWithOptions(path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

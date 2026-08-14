@@ -55,6 +55,8 @@ active recipe + resolved artifact facts
 | Exported registry-backed profile resolution APIs | 0 | Bootstrap stays inside model package |
 | Hardcoded RWKV execution/validation scalars | 0 | Serialized typed recurrent profile facts |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
+| Generic projector artifact reopens | 0 | Probe and build share one admitted handle |
+| Projector runner lifecycle implementations | 1 | Embedded resource owner closes file and device state |
 
 Family-named production files: none.
 

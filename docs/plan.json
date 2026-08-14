@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "hot-path-scratch",
-          "title": "Reuse sampling and quantization scratch so token and block loops allocate no maps or variable slices",
-          "status": "open",
-          "verify": "go test ./internal/sampling ./internal/quant -count=1 -v"
-        },
-        {
           "id": "projector-lifecycle",
           "title": "Open projector artifacts once through context-aware catalog constructors and consolidate duplicated runner lifecycle mechanics",
           "status": "open",

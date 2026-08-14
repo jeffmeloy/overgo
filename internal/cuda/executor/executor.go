@@ -740,6 +740,7 @@ type CompiledGraph struct {
 	outputAliases   []bool
 	order           []*tensor.Tensor
 	orderIndexes    map[*tensor.Tensor]int
+	operandSlots    []int
 	nodes           []compiledNode
 	launches        []compiledNode
 	attributeSlots  []dynamicAttributeSlot
@@ -772,11 +773,12 @@ type CompiledGraph struct {
 }
 
 type compiledNode struct {
-	node    *tensor.Tensor
-	index   int
-	view    tensor.StorageView
-	aliases bool
-	skipped bool
+	node          *tensor.Tensor
+	index         int
+	operandOffset int
+	view          tensor.StorageView
+	aliases       bool
+	skipped       bool
 }
 
 type dynamicAttributeSlot struct {
@@ -887,6 +889,20 @@ func (p devicePointerTable) lookup(node *tensor.Tensor) (driver.DevicePtr, bool)
 
 func (p devicePointerTable) set(node *tensor.Tensor, pointer driver.DevicePtr) {
 	p.values[p.indexes[node]] = pointer
+}
+
+// launchPointerFrame: precompiled output/input slots.
+type launchPointerFrame struct {
+	values []driver.DevicePtr
+	slots  []int
+}
+
+func (p launchPointerFrame) output() driver.DevicePtr {
+	return p.values[p.slots[0]]
+}
+
+func (p launchPointerFrame) input(index int) driver.DevicePtr {
+	return p.values[p.slots[index+1]]
 }
 
 const graphArenaAlignment = 256
@@ -1138,7 +1154,15 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 			return nil, viewErr
 		}
 		_, skipped := compiled.skipped[node]
-		frame := compiledNode{node: node, index: index, view: view, aliases: aliases, skipped: skipped}
+		offset := len(compiled.operandSlots)
+		compiled.operandSlots = append(compiled.operandSlots, index)
+		for _, input := range node.Inputs {
+			compiled.operandSlots = append(compiled.operandSlots, compiled.orderIndexes[input])
+		}
+		frame := compiledNode{
+			node: node, index: index, operandOffset: offset,
+			view: view, aliases: aliases, skipped: skipped,
+		}
 		compiled.nodes[index] = frame
 		_, elided := compiled.elided[node]
 		if node.Op != tensor.OpInput && !skipped && !elided {
@@ -1768,6 +1792,10 @@ func execute(
 	runLaunches := func() error {
 		for _, frame := range compiled.launches {
 			node := frame.node
+			operands := launchPointerFrame{
+				values: pointers.values,
+				slots:  compiled.operandSlots[frame.operandOffset : frame.operandOffset+len(node.Inputs)+1],
+			}
 			if frame.aliases {
 				outputIndex, retainedOutput := compiled.outputIndexes[node]
 				retainedAlias := retainedOutput && ownsOutput(outputIndex) && compiled.outputAliases[outputIndex]
@@ -1785,7 +1813,7 @@ func execute(
 				continue
 			}
 			if err := launchNode(
-				state, functions, blas, q8Input, node, attributesFor(node), pointers, attributePointers,
+				state, functions, blas, q8Input, node, attributesFor(node), operands, attributePointers,
 			); err != nil {
 				return fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 			}

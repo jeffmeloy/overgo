@@ -20,10 +20,10 @@ func launchLinearLayout(
 	q8Input *q8InputState,
 	node *tensor.Tensor,
 	runtimeAttributes tensor.Attributes,
-	pointers devicePointerTable,
+	pointers launchPointerFrame,
 	attributePointers devicePointerTable,
 ) error {
-	output := pointers.get(node)
+	output := pointers.output()
 	switch node.Op {
 	case tensor.OpRepeatHeads:
 		attributes, ok := runtimeAttributes.(tensor.RepeatHeadsAttributes)
@@ -42,7 +42,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		heads := attributes.Heads
 		return launch1DABI(
 			state, functions[kernelRepeatHeadsF32], count,
@@ -61,7 +61,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelTranspose2dF32], count, &input, &output, &width, &rows, &count)
 	case tensor.OpGroupSlice:
 		attributes, ok := runtimeAttributes.(tensor.GroupSliceAttributes)
@@ -92,7 +92,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		return launch1DABI(
 			state, functions[kernelGroupSliceF32], count,
 			&input, &output, &inputWidth, &offset, &width, &groups, &stride, &count,
@@ -110,7 +110,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelFlatSliceF32], count, &input, &output, &offset, &count)
 	case tensor.OpRMSNorm:
 		attributes, ok := runtimeAttributes.(tensor.RMSNormAttributes)
@@ -121,7 +121,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		epsilon := attributes.Epsilon
 		return launchNormalizationABI(state, functions[kernelRmsNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpMADNorm:
@@ -133,7 +133,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		epsilon := attributes.Epsilon
 		return launch1DABI(state, functions[kernelMadNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpLayerNorm:
@@ -145,7 +145,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		epsilon := attributes.Epsilon
 		return launchNormalizationABI(state, functions[kernelLayerNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpSoftmax:
@@ -153,7 +153,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers.get(node.Inputs[0])
+		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelSoftmaxF32], rows, &input, &output, &width, &rows)
 	case tensor.OpMulMat:
 		leftNode := node.Inputs[0]
@@ -170,8 +170,8 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		left := pointers.get(leftNode)
-		right := pointers.get(rightNode)
+		left := pointers.input(0)
+		right := pointers.input(1)
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
 			attributes, hasAttributes := runtimeAttributes.(tensor.MulMatAttributes)
 			tensorCore := hasAttributes && attributes.Compute == tensor.MulMatComputeBF16TensorCore
@@ -432,8 +432,8 @@ func launchLinearLayout(
 		leftMatrixBytes := uint64(inner) * uint64(leftRows) / traits.BlockSize * traits.TypeSize
 		rightVectorBytes := uint64(inner) * 4
 		outputVectorBytes := uint64(leftRows) * 4
-		leftBase := pointers.get(leftNode)
-		rightBase := pointers.get(rightNode)
+		leftBase := pointers.input(0)
+		rightBase := pointers.input(1)
 		for token := uint32(0); token < tokens; token++ {
 			for group := uint32(0); group < groups; group++ {
 				left := leftBase + driver.DevicePtr(uint64(group)*leftMatrixBytes)
@@ -493,7 +493,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		table := pointers.get(node.Inputs[0])
+		table := pointers.input(0)
 		rows, ok := attributePointers.lookup(node)
 		if !ok {
 			return errors.New("get_rows row storage is unavailable")

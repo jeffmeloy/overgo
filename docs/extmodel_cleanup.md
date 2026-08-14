@@ -42,6 +42,7 @@ active recipe + resolved artifact facts
 | Inference-owned sequence tensor catalogs | 0 | Model binder consumes compiled catalog |
 | Invocation-time graph schema discovery | 0 | Reflect once; bind by indexed descriptors |
 | Registry-backed model-plan compilation APIs | 0 | Commands pass resolved profile explicitly |
+| Dead graph-runtime feed mutators | 0 | Weight/layer binders own feed registration |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named production files: none.

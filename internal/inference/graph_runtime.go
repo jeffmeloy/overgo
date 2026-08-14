@@ -30,14 +30,6 @@ func (runtime *inferenceGraphRuntime) input(name string, value reference.Value) 
 	return runtime.feeds.Input(runtime.builder, name, value)
 }
 
-func (runtime *inferenceGraphRuntime) addHostFeeds(feeds map[*tensor.Tensor]reference.Value) {
-	runtime.feeds.AddHost(feeds)
-}
-
-func (runtime *inferenceGraphRuntime) addDeviceFeeds(feeds map[*tensor.Tensor]driver.DevicePtr) {
-	runtime.feeds.AddDevice(feeds)
-}
-
 func (runtime *inferenceGraphRuntime) weight(info gguf.TensorInfo) (*tensor.Tensor, error) {
 	if runtime.runner.hasPreloadedWeights() {
 		node, pointer, err := runtime.runner.deviceInput(runtime.builder, info)

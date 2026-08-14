@@ -1,7 +1,118 @@
 # overgo
 
-`overgo` 0.1 is a no-cgo Go reimplementation of the llama.cpp CUDA runtime.
-Its current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1/2/3.2/4, DeepSeek2-OCR with DeepSeek-OCR v1/v2 image projection, GLM-DSA, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
+`overgo` 0.1 is a no-cgo Go reimplementation of the llama.cpp CUDA runtime: a
+Go-owned model and tensor runtime that calls NVIDIA's installed Windows DLLs
+directly. CUDA kernels are reproducible binary assets and the only project-owned
+non-Go runtime components. The implementation is experimental.
+
+**Status:** experimental · Go 1.26 · `CGO_ENABLED=0` runtime · Windows amd64 +
+NVIDIA CUDA driver · one Go module, `github.com/dlclark/regexp2` the sole
+third-party runtime dependency.
+
+## Contents
+
+- [Code structure](#code-structure)
+- [Validated performance](#validated-performance)
+- [Training and the Muon optimizer](#training-and-the-universal-muon-optimizer)
+- [Model support](#model-support)
+- [Documentation](#documentation)
+- [Development](#development)
+- [Agent automation](#agent-automation)
+- [CLI tools](#cli-tools)
+- [Generation modes](#generation-modes)
+- [Multimodal input](#multimodal-input)
+- [Sampling, tokenization, and grammars](#sampling-tokenization-and-grammars)
+- [HTTP server API](#http-server-api)
+- [CUDA execution](#cuda-execution)
+- [Testing and release](#testing-and-release)
+
+## Code structure
+
+The runtime is one Go module (`overgo`, Go 1.26). Library code lives in
+`internal/`; every executable is a thin `main` under `cmd/`. CUDA kernels are
+binary assets in `kernels/`, admitted only through `kernels/manifest.json`.
+
+Library packages (`internal/`), by concern:
+
+| Cluster | Packages | Owns |
+| --- | --- | --- |
+| Tensor & device math | `tensor`, `hostmath`, `devicemath`, `cuda` (driver, `cuda/executor`, kernel bindings) | tensor types, host reference ops, the cgo-free CUDA driver binding, and the kernel execution graph |
+| Model runtime | `model`, `graphruntime`, `inference`, `server`, `densecausal`, `seq2seq`, `routedlm`, `projector`, `sampling`, `quant`, `tokenizer`, `jinja` | compiled model specs/plans/weights, the forward program, the decode runner, the HTTP server, quantization, tokenizers, and the Jinja chat-template engine |
+| Formats & conversion | `gguf`, `safetensors`, `hfgguf`, `hfconvert`, `hfrepo`, `hfbpe`, `pytorchzip`, `gemma4convert`, `tensorcatalog`, `statecodec`, `binaryschema`, `strictjson`, `jsonfile` | GGUF/safetensors readers, Hugging Face conversion, cache/session serialization |
+| Recipes & capability | `recipe`, `recipecontract`, `modelrecipe`, `workflowrecipe`, `workflowruntime`, `capabilityruntime`, `discovery`, `thoughtbank`, `adaptiveparity` | recipe-derived model/capability selection and the neutral parity contract |
+| Media & modalities | `latentimage`, `latentvideo`, `diffusionimage`, `oscillatorimage`, `speechsynth`, `seriesforecast`, `tabularicl`, `media`, `patchtower`, `torchrng` | image/video/audio generation, forecasting, tabular ICL, seed-matched RNG |
+| Training | `optimizer` (Muon, Newton–Schulz), `hybridtrain`, `dataset`, `dataroot` | the Muon-only training path, resident device training, dataset/dataroot contracts |
+| Provenance & automation | `repodb`, `repodbimport`, `runrecord`, `modelartifact`, `artifact`, `finding`, `plan`, `guard`, `closureledger`, `closurescan`, `checked`, `testevidence` | the RepoDB store, run/evidence records, gate findings, and the destructive-command guard |
+
+Executables (`cmd/`), by role:
+
+| Role | Commands |
+| --- | --- |
+| Inference & serving | `generate`, `server`, `diffusion`, `embedding`, `rerank`, `perplexity`, `tokenize`, `block-check` |
+| GGUF & model tooling | `inspect-gguf`, `inspect-safetensors`, `gguf-hash`, `gguf-merge`, `gguf-split`, `gguf-quantize`, `hf-gguf-convert`, `gemma4-gguf-convert`, `model-info`, `gen-iq-tables`, `json-schema-grammar` |
+| Device & kernels | `cuda-info`, `cuda-smoke`, `device-lane`, `race-lane`, `build-kernels`, `kernel-manifest`, `kernel-bindings`, `benchmark` |
+| Training & media | `train`, `latentvideo-run`, `recipe`, `vqaparity`, `sensenovaparity` |
+| Provenance, gate & automation | `gate`, `plan`, `guard`, `loophook`, `sbom`, `advisories`, `closure-scan`, `compatibility`, `repodb-import`, `repodb-query`, `smoke-lane`, `release` |
+
+## Validated performance
+
+Numbers below are the current recorded scoreboard; the authoritative, evidence-
+tiered source is [`docs/adaptive_new_parity_report.md`](docs/adaptive_new_parity_report.md)
+and the machine-checked claims live in [`compatibility.json`](compatibility.json).
+The reference is `adaptive_new` (a mature Go+Python implementation) or the
+model's native Python; `Overgo` means control, inference, and decode are native
+Go/CUDA.
+
+| Workload | Reference | Overgo | Verdict |
+| --- | --- | --- | --- |
+| Qwen3.5-4B decode | adaptive 16.76 ms/tok | 10.96 ms/tok, +~2.2 GB peak | speed lead, memory loss |
+| RxBrain VQA (full) | adaptive 18.4–23.1 s / 11.97 GB | 9.5 s / 10.59 GB | ~2× wall, lower peak |
+| MiniCPM decode | adaptive 294.6–295.8 tok/s | 321.7–363.0 tok/s | faster |
+| Carbon-500M training (resident Muon) | adaptive 6.816 s loop / 11.47 GiB, matched loss | 5.05–5.13 s / 4.620 GiB, matched loss | ~25% loop-wall lead, ~60% lower peak |
+| Krea text-to-image (2048) | Python 97.5–135.4 s; adaptive 158.1 s / 33.47 GB | 63.5 s / 32.7 GB, MAE 0.039 | ~35% vs Python, ~60% vs adaptive; bounded quality |
+| Wan text-to-video | retained Python 463.4 s; adaptive 795.1 s | 370.3 s, stage peaks 7.9/10.3 GB | ~20% wall lead vs retained Python |
+| Qwen3.5-9B Q8_0 GGUF | not servable by adaptive | 11.6 ms/tok / 9.3 GB | Overgo-only capability |
+| Gemma4-12B FP8 decode | cross-repo comparison open | 29.81 ms/tok / 18.89 GiB | functional (self-baseline) |
+| Gemma E4B decode | adaptive **host** 341 ms/tok | 18.5 ms/tok | device-vs-host — not a like-for-like runtime win |
+
+**How to read these.** They are single-machine point estimates on device paths
+that are **not exercised in CI** (the CI race/test lanes are cgo/host only), so
+treat them as recorded evidence, not reproduced-here results. The Krea, Wan, and
+Carbon-training rows are fresh real-artifact runs on the reviewed machine; the
+Wan reference is retained and cross-revision until one harness reruns all three.
+The E4B row compares Overgo's device path against adaptive's host path and is
+flagged accordingly. Cross-repo speed claims hold only under the report's
+protocol (same artifact, inputs, seed, precision, output contract, warm/cold
+policy, and uncontended GPU).
+
+## Training and the universal Muon optimizer
+
+Overgo trains every parameter with one optimizer: **Muon is the sole optimizer
+authority** — no SGD or sign-update fallbacks exist (`BF16SGD`, `TrainBF16SGD`,
+and `UpdateSign` were migrated to Muon and deleted). A single compiled, immutable
+parameter plan (`optimizer.CompilePlan`) validates the full ordered partition and
+applies the same update across every geometry:
+
+- **Matrix** groups use Newton–Schulz orthogonalization of the momentum-filtered
+  gradient; the update is scale-invariant and consumes its gradients each step.
+- **Vector** and **scalar** groups carry momentum through the same compiled step,
+  so a model's norms, biases, and gates train under one policy instead of a
+  second optimizer surface.
+
+The update runs as a host reference and as CUDA; the fp32 device Newton–Schulz is
+gated bit-tolerance against an fp64 host oracle across tall, wide, and square
+shapes (`internal/optimizer/newton_schulz_cuda_windows.go`).
+
+**Resident device training is the production path.** Weights, gradients, and
+momentum stay on the GPU across steps (`DeviceMuonMatricesResident`): the loop
+never scatters weights or gathers gradients per step — it uploads once and
+downloads only at checkpoint. Learning-rate policy is a compiled schedule
+(`optimizer.Schedule`). See
+[`docs/training_plan.md`](docs/training_plan.md).
+
+## Model support
+
+`overgo`'s current executable model subset is dense Qwen 1/2/3, Mixtral, BailingMoE/BailingMoE2, DeepSeek v1/2/3.2/4, DeepSeek2-OCR with DeepSeek-OCR v1/v2 image projection, GLM-DSA, and Mistral 4 text decoders, Qwen2-MoE/Qwen3-MoE/Qwen3-VL-MoE
 through the bounded-host, F32-preload, and native-quantized expert paths, AFMoE, Arctic, Qwen3-Next/Qwen3.5/Qwen3.5-MoE hybrid
 gated-delta-net models, Apertus, Arcee, Baichuan 7B/13B, BitNet, Bloom, ChatGLM, CogVLM text/projected-visual decoding, CodeShell,
 dense Cohere2, Cohere2-MoE decoder trunks, Command R, DBRX, Deci, DOTS1, Dream and LLaDA/LLaDA-MoE non-causal diffusion generation, Falcon/Falcon-H1, Gemma 1/2/3/4, Gemma 3n with MobileNetV5 image projection, and Gemma Embedding,
@@ -16,11 +127,7 @@ projection biases and Gemma attention/final-logit softcapping are honored in
 every inference mode. MPT includes fused-QKV clamping, optional full-projection
 affine Q/K LayerNorm, and optional AWQ post-GELU activation scaling.
 
-The target is a Go-owned model and tensor runtime that calls NVIDIA's installed
-Windows DLLs directly. CUDA kernels are reproducible binary assets and are the
-only project-owned non-Go runtime components.
-
-The implementation is currently experimental. See:
+## Documentation
 
 - `skill.md` for architecture and iteration doctrine;
 - `docs/plan.json` for gate-executable open work;
@@ -48,6 +155,7 @@ Standalone checks and lanes:
 ```bash
 go test ./...
 go run ./cmd/device-lane
+go run ./cmd/race-lane
 bash scripts/fuzz-smoke.sh 5s
 go run ./cmd/kernel-manifest
 go run ./cmd/compatibility -check
@@ -69,6 +177,43 @@ go run ./cmd/gen-iq-tables \
 synchronizations, host/device copy counts and bytes, plus launches and barriers
 per output token. These counters are snapshots from the Runner-owned CUDA
 driver instance; cuBLAS launches are not misreported as custom kernels.
+
+## Agent automation
+
+overgo is developed by autonomous agents under a gate that holds itself to the
+same standard as the code. The substrate:
+
+- **Commit gate (`cmd/gate`).** Every commit passes hygiene (gofmt/vet/build),
+  import-graph–derived test scope, and manifest/SBOM/claims verification, then
+  lands a record in the RepoDB store. It is `-message-file` only, refuses a
+  staged path outside its declared `-paths`, and refuses any commit whose
+  `-plan` is not the plan's current open step — off-plan work cannot be
+  committed.
+- **Plan dispatch (`cmd/plan`).** `docs/plan.json` is the open-work surface (open
+  items only, never a completion ledger); `cmd/plan -next` dispatches the next
+  step, and every step carries a non-vacuous verify command. A session ends only
+  for one of three recorded reasons — user-stop, irreversible, or
+  external-prereq — through `cmd/plan -stop`.
+- **Session safety (`cmd/guard`).** A corpus-tested destructive-command guard
+  runs before every shell call; the model, dataset, and checkpoint stores are
+  guard-enforced read-only to automation (deny delete/move/chmod), and the
+  provenance store references their bytes by location, never by copy.
+- **Evidence over green.** Verification lanes (`device-lane`, `smoke-lane`,
+  `race-lane`) report UNAVAILABLE and fail rather than silently skip when a
+  prerequisite is absent, and every green run ends with an honesty line naming
+  what did not run.
+- **Derived constants and claims.** The magic scan (`cmd/closure-scan`) flags
+  unexplained literals in automation against the closure ledger, and
+  `compatibility.json` records machine-checked capability claims, each with an
+  evidence tier and a failable verify (`implemented` != oracle-backed).
+- **RepoDB store.** The system of record for artifacts, lineage, runs,
+  evaluations, decisions, findings, and the magic ledger; query it with
+  `cmd/repodb-query` rather than grepping the binary log.
+
+The full doctrine — porting discipline, evidence standards, magic/distribution
+discipline, and the continuation rules — lives in [`skill.md`](skill.md).
+
+## CLI tools
 
 Inspect or tokenize a GGUF model with:
 
@@ -152,6 +297,8 @@ transposes vision position axes, validates the generated catalog through the
 runtime loaders, and refuses to overwrite outputs. Either output flag may be
 used independently.
 
+## Generation modes
+
 Generation modes are:
 
 - default: bounded host weight loading with CUDA graph execution;
@@ -172,6 +319,8 @@ independent caches, samplers, stop state, streaming callbacks, and cancellation.
 Attention, recurrent, and hybrid families retain per-sequence KV, convolution,
 SSM, WKV, short-convolution, and named fixed/token-aligned state. Device-cache
 forks share immutable retained allocations until either branch advances.
+
+## Multimodal input
 
 The Go runner's `ForwardCachedWithMultimodalInputs` accepts projected visual
 token embeddings plus distinct temporal, height, width, and extra MRoPE
@@ -273,6 +422,8 @@ then cap decoded input at 16 MiB per image and 24 MiB per request. Images are
 also capped at 16,384 in either dimension, 16 MiPixels each, and 32 MiPixels
 per request; dimensions are checked before full decode.
 
+## Sampling, tokenization, and grammars
+
 Sampling supports temperature, top-k, top-p, min-p, locally typical filtering,
 top-n-sigma, probabilistic XTC, shared `min_keep` floors, repetition windows,
 presence/frequency penalties, token-history DRY, and adaptive Mirostat v1/v2.
@@ -367,6 +518,8 @@ The perplexity CLI scores every next token by default. Set `-ctx N` to use
 llama.cpp's disjoint-window convention (full windows, latter half scored) for
 differential comparisons, and `-token-scores` to include per-token negative
 log-likelihoods.
+
+## HTTP server API
 
 The experimental HTTP server provides public `GET /health`, `/healthz`, and
 `/v1/health`, Prometheus-format
@@ -555,6 +708,8 @@ Both completion endpoints accept `n` from 1 through 8. Choices receive fresh
 sampler/grammar state and deterministic seed offsets; buffered and SSE
 responses carry stable choice indices.
 
+## CUDA execution
+
 For preloaded dense models, embedding lookup, all decoder layers, final
 normalization, last-token slicing, and output projection execute as one CUDA
 submission per token. KV state uses explicitly owned device outputs between
@@ -591,6 +746,8 @@ Prometheus metrics include optional Runner-owned CUDA current bytes, lifetime
 peak bytes, live allocation count, custom launches, synchronization totals,
 and host/device plus device/device transfer bytes when the generator exposes a device
 memory snapshot; snapshot failures omit only those gauges.
+
+## Testing and release
 
 Set `OVERGO_LLAMA_CPP` to a pinned llama.cpp checkout to enable the
 tokenizer oracle corpus during `go test ./...`.
@@ -779,10 +936,14 @@ at the shared driver boundary, so it includes persistent weights and temporary
 graph arenas but intentionally excludes other processes and driver overhead.
 
 The fuzz smoke script exercises bounded hostile-input targets for GGUF,
-tokenization, GBNF, sampler state, cache/session state, and server JSON. Go's
-race detector is unavailable under the required `CGO_ENABLED=0` build; enabling
-it would test a different runtime contract, so concurrency is covered with
-deterministic contention tests until a no-cgo race instrumenter is available.
+tokenization, GBNF, sampler state, cache/session state, and server JSON.
+Data-race coverage runs through `go run ./cmd/race-lane`: host goroutine races
+via the Go race detector (`CGO_ENABLED=1`, test-only instrumentation that never
+enters the `CGO_ENABLED=0` shipped binary) over the goroutine-bearing packages,
+and device/kernel races via CUDA `compute-sanitizer` (racecheck + synccheck),
+which the host race detector cannot see. A missing C compiler, GPU, or
+compute-sanitizer is reported as UNAVAILABLE and fails; it is never silently
+skipped.
 
 `cmd/release` builds the seventeen user-facing Windows-amd64 executables twice
 with no cgo, source paths, VCS stamp, or Go build ID and rejects any byte

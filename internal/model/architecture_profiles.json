@@ -741,6 +741,7 @@
     },
     "MetadataDefaults": {
       "AlternateStateCount": 4,
+      "AlternateStateActive": 0,
       "LowRankResidualWidth": 64,
       "PerLayerEmbeddingWidth": 256,
       "RopeDimension": 1,
@@ -751,7 +752,10 @@
     "Name": "gemma3n",
     "FeedForward": 6,
     "Validation": {
-      "Attention": 7
+      "Attention": 7,
+      "RequiredBlockCount": 30,
+      "AlternateBlockCount": 35,
+      "SlidingPeriod": 5
     },
     "Overrides": 2,
     "Rotary": {

@@ -157,6 +157,8 @@ type ValidationPolicy struct {
 	BoundDeepstack        bool
 	RopeFrequencyOptional bool
 	RequiredBlockCount    uint32
+	AlternateBlockCount   uint32
+	SlidingPeriod         uint32
 	ExpertMetadata        ExpertMetadataPolicy
 	BaseRotary            BaseRotaryValidationPolicy
 	Encoder               EncoderValidationPolicy

@@ -141,7 +141,10 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	if profile.Validation.Attention == AttentionValidationGemma3N &&
 		(defaults.AlternateStateCount == 0 || defaults.LowRankResidualWidth == 0 ||
 			defaults.PerLayerEmbeddingWidth == 0 || defaults.SharedKVStartLayer == 0 ||
-			defaults.SparseLayerCount == 0 || defaults.SparsityStdMultiplier <= 0) {
+			defaults.SparseLayerCount == 0 || defaults.SparsityStdMultiplier <= 0 ||
+			profile.Validation.RequiredBlockCount == 0 || profile.Validation.AlternateBlockCount == 0 ||
+			profile.Validation.RequiredBlockCount == profile.Validation.AlternateBlockCount ||
+			profile.Validation.SlidingPeriod < 2) {
 		return fmt.Errorf("architecture profile %q: alternate-state metadata defaults are incomplete", profile.Name)
 	}
 	if profile.Validation.Recurrent == RecurrentValidationDFlash && defaults.DraftBlockSize == 0 {

@@ -20,6 +20,7 @@ type MetadataDefaultPolicy struct {
 	LayerNormEpsilon       float32
 	QKNormEpsilon          float32
 	AlternateStateCount    uint32
+	AlternateStateActive   uint32
 	LowRankResidualWidth   uint32
 	PerLayerEmbeddingWidth uint32
 	SharedKVStartLayer     uint32

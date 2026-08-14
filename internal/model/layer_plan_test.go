@@ -112,15 +112,17 @@ func TestDraftProgramPreservesBoundProfileIdentity(t *testing.T) {
 
 func TestCompileModelPlanOwnsAlternatePredictionPolicy(t *testing.T) {
 	const fixtureNormEpsilon = 1e-6
+	profile, _ := LookupArchitecture("gemma3n")
+	defaults := profile.MetadataDefaults
 	spec := Spec{
 		CommonSpec: CommonSpec{
-			Architecture: "gemma3n", BlockCount: 1, EmbeddingLength: gemma3nLayerEmbeddingWidth,
+			Architecture: profile.Name, BlockCount: 1, EmbeddingLength: defaults.PerLayerEmbeddingWidth,
 			RMSNormEpsilon: fixtureNormEpsilon,
 		},
 		MultimodalSpec: MultimodalSpec{
-			AltUpCount: gemma3nAltUpCount, AltUpActive: gemma3nAltUpActive,
-			SparseLayerCount:      gemma3nSparseLayerCount,
-			SparsityStdMultiplier: gemma3nSparsityStdMultiplier,
+			AltUpCount: defaults.AlternateStateCount, AltUpActive: defaults.AlternateStateActive,
+			SparseLayerCount:      defaults.SparseLayerCount,
+			SparsityStdMultiplier: defaults.SparsityStdMultiplier,
 		},
 	}
 	plan, err := compileFixtureModelPlan(spec, Weights{})

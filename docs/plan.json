@@ -8,16 +8,22 @@
       "status": "open",
       "steps": [
         {
-          "id": "gate-lifecycle",
-          "title": "Add typed gate lifecycle, environment-bound retry identity, Go heartbeat/watchdog state, and deterministic RepoDB record-debt reconciliation",
+          "id": "independent-sqa",
+          "title": "Define immutable candidate, actor, evaluator, worktree, finding, and verdict identities in the common run-record owner",
           "status": "open",
-          "verify": "go test ./internal/runrecord ./cmd/gate ./cmd/plan -run 'Test(GateLifecycle|GateDebt|GateHeartbeat|EnvironmentBoundRetry)' -count=1 -v"
+          "verify": "go test ./internal/runrecord -run '^TestIndependentSQAIdentities$' -count=1 -v"
         },
         {
-          "id": "independent-sqa",
-          "title": "Enforce Git and RepoDB-derived developer to independent-SQA to priority ordering with immutable candidate, actor, evaluator, worktree, findings, and verdict identities",
+          "id": "review-admission",
+          "title": "Enforce distinct developer and SQA identities, clean separate worktrees, frozen evaluators, target-head binding, findings disposition, and immutable review verdict admission",
           "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/repodb ./cmd/gate -run 'Test(IndependentSQA|ReviewAdmission)' -count=1"
+          "verify": "go test ./internal/runrecord ./internal/repodb ./cmd/gate -run '^TestReviewAdmission' -count=1 -v"
+        },
+        {
+          "id": "review-priority",
+          "title": "Derive implementation to SQA to priority ordering from Git state and admitted RepoDB review evidence without a competing rank-one surface",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/plan ./cmd/plan -run '^TestReviewPriority' -count=1 -v"
         },
         {
           "id": "manual-orchestration",

@@ -25,10 +25,11 @@ type DenoiserCUDASession struct {
 	weightAllocs []driver.DevicePtr
 	WeightBytes  uint64
 
-	contextCompiled    *executor.CompiledGraph
-	stepCompiled       *executor.CompiledGraph
-	contextWeightFeeds map[*tensor.Tensor]driver.DevicePtr
-	stepWeightFeeds    map[*tensor.Tensor]driver.DevicePtr
+	contextCompiled *executor.CompiledGraph
+	stepCompiled    *executor.CompiledGraph
+	contextInputs   *executor.DeviceInputs
+	stepInputs      *executor.DeviceInputs
+	stepCrossSlots  []crossInputSlots
 
 	headBuffer  *executor.DeviceBuffer
 	headTargets *executor.RetainedTargets
@@ -41,7 +42,12 @@ type DenoiserCUDASession struct {
 // sessionBranchContext: retained branch K/V and step feeds.
 type sessionBranchContext struct {
 	retained *executor.RetainedOutputs
-	feeds    map[*tensor.Tensor]driver.DevicePtr
+	inputs   *executor.DeviceInputs
+}
+
+type crossInputSlots struct {
+	key   executor.InputSlot
+	value executor.InputSlot
 }
 
 // NewDenoiserCUDASession: compile, upload once, bind retained head.
@@ -77,12 +83,20 @@ func NewDenoiserCUDASession(program *DenoiserProgram, ordinal int) (session *Den
 	if err != nil {
 		return session, fmt.Errorf("denoiser session step graph: %w", err)
 	}
-	weightPointers, err := session.uploadWeights()
-	if err != nil {
+	session.contextInputs = session.contextCompiled.NewDeviceInputs()
+	session.stepInputs = session.stepCompiled.NewDeviceInputs()
+	if err = session.uploadWeights(); err != nil {
 		return session, err
 	}
-	session.contextWeightFeeds = bindWeightFeeds(program.contextWeightInputs, weightPointers)
-	session.stepWeightFeeds = bindWeightFeeds(program.stepWeightInputs, weightPointers)
+	session.stepCrossSlots = make([]crossInputSlots, len(program.stepCrossKeys))
+	for layer := range program.stepCrossKeys {
+		key, keyOK := session.stepCompiled.InputSlot(program.stepCrossKeys[layer])
+		value, valueOK := session.stepCompiled.InputSlot(program.stepCrossValues[layer])
+		if !keyOK || !valueOK {
+			return session, fmt.Errorf("denoiser session cross input layer %d is not compiled", layer)
+		}
+		session.stepCrossSlots[layer] = crossInputSlots{key: key, value: value}
+	}
 	headBytes, err := program.Head.Shape.Bytes(dtype.F32)
 	if err != nil {
 		return session, err
@@ -113,7 +127,7 @@ func contextGraphOutputs(program *DenoiserProgram) []*tensor.Tensor {
 }
 
 // uploadWeights: unique names; declared storage type.
-func (s *DenoiserCUDASession) uploadWeights() (map[string]driver.DevicePtr, error) {
+func (s *DenoiserCUDASession) uploadWeights() error {
 	type upload struct {
 		name string
 		node *tensor.Tensor
@@ -124,7 +138,7 @@ func (s *DenoiserCUDASession) uploadWeights() (map[string]driver.DevicePtr, erro
 		for name, node := range inputs {
 			if prior, ok := seen[name]; ok {
 				if prior.Type != node.Type || !prior.Shape.Equal(node.Shape) {
-					return nil, fmt.Errorf("denoiser session weight %s: graphs disagree on storage", name)
+					return fmt.Errorf("denoiser session weight %s: graphs disagree on storage", name)
 				}
 				continue
 			}
@@ -132,16 +146,15 @@ func (s *DenoiserCUDASession) uploadWeights() (map[string]driver.DevicePtr, erro
 			uploads = append(uploads, upload{name: name, node: node})
 		}
 	}
-	pointers := make(map[string]driver.DevicePtr, len(uploads))
 	for _, item := range uploads {
 		data := s.Program.weights.tensor(item.name)
 		elements, err := item.node.Shape.Elements()
 		if err != nil || uint64(len(data)) != elements {
-			return nil, fmt.Errorf("denoiser session weight %s: have %d elements, need %d", item.name, len(data), elements)
+			return fmt.Errorf("denoiser session weight %s: have %d elements, need %d", item.name, len(data), elements)
 		}
 		payload, err := encodeWeightPayload(data, item.node.Type)
 		if err != nil {
-			return nil, fmt.Errorf("denoiser session weight %s: %w", item.name, err)
+			return fmt.Errorf("denoiser session weight %s: %w", item.name, err)
 		}
 		var pointer driver.DevicePtr
 		if err := s.worker.Do(s.ctx, func(state *device.State) error {
@@ -157,13 +170,29 @@ func (s *DenoiserCUDASession) uploadWeights() (map[string]driver.DevicePtr, erro
 			}
 			return nil
 		}); err != nil {
-			return nil, fmt.Errorf("denoiser session upload %s: %w", item.name, err)
+			return fmt.Errorf("denoiser session upload %s: %w", item.name, err)
 		}
 		s.weightAllocs = append(s.weightAllocs, pointer)
-		pointers[item.name] = pointer
 		s.WeightBytes += uint64(len(payload))
+		for _, binding := range [...]struct {
+			compiled *executor.CompiledGraph
+			inputs   *executor.DeviceInputs
+			node     *tensor.Tensor
+		}{
+			{s.contextCompiled, s.contextInputs, s.Program.contextWeightInputs[item.name]},
+			{s.stepCompiled, s.stepInputs, s.Program.stepWeightInputs[item.name]},
+		} {
+			if binding.node == nil {
+				continue
+			}
+			slot, ok := binding.compiled.InputSlot(binding.node)
+			if !ok {
+				return fmt.Errorf("denoiser session weight %s is not compiled", item.name)
+			}
+			binding.inputs.Pointers[slot] = pointer
+		}
 	}
-	return pointers, nil
+	return nil
 }
 
 func encodeWeightPayload(data []float32, storage dtype.Type) ([]byte, error) {
@@ -181,14 +210,6 @@ func encodeWeightPayload(data []float32, storage dtype.Type) ([]byte, error) {
 	}
 }
 
-func bindWeightFeeds(inputs map[string]*tensor.Tensor, pointers map[string]driver.DevicePtr) map[*tensor.Tensor]driver.DevicePtr {
-	feeds := make(map[*tensor.Tensor]driver.DevicePtr, len(inputs))
-	for name, node := range inputs {
-		feeds[node] = pointers[name]
-	}
-	return feeds
-}
-
 // ProjectBranchContext: run once; retain per-block K/V.
 func (s *DenoiserCUDASession) ProjectBranchContext(context []float32) (any, error) {
 	value, err := feedValue(s.Program.contextInput, context, "context")
@@ -196,25 +217,24 @@ func (s *DenoiserCUDASession) ProjectBranchContext(context []float32) (any, erro
 		return nil, err
 	}
 	hostFeeds := map[*tensor.Tensor]reference.Value{s.Program.contextInput: value}
-	retained, err := s.cuda.ExecuteRetainedCompiledWithDeviceFeeds(s.ctx, s.contextCompiled, hostFeeds, s.contextWeightFeeds)
+	retained, err := s.cuda.ExecuteRetainedCompiledWithDeviceInputs(s.ctx, s.contextCompiled, hostFeeds, s.contextInputs, nil)
 	if err != nil {
 		return nil, fmt.Errorf("denoiser session context projection: %w", err)
 	}
 	branch := &sessionBranchContext{
 		retained: retained,
-		feeds:    make(map[*tensor.Tensor]driver.DevicePtr, len(s.stepWeightFeeds)+2*len(s.Program.stepCrossKeys)),
+		inputs:   s.stepCompiled.NewDeviceInputs(),
 	}
-	for node, pointer := range s.stepWeightFeeds {
-		branch.feeds[node] = pointer
-	}
+	copy(branch.inputs.Pointers, s.stepInputs.Pointers)
 	for layer := range s.Program.stepCrossKeys {
 		key, keyOK := retained.Value(s.Program.contextKeys[layer])
 		val, valueOK := retained.Value(s.Program.contextValues[layer])
 		if !keyOK || !valueOK {
 			return nil, errors.Join(fmt.Errorf("denoiser session context layer %d is not retained", layer), retained.Release(s.ctx))
 		}
-		branch.feeds[s.Program.stepCrossKeys[layer]] = key.Pointer
-		branch.feeds[s.Program.stepCrossValues[layer]] = val.Pointer
+		slots := s.stepCrossSlots[layer]
+		branch.inputs.Pointers[slots.key] = key.Pointer
+		branch.inputs.Pointers[slots.value] = val.Pointer
 	}
 	s.branches = append(s.branches, branch)
 	return branch, nil
@@ -243,7 +263,9 @@ func (s *DenoiserCUDASession) ForwardHead(patchTokens, blockE, headE []float32, 
 		}
 		hostFeeds[feed.node] = value
 	}
-	retained, err := s.cuda.ExecuteRetainedCompiledWithTargets(s.ctx, s.stepCompiled, hostFeeds, branch.feeds, s.headTargets)
+	retained, err := s.cuda.ExecuteRetainedCompiledWithDeviceInputs(
+		s.ctx, s.stepCompiled, hostFeeds, branch.inputs, s.headTargets,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("denoiser session step execution: %w", err)
 	}
@@ -302,6 +324,9 @@ func (s *DenoiserCUDASession) ReleaseDenoiseResources() error {
 		}))
 	}
 	s.weightAllocs = nil
+	s.contextInputs = nil
+	s.stepInputs = nil
+	s.stepCrossSlots = nil
 	return errors.Join(errs...)
 }
 

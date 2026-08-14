@@ -24,27 +24,27 @@ type ResidentImagePipeline struct {
 	Denoiser *DenoiserProgram
 	VAE      *VAEProgram
 
-	runtime       *residentRuntime
-	encoder       *residentGraph
-	bridge        *residentGraph
-	bridgeInputs  []*tensor.Tensor
-	bridgeOutput  *tensor.Tensor
-	fusion        *residentGraph
-	timestepPlan  *timestepProgram
-	timestep      *residentGraph
-	denoiser      *residentGraph
-	upload        *residentGraph
-	uploadInput   *tensor.Tensor
-	uploadOutput  *tensor.Tensor
-	vaeBridge     *residentGraph
-	vaeInput      *tensor.Tensor
-	vaeOutput     *tensor.Tensor
-	vae           *residentGraph
-	residentBytes uint64
-	modelDir      string
-	mu            sync.Mutex
-	conditioning  *ResidentConditioning
-	latent        *residentLatent
+	runtime        *residentRuntime
+	encoder        *residentGraph
+	bridge         *residentGraph
+	bridgePointers []driver.DevicePtr
+	bridgeOutput   *tensor.Tensor
+	fusion         *residentGraph
+	timestepPlan   *timestepProgram
+	timestep       *residentGraph
+	denoiser       *residentGraph
+	denoiserInputs [4]driver.DevicePtr
+	upload         *residentGraph
+	uploadInput    *tensor.Tensor
+	uploadOutput   *tensor.Tensor
+	vaeBridge      *residentGraph
+	vaeOutput      *tensor.Tensor
+	vae            *residentGraph
+	residentBytes  uint64
+	modelDir       string
+	mu             sync.Mutex
+	conditioning   *ResidentConditioning
+	latent         *residentLatent
 }
 
 // ResidentConditioning owns fused text conditioning on the pipeline device.
@@ -90,24 +90,26 @@ func NewResidentImagePipeline(
 	}()
 	pipeline.encoder, err = runtime.compile(
 		ctx, "resident image encoder", filepath.Join(modelDir, "text_encoder"),
-		encoder.weightInputs, encoder.Selected...,
+		encoder.weightInputs, nil, encoder.Selected...,
 	)
 	if err != nil {
 		return nil, err
 	}
-	pipeline.bridgeInputs, pipeline.bridgeOutput, err = selectedHiddenBridge(encoder, fusion.TextSeq)
+	bridgeInputs, bridgeOutput, err := selectedHiddenBridge(encoder, fusion.TextSeq)
 	if err != nil {
 		return nil, err
 	}
+	pipeline.bridgeOutput = bridgeOutput
 	pipeline.bridge, err = runtime.compile(
-		ctx, "resident image text bridge", "", nil, pipeline.bridgeOutput,
+		ctx, "resident image text bridge", "", nil, bridgeInputs, bridgeOutput,
 	)
 	if err != nil {
 		return nil, err
 	}
+	pipeline.bridgePointers = make([]driver.DevicePtr, len(bridgeInputs))
 	pipeline.fusion, err = runtime.compile(
 		ctx, "resident image fusion", filepath.Join(modelDir, "transformer"),
-		fusion.weightInputs, fusion.Fused,
+		fusion.weightInputs, []*tensor.Tensor{fusion.InEncoder}, fusion.Fused,
 	)
 	if err != nil {
 		return nil, err
@@ -131,7 +133,7 @@ func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err erro
 	}
 	p.timestep, err = p.runtime.compile(
 		ctx, "resident image timestep", filepath.Join(modelDir, "transformer"),
-		p.timestepPlan.weightInputs,
+		p.timestepPlan.weightInputs, nil,
 		p.timestepPlan.Embedding, p.timestepPlan.Modulation,
 	)
 	if err != nil {
@@ -139,7 +141,9 @@ func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err erro
 	}
 	p.denoiser, err = p.runtime.compile(
 		ctx, "resident image denoiser", filepath.Join(modelDir, "transformer"),
-		denoiser.weightInputs, denoiser.NextLatent,
+		denoiser.weightInputs,
+		[]*tensor.Tensor{denoiser.InLatent, denoiser.InText, denoiser.InTemb, denoiser.InTembMod},
+		denoiser.NextLatent,
 	)
 	if err != nil {
 		return err
@@ -156,7 +160,7 @@ func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err erro
 		return err
 	}
 	p.upload, err = p.runtime.compile(
-		ctx, "resident image latent upload", "", nil, p.uploadOutput,
+		ctx, "resident image latent upload", "", nil, nil, p.uploadOutput,
 	)
 	if err != nil {
 		return err
@@ -166,17 +170,18 @@ func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err erro
 		vaeStatic[feed.node] = feed.data
 	}
 	p.vae, err = p.runtime.compileStatic(
-		ctx, "resident image VAE", vaeStatic, vae.Output,
+		ctx, "resident image VAE", vaeStatic, []*tensor.Tensor{vae.Latent}, vae.Output,
 	)
 	if err != nil {
 		return err
 	}
-	p.vaeInput, p.vaeOutput, vaeStatic, err = latentVAEDecodeBridge(denoiser, vae)
+	vaeInput, vaeOutput, vaeStatic, err := latentVAEDecodeBridge(denoiser, vae)
 	if err != nil {
 		return err
 	}
+	p.vaeOutput = vaeOutput
 	p.vaeBridge, err = p.runtime.compileStatic(
-		ctx, "resident image VAE bridge", vaeStatic, p.vaeOutput,
+		ctx, "resident image VAE bridge", vaeStatic, []*tensor.Tensor{vaeInput}, vaeOutput,
 	)
 	if err != nil {
 		return err
@@ -184,6 +189,7 @@ func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err erro
 	for index := range vae.feeds {
 		vae.feeds[index].data = nil
 	}
+	p.runtime.sealWeights()
 	p.residentBytes = p.runtime.weightBytes
 	return nil
 }
@@ -306,16 +312,15 @@ func (p *ResidentImagePipeline) Condition(
 	if err != nil {
 		return nil, fmt.Errorf("resident image pipeline: encode: %w", err)
 	}
-	bridgeFeeds := make(map[*tensor.Tensor]driver.DevicePtr, len(p.bridgeInputs))
 	for index, output := range p.Encoder.Selected {
 		value, ok := encoded.Value(output)
 		if !ok {
 			_ = encoded.Release(ctx)
 			return nil, fmt.Errorf("resident image pipeline: selected output %d is unavailable", index)
 		}
-		bridgeFeeds[p.bridgeInputs[index]] = value.Pointer
+		p.bridgePointers[index] = value.Pointer
 	}
-	bridged, err := p.runtime.retain(ctx, p.bridge, nil, bridgeFeeds)
+	bridged, err := p.runtime.retain(ctx, p.bridge, nil, p.bridgePointers)
 	if err != nil {
 		_ = encoded.Release(ctx)
 		return nil, fmt.Errorf("resident image pipeline: bridge: %w", err)
@@ -329,9 +334,7 @@ func (p *ResidentImagePipeline) Condition(
 		_ = bridged.Release(ctx)
 		return nil, errors.New("resident image pipeline: bridged text is unavailable")
 	}
-	fused, err := p.runtime.retain(ctx, p.fusion, nil, map[*tensor.Tensor]driver.DevicePtr{
-		p.Fusion.InEncoder: bridgeValue.Pointer,
-	})
+	fused, err := p.runtime.retain(ctx, p.fusion, nil, []driver.DevicePtr{bridgeValue.Pointer})
 	if err != nil {
 		_ = bridged.Release(ctx)
 		return nil, fmt.Errorf("resident image pipeline: fuse: %w", err)
@@ -419,17 +422,15 @@ func (p *ResidentImagePipeline) Advance(ctx context.Context, sigma, delta float6
 		return errors.New("resident image pipeline: timestep outputs are unavailable")
 	}
 	program := p.Denoiser
+	p.denoiserInputs = [4]driver.DevicePtr{
+		p.latent.value.Pointer, p.conditioning.value.Pointer, embedding.Pointer, modulation.Pointer,
+	}
 	next, err := p.runtime.retain(
 		ctx, p.denoiser,
 		map[*tensor.Tensor]reference.Value{
 			program.InDelta: {Shape: program.InDelta.Shape, Data: []float32{float32(delta)}},
 		},
-		map[*tensor.Tensor]driver.DevicePtr{
-			program.InLatent:  p.latent.value.Pointer,
-			program.InText:    p.conditioning.value.Pointer,
-			program.InTemb:    embedding.Pointer,
-			program.InTembMod: modulation.Pointer,
-		},
+		p.denoiserInputs[:],
 	)
 	if err != nil {
 		_ = step.Release(ctx)
@@ -479,9 +480,7 @@ func (p *ResidentImagePipeline) DecodeHWC(ctx context.Context) ([]float32, int, 
 	if p.runtime == nil || p.latent == nil || p.vae == nil {
 		return nil, 0, 0, errors.New("resident image pipeline: decode session is unavailable")
 	}
-	bridged, err := p.runtime.retain(ctx, p.vaeBridge, nil, map[*tensor.Tensor]driver.DevicePtr{
-		p.vaeInput: p.latent.value.Pointer,
-	})
+	bridged, err := p.runtime.retain(ctx, p.vaeBridge, nil, []driver.DevicePtr{p.latent.value.Pointer})
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("resident image pipeline: bridge VAE latent: %w", err)
 	}
@@ -490,9 +489,7 @@ func (p *ResidentImagePipeline) DecodeHWC(ctx context.Context) ([]float32, int, 
 		_ = bridged.Release(ctx)
 		return nil, 0, 0, errors.New("resident image pipeline: VAE latent is unavailable")
 	}
-	results, err := p.runtime.executeWithDevices(ctx, p.vae, nil, map[*tensor.Tensor]driver.DevicePtr{
-		p.VAE.Latent: value.Pointer,
-	})
+	results, err := p.runtime.executeWithDevices(ctx, p.vae, nil, []driver.DevicePtr{value.Pointer})
 	releaseErr := bridged.Release(ctx)
 	if err != nil || releaseErr != nil {
 		return nil, 0, 0, errors.Join(err, releaseErr)

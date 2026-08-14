@@ -21,12 +21,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "complete-state-parity",
-          "title": "Compare resident losses, final weights, gradients, Muon momentum, and update ordering with the host oracle",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/scratchmodel ./internal/adaptiveparity -run '^TestScratch(ResidentStateParity|TrainingLeadership)$' -count=1 -v"
-        },
-        {
           "id": "lifecycle-evidence",
           "title": "Measure process, CUDA driver and PTX preparation, model initialization, cold step, and warm steps separately; gate only named lifecycle ranges",
           "status": "open",

@@ -92,6 +92,99 @@ func TestAnalyzeTensorsRejectsNonGet(t *testing.T) {
 	}
 }
 
+func writeMultiTensorFixture(t *testing.T) string {
+	t.Helper()
+	const n = 512
+	sym := make([]float32, n)    // symmetric range
+	scaled := make([]float32, n) // same shape, 10x magnitude
+	sparse := make([]float32, n) // mostly zero
+	skewed := make([]float32, n) // heavy right tail
+	for i := 0; i < n; i++ {
+		sym[i] = float32(i - 256)
+		scaled[i] = float32(i-256) * 10
+		skewed[i] = 1
+		if i%8 == 0 {
+			sparse[i] = float32(i + 1)
+		}
+	}
+	skewed[n-1] = 500
+	skewed[n-2] = 300
+	toData := func(name string, v []float32) gguf.TensorData {
+		return gguf.TensorData{Name: name, Shape: []uint64{n}, Type: gguf.DTypeF32, Data: bytes.NewReader(f32Bytes(v))}
+	}
+	path := filepath.Join(t.TempDir(), "multi.gguf")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gguf.Write(file, nil, []gguf.TensorData{
+		toData("sym", sym), toData("sym_scaled", scaled),
+		toData("sparse", sparse), toData("skewed", skewed),
+	}, gguf.WriteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func f32Bytes(values []float32) []byte {
+	out := make([]byte, len(values)*4)
+	for i, v := range values {
+		binary.LittleEndian.PutUint32(out[i*4:], math.Float32bits(v))
+	}
+	return out
+}
+
+func TestAnalyzeTensorsSimilarRanksByShape(t *testing.T) {
+	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: writeMultiTensorFixture(t)})
+	response := serveTestRequest(handler, http.MethodGet, "/analyze/tensors/similar?name=sym&k=3", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var result analyzeTensorsSimilarResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode: %v body=%s", err, response.Body.String())
+	}
+	if result.Target.Name != "sym" {
+		t.Fatalf("target = %q, want sym", result.Target.Name)
+	}
+	if len(result.Neighbors) != 3 {
+		t.Fatalf("got %d neighbors, want 3 (pool of 4, self excluded)", len(result.Neighbors))
+	}
+	// Same shape at 10x magnitude must be the nearest (scale-free features).
+	if result.Neighbors[0].Name != "sym_scaled" {
+		t.Errorf("nearest = %q (dist %.4f), want sym_scaled", result.Neighbors[0].Name, result.Neighbors[0].Distance)
+	}
+	for _, n := range result.Neighbors {
+		if n.Name == "sym" {
+			t.Error("neighbors must exclude the target itself")
+		}
+	}
+	if result.Neighbors[0].Distance > result.Neighbors[len(result.Neighbors)-1].Distance {
+		t.Error("neighbors must be ascending by distance")
+	}
+}
+
+func TestAnalyzeTensorsSimilarValidation(t *testing.T) {
+	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: writeMultiTensorFixture(t)})
+	cases := []struct {
+		query string
+		want  int
+	}{
+		{"/analyze/tensors/similar", http.StatusBadRequest},              // no name
+		{"/analyze/tensors/similar?name=nope", http.StatusNotFound},      // unknown tensor
+		{"/analyze/tensors/similar?name=sym&k=0", http.StatusBadRequest}, // non-positive k
+	}
+	for _, tc := range cases {
+		response := serveTestRequest(handler, http.MethodGet, tc.query, "")
+		if response.Code != tc.want {
+			t.Errorf("%s -> %d, want %d", tc.query, response.Code, tc.want)
+		}
+	}
+}
+
 func TestAnalyzeModelAdvertisesTensorCapability(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/model", "")

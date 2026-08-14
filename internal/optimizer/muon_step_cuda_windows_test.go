@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/devicemath"
 )
 
 // TestDeviceMuonMatrixStepMatchesHost gates one device (fp32) Muon matrix update
@@ -84,6 +86,76 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeviceMuonPlanResidentMatchesShared(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	const rows, cols, vector = 9, 7, 11
+	matrix := rows * cols
+	count := matrix + vector
+	rng := rand.New(rand.NewSource(67))
+	weights, gradients := make([]float32, count), make([]float32, count)
+	for index := range count {
+		weights[index], gradients[index] = float32(rng.NormFloat64()), float32(rng.NormFloat64())
+	}
+	plan, err := CompilePlan(count, []GroupSpec{
+		{Name: "matrix", Start: 0, End: matrix, Rows: rows, Cols: cols},
+		{Name: "vector", Start: matrix, End: count, Rows: vector, Cols: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := Config{BaseLearningRate: 0.07, Momentum: 0.91, Steps: 3, Schedule: ScheduleLinearDecay}
+	wantWeights, wantGradients, wantMomentum := append([]float32(nil), weights...), append([]float32(nil), gradients...), make([]float32, count)
+	if err := DeviceMuonStepPlan(worker, wantWeights, wantGradients, wantMomentum, plan, 2, config); err != nil {
+		t.Fatal(err)
+	}
+	weightsPtr, err := devicemath.AllocResidentF32(worker, count, weights)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gradientsPtr, err := devicemath.AllocResidentF32(worker, count, gradients)
+	if err != nil {
+		_ = devicemath.FreeResident(worker, weightsPtr)
+		t.Fatal(err)
+	}
+	momentumPtr, err := devicemath.AllocResidentF32(worker, count, nil)
+	if err != nil {
+		_ = devicemath.FreeResident(worker, weightsPtr, gradientsPtr)
+		t.Fatal(err)
+	}
+	defer devicemath.FreeResident(worker, weightsPtr, gradientsPtr, momentumPtr)
+	if err := DeviceMuonPlanResident(worker, weightsPtr, gradientsPtr, momentumPtr, plan, 2, config); err != nil {
+		t.Fatal(err)
+	}
+	gotWeights, gotGradients, gotMomentum := make([]float32, count), make([]float32, count), make([]float32, count)
+	for _, item := range []struct {
+		pointer driver.DevicePtr
+		data    []float32
+	}{{weightsPtr, gotWeights}, {gradientsPtr, gotGradients}, {momentumPtr, gotMomentum}} {
+		if err := devicemath.ReadResident(worker, item.pointer, devicemath.ResidentSlice{Data: item.data}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	weightDelta, momentumDelta := maxF32Delta(gotWeights, wantWeights), maxF32Delta(gotMomentum, wantMomentum)
+	gradientDelta := maxF32Delta(gotGradients, wantGradients)
+	t.Logf("resident/shared Muon plan weights=%.3e momentum=%.3e gradient=%.3e", weightDelta, momentumDelta, gradientDelta)
+	if weightDelta != 0 || momentumDelta != 0 || gradientDelta != 0 {
+		t.Fatalf("resident Muon plan differs")
+	}
+}
+
+func maxF32Delta(left, right []float32) float64 {
+	var result float64
+	for index := range left {
+		result = max(result, math.Abs(float64(left[index]-right[index])))
+	}
+	return result
 }
 
 // TestDeviceMuonStepPlanMatchesHost gates matrix and vector Muon groups.

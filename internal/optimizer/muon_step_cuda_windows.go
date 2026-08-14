@@ -126,6 +126,45 @@ func DeviceMuonMatricesResident(worker *device.Worker, matrices []ResidentMatrix
 	})
 }
 
+// DeviceMuonPlanResident applies and clears one flat resident Muon plan.
+func DeviceMuonPlanResident(
+	worker *device.Worker,
+	weights, gradients, momentum driver.DevicePtr,
+	plan Plan,
+	step int,
+	config Config,
+) error {
+	if worker == nil || weights == 0 || gradients == 0 || momentum == 0 || plan.Identity() == "" || step <= 0 {
+		return fmt.Errorf("DeviceMuonPlanResident: invalid buffer, plan, or step")
+	}
+	if err := config.validate(); err != nil {
+		return err
+	}
+	rate := config.LearningRate(step)
+	return worker.Do(context.Background(), func(state *device.State) error {
+		ops, err := newDeviceOps(state)
+		if err != nil {
+			return err
+		}
+		defer ops.close()
+		for _, group := range plan.groups {
+			if group.Frozen {
+				continue
+			}
+			if err := ops.muonMatrixGroupResident(
+				offsetF32(weights, group.Start), offsetF32(gradients, group.Start), offsetF32(momentum, group.Start),
+				group.Rows, group.Cols, config.Momentum, rate,
+			); err != nil {
+				return err
+			}
+		}
+		if err := ops.lib.MemsetD32Async(gradients, 0, uint64(plan.ParameterCount()), ops.stream); err != nil {
+			return err
+		}
+		return ops.lib.StreamSynchronize(ops.stream)
+	})
+}
+
 // DeviceMuonStepPlan: one flat upload/download; resident matrix updates.
 func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []float32, plan Plan, step int, config Config) error {
 	rate := config.LearningRate(step)

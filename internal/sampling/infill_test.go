@@ -14,7 +14,7 @@ func TestInfillKeepsOnlyEOGWhenMassIsHigh(t *testing.T) {
 		EOS:    3,
 	}
 	candidates := infillCandidates([]float64{0.25, 0.25, 0.25, 0.25})
-	got, err := applyInfill(candidates, vocabulary)
+	got, err := new(Sampler).applyInfill(candidates, vocabulary)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestInfillCombinesCommonPrefixes(t *testing.T) {
 		EOS:    3,
 	}
 	candidates := infillCandidates([]float64{0.15, 0.25, 0.599, 0.001})
-	got, err := applyInfill(candidates, vocabulary)
+	got, err := new(Sampler).applyInfill(candidates, vocabulary)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestInfillFallsBackToEOT(t *testing.T) {
 	pieces[9] = "</s>"
 	eog[9] = true
 	probabilities[9] = 0.01
-	got, err := applyInfill(
+	got, err := new(Sampler).applyInfill(
 		infillCandidates(probabilities),
 		&InfillVocabulary{
 			Pieces: pieces,

@@ -353,7 +353,7 @@
           "contains": "func Quantize(",
           "path": "internal/quant/quantize.go",
           "role": "source",
-          "identity": "file:sha256:c3f2da0c3830f759a3a20eed0e2af6ba4f092332683df001f39716ff970f03cc"
+          "identity": "file:sha256:de19b1a8af70b00c1deedf69e48d8f5fbf79bc4b832a1aaa7b009dc28bb41b21"
         },
         {
           "contains": "func TestQuantizeMatchesPinnedGGMLReference(",

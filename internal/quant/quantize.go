@@ -218,6 +218,7 @@ func quantizeIQ3(
 		refineAll = true
 		scaleFudge = 1.033
 	}
+	scales := make([]float32, blockWidth/iq3GroupWidth)
 	for block := 0; block < len(values)/blockWidth; block++ {
 		input := values[block*blockWidth : (block+1)*blockWidth]
 		destination := output[block*typeSize : (block+1)*typeSize]
@@ -226,7 +227,6 @@ func quantizeIQ3(
 				return fmt.Errorf("%s input contains a non-finite value", dataType)
 			}
 		}
-		scales := make([]float32, blockWidth/iq3GroupWidth)
 		var maxScale float32
 		for group := 0; group < blockWidth/iq3GroupWidth; group++ {
 			indices, signs, scale, err := quantizeIQ3Group(
@@ -560,6 +560,12 @@ func quantizeIQ2S(values []float32, output []byte) error {
 		gridHighOffset   = iq2SHighStart
 		groupScaleOffset = iq2SScaleStart
 	)
+	scales := make([]float32, blockWidth/groupWidth)
+	weight := make([]float32, groupWidth)
+	neighborWeight := make([]float32, groupWidth)
+	absoluteValues := make([]float32, groupWidth)
+	levels := make([]int8, groupWidth)
+	auxiliary := make([]int8, groupWidth)
 	for block := 0; block < len(values)/blockWidth; block++ {
 		input := values[block*blockWidth : (block+1)*blockWidth]
 		destination := output[block*typeSize : (block+1)*typeSize]
@@ -571,15 +577,11 @@ func quantizeIQ2S(values []float32, output []byte) error {
 			sumSquares += value * value
 		}
 		variance := 2 * sumSquares / blockWidth
-		scales := make([]float32, blockWidth/groupWidth)
 		var maxScale float32
 		for group := 0; group < blockWidth/groupWidth; group++ {
 			groupInput := input[group*groupWidth : (group+1)*groupWidth]
-			weight := make([]float32, groupWidth)
-			neighborWeight := make([]float32, groupWidth)
-			absoluteValues := make([]float32, groupWidth)
-			levels := make([]int8, groupWidth)
-			auxiliary := make([]int8, groupWidth)
+			clear(levels)
+			clear(auxiliary)
 			onGrid := [subGroupCount]bool{true, true}
 			auxiliaryOnGrid := [subGroupCount]bool{}
 			signs := [subGroupCount]byte{}
@@ -797,11 +799,11 @@ func quantizeIQ4(
 		quantizedOffset = 8
 		attempts = 7
 	}
+	levels := make([]byte, superBlockWidth)
+	scales := make([]float32, superBlockWidth/groupWidth)
 	for block := 0; block < len(values)/superBlockWidth; block++ {
 		input := values[block*superBlockWidth : (block+1)*superBlockWidth]
 		destination := output[block*typeSize : (block+1)*typeSize]
-		levels := make([]byte, superBlockWidth)
-		scales := make([]float32, superBlockWidth/groupWidth)
 		var maxScale, maxAbsoluteScale float32
 		for group := 0; group < superBlockWidth/groupWidth; group++ {
 			scale, err := quantizeIQ4Group(
@@ -1111,16 +1113,17 @@ func quantizeQ4Or5K(
 		layout = q5KCodec
 		maxLevel = 31
 	}
+	levels := make([]byte, layout.block.width)
+	auxiliary := make([]byte, 32)
+	weights := make([]float32, 32)
+	minima := make([]float32, layout.block.width/32)
+	scales := make([]float32, layout.block.width/32)
 	for block := 0; block < len(values)/layout.block.width; block++ {
 		input := layout.block.input(values, block)
 		destination := layout.block.storage(output, block)
-		levels := make([]byte, layout.block.width)
-		auxiliary := make([]byte, 32)
-		weights := make([]float32, 32)
-		minima := make([]float32, layout.block.width/32)
-		scales := make([]float32, layout.block.width/32)
 		var maxScale, maxMinimum float32
 		for group := 0; group < layout.block.width/32; group++ {
+			clear(auxiliary)
 			groupInput := input[group*32 : (group+1)*32]
 			sumSquares := float32(0)
 			for _, value := range groupInput {
@@ -1270,18 +1273,19 @@ func getKScaleMinimum(data []byte, group int) (int, int) {
 
 func quantizeQ2K(values []float32, output []byte) error {
 	layout := q2KCodec
+	levels := make([]byte, layout.block.width)
+	auxiliary := make([]byte, 16)
+	weights := make([]float32, 16)
+	minima := make([]float32, layout.block.width/16)
+	scales := make([]float32, layout.block.width/16)
 	for block := 0; block < len(values)/layout.block.width; block++ {
 		input := layout.block.input(values, block)
 		destination := layout.block.storage(output, block)
 		scaleMin := layout.scales.bytes(destination)
 		packed := layout.packed.bytes(destination)
-		levels := make([]byte, layout.block.width)
-		auxiliary := make([]byte, 16)
-		weights := make([]float32, 16)
-		minima := make([]float32, layout.block.width/16)
-		scales := make([]float32, layout.block.width/16)
 		var maxScale, maxMinimum float32
 		for group := 0; group < layout.block.width/16; group++ {
+			clear(auxiliary)
 			groupInput := input[group*16 : (group+1)*16]
 			for index, value := range groupInput {
 				weights[index] = absoluteFloat32(value)
@@ -1463,14 +1467,14 @@ func makeQKX2Quants(
 
 func quantizeQ3K(values []float32, output []byte) error {
 	layout := q3KCodec
+	levels := make([]int8, layout.block.width)
+	scales := make([]float32, layout.block.width/16)
 	for block := 0; block < len(values)/layout.block.width; block++ {
 		input := layout.block.input(values, block)
 		destination := layout.block.storage(output, block)
 		scaleData := layout.scales.bytes(destination)
 		highMasks := layout.high.bytes(destination)
 		packed := layout.packed.bytes(destination)
-		levels := make([]int8, layout.block.width)
-		scales := make([]float32, layout.block.width/16)
 		var maxScale, maxAbsoluteScale float32
 		for group := 0; group < layout.block.width/16; group++ {
 			scale, err := makeQ3Quants(
@@ -1628,14 +1632,14 @@ func makeQ3Quants(input []float32, levels []int8) (float32, error) {
 
 func quantizeQ6K(values []float32, output []byte) error {
 	layout := q6KCodec
+	levels := make([]int8, layout.block.width)
+	scales := make([]float32, layout.block.width/16)
 	for block := 0; block < len(values)/layout.block.width; block++ {
 		input := layout.block.input(values, block)
 		destination := layout.block.storage(output, block)
 		lower := layout.packed.bytes(destination)
 		high := layout.high.bytes(destination)
 		scaleData := layout.scales.bytes(destination)
-		levels := make([]int8, layout.block.width)
-		scales := make([]float32, layout.block.width/16)
 		var maxScale, maxAbsoluteScale float32
 		for group := 0; group < layout.block.width/16; group++ {
 			scale, err := makeQXQuants(

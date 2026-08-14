@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "typed-model-facts",
-          "title": "Replace dimension-derived model behavior and duplicate dtype whitelists with admitted typed profile and storage policies",
-          "status": "open",
-          "verify": "go test ./internal/model ./internal/modelrecipe ./internal/inference -count=1 -v"
-        },
-        {
           "id": "hot-path-scratch",
           "title": "Reuse sampling and quantization scratch so token and block loops allocate no maps or variable slices",
           "status": "open",

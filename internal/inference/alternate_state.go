@@ -402,18 +402,9 @@ func gemma3nWeightedRMS(
 	}
 	result := input.Clone()
 	width := int(input.Shape.Dims[0])
-	for token := 0; token < int(input.Shape.Dims[1]); token++ {
-		base := token * width
-		var squared float64
-		for index := range width {
-			value := float64(input.Data[base+index])
-			squared += value * value
-		}
-		scale := 1 / float32(math.Sqrt(squared/float64(width)+float64(epsilon)))
-		for index := range width {
-			result.Data[base+index] *= scale * weight.Data[index]
-		}
-	}
+	hostmath.RMSNormInto(
+		result.Data, input.Data, weight.Data, int(input.Shape.Dims[1]), width, float64(epsilon),
+	)
 	return result, nil
 }
 

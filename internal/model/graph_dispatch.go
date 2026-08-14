@@ -341,6 +341,12 @@ func executeLayerInstruction(
 		if result.Key != nil || result.Value != nil {
 			execution.result.Key, execution.result.Value = result.Key, result.Value
 		}
+		// Propagate the captured attention query/scale (set only by softmax
+		// attention builders) so the read-only attention workbench can recompute
+		// per-head weights; nil query means the builder does not expose it.
+		if result.Query != nil {
+			execution.result.Query, execution.result.AttentionScale = result.Query, result.AttentionScale
+		}
 		if len(result.States) > 0 {
 			execution.result.States = result.States
 		}

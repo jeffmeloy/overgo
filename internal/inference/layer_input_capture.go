@@ -15,6 +15,66 @@ type layerInputCapture struct {
 	order     []int32
 	requested map[int32]struct{}
 	values    map[int32]reference.Value
+	// Attention capture (optional): for attnLayer (>=0) the forward records the
+	// scaled per-head query and the post-RoPE key of that layer plus the op's
+	// scale/head geometry, for the read-only attention workbench.
+	attnLayer int32
+	attnScale float32
+	attnHeads int
+	attnKV    int
+	attnDim   int
+	attnQuery reference.Value
+	attnKey   reference.Value
+}
+
+// AttentionCapture: one layer's attention inputs on host, for recomputing
+// softmax(scale·Q·Kᵀ) per head. Query/Key are row-major with the given shapes.
+type AttentionCapture struct {
+	Layer   int
+	Tokens  int
+	Heads   int
+	KVHeads int
+	HeadDim int
+	Scale   float32
+	Query   reference.Value
+	Key     reference.Value
+}
+
+// ExtractAttention: one cacheless forward that records the scaled query and key
+// of a single layer, for host recomputation of attention weights. Read-only.
+func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.TokenID, layer int32) (AttentionCapture, error) {
+	if r == nil {
+		return AttentionCapture{}, errors.New("inference: runner is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return AttentionCapture{}, errors.New("inference: runner is closed")
+	}
+	if !r.forwardProgram().LayerCapture() {
+		return AttentionCapture{}, errors.New("inference: attention capture is unsupported for this architecture")
+	}
+	if layer < 0 || int(layer) >= len(r.weights.Layers) {
+		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d is out of range", layer)
+	}
+	capture := &layerInputCapture{
+		requested: map[int32]struct{}{},
+		values:    map[int32]reference.Value{},
+		attnLayer: layer,
+	}
+	if _, _, err := r.forwardCachedProjectedChunkModeLocked(
+		ctx, tokenIDs, nil, ProjectedInputs{}, true, capture,
+	); err != nil {
+		return AttentionCapture{}, err
+	}
+	if capture.attnQuery.Data == nil || capture.attnKey.Data == nil {
+		return AttentionCapture{}, fmt.Errorf("inference: layer %d does not expose attention query (unsupported block type)", layer)
+	}
+	return AttentionCapture{
+		Layer: int(layer), Tokens: len(tokenIDs),
+		Heads: capture.attnHeads, KVHeads: capture.attnKV, HeadDim: capture.attnDim,
+		Scale: capture.attnScale, Query: capture.attnQuery, Key: capture.attnKey,
+	}, nil
 }
 
 // ExtractLayerInputs: full-sequence pre-layer hidden rows.
@@ -70,6 +130,7 @@ func newLayerInputCapture(layerIDs []int32, layers int) (*layerInputCapture, err
 		order:     slices.Clone(layerIDs),
 		requested: make(map[int32]struct{}, len(layerIDs)),
 		values:    make(map[int32]reference.Value, len(layerIDs)),
+		attnLayer: -1,
 	}
 	for _, layer := range layerIDs {
 		if layer < 0 || int(layer) >= layers {

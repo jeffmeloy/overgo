@@ -232,6 +232,12 @@ type DenseBlockResult struct {
 	Value     *tensor.Tensor
 	Auxiliary *tensor.Tensor
 	States    CacheStates[*tensor.Tensor]
+	// Query and AttentionScale expose the attention op's inputs for read-only
+	// analysis (the attention workbench recomputes softmax(scale·Q·Kᵀ) on the
+	// host). Query is the scaled per-head query passed to the attention op; it is
+	// set only by the dense-causal build. Nil elsewhere.
+	Query          *tensor.Tensor
+	AttentionScale float32
 }
 
 type denseBlockContext struct {
@@ -377,7 +383,10 @@ func buildPolicyAttentionMix(
 	if err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: attention, Key: cacheKey, Value: cacheValue}, c.builder.Err()
+	return DenseBlockResult{
+		Output: attention, Key: cacheKey, Value: cacheValue,
+		Query: query, AttentionScale: attentionScale,
+	}, c.builder.Err()
 }
 
 func buildPolicyFeedForwardMix(

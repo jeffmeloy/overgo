@@ -114,6 +114,12 @@ func (h *Handler) analysisCapabilities() analyzeCapabilities {
 	}
 	if support, ok := h.generator.(HiddenStateCaptureSupportAPI); ok {
 		capabilities.HiddenStates = support.SupportsHiddenStateCapture()
+		// Attention capture rides the same graph-capture mechanism (the layer
+		// capture flag), so it is available exactly when hidden-state capture is
+		// and the generator exposes the attention extractor.
+		if _, hasAttention := h.generator.(AttentionCaptureAPI); hasAttention {
+			capabilities.Attention = capabilities.HiddenStates
+		}
 	}
 	return capabilities
 }

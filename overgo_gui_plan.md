@@ -51,13 +51,17 @@ nav — top-level sections, each holding one or more tabs. A tab self-registers 
 | **Inference** | Chat | **Done** — streaming `/v1/chat/completions`, thin-client history, SSE live, system prompt, temp/max-tokens, stop/clear. Live-verified on Qwen3.5-9B. |
 | **Datasets** | Datasets | **Scaffold** — section navigable; browse backend next (`/datasets`). |
 | **Training** | Runs | **Scaffold** — read-only; browse backend next (`/runs`, RepoDB). |
-| **Workbench** | Model · Vocabulary · Logit lens · Hidden states | **Done** — Tier 1 + Tier 2 (below), all live-verified. |
+| **Workbench** | Model · Vocabulary · Logit lens · Hidden states · Attention | **Done** — Tier 1 + Tier 2 + Tier 3 (below), all live-verified on Qwen2.5-0.5B. |
 
 **Done:** section shell; Inference chat; serving/embed (§3 D1); landing/probe; Tier 1
 (model/vocab inspection + logit/probability/**entropy** lens); Tier 2 (hidden-state capture via
 `ExtractLayerInputs` → distribution-free structure: distance matrices, kNN, non-metric MDS —
 see §5A/§10 and the metric-discipline note); Tier 2 cross-cutting (capability gating via the
-`/analyze/model` `analysis` block; no-silent-truncation).
+`/analyze/model` `analysis` block; no-silent-truncation); **Tier 3 attention** (`ExtractAttention`
+captures the scaled per-head query + post-RoPE key at the attention-op boundary; the host
+recomputes exact `softmax(scale·Q·Kᵀ)` per head with a causal mask and GQA head mapping — no
+CUDA kernel change; `/analyze/attention` + `mod/analyze_attention.js` heatmap, `analysis.attention`
+gated on capture support).
 
 **Next (non-blocking):** the **browse backend** for Datasets + Training — modeled on
 `adaptive_new`'s API (`dataset-registry`, `artifact-runs`/`runs`), read-only:
@@ -69,8 +73,14 @@ see §5A/§10 and the metric-discipline note); Tier 2 cross-cutting (capability 
   metrics; drill into `evaluation`/`evidence` artifacts. No job control (per decision).
 - Replace the two scaffold modules with real tables/detail views.
 
-**Deferred (blocking):** Tier 3 attention heatmaps — deepest in the attention cone the CUDA
-work rewrote; the client already gates it (`analysis.attention=false`). See §10 Tier 3.
+**Tier 3 attention — done (not blocked).** Rather than an eager/analysis attention *kernel*, the
+capture happens on the **host**: the compiled attention builder (`buildPolicyAttentionMix`) already
+produces the post-RoPE, post-query-scale query and the post-RoPE key just before the flash op; it
+now surfaces them on `DenseBlockResult` (propagated through the compiled-layer merge in
+`graph_dispatch.go`), `runner_layers.go` adds them to the graph outputs for a target layer, and
+`ExtractAttention` returns them with head geometry + scale. The server recomputes
+`softmax(scale·Q·Kᵀ)` — faithful to the kernel's pre-softmax logits because Q/K/scale are captured
+at the op boundary. No flash/attention CUDA change. See §10 Tier 3.
 
 ---
 
@@ -326,13 +336,20 @@ rank/neighbor information.
 Client: `mod/analyze_states.js` — layer selector, distance-matrix heatmap + neighbor graph,
 optional rank-based 2D/3D scatter (method dropdown lists only assumption-free layouts by default).
 
-**Tier 3 — needs an analysis-mode attention path (stretch, largest engine cost):**
+**Tier 3 — done via host recompute (no kernel change):**
 
-| Lophius capability | Gap in overgo | Plan |
+| Lophius capability | Gap in overgo | Resolution (shipped) |
 |---|---|---|
-| Attention-score heatmaps per layer/head | overgo's **flash-attention kernels never materialize** the `[heads][q][k]` score matrix (that's the point of flash attention) | Add an **eager/analysis attention path** (or a capture kernel) that emits the score matrix for a bounded prompt when an analysis request asks for it; strictly opt-in and length-capped |
+| Attention-score heatmaps per layer/head | overgo's **flash-attention kernels never materialize** the `[heads][q][k]` score matrix (that's the point of flash attention) | **Capture Q/K at the op boundary, recompute on the host.** The compiled attention builder already has the post-RoPE, post-query-scale query and post-RoPE key immediately before the flash op; `DenseBlockResult` now surfaces them (`Query`, `AttentionScale`), the compiled-layer merge propagates them, `runner_layers.go` emits them as graph outputs for one target layer, and `ExtractAttention` returns them with head geometry. `/analyze/attention` computes `softmax(scale·Q·Kᵀ)` per head with a causal mask + GQA head mapping. Faithful to the kernel's pre-softmax logits (Q/K/scale are exactly the op's inputs); opt-in and length-capped (≤48 positions). **No flash/attention CUDA change.** |
 
-Client: `mod/analyze_attention.js` — layer/head pickers, `[q][k]` heatmap (canvas), row-normalized.
+Client: `mod/analyze_attention.js` — layer/head pickers, `[q][k]` heatmap (SVG), fixed 0..1 scale
+(attention weights are genuine probabilities, not an inferred range), token-index legend.
+
+**Verification (live, Qwen2.5-0.5B):** `ExtractAttention` geometry probe confirms the captured
+`Query.Shape == [headDim, heads, tokens]` / `Key == [headDim, kvHeads, tokens]` column-major layout;
+a host-math unit test pins the softmax/causal/GQA arithmetic; a full HTTP e2e test asserts every
+head's rows are causal (upper triangle zero) and sum to 1; browser smoke confirms the heatmap
+renders and the head selector redraws. Gated engine tests use `OVERGO_QWEN2_MODEL`.
 
 ### Deliberate divergences from lophius (call out, don't paper over)
 

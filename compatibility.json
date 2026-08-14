@@ -224,7 +224,7 @@
           "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
           "path": "internal/inference/runner_layers.go",
           "role": "source",
-          "identity": "file:sha256:a05a69ef61da2a10266690afcc650748c5c6ec54098d6ddb75f3338f8608b0c1"
+          "identity": "file:sha256:acaa2b9d153f4170cfd477b2cded57c6d862d2dfa03f9bb1fadfefa464e1194e"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",
@@ -801,7 +801,7 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:5b431a06b3b737dea5f55bea023e28c7f02a7feb2dda7c76964bd6d4a89cf6eb"
+          "identity": "file:sha256:ced27bf856a999fdf4aa2da1f48b1b318f8763ba226ed1a420950cbf0b425838"
         },
         {
           "contains": "func ReadWeights(",

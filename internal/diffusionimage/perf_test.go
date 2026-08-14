@@ -11,9 +11,7 @@ import (
 // real artifact (1x3x32x32 — the vendor-parity input). Evidence probe for
 // the performance leg; the at-or-below verdict lives in the plan record.
 func TestForwardWall(t *testing.T) {
-	if testing.Short() {
-		t.Skip("loads the real artifact; skipped in -short")
-	}
+	requireLongTest(t)
 	dir := artifactDir(t)
 	loadStart := time.Now()
 	m, err := Load(dir)

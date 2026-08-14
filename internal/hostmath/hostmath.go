@@ -80,13 +80,26 @@ func GELUErfInPlace(v []float32) {
 	}
 }
 
-// RopeInvFreq: the default rotary inverse-frequency ladder 1/theta^(2i/d).
-func RopeInvFreq(theta float64, headDim int) []float64 {
-	out := make([]float64, headDim/2)
+// RopeInvFreq: the default rotary inverse-frequency ladder 1/theta^(2i/d). d is
+// the rotary width (== head_dim for full rope; < head_dim for partial rope).
+func RopeInvFreq(theta float64, ropeDim int) []float64 {
+	out := make([]float64, ropeDim/2)
 	for i := range out {
-		out[i] = 1 / math.Pow(theta, float64(2*i)/float64(headDim))
+		out[i] = 1 / math.Pow(theta, float64(2*i)/float64(ropeDim))
 	}
 	return out
+}
+
+// RopeWidth resolves the rotary width applied per head: ropeDim when it is a
+// valid partial factor in (0, headDim], else the full headDim (full-rope
+// default). Single owner of the serving partial-rope convention: only the first
+// RopeWidth dims of each head row are rotated (NeoX split-half), the remainder
+// pass through unrotated — matching reference.ropeNeoX with rotary<width.
+func RopeWidth(ropeDim, headDim int) int {
+	if ropeDim <= 0 || ropeDim > headDim {
+		return headDim
+	}
+	return ropeDim
 }
 
 // ApplyRotaryHalf rotates half-split pairs (i, i+d/2) of one head row by

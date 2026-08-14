@@ -1,57 +1,25 @@
 package main
 
 import (
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"overgo/internal/densecausal"
 	"overgo/internal/safetensors"
+	"overgo/internal/testutil"
 )
 
-// tinyLlama returns the weights+shapes of a minimal valid tied-embedding llama
-// (no attention bias) that densecausal.Load/NewModel accept and Train can step.
-// Values are small deterministic magnitudes so the training step stays finite.
-func tinyLlama() (map[string][]float32, map[string][]int) {
-	const vocab, hidden, heads, headDim, kvHeads, inter, layers = 8, 8, 2, 4, 1, 16, 1
-	qOut := heads * headDim
-	kvOut := kvHeads * headDim
-	weights := map[string][]float32{}
-	shapes := map[string][]int{}
-	seed := 0
-	add := func(name string, dims ...int) {
-		n := 1
-		for _, d := range dims {
-			n *= d
-		}
-		values := make([]float32, n)
-		for i := range values {
-			seed++
-			values[i] = float32(math.Sin(float64(seed))) * 0.1
-		}
-		weights[name] = values
-		shapes[name] = dims
-	}
-	add("model.embed_tokens.weight", vocab, hidden)
-	for l := 0; l < layers; l++ {
-		p := fmt.Sprintf("model.layers.%d.", l)
-		add(p+"self_attn.q_proj.weight", qOut, hidden)
-		add(p+"self_attn.k_proj.weight", kvOut, hidden)
-		add(p+"self_attn.v_proj.weight", kvOut, hidden)
-		add(p+"self_attn.o_proj.weight", hidden, qOut)
-		add(p+"mlp.gate_proj.weight", inter, hidden)
-		add(p+"mlp.up_proj.weight", inter, hidden)
-		add(p+"mlp.down_proj.weight", hidden, inter)
-		add(p+"input_layernorm.weight", hidden)
-		add(p+"post_attention_layernorm.weight", hidden)
-	}
-	add("model.norm.weight", hidden)
-	return weights, shapes
+func writeArtifactDir(t *testing.T, dir string, weights map[string][]float32, shapes map[string][]int) {
+	t.Helper()
+	writeArtifactDirTyped(t, dir, weights, shapes, "llama")
 }
 
-func writeArtifactDir(t *testing.T, dir string, weights map[string][]float32, shapes map[string][]int) {
+// writeArtifactDirTyped writes the fixture with the given model_type; qwen2 is
+// the bias-bearing family (Load requires qkv biases for it), llama forbids them.
+func writeArtifactDirTyped(t *testing.T, dir string, weights map[string][]float32, shapes map[string][]int, modelType string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -59,12 +27,82 @@ func writeArtifactDir(t *testing.T, dir string, weights map[string][]float32, sh
 	if err := safetensors.Save(filepath.Join(dir, "model.safetensors"), weights, shapes, nil); err != nil {
 		t.Fatalf("Save fixture: %v", err)
 	}
-	config := `{"model_type":"llama","num_attention_heads":2,"head_dim":4,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`
+	config := `{"model_type":"` + modelType + `","num_attention_heads":2,"head_dim":4,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(config), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "tokenizer.json"), []byte(`{"model":{"type":"BPE"}}`), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// addAttnBias augments a dense-causal fixture with the q/k/v projection biases
+// that make densecausal.Load derive Dims.AttnBias=true -- a trait the device
+// training backend does not support. out dims match the projection out-dims
+// (Heads*HeadDim for q, KVHeads*HeadDim for k/v).
+func addAttnBias(weights map[string][]float32, shapes map[string][]int, layers, qOut, kvOut int) {
+	for layer := 0; layer < layers; layer++ {
+		prefix := "model.layers." + strconv.Itoa(layer) + ".self_attn."
+		for _, b := range []struct {
+			name string
+			out  int
+		}{
+			{prefix + "q_proj.bias", qOut},
+			{prefix + "k_proj.bias", kvOut},
+			{prefix + "v_proj.bias", kvOut},
+		} {
+			weights[b.name] = make([]float32, b.out)
+			shapes[b.name] = []int{b.out}
+		}
+	}
+}
+
+// TestTrainAttnBiasRoutedToHostAtSelection proves the CUDA training admission
+// gate: a model with attention bias -- unsupported by the device training
+// backend -- is routed to the HOST path at SELECTION time (before any device
+// session is constructed), never failing mid-session. runTraining is asked to
+// prefer the device (preferDevice=true); on GPU hardware, without the
+// selection-time predicate this model would reach TrainDeviceResident and error on
+// the unsupported bias. Instead it must return backend "host" with a finite
+// trajectory. Host-only: no GPU required.
+func TestTrainAttnBiasRoutedToHostAtSelection(t *testing.T) {
+	const layers = 1
+	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
+		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4,
+		KVHeads: 1, Intermediate: 16, Layers: layers, Seed: 2,
+	})
+	addAttnBias(weights, shapes, layers, 2*4 /*Heads*HeadDim*/, 1*4 /*KVHeads*HeadDim*/)
+
+	src := filepath.Join(t.TempDir(), "src")
+	writeArtifactDirTyped(t, src, weights, shapes, "qwen2")
+
+	model, err := densecausal.Load(src)
+	if err != nil {
+		t.Fatalf("Load bias fixture: %v", err)
+	}
+	if !model.Dims.AttnBias {
+		t.Fatal("fixture must derive AttnBias=true")
+	}
+	// The device backend must refuse this model at selection time.
+	if ok, reason := densecausal.DeviceTrainingSupported(model.Dims); ok {
+		t.Fatal("attention-bias model must be refused by DeviceTrainingSupported")
+	} else if reason == "" {
+		t.Fatal("refusal must carry a reason")
+	}
+
+	tokens := []int{1, 2, 3, 4, 5}
+	traj, backend, err := runTraining(model, tokens, 1, 0, 0.9, true, false) // prefer device
+	if err != nil {
+		t.Fatalf("runTraining routed a bias model into a device session (mid-session failure): %v", err)
+	}
+	if backend != "host" {
+		t.Fatalf("backend = %q, want host (bias model must fall back at selection time)", backend)
+	}
+	if len(traj) != 1 || math.IsNaN(traj[0]) || math.IsInf(traj[0], 0) {
+		t.Fatalf("trajectory = %v, want one finite loss", traj)
+	}
+	if _, _, err := runTraining(model, tokens, 1, 0, 0.9, true, true); err == nil {
+		t.Fatal("frozen lexical request silently fell back to host")
 	}
 }
 
@@ -74,7 +112,10 @@ func writeArtifactDir(t *testing.T, dir string, weights map[string][]float32, sh
 // This proves the writer produces loader-compatible artifacts and that the
 // production caller is not inert.
 func TestTrainGlueLoadStepSaveReload(t *testing.T) {
-	weights, shapes := tinyLlama()
+	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
+		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4,
+		KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 1,
+	})
 	src := filepath.Join(t.TempDir(), "src")
 	writeArtifactDir(t, src, weights, shapes)
 
@@ -85,7 +126,7 @@ func TestTrainGlueLoadStepSaveReload(t *testing.T) {
 
 	before := append([]float32(nil), model.Weights["model.embed_tokens.weight"]...)
 	tokens := []int{1, 2, 3, 4, 5}
-	traj, backend, err := runTraining(model, tokens, 1, 0, 0.9, false) // host path
+	traj, backend, err := runTraining(model, tokens, 1, 0, 0.9, false, false) // host path
 	if err != nil {
 		t.Fatalf("runTraining: %v", err)
 	}

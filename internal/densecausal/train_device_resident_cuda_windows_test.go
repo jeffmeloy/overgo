@@ -1,0 +1,104 @@
+//go:build windows
+
+package densecausal
+
+import (
+	"math"
+	"slices"
+	"testing"
+
+	"overgo/internal/cuda/device"
+	cudatest "overgo/internal/cuda/testutil"
+)
+
+// TestTrainDeviceResidentMatchesHost checks that TrainDeviceResident -- which keeps
+// the layer matrices and their Muon momentum resident on the device across all steps
+// (uploaded once, downloaded only at checkpoint, no per-step weight scatter/gather)
+// -- reproduces host Train's loss trajectory within fp32 tolerance on identical
+// seeded models, and that training reduces the loss.
+func TestTrainDeviceResidentMatchesHost(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	mHost := tinyMuonModel(t)
+	mDev := tinyMuonModel(t) // same seed -> identical initial weights
+	tokens := []int{1, 5, 9, 3, 7, 2, 11, 4}
+	const steps = 12
+
+	trajHost, err := mHost.Train(tokens, steps, 0, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trajDev, err := mDev.TrainDeviceResident(worker, tokens, steps, 0, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(trajHost) != len(trajDev) {
+		t.Fatalf("trajectory lengths differ: host %d device %d", len(trajHost), len(trajDev))
+	}
+	var worst float64
+	for i := range trajHost {
+		if d := math.Abs(trajHost[i] - trajDev[i]); d > worst {
+			worst = d
+		}
+	}
+	t.Logf("trajectory host[0]=%.6f device[0]=%.6f ... host[last]=%.6f device[last]=%.6f; worst |d|=%.3e",
+		trajHost[0], trajDev[0], trajHost[len(trajHost)-1], trajDev[len(trajDev)-1], worst)
+	if !(trajDev[len(trajDev)-1] < trajDev[0]) {
+		t.Fatalf("resident device training did not reduce loss: %.5f -> %.5f", trajDev[0], trajDev[len(trajDev)-1])
+	}
+	if worst > 1e-3 {
+		t.Fatalf("resident device trajectory diverges from host: worst |d|=%.3e > 1e-3", worst)
+	}
+
+	// The final checkpointed weights must match the host-trained weights: the resident
+	// matrices came back from the device, the host-owned tensors from the host optimizer.
+	var worstW float64
+	for name, hw := range mHost.Weights {
+		dw := mDev.Weights[name]
+		for i := range hw {
+			if d := math.Abs(float64(hw[i] - dw[i])); d > worstW {
+				worstW = d
+			}
+		}
+	}
+	t.Logf("final weight worst |d|=%.3e", worstW)
+	if worstW > 1e-3 {
+		t.Fatalf("resident device final weights diverge from host: worst |d|=%.3e > 1e-3", worstW)
+	}
+}
+
+func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	model := tinyMuonModel(t)
+	tokens := []int{1, 5, 9, 3, 7, 2, 11, 4}
+	want, _, err := model.Loss(tokens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	embedBefore := slices.Clone(model.Weights["model.embed_tokens.weight"])
+	trajectory, err := model.TrainDeviceResidentFrozenLexical(worker, tokens, 8, 0, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if delta := math.Abs(trajectory[0] - want); delta > 2e-4 {
+		t.Fatalf("initial loss delta %.3e exceeds device floor", delta)
+	}
+	if !(trajectory[len(trajectory)-1] < trajectory[0]) {
+		t.Fatalf("frozen resident loss %.6f -> %.6f", trajectory[0], trajectory[len(trajectory)-1])
+	}
+	if !slices.Equal(embedBefore, model.Weights["model.embed_tokens.weight"]) {
+		t.Fatal("frozen lexical table changed")
+	}
+}

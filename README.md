@@ -22,8 +22,11 @@ only project-owned non-Go runtime components.
 
 The implementation is currently experimental. See:
 
-- `PORT_PLAN.md` for the architecture and phased plan;
-- `IMPLEMENTATION_STATUS.md` for the live roadmap and current blockers;
+- `skill.md` for architecture and iteration doctrine;
+- `docs/plan.json` for gate-executable open work;
+- `docs/adaptive_new_parity_report.md` for the current capability and
+  performance assessment;
+- `docs/training_plan.md` for the compiled Muon training design;
 - `docs/COMPATIBILITY.md` for the generated model/feature matrix;
 - `docs/IMPLEMENTATION_LOG.md` for archived validation history;
 - `docs/REPODB.md` for artifact identity and provenance-store contracts;

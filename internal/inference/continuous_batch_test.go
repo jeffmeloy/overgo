@@ -167,7 +167,11 @@ func TestPersistentDeviceCacheCapabilityProfile(t *testing.T) {
 	}
 	for architecture, want := range tests {
 		spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}}
-		if got := supportsPersistentDeviceCache(spec); got != want {
+		plan, err := model.CompileModelPlan(spec, model.Weights{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := plan.Forward().PersistentDeviceCache(); got != want {
 			t.Fatalf("%s support = %t, want %t", architecture, got, want)
 		}
 	}
@@ -233,7 +237,11 @@ func TestRecurrentPrimaryStateShapesCoverFusedFamilies(t *testing.T) {
 				},
 			}
 			info := model.LayerWeights{Recurrent: test.recurrent}
-			schema, err := model.CacheSchema(spec, 0, info, 1)
+			plan, err := model.CompileModelPlan(spec, model.Weights{Layers: []model.LayerWeights{info}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			schema, err := plan.CacheSchema(0, 1)
 			if err != nil {
 				t.Fatal(err)
 			}

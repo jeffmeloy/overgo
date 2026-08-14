@@ -292,9 +292,6 @@ func TestTornTailRecovered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !store.Recovered() {
-		t.Fatal("torn tail not reported")
-	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}

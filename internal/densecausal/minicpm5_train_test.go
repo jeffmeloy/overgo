@@ -107,9 +107,7 @@ func TestUntiedHeadWithoutTensorRejected(t *testing.T) {
 }
 
 func TestRealMiniCPM5ArtifactTrainingStepDecreasesLoss(t *testing.T) {
-	if testing.Short() {
-		t.Skip("loads ~2GB weights and runs a 24-layer host backward; skipped in -short")
-	}
+	requireLongTest(t)
 	// First untied artifact on the ladder (tie_word_embeddings=false,
 	// head_dim 128 != hidden/heads 96, sharded-index checkpoint).
 	runRealArtifactStep(t, "MiniCPM5-1B")

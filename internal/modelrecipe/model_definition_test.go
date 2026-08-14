@@ -33,7 +33,7 @@ const (
 
 func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	profile, _ := model.LookupArchitecture(definitionArchitecture)
-	profile.DenseGraph = model.DenseGraphTalkie
+	profile.LayerTopology = model.LayerTopologyCausalPostQKNormSkip
 	profileDocument, err := NewProfileDocument(profile)
 	if err != nil {
 		t.Fatal(err)
@@ -53,11 +53,11 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := document.ContentBytes()
+	content, err := document.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseModelDefinitionDocument(content)
+	parsed, err := ParseModelDefinitionDocument(content.Data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,6 +67,7 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	}
 	definition, err := InferenceWithModelDefinition(
 		modelID, profileDocument.ID, document.ID, recipe.PlacementHost, DecodeSessionRequest,
+		recipe.ResidencyHostCache,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +76,7 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if parsed.ID != document.ID || plan.Model.Profile().DenseGraph != model.DenseGraphTalkie {
+	if parsed.ID != document.ID || plan.Model.Profile().LayerTopology != model.LayerTopologyCausalPostQKNormSkip {
 		t.Fatalf("resolved definition/plan = (%s, %+v)", parsed.ID, plan.Model.Profile())
 	}
 }
@@ -97,7 +98,11 @@ func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, err := NewModelDefinitionFromGGUF(file, profileDocument, inventory.TensorInventory)
+	spec, err := model.ReadSpecWithProfile(file, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +117,11 @@ func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondDocument, err := NewModelDefinitionFromGGUF(secondFile, profileDocument, secondInventory.TensorInventory)
+	secondSpec, err := model.ReadSpecWithProfile(secondFile, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondDocument, err := NewModelDefinitionDocument(profileDocument, secondInventory.TensorInventory, secondSpec)
 	if err != nil {
 		t.Fatal(err)
 	}

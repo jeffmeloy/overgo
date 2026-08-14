@@ -14,36 +14,12 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-type singleHeadMTPBlock struct {
-	output, key, value *tensor.Tensor
-}
-
 type singleHeadMTPAdapter struct {
 	nodePrefix                         string
 	layer                              model.LayerWeights
+	program                            model.CompiledLayerProgram
 	embeddingNorm, hiddenNorm, project gguf.TensorInfo
 	tokenEmbedding, outputNorm, output *gguf.TensorInfo
-	buildInput                         func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, error)
-	buildBlock                         func(*tensor.Builder, *tensor.Tensor, model.Spec, model.LayerGraphWeights, []uint32, *tensor.Tensor, *tensor.Tensor) (singleHeadMTPBlock, error)
-	buildOutputs                       func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor, *tensor.Tensor, model.Spec) (*tensor.Tensor, *tensor.Tensor, error)
-}
-
-func compiledDraftBlock(
-	program model.DraftLayerProgram,
-) func(*tensor.Builder, *tensor.Tensor, model.Spec, model.LayerGraphWeights, []uint32, *tensor.Tensor, *tensor.Tensor) (singleHeadMTPBlock, error) {
-	return func(builder *tensor.Builder, input *tensor.Tensor, _ model.Spec, weights model.LayerGraphWeights,
-		positions []uint32, pastKey, pastValue *tensor.Tensor) (singleHeadMTPBlock, error) {
-		plan := program.Plan
-		block, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-			Spec: program.Spec, Weights: weights, Plan: &plan,
-			Context: model.CachedBlockContext{
-				Builder: builder, Input: input, Positions: positions,
-				PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
-				CacheWrite: tensor.CacheWriteConcat, Sequences: 1,
-			},
-		})
-		return singleHeadMTPBlock{output: block.Output, key: block.Key, value: block.Value}, err
-	}
 }
 
 func (r *Runner) hasDraftSession(kind model.DraftKind, catalogs int) bool {
@@ -57,9 +33,9 @@ func (r *Runner) hasDraftSession(kind model.DraftKind, catalogs int) bool {
 func (r *Runner) advanceSingleHeadMTP(
 	ctx context.Context,
 	tokenID tokenizer.TokenID,
-	session *Qwen35MTPSession,
+	session *MTPSession,
 	adapter singleHeadMTPAdapter,
-) (reference.Value, *Qwen35MTPSession, error) {
+) (reference.Value, *MTPSession, error) {
 	embeddingInfo := r.weights.TokenEmbedding
 	if adapter.tokenEmbedding != nil {
 		embeddingInfo = *adapter.tokenEmbedding
@@ -88,8 +64,8 @@ func (r *Runner) advanceSingleHeadMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	current, err := adapter.buildInput(
-		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection, r.spec,
+	current, err := adapter.program.BuildDraftInput(
+		builder, tokenInput, hiddenInput, embeddingNorm, hiddenNorm, projection,
 	)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -99,9 +75,12 @@ func (r *Runner) advanceSingleHeadMTP(
 		pastKey = graph.input(adapter.nodePrefix+".past_key", session.Layer.Key)
 		pastValue = graph.input(adapter.nodePrefix+".past_value", session.Layer.Value)
 	}
-	block, err := adapter.buildBlock(
-		builder, current, r.spec, graphWeights, []uint32{session.Position}, pastKey, pastValue,
-	)
+	plan := adapter.program.Layer()
+	block, err := adapter.program.Build(model.CachedBlockContext{
+		Builder: builder, Input: current, Positions: []uint32{session.Position},
+		PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
+		CacheWrite: tensor.CacheWriteConcat, Sequences: 1,
+	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -115,19 +94,19 @@ func (r *Runner) advanceSingleHeadMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	logits, nextHidden, err := adapter.buildOutputs(builder, block.output, outputNorm, output, r.spec)
+	logits, nextHidden, err := adapter.program.BuildDraftOutputs(builder, block.Output, outputNorm, output)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	results, err := graph.execute(logits, nextHidden, block.key, block.value)
+	results, err := graph.execute(logits, nextHidden, block.Key, block.Value)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
 	logitValue := results[logits]
 	logitValue.Data = r.finalizeLogits(logitValue.Data)
-	return logitValue, &Qwen35MTPSession{
+	return logitValue, &MTPSession{
 		TrunkCache:    session.TrunkCache,
-		Layer:         LayerCache{Key: results[block.key], Value: results[block.value]},
+		Layer:         LayerCache{Key: results[block.Key], Value: results[block.Value]},
 		PendingHidden: results[nextHidden], MTPStart: session.MTPStart,
 		Position: session.Position + 1, targetModel: session.targetModel,
 	}, nil
@@ -136,7 +115,7 @@ func (r *Runner) advanceSingleHeadMTP(
 func (target *Runner) newSingleHeadMTPSession(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
-) (*Qwen35MTPSession, error) {
+) (*MTPSession, error) {
 	hidden, cache, err := target.ForwardCached(ctx, tokenIDs, nil)
 	if err != nil {
 		return nil, err
@@ -147,7 +126,7 @@ func (target *Runner) newSingleHeadMTPSession(
 		return nil, err
 	}
 	position := effectiveCachePosition(cache)
-	return &Qwen35MTPSession{
+	return &MTPSession{
 		TrunkCache: cache, PendingHidden: last, MTPStart: position, Position: position,
 		targetModel: targetModel,
 	}, nil
@@ -192,17 +171,17 @@ func (r *Runner) advanceSingleHeadMTPVerification(
 	ctx context.Context,
 	target *Runner,
 	token tokenizer.TokenID,
-	session *Qwen35MTPSession,
+	session *MTPSession,
 	targetCache *KVCache,
-	advance func(tokenizer.TokenID, *Qwen35MTPSession) (reference.Value, *Qwen35MTPSession, error),
-) (reference.Value, *Qwen35MTPSession, error) {
+	advance func(tokenizer.TokenID, *MTPSession) (reference.Value, *MTPSession, error),
+) (reference.Value, *MTPSession, error) {
 	return advanceTargetVerification(
 		ctx, target, token, targetCache,
-		func() (*Qwen35MTPSession, error) {
+		func() (*MTPSession, error) {
 			_, next, err := advance(token, session)
 			return next, err
 		},
-		func(next *Qwen35MTPSession, hidden reference.Value, cache *KVCache) {
+		func(next *MTPSession, hidden reference.Value, cache *KVCache) {
 			next.PendingHidden = lastHiddenColumn(hidden)
 			next.TrunkCache = cache
 		},
@@ -210,7 +189,7 @@ func (r *Runner) advanceSingleHeadMTPVerification(
 }
 
 func (r *Runner) validateSingleHeadMTPSession(
-	session *Qwen35MTPSession,
+	session *MTPSession,
 	label string,
 	boundedContext bool,
 ) error {
@@ -247,7 +226,7 @@ func (r *Runner) validateSingleHeadMTPTarget(
 	label string,
 ) error {
 	if !mtpOnly || target == nil || targetMTPOnly ||
-		r.profile() != target.profile() ||
+		!r.program.Model.SameExecutionProfile(target.program.Model) ||
 		r.spec.EmbeddingLength != target.spec.EmbeddingLength ||
 		r.spec.VocabularySize != target.spec.VocabularySize ||
 		r.spec.HeadCount != target.spec.HeadCount || r.spec.HeadCountKV != target.spec.HeadCountKV ||
@@ -263,7 +242,7 @@ func (r *Runner) validateSingleHeadMTPTarget(
 
 func (r *Runner) validateSingleHeadMTPVerificationTarget(
 	target *Runner,
-	session *Qwen35MTPSession,
+	session *MTPSession,
 	mtpOnly bool,
 	label string,
 	validate func(*Runner) error,

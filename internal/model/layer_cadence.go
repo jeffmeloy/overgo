@@ -31,6 +31,17 @@ type LayerCadencePolicy struct {
 	MoE                   moeCadence
 	Sliding               slidingCadence
 	FullIndexerEveryLayer bool
+	FullIndexerContext    uint32
+	FullIndexerPrefix     uint32
+	FullIndexerPeriod     uint32
+}
+
+func (p LayerCadencePolicy) fullIndexer(context, layer uint32) bool {
+	if p.FullIndexerEveryLayer || p.FullIndexerContext > 0 && context < p.FullIndexerContext {
+		return true
+	}
+	return p.FullIndexerPeriod > 0 && (layer < p.FullIndexerPrefix ||
+		(layer-p.FullIndexerPrefix)%p.FullIndexerPeriod == 0)
 }
 
 func (p LayerCadencePolicy) recurrent(spec Spec, block uint32) bool {

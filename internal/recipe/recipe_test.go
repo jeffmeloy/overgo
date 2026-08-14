@@ -33,8 +33,8 @@ func fixtureRecipe(t *testing.T) (Definition, *Catalog) {
 	}
 	source := Node{ID: "source", Module: fixtureSourceModule, Placement: PlacementHost}
 	sink := Node{ID: "sink", Module: fixtureSinkModule, Placement: PlacementHost}
-	definition, err := NewDefinition(
-		TaskInference, modelID, []Node{sink, source},
+	definition, err := NewDefinitionWithDependencies(
+		TaskInference, []Dependency{{Role: DependencyModel, Artifact: modelID}}, []Node{sink, source},
 		[]Edge{{From: Endpoint{Node: source.ID, Port: "tokens"}, To: Endpoint{Node: sink.ID, Port: "tokens"}}},
 		nil,
 		[]Output{{Name: "logits", Data: DataLogits, Source: Endpoint{Node: sink.ID, Port: "logits"}}},
@@ -52,34 +52,31 @@ func TestDefinitionCanonicalIdentityAndValidation(t *testing.T) {
 	}
 	nodes := slices.Clone(definition.Nodes)
 	slices.Reverse(nodes)
-	rebuilt, err := NewDefinition(definition.Task, definition.Model, nodes, definition.Edges, definition.Inputs, definition.Outputs)
+	rebuilt, err := NewDefinitionWithDependencies(
+		definition.Task, definition.Dependencies, nodes, definition.Edges, definition.Inputs, definition.Outputs,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if rebuilt.ID != definition.ID {
 		t.Fatalf("canonical IDs differ: %s != %s", rebuilt.ID, definition.ID)
 	}
-	descriptor, err := definition.Descriptor()
-	if err != nil || descriptor.ID != definition.ID || descriptor.Schema != Schema {
-		t.Fatalf("descriptor = (%+v, %v)", descriptor, err)
+	content, err := definition.ArtifactContent()
+	if err != nil || content.Descriptor.ID != definition.ID || content.Descriptor.Schema != Schema {
+		t.Fatalf("content descriptor = (%+v, %v)", content.Descriptor, err)
 	}
 }
 
-func TestCatalogCloneOwnsModuleMap(t *testing.T) {
+func TestCatalogModuleResultDoesNotMutateCatalog(t *testing.T) {
 	_, catalog := fixtureRecipe(t)
-	cloned := catalog.Clone()
-	extra := Module{
-		ID: "fixture.extra", Tasks: []Task{TaskInference}, Placements: []Placement{PlacementHost},
-		Outputs: []Port{{Name: "value", Data: DataTensor, Cardinality: CardinalityOne}},
+	module, ok := catalog.Module("fixture.source")
+	if !ok {
+		t.Fatal("fixture module is absent")
 	}
-	if err := cloned.Register(extra); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := catalog.Module(extra.ID); ok {
-		t.Fatal("catalog clone mutated source")
-	}
-	if _, ok := cloned.Module(extra.ID); !ok {
-		t.Fatal("catalog clone lost registered module")
+	module.Tasks[0] = TaskTraining
+	stored, _ := catalog.Module(module.ID)
+	if stored.Tasks[0] == TaskTraining {
+		t.Fatal("catalog accessor exposed mutable module storage")
 	}
 }
 
@@ -144,9 +141,10 @@ func TestDefinitionReadsCanonicalLegacyVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor, err := parsed.Descriptor()
-	if err != nil || parsed.ID != legacy.ID || parsed.Version != LegacyVersion || descriptor.Schema != LegacySchema {
-		t.Fatalf("legacy definition = (%+v, %+v, %v)", parsed, descriptor, err)
+	artifactContent, err := parsed.ArtifactContent()
+	if err != nil || parsed.ID != legacy.ID || parsed.Version != LegacyVersion ||
+		artifactContent.Descriptor.Schema != LegacySchema {
+		t.Fatalf("legacy definition = (%+v, %+v, %v)", parsed, artifactContent.Descriptor, err)
 	}
 }
 
@@ -186,7 +184,9 @@ func TestDefinitionRejectsSchemaMismatchCycleAndDeadNode(t *testing.T) {
 		changed.Edges = slices.Clone(definition.Edges)
 		changed.Outputs = slices.Clone(definition.Outputs)
 		mutate(&changed)
-		changed, err := NewDefinition(changed.Task, changed.Model, changed.Nodes, changed.Edges, changed.Inputs, changed.Outputs)
+		changed, err := NewDefinitionWithDependencies(
+			changed.Task, changed.Dependencies, changed.Nodes, changed.Edges, changed.Inputs, changed.Outputs,
+		)
 		if err == nil {
 			err = changed.Validate(catalog)
 		}

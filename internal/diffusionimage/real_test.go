@@ -46,9 +46,7 @@ func TestRealCheckpointDerivedConfig(t *testing.T) {
 // FRESH per invocation — the matched performance protocol times this test
 // -count=5 against the adaptive twin, whose helper also loads per test.
 func TestRealCheckpointVendorParity(t *testing.T) {
-	if testing.Short() {
-		t.Skip("loads the real artifact; skipped in -short")
-	}
+	requireLongTest(t)
 	g := loadGolden[struct {
 		B, C, H, W int
 		X, Out     []float32

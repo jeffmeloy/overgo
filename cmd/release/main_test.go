@@ -3,6 +3,8 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 )
@@ -11,6 +13,15 @@ func TestReleaseCommandsIncludeDiffusion(t *testing.T) {
 	if len(releaseCommands) != 19 || !slices.Contains(releaseCommands, "repodb-import") ||
 		!slices.Contains(releaseCommands, "repodb-query") {
 		t.Fatalf("release commands = %v", releaseCommands)
+	}
+}
+
+func TestReleaseDocumentsExist(t *testing.T) {
+	root := filepath.Join("..", "..")
+	for _, name := range releaseDocuments {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(name))); err != nil {
+			t.Errorf("release document %s: %v", name, err)
+		}
 	}
 }
 

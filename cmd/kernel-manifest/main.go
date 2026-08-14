@@ -43,8 +43,12 @@ type module struct {
 	SourceDependencies []sourceDependency `json:"sourceDependencies,omitempty"`
 	Asset              string             `json:"asset"`
 	AssetSHA256        string             `json:"assetSha256"`
-	Functions          []string           `json:"functions"`
-	ArgumentLayouts    []argumentLayout   `json:"argumentLayouts"`
+	// CompilerFlags: optional per-module nvcc flag override recorded when a
+	// module deviates from the manifest-global compilerFlags. torch_cuda_randn
+	// omits -use_fast_math for bit-exact curand normals.
+	CompilerFlags   []string         `json:"compilerFlags,omitempty"`
+	Functions       []string         `json:"functions"`
+	ArgumentLayouts []argumentLayout `json:"argumentLayouts"`
 }
 
 type sourceDependency struct {
@@ -234,6 +238,7 @@ func fileHash(root, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
 }

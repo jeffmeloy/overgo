@@ -49,6 +49,7 @@ type DeepSeekOCRInput struct {
 type DeepSeekOCRRunner struct {
 	file                      *gguf.File
 	spec                      DeepSeekOCRSpec
+	attention                 visionAttentionPlan
 	samPosition, clipPosition reference.Value
 	cuda                      *projectorCUDA
 }
@@ -65,7 +66,7 @@ func OpenDeepSeekOCRWithOptions(path string, options DeepSeekOCROpenOptions) (*D
 		if err != nil {
 			return nil, err
 		}
-		runner := &DeepSeekOCRRunner{file: file, spec: spec}
+		runner := &DeepSeekOCRRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
 		runner.samPosition, err = loadProjectorHostTensor(context.Background(), file, "v.sam.pos_embd.weight")
 		if err != nil {
 			return nil, err
@@ -517,7 +518,7 @@ func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Te
 		q := builder.GroupSlice(qkv, 0, headWidth, uint64(r.spec.Heads), headWidth)
 		k := builder.GroupSlice(qkv, uint64(r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
 		v := builder.GroupSlice(qkv, uint64(2*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
-		attention := mustVisionAttentionPlan(r.spec.Hidden, r.spec.Heads, false).graph(builder, q, k, v)
+		attention := r.attention.graph(builder, q, k, v)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), patches+1)
 		attention = builder.Add(builder.MulMat(weight(prefix+"attn_out.weight"), attention), builder.Reshape(weight(prefix+"attn_out.bias"), uint64(r.spec.Hidden), 1))
 		hidden = builder.Add(hidden, attention)

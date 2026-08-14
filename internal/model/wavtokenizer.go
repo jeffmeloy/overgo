@@ -4,12 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"overgo/internal/tensor"
 )
 
-// WavPosNetGraphWeights: PosNet graph inputs
-type WavPosNetGraphWeights struct {
+// SequenceResidualGraphWeights: convolutional or attention residual inputs.
+type SequenceResidualGraphWeights struct {
 	Norm1, Norm1Bias, Conv1, Conv1Bias *tensor.Tensor
 	Norm2, Norm2Bias, Conv2, Conv2Bias *tensor.Tensor
 	AttentionNorm, AttentionNormBias   *tensor.Tensor
@@ -19,8 +20,8 @@ type WavPosNetGraphWeights struct {
 	AttentionOutput, AttentionOutBias  *tensor.Tensor
 }
 
-// WavConvNextGraphWeights: ConvNeXt graph inputs
-type WavConvNextGraphWeights struct {
+// SequenceConvGraphWeights: depthwise/pointwise residual inputs.
+type SequenceConvGraphWeights struct {
 	Depthwise, DepthwiseBias   *tensor.Tensor
 	Norm, NormBias             *tensor.Tensor
 	Pointwise1, Pointwise1Bias *tensor.Tensor
@@ -28,34 +29,55 @@ type WavConvNextGraphWeights struct {
 	Gamma                      *tensor.Tensor
 }
 
-// WavTokenizerGraphWeights: complete decoder graph inputs
-type WavTokenizerGraphWeights struct {
+// SequenceOutputGraphWeights: complete compiled sequence-output inputs.
+type SequenceOutputGraphWeights struct {
 	InputConv, InputConvBias   *tensor.Tensor
-	PosNet                     []WavPosNetGraphWeights
+	Residual                   []SequenceResidualGraphWeights
 	TokenNorm, TokenNormBias   *tensor.Tensor
-	ConvNext                   []WavConvNextGraphWeights
+	Convolution                []SequenceConvGraphWeights
 	OutputNorm, OutputNormBias *tensor.Tensor
 	Output, OutputBias         *tensor.Tensor
 }
 
-// BuildWavTokenizerDecoder: token IDs to audio-feature frames
-func BuildWavTokenizerDecoder(
+type sequenceResidualOperator uint8
+
+const (
+	sequenceResidualConvolution sequenceResidualOperator = iota
+	sequenceResidualAttention
+	sequenceResidualNormalization
+)
+
+var wavTokenizerResidualProgram = [...]sequenceResidualOperator{
+	sequenceResidualConvolution,
+	sequenceResidualConvolution,
+	sequenceResidualAttention,
+	sequenceResidualConvolution,
+	sequenceResidualConvolution,
+	sequenceResidualNormalization,
+}
+
+// SequenceOutputProgram: ordered sequence terminal math.
+type SequenceOutputProgram struct {
+	residuals                  []sequenceResidualOperator
+	convolutions, groupCount   uint32
+	embedding, positionWidth   uint64
+	groupEpsilon, layerEpsilon float32
+}
+
+// Build executes the compiled sequence-output program.
+func (p SequenceOutputProgram) Build(
 	builder *tensor.Builder,
 	embeddings *tensor.Tensor,
-	spec Spec,
-	weights WavTokenizerGraphWeights,
+	weights SequenceOutputGraphWeights,
 ) (*tensor.Tensor, error) {
 	if builder == nil || embeddings == nil {
-		return nil, errors.New("WavTokenizer decoder input is nil")
+		return nil, errors.New("sequence-output input is nil")
 	}
-	if spec.Profile().Forward != ForwardWavTokenizer {
-		return nil, errors.New("WavTokenizer decoder requires WavTokenizer forward policy")
+	if p.embedding == 0 || embeddings.Shape.Rank != 2 || embeddings.Shape.Dims[0] != p.embedding {
+		return nil, errors.New("sequence-output embedding shape is incompatible")
 	}
-	if embeddings.Shape.Rank != 2 || embeddings.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, errors.New("WavTokenizer decoder embedding shape is incompatible")
-	}
-	if len(weights.PosNet) != int(spec.PosNetBlockCount) || len(weights.ConvNext) != int(spec.ConvNextBlockCount) {
-		return nil, errors.New("WavTokenizer decoder graph layer count is incompatible")
+	if len(weights.Residual) != len(p.residuals) || len(weights.Convolution) != int(p.convolutions) {
+		return nil, errors.New("sequence-output graph layer count is incompatible")
 	}
 	if err := (graphWeights{
 		requireGraphWeight("input convolution", weights.InputConv),
@@ -66,16 +88,16 @@ func BuildWavTokenizerDecoder(
 		requireGraphWeight("output norm bias", weights.OutputNormBias),
 		requireGraphWeight("output", weights.Output),
 		requireGraphWeight("output bias", weights.OutputBias),
-	}).validate("WavTokenizer decoder"); err != nil {
+	}).validate("AudioDecoder decoder"); err != nil {
 		return nil, err
 	}
 
 	current := builder.Conv1DSame(embeddings, weights.InputConv, weights.InputConvBias, false)
-	for block, layer := range weights.PosNet {
+	for block, layer := range weights.Residual {
 		residual := current
-		scope := fmt.Sprintf("PosNet block %d", block)
-		switch block {
-		case 0, 1, 3, 4:
+		scope := fmt.Sprintf("residual block %d", block)
+		switch p.residuals[block] {
+		case sequenceResidualConvolution:
 			if err := (graphWeights{
 				requireGraphWeight("norm-1", layer.Norm1),
 				requireGraphWeight("norm-1 bias", layer.Norm1Bias),
@@ -85,17 +107,17 @@ func BuildWavTokenizerDecoder(
 				requireGraphWeight("norm-2 bias", layer.Norm2Bias),
 				requireGraphWeight("convolution-2", layer.Conv2),
 				requireGraphWeight("convolution-2 bias", layer.Conv2Bias),
-			}).validate("WavTokenizer " + scope); err != nil {
+			}).validate("sequence-output " + scope); err != nil {
 				return nil, err
 			}
-			current = builder.GroupNorm(current, layer.Norm1, layer.Norm1Bias, spec.GroupNormGroups, spec.GroupNormEpsilon)
+			current = builder.GroupNorm(current, layer.Norm1, layer.Norm1Bias, p.groupCount, p.groupEpsilon)
 			current = builder.SiLU(current)
 			current = builder.Conv1DSame(current, layer.Conv1, layer.Conv1Bias, false)
-			current = builder.GroupNorm(current, layer.Norm2, layer.Norm2Bias, spec.GroupNormGroups, spec.GroupNormEpsilon)
+			current = builder.GroupNorm(current, layer.Norm2, layer.Norm2Bias, p.groupCount, p.groupEpsilon)
 			current = builder.SiLU(current)
 			current = builder.Conv1DSame(current, layer.Conv2, layer.Conv2Bias, false)
 			current = builder.Add(current, residual)
-		case 2:
+		case sequenceResidualAttention:
 			if err := (graphWeights{
 				requireGraphWeight("attention norm", layer.AttentionNorm),
 				requireGraphWeight("attention norm bias", layer.AttentionNormBias),
@@ -107,12 +129,12 @@ func BuildWavTokenizerDecoder(
 				requireGraphWeight("attention V bias", layer.AttentionVBias),
 				requireGraphWeight("attention output", layer.AttentionOutput),
 				requireGraphWeight("attention output bias", layer.AttentionOutBias),
-			}).validate("WavTokenizer " + scope); err != nil {
+			}).validate("sequence-output " + scope); err != nil {
 				return nil, err
 			}
-			current = builder.GroupNorm(current, layer.AttentionNorm, layer.AttentionNormBias, spec.GroupNormGroups, spec.GroupNormEpsilon)
+			current = builder.GroupNorm(current, layer.AttentionNorm, layer.AttentionNormBias, p.groupCount, p.groupEpsilon)
 			tokens := current.Shape.Dims[1]
-			width := uint64(spec.PosNetEmbeddingLength)
+			width := p.positionWidth
 			query := builder.Reshape(builder.Conv1DSame(current, layer.AttentionQ, layer.AttentionQBias, false), width, 1, tokens)
 			key := builder.Reshape(builder.Conv1DSame(current, layer.AttentionK, layer.AttentionKBias, false), width, 1, tokens)
 			value := builder.Reshape(builder.Conv1DSame(current, layer.AttentionV, layer.AttentionVBias, false), width, 1, tokens)
@@ -122,22 +144,22 @@ func BuildWavTokenizerDecoder(
 			current = builder.Reshape(current, width, tokens)
 			current = builder.Conv1DSame(current, layer.AttentionOutput, layer.AttentionOutBias, false)
 			current = builder.Add(current, residual)
-		case 5:
+		case sequenceResidualNormalization:
 			if err := (graphWeights{
 				requireGraphWeight("norm", layer.AttentionNorm),
 				requireGraphWeight("norm bias", layer.AttentionNormBias),
-			}).validate("WavTokenizer " + scope); err != nil {
+			}).validate("sequence-output " + scope); err != nil {
 				return nil, err
 			}
-			current = builder.GroupNorm(current, layer.AttentionNorm, layer.AttentionNormBias, spec.GroupNormGroups, spec.GroupNormEpsilon)
+			current = builder.GroupNorm(current, layer.AttentionNorm, layer.AttentionNormBias, p.groupCount, p.groupEpsilon)
 		default:
-			return nil, fmt.Errorf("WavTokenizer PosNet block %d is unsupported", block)
+			return nil, fmt.Errorf("sequence-output residual block %d is unsupported", block)
 		}
 	}
 
-	current = builder.AffineLayerNorm(current, weights.TokenNorm, weights.TokenNormBias, spec.LayerNormEpsilon)
-	for block, layer := range weights.ConvNext {
-		scope := fmt.Sprintf("ConvNeXt block %d", block)
+	current = builder.AffineLayerNorm(current, weights.TokenNorm, weights.TokenNormBias, p.layerEpsilon)
+	for block, layer := range weights.Convolution {
+		scope := fmt.Sprintf("convolution block %d", block)
 		if err := (graphWeights{
 			requireGraphWeight("depthwise convolution", layer.Depthwise),
 			requireGraphWeight("depthwise convolution bias", layer.DepthwiseBias),
@@ -148,22 +170,34 @@ func BuildWavTokenizerDecoder(
 			requireGraphWeight("pointwise-2", layer.Pointwise2),
 			requireGraphWeight("pointwise-2 bias", layer.Pointwise2Bias),
 			requireGraphWeight("gamma", layer.Gamma),
-		}).validate("WavTokenizer " + scope); err != nil {
+		}).validate("sequence-output " + scope); err != nil {
 			return nil, err
 		}
 		residual := current
 		current = builder.Conv1DSame(current, layer.Depthwise, layer.DepthwiseBias, true)
-		current = builder.AffineLayerNorm(current, layer.Norm, layer.NormBias, spec.LayerNormEpsilon)
+		current = builder.AffineLayerNorm(current, layer.Norm, layer.NormBias, p.layerEpsilon)
 		current = builder.Add(builder.MulMat(layer.Pointwise1, current), layer.Pointwise1Bias)
 		current = builder.GELU(current)
 		current = builder.Add(builder.MulMat(layer.Pointwise2, current), layer.Pointwise2Bias)
 		current = builder.Multiply(current, layer.Gamma)
 		current = builder.Add(current, residual)
 	}
-	current = builder.AffineLayerNorm(current, weights.OutputNorm, weights.OutputNormBias, spec.LayerNormEpsilon)
+	current = builder.AffineLayerNorm(current, weights.OutputNorm, weights.OutputNormBias, p.layerEpsilon)
 	current = builder.Add(builder.MulMat(weights.Output, current), weights.OutputBias)
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
 	return current, nil
+}
+
+func compileSequenceOutputProgram(spec Spec, profile ArchitectureProfile) SequenceOutputProgram {
+	if profile.Forward.Operation != ForwardOperationAudioTokens {
+		return SequenceOutputProgram{}
+	}
+	return SequenceOutputProgram{
+		residuals: slices.Clone(wavTokenizerResidualProgram[:]), convolutions: spec.ConvNextBlockCount,
+		embedding: uint64(spec.EmbeddingLength), positionWidth: uint64(spec.PosNetEmbeddingLength),
+		groupCount: spec.GroupNormGroups, groupEpsilon: spec.GroupNormEpsilon,
+		layerEpsilon: spec.LayerNormEpsilon,
+	}
 }

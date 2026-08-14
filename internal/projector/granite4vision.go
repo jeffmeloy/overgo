@@ -63,9 +63,10 @@ type Granite4VisionOutput struct {
 }
 
 type Granite4VisionRunner struct {
-	file *gguf.File
-	spec Granite4VisionSpec
-	cuda *projectorCUDA
+	file      *gguf.File
+	spec      Granite4VisionSpec
+	attention visionAttentionPlan
+	cuda      *projectorCUDA
 }
 
 type Granite4VisionOpenOptions = OpenOptions
@@ -78,7 +79,7 @@ func OpenGranite4VisionWithOptions(path string, options Granite4VisionOpenOption
 	return openCatalogProjector(path, options, "Granite 4 Vision", nil,
 		ReadGranite4VisionSpec, validateGranite4VisionCatalog,
 		func(file *gguf.File, spec Granite4VisionSpec, cuda *projectorCUDA) *Granite4VisionRunner {
-			return &Granite4VisionRunner{file: file, spec: spec, cuda: cuda}
+			return &Granite4VisionRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads), cuda: cuda}
 		})
 }
 
@@ -481,7 +482,7 @@ func (r *Granite4VisionRunner) runVisionLayer(ctx context.Context, hidden []floa
 			copy(qkv[row*3*r.spec.Hidden+partIndex*r.spec.Hidden:], projected[row*r.spec.Hidden:(row+1)*r.spec.Hidden])
 		}
 	}
-	attention := mustVisionAttentionPlan(r.spec.Hidden, r.spec.Heads, false).cpu(qkv, rows)
+	attention := r.attention.cpu(qkv, rows)
 	outWeight, outBias, err := r.loadPair(ctx, prefix+"attn_out.weight", prefix+"attn_out.bias")
 	if err != nil {
 		return err

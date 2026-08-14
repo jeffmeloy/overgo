@@ -1024,7 +1024,18 @@ func TestExecutorT5DecoderBlockMatchesReference(t *testing.T) {
 		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
 	}
-	result, err := model.BuildT5DecoderBlockCached(builder, input, encoder, spec, weights, nil, nil, nil, nil)
+	spec.BlockCount, spec.EncoderSpec.DecoderBlockCount = 1, 1
+	plan, err := model.CompileModelPlan(spec, model.Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := plan.DecoderProgram(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := program.Build(model.CachedBlockContext{
+		Builder: builder, Input: input, Encoder: encoder,
+	}, weights)
 	if err != nil {
 		t.Fatal(err)
 	}

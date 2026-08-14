@@ -61,14 +61,20 @@
       "evidence": [
         {
           "contains": "func OpenSourceWithLimits(",
-          "path": "internal/safetensors/source.go"
+          "path": "internal/safetensors/source.go",
+          "role": "source",
+          "identity": "file:sha256:9cf6d6c44950724c0f7d84ef35b61b7cdf1f096a36872354621fe816ba563d18"
         },
         {
           "contains": "func TestOpenSourceRejectsInvalidRepositories(",
-          "path": "internal/safetensors/source_test.go"
+          "path": "internal/safetensors/source_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:77761d1030a9241e9430905657e0cfb7acdefdaaf3f919f6a8f574fe8bf8e3da"
         }
       ],
       "id": "bounded-safetensors-repositories",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/safetensors -run '^TestOpenSourceRejectsInvalidRepositories$' -count=1 -v",
       "status": "implemented",
       "summary": "Safetensors repositories apply config, index, shard, header, tensor, dtype, range, overlap, and catalog bounds."
     },
@@ -76,14 +82,20 @@
       "evidence": [
         {
           "contains": "func ValidateDenseRepository(",
-          "path": "internal/hfgguf/catalog.go"
+          "path": "internal/hfgguf/catalog.go",
+          "role": "source",
+          "identity": "file:sha256:8408344b3932dd14d5252e5ed5a53f7bd1eeedd0d9ce05dc95e32c88387cbda6"
         },
         {
           "contains": "func TestValidateDenseRepositoryUsesRuntimeCatalog(",
-          "path": "internal/hfgguf/catalog_test.go"
+          "path": "internal/hfgguf/catalog_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:bf4a5cb8df79ef7f2be44d27111969ae10326312da6e2b714d490f466b363b42"
         }
       ],
       "id": "safetensors-gguf-dense-bridge",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/hfgguf -run '^TestValidateDenseRepositoryUsesRuntimeCatalog$' -count=1 -v",
       "status": "implemented",
       "summary": "Standard Llama and Qwen2 Safetensors metadata, names, shapes, storage, and payload streams bridge to existing GGUF runtime catalogs."
     },
@@ -91,14 +103,20 @@
       "evidence": [
         {
           "contains": "func ValidateQwen35Repository(",
-          "path": "internal/hfgguf/qwen35.go"
+          "path": "internal/hfgguf/qwen35.go",
+          "role": "source",
+          "identity": "file:sha256:6a4e87bf753e23b698a7d4bc1c375c8ac177fa54b44ca9d0e2e290ad8e2cd931"
         },
         {
           "contains": "func TestValidateQwen35RepositoryUsesRuntimeCatalog(",
-          "path": "internal/hfgguf/catalog_test.go"
+          "path": "internal/hfgguf/catalog_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:bf4a5cb8df79ef7f2be44d27111969ae10326312da6e2b714d490f466b363b42"
         }
       ],
       "id": "safetensors-gguf-qwen35-bridge",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/hfgguf -run '^TestValidateQwen35RepositoryUsesRuntimeCatalog$' -count=1 -v",
       "status": "implemented",
       "summary": "Qwen 3.5 Safetensors text, recurrent, and MTP metadata, names, shapes, and payload streams bridge to existing GGUF runtime catalogs."
     },
@@ -106,14 +124,20 @@
       "evidence": [
         {
           "contains": "func OpenWithOptions(",
-          "path": "internal/gguf/reader.go"
+          "path": "internal/gguf/reader.go",
+          "role": "source",
+          "identity": "file:sha256:478425718f47c54dee1ccc96336bdcdfe87f256a1cc30a94ce1ca677eedf1475"
         },
         {
           "contains": "func TestParseEnforcesLimits(",
-          "path": "internal/gguf/reader_test.go"
+          "path": "internal/gguf/reader_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:23d35a4d40ecfac67a48827b67d455fb0ea35a3b1880d3fa64a0391d59a5b879"
         }
       ],
       "id": "bounded-gguf-parsing",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/gguf -run '^TestParseEnforcesLimits$' -count=1 -v",
       "status": "implemented",
       "summary": "GGUF parsing applies allocation, count, alignment, and split limits."
     },
@@ -121,44 +145,161 @@
       "evidence": [
         {
           "contains": "func validateMultimodalImages(",
-          "path": "internal/server/server_native_prompt.go"
+          "path": "internal/server/server_native_prompt.go",
+          "role": "source",
+          "identity": "file:sha256:08e6e7f83282b8c3b922b505d848341a55e0dc710f9672b954f7d6113b3c4d94"
         },
         {
           "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
-          "path": "internal/server/server_test.go"
+          "path": "internal/server/server_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:4bba9c6977a3ad191caf2f01eb25c2d624c30df8b7354b25f411f070fc694d33"
         }
       ],
       "id": "bounded-server-media",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestValidateMultimodalImagesEnforcesGeometryBudgets$' -count=1 -v",
       "status": "implemented",
       "summary": "Multimodal requests bound encoded bodies, decoded media, dimensions, and pixels."
     },
     {
       "evidence": [
         {
+          "contains": "func OpenGemma4(",
+          "path": "internal/projector/gemma4.go",
+          "role": "source",
+          "identity": "file:sha256:b8ab6ff38c62646d280c5efdc7abbfab00c4885ade46cca03d424628f9763f2c"
+        },
+        {
           "contains": "func TestGemma4RealFixture(",
-          "path": "internal/projector/gemma4_test.go"
+          "path": "internal/projector/gemma4_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:54431682378ae3bdd5c6f71204d2104b761965871efb563c142bbcb055446211"
         },
         {
           "contains": "func TestGemma4RealPromptTokens(",
-          "path": "internal/projector/gemma4_test.go"
+          "path": "internal/projector/gemma4_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:54431682378ae3bdd5c6f71204d2104b761965871efb563c142bbcb055446211"
         }
       ],
       "id": "gemma4-multimodal-oracle",
+      "evidence_tier": "fixture-gated",
+      "verify": "go test ./internal/projector -run '^TestGemma4RealFixture$' -count=1 -v",
+      "artifact_identity": "env:OVERGO_GEMMA4_MMPROJ+OVERGO_GEMMA4_IMAGE+OVERGO_GEMMA4_GOLDEN",
       "status": "implemented",
       "summary": "Gemma 4 image preprocessing, projector output, and prompt tokens have pinned real-model oracles."
     },
     {
       "evidence": [
         {
+          "contains": "func (r *Gemma4TowerRunner) EncodeAudioFeatures(",
+          "path": "internal/projector/gemma4tower_audio.go",
+          "role": "source",
+          "identity": "file:sha256:dbbe472cf9c686daebc102bc0326859f00ed6b8463ac380f436c762fcc540cc8"
+        },
+        {
+          "contains": "func PreprocessGemma4AudioTower(",
+          "path": "internal/projector/gemma4tower_audio_frontend.go",
+          "role": "source",
+          "identity": "file:sha256:5bfe6f20fccd159ee848c6872c11853fb11e45b1ae5927d66735ca29bff7406a"
+        },
+        {
+          "contains": "func TestMultimodalInputMatrix(",
+          "path": "internal/adaptiveparity/multimodal_input_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:65114415b07d050fe97680e325b0f6ca498beb8f68c579dc9b2ab4dc01af9325"
+        }
+      ],
+      "id": "gemma-e4b-audio-tower-oracle",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v",
+      "artifact_identity": "sha256:1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db+98c8d1a25f96bbdfff5ca6153c9b18fad9740e300008618a970c18384b35d404+6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca+9de625447fbc7ab1f12d2de6c73700aa2daa9e476f3e4790e6632a4623371bbb",
+      "status": "implemented",
+      "summary": "Gemma E4B waveform frontend and audio tower match fingerprinted adaptive log-mel, 12-layer conformer, and soft-token evidence on CUDA."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
+          "path": "internal/inference/runner_layers.go",
+          "role": "source",
+          "identity": "file:sha256:a05a69ef61da2a10266690afcc650748c5c6ec54098d6ddb75f3338f8608b0c1"
+        },
+        {
+          "contains": "func TestMultimodalInputMatrix(",
+          "path": "internal/adaptiveparity/multimodal_input_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:65114415b07d050fe97680e325b0f6ca498beb8f68c579dc9b2ab4dc01af9325"
+        }
+      ],
+      "id": "gemma-e4b-image-language-oracle",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v",
+      "artifact_identity": "sha256:1e5580d6d8b0beeaf2aad9b3c29a61ce62cb57e47965b8a95f26378c216935db+cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e+49b5624323fc4e2e87a2673d9b8ab8880d285e1bcb736dad7dcbea6ecd919232",
+      "status": "implemented",
+      "summary": "Gemma E4B image projection binds the exact adaptive prompt and produces the fingerprinted first language token on CUDA."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func Projection(",
+          "path": "internal/workflowrecipe/workflow.go",
+          "role": "source",
+          "identity": "file:sha256:68e2709d41b08983272a77fa6d573c073a92434eb716691142a01019688a8164"
+        },
+        {
+          "contains": "func TestProjectionMediaContracts(",
+          "path": "internal/workflowrecipe/workflow_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:6f5db4cca007d9ee33043ee9407b8f8e9e220f6b376161d90c61de81b73ebbda"
+        }
+      ],
+      "id": "typed-multimodal-projection-recipes",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/workflowrecipe -run '^TestProjectionMediaContracts$' -count=1 -v",
+      "status": "implemented",
+      "summary": "Image, audio, and video projection recipes name distinct decode/project modules and tensor contracts independent of placement."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func NewAudioProjectionProfile(",
+          "path": "internal/projector/audio_profile.go",
+          "role": "source",
+          "identity": "file:sha256:e99f0e20bcb500a6802dd08f3a7bd964cad8d3d1456bc03236a19a45f5834a8c"
+        },
+        {
+          "contains": "func TestAudioProjectionProfileRoundTrip(",
+          "path": "internal/projector/audio_profile_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:1a154acc46059df8420b3c4cf7e008edf59e61cbf62461b18b98994ee0f1bfa1"
+        }
+      ],
+      "id": "audio-projection-profile",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/projector -run '^TestAudioProjectionProfileRoundTrip$' -count=1 -v",
+      "status": "implemented",
+      "summary": "Audio attention policy is a canonical content-addressed profile bound separately from language architecture policy."
+    },
+    {
+      "evidence": [
+        {
           "contains": "func splitPathPrefix(",
-          "path": "internal/gguf/reader.go"
+          "path": "internal/gguf/reader.go",
+          "role": "source",
+          "identity": "file:sha256:478425718f47c54dee1ccc96336bdcdfe87f256a1cc30a94ce1ca677eedf1475"
         },
         {
           "contains": "func TestOpenLoadsAndReadsSplitGGUF(",
-          "path": "internal/gguf/split_test.go"
+          "path": "internal/gguf/split_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:0506567d0c91c9e6d7b32340d8f89b26fef5547f4c3dbeb7ad2e10172c88fb60"
         }
       ],
       "id": "validated-split-gguf",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/gguf -run '^TestOpenLoadsAndReadsSplitGGUF$' -count=1 -v",
       "status": "implemented",
       "summary": "Split GGUF models load, validate, write, merge, and round-trip."
     },
@@ -166,14 +307,21 @@
       "evidence": [
         {
           "contains": "func Quantize(",
-          "path": "internal/quant/quantize.go"
+          "path": "internal/quant/quantize.go",
+          "role": "source",
+          "identity": "file:sha256:f4d06ec4e723b0cdb9d3dc58644a64b8be471d2925a40760944322ae08a366f8"
         },
         {
           "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
-          "path": "internal/quant/quantize_test.go"
+          "path": "internal/quant/quantize_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:17ac050721b30b70334845aacd86519da8e2b36c880435fbcb2915ad732f0468"
         }
       ],
       "id": "pinned-quantization",
+      "evidence_tier": "pinned-oracle",
+      "verify": "go test ./internal/quant -run '^TestQuantizeMatchesPinnedGGMLReference$' -count=1 -v",
+      "source_commit": "42fc243060709331ff9b158a9ed2cbe37219ae83",
       "status": "implemented",
       "summary": "Quantization encoders are checked against pinned GGML references."
     },
@@ -181,14 +329,21 @@
       "evidence": [
         {
           "contains": "func (w *Worker) Do(",
-          "path": "internal/cuda/device/worker.go"
+          "path": "internal/cuda/device/worker.go",
+          "role": "source",
+          "identity": "file:sha256:66be88e49a8e9b5a2b003d43866e1c9bd7a5d7173501e39b1d66b7aac4095b16"
         },
         {
           "contains": "func TestWorkerMemoryRoundTrip(",
-          "path": "internal/cuda/device/worker_windows_test.go"
+          "path": "internal/cuda/device/worker_windows_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:afaafbde5401ff47aaff362a64f3ddfa6cccc70f7a21913d06f4b158f0ffa49a"
         }
       ],
       "id": "serialized-cuda-worker",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/device -run '^TestWorkerMemoryRoundTrip$' -count=1 -v",
+      "artifact_identity": "hardware:cuda-driver-device-0",
       "status": "implemented",
       "summary": "CUDA driver work executes through one locked-thread context owner."
     },
@@ -196,14 +351,20 @@
       "evidence": [
         {
           "contains": "func CompileModelPlan(",
-          "path": "internal/model/layer_plan.go"
+          "path": "internal/model/layer_plan.go",
+          "role": "source",
+          "identity": "file:sha256:5095887ce282312b21ee23f6b2727936a8895290614ae85e99caf1e94cf50bb6"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
-          "path": "internal/model/layer_plan_test.go"
+          "path": "internal/model/layer_plan_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:fbc9f573750030a0f616d0b12fee34fd28aeb70492135efbd13b3d9725cfb1fa"
         }
       ],
       "id": "compiled-model-plan",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/model -run '^TestCompileModelPlanPinsLayerPolicies$' -count=1 -v",
       "status": "implemented",
       "summary": "Model opening compiles per-layer graph, cache, attention, position, residual, and feed-forward policy before execution."
     },
@@ -211,14 +372,20 @@
       "evidence": [
         {
           "contains": "func Compile(",
-          "path": "internal/cuda/executor/executor.go"
+          "path": "internal/cuda/executor/executor.go",
+          "role": "source",
+          "identity": "file:sha256:00978a8ebdc25928029cf6d5c8d54d3808974a66e176e8bf5543e13600203d1f"
         },
         {
           "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
-          "path": "internal/cuda/executor/compile_test.go"
+          "path": "internal/cuda/executor/compile_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:48c833c8b154c4ef83b4609f9ea29f85b6c465a09af5c1ce92cde9f641e5c5c0"
         }
       ],
       "id": "compiled-cuda-graph",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/cuda/executor -run '^TestCompilePinsTopologyAndMemoryPlan$' -count=1 -v",
       "status": "implemented",
       "summary": "Repeated CUDA graph execution can reuse validated topology, BLAS selection, and arena planning."
     },
@@ -226,14 +393,20 @@
       "evidence": [
         {
           "contains": "func DescribeOperation(",
-          "path": "internal/tensor/operation.go"
+          "path": "internal/tensor/operation.go",
+          "role": "source",
+          "identity": "file:sha256:88526e99641af0a5949a59fd129bd3601ea6ca0f64f468df94131a3e9944edce"
         },
         {
           "contains": "func TestOperationCatalogIsDenseAndUnique(",
-          "path": "internal/tensor/operation_test.go"
+          "path": "internal/tensor/operation_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:82674d99bb9a27b3a64ec88fb8e4abb64c7dc466eb64f21d636965f09ff9a95f"
         }
       ],
       "id": "tensor-operation-catalog",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/tensor -run '^TestOperationCatalogIsDenseAndUnique$' -count=1 -v",
       "status": "implemented",
       "summary": "Tensor operation identity, diagnostic class, and backend coverage share one typed catalog."
     },
@@ -241,14 +414,20 @@
       "evidence": [
         {
           "contains": "func (r *Runner) selectPromptCache(",
-          "path": "internal/inference/prompt_cache.go"
+          "path": "internal/inference/prompt_cache.go",
+          "role": "source",
+          "identity": "file:sha256:6cdffdcb9076c3a8e112e9d62bb5a8121d23bdde5715aa031fa918d36d235665"
         },
         {
           "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
-          "path": "internal/inference/prompt_cache_test.go"
+          "path": "internal/inference/prompt_cache_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:261bca4524a41e46d47df0a1329719e2b400ca06df362db3713a07264f2251f9"
         }
       ],
       "id": "editable-prompt-cache",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/inference -run '^TestProjectedPromptCacheRequiresExactMediaSignature$' -count=1 -v",
       "status": "implemented",
       "summary": "Bounded prompt caches support selection, eviction, context edits, and exact media-signed replay."
     },
@@ -256,14 +435,21 @@
       "evidence": [
         {
           "contains": "func NewGBNFGrammar(",
-          "path": "internal/sampling/gbnf.go"
+          "path": "internal/sampling/gbnf.go",
+          "role": "source",
+          "identity": "file:sha256:1a6a26b90372717a8cf28985b1bd7d60e3cb5c896865dbd990eae688bce9ace5"
         },
         {
           "contains": "func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(",
-          "path": "internal/sampling/json_schema_test.go"
+          "path": "internal/sampling/json_schema_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:e5691ad89c6db6245f87ff3f309c8366cde5ff07faf1e138f9d6e5738a0e9d82"
         }
       ],
       "id": "constrained-generation",
+      "evidence_tier": "pinned-oracle",
+      "verify": "go test ./internal/sampling -run '^TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus$' -count=1 -v",
+      "source_commit": "42fc243060709331ff9b158a9ed2cbe37219ae83",
       "status": "implemented",
       "summary": "GBNF and JSON Schema constraints match pinned upstream corpora."
     },
@@ -271,14 +457,20 @@
       "evidence": [
         {
           "contains": "func (r *Qwen3VLRunner) BuildImagesPrompt(",
-          "path": "internal/projector/prompt.go"
+          "path": "internal/projector/prompt.go",
+          "role": "source",
+          "identity": "file:sha256:ee0086920063910929477057a305906fba48728160307f06fee440c8ffa517fa"
         },
         {
           "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
-          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+          "path": "internal/server/server_responses_anthropic_runtime_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
         }
       ],
       "id": "ordered-multi-image",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestResponsesMultipleImagesPreservesContentOrder$' -count=1 -v",
       "status": "implemented",
       "summary": "Native, Chat, and Responses prompts preserve ordered image/text parts."
     },
@@ -286,14 +478,20 @@
       "evidence": [
         {
           "contains": "func (r *Gemma4Runner) BuildImagesHistoryPrompt(",
-          "path": "internal/projector/prompt.go"
+          "path": "internal/projector/prompt.go",
+          "role": "source",
+          "identity": "file:sha256:ee0086920063910929477057a305906fba48728160307f06fee440c8ffa517fa"
         },
         {
           "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
-          "path": "internal/server/server_completion_chat_embedding_test.go"
+          "path": "internal/server/server_completion_chat_embedding_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
         }
       ],
       "id": "media-history",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestChatImageHistoryPreservesTurnPositionAndReplay$' -count=1 -v",
       "status": "implemented",
       "summary": "Chat and Responses preserve projected images in earlier or final user turns through the complete formatted history."
     },
@@ -301,14 +499,20 @@
       "evidence": [
         {
           "contains": "func (r *Gemma4Runner) BuildMediaHistoryPrompt(",
-          "path": "internal/projector/prompt.go"
+          "path": "internal/projector/prompt.go",
+          "role": "source",
+          "identity": "file:sha256:ee0086920063910929477057a305906fba48728160307f06fee440c8ffa517fa"
         },
         {
           "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
-          "path": "internal/server/server_completion_chat_embedding_test.go"
+          "path": "internal/server/server_completion_chat_embedding_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
         }
       ],
       "id": "mixed-media-history",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestChatMixedImageAudioPreservesChunkOrder$' -count=1 -v",
       "status": "implemented",
       "summary": "Gemma 4 preserves ordered image/audio chunks through native, Chat, and Responses history."
     },
@@ -316,14 +520,20 @@
       "evidence": [
         {
           "contains": "func (f *remoteMediaFetcher) fetch(",
-          "path": "internal/server/media_policy.go"
+          "path": "internal/server/media_policy.go",
+          "role": "source",
+          "identity": "file:sha256:5bb06798c311d485136788a4a51da2640542ac48b80f14a7d3e57c67df1d7cc2"
         },
         {
           "contains": "func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault(",
-          "path": "internal/server/media_policy_test.go"
+          "path": "internal/server/media_policy_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:e957f34d51fe15889e6d6b8962bd00d375aa6aed764a59fadcda517dfd15604b"
         }
       ],
       "id": "bounded-remote-media",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestRemoteMediaFetcherRejectsPrivateResolutionByDefault$' -count=1 -v",
       "status": "implemented",
       "summary": "Remote media is opt-in through explicit scheme, host, port, network, redirect, timeout, MIME, concurrency, and byte policy."
     },
@@ -331,14 +541,20 @@
       "evidence": [
         {
           "contains": "func LoadResponseFilePolicy(",
-          "path": "internal/server/resource_policy.go"
+          "path": "internal/server/resource_policy.go",
+          "role": "source",
+          "identity": "file:sha256:6b97b78eccde9918c66860ac092c7e0d29859b6317890c5f44a0ae73dc9547bb"
         },
         {
           "contains": "func TestResponsesInputFileSources(",
-          "path": "internal/server/resource_policy_test.go"
+          "path": "internal/server/resource_policy_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:41301bc9c5f6e68d5c89c4fe73378433efb221692f0096aaf30336efd982cbeb"
         }
       ],
       "id": "responses-file-inputs",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestResponsesInputFileSources$' -count=1 -v",
       "status": "implemented",
       "summary": "Responses accepts bounded typed inline, policy-mapped file-ID, allowlisted URL, and image file-ID inputs."
     },
@@ -346,14 +562,20 @@
       "evidence": [
         {
           "contains": "by response_tools.%s policy",
-          "path": "internal/server/responses_tools.go"
+          "path": "internal/server/responses_tools.go",
+          "role": "source",
+          "identity": "file:sha256:a082f783ec4c07caafb437bbae02474f4bec8bc57ddffc42e3468ec839273d19"
         },
         {
           "contains": "func TestResponsesHostedAndCustomToolsUseExplicitPolicy(",
-          "path": "internal/server/resource_policy_test.go"
+          "path": "internal/server/resource_policy_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:41301bc9c5f6e68d5c89c4fe73378433efb221692f0096aaf30336efd982cbeb"
         }
       ],
       "id": "explicit-response-tool-policy",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestResponsesHostedAndCustomToolsUseExplicitPolicy$' -count=1 -v",
       "status": "implemented",
       "summary": "Hosted, MCP, and free-form custom Responses tools are classified and denied unless an external executor contract is added."
     },
@@ -361,14 +583,20 @@
       "evidence": [
         {
           "contains": "func DecodeEncodedVideo(",
-          "path": "internal/projector/encoded_video.go"
+          "path": "internal/projector/encoded_video.go",
+          "role": "source",
+          "identity": "file:sha256:c423f8da289a76787f359901aff7053d432ca26190f021b5211e0049d5de17cd"
         },
         {
           "contains": "func TestChatAndResponsesEncodedVideoProjection(",
-          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+          "path": "internal/server/server_responses_anthropic_runtime_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
         }
       ],
       "id": "server-encoded-video",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestChatAndResponsesEncodedVideoProjection$' -count=1 -v",
       "status": "implemented",
       "summary": "Chat and Responses decode bounded single-turn encoded video through native GIF or FFmpeg paths."
     },
@@ -376,14 +604,20 @@
       "evidence": [
         {
           "contains": "func (h *Handler) responsesInputTokens(",
-          "path": "internal/server/protocol_responses.go"
+          "path": "internal/server/protocol_responses.go",
+          "role": "source",
+          "identity": "file:sha256:91af65c737e732504da96093f3de18d3146b5bb1b7e9991349d62ec63e5bc1d6"
         },
         {
           "contains": "func TestMultimodalInputTokenCounting(",
-          "path": "internal/server/server_completion_chat_embedding_test.go"
+          "path": "internal/server/server_completion_chat_embedding_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
         }
       ],
       "id": "multimodal-token-counting",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestMultimodalInputTokenCounting$' -count=1 -v",
       "status": "implemented",
       "summary": "Chat and Responses token counts use the projected media prompt."
     },
@@ -391,18 +625,26 @@
       "evidence": [
         {
           "contains": "func (h *Handler) preparePrompt(",
-          "path": "internal/server/server_native_prompt.go"
+          "path": "internal/server/server_native_prompt.go",
+          "role": "source",
+          "identity": "file:sha256:08e6e7f83282b8c3b922b505d848341a55e0dc710f9672b954f7d6113b3c4d94"
         },
         {
           "contains": "func (h *Handler) prepareProtocolGeneration(",
-          "path": "internal/server/protocol_common.go"
+          "path": "internal/server/protocol_common.go",
+          "role": "source",
+          "identity": "file:sha256:395cefcb4efe0bd58410654edb70cddf9bb8a7ce935fc96331f61a62582f0846"
         },
         {
           "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
-          "path": "internal/server/server_completion_chat_embedding_test.go"
+          "path": "internal/server/server_completion_chat_embedding_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
         }
       ],
       "id": "unified-prompt-preparation",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestPreparedPromptGenerationAndTokenCountParity$' -count=1 -v",
       "status": "implemented",
       "summary": "Native generation and the Chat, Responses, and Anthropic protocols share prepared prompts with token counting."
     },
@@ -410,14 +652,20 @@
       "evidence": [
         {
           "contains": "func (s *chatOutputStream) Accept(",
-          "path": "internal/inference/chat_stream.go"
+          "path": "internal/inference/chat_stream.go",
+          "role": "source",
+          "identity": "file:sha256:83954e203e3b73e6193b83b5e1f849bc54a56f5b18791843cfdee4dc08dc5a5a"
         },
         {
           "contains": "func TestStreamingResponsesFunctionCallLifecycle(",
-          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+          "path": "internal/server/server_responses_anthropic_runtime_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
         }
       ],
       "id": "incremental-tool-streaming",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestStreamingResponsesFunctionCallLifecycle$' -count=1 -v",
       "status": "implemented",
       "summary": "Chat, Responses, and Anthropic stream JSON and Hermes function arguments incrementally."
     },
@@ -425,14 +673,20 @@
       "evidence": [
         {
           "contains": "promptTools []inference.ChatTool",
-          "path": "internal/server/protocol_chat.go"
+          "path": "internal/server/protocol_chat.go",
+          "role": "source",
+          "identity": "file:sha256:f07cb406e09f54181c703b85cb269871369c333ffce83537bc7e199c27281683"
         },
         {
           "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
-          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+          "path": "internal/server/server_responses_anthropic_runtime_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
         }
       ],
       "id": "multimodal-function-tools",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestChatAndResponsesMultimodalFunctionTools$' -count=1 -v",
       "status": "implemented",
       "summary": "Chat, Responses, and Anthropic preserve projected image/audio history while formatting and streaming function tools."
     },
@@ -440,14 +694,20 @@
       "evidence": [
         {
           "contains": "case \"image\":",
-          "path": "internal/server/anthropic_tools.go"
+          "path": "internal/server/anthropic_tools.go",
+          "role": "source",
+          "identity": "file:sha256:71326a2252920aaba3a0b416dce99238a656411a04b87cf37b1f6a61d5af532b"
         },
         {
           "contains": "func TestAnthropicImageToolsAndTokenCounting(",
-          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+          "path": "internal/server/server_responses_anthropic_runtime_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
         }
       ],
       "id": "anthropic-image-input",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestAnthropicImageToolsAndTokenCounting$' -count=1 -v",
       "status": "implemented",
       "summary": "Anthropic image blocks support bounded base64, allowlisted URL, and mapped file-ID projection with token-count parity."
     },
@@ -455,14 +715,20 @@
       "evidence": [
         {
           "contains": "func validateAnthropicThinking(",
-          "path": "internal/server/anthropic_thinking.go"
+          "path": "internal/server/anthropic_thinking.go",
+          "role": "source",
+          "identity": "file:sha256:c7f7cd5886ed7ed2a6571c9877b0a84be1aa8a12ecdb0e97343fb6fb8ef3ef53"
         },
         {
           "contains": "func TestAnthropicThinkingBufferedStreamingImageAndReplay(",
-          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+          "path": "internal/server/server_responses_anthropic_runtime_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
         }
       ],
       "id": "anthropic-local-thinking",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestAnthropicThinkingBufferedStreamingImageAndReplay$' -count=1 -v",
       "status": "implemented",
       "summary": "Manual summarized thinking supports buffered/SSE output, projected images, handler-local signed replay, and tamper rejection."
     },
@@ -470,14 +736,20 @@
       "evidence": [
         {
           "contains": "func (s *responseHistoryStore) put(",
-          "path": "internal/server/response_history.go"
+          "path": "internal/server/response_history.go",
+          "role": "source",
+          "identity": "file:sha256:7d92c43a2a5a183b1560bdbd5a15633a2a4d63d69e90c48db6961cfa8e9a5995"
         },
         {
           "contains": "func TestResponsesPreviousResponseContinuation(",
-          "path": "internal/server/server_completion_chat_embedding_test.go"
+          "path": "internal/server/server_completion_chat_embedding_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
         }
       ],
       "id": "responses-continuation",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestResponsesPreviousResponseContinuation$' -count=1 -v",
       "status": "implemented",
       "summary": "Bounded handler-local response history supports text, media, tool-call, streaming, and token-count continuations."
     },
@@ -485,14 +757,20 @@
       "evidence": [
         {
           "contains": "func validateResponsesReasoning(",
-          "path": "internal/server/protocol_responses.go"
+          "path": "internal/server/protocol_responses.go",
+          "role": "source",
+          "identity": "file:sha256:91af65c737e732504da96093f3de18d3146b5bb1b7e9991349d62ec63e5bc1d6"
         },
         {
           "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
-          "path": "internal/server/server_responses_anthropic_runtime_test.go"
+          "path": "internal/server/server_responses_anthropic_runtime_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:0d186d919849d3f01582a90c18c5bde7f39285c83ee5c125e7ce1902c8479628"
         }
       ],
       "id": "responses-reasoning",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/server -run '^TestResponsesReasoningItemsBufferedAndStreaming$' -count=1 -v",
       "status": "implemented",
       "summary": "Responses reasoning summaries support input replay, buffered output, streaming lifecycle events, and continuation retention."
     },
@@ -500,78 +778,110 @@
       "evidence": [
         {
           "contains": "func LookupArchitecture(",
-          "path": "internal/model/architecture.go"
+          "path": "internal/model/architecture.go",
+          "role": "source",
+          "identity": "file:sha256:e867d8d683ac8887ed39c8de282a09b585469bf5aa2bccd1528f2e67bde78815"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
-          "path": "internal/model/architecture_test.go"
+          "path": "internal/model/architecture_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:8309c24d0f2f9bac3e9875766976d70bdc6bbee7f801faf39fbb3cf897eb7983"
         }
       ],
       "id": "architecture-profiles",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/model -run '^TestArchitectureRegistryProfiles$' -count=1 -v",
       "status": "implemented",
       "summary": "Model architectures use a central family and capability registry with grouped specifications."
     },
     {
       "evidence": [
         {
-          "contains": "func BuildArchitectureBlockCached(",
-          "path": "internal/model/graph_dispatch.go"
+          "contains": "func (p CompiledLayerProgram) Build(",
+          "path": "internal/model/graph_dispatch.go",
+          "role": "source",
+          "identity": "file:sha256:5b431a06b3b737dea5f55bea023e28c7f02a7feb2dda7c76964bd6d4a89cf6eb"
         },
         {
           "contains": "func ReadWeights(",
-          "path": "internal/model/weights_dispatch.go"
+          "path": "internal/model/weights_dispatch.go",
+          "role": "source",
+          "identity": "file:sha256:cca039ef2c0b311551ec428d1227702b82e115d9e6f40b13bb9dff542ff90b58"
         },
         {
-          "contains": "func TestArchitectureBlockDispatchRoutesFamilies(",
-          "path": "internal/model/graph_dispatch_test.go"
+          "contains": "func TestLayerProgramsCoverTypedProfiles(",
+          "path": "internal/model/graph_dispatch_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:eec91789d29c66ecae29b756b2170030142091067cd9e87d97d06a5f6a8323c6"
         }
       ],
-      "id": "architecture-family-dispatch",
+      "id": "neutral-layer-dispatch",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/model -run '^TestLayerProgramsCoverTypedProfiles$' -count=1 -v",
       "status": "implemented",
-      "summary": "Graph construction and tensor catalog validation route through architecture families."
+      "summary": "Graph construction and tensor catalog validation route through compiled neutral layer programs, superseding the removed compatibility-layer family dispatcher."
     },
     {
       "evidence": [
         {
           "contains": "func (b *ContinuousBatch) Step(",
-          "path": "internal/inference/continuous_batch.go"
+          "path": "internal/inference/continuous_batch.go",
+          "role": "source",
+          "identity": "file:sha256:ce9ca364f5ff8029b68163156de66cf6ecec0ffac63481cc458f38fcfa144d4a"
         },
         {
           "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
-          "path": "internal/inference/device_cache_paging_test.go"
+          "path": "internal/inference/device_cache_paging_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:9142f34cc6e30cb747bf48bfba82843f7cb0a3c90b40ead5de89eab4926afd80"
         }
       ],
       "id": "paged-continuous-cache",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/inference -run '^TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState$' -count=1 -v",
       "status": "implemented",
       "summary": "Retained CUDA cache pages and transactional attention/recurrent/hybrid multi-sequence steps support dynamic admission and forks."
     },
     {
       "evidence": [
         {
-          "contains": "func (r *Runner) NewT5BatchSession(",
-          "path": "internal/inference/t5_batch.go"
+          "contains": "func (r *Runner) NewEncoderDecoderBatchSession(",
+          "path": "internal/inference/encoder_decoder_batch.go",
+          "role": "source",
+          "identity": "file:sha256:ebba65abb89655a53296d05054c07400a7e096100756723305031c30b864f273"
         },
         {
           "contains": "func TestValidatePaddedTokenBatchMasksSuffixes(",
-          "path": "internal/inference/t5_batch_test.go"
+          "path": "internal/inference/encoder_decoder_batch_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:8cae89ffee386e9c98e26c4fa01db1b33e738d140580a9768d5b0525e24ed2b3"
         }
       ],
-      "id": "padded-t5-batches",
+      "id": "padded-encoder-decoder-batches",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/inference -run '^TestValidatePaddedTokenBatchMasksSuffixes$' -count=1 -v",
       "status": "implemented",
-      "summary": "Rectangular T5 batches use explicit source and decoder lengths so padding never enters attention state."
+      "summary": "Rectangular encoder-decoder batches use explicit source and decoder lengths so padding never enters attention state."
     },
     {
       "evidence": [
         {
           "contains": "func createArchive(",
-          "path": "cmd/release/main.go"
+          "path": "cmd/release/main.go",
+          "role": "source",
+          "identity": "file:sha256:4c08ad3a86eaf1437b5a7b6db3dbebe8c13b6b16930a34f5d80dacdcd4b11dc7"
         },
         {
           "contains": "func TestCreateArchiveIsDeterministic(",
-          "path": "cmd/release/main_test.go"
+          "path": "cmd/release/main_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:1433b6724ce22b704b9fcce2480528fc9bd7570cf1d9a3b2e699e269d5c6d4b1"
         }
       ],
       "id": "reproducible-release",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./cmd/release -run '^TestCreateArchiveIsDeterministic$' -count=1 -v",
       "status": "implemented",
       "summary": "Release archives are deterministic and compared across two builds."
     }
@@ -681,7 +991,7 @@
       "automatic_local_discovery": true,
       "default_maximum_shards": 1024,
       "first_shard_required": true,
-      "naming": "\u003cprefix\u003e-%05d-of-%05d.gguf",
+      "naming": "<prefix>-%05d-of-%05d.gguf",
       "validates": [
         "split-index-and-count",
         "global-tensor-count",
@@ -3875,7 +4185,7 @@
     ],
     "state_version": 4
   },
-  "schema": 1,
+  "schema": 2,
   "server": {
     "anthropic_messages": {
       "buffered": true,
@@ -4113,7 +4423,7 @@
           "data-audio-wav-base64-uri"
         ],
         "media_items_per_request": 8,
-        "media_marker": "\u003c__media__\u003e",
+        "media_marker": "<__media__>",
         "ordered_mixed_image_audio": true,
         "projection_after_slot_admission": true,
         "shape": "prompt-string-plus-multimodal-data"

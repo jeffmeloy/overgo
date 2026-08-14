@@ -1,12 +1,12 @@
 # Implementation log
 
 Archived compatibility and validation record through 2026-08-01. This file is
-append-only historical evidence, not the live roadmap. See
-[`../IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md) for current work
-and [`COMPATIBILITY.md`](COMPATIBILITY.md) for the generated compatibility
-matrix. Statements that work "remains pending" record their point in the
-chronology and may be superseded by later commits and live compatibility
-claims.
+append-only historical evidence, not the live roadmap. See [`plan.json`](plan.json)
+for current work, [`adaptive_new_parity_report.md`](adaptive_new_parity_report.md)
+for the current assessment, and [`COMPATIBILITY.md`](COMPATIBILITY.md) for the
+generated compatibility matrix. Statements that work "remains pending" record
+their point in the chronology and may be superseded by later commits and live
+compatibility claims.
 
 ## Compatibility baseline
 
@@ -942,9 +942,9 @@ claims.
 ## Historical runtime notes
 
 These cumulative notes preserve the runtime boundary at each implementation
-milestone. `IMPLEMENTATION_STATUS.md` and generated `docs/COMPATIBILITY.md` are
-the authoritative current views; later entries below supersede earlier pending
-statements.
+milestone. `docs/plan.json`, `compatibility.json`, and generated
+`docs/COMPATIBILITY.md` are the authoritative current views; later entries below
+supersede earlier pending statements.
 
 - Preloaded dense generation retains KV state on-device between ordinary
   decoding calls and device-backed prompt reuse can require zero submissions.

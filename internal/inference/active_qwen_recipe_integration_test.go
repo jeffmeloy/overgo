@@ -10,12 +10,13 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
-	"overgo/internal/testutil"
 )
 
 func TestActiveRecipeQwen35Open(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
@@ -30,30 +31,23 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	identity, identityOK := loaded.Identity()
-	architecture, architectureOK := loaded.Architecture()
-	if !identityOK || !architectureOK || identity.Recipe != definition.ID || architecture != "qwen35" {
-		_ = loaded.Close()
-		t.Fatalf("resolved Qwen3.5 program = %+v", identity)
-	}
-	dense, recurrent := false, false
-	layers, ok := loaded.LayerPlans()
-	if !ok {
-		_ = loaded.Close()
-		t.Fatal("resolved Qwen3.5 model plan is unavailable")
-	}
-	for _, layer := range layers {
-		dense = dense || !layer.Recurrent
-		recurrent = recurrent || layer.Recurrent
-	}
-	if !dense || !recurrent {
-		_ = loaded.Close()
-		t.Fatalf("Qwen3.5 layer program lacks dense/recurrent coverage")
-	}
 	runner, err := OpenWithProgram(&loaded, OpenOptions{})
 	if err != nil {
 		_ = loaded.Close()
 		t.Fatal(err)
+	}
+	if runner.program.Identity.Recipe != definition.ID || runner.spec.Architecture != "qwen35" {
+		_ = runner.Close()
+		t.Fatalf("resolved Qwen3.5 program = %+v", runner.program.Identity)
+	}
+	dense, recurrent := false, false
+	for _, layer := range runner.program.Model.Layers() {
+		dense = dense || !layer.Recurrent
+		recurrent = recurrent || layer.Recurrent
+	}
+	if !dense || !recurrent {
+		_ = runner.Close()
+		t.Fatal("Qwen3.5 layer program lacks dense/recurrent coverage")
 	}
 	if runner.EvidenceTier() != recipe.EvidenceExperimental {
 		_ = runner.Close()
@@ -92,7 +86,7 @@ func publishActiveGGUFRecipe(
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, err := modelrecipe.NewModelDefinitionFromGGUF(file, profileDocument, inventory.TensorInventory)
+	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +99,7 @@ func publishActiveGGUFRecipe(
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		inventory.Manifest.ID, profileDocument.ID, document.ID, recipe.PlacementHybrid,
-		modelrecipe.DecodeSessionCapacity,
+		modelrecipe.DecodeSessionCapacity, recipe.ResidencyHybridNative,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -116,16 +110,14 @@ func publishActiveGGUFRecipe(
 	if _, _, err := modelrecipe.Transition(ctx, store, "integration/qwen35/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	evidence := []byte("qwen35-active-recipe")
-	evidenceID := testutil.ArtifactBytesID(t, artifact.KindEvidence, evidence)
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "integration/qwen35/evidence",
-		Artifacts: []artifact.Descriptor{{ID: evidenceID, Size: uint64(len(evidence))}},
-	}); err != nil {
+	verification, err := modelrecipetest.PublishVerification(
+		ctx, store, "integration/qwen35/verification", definition.ID,
+	)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "integration/qwen35/active", definition, recipe.StatusActive, []artifact.ID{evidenceID}, nil,
+	if _, _, err := modelrecipe.ActivateVerified(
+		ctx, store, "integration/qwen35/active", definition, verification, nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

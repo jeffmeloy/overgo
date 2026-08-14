@@ -8,27 +8,11 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 )
 
 func PublishCandidate(ctx context.Context, store artifact.Repository, key string, definition recipe.Definition) (artifact.CommitID, recipe.LifecycleEvent, error) {
-	return publishCandidate(ctx, store, key, definition, nil)
-}
-
-func PublishProfileCandidate(
-	ctx context.Context,
-	store artifact.Repository,
-	key string,
-	definition recipe.Definition,
-	document ProfileDocument,
-) (artifact.CommitID, recipe.LifecycleEvent, error) {
-	if err := document.ValidateIdentity(); err != nil {
-		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
-	}
-	profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
-	if !ok || profileID != document.ID {
-		return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: definition does not bind profile")
-	}
-	return publishCandidate(ctx, store, key, definition, &document)
+	return publishCandidate(ctx, store, key, definition)
 }
 
 func publishCandidate(
@@ -36,7 +20,6 @@ func publishCandidate(
 	store artifact.Repository,
 	key string,
 	definition recipe.Definition,
-	document *ProfileDocument,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
 	definitionContent, err := Content(definition)
 	if err != nil {
@@ -51,17 +34,7 @@ func publishCandidate(
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
 	contents := []artifact.Content{definitionContent, eventContent}
-	var profileLineage []artifact.Lineage
-	if document != nil {
-		profileContents, lineage, contentErr := profilePublicationFacts(*document)
-		if contentErr != nil {
-			return artifact.CommitID{}, recipe.LifecycleEvent{}, contentErr
-		}
-		contents = append(contents, profileContents...)
-		profileLineage = lineage
-	}
-	lineage := make([]artifact.Lineage, 0, len(definition.Dependencies)+len(profileLineage))
-	lineage = append(lineage, profileLineage...)
+	lineage := make([]artifact.Lineage, 0, len(definition.Dependencies))
 	for _, dependency := range definition.Dependencies {
 		lineage = append(lineage, artifact.Lineage{
 			Child: definition.ID, Parent: dependency.Artifact, Relation: artifact.RelationDependsOn,
@@ -86,7 +59,29 @@ func Transition(
 	evidence []artifact.ID,
 	supersedes *artifact.ID,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
-	return transition(ctx, store, key, definition, to, evidence, supersedes, nil)
+	return transition(ctx, store, key, definition, to, evidence, supersedes, nil, nil)
+}
+
+// Verification: immutable verifier gate/run identities.
+type Verification struct {
+	Gate artifact.ID
+	Run  artifact.ID
+}
+
+// ActivateVerified: promote only from a successful recipe-bound verifier run.
+func ActivateVerified(
+	ctx context.Context,
+	store artifact.Repository,
+	key string,
+	definition recipe.Definition,
+	verification Verification,
+	evidence []artifact.ID,
+	supersedes *artifact.ID,
+) (artifact.CommitID, recipe.LifecycleEvent, error) {
+	evidence = append(slices.Clone(evidence), verification.Gate, verification.Run)
+	return transition(
+		ctx, store, key, definition, recipe.StatusActive, evidence, supersedes, nil, &verification,
+	)
 }
 
 func transition(
@@ -98,6 +93,7 @@ func transition(
 	evidence []artifact.ID,
 	supersedes *artifact.ID,
 	pending []artifact.Content,
+	verification *Verification,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
 	previous, err := currentEvent(ctx, store, definition.ID)
 	if err != nil {
@@ -105,6 +101,22 @@ func transition(
 	}
 	if previous.Recipe != definition.ID || previous.Model != definition.Model || previous.Task != definition.Task {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: lifecycle subject mismatch")
+	}
+	if to == recipe.StatusActive {
+		if verification == nil {
+			return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: activation requires verifier gate/run identities")
+		}
+		if _, ok, lookupErr := store.Artifact(ctx, definition.Model); lookupErr != nil || !ok {
+			if lookupErr != nil {
+				return artifact.CommitID{}, recipe.LifecycleEvent{}, lookupErr
+			}
+			return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: activation model artifact is absent")
+		}
+		if _, verifyErr := runrecord.VerifyGateRun(
+			ctx, store, definition.ID, verification.Gate, verification.Run,
+		); verifyErr != nil {
+			return artifact.CommitID{}, recipe.LifecycleEvent{}, fmt.Errorf("model recipe: activation verification: %w", verifyErr)
+		}
 	}
 	pendingIDs := make(map[artifact.ID]struct{}, len(pending))
 	for _, content := range pending {
@@ -227,6 +239,9 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 		}
 		return Activation{}, false, fmt.Errorf("model recipe: active alias names recipe in %q state", event.To)
 	}
+	if _, err := runrecord.VerifyEvidence(ctx, store, definition.ID, event.Evidence); err != nil {
+		return Activation{}, false, fmt.Errorf("model recipe: active recipe lacks verified evidence: %w", err)
+	}
 	tier := recipe.EvidenceExperimental
 	for _, decision := range decisions {
 		if decision.Subject == definition.ID && decision.Outcome == recipe.DecisionAccepted &&
@@ -239,55 +254,17 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 	}, true, nil
 }
 
-func Active(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (recipe.Definition, bool, error) {
-	activation, ok, err := ActiveRecord(ctx, store, modelID, task)
-	return activation.Definition, ok, err
-}
-
-// ActiveProfile: parity-gated policy for runtime ingestion.
-func ActiveProfile(
-	ctx context.Context,
-	store artifact.Reader,
-	modelID artifact.ID,
-	task recipe.Task,
-) (ProfileDocument, bool, error) {
-	definition, ok, err := Active(ctx, store, modelID, task)
-	if err != nil || !ok {
-		return ProfileDocument{}, ok, err
+// ResolveActiveCapability returns the verified executable capability program.
+func ResolveActiveCapability(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (Activation, recipe.Program, error) {
+	activation, active, err := ActiveRecord(ctx, store, modelID, task)
+	if err == nil && !active {
+		err = fmt.Errorf("model recipe: model %s has no active %s recipe", modelID, task)
 	}
-	return activeBoundProfile(ctx, store, definition)
-}
-
-func activeBoundProfile(
-	ctx context.Context,
-	store artifact.Reader,
-	definition recipe.Definition,
-) (ProfileDocument, bool, error) {
-	profileID, bound := definition.Dependency(recipe.DependencyProfile, 0)
-	if !bound && definition.Version == recipe.LegacyVersion {
-		var err error
-		profileID, bound, err = artifact.ResolveAlias(ctx, store, legacyRecipeProfileAlias(definition.ID))
-		if err != nil {
-			return ProfileDocument{}, false, err
-		}
-	}
-	if !bound {
-		return ProfileDocument{}, false, nil
-	}
-	document, err := loadProfile(ctx, store, profileID)
 	if err != nil {
-		return ProfileDocument{}, false, err
+		return Activation{}, recipe.Program{}, err
 	}
-	event, err := currentEvent(ctx, store, definition.ID)
-	if err != nil {
-		return ProfileDocument{}, false, err
-	}
-	if _, err := matchingProfileParity(
-		ctx, store, event.Evidence, definition, document,
-	); err != nil {
-		return ProfileDocument{}, false, err
-	}
-	return document, true, nil
+	program, err := CompileCapability(activation.Definition)
+	return activation, program, err
 }
 
 // Status: current lifecycle state of a recipe; published=false when never seen.
@@ -428,8 +405,4 @@ func statusAlias(recipeID artifact.ID) string {
 
 func activeAlias(modelID artifact.ID, task recipe.Task) string {
 	return "recipe.active." + string(task) + "." + modelID.String()
-}
-
-func legacyRecipeProfileAlias(recipeID artifact.ID) string {
-	return "recipe.profile." + recipeID.String()
 }

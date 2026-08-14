@@ -21,26 +21,25 @@ func (r *Runner) loadEmbeddings(ctx context.Context, rows []uint32) (reference.V
 	return r.loadRows(ctx, r.weights.TokenEmbedding, rows)
 }
 
-func (r *Runner) prepareGemma4PerLayerInputs(
+func (r *Runner) preparePerLayerInputs(
 	ctx context.Context,
 	activation reference.Value,
 	rows []uint32,
 ) ([]reference.Value, error) {
-	if !r.profile().Has(model.ArchitecturePerLayerEmbeddings) ||
-		r.spec.EmbeddingPerLayer == 0 {
+	if !r.program.Model.ProjectedInput().PerLayerEmbeddings {
 		return nil, nil
 	}
 	if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 		r.weights.PerLayerProjectionNorm == nil {
-		return nil, errors.New("inference: Gemma per-layer weights are incomplete")
+		return nil, errors.New("inference: per-layer input weights are incomplete")
 	}
 	selected, err := r.loadRows(ctx, *r.weights.PerLayerTokenEmbedding, rows)
 	if err != nil {
-		return nil, fmt.Errorf("inference: load Gemma per-layer embeddings: %w", err)
+		return nil, fmt.Errorf("inference: load per-layer embeddings: %w", err)
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
-	input := runtime.input("gemma4.per_layer.input", activation)
-	selectedInput := runtime.input("gemma4.per_layer.selected", selected)
+	input := runtime.input("per_layer.input", activation)
+	selectedInput := runtime.input("per_layer.selected", selected)
 	projection, err := runtime.weight(*r.weights.PerLayerModelProjection)
 	if err != nil {
 		return nil, err
@@ -49,8 +48,8 @@ func (r *Runner) prepareGemma4PerLayerInputs(
 	if err != nil {
 		return nil, err
 	}
-	outputs, err := model.BuildGemma4PerLayerInputs(
-		runtime.builder, input, selectedInput, projection, norm, r.spec,
+	outputs, err := r.program.Model.BuildPerLayerInputs(
+		runtime.builder, input, selectedInput, projection, norm,
 	)
 	if err != nil {
 		return nil, err
@@ -163,7 +162,7 @@ func (r *Runner) applyTokenEmbeddingNorm(
 			return reference.Value{}, err
 		}
 	}
-	output := model.ApplyNormalization(runtime.builder, input, weightInput, biasInput, r.spec)
+	output := r.program.Model.Normalization().Apply(runtime.builder, input, weightInput, biasInput)
 	if err := runtime.builder.Err(); err != nil {
 		return reference.Value{}, err
 	}
@@ -252,7 +251,7 @@ func applyLogitSoftcap(logits []float32, cap float32) []float32 {
 
 func (r *Runner) finalizeLogits(logits []float32) []float32 {
 	logits = applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap)
-	if !r.profile().Has(model.ArchitectureDiscreteImageTokens) || r.spec.VocabularySize == 0 {
+	if !r.program.Model.ProjectedInput().DiscreteTokens || r.spec.VocabularySize == 0 {
 		return logits
 	}
 	vocabulary := int(r.spec.VocabularySize)

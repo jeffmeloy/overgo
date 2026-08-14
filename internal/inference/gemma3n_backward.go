@@ -153,7 +153,9 @@ func g3nPredictBackward(dStates []reference.Value, dPredictCoeff, dRouter, dRout
 	tokens := int(states[0].Shape.Dims[1])
 	width := int(states[0].Shape.Dims[0])
 	// Recompute modalities + coefficients.
-	modalities, _ := gemma3nModalities(states[active], layer, spec)
+	modalities, _ := gemma3nModalities(
+		states[active], layer, spec.EmbeddingLength, spec.RMSNormEpsilon,
+	)
 	coefficients, _ := gemma3nMatMul(*layer.AltUpPredictCoefficient, modalities)
 	dCoeff := reference.Value{Shape: coefficients.Shape, Data: make([]float32, len(coefficients.Data))}
 	// result[o][t,f] = states[o][t,f] + sum_s coeff[t,o*count+s]*states[s][t,f].
@@ -208,7 +210,9 @@ func g3nCorrectAndInjectBackward(dPredictions []reference.Value, dActivated, dPe
 	eps := spec.RMSNormEpsilon
 
 	// --- Recompute forward trace (correction mix + PLE path). ---
-	modalities, _ := gemma3nModalities(activated, layer, spec)
+	modalities, _ := gemma3nModalities(
+		activated, layer, spec.EmbeddingLength, spec.RMSNormEpsilon,
+	)
 	coefficients, _ := gemma3nMatMul(*layer.AltUpCorrectCoefficient, modalities)
 	// result[active] before PLE.
 	resultActive := predictions[active].Clone()
@@ -331,7 +335,7 @@ func g3nActivateFFNBackward(dGate, dUp []float32, gate, up reference.Value, dRes
 }
 
 // --- Laurel (learned augmented residual layer) host forward + backward. The
-// forward mirrors model.BuildGemma3nAttentionStage's laurel sub-graph:
+// Forward mirrors the compiled activation projection's Laurel subgraph:
 //   l1  = LaurelLeft  @ normalized      (emb -> rank)
 //   l2  = LaurelRight @ l1              (rank -> emb)
 //   ln  = weightedRMS(l2, LaurelPostNorm)
@@ -368,12 +372,14 @@ func gemma3nLaurelBackward(dNormalized, dLeft, dRight, dPostNorm []float32, norm
 }
 
 // --- Assembled gemma3n active-layer host forward + backward. This is a faithful
-// host transcription of model.BuildGemma3nAttentionStage + BuildGemma3nFeedForwardOutput
+// Host transcription of the compiled projection prefix and suffix
 // (the differentiable composition), used to FD-verify the full-layer gradient wrt
 // the residual-stream input and every layer weight, for both the full-causal and
-// the sliding-window layer types. keyLength=valueLength=headDim and full-dim
-// NeoX rotate-half RoPE are assumed for the synthetic gemma3n config; partial-rope
-// and keyLength!=headDim parity with the serving graph is a separate concern.
+// the sliding-window layer types. The rotary width is config-driven via
+// cfg.ropeDim through the shared hostmath.RopeWidth owner (0 => full head_dim,
+// as real gemma3n's rope.dimension_count defaults to key_length==head_dim), so
+// partial-rope configs rotate only the first RopeWidth dims — matching the
+// serving reference.ropeNeoX convention.
 
 type gemma3nLayerWeights struct {
 	AttnNorm, LaurelLeft, LaurelRight, LaurelPostNorm reference.Value
@@ -401,6 +407,7 @@ func newGemma3nLayerGrads(w gemma3nLayerWeights) *gemma3nLayerGrads {
 
 type gemma3nLayerConfig struct {
 	emb, tokens, headCount, kvHeads, headDim, inter, window int
+	ropeDim                                                 int // rotary width; 0 => full head_dim
 	sparse                                                  bool
 	eps                                                     float32
 	ropeTheta                                               float64
@@ -455,15 +462,18 @@ func gemma3nActiveLayerTrace(w gemma3nLayerWeights, cfg gemma3nLayerConfig, inpu
 	tr.v = make([]float32, kvWidth*tk)
 	hostmath.RMSNormInto(tr.v, tr.vRaw, nil, tk*kv, hd, eps) // unit-scale value norm
 
-	invFreq := hostmath.RopeInvFreq(cfg.ropeTheta, hd)
+	rd := hostmath.RopeWidth(cfg.ropeDim, hd)
+	invFreq := hostmath.RopeInvFreq(cfg.ropeTheta, rd)
 	tr.q = append([]float32(nil), tr.qNormed...)
 	tr.k = append([]float32(nil), tr.kNormed...)
 	for p := 0; p < tk; p++ {
 		for h := 0; h < hc; h++ {
-			hostmath.ApplyRotaryHalf(tr.q[(p*hc+h)*hd:(p*hc+h+1)*hd], invFreq, p)
+			base := (p*hc + h) * hd
+			hostmath.ApplyRotaryHalf(tr.q[base:base+rd], invFreq, p)
 		}
 		for h := 0; h < kv; h++ {
-			hostmath.ApplyRotaryHalf(tr.k[(p*kv+h)*hd:(p*kv+h+1)*hd], invFreq, p)
+			base := (p*kv + h) * hd
+			hostmath.ApplyRotaryHalf(tr.k[base:base+rd], invFreq, p)
 		}
 	}
 	scale := float32(1 / math.Sqrt(float64(hd)))
@@ -578,13 +588,16 @@ func gemma3nActiveLayerBackward(w gemma3nLayerWeights, cfg gemma3nLayerConfig, i
 	for i := range dq {
 		dq[i] *= scale
 	}
-	invFreq := hostmath.RopeInvFreq(cfg.ropeTheta, hd)
+	rd := hostmath.RopeWidth(cfg.ropeDim, hd)
+	invFreq := hostmath.RopeInvFreq(cfg.ropeTheta, rd)
 	for p := 0; p < tk; p++ {
 		for h := 0; h < hc; h++ {
-			hostmath.RotaryHalfBackward(dq[(p*hc+h)*hd:(p*hc+h+1)*hd], invFreq, p)
+			base := (p*hc + h) * hd
+			hostmath.RotaryHalfBackward(dq[base:base+rd], invFreq, p)
 		}
 		for h := 0; h < kv; h++ {
-			hostmath.RotaryHalfBackward(dk[(p*kv+h)*hd:(p*kv+h+1)*hd], invFreq, p)
+			base := (p*kv + h) * hd
+			hostmath.RotaryHalfBackward(dk[base:base+rd], invFreq, p)
 		}
 	}
 	// q/k per-head norm backward, value unit-norm backward.

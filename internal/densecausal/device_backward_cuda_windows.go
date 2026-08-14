@@ -4,7 +4,6 @@ package densecausal
 
 import (
 	"fmt"
-	"math"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/devicemath"
@@ -19,15 +18,16 @@ func ropeInvF32(invFreq []float64) []float32 {
 	return out
 }
 
-// deviceLayerBackward is the device counterpart to layerBackward: it recomputes
-// the forward on host for intermediates, then runs every VJP on the GPU via
-// internal/devicemath, matching layerBackward's math (and weight-grad slots)
-// exactly. Returns dx (the layer's input gradient) and writes weight grads into
-// g. Attention bias is not yet supported (AttnBias must be false).
+// deviceLayerBackward is the device counterpart to layerBackward: it runs the
+// whole layer backward in ONE resident cudaBLAS session
+// (devicemath.LayerBackwardResident) consuming the forward cache -- every VJP and
+// intermediate gradient stays device-resident, no per-op round-trips. Returns dx
+// (the layer's input gradient) and writes weight grads into g, matching
+// layerBackward's math and slots. Attention bias is not yet supported.
 func (m *Model) deviceLayerBackward(worker *device.Worker, index int, x, dOut []float32, cache layerCache, invFreq []float64, seq int, g Grads) ([]float32, error) {
 	d := m.Dims
-	if d.AttnBias {
-		return nil, fmt.Errorf("deviceLayerBackward: attention bias not supported yet")
+	if ok, reason := DeviceTrainingSupported(d); !ok {
+		return nil, fmt.Errorf("deviceLayerBackward: %s", reason)
 	}
 	l, err := m.layerWeights(index)
 	if err != nil {
@@ -36,79 +36,25 @@ func (m *Model) deviceLayerBackward(worker *device.Worker, index int, x, dOut []
 	prefix := fmt.Sprintf("model.layers.%d.", index)
 	width := d.Heads * d.HeadDim
 	kvWidth := d.KVHeads * d.HeadDim
-	scale := float32(1 / math.Sqrt(float64(d.HeadDim)))
-	invF32 := ropeInvF32(invFreq)
-
-	// Forward intermediates come from the cache (saved by layerForwardCached) --
-	// no host recompute.
-	xn, tr, h2, hn := cache.xn, cache.tr, cache.h2, cache.hn
-	gate, up, a, hMLP := cache.gate, cache.up, cache.a, cache.hMLP
-
-	// --- MLP branch backward ---
-	mlp, err := devicemath.GatedMLPBackwardTResident(worker, hn, l.gate, l.up, l.down, gate, a, up, hMLP, dOut, seq, d.Hidden, d.Intermediate)
+	fc := devicemath.LayerForwardCache{
+		Xn: cache.xn, QScaled: cache.tr.qScaled, KRoped: cache.tr.kRoped, V: cache.tr.v, AttnCore: cache.tr.attnCore,
+		H2: cache.h2, Hn: cache.hn, Gate: cache.gate, Up: cache.up, A: cache.a, HMLP: cache.hMLP,
+	}
+	w := devicemath.LayerForwardWeights{
+		InLN: l.inLN, PostLN: l.postLN, Q: l.q, K: l.k, V: l.v, O: l.o, Gate: l.gate, Up: l.up, Down: l.down,
+	}
+	r, err := devicemath.LayerBackwardResident(worker, x, dOut, fc, w, ropeInvF32(invFreq), seq, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, d.RMSEps)
 	if err != nil {
 		return nil, err
 	}
-	copy(g.slot(prefix+"mlp.gate_proj.weight", d.Intermediate*d.Hidden), mlp.DWGate)
-	copy(g.slot(prefix+"mlp.up_proj.weight", d.Intermediate*d.Hidden), mlp.DWUp)
-	copy(g.slot(prefix+"mlp.down_proj.weight", d.Hidden*d.Intermediate), mlp.DWDown)
-	dPost, dwPost, err := devicemath.RMSNormBackward(worker, h2, l.postLN, mlp.DX, seq, d.Hidden, d.RMSEps)
-	if err != nil {
-		return nil, err
-	}
-	copy(g.slot(prefix+"post_attention_layernorm.weight", d.Hidden), dwPost)
-	dh2 := make([]float32, seq*d.Hidden)
-	for i := range dh2 {
-		dh2[i] = dOut[i] + dPost[i]
-	}
-
-	// --- Attention branch backward ---
-	dAttnCore, dWo, err := devicemath.LinearBackwardT(worker, tr.attnCore, l.o, dh2, seq, width, d.Hidden)
-	if err != nil {
-		return nil, err
-	}
-	copy(g.slot(prefix+"self_attn.o_proj.weight", d.Hidden*width), dWo)
-	dq, dk, dv, err := devicemath.MultiHeadAttentionBackwardResident(worker, tr.qScaled, tr.kRoped, tr.v, dAttnCore, seq, d.Heads, d.KVHeads, d.HeadDim, 1.0)
-	if err != nil {
-		return nil, err
-	}
-	for i := range dq {
-		dq[i] *= scale
-	}
-	if dq, err = devicemath.RoPEHalfBackward(worker, dq, invF32, seq, d.Heads, d.HeadDim); err != nil {
-		return nil, err
-	}
-	if dk, err = devicemath.RoPEHalfBackward(worker, dk, invF32, seq, d.KVHeads, d.HeadDim); err != nil {
-		return nil, err
-	}
-	dXnQ, dWq, err := devicemath.LinearBackwardT(worker, xn, l.q, dq, seq, d.Hidden, width)
-	if err != nil {
-		return nil, err
-	}
-	dXnK, dWk, err := devicemath.LinearBackwardT(worker, xn, l.k, dk, seq, d.Hidden, kvWidth)
-	if err != nil {
-		return nil, err
-	}
-	dXnV, dWv, err := devicemath.LinearBackwardT(worker, xn, l.v, dv, seq, d.Hidden, kvWidth)
-	if err != nil {
-		return nil, err
-	}
-	copy(g.slot(prefix+"self_attn.q_proj.weight", width*d.Hidden), dWq)
-	copy(g.slot(prefix+"self_attn.k_proj.weight", kvWidth*d.Hidden), dWk)
-	copy(g.slot(prefix+"self_attn.v_proj.weight", kvWidth*d.Hidden), dWv)
-	dXn := make([]float32, seq*d.Hidden)
-	for i := range dXn {
-		dXn[i] = dXnQ[i] + dXnK[i] + dXnV[i]
-	}
-
-	dInn, dwIn, err := devicemath.RMSNormBackward(worker, x, l.inLN, dXn, seq, d.Hidden, d.RMSEps)
-	if err != nil {
-		return nil, err
-	}
-	copy(g.slot(prefix+"input_layernorm.weight", d.Hidden), dwIn)
-	dx := make([]float32, seq*d.Hidden)
-	for i := range dx {
-		dx[i] = dh2[i] + dInn[i]
-	}
-	return dx, nil
+	copy(g.slot(prefix+"mlp.gate_proj.weight", d.Intermediate*d.Hidden), r.DWGate)
+	copy(g.slot(prefix+"mlp.up_proj.weight", d.Intermediate*d.Hidden), r.DWUp)
+	copy(g.slot(prefix+"mlp.down_proj.weight", d.Hidden*d.Intermediate), r.DWDown)
+	copy(g.slot(prefix+"post_attention_layernorm.weight", d.Hidden), r.DWPostLN)
+	copy(g.slot(prefix+"self_attn.o_proj.weight", d.Hidden*width), r.DWO)
+	copy(g.slot(prefix+"self_attn.q_proj.weight", width*d.Hidden), r.DWQ)
+	copy(g.slot(prefix+"self_attn.k_proj.weight", kvWidth*d.Hidden), r.DWK)
+	copy(g.slot(prefix+"self_attn.v_proj.weight", kvWidth*d.Hidden), r.DWV)
+	copy(g.slot(prefix+"input_layernorm.weight", d.Hidden), r.DWInLN)
+	return r.DX, nil
 }

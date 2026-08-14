@@ -21,16 +21,25 @@ import (
 // not a flag.
 const deviceArch = "compute_89"
 
-type kernel struct{ source, output string }
+type kernel struct {
+	source, output string
+	// noFastMath omits -use_fast_math for this module. torch_cuda_randn draws
+	// normals through logf/sqrtf/sincospif; the fast-math intrinsics change
+	// those last bits and break byte-parity with PyTorch's standard-precision
+	// curand. Bit-exact RNG is an ABI requirement, not a knob.
+	noFastMath bool
+}
 
 var kernels = []kernel{
 	{source: "kernels/cuda/vector_add.cu", output: "internal/cuda/kernel/vector_add.ptx"},
 	{source: "kernels/cuda/ops_f32.cu", output: "internal/cuda/kernel/ops_f32.ptx"},
+	{source: "kernels/cuda/torch_cuda_randn.cu", output: "internal/cuda/kernel/torch_cuda_randn.ptx", noFastMath: true},
 }
 
 var runtimePins = map[string]string{
-	"VectorAddSHA256": "internal/cuda/kernel/vector_add.ptx",
-	"OpsF32SHA256":    "internal/cuda/kernel/ops_f32.ptx",
+	"VectorAddSHA256":      "internal/cuda/kernel/vector_add.ptx",
+	"OpsF32SHA256":         "internal/cuda/kernel/ops_f32.ptx",
+	"TorchCudaRandnSHA256": "internal/cuda/kernel/torch_cuda_randn.ptx",
 }
 
 func main() {
@@ -46,8 +55,16 @@ func run() error {
 		return err
 	}
 	for _, item := range kernels {
-		cmd := exec.Command(nvcc, "-ptx", "-arch="+deviceArch, "-use_fast_math",
-			"-ccbin", compiler, "-o", filepath.FromSlash(item.output), filepath.FromSlash(item.source))
+		args := []string{"-ptx", "-arch=" + deviceArch}
+		if !item.noFastMath {
+			args = append(args, "-use_fast_math")
+		} else {
+			// curand device headers are C++17 and resolve from the toolkit
+			// include dir; keep standard precision for bit-exact normals.
+			args = append(args, "--std=c++17")
+		}
+		args = append(args, "-ccbin", compiler, "-o", filepath.FromSlash(item.output), filepath.FromSlash(item.source))
+		cmd := exec.Command(nvcc, args...)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("nvcc %s: %v: %s", item.source, err, strings.TrimSpace(string(out)))
 		}

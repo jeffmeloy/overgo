@@ -293,30 +293,6 @@ func LoadHostRows(
 	return reference.Value{Shape: shape, Data: output}, nil
 }
 
-// ArgmaxDot: streams rank-2 output table and returns row with largest
-// dot product against vector; bounds temporary memory by chunkRows
-func ArgmaxDot(
-	ctx context.Context,
-	file *gguf.File,
-	info gguf.TensorInfo,
-	vector []float32,
-	chunkRows uint32,
-) (uint32, float32, error) {
-	scores, err := DotRows(ctx, file, info, vector, chunkRows)
-	if err != nil {
-		return 0, 0, err
-	}
-	bestRow := uint32(0)
-	bestScore := float32(math.Inf(-1))
-	for row, score := range scores {
-		if score > bestScore {
-			bestScore = score
-			bestRow = uint32(row)
-		}
-	}
-	return bestRow, bestScore, nil
-}
-
 // DotRows: streams rank-2 output table and computes one logit per row
 func DotRows(
 	ctx context.Context,

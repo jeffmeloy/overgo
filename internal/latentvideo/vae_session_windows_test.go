@@ -46,7 +46,7 @@ func decodeVAEFrames(t *testing.T, decode func(sink VideoFrameSink) (VAEDecodeSt
 func runVAEDecodeCUDAAgainstHost(t *testing.T, manifestName string) {
 	cudatest.Require(t)
 	if testing.Short() {
-		t.Skip("loads the 293MB VAE decoder weight set; skipped in -short")
+		t.Skip("integration excluded by -short: loads the 293MB VAE decoder weight set")
 	}
 	golden := loadVAEGoldenFrames(t, manifestName)
 	plan, checkpoint := compileRealVAEDecoderPlan(t)
@@ -90,7 +90,7 @@ func TestVAEDecodeCUDAGoldenG4(t *testing.T) {
 	runVAEDecodeCUDAAgainstHost(t, "g4_denoise.json")
 }
 
-func loadF32LE(t *testing.T, path string, elements int) []float32 {
+func loadF32LE(t testing.TB, path string, elements int) []float32 {
 	t.Helper()
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -114,7 +114,7 @@ func loadF32LE(t *testing.T, path string, elements int) []float32 {
 func TestVAEDecodeCUDAProduction(t *testing.T) {
 	cudatest.Require(t)
 	if testing.Short() {
-		t.Skip("production-scale decode; skipped in -short")
+		t.Skip("integration excluded by -short: production-scale decode")
 	}
 	plan, checkpoint := compileRealVAEDecoderPlan(t)
 	stats := vaeG0LatentStats(t)
@@ -159,6 +159,9 @@ func TestVAEDecodeCUDAProduction(t *testing.T) {
 	wall := time.Since(started)
 	if frames != 81 {
 		t.Fatalf("decoded %d frames, want 81", frames)
+	}
+	if wall.Seconds() >= wanOvergoDecodeCeiling {
+		t.Fatalf("production CUDA decode wall %.2fs >= %.1fs", wall.Seconds(), wanOvergoDecodeCeiling)
 	}
 	t.Logf("production cuda decode source=%s frames=%d output=%dx%dx%d wall=%.2fs peak_device=%.1fMB weight_bytes=%d",
 		source, frames, decodeStats.OutputChannels, decodeStats.OutputHeight, decodeStats.OutputWidth,

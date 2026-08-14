@@ -75,13 +75,11 @@ type Gemma4TowerRunner struct {
 	cuda *projectorCUDA
 }
 
-type Gemma4TowerOpenOptions = OpenOptions
-
 func OpenGemma4Tower(path string) (*Gemma4TowerRunner, error) {
-	return OpenGemma4TowerWithOptions(path, Gemma4TowerOpenOptions{})
+	return OpenGemma4TowerWithOptions(path, OpenOptions{})
 }
 
-func OpenGemma4TowerWithOptions(path string, options Gemma4TowerOpenOptions) (*Gemma4TowerRunner, error) {
+func OpenGemma4TowerWithOptions(path string, options OpenOptions) (*Gemma4TowerRunner, error) {
 	return openCatalogProjector(path, options, "Gemma 4 tower", nil,
 		ReadGemma4TowerSpec, validateGemma4TowerCatalog,
 		func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
@@ -221,17 +219,8 @@ func metadataInt32ArrayValues(file *gguf.File, key string) ([]int, error) {
 
 func (s Gemma4TowerSpec) validate() error {
 	vision, audio := s.Vision, s.Audio
-	if vision.Layers <= 0 || vision.Hidden <= 0 || vision.Heads <= 0 || vision.KVHeads <= 0 ||
-		vision.HeadDim <= 0 || vision.Intermediate <= 0 || vision.PatchSize <= 0 ||
-		vision.PoolKernel <= 0 || vision.PositionCount <= 0 || vision.ProjectionDim <= 0 ||
-		vision.MaxImageTokens <= 0 || vision.MaxVideoTokens <= 0 ||
-		vision.RMSNormEpsilon <= 0 || vision.RopeFreqBase <= 0 || vision.HiddenActivation == "" {
-		return fmt.Errorf("projector: invalid Gemma 4 vision tower metadata: %+v", vision)
-	}
-	for channel := range vision.ImageStd {
-		if vision.ImageStd[channel] <= 0 || !finite32(vision.ImageMean[channel]) || !finite32(vision.ImageStd[channel]) {
-			return fmt.Errorf("projector: invalid Gemma 4 vision normalization channel %d", channel)
-		}
+	if err := vision.validate(); err != nil {
+		return err
 	}
 	if audio.Layers <= 0 || audio.Hidden <= 0 || audio.Heads <= 0 || audio.Hidden%audio.Heads != 0 ||
 		audio.Intermediate <= 0 || audio.ConvKernel <= 0 || len(audio.SubChannels) == 0 ||
@@ -242,6 +231,23 @@ func (s Gemma4TowerSpec) validate() error {
 		audio.RMSNormEpsilon <= 0 || audio.MinFrequency < 0 || audio.MaxFrequency <= audio.MinFrequency ||
 		audio.MelFloor <= 0 || audio.HiddenActivation == "" {
 		return fmt.Errorf("projector: invalid Gemma 4 audio tower metadata: %+v", audio)
+	}
+	return nil
+}
+
+func (vision Gemma4VisionTowerSpec) validate() error {
+	if vision.Layers <= 0 || vision.Hidden <= 0 || vision.Heads <= 0 || vision.KVHeads <= 0 ||
+		vision.HeadDim <= 0 || vision.HeadDim%4 != 0 || vision.Heads%vision.KVHeads != 0 ||
+		vision.Intermediate <= 0 || vision.PatchSize <= 0 ||
+		vision.PoolKernel <= 0 || vision.PositionCount <= 0 || vision.ProjectionDim <= 0 ||
+		vision.MaxImageTokens <= 0 || vision.MaxVideoTokens <= 0 ||
+		vision.RMSNormEpsilon <= 0 || vision.RopeFreqBase <= 0 || vision.HiddenActivation == "" {
+		return fmt.Errorf("projector: invalid Gemma 4 vision tower metadata: %+v", vision)
+	}
+	for channel := range vision.ImageStd {
+		if vision.ImageStd[channel] <= 0 || !finite32(vision.ImageMean[channel]) || !finite32(vision.ImageStd[channel]) {
+			return fmt.Errorf("projector: invalid Gemma 4 vision normalization channel %d", channel)
+		}
 	}
 	return nil
 }

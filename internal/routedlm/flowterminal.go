@@ -488,6 +488,56 @@ func FlowHeadVelocity(w FlowMLPWeights, plan FlowPlan, hidden, z []float32, time
 	return out, nil
 }
 
+// GenerationFinalHidden applies the generation terminal's BF16 norm steps.
+func GenerationFinalHidden(hidden, weight []float32, rows, dim int, eps float64) ([]float32, error) {
+	if rows <= 0 || dim <= 0 || len(hidden) != rows*dim || len(weight) != dim || eps <= 0 {
+		return nil, fmt.Errorf("routed lm generation terminal: invalid shape")
+	}
+	out := make([]float32, len(hidden))
+	for row := 0; row < rows; row++ {
+		base := row * dim
+		var sum float64
+		for _, value := range hidden[base : base+dim] {
+			sum += float64(value) * float64(value)
+		}
+		inv := 1 / math.Sqrt(sum/float64(dim)+eps)
+		for column := 0; column < dim; column++ {
+			normalized := dtype.RoundBF16(float32(float64(hidden[base+column]) * inv))
+			out[base+column] = dtype.RoundBF16(normalized * weight[column])
+		}
+	}
+	return out, nil
+}
+
+// GuidedFlowVelocity combines ordered guidance terms, then stores BF16.
+func GuidedFlowVelocity(velocities [][]float32, coefficients []float32) ([]float32, error) {
+	if len(velocities) == 0 || len(velocities) != len(coefficients) || len(velocities[0]) == 0 {
+		return nil, fmt.Errorf("routed lm guidance: invalid terms")
+	}
+	out := make([]float32, len(velocities[0]))
+	for term, velocity := range velocities {
+		if len(velocity) != len(out) {
+			return nil, fmt.Errorf("routed lm guidance: term %d elements=%d want=%d", term, len(velocity), len(out))
+		}
+		for index, value := range velocity {
+			out[index] += coefficients[term] * value
+		}
+	}
+	bf16RoundSlice(out)
+	return out, nil
+}
+
+// FlowEulerStep advances packed state with BF16 storage.
+func FlowEulerStep(state, velocity []float32, delta float32) error {
+	if len(state) == 0 || len(state) != len(velocity) || delta <= 0 {
+		return fmt.Errorf("routed lm Euler: invalid state or delta")
+	}
+	for index, value := range velocity {
+		state[index] = dtype.RoundBF16(state[index] + delta*value)
+	}
+	return nil
+}
+
 // patchVector: one pixel patch gathered from a planar [C,H,W] image into the
 // conv-as-linear input layout [c][r][q], bf16-rounded (media_patch_gather +
 // the device GEMM's f32->bf16 input conversion).

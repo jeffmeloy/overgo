@@ -9,10 +9,35 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/model"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/repodb"
 )
 
 const importFixtureCommit = "0123456789abcdef0123456789abcdef01234567"
+
+func TestLegacyProfileUpgradeAddsCurrentProvenance(t *testing.T) {
+	profile, _ := model.LookupArchitecture("llama")
+	legacy, err := json.Marshal(struct {
+		Version      uint16                    `json:"version"`
+		Architecture string                    `json:"architecture"`
+		Policy       model.ArchitectureProfile `json:"policy"`
+	}{Version: 1, Architecture: profile.Name, Policy: profile})
+	if err != nil {
+		t.Fatal(err)
+	}
+	upgraded, err := upgradeLegacyProfile(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := modelrecipe.ParseProfileDocument(upgraded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Version != modelrecipe.ProfileVersion || len(document.Provenance) == 0 {
+		t.Fatalf("upgraded profile = %+v", document)
+	}
+}
 
 func TestImportResolvesFilesDocumentsManifestsAndLineage(t *testing.T) {
 	root := t.TempDir()

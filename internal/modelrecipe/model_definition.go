@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"overgo/internal/artifact"
-	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
@@ -147,38 +146,12 @@ func NewModelDefinitionDocument(
 	return modelDefinitionCodec.New(document)
 }
 
-func NewModelDefinitionFromGGUF(
-	file *gguf.File,
-	profile ProfileDocument,
-	tensors modelartifact.TensorInventoryDocument,
-) (ModelDefinitionDocument, error) {
-	if file == nil {
-		return ModelDefinitionDocument{}, errors.New("model recipe: nil GGUF model definition source")
-	}
-	observed, err := modelartifact.NewGGUFTensorInventory(tensors.Model, file)
-	if err != nil {
-		return ModelDefinitionDocument{}, err
-	}
-	if observed.ID != tensors.ID {
-		return ModelDefinitionDocument{}, errors.New("model recipe: GGUF tensor inventory does not match definition source")
-	}
-	spec, err := model.ReadSpecWithProfile(file, profile.Policy)
-	if err != nil {
-		return ModelDefinitionDocument{}, err
-	}
-	return NewModelDefinitionDocument(profile, tensors, spec)
-}
-
 func ParseModelDefinitionDocument(content []byte) (ModelDefinitionDocument, error) {
 	return modelDefinitionCodec.Parse(content)
 }
 
 func (d ModelDefinitionDocument) ValidateIdentity() error {
 	return modelDefinitionCodec.ValidateIdentity(d)
-}
-
-func (d ModelDefinitionDocument) ContentBytes() ([]byte, error) {
-	return modelDefinitionCodec.ContentBytes(d)
 }
 
 func (d ModelDefinitionDocument) Content() (artifact.Content, error) {

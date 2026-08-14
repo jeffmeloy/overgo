@@ -44,15 +44,15 @@ func (r *Runner) decodeDeviceInput(
 	return r.deviceInput(builder, info)
 }
 
-func (r *Runner) wavTokenizerGraphInputs(
+func (r *Runner) sequenceOutputGraphInputs(
 	ctx context.Context,
 	builder *tensor.Builder,
-) (model.WavTokenizerGraphWeights, map[*tensor.Tensor]reference.Value, map[*tensor.Tensor]driver.DevicePtr, error) {
-	var result model.WavTokenizerGraphWeights
+) (model.SequenceOutputGraphWeights, map[*tensor.Tensor]reference.Value, map[*tensor.Tensor]driver.DevicePtr, error) {
+	var result model.SequenceOutputGraphWeights
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
-	if r.weights.WavTokenizer == nil {
-		return result, nil, nil, errors.New("inference: WavTokenizer weights are missing")
+	if r.weights.AudioDecoder == nil {
+		return result, nil, nil, errors.New("inference: AudioDecoder weights are missing")
 	}
 	input := func(info gguf.TensorInfo) (*tensor.Tensor, error) {
 		if r.hasPreloadedWeights() {
@@ -78,7 +78,7 @@ func (r *Runner) wavTokenizerGraphInputs(
 		}
 		return err
 	}
-	info := r.weights.WavTokenizer
+	info := r.weights.AudioDecoder
 	for _, item := range []struct {
 		destination **tensor.Tensor
 		info        gguf.TensorInfo
@@ -92,9 +92,9 @@ func (r *Runner) wavTokenizerGraphInputs(
 			return result, nil, nil, err
 		}
 	}
-	result.PosNet = make([]model.WavPosNetGraphWeights, len(info.PosNet))
+	result.Residual = make([]model.SequenceResidualGraphWeights, len(info.PosNet))
 	for block := range info.PosNet {
-		source, destination := &info.PosNet[block], &result.PosNet[block]
+		source, destination := &info.PosNet[block], &result.Residual[block]
 		for _, item := range []struct {
 			destination **tensor.Tensor
 			info        gguf.TensorInfo
@@ -116,9 +116,9 @@ func (r *Runner) wavTokenizerGraphInputs(
 			}
 		}
 	}
-	result.ConvNext = make([]model.WavConvNextGraphWeights, len(info.ConvNext))
+	result.Convolution = make([]model.SequenceConvGraphWeights, len(info.ConvNext))
 	for block := range info.ConvNext {
-		source, destination := &info.ConvNext[block], &result.ConvNext[block]
+		source, destination := &info.ConvNext[block], &result.Convolution[block]
 		for _, item := range []struct {
 			destination **tensor.Tensor
 			info        gguf.TensorInfo
@@ -159,10 +159,11 @@ func (r *Runner) buildOutputNorm(
 	if r.program.Model.Terminal().Normalization == model.OutputNormAbsent {
 		return input, nil
 	}
-	if r.spec.UsesUnweightedLayerNorm() {
+	normalization := r.program.Model.Normalization()
+	if normalization.Operation == model.NormalizationUnweightedLayer {
 		return builder.LayerNorm(input, r.spec.LayerNormEpsilon), builder.Err()
 	}
-	if r.spec.UsesUnweightedRMSNorm() {
+	if normalization.Operation == model.NormalizationUnweightedRMS {
 		return builder.RMSNorm(input, r.spec.RMSNormEpsilon), builder.Err()
 	}
 	weight, err := bind(r.weights.OutputNorm)
@@ -176,7 +177,7 @@ func (r *Runner) buildOutputNorm(
 			return nil, err
 		}
 	}
-	return model.ApplyNormalization(builder, input, weight, bias, r.spec), builder.Err()
+	return r.program.Model.Normalization().Apply(builder, input, weight, bias), builder.Err()
 }
 
 func (r *Runner) layerDeviceInputs(

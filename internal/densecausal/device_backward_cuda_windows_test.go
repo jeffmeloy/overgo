@@ -71,6 +71,7 @@ func TestDeviceLayerBackwardMatchesHost(t *testing.T) {
 		t.Fatalf("grad tensor count device %d != host %d", len(gDev), len(gHost))
 	}
 	var worst float64
+	var worstName string
 	for name, want := range gHost {
 		got, ok := gDev[name]
 		if !ok {
@@ -79,12 +80,14 @@ func TestDeviceLayerBackwardMatchesHost(t *testing.T) {
 		if len(got) != len(want) {
 			t.Fatalf("grad %q len device %d != host %d", name, len(got), len(want))
 		}
-		if v := maxAbs(want, got); v > worst {
+		v := maxAbs(want, got)
+		if v > worst {
 			worst = v
+			worstName = name
 		}
-		if v := maxAbs(want, got); v > tolerance {
+		if v > tolerance {
 			t.Fatalf("grad %q device vs host %.3e > %.1e", name, v, tolerance)
 		}
 	}
-	t.Logf("worst weight grad: %.3e over %d tensors", worst, len(gHost))
+	t.Logf("worst weight grad: %.3e (%s) over %d tensors", worst, worstName, len(gHost))
 }

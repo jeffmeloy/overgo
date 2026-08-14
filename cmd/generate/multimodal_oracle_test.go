@@ -13,6 +13,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
@@ -20,8 +21,12 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func openFixtureRunner(path string, options inference.OpenOptions) (*inference.Runner, error) {
-	loaded, err := servingtest.ResolveActiveGGUF(path, recipe.PlacementHybrid)
+func openFixtureRunner(
+	path string, options inference.OpenOptions, residency recipe.ResidencyPolicy,
+) (*inference.Runner, error) {
+	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+		path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, residency,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -29,6 +34,7 @@ func openFixtureRunner(path string, options inference.OpenOptions) (*inference.R
 }
 
 func TestQwen35VideoEndToEndOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	projectorPath := os.Getenv("OVERGO_QWEN35_MMPROJ")
 	goldenPath := os.Getenv("OVERGO_QWEN35_VIDEO_GOLDEN")
@@ -43,7 +49,7 @@ func TestQwen35VideoEndToEndOracle(t *testing.T) {
 	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
-	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadDeviceWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{}, recipe.ResidencyDeviceF32)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,6 +102,7 @@ func TestQwen35VideoEndToEndOracle(t *testing.T) {
 }
 
 func TestGemma4ImageEndToEndOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_GEMMA4_MODEL")
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
 	imagePath := os.Getenv("OVERGO_GEMMA4_IMAGE")
@@ -110,7 +117,7 @@ func TestGemma4ImageEndToEndOracle(t *testing.T) {
 	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
-	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{}, recipe.ResidencyDeviceNative)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,6 +169,7 @@ func TestGemma4ImageEndToEndOracle(t *testing.T) {
 // language path executes on-device. Closes the single-process device-projector +
 // device-language combination.
 func TestGemma4ImageDeviceProjectorEndToEndOracle(t *testing.T) {
+	requireIntegration(t)
 	cudatest.Require(t)
 	modelPath := os.Getenv("OVERGO_GEMMA4_MODEL")
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
@@ -177,7 +185,7 @@ func TestGemma4ImageDeviceProjectorEndToEndOracle(t *testing.T) {
 	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
 		t.Fatal(err)
 	}
-	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{}, recipe.ResidencyDeviceNative)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,6 +233,7 @@ func TestGemma4ImageDeviceProjectorEndToEndOracle(t *testing.T) {
 }
 
 func TestGemma4AudioEndToEndOracle(t *testing.T) {
+	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_GEMMA4_MODEL")
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
 	wavePath := os.Getenv("OVERGO_GEMMA4_AUDIO_WAVE")
@@ -250,7 +259,7 @@ func TestGemma4AudioEndToEndOracle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{PreloadQuantizedWeights: true})
+	runner, err := openFixtureRunner(modelPath, inference.OpenOptions{}, recipe.ResidencyDeviceNative)
 	if err != nil {
 		t.Fatal(err)
 	}

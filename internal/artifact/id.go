@@ -138,10 +138,6 @@ func (id ID) Kind() Kind {
 	return id.kind
 }
 
-func (id ID) Digest() [digestBytes]byte {
-	return id.digest
-}
-
 func (id ID) String() string {
 	if !id.Valid() {
 		return ""

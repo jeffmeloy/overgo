@@ -158,10 +158,6 @@ func (a Advisory) ValidateIdentity() error {
 	return advisoryCodec.ValidateIdentity(a)
 }
 
-func (a Advisory) ContentBytes() ([]byte, error) {
-	return advisoryCodec.ContentBytes(a)
-}
-
 func (a Advisory) Content() (artifact.Content, error) {
 	return advisoryCodec.Content(a)
 }

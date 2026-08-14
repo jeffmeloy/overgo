@@ -18,6 +18,37 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
+func buildCompiledLayer(options model.BlockDispatchOptions) (model.DenseBlockResult, error) {
+	program, err := compileFixtureLayerProgram(options.Spec, options.Context.Layer, options.Context.Recurrent)
+	if err != nil {
+		return model.DenseBlockResult{}, err
+	}
+	context := options.Context
+	context.Layer, context.Recurrent = program.Layer().Layer, program.Layer().Recurrent
+	return program.Build(context, options.Weights)
+}
+
+func compileFixtureLayerProgram(
+	spec model.Spec,
+	layer uint32,
+	recurrent bool,
+) (model.CompiledLayerProgram, error) {
+	if spec.BlockCount <= layer {
+		spec.BlockCount = layer + 1
+	}
+	spec.RecurrentLayers = make([]bool, spec.BlockCount)
+	spec.RecurrentLayers[layer] = recurrent
+	layers := make([]model.LayerWeights, spec.BlockCount)
+	if int(layer) < len(layers) {
+		layers[layer].Recurrent = recurrent
+	}
+	plan, err := model.CompileModelPlan(spec, model.Weights{Layers: layers})
+	if err != nil {
+		return model.CompiledLayerProgram{}, err
+	}
+	return plan.LayerProgram(int(layer))
+}
+
 const cudaFixtureDevice = 0
 
 const (
@@ -100,6 +131,19 @@ func (f *cudaReferenceFixture) modelPlan(spec model.Spec) model.ModelPlan {
 	return plan
 }
 
+func (f *cudaReferenceFixture) projection(
+	plan model.ModelPlan,
+	role model.ProjectionRole,
+	operands model.ProjectionOperands,
+) model.ProjectionResult {
+	f.t.Helper()
+	result, err := plan.Projection(role).Build(f.builder, operands)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return result
+}
+
 func (f *cudaReferenceFixture) layer(
 	program model.ModelPlan,
 	layer int,
@@ -113,7 +157,7 @@ func (f *cudaReferenceFixture) layer(
 		f.t.Fatal(err)
 	}
 	context.Builder, context.Layer = f.builder, plan.Layer
-	result, err := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+	result, err := buildCompiledLayer(model.BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan, Context: context,
 	})
 	if err != nil {
@@ -305,7 +349,7 @@ func buildFixtureCachedBlock(
 	recurrent bool,
 ) (model.DenseBlockResult, error) {
 	plan := spec.PlanLayer(layer, recurrent)
-	return model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+	return buildCompiledLayer(model.BlockDispatchOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer, Recurrent: recurrent,
@@ -351,7 +395,7 @@ func buildFixtureDenseBlockCachedWithMultiPositions(
 	layer uint32,
 ) (model.DenseBlockResult, error) {
 	plan := spec.PlanLayer(layer, false)
-	return model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
+	return buildCompiledLayer(model.BlockDispatchOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, MultiPositions: &positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer,

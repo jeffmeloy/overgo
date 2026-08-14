@@ -98,6 +98,7 @@ func launchBF16Attention(
 	query := pointers[queryNode]
 	key := pointers[keyNode]
 	value := pointers[fusion.value]
+	keyBias := pointers[fusion.keyBias]
 	output := pointers[node]
 	scale := attributes.Scale
 	stagingBytes, ok := blasBF16AttentionStagingBytes(fusion)
@@ -125,7 +126,7 @@ func launchBF16Attention(
 	return launchGridSharedABI(
 		state, functions[kernelAttentionTiledBf16F32],
 		grid, driver.Dim3{X: attentionBF16Threads, Y: 1, Z: 1}, attentionBF16SharedBytes,
-		&query, &keyStage, &valueStage, &output,
+		&query, &keyStage, &valueStage, &keyBias, &output,
 		&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
 		&sequences, &scale,
 	)
@@ -173,7 +174,8 @@ func blasAttentionTiles(keyWidth, queryTokens, keyValueTokens uint32) (uint32, u
 // OpAttention nodes the strided-batched SGEMM path will accept.
 func blasAttentionScoreBytes(node *tensor.Tensor) (uint64, bool) {
 	attributes, ok := node.Attrs.(tensor.AttentionAttributes)
-	if !ok || len(node.Inputs) != 3 {
+	if !ok || len(node.Inputs) < 3 || len(node.Inputs) > 4 ||
+		(attributes.HasKeyBias != (len(node.Inputs) == 4)) {
 		return 0, false
 	}
 	queryNode, keyNode, valueNode := node.Inputs[0], node.Inputs[1], node.Inputs[2]
@@ -218,7 +220,7 @@ func launchBlasFullAttention(
 	state *device.State,
 	functions functionSet,
 	blas *blasState,
-	query, key, value, output driver.DevicePtr,
+	query, key, value, keyBias, output driver.DevicePtr,
 	queryHeads, queryTokens, keyValueTokens, keyWidth, sequences, chunk, keyChunk uint32,
 	scale float32,
 ) error {
@@ -273,7 +275,7 @@ func launchBlasFullAttention(
 					driver.Dim3{X: queryHeads * rows, Y: 1, Z: 1},
 					driver.Dim3{X: softmaxThreads, Y: 1, Z: 1}, softmaxThreads*f64Bytes,
 					&scores, &oChunk, &stats,
-					&keys, &keyChunk, &rows, &chunk, &keyWidth, &queryHeads, &scale,
+					&keyBias, &keyStart, &keys, &keyChunk, &rows, &chunk, &keyWidth, &queryHeads, &scale,
 				); err != nil {
 					return err
 				}
@@ -383,12 +385,24 @@ func launchAttentionLayout(
 		var relativeBias driver.DevicePtr
 		var sinks driver.DevicePtr
 		var blockIDs driver.DevicePtr
-		if len(node.Inputs) == 4 && attributes.HasBlockMask {
-			blockIDs = pointers[node.Inputs[3]]
-		} else if len(node.Inputs) == 4 && attributes.HasSinks {
-			sinks = pointers[node.Inputs[3]]
-		} else if len(node.Inputs) == 4 {
-			relativeBias = pointers[node.Inputs[3]]
+		var keyBias driver.DevicePtr
+		// Optional inputs follow q/k/v from index 3 in a fixed order:
+		// (bias|sinks), blockIDs, keyBias -- each present per its attribute flag.
+		optIdx := 3
+		if attributes.RelativeBuckets != 0 && optIdx < len(node.Inputs) {
+			relativeBias = pointers[node.Inputs[optIdx]]
+			optIdx++
+		} else if attributes.HasSinks && optIdx < len(node.Inputs) {
+			sinks = pointers[node.Inputs[optIdx]]
+			optIdx++
+		}
+		if attributes.HasBlockMask && optIdx < len(node.Inputs) {
+			blockIDs = pointers[node.Inputs[optIdx]]
+			optIdx++
+		}
+		if attributes.HasKeyBias && optIdx < len(node.Inputs) {
+			keyBias = pointers[node.Inputs[optIdx]]
+			optIdx++
 		}
 		relativeBuckets := attributes.RelativeBuckets
 		relativeBidirectional := kernelBool(attributes.RelativeBidirectional)
@@ -416,7 +430,7 @@ func launchAttentionLayout(
 		tokenCountPointer, hasTokenCount := attributePointers[node]
 		sharedBytes := (uint64(keyCapacityTokens) + attentionDecodePartialFloats) * f32Bytes
 		if queryTokens == 1 && causal != 0 && queryStart+1 == keyValueTokens &&
-			relativeBias == 0 && sinks == 0 && blockIDs == 0 && softcap == 0 &&
+			relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 && softcap == 0 &&
 			maxALiBiBias == 0 && window == 0 && hasTokenCount &&
 			sharedBytes <= attentionDecodeSharedLimit {
 			blocks := uint64(queryHeads) * uint64(sequences)
@@ -444,7 +458,7 @@ func launchAttentionLayout(
 			if ok && scoreBytes <= blas.scoreBytes {
 				return launchBlasFullAttention(
 					state, functions, blas,
-					query, key, value, output,
+					query, key, value, keyBias, output,
 					queryHeads, queryTokens, keyValueTokens, keyWidth, sequences, chunk, keyChunk,
 					scale,
 				)
@@ -472,7 +486,7 @@ func launchAttentionLayout(
 			return launchGridSharedABI(
 				state, functions[kernelAttentionTiledF32],
 				grid, driver.Dim3{X: attentionTiledThreads, Y: 1, Z: 1}, uint32(tiledShared),
-				&query, &key, &value, &output, &keyWidth, &valueWidth,
+				&query, &key, &value, &keyBias, &output, &keyWidth, &valueWidth,
 				&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
 				&sequences, &scale,
 			)
@@ -487,7 +501,7 @@ func launchAttentionLayout(
 				state, functions[kernelAttentionOnlineF32],
 				driver.Dim3{X: uint32(blocks), Y: 1, Z: 1},
 				driver.Dim3{X: attentionOnlineThreads, Y: 1, Z: 1},
-				&query, &key, &value, &relativeBias, &sinks, &blockIDs, &output,
+				&query, &key, &value, &relativeBias, &sinks, &blockIDs, &keyBias, &output,
 				&keyWidth, &valueWidth, &queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences,
 				&scale, &softcap, &maxALiBiBias, &causal, &queryStart, &window, &symmetricWindow,
 				&relativeBuckets, &relativeBidirectional,
@@ -495,7 +509,7 @@ func launchAttentionLayout(
 		}
 		return launch1DABI(
 			state, functions[kernelAttentionF32], count,
-			&query, &key, &value, &relativeBias, &sinks, &blockIDs, &output,
+			&query, &key, &value, &relativeBias, &sinks, &blockIDs, &keyBias, &output,
 			&keyWidth, &valueWidth, &queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences,
 			&scale, &softcap, &maxALiBiBias, &causal, &queryStart, &window, &symmetricWindow,
 			&relativeBuckets, &relativeBidirectional, &count,

@@ -76,8 +76,6 @@ func runRealArtifactStep(t *testing.T, name string) {
 }
 
 func TestRealArtifactTrainingStepDecreasesLoss(t *testing.T) {
-	if testing.Short() {
-		t.Skip("loads ~2GB weights and runs a 28-layer host backward; skipped in -short")
-	}
+	requireLongTest(t)
 	runRealArtifactStep(t, "Carbon-500M")
 }

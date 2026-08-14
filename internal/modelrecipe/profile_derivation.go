@@ -70,10 +70,6 @@ func NewCatalogProfileDerivation(profile model.ArchitectureProfile) (CatalogProf
 	return catalogProfileDerivationCodec.New(document)
 }
 
-func ParseCatalogProfileDerivation(content []byte) (CatalogProfileDerivation, error) {
-	return catalogProfileDerivationCodec.Parse(content)
-}
-
 func (d CatalogProfileDerivation) ValidateIdentity() error {
 	return catalogProfileDerivationCodec.ValidateIdentity(d)
 }
@@ -117,14 +113,11 @@ func profilePublicationFacts(document ProfileDocument) (
 	[]artifact.Lineage,
 	error,
 ) {
-	profileContent, err := ProfileContent(document)
+	profileContent, err := profileContent(document)
 	if err != nil {
 		return nil, nil, err
 	}
 	contents := []artifact.Content{profileContent}
-	if document.Version == LegacyProfileVersion {
-		return contents, nil, nil
-	}
 	catalog, err := NewCatalogProfileDerivation(document.Policy)
 	if err != nil {
 		return nil, nil, err
@@ -161,9 +154,6 @@ func validateStoredProfileProvenance(
 	store artifact.Reader,
 	document ProfileDocument,
 ) error {
-	if document.Version == LegacyProfileVersion {
-		return nil
-	}
 	parents, err := store.Parents(ctx, document.ID)
 	if err != nil {
 		return err

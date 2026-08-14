@@ -37,25 +37,6 @@ func PublicationBatch(
 	return artifact.NewDocumentBatch(key, contents, lineage, aliases)
 }
 
-// Publish: commits one dataset document.
-func Publish(
-	ctx context.Context,
-	store artifact.Repository,
-	key string,
-	document Document,
-	alias *artifact.AliasBinding,
-) (artifact.CommitID, error) {
-	var aliases []artifact.AliasBinding
-	if alias != nil {
-		aliases = append(aliases, *alias)
-	}
-	batch, err := PublicationBatch(key, []Document{document}, aliases)
-	if err != nil {
-		return artifact.CommitID{}, err
-	}
-	return artifact.CommitBatch(ctx, store, batch)
-}
-
 // Load: resolves one inline dataset document.
 func Load(ctx context.Context, store artifact.Reader, id artifact.ID) (Document, bool, error) {
 	content, ok, err := artifact.ReadDocument(ctx, store, id, documentContract)

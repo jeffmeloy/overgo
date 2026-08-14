@@ -33,9 +33,10 @@ type CogVLMVisionSpec struct {
 }
 
 type CogVLMVisionRunner struct {
-	file *gguf.File
-	spec CogVLMVisionSpec
-	cuda *projectorCUDA
+	file      *gguf.File
+	spec      CogVLMVisionSpec
+	attention visionAttentionPlan
+	cuda      *projectorCUDA
 }
 
 type CogVLMVisionOpenOptions = OpenOptions
@@ -48,7 +49,7 @@ func OpenCogVLMVisionWithOptions(path string, options CogVLMVisionOpenOptions) (
 	return openCatalogProjector(path, options, "CogVLM", nil,
 		ReadCogVLMVisionSpec, validateCogVLMVisionCatalog,
 		func(file *gguf.File, spec CogVLMVisionSpec, cuda *projectorCUDA) *CogVLMVisionRunner {
-			return &CogVLMVisionRunner{file: file, spec: spec, cuda: cuda}
+			return &CogVLMVisionRunner{file: file, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads), cuda: cuda}
 		})
 }
 

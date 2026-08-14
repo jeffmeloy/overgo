@@ -7,10 +7,6 @@ func NormalizeProfileDocument(data []byte) (ProfileDocument, []byte, error) {
 	return profileCodec.Normalize(data)
 }
 
-func NormalizeProfileParityEvidence(data []byte) (ProfileParityEvidence, []byte, error) {
-	return profileParityCodec.Normalize(data)
-}
-
 func NormalizeCatalogProfileDerivation(data []byte) (CatalogProfileDerivation, []byte, error) {
 	return catalogProfileDerivationCodec.Normalize(data)
 }

@@ -12,7 +12,7 @@ import (
 func TestSelectedModelTensorsIncludesCohere2MTP(t *testing.T) {
 	info := func(name string) gguf.TensorInfo { return gguf.TensorInfo{Name: name} }
 	privateHead := info("blk.2.nextn.shared_head_head.weight")
-	mtp := &model.Cohere2MTPWeights{
+	mtp := &model.SingleDraftWeights{
 		Layer: model.LayerWeights{
 			AttentionNorm:     info("blk.2.attn_norm.weight"),
 			AttentionQ:        info("blk.2.attn_q.weight"),
@@ -27,7 +27,7 @@ func TestSelectedModelTensorsIncludesCohere2MTP(t *testing.T) {
 		*mtp.Layer.FeedForwardRouter, mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm, privateHead,
 	}}
 	selected := selectedModelTensors(file, model.Weights{
-		TokenEmbedding: info("token_embd.weight"), Cohere2MTP: mtp,
+		TokenEmbedding: info("token_embd.weight"), OptionalCatalogDraft: mtp,
 	})
 	names := make(map[string]bool, len(selected))
 	for _, item := range selected {
@@ -46,18 +46,18 @@ func TestCohere2MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 		KeyLength: 4, ValueLength: 4, RopeDimensionCount: 4},
 	}
 	vocab := &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "b"}}}
-	draft := fixtureRunner(spec, model.Weights{Cohere2MTP: &model.Cohere2MTPWeights{MTPOnly: true}})
+	draft := fixtureRunner(spec, model.Weights{OptionalCatalogDraft: &model.SingleDraftWeights{MTPOnly: true}})
 	draft.path, draft.vocab = "draft", vocab
 	target := fixtureRunner(spec, model.Weights{Layers: make([]model.LayerWeights, spec.BlockCount)})
 	target.path, target.vocab = "target", vocab
-	if err := draft.validateCohere2MTPTarget(target); err != nil {
+	if err := draft.validateMTPTarget(target); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := draft.forwardCachedLocked(context.Background(), []tokenizer.TokenID{0}, nil); err == nil {
 		t.Fatal("ordinary forward accepted Cohere2-MoE MTP-only model")
 	}
 	target.vocab = &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "c"}}}
-	if err := draft.validateCohere2MTPTarget(target); err == nil {
+	if err := draft.validateMTPTarget(target); err == nil {
 		t.Fatal("Cohere2-MoE MTP sidecar accepted mismatched target vocabulary")
 	}
 }

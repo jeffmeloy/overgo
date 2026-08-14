@@ -31,6 +31,28 @@ func TestPTXEntryABIsPreserveOrderSizeAndAlignment(t *testing.T) {
 	}
 }
 
+func TestFileHashCanonicalizesCheckoutNewlines(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "source.cu")
+	if err := os.WriteFile(path, []byte("first\nsecond\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	want, err := fileHash(root, "source.cu")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("first\r\nsecond\r\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := fileHash(root, "source.cu")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("checkout newline changed source hash: %s != %s", got, want)
+	}
+}
+
 func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
 	root := t.TempDir()
 	for _, directory := range []string{"kernels", "src", "asset"} {

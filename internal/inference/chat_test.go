@@ -296,6 +296,7 @@ func TestFormatChatSelectsNamedToolUseTemplate(t *testing.T) {
 }
 
 func TestNativeQwenChatTemplateMatchesPinnedOracle(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN3_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -321,6 +322,7 @@ func TestNativeQwenChatTemplateMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeQwenToolChatTemplateMatchesPinnedOracle(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN3_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")
@@ -429,6 +431,7 @@ func toolWeatherDefinition() ChatTool {
 }
 
 func TestNativeGemmaChatTemplateMatchesPinnedOracle(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_GEMMA3_MODEL is not set")
@@ -453,6 +456,7 @@ func TestNativeGemmaChatTemplateMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeQwen35ChatTemplateMatchesPinnedOracle(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
@@ -478,6 +482,7 @@ func TestNativeQwen35ChatTemplateMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeQwen35ToolChatTemplateMatchesPinnedOracle(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
@@ -578,6 +583,7 @@ func hermesToolOracle(history bool) string {
 }
 
 func TestNativeBonsaiChatTemplateMatchesPinnedOracle(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_BONSAI_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_BONSAI_MODEL is not set")
@@ -603,6 +609,7 @@ func TestNativeBonsaiChatTemplateMatchesPinnedOracle(t *testing.T) {
 }
 
 func TestNativeBonsaiToolChatTemplateMatchesPinnedOracle(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_BONSAI_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_BONSAI_MODEL is not set")

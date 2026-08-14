@@ -4,29 +4,15 @@ import (
 	"sort"
 )
 
-// ArchitectureFamily: primary runtime dispatch family.
-type ArchitectureFamily uint8
-
-const (
-	ArchitectureFamilyAttention ArchitectureFamily = iota
-	ArchitectureFamilyMoE
-	ArchitectureFamilyRecurrent
-	ArchitectureFamilyHybrid
-	ArchitectureFamilyEncoder
-	ArchitectureFamilyEncoderDecoder
-	ArchitectureFamilyDiffusion
-	ArchitectureFamilyDraft
-)
-
 type DraftKind uint8
 
 const (
 	DraftNone DraftKind = iota
-	DraftQwen35MTP
-	DraftStep35MTP
-	DraftHYV3MTP
-	DraftNextNMTP
-	DraftCohere2MTP
+	DraftSingleCatalog
+	DraftAppendedMultiCarry
+	DraftAppendedMulti
+	DraftAppendedSingle
+	DraftOptionalSingleCatalog
 )
 
 // DraftSessionPolicy: runtime coordinator cardinality.
@@ -38,15 +24,25 @@ const (
 	DraftSessionMulti
 )
 
+// DraftNormalizationPolicy: draft projection normalization operator.
+type DraftNormalizationPolicy uint8
+
+const (
+	DraftNormalizationWeightedRMS DraftNormalizationPolicy = iota
+	DraftNormalizationArchitecture
+)
+
 // DraftPlan: compiled catalog and session contract.
 type DraftPlan struct {
 	Kind            DraftKind
 	Heads           uint32
-	Label           string
 	AppendedBlocks  bool
 	SingleCatalog   bool
 	OptionalCatalog bool
 	SupportsMTPOnly bool
+	CarryRawHidden  bool
+	ScaleLogits     bool
+	Normalization   DraftNormalizationPolicy
 	Session         DraftSessionPolicy
 }
 
@@ -70,20 +66,6 @@ func (p DraftPlan) SessionEligible() bool {
 func (p DraftPlan) Block(trunk, offset uint32) uint32 {
 	return trunk + offset
 }
-
-// ForwardPolicy: public inference entry route.
-type ForwardPolicy uint8
-
-const (
-	ForwardCached ForwardPolicy = iota
-	ForwardNonCausal
-	ForwardDFlash
-	ForwardEagle3
-	ForwardGemma4Assistant
-	ForwardWavTokenizer
-	ForwardT5Encoder
-	ForwardT5
-)
 
 // OutputNormPolicy: final normalization tensor ownership.
 type OutputNormPolicy uint8
@@ -133,6 +115,7 @@ const (
 	FeedForwardGELU
 	FeedForwardSquaredReLU
 	FeedForwardXIELU
+	FeedForwardGEGLU
 )
 
 // AttentionPolicy: primary attention implementation.
@@ -140,10 +123,10 @@ type AttentionPolicy uint8
 
 const (
 	AttentionStandard AttentionPolicy = iota
-	AttentionMLA
-	AttentionDSA
-	AttentionQwenGDN
-	AttentionLFM2
+	AttentionLatent
+	AttentionSparseLatent
+	AttentionGatedDelta
+	AttentionShortConvolution
 )
 
 // EmbeddingOverridePolicy: projected-embedding application order.
@@ -151,9 +134,9 @@ type EmbeddingOverridePolicy uint8
 
 const (
 	EmbeddingOverrideStandard EmbeddingOverridePolicy = iota
-	EmbeddingOverrideCogVLM
+	EmbeddingOverrideVisualSpan
 	EmbeddingOverrideRawScaled
-	EmbeddingOverrideDeepstackBase
+	EmbeddingOverrideMappedBase
 )
 
 // DeepstackPolicy: projected-stream layer placement.
@@ -178,8 +161,8 @@ type AuxiliaryFlow uint8
 
 const (
 	AuxiliaryNone AuxiliaryFlow = iota
-	AuxiliaryRWKVValue
-	AuxiliaryDSATopK
+	AuxiliaryRecurrentValue
+	AuxiliarySparseTopK
 )
 
 // AttentionTemperaturePolicy: scheduled query-scale contract.
@@ -196,7 +179,7 @@ type PostNormLayoutPolicy uint8
 
 const (
 	PostNormLayoutStandard PostNormLayoutPolicy = iota
-	PostNormLayoutBERT
+	PostNormLayoutOutputLayer
 	PostNormLayoutGrok
 )
 
@@ -219,19 +202,16 @@ type NormalizationPlan struct {
 	PostAttention     bool
 	PostFeedForward   bool
 	Bias              bool
+	RMSBias           bool
+	Epsilon           float32
 	PostNormLayout    PostNormLayoutPolicy
 	FeedForwardLayout FeedForwardNormLayoutPolicy
-}
-
-// Weighted: learned normalization weight required.
-func (p NormalizationPlan) Weighted() bool {
-	return p.Operation != NormalizationUnweightedLayer && p.Operation != NormalizationUnweightedRMS
 }
 
 // PostNormTensors: post-norm tensor namespace.
 func (p NormalizationPlan) PostNormTensors() PostNormTensorNames {
 	switch p.PostNormLayout {
-	case PostNormLayoutBERT:
+	case PostNormLayoutOutputLayer:
 		return PostNormTensorNames{
 			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
 			AttentionBias: "attn_output_norm.bias", FeedForwardBias: "layer_output_norm.bias",
@@ -284,10 +264,10 @@ const (
 	ArchitectureEncoderOnly
 	ArchitectureDiffusion
 	ArchitectureMultimodal
-	ArchitectureDeepSeek2
-	ArchitectureDSA
-	ArchitectureMLA
-	ArchitectureGemma
+	ArchitectureLatentYaRNQuery
+	ArchitectureSparseLatent
+	ArchitectureLatent
+	architectureReservedGEGLU
 	ArchitecturePostNorm
 	ArchitecturePostOnlyNorm
 	ArchitectureNormalRoPE
@@ -297,8 +277,8 @@ const (
 	ArchitectureLongRoPE
 	ArchitectureGELU
 	ArchitectureSquaredReLU
-	ArchitectureQwenGDN
-	ArchitectureLFM2
+	ArchitectureGatedDelta
+	ArchitectureShortConvolution
 	ArchitectureMultiAxisPositions
 	ArchitectureRequiresOutput
 	ArchitectureClassifierHead
@@ -308,22 +288,19 @@ const (
 	ArchitectureRequiresFusedQKVBias
 	ArchitectureRejectsOrphanFusedQKVBias
 	ArchitectureSharedKV
-	ArchitectureAltUp
+	architectureReservedAltUp
 	ArchitecturePerLayerEmbeddings
 	ArchitectureEmbeddingSkip
-	ArchitectureBERTNormLayout
-	ArchitectureDeepSeek2Layout
+	ArchitectureOutputLayerNormLayout
+	ArchitectureLatentKVLayout
 	ArchitectureDiscreteImageTokens
 )
 
 // ArchitectureProfile: registry entry and capability set.
 type ArchitectureProfile struct {
 	Name             string
-	Family           ArchitectureFamily
-	GraphFamily      ArchitectureFamily
-	CatalogFamily    ArchitectureFamily
 	DraftKind        DraftKind
-	Forward          ForwardPolicy
+	Forward          ForwardProgram
 	OutputNorm       OutputNormPolicy
 	Capabilities     ArchitectureCapability
 	Normalization    NormalizationPolicy
@@ -338,12 +315,11 @@ type ArchitectureProfile struct {
 	Temperature      AttentionTemperaturePolicy
 	PostNormLayout   PostNormLayoutPolicy
 	FFNNormLayout    FeedForwardNormLayoutPolicy
-	Block            BlockPolicy
-	RecurrentBlock   BlockPolicy
 	Cache            CachePolicy
 	RecurrentCache   CachePolicy
+	RecurrentMixer   RecurrentMixerPolicy
 	CacheFallback    CacheFallbackPolicy
-	DenseGraph       DenseGraphPolicy
+	LayerTopology    LayerTopologyPolicy
 	DenseStages      DenseStagePolicy
 	DenseWeights     DenseWeightPolicy
 	ModelCatalog     ModelCatalogPolicy
@@ -354,8 +330,8 @@ type ArchitectureProfile struct {
 	MetadataRead     MetadataReadPolicy
 	MetadataDefaults MetadataDefaultPolicy
 	Validation       ValidationPolicy
-	EncoderGraph     EncoderGraphPolicy
-	MLAVariant       mlaVariantPolicy
+	EncoderOperator  EncoderOperatorPolicy
+	LatentAttention  latentAttentionPolicy
 	Cadence          LayerCadencePolicy
 	Runtime          RuntimePolicy
 	DeciSparse       bool
@@ -366,39 +342,24 @@ func (p ArchitectureProfile) Has(capability ArchitectureCapability) bool {
 	return p.Capabilities&capability != 0
 }
 
-// AppendsDraftBlocks: catalog-visible draft tail
-func (p ArchitectureProfile) AppendsDraftBlocks() bool {
-	return p.DraftPlan(1).AppendedBlocks
-}
-
-// HasDraftHead: bounded draft-head policy.
-func (p ArchitectureProfile) HasDraftHead(kind DraftKind, count, offset uint32) bool {
-	plan := p.DraftPlan(count)
-	return plan.Kind == kind && plan.HasHead(offset)
-}
-
-// HasSingleDraft: single-head draft policy.
-func (p ArchitectureProfile) HasSingleDraft(kind DraftKind, count uint32) bool {
-	plan := p.DraftPlan(count)
-	return plan.Kind == kind && plan.HasHead(0) && count == 1
-}
-
 // DraftPlan: architecture draft catalog/session descriptor.
 func (p ArchitectureProfile) DraftPlan(heads uint32) DraftPlan {
 	plan := DraftPlan{Kind: p.DraftKind, Heads: heads}
 	switch p.DraftKind {
-	case DraftQwen35MTP:
-		plan.Label, plan.SingleCatalog = "Qwen3.5 MTP", true
+	case DraftSingleCatalog:
+		plan.SingleCatalog = true
 		plan.SupportsMTPOnly, plan.Session = true, DraftSessionSingle
-	case DraftStep35MTP:
-		plan.Label, plan.AppendedBlocks, plan.Session = "Step3.5 MTP", true, DraftSessionMulti
-	case DraftHYV3MTP:
-		plan.Label, plan.AppendedBlocks, plan.Session = "HY-V3 MTP", true, DraftSessionMulti
-	case DraftNextNMTP:
-		plan.Label, plan.AppendedBlocks, plan.Session = "NextN MTP", true, DraftSessionSingle
-	case DraftCohere2MTP:
-		plan.Label, plan.SingleCatalog, plan.OptionalCatalog = "Cohere2-MoE MTP", true, true
+	case DraftAppendedMultiCarry:
+		plan.AppendedBlocks, plan.Session = true, DraftSessionMulti
+		plan.CarryRawHidden = true
+	case DraftAppendedMulti:
+		plan.AppendedBlocks, plan.Session = true, DraftSessionMulti
+	case DraftAppendedSingle:
+		plan.AppendedBlocks, plan.Session = true, DraftSessionSingle
+	case DraftOptionalSingleCatalog:
+		plan.SingleCatalog, plan.OptionalCatalog = true, true
 		plan.SupportsMTPOnly, plan.Session = true, DraftSessionSingle
+		plan.Normalization, plan.ScaleLogits = DraftNormalizationArchitecture, true
 	}
 	return plan
 }

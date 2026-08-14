@@ -34,14 +34,11 @@ func TestDocumentContractBuildsAndValidatesContent(t *testing.T) {
 		Kind: KindDataset, MediaType: "application/test+json", Schema: "test/v1",
 	}
 	data := []byte(`{"version":1}`)
-	id, err := contract.Identify(data)
+	content, err := contract.ContentBytes(data)
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := contract.Content(id, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := content.Descriptor.ID
 	data[0] = 'x'
 	if content.Data[0] != '{' {
 		t.Fatal("content retained caller storage")

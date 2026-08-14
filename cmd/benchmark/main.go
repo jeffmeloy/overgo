@@ -14,6 +14,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
 	"overgo/internal/model"
+	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -39,10 +40,6 @@ type options struct {
 	Tokens         int
 	Runs           int
 	Warmup         int
-	Preload        bool
-	NativeQuant    bool
-	BF16Decode     bool
-	HostCache      bool
 	CachePrompt    bool
 	BatchSequences int
 	ContextShift   bool
@@ -90,30 +87,28 @@ type summaryMetrics struct {
 }
 
 type benchmarkResult struct {
-	ModelPath              string            `json:"model_path"`
-	ModelName              string            `json:"model_name"`
-	Architecture           string            `json:"architecture"`
-	FileType               string            `json:"file_type"`
-	ParameterCount         uint64            `json:"parameter_count"`
-	ModelBytes             uint64            `json:"model_bytes"`
-	Preload                bool              `json:"preload"`
-	NativeQuant            bool              `json:"native_quant"`
-	HostCache              bool              `json:"host_cache"`
-	CachePrompt            bool              `json:"cache_prompt"`
-	BatchSequences         int               `json:"batch_sequences"`
-	Temperature            float64           `json:"temperature"`
-	TopK                   int               `json:"top_k"`
-	DeviceTopK             bool              `json:"device_top_k"`
-	Device                 driver.DeviceInfo `json:"device"`
-	LoadMilliseconds       float64           `json:"load_ms"`
-	HostHeapBeforeBytes    uint64            `json:"host_heap_before_bytes"`
-	HostHeapAfterLoadBytes uint64            `json:"host_heap_after_load_bytes"`
-	HostHeapAfterRunsBytes uint64            `json:"host_heap_after_runs_bytes"`
-	DeviceAfterLoadBytes   uint64            `json:"device_after_load_bytes"`
-	DeviceAfterRunsBytes   uint64            `json:"device_after_runs_bytes"`
-	DevicePeakBytes        uint64            `json:"device_peak_bytes"`
-	Runs                   []runMetrics      `json:"runs"`
-	Summary                summaryMetrics    `json:"summary"`
+	ModelPath              string                 `json:"model_path"`
+	ModelName              string                 `json:"model_name"`
+	Architecture           string                 `json:"architecture"`
+	FileType               string                 `json:"file_type"`
+	ParameterCount         uint64                 `json:"parameter_count"`
+	ModelBytes             uint64                 `json:"model_bytes"`
+	Residency              recipe.ResidencyPolicy `json:"residency"`
+	CachePrompt            bool                   `json:"cache_prompt"`
+	BatchSequences         int                    `json:"batch_sequences"`
+	Temperature            float64                `json:"temperature"`
+	TopK                   int                    `json:"top_k"`
+	DeviceTopK             bool                   `json:"device_top_k"`
+	Device                 driver.DeviceInfo      `json:"device"`
+	LoadMilliseconds       float64                `json:"load_ms"`
+	HostHeapBeforeBytes    uint64                 `json:"host_heap_before_bytes"`
+	HostHeapAfterLoadBytes uint64                 `json:"host_heap_after_load_bytes"`
+	HostHeapAfterRunsBytes uint64                 `json:"host_heap_after_runs_bytes"`
+	DeviceAfterLoadBytes   uint64                 `json:"device_after_load_bytes"`
+	DeviceAfterRunsBytes   uint64                 `json:"device_after_runs_bytes"`
+	DevicePeakBytes        uint64                 `json:"device_peak_bytes"`
+	Runs                   []runMetrics           `json:"runs"`
+	Summary                summaryMetrics         `json:"summary"`
 }
 
 func main() {
@@ -123,9 +118,7 @@ func main() {
 func parseOptions(args []string) (options, error) {
 	flags := flag.NewFlagSet("benchmark", flag.ContinueOnError)
 	var result options
-	modelFlags := clioptions.AddModelFlagsWithConfig(flags, "load GGUF LoRA adapter at scale 1; repeatable", clioptions.ModelFlagConfig{
-		PreloadName: "preload", NativeQuantName: "native-quant", HostCacheName: "host-cache",
-	})
+	modelFlags := clioptions.AddModelFlags(flags, "load GGUF LoRA adapter at scale 1; repeatable")
 	flags.IntVar(&result.Tokens, "tokens", defaultBenchmarkTokens, "maximum generated tokens per run")
 	flags.IntVar(&result.Runs, "runs", defaultBenchmarkRuns, "measured runs")
 	flags.IntVar(&result.Warmup, "warmup", defaultBenchmarkWarmup, "unmeasured warmup runs")
@@ -133,7 +126,6 @@ func parseOptions(args []string) (options, error) {
 	flags.Float64Var(&result.Temperature, "temperature", 0, "sampling temperature")
 	flags.IntVar(&result.TopK, "top-k", 40, "sampling top-K limit")
 	flags.BoolVar(&result.DeviceTopK, "device-top-k", false, "transfer bounded top-K candidates")
-	flags.BoolVar(&result.BF16Decode, "decode-bf16", false, "retain BF16 Qwen decode projections alongside native-quantized prefill weights")
 	flags.BoolVar(&result.CachePrompt, "cache-prompt", false, "reuse retained prompt state between runs")
 	flags.IntVar(&result.BatchSequences, "batch-sequences", 0, "continuous-batch sequence count; zero uses Generate")
 	if err := flags.Parse(args); err != nil {
@@ -141,9 +133,6 @@ func parseOptions(args []string) (options, error) {
 	}
 	result.Device = *modelFlags.DeviceOrdinal
 	result.Repository = *modelFlags.Repository
-	result.Preload = modelFlags.Preload != nil && *modelFlags.Preload
-	result.NativeQuant = modelFlags.NativeQuant != nil && *modelFlags.NativeQuant
-	result.HostCache = modelFlags.HostCache != nil && *modelFlags.HostCache
 	result.LoRA = modelFlags.LoRAPaths()
 	if flags.NArg() != 2 {
 		return options{}, errors.New("usage: benchmark [options] <model.gguf> <prompt>")
@@ -160,15 +149,6 @@ func parseOptions(args []string) (options, error) {
 	}
 	if result.Warmup < minBenchmarkWarmup || result.Warmup > maxBenchmarkWarmup {
 		return options{}, fmt.Errorf("benchmark: -warmup must be in [%d,%d]", minBenchmarkWarmup, maxBenchmarkWarmup)
-	}
-	if result.Preload && result.NativeQuant {
-		return options{}, errors.New("benchmark: -preload and -native-quant are mutually exclusive")
-	}
-	if result.BF16Decode && !result.NativeQuant {
-		return options{}, errors.New("benchmark: -decode-bf16 requires -native-quant")
-	}
-	if result.HostCache && (result.Preload || result.NativeQuant) {
-		return options{}, errors.New("benchmark: -host-cache and device preload are mutually exclusive")
 	}
 	if result.BatchSequences < 0 || result.BatchSequences > maxBenchmarkSequences {
 		return options{}, fmt.Errorf("benchmark: -batch-sequences must be in [0,%d]", maxBenchmarkSequences)
@@ -205,11 +185,7 @@ func run(args []string) error {
 	var before runtime.MemStats
 	runtime.ReadMemStats(&before)
 	loadStarted := time.Now()
-	openOptions := clioptions.BuildOpenOptions(
-		options.Device, options.Preload, options.NativeQuant, options.LoRA, 1,
-	)
-	openOptions.CacheHostWeights = options.HostCache
-	openOptions.PreloadBF16DecodeWeights = options.BF16Decode
+	openOptions := clioptions.BuildOpenOptions(options.Device, options.LoRA, 1)
 	runner, err := clioptions.OpenRunner(
 		context.Background(), options.Repository, options.Model, openOptions,
 	)
@@ -342,9 +318,7 @@ func run(args []string) error {
 		FileType:               properties.FileType,
 		ParameterCount:         properties.ParameterCount,
 		ModelBytes:             properties.ModelSize,
-		Preload:                options.Preload,
-		NativeQuant:            options.NativeQuant,
-		HostCache:              options.HostCache,
+		Residency:              runner.Residency(),
 		CachePrompt:            options.CachePrompt,
 		BatchSequences:         options.BatchSequences,
 		Temperature:            options.Temperature,
@@ -390,7 +364,7 @@ func executeContinuousBatch(
 	prompt []tokenizer.TokenID,
 	index int,
 ) (runMetrics, error) {
-	device := options.Preload || options.NativeQuant
+	device := runner.DeviceResident()
 	batch, err := runner.NewContinuousBatch(inference.ContinuousBatchOptions{
 		MaxSequences: options.BatchSequences,
 		Device:       device,
@@ -409,7 +383,7 @@ func executeContinuousBatch(
 		return runMetrics{}, err
 	}
 	started := time.Now()
-	deviceGreedy := device && options.Temperature == 0 && runner.Spec().Profile().Attention == model.AttentionQwenGDN
+	deviceGreedy := device && options.Temperature == 0 && runner.Spec().Profile().Attention == model.AttentionGatedDelta
 	step := batch.Step
 	if deviceGreedy {
 		step = batch.StepGreedy

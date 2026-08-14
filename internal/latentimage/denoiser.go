@@ -25,9 +25,12 @@
 //
 // NOTE ON g3 PARITY. The bit-exact g3 image needs the exact final latent, which
 // needs (a) the exact text conditioning -- the Qwen3VL 36-layer encoder's 12
-// selected hidden states, a NEEDS-HOOK stage (g1 present=false), NOT ported and
-// NOT in the goldens -- and (b) the exact seed-42 noise (torch randn, reproduced
-// natively by adaptive; RNG not matched here). Additionally the real checkpoint
+// selected hidden states. That encoder IS now ported (textencoder.go: streamed
+// host forward -> [textSeq,12,TextHidden] feeding textConditioning here), but its
+// exact numeric values still need the adaptive dump hook (g1 present=false, not in
+// the goldens) so this remains telemetry/structural, not bit-exact -- and (b) the
+// exact seed-42 noise (torch randn, reproduced natively by adaptive; RNG not
+// matched here). Additionally the real checkpoint
 // is 12.82B params (~51GB as f32), so a full-scale host forward is not runnable
 // CPU-only. This file therefore VERIFIES block shapes against the real checkpoint
 // (headers) and exercises the exact forward arithmetic at synthetic scale; the
@@ -530,10 +533,39 @@ func (d *Denoiser) Forward(latentPatches, encoderHidden []float64, sigma float64
 
 // ---- latent <-> patch packing (mirrors pipeline _pack_latents) -------------
 
+// PatchChannelOrder selects the per-patch element order.
+type PatchChannelOrder uint8
+
+const (
+	PatchChannelsFirst PatchChannelOrder = iota // channel, row, column
+	PatchChannelsLast                           // row, column, channel
+)
+
+// PackPlanarF32 packs planar [C,H,W] into row-major patch tokens.
+func PackPlanarF32(planar []float32, c, hh, ww, patch int, order PatchChannelOrder) ([]float32, int, int, error) {
+	return packPlanar(planar, c, hh, ww, patch, order)
+}
+
+// UnpackPlanarF32 reverses PackPlanarF32.
+func UnpackPlanarF32(patches []float32, c, gh, gw, patch int, order PatchChannelOrder) ([]float32, error) {
+	return unpackPlanar(patches, c, gh, gw, patch, order)
+}
+
 // PackLatent packs a channel-major latent [C, H, W] into the transformer image
 // sequence [gh*gw, C*patch*patch] where gh=H/patch, gw=W/patch and the per-patch
 // row order is (channel, ph, pw) -- exactly diffusers _pack_latents.
 func PackLatent(latent []float64, c, hh, ww, patch int) ([]float64, int, int, error) {
+	return packPlanar(latent, c, hh, ww, patch, PatchChannelsFirst)
+}
+
+func packLatent[T ~float32 | ~float64](latent []T, c, hh, ww, patch int) ([]T, int, int, error) {
+	return packPlanar(latent, c, hh, ww, patch, PatchChannelsFirst)
+}
+
+func packPlanar[T ~float32 | ~float64](latent []T, c, hh, ww, patch int, order PatchChannelOrder) ([]T, int, int, error) {
+	if order != PatchChannelsFirst && order != PatchChannelsLast {
+		return nil, 0, 0, fmt.Errorf("pack: invalid channel order %d", order)
+	}
 	if hh%patch != 0 || ww%patch != 0 {
 		return nil, 0, 0, fmt.Errorf("pack: %dx%d not divisible by patch %d", hh, ww, patch)
 	}
@@ -542,16 +574,24 @@ func PackLatent(latent []float64, c, hh, ww, patch int) ([]float64, int, int, er
 	}
 	gh, gw := hh/patch, ww/patch
 	inCh := c * patch * patch
-	out := make([]float64, gh*gw*inCh)
+	out := make([]T, gh*gw*inCh)
 	for r := 0; r < gh; r++ {
 		for col := 0; col < gw; col++ {
 			row := out[(r*gw+col)*inCh : (r*gw+col+1)*inCh]
-			k := 0
-			for ch := 0; ch < c; ch++ {
+			if order == PatchChannelsFirst {
+				for ch := 0; ch < c; ch++ {
+					for ph := 0; ph < patch; ph++ {
+						for pw := 0; pw < patch; pw++ {
+							row[(ch*patch+ph)*patch+pw] = latent[(ch*hh+r*patch+ph)*ww+col*patch+pw]
+						}
+					}
+				}
+			} else {
 				for ph := 0; ph < patch; ph++ {
 					for pw := 0; pw < patch; pw++ {
-						row[k] = latent[(ch*hh+r*patch+ph)*ww+col*patch+pw]
-						k++
+						for ch := 0; ch < c; ch++ {
+							row[(ph*patch+pw)*c+ch] = latent[(ch*hh+r*patch+ph)*ww+col*patch+pw]
+						}
 					}
 				}
 			}
@@ -563,21 +603,40 @@ func PackLatent(latent []float64, c, hh, ww, patch int) ([]float64, int, int, er
 // UnpackLatent is the inverse of PackLatent: image sequence [gh*gw, C*patch^2]
 // -> channel-major latent [C, H, W].
 func UnpackLatent(patches []float64, c, gh, gw, patch int) ([]float64, error) {
+	return unpackPlanar(patches, c, gh, gw, patch, PatchChannelsFirst)
+}
+
+func unpackLatent[T ~float32 | ~float64](patches []T, c, gh, gw, patch int) ([]T, error) {
+	return unpackPlanar(patches, c, gh, gw, patch, PatchChannelsFirst)
+}
+
+func unpackPlanar[T ~float32 | ~float64](patches []T, c, gh, gw, patch int, order PatchChannelOrder) ([]T, error) {
+	if order != PatchChannelsFirst && order != PatchChannelsLast {
+		return nil, fmt.Errorf("unpack: invalid channel order %d", order)
+	}
 	inCh := c * patch * patch
 	if len(patches) != gh*gw*inCh {
 		return nil, fmt.Errorf("unpack: patches len=%d want %d", len(patches), gh*gw*inCh)
 	}
 	hh, ww := gh*patch, gw*patch
-	out := make([]float64, c*hh*ww)
+	out := make([]T, c*hh*ww)
 	for r := 0; r < gh; r++ {
 		for col := 0; col < gw; col++ {
 			row := patches[(r*gw+col)*inCh : (r*gw+col+1)*inCh]
-			k := 0
-			for ch := 0; ch < c; ch++ {
+			if order == PatchChannelsFirst {
+				for ch := 0; ch < c; ch++ {
+					for ph := 0; ph < patch; ph++ {
+						for pw := 0; pw < patch; pw++ {
+							out[(ch*hh+r*patch+ph)*ww+col*patch+pw] = row[(ch*patch+ph)*patch+pw]
+						}
+					}
+				}
+			} else {
 				for ph := 0; ph < patch; ph++ {
 					for pw := 0; pw < patch; pw++ {
-						out[(ch*hh+r*patch+ph)*ww+col*patch+pw] = row[k]
-						k++
+						for ch := 0; ch < c; ch++ {
+							out[(ch*hh+r*patch+ph)*ww+col*patch+pw] = row[(ph*patch+pw)*c+ch]
+						}
 					}
 				}
 			}

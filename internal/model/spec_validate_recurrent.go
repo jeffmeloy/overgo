@@ -24,7 +24,7 @@ func (s Spec) validateRecurrentFamilies() error {
 			s.PosNetEmbeddingLength == 0 || s.PosNetEmbeddingLength != s.ConvNextEmbeddingLength ||
 			s.GroupNormGroups == 0 || s.GroupNormEpsilon <= 0 ||
 			s.PosNetEmbeddingLength%s.GroupNormGroups != 0 {
-			return errors.New("WavTokenizer metadata is invalid")
+			return errors.New("AudioDecoder metadata is invalid")
 		}
 	case RecurrentValidationDFlash:
 		if len(s.TargetLayers) == 0 || s.DFlashBlockSize < minimumConvKernelWidth {

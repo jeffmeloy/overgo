@@ -22,6 +22,28 @@ func TestValidateModelPlanRejectsMutatedProgram(t *testing.T) {
 	}
 }
 
+func TestLayerProgramOverflowCannotMasqueradeAsEmpty(t *testing.T) {
+	stages := make([]LayerOperatorInstruction, maxLayerInstructions+1)
+	for index := range stages {
+		stages[index] = layerStage(LayerOperatorResidual)
+	}
+	program := newLayerProgram(stages...)
+	if program.Count != maxLayerInstructions+1 || program.valid() {
+		t.Fatalf("overflow program = %+v", program)
+	}
+
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
+	plan, err := CompileModelPlan(spec, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.layers[0].Program = program
+	if err := validateModelPlan(spec, Weights{}, plan); err == nil ||
+		!strings.Contains(err.Error(), "instructions; capacity") {
+		t.Fatalf("overflow program error = %v", err)
+	}
+}
+
 func TestCompileModelPlanOwnsTerminalPolicy(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}
 	tied, err := CompileModelPlan(spec, Weights{})
@@ -50,7 +72,7 @@ func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Draft().Kind != DraftStep35MTP || plan.Draft().Heads != spec.NextNPredictLayers ||
+	if plan.Draft().Kind != DraftAppendedMultiCarry || plan.Draft().Heads != spec.NextNPredictLayers ||
 		plan.Draft().Session != DraftSessionMulti {
 		t.Fatalf("draft plan = %+v", plan.Draft())
 	}
@@ -58,6 +80,31 @@ func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
 	second, secondErr := plan.DraftLayer(1)
 	if firstErr != nil || secondErr != nil || first.Layer != spec.BlockCount || second.Layer != spec.BlockCount+1 {
 		t.Fatalf("draft layers = %+v/%+v (%v/%v)", first, second, firstErr, secondErr)
+	}
+}
+
+func TestCompileModelPlanOwnsAlternatePredictionPolicy(t *testing.T) {
+	const fixtureNormEpsilon = 1e-6
+	spec := Spec{
+		CommonSpec: CommonSpec{
+			Architecture: "gemma3n", BlockCount: 1, EmbeddingLength: gemma3nLayerEmbeddingWidth,
+			RMSNormEpsilon: fixtureNormEpsilon,
+		},
+		MultimodalSpec: MultimodalSpec{
+			AltUpCount: gemma3nAltUpCount, AltUpActive: gemma3nAltUpActive,
+			SparseLayerCount:      gemma3nSparseLayerCount,
+			SparsityStdMultiplier: gemma3nSparsityStdMultiplier,
+		},
+	}
+	plan, err := CompileModelPlan(spec, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program := plan.Forward()
+	if !program.AlternateStates() || program.AlternateStateCount != spec.AltUpCount ||
+		program.ActiveState != spec.AltUpActive || program.EmbeddingLength != spec.EmbeddingLength ||
+		program.NormalizationEpsilon != spec.RMSNormEpsilon || !program.SparseAlternateLayer(0) {
+		t.Fatalf("alternate-prediction program = %+v", program)
 	}
 }
 
@@ -77,7 +124,7 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 		{
 			name:      "dsa",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
-			attention: AttentionDSA, mode: CacheStateToken,
+			attention: AttentionSparseLatent, mode: CacheStateToken,
 		},
 		{
 			name: "qwen-gdn",
@@ -85,12 +132,12 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 				CommonSpec:    CommonSpec{Architecture: "qwen35", BlockCount: 1},
 				RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}},
 			},
-			attention: AttentionQwenGDN, mode: CacheStateFixed,
+			attention: AttentionGatedDelta, mode: CacheStateFixed,
 		},
 		{
 			name:      "lfm2",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "lfm2", BlockCount: 1}},
-			recurrent: true, attention: AttentionLFM2, mode: CacheStateFixed,
+			recurrent: true, attention: AttentionShortConvolution, mode: CacheStateFixed,
 		},
 	}
 	for _, test := range tests {
@@ -140,34 +187,35 @@ func TestPlanLayerCompilesTensorGraphControls(t *testing.T) {
 
 func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 	tests := []struct {
-		name  string
-		spec  Spec
-		layer LayerWeights
-		block BlockPolicy
-		cache CachePolicy
+		name      string
+		spec      Spec
+		layer     LayerWeights
+		mixer     RecurrentMixerPolicy
+		attention AttentionPolicy
+		cache     CachePolicy
 	}{
 		{
 			name: "mamba", spec: Spec{CommonSpec: CommonSpec{Architecture: "mamba", BlockCount: 1}},
-			block: BlockMamba, cache: CacheMamba,
+			mixer: recurrentMixerSelectiveScan, cache: CacheSelectiveScan,
 		},
 		{
 			name: "jamba attention", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
-			block: BlockDense, cache: CacheAttention,
+			cache: CacheAttention,
 		},
 		{
 			name: "jamba recurrent", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
-			layer: LayerWeights{Recurrent: true}, block: BlockJamba, cache: CacheMamba,
+			layer: LayerWeights{Recurrent: true}, mixer: recurrentMixerWeightedSelectiveScan, cache: CacheSelectiveScan,
 		},
 		{
 			name: "DSA", spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
-			block: BlockDSA, cache: CacheAttention,
+			attention: AttentionSparseLatent, cache: CacheAttention,
 		},
 		{
 			name: "DeepSeek 4", spec: Spec{
 				CommonSpec:    CommonSpec{Architecture: "deepseek4", BlockCount: 1},
 				AttentionSpec: AttentionSpec{CompressRatios: []uint32{0}},
 			},
-			block: BlockDeepSeek4, cache: CacheDeepSeek4,
+			cache: CacheCompressedAttention,
 		},
 	}
 	for _, test := range tests {
@@ -176,7 +224,12 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if plan.LayerCount() != 1 || plan.layers[0].Block != test.block || plan.layers[0].Cache != test.cache {
+			if plan.LayerCount() != 1 {
+				t.Fatalf("plan = %+v", plan)
+			}
+			layer := plan.layers[0]
+			if layer.Mixer != test.mixer || layer.Attention != test.attention ||
+				layer.Cache != test.cache {
 				t.Fatalf("plan = %+v", plan)
 			}
 		})
@@ -188,15 +241,20 @@ func TestCompileModelPlanWithProfilePinsResolvedPolicy(t *testing.T) {
 	if !ok {
 		t.Fatal("llama profile is absent")
 	}
-	profile.Attention = AttentionLFM2
+	profile.Attention = AttentionShortConvolution
 	plan, err := CompileModelPlanWithProfile(
 		Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}, Weights{}, profile,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Profile().Attention != AttentionLFM2 || plan.layers[0].Attention != AttentionLFM2 {
+	if plan.Profile().Attention != AttentionShortConvolution || plan.layers[0].Attention != AttentionShortConvolution {
 		t.Fatalf("resolved profile was not pinned: %+v", plan)
+	}
+	wantNormalization := plan.Normalization()
+	profile.Normalization = NormalizationLayer
+	if plan.Normalization() != wantNormalization {
+		t.Fatal("compiled normalization followed mutable profile state")
 	}
 
 	profile.Name = "qwen"
@@ -300,12 +358,12 @@ func TestCompileModelPlanAppliesSpecForwardOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Profile().Forward != ForwardNonCausal {
-		t.Fatalf("forward policy = %v", plan.Profile().Forward)
+	if plan.Forward().Operation != ForwardOperationBidirectional {
+		t.Fatalf("forward program = %v", plan.Forward())
 	}
 }
 
-func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
+func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 	for _, architecture := range SupportedArchitectures() {
 		spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, BlockCount: 1}}
 		if architecture == "deepseek4" {
@@ -318,15 +376,11 @@ func TestCachedDenseGraphPolicyRequiresCompatibleLayers(t *testing.T) {
 		if plan.CachedGraph() != CachedGraphDense {
 			continue
 		}
-		if plan.Profile().GraphFamily != ArchitectureFamilyAttention &&
-			plan.Profile().GraphFamily != ArchitectureFamilyMoE {
-			t.Fatalf("%s selected dense graph for family %v", architecture, plan.Profile().GraphFamily)
-		}
-		if plan.Profile().Has(ArchitectureAltUp) {
+		if plan.Forward().AlternateStates() {
 			t.Fatalf("%s selected dense graph with AltUp", architecture)
 		}
 		for _, layer := range plan.layers {
-			if layer.Block != BlockDense || layer.Attention != AttentionStandard ||
+			if layer.Mixer != recurrentMixerNone || layer.Attention != AttentionStandard ||
 				layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
 				t.Fatalf("%s selected dense graph for layer %+v", architecture, layer)
 			}
@@ -342,7 +396,7 @@ func TestCompileModelPlanBoundsAndArchitecture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.LayerCount() != 3 || plan.CacheLayerCount() != 2 || !plan.HasCache(CacheT5) {
+	if plan.LayerCount() != 3 || plan.CacheLayerCount() != 2 || !plan.HasCache(CacheCrossAttention) {
 		t.Fatalf("plan = %+v", plan)
 	}
 	if _, err := plan.Layer(3); err == nil {
@@ -452,17 +506,17 @@ func TestPlanLayerCompilesProjectedStreams(t *testing.T) {
 func TestPlanLayerCompilesAuxiliaryFlow(t *testing.T) {
 	rwkv := Spec{CommonSpec: CommonSpec{Architecture: "rwkv7", BlockCount: 2}}
 	first, second := rwkv.PlanLayer(0, false), rwkv.PlanLayer(1, false)
-	if first.AuxiliaryInput != AuxiliaryNone || first.AuxiliaryOutput != AuxiliaryRWKVValue ||
-		second.AuxiliaryInput != AuxiliaryRWKVValue || second.AuxiliaryOutput != AuxiliaryNone {
+	if first.AuxiliaryInput != AuxiliaryNone || first.AuxiliaryOutput != AuxiliaryRecurrentValue ||
+		second.AuxiliaryInput != AuxiliaryRecurrentValue || second.AuxiliaryOutput != AuxiliaryNone {
 		t.Fatalf("RWKV auxiliary plans = %+v / %+v", first, second)
 	}
 	dsa := Spec{
 		CommonSpec:    CommonSpec{Architecture: "glm-dsa", BlockCount: 3},
 		AttentionSpec: AttentionSpec{IndexerFullLayers: []bool{true, false, true}},
 	}
-	for layer, wantInput := range []AuxiliaryFlow{AuxiliaryNone, AuxiliaryDSATopK, AuxiliaryNone} {
+	for layer, wantInput := range []AuxiliaryFlow{AuxiliaryNone, AuxiliarySparseTopK, AuxiliaryNone} {
 		plan := dsa.PlanLayer(uint32(layer), false)
-		if plan.AuxiliaryInput != wantInput || plan.AuxiliaryOutput != AuxiliaryDSATopK {
+		if plan.AuxiliaryInput != wantInput || plan.AuxiliaryOutput != AuxiliarySparseTopK {
 			t.Fatalf("GLM-DSA layer %d auxiliary = %v/%v", layer, plan.AuxiliaryInput, plan.AuxiliaryOutput)
 		}
 	}
@@ -511,7 +565,7 @@ func TestNormPlanCompilesOperationPlacementBiasAndLayout(t *testing.T) {
 		postLayout   PostNormLayoutPolicy
 		ffnLayout    FeedForwardNormLayoutPolicy
 	}{
-		{"bert", 1e-5, NormalizationLayer, false, true, true, PostNormLayoutBERT, FeedForwardNormLayoutStandard},
+		{"bert", 1e-5, NormalizationLayer, false, true, true, PostNormLayoutOutputLayer, FeedForwardNormLayoutStandard},
 		{"olmo2", 0, NormalizationRMS, false, true, false, PostNormLayoutStandard, FeedForwardNormLayoutStandard},
 		{"grok", 0, NormalizationRMS, true, true, false, PostNormLayoutGrok, FeedForwardNormLayoutStandard},
 		{"dbrx", 1e-5, NormalizationLayer, true, false, false, PostNormLayoutStandard, FeedForwardNormLayoutAttentionOutput},

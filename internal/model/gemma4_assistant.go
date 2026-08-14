@@ -2,32 +2,9 @@ package model
 
 import (
 	"errors"
-	"math"
 
 	"overgo/internal/tensor"
 )
-
-// BuildGemma4AssistantInput: target token/hidden fusion.
-func BuildGemma4AssistantInput(
-	builder *tensor.Builder,
-	targetTokenEmbedding, targetHidden, projection *tensor.Tensor,
-	spec Spec,
-) (*tensor.Tensor, error) {
-	if builder == nil || targetTokenEmbedding == nil || targetHidden == nil || projection == nil {
-		return nil, errors.New("Gemma 4 assistant input is nil")
-	}
-	if spec.Profile().Forward != ForwardGemma4Assistant || targetTokenEmbedding.Shape.Rank != 2 ||
-		!targetTokenEmbedding.Shape.Equal(targetHidden.Shape) ||
-		targetHidden.Shape.Dims[0] != uint64(spec.TargetHiddenSize) {
-		return nil, errors.New("Gemma 4 assistant input shape is incompatible")
-	}
-	embedding := builder.Scale(targetTokenEmbedding, float32(math.Sqrt(float64(spec.TargetHiddenSize))))
-	output := builder.MulMat(projection, builder.Concat(embedding, targetHidden, 0))
-	if err := builder.Err(); err != nil {
-		return nil, err
-	}
-	return output, nil
-}
 
 func buildSharedCacheQKNormMix(
 	builder *tensor.Builder,
@@ -78,26 +55,4 @@ func buildSharedCacheQKNormMix(
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: attention}, nil
-}
-
-// BuildGemma4AssistantOutputs: logits plus recurrent target-width hidden.
-func BuildGemma4AssistantOutputs(
-	builder *tensor.Builder,
-	input, outputNorm, output, postProjection *tensor.Tensor,
-	spec Spec,
-) (logits, nextHidden *tensor.Tensor, err error) {
-	if builder == nil || input == nil || outputNorm == nil || output == nil || postProjection == nil {
-		return nil, nil, errors.New("Gemma 4 assistant output is nil")
-	}
-	if spec.Profile().Forward != ForwardGemma4Assistant || input.Shape.Rank != 2 ||
-		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
-		return nil, nil, errors.New("Gemma 4 assistant output shape is incompatible")
-	}
-	normalized := builder.WeightedRMSNorm(input, outputNorm, spec.RMSNormEpsilon)
-	logits = builder.MulMat(output, normalized)
-	nextHidden = builder.MulMat(postProjection, normalized)
-	if buildErr := builder.Err(); buildErr != nil {
-		return nil, nil, buildErr
-	}
-	return logits, nextHidden, nil
 }

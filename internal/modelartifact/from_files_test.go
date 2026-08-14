@@ -1,12 +1,76 @@
 package modelartifact
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
 )
+
+func TestFromFilesInventoriesIndexedShardsOnce(t *testing.T) {
+	directory := t.TempDir()
+	shards := []string{"model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors"}
+	writeSafetensor(t, filepath.Join(directory, shards[0]), "first")
+	writeSafetensor(t, filepath.Join(directory, shards[1]), "second")
+	index, err := json.Marshal(map[string]any{
+		"weight_map": map[string]string{"first": shards[0], "second": shards[1]},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexPath := filepath.Join(directory, "model.safetensors.index.json")
+	if err := os.WriteFile(indexPath, index, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := FromFiles(directory, []FileSpec{
+		{Path: indexPath, Name: "shard-index", Role: artifact.ComponentShardIndex},
+		{Path: filepath.Join(directory, shards[0]), Name: "weights-0", Role: artifact.ComponentWeightsShard},
+		{Path: filepath.Join(directory, shards[1]), Name: "weights-1", Role: artifact.ComponentWeightsShard},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory.TensorInventory.Tensors) != len(shards) {
+		t.Fatalf("tensor facts = %d, want %d", len(inventory.TensorInventory.Tensors), len(shards))
+	}
+	if inventory.TensorInventory.Tensors[0].Name != "weights-0/first" ||
+		inventory.TensorInventory.Tensors[1].Name != "weights-1/second" {
+		t.Fatalf("tensor facts = %+v", inventory.TensorInventory.Tensors)
+	}
+}
+
+func TestFromFilesInventoriesNonstandardIndexedShards(t *testing.T) {
+	directory := t.TempDir()
+	shards := []string{
+		"diffusion_pytorch_model-00001-of-00002.safetensors",
+		"diffusion_pytorch_model-00002-of-00002.safetensors",
+	}
+	writeSafetensor(t, filepath.Join(directory, shards[0]), "first")
+	writeSafetensor(t, filepath.Join(directory, shards[1]), "second")
+	index, err := json.Marshal(map[string]any{
+		"weight_map": map[string]string{"first": shards[0], "second": shards[1]},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexPath := filepath.Join(directory, "diffusion_pytorch_model.safetensors.index.json")
+	if err := os.WriteFile(indexPath, index, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := FromFiles(directory, []FileSpec{
+		{Path: indexPath, Name: "shard-index", Role: artifact.ComponentShardIndex},
+		{Path: filepath.Join(directory, shards[0]), Name: "weights-0", Role: artifact.ComponentWeightsShard},
+		{Path: filepath.Join(directory, shards[1]), Name: "weights-1", Role: artifact.ComponentWeightsShard},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory.TensorInventory.Tensors) != 2 {
+		t.Fatalf("tensor facts = %d, want 2", len(inventory.TensorInventory.Tensors))
+	}
+}
 
 // TestFromFilesNamespacesDualHeadTensors: two sub-model heads reuse the same
 // tensor name; the explicit-file inventory must keep them distinct.

@@ -599,7 +599,7 @@ func TestBuildMambaBlock(t *testing.T) {
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	plan := spec.PlanLayer(0, false)
-	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
@@ -645,7 +645,7 @@ func TestBuildMamba2Block(t *testing.T) {
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	plan := spec.PlanLayer(0, false)
-	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
@@ -702,7 +702,7 @@ func TestBuildFalconH1Block(t *testing.T) {
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	plan := spec.PlanLayer(0, false)
-	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: fixturePositions,
@@ -767,7 +767,7 @@ func TestBuildGraniteHybridRecurrentMoEBlock(t *testing.T) {
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	plan := spec.PlanLayer(0, true)
-	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
@@ -829,7 +829,7 @@ func TestBuildPLaMo2HybridBlocks(t *testing.T) {
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	plan := spec.PlanLayer(0, true)
-	recurrent, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+	recurrent, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: recurrentWeights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
@@ -1253,7 +1253,7 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 	}
 	positionState := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, 2))
 	plan := spec.PlanLayer(0, false)
-	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: []uint32{0, 1}, TokenRows: []uint32{3, 4},
 			CurrentPositions: positionState,
@@ -1274,15 +1274,15 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 	var moe tensor.MoEAttributes
 	for _, node := range nodes {
 		switch node.Op {
-		case tensor.OpDeepSeek4Attention:
+		case tensor.OpCompressedAttention:
 			attention++
-		case tensor.OpDeepSeek4HCInit:
+		case tensor.OpHyperConnectionInit:
 			hcInit++
-		case tensor.OpDeepSeek4HCPre:
+		case tensor.OpHyperConnectionPre:
 			hcPre++
-		case tensor.OpDeepSeek4HCPost:
+		case tensor.OpHyperConnectionPost:
 			hcPost++
-		case tensor.OpDeepSeek4HCHead:
+		case tensor.OpHyperConnectionHead:
 			hcHead++
 		case tensor.OpMoE:
 			moe = node.Attrs.(tensor.MoEAttributes)

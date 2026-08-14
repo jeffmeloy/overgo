@@ -94,15 +94,9 @@ func (d Decision) ValidateIdentity() error {
 	return decisionCodec.ValidateIdentity(d)
 }
 
-func (d Decision) ContentBytes() ([]byte, error) {
-	return decisionCodec.ContentBytes(d)
-}
-
 func (d Decision) Content() (artifact.Content, error) {
 	return decisionCodec.Content(d)
 }
-
-func DecisionDocumentContract() artifact.DocumentContract { return decisionContract }
 
 func canonicalizeDecision(decision *Decision) error {
 	if decision == nil || decision.Version != DecisionVersion || !decision.Subject.Valid() {

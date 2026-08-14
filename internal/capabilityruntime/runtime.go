@@ -6,25 +6,16 @@ import (
 	"fmt"
 
 	"overgo/internal/artifact"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
-	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
 )
 
-type Executor func(
-	context.Context,
-	artifact.Repository,
-	string,
-	artifact.ID,
-	recipe.Program,
-	string,
-) (any, error)
+type Executor func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error)
 
 func JSONScalar[Input, Model, Output any](
 	name string,
 	validate func(Input) error,
-	load func(string, Input) (Model, error),
+	load func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error),
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
 ) Executor {
 	return func(
@@ -35,55 +26,32 @@ func JSONScalar[Input, Model, Output any](
 		program recipe.Program,
 		raw string,
 	) (any, error) {
-		var input Input
-		if err := strictjson.DecodeBytes([]byte(raw), &input); err != nil {
-			return nil, fmt.Errorf("decode %s input: %w", name, err)
-		}
-		if err := validate(input); err != nil {
+		input, content, err := decodeInput(name, validate, raw)
+		if err != nil {
 			return nil, err
 		}
-		content, err := artifact.JSONContent(
-			artifact.JSONContract(artifact.KindFile, "overgo."+name+"-input.v1"), input,
+		if err := validateScalarProgram(modelID, program); err != nil {
+			return nil, err
+		}
+		model, err := load(ctx, store, path, program, input)
+		if err != nil {
+			return nil, err
+		}
+		output, executeErr := executeScalar[Input, Model, Output](
+			ctx, store, modelID, program, content, input, model, bind,
 		)
-		if err != nil {
-			return nil, err
-		}
-		model, err := load(path, input)
-		if err != nil {
-			return nil, err
-		}
-		return executeScalar[Output](ctx, store, modelID, program, input, content, func(runtime *workflowruntime.Runtime) error {
-			return bind(runtime, modelID, model)
-		})
+		executeErr = errors.Join(executeErr, closeModel(context.WithoutCancel(ctx), model))
+		return output, executeErr
 	}
 }
 
-func IgnoreInput[Input, Model any](load func(string) (Model, error)) func(string, Input) (Model, error) {
-	return func(path string, _ Input) (Model, error) { return load(path) }
-}
-
-func executeScalar[Output any](
-	ctx context.Context,
-	store artifact.Repository,
-	modelID artifact.ID,
-	program recipe.Program,
-	inputValue any,
-	inputContent artifact.Content,
-	bind func(*workflowruntime.Runtime) error,
-) (Output, error) {
-	definition := program.Definition()
-	if len(definition.Inputs) != 1 {
-		var zero Output
-		return zero, errors.New("capability runtime: scalar execution requires one input")
+func IgnoreInput[Input, Model any](load func(string) (Model, error)) func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error) {
+	return func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ Input) (Model, error) {
+		return load(path)
 	}
-	input := definition.Inputs[0]
-	return Execute[Output](ctx, store, modelID, program,
-		"recipe/run/"+definition.ID.String()+"/"+inputContent.Descriptor.ID.String(),
-		map[recipe.PortName]workflowruntime.Value{
-			input.Name: workflowruntime.ArtifactValue(input.Data, inputValue, inputContent),
-		}, bind)
 }
 
+// Execute binds adapters and runs a program with one typed output.
 func Execute[Output any](
 	ctx context.Context,
 	store artifact.Repository,
@@ -96,13 +64,12 @@ func Execute[Output any](
 	var zero Output
 	definition := program.Definition()
 	if definition.Model != modelID {
-		return zero, errors.New("capability runtime: program model differs from binding")
+		return zero, fmt.Errorf("capability runtime: program model differs from binding")
 	}
 	if len(definition.Outputs) != 1 {
-		return zero, errors.New("capability runtime: execution requires one output")
+		return zero, fmt.Errorf("capability runtime: program requires one output")
 	}
-	output := definition.Outputs[0]
-	runtime, err := workflowruntime.NewWithCatalog(store, modelrecipe.Catalog())
+	runtime, err := workflowruntime.NewForProgram(store, program)
 	if err != nil {
 		return zero, err
 	}
@@ -113,13 +80,14 @@ func Execute[Output any](
 	if err != nil {
 		return zero, err
 	}
+	output := definition.Outputs[0]
 	datum, ok := result.Outputs[output.Name].Single()
 	if !ok {
-		return zero, fmt.Errorf("capability runtime: output %q has invalid cardinality", output.Name)
+		return zero, fmt.Errorf("capability runtime: output %q is not scalar", output.Name)
 	}
-	decoded, ok := datum.Value.(Output)
+	value, ok := datum.Value.(Output)
 	if !ok {
 		return zero, fmt.Errorf("capability runtime: output %q has invalid value type", output.Name)
 	}
-	return decoded, nil
+	return value, nil
 }

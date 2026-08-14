@@ -34,10 +34,10 @@ func TestBuildDFlashFeatureInjectionAndNoiseBlock(t *testing.T) {
 	features := input("features", tensor.MustShape(8, 2), 0.1)
 	projection := input("fc", tensor.MustShape(8, 4), 0.02)
 	encoderNorm := input("enc_norm", tensor.MustShape(4), 0.9)
-	fused, err := BuildDFlashFeatureEncoder(builder, features, projection, encoderNorm, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	program := fixtureModelPlan(t, spec, Weights{})
+	projected := fixtureProjection(t, builder, program, ProjectionFeature,
+		ProjectionOperands{Input: features, Primary: projection, Normalization: encoderNorm})
+	fused := projected.Primary
 	weights := LayerGraphWeights{
 		AttentionNorm:   input("attn_norm", tensor.MustShape(4), 0.9),
 		AttentionQ:      input("q", tensor.MustShape(4, 4), 0.02),
@@ -51,7 +51,7 @@ func TestBuildDFlashFeatureInjectionAndNoiseBlock(t *testing.T) {
 		FeedForwardUp:   input("up", tensor.MustShape(4, 6), 0.02),
 		FeedForwardDown: input("down", tensor.MustShape(6, 4), 0.02),
 	}
-	cacheKey, cacheValue, err := BuildDFlashCacheInjection(builder, fused, spec, weights, []uint32{0, 1}, nil, nil)
+	cacheKey, cacheValue, err := program.CacheProjection().Build(builder, fused, weights, []uint32{0, 1}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

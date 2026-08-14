@@ -666,7 +666,7 @@ func (r *Runner) forwardDeviceCachedBatchModeLocked(
 	if len(appends) == 0 {
 		return nil, errors.New("inference: device batch is empty")
 	}
-	if next, handled, err := r.forwardPackedQwen35CohortsLocked(ctx, appends, plan); handled {
+	if next, handled, err := r.forwardPackedDeviceCohortsLocked(ctx, appends, plan); handled {
 		return next, err
 	}
 	return r.forwardDeviceCachedBranchedBatchLocked(ctx, appends, plan)
@@ -1281,18 +1281,18 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 			deviceFeeds[normBias] = pointer
 		}
-		current = model.ApplyNormalization(builder, current, normWeight, normBias, r.spec)
+		current = r.program.Model.Normalization().Apply(builder, current, normWeight, normBias)
 	}
 	embeddingSkip := current
-	if r.spec.UsesUnweightedRMSNorm() {
+	if r.program.Model.Normalization().Operation == model.NormalizationUnweightedRMS {
 		current = builder.RMSNorm(current, r.spec.RMSNormEpsilon)
 		embeddingSkip = current
 	}
 	var perLayerInputs []*tensor.Tensor
-	if r.profile().Has(model.ArchitecturePerLayerEmbeddings) && r.spec.EmbeddingPerLayer > 0 {
+	if r.program.Model.ProjectedInput().PerLayerEmbeddings {
 		if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 			r.weights.PerLayerProjectionNorm == nil {
-			return fail(errors.New("Gemma 4 per-layer weights are incomplete"))
+			return fail(errors.New("per-layer input weights are incomplete"))
 		}
 		perLayerTable, pointer, inputErr := r.deviceInput(builder, *r.weights.PerLayerTokenEmbedding)
 		if inputErr != nil {
@@ -1309,8 +1309,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(inputErr)
 		}
 		deviceFeeds[norm] = pointer
-		perLayerInputs, inputErr = model.BuildGemma4PerLayerInputs(
-			builder, current, builder.GetRows(perLayerTable, rows), projection, norm, r.spec,
+		perLayerInputs, inputErr = r.program.Model.BuildPerLayerInputs(
+			builder, current, builder.GetRows(perLayerTable, rows), projection, norm,
 		)
 		if inputErr != nil {
 			return fail(inputErr)
@@ -1322,7 +1322,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
 	decodeCatalog := plan.mode == deviceOutputGreedy && tokensPerSequence == 1 && r.decodeWeights != nil
 	for layerIndex, info := range r.weights.Layers {
-		plan := r.layerPlan(layerIndex)
+		program := r.layerProgram(layerIndex)
+		plan := program.Layer()
 		var graphWeights model.LayerGraphWeights
 		var layerFeeds map[*tensor.Tensor]driver.DevicePtr
 		var layerErr error
@@ -1359,18 +1360,15 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 			cacheBindings[layerIndex] = cacheInputs
 		}
-		result, buildErr := model.BuildArchitectureBlockCached(model.BlockDispatchOptions{
-			Context: model.CachedBlockContext{
-				Builder: builder, Input: current, Positions: positions, TokenRows: rows,
-				PastKey: cacheInputs.key, PastValue: cacheInputs.value,
-				PastStates:       cacheInputs.states,
-				CurrentPositions: boundSideInputs.currentPositions,
-				PerLayerInput:    graphWeights.PerLayerInput,
-				Layer:            uint32(layerIndex), Recurrent: plan.Recurrent,
-				CacheWrite: cacheWrite, Sequences: sequences,
-			},
-			Spec: r.spec, Weights: graphWeights, Plan: &plan,
-		})
+		result, buildErr := program.Build(model.CachedBlockContext{
+			Builder: builder, Input: current, Positions: positions, TokenRows: rows,
+			PastKey: cacheInputs.key, PastValue: cacheInputs.value,
+			PastStates:       cacheInputs.states,
+			CurrentPositions: boundSideInputs.currentPositions,
+			PerLayerInput:    graphWeights.PerLayerInput,
+			Layer:            uint32(layerIndex), Recurrent: plan.Recurrent,
+			CacheWrite: cacheWrite, Sequences: sequences,
+		}, graphWeights)
 		if buildErr != nil {
 			return fail(buildErr)
 		}

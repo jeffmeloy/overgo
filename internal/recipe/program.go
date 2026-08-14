@@ -15,6 +15,7 @@ type Stage struct {
 type Program struct {
 	definition Definition
 	stages     []Stage
+	catalog    *Catalog
 }
 
 // Definition returns an isolated recipe copy.
@@ -28,6 +29,12 @@ func (p Program) Stages() []Stage {
 	}
 	return stages
 }
+
+// UsesCatalog reports the immutable module authority used during compilation.
+func (p Program) UsesCatalog(catalog *Catalog) bool { return catalog != nil && p.catalog == catalog }
+
+// Catalog returns the immutable module authority used during compilation.
+func (p Program) Catalog() *Catalog { return p.catalog }
 
 // CompileProgram resolves module contracts and orders executable stages.
 func CompileProgram(definition Definition, catalog *Catalog) (Program, error) {
@@ -46,7 +53,7 @@ func CompileProgram(definition Definition, catalog *Catalog) (Program, error) {
 		}
 		stages[index] = Stage{Node: node, Module: module}
 	}
-	return Program{definition: cloneProgramDefinition(definition), stages: stages}, nil
+	return Program{definition: cloneProgramDefinition(definition), stages: stages, catalog: catalog}, nil
 }
 
 func cloneProgramDefinition(definition Definition) Definition {

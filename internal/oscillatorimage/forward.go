@@ -192,44 +192,65 @@ func decoderForwardTrace(features []float32, blocks []DecoderBlock, toOutW, toOu
 	return tape.output, tape
 }
 
-// generateImage: Euler-integrate the coupled phases, read out, decode.
-func generateImage(initialState, omega, omegaCond, kMat, kCondMat, drive []float32,
-	blocks []DecoderBlock, toOutW, toOutB []float32,
-	b, n, nCond, numSteps int, dt, kScale, kCondScale, kDriveScale float64,
-	inChannels, inH, inW, outChannels int, slope float64, relativization, encoding string, tanhOut bool) []float32 {
-	tot := n + nCond
-	state := make([]float32, len(initialState))
-	copy(state, initialState)
+type phasePlan struct {
+	state []float32
+	drive []float32
+}
+
+func (m *Model) prepare(request Request) (phasePlan, error) {
+	if m == nil {
+		return phasePlan{}, fmt.Errorf("oscillatorimage: model is unavailable")
+	}
+	cfg := m.Cfg
+	if request.Class < 0 || request.Class >= cfg.NClasses {
+		return phasePlan{}, fmt.Errorf("oscillatorimage: class %d out of [0,%d)", request.Class, cfg.NClasses)
+	}
+	rng := rand.New(rand.NewSource(request.Seed))
+	state := make([]float32, cfg.N+cfg.NCond)
+	for index := range state {
+		state[index] = float32((rng.Float64()*2 - 1) * math.Pi)
+	}
+	start := request.Class * cfg.N * cfg.NCond
+	return phasePlan{state: state, drive: m.Drive[start : start+cfg.N*cfg.NCond]}, nil
+}
+
+func (m *Model) integrate(plan phasePlan) ([]float32, error) {
+	cfg := m.Cfg
+	tot := cfg.N + cfg.NCond
+	// Batch is carried by the plan's state length (b samples of tot phases);
+	// prepare() builds b=1, but the staged path stays batch-general so a
+	// multi-sample plan integrates every sample (parity: un0 generator golden).
+	b := len(plan.state) / tot
+	state := append([]float32(nil), plan.state...)
 	vel := make([]float32, len(state))
 	trig := make([]float64, 2*tot)
-	for s := 0; s < numSteps; s++ {
-		conditionalKuramotoForwardInto(vel, state, omega, omegaCond, kMat, kCondMat, drive, b, n, nCond, kScale, kCondScale, kDriveScale, trig[:tot], trig[tot:])
+	for range cfg.NumSteps {
+		conditionalKuramotoForwardInto(
+			vel, state, m.Omega, m.OmegaCond, m.K, m.KCond, plan.drive,
+			b, cfg.N, cfg.NCond, cfg.KScale, cfg.KCondScale, cfg.KDriveScale, trig[:tot], trig[tot:],
+		)
 		for i := range state {
-			state[i] = float32(float64(state[i]) + dt*float64(vel[i]))
+			state[i] = float32(float64(state[i]) + cfg.Dt*float64(vel[i]))
 		}
 	}
-	features := readoutTransform(state, b, n, tot, 0, relativization, encoding)
-	output, _ := decoderForwardTrace(features, blocks, toOutW, toOutB, b, inChannels, inH, inW, outChannels, slope, tanhOut)
-	return output
+	return readoutTransform(state, b, cfg.N, tot, 0, cfg.Relativization, cfg.Encoding), nil
+}
+
+func (m *Model) decode(features []float32) (Image, error) {
+	cfg := m.Cfg
+	// Batch derived from the readout width (b samples of in_ch*in_h*in_w).
+	b := len(features) / (cfg.InChannels * cfg.InH * cfg.InW)
+	pixels, _ := decoderForwardTrace(
+		features, m.Blocks, m.ToOutW, m.ToOutB, b,
+		cfg.InChannels, cfg.InH, cfg.InW, cfg.OutChannels, m.Slope, cfg.TanhOut,
+	)
+	return Image{Pixels: pixels, Channels: cfg.OutChannels, Height: cfg.OutH(), Width: cfg.OutW()}, nil
 }
 
 // Generate samples one seeded image for classID. Initial phases are uniform
 // in [-pi,pi) from the artifact's own Go-rand sampling convention; output is
 // flat [out_ch, OutH, OutW], tanh-bounded when configured.
 func (m *Model) Generate(classID int, seed int64) ([]float32, error) {
-	cfg := m.Cfg
-	if classID < 0 || classID >= cfg.NClasses {
-		return nil, fmt.Errorf("oscillatorimage: class %d out of [0,%d)", classID, cfg.NClasses)
-	}
-	tot := cfg.N + cfg.NCond
-	rng := rand.New(rand.NewSource(seed))
-	init := make([]float32, tot)
-	for i := range init {
-		init[i] = float32((rng.Float64()*2 - 1) * math.Pi)
-	}
-	drive := m.Drive[classID*cfg.N*cfg.NCond : (classID+1)*cfg.N*cfg.NCond]
-	return generateImage(init, m.Omega, m.OmegaCond, m.K, m.KCond, drive,
-		m.Blocks, m.ToOutW, m.ToOutB,
-		1, cfg.N, cfg.NCond, cfg.NumSteps, cfg.Dt, cfg.KScale, cfg.KCondScale, cfg.KDriveScale,
-		cfg.InChannels, cfg.InH, cfg.InW, cfg.OutChannels, m.Slope, cfg.Relativization, cfg.Encoding, cfg.TanhOut), nil
+	image, err := m.generate(Request{Class: classID, Seed: seed})
+	return image.Pixels, err
 }

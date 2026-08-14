@@ -17,6 +17,8 @@ type MetadataDefaultPolicy struct {
 	AttentionOutputScale float32
 	EmbeddingScale       float32
 	LogitScale           float32
+	LayerNormEpsilon     float32
+	QKNormEpsilon        float32
 	RopeDimension        RopeDimensionDefaultPolicy
 }
 
@@ -38,6 +40,12 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 	}
 	if p.LogitScale > 0 {
 		spec.LogitScale = readFloat("logit_scale", p.LogitScale)
+	}
+	if p.LayerNormEpsilon > 0 && spec.LayerNormEpsilon == 0 {
+		spec.LayerNormEpsilon = p.LayerNormEpsilon
+	}
+	if p.QKNormEpsilon > 0 && spec.QKNormEpsilon == 0 {
+		spec.QKNormEpsilon = p.QKNormEpsilon
 	}
 	if p.RopeDimension != RopeDimensionDefaultNone {
 		spec.RopeDimensionCount = spec.KeyLength

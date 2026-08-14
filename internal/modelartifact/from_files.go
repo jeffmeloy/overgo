@@ -25,7 +25,7 @@ type FileSpec struct {
 // Safetensors weights get tensor facts namespaced "<name>/<tensor>" so
 // heads with identical tensor names stay distinct; pytorch-zip weights
 // (.pth/.pt) are content-hashed components without fact extraction.
-func FromFiles(directory string, specs []FileSpec) (Inventory, error) {
+func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err error) {
 	if directory == "" || len(specs) == 0 {
 		return Inventory{}, errors.New("model artifact: file inventory requires a directory and components")
 	}
@@ -33,6 +33,12 @@ func FromFiles(directory string, specs []FileSpec) (Inventory, error) {
 	components := make([]artifact.Component, 0, len(specs))
 	descriptors := make([]artifact.Descriptor, 0, len(specs))
 	locations := make([]artifact.Location, 0, len(specs)+1)
+	sources := make(map[string]*safetensors.Source)
+	defer func() {
+		for _, source := range sources {
+			err = errors.Join(err, source.Close())
+		}
+	}()
 	var facts []TensorFact
 	for _, spec := range specs {
 		kind, mediaType := fileContract(spec.Role, spec.Path)
@@ -48,7 +54,16 @@ func FromFiles(directory string, specs []FileSpec) (Inventory, error) {
 		descriptors = append(descriptors, descriptor)
 		locations = append(locations, artifact.Location{Artifact: descriptor.ID, Kind: artifact.LocationFile, Value: absolute})
 		if mediaType == safetensorsMediaType {
-			weightFacts, err := namespacedTensorFacts(absolute, spec.Name)
+			sourceDir := filepath.Dir(absolute)
+			source := sources[sourceDir]
+			if source == nil {
+				source, err = safetensors.OpenSource(sourceDir)
+				if err != nil {
+					return Inventory{}, err
+				}
+				sources[sourceDir] = source
+			}
+			weightFacts, err := namespacedTensorFacts(source, absolute, spec.Name)
 			if err != nil {
 				return Inventory{}, fmt.Errorf("model artifact: component %s: %w", spec.Name, err)
 			}
@@ -76,7 +91,7 @@ func FromFiles(directory string, specs []FileSpec) (Inventory, error) {
 
 func fileContract(role artifact.ComponentRole, path string) (artifact.Kind, string) {
 	switch role {
-	case artifact.ComponentConfig:
+	case artifact.ComponentConfig, artifact.ComponentShardIndex:
 		return artifact.KindFile, jsonMediaType
 	case artifact.ComponentWeights, artifact.ComponentWeightsShard:
 		// Media type follows the container: safetensors gets tensor-fact
@@ -95,16 +110,20 @@ func fileContract(role artifact.ComponentRole, path string) (artifact.Kind, stri
 // namespacedTensorFacts reads one safetensors file's logical facts. The
 // source contract is directory-scoped, so the parent open must resolve to
 // exactly this file.
-func namespacedTensorFacts(path, namespace string) ([]TensorFact, error) {
-	source, err := safetensors.OpenSource(filepath.Dir(path))
-	if err != nil {
-		return nil, err
+func namespacedTensorFacts(source *safetensors.Source, path, namespace string) ([]TensorFact, error) {
+	shards := source.Shards()
+	base := filepath.Base(path)
+	if len(shards) != 1 || shards[0] != base {
+		if !source.Indexed() || !slices.Contains(shards, base) {
+			return nil, fmt.Errorf("weights file %s does not stand alone in its directory (shards %v)", base, shards)
+		}
 	}
-	defer source.Close()
-	if shards := source.Shards(); len(shards) != 1 || shards[0] != filepath.Base(path) {
-		return nil, fmt.Errorf("weights file %s does not stand alone in its directory (shards %v)", filepath.Base(path), source.Shards())
+	var names []string
+	for _, name := range source.Names() {
+		if source.Tensors[name].Shard == base {
+			names = append(names, name)
+		}
 	}
-	names := source.Names()
 	facts := make([]TensorFact, len(names))
 	for index, name := range names {
 		tensor := source.Tensors[name]

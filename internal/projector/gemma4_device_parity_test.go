@@ -17,6 +17,7 @@ import (
 //
 //	OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_MMPROJ=... OVERGO_GEMMA4_IMAGE=...
 func TestGemma4RealDeviceHostParity(t *testing.T) {
+	classifyProjectorIntegration(t)
 	cudatest.Require(t)
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
 	imagePath := os.Getenv("OVERGO_GEMMA4_IMAGE")

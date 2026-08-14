@@ -1,7 +1,7 @@
 # CUDA kernels
 
 CUDA source is the explicit non-Go source exception described in
-`PORT_PLAN.md`. Runtime and model logic remain Go-owned.
+`skill.md`. Runtime and model logic remain Go-owned.
 
 The generated kernel assets must be reproducible. The initial smoke-test PTX is
 built for compute capability 8.9:

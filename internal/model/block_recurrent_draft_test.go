@@ -141,7 +141,7 @@ func TestBuildRWKV6Qwen2Block(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(shift.Shape) || !result.Value.Shape.Equal(state.Shape) {
-		t.Fatalf("unexpected RWKV6-Qwen2 result: %+v", result)
+		t.Fatalf("unexpected WKV6-Qwen2 result: %+v", result)
 	}
 	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
 	if err != nil {
@@ -159,7 +159,7 @@ func TestBuildRWKV6Qwen2Block(t *testing.T) {
 		}
 	}
 	if gla != 1 || tanh != 2 || exponential != 2 {
-		t.Fatalf("RWKV6-Qwen2 ops: GLA=%d tanh=%d exp=%d", gla, tanh, exponential)
+		t.Fatalf("WKV6-Qwen2 ops: GLA=%d tanh=%d exp=%d", gla, tanh, exponential)
 	}
 }
 
@@ -204,7 +204,7 @@ func TestBuildRWKV6Block(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(shift.Shape) || !result.Value.Shape.Equal(state.Shape) {
-		t.Fatalf("unexpected RWKV6 result: %+v", result)
+		t.Fatalf("unexpected WKV6 result: %+v", result)
 	}
 	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
 	if err != nil {
@@ -213,7 +213,7 @@ func TestBuildRWKV6Block(t *testing.T) {
 	var wkv, layerNorm, reluSquared int
 	for _, node := range nodes {
 		switch node.Op {
-		case tensor.OpRWKV6:
+		case tensor.OpWKV6:
 			wkv++
 		case tensor.OpLayerNorm:
 			layerNorm++
@@ -222,7 +222,7 @@ func TestBuildRWKV6Block(t *testing.T) {
 		}
 	}
 	if wkv != 1 || layerNorm != 3 || reluSquared != 1 {
-		t.Fatalf("RWKV6 ops: WKV=%d LayerNorm=%d ReLU2=%d", wkv, layerNorm, reluSquared)
+		t.Fatalf("WKV6 ops: WKV=%d LayerNorm=%d ReLU2=%d", wkv, layerNorm, reluSquared)
 	}
 }
 
@@ -243,7 +243,7 @@ func TestBuildRWKV7BlockValueResidual(t *testing.T) {
 	}
 	if first.Auxiliary == nil || !first.Auxiliary.Shape.Equal(input.Shape) ||
 		!first.Output.Shape.Equal(input.Shape) || !first.Key.Shape.Equal(shift.Shape) || !first.Value.Shape.Equal(state.Shape) {
-		t.Fatalf("unexpected RWKV7 first-layer result: %+v", first)
+		t.Fatalf("unexpected WKV7 first-layer result: %+v", first)
 	}
 	weights.PerLayerInput = builder.Input("first_value", dtype.F32, input.Shape)
 	second, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 1)
@@ -251,7 +251,7 @@ func TestBuildRWKV7BlockValueResidual(t *testing.T) {
 		t.Fatal(err)
 	}
 	if second.Auxiliary != nil {
-		t.Fatalf("unexpected RWKV7 later-layer auxiliary: %+v", second.Auxiliary)
+		t.Fatalf("unexpected WKV7 later-layer auxiliary: %+v", second.Auxiliary)
 	}
 	nodes, err := tensor.Topological(first.Output, first.Key, first.Value, first.Auxiliary, second.Output)
 	if err != nil {
@@ -260,14 +260,14 @@ func TestBuildRWKV7BlockValueResidual(t *testing.T) {
 	var wkv, sumRows int
 	for _, node := range nodes {
 		switch node.Op {
-		case tensor.OpRWKV7:
+		case tensor.OpWKV7:
 			wkv++
 		case tensor.OpSumRows:
 			sumRows++
 		}
 	}
 	if wkv != 2 || sumRows != 2 {
-		t.Fatalf("RWKV7 ops: WKV=%d SumRows=%d", wkv, sumRows)
+		t.Fatalf("WKV7 ops: WKV=%d SumRows=%d", wkv, sumRows)
 	}
 }
 
@@ -373,9 +373,10 @@ func kimiLinearCommonInputs(builder *tensor.Builder, spec Spec, moe bool) LayerG
 	return weights
 }
 
-func TestBuildT5EncoderBlock(t *testing.T) {
+func TestCompiledEncoderBlockUsesRelativeAttention(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "t5encoder",
+		BlockCount:        1,
 		EmbeddingLength:   8,
 		FeedForwardLength: 16,
 
@@ -397,10 +398,19 @@ func TestBuildT5EncoderBlock(t *testing.T) {
 		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
-	output, err := BuildT5EncoderBlock(builder, input, spec, weights)
+	plan, err := CompileModelPlan(spec, Weights{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	program, err := plan.EncoderProgram(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := program.Build(CachedBlockContext{Builder: builder, Input: input}, weights)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := result.Output
 	if !output.Shape.Equal(input.Shape) {
 		t.Fatalf("T5 output shape = %v, want %v", output.Shape, input.Shape)
 	}
@@ -427,11 +437,11 @@ func TestBuildT5EncoderBlock(t *testing.T) {
 	}
 }
 
-func TestBuildT5DecoderBlockCached(t *testing.T) {
+func TestCompiledDecoderBlockUsesCrossAttentionCache(t *testing.T) {
 	builder := tensor.NewBuilder()
-	spec := Spec{CommonSpec: CommonSpec{Architecture: "t5", EmbeddingLength: 8, FeedForwardLength: 16,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: "t5", BlockCount: 1, EmbeddingLength: 8, FeedForwardLength: 16,
 
-		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4}, EncoderSpec: EncoderSpec{RelativeBuckets: 4},
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 2, KeyLength: 4, ValueLength: 4}, EncoderSpec: EncoderSpec{DecoderBlockCount: 1, RelativeBuckets: 4},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	encoder := builder.Input("encoder", dtype.F32, tensor.MustShape(8, 3))
@@ -451,7 +461,17 @@ func TestBuildT5DecoderBlockCached(t *testing.T) {
 		FeedForwardUp:         builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 16)),
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
-	result, err := BuildT5DecoderBlockCached(builder, input, encoder, spec, weights, nil, nil, nil, nil)
+	plan, err := CompileModelPlan(spec, Weights{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := plan.DecoderProgram(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := program.Build(CachedBlockContext{
+		Builder: builder, Input: input, Encoder: encoder,
+	}, weights)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1042,7 +1062,7 @@ func TestBuildNemotronHMoEBlockUsesLatentSquaredReLUExperts(t *testing.T) {
 	}
 	const fixtureLayer = 2
 	plan := spec.PlanLayer(fixtureLayer, false)
-	result, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+	result, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: fixturePositions, Layer: fixtureLayer,

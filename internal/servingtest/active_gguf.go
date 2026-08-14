@@ -6,18 +6,20 @@ import (
 	"errors"
 	"os"
 
-	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 )
 
 // ResolveActiveGGUF: temporary RepoDB-backed serving fixture (capacity session).
 func ResolveActiveGGUF(path string, placement recipe.Placement) (modelrecipe.LoadedProgram, error) {
-	return ResolveActiveGGUFWithSession(path, placement, modelrecipe.DecodeSessionCapacity)
+	return ResolveActiveGGUFWithPolicy(
+		path, placement, modelrecipe.DecodeSessionCapacity, defaultResidency(placement),
+	)
 }
 
 // ResolveActiveGGUFWithSession: serving fixture with an explicit decode-session
@@ -25,6 +27,16 @@ func ResolveActiveGGUF(path string, placement recipe.Placement) (modelrecipe.Loa
 // (concat) path on the same model.
 func ResolveActiveGGUFWithSession(
 	path string, placement recipe.Placement, session modelrecipe.DecodeSessionPolicy,
+) (modelrecipe.LoadedProgram, error) {
+	return ResolveActiveGGUFWithPolicy(path, placement, session, defaultResidency(placement))
+}
+
+// ResolveActiveGGUFWithPolicy: serving fixture with exact session and residency identity.
+func ResolveActiveGGUFWithPolicy(
+	path string,
+	placement recipe.Placement,
+	session modelrecipe.DecodeSessionPolicy,
+	residency recipe.ResidencyPolicy,
 ) (modelrecipe.LoadedProgram, error) {
 	root, err := os.MkdirTemp("", "overgo-serving-fixture-")
 	if err != nil {
@@ -61,9 +73,7 @@ func ResolveActiveGGUFWithSession(
 		_ = file.Close()
 		return modelrecipe.LoadedProgram{}, err
 	}
-	document, err := modelrecipe.NewModelDefinitionFromGGUF(
-		file, profileDocument, inventory.TensorInventory,
-	)
+	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	closeErr := file.Close()
 	if err != nil || closeErr != nil {
 		return modelrecipe.LoadedProgram{}, errors.Join(err, closeErr)
@@ -80,7 +90,7 @@ func ResolveActiveGGUFWithSession(
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		inventory.Manifest.ID, profileDocument.ID, document.ID, placement,
-		session,
+		session, residency,
 	)
 	if err != nil {
 		return modelrecipe.LoadedProgram{}, err
@@ -93,22 +103,27 @@ func ResolveActiveGGUFWithSession(
 	); err != nil {
 		return modelrecipe.LoadedProgram{}, err
 	}
-	evidence := []byte("serving-fixture-validation")
-	evidenceID, err := artifact.IdentifyBytes(artifact.KindEvidence, evidence)
+	verification, err := modelrecipetest.PublishVerification(
+		ctx, store, prefix+"/verification", definition.ID,
+	)
 	if err != nil {
 		return modelrecipe.LoadedProgram{}, err
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       prefix + "/evidence",
-		Artifacts: []artifact.Descriptor{{ID: evidenceID, Size: uint64(len(evidence))}},
-	}); err != nil {
-		return modelrecipe.LoadedProgram{}, err
-	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, prefix+"/active", definition, recipe.StatusActive,
-		[]artifact.ID{evidenceID}, nil,
+	if _, _, err := modelrecipe.ActivateVerified(
+		ctx, store, prefix+"/active", definition, verification, nil, nil,
 	); err != nil {
 		return modelrecipe.LoadedProgram{}, err
 	}
 	return modelrecipe.ResolveActiveGGUF(ctx, store, path)
+}
+
+func defaultResidency(placement recipe.Placement) recipe.ResidencyPolicy {
+	switch placement {
+	case recipe.PlacementDevice:
+		return recipe.ResidencyDeviceNative
+	case recipe.PlacementHost:
+		return recipe.ResidencyHostCache
+	default:
+		return recipe.ResidencyHybridNative
+	}
 }

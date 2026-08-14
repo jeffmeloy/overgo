@@ -8,11 +8,11 @@ import (
 )
 
 const (
-	rwkvLayerRescale     = float32(0.5)
-	rwkv6TimeMixStreams  = uint64(5)
-	rwkv7TimeMixStreams  = uint64(5)
-	rwkv7GatedMixStreams = uint64(6)
-	rwkv7DecayScale      = float32(-0.606531)
+	rwkvLayerRescale    = float32(0.5)
+	wkv6TimeMixStreams  = uint64(5)
+	wkv7TimeMixStreams  = uint64(5)
+	wkv7GatedMixStreams = uint64(6)
+	wkv7DecayScale      = float32(-0.606531)
 )
 
 // buildHyperAttentionStage: hyper-connected compressed attention.
@@ -36,11 +36,11 @@ func buildHyperAttentionStage(
 	}
 	if layerIndex == 0 {
 		if input.Shape.Rank != 2 {
-			return DenseBlockResult{}, errors.New("DeepSeek 4 initial input must be rank 2")
+			return DenseBlockResult{}, errors.New("initial hyper-connection input must be rank 2")
 		}
-		input = builder.DeepSeek4HCInit(input, spec.HyperConnectionCount)
+		input = builder.HyperConnectionInit(input, spec.HyperConnectionCount)
 	} else if input.Shape.Rank != 3 || input.Shape.Dims[1] != uint64(spec.HyperConnectionCount) {
-		return DenseBlockResult{}, errors.New("DeepSeek 4 HC input is invalid")
+		return DenseBlockResult{}, errors.New("hyper-connection input is invalid")
 	}
 	required := graphWeights{
 		requireGraphWeight("attention norm", weights.AttentionNorm),
@@ -71,7 +71,7 @@ func buildHyperAttentionStage(
 		required.add("indexer compressor APE", weights.IndexerCompressorAPE)
 		required.add("indexer compressor norm", weights.IndexerCompressorNorm)
 	}
-	if err := required.validate("DeepSeek 4 attention"); err != nil {
+	if err := required.validate("compressed attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	tokens := uint64(len(positions))
@@ -79,7 +79,7 @@ func buildHyperAttentionStage(
 	headWidth := uint64(spec.KeyLength)
 	hc := spec.HyperConnectionCount
 	residual := input
-	current := builder.DeepSeek4HCPre(input, weights.HyperAttentionFN, weights.HyperAttentionScale,
+	current := builder.HyperConnectionPre(input, weights.HyperAttentionFN, weights.HyperAttentionScale,
 		weights.HyperAttentionBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	current = builder.WeightedRMSNorm(current, weights.AttentionNorm, spec.RMSNormEpsilon)
 	queryRank := builder.WeightedRMSNorm(builder.MulMat(weights.AttentionQ, current), weights.AttentionQNorm, spec.RMSNormEpsilon)
@@ -108,7 +108,7 @@ func buildHyperAttentionStage(
 	cacheKV := kv
 	if pastKV != nil {
 		if pastKV.Shape.Rank != 3 || pastKV.Shape.Dims[0] != headWidth || pastKV.Shape.Dims[1] != 1 {
-			return DenseBlockResult{}, errors.New("DeepSeek 4 raw cache shape is invalid")
+			return DenseBlockResult{}, errors.New("compressed-attention raw cache shape is invalid")
 		}
 		cacheKV = builder.Concat(pastKV, kv, 2)
 	}
@@ -155,14 +155,14 @@ func buildHyperAttentionStage(
 			builder.MulMat(weights.IndexerCompressorGate, current), builder.GetRows(weights.IndexerCompressorAPE, rows),
 		))
 	}
-	attributes := tensor.DeepSeek4AttentionAttributes{
-		Positions: positions, Ratio: tensor.DeepSeek4CompressionRatio(ratio), Window: spec.SlidingWindow, Heads: spec.HeadCount,
+	attributes := tensor.CompressedAttentionAttributes{
+		Positions: positions, Ratio: tensor.CompressionRatio(ratio), Window: spec.SlidingWindow, Heads: spec.HeadCount,
 		IndexerHeads: spec.IndexerHeadCount, IndexerTopK: spec.IndexerTopK,
 		RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: frequencyBase, FrequencyScale: frequencyScale,
 		OriginalContext: originalContext, ExtFactor: extFactor, AttentionFactor: attentionFactor,
 		BetaFast: betaFast, BetaSlow: betaSlow, NormEpsilon: spec.RMSNormEpsilon,
 	}
-	attention := builder.DeepSeek4Attention(query, cacheKV, cachePositions, weights.AttentionSinks,
+	attention := builder.CompressedAttention(query, cacheKV, cachePositions, weights.AttentionSinks,
 		compressorKV, compressorScore, weights.AttentionCompressorNorm,
 		indexerQuery, indexerWeights, indexerKV, indexerScore, weights.IndexerCompressorNorm, attributes)
 	groupDimension := uint64(spec.HeadCount/spec.AttentionOutputGroups) * headWidth
@@ -170,14 +170,12 @@ func buildHyperAttentionStage(
 	outputA := builder.Reshape(weights.AttentionOutputA, groupDimension, uint64(spec.AttentionOutputRank), uint64(spec.AttentionOutputGroups))
 	attention = builder.Reshape(builder.GroupedMulMat(outputA, attention), uint64(spec.AttentionOutputRank*spec.AttentionOutputGroups), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
-	input = builder.DeepSeek4HCPost(attention, residual, weights.HyperAttentionFN, weights.HyperAttentionScale,
+	input = builder.HyperConnectionPost(attention, residual, weights.HyperAttentionFN, weights.HyperAttentionScale,
 		weights.HyperAttentionBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	// distinct node per cache stream: retained-output indexing rejects the
-	// same tensor as both Key and Value (same class as buildSentinelCache);
-	// Reshape always emits a new node, values identical
+	// Unique cache-value node: retained outputs require distinct K/V identities.
 	cacheValue := builder.Reshape(cacheKV, cacheKV.Shape.Dims[:cacheKV.Shape.Rank]...)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
@@ -216,7 +214,7 @@ func buildHyperFeedForwardStage(
 	if layerIndex < spec.HashLayerCount {
 		required.add("hash routing table", weights.FeedForwardHashExperts)
 		if len(tokenRows) != int(input.Shape.Dims[2]) {
-			return nil, errors.New("DeepSeek 4 hash routing rows are missing")
+			return nil, errors.New("compressed-hyper hash routing rows are missing")
 		}
 	} else {
 		required.add("router bias", weights.FeedForwardRouterBias)
@@ -226,12 +224,12 @@ func buildHyperFeedForwardStage(
 		required.add("output HC base", weights.HyperHeadBase)
 		required.add("output HC scale", weights.HyperHeadScale)
 	}
-	if err := required.validate("DeepSeek 4 feed-forward"); err != nil {
+	if err := required.validate("compressed-hyper feed-forward"); err != nil {
 		return nil, err
 	}
 	hc := spec.HyperConnectionCount
 	residual := input
-	current := builder.DeepSeek4HCPre(input, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
+	current := builder.HyperConnectionPre(input, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
 		weights.HyperFeedForwardBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	current = builder.WeightedRMSNorm(current, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	var selected *tensor.Tensor
@@ -250,12 +248,12 @@ func buildHyperFeedForwardStage(
 	sharedGate := builder.MulMat(weights.FeedForwardSharedGate, current)
 	sharedUp := builder.MulMat(weights.FeedForwardSharedUp, current)
 	shared := builder.MulMat(weights.FeedForwardSharedDown,
-		deepSeek4LimitedSwiGLU(builder, sharedGate, sharedUp, spec.LayerSharedSwiGLUClampLimit(layerIndex)))
+		inputLimitedSwiGLU(builder, sharedGate, sharedUp, spec.LayerSharedSwiGLUClampLimit(layerIndex)))
 	current = builder.Add(moe, shared)
-	output := builder.DeepSeek4HCPost(current, residual, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
+	output := builder.HyperConnectionPost(current, residual, weights.HyperFeedForwardFN, weights.HyperFeedForwardScale,
 		weights.HyperFeedForwardBase, hc, spec.HyperSinkhornIters, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	if layerIndex+1 == spec.BlockCount {
-		output = builder.DeepSeek4HCHead(output, weights.HyperHeadFN, weights.HyperHeadScale,
+		output = builder.HyperConnectionHead(output, weights.HyperHeadFN, weights.HyperHeadScale,
 			weights.HyperHeadBase, hc, spec.RMSNormEpsilon, spec.HyperConnectionEps)
 	}
 	if err := builder.Err(); err != nil {
@@ -374,7 +372,7 @@ func buildAffineWKV6MixCached(
 	if weights.TimeMixLerpFused == nil &&
 		(weights.TimeMixLerpW == nil || weights.TimeMixLerpK == nil || weights.TimeMixLerpV == nil ||
 			weights.TimeMixLerpR == nil || weights.TimeMixLerpG == nil) {
-		return DenseBlockResult{}, errors.New("RWKV6 time-mix lerp catalog is incomplete")
+		return DenseBlockResult{}, errors.New("WKV6 time-mix lerp catalog is incomplete")
 	}
 	embedding := uint64(spec.EmbeddingLength)
 	width := uint64(spec.WKVHeadSize)
@@ -394,7 +392,7 @@ func buildAffineWKV6MixCached(
 	gate := builder.SiLU(builder.MulMat(weights.TimeMixGate, xg))
 	decay := builder.MulMat(weights.TimeMixDecayW2, builder.Tanh(builder.MulMat(weights.TimeMixDecayW1, xw)))
 	decay = builder.Reshape(builder.Exp(builder.Scale(builder.Exp(builder.Add(decay, weights.TimeMixDecay)), -1)), width, heads, tokens, 1)
-	packed := builder.RWKV6(key, value, receptance, weights.TimeMixFirst, decay, pastState)
+	packed := builder.WKV6(key, value, receptance, weights.TimeMixFirst, decay, pastState)
 	attentionElements := embedding * tokens
 	attention := builder.FlatSlice(packed, 0, embedding, tokens)
 	nextState := builder.FlatSlice(packed, attentionElements, width, width, heads, 1)
@@ -417,7 +415,7 @@ func buildWKV6MixedStreams(
 	normalized, previous *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-) [rwkv6TimeMixStreams]*tensor.Tensor {
+) [wkv6TimeMixStreams]*tensor.Tensor {
 	embedding, tokens := uint64(spec.EmbeddingLength), normalized.Shape.Dims[1]
 	if tokens > 1 {
 		previous = builder.Concat(previous, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
@@ -429,23 +427,23 @@ func buildWKV6MixedStreams(
 	adjustments := builder.Reshape(builder.GroupedMulMat(
 		weights.TimeMixW2, builder.Reshape(
 			builder.Tanh(builder.MulMat(weights.TimeMixW1, base)),
-			uint64(spec.TimeMixExtraDim), rwkv6TimeMixStreams, tokens,
+			uint64(spec.TimeMixExtraDim), wkv6TimeMixStreams, tokens,
 		),
-	), embedding*rwkv6TimeMixStreams, tokens)
-	separate := [rwkv6TimeMixStreams]*tensor.Tensor{
+	), embedding*wkv6TimeMixStreams, tokens)
+	separate := [wkv6TimeMixStreams]*tensor.Tensor{
 		weights.TimeMixLerpW, weights.TimeMixLerpK, weights.TimeMixLerpV,
 		weights.TimeMixLerpR, weights.TimeMixLerpG,
 	}
-	var mixed [rwkv6TimeMixStreams]*tensor.Tensor
-	for index := uint64(0); index < rwkv6TimeMixStreams; index++ {
+	var mixed [wkv6TimeMixStreams]*tensor.Tensor
+	for index := uint64(0); index < wkv6TimeMixStreams; index++ {
 		adjustment := builder.Reshape(builder.GroupSlice(
-			adjustments, index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams,
+			adjustments, index*embedding, embedding, 1, embedding*wkv6TimeMixStreams,
 		), embedding, tokens)
 		lerp := separate[index]
 		if weights.TimeMixLerpFused != nil {
 			lerp = builder.GroupSlice(
-				builder.Reshape(weights.TimeMixLerpFused, embedding*rwkv6TimeMixStreams, 1),
-				index*embedding, embedding, 1, embedding*rwkv6TimeMixStreams,
+				builder.Reshape(weights.TimeMixLerpFused, embedding*wkv6TimeMixStreams, 1),
+				index*embedding, embedding, 1, embedding*wkv6TimeMixStreams,
 			)
 		}
 		mixed[index] = builder.Add(normalized, builder.Multiply(
@@ -512,9 +510,9 @@ func buildDynamicWKV7MixCached(
 		attPrev = builder.Concat(attPrev, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
 	}
 	sx := builder.Add(attPrev, builder.Scale(normalized, -1))
-	lerpCount := rwkv7GatedMixStreams
+	lerpCount := wkv7GatedMixStreams
 	if spec.GateLoRARank == 0 {
-		lerpCount = rwkv7TimeMixStreams
+		lerpCount = wkv7TimeMixStreams
 	}
 	lerps := builder.Reshape(weights.TimeMixLerpFused, embedding*lerpCount, 1)
 	mixed := make([]*tensor.Tensor, lerpCount)
@@ -528,18 +526,18 @@ func buildDynamicWKV7MixCached(
 		builder.MulMat(weights.TimeMixW2, builder.Tanh(builder.MulMat(weights.TimeMixW1, xw))),
 		weights.TimeMixW0,
 	)
-	decay = builder.Exp(builder.Scale(builder.Sigmoid(decay), rwkv7DecayScale))
+	decay = builder.Exp(builder.Scale(builder.Sigmoid(decay), wkv7DecayScale))
 	key := builder.MulMat(weights.TimeMixKey, xk)
 	value := builder.MulMat(weights.TimeMixValue, xv)
 	var auxiliary *tensor.Tensor
 	if layerPlan.Layer == 0 {
 		if weights.PerLayerInput != nil {
-			return DenseBlockResult{}, errors.New("RWKV7 first layer received a value residual")
+			return DenseBlockResult{}, errors.New("WKV7 first layer received a value residual")
 		}
 		auxiliary = value
 	} else {
 		if weights.PerLayerInput == nil {
-			return DenseBlockResult{}, errors.New("RWKV7 value residual is missing")
+			return DenseBlockResult{}, errors.New("WKV7 value residual is missing")
 		}
 		valueMix := builder.Sigmoid(builder.Add(
 			builder.MulMat(weights.TimeMixV2, builder.MulMat(weights.TimeMixV1, xv)),
@@ -562,7 +560,7 @@ func buildDynamicWKV7MixCached(
 	key4 := builder.Reshape(key, width, heads, tokens, 1)
 	value4 := builder.Reshape(value, width, heads, tokens, 1)
 	a4 := builder.Reshape(a, width, heads, tokens, 1)
-	packed := builder.RWKV7(receptance4, decay4, key4, value4, builder.Scale(kk, -1), builder.Multiply(kk, a4), pastState)
+	packed := builder.WKV7(receptance4, decay4, key4, value4, builder.Scale(kk, -1), builder.Multiply(kk, a4), pastState)
 	attentionElements := embedding * tokens
 	attention := builder.FlatSlice(packed, 0, embedding, tokens)
 	nextState := builder.FlatSlice(packed, attentionElements, width, width, heads, 1)
@@ -597,7 +595,8 @@ func buildTokenShiftFeedForwardMix(
 	spec Spec,
 	weights LayerGraphWeights,
 	pastShift, nextAttentionShift *tensor.Tensor,
-	policy FeedForwardMixPolicy,
+	operator LayerOperator,
+	normalization NormalizationPlan,
 ) (DenseBlockResult, error) {
 	required := graphWeights{
 		requireGraphWeight("channel norm", weights.AttentionNorm2),
@@ -606,10 +605,10 @@ func buildTokenShiftFeedForwardMix(
 		requireGraphWeight("channel key", weights.ChannelMixKey),
 		requireGraphWeight("channel value", weights.ChannelMixValue),
 	}
-	if policy == FeedForwardMixGatedTokenShiftSquaredReLU {
+	if operator == LayerOperatorGatedTokenShiftSquaredReLU {
 		required.add("channel lerp R", weights.ChannelMixLerpR)
 		required.add("channel receptance", weights.ChannelMixReceptance)
-	} else if policy != FeedForwardMixTokenShiftSquaredReLU {
+	} else if operator != LayerOperatorTokenShiftSquaredReLU {
 		return DenseBlockResult{}, errors.New("token-shift feed-forward policy is invalid")
 	}
 	if err := required.validate("token-shift feed-forward"); err != nil {
@@ -622,7 +621,7 @@ func buildTokenShiftFeedForwardMix(
 		return DenseBlockResult{}, errors.New("token-shift feed-forward input/cache shape is invalid")
 	}
 	tokens := input.Shape.Dims[1]
-	normalized := ApplyNormalization(builder, input, weights.AttentionNorm2, weights.AttentionNorm2Bias, spec)
+	normalized := normalization.Apply(builder, input, weights.AttentionNorm2, weights.AttentionNorm2Bias)
 	previous := builder.Reshape(builder.FlatSlice(pastShift, embedding, embedding), embedding, 1)
 	if tokens > 1 {
 		previous = builder.Concat(previous, builder.FlatSlice(normalized, 0, embedding, tokens-1), 1)
@@ -634,7 +633,7 @@ func buildTokenShiftFeedForwardMix(
 	channel := builder.MulMat(
 		weights.ChannelMixValue, builder.ReLUSquared(builder.MulMat(weights.ChannelMixKey, keyInput)),
 	)
-	if policy == FeedForwardMixGatedTokenShiftSquaredReLU {
+	if operator == LayerOperatorGatedTokenShiftSquaredReLU {
 		receptanceInput := builder.Add(normalized, builder.Multiply(
 			shift, builder.Reshape(weights.ChannelMixLerpR, embedding, 1),
 		))
@@ -756,18 +755,18 @@ func buildShortConvolutionMixCached(
 		requireGraphWeight("short-convolution kernel", weights.ShortConvKernel),
 		requireGraphWeight("short-convolution output", weights.ShortConvOutput),
 	}
-	if err := required.validate("LFM2 recurrent mixer"); err != nil {
+	if err := required.validate("short-convolution recurrent mixer"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if normalized.Shape.Rank != 2 || len(positions) == 0 ||
 		uint64(len(positions)) != normalized.Shape.Dims[1] {
-		return DenseBlockResult{}, errors.New("LFM2 recurrent mixer input shape is invalid")
+		return DenseBlockResult{}, errors.New("short-convolution recurrent mixer input shape is invalid")
 	}
 	embedding := uint64(spec.EmbeddingLength)
 	window := uint64(spec.ShortConvCacheLength - 1)
 	if !pastKey.Shape.Equal(tensor.MustShape(window, embedding)) ||
 		!pastValue.Shape.Equal(tensor.MustShape(1)) {
-		return DenseBlockResult{}, errors.New("LFM2 recurrent cache shape is invalid")
+		return DenseBlockResult{}, errors.New("short-convolution recurrent cache shape is invalid")
 	}
 	tokens := uint64(len(positions))
 	mixed := builder.MulMat(weights.ShortConvInput, normalized)

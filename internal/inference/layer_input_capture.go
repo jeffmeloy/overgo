@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 
-	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -16,6 +15,16 @@ type layerInputCapture struct {
 	order     []int32
 	requested map[int32]struct{}
 	values    map[int32]reference.Value
+}
+
+// ExtractLayerInputs: full-sequence pre-layer hidden rows.
+func (r *Runner) ExtractLayerInputs(
+	ctx context.Context,
+	tokenIDs []tokenizer.TokenID,
+	layerIDs []int32,
+) (reference.Value, error) {
+	_, _, features, err := r.ForwardCachedExtractLayerInputs(ctx, tokenIDs, nil, layerIDs)
+	return features, err
 }
 
 // ForwardCachedExtractLayerInputs: cached forward plus pre-layer rows.
@@ -33,9 +42,7 @@ func (r *Runner) ForwardCachedExtractLayerInputs(
 	if r.closed {
 		return reference.Value{}, nil, reference.Value{}, errors.New("inference: runner is closed")
 	}
-	profile := r.profile()
-	if r.spec.NonCausalAttention || profile.Family == model.ArchitectureFamilyEncoderDecoder ||
-		profile.Has(model.ArchitectureAltUp) {
+	if !r.forwardProgram().LayerCapture() {
 		return reference.Value{}, nil, reference.Value{}, errors.New("inference: cached layer extraction is unsupported for this architecture")
 	}
 	capture, err := newLayerInputCapture(layerIDs, len(r.weights.Layers))

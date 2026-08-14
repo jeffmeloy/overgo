@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -191,6 +192,26 @@ func TestPackUnpackLatentRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPackPlanarChannelsLastRoundTrip(t *testing.T) {
+	const c, h, w, patch = 2, 2, 2, 2
+	planar := []float32{0, 1, 2, 3, 10, 11, 12, 13}
+	packed, gh, gw, err := PackPlanarF32(planar, c, h, w, patch, PatchChannelsLast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{0, 10, 1, 11, 2, 12, 3, 13}
+	if !slices.Equal(packed, want) || gh != 1 || gw != 1 {
+		t.Fatalf("packed=%v grid=%dx%d, want=%v grid=1x1", packed, gh, gw, want)
+	}
+	back, err := UnpackPlanarF32(packed, c, gh, gw, patch, PatchChannelsLast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(back, planar) {
+		t.Fatalf("round trip=%v, want=%v", back, planar)
+	}
+}
+
 // RoPE: text tokens (position origin) must be the identity (cos=1, sin=0); image
 // tokens must carry non-trivial rotation on the h/w axes.
 func TestRopeTableOriginAndImage(t *testing.T) {
@@ -307,7 +328,8 @@ func TestDenoiserExactG3IsHookGapped(t *testing.T) {
 	}
 	t.Logf("HOOK GAP (exact g3 unreachable from host port): "+
 		"(1) text conditioning tensor is needs-hook (%s) -- the Qwen3VL 36-layer encoder's 12 selected hidden states "+
-		"feed text_fusion but are not in the goldens and the encoder is not ported; "+
+		"are now ported (textencoder.go, streamed host forward, telemetry-verified finite on the real ckpt) but their "+
+		"exact values are not in the goldens (the adaptive dump hook is out of scope); "+
 		"(2) seed-42 init noise is torch randn reproduced natively by adaptive, RNG not matched here; "+
 		"(3) the real transformer is 12.82B params (~51GB f32) so a full-scale host forward is not CPU-runnable. "+
 		"Achievable bar met: block shapes verified vs real ckpt + exact forward arithmetic runs finite/deterministic "+

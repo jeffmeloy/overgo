@@ -2,65 +2,40 @@ package densecausal
 
 import (
 	"math"
-	"math/rand"
-	"strconv"
 	"testing"
+
+	"overgo/internal/testutil"
 )
 
-// tinyMuonModel builds a seeded, in-memory dense-causal model (tied embeddings,
-// no attention bias) so the Muon training loop is exercised with no fixture or
-// real artifact. Geometry: Vocab 32, Hidden 16, 2 heads x head-dim 8, 2 layers,
-// intermediate 32.
 func tinyMuonModel(t *testing.T) *Model {
 	t.Helper()
-	const (
-		vocab   = 32
-		hidden  = 16
-		heads   = 2
-		headDim = 8
-		kvHeads = 2
-		inter   = 32
-		layers  = 2
-	)
-	rng := rand.New(rand.NewSource(1))
-	weights := map[string][]float32{}
-	shapes := map[string][]int{}
-	matrix := func(name string, rows, cols int) {
-		values := make([]float32, rows*cols)
-		for i := range values {
-			values[i] = float32(rng.NormFloat64() * 0.02)
-		}
-		weights[name] = values
-		shapes[name] = []int{rows, cols}
+	spec := testutil.DenseCausalSpec{
+		Vocab: 32, Hidden: 16, Heads: 2, HeadDim: 8,
+		KVHeads: 2, Intermediate: 32, Layers: 2, Seed: 1,
 	}
-	norm := func(name string, n int) {
-		values := make([]float32, n)
-		for i := range values {
-			values[i] = float32(1 + rng.NormFloat64()*0.01)
-		}
-		weights[name] = values
-		shapes[name] = []int{n}
-	}
-	matrix("model.embed_tokens.weight", vocab, hidden)
-	for layer := 0; layer < layers; layer++ {
-		prefix := "model.layers." + strconv.Itoa(layer) + "."
-		norm(prefix+"input_layernorm.weight", hidden)
-		matrix(prefix+"self_attn.q_proj.weight", heads*headDim, hidden)
-		matrix(prefix+"self_attn.k_proj.weight", kvHeads*headDim, hidden)
-		matrix(prefix+"self_attn.v_proj.weight", kvHeads*headDim, hidden)
-		matrix(prefix+"self_attn.o_proj.weight", hidden, heads*headDim)
-		norm(prefix+"post_attention_layernorm.weight", hidden)
-		matrix(prefix+"mlp.gate_proj.weight", inter, hidden)
-		matrix(prefix+"mlp.up_proj.weight", inter, hidden)
-		matrix(prefix+"mlp.down_proj.weight", hidden, inter)
-	}
-	norm("model.norm.weight", hidden)
-
-	m, err := NewModel(weights, shapes, heads, headDim, 10000, 1e-6)
+	weights, shapes := testutil.DenseCausalWeights(t, spec)
+	m, err := NewModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return m
+}
+
+func TestTensorGeometryRejectsNonPositiveDimensions(t *testing.T) {
+	tests := map[string]struct {
+		shape  []int
+		length int
+	}{
+		"negative matrix": {shape: []int{-1, -1}, length: 1},
+		"empty vector":    {shape: []int{0}, length: 0},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := tensorGeometry(test.shape, test.length); err == nil {
+				t.Fatal("invalid tensor geometry accepted")
+			}
+		})
+	}
 }
 
 // TestMuonTrainingDecreasesLossTiny: multi-step Muon training over a fixed batch

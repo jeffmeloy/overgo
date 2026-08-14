@@ -13,8 +13,6 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-type DeviceF32Tensor = DeviceTensor
-
 // DeviceF32Weights: owns host-dequantized F32 weights in one CUDA context
 // correctness bridge used before native quantized CUDA matmul
 type DeviceF32Weights struct {
@@ -40,37 +38,8 @@ func (w *DeviceF32Weights) Load(
 	if file == nil {
 		return errors.New("F32 device weights: GGUF file is nil")
 	}
-	return w.load(ctx, infos, func(info gguf.TensorInfo) (DeviceTensor, error) {
-		value, err := LoadHostTensor(ctx, file, info)
-		if err != nil {
-			return DeviceTensor{}, err
-		}
-		if uint64(len(value.Data)) > ^uint64(0)/4 {
-			return DeviceTensor{}, fmt.Errorf("F32 device tensor %q byte size overflows", info.Name)
-		}
-		size := uint64(len(value.Data)) * 4
-		var pointer driver.DevicePtr
-		if err := w.worker.Do(ctx, func(state *device.State) error {
-			var allocateErr error
-			pointer, allocateErr = state.Driver.MemAlloc(size)
-			if allocateErr != nil {
-				return allocateErr
-			}
-			if copyErr := state.Driver.MemcpyHtoD(pointer, f32Bytes(value.Data)); copyErr != nil {
-				_ = state.Driver.MemFree(pointer)
-				pointer = 0
-				return copyErr
-			}
-			return nil
-		}); err != nil {
-			return DeviceTensor{}, fmt.Errorf("upload F32 device tensor %q: %w", info.Name, err)
-		}
-		return DeviceTensor{
-			Info:    info,
-			Shape:   value.Shape,
-			Pointer: pointer,
-			Size:    size,
-		}, nil
+	return w.loadConverted(ctx, file, infos, 4, func(values []float32, _ int) []byte {
+		return f32Bytes(values)
 	})
 }
 
@@ -87,18 +56,6 @@ func (w *DeviceF32Weights) Input(
 		return nil, 0, err
 	}
 	return node, value.Pointer, nil
-}
-
-func (w *DeviceF32Weights) LayerGraphInputs(
-	builder *tensor.Builder,
-	info LayerWeights,
-) (LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
-	return BindDeviceLayerGraphInputs(builder, info, func(
-		builder *tensor.Builder,
-		info gguf.TensorInfo,
-	) (*tensor.Tensor, driver.DevicePtr, error) {
-		return w.Input(builder, info.Name)
-	})
 }
 
 // BindDeviceLayerGraphInputs: shared layer-catalog binding.
@@ -129,9 +86,9 @@ func BindDeviceLayerGraphInputs(
 	return result, feeds, nil
 }
 
-func (w *DeviceF32Weights) Lookup(name string) (DeviceF32Tensor, bool) {
+func (w *DeviceF32Weights) Lookup(name string) (DeviceTensor, bool) {
 	if w == nil {
-		return DeviceF32Tensor{}, false
+		return DeviceTensor{}, false
 	}
 	return w.deviceTensorStore.Lookup(name)
 }

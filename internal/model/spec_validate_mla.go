@@ -22,14 +22,14 @@ func (s Spec) validateMLAFamilies() error {
 	profile := s.Profile()
 	validation := profile.Validation.MLA
 	kimiLinear := validation == MLAValidationKimiLinear
-	if (profile.Attention == AttentionMLA || profile.Attention == AttentionDSA || kimiLinear) &&
+	if (profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent || kimiLinear) &&
 		(s.KVLoRARank == 0 || s.RopeDimensionCount == 0 ||
 			s.RopeDimensionCount >= s.KeyLength ||
-			(!profile.Has(ArchitectureDeepSeek2Layout) && !kimiLinear && s.HeadCountKV != s.HeadCount) ||
-			((profile.Has(ArchitectureDeepSeek2Layout) || kimiLinear) && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
+			(!profile.Has(ArchitectureLatentKVLayout) && !kimiLinear && s.HeadCountKV != s.HeadCount) ||
+			((profile.Has(ArchitectureLatentKVLayout) || kimiLinear) && s.HeadCountKV != 1 && s.HeadCountKV != s.HeadCount)) {
 		return errors.New("MLA metadata is invalid")
 	}
-	if profile.Attention == AttentionDSA {
+	if profile.Attention == AttentionSparseLatent {
 		switch {
 		case s.QLoRARank == 0:
 			return errors.New("DSA query LoRA rank is missing")
@@ -39,8 +39,9 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("DSA indexer metadata is invalid")
 		case len(s.IndexerFullLayers) != int(s.BlockCount) || !s.IndexerFullLayers[0]:
 			return errors.New("DSA indexer schedule is invalid")
-		case validation == MLAValidationDeepSeek32 &&
-			(s.BlockCount != deepSeek32BlockCount || s.LayerNormEpsilon != deepSeek32LayerNormEpsilon):
+		case profile.Validation.RequiredBlockCount > 0 &&
+			(s.BlockCount != profile.Validation.RequiredBlockCount ||
+				s.LayerNormEpsilon != profile.MetadataDefaults.LayerNormEpsilon):
 			return errors.New("DeepSeek 3.2 layer metadata is invalid")
 		}
 		var sectionPairs int32
@@ -102,7 +103,7 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("DeepSeek 4 YaRN metadata is invalid")
 		}
 		for block, ratio := range s.CompressRatios {
-			if !tensor.DeepSeek4CompressionRatio(ratio).Valid() {
+			if !tensor.CompressionRatio(ratio).Valid() {
 				return fmt.Errorf("DeepSeek 4 layer %d compression ratio is invalid", block)
 			}
 			for _, limit := range []float32{s.LayerSwiGLUClamp[block], s.LayerSharedSwiGLUClamp[block]} {
@@ -136,7 +137,7 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("Kimi Linear requires KDA and MLA layers")
 		}
 	}
-	if profile.Has(ArchitectureDeepSeek2Layout) {
+	if profile.Has(ArchitectureLatentKVLayout) {
 		lite := s.BlockCount == deepSeek2LiteBlockCountA || s.BlockCount == deepSeek2LiteBlockCountB ||
 			(s.BlockCount == deepSeek2LiteBlockCountC && s.VocabularySize == deepSeek2LiteVocabulary)
 		switch {

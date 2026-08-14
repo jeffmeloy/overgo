@@ -1,7 +1,6 @@
 package model
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
@@ -16,101 +15,73 @@ func requireLayerProgram(t *testing.T, program LayerProgram, want ...LayerOperat
 		if !ok || instruction.Operator != operator {
 			t.Fatalf("stage %d = %+v, want operator %d", index, instruction, operator)
 		}
-		switch operator {
-		case LayerOperatorRecurrentMix:
-			if instruction.Recurrent == RecurrentMixNone {
-				t.Fatalf("stage %d has no recurrent policy", index)
-			}
-		case LayerOperatorAttentionMix:
-			if instruction.Attention == AttentionMixNone {
-				t.Fatalf("stage %d has no attention policy", index)
-			}
-		case LayerOperatorFeedForwardMix:
-			if instruction.FeedForward == FeedForwardMixNone {
-				t.Fatalf("stage %d has no feed-forward policy", index)
-			}
-		}
 	}
 }
 
-func TestLayerProgramsCoverCompiledPolicies(t *testing.T) {
-	for policy := BlockDense; policy <= BlockDeepSeek4; policy++ {
-		composition := LayerCompositionStandard
-		if policy == BlockNemotronH {
-			composition = LayerCompositionAttentionOnly
-		}
-		program := compileLayerProgram(
-			LayerPlan{Block: policy, Composition: composition}, ArchitectureProfile{},
-		)
-		var want []LayerOperator
-		switch policy {
-		case BlockDense:
-			want = []LayerOperator{
-				LayerOperatorAttentionInputNorm, LayerOperatorAttentionMix, LayerOperatorResidual,
-				LayerOperatorFeedForwardInputNorm, LayerOperatorFeedForwardMix,
-				LayerOperatorFeedForwardOutput, LayerOperatorResidual,
-			}
-		case BlockKimiLinear:
-			want = []LayerOperator{
-				LayerOperatorAttentionNorm, LayerOperatorLatentAttention, LayerOperatorResidual,
-				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
-			}
-		case BlockMLA:
-			want = []LayerOperator{
-				LayerOperatorAttentionNorm, LayerOperatorLatentAttention, LayerOperatorResidual,
-				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
-			}
-		case BlockDSA:
-			want = []LayerOperator{
-				LayerOperatorAttentionNorm, LayerOperatorLatentAttention, LayerOperatorResidual,
-				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
-			}
-		case BlockDeepSeek4:
-			want = []LayerOperator{
-				LayerOperatorHyperAttention, LayerOperatorHyperFeedForward,
-			}
-		case BlockMamba, BlockMamba2:
-			want = []LayerOperator{
-				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-			}
-		case BlockJamba:
-			want = []LayerOperator{
-				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
-			}
-		case BlockGraniteHybrid:
-			want = []LayerOperator{
-				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorScale,
-				LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
-				LayerOperatorScale, LayerOperatorResidual,
-			}
-		case BlockPLaMo2:
-			want = []LayerOperator{
-				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorAttentionPostNorm,
-				LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
-				LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
-			}
-		case BlockNemotronH:
-			want = []LayerOperator{
-				LayerOperatorAttentionNorm, LayerOperatorAttentionMix, LayerOperatorResidual,
-			}
-		case BlockFalconH1:
-			want = []LayerOperator{
-				LayerOperatorAttentionNorm, LayerOperatorHybridMix, LayerOperatorResidual,
-				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
-			}
-		}
-		requireLayerProgram(t, program, want...)
+func typedFixtureLayerProgram(profile ArchitectureProfile, plan LayerPlan) LayerProgram {
+	plan.Attention = profile.Attention
+	plan.Mixer = Spec{}.withProfile(profile).compileRecurrentMixer(plan.Recurrent)
+	return compileLayerProgram(plan, profile)
+}
+
+func TestLayerProgramsCoverTypedProfiles(t *testing.T) {
+	attentionNorm := []LayerOperator{
+		LayerOperatorAttentionNorm, LayerOperatorLatentAttention, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
+	}
+	recurrent := []LayerOperator{LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual}
+	tests := []struct {
+		name    string
+		profile ArchitectureProfile
+		plan    LayerPlan
+		want    []LayerOperator
+	}{
+		{name: "dense", want: []LayerOperator{
+			LayerOperatorAttentionInputNorm, LayerOperatorAttentionPlannedProjection, LayerOperatorResidual,
+			LayerOperatorFeedForwardInputNorm, LayerOperatorFeedForwardPlanned,
+			LayerOperatorFeedForwardOutput, LayerOperatorResidual,
+		}},
+		{name: "keyed delta", profile: ArchitectureProfile{LayerTopology: LayerTopologyKeyedDeltaHybrid, RecurrentMixer: recurrentMixerKeyedDelta}, want: attentionNorm},
+		{name: "MLA", profile: ArchitectureProfile{Attention: AttentionLatent}, want: attentionNorm},
+		{name: "DSA", profile: ArchitectureProfile{Attention: AttentionSparseLatent}, want: attentionNorm},
+		{name: "compressed hyper", profile: ArchitectureProfile{LayerTopology: LayerTopologyCompressedHyper}, want: []LayerOperator{
+			LayerOperatorHyperAttention, LayerOperatorHyperFeedForward,
+		}},
+		{name: "selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerSelectiveScan}, want: recurrent},
+		{name: "grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerGroupedSelectiveScan}, want: recurrent},
+		{name: "weighted selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerWeightedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: append(recurrent, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual)},
+		{name: "scaled grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerScaledGroupedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
+			LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorScale,
+			LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU,
+			LayerOperatorScale, LayerOperatorResidual,
+		}},
+		{name: "normalized selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerNormalizedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
+			LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorAttentionPostNorm,
+			LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardFusedGLU,
+			LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
+		}},
+		{name: "sparse grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerSparseGroupedSelectiveScan}, plan: LayerPlan{Composition: LayerCompositionAttentionOnly}, want: []LayerOperator{
+			LayerOperatorAttentionNorm, LayerOperatorAttentionCausalProjection, LayerOperatorResidual,
+		}},
+		{name: "attention grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerAttentionGroupedSelectiveScan}, want: []LayerOperator{
+			LayerOperatorAttentionNorm, LayerOperatorHybridMix, LayerOperatorResidual,
+			LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			requireLayerProgram(t, typedFixtureLayerProgram(test.profile, test.plan), test.want...)
+		})
 	}
 }
 
 func TestGemma4ProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphGemma4},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologySharedKVAdapter},
 	)
 	want := []LayerOperator{
-		LayerOperatorAttentionNorm, LayerOperatorAttentionMix, LayerOperatorAttentionPostNorm,
-		LayerOperatorResidual, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+		LayerOperatorAttentionNorm, LayerOperatorAttentionSharedKVQKNorm, LayerOperatorAttentionPostNorm,
+		LayerOperatorResidual, LayerOperatorFeedForwardParallelGatedGELU, LayerOperatorResidual,
 		LayerOperatorOutputAdapter,
 	}
 	requireLayerProgram(t, program, want...)
@@ -118,11 +89,11 @@ func TestGemma4ProgramUsesNeutralStages(t *testing.T) {
 
 func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{Forward: ForwardEagle3},
+		LayerPlan{}, ArchitectureProfile{Forward: ForwardProgram{Operation: ForwardOperationSession, Session: ForwardSessionFeatureDraft}},
 	)
 	want := []LayerOperator{
-		LayerOperatorPairedInputNorm, LayerOperatorAttentionMix, LayerOperatorResidual,
-		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+		LayerOperatorPairedInputNorm, LayerOperatorAttentionPairedCausalProjection, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
 	}
 	requireLayerProgram(t, program, want...)
 	paired, _ := program.Instruction(0)
@@ -133,16 +104,16 @@ func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
 
 func TestGemma4AssistantProgramUsesSharedCacheStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{Forward: ForwardGemma4Assistant},
+		LayerPlan{}, ArchitectureProfile{Forward: ForwardProgram{Operation: ForwardOperationSession, Session: ForwardSessionPairedProjection}},
 	)
 	want := []LayerOperator{
-		LayerOperatorAttentionNorm, LayerOperatorAttentionMix, LayerOperatorAttentionPostNorm,
-		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
+		LayerOperatorAttentionNorm, LayerOperatorAttentionSharedCacheQKNorm, LayerOperatorAttentionPostNorm,
+		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardGatedGELU,
 		LayerOperatorFeedForwardPostNorm, LayerOperatorResidualScale,
 	}
 	requireLayerProgram(t, program, want...)
 	attention, _ := program.Instruction(1)
-	if attention.Attention != AttentionMixSharedCacheQKNorm || attention.CacheCount != 2 {
+	if attention.Operator != LayerOperatorAttentionSharedCacheQKNorm || attention.CacheCount != 2 {
 		t.Fatalf("Gemma 4 assistant attention binding = %+v", attention)
 	}
 }
@@ -154,34 +125,34 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 		want    []LayerOperator
 	}{
 		{
-			name: "RWKV6", profile: ArchitectureProfile{DenseGraph: DenseGraphRWKV6},
+			name: "WKV6", profile: ArchitectureProfile{LayerTopology: LayerTopologyDynamicWKV6},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-				LayerOperatorTokenShiftMix, LayerOperatorResidual, LayerOperatorPeriodicScale,
+				LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual, LayerOperatorPeriodicScale,
 			},
 		},
 		{
-			name: "RWKV7 channel", profile: ArchitectureProfile{
-				DenseGraph: DenseGraphRWKV7, Normalization: NormalizationLayer,
+			name: "WKV7 channel", profile: ArchitectureProfile{
+				LayerTopology: LayerTopologyDynamicWKV7, Normalization: NormalizationLayer,
 			},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-				LayerOperatorTokenShiftMix, LayerOperatorResidual,
+				LayerOperatorTokenShiftSquaredReLU, LayerOperatorResidual,
 			},
 		},
 		{
-			name: "RWKV7 SwiGLU", profile: ArchitectureProfile{
-				DenseGraph: DenseGraphRWKV7, Normalization: NormalizationRMS,
+			name: "WKV7 SwiGLU", profile: ArchitectureProfile{
+				LayerTopology: LayerTopologyDynamicWKV7, Normalization: NormalizationRMS,
 			},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			program := compileLayerProgram(LayerPlan{Block: BlockDense}, test.profile)
+			program := compileLayerProgram(LayerPlan{}, test.profile)
 			requireLayerProgram(t, program, test.want...)
 		})
 	}
@@ -189,11 +160,11 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 
 func TestTalkieProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphTalkie},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologyCausalPostQKNormSkip},
 	)
 	want := []LayerOperator{
-		LayerOperatorRMSNorm, LayerOperatorAttentionMix, LayerOperatorResidual,
-		LayerOperatorRMSNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+		LayerOperatorRMSNorm, LayerOperatorAttentionCausalPostQKNorm, LayerOperatorResidual,
+		LayerOperatorRMSNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
 		LayerOperatorScaledSkip,
 	}
 	requireLayerProgram(t, program, want...)
@@ -201,18 +172,19 @@ func TestTalkieProgramUsesNeutralStages(t *testing.T) {
 
 func TestBERTProgramUsesPostNormalizedStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphBERT},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologyBidirectionalEncoder},
 	)
 	want := []LayerOperator{
-		LayerOperatorAttentionMix, LayerOperatorAttentionResidualNorm,
-		LayerOperatorFeedForwardMix, LayerOperatorFeedForwardResidualNorm,
+		LayerOperatorAttentionBidirectionalEncoder, LayerOperatorAttentionResidualNorm,
+		LayerOperatorFeedForwardEncoder, LayerOperatorFeedForwardResidualNorm,
 	}
 	requireLayerProgram(t, program, want...)
 }
 
 func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
-	program := compileLayerProgram(LayerPlan{Block: BlockDense}, ArchitectureProfile{
-		DenseGraph: DenseGraphBERT, EncoderGraph: EncoderGraphPolicy{Kind: encoderGraphJinaV2},
+	program := compileLayerProgram(LayerPlan{}, ArchitectureProfile{
+		LayerTopology:   LayerTopologyBidirectionalEncoder,
+		EncoderOperator: encoderOperatorPostNormALiBi,
 	})
 	instruction, ok := program.Instruction(2)
 	if !ok || program.Count != 5 || instruction.Operator != LayerOperatorInputResidualNorm {
@@ -222,56 +194,61 @@ func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
 
 func TestGemmaEmbeddingProgramUsesNeutralStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense}, ArchitectureProfile{DenseGraph: DenseGraphGemmaEmbedding},
+		LayerPlan{}, ArchitectureProfile{LayerTopology: LayerTopologyBidirectionalQKNorm},
 	)
 	want := []LayerOperator{
-		LayerOperatorAttentionNorm, LayerOperatorAttentionMix, LayerOperatorAttentionPostNorm,
-		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
+		LayerOperatorAttentionNorm, LayerOperatorAttentionBidirectionalQKNorm, LayerOperatorAttentionPostNorm,
+		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardGatedGELU,
 		LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
 	}
 	requireLayerProgram(t, program, want...)
 }
 
 func TestDeciSparseProgramUsesNeutralStages(t *testing.T) {
-	program := compileLayerProgram(LayerPlan{Block: BlockDense, DeciSparse: true}, ArchitectureProfile{})
+	program := compileLayerProgram(LayerPlan{DeciSparse: true}, ArchitectureProfile{})
 	want := []LayerOperator{
-		LayerOperatorCacheSentinel, LayerOperatorAttentionNorm, LayerOperatorAttentionMix,
-		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix,
+		LayerOperatorCacheSentinel, LayerOperatorAttentionNorm, LayerOperatorAttentionOutputProjection,
+		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU,
 		LayerOperatorResidual,
 	}
 	requireLayerProgram(t, program, want...)
 }
 
-func TestKimiRecurrentProgramSelectsLinearAttention(t *testing.T) {
-	program := compileLayerProgram(
-		LayerPlan{Block: BlockKimiLinear, Recurrent: true}, ArchitectureProfile{},
-	)
+func TestKeyedDeltaProgramSelectsLinearAttention(t *testing.T) {
+	profile := ArchitectureProfile{LayerTopology: LayerTopologyKeyedDeltaHybrid, RecurrentMixer: recurrentMixerKeyedDelta}
+	program := typedFixtureLayerProgram(profile, LayerPlan{Recurrent: true})
 	requireLayerProgram(t, program,
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
 	)
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
-	if mixer.Operator != LayerOperatorRecurrentMix || mixer.Recurrent != RecurrentMixKeyedDeltaAttention ||
-		feedForward.FeedForward != FeedForwardMixStandardSwiGLU {
-		t.Fatalf("Kimi recurrent policies = %+v/%+v", mixer, feedForward)
+	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
+		withProfile(profile).
+		compileRecurrentMixer(true)
+	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerKeyedDelta ||
+		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
+		t.Fatalf("keyed-delta policies = %+v/%+v/%d", mixer, feedForward, state)
 	}
 }
 
 func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	program := compileLayerProgram(
-		LayerPlan{Block: BlockDense, Recurrent: true},
-		ArchitectureProfile{Attention: AttentionLFM2},
+		LayerPlan{Recurrent: true},
+		ArchitectureProfile{Attention: AttentionShortConvolution, RecurrentMixer: recurrentMixerShortConvolution},
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardMix, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
 	}
 	requireLayerProgram(t, program, want...)
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
-	if mixer.Recurrent != RecurrentMixShortConvolution || feedForward.FeedForward != FeedForwardMixStandardSwiGLU {
-		t.Fatalf("LFM2 recurrent policies = %d/%d", mixer.Recurrent, feedForward.FeedForward)
+	state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{true}}}.
+		withProfile(ArchitectureProfile{RecurrentMixer: recurrentMixerShortConvolution}).compileRecurrentMixer(true)
+	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerShortConvolution ||
+		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
+		t.Fatalf("LFM2 recurrent policies = %+v/%d/%d", mixer, state, feedForward.Operator)
 	}
 }
 
@@ -284,18 +261,15 @@ func TestNemotronLayerProgramsSelectSemanticMixer(t *testing.T) {
 		mixer       LayerOperator
 	}{
 		{name: "recurrent", recurrent: true, composition: LayerCompositionRecurrentOnly, mixer: LayerOperatorRecurrentMix},
-		{name: "attention", composition: LayerCompositionAttentionOnly, mixer: LayerOperatorAttentionMix},
+		{name: "attention", composition: LayerCompositionAttentionOnly, mixer: LayerOperatorAttentionCausalProjection},
 		{name: "feed-forward", composition: LayerCompositionFeedForwardOnly, mixer: LayerOperatorCacheSentinel},
 	}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
-			program := compileLayerProgram(
-				LayerPlan{
-					Block: BlockNemotronH, Recurrent: fixture.recurrent,
-					Composition: fixture.composition,
-				},
-				ArchitectureProfile{},
-			)
+			profile := ArchitectureProfile{RecurrentMixer: recurrentMixerSparseGroupedSelectiveScan}
+			program := typedFixtureLayerProgram(profile, LayerPlan{
+				Recurrent: fixture.recurrent, Composition: fixture.composition,
+			})
 			instruction, ok := program.Instruction(mixerStage)
 			if !ok || instruction.Operator != fixture.mixer {
 				t.Fatalf("Nemotron program = %+v", program)
@@ -311,49 +285,51 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 	)
 	for _, recurrent := range []bool{false, true} {
 		program := compileLayerProgram(
-			LayerPlan{Block: BlockDense, Recurrent: recurrent},
-			ArchitectureProfile{Attention: AttentionQwenGDN},
+			LayerPlan{Recurrent: recurrent},
+			ArchitectureProfile{Attention: AttentionGatedDelta, RecurrentMixer: recurrentMixerGatedDelta},
 		)
 		instruction, ok := program.Instruction(mixerStage)
 		if !ok || program.Count != qwenProgramStageCount {
 			t.Fatalf("Qwen GDN program = %+v", program)
 		}
-		if recurrent && instruction.Recurrent != RecurrentMixGatedDelta {
+		state := Spec{RecurrentSpec: RecurrentSpec{RecurrentLayers: []bool{recurrent}}}.
+			withProfile(ArchitectureProfile{RecurrentMixer: recurrentMixerGatedDelta}).compileRecurrentMixer(recurrent)
+		if recurrent && (instruction.Operator != LayerOperatorRecurrentMix || state != recurrentMixerGatedDelta) {
 			t.Fatalf("Qwen recurrent stage = %+v", instruction)
 		}
-		if !recurrent && instruction.Attention != AttentionMixGatedProjection {
+		if !recurrent && instruction.Operator != LayerOperatorAttentionGatedProjection {
 			t.Fatalf("Qwen attention stage = %+v", instruction)
 		}
 	}
 }
 
-func TestArchitectureBlockDispatchRoutesFamilies(t *testing.T) {
-	_, err := BuildArchitectureBlockCached(BlockDispatchOptions{
+func TestCompiledBlockDispatchRequiresPlan(t *testing.T) {
+	_, err := executeCompiledLayer(BlockDispatchOptions{
 		Spec: Spec{CommonSpec: CommonSpec{Architecture: "unknown"}},
 	})
-	var unsupported *UnsupportedArchitectureError
-	if !errors.As(err, &unsupported) {
+	if err == nil || !strings.Contains(err.Error(), "compiled layer plan is required") {
 		t.Fatalf("unknown error = %v", err)
 	}
 	t5 := Spec{CommonSpec: CommonSpec{Architecture: "t5"}}
 	t5Plan := t5.PlanLayer(0, false)
-	_, err = BuildArchitectureBlockCached(BlockDispatchOptions{Spec: t5, Plan: &t5Plan})
+	_, err = executeCompiledLayer(BlockDispatchOptions{Spec: t5, Plan: &t5Plan})
 	if err == nil || !strings.Contains(err.Error(), "explicit encoder state") {
 		t.Fatalf("T5 dispatch error = %v", err)
 	}
 	external := ArchitectureProfile{
-		Name: "external-encoder-decoder", GraphFamily: ArchitectureFamilyEncoderDecoder,
+		Name:    "external-encoder-decoder",
+		Forward: ForwardProgram{Operation: ForwardOperationSession, Session: ForwardSessionEncoderDecoder},
 	}
 	externalSpec := Spec{CommonSpec: CommonSpec{Architecture: external.Name}}.withProfile(external)
 	externalPlan := externalSpec.PlanLayer(0, false)
-	_, err = BuildArchitectureBlockCached(BlockDispatchOptions{
+	_, err = executeCompiledLayer(BlockDispatchOptions{
 		Spec: externalSpec, Plan: &externalPlan,
 	})
 	if err == nil || !strings.Contains(err.Error(), "explicit encoder state") {
 		t.Fatalf("bound external dispatch error = %v", err)
 	}
 	llama, _ := LookupArchitecture("llama")
-	_, err = BuildArchitectureBlockCached(BlockDispatchOptions{
+	_, err = executeCompiledLayer(BlockDispatchOptions{
 		Spec: Spec{CommonSpec: CommonSpec{Architecture: llama.Name}}.withProfile(llama),
 	})
 	if err == nil || !strings.Contains(err.Error(), "compiled layer plan is required") {

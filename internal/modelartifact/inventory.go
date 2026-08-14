@@ -29,6 +29,16 @@ type Inventory struct {
 	Locations       []artifact.Location
 }
 
+// FromHFPath inventories one Hugging Face repository directory.
+func FromHFPath(path string) (Inventory, error) {
+	repository, err := hfrepo.Open(path)
+	if err != nil {
+		return Inventory{}, err
+	}
+	inventory, inventoryErr := FromHFRepository(repository)
+	return inventory, errors.Join(inventoryErr, repository.Close())
+}
+
 func (i Inventory) Batch(key string) (artifact.Batch, error) {
 	tensors, err := i.TensorInventory.Content()
 	if err != nil {

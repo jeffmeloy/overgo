@@ -74,12 +74,12 @@ func qwen35_9BServingPath(t *testing.T) string {
 }
 
 func TestQwen35_9BServingSmoke(t *testing.T) {
+	requireIntegration(t)
 	path := qwen35_9BServingPath(t)
 
 	loadStart := time.Now()
-	runner, err := openFixtureRunnerWithOptions(path, OpenOptions{
-		DeviceOrdinal:           0,
-		PreloadQuantizedWeights: true,
+	runner, err := openNativeFixtureRunner(path, OpenOptions{
+		DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -202,8 +202,8 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 				"anchor, plausibility-validated (Paris + coherent counting), NOT a numeric golden. The " +
 				"Q8_0 quant decoder + hybrid decode conventions are cross-referenced by " +
 				"TestQwen35_9BUntiedHeadGGUFStructuralOracle and shared with the golden-validated 4B path.",
-			Source: "overgo internal/inference device serving (hybrid_recurrent, PlacementHybrid, " +
-				"PreloadQuantizedWeights), greedy temp=0, 8 new tokens/case; deterministic across repeat runs " +
+			Source: "overgo internal/inference device serving (hybrid_recurrent, device-native recipe), " +
+				"greedy temp=0, 8 new tokens/case; deterministic across repeat runs " +
 				"(id-identical); untied lm_head live (output.weight distinct from token_embd)",
 			Model:       "models/Qwen3.5-9B-Q8_0.gguf (Unsloth bare GGUF; no HF sidecar)",
 			ModelSHA256: qwen35_9BArtifactSHA256,

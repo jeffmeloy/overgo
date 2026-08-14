@@ -69,9 +69,6 @@ func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if !store.Recovered() {
-		t.Fatal("partial append was not recovered")
-	}
 	if _, ok, err := store.Artifact(context.Background(), pending.ID); err != nil || ok {
 		t.Fatalf("partial artifact after recovery = (%v, %v)", ok, err)
 	}
@@ -104,9 +101,6 @@ func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if store.Recovered() {
-		t.Fatal("complete uncertain commit reported torn recovery")
-	}
 	if descriptor, ok, err := store.Artifact(context.Background(), pending.ID); err != nil || !ok || descriptor.ID != pending.ID {
 		t.Fatalf("uncertain commit replay = (%+v, %v, %v)", descriptor, ok, err)
 	}

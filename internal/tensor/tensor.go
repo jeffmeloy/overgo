@@ -52,9 +52,9 @@ const (
 	OpTanh
 	OpExp
 	OpGatedLinearAttention
-	OpRWKV6
+	OpWKV6
 	OpSumRows
-	OpRWKV7
+	OpWKV7
 	OpFWHT
 	OpTopK
 	OpGatherLast
@@ -63,11 +63,11 @@ const (
 	OpReLU
 	OpConv1DSame
 	OpGroupNorm
-	OpDeepSeek4HCInit
-	OpDeepSeek4HCPre
-	OpDeepSeek4HCPost
-	OpDeepSeek4HCHead
-	OpDeepSeek4Attention
+	OpHyperConnectionInit
+	OpHyperConnectionPre
+	OpHyperConnectionPost
+	OpHyperConnectionHead
+	OpCompressedAttention
 	OpLoRAMerge
 	OpDivide
 	OpBF16Round
@@ -107,6 +107,18 @@ type XIELUAttributes struct {
 	AlphaP  float32
 	Beta    float32
 	Epsilon float32
+}
+
+// MulMatCompute selects backend arithmetic. Zero preserves exact F32 operands.
+type MulMatCompute uint8
+
+const (
+	MulMatComputeExact MulMatCompute = iota
+	MulMatComputeBF16TensorCore
+)
+
+type MulMatAttributes struct {
+	Compute MulMatCompute
 }
 
 type GetRowsAttributes struct {
@@ -149,6 +161,12 @@ type AttentionAttributes struct {
 	Window                uint32
 	RelativeBuckets       uint32
 	RelativeBidirectional bool
+	// HasKeyBias: an additive per-key score bias [key tokens] is the final input,
+	// added to QK^T before softmax (0.0 attended, large-negative to drop a pad
+	// key). Ports adaptive runtime_causal_gqa_masked_bf16's per-key pad mask as an
+	// additive bias so masked keys underflow to 0 probability; non-breaking (the
+	// input and flag are absent for every existing caller).
+	HasKeyBias bool
 	// NaiveF32: route dense F32 attention through the per-query online kernel
 	// (skip the blas-chunked scores path) so the reduction matches a reference
 	// per-query two-pass attn_fwd; opt-in for F32 parity-critical towers.
@@ -197,46 +215,46 @@ type MoEAttributes struct {
 	SwiGLUClamp        float32
 }
 
-type DeepSeek4HCAttributes struct {
+type HyperConnectionAttributes struct {
 	HyperConnections   uint32
 	SinkhornIterations uint32
 	NormEpsilon        float32
 	Epsilon            float32
 }
 
-// DeepSeek4CompressionRatio: serialized layer compression policy.
-type DeepSeek4CompressionRatio uint32
+// CompressionRatio: serialized layer compression policy.
+type CompressionRatio uint32
 
 const (
-	DeepSeek4CompressionNone    DeepSeek4CompressionRatio = 0
-	DeepSeek4CompressionOverlap DeepSeek4CompressionRatio = 4
-	DeepSeek4CompressionWide    DeepSeek4CompressionRatio = 128
+	CompressionNone    CompressionRatio = 0
+	CompressionOverlap CompressionRatio = 4
+	CompressionWide    CompressionRatio = 128
 )
 
-func (r DeepSeek4CompressionRatio) Valid() bool {
-	return r == DeepSeek4CompressionNone ||
-		r == DeepSeek4CompressionOverlap ||
-		r == DeepSeek4CompressionWide
+func (r CompressionRatio) Valid() bool {
+	return r == CompressionNone ||
+		r == CompressionOverlap ||
+		r == CompressionWide
 }
 
-func (r DeepSeek4CompressionRatio) Enabled() bool {
-	return r != DeepSeek4CompressionNone
+func (r CompressionRatio) Enabled() bool {
+	return r != CompressionNone
 }
 
-func (r DeepSeek4CompressionRatio) UsesIndexer() bool {
-	return r == DeepSeek4CompressionOverlap
+func (r CompressionRatio) UsesIndexer() bool {
+	return r == CompressionOverlap
 }
 
-func (r DeepSeek4CompressionRatio) KVWidthMultiplier() uint64 {
+func (r CompressionRatio) KVWidthMultiplier() uint64 {
 	if r.UsesIndexer() {
 		return 2
 	}
 	return 1
 }
 
-type DeepSeek4AttentionAttributes struct {
+type CompressedAttentionAttributes struct {
 	Positions        []uint32
-	Ratio            DeepSeek4CompressionRatio
+	Ratio            CompressionRatio
 	Window           uint32
 	Heads            uint32
 	IndexerHeads     uint32
@@ -353,12 +371,13 @@ type LoRAMergeAttributes struct {
 
 // Builder: graph constructor and validator.
 type Builder struct {
-	nextID      uint64
-	nodes       []*Tensor
-	err         error
-	loras       map[string][]LoRADefinition
-	loraInputs  map[string]*Tensor
-	cacheAppend *CacheAppendPlan
+	nextID        uint64
+	nodes         []*Tensor
+	err           error
+	loras         map[string][]LoRADefinition
+	loraInputs    map[string]*Tensor
+	cacheAppend   *CacheAppendPlan
+	mulMatCompute MulMatCompute
 }
 
 // CacheAppendPlan: logical range inside fixed-capacity cache storage.
@@ -386,6 +405,22 @@ func (b *Builder) Err() error {
 
 func (b *Builder) Nodes() []*Tensor {
 	return append([]*Tensor(nil), b.nodes...)
+}
+
+// SetMulMatCompute sets graph-default projection arithmetic.
+func (b *Builder) SetMulMatCompute(compute MulMatCompute) {
+	if b.err != nil {
+		return
+	}
+	if len(b.nodes) != 0 {
+		b.setError(errors.New("mul_mat compute policy must be set before graph construction"))
+		return
+	}
+	if compute != MulMatComputeExact && compute != MulMatComputeBF16TensorCore {
+		b.setError(fmt.Errorf("mul_mat compute policy %d is invalid", compute))
+		return
+	}
+	b.mulMatCompute = compute
 }
 
 // SetCacheAppendPlan: fixed-capacity cache construction.

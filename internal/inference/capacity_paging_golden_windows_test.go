@@ -35,6 +35,7 @@ type servingGolden struct {
 // Env: OVERGO_GOLDEN_MODEL (gguf), OVERGO_GOLDEN_FIXTURE (json),
 // OVERGO_GOLDEN_SESSION (request|capacity).
 func TestServingGoldenRegression(t *testing.T) {
+	requireIntegration(t)
 	cudatest.Require(t)
 	modelPath := os.Getenv("OVERGO_GOLDEN_MODEL")
 	fixturePath := os.Getenv("OVERGO_GOLDEN_FIXTURE")
@@ -58,11 +59,13 @@ func TestServingGoldenRegression(t *testing.T) {
 	if len(golden.Cases) == 0 {
 		t.Fatal("serving golden has no cases")
 	}
-	loaded, err := servingtest.ResolveActiveGGUFWithSession(modelPath, recipe.PlacementHybrid, session)
+	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+		modelPath, recipe.PlacementHybrid, session, recipe.ResidencyDeviceF32,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenWithProgram(&loaded, OpenOptions{PreloadDeviceWeights: true})
+	runner, err := OpenWithProgram(&loaded, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

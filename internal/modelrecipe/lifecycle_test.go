@@ -22,13 +22,9 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	}
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "lifecycle-model")
-	evidenceID := testutil.ArtifactID(t, artifact.KindEvidence, "validation")
 	if _, err := store.Commit(ctx, artifact.Batch{
-		Key: "fixture/lifecycle/facts",
-		Artifacts: []artifact.Descriptor{
-			{ID: modelID, Size: uint64(len("lifecycle-model"))},
-			{ID: evidenceID, Size: uint64(len("validation"))},
-		},
+		Key:       "fixture/lifecycle/facts",
+		Artifacts: []artifact.Descriptor{{ID: modelID, Size: uint64(len("lifecycle-model"))}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -42,10 +38,18 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	if _, _, err := Transition(ctx, store, "fixture/lifecycle/first/validated", first, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := Transition(ctx, store, "fixture/lifecycle/first/active", first, recipe.StatusActive, []artifact.ID{evidenceID}, nil); err != nil {
+	firstVerification := publishVerification(t, store, first.ID, "fixture/lifecycle/first/verification")
+	if _, _, err := Transition(
+		ctx, store, "fixture/lifecycle/first/unverified", first, recipe.StatusActive,
+		[]artifact.ID{firstVerification.Gate, firstVerification.Run}, nil,
+	); err == nil {
+		t.Fatal("ordinary lifecycle transition bypassed verified activation")
+	}
+	if _, _, err := ActivateVerified(ctx, store, "fixture/lifecycle/first/active", first, firstVerification, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	active, ok, err := Active(ctx, store, modelID, recipe.TaskInference)
+	activation, ok, err := ActiveRecord(ctx, store, modelID, recipe.TaskInference)
+	active := activation.Definition
 	if err != nil || !ok || active.ID != first.ID {
 		t.Fatalf("first active = (%s, %v, %v)", active.ID, ok, err)
 	}
@@ -60,13 +64,20 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	if _, _, err := Transition(ctx, store, "fixture/lifecycle/second/validated", second, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := Transition(
-		ctx, store, "fixture/lifecycle/second/active", second, recipe.StatusActive,
-		[]artifact.ID{evidenceID}, &first.ID,
+	if _, _, err := ActivateVerified(
+		ctx, store, "fixture/lifecycle/second/mismatched", second, firstVerification, nil, &first.ID,
+	); err == nil {
+		t.Fatal("activation accepted verifier output for another recipe")
+	}
+	secondVerification := publishVerification(t, store, second.ID, "fixture/lifecycle/second/verification")
+	if _, _, err := ActivateVerified(
+		ctx, store, "fixture/lifecycle/second/active", second, secondVerification,
+		nil, &first.ID,
 	); err != nil {
 		t.Fatal(err)
 	}
-	active, ok, err = Active(ctx, store, modelID, recipe.TaskInference)
+	activation, ok, err = ActiveRecord(ctx, store, modelID, recipe.TaskInference)
+	active = activation.Definition
 	if err != nil || !ok || active.ID != second.ID {
 		t.Fatalf("second active = (%s, %v, %v)", active.ID, ok, err)
 	}
@@ -111,6 +122,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	if _, _, err := Transition(ctx, store, "fixture/decision/active/validated", active, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
+	verification := publishVerification(t, store, active.ID, "fixture/decision/active/verification")
 	accepted, err := recipe.NewDecision(
 		active.ID, recipe.DecisionAccepted, recipe.EvidenceParity, "",
 		recipe.Decider{CodeCommit: lifecycleDecisionCommit, Derivation: derivationID}, nil,
@@ -119,8 +131,8 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	publishDecision(t, store, "fixture/decision/accepted", accepted)
-	if _, _, err := Transition(
-		ctx, store, "fixture/decision/active", active, recipe.StatusActive,
+	if _, _, err := ActivateVerified(
+		ctx, store, "fixture/decision/active", active, verification,
 		[]artifact.ID{accepted.ID}, nil,
 	); err != nil {
 		t.Fatal(err)
@@ -165,6 +177,59 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	if _, ok, err := ActiveRecord(ctx, store, modelID, recipe.TaskInference); err == nil || ok ||
 		!strings.Contains(err.Error(), refusal.Reason) {
 		t.Fatalf("refused active alias = (%v, %v)", ok, err)
+	}
+}
+
+func TestActiveRecordRejectsLegacyIntentEvidence(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "legacy-intent-model")
+	intentID := testutil.ArtifactID(t, artifact.KindEvidence, "activation-intent")
+	testutil.PublishArtifact(t, store, modelID)
+	testutil.PublishArtifact(t, store, intentID)
+	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := PublishCandidate(ctx, store, "fixture/legacy/candidate", definition); err != nil {
+		t.Fatal(err)
+	}
+	_, validated, err := Transition(
+		ctx, store, "fixture/legacy/validated", definition, recipe.StatusValidated, nil, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	active, err := recipe.NewLifecycleEvent(
+		definition, recipe.StatusValidated, recipe.StatusActive, &validated.ID, nil, []artifact.ID{intentID},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := active.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"fixture/legacy/active", []artifact.Content{content}, nil,
+		[]artifact.AliasBinding{
+			{Name: statusAlias(definition.ID), Target: active.ID, Previous: &validated.ID},
+			{Name: activeAlias(modelID, definition.Task), Target: definition.ID},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := ActiveRecord(ctx, store, modelID, definition.Task); err == nil || ok ||
+		!strings.Contains(err.Error(), "lacks verified evidence") {
+		t.Fatalf("legacy intent activation = (%v, %v)", ok, err)
 	}
 }
 

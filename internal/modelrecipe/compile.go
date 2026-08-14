@@ -19,34 +19,35 @@ const (
 	ModuleForecastSeries recipe.ModuleID = "model.forecast-series"
 	// ModuleTabularPredict: host forward for tabular ICL capability
 	// packages; input table tensor, output per-row predictions tensor.
-	ModuleTabularPredict recipe.ModuleID = "model.tabular-predict"
-	ModuleSeq2SeqEncode  recipe.ModuleID = "model.seq2seq-encode"
-	ModuleSeq2SeqPrepare recipe.ModuleID = "model.seq2seq-prepare"
-	ModuleSeq2SeqSelect  recipe.ModuleID = "model.seq2seq-select"
-	ModuleSpeechTokenize recipe.ModuleID = "model.speech-tokenize"
-	ModuleSpeechGenerate recipe.ModuleID = "model.speech-generate"
-	ModuleSpeechDecode   recipe.ModuleID = "model.speech-decode"
-	// ModuleImageGenerate: host class-conditional image sampling for
-	// image-generation capability packages; input condition tensor, output
-	// generated image.
-	ModuleImageGenerate recipe.ModuleID = "model.image-generate"
-	// ModuleVideoGenerate: text-to-video generation (device denoise session
-	// + CUDA VAE decode); prompt text in, decoded video frames out.
-	ModuleVideoGenerate recipe.ModuleID = "model.video-generate"
-	// ModuleVQAAnswer: vision question-answering (device vision tower ->
-	// merger -> modality-routed prefill -> resident-KV decode); image +
-	// question text in, answer text out.
-	ModuleVQAAnswer recipe.ModuleID = "model.vqa-answer"
+	ModuleTabularPredict           recipe.ModuleID = "model.tabular-predict"
+	ModuleSeq2SeqEncode            recipe.ModuleID = "model.seq2seq-encode"
+	ModuleSeq2SeqPrepare           recipe.ModuleID = "model.seq2seq-prepare"
+	ModuleSeq2SeqSelect            recipe.ModuleID = "model.seq2seq-select"
+	ModuleSpeechTokenize           recipe.ModuleID = "model.speech-tokenize"
+	ModuleSpeechGenerate           recipe.ModuleID = "model.speech-generate"
+	ModuleSpeechDecode             recipe.ModuleID = "model.speech-decode"
+	ModuleLatentImagePrepare       recipe.ModuleID = "model.latent-image-prepare"
+	ModuleLatentImageIntegrate     recipe.ModuleID = "model.latent-image-integrate"
+	ModuleLatentImageDecode        recipe.ModuleID = "model.latent-image-decode"
+	ModuleOscillatorImagePrepare   recipe.ModuleID = "model.oscillator-image-prepare"
+	ModuleOscillatorImageIntegrate recipe.ModuleID = "model.oscillator-image-integrate"
+	ModuleOscillatorImageDecode    recipe.ModuleID = "model.oscillator-image-decode"
+	ModuleRoutedImagePrepare       recipe.ModuleID = "model.routed-image-prepare"
+	ModuleRoutedImageIntegrate     recipe.ModuleID = "model.routed-image-integrate"
+	ModuleRoutedImageDecode        recipe.ModuleID = "model.routed-image-decode"
+	ModuleVQAPrepare               recipe.ModuleID = "model.vqa-prepare"
+	ModuleVQAGenerate              recipe.ModuleID = "model.vqa-generate"
 )
 
 var catalog = mustCatalog()
 
 type Plan struct {
-	Identity ProgramIdentity
-	Recipe   recipe.Definition
-	Model    model.ModelPlan
-	Decode   DecodePlan
-	Nodes    []recipe.Node
+	Identity  ProgramIdentity
+	Recipe    recipe.Definition
+	Model     model.ModelPlan
+	Decode    DecodePlan
+	Residency recipe.ResidencyPolicy
+	Nodes     []recipe.Node
 }
 
 // Runtime: compiled execution surface.
@@ -62,6 +63,7 @@ type ProgramIdentity struct {
 	Recipe        artifact.ID
 	RecipeVersion uint16
 	Placement     recipe.Placement
+	Residency     recipe.ResidencyPolicy
 	Runtime       Runtime
 }
 
@@ -78,22 +80,19 @@ type DecodePlan struct {
 	Session DecodeSessionPolicy
 }
 
-func Catalog() *recipe.Catalog {
-	return catalog.Clone()
-}
-
 func InferenceWithModelDefinition(
 	modelID artifact.ID,
 	profileID artifact.ID,
 	definitionID artifact.ID,
 	placement recipe.Placement,
 	session DecodeSessionPolicy,
+	residency recipe.ResidencyPolicy,
 ) (recipe.Definition, error) {
 	return inference([]recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: modelID},
 		{Role: recipe.DependencyProfile, Artifact: profileID},
 		{Role: recipe.DependencyDefinition, Artifact: definitionID},
-	}, placement, session)
+	}, placement, session, residency)
 }
 
 type scalarStage struct {
@@ -108,7 +107,7 @@ type linearCapability struct {
 	stages    []scalarStage
 }
 
-func (c linearCapability) definition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
+func (c linearCapability) definition(task recipe.Task, modelID artifact.ID, dependencies ...recipe.Dependency) (recipe.Definition, error) {
 	nodes := make([]recipe.Node, len(c.stages))
 	edges := make([]recipe.Edge, len(c.stages)-1)
 	for index, stage := range c.stages {
@@ -122,8 +121,9 @@ func (c linearCapability) definition(task recipe.Task, modelID artifact.ID) (rec
 		}
 	}
 	first, last := c.stages[0], c.stages[len(c.stages)-1]
+	dependencies = append([]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, dependencies...)
 	return recipe.NewDefinitionWithDependencies(
-		task, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, nodes, edges,
+		task, dependencies, nodes, edges,
 		[]recipe.Input{{Name: first.input, Data: first.inputData, Target: recipe.Endpoint{Node: first.node, Port: first.input}}},
 		[]recipe.Output{{Name: last.output, Data: last.outData, Source: recipe.Endpoint{Node: last.node, Port: last.output}}},
 	)
@@ -158,13 +158,25 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 		{node: "generate", module: ModuleSpeechGenerate, input: "tokens", output: "latents", inputData: recipe.DataTokens, outData: recipe.DataTensor},
 		{node: "decode", module: ModuleSpeechDecode, input: "latents", output: "audio", inputData: recipe.DataTensor, outData: recipe.DataAudio},
 	}},
-	recipe.TaskImageGen: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "imagegen", module: ModuleImageGenerate, input: "condition", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
-	}},
-	recipe.TaskVideoGen: {placement: recipe.PlacementDevice, stages: []scalarStage{
-		{node: "videogen", module: ModuleVideoGenerate, input: "prompt", output: "video", inputData: recipe.DataText, outData: recipe.DataVideo},
-	}},
 }
+
+var latentImageCapability = linearCapability{placement: recipe.PlacementHybrid, stages: []scalarStage{
+	{node: "prepare", module: ModuleLatentImagePrepare, input: "condition", output: "session", inputData: recipe.DataPromptConditioning, outData: recipe.DataSessionPlan},
+	{node: "integrate", module: ModuleLatentImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
+	{node: "decode", module: ModuleLatentImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
+}}
+
+var oscillatorImageCapability = linearCapability{placement: recipe.PlacementHost, stages: []scalarStage{
+	{node: "prepare", module: ModuleOscillatorImagePrepare, input: "condition", output: "session", inputData: recipe.DataClassConditioning, outData: recipe.DataSessionPlan},
+	{node: "integrate", module: ModuleOscillatorImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
+	{node: "decode", module: ModuleOscillatorImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
+}}
+
+var routedImageCapability = linearCapability{placement: recipe.PlacementHybrid, stages: []scalarStage{
+	{node: "prepare", module: ModuleRoutedImagePrepare, input: "condition", output: "session", inputData: recipe.DataPromptConditioning, outData: recipe.DataSessionPlan},
+	{node: "integrate", module: ModuleRoutedImageIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
+	{node: "decode", module: ModuleRoutedImageDecode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
+}}
 
 // CapabilityDefinition: task-indexed executable topology.
 func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
@@ -178,26 +190,47 @@ func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 	return capability.definition(task, modelID)
 }
 
+// LatentImageDefinition: prompt-conditioned diffusion image graph.
+func LatentImageDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
+	return latentImageCapability.definition(recipe.TaskImageGen, modelID, recipe.Dependency{
+		Role: recipe.DependencyProfile, Artifact: profileID,
+	})
+}
+
+// OscillatorImageDefinition: class-conditioned oscillator image graph.
+func OscillatorImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	return oscillatorImageCapability.definition(recipe.TaskImageGen, modelID)
+}
+
+// RoutedImageDefinition: prompt-conditioned routed-transformer image graph.
+func RoutedImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	return routedImageCapability.definition(recipe.TaskImageGen, modelID)
+}
+
 func vqaDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	answer := recipe.Node{ID: "vqa", Module: ModuleVQAAnswer, Placement: recipe.PlacementDevice}
+	prepare := recipe.Node{ID: "prepare", Module: ModuleVQAPrepare, Placement: recipe.PlacementHost}
+	generate := recipe.Node{ID: "generate", Module: ModuleVQAGenerate, Placement: recipe.PlacementDevice}
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskVQA,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
-		[]recipe.Node{answer},
-		nil,
+		[]recipe.Node{prepare, generate},
+		[]recipe.Edge{{
+			From: recipe.Endpoint{Node: prepare.ID, Port: "session"},
+			To:   recipe.Endpoint{Node: generate.ID, Port: "session"},
+		}},
 		[]recipe.Input{
 			{
 				Name: "image", Data: recipe.DataImage,
-				Target: recipe.Endpoint{Node: answer.ID, Port: "image"},
+				Target: recipe.Endpoint{Node: prepare.ID, Port: "image"},
 			},
 			{
 				Name: "question", Data: recipe.DataText,
-				Target: recipe.Endpoint{Node: answer.ID, Port: "question"},
+				Target: recipe.Endpoint{Node: prepare.ID, Port: "question"},
 			},
 		},
 		[]recipe.Output{{
 			Name: "answer", Data: recipe.DataText,
-			Source: recipe.Endpoint{Node: answer.ID, Port: "answer"},
+			Source: recipe.Endpoint{Node: generate.ID, Port: "answer"},
 		}},
 	)
 }
@@ -206,8 +239,14 @@ func inference(
 	dependencies []recipe.Dependency,
 	placement recipe.Placement,
 	session DecodeSessionPolicy,
+	residency recipe.ResidencyPolicy,
 ) (recipe.Definition, error) {
-	compile := recipe.Node{ID: "compile", Module: ModuleCompileModelPlan, Placement: placement}
+	if err := validateResidencyPlacement(residency, placement); err != nil {
+		return recipe.Definition{}, err
+	}
+	compile := recipe.Node{
+		ID: "compile", Module: ModuleCompileModelPlan, Placement: placement, Residency: residency,
+	}
 	decode := recipe.Node{
 		ID: "decode", Module: ModuleCompileDecodePlan, Placement: placement, Session: session,
 	}
@@ -241,12 +280,6 @@ func inference(
 	)
 }
 
-func CompileInference(definition recipe.Definition, spec model.Spec, weights model.Weights) (Plan, error) {
-	return compileDefinition(definition, func() (model.ModelPlan, error) {
-		return model.CompileModelPlan(spec, weights)
-	})
-}
-
 // CompileCapability resolves an executable non-inference model program.
 func CompileCapability(definition recipe.Definition) (recipe.Program, error) {
 	if definition.Task == recipe.TaskInference {
@@ -278,11 +311,13 @@ func compileDefinition(
 	if err != nil {
 		return Plan{}, err
 	}
-	decode, err := compileDecodePlan(definition.Nodes, modelPlan)
+	decode, residency, err := compileRuntimePolicies(
+		definition.Nodes, modelPlan, programIdentity(definition).Placement,
+	)
 	if err != nil {
 		return Plan{}, err
 	}
-	return compilePlan(definition, definition.Nodes, modelPlan, decode), nil
+	return compilePlan(definition, definition.Nodes, modelPlan, decode, residency), nil
 }
 
 func compilePlan(
@@ -290,37 +325,61 @@ func compilePlan(
 	nodes []recipe.Node,
 	modelPlan model.ModelPlan,
 	decode DecodePlan,
+	residency recipe.ResidencyPolicy,
 ) Plan {
 	return Plan{
 		Identity: programIdentity(definition), Recipe: definition,
-		Model: modelPlan, Decode: decode,
+		Model: modelPlan, Decode: decode, Residency: residency,
 		Nodes: append([]recipe.Node(nil), nodes...),
 	}
 }
 
-func compileDecodePlan(nodes []recipe.Node, modelPlan model.ModelPlan) (DecodePlan, error) {
+func compileRuntimePolicies(
+	nodes []recipe.Node,
+	modelPlan model.ModelPlan,
+	placement recipe.Placement,
+) (DecodePlan, recipe.ResidencyPolicy, error) {
 	var session DecodeSessionPolicy
+	var residency recipe.ResidencyPolicy
 	for _, node := range nodes {
-		if node.Module == ModuleCompileDecodePlan {
-			if session != "" {
-				return DecodePlan{}, errors.New("model recipe: multiple decode-session policies")
+		if node.Session != "" {
+			if node.Module != ModuleCompileDecodePlan || session != "" {
+				return DecodePlan{}, "", errors.New("model recipe: misplaced or duplicate session policy")
 			}
 			session = node.Session
-			continue
 		}
-		if node.Session != "" {
-			return DecodePlan{}, fmt.Errorf(
-				"model recipe: module %q carries decode-session policy", node.Module,
-			)
+		if node.Residency != "" {
+			if node.Module != ModuleCompileModelPlan || residency != "" {
+				return DecodePlan{}, "", errors.New("model recipe: misplaced or duplicate residency policy")
+			}
+			residency = node.Residency
 		}
 	}
-	if session == "" {
-		return DecodePlan{}, errors.New("model recipe: decode-session policy is missing")
+	if session == "" || residency == "" {
+		return DecodePlan{}, "", errors.New("model recipe: runtime policy is incomplete")
 	}
 	if session == DecodeSessionCapacity && !modelPlan.SupportsCapacityCache() {
-		return DecodePlan{}, errors.New("model recipe: capacity session is incompatible with model plan")
+		return DecodePlan{}, "", errors.New("model recipe: capacity session is incompatible with model plan")
 	}
-	return DecodePlan{Session: session}, nil
+	if err := validateResidencyPlacement(residency, placement); err != nil {
+		return DecodePlan{}, "", err
+	}
+	return DecodePlan{Session: session}, residency, nil
+}
+
+func validateResidencyPlacement(policy recipe.ResidencyPolicy, placement recipe.Placement) error {
+	if policy == "" || !policy.Valid() {
+		return errors.New("model recipe: residency policy is invalid")
+	}
+	if placement == recipe.PlacementDevice &&
+		(policy == recipe.ResidencyStream || policy == recipe.ResidencyHostCache ||
+			policy == recipe.ResidencyHybridNative || policy == recipe.ResidencyHostReference) {
+		return errors.New("model recipe: residency policy is incompatible with device placement")
+	}
+	if placement == recipe.PlacementHost && policy != recipe.ResidencyHostReference && policy != recipe.ResidencyHostCache {
+		return errors.New("model recipe: residency policy is incompatible with host placement")
+	}
+	return nil
 }
 
 func programIdentity(definition recipe.Definition) ProgramIdentity {
@@ -331,6 +390,9 @@ func programIdentity(definition recipe.Definition) ProgramIdentity {
 	identity.Profile, _ = definition.Dependency(recipe.DependencyProfile, 0)
 	identity.Definition, _ = definition.Dependency(recipe.DependencyDefinition, 0)
 	for _, node := range definition.Nodes {
+		if node.Module == ModuleCompileModelPlan {
+			identity.Residency = node.Residency
+		}
 		if node.Module == ModuleForwardTokens {
 			identity.Placement = node.Placement
 			break
@@ -348,7 +410,7 @@ func validateProgramIdentity(definition recipe.Definition, identity ProgramIdent
 		identity.Profile.Kind() != artifact.KindProfile ||
 		identity.Definition.Kind() != artifact.KindModelDefinition ||
 		identity.Recipe.Kind() != artifact.KindRecipe ||
-		identity.Runtime != RuntimeInference || identity.Placement == "" {
+		identity.Runtime != RuntimeInference || identity.Placement == "" || identity.Residency == "" {
 		return errors.New("model recipe: serving program identity is incomplete")
 	}
 	for _, node := range definition.Nodes {
@@ -370,9 +432,9 @@ func (p Plan) ValidateServing() error {
 	if !slices.Equal(p.Nodes, p.Recipe.Nodes) {
 		return errors.New("model recipe: serving node program differs")
 	}
-	decode, err := compileDecodePlan(p.Nodes, p.Model)
-	if err != nil || decode != p.Decode {
-		return errors.New("model recipe: serving decode program differs")
+	decode, residency, err := compileRuntimePolicies(p.Nodes, p.Model, p.Identity.Placement)
+	if err != nil || decode != p.Decode || residency != p.Residency || residency != p.Identity.Residency {
+		return errors.New("model recipe: serving runtime program differs")
 	}
 	return nil
 }
@@ -412,20 +474,28 @@ func mustCatalog() *recipe.Catalog {
 		},
 	}
 	for _, task := range []recipe.Task{
-		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
-		recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen,
+		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech,
 	} {
 		modules = append(modules, linearCapabilities[task].modules(task)...)
 	}
+	for _, capability := range []linearCapability{latentImageCapability, oscillatorImageCapability, routedImageCapability} {
+		modules = append(modules, capability.modules(recipe.TaskImageGen)...)
+	}
 	modules = append(modules,
 		recipe.Module{
-			ID: ModuleVQAAnswer, Tasks: []recipe.Task{recipe.TaskVQA},
-			Placements: []recipe.Placement{recipe.PlacementDevice},
+			ID: ModuleVQAPrepare, Tasks: []recipe.Task{recipe.TaskVQA},
+			Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs: []recipe.Port{
 				{Name: "image", Data: recipe.DataImage, Cardinality: recipe.CardinalityOne},
 				{Name: "question", Data: recipe.DataText, Cardinality: recipe.CardinalityOne},
 			},
-			Outputs: []recipe.Port{{Name: "answer", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+			Outputs: []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleVQAGenerate, Tasks: []recipe.Task{recipe.TaskVQA},
+			Placements: []recipe.Placement{recipe.PlacementDevice},
+			Inputs:     []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "answer", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
 		},
 	)
 	catalog, err := recipe.NewCatalog(modules...)

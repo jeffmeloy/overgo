@@ -71,6 +71,7 @@ func TestModelPropertiesReturnsDetachedGGUFMetadata(t *testing.T) {
 }
 
 func TestModelPropertiesFromRealGGUF(t *testing.T) {
+	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN3_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_QWEN3_MODEL is not set")

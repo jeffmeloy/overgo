@@ -27,9 +27,7 @@ func run() error {
 	flags := flag.NewFlagSet("embedding", flag.ContinueOnError)
 	modelPath := flags.String("model", "", "GGUF encoder model path")
 	prompt := flags.String("prompt", "", "text to encode")
-	modelFlags := clioptions.AddModelFlagsWithConfig(flags, "load GGUF LoRA adapter at scale 1; repeatable", clioptions.ModelFlagConfig{
-		PreloadName: "preload-f32", NativeQuantName: "native-quant", NativeQuantDefault: true,
-	})
+	modelFlags := clioptions.AddModelFlags(flags, "load GGUF LoRA adapter at scale 1; repeatable")
 	pooling := flags.String("pooling", "mean", "pooling: mean, last, or none")
 	normalize := flags.Int("normalize", -1, "embedding normalization: -1 none, 0 max-absolute, or p-norm")
 	dimensions := flags.Int("dimensions", 0, "limit emitted embedding dimensions (0 = all)")
@@ -44,7 +42,7 @@ func run() error {
 		return err
 	}
 	defer runner.Close()
-	if runner.Spec().Profile().Forward != model.ForwardT5Encoder {
+	if runner.Spec().Profile().Forward.Operation != model.ForwardOperationEncoder {
 		return fmt.Errorf("embedding: architecture %q is not an encoder", runner.Spec().Architecture)
 	}
 	ids, err := runner.Vocab().Encode(*prompt, tokenizer.EncodeOptions{AddSpecial: true})

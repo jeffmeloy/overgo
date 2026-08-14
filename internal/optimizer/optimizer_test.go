@@ -20,7 +20,7 @@ var fixtureConfig = Config{
 	Schedule:         ScheduleLinearDecay,
 }
 
-func TestCompilePlanDerivesPoliciesAndIdentity(t *testing.T) {
+func TestCompilePlanCompilesAllGeometryAndIdentity(t *testing.T) {
 	const (
 		matrixRows = 2
 		matrixCols = 3
@@ -41,8 +41,8 @@ func TestCompilePlanDerivesPoliciesAndIdentity(t *testing.T) {
 	}
 	matrix, _ := plan.Group(0)
 	vector, _ := plan.Group(1)
-	if matrix.Update != UpdateMuon || vector.Update != UpdateSign {
-		t.Fatalf("derived updates = (%d,%d), want (%d,%d)", matrix.Update, vector.Update, UpdateMuon, UpdateSign)
+	if matrix.Rows != matrixRows || matrix.Cols != matrixCols || vector.Rows != 1 || vector.Cols != vectorCols {
+		t.Fatalf("compiled geometry = %dx%d / %dx%d", matrix.Rows, matrix.Cols, vector.Rows, vector.Cols)
 	}
 	duplicate, err := CompilePlan(parameterCount, specs)
 	if err != nil {
@@ -102,7 +102,7 @@ func TestNewRejectsUncompiledPlan(t *testing.T) {
 	}
 }
 
-func TestSignStepRequiresCurrentGradientEvidence(t *testing.T) {
+func TestVectorMuonStepCarriesMomentum(t *testing.T) {
 	const parameterCount = 2
 	plan := mustPlan(t, parameterCount, []GroupSpec{{Name: "norm", Start: 0, End: parameterCount, Rows: 1, Cols: parameterCount}})
 	weights := []float32{1, -1}
@@ -111,13 +111,16 @@ func TestSignStepRequiresCurrentGradientEvidence(t *testing.T) {
 	config.Schedule = ScheduleConstant
 	optimizer := mustOptimizer(t, weights, gradients, plan, config)
 	optimizer.Step()
-	want := []float32{1 - fixtureBaseLearningRate, -1 + fixtureBaseLearningRate}
-	if !slices.Equal(weights, want) {
-		t.Fatalf("first-step weights = %v, want %v", weights, want)
+	want := slices.Clone(weights)
+	if want[0] >= 1 || want[1] <= -1 {
+		t.Fatalf("vector Muon did not follow gradient: %v", want)
 	}
 	optimizer.Step()
-	if !slices.Equal(weights, want) {
-		t.Fatalf("zero-gradient weights drifted: got %v want %v", weights, want)
+	if slices.Equal(weights, want) {
+		t.Fatalf("vector Muon did not carry momentum: %v", weights)
+	}
+	if gradients != nil && !slices.Equal(gradients, make([]float32, parameterCount)) {
+		t.Fatalf("vector Muon retained gradients: %v", gradients)
 	}
 }
 

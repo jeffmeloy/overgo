@@ -215,10 +215,6 @@ func (r Run) ValidateIdentity() error {
 	return runCodec.ValidateIdentity(r)
 }
 
-func (r Run) ContentBytes() ([]byte, error) {
-	return runCodec.ContentBytes(r)
-}
-
 func (r Run) Content() (artifact.Content, error) {
 	return runCodec.Content(r)
 }
@@ -270,10 +266,6 @@ func ParseEvaluation(content []byte) (Evaluation, error) {
 
 func (e Evaluation) ValidateIdentity() error {
 	return evaluationCodec.ValidateIdentity(e)
-}
-
-func (e Evaluation) ContentBytes() ([]byte, error) {
-	return evaluationCodec.ContentBytes(e)
 }
 
 func (e Evaluation) Content() (artifact.Content, error) {
@@ -368,14 +360,6 @@ func validCodeCommit(value string) bool {
 		}
 	}
 	return true
-}
-
-func (r Run) UnattributedNS() int64 {
-	unattributed := int64(r.MeasuredNS)
-	for _, phase := range r.Phases {
-		unattributed -= int64(phase.DurationNS)
-	}
-	return unattributed
 }
 
 func canonicalizeEvaluation(evaluation *Evaluation) error {

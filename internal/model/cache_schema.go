@@ -133,7 +133,7 @@ func compileCacheSchemas(
 		if index < len(layers) {
 			layer = layers[index]
 		}
-		schema, err := CacheSchemaForPlan(spec, plans[index], layer, 1)
+		schema, err := cacheSchemaForPlan(spec, plans[index], layer, 1)
 		if err != nil {
 			return nil, fmt.Errorf("cache schema layer %d: %w", index, err)
 		}
@@ -184,10 +184,6 @@ func (s LayerCacheSchema) HasState(name CacheStateName) bool {
 	return present
 }
 
-func (s LayerCacheSchema) StateCount() int {
-	return len(s.states)
-}
-
 func (s *LayerCacheSchema) addState(name CacheStateName, state CacheState[CacheValueSchema]) {
 	s.states = append(s.states, namedCacheStateSchema{name: name, state: state})
 }
@@ -223,14 +219,7 @@ func cacheValue(mode CacheStateMode, shape tensor.Shape) CacheState[CacheValueSc
 	return CacheState[CacheValueSchema]{Mode: mode, Value: CacheValueSchema{Shape: shape}}
 }
 
-// CacheSchema: derives layer cache shapes and range behavior.
-func CacheSchema(spec Spec, layerIndex int, info LayerWeights, tokens uint32) (LayerCacheSchema, error) {
-	plan := spec.PlanLayer(uint32(layerIndex), info.Recurrent)
-	return CacheSchemaForPlan(spec, plan, info, tokens)
-}
-
-// CacheSchemaForPlan: materializes a compiled layer-state contract.
-func CacheSchemaForPlan(
+func cacheSchemaForPlan(
 	spec Spec,
 	plan LayerPlan,
 	info LayerWeights,
@@ -239,17 +228,17 @@ func CacheSchemaForPlan(
 	layerIndex := int(plan.Layer)
 	schema := LayerCacheSchema{Label: "KV"}
 	states := cacheSchemaBuilder{schema: &schema}
-	if plan.Attention == AttentionDSA && spec.LayerHasFullIndexer(plan.Layer) {
+	if plan.Attention == AttentionSparseLatent && spec.LayerHasFullIndexer(plan.Layer) {
 		states.state(CacheStateIndexerKey, CacheStateToken, false, false,
 			uint64(spec.IndexerKeyLength), 1, 1)
 	}
-	if plan.Cache == CacheDeepSeek4 {
+	if plan.Cache == CacheCompressedAttention {
 		if layerIndex < 0 || layerIndex >= len(spec.CompressRatios) {
 			return LayerCacheSchema{}, fmt.Errorf(
-				"DeepSeek4 compression ratio for layer %d is unavailable", layerIndex,
+				"compressed-attention ratio for layer %d is unavailable", layerIndex,
 			)
 		}
-		ratio := tensor.DeepSeek4CompressionRatio(spec.CompressRatios[layerIndex])
+		ratio := tensor.CompressionRatio(spec.CompressRatios[layerIndex])
 		schema.StrictStates = true
 		states.state(CacheStatePositions, CacheStateToken, false, false, 1, 1, 1)
 		if ratio.Enabled() {
@@ -264,9 +253,9 @@ func CacheSchemaForPlan(
 			states.state(CacheStateIndexerCompressorScore, CacheStateToken, false, false, width, 1, 1)
 		}
 	}
-	if plan.Cache == CacheFalconH1 {
+	if plan.Cache == CacheHybridAttentionScan {
 		if spec.SSMConvKernel == 0 {
-			return LayerCacheSchema{}, fmt.Errorf("Falcon-H1 convolution kernel is zero")
+			return LayerCacheSchema{}, fmt.Errorf("hybrid attention-scan convolution kernel is zero")
 		}
 		channels := uint64(spec.SSMInnerSize) +
 			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
@@ -275,7 +264,7 @@ func CacheSchemaForPlan(
 		states.state(CacheStateSSM, CacheStateFixed, true, false,
 			uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize))
 	}
-	if plan.Cache == CacheT5 {
+	if plan.Cache == CacheCrossAttention {
 		shapes := spec.TensorShapes(plan.Layer)
 		states.state(CacheStateCrossKey, CacheStateFixed, false, true,
 			shapes.Key, shapes.KVHeads, 1)
@@ -309,7 +298,7 @@ func CacheSchemaForPlan(
 	}
 	shapes := spec.TensorShapes(uint32(layerIndex))
 	keyWidth, valueWidth, heads := shapes.Key, shapes.Value, shapes.KVHeads
-	if plan.Attention == AttentionMLA || plan.Attention == AttentionDSA || plan.Block == BlockKimiLinear {
+	if plan.Attention == AttentionLatent || plan.Attention == AttentionSparseLatent || plan.Mixer == recurrentMixerKeyedDelta {
 		heads = uint64(spec.HeadCount)
 		if info.AttentionKB != nil {
 			keyWidth = uint64(spec.KVLoRARank + spec.RopeDimensionCount)
@@ -352,65 +341,65 @@ func recurrentCacheSchema(
 		uint64(spec.WKVHeadSize), uint64(spec.WKVHeadSize), uint64(spec.HeadCount), 1,
 	}
 	switch plan.Cache {
-	case CacheRWKV6:
-		return recurrentCachePair("RWKV6", []uint64{embedding, 2}, stateMatrix)
-	case CacheRWKV6Qwen2:
-		return recurrentCachePair("RWKV6-Qwen2", []uint64{embedding}, stateMatrix)
-	case CacheRWKV7:
+	case CacheDoubleTokenShiftRecurrence:
+		return recurrentCachePair("double token-shift recurrence", []uint64{embedding, 2}, stateMatrix)
+	case CacheSingleTokenShiftRecurrence:
+		return recurrentCachePair("single token-shift recurrence", []uint64{embedding}, stateMatrix)
+	case CacheVariableTokenShiftRecurrence:
 		return recurrentCachePair(
-			"RWKV7", []uint64{embedding, uint64(spec.TokenShiftCount)}, stateMatrix,
+			"variable token-shift recurrence", []uint64{embedding, uint64(spec.TokenShiftCount)}, stateMatrix,
 		)
-	case CacheKimiLinear:
-		previous, err := previousCacheElements(spec.SSMConvKernel, "Kimi Linear convolution kernel")
+	case CacheKeyedDelta:
+		previous, err := previousCacheElements(spec.SSMConvKernel, "keyed-delta convolution kernel")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
 		}
 		return recurrentCachePair(
-			"Kimi Linear recurrent",
+			"keyed-delta recurrence",
 			[]uint64{previous, 3 * uint64(spec.SSMInnerSize)},
 			[]uint64{uint64(spec.KDAHeadDim), uint64(spec.KDAHeadDim), uint64(spec.HeadCount), 1},
 		)
-	case CacheQwenGDN:
-		previous, err := previousCacheElements(spec.SSMConvKernel, "GDN convolution kernel")
+	case CacheGatedDelta:
+		previous, err := previousCacheElements(spec.SSMConvKernel, "gated-delta convolution kernel")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
 		}
 		channels := uint64(spec.SSMInnerSize) +
 			2*uint64(spec.SSMStateSize)*uint64(spec.SSMGroupCount)
 		return recurrentCachePair(
-			"GDN recurrent", []uint64{previous, channels},
+			"gated-delta recurrence", []uint64{previous, channels},
 			[]uint64{
 				uint64(spec.SSMStateSize), uint64(spec.SSMStateSize),
 				uint64(spec.SSMTimeStepRank), 1,
 			},
 		)
-	case CacheMamba2:
-		previous, err := previousCacheElements(spec.SSMConvKernel, "Mamba2 convolution kernel")
+	case CacheGroupedSelectiveScan:
+		previous, err := previousCacheElements(spec.SSMConvKernel, "grouped selective-scan convolution kernel")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
 		}
 		channels := uint64(spec.SSMInnerSize) +
 			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 		return recurrentCachePair(
-			"Mamba recurrent", []uint64{previous, channels},
+			"grouped selective-scan recurrence", []uint64{previous, channels},
 			[]uint64{uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)},
 		)
-	case CacheMamba:
-		previous, err := previousCacheElements(spec.SSMConvKernel, "Mamba convolution kernel")
+	case CacheSelectiveScan:
+		previous, err := previousCacheElements(spec.SSMConvKernel, "selective-scan convolution kernel")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
 		}
 		return recurrentCachePair(
-			"Mamba recurrent", []uint64{previous, uint64(spec.SSMInnerSize)},
+			"selective-scan recurrence", []uint64{previous, uint64(spec.SSMInnerSize)},
 			[]uint64{uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)},
 		)
-	case CacheLFM2:
-		previous, err := previousCacheElements(spec.ShortConvCacheLength, "LFM2 convolution cache length")
+	case CacheShortConvolution:
+		previous, err := previousCacheElements(spec.ShortConvCacheLength, "short-convolution cache length")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
 		}
 		return recurrentCachePair(
-			"LFM2 recurrent", []uint64{previous, uint64(spec.EmbeddingLength)}, []uint64{1},
+			"short-convolution recurrence", []uint64{previous, uint64(spec.EmbeddingLength)}, []uint64{1},
 		)
 	default:
 		return tensor.Shape{}, tensor.Shape{}, false, "", fmt.Errorf(

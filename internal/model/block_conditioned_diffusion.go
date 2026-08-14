@@ -71,6 +71,59 @@ type ConditionedDiffusionBlockOptions struct {
 	RoundAttentionStorage bool
 }
 
+// ConditionedDiffusionProgram: compiled geometry for context, blocks, and head.
+type ConditionedDiffusionProgram struct {
+	options ConditionedDiffusionBlockOptions
+}
+
+// CompileConditionedDiffusionProgram validates immutable graph geometry.
+func CompileConditionedDiffusionProgram(options ConditionedDiffusionBlockOptions) (ConditionedDiffusionProgram, error) {
+	if options.Dim == 0 || options.Heads == 0 || options.Dim%options.Heads != 0 ||
+		options.FFNDim == 0 || options.Epsilon <= 0 {
+		return ConditionedDiffusionProgram{}, fmt.Errorf(
+			"conditioned diffusion geometry dim=%d heads=%d ffn=%d eps=%g is invalid",
+			options.Dim, options.Heads, options.FFNDim, options.Epsilon,
+		)
+	}
+	headWidth := options.Dim / options.Heads
+	if options.AxisChannels[0]+options.AxisChannels[1]+options.AxisChannels[2] != headWidth {
+		return ConditionedDiffusionProgram{}, fmt.Errorf(
+			"conditioned diffusion axis channels %v do not cover head width %d",
+			options.AxisChannels, headWidth,
+		)
+	}
+	return ConditionedDiffusionProgram{options: options}, nil
+}
+
+func (p ConditionedDiffusionProgram) BuildCrossContext(
+	builder *tensor.Builder,
+	context *tensor.Tensor,
+	weights ConditionedDiffusionAttentionWeights,
+) (*tensor.Tensor, *tensor.Tensor, error) {
+	return buildConditionedDiffusionCrossContext(
+		builder, context, weights, p.options.Heads, p.options.Epsilon,
+	)
+}
+
+func (p ConditionedDiffusionProgram) BuildBlock(
+	builder *tensor.Builder,
+	input, conditioning, crossKey, crossValue *tensor.Tensor,
+	weights ConditionedDiffusionBlockWeights,
+) (ConditionedDiffusionBlockResult, error) {
+	return buildConditionedDiffusionBlock(
+		builder, input, conditioning, crossKey, crossValue, p.options, weights,
+	)
+}
+
+func (p ConditionedDiffusionProgram) BuildHead(
+	builder *tensor.Builder,
+	input, conditioning, modulation, weight, bias *tensor.Tensor,
+) (*tensor.Tensor, error) {
+	return buildConditionedDiffusionHead(
+		builder, input, conditioning, modulation, weight, bias, p.options.Epsilon,
+	)
+}
+
 // ThreeAxisRotaryChannels: canonical temporal/height/width split of an even
 // head width: both spatial axes take 2*(width/6) channels and the temporal
 // axis the remainder.
@@ -95,11 +148,11 @@ type ConditionedDiffusionBlockResult struct {
 	FeedForward                                              *tensor.Tensor
 }
 
-// BuildAxisPartitionedRoPE: adjacent-pair rotary over contiguous per-axis
+// buildAxisPartitionedRoPE: adjacent-pair rotary over contiguous per-axis
 // channel spans with axis-local frequency exponents: pair j of an axis span
 // of width w rotates by position*base^(-2j/w). Slice, rotate, reassemble —
 // every stage is a cataloged op.
-func BuildAxisPartitionedRoPE(
+func buildAxisPartitionedRoPE(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	channels [3]uint64,
@@ -146,10 +199,10 @@ func buildBiasedProjection(builder *tensor.Builder, weight, bias, input *tensor.
 	return builder.Add(builder.MulMat(weight, input), bias)
 }
 
-// BuildConditionedDiffusionCrossContext: fixed-context cross-attention K/V,
+// buildConditionedDiffusionCrossContext: fixed-context cross-attention K/V,
 // projected once per context: K = RMSNorm_w(W_k ctx + b_k), V = W_v ctx +
 // b_v, both reshaped to [headWidth, heads, contextTokens].
-func BuildConditionedDiffusionCrossContext(
+func buildConditionedDiffusionCrossContext(
 	builder *tensor.Builder,
 	context *tensor.Tensor,
 	weights ConditionedDiffusionAttentionWeights,
@@ -185,12 +238,12 @@ func BuildConditionedDiffusionCrossContext(
 	return key, value, nil
 }
 
-// BuildConditionedDiffusionBlock: one adaptive-layernorm diffusion
+// buildConditionedDiffusionBlock: one adaptive-layernorm diffusion
 // transformer block. conditioning is the per-execution [6*dim] timestep
 // embedding added to the block's learned modulation; chunk order is
 // (self shift, self scale, self gate, ffn shift, ffn scale, ffn gate).
-// crossKey/crossValue come from BuildConditionedDiffusionCrossContext.
-func BuildConditionedDiffusionBlock(
+// crossKey/crossValue: preprojected fixed context.
+func buildConditionedDiffusionBlock(
 	builder *tensor.Builder,
 	input, conditioning *tensor.Tensor,
 	crossKey, crossValue *tensor.Tensor,
@@ -217,9 +270,6 @@ func BuildConditionedDiffusionBlock(
 		return result, errors.New("conditioned diffusion block cross norm affine pair is incomplete")
 	}
 	dim, heads := options.Dim, options.Heads
-	if dim == 0 || heads == 0 || dim%heads != 0 || options.FFNDim == 0 || options.Epsilon <= 0 {
-		return result, fmt.Errorf("conditioned diffusion block geometry dim=%d heads=%d ffn=%d eps=%g is invalid", dim, heads, options.FFNDim, options.Epsilon)
-	}
 	if input.Shape.Rank != 2 || input.Shape.Dims[0] != dim {
 		return result, errors.New("conditioned diffusion block input shape is incompatible")
 	}
@@ -252,8 +302,8 @@ func BuildConditionedDiffusionBlock(
 	query := builder.Reshape(result.SelfQueryNormed, headWidth, heads, tokens)
 	key := builder.Reshape(result.SelfKeyNormed, headWidth, heads, tokens)
 	value := builder.Reshape(result.SelfValueProjected, headWidth, heads, tokens)
-	result.SelfQueryRotated = BuildAxisPartitionedRoPE(builder, query, options.AxisChannels, options.AxisPositions, options.RotaryBase)
-	result.SelfKeyRotated = BuildAxisPartitionedRoPE(builder, key, options.AxisChannels, options.AxisPositions, options.RotaryBase)
+	result.SelfQueryRotated = buildAxisPartitionedRoPE(builder, query, options.AxisChannels, options.AxisPositions, options.RotaryBase)
+	result.SelfKeyRotated = buildAxisPartitionedRoPE(builder, key, options.AxisChannels, options.AxisPositions, options.RotaryBase)
 	roundStorage := func(x *tensor.Tensor) *tensor.Tensor {
 		if options.RoundAttentionStorage {
 			return builder.BF16Round(x)
@@ -299,10 +349,10 @@ func BuildConditionedDiffusionBlock(
 	return result, nil
 }
 
-// BuildConditionedDiffusionHead: final modulated projection. conditioning is
+// buildConditionedDiffusionHead: final modulated projection. conditioning is
 // the [dim] timestep embedding; modulation is the learned [2*dim]
 // (shift, scale) pair; output projects each token to its patch values.
-func BuildConditionedDiffusionHead(
+func buildConditionedDiffusionHead(
 	builder *tensor.Builder,
 	input, conditioning *tensor.Tensor,
 	modulation, weight, bias *tensor.Tensor,

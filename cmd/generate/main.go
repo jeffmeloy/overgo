@@ -344,8 +344,8 @@ func run() error {
 		options.ProjectedInputs = &projected
 	}
 	if mediaInputs > 0 {
-		if runner.Spec().Profile().Forward == model.ForwardT5 {
-			return errors.New("generate: multimodal projection is unavailable for T5")
+		if runner.Spec().Profile().Forward.Session == model.ForwardSessionEncoderDecoder {
+			return errors.New("generate: multimodal projection is unavailable for encoder-decoder programs")
 		}
 		var promptIDs []tokenizer.TokenID
 		var projected inference.ProjectedInputs
@@ -388,8 +388,8 @@ func run() error {
 	}
 	var ids []tokenizer.TokenID
 	var text string
-	if runner.Spec().Profile().Forward == model.ForwardT5 {
-		ids, text, _, err = runner.GenerateT5(context.Background(), flag.Arg(1), options)
+	if runner.Spec().Profile().Forward.Session == model.ForwardSessionEncoderDecoder {
+		ids, text, _, err = runner.GenerateEncoderDecoder(context.Background(), flag.Arg(1), options)
 	} else {
 		ids, text, err = runner.Generate(context.Background(), flag.Arg(1), options)
 	}

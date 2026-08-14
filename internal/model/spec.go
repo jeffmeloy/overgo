@@ -9,15 +9,6 @@ import (
 	"overgo/internal/gguf"
 )
 
-const (
-	chameleonQKNormEpsilon      = 1e-5
-	deepSeek32BlockCount        = 62
-	deepSeek32LayerNormEpsilon  = 1e-6
-	deepSeekDenseIndexerContext = 1 << 20
-	deepSeekInitialFullIndexers = 2
-	deepSeekFullIndexerPeriod   = 4
-)
-
 // UnsupportedArchitectureError: valid, unsupported GGUF architecture.
 type UnsupportedArchitectureError struct {
 	Architecture string
@@ -28,7 +19,7 @@ func (s Spec) LayerHasFullIndexer(layer uint32) bool {
 	if s.Profile().Cadence.FullIndexerEveryLayer && layer < s.BlockCount+s.NextNPredictLayers {
 		return true
 	}
-	return s.Profile().Attention == AttentionDSA && layerValue(s.IndexerFullLayers, layer, false)
+	return s.Profile().Attention == AttentionSparseLatent && layerValue(s.IndexerFullLayers, layer, false)
 }
 
 func (e *UnsupportedArchitectureError) Error() string {
@@ -75,6 +66,11 @@ func readSpec(file *gguf.File, resolved *ArchitectureProfile) (Spec, error) {
 	}
 	if err := metadata.readAttentionShape(&spec, state); err != nil {
 		return Spec{}, err
+	}
+	if !profile.Metadata.DraftBeforeShape {
+		if err := metadata.readDraftLayers(&spec); err != nil {
+			return Spec{}, err
+		}
 	}
 	if err := metadata.readPosition(&spec); err != nil {
 		return Spec{}, err
@@ -259,15 +255,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			ropeEnabled = value
 		}
 		spec.RopeDisabled = !ropeEnabled
-		if validation.Hybrid == HybridValidationGranite {
-			if expertCount, ok := optional[uint32](
-				values,
-				prefix+"expert_count",
-				gguf.ValueTypeUint32,
-			); ok {
-				spec.ExpertCount = expertCount
-			}
-		}
 		if mapping, ok, mappingErr := optionalArray[int32](
 			values,
 			prefix+"deepstack_mapping",
@@ -449,15 +436,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.attentionOneOf(AttentionValidationGLM4, AttentionValidationGLM4MoE) {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](
-			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
-		); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("GLM4 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		if sections, ok, sectionsErr := optionalArray[int32](
 			values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32,
 		); sectionsErr != nil {
@@ -471,14 +449,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.Hybrid == HybridValidationMiMo2 {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("MiMo2 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-			spec.LayerKVHeadCounts = spec.LayerKVHeadCounts[:spec.BlockCount]
-		}
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -530,13 +500,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.Hybrid == HybridValidationStep35 {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("Step3.5 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -561,15 +524,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.Attention == AttentionValidationEXAOne4 {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](
-			values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32,
-		); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("EXAONE 4 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		spec.RopeFrequencySWA = optionalOr(
 			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
 		)
@@ -590,13 +544,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.Hybrid == HybridValidationEXAOneMoE {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("EXAONE-MoE NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		spec.RopeFrequencySWA = optionalOr(
 			values, prefix+"rope.freq_base_swa", gguf.ValueTypeFloat32, spec.RopeFrequencyBase,
 		)
@@ -617,13 +564,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	}
 	if validation.Hybrid == HybridValidationBailingMoE2 {
 		spec.RopeDimensionCount = optionalOr(values, prefix+"rope.dimension_count", gguf.ValueTypeUint32, spec.KeyLength)
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("BailingMoE2 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 	}
 	if validation.Attention == AttentionValidationFalcon {
 		spec.RopeDimensionCount, _ = optional[uint32](
@@ -829,7 +769,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.AttentionClamp = clamp
 		}
 	}
-	if m.profile.Forward == ForwardT5 || m.profile.Forward == ForwardT5Encoder {
+	if m.profile.Forward.Session == ForwardSessionEncoderDecoder ||
+		m.profile.Forward.Operation == ForwardOperationEncoder {
 		if spec.RelativeBuckets, err = required[uint32](
 			values,
 			prefix+"attention.relative_buckets_count",
@@ -837,7 +778,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); err != nil {
 			return Spec{}, err
 		}
-		if m.profile.Forward == ForwardT5 {
+		if m.profile.Forward.Session == ForwardSessionEncoderDecoder {
 			spec.DecoderBlockCount = optionalOr(
 				values, prefix+"decoder_block_count", gguf.ValueTypeUint32, spec.BlockCount,
 			)
@@ -1035,9 +976,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, error) {
 	values, prefix, profile := m.values, m.prefix, m.profile
 	validation := profile.Validation
-	isLlamaMoE := state.llamaMoE
 	var err error
-	if isLlamaMoE || validation.requiresExpertMetadata(spec.ExpertCount > 0) {
+	if validation.ExpertMetadata == ExpertMetadataRequired || state.declaredExperts {
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
 			metadataDestination("expert_count", &spec.ExpertCount),
@@ -1102,7 +1042,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			)
 		}
 	}
-	if profile.Has(ArchitectureDeepSeek2Layout) {
+	if profile.Has(ArchitectureLatentKVLayout) {
 		if validation.MLA == MLAValidationDeepSeek32 {
 			if spec.ExpertCount, err = required[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
@@ -1204,13 +1144,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 	}
 	if validation.Attention == AttentionValidationCohere2MoE {
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN != 1 || nextN >= spec.BlockCount {
-				return Spec{}, errors.New("Cohere2-MoE NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		if spec.LeadingDenseBlocks, err = required[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1235,13 +1168,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 	}
 	if validation.Hybrid == HybridValidationHYV3 {
-		if nextN, ok := optional[uint32](values, prefix+"nextn_predict_layers", gguf.ValueTypeUint32); ok && nextN > 0 {
-			if nextN >= spec.BlockCount {
-				return Spec{}, errors.New("HY-V3 NextN/MTP layer count is invalid")
-			}
-			spec.NextNPredictLayers = nextN
-			spec.BlockCount -= nextN
-		}
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1462,7 +1388,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.SharedExpertFF = value
 		}
 	}
-	if isLlamaMoE || validation.hybridOneOf(HybridValidationOLMoE, HybridValidationPhiMoE) {
+	if state.declaredExperts || validation.hybridOneOf(HybridValidationOLMoE, HybridValidationPhiMoE) {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 	}
 	if validation.Hybrid == HybridValidationAFMoE {
@@ -1581,7 +1507,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			spec.SlidingWindow = value
 		}
 	}
-	if profile.Attention == AttentionMLA || profile.Attention == AttentionDSA {
+	if profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent {
 		if validation.MLA == MLAValidationMiniCPM3 {
 			if spec.QLoRARank, err = required[uint32](
 				values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32,
@@ -1589,7 +1515,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 				return Spec{}, err
 			}
 		}
-		if profile.Has(ArchitectureDeepSeek2Layout) {
+		if profile.Has(ArchitectureLatentKVLayout) {
 			lite := spec.BlockCount == 26 || spec.BlockCount == 27 || (spec.BlockCount == 48 && spec.VocabularySize == 128256)
 			if !lite {
 				if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
@@ -1607,7 +1533,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		); err != nil {
 			return Spec{}, err
 		}
-		if profile.Has(ArchitectureDeepSeek2Layout) {
+		if profile.Has(ArchitectureLatentKVLayout) {
 			spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 			if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
@@ -1631,7 +1557,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			spec.AttentionTempFloor, _ = optional[uint32](values, prefix+"attention.temperature_length", gguf.ValueTypeUint32)
 		}
 	}
-	if profile.Attention == AttentionDSA {
+	if profile.Attention == AttentionSparseLatent {
 		sections, hasSections, sectionsErr := optionalArray[int32](values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32)
 		if sectionsErr != nil {
 			return Spec{}, sectionsErr
@@ -1651,15 +1577,8 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			return Spec{}, err
 		}
 		spec.IndexerFullLayers = make([]bool, spec.BlockCount)
-		if validation.MLA == MLAValidationDeepSeek32 || spec.ContextLength < deepSeekDenseIndexerContext {
-			for index := range spec.IndexerFullLayers {
-				spec.IndexerFullLayers[index] = true
-			}
-		} else {
-			for index := range spec.IndexerFullLayers {
-				spec.IndexerFullLayers[index] = index < deepSeekInitialFullIndexers ||
-					(index-deepSeekInitialFullIndexers)%deepSeekFullIndexerPeriod == 0
-			}
+		for index := range spec.IndexerFullLayers {
+			spec.IndexerFullLayers[index] = profile.Cadence.fullIndexer(spec.ContextLength, uint32(index))
 		}
 		indexerTypesKey := prefix + "attention.indexer.types"
 		if value, present := values[indexerTypesKey]; present && value.Type == gguf.ValueTypeUint32 {

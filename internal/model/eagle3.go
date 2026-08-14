@@ -7,26 +7,6 @@ import (
 	"overgo/internal/tensor"
 )
 
-// BuildEagle3FeatureEncoder: three-layer target fusion.
-func BuildEagle3FeatureEncoder(
-	builder *tensor.Builder,
-	features, projection *tensor.Tensor,
-	spec Spec,
-) (*tensor.Tensor, error) {
-	if builder == nil || features == nil || projection == nil {
-		return nil, errors.New("Eagle3 feature encoder input is nil")
-	}
-	if spec.Profile().Forward != ForwardEagle3 || features.Shape.Rank != 2 ||
-		features.Shape.Dims[0] != uint64(eagle3TargetLayerCount)*uint64(spec.TargetHiddenSize) {
-		return nil, errors.New("Eagle3 feature encoder shape is incompatible")
-	}
-	output := builder.MulMat(projection, features)
-	if err := builder.Err(); err != nil {
-		return nil, err
-	}
-	return output, nil
-}
-
 func buildPairedCausalProjectionMixCached(
 	builder *tensor.Builder,
 	input *tensor.Tensor,

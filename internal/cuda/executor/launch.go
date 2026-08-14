@@ -23,8 +23,8 @@ func launchNode(
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
 	switch node.Op {
-	case tensor.OpDeepSeek4HCInit, tensor.OpDeepSeek4HCPre, tensor.OpDeepSeek4HCPost,
-		tensor.OpDeepSeek4HCHead, tensor.OpDeepSeek4Attention:
+	case tensor.OpHyperConnectionInit, tensor.OpHyperConnectionPre, tensor.OpHyperConnectionPost,
+		tensor.OpHyperConnectionHead, tensor.OpCompressedAttention:
 		return launchReferenceFamily(state, functions, blas, node, pointers, attributePointers)
 	case tensor.OpLoRAMerge, tensor.OpAdd, tensor.OpMultiply, tensor.OpDivide, tensor.OpScale,
 		tensor.OpClamp, tensor.OpBF16Round, tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf,
@@ -34,9 +34,9 @@ func launchNode(
 		tensor.OpGroupNorm, tensor.OpL2Norm:
 		return launchMathVision(state, functions, blas, node, pointers, attributePointers)
 	case tensor.OpSSMConv, tensor.OpSSMScan, tensor.OpGatedDeltaNet,
-		tensor.OpGatedLinearAttention, tensor.OpRWKV6, tensor.OpSumRows, tensor.OpFWHT,
+		tensor.OpGatedLinearAttention, tensor.OpWKV6, tensor.OpSumRows, tensor.OpFWHT,
 		tensor.OpTopK, tensor.OpTopKPairs, tensor.OpTopKPartials, tensor.OpGatherLast, tensor.OpSparseAttention, tensor.OpIndexerScore,
-		tensor.OpRWKV7:
+		tensor.OpWKV7:
 		return launchRecurrentSelection(state, functions, blas, node, pointers, attributePointers)
 	case tensor.OpMoE:
 		return launchMoE(state, functions, blas, node, pointers, attributePointers)

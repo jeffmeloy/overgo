@@ -1,5 +1,18 @@
 package model
 
+import (
+	"testing"
+
+	"overgo/internal/testevidence"
+)
+
+func requireIntegration(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
+}
+
 const (
 	fixtureEmbeddingWidth   = uint32(8)
 	fixtureFeedForwardWidth = uint32(12)

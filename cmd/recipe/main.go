@@ -2,13 +2,12 @@
 // the sealed authority was waiting for (the lifecycle API was complete but
 // uninvoked; the wave-1 probe recorded the refusal that proved it).
 //
-//	recipe activate -reason "..." <model>   publish facts + definition,
-//	                                        candidate -> validated -> active
+//	recipe activate -reason "..." -gate <id> -run-id <id> <model>
+//	                                        verified promotion
 //	recipe status <model>                   show the active recipe and tier
 //
-// Model references resolve through the data-root contract; the store is the
-// data-root store unless -repo overrides. Activation records its reason and
-// decider commit in the decision event, per the store's decision discipline.
+// Model references resolve through the data-root contract. Activation consumes
+// a successful recipe-bound verifier gate/run pair.
 package main
 
 import (
@@ -18,72 +17,18 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/capabilityruntime"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
-	"overgo/internal/hfrepo"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
-	"overgo/internal/seq2seq"
-	"overgo/internal/seriesforecast"
-	"overgo/internal/speechsynth"
-	"overgo/internal/tabularicl"
+	"overgo/internal/runrecord"
 )
-
-type capabilityCommand struct {
-	inventory func(string) (modelartifact.Inventory, error)
-	execute   capabilityruntime.Executor
-}
-
-var capabilityCommands = map[recipe.Task]capabilityCommand{
-	recipe.TaskForecast: {
-		inventory: hfInventory,
-		execute: capabilityruntime.JSONScalar[[]float32, *seriesforecast.Model, []float32](
-			"forecast", seriesforecast.ValidateRequest,
-			capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime),
-	},
-	recipe.TaskTabular: {
-		inventory: tabularInventory,
-		execute: capabilityruntime.JSONScalar[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](
-			"tabular", tabularicl.ValidateRequest,
-			func(path string, request tabularicl.Request) (*tabularicl.Model, error) {
-				return tabularicl.LoadTask(path, request.Task)
-			}, tabularicl.RegisterRuntime),
-	},
-	recipe.TaskSeq2Seq: {
-		inventory: hfInventory,
-		execute: capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Model, []int](
-			"seq2seq", seq2seq.ValidateGenerateRequest,
-			capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.Load), seq2seq.RegisterRuntime),
-	},
-	recipe.TaskSpeech: {
-		inventory: speechInventory,
-		execute: capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
-			"speech", speechsynth.ValidateSynthesisRequest,
-			capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime),
-	},
-	recipe.TaskImageGen: {
-		inventory: imageGenInventory,
-		execute: capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
-			"image-gen", oscillatorimage.ValidateRequest,
-			capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime),
-	},
-	recipe.TaskVideoGen: {
-		inventory: videoGenInventory,
-	},
-	recipe.TaskVQA: {
-		inventory: hfInventory,
-	},
-}
 
 func main() {
 	if err := run(); err != nil {
@@ -100,8 +45,12 @@ func run() error {
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen|vqa)")
+	gate := flags.String("gate", "", "successful verifier gate artifact ID (activate)")
+	runID := flags.String("run-id", "", "bound verifier run artifact ID (activate)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|vqa)")
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
+	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),
+		"weight residency: stream | host-cache | device-f32 | device-native | device-native-bf16 | hybrid-native | host-reference")
 	input := flags.String("input", "", "task input as JSON (run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
@@ -119,14 +68,18 @@ func run() error {
 	}
 	path := roots.ResolveModelPath(flags.Arg(0))
 	selectedTask := recipe.Task(*task)
-	capability, capabilityKnown := capabilityCommands[selectedTask]
+	capability, capabilityKnown := capabilities[selectedTask]
 	switch verb {
 	case "activate":
 		if strings.TrimSpace(*reason) == "" {
 			return errors.New("activate requires -reason: the decision event records why")
 		}
+		verification, verificationErr := parseVerification(*gate, *runID)
+		if verificationErr != nil {
+			return verificationErr
+		}
 		if capabilityKnown {
-			return activateCapability(repository, path, *reason, selectedTask, capability)
+			return activateCapability(repository, path, *reason, selectedTask, capability, verification)
 		}
 		if selectedTask != recipe.TaskInference {
 			return fmt.Errorf("unsupported model recipe task %q", selectedTask)
@@ -135,7 +88,11 @@ func run() error {
 		if sessionErr != nil {
 			return sessionErr
 		}
-		return activate(repository, path, *reason, sessionOverride)
+		residency, residencyErr := parseResidency(*residencyFlag)
+		if residencyErr != nil {
+			return residencyErr
+		}
+		return activate(repository, path, *reason, sessionOverride, residency, verification)
 	case "run":
 		if !capabilityKnown || capability.execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
@@ -151,100 +108,32 @@ func run() error {
 	}
 }
 
-func hfInventory(path string) (modelartifact.Inventory, error) {
-	repository, err := hfrepo.Open(path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
+func parseResidency(text string) (recipe.ResidencyPolicy, error) {
+	policy := recipe.ResidencyPolicy(strings.ToLower(strings.TrimSpace(text)))
+	if policy == "" || !policy.Valid() {
+		return "", fmt.Errorf("unknown -residency %q", text)
 	}
-	defer repository.Close()
-	return modelartifact.FromHFRepository(repository)
+	return policy, nil
 }
 
-// videoGenInventory: denoiser, VAE, and text-encoder facts.
-func videoGenInventory(path string) (modelartifact.Inventory, error) {
-	return safetensorsInventory("video-gen", path, "config.json",
-		modelartifact.FileSpec{Path: "Wan2.1_VAE.pth", Name: "vae/weights", Role: artifact.ComponentWeights},
-		modelartifact.FileSpec{Path: "models_t5_umt5-xxl-enc-bf16.pth", Name: "textenc/weights", Role: artifact.ComponentWeights})
+func parseVerification(gateText, runText string) (modelrecipe.Verification, error) {
+	gate, err := artifact.ParseID(strings.TrimSpace(gateText))
+	if err != nil || gate.Kind() != artifact.KindEvidence {
+		return modelrecipe.Verification{}, errors.New("activate requires -gate with an evidence artifact ID")
+	}
+	run, err := artifact.ParseID(strings.TrimSpace(runText))
+	if err != nil || run.Kind() != artifact.KindRun {
+		return modelrecipe.Verification{}, errors.New("activate requires -run-id with a run artifact ID")
+	}
+	return modelrecipe.Verification{Gate: gate, Run: run}, nil
 }
 
-// singleSafetensors: unique top-level weights file.
-func singleSafetensors(context, path string) (string, error) {
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return "", err
-	}
-	weights := ""
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".safetensors") {
-			continue
-		}
-		if weights != "" {
-			return "", fmt.Errorf("%s inventory: multiple safetensors files in %s", context, path)
-		}
-		weights = entry.Name()
-	}
-	if weights == "" {
-		return "", fmt.Errorf("%s inventory: no safetensors weights in %s", context, path)
-	}
-	return weights, nil
-}
-
-func safetensorsInventory(
-	context, path, config string,
-	companions ...modelartifact.FileSpec,
-) (modelartifact.Inventory, error) {
-	weights, err := singleSafetensors(context, path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	specs := []modelartifact.FileSpec{
-		{Path: filepath.Join(path, config), Name: "config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
-	}
-	for _, companion := range companions {
-		companion.Path = filepath.Join(path, companion.Path)
-		specs = append(specs, companion)
-	}
-	return modelartifact.FromFiles(path, specs)
-}
-
-// speechInventory: model, codec, and tokenizer facts.
-func speechInventory(path string) (modelartifact.Inventory, error) {
-	return safetensorsInventory("speech", path, "pockettts_config.json",
-		modelartifact.FileSpec{Path: "tokenizer.model", Name: "tokenizer", Role: artifact.ComponentTokenizer})
-}
-
-// imageGenInventory: config and weights facts.
-func imageGenInventory(path string) (modelartifact.Inventory, error) {
-	return safetensorsInventory("image-gen", path, "config.json")
-}
-
-// tabularInventory: classification and regression head facts.
-func tabularInventory(path string) (modelartifact.Inventory, error) {
-	var specs []modelartifact.FileSpec
-	for _, head := range tabularicl.Tasks() {
-		specs = append(specs,
-			modelartifact.FileSpec{
-				Path: filepath.Join(path, head, "config.json"),
-				Name: head + "/config", Role: artifact.ComponentConfig,
-			},
-			modelartifact.FileSpec{
-				Path: filepath.Join(path, head, "model.safetensors"),
-				Name: head + "/weights", Role: artifact.ComponentWeights,
-			},
-		)
-	}
-	return modelartifact.FromFiles(path, specs)
-}
-
-// activateCapability drives the shared sealed lifecycle for capability-package
-// models: inventory facts, then candidate -> validated -> active with the
-// decision evidence. Capability packages derive dimensions from the artifact,
-// so no profile document is published.
+// activateCapability: capability facts, candidate, validation, verified promotion.
 func activateCapability(
 	repository, path, reason string,
 	task recipe.Task,
-	capability capabilityCommand,
+	capability capability,
+	verification modelrecipe.Verification,
 ) error {
 	ctx := context.Background()
 	inventory, err := capability.inventory(path)
@@ -257,37 +146,26 @@ func activateCapability(
 	}
 	defer store.Close()
 	modelID := inventory.Manifest.ID
+	var definition recipe.Definition
+	var facts []artifact.Content
+	if capability.bind != nil {
+		definition, facts, err = capability.bind(path, modelID)
+	} else {
+		definition, err = modelrecipe.CapabilityDefinition(task, modelID)
+	}
+	if err != nil {
+		return err
+	}
 	batch, err := inventory.Batch("recipe/facts/" + modelID.String())
 	if err != nil {
 		return err
 	}
+	batch.Contents = append(batch.Contents, facts...)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
-	definition, err := modelrecipe.CapabilityDefinition(task, modelID)
-	if err != nil {
+	if err := activateDefinition(ctx, store, definition, verification, reason); err != nil {
 		return err
-	}
-	if _, _, err := modelrecipe.PublishCandidate(
-		ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
-	); err != nil {
-		return fmt.Errorf("publish candidate: %w", err)
-	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "recipe/validated/"+definition.ID.String(), definition,
-		recipe.StatusValidated, nil, nil,
-	); err != nil {
-		return fmt.Errorf("transition validated: %w", err)
-	}
-	evidenceID, err := activationEvidence(ctx, store, definition, reason)
-	if err != nil {
-		return err
-	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "recipe/active/"+definition.ID.String(), definition,
-		recipe.StatusActive, []artifact.ID{evidenceID}, nil,
-	); err != nil {
-		return fmt.Errorf("transition active: %w", err)
 	}
 	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
 		path, task, modelID, definition.ID, reason)
@@ -297,32 +175,24 @@ func activateCapability(
 func executeCapability(
 	repository, path string,
 	task recipe.Task,
-	capability capabilityCommand,
+	capability capability,
 	input string,
 ) error {
 	ctx := context.Background()
-	inventory, err := capability.inventory(path)
-	if err != nil {
-		return err
-	}
 	store, err := repodb.Open(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	modelID := inventory.Manifest.ID
-	activation, active, err := modelrecipe.ActiveRecord(ctx, store, modelID, task)
+	inventory, err := capability.inventory(path)
 	if err != nil {
 		return err
 	}
-	if !active {
-		return fmt.Errorf("model %s has no active %s recipe", modelID, task)
-	}
-	program, err := modelrecipe.CompileCapability(activation.Definition)
+	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, inventory.Manifest.ID, task)
 	if err != nil {
 		return err
 	}
-	output, err := capability.execute(ctx, store, path, modelID, program, input)
+	output, err := capability.execute(ctx, store, path, inventory.Manifest.ID, program, input)
 	if err != nil {
 		return err
 	}
@@ -349,7 +219,12 @@ func parseSessionOverride(text string) (sessionOverride, error) {
 	}
 }
 
-func activate(repository, path, reason string, override sessionOverride) error {
+func activate(
+	repository, path, reason string,
+	override sessionOverride,
+	residency recipe.ResidencyPolicy,
+	verification modelrecipe.Verification,
+) error {
 	ctx := context.Background()
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -372,7 +247,7 @@ func activate(repository, path, reason string, override sessionOverride) error {
 	if err != nil {
 		return err
 	}
-	document, err := modelrecipe.NewModelDefinitionFromGGUF(file, profileDocument, inventory.TensorInventory)
+	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	if err != nil {
 		return err
 	}
@@ -415,12 +290,26 @@ func activate(repository, path, reason string, override sessionOverride) error {
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		modelID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
-		session,
+		session, residency,
 	)
 	if err != nil {
 		return err
 	}
-	// resumable lifecycle: pick up from wherever this definition already is
+	if err := activateDefinition(ctx, store, definition, verification, reason); err != nil {
+		return err
+	}
+	fmt.Printf("activated %s\n  model      %s\n  definition %s\n  recipe     %s\n  reason     %s\n",
+		path, modelID, resolved.Document.ID, definition.ID, reason)
+	return nil
+}
+
+func activateDefinition(
+	ctx context.Context,
+	store artifact.Repository,
+	definition recipe.Definition,
+	verification modelrecipe.Verification,
+	reason string,
+) error {
 	state, published, err := modelrecipe.Status(ctx, store, definition.ID)
 	if err != nil {
 		return err
@@ -444,68 +333,78 @@ func activate(repository, path, reason string, override sessionOverride) error {
 	}
 	switch state {
 	case recipe.StatusValidated:
-		evidenceID, err := activationEvidence(ctx, store, definition, reason)
-		if err != nil {
-			return err
-		}
-		// activation supersedes any current active recipe for this model+task
 		var supersedes *artifact.ID
 		if current, active, err := modelrecipe.ActiveRecord(
-			ctx, store, modelID, recipe.TaskInference,
+			ctx, store, definition.Model, definition.Task,
 		); err == nil && active && current.Definition.ID != definition.ID {
 			id := current.Definition.ID
 			supersedes = &id
 		}
-		if _, _, err := modelrecipe.Transition(
-			ctx, store, "recipe/active/"+definition.ID.String(), definition,
-			recipe.StatusActive, []artifact.ID{evidenceID}, supersedes,
-		); err != nil {
-			return fmt.Errorf("transition active: %w", err)
+		if err := promoteVerified(ctx, store, definition, verification, reason, supersedes); err != nil {
+			return err
 		}
 	case recipe.StatusActive:
 	default:
 		return fmt.Errorf("recipe %s is %q; activation resumes only from candidate or validated", definition.ID, state)
 	}
-	fmt.Printf("activated %s\n  model      %s\n  definition %s\n  recipe     %s\n  reason     %s\n",
-		path, modelID, resolved.Document.ID, definition.ID, reason)
 	return nil
 }
 
-// activationEvidence records the decision basis: reason, decider commit, and
-// the honest statement that serving-parity evidence follows as run records.
-func activationEvidence(
+// promoteVerified: accepted decision plus verifier-bound promotion.
+func promoteVerified(
 	ctx context.Context,
 	store artifact.Repository,
 	definition recipe.Definition,
+	verification modelrecipe.Verification,
 	reason string,
-) (artifact.ID, error) {
-	decider := "unknown"
-	if out, err := exec.Command("git", "rev-parse", "HEAD").Output(); err == nil {
-		decider = strings.TrimSpace(string(out))
-	}
-	payload := []byte("activation decision\nreason: " + reason + "\ndecider_commit: " + decider +
-		"\nfollow_up: serving parity evidence lands as run records against this recipe\n")
-	id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
+	supersedes *artifact.ID,
+) error {
+	verified, err := runrecord.VerifyGateRun(
+		ctx, store, definition.ID, verification.Gate, verification.Run,
+	)
 	if err != nil {
-		return artifact.ID{}, err
+		return err
 	}
-	_, err = store.Commit(ctx, artifact.Batch{
-		Key: "recipe/activation-evidence/" + definition.ID.String(),
-		Contents: []artifact.Content{{
-			Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(payload))},
-			Data:       payload,
-		}},
-	})
+	decision, err := recipe.NewDecision(
+		definition.ID, recipe.DecisionAccepted, recipe.EvidenceExperimental, reason,
+		recipe.Decider{CodeCommit: verified.Gate.CodeCommit, Derivation: verified.Gate.ID},
+		[]artifact.ID{verified.Gate.ID, verified.Run.ID},
+	)
 	if err != nil {
-		return artifact.ID{}, err
+		return err
 	}
-	return id, nil
+	content, err := decision.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"recipe/activation-decision/"+definition.ID.String(),
+		[]artifact.Content{content},
+		[]artifact.Lineage{
+			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
+			{Child: decision.ID, Parent: verified.Gate.ID, Relation: artifact.RelationDependsOn},
+			{Child: decision.ID, Parent: verified.Run.ID, Relation: artifact.RelationDependsOn},
+		}, nil,
+	)
+	if err != nil {
+		return err
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		return err
+	}
+	if _, _, err := modelrecipe.ActivateVerified(
+		ctx, store, "recipe/active/"+definition.ID.String(), definition,
+		verification, []artifact.ID{decision.ID}, supersedes,
+	); err != nil {
+		return fmt.Errorf("transition active: %w", err)
+	}
+	return nil
 }
 
 func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
-	if capability, ok := capabilityCommands[task]; ok {
+	if capability, ok := capabilities[task]; ok {
 		var err error
 		inventory, err = capability.inventory(path)
 		if err != nil {

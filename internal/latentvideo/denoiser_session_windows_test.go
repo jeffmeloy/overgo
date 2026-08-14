@@ -18,7 +18,7 @@ func runSessionGoldenDenoise(t *testing.T, name string) {
 	t.Helper()
 	cudatest.Require(t)
 	if testing.Short() {
-		t.Skip("runs the full 30-block denoiser on CUDA; skipped in -short")
+		t.Skip("integration excluded by -short: runs the full 30-block denoiser on CUDA")
 	}
 	manifest, dir := loadDenoiseManifest(t, name)
 	program := newGoldenDenoiserProgram(t, manifest)
@@ -98,7 +98,7 @@ func TestDenoiserCUDASessionGoldenG3(t *testing.T) {
 func TestDenoiserCUDASessionBF16G3(t *testing.T) {
 	cudatest.Require(t)
 	if testing.Short() {
-		t.Skip("runs the full 30-block denoiser on CUDA; skipped in -short")
+		t.Skip("integration excluded by -short: runs the full 30-block denoiser on CUDA")
 	}
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	config, weights := denoiserFixture(t)

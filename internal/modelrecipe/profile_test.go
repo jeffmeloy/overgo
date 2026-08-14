@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -12,23 +11,37 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
-	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
-const profileCatalogSemanticDigest = "2eddc3ee45774afc139bf27e6dd3bf483dade3caefa07306ab0bff4084f3e4d3"
-const architectureProfileFactCount = 130
-const architectureProfileFactDigest = "f1821793e2b94c49b058a6f0bc42d1fef875854540b21b7b7bf648b8cca278c7"
-const architectureProfileFactSchemaDigest = "42fb99553b78b7685ddef10164f16735186cdb8e34659e850f32aa8e47a7cd42"
+const profileCatalogSemanticDigest = "9edb4b370acc86fc1a943a0ccd6a04f0ca80025394b998efb61a5704fe8c55d7"
+const architectureProfileFactCount = 144
+const architectureProfileFactDigest = "2817d972f131406dea0b7d5364e58c903c171442e8769e6862d6320963069a5e"
+const architectureProfileFactSchemaDigest = "b826d38aecff0410a73fcfb6f0bc3155b47484849d974d941a18b9b0af9dbf49"
 
 const unsupportedProfilePolicyValue = ^uint8(0)
 
-func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
-	documents, err := SeedProfileDocuments()
-	if err != nil {
-		t.Fatal(err)
+func seedProfileDocuments(t *testing.T) []ProfileDocument {
+	t.Helper()
+	names := model.SupportedArchitectures()
+	documents := make([]ProfileDocument, 0, len(names))
+	for _, name := range names {
+		profile, ok := model.LookupArchitecture(name)
+		if !ok {
+			t.Fatalf("registered profile %q is absent", name)
+		}
+		document, err := NewProfileDocument(profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		documents = append(documents, document)
 	}
+	return documents
+}
+
+func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
+	documents := seedProfileDocuments(t)
 	if len(documents) != len(model.SupportedArchitectures()) {
 		t.Fatalf("documents = %d", len(documents))
 	}
@@ -54,7 +67,7 @@ func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	facts := ArchitectureProfileFacts()
+	facts := slices.Clone(architectureProfileFacts)
 	if len(base) != len(facts) || len(base) != architectureProfileFactCount {
 		t.Fatalf("profile facts = %d", len(base))
 	}
@@ -65,7 +78,7 @@ func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
 	if got := fmt.Sprintf("%x", digest.Sum(nil)); got != architectureProfileFactDigest {
 		t.Fatalf("profile fact digest = %s", got)
 	}
-	schema, err := json.Marshal(ArchitectureProfileFactSchema())
+	schema, err := json.Marshal(architectureProfileFactSpecs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,33 +109,9 @@ func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
 	}
 }
 
-func TestLegacyProfileDocumentRemainsReadable(t *testing.T) {
-	profile, _ := model.LookupArchitecture("llama")
-	content, err := json.Marshal(profileBody{
-		Version: LegacyProfileVersion, Architecture: profile.Name, Policy: profile,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	document, err := ParseProfileDocument(content)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Version != LegacyProfileVersion || len(document.Provenance) != 0 {
-		t.Fatalf("legacy profile = %+v", document)
-	}
-	encoded, err := document.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(encoded, content) {
-		t.Fatal("legacy profile encoding changed")
-	}
-}
-
 func TestProfileDocumentRejectsInvalidPolicy(t *testing.T) {
 	profile, _ := model.LookupArchitecture("llama")
-	profile.Forward = model.ForwardPolicy(unsupportedProfilePolicyValue)
+	profile.Forward = model.ForwardProgram{Operation: model.ForwardOperation(unsupportedProfilePolicyValue)}
 	if _, err := NewProfileDocument(profile); err == nil {
 		t.Fatal("invalid profile document accepted")
 	}
@@ -138,10 +127,7 @@ func TestProfileDocumentRejectsInvalidPolicy(t *testing.T) {
 }
 
 func TestRegisteredProfileSemanticDigest(t *testing.T) {
-	documents, err := SeedProfileDocuments()
-	if err != nil {
-		t.Fatal(err)
-	}
+	documents := seedProfileDocuments(t)
 	digest := sha256.New()
 	for _, document := range documents {
 		fmt.Fprintln(digest, document.ID)
@@ -151,40 +137,7 @@ func TestRegisteredProfileSemanticDigest(t *testing.T) {
 	}
 }
 
-func TestPublishProfilesSeedsRegisteredAliases(t *testing.T) {
-	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	_, documents, err := PublishProfiles(ctx, store, "fixture/profiles")
-	if err != nil {
-		t.Fatal(err)
-	}
-	document, ok, err := RegisteredProfile(ctx, store, "llama")
-	if err != nil || !ok || document.Architecture != "llama" {
-		t.Fatalf("registered profile = (%s, %v, %v)", document.Architecture, ok, err)
-	}
-	if len(documents) != len(model.SupportedArchitectures()) {
-		t.Fatalf("documents = %d", len(documents))
-	}
-	derivationID := document.Provenance[0].DerivationID
-	content, ok, err := store.Content(ctx, derivationID)
-	if err != nil || !ok || content.Descriptor.MediaType != CatalogProfileDerivationMediaType {
-		t.Fatalf("profile derivation content = (%+v, %t, %v)", content.Descriptor, ok, err)
-	}
-	derivation, err := ParseCatalogProfileDerivation(content.Data)
-	if err != nil || derivation.ID != derivationID || derivation.Architecture != "llama" {
-		t.Fatalf("profile derivation = (%+v, %v)", derivation, err)
-	}
-	parents, err := store.Parents(ctx, document.ID)
-	if err != nil || len(parents) != 1 || parents[0].Parent != derivationID {
-		t.Fatalf("profile derivation lineage = (%+v, %v)", parents, err)
-	}
-}
-
-func TestRegisteredProfileRequiresStoredDerivationLineage(t *testing.T) {
+func TestLoadProfileRequiresStoredDerivationLineage(t *testing.T) {
 	ctx := context.Background()
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
@@ -196,7 +149,7 @@ func TestRegisteredProfileRequiresStoredDerivationLineage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := ProfileContent(document)
+	content, err := profileContent(document)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +157,7 @@ func TestRegisteredProfileRequiresStoredDerivationLineage(t *testing.T) {
 		"fixture/profile/unbound",
 		[]artifact.Content{content},
 		nil,
-		[]artifact.AliasBinding{{Name: registeredProfileAlias("llama"), Target: document.ID}},
+		nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -212,65 +165,12 @@ func TestRegisteredProfileRequiresStoredDerivationLineage(t *testing.T) {
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := RegisteredProfile(ctx, store, "llama"); err == nil {
+	if _, err := loadProfile(ctx, store, document.ID); err == nil {
 		t.Fatal("profile without derivation lineage loaded")
 	}
 }
 
-func TestPublishProfileCatalogReplacesBootstrapAuthority(t *testing.T) {
-	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	bootstrap, _ := model.LookupArchitecture("llama")
-	bootstrapDocument, err := NewProfileDocument(bootstrap)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := PublishProfileCatalog(ctx, store, "fixture/catalog/bootstrap", []ProfileDocument{bootstrapDocument}); err != nil {
-		t.Fatal(err)
-	}
-	candidate := bootstrap
-	candidate.DeciSparse = true
-	candidateDocument, err := NewProfileDocument(candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := PublishProfileCatalog(ctx, store, "fixture/catalog/candidate", []ProfileDocument{candidateDocument}); err != nil {
-		t.Fatal(err)
-	}
-	stored, ok, err := RegisteredProfile(ctx, store, "llama")
-	if err != nil || !ok || stored.ID != candidateDocument.ID || !stored.Policy.DeciSparse {
-		t.Fatalf("stored profile = (%+v, %v, %v)", stored, ok, err)
-	}
-	registered, _ := model.LookupArchitecture("llama")
-	if registered != bootstrap {
-		t.Fatal("RepoDB profile publication mutated bootstrap fallback")
-	}
-}
-
-func TestPublishProfileCatalogRejectsDuplicateArchitecture(t *testing.T) {
-	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	profile, _ := model.LookupArchitecture("llama")
-	document, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := PublishProfileCatalog(
-		ctx, store, "fixture/catalog/duplicate", []ProfileDocument{document, document},
-	); err == nil {
-		t.Fatal("duplicate profile architecture accepted")
-	}
-}
-
-func TestPublishProfileCatalogRequiresExternalDerivation(t *testing.T) {
+func TestProfilePublicationRequiresExternalDerivation(t *testing.T) {
 	ctx := context.Background()
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
@@ -292,126 +192,16 @@ func TestPublishProfileCatalogRequiresExternalDerivation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := PublishProfileCatalog(ctx, store, "fixture/catalog/external", []ProfileDocument{document}); err == nil {
+	contents, lineage, err := profilePublicationFacts(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch("fixture/catalog/external", contents, lineage, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err == nil {
 		t.Fatal("profile with absent external derivation committed")
-	}
-}
-
-func TestProfileCandidateParityPromotion(t *testing.T) {
-	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	modelID := commitFixtureModel(t, ctx, store, "fixture/profile/model", "parity-model")
-	profile, _ := model.LookupArchitecture("llama")
-	document, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	definition, err := inferenceWithProfileFixture(
-		modelID, document.ID, recipe.PlacementHost, DecodeSessionCapacity,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := PublishProfileCandidate(
-		ctx, store, "fixture/profile/candidate", definition, document,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if _, bound, err := store.ResolveAlias(ctx, legacyRecipeProfileAlias(definition.ID)); err != nil || bound {
-		t.Fatalf("legacy profile alias = (%v, %v)", bound, err)
-	}
-	parents, err := store.Parents(ctx, definition.ID)
-	if err != nil || len(parents) != len(definition.Dependencies) {
-		t.Fatalf("dependency lineage = (%+v, %v)", parents, err)
-	}
-	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1}}
-	_, _, evidence, err := ValidateProfileCandidate(
-		ctx, store, "fixture/profile/validated", definition, spec, model.Weights{},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if evidence.Profile != document.ID || evidence.Recipe != definition.ID {
-		t.Fatalf("evidence = %+v", evidence)
-	}
-	if _, _, err := ActivateProfileCandidate(
-		ctx, store, "fixture/profile/active", definition, nil,
-	); err != nil {
-		t.Fatal(err)
-	}
-	plan, ok, err := compileActiveFixture(ctx, store, modelID, spec, model.Weights{})
-	if err != nil || !ok || plan.Model.Profile() != profile {
-		t.Fatalf("active profile plan = (%+v, %v, %v)", plan.Model, ok, err)
-	}
-	activeProfile, ok, err := ActiveProfile(ctx, store, modelID, recipe.TaskInference)
-	if err != nil || !ok || activeProfile.ID != document.ID {
-		t.Fatalf("active profile = (%s, %v, %v)", activeProfile.ID, ok, err)
-	}
-}
-
-func TestProfileCandidateRejectsParityDrift(t *testing.T) {
-	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	modelID := commitFixtureModel(t, ctx, store, "fixture/drift/model", "drift-model")
-	profile, _ := model.LookupArchitecture("llama")
-	profile.Attention = model.AttentionLFM2
-	document, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	definition, err := inferenceWithProfileFixture(
-		modelID, document.ID, recipe.PlacementHost, DecodeSessionCapacity,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := PublishProfileCandidate(
-		ctx, store, "fixture/drift/candidate", definition, document,
-	); err != nil {
-		t.Fatal(err)
-	}
-	_, _, _, err = ValidateProfileCandidate(
-		ctx, store, "fixture/drift/validated", definition,
-		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1}}, model.Weights{},
-	)
-	if err == nil {
-		t.Fatal("drifted profile passed parity validation")
-	}
-}
-
-func TestCompileWithProfileMatchesRegistry(t *testing.T) {
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "profile-model")
-	profile, ok := model.LookupArchitecture("llama")
-	if !ok {
-		t.Fatal("llama profile is absent")
-	}
-	document, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	definition, err := inferenceWithProfileFixture(
-		modelID, document.ID, recipe.PlacementHost, DecodeSessionCapacity,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plan, err := VerifyProfileParity(
-		definition, document,
-		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", BlockCount: 1}}, model.Weights{},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if plan.Model.Profile().Name != "llama" || plan.Model.LayerCount() != 1 {
-		t.Fatalf("plan = %+v", plan.Model)
 	}
 }
 

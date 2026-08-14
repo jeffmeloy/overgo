@@ -31,8 +31,10 @@ import (
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
 	"overgo/internal/guard"
+	"overgo/internal/plan"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testevidence"
 )
 
 const (
@@ -62,12 +64,19 @@ func run() error {
 	pathsCSV := flag.String("paths", "", "comma-separated repo-relative paths this commit ships (required unless -merge)")
 	storePath := flag.String("store", "repodb-store", "RepoDB store directory (relative to repo root)")
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
+	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the plan's current open step (see `go run ./cmd/plan -next`). Required unless -merge. Off-plan commits are refused.")
 	flag.Parse()
 	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
-		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) [-store <dir>]")
+		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
 	}
 	repo, err := os.Getwd()
 	if err != nil {
+		return err
+	}
+	// Every commit -- including a merge finalize -- is bound to the plan's current
+	// open step. Merges are no longer exempt: a sync/merge is a first-class plan
+	// task (inject it with `plan -add`, then finalize with -plan <item>/do).
+	if err := checkPlanBinding(repo, *planRef); err != nil {
 		return err
 	}
 	g := &gateContext{
@@ -117,6 +126,35 @@ func run() error {
 	}
 	if outcome != runrecord.OutcomeSucceeded {
 		return fmt.Errorf("%s", failure)
+	}
+	return nil
+}
+
+// checkPlanBinding refuses any commit whose -plan is not the plan's current open
+// step. This is the enforcement that makes off-plan work impossible to commit:
+// the shared internal/plan.Current is the same "current step" cmd/plan dispatches
+// and verifies, so the gate and the dispatcher can never disagree.
+func checkPlanBinding(repo, ref string) error {
+	if ref == "" {
+		return fmt.Errorf("gate: -plan <item>/<step> is required (the plan's current open step; run `go run ./cmd/plan -next`)")
+	}
+	item, stepID, ok := strings.Cut(ref, "/")
+	if !ok || item == "" || stepID == "" {
+		return fmt.Errorf("gate: -plan must be <item>/<step>, got %q", ref)
+	}
+	document, err := plan.Load(filepath.Join(repo, plan.Path))
+	if err != nil {
+		return err
+	}
+	if err := plan.ValidateOpenWork(document); err != nil {
+		return err
+	}
+	it, st, open := plan.Current(document)
+	if !open {
+		return fmt.Errorf("gate: -plan %s given but the plan is COMPLETE (no open step) -- nothing to commit against", ref)
+	}
+	if item != it.ID || stepID != st.ID {
+		return fmt.Errorf("gate: -plan %s does NOT match the plan's current open step %s/%s -- commit only the dispatched step (off-plan commit REFUSED). If the plan is wrong, fix the plan first; do not commit around it", ref, it.ID, st.ID)
 	}
 	return nil
 }
@@ -415,27 +453,67 @@ func (g *gateContext) stepTest() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	var impacted []string
+	var direct, dependent []string
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		importPath, deps, _ := strings.Cut(line, " ")
 		if changed[importPath] {
-			impacted = append(impacted, importPath)
+			direct = append(direct, importPath)
 			continue
 		}
 		for _, dep := range strings.Split(deps, ",") {
 			if changed[dep] {
-				impacted = append(impacted, importPath)
+				dependent = append(dependent, importPath)
 				break
 			}
 		}
 	}
-	if len(impacted) == 0 {
+	if len(direct)+len(dependent) == 0 {
 		g.honesty = append(g.honesty, "tests skipped: changed packages have no importers and no tests resolved")
 		return true, nil
 	}
-	g.honesty = append(g.honesty, fmt.Sprintf("test scope: %d packages (derived from import graph)", len(impacted)))
-	_, err = command(g.repo, "go", append([]string{"test", "-count=1"}, impacted...)...)
-	return false, err
+	g.honesty = append(g.honesty, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
+	if len(direct) > 0 {
+		if _, err := runGoTests(g.repo, direct); err != nil {
+			return false, err
+		}
+	}
+	if len(dependent) == 0 {
+		return false, nil
+	}
+	report, err := runGoTestsAdvisory(g.repo, dependent)
+	if err != nil {
+		return false, err
+	}
+	if len(report.Skipped)+len(report.Unavailable) > 0 {
+		g.honesty = append(g.honesty, fmt.Sprintf(
+			"dependent fixture evidence not credited: %d skipped, %d unavailable",
+			len(report.Skipped), len(report.Unavailable),
+		))
+	}
+	return false, nil
+}
+
+func runGoTests(repo string, packages []string) (string, error) {
+	out, err := command(repo, "go", append([]string{"test", "-short", "-json", "-count=1"}, packages...)...)
+	if err != nil {
+		return out, err
+	}
+	if err := testevidence.GoTestJSONShort(out); err != nil {
+		return out, fmt.Errorf("impacted tests vacuous: %w", err)
+	}
+	return out, nil
+}
+
+func runGoTestsAdvisory(repo string, packages []string) (testevidence.GoTestReport, error) {
+	out, err := command(repo, "go", append([]string{"test", "-json", "-count=1"}, packages...)...)
+	if err != nil {
+		return testevidence.GoTestReport{}, err
+	}
+	report, err := testevidence.GoTestJSONReport(out)
+	if err != nil {
+		return testevidence.GoTestReport{}, fmt.Errorf("dependent test evidence: %w", err)
+	}
+	return report, nil
 }
 
 func (g *gateContext) stepManifest() (bool, error) {

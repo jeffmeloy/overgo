@@ -62,7 +62,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 		_, other := publishProgramFacts(t, store, otherPath)
 		definition, err := InferenceWithModelDefinition(
 			inventory.Manifest.ID, other.Profile.ID, other.Document.ID, recipe.PlacementHybrid,
-			DecodeSessionCapacity,
+			DecodeSessionCapacity, recipe.ResidencyHybridNative,
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -87,10 +87,7 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer loaded.Close()
-	identity, ok := loaded.Identity()
-	if !ok {
-		t.Fatal("resolved program identity is unavailable")
-	}
+	identity := loaded.state.Program.Identity
 	if identity.Model != inventory.Manifest.ID || identity.Profile != resolved.Profile.ID ||
 		identity.Definition != resolved.Document.ID || identity.Recipe != definition.ID ||
 		identity.RecipeVersion != definition.Version || identity.Placement != recipe.PlacementHybrid ||
@@ -99,16 +96,15 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 	}
 	mutated := identity
 	mutated.Profile = artifact.ID{}
-	identity, ok = loaded.Identity()
-	if !ok || identity.Profile != resolved.Profile.ID {
+	if loaded.state.Program.Identity.Profile != resolved.Profile.ID {
 		t.Fatal("returned identity mutated sealed program")
 	}
-	consumed, err := loaded.Consume()
+	file, _, _, _, _, _, err := loaded.Take()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer consumed.Close()
-	if _, err := loaded.Consume(); err == nil {
+	defer file.Close()
+	if _, _, _, _, _, _, err := loaded.Take(); err == nil {
 		t.Fatal("loaded program consumed twice")
 	}
 }
@@ -145,7 +141,11 @@ func publishProgramFacts(
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, err := NewModelDefinitionFromGGUF(file, profileDocument, inventory.TensorInventory)
+	spec, err := model.ReadSpecWithProfile(file, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func definitionRecipe(
 	t.Helper()
 	definition, err := InferenceWithModelDefinition(
 		inventory.Manifest.ID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
-		DecodeSessionCapacity,
+		DecodeSessionCapacity, recipe.ResidencyHybridNative,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -186,15 +186,8 @@ func activateProgram(t *testing.T, store artifact.Repository, definition recipe.
 	if _, _, err := Transition(ctx, store, "fixture/program/validated/"+definition.ID.String(), definition, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	evidence := []byte("program-validation")
-	evidenceID := testutil.ArtifactBytesID(t, artifact.KindEvidence, evidence)
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "fixture/program/evidence/" + definition.ID.String(),
-		Artifacts: []artifact.Descriptor{{ID: evidenceID, Size: uint64(len(evidence))}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := Transition(ctx, store, "fixture/program/active/"+definition.ID.String(), definition, recipe.StatusActive, []artifact.ID{evidenceID}, nil); err != nil {
+	verification := publishVerification(t, store, definition.ID, "fixture/program/verification/"+definition.ID.String())
+	if _, _, err := ActivateVerified(ctx, store, "fixture/program/active/"+definition.ID.String(), definition, verification, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }

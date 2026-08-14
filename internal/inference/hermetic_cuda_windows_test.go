@@ -28,9 +28,10 @@ const (
 )
 
 func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
+	requireIntegration(t)
 	cudatest.Require(t)
 	path := writeHermeticLlamaGGUF(t)
-	runner, err := openFixtureRunnerWithOptions(path, OpenOptions{PreloadDeviceWeights: true, CachePageTokens: 4})
+	runner, err := openF32FixtureRunner(path, OpenOptions{CachePageTokens: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,9 +134,10 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 // storage lives in a GROWN page (Cap=8) -- the exact condition that exposed the
 // keyShape/keyCapacity off-by-one on the 12B.
 func TestHermeticCUDACapacityCachePageBoundary(t *testing.T) {
+	requireIntegration(t)
 	cudatest.Require(t)
 	path := writeHermeticLlamaGGUF(t)
-	runner, err := openFixtureRunnerWithOptions(path, OpenOptions{PreloadDeviceWeights: true, CachePageTokens: 4})
+	runner, err := openF32FixtureRunner(path, OpenOptions{CachePageTokens: 4})
 	if err != nil {
 		t.Fatal(err)
 	}

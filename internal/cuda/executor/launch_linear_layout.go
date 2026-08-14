@@ -161,6 +161,44 @@ func launchLinearLayout(
 		left := pointers[leftNode]
 		right := pointers[rightNode]
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
+			attributes, hasAttributes := runtimeAttributes.(tensor.MulMatAttributes)
+			tensorCore := hasAttributes && attributes.Compute == tensor.MulMatComputeBF16TensorCore
+			if tensorCore && rightRows > 1 {
+				if leftNode.Type != dtype.BF16 || rightNode.Type != dtype.F32 {
+					return errors.New("BF16 tensor-core mul_mat has incompatible inputs")
+				}
+				if blas == nil || blas.staging == 0 {
+					return errors.New("BF16 tensor-core mul_mat workspace is unavailable")
+				}
+				elements := uint64(inner) * uint64(rightRows)
+				if elements > math.MaxUint32 || elements*2 > blas.stagingBytes {
+					return errors.New("BF16 tensor-core mul_mat input exceeds workspace")
+				}
+				if blas.stagedNode != rightNode {
+					count := uint32(elements)
+					if err := launch1DABI(
+						state, functions[kernelF32ToBf16], count,
+						&right, &blas.staging, &count,
+					); err != nil {
+						return err
+					}
+					blas.stagedNode = rightNode
+				}
+				if traceExternalCall(
+					state, traceTagGEMMEx,
+					uint64(left), uint64(blas.staging), uint64(output),
+					uint64(leftRows), uint64(rightRows), uint64(inner),
+				) {
+					return nil
+				}
+				return blas.library.GEMMEx(
+					blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+					int32(leftRows), int32(rightRows), int32(inner), 1,
+					left, cublas.DataBF16, int32(inner),
+					blas.staging, cublas.DataBF16, int32(inner), 0,
+					output, cublas.DataF32, int32(leftRows), cublas.ComputeF32, cublas.GemmDefault,
+				)
+			}
 			// native half-precision residency, one mechanism parameterized by the
 			// weight dtype: single-token decode reads the 2-byte weight directly
 			// (lossless per-element upconvert in-kernel, F32 accumulate);
@@ -187,22 +225,23 @@ func launchLinearLayout(
 			if rightNode.Type != dtype.F32 {
 				return fmt.Errorf("%s mul_mat right input has type %s", leftNode.Type, rightNode.Type)
 			}
-			if blas == nil || blas.weightStaging == 0 {
+			if blas == nil || blas.staging == 0 {
 				return fmt.Errorf("%s mul_mat weight workspace is unavailable", leftNode.Type)
 			}
 			weightElements := uint64(inner) * uint64(leftRows)
-			if weightElements > math.MaxUint32 || weightElements*4 > blas.weightStagingBytes {
+			if weightElements > math.MaxUint32 || weightElements*4 > blas.stagingBytes {
 				return fmt.Errorf("%s mul_mat weight exceeds workspace", leftNode.Type)
 			}
 			count := uint32(weightElements)
 			if err := launch1DABI(
-				state, functions[upconvertKernel], count, &left, &blas.weightStaging, &count,
+				state, functions[upconvertKernel], count, &left, &blas.staging, &count,
 			); err != nil {
 				return err
 			}
+			blas.stagedNode = nil
 			if traceExternalCall(
 				state, traceTagSGEMM,
-				uint64(blas.weightStaging), uint64(right), uint64(output),
+				uint64(blas.staging), uint64(right), uint64(output),
 				uint64(leftRows), uint64(rightRows), uint64(inner),
 			) {
 				return nil
@@ -210,7 +249,7 @@ func launchLinearLayout(
 			err = blas.library.SGEMM(
 				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
 				int32(leftRows), int32(rightRows), int32(inner), 1,
-				blas.weightStaging, int32(inner), right, int32(inner), 0,
+				blas.staging, int32(inner), right, int32(inner), 0,
 				output, int32(leftRows),
 			)
 			runtime.KeepAlive(left)
@@ -243,24 +282,25 @@ func launchLinearLayout(
 					&left, &scale, &right, &output, &inner, &leftRows, &rightRows,
 				)
 			}
-			if blas == nil || blas.weightStaging == 0 {
+			if blas == nil || blas.staging == 0 {
 				return errors.New("fp8 mul_mat weight workspace is unavailable")
 			}
 			weightElements := uint64(inner) * uint64(leftRows)
-			if weightElements > math.MaxUint32 || weightElements*4 > blas.weightStagingBytes {
+			if weightElements > math.MaxUint32 || weightElements*4 > blas.stagingBytes {
 				return errors.New("fp8 mul_mat weight exceeds workspace")
 			}
 			if err := launchGridABI(
 				state, functions[kernelFp8ToF32],
 				driver.Dim3{X: leftRows, Y: 1, Z: 1},
 				driver.Dim3{X: 256, Y: 1, Z: 1},
-				&left, &scale, &blas.weightStaging, &inner, &leftRows,
+				&left, &scale, &blas.staging, &inner, &leftRows,
 			); err != nil {
 				return err
 			}
+			blas.stagedNode = nil
 			if traceExternalCall(
 				state, traceTagSGEMM,
-				uint64(blas.weightStaging), uint64(right), uint64(output),
+				uint64(blas.staging), uint64(right), uint64(output),
 				uint64(leftRows), uint64(rightRows), uint64(inner),
 			) {
 				return nil
@@ -268,7 +308,7 @@ func launchLinearLayout(
 			err = blas.library.SGEMM(
 				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
 				int32(leftRows), int32(rightRows), int32(inner), 1,
-				blas.weightStaging, int32(inner), right, int32(inner), 0,
+				blas.staging, int32(inner), right, int32(inner), 0,
 				output, int32(leftRows),
 			)
 			runtime.KeepAlive(left)

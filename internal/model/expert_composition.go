@@ -16,8 +16,8 @@ const (
 	expertSharedLimited
 	expertSharedGated
 	expertGrouped
-	expertGrok
-	expertArctic
+	expertDenseRoutedPostNorm
+	expertDenseRoutedSeparateNorm
 )
 
 type expertCompositionCondition uint8
@@ -54,7 +54,7 @@ const (
 	expertCatalogWithRouter
 	expertCatalogAfterDense
 	expertCatalogInterleaved
-	expertCatalogAfterDenseExceptNextN
+	expertCatalogAfterDenseExceptDraft
 )
 
 type expertBiasCatalogPolicy uint8
@@ -79,12 +79,12 @@ const (
 type expertSupplementalCatalog uint8
 
 const (
-	expertSupplementGemma4 expertSupplementalCatalog = 1 << iota
-	expertSupplementOpenAIBiases
-	expertSupplementGrouped
-	expertSupplementGrokDense
-	expertSupplementExpertNorm
-	expertSupplementDenseFFN
+	expertSupplementScaledSandwichNorm expertSupplementalCatalog = 1 << iota
+	expertSupplementRequiredProjectionBiases
+	expertSupplementChunkExperts
+	expertSupplementOptionalDenseGEGLU
+	expertSupplementExpertInputNorm
+	expertSupplementDenseBranch
 )
 
 func (c expertSupplementalCatalog) has(item expertSupplementalCatalog) bool {
@@ -123,7 +123,7 @@ func (p ExpertPolicy) usesCatalog(spec Spec, block uint32, routerPresent, nextN 
 		return block >= spec.LeadingDenseBlocks
 	case expertCatalogInterleaved:
 		return spec.IsInterleavedMoELayer(block)
-	case expertCatalogAfterDenseExceptNextN:
+	case expertCatalogAfterDenseExceptDraft:
 		return block >= spec.LeadingDenseBlocks && !nextN
 	default:
 		return false
@@ -158,7 +158,7 @@ type ExpertCompositionPlan struct {
 func (p ExpertCompositionPlan) Validate(spec Spec) error {
 	if p.kind == expertGrouped && (spec.ExpertsPerGroup == 0 || spec.ExpertCount == 0 ||
 		spec.ExpertCount%spec.ExpertsPerGroup != 0) {
-		return errors.New("GroveMoE expert grouping is invalid")
+		return errors.New("grouped expert composition is invalid")
 	}
 	return nil
 }
@@ -174,7 +174,7 @@ func (s Spec) expertCompositionPlan() ExpertCompositionPlan {
 	return plan
 }
 
-func (p ExpertCompositionPlan) buildArctic(
+func (p ExpertCompositionPlan) buildDenseRoutedSeparateNorm(
 	builder *tensor.Builder,
 	input, residual *tensor.Tensor,
 	spec Spec,
@@ -200,8 +200,8 @@ func (p ExpertCompositionPlan) Build(
 	weights LayerGraphWeights,
 	layerPlan LayerPlan,
 ) (*tensor.Tensor, error) {
-	if p.kind == expertArctic {
-		return p.buildArctic(builder, input, residual, spec, weights, layerPlan.Experts)
+	if p.kind == expertDenseRoutedSeparateNorm {
+		return p.buildDenseRoutedSeparateNorm(builder, input, residual, spec, weights, layerPlan.Experts)
 	}
 	var routerInput *tensor.Tensor
 	if p.routerInputOriginal {
@@ -221,7 +221,7 @@ func (p ExpertCompositionPlan) Build(
 		up := builder.MulMat(weights.FeedForwardSharedUp, normalized)
 		shared := builder.MulMat(
 			weights.FeedForwardSharedDown,
-			limitedSwiGLU(builder, gate, up, spec.LayerSharedSwiGLUClampLimit(layerPlan.Layer)),
+			postActivationLimitedSwiGLU(builder, gate, up, spec.LayerSharedSwiGLUClampLimit(layerPlan.Layer)),
 		)
 		routed = builder.Add(routed, shared)
 	case expertSharedGated:
@@ -233,7 +233,7 @@ func (p ExpertCompositionPlan) Build(
 		routed = builder.Add(routed, builder.Multiply(shared, gate))
 	case expertGrouped:
 		if spec.ExpertsPerGroup == 0 {
-			return nil, errors.New("GroveMoE expert grouping is invalid")
+			return nil, errors.New("grouped expert composition is invalid")
 		}
 		chunkTopK := spec.ExpertUsedCount
 		chunkExperts := spec.ExpertCount / spec.ExpertsPerGroup
@@ -250,12 +250,12 @@ func (p ExpertCompositionPlan) Build(
 			},
 		)
 		routed = builder.Add(routed, builder.Scale(chunk, spec.ExpertGroupScale))
-	case expertGrok:
+	case expertDenseRoutedPostNorm:
 		if weights.FeedForwardUp != nil || weights.FeedForwardGate != nil ||
 			weights.FeedForwardDown != nil {
 			if weights.FeedForwardUp == nil || weights.FeedForwardGate == nil ||
 				weights.FeedForwardDown == nil {
-				return nil, errors.New("Grok dense FFN weights are incomplete")
+				return nil, errors.New("dense routed FFN weights are incomplete")
 			}
 			gate := builder.MulMat(weights.FeedForwardGate, normalized)
 			up := builder.MulMat(weights.FeedForwardUp, normalized)
@@ -263,7 +263,7 @@ func (p ExpertCompositionPlan) Build(
 			routed = builder.Scale(builder.Add(dense, routed), float32(math.Sqrt(0.5)))
 		}
 		if weights.FeedForwardPostNorm == nil {
-			return nil, errors.New("Grok feed-forward post norm is nil")
+			return nil, errors.New("dense routed feed-forward post norm is nil")
 		}
 		routed = builder.WeightedRMSNorm(
 			routed, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,

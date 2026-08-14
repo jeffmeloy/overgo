@@ -155,17 +155,26 @@ func decodeGraphOutputs(graph deviceBatchGraph, output deviceOutputPlan) []*tens
 	// admits each output once, so aliased tensors are collected once.
 	seen := map[*tensor.Tensor]struct{}{first: {}}
 	for layer := range graph.keys {
-		for _, node := range graph.states[layer].AppendValues(
+		result = appendUniqueGraphOutputs(result, seen, graph.states[layer].AppendValues(
 			[]*tensor.Tensor{graph.keys[layer], graph.values[layer]},
-		) {
-			if _, duplicate := seen[node]; duplicate {
-				continue
-			}
-			seen[node] = struct{}{}
-			result = append(result, node)
-		}
+		)...)
 	}
 	return result
+}
+
+func appendUniqueGraphOutputs(
+	outputs []*tensor.Tensor,
+	seen map[*tensor.Tensor]struct{},
+	candidates ...*tensor.Tensor,
+) []*tensor.Tensor {
+	for _, node := range candidates {
+		if _, duplicate := seen[node]; duplicate {
+			continue
+		}
+		seen[node] = struct{}{}
+		outputs = append(outputs, node)
+	}
+	return outputs
 }
 
 func (p *decodeSessionPlan) updateBranch(

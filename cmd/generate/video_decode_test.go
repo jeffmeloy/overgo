@@ -9,6 +9,7 @@ import (
 )
 
 func TestDecodeVideoFileFFmpeg(t *testing.T) {
+	requireIntegration(t)
 	ffmpeg := os.Getenv("OVERGO_FFMPEG_TEST")
 	if ffmpeg == "" {
 		t.Skip("set OVERGO_FFMPEG_TEST to run FFmpeg integration tests")

@@ -106,7 +106,7 @@ func TestGemma3nModalitiesBackwardFD(t *testing.T) {
 	seed := g3nRandShape(rng, tensor.MustShape(g3nMods, g3nTokens), 0, 1)
 
 	loss := func() float64 {
-		out, _ := gemma3nModalities(input, layer, spec)
+		out, _ := gemma3nModalities(input, layer, spec.EmbeddingLength, spec.RMSNormEpsilon)
 		var s float64
 		for i := range out.Data {
 			s += float64(out.Data[i]) * float64(seed.Data[i])
@@ -193,7 +193,9 @@ func TestGemma3nPredictBackwardFD(t *testing.T) {
 		seeds[i] = g3nRandShape(rng, tensor.MustShape(g3nEmb, g3nTokens), 0, 1)
 	}
 	loss := func() float64 {
-		res, _ := gemma3nPredict(states, layer, spec)
+		res, _ := gemma3nPredict(
+			states, layer, spec.AltUpActive, spec.EmbeddingLength, spec.RMSNormEpsilon,
+		)
 		var s float64
 		for k := range res {
 			for i := range res[k].Data {
@@ -226,7 +228,9 @@ func smoothCorrectAndInject(predictions []reference.Value, activated, perLayer r
 	active := int(spec.AltUpActive)
 	tokens := int(activated.Shape.Dims[1])
 	width := int(activated.Shape.Dims[0])
-	modalities, _ := gemma3nModalities(activated, layer, spec)
+	modalities, _ := gemma3nModalities(
+		activated, layer, spec.EmbeddingLength, spec.RMSNormEpsilon,
+	)
 	coefficients, _ := gemma3nMatMul(*layer.AltUpCorrectCoefficient, modalities)
 	result := make([]reference.Value, count)
 	for index := range predictions {

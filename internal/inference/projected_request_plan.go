@@ -27,9 +27,9 @@ func (r *Runner) compileProjectedRequestPlan(
 	if tokens == 0 {
 		return projectedRequestPlan{}, errors.New("inference: token sequence is empty")
 	}
-	profile := r.profile()
+	program := r.program.Model.ProjectedInput()
 	if inputs.MultiAxisPositions != nil {
-		if !r.spec.SupportsMultiAxisPositionsWithProfile(profile) {
+		if !program.MultiAxis {
 			return projectedRequestPlan{}, errors.New("inference: model does not support multi-axis positions")
 		}
 		for axis := range inputs.MultiAxisPositions {
@@ -41,16 +41,16 @@ func (r *Runner) compileProjectedRequestPlan(
 			}
 		}
 	}
-	if err := validateDeepstackInputs(r.spec, profile, tokens, inputs.DeepstackEmbeddings); err != nil {
+	if err := validateDeepstackInputs(r.spec, program.DeepstackStreams, tokens, inputs.DeepstackEmbeddings); err != nil {
 		return projectedRequestPlan{}, err
 	}
 	attentionBlockIDs, err := projectedAttentionBlockIDs(
-		profile.AttentionBlocks, tokens, hasCache, inputs.BidirectionalAttentionBlocks,
+		program.AttentionBlocks, tokens, hasCache, inputs.BidirectionalAttentionBlocks,
 	)
 	if err != nil {
 		return projectedRequestPlan{}, err
 	}
-	visualMode := profile.Overrides == model.EmbeddingOverrideCogVLM && len(inputs.EmbeddingOverrides) > 0
+	visualMode := program.Overrides == model.EmbeddingOverrideVisualSpan && len(inputs.EmbeddingOverrides) > 0
 	if visualMode {
 		if err := validateCogVLMVisualOverrides(tokens, inputs.EmbeddingOverrides); err != nil {
 			return projectedRequestPlan{}, err
@@ -58,7 +58,7 @@ func (r *Runner) compileProjectedRequestPlan(
 	}
 	var visualBlocks []AttentionBlock
 	if len(inputs.VisualExpertBlocks) > 0 {
-		if profile.Overrides != model.EmbeddingOverrideCogVLM {
+		if program.Overrides != model.EmbeddingOverrideVisualSpan {
 			return projectedRequestPlan{}, errors.New("inference: visual expert blocks require CogVLM architecture")
 		}
 		if inputs.MultiAxisPositions != nil || len(inputs.DeepstackEmbeddings) > 0 ||
@@ -71,10 +71,10 @@ func (r *Runner) compileProjectedRequestPlan(
 		}
 	}
 	return projectedRequestPlan{
-		overridePolicy: profile.Overrides, overrides: inputs.EmbeddingOverrides,
+		overridePolicy: program.Overrides, overrides: inputs.EmbeddingOverrides,
 		multiPositions: inputs.MultiAxisPositions, deepstackInputs: inputs.DeepstackEmbeddings,
 		attentionBlockIDs: attentionBlockIDs, visualBlocks: visualBlocks,
 		visualMode:    visualMode,
-		deepstackBase: profile.Overrides == model.EmbeddingOverrideDeepstackBase && len(r.spec.DeepstackMapping) > 0,
+		deepstackBase: program.Overrides == model.EmbeddingOverrideMappedBase && len(r.spec.DeepstackMapping) > 0,
 	}, nil
 }

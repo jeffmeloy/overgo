@@ -15,23 +15,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"overgo/internal/artifact"
 )
 
-// Recognition constants: the pipeline/sub-model class strings this package
-// binds. Class strings are data read from the artifact, matched here.
-const (
-	PipelineClass    = "Krea2Pipeline"           // model_index.json _class_name
-	TransformerClass = "Krea2Transformer2DModel" // transformer/config.json _class_name
-	VAEClass         = "AutoencoderKLQwenImage"  // vae/config.json _class_name
-	TextEncoderType  = "qwen3_vl"                // text_encoder/config.json model_type
-	FamilyTag        = "krea"                    // discovery/recipe scope tag (NOT an executor id)
-)
+// FamilyTag is discovery metadata, not execution authority.
+const FamilyTag = "krea"
 
 // TokenizerKind names the tokenizer class from model_index.json.
 type TokenizerKind string
-
-// TokenizerQwen2 is the Qwen2 BPE tokenizer.
-const TokenizerQwen2 TokenizerKind = "Qwen2Tokenizer"
 
 // TransformerSpec: dual-stream latent-image diffusion transformer geometry.
 // Field comments name the SOURCE: [cfg K] a config key, [der ...] a derivation,
@@ -47,6 +39,7 @@ type TransformerSpec struct {
 	Intermediate  int     // [cfg intermediate_size] xcheck ff.gate.weight[0], ff.down.weight[1]
 	RopeAxes      [3]int  // [cfg axes_dims_rope] xcheck sum==HeadDim
 	RopeTheta     float64 // [cfg rope_theta]
+	NormEps       float64 // [cfg norm_eps] zero-centered RMSNorm epsilon
 	TimestepEmbed int     // [cfg timestep_embed_dim] xcheck time_embed.linear_1.weight[1]
 	ModFields     int     // [der time_mod_proj.weight[0]/Hidden] xcheck transformer_blocks.0.scale_shift_table[0]
 
@@ -79,17 +72,20 @@ type TextEncoderSpec struct {
 	ModelType    string  // [cfg model_type] == TextEncoderType
 	HiddenLayers int     // [cfg text_config.num_hidden_layers] xcheck count(language_model.layers.N)
 	Hidden       int     // [cfg text_config.hidden_size] xcheck language_model.embed_tokens.weight[1]
+	Intermediate int     // [cfg text_config.intermediate_size] xcheck mlp.down_proj.weight[1]
 	Heads        int     // [cfg text_config.num_attention_heads] xcheck q_proj.weight[0]/HeadDim
 	KVHeads      int     // [cfg text_config.num_key_value_heads] xcheck k_proj.weight[0]/HeadDim
 	HeadDim      int     // [cfg text_config.head_dim] xcheck self_attn.q_norm.weight
 	VocabSize    int     // [cfg text_config.vocab_size] xcheck embed_tokens.weight[0]
 	RopeTheta    float64 // [cfg text_config.rope_parameters.rope_theta]
-	SelectLayers []int   // [cfg model_index.text_encoder_select_layers] fusion pick (0-based)
+	RMSNormEps   float64 // [cfg text_config.rms_norm_eps] standard RMSNorm epsilon
+	SelectLayers []int   // [cfg model_index.text_encoder_select_layers] fusion pick (hidden_states idx)
 }
 
 // Spec: the recognized, geometry-derived artifact description. Serving-only;
 // no training lane. Sub-specs are functional; Family/Pipeline carry the tag.
 type Spec struct {
+	Profile     artifact.ID
 	Pipeline    string // model_index _class_name (== PipelineClass)
 	Family      string // FamilyTag (discovery/recipe scope)
 	Scheduler   string // model_index scheduler class
@@ -126,6 +122,7 @@ type transformerConfig struct {
 	IntermediateSize  int     `json:"intermediate_size"`
 	NumAttentionHeads int     `json:"num_attention_heads"`
 	NumKeyValueHeads  int     `json:"num_key_value_heads"`
+	NormEps           float64 `json:"norm_eps"`
 	NumLayers         int     `json:"num_layers"`
 	NumLayerwiseText  int     `json:"num_layerwise_text_blocks"`
 	NumRefinerText    int     `json:"num_refiner_text_blocks"`
@@ -152,12 +149,14 @@ type vaeConfig struct {
 type textEncoderConfig struct {
 	ModelType  string `json:"model_type"`
 	TextConfig struct {
-		HeadDim          int `json:"head_dim"`
-		HiddenSize       int `json:"hidden_size"`
-		NumAttentionHead int `json:"num_attention_heads"`
-		NumHiddenLayers  int `json:"num_hidden_layers"`
-		NumKeyValueHeads int `json:"num_key_value_heads"`
-		VocabSize        int `json:"vocab_size"`
+		HeadDim          int     `json:"head_dim"`
+		HiddenSize       int     `json:"hidden_size"`
+		IntermediateSize int     `json:"intermediate_size"`
+		NumAttentionHead int     `json:"num_attention_heads"`
+		NumHiddenLayers  int     `json:"num_hidden_layers"`
+		NumKeyValueHeads int     `json:"num_key_value_heads"`
+		VocabSize        int     `json:"vocab_size"`
+		RMSNormEps       float64 `json:"rms_norm_eps"`
 		RopeParameters   struct {
 			RopeTheta float64 `json:"rope_theta"`
 		} `json:"rope_parameters"`
@@ -171,26 +170,32 @@ type textEncoderConfig struct {
 // a different class, reports (nil,false,nil) -- not an error, so discovery can
 // probe any directory. Malformed JSON reports an error.
 func RecognizePipeline(dir string) (*Spec, bool, error) {
-	path := filepath.Join(dir, "model_index.json")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, false, nil
-		}
-		return nil, false, fmt.Errorf("latentimage: read model_index: %w", err)
-	}
-	var index modelIndex
-	if err := json.Unmarshal(raw, &index); err != nil {
-		return nil, false, fmt.Errorf("latentimage: parse model_index: %w", err)
-	}
-	if index.ClassName != PipelineClass {
-		return nil, false, nil
+	recognized, err := IsPipeline(dir)
+	if err != nil || !recognized {
+		return nil, recognized, err
 	}
 	spec, err := Derive(dir)
 	if err != nil {
 		return nil, false, err
 	}
 	return spec, true, nil
+}
+
+// IsPipeline: bounded class probe without config derivation.
+func IsPipeline(dir string) (bool, error) {
+	path := filepath.Join(dir, "model_index.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("latentimage: read model_index: %w", err)
+	}
+	var index modelIndex
+	if err := json.Unmarshal(raw, &index); err != nil {
+		return false, fmt.Errorf("latentimage: parse model_index: %w", err)
+	}
+	return supportsPipeline(index.ClassName)
 }
 
 // Derive reads model_index.json + the three sub-configs and builds the Spec,
@@ -200,33 +205,37 @@ func RecognizePipeline(dir string) (*Spec, bool, error) {
 // cross-model text_hidden_dim == text_encoder.hidden_size fusion boundary.
 // VerifyCheckpoint then asserts the config values against real tensor shapes.
 func Derive(dir string) (*Spec, error) {
+	profile, err := ResolveProfile(dir)
+	if err != nil {
+		return nil, err
+	}
 	var index modelIndex
 	if err := readJSON(filepath.Join(dir, "model_index.json"), &index); err != nil {
 		return nil, err
 	}
-	if index.ClassName != PipelineClass {
-		return nil, fmt.Errorf("latentimage: pipeline class %q != %q", index.ClassName, PipelineClass)
+	if index.ClassName != profile.Classes.Pipeline {
+		return nil, fmt.Errorf("latentimage: pipeline class %q != %q", index.ClassName, profile.Classes.Pipeline)
 	}
 	var tcfg transformerConfig
 	if err := readJSON(filepath.Join(dir, "transformer", "config.json"), &tcfg); err != nil {
 		return nil, err
 	}
-	if tcfg.ClassName != TransformerClass {
-		return nil, fmt.Errorf("latentimage: transformer class %q != %q", tcfg.ClassName, TransformerClass)
+	if tcfg.ClassName != profile.Classes.Transformer {
+		return nil, fmt.Errorf("latentimage: transformer class %q != %q", tcfg.ClassName, profile.Classes.Transformer)
 	}
 	var vcfg vaeConfig
 	if err := readJSON(filepath.Join(dir, "vae", "config.json"), &vcfg); err != nil {
 		return nil, err
 	}
-	if vcfg.ClassName != VAEClass {
-		return nil, fmt.Errorf("latentimage: vae class %q != %q", vcfg.ClassName, VAEClass)
+	if vcfg.ClassName != profile.Classes.VAE {
+		return nil, fmt.Errorf("latentimage: vae class %q != %q", vcfg.ClassName, profile.Classes.VAE)
 	}
 	var ecfg textEncoderConfig
 	if err := readJSON(filepath.Join(dir, "text_encoder", "config.json"), &ecfg); err != nil {
 		return nil, err
 	}
-	if ecfg.ModelType != TextEncoderType {
-		return nil, fmt.Errorf("latentimage: text_encoder model_type %q != %q", ecfg.ModelType, TextEncoderType)
+	if ecfg.ModelType != profile.Classes.TextEncoder {
+		return nil, fmt.Errorf("latentimage: text_encoder model_type %q != %q", ecfg.ModelType, profile.Classes.TextEncoder)
 	}
 
 	if len(tcfg.AxesDimsRope) != 3 {
@@ -237,6 +246,7 @@ func Derive(dir string) (*Spec, error) {
 	}
 
 	spec := &Spec{
+		Profile:     profile.ID,
 		Pipeline:    index.ClassName,
 		Family:      FamilyTag,
 		Scheduler:   index.Scheduler[1],
@@ -255,6 +265,7 @@ func Derive(dir string) (*Spec, error) {
 			Intermediate:        tcfg.IntermediateSize,
 			RopeAxes:            [3]int{tcfg.AxesDimsRope[0], tcfg.AxesDimsRope[1], tcfg.AxesDimsRope[2]},
 			RopeTheta:           tcfg.RopeTheta,
+			NormEps:             tcfg.NormEps,
 			TimestepEmbed:       tcfg.TimestepEmbedDim,
 			ModFields:           0, // derived from tensor shape in VerifyCheckpoint
 			TextLayers:          tcfg.NumTextLayers,
@@ -281,11 +292,13 @@ func Derive(dir string) (*Spec, error) {
 			ModelType:    ecfg.ModelType,
 			HiddenLayers: ecfg.TextConfig.NumHiddenLayers,
 			Hidden:       ecfg.TextConfig.HiddenSize,
+			Intermediate: ecfg.TextConfig.IntermediateSize,
 			Heads:        ecfg.TextConfig.NumAttentionHead,
 			KVHeads:      ecfg.TextConfig.NumKeyValueHeads,
 			HeadDim:      ecfg.TextConfig.HeadDim,
 			VocabSize:    ecfg.TextConfig.VocabSize,
 			RopeTheta:    ecfg.TextConfig.RopeParameters.RopeTheta,
+			RMSNormEps:   ecfg.TextConfig.RMSNormEps,
 			SelectLayers: index.SelectLayers,
 		},
 	}
@@ -314,10 +327,13 @@ func (s *Spec) crossCheckConfig() error {
 	if len(e.SelectLayers) != t.TextLayers {
 		return fmt.Errorf("latentimage: len(select_layers)=%d != num_text_layers %d", len(e.SelectLayers), t.TextLayers)
 	}
-	// selected layers must index into the text encoder depth (0-based)
+	// Selected layers index hidden_states[N] captured AFTER decoder layer N-1
+	// (adaptive convention; hidden_states[0] is the embedding). Valid range is
+	// [1, HiddenLayers], matching captureSlots -- the code that executes the
+	// capture -- so a config that passes derivation cannot fail at execution.
 	for _, layer := range e.SelectLayers {
-		if layer < 0 || layer >= e.HiddenLayers {
-			return fmt.Errorf("latentimage: select layer %d out of range [0,%d)", layer, e.HiddenLayers)
+		if layer < 1 || layer > e.HiddenLayers {
+			return fmt.Errorf("latentimage: select layer %d out of range [1,%d]", layer, e.HiddenLayers)
 		}
 	}
 	// latents_mean/std length == z_dim

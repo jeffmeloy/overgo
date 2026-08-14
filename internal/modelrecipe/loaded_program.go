@@ -27,11 +27,6 @@ type loadedProgramState struct {
 	Program      Plan
 }
 
-// ConsumedProgram: one-shot serving ownership.
-type ConsumedProgram struct {
-	state *loadedProgramState
-}
-
 // ResolveActiveGGUF: verifies and compiles the active recipe before execution.
 func ResolveActiveGGUF(
 	ctx context.Context,
@@ -124,62 +119,17 @@ func (l *LoadedProgram) bindResolved(
 	return nil
 }
 
-// Identity: immutable compiled serving identity.
-func (l LoadedProgram) Identity() (ProgramIdentity, bool) {
-	if l.state == nil {
-		return ProgramIdentity{}, false
-	}
-	return l.state.Program.Identity, true
-}
-
-// Architecture: verified model architecture.
-func (l LoadedProgram) Architecture() (string, bool) {
-	if l.state == nil {
-		return "", false
-	}
-	return l.state.Spec.Architecture, true
-}
-
-// LayerPlans: immutable compiled layer-program copy.
-func (l LoadedProgram) LayerPlans() ([]model.LayerPlan, bool) {
-	if l.state == nil {
-		return nil, false
-	}
-	return l.state.Program.Model.Layers(), true
-}
-
-// Consume: transfers resolved serving ownership exactly once.
-func (l *LoadedProgram) Consume() (*ConsumedProgram, error) {
+// Take: transfers resolved serving ownership exactly once.
+func (l *LoadedProgram) Take() (
+	*gguf.File, string, model.Spec, model.Weights, Plan, recipe.EvidenceTier, error,
+) {
 	if l == nil || l.state == nil || l.state.File == nil {
-		return nil, errors.New("model recipe: loaded program is unavailable or consumed")
+		return nil, "", model.Spec{}, model.Weights{}, Plan{}, "",
+			errors.New("model recipe: loaded program is unavailable or consumed")
 	}
 	state := l.state
 	l.state = nil
-	return &ConsumedProgram{state: state}, nil
-}
-
-func (p *ConsumedProgram) File() *gguf.File                  { return p.state.File }
-func (p *ConsumedProgram) Path() string                      { return p.state.Path }
-func (p *ConsumedProgram) Spec() model.Spec                  { return p.state.Spec }
-func (p *ConsumedProgram) Weights() model.Weights            { return p.state.Weights }
-func (p *ConsumedProgram) Plan() Plan                        { return p.state.Program }
-func (p *ConsumedProgram) EvidenceTier() recipe.EvidenceTier { return p.state.EvidenceTier }
-
-// Disown: transfers file lifetime to the serving runtime.
-func (p *ConsumedProgram) Disown() {
-	if p != nil {
-		p.state = nil
-	}
-}
-
-// Close: releases consumed ownership before runtime transfer.
-func (p *ConsumedProgram) Close() error {
-	if p == nil || p.state == nil || p.state.File == nil {
-		return nil
-	}
-	err := p.state.File.Close()
-	p.state = nil
-	return err
+	return state.File, state.Path, state.Spec, state.Weights, state.Program, state.EvidenceTier, nil
 }
 
 // Close: releases untransferred GGUF ownership.

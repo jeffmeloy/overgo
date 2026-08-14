@@ -3,7 +3,9 @@ package executor
 import (
 	"errors"
 	"fmt"
+	"math"
 
+	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
@@ -217,6 +219,13 @@ func launchMathVision(
 		if attributes.HasBias {
 			hasBias = 1
 		}
+		if depthwise == 0 && blas != nil && blas.staging != 0 {
+			return launchBlasConv2D(
+				state, functions, blas, input, weight, bias, output,
+				channelsIn, inputW, inputH, kernelW, kernelH, channelsOut, outputW, outputH,
+				strideX, strideY, padLeft, padTop, hasBias,
+			)
+		}
 		return launch1DABI(
 			state, functions[kernelConv2dF32], count,
 			&input, &weight, &bias, &output, &channelsIn, &inputW, &inputH,
@@ -302,4 +311,71 @@ func launchMathVision(
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
+}
+
+func launchBlasConv2D(
+	state *device.State,
+	functions functionSet,
+	blas *blasState,
+	input, weight, bias, output driver.DevicePtr,
+	channelsIn, inputW, inputH, kernelW, kernelH, channelsOut, outputW, outputH,
+	strideX, strideY, padLeft, padTop, hasBias uint32,
+) error {
+	inner64 := uint64(channelsIn) * uint64(kernelW) * uint64(kernelH)
+	positions64 := uint64(outputW) * uint64(outputH)
+	if inner64 == 0 || positions64 == 0 || inner64 > math.MaxUint32 || positions64 > math.MaxUint32 {
+		return errors.New("Conv2D cuBLAS geometry overflows")
+	}
+	capacity := blas.stagingBytes / (inner64 * 4)
+	if capacity == 0 {
+		return errors.New("Conv2D cuBLAS workspace is too small")
+	}
+	inner, positions := uint32(inner64), uint32(positions64)
+	for start := uint32(0); start < positions; {
+		columns := min(uint32(min(capacity, uint64(math.MaxUint32))), positions-start)
+		count64 := uint64(inner) * uint64(columns)
+		if count64 > math.MaxUint32 {
+			return errors.New("Conv2D im2col launch overflows")
+		}
+		count := uint32(count64)
+		if err := launch1DABI(
+			state, functions[kernelConv2dIm2colF32], count,
+			&input, &blas.staging, &channelsIn, &inputW, &inputH,
+			&kernelW, &kernelH, &outputW, &outputH, &strideX, &strideY,
+			&padLeft, &padTop, &start, &columns, &inner, &count,
+		); err != nil {
+			return err
+		}
+		tileOutput := output + driver.DevicePtr(uint64(start)*uint64(channelsOut)*4)
+		if !traceExternalCall(
+			state, traceTagSGEMM,
+			uint64(weight), uint64(blas.staging), uint64(tileOutput),
+			uint64(channelsOut), uint64(columns), uint64(inner),
+		) {
+			if err := blas.library.SGEMM(
+				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+				int32(channelsOut), int32(columns), int32(inner), 1,
+				weight, int32(inner), blas.staging, int32(inner), 0,
+				tileOutput, int32(channelsOut),
+			); err != nil {
+				return err
+			}
+		}
+		if hasBias != 0 {
+			tileCount := channelsOut * columns
+			one := uint32(1)
+			if err := launch1DABI(
+				state, functions[kernelBroadcastAddF32], tileCount,
+				&tileOutput, &bias, &tileOutput, &tileCount,
+				&channelsOut, &columns, &one, &one,
+				&channelsOut, &one, &one, &one,
+				&channelsOut, &columns, &one,
+			); err != nil {
+				return err
+			}
+		}
+		start += columns
+	}
+	blas.stagedNode = nil
+	return nil
 }

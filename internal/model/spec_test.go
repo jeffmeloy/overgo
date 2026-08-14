@@ -39,12 +39,12 @@ func TestReadQwen3Spec(t *testing.T) {
 		t.Fatalf("unexpected spec: %+v", spec)
 	}
 	profile, _ := LookupArchitecture("qwen3")
-	profile.DenseGraph = DenseGraphTalkie
+	profile.LayerTopology = LayerTopologyCausalPostQKNormSkip
 	resolved, err := ReadSpecWithProfile(file, profile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resolved.Profile().DenseGraph != DenseGraphTalkie {
+	if resolved.Profile().LayerTopology != LayerTopologyCausalPostQKNormSkip {
 		t.Fatal("resolved profile was not pinned to the spec")
 	}
 	profile.Name = "llama"

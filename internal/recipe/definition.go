@@ -85,12 +85,6 @@ func decodeDefinition(content []byte, definition *Definition) error {
 	return nil
 }
 
-func NewDefinition(task Task, model artifact.ID, nodes []Node, edges []Edge, inputs []Input, outputs []Output) (Definition, error) {
-	return NewDefinitionWithDependencies(
-		task, []Dependency{{Role: DependencyModel, Artifact: model}}, nodes, edges, inputs, outputs,
-	)
-}
-
 func NewDefinitionWithDependencies(
 	task Task,
 	dependencies []Dependency,
@@ -125,14 +119,6 @@ func (d Definition) ValidateIdentity() error {
 
 func (d Definition) Content() ([]byte, error) {
 	return definitionCodec.ContentBytes(d)
-}
-
-func (d Definition) Descriptor() (artifact.Descriptor, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Descriptor{}, err
-	}
-	return DefinitionDocumentContract(d.Version).Descriptor(d.ID, uint64(len(content)))
 }
 
 func (d Definition) ArtifactContent() (artifact.Content, error) {

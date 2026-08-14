@@ -12,7 +12,7 @@ func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 		recipe.TaskSpeech, recipe.TaskImageGen,
 	} {
 		t.Run(string(task), func(t *testing.T) {
-			capability, ok := capabilityCommands[task]
+			capability, ok := capabilities[task]
 			if !ok || capability.inventory == nil || capability.execute == nil {
 				t.Fatalf("capability = %+v", capability)
 			}

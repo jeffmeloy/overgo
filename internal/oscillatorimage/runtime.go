@@ -23,7 +23,9 @@ type Image struct {
 }
 
 type generator interface {
-	generate(Request) (Image, error)
+	prepare(Request) (phasePlan, error)
+	integrate(phasePlan) ([]float32, error)
+	decode([]float32) (Image, error)
 }
 
 func ValidateRequest(request Request) error {
@@ -34,20 +36,18 @@ func ValidateRequest(request Request) error {
 }
 
 func (m *Model) generate(request Request) (Image, error) {
-	if m == nil {
-		return Image{}, errors.New("oscillatorimage: model is unavailable")
-	}
 	if err := ValidateRequest(request); err != nil {
 		return Image{}, err
 	}
-	pixels, err := m.Generate(request.Class, request.Seed)
+	plan, err := m.prepare(request)
 	if err != nil {
 		return Image{}, err
 	}
-	return Image{
-		Pixels: pixels, Channels: m.Cfg.OutChannels,
-		Height: m.Cfg.OutH(), Width: m.Cfg.OutW(),
-	}, nil
+	features, err := m.integrate(plan)
+	if err != nil {
+		return Image{}, err
+	}
+	return m.decode(features)
 }
 
 func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model *Model) error {
@@ -58,7 +58,15 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 }
 
 func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model generator) error {
-	return workflowruntime.RegisterJSONStage(
-		runtime, modelrecipe.ModuleImageGenerate, modelID, imageContract, model.generate,
-	)
+	if err := workflowruntime.RegisterScalarStage(
+		runtime, modelrecipe.ModuleOscillatorImagePrepare, modelID, model.prepare, nil,
+	); err != nil {
+		return err
+	}
+	if err := workflowruntime.RegisterScalarStage(
+		runtime, modelrecipe.ModuleOscillatorImageIntegrate, modelID, model.integrate, nil,
+	); err != nil {
+		return err
+	}
+	return workflowruntime.RegisterJSONStage(runtime, modelrecipe.ModuleOscillatorImageDecode, modelID, imageContract, model.decode)
 }

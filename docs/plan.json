@@ -1,575 +1,170 @@
 {
-  "campaign": "adaptive_new -> overgo merge: model ladder",
-  "doctrine": "PORT-FIRST (owner, 2026-08-09, standing): the point of this campaign is to PORT adaptive_new into overgo, never to start from scratch. Every capability AND performance slice STARTS from adaptive_new's verified implementation: read it end-to-end, port its structure/kernels/math, verify against its goldens. Novel design is admissible ONLY after the port matches the reference, and only as a measured improvement on top of it. A slice that reinvents what adaptive already ships is the named failure mode. The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/.claude/worktrees/image_gen/image_gen_report.md -- Wan python 463.4s/8.8GB vs exact-Go 739.9s/22.54GB (denoise 690.9s dominates) vs quality-fast 424.3s/11.95GB (FAILS single-complete-cone); safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; the quality-fast attention approximation is the degradation to avoid. Owner note: route media denoise through overgo's OWN tensor machinery (retained CUDA-graph replay, bf16-native decode catalog, GEMV/epilogue fusion rewrites, calibrated dispatch) rather than porting adaptive's slower path -- that machinery already beat adaptive on rungs 3-4 and is the intended edge over Python.",
+  "campaign": "adaptive_new parity and performance leadership",
+  "doctrine": "PARITY-LEAD (owner, 2026-08-12): adaptive_new supplies verified Go behavior, model-native Python oracles, fixtures, and training breadth; Overgo is the destination. Port capabilities through neutral compiled contracts, then exceed the reference on matched wall and peak memory without quality loss. Multimodality is a recipe-derived contract, not a family checklist: every applicable ordered input/output modality combination (text, image, audio, video, time series, table) must be reachable, evaluated with modality-native evidence, and measured; absent training objectives are explicit refusals, never synthetic substitutes. docs/adaptive_new_parity_report.md is the current assessment; docs/plan.json contains executable open work, never a completion ledger. Every step has a non-vacuous verify; unavailable or skipped evidence fails. PORT-FIRST (owner, 2026-08-09, standing): the point of this campaign is to PORT adaptive_new into overgo, never to start from scratch. Every capability AND performance slice STARTS from adaptive_new's verified implementation: read it end-to-end, port its structure/kernels/math, verify against its goldens. Novel design is admissible ONLY after the port matches the reference, and only as a measured improvement on top of it. A slice that reinvents what adaptive already ships is the named failure mode. The turn is the plan (owner directive 2026-08-09): a session ends only when every item is done or a valid stop reason is recorded (user-stop, irreversible, external-prereq). Deferral to fresh context is NOT a stop reason. cmd/plan owns dispatch bookkeeping; the continuation rule itself lives in skill.md and is followed, not hook-enforced (hook wiring is the owner's environment decision). Owner directive 2026-08-09: (a) per-rung validation is head-to-head -- run the adaptive_new and overgo implementations on the same artifact and inputs, adopt whichever component structures measure better, overgo ends at-or-below on wall+memory; (b) multimodal capabilities are tested when applicable -- image, video, and audio rungs exercise real modality inputs drawn from the repodb dataset catalog (adaptive_new docs/repodb datasets.log; resolved via the dataroot contract), never synthetic-only. Owner directive 2026-08-09 (media models): for every image/video generation rung, verification is vs the PYTHON golden methods (the model repo's native implementation) and the performance bar is BEAT PYTHON on time AND memory WITHOUT degrading generation (quality assertions must pass at exact quality; approximations that fail artifact assertions do not count). Reference evidence + techniques: adaptive_new/image_gen_report.md. Safe levers: exact masked-softmax traffic reduction, rounded-consumer projections, bounded-BF16, pre-decode resource lifetime release, measured residency; quality-fast approximations that fail artifact assertions do not count. Route media denoise through Overgo tensor machinery (retained CUDA-graph replay, BF16-native decode catalog, fusion rewrites, calibrated dispatch), not a second adaptive runtime.",
   "items": [
     {
-      "id": "rung1-timesfm",
-      "title": "timesfm-200m: forecast capability port",
-      "status": "done",
-      "steps": [
-        {
-          "id": "rung-export",
-          "title": "fixtures + baseline into store",
-          "status": "done"
-        },
-        {
-          "id": "forecast-task",
-          "title": "forecast task + terminal capability in recipe schema",
-          "status": "done"
-        },
-        {
-          "id": "reference-port",
-          "title": "neutral time-series package, forward vs golden",
-          "status": "done"
-        },
-        {
-          "id": "recipe-activation",
-          "title": "activate through sealed lifecycle; forecast entry",
-          "status": "done"
-        },
-        {
-          "id": "training-leg",
-          "title": "backward vs ten grad goldens",
-          "status": "done"
-        },
-        {
-          "id": "performance-leg",
-          "title": "wall+memory verdict per baseline policy",
-          "status": "done"
-        }
-      ]
-    },
-    {
-      "id": "rung3-carbon",
-      "title": "Carbon-500M",
-      "status": "done",
-      "steps": [
-        {
-          "id": "golden-generation",
-          "title": "torch numeric golden (input_ids/output_ids/per-step top-8 logits) pulled from adaptive fixtures; serving golden captured live from the CUDA server /api/infer (4 greedy cases; outputs near-degenerate T-runs -- recorded as-is, parity bar is byte equality); decode baseline median 2.11 ms/tok, 442-487 tok/s",
-          "status": "done"
-        },
-        {
-          "id": "reference-port",
-          "title": "serve Carbon-500M in overgo (HF safetensors artifact) through generic modules; decode parity vs torch golden ids+logits, then serving-golden byte equality",
-          "status": "done"
-        },
-        {
-          "id": "recipe-activation",
-          "title": "sealed lifecycle activation, generation task",
-          "status": "done"
-        },
-        {
-          "id": "training-leg",
-          "title": "training capability per baseline policy",
-          "status": "done"
-        },
-        {
-          "id": "performance-leg",
-          "title": "head-to-head wall+memory vs the CUDA serving baseline, at-or-below",
-          "status": "done"
-        }
-      ]
-    },
-    {
-      "id": "rung4-qwen05",
-      "title": "Qwen2.5-0.5B (activation-class)",
-      "status": "done",
-      "steps": [
-        {
-          "id": "golden-generation",
-          "title": "serving goldens captured live from adaptive CUDA /api/infer (4 greedy cases, coherent text); decode baseline median ~1.97 ms/tok (480-515 tok/s)",
-          "status": "done"
-        },
-        {
-          "id": "converter-extension",
-          "title": "hfconvert gains qwen2 arch generically (attention q/k/v biases, arch-keyed metadata/tensor map); convert; inspect",
-          "status": "done"
-        },
-        {
-          "id": "decode-parity",
-          "title": "text-level greedy parity vs serving golden (BPE reproducible here) + stability",
-          "status": "done"
-        },
-        {
-          "id": "recipe-activation",
-          "title": "sealed lifecycle activation",
-          "status": "done"
-        },
-        {
-          "id": "training-leg",
-          "title": "densecausal gains qwen2 (attention biases) vs tiny torch golden; real-artifact step",
-          "status": "done"
-        },
-        {
-          "id": "performance-leg",
-          "title": "head-to-head vs 1.97 ms/tok baseline, at-or-below",
-          "status": "done"
-        }
-      ]
-    },
-    {
-      "id": "rung5-tabfm",
-      "title": "tabfm (port-class)",
-      "status": "done",
-      "steps": [
-        {
-          "id": "golden-generation",
-          "title": "capture predict goldens from adaptive live server /api/predict (classification + regression sub-models; X/y/rows/cols contract) + decode/latency baseline; reference is extmodel/tabular_set_transformer.go (ICL set transformer)",
-          "status": "done"
-        },
-        {
-          "id": "reference-port",
-          "title": "neutral tabular capability package (seriesforecast pattern): dims from safetensors shapes of models/tabfm-1.0.0-pytorch/{classification,regression}; forward parity vs goldens",
-          "status": "done"
-        },
-        {
-          "id": "recipe-activation",
-          "title": "sealed lifecycle, tabular-predict task (recipe schema may need the task enum)",
-          "status": "done"
-        },
-        {
-          "id": "training-leg",
-          "title": "per baseline policy (ICL models predict via context, check what adaptive trains here first)",
-          "status": "done"
-        },
-        {
-          "id": "performance-leg",
-          "title": "head-to-head vs live baseline, at-or-below",
-          "status": "done"
-        }
-      ]
-    },
-    {
-      "id": "rung6-needle",
-      "title": "needle",
-      "status": "done",
-      "steps": [
-        {
-          "id": "golden-import",
-          "title": "JAX forward oracle + pkl manifest pulled from adaptive fixtures (src 24 -> tgt 8; logits [8,8192] + encoder_out [24,512], f32 variants; jax 0.11.0)",
-          "status": "done"
-        },
-        {
-          "id": "reference-port",
-          "title": "neutral seq2seq capability package; reference is adaptive extmodel layeredAttentionSeq2Seq (needle_research_test.go admits it; models/needle safetensors); parity vs the JAX oracle incl. incremental decode",
-          "status": "done"
-        },
-        {
-          "id": "recipe-activation",
-          "title": "sealed lifecycle (task fit: generation vs a seq2seq task entry -- decide from the reference contract)",
-          "status": "done"
-        },
-        {
-          "id": "training-leg",
-          "title": "per baseline policy; check what adaptive trains for needle first",
-          "status": "done"
-        },
-        {
-          "id": "performance-leg",
-          "title": "matched protocol head-to-head, at-or-below",
-          "status": "done"
-        }
-      ]
-    },
-    {
-      "id": "rung7-pockettts",
-      "title": "pocket-tts (port-class)",
-      "status": "done",
-      "steps": [
-        {
-          "id": "golden-import",
-          "title": "complete golden ladder pulled from adaptive fixtures/pockettts (g0 config/tensors, g1 tokenizer, g2 mimi encode, g3 stage traces, g4 e2e, g5 mimi decode stages, g6 backbone + reference wav; ~8MB)",
-          "status": "done"
-        },
-        {
-          "id": "backbone-port",
-          "title": "neutral speech-synthesis package: text backbone vs g6/g3 traces (reference: adaptive extmodel/speech_flow_synthesis.go; known: voice-cloning encoder is amputated in the artifact -- decoder/TTS is the capability)",
-          "status": "done"
-        },
-        {
-          "id": "codec-port",
-          "title": "audio codec decoder vs g5 mimi decode stages; e2e wav vs g4 + reference wav (multimodal directive: real audio out, byte/\u00c3\u00a8\u00c2\u00bf\u00e2\u20ac\u02dc-parity bar derived)",
-          "status": "done"
-        },
-        {
-          "id": "recipe-activation",
-          "title": "sealed lifecycle, speech task entry",
-          "status": "done"
-        },
-        {
-          "id": "training-leg",
-          "title": "adaptive HAS a pocket-tts training declaration (seed profiles) -- scope it honestly",
-          "status": "done"
-        },
-        {
-          "id": "performance-leg",
-          "title": "matched protocol, at-or-below",
-          "status": "done"
-        }
-      ]
-    },
-    {
-      "id": "rung8-un0",
-      "title": "Un-0",
-      "status": "done",
-      "steps": [
-        {
-          "id": "reference-port",
-          "status": "done",
-          "title": "neutral oscillatorimage package; dims derived from flat tensor lengths, namespace discovered from *.to_out.weight; parity dynamics 3.57e-07 (gate 1e-4), generator 3.13e-07 (gate 1e-3); goldens read from the REFERENCE repo fixtures/ (they do NOT ship in the artifact dir -- deviation from the step premise, verified: models/Un-0 holds only config/weights/provenance)"
-        },
-        {
-          "id": "training-leg",
-          "status": "done",
-          "title": "backward vs reference-shipped conv/block bwd goldens: conv dx 8.31e-07 dW 8.96e-07 dB 1.34e-07; block dx 9.22e-08 dW1 5.98e-07 dB1 1.23e-07 dW2 1.01e-06 dB2 4.76e-07 (all gate 1e-4); dynamics+readout+full-generator VJPs FD-gated; drift objective (reference bootstrap: target 0.1+0.2*class) under ported Muon lr 0.02 mu 0.95 descends 265.61 -> 57.18 over 60 steps"
-        },
-        {
-          "id": "recipe-activation",
-          "status": "done",
-          "title": "NEW terminal TaskImageGen (image-gen): condition tensor in, image out -- TaskGeneration is token generation (tokenizer-coupled in the workflow catalog), no reuse fits; ModuleImageGenerate + ImageGenDefinition + explicit-file inventory (config.json + model.safetensors; provenance sidecar is lineage, not a component); ACTIVATED with parity-citing reason, status round-trip ABSENT -> active tier experimental, recipe:sha256:2938eb7c..."
-        },
-        {
-          "id": "performance-leg",
-          "status": "done",
-          "title": "matched host protocol: shared generator-golden parity test, go test -count=5 elapsed both sides -- adaptive 0.01s x5 (median 0.01s), overgo 0.01s x5 (median 0.01s), identical max abs diff 3.13e-07; verdict AT (equal within the 10ms go-test resolution; adaptive exposes no finer un0 generate timing surface read-only). Supplementary overgo in-process walls: load 509us, per-generate median 1.25ms (min 1.16ms max 1.53ms, 30-generate batches x5, warm). Memory: 117KB f32 weights both sides, host-resident, runtime-dominated."
-        }
-      ]
-    },
-    {
-      "id": "rung9-simplediffusion",
-      "title": "SimpleDiffusion (port-class)",
-      "status": "done",
-      "steps": [
-        {
-          "id": "golden-import",
-          "status": "done",
-          "title": "component golden set pulled from adaptive fixtures/simplediffusion (cplinear, groupnorm, ot_flow, projection_ops, real_forward, resblock, rope, tpa)"
-        },
-        {
-          "id": "reference-port",
-          "status": "done",
-          "title": "neutral internal/diffusionimage: architecture DERIVED from flat tensor lengths (heads^2=len(WAq)*c/len(WBq); 3 vendor-source constants: groups=32, eps=1e-5, rope theta=1e4); component parity worst diffs -- xATGLU 2.4e-07, CPLinear 1.2e-07, RoPE 0, TPA 1.9e-07, GroupNorm 2.4e-07, ResBlock 2.4e-07, TransformerBlock 1.2e-07, projections 1.2e-07 (gates 1e-5/1e-4); tiny full model fwd 2.6e-08; REAL artifact fwd max abs 3.99e-06 vs 5e-4 gate; Euler Sample smoke finite; vendor token-reshape quirk golden-locked"
-        },
-        {
-          "id": "training-leg",
-          "status": "done",
-          "title": "OT-flow objective parity (x_t 3.0e-08, target 6.0e-08, loss 6.4118216 vs 6.41182184, dPred 4.8e-07 at 1e-5); full tiny-model backward vs torch: dX 6.6e-06, 63 grad tensors worst 8.4e-05 vs 2e-4 gate; FD gates on xATGLU(+alpha), CP factors, GroupNorm, projections, ResBlock, TransformerBlock(+4 scalars), pool/upsample; SGD train (Muon declined: host NS over ~100 matrices up to 2048x512 prohibitive per step): tiny fixed-path 0.026695->0.021471 over 30 steps (0.80x), REAL artifact 3 steps 1.9294->1.9218 monotone"
-        },
-        {
-          "id": "recipe-activation",
-          "status": "done",
-          "title": "activated through the shared activateCapability driver, task image-gen; imageGenInventory generalized to DISCOVER the single top-level safetensors (step_799.safetensors; shared singleSafetensors owner with speech); status round-trip: model:sha256:5641a228.. recipe:sha256:e98c43b7.. tier experimental; Un-0 activation unaffected"
-        },
-        {
-          "id": "performance-leg",
-          "status": "done",
-          "title": "matched host protocol: vendor-parity test (fresh load + one 1x3x32x32 forward), go test -count=5 both sides -- adaptive 0.61/0.21/0.22/0.20/0.20s median 0.21s; overgo 0.51/0.17/0.18/0.17/0.17s median 0.17s; verdict BELOW (0.81x). Supplementary overgo in-process: load 130ms, warm forward median 54ms (min 47 max 64, 5 repeats); heap live-after-GC 389.3MB = the 388.4MB f32 weight set (no duplication), watermark 513MB across 5 forwards; adaptive exposes no finer read-only forward-timing surface"
-        }
-      ]
-    },
-    {
-      "id": "rung10-minicpm",
-      "title": "MiniCPM5-1B",
-      "status": "done",
-      "steps": [
-        {
-          "id": "golden-import",
-          "status": "done",
-          "title": "torch top-10 logits golden pulled from adaptive fixtures (prompt/input_ids/top10 ids+logits+stats)"
-        },
-        {
-          "id": "convert-parity",
-          "status": "done",
-          "title": "hfconvert llama path extended: sharded-index checkpoints (OpenSource contract), explicit head_dim authoritative (128 != hidden/heads 96; attention.key_length/value_length + rope.dimension_count emitted), llama3-family two-Split pre-tokenizer sequence -> llama-bpe; untied lm_head -> output.weight was already handled. Top-10 ids exact vs torch golden, logits within 2.6e-5 of 4-decimal rounding; text byte-equal on all 3 live serving goldens"
-        },
-        {
-          "id": "recipe-activation",
-          "status": "done",
-          "title": "GGUF inference recipe activated + status round-trip (tier experimental)"
-        },
-        {
-          "id": "training-leg",
-          "status": "done",
-          "title": "densecausal untied head: HeadName routes lm-head grads to lm_head.weight (tied case unchanged: same slot accumulates). No new tiny golden -- llama math pinned by llama_train_golden.json; untied routing pinned against the tied golden (duplicate-head split test). Real step: loss 11.959011 -> 8.589184"
-        },
-        {
-          "id": "performance-leg",
-          "status": "done",
-          "title": "benchmark -native-quant CUDA 3 runs x2: decode p50 321.7 / 363.0 tok/s vs serving baseline 294.6-295.8 tok/s (3.40-3.44 ms/tok) -- at-or-below (faster)"
-        }
-      ]
-    },
-    {
-      "id": "rung11-wan",
-      "title": "Wan2.1-1.3B (port-class)",
-      "status": "done",
-      "steps": [
-        {
-          "id": "golden-generation",
-          "status": "done",
-          "title": "staged golden set captured into fixtures/wan (g0 config/inventory+VAE latent stats, g1 umt5 text conditioning cond+uncond 512x1536, g2 UniPC schedule + timestep conditioning, g3 32*16 f1 s4 seed31 all-30-blocks denoise: per-block step-0 traces + block-0 boundary seams + sample_in/model_output/sample_out trajectory + final latent + decoded frame, g4 32*16 f5 s2 seed42 temporal run: trajectory + 2-latent-frame latent + 5 decoded frames); mechanism: throwaway Go program (temp dir, go.mod replace) driving adaptive's exported serving API (AcquireSemanticTextConditioning host path; GenerateLatentVideoCUDA ExecutionProbe/FrameSink -- DiT loop, philox noise, UniPC sampler, VAE decode are CUDA-only in adaptive, so g3/g4 are CUDA-captured); store-backed resolve was stale (fingerprint drift 94ae44f7->592e8e35), captured via catalog resolution"
-        },
-        {
-          "id": "text-conditioning-port",
-          "status": "done",
-          "title": "neutral text-conditioning slice: unigram tokenizer (google/umt5-xxl tokenizer.json) + relative-position umt5 encoder streamed from models_t5_umt5-xxl-enc-bf16.pth (pytorch-zip reader, bf16-rounded host math) + text_embedding.0/GELU/.2 projection + pad-row semantics vs g1 (reference: adaptive extmodel/latent_video.go encodeRelativePositionTokensStreamed + projectCompactTextConditioningEvidence)"
-        },
-        {
-          "id": "dit-port",
-          "status": "done",
-          "title": "DiT slice: patch embedding conv3d boundary + timestep conditioning (vs g2) + 30 conditioned transformer blocks (self-attn 3-axis RoPE, cross-attn qk-norm, adaptive modulation 6-chunk) + head/unpatchify vs g3 step-0 per-block traces and block-0 boundary seams; host reference exists only as adaptive's test oracle (extmodel/conditioned_latent_oracle_test.go conditionedTransformerBlockForward), production is CUDA",
-          "note": "denoise is 93 percent of Wan wall -- build on overgo graph runtime (retained-graph replay + fusions) with the safe worktree levers designed in, not bolted on"
-        },
-        {
-          "id": "sampler-port",
-          "status": "done",
-          "title": "denoise loop: UniPC shifted-flow schedule (VideoUniPCSchedule; g2 timesteps/sigmas) + sampler updates + cond/uncond guidance vs g3 sample_in/model_output/sample_out trajectory; initial noise is torch.cuda philox (curand_normal4) parity -- g3 step_00_sample_in is the seeded-noise golden (seed 31), adaptive has no host noise path"
-        },
-        {
-          "id": "vae-port",
-          "status": "done",
-          "title": "causal 3D VAE decoder slice: Wan2.1_VAE.pth (pytorch-zip) media-codec program (causal conv3d, rms channel norm, spatial attention, resize/upsample, latent mean/std denorm from g0) vs g3 final_latent->frame_00 and g4 final_latent (2 latent frames)->5 frames (temporal time-conv exercised); adaptive decode is CUDA-only, host primitives exist as torch-fixture unit oracles (extmodel/causal_video_codec_test.go)"
-        },
-        {
-          "id": "recipe-activation",
-          "status": "done",
-          "title": "sealed lifecycle, task video-gen (likely NEW task in the recipe catalog); model discovery: config.json + diffusion_pytorch_model.safetensors + Wan2.1_VAE.pth + models_t5_umt5-xxl-enc-bf16.pth + google/umt5-xxl tokenizer are all bound from one artifact dir"
-        },
-        {
-          "id": "training-leg",
-          "status": "done",
-          "title": "scope honestly: adaptive has NO Wan training lane (serving-only; go/training has no wan objective, no training recipe declaration for wan-t2v; vendor python lives in models/Wan2.1-T2V-1.3B/Wan2.1) -- expected outcome is a recorded ABSENT/vendor scoping, not a port",
-          "verdict": "ABSENT-baseline: adaptive serves Wan but does not train it -- the scoping agent found serving-only seeded recipes (wan_t2v.generate.video_cuda.v5), no training stages, vendor python training in the artifact repo (Wan2.1/). No lane nobody has; matches the rung-5/6 discipline."
-        },
-        {
-          "id": "performance-leg",
-          "status": "done",
-          "title": "performance-leg DONE: denoise 6.75 s/step sustained (50-step prod), total ~383s vs python 463.4s -- BEATS PYTHON on time AND memory (peak 7.87GB vs adaptive 10.2GB) at exact quality (goldens G3/BF16G3/G4 PASS, temporal 80/80). Path: I1 gelu-tanh-exact fusion (10.77->9.00), I2 ldmatrix+mma.sync.m16n8k16 attention replacing nvcc wmma scalar-LD lowering (9.00->6.55, kernel 121->82ms, occupancy 16.7->33pct)",
-          "bar": "beat upstream Python (463.4s wall, 8.80GB allocated, 50-step 81-frame clip) at EXACT quality; overgo graph runtime is the vehicle; worktree techniques cited in doctrine",
-          "measurement": {
-            "date": "2026-08-09",
-            "iterations_s_per_step": [
-              900,
-              127.6,
-              124.8,
-              33.9,
-              21.7,
-              17.5
-            ],
-            "best_denoise_50step_s": 878.2,
-            "peak_gb": 10.02,
-            "post_release_gb": 7.05,
-            "exact_config_s_per_step": 127.6,
-            "verdict": "NOT MET (python 463.4s/8.80GB); bf16 config quality NOT claimed (cosine 0.9977 = failed-fast class); exact config golden-exact but 127.6 s/step",
-            "next_levers_ranked": [
-              "CUDA VAE decode (gates total; adaptive 29-45s)",
-              "attention BN=64/cp.async to 60+ TFLOPS",
-              "cublasLt",
-              "arena/bf16 intermediates"
-            ],
-            "cuda_vae": {
-              "decode_81f_s": 38.23,
-              "peak_gb": 9.85,
-              "host_extrapolated_s": 15600,
-              "speedup": "~400x",
-              "reference_band_s": [
-                29,
-                45
-              ]
-            },
-            "gap_math": "total ~920s (878.2 bf16 denoise + 38.2 decode + ~4) vs 463.4 bar; remaining 457s all denoise: 17.5 -> 8.4 s/step needed (attention 39 -> 60+ TFLOPS)"
-          },
-          "resource": "gpu"
-        }
-      ]
-    },
-    {
-      "id": "rung12-qwen4b",
-      "title": "Qwen3.5-4B (activation-class)",
+      "id": "adaptive-inference-parity",
+      "title": "Port and exceed adaptive_new inference through Overgo recipes and shared processing components",
       "status": "open",
       "steps": [
         {
-          "id": "recon-route",
-          "status": "done",
-          "title": "qwen3_5 multimodal (text_config: gated attn output, full_attention_interval hybrid; vision tower with deepstack indexes); sharded safetensors + chat template; overgo serves qwen3.5 GGUFs natively (9B pilot) -- route: convert (extend hfconvert to qwen3_5 text+vision or reuse an existing conversion path) OR locate/produce GGUF; decide by reading overgo qwen35 catalog support first"
-        },
-        {
-          "id": "convert-parity",
-          "status": "done",
-          "title": "conversion + ID/text parity vs live serving goldens (capture when GPU free; multimodal directive: image+text cases from repodb datasets) -- DONE: Qwen3.5-4B-f16.gguf 441 tensors 8.66GB (71ebe02); serving goldens LIVE on device, 3/3 exact host match, deterministic greedy, fixture provisional=false + model sha256. PERF FINDING: ~6.06 s/token, weights NOT device-resident (~996MiB above idle baseline, streaming) -> residency is the performance-leg lever"
-        },
-        {
-          "id": "recipe-activation",
+          "id": "multimodal-input",
+          "title": "Close single and combined image, audio, and video input parity for Qwen3.5, Gemma E4B, Gemma4 12B, RxBrain, and OCR on real catalog cases; preserve ordering, temporal structure, masks, and cross-modal position semantics",
           "status": "open",
-          "title": "GGUF inference activation",
-          "resource": "gpu"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalInputMatrix$' -count=1 -v"
         },
         {
-          "id": "training-leg",
+          "id": "speech-output",
+          "title": "Promote Pocket-TTS and every adaptive-declared audio-output recipe with real waveforms, stage parity, sample-rate/channel contracts, audio quality, wall, and peak evidence",
           "status": "open",
-          "title": "densecausal extension per config deltas (gated attn output, hybrid attention) vs tiny torch golden; real step",
-          "resource": "gpu"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestPocketTTSProductionParity$' -count=1 -v"
         },
         {
-          "id": "performance-leg",
-          "status": "done",
-          "title": "CUDA head-to-head vs adaptive serving, at-or-below -- MEMORY LEVER LANDED: native-dtype BF16 prefill (drop F32 copies, bit-exact bf16->f32 upconvert into reused workspace) -> Qwen3.5-4B peak 24.43->10.77 GiB (-55.9pct), decode 11 ms/tok unchanged, goldens 3/3 exact. Remaining: head-to-head vs adaptive. -- HEAD-TO-HEAD DONE: overgo 10.96 vs adaptive 16.76 ms/tok (1.53x faster, same bf16 weights); adaptive ~2.2GB smaller peak (overgo persistent capacity-KV buys the speed)",
-          "resource": "gpu"
+          "id": "image-output",
+          "title": "Promote applicable text-to-image, image-to-image/edit, and structured-to-image routes for Un-0, SimpleDiffusion, Krea, and SenseNova; exact or oracle-repeatability quality and better wall plus peak",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestImageGenerationLeadership$' -count=1 -v"
+        },
+        {
+          "id": "video-output",
+          "title": "Refresh text-to-video Wan leadership and port reference-conditioned LiveEdit; full clips, temporal/conditioning quality, exact bounded seams, wall, and peak",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestVideoGenerationLeadership$' -count=1 -v"
+        },
+        {
+          "id": "serve-contract",
+          "title": "Close server parity for streaming, tools, embeddings, media, sessions, cache editing, cancellation, and explicit refusal",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity ./internal/server -run '^TestAdaptiveServingContractMatrix$' -count=1 -v"
         }
       ]
     },
     {
-      "id": "rung13-e4b",
-      "title": "gemma-4-E4B",
+      "id": "adaptive-training-parity",
+      "title": "Make Overgo the Muon-only production training system and exceed adaptive_new on matched real-model runs",
       "status": "open",
       "steps": [
         {
-          "id": "recon-goldens",
-          "status": "done",
-          "title": "adaptive serves E4B via mixed_window.infer.spine_host_greedy (HOST spine) + trains via mixed_window.train.stream_lm_cuda; fixture dirs e4b/ e4b_vision/ e4b_audio/ + gemma4_audio golden exist; overgo has gemma4convert + cmd/gemma4-gguf-convert (multimodal converter precedent)"
+          "id": "compiled-authority",
+          "title": "Implement sealed TrainingRunPlan and TrainingProgram; bind model, dataset split, ordered input/target modalities, processors/projectors/codecs, train/freeze sets, objective, precision, placement, memory, checkpoint, modality-native evaluation, and promotion identities from RepoDB",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram -run '^TestCompiledTrainingAuthority$' -count=1 -v"
         },
         {
-          "id": "convert-parity",
-          "status": "done",
-          "title": "gemma4 conversion of E4B (existing converter; verify vs e4b fixture set incl. vision+audio per multimodal directive) -- DONE: gemma-4-E4B-it-bf16.gguf 684 tensors 14.94GB 18.8s; parity 0 mismatches (719 lang tensors, 36 shared-KV k/v dropped per LayerHasKV, +1 rope_freqs); generic mapping-adds only (+38/-1); mmproj tower export = open capability",
-          "resource": "cpu"
+          "id": "muon-only",
+          "title": "Compile Muon matrix/vector/scalar groups; migrate every caller; delete BF16SGD, TrainBF16SGD, and UpdateSign compatibility paths",
+          "status": "open",
+          "verify": "go test ./internal/optimizer ./internal/densecausal -run '^TestMuonOwnsEveryTrainableGeometry$' -count=1 -v \u0026\u0026 ! rg -n 'BF16SGD|UpdateSign' internal cmd"
         },
         {
-          "id": "recipe-activation",
-          "status": "done",
-          "title": "GGUF inference activation -- DONE: E4B serves RESIDENT via derived hybrid residency; 3-case fixture LIVE deterministic; 41.2s load, ~81.6 ms/token, peak 48616 MiB (F32-of-BF16 double residency = named memory lever); 2 generic fixes: session policy derived from model plan (call-site magic killed), SharedKV decode dedupe + cache aliasing",
-          "resource": "gpu"
+          "id": "exact-production-resume",
+          "title": "Make production checkpoints atomic and non-overwriting; persist weights, Muon state, RNG/augmentation state, modality processors/codecs, dataset cursor, compiled identities, and RepoDB lineage; resume exactly at accumulation boundaries",
+          "status": "open",
+          "verify": "go test ./cmd/train ./internal/trainingprogram -run '^TestProductionCheckpointResumeExact$' -count=1 -v"
         },
         {
-          "id": "training-leg",
-          "status": "partial",
-          "title": "adaptive TRAINS E4B (stream_lm_cuda) -- real reference; scope densecausal/mixed-window delta -- HALT VERDICT: overgo CANNOT train E4B -- the gemma3n arch (AltUp/PLE/SharedKV/windowed) is INFERENCE-ONLY, zero backward funcs; blocker is missing backward CODE not memory. What IS verified: densecausal text-LM training lane grad-parity PASS (adaptive-schema goldens + FD), real loss-decrease (Carbon-500M 21.08->11.75 1 SGD step; Qwen2.5-0.5B monotone 10.6->1.85 over 6 steps), optimizer=full-param SGD (host Muon prohibitive 500M+). E4B remainder (named): port adaptive operators_backward.go windowed-attn + AltUp/Laurel/PLE VJPs (reuse 8 verified hostmath VJPs) + a device backward (current text-LM backward host-only), then grad-parity vs adaptive E4B grads + bf16-SGD+ckpt loss-decrease. Memory math: E4B fp32-grad SGD ~48GB OOM; bf16-SGD+ckpt ~32GB tight-feasible but the path does not exist || BACKWARD VJPs STARTED (FD-verified, internal/hostmath): WindowedCausalAttentionBackward (sliding-window gap; window<=0 bit-equal to CausalAttentionBackward), GELUTanhBackward, ActivationSparsityBackward, SoftcapBackward, EmbedInputScaleBackward, QK-norm=RMSNormBackward composed. These + the 8 existing VJPs make a mixed-window decoder LAYER backward composable (unit-verified building blocks). No E4B grad goldens exist (FD is the oracle, as the existing VJPs use). REMAINDER for e2e E4B training: AltUp backward (needs new match-magnitude VJP), Laurel backward, PLE backward (per-layer gate/proj/norm + embed-table grad), the assembled gemma3n host-backward (activation capture + composition), a DEVICE backward (current text-LM backward host-only), and the bf16-SGD+grad-checkpointing memory path (~32GB tight; fp32-grad OOMs) ||| HOST-BACKWARD COMPLETE (FD-verified): match-magnitude + AltUp (modalities/init/predict/correct+inject/merge) + PLE (input-gate/proj/post-norm/correct-scale/per-layer-embed grad) + Laurel + FFN(dense+sparse) + the ASSEMBLED active-layer backward (input-norm/Laurel/QKV+per-head-QK-norm/NeoX-rope/attn/out-proj/post-norm/sqrt2-residual/FFN) -- full gemma3n layer back-proppable for BOTH full-causal and sliding-window, all composed from FD-verified hostmath VJPs (internal/inference/gemma3n_backward.go). E4B training GRADIENT COMPUTATION done+verified. REMAINDER for at-scale training: DEVICE backward (CUDA kernels; host-only today) + bf16-SGD+grad-checkpointing memory path (fp32-grad OOMs 48GB) + serving-vs-training rope reconciliation (partial-rope/keyLength!=headDim)",
-          "resource": "gpu"
+          "id": "dense-real-models",
+          "title": "Train Carbon and Qwen2.5 from identical adaptive checkpoints and ordered corpora; gradient/update/trajectory parity, then beat adaptive wall and peak",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestDenseTrainingLeadership$' -count=1 -v"
         },
         {
-          "id": "performance-leg",
-          "status": "done",
-          "title": "head-to-head vs adaptive serving, at-or-below -- MEMORY LEVER LANDED (same native-dtype BF16 prefill): E4B peak 41.74->21.79 GiB (-47.8pct), decode 66.6->20.05 ms/tok (3.3x, was memory-pressured near-OOM), goldens 3/3 exact. Remaining: head-to-head vs adaptive. -- HEAD-TO-HEAD DONE: overgo 18.5 ms/tok device vs adaptive 341 ms/tok host-only (~18x); adaptive has NO E4B device path -- capability win",
-          "resource": "gpu"
+          "id": "qwen35-real-model",
+          "title": "Replace synthetic hybrid closure with a real Qwen3.5 training trajectory through the compiled resident program; exercise every adaptive-declared trainable text/image/video modality and explicitly refuse reference-absent objectives",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestQwen35RealTraining$' -count=1 -v"
+        },
+        {
+          "id": "e4b-real-model",
+          "title": "Train the real Gemma E4B artifact with AltUp, PLE, Laurel, SharedKV, mixed-window semantics, device Muon, exact resume, and matched adaptive evidence across every adaptive-declared trainable text/image/audio modality",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestGemmaE4BRealTraining$' -count=1 -v"
+        },
+        {
+          "id": "multimodal-objectives",
+          "title": "Compile the training modality matrix from RepoDB objectives: text-to-text, image/audio/video-to-text, text-to-audio, text/image-to-image, text/image/video-to-video, forecast, and table only where adaptive evidence or an approved objective exists; run real corpora through processor/projector/codec gradients and modality-native evaluation; record all other pairs refused",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalTrainingMatrix$' -count=1 -v"
+        },
+        {
+          "id": "objective-breadth",
+          "title": "Port adaptive FNS, latent, forecast, OCR, flow-matching, image-latent, and distillation objectives only through shared TrainingPrograms; delete family loops as displaced",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity -run '^TestTrainingObjectiveMatrix$' -count=1 -v"
+        },
+        {
+          "id": "controller-promotion",
+          "title": "Construct and train the small workflow controller; immutable Git/RepoDB corpus, typed text/image/audio/video component and workflow actions, held-out action/modality validity, multi-seed gains, external champion/challenger promotion and rollback",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestControllerPromotionContract$' -count=1 -v"
+        },
+        {
+          "id": "tier1-scale",
+          "title": "Force the promoted small model through Tier-1 memory scheduling, including applicable multimodal activations and connector states; add checkpointing, layer-major accumulation, and paging only when measured",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestTier1TrainingSchedule$' -count=1 -v"
         }
       ]
     },
     {
-      "id": "rung14-rxbrain",
-      "title": "Hy-Embodied-RxBrain",
-      "status": "done",
+      "id": "session-repo-scoping",
+      "title": "AUTOMATION session-repo-scoping: a foreign repo's Stop hook fires on EVERY turn-end when its dir is the session cwd -- adaptive_new's scripts/stop_gate.sh spuriously blocked every overgo turn this whole session (huge friction-to-signal). Provide a session-repo-scope so an overgo-rooted session mutes non-overgo repo Stop hooks (e.g. hook checks whether the active work-repo matches its own repo root before blocking).",
+      "status": "open",
       "steps": [
         {
-          "id": "recon-goldens",
-          "status": "done",
-          "title": "Hy-Embodied-RxBrain-1.0 (unified_mot): 32L GQA trunk h2048 + MoT dual text/vision weight sets per layer routed by per-token modality mask (shared QK-norms); hunyuan_vl_mot 27L tower, anyres, interpolated 2D pos-embed, 4-matrix merger; dynamic-NTK rope (alpha 1000); streamed 120818x2048 terminal head. Adaptive serves VQA natively (vision_qa.go + merged_patch_vision.go host arithmetic + 6 CUDA files), NO training lane, generation=python-oracle-only (external FLUX VAE, out of scope). Goldens: complete 45-fixture parity ladder (processor->vision->prefill->all 32 layer boundaries->terminal->12 decode steps->text) with sha256+probes, CPU-verifiable. PERF BAR OPEN: adaptive banked no native serving numbers; python oracle 0.63 s/token decode, 44.7s full VQA"
-        },
+          "id": "do",
+          "title": "AUTOMATION session-repo-scoping: a foreign repo's Stop hook fires on EVERY turn-end when its dir is the session cwd -- adaptive_new's scripts/stop_gate.sh spuriously blocked every overgo turn this whole session (huge friction-to-signal). Provide a session-repo-scope so an overgo-rooted session mutes non-overgo repo Stop hooks (e.g. hook checks whether the active work-repo matches its own repo root before blocking).",
+          "status": "open",
+          "verify": "test -x scripts/overgo_stop_gate.sh"
+        }
+      ]
+    },
+    {
+      "id": "loop-hardening-8",
+      "title": "AUTOMATION loop-hardening-8: cmd/loophook Stop gate false-blocks a turn-end while a SUBAGENT is mid-flight producing .go -- it has a gateRunning valve but no subagent-running valve, so background-agent work reads as orphaned. Add a subagent-in-flight valve (treat a running background agent like a running gate). Self-heals via the stop_hook_active retry today but fires noisily on every wait-turn. Same class as loop-hardening-7.",
+      "status": "open",
+      "steps": [
         {
-          "id": "reference-port",
-          "status": "done",
-          "resource": "cpu",
-          "title": "port adaptive host arithmetic (merged_patch_vision.go + modality_transformer_config.go, build-tag-free) into neutral overgo packages: MoT fork as mask-routed row groups over densecausal primitives, tower via projector (hunyuanvl spec reuses; safetensors reader + interpolated pos-embed + merger new), streamed terminal head; verify stage-by-stage against the 45-fixture ladder -- DONE: 44/44 ladder stages green end-to-end (~52s CPU); answer text exact; neutral packages routedlm (MoT as per-token branch-selected weight sets, bf16-resident 5.8GB, streamed terminal argmax) + patchtower (vision tower, interpolated pos-embed, 4-matrix merger) + hfbpe (tokenizer.json BPE) + cmd/vqaparity ladder walker; dynamic-NTK rope ported (theta*alpha^(d/(d-2)), bf16-stepped rotation); key fix: bf16-round softmax probabilities before value mix (adaptive kernel discipline)"
-        },
+          "id": "do",
+          "title": "AUTOMATION loop-hardening-8: cmd/loophook Stop gate false-blocks a turn-end while a SUBAGENT is mid-flight producing .go -- it has a gateRunning valve but no subagent-running valve, so background-agent work reads as orphaned. Add a subagent-in-flight valve (treat a running background agent like a running gate). Self-heals via the stop_hook_active retry today but fires noisily on every wait-turn. Same class as loop-hardening-7.",
+          "status": "open",
+          "verify": "go test ./cmd/loophook/ -run TestStopDecision -count=1"
+        }
+      ]
+    },
+    {
+      "id": "go-doctrine-second-sweep-close",
+      "title": "Close the second Go-doctrine tightening sweep: record all deletion-led waves, totals, verification, and remaining measured cache-order seam without creating speculative authority",
+      "status": "open",
+      "steps": [
         {
-          "id": "measure-bar",
-          "status": "done",
-          "resource": "gpu",
-          "title": "adaptive native VQA bar MEASURED (real server binary, canonical case, 3 runs): e2e 18.4-23.1s, vision 2.8-3.6s, decode 28-31 ms/token (13-22x faster than python oracle 630ms); KEY STRUCTURE: per-request residency rebuild 12.8-18.0s dominates ~70pct of e2e (load_seconds=0, device returns to baseline between requests); engine peak 11.97GB, resident weights 6.17GB. Overgo port bar: match 28-31 ms/token decode AND keep weights/KV persistently resident across requests -> beats e2e outright. Artifacts build/rxbrain_bar_*.json/csv/log"
-        },
-        {
-          "id": "cuda-serving",
-          "status": "done",
-          "resource": "gpu",
-          "title": "device path through the generic executor (retained replay + fusion); goldens exact; at-or-below adaptive native bar -- DEVICE INCREMENT DONE (exact+measured): terminal vocab projection (final RMSNorm -> lm_head 2048x120818 BF16 -> argmax) runs on the generic executor from the SAME graph as the host golden, composing existing ops (no family kernel): device top token 628 = golden first_token, logits worst |d| 1.9e-6 vs BF16-dequant ref, 0.894 ms/token, head 472 MiB; cmd/vqaparity -device mode. NOT the e2e bar (28-31 ms/tok needs full stack). REMAINS: 32-layer branch-routed MoT decode graph + on-device resident KV append, prefill (dual weight sets/block-causal/multi-axis rope), vision tower graph, full e2e wall+peak (persistent-residency lever vs adaptive per-request rebuild) || DECODE DONE: full 32-layer branch-routed MoT decode on the generic executor (pure graph composition, no family kernel) -- 12-step token chain EXACT vs golden [628 357 1218...91686] \"The stovetop holds a metal pot on the left burner\", 5.998 ms/token (~5x faster than adaptive 28-31 bar), retained replay graph_updates=0 (67 launches/2 instantiations), peak +3850MiB, device lane green. internal/routedlm/devicegraph.go + cmd/vqaparity -device-decode. REMAINS: prefill on device (prompt KV currently host-computed+uploaded) + vision tower graph ||| VISION TOWER DONE on device: 27 pre-norm blocks as executor graph (no family kernel), block0_qkv BIT-EXACT, block_last 0.219<=0.219 tol, 115.4ms/1200tok, +2114MiB, replay updates=0. Added scoped opt-in tensor.AttentionAttributes.NaiveF32 (skips blas-chunked scores -> per-query online kernel matching the reference reduction; default false, zero behavior change elsewhere) to hold the 27-block f32 accumulation within tol. Decode re-measured 5.856 ms/tok. REMAINS: merger on device (300 image_features rows), prefill branch-routed MoT graph (harder half: text/vision weight routing over 346 rows + block-causal window + multi-axis rope -> resident KV), full-pipeline device mode + e2e wall vs adaptive 18.4-23.1s |||| FULL PIPELINE DONE + BEATS ADAPTIVE BOTH AXES: vision->merger->prefill->decode all on the generic executor, answer EXACT \"The stovetop holds a metal pot on the left burner\", 12-step chain exact, real device prefill replaces golden-seeded KV. Merger 3.1e-2<0.08 tol; prefill 32/32 layers pass (dual-compute-then-select branch routing, SegmentWindows block-causal, NaiveF32). e2e 9.5s vs adaptive 18.4-23.1s (~2x), peak 10.59GB vs 11.97GB, decode 6.19 ms/tok, replay updates=0. No family kernel, no new kernels"
-        },
-        {
-          "id": "recipe-activation",
-          "status": "done",
-          "resource": "gpu",
-          "title": "VQA recipe activation + status round-trip; real-image verification per multimodal directive -- DONE: generic recipe.TaskVQA + modelrecipe.ModuleVQAAnswer/VQADefinition (capability-package pattern, dims from artifact); recipe caeff... no -- model e686cefa.../recipe 608551da... activated, status round-trip PASS (ABSENT->active). Serve-through-recipe EXACT on REAL image+text (cmd/vqaparity -recipe-serve, gates on active recipe, real processor, decode-to-EOS): golden 13-token prefix bit-exact then full coherent answer to clean EOS, deterministic, ~10.1s e2e. FINDING: owner target string was the 12-step TRUNCATION; real model continues to that exact phrase and completes"
-        },
-        {
-          "id": "training-leg",
-          "status": "done",
-          "title": "ABSENT verdict expected: adaptive has no rxbrain training recipe; record verdict, no invented lane -- ABSENT verdict recorded: adaptive has NO training recipe for modality-transformer (generation/planning are python-oracle-only); no invented lane"
+          "id": "do",
+          "title": "Close the second Go-doctrine tightening sweep: record all deletion-led waves, totals, verification, and remaining measured cache-order seam without creating speculative authority",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/model ./internal/inference"
         }
       ]
     },
     {
       "id": "rung15-sensenova",
-      "title": "SenseNova-U1-8B",
+      "title": "SenseNova generation core matches a fingerprinted native two-step trajectory and beats adaptive reusable-body wall. Bind the neutral core to production decode/publication; edit parity remains blocked on its absent source PNG.",
       "status": "open",
       "steps": [
         {
-          "id": "recon-goldens",
-          "status": "done",
-          "title": "SenseNova-U1-8B-MoT-Infographic-V3 (neo_chat): 42L qwen3-shaped trunk FORKED per-layer via _mot_gen MODULE suffix (13 fork paths, 35.1GB/1116 tensors, 2x8.1B branches); split QK norms (q_norm+q_norm_hw sum to head_dim 128) over dual rope (text th=5e6 1-D, image th=1e4 2-D h/w); conv-only vision embedders x2 (no ViT); pixel-space flow head (fm_head 2L/1536, no VAE), resolution-derived noise scale; block-causal segment attention with prefix KV + denoise loop; dual CFG. Adaptive: generation-only recipe (no training), family expressed as neutral causal-GQA-media code + repodb contract facts (no family file). Fixtures: generation_oracle_256 + edit_oracle_v3_256 (device-neutral JSON: sampled indices + sha256, incl per-layer prefix/generation hiddens + prefix KV); CUDA-only harness, host harness must be written. Perf: warm generation phase 3.068s (256x256 1-step), no CPU baseline -> measure-bar needed"
-        },
-        {
-          "id": "routedlm-generalize",
-          "status": "done",
-          "resource": "cpu",
-          "title": "lift branch binding into a contract: {suffix, fork_paths, module-level placement} config (rxbrain _v becomes config too), per-branch section-valued QK norms, per-branch final norm, section-addressed config reader (llm_config); REGRESSION GATE: rxbrain ladder stays 44/44 -- DONE: BranchBinding contract (LayerPrefix/Suffix/ForkPaths/module-placement rule ported verbatim from models.go:2619, per-branch section-valued QK norms, per-branch final norm, ConfigSection reader); RxBrainBinding + SenseNovaBinding instances; rxbrain ladder 44/44 bit-identical; 23-case naming table verified vs real SenseNova index"
-        },
-        {
-          "id": "multiaxis-rope-positions",
-          "status": "done",
-          "resource": "cpu",
-          "title": "per-section rope plan (text th=5e6 scalar pos + image th=1e4 2-D h/w) + block-causal position model (image block shares time index, bidirectional within block) -- DONE: RopePlan sections derived from QK-norm shapes + binding-named theta keys ({64,5e6,Time},{32,1e4,H},{32,1e4,W} on real checkpoint); RowPosition{branch,time,h,w} + BlockCausalEnds verbatim port; rxbrain ladder 44/44 bit-identical (block0_qkv |d|=0), degenerate-plan lane-exact test incl dynamic-NTK"
-        },
-        {
-          "id": "flow-head",
-          "status": "done",
-          "resource": "cpu",
-          "title": "flow terminal: fm_head + timestep/noise-scale sinusoidal embedders (resolution-derived scale, capped) + conv-only vision embedders x2; pixel-space planar publish, no VAE -- DONE: internal/routedlm/flowterminal.go (flow head + timestep/noise-scale sinusoidal embedders + 2 conv-only vision embedders + 2D patch rope); 9/9 tests pass, real-checkpoint shapes validated; all dims DERIVED (merge=2 two ways, freq=256 from timestep mlp.0, flowdim=3072=c*p^2*merge^2 xcheck fm_head.2, base=64 from config); period=10000 cited from adaptive reference_facts.json sinusoidal_period; rxbrain ladder 44/44 intact. CAVEAT: no bit-exact flow-forward oracle exists -- outputs finite/shaped/schedule-exact, not end-to-end numeric"
-        },
-        {
           "id": "reference-parity",
-          "status": "partial",
-          "resource": "cpu",
-          "title": "host reference vs oracle fixtures: topology test port first (CPU-unchanged in adaptive), then sampled-index checks on edit_oracle (per-layer hiddens, prefix KV [1,4365,8,128]), then generation oracle z-trajectory -- HARNESS DONE (cmd/sensenovaparity, <1s on real 35GB via sparse probes): 3 value oracles PASS (edit+gen schedule knots exact, gen z-sigma 3e-4), 6 exact structural derivations vs real checkpoint (binding/rope [64/5e6/T,32/1e4/H,32/1e4/W]/flow plan/geometry), 2 oracle-absent wired (flow terminal + vision embedders finite/shaped), 3 FRONTIER blocked on prereqs below"
-        },
-        {
-          "id": "prompt-renderer",
-          "status": "done",
-          "resource": "cpu",
-          "title": "port SenseNova edit prompt renderer (compileCausalPrefixInput + 8 prefix-template repodb facts + Qwen2 BPE); yields sha256 id/time/h/w oracle (conditional 4365 / source 4107 tokens) with NO forward -- exercises routedlm.BlockPositions -- DONE PASS-ORACLE: routedlm.RenderEditPrompt (ported compileCausalPrefixInput, reuses BlockPositions) + hfbpe.LoadLegacy (vocab.json/merges.txt; SenseNova has no tokenizer.json) reproduce ids EXACTLY; all 8 sha256 (ids/time/h/w x conditional 4365 / source 4107) match edit_oracle_v3_256; template facts cited from repodb reference_facts.json; ladder oracle=4 derive=6 wired=2 frontier=2; rxbrain 44/44 intact"
+          "title": "host reference vs oracle fixtures: topology test port first (CPU-unchanged in adaptive), then sampled-index checks on edit_oracle (per-layer hiddens, prefix KV [1,4365,8,128]), then generation oracle z-trajectory -- HARNESS DONE (cmd/sensenovaparity, \u003c1s on real 35GB via sparse probes): 3 value oracles PASS (edit+gen schedule knots exact, gen z-sigma 3e-4), 6 exact structural derivations vs real checkpoint (binding/rope [64/5e6/T,32/1e4/H,32/1e4/W]/flow plan/geometry), 2 oracle-absent wired (flow terminal + vision embedders finite/shaped), 3 FRONTIER blocked on prereqs below",
+          "status": "blocked-external-prereq"
         },
         {
           "id": "prefix-layer-stack",
-          "status": "blocked-external-prereq",
-          "resource": "cpu",
-          "title": "wire block-causal + multi-axis + branch-routed prefix layer forward (PromptLayerForward is still single-axis Time+VisualSegments; pieces CompileRopePlan/BlockPositions/BlockCausalWindows exist) into a SenseNova layer stack; parity vs edit_oracle prefix_layers + prefix_kv [1,4365,8,128] -- BLOCKED: edit-lane per-layer hidden parity needs the external EDIT SOURCE PNG, which is NOT in the repo (searched all of adaptive_new: only generation OUTPUTS + showcase PNGs present; edit_oracle source is a sampled probe). The layer-stack CODE can be built but its parity oracle is unavailable without the source image. Unblock: obtain the edit source image, OR verify via the generation lane (denoise-stack, no source image) whose oracle is coarser (terminal z only)"
-        },
-        {
-          "id": "denoise-stack",
-          "status": "partial",
-          "resource": "cpu",
-          "title": "generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head); parity vs generation_layers + steps[] z (needs torch-matched randn(seed) for z init) -- DEVICE TERMINAL+SAMPLER verified: flow condition/head as executor graphs device==host (3.1e-2/6.3e-2), euler steps PASS-ORACLE vs real gen+edit oracles (next_z 3.9e-3/1.6e-2/7.8e-3), trajectory continuity exact (step0.next_z==step1.z, |d|=0); 0.844 ms/step terminal, +444MiB (fm_modules streamed, 35GB not resident); ladder oracle=8/derive=6/wired=4/frontier=2. REMAINS: 42-layer transformer body on device (needs per-section multi-axis rope splicing since RoPEMulti single-base cant express [64/5e6/T,32/1e4/H,32/1e4/W] + block-causal 42-layer resident forward + gen-branch cross-attn to prefix KV); its verification is gated by source-PNG + probe-sparsity + seed-42 RNG regardless of the port"
-        },
-        {
-          "id": "measure-bar",
-          "status": "open",
-          "resource": "gpu",
-          "title": "adaptive native bar on canonical case (warm 3.068s generation phase 256x256 1-step recorded; ship shape 2720x1536 50 steps needs fresh measurement)"
+          "title": "wire block-causal + multi-axis + branch-routed prefix layer forward (PromptLayerForward is still single-axis Time+VisualSegments; pieces CompileRopePlan/BlockPositions/BlockCausalWindows exist) into a SenseNova layer stack; parity vs edit_oracle prefix_layers + prefix_kv [1,4365,8,128] -- BLOCKED: edit-lane per-layer hidden parity needs the external EDIT SOURCE PNG, which is NOT in the repo (searched all of adaptive_new: only generation OUTPUTS + showcase PNGs present; edit_oracle source is a sampled probe). The layer-stack CODE can be built but its parity oracle is unavailable without the source image. Unblock: obtain the edit source image, OR verify via the generation lane (denoise-stack, no source image) whose oracle is coarser (terminal z only)",
+          "status": "blocked-external-prereq"
         },
         {
           "id": "cuda-serving",
+          "title": "Bind the verified neutral two-step generation core to production image decode/publication and a reusable request session. Preserve the native trajectory floors (boundary \u003e=0.999, velocity \u003e=0.995, final state \u003e=0.998), reusable body \u003c=6.2s, and 0.623GiB peak; add an encoded-image artifact quality gate.",
           "status": "open",
-          "resource": "gpu",
-          "title": "device path through generic executor; oracle parity; at-or-below adaptive; persistent residency vs adaptive warm 42/42-resident"
-        },
-        {
-          "id": "recipe-activation",
-          "status": "open",
-          "resource": "gpu",
-          "title": "generation recipe activation + status round-trip; real-image verification per multimodal directive"
-        },
-        {
-          "id": "training-leg",
-          "status": "open",
-          "title": "ABSENT verdict expected: adaptive seeds generation-only for this scope; record verdict"
+          "verify": "set OVERGO_CUDA_TEST=1; set OVERGO_SENSENOVA_BASELINE=1; go test ./internal/sensenovarecipe -run '^TestSenseNovaGenerationLeadership$' -count=2 -v"
         }
       ]
     },
@@ -579,68 +174,39 @@
       "status": "open",
       "steps": [
         {
-          "id": "recon-goldens",
-          "status": "done",
-          "title": "Krea-2-Turbo (Krea2Pipeline, distilled): dual-stream MMDiT Krea2Transformer2DModel 28L, 48 heads/GQA 12 kv, head_dim 128, 3-axis RoPE [32,48,48] theta 1000, separate text stream (12 layers + refiner); FlowMatchEulerDiscrete dynamic-shift; VAE AutoencoderKLQwenImage spatial 8x z16; text enc Qwen3VL 36L with 12 SELECTED-layer hidden fusion + ViT. Adaptive serving CUDA-only (joint_transformer_cuda_windows.go), NO training lane. Goldens CUDA-SHA gated (b25fa024...), no CPU host goldens -> overgo must stand up its own (Wan pattern). PERF BAR: python 97.5-135.4s / ~42.8GiB; adaptive 158.1s / 31.2GiB -- MEMORY-AHEAD, wall-behind (inverse of Wan start); must beat python wall AND memory at exact SHA. Heavy reuse of internal/latentvideo (DiT/sampler/VAE/replay/ldmatrix-mma attn)"
-        },
-        {
-          "id": "convert-discovery",
-          "status": "done",
-          "resource": "cpu",
-          "title": "teach converter/discovery Krea2Transformer2DModel + AutoencoderKLQwenImage + Qwen3VLModel from one artifact dir; geometry shape-derived (latentvideo pattern); serving-only tag. VERIFY: config/shape derivation vs real Krea-2-Turbo index (structural oracle, CPU) -- DONE: internal/latentimage (RecognizePipeline/Derive/VerifyCheckpoint/Enumerate); every dim config-read or tensor-shape-derived with config-vs-config cross-checks (in_channels==z_dim*patch^2, sum(rope_axes)==head_dim, text_hidden==text_encoder_hidden fusion boundary); CPU structural oracle 38/38 dims vs real Krea-2-Turbo headers; serving-only. NOTE: transformer/ uses diffusion_pytorch_model.safetensors.index.json (not model.*) -- serving loader must handle"
-        },
-        {
           "id": "host-goldens",
-          "status": "partial",
-          "resource": "gpu",
-          "title": "stand up CPU-verifiable denoise-step + VAE-decode host goldens (Krea has none; dump intermediates from adaptive CUDA path or python oracle, seed 42, canonical fox/ice-cream case) -- the parity spine for the port -- MINTED (public serve path, 256x256 seed42 8-step turbo): VAE-decoded image BIT-EXACT (u8 sha256 b257e244 + probes -- strong e2e anchor), schedule knots EXACT (g2 sigmas/timesteps -- full sampler parity spine), per-step latent+velocity distribution median/MAD (all 8 steps finite). fixtures/krea/{g0..g3,manifest}+raw; reload-verified. LIMITATION: exact intermediate TENSOR probes (text-cond, per-step latent elements, final latent, VAE float) need an adaptive-side ExecutionProbe dump hook (not HTTP-exposed, no Krea probe program exists) -- adaptive is read-only (only-change-overgo), so OUT OF SCOPE. Sampler port verifies vs g2 now; VAE port verifies bit-exact vs g3 now; denoiser verifies distribution now (exact per-step needs the hook)"
-        },
-        {
-          "id": "text-conditioning",
-          "status": "open",
-          "resource": "cpu",
-          "title": "Qwen3VL encoder + 12 selected-hidden-layer fusion into DiT text stream (Qwen2 tokenizer); vs latentvideo/textcond (UMT5) -- new encoder surface [oracle: telemetry only; exact needs adaptive dump hook (out of scope)]"
-        },
-        {
-          "id": "denoiser-port",
-          "status": "partial",
-          "resource": "cpu",
-          "title": "dual-stream 28-block MMDiT on latentvideo DiT machinery (reuse ldmatrix+mma attention, gelu fusion, retained-graph replay, GQA, 3-axis rope tables); text-token co-attention is new vs single-stream Wan; parity vs host-goldens [oracle: g2 per-step distribution now; exact per-step needs adaptive dump hook (out of scope)] -- HOST REFERENCE DONE: single-stream MMDiT ([text,image] concat, shared 28 blocks) ported from diffusers; zero-centered RMSNorm (1+w), gated GQA (48/12 heads, per-head qk-norm, sigmoid gate), 3-axis interleaved rope [32,48,48] theta 1000, AdaLN-single modulation (6*hidden), SwiGLU + full text_fusion; geometry 100pct derived, no magics. VerifyDenoiserCheckpoint: all 430 transformer tensors present, exact derived shapes, 0 unconsumed; exact forward finite+deterministic; drives g2 8-step schedule. HARD LIMIT: bit-exact g3 UNREACHABLE on CPU -- real forward is 12.82B params ~51GB f32 (not CPU-runnable by design), plus text-cond (Qwen3VL encoder, gap1) + seed-42 native RNG (gap2) are hook-gaps. Krea real e2e parity REQUIRES the device path (unlike smaller models). Pinned TestDenoiserExactG3IsHookGapped"
-        },
-        {
-          "id": "sampler-port",
-          "status": "done",
-          "resource": "cpu",
-          "title": "dynamic-shift flow-match Euler (exponential time-shift, seq-len-dependent, distilled few-step) vs Wan UniPC; parity vs host-goldens [oracle READY: g2 exact sigmas/timesteps] -- DONE EXACT vs g2: FlowMatchEuler dynamic-shift, sigmas/timesteps/deltas bit-for-bit from config (mu=1.15, shiftFlowSigma via exp(mu)); caught f32-rounded Euler delta; shift derivation non-hardcoded"
+          "title": "stand up CPU-verifiable denoise-step + VAE-decode host goldens (Krea has none; dump intermediates from adaptive CUDA path or python oracle, seed 42, canonical fox/ice-cream case) -- the parity spine for the port -- MINTED (public serve path, 256x256 seed42 8-step turbo): VAE-decoded image BIT-EXACT (u8 sha256 b257e244 + probes -- strong e2e anchor), schedule knots EXACT (g2 sigmas/timesteps -- full sampler parity spine), per-step latent+velocity distribution median/MAD (all 8 steps finite). fixtures/krea/{g0..g3,manifest}+raw; reload-verified. LIMITATION: exact intermediate TENSOR probes (text-cond, per-step latent elements, final latent, VAE float) need an adaptive-side ExecutionProbe dump hook (not HTTP-exposed, no Krea probe program exists) -- adaptive is read-only (only-change-overgo), so OUT OF SCOPE. Sampler port verifies vs g2 now; VAE port verifies bit-exact vs g3 now; denoiser verifies distribution now (exact per-step needs the hook)",
+          "status": "open"
         },
         {
           "id": "vae-port",
-          "status": "partial",
-          "resource": "cpu",
-          "title": "spatial AutoencoderKLQwenImage decode (z16, base 96, dim_mult [1,2,4,4], latents_mean/std denorm) + host oracle + tiled upsample; distinct from latentvideo causal 3D codec [oracle READY: g3 decoded image bit-exact] -- PLAN+DECODE VERIFIED (bit-exact g3 blocked on final-latent hook): QwenImage spatial decoder (21 ops derived from real ckpt shapes, z16->RGB spatial-8x, denorm z*std+mean, single-frame Rep-convention collapses temporal to spatial-2x resample-conv); synthetic [16,32,32]->[3,256,256] deterministic; bit-exact vs g3 u8 needs the exact final latent (denoiser port OR adaptive dump hook) -- pinned by TestVAEExactFinalLatentIsHookGap"
+          "title": "spatial AutoencoderKLQwenImage decode (z16, base 96, dim_mult [1,2,4,4], latents_mean/std denorm) + host oracle + tiled upsample; distinct from latentvideo causal 3D codec [oracle READY: g3 decoded image bit-exact] -- PLAN+DECODE VERIFIED (bit-exact g3 blocked on final-latent hook): QwenImage spatial decoder (21 ops derived from real ckpt shapes, z16-\u003eRGB spatial-8x, denorm z*std+mean, single-frame Rep-convention collapses temporal to spatial-2x resample-conv); synthetic [16,32,32]-\u003e[3,256,256] deterministic; bit-exact vs g3 u8 needs the exact final latent (denoiser port OR adaptive dump hook) -- pinned by TestVAEExactFinalLatentIsHookGap",
+          "status": "open"
+        },
+        {
+          "id": "denoiser-2048-fit",
+          "title": "prove/scale the 28-block device denoiser to the golden 2048x2048 (imgSeq=16384, O(seq^2) attention) within 48GB -- only 256x256 (imgSeq=256) exercised today; real OOM risk. Measure peak + tile/stream if needed.",
+          "status": "open"
         },
         {
           "id": "cuda-serving",
-          "status": "open",
-          "resource": "gpu",
-          "title": "device path through generic executor; exact SHA b25fa024...; retained replay"
+          "title": "FINAL integration: device e2e Krea serve (seeded latent-init -\u003e device text-cond -\u003e 8-step FlowMatchEuler w/ device denoiser retained replay -\u003e device tiled VAE) == exact SHA b25fa024 (2048x2048, 8 steps, mu=1.15, cfg=0, seed=42, bf16). RE-SCOPED 2026-08-12: was mis-framed 'integration, unblocked' -- a subagent refuted it against source: 3 of 6 stages had NO overgo impl (device tokenizer/template, device bf16 encoder, device text_fusion), VAE host-whole-frame vs golden device-tiled, torchrng unwired, denoiser proven only at 256x256. The over-claim was mine (read 'telemetry-verified' as 'bit-exact-ready'). Gated on the latent-init/device-text-cond/device-tiled-vae/denoiser-2048-fit stack above; all IN-REPO (not external). ARCHITECTURE ACCEPTANCE (owner concern 2026-08-12 -- the stage-by-stage components are parity SCAFFOLDING that must be PAID DOWN here, not merely glued; else it is a direction failure): (1) a PRODUCTION CALLER outside internal/latentimage (image-out/serve entry) must consume the pipeline -- today the ~3000 device-component lines have no external caller (present-but-inert). (2) SERVE-MODE denoiser forward outputs ONLY Velocity; the 28 per-block BlockOutputs (denoiser_program.go, g2-oracle taps) are gated behind a verification flag, NOT materialized every step in serving. (3) DEVICE-RESIDENT stage hand-off: the once-per-prompt encoder-\u003efusion-\u003edenoiser-text conditioning stays on device (no host []float32 boundary in the serve path; the residency workers hand off resident pointers), matching the training-lane resident-pipeline standard. Component device==host parity is necessary but NOT sufficient for this step.",
+          "status": "open"
         },
         {
           "id": "recipe-activation",
-          "status": "open",
-          "resource": "gpu",
-          "title": "generation recipe activation + status round-trip; real-image verification"
+          "title": "generation recipe activation + status round-trip; real-image verification",
+          "status": "open"
         },
         {
           "id": "performance-leg",
-          "status": "open",
-          "resource": "gpu",
-          "title": "beat python wall AND memory at exact SHA (currently memory-ahead 31.2 vs 42.8GiB, wall-behind 158 vs 97-135s); close wall with rung-11 attention/fusion levers"
+          "title": "beat python wall AND memory at exact SHA (currently memory-ahead 31.2 vs 42.8GiB, wall-behind 158 vs 97-135s); close wall with rung-11 attention/fusion levers",
+          "status": "open"
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "title": "ABSENT verdict expected: adaptive serving-only for Krea2; record verdict"
+          "title": "ABSENT verdict expected: adaptive serving-only for Krea2; record verdict",
+          "status": "open"
         }
       ]
     },
@@ -650,63 +216,19 @@
       "status": "open",
       "steps": [
         {
-          "id": "recon-goldens",
-          "status": "done",
-          "title": "gemma-4-12B-it-fp8 = gemma4_unified (DIFFERENT from E4B gemma4): hidden 3840, 48L, 16 heads/8 kv, num_global_kv_heads=1, attention_k_eq_v=true, head_dim 256/global 512, SharedKV=0 + PLE=0 (both ABSENT -- simpler spine than E4B), unified vision/audio/video projector (not full ViT). FP8: FP8_PER_CHANNEL_PER_TOKEN E4M3 on MLP linears ONLY (per-output-channel F32 weight_scale; attn+lm_head+embeds stay bf16). Adaptive serves via same AlternatingWindowHost, NATIVE fp8 CUDA (gemv_fp8/gemm_fp8 in-kernel dequant, ~12GB resident) + exact E4M3 CPU oracle; TRAINS gemma4_unified. overgo ALREADY converts fp8->bf16 (newFP8BF16Reader, W=bf16(e4m3->f32 * scale[row])) matching the golden provenance exactly; gemma4convert config is model_type-agnostic so accepts gemma4_unified. Goldens gemma4_golden.json CPU-verifiable (AlternatingWindowHost fp32 + exact E4M3). NEW: native-fp8 residency kernel (12 vs 24GB), attention_k_eq_v + global_kv=1 runtime wiring, unified MM projector"
-        },
-        {
           "id": "rung-export",
-          "status": "open",
-          "resource": "cpu",
-          "title": "gemma4_golden.json + honest bf16-dequant baseline into overgo store (dequant_gemma_fp8 contract = newFP8BF16Reader)"
-        },
-        {
-          "id": "converter-parity",
-          "status": "done",
-          "resource": "cpu",
-          "title": "run gemma4convert on gemma-4-12B-it-fp8 (structural config accepts gemma4_unified; SharedKV/PLE=0 no-op; fp8 MLP -> bf16 via newFP8BF16Reader); verify GGUF tensor inventory + fp8-dequant vs gemma4_golden.json (0-mismatch target like E4B) -- DONE 0-mismatch, NO converter changes: gemma4convert handled gemma4_unified fp8 as-is; gemma-4-12B-it-fp8-bf16.gguf 667 tensors (618 bf16 + 49 f32) 22.2GiB 85s; 810 source lang = 666 emitted + 144 weight_scale consumed + 11 MM excluded +1 rope; fp8 MLP dequant bit-matches bf16(e4m3(w)*scale[row]) at sampled rows, bf16 attn/embeds byte-identical; attention_k_eq_v real (8 full-attn layers emit attn_k, no attn_v); metadata matches config"
-        },
-        {
-          "id": "inference-wiring",
-          "status": "done",
-          "resource": "cpu",
-          "title": "confirm/adjust overgo gemma4 attention for attention_k_eq_v=true + num_global_key_value_heads=1; text decode parity vs gemma4_golden.json (CPU-verifiable via host path) -- DONE: gemma4_unified attention (k_eq_v, global_kv=1) serves correctly end-to-end (24/24 tokens coherent+deterministic); E4B regression intact"
-        },
-        {
-          "id": "native-fp8-residency",
-          "status": "done",
-          "resource": "gpu",
-          "title": "port adaptive gemv_fp8/gemm_fp8 + per-channel F32 scale residency into internal/cuda (E4M3 in-kernel dequant, F32-accum, fold scale[row] once) to hold ~12GB vs ~24GB bf16 -- the 48GB-ceiling memory lever; exact vs bf16-dequant path -- KERNEL+RESIDENCY DONE (measured): FP8 E4M3 added as next native dtype in the unified matmul contract (sibling F8E4M3 branch, scale rides in same resident buffer -> OpMulMat stays 2-input); mul_mat_fp8_f32 decode + fp8_to_f32 prefill, e4m3 decode bit-identical to Go dtype.F8E4M3ToFloat32 (all 256 codes) + GPU decode/prefill/argmax match f64 ref; 12B residency 22.28->14.37 GiB (-35.5pct), device lane green. NAMED REST: GGUF fp8-emit convert mode (currently up-converts to bf16), model-graph residency wiring (Shape.Bytes for combined [e4m3|scale] buffer + block builder), recipe-activation for end-to-end ms/token | SERVING LIVE: fp8-native GGUF 15.34GB (144 f8_e4m3 + 474 bf16 + 49 f32), StorageBytes one-owner (3 formulas collapsed), runner routes F8E4M3 to native store; 12B peak 26.98->18.89 GiB (-30.5pct), decode 37.23->29.81 ms/tok (+20pct), fp8==bf16 24/24 tokens identical + deterministic + logit cross-check exact"
-        },
-        {
-          "id": "recipe-activation",
-          "status": "done",
-          "resource": "gpu",
-          "title": "GGUF inference recipe activation + status round-trip; live serving goldens -- DONE: recipe caeff3b3.../model d0be4bb0.../def 2dbfc9dd... activated; served on capacity session (paging bug now fixed)"
-        },
-        {
-          "id": "mm-input-leg",
-          "status": "done",
-          "resource": "gpu",
-          "title": "unified vision/audio projector (NEW vs E4B towers) per capability_budget gemma12b_image_input/_audio_input smokes; stageable after text -- CONVERTER+PARITY DONE (0 source changes): 12B unified projector is a SHALLOW embedder (11 bf16 tensors, no transformer/conformer blocks) vs E4B deep towers; gemma4convert towerLayout already routes embedder-vs-tower (harvested llamacpp2go code, first live 12B exercise). gemma-4-12B-it-fp8-mmproj-bf16.gguf 11 tensors 104.7MB, parity PASS 0 fail (patch_dense in-width 6912=(16*3)^2*3 config-derived), E4B regression 1411 tensors unchanged. REMAINS: device-side unified-projector serving (RGB-interleave->planar patch_dense permutation + pos_embedding axis reorder numerical correctness vs a reference forward -- GPU) || DEVICE SERVING DONE (verified end-to-end): unified projector device graph (internal/projector/gemma4_cuda.go, pre-existing f7ccaba) VERIFIED on the real 12B mmproj on-device -- per-stage matches adaptive golden (patch_ln1/dense/ln2/pos_norm/pre-projection/embedding_projection), permutation+pos-embed-reorder ABSOLUTELY correct, device==host within bf16 bound (0.125 abs, within 2x the 0.08 golden band; both pass 0.08 vs golden). Full ON-DEVICE e2e: device projector + device fp8 12B -> first token == adaptive golden (TestGemma4ImageDeviceProjectorEndToEndOracle, 29.5s single process); 11.6 ms/projector forward, peak 226MiB. REMAINS: only training-leg (gemma4_unified backward = same E4B gemma3n backward lane class)"
+          "title": "gemma4_golden.json + honest bf16-dequant baseline into overgo store (dequant_gemma_fp8 contract = newFP8BF16Reader)",
+          "status": "open"
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "resource": "gpu",
-          "title": "adaptive TRAINS gemma4_unified (stream_lm_cuda / mixed-window) -- real reference; head-to-head, record verdict"
+          "title": "adaptive TRAINS gemma4_unified (stream_lm_cuda / mixed-window) -- real reference; head-to-head, record verdict",
+          "status": "open"
         },
         {
           "id": "performance-leg",
-          "status": "partial",
-          "resource": "gpu",
-          "title": "head-to-head wall + memory at-or-below adaptive native-fp8 -- MEASURED: fp8 18.89 GiB / 29.81 ms/tok vs bf16 26.98 GiB / 37.23 ms/tok (overgo self-baseline). Remaining: head-to-head vs adaptive native fp8"
-        },
-        {
-          "id": "capacity-session-paging-fix",
-          "status": "done",
-          "resource": "gpu",
-          "title": "FINDING (pre-existing, bf16-identical, orthogonal to fp8): default capacity decode-session has a cache-paging off-by-one (keyShape 257 vs keyCapacity 256 page boundary) that OOMs capacity-eligible models (shared_kv=0 like the 12B). Workaround shipped: recipe activate -session {auto|request|capacity}, 12B pinned to request. Real fix: compute keyCapacity from pastTokens+1 consistently with keyShape in internal/inference capacity cache-target paging -- DONE: root cause = buildGemma4BlockCached used unconditional builder.Concat + hardcoded queryStart (ignoring cacheWrite); capacity/append override to SourceCapacity(256) made Concat produce keyShape 257 vs keyCapacity 256 -> OOM (Carbon/generic use WriteCache, so were fine). FIX: route through builder.WriteCache(...,cacheWrite) + CacheTokenOffset (mirrors generic staged path) -> keyShape==keyCapacity by construction. Derived via the cache-write contract, no magic +1. Pinned tests capacity_paging_golden/repro pass; 12B now serves on default capacity session (no -session request pin)"
+          "title": "head-to-head wall + memory at-or-below adaptive native-fp8 -- MEASURED: fp8 18.89 GiB / 29.81 ms/tok vs bf16 26.98 GiB / 37.23 ms/tok (overgo self-baseline). Remaining: head-to-head vs adaptive native fp8",
+          "status": "open"
         }
       ]
     },
@@ -716,44 +238,9 @@
       "status": "open",
       "steps": [
         {
-          "id": "recon-goldens",
-          "status": "done",
-          "title": "Qwen3.5-9B = Q8_0 GGUF ONLY (models/Qwen3.5-9B-Q8_0.gguf, 8.9GiB, no HF checkpoint/config/tokenizer). SAME qwen3_5 hybrid arch as ported 4B (full_attention_interval 4 -> 3 linear-attn + 1 full, gated attn output, GDN/SSM linear_num_key_heads 16/value 32 head_dim 128, +1 RMSNorm, partial_rotary 0.25, NOT MoE), larger scale. ONE DELTA vs 4B: UNTIED lm_head.weight (4B tie_word_embeddings=true) -- must map distinct head, NEVER fall back to tied embed (plausible-but-wrong guard). The 3 rung-12 numeric fixes (ssm_a=-exp(A_log), V-head grouped->tiled reorder, +1 norms) ARE the GGML-convention transforms and apply unchanged. Adaptive serves direct from Q8_0 GGUF via hybrid_recurrent path, NO training lane. Goldens keyed to 4B only; 9B has NO golden (research probes: finite non-constant logits + untied-head inventory + Q8_0 block stats; quant-decoder cross-ref host-verifiable). Q8_0 -> bf16 resident (~9GB disk -> ~19GB bf16, double-residency higher). Route: read existing GGUF via overgo qwen35 GGUF path (NOT hfconvert -- no HF source), map untied head"
-        },
-        {
-          "id": "gguf-read-untied-head",
-          "status": "done",
-          "resource": "cpu",
-          "title": "read models/Qwen3.5-9B-Q8_0.gguf via overgo qwen35 GGUF path; assert hybrid metadata parses (ssm.* + full_attention_interval -> layer_types), tensor inventory complete, lm_head.weight mapped DISTINCT from embed_tokens (guard tied fallback), 3 GGML transforms apply. CPU structural oracle (inventory + untied-head assertion), like the container research probe -- DONE PASS: overgo reads Qwen3.5-9B Q8_0 GGUF (gguf.Open->model.ReadSpec->ReadWeights); all hybrid dims from metadata (no HF sidecar), layer-type synthesized from full_attention_interval=4 matches physical inventory all 32 blocks; UNTIED output.weight mapped distinct from token_embd (Weights.Output non-nil); 3 GGML conventions consumed as-is (import-time on write side). Added structural oracle test guarding tied-fallback substitution. LATENT RISK documented: qwen35 profile lacks ArchitectureRequiresOutput so a missing output.weight would silently tie -- oracle guards the real 9B"
-        },
-        {
-          "id": "serving-smoke",
-          "status": "done",
-          "resource": "gpu",
-          "title": "prefill \"The capital of France is\" -> finite non-constant sane argmax (host if CPU GGUF decode path exists, else CUDA); deterministic -- DONE: 9B serves coherent+deterministic (\"Paris\"), untied head LIVE (output.weight distinct), peak 9339 MiB (Q8_0 resident, BF16 lever ~half the bf16 estimate), ~18 ms/tok; via the 4B entry point, no changes"
-        },
-        {
-          "id": "recipe-activation",
-          "status": "done",
-          "resource": "gpu",
-          "title": "bare-.gguf profile + hybrid-recurrent recipe activation + status round-trip -- DONE: recipe f1296e05.../model 896a8789... activated, status round-trip PASS, tier experimental, session=capacity (paging fix applies); no profile tweak (4B precedent generalized)"
-        },
-        {
-          "id": "fixture-leg",
-          "status": "done",
-          "resource": "gpu",
-          "title": "no 9B golden exists -- generate one from adaptive, or accept plausibility + Q8_0 quant-decoder-reference as bar (document the gap honestly) -- DONE: fixtures/qwen35_9b_serving_smoke.json (provisional, load-bearing regression anchor, model sha + golden_gap named); no independent numeric oracle exists (honest)"
-        },
-        {
-          "id": "performance-leg",
-          "status": "done",
-          "resource": "gpu",
-          "title": "measure bf16-resident peak (~19GB+ double residency) + tok/s; no prior 9B ledger -- establish bar; the F32-of-BF16 double-residency BF16 lever (rung12) applies here too -- HEAD-TO-HEAD DONE: overgo 11.6 ms/tok device / 9.3GB; adaptive CANNOT serve the bare Q8_0 GGUF -- overgo-only capability win"
-        },
-        {
           "id": "training-leg",
-          "status": "open",
-          "title": "ABSENT verdict: qwen3_5 hybrid is inference-only in adaptive; record verdict"
+          "title": "ABSENT verdict: qwen3_5 hybrid is inference-only in adaptive; record verdict",
+          "status": "open"
         }
       ]
     },
@@ -763,122 +250,26 @@
       "status": "open",
       "steps": [
         {
-          "id": "recon",
-          "status": "done",
-          "title": "Fractale-350M-base = ThoughtBank/DeepSeek-V4-mini (386M FP32 model.pt pytorch-zip pickle; NO config.json -- dims in ck[\"cfg\"]; 12L d768 12h, MoE 4+1 top-2, CSA/HCA compressed attn, mHC Sinkhorn hyper-connection residuals, + novel 8-slot fast-weight THOUGHT BANK hypernet -> low-rank MLP per slot). Tokenizer = external SmolLM2-135M + 2 added specials <think>/<blank>. CORRECTION to prior memory: NO adaptive Go serving path exists -- only the python torch reference (_core/model.py ThoughtBankLM.forward); reference decode is O(n^2) full-reforward, the \"O(n) incremental\" is a PORT GOAL not an existing artifact. NO fixtures anywhere (grep fractale in adaptive = manifest.json only) | CORRECTION via git archaeology: adaptive DID implement a full Go Fractale lane at commit b8fef3cc2 (fast_weight_bank_lm.go + _decode + _backward + engine_fast_weight_bank_lm.go + incremental bit-exact research oracle, ~10 files) named GENERICALLY (fast_weight_bank_lm, no \"fractale\" token -- recon grep-for-fractale missed it). That lane is on an UNMERGED branch, ABSENT from current master (worktree retired). So port-first source EXISTS in git, not just torch."
-        },
-        {
-          "id": "pt-loader-port",
-          "status": "done",
-          "title": "DONE (pre-existing): internal/pytorchzip reads .pt/.pth pickle FP32 tensor sets (FloatStorage->F32, zip-offset storage resolution, row-gather) -- resolves the ORIGINAL container blocker that deferred this rung [extended: +4 pickle opcodes + ReadScalarConfig for the cfg dict]"
-        },
-        {
           "id": "golden-generation",
-          "status": "blocked-external-prereq",
-          "title": "golden oracle available two ways: (a) adaptive Go FastWeightBankLMForward at b8fef3cc2 (bit-exact, fast_weight_bank_lm_incremental_research_test.go) -- recover from git + run on the model; (b) torch ThoughtBankLM. Either needs the model.pt + SmolLM2 tokenizer download (network) -- external-prereq for the dump run"
-        },
-        {
-          "id": "reference-port",
-          "status": "done",
-          "resource": "cpu",
-          "title": "PORT-FIRST from adaptive git b8fef3cc2 (NOT net-new): recover fast_weight_bank_lm*.go (thought-bank fast-weight slot->low-rank-MLP, mHC Sinkhorn residuals, CSA/HCA, O(n) incremental compressed-KV decode, <think>/<blank> chunk carry) and re-express through overgo owners; adaptive lane is bit-exact + host O(n) already. Container read via internal/pytorchzip (done) -- PARTIAL (recovered from git b8fef3cc2, re-expressed via overgo owners): new neutral internal/thoughtbank (fast-weight bank fwd+bwd, mHC + Sinkhorn fwd+bwd -- all finite-difference unit-tested, brackets <4e-4) + config derivation; hostmath gains sinkhorn/swiglu/GELUErfPrime (neutral home); pytorchzip capability port (4 pickle opcodes BINFLOAT/EMPTY_LIST/APPEND/APPENDS + ReadScalarConfig) UNLOCKS the .pt cfg read. CONFIG-PARSE VERIFIED vs real model.pt (653 tensors, all dims match ck[\"cfg\"], untied lm_head). REMAINS: CSA/HCA compressed attention port (self-contained, no torch), the assembled 12L stack + incremental-decode bit-exact contract (testable on small synthetic config, no torch), and the torch/SmolLM2 e2e golden (external-prereq) -- TORCH-FREE PORTION COMPLETE: CSA/HCA fwd+bwd (FD brackets 1.77e-4/1.79e-4, lightning-indexer detach pinned), assembled 2-layer ThoughtBankLM forward (mHC-wrapped CSA/HCA + fast-weight bank stream-delta + shared-routed MoE 4+1 top-2 + collapse + gated thought-write FIFO), and the KEY incremental-decode bit-exactness contract PASS with maxAbsDiff=0 (decode-step==full-seq-forward, greedy-exact, swept lengths 1-12 crossing CSA/HCA/window boundaries, both seeded+empty bank). internal/thoughtbank additive, no hostmath changes. Only golden-generation (torch/SmolLM2) remains external-prereq"
+          "title": "golden oracle available two ways: (a) adaptive Go FastWeightBankLMForward at b8fef3cc2 (bit-exact, fast_weight_bank_lm_incremental_research_test.go) -- recover from git + run on the model; (b) torch ThoughtBankLM. Either needs the model.pt + SmolLM2 tokenizer download (network) -- external-prereq for the dump run",
+          "status": "blocked-external-prereq"
         },
         {
           "id": "recipe-activation",
-          "status": "open",
-          "resource": "gpu",
-          "title": "generic recipe activation once served"
+          "title": "generic recipe activation once served",
+          "status": "open"
         },
         {
           "id": "training-leg",
-          "status": "open",
-          "title": "per baseline policy; adaptive has no training lane for it"
+          "title": "per baseline policy; adaptive has no training lane for it",
+          "status": "open"
         },
         {
           "id": "performance-leg",
-          "status": "open",
-          "resource": "gpu",
-          "title": "O(n) incremental decode goal vs the O(n^2) torch reference; head-to-head"
+          "title": "O(n) incremental decode goal vs the O(n^2) torch reference; head-to-head",
+          "status": "open"
         }
       ]
     }
-  ],
-  "performance_ledger": {
-    "note": "per-rung head-to-head verdicts vs adaptive_new; restored 2026-08-09 after step rewrites clobbered inline measurement blobs; commit bodies remain the primary ledger",
-    "rung1-timesfm": {
-      "overgo": "0.674-0.696s",
-      "adaptive": "0.851-0.873s",
-      "verdict": "BETTER -22pct envelopes separated"
-    },
-    "rung3-carbon": {
-      "overgo": "483-516 tok/s (1.99 ms/tok)",
-      "adaptive": "442-487 (2.11)",
-      "verdict": "BETTER"
-    },
-    "rung4-qwen05": {
-      "overgo": "505-520 tok/s",
-      "adaptive": "480-515",
-      "verdict": "TIE within envelope (at-or-below)"
-    },
-    "rung5-tabfm": {
-      "overgo": "0.65-0.81x per case",
-      "adaptive": "1.0x",
-      "verdict": "BETTER all 4 cases"
-    },
-    "rung6-needle": {
-      "overgo": "0.14-0.25s composite",
-      "adaptive": "0.42-0.44s test-wall",
-      "verdict": "BETTER (protocol caveat: ref wall includes asserts)"
-    },
-    "rung7-pockettts": {
-      "overgo": "0.441-0.476s",
-      "adaptive": "0.48-0.50s",
-      "verdict": "BETTER small margin"
-    },
-    "rung8-un0": {
-      "overgo": "0.01s",
-      "adaptive": "0.01s",
-      "verdict": "TIE at protocol resolution"
-    },
-    "rung9-simplediffusion": {
-      "overgo": "0.17s",
-      "adaptive": "0.21s",
-      "verdict": "BETTER 0.81x"
-    },
-    "rung10-minicpm": {
-      "overgo": "2.62-3.02 ms/tok",
-      "adaptive": "3.40-3.44",
-      "verdict": "BETTER every run"
-    },
-    "rung11-wan": {
-      "overgo": "denoise 6.75 s/step (50-step prod, ldmatrix+mma attention + gelu fusion), total ~383s, peak 7.87GB, goldens exact",
-      "adaptive": "exact 13.8 s/step, decode 29-45s",
-      "python": "8.4 s/step, total 463.4s",
-      "verdict": "BEATS python AND adaptive on time AND memory at exact quality"
-    },
-    "summary": "9 BETTER (incl rung11 now beating python), 2 TIE, 0 WORSE; rungs 12-18 in progress",
-    "rung14-rxbrain": {
-      "adaptive": "e2e 18.4-23.1s (per-request residency rebuild ~70pct), decode 28-31 ms/token, engine peak 11.97GB",
-      "python": "oracle 44.7s full, ~630 ms/token decode",
-      "overgo": "FULL device pipeline e2e 9.5s / peak 10.59GB / decode 6.19 ms/tok, answer+12-step-chain exact",
-      "verdict": "BEATS adaptive on BOTH time (~2x e2e, ~5x decode) AND memory (10.59 vs 11.97GB) at exact output"
-    },
-    "native_dtype_bf16_prefill": {
-      "note": "unified F16/BF16 native-dtype prefill: drop resident F32 weight copies, bit-exact upconvert into one reused workspace before identical SGEMM",
-      "qwen35-4b": "peak 24.43->10.77 GiB (-55.9pct), decode ~11 ms/tok unchanged, goldens 3/3 exact",
-      "e4b": "peak 41.74->21.79 GiB (-47.8pct), decode 66.6->20.05 ms/tok (3.3x), goldens 3/3 exact",
-      "contract": "F16 kept + test-guarded; production bf16 models exercise the path (not inert)"
-    },
-    "native_fp8_residency": {
-      "note": "FP8 E4M3 native residency for gemma-4-12B-it-fp8, same native-dtype matmul contract as F16/BF16",
-      "gemma12b": "resident 22.28 GiB (fp8->bf16 upconvert) -> 14.37 GiB native fp8 (-35.5pct); exact vs f64 e4m3 ref; ms/token pending recipe"
-    },
-    "llm_head_to_head_2026-08-10": {
-      "note": "overgo vs adaptive, RTX 4090D, \"The capital of France is\", greedy 64 tok, serial clean-timing; peak = nvidia-smi delta over 6648 MiB idle baseline",
-      "qwen35-4b": "overgo 10.96 ms/tok (91 tok/s) / 11532 MiB vs adaptive 16.76 ms/tok (60 tok/s) / 9324 MiB -- overgo 1.53x FASTER (same bf16 weights, apples-to-apples); adaptive ~2.2GB smaller (overgo persistent capacity-KV buys the speed)",
-      "e4b": "overgo 18.5 ms/tok device / 22.3GB vs adaptive 341 ms/tok HOST-ONLY (no device path, panics in target-score) -- overgo ~18x, CAPABILITY GAP",
-      "qwen35-9b": "overgo 11.6 ms/tok device / 9.3GB vs adaptive CANNOT LOAD (bare Q8_0 GGUF, no HF sidecar) -- overgo ONLY, CAPABILITY GAP",
-      "verdict": "overgo beats adaptive on decode speed for 4B (1.53x) and on capability for E4B + 9B (adaptive has no device/GGUF path); 4B peak-memory tradeoff is overgo persistent residency (documented design)"
-    }
-  }
+  ]
 }

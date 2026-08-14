@@ -12,9 +12,20 @@ Go on the server, rendered with our vanilla-JS thin client (canvas/SVG, no plotl
 Python, torch, or transformers anywhere**. See §5A.
 
 Worktree: `C:\Users\jeffm\overgo_gui` (branch `overgo_gui`). Work and commits land here;
-The branch tracks master plus in-flight GUI work; master is merged in periodically (latest at
-`0b43ea6` — rope_half kernel, on-device attention softmax, recipe-execution consolidation;
-prior `bc47a24` brought densecausal device training + capability recipe runtime).
+The branch tracks master plus in-flight GUI work; master is merged in periodically (latest brings
+E4B multimodal towers, resident device training, and a roadmap consolidation; prior `0b43ea6`
+brought rope_half kernel + on-device attention softmax).
+
+> **Consolidation note:** master now treats `docs/plan.json` (the executable plan, `cmd/plan
+> -verify`) as roadmap authority and is deleting root roadmap markdown — `overgo_gui_plan.md`
+> was swept up in that. It's kept here as the GUI-specific plan (distinct from the model-ladder
+> `docs/plan.json`), but expect this modify/delete tension to recur each merge until the GUI
+> roadmap either moves into `docs/plan.json` or is exempted.
+>
+> **Superseded work:** the `cmd/train` device-path capability-admission fix (my
+> `DeviceTrainingAdmitted`) was independently and better implemented on master as
+> `densecausal.DeviceTrainingSupported(Dims)` in `device_capability.go`, gated at selection time
+> in `run_cuda_windows.go`. This merge dropped my redundant version in favor of master's.
 
 > **Merge note (operational):** on this Windows worktree the repo's `gate -merge` step fails on
 > two master-side cross-platform artifacts unrelated to the GUI: (1) stale-CRLF checkouts of

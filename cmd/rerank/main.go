@@ -21,9 +21,7 @@ func run() error {
 	modelPath := flags.String("model", "", "Qwen3 or Qwen3-VL reranker GGUF path")
 	query := flags.String("query", "", "query text")
 	document := flags.String("document", "", "document text")
-	modelFlags := clioptions.AddModelFlagsWithConfig(flags, "load GGUF LoRA adapter at scale 1; repeatable", clioptions.ModelFlagConfig{
-		PreloadName: "preload-f32", NativeQuantName: "native-quant", NativeQuantDefault: true,
-	})
+	modelFlags := clioptions.AddModelFlags(flags, "load GGUF LoRA adapter at scale 1; repeatable")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}

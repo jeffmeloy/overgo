@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
@@ -23,9 +24,8 @@ func TestEvaluationPromotesWorkflowRecipe(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
 	tokenizerID := testutil.ArtifactID(t, artifact.KindTokenizer, "tokenizer")
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
-	outputID := testutil.ArtifactID(t, artifact.KindOutput, "output")
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/workflow/facts", Artifacts: []artifact.Descriptor{
-		{ID: modelID}, {ID: tokenizerID}, {ID: datasetID}, {ID: outputID},
+		{ID: modelID}, {ID: tokenizerID}, {ID: datasetID},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -45,41 +45,34 @@ func TestEvaluationPromotesWorkflowRecipe(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	run, err := runrecord.NewRun(
-		definition.ID, runrecord.OutcomeSucceeded, nil, []artifact.ID{outputID}, "",
+	verification, err := modelrecipetest.PublishVerification(
+		ctx, store, "fixture/workflow/verification", definition.ID,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch, err := run.Batch("fixture/workflow/run")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Commit(ctx, batch); err != nil {
-		t.Fatal(err)
-	}
 	evaluation, err := runrecord.NewEvaluation(
-		definition.ID, run.ID, datasetID,
+		definition.ID, verification.Run, datasetID,
 		[]runrecord.Metric{{Name: "quality", Value: 1, Direction: runrecord.DirectionMaximize}},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch, err = evaluation.Batch("fixture/workflow/evaluation")
+	batch, err := evaluation.Batch("fixture/workflow/evaluation")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "fixture/workflow/active", definition, recipe.StatusActive,
+	if _, _, err := modelrecipe.ActivateVerified(
+		ctx, store, "fixture/workflow/active", definition, verification,
 		[]artifact.ID{evaluation.ID}, nil,
 	); err != nil {
 		t.Fatal(err)
 	}
-	active, ok, err := modelrecipe.Active(ctx, store, modelID, recipe.TaskGeneration)
-	if err != nil || !ok || active.ID != definition.ID {
-		t.Fatalf("active workflow = (%s, %v, %v)", active.ID, ok, err)
+	active, ok, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskGeneration)
+	if err != nil || !ok || active.Definition.ID != definition.ID {
+		t.Fatalf("active workflow = (%s, %v, %v)", active.Definition.ID, ok, err)
 	}
 }

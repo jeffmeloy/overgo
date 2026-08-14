@@ -49,12 +49,6 @@ func TestExecutorConditionedDiffusionBlockMatchesReference(t *testing.T) {
 		Output: weightInput("cross_o", dim, dim), OutputBias: weightInput("cross_ob", dim),
 		QueryNorm: weightInput("cross_nq", dim), KeyNorm: weightInput("cross_nk", dim),
 	}
-	crossKey, crossValue, err := model.BuildConditionedDiffusionCrossContext(
-		builder, contextInput, crossWeights, heads, 1e-6,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	options := model.ConditionedDiffusionBlockOptions{
 		Dim: dim, Heads: heads, FFNDim: ffn,
 		Epsilon:      1e-6,
@@ -65,6 +59,14 @@ func TestExecutorConditionedDiffusionBlockMatchesReference(t *testing.T) {
 			{0, 0, 0, 0}, // height
 			{0, 1, 0, 1}, // width
 		},
+	}
+	program, err := model.CompileConditionedDiffusionProgram(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	crossKey, crossValue, err := program.BuildCrossContext(builder, contextInput, crossWeights)
+	if err != nil {
+		t.Fatal(err)
 	}
 	blockWeights := model.ConditionedDiffusionBlockWeights{
 		Modulation:      weightInput("modulation", 6*dim),
@@ -77,16 +79,15 @@ func TestExecutorConditionedDiffusionBlockMatchesReference(t *testing.T) {
 		FFNContract:     weightInput("ffn2_w", ffn, dim),
 		FFNContractBias: weightInput("ffn2_b", dim),
 	}
-	result, err := model.BuildConditionedDiffusionBlock(
-		builder, input, conditioning, crossKey, crossValue, options, blockWeights,
+	result, err := program.BuildBlock(
+		builder, input, conditioning, crossKey, crossValue, blockWeights,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	head, err := model.BuildConditionedDiffusionHead(
+	head, err := program.BuildHead(
 		builder, result.Output, headConditioning,
 		weightInput("head_mod", 2*dim), weightInput("head_w", dim, 8), weightInput("head_b", 8),
-		1e-6,
 	)
 	if err != nil {
 		t.Fatal(err)

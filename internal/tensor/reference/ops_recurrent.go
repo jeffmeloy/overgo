@@ -214,9 +214,9 @@ func gatedLinearAttention(
 	return Value{Shape: shape, Data: output}, nil
 }
 
-func rwkv6(shape tensor.Shape, inputs []Value) (Value, error) {
+func wkv6(shape tensor.Shape, inputs []Value) (Value, error) {
 	if len(inputs) != 6 {
-		return Value{}, errors.New("RWKV6 requires six inputs")
+		return Value{}, errors.New("WKV6 requires six inputs")
 	}
 	key, value, receptance := inputs[0], inputs[1], inputs[2]
 	first, decay, inputState := inputs[3], inputs[4], inputs[5]
@@ -225,7 +225,7 @@ func rwkv6(shape tensor.Shape, inputs []Value) (Value, error) {
 	tokens := int(key.Shape.Dims[2])
 	sequences := int(key.Shape.Dims[3])
 	if width <= 0 || heads <= 0 || tokens <= 0 || sequences <= 0 {
-		return Value{}, errors.New("invalid RWKV6 dimensions")
+		return Value{}, errors.New("invalid WKV6 dimensions")
 	}
 	attentionElements := width * heads * tokens * sequences
 	stateElements := width * width
@@ -270,9 +270,9 @@ func sumRows(shape tensor.Shape, input Value) (Value, error) {
 	return Value{Shape: shape, Data: output}, nil
 }
 
-func rwkv7(shape tensor.Shape, inputs []Value) (Value, error) {
+func wkv7(shape tensor.Shape, inputs []Value) (Value, error) {
 	if len(inputs) != 7 {
-		return Value{}, errors.New("RWKV7 requires seven inputs")
+		return Value{}, errors.New("WKV7 requires seven inputs")
 	}
 	receptance, decay, key, value := inputs[0], inputs[1], inputs[2], inputs[3]
 	a, bVector, inputState := inputs[4], inputs[5], inputs[6]
@@ -281,7 +281,7 @@ func rwkv7(shape tensor.Shape, inputs []Value) (Value, error) {
 	tokens := int(key.Shape.Dims[2])
 	sequences := int(key.Shape.Dims[3])
 	if width <= 0 || heads <= 0 || tokens <= 0 || sequences <= 0 {
-		return Value{}, errors.New("invalid RWKV7 dimensions")
+		return Value{}, errors.New("invalid WKV7 dimensions")
 	}
 	attentionElements := width * heads * tokens * sequences
 	stateElements := width * width

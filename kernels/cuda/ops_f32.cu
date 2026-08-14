@@ -460,6 +460,53 @@ extern "C" __global__ void rms_norm_backward_f32(
     }
 }
 
+// embedding_gather_rows_f32: frozen lexical lookup for resident training.
+extern "C" __global__ void embedding_gather_rows_f32(
+		const float * table,
+		const unsigned int * ids,
+		float * output,
+		unsigned int rows,
+		unsigned int width) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	const unsigned int count = rows * width;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int row = index / width;
+	const unsigned int column = index - row * width;
+	output[index] = table[(size_t) ids[row] * width + column];
+}
+
+// softmax_ce_grad_rows_f32: mean next-token CE; logits become dLogits.
+extern "C" __global__ void softmax_ce_grad_rows_f32(
+		float * logits,
+		const unsigned int * targets,
+		float * losses,
+		unsigned int rows,
+		unsigned int columns,
+		float scale) {
+	const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+	if (row >= rows) {
+		return;
+	}
+	float * values = logits + (size_t) row * columns;
+	float maximum = -3.402823466e+38F;
+	for (unsigned int column = 0; column < columns; ++column) {
+		maximum = fmaxf(maximum, values[column]);
+	}
+	float sum = 0.0F;
+	for (unsigned int column = 0; column < columns; ++column) {
+		sum += expf(values[column] - maximum);
+	}
+	const unsigned int target = targets[row];
+	losses[row] = (logf(sum) + maximum - values[target]) * scale;
+	const float inverse = scale / sum;
+	for (unsigned int column = 0; column < columns; ++column) {
+		values[column] = expf(values[column] - maximum) * inverse;
+	}
+	values[target] -= scale;
+}
+
 // softmax_backward_f32: VJP of a row-wise softmax. Given the softmax output p
 // and its cotangent dp, ds_i = p_i*(dp_i - sum_j p_j*dp_j). One thread per row.
 extern "C" __global__ void softmax_backward_f32(
@@ -539,6 +586,46 @@ extern "C" __global__ void rope_half_f32(
     const float x2 = x[base + i + half];
     x[base + i] = c * x1 - s * x2;
     x[base + i + half] = s * x1 + c * x2;
+}
+
+// head_major_f32: reshape [seq, n_heads*hd] (position-major) ->
+// [n_heads, seq, hd] (head-major, each head contiguous) so per-head device GEMMs
+// address contiguous sub-buffers. One thread per output element (gather).
+extern "C" __global__ void head_major_f32(
+        const float * input,
+        float * output,
+        unsigned int seq,
+        unsigned int n_heads,
+        unsigned int hd) {
+    const unsigned int total = seq * n_heads * hd;
+    const unsigned int t = blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= total) {
+        return;
+    }
+    const unsigned int x = t % hd;
+    const unsigned int i = (t / hd) % seq;
+    const unsigned int h = (t / hd) / seq;
+    output[t] = input[((size_t)i * n_heads + h) * hd + x];
+}
+
+// head_major_inverse_f32: reshape [n_heads, seq, hd] (head-major) ->
+// [seq, n_heads*hd] (position-major), the inverse of head_major_f32. One thread
+// per output element (gather).
+extern "C" __global__ void head_major_inverse_f32(
+        const float * input,
+        float * output,
+        unsigned int seq,
+        unsigned int n_heads,
+        unsigned int hd) {
+    const unsigned int total = seq * n_heads * hd;
+    const unsigned int t = blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= total) {
+        return;
+    }
+    const unsigned int x = t % hd;
+    const unsigned int h = (t / hd) % n_heads;
+    const unsigned int i = (t / hd) / n_heads;
+    output[t] = input[((size_t)h * seq + i) * hd + x];
 }
 
 extern "C" __global__ void activated_gate_f32(
@@ -766,6 +853,48 @@ extern "C" __global__ void conv_2d_f32(
 		}
 	}
 	output[index] = sum;
+}
+
+// conv_2d_im2col_f32: bounded spatial tile lowering for cuBLAS Conv2D.
+extern "C" __global__ void conv_2d_im2col_f32(
+		const float * input,
+		float * lowered,
+		unsigned int channels_in,
+		unsigned int input_w,
+		unsigned int input_h,
+		unsigned int kernel_w,
+		unsigned int kernel_h,
+		unsigned int output_w,
+		unsigned int output_h,
+		unsigned int stride_x,
+		unsigned int stride_y,
+		unsigned int pad_left,
+		unsigned int pad_top,
+		unsigned int start,
+		unsigned int columns,
+		unsigned int inner,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int column = index / inner;
+	unsigned int reduction = index - column * inner;
+	const unsigned int kx = reduction % kernel_w;
+	reduction /= kernel_w;
+	const unsigned int ky = reduction % kernel_h;
+	const unsigned int channel = reduction / kernel_h;
+	const unsigned int spatial = start + column;
+	const unsigned int x = spatial % output_w;
+	const unsigned int y = spatial / output_w;
+	const int source_x = (int) (x * stride_x + kx) - (int) pad_left;
+	const int source_y = (int) (y * stride_y + ky) - (int) pad_top;
+	float value = 0.0f;
+	if (source_x >= 0 && source_x < (int) input_w &&
+			source_y >= 0 && source_y < (int) input_h) {
+		value = input[channel + channels_in * ((unsigned int) source_x + input_w * (unsigned int) source_y)];
+	}
+	lowered[index] = value;
 }
 
 extern "C" __global__ void window_partition_2d_f32(
@@ -1024,6 +1153,117 @@ extern "C" __global__ void l2_norm_f32(
     }
 }
 
+// l2_norm_backward_f32: VJP of l2_norm_f32 (per row, width columns). With
+// inv = 1/max(sqrt(sum(x^2)),eps): unclamped (norm>eps)
+// dX = inv*dY - inv^3 * x * (dY.x); clamped (norm<=eps) dX = inv*dY. One thread
+// per row; row math in double to mirror the host f64 golden (L2NormBackward).
+extern "C" __global__ void l2_norm_backward_f32(
+        const float * input,
+        const float * grad_output,
+        float * grad_input,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const unsigned int offset = row * width;
+    double sum_squares = 0.0;
+    for (unsigned int column = 0; column < width; ++column) {
+        const double value = (double)input[offset + column];
+        sum_squares += value * value;
+    }
+    const double norm = sqrt(sum_squares);
+    const double inverse = 1.0 / fmax(norm, (double)epsilon);
+    const bool clamped = norm <= (double)epsilon;
+    double dot = 0.0;
+    if (!clamped) {
+        for (unsigned int column = 0; column < width; ++column) {
+            dot += (double)grad_output[offset + column] * (double)input[offset + column];
+        }
+    }
+    const double inverse_cubed = inverse * inverse * inverse;
+    for (unsigned int column = 0; column < width; ++column) {
+        double gradient = inverse * (double)grad_output[offset + column];
+        if (!clamped) {
+            gradient -= inverse_cubed * (double)input[offset + column] * dot;
+        }
+        grad_input[offset + column] = (float)gradient;
+    }
+}
+
+// short_conv_backward_f32: VJP of SiLU(depthwise causal conv1d, left-pad k-1) --
+// the qwen3.5 GDN-mix short convolution (host ShortConvForward). x/grad_output/
+// grad_input are [channels, tokens] channel-major; weights/grad_weights are
+// [channels, k]; bias/grad_bias are per channel (has_bias==0 skips both). One
+// thread per channel (channels independent). The per-token SiLU'(pre)*dY product
+// is staged into the dconv_scratch double buffer, then reused for grad_weights
+// (per tap) and grad_input (per position); all accumulation in double to mirror
+// the host f64 golden (ShortConvBackward).
+extern "C" __global__ void short_conv_backward_f32(
+        const float * x,
+        const float * grad_output,
+        const float * weights,
+        const float * bias,
+        float * grad_input,
+        float * grad_weights,
+        float * grad_bias,
+        double * dconv_scratch,
+        unsigned int channels,
+        unsigned int tokens,
+        unsigned int k,
+        unsigned int has_bias) {
+    const unsigned int channel = blockIdx.x * blockDim.x + threadIdx.x;
+    if (channel >= channels) {
+        return;
+    }
+    const float * x_row = x + (size_t)channel * tokens;
+    const float * dy_row = grad_output + (size_t)channel * tokens;
+    const float * weight_row = weights + (size_t)channel * k;
+    double * dconv = dconv_scratch + (size_t)channel * tokens;
+    double dbias = 0.0;
+    for (unsigned int t = 0; t < tokens; ++t) {
+        double pre = has_bias ? (double)bias[channel] : 0.0;
+        for (unsigned int j = 0; j < k; ++j) {
+            const int ti = (int)t - (int)(k - 1) + (int)j;
+            if (ti < 0 || ti >= (int)tokens) {
+                continue;
+            }
+            pre += (double)x_row[ti] * (double)weight_row[j];
+        }
+        const double s = 1.0 / (1.0 + exp(-pre));
+        const double dc = (double)dy_row[t] * s * (1.0 + pre * (1.0 - s));
+        dconv[t] = dc;
+        dbias += dc;
+    }
+    if (has_bias) {
+        grad_bias[channel] = (float)dbias;
+    }
+    for (unsigned int j = 0; j < k; ++j) {
+        double dweight = 0.0;
+        for (unsigned int t = 0; t < tokens; ++t) {
+            const int ti = (int)t - (int)(k - 1) + (int)j;
+            if (ti < 0 || ti >= (int)tokens) {
+                continue;
+            }
+            dweight += dconv[t] * (double)x_row[ti];
+        }
+        grad_weights[(size_t)channel * k + j] = (float)dweight;
+    }
+    for (unsigned int p = 0; p < tokens; ++p) {
+        double dx = 0.0;
+        for (unsigned int j = 0; j < k; ++j) {
+            const int t = (int)p + (int)(k - 1) - (int)j;
+            if (t < 0 || t >= (int)tokens) {
+                continue;
+            }
+            dx += dconv[t] * (double)weight_row[j];
+        }
+        grad_input[(size_t)channel * tokens + p] = (float)dx;
+    }
+}
+
 extern "C" __global__ void ssm_conv_f32(
         const float * input,
         const float * weights,
@@ -1240,6 +1480,172 @@ extern "C" __global__ void gated_delta_net_f32(
             if (lane == 0) {
                 output[value_base + row] = dot * scale;
             }
+        }
+    }
+}
+
+// gated_delta_net_backward_f32: VJP of gated_delta_net_f32, the BPTT through the
+// per-(sequence,head,row) gated delta recurrence. One thread per (sequence,head,
+// row): the token loop is inherently sequential per row, rows are independent.
+// A forward recompute pass writes each token's post-update state s_t into the
+// safter scratch; sprime (post-gate, pre-delta) is recomputed from safter[t-1].
+// The reverse pass carries ds through ds_carry scratch. Internal math is double
+// to mirror the host f64 reference; grouped q/k, dgate, and dbeta accumulate
+// across rows/heads via atomicAdd, so the caller must zero-initialize
+// d_query/d_key/d_value/d_gate/d_beta before launch (d_input_state is written
+// once per element). scratch buffers safter (count*size*tokens*size) and
+// ds_carry (count*size*size) are doubles; they need no pre-init.
+extern "C" __global__ void gated_delta_net_backward_f32(
+        const float * query,
+        const float * key,
+        const float * value,
+        const float * gate,
+        const float * beta,
+        const float * input_state,
+        const float * d_output,
+        float * d_query,
+        float * d_key,
+        float * d_value,
+        float * d_gate,
+        float * d_beta,
+        float * d_input_state,
+        double * safter,
+        double * ds_carry,
+        unsigned int size,
+        unsigned int query_heads,
+        unsigned int key_heads,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int sequences,
+        unsigned int gate_width,
+        unsigned int repeat_interleave) {
+    const unsigned int index = blockIdx.x;
+    const unsigned int count = heads * sequences;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int head = index % heads;
+    const unsigned int sequence = index / heads;
+    const unsigned int query_head = repeat_interleave
+        ? head / (heads / query_heads)
+        : head % query_heads;
+    const unsigned int key_head = repeat_interleave
+        ? head / (heads / key_heads)
+        : head % key_heads;
+    const double scale = 1.0 / sqrt((double) size);
+    const unsigned int state_elements = size * size;
+    for (unsigned int row = threadIdx.x; row < size; row += blockDim.x) {
+        const float * state_in = input_state + index * state_elements + row * size;
+        double * row_safter = safter + ((size_t)(index * size + row)) * tokens * size;
+        double * ds = ds_carry + ((size_t)(index * size + row)) * size;
+        // Forward recompute: write s_t (post-update state) into row_safter[t].
+        for (unsigned int token = 0; token < tokens; ++token) {
+            const unsigned int value_base =
+                ((sequence * tokens + token) * heads + head) * size;
+            const unsigned int key_base =
+                ((sequence * tokens + token) * key_heads + key_head) * size;
+            const unsigned int gate_base =
+                ((sequence * tokens + token) * heads + head) * gate_width;
+            const double beta_value =
+                (double) beta[(sequence * tokens + token) * heads + head];
+            const double * prev = token == 0
+                ? (const double *) 0
+                : row_safter + (size_t)(token - 1) * size;
+            double dot = 0.0;
+            for (unsigned int column = 0; column < size; ++column) {
+                const double g = gate_width == 1
+                    ? (double) gate[gate_base]
+                    : (double) gate[gate_base + column];
+                const double base = token == 0
+                    ? (double) state_in[column]
+                    : prev[column];
+                dot += base * exp(g) * (double) key[key_base + column];
+            }
+            const double delta =
+                ((double) value[value_base + row] - dot) * beta_value;
+            double * cur = row_safter + (size_t)token * size;
+            for (unsigned int column = 0; column < size; ++column) {
+                const double g = gate_width == 1
+                    ? (double) gate[gate_base]
+                    : (double) gate[gate_base + column];
+                const double base = token == 0
+                    ? (double) state_in[column]
+                    : prev[column];
+                cur[column] = base * exp(g) + delta * (double) key[key_base + column];
+            }
+        }
+        // Reverse pass over tokens.
+        for (unsigned int column = 0; column < size; ++column) {
+            ds[column] = 0.0;
+        }
+        for (int token = (int) tokens - 1; token >= 0; --token) {
+            const unsigned int value_base =
+                ((sequence * tokens + token) * heads + head) * size;
+            const unsigned int query_base =
+                ((sequence * tokens + token) * query_heads + query_head) * size;
+            const unsigned int key_base =
+                ((sequence * tokens + token) * key_heads + key_head) * size;
+            const unsigned int gate_base =
+                ((sequence * tokens + token) * heads + head) * gate_width;
+            const unsigned int beta_index =
+                (sequence * tokens + token) * heads + head;
+            const double beta_value = (double) beta[beta_index];
+            const double go_value = (double) d_output[value_base + row] * scale;
+            const double * saf_cur = row_safter + (size_t)token * size;
+            const double * prev = token == 0
+                ? (const double *) 0
+                : row_safter + (size_t)(token - 1) * size;
+            // dsnew = ds + go*q ; dQuery += go*s_t ; dDelta = dsnew . k
+            double d_delta = 0.0;
+            for (unsigned int column = 0; column < size; ++column) {
+                const double dsnew = ds[column] + go_value * (double) query[query_base + column];
+                atomicAdd(&d_query[query_base + column], (float)(go_value * saf_cur[column]));
+                d_delta += dsnew * (double) key[key_base + column];
+            }
+            // recompute dot from s'_t (= prev . exp(gate))
+            double dot = 0.0;
+            for (unsigned int column = 0; column < size; ++column) {
+                const double g = gate_width == 1
+                    ? (double) gate[gate_base]
+                    : (double) gate[gate_base + column];
+                const double base = token == 0
+                    ? (double) state_in[column]
+                    : prev[column];
+                dot += base * exp(g) * (double) key[key_base + column];
+            }
+            const double v_minus = (double) value[value_base + row] - dot;
+            const double delta = v_minus * beta_value;
+            atomicAdd(&d_value[value_base + row], (float)(d_delta * beta_value));
+            atomicAdd(&d_beta[beta_index], (float)(d_delta * v_minus));
+            const double d_dot = -d_delta * beta_value;
+            // dSp = dsnew + d_dot*k ; dKey += delta*dsnew + d_dot*s' ;
+            // dGate += dSp*s' ; ds = dSp*exp(gate)
+            double gate_accum = 0.0;
+            for (unsigned int column = 0; column < size; ++column) {
+                const double g = gate_width == 1
+                    ? (double) gate[gate_base]
+                    : (double) gate[gate_base + column];
+                const double gexp = exp(g);
+                const double sprime = (token == 0
+                    ? (double) state_in[column]
+                    : prev[column]) * gexp;
+                const double kc = (double) key[key_base + column];
+                const double dsnew = ds[column] + go_value * (double) query[query_base + column];
+                const double dsp = dsnew + d_dot * kc;
+                atomicAdd(&d_key[key_base + column], (float)(delta * dsnew + d_dot * sprime));
+                if (gate_width == 1) {
+                    gate_accum += dsp * sprime;
+                } else {
+                    atomicAdd(&d_gate[gate_base + column], (float)(dsp * sprime));
+                }
+                ds[column] = dsp * gexp;
+            }
+            if (gate_width == 1) {
+                atomicAdd(&d_gate[gate_base], (float) gate_accum);
+            }
+        }
+        for (unsigned int column = 0; column < size; ++column) {
+            d_input_state[index * state_elements + row * size + column] = (float) ds[column];
         }
     }
 }
@@ -2977,6 +3383,7 @@ extern "C" __global__ void attention_f32(
         const float * relative_bias,
 		const float * sinks,
 		const float * block_ids,
+		const float * key_bias,
         float * output,
         unsigned int key_width,
         unsigned int value_width,
@@ -3088,6 +3495,7 @@ extern "C" __global__ void attention_f32(
         if (softcap > 0.0f) {
             score = softcap * tanhf(score / softcap);
         }
+        if (key_bias != nullptr) score += key_bias[key_token];
         maximum = fmaxf(maximum, score);
     }
 
@@ -3135,6 +3543,7 @@ extern "C" __global__ void attention_f32(
         if (softcap > 0.0f) {
             score = softcap * tanhf(score / softcap);
         }
+        if (key_bias != nullptr) score += key_bias[key_token];
         const float probability = expf(score - maximum);
         const unsigned int value_offset =
             ((sequence * key_value_tokens + key_token) * key_value_heads + key_value_head) * value_width;
@@ -3212,6 +3621,7 @@ extern "C" __global__ void attention_online_f32(
         const float * relative_bias,
         const float * sinks,
         const float * block_ids,
+        const float * key_bias,
         float * output,
         unsigned int key_width,
         unsigned int value_width,
@@ -3322,6 +3732,7 @@ extern "C" __global__ void attention_online_f32(
                     score += relative_bias[bucket * query_heads + query_head];
                 }
                 if (softcap > 0.0f) score = softcap * tanhf(score / softcap);
+                if (key_bias != nullptr) score += key_bias[key_token];
                 const float next_maximum = fmaxf(shared_maximum, score);
                 shared_alpha = expf(shared_maximum - next_maximum);
                 shared_beta = expf(score - next_maximum);
@@ -3377,6 +3788,8 @@ extern "C" __global__ void attention_online_softmax_f32(
         float * scores,
         float * output,
         float * stats,
+        const float * key_bias,
+        unsigned int key_start,
         unsigned int keys,
         unsigned int key_chunk,
         unsigned int rows,
@@ -3395,7 +3808,8 @@ extern "C" __global__ void attention_online_softmax_f32(
     const unsigned int stat_rows = heads * chunk;
     float local_maximum = -3.402823466e+38F;
     for (unsigned int j = tid; j < keys; j += blockDim.x) {
-        local_maximum = fmaxf(local_maximum, scores[base + j] * scale);
+        const float bias = key_bias != nullptr ? key_bias[key_start + j] : 0.0f;
+        local_maximum = fmaxf(local_maximum, scores[base + j] * scale + bias);
     }
     reduce_shared[tid] = (double) local_maximum;
     __syncthreads();
@@ -3423,7 +3837,8 @@ extern "C" __global__ void attention_online_softmax_f32(
     }
     double sum = 0.0;
     for (unsigned int j = tid; j < keys; j += blockDim.x) {
-        const float probability = expf(scores[base + j] * scale - maximum);
+        const float bias = key_bias != nullptr ? key_bias[key_start + j] : 0.0f;
+        const float probability = expf(scores[base + j] * scale + bias - maximum);
         scores[base + j] = probability;
         sum += (double) probability;
     }
@@ -3462,8 +3877,8 @@ extern "C" __global__ void attention_online_finalize_f32(
     }
 }
 
-// Tiled exact flash-style attention for large non-causal featureless
-// workloads (no bias/sinks/blocks/softcap/alibi/window). One block owns a
+// Tiled exact flash-style attention for large non-causal workloads with
+// optional per-key bias (no relative bias/sinks/blocks/softcap/alibi/window). One block owns a
 // 32-query-row tile of one head; K/V stream through shared memory in
 // 32-token tiles with an exact online softmax, so scores never touch
 // global memory. Each of 8 warps owns 4 query rows; within a row, lane j
@@ -3474,6 +3889,7 @@ extern "C" __global__ void attention_tiled_f32(
         const float * query,
         const float * key,
         const float * value,
+        const float * key_bias,
         float * output,
         unsigned int key_width,
         unsigned int value_width,
@@ -3555,7 +3971,7 @@ extern "C" __global__ void attention_tiled_f32(
                 for (unsigned int channel = 0; channel < key_width; ++channel) {
                     dot += q_row[channel] * k_column[channel * TILE];
                 }
-                score = dot * scale;
+                score = dot * scale + (key_bias != nullptr ? key_bias[tile_base + lane] : 0.0f);
             }
             float tile_maximum = score;
             for (unsigned int offset = 16; offset > 0; offset >>= 1) {
@@ -3694,6 +4110,7 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
         const float * query,
         const unsigned short * key,
         const unsigned short * value,
+        const float * key_bias,
         float * output,
         unsigned int query_heads,
         unsigned int key_value_heads,
@@ -3842,7 +4259,9 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
             // registers across the max and probability passes.
             float scaled[8];
             for (unsigned int i = 0; i < 8u; ++i) {
-                scaled[i] = s_tile[row * SLD + part + 8u * i] * scale;
+                const unsigned int key_token = tile_base + part + 8u * i;
+                scaled[i] = s_tile[row * SLD + part + 8u * i] * scale +
+                    (key_bias != nullptr && key_token < key_value_tokens ? key_bias[key_token] : 0.0f);
             }
             float local_maximum = -3.402823466e+38F;
             for (unsigned int i = 0; i < 8u; ++i) {

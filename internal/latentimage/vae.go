@@ -73,17 +73,17 @@ type vaeConfigJSON struct {
 	LatentsStd  []float64 `json:"latents_std"`
 }
 
-// LoadVAEDecoder reads vae/config.json + vae/*.safetensors under modelDir and
+// loadVAEDecoder reads vae/config.json + vae/*.safetensors under modelDir and
 // builds the weight-resident decoder, deriving the op graph from tensor shapes.
 // Every decoder-side tensor must be consumed (capability-retention check).
-func LoadVAEDecoder(modelDir string) (*VAEDecoder, error) {
+func loadVAEDecoder(modelDir, class string) (*VAEDecoder, error) {
 	vaeDir := filepath.Join(modelDir, "vae")
 	var cfg vaeConfigJSON
 	if err := readJSON(filepath.Join(vaeDir, "config.json"), &cfg); err != nil {
 		return nil, err
 	}
-	if cfg.ClassName != VAEClass {
-		return nil, fmt.Errorf("latentimage vae: class %q != %q", cfg.ClassName, VAEClass)
+	if cfg.ClassName != class {
+		return nil, fmt.Errorf("latentimage vae: class %q != %q", cfg.ClassName, class)
 	}
 	if cfg.ZDim <= 0 || len(cfg.DimMult) == 0 || cfg.NumResBlks <= 0 {
 		return nil, fmt.Errorf("latentimage vae: bad config z=%d dim_mult=%v res=%d", cfg.ZDim, cfg.DimMult, cfg.NumResBlks)

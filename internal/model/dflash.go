@@ -2,66 +2,46 @@ package model
 
 import (
 	"errors"
-	"math"
 
 	"overgo/internal/tensor"
 )
 
-// BuildDFlashFeatureEncoder: target-layer fusion projection.
-func BuildDFlashFeatureEncoder(
-	builder *tensor.Builder,
-	features, projection, norm *tensor.Tensor,
-	spec Spec,
-) (*tensor.Tensor, error) {
-	if builder == nil || features == nil || projection == nil || norm == nil {
-		return nil, errors.New("DFlash feature encoder input is nil")
-	}
-	if spec.Profile().Forward != ForwardDFlash || features.Shape.Rank != 2 ||
-		features.Shape.Dims[0] != uint64(len(spec.TargetLayers))*uint64(spec.EmbeddingLength) {
-		return nil, errors.New("DFlash feature encoder shape is incompatible")
-	}
-	output := builder.MulMat(projection, features)
-	output = builder.WeightedRMSNorm(output, norm, spec.RMSNormEpsilon)
-	if err := builder.Err(); err != nil {
-		return nil, err
-	}
-	return output, nil
+// CacheProjectionProgram: compiled K/V projection, normalization, and position math.
+type CacheProjectionProgram struct {
+	width, key, value, heads               uint64
+	epsilon, frequencyBase, frequencyScale float32
+	rotaryDimensions                       uint32
 }
 
-// BuildDFlashCacheInjection: fused-feature K/V append.
-func BuildDFlashCacheInjection(
+// Build executes the compiled cache-projection program.
+func (p CacheProjectionProgram) Build(
 	builder *tensor.Builder,
 	fused *tensor.Tensor,
-	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
 	pastKey, pastValue *tensor.Tensor,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
 	if builder == nil || fused == nil || weights.AttentionK == nil || weights.AttentionV == nil || weights.AttentionKNorm == nil {
-		return nil, nil, errors.New("DFlash cache injection input is nil")
+		return nil, nil, errors.New("compiled cache projection input is nil")
 	}
-	if spec.Profile().Forward != ForwardDFlash || fused.Shape.Rank != 2 || fused.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
+	if p.width == 0 || fused.Shape.Rank != 2 || fused.Shape.Dims[0] != p.width ||
 		len(positions) != int(fused.Shape.Dims[1]) || (pastKey == nil) != (pastValue == nil) {
-		return nil, nil, errors.New("DFlash cache injection shape is incompatible")
+		return nil, nil, errors.New("compiled cache projection shape is incompatible")
 	}
 	tokens := fused.Shape.Dims[1]
 	key := builder.Reshape(
 		builder.MulMat(weights.AttentionK, fused),
-		uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens,
+		p.key, p.heads, tokens,
 	)
 	value := builder.Reshape(
 		builder.MulMat(weights.AttentionV, fused),
-		uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens,
+		p.value, p.heads, tokens,
 	)
-	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
-	frequencyScale := float32(1)
-	if (spec.RopeScalingType == "linear" || spec.RopeScalingType == "yarn") && spec.RopeScalingFactor > 0 {
-		frequencyScale = 1 / spec.RopeScalingFactor
-	}
+	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, p.epsilon)
 	key = builder.RoPEWithOptions(key, tensor.RoPEOptions{
 		Layout: tensor.RoPELayoutNeoX, Positions: positions,
-		RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase,
-		FrequencyScale: frequencyScale,
+		RotaryDimensions: p.rotaryDimensions, FrequencyBase: p.frequencyBase,
+		FrequencyScale: p.frequencyScale,
 	})
 	if pastKey != nil {
 		key = builder.Concat(pastKey, key, 2)
@@ -73,7 +53,18 @@ func BuildDFlashCacheInjection(
 	return key, value, nil
 }
 
-// DFlashAttentionScale: head-width scale.
-func DFlashAttentionScale(spec Spec) float32 {
-	return float32(1 / math.Sqrt(float64(spec.KeyLength)))
+func compileCacheProjectionProgram(spec Spec, profile ArchitectureProfile) CacheProjectionProgram {
+	if profile.Forward.Session != ForwardSessionPairedFeatures {
+		return CacheProjectionProgram{}
+	}
+	frequencyScale := float32(1)
+	if (spec.RopeScalingType == "linear" || spec.RopeScalingType == "yarn") && spec.RopeScalingFactor > 0 {
+		frequencyScale = 1 / spec.RopeScalingFactor
+	}
+	return CacheProjectionProgram{
+		width: uint64(spec.EmbeddingLength), key: uint64(spec.KeyLength),
+		value: uint64(spec.ValueLength), heads: uint64(spec.HeadCountKV),
+		epsilon: spec.RMSNormEpsilon, rotaryDimensions: spec.RopeDimensionCount,
+		frequencyBase: spec.RopeFrequencyBase, frequencyScale: frequencyScale,
+	}
 }

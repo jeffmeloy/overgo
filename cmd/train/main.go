@@ -1,4 +1,4 @@
-// Command train runs full-parameter Muon training on a dense causal-LM
+// Command train runs Muon training on a dense causal-LM
 // safetensors artifact and writes a trained checkpoint. It is the production
 // caller for the densecausal training lane: it loads a model + tokenizer,
 // encodes a UTF-8 text file into one token sequence, runs the training step on
@@ -34,6 +34,7 @@ func run() error {
 	baseLR := flag.Float64("lr", 0, "base learning rate; <=0 derives n_params^-1/2")
 	mu := flag.Float64("momentum", 0.9, "Muon momentum")
 	host := flag.Bool("host", false, "force the host path even when CUDA is available")
+	freezeLexical := flag.Bool("freeze-lexical", false, "freeze tied embedding/head; requires CUDA resident training")
 	flag.Parse()
 
 	if *modelDir == "" || *textPath == "" || *outDir == "" {
@@ -67,17 +68,10 @@ func run() error {
 		tokens = tokens[:*maxSeq]
 	}
 
-	// Capability admission: prefer the device path only for models the device
-	// backward supports. Qwen2 and other attention-bias models are loadable but
-	// not device-trainable yet, so they run on host rather than failing.
-	preferDevice := !*host
-	if preferDevice {
-		if ok, reason := model.DeviceTrainingAdmitted(); !ok {
-			fmt.Printf("train: model not admitted for the device path (%s); using host\n", reason)
-			preferDevice = false
-		}
+	if *host && *freezeLexical {
+		return fmt.Errorf("-host and -freeze-lexical are mutually exclusive")
 	}
-	traj, backend, err := runTraining(model, tokens, *steps, *baseLR, *mu, preferDevice)
+	traj, backend, err := runTraining(model, tokens, *steps, *baseLR, *mu, !*host, *freezeLexical)
 	if err != nil {
 		return fmt.Errorf("train: %w", err)
 	}
@@ -85,7 +79,7 @@ func run() error {
 		return fmt.Errorf("save checkpoint: %w", err)
 	}
 
-	fmt.Printf("backend=%s tokens=%d steps=%d lr=%s momentum=%g\n", backend, len(tokens), *steps, lrLabel(*baseLR), *mu)
+	fmt.Printf("backend=%s tokens=%d steps=%d lr=%s momentum=%g freeze_lexical=%v\n", backend, len(tokens), *steps, lrLabel(*baseLR), *mu, *freezeLexical)
 	for i, loss := range traj {
 		fmt.Printf("step %d: loss %.6f\n", i, loss)
 	}
@@ -98,6 +92,16 @@ func lrLabel(lr float64) string {
 		return "derived(n^-1/2)"
 	}
 	return fmt.Sprintf("%g", lr)
+}
+
+func runHostTraining(
+	m *densecausal.Model,
+	tokens []int,
+	steps int,
+	baseLR, mu float64,
+) ([]float64, string, error) {
+	trajectory, err := m.Train(tokens, steps, baseLR, mu)
+	return trajectory, "host", err
 }
 
 // saveCheckpoint writes the trained weights as a single-file model.safetensors

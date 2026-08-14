@@ -43,24 +43,8 @@ type Environment struct {
 	ID      artifact.ID `json:"-"`
 }
 
-func NewEnvironment(host, osName, arch, device, backend, driver, runtime string) (Environment, error) {
-	environment := Environment{
-		Version: EnvironmentVersion, Host: host, OS: osName, Arch: arch,
-		Device: device, Backend: backend, Driver: driver, Runtime: runtime,
-	}
-	return environmentCodec.New(environment)
-}
-
-func ParseEnvironment(content []byte) (Environment, error) {
-	return environmentCodec.Parse(content)
-}
-
 func (e Environment) ValidateIdentity() error {
 	return environmentCodec.ValidateIdentity(e)
-}
-
-func (e Environment) ContentBytes() ([]byte, error) {
-	return environmentCodec.ContentBytes(e)
 }
 
 func (e Environment) Content() (artifact.Content, error) {

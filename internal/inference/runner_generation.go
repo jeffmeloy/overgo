@@ -39,11 +39,11 @@ func (r *Runner) Generate(
 	if r == nil || r.vocab == nil {
 		return nil, "", errors.New("inference: runner is nil")
 	}
-	if r.forwardPolicy() == model.ForwardT5Encoder {
-		return nil, "", errors.New("inference: T5 encoder models do not generate tokens")
+	if r.forwardProgram().Operation == model.ForwardOperationEncoder {
+		return nil, "", errors.New("inference: encoder-only models do not generate tokens")
 	}
-	if r.forwardPolicy() == model.ForwardT5 {
-		generated, _, _, err := r.GenerateT5(ctx, prompt, options)
+	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
+		generated, _, _, err := r.GenerateEncoderDecoder(ctx, prompt, options)
 		if err != nil {
 			return nil, "", err
 		}
@@ -106,7 +106,7 @@ func (r *Runner) Generate(
 		projectionSignature = projectedInputsSignature(*options.ProjectedInputs)
 	}
 	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 &&
-		r.hasPreloadedWeights() && supportsPersistentDeviceCache(r.spec)
+		r.hasPreloadedWeights() && r.forwardProgram().PersistentDeviceCache()
 	// deviceGreedy: raw-greedy decode selects on device; only the winning
 	// token id crosses PCIe. Callbacks receive TokenEvent without Logits, so
 	// callback users must opt in via options.DeviceGreedy.

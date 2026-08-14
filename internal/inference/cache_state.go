@@ -48,8 +48,8 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	if err != nil {
 		return nil, err
 	}
-	if r.hasCachePolicy(model.CacheDeepSeek4) {
-		upgradeDeepSeek4CachePositions(cache)
+	if r.hasCachePolicy(model.CacheCompressedAttention) {
+		materializeCompressedCachePositions(cache)
 	}
 	if err := r.validateCache(cache); err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	return cache, nil
 }
 
-func upgradeDeepSeek4CachePositions(cache *KVCache) {
+func materializeCompressedCachePositions(cache *KVCache) {
 	if cache == nil || cache.Tokens == 0 || effectiveCachePosition(cache) < cache.Tokens {
 		return
 	}
@@ -102,9 +102,9 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			r.spec.ContextLength,
 		)
 	}
-	expectedLayers := r.cacheLayerCount()
+	expectedLayers := int(r.program.Model.CacheLayerCount())
 	if expectedLayers == 0 {
-		expectedLayers = len(r.weights.Layers)
+		return errors.New("inference: model program has no cache layers")
 	}
 	if len(cache.Layers) != expectedLayers {
 		return fmt.Errorf(
@@ -130,7 +130,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		if err := validateLayerCacheSchema(layer, schema); err != nil {
 			return fmt.Errorf("inference: KV cache layer %d: %w", index, err)
 		}
-		if plan.Attention == model.AttentionDSA {
+		if plan.Attention == model.AttentionSparseLatent {
 			state, present := layer.States[model.CacheStateIndexerKey]
 			if r.spec.LayerHasFullIndexer(uint32(index)) {
 				want := tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))
@@ -141,13 +141,13 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				return fmt.Errorf("inference: DSA shared layer %d has indexer state", index)
 			}
 		}
-		if plan.Cache == model.CacheDeepSeek4 {
+		if plan.Cache == model.CacheCompressedAttention {
 			positions := layer.States[model.CacheStatePositions].Value.Data
 			for item, value := range positions {
 				position := uint32(value)
 				if value < 0 || float32(position) != value || position >= effectiveCachePosition(cache) ||
 					(item > 0 && position <= uint32(positions[item-1])) {
-					return fmt.Errorf("inference: DeepSeek 4 cache layer %d positions are invalid", index)
+					return fmt.Errorf("inference: compressed cache layer %d positions are invalid", index)
 				}
 			}
 			if index == 0 {
@@ -155,30 +155,23 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			} else {
 				for item := range positions {
 					if positions[item] != deepSeekPositions[item] {
-						return fmt.Errorf("inference: DeepSeek 4 cache layer %d positions differ", index)
+						return fmt.Errorf("inference: compressed cache layer %d positions differ", index)
 					}
 				}
 			}
 		}
-		if plan.Cache == model.CacheT5 {
+		if plan.Cache == model.CacheCrossAttention {
 			crossKey := layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2]
 			crossValue := layer.States[model.CacheStateCrossValue].Value.Shape.Dims[2]
 			if crossKey != crossValue {
 				return fmt.Errorf(
-					"inference: T5 cache layer %d cross-attention lengths differ",
+					"inference: encoder-decoder cache layer %d cross-attention lengths differ",
 					index,
 				)
 			}
 		}
 	}
 	return nil
-}
-
-func (r *Runner) cacheLayerCount() int {
-	if r.program.Model.CacheLayerCount() != 0 {
-		return int(r.program.Model.CacheLayerCount())
-	}
-	panic("inference: compiled cache layer count is unavailable")
 }
 
 func (r *Runner) hasCachePolicy(policy model.CachePolicy) bool {
@@ -256,14 +249,14 @@ func cacheShapeMatches(shape tensor.Shape, schema model.CacheValueSchema) bool {
 	return shape.Dims[last] > 0
 }
 
-func (r *Runner) validateT5Cache(cache *KVCache, encoderTokens uint64) error {
+func (r *Runner) validateEncoderDecoderCache(cache *KVCache, encoderTokens uint64) error {
 	if err := r.validateCache(cache); err != nil {
 		return err
 	}
 	for index, layer := range cache.Layers {
 		if layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2] != encoderTokens {
 			return fmt.Errorf(
-				"inference: T5 cache layer %d encoder length %d, need %d",
+				"inference: encoder-decoder cache layer %d encoder length %d, need %d",
 				index, layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2], encoderTokens,
 			)
 		}
@@ -302,7 +295,7 @@ func (r *Runner) RemoveCacheRange(
 		Tokens:   remaining,
 		Position: effectiveCachePosition(cache),
 	}
-	if r.profile().Family == model.ArchitectureFamilyEncoderDecoder {
+	if r.forwardProgram().Session == model.ForwardSessionEncoderDecoder {
 		// T5 relative positions: translation-invariant; compact rows.
 		result.Position = remaining
 	}

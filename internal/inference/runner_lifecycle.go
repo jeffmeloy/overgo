@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
 	"slices"
 
 	"overgo/internal/cuda/device"
@@ -19,54 +18,27 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// hostExecuteEnabled: OVERGO_HOST_EXECUTE=1 serves on the host reference
-// executor; no CUDA context is created (GPU-free parity path).
-func hostExecuteEnabled() bool {
-	return os.Getenv("OVERGO_HOST_EXECUTE") == "1"
-}
-
+// OpenWithProgram binds hardware to the recipe-owned serving program.
 func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*Runner, error) {
 	if loaded == nil {
 		return nil, errors.New("inference: resolved model program is nil")
 	}
-	if options.PreloadDeviceWeights && options.PreloadQuantizedWeights {
-		return nil, errors.New("inference: F32 and native-quantized preload modes are mutually exclusive")
-	}
-	if options.PreloadBF16DecodeWeights && !options.PreloadQuantizedWeights {
-		return nil, errors.New("inference: BF16 decode catalog requires native-quantized preload")
-	}
-	if options.CacheHostWeights && (options.PreloadDeviceWeights || options.PreloadQuantizedWeights) {
-		return nil, errors.New("inference: host and device weight retention are mutually exclusive")
-	}
 	if options.PromptCacheEntries < 0 {
 		return nil, errors.New("inference: prompt cache entry count is negative")
 	}
-	consumed, err := loaded.Consume()
+	file, path, spec, weights, program, evidenceTier, err := loaded.Take()
 	if err != nil {
-		return nil, fmt.Errorf("inference: consume model program: %w", err)
+		return nil, fmt.Errorf("inference: take model program: %w", err)
 	}
 	promptCacheCapacity := options.PromptCacheEntries
 	if promptCacheCapacity == 0 {
 		promptCacheCapacity = 1
 	}
 	cachePageTokens := resolveCachePageTokens(options.CachePageTokens)
-	file := consumed.File()
-	path, spec, weights, program := consumed.Path(), consumed.Spec(), consumed.Weights(), consumed.Plan()
-	// Residency is derived, never defaulted: the active recipe's placement is
-	// the decision surface when no explicit mode was requested. Device
-	// placement mandates resident weights; hybrid placement measures fit on
-	// the serving hardware by attempting residency — a device out-of-memory
-	// during preload releases the stores and serving continues streaming.
-	residencyDerived := false
-	if !options.PreloadDeviceWeights && !options.PreloadQuantizedWeights &&
-		!options.CacheHostWeights && !hostExecuteEnabled() {
-		switch program.Identity.Placement {
-		case recipe.PlacementDevice:
-			options.PreloadQuantizedWeights = true
-		case recipe.PlacementHybrid:
-			options.PreloadQuantizedWeights = true
-			residencyDerived = true
-		}
+	// Residency is compiled into recipe identity; runtime flags may only confirm it.
+	residency, err := bindResidency(program.Residency)
+	if err != nil {
+		return nil, errors.Join(err, file.Close())
 	}
 	var cuda *executor.Executor
 	var worker *device.Worker
@@ -77,7 +49,7 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 		return nil, errors.Join(
 			openErr,
 			closeAcceleratorResources(decodeWeights, rawWeights, deviceWeights, cuda, worker),
-			consumed.Close(),
+			file.Close(),
 		)
 	}
 	vocab, err := tokenizer.Load(file)
@@ -110,10 +82,10 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 		outputBias = slices.Clone(value.Data)
 	}
 	var hostWeights *model.HostTensorStore
-	if options.CacheHostWeights {
+	if residency.hostCache {
 		hostWeights = model.NewHostTensorStore()
 	}
-	if options.PreloadDeviceWeights || options.PreloadQuantizedWeights {
+	if residency.deviceF32 || residency.deviceNative {
 		worker, err = device.New(options.DeviceOrdinal)
 		if err != nil {
 			return fail(err)
@@ -131,10 +103,10 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 			outputProjection = *weights.Output
 		}
 		if err = loadResidentWeights(
-			file, weights, outputProjection, loraAdapters, options, worker,
+			file, weights, outputProjection, loraAdapters, residency, worker,
 			&deviceWeights, &rawWeights, &decodeWeights,
 		); err != nil {
-			if !residencyDerived || !driver.IsOutOfMemory(err) {
+			if !residency.allowFallback || !driver.IsOutOfMemory(err) {
 				return fail(err)
 			}
 			// Measured fit answered no: release the partial stores and keep
@@ -144,16 +116,13 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 				return fail(err)
 			}
 			decodeWeights, rawWeights, deviceWeights = nil, nil, nil
-			options.PreloadQuantizedWeights = false
 		}
-	} else if !hostExecuteEnabled() {
+	} else if !residency.hostReference {
 		cuda, err = executor.New(options.DeviceOrdinal)
 		if err != nil {
 			return fail(err)
 		}
 	}
-	evidenceTier := consumed.EvidenceTier()
-	consumed.Disown()
 	return &Runner{preparedModel: preparedModel{
 		file: file, path: path, spec: spec, program: program, evidenceTier: evidenceTier,
 		weights: weights, vocab: vocab,
@@ -164,6 +133,33 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 	}, runnerState: runnerState{loraAdapters: loraAdapters}}, nil
 }
 
+type residencyBinding struct {
+	deviceF32, deviceNative, decodeBF16     bool
+	hostCache, allowFallback, hostReference bool
+}
+
+func bindResidency(policy recipe.ResidencyPolicy) (residencyBinding, error) {
+	var binding residencyBinding
+	switch policy {
+	case recipe.ResidencyStream:
+	case recipe.ResidencyHostCache:
+		binding.hostCache = true
+	case recipe.ResidencyDeviceF32:
+		binding.deviceF32 = true
+	case recipe.ResidencyDeviceNative:
+		binding.deviceNative = true
+	case recipe.ResidencyDeviceNativeBF16:
+		binding.deviceNative, binding.decodeBF16 = true, true
+	case recipe.ResidencyHybridNative:
+		binding.deviceNative, binding.allowFallback = true, true
+	case recipe.ResidencyHostReference:
+		binding.hostReference = true
+	default:
+		return residencyBinding{}, errors.New("inference: compiled residency policy is unavailable")
+	}
+	return binding, nil
+}
+
 // loadResidentWeights: uploads the resident weight stores for a preload open;
 // partially loaded stores stay owned by the caller on failure.
 func loadResidentWeights(
@@ -171,7 +167,7 @@ func loadResidentWeights(
 	weights model.Weights,
 	outputProjection gguf.TensorInfo,
 	loraAdapters []loadedLoRA,
-	options OpenOptions,
+	residency residencyBinding,
 	worker *device.Worker,
 	deviceWeights **model.DeviceF32Weights,
 	rawWeights **model.DeviceWeights,
@@ -184,7 +180,7 @@ func loadResidentWeights(
 	}
 	selected := selectedModelTensors(file, weights)
 	f32Tensors := selected
-	if options.PreloadQuantizedWeights {
+	if residency.deviceNative {
 		adaptedTensors := make(map[string]struct{})
 		for _, loaded := range loraAdapters {
 			for name := range loaded.adapter.Weights {
@@ -262,7 +258,7 @@ func loadResidentWeights(
 			outputProjection.Type == dtype.BF16 && outputProjection.Dimensions == 2 {
 			decodeTensors = append(decodeTensors, outputProjection)
 		}
-		if options.PreloadBF16DecodeWeights {
+		if residency.decodeBF16 {
 			for _, info := range quantized {
 				_, adapted := adaptedTensors[info.Name]
 				if !adapted && info.Type == dtype.Q8_0 && info.Dimensions >= 2 {

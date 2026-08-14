@@ -12,3 +12,9 @@
 coverage.out
 local-models.json
 /.profile_tmp/
+docs/.loop_state
+docs/plan_stop.json
+
+# transient loop-control markers
+docs/.dispatch_pending
+bin/loophook.exe

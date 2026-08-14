@@ -26,6 +26,31 @@ func TestBuilderAndTopological(t *testing.T) {
 	}
 }
 
+func TestBuilderMulMatComputePolicy(t *testing.T) {
+	builder := NewBuilder()
+	builder.SetMulMatCompute(MulMatComputeBF16TensorCore)
+	left := builder.Input("left", dtype.BF16, MustShape(8, 4))
+	right := builder.Input("right", dtype.F32, MustShape(8, 3))
+	output := builder.MulMat(left, right)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	attributes, ok := output.Attrs.(MulMatAttributes)
+	if !ok || attributes.Compute != MulMatComputeBF16TensorCore {
+		t.Fatalf("mul_mat attributes = %#v", output.Attrs)
+	}
+
+	invalid := NewBuilder()
+	invalid.MulMatWithCompute(
+		invalid.Input("left", dtype.F32, MustShape(8, 4)),
+		invalid.Input("right", dtype.F32, MustShape(8, 3)),
+		MulMatComputeBF16TensorCore,
+	)
+	if err := invalid.Err(); err == nil || !strings.Contains(err.Error(), "requires BF16 x F32") {
+		t.Fatalf("invalid tensor-core policy error = %v", err)
+	}
+}
+
 func TestBuilderCacheAppendUsesFixedCapacity(t *testing.T) {
 	const (
 		activeTokens   = uint32(2)
@@ -672,12 +697,12 @@ func TestBuilderRWKV6(t *testing.T) {
 	first := builder.Input("first", dtype.F32, MustShape(2, 1))
 	decay := builder.Input("decay", dtype.F32, vectors)
 	state := builder.Input("state", dtype.F32, MustShape(2, 2, 1, 1))
-	output := builder.RWKV6(key, value, receptance, first, decay, state)
+	output := builder.WKV6(key, value, receptance, first, decay, state)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if !output.Shape.Equal(MustShape(2, 5)) || output.Op != OpRWKV6 {
-		t.Fatalf("unexpected RWKV6 output: %+v", output)
+	if !output.Shape.Equal(MustShape(2, 5)) || output.Op != OpWKV6 {
+		t.Fatalf("unexpected WKV6 output: %+v", output)
 	}
 }
 
@@ -691,13 +716,13 @@ func TestBuilderSumRowsAndRWKV7(t *testing.T) {
 	a := builder.Input("a", dtype.F32, vectors)
 	bVector := builder.Input("b", dtype.F32, vectors)
 	state := builder.Input("state", dtype.F32, MustShape(2, 2, 1, 1))
-	packed := builder.RWKV7(receptance, decay, key, value, a, bVector, state)
+	packed := builder.WKV7(receptance, decay, key, value, a, bVector, state)
 	reduced := builder.SumRows(value)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if !packed.Shape.Equal(MustShape(2, 4)) || packed.Op != OpRWKV7 {
-		t.Fatalf("unexpected RWKV7 output: %+v", packed)
+	if !packed.Shape.Equal(MustShape(2, 4)) || packed.Op != OpWKV7 {
+		t.Fatalf("unexpected WKV7 output: %+v", packed)
 	}
 	if !reduced.Shape.Equal(MustShape(1, 1, 2, 1)) || reduced.Op != OpSumRows {
 		t.Fatalf("unexpected SumRows output: %+v", reduced)

@@ -30,6 +30,39 @@ This milestone requires all of the following:
 E4B, 12B, dynamic quantization and NVMe optimizer paging are not prerequisites
 for this milestone.
 
+### Current implementation boundary (2026-08-12)
+
+Implemented substrate:
+
+- dense host and CUDA forward, loss, backward and Muon matrix updates;
+- device Newton–Schulz and resident dense weights/momentum across steps;
+- host/device parity and descending-loss fixtures for dense and synthetic
+  hybrid stacks;
+- lower-level dense checkpoint/resume trajectory tests;
+- host Gemma3n AltUp, PLE, Laurel and mixed-window VJPs plus shared device
+  operator VJPs.
+
+Production gaps:
+
+- `TrainingRunPlan` and `TrainingProgram` are design contracts, not implemented
+  Go types;
+- `cmd/train` selects the resident dense device loop; the displaced per-step
+  weight scatter/gradient gather training adapters are deleted;
+- production checkpoints are not atomic complete-state resumes;
+- matrix, vector and scalar groups share the Muon Newton–Schulz path;
+- no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed the compiled
+  resident training contract;
+- compiled multimodal training authority is not implemented as a sole runtime
+  owner;
+- real multimodal processor/projector/codec gradient and held-out quality gates
+  remain open.
+- SimpleDiffusion compiles every real tensor into shared Muon geometry; its
+  real update remains blocked on a device/resident Muon program because host
+  Newton–Schulz at artifact scale is not an admissible production path.
+
+Device backward and device Newton–Schulz are implemented. Production
+reachability and real-model integration are now the long poles.
+
 ## 2. Authority and compiled contracts
 
 RepoDB owns the identities and lineage for:
@@ -59,6 +92,26 @@ operators, indexed tensor and parameter bindings, saved-versus-recomputed tensor
 liveness, gradient destinations and optimizer-group bindings. CUDA launch details
 remain executor concerns. Missing compiled facts are initialization errors; no
 production fallback reconstructs training policy from model-family predicates.
+
+### 2.1 Multimodal contract
+
+Each plan compiles an ordered input/target modality signature from RepoDB:
+text, image, audio, video, time series or table. It also binds processor,
+projector, merger, codec, mask/position, augmentation, objective and
+modality-native evaluation identities. Train/freeze boundaries are explicit;
+every declared trainable connector, trunk and head receives gradient evidence.
+
+Applicable objective pairs include text-to-text, image/audio/video-to-text,
+text-to-audio, text/image-to-image, text/image/video-to-video, forecast and
+table prediction. A pair enters training only with adaptive_new evidence or an
+approved objective and real corpus. Inference support alone does not create a
+training claim. Missing pairs compile to explicit non-trainable/refused rows;
+synthetic tensors cannot substitute for real modality evidence.
+
+Checkpoint identity includes processors/codecs and RNG/augmentation state.
+Promotion requires end-to-end processor-to-output evidence: exact boundaries
+where deterministic, modality-native held-out quality otherwise, plus matched
+wall and peak memory. Scalar loss descent alone is insufficient.
 
 ## 3. Memory models
 
@@ -117,11 +170,10 @@ Muon is the only optimizer family. The compiled plan assigns an explicit Muon
 geometry to every trainable parameter group rather than routing exceptional shapes
 to a second optimizer:
 
-- `MuonMatrix`: Newton–Schulz orthogonalized Nesterov momentum for eligible
-  two-dimensional weights, including dense embeddings and output projections.
-- `MuonVector`: Nesterov momentum with a compiled vector normalization rule for
-  normalization weights, biases and other one-dimensional groups.
-- `MuonScalar`: explicitly scaled Nesterov momentum for true scalar groups.
+- `MuonMatrix`: Newton–Schulz orthogonalized Nesterov momentum over the compiled
+  two-dimensional view, including dense embeddings and output projections.
+- `MuonVector`: the same update over a compiled `1xN` or `Nx1` view.
+- `MuonScalar`: the same update over a compiled `1x1` view.
 - `Frozen`: no state and no update for parameters excluded by the recipe.
 
 Higher-rank tensors receive a semantic matrix view compiled from their tensor
@@ -130,18 +182,13 @@ have one optimizer binding and one state allocation. Weight decay, clipping and
 loss scaling are orthogonal transforms inside the Muon step, independently typed
 by parameter role, not alternate optimizers.
 
-The existing sign update for non-matrix groups is a host-reference behavior, not
-an implicit production fallback. It must either become the explicitly defined
-`MuonVector`/`MuonScalar` rule with convergence evidence or be replaced by a
-better normalized Muon rule before controller promotion. Every geometry shares
-one Muon configuration, schedule, checkpoint schema and plan identity.
-
-The first device optimizer milestone therefore includes Newton–Schulz and the
-vector/scalar Muon rules. Each must match the CPU reference trajectory within a
-recorded tolerance. Device Newton–Schulz is streamed per optimizer group. Its
-memory plan includes the current matrix, output, Gram, polynomial scratch and
-conversion buffers. The planner rejects a group whose peak scratch cannot fit its
-assigned capacity class.
+The sign and BF16-SGD paths are deleted. Every geometry shares one Muon
+configuration, schedule, checkpoint schema and plan identity. Matrix and vector
+CPU/device trajectories are gated; scalar coverage remains part of production
+program promotion. Newton–Schulz streams per optimizer
+group; its memory plan includes the current matrix, output, Gram, polynomial
+scratch and conversion buffers. The planner rejects a group whose peak scratch
+cannot fit its assigned capacity class.
 
 ## 5. Memory hierarchy and execution schedule
 
@@ -272,7 +319,8 @@ Training a new language model from scratch is a later, separately budgeted progr
 **Open decision (blocks rung 1): choose the base and register its RepoDB
 identity.** Rung 1 cannot seal a `TrainingRunPlan` until the base model is named,
 because the plan owns the initial-model identity. Candidates are Fractale-350M,
-Carbon-500M and Qwen2.5-0.5B — all already resident-trainable (§11). Decision
+Carbon-500M and Qwen2.5-0.5B. Fixture-level resident training does not make any
+candidate production-trainable. Decision
 criterion, in order: (a) a device forward/backward already parity-verified in the
 tree, so rung 2 is not gated on a new backward; (b) an instruction/tool-use
 pretraining that transfers to workflow control rather than a bare LM; (c) the
@@ -332,11 +380,12 @@ model.
 
 ## 10. Implementation ladder
 
-`docs/plan.json` (driven by `cmd/plan`) is the single execution owner: it tracks
-which rung and step is open, done or blocked. This section and the §11 model
+`docs/plan.json` (driven by `cmd/plan`) is the single execution owner: it contains
+only dispatchable or externally blocked work. Completed evidence belongs in Git
+and RepoDB, not the live queue. This section and the §11 model
 ladder are rationale and sequencing only — they explain *why* the rungs are
 ordered this way and *what* each proves; they do not record completion. When a
-training rung lands, its status changes in `plan.json`, not here. If this ladder
+training rung lands, it leaves `plan.json`. If this ladder
 and `plan.json` ever disagree on scope, `plan.json` wins and this section is
 corrected to match. Add or rename a training rung in `plan.json` first, then
 reflect the rationale here.
@@ -345,27 +394,22 @@ Each rung produces a runnable artifact and an evidence record. A later rung does
 not redefine an earlier rung's correctness contract.
 
 1. **Compile training authority.** Add sealed `TrainingRunPlan` and model-level
-   `TrainingProgram`; bind RepoDB model, dataset, split, objective and policy IDs.
-2. **Resident FP32 Muon plumbing.** Complete device forward, backward, loss and
-   Muon update for small matrix, vector and scalar fixtures; prove host/device
-   parity. **Device backward is the dominant sub-item and the schedule long
-   pole** — overgo's backward is host-only today, so this rung is not
-   equal-weight with its neighbors. Expect it to decompose in `plan.json` into
-   per-operator backward kernels (matmul, normalization, activation, attention),
-   each grad-parity gated against the FD-verified host VJPs before the rung is
-   marked done. Size the rung accordingly rather than treating "backward" as one
-   step. Grounded kernel decomposition and slice order: see
-   [device_training_rung2.md](device_training_rung2.md) (host loop is the fp64
-   oracle; device fp32 slices are tolerance-gated; first slice = device
-   Newton-Schulz via cuBLAS).
-3. **Exact recovery.** Implement both checkpoint schemas and bitwise or bounded
-   uninterrupted-versus-resumed trajectory tests.
+   `TrainingProgram`; bind RepoDB model, dataset, split, ordered input/target
+   modalities, processor/projector/codec, objective and policy IDs. Derive the
+   applicable/refused multimodal matrix from those facts.
+2. **Resident Muon production path.** Dense device forward/backward, matrix
+   Muon, resident state, synthetic hybrid parity, and production command routing
+   are implemented with matrix/vector/scalar Muon under one compiled plan.
+3. **Exact recovery.** Lower-level dense trajectory tests exist. Implement both
+   checkpoint schemas at the production boundary: atomic publication, complete
+   Muon/RNG/data/program state and uninterrupted-versus-resumed equality.
 4. **Mixed-precision resident training.** BF16 compute with FP32 accumulation;
    establish loss scaling, clipping and convergence envelopes.
 5. **Muon scale-up.** Stream all Muon geometry groups, reuse Newton–Schulz scratch
    by capacity class and compare complete CPU/device update trajectories.
-6. **Controller proof.** Fine-tune the intended 350M–1B controller and pass the
-   immutable held-out promotion suite across multiple seeds.
+6. **Controller proof.** Fine-tune the intended controller and pass the
+   immutable held-out promotion suite across multiple seeds, including typed
+   text/image/audio/video component and workflow actions.
 7. **Forced Tier-1 streaming.** Artificially cap VRAM on the small model; prove
    double-buffered weight/gradient transfer, overlap and exact results.
 8. **Checkpointed activations.** Prove recomputation independently, then compose
@@ -388,11 +432,11 @@ not redefine an earlier rung's correctness contract.
 | Model or family | Near-term role | Initial tier | Admission condition |
 |---|---|---:|---|
 | Dense fixture | Numerical/device plumbing | VRAM | Forward/backward/update parity |
-| Fractale-350M, Carbon-500M or Qwen2.5-0.5B | Controller candidate | VRAM | Exact resume and promotion-suite definition |
-| SimpleDiffusion, Un-0, pocket-tts | Family-specific training validation | VRAM | Existing host step evidence promoted to device program |
+| Fractale-350M, Carbon-500M or Qwen2.5-0.5B | Controller candidate, not yet production-trained | VRAM | Compiled loading/training authority, resident execution, exact resume and promotion suite |
+| SimpleDiffusion, Un-0, pocket-tts | Image and speech training validation | VRAM | Real modality corpus, processor/codec gradients and native-quality evaluation |
 | MiniCPM5-1B | Resident scale validation | VRAM | Measured peak below safe capacity class |
-| Gemma3n E4B | Tier-1 scale target | RAM offload | Device backward, checkpointing and streamed optimizer complete |
-| Qwen3.5 4B/9B | Optional hybrid training | RAM offload | Concrete objective plus SSM/GDN and gated-attention VJPs |
+| Gemma3n E4B | Tier-1 multimodal scale target | RAM offload | Device backward, checkpointing and every adaptive-declared trainable text/image/audio modality |
+| Qwen3.5 4B/9B | Optional hybrid/multimodal training | RAM offload | Concrete text/image/video objective plus SSM/GDN and gated-attention VJPs |
 | Gemma4 12B | Late scale target | RAM, optional NVMe | Measured state layout and safe host headroom |
 | Wan, RxBrain, SenseNova, Krea | Serving/generation | N/A | No training work without an approved learning objective |
 | TimesFM, TabFM, needle | Serving/evaluation | N/A | Add only with a concrete fine-tuning recipe and dataset |
@@ -405,6 +449,8 @@ state schemas. This table expresses sequence, not authoritative byte counts.
 Every rung records:
 
 - exact artifact and source revision identities;
+- ordered input/target modality signature and applicable/refused matrix;
+- processor, projector, merger, codec and augmentation identities;
 - hardware, driver and capacity class;
 - compiled program and calibration identities;
 - peak VRAM and host-RAM usage;
@@ -412,7 +458,7 @@ Every rung records:
 - forward, backward, recompute, transfer and optimizer timing;
 - numerical parity and convergence measurements;
 - checkpoint/resume evidence;
-- evaluation results across required seeds;
+- modality-native evaluation results across required seeds;
 - explicit pass, halt or rollback decision.
 
 A result is not promoted when evidence is missing, stale, hardware-incompatible or

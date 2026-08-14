@@ -64,25 +64,30 @@ const (
 type DataKind string
 
 const (
-	DataArtifact    DataKind = "artifact"
-	DataText        DataKind = "text"
-	DataTokens      DataKind = "tokens"
-	DataEmbeddings  DataKind = "embeddings"
-	DataTensor      DataKind = "tensor"
-	DataModelPlan   DataKind = "model-plan"
-	DataSessionPlan DataKind = "session-plan"
-	DataCache       DataKind = "cache"
-	DataLogits      DataKind = "logits"
-	DataImage       DataKind = "image"
-	DataAudio       DataKind = "audio"
-	DataVideo       DataKind = "video"
-	DataMetrics     DataKind = "metrics"
-	DataCheckpoint  DataKind = "checkpoint"
-	DataScores      DataKind = "scores"
-	DataRanking     DataKind = "ranking"
-	DataBatch       DataKind = "batch"
-	DataLoss        DataKind = "loss"
-	DataGradients   DataKind = "gradients"
+	DataArtifact           DataKind = "artifact"
+	DataText               DataKind = "text"
+	DataTokens             DataKind = "tokens"
+	DataEmbeddings         DataKind = "embeddings"
+	DataTensor             DataKind = "tensor"
+	DataModelPlan          DataKind = "model-plan"
+	DataSessionPlan        DataKind = "session-plan"
+	DataCache              DataKind = "cache"
+	DataLogits             DataKind = "logits"
+	DataImage              DataKind = "image"
+	DataImageTensor        DataKind = "image-tensor"
+	DataPromptConditioning DataKind = "prompt-conditioning"
+	DataClassConditioning  DataKind = "class-conditioning"
+	DataAudio              DataKind = "audio"
+	DataAudioTensor        DataKind = "audio-tensor"
+	DataVideo              DataKind = "video"
+	DataVideoTensor        DataKind = "video-tensor"
+	DataMetrics            DataKind = "metrics"
+	DataCheckpoint         DataKind = "checkpoint"
+	DataScores             DataKind = "scores"
+	DataRanking            DataKind = "ranking"
+	DataBatch              DataKind = "batch"
+	DataLoss               DataKind = "loss"
+	DataGradients          DataKind = "gradients"
 )
 
 type Cardinality string
@@ -143,11 +148,35 @@ func (p SessionPolicy) Valid() bool {
 	return p == "" || p == SessionRequest || p == SessionCapacity
 }
 
+// ResidencyPolicy: compiled model-weight storage and execution policy.
+type ResidencyPolicy string
+
+const (
+	ResidencyStream           ResidencyPolicy = "stream"
+	ResidencyHostCache        ResidencyPolicy = "host-cache"
+	ResidencyDeviceF32        ResidencyPolicy = "device-f32"
+	ResidencyDeviceNative     ResidencyPolicy = "device-native"
+	ResidencyDeviceNativeBF16 ResidencyPolicy = "device-native-bf16"
+	ResidencyHybridNative     ResidencyPolicy = "hybrid-native"
+	ResidencyHostReference    ResidencyPolicy = "host-reference"
+)
+
+func (p ResidencyPolicy) Valid() bool {
+	switch p {
+	case "", ResidencyStream, ResidencyHostCache, ResidencyDeviceF32, ResidencyDeviceNative,
+		ResidencyDeviceNativeBF16, ResidencyHybridNative, ResidencyHostReference:
+		return true
+	default:
+		return false
+	}
+}
+
 type Node struct {
-	ID        NodeID        `json:"id"`
-	Module    ModuleID      `json:"module"`
-	Placement Placement     `json:"placement"`
-	Session   SessionPolicy `json:"session,omitempty"`
+	ID        NodeID          `json:"id"`
+	Module    ModuleID        `json:"module"`
+	Placement Placement       `json:"placement"`
+	Session   SessionPolicy   `json:"session,omitempty"`
+	Residency ResidencyPolicy `json:"residency,omitempty"`
 }
 
 type Endpoint struct {
@@ -250,7 +279,8 @@ func validatePlacement(placement Placement) error {
 func validateDataKind(kind DataKind) error {
 	switch kind {
 	case DataArtifact, DataText, DataTokens, DataEmbeddings, DataTensor, DataModelPlan, DataSessionPlan,
-		DataCache, DataLogits, DataImage, DataAudio, DataVideo, DataMetrics, DataCheckpoint,
+		DataCache, DataLogits, DataImage, DataImageTensor, DataPromptConditioning, DataClassConditioning,
+		DataAudio, DataAudioTensor, DataVideo, DataVideoTensor, DataMetrics, DataCheckpoint,
 		DataScores, DataRanking, DataBatch, DataLoss, DataGradients:
 		return nil
 	default:

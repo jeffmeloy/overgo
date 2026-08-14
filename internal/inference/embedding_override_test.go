@@ -166,7 +166,7 @@ func TestApplyGemmaRawEmbeddingOverridesScalesOnlyTokens(t *testing.T) {
 		Shape: tensor.MustShape(2, 2),
 		Data:  []float32{1, 2, 3, 4},
 	}
-	err := applyGemmaRawEmbeddingOverrides(&activation, []EmbeddingOverride{
+	err := applyScaledRawEmbeddingOverrides(&activation, []EmbeddingOverride{
 		{TokenIndex: 1, Embedding: []float32{5, 6}},
 	}, 2)
 	if err != nil {
@@ -280,6 +280,19 @@ func TestProjectedAttentionBlockIDs(t *testing.T) {
 		[]AttentionBlock{{Start: 1, End: 4}, {Start: 3, End: 5}},
 	); err == nil || !strings.Contains(err.Error(), "overlaps") {
 		t.Fatalf("overlap error = %v", err)
+	}
+}
+
+func TestAppendUniqueGraphOutputs(t *testing.T) {
+	builder := tensor.NewBuilder()
+	first := builder.Input("first", dtype.F32, tensor.MustShape(1))
+	second := builder.Input("second", dtype.F32, tensor.MustShape(1))
+	outputs := []*tensor.Tensor{first}
+	outputs = appendUniqueGraphOutputs(
+		outputs, map[*tensor.Tensor]struct{}{first: {}}, first, second, second,
+	)
+	if !slices.Equal(outputs, []*tensor.Tensor{first, second}) {
+		t.Fatalf("unique graph outputs = %v", outputs)
 	}
 }
 

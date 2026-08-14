@@ -31,15 +31,18 @@ const (
 	kernelConcatF32
 	kernelConv1dSameF32
 	kernelConv2dF32
+	kernelConv2dIm2colF32
 	kernelCopyF32
 	kernelCopyTokenOffsetF32
 	kernelDivideF32
+	kernelEmbeddingGatherRowsF32
 	kernelExpF32
 	kernelF16ToF32
 	kernelF32ToBf16
 	kernelFlatSliceF32
 	kernelFp8ToF32
 	kernelFwhtF32
+	kernelGatedDeltaNetBackwardF32
 	kernelGatedDeltaNetF32
 	kernelGatedLinearAttentionF32
 	kernelGatherLastF32
@@ -77,7 +80,10 @@ const (
 	kernelGetRowsTq20F32
 	kernelGroupNormF32
 	kernelGroupSliceF32
+	kernelHeadMajorF32
+	kernelHeadMajorInverseF32
 	kernelIndexerScoreF32
+	kernelL2NormBackwardF32
 	kernelL2NormF32
 	kernelLayerNormF32
 	kernelLayerNormModulateF32
@@ -139,10 +145,12 @@ const (
 	kernelRwkv7F32
 	kernelSamAttentionF32
 	kernelScaleF32
+	kernelShortConvBackwardF32
 	kernelSigmoidF32
 	kernelSiluBackwardF32
 	kernelSiluF32
 	kernelSoftmaxBackwardF32
+	kernelSoftmaxCeGradRowsF32
 	kernelSoftmaxF32
 	kernelSoftplusF32
 	kernelSparseAttentionF32
@@ -197,15 +205,18 @@ var kernelFunctionNames = [...]string{
 	"concat_f32",
 	"conv_1d_same_f32",
 	"conv_2d_f32",
+	"conv_2d_im2col_f32",
 	"copy_f32",
 	"copy_token_offset_f32",
 	"divide_f32",
+	"embedding_gather_rows_f32",
 	"exp_f32",
 	"f16_to_f32",
 	"f32_to_bf16",
 	"flat_slice_f32",
 	"fp8_to_f32",
 	"fwht_f32",
+	"gated_delta_net_backward_f32",
 	"gated_delta_net_f32",
 	"gated_linear_attention_f32",
 	"gather_last_f32",
@@ -243,7 +254,10 @@ var kernelFunctionNames = [...]string{
 	"get_rows_tq2_0_f32",
 	"group_norm_f32",
 	"group_slice_f32",
+	"head_major_f32",
+	"head_major_inverse_f32",
 	"indexer_score_f32",
+	"l2_norm_backward_f32",
 	"l2_norm_f32",
 	"layer_norm_f32",
 	"layer_norm_modulate_f32",
@@ -305,10 +319,12 @@ var kernelFunctionNames = [...]string{
 	"rwkv7_f32",
 	"sam_attention_f32",
 	"scale_f32",
+	"short_conv_backward_f32",
 	"sigmoid_f32",
 	"silu_backward_f32",
 	"silu_f32",
 	"softmax_backward_f32",
+	"softmax_ce_grad_rows_f32",
 	"softmax_f32",
 	"softplus_f32",
 	"sparse_attention_f32",
@@ -344,13 +360,13 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	3,
 	12,
+	25,
 	24,
-	23,
 	6,
 	5,
-	10,
-	10,
 	12,
+	11,
+	13,
 	3,
 	3,
 	15,
@@ -362,15 +378,18 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	8,
 	10,
 	20,
+	17,
 	3,
 	5,
 	4,
+	5,
 	3,
 	3,
 	3,
 	4,
 	5,
 	4,
+	23,
 	15,
 	12,
 	7,
@@ -408,7 +427,10 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	9,
 	8,
+	5,
+	5,
 	11,
+	6,
 	5,
 	5,
 	8,
@@ -470,10 +492,12 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	12,
 	18,
 	4,
+	12,
 	3,
 	4,
 	3,
 	5,
+	6,
 	4,
 	3,
 	16,

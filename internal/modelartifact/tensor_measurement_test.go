@@ -52,14 +52,15 @@ func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
 	}
 	measurement := first.Measurements[0]
 	if first.ID != second.ID || first.ReadBytes != 1024 || measurement.Samples != 256 ||
-		measurement.Elements != 512 || measurement.SampleFraction() != 0.5 || measurement.MAD <= 0 {
+		measurement.Elements != 512 || float64(measurement.Samples)/float64(measurement.Elements) != 0.5 ||
+		measurement.MAD <= 0 {
 		t.Fatalf("GGUF measurement = %+v", first)
 	}
-	content, err := first.ContentBytes()
+	content, err := first.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseTensorMeasurementDocument(content)
+	parsed, err := tensorMeasurementCodec.Parse(content.Data)
 	if err != nil || parsed.ID != first.ID {
 		t.Fatalf("measurement round trip = (%+v, %v)", parsed, err)
 	}
@@ -105,7 +106,7 @@ func TestMeasureSafetensorsUsesElementReads(t *testing.T) {
 
 func TestTensorMeasurementEnforcesReadBudget(t *testing.T) {
 	policy := MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1}
-	if _, err := NewTensorMeasurementDocument(
+	if _, err := newTensorMeasurementDocument(
 		fixtureInventoryID(t), policy, 2,
 		[]TensorMeasurement{{
 			Name: "weight", Elements: 1, Samples: 1, FiniteSamples: 1,

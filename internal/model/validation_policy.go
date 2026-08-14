@@ -8,6 +8,15 @@ const (
 	BaseRotaryValidationHalfWidth
 )
 
+// ExpertMetadataPolicy: expert metadata admission.
+type ExpertMetadataPolicy uint8
+
+const (
+	ExpertMetadataNone ExpertMetadataPolicy = iota
+	ExpertMetadataRequired
+	ExpertMetadataWhenDeclared
+)
+
 // EncoderValidationPolicy: encoder metadata contract.
 type EncoderValidationPolicy uint8
 
@@ -147,6 +156,8 @@ type ValidationPolicy struct {
 	MultiAxisRoPE         bool
 	BoundDeepstack        bool
 	RopeFrequencyOptional bool
+	RequiredBlockCount    uint32
+	ExpertMetadata        ExpertMetadataPolicy
 	BaseRotary            BaseRotaryValidationPolicy
 	Encoder               EncoderValidationPolicy
 	Attention             AttentionValidationPolicy
@@ -169,33 +180,6 @@ func (p ValidationPolicy) recurrentOneOf(policies ...RecurrentValidationPolicy) 
 
 func (p ValidationPolicy) encoderOneOf(policies ...EncoderValidationPolicy) bool {
 	return policyOneOf(p.Encoder, policies...)
-}
-
-func (p ValidationPolicy) requiresExpertMetadata(graniteExperts bool) bool {
-	if p.Encoder == EncoderValidationNomicBERTMoE ||
-		p.attentionOneOf(
-			AttentionValidationCohere2MoE, AttentionValidationErnie45MoE,
-			AttentionValidationGLM4MoE,
-		) || p.MLA == MLAValidationKimiLinear || p.Recurrent == RecurrentValidationJamba {
-		return true
-	}
-	if p.Hybrid == HybridValidationGranite {
-		return graniteExperts
-	}
-	return p.hybridOneOf(
-		HybridValidationQwen3Next, HybridValidationQwen35MoE,
-		HybridValidationQwen3MoE, HybridValidationGroveMoE,
-		HybridValidationMiMo2, HybridValidationStep35, HybridValidationLLaDAMoE,
-		HybridValidationQwen2MoE, HybridValidationArctic, HybridValidationBailingMoE,
-		HybridValidationDeepSeek, HybridValidationGraniteMoE, HybridValidationDBRX,
-		HybridValidationGrok, HybridValidationMellum, HybridValidationHunyuanMoE,
-		HybridValidationHYV3, HybridValidationDeepSeek2OCR,
-		HybridValidationSmallThinker, HybridValidationDOTS1,
-		HybridValidationMiniMaxM2, HybridValidationBailingMoE2,
-		HybridValidationOLMoE, HybridValidationLlama4, HybridValidationGPTOSS,
-		HybridValidationPhiMoE, HybridValidationLaguna, HybridValidationAFMoE,
-		HybridValidationEXAOneMoE, HybridValidationLFM2MoE,
-	)
 }
 
 func (p ValidationPolicy) optionalRopeBase() bool {

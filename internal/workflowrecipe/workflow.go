@@ -22,7 +22,9 @@ const (
 	ModuleDecodeImage     recipe.ModuleID = "media.decode-image"
 	ModuleDecodeAudio     recipe.ModuleID = "media.decode-audio"
 	ModuleDecodeVideo     recipe.ModuleID = "media.decode-video"
-	ModuleProject         recipe.ModuleID = "projector.project"
+	ModuleProjectImage    recipe.ModuleID = "projector.image"
+	ModuleProjectAudio    recipe.ModuleID = "projector.audio"
+	ModuleProjectVideo    recipe.ModuleID = "projector.video"
 	ModuleBatchDataset    recipe.ModuleID = "training.batch-dataset"
 	ModuleTrainingForward recipe.ModuleID = "training.forward"
 	ModuleBackward        recipe.ModuleID = "training.backward"
@@ -38,13 +40,14 @@ const (
 )
 
 type Bindings struct {
-	Model      artifact.ID
-	Profile    artifact.ID
-	Tokenizer  artifact.ID
-	Projector  artifact.ID
-	Dataset    artifact.ID
-	Checkpoint artifact.ID
-	Adapters   []artifact.ID
+	Model             artifact.ID
+	Profile           artifact.ID
+	ProjectionProfile artifact.ID
+	Tokenizer         artifact.ID
+	Projector         artifact.ID
+	Dataset           artifact.ID
+	Checkpoint        artifact.ID
+	Adapters          []artifact.ID
 }
 
 type Plan struct {
@@ -62,7 +65,7 @@ const (
 var catalog = mustCatalog()
 
 func Catalog() *recipe.Catalog {
-	return catalog.Clone()
+	return catalog
 }
 
 func Module(id recipe.ModuleID) (recipe.Module, bool) { return catalog.Module(id) }
@@ -121,17 +124,20 @@ func Rerank(bindings Bindings, placement recipe.Placement) (recipe.Definition, e
 }
 
 func Projection(bindings Bindings, media MediaKind, placement recipe.Placement) (recipe.Definition, error) {
-	module, data, err := mediaContract(media)
+	decodeModule, projectModule, mediaData, err := mediaContract(media)
 	if err != nil {
 		return recipe.Definition{}, err
 	}
-	decode := node("decode", module, placement)
-	project := node("project", ModuleProject, placement)
+	if media == MediaAudio && !bindings.ProjectionProfile.Valid() {
+		return recipe.Definition{}, errors.New("workflow recipe: missing audio projection profile dependency")
+	}
+	decode := node("decode", decodeModule, placement)
+	project := node("project", projectModule, placement)
 	return definition(
 		recipe.TaskProjection, bindings, []recipe.DependencyRole{recipe.DependencyProjector},
 		[]recipe.Node{decode, project},
 		[]recipe.Edge{edge(decode, "tensor", project, "tensor")},
-		[]recipe.Input{input("media", data, decode, "media")},
+		[]recipe.Input{input("media", mediaData, decode, "media")},
 		[]recipe.Output{output("embeddings", recipe.DataEmbeddings, project, "embeddings")},
 	)
 }
@@ -198,7 +204,7 @@ func definition(
 }
 
 func (b Bindings) dependencies() ([]recipe.Dependency, error) {
-	dependencies := make([]recipe.Dependency, 0, 6+len(b.Adapters))
+	dependencies := make([]recipe.Dependency, 0, 7+len(b.Adapters))
 	appendID := func(role recipe.DependencyRole, id artifact.ID) {
 		if id.Valid() {
 			dependencies = append(dependencies, recipe.Dependency{Role: role, Artifact: id})
@@ -206,6 +212,11 @@ func (b Bindings) dependencies() ([]recipe.Dependency, error) {
 	}
 	appendID(recipe.DependencyModel, b.Model)
 	appendID(recipe.DependencyProfile, b.Profile)
+	if b.ProjectionProfile.Valid() {
+		dependencies = append(dependencies, recipe.Dependency{
+			Role: recipe.DependencyProfile, Slot: 1, Artifact: b.ProjectionProfile,
+		})
+	}
 	appendID(recipe.DependencyTokenizer, b.Tokenizer)
 	appendID(recipe.DependencyProjector, b.Projector)
 	appendID(recipe.DependencyDataset, b.Dataset)
@@ -237,19 +248,32 @@ func validateTaskDependencies(definition recipe.Definition) error {
 			return fmt.Errorf("workflow recipe: missing %s dependency", role)
 		}
 	}
+	if definition.Task == recipe.TaskProjection && definitionUsesModule(definition, ModuleProjectAudio) &&
+		!hasDependency(definition.Dependencies, recipe.DependencyProfile, 1) {
+		return errors.New("workflow recipe: missing audio projection profile dependency")
+	}
 	return nil
 }
 
-func mediaContract(media MediaKind) (recipe.ModuleID, recipe.DataKind, error) {
+func definitionUsesModule(definition recipe.Definition, module recipe.ModuleID) bool {
+	return slices.ContainsFunc(definition.Nodes, func(node recipe.Node) bool { return node.Module == module })
+}
+
+func mediaContract(media MediaKind) (
+	decode recipe.ModuleID,
+	project recipe.ModuleID,
+	mediaData recipe.DataKind,
+	err error,
+) {
 	switch media {
 	case MediaImage:
-		return ModuleDecodeImage, recipe.DataImage, nil
+		return ModuleDecodeImage, ModuleProjectImage, recipe.DataImage, nil
 	case MediaAudio:
-		return ModuleDecodeAudio, recipe.DataAudio, nil
+		return ModuleDecodeAudio, ModuleProjectAudio, recipe.DataAudio, nil
 	case MediaVideo:
-		return ModuleDecodeVideo, recipe.DataVideo, nil
+		return ModuleDecodeVideo, ModuleProjectVideo, recipe.DataVideo, nil
 	default:
-		return "", "", errors.New("workflow recipe: invalid media kind")
+		return "", "", "", errors.New("workflow recipe: invalid media kind")
 	}
 }
 

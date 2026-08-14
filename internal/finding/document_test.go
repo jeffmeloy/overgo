@@ -20,11 +20,11 @@ func TestFindingRoundTripAndNormalizeAnyOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	canonical, err := document.ContentBytes()
+	canonical, err := document.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := Parse(canonical)
+	parsed, err := Parse(canonical.Data)
 	if err != nil || parsed.ID != document.ID {
 		t.Fatalf("round trip failed: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestFindingRoundTripAndNormalizeAnyOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("normalize: %v", err)
 	}
-	if normalized.ID != document.ID || !bytes.Equal(normalBytes, canonical) {
+	if normalized.ID != document.ID || !bytes.Equal(normalBytes, canonical.Data) {
 		t.Fatal("normalize did not converge to the canonical form")
 	}
 	if _, err := New("", SeverityMedium, StatusOpen, []artifact.ID{owner}, []artifact.ID{evidence}, "x", "y"); err == nil {

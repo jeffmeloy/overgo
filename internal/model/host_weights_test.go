@@ -32,7 +32,7 @@ func TestLoadHostTensor(t *testing.T) {
 	}
 }
 
-func TestLoadHostRowsAndArgmaxDot(t *testing.T) {
+func TestLoadHostRowsAndDotRows(t *testing.T) {
 	data := hostTableFixture(t)
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
 	if err != nil {
@@ -48,12 +48,15 @@ func TestLoadHostRowsAndArgmaxDot(t *testing.T) {
 			t.Fatalf("row value[%d] = %v, want %v", index, value.Data[index], want[index])
 		}
 	}
-	row, score, err := ArgmaxDot(context.Background(), file, file.Tensors[0], []float32{1, 1}, 2)
+	scores, err := DotRows(context.Background(), file, file.Tensors[0], []float32{1, 1}, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row != 2 || score != 11 {
-		t.Fatalf("argmax = row %d score %v, want row 2 score 11", row, score)
+	wantScores := []float32{3, 7, 11}
+	for row, want := range wantScores {
+		if scores[row] != want {
+			t.Fatalf("score[%d] = %v, want %v", row, scores[row], want)
+		}
 	}
 }
 
@@ -230,7 +233,7 @@ func TestHostLayerGraphInputsPermitRWKV6Qwen2(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(feeds) != 17 || graph.TimeMixW1 == nil || graph.TimeMixLerpFused == nil || graph.TimeMixOutput == nil {
-		t.Fatalf("unexpected RWKV6-Qwen2 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+		t.Fatalf("unexpected WKV6-Qwen2 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
 	}
 }
 
@@ -264,7 +267,7 @@ func TestHostLayerGraphInputsPermitRWKV6(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(feeds) != 24 || graph.TimeMixFirst == nil || graph.TimeMixLN == nil || graph.ChannelMixReceptance == nil {
-		t.Fatalf("unexpected RWKV6 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+		t.Fatalf("unexpected WKV6 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
 	}
 }
 
@@ -305,7 +308,7 @@ func TestHostLayerGraphInputsPermitRWKV7(t *testing.T) {
 	if len(feeds) != 28 || graph.TimeMixW0 == nil || graph.TimeMixA2 == nil ||
 		graph.TimeMixV2 == nil || graph.TimeMixG2 == nil || graph.TimeMixRK == nil ||
 		graph.ChannelMixValue == nil {
-		t.Fatalf("unexpected RWKV7 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
+		t.Fatalf("unexpected WKV7 graph inputs: graph=%+v feeds=%d", graph, len(feeds))
 	}
 }
 

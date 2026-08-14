@@ -1,0 +1,300 @@
+//go:build windows
+
+package latentimage
+
+import (
+	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+	"math"
+	"path/filepath"
+
+	"overgo/internal/artifact"
+	"overgo/internal/cuda/device"
+	"overgo/internal/hfbpe"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/safetensors"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/torchrng"
+	"overgo/internal/workflowruntime"
+)
+
+func readEmbedRowsF32(modelDir string, spec TextEncoderSpec, ids []int) ([]float32, error) {
+	source, err := safetensors.OpenSource(filepath.Join(modelDir, "text_encoder"))
+	if err != nil {
+		return nil, fmt.Errorf("resident encoder embed: %w", err)
+	}
+	defer source.Close()
+	rows, err := readEmbedRows(source, spec, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]float32, len(rows))
+	for index, value := range rows {
+		result[index] = float32(value)
+	}
+	return result, nil
+}
+
+var encodedImageContract = artifact.DocumentContract{
+	Kind: artifact.KindOutput, MediaType: encodedImageMediaType, Schema: "overgo.encoded-image.png.v1",
+}
+
+type Request struct {
+	Prompt            string  `json:"prompt"`
+	Width             int     `json:"width"`
+	Height            int     `json:"height"`
+	Steps             int     `json:"steps,omitempty"`
+	Seed              int64   `json:"seed"`
+	DynamicShiftMu    float64 `json:"mu,omitempty"`
+	NumTrainTimesteps int     `json:"num_train_timesteps,omitempty"`
+}
+
+type Generator struct {
+	request    Request
+	profile    Profile
+	spec       *Spec
+	pipeline   *ResidentImagePipeline
+	embed      []float32
+	schedule   FlowSchedule
+	shape      LatentShape
+	prepared   bool
+	integrated bool
+	completed  bool
+}
+
+func ValidateRequest(request Request) error {
+	if request.Prompt == "" {
+		return errors.New("latent image: prompt is empty")
+	}
+	if request.Width <= 0 || request.Height <= 0 {
+		return fmt.Errorf("latent image: invalid extent %dx%d", request.Width, request.Height)
+	}
+	if request.Steps < 0 || request.NumTrainTimesteps < 0 || math.IsNaN(request.DynamicShiftMu) || math.IsInf(request.DynamicShiftMu, 0) {
+		return errors.New("latent image: invalid sampling policy")
+	}
+	return nil
+}
+
+func LoadGenerator(ctx context.Context, modelDir string, profile Profile, request Request) (*Generator, error) {
+	if err := ValidateRequest(request); err != nil {
+		return nil, err
+	}
+	if err := profile.validateIdentity(); err != nil {
+		return nil, err
+	}
+	spec, err := Derive(modelDir)
+	if err != nil {
+		return nil, err
+	}
+	if spec.Profile != profile.ID {
+		return nil, errors.New("latent image: recipe profile differs from artifact")
+	}
+	if _, err := spec.VerifyCheckpoint(modelDir); err != nil {
+		return nil, err
+	}
+	shape, err := spec.LatentShape(request.Height, request.Width)
+	if err != nil {
+		return nil, err
+	}
+	if spec.PatchSize <= 0 || shape.Height%spec.PatchSize != 0 || shape.Width%spec.PatchSize != 0 {
+		return nil, fmt.Errorf("latent image: latent extent %dx%d is incompatible with patch %d", shape.Width, shape.Height, spec.PatchSize)
+	}
+	gridH, gridW := shape.Height/spec.PatchSize, shape.Width/spec.PatchSize
+	request = request.withPolicy(profile.Sampling, gridH*gridW)
+	tokenizer, err := hfbpe.Load(filepath.Join(modelDir, "tokenizer"))
+	if err != nil {
+		return nil, err
+	}
+	text, err := renderTextInput(tokenizer, request.Prompt, profile.Prompt)
+	if err != nil {
+		return nil, err
+	}
+	embed, err := readEmbedRowsF32(modelDir, spec.TextEncoder, text.IDs)
+	if err != nil {
+		return nil, err
+	}
+	encoder, err := CompileEncoderProgramMasked(
+		spec.TextEncoder, float32(spec.TextEncoder.RMSNormEps), len(text.IDs), dtype.BF16, text.Mask,
+	)
+	if err != nil {
+		return nil, err
+	}
+	textMask := text.Mask[len(text.Mask)-text.PromptRows:]
+	fusion, err := CompileFusionProgram(
+		spec.Transformer, float32(spec.Transformer.NormEps), textMask, dtype.BF16,
+	)
+	if err != nil {
+		return nil, err
+	}
+	denoiser, err := CompileDenoiserProgram(
+		spec.Transformer, float32(spec.Transformer.NormEps), textMask, gridH, gridW, dtype.BF16,
+	)
+	if err != nil {
+		return nil, err
+	}
+	decoder, err := loadVAEDecoder(modelDir, profile.Classes.VAE)
+	if err != nil {
+		return nil, err
+	}
+	vae, err := CompileVAEProgram(decoder, shape.Height, shape.Width, dtype.F32)
+	if err != nil {
+		return nil, err
+	}
+	pipeline, err := NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, modelDir, 0)
+	if err != nil {
+		return nil, err
+	}
+	schedule, err := CompileFlowSchedule(request.Steps, request.NumTrainTimesteps, request.DynamicShiftMu)
+	if err != nil {
+		_ = pipeline.Close(ctx)
+		return nil, err
+	}
+	return &Generator{
+		request: request, profile: profile, spec: spec, pipeline: pipeline, embed: embed,
+		schedule: schedule, shape: shape,
+	}, nil
+}
+
+func (r Request) withPolicy(policy samplingPolicy, imageSequence int) Request {
+	if r.Steps == 0 {
+		r.Steps = policy.DefaultSteps
+	}
+	if r.NumTrainTimesteps == 0 {
+		r.NumTrainTimesteps = policy.TrainTimesteps
+	}
+	if r.DynamicShiftMu == 0 {
+		r.DynamicShiftMu = policy.dynamicShiftMu(imageSequence)
+	}
+	return r
+}
+
+// SessionPolicy identifies graph- and conditioning-compatible requests.
+func SessionPolicy(request Request) (string, error) {
+	if err := ValidateRequest(request); err != nil {
+		return "", err
+	}
+	prompt := sha256.Sum256([]byte(request.Prompt))
+	return fmt.Sprintf("%dx%d/prompt:%x", request.Width, request.Height, prompt), nil
+}
+
+// Reset reuses resident graphs for compatible request-local sampling state.
+func (g *Generator) Reset(ctx context.Context, request Request) error {
+	if g == nil || g.pipeline == nil || !g.completed {
+		return errors.New("latent image: resident session is unavailable")
+	}
+	if err := ValidateRequest(request); err != nil {
+		return err
+	}
+	request = request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW)
+	if request.Prompt != g.request.Prompt || request.Width != g.request.Width || request.Height != g.request.Height {
+		return errors.New("latent image: request requires another resident session")
+	}
+	schedule, err := CompileFlowSchedule(request.Steps, request.NumTrainTimesteps, request.DynamicShiftMu)
+	if err != nil {
+		return err
+	}
+	g.request, g.schedule = request, schedule
+	g.prepared, g.integrated, g.completed = false, false, false
+	return nil
+}
+
+func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, error) {
+	if g == nil || g.pipeline == nil || request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW) != g.request || g.prepared {
+		return nil, errors.New("latent image: generation session is unavailable")
+	}
+	if g.pipeline.conditioning == nil {
+		if _, err := g.pipeline.Condition(ctx, g.embed); err != nil {
+			return nil, err
+		}
+	}
+	var latent []float32
+	err := g.pipeline.runtime.worker.Do(ctx, func(state *device.State) error {
+		var seedErr error
+		latent, seedErr = SeededInitLatent(
+			torchrng.NewStream(g.request.Seed), state, g.shape, InitNoiseMix,
+		)
+		return seedErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	packed, gridH, gridW, err := packLatent(
+		latent, g.shape.ZDim, g.shape.Height, g.shape.Width, g.spec.PatchSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if gridH != g.pipeline.Denoiser.GH || gridW != g.pipeline.Denoiser.GW {
+		return nil, errors.New("latent image: compiled grid differs from seeded latent")
+	}
+	if err := g.pipeline.Begin(ctx, packed); err != nil {
+		return nil, err
+	}
+	g.prepared = true
+	return g, nil
+}
+
+func (g *Generator) integrate(ctx context.Context, session *Generator) (*Generator, error) {
+	if g == nil || session != g || !g.prepared || g.integrated {
+		return nil, errors.New("latent image: integration session is unavailable")
+	}
+	for step := range g.schedule.Steps {
+		if err := g.pipeline.Advance(ctx, g.schedule.Sigmas[step], g.schedule.Deltas[step]); err != nil {
+			return nil, err
+		}
+	}
+	g.integrated = true
+	return g, nil
+}
+
+func (g *Generator) decode(ctx context.Context, session *Generator) (EncodedImage, error) {
+	if g == nil || session != g || !g.integrated {
+		return EncodedImage{}, errors.New("latent image: decode session is unavailable")
+	}
+	pixels, height, width, err := g.pipeline.DecodeHWC(ctx)
+	if err != nil {
+		return EncodedImage{}, err
+	}
+	if err := g.pipeline.Finish(ctx); err != nil {
+		return EncodedImage{}, err
+	}
+	g.completed = true
+	return encodePNG(pixels, height, width)
+}
+
+func (g *Generator) Close(ctx context.Context) error {
+	if g == nil || g.pipeline == nil {
+		return nil
+	}
+	err := g.pipeline.Close(ctx)
+	g.pipeline = nil
+	g.embed = nil
+	return err
+}
+
+func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, generator *Generator) error {
+	if generator == nil || generator.pipeline == nil {
+		return errors.New("latent image: incomplete runtime binding")
+	}
+	if err := workflowruntime.RegisterContextStage(
+		runtime, modelrecipe.ModuleLatentImagePrepare, modelID, generator.prepare, nil,
+	); err != nil {
+		return err
+	}
+	if err := workflowruntime.RegisterContextStage(
+		runtime, modelrecipe.ModuleLatentImageIntegrate, modelID, generator.integrate, nil,
+	); err != nil {
+		return err
+	}
+	return workflowruntime.RegisterContextStage(
+		runtime, modelrecipe.ModuleLatentImageDecode, modelID, generator.decode,
+		func(image EncodedImage) (artifact.Content, error) {
+			if image.MediaType != encodedImageMediaType {
+				return artifact.Content{}, errors.New("latent image: invalid encoded media type")
+			}
+			return encodedImageContract.OwnedContentBytes(image.Data)
+		},
+	)
+}

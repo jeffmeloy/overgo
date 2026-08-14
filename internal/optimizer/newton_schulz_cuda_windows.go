@@ -9,11 +9,14 @@ import (
 	"runtime"
 	"unsafe"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/kernel"
 )
+
+const deviceF32Bytes = uint64(4)
 
 // deviceNewtonSchulz runs the Muon Newton-Schulz iteration on the GPU in fp32,
 // reproducing host newtonSchulz (fp64 oracle) within tolerance. Every matmul is
@@ -74,9 +77,7 @@ func gramDim(rows, cols int) int {
 	return cols
 }
 
-// deviceOps bundles the per-context device handles the Muon primitives share:
-// the driver library, a cuBLAS handle bound to the stream, and the ops_f32
-// scale/add kernels.
+// deviceOps: shared Muon CUDA handles, kernels, and buffer policy.
 type deviceOps struct {
 	lib     *driver.Library
 	blas    *cublas.Library
@@ -132,6 +133,60 @@ func (o *deviceOps) close() {
 	o.blas.Close()
 }
 
+func (o *deviceOps) allocF32(count int) (driver.DevicePtr, error) {
+	if count <= 0 {
+		return 0, fmt.Errorf("device optimizer: invalid f32 allocation count %d", count)
+	}
+	bytes, valid := checked.Bytes(uint64(count), deviceF32Bytes)
+	if !valid {
+		return 0, fmt.Errorf("device optimizer: invalid f32 allocation count %d", count)
+	}
+	return o.lib.MemAlloc(bytes)
+}
+
+func (o *deviceOps) allocF32Set(counts ...int) ([]driver.DevicePtr, error) {
+	pointers := make([]driver.DevicePtr, len(counts))
+	for index, count := range counts {
+		pointer, err := o.allocF32(count)
+		if err != nil {
+			freeDevicePointers(o.lib, pointers...)
+			return nil, err
+		}
+		pointers[index] = pointer
+	}
+	return pointers, nil
+}
+
+func (o *deviceOps) uploadF32Set(values ...[]float32) ([]driver.DevicePtr, error) {
+	counts := make([]int, len(values))
+	for index := range values {
+		counts[index] = len(values[index])
+	}
+	pointers, err := o.allocF32Set(counts...)
+	if err != nil {
+		return nil, err
+	}
+	for index := range values {
+		if err := o.lib.MemcpyHtoD(pointers[index], driver.Bytes(values[index])); err != nil {
+			freeDevicePointers(o.lib, pointers...)
+			return nil, err
+		}
+	}
+	return pointers, nil
+}
+
+func freeDevicePointers(library *driver.Library, pointers ...driver.DevicePtr) {
+	for _, pointer := range pointers {
+		if pointer != 0 {
+			library.MemFree(pointer)
+		}
+	}
+}
+
+func offsetF32(pointer driver.DevicePtr, elements int) driver.DevicePtr {
+	return pointer + driver.DevicePtr(uint64(elements)*deviceF32Bytes)
+}
+
 func (o *deviceOps) launch(fn driver.Function, count int, args []unsafe.Pointer) error {
 	const threads = uint32(256)
 	total := uint32(count)
@@ -165,9 +220,7 @@ func (o *deviceOps) add(a, b, out driver.DevicePtr, count int) error {
 	return err
 }
 
-// nsBuffers holds the device scratch a Newton-Schulz run needs: the working
-// matrix dX and a same-size double buffer/temp, plus the three gram-sized
-// buffers and the one-element norm scalar.
+// nsBuffers: Newton-Schulz matrix, Gram, and norm scratch.
 type nsBuffers struct {
 	dX, dXNew, dCX    driver.DevicePtr // size n = rows*cols
 	dGram, dSq, dRest driver.DevicePtr // size gramN = dim*dim
@@ -175,27 +228,18 @@ type nsBuffers struct {
 }
 
 func (o *deviceOps) allocBuffers(n, gramN int) (nsBuffers, error) {
-	var b nsBuffers
-	alloc := func(count int) (driver.DevicePtr, error) { return o.lib.MemAlloc(uint64(count) * 4) }
-	ptrs := []*driver.DevicePtr{&b.dX, &b.dXNew, &b.dCX, &b.dGram, &b.dSq, &b.dRest, &b.dNorm}
-	sizes := []int{n, n, n, gramN, gramN, gramN, 1}
-	for i, p := range ptrs {
-		ptr, err := alloc(sizes[i])
-		if err != nil {
-			b.free(o.lib)
-			return nsBuffers{}, err
-		}
-		*p = ptr
+	pointers, err := o.allocF32Set(n, n, n, gramN, gramN, gramN, 1)
+	if err != nil {
+		return nsBuffers{}, err
 	}
-	return b, nil
+	return nsBuffers{
+		dX: pointers[0], dXNew: pointers[1], dCX: pointers[2],
+		dGram: pointers[3], dSq: pointers[4], dRest: pointers[5], dNorm: pointers[6],
+	}, nil
 }
 
 func (b nsBuffers) free(lib *driver.Library) {
-	for _, p := range []driver.DevicePtr{b.dX, b.dXNew, b.dCX, b.dGram, b.dSq, b.dRest, b.dNorm} {
-		if p != 0 {
-			lib.MemFree(p)
-		}
-	}
+	freeDevicePointers(lib, b.dX, b.dXNew, b.dCX, b.dGram, b.dSq, b.dRest, b.dNorm)
 }
 
 // newtonSchulz runs normalize + the 8 stage-1 + 2 stage-2 iterations in place on

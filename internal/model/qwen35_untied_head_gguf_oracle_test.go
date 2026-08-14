@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/testevidence"
 )
 
 // Qwen3.5-9B Q8_0 CPU structural oracle. The 9B is the same qwen35 hybrid as
@@ -32,6 +33,9 @@ func qwen35_9BPath(t *testing.T) string {
 }
 
 func TestQwen35_9BUntiedHeadGGUFStructuralOracle(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
 	file, err := gguf.Open(qwen35_9BPath(t))
 	if err != nil {
 		t.Fatalf("open GGUF: %v", err)

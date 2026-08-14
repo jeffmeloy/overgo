@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"os"
-	"sort"
+	"slices"
+
+	"overgo/internal/checked"
 )
 
 // headerAlignment pads the JSON header to an 8-byte boundary (trailing spaces,
@@ -24,11 +27,7 @@ const headerAlignment = 8
 // persistence counterpart to OpenSource: without it a trained Model cannot be
 // checkpointed, so the training lane has no production path.
 func Save(path string, tensors map[string][]float32, shapes map[string][]int, metadata map[string]string) error {
-	names := make([]string, 0, len(tensors))
-	for name := range tensors {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(tensors))
 
 	header := make(map[string]json.RawMessage, len(tensors)+1)
 	if len(metadata) > 0 {
@@ -44,21 +43,18 @@ func Save(path string, tensors map[string][]float32, shapes map[string][]int, me
 		if !ok {
 			return fmt.Errorf("safetensors: no shape for tensor %q", name)
 		}
-		elements := 1
-		for _, dim := range shape {
+		ushape := make([]uint64, len(shape))
+		for index, dim := range shape {
 			if dim <= 0 {
 				return fmt.Errorf("safetensors: tensor %q has non-positive dim in %v", name, shape)
 			}
-			elements *= dim
+			ushape[index] = uint64(dim)
 		}
-		if elements != len(tensors[name]) {
-			return fmt.Errorf("safetensors: tensor %q shape %v = %d elements, have %d", name, shape, elements, len(tensors[name]))
+		size, err := TensorBytes("F32", ushape)
+		actual, valid := checked.Mul64(uint64(len(tensors[name])), dwordStorageBytes)
+		if err != nil || !valid || actual != size {
+			return fmt.Errorf("safetensors: tensor %q shape %v does not match %d elements", name, shape, len(tensors[name]))
 		}
-		ushape := make([]uint64, len(shape))
-		for i, dim := range shape {
-			ushape[i] = uint64(dim)
-		}
-		size := uint64(len(tensors[name])) * dwordStorageBytes
 		entry, err := json.Marshal(tensorHeader{DType: "F32", Shape: ushape, DataOffsets: []uint64{offset, offset + size}})
 		if err != nil {
 			return fmt.Errorf("safetensors: marshal tensor %q header: %w", name, err)

@@ -76,3 +76,23 @@ func TestSaveRoundTrip(t *testing.T) {
 		t.Fatalf("metadata = %v, want trainer=overgo format=pt", meta)
 	}
 }
+
+func TestSaveRejectsInvalidTensorGeometry(t *testing.T) {
+	tensors := map[string][]float32{"tensor": {1}}
+	for name, shape := range map[string][]int{
+		"missing":  nil,
+		"negative": {-1},
+		"mismatch": {2},
+		"overflow": {math.MaxInt, 3},
+	} {
+		t.Run(name, func(t *testing.T) {
+			shapes := map[string][]int{}
+			if name != "missing" {
+				shapes["tensor"] = shape
+			}
+			if err := Save(filepath.Join(t.TempDir(), "invalid.safetensors"), tensors, shapes, nil); err == nil {
+				t.Fatal("invalid tensor geometry accepted")
+			}
+		})
+	}
+}

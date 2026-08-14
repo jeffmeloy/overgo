@@ -1,6 +1,11 @@
 package diffusionimage
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+
+	"overgo/internal/optimizer"
+)
 
 // OTLinearFlowPathInto: linear optimal-transport flow state and velocity
 // target (Lipman 2022 as executed by the artifact's train.py):
@@ -50,16 +55,34 @@ func ScaledMSELossGradInto(dst, pred, target []float32, scale float64) (float64,
 	return scale * loss * invN, nil
 }
 
-// TrainStepSGD: one OT-flow training step on a prepared (x, target) pair —
-// forward trace, scaled-MSE gradient (scale 1: a global loss scale is an
-// optimizer-rate alias), backward, SGD update in place on the model's bound
-// tensors. SGD, not the ported Muon: Newton-Schulz over this artifact's
-// ~100 matrix tensors (up to 2048x512) is host-prohibitive per step;
-// descent evidence is the training-leg gate, optimizer choice recorded.
-func (m *Model) TrainStepSGD(x, target []float32, b, height, width int, lr float64) (float64, error) {
-	if lr <= 0 {
-		return 0, fmt.Errorf("diffusionimage train: lr %g must be positive", lr)
+// Trainer: compiled Muon state over one image model.
+type Trainer struct {
+	model  *Model
+	pack   *optimizer.TensorPack
+	update *optimizer.Optimizer
+}
+
+func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
+	if model == nil {
+		return nil, fmt.Errorf("diffusionimage train: model is required")
 	}
+	pack, err := optimizer.NewTensorPack(model.parameters(), model.muonGeometry())
+	if err != nil {
+		return nil, err
+	}
+	update, err := pack.NewOptimizer(config)
+	if err != nil {
+		return nil, err
+	}
+	return &Trainer{model: model, pack: pack, update: update}, nil
+}
+
+// Step: forward, OT loss/backward, Muon update.
+func (trainer *Trainer) Step(x, target []float32, b, height, width int) (float64, error) {
+	if trainer == nil || trainer.model == nil || trainer.pack == nil || trainer.update == nil {
+		return 0, fmt.Errorf("diffusionimage train: trainer is unavailable")
+	}
+	m := trainer.model
 	tile := m.Cfg.PatchSize << uint(m.Cfg.NumLevels-1)
 	if height%tile != 0 || width%tile != 0 {
 		return 0, fmt.Errorf("diffusionimage train: size %dx%d must be multiples of tile %d", width, height, tile)
@@ -77,17 +100,45 @@ func (m *Model) TrainStepSGD(x, target []float32, b, height, width int, lr float
 	if _, err := m.backwardFromTrace(trace, dPred, grads); err != nil {
 		return 0, err
 	}
-	for name, weight := range m.parameters() {
-		g, ok := grads[name]
-		if !ok {
-			continue
-		}
-		for i := range weight {
-			weight[i] -= float32(lr * float64(g[i]))
-		}
+	if err := trainer.pack.GatherGradients(grads); err != nil {
+		return 0, err
 	}
+	trainer.update.Step()
+	trainer.pack.Scatter()
 	m.refreshScalars()
 	return loss, nil
+}
+
+func (m *Model) muonGeometry() optimizer.TensorGeometry {
+	return func(name string, length int) (int, int, error) {
+		if length == 1 {
+			return 1, 1, nil
+		}
+		if strings.HasSuffix(name, ".bias") || strings.Contains(name, ".norm") {
+			return 1, length, nil
+		}
+		if name == "final_proj.weight" {
+			return m.Cfg.BaseChannels, length / m.Cfg.BaseChannels, nil
+		}
+		if strings.HasSuffix(name, ".weight") {
+			base := strings.TrimSuffix(name, ".weight")
+			if bias, ok := m.raw[base+".bias"]; ok && len(bias) > 0 && length%len(bias) == 0 {
+				return len(bias), length / len(bias), nil
+			}
+			for _, marker := range []string{".attn.", ".mlp."} {
+				if at := strings.Index(name, marker); at >= 0 {
+					hidden := len(m.raw[name[:at]+".norm1.weight"])
+					if hidden > 0 && length%hidden == 0 {
+						if strings.HasSuffix(name, ".mlp.1.weight") {
+							return hidden, length / hidden, nil
+						}
+						return length / hidden, hidden, nil
+					}
+				}
+			}
+		}
+		return 0, 0, fmt.Errorf("diffusionimage train: Muon geometry absent for %s[%d]", name, length)
+	}
 }
 
 // parameters: the checkpoint tensor map — the compiled bindings alias these

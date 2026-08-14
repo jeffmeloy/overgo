@@ -13,10 +13,10 @@ func TestForwardUsesCompiledPolicy(t *testing.T) {
 		architecture string
 		message      string
 	}{
-		{"dflash", "requires feature fusion"},
-		{"eagle3", "requires NewEagle3Session"},
-		{"gemma4-assistant", "requires NewGemma4AssistantSession"},
-		{"t5", "requires NewT5Session"},
+		{"dflash", "requires a paired-feature session"},
+		{"eagle3", "requires a feature-draft session"},
+		{"gemma4-assistant", "requires a paired projection session"},
+		{"t5", "requires an encoder-decoder session"},
 	} {
 		t.Run(test.architecture, func(t *testing.T) {
 			spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: test.architecture, BlockCount: 1}}

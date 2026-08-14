@@ -134,20 +134,6 @@ func (b *Builder) MoESoftmaxWithSelectionBias(
 	})
 }
 
-// MoESoftmaxLimitedWithSelectionBias: biased selection; limited SwiGLU.
-func (b *Builder) MoESoftmaxLimitedWithSelectionBias(
-	input, router, gate, up, down, selectionBias *Tensor,
-	topK uint32,
-	normalizeTopKProb bool,
-	scale, swigluClamp float32,
-) *Tensor {
-	return b.buildMoE(input, router, up, down, moeOptions{
-		gate: gate, selectionBias: selectionBias, topK: topK, normalizeTopKProb: normalizeTopKProb,
-		scale: scale, routing: MoERoutingSoftmax, activation: MoEActivationSiLU,
-		expertIndexDivisor: 1, swigluClamp: swigluClamp,
-	})
-}
-
 // MoESoftmaxFusedGateUp: softmax top-k; fused expert gate/up storage.
 func (b *Builder) MoESoftmaxFusedGateUp(
 	input, router, gateUp, down, selectionBias *Tensor,
@@ -259,20 +245,6 @@ func (b *Builder) MoEGELUWithRouterInput(
 	})
 }
 
-// MoEGELUFusedGateUpWithRouterInput: split router input; fused GEGLU experts.
-func (b *Builder) MoEGELUFusedGateUpWithRouterInput(
-	input, routerInput, router, gateUp, down, expertScale *Tensor,
-	topK uint32,
-	normalizeTopKProb bool,
-	scale float32,
-) *Tensor {
-	return b.buildMoE(input, router, gateUp, down, moeOptions{
-		routerInput: routerInput, expertScale: expertScale, topK: topK,
-		normalizeTopKProb: normalizeTopKProb, scale: scale, routing: MoERoutingSoftmax,
-		activation: MoEActivationGELU, fusedGateUp: true, expertIndexDivisor: 1,
-	})
-}
-
 // MoEOpenAI: selected-logit softmax; biased OpenAI SwiGLU experts.
 func (b *Builder) MoEOpenAI(
 	input, router, routerBias, gate, gateBias, up, upBias, down, downBias *Tensor,
@@ -286,7 +258,7 @@ func (b *Builder) MoEOpenAI(
 	})
 }
 
-// MoESqrtSoftplusLimited: DeepSeek 4 routing; optional fixed expert IDs.
+// MoESqrtSoftplusLimited: sqrt-softplus routing; optional fixed expert IDs.
 func (b *Builder) MoESqrtSoftplusLimited(
 	input, router, gate, up, down, selectionBias, selectedExperts *Tensor,
 	topK uint32,

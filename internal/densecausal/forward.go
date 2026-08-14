@@ -20,6 +20,12 @@ type layer struct {
 	gate, up, down   []float32
 }
 
+func addInPlace(destination, values []float32) {
+	for index := range destination {
+		destination[index] += values[index]
+	}
+}
+
 func (m *Model) layerWeights(index int) (layer, error) {
 	prefix := fmt.Sprintf("model.layers.%d.", index)
 	l := layer{
@@ -107,9 +113,7 @@ func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) {
 	tr := m.attnSubForward(l, xn, invFreq, seq)
 	attnOut := make([]float32, seq*d.Hidden)
 	hostmath.Linear(attnOut, tr.attnCore, l.o, seq, width, d.Hidden)
-	for i := range x {
-		x[i] += attnOut[i]
-	}
+	addInPlace(x, attnOut)
 	hn := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(hn, x, l.postLN, seq, d.Hidden, d.RMSEps)
 	gate := make([]float32, seq*d.Intermediate)
@@ -119,9 +123,7 @@ func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) {
 	hostmath.SiLUGate(gate, gate, up)
 	mlp := make([]float32, seq*d.Hidden)
 	hostmath.Linear(mlp, gate, l.down, seq, d.Intermediate, d.Hidden)
-	for i := range x {
-		x[i] += mlp[i]
-	}
+	addInPlace(x, mlp)
 }
 
 // forwardStates runs the stack retaining the residual stream at each layer
@@ -129,27 +131,40 @@ func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) {
 // states[l] is layer l's input; states[Layers] is the final pre-norm stream.
 func (m *Model) forwardStates(tokens []int) ([][]float32, error) {
 	d := m.Dims
+	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
+	return m.retainedForwardStates(tokens, func(x []float32, index, seq int) error {
+		l, err := m.layerWeights(index)
+		if err != nil {
+			return err
+		}
+		m.layerForward(x, l, invFreq, seq)
+		return nil
+	})
+}
+
+func (m *Model) retainedForwardStates(
+	tokens []int,
+	forward func(x []float32, index, sequence int) error,
+) ([][]float32, error) {
+	d := m.Dims
 	seq := len(tokens)
 	if seq == 0 {
 		return nil, fmt.Errorf("densecausal: empty token batch")
 	}
 	embed := m.Weights["model.embed_tokens.weight"]
 	x := make([]float32, seq*d.Hidden)
-	for t, id := range tokens {
+	for token, id := range tokens {
 		if id < 0 || id >= d.Vocab {
 			return nil, fmt.Errorf("densecausal: token %d out of vocab %d", id, d.Vocab)
 		}
-		copy(x[t*d.Hidden:(t+1)*d.Hidden], embed[id*d.Hidden:(id+1)*d.Hidden])
+		copy(x[token*d.Hidden:(token+1)*d.Hidden], embed[id*d.Hidden:(id+1)*d.Hidden])
 	}
-	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
 	states := make([][]float32, d.Layers+1)
-	for index := 0; index < d.Layers; index++ {
+	for index := range d.Layers {
 		states[index] = append([]float32(nil), x...)
-		l, err := m.layerWeights(index)
-		if err != nil {
+		if err := forward(x, index, seq); err != nil {
 			return nil, err
 		}
-		m.layerForward(x, l, invFreq, seq)
 	}
 	states[d.Layers] = x
 	return states, nil

@@ -157,6 +157,31 @@ func AllocResidentF32(worker *device.Worker, count int, init []float32) (driver.
 	return ptr, nil
 }
 
+// AllocResidentU32 allocates and initializes persistent device indices.
+func AllocResidentU32(worker *device.Worker, values []uint32) (driver.DevicePtr, error) {
+	if worker == nil || len(values) == 0 {
+		return 0, fmt.Errorf("AllocResidentU32: values absent")
+	}
+	bytes, ok := checked.Bytes(uint64(len(values)), 4)
+	if !ok {
+		return 0, fmt.Errorf("AllocResidentU32: size overflow")
+	}
+	var pointer driver.DevicePtr
+	err := worker.Do(context.Background(), func(state *device.State) error {
+		allocated, err := state.Driver.MemAlloc(bytes)
+		if err != nil {
+			return err
+		}
+		if err := state.Driver.MemcpyHtoD(allocated, driver.Bytes(values)); err != nil {
+			_ = state.Driver.MemFree(allocated)
+			return err
+		}
+		pointer = allocated
+		return nil
+	})
+	return pointer, err
+}
+
 // FreeResident releases persistent device buffers allocated by AllocResidentF32.
 func FreeResident(worker *device.Worker, ptrs ...driver.DevicePtr) error {
 	return worker.Do(context.Background(), func(state *device.State) error {

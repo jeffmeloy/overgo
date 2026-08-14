@@ -332,7 +332,7 @@ func (r *residentRuntime) retain(
 		return nil, err
 	}
 	defer clearDynamicDeviceInputs(graph, deviceInputs)
-	return r.exec.ExecuteRetainedCompiledWithDeviceInputs(ctx, graph.compiled, hostFeeds, graph.inputs)
+	return r.exec.ExecuteRetainedCompiledWithDeviceInputs(ctx, graph.compiled, hostFeeds, graph.inputs, nil)
 }
 
 func bindDynamicDeviceInputs(

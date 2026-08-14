@@ -71,7 +71,7 @@ active recipe + resolved artifact facts
 | Resident image parallel weight ownership maps | 0 | Indexed pointer/refcount/byte slots |
 | Hybrid-local Q/K/V projection implementations | 0 | Shared projection stage owns fused/separate binding |
 | Resident video full host-weight owners after upload | 0 | Retain timestep bundle only |
-| Resident video named weight maps after binding | 0 | Node-to-device feeds own execution bindings |
+| Resident video named weight/feed maps after binding | 0 | Compiled input slots own execution bindings |
 | General recipe VQA runtime adapters | 0 | Extract command-local processor/device pipeline |
 | Production video recipe activation paths | 0 | Bind profile artifact; require active recipe |
 

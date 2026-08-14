@@ -1421,8 +1421,9 @@ func (e *Executor) ExecuteRetainedCompiledWithDeviceInputs(
 	compiled *CompiledGraph,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceInputs *DeviceInputs,
+	targets *RetainedTargets,
 ) (*RetainedOutputs, error) {
-	execution, err := e.runCompiled(ctx, compiled, hostFeeds, nil, deviceInputs, nil, nil, true)
+	execution, err := e.runCompiled(ctx, compiled, hostFeeds, nil, deviceInputs, targets, nil, true)
 	if err != nil {
 		return nil, err
 	}

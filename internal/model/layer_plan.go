@@ -477,6 +477,7 @@ type ModelPlan struct {
 	cacheProject  CacheProjectionProgram
 	projections   [projectionRoleCount]ProjectionProgram
 	sequenceOut   SequenceOutputProgram
+	waveform      AudioWaveformPlan
 	forward       ForwardProgram
 	input         ProjectedInputProgram
 }
@@ -544,6 +545,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		cacheProject:  compileCacheProjectionProgram(spec, profile),
 		projections:   compileProjectionPrograms(spec, profile),
 		sequenceOut:   compileSequenceOutputProgram(spec, profile),
+		waveform:      compileAudioWaveformPlan(profile),
 		forward:       forward,
 		input:         compileProjectedInputProgram(spec, profile),
 	}
@@ -899,6 +901,9 @@ func (p ModelPlan) CacheProjection() CacheProjectionProgram { return p.cacheProj
 
 // SequenceOutput: compiled terminal sequence program.
 func (p ModelPlan) SequenceOutput() SequenceOutputProgram { return p.sequenceOut }
+
+// AudioWaveform: compiled semantic-token waveform plan.
+func (p ModelPlan) AudioWaveform() AudioWaveformPlan { return p.waveform }
 
 // Draft: compiled speculative policy.
 func (p ModelPlan) Draft() DraftPlan { return p.draft }

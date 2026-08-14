@@ -34,6 +34,7 @@ active recipe + resolved artifact facts
 | Family-owned alternate-state production files | 0 | Hold at zero |
 | Alternate-state facts on generic forward program | 0 | Hold at zero |
 | Alternate-state magnitude-rescale copies | 0 | Hold at zero |
+| Global audio waveform codec facts | 0 | Hold at zero |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named production files: none.

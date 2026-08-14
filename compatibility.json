@@ -353,7 +353,7 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:9912b72f96ffbb26c8b0e78191a88d73ccacd5e4d5334ffe5cc88fb0527f2a5e"
+          "identity": "file:sha256:c750fc2b079d045d080c44852d79c93d6073c7b8c9a60e477304f87ca890c3b7"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",

@@ -32,20 +32,50 @@ func (o *deviceOps) muonMatrixGroupResident(dW, dG, dM driver.DevicePtr, rows, c
 	if uint64(n) > math.MaxUint32 {
 		return fmt.Errorf("muonMatrixGroupResident: group too large for a 32-bit element count")
 	}
-	scale := math.Sqrt(float64(max(rows, cols))) * stepRMS(mu) * rate
-
 	gramN := gramDim(rows, cols)
 	gramN *= gramN
-	nsb, err := o.allocBuffers(n, gramN)
+	scratch, err := o.allocMuonScratch(n, gramN)
 	if err != nil {
 		return err
 	}
-	defer nsb.free(o.lib)
-	dTmp, err := o.allocF32(n)
+	defer scratch.free(o.lib)
+	return o.muonMatrixGroupResidentWithScratch(dW, dG, dM, rows, cols, mu, rate, scratch)
+}
+
+type muonScratch struct {
+	ns  nsBuffers
+	tmp driver.DevicePtr
+}
+
+func (o *deviceOps) allocMuonScratch(matrix, square int) (muonScratch, error) {
+	ns, err := o.allocBuffers(matrix, square)
 	if err != nil {
-		return err
+		return muonScratch{}, err
 	}
-	defer freeDevicePointers(o.lib, dTmp)
+	tmp, err := o.allocF32(matrix)
+	if err != nil {
+		ns.free(o.lib)
+		return muonScratch{}, err
+	}
+	return muonScratch{ns: ns, tmp: tmp}, nil
+}
+
+func (s muonScratch) free(lib *driver.Library) {
+	s.ns.free(lib)
+	freeDevicePointers(lib, s.tmp)
+}
+
+func (o *deviceOps) muonMatrixGroupResidentWithScratch(
+	dW, dG, dM driver.DevicePtr,
+	rows, cols int,
+	mu, rate float64,
+	scratch muonScratch,
+) error {
+	n := rows * cols
+	if rows <= 0 || cols <= 0 || n <= 0 || scratch.ns.dX == 0 || scratch.tmp == 0 {
+		return fmt.Errorf("muonMatrixGroupResidentWithScratch: invalid group or scratch")
+	}
+	scale := math.Sqrt(float64(max(rows, cols))) * stepRMS(mu) * rate
 
 	muF := float32(mu)
 	if err := o.scale(dM, dM, muF, n); err != nil {
@@ -54,20 +84,20 @@ func (o *deviceOps) muonMatrixGroupResident(dW, dG, dM driver.DevicePtr, rows, c
 	if err := o.add(dM, dG, dM, n); err != nil {
 		return err
 	}
-	if err := o.scale(dM, nsb.dX, muF, n); err != nil {
+	if err := o.scale(dM, scratch.ns.dX, muF, n); err != nil {
 		return err
 	}
-	if err := o.add(nsb.dX, dG, nsb.dX, n); err != nil {
+	if err := o.add(scratch.ns.dX, dG, scratch.ns.dX, n); err != nil {
 		return err
 	}
-	final, err := o.newtonSchulz(nsb, rows, cols)
+	final, err := o.newtonSchulz(scratch.ns, rows, cols)
 	if err != nil {
 		return err
 	}
-	if err := o.scale(final, dTmp, float32(-scale), n); err != nil {
+	if err := o.scale(final, scratch.tmp, float32(-scale), n); err != nil {
 		return err
 	}
-	return o.add(dW, dTmp, dW, n)
+	return o.add(dW, scratch.tmp, dW, n)
 }
 
 // muonMatrixGroup: stage, update, return weights and momentum.
@@ -147,15 +177,22 @@ func DeviceMuonPlanResident(
 			return err
 		}
 		defer ops.close()
-		for _, group := range plan.groups {
-			if group.Frozen {
-				continue
-			}
-			if err := ops.muonMatrixGroupResident(
-				offsetF32(weights, group.Start), offsetF32(gradients, group.Start), offsetF32(momentum, group.Start),
-				group.Rows, group.Cols, config.Momentum, rate,
-			); err != nil {
+		if plan.maxMatrix > 0 {
+			scratch, err := ops.allocMuonScratch(plan.maxMatrix, plan.maxSquare)
+			if err != nil {
 				return err
+			}
+			defer scratch.free(ops.lib)
+			for _, group := range plan.groups {
+				if group.Frozen {
+					continue
+				}
+				if err := ops.muonMatrixGroupResidentWithScratch(
+					offsetF32(weights, group.Start), offsetF32(gradients, group.Start), offsetF32(momentum, group.Start),
+					group.Rows, group.Cols, config.Momentum, rate, scratch,
+				); err != nil {
+					return err
+				}
 			}
 		}
 		if err := ops.lib.MemsetD32Async(gradients, 0, uint64(plan.ParameterCount()), ops.stream); err != nil {

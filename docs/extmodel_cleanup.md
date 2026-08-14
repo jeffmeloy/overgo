@@ -37,14 +37,15 @@ active recipe + resolved artifact facts
 | Global audio waveform codec facts | 0 | Hold at zero |
 | Hardcoded alternate/draft metadata defaults | 0 | Hold at zero |
 | Host-load tensor-topology probes | 0 | Compiled recipe/model admission owns topology |
+| Runner graph-binding pass-through helpers | 0 | Runtime owns feeds and placement branch |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named production files: none.
 
 ## Ordered Work
 
-1. Remove duplicate host/reference probes once operator-level host/CUDA evidence owns the same contract.
-2. Consolidate repeated host/device graph bindings without reintroducing runtime topology inference.
+1. Consolidate remaining host/device tensor binders around compiled storage schemas.
+2. Remove family identity from the remaining post-resolution parsing/binding files.
 
 ## Per-Wave Gate
 

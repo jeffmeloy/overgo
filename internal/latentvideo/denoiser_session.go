@@ -22,7 +22,7 @@ type DenoiserCUDASession struct {
 	worker *device.Worker
 	cuda   *executor.Executor
 
-	weightAllocs []driver.DevicePtr
+	weightAllocs device.AllocationSet
 	WeightBytes  uint64
 
 	contextCompiled *executor.CompiledGraph
@@ -64,10 +64,11 @@ func NewDenoiserCUDASession(program *DenoiserProgram, ordinal int) (session *Den
 		return nil, errors.Join(err, worker.Close())
 	}
 	session = &DenoiserCUDASession{
-		Program: program,
-		worker:  worker,
-		cuda:    cuda,
-		ctx:     context.Background(),
+		Program:      program,
+		worker:       worker,
+		cuda:         cuda,
+		weightAllocs: device.NewAllocationSet(worker),
+		ctx:          context.Background(),
 	}
 	defer func() {
 		if err != nil {
@@ -156,23 +157,10 @@ func (s *DenoiserCUDASession) uploadWeights() error {
 		if err != nil {
 			return fmt.Errorf("denoiser session weight %s: %w", item.name, err)
 		}
-		var pointer driver.DevicePtr
-		if err := s.worker.Do(s.ctx, func(state *device.State) error {
-			var allocErr error
-			pointer, allocErr = state.Driver.MemAlloc(uint64(len(payload)))
-			if allocErr != nil {
-				return allocErr
-			}
-			if copyErr := state.Driver.MemcpyHtoD(pointer, payload); copyErr != nil {
-				freeErr := state.Driver.MemFree(pointer)
-				pointer = 0
-				return errors.Join(copyErr, freeErr)
-			}
-			return nil
-		}); err != nil {
+		pointer, err := s.weightAllocs.Upload(s.ctx, payload)
+		if err != nil {
 			return fmt.Errorf("denoiser session upload %s: %w", item.name, err)
 		}
-		s.weightAllocs = append(s.weightAllocs, pointer)
 		s.WeightBytes += uint64(len(payload))
 		for _, binding := range [...]struct {
 			compiled *executor.CompiledGraph
@@ -317,13 +305,7 @@ func (s *DenoiserCUDASession) ReleaseDenoiseResources() error {
 		errs = append(errs, s.headBuffer.Release(s.ctx))
 		s.headBuffer = nil
 	}
-	for _, pointer := range s.weightAllocs {
-		final := pointer
-		errs = append(errs, s.worker.Do(s.ctx, func(state *device.State) error {
-			return state.Driver.MemFree(final)
-		}))
-	}
-	s.weightAllocs = nil
+	errs = append(errs, s.weightAllocs.Close(s.ctx))
 	s.contextInputs = nil
 	s.stepInputs = nil
 	s.stepCrossSlots = nil

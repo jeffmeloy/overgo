@@ -4,7 +4,6 @@ package routedlm
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -46,7 +45,7 @@ type DeviceGenerationSession struct {
 	image     FlowImagePlan
 	layers    []branchLayerPlan
 	branches  []generationStackBranch
-	resources branchDeviceUploader
+	resources device.AllocationSet
 	setupWall time.Duration
 	prefixB   uint64
 	closed    bool
@@ -82,10 +81,10 @@ func NewDeviceGenerationSession(
 	session := &DeviceGenerationSession{
 		worker: worker, cuda: cuda, cfg: cfg, image: image, layers: layers,
 		branches:  make([]generationStackBranch, len(prefixes)),
-		resources: branchDeviceUploader{worker: worker, ctx: context.WithoutCancel(ctx)},
+		resources: device.NewAllocationSet(worker),
 	}
 	fail := func(err error) (*DeviceGenerationSession, error) {
-		session.resources.free()
+		_ = session.resources.Close(context.WithoutCancel(ctx))
 		return nil, err
 	}
 	inputBytes := uint64(image.Tokens) * uint64(cfg.HiddenSize) * 4
@@ -121,12 +120,12 @@ func NewDeviceGenerationSession(
 		if err != nil {
 			return fail(err)
 		}
-		branch.row, err = session.resources.allocate(inputBytes)
+		branch.row, err = session.resources.Allocate(ctx, inputBytes)
 		if err != nil {
 			return fail(err)
 		}
 		branch.inputs.inputs.Pointers[rowSlot] = branch.row
-		branch.output, err = session.resources.allocate(inputBytes)
+		branch.output, err = session.resources.Allocate(ctx, inputBytes)
 		if err != nil {
 			return fail(err)
 		}
@@ -141,11 +140,11 @@ func NewDeviceGenerationSession(
 			if uint64(len(kv.Key))*4 != prefixBytes || len(kv.Value) != len(kv.Key) {
 				return fail(fmt.Errorf("routed lm generation session: prefix %d layer %d changed geometry", index, layer))
 			}
-			branch.prefixKeys[layer], err = session.resources.uploadF32(kv.Key)
+			branch.prefixKeys[layer], err = session.resources.Upload(ctx, driver.Bytes(kv.Key))
 			if err != nil {
 				return fail(err)
 			}
-			branch.prefixValues[layer], err = session.resources.uploadF32(kv.Value)
+			branch.prefixValues[layer], err = session.resources.Upload(ctx, driver.Bytes(kv.Value))
 			if err != nil {
 				return fail(err)
 			}
@@ -206,8 +205,8 @@ func (s *DeviceGenerationSession) Run(
 		return nil, stats, err
 	}
 	stats.HostToDevice += uint64(len(hidden)*len(s.branches)) * 4
-	uploader := branchDeviceUploader{worker: s.worker, ctx: ctx}
-	defer uploader.free()
+	uploads := device.NewAllocationSet(s.worker)
+	defer uploads.Close(context.WithoutCancel(ctx))
 	out := make([][]float32, len(s.branches))
 	type layerLoad struct {
 		weights BranchLayerWeights
@@ -230,7 +229,7 @@ func (s *DeviceGenerationSession) Run(
 		if layer+1 < s.cfg.NumHiddenLayers {
 			pending = load(layer + 1)
 		}
-		shared, err := uploader.uploadBranchWeights(loaded.weights)
+		shared, err := uploadBranchWeights(ctx, &uploads, loaded.weights)
 		if err != nil {
 			return nil, stats, err
 		}
@@ -274,7 +273,9 @@ func (s *DeviceGenerationSession) Run(
 				return nil, stats, err
 			}
 		}
-		uploader.free()
+		if err := uploads.Close(ctx); err != nil {
+			return nil, stats, err
+		}
 	}
 	stats.Wall = time.Since(started)
 	return out, stats, nil
@@ -296,59 +297,15 @@ func (s *DeviceGenerationSession) Close(ctx context.Context) error {
 		return nil
 	}
 	s.closed = true
-	s.resources.ctx = context.WithoutCancel(ctx)
 	s.branches = nil
-	return s.resources.releaseAfter(0)
+	return s.resources.Close(context.WithoutCancel(ctx))
 }
 
 type branchDeviceWeights struct {
 	pointers [11]driver.DevicePtr
 }
 
-type branchDeviceUploader struct {
-	worker *device.Worker
-	ctx    context.Context
-	ptrs   []driver.DevicePtr
-}
-
-func (u *branchDeviceUploader) upload(raw []byte) (driver.DevicePtr, error) {
-	var pointer driver.DevicePtr
-	err := u.worker.Do(u.ctx, func(state *device.State) error {
-		var err error
-		pointer, err = state.Driver.MemAlloc(uint64(len(raw)))
-		if err != nil {
-			return err
-		}
-		if err = state.Driver.MemcpyHtoD(pointer, raw); err != nil {
-			_ = state.Driver.MemFree(pointer)
-			return err
-		}
-		return nil
-	})
-	if err == nil {
-		u.ptrs = append(u.ptrs, pointer)
-	}
-	return pointer, err
-}
-
-func (u *branchDeviceUploader) allocate(bytes uint64) (driver.DevicePtr, error) {
-	var pointer driver.DevicePtr
-	err := u.worker.Do(u.ctx, func(state *device.State) error {
-		var err error
-		pointer, err = state.Driver.MemAlloc(bytes)
-		return err
-	})
-	if err == nil {
-		u.ptrs = append(u.ptrs, pointer)
-	}
-	return pointer, err
-}
-
-func (u *branchDeviceUploader) uploadF32(values []float32) (driver.DevicePtr, error) {
-	return u.upload(driver.Bytes(values))
-}
-
-func (u *branchDeviceUploader) uploadBranchWeights(w BranchLayerWeights) (branchDeviceWeights, error) {
+func uploadBranchWeights(ctx context.Context, allocations *device.AllocationSet, w BranchLayerWeights) (branchDeviceWeights, error) {
 	var out branchDeviceWeights
 	raw := [][]byte{
 		driver.Bytes(w.InputNorm), bf16MatrixBytes(w.Q), bf16MatrixBytes(w.K), bf16MatrixBytes(w.V),
@@ -356,7 +313,7 @@ func (u *branchDeviceUploader) uploadBranchWeights(w BranchLayerWeights) (branch
 		bf16MatrixBytes(w.Gate), bf16MatrixBytes(w.Up), bf16MatrixBytes(w.Down),
 	}
 	for index := range raw {
-		pointer, err := u.upload(raw[index])
+		pointer, err := allocations.Upload(ctx, raw[index])
 		if err != nil {
 			return out, err
 		}
@@ -405,23 +362,4 @@ func (p *branchInputProgram) bindWeights(weights branchDeviceWeights) {
 	for index, slot := range p.weights {
 		p.inputs.Pointers[slot] = weights.pointers[index]
 	}
-}
-
-func (u *branchDeviceUploader) releaseAfter(keep int) error {
-	if keep < 0 || keep > len(u.ptrs) {
-		return fmt.Errorf("routed lm device release: keep=%d allocations=%d", keep, len(u.ptrs))
-	}
-	err := u.worker.Do(u.ctx, func(state *device.State) error {
-		var releaseErr error
-		for _, pointer := range u.ptrs[keep:] {
-			releaseErr = errors.Join(releaseErr, state.Driver.MemFree(pointer))
-		}
-		return releaseErr
-	})
-	u.ptrs = u.ptrs[:keep]
-	return err
-}
-
-func (u *branchDeviceUploader) free() {
-	_ = u.releaseAfter(0)
 }

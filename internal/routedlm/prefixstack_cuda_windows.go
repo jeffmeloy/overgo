@@ -86,15 +86,15 @@ func RunDevicePrefixStacks(
 			host: make(map[*tensor.Tensor]reference.Value, 1), state: state, hidden: hidden,
 		}
 	}
-	uploader := branchDeviceUploader{worker: worker, ctx: ctx}
-	defer uploader.free()
+	uploads := device.NewAllocationSet(worker)
+	defer uploads.Close(context.WithoutCancel(ctx))
 	catalog := source.Snapshot()
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
 		weights, err := LoadBranchLayerWeights(catalog, cfg, binding, layer, 0)
 		if err != nil {
 			return nil, stats, err
 		}
-		shared, err := uploader.uploadBranchWeights(weights)
+		shared, err := uploadBranchWeights(ctx, &uploads, weights)
 		if err != nil {
 			return nil, stats, err
 		}
@@ -135,7 +135,9 @@ func RunDevicePrefixStacks(
 				observe(branchIndex, layer, branch.hidden, key, value)
 			}
 		}
-		uploader.free()
+		if err := uploads.Close(ctx); err != nil {
+			return nil, stats, err
+		}
 	}
 	states := make([]*PrefixState, len(branches))
 	for index := range branches {

@@ -4,7 +4,9 @@ package routedlm
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"overgo/internal/cuda/device"
@@ -12,25 +14,53 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
-	"overgo/internal/tensor/reference"
 )
 
 // DeviceGenerationStackStats reports the neutral body boundary.
 type DeviceGenerationStackStats struct {
 	Layers, Branches int
 	Wall             time.Duration
+	HostToDevice     uint64
+	DeviceToHost     uint64
 }
 
 type generationStackBranch struct {
-	prefix   *PrefixState
-	graph    *DeviceGenerationLayerGraph
-	compiled *executor.CompiledGraph
-	hidden   []float32
+	graph        *DeviceGenerationLayerGraph
+	compiled     *executor.CompiledGraph
+	prefixKeys   []driver.DevicePtr
+	prefixValues []driver.DevicePtr
+	prefixKey    driver.DevicePtr
+	prefixValue  driver.DevicePtr
+	prefixBytes  uint64
+	row          driver.DevicePtr
+	output       driver.DevicePtr
+	target       *executor.RetainedTargets
 }
 
-// RunDeviceGenerationStack streams one routed image branch per checkpoint
-// layer, sharing each weight upload across all guidance branches.
-func RunDeviceGenerationStack(
+// DeviceGenerationSession retains invariant generation state.
+type DeviceGenerationSession struct {
+	mu        sync.Mutex
+	worker    *device.Worker
+	cuda      *executor.Executor
+	cfg       Config
+	image     FlowImagePlan
+	layers    []branchLayerPlan
+	branches  []generationStackBranch
+	resources branchDeviceUploader
+	setupWall time.Duration
+	prefixB   uint64
+	closed    bool
+}
+
+// DeviceGenerationSessionStats reports retained setup cost.
+type DeviceGenerationSessionStats struct {
+	Graphs      int
+	SetupWall   time.Duration
+	PrefixBytes uint64
+}
+
+// NewDeviceGenerationSession compiles graphs and uploads reusable prefix KV.
+func NewDeviceGenerationSession(
 	ctx context.Context,
 	worker *device.Worker,
 	cuda *executor.Executor,
@@ -39,109 +69,239 @@ func RunDeviceGenerationStack(
 	binding BranchBinding,
 	rope RopePlan,
 	image FlowImagePlan,
-	hidden []float32,
 	prefixes ...*PrefixState,
-) ([][]float32, DeviceGenerationStackStats, error) {
-	return RunDeviceGenerationStackObserved(ctx, worker, cuda, source, cfg, binding, rope, image, hidden, nil, prefixes...)
-}
-
-// RunDeviceGenerationStackObserved exposes selected layer boundaries to gates.
-func RunDeviceGenerationStackObserved(
-	ctx context.Context,
-	worker *device.Worker,
-	cuda *executor.Executor,
-	source *safetensors.Source,
-	cfg Config,
-	binding BranchBinding,
-	rope RopePlan,
-	image FlowImagePlan,
-	hidden []float32,
-	observe func(branch, layer int, hidden []float32),
-	prefixes ...*PrefixState,
-) ([][]float32, DeviceGenerationStackStats, error) {
+) (*DeviceGenerationSession, error) {
 	started := time.Now()
-	stats := DeviceGenerationStackStats{Layers: cfg.NumHiddenLayers, Branches: len(prefixes)}
 	if worker == nil || cuda == nil || source == nil || len(prefixes) == 0 {
-		return nil, stats, fmt.Errorf("routed lm generation stack: missing runtime or prefixes")
+		return nil, fmt.Errorf("routed lm generation session: missing runtime or prefixes")
 	}
-	if len(hidden) != image.Tokens*cfg.HiddenSize {
-		return nil, stats, fmt.Errorf("routed lm generation stack: hidden elements=%d want=%d", len(hidden), image.Tokens*cfg.HiddenSize)
+	layers, err := compileBranchLayerPlans(source, cfg, binding, 1)
+	if err != nil {
+		return nil, err
 	}
-	branches := make([]generationStackBranch, len(prefixes))
+	session := &DeviceGenerationSession{
+		worker: worker, cuda: cuda, cfg: cfg, image: image, layers: layers,
+		branches:  make([]generationStackBranch, len(prefixes)),
+		resources: branchDeviceUploader{worker: worker, ctx: context.WithoutCancel(ctx)},
+	}
+	fail := func(err error) (*DeviceGenerationSession, error) {
+		session.resources.free()
+		return nil, err
+	}
+	inputBytes := uint64(image.Tokens) * uint64(cfg.HiddenSize) * 4
 	for index, prefix := range prefixes {
 		if prefix == nil || !prefix.Complete() || len(prefix.Layers) != cfg.NumHiddenLayers {
-			return nil, stats, fmt.Errorf("routed lm generation stack: prefix %d incomplete", index)
+			return fail(fmt.Errorf("routed lm generation session: prefix %d incomplete", index))
 		}
 		graph, err := BuildDeviceGenerationLayer(cfg, rope, prefix.Rows, image.TokenHeight, image.TokenWidth, prefix.ImageTime)
 		if err != nil {
-			return nil, stats, err
+			return fail(err)
 		}
 		compiled, err := executor.Compile(graph.Output)
 		if err != nil {
-			return nil, stats, err
+			return fail(err)
 		}
-		branches[index] = generationStackBranch{
-			prefix: prefix, graph: graph, compiled: compiled, hidden: append([]float32(nil), hidden...),
+		branch := generationStackBranch{
+			graph: graph, compiled: compiled,
+			prefixKeys: make([]driver.DevicePtr, cfg.NumHiddenLayers), prefixValues: make([]driver.DevicePtr, cfg.NumHiddenLayers),
 		}
+		branch.row, err = session.resources.allocate(inputBytes)
+		if err != nil {
+			return fail(err)
+		}
+		branch.output, err = session.resources.allocate(inputBytes)
+		if err != nil {
+			return fail(err)
+		}
+		branch.prefixBytes = uint64(len(prefix.Layers[0].Key)) * 4
+		branch.prefixKey, err = session.resources.allocate(branch.prefixBytes)
+		if err != nil {
+			return fail(err)
+		}
+		branch.prefixValue, err = session.resources.allocate(branch.prefixBytes)
+		if err != nil {
+			return fail(err)
+		}
+		branch.target = compiled.NewRetainedTargets()
+		if err := branch.target.Set(graph.Output, executor.DeviceValue{
+			Pointer: branch.output, Shape: graph.Output.Shape, CapacityBytes: inputBytes,
+		}); err != nil {
+			return fail(err)
+		}
+		for layer, kv := range prefix.Layers {
+			if uint64(len(kv.Key))*4 != branch.prefixBytes || len(kv.Value) != len(kv.Key) {
+				return fail(fmt.Errorf("routed lm generation session: prefix %d layer %d changed geometry", index, layer))
+			}
+			branch.prefixKeys[layer], err = session.resources.uploadF32(kv.Key)
+			if err != nil {
+				return fail(err)
+			}
+			branch.prefixValues[layer], err = session.resources.uploadF32(kv.Value)
+			if err != nil {
+				return fail(err)
+			}
+			session.prefixB += uint64(len(kv.Key)+len(kv.Value)) * 4
+		}
+		session.branches[index] = branch
 	}
-	uploader := branchDeviceUploader{worker: worker, ctx: ctx}
+	session.setupWall = time.Since(started)
+	return session, nil
+}
+
+// Stats returns immutable setup evidence.
+func (s *DeviceGenerationSession) Stats() DeviceGenerationSessionStats {
+	if s == nil {
+		return DeviceGenerationSessionStats{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return DeviceGenerationSessionStats{Graphs: len(s.branches), SetupWall: s.setupWall, PrefixBytes: s.prefixB}
+}
+
+// Run streams layer weights while hidden state stays device-resident.
+func (s *DeviceGenerationSession) Run(
+	ctx context.Context,
+	hidden []float32,
+	observedLayers []int,
+	observe func(branch, layer int, hidden []float32),
+) ([][]float32, DeviceGenerationStackStats, error) {
+	started := time.Now()
+	if s == nil {
+		return nil, DeviceGenerationStackStats{}, fmt.Errorf("routed lm generation session: unavailable")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stats := DeviceGenerationStackStats{Layers: s.cfg.NumHiddenLayers, Branches: len(s.branches)}
+	if s.closed {
+		return nil, stats, fmt.Errorf("routed lm generation session: closed")
+	}
+	if len(hidden) != s.image.Tokens*s.cfg.HiddenSize {
+		return nil, stats, fmt.Errorf("routed lm generation session: hidden elements=%d want=%d", len(hidden), s.image.Tokens*s.cfg.HiddenSize)
+	}
+	selected := make([]bool, s.cfg.NumHiddenLayers)
+	for _, layer := range observedLayers {
+		if observe == nil || layer < 0 || layer >= len(selected) || selected[layer] {
+			return nil, stats, fmt.Errorf("routed lm generation session: invalid observed layer %d", layer)
+		}
+		selected[layer] = true
+	}
+	if err := s.worker.Do(ctx, func(state *device.State) error {
+		raw := driver.Bytes(hidden)
+		for index := range s.branches {
+			if err := state.Driver.MemcpyHtoD(s.branches[index].row, raw); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, stats, err
+	}
+	stats.HostToDevice += uint64(len(hidden)*len(s.branches)) * 4
+	uploader := branchDeviceUploader{worker: s.worker, ctx: ctx}
 	defer uploader.free()
-	catalog := source.Snapshot()
-	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-		weights, err := LoadBranchLayerWeights(catalog, cfg, binding, layer, 1)
+	out := make([][]float32, len(s.branches))
+	type layerLoad struct {
+		weights BranchLayerWeights
+		err     error
+	}
+	load := func(layer int) <-chan layerLoad {
+		result := make(chan layerLoad, 1)
+		go func() {
+			weights, err := s.layers[layer].load()
+			result <- layerLoad{weights: weights, err: err}
+		}()
+		return result
+	}
+	pending := load(0)
+	for layer := 0; layer < s.cfg.NumHiddenLayers; layer++ {
+		loaded := <-pending
+		if loaded.err != nil {
+			return nil, stats, loaded.err
+		}
+		if layer+1 < s.cfg.NumHiddenLayers {
+			pending = load(layer + 1)
+		}
+		if err := s.worker.Do(ctx, func(state *device.State) error {
+			for index := range s.branches {
+				branch := &s.branches[index]
+				if err := state.Driver.MemcpyDtoD(branch.prefixKey, branch.prefixKeys[layer], branch.prefixBytes); err != nil {
+					return err
+				}
+				if err := state.Driver.MemcpyDtoD(branch.prefixValue, branch.prefixValues[layer], branch.prefixBytes); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return nil, stats, err
+		}
+		shared, err := uploader.uploadBranchWeights(loaded.weights)
 		if err != nil {
 			return nil, stats, err
 		}
-		shared, err := uploader.uploadBranchWeights(weights)
-		if err != nil {
-			return nil, stats, err
-		}
-		for index := range branches {
-			branch := &branches[index]
+		for index := range s.branches {
+			branch := &s.branches[index]
 			feeds := bindBranchWeights(branch.graph.Vision, shared)
-			kv := branch.prefix.Layers[layer]
-			key, err := uploader.uploadF32(kv.Key)
-			if err != nil {
-				return nil, stats, err
-			}
-			value, err := uploader.uploadF32(kv.Value)
-			if err != nil {
-				return nil, stats, err
-			}
-			feeds[branch.graph.PrefixKey], feeds[branch.graph.PrefixValue] = key, value
-			retained, err := cuda.ExecuteRetainedCompiledWithDeviceFeeds(ctx, branch.compiled, map[*tensor.Tensor]reference.Value{
-				branch.graph.Row: {Shape: branch.graph.Row.Shape, Data: branch.hidden},
-			}, feeds)
+			feeds[branch.graph.PrefixKey], feeds[branch.graph.PrefixValue] = branch.prefixKey, branch.prefixValue
+			feeds[branch.graph.Row] = branch.row
+			retained, err := s.cuda.ExecuteRetainedCompiledWithTargets(ctx, branch.compiled, nil, feeds, branch.target)
 			if err != nil {
 				return nil, stats, fmt.Errorf("routed lm generation stack: branch=%d layer=%d: %w", index, layer, err)
 			}
-			outputValue, err := retained.CopyToHost(ctx, branch.graph.Output)
-			if err != nil {
-				_ = retained.Release(ctx)
-				return nil, stats, fmt.Errorf("routed lm generation stack: branch=%d layer=%d copy: %w", index, layer, err)
+			if selected[layer] || layer == s.cfg.NumHiddenLayers-1 {
+				value, err := retained.CopyToHost(ctx, branch.graph.Output)
+				if err != nil {
+					return nil, stats, fmt.Errorf("routed lm generation stack: branch=%d layer=%d copy: %w", index, layer, err)
+				}
+				stats.DeviceToHost += uint64(len(value.Data)) * 4
+				if selected[layer] {
+					observe(index, layer, value.Data)
+				}
+				if layer == s.cfg.NumHiddenLayers-1 {
+					out[index] = value.Data
+				}
 			}
 			if err := retained.Release(ctx); err != nil {
 				return nil, stats, err
 			}
-			branch.hidden = outputValue.Data
-			if observe != nil {
-				observe(index, layer, branch.hidden)
+		}
+		if layer < s.cfg.NumHiddenLayers-1 {
+			if err := s.worker.Do(ctx, func(state *device.State) error {
+				for index := range s.branches {
+					branch := &s.branches[index]
+					if err := state.Driver.MemcpyDtoD(branch.row, branch.output, uint64(len(hidden))*4); err != nil {
+						return err
+					}
+				}
+				return nil
+			}); err != nil {
+				return nil, stats, err
 			}
-			uploader.freeAfter(shared.count)
 		}
 		uploader.free()
-	}
-	out := make([][]float32, len(branches))
-	for index := range branches {
-		out[index] = branches[index].hidden
 	}
 	stats.Wall = time.Since(started)
 	return out, stats, nil
 }
 
+// Close releases retained prefix KV and input storage.
+func (s *DeviceGenerationSession) Close(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+	s.resources.ctx = context.WithoutCancel(ctx)
+	s.branches = nil
+	return s.resources.releaseAfter(0)
+}
+
 type branchDeviceWeights struct {
 	pointers [11]driver.DevicePtr
-	count    int
 }
 
 type branchDeviceUploader struct {
@@ -170,6 +330,19 @@ func (u *branchDeviceUploader) upload(raw []byte) (driver.DevicePtr, error) {
 	return pointer, err
 }
 
+func (u *branchDeviceUploader) allocate(bytes uint64) (driver.DevicePtr, error) {
+	var pointer driver.DevicePtr
+	err := u.worker.Do(u.ctx, func(state *device.State) error {
+		var err error
+		pointer, err = state.Driver.MemAlloc(bytes)
+		return err
+	})
+	if err == nil {
+		u.ptrs = append(u.ptrs, pointer)
+	}
+	return pointer, err
+}
+
 func (u *branchDeviceUploader) uploadF32(values []float32) (driver.DevicePtr, error) {
 	return u.upload(driver.Bytes(values))
 }
@@ -187,7 +360,6 @@ func (u *branchDeviceUploader) uploadBranchWeights(w BranchLayerWeights) (branch
 			return out, err
 		}
 		out.pointers[index] = pointer
-		out.count++
 	}
 	return out, nil
 }
@@ -208,19 +380,21 @@ func bindBranchWeights(nodes DevicePrefillBranch, weights branchDeviceWeights) m
 	return feeds
 }
 
-func (u *branchDeviceUploader) freeAfter(keep int) {
+func (u *branchDeviceUploader) releaseAfter(keep int) error {
 	if keep < 0 || keep > len(u.ptrs) {
-		return
+		return fmt.Errorf("routed lm device release: keep=%d allocations=%d", keep, len(u.ptrs))
 	}
-	_ = u.worker.Do(u.ctx, func(state *device.State) error {
+	err := u.worker.Do(u.ctx, func(state *device.State) error {
+		var releaseErr error
 		for _, pointer := range u.ptrs[keep:] {
-			_ = state.Driver.MemFree(pointer)
+			releaseErr = errors.Join(releaseErr, state.Driver.MemFree(pointer))
 		}
-		return nil
+		return releaseErr
 	})
 	u.ptrs = u.ptrs[:keep]
+	return err
 }
 
 func (u *branchDeviceUploader) free() {
-	u.freeAfter(0)
+	_ = u.releaseAfter(0)
 }

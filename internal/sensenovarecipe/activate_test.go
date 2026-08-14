@@ -65,6 +65,9 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	modelDir := os.Getenv("OVERGO_SENSENOVA_MODEL")
 	if modelDir == "" {
+		if testing.Short() {
+			return
+		}
 		t.Skip("OVERGO_SENSENOVA_MODEL is not set")
 	}
 	ctx := context.Background()

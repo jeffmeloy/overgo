@@ -5,7 +5,6 @@ package devicemath
 import (
 	"fmt"
 	"math"
-	"unsafe"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -55,50 +54,8 @@ func AttentionCoreBackwardResident(
 	if worker == nil || q == 0 || k == 0 || v == 0 || probability == 0 || dOut == 0 || dQ == 0 || dK == 0 || dV == 0 || dScores == 0 || seq <= 0 || headDim <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) {
 		return fmt.Errorf("AttentionCoreBackwardResident: invalid buffer, geometry, or scale")
 	}
-	return withCUDABLAS(worker, func(session *cudaBLAS) error {
-		dProbability, err := session.alloc(seq * seq)
-		if err != nil {
-			return err
-		}
-		if err := session.gemm(false, true, seq, headDim, seq, dOut, v, dProbability); err != nil {
-			return err
-		}
-		softmaxBackward, err := session.function("softmax_backward_f32")
-		if err != nil {
-			return err
-		}
-		rowsU, widthU := uint32(seq), uint32(seq)
-		if err := session.launch1D(softmaxBackward, rowsU,
-			unsafe.Pointer(&probability), unsafe.Pointer(&dProbability), unsafe.Pointer(&dScores),
-			unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU),
-		); err != nil {
-			return err
-		}
-		if err := session.gemm(true, false, seq, seq, headDim, probability, dOut, dV); err != nil {
-			return err
-		}
-		if err := session.gemm(false, false, seq, seq, headDim, dScores, k, dQ); err != nil {
-			return err
-		}
-		if err := session.gemm(true, false, seq, seq, headDim, dScores, q, dK); err != nil {
-			return err
-		}
-		scaleFunction, err := session.function("scale_f32")
-		if err != nil {
-			return err
-		}
-		countU, scaleF := uint32(seq*headDim), float32(scale)
-		if err := session.launch1D(scaleFunction, countU,
-			unsafe.Pointer(&dQ), unsafe.Pointer(&dQ), unsafe.Pointer(&scaleF), unsafe.Pointer(&countU),
-		); err != nil {
-			return err
-		}
-		if err := session.launch1D(scaleFunction, countU,
-			unsafe.Pointer(&dK), unsafe.Pointer(&dK), unsafe.Pointer(&scaleF), unsafe.Pointer(&countU),
-		); err != nil {
-			return err
-		}
-		return session.finish()
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.AttentionCoreBackward(q, k, v, probability, dOut, dQ, dK, dV, dScores, seq, headDim, scale)
 	})
 }
 

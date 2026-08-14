@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"unsafe"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -27,15 +26,8 @@ func AddResident(worker *device.Worker, left, right, output driver.DevicePtr, co
 	if worker == nil || left == 0 || right == 0 || output == 0 || count <= 0 || uint64(count) > math.MaxUint32 {
 		return fmt.Errorf("AddResident: invalid buffer or count")
 	}
-	return withCUDA(worker, func(scope *cudaScope) error {
-		function, err := scope.function("add_f32")
-		if err != nil {
-			return err
-		}
-		if err := scope.launchVector3(function, left, right, output, count); err != nil {
-			return err
-		}
-		return scope.finish()
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.Add(left, right, output, count)
 	})
 }
 
@@ -44,18 +36,8 @@ func ScaleResident(worker *device.Worker, input, output driver.DevicePtr, scale 
 	if worker == nil || input == 0 || output == 0 || count <= 0 || uint64(count) > math.MaxUint32 {
 		return fmt.Errorf("ScaleResident: invalid buffer or count")
 	}
-	return withCUDA(worker, func(scope *cudaScope) error {
-		function, err := scope.function("scale_f32")
-		if err != nil {
-			return err
-		}
-		countU := uint32(count)
-		if err := scope.launch1D(function, countU,
-			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&scale), unsafe.Pointer(&countU),
-		); err != nil {
-			return err
-		}
-		return scope.finish()
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.Scale(input, output, scale, count)
 	})
 }
 
@@ -64,11 +46,8 @@ func ScaleByResidentScalar(worker *device.Worker, input, scale, output driver.De
 	if worker == nil || input == 0 || scale == 0 || output == 0 || count <= 0 {
 		return fmt.Errorf("ScaleByResidentScalar: invalid buffer or count")
 	}
-	return withCUDABLAS(worker, func(session *cudaBLAS) error {
-		if err := session.gemm(false, false, count, 1, 1, input, scale, output); err != nil {
-			return err
-		}
-		return session.finish()
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.ScaleByScalar(input, scale, output, count)
 	})
 }
 
@@ -77,18 +56,8 @@ func ReLUBackwardResident(worker *device.Worker, incoming, input, gradient drive
 	if worker == nil || incoming == 0 || input == 0 || gradient == 0 || count <= 0 || uint64(count) > math.MaxUint32 {
 		return fmt.Errorf("ReLUBackwardResident: invalid buffer or count")
 	}
-	return withCUDA(worker, func(scope *cudaScope) error {
-		function, err := scope.function("relu_backward_f32")
-		if err != nil {
-			return err
-		}
-		countU := uint32(count)
-		if err := scope.launch1D(function, countU,
-			unsafe.Pointer(&incoming), unsafe.Pointer(&input), unsafe.Pointer(&gradient), unsafe.Pointer(&countU),
-		); err != nil {
-			return err
-		}
-		return scope.finish()
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.ReLUBackward(incoming, input, gradient, count)
 	})
 }
 
@@ -101,24 +70,8 @@ func StridedRowCopyResident(
 	if worker == nil || source == 0 || destination == 0 || rows <= 0 || width <= 0 || sourceStride < sourceOffset+width || destinationStride < destinationOffset+width {
 		return fmt.Errorf("StridedRowCopyResident: invalid buffer or geometry")
 	}
-	return withCUDA(worker, func(scope *cudaScope) error {
-		function, err := scope.function("strided_row_copy_f32")
-		if err != nil {
-			return err
-		}
-		rowsU, widthU := uint32(rows), uint32(width)
-		sourceStrideU, sourceOffsetU := uint32(sourceStride), uint32(sourceOffset)
-		destinationStrideU, destinationOffsetU := uint32(destinationStride), uint32(destinationOffset)
-		count := rowsU * widthU
-		if err := scope.launch1D(function, count,
-			unsafe.Pointer(&source), unsafe.Pointer(&destination),
-			unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU),
-			unsafe.Pointer(&sourceStrideU), unsafe.Pointer(&sourceOffsetU),
-			unsafe.Pointer(&destinationStrideU), unsafe.Pointer(&destinationOffsetU),
-		); err != nil {
-			return err
-		}
-		return scope.finish()
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.StridedRowCopy(source, destination, rows, width, sourceStride, sourceOffset, destinationStride, destinationOffset)
 	})
 }
 
@@ -131,19 +84,8 @@ func IndexedRowScatterAddResident(
 	if worker == nil || source == 0 || rows == 0 || destination == 0 || count <= 0 || width <= 0 {
 		return fmt.Errorf("IndexedRowScatterAddResident: invalid buffer or geometry")
 	}
-	return withCUDA(worker, func(scope *cudaScope) error {
-		function, err := scope.function("indexed_row_scatter_add_f32")
-		if err != nil {
-			return err
-		}
-		countU, widthU := uint32(count), uint32(width)
-		if err := scope.launch1D(function, countU*widthU,
-			unsafe.Pointer(&source), unsafe.Pointer(&rows), unsafe.Pointer(&destination),
-			unsafe.Pointer(&countU), unsafe.Pointer(&widthU),
-		); err != nil {
-			return err
-		}
-		return scope.finish()
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.IndexedRowScatterAdd(source, rows, destination, count, width)
 	})
 }
 
@@ -156,19 +98,7 @@ func AttentionScoreAffineBackwardResident(
 	if worker == nil || dScores == 0 || query == 0 || key == 0 || dLagBias == 0 || dScale == 0 || sequence <= 0 || headDim <= 0 || lagCount <= 0 {
 		return fmt.Errorf("AttentionScoreAffineBackwardResident: invalid buffer or geometry")
 	}
-	return withCUDA(worker, func(scope *cudaScope) error {
-		function, err := scope.function("attention_score_affine_backward_f32")
-		if err != nil {
-			return err
-		}
-		sequenceU, headDimU, lagCountU := uint32(sequence), uint32(headDim), uint32(lagCount)
-		if err := scope.launch1D(function, sequenceU*sequenceU,
-			unsafe.Pointer(&dScores), unsafe.Pointer(&query), unsafe.Pointer(&key),
-			unsafe.Pointer(&dLagBias), unsafe.Pointer(&dScale),
-			unsafe.Pointer(&sequenceU), unsafe.Pointer(&headDimU), unsafe.Pointer(&lagCountU),
-		); err != nil {
-			return err
-		}
-		return scope.finish()
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.AttentionScoreAffineBackward(dScores, query, key, dLagBias, dScale, sequence, headDim, lagCount)
 	})
 }

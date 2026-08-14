@@ -183,6 +183,16 @@ func (g ForwardGraph) residentFeeds(
 }
 
 func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {
+	var loss float64
+	err := devicemath.WithResidentOps(t.worker, func(ops *devicemath.ResidentOps) error {
+		var err error
+		loss, err = t.backwardWithOps(ops, graph, retained, tokens)
+		return err
+	})
+	return loss, err
+}
+
+func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {
 	c := t.construction
 	positions, hidden, vocab := graph.positions, c.config.Embedding, c.config.VocabSize
 	pointer := func(node *tensor.Tensor) (driver.DevicePtr, error) {
@@ -206,16 +216,13 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 		}
 		return devicemath.ResidentPtr(t.gradients, binding.start), nil
 	}
-	var temporary []driver.DevicePtr
 	allocate := func(count int, initial []float32) (driver.DevicePtr, error) {
-		value, err := devicemath.AllocResidentF32(t.worker, count, initial)
-		if err == nil {
-			temporary = append(temporary, value)
+		if initial != nil {
+			return 0, errors.New("scratch model: resident scratch initialization unsupported")
 		}
-		return value, err
+		return ops.AllocF32(count)
 	}
-	defer func() { _ = devicemath.FreeResident(t.worker, temporary...) }()
-	if err := devicemath.ZeroResidentF32(t.worker, t.gradients, len(c.weights)); err != nil {
+	if err := ops.Zero(t.gradients, len(c.weights)); err != nil {
 		return 0, err
 	}
 
@@ -227,16 +234,15 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 	for position, token := range tokens[1 : positions+1] {
 		targets[position] = uint32(token)
 	}
-	targetsPtr, err := devicemath.AllocResidentU32(t.worker, targets)
+	targetsPtr, err := ops.UploadU32(targets)
 	if err != nil {
 		return 0, err
 	}
-	temporary = append(temporary, targetsPtr)
 	lossesPtr, err := allocate(positions, nil)
 	if err != nil {
 		return 0, err
 	}
-	if err := devicemath.SoftmaxCrossEntropyBackwardResident(t.worker, logits, targetsPtr, lossesPtr, positions, vocab); err != nil {
+	if err := ops.SoftmaxCrossEntropy(logits, targetsPtr, lossesPtr, positions, vocab); err != nil {
 		return 0, err
 	}
 	finalHidden, err := pointer(graph.Hidden)
@@ -255,7 +261,7 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 	if err != nil {
 		return 0, err
 	}
-	if err := devicemath.LinearBackwardTResident(t.worker, finalHidden, head, logits, dHidden, dHead, positions, hidden, vocab); err != nil {
+	if err := ops.LinearBackwardT(finalHidden, head, logits, dHidden, dHead, positions, hidden, vocab); err != nil {
 		return 0, err
 	}
 
@@ -290,10 +296,10 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 		if err != nil {
 			return 0, err
 		}
-		if err := devicemath.LinearBackwardTResident(t.worker, activation, w2, dHidden, dActivation, dW2, positions, c.config.MLPWidth, hidden); err != nil {
+		if err := ops.LinearBackwardT(activation, w2, dHidden, dActivation, dW2, positions, c.config.MLPWidth, hidden); err != nil {
 			return 0, err
 		}
-		if err := devicemath.ReLUBackwardResident(t.worker, dActivation, preactivation, dActivation, positions*c.config.MLPWidth); err != nil {
+		if err := ops.ReLUBackward(dActivation, preactivation, dActivation, positions*c.config.MLPWidth); err != nil {
 			return 0, err
 		}
 		dMLPNorm, err := allocate(positions*hidden, nil)
@@ -308,21 +314,21 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 		if err != nil {
 			return 0, err
 		}
-		if err := devicemath.LinearBackwardTResident(t.worker, mlpNorm, w1, dActivation, dMLPNorm, dW1, positions, hidden, c.config.MLPWidth); err != nil {
+		if err := ops.LinearBackwardT(mlpNorm, w1, dActivation, dMLPNorm, dW1, positions, hidden, c.config.MLPWidth); err != nil {
 			return 0, err
 		}
 		dMLPInput, err := allocate(positions*hidden, nil)
 		if err != nil {
 			return 0, err
 		}
-		if err := devicemath.MADNormBackwardResident(t.worker, dMLPNorm, attentionOutput, mlpNorm, dMLPInput, positions, hidden, c.config.Epsilon); err != nil {
+		if err := ops.MADNormBackward(dMLPNorm, attentionOutput, mlpNorm, dMLPInput, positions, hidden, c.config.Epsilon); err != nil {
 			return 0, err
 		}
 		dAttentionOutput, err := allocate(positions*hidden, nil)
 		if err != nil {
 			return 0, err
 		}
-		if err := devicemath.AddResident(t.worker, dHidden, dMLPInput, dAttentionOutput, positions*hidden); err != nil {
+		if err := ops.Add(dHidden, dMLPInput, dAttentionOutput, positions*hidden); err != nil {
 			return 0, err
 		}
 		attention, err := pointer(cache.attention)
@@ -341,14 +347,14 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 		if err != nil {
 			return 0, err
 		}
-		if err := devicemath.LinearBackwardTResident(t.worker, attention, wo, dAttentionOutput, dAttention, dWO, positions, hidden, hidden); err != nil {
+		if err := ops.LinearBackwardT(attention, wo, dAttentionOutput, dAttention, dWO, positions, hidden, hidden); err != nil {
 			return 0, err
 		}
 		dInput, err := allocate(positions*hidden, nil)
 		if err != nil {
 			return 0, err
 		}
-		if err := devicemath.StridedRowCopyResident(t.worker, dAttentionOutput, dInput, positions, hidden, hidden, 0, hidden, 0); err != nil {
+		if err := ops.StridedRowCopy(dAttentionOutput, dInput, positions, hidden, hidden, 0, hidden, 0); err != nil {
 			return 0, err
 		}
 		dQKV, err := allocate(positions*3*hidden, nil)
@@ -384,8 +390,8 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 			if err != nil {
 				return 0, err
 			}
-			if err := devicemath.StridedRowCopyResident(
-				t.worker, dAttention, dHeadAttention,
+			if err := ops.StridedRowCopy(
+				dAttention, dHeadAttention,
 				positions, c.config.HeadDim, hidden, headIndex*c.config.HeadDim, c.config.HeadDim, 0,
 			); err != nil {
 				return 0, err
@@ -414,25 +420,25 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 			if err != nil {
 				return 0, err
 			}
-			if err := devicemath.AttentionCoreBackwardResident(
-				t.worker, scaledQuery, k, v, probability, dHeadAttention,
+			if err := ops.AttentionCoreBackward(
+				scaledQuery, k, v, probability, dHeadAttention,
 				dQ, dK, dV, dScores, positions, c.config.HeadDim, 1,
 			); err != nil {
 				return 0, err
 			}
-			if err := devicemath.ScaleByResidentScalar(t.worker, dQ, temperatureScale, dQ, positions*c.config.HeadDim); err != nil {
+			if err := ops.ScaleByScalar(dQ, temperatureScale, dQ, positions*c.config.HeadDim); err != nil {
 				return 0, err
 			}
 			inverseRoot := float32(1 / math.Sqrt(float64(c.config.HeadDim)))
-			if err := devicemath.ScaleResident(t.worker, dQ, dQ, inverseRoot, positions*c.config.HeadDim); err != nil {
+			if err := ops.Scale(dQ, dQ, inverseRoot, positions*c.config.HeadDim); err != nil {
 				return 0, err
 			}
 			for _, copySpec := range []struct {
 				source driver.DevicePtr
 				offset int
 			}{{dQ, headIndex * c.config.HeadDim}, {dK, hidden + headIndex*c.config.HeadDim}, {dV, 2*hidden + headIndex*c.config.HeadDim}} {
-				if err := devicemath.StridedRowCopyResident(
-					t.worker, copySpec.source, dQKV,
+				if err := ops.StridedRowCopy(
+					copySpec.source, dQKV,
 					positions, c.config.HeadDim, c.config.HeadDim, 0, 3*hidden, copySpec.offset,
 				); err != nil {
 					return 0, err
@@ -442,17 +448,20 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 			if err != nil {
 				return 0, err
 			}
-			if err := devicemath.AttentionScoreAffineBackwardResident(
-				t.worker, dScores, q, k, dBias, dScale,
+			if err := ops.Zero(dScale, 1); err != nil {
+				return 0, err
+			}
+			if err := ops.AttentionScoreAffineBackward(
+				dScores, q, k, dBias, dScale,
 				positions, c.config.HeadDim, c.config.BlockSize,
 			); err != nil {
 				return 0, err
 			}
-			if err := devicemath.ScaleByResidentScalar(t.worker, dScale, temperatureScale, dScale, 1); err != nil {
+			if err := ops.ScaleByScalar(dScale, temperatureScale, dScale, 1); err != nil {
 				return 0, err
 			}
-			if err := devicemath.ScaleResident(
-				t.worker, dScale, devicemath.ResidentPtr(dLT, layer*c.config.HeadCount+headIndex), -inverseRoot, 1,
+			if err := ops.Scale(
+				dScale, devicemath.ResidentPtr(dLT, layer*c.config.HeadCount+headIndex), -inverseRoot, 1,
 			); err != nil {
 				return 0, err
 			}
@@ -473,7 +482,7 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 		if err != nil {
 			return 0, err
 		}
-		if err := devicemath.LinearBackwardTResident(t.worker, qkvNorm, wqkv, dQKV, dQKVNorm, dWQKV, positions, hidden, 3*hidden); err != nil {
+		if err := ops.LinearBackwardT(qkvNorm, wqkv, dQKV, dQKVNorm, dWQKV, positions, hidden, 3*hidden); err != nil {
 			return 0, err
 		}
 		input, err := pointer(cache.input)
@@ -484,10 +493,10 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 		if err != nil {
 			return 0, err
 		}
-		if err := devicemath.MADNormBackwardResident(t.worker, dQKVNorm, input, qkvNorm, dQKVInput, positions, hidden, c.config.Epsilon); err != nil {
+		if err := ops.MADNormBackward(dQKVNorm, input, qkvNorm, dQKVInput, positions, hidden, c.config.Epsilon); err != nil {
 			return 0, err
 		}
-		if err := devicemath.AddResident(t.worker, dInput, dQKVInput, dInput, positions*hidden); err != nil {
+		if err := ops.Add(dInput, dQKVInput, dInput, positions*hidden); err != nil {
 			return 0, err
 		}
 		dHidden = dInput
@@ -505,23 +514,21 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 	if err != nil {
 		return 0, err
 	}
-	if err := devicemath.MADNormBackwardResident(t.worker, dHidden, embedding, initialNormalized, dEmbedding, positions, hidden, c.config.Epsilon); err != nil {
+	if err := ops.MADNormBackward(dHidden, embedding, initialNormalized, dEmbedding, positions, hidden, c.config.Epsilon); err != nil {
 		return 0, err
 	}
 	tokenRows, positionRows := make([]uint32, positions), make([]uint32, positions)
 	for position := range positions {
 		tokenRows[position], positionRows[position] = uint32(tokens[position]), uint32(position)
 	}
-	tokenRowsPtr, err := devicemath.AllocResidentU32(t.worker, tokenRows)
+	tokenRowsPtr, err := ops.UploadU32(tokenRows)
 	if err != nil {
 		return 0, err
 	}
-	temporary = append(temporary, tokenRowsPtr)
-	positionRowsPtr, err := devicemath.AllocResidentU32(t.worker, positionRows)
+	positionRowsPtr, err := ops.UploadU32(positionRows)
 	if err != nil {
 		return 0, err
 	}
-	temporary = append(temporary, positionRowsPtr)
 	dWTE, err := gradient("wte")
 	if err != nil {
 		return 0, err
@@ -530,14 +537,14 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 	if err != nil {
 		return 0, err
 	}
-	if err := devicemath.IndexedRowScatterAddResident(t.worker, dEmbedding, tokenRowsPtr, dWTE, positions, hidden); err != nil {
+	if err := ops.IndexedRowScatterAdd(dEmbedding, tokenRowsPtr, dWTE, positions, hidden); err != nil {
 		return 0, err
 	}
-	if err := devicemath.IndexedRowScatterAddResident(t.worker, dEmbedding, positionRowsPtr, dWPE, positions, hidden); err != nil {
+	if err := ops.IndexedRowScatterAdd(dEmbedding, positionRowsPtr, dWPE, positions, hidden); err != nil {
 		return 0, err
 	}
 	losses := make([]float32, positions)
-	if err := devicemath.ReadResident(t.worker, lossesPtr, devicemath.ResidentSlice{Data: losses}); err != nil {
+	if err := ops.DownloadF32(lossesPtr, losses); err != nil {
 		return 0, err
 	}
 	var loss float64

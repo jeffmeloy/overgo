@@ -128,3 +128,56 @@ func TestResidentTrainingGlueMatchesHost(t *testing.T) {
 		t.Fatalf("resident attention reduction differs: bias=%.3e scale=%.3e", biasDelta, scaleDelta)
 	}
 }
+
+func TestResidentOpsSessionMatchesWrappers(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	left, right := []float32{-2, -1, 0, 1, 2, 3}, []float32{3, 2, 1, 0, -1, -2}
+	leftPtr, err := AllocResidentF32(worker, len(left), left)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rightPtr, err := AllocResidentF32(worker, len(right), right)
+	if err != nil {
+		_ = FreeResident(worker, leftPtr)
+		t.Fatal(err)
+	}
+	wrapperPtr, err := AllocResidentF32(worker, len(left), nil)
+	if err != nil {
+		_ = FreeResident(worker, leftPtr, rightPtr)
+		t.Fatal(err)
+	}
+	sessionPtr, err := AllocResidentF32(worker, len(left), nil)
+	if err != nil {
+		_ = FreeResident(worker, leftPtr, rightPtr, wrapperPtr)
+		t.Fatal(err)
+	}
+	defer FreeResident(worker, leftPtr, rightPtr, wrapperPtr, sessionPtr)
+	if err := AddResident(worker, leftPtr, rightPtr, wrapperPtr, len(left)); err != nil {
+		t.Fatal(err)
+	}
+	if err := WithResidentOps(worker, func(ops *ResidentOps) error {
+		if err := ops.Add(leftPtr, rightPtr, sessionPtr, len(left)); err != nil {
+			return err
+		}
+		return ops.Scale(sessionPtr, sessionPtr, 1, len(left))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	wrapper, session := make([]float32, len(left)), make([]float32, len(left))
+	if err := ReadResident(worker, wrapperPtr, ResidentSlice{Data: wrapper}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReadResident(worker, sessionPtr, ResidentSlice{Data: session}); err != nil {
+		t.Fatal(err)
+	}
+	delta := maxAbsDiff(wrapper, session)
+	t.Logf("resident session/wrappers delta=%.3e", delta)
+	if delta != 0 {
+		t.Fatalf("resident session differs: %.3e", delta)
+	}
+}

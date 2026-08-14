@@ -90,14 +90,8 @@ func LinearBackwardTResident(
 	if worker == nil || x == 0 || weight == 0 || dY == 0 || dX == 0 || dWeight == 0 || rows <= 0 || in <= 0 || out <= 0 {
 		return fmt.Errorf("LinearBackwardTResident: invalid buffer or geometry")
 	}
-	return withCUDABLAS(worker, func(session *cudaBLAS) error {
-		if err := session.gemm(false, false, rows, out, in, dY, weight, dX); err != nil {
-			return err
-		}
-		if err := session.gemm(true, false, out, rows, in, dY, x, dWeight); err != nil {
-			return err
-		}
-		return session.finish()
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.LinearBackwardT(x, weight, dY, dX, dWeight, rows, in, out)
 	})
 }
 

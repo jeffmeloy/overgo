@@ -59,6 +59,13 @@ func TestResidentTrainingGlueMatchesHost(t *testing.T) {
 	if err := AddResident(worker, leftPtr, rightPtr, addPtr, len(left)); err != nil {
 		t.Fatal(err)
 	}
+	if err := ScaleResident(worker, addPtr, addPtr, 2.5, len(left)); err != nil {
+		t.Fatal(err)
+	}
+	scalarPtr := allocate(1, []float32{0.4})
+	if err := ScaleByResidentScalar(worker, addPtr, scalarPtr, addPtr, len(left)); err != nil {
+		t.Fatal(err)
+	}
 	incomingPtr := allocate(len(incoming), incoming)
 	if err := ReLUBackwardResident(worker, incomingPtr, leftPtr, reluPtr, len(left)); err != nil {
 		t.Fatal(err)

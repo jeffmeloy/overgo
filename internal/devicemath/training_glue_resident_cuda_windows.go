@@ -39,6 +39,39 @@ func AddResident(worker *device.Worker, left, right, output driver.DevicePtr, co
 	})
 }
 
+// ScaleResident computes output = input * scale on resident buffers.
+func ScaleResident(worker *device.Worker, input, output driver.DevicePtr, scale float32, count int) error {
+	if worker == nil || input == 0 || output == 0 || count <= 0 || uint64(count) > math.MaxUint32 {
+		return fmt.Errorf("ScaleResident: invalid buffer or count")
+	}
+	return withCUDA(worker, func(scope *cudaScope) error {
+		function, err := scope.function("scale_f32")
+		if err != nil {
+			return err
+		}
+		countU := uint32(count)
+		if err := scope.launch1D(function, countU,
+			unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&scale), unsafe.Pointer(&countU),
+		); err != nil {
+			return err
+		}
+		return scope.finish()
+	})
+}
+
+// ScaleByResidentScalar multiplies a resident vector by a resident scalar.
+func ScaleByResidentScalar(worker *device.Worker, input, scale, output driver.DevicePtr, count int) error {
+	if worker == nil || input == 0 || scale == 0 || output == 0 || count <= 0 {
+		return fmt.Errorf("ScaleByResidentScalar: invalid buffer or count")
+	}
+	return withCUDABLAS(worker, func(session *cudaBLAS) error {
+		if err := session.gemm(false, false, count, 1, 1, input, scale, output); err != nil {
+			return err
+		}
+		return session.finish()
+	})
+}
+
 // ReLUBackwardResident writes the ReLU input VJP.
 func ReLUBackwardResident(worker *device.Worker, incoming, input, gradient driver.DevicePtr, count int) error {
 	if worker == nil || incoming == 0 || input == 0 || gradient == 0 || count <= 0 || uint64(count) > math.MaxUint32 {

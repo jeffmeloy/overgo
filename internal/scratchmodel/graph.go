@@ -24,7 +24,7 @@ type ForwardGraph struct {
 }
 
 type forwardHead struct {
-	query, key, value, probability *tensor.Tensor
+	query, scaledQuery, key, value, probability, temperatureScale *tensor.Tensor
 }
 
 type forwardLayer struct {
@@ -99,7 +99,10 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 			scores := builder.Add(builder.Add(builder.MulMat(k, scaledQuery), lagBias), mask)
 			probability := builder.Softmax(scores)
 			context := builder.MulMat(builder.Transpose2D(v), probability)
-			cache.heads[head] = forwardHead{query: q, key: k, value: v, probability: probability}
+			cache.heads[head] = forwardHead{
+				query: q, scaledQuery: scaledQuery, key: k, value: v,
+				probability: probability, temperatureScale: temperatureScale,
+			}
 			if attention == nil {
 				attention = context
 			} else {
@@ -129,7 +132,7 @@ func (g ForwardGraph) cacheOutputs() []*tensor.Tensor {
 	for _, layer := range g.layers {
 		outputs = append(outputs, layer.input, layer.qkvNorm, layer.qkv, layer.attention, layer.attentionOutput, layer.mlpNorm, layer.preactivation, layer.activation)
 		for _, head := range layer.heads {
-			outputs = append(outputs, head.query, head.key, head.value, head.probability)
+			outputs = append(outputs, head.query, head.scaledQuery, head.key, head.value, head.probability, head.temperatureScale)
 		}
 	}
 	return outputs

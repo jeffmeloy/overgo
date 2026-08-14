@@ -47,7 +47,7 @@ const (
 	sequenceResidualNormalization
 )
 
-var wavTokenizerResidualProgram = [...]sequenceResidualOperator{
+var sequenceOutputResidualProgram = [...]sequenceResidualOperator{
 	sequenceResidualConvolution,
 	sequenceResidualConvolution,
 	sequenceResidualAttention,
@@ -195,7 +195,7 @@ func compileSequenceOutputProgram(spec Spec, profile ArchitectureProfile) Sequen
 		return SequenceOutputProgram{}
 	}
 	return SequenceOutputProgram{
-		residuals: slices.Clone(wavTokenizerResidualProgram[:]), convolutions: spec.ConvNextBlockCount,
+		residuals: slices.Clone(sequenceOutputResidualProgram[:]), convolutions: spec.ConvNextBlockCount,
 		embedding: uint64(spec.EmbeddingLength), positionWidth: uint64(spec.PosNetEmbeddingLength),
 		groupCount: spec.GroupNormGroups, groupEpsilon: spec.GroupNormEpsilon,
 		layerEpsilon: spec.LayerNormEpsilon,

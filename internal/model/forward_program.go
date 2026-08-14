@@ -25,39 +25,49 @@ const (
 	forwardSessionCount
 )
 
-// ForwardProgram: compiled top-level execution contract.
-type ForwardProgram struct {
-	Operation             ForwardOperation
-	Session               ForwardSession
-	AlternateStateCount   uint32
+// AlternateStateProgram: compiled alternate-state execution facts.
+type AlternateStateProgram struct {
+	StateCount            uint32
 	ActiveState           uint32
 	SparseLayerCount      uint32
 	SparsityStdMultiplier float32
 	EmbeddingLength       uint32
 	NormalizationEpsilon  float32
+	enabled               bool
+}
+
+// SparseLayer reports thresholded gated activation for layer.
+func (p AlternateStateProgram) SparseLayer(layer int) bool {
+	return layer >= 0 && uint32(layer) < p.SparseLayerCount
+}
+
+// ForwardProgram: compiled top-level execution contract.
+type ForwardProgram struct {
+	Operation             ForwardOperation
+	Session               ForwardSession
+	Alternate             AlternateStateProgram
 	continuousBatch       bool
 	persistentDeviceCache bool
 	layerCapture          bool
 	deviceBatchSelection  bool
 	nonCausalRecurrent    bool
-	alternateStates       bool
 }
 
 func compileForwardProgram(spec Spec, profile ArchitectureProfile) ForwardProgram {
 	forward := resolveForwardProgram(profile.Forward, spec.NonCausalAttention)
 	cached := forward.Operation == ForwardOperationCached
-	forward.alternateStates = profile.LayerTopology == LayerTopologySplitProjection
-	if forward.alternateStates {
-		forward.AlternateStateCount = spec.AltUpCount
-		forward.ActiveState = spec.AltUpActive
-		forward.SparseLayerCount = spec.SparseLayerCount
-		forward.SparsityStdMultiplier = spec.SparsityStdMultiplier
-		forward.EmbeddingLength = spec.EmbeddingLength
-		forward.NormalizationEpsilon = spec.RMSNormEpsilon
+	if profile.LayerTopology == LayerTopologySplitProjection {
+		forward.Alternate = AlternateStateProgram{
+			enabled: true, StateCount: spec.AltUpCount, ActiveState: spec.AltUpActive,
+			SparseLayerCount:      spec.SparseLayerCount,
+			SparsityStdMultiplier: spec.SparsityStdMultiplier,
+			EmbeddingLength:       spec.EmbeddingLength,
+			NormalizationEpsilon:  spec.RMSNormEpsilon,
+		}
 	}
 	forward.continuousBatch = cached
-	forward.persistentDeviceCache = cached && !forward.alternateStates && !profile.Has(ArchitectureLatent)
-	forward.layerCapture = cached && !forward.alternateStates
+	forward.persistentDeviceCache = cached && !forward.AlternateStates() && !profile.Has(ArchitectureLatent)
+	forward.layerCapture = cached && !forward.AlternateStates()
 	forward.deviceBatchSelection = profile.Attention == AttentionGatedDelta
 	forward.nonCausalRecurrent = profile.Attention == AttentionShortConvolution
 	return forward
@@ -68,12 +78,7 @@ func (p ForwardProgram) PersistentDeviceCache() bool { return p.persistentDevice
 func (p ForwardProgram) LayerCapture() bool          { return p.layerCapture }
 func (p ForwardProgram) DeviceBatchSelection() bool  { return p.deviceBatchSelection }
 func (p ForwardProgram) NonCausalRecurrent() bool    { return p.nonCausalRecurrent }
-func (p ForwardProgram) AlternateStates() bool       { return p.alternateStates }
-
-// SparseAlternateLayer: thresholded gated activation for layer.
-func (p ForwardProgram) SparseAlternateLayer(layer int) bool {
-	return layer >= 0 && uint32(layer) < p.SparseLayerCount
-}
+func (p ForwardProgram) AlternateStates() bool       { return p.Alternate.enabled }
 
 func (p ForwardProgram) valid() bool {
 	if p.Operation >= forwardOperationCount || p.Session >= forwardSessionCount {

@@ -202,7 +202,7 @@
           "contains": "func PreprocessGemma4AudioTower(",
           "path": "internal/projector/gemma4tower_audio_frontend.go",
           "role": "source",
-          "identity": "file:sha256:5bfe6f20fccd159ee848c6872c11853fb11e45b1ae5927d66735ca29bff7406a"
+          "identity": "file:sha256:743cad2c9ed44d071416ca6b9e782d6e3bcb73de72eb04a8becaeb7532a3bb1e"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",
@@ -353,13 +353,13 @@
           "contains": "func CompileModelPlan(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:5095887ce282312b21ee23f6b2727936a8895290614ae85e99caf1e94cf50bb6"
+          "identity": "file:sha256:c750fc2b079d045d080c44852d79c93d6073c7b8c9a60e477304f87ca890c3b7"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
           "path": "internal/model/layer_plan_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:fbc9f573750030a0f616d0b12fee34fd28aeb70492135efbd13b3d9725cfb1fa"
+          "identity": "evidence:sha256:8505a6df1a5b9f766cebce59899e9a7fea3fbf899c4244395c7fa359c4de764b"
         }
       ],
       "id": "compiled-model-plan",

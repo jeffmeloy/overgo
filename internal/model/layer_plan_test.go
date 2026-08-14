@@ -83,6 +83,33 @@ func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
 	}
 }
 
+func TestDraftProgramPreservesBoundProfileIdentity(t *testing.T) {
+	profile, ok := LookupArchitecture("qwen35moe")
+	if !ok {
+		t.Fatal("hybrid fixture profile is absent")
+	}
+	const architecture = "fixture-hybrid"
+	profile.Name = architecture
+	spec := qwen35TestSpec()
+	spec.Architecture = architecture
+	spec.BlockCount = 1
+	spec.NextNPredictLayers = 1
+	plan, err := CompileModelPlanWithProfile(spec, Weights{}, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := plan.DraftProgram(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.Spec().Architecture != architecture || draft.Spec().Profile().Name != architecture {
+		t.Fatalf("draft identity = %q/%q", draft.Spec().Architecture, draft.Spec().Profile().Name)
+	}
+	if draft.Spec().Profile().Has(ArchitectureMoE) || draft.Spec().Profile().Experts != (ExpertPolicy{}) {
+		t.Fatalf("draft layer retained routed policy: %+v", draft.Spec().Profile())
+	}
+}
+
 func TestCompileModelPlanOwnsAlternatePredictionPolicy(t *testing.T) {
 	const fixtureNormEpsilon = 1e-6
 	spec := Spec{
@@ -101,9 +128,9 @@ func TestCompileModelPlanOwnsAlternatePredictionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	program := plan.Forward()
-	if !program.AlternateStates() || program.AlternateStateCount != spec.AltUpCount ||
-		program.ActiveState != spec.AltUpActive || program.EmbeddingLength != spec.EmbeddingLength ||
-		program.NormalizationEpsilon != spec.RMSNormEpsilon || !program.SparseAlternateLayer(0) {
+	if !program.AlternateStates() || program.Alternate.StateCount != spec.AltUpCount ||
+		program.Alternate.ActiveState != spec.AltUpActive || program.Alternate.EmbeddingLength != spec.EmbeddingLength ||
+		program.Alternate.NormalizationEpsilon != spec.RMSNormEpsilon || !program.Alternate.SparseLayer(0) {
 		t.Fatalf("alternate-prediction program = %+v", program)
 	}
 }

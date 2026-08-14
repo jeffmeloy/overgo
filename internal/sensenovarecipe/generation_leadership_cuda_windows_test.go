@@ -174,6 +174,16 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	}
 	conditional, unconditional := prefixes[0], prefixes[1]
 	t.Logf("SenseNova shared prefix stream: layers=%d branches=%d wall=%.3fs", prefixStats.Layers, prefixStats.Branches, prefixStats.Wall.Seconds())
+	generation, err := routedlm.NewDeviceGenerationSession(
+		context.Background(), worker, cuda, source, cfg, binding, rope, image, conditional, unconditional,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer generation.Close(context.Background())
+	sessionStats := generation.Stats()
+	t.Logf("SenseNova retained generation session: graphs=%d setup=%.3fs prefix=%.3fGiB",
+		sessionStats.Graphs, sessionStats.SetupWall.Seconds(), float64(sessionStats.PrefixBytes)/(1<<30))
 	var z []float32
 	err = worker.Do(context.Background(), func(state *device.State) error {
 		stream := torchrng.NewStream(oracle.Request.Seed)
@@ -205,27 +215,25 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		if err := routedlm.AddConditionRows(hidden, condition); err != nil {
 			t.Fatal(err)
 		}
-		branches, stats, err := routedlm.RunDeviceGenerationStackObserved(
-			context.Background(), worker, cuda, source, cfg, binding, rope, image, hidden,
+		observedLayers := []int(nil)
+		if stepIndex == 0 {
+			observedLayers = []int{0, 20, 41}
+		}
+		branches, stats, err := generation.Run(
+			context.Background(), hidden, observedLayers,
 			func(branch, layer int, hidden []float32) {
-				if stepIndex != 0 {
-					return
-				}
-				if layer != 0 && layer != 20 && layer != 41 {
-					return
-				}
 				gold := adaptive.Layers[fmt.Sprint(layer)]
 				values := gold.Conditional
 				if branch == 1 {
 					values = gold.Unconditional
 				}
 				checkAdaptiveValues(t, fmt.Sprintf("body branch=%d layer=%d", branch, layer), hidden, values)
-			}, conditional, unconditional,
+			},
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if stats.Wall.Seconds() > adaptive.Performance.OvergoReusableBodyMaxSeconds {
+		if stepIndex > 0 && stats.Wall.Seconds() > adaptive.Performance.OvergoReusableBodyMaxSeconds {
 			t.Fatalf("SenseNova reusable body wall=%.3fs exceeds ratchet %.3fs (adaptive %.3fs)", stats.Wall.Seconds(), adaptive.Performance.OvergoReusableBodyMaxSeconds, adaptive.Performance.AdaptiveMatchedWallSeconds)
 		}
 		final := make([][]float32, len(branches))
@@ -263,7 +271,12 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 			checkAdaptiveValues(t, "next z", z, adaptive.Step0.NextZ)
 		}
 		checkGenerationSample(t, "next z native", z, want.NextZ, 0.998)
-		t.Logf("SenseNova neutral generation step=%d layers=%d branches=%d body=%.3fs", stepIndex, stats.Layers, stats.Branches, stats.Wall.Seconds())
+		lifecycle := "cold-body"
+		if stepIndex > 0 {
+			lifecycle = "warm-body"
+		}
+		t.Logf("SenseNova neutral generation step=%d lifecycle=%s layers=%d branches=%d body=%.3fs htod=%d dtoh=%d",
+			stepIndex, lifecycle, stats.Layers, stats.Branches, stats.Wall.Seconds(), stats.HostToDevice, stats.DeviceToHost)
 	}
 	memory, err := worker.MemoryStats(context.Background())
 	if err != nil {

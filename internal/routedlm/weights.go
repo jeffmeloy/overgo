@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor/dtype"
 )
 
 // InputNormWeights: per-branch pre-attention RMSNorm scales.
@@ -41,6 +42,210 @@ type LayerWeights struct {
 type BranchLayerWeights struct {
 	InputNorm, QNorm, KNorm, PostNorm []float32
 	Q, K, V, O, Gate, Up, Down        BF16Matrix
+}
+
+type branchTensorStorage uint8
+
+const (
+	branchStorageF32 branchTensorStorage = iota + 1
+	branchStorageF16
+	branchStorageBF16
+)
+
+type branchTensorPlan struct {
+	tensor   safetensors.Tensor
+	storage  branchTensorStorage
+	elements int
+}
+
+type branchLayerPlan struct {
+	layer                    int
+	inputNorm, q, k, v, o    branchTensorPlan
+	qNorm, kNorm             []branchTensorPlan
+	postNorm, gate, up, down branchTensorPlan
+}
+
+func compileBranchLayerPlans(src *safetensors.Source, cfg Config, b BranchBinding, branch int) ([]branchLayerPlan, error) {
+	if src == nil || branch < 0 || branch > 1 {
+		return nil, fmt.Errorf("routed lm branch plans: invalid source or branch")
+	}
+	if err := b.validate(); err != nil {
+		return nil, err
+	}
+	h, f := cfg.HiddenSize, cfg.IntermediateSize
+	qOut := cfg.NumAttentionHeads * cfg.HeadDim
+	kvOut := cfg.NumKeyValueHeads * cfg.HeadDim
+	plans := make([]branchLayerPlan, cfg.NumHiddenLayers)
+	for layer := range plans {
+		plan := branchLayerPlan{layer: layer}
+		vector := func(suffix string, elements int) (branchTensorPlan, error) {
+			return compileBranchTensor(src, b.LayerTensorName(layer, branch, suffix), elements, false)
+		}
+		matrix := func(suffix string, in, out int) (branchTensorPlan, error) {
+			return compileBranchTensor(src, b.LayerTensorName(layer, branch, suffix), in*out, true)
+		}
+		var err error
+		if plan.inputNorm, err = vector("input_layernorm.weight", h); err != nil {
+			return nil, err
+		}
+		if plan.q, err = matrix("self_attn.q_proj.weight", h, qOut); err != nil {
+			return nil, err
+		}
+		if plan.k, err = matrix("self_attn.k_proj.weight", h, kvOut); err != nil {
+			return nil, err
+		}
+		if plan.v, err = matrix("self_attn.v_proj.weight", h, kvOut); err != nil {
+			return nil, err
+		}
+		if plan.o, err = matrix("self_attn.o_proj.weight", qOut, h); err != nil {
+			return nil, err
+		}
+		if plan.qNorm, err = compileBranchSections(src, b, layer, branch, b.QNormSections, cfg.HeadDim); err != nil {
+			return nil, err
+		}
+		if plan.kNorm, err = compileBranchSections(src, b, layer, branch, b.KNormSections, cfg.HeadDim); err != nil {
+			return nil, err
+		}
+		if plan.postNorm, err = vector("post_attention_layernorm.weight", h); err != nil {
+			return nil, err
+		}
+		if plan.gate, err = matrix("mlp.gate_proj.weight", h, f); err != nil {
+			return nil, err
+		}
+		if plan.up, err = matrix("mlp.up_proj.weight", h, f); err != nil {
+			return nil, err
+		}
+		if plan.down, err = matrix("mlp.down_proj.weight", f, h); err != nil {
+			return nil, err
+		}
+		plans[layer] = plan
+	}
+	return plans, nil
+}
+
+func compileBranchTensor(src *safetensors.Source, name string, elements int, matrix bool) (branchTensorPlan, error) {
+	tensor, ok := src.Tensors[name]
+	if !ok {
+		return branchTensorPlan{}, fmt.Errorf("routed lm branch plan: missing %s", name)
+	}
+	if int(tensor.Elements()) != elements {
+		return branchTensorPlan{}, fmt.Errorf("routed lm branch plan: %s elements=%d want=%d", name, tensor.Elements(), elements)
+	}
+	storage := branchStorageF32
+	switch tensor.DType {
+	case "F32":
+	case "F16":
+		storage = branchStorageF16
+	case "BF16":
+		storage = branchStorageBF16
+	default:
+		return branchTensorPlan{}, fmt.Errorf("routed lm branch plan: %s dtype=%s", name, tensor.DType)
+	}
+	if matrix && storage != branchStorageBF16 {
+		return branchTensorPlan{}, fmt.Errorf("routed lm branch plan: %s matrix dtype=%s", name, tensor.DType)
+	}
+	return branchTensorPlan{tensor: tensor, storage: storage, elements: elements}, nil
+}
+
+func compileBranchSections(src *safetensors.Source, b BranchBinding, layer, branch int, suffixes []string, total int) ([]branchTensorPlan, error) {
+	plans := make([]branchTensorPlan, len(suffixes))
+	elements := 0
+	for index, suffix := range suffixes {
+		name := b.LayerTensorName(layer, branch, suffix)
+		tensor, ok := src.Tensors[name]
+		if !ok || len(tensor.Shape) != 1 || tensor.Shape[0] == 0 {
+			return nil, fmt.Errorf("routed lm branch plan: invalid norm section %s", name)
+		}
+		var err error
+		plans[index], err = compileBranchTensor(src, name, int(tensor.Shape[0]), false)
+		if err != nil {
+			return nil, err
+		}
+		elements += plans[index].elements
+	}
+	if elements != total {
+		return nil, fmt.Errorf("routed lm branch plan: norm elements=%d want=%d", elements, total)
+	}
+	return plans, nil
+}
+
+func (p branchLayerPlan) load() (BranchLayerWeights, error) {
+	var weights BranchLayerWeights
+	var err error
+	if weights.InputNorm, err = p.inputNorm.loadVector(); err != nil {
+		return weights, err
+	}
+	matrices := []struct {
+		plan branchTensorPlan
+		dst  *BF16Matrix
+	}{
+		{p.q, &weights.Q}, {p.k, &weights.K}, {p.v, &weights.V}, {p.o, &weights.O},
+		{p.gate, &weights.Gate}, {p.up, &weights.Up}, {p.down, &weights.Down},
+	}
+	for _, matrix := range matrices {
+		raw, readErr := matrix.plan.loadRaw(2)
+		if readErr != nil {
+			return weights, readErr
+		}
+		*matrix.dst = BF16Matrix{Raw: raw}
+	}
+	if weights.QNorm, err = loadBranchSections(p.qNorm); err != nil {
+		return weights, err
+	}
+	if weights.KNorm, err = loadBranchSections(p.kNorm); err != nil {
+		return weights, err
+	}
+	if weights.PostNorm, err = p.postNorm.loadVector(); err != nil {
+		return weights, err
+	}
+	return weights, nil
+}
+
+func loadBranchSections(plans []branchTensorPlan) ([]float32, error) {
+	total := 0
+	for _, plan := range plans {
+		total += plan.elements
+	}
+	out := make([]float32, 0, total)
+	for _, plan := range plans {
+		section, err := plan.loadVector()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, section...)
+	}
+	return out, nil
+}
+
+func (p branchTensorPlan) loadRaw(elementBytes int) ([]byte, error) {
+	raw := make([]byte, p.elements*elementBytes)
+	if _, err := p.tensor.ReadAt(raw, 0); err != nil {
+		return nil, fmt.Errorf("routed lm branch plan read: %w", err)
+	}
+	return raw, nil
+}
+
+func (p branchTensorPlan) loadVector() ([]float32, error) {
+	elementBytes := 4
+	if p.storage != branchStorageF32 {
+		elementBytes = 2
+	}
+	raw, err := p.loadRaw(elementBytes)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]float32, p.elements)
+	for index := range out {
+		switch p.storage {
+		case branchStorageF32:
+			out[index] = math.Float32frombits(binary.LittleEndian.Uint32(raw[index*4:]))
+		case branchStorageF16:
+			out[index] = dtype.Float16ToFloat32(binary.LittleEndian.Uint16(raw[index*2:]))
+		case branchStorageBF16:
+			out[index] = dtype.BF16ToFloat32(binary.LittleEndian.Uint16(raw[index*2:]))
+		}
+	}
+	return out, nil
 }
 
 // LoadBranchLayerWeights loads one layer branch through the shared binding.

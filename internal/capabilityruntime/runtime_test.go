@@ -3,7 +3,9 @@ package capabilityruntime
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
@@ -14,6 +16,94 @@ import (
 
 type scalarRequest struct {
 	Value int `json:"value"`
+}
+
+type concurrentScalarModel struct {
+	bias    int
+	entered chan<- struct{}
+	release <-chan struct{}
+	closed  *atomic.Int32
+}
+
+func (m *concurrentScalarModel) Close(context.Context) error {
+	m.closed.Add(1)
+	return nil
+}
+
+func TestScalarSessionCacheConcurrentKeys(t *testing.T) {
+	firstStore, firstID, firstProgram := capabilityFixture(t, "concurrent-scalar-first")
+	secondStore, secondID, secondProgram := capabilityFixture(t, "concurrent-scalar-second")
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var closed atomic.Int32
+	cache, err := NewScalarSessionCache[scalarRequest, *concurrentScalarModel, int](
+		"scalar", "cuda:0", 2,
+		func(request scalarRequest) error {
+			if request.Value <= 0 {
+				return errors.New("positive value required")
+			}
+			return nil
+		},
+		func(scalarRequest) (string, error) { return "shape:scalar", nil },
+		func(_ context.Context, _ artifact.Repository, _ string, _ recipe.Program, request scalarRequest) (*concurrentScalarModel, error) {
+			return &concurrentScalarModel{bias: request.Value, entered: entered, release: release, closed: &closed}, nil
+		},
+		func(_ context.Context, model *concurrentScalarModel, request scalarRequest) error {
+			model.bias = request.Value
+			return nil
+		},
+		func(runtime *workflowruntime.Runtime, bound artifact.ID, model *concurrentScalarModel) error {
+			return workflowruntime.RegisterJSONStage[scalarRequest, int](
+				runtime, scalarModule, bound,
+				artifact.JSONContract(artifact.KindOutput, "test.concurrent-scalar-output.v1"),
+				func(request scalarRequest) (int, error) {
+					model.entered <- struct{}{}
+					<-model.release
+					return request.Value + model.bias, nil
+				},
+			)
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		value any
+		err   error
+	}
+	results := make(chan result, 2)
+	run := func(store artifact.Repository, model artifact.ID, program recipe.Program, raw string) {
+		value, err := cache.Executor()(context.Background(), store, "model", model, program, raw)
+		results <- result{value: value, err: err}
+	}
+	go run(firstStore, firstID, firstProgram, `{"value":2}`)
+	go run(secondStore, secondID, secondProgram, `{"value":3}`)
+	deadline := time.After(5 * time.Second)
+	for range 2 {
+		select {
+		case <-entered:
+		case <-deadline:
+			t.Fatal("distinct cache keys executed serially")
+		}
+	}
+	close(release)
+	values := map[int]bool{}
+	for range 2 {
+		got := <-results
+		if got.err != nil {
+			t.Fatal(got.err)
+		}
+		values[got.value.(int)] = true
+	}
+	if !values[4] || !values[6] {
+		t.Fatalf("outputs=%v", values)
+	}
+	if err := cache.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := closed.Load(); got != 2 {
+		t.Fatalf("closed=%d", got)
+	}
 }
 
 const scalarModule recipe.ModuleID = "test.scalar"

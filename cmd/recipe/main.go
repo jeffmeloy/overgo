@@ -27,7 +27,6 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
-	"overgo/internal/runrecord"
 )
 
 func main() {
@@ -164,7 +163,7 @@ func activateCapability(
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
-	if err := activateDefinition(ctx, store, definition, verification, reason); err != nil {
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceExperimental, reason); err != nil {
 		return err
 	}
 	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
@@ -295,109 +294,11 @@ func activate(
 	if err != nil {
 		return err
 	}
-	if err := activateDefinition(ctx, store, definition, verification, reason); err != nil {
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceExperimental, reason); err != nil {
 		return err
 	}
 	fmt.Printf("activated %s\n  model      %s\n  definition %s\n  recipe     %s\n  reason     %s\n",
 		path, modelID, resolved.Document.ID, definition.ID, reason)
-	return nil
-}
-
-func activateDefinition(
-	ctx context.Context,
-	store artifact.Repository,
-	definition recipe.Definition,
-	verification modelrecipe.Verification,
-	reason string,
-) error {
-	state, published, err := modelrecipe.Status(ctx, store, definition.ID)
-	if err != nil {
-		return err
-	}
-	if !published {
-		if _, _, err := modelrecipe.PublishCandidate(
-			ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
-		); err != nil {
-			return fmt.Errorf("publish candidate: %w", err)
-		}
-		state = recipe.StatusCandidate
-	}
-	if state == recipe.StatusCandidate {
-		if _, _, err := modelrecipe.Transition(
-			ctx, store, "recipe/validated/"+definition.ID.String(), definition,
-			recipe.StatusValidated, nil, nil,
-		); err != nil {
-			return fmt.Errorf("transition validated: %w", err)
-		}
-		state = recipe.StatusValidated
-	}
-	switch state {
-	case recipe.StatusValidated:
-		var supersedes *artifact.ID
-		if current, active, err := modelrecipe.ActiveRecord(
-			ctx, store, definition.Model, definition.Task,
-		); err == nil && active && current.Definition.ID != definition.ID {
-			id := current.Definition.ID
-			supersedes = &id
-		}
-		if err := promoteVerified(ctx, store, definition, verification, reason, supersedes); err != nil {
-			return err
-		}
-	case recipe.StatusActive:
-	default:
-		return fmt.Errorf("recipe %s is %q; activation resumes only from candidate or validated", definition.ID, state)
-	}
-	return nil
-}
-
-// promoteVerified: accepted decision plus verifier-bound promotion.
-func promoteVerified(
-	ctx context.Context,
-	store artifact.Repository,
-	definition recipe.Definition,
-	verification modelrecipe.Verification,
-	reason string,
-	supersedes *artifact.ID,
-) error {
-	verified, err := runrecord.VerifyGateRun(
-		ctx, store, definition.ID, verification.Gate, verification.Run,
-	)
-	if err != nil {
-		return err
-	}
-	decision, err := recipe.NewDecision(
-		definition.ID, recipe.DecisionAccepted, recipe.EvidenceExperimental, reason,
-		recipe.Decider{CodeCommit: verified.Gate.CodeCommit, Derivation: verified.Gate.ID},
-		[]artifact.ID{verified.Gate.ID, verified.Run.ID},
-	)
-	if err != nil {
-		return err
-	}
-	content, err := decision.Content()
-	if err != nil {
-		return err
-	}
-	batch, err := artifact.NewDocumentBatch(
-		"recipe/activation-decision/"+definition.ID.String(),
-		[]artifact.Content{content},
-		[]artifact.Lineage{
-			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
-			{Child: decision.ID, Parent: verified.Gate.ID, Relation: artifact.RelationDependsOn},
-			{Child: decision.ID, Parent: verified.Run.ID, Relation: artifact.RelationDependsOn},
-		}, nil,
-	)
-	if err != nil {
-		return err
-	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
-		return err
-	}
-	if _, _, err := modelrecipe.ActivateVerified(
-		ctx, store, "recipe/active/"+definition.ID.String(), definition,
-		verification, []artifact.ID{decision.ID}, supersedes,
-	); err != nil {
-		return fmt.Errorf("transition active: %w", err)
-	}
 	return nil
 }
 

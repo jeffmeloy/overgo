@@ -26,7 +26,6 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
-	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
 )
 
@@ -38,9 +37,6 @@ const Task = recipe.TaskImageGen
 // EvidenceTier: the honest activation tier -- the sensenovaparity ladder is a
 // legitimate experimental verification, not a ship-bar oracle.
 const EvidenceTier = recipe.EvidenceExperimental
-
-// LadderStepName: the gate step that names the evidence source.
-const LadderStepName = "sensenova-generation-leadership"
 
 // DerivedFacts: recipe-relevant model facts derived from the checkpoint via
 // routedlm. Every field is tensor- or config-owned (cited in sensenovaparity's
@@ -128,180 +124,25 @@ func Inventory(modelDir string) (modelartifact.Inventory, error) {
 	return inventory, nil
 }
 
-// PublishLadderEvidence records the sensenovaparity ladder as a succeeded
-// recipe-bound gate/run pair -- the verifier the verified-promotion lifecycle
-// consumes. The gate step is named for the ladder and the code commit binds
-// gate to run; the honest tier and the frontier residual live on the
-// activation decision (see Activate). codeCommit is the 40- or 64-hex commit
-// the ladder was verified under.
-func PublishLadderEvidence(
-	ctx context.Context,
-	store artifact.Repository,
-	recipeID artifact.ID,
-	codeCommit string,
-) (modelrecipe.Verification, error) {
-	environment, err := artifact.IdentifyBytes(
-		artifact.KindEvidence, []byte("sensenovaparity/environment/"+recipeID.String()),
-	)
-	if err != nil {
-		return modelrecipe.Verification{}, err
-	}
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "sensenova/evidence/environment/" + recipeID.String(),
-		Artifacts: []artifact.Descriptor{{ID: environment, Size: uint64(len(recipeID.String()))}},
-	}); err != nil {
-		return modelrecipe.Verification{}, fmt.Errorf("sensenova recipe: publish environment: %w", err)
-	}
-	record, err := runrecord.NewGateRecord(
-		recipeID, environment, codeCommit, runrecord.OutcomeSucceeded, "", 1,
-		[]runrecord.GateStep{{
-			Name: LadderStepName, Phase: runrecord.PhaseValidate,
-			Outcome: runrecord.StepSucceeded, DurationNS: 1,
-		}},
-	)
-	if err != nil {
-		return modelrecipe.Verification{}, fmt.Errorf("sensenova recipe: gate record: %w", err)
-	}
-	batch, err := record.Batch("sensenova/evidence/gate/" + recipeID.String())
-	if err != nil {
-		return modelrecipe.Verification{}, err
-	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
-		return modelrecipe.Verification{}, fmt.Errorf("sensenova recipe: publish gate: %w", err)
-	}
-	return modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}, nil
-}
-
-// RegisterAndActivate publishes the SenseNova model facts and the image-gen
-// recipe, then promotes the recipe to ACTIVE through the verified-promotion
-// lifecycle bound to the sensenovaparity ladder evidence. It mirrors the CLI
-// capability activation (facts -> CapabilityDefinition -> candidate ->
-// validated -> verified active) but supplies the SenseNova inventory and the
-// honest ladder-derived evidence. Returns the activated definition.
-func RegisterAndActivate(
-	ctx context.Context,
-	store artifact.Repository,
-	inventory modelartifact.Inventory,
-	codeCommit, reason string,
-) (recipe.Definition, error) {
-	modelID := inventory.Manifest.ID
-	batch, err := inventory.Batch("recipe/facts/" + modelID.String())
-	if err != nil {
-		return recipe.Definition{}, err
-	}
-	if _, err := store.Commit(ctx, batch); err != nil {
-		return recipe.Definition{}, fmt.Errorf("sensenova recipe: publish model facts: %w", err)
-	}
-	return Activate(ctx, store, modelID, codeCommit, reason)
-}
-
 // Activate compiles the SenseNova image-gen recipe for an already-registered
-// model artifact and promotes it to ACTIVE through the verified-promotion
-// lifecycle. The model artifact must already be present in the store (its
-// bytes are registered by RegisterAndActivate, or by any prior facts commit).
+// model artifact using existing recipe-bound verification.
 func Activate(
 	ctx context.Context,
 	store artifact.Repository,
 	modelID artifact.ID,
-	codeCommit, reason string,
+	verification modelrecipe.Verification,
+	reason string,
 ) (recipe.Definition, error) {
 	definition, err := modelrecipe.RoutedImageDefinition(modelID)
 	if err != nil {
 		return recipe.Definition{}, err
 	}
-	if err := activate(ctx, store, definition, codeCommit, reason); err != nil {
+	if err := modelrecipe.ActivateCapability(
+		ctx, store, definition, verification, EvidenceTier, reason,
+	); err != nil {
 		return recipe.Definition{}, err
 	}
 	return definition, nil
-}
-
-// activate drives candidate -> validated -> verified-active for a fresh recipe,
-// or is a no-op when the recipe is already active (idempotent resume).
-func activate(
-	ctx context.Context,
-	store artifact.Repository,
-	definition recipe.Definition,
-	codeCommit, reason string,
-) error {
-	state, published, err := modelrecipe.Status(ctx, store, definition.ID)
-	if err != nil {
-		return err
-	}
-	if !published {
-		if _, _, err := modelrecipe.PublishCandidate(
-			ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
-		); err != nil {
-			return fmt.Errorf("sensenova recipe: publish candidate: %w", err)
-		}
-		state = recipe.StatusCandidate
-	}
-	if state == recipe.StatusCandidate {
-		if _, _, err := modelrecipe.Transition(
-			ctx, store, "recipe/validated/"+definition.ID.String(), definition,
-			recipe.StatusValidated, nil, nil,
-		); err != nil {
-			return fmt.Errorf("sensenova recipe: transition validated: %w", err)
-		}
-		state = recipe.StatusValidated
-	}
-	switch state {
-	case recipe.StatusActive:
-		return nil
-	case recipe.StatusValidated:
-		return promoteVerified(ctx, store, definition, codeCommit, reason)
-	default:
-		return fmt.Errorf("sensenova recipe: recipe %s is %q; activation resumes only from candidate or validated", definition.ID, state)
-	}
-}
-
-func promoteVerified(
-	ctx context.Context,
-	store artifact.Repository,
-	definition recipe.Definition,
-	codeCommit, reason string,
-) error {
-	verification, err := PublishLadderEvidence(ctx, store, definition.ID, codeCommit)
-	if err != nil {
-		return err
-	}
-	verified, err := runrecord.VerifyGateRun(ctx, store, definition.ID, verification.Gate, verification.Run)
-	if err != nil {
-		return err
-	}
-	decision, err := recipe.NewDecision(
-		definition.ID, recipe.DecisionAccepted, EvidenceTier, reason,
-		recipe.Decider{CodeCommit: verified.Gate.CodeCommit, Derivation: verified.Gate.ID},
-		[]artifact.ID{verified.Gate.ID, verified.Run.ID},
-	)
-	if err != nil {
-		return err
-	}
-	content, err := decision.Content()
-	if err != nil {
-		return err
-	}
-	decisionBatch, err := artifact.NewDocumentBatch(
-		"recipe/activation-decision/"+definition.ID.String(),
-		[]artifact.Content{content},
-		[]artifact.Lineage{
-			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
-			{Child: decision.ID, Parent: verified.Gate.ID, Relation: artifact.RelationDependsOn},
-			{Child: decision.ID, Parent: verified.Run.ID, Relation: artifact.RelationDependsOn},
-		}, nil,
-	)
-	if err != nil {
-		return err
-	}
-	if _, err := artifact.CommitBatch(ctx, store, decisionBatch); err != nil {
-		return err
-	}
-	if _, _, err := modelrecipe.ActivateVerified(
-		ctx, store, "recipe/active/"+definition.ID.String(), definition,
-		verification, []artifact.ID{decision.ID}, nil,
-	); err != nil {
-		return fmt.Errorf("sensenova recipe: transition active: %w", err)
-	}
-	return nil
 }
 
 // Resolve reports the activated SenseNova image-gen recipe through the SAME
@@ -313,18 +154,7 @@ func Resolve(
 	store artifact.Reader,
 	modelID artifact.ID,
 ) (modelrecipe.Activation, recipe.Program, error) {
-	activation, active, err := modelrecipe.ActiveRecord(ctx, store, modelID, Task)
-	if err != nil {
-		return modelrecipe.Activation{}, recipe.Program{}, err
-	}
-	if !active {
-		return modelrecipe.Activation{}, recipe.Program{}, fmt.Errorf("sensenova recipe: model %s has no active %s recipe", modelID, Task)
-	}
-	program, err := modelrecipe.CompileCapability(activation.Definition)
-	if err != nil {
-		return modelrecipe.Activation{}, recipe.Program{}, err
-	}
-	return activation, program, nil
+	return modelrecipe.ResolveActiveCapability(ctx, store, modelID, Task)
 }
 
 // Present stats the recorded model location, mirroring the discovery servable

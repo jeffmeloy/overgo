@@ -94,6 +94,39 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	}
 }
 
+func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "activation-model")
+	testutil.PublishArtifact(t, store, modelID)
+	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ActivateCapability(
+		ctx, store, definition, Verification{}, recipe.EvidenceExperimental, "verified fixture",
+	); err == nil {
+		t.Fatal("activation accepted missing verification")
+	}
+	if _, active, err := ActiveRecord(ctx, store, modelID, definition.Task); err != nil || active {
+		t.Fatalf("unverified active = (%v, %v)", active, err)
+	}
+	verification := publishVerification(t, store, definition.ID, "fixture/activation/verification")
+	if err := ActivateCapability(
+		ctx, store, definition, verification, recipe.EvidenceExperimental, "verified fixture",
+	); err != nil {
+		t.Fatal(err)
+	}
+	activation, active, err := ActiveRecord(ctx, store, modelID, definition.Task)
+	if err != nil || !active || activation.Definition.ID != definition.ID {
+		t.Fatalf("active = (%s, %v, %v)", activation.Definition.ID, active, err)
+	}
+}
+
 func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	ctx := context.Background()
 	store, err := repodb.Open(t.TempDir())

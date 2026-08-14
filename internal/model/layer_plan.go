@@ -477,6 +477,7 @@ type ModelPlan struct {
 	cacheProject  CacheProjectionProgram
 	projections   [projectionRoleCount]ProjectionProgram
 	sequenceOut   SequenceOutputProgram
+	waveform      AudioWaveformPlan
 	forward       ForwardProgram
 	input         ProjectedInputProgram
 }
@@ -544,6 +545,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		cacheProject:  compileCacheProjectionProgram(spec, profile),
 		projections:   compileProjectionPrograms(spec, profile),
 		sequenceOut:   compileSequenceOutputProgram(spec, profile),
+		waveform:      compileAudioWaveformPlan(profile),
 		forward:       forward,
 		input:         compileProjectedInputProgram(spec, profile),
 	}
@@ -573,7 +575,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		}
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
 		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
-		executable, layer := singleDraftExecutableSpec(spec, plan.draft.Kind)
+		executable, layer := draftExecutableSpec(spec, plan.draft)
 		plan.draftLayers = []LayerPlan{executable.PlanLayer(layer, false)}
 	}
 	if err := validateModelPlan(spec, weights, plan); err != nil {
@@ -857,7 +859,7 @@ func (p ModelPlan) DraftProgram(offset uint32) (CompiledLayerProgram, error) {
 	}
 	spec := p.spec
 	if p.draft.SingleCatalog {
-		spec, _ = singleDraftExecutableSpec(spec, p.draft.Kind)
+		spec, _ = draftExecutableSpec(spec, p.draft)
 	} else if p.draft.Kind == DraftAppendedSingle {
 		spec.BlockCount += p.draft.Heads
 	}
@@ -899,6 +901,9 @@ func (p ModelPlan) CacheProjection() CacheProjectionProgram { return p.cacheProj
 
 // SequenceOutput: compiled terminal sequence program.
 func (p ModelPlan) SequenceOutput() SequenceOutputProgram { return p.sequenceOut }
+
+// AudioWaveform: compiled semantic-token waveform plan.
+func (p ModelPlan) AudioWaveform() AudioWaveformPlan { return p.waveform }
 
 // Draft: compiled speculative policy.
 func (p ModelPlan) Draft() DraftPlan { return p.draft }

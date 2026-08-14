@@ -34,7 +34,7 @@ func TestGemma3nPredictCoefficientLayout(t *testing.T) {
 		{Shape: tensor.MustShape(2, 1), Data: []float32{0, 1}},
 	}
 	spec := model.Spec{CommonSpec: model.CommonSpec{EmbeddingLength: 2, RMSNormEpsilon: 1e-6}, MultimodalSpec: model.MultimodalSpec{AltUpActive: 0}}
-	got, err := gemma3nPredict(
+	got, err := predictAlternateStates(
 		states, layer, spec.AltUpActive, spec.EmbeddingLength, spec.RMSNormEpsilon,
 	)
 	if err != nil {
@@ -50,15 +50,16 @@ func TestGemma3nPredictCoefficientLayout(t *testing.T) {
 func TestGemma3nMagnitudeMatchAndMerge(t *testing.T) {
 	active := reference.Value{Shape: tensor.MustShape(2, 1), Data: []float32{3, 4}}
 	projected := reference.Value{Shape: tensor.MustShape(2, 1), Data: []float32{0, 2}}
-	matched := gemma3nMatchMagnitude(projected, active)
-	if matched.Data[0] != 0 || math.Abs(float64(matched.Data[1]-5)) > 1e-6 {
-		t.Fatalf("matched = %v", matched.Data)
+	mergeInput := projected.Clone()
+	rescaleMagnitudeInPlace(&projected, active)
+	if projected.Data[0] != 0 || math.Abs(float64(projected.Data[1]-5)) > 1e-6 {
+		t.Fatalf("matched = %v", projected.Data)
 	}
 	unembedding := reference.Value{
 		Shape: tensor.MustShape(2, 2, 1),
 		Data:  []float32{1, 0, 0, 1},
 	}
-	merged, err := gemma3nMergeAltUp([]reference.Value{active, projected}, unembedding, 0)
+	merged, err := mergeAlternateStates([]reference.Value{active, mergeInput}, unembedding, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +71,7 @@ func TestGemma3nMagnitudeMatchAndMerge(t *testing.T) {
 func TestGemma3nGaussianSparsity(t *testing.T) {
 	gate := reference.Value{Shape: tensor.MustShape(3, 1), Data: []float32{0, 1, 10}}
 	up := reference.Value{Shape: tensor.MustShape(3, 1), Data: []float32{1, 1, 1}}
-	got, err := gemma3nActivateFFN(gate, up, true, 0)
+	got, err := activateAlternateFFN(gate, up, true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

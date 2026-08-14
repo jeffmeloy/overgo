@@ -22,7 +22,7 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 		prefix := fmt.Sprintf("posnet.%d.", block)
 		layer := &wav.PosNet[block]
 		var requirements []tensorRequirement
-		switch wavTokenizerResidualProgram[block] {
+		switch sequenceOutputResidualProgram[block] {
 		case sequenceResidualConvolution:
 			requirements = []tensorRequirement{
 				requiredTensor("norm1.weight", &layer.Norm1, 1, width),

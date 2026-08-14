@@ -8,14 +8,13 @@ import (
 )
 
 func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
-	required, tensors := catalog.required, catalog.tensors
 	width := uint64(spec.EmbeddingLength)
 	headWidth := uint64(spec.KeyLength)
 	hyper := uint64(spec.HyperConnectionCount)
 	hyperWidth := hyper * width
 	mixWidth := (2 + hyper) * hyper
 	result := Weights{Layers: make([]LayerWeights, spec.BlockCount)}
-	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
 		requiredTensor("token_embd.weight", &result.TokenEmbedding, width, uint64(spec.VocabularySize)),
 		requiredTensor("output_norm.weight", &result.OutputNorm, width),
 		requiredTensorPointer("output.weight", &result.Output, width, uint64(spec.VocabularySize)),
@@ -25,7 +24,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 	for block := uint32(0); block < spec.BlockCount; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		layer := &result.Layers[block]
-		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
 			requiredTensor("attn_q_a.weight", &layer.AttentionQ, width, uint64(spec.QLoRARank)),
 			requiredTensor("attn_kv.weight", &layer.AttentionK, width, headWidth),
@@ -49,18 +48,18 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 		}); err != nil {
 			return Weights{}, err
 		}
-		if err := loadSharedExpertWeightsForWidth(required, prefix, width, spec, layer, false); err != nil {
+		if err := loadSharedExpertWeightsForWidth(catalog, prefix, width, spec, layer, false); err != nil {
 			return Weights{}, err
 		}
 		if block < spec.HashLayerCount {
-			if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				requiredStoredTensorPointer("ffn_gate_tid2eid.weight", &layer.FeedForwardHashExperts,
 					dtype.I32, uint64(spec.ExpertUsedCount), uint64(spec.VocabularySize)),
 			}); err != nil {
 				return Weights{}, err
 			}
 		} else {
-			loaded, err := required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
+			loaded, err := catalog.required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
 			if err != nil {
 				return Weights{}, err
 			}
@@ -68,7 +67,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 		}
 		if ratio := tensor.CompressionRatio(spec.CompressRatios[block]); ratio.Enabled() {
 			coefficient := ratio.KVWidthMultiplier()
-			if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				requiredTensorPointer("attn_compressor_kv.weight", &layer.AttentionCompressorKV, width, coefficient*headWidth),
 				requiredTensorPointer("attn_compressor_gate.weight", &layer.AttentionCompressorGate, width, coefficient*headWidth),
 				requiredTensorPointer("attn_compressor_ape.weight", &layer.AttentionCompressorAPE, coefficient*headWidth, uint64(ratio)),
@@ -79,7 +78,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 		}
 		if tensor.CompressionRatio(spec.CompressRatios[block]).UsesIndexer() {
 			indexerWidth := uint64(spec.IndexerKeyLength)
-			if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+			if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 				requiredTensorPointer("indexer.proj.weight", &layer.IndexerProjection, width, uint64(spec.IndexerHeadCount)),
 				requiredTensorPointer("indexer.attn_q_b.weight", &layer.IndexerAttentionQB, uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount)*indexerWidth),
 				requiredTensorPointer("indexer_compressor_kv.weight", &layer.IndexerCompressorKV, width, 2*indexerWidth),
@@ -97,7 +96,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 		}
 	}
 	last := &result.Layers[len(result.Layers)-1]
-	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
 		requiredTensorPointer("output_hc_fn.weight", &last.HyperHeadFN, hyperWidth, hyper),
 		requiredTensorPointer("output_hc_base.weight", &last.HyperHeadBase, hyper),
 		requiredTensorPointer("output_hc_scale.weight", &last.HyperHeadScale, 1),

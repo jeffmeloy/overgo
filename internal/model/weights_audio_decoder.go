@@ -3,7 +3,6 @@ package model
 import "fmt"
 
 func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
-	required, tensors := catalog.required, catalog.tensors
 	width := uint64(spec.PosNetEmbeddingLength)
 	ffn := uint64(spec.FeedForwardLength)
 	result := Weights{}
@@ -11,7 +10,7 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 		PosNet:   make([]WavPosNetWeights, spec.PosNetBlockCount),
 		ConvNext: make([]WavConvNextWeights, spec.ConvNextBlockCount),
 	}
-	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
 		requiredTensor("token_embd.weight", &result.TokenEmbedding, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize)),
 		requiredTensor("conv1d.weight", &wav.InputConv, 7, uint64(spec.EmbeddingLength), width),
 		requiredTensor("conv1d.bias", &wav.InputConvBias, 1, width),
@@ -53,11 +52,11 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 				requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),
 			}
 		}
-		if err := loadTensorRequirements(required, tensors, prefix, requirements); err != nil {
+		if err := loadTensorRequirements(catalog, prefix, requirements); err != nil {
 			return Weights{}, err
 		}
 	}
-	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
 		requiredTensor("token_embd_norm.weight", &wav.TokenNorm, width),
 		requiredTensor("token_embd_norm.bias", &wav.TokenNormBias, width),
 	}); err != nil {
@@ -66,7 +65,7 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 	for block := uint32(0); block < spec.ConvNextBlockCount; block++ {
 		prefix := fmt.Sprintf("convnext.%d.", block)
 		layer := &wav.ConvNext[block]
-		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredTensor("dw.weight", &layer.Depthwise, 7, 1, width),
 			requiredTensor("dw.bias", &layer.DepthwiseBias, 1, width),
 			requiredTensor("norm.weight", &layer.Norm, width),
@@ -80,7 +79,7 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 			return Weights{}, err
 		}
 	}
-	if err := loadTensorRequirements(required, tensors, "", []tensorRequirement{
+	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
 		requiredTensor("output_norm.weight", &wav.OutputNorm, width),
 		requiredTensor("output_norm.bias", &wav.OutputNormBias, width),
 		requiredTensor("output.weight", &wav.Output, width, uint64(spec.OutputEmbeddingLength)),

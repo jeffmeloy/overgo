@@ -61,6 +61,7 @@ active recipe + resolved artifact facts
 | Manual variable-length auxiliary tensor checks | 0 | Relational tensor requirements own rank/type/nonempty |
 | Invalid layer-program sentinels | 0 | Compilation returns explicit errors |
 | Duplicated tensor-descriptor maps per model load | 0 | Borrowed indexed catalog owns descriptors |
+| Parallel weight requirement lookup authorities | 0 | Indexed catalog owns presence, lookup, and validation |
 | Ordinary CUDA launch tensor-pointer lookups | 0 | Flat compiled operand slots |
 | CUDA launch tensor-pointer lookups | 0 | Ordinary and fused launches use compiled slots |
 | Runtime CUDA fusion descriptor maps | 0 | Rewrite map released after indexed launch compilation |

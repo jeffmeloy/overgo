@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensorcatalog"
@@ -100,21 +102,18 @@ func requiredTensorShapes(
 }
 
 func loadTensorRequirements(
-	load weightRequirementLoader,
-	tensors map[string]int,
+	catalog weightCatalog,
 	prefix string,
 	requirements []tensorRequirement,
 ) error {
 	for _, requirement := range requirements {
 		name := prefix + requirement.name
-		if requirement.optional {
-			if _, ok := tensors[name]; !ok {
+		item, ok := catalog.tensor(name)
+		if !ok {
+			if requirement.optional {
 				continue
 			}
-		}
-		item, err := load(name)
-		if err != nil {
-			return err
+			return fmt.Errorf("required tensor %q is missing", name)
 		}
 		catalogRequirement := tensorcatalog.Requirement{
 			Name: name, Shapes: requirement.shapes, Rank: requirement.rank,

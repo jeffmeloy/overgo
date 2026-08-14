@@ -8,14 +8,13 @@ import (
 )
 
 func loadStandardSwiGLUCatalog(
-	required weightRequirementLoader,
-	tensors map[string]int,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
 ) error {
 	width, feedForward := uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)
-	return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
 		requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
 		requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, feedForward),
 		requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, feedForward),
@@ -24,8 +23,7 @@ func loadStandardSwiGLUCatalog(
 }
 
 func loadDenseFFNCatalog(
-	required weightRequirementLoader,
-	tensors map[string]int,
+	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
@@ -43,7 +41,7 @@ func loadDenseFFNCatalog(
 	shapes.FeedForward = uint64(feedForwardLength)
 	if profile.EncoderOperator.usesALiBiQKNorm() {
 		upWidth := uint64(feedForwardLength)
-		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			optionalTensor("ffn_gate.weight", &layer.FeedForwardGate, uint64(spec.EmbeddingLength), upWidth),
 			requiredTensorShapes("ffn_up.weight", &layer.FeedForwardUp,
 				[]uint64{uint64(spec.EmbeddingLength), upWidth},
@@ -54,7 +52,7 @@ func loadDenseFFNCatalog(
 		if layer.FeedForwardGate.Name != "" && layer.FeedForwardUp.Shape[1] != upWidth {
 			return errors.New("JinaBERT v2 separate and fused FFN gates cannot be combined")
 		}
-		if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			optionalF32TensorPointer("ffn_up.bias", &layer.FeedForwardUpBias, layer.FeedForwardUp.Shape[1]),
 			requiredTensor("ffn_down.weight", &layer.FeedForwardDown, upWidth, uint64(spec.EmbeddingLength)),
 			requiredF32TensorPointer("ffn_down.bias", &layer.FeedForwardDownBias, uint64(spec.EmbeddingLength)),
@@ -67,7 +65,7 @@ func loadDenseFFNCatalog(
 		return nil
 	}
 	if profile.FeedForward == FeedForwardSwiGLU || profile.FeedForward == FeedForwardGEGLU {
-		gate, err := required(prefix+"ffn_gate.weight", shapes.FeedForwardUp(1)...)
+		gate, err := catalog.required(prefix+"ffn_gate.weight", shapes.FeedForwardUp(1)...)
 		if err != nil {
 			return err
 		}
@@ -77,17 +75,17 @@ func loadDenseFFNCatalog(
 	if profile.FeedForward == FeedForwardFusedGateUp {
 		upMultiplier = 2
 	}
-	up, err := required(prefix+"ffn_up.weight", shapes.FeedForwardUp(upMultiplier)...)
+	up, err := catalog.required(prefix+"ffn_up.weight", shapes.FeedForwardUp(upMultiplier)...)
 	if err != nil {
 		return err
 	}
 	layer.FeedForwardUp = up
-	down, err := required(prefix+"ffn_down.weight", shapes.FeedForwardDown()...)
+	down, err := catalog.required(prefix+"ffn_down.weight", shapes.FeedForwardDown()...)
 	if err != nil {
 		return err
 	}
 	layer.FeedForwardDown = down
-	if err := loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+	if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 		optionalF32TensorPointer("ffn_gate.bias", &layer.FeedForwardGateBias, uint64(feedForwardLength)),
 		optionalF32TensorPointer("ffn_up.bias", &layer.FeedForwardUpBias, uint64(feedForwardLength)),
 		optionalF32TensorPointer("ffn_down.bias", &layer.FeedForwardDownBias, shapes.EmbeddingVector()...),
@@ -133,7 +131,7 @@ func loadDenseFFNCatalog(
 		}
 	}
 	if profile.Overrides == EmbeddingOverrideVisualSpan {
-		return loadTensorRequirements(required, tensors, prefix, []tensorRequirement{
+		return loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			requiredTensorPointer("vis_attn_qkv.weight", &layer.VisualAttentionQKV, uint64(spec.EmbeddingLength), 3*uint64(spec.EmbeddingLength)),
 			requiredTensorPointer("vis_attn_output.weight", &layer.VisualAttentionOutput, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)),
 			requiredTensorPointer("vis_gate.weight", &layer.VisualFeedForwardGate, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),

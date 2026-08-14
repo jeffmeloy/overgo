@@ -48,7 +48,10 @@ func (c Construction) Probe(documents []string) (HostProbe, error) {
 func (c Construction) hostState() hostState {
 	state := make(hostState, len(c.parameters))
 	for _, parameter := range c.parameters {
-		flat := c.weights[parameter.Name]
+		flat, ok := c.weightView(parameter.Name)
+		if !ok {
+			panic("scratch oracle: parameter binding absent")
+		}
 		matrix := make([][]*value, parameter.Rows)
 		for row := range parameter.Rows {
 			matrix[row] = make([]*value, parameter.Cols)

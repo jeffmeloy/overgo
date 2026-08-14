@@ -46,7 +46,7 @@
       panel.appendChild(el("div", {
         class: "note",
         text: data.count + " tensors · distribution-free (L-moments + energy) · sampled ≤ " +
-          fmt.grouped(data.policy.max_samples_per_tensor) + " values/tensor",
+          fmt.grouped(data.policy.max_samples_per_tensor) + " values/tensor · click a row for nearest-shape tensors",
       }));
 
       let sortKey = "name";
@@ -72,6 +72,39 @@
       table.appendChild(body);
       panel.appendChild(table);
 
+      const detail = el("div", { style: "margin-top:14px" });
+      panel.appendChild(detail);
+
+      async function showNeighbors(name) {
+        clear(detail);
+        detail.appendChild(el("div", { class: "note", text: "finding tensors similar to " + name + "…" }));
+        let data;
+        try {
+          data = await overgo.api.get("/analyze/tensors/similar?name=" + encodeURIComponent(name) + "&k=8");
+        } catch (e) {
+          clear(detail);
+          detail.appendChild(el("div", { class: "note", text: "similar lookup failed: " + e.message }));
+          return;
+        }
+        clear(detail);
+        detail.appendChild(el("div", { class: "section-title", text: "Nearest to " + name + " — by distribution shape" }));
+        const list = el("div", { style: "display:flex;flex-direction:column;gap:4px" });
+        for (const n of (data.neighbors || [])) {
+          const row = el("div", {
+            style: "display:flex;gap:12px;align-items:center;font-size:12px;padding:4px 8px;border:1px solid var(--line-soft);border-radius:8px;cursor:pointer",
+          });
+          row.addEventListener("click", () => showNeighbors(n.name));
+          row.append(
+            el("span", { style: "flex:1", text: n.name }),
+            el("span", { style: "opacity:.7", text: "d=" + n.distance.toFixed(4) }),
+            el("span", { style: "opacity:.7", text: "τ₃=" + n.l_moments.Tau3.toFixed(3) }),
+            el("span", { style: "opacity:.7", text: "H=" + n.values.normalized_energy_entropy.toFixed(3) }),
+          );
+          list.appendChild(row);
+        }
+        detail.appendChild(list);
+      }
+
       function bar(fraction) {
         const clamped = Math.max(0, Math.min(1, fraction));
         const wrap = el("div", {
@@ -96,7 +129,8 @@
         });
         clear(body);
         for (const t of sorted) {
-          const tr = el("tr", {});
+          const tr = el("tr", { style: "cursor:pointer" });
+          tr.addEventListener("click", () => showNeighbors(t.name));
           tr.appendChild(el("td", { text: t.name, style: "padding:5px 8px;border-bottom:1px solid var(--line-soft)" }));
           tr.appendChild(el("td", { text: t.storage, style: "padding:5px 8px;border-bottom:1px solid var(--line-soft)" }));
           const cells = [

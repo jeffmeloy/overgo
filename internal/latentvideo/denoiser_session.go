@@ -109,6 +109,7 @@ func NewDenoiserCUDASession(program *DenoiserProgram, ordinal int) (session *Den
 	if err = session.headTargets.Set(program.Head, headValue); err != nil {
 		return session, err
 	}
+	program.weights = nil
 	return session, nil
 }
 

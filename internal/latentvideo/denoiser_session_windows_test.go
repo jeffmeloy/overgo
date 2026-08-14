@@ -26,6 +26,9 @@ func runSessionGoldenDenoise(t *testing.T, name string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if program.weights != nil {
+		t.Fatal("resident session retained host denoiser weights")
+	}
 	defer func() {
 		if err := session.Close(); err != nil {
 			t.Errorf("close session: %v", err)

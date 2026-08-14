@@ -18,7 +18,13 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func buildCompiledLayer(options model.BlockDispatchOptions) (model.DenseBlockResult, error) {
+type compiledLayerOptions struct {
+	Context model.CachedBlockContext
+	Spec    model.Spec
+	Weights model.LayerGraphWeights
+}
+
+func buildCompiledLayer(options compiledLayerOptions) (model.DenseBlockResult, error) {
 	program, err := compileFixtureLayerProgram(options.Spec, options.Context.Layer, options.Context.Recurrent)
 	if err != nil {
 		return model.DenseBlockResult{}, err
@@ -353,7 +359,7 @@ func buildFixtureCachedBlock(
 	layer uint32,
 	recurrent bool,
 ) (model.DenseBlockResult, error) {
-	return buildCompiledLayer(model.BlockDispatchOptions{
+	return buildCompiledLayer(compiledLayerOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, Positions: positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer, Recurrent: recurrent,
@@ -398,7 +404,7 @@ func buildFixtureDenseBlockCachedWithMultiPositions(
 	pastKey, pastValue *tensor.Tensor,
 	layer uint32,
 ) (model.DenseBlockResult, error) {
-	return buildCompiledLayer(model.BlockDispatchOptions{
+	return buildCompiledLayer(compiledLayerOptions{
 		Context: model.CachedBlockContext{
 			Builder: builder, Input: input, MultiPositions: &positions,
 			PastKey: pastKey, PastValue: pastValue, Layer: layer,

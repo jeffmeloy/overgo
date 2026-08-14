@@ -397,7 +397,7 @@
           "contains": "func CompileModelPlanWithProfile(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:4de1434b44203fb8af890201255294496479fe79193fd06b245d8ed773ac1dcf"
+          "identity": "file:sha256:902e732e9c461063bf0ad4c4ea416046b7eb8e9a4e337b9c9a7f6d126601df8d"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -845,7 +845,7 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:0104a6476d97e70e98fe35e530b361cb25fcb8189d61b7aad49bdbef752f0359"
+          "identity": "file:sha256:c4a087a88ba0b15d327cf16576cd5334ba894fe452c25d760827b26d309b8d77"
         },
         {
           "contains": "func ReadWeights(",
@@ -857,7 +857,7 @@
           "contains": "func TestLayerProgramsCoverTypedProfiles(",
           "path": "internal/model/graph_dispatch_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:d7ad6624e65b1866eeea63a5757b5bf43ba449fe6de58a84fd11564b5e36654d"
+          "identity": "evidence:sha256:0659a76b0759db8616e1b3af9b72e0341835ac7dfbb6beba32a7095ef452884f"
         }
       ],
       "id": "neutral-layer-dispatch",

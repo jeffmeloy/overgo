@@ -274,12 +274,6 @@ type LayerPlan struct {
 	PeriodicScale       float32
 }
 
-// PlanLayer: derives graph and cache behavior once per layer.
-func (s Spec) PlanLayer(layer uint32, recurrent bool) LayerPlan {
-	profile := s.Profile()
-	return s.planLayer(profile, layer, recurrent)
-}
-
 func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent bool) LayerPlan {
 	recurrent = recurrent || s.IsRecurrentLayer(layer)
 	hasKV := s.LayerHasKV(layer)

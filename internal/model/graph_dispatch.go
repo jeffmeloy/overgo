@@ -27,8 +27,7 @@ type CachedBlockContext struct {
 	Sequences        uint64
 }
 
-// BlockDispatchOptions: compiled layer-program inputs.
-type BlockDispatchOptions struct {
+type blockDispatchOptions struct {
 	Context CachedBlockContext
 	Spec    Spec
 	Weights LayerGraphWeights
@@ -41,12 +40,12 @@ func (p CompiledLayerProgram) Build(
 	weights LayerGraphWeights,
 ) (DenseBlockResult, error) {
 	plan := p.plan
-	return executeCompiledLayer(BlockDispatchOptions{
+	return executeCompiledLayer(blockDispatchOptions{
 		Context: context, Spec: p.spec, Weights: weights, Plan: &plan,
 	})
 }
 
-func executeCompiledLayer(options BlockDispatchOptions) (DenseBlockResult, error) {
+func executeCompiledLayer(options blockDispatchOptions) (DenseBlockResult, error) {
 	if options.Plan == nil {
 		return DenseBlockResult{}, errors.New("compiled layer plan is required")
 	}
@@ -115,7 +114,7 @@ type layerExecution struct {
 }
 
 func executeLayerProgram(
-	options BlockDispatchOptions,
+	options blockDispatchOptions,
 	plan LayerPlan,
 ) (DenseBlockResult, error) {
 	execution := layerExecution{
@@ -135,7 +134,7 @@ func executeLayerProgram(
 }
 
 func executeLayerInstruction(
-	options BlockDispatchOptions,
+	options blockDispatchOptions,
 	plan LayerPlan,
 	instruction LayerOperatorInstruction,
 	operands layerOperands,

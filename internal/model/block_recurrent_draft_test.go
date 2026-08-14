@@ -1062,7 +1062,7 @@ func TestBuildNemotronHMoEBlockUsesLatentSquaredReLUExperts(t *testing.T) {
 	}
 	const fixtureLayer = 2
 	plan := bindFixtureSpec(spec).PlanLayer(fixtureLayer, false)
-	result, err := executeCompiledLayer(BlockDispatchOptions{
+	result, err := executeCompiledLayer(blockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: fixturePositions, Layer: fixtureLayer,

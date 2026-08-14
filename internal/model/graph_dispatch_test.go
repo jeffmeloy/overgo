@@ -312,14 +312,14 @@ func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
 }
 
 func TestCompiledBlockDispatchRequiresPlan(t *testing.T) {
-	_, err := executeCompiledLayer(BlockDispatchOptions{
+	_, err := executeCompiledLayer(blockDispatchOptions{
 		Spec: Spec{CommonSpec: CommonSpec{Architecture: "unknown"}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "compiled layer plan is required") {
 		t.Fatalf("unknown error = %v", err)
 	}
 	llama, _ := LookupArchitecture("llama")
-	_, err = executeCompiledLayer(BlockDispatchOptions{
+	_, err = executeCompiledLayer(blockDispatchOptions{
 		Spec: Spec{CommonSpec: CommonSpec{Architecture: llama.Name}}.withProfile(llama),
 	})
 	if err == nil || !strings.Contains(err.Error(), "compiled layer plan is required") {

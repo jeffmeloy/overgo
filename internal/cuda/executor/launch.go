@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
 )
 
@@ -15,8 +14,8 @@ func launchNode(
 	q8Input *q8InputState,
 	node *tensor.Tensor,
 	attributes tensor.Attributes,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
-	attributePointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
+	attributePointers devicePointerTable,
 ) error {
 	descriptor, ok := tensor.DescribeOperation(node.Op)
 	if !ok || descriptor.Backends&tensor.BackendCUDA == 0 {

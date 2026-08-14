@@ -62,9 +62,8 @@ Family-named production files: none.
 
 ## Ordered Work
 
-1. Move static layer validation and leaf selection into compiled programs.
-2. Compile indexed CUDA replay state and persistent dynamic attributes.
-3. Compile alternative tensor shapes/storage into shared weight requirements.
+1. Compile indexed CUDA replay state and persistent dynamic attributes.
+2. Compile alternative tensor shapes/storage into shared weight requirements.
 
 ## Per-Wave Gate
 

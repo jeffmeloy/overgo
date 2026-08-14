@@ -19,7 +19,7 @@ import (
 func launchReferenceNode(
 	state *device.State,
 	node *tensor.Tensor,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	if state.Trace != nil {
 		return errors.New("reference bridge cannot join a traced graph")
@@ -37,7 +37,7 @@ func launchReferenceNode(
 			return errors.New("reference bridge input is too large")
 		}
 		data := make([]float32, int(elements))
-		if err := state.Driver.MemcpyDtoH(driver.Bytes(data), pointers[input]); err != nil {
+		if err := state.Driver.MemcpyDtoH(driver.Bytes(data), pointers.get(input)); err != nil {
 			return err
 		}
 		inputs[index] = reference.Value{Shape: input.Shape, Data: data}
@@ -46,7 +46,7 @@ func launchReferenceNode(
 	if err != nil {
 		return err
 	}
-	return state.Driver.MemcpyHtoD(pointers[node], driver.Bytes(value.Data))
+	return state.Driver.MemcpyHtoD(pointers.get(node), driver.Bytes(value.Data))
 }
 
 func nativeQuantizedType(value dtype.Type) bool {

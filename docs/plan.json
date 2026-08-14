@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "compiled-layer-validation",
-          "title": "Move static layer validation and leaf selection into compiled programs; remove test-only public runtime APIs and family fixture wrappers",
-          "status": "open",
-          "verify": "go test ./internal/model ./internal/inference -count=1 -v"
-        },
-        {
           "id": "indexed-cuda-replay",
           "title": "Compile indexed CUDA execution frames and persistent dynamic-attribute slots; remove replay scans and per-execution maps",
           "status": "open",

@@ -20,10 +20,10 @@ func launchLinearLayout(
 	q8Input *q8InputState,
 	node *tensor.Tensor,
 	runtimeAttributes tensor.Attributes,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
-	attributePointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
+	attributePointers devicePointerTable,
 ) error {
-	output := pointers[node]
+	output := pointers.get(node)
 	switch node.Op {
 	case tensor.OpRepeatHeads:
 		attributes, ok := runtimeAttributes.(tensor.RepeatHeadsAttributes)
@@ -42,7 +42,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
+		input := pointers.get(node.Inputs[0])
 		heads := attributes.Heads
 		return launch1DABI(
 			state, functions[kernelRepeatHeadsF32], count,
@@ -61,7 +61,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
+		input := pointers.get(node.Inputs[0])
 		return launch1DABI(state, functions[kernelTranspose2dF32], count, &input, &output, &width, &rows, &count)
 	case tensor.OpGroupSlice:
 		attributes, ok := runtimeAttributes.(tensor.GroupSliceAttributes)
@@ -92,7 +92,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
+		input := pointers.get(node.Inputs[0])
 		return launch1DABI(
 			state, functions[kernelGroupSliceF32], count,
 			&input, &output, &inputWidth, &offset, &width, &groups, &stride, &count,
@@ -110,7 +110,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
+		input := pointers.get(node.Inputs[0])
 		return launch1DABI(state, functions[kernelFlatSliceF32], count, &input, &output, &offset, &count)
 	case tensor.OpRMSNorm:
 		attributes, ok := runtimeAttributes.(tensor.RMSNormAttributes)
@@ -121,7 +121,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
+		input := pointers.get(node.Inputs[0])
 		epsilon := attributes.Epsilon
 		return launchNormalizationABI(state, functions[kernelRmsNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpMADNorm:
@@ -133,7 +133,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
+		input := pointers.get(node.Inputs[0])
 		epsilon := attributes.Epsilon
 		return launch1DABI(state, functions[kernelMadNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpLayerNorm:
@@ -145,7 +145,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
+		input := pointers.get(node.Inputs[0])
 		epsilon := attributes.Epsilon
 		return launchNormalizationABI(state, functions[kernelLayerNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpSoftmax:
@@ -153,7 +153,7 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
+		input := pointers.get(node.Inputs[0])
 		return launch1DABI(state, functions[kernelSoftmaxF32], rows, &input, &output, &width, &rows)
 	case tensor.OpMulMat:
 		leftNode := node.Inputs[0]
@@ -170,8 +170,8 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		left := pointers[leftNode]
-		right := pointers[rightNode]
+		left := pointers.get(leftNode)
+		right := pointers.get(rightNode)
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
 			attributes, hasAttributes := runtimeAttributes.(tensor.MulMatAttributes)
 			tensorCore := hasAttributes && attributes.Compute == tensor.MulMatComputeBF16TensorCore
@@ -432,8 +432,8 @@ func launchLinearLayout(
 		leftMatrixBytes := uint64(inner) * uint64(leftRows) / traits.BlockSize * traits.TypeSize
 		rightVectorBytes := uint64(inner) * 4
 		outputVectorBytes := uint64(leftRows) * 4
-		leftBase := pointers[leftNode]
-		rightBase := pointers[rightNode]
+		leftBase := pointers.get(leftNode)
+		rightBase := pointers.get(rightNode)
 		for token := uint32(0); token < tokens; token++ {
 			for group := uint32(0); group < groups; group++ {
 				left := leftBase + driver.DevicePtr(uint64(group)*leftMatrixBytes)
@@ -493,8 +493,8 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		table := pointers[node.Inputs[0]]
-		rows, ok := attributePointers[node]
+		table := pointers.get(node.Inputs[0])
+		rows, ok := attributePointers.lookup(node)
 		if !ok {
 			return errors.New("get_rows row storage is unavailable")
 		}
@@ -555,7 +555,7 @@ func launchWeightedRMSNorm(
 	output *tensor.Tensor,
 	fusion weightedRMSFusion,
 	emitQ8 bool,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	attributes, ok := fusion.normalization.Attrs.(tensor.RMSNormAttributes)
 	if !ok {
@@ -565,12 +565,12 @@ func launchWeightedRMSNorm(
 	if err != nil {
 		return err
 	}
-	input := pointers[fusion.normalization.Inputs[0]]
-	weight := pointers[fusion.weight]
-	result := pointers[output]
+	input := pointers.get(fusion.normalization.Inputs[0])
+	weight := pointers.get(fusion.weight)
+	result := pointers.get(output)
 	epsilon := attributes.Epsilon
 	if fusion.addLeft != nil {
-		left, right := pointers[fusion.addLeft], pointers[fusion.addRight]
+		left, right := pointers.get(fusion.addLeft), pointers.get(fusion.addRight)
 		if emitQ8 {
 			if q8Input == nil || q8Input.staging == 0 {
 				return errors.New("weighted RMS add Q8 workspace is unavailable")
@@ -615,18 +615,18 @@ func launchGELUTanh(
 	functions functionSet,
 	output *tensor.Tensor,
 	fusion geluTanhFusion,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	count, err := elementCount32(output.Shape)
 	if err != nil {
 		return err
 	}
-	input := pointers[fusion.input]
-	result := pointers[output]
+	input := pointers.get(fusion.input)
+	result := pointers.get(output)
 	var bias driver.DevicePtr
 	biasWidth := uint32(0)
 	if fusion.bias != nil {
-		bias = pointers[fusion.bias]
+		bias = pointers.get(fusion.bias)
 		width, widthErr := uint32Checked(fusion.bias.Shape.Dims[0], "gelu_tanh bias width")
 		if widthErr != nil {
 			return widthErr
@@ -647,7 +647,7 @@ func launchLayerNormModulate(
 	functions functionSet,
 	output *tensor.Tensor,
 	fusion layerNormModulateFusion,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	attributes, ok := fusion.normalization.Attrs.(tensor.LayerNormAttributes)
 	if !ok {
@@ -657,10 +657,10 @@ func launchLayerNormModulate(
 	if err != nil {
 		return err
 	}
-	input := pointers[fusion.normalization.Inputs[0]]
-	scale := pointers[fusion.scaleVector]
-	shift := pointers[fusion.shiftVector]
-	result := pointers[output]
+	input := pointers.get(fusion.normalization.Inputs[0])
+	scale := pointers.get(fusion.scaleVector)
+	shift := pointers.get(fusion.shiftVector)
+	result := pointers.get(output)
 	epsilon := attributes.Epsilon
 	adaptive := uint32(0)
 	if fusion.adaptive {
@@ -678,7 +678,7 @@ func launchBroadcastGateAdd(
 	functions functionSet,
 	output *tensor.Tensor,
 	fusion broadcastGateAddFusion,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	count, err := elementCount32(output.Shape)
 	if err != nil {
@@ -688,10 +688,10 @@ func launchBroadcastGateAdd(
 	if err != nil {
 		return err
 	}
-	value := pointers[fusion.value]
-	gate := pointers[fusion.gate]
-	residual := pointers[fusion.residual]
-	result := pointers[output]
+	value := pointers.get(fusion.value)
+	gate := pointers.get(fusion.gate)
+	residual := pointers.get(fusion.residual)
+	result := pointers.get(output)
 	return launch1DABI(
 		state, functions[kernelBroadcastGateAddF32], count,
 		&value, &gate, &residual, &result, &width, &count,
@@ -705,13 +705,13 @@ func launchActivatedGate(
 	output *tensor.Tensor,
 	fusion activatedGateFusion,
 	emitQ8 bool,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	count, err := elementCount32(output.Shape)
 	if err != nil {
 		return err
 	}
-	gate, up, result := pointers[fusion.gate], pointers[fusion.up], pointers[output]
+	gate, up, result := pointers.get(fusion.gate), pointers.get(fusion.up), pointers.get(output)
 	kind := uint32(fusion.kind)
 	if !emitQ8 {
 		return launch1DABI(
@@ -743,7 +743,7 @@ func launchWeightedRMSGate(
 	output *tensor.Tensor,
 	fusion weightedRMSGateFusion,
 	emitQ8 bool,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	attributes, ok := fusion.normalization.Attrs.(tensor.RMSNormAttributes)
 	if !ok {
@@ -753,16 +753,16 @@ func launchWeightedRMSGate(
 	if err != nil {
 		return err
 	}
-	left := pointers[fusion.normalization.Inputs[0]]
+	left := pointers.get(fusion.normalization.Inputs[0])
 	right := left
 	useAdd := uint32(0)
 	if fusion.addLeft != nil {
-		left, right = pointers[fusion.addLeft], pointers[fusion.addRight]
+		left, right = pointers.get(fusion.addLeft), pointers.get(fusion.addRight)
 		useAdd = 1
 	}
-	gate := pointers[fusion.gate]
-	weight := pointers[fusion.weight]
-	result := pointers[output]
+	gate := pointers.get(fusion.gate)
+	weight := pointers.get(fusion.weight)
+	result := pointers.get(output)
 	kind := uint32(fusion.kind)
 	epsilon := attributes.Epsilon
 	if !emitQ8 {
@@ -791,7 +791,7 @@ func launchBF16ProjAdd(
 	functions functionSet,
 	output *tensor.Tensor,
 	fusion bf16ProjAddFusion,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	leftNode := fusion.projection.Inputs[0]
 	inner, err := uint32Checked(leftNode.Shape.Dims[0], "BF16 projection inner dimension")
@@ -806,10 +806,10 @@ func launchBF16ProjAdd(
 	if err != nil {
 		return err
 	}
-	left := pointers[leftNode]
-	right := pointers[fusion.projection.Inputs[1]]
-	addend := pointers[fusion.addend]
-	result := pointers[output]
+	left := pointers.get(leftNode)
+	right := pointers.get(fusion.projection.Inputs[1])
+	addend := pointers.get(fusion.addend)
+	result := pointers.get(output)
 	return launch1DABI(
 		state, functions[kernelMulMatBf16AddF32], launchCount,
 		&left, &right, &addend, &result, &inner, &rows,
@@ -821,7 +821,7 @@ func launchBF16Gate(
 	functions functionSet,
 	output *tensor.Tensor,
 	fusion bf16GateFusion,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	gateNode := fusion.gate.Inputs[0]
 	inner, err := uint32Checked(gateNode.Shape.Dims[0], "BF16 gate inner dimension")
@@ -836,10 +836,10 @@ func launchBF16Gate(
 	if err != nil {
 		return err
 	}
-	gate := pointers[gateNode]
-	up := pointers[fusion.up.Inputs[0]]
-	right := pointers[fusion.gate.Inputs[1]]
-	result := pointers[output]
+	gate := pointers.get(gateNode)
+	up := pointers.get(fusion.up.Inputs[0])
+	right := pointers.get(fusion.gate.Inputs[1])
+	result := pointers.get(output)
 	kind := uint32(fusion.kind)
 	return launch1DABI(
 		state, functions[kernelMulMatBf16GateF32], launchCount,
@@ -852,15 +852,15 @@ func launchBF16Append(
 	functions functionSet,
 	node *tensor.Tensor,
 	fusion bf16AppendFusion,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
-	attributePointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
+	attributePointers devicePointerTable,
 ) error {
 	attributes, ok := node.Attrs.(tensor.CacheAppendAttributes)
 	if !ok || attributes.Axis+1 != uint32(node.Shape.Rank) {
 		return errors.New("invalid fused cache append attributes")
 	}
-	output := pointers[node]
-	left := pointers[node.Inputs[0]]
+	output := pointers.get(node)
+	left := pointers.get(node.Inputs[0])
 	if output != left {
 		leftCount, err := elementCount32(node.Inputs[0].Shape)
 		if err != nil {
@@ -892,7 +892,7 @@ func launchBF16Append(
 	if err != nil {
 		return err
 	}
-	offsetPointer, ok := attributePointers[node]
+	offsetPointer, ok := attributePointers.lookup(node)
 	if !ok {
 		return errors.New("fused cache append offset storage is unavailable")
 	}
@@ -900,8 +900,8 @@ func launchBF16Append(
 	if err != nil {
 		return err
 	}
-	weight := pointers[leftNode]
-	right := pointers[fusion.projection.Inputs[1]]
+	weight := pointers.get(leftNode)
+	right := pointers.get(fusion.projection.Inputs[1])
 	return launch1DABI(
 		state, functions[kernelMulMatBf16AppendF32], launchCount,
 		&weight, &right, &output, &offsetPointer, &inner, &rows, &appendInner,
@@ -912,7 +912,7 @@ func launchBF16ArgmaxPartials(
 	state *device.State,
 	functions functionSet,
 	projection *tensor.Tensor,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	leftNode, rightNode := projection.Inputs[0], projection.Inputs[1]
 	inner, err := uint32Checked(leftNode.Shape.Dims[0], "BF16 argmax inner dimension")
@@ -927,9 +927,9 @@ func launchBF16ArgmaxPartials(
 	if !ok {
 		return errors.New("BF16 argmax partial count exceeds uint32")
 	}
-	left := pointers[leftNode]
-	right := pointers[rightNode]
-	partials := pointers[projection]
+	left := pointers.get(leftNode)
+	right := pointers.get(rightNode)
+	partials := pointers.get(projection)
 	const threads = uint32(q8ArgmaxWarpsPerBlock * 32)
 	return launchGridABI(
 		state, functions[kernelMulMatBf16ArgmaxPartialsF32],
@@ -944,8 +944,8 @@ func launchRopeAppend(
 	functions functionSet,
 	node *tensor.Tensor,
 	fusion ropeAppendFusion,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
-	attributePointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
+	attributePointers devicePointerTable,
 ) error {
 	appendAttributes, ok := node.Attrs.(tensor.CacheAppendAttributes)
 	if !ok || appendAttributes.Axis+1 != uint32(node.Shape.Rank) {
@@ -955,8 +955,8 @@ func launchRopeAppend(
 	if !ok {
 		return errors.New("invalid fused RoPE attributes")
 	}
-	output := pointers[node]
-	left := pointers[node.Inputs[0]]
+	output := pointers.get(node)
+	left := pointers.get(node.Inputs[0])
 	if output != left {
 		leftCount, err := elementCount32(node.Inputs[0].Shape)
 		if err != nil {
@@ -995,16 +995,16 @@ func launchRopeAppend(
 	if err != nil {
 		return err
 	}
-	input := pointers[fusion.rope.Inputs[0]]
+	input := pointers.get(fusion.rope.Inputs[0])
 	var frequencyFactors driver.DevicePtr
 	if len(fusion.rope.Inputs) == 2 {
-		frequencyFactors = pointers[fusion.rope.Inputs[1]]
+		frequencyFactors = pointers.get(fusion.rope.Inputs[1])
 	}
-	positions, ok := attributePointers[fusion.rope]
+	positions, ok := attributePointers.lookup(fusion.rope)
 	if !ok {
 		return errors.New("fused RoPE position storage is unavailable")
 	}
-	offsetPointer, ok := attributePointers[node]
+	offsetPointer, ok := attributePointers.lookup(node)
 	if !ok {
 		return errors.New("fused cache append offset storage is unavailable")
 	}
@@ -1044,7 +1044,7 @@ func launchQ8ArgmaxPartials(
 	functions functionSet,
 	q8Input *q8InputState,
 	projection *tensor.Tensor,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	leftNode, rightNode := projection.Inputs[0], projection.Inputs[1]
 	inner, err := uint32Checked(leftNode.Shape.Dims[0], "Q8 argmax inner dimension")
@@ -1058,7 +1058,7 @@ func launchQ8ArgmaxPartials(
 	if q8Input == nil || q8Input.staging == 0 {
 		return errors.New("Q8 argmax input workspace is unavailable")
 	}
-	right := pointers[rightNode]
+	right := pointers.get(rightNode)
 	if q8Input.stagedNode != rightNode {
 		blocks := uint64(inner) / q8InputBlockWidth
 		if blocks > math.MaxUint32 {
@@ -1071,7 +1071,7 @@ func launchQ8ArgmaxPartials(
 		}
 		q8Input.stagedNode = rightNode
 	}
-	left, partials := pointers[leftNode], pointers[projection]
+	left, partials := pointers.get(leftNode), pointers.get(projection)
 	partialCount, ok := q8ArgmaxPartialCount(uint64(rows))
 	if !ok {
 		return errors.New("Q8 argmax partial count exceeds uint32")
@@ -1089,7 +1089,7 @@ func launchQ8ArgmaxReduction(
 	state *device.State,
 	functions functionSet,
 	projection, selection *tensor.Tensor,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	rows, err := uint32Checked(projection.Shape.Dims[0], "Q8 argmax row count")
 	if err != nil {
@@ -1099,7 +1099,7 @@ func launchQ8ArgmaxReduction(
 	if !ok {
 		return errors.New("Q8 argmax partial count exceeds uint32")
 	}
-	partials, output := pointers[projection], pointers[selection]
+	partials, output := pointers.get(projection), pointers.get(selection)
 	return launchGridABI(
 		state, functions[kernelArgmaxQ80InputPartialsF32],
 		driver.Dim3{X: 1, Y: 1, Z: 1},

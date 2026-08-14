@@ -15,10 +15,10 @@ func launchRoPE(
 	blas *blasState,
 	node *tensor.Tensor,
 	runtimeAttributes tensor.Attributes,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
-	attributePointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
+	attributePointers devicePointerTable,
 ) error {
-	output := pointers[node]
+	output := pointers.get(node)
 	switch node.Op {
 	case tensor.OpRoPENeoX, tensor.OpRoPENormal:
 		attributes, ok := runtimeAttributes.(tensor.RoPEAttributes)
@@ -41,12 +41,12 @@ func launchRoPE(
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
+		input := pointers.get(node.Inputs[0])
 		var frequencyFactors driver.DevicePtr
 		if len(node.Inputs) == 2 {
-			frequencyFactors = pointers[node.Inputs[1]]
+			frequencyFactors = pointers.get(node.Inputs[1])
 		}
-		positions, ok := attributePointers[node]
+		positions, ok := attributePointers.lookup(node)
 		if !ok {
 			return errors.New("RoPE position storage is unavailable")
 		}
@@ -89,8 +89,8 @@ func launchRoPE(
 		if err != nil {
 			return err
 		}
-		input := pointers[node.Inputs[0]]
-		positions, ok := attributePointers[node]
+		input := pointers.get(node.Inputs[0])
+		positions, ok := attributePointers.lookup(node)
 		if !ok {
 			return errors.New("RoPE multi position storage is unavailable")
 		}

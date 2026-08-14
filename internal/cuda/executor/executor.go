@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -40,19 +39,30 @@ type executorResources struct {
 	q8Input    q8InputState
 	arena      driver.DevicePtr
 	arenaSize  uint64
+	scratch    executionScratch
 	buffers    deviceBufferPool
 	graphExecs graphExecCache
+}
+
+type executionScratch struct {
+	pointers          []driver.DevicePtr
+	attributePointers []driver.DevicePtr
+	attributeWords    []uint32
+	retainedStorage   []bool
+	retainedOffsets   []uint64
+	replayFrame       []driver.DevicePtr
 }
 
 const graphExecCacheCapacity = 4
 
 type graphExecEntry struct {
-	exec      driver.GraphExec
-	recording []byte
-	used      uint64
+	exec     driver.GraphExec
+	compiled *CompiledGraph
+	frame    []driver.DevicePtr
+	used     uint64
 }
 
-// graphExecCache: retained instantiated graphs keyed by launch trace. Retained
+// graphExecCache: retained instantiated graphs keyed by indexed replay frame. Retained
 // buffer leases alternate between a small set of pool slots, so steady-state
 // decode cycles through a handful of byte-identical traces; a match replays
 // the instantiated exec with zero per-token kernel re-issue.
@@ -61,10 +71,13 @@ type graphExecCache struct {
 	tick    uint64
 }
 
-func (c *graphExecCache) match(recording []byte) (driver.GraphExec, bool) {
+func (c *graphExecCache) match(
+	compiled *CompiledGraph,
+	frame []driver.DevicePtr,
+) (driver.GraphExec, bool) {
 	for index := range c.entries {
 		entry := &c.entries[index]
-		if entry.exec != 0 && bytes.Equal(entry.recording, recording) {
+		if entry.exec != 0 && entry.compiled == compiled && slices.Equal(entry.frame, frame) {
 			c.tick++
 			entry.used = c.tick
 			return entry.exec, true
@@ -78,7 +91,8 @@ func (c *graphExecCache) match(recording []byte) (driver.GraphExec, bool) {
 func (c *graphExecCache) store(
 	state *device.State,
 	graph driver.Graph,
-	recording []byte,
+	compiled *CompiledGraph,
+	frame []driver.DevicePtr,
 ) (driver.GraphExec, error) {
 	var entry *graphExecEntry
 	if len(c.entries) < graphExecCacheCapacity {
@@ -102,12 +116,14 @@ func (c *graphExecCache) store(
 	if entry.exec == 0 {
 		exec, err := state.Driver.GraphInstantiate(graph)
 		if err != nil {
-			entry.recording = nil
+			entry.compiled = nil
+			entry.frame = nil
 			return 0, err
 		}
 		entry.exec = exec
 	}
-	entry.recording = append(entry.recording[:0], recording...)
+	entry.compiled = compiled
+	entry.frame = append(entry.frame[:0], frame...)
 	c.tick++
 	entry.used = c.tick
 	return entry.exec, nil
@@ -720,8 +736,14 @@ func (t *RetainedTargets) SetSlot(slot OutputSlot, value DeviceValue) error {
 type CompiledGraph struct {
 	outputs         []*tensor.Tensor
 	outputIndexes   map[*tensor.Tensor]int
+	outputViews     []retainedStorageView
+	outputAliases   []bool
 	order           []*tensor.Tensor
 	orderIndexes    map[*tensor.Tensor]int
+	nodes           []compiledNode
+	launches        []compiledNode
+	attributeSlots  []dynamicAttributeSlot
+	attributeWords  int
 	memory          planner.Plan
 	weightedRMS     map[*tensor.Tensor]weightedRMSFusion
 	activatedGate   map[*tensor.Tensor]activatedGateFusion
@@ -749,13 +771,132 @@ type CompiledGraph struct {
 	attentionScoreBytes uint64
 }
 
+type compiledNode struct {
+	node    *tensor.Tensor
+	index   int
+	view    tensor.StorageView
+	aliases bool
+	skipped bool
+}
+
+type dynamicAttributeSlot struct {
+	node   *tensor.Tensor
+	index  int
+	offset int
+	words  int
+}
+
+func dynamicAttributeWords(
+	node *tensor.Tensor,
+	attributes tensor.Attributes,
+	destination []uint32,
+) (int, error) {
+	var values []uint32
+	var scalar [1]uint32
+	switch node.Op {
+	case tensor.OpGetRows:
+		value, ok := attributes.(tensor.GetRowsAttributes)
+		if !ok {
+			return 0, errors.New("invalid get_rows attributes")
+		}
+		values = value.Rows
+	case tensor.OpRoPENeoX, tensor.OpRoPENormal:
+		value, ok := attributes.(tensor.RoPEAttributes)
+		if !ok {
+			return 0, errors.New("invalid RoPE attributes")
+		}
+		values = value.Positions
+	case tensor.OpRoPEMulti:
+		value, ok := attributes.(tensor.RoPEMultiAttributes)
+		if !ok {
+			return 0, errors.New("invalid multi-RoPE attributes")
+		}
+		words := 0
+		for axis := range value.Positions {
+			if destination != nil {
+				words += copy(destination[words:], value.Positions[axis])
+			} else {
+				words += len(value.Positions[axis])
+			}
+		}
+		return words, nil
+	case tensor.OpAttention:
+		value, ok := attributes.(tensor.AttentionAttributes)
+		if !ok {
+			return 0, errors.New("invalid attention attributes")
+		}
+		tokens := value.KeyValueTokens
+		if tokens == 0 {
+			var err error
+			tokens, err = uint32Checked(node.Inputs[1].Shape.Dims[2], "attention KV capacity")
+			if err != nil {
+				return 0, err
+			}
+		}
+		scalar[0] = tokens
+		values = scalar[:]
+	case tensor.OpCacheAppend:
+		value, ok := attributes.(tensor.CacheAppendAttributes)
+		if !ok {
+			return 0, errors.New("invalid cache append attributes")
+		}
+		scalar[0] = value.Offset
+		values = scalar[:]
+	default:
+		return 0, nil
+	}
+	if destination != nil {
+		copy(destination, values)
+	}
+	return len(values), nil
+}
+
+// devicePointerTable stores invocation addresses in compiled graph order.
+type devicePointerTable struct {
+	indexes map[*tensor.Tensor]int
+	values  []driver.DevicePtr
+}
+
+func newDevicePointerTable(
+	compiled *CompiledGraph,
+	scratch *[]driver.DevicePtr,
+) devicePointerTable {
+	if cap(*scratch) < len(compiled.order) {
+		*scratch = make([]driver.DevicePtr, len(compiled.order))
+	}
+	values := (*scratch)[:len(compiled.order)]
+	clear(values)
+	return devicePointerTable{indexes: compiled.orderIndexes, values: values}
+}
+
+func (p devicePointerTable) get(node *tensor.Tensor) driver.DevicePtr {
+	index, ok := p.indexes[node]
+	if !ok {
+		return 0
+	}
+	return p.values[index]
+}
+
+func (p devicePointerTable) lookup(node *tensor.Tensor) (driver.DevicePtr, bool) {
+	index, ok := p.indexes[node]
+	if !ok || p.values[index] == 0 {
+		return 0, false
+	}
+	return p.values[index], true
+}
+
+func (p devicePointerTable) set(node *tensor.Tensor, pointer driver.DevicePtr) {
+	p.values[p.indexes[node]] = pointer
+}
+
 const graphArenaAlignment = 256
 
 const conv2DStagingBytes = uint64(128 << 20)
 
 type retainedStorageView struct {
-	source     *tensor.Tensor
-	byteOffset uint64
+	source      *tensor.Tensor
+	sourceIndex int
+	byteOffset  uint64
 }
 
 func resolveRetainedStorageView(output *tensor.Tensor) (retainedStorageView, bool, error) {
@@ -803,7 +944,7 @@ func validateRetainedTargetAlias(
 	node *tensor.Tensor,
 	target DeviceValue,
 	contract tensor.OutputTargetContract,
-	pointers map[*tensor.Tensor]driver.DevicePtr,
+	pointers devicePointerTable,
 ) error {
 	outputRange, err := newDeviceAddressRange(target.Pointer, contract.Bytes)
 	if err != nil {
@@ -814,7 +955,7 @@ func validateRetainedTargetAlias(
 		if sizeErr != nil {
 			return sizeErr
 		}
-		inputRange, rangeErr := newDeviceAddressRange(pointers[input], inputBytes)
+		inputRange, rangeErr := newDeviceAddressRange(pointers.get(input), inputBytes)
 		if rangeErr != nil {
 			return rangeErr
 		}
@@ -822,7 +963,7 @@ func validateRetainedTargetAlias(
 			continue
 		}
 		alias := contract.Alias
-		if alias == nil || alias.Input != index || target.Pointer != pointers[input] ||
+		if alias == nil || alias.Input != index || target.Pointer != pointers.get(input) ||
 			alias.InitializedBytes != inputBytes ||
 			alias.WriteOffsetBytes > contract.Bytes ||
 			alias.WriteBytes > contract.Bytes-alias.WriteOffsetBytes {
@@ -836,30 +977,27 @@ func validateRetainedTargetAlias(
 }
 
 func retainedOutputLayout(
-	order []*tensor.Tensor,
-	outputs map[*tensor.Tensor]struct{},
-) (map[*tensor.Tensor]uint64, uint64, error) {
-	offsets := make(map[*tensor.Tensor]uint64, len(outputs))
+	compiled *CompiledGraph,
+	storage []bool,
+	offsets []uint64,
+) (uint64, error) {
 	var total uint64
-	for _, node := range order {
-		if node.Op == tensor.OpInput {
-			continue
-		}
-		if _, keep := outputs[node]; !keep {
+	for index, node := range compiled.order {
+		if node.Op == tensor.OpInput || !storage[index] {
 			continue
 		}
 		offset, ok := checked.Align(total, graphArenaAlignment)
 		if !ok {
-			return nil, 0, errors.New("CUDA retained output offset overflows")
+			return 0, errors.New("CUDA retained output offset overflows")
 		}
 		bytes, err := node.Shape.Bytes(node.Type)
 		if err != nil || offset > math.MaxUint64-bytes {
-			return nil, 0, errors.New("CUDA retained output size overflows")
+			return 0, errors.New("CUDA retained output size overflows")
 		}
-		offsets[node] = offset
+		offsets[index] = offset
 		total = offset + bytes
 	}
-	return offsets, total, nil
+	return total, nil
 }
 
 // Compile: validates and plans an immutable tensor graph.
@@ -871,12 +1009,24 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	compiled := &CompiledGraph{
 		outputs:         slices.Clone(outputs),
 		outputIndexes:   make(map[*tensor.Tensor]int, len(outputs)),
+		outputViews:     make([]retainedStorageView, len(outputs)),
+		outputAliases:   make([]bool, len(outputs)),
 		targetContracts: make([]tensor.OutputTargetContract, len(outputs)),
 		order:           order,
 		orderIndexes:    make(map[*tensor.Tensor]int, len(order)),
 	}
 	for index, node := range order {
 		compiled.orderIndexes[node] = index
+		words, slotErr := dynamicAttributeWords(node, node.Attrs, nil)
+		if slotErr != nil {
+			return nil, slotErr
+		}
+		if words > 0 {
+			compiled.attributeSlots = append(compiled.attributeSlots, dynamicAttributeSlot{
+				node: node, index: index, offset: compiled.attributeWords, words: words,
+			})
+			compiled.attributeWords += words
+		}
 	}
 	uses := make(map[*tensor.Tensor]int, len(order))
 	consumers := make(map[*tensor.Tensor][]*tensor.Tensor, len(order))
@@ -887,6 +1037,15 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		}
 		compiled.outputIndexes[output] = index
 		outputSet[output] = struct{}{}
+		view, aliases, viewErr := resolveRetainedStorageView(output)
+		if viewErr != nil {
+			return nil, viewErr
+		}
+		compiled.outputViews[index] = view
+		compiled.outputAliases[index] = aliases
+		if aliases {
+			compiled.outputViews[index].sourceIndex = compiled.orderIndexes[view.source]
+		}
 		contract, contractErr := tensor.CompileOutputTargetContract(output)
 		if contractErr != nil {
 			return nil, contractErr
@@ -972,6 +1131,20 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		return nil, err
 	}
 	compiled.memory = memory
+	compiled.nodes = make([]compiledNode, len(order))
+	for index, node := range order {
+		view, aliases, viewErr := tensor.ResolveStorageView(node)
+		if viewErr != nil {
+			return nil, viewErr
+		}
+		_, skipped := compiled.skipped[node]
+		frame := compiledNode{node: node, index: index, view: view, aliases: aliases, skipped: skipped}
+		compiled.nodes[index] = frame
+		_, elided := compiled.elided[node]
+		if node.Op != tensor.OpInput && !skipped && !elided {
+			compiled.launches = append(compiled.launches, frame)
+		}
+	}
 	dumpOpCounts(compiled)
 	return compiled, nil
 }
@@ -1201,6 +1374,7 @@ func (e *Executor) runCompiled(
 			resources.blas,
 			&resources.q8Input,
 			arena,
+			&resources.scratch,
 			&resources.buffers,
 			&resources.graphExecs,
 			retain,
@@ -1208,6 +1382,66 @@ func (e *Executor) runCompiled(
 		return executeErr
 	})
 	return result, err
+}
+
+func launchCompiledFusion(
+	state *device.State,
+	compiled *CompiledGraph,
+	functions functionSet,
+	blas *blasState,
+	q8Input *q8InputState,
+	node *tensor.Tensor,
+	pointers, attributePointers devicePointerTable,
+) (string, error) {
+	if fusion, ok := compiled.weightedRMS[node]; ok {
+		_, emitQ8 := compiled.q8Emit[node]
+		return "weighted_rms_norm", launchWeightedRMSNorm(state, functions, q8Input, node, fusion, emitQ8, pointers)
+	}
+	if fusion, ok := compiled.activatedGate[node]; ok {
+		_, emitQ8 := compiled.q8Emit[node]
+		return "activated_gate", launchActivatedGate(state, functions, q8Input, node, fusion, emitQ8, pointers)
+	}
+	if fusion, ok := compiled.geluTanh[node]; ok {
+		return "gelu_tanh", launchGELUTanh(state, functions, node, fusion, pointers)
+	}
+	if fusion, ok := compiled.layerNormModulate[node]; ok {
+		return "layer_norm_modulate", launchLayerNormModulate(state, functions, node, fusion, pointers)
+	}
+	if fusion, ok := compiled.broadcastGateAdd[node]; ok {
+		return "broadcast_gate_add", launchBroadcastGateAdd(state, functions, node, fusion, pointers)
+	}
+	if fusion, ok := compiled.weightedRMSGate[node]; ok {
+		_, emitQ8 := compiled.q8Emit[node]
+		return "weighted_rms_gate", launchWeightedRMSGate(state, functions, q8Input, node, fusion, emitQ8, pointers)
+	}
+	if fusion, ok := compiled.bf16Append[node]; ok {
+		return "bf16_append", launchBF16Append(state, functions, node, fusion, pointers, attributePointers)
+	}
+	if paired, ok := compiled.bf16Argmax[node]; ok {
+		if node.Op == tensor.OpMulMat {
+			return "bf16_argmax", launchBF16ArgmaxPartials(state, functions, node, pointers)
+		}
+		return "bf16_argmax", launchQ8ArgmaxReduction(state, functions, paired, node, pointers)
+	}
+	if fusion, ok := compiled.ropeAppend[node]; ok {
+		return "rope_append", launchRopeAppend(state, functions, node, fusion, pointers, attributePointers)
+	}
+	if fusion, ok := compiled.bf16Gate[node]; ok {
+		return "bf16_gate", launchBF16Gate(state, functions, node, fusion, pointers)
+	}
+	if fusion, ok := compiled.bf16ProjAdd[node]; ok {
+		return "bf16_projection_add", launchBF16ProjAdd(state, functions, node, fusion, pointers)
+	}
+	if fusion, ok := compiled.bf16Attention[node]; ok {
+		return "bf16_attention", launchBF16Attention(state, functions, blas, node, fusion, pointers)
+	}
+	if paired, ok := compiled.q8Argmax[node]; ok {
+		if node.Op == tensor.OpMulMat {
+			return "q8_argmax", launchQ8ArgmaxPartials(state, functions, q8Input, node, pointers)
+		}
+		return "q8_argmax", launchQ8ArgmaxReduction(state, functions, paired, node, pointers)
+	}
+	return "", nil
 }
 
 func execute(
@@ -1221,6 +1455,7 @@ func execute(
 	blas *blasState,
 	q8Input *q8InputState,
 	arena driver.DevicePtr,
+	scratch *executionScratch,
 	buffers *deviceBufferPool,
 	execCache *graphExecCache,
 	retainOutputs bool,
@@ -1254,13 +1489,16 @@ func execute(
 		}
 	}()
 
-	pointers := make(map[*tensor.Tensor]driver.DevicePtr, len(order))
+	pointers := newDevicePointerTable(compiled, &scratch.pointers)
 	var targetValues []DeviceValue
 	if retainedTargets != nil {
 		if retainedTargets.compiled != compiled || len(retainedTargets.values) != len(outputs) {
 			return nil, errors.New("CUDA retained targets belong to another compiled graph")
 		}
 		targetValues = retainedTargets.values
+	}
+	ownsOutput := func(index int) bool {
+		return len(targetValues) == 0 || targetValues[index].Pointer == 0
 	}
 	retainedValues := make([]DeviceValue, len(outputs))
 	retainedLeases := make([]deviceBufferLease, 0, 1)
@@ -1278,27 +1516,27 @@ func execute(
 			return nil, errors.New("CUDA retained output target capacity is insufficient")
 		}
 	}
-	ownedOutputs := make(map[*tensor.Tensor]struct{}, len(outputs))
-	for index, output := range outputs {
-		if len(targetValues) == 0 || targetValues[index].Pointer == 0 {
-			ownedOutputs[output] = struct{}{}
-		}
+	if cap(scratch.retainedStorage) < len(order) {
+		scratch.retainedStorage = make([]bool, len(order))
 	}
-	retainedStorage := make(map[*tensor.Tensor]struct{}, len(ownedOutputs))
-	retainedViews := make(map[*tensor.Tensor]retainedStorageView)
-	for output := range ownedOutputs {
-		view, aliases, viewErr := resolveRetainedStorageView(output)
-		if viewErr != nil {
-			return nil, viewErr
-		}
-		if aliases {
-			retainedViews[output] = view
-			retainedStorage[view.source] = struct{}{}
+	if cap(scratch.retainedOffsets) < len(order) {
+		scratch.retainedOffsets = make([]uint64, len(order))
+	}
+	retainedStorage := scratch.retainedStorage[:len(order)]
+	retainedOffsets := scratch.retainedOffsets[:len(order)]
+	clear(retainedStorage)
+	clear(retainedOffsets)
+	for index, output := range outputs {
+		if !ownsOutput(index) {
 			continue
 		}
-		retainedStorage[output] = struct{}{}
+		if compiled.outputAliases[index] {
+			retainedStorage[compiled.outputViews[index].sourceIndex] = true
+			continue
+		}
+		retainedStorage[compiled.orderIndexes[output]] = true
 	}
-	retainedOffsets, retainedBytes, err := retainedOutputLayout(order, retainedStorage)
+	retainedBytes, err := retainedOutputLayout(compiled, retainedStorage, retainedOffsets)
 	if err != nil {
 		return nil, err
 	}
@@ -1327,30 +1565,29 @@ func execute(
 			buffers.release(lease)
 		}
 	}()
-	for _, node := range order {
+	for _, frame := range compiled.nodes {
+		node, nodeIndex := frame.node, frame.index
 		if node.Op != tensor.OpInput && node.Type != dtype.F32 {
 			return nil, fmt.Errorf("CUDA executor does not support %s for tensor %d", node.Type, node.ID)
 		}
 		if node.Op != tensor.OpInput {
-			if _, skipped := compiled.skipped[node]; skipped {
+			if frame.skipped {
 				continue
 			}
 			outputIndex, retainedOutput := compiled.outputIndexes[node]
-			_, retainStorage := retainedStorage[node]
-			view, aliases, viewErr := tensor.ResolveStorageView(node)
-			if viewErr != nil {
-				return nil, viewErr
-			}
-			if aliases {
-				offset, offsetErr := view.ByteOffset(node.Type)
-				input := pointers[node.Inputs[view.Input]]
+			retainStorage := retainedStorage[nodeIndex]
+			if frame.aliases {
+				offset, offsetErr := frame.view.ByteOffset(node.Type)
+				input := pointers.get(node.Inputs[frame.view.Input])
 				if offsetErr != nil || uint64(input) > math.MaxUint64-offset {
 					return nil, errors.New("CUDA storage view offset is invalid")
 				}
-				if retainedView, retainedAlias := retainedViews[node]; retainedAlias ||
+				retainedAlias := retainedOutput && ownsOutput(outputIndex) && compiled.outputAliases[outputIndex]
+				retainedView := compiled.outputViews[outputIndex]
+				if retainedAlias ||
 					!(retainOutputs && retainedOutput) {
 					pointer := input + driver.DevicePtr(offset)
-					pointers[node] = pointer
+					pointers.set(node, pointer)
 					if retainedAlias {
 						if retainedView.source == nil {
 							return nil, errors.New("CUDA retained storage view is invalid")
@@ -1375,11 +1612,11 @@ func execute(
 						return nil, err
 					}
 					retainedValues[outputIndex] = target
-					pointers[node] = target.Pointer
+					pointers.set(node, target.Pointer)
 					continue
 				}
-				offset, present := retainedOffsets[node]
-				if !present || uint64(retainedBase) > math.MaxUint64-offset {
+				offset := retainedOffsets[nodeIndex]
+				if !retainStorage || uint64(retainedBase) > math.MaxUint64-offset {
 					return nil, errors.New("CUDA retained output layout is invalid")
 				}
 				pointer := retainedBase + driver.DevicePtr(offset)
@@ -1392,7 +1629,7 @@ func execute(
 						Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
 					}
 				}
-				pointers[node] = pointer
+				pointers.set(node, pointer)
 				continue
 			}
 			allocation, ok := plan.Allocations[node]
@@ -1402,7 +1639,7 @@ func execute(
 			if uint64(arena) > math.MaxUint64-allocation.Offset {
 				return nil, errors.New("device pointer offset overflows uint64")
 			}
-			pointers[node] = arena + driver.DevicePtr(allocation.Offset)
+			pointers.set(node, arena+driver.DevicePtr(allocation.Offset))
 			continue
 		}
 		if pointer, ok := deviceFeeds[node]; ok {
@@ -1416,7 +1653,7 @@ func execute(
 			if _, duplicate := feeds[node]; duplicate {
 				return nil, fmt.Errorf("input %q has both host and device feeds", node.Name)
 			}
-			pointers[node] = pointer
+			pointers.set(node, pointer)
 			continue
 		}
 		if node.Type != dtype.F32 {
@@ -1454,7 +1691,7 @@ func execute(
 			return nil, err
 		}
 		inputLeases = append(inputLeases, lease)
-		pointers[node] = lease.pointer
+		pointers.set(node, lease.pointer)
 		if value.Storage == reference.ValueImplicitZero {
 			if err := state.Driver.MemsetD32Async(
 				lease.pointer,
@@ -1474,85 +1711,46 @@ func execute(
 		}
 	}
 
-	attributePointers := make(map[*tensor.Tensor]driver.DevicePtr)
+	attributePointers := newDevicePointerTable(compiled, &scratch.attributePointers)
 	auxiliaryLeases := make([]deviceBufferLease, 0)
-	sharedAttributes := make(map[string]driver.DevicePtr)
 	defer func() {
 		for _, lease := range auxiliaryLeases {
 			buffers.release(lease)
 		}
 	}()
-	for _, node := range order {
-		var values []uint32
-		switch node.Op {
-		case tensor.OpGetRows:
-			attributes, ok := attributesFor(node).(tensor.GetRowsAttributes)
-			if !ok {
-				return nil, errors.New("invalid get_rows attributes")
-			}
-			values = attributes.Rows
-		case tensor.OpRoPENeoX:
-			attributes, ok := attributesFor(node).(tensor.RoPEAttributes)
-			if !ok {
-				return nil, errors.New("invalid rope_neox attributes")
-			}
-			values = attributes.Positions
-		case tensor.OpRoPENormal:
-			attributes, ok := attributesFor(node).(tensor.RoPEAttributes)
-			if !ok {
-				return nil, errors.New("invalid rope_normal attributes")
-			}
-			values = attributes.Positions
-		case tensor.OpRoPEMulti:
-			attributes, ok := attributesFor(node).(tensor.RoPEMultiAttributes)
-			if !ok {
-				return nil, errors.New("invalid rope_multi attributes")
-			}
-			for axis := range attributes.Positions {
-				values = append(values, attributes.Positions[axis]...)
-			}
-		case tensor.OpAttention:
-			// device-resident logical KV count keeps decode launches stable
-			attributes, ok := attributesFor(node).(tensor.AttentionAttributes)
-			if !ok {
-				return nil, errors.New("invalid attention attributes")
-			}
-			tokens := attributes.KeyValueTokens
-			if tokens == 0 {
-				capacity, capacityErr := uint32Checked(
-					node.Inputs[1].Shape.Dims[2], "attention KV capacity",
-				)
-				if capacityErr != nil {
-					return nil, capacityErr
-				}
-				tokens = capacity
-			}
-			values = []uint32{tokens}
-		case tensor.OpCacheAppend:
-			// device-resident append offset keeps decode launches stable
-			attributes, ok := attributesFor(node).(tensor.CacheAppendAttributes)
-			if !ok {
-				return nil, errors.New("invalid cache append attributes")
-			}
-			values = []uint32{attributes.Offset}
-		default:
-			continue
+	if compiled.attributeWords > 0 {
+		if cap(scratch.attributeWords) < compiled.attributeWords {
+			scratch.attributeWords = make([]uint32, compiled.attributeWords)
 		}
-		encoded := driver.Bytes(values)
-		key := string(encoded)
-		if pointer, ok := sharedAttributes[key]; ok {
-			attributePointers[node] = pointer
-			continue
-		}
-		bytes := uint64(len(values)) * uint64(unsafe.Sizeof(uint32(0)))
+		words := scratch.attributeWords[:compiled.attributeWords]
+		clear(words)
+		bytes := uint64(compiled.attributeWords) * uint64(unsafe.Sizeof(uint32(0)))
 		lease, allocateErr := buffers.acquire(state, bytes)
 		if allocateErr != nil {
 			return nil, allocateErr
 		}
 		auxiliaryLeases = append(auxiliaryLeases, lease)
-		sharedAttributes[key] = lease.pointer
-		attributePointers[node] = lease.pointer
-		if copyErr := state.Driver.MemcpyHtoD(lease.pointer, encoded); copyErr != nil {
+		for _, slot := range compiled.attributeSlots {
+			attributes := slot.node.Attrs
+			if runtimeAttributes != nil && runtimeAttributes.values[slot.index] != nil {
+				var resolveErr error
+				attributes, resolveErr = resolveRuntimeAttributes(runtimeAttributes.values[slot.index])
+				if resolveErr != nil {
+					return nil, resolveErr
+				}
+			}
+			destination := words[slot.offset : slot.offset+slot.words]
+			written, writeErr := dynamicAttributeWords(slot.node, attributes, destination)
+			if writeErr != nil {
+				return nil, writeErr
+			}
+			if written != slot.words {
+				return nil, errors.New("CUDA runtime attribute changes compiled slot size")
+			}
+			offset := uint64(slot.offset) * uint64(unsafe.Sizeof(uint32(0)))
+			attributePointers.set(slot.node, lease.pointer+driver.DevicePtr(offset))
+		}
+		if copyErr := state.Driver.MemcpyHtoD(lease.pointer, driver.Bytes(words)); copyErr != nil {
 			return nil, copyErr
 		}
 	}
@@ -1567,146 +1765,23 @@ func execute(
 		}
 	}
 	resetStaged()
-	runLaunches := func(probe bool) error {
-		for _, node := range order {
-			if node.Op == tensor.OpInput {
-				continue
-			}
-			if _, skipped := compiled.skipped[node]; skipped {
-				continue
-			}
-			if _, elided := compiled.elided[node]; elided {
-				continue
-			}
-			_, aliases, viewErr := tensor.ResolveStorageView(node)
-			if viewErr != nil {
-				return viewErr
-			}
-			if aliases {
-				_, retainedOutput := compiled.outputIndexes[node]
-				_, retainedAlias := retainedViews[node]
+	runLaunches := func() error {
+		for _, frame := range compiled.launches {
+			node := frame.node
+			if frame.aliases {
+				outputIndex, retainedOutput := compiled.outputIndexes[node]
+				retainedAlias := retainedOutput && ownsOutput(outputIndex) && compiled.outputAliases[outputIndex]
 				if retainedAlias || !(retainOutputs && retainedOutput) {
 					continue
 				}
 			}
-			if fusion, ok := compiled.weightedRMS[node]; ok {
-				_, emitQ8 := compiled.q8Emit[node]
-				if err := launchWeightedRMSNorm(
-					state, functions, q8Input, node, fusion, emitQ8, pointers,
-				); err != nil {
-					return fmt.Errorf("launch tensor %d (weighted_rms_norm): %w", node.ID, err)
+			if label, err := launchCompiledFusion(
+				state, compiled, functions, blas, q8Input, node, pointers, attributePointers,
+			); label != "" {
+				if err != nil {
+					return fmt.Errorf("launch tensor %d (%s): %w", node.ID, label, err)
 				}
-				submitted = submitted || !probe
-				continue
-			}
-			if fusion, ok := compiled.activatedGate[node]; ok {
-				_, emitQ8 := compiled.q8Emit[node]
-				if err := launchActivatedGate(
-					state, functions, q8Input, node, fusion, emitQ8, pointers,
-				); err != nil {
-					return fmt.Errorf("launch tensor %d (activated_gate): %w", node.ID, err)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if fusion, ok := compiled.geluTanh[node]; ok {
-				if err := launchGELUTanh(state, functions, node, fusion, pointers); err != nil {
-					return fmt.Errorf("launch tensor %d (gelu_tanh): %w", node.ID, err)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if fusion, ok := compiled.layerNormModulate[node]; ok {
-				if err := launchLayerNormModulate(state, functions, node, fusion, pointers); err != nil {
-					return fmt.Errorf("launch tensor %d (layer_norm_modulate): %w", node.ID, err)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if fusion, ok := compiled.broadcastGateAdd[node]; ok {
-				if err := launchBroadcastGateAdd(state, functions, node, fusion, pointers); err != nil {
-					return fmt.Errorf("launch tensor %d (broadcast_gate_add): %w", node.ID, err)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if fusion, ok := compiled.weightedRMSGate[node]; ok {
-				_, emitQ8 := compiled.q8Emit[node]
-				if err := launchWeightedRMSGate(
-					state, functions, q8Input, node, fusion, emitQ8, pointers,
-				); err != nil {
-					return fmt.Errorf("launch tensor %d (weighted_rms_gate): %w", node.ID, err)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if fusion, ok := compiled.bf16Append[node]; ok {
-				if err := launchBF16Append(
-					state, functions, node, fusion, pointers, attributePointers,
-				); err != nil {
-					return fmt.Errorf("launch tensor %d (bf16_append): %w", node.ID, err)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if paired, ok := compiled.bf16Argmax[node]; ok {
-				var launchErr error
-				if node.Op == tensor.OpMulMat {
-					launchErr = launchBF16ArgmaxPartials(state, functions, node, pointers)
-				} else {
-					launchErr = launchQ8ArgmaxReduction(state, functions, paired, node, pointers)
-				}
-				if launchErr != nil {
-					return fmt.Errorf("launch tensor %d (bf16_argmax): %w", node.ID, launchErr)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if fusion, ok := compiled.ropeAppend[node]; ok {
-				if err := launchRopeAppend(
-					state, functions, node, fusion, pointers, attributePointers,
-				); err != nil {
-					return fmt.Errorf("launch tensor %d (rope_append): %w", node.ID, err)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if fusion, ok := compiled.bf16Gate[node]; ok {
-				if err := launchBF16Gate(state, functions, node, fusion, pointers); err != nil {
-					return fmt.Errorf("launch tensor %d (bf16_gate): %w", node.ID, err)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if fusion, ok := compiled.bf16ProjAdd[node]; ok {
-				if err := launchBF16ProjAdd(state, functions, node, fusion, pointers); err != nil {
-					return fmt.Errorf("launch tensor %d (bf16_projection_add): %w", node.ID, err)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if fusion, ok := compiled.bf16Attention[node]; ok {
-				if err := launchBF16Attention(state, functions, blas, node, fusion, pointers); err != nil {
-					return fmt.Errorf("launch tensor %d (bf16_attention): %w", node.ID, err)
-				}
-				submitted = submitted || !probe
-				continue
-			}
-			if paired, ok := compiled.q8Argmax[node]; ok {
-				var launchErr error
-				if node.Op == tensor.OpMulMat {
-					launchErr = launchQ8ArgmaxPartials(
-						state, functions, q8Input, node, pointers,
-					)
-				} else {
-					launchErr = launchQ8ArgmaxReduction(
-						state, functions, paired, node, pointers,
-					)
-				}
-				if launchErr != nil {
-					return fmt.Errorf("launch tensor %d (q8_argmax): %w", node.ID, launchErr)
-				}
-				submitted = submitted || !probe
+				submitted = true
 				continue
 			}
 			if err := launchNode(
@@ -1714,30 +1789,31 @@ func execute(
 			); err != nil {
 				return fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 			}
-			submitted = submitted || !probe
+			submitted = true
 		}
 		return nil
 	}
-	var trace device.LaunchTrace
+	var blasStaging, blasScores, q8Staging driver.DevicePtr
+	if blas != nil {
+		blasStaging, blasScores = blas.staging, blas.scores
+	}
+	if q8Input != nil {
+		q8Staging = q8Input.staging
+	}
+	scratch.replayFrame = append(
+		scratch.replayFrame[:0], arena, blasStaging, blasScores, q8Staging,
+	)
+	scratch.replayFrame = append(scratch.replayFrame, pointers.values...)
+	scratch.replayFrame = append(scratch.replayFrame, attributePointers.values...)
+	frame := scratch.replayFrame
 	replayed := false
 	if capturing && len(execCache.entries) > 0 {
-		// probe: rebuild the launch trace without touching the device; a
-		// byte-identical trace proves the retained exec replays unchanged
-		trace.Reset(true)
-		state.Trace = &trace
-		probeErr := runLaunches(true)
-		state.Trace = nil
-		if probeErr == nil {
-			if exec, ok := execCache.match(trace.Data()); ok {
-				if err := state.Driver.GraphLaunch(exec, state.Stream); err != nil {
-					return nil, err
-				}
-				submitted = true
-				replayed = true
+		if exec, ok := execCache.match(compiled, frame); ok {
+			if err := state.Driver.GraphLaunch(exec, state.Stream); err != nil {
+				return nil, err
 			}
-		}
-		if !replayed {
-			resetStaged()
+			submitted = true
+			replayed = true
 		}
 	}
 	if !replayed {
@@ -1745,11 +1821,8 @@ func execute(
 			if captureErr := state.Driver.StreamBeginCapture(state.Stream); captureErr != nil {
 				return nil, captureErr
 			}
-			trace.Reset(false)
-			state.Trace = &trace
 		}
-		launchErr := runLaunches(false)
-		state.Trace = nil
+		launchErr := runLaunches()
 		if launchErr != nil {
 			if capturing {
 				graph, _ := state.Driver.StreamEndCapture(state.Stream)
@@ -1763,7 +1836,7 @@ func execute(
 				return nil, captureErr
 			}
 			defer state.Driver.GraphDestroy(graph)
-			exec, storeErr := execCache.store(state, graph, trace.Data())
+			exec, storeErr := execCache.store(state, graph, compiled, frame)
 			if storeErr != nil {
 				return nil, storeErr
 			}
@@ -1794,7 +1867,7 @@ func execute(
 			return nil, errors.New("output is too large for host memory")
 		}
 		data := make([]float32, int(elements))
-		if err := state.Driver.MemcpyDtoH(driver.Bytes(data), pointers[output]); err != nil {
+		if err := state.Driver.MemcpyDtoH(driver.Bytes(data), pointers.get(output)); err != nil {
 			return nil, err
 		}
 		results[output] = reference.Value{Shape: output.Shape, Data: data}

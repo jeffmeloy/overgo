@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "video-recipe-authority",
-          "title": "Compile typed prompt-to-video and prompt+video-to-video modules; recipe I/O, never placement or family switches, selects execution",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/recipecontract -run 'Video' -count=1 -v"
-        },
-        {
           "id": "wan-production-runtime",
           "title": "Move the verified Wan CUDA harness behind a reusable resident generator; retain model, conditioning, denoise state, and causal VAE across the request",
           "status": "open",

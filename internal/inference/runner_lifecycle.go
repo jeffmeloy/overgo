@@ -19,12 +19,18 @@ import (
 )
 
 // OpenWithProgram binds hardware to the recipe-owned serving program.
-func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*Runner, error) {
+func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, options OpenOptions) (*Runner, error) {
+	if ctx == nil {
+		return nil, errors.New("inference: model-open context is nil")
+	}
 	if loaded == nil {
 		return nil, errors.New("inference: resolved model program is nil")
 	}
 	if options.PromptCacheEntries < 0 {
 		return nil, errors.New("inference: prompt cache entry count is negative")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	file, path, spec, weights, program, evidenceTier, err := loaded.Take()
 	if err != nil {
@@ -61,7 +67,7 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 		if math.IsNaN(float64(configured.Scale)) || math.IsInf(float64(configured.Scale), 0) {
 			return fail(fmt.Errorf("inference: LoRA adapter %d scale is invalid", index))
 		}
-		adapter, loadErr := model.LoadLoRA(context.Background(), configured.Path, file, spec)
+		adapter, loadErr := model.LoadLoRA(ctx, configured.Path, file, spec)
 		if loadErr != nil {
 			return fail(fmt.Errorf("inference: load LoRA adapter %d: %w", index, loadErr))
 		}
@@ -72,7 +78,7 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 	var outputBias []float32
 	if weights.OutputBias != nil {
 		value, loadErr := model.LoadHostTensor(
-			context.Background(),
+			ctx,
 			file,
 			*weights.OutputBias,
 		)
@@ -103,7 +109,7 @@ func OpenWithProgram(loaded *modelrecipe.LoadedProgram, options OpenOptions) (*R
 			outputProjection = *weights.Output
 		}
 		if err = loadResidentWeights(
-			file, weights, outputProjection, loraAdapters, residency, worker,
+			ctx, file, weights, outputProjection, loraAdapters, residency, worker,
 			&deviceWeights, &rawWeights, &decodeWeights,
 		); err != nil {
 			if !residency.allowFallback || !driver.IsOutOfMemory(err) {
@@ -163,6 +169,7 @@ func bindResidency(policy recipe.ResidencyPolicy) (residencyBinding, error) {
 // loadResidentWeights: uploads the resident weight stores for a preload open;
 // partially loaded stores stay owned by the caller on failure.
 func loadResidentWeights(
+	ctx context.Context,
 	file *gguf.File,
 	weights model.Weights,
 	outputProjection gguf.TensorInfo,
@@ -244,7 +251,7 @@ func loadResidentWeights(
 		if err != nil {
 			return err
 		}
-		if err = (*rawWeights).Load(context.Background(), file, quantized); err != nil {
+		if err = (*rawWeights).Load(ctx, file, quantized); err != nil {
 			return err
 		}
 		// native 2D BF16 matmul weights now live in the raw store (above),
@@ -269,14 +276,14 @@ func loadResidentWeights(
 		if len(decodeTensors) > 0 {
 			*decodeWeights, err = model.NewDeviceBF16Weights(worker)
 			if err == nil {
-				err = (*decodeWeights).Load(context.Background(), file, decodeTensors)
+				err = (*decodeWeights).Load(ctx, file, decodeTensors)
 			}
 			if err != nil {
 				return err
 			}
 		}
 	}
-	return (*deviceWeights).Load(context.Background(), file, f32Tensors)
+	return (*deviceWeights).Load(ctx, file, f32Tensors)
 }
 
 func (r *Runner) Close() error {
@@ -284,27 +291,41 @@ func (r *Runner) Close() error {
 		return nil
 	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.closed {
+		r.mu.Unlock()
 		return nil
 	}
 	r.closed = true
+	caches := r.detachPromptCaches()
+	resources := r.preparedModel.detachResources()
+	r.mu.Unlock()
+	_, cacheErr := releasePromptCaches(context.Background(), caches)
 	return errors.Join(
-		r.runnerState.release(context.Background()),
-		r.preparedModel.close(),
+		cacheErr,
+		resources.close(),
 	)
 }
 
-func (s *runnerState) release(ctx context.Context) error {
-	var errs []error
-	for _, promptCache := range s.promptCaches {
-		if promptCache.Device != nil {
-			errs = append(errs, promptCache.Device.Release(ctx))
-			promptCache.Device = nil
-		}
-	}
+func (s *runnerState) detachPromptCaches() []*cachedPrompt {
+	caches := s.promptCaches
 	s.promptCaches = nil
-	return errors.Join(errs...)
+	return caches
+}
+
+func releasePromptCaches(ctx context.Context, caches []*cachedPrompt) ([]*cachedPrompt, error) {
+	var errs []error
+	failed := caches[:0]
+	for _, promptCache := range caches {
+		if promptCache.Device != nil {
+			if err := promptCache.Device.Release(ctx); err != nil {
+				errs = append(errs, err)
+				failed = append(failed, promptCache)
+				continue
+			}
+		}
+		promptCache.Device = nil
+	}
+	return failed, errors.Join(errs...)
 }
 
 func closeAcceleratorResources(
@@ -333,7 +354,29 @@ func closeAcceleratorResources(
 	return errors.Join(errs...)
 }
 
-func (m *preparedModel) close() error {
+type preparedResources struct {
+	file          *gguf.File
+	hostWeights   *model.HostTensorStore
+	decodeWeights *model.DeviceBF16Weights
+	rawWeights    *model.DeviceWeights
+	deviceWeights *model.DeviceF32Weights
+	cuda          *executor.Executor
+	worker        *device.Worker
+}
+
+func (m *preparedModel) detachResources() preparedResources {
+	resources := preparedResources{
+		file: m.file, hostWeights: m.hostWeights,
+		decodeWeights: m.decodeWeights, rawWeights: m.rawWeights,
+		deviceWeights: m.deviceWeights, cuda: m.cuda, worker: m.worker,
+	}
+	m.file, m.hostWeights = nil, nil
+	m.decodeWeights, m.rawWeights, m.deviceWeights = nil, nil, nil
+	m.cuda, m.worker = nil, nil
+	return resources
+}
+
+func (m *preparedResources) close() error {
 	var errs []error
 	if m.hostWeights != nil {
 		m.hostWeights.Release()

@@ -37,7 +37,7 @@ func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := inference.OpenWithProgram(&loaded, inference.OpenOptions{DeviceOrdinal: 0})
+	runner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}

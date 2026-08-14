@@ -190,7 +190,7 @@ type ModelPropertiesAPI interface {
 
 type LoRAControlAPI interface {
 	LoRAAdapters() []inference.LoRAAdapterInfo
-	SetLoRAScales([]inference.LoRAScale) error
+	SetLoRAScales(context.Context, []inference.LoRAScale) error
 }
 
 type DeviceMemoryAPI interface {

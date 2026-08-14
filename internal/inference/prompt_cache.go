@@ -26,8 +26,23 @@ func (r *Runner) ClearPromptCaches(ctx context.Context) error {
 	if err := r.lockOpen(); err != nil {
 		return err
 	}
-	defer r.mu.Unlock()
-	return r.runnerState.release(ctx)
+	caches := r.detachPromptCaches()
+	r.mu.Unlock()
+	failed, err := releasePromptCaches(ctx, caches)
+	if len(failed) == 0 {
+		return err
+	}
+	r.mu.Lock()
+	closed := r.closed
+	if !closed {
+		r.promptCaches = append(r.promptCaches, failed...)
+	}
+	r.mu.Unlock()
+	if closed {
+		_, retryErr := releasePromptCaches(context.Background(), failed)
+		err = errors.Join(err, retryErr)
+	}
+	return err
 }
 
 func (r *Runner) promotePromptCache(index int) *cachedPrompt {

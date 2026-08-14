@@ -155,7 +155,7 @@ func testGemma4InputParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	language, err := inference.OpenWithProgram(&loaded, inference.OpenOptions{})
+	language, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	language, err := inference.OpenWithProgram(&loaded, inference.OpenOptions{})
+	language, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -518,7 +518,7 @@ func testGemmaE4BImageLanguageParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	languageRunner, err := inference.OpenWithProgram(&loaded, inference.OpenOptions{})
+	languageRunner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

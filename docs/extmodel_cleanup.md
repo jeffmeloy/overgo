@@ -60,8 +60,13 @@ Family-named production files: none.
 
 ## Ordered Work
 
-1. Separate specialized runner availability errors from shared lock admission.
-2. Consolidate capability inventory recognition shared by activation and execution.
+1. Propagate load contexts and release detached runtime resources outside locks.
+2. Admit typed model/storage facts; remove dimension and dtype reconstruction.
+3. Reuse sampling/quantization scratch on token/block hot paths.
+4. Make projector artifact opening single-pass and context-aware.
+5. Move static layer validation and leaf selection into compiled programs.
+6. Compile indexed CUDA replay state and persistent dynamic attributes.
+7. Compile alternative tensor shapes/storage into shared weight requirements.
 
 ## Per-Wave Gate
 

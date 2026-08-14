@@ -65,7 +65,7 @@ func TestServingGoldenRegression(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenWithProgram(&loaded, OpenOptions{})
+	runner, err := OpenWithProgram(context.Background(), &loaded, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

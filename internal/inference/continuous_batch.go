@@ -328,19 +328,31 @@ func (b *ContinuousBatch) Remove(ctx context.Context, id SequenceID) error {
 		return errors.New("inference: continuous batch is nil")
 	}
 	b.operation.Lock()
-	defer b.operation.Unlock()
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	sequence, ok := b.sequences[id]
 	if !ok {
+		b.mu.Unlock()
+		b.operation.Unlock()
 		return fmt.Errorf("inference: sequence ID %d is not active", id)
 	}
-	if sequence.device != nil {
-		if err := sequence.device.Release(ctx); err != nil {
-			return err
-		}
-	}
 	delete(b.sequences, id)
+	b.mu.Unlock()
+	b.operation.Unlock()
+	if sequence.device == nil {
+		return nil
+	}
+	if err := sequence.device.Release(ctx); err != nil {
+		b.mu.Lock()
+		closed := b.closed
+		if !closed {
+			b.deferred = append(b.deferred, sequence.device)
+		}
+		b.mu.Unlock()
+		if closed {
+			err = errors.Join(err, sequence.device.Release(context.Background()))
+		}
+		return err
+	}
 	return nil
 }
 
@@ -444,31 +456,41 @@ func (b *ContinuousBatch) Close(ctx context.Context) error {
 		return nil
 	}
 	b.operation.Lock()
-	defer b.operation.Unlock()
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	if b.closed && len(b.sequences) == 0 && len(b.deferred) == 0 {
+		b.mu.Unlock()
+		b.operation.Unlock()
 		return nil
 	}
 	b.closed = true
 	errs := []error{b.cleanupErr}
 	b.cleanupErr = nil
-	remaining := b.deferred[:0]
-	for _, cache := range b.deferred {
+	deferred := b.deferred
+	sequences := b.sequences
+	b.deferred = nil
+	b.sequences = make(map[SequenceID]*continuousSequence)
+	b.mu.Unlock()
+	b.operation.Unlock()
+	remaining := deferred[:0]
+	for _, cache := range deferred {
 		if err := cache.Release(ctx); err != nil {
 			errs = append(errs, err)
 			remaining = append(remaining, cache)
 		}
 	}
-	b.deferred = remaining
-	for id, sequence := range b.sequences {
+	for _, sequence := range sequences {
 		if sequence.device != nil {
 			if err := sequence.device.Release(ctx); err != nil {
 				errs = append(errs, err)
+				remaining = append(remaining, sequence.device)
 				continue
 			}
 		}
-		delete(b.sequences, id)
+	}
+	if len(remaining) > 0 {
+		b.mu.Lock()
+		b.deferred = append(b.deferred, remaining...)
+		b.mu.Unlock()
 	}
 	return errors.Join(errs...)
 }

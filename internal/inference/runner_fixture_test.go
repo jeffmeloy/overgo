@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"context"
 	"testing"
 
 	"overgo/internal/model"
@@ -74,7 +75,7 @@ func openFixtureRunnerWithResidency(
 	if err != nil {
 		return nil, err
 	}
-	return OpenWithProgram(&loaded, options)
+	return OpenWithProgram(context.Background(), &loaded, options)
 }
 
 func openNativeFixtureRunner(path string, options OpenOptions) (*Runner, error) {

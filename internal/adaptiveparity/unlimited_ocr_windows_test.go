@@ -115,7 +115,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	language, err := inference.OpenWithProgram(&loaded, inference.OpenOptions{})
+	language, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

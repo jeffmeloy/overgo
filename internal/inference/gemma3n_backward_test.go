@@ -1,6 +1,6 @@
 // Finite-difference gates for the gemma3n host-backward (VJP) blocks. FD is the
 // oracle (no adaptive E4B grad goldens exist). Ops with no GELU are FD'd against
-// the real gemma3n.go forward; the correct+inject / FFN-activation paths are
+// the real alternate-state forward; the correct+inject / FFN-activation paths are
 // FD'd against a smooth-GELU mirror, since the serving forward's fp16-rounded
 // GELU is not part of the training-leg derivative.
 package inference
@@ -106,7 +106,7 @@ func TestGemma3nModalitiesBackwardFD(t *testing.T) {
 	seed := g3nRandShape(rng, tensor.MustShape(g3nMods, g3nTokens), 0, 1)
 
 	loss := func() float64 {
-		out, _ := gemma3nModalities(input, layer, spec.EmbeddingLength, spec.RMSNormEpsilon)
+		out, _ := alternateStateModalities(input, layer, spec.EmbeddingLength, spec.RMSNormEpsilon)
 		var s float64
 		for i := range out.Data {
 			s += float64(out.Data[i]) * float64(seed.Data[i])
@@ -133,7 +133,7 @@ func TestGemma3nInitializeAltUpBackwardFD(t *testing.T) {
 		seeds[i] = g3nRandShape(rng, tensor.MustShape(g3nEmb, g3nTokens), 0, 1)
 	}
 	loss := func() float64 {
-		states, _ := gemma3nInitializeAltUp(input, projection, g3nCount)
+		states, _ := initializeAlternateStates(input, projection, g3nCount)
 		var s float64
 		for k := range states {
 			for i := range states[k].Data {
@@ -160,7 +160,7 @@ func TestGemma3nMergeAltUpBackwardFD(t *testing.T) {
 	seed := g3nRandShape(rng, tensor.MustShape(g3nEmb, g3nTokens), 0, 1)
 	const active = 0
 	loss := func() float64 {
-		out, _ := gemma3nMergeAltUp(states, unembedding, active)
+		out, _ := mergeAlternateStates(states, unembedding, active)
 		var s float64
 		for i := range out.Data {
 			s += float64(out.Data[i]) * float64(seed.Data[i])
@@ -193,7 +193,7 @@ func TestGemma3nPredictBackwardFD(t *testing.T) {
 		seeds[i] = g3nRandShape(rng, tensor.MustShape(g3nEmb, g3nTokens), 0, 1)
 	}
 	loss := func() float64 {
-		res, _ := gemma3nPredict(
+		res, _ := predictAlternateStates(
 			states, layer, spec.AltUpActive, spec.EmbeddingLength, spec.RMSNormEpsilon,
 		)
 		var s float64
@@ -220,7 +220,7 @@ func TestGemma3nPredictBackwardFD(t *testing.T) {
 	g3nFDCheck(t, "dRouterNorm", layer.AltUpRouterNorm.Data, dRN, g3nEmb*g3nCount, loss)
 }
 
-// smoothCorrectAndInject mirrors gemma3nCorrectAndInject with the smooth
+// smoothCorrectAndInject mirrors correctAndInjectAlternateStates with the smooth
 // tanh-GELU (the training-leg activation) instead of the fp16-rounded serving
 // GELU, so FD matches the analytic backward.
 func smoothCorrectAndInject(predictions []reference.Value, activated, perLayer reference.Value, layer model.HostLayer, spec model.Spec) []reference.Value {
@@ -228,10 +228,10 @@ func smoothCorrectAndInject(predictions []reference.Value, activated, perLayer r
 	active := int(spec.AltUpActive)
 	tokens := int(activated.Shape.Dims[1])
 	width := int(activated.Shape.Dims[0])
-	modalities, _ := gemma3nModalities(
+	modalities, _ := alternateStateModalities(
 		activated, layer, spec.EmbeddingLength, spec.RMSNormEpsilon,
 	)
-	coefficients, _ := gemma3nMatMul(*layer.AltUpCorrectCoefficient, modalities)
+	coefficients, _ := alternateLinear(*layer.AltUpCorrectCoefficient, modalities)
 	result := make([]reference.Value, count)
 	for index := range predictions {
 		result[index] = predictions[index].Clone()
@@ -249,13 +249,13 @@ func smoothCorrectAndInject(predictions []reference.Value, activated, perLayer r
 	for i := range scaled.Data {
 		scaled.Data[i] *= layer.AltUpCorrectScale.Data[i%sw]
 	}
-	rawGate, _ := gemma3nMatMul(*layer.PerLayerInputGate, scaled)
+	rawGate, _ := alternateLinear(*layer.PerLayerInputGate, scaled)
 	gate := rawGate.Clone()
 	for i := range gate.Data {
 		gate.Data[i] = float32(hostmath.GELUTanh(float64(rawGate.Data[i]))) * perLayer.Data[i]
 	}
-	injection, _ := gemma3nMatMul(*layer.PerLayerProjection, gate)
-	injection, _ = gemma3nWeightedRMS(injection, *layer.PerLayerPostNorm, spec.RMSNormEpsilon)
+	injection, _ := alternateLinear(*layer.PerLayerProjection, gate)
+	injection, _ = alternateRMSNorm(injection, *layer.PerLayerPostNorm, spec.RMSNormEpsilon)
 	for index := 1; index < count; index++ {
 		for i := range result[index].Data {
 			result[index].Data[i] += injection.Data[i]

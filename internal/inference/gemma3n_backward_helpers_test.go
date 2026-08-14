@@ -4,7 +4,7 @@
 // is composed from the FD-verified hostmath VJPs. Each function is checkpoint
 // style: it recomputes whatever forward intermediates it needs from its inputs.
 // GELU is differentiated as the smooth tanh-GELU (GELUTanhPrime); the forward's
-// fp16 round-trip in gemma3nGELU is a serving-only quantization, not part of
+// fp16 round-trip in roundedGELUTanh is a serving-only quantization, not part of
 // the training-leg derivative. FD gates in gemma3n_backward_test.go are the
 // oracle (no adaptive E4B grad goldens exist).
 package inference
@@ -33,7 +33,7 @@ func shapeElems(s tensor.Shape) int {
 	return n
 }
 
-// g3nMatMulBackward: VJP of gemma3nMatMul(weight, input). dInput and dWeight are
+// g3nMatMulBackward: VJP of alternateLinear(weight, input). dInput and dWeight are
 // ACCUMULATED into (caller pre-clears). weight is [inner,out]-shaped but stored
 // [out,inner] row-major, exactly hostmath's Linear weight layout.
 func g3nMatMulBackward(dInput, dWeight []float32, input, weight, dOut reference.Value) {
@@ -43,7 +43,7 @@ func g3nMatMulBackward(dInput, dWeight []float32, input, weight, dOut reference.
 	hostmath.LinearBackward(dInput, dWeight, nil, input.Data, weight.Data, dOut.Data, tokens, inner, out, true)
 }
 
-// g3nMatMulSliceBackward: VJP of gemma3nMatMulSlice over slice s of a rank-3
+// g3nMatMulSliceBackward: VJP of alternateLinearSlice over slice s of a rank-3
 // [inner,out,count] weight. dInput accumulates; dWeight accumulates into slice s.
 func g3nMatMulSliceBackward(dInput, dWeight3d []float32, input, weight3d reference.Value, slice int, dOut reference.Value) {
 	inner := int(weight3d.Shape.Dims[0])
@@ -54,26 +54,26 @@ func g3nMatMulSliceBackward(dInput, dWeight3d []float32, input, weight3d referen
 	g3nMatMulBackward(dInput, dWeight3d[start:start+size], input, sliceW, dOut)
 }
 
-// g3nWeightedRMSBackward: VJP of gemma3nWeightedRMS. dInput/dWeight accumulate.
+// g3nWeightedRMSBackward: VJP of alternateRMSNorm. dInput/dWeight accumulate.
 func g3nWeightedRMSBackward(dInput, dWeight []float32, input, weight, dOut reference.Value, eps float32) {
 	rows := int(input.Shape.Dims[1])
 	d := int(input.Shape.Dims[0])
 	hostmath.RMSNormBackward(dInput, dWeight, input.Data, weight.Data, dOut.Data, rows, d, float64(eps), true)
 }
 
-// g3nModalitiesBackward: VJP of gemma3nModalities. Given dOut at the tanh'd
+// g3nModalitiesBackward: VJP of alternateStateModalities. Given dOut at the tanh'd
 // router output, accumulates dInput and the router/router-norm weight grads.
 // Recomputes the RMS-normed/scaled input and the pre-tanh router logits.
 func g3nModalitiesBackward(dInput, dRouter, dRouterNorm []float32, input reference.Value, layer model.HostLayer, spec model.Spec, dOut reference.Value) {
 	eps := spec.RMSNormEpsilon
 	// Recompute forward trace.
-	normalized, _ := gemma3nWeightedRMS(input, *layer.AltUpRouterNorm, eps)
+	normalized, _ := alternateRMSNorm(input, *layer.AltUpRouterNorm, eps)
 	scaled := normalized.Clone()
 	invEmb := float32(1) / float32(spec.EmbeddingLength)
 	for i := range scaled.Data {
 		scaled.Data[i] *= invEmb
 	}
-	preTanh, _ := gemma3nMatMul(*layer.AltUpRouter, scaled)
+	preTanh, _ := alternateLinear(*layer.AltUpRouter, scaled)
 	// tanh backward.
 	dPre := make([]float32, len(dOut.Data))
 	hostmath.TanhBackward(dPre, preTanh.Data, dOut.Data)
@@ -90,7 +90,7 @@ func g3nModalitiesBackward(dInput, dRouter, dRouterNorm []float32, input referen
 	g3nWeightedRMSBackward(dInput, dRouterNorm, input, *layer.AltUpRouterNorm, dNorm, eps)
 }
 
-// g3nInitializeAltUpBackward: VJP of gemma3nInitializeAltUp. dInput and the
+// g3nInitializeAltUpBackward: VJP of initializeAlternateStates. dInput and the
 // projection (rank-3) grad accumulate.
 func g3nInitializeAltUpBackward(dInput, dProjection []float32, input, projection reference.Value, dStates []reference.Value) {
 	rows := g3nRows(input)
@@ -100,7 +100,7 @@ func g3nInitializeAltUpBackward(dInput, dProjection []float32, input, projection
 		dInput[i] += dStates[0].Data[i]
 	}
 	for index := 1; index < len(dStates); index++ {
-		projected, _ := gemma3nMatMulSlice(projection, index-1, input)
+		projected, _ := alternateLinearSlice(projection, index-1, input)
 		// matchMagnitude(projected, input): arg input=projected, target=input.
 		dProjected := make([]float32, len(projected.Data))
 		dInputFromMatch := make([]float32, len(input.Data))
@@ -113,7 +113,7 @@ func g3nInitializeAltUpBackward(dInput, dProjection []float32, input, projection
 	}
 }
 
-// g3nMergeAltUpBackward: VJP of gemma3nMergeAltUp. dStates (len N) and the
+// g3nMergeAltUpBackward: VJP of mergeAlternateStates. dStates (len N) and the
 // unembedding (rank-3) grad accumulate. active = spec.AltUpActive.
 func g3nMergeAltUpBackward(dStates []reference.Value, dUnembedding []float32, states []reference.Value, unembedding reference.Value, active int, dOutput reference.Value) {
 	n := len(states)
@@ -130,7 +130,7 @@ func g3nMergeAltUpBackward(dStates []reference.Value, dUnembedding []float32, st
 	}
 	gV := reference.Value{Shape: dOutput.Shape, Data: g}
 	for index := 1; index < n; index++ {
-		projected, _ := gemma3nMatMulSlice(unembedding, index-1, states[index])
+		projected, _ := alternateLinearSlice(unembedding, index-1, states[index])
 		// matchMagnitude(projected, states[active]).
 		dProjected := make([]float32, len(projected.Data))
 		dActiveFromMatch := make([]float32, len(states[active].Data))
@@ -143,7 +143,7 @@ func g3nMergeAltUpBackward(dStates []reference.Value, dUnembedding []float32, st
 	}
 }
 
-// g3nPredictBackward: VJP of gemma3nPredict. dStates (len count) accumulate;
+// g3nPredictBackward: VJP of predictAlternateStates. dStates (len count) accumulate;
 // the predict-coefficient, router and router-norm weight grads accumulate.
 func g3nPredictBackward(dStates []reference.Value, dPredictCoeff, dRouter, dRouterNorm []float32, states []reference.Value, layer model.HostLayer, spec model.Spec, dResult []reference.Value) {
 	count := len(states)
@@ -151,10 +151,10 @@ func g3nPredictBackward(dStates []reference.Value, dPredictCoeff, dRouter, dRout
 	tokens := int(states[0].Shape.Dims[1])
 	width := int(states[0].Shape.Dims[0])
 	// Recompute modalities + coefficients.
-	modalities, _ := gemma3nModalities(
+	modalities, _ := alternateStateModalities(
 		states[active], layer, spec.EmbeddingLength, spec.RMSNormEpsilon,
 	)
-	coefficients, _ := gemma3nMatMul(*layer.AltUpPredictCoefficient, modalities)
+	coefficients, _ := alternateLinear(*layer.AltUpPredictCoefficient, modalities)
 	dCoeff := reference.Value{Shape: coefficients.Shape, Data: make([]float32, len(coefficients.Data))}
 	// result[o][t,f] = states[o][t,f] + sum_s coeff[t,o*count+s]*states[s][t,f].
 	for o := 0; o < count; o++ {
@@ -185,7 +185,7 @@ func g3nPredictBackward(dStates []reference.Value, dPredictCoeff, dRouter, dRout
 	g3nModalitiesBackward(dStates[active].Data, dRouter, dRouterNorm, states[active], layer, spec, dModV)
 }
 
-// g3nCorrectAndInjectBackward: VJP of gemma3nCorrectAndInject. Accumulates grads
+// g3nCorrectAndInjectBackward: VJP of correctAndInjectAlternateStates. Accumulates grads
 // for predictions (len count), activated, perLayer, and every weight touched:
 // correct-coefficient, router, router-norm, correct-scale, per-layer input-gate,
 // per-layer projection, per-layer post-norm.
@@ -208,10 +208,10 @@ func g3nCorrectAndInjectBackward(dPredictions []reference.Value, dActivated, dPe
 	eps := spec.RMSNormEpsilon
 
 	// --- Recompute forward trace (correction mix + PLE path). ---
-	modalities, _ := gemma3nModalities(
+	modalities, _ := alternateStateModalities(
 		activated, layer, spec.EmbeddingLength, spec.RMSNormEpsilon,
 	)
-	coefficients, _ := gemma3nMatMul(*layer.AltUpCorrectCoefficient, modalities)
+	coefficients, _ := alternateLinear(*layer.AltUpCorrectCoefficient, modalities)
 	// result[active] before PLE.
 	resultActive := predictions[active].Clone()
 	for t := 0; t < tokens; t++ {
@@ -227,12 +227,12 @@ func g3nCorrectAndInjectBackward(dPredictions []reference.Value, dActivated, dPe
 	for i := range scaled.Data {
 		scaled.Data[i] *= layer.AltUpCorrectScale.Data[i%scaleWidth]
 	}
-	rawGate, _ := gemma3nMatMul(*layer.PerLayerInputGate, scaled)
+	rawGate, _ := alternateLinear(*layer.PerLayerInputGate, scaled)
 	gate := rawGate.Clone()
 	for i := range gate.Data {
-		gate.Data[i] = gemma3nGELU(gate.Data[i]) * perLayer.Data[i]
+		gate.Data[i] = roundedGELUTanh(gate.Data[i]) * perLayer.Data[i]
 	}
-	injectionPre, _ := gemma3nMatMul(*layer.PerLayerProjection, gate)
+	injectionPre, _ := alternateLinear(*layer.PerLayerProjection, gate)
 
 	// --- PLE backward. injection added to result[1..count-1]. ---
 	dInjection := make([]float32, len(injectionPre.Data))
@@ -305,7 +305,7 @@ func g3nCorrectAndInjectBackward(dPredictions []reference.Value, dActivated, dPe
 	g3nModalitiesBackward(dActivated, wg.dRouter, wg.dRouterNorm, activated, layer, spec, dModV)
 }
 
-// g3nActivateFFNBackward: VJP of gemma3nActivateFFN. dGate and dUp are set.
+// g3nActivateFFNBackward: VJP of activateAlternateFFN. dGate and dUp are set.
 // GELU differentiated as smooth tanh-GELU. Sparse layers route dV through the
 // activation-sparsity VJP; dense layers pass it through unchanged.
 func g3nActivateFFNBackward(dGate, dUp []float32, gate, up reference.Value, dResult []float32, sparse bool, stdMult float32) {
@@ -340,9 +340,9 @@ func g3nActivateFFNBackward(dGate, dUp []float32, gate, up reference.Value, dRes
 //   out = ln + normalized
 
 func gemma3nLaurelForward(normalized, left, right, postNorm reference.Value, eps float32) reference.Value {
-	l1, _ := gemma3nMatMul(left, normalized)
-	l2, _ := gemma3nMatMul(right, l1)
-	ln, _ := gemma3nWeightedRMS(l2, postNorm, eps)
+	l1, _ := alternateLinear(left, normalized)
+	l2, _ := alternateLinear(right, l1)
+	ln, _ := alternateRMSNorm(l2, postNorm, eps)
 	out := ln.Clone()
 	for i := range out.Data {
 		out.Data[i] += normalized.Data[i]
@@ -354,8 +354,8 @@ func gemma3nLaurelForward(normalized, left, right, postNorm reference.Value, eps
 // weight grads accumulate.
 func gemma3nLaurelBackward(dNormalized, dLeft, dRight, dPostNorm []float32, normalized, left, right, postNorm reference.Value, dOut reference.Value, eps float32) {
 	// Recompute l1, l2.
-	l1, _ := gemma3nMatMul(left, normalized)
-	l2, _ := gemma3nMatMul(right, l1)
+	l1, _ := alternateLinear(left, normalized)
+	l2, _ := alternateLinear(right, l1)
 	// out = ln + normalized: identity residual to dNormalized, dLn = dOut.
 	for i := range dNormalized {
 		dNormalized[i] += dOut.Data[i]

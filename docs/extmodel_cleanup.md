@@ -32,6 +32,7 @@ active recipe + resolved artifact facts
 | Post-resolution architecture catalog lookups in execution compilation | 0 | Hold at zero |
 | Family switches in compiled layer execution | 0 | Hold at zero |
 | Family-owned alternate-state production files | 0 | Hold at zero |
+| Alternate-state magnitude-rescale copies | 0 | Hold at zero |
 | Test-only backward/oracle files compiled into production | 0 | Hold at zero |
 
 Family-named files still live:
@@ -45,7 +46,7 @@ Family-named files still live:
 
 ## Ordered Work
 
-1. Compile alternate-state initialization, prediction, correction, injection, activation, and merge as neutral operators; migrate serving and training; delete Gemma-specific host orchestration.
+1. Compile the now-neutral alternate-state initialization, prediction, correction, injection, activation, and merge sequence into the sealed forward program; delete the residual host coordinator.
 2. Fold feature-draft, paired-cache, DFlash, and audio-token leaves into typed projection/session programs; delete family wrappers and filenames.
 3. Make encoder/decoder and audio-token coordinators consume sealed session programs; remove T5 and WavTokenizer runtime ownership.
 4. Move remaining architecture validation constants into resolved profile facts or derived artifact relationships.

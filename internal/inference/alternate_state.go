@@ -34,7 +34,7 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	states, err := gemma3nInitializeAltUp(activation, projection, int(program.AlternateStateCount))
+	states, err := initializeAlternateStates(activation, projection, int(program.AlternateStateCount))
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -49,7 +49,7 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 		if loadErr != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, loadErr)
 		}
-		predictions, predictErr := gemma3nPredict(
+		predictions, predictErr := predictAlternateStates(
 			states, hostLayer, program.ActiveState, program.EmbeddingLength, program.NormalizationEpsilon,
 		)
 		if predictErr != nil {
@@ -68,7 +68,7 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 		if stageErr != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference layer %d: %w", layerIndex, stageErr)
 		}
-		states, err = gemma3nCorrectAndInject(
+		states, err = correctAndInjectAlternateStates(
 			predictions, activated, perLayerInputs[layerIndex], hostLayer,
 			program.ActiveState, program.EmbeddingLength, program.NormalizationEpsilon,
 		)
@@ -77,7 +77,7 @@ func (r *Runner) forwardAlternatePredictionsCachedLocked(
 		}
 		nextCache.Layers[layerIndex] = layerCache
 	}
-	activation, err = gemma3nMergeAltUp(states, unembedding, int(program.ActiveState))
+	activation, err = mergeAlternateStates(states, unembedding, int(program.ActiveState))
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -99,15 +99,15 @@ func (r *Runner) runAlternatePredictionLayer(
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
 	runtime := r.newInferenceGraphRuntime(ctx)
-	inputNode := runtime.input("gemma3n.input", input)
-	graphWeights, err := runtime.layerWithHost(info, "gemma3n.", &hostLayer)
+	inputNode := runtime.input("alternate_state.input", input)
+	graphWeights, err := runtime.layerWithHost(info, "alternate_state.", &hostLayer)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if past != nil {
-		pastKey = runtime.input("gemma3n.cache_key", past.Key)
-		pastValue = runtime.input("gemma3n.cache_value", past.Value)
+		pastKey = runtime.input("alternate_state.cache_key", past.Key)
+		pastValue = runtime.input("alternate_state.cache_value", past.Value)
 	}
 	program := r.layerProgram(layerIndex)
 	stage, err := program.BuildActivationProjection(model.CachedBlockContext{
@@ -122,7 +122,7 @@ func (r *Runner) runAlternatePredictionLayer(
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
-	activated, err := gemma3nActivateFFN(
+	activated, err := activateAlternateFFN(
 		results[stage.Gate], results[stage.Up],
 		alternate.SparseAlternateLayer(layerIndex), alternate.SparsityStdMultiplier,
 	)
@@ -130,9 +130,9 @@ func (r *Runner) runAlternatePredictionLayer(
 		return reference.Value{}, LayerCache{}, err
 	}
 	runtime = r.newInferenceGraphRuntime(ctx)
-	residualNode := runtime.input("gemma3n.residual", results[stage.Residual])
-	activatedNode := runtime.input("gemma3n.ffn_activated", activated)
-	graphWeights, err = runtime.layerWithHost(info, "gemma3n.", &hostLayer)
+	residualNode := runtime.input("alternate_state.residual", results[stage.Residual])
+	activatedNode := runtime.input("alternate_state.ffn_activated", activated)
+	graphWeights, err = runtime.layerWithHost(info, "alternate_state.", &hostLayer)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
@@ -149,7 +149,7 @@ func (r *Runner) runAlternatePredictionLayer(
 	return results[output], LayerCache{Key: results[stage.Key], Value: results[stage.Value]}, nil
 }
 
-func gemma3nInitializeAltUp(
+func initializeAlternateStates(
 	input, projection reference.Value,
 	count int,
 ) ([]reference.Value, error) {
@@ -159,16 +159,17 @@ func gemma3nInitializeAltUp(
 	states := make([]reference.Value, count)
 	states[0] = input.Clone()
 	for index := 1; index < count; index++ {
-		projected, err := gemma3nMatMulSlice(projection, index-1, input)
+		projected, err := alternateLinearSlice(projection, index-1, input)
 		if err != nil {
 			return nil, err
 		}
-		states[index] = gemma3nMatchMagnitude(projected, input)
+		rescaleMagnitudeInPlace(&projected, input)
+		states[index] = projected
 	}
 	return states, nil
 }
 
-func gemma3nPredict(
+func predictAlternateStates(
 	states []reference.Value,
 	layer model.HostLayer,
 	active uint32,
@@ -178,13 +179,13 @@ func gemma3nPredict(
 	if active >= uint32(len(states)) {
 		return nil, errors.New("inference: alternate prediction active state is invalid")
 	}
-	modalities, err := gemma3nModalities(
+	modalities, err := alternateStateModalities(
 		states[active], layer, embeddingLength, normalizationEpsilon,
 	)
 	if err != nil {
 		return nil, err
 	}
-	coefficients, err := gemma3nMatMul(*layer.AltUpPredictCoefficient, modalities)
+	coefficients, err := alternateLinear(*layer.AltUpPredictCoefficient, modalities)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +211,7 @@ func gemma3nPredict(
 	return result, nil
 }
 
-func gemma3nCorrectAndInject(
+func correctAndInjectAlternateStates(
 	predictions []reference.Value,
 	activated, perLayer reference.Value,
 	layer model.HostLayer,
@@ -218,13 +219,13 @@ func gemma3nCorrectAndInject(
 	embeddingLength uint32,
 	normalizationEpsilon float32,
 ) ([]reference.Value, error) {
-	modalities, err := gemma3nModalities(
+	modalities, err := alternateStateModalities(
 		activated, layer, embeddingLength, normalizationEpsilon,
 	)
 	if err != nil {
 		return nil, err
 	}
-	coefficients, err := gemma3nMatMul(*layer.AltUpCorrectCoefficient, modalities)
+	coefficients, err := alternateLinear(*layer.AltUpCorrectCoefficient, modalities)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +249,7 @@ func gemma3nCorrectAndInject(
 	for index := range scaled.Data {
 		scaled.Data[index] *= layer.AltUpCorrectScale.Data[index%int(scaled.Shape.Dims[0])]
 	}
-	gate, err := gemma3nMatMul(*layer.PerLayerInputGate, scaled)
+	gate, err := alternateLinear(*layer.PerLayerInputGate, scaled)
 	if err != nil {
 		return nil, err
 	}
@@ -256,13 +257,13 @@ func gemma3nCorrectAndInject(
 		return nil, errors.New("inference: alternate-state per-layer input shape differs")
 	}
 	for index := range gate.Data {
-		gate.Data[index] = gemma3nGELU(gate.Data[index]) * perLayer.Data[index]
+		gate.Data[index] = roundedGELUTanh(gate.Data[index]) * perLayer.Data[index]
 	}
-	injection, err := gemma3nMatMul(*layer.PerLayerProjection, gate)
+	injection, err := alternateLinear(*layer.PerLayerProjection, gate)
 	if err != nil {
 		return nil, err
 	}
-	injection, err = gemma3nWeightedRMS(injection, *layer.PerLayerPostNorm, normalizationEpsilon)
+	injection, err = alternateRMSNorm(injection, *layer.PerLayerPostNorm, normalizationEpsilon)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +275,7 @@ func gemma3nCorrectAndInject(
 	return result, nil
 }
 
-func gemma3nModalities(
+func alternateStateModalities(
 	input reference.Value,
 	layer model.HostLayer,
 	embeddingLength uint32,
@@ -286,14 +287,14 @@ func gemma3nModalities(
 	if embeddingLength == 0 {
 		return reference.Value{}, errors.New("inference: alternate router embedding width is invalid")
 	}
-	normalized, err := gemma3nWeightedRMS(input, *layer.AltUpRouterNorm, normalizationEpsilon)
+	normalized, err := alternateRMSNorm(input, *layer.AltUpRouterNorm, normalizationEpsilon)
 	if err != nil {
 		return reference.Value{}, err
 	}
 	for index := range normalized.Data {
 		normalized.Data[index] /= float32(embeddingLength)
 	}
-	result, err := gemma3nMatMul(*layer.AltUpRouter, normalized)
+	result, err := alternateLinear(*layer.AltUpRouter, normalized)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -303,7 +304,7 @@ func gemma3nModalities(
 	return result, nil
 }
 
-func gemma3nActivateFFN(
+func activateAlternateFFN(
 	gate, up reference.Value,
 	sparse bool,
 	standardDeviationMultiplier float32,
@@ -334,13 +335,13 @@ func gemma3nActivateFFN(
 			if sparse {
 				value = max(value-cutoff, 0)
 			}
-			result.Data[base+index] = gemma3nGELU(value) * up.Data[base+index]
+			result.Data[base+index] = roundedGELUTanh(value) * up.Data[base+index]
 		}
 	}
 	return result, nil
 }
 
-func gemma3nMergeAltUp(
+func mergeAlternateStates(
 	states []reference.Value,
 	unembedding reference.Value,
 	active int,
@@ -351,11 +352,11 @@ func gemma3nMergeAltUp(
 	}
 	result := states[active].Clone()
 	for index := 1; index < len(states); index++ {
-		projected, err := gemma3nMatMulSlice(unembedding, index-1, states[index])
+		projected, err := alternateLinearSlice(unembedding, index-1, states[index])
 		if err != nil {
 			return reference.Value{}, err
 		}
-		projected = gemma3nMatchMagnitude(projected, states[active])
+		rescaleMagnitudeInPlace(&projected, states[active])
 		for valueIndex := range result.Data {
 			result.Data[valueIndex] += projected.Data[valueIndex]
 		}
@@ -366,7 +367,7 @@ func gemma3nMergeAltUp(
 	return result, nil
 }
 
-func gemma3nMatMul(weight, input reference.Value) (reference.Value, error) {
+func alternateLinear(weight, input reference.Value) (reference.Value, error) {
 	if weight.Shape.Rank != 2 || input.Shape.Rank != 2 || weight.Shape.Dims[0] != input.Shape.Dims[0] {
 		return reference.Value{}, errors.New("inference: alternate-state matrix dimensions differ")
 	}
@@ -381,19 +382,19 @@ func gemma3nMatMul(weight, input reference.Value) (reference.Value, error) {
 	return output, nil
 }
 
-func gemma3nMatMulSlice(weight reference.Value, slice int, input reference.Value) (reference.Value, error) {
+func alternateLinearSlice(weight reference.Value, slice int, input reference.Value) (reference.Value, error) {
 	if weight.Shape.Rank != 3 || slice < 0 || uint64(slice) >= weight.Shape.Dims[2] {
 		return reference.Value{}, errors.New("inference: alternate-state grouped projection slice is invalid")
 	}
 	size := int(weight.Shape.Dims[0] * weight.Shape.Dims[1])
 	start := slice * size
-	return gemma3nMatMul(reference.Value{
+	return alternateLinear(reference.Value{
 		Shape: tensor.MustShape(weight.Shape.Dims[0], weight.Shape.Dims[1]),
 		Data:  weight.Data[start : start+size],
 	}, input)
 }
 
-func gemma3nWeightedRMS(
+func alternateRMSNorm(
 	input, weight reference.Value,
 	epsilon float32,
 ) (reference.Value, error) {
@@ -408,8 +409,7 @@ func gemma3nWeightedRMS(
 	return result, nil
 }
 
-func gemma3nMatchMagnitude(input, target reference.Value) reference.Value {
-	result := input.Clone()
+func rescaleMagnitudeInPlace(input *reference.Value, target reference.Value) {
 	width := int(input.Shape.Dims[0])
 	for token := 0; token < int(input.Shape.Dims[1]); token++ {
 		base := token * width
@@ -425,13 +425,12 @@ func gemma3nMatchMagnitude(input, target reference.Value) reference.Value {
 		}
 		scale := float32(math.Sqrt(targetSquared / inputSquared))
 		for index := range width {
-			result.Data[base+index] *= scale
+			input.Data[base+index] *= scale
 		}
 	}
-	return result
 }
 
-func gemma3nGELU(value float32) float32 {
+func roundedGELUTanh(value float32) float32 {
 	if value <= -10 {
 		return 0
 	}

@@ -8,12 +8,46 @@ import (
 	"slices"
 	"strings"
 
+	"os"
+	"path/filepath"
+
 	"overgo/internal/gguf"
 	"overgo/internal/quant"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensorstats"
 )
+
+// MeasureAtLocation characterizes a model at a recorded location, dispatching on
+// the inventory's format. Callers address a model by its RepoDB identity (the
+// inventory) and location, never by file type: GGUF opens the file, safetensors
+// opens its directory. The opened source is closed before returning.
+func MeasureAtLocation(
+	inventory TensorInventoryDocument, location string, policy MeasurementPolicy,
+) (TensorMeasurementDocument, error) {
+	switch inventory.Format {
+	case TensorFormatGGUF:
+		file, err := gguf.Open(location)
+		if err != nil {
+			return TensorMeasurementDocument{}, err
+		}
+		defer file.Close()
+		return MeasureGGUF(inventory, file, policy)
+	case TensorFormatSafetensors:
+		directory := location
+		if info, err := os.Stat(location); err == nil && !info.IsDir() {
+			directory = filepath.Dir(location)
+		}
+		source, err := safetensors.OpenSource(directory)
+		if err != nil {
+			return TensorMeasurementDocument{}, err
+		}
+		defer source.Close()
+		return MeasureSafetensors(inventory, source, policy)
+	default:
+		return TensorMeasurementDocument{}, fmt.Errorf("model artifact: unsupported inventory format %q", inventory.Format)
+	}
+}
 
 func MeasureGGUF(
 	inventory TensorInventoryDocument,

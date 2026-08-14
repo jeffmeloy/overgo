@@ -25,6 +25,7 @@ type analyzeCapabilities struct {
 	Logits       bool `json:"logits"`
 	HiddenStates bool `json:"hidden_states"`
 	Attention    bool `json:"attention"`
+	Tensors      bool `json:"tensors"`
 }
 
 // HiddenStateCaptureSupportAPI: reports whether per-layer hidden-state capture is
@@ -109,6 +110,9 @@ func (h *Handler) analyzeModel(response http.ResponseWriter, request *http.Reque
 // wired.
 func (h *Handler) analysisCapabilities() analyzeCapabilities {
 	capabilities := analyzeCapabilities{Logits: true}
+	if _, ok := h.generator.(ModelPropertiesAPI); ok {
+		capabilities.Tensors = true
+	}
 	if _, ok := h.generator.(VocabularyInspectionAPI); ok {
 		capabilities.Vocabulary = true
 	}

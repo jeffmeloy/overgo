@@ -101,7 +101,7 @@ func ActivateCapability(
 	}
 	switch state {
 	case recipe.StatusActive:
-		return nil
+		return reverifyActiveCapability(ctx, store, definition, verification, tier, reason)
 	case recipe.StatusValidated:
 	default:
 		return fmt.Errorf("model recipe: recipe %s is %q; activation resumes only from candidate or validated", definition.ID, state)
@@ -149,6 +149,69 @@ func ActivateCapability(
 		return fmt.Errorf("model recipe: transition active: %w", err)
 	}
 	return nil
+}
+
+// reverifyActiveCapability: refresh proof after verifier-schema or code change.
+func reverifyActiveCapability(
+	ctx context.Context,
+	store artifact.Repository,
+	definition recipe.Definition,
+	verification Verification,
+	tier recipe.EvidenceTier,
+	reason string,
+) error {
+	current, err := currentEvent(ctx, store, definition.ID)
+	if err != nil {
+		return err
+	}
+	if current.To != recipe.StatusActive {
+		return fmt.Errorf("model recipe: recipe %s is not active", definition.ID)
+	}
+	verified, err := runrecord.VerifyGateRun(ctx, store, definition.ID, verification.Gate, verification.Run)
+	if err != nil {
+		return err
+	}
+	if slices.Contains(current.Evidence, verification.Gate) && slices.Contains(current.Evidence, verification.Run) {
+		return nil
+	}
+	decision, err := recipe.NewDecision(
+		definition.ID, recipe.DecisionAccepted, tier, reason,
+		recipe.Decider{CodeCommit: verified.Gate.CodeCommit, Derivation: verified.Gate.ID},
+		[]artifact.ID{verified.Gate.ID, verified.Run.ID},
+	)
+	if err != nil {
+		return err
+	}
+	decisionContent, err := decision.Content()
+	if err != nil {
+		return err
+	}
+	event, err := recipe.NewLifecycleEvent(
+		definition, recipe.StatusActive, recipe.StatusActive, &current.ID, nil,
+		[]artifact.ID{decision.ID, verified.Gate.ID, verified.Run.ID},
+	)
+	if err != nil {
+		return err
+	}
+	eventContent, err := event.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"recipe/reverified/"+definition.ID.String(),
+		[]artifact.Content{decisionContent, eventContent},
+		[]artifact.Lineage{
+			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
+			{Child: decision.ID, Parent: verified.Gate.ID, Relation: artifact.RelationDependsOn},
+			{Child: decision.ID, Parent: verified.Run.ID, Relation: artifact.RelationDependsOn},
+		},
+		[]artifact.AliasBinding{{Name: statusAlias(definition.ID), Target: event.ID, Previous: &current.ID}},
+	)
+	if err != nil {
+		return err
+	}
+	_, err = artifact.CommitBatch(ctx, store, batch)
+	return err
 }
 
 // ActivateVerified: promote only from a successful recipe-bound verifier run.

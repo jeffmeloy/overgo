@@ -150,7 +150,7 @@ func validTransition(from, to Status) bool {
 	case StatusValidated:
 		return to == StatusActive || to == StatusRefused
 	case StatusActive:
-		return to == StatusSuperseded
+		return to == StatusActive || to == StatusSuperseded
 	default:
 		return false
 	}

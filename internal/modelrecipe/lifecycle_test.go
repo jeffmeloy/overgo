@@ -2,6 +2,7 @@ package modelrecipe
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -124,6 +125,18 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 	activation, active, err := ActiveRecord(ctx, store, modelID, definition.Task)
 	if err != nil || !active || activation.Definition.ID != definition.ID {
 		t.Fatalf("active = (%s, %v, %v)", activation.Definition.ID, active, err)
+	}
+	refreshed := publishVerification(t, store, definition.ID, "fixture/activation/refreshed")
+	if err := ActivateCapability(
+		ctx, store, definition, refreshed, recipe.EvidenceParity, "refreshed verifier",
+	); err != nil {
+		t.Fatal(err)
+	}
+	activation, active, err = ActiveRecord(ctx, store, modelID, definition.Task)
+	if err != nil || !active || activation.Tier != recipe.EvidenceParity ||
+		!slices.Contains(activation.Event.Evidence, refreshed.Gate) ||
+		!slices.Contains(activation.Event.Evidence, refreshed.Run) {
+		t.Fatalf("refreshed active = (%+v, %v, %v)", activation, active, err)
 	}
 }
 

@@ -91,11 +91,12 @@ func CompileScratchConstruction(spec ScratchSpec) (ScratchConstruction, error) {
 	}, nil
 }
 
-func (c ScratchConstruction) ID() artifact.ID               { return c.id }
-func (c ScratchConstruction) InitializedModel() artifact.ID { return c.initializedModel }
-func (c ScratchConstruction) Dataset() artifact.ID          { return c.dataset }
-func (c ScratchConstruction) Split() artifact.ID            { return c.split }
-func (c ScratchConstruction) RNGStreams() []RNGStreamSpec   { return slices.Clone(c.rngStreams) }
+func (c ScratchConstruction) ID() artifact.ID                { return c.id }
+func (c ScratchConstruction) InitializedModel() artifact.ID  { return c.initializedModel }
+func (c ScratchConstruction) Dataset() artifact.ID           { return c.dataset }
+func (c ScratchConstruction) Split() artifact.ID             { return c.split }
+func (c ScratchConstruction) DerivationProfile() artifact.ID { return c.derivationProfile }
+func (c ScratchConstruction) RNGStreams() []RNGStreamSpec    { return slices.Clone(c.rngStreams) }
 
 type OperatorPhase string
 

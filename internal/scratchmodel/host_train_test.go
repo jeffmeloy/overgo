@@ -12,7 +12,7 @@ import (
 func TestScratchHostTrajectoryParity(t *testing.T) {
 	oracle := loadOracle(t)
 	facts := CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}
-	construction, err := Compile(facts)
+	construction, err := Compile(facts, AdaptiveDerivationProfile())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestScratchHostTrajectoryParity(t *testing.T) {
 	if _, err := construction.TrainHost(oracle.Steps, oracle.Steps-1, &invalid); err == nil {
 		t.Fatal("invalid checkpoint Muon stage accepted")
 	}
-	secondConstruction, err := Compile(facts)
+	secondConstruction, err := Compile(facts, AdaptiveDerivationProfile())
 	if err != nil {
 		t.Fatal(err)
 	}

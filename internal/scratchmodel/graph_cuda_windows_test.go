@@ -17,7 +17,7 @@ import (
 func TestScratchTensorForwardDeviceParity(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps})
+	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, AdaptiveDerivationProfile())
 	if err != nil {
 		t.Fatal(err)
 	}

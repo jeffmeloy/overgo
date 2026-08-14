@@ -8,6 +8,8 @@
 //	                               feeds the agent -- NOT free text it rewrites)
 //	plan -verify                   run the top open step's acceptance command
 //	                               (step.verify); exit code is pass/fail
+//	plan -context                  emit one typed JSON grounding payload for
+//	                               the current task and worktree
 //	plan -advance <item> <step>    mark a step done -- REFUSED unless that step's
 //	                               verify command exits 0 (step "." closes the
 //	                               item). -force <reason> overrides loudly.
@@ -24,6 +26,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -43,6 +46,7 @@ func main() {
 	prompt := flag.Bool("prompt", false, "print the generated self-contained task for the top open step")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
+	contextJSON := flag.Bool("context", false, "emit one typed JSON grounding payload for the current automation task")
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
 	add := flag.Bool("add", false, "inject a new top-priority task: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
@@ -52,16 +56,17 @@ func main() {
 	title := flag.String("title", "", "with -add: the task title")
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
+	role := flag.String("role", "", "with -context: explicit lane role (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	next, prompt, verify, status, advance, add, setverify, compact, stop bool
-	force, title, before, verifyCmd                                      string
+	next, prompt, verify, status, context, advance, add, setverify, compact, stop bool
+	force, title, before, verifyCmd, role                                         string
 }
 
 func run(c cli, args []string) error {
@@ -102,6 +107,8 @@ func run(c cli, args []string) error {
 	case c.status:
 		printStatus(document)
 		return nil
+	case c.context:
+		return printAutomationContext(document, c.role, os.Stdout)
 	case c.prompt:
 		printPrompt(document)
 		return nil
@@ -121,8 +128,63 @@ func run(c cli, args []string) error {
 		fmt.Println(action)
 		return nil
 	default:
-		return errors.New("one of -next, -prompt, -verify, -status, -advance is required")
+		return errors.New("one of -next, -prompt, -verify, -status, -context, -advance is required")
 	}
+}
+
+func printAutomationContext(document plan.Plan, role string, output io.Writer) error {
+	facts, err := collectContextFacts(role)
+	if err != nil {
+		return err
+	}
+	context, err := plan.BuildAutomationContext(document, facts)
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(output)
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(context)
+}
+
+func collectContextFacts(role string) (plan.ContextFacts, error) {
+	text := func(args ...string) (string, error) {
+		out, err := exec.Command("git", args...).Output()
+		if err != nil {
+			return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+		}
+		return strings.TrimSpace(string(out)), nil
+	}
+	head, err := text("rev-parse", "HEAD")
+	if err != nil {
+		return plan.ContextFacts{}, err
+	}
+	branch, err := text("branch", "--show-current")
+	if err != nil {
+		return plan.ContextFacts{}, err
+	}
+	if branch == "" {
+		branch = "detached"
+	}
+	worktree, err := text("rev-parse", "--show-toplevel")
+	if err != nil {
+		return plan.ContextFacts{}, err
+	}
+	status, err := exec.Command("git", "status", "--porcelain=v1", "-z", "--untracked-files=all").Output()
+	if err != nil {
+		return plan.ContextFacts{}, fmt.Errorf("git status: %w", err)
+	}
+	dirty, err := plan.ParseDirtyStatus(status)
+	if err != nil {
+		return plan.ContextFacts{}, err
+	}
+	if strings.TrimSpace(role) == "" {
+		role = os.Getenv("OVERGO_AUTOMATION_ROLE")
+	}
+	statusRaw, statusErr := os.ReadFile(filepath.Join(worktree, filepath.FromSlash("bin/gate_status.json")))
+	return plan.ContextFacts{
+		Head: head, Branch: branch, Worktree: worktree, Role: role, Dirty: dirty,
+		EvidenceDebt: plan.EvidenceDebtFromMirror(head, statusRaw, statusErr),
+	}, nil
 }
 
 // addItem injects a new task as a top-priority item (one step "do"), inserted

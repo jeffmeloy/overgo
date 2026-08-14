@@ -13,6 +13,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
+	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
@@ -96,11 +97,11 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 // prove the model bytes are present. Gated by OVERGO_SENSENOVA_MODEL so CI and
 // plan-verify honestly skip (mirrors TestActiveRecipeQwen35Open).
 func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
 	modelDir := os.Getenv("OVERGO_SENSENOVA_MODEL")
 	if modelDir == "" {
-		if testing.Short() {
-			return
-		}
 		t.Skip("OVERGO_SENSENOVA_MODEL is not set")
 	}
 	ctx := context.Background()

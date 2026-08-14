@@ -9,18 +9,12 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
 func TestInferenceTextAndStructuredMatrix(t *testing.T) {
-	raw, err := os.ReadFile(testutil.FixturePath(t, "adaptive_text_structured_snapshot.json"))
-	if err != nil {
-		t.Fatalf("UNAVAILABLE: text/structured snapshot absent; parity NOT verified: %v", err)
-	}
-	snapshot, _, err := Normalize(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	snapshot := textStructuredSnapshot(t)
 	wantStates := map[string]PromotionState{
 		"dense-carbon": PromotionParity, "dense-minicpm5": PromotionWallLead,
 		"dense-qwen25": PromotionParity, "hybrid-qwen35": PromotionTradeoff,
@@ -42,7 +36,16 @@ func TestInferenceTextAndStructuredMatrix(t *testing.T) {
 	if len(wantStates) != 0 {
 		t.Fatalf("missing text/structured rows: %v", wantStates)
 	}
+}
 
+func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
+	if os.Getenv("OVERGO_ADAPTIVE_PARITY") != "1" {
+		t.Skip("set OVERGO_ADAPTIVE_PARITY=1 to verify external evidence identities")
+	}
+	snapshot := textStructuredSnapshot(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
@@ -75,6 +78,19 @@ func TestInferenceTextAndStructuredMatrix(t *testing.T) {
 		assertFileIdentity(t, golden, capability.Corpora[0].Identity)
 		assertFileIdentity(t, golden, capability.Goldens[0].Identity)
 	}
+}
+
+func textStructuredSnapshot(t *testing.T) Snapshot {
+	t.Helper()
+	raw, err := os.ReadFile(testutil.FixturePath(t, "adaptive_text_structured_snapshot.json"))
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: text/structured snapshot absent; parity NOT verified: %v", err)
+	}
+	snapshot, _, err := Normalize(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
 }
 
 func assertFileIdentity(t *testing.T, path string, want artifact.ID) {

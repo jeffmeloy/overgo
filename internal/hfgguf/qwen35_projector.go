@@ -91,8 +91,8 @@ func Qwen35ProjectorConversion(repository *hfrepo.Repository) ([]gguf.Metadata, 
 		metadata("clip.vision.attention.head_count", gguf.ValueTypeUint32, config.Heads),
 		metadata("clip.vision.spatial_merge_size", gguf.ValueTypeUint32, config.MergeSize),
 		metadata("clip.vision.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(qwen35VisionNormEpsilon)),
-		arrayMetadata("clip.vision.image_mean", gguf.ValueTypeFloat32, processor.ImageMean),
-		arrayMetadata("clip.vision.image_std", gguf.ValueTypeFloat32, processor.ImageStd),
+		gguf.ArrayMetadata("clip.vision.image_mean", gguf.ValueTypeFloat32, processor.ImageMean),
+		gguf.ArrayMetadata("clip.vision.image_std", gguf.ValueTypeFloat32, processor.ImageStd),
 	}
 	tensors, err := qwen35ProjectorTensors(repository.Tensors, config)
 	if err != nil {

@@ -145,6 +145,11 @@ type Metadata struct {
 	Value Value
 }
 
+// ArrayMetadata constructs typed GGUF array metadata.
+func ArrayMetadata(key string, elementType ValueType, data any) Metadata {
+	return Metadata{Key: key, Value: Value{Type: ValueTypeArray, ArrayType: elementType, Data: data}}
+}
+
 // TensorInfo: describes one tensor without loading its data
 type TensorInfo struct {
 	Name       string

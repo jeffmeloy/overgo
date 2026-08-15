@@ -283,9 +283,9 @@ func modelMetadata(directory, name string, config modelConfig) ([]gguf.Metadata,
 		uint32Metadata("gemma4.block_count", text.HiddenLayers),
 		uint32Metadata("gemma4.context_length", text.MaxPositions),
 		uint32Metadata("gemma4.embedding_length", text.HiddenSize),
-		arrayMetadata("gemma4.feed_forward_length", gguf.ValueTypeInt32, feedForward),
+		gguf.ArrayMetadata("gemma4.feed_forward_length", gguf.ValueTypeInt32, feedForward),
 		uint32Metadata("gemma4.attention.head_count", text.AttentionHeads),
-		arrayMetadata("gemma4.attention.head_count_kv", gguf.ValueTypeInt32, kvHeads),
+		gguf.ArrayMetadata("gemma4.attention.head_count_kv", gguf.ValueTypeInt32, kvHeads),
 		uint32Metadata("gemma4.attention.key_length", text.GlobalHeadDim),
 		uint32Metadata("gemma4.attention.value_length", text.GlobalHeadDim),
 		uint32Metadata("gemma4.attention.key_length_swa", text.HeadDim),
@@ -295,7 +295,7 @@ func modelMetadata(directory, name string, config modelConfig) ([]gguf.Metadata,
 		float32Metadata("gemma4.rope.freq_base", full.Theta),
 		float32Metadata("gemma4.rope.freq_base_swa", sliding.Theta),
 		uint32Metadata("gemma4.attention.sliding_window", text.SlidingWindow),
-		arrayMetadata("gemma4.attention.sliding_window_pattern", gguf.ValueTypeBool, slidingLayers),
+		gguf.ArrayMetadata("gemma4.attention.sliding_window_pattern", gguf.ValueTypeBool, slidingLayers),
 		uint32Metadata("gemma4.attention.shared_kv_layers", text.SharedKVLayers),
 		uint32Metadata("gemma4.embedding_length_per_layer_input", text.PerLayerInput),
 		float32Metadata("gemma4.attention.layer_norm_rms_epsilon", text.RMSEpsilon),
@@ -393,9 +393,9 @@ func tokenizerMetadata(directory string, vocabulary uint32) ([]gguf.Metadata, er
 	metadata := []gguf.Metadata{
 		stringMetadata("tokenizer.ggml.model", "gemma4"),
 		stringMetadata("tokenizer.ggml.pre", "gemma4"),
-		arrayMetadata("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
-		arrayMetadata("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
-		arrayMetadata("tokenizer.ggml.merges", gguf.ValueTypeString, merges),
+		gguf.ArrayMetadata("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
+		gguf.ArrayMetadata("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
+		gguf.ArrayMetadata("tokenizer.ggml.merges", gguf.ValueTypeString, merges),
 		uint32Metadata("tokenizer.ggml.bos_token_id", bos),
 		uint32Metadata("tokenizer.ggml.eos_token_id", eos),
 		uint32Metadata("tokenizer.ggml.eot_token_id", eot),
@@ -568,8 +568,8 @@ func projectorMetadata(name string, config modelConfig) []gguf.Metadata {
 		uint32Metadata("clip.vision.attention.head_count", 0),
 		uint32Metadata("clip.vision.projection_dim", config.Vision.Embedding),
 		float32Metadata("clip.vision.attention.layer_norm_epsilon", config.Vision.RMSEpsilon),
-		arrayMetadata("clip.vision.image_mean", gguf.ValueTypeFloat32, []float32{0, 0, 0}),
-		arrayMetadata("clip.vision.image_std", gguf.ValueTypeFloat32, []float32{1, 1, 1}),
+		gguf.ArrayMetadata("clip.vision.image_mean", gguf.ValueTypeFloat32, []float32{0, 0, 0}),
+		gguf.ArrayMetadata("clip.vision.image_std", gguf.ValueTypeFloat32, []float32{1, 1, 1}),
 		uint32Metadata("clip.vision.projector_scale_factor", config.Vision.PoolingSize),
 		stringMetadata("clip.audio.projector_type", "gemma4ua"),
 		boolMetadata("clip.has_audio_encoder", true),
@@ -655,8 +655,4 @@ func float32Metadata(key string, value float32) gguf.Metadata {
 
 func boolMetadata(key string, value bool) gguf.Metadata {
 	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeBool, Data: value}}
-}
-
-func arrayMetadata(key string, valueType gguf.ValueType, value any) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: valueType, Data: value}}
 }

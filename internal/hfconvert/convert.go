@@ -247,9 +247,9 @@ func tokenizerMetadata(directory string, vocabulary uint32, fallback specialToke
 	metadata := []gguf.Metadata{
 		stringMetadata("tokenizer.ggml.model", "gpt2"),
 		stringMetadata("tokenizer.ggml.pre", pre),
-		arrayMetadata("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
-		arrayMetadata("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
-		arrayMetadata("tokenizer.ggml.merges", gguf.ValueTypeString, merges),
+		gguf.ArrayMetadata("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
+		gguf.ArrayMetadata("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
+		gguf.ArrayMetadata("tokenizer.ggml.merges", gguf.ValueTypeString, merges),
 	}
 	for _, item := range []struct {
 		key string
@@ -697,8 +697,4 @@ func float32Metadata(key string, value float32) gguf.Metadata {
 
 func boolMetadata(key string, value bool) gguf.Metadata {
 	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeBool, Data: value}}
-}
-
-func arrayMetadata(key string, valueType gguf.ValueType, value any) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: valueType, Data: value}}
 }

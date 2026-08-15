@@ -32,8 +32,11 @@ const (
 	kernelClampF32
 	kernelConcatF32
 	kernelConv1dSameF32
+	kernelConv2dBiasBackwardF32
 	kernelConv2dF32
 	kernelConv2dIm2colF32
+	kernelConv2dInputBackwardF32
+	kernelConv2dWeightBackwardF32
 	kernelCopyF32
 	kernelCopyTokenOffsetF32
 	kernelDivideF32
@@ -81,6 +84,8 @@ const (
 	kernelGetRowsTq10F32
 	kernelGetRowsTq20F32
 	kernelGroupNormF32
+	kernelGroupNormInputBackwardF32
+	kernelGroupNormParameterBackwardF32
 	kernelGroupSliceF32
 	kernelHeadMajorF32
 	kernelHeadMajorInverseF32
@@ -214,8 +219,11 @@ var kernelFunctionNames = [...]string{
 	"clamp_f32",
 	"concat_f32",
 	"conv_1d_same_f32",
+	"conv_2d_bias_backward_f32",
 	"conv_2d_f32",
 	"conv_2d_im2col_f32",
+	"conv_2d_input_backward_f32",
+	"conv_2d_weight_backward_f32",
 	"copy_f32",
 	"copy_token_offset_f32",
 	"divide_f32",
@@ -263,6 +271,8 @@ var kernelFunctionNames = [...]string{
 	"get_rows_tq1_0_f32",
 	"get_rows_tq2_0_f32",
 	"group_norm_f32",
+	"group_norm_input_backward_f32",
+	"group_norm_parameter_backward_f32",
 	"group_slice_f32",
 	"head_major_f32",
 	"head_major_inverse_f32",
@@ -395,7 +405,10 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	8,
 	10,
+	6,
 	20,
+	17,
+	17,
 	17,
 	3,
 	5,
@@ -444,6 +457,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	9,
+	10,
+	10,
 	8,
 	5,
 	5,

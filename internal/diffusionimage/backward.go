@@ -62,6 +62,11 @@ type resizeTrace struct {
 	h, width, residualLevel int
 }
 
+type resBlockTrace struct {
+	input, norm1, activated1, hidden1 []float32
+	norm2, activated2, branch, output []float32
+}
+
 // conv2dValidStrideBackward: VJP of conv2dValidStride; accumulates dW/dB
 // into grads under name.weight/.bias, returns dx.
 func conv2dValidStrideBackward(grads Grads, name string, x, weight, dOut []float32, b, cin, cout, h, w, kernel, stride int) []float32 {
@@ -573,30 +578,21 @@ func (blk *attnBlock) backward(m *Model, x, dOutImage []float32, batch, channels
 func (blk *resBlock) backward(m *Model, x, dOut []float32, batch, channels, h, width int, grads Grads) []float32 {
 	cfg := &m.Cfg
 	prefix := blk.name
-	n1 := make([]float32, len(x))
-	groupNormInto(n1, x, blk.norm1Weight, blk.norm1Bias, batch, channels, h, width, cfg.Groups, cfg.NormEps)
-	a1 := append([]float32(nil), n1...)
-	hostmath.SiLUInPlace(a1)
-	h1 := conv2dSame3x3(a1, blk.conv1Weight, blk.conv1Bias, batch, channels, channels, h, width)
-	n2 := make([]float32, len(h1))
-	groupNormInto(n2, h1, blk.norm2Weight, blk.norm2Bias, batch, channels, h, width, cfg.Groups, cfg.NormEps)
-	a2 := append([]float32(nil), n2...)
-	hostmath.SiLUInPlace(a2)
-	h2 := conv2dSame3x3(a2, blk.conv2Weight, blk.conv2Bias, batch, channels, channels, h, width)
+	trace := blk.forwardTrace(m, x, batch, channels, h, width)
 	var dScale float64
 	dH2 := make([]float32, len(dOut))
 	for i, v := range dOut {
-		dScale += float64(v) * float64(h2[i])
+		dScale += float64(v) * float64(trace.branch[i])
 		dH2[i] = v * blk.residualScale
 	}
-	dA2 := conv2dSame3x3Backward(grads, prefix+".conv2", a2, blk.conv2Weight, dH2, batch, channels, channels, h, width)
-	dN2 := make([]float32, len(n2))
-	hostmath.SiLUBackward(dN2, n2, dA2)
-	dH1 := make([]float32, len(h1))
-	groupNormBackward(dH1, grads.vec(prefix+".norm2.weight", channels), grads.vec(prefix+".norm2.bias", channels), h1, blk.norm2Weight, dN2, batch, channels, h, width, cfg.Groups, cfg.NormEps)
-	dA1 := conv2dSame3x3Backward(grads, prefix+".conv1", a1, blk.conv1Weight, dH1, batch, channels, channels, h, width)
-	dN1 := make([]float32, len(n1))
-	hostmath.SiLUBackward(dN1, n1, dA1)
+	dA2 := conv2dSame3x3Backward(grads, prefix+".conv2", trace.activated2, blk.conv2Weight, dH2, batch, channels, channels, h, width)
+	dN2 := make([]float32, len(trace.norm2))
+	hostmath.SiLUBackward(dN2, trace.norm2, dA2)
+	dH1 := make([]float32, len(trace.hidden1))
+	groupNormBackward(dH1, grads.vec(prefix+".norm2.weight", channels), grads.vec(prefix+".norm2.bias", channels), trace.hidden1, blk.norm2Weight, dN2, batch, channels, h, width, cfg.Groups, cfg.NormEps)
+	dA1 := conv2dSame3x3Backward(grads, prefix+".conv1", trace.activated1, blk.conv1Weight, dH1, batch, channels, channels, h, width)
+	dN1 := make([]float32, len(trace.norm1))
+	hostmath.SiLUBackward(dN1, trace.norm1, dA1)
 	dxGN := make([]float32, len(x))
 	groupNormBackward(dxGN, grads.vec(prefix+".norm1.weight", channels), grads.vec(prefix+".norm1.bias", channels), x, blk.norm1Weight, dN1, batch, channels, h, width, cfg.Groups, cfg.NormEps)
 	dx := append([]float32(nil), dOut...)
@@ -605,6 +601,25 @@ func (blk *resBlock) backward(m *Model, x, dOut []float32, batch, channels, h, w
 	}
 	grads.addScalar(prefix+".learned_residual_scale", float32(dScale))
 	return dx
+}
+
+func (blk *resBlock) forwardTrace(m *Model, x []float32, batch, channels, h, width int) resBlockTrace {
+	trace := resBlockTrace{input: x}
+	trace.norm1 = make([]float32, len(x))
+	groupNormInto(trace.norm1, x, blk.norm1Weight, blk.norm1Bias, batch, channels, h, width, m.Cfg.Groups, m.Cfg.NormEps)
+	trace.activated1 = append([]float32(nil), trace.norm1...)
+	hostmath.SiLUInPlace(trace.activated1)
+	trace.hidden1 = conv2dSame3x3(trace.activated1, blk.conv1Weight, blk.conv1Bias, batch, channels, channels, h, width)
+	trace.norm2 = make([]float32, len(trace.hidden1))
+	groupNormInto(trace.norm2, trace.hidden1, blk.norm2Weight, blk.norm2Bias, batch, channels, h, width, m.Cfg.Groups, m.Cfg.NormEps)
+	trace.activated2 = append([]float32(nil), trace.norm2...)
+	hostmath.SiLUInPlace(trace.activated2)
+	trace.branch = conv2dSame3x3(trace.activated2, blk.conv2Weight, blk.conv2Bias, batch, channels, channels, h, width)
+	trace.output = make([]float32, len(x))
+	for index := range trace.output {
+		trace.output[index] = x[index] + blk.residualScale*trace.branch[index]
+	}
+	return trace
 }
 
 func (lv *level) backward(m *Model, grads Grads, trace levelTrace, dOut []float32, batch int) ([]float32, error) {

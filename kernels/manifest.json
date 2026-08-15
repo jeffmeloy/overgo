@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 40,
+  "abiVersion": 41,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -63,7 +63,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "bc798c893fd8e6ab3ac4bfa3e966951d04b991c19fc0a1f726c7c64828546a53",
+      "sourceSha256": "d000d1e7e05e368b499ebf7b355a6c689130c22517964a3096b7c0255da8644c",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -71,7 +71,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "add7b8fb54ff0a7fe4bdd74bdda2d9bd5d20d2ae39a567382d31678e7b81f53d",
+      "assetSha256": "5d8a26e58715bc9a39d328a68bb2f49b4f347aced071f5fc4abae06383b8c5e8",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -98,8 +98,11 @@
         "clamp_f32",
         "concat_f32",
         "conv_1d_same_f32",
+        "conv_2d_bias_backward_f32",
         "conv_2d_f32",
         "conv_2d_im2col_f32",
+        "conv_2d_input_backward_f32",
+        "conv_2d_weight_backward_f32",
         "copy_f32",
         "copy_token_offset_f32",
         "divide_f32",
@@ -147,6 +150,8 @@
         "get_rows_tq1_0_f32",
         "get_rows_tq2_0_f32",
         "group_norm_f32",
+        "group_norm_input_backward_f32",
+        "group_norm_parameter_backward_f32",
         "group_slice_f32",
         "head_major_f32",
         "head_major_inverse_f32",
@@ -465,6 +470,7 @@
           ],
           "functions": [
             "attention_online_finalize_f32",
+            "conv_2d_bias_backward_f32",
             "repeat_heads_f32",
             "vae_time_interleave_f32"
           ]
@@ -684,6 +690,31 @@
             ".u64",
             ".u64",
             ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "conv_2d_input_backward_f32",
+            "conv_2d_weight_backward_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
             ".u64",
             ".u64",
             ".u64",
@@ -795,6 +826,24 @@
           ],
           "functions": [
             "group_norm_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f64",
+            ".u32"
+          ],
+          "functions": [
+            "group_norm_input_backward_f32",
+            "group_norm_parameter_backward_f32"
           ]
         },
         {

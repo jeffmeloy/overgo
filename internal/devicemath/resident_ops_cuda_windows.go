@@ -333,6 +333,114 @@ func (o *ResidentOps) ReLUBackward(incoming, input, gradient driver.DevicePtr, c
 		unsafe.Pointer(&incoming), unsafe.Pointer(&input), unsafe.Pointer(&gradient), unsafe.Pointer(&countU))
 }
 
+func (o *ResidentOps) SiLUBackward(incoming, input, gradient driver.DevicePtr, count int) error {
+	if incoming == 0 || input == 0 || gradient == 0 || count <= 0 || uint64(count) > math.MaxUint32 {
+		return errors.New("resident ops: invalid SiLU VJP")
+	}
+	function, err := o.function("silu_backward_f32")
+	if err != nil {
+		return err
+	}
+	return o.session.launchVector3(function, incoming, input, gradient, count)
+}
+
+func (o *ResidentOps) Conv2DBackward(
+	input, weight, incoming, inputGradient, weightGradient, biasGradient driver.DevicePtr,
+	batches, inputChannels, inputWidth, inputHeight, kernelWidth, kernelHeight,
+	outputChannels, strideX, strideY, padLeft, padTop int,
+) error {
+	if input == 0 || weight == 0 || incoming == 0 || inputGradient == 0 || weightGradient == 0 || biasGradient == 0 ||
+		batches <= 0 || inputChannels <= 0 || inputWidth <= 0 || inputHeight <= 0 || kernelWidth <= 0 || kernelHeight <= 0 ||
+		outputChannels <= 0 || strideX <= 0 || strideY <= 0 || padLeft < 0 || padTop < 0 ||
+		inputWidth+2*padLeft < kernelWidth || inputHeight+2*padTop < kernelHeight {
+		return errors.New("resident ops: invalid Conv2D VJP")
+	}
+	outputWidth := (inputWidth+2*padLeft-kernelWidth)/strideX + 1
+	outputHeight := (inputHeight+2*padTop-kernelHeight)/strideY + 1
+	inputCount := batches * inputChannels * inputWidth * inputHeight
+	weightCount := kernelWidth * kernelHeight * inputChannels * outputChannels
+	if outputWidth <= 0 || outputHeight <= 0 || uint64(inputCount) > math.MaxUint32 || uint64(weightCount) > math.MaxUint32 || uint64(outputChannels) > math.MaxUint32 {
+		return errors.New("resident ops: invalid Conv2D VJP geometry")
+	}
+	inputFunction, err := o.function("conv_2d_input_backward_f32")
+	if err != nil {
+		return err
+	}
+	weightFunction, err := o.function("conv_2d_weight_backward_f32")
+	if err != nil {
+		return err
+	}
+	biasFunction, err := o.function("conv_2d_bias_backward_f32")
+	if err != nil {
+		return err
+	}
+	batchesU, inputChannelsU := uint32(batches), uint32(inputChannels)
+	inputWidthU, inputHeightU := uint32(inputWidth), uint32(inputHeight)
+	kernelWidthU, kernelHeightU := uint32(kernelWidth), uint32(kernelHeight)
+	outputChannelsU := uint32(outputChannels)
+	outputWidthU, outputHeightU := uint32(outputWidth), uint32(outputHeight)
+	strideXU, strideYU := uint32(strideX), uint32(strideY)
+	padLeftU, padTopU := uint32(padLeft), uint32(padTop)
+	inputCountU, weightCountU := uint32(inputCount), uint32(weightCount)
+	if err := o.session.launch1D(inputFunction, inputCountU,
+		unsafe.Pointer(&weight), unsafe.Pointer(&incoming), unsafe.Pointer(&inputGradient),
+		unsafe.Pointer(&batchesU), unsafe.Pointer(&inputChannelsU), unsafe.Pointer(&inputWidthU), unsafe.Pointer(&inputHeightU),
+		unsafe.Pointer(&kernelWidthU), unsafe.Pointer(&kernelHeightU), unsafe.Pointer(&outputChannelsU),
+		unsafe.Pointer(&outputWidthU), unsafe.Pointer(&outputHeightU), unsafe.Pointer(&strideXU), unsafe.Pointer(&strideYU),
+		unsafe.Pointer(&padLeftU), unsafe.Pointer(&padTopU), unsafe.Pointer(&inputCountU)); err != nil {
+		return err
+	}
+	if err := o.session.launch1D(weightFunction, weightCountU,
+		unsafe.Pointer(&input), unsafe.Pointer(&incoming), unsafe.Pointer(&weightGradient),
+		unsafe.Pointer(&batchesU), unsafe.Pointer(&inputChannelsU), unsafe.Pointer(&inputWidthU), unsafe.Pointer(&inputHeightU),
+		unsafe.Pointer(&kernelWidthU), unsafe.Pointer(&kernelHeightU), unsafe.Pointer(&outputChannelsU),
+		unsafe.Pointer(&outputWidthU), unsafe.Pointer(&outputHeightU), unsafe.Pointer(&strideXU), unsafe.Pointer(&strideYU),
+		unsafe.Pointer(&padLeftU), unsafe.Pointer(&padTopU), unsafe.Pointer(&weightCountU)); err != nil {
+		return err
+	}
+	outputTokensU, biasCountU := uint32(outputWidth*outputHeight), outputChannelsU
+	return o.session.launch1D(biasFunction, biasCountU,
+		unsafe.Pointer(&incoming), unsafe.Pointer(&biasGradient), unsafe.Pointer(&batchesU),
+		unsafe.Pointer(&outputChannelsU), unsafe.Pointer(&outputTokensU), unsafe.Pointer(&biasCountU))
+}
+
+func (o *ResidentOps) GroupNormBackward(
+	input, weight, incoming, inputGradient, weightGradient, biasGradient driver.DevicePtr,
+	batches, channels, tokens, groups int,
+	epsilon float64,
+) error {
+	if input == 0 || weight == 0 || incoming == 0 || inputGradient == 0 || weightGradient == 0 || biasGradient == 0 ||
+		batches <= 0 || channels <= 0 || tokens <= 0 || groups <= 0 || channels%groups != 0 ||
+		epsilon <= 0 || math.IsNaN(epsilon) || math.IsInf(epsilon, 0) {
+		return errors.New("resident ops: invalid GroupNorm VJP")
+	}
+	count := batches * channels * tokens
+	if uint64(count) > math.MaxUint32 || uint64(channels) > math.MaxUint32 {
+		return errors.New("resident ops: GroupNorm VJP geometry exceeds ABI")
+	}
+	inputFunction, err := o.function("group_norm_input_backward_f32")
+	if err != nil {
+		return err
+	}
+	parameterFunction, err := o.function("group_norm_parameter_backward_f32")
+	if err != nil {
+		return err
+	}
+	batchesU, channelsU, tokensU, groupsU := uint32(batches), uint32(channels), uint32(tokens), uint32(groups)
+	countU := uint32(count)
+	if err := o.session.launch1D(inputFunction, countU,
+		unsafe.Pointer(&input), unsafe.Pointer(&weight), unsafe.Pointer(&incoming), unsafe.Pointer(&inputGradient),
+		unsafe.Pointer(&batchesU), unsafe.Pointer(&channelsU), unsafe.Pointer(&tokensU), unsafe.Pointer(&groupsU),
+		unsafe.Pointer(&epsilon), unsafe.Pointer(&countU)); err != nil {
+		return err
+	}
+	parameterCountU := channelsU
+	return o.session.launch1D(parameterFunction, parameterCountU,
+		unsafe.Pointer(&input), unsafe.Pointer(&incoming), unsafe.Pointer(&weightGradient), unsafe.Pointer(&biasGradient),
+		unsafe.Pointer(&batchesU), unsafe.Pointer(&channelsU), unsafe.Pointer(&tokensU), unsafe.Pointer(&groupsU),
+		unsafe.Pointer(&epsilon), unsafe.Pointer(&parameterCountU))
+}
+
 func (o *ResidentOps) StridedRowCopy(
 	source, destination driver.DevicePtr,
 	rows, width, sourceStride, sourceOffset, destinationStride, destinationOffset int,

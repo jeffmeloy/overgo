@@ -1183,6 +1183,242 @@ extern "C" __global__ void group_norm_f32(
 	output[index] = normalized * weight[channel] + bias[channel];
 }
 
+extern "C" __global__ void conv_2d_input_backward_f32(
+		const float * weight,
+		const float * incoming,
+		float * gradient,
+		unsigned int batches,
+		unsigned int input_channels,
+		unsigned int input_width,
+		unsigned int input_height,
+		unsigned int kernel_width,
+		unsigned int kernel_height,
+		unsigned int output_channels,
+		unsigned int output_width,
+		unsigned int output_height,
+		unsigned int stride_x,
+		unsigned int stride_y,
+		unsigned int pad_left,
+		unsigned int pad_top,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int input_channel = index % input_channels;
+	unsigned int position = index / input_channels;
+	const unsigned int input_x = position % input_width;
+	position /= input_width;
+	const unsigned int input_y = position % input_height;
+	const unsigned int batch = position / input_height;
+	if (batch >= batches) {
+		return;
+	}
+	double sum = 0.0;
+	for (unsigned int output_channel = 0; output_channel < output_channels; ++output_channel) {
+		for (unsigned int kernel_y = 0; kernel_y < kernel_height; ++kernel_y) {
+			const int output_y_numerator = (int) input_y + (int) pad_top - (int) kernel_y;
+			if (output_y_numerator < 0 || output_y_numerator % (int) stride_y != 0) {
+				continue;
+			}
+			const unsigned int output_y = (unsigned int) output_y_numerator / stride_y;
+			if (output_y >= output_height) {
+				continue;
+			}
+			for (unsigned int kernel_x = 0; kernel_x < kernel_width; ++kernel_x) {
+				const int output_x_numerator = (int) input_x + (int) pad_left - (int) kernel_x;
+				if (output_x_numerator < 0 || output_x_numerator % (int) stride_x != 0) {
+					continue;
+				}
+				const unsigned int output_x = (unsigned int) output_x_numerator / stride_x;
+				if (output_x >= output_width) {
+					continue;
+				}
+				const unsigned int weight_index = kernel_x + kernel_width *
+					(kernel_y + kernel_height * (input_channel + input_channels * output_channel));
+				const unsigned int output_index = output_channel + output_channels *
+					(output_x + output_width * (output_y + output_height * batch));
+				sum += (double) weight[weight_index] * (double) incoming[output_index];
+			}
+		}
+	}
+	gradient[index] = (float) sum;
+}
+
+extern "C" __global__ void conv_2d_weight_backward_f32(
+		const float * input,
+		const float * incoming,
+		float * gradient,
+		unsigned int batches,
+		unsigned int input_channels,
+		unsigned int input_width,
+		unsigned int input_height,
+		unsigned int kernel_width,
+		unsigned int kernel_height,
+		unsigned int output_channels,
+		unsigned int output_width,
+		unsigned int output_height,
+		unsigned int stride_x,
+		unsigned int stride_y,
+		unsigned int pad_left,
+		unsigned int pad_top,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	unsigned int item = index;
+	const unsigned int kernel_x = item % kernel_width;
+	item /= kernel_width;
+	const unsigned int kernel_y = item % kernel_height;
+	item /= kernel_height;
+	const unsigned int input_channel = item % input_channels;
+	const unsigned int output_channel = item / input_channels;
+	if (output_channel >= output_channels) {
+		return;
+	}
+	double sum = 0.0;
+	for (unsigned int batch = 0; batch < batches; ++batch) {
+		for (unsigned int output_y = 0; output_y < output_height; ++output_y) {
+			const int input_y = (int) (output_y * stride_y + kernel_y) - (int) pad_top;
+			if (input_y < 0 || input_y >= (int) input_height) {
+				continue;
+			}
+			for (unsigned int output_x = 0; output_x < output_width; ++output_x) {
+				const int input_x = (int) (output_x * stride_x + kernel_x) - (int) pad_left;
+				if (input_x < 0 || input_x >= (int) input_width) {
+					continue;
+				}
+				const unsigned int input_index = input_channel + input_channels *
+					((unsigned int) input_x + input_width * ((unsigned int) input_y + input_height * batch));
+				const unsigned int output_index = output_channel + output_channels *
+					(output_x + output_width * (output_y + output_height * batch));
+				sum += (double) input[input_index] * (double) incoming[output_index];
+			}
+		}
+	}
+	gradient[index] = (float) sum;
+}
+
+extern "C" __global__ void conv_2d_bias_backward_f32(
+		const float * incoming,
+		float * gradient,
+		unsigned int batches,
+		unsigned int output_channels,
+		unsigned int output_tokens,
+		unsigned int count) {
+	const unsigned int output_channel = blockIdx.x * blockDim.x + threadIdx.x;
+	if (output_channel >= count || output_channel >= output_channels) {
+		return;
+	}
+	double sum = 0.0;
+	for (unsigned int batch = 0; batch < batches; ++batch) {
+		for (unsigned int token = 0; token < output_tokens; ++token) {
+			sum += (double) incoming[output_channel + output_channels * (token + output_tokens * batch)];
+		}
+	}
+	gradient[output_channel] = (float) sum;
+}
+
+extern "C" __global__ void group_norm_input_backward_f32(
+		const float * input,
+		const float * weight,
+		const float * incoming,
+		float * gradient,
+		unsigned int batches,
+		unsigned int channels,
+		unsigned int tokens,
+		unsigned int groups,
+		double epsilon,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int channel = index % channels;
+	const unsigned int token_batch = index / channels;
+	const unsigned int token = token_batch % tokens;
+	const unsigned int batch = token_batch / tokens;
+	if (batch >= batches) {
+		return;
+	}
+	const unsigned int channels_per_group = channels / groups;
+	const unsigned int first_channel = (channel / channels_per_group) * channels_per_group;
+	const unsigned int values_per_group = channels_per_group * tokens;
+	double sum = 0.0;
+	double sum_squares = 0.0;
+	for (unsigned int group_channel = 0; group_channel < channels_per_group; ++group_channel) {
+		for (unsigned int group_token = 0; group_token < tokens; ++group_token) {
+			const double value = (double) input[first_channel + group_channel + channels *
+				(group_token + tokens * batch)];
+			sum += value;
+			sum_squares += value * value;
+		}
+	}
+	const double mean = sum / (double) values_per_group;
+	const double inverse = 1.0 / sqrt(sum_squares / (double) values_per_group - mean * mean + epsilon);
+	double gradient_sum = 0.0;
+	double gradient_xhat_sum = 0.0;
+	for (unsigned int group_channel = 0; group_channel < channels_per_group; ++group_channel) {
+		const unsigned int current_channel = first_channel + group_channel;
+		for (unsigned int group_token = 0; group_token < tokens; ++group_token) {
+			const unsigned int current = current_channel + channels * (group_token + tokens * batch);
+			const double normalized = ((double) input[current] - mean) * inverse;
+			const double normalized_gradient = (double) incoming[current] * (double) weight[current_channel];
+			gradient_sum += normalized_gradient;
+			gradient_xhat_sum += normalized_gradient * normalized;
+		}
+	}
+	const double normalized = ((double) input[index] - mean) * inverse;
+	const double normalized_gradient = (double) incoming[index] * (double) weight[channel];
+	gradient[index] = (float) (((double) values_per_group * normalized_gradient - gradient_sum -
+		normalized * gradient_xhat_sum) * inverse / (double) values_per_group);
+}
+
+extern "C" __global__ void group_norm_parameter_backward_f32(
+		const float * input,
+		const float * incoming,
+		float * weight_gradient,
+		float * bias_gradient,
+		unsigned int batches,
+		unsigned int channels,
+		unsigned int tokens,
+		unsigned int groups,
+		double epsilon,
+		unsigned int count) {
+	const unsigned int channel = blockIdx.x * blockDim.x + threadIdx.x;
+	if (channel >= count || channel >= channels) {
+		return;
+	}
+	const unsigned int channels_per_group = channels / groups;
+	const unsigned int first_channel = (channel / channels_per_group) * channels_per_group;
+	const unsigned int values_per_group = channels_per_group * tokens;
+	double weight_sum = 0.0;
+	double bias_sum = 0.0;
+	for (unsigned int batch = 0; batch < batches; ++batch) {
+		double sum = 0.0;
+		double sum_squares = 0.0;
+		for (unsigned int group_channel = 0; group_channel < channels_per_group; ++group_channel) {
+			for (unsigned int token = 0; token < tokens; ++token) {
+				const double value = (double) input[first_channel + group_channel + channels *
+					(token + tokens * batch)];
+				sum += value;
+				sum_squares += value * value;
+			}
+		}
+		const double mean = sum / (double) values_per_group;
+		const double inverse = 1.0 / sqrt(sum_squares / (double) values_per_group - mean * mean + epsilon);
+		for (unsigned int token = 0; token < tokens; ++token) {
+			const unsigned int current = channel + channels * (token + tokens * batch);
+			const double incoming_value = (double) incoming[current];
+			weight_sum += incoming_value * ((double) input[current] - mean) * inverse;
+			bias_sum += incoming_value;
+		}
+	}
+	weight_gradient[channel] = (float) weight_sum;
+	bias_gradient[channel] = (float) bias_sum;
+}
+
 extern "C" __global__ void sigmoid_f32(
         const float * input,
         float * output,

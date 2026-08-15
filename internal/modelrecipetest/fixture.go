@@ -72,6 +72,8 @@ func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 	var compiled recipe.Definition
 	if task == recipe.TaskImageGen {
 		compiled, err = modelrecipe.OscillatorImageDefinition(modelID)
+	} else if task == recipe.TaskVideoGen {
+		compiled, err = modelrecipe.OscillatorVideoDefinition(modelID)
 	} else {
 		compiled, err = modelrecipe.CapabilityDefinition(task, modelID)
 	}

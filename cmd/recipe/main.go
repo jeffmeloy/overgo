@@ -51,7 +51,7 @@ func run() error {
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
 	gate := flags.String("gate", "", "successful verifier gate artifact ID (activate)")
 	runID := flags.String("run-id", "", "bound verifier run artifact ID (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|vqa)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen|vqa)")
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
 	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),
 		"weight residency: stream | host-cache | device-f32 | device-native | device-native-bf16 | hybrid-native | host-reference")

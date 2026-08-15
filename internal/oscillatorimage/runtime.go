@@ -10,6 +10,13 @@ import (
 )
 
 var imageContract = artifact.JSONContract(artifact.KindOutput, "overgo.generated-image.v1")
+var videoContract = artifact.JSONContract(artifact.KindOutput, "overgo.generated-video.v1")
+
+type videoGenerator interface {
+	prepareVideo(VideoRequest) (videoPlan, error)
+	integrateVideo(videoPlan) (videoFeatures, error)
+	decodeVideo(videoFeatures) (EncodedVideo, error)
+}
 
 type Request struct {
 	Class int   `json:"class"`
@@ -56,6 +63,23 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 		return errors.New("oscillatorimage: incomplete runtime binding")
 	}
 	return registerRuntime(runtime, modelID, model)
+}
+
+func RegisterVideoRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model *Model) error {
+	if model == nil {
+		return errors.New("oscillatorimage: incomplete video runtime binding")
+	}
+	return registerVideoRuntime(runtime, modelID, model)
+}
+
+func registerVideoRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model videoGenerator) error {
+	if err := workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleOscillatorVideoPrepare, modelID, model.prepareVideo, nil); err != nil {
+		return err
+	}
+	if err := workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleOscillatorVideoIntegrate, modelID, model.integrateVideo, nil); err != nil {
+		return err
+	}
+	return workflowruntime.RegisterJSONStage(runtime, modelrecipe.ModuleOscillatorVideoDecode, modelID, videoContract, model.decodeVideo)
 }
 
 func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model generator) error {

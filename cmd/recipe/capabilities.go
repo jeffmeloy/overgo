@@ -39,6 +39,7 @@ var capabilities = map[recipe.Task]capability{
 		"speech", speechsynth.ValidateSynthesisRequest,
 		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)},
 	recipe.TaskImageGen: imageCapability(),
+	recipe.TaskVideoGen: videoCapability(),
 	recipe.TaskVQA:      {inventory: modelartifact.FromHFPath},
 }
 

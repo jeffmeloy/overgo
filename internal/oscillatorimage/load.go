@@ -75,6 +75,15 @@ type Model struct {
 	ToOutW, ToOutB   []float32
 }
 
+// Recognize checks the artifact-owned model type without loading weights.
+func Recognize(directory string) (bool, error) {
+	var cfg Config
+	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &cfg); err != nil {
+		return false, fmt.Errorf("oscillatorimage: recognize config: %w", err)
+	}
+	return cfg.ModelType == "un0", nil
+}
+
 // OutH and OutW: decoded image dims (each block doubles H and W).
 func (c Config) OutH() int { return c.InH << uint(len(c.BlockChannels)) }
 func (c Config) OutW() int { return c.InW << uint(len(c.BlockChannels)) }

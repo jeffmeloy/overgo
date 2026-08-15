@@ -13,6 +13,8 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -20,6 +22,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -301,14 +304,77 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	base, err := profileAtHEAD(g.repo)
+	if err != nil {
+		return false, err
+	}
+	signals := profileSignals(profile)
 	g.honesty = append(g.honesty, fmt.Sprintf(
-		"code profile: production=%d files/%d nodes test=%d/%d duplicate_excess=%d clones=%d functions=%d exported=%d imports=%d",
+		"code profile: production=%d files/%d nodes test=%d/%d validator_subset=%d functions/%d nodes duplicate_excess=%d (production=%d validator=%d test=%d) clones=%d functions=%d exported=%d imports=%d",
 		profile.Production.Files, profile.Production.Nodes, profile.Test.Files, profile.Test.Nodes,
-		profile.DuplicateExcessNodes, len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
+		signals.validator.functions, signals.validator.nodes, profile.DuplicateExcessNodes,
+		signals.production.duplicateExcess, signals.validator.duplicateExcess, signals.test.duplicateExcess,
+		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
+	g.honesty = append(g.honesty, surfaceDeltaHonesty(base, profile))
 	g.honesty = append(g.honesty, profileReviewFocus(profile, g.changedGoFiles()))
 	g.profile = &profile
 	return false, nil
+}
+
+type profileSignal struct {
+	functions, nodes, duplicateExcess int
+}
+
+type profileSignalSet struct {
+	production, validator, test profileSignal
+}
+
+func profileSignals(profile codeprofile.Profile) profileSignalSet {
+	var signals profileSignalSet
+	for _, function := range profile.Functions {
+		signal := signalForClass(&signals, function.AdvisoryClass)
+		signal.functions++
+		signal.nodes += function.Nodes
+	}
+	for _, clone := range profile.Clones {
+		signal := signalForClass(&signals, clone.AdvisoryClass)
+		signal.duplicateExcess += clone.Nodes * (len(clone.Functions) - 1)
+	}
+	return signals
+}
+
+func signalForClass(signals *profileSignalSet, class string) *profileSignal {
+	switch class {
+	case "validator":
+		return &signals.validator
+	case "test":
+		return &signals.test
+	default:
+		return &signals.production
+	}
+}
+
+func surfaceDeltaHonesty(base, candidate codeprofile.Profile) string {
+	baseSignals, candidateSignals := profileSignals(base), profileSignals(candidate)
+	productionFiles := candidate.Production.Files - base.Production.Files
+	productionNodes := candidate.Production.Nodes - base.Production.Nodes
+	duplicateExcess := candidate.DuplicateExcessNodes - base.DuplicateExcessNodes
+	adverse := "none"
+	if duplicateExcess < 0 && (productionFiles > 0 || productionNodes > 0) {
+		adverse = "duplication fell while production grew; reduction does not offset surface growth"
+	}
+	return fmt.Sprintf(
+		"code profile delta vs HEAD: production=%+d files/%+d nodes test=%+d/%+d validator_subset=%+d functions/%+d nodes duplicate_excess=%+d (production=%+d validator=%+d test=%+d) clones=%+d function_count=%+d exported=%+d imports=%+d; adverse_pattern=%s",
+		productionFiles, productionNodes, candidate.Test.Files-base.Test.Files, candidate.Test.Nodes-base.Test.Nodes,
+		candidateSignals.validator.functions-baseSignals.validator.functions, candidateSignals.validator.nodes-baseSignals.validator.nodes,
+		duplicateExcess,
+		candidateSignals.production.duplicateExcess-baseSignals.production.duplicateExcess,
+		candidateSignals.validator.duplicateExcess-baseSignals.validator.duplicateExcess,
+		candidateSignals.test.duplicateExcess-baseSignals.test.duplicateExcess,
+		len(candidate.Clones)-len(base.Clones), len(candidate.Functions)-len(base.Functions),
+		candidate.ExportedDeclarations-base.ExportedDeclarations, candidate.PackageImportEdges-base.PackageImportEdges, adverse,
+	)
 }
 
 func profileReviewFocus(profile codeprofile.Profile, changed []string) string {
@@ -316,24 +382,92 @@ func profileReviewFocus(profile codeprofile.Profile, changed []string) string {
 	for _, path := range changed {
 		paths[path] = true
 	}
-	functionText := "none"
+	return fmt.Sprintf(
+		"code review candidates: production=%s; validator=%s; test=%s; exact_clone_production=%s; exact_clone_validator=%s; exact_clone_test=%s; advisory_only=inspect semantic ownership and numerical contracts, migrate callers and delete displaced paths, require parity evidence",
+		largestChangedFunction(profile, paths, ""), largestChangedFunction(profile, paths, "validator"), largestChangedFunction(profile, paths, "test"),
+		largestChangedClone(profile, paths, ""), largestChangedClone(profile, paths, "validator"), largestChangedClone(profile, paths, "test"),
+	)
+}
+
+func largestChangedFunction(profile codeprofile.Profile, paths map[string]bool, class string) string {
 	for _, function := range profile.Functions {
-		if paths[function.File] {
-			functionText = fmt.Sprintf("%s:%s nodes=%d branches=%d", function.File, function.Name, function.Nodes, function.Branches)
-			break
+		if paths[function.File] && function.AdvisoryClass == class {
+			return fmt.Sprintf("%s:%s nodes=%d branches=%d", function.File, function.Name, function.Nodes, function.Branches)
 		}
 	}
-	cloneText := "none"
+	return "none"
+}
+
+func largestChangedClone(profile codeprofile.Profile, paths map[string]bool, class string) string {
 	for _, clone := range profile.Clones {
-		if slices.ContainsFunc(clone.Functions, func(function string) bool {
+		if clone.AdvisoryClass == class && slices.ContainsFunc(clone.Functions, func(function string) bool {
 			path, _, ok := strings.Cut(function, ":")
 			return ok && paths[path]
 		}) {
-			cloneText = fmt.Sprintf("nodes=%d functions=%s", clone.Nodes, strings.Join(clone.Functions, ","))
-			break
+			return fmt.Sprintf("nodes=%d functions=%s", clone.Nodes, strings.Join(clone.Functions, ","))
 		}
 	}
-	return "code review focus: largest_function_in_changed_file=" + functionText + "; largest_clone_touching_changed_file=" + cloneText
+	return "none"
+}
+
+func profileAtHEAD(repo string) (codeprofile.Profile, error) {
+	tree, err := gitLines(repo, "ls-tree", "--name-only", "HEAD")
+	if err != nil {
+		return codeprofile.Profile{}, fmt.Errorf("profile HEAD: %w", err)
+	}
+	args := []string{"archive", "--format=tar", "HEAD", "--"}
+	for _, top := range []string{"internal", "cmd"} {
+		if slices.Contains(tree, top) {
+			args = append(args, top)
+		}
+	}
+	if len(args) == 4 {
+		return codeprofile.Profile{}, errors.New("profile HEAD: no Go source roots")
+	}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = repo
+	data, err := cmd.Output()
+	if err != nil {
+		return codeprofile.Profile{}, fmt.Errorf("profile HEAD: %w", err)
+	}
+	root, err := os.MkdirTemp("", "overgo-profile-head-")
+	if err != nil {
+		return codeprofile.Profile{}, err
+	}
+	defer os.RemoveAll(root)
+	reader := tar.NewReader(bytes.NewReader(data))
+	for {
+		header, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return codeprofile.Profile{}, err
+		}
+		if header.Typeflag != tar.TypeReg || !strings.HasSuffix(header.Name, ".go") {
+			continue
+		}
+		relative := filepath.Clean(filepath.FromSlash(header.Name))
+		if filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return codeprofile.Profile{}, fmt.Errorf("profile HEAD path escapes repository: %q", header.Name)
+		}
+		content, err := io.ReadAll(reader)
+		if err != nil {
+			return codeprofile.Profile{}, err
+		}
+		target := filepath.Join(root, relative)
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return codeprofile.Profile{}, err
+		}
+		if err := os.WriteFile(target, content, 0o644); err != nil {
+			return codeprofile.Profile{}, err
+		}
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	if err != nil {
+		return codeprofile.Profile{}, err
+	}
+	return codeprofile.Build(snapshot)
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,

@@ -69,12 +69,12 @@ func validateProfile(profile Profile) error {
 	}
 	excess := 0
 	for _, function := range profile.Functions {
-		if function.File == "" || function.Name == "" || function.Nodes <= 0 || function.Branches < 0 {
+		if function.File == "" || function.Name == "" || function.Nodes <= 0 || function.Branches < 0 || !validAdvisoryClass(function.AdvisoryClass) {
 			return errors.New("invalid function profile")
 		}
 	}
 	for _, clone := range profile.Clones {
-		if len(clone.Fingerprint) != sha256HexLength || clone.Nodes <= 0 || len(clone.Functions) < 2 {
+		if len(clone.Fingerprint) != sha256HexLength || clone.Nodes <= 0 || len(clone.Functions) < 2 || !validAdvisoryClass(clone.AdvisoryClass) {
 			return errors.New("invalid clone profile")
 		}
 		if _, err := hex.DecodeString(clone.Fingerprint); err != nil {
@@ -86,6 +86,10 @@ func validateProfile(profile Profile) error {
 		return errors.New("duplicate excess does not match clones")
 	}
 	return nil
+}
+
+func validAdvisoryClass(class string) bool {
+	return class == "" || class == "validator" || class == "test"
 }
 
 const sha256HexLength = 64

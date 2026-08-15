@@ -151,13 +151,14 @@ whole-function clone groups. Operators, selectors, and control structure remain
 significant; local identifiers and literal values are canonicalized. Tests and
 production are never grouped together.
 
-The gate stores the complete profile and reports two deterministic review
-anchors from the changed Go paths: the largest changed function and the largest
-whole-function clone group touching changed code. These are inspection order,
-not defect verdicts. There is no composite score, ceiling, growth budget,
-exception workflow, suppression ledger, or mandatory favorable direction.
-Independent review decides whether a highlighted structure should be deleted,
-shared by two real consumers, or retained as clearer parallel code.
+The gate stores the complete profile and reports candidate-versus-`HEAD` deltas
+for production/test files and nodes, validator-shaped function mass, clone
+excess, clone/function counts, exports, and imports. Changed-path candidates and
+exact clones are ranked separately as production, validator, or test signals. A
+validator signal is deliberately narrow and inspectable: a non-test `validate*`
+function returning `error`. These are inspection order, not defect verdicts.
+There is no composite score, ceiling, growth budget, exception workflow,
+suppression ledger, or mandatory favorable direction.
 
 The effective loop is advisory and deletion-led: rank candidates; inspect
 semantic ownership and numerical contracts; migrate every caller; delete the
@@ -166,12 +167,13 @@ authority. Exact-clone similarity never proves numerical equivalence. A lower
 duplicate count never offsets unreported production, test, export, or AST
 growth.
 
-Next profile work must report candidate-versus-base production and test deltas
-beside clone movement, classify generated-style validators and repeated tests
-separately, and flag the adverse pattern "duplication fell while production
-surface grew." It remains targeting/accountability automation, never an
-autonomous refactoring verdict. Partial statement clones remain deferred until
-whole-function focus demonstrably misses recurring hygiene problems.
+The gate flags the adverse pattern "duplication fell while production surface
+grew" and states that the reduction does not offset growth. It also requires
+the reviewer to inspect semantic ownership and numerical contracts, migrate
+callers, delete displaced paths, and obtain parity evidence. The profile remains
+targeting/accountability automation, never an autonomous refactoring verdict.
+Partial statement clones remain deferred until whole-function focus demonstrably
+misses recurring hygiene problems.
 
 ## Capability inventory
 

@@ -356,17 +356,18 @@ func (t *Trainer) backward(state *trainingStep) error {
 
 func (t *Trainer) backwardFinalCross(state *trainingStep, dHidden []float32) error {
 	rows, d := len(state.pair.Targets), t.model.Dims.DModel
-	if len(state.trace.finalCrossProjected) != len(dHidden) {
+	trace := state.trace.finalCross()
+	if len(trace.projected) != len(dHidden) {
 		return errors.New("final cross-attention trace differs")
 	}
 	var gateGradient float64
 	for index, gradient := range dHidden {
-		gateGradient += float64(gradient) * float64(state.trace.finalCrossProjected[index])
+		gateGradient += float64(gradient) * float64(trace.projected[index])
 	}
 	block := &t.model.decoderCross[len(t.model.decoderCross)-1]
 	gate := block.gate
 	state.gradient[t.layout.rawGate.start] = float32(gateGradient) * gate * (1 - gate)
-	if len(state.trace.finalCrossAttention) != rows*t.model.Dims.Heads*t.model.Dims.HeadDim {
+	if len(trace.attention) != rows*t.model.Dims.Heads*t.model.Dims.HeadDim {
 		return errors.New("final cross-attention core trace differs")
 	}
 	dProjected := make([]float32, len(dHidden))
@@ -375,21 +376,21 @@ func (t *Trainer) backwardFinalCross(state *trainingStep, dHidden []float32) err
 	}
 	state.projectionGradient = state.gradient[t.layout.output.start:t.layout.output.end]
 	hostmath.LinearBackward(
-		nil, state.projectionGradient, nil, state.trace.finalCrossAttention, nil, dProjected,
+		nil, state.projectionGradient, nil, trace.attention, nil, dProjected,
 		rows, t.model.Dims.Heads*t.model.Dims.HeadDim, d, false,
 	)
-	state.attentionQGradient = make([]float32, len(state.trace.finalCrossQ))
-	state.attentionKGradient = make([]float32, len(state.trace.finalCrossK))
-	state.attentionVGradient = make([]float32, len(state.trace.finalCrossV))
-	dAttention := make([]float32, len(state.trace.finalCrossAttention))
+	state.attentionQGradient = make([]float32, len(trace.q))
+	state.attentionKGradient = make([]float32, len(trace.k))
+	state.attentionVGradient = make([]float32, len(trace.v))
+	dAttention := make([]float32, len(trace.attention))
 	hostmath.LinearBF16BackwardInput(
 		dAttention, dProjected, block.o,
 		rows, t.model.Dims.Heads*t.model.Dims.HeadDim, d,
 	)
 	hostmath.MaskedBidirectionalAttentionBackward(
 		state.attentionQGradient, state.attentionKGradient, state.attentionVGradient,
-		state.trace.finalCrossQ, state.trace.finalCrossK, state.trace.finalCrossV, dAttention,
-		rows, len(state.trace.finalCrossK)/(t.model.Dims.KVHeads*t.model.Dims.HeadDim),
+		trace.q, trace.k, trace.v, dAttention,
+		rows, len(trace.k)/(t.model.Dims.KVHeads*t.model.Dims.HeadDim),
 		t.model.Dims.Heads, t.model.Dims.KVHeads, t.model.Dims.HeadDim, nil,
 	)
 	if err := t.backwardFinalCrossProjections(state, block, dHidden); err != nil {
@@ -400,14 +401,13 @@ func (t *Trainer) backwardFinalCross(state *trainingStep, dHidden []float32) err
 
 func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attnBlock, residualGradient []float32) error {
 	dims := t.model.Dims
+	trace := state.trace.finalCross()
 	rows := len(state.pair.Targets)
-	memRows := len(state.trace.finalCrossMemory) / dims.DModel
+	memRows := len(trace.source) / dims.DModel
 	qWidth := dims.Heads * dims.HeadDim
 	kvWidth := dims.KVHeads * dims.HeadDim
-	if len(state.trace.finalCrossInput) != rows*dims.DModel ||
-		len(state.trace.finalCrossNormed) != rows*dims.DModel ||
-		len(state.trace.finalCrossQRaw) != rows*qWidth ||
-		memRows == 0 || len(state.trace.finalCrossKRaw) != memRows*kvWidth {
+	if len(trace.input) != rows*dims.DModel || len(trace.normed) != rows*dims.DModel ||
+		len(trace.qRaw) != rows*qWidth || memRows == 0 || len(trace.kRaw) != memRows*kvWidth {
 		return errors.New("final cross-attention projection trace differs")
 	}
 
@@ -418,20 +418,20 @@ func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attn
 	dQRaw := make([]float32, len(dQNorm))
 	hostmath.RMSNormBackward(
 		dQRaw, state.gradient[t.layout.qNorm.start:t.layout.qNorm.end],
-		state.trace.finalCrossQRaw, block.qNorm, dQNorm,
+		trace.qRaw, block.qNorm, dQNorm,
 		rows*dims.Heads, dims.HeadDim, dims.RMSEps, false,
 	)
 	state.qProjectionGradient = state.gradient[t.layout.qProjection.start:t.layout.qProjection.end]
 	hostmath.LinearBackward(
-		nil, state.qProjectionGradient, nil, state.trace.finalCrossNormed, nil, dQRaw,
+		nil, state.qProjectionGradient, nil, trace.normed, nil, dQRaw,
 		rows, dims.DModel, qWidth, false,
 	)
-	dCrossNormed := make([]float32, len(state.trace.finalCrossNormed))
+	dCrossNormed := make([]float32, len(trace.normed))
 	hostmath.LinearBF16BackwardInput(dCrossNormed, dQRaw, block.q, rows, dims.DModel, qWidth)
 	dCrossInput := make([]float32, len(dCrossNormed))
 	hostmath.RMSNormBackward(
 		dCrossInput, state.gradient[t.layout.inputNorm.start:t.layout.inputNorm.end],
-		state.trace.finalCrossInput, block.inNorm, dCrossNormed,
+		trace.input, block.inNorm, dCrossNormed,
 		rows, dims.DModel, dims.RMSEps, false,
 	)
 	for index, value := range residualGradient {
@@ -442,17 +442,17 @@ func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attn
 	dKRaw := make([]float32, len(state.attentionKGradient))
 	hostmath.RMSNormBackward(
 		dKRaw, state.gradient[t.layout.kNorm.start:t.layout.kNorm.end],
-		state.trace.finalCrossKRaw, block.kNorm, state.attentionKGradient,
+		trace.kRaw, block.kNorm, state.attentionKGradient,
 		memRows*dims.KVHeads, dims.HeadDim, dims.RMSEps, false,
 	)
 	state.kProjectionGradient = state.gradient[t.layout.kProjection.start:t.layout.kProjection.end]
 	state.vProjectionGradient = state.gradient[t.layout.vProjection.start:t.layout.vProjection.end]
 	hostmath.LinearBackward(
-		nil, state.kProjectionGradient, nil, state.trace.finalCrossMemory, nil, dKRaw,
+		nil, state.kProjectionGradient, nil, trace.source, nil, dKRaw,
 		memRows, dims.DModel, kvWidth, false,
 	)
 	hostmath.LinearBackward(
-		nil, state.vProjectionGradient, nil, state.trace.finalCrossMemory, nil, state.attentionVGradient,
+		nil, state.vProjectionGradient, nil, trace.source, nil, state.attentionVGradient,
 		memRows, dims.DModel, kvWidth, false,
 	)
 	return nil
@@ -461,16 +461,15 @@ func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attn
 func (t *Trainer) backwardFinalSelfCore(state *trainingStep) error {
 	dims := t.model.Dims
 	rows := len(state.pair.Targets)
-	trace := &state.trace
-	if len(state.finalSelfOutputGradient) != rows*dims.DModel ||
-		len(trace.finalSelfProjected) != rows*dims.DModel ||
-		len(trace.finalSelfAttention) != rows*dims.Heads*dims.HeadDim {
+	trace := state.trace.finalSelf()
+	if len(state.finalSelfOutputGradient) != rows*dims.DModel || len(trace.projected) != rows*dims.DModel ||
+		len(trace.attention) != rows*dims.Heads*dims.HeadDim {
 		return errors.New("final self-attention trace differs")
 	}
 	block := &t.model.decoderSelf[len(t.model.decoderSelf)-1]
 	var gateGradient float64
 	for index, gradient := range state.finalSelfOutputGradient {
-		gateGradient += float64(gradient) * float64(trace.finalSelfProjected[index])
+		gateGradient += float64(gradient) * float64(trace.projected[index])
 	}
 	state.selfRawGateGradient = float32(gateGradient) * block.gate * (1 - block.gate)
 	state.gradient[t.layout.selfRawGate.start] = state.selfRawGateGradient
@@ -480,20 +479,20 @@ func (t *Trainer) backwardFinalSelfCore(state *trainingStep) error {
 	}
 	state.selfOutputGradient = state.gradient[t.layout.selfOutput.start:t.layout.selfOutput.end]
 	hostmath.LinearBackward(
-		nil, state.selfOutputGradient, nil, trace.finalSelfAttention, nil, dProjected,
+		nil, state.selfOutputGradient, nil, trace.attention, nil, dProjected,
 		rows, dims.Heads*dims.HeadDim, dims.DModel, false,
 	)
-	dAttention := make([]float32, len(trace.finalSelfAttention))
+	dAttention := make([]float32, len(trace.attention))
 	hostmath.LinearBF16BackwardInput(
 		dAttention, dProjected, block.o,
 		rows, dims.Heads*dims.HeadDim, dims.DModel,
 	)
-	state.selfAttentionQGradient = make([]float32, len(trace.finalSelfQ))
-	state.selfAttentionKGradient = make([]float32, len(trace.finalSelfK))
-	state.selfAttentionVGradient = make([]float32, len(trace.finalSelfV))
+	state.selfAttentionQGradient = make([]float32, len(trace.q))
+	state.selfAttentionKGradient = make([]float32, len(trace.k))
+	state.selfAttentionVGradient = make([]float32, len(trace.v))
 	hostmath.CausalAttentionBackward(
 		state.selfAttentionQGradient, state.selfAttentionKGradient, state.selfAttentionVGradient,
-		trace.finalSelfQ, trace.finalSelfK, trace.finalSelfV, dAttention,
+		trace.q, trace.k, trace.v, dAttention,
 		rows, dims.Heads, dims.KVHeads, dims.HeadDim,
 	)
 	return t.backwardFinalSelfProjections(state, block)
@@ -504,9 +503,9 @@ func (t *Trainer) backwardFinalSelfProjections(state *trainingStep, block *attnB
 	rows := len(state.pair.Targets)
 	qWidth := dims.Heads * dims.HeadDim
 	kvWidth := dims.KVHeads * dims.HeadDim
-	trace := &state.trace
-	if len(trace.finalSelfInput) != rows*dims.DModel || len(trace.finalSelfNormed) != rows*dims.DModel ||
-		len(trace.finalSelfQRaw) != rows*qWidth || len(trace.finalSelfKRaw) != rows*kvWidth {
+	trace := state.trace.finalSelf()
+	if len(trace.input) != rows*dims.DModel || len(trace.normed) != rows*dims.DModel ||
+		len(trace.qRaw) != rows*qWidth || len(trace.kRaw) != rows*kvWidth {
 		return errors.New("final self-attention projection trace differs")
 	}
 	dQNorm := append([]float32(nil), state.selfAttentionQGradient...)
@@ -528,21 +527,21 @@ func (t *Trainer) backwardFinalSelfProjections(state *trainingStep, block *attnB
 	dKRaw := make([]float32, len(dKNorm))
 	hostmath.RMSNormBackward(
 		dQRaw, state.gradient[t.layout.selfQNorm.start:t.layout.selfQNorm.end],
-		trace.finalSelfQRaw, block.qNorm, dQNorm,
+		trace.qRaw, block.qNorm, dQNorm,
 		rows*dims.Heads, dims.HeadDim, dims.RMSEps, false,
 	)
 	hostmath.RMSNormBackward(
 		dKRaw, state.gradient[t.layout.selfKNorm.start:t.layout.selfKNorm.end],
-		trace.finalSelfKRaw, block.kNorm, dKNorm,
+		trace.kRaw, block.kNorm, dKNorm,
 		rows*dims.KVHeads, dims.HeadDim, dims.RMSEps, false,
 	)
 	state.selfQGradient = state.gradient[t.layout.selfQ.start:t.layout.selfQ.end]
 	state.selfKGradient = state.gradient[t.layout.selfK.start:t.layout.selfK.end]
 	state.selfVGradient = state.gradient[t.layout.selfV.start:t.layout.selfV.end]
-	hostmath.LinearBackward(nil, state.selfQGradient, nil, trace.finalSelfNormed, nil, dQRaw, rows, dims.DModel, qWidth, false)
-	hostmath.LinearBackward(nil, state.selfKGradient, nil, trace.finalSelfNormed, nil, dKRaw, rows, dims.DModel, kvWidth, false)
-	hostmath.LinearBackward(nil, state.selfVGradient, nil, trace.finalSelfNormed, nil, state.selfAttentionVGradient, rows, dims.DModel, kvWidth, false)
-	dNormed := make([]float32, len(trace.finalSelfNormed))
+	hostmath.LinearBackward(nil, state.selfQGradient, nil, trace.normed, nil, dQRaw, rows, dims.DModel, qWidth, false)
+	hostmath.LinearBackward(nil, state.selfKGradient, nil, trace.normed, nil, dKRaw, rows, dims.DModel, kvWidth, false)
+	hostmath.LinearBackward(nil, state.selfVGradient, nil, trace.normed, nil, state.selfAttentionVGradient, rows, dims.DModel, kvWidth, false)
+	dNormed := make([]float32, len(trace.normed))
 	scratch := make([]float32, len(dNormed))
 	hostmath.LinearBF16BackwardInput(dNormed, dQRaw, block.q, rows, dims.DModel, qWidth)
 	hostmath.LinearBF16BackwardInput(scratch, dKRaw, block.k, rows, dims.DModel, kvWidth)
@@ -556,7 +555,7 @@ func (t *Trainer) backwardFinalSelfProjections(state *trainingStep, block *attnB
 	dInput := make([]float32, len(dNormed))
 	hostmath.RMSNormBackward(
 		dInput, state.gradient[t.layout.selfInputNorm.start:t.layout.selfInputNorm.end],
-		trace.finalSelfInput, block.inNorm, dNormed, rows, dims.DModel, dims.RMSEps, false,
+		trace.input, block.inNorm, dNormed, rows, dims.DModel, dims.RMSEps, false,
 	)
 	for index, value := range state.finalSelfOutputGradient {
 		dInput[index] += value

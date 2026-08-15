@@ -118,6 +118,18 @@ func TestNeedleRealGSM8KCompiledTraining(t *testing.T) {
 	if len(operators) != 3 || operators[0].ID != trainingForward || operators[1].ID != trainingBackward || operators[2].ID != trainingMuon {
 		t.Fatalf("compiled operators = %+v", operators)
 	}
+	probe := trainingStep{pair: pair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if len(probe.trace.layers) != generator.model.Dims.DecoderLayers {
+		t.Fatalf("decoder traces=%d want=%d", len(probe.trace.layers), generator.model.Dims.DecoderLayers)
+	}
+	for layer, trace := range probe.trace.layers {
+		if len(trace.self.projected) == 0 || len(trace.cross.projected) == 0 || len(trace.cross.source) == 0 {
+			t.Fatalf("decoder layer %d training trace is incomplete", layer)
+		}
+	}
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
 		trajectory[step], err = trainer.Step(pair)

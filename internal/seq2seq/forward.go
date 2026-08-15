@@ -147,10 +147,11 @@ func (m *Model) projectCrossMemoryTrace(memory []float32, memRows int, trace *de
 	for layer := range m.decoderCross {
 		block := &m.decoderCross[layer]
 		k, v := make([]float32, width), make([]float32, width)
-		if trace != nil && layer == len(m.decoderCross)-1 {
-			trace.finalCrossMemory = memory
-			trace.finalCrossKRaw = make([]float32, width)
-			m.projectKVTrace(k, v, trace.finalCrossKRaw, memory, memRows, block, 0, false)
+		if trace != nil {
+			layerTrace := &trace.layers[layer].cross
+			layerTrace.source = memory
+			layerTrace.kRaw = make([]float32, width)
+			m.projectKVTrace(k, v, layerTrace.kRaw, memory, memRows, block, 0, false)
 		} else {
 			m.projectKV(k, v, memory, memRows, block, 0, false)
 		}
@@ -188,31 +189,30 @@ func (m *Model) decodeHiddenFull(memory []float32, memRows int, tgt []int) ([]fl
 	return m.decodeHiddenFullTrace(memory, memRows, tgt, nil)
 }
 
-type decoderTrainingTrace struct {
-	finalSelfProjected  []float32
-	finalSelfAttention  []float32
-	finalSelfInput      []float32
-	finalSelfNormed     []float32
-	finalSelfQRaw       []float32
-	finalSelfKRaw       []float32
-	finalSelfQ          []float32
-	finalSelfK          []float32
-	finalSelfV          []float32
-	finalCrossProjected []float32
-	finalCrossAttention []float32
-	finalCrossInput     []float32
-	finalCrossNormed    []float32
-	finalCrossMemory    []float32
-	finalCrossQRaw      []float32
-	finalCrossKRaw      []float32
-	finalCrossQ         []float32
-	finalCrossK         []float32
-	finalCrossV         []float32
+type attentionTrainingTrace struct {
+	projected, attention  []float32
+	input, normed, source []float32
+	qRaw, kRaw, q, k, v   []float32
+}
+
+type decoderLayerTrainingTrace struct{ self, cross attentionTrainingTrace }
+
+type decoderTrainingTrace struct{ layers []decoderLayerTrainingTrace }
+
+func (t *decoderTrainingTrace) finalSelf() *attentionTrainingTrace {
+	return &t.layers[len(t.layers)-1].self
+}
+
+func (t *decoderTrainingTrace) finalCross() *attentionTrainingTrace {
+	return &t.layers[len(t.layers)-1].cross
 }
 
 func (m *Model) decodeHiddenFullTrace(memory []float32, memRows int, tgt []int, trace *decoderTrainingTrace) ([]float32, error) {
 	if len(tgt) == 0 {
 		return nil, fmt.Errorf("seq2seq: empty target")
+	}
+	if trace != nil {
+		trace.layers = make([]decoderLayerTrainingTrace, len(m.decoderSelf))
 	}
 	cross, err := m.projectCrossMemoryTrace(memory, memRows, trace)
 	if err != nil {
@@ -231,55 +231,58 @@ func (m *Model) decodeHiddenFullTrace(memory []float32, memRows int, tgt []int, 
 	attn := make([]float32, rows*dims.Heads*dims.HeadDim)
 	for layer := range m.decoderSelf {
 		self := &m.decoderSelf[layer]
-		lastSelf := trace != nil && layer == len(m.decoderSelf)-1
-		if lastSelf {
-			trace.finalSelfInput = append(trace.finalSelfInput[:0], hidden...)
+		var selfTrace *attentionTrainingTrace
+		if trace != nil {
+			selfTrace = &trace.layers[layer].self
+			selfTrace.input = append(selfTrace.input[:0], hidden...)
 		}
 		hostmath.RMSNormInto(normed, hidden, self.inNorm, rows, d, dims.RMSEps)
-		if lastSelf {
-			trace.finalSelfNormed = append(trace.finalSelfNormed[:0], normed...)
-			trace.finalSelfQRaw = make([]float32, len(q))
-			trace.finalSelfKRaw = make([]float32, len(k))
-			m.projectQTrace(q, trace.finalSelfQRaw, normed, rows, self, 0, true)
-			m.projectKVTrace(k, v, trace.finalSelfKRaw, normed, rows, self, 0, true)
+		if selfTrace != nil {
+			selfTrace.normed = append(selfTrace.normed[:0], normed...)
+			selfTrace.qRaw = make([]float32, len(q))
+			selfTrace.kRaw = make([]float32, len(k))
+			m.projectQTrace(q, selfTrace.qRaw, normed, rows, self, 0, true)
+			m.projectKVTrace(k, v, selfTrace.kRaw, normed, rows, self, 0, true)
 		} else {
 			m.projectQ(q, normed, rows, self, 0, true)
 			m.projectKV(k, v, normed, rows, self, 0, true)
 		}
 		hostmath.CausalAttention(attn, q, k, v, rows, dims.Heads, dims.KVHeads, dims.HeadDim)
-		if lastSelf {
-			trace.finalSelfAttention = append(trace.finalSelfAttention[:0], attn...)
-			trace.finalSelfQ = append(trace.finalSelfQ[:0], q...)
-			trace.finalSelfK = append(trace.finalSelfK[:0], k...)
-			trace.finalSelfV = append(trace.finalSelfV[:0], v...)
-			trace.finalSelfProjected = make([]float32, rows*d)
-			hostmath.LinearBF16(trace.finalSelfProjected, attn, self.o, rows, dims.Heads*dims.HeadDim, d)
-			addGatedResidual(hidden, trace.finalSelfProjected, self.gate)
+		if selfTrace != nil {
+			selfTrace.attention = append(selfTrace.attention[:0], attn...)
+			selfTrace.q = append(selfTrace.q[:0], q...)
+			selfTrace.k = append(selfTrace.k[:0], k...)
+			selfTrace.v = append(selfTrace.v[:0], v...)
+			selfTrace.projected = make([]float32, rows*d)
+			hostmath.LinearBF16(selfTrace.projected, attn, self.o, rows, dims.Heads*dims.HeadDim, d)
+			addGatedResidual(hidden, selfTrace.projected, self.gate)
 		} else {
 			m.gatedResidualOut(hidden, attn, self.o, rows, self.gate)
 		}
 
 		crossBlock := &m.decoderCross[layer]
-		if trace != nil && layer == len(m.decoderCross)-1 {
-			trace.finalCrossInput = append(trace.finalCrossInput[:0], hidden...)
+		var crossTrace *attentionTrainingTrace
+		if trace != nil {
+			crossTrace = &trace.layers[layer].cross
+			crossTrace.input = append(crossTrace.input[:0], hidden...)
 		}
 		hostmath.RMSNormInto(normed, hidden, crossBlock.inNorm, rows, d, dims.RMSEps)
-		if trace != nil && layer == len(m.decoderCross)-1 {
-			trace.finalCrossNormed = append(trace.finalCrossNormed[:0], normed...)
-			trace.finalCrossQRaw = make([]float32, len(q))
-			m.projectQTrace(q, trace.finalCrossQRaw, normed, rows, crossBlock, 0, false)
+		if crossTrace != nil {
+			crossTrace.normed = append(crossTrace.normed[:0], normed...)
+			crossTrace.qRaw = make([]float32, len(q))
+			m.projectQTrace(q, crossTrace.qRaw, normed, rows, crossBlock, 0, false)
 		} else {
 			m.projectQ(q, normed, rows, crossBlock, 0, false)
 		}
 		hostmath.MaskedBidirectionalAttention(attn, q, cross.k[layer], cross.v[layer], rows, cross.rows, dims.Heads, dims.KVHeads, dims.HeadDim, nil)
-		if trace != nil && layer == len(m.decoderCross)-1 {
-			trace.finalCrossAttention = append(trace.finalCrossAttention[:0], attn...)
-			trace.finalCrossQ = append(trace.finalCrossQ[:0], q...)
-			trace.finalCrossK = append(trace.finalCrossK[:0], cross.k[layer]...)
-			trace.finalCrossV = append(trace.finalCrossV[:0], cross.v[layer]...)
-			trace.finalCrossProjected = make([]float32, rows*d)
-			hostmath.LinearBF16(trace.finalCrossProjected, attn, crossBlock.o, rows, dims.Heads*dims.HeadDim, d)
-			addGatedResidual(hidden, trace.finalCrossProjected, crossBlock.gate)
+		if crossTrace != nil {
+			crossTrace.attention = append(crossTrace.attention[:0], attn...)
+			crossTrace.q = append(crossTrace.q[:0], q...)
+			crossTrace.k = append(crossTrace.k[:0], cross.k[layer]...)
+			crossTrace.v = append(crossTrace.v[:0], cross.v[layer]...)
+			crossTrace.projected = make([]float32, rows*d)
+			hostmath.LinearBF16(crossTrace.projected, attn, crossBlock.o, rows, dims.Heads*dims.HeadDim, d)
+			addGatedResidual(hidden, crossTrace.projected, crossBlock.gate)
 		} else {
 			m.gatedResidualOut(hidden, attn, crossBlock.o, rows, crossBlock.gate)
 		}

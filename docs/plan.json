@@ -3,42 +3,10 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
   "items": [
     {
-      "id": "master-sync-20260815",
-      "title": "Merge current master before automation-roadmap continuation",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge current master before automation-roadmap continuation",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD"
-        }
-      ]
-    },
-    {
-      "id": "needle-training-binding-consolidation",
-      "title": "Consolidate Needle training parameter bindings",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Consolidate Needle training parameter bindings",
-          "status": "open",
-          "verify": "go test -tags modeltest ./internal/seq2seq -run '^TestNeedleRealGSM8KCompiledTraining$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "automation-roadmap",
       "title": "Complete the automation roadmap through shared Go owners",
       "status": "open",
       "steps": [
-        {
-          "id": "lane-outcomes",
-          "title": "Share typed pass/fail/unavailable/empty outcomes across smoke, device, race, and release callers; delete local variants",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run '^TestLaneOutcomeContract$' -count=1 -v"
-        },
         {
           "id": "advisory-calibration",
           "title": "Derive advisory history sufficiency from the alarm budget and report sequential/regime limitations without enforcing directional evidence",

@@ -1,11 +1,11 @@
 // advisories: the statistical layer's driver (floor component 6). Builds the
 // observation series for a metric from the store's run+evaluation history,
-// derives the regression threshold as an empirical quantile of the series'
-// own rolling-surprise history (the target alarm budget is a recorded
-// decision), and commits any advisory the directional detector raises.
+// derives the regression threshold from disjoint historical blocks (the
+// target alarm budget is a recorded decision), and commits any advisory the
+// directional detector raises.
 //
-// Median/MAD and empirical quantiles avoid a Gaussian model, but small,
-// overlapping history does not establish a distribution-free false-alarm
+// Median/MAD and empirical quantiles avoid a Gaussian model, but historical
+// calibration does not establish a sequential or regime-stable false-alarm
 // guarantee. First history calibrates, later observations advise:
 // with insufficient history the driver reports its calibration state and
 // enforces nothing — no history, no enforcement.
@@ -71,36 +71,34 @@ func run() error {
 	if err := recordBudgetDecision(ctx, store, *metric, *budget, *reason); err != nil {
 		return err
 	}
-	// Window derives from available history, clamped to the detector's own
-	// bounds; no new constant. Calibration needs window baselines plus at
-	// least two rolling points to have a quantile at all.
-	window := len(observations) - 2
-	if window > runrecord.MaxAdvisoryWindow {
-		window = runrecord.MaxAdvisoryWindow
-	}
-	if window < runrecord.MinAdvisoryWindow || len(observations) < window+2 {
-		fmt.Printf("calibrating: %d observation(s) for %q; enforcement needs at least %d -- no history, no enforcement\n",
-			len(observations), *metric, runrecord.MinAdvisoryWindow+2)
+	calibration := planCalibration(len(observations), *budget)
+	if !calibration.Sufficient() {
+		fmt.Printf("calibrating: metric=%s observations=%d disjoint_scores=%d required_scores=%d alarm_budget=%g; no advisory threshold yet\n",
+			*metric, len(observations), calibration.AvailableScores, calibration.RequiredScores, *budget)
 		return nil
 	}
-	surprises := rollingSurprises(observations, *metric, window)
-	if len(surprises) < 2 {
-		fmt.Printf("calibrating: %d rolling surprise(s); enforcement needs at least 2\n", len(surprises))
-		return nil
+	surprises := disjointSurprises(observations[:calibration.LatestStart], *metric, calibration.Window)
+	if len(surprises) < calibration.RequiredScores {
+		return errors.New("advisories: calibration contract produced insufficient disjoint scores")
 	}
-	threshold := empiricalQuantile(surprises[:len(surprises)-1], 1-*budget)
+	threshold := empiricalQuantile(surprises, 1-*budget)
+	if math.IsNaN(threshold) || math.IsInf(threshold, 0) {
+		return errors.New("advisories: calibration produced a non-finite threshold")
+	}
 	if threshold <= 0 {
 		// A flat history has zero surprise everywhere; any nonzero deviation
 		// is then novel by construction. The smallest positive representable
 		// threshold keeps the detector armed without asserting a scale.
 		threshold = math.SmallestNonzeroFloat64
 	}
-	advisory, raised, err := runrecord.DetectRegression(observations, *metric, window, threshold)
+	latest := observations[calibration.LatestStart:]
+	advisory, raised, err := runrecord.DetectRegression(latest, *metric, calibration.Window, threshold)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("empirical advisory threshold: metric=%s observations=%d window=%d alarm_budget=%g threshold=%g (directional; no false-alarm guarantee)\n",
-		*metric, len(observations), window, *budget, threshold)
+	fmt.Printf("empirical advisory threshold: metric=%s observations=%d window=%d disjoint_scores=%d alarm_budget=%g threshold=%g\n",
+		*metric, len(observations), calibration.Window, len(surprises), *budget, threshold)
+	fmt.Println("honesty: directional evidence only; repeated sequential looks and regime changes are not covered by the recorded per-look budget")
 	if !raised {
 		fmt.Println("verdict: no directional regression at the empirical threshold")
 		return nil
@@ -264,23 +262,57 @@ func loadObservations(ctx context.Context, store *repodb.Store, metric string) (
 	return observations, nil
 }
 
-// rollingSurprises computes the leave-forward surprise at every point the
-// window allows: for index i, baseline = the window before i, surprise =
-// distance/MAD. This is the series measuring its own noise, which is what
-// the quantile calibrates against.
-func rollingSurprises(observations []runrecord.Observation, metric string, window int) []float64 {
+type calibrationPlan struct {
+	Window          int
+	RequiredScores  int
+	AvailableScores int
+	LatestStart     int
+}
+
+func planCalibration(observations int, budget float64) calibrationPlan {
+	// With n exchangeable calibration scores, the smallest resolvable upper
+	// tail is 1/(n+1). The budget therefore owns the history requirement; the
+	// detector's minimum valid window minimizes evidence consumption.
+	required := int(math.Ceil(1/budget)) - 1
+	if required < 2 {
+		required = 2
+	}
+	window := runrecord.MinAdvisoryWindow
+	block := window + 1
+	latestStart := observations - block
+	available := 0
+	if latestStart >= 0 {
+		available = latestStart / block
+	}
+	return calibrationPlan{
+		Window: window, RequiredScores: required,
+		AvailableScores: available, LatestStart: latestStart,
+	}
+}
+
+func (plan calibrationPlan) Sufficient() bool {
+	return plan.LatestStart >= 0 && plan.AvailableScores >= plan.RequiredScores
+}
+
+// disjointSurprises partitions history from its newest edge. Every baseline
+// and evaluated point belongs to exactly one score, preventing overlapping
+// evidence from masquerading as independent calibration history.
+func disjointSurprises(observations []runrecord.Observation, metric string, window int) []float64 {
 	var out []float64
-	for i := window; i < len(observations); i++ {
-		slice := observations[i-window : i+1]
+	block := window + 1
+	start := len(observations) % block
+	for start+block <= len(observations) {
+		slice := observations[start : start+block]
 		advisory, raised, err := runrecord.DetectRegression(slice, metric, window, math.SmallestNonzeroFloat64)
 		if err != nil {
-			continue
+			return nil
 		}
 		if !raised {
 			out = append(out, 0)
-			continue
+		} else {
+			out = append(out, advisory.Surprise())
 		}
-		out = append(out, advisory.Surprise())
+		start += block
 	}
 	return out
 }

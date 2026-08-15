@@ -399,14 +399,15 @@ review evidence, and the owner remain the merge decision.
 
 ### A8: Advisory calibration remains directional
 
-Advisories permit very small baselines. They now label empirical thresholds as
-directional, disclaim false-alarm guarantees, and require non-overlapping
-windows before opening a finding. This removes the prior overclaim that
-median/MAD alone made the result distribution-free.
+Advisories now derive minimum history from the recorded alarm budget, calibrate
+only on disjoint blocks, and hold the latest block out. They label empirical
+thresholds as directional, disclaim false-alarm guarantees, and require
+non-overlapping windows before opening a finding. This removes the prior
+overclaim that median/MAD alone made the result distribution-free.
 
-Required direction: define rank/conformal or permutation calibration, derive
-minimum history from the alarm budget, and account for sequential testing and
-regime changes before any threshold becomes enforcing.
+Repeated sequential looks and regime changes remain outside that empirical
+per-look calibration. The command reports this limitation explicitly and does
+not turn directional evidence into an enforcement decision.
 
 ### A9: Hook and guard enforcement is harness-local and fail-open
 

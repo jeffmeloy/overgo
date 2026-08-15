@@ -94,11 +94,11 @@ active recipe + resolved artifact facts
 | Coarse capability modules | 31/34 | Replace staged family shells with neutral operators |
 | Family capability runtime files | 91 / 21,953 lines | Separate unique math from displaced orchestration |
 | Family capability exported functions | 295 | Delete wrappers and direct orchestration after caller migration |
-| Production projector recipe consumers | 0 | Route server and generate through active projection plans |
-| Active projection lifecycle dimensions | task only | One recipe bundle must enumerate every admitted modality module |
+| Production projector recipe consumers | 2 | Server and generate require active projection plans |
+| Active projection lifecycle dimensions | model + projector + modules | Exact bundle authority |
 | Training authority timing | pre-allocation | Training plan resolves before runtime construction |
 | Typed architecture profile facts | 166 | Profile/artifact facts own omitted-value policy |
-| `optionalOr` calls in `model/spec.go` | 12 | Move remaining relational defaults into typed policies |
+| `optionalOr` calls in `model/spec.go` | 8 | Move remaining expert relationships into typed policies |
 | Production `legacy` / `fallback` text hits | 20 / 73 | Classify format support vs runtime authority; delete authority branches |
 | Parallel image/video VAE operation systems | 2 | Compile one neutral media codec program |
 
@@ -106,14 +106,10 @@ Family-named production files: none.
 
 ## Ordered Work
 
-1. Compile one active projection bundle containing every supported image, audio, and video module; keep one task identity.
-2. Bind projection definitions to exact base/projector artifacts; migrate server/generate and delete direct runtime opens.
-3. Move remaining relational metadata defaults into typed profile/artifact policies.
-4. Replace video runtime registration names and duplicated stage plumbing only when the wave is net-negative.
-5. Bind VQA production execution to its active recipe; remove inventory-only activation.
-6. Replace coarse prepare/integrate/decode shells with neutral operator programs.
-7. Compile one image/video codec program; migrate host and CUDA execution together.
-8. Classify remaining legacy/fallback hits; retain explicit file-format support only.
+1. Move eight expert-width/scale relationships into typed profile policies.
+2. Replace coarse prepare/integrate/decode shells with neutral operator programs.
+3. Compile one image/video codec topology; migrate host and CUDA execution together.
+4. Classify remaining legacy/fallback hits; retain format, tokenizer, and explicit resource-policy behavior only.
 
 ## Completed Waves
 
@@ -135,6 +131,11 @@ Family-named production files: none.
 - Test-only MoE builder facade deleted: `-218` net lines.
 - Typed single-axis RoPE options made authoritative: `-119` net lines.
 - Typed general attention options made authoritative: `-202` net lines.
+- Active projection bundle binds exact model, projector, and modality modules; server/generate direct opens deleted.
+- GGUF inventory requires explicit model/projector kind; implicit identity fallback deleted.
+- Inventory-only VQA capability registration deleted; verified VQA runtime remains recipe-bound.
+- T5/Qwen/Step/Grove omitted metadata moved into typed profile facts: four literals removed.
+- Image/video codec channel norm and spatial attention unified in `hostmath`; two local implementations deleted.
 - Context-pipeline-tail abstraction rejected: `+26` lines for three consumers; no commit.
 
 ## Per-Wave Gate

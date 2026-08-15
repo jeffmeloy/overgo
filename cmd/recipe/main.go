@@ -571,7 +571,13 @@ func activate(
 func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
-	if capability, ok := capabilities[task]; ok {
+	if task == recipe.TaskVQA {
+		var err error
+		inventory, err = modelartifact.FromHFPath(path)
+		if err != nil {
+			return err
+		}
+	} else if capability, ok := capabilities[task]; ok {
 		source, err := capability.resolve(path)
 		if err != nil {
 			return err

@@ -12,7 +12,6 @@ package latentvideo
 
 import (
 	"fmt"
-	"math"
 	"runtime"
 	"sort"
 	"strings"
@@ -586,69 +585,6 @@ func nextTemporalCache(prior vaeTemporalCache, x []float32, c, frames, spatial i
 	return vaeTemporalCache{data: out, frames: nextFrames, initialized: true}
 }
 
-// channelRMSNormInto: RMS over channels at each position, sqrt(C)-scaled,
-// zero-guarded (reference F.normalize(dim=1)*sqrt(C)*gamma).
-func channelRMSNormInto(out, x, gamma []float32, c, plane int) error {
-	if c <= 0 || plane <= 0 {
-		return fmt.Errorf("vae rms norm: bad shape c=%d plane=%d", c, plane)
-	}
-	if len(x) != c*plane || len(out) != len(x) || len(gamma) != c {
-		return fmt.Errorf("vae rms norm: bad lengths out=%d x=%d gamma=%d", len(out), len(x), len(gamma))
-	}
-	scale := math.Sqrt(float64(c))
-	for pos := 0; pos < plane; pos++ {
-		var sumSq float64
-		for ch := 0; ch < c; ch++ {
-			v := float64(x[ch*plane+pos])
-			sumSq += v * v
-		}
-		norm := math.Sqrt(sumSq)
-		if norm < channelNormZeroGuard {
-			norm = channelNormZeroGuard
-		}
-		for ch := 0; ch < c; ch++ {
-			idx := ch*plane + pos
-			out[idx] = float32(float64(x[idx]) / norm * scale * float64(gamma[ch]))
-		}
-	}
-	return nil
-}
-
-// spatialAttentionInto: per-frame spatial self-attention over qkv
-// [3c][t][h*w] planes, residual added by the caller.
-func spatialAttentionInto(out, qkv []float32, c, t, frame int) error {
-	if c <= 0 || t <= 0 || frame <= 0 || len(qkv) != 3*c*t*frame || len(out) != c*t*frame {
-		return fmt.Errorf("vae attention: bad lengths out=%d qkv=%d", len(out), len(qkv))
-	}
-	scale := 1 / math.Sqrt(float64(c))
-	scores := make([]float32, frame)
-	kOff := c * t * frame
-	vOff := 2 * c * t * frame
-	for ti := 0; ti < t; ti++ {
-		for qi := 0; qi < frame; qi++ {
-			for kj := 0; kj < frame; kj++ {
-				var dot float64
-				for ch := 0; ch < c; ch++ {
-					qIdx := (ch*t+ti)*frame + qi
-					kIdx := kOff + (ch*t+ti)*frame + kj
-					dot += float64(qkv[qIdx]) * float64(qkv[kIdx])
-				}
-				scores[kj] = float32(dot * scale)
-			}
-			hostmath.SoftmaxInPlace(scores)
-			for ch := 0; ch < c; ch++ {
-				var acc float64
-				for kj, p := range scores {
-					vIdx := vOff + (ch*t+ti)*frame + kj
-					acc += float64(p) * float64(qkv[vIdx])
-				}
-				out[(ch*t+ti)*frame+qi] = float32(acc)
-			}
-		}
-	}
-	return nil
-}
-
 // timeInterleaveInto: temporal upsample reshape — the time conv's doubled
 // channel output [2c][t][s] interleaves to [c][2t][s], even output frames
 // from the first channel half (reference reshape+stack).
@@ -766,7 +702,7 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		gamma0, w0, b0 := op.values[0], op.values[1], op.values[2]
 		gamma1, w1, b1 := op.values[3], op.values[4], op.values[5]
 		n0 := make([]float32, len(x))
-		if err := channelRMSNormInto(n0, x, gamma0, c, frames*spatial); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(n0, x, gamma0, c, frames*spatial, channelNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n0)
@@ -775,7 +711,7 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 			return nil, 0, 0, 0, err
 		}
 		n1 := make([]float32, len(h0))
-		if err := channelRMSNormInto(n1, h0, gamma1, op.cOut, frames*spatial); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(n1, h0, gamma1, op.cOut, frames*spatial, channelNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n1)
@@ -803,14 +739,14 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		gamma, qkvW, qkvB := op.values[0], op.values[1], op.values[2]
 		projW, projB := op.values[3], op.values[4]
 		norm := make([]float32, len(x))
-		if err := channelRMSNormInto(norm, x, gamma, c, frames*spatial); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, frames*spatial, channelNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		qkv := make([]float32, 3*c*frames*spatial)
 		if err := hostmath.ChannelMixF64Into(qkv, norm, qkvW, qkvB, c, 3*c, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		if err := spatialAttentionInto(norm, qkv, c, frames, spatial); err != nil {
+		if err := hostmath.SpatialAttentionF64Into(norm, qkv, c, frames, spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		out := make([]float32, len(x))
@@ -903,7 +839,7 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 	case vaeOpHead:
 		gamma, weight, bias := op.values[0], op.values[1], op.values[2]
 		norm := make([]float32, len(x))
-		if err := channelRMSNormInto(norm, x, gamma, c, frames*spatial); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, frames*spatial, channelNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(norm)

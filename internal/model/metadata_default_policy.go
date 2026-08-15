@@ -36,6 +36,14 @@ type MetadataDefaultPolicy struct {
 	OriginalContext        bool
 	RopeFrequencyFromBase  bool
 	RopeDimension          RopeDimensionDefaultPolicy
+	DecoderBlocksFromModel bool
+	FullAttentionInterval  uint32
+	MoELayerStep           uint32
+	ExpertChunkFromKey     bool
+}
+
+func (p MetadataDefaultPolicy) uint(values map[string]gguf.Value, prefix, key string, fallback uint32) uint32 {
+	return optionalOr(values, prefix+key, gguf.ValueTypeUint32, fallback)
 }
 
 func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string, spec *Spec) {

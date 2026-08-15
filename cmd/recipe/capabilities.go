@@ -71,7 +71,6 @@ var capabilities = map[recipe.Task]capability{
 		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)),
 	recipe.TaskImageGen: imageCapability(),
 	recipe.TaskVideoGen: videoCapability(),
-	recipe.TaskVQA:      inventoryCapability(modelartifact.FromHFPath, nil),
 }
 
 func safetensorsInventory(context, path, config string, companions ...modelartifact.FileSpec) (modelartifact.Inventory, error) {

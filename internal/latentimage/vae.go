@@ -326,7 +326,7 @@ func (d *VAEDecoder) runOp(op vaeOp, x []float32, c, h, w int) ([]float32, int, 
 		gamma0, w0, b0 := op.weights[0], op.weights[1], op.weights[2]
 		gamma1, w1, b1 := op.weights[3], op.weights[4], op.weights[5]
 		n0 := make([]float32, len(x))
-		if err := vaeChannelRMSNorm(n0, x, gamma0, c, plane); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(n0, x, gamma0, c, plane, vaeNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n0)
@@ -335,7 +335,7 @@ func (d *VAEDecoder) runOp(op vaeOp, x []float32, c, h, w int) ([]float32, int, 
 			return nil, 0, 0, 0, err
 		}
 		n1 := make([]float32, len(h0))
-		if err := vaeChannelRMSNorm(n1, h0, gamma1, op.cOut, plane); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(n1, h0, gamma1, op.cOut, plane, vaeNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n1)
@@ -361,14 +361,14 @@ func (d *VAEDecoder) runOp(op vaeOp, x []float32, c, h, w int) ([]float32, int, 
 		gamma, qkvW, qkvB := op.weights[0], op.weights[1], op.weights[2]
 		projW, projB := op.weights[3], op.weights[4]
 		norm := make([]float32, len(x))
-		if err := vaeChannelRMSNorm(norm, x, gamma, c, plane); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, plane, vaeNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		qkv := make([]float32, 3*c*plane)
 		if err := hostmath.ChannelMixF64Into(qkv, norm, qkvW, qkvB, c, 3*c, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		if err := vaeSpatialAttention(norm, qkv, c, plane); err != nil {
+		if err := hostmath.SpatialAttentionF64Into(norm, qkv, c, 1, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		out := make([]float32, len(x))
@@ -390,7 +390,7 @@ func (d *VAEDecoder) runOp(op vaeOp, x []float32, c, h, w int) ([]float32, int, 
 	case vaeHead:
 		gamma, weight, bias := op.weights[0], op.weights[1], op.weights[2]
 		norm := make([]float32, len(x))
-		if err := vaeChannelRMSNorm(norm, x, gamma, c, plane); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, plane, vaeNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(norm)
@@ -412,63 +412,6 @@ func vaeCausalConv(out, x, weight, bias []float32, cIn, cOut, h, w int) error {
 		StrideT: 1, StrideH: 1, StrideW: 1,
 	}
 	return hostmath.CausalConv3DInto(out, x, nil, weight, bias, 0, shape)
-}
-
-// vaeChannelRMSNorm: RMS over channels at each position, sqrt(C)-scaled,
-// zero-guarded (reference F.normalize(dim=1)*sqrt(C)*gamma).
-func vaeChannelRMSNorm(out, x, gamma []float32, c, plane int) error {
-	if c <= 0 || plane <= 0 || len(x) != c*plane || len(out) != len(x) || len(gamma) != c {
-		return fmt.Errorf("vae rms norm: bad shape c=%d plane=%d len(x)=%d len(gamma)=%d", c, plane, len(x), len(gamma))
-	}
-	scale := math.Sqrt(float64(c))
-	for pos := 0; pos < plane; pos++ {
-		var sumSq float64
-		for ch := 0; ch < c; ch++ {
-			v := float64(x[ch*plane+pos])
-			sumSq += v * v
-		}
-		norm := math.Sqrt(sumSq)
-		if norm < vaeNormZeroGuard {
-			norm = vaeNormZeroGuard
-		}
-		for ch := 0; ch < c; ch++ {
-			idx := ch*plane + pos
-			out[idx] = float32(float64(x[idx]) / norm * scale * float64(gamma[ch]))
-		}
-	}
-	return nil
-}
-
-// vaeSpatialAttention: single-frame spatial self-attention over qkv [3c][h*w],
-// writing the attended values (residual added by the caller).
-func vaeSpatialAttention(out, qkv []float32, c, plane int) error {
-	if c <= 0 || plane <= 0 || len(qkv) != 3*c*plane || len(out) != c*plane {
-		return fmt.Errorf("vae attention: bad lengths out=%d qkv=%d", len(out), len(qkv))
-	}
-	scale := 1 / math.Sqrt(float64(c))
-	kOff := c * plane
-	vOff := 2 * c * plane
-	hostmath.ParallelRangeF64(plane, plane*c*2, func(lo, hi int) {
-		scores := make([]float32, plane)
-		for qi := lo; qi < hi; qi++ {
-			for kj := 0; kj < plane; kj++ {
-				var dot float64
-				for ch := 0; ch < c; ch++ {
-					dot += float64(qkv[ch*plane+qi]) * float64(qkv[kOff+ch*plane+kj])
-				}
-				scores[kj] = float32(dot * scale)
-			}
-			hostmath.SoftmaxInPlace(scores)
-			for ch := 0; ch < c; ch++ {
-				var acc float64
-				for kj, p := range scores {
-					acc += float64(p) * float64(qkv[vOff+ch*plane+kj])
-				}
-				out[ch*plane+qi] = float32(acc)
-			}
-		}
-	})
-	return nil
 }
 
 // PixelsToU8 converts a planar [C][H][W] tensor in [-1,1] to the g3 8-bit

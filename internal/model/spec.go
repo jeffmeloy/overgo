@@ -678,8 +678,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 		if m.profile.Forward.Session == ForwardSessionEncoderDecoder {
-			spec.DecoderBlockCount = optionalOr(
-				values, prefix+"decoder_block_count", gguf.ValueTypeUint32, spec.BlockCount,
+			spec.DecoderBlockCount = m.profile.MetadataDefaults.uint(
+				values, prefix, "decoder_block_count", spec.BlockCount,
 			)
 			spec.DecoderStartTokenID, _ = optional[uint32](values, prefix+"decoder_start_token_id", gguf.ValueTypeUint32)
 		}
@@ -717,8 +717,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); err != nil {
 			return Spec{}, err
 		}
-		spec.FullAttentionInterval = optionalOr(
-			values, prefix+"full_attention_interval", gguf.ValueTypeUint32, uint32(4),
+		spec.FullAttentionInterval = m.profile.MetadataDefaults.uint(
+			values, prefix, "full_attention_interval", m.profile.MetadataDefaults.FullAttentionInterval,
 		)
 		if recurrent, ok, recurrentErr := optionalArray[bool](
 			values,
@@ -999,8 +999,8 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.LeadingDenseBlocks, _ = optional[uint32](
 			values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32,
 		)
-		spec.MoELayerStep = optionalOr(
-			values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32, uint32(1),
+		spec.MoELayerStep = profile.MetadataDefaults.uint(
+			values, prefix, "moe_every_n_layers", profile.MetadataDefaults.MoELayerStep,
 		)
 		spec.ExpertGatingFunc = expertGatingSigmoid
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
@@ -1026,8 +1026,8 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 	}
 	if validation.Hybrid == HybridValidationGroveMoE {
-		spec.ExpertChunkFeedForward = optionalOr(
-			values, prefix+"expert_chunk_feed_forward_length", gguf.ValueTypeUint32, spec.KeyLength,
+		spec.ExpertChunkFeedForward = profile.MetadataDefaults.uint(
+			values, prefix, "expert_chunk_feed_forward_length", spec.KeyLength,
 		)
 		if spec.ExpertGroupScale, err = required[float32](values, prefix+"expert_group_scale", gguf.ValueTypeFloat32); err != nil {
 			return Spec{}, err

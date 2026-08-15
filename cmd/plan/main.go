@@ -55,6 +55,7 @@ func main() {
 	status := flag.Bool("status", false, "one line per item")
 	contextJSON := flag.Bool("context", false, "emit one typed JSON grounding payload for the current automation task")
 	recordLease := flag.String("record-lease", "", "record an advisory worktree lease from a JSON file")
+	recordLeaseOutcome := flag.String("record-lease-outcome", "", "record measured outcome JSON for an exercised worktree lease")
 	leaseReport := flag.Bool("lease-report", false, "emit active worktree leases and resource/conflict advice as JSON")
 	cpuCapacity := flag.Int("cpu-capacity", 0, "with -lease-report: available CPU threads (0 unknown)")
 	ramCapacity := flag.Int("ram-capacity-gib", 0, "with -lease-report: available host RAM GiB (0 unknown)")
@@ -72,17 +73,17 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "with -context: explicit lane role (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, contain: *contain, lane: *lane, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, contain: *contain, lane: *lane, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	next, prompt, verify, status, context, advance, add, setverify, compact, stop bool
-	force, title, before, verifyCmd, role, recordLease, contain, lane             string
-	leaseReport                                                                   bool
-	capacity                                                                      plan.Resources
+	next, prompt, verify, status, context, advance, add, setverify, compact, stop         bool
+	force, title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane string
+	leaseReport                                                                           bool
+	capacity                                                                              plan.Resources
 }
 
 func run(c cli, args []string) error {
@@ -105,6 +106,8 @@ func run(c cli, args []string) error {
 	switch {
 	case c.recordLease != "":
 		return recordWorkLease(".", c.recordLease, os.Stdout)
+	case c.recordLeaseOutcome != "":
+		return recordWorkLeaseOutcome(".", c.recordLeaseOutcome, os.Stdout)
 	case c.leaseReport:
 		return printLeaseReport(".", c.capacity, os.Stdout)
 	case c.add:

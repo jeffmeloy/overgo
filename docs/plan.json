@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "release-integrity",
-          "title": "Regenerate the SBOM and exclude chronological assessments from release payloads",
-          "status": "open",
-          "verify": "go test ./cmd/release ./cmd/sbom -run '^TestReleaseIntegrityContract$' -count=1 -v \u0026\u0026 go run ./cmd/sbom -check"
-        },
-        {
           "id": "source-license",
           "title": "Blocked: the repository owner must select the distribution license before project-owned source can replace NOASSERTION",
           "status": "blocked-external-prereq"

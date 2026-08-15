@@ -391,6 +391,9 @@ Owner-authored RepoDB leases now record task, worktree, branch, role, target
 head, conflicts, CPU/RAM/VRAM request, GPU exclusivity, and expiry. One CAS alias
 owns each worktree; `cmd/plan -lease-report` reports active reservations and
 collisions without assigning, terminating, merging, or promoting work.
+`cmd/plan -record-lease-outcome` now binds predicted and actual CPU, RAM, VRAM,
+wall, overlap interference, collision, abandonment, and recovery measurements
+to an exercised lease. Prediction drift from the approved lease is refused.
 
 Dependency, evidence-lane, and merge-eligibility APIs were removed because they
 had no production consumer. Add them only with the integration path that reads

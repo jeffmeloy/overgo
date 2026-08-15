@@ -1,12 +1,14 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/textcheck"
 )
 
 const ReviewVersion uint16 = 1
@@ -125,9 +127,25 @@ type ReviewAdmission struct {
 	Verdict           ReviewVerdict
 }
 
+type ReviewPhase string
+
+const (
+	ReviewPhaseImplementation ReviewPhase = "implementation"
+	ReviewPhaseSQA            ReviewPhase = "sqa"
+	ReviewPhasePriority       ReviewPhase = "priority"
+)
+
+// ReviewPriority is the phase implied by immutable review evidence at one Git
+// head. It guides dispatch without introducing another task or rank surface.
+type ReviewPriority struct {
+	Phase     ReviewPhase
+	Candidate artifact.ID
+	Verdict   artifact.ID
+}
+
 var reviewActorCodec = artifact.JSONDocumentCodec("review actor", artifact.KindEvidence, ReviewActorMediaType, ReviewActorSchema,
 	func(value *ReviewActor) error {
-		if value == nil || value.Version != ReviewVersion || !validReviewText(value.Principal) ||
+		if value == nil || value.Version != ReviewVersion || !textcheck.Bounded(value.Principal, 2048, "\x00\r\n") ||
 			value.Role != ReviewDeveloper && value.Role != ReviewSQA {
 			return errors.New("run record: invalid review actor")
 		}
@@ -136,8 +154,8 @@ var reviewActorCodec = artifact.JSONDocumentCodec("review actor", artifact.KindE
 
 var reviewWorktreeCodec = artifact.JSONDocumentCodec("review worktree", artifact.KindEvidence, ReviewWorktreeMediaType, ReviewWorktreeSchema,
 	func(value *ReviewWorktree) error {
-		if value == nil || value.Version != ReviewVersion || !validReviewText(value.Path) ||
-			strings.Contains(value.Path, "\\") || !validReviewText(value.Branch) || !validCodeCommit(value.Head) {
+		if value == nil || value.Version != ReviewVersion || !textcheck.Bounded(value.Path, 2048, "\x00\r\n") ||
+			strings.Contains(value.Path, "\\") || !textcheck.Bounded(value.Branch, 2048, "\x00\r\n") || !validCodeCommit(value.Head) {
 			return errors.New("run record: invalid review worktree")
 		}
 		return nil
@@ -145,7 +163,7 @@ var reviewWorktreeCodec = artifact.JSONDocumentCodec("review worktree", artifact
 
 var reviewEvaluatorCodec = artifact.JSONDocumentCodec("review evaluator", artifact.KindEvidence, ReviewEvaluatorMediaType, ReviewEvaluatorSchema,
 	func(value *ReviewEvaluator) error {
-		if value == nil || value.Version != ReviewVersion || !validReviewText(value.Name) ||
+		if value == nil || value.Version != ReviewVersion || !textcheck.Bounded(value.Name, 2048, "\x00\r\n") ||
 			!value.Definition.Valid() || !validCodeCommit(value.Revision) {
 			return errors.New("run record: invalid review evaluator")
 		}
@@ -165,7 +183,7 @@ var reviewCandidateCodec = artifact.JSONDocumentCodec("review candidate", artifa
 var reviewFindingCodec = artifact.JSONDocumentCodec("review finding", artifact.KindEvidence, ReviewFindingMediaType, ReviewFindingSchema,
 	func(value *ReviewFinding) error {
 		if value == nil || value.Version != ReviewVersion || !allEvidenceIDs(value.Candidate, value.Reviewer, value.Evaluator) ||
-			!validReviewText(value.Summary) || !validReviewText(value.Check) ||
+			!textcheck.Bounded(value.Summary, 2048, "\x00\r\n") || !textcheck.Bounded(value.Check, 2048, "\x00\r\n") ||
 			value.Severity != ReviewCritical && value.Severity != ReviewMajor && value.Severity != ReviewMinor && value.Severity != ReviewInfo ||
 			value.Status != ReviewFindingOpen && value.Status != ReviewFindingResolved && value.Status != ReviewFindingAccepted {
 			return errors.New("run record: invalid review finding")
@@ -347,8 +365,127 @@ func AdmitReview(targetHead string, admission ReviewAdmission) error {
 	return nil
 }
 
-func validReviewText(value string) bool {
-	return value != "" && len(value) <= 2048 && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\x00\r\n")
+// LoadReviewAdmission resolves the complete immutable graph named by a
+// verdict. Storage mechanics live here so every consumer validates the same
+// document contracts before calling AdmitReview.
+func LoadReviewAdmission(ctx context.Context, reader artifact.Reader, verdictID artifact.ID) (ReviewAdmission, error) {
+	verdict, err := readReviewDocument(ctx, reader, verdictID, reviewVerdictCodec)
+	if err != nil {
+		return ReviewAdmission{}, err
+	}
+	return loadReviewAdmission(ctx, reader, verdict)
+}
+
+// DeriveReviewPriority maps Git HEAD plus admitted RepoDB review evidence to
+// implementation -> SQA -> priority. Invalid or rejected verdicts do not
+// advance the phase; incomplete evidence for the current candidate is loud.
+func DeriveReviewPriority(ctx context.Context, reader artifact.Reader, targetHead string, descriptors []artifact.Descriptor) (ReviewPriority, error) {
+	if !validCodeCommit(targetHead) {
+		return ReviewPriority{}, errors.New("run record: review priority target is invalid")
+	}
+	candidates := make(map[artifact.ID]ReviewCandidate)
+	var selected artifact.ID
+	for _, descriptor := range descriptors {
+		if descriptor.MediaType != ReviewCandidateMediaType || descriptor.Schema != ReviewCandidateSchema {
+			continue
+		}
+		candidate, err := readReviewDocument(ctx, reader, descriptor.ID, reviewCandidateCodec)
+		if err != nil {
+			return ReviewPriority{}, fmt.Errorf("run record: review priority candidate: %w", err)
+		}
+		if candidate.CodeCommit != targetHead {
+			continue
+		}
+		candidates[candidate.ID] = candidate
+		if !selected.Valid() || candidate.ID.String() < selected.String() {
+			selected = candidate.ID
+		}
+	}
+	if len(candidates) == 0 {
+		return ReviewPriority{Phase: ReviewPhaseImplementation}, nil
+	}
+	priority := ReviewPriority{Phase: ReviewPhaseSQA, Candidate: selected}
+	for _, descriptor := range descriptors {
+		if descriptor.MediaType != ReviewVerdictMediaType || descriptor.Schema != ReviewVerdictSchema {
+			continue
+		}
+		verdict, err := readReviewDocument(ctx, reader, descriptor.ID, reviewVerdictCodec)
+		if err != nil {
+			return ReviewPriority{}, fmt.Errorf("run record: review priority verdict: %w", err)
+		}
+		if verdict.TargetHead != targetHead {
+			continue
+		}
+		if _, ok := candidates[verdict.Candidate]; !ok {
+			continue
+		}
+		admission, err := loadReviewAdmission(ctx, reader, verdict)
+		if err != nil {
+			return ReviewPriority{}, fmt.Errorf("run record: review priority admission: %w", err)
+		}
+		if AdmitReview(targetHead, admission) != nil {
+			continue
+		}
+		if !priority.Verdict.Valid() || verdict.ID.String() < priority.Verdict.String() {
+			priority = ReviewPriority{Phase: ReviewPhasePriority, Candidate: verdict.Candidate, Verdict: verdict.ID}
+		}
+	}
+	return priority, nil
+}
+
+func loadReviewAdmission(ctx context.Context, reader artifact.Reader, verdict ReviewVerdict) (ReviewAdmission, error) {
+	candidate, err := readReviewDocument(ctx, reader, verdict.Candidate, reviewCandidateCodec)
+	if err != nil {
+		return ReviewAdmission{}, err
+	}
+	developer, err := readReviewDocument(ctx, reader, candidate.Developer, reviewActorCodec)
+	if err != nil {
+		return ReviewAdmission{}, err
+	}
+	reviewer, err := readReviewDocument(ctx, reader, verdict.Reviewer, reviewActorCodec)
+	if err != nil {
+		return ReviewAdmission{}, err
+	}
+	developerWorktree, err := readReviewDocument(ctx, reader, candidate.Worktree, reviewWorktreeCodec)
+	if err != nil {
+		return ReviewAdmission{}, err
+	}
+	reviewWorktree, err := readReviewDocument(ctx, reader, verdict.Worktree, reviewWorktreeCodec)
+	if err != nil {
+		return ReviewAdmission{}, err
+	}
+	evaluator, err := readReviewDocument(ctx, reader, verdict.Evaluator, reviewEvaluatorCodec)
+	if err != nil {
+		return ReviewAdmission{}, err
+	}
+	findings := make([]ReviewFinding, 0, len(verdict.Findings))
+	for _, id := range verdict.Findings {
+		finding, err := readReviewDocument(ctx, reader, id, reviewFindingCodec)
+		if err != nil {
+			return ReviewAdmission{}, err
+		}
+		findings = append(findings, finding)
+	}
+	return ReviewAdmission{
+		Developer: developer, Reviewer: reviewer, DeveloperWorktree: developerWorktree, ReviewWorktree: reviewWorktree,
+		Evaluator: evaluator, Candidate: candidate, Findings: findings, Verdict: verdict,
+	}, nil
+}
+
+func readReviewDocument[T any](ctx context.Context, reader artifact.Reader, id artifact.ID, codec artifact.DocumentCodec[T]) (T, error) {
+	var zero T
+	content, ok, err := artifact.ReadDocument(ctx, reader, id, codec.Contract)
+	if err != nil {
+		return zero, fmt.Errorf("load review document %s: %w", id, err)
+	}
+	if !ok {
+		return zero, fmt.Errorf("review document %s is absent", id)
+	}
+	value, err := codec.Parse(content.Data)
+	if err != nil {
+		return zero, fmt.Errorf("parse review document %s: %w", id, err)
+	}
+	return value, nil
 }
 
 func allEvidenceIDs(ids ...artifact.ID) bool {

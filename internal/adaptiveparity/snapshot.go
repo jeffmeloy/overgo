@@ -15,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipecontract"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -141,7 +142,7 @@ func canonicalize(snapshot *Snapshot) error {
 	slices.SortFunc(snapshot.Sources, func(a, b Source) int { return strings.Compare(a.Name, b.Name) })
 	sourceNames := make(map[string]struct{}, len(snapshot.Sources))
 	for _, source := range snapshot.Sources {
-		if !validName(source.Name) || !validText(source.Repository) || !validCommit(source.Commit) {
+		if !textcheck.Bounded(source.Name, 128, "\x00\r/\\") || !textcheck.Bounded(source.Repository, 4096, "\x00\r") || !validCommit(source.Commit) {
 			return errors.New("adaptive parity: invalid source")
 		}
 		if _, exists := sourceNames[source.Name]; exists {
@@ -153,7 +154,7 @@ func canonicalize(snapshot *Snapshot) error {
 	capabilityIDs := make(map[string]struct{}, len(snapshot.Capabilities))
 	for index := range snapshot.Capabilities {
 		capability := &snapshot.Capabilities[index]
-		if !validName(capability.ID) || !validText(capability.EntryPoint) || strings.Contains(capability.EntryPoint, "\\") {
+		if !textcheck.Bounded(capability.ID, 128, "\x00\r/\\") || !textcheck.Bounded(capability.EntryPoint, 4096, "\x00\r") || strings.Contains(capability.EntryPoint, "\\") {
 			return errors.New("adaptive parity: invalid capability")
 		}
 		if _, exists := sourceNames[capability.Source]; !exists {
@@ -181,7 +182,8 @@ func canonicalize(snapshot *Snapshot) error {
 			return strings.Compare(a.Protocol, b.Protocol)
 		})
 		for _, measurement := range capability.Measurements {
-			if !validMeasurementRole(measurement.Role) || !validName(measurement.Runtime) || !validText(measurement.Protocol) ||
+			if !validMeasurementRole(measurement.Role) || !textcheck.Bounded(measurement.Runtime, 128, "\x00\r/\\") ||
+				!textcheck.Bounded(measurement.Protocol, 4096, "\x00\r") ||
 				measurement.WallNanos == 0 && measurement.PeakBytes == 0 || measurement.Evidence.Kind() != artifact.KindEvidence {
 				return fmt.Errorf("adaptive parity: capability %q has invalid measurement", capability.ID)
 			}
@@ -196,7 +198,7 @@ func canonicalize(snapshot *Snapshot) error {
 func validatePromotionEvidence(capability Capability) error {
 	switch capability.State {
 	case PromotionRefused:
-		if !validText(capability.Refusal) {
+		if !textcheck.Bounded(capability.Refusal, 4096, "\x00\r") {
 			return errors.New("refusal lacks reason")
 		}
 		if len(capability.Artifacts)+len(capability.Corpora)+len(capability.Goldens)+len(capability.Measurements) != 0 {
@@ -276,7 +278,7 @@ func canonicalReferences(references *[]Reference) error {
 	slices.SortFunc(*references, func(a, b Reference) int { return strings.Compare(a.Name, b.Name) })
 	seen := make(map[string]struct{}, len(*references))
 	for _, reference := range *references {
-		if !validName(reference.Name) || !reference.Identity.Valid() {
+		if !textcheck.Bounded(reference.Name, 128, "\x00\r/\\") || !reference.Identity.Valid() {
 			return errors.New("invalid reference")
 		}
 		if _, exists := seen[reference.Name]; exists {
@@ -307,12 +309,4 @@ func validCommit(value string) bool {
 	}
 	_, err := hex.DecodeString(value)
 	return err == nil
-}
-
-func validName(value string) bool {
-	return value != "" && len(value) <= 128 && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\x00\r/\\")
-}
-
-func validText(value string) bool {
-	return value != "" && len(value) <= 4096 && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\x00\r")
 }

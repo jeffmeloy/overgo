@@ -1,9 +1,13 @@
 package runrecord
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 func TestIndependentSQAIdentities(t *testing.T) {
@@ -23,7 +27,7 @@ func TestIndependentSQAIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition := reviewID(t, artifact.KindRecipe, "frozen evaluator definition")
+	definition := testutil.ArtifactID(t, artifact.KindRecipe, "frozen evaluator definition")
 	evaluator, err := NewReviewEvaluator("automation-foundation", definition, reviewCommitA)
 	if err != nil {
 		t.Fatal(err)
@@ -31,8 +35,8 @@ func TestIndependentSQAIdentities(t *testing.T) {
 	candidate, err := NewReviewCandidate(ReviewCandidate{
 		BaseCommit: reviewCommitA, CodeCommit: reviewCommitB,
 		Developer: developer.ID, Worktree: devTree.ID, Evaluator: evaluator.ID,
-		GateResult: reviewID(t, artifact.KindEvidence, "gate-result"),
-		GateRun:    reviewID(t, artifact.KindEvidence, "gate-run"),
+		GateResult: testutil.ArtifactID(t, artifact.KindEvidence, "gate-result"),
+		GateRun:    testutil.ArtifactID(t, artifact.KindEvidence, "gate-run"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -91,11 +95,11 @@ func TestReviewAdmission(t *testing.T) {
 	reviewer, _ := NewReviewActor("local:sqa", ReviewSQA)
 	devTree, _ := NewReviewWorktree("C:/repo/dev", "codex/dev", reviewCommitB, true)
 	reviewTree, _ := NewReviewWorktree("C:/repo/review", "codex/review", reviewCommitB, true)
-	evaluator, _ := NewReviewEvaluator("review", reviewID(t, artifact.KindRecipe, "definition"), reviewCommitA)
+	evaluator, _ := NewReviewEvaluator("review", testutil.ArtifactID(t, artifact.KindRecipe, "definition"), reviewCommitA)
 	candidate, _ := NewReviewCandidate(ReviewCandidate{
 		BaseCommit: reviewCommitA, CodeCommit: reviewCommitB, Developer: developer.ID,
 		Worktree: devTree.ID, Evaluator: evaluator.ID,
-		GateResult: reviewID(t, artifact.KindEvidence, "result"), GateRun: reviewID(t, artifact.KindEvidence, "run"),
+		GateResult: testutil.ArtifactID(t, artifact.KindEvidence, "result"), GateRun: testutil.ArtifactID(t, artifact.KindEvidence, "run"),
 	})
 	resolved, _ := NewReviewFinding(ReviewFinding{
 		Candidate: candidate.ID, Reviewer: reviewer.ID, Evaluator: evaluator.ID,
@@ -158,6 +162,55 @@ func TestReviewAdmission(t *testing.T) {
 	}
 }
 
+func TestReviewPriority(t *testing.T) {
+	developer, _ := NewReviewActor("local:developer", ReviewDeveloper)
+	reviewer, _ := NewReviewActor("local:sqa", ReviewSQA)
+	devTree, _ := NewReviewWorktree("C:/repo/dev", "codex/dev", reviewCommitB, true)
+	reviewTree, _ := NewReviewWorktree("C:/repo/review", "codex/review", reviewCommitB, true)
+	evaluator, _ := NewReviewEvaluator("review", testutil.ArtifactID(t, artifact.KindRecipe, "priority definition"), reviewCommitA)
+	candidate, _ := NewReviewCandidate(ReviewCandidate{
+		BaseCommit: reviewCommitA, CodeCommit: reviewCommitB, Developer: developer.ID,
+		Worktree: devTree.ID, Evaluator: evaluator.ID,
+		GateResult: testutil.ArtifactID(t, artifact.KindEvidence, "priority result"), GateRun: testutil.ArtifactID(t, artifact.KindEvidence, "priority run"),
+	})
+	verdict, _ := NewReviewVerdict(ReviewVerdict{
+		Candidate: candidate.ID, Reviewer: reviewer.ID, Worktree: reviewTree.ID, Evaluator: evaluator.ID,
+		TargetHead: reviewCommitB, Findings: []artifact.ID{}, Outcome: ReviewApproved,
+	})
+	contents, err := ReviewContents(developer, reviewer, devTree, reviewTree, evaluator, candidate, verdict)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch("test/review-priority", contents, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := repodb.Open(filepath.Join(t.TempDir(), "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		t.Fatal(err)
+	}
+	descriptors := make([]artifact.Descriptor, len(contents))
+	for index := range contents {
+		descriptors[index] = contents[index].Descriptor
+	}
+	priority, err := DeriveReviewPriority(context.Background(), store, reviewCommitB, descriptors[:len(descriptors)-1])
+	if err != nil || priority.Phase != ReviewPhaseSQA || priority.Candidate != candidate.ID {
+		t.Fatalf("candidate phase = (%+v, %v)", priority, err)
+	}
+	priority, err = DeriveReviewPriority(context.Background(), store, reviewCommitB, descriptors)
+	if err != nil || priority.Phase != ReviewPhasePriority || priority.Candidate != candidate.ID || priority.Verdict != verdict.ID {
+		t.Fatalf("admitted phase = (%+v, %v)", priority, err)
+	}
+	priority, err = DeriveReviewPriority(context.Background(), store, reviewCommitA, descriptors)
+	if err != nil || priority.Phase != ReviewPhaseImplementation {
+		t.Fatalf("unreviewed head phase = (%+v, %v)", priority, err)
+	}
+}
+
 func TestReviewDocumentFamily(t *testing.T) {
 	actor, err := NewReviewActor("local:sqa", ReviewSQA)
 	if err != nil {
@@ -175,12 +228,12 @@ func TestReviewDocumentFamily(t *testing.T) {
 		t.Fatal("shared document codec accepted an unknown field")
 	}
 
-	findings := []artifact.ID{reviewID(t, artifact.KindEvidence, "finding")}
+	findings := []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "finding")}
 	verdict, err := NewReviewVerdict(ReviewVerdict{
-		Candidate:  reviewID(t, artifact.KindEvidence, "candidate"),
-		Reviewer:   reviewID(t, artifact.KindEvidence, "reviewer"),
-		Worktree:   reviewID(t, artifact.KindEvidence, "worktree"),
-		Evaluator:  reviewID(t, artifact.KindEvidence, "evaluator"),
+		Candidate:  testutil.ArtifactID(t, artifact.KindEvidence, "candidate"),
+		Reviewer:   testutil.ArtifactID(t, artifact.KindEvidence, "reviewer"),
+		Worktree:   testutil.ArtifactID(t, artifact.KindEvidence, "worktree"),
+		Evaluator:  testutil.ArtifactID(t, artifact.KindEvidence, "evaluator"),
 		TargetHead: reviewCommitA,
 		Findings:   findings,
 		Outcome:    ReviewApproved,
@@ -188,7 +241,7 @@ func TestReviewDocumentFamily(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	findings[0] = reviewID(t, artifact.KindEvidence, "mutated finding")
+	findings[0] = testutil.ArtifactID(t, artifact.KindEvidence, "mutated finding")
 	if verdict.Findings[0] == findings[0] {
 		t.Fatal("shared document codec retained mutable input")
 	}
@@ -197,7 +250,7 @@ func TestReviewDocumentFamily(t *testing.T) {
 	if err := mutated.ValidateIdentity(); err == nil {
 		t.Fatal("identity validation accepted mutated review content")
 	}
-	if got := dependencyLineage(actor.ID, reviewID(t, artifact.KindEvidence, "parent")); len(got) != 1 || got[0].Child != actor.ID {
+	if got := dependencyLineage(actor.ID, testutil.ArtifactID(t, artifact.KindEvidence, "parent")); len(got) != 1 || got[0].Child != actor.ID {
 		t.Fatalf("shared dependency lineage = %+v", got)
 	}
 }
@@ -206,12 +259,3 @@ const (
 	reviewCommitA = "0123456789abcdef0123456789abcdef01234567"
 	reviewCommitB = "89abcdef0123456789abcdef0123456789abcdef"
 )
-
-func reviewID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
-}

@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -110,7 +111,8 @@ func (d Document) Batch(key string) (artifact.Batch, error) {
 
 func canonicalize(document *Document) error {
 	if document == nil || document.Version != Version ||
-		!validText(document.Title) || !validText(document.ClosurePath) || !validText(document.FailableCheck) ||
+		!textcheck.Bounded(document.Title, 4096, "\x00\r") || !textcheck.Bounded(document.ClosurePath, 4096, "\x00\r") ||
+		!textcheck.Bounded(document.FailableCheck, 4096, "\x00\r") ||
 		len(document.OwnerSurfaces) == 0 || len(document.Evidence) == 0 {
 		return errors.New("finding: invalid document")
 	}
@@ -140,9 +142,4 @@ func sortIDs(ids []artifact.ID) {
 	slices.SortFunc(ids, func(a, b artifact.ID) int {
 		return strings.Compare(a.String(), b.String())
 	})
-}
-
-func validText(value string) bool {
-	return value != "" && len(value) <= 4096 && strings.TrimSpace(value) == value &&
-		!strings.ContainsAny(value, "\x00\r")
 }

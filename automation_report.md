@@ -13,14 +13,15 @@ archives. The automation is unusually good at saying what did *not* run.
 The system does not yet have an autonomous orchestration control plane. That is
 intentional: the owner currently assigns worktrees, resolves conflicts, allocates
 the shared GPU, integrates branches, and decides promotion. The next automation
-phase should strengthen observation, isolation, independent SQA, and merge
-eligibility without prematurely taking scheduling authority away from the owner.
+phase should strengthen observation, isolation, and independent SQA without
+prematurely taking scheduling authority away from the owner. Merge eligibility
+remains deferred until an integration consumer needs it.
 
 Independent admission now validates immutable developer/SQA identities, clean
 separate worktrees, frozen evaluators, exact target heads, complete findings,
-and approved verdicts from RepoDB. The remaining governance risk is orchestration:
-review packet creation/priority and manual worktree/resource state still live
-largely in the owner's head.
+and approved verdicts from RepoDB. Git and RepoDB now derive review priority,
+and owner-authored leases expose worktree/resource state. Assignment, integration,
+and promotion appropriately remain owner decisions.
 
 ## Incremental implementation status
 
@@ -54,8 +55,9 @@ largely in the owner's head.
   environment records (`1f88d21`); the obsolete advisory-mirror classifier is
   deleted.
 
-The next highest-priority gap is enforceable independence between developer and
-SQA identities, including target-head review admission and immutable findings.
+The next highest-priority gap is honest advisory targeting: structural reports
+must expose production/test growth beside duplication changes and must not imply
+that clone similarity proves semantic or numerical equivalence.
 
 ### Tightening measurements
 
@@ -90,7 +92,7 @@ Current division of responsibility:
 | Allocate CPU, RAM, and GPU capacity | Human owner | Human-approved reservations with measured estimates |
 | Implement a capability slice | Development lane | Unchanged |
 | Adversarially review a candidate | Informal/separately requested lane | Distinct, recorded SQA identity and clean worktree |
-| Determine merge eligibility | Human plus gate output | Machine-generated eligibility packet; human decision |
+| Determine merge eligibility | Human plus gate output | Defer a machine packet until an integration consumer exists; human decision |
 | Promote model/runtime evidence | Human owner | External authority over sealed evidence |
 | Recover abandoned or conflicting lanes | Human owner | Detect and recommend; do not mutate automatically yet |
 
@@ -157,9 +159,19 @@ exception workflow, suppression ledger, or mandatory favorable direction.
 Independent review decides whether a highlighted structure should be deleted,
 shared by two real consumers, or retained as clearer parallel code.
 
-Candidate-versus-base deltas and partial statement-sequence clones are not yet
-implemented. They should land only if whole-function focus misses demonstrated
-recurring hygiene problems; otherwise the smaller detector remains authoritative.
+The effective loop is advisory and deletion-led: rank candidates; inspect
+semantic ownership and numerical contracts; migrate every caller; delete the
+displaced path; rerun the profile; use parity tests and gates as the behavioral
+authority. Exact-clone similarity never proves numerical equivalence. A lower
+duplicate count never offsets unreported production, test, export, or AST
+growth.
+
+Next profile work must report candidate-versus-base production and test deltas
+beside clone movement, classify generated-style validators and repeated tests
+separately, and flag the adverse pattern "duplication fell while production
+surface grew." It remains targeting/accountability automation, never an
+autonomous refactoring verdict. Partial statement clones remain deferred until
+whole-function focus demonstrably misses recurring hygiene problems.
 
 ## Capability inventory
 
@@ -360,8 +372,8 @@ leaving no manually duplicated command list.
 3. Typed gate lifecycle, environment-bound retry, heartbeat, and record-debt
    reconciliation.
 4. Git/RepoDB-derived review phase with independently identified SQA.
-5. Advisory worktree leases, resource estimates, and target-head merge
-   eligibility while the owner continues to dispatch manually.
+5. Advisory worktree leases, resource estimates, and conflict reporting while
+   the owner continues to dispatch manually.
 
 This order first reduces immediate model reconstruction, then makes evidence and
 long-running execution trustworthy, and only then adds coordination state.
@@ -405,18 +417,17 @@ the same build, test, and review system as the runtime.
 
 ## Weaknesses and failure modes
 
-### A6: Plan state cannot describe manual orchestration decisions
+### A6: Manual orchestration is observable only at the exercised lease boundary
 
-The FIFO plan intentionally leaves scheduling to the owner, but it also lacks a
-place to record dependencies, conflicting surfaces, worktree assignment,
-resource estimates, or active leases. The human scheduler therefore carries
-important transient state mentally.
+Owner-authored RepoDB leases now record task, worktree, branch, role, target
+head, conflicts, CPU/RAM/VRAM request, GPU exclusivity, and expiry. One CAS alias
+owns each worktree; `cmd/plan -lease-report` reports active reservations and
+collisions without assigning, terminating, merging, or promoting work.
 
-Required direction: keep dispatch manual while adding advisory task metadata and
-RepoDB leases. Record `worktree`, `role`, `depends_on`, `conflicts_with`,
-`cpu_threads`, `host_ram_gib`, `vram_gib`, `gpu_exclusive`, and required evidence
-lanes. The initial automation should report conflicts and fit; it should not
-assign work without owner approval.
+Dependency, evidence-lane, and merge-eligibility APIs were removed because they
+had no production consumer. Add them only with the integration path that reads
+them and with owner authority explicit in its output. Until then Git, admitted
+review evidence, and the owner remain the merge decision.
 
 ### A8: Statistical guarantees exceed current calibration depth
 
@@ -481,12 +492,12 @@ necessarily the whole manually managed campaign.
 
 ### Phase 2: make manual orchestration observable
 
-1. Add advisory resource, dependency, conflict, worktree, and role metadata.
-2. Add compare-and-set worktree leases in RepoDB.
-3. Produce an owner dashboard/report showing active lanes, GPU/RAM reservations,
-   stale leases, merge conflicts, evidence status, and suggested next candidates.
-4. Add target-head merge eligibility packets and rerun required gates after
-   integration.
+1. Retain the exercised owner-authored resource/conflict/worktree/role lease and
+   RepoDB compare-and-set path.
+2. Extend the report only from measured scheduling needs; stale leases and
+   reservations are current, suggested assignment remains deferred.
+3. Add dependency, evidence-status, and target-head merge eligibility only with
+   their first integration consumer and required post-integration gate reruns.
 
 No automatic assignment or lane termination is required in this phase.
 
@@ -511,7 +522,8 @@ the objective, exception, and promotion authority.
 - Zero turn ends with unreported meaningful worktree dirt.
 - Every gated commit has either a finalized RepoDB gate record or visible debt.
 - Every protected candidate has distinct developer and SQA identities.
-- Every merge-eligible packet is evaluated at the target head.
+- Any future merge-eligibility packet is evaluated at the target head and is
+  introduced with its integration consumer.
 - Resource predictions include error bounds and improve against recorded actuals.
 - No autonomous scheduling class is enabled without measured recovery behavior.
 - The owner can understand active work, evidence gaps, and resource use from one

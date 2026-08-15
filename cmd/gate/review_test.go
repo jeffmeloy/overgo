@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 )
 
 func TestReviewAdmissionStore(t *testing.T) {
@@ -17,10 +18,10 @@ func TestReviewAdmissionStore(t *testing.T) {
 	reviewer := mustReview(runrecord.NewReviewActor("local:sqa", runrecord.ReviewSQA))
 	developerTree := mustReview(runrecord.NewReviewWorktree("C:/repo/dev", "codex/dev", target, true))
 	reviewTree := mustReview(runrecord.NewReviewWorktree("C:/repo/review", "codex/review", target, true))
-	evaluator := mustReview(runrecord.NewReviewEvaluator("gate", reviewArtifactID(t, artifact.KindRecipe, "definition"), base))
+	evaluator := mustReview(runrecord.NewReviewEvaluator("gate", testutil.ArtifactID(t, artifact.KindRecipe, "definition"), base))
 	candidate := mustReview(runrecord.NewReviewCandidate(runrecord.ReviewCandidate{
 		BaseCommit: base, CodeCommit: target, Developer: developer.ID, Worktree: developerTree.ID, Evaluator: evaluator.ID,
-		GateResult: reviewArtifactID(t, artifact.KindEvidence, "result"), GateRun: reviewArtifactID(t, artifact.KindEvidence, "run"),
+		GateResult: testutil.ArtifactID(t, artifact.KindEvidence, "result"), GateRun: testutil.ArtifactID(t, artifact.KindEvidence, "run"),
 	}))
 	finding := mustReview(runrecord.NewReviewFinding(runrecord.ReviewFinding{
 		Candidate: candidate.ID, Reviewer: reviewer.ID, Evaluator: evaluator.ID,
@@ -53,13 +54,4 @@ func mustReview[T any](value T, err error) T {
 		panic(err)
 	}
 	return value
-}
-
-func reviewArtifactID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }

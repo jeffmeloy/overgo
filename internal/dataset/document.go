@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"slices"
 	"sort"
-	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -273,8 +273,7 @@ func cloneDocument(document Document) Document {
 }
 
 func validName(value string) bool {
-	return value != "" && len(value) <= maxNameBytes && strings.TrimSpace(value) == value &&
-		!strings.ContainsAny(value, "\r\n\\")
+	return textcheck.Bounded(value, maxNameBytes, "\r\n\\")
 }
 
 func gcd(left, right uint64) uint64 {

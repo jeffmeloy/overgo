@@ -432,7 +432,7 @@ func (r *renderer) eval(e expr, sc *scope) (any, error) {
 			return nil, err
 		}
 		if n.hasIndex {
-			v, _ := getItem(obj, n.index)
+			v, _ := indexInto(obj, n.index)
 			return v, nil
 		}
 		v, _ := getAttr(obj, n.attr)

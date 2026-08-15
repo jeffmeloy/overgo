@@ -220,7 +220,7 @@ func (m hostModel) qkvBatch(t *tape, inputs [][]*value, layer int) [][]*value {
 				inputs[position][index].grad += gradient[index]
 			}
 		}
-		accumulateMatrixGradient(weights, weightGradient)
+		accumulateValueGradient(weights, weightGradient)
 	})
 	return outputs
 }
@@ -370,7 +370,7 @@ func (m hostModel) woBatch(t *tape, attention, residual [][]*value, layer int) [
 		matrixMultiply(attentionGradient, outputGradient, positions, embedding, weightData, embedding)
 		matrixMultiplyTransA(weightGradient, outputGradient, positions, embedding, attentionData, embedding)
 		accumulateValueGradient(attention, attentionGradient)
-		accumulateMatrixGradient(weights, weightGradient)
+		accumulateValueGradient(weights, weightGradient)
 	})
 	return outputs
 }
@@ -434,8 +434,8 @@ func (m hostModel) mlpBatch(t *tape, inputs [][]*value, layer int) [][]*value {
 			}
 		}
 		accumulateValueGradient(inputs, inputGradient)
-		accumulateMatrixGradient(w1, w1Gradient)
-		accumulateMatrixGradient(w2, w2Gradient)
+		accumulateValueGradient(w1, w1Gradient)
+		accumulateValueGradient(w2, w2Gradient)
 	})
 	return outputs
 }
@@ -485,10 +485,6 @@ func accumulateValueGradient(matrix [][]*value, gradient []float64) {
 			matrix[row][column].grad += gradient[row*columns+column]
 		}
 	}
-}
-
-func accumulateMatrixGradient(matrix [][]*value, gradient []float64) {
-	accumulateValueGradient(matrix, gradient)
 }
 
 func (m hostModel) outputLoss(t *tape, input []*value, target int) (*value, []float64) {

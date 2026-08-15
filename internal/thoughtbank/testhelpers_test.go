@@ -15,9 +15,6 @@ func randSlice(rng *rand.Rand, n int, scale float64) []float32 {
 	return v
 }
 
-// randVec is an alias kept for the ported fixture builders.
-func randVec(rng *rand.Rand, n int, scale float64) []float32 { return randSlice(rng, n, scale) }
-
 // argmaxF32 returns the index of the largest element (first on ties).
 func argmaxF32(v []float32) int {
 	best, at := v[0], 0

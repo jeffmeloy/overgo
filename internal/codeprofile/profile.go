@@ -66,7 +66,7 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 		if err != nil {
 			return Profile{}, err
 		}
-		nodes := nodeCount(file)
+		nodes := NodeCount(file)
 		partition := &profile.Production
 		if source.Test {
 			partition = &profile.Test
@@ -86,7 +86,7 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 				if value.Body == nil {
 					continue
 				}
-				size, branches := nodeCount(value.Body), branchCount(value.Body)
+				size, branches := NodeCount(value.Body), branchCount(value.Body)
 				ref := source.Path + ":" + value.Name.Name
 				class := advisoryClass(source.Test, value)
 				profile.Functions = append(profile.Functions, Function{
@@ -146,7 +146,8 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 	return profile, nil
 }
 
-func nodeCount(root ast.Node) int {
+// NodeCount measures the AST surface rooted at node.
+func NodeCount(root ast.Node) int {
 	count := 0
 	ast.Inspect(root, func(node ast.Node) bool {
 		if node != nil {

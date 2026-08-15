@@ -92,7 +92,10 @@ active recipe + resolved artifact facts
 | Family capability runtime files | 91 / 21,953 lines | Separate unique math from displaced orchestration |
 | Family capability exported functions | 295 | Delete wrappers and direct orchestration after caller migration |
 | Production projector recipe consumers | 0 | Route server and generate through active projection plans |
+| Active projection lifecycle dimensions | task only | Add modality/module scope before serving migration |
 | Training authority timing | pre-allocation | Training plan resolves before runtime construction |
+| Typed architecture profile facts | 166 | Profile/artifact facts own omitted-value policy |
+| `optionalOr` calls in `model/spec.go` | 12 | Move remaining relational defaults into typed policies |
 | Production `legacy` / `fallback` text hits | 20 / 73 | Classify format support vs runtime authority; delete authority branches |
 | Parallel image/video VAE operation systems | 2 | Compile one neutral media codec program |
 
@@ -100,14 +103,15 @@ Family-named production files: none.
 
 ## Ordered Work
 
-1. Route projector serving through active projection recipes; bind base and projector identities together.
-2. Move omitted metadata defaults into profile/artifact facts; require them before `Spec` construction.
-3. Make typed `RoPEOptions` the sole single-axis rotary API; migrate and delete remaining wrappers.
-4. Replace video runtime registration names and duplicated stage plumbing only when the wave is net-negative.
-5. Bind VQA production execution to its active recipe; remove inventory-only activation.
-6. Replace coarse prepare/integrate/decode shells with neutral operator programs.
-7. Compile one image/video codec program; migrate host and CUDA execution together.
-8. Classify remaining legacy/fallback hits; retain explicit file-format support only.
+1. Add modality/module scope to active capability identity; one projector may expose image, audio, and video.
+2. Compile projection definitions with base and projector dependencies; migrate server/generate and delete direct runtime opens.
+3. Move remaining relational metadata defaults into typed profile/artifact policies.
+4. Make typed `RoPEOptions` the sole single-axis rotary API; migrate and delete remaining wrappers.
+5. Replace video runtime registration names and duplicated stage plumbing only when the wave is net-negative.
+6. Bind VQA production execution to its active recipe; remove inventory-only activation.
+7. Replace coarse prepare/integrate/decode shells with neutral operator programs.
+8. Compile one image/video codec program; migrate host and CUDA execution together.
+9. Classify remaining legacy/fallback hits; retain explicit file-format support only.
 
 ## Completed Waves
 
@@ -121,6 +125,9 @@ Family-named production files: none.
 - Flow-time shifting centralized: `-20` net lines including touched-comment cleanup.
 - Latent-attention RoPE policy compiled once: `-28` net lines; YaRN wrappers deleted.
 - JSON artifact identity centralized across four domains: `-5` net lines.
+- Resolved normalization policy handed back to model-plan compilation; stale-profile execution fixed.
+- Rotary omitted-value policy moved into 166 typed profile facts: two waves, `-132` net lines.
+- Duplicate Step35 metadata object removed; one serialized policy owner remains.
 - Context-pipeline-tail abstraction rejected: `+26` lines for three consumers; no commit.
 
 ## Per-Wave Gate

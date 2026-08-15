@@ -46,7 +46,7 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 		return
 	}
 	if h.config.RepoDBPath == "" {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "run browsing is not configured")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "run browsing is not configured")
 		return
 	}
 	store, err := repodb.OpenReadOnly(h.config.RepoDBPath)

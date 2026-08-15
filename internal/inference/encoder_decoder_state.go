@@ -20,7 +20,7 @@ const (
 // SaveEncoderDecoderSession: model-bound encoder state and decoder cache.
 func (r *Runner) SaveEncoderDecoderSession(session *EncoderDecoderSession) ([]byte, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if err := r.validateEncoderDecoderSession(session); err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (r *Runner) SaveEncoderDecoderSession(session *EncoderDecoderSession) ([]by
 // LoadEncoderDecoderSession: bounded model-bound restore.
 func (r *Runner) LoadEncoderDecoderSession(data []byte) (*EncoderDecoderSession, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
 	magic := decoder.Raw(8)

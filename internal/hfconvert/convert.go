@@ -247,9 +247,9 @@ func tokenizerMetadata(directory string, vocabulary uint32, fallback specialToke
 	metadata := []gguf.Metadata{
 		stringMetadata("tokenizer.ggml.model", "gpt2"),
 		stringMetadata("tokenizer.ggml.pre", pre),
-		arrayMetadata("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
-		arrayMetadata("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
-		arrayMetadata("tokenizer.ggml.merges", gguf.ValueTypeString, merges),
+		gguf.ArrayMetadata("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
+		gguf.ArrayMetadata("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
+		gguf.ArrayMetadata("tokenizer.ggml.merges", gguf.ValueTypeString, merges),
 	}
 	for _, item := range []struct {
 		key string
@@ -540,7 +540,7 @@ func modelTensors(source *safetensors.Source, profile archProfile, config modelC
 			}
 		}
 		tensors = append(tensors, gguf.TensorData{
-			Name: destinationName, Shape: reverseShape(tensor.Shape), Type: dataType, Data: reader,
+			Name: destinationName, Shape: gguf.ReverseShape(tensor.Shape), Type: dataType, Data: reader,
 		})
 	}
 	// Tied embeddings: runtime output head falls back to token_embd; no duplicate tensor.
@@ -683,14 +683,6 @@ func modelTensorReader(tensor safetensors.Tensor, destinationName string) (gguf.
 	}
 }
 
-func reverseShape(shape []uint64) []uint64 {
-	result := make([]uint64, len(shape))
-	for index := range shape {
-		result[len(shape)-1-index] = shape[index]
-	}
-	return result
-}
-
 func stringMetadata(key, value string) gguf.Metadata {
 	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeString, Data: value}}
 }
@@ -705,8 +697,4 @@ func float32Metadata(key string, value float32) gguf.Metadata {
 
 func boolMetadata(key string, value bool) gguf.Metadata {
 	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeBool, Data: value}}
-}
-
-func arrayMetadata(key string, valueType gguf.ValueType, value any) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: valueType, Data: value}}
 }

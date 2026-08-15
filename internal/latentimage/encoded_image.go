@@ -7,6 +7,8 @@ import (
 	"image/color"
 	"image/png"
 	"math"
+
+	"overgo/internal/artifact"
 )
 
 const encodedImageMediaType = "image/png"
@@ -22,43 +24,35 @@ type EncodedImage struct {
 	Maximum   float32 `json:"maximum"`
 }
 
-type hwcRGB struct {
-	pixels        []float32
-	width, height int
+var encodedPNGContract = artifact.DocumentContract{
+	Kind: artifact.KindOutput, MediaType: encodedImageMediaType, Schema: "overgo.encoded-image.png.v1",
 }
 
-type planarRGB struct {
-	pixels        []float32
-	width, height int
+// PNGContent validates and publishes the encoded PNG bytes without a JSON copy.
+func PNGContent(image EncodedImage) (artifact.Content, error) {
+	if image.MediaType != encodedImageMediaType || image.Channels != 3 || image.Height <= 0 || image.Width <= 0 {
+		return artifact.Content{}, errors.New("latent image: invalid encoded PNG")
+	}
+	return encodedPNGContract.OwnedContentBytes(image.Data)
 }
 
-func (i hwcRGB) ColorModel() color.Model { return color.RGBAModel }
-func (i hwcRGB) Bounds() image.Rectangle { return image.Rect(0, 0, i.width, i.height) }
-func (i hwcRGB) At(x, y int) color.Color {
+type rgbImage struct {
+	pixels                     []float32
+	width, height              int
+	pixelStride, channelStride int
+}
+
+func (i rgbImage) ColorModel() color.Model { return color.RGBAModel }
+func (i rgbImage) Bounds() image.Rectangle { return image.Rect(0, 0, i.width, i.height) }
+func (i rgbImage) At(x, y int) color.Color {
 	if x < 0 || x >= i.width || y < 0 || y >= i.height {
 		return color.RGBA{}
 	}
-	base := (y*i.width + x) * 3
-	return color.RGBA{
-		R: pixelU8(i.pixels[base]),
-		G: pixelU8(i.pixels[base+1]),
-		B: pixelU8(i.pixels[base+2]),
-		A: 255,
-	}
-}
-
-func (i planarRGB) ColorModel() color.Model { return color.RGBAModel }
-func (i planarRGB) Bounds() image.Rectangle { return image.Rect(0, 0, i.width, i.height) }
-func (i planarRGB) At(x, y int) color.Color {
-	if x < 0 || x >= i.width || y < 0 || y >= i.height {
-		return color.RGBA{}
-	}
-	plane := i.width * i.height
-	offset := y*i.width + x
+	offset := (y*i.width + x) * i.pixelStride
 	return color.RGBA{
 		R: pixelU8(i.pixels[offset]),
-		G: pixelU8(i.pixels[plane+offset]),
-		B: pixelU8(i.pixels[2*plane+offset]),
+		G: pixelU8(i.pixels[offset+i.channelStride]),
+		B: pixelU8(i.pixels[offset+2*i.channelStride]),
 		A: 255,
 	}
 }
@@ -69,12 +63,16 @@ func pixelU8(value float32) uint8 {
 }
 
 func encodePNG(pixels []float32, height, width int) (EncodedImage, error) {
-	return encodeRGB(pixels, height, width, hwcRGB{pixels: pixels, width: width, height: height})
+	return encodeRGB(pixels, height, width, rgbImage{
+		pixels: pixels, width: width, height: height, pixelStride: 3, channelStride: 1,
+	})
 }
 
 // EncodePlanarPNG publishes normalized CHW RGB without an HWC copy.
 func EncodePlanarPNG(pixels []float32, height, width int) (EncodedImage, error) {
-	return encodeRGB(pixels, height, width, planarRGB{pixels: pixels, width: width, height: height})
+	return encodeRGB(pixels, height, width, rgbImage{
+		pixels: pixels, width: width, height: height, pixelStride: 1, channelStride: width * height,
+	})
 }
 
 func encodeRGB(pixels []float32, height, width int, source image.Image) (EncodedImage, error) {

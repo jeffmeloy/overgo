@@ -37,7 +37,7 @@ func (r *Runner) Generate(
 	options GenerateOptions,
 ) ([]tokenizer.TokenID, string, error) {
 	if r == nil || r.vocab == nil {
-		return nil, "", errors.New("inference: runner is nil")
+		return nil, "", errRunnerNil
 	}
 	if r.forwardProgram().Operation == model.ForwardOperationEncoder {
 		return nil, "", errors.New("inference: encoder-only models do not generate tokens")

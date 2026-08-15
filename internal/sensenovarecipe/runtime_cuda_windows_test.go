@@ -3,6 +3,7 @@
 package sensenovarecipe
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -77,6 +78,9 @@ func TestSenseNovaProductionImageGeneration(t *testing.T) {
 	image, typed := datum.Value.(latentimage.EncodedImage)
 	if !one || !typed || !result.Commit.Valid() {
 		t.Fatalf("production output = (%T,%v,%v), commit=%s", datum.Value, one, typed, result.Commit)
+	}
+	if datum.Content == nil || datum.Content.Descriptor.MediaType != image.MediaType || !bytes.Equal(datum.Content.Data, image.Data) {
+		t.Fatal("production artifact is not the encoded PNG")
 	}
 	hash := fmt.Sprintf("%x", sha256.Sum256(image.Data))
 	if hash != senseNovaTerminalPNG || image.Width != request.Width || image.Height != request.Height || image.Channels != 3 {

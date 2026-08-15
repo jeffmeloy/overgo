@@ -25,6 +25,21 @@ func TestReleaseDocumentsExist(t *testing.T) {
 	}
 }
 
+func TestReleaseIntegrityContract(t *testing.T) {
+	for _, historical := range []string{
+		"docs/IMPLEMENTATION_LOG.md", "docs/adaptive_new_parity_report.md", "docs/training_plan.md",
+	} {
+		if slices.Contains(releaseDocuments, historical) {
+			t.Errorf("chronological assessment shipped in release: %s", historical)
+		}
+	}
+	for _, durable := range []string{"docs/COMPATIBILITY.md", "docs/REPODB_IMPORT.md", "SBOM.cdx.json"} {
+		if !slices.Contains(releaseDocuments, durable) {
+			t.Errorf("durable release document missing: %s", durable)
+		}
+	}
+}
+
 func TestCreateArchiveIsDeterministic(t *testing.T) {
 	entries := []archiveEntry{
 		{Name: "tool.exe", Data: []byte("binary"), Mode: 0o755},

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "protected_branches": [
+    "master"
+  ],
+  "workflow": ".github/workflows/test.yml",
+  "gpu_workflow": ".github/workflows/gpu.yml",
+  "required_jobs": [
+    "unit",
+    "race"
+  ],
+  "required_hooks": {
+    "PreToolUse": "bash scripts/guard.sh",
+    "PostToolUse": "bash scripts/overgo_post_commit_dispatch.sh",
+    "Stop": "bash scripts/overgo_stop_gate.sh",
+    "SessionStart": "bash scripts/overgo_doctrine.sh"
+  },
+  "host_enforcement_required": true
+}

@@ -28,8 +28,7 @@ import (
 // runDeviceVision: device vision-blocks parity + measurement.
 func runDeviceVision(l *ladder) error {
 	ctx := context.Background()
-	baseMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE vision START gpu.used=%dMiB free=%dMiB", baseMiB, gpuFreeMiB()))
+	l.log("DEVICE vision START")
 
 	vg, err := loadGoldenJSON[visionGolden](l.fixturesDir, "rxbrain_vqa_vision_golden.json")
 	if err != nil {
@@ -159,10 +158,6 @@ func runDeviceVision(l *ladder) error {
 			return fmt.Errorf("device vision weight upload block %d: %w", layer, err)
 		}
 	}
-	afterLoadMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE vision residency gpu.used %d->%dMiB (delta=%dMiB) free=%dMiB",
-		baseMiB, afterLoadMiB, afterLoadMiB-baseMiB, gpuFreeMiB()))
-
 	preShape := tensor.MustShape(uint64(H), uint64(nPatch))
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		g.PreBlock0: {Shape: preShape, Data: preBlock0},
@@ -283,9 +278,8 @@ func runDeviceVision(l *ladder) error {
 	}
 	perCall := time.Since(start) / iters
 	statsAfter, _ := worker.ExecutionStats(ctx)
-	peakMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE vision MEASURE %.3f ms/tower (%d blocks, %d rows, F32 weights resident) peak gpu.used=%dMiB (delta=%dMiB vs base) free=%dMiB",
-		float64(perCall.Microseconds())/1000.0, spec.Depth, nPatch, peakMiB, peakMiB-baseMiB, gpuFreeMiB()))
+	l.log(fmt.Sprintf("DEVICE vision MEASURE %.3f ms/tower (%d blocks, %d rows, F32 weights resident)",
+		float64(perCall.Microseconds())/1000.0, spec.Depth, nPatch))
 	l.log(fmt.Sprintf("DEVICE vision REPLAY graph_launches=%d graph_instantiations=%d graph_updates=%d over %d warm+%d measure",
 		statsAfter.GraphLaunches-statsBefore.GraphLaunches,
 		statsAfter.GraphInstantiations-statsBefore.GraphInstantiations,

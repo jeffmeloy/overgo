@@ -32,7 +32,7 @@ const (
 // SaveCache: validated named cache state.
 func (r *Runner) SaveCache(cache *KVCache) ([]byte, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if err := r.validateCache(cache); err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func (r *Runner) SaveCache(cache *KVCache) ([]byte, error) {
 // LoadCache: bounded parse; model-shape validation.
 func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	cache, err := unmarshalCache(data)
 	if err != nil {
@@ -271,7 +271,7 @@ func (r *Runner) RemoveCacheRange(
 	start, discard uint32,
 ) (*KVCache, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if err := r.validateCache(cache); err != nil {
 		return nil, err

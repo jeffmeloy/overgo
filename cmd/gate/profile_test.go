@@ -19,31 +19,78 @@ func TestASTStructuralProfileGate(t *testing.T) {
 	if err := os.WriteFile(path, []byte("package p\nfunc F(v int) int { return v }\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	for _, args := range [][]string{
+		{"init"}, {"add", "internal/p/p.go"}, {"-c", "user.name=fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "base"},
+	} {
+		if _, err := command(root, "git", args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(path, []byte("package p\nfunc F(v int) int { if v > 0 { return v }; return 0 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	g := gateContext{repo: root, paths: []string{"internal/p/p.go"}}
 	skipped, err := g.stepProfile()
-	if err != nil || skipped || len(g.honesty) != 2 || !strings.Contains(g.honesty[0], "production=1 files") {
+	if err != nil || skipped || len(g.honesty) != 3 || !strings.Contains(g.honesty[0], "production=1 files") ||
+		!strings.Contains(g.honesty[1], "delta vs HEAD") {
 		t.Fatalf("profile step = skipped %v, err %v, honesty %v", skipped, err, g.honesty)
 	}
 }
 
-func TestASTProfileReviewFocus(t *testing.T) {
+func TestAdvisoryCandidate(t *testing.T) {
 	profile := codeprofile.Profile{
 		Functions: []codeprofile.Function{
 			{File: "internal/other/large.go", Name: "larger", Nodes: 40, Branches: 8},
 			{File: "internal/p/p.go", Name: "changed", Nodes: 20, Branches: 3},
+			{File: "internal/p/p.go", Name: "validateShape", Nodes: 18, Branches: 4, AdvisoryClass: "validator"},
+			{File: "internal/p/p_test.go", Name: "TestChanged", Nodes: 16, Branches: 2, AdvisoryClass: "test"},
 		},
 		Clones: []codeprofile.Clone{
 			{Nodes: 12, Functions: []string{"internal/p/p.go:changed", "internal/q/q.go:peer"}},
+			{Nodes: 10, Functions: []string{"internal/p/p.go:validateShape", "internal/q/q.go:validatePeer"}, AdvisoryClass: "validator"},
+			{Nodes: 8, Functions: []string{"internal/p/p_test.go:TestChanged", "internal/q/q_test.go:TestPeer"}, AdvisoryClass: "test"},
 		},
 	}
-	want := "code review focus: largest_function_in_changed_file=internal/p/p.go:changed nodes=20 branches=3; " +
-		"largest_clone_touching_changed_file=nodes=12 functions=internal/p/p.go:changed,internal/q/q.go:peer"
-	if got := profileReviewFocus(profile, []string{"internal/p/p.go"}); got != want {
-		t.Fatalf("review focus = %q, want %q", got, want)
+	got := profileReviewFocus(profile, []string{"internal/p/p.go", "internal/p/p_test.go"})
+	for _, want := range []string{
+		"production=internal/p/p.go:changed", "validator=internal/p/p.go:validateShape", "test=internal/p/p_test.go:TestChanged",
+		"exact_clone_production=nodes=12", "exact_clone_validator=nodes=10", "exact_clone_test=nodes=8",
+		"advisory_only=inspect semantic ownership and numerical contracts", "require parity evidence",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("review candidates %q lack %q", got, want)
+		}
 	}
-	if got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); !strings.HasSuffix(got, "largest_clone_touching_changed_file=none") ||
-		!strings.Contains(got, "largest_function_in_changed_file=none") {
+	if got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); !strings.Contains(got, "production=none") ||
+		!strings.Contains(got, "exact_clone_test=none") {
 		t.Fatalf("empty review focus = %q", got)
+	}
+}
+
+func TestSurfaceDeltaHonesty(t *testing.T) {
+	base := codeprofile.Profile{
+		Production: codeprofile.Partition{Files: 2, Nodes: 100}, Test: codeprofile.Partition{Files: 1, Nodes: 30},
+		Functions: []codeprofile.Function{{File: "v.go", Name: "validateBase", Nodes: 20, AdvisoryClass: "validator"}},
+		Clones:    []codeprofile.Clone{{Nodes: 10, Functions: []string{"a:f", "b:g"}}}, DuplicateExcessNodes: 10,
+	}
+	candidate := codeprofile.Profile{
+		Production: codeprofile.Partition{Files: 3, Nodes: 125}, Test: codeprofile.Partition{Files: 1, Nodes: 35},
+		Functions: []codeprofile.Function{
+			{File: "v.go", Name: "validateBase", Nodes: 20, AdvisoryClass: "validator"},
+			{File: "v.go", Name: "validateAdded", Nodes: 5, AdvisoryClass: "validator"},
+		},
+		Clones: []codeprofile.Clone{{Nodes: 6, Functions: []string{"a:f", "b:g"}}}, DuplicateExcessNodes: 6,
+		ExportedDeclarations: 2, PackageImportEdges: 1,
+	}
+	got := surfaceDeltaHonesty(base, candidate)
+	for _, want := range []string{
+		"production=+1 files/+25 nodes", "test=+0/+5", "validator_subset=+1 functions/+5 nodes",
+		"duplicate_excess=-4", "exported=+2", "imports=+1",
+		"duplication fell while production grew; reduction does not offset surface growth",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("surface delta %q lacks %q", got, want)
+		}
 	}
 }
 

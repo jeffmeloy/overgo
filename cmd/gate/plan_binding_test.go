@@ -17,7 +17,8 @@ func TestEnforcePlanBindingRefusesOffPlan(t *testing.T) {
 	// Current open step is r0/first (r0/second is open too but comes later).
 	js := `{"campaign":"t","doctrine":"d","items":[` +
 		`{"id":"r0","status":"open","steps":[` +
-		`{"id":"first","status":"open"},{"id":"second","status":"open"}]}]}`
+		`{"id":"first","status":"open","verify":"go test ./..."},` +
+		`{"id":"second","status":"open","verify":"go test ./..."}]}]}`
 	if err := os.WriteFile(filepath.Join(dir, "docs", "plan.json"), []byte(js), 0o644); err != nil {
 		t.Fatal(err)
 	}

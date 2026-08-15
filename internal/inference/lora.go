@@ -264,7 +264,7 @@ func (r *Runner) LoRAAdapters() []LoRAAdapterInfo {
 // SetLoRAScales: replaces global scales; omitted adapters disabled.
 func (r *Runner) SetLoRAScales(ctx context.Context, scales []LoRAScale) error {
 	if r == nil {
-		return errors.New("inference: runner is nil")
+		return errRunnerNil
 	}
 	if ctx == nil {
 		return errors.New("inference: LoRA context is nil")

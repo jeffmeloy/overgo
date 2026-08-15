@@ -33,6 +33,24 @@ func recordWorkLease(root, inputPath string, output io.Writer) error {
 	return err
 }
 
+func recordWorkLeaseOutcome(root, inputPath string, output io.Writer) error {
+	data, err := os.ReadFile(inputPath)
+	if err != nil {
+		return fmt.Errorf("read lease outcome: %w", err)
+	}
+	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	outcome, err := plan.RecordLeaseOutcome(context.Background(), store, data)
+	if err != nil {
+		return fmt.Errorf("record lease outcome: %w", err)
+	}
+	_, err = fmt.Fprintf(output, "recorded lease outcome %s for %s\n", outcome.ID, outcome.Lease)
+	return err
+}
+
 type leaseReport struct {
 	GeneratedAt string                `json:"generated_at"`
 	Leases      []plan.WorkLease      `json:"leases"`

@@ -20,7 +20,7 @@ const (
 // SaveMultiHeadMTPSession serializes model-bound multi-head state.
 func (r *Runner) SaveMultiHeadMTPSession(session *MultiHeadMTPSession) ([]byte, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if _, err := r.multiHeadMTP(); err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func (r *Runner) SaveMultiHeadMTPSession(session *MultiHeadMTPSession) ([]byte, 
 // LoadMultiHeadMTPSession restores bounded multi-head state.
 func (r *Runner) LoadMultiHeadMTPSession(data []byte) (*MultiHeadMTPSession, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	plan, err := r.multiHeadMTP()
 	if err != nil {

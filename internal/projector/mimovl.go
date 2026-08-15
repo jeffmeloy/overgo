@@ -218,7 +218,7 @@ func PreprocessMiMoVLImage(source image.Image, spec MiMoVLSpec) (MiMoVLInput, er
 
 func (r *MiMoVLRunner) EncodeImage(ctx context.Context, source image.Image) (MiMoVLOutput, error) {
 	if r == nil || r.file == nil {
-		return MiMoVLOutput{}, errors.New("projector: runner is closed")
+		return MiMoVLOutput{}, errRunnerClosed
 	}
 	input, err := PreprocessMiMoVLImage(source, r.spec)
 	if err != nil {

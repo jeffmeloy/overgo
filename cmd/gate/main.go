@@ -37,6 +37,7 @@ import (
 	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
+	"overgo/internal/protection"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
@@ -65,6 +66,7 @@ type gateContext struct {
 	source       *repoanalysis.SourceSnapshot
 	profile      *codeprofile.Profile
 	profileDirty bool
+	stepEvidence map[string]string
 }
 
 func main() {
@@ -78,6 +80,7 @@ func run() error {
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
 	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the plan's current open step (see `go run ./cmd/plan -next`). Required unless -merge. Off-plan commits are refused.")
 	reconcile := flag.Bool("reconcile", false, "finalize the deterministic RepoDB batch in bin/gate_debt.json")
+	recordFailure := flag.Bool("record-failure", false, "recover an unbatchable post-commit record as a typed failed finalization")
 	admitReview := flag.String("admit-review", "", "read-only: admit a RepoDB review-verdict ID against the current HEAD")
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
 	staleAfter := flag.Duration("stale-after", 30*time.Second, "heartbeat age classified stale by -watchdog")
@@ -94,6 +97,13 @@ func run() error {
 		preparation, err := reconcileGateDebt(repo, cleanStore)
 		if err == nil {
 			fmt.Printf("gate: reconciled RepoDB record debt for %s\n", preparation)
+		}
+		return err
+	}
+	if *recordFailure {
+		preparation, err := recordUnbatchableFailure(repo, cleanStore)
+		if err == nil {
+			fmt.Printf("gate: recorded failed finalization for %s\n", preparation)
 		}
 		return err
 	}
@@ -122,6 +132,7 @@ func run() error {
 	}
 	g := &gateContext{
 		repo: repo, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
+		stepEvidence: map[string]string{},
 	}
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
@@ -167,27 +178,41 @@ func run() error {
 	defer stopHeartbeat()
 
 	outcome := runrecord.OutcomeSucceeded
-	failure := ""
-	if err := g.pipeline(); err != nil {
+	failureCode := ""
+	var pipelineErr error
+	if pipelineErr = g.pipeline(); pipelineErr != nil {
 		outcome = runrecord.OutcomeFailed
-		failure = err.Error()
+		failureCode = terminalFailureCode(g.steps)
 	}
-	recordErr := g.record(outcome, failure)
+	recordErr := g.record(outcome, failureCode)
 	stopHeartbeat()
-	g.printSummary(outcome, failure)
+	failureDetail := ""
+	if pipelineErr != nil {
+		failureDetail = pipelineErr.Error()
+	}
+	g.printSummary(outcome, failureDetail)
 	if recordErr != nil {
 		_ = g.writeHeartbeat(runrecord.HeartbeatRecordDebt)
 		fmt.Fprintf(os.Stderr, "gate: store record failed (result stands, record owed): %v\n", recordErr)
 	} else {
 		_ = g.writeHeartbeat(runrecord.HeartbeatFinalized)
 	}
-	if outcome != runrecord.OutcomeSucceeded {
-		return fmt.Errorf("%s", failure)
+	if pipelineErr != nil {
+		return pipelineErr
 	}
 	if recordErr != nil {
 		return fmt.Errorf("commit landed but RepoDB record debt remains: %w", recordErr)
 	}
 	return nil
+}
+
+func terminalFailureCode(steps []runrecord.GateStep) string {
+	for index := len(steps) - 1; index >= 0; index-- {
+		if steps[index].Outcome == runrecord.StepFailed {
+			return steps[index].Name
+		}
+	}
+	return "gate"
 }
 
 // checkPlanBinding refuses any commit whose -plan is not the plan's current open
@@ -226,6 +251,7 @@ func (g *gateContext) pipeline() error {
 		fn    func() (skipped bool, err error)
 	}
 	steps := []step{
+		{"protection", runrecord.PhaseValidate, g.stepProtection},
 		{"scope", runrecord.PhaseValidate, g.stepScope},
 		{"profile", runrecord.PhaseValidate, g.stepProfile},
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
@@ -255,9 +281,13 @@ func (g *gateContext) pipeline() error {
 		} else {
 			skipped, err = s.fn()
 		}
+		duration := uint64(time.Since(began).Nanoseconds())
+		if duration == 0 && !skipped {
+			duration = 1
+		}
 		record := runrecord.GateStep{
 			Name: s.name, Phase: s.phase, Outcome: runrecord.StepSucceeded,
-			DurationNS: uint64(time.Since(began).Nanoseconds()),
+			DurationNS: duration, Evidence: g.stepEvidence[s.name],
 		}
 		switch {
 		case err != nil:
@@ -276,6 +306,16 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	return nil
+}
+
+func (g *gateContext) stepProtection() (bool, error) {
+	configured, activated, err := protection.Verify(g.repo)
+	if err != nil {
+		return false, err
+	}
+	g.stepEvidence["protection"] = configured + ";activation=" + activated
+	g.honesty = append(g.honesty, "protection: "+g.stepEvidence["protection"])
+	return false, nil
 }
 
 func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
@@ -301,14 +341,77 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	base, err := profileAtHEAD(g.repo, snapshot)
+	if err != nil {
+		return false, err
+	}
+	signals := profileSignals(profile)
 	g.honesty = append(g.honesty, fmt.Sprintf(
-		"code profile: production=%d files/%d nodes test=%d/%d duplicate_excess=%d clones=%d functions=%d exported=%d imports=%d",
+		"code profile: production=%d files/%d nodes test=%d/%d validator_subset=%d functions/%d nodes duplicate_excess=%d (production=%d validator=%d test=%d) clones=%d functions=%d exported=%d imports=%d",
 		profile.Production.Files, profile.Production.Nodes, profile.Test.Files, profile.Test.Nodes,
-		profile.DuplicateExcessNodes, len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
+		signals.validator.functions, signals.validator.nodes, profile.DuplicateExcessNodes,
+		signals.production.duplicateExcess, signals.validator.duplicateExcess, signals.test.duplicateExcess,
+		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
+	g.honesty = append(g.honesty, surfaceDeltaHonesty(base, profile))
 	g.honesty = append(g.honesty, profileReviewFocus(profile, g.changedGoFiles()))
 	g.profile = &profile
 	return false, nil
+}
+
+type profileSignal struct {
+	functions, nodes, duplicateExcess int
+}
+
+type profileSignalSet struct {
+	production, validator, test profileSignal
+}
+
+func profileSignals(profile codeprofile.Profile) profileSignalSet {
+	var signals profileSignalSet
+	for _, function := range profile.Functions {
+		signal := signalForClass(&signals, function.AdvisoryClass)
+		signal.functions++
+		signal.nodes += function.Nodes
+	}
+	for _, clone := range profile.Clones {
+		signal := signalForClass(&signals, clone.AdvisoryClass)
+		signal.duplicateExcess += clone.Nodes * (len(clone.Functions) - 1)
+	}
+	return signals
+}
+
+func signalForClass(signals *profileSignalSet, class string) *profileSignal {
+	switch class {
+	case "validator":
+		return &signals.validator
+	case "test":
+		return &signals.test
+	default:
+		return &signals.production
+	}
+}
+
+func surfaceDeltaHonesty(base, candidate codeprofile.Profile) string {
+	baseSignals, candidateSignals := profileSignals(base), profileSignals(candidate)
+	productionFiles := candidate.Production.Files - base.Production.Files
+	productionNodes := candidate.Production.Nodes - base.Production.Nodes
+	duplicateExcess := candidate.DuplicateExcessNodes - base.DuplicateExcessNodes
+	adverse := "none"
+	if duplicateExcess < 0 && (productionFiles > 0 || productionNodes > 0) {
+		adverse = "duplication fell while production grew; reduction does not offset surface growth"
+	}
+	return fmt.Sprintf(
+		"code profile delta vs HEAD: production=%+d files/%+d nodes test=%+d/%+d validator_subset=%+d functions/%+d nodes duplicate_excess=%+d (production=%+d validator=%+d test=%+d) clones=%+d function_count=%+d exported=%+d imports=%+d; adverse_pattern=%s",
+		productionFiles, productionNodes, candidate.Test.Files-base.Test.Files, candidate.Test.Nodes-base.Test.Nodes,
+		candidateSignals.validator.functions-baseSignals.validator.functions, candidateSignals.validator.nodes-baseSignals.validator.nodes,
+		duplicateExcess,
+		candidateSignals.production.duplicateExcess-baseSignals.production.duplicateExcess,
+		candidateSignals.validator.duplicateExcess-baseSignals.validator.duplicateExcess,
+		candidateSignals.test.duplicateExcess-baseSignals.test.duplicateExcess,
+		len(candidate.Clones)-len(base.Clones), len(candidate.Functions)-len(base.Functions),
+		candidate.ExportedDeclarations-base.ExportedDeclarations, candidate.PackageImportEdges-base.PackageImportEdges, adverse,
+	)
 }
 
 func profileReviewFocus(profile codeprofile.Profile, changed []string) string {
@@ -316,24 +419,67 @@ func profileReviewFocus(profile codeprofile.Profile, changed []string) string {
 	for _, path := range changed {
 		paths[path] = true
 	}
-	functionText := "none"
+	return fmt.Sprintf(
+		"code review candidates: production=%s; validator=%s; test=%s; exact_clone_production=%s; exact_clone_validator=%s; exact_clone_test=%s; advisory_only=inspect semantic ownership and numerical contracts, migrate callers and delete displaced paths, require parity evidence",
+		largestChangedFunction(profile, paths, ""), largestChangedFunction(profile, paths, "validator"), largestChangedFunction(profile, paths, "test"),
+		largestChangedClone(profile, paths, ""), largestChangedClone(profile, paths, "validator"), largestChangedClone(profile, paths, "test"),
+	)
+}
+
+func largestChangedFunction(profile codeprofile.Profile, paths map[string]bool, class string) string {
 	for _, function := range profile.Functions {
-		if paths[function.File] {
-			functionText = fmt.Sprintf("%s:%s nodes=%d branches=%d", function.File, function.Name, function.Nodes, function.Branches)
-			break
+		if paths[function.File] && function.AdvisoryClass == class {
+			return fmt.Sprintf("%s:%s nodes=%d branches=%d", function.File, function.Name, function.Nodes, function.Branches)
 		}
 	}
-	cloneText := "none"
+	return "none"
+}
+
+func largestChangedClone(profile codeprofile.Profile, paths map[string]bool, class string) string {
 	for _, clone := range profile.Clones {
-		if slices.ContainsFunc(clone.Functions, func(function string) bool {
+		if clone.AdvisoryClass == class && slices.ContainsFunc(clone.Functions, func(function string) bool {
 			path, _, ok := strings.Cut(function, ":")
 			return ok && paths[path]
 		}) {
-			cloneText = fmt.Sprintf("nodes=%d functions=%s", clone.Nodes, strings.Join(clone.Functions, ","))
-			break
+			return fmt.Sprintf("nodes=%d functions=%s", clone.Nodes, strings.Join(clone.Functions, ","))
 		}
 	}
-	return "code review focus: largest_function_in_changed_file=" + functionText + "; largest_clone_touching_changed_file=" + cloneText
+	return "none"
+}
+
+func profileAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (codeprofile.Profile, error) {
+	raw, err := command(repo, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	if err != nil {
+		return codeprofile.Profile{}, err
+	}
+	dirty, err := repoanalysis.ParseDirtyStatus([]byte(raw))
+	if err != nil {
+		return codeprofile.Profile{}, err
+	}
+	overlay := map[string][]byte{}
+	for _, entry := range dirty {
+		for _, path := range []string{entry.Path, entry.OriginalPath} {
+			if !strings.HasSuffix(path, ".go") || !strings.HasPrefix(path, "internal/") && !strings.HasPrefix(path, "cmd/") {
+				continue
+			}
+			cmd := exec.Command("git", "show", "HEAD:"+path)
+			cmd.Dir = repo
+			data, err := cmd.Output()
+			if err != nil {
+				if _, missing := err.(*exec.ExitError); missing {
+					overlay[path] = nil
+					continue
+				}
+				return codeprofile.Profile{}, err
+			}
+			overlay[path] = data
+		}
+	}
+	base, err := candidate.Overlay(overlay)
+	if err != nil {
+		return codeprofile.Profile{}, err
+	}
+	return codeprofile.Build(base)
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,
@@ -803,7 +949,7 @@ func (g *gateContext) stepDevice() (bool, error) {
 		g.honesty = append(g.honesty, "device lane skipped: no kernel or CUDA-cone paths in -paths")
 		return true, nil
 	}
-	_, err := command(g.repo, "go", "run", "./cmd/device-lane")
+	_, err := command(g.repo, "go", "run", "./cmd/device-lane", "-paths", strings.Join(g.paths, ","))
 	return false, err
 }
 
@@ -820,6 +966,20 @@ func (g *gateContext) pathsTouchDeviceSource() bool {
 }
 
 func (g *gateContext) stepCommit() (bool, error) {
+	// Validate the immutable result shape before Git advances. A schema error
+	// discovered after commit cannot be represented by the normal debt batch.
+	recipeID, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
+	if err != nil {
+		return false, err
+	}
+	steps := append(slices.Clone(g.steps), runrecord.GateStep{
+		Name: "commit", Phase: runrecord.PhasePackage, Outcome: runrecord.StepSucceeded, DurationNS: 1,
+	})
+	if _, err := runrecord.NewGateRecord(
+		recipeID, g.environment.ID, strings.Repeat("0", 40), runrecord.OutcomeSucceeded, "", 1, steps,
+	); err != nil {
+		return false, fmt.Errorf("pre-commit record validation: %w", err)
+	}
 	// Add only paths with UNSTAGED changes: git refuses an add pathspec for a
 	// file that is gone with its deletion already fully staged (observed on
 	// the .ps1 retirement commit, under both plain and -A forms). Fully
@@ -980,6 +1140,71 @@ func reconcileGateDebt(repo, storePath string) (artifact.ID, error) {
 		return artifact.ID{}, err
 	}
 	return debt.Preparation, nil
+}
+
+func recordUnbatchableFailure(repo, storePath string) (artifact.ID, error) {
+	var heartbeat runrecord.GateHeartbeat
+	if err := readJSON(repo, gateHeartbeatFile, &heartbeat); err != nil {
+		return artifact.ID{}, err
+	}
+	if err := heartbeat.Validate(); err != nil || heartbeat.State != runrecord.HeartbeatRecordDebt {
+		return artifact.ID{}, errors.New("gate: no valid record-debt heartbeat to finalize")
+	}
+	store, err := repodb.Open(filepath.Join(repo, storePath))
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	defer store.Close()
+	content, ok, err := store.Content(context.Background(), heartbeat.Preparation)
+	if err != nil {
+		return artifact.ID{}, fmt.Errorf("gate: prepared lifecycle unavailable: %w", err)
+	}
+	if !ok {
+		return artifact.ID{}, errors.New("gate: prepared lifecycle unavailable")
+	}
+	preparation, err := runrecord.ParseGateLifecycle(content.Data)
+	if err != nil || preparation.State != runrecord.GatePrepared || preparation.Environment != heartbeat.Environment {
+		return artifact.ID{}, errors.New("gate: record-debt heartbeat contradicts its preparation")
+	}
+	codeCommit, err := command(repo, "git", "rev-parse", "HEAD")
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	codeCommit = strings.TrimSpace(codeCommit)
+	recipeID, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	record, err := runrecord.NewGateRecord(
+		recipeID, preparation.Environment, codeCommit, runrecord.OutcomeFailed, "record", 1,
+		[]runrecord.GateStep{{Name: "record", Phase: runrecord.PhaseValidate, Outcome: runrecord.StepFailed, DurationNS: 1}},
+	)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	batch, err := record.Batch("gate/final/" + preparation.ID.String())
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	finalized, err := runrecord.NewGateFinalization(preparation, codeCommit, record.Result.ID, runrecord.OutcomeFailed)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	finalizedContent, err := finalized.Content()
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
+	batch.Contents = append(batch.Contents, finalizedContent)
+	batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		return artifact.ID{}, err
+	}
+	heartbeat.State, heartbeat.PID, heartbeat.Updated = runrecord.HeartbeatFinalized, os.Getpid(), time.Now().UTC()
+	if err := writeJSON(repo, gateHeartbeatFile, heartbeat, 0o644); err != nil {
+		return artifact.ID{}, err
+	}
+	return preparation.ID, nil
 }
 
 func validateGateDebt(debt gateDebtEnvelope) error {

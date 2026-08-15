@@ -63,31 +63,10 @@ func (m *Model) deriveResidentCapacity(worker *device.Worker, seq int, frozenLex
 	return devicemath.DeriveResidentCapacity(free, g, fixed, perLayer), nil
 }
 
-// TrainDeviceResident runs `steps` Muon updates with the layer weights AND their
-// Muon momentum resident on the device across all steps: the layer matrices upload
-// once at the start and download only at the final checkpoint -- there is NO per-step
-// weight scatter/gather for them, and the Muon Newton-Schulz step runs in place on
-// those resident buffers. The whole-stack forward/backward reads the resident
-// matrices directly (StackForwardBackwardResidentWeights). The host tail (embedding
-// lookup, final RMSNorm, head, softmax-CE) is unchanged, and the sign-updated tensors
-// (per-layer norm vectors, final norm) plus the embedding/head Muon tensors run on the
-// host optimizer -- exactly the reference host Train trajectory for those groups. The
-// only per-step device transfers are activations (embeds in, final out, dOut in) and
-// the tiny norm-vector sync/grad; weights and momentum are not among them. Matches
-// Train within fp32 tolerance. Attention bias is not supported.
-func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
-	return m.trainDeviceResident(worker, repeatedBatches(tokens, steps), baseLR, mu, false, nil)
-}
-
-// TrainDeviceResidentBatches preserves ordered batches under one resident lifecycle.
+// TrainDeviceResidentBatches keeps layer weights and Muon momentum resident
+// across an ordered batch sequence. Attention bias is not supported.
 func (m *Model) TrainDeviceResidentBatches(worker *device.Worker, batches [][]int, baseLR, mu float64) ([]float64, error) {
 	return m.trainDeviceResident(worker, batches, baseLR, mu, false, nil)
-}
-
-// TrainDeviceResidentFrozenLexical keeps the production frozen lexical tail on
-// device; only scalar loss and layer norm gradients cross to host per step.
-func (m *Model) TrainDeviceResidentFrozenLexical(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
-	return m.trainDeviceResident(worker, repeatedBatches(tokens, steps), baseLR, mu, true, nil)
 }
 
 // TrainDeviceResidentFrozenLexicalBatches preserves ordered minibatches under
@@ -104,17 +83,6 @@ func (m *Model) MeasureDeviceResidentFrozenLexicalBatches(worker *device.Worker,
 	return trajectory, wall, err
 }
 
-func repeatedBatches(tokens []int, steps int) [][]int {
-	if steps <= 0 {
-		return nil
-	}
-	batches := make([][]int, steps)
-	for index := range batches {
-		batches[index] = tokens
-	}
-	return batches
-}
-
 func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, loopWall *time.Duration) ([]float64, error) {
 	if len(batches) == 0 || len(batches[0]) < 2 {
 		return nil, fmt.Errorf("densecausal: need at least one batch with two tokens")
@@ -128,7 +96,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 	steps := len(batches)
 	d := m.Dims
 	if ok, reason := DeviceTrainingSupported(d); !ok {
-		return nil, fmt.Errorf("TrainDeviceResident: %s", reason)
+		return nil, fmt.Errorf("densecausal resident training: %s", reason)
 	}
 
 	// Derived scale ceiling: how many layers fit fully resident is DERIVED from
@@ -136,10 +104,10 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 	// supplied n_gpu_layers). Reject up front rather than OOM mid-session.
 	capacity, err := m.deriveResidentCapacity(worker, len(tokens), frozenLexical)
 	if err != nil {
-		return nil, fmt.Errorf("TrainDeviceResident: capacity derivation: %w", err)
+		return nil, fmt.Errorf("densecausal resident training: capacity derivation: %w", err)
 	}
 	if d.Layers > capacity.Layers {
-		return nil, fmt.Errorf("TrainDeviceResident: %d layers exceed derived resident capacity %d (free=%d bytes, G=%d, per-layer=%d bytes)",
+		return nil, fmt.Errorf("densecausal resident training: %d layers exceed derived resident capacity %d (free=%d bytes, G=%d, per-layer=%d bytes)",
 			d.Layers, capacity.Layers, capacity.FreeBytes, capacity.Granularity, capacity.PerLayerBytes)
 	}
 
@@ -179,7 +147,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		}
 	}
 	if layerStart < 0 {
-		return nil, fmt.Errorf("TrainDeviceResident: no layer tensors")
+		return nil, fmt.Errorf("densecausal resident training: no layer tensors")
 	}
 	layerElems := layerEnd - layerStart
 
@@ -298,11 +266,11 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 			hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
 			dLogits := make([]float32, seq*d.Vocab)
 			loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
-			gradHead := g.slot(m.headName(), len(head))
+			gradHead := hostmath.GradientSlot(g, m.headName(), len(head))
 			dNormed := make([]float32, seq*d.Hidden)
 			hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
 			dx := make([]float32, seq*d.Hidden)
-			hostmath.RMSNormBackward(dx, g.slot("model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
+			hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, "model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
 			return dx, nil
 		}
 
@@ -327,11 +295,11 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		// Assemble the host gradient buffer for the non-matrix groups only.
 		for i := 0; i < d.Layers; i++ {
 			p := fmt.Sprintf("model.layers.%d.", i)
-			copy(g.slot(p+"input_layernorm.weight", d.Hidden), normGrads[i].InLN)
-			copy(g.slot(p+"post_attention_layernorm.weight", d.Hidden), normGrads[i].PostLN)
+			copy(hostmath.GradientSlot(g, p+"input_layernorm.weight", d.Hidden), normGrads[i].InLN)
+			copy(hostmath.GradientSlot(g, p+"post_attention_layernorm.weight", d.Hidden), normGrads[i].PostLN)
 		}
 		if !frozenLexical {
-			gradEmbed := g.slot("model.embed_tokens.weight", len(embed))
+			gradEmbed := hostmath.GradientSlot(g, "model.embed_tokens.weight", len(embed))
 			scatterEmbeddingGradient(gradEmbed, dxEmbed, tokens, d.Hidden)
 		}
 		off := 0

@@ -322,7 +322,7 @@ func (r *Runner) FormatChatWithOptions(
 	options ChatFormatOptions,
 ) (string, error) {
 	if r == nil || r.vocab == nil {
-		return "", errors.New("inference: runner is nil")
+		return "", errRunnerNil
 	}
 	for index := range messages {
 		if len(messages[index].Media) != 0 {

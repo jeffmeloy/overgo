@@ -19,7 +19,7 @@ const (
 // token-level grammar for this runner's vocabulary
 func (r *Runner) TokenizeGrammarChoices(choices []string) (*sampling.TokenGrammar, error) {
 	if r == nil || r.vocab == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if len(choices) == 0 {
 		return nil, errors.New("inference: grammar choice list is empty")
@@ -96,7 +96,7 @@ func (r *Runner) compileGBNF(
 	lazy sampling.GBNFLazyOptions,
 ) (*sampling.GBNFGrammar, error) {
 	if r == nil || r.vocab == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	pieces := make([][]byte, r.vocab.Len())
 	tokenIDs := make(map[string]int, r.vocab.Len())

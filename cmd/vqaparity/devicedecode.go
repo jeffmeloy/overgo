@@ -161,8 +161,7 @@ type devKV struct {
 // runDeviceDecode: device 32-layer decode parity + measurement.
 func runDeviceDecode(l *ladder) error {
 	ctx := context.Background()
-	baseMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE decode START gpu.used=%dMiB free=%dMiB", baseMiB, gpuFreeMiB()))
+	l.log("DEVICE decode START")
 
 	h, err := loadDecodeHarness(l)
 	if err != nil {
@@ -340,9 +339,7 @@ func runDeviceDecode(l *ladder) error {
 	if err != nil {
 		return err
 	}
-	afterLoadMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE decode residency gpu.used %d->%dMiB (delta=%dMiB) free=%dMiB kv_capacity_bytes=%d/layer",
-		baseMiB, afterLoadMiB, afterLoadMiB-baseMiB, gpuFreeMiB(), kvBytes))
+	l.log(fmt.Sprintf("DEVICE decode residency kv_capacity_bytes=%d/layer", kvBytes))
 
 	// ---- per-step runtime attribute updater --------------------------------
 	attrs := compiled.NewRuntimeAttributes()
@@ -491,9 +488,8 @@ func runDeviceDecode(l *ladder) error {
 	dInst := statsAfter.GraphInstantiations - statsBefore.GraphInstantiations
 	dUpd := statsAfter.GraphUpdates - statsBefore.GraphUpdates
 	dLaunch := statsAfter.GraphLaunches - statsBefore.GraphLaunches
-	peakMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE decode MEASURE %.3f ms/token (32 layers + KV resident, replayed %d x) peak gpu.used=%dMiB (delta=%dMiB vs base) free=%dMiB",
-		float64(perTok.Microseconds())/1000.0, iters, peakMiB, peakMiB-baseMiB, gpuFreeMiB()))
+	l.log(fmt.Sprintf("DEVICE decode MEASURE %.3f ms/token (32 layers + KV resident, replayed %d x)",
+		float64(perTok.Microseconds())/1000.0, iters))
 	l.log(fmt.Sprintf("DEVICE decode REPLAY over %d steps + %d measure iters: graph_launches=%d graph_instantiations=%d graph_updates=%d (single compiled graph, per-step runtime attrs only: rope pos, attn window, cache offset)", steps, iters+warm, dLaunch, dInst, dUpd))
 	l.log("DEVICE decode LANE GREEN")
 	return nil

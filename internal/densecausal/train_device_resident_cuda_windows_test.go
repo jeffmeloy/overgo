@@ -11,12 +11,12 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 )
 
-// TestTrainDeviceResidentMatchesHost checks that TrainDeviceResident -- which keeps
+// TestTrainDeviceResidentBatchesMatchesHost checks that resident training keeps
 // the layer matrices and their Muon momentum resident on the device across all steps
 // (uploaded once, downloaded only at checkpoint, no per-step weight scatter/gather)
 // -- reproduces host Train's loss trajectory within fp32 tolerance on identical
 // seeded models, and that training reduces the loss.
-func TestTrainDeviceResidentMatchesHost(t *testing.T) {
+func TestTrainDeviceResidentBatchesMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
 	if err != nil {
@@ -29,11 +29,12 @@ func TestTrainDeviceResidentMatchesHost(t *testing.T) {
 	tokens := []int{1, 5, 9, 3, 7, 2, 11, 4}
 	const steps = 12
 
-	trajHost, err := mHost.Train(tokens, steps, 0, 0.9)
+	batches := slices.Repeat([][]int{tokens}, steps)
+	trajHost, err := mHost.TrainBatches(batches, 0, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
-	trajDev, err := mDev.TrainDeviceResident(worker, tokens, steps, 0, 0.9)
+	trajDev, err := mDev.TrainDeviceResidentBatches(worker, batches, 0, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +74,7 @@ func TestTrainDeviceResidentMatchesHost(t *testing.T) {
 	}
 }
 
-func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
+func TestTrainDeviceResidentFrozenLexicalBatchesMatchesInitialLoss(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
 	if err != nil {
@@ -88,7 +89,7 @@ func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
 		t.Fatal(err)
 	}
 	embedBefore := slices.Clone(model.Weights["model.embed_tokens.weight"])
-	trajectory, err := model.TrainDeviceResidentFrozenLexical(worker, tokens, 8, 0, 0.9)
+	trajectory, err := model.TrainDeviceResidentFrozenLexicalBatches(worker, slices.Repeat([][]int{tokens}, 8), 0, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}

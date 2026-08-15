@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"overgo/internal/runrecord"
 )
 
 var releaseCommands = []string{
@@ -43,10 +45,7 @@ var releaseCommands = []string{
 var releaseDocuments = []string{
 	"README.md",
 	"docs/COMPATIBILITY.md",
-	"docs/IMPLEMENTATION_LOG.md",
 	"docs/REPODB_IMPORT.md",
-	"docs/adaptive_new_parity_report.md",
-	"docs/training_plan.md",
 	"compatibility.json",
 	"media_policy.json",
 	"resource_policy.json",
@@ -72,7 +71,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err := buildRelease(".", *out, *verify); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, runrecord.LaneError(runrecord.LaneFailed, err.Error()))
 		os.Exit(1)
 	}
 }

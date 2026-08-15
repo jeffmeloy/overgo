@@ -103,6 +103,13 @@ func TestAnalyzeVocabUnsupportedWhenNoVocabulary(t *testing.T) {
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want 501", response.Code)
 	}
+	var envelope apiErrorEnvelope
+	if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Error.Type != errorCodeUnsupportedOperation {
+		t.Fatalf("error type = %q", envelope.Error.Type)
+	}
 }
 
 func TestAnalyzeVocabRejectsNonGet(t *testing.T) {

@@ -86,7 +86,7 @@ func addAttnBias(weights map[string][]float32, shapes map[string][]int, layers, 
 // backend -- is routed to the HOST path at SELECTION time (before any device
 // session is constructed), never failing mid-session. runTraining is asked to
 // prefer the device (preferDevice=true); on GPU hardware, without the
-// selection-time predicate this model would reach TrainDeviceResident and error on
+// selection-time predicate this model would reach resident training and error on
 // the unsupported bias. Instead it must return backend "host" with a finite
 // trajectory. Host-only: no GPU required.
 func TestTrainAttnBiasRoutedToHostAtSelection(t *testing.T) {

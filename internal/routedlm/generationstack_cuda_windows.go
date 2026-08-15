@@ -100,6 +100,9 @@ func NewDeviceGenerationSession(
 		if err != nil {
 			return fail(err)
 		}
+		if err := cuda.PrepareCompiled(ctx, compiled); err != nil {
+			return fail(fmt.Errorf("prepare branch %d: %w", index, err))
+		}
 		branch := generationStackBranch{
 			graph: graph, compiled: compiled,
 			prefixKeys: make([]driver.DevicePtr, cfg.NumHiddenLayers), prefixValues: make([]driver.DevicePtr, cfg.NumHiddenLayers),

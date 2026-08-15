@@ -173,6 +173,10 @@ structure/kernels/math, verify against its goldens. Novel design only after the
 port matches, and only as a measured improvement on top. Reinventing what
 adaptive ships is the named failure mode.
 
+Media generation uses the model-native Python path as its golden and must beat
+its wall and peak memory without failing the same artifact-quality assertions.
+Head-to-head runs use the same artifact and real catalog inputs.
+
 ### Continuation
 
 Session ends only for three user-owned reasons: user said stop; irreversible

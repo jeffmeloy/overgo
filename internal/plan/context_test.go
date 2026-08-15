@@ -6,9 +6,9 @@ func TestAutomationContextHasOneCurrentTask(t *testing.T) {
 	document := Plan{Items: []Item{
 		{ID: "current", Title: "Current item", Status: "open", Steps: []Step{
 			{ID: "first", Title: "First step", Status: "open", Verify: "go test ./..."},
-			{ID: "second", Title: "Second step", Status: "open"},
+			{ID: "second", Title: "Second step", Status: "open", Verify: "go test ./..."},
 		}},
-		{ID: "later", Status: "open", Steps: []Step{{ID: "work", Status: "open"}}},
+		{ID: "later", Status: "open", Steps: []Step{{ID: "work", Status: "open", Verify: "go test ./..."}}},
 	}}
 	ctx, err := BuildAutomationContext(document, ContextFacts{
 		Head: "0123456789abcdef0123456789abcdef01234567", Branch: "codex/automation",
@@ -32,7 +32,7 @@ func TestAutomationContextHasOneCurrentTask(t *testing.T) {
 }
 
 func TestReviewPriority(t *testing.T) {
-	document := Plan{Items: []Item{{ID: "one", Title: "One", Status: "open", Steps: []Step{{ID: "do", Title: "Do", Status: "open"}}}}}
+	document := Plan{Items: []Item{{ID: "one", Title: "One", Status: "open", Steps: []Step{{ID: "do", Title: "Do", Status: "open", Verify: "go test ./..."}}}}}
 	facts := ContextFacts{
 		Head: "0123456789abcdef0123456789abcdef01234567", Branch: "codex/automation", Worktree: "C:/repo",
 		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "repodb:repodb-store"},

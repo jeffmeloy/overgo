@@ -145,17 +145,17 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 // the shared measurement pipeline, or writes an HTTP error and returns false.
 func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analyzeTensor, bool) {
 	if h.config.Analysis == (AnalysisPolicy{}) {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "tensor analysis policy is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tensor analysis policy is unavailable")
 		return nil, false
 	}
 	api, ok := h.generator.(ModelPropertiesAPI)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model properties are unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model properties are unavailable")
 		return nil, false
 	}
 	path := api.ModelProperties().Path
 	if path == "" {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model path is unavailable for tensor analysis")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model path is unavailable for tensor analysis")
 		return nil, false
 	}
 	file, err := gguf.Open(path)

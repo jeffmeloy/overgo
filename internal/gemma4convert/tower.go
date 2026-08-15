@@ -113,8 +113,8 @@ func towerProjectorMetadata(
 		uint32Metadata("clip.vision.position_embedding_size", vision.PositionEmbedding),
 		uint32Metadata("clip.vision.projection_dim", config.Text.HiddenSize),
 		float32Metadata("clip.vision.rope.freq_base", vision.Rope.Theta),
-		arrayMetadata("clip.vision.input_scale", gguf.ValueTypeFloat32, []float32{2, 2, 2}),
-		arrayMetadata("clip.vision.input_bias", gguf.ValueTypeFloat32, []float32{-1, -1, -1}),
+		gguf.ArrayMetadata("clip.vision.input_scale", gguf.ValueTypeFloat32, []float32{2, 2, 2}),
+		gguf.ArrayMetadata("clip.vision.input_bias", gguf.ValueTypeFloat32, []float32{-1, -1, -1}),
 		uint32Metadata("clip.vision.max_soft_tokens", processor.Image.MaxSoftTokens),
 		uint32Metadata("clip.vision.video_max_soft_tokens", processor.Video.MaxSoftTokens),
 		stringMetadata("clip.vision.hidden_activation", vision.HiddenAct),
@@ -130,7 +130,7 @@ func towerProjectorMetadata(
 		uint32Metadata("clip.audio.attention.context_right", audio.ContextRight),
 		float32Metadata("clip.audio.attention.logit_softcapping", audio.LogitCap),
 		uint32Metadata("clip.audio.conv_kernel_size", audio.ConvKernel),
-		arrayMetadata("clip.audio.subsampling_conv_channels", gguf.ValueTypeInt32, subChannels),
+		gguf.ArrayMetadata("clip.audio.subsampling_conv_channels", gguf.ValueTypeInt32, subChannels),
 		float32Metadata("clip.audio.residual_weight", audio.ResidualWeight),
 		uint32Metadata("clip.audio.output_projection_dim", audio.OutputProjDims),
 		uint32Metadata("clip.audio.projection_dim", config.Text.HiddenSize),
@@ -277,7 +277,7 @@ func towerTensors(source *safetensors.Source, outputF32 bool) ([]gguf.TensorData
 		if tensor.DType != "BF16" {
 			return nil, fmt.Errorf("Gemma 4 converter: tower tensor %q uses %s", sourceName, tensor.DType)
 		}
-		shape := reverseShape(tensor.Shape)
+		shape := gguf.ReverseShape(tensor.Shape)
 		var reader io.Reader = tensor.Reader()
 		dataType := gguf.DTypeBF16
 		if len(shape) == 0 {

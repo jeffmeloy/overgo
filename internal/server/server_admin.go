@@ -97,7 +97,7 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 	}
 	api, ok := h.generator.(ModelPropertiesAPI)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model properties are unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model properties are unavailable")
 		return
 	}
 	model := api.ModelProperties()
@@ -348,7 +348,7 @@ func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Reque
 			writeError(
 				response,
 				http.StatusNotImplemented,
-				"unsupported_operation",
+				errorCodeUnsupportedOperation,
 				"LoRA adapter loading and execution are unavailable",
 			)
 			return
@@ -384,7 +384,7 @@ func (h *Handler) tokenize(response http.ResponseWriter, request *http.Request) 
 	}
 	api, ok := h.generator.(TokenizationAPI)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "tokenization is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tokenization is unavailable")
 		return
 	}
 	var body tokenizeRequest
@@ -403,7 +403,7 @@ func (h *Handler) tokenize(response http.ResponseWriter, request *http.Request) 
 	if body.WithPieces {
 		pieceAPI, ok := h.generator.(TokenPieceAPI)
 		if !ok {
-			writeError(response, http.StatusNotImplemented, "unsupported_operation", "token pieces are unavailable")
+			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "token pieces are unavailable")
 			return
 		}
 		pieces := make([]tokenPieceResponse, len(tokens))
@@ -493,7 +493,7 @@ func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request
 	}
 	api, ok := h.generator.(TokenizationAPI)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "detokenization is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "detokenization is unavailable")
 		return
 	}
 	var body detokenizeRequest
@@ -580,7 +580,7 @@ func (h *Handler) applyTemplate(response http.ResponseWriter, request *http.Requ
 	}
 	formatter, ok := h.generator.(ChatFormatter)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "chat formatting is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "chat formatting is unavailable")
 		return
 	}
 	var body applyTemplateRequest

@@ -201,7 +201,7 @@ func TestBackboneBackwardFiniteDifference(t *testing.T) {
 
 	g := Grads{}
 	dStream := make([]float32, T*d)
-	hostmath.LayerNormBackward(dStream, g.slot("flow_lm.out_norm.weight", d), g.slot("flow_lm.out_norm.bias", d), states[layers], m.outNormW, target, T, d, transformerLayerNormEps, false)
+	hostmath.LayerNormBackward(dStream, hostmath.GradientSlot(g, "flow_lm.out_norm.weight", d), hostmath.GradientSlot(g, "flow_lm.out_norm.bias", d), states[layers], m.outNormW, target, T, d, transformerLayerNormEps, false)
 	for li := layers - 1; li >= 0; li-- {
 		dStream = m.layerBackward(li, states[li], dStream, T, g)
 	}

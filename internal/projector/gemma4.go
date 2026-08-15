@@ -211,7 +211,7 @@ func gemma4ResizeTarget(height, width int, spec Gemma4Spec) (int, int, error) {
 
 func (r *Gemma4Runner) EncodeImage(ctx context.Context, source image.Image) (Gemma4Output, error) {
 	if r == nil || r.file == nil {
-		return Gemma4Output{}, errors.New("projector: runner is closed")
+		return Gemma4Output{}, errRunnerClosed
 	}
 	input, err := PreprocessGemma4Image(source, r.spec)
 	if err != nil {
@@ -223,7 +223,7 @@ func (r *Gemma4Runner) EncodeImage(ctx context.Context, source image.Image) (Gem
 // EncodeVideoFrames: frame-major projection; bounded tokens per frame.
 func (r *Gemma4Runner) EncodeVideoFrames(ctx context.Context, frames []image.Image) (Gemma4VideoOutput, error) {
 	if r == nil || r.file == nil {
-		return Gemma4VideoOutput{}, errors.New("projector: runner is closed")
+		return Gemma4VideoOutput{}, errRunnerClosed
 	}
 	if len(frames) == 0 {
 		return Gemma4VideoOutput{}, errors.New("projector: video has no frames")

@@ -39,6 +39,28 @@ func TestGateRecordAggregatesStepsAndRoundTrips(t *testing.T) {
 	}
 }
 
+func TestProtectionEvidence(t *testing.T) {
+	record, err := NewGateRecord(
+		testutil.ArtifactID(t, artifact.KindRecipe, "gate-recipe"),
+		testutil.ArtifactID(t, artifact.KindEvidence, "gate-environment"), fixtureCodeCommit,
+		OutcomeSucceeded, "", 100, []GateStep{{
+			Name: "protection", Phase: PhaseValidate, Outcome: StepSucceeded, DurationNS: 1,
+			Evidence: "configured:branches=master,jobs=unit+race,hooks=4;host_enforcement=external;activation=unobserved:parent-harness-fact",
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := record.Result.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseGateResult(content.Data)
+	if err != nil || parsed.Steps[0].Evidence != record.Result.Steps[0].Evidence {
+		t.Fatalf("gate step evidence round trip = (%+v, %v)", parsed.Steps, err)
+	}
+}
+
 func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 	ctx := context.Background()
 	repository := t.TempDir()

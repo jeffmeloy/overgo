@@ -23,7 +23,7 @@ func (r *Runner) ChatToolGrammar(
 	parallelToolCalls bool,
 ) (source, root string, triggerPatterns []string, err error) {
 	if r == nil {
-		return "", "", nil, errors.New("inference: runner is nil")
+		return "", "", nil, errRunnerNil
 	}
 	if len(tools) == 0 {
 		return "", "", nil, errors.New("inference: tool list is empty")

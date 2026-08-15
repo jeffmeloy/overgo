@@ -9,8 +9,6 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-var imageContract = artifact.JSONContract(artifact.KindOutput, "overgo.generated-image.v1")
-
 type Request struct {
 	Seed   int64 `json:"seed"`
 	Steps  int   `json:"steps"`
@@ -70,11 +68,11 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 }
 
 func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model generator) error {
-	if err := workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleDiffusionImagePrepare, modelID, model.prepare, nil); err != nil {
-		return err
-	}
-	if err := workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleDiffusionImageIntegrate, modelID, model.integrate, nil); err != nil {
-		return err
-	}
-	return workflowruntime.RegisterJSONStage(runtime, modelrecipe.ModuleDiffusionImageDecode, modelID, imageContract, model.decode)
+	return workflowruntime.RegisterPipeline(
+		runtime, modelID,
+		modelrecipe.ModuleDiffusionImagePrepare, model.prepare,
+		modelrecipe.ModuleDiffusionImageIntegrate, model.integrate,
+		modelrecipe.ModuleDiffusionImageDecode, model.decode,
+		latentimage.PNGContent,
+	)
 }

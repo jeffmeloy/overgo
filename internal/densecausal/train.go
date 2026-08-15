@@ -10,13 +10,6 @@ import (
 	"overgo/internal/optimizer"
 )
 
-// Train: full-parameter Muon updates; pre-update loss trajectory.
-// Non-positive baseLR derives from parameter count.
-func (m *Model) Train(tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
-	trajectory, _, err := m.train(repeatedTokenBatches(tokens, steps), baseLR, mu, nil)
-	return trajectory, err
-}
-
 // TrainBatches applies one Muon update per ordered token batch.
 func (m *Model) TrainBatches(batches [][]int, baseLR, mu float64) ([]float64, error) {
 	trajectory, _, err := m.train(batches, baseLR, mu, nil)
@@ -25,11 +18,6 @@ func (m *Model) TrainBatches(batches [][]int, baseLR, mu float64) ([]float64, er
 
 // TrainState: exact step-boundary optimizer state.
 type TrainState = optimizer.State
-
-// TrainResume: resumable Muon updates; nil starts fresh.
-func (m *Model) TrainResume(tokens []int, steps int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
-	return m.train(repeatedTokenBatches(tokens, steps), baseLR, mu, resume)
-}
 
 // TrainBatchesResume resumes an ordered sequence at an update boundary.
 func (m *Model) TrainBatchesResume(batches [][]int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
@@ -69,17 +57,6 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 	}
 	scatter(m, names, weights)
 	return trajectory, opt.Snapshot(), nil
-}
-
-func repeatedTokenBatches(tokens []int, steps int) [][]int {
-	if steps <= 0 {
-		return nil
-	}
-	batches := make([][]int, steps)
-	for index := range batches {
-		batches[index] = tokens
-	}
-	return batches
 }
 
 func validateTokenBatches(batches [][]int) error {

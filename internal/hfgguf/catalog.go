@@ -255,12 +255,8 @@ func mappedTensorData(mappings []tensorMapping) ([]gguf.TensorData, error) {
 			}
 			reader = transformed
 		}
-		ggmlShape := make([]uint64, len(shape))
-		for index, dimension := range shape {
-			ggmlShape[len(shape)-1-index] = dimension
-		}
 		tensors = append(tensors, gguf.TensorData{
-			Name: mapping.name, Shape: ggmlShape, Type: storage, Data: reader,
+			Name: mapping.name, Shape: gguf.ReverseShape(shape), Type: storage, Data: reader,
 		})
 	}
 	return tensors, nil

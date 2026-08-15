@@ -34,7 +34,7 @@ type Session struct {
 // state; state is bound to fingerprint of loaded GGUF model
 func (r *Runner) SaveSession(session *Session, sampler *sampling.Sampler) ([]byte, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if err := r.validateSession(session); err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (r *Runner) SaveSession(session *Session, sampler *sampling.Sampler) ([]byt
 // supplied sampler only after complete session has passed validation
 func (r *Runner) LoadSession(data []byte, sampler *sampling.Sampler) (*Session, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if sampler == nil {
 		return nil, errors.New("inference: sampler is nil")

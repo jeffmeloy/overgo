@@ -71,11 +71,11 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 		hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
 		dLogits := make([]float32, seq*d.Vocab)
 		loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
-		gradHead := g.slot(m.headName(), len(head))
+		gradHead := hostmath.GradientSlot(g, m.headName(), len(head))
 		dNormed := make([]float32, seq*d.Hidden)
 		hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
 		dx := make([]float32, seq*d.Hidden)
-		hostmath.RMSNormBackward(dx, g.slot("model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
+		hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, "model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
 		return dx, nil
 	}
 
@@ -91,20 +91,20 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 	for i := 0; i < d.Layers; i++ {
 		prefix := fmt.Sprintf("model.layers.%d.", i)
 		r := grads[i]
-		copy(g.slot(prefix+"mlp.gate_proj.weight", d.Intermediate*d.Hidden), r.DWGate)
-		copy(g.slot(prefix+"mlp.up_proj.weight", d.Intermediate*d.Hidden), r.DWUp)
-		copy(g.slot(prefix+"mlp.down_proj.weight", d.Hidden*d.Intermediate), r.DWDown)
-		copy(g.slot(prefix+"post_attention_layernorm.weight", d.Hidden), r.DWPostLN)
-		copy(g.slot(prefix+"self_attn.o_proj.weight", d.Hidden*width), r.DWO)
-		copy(g.slot(prefix+"self_attn.q_proj.weight", width*d.Hidden), r.DWQ)
-		copy(g.slot(prefix+"self_attn.k_proj.weight", kvWidth*d.Hidden), r.DWK)
-		copy(g.slot(prefix+"self_attn.v_proj.weight", kvWidth*d.Hidden), r.DWV)
-		copy(g.slot(prefix+"input_layernorm.weight", d.Hidden), r.DWInLN)
+		copy(hostmath.GradientSlot(g, prefix+"mlp.gate_proj.weight", d.Intermediate*d.Hidden), r.DWGate)
+		copy(hostmath.GradientSlot(g, prefix+"mlp.up_proj.weight", d.Intermediate*d.Hidden), r.DWUp)
+		copy(hostmath.GradientSlot(g, prefix+"mlp.down_proj.weight", d.Hidden*d.Intermediate), r.DWDown)
+		copy(hostmath.GradientSlot(g, prefix+"post_attention_layernorm.weight", d.Hidden), r.DWPostLN)
+		copy(hostmath.GradientSlot(g, prefix+"self_attn.o_proj.weight", d.Hidden*width), r.DWO)
+		copy(hostmath.GradientSlot(g, prefix+"self_attn.q_proj.weight", width*d.Hidden), r.DWQ)
+		copy(hostmath.GradientSlot(g, prefix+"self_attn.k_proj.weight", kvWidth*d.Hidden), r.DWK)
+		copy(hostmath.GradientSlot(g, prefix+"self_attn.v_proj.weight", kvWidth*d.Hidden), r.DWV)
+		copy(hostmath.GradientSlot(g, prefix+"input_layernorm.weight", d.Hidden), r.DWInLN)
 	}
 
 	// Input-embedding scatter (tied: accumulates onto the head contribution
 	// already in the slot; untied: the sole embedding contribution).
-	gradEmbed := g.slot("model.embed_tokens.weight", len(embed))
+	gradEmbed := hostmath.GradientSlot(g, "model.embed_tokens.weight", len(embed))
 	scatterEmbeddingGradient(gradEmbed, dxEmbed, tokens, d.Hidden)
 	return loss, logits, g, nil
 }

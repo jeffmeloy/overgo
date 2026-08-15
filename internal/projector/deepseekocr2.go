@@ -170,7 +170,7 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 
 func (r *DeepSeekOCR2Runner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
 	if r == nil || r.file == nil {
-		return reference.Value{}, errors.New("projector: runner is closed")
+		return reference.Value{}, errRunnerClosed
 	}
 	input, err := preprocessDeepSeekOCRImage(source, r.spec.DeepSeekOCRSpec, r.dynamicTiles)
 	if err != nil {

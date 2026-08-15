@@ -388,7 +388,7 @@ func deepSeekOCRFitPad(source image.Image, size int) image.Image {
 
 func (r *DeepSeekOCRRunner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
 	if r == nil || r.file == nil {
-		return reference.Value{}, errors.New("projector: runner is closed")
+		return reference.Value{}, errRunnerClosed
 	}
 	input, err := preprocessDeepSeekOCRImage(source, r.spec, r.dynamicTiles)
 	if err != nil {

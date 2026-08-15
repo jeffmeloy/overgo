@@ -301,7 +301,7 @@ func llama4TilePixels(source image.Image, spec Llama4VisionSpec) Llama4VisionTil
 
 func (r *Llama4VisionRunner) EncodeImage(ctx context.Context, source image.Image) (Llama4VisionOutput, error) {
 	if r == nil || r.file == nil {
-		return Llama4VisionOutput{}, errors.New("projector: runner is closed")
+		return Llama4VisionOutput{}, errRunnerClosed
 	}
 	input, err := PreprocessLlama4VisionImage(source, r.spec)
 	if err != nil {

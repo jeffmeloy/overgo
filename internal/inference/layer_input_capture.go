@@ -66,7 +66,7 @@ func exactAttentionCapture(plan model.LayerPlan) bool {
 // ExtractAttention records one exact-replay query/key boundary.
 func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.TokenID, layer int32) (AttentionCapture, error) {
 	if r == nil {
-		return AttentionCapture{}, errors.New("inference: runner is nil")
+		return AttentionCapture{}, errRunnerNil
 	}
 	if err := r.lockOpen(); err != nil {
 		return AttentionCapture{}, err
@@ -119,7 +119,7 @@ func (r *Runner) ForwardCachedExtractLayerInputs(
 	layerIDs []int32,
 ) (reference.Value, *KVCache, reference.Value, error) {
 	if r == nil {
-		return reference.Value{}, nil, reference.Value{}, errors.New("inference: runner is nil")
+		return reference.Value{}, nil, reference.Value{}, errRunnerNil
 	}
 	if err := r.lockOpen(); err != nil {
 		return reference.Value{}, nil, reference.Value{}, err

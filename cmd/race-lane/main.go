@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/runrecord"
 )
 
 const (
@@ -75,7 +76,7 @@ func hostRace() error {
 	report("host", hostRacePattern, began, err)
 	if err != nil {
 		fmt.Print(out)
-		return fmt.Errorf("host race lane failed")
+		return runrecord.LaneError(runrecord.LaneFailed, "host race lane failed")
 	}
 	return nil
 }
@@ -100,7 +101,7 @@ func deviceRace() error {
 	}
 	if out, err := clioptions.CombinedOutput(os.Environ(), "go", "test", "-c", "-o", bin, deviceRacePackage); err != nil {
 		fmt.Print(out)
-		return fmt.Errorf("building device test binary failed")
+		return runrecord.LaneError(runrecord.LaneFailed, "building device test binary failed")
 	}
 	for _, tool := range deviceRaceTools {
 		cmd := sanitizerCmd(tool, bin, "-test.run", "Device", "-test.count=1")
@@ -109,7 +110,7 @@ func deviceRace() error {
 		report("device:"+tool, deviceRacePackage, began, err)
 		if err != nil {
 			fmt.Print(out)
-			return fmt.Errorf("device %s failed", tool)
+			return runrecord.LaneError(runrecord.LaneFailed, "device "+tool+" failed")
 		}
 	}
 	return nil
@@ -127,7 +128,7 @@ func cCompiler() string {
 
 func unavailable(lane, why string) error {
 	fmt.Printf("race-lane: %s UNAVAILABLE -- %s; no passing evidence exists\n", lane, why)
-	return fmt.Errorf("%s lane unavailable", lane)
+	return runrecord.LaneError(runrecord.LaneUnavailable, lane+" lane unavailable")
 }
 
 func ranLabel(ran bool) string {

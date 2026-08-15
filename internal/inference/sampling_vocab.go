@@ -11,7 +11,7 @@ import (
 
 func (r *Runner) DeviceMemoryStats(ctx context.Context) (driver.MemoryStats, error) {
 	if r == nil || r.worker == nil {
-		return driver.MemoryStats{}, errors.New("inference: runner is nil")
+		return driver.MemoryStats{}, errRunnerNil
 	}
 	return r.worker.MemoryStats(ctx)
 }
@@ -27,7 +27,7 @@ func (r *Runner) DeviceExecutionStats(ctx context.Context) (driver.ExecutionStat
 // BOS/EOS tokens
 func (r *Runner) TokenizeSamplingText(text string) ([]tokenizer.TokenID, error) {
 	if r == nil || r.vocab == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	return r.vocab.Encode(text, tokenizer.EncodeOptions{})
 }
@@ -53,7 +53,7 @@ func (r *Runner) SamplingVocabularySize() int {
 // render_special disabled
 func (r *Runner) SamplingInfillVocabulary() (*sampling.InfillVocabulary, error) {
 	if r == nil || r.vocab == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	pieces := make([]string, len(r.vocab.Tokens))
 	eog := make([]bool, len(r.vocab.Tokens))
@@ -86,7 +86,7 @@ func (r *Runner) TokenizeText(
 	addSpecial, parseSpecial bool,
 ) ([]tokenizer.TokenID, error) {
 	if r == nil || r.vocab == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	return r.vocab.Encode(text, tokenizer.EncodeOptions{
 		AddSpecial:   addSpecial,
@@ -102,7 +102,7 @@ func (r *Runner) TokenizeTextRuns(
 	addSpecial bool,
 ) ([]tokenizer.TokenID, []int, error) {
 	if r == nil || r.vocab == nil {
-		return nil, nil, errors.New("inference: runner is nil")
+		return nil, nil, errRunnerNil
 	}
 	return tokenizer.EncodeRuns(
 		r.vocab.Encode,
@@ -120,7 +120,7 @@ func (r *Runner) TokenizeTextMarkers(
 	addSpecial bool,
 ) ([]tokenizer.TokenID, []int, error) {
 	if r == nil || r.vocab == nil {
-		return nil, nil, errors.New("inference: runner is nil")
+		return nil, nil, errRunnerNil
 	}
 	return tokenizer.EncodeMarkers(
 		r.vocab.Encode,
@@ -133,7 +133,7 @@ func (r *Runner) TokenizeTextMarkers(
 
 func (r *Runner) DetokenizeTokens(tokens []tokenizer.TokenID) (string, error) {
 	if r == nil || r.vocab == nil {
-		return "", errors.New("inference: runner is nil")
+		return "", errRunnerNil
 	}
 	return r.vocab.Decode(tokens, false)
 }
@@ -142,7 +142,7 @@ func (r *Runner) DetokenizeTokens(tokens []tokenizer.TokenID) (string, error) {
 // endpoints do, including control-token spellings and raw byte tokens
 func (r *Runner) TokenPiece(token tokenizer.TokenID) (string, error) {
 	if r == nil || r.vocab == nil {
-		return "", errors.New("inference: runner is nil")
+		return "", errRunnerNil
 	}
 	return r.vocab.DecodePiece(token, true)
 }
@@ -151,7 +151,7 @@ func (r *Runner) TokenPiece(token tokenizer.TokenID) (string, error) {
 // metadata while preserving control-token spellings like llama.cpp
 func (r *Runner) DetokenizePromptTokens(tokens []tokenizer.TokenID) (string, error) {
 	if r == nil || r.vocab == nil {
-		return "", errors.New("inference: runner is nil")
+		return "", errRunnerNil
 	}
 	return r.vocab.Decode(tokens, true)
 }

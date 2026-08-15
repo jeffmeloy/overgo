@@ -13,9 +13,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"os/exec"
-	"strconv"
-	"strings"
 	"time"
 
 	"overgo/internal/cuda/device"
@@ -28,46 +25,10 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-// gpuUsedMiB: coarse device-memory probe via nvidia-smi (peak/residency
-// cross-check; the driver ABI exposes no MemGetInfo here).
-func gpuUsedMiB() int {
-	out, err := exec.Command("nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits").Output()
-	if err != nil {
-		return -1
-	}
-	fields := strings.Fields(strings.TrimSpace(string(out)))
-	if len(fields) == 0 {
-		return -1
-	}
-	v, err := strconv.Atoi(fields[0])
-	if err != nil {
-		return -1
-	}
-	return v
-}
-
-// gpuFreeMiB: coarse free-VRAM probe via nvidia-smi.
-func gpuFreeMiB() int {
-	out, err := exec.Command("nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits").Output()
-	if err != nil {
-		return -1
-	}
-	fields := strings.Fields(strings.TrimSpace(string(out)))
-	if len(fields) == 0 {
-		return -1
-	}
-	v, err := strconv.Atoi(fields[0])
-	if err != nil {
-		return -1
-	}
-	return v
-}
-
 // runDevice: device terminal parity + measurement.
 func runDevice(l *ladder) error {
 	ctx := context.Background()
-	baseMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE terminal parity START gpu.used=%dMiB", baseMiB))
+	l.log("DEVICE terminal parity START")
 
 	cfg, err := routedlm.LoadConfig(l.modelDir, binding)
 	if err != nil {
@@ -203,8 +164,6 @@ func runDevice(l *ladder) error {
 	}
 	devLogits := devOut[dLogits].Data
 	devTop := int(devOut[dTop].Data[0])
-	afterMiB := gpuUsedMiB()
-
 	// ---- exactness ---------------------------------------------------------
 	// device top == host-graph top == golden first token.
 	if devTop != hostTop {
@@ -253,12 +212,10 @@ func runDevice(l *ladder) error {
 		}
 	}
 	perCall := time.Since(start) / iters
-	headMiB := float64(len(headBytes)) / (1 << 20)
-
 	l.log(fmt.Sprintf("DEVICE terminal EXACT top=%d (golden first=%d) dev-vs-host worst|d|=%.3e",
 		devTop, dg.FirstToken, worstDH))
-	l.log(fmt.Sprintf("DEVICE terminal MEASURE proj=%.3fms/token head_resident=%.0fMiB gpu.used %d->%dMiB (delta=%dMiB)",
-		float64(perCall.Microseconds())/1000.0, headMiB, baseMiB, afterMiB, afterMiB-baseMiB))
+	l.log(fmt.Sprintf("DEVICE terminal MEASURE proj=%.3fms/token head_resident=%.0fMiB",
+		float64(perCall.Microseconds())/1000.0, float64(len(headBytes))/(1<<20)))
 	l.log("DEVICE terminal LANE GREEN")
 	return nil
 }

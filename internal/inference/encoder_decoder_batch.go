@@ -36,7 +36,7 @@ func (r *Runner) NewEncoderDecoderBatchSession(
 	batch PaddedTokenBatch,
 ) (*EncoderDecoderBatchSession, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	width, err := validatePaddedTokenBatch(batch, 0)
 	if err != nil {
@@ -75,7 +75,7 @@ func (r *Runner) DecodeEncoderDecoderBatch(
 	session *EncoderDecoderBatchSession, batch PaddedTokenBatch,
 ) (EncoderDecoderBatchResult, *EncoderDecoderBatchSession, error) {
 	if r == nil {
-		return EncoderDecoderBatchResult{}, nil, errors.New("inference: runner is nil")
+		return EncoderDecoderBatchResult{}, nil, errRunnerNil
 	}
 	if session == nil || len(session.Sequences) == 0 {
 		return EncoderDecoderBatchResult{}, nil, errors.New("inference: encoder-decoder batch session is empty")

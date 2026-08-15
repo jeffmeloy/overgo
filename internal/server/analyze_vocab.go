@@ -45,7 +45,7 @@ func (h *Handler) analyzeVocab(response http.ResponseWriter, request *http.Reque
 	}
 	api, ok := h.generator.(VocabularyInspectionAPI)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "vocabulary inspection is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "vocabulary inspection is unavailable")
 		return
 	}
 	size := api.VocabularyLen()

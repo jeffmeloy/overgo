@@ -174,7 +174,7 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 		if !ok {
 			t.Fatalf("source %q has no mapping", source)
 		}
-		destinationShape := reverseShape(shape)
+		destinationShape := gguf.ReverseShape(shape)
 		dataType := gguf.DTypeBF16
 		elementBytes := uint64(bf16StorageBytes)
 		if len(destinationShape) == 0 {

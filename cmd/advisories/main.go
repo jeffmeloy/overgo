@@ -1,13 +1,12 @@
 // advisories: the statistical layer's driver (floor component 6). Builds the
 // observation series for a metric from the store's run+evaluation history,
-// calibrates the regression threshold as an empirical quantile of the
-// series' OWN rolling-surprise distribution (quantile-calibrated alarms: the
-// one free choice is the alarm budget, a recorded decision), and commits any
-// advisory the calibrated detector raises.
+// derives the regression threshold from disjoint historical blocks (the
+// target alarm budget is a recorded decision), and commits any advisory the
+// directional detector raises.
 //
-// Distribution-free by construction: median/MAD surprise (DetectRegression),
-// empirical quantiles, no Gaussian/IID assumption beyond stated
-// exchangeability inside the window. First run calibrates, second enforces:
+// Median/MAD and empirical quantiles avoid a Gaussian model, but historical
+// calibration does not establish a sequential or regime-stable false-alarm
+// guarantee. First history calibrates, later observations advise:
 // with insufficient history the driver reports its calibration state and
 // enforces nothing — no history, no enforcement.
 package main
@@ -39,13 +38,13 @@ func run() error {
 	flags := flag.NewFlagSet("advisories", flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
 	metric := flags.String("metric", "gate_wall_ns", "evaluation metric to watch")
-	budget := flags.Float64("alarm-budget", 0, "acceptable false-alarm rate in (0,1); required, recorded as a decision")
+	budget := flags.Float64("alarm-budget", 0, "target alarm budget in (0,1); required decision input, not a guaranteed false-alarm rate")
 	reason := flags.String("reason", "", "why this alarm budget; recorded with the decision")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
 	if *budget <= 0 || *budget >= 1 {
-		return errors.New("-alarm-budget in (0,1) is required: it is the calibration's one free choice")
+		return errors.New("-alarm-budget in (0,1) is required: it is a recorded target, not a guaranteed false-alarm rate")
 	}
 	if strings.TrimSpace(*reason) == "" {
 		return errors.New("-reason is required: the alarm budget is a recorded decision, not a default")
@@ -72,38 +71,36 @@ func run() error {
 	if err := recordBudgetDecision(ctx, store, *metric, *budget, *reason); err != nil {
 		return err
 	}
-	// Window derives from available history, clamped to the detector's own
-	// bounds; no new constant. Calibration needs window baselines plus at
-	// least two rolling points to have a quantile at all.
-	window := len(observations) - 2
-	if window > runrecord.MaxAdvisoryWindow {
-		window = runrecord.MaxAdvisoryWindow
-	}
-	if window < runrecord.MinAdvisoryWindow || len(observations) < window+2 {
-		fmt.Printf("calibrating: %d observation(s) for %q; enforcement needs at least %d -- no history, no enforcement\n",
-			len(observations), *metric, runrecord.MinAdvisoryWindow+2)
+	calibration := planCalibration(len(observations), *budget)
+	if !calibration.Sufficient() {
+		fmt.Printf("calibrating: metric=%s observations=%d disjoint_scores=%d required_scores=%d alarm_budget=%g; no advisory threshold yet\n",
+			*metric, len(observations), calibration.AvailableScores, calibration.RequiredScores, *budget)
 		return nil
 	}
-	surprises := rollingSurprises(observations, *metric, window)
-	if len(surprises) < 2 {
-		fmt.Printf("calibrating: %d rolling surprise(s); enforcement needs at least 2\n", len(surprises))
-		return nil
+	surprises := disjointSurprises(observations[:calibration.LatestStart], *metric, calibration.Window)
+	if len(surprises) < calibration.RequiredScores {
+		return errors.New("advisories: calibration contract produced insufficient disjoint scores")
 	}
-	threshold := empiricalQuantile(surprises[:len(surprises)-1], 1-*budget)
+	threshold := empiricalQuantile(surprises, 1-*budget)
+	if math.IsNaN(threshold) || math.IsInf(threshold, 0) {
+		return errors.New("advisories: calibration produced a non-finite threshold")
+	}
 	if threshold <= 0 {
 		// A flat history has zero surprise everywhere; any nonzero deviation
 		// is then novel by construction. The smallest positive representable
 		// threshold keeps the detector armed without asserting a scale.
 		threshold = math.SmallestNonzeroFloat64
 	}
-	advisory, raised, err := runrecord.DetectRegression(observations, *metric, window, threshold)
+	latest := observations[calibration.LatestStart:]
+	advisory, raised, err := runrecord.DetectRegression(latest, *metric, calibration.Window, threshold)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("calibrated: metric=%s observations=%d window=%d alarm_budget=%g threshold=%g (empirical quantile of the series' own surprises)\n",
-		*metric, len(observations), window, *budget, threshold)
+	fmt.Printf("empirical advisory threshold: metric=%s observations=%d window=%d disjoint_scores=%d alarm_budget=%g threshold=%g\n",
+		*metric, len(observations), calibration.Window, len(surprises), *budget, threshold)
+	fmt.Println("honesty: directional evidence only; repeated sequential looks and regime changes are not covered by the recorded per-look budget")
 	if !raised {
-		fmt.Println("verdict: no regression at the calibrated threshold")
+		fmt.Println("verdict: no directional regression at the empirical threshold")
 		return nil
 	}
 	batch, err := advisory.Batch("advisory/" + *metric + "/" + advisory.LatestRun.String())
@@ -118,10 +115,9 @@ func run() error {
 	return escalate(ctx, store, advisory)
 }
 
-// escalate is the two-window confirmation: a second advisory for the same
-// (recipe, environment, metric) series at a DIFFERENT latest sequence
-// confirms the first, and the pair becomes one open finding. One open
-// finding per series -- repeats add no new document.
+// escalate opens a finding only after the same series raises on two
+// non-overlapping windows. One open finding per series; repeats add no new
+// document.
 func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisory) error {
 	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: 100_000})
 	if err != nil {
@@ -140,7 +136,7 @@ func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisor
 			prior, err := runrecord.ParseAdvisory(content.Data)
 			if err != nil || prior.Metric != latest.Metric ||
 				prior.Recipe != latest.Recipe || prior.Environment != latest.Environment ||
-				prior.LatestSequence == latest.LatestSequence {
+				!nonOverlappingConfirmation(prior, latest) {
 				continue
 			}
 			confirming = append(confirming, prior)
@@ -155,7 +151,7 @@ func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisor
 		}
 	}
 	if len(confirming) == 0 {
-		fmt.Println("honesty: single-window advisory; a second independent window escalates it to a finding")
+		fmt.Println("honesty: directional advisory only; a later non-overlapping window is required for a finding")
 		return nil
 	}
 	if openFindingExists {
@@ -167,11 +163,11 @@ func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisor
 		evidence = append(evidence, prior.ID)
 	}
 	document, err := finding.New(
-		"confirmed regression in series "+seriesKey,
+		"repeated directional regression in series "+seriesKey,
 		finding.SeverityMedium, finding.StatusOpen,
 		[]artifact.ID{latest.Recipe, latest.Environment}, evidence,
-		"Diagnose the regression source via the advisories' phase deltas; close with the fix landed and this series back under its calibrated threshold.",
-		"advisories for this series stop raising across two consecutive independent windows after the fix commit.",
+		"Diagnose the regression source via the advisories' phase deltas; close with the fix landed and this series back under its empirical threshold.",
+		"advisories for this series stop raising across two consecutive non-overlapping windows after the fix commit.",
 	)
 	if err != nil {
 		return err
@@ -183,8 +179,12 @@ func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisor
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return err
 	}
-	fmt.Printf("FINDING opened (two-window confirmation, %d prior advisor(ies)): %s\n", len(confirming), document.ID)
+	fmt.Printf("FINDING opened (non-overlapping two-window repetition, %d prior advisor(ies)): %s\n", len(confirming), document.ID)
 	return nil
+}
+
+func nonOverlappingConfirmation(prior, latest runrecord.Advisory) bool {
+	return prior.LatestSequence < latest.WindowStart
 }
 
 // loadObservations pairs run and evaluation documents by evaluation.Run and
@@ -262,23 +262,57 @@ func loadObservations(ctx context.Context, store *repodb.Store, metric string) (
 	return observations, nil
 }
 
-// rollingSurprises computes the leave-forward surprise at every point the
-// window allows: for index i, baseline = the window before i, surprise =
-// distance/MAD. This is the series measuring its own noise, which is what
-// the quantile calibrates against.
-func rollingSurprises(observations []runrecord.Observation, metric string, window int) []float64 {
+type calibrationPlan struct {
+	Window          int
+	RequiredScores  int
+	AvailableScores int
+	LatestStart     int
+}
+
+func planCalibration(observations int, budget float64) calibrationPlan {
+	// With n exchangeable calibration scores, the smallest resolvable upper
+	// tail is 1/(n+1). The budget therefore owns the history requirement; the
+	// detector's minimum valid window minimizes evidence consumption.
+	required := int(math.Ceil(1/budget)) - 1
+	if required < 2 {
+		required = 2
+	}
+	window := runrecord.MinAdvisoryWindow
+	block := window + 1
+	latestStart := observations - block
+	available := 0
+	if latestStart >= 0 {
+		available = latestStart / block
+	}
+	return calibrationPlan{
+		Window: window, RequiredScores: required,
+		AvailableScores: available, LatestStart: latestStart,
+	}
+}
+
+func (plan calibrationPlan) Sufficient() bool {
+	return plan.LatestStart >= 0 && plan.AvailableScores >= plan.RequiredScores
+}
+
+// disjointSurprises partitions history from its newest edge. Every baseline
+// and evaluated point belongs to exactly one score, preventing overlapping
+// evidence from masquerading as independent calibration history.
+func disjointSurprises(observations []runrecord.Observation, metric string, window int) []float64 {
 	var out []float64
-	for i := window; i < len(observations); i++ {
-		slice := observations[i-window : i+1]
+	block := window + 1
+	start := len(observations) % block
+	for start+block <= len(observations) {
+		slice := observations[start : start+block]
 		advisory, raised, err := runrecord.DetectRegression(slice, metric, window, math.SmallestNonzeroFloat64)
 		if err != nil {
-			continue
+			return nil
 		}
 		if !raised {
 			out = append(out, 0)
-			continue
+		} else {
+			out = append(out, advisory.Surprise())
 		}
-		out = append(out, advisory.Surprise())
+		start += block
 	}
 	return out
 }

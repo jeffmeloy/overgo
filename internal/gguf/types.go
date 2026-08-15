@@ -145,6 +145,11 @@ type Metadata struct {
 	Value Value
 }
 
+// ArrayMetadata constructs typed GGUF array metadata.
+func ArrayMetadata(key string, elementType ValueType, data any) Metadata {
+	return Metadata{Key: key, Value: Value{Type: ValueTypeArray, ArrayType: elementType, Data: data}}
+}
+
 // TensorInfo: describes one tensor without loading its data
 type TensorInfo struct {
 	Name       string
@@ -154,4 +159,13 @@ type TensorInfo struct {
 	Shard      uint16
 	Offset     uint64
 	Size       uint64
+}
+
+// ReverseShape converts source-major dimensions to GGML order.
+func ReverseShape(shape []uint64) []uint64 {
+	result := make([]uint64, len(shape))
+	for index, dimension := range shape {
+		result[len(shape)-1-index] = dimension
+	}
+	return result
 }

@@ -60,17 +60,17 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	if h.config.Analysis == (AnalysisPolicy{}) {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "state analysis policy is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "state analysis policy is unavailable")
 		return
 	}
 	capture, ok := h.generator.(HiddenStateCaptureAPI)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "hidden-state capture is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "hidden-state capture is unavailable")
 		return
 	}
 	tokenizerAPI, ok := h.generator.(TokenizationAPI)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "tokenization is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tokenization is unavailable")
 		return
 	}
 	var body analyzeStatesRequest

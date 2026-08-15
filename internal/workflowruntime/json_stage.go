@@ -21,6 +21,49 @@ func RegisterJSONStage[Input, Output any](
 	})
 }
 
+// RegisterJSONPipeline binds a typed prepare-integrate-decode pipeline.
+func RegisterJSONPipeline[Input, Plan, Features, Output any](
+	runtime *Runtime,
+	modelID artifact.ID,
+	contract artifact.DocumentContract,
+	prepareID recipe.ModuleID,
+	prepare func(Input) (Plan, error),
+	integrateID recipe.ModuleID,
+	integrate func(Plan) (Features, error),
+	decodeID recipe.ModuleID,
+	decode func(Features) (Output, error),
+) error {
+	return RegisterPipeline(
+		runtime, modelID,
+		prepareID, prepare,
+		integrateID, integrate,
+		decodeID, decode,
+		func(value Output) (artifact.Content, error) { return artifact.JSONContent(contract, value) },
+	)
+}
+
+// RegisterPipeline binds a typed prepare-integrate-decode pipeline whose final
+// artifact has a capability-owned encoding.
+func RegisterPipeline[Input, Plan, Features, Output any](
+	runtime *Runtime,
+	modelID artifact.ID,
+	prepareID recipe.ModuleID,
+	prepare func(Input) (Plan, error),
+	integrateID recipe.ModuleID,
+	integrate func(Plan) (Features, error),
+	decodeID recipe.ModuleID,
+	decode func(Features) (Output, error),
+	encode func(Output) (artifact.Content, error),
+) error {
+	if err := RegisterScalarStage(runtime, prepareID, modelID, prepare, nil); err != nil {
+		return err
+	}
+	if err := RegisterScalarStage(runtime, integrateID, modelID, integrate, nil); err != nil {
+		return err
+	}
+	return RegisterScalarStage(runtime, decodeID, modelID, decode, encode)
+}
+
 // ScalarInput: typed single datum from a step port.
 func ScalarInput[Input any](request StepRequest, name recipe.PortName) (Input, error) {
 	var zero Input

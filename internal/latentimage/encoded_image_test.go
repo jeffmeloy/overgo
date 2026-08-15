@@ -15,6 +15,10 @@ func TestEncodePNGStreamsHWC(t *testing.T) {
 	if got.MediaType != "image/png" || got.Channels != 3 || got.Width != 2 || got.Height != 1 || len(got.Data) == 0 {
 		t.Fatalf("encoded image=%+v", got)
 	}
+	content, err := PNGContent(got)
+	if err != nil || content.Descriptor.MediaType != got.MediaType || !bytes.Equal(content.Data, got.Data) {
+		t.Fatalf("PNG content=(%+v, %v)", content.Descriptor, err)
+	}
 	decoded, err := png.Decode(bytes.NewReader(got.Data))
 	if err != nil {
 		t.Fatal(err)

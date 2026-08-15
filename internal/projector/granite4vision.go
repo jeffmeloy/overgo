@@ -361,7 +361,7 @@ func granite4TilePixels(source image.Image, spec Granite4VisionSpec) []float32 {
 
 func (r *Granite4VisionRunner) EncodeImage(ctx context.Context, source image.Image) (Granite4VisionOutput, error) {
 	if r == nil || r.file == nil {
-		return Granite4VisionOutput{}, errors.New("projector: runner is closed")
+		return Granite4VisionOutput{}, errRunnerClosed
 	}
 	input, err := PreprocessGranite4VisionImage(source, r.spec)
 	if err != nil {

@@ -203,7 +203,7 @@ func qwen35Metadata(repository *hfrepo.Repository) ([]gguf.Metadata, uint32, err
 		metadata(prefix+"attention.value_length", gguf.ValueTypeUint32, headLength),
 		metadata(prefix+"rope.freq_base", gguf.ValueTypeFloat32, ropeBase),
 		metadata(prefix+"rope.dimension_count", gguf.ValueTypeUint32, uint32(rotaryLength)),
-		arrayMetadata(prefix+"rope.dimension_sections", gguf.ValueTypeInt32, ropeSections),
+		gguf.ArrayMetadata(prefix+"rope.dimension_sections", gguf.ValueTypeInt32, ropeSections),
 		metadata(prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, normEpsilon),
 		metadata(prefix+"vocab_size", gguf.ValueTypeUint32, vocabulary),
 		metadata(prefix+"ssm.conv_kernel", gguf.ValueTypeUint32, convKernel),
@@ -212,7 +212,7 @@ func qwen35Metadata(repository *hfrepo.Repository) ([]gguf.Metadata, uint32, err
 		metadata(prefix+"ssm.time_step_rank", gguf.ValueTypeUint32, timeStepRank),
 		metadata(prefix+"ssm.group_count", gguf.ValueTypeUint32, groupCount),
 		metadata(prefix+"full_attention_interval", gguf.ValueTypeUint32, fullAttentionInterval),
-		arrayMetadata(prefix+"attention.recurrent_layers", gguf.ValueTypeBool, recurrentLayers),
+		gguf.ArrayMetadata(prefix+"attention.recurrent_layers", gguf.ValueTypeBool, recurrentLayers),
 	}
 	return result, blockCount, nil
 }
@@ -443,10 +443,4 @@ func qwen35TensorName(name string, blockCount uint32) (string, bool, error) {
 		return mapped, err == nil, err
 	}
 	return "", false, fmt.Errorf("HF/GGUF adapter: tensor %q has no Qwen 3.5 mapping", name)
-}
-
-func arrayMetadata(key string, elementType gguf.ValueType, value any) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{
-		Type: gguf.ValueTypeArray, ArrayType: elementType, Data: value,
-	}}
 }

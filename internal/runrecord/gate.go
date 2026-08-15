@@ -49,6 +49,7 @@ type GateStep struct {
 	Phase      Phase       `json:"phase"`
 	Outcome    StepOutcome `json:"outcome"`
 	DurationNS uint64      `json:"duration_ns,omitempty"`
+	Evidence   string      `json:"evidence,omitempty"`
 }
 
 // GateResult: immutable named-step gate verdict.
@@ -156,10 +157,17 @@ func canonicalizeGateResult(result *GateResult) error {
 	terminalMatch := false
 	for _, step := range result.Steps {
 		_, duplicate := seen[step.Name]
-		if !textcheck.LowerIdentifier(step.Name, maxLabelBytes) || !validPhase(step.Phase) ||
-			step.DurationNS > math.MaxInt64 || step.Outcome != StepSkipped && step.DurationNS == 0 ||
-			duplicate {
-			return errors.New("run record: invalid gate step")
+		switch {
+		case !textcheck.LowerIdentifier(step.Name, maxLabelBytes):
+			return fmt.Errorf("run record: invalid gate step name %q", step.Name)
+		case !validPhase(step.Phase):
+			return fmt.Errorf("run record: gate step %q has invalid phase", step.Name)
+		case step.Evidence != "" && !textcheck.Bounded(step.Evidence, 2048, "\x00\r\n"):
+			return fmt.Errorf("run record: gate step %q has invalid evidence", step.Name)
+		case step.DurationNS > math.MaxInt64 || step.Outcome != StepSkipped && step.DurationNS == 0:
+			return fmt.Errorf("run record: gate step %q has invalid duration", step.Name)
+		case duplicate:
+			return fmt.Errorf("run record: duplicate gate step %q", step.Name)
 		}
 		seen[step.Name] = struct{}{}
 		switch step.Outcome {

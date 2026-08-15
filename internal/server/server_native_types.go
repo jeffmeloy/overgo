@@ -63,7 +63,7 @@ func (h *Handler) infill(
 		writeError(
 			response,
 			http.StatusNotImplemented,
-			"unsupported_operation",
+			errorCodeUnsupportedOperation,
 			"infill formatting is unavailable",
 		)
 		return
@@ -73,7 +73,7 @@ func (h *Handler) infill(
 		writeError(
 			response,
 			http.StatusNotImplemented,
-			"unsupported_operation",
+			errorCodeUnsupportedOperation,
 			"infill tokenization is unavailable",
 		)
 		return

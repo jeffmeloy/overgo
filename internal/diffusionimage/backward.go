@@ -12,21 +12,12 @@ import (
 // Targets are zero-initialized once and accumulated into.
 type Grads map[string][]float32
 
-func (g Grads) vec(name string, n int) []float32 {
-	dst, ok := g[name]
-	if !ok || len(dst) != n {
-		dst = make([]float32, n)
-		g[name] = dst
-	}
-	return dst
-}
-
 func (g Grads) addScalar(name string, v float32) {
-	g.vec(name, 1)[0] += v
+	hostmath.GradientSlot(g, name, 1)[0] += v
 }
 
 func (g Grads) addF64(name string, values []float64) {
-	dst := g.vec(name, len(values))
+	dst := hostmath.GradientSlot(g, name, len(values))
 	for i, v := range values {
 		dst[i] += float32(v)
 	}
@@ -448,16 +439,16 @@ func linearGrad(grads Grads, weightName, biasName string, x, w, dy []float32, ro
 	dx := make([]float32, rows*inDim)
 	var dB []float32
 	if biasName != "" {
-		dB = grads.vec(biasName, outDim)
+		dB = hostmath.GradientSlot(grads, biasName, outDim)
 	}
-	hostmath.LinearBackward(dx, grads.vec(weightName, outDim*inDim), dB, x, w, dy, rows, inDim, outDim, false)
+	hostmath.LinearBackward(dx, hostmath.GradientSlot(grads, weightName, outDim*inDim), dB, x, w, dy, rows, inDim, outDim, false)
 	return dx
 }
 
 // layerNormGrad: hostmath.LayerNormBackward into named grad targets.
 func layerNormGrad(grads Grads, weightName, biasName string, x, weight, dy []float32, rows, d int, eps float64) []float32 {
 	dx := make([]float32, rows*d)
-	hostmath.LayerNormBackward(dx, grads.vec(weightName, d), grads.vec(biasName, d), x, weight, dy, rows, d, eps, false)
+	hostmath.LayerNormBackward(dx, hostmath.GradientSlot(grads, weightName, d), hostmath.GradientSlot(grads, biasName, d), x, weight, dy, rows, d, eps, false)
 	return dx
 }
 
@@ -526,7 +517,7 @@ func tpaBackward(grads Grads, prefix string, x []float32, w tpaWeights, dOut []f
 		{qkv + "W_B_k.weight", w.WBk, dBk, kvRank * headDim},
 		{qkv + "W_B_v.weight", w.WBv, dBv, kvRank * headDim},
 	} {
-		hostmath.LinearBackward(dX, grads.vec(part.name, part.outDim*nEmbd), nil, x, part.w, part.dy, seq, nEmbd, part.outDim, true)
+		hostmath.LinearBackward(dX, hostmath.GradientSlot(grads, part.name, part.outDim*nEmbd), nil, x, part.w, part.dy, seq, nEmbd, part.outDim, true)
 	}
 	grads.addScalar(prefix+".attn.o_proj.alpha", dAlphaO)
 	return dX
@@ -589,12 +580,12 @@ func (blk *resBlock) backward(m *Model, x, dOut []float32, batch, channels, h, w
 	dN2 := make([]float32, len(trace.norm2))
 	hostmath.SiLUBackward(dN2, trace.norm2, dA2)
 	dH1 := make([]float32, len(trace.hidden1))
-	groupNormBackward(dH1, grads.vec(prefix+".norm2.weight", channels), grads.vec(prefix+".norm2.bias", channels), trace.hidden1, blk.norm2Weight, dN2, batch, channels, h, width, cfg.Groups, cfg.NormEps)
+	groupNormBackward(dH1, hostmath.GradientSlot(grads, prefix+".norm2.weight", channels), hostmath.GradientSlot(grads, prefix+".norm2.bias", channels), trace.hidden1, blk.norm2Weight, dN2, batch, channels, h, width, cfg.Groups, cfg.NormEps)
 	dA1 := conv2dSame3x3Backward(grads, prefix+".conv1", trace.activated1, blk.conv1Weight, dH1, batch, channels, channels, h, width)
 	dN1 := make([]float32, len(trace.norm1))
 	hostmath.SiLUBackward(dN1, trace.norm1, dA1)
 	dxGN := make([]float32, len(x))
-	groupNormBackward(dxGN, grads.vec(prefix+".norm1.weight", channels), grads.vec(prefix+".norm1.bias", channels), x, blk.norm1Weight, dN1, batch, channels, h, width, cfg.Groups, cfg.NormEps)
+	groupNormBackward(dxGN, hostmath.GradientSlot(grads, prefix+".norm1.weight", channels), hostmath.GradientSlot(grads, prefix+".norm1.bias", channels), x, blk.norm1Weight, dN1, batch, channels, h, width, cfg.Groups, cfg.NormEps)
 	dx := append([]float32(nil), dOut...)
 	for i := range dx {
 		dx[i] += dxGN[i]

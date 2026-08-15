@@ -36,7 +36,7 @@ func TestModelTensorName(t *testing.T) {
 }
 
 func TestReverseShape(t *testing.T) {
-	actual := reverseShape([]uint64{2, 3, 5})
+	actual := gguf.ReverseShape([]uint64{2, 3, 5})
 	want := []uint64{5, 3, 2}
 	for index := range want {
 		if actual[index] != want[index] {

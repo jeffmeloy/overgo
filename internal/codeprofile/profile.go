@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"overgo/internal/repoanalysis"
 )
@@ -21,16 +22,18 @@ type Partition struct {
 }
 
 type Function struct {
-	File     string `json:"file"`
-	Name     string `json:"name"`
-	Nodes    int    `json:"nodes"`
-	Branches int    `json:"branches"`
+	File          string `json:"file"`
+	Name          string `json:"name"`
+	Nodes         int    `json:"nodes"`
+	Branches      int    `json:"branches"`
+	AdvisoryClass string `json:"advisory_class,omitempty"`
 }
 
 type Clone struct {
-	Fingerprint string   `json:"fingerprint"`
-	Nodes       int      `json:"nodes"`
-	Functions   []string `json:"functions"`
+	Fingerprint   string   `json:"fingerprint"`
+	Nodes         int      `json:"nodes"`
+	Functions     []string `json:"functions"`
+	AdvisoryClass string   `json:"advisory_class,omitempty"`
 }
 
 type Profile struct {
@@ -85,12 +88,15 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 				}
 				size, branches := nodeCount(value.Body), branchCount(value.Body)
 				ref := source.Path + ":" + value.Name.Name
-				profile.Functions = append(profile.Functions, Function{File: source.Path, Name: value.Name.Name, Nodes: size, Branches: branches})
+				class := advisoryClass(source.Test, value)
+				profile.Functions = append(profile.Functions, Function{
+					File: source.Path, Name: value.Name.Name, Nodes: size, Branches: branches, AdvisoryClass: class,
+				})
 				fingerprint, err := bodyFingerprint(value.Body)
 				if err != nil {
 					return Profile{}, err
 				}
-				key := string([]byte{byte(boolIndex(source.Test))}) + fingerprint
+				key := class + "\x00" + fingerprint
 				if bodies[key] == nil {
 					bodies[key] = &body{nodes: size}
 				}
@@ -114,13 +120,14 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 		}
 	}
 	profile.PackageImportEdges = len(imports)
-	for fingerprint, group := range bodies {
+	for key, group := range bodies {
 		if len(group.refs) < 2 {
 			continue
 		}
+		class, fingerprint, _ := strings.Cut(key, "\x00")
 		sort.Strings(group.refs)
 		profile.Clones = append(profile.Clones, Clone{
-			Fingerprint: hex.EncodeToString([]byte(fingerprint[1:])), Nodes: group.nodes, Functions: group.refs,
+			Fingerprint: hex.EncodeToString([]byte(fingerprint)), Nodes: group.nodes, Functions: group.refs, AdvisoryClass: class,
 		})
 		profile.DuplicateExcessNodes += group.nodes * (len(group.refs) - 1)
 	}
@@ -197,9 +204,17 @@ func bodyFingerprint(body *ast.BlockStmt) (string, error) {
 	return string(hash.Sum(nil)), nil
 }
 
-func boolIndex(value bool) int {
-	if value {
-		return 1
+func advisoryClass(test bool, function *ast.FuncDecl) string {
+	if test {
+		return "test"
 	}
-	return 0
+	if !strings.HasPrefix(strings.ToLower(function.Name.Name), "validate") || function.Type.Results == nil {
+		return ""
+	}
+	for _, result := range function.Type.Results.List {
+		if name, ok := result.Type.(*ast.Ident); ok && name.Name == "error" {
+			return "validator"
+		}
+	}
+	return ""
 }

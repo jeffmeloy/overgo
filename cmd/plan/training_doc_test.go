@@ -48,7 +48,7 @@ func TestTrainingPlanMatchesImplementation(t *testing.T) {
 	if !strings.Contains(production, "TrainDeviceResident") || strings.Contains(production, "TrainDevice"+"Full") {
 		t.Fatal("production trainer does not exclusively select resident execution")
 	}
-	if !strings.Contains(read("internal/densecausal/train_device_resident_cuda_windows.go"), "func (m *Model) TrainDeviceResident") {
+	if !strings.Contains(read("internal/densecausal/train_device_resident_cuda_windows.go"), "func (m *Model) TrainDeviceResidentBatches") {
 		t.Fatal("resident trainer absent")
 	}
 }

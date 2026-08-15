@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -19,7 +18,7 @@ const (
 // breaker: starts in one token and continues in later tokens
 func (r *Runner) TokenizeDryBreakers(breakers []string) ([][]int, error) {
 	if r == nil || r.vocab == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if len(breakers) > maxDryBreakers {
 		return nil, fmt.Errorf("inference: DRY breaker count exceeds %d", maxDryBreakers)

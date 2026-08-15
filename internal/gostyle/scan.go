@@ -23,7 +23,7 @@ type receiverFact struct {
 }
 
 type fileFacts struct {
-	diagnostics map[string][]Diagnostic
+	diagnostics map[string][]diagnostic
 	receivers   []receiverFact
 	constraint  string
 }
@@ -34,29 +34,23 @@ type fileScanner struct {
 	source      repoanalysis.GoFile
 	file        *ast.File
 	imports     map[string]string
-	diagnostics map[string][]Diagnostic
+	diagnostics map[string][]diagnostic
 	receivers   []receiverFact
 }
 
-// Census reports one snapshot. Compare uses the same implementation with a
-// shared content cache so unchanged candidate files reuse base facts.
-func Census(snapshot repoanalysis.SourceSnapshot, options ...Options) (CensusReport, error) {
-	return census(snapshot, firstOption(options), factCache{})
-}
-
-func census(snapshot repoanalysis.SourceSnapshot, option Options, cache factCache) (CensusReport, error) {
+func census(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection, cache factCache) (censusReport, error) {
 	started := time.Now()
 	if err := validatePolicy(); err != nil {
-		return CensusReport{}, err
+		return censusReport{}, err
 	}
-	report := CensusReport{
-		Identity: snapshot.Identity(), BuildContext: option.Build.Context,
-		Rules: make([]RuleCensus, len(policy)),
+	report := censusReport{
+		Identity: snapshot.Identity(), BuildContext: selection.Context,
+		Rules: make([]censusRule, len(policy)),
 	}
-	results := make(map[string]*RuleCensus, len(policy))
+	results := make(map[string]*censusRule, len(policy))
 	for index, rule := range policy {
-		selected := rule.Mechanism == Syntax
-		report.Rules[index] = RuleCensus{Rule: rule, Selected: selected}
+		selected := rule.Mechanism == syntaxMechanism
+		report.Rules[index] = censusRule{Rule: rule, Selected: selected}
 		if !selected {
 			report.Rules[index].SkipReason = unavailableReason(rule.Mechanism)
 		}
@@ -64,22 +58,22 @@ func census(snapshot repoanalysis.SourceSnapshot, option Options, cache factCach
 	}
 	var receivers []receiverFact
 	for _, source := range snapshot.Files {
-		selected, classified := option.Build.Files[source.Path]
+		selected, classified := selection.Files[source.Path]
 		if classified && !selected {
-			report.Exclusions = append(report.Exclusions, Exclusion{
-				File: source.Path, Scope: "host build context", Reason: "excluded by go list for " + option.Build.Context,
+			report.Exclusions = append(report.Exclusions, exclusion{
+				File: source.Path, Scope: "host build context", Reason: "excluded by go list for " + selection.Context,
 			})
-			report.BuildConstraints = append(report.BuildConstraints, BuildConstraint{
+			report.BuildConstraints = append(report.BuildConstraints, buildConstraint{
 				File: source.Path, Expression: "go list selection", Selected: false,
 			})
 			continue
 		}
 		generated, err := source.Generated()
 		if err != nil {
-			return CensusReport{}, fmt.Errorf("parse %s: %w", source.Path, err)
+			return censusReport{}, fmt.Errorf("parse %s: %w", source.Path, err)
 		}
 		if generated {
-			report.Exclusions = append(report.Exclusions, Exclusion{
+			report.Exclusions = append(report.Exclusions, exclusion{
 				File: source.Path, Scope: "syntax policy", Reason: "generated source is owned by its generator; toolchain formatting remains applicable",
 			})
 			continue
@@ -91,14 +85,14 @@ func census(snapshot repoanalysis.SourceSnapshot, option Options, cache factCach
 		} else {
 			facts, err = analyzeFile(source)
 			if err != nil {
-				return CensusReport{}, err
+				return censusReport{}, err
 			}
 			cache[key] = facts
 			report.Analysis.FilesScanned++
 			report.Analysis.SyntaxPasses++
 		}
 		if facts.constraint != "" {
-			report.BuildConstraints = append(report.BuildConstraints, BuildConstraint{
+			report.BuildConstraints = append(report.BuildConstraints, buildConstraint{
 				File: source.Path, Expression: facts.constraint, Selected: true,
 			})
 		}
@@ -116,23 +110,16 @@ func census(snapshot repoanalysis.SourceSnapshot, option Options, cache factCach
 	return report, nil
 }
 
-func firstOption(options []Options) Options {
-	if len(options) == 0 {
-		return Options{}
-	}
-	return options[0]
-}
-
-func unavailableReason(mechanism Mechanism) string {
+func unavailableReason(mechanism mechanism) string {
 	switch mechanism {
-	case Toolchain:
-		return "selected by the toolchain adapter; syntax census does not imitate it"
-	case TypeAware:
-		return "reserved for the shared type-aware pass; syntax-only guesses are not evidence"
-	case Delegated:
-		return "reported by the existing structural analysis owner"
+	case toolchainMechanism:
+		return "toolchain-owner"
+	case typeAwareMechanism:
+		return "type-pass-not-landed"
+	case delegatedMechanism:
+		return "codeprofile-owner"
 	default:
-		return "unsupported analysis mechanism"
+		return "unsupported"
 	}
 }
 
@@ -146,7 +133,7 @@ func analyzeFile(source repoanalysis.GoFile) (fileFacts, error) {
 		return fileFacts{}, fmt.Errorf("build constraint %s: %w", source.Path, err)
 	}
 	scanner := fileScanner{
-		source: source, file: file, imports: importBindings(file), diagnostics: map[string][]Diagnostic{},
+		source: source, file: file, imports: importBindings(file), diagnostics: map[string][]diagnostic{},
 	}
 	scanner.packageImports()
 	scanner.declarationNames()
@@ -397,12 +384,12 @@ func (s *fileScanner) mixedCaps(name *ast.Ident, exception bool) {
 }
 
 func (s *fileScanner) add(ruleID string, node ast.Node, symbol, message string) {
-	s.diagnostics[ruleID] = append(s.diagnostics[ruleID], Diagnostic{
+	s.diagnostics[ruleID] = append(s.diagnostics[ruleID], diagnostic{
 		File: s.source.Path, Line: s.source.Line(node.Pos()), Symbol: symbol, Message: message,
 	})
 }
 
-func receiverConsistency(result *RuleCensus, receivers []receiverFact) {
+func receiverConsistency(result *censusRule, receivers []receiverFact) {
 	byType := map[string][]receiverFact{}
 	for _, receiver := range receivers {
 		byType[receiver.typeID] = append(byType[receiver.typeID], receiver)
@@ -418,7 +405,7 @@ func receiverConsistency(result *RuleCensus, receivers []receiverFact) {
 			continue
 		}
 		for _, method := range methods {
-			result.Diagnostics = append(result.Diagnostics, Diagnostic{
+			result.Diagnostics = append(result.Diagnostics, diagnostic{
 				File: method.file.Path, Line: method.file.Line(method.method.Pos()), Symbol: method.method.Name.Name,
 				Message: "receiver name is inconsistent across methods on " + typeID,
 			})
@@ -525,7 +512,7 @@ func unconventionalError(message string) bool {
 	return unicode.IsUpper(first) || strings.ContainsRune(".:;!?", last)
 }
 
-func sortDiagnostics(diagnostics []Diagnostic) {
+func sortDiagnostics(diagnostics []diagnostic) {
 	sort.Slice(diagnostics, func(i, j int) bool {
 		left, right := diagnostics[i], diagnostics[j]
 		if left.File != right.File {

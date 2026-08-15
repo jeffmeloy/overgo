@@ -1,4 +1,4 @@
-package codetighten
+package main
 
 import (
 	"os"
@@ -31,14 +31,14 @@ func TestValue(t *testing.T) {
 }
 `)
 
-	proposals, err := Discover(root)
+	proposals, err := discover(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(proposals) != 1 || proposals[0].ID != "value:sum->add" || proposals[0].Calls != 2 {
 		t.Fatalf("proposals = %+v", proposals)
 	}
-	if _, err := Apply(root, proposals[0].ID); err != nil {
+	if _, err := apply(root, proposals[0].ID); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"value/value.go", "value/other.go"} {
@@ -57,7 +57,7 @@ func TestValue(t *testing.T) {
 func plus(a, b int) int { return add(a, b) }
 var operation = plus
 `)
-		proposals, err := Discover(root)
+		proposals, err := discover(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +75,7 @@ import "fmt"
 
 func rendered() string { return fmt.Sprint(1) }
 `)
-		if _, err := Discover(root); err != nil {
+		if _, err := discover(root); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -107,7 +107,7 @@ func TestStack(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := Apply(root, "stack:wrapper->caller"); err == nil {
+		if _, err := apply(root, "stack:wrapper->caller"); err == nil {
 			t.Fatal("stack-sensitive behavior change passed")
 		}
 		after, err := os.ReadFile(filepath.Join(root, "stack", "stack.go"))

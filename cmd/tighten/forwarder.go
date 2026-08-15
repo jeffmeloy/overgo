@@ -1,5 +1,4 @@
-// Package codetighten performs bounded, mechanically proven source reductions.
-package codetighten
+package main
 
 import (
 	"bytes"
@@ -19,8 +18,7 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
-// Proposal identifies one exact forwarding wrapper reduction.
-type Proposal struct {
+type proposal struct {
 	ID           string   `json:"id"`
 	Package      string   `json:"package"`
 	Wrapper      string   `json:"wrapper"`
@@ -50,31 +48,17 @@ type edit struct {
 }
 
 type candidate struct {
-	Proposal
+	proposal
 	wrapper declaration
 	edits   map[string][]edit
 }
 
-// Discover returns only reductions whose signatures, forwarding arguments,
-// declarations, and direct-call-only usage can be proven from repository ASTs.
-func Discover(root string) ([]Proposal, error) {
-	candidates, err := discover(root)
-	if err != nil {
-		return nil, err
-	}
-	proposals := make([]Proposal, len(candidates))
-	for index := range candidates {
-		proposals[index] = candidates[index].Proposal
-	}
-	return proposals, nil
-}
-
-// Apply migrates every direct caller, deletes the selected wrapper, and keeps
+// apply migrates every direct caller, deletes the selected wrapper, and keeps
 // the edit only when the affected package tests pass and its AST surface falls.
-func Apply(root, id string) (Proposal, error) {
+func apply(root, id string) (proposal, error) {
 	candidates, err := discover(root)
 	if err != nil {
-		return Proposal{}, err
+		return proposal{}, err
 	}
 	var selected *candidate
 	for index := range candidates {
@@ -84,11 +68,11 @@ func Apply(root, id string) (Proposal, error) {
 		}
 	}
 	if selected == nil {
-		return Proposal{}, fmt.Errorf("exact forwarder %q is not available", id)
+		return proposal{}, fmt.Errorf("exact forwarder %q is not available", id)
 	}
 	before, err := packageProfile(root, selected.Package)
 	if err != nil {
-		return Proposal{}, err
+		return proposal{}, err
 	}
 	originals := map[string][]byte{}
 	updates := map[string][]byte{}
@@ -96,23 +80,23 @@ func Apply(root, id string) (Proposal, error) {
 		path := filepath.Join(root, filepath.FromSlash(name))
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return Proposal{}, err
+			return proposal{}, err
 		}
 		originals[name] = data
 		updated, err := applyEdits(data, edits)
 		if err != nil {
-			return Proposal{}, fmt.Errorf("tighten %s: %w", name, err)
+			return proposal{}, fmt.Errorf("tighten %s: %w", name, err)
 		}
 		updates[name] = updated
 	}
 	for name, updated := range updates {
 		path := filepath.Join(root, filepath.FromSlash(name))
 		if err := os.WriteFile(path, updated, fileMode(path)); err != nil {
-			return Proposal{}, errors.Join(err, restore(root, originals))
+			return proposal{}, errors.Join(err, restore(root, originals))
 		}
 	}
-	rollback := func(err error) (Proposal, error) {
-		return Proposal{}, errors.Join(err, restore(root, originals))
+	rollback := func(err error) (proposal, error) {
+		return proposal{}, errors.Join(err, restore(root, originals))
 	}
 	command := exec.Command("go", "test", packagePattern(selected.Package), "-count=1")
 	command.Dir = root
@@ -128,7 +112,7 @@ func Apply(root, id string) (Proposal, error) {
 	if afterNodes >= beforeNodes || len(after.Functions) >= len(before.Functions) {
 		return rollback(fmt.Errorf("reduction did not lower package AST surface: nodes %d -> %d, functions %d -> %d", beforeNodes, afterNodes, len(before.Functions), len(after.Functions)))
 	}
-	return selected.Proposal, nil
+	return selected.proposal, nil
 }
 
 func discover(root string) ([]candidate, error) {
@@ -155,7 +139,7 @@ func discover(root string) ([]candidate, error) {
 		key := filepath.ToSlash(filepath.Dir(file.Path)) + "\x00" + syntax.Name.Name
 		groups[key] = append(groups[key], source)
 	}
-	var found []candidate
+	found := []candidate{}
 	for key, files := range groups {
 		packagePath, _, _ := strings.Cut(key, "\x00")
 		if hasAssembly(root, packagePath) {

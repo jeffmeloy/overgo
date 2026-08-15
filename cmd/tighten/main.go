@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"overgo/internal/clioptions"
-	"overgo/internal/codetighten"
 )
 
 func main() {
@@ -17,17 +16,17 @@ func main() {
 
 func run() error {
 	root := flag.String("root", ".", "repository root")
-	apply := flag.String("apply", "", "exact proposal id to apply and verify")
+	proposalID := flag.String("apply", "", "exact proposal id to apply and verify")
 	flag.Parse()
-	if *apply != "" {
-		proposal, err := codetighten.Apply(*root, *apply)
+	if *proposalID != "" {
+		proposal, err := apply(*root, *proposalID)
 		if err != nil {
 			return err
 		}
 		fmt.Fprintf(os.Stderr, "tighten: migrated %d calls and deleted %s; removed %d wrapper AST nodes\n", proposal.Calls, proposal.Wrapper, proposal.RemovedNodes)
 		return nil
 	}
-	proposals, err := codetighten.Discover(*root)
+	proposals, err := discover(*root)
 	if err != nil {
 		return err
 	}

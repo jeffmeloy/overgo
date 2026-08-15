@@ -28,11 +28,11 @@ func TestGoStylePolicyAndBaseline(t *testing.T) {
 	if report.Base.Identity == "" || report.Base.Identity == report.Candidate.Identity {
 		t.Fatal("comparison is not bound to distinct source identities")
 	}
-	if len(report.Rules) != len(Policy()) || len(report.Base.Exclusions) != 1 {
+	if len(report.Rules) != len(policy) || len(report.Base.Exclusions) != 1 {
 		t.Fatalf("incomplete policy or exclusions: rules=%d exclusions=%+v", len(report.Rules), report.Base.Exclusions)
 	}
-	assertRuleChange(t, report, "interface-ownership", Resolved)
-	assertRuleChange(t, report, "errors", Introduced)
+	assertRuleChange(t, report, "interface-ownership", false)
+	assertRuleChange(t, report, "errors", true)
 }
 
 func TestGoReadabilityCandidateDelta(t *testing.T) {
@@ -40,11 +40,11 @@ func TestGoReadabilityCandidateDelta(t *testing.T) {
 		if err := validatePolicy(); err != nil {
 			t.Fatal(err)
 		}
-		for _, rule := range Policy() {
+		for _, rule := range policy {
 			if rule.SourceID == "" || rule.SourceSection == "" || reviewedSources[rule.SourceID] != rule.SourceSection {
 				t.Fatalf("rule has unreviewed source: %+v", rule)
 			}
-			if rule.Maturity == Enforceable {
+			if rule.Maturity == enforceable {
 				t.Fatalf("first gate revision prematurely enforces %s", rule.ID)
 			}
 		}
@@ -110,7 +110,7 @@ func (t T) M() {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assertRuleChange(t, report, "receivers", Introduced)
+		assertRuleChange(t, report, "receivers", true)
 		stableBase := sourceSnapshot(t, map[string]string{"p/p.go": "package p\nimport \"errors\"\nfunc f() error { return errors.New(\"Bad.\") }\n"})
 		stableCandidate := sourceSnapshot(t, map[string]string{"p/p.go": "package p\n\nimport \"errors\"\n\nfunc f() error { return errors.New(\"Bad.\") }\n"})
 		stable, err := Compare(stableBase, stableCandidate)
@@ -148,7 +148,7 @@ func (t T) M() {
 		if err != nil {
 			t.Fatal(err)
 		}
-		census, err := Census(snapshot, Options{Build: selection})
+		census, err := census(snapshot, selection, factCache{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -206,30 +206,26 @@ func sourceSnapshot(t *testing.T, files map[string]string) repoanalysis.SourceSn
 func introducedCount(report BaselineReport, ruleID string) int {
 	for _, delta := range report.Rules {
 		if delta.Rule.ID == ruleID {
-			count := 0
-			for _, change := range delta.Changes {
-				if change.State == Introduced {
-					count++
-				}
-			}
-			return count
+			return len(delta.Introduced)
 		}
 	}
 	return 0
 }
 
-func assertRuleChange(t *testing.T, report BaselineReport, ruleID string, state DeltaState) {
+func assertRuleChange(t *testing.T, report BaselineReport, ruleID string, introduced bool) {
 	t.Helper()
 	for _, delta := range report.Rules {
 		if delta.Rule.ID != ruleID {
 			continue
 		}
-		for _, change := range delta.Changes {
-			if change.State == state {
-				return
-			}
+		changes := delta.Resolved
+		if introduced {
+			changes = delta.Introduced
 		}
-		t.Fatalf("rule %s has no %s change: %+v", ruleID, state, delta)
+		if len(changes) > 0 {
+			return
+		}
+		t.Fatalf("rule %s has no requested change: %+v", ruleID, delta)
 	}
 	t.Fatalf("rule %s was not reported", ruleID)
 }

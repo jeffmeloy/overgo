@@ -128,12 +128,21 @@ type trainingStep struct {
 	penultimateSelfKProjection    []float32
 	penultimateSelfVProjection    []float32
 	previousDecoderGradient       []float32
+	decoderInputGradient          []float32
 	penultimateSelfRawGate        float32
 	penultimateCrossRawGate       float32
 	loss                          float64
 }
 
 type parameterSpan struct{ start, end int }
+
+type attentionParameterLayout struct {
+	rawGate, output, inputNorm parameterSpan
+	qNorm, kNorm               parameterSpan
+	q, k, v                    parameterSpan
+}
+
+type decoderLayerParameterLayout struct{ self, cross attentionParameterLayout }
 
 type trainingLayout struct {
 	finalNorm, rawGate, output            parameterSpan
@@ -158,6 +167,7 @@ type trainingLayout struct {
 	penultimateSelfQ                      parameterSpan
 	penultimateSelfK                      parameterSpan
 	penultimateSelfV                      parameterSpan
+	earlierDecoder                        []decoderLayerParameterLayout
 	count                                 int
 }
 
@@ -207,7 +217,7 @@ func trainingParameterBindings(model *Model, layout trainingLayout) []trainingPa
 	d := model.Dims.DModel
 	qWidth := model.Dims.Heads * model.Dims.HeadDim
 	kvWidth := model.Dims.KVHeads * model.Dims.HeadDim
-	return []trainingParameterBinding{
+	bindings := []trainingParameterBinding{
 		{name: "decoder.final_norm", span: layout.finalNorm, rows: d, cols: 1, f32: model.decFinalNorm},
 		{name: "decoder.final_cross.raw_gate", span: layout.rawGate, rows: 1, cols: 1, scalar: &cross.rawGate, folded: &cross.gate},
 		{name: "decoder.final_cross.output", span: layout.output, rows: d, cols: qWidth, bf16: cross.o},
@@ -242,12 +252,41 @@ func trainingParameterBindings(model *Model, layout trainingLayout) []trainingPa
 		{name: penultimateSelfName + ".k", span: layout.penultimateSelfK, rows: kvWidth, cols: d, bf16: penultimateSelf.k},
 		{name: penultimateSelfName + ".v", span: layout.penultimateSelfV, rows: kvWidth, cols: d, bf16: penultimateSelf.v},
 	}
+	for layer := range layout.earlierDecoder {
+		bindings = appendAttentionParameterBindings(bindings, fmt.Sprintf("decoder.layer%d.self", layer), layout.earlierDecoder[layer].self, &model.decoderSelf[layer], d, qWidth, kvWidth)
+		bindings = appendAttentionParameterBindings(bindings, fmt.Sprintf("decoder.layer%d.cross", layer), layout.earlierDecoder[layer].cross, &model.decoderCross[layer], d, qWidth, kvWidth)
+	}
+	return bindings
+}
+
+func appendAttentionParameterBindings(
+	dst []trainingParameterBinding, name string, layout attentionParameterLayout,
+	block *attnBlock, d, qWidth, kvWidth int,
+) []trainingParameterBinding {
+	return append(dst,
+		trainingParameterBinding{name: name + ".raw_gate", span: layout.rawGate, rows: 1, cols: 1, scalar: &block.rawGate, folded: &block.gate},
+		trainingParameterBinding{name: name + ".output", span: layout.output, rows: d, cols: qWidth, bf16: block.o},
+		trainingParameterBinding{name: name + ".input_norm", span: layout.inputNorm, rows: d, cols: 1, f32: block.inNorm},
+		trainingParameterBinding{name: name + ".q_norm", span: layout.qNorm, rows: len(block.qNorm), cols: 1, f32: block.qNorm},
+		trainingParameterBinding{name: name + ".k_norm", span: layout.kNorm, rows: len(block.kNorm), cols: 1, f32: block.kNorm},
+		trainingParameterBinding{name: name + ".q", span: layout.q, rows: qWidth, cols: d, bf16: block.q},
+		trainingParameterBinding{name: name + ".k", span: layout.k, rows: kvWidth, cols: d, bf16: block.k},
+		trainingParameterBinding{name: name + ".v", span: layout.v, rows: kvWidth, cols: d, bf16: block.v},
+	)
 }
 
 func nextParameter(cursor *int, size int) parameterSpan {
 	span := parameterSpan{start: *cursor, end: *cursor + size}
 	*cursor = span.end
 	return span
+}
+
+func nextAttentionLayout(cursor *int, d, headDim, qWidth, kvWidth int) attentionParameterLayout {
+	return attentionParameterLayout{
+		rawGate: nextParameter(cursor, 1), output: nextParameter(cursor, d*qWidth),
+		inputNorm: nextParameter(cursor, d), qNorm: nextParameter(cursor, headDim), kNorm: nextParameter(cursor, headDim),
+		q: nextParameter(cursor, qWidth*d), k: nextParameter(cursor, kvWidth*d), v: nextParameter(cursor, kvWidth*d),
+	}
 }
 
 func newTrainingLayout(model *Model) trainingLayout {
@@ -289,6 +328,13 @@ func newTrainingLayout(model *Model) trainingLayout {
 		penultimateSelfQ:          nextParameter(&cursor, qWidth*d),
 		penultimateSelfK:          nextParameter(&cursor, kvWidth*d),
 		penultimateSelfV:          nextParameter(&cursor, kvWidth*d),
+	}
+	layout.earlierDecoder = make([]decoderLayerParameterLayout, model.Dims.DecoderLayers-2)
+	for layer := range layout.earlierDecoder {
+		layout.earlierDecoder[layer] = decoderLayerParameterLayout{
+			self:  nextAttentionLayout(&cursor, d, model.Dims.HeadDim, qWidth, kvWidth),
+			cross: nextAttentionLayout(&cursor, d, model.Dims.HeadDim, qWidth, kvWidth),
+		}
 	}
 	layout.count = cursor
 	return layout
@@ -742,6 +788,56 @@ func (t *Trainer) backwardPenultimateSelfCore(state *trainingStep) error {
 	copy(state.penultimateSelfKProjection, projections.k)
 	copy(state.penultimateSelfVProjection, projections.v)
 	state.previousDecoderGradient = projections.input
+	return t.backwardEarlierDecoderLayers(state)
+}
+
+func writeAttentionGradients(dst []float32, layout attentionParameterLayout, core attentionCoreGradient, projections crossProjectionGradient) {
+	dst[layout.rawGate.start] = core.rawGate
+	copy(dst[layout.output.start:layout.output.end], core.output)
+	copy(dst[layout.inputNorm.start:layout.inputNorm.end], projections.inputNorm)
+	copy(dst[layout.qNorm.start:layout.qNorm.end], projections.qNorm)
+	copy(dst[layout.kNorm.start:layout.kNorm.end], projections.kNorm)
+	copy(dst[layout.q.start:layout.q.end], projections.q)
+	copy(dst[layout.k.start:layout.k.end], projections.k)
+	copy(dst[layout.v.start:layout.v.end], projections.v)
+}
+
+func (t *Trainer) backwardEarlierDecoderLayers(state *trainingStep) error {
+	gradient := state.previousDecoderGradient
+	rows := len(state.pair.Targets)
+	for layer := len(t.layout.earlierDecoder) - 1; layer >= 0; layer-- {
+		layout := t.layout.earlierDecoder[layer]
+		crossTrace := &state.trace.layers[layer].cross
+		crossBlock := &t.model.decoderCross[layer]
+		crossCore, err := backwardCrossAttentionCore(crossTrace, crossBlock, gradient, rows, t.model.Dims)
+		if err != nil {
+			return err
+		}
+		crossProjections, err := backwardCrossAttentionProjections(
+			crossTrace, crossBlock, crossCore, gradient, rows, t.model.Dims, t.model.scoreScale,
+		)
+		if err != nil {
+			return err
+		}
+		writeAttentionGradients(state.gradient, layout.cross, crossCore, crossProjections)
+		gradient = crossProjections.input
+
+		selfTrace := &state.trace.layers[layer].self
+		selfBlock := &t.model.decoderSelf[layer]
+		selfCore, err := backwardCausalAttentionCore(selfTrace, selfBlock, gradient, rows, t.model.Dims)
+		if err != nil {
+			return err
+		}
+		selfProjections, err := backwardCausalAttentionProjections(
+			selfTrace, selfBlock, selfCore, gradient, rows, t.model.Dims, t.model.scoreScale, t.model.invFreq,
+		)
+		if err != nil {
+			return err
+		}
+		writeAttentionGradients(state.gradient, layout.self, selfCore, selfProjections)
+		gradient = selfProjections.input
+	}
+	state.decoderInputGradient = gradient
 	return nil
 }
 

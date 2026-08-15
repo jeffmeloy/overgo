@@ -209,6 +209,27 @@ func TestExecuteSigmoidSoftplusAndL2Norm(t *testing.T) {
 	}
 }
 
+func TestExecuteAtan(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(3))
+	output := builder.Atan(input)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	values, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+		input: {Shape: input.Shape, Data: []float32{-1, 0, 1}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float32{-math.Pi / 4, 0, math.Pi / 4}
+	for index := range want {
+		if diff := math.Abs(float64(values[output].Data[index] - want[index])); diff > 1e-7 {
+			t.Fatalf("atan[%d] diff %g", index, diff)
+		}
+	}
+}
+
 func TestExecuteRoPENormalWithFrequencyFactors(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 1))

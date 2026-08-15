@@ -411,6 +411,10 @@ func (b *Builder) Tanh(input *Tensor) *Tensor {
 	return b.unary(OpTanh, input, nil)
 }
 
+func (b *Builder) Atan(input *Tensor) *Tensor {
+	return b.unary(OpAtan, input, nil)
+}
+
 func (b *Builder) Exp(input *Tensor) *Tensor {
 	return b.unary(OpExp, input, nil)
 }

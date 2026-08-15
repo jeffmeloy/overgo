@@ -80,6 +80,7 @@ const (
 	OpTopKPartials
 	OpCacheAppend
 	OpMADNorm
+	OpAtan
 	OpCount
 )
 

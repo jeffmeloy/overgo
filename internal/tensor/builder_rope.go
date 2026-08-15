@@ -20,6 +20,7 @@ type ropeOptions struct {
 	originalContext               uint32
 	extFactor, attentionFactor    float32
 	betaFast, betaSlow            float32
+	reverse                       bool
 }
 
 // RoPELayout: rotary channel pairing.
@@ -73,6 +74,14 @@ func (b *Builder) RoPENeoX(input *Tensor, positions []uint32, rotaryDimensions u
 	return b.buildRoPE(input, ropeOptions{
 		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
 		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: 1,
+	})
+}
+
+// RoPENeoXReverse: split-half rotary layout with negated angles.
+func (b *Builder) RoPENeoXReverse(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
+	return b.buildRoPE(input, ropeOptions{
+		operation: OpRoPENeoX, name: "rope_neox_reverse", positions: positions,
+		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: 1, reverse: true,
 	})
 }
 
@@ -329,6 +338,9 @@ func (b *Builder) buildRoPE(input *Tensor, options ropeOptions) *Tensor {
 		FrequencyBase:    options.frequencyBase,
 		FrequencyScale:   options.frequencyScale,
 		AttentionFactor:  1,
+	}
+	if options.reverse {
+		attributes.FrequencyScale = -attributes.FrequencyScale
 	}
 	if options.yarn {
 		attributes.OriginalContext = options.originalContext

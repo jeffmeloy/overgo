@@ -128,7 +128,7 @@ func launchMathVision(
 		}
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelBf16RoundF32], count, &input, &output, &count)
-	case tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpExp:
+	case tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpAtan, tensor.OpExp:
 		count, err := elementCount32(node.Shape)
 		if err != nil {
 			return err
@@ -149,6 +149,8 @@ func launchMathVision(
 			function = functions[kernelSoftplusF32]
 		} else if node.Op == tensor.OpTanh {
 			function = functions[kernelTanhF32]
+		} else if node.Op == tensor.OpAtan {
+			function = functions[kernelAtanF32]
 		} else if node.Op == tensor.OpExp {
 			function = functions[kernelExpF32]
 		}

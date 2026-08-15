@@ -21,6 +21,7 @@ const (
 	kernelAttentionScoreAffineBackwardF32
 	kernelAttentionTiledBf16F32
 	kernelAttentionTiledF32
+	kernelAtanF32
 	kernelBf16RoundF32
 	kernelBf16ToF32
 	kernelBroadcastAddF32
@@ -201,6 +202,7 @@ var kernelFunctionNames = [...]string{
 	"attention_score_affine_backward_f32",
 	"attention_tiled_bf16_f32",
 	"attention_tiled_f32",
+	"atan_f32",
 	"bf16_round_f32",
 	"bf16_to_f32",
 	"broadcast_add_f32",
@@ -380,6 +382,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	8,
 	11,
 	13,
+	3,
 	3,
 	3,
 	15,

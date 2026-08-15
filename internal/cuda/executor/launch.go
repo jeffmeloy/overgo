@@ -27,7 +27,7 @@ func launchNode(
 		return launchReferenceFamily(state, functions, blas, node, pointers, attributePointers)
 	case tensor.OpLoRAMerge, tensor.OpAdd, tensor.OpMultiply, tensor.OpDivide, tensor.OpScale,
 		tensor.OpClamp, tensor.OpBF16Round, tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf,
-		tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh,
+		tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpAtan,
 		tensor.OpExp, tensor.OpXIELU, tensor.OpConv1DSame, tensor.OpConv2D,
 		tensor.OpWindowPartition2D, tensor.OpWindowUnpartition2D, tensor.OpSAMAttention,
 		tensor.OpGroupNorm, tensor.OpL2Norm:

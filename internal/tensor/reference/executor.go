@@ -321,6 +321,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			output[i] = float32(math.Tanh(float64(value)))
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
+	case tensor.OpAtan:
+		output := make([]float32, len(inputs[0].Data))
+		for i, value := range inputs[0].Data {
+			output[i] = float32(math.Atan(float64(value)))
+		}
+		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpExp:
 		output := make([]float32, len(inputs[0].Data))
 		for i, value := range inputs[0].Data {

@@ -1191,6 +1191,16 @@ extern "C" __global__ void tanh_f32(
 	}
 }
 
+extern "C" __global__ void atan_f32(
+		const float * input,
+		float * output,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index < count) {
+		output[index] = atanf(input[index]);
+	}
+}
+
 extern "C" __global__ void exp_f32(
 		const float * input,
 		float * output,

@@ -103,7 +103,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Text rerank | No evidence-qualified classifier-head artifact in configured roots | Runtime and recipe exist; causal LM substitution refused | Explicit refusal | Add a real reranker artifact, pair corpus, scores, wall, and peak |
 | Pocket-TTS speech | Active adaptive host audio recipe and real-model generation fixture | Compiled production recipe; every generated latent/EOS value is bounded against the adaptive oracle; PCM max error `3.38e-4`, RMS `0.089438`, encoded WAV `24 kHz` mono; warm matched synthesis `0.48-0.53 s`; peak heap `0.540-0.543 GiB`. A compiled joint backbone+flow trainer consumes the native `Hello world.` generated codec latents through shared platform Muon. One real-artifact step at derived LR `3.383e-5` lowers loss `0.505204 -> 0.285938` and changes 16,358/16,384 sampled final-projection weights | Production output parity; warm-wall lead versus adaptive's retained `2.0 s` optimized route; real-artifact native-latent Muon trajectory | Measure both inference implementations under one cold/process-memory harness; add corpus audio encoding and held-out speech-training evidence |
 | Un-0 image/video | Active deterministic Go route; synthetic bootstrap training was deleted | Exact fixture within `3.13e-7`; about 1.25 ms warm generation. Typed image and video recipes publish encoded media instead of float JSON. The real class-1/seed-42 PNG is 8x8, 173 bytes, and pixel-exact against adaptive's retained PNG. The real class-1/seed-202 route advances the seed for six frames, applies the request-owned 8x publication scale, and emits a 64x64, 10,028-byte GIF that is byte-identical to adaptive's retained artifact; 319 source pixels change between adjacent frames. Full generator VJPs remain finite-difference and adaptive-golden gated. The prior constant color-ramp objective and its public `TrainDrift` entry point were deleted; training now refuses until a recipe supplies real class/image authority | Exact image and video inference/publication parity; honest training refusal | Add real class/image training authority before restoring a trainer |
-| SimpleDiffusion image | Host generation and real-checkpoint training | Typed recipe publication reproduces the retained seed-7, two-step, 64x64 PNG byte-for-byte: 10,506 encoded bytes with range `[-0.136066,1.155296]`. Forward max error is `3.99e-6`. Two matched three-process gates report median candidate wall `0.602-1.162 s` vs adaptive `0.710-1.263 s` and median peak `407.949-408.906 MiB` vs `411.195-411.836 MiB`. The first real 128-channel residual block now executes through the shared CUDA graph with `4.768e-7` max error | Exact retained output; matched host wall/process-peak lead; real device block parity | Complete device forward/backward and device-memory evidence |
+| SimpleDiffusion image | Host generation and real-checkpoint training | Typed recipe publication reproduces the retained seed-7, two-step, 64x64 PNG byte-for-byte: 10,506 encoded bytes with range `[-0.136066,1.155296]`. Forward max error is `3.99e-6`. Two matched three-process gates report median candidate wall `0.602-1.162 s` vs adaptive `0.710-1.263 s` and median peak `407.949-408.906 MiB` vs `411.195-411.836 MiB`. A real 128-channel residual block and 512-channel transformer block now execute through shared CUDA graphs with maximum errors of `4.768e-7` and `1.490e-8` | Exact retained output; matched host wall/process-peak lead; real device residual and transformer parity | Complete device forward/backward and device-memory evidence |
 | Wan text-to-video | Native adaptive exact path; Python oracle | Fresh session+denoise 331.96 s / 7.875 GB; decode 38.31 s / 10.330 GB; exact G3/G4 bounded, BF16 G3 cosine 0.999899, frame-0 CUDA/host max error 8.04e-6 | 370.27 s staged wall beats retained 463.4 s Python wall | Fresh same-revision Python/adaptive run; semantic clip gate |
 | Krea text-to-image | Matched 256 fixture: 25.430 s; exact u8 SHA `b257e244`; full 2048 record: 158.144 s, 33.47 GB device | 256: 13.804 s / 25.030 GiB, MAE 0.02401. 2048: 63.510 s / 32.732 GB, MAE 0.03910; production caller and phased residency gated | Wall/peak lead at both sizes; bounded image quality | Exact SHA remains numerically unstable; retain robust pixel oracle and RMSE advisory |
 | SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Compiled routed-image recipe owns tokenizer/prompt, retained prefix/body, shifted integration, and planar PNG publication. Pinned 256px/2-step case: boundary cosine >=0.99914, velocity >=0.99863, final state >=0.99832, exact PNG `d439b8ce...`, 13.56 s total, 0.708 GiB peak | Production text-to-image route gated; warm-body lead | Run the full-size 50-step quality case; edit route still needs its absent source PNG |
@@ -135,8 +135,10 @@ Overgo's tokenizer total includes a large generated Unicode table.
 - Dense resident: 12 steps; recorded loss difference `1.545e-5`, final-weight
   difference `3.613e-4`; loss `3.48 -> 2.17`.
 - Dense resident scale fixture (12 layers, hidden 256, sequence 64): two pooled
-  CUDA Muon steps stay below 2 s total; live allocation peak 120.1 MiB versus
-  143.5 MiB unpooled. This is an Overgo ratchet, not adaptive parity.
+  CUDA Muon steps must stay within 5% of the same-run unpooled control; live
+  allocation peak is 120.1 MiB versus 143.5 MiB unpooled. The normalized wall
+  gate replaces a 2 s absolute threshold that the original ratchet commit also
+  misses under current device state. This is an Overgo ratchet, not adaptive parity.
 - Carbon-500M, 64 tokens, four frozen-lexical Muon steps: loss
   `4.124540 -> 2.630955`, 1.476 s/step, 4.714 GiB peak. Ratchets are
   1.8 s/step and 6 GiB. Adaptive retained 2.018 s/step and later measured a
@@ -227,7 +229,12 @@ Overgo's tokenizer total includes a large generated Unicode table.
   checkpoint-owned weights into shared GroupNorm, SiLU, Conv2D, scale and add
   operators. The reference and CUDA graph outputs each match the existing host
   block within `4.768e-7` at 128x8x8. This proves the reusable outer-block
-  device path; transformer blocks, transitions and final unpatching remain.
+  device path.
+- The first real 512-channel SimpleDiffusion middle transformer composes CP
+  factor projections, reverse split-half RoPE, dense attention, xATGLU,
+  LayerNorm, MLP projections and scaled residuals through shared tensor and
+  CUDA owners. Reference and CUDA outputs match the host block within
+  `1.490e-8`. Transitions, final unpatching and full graph residency remain.
 - Synthetic dense medium benchmark: host `85.6 s/step`; device full
   `1.89 s/step`; `45.4x`. This is an internal backend comparison, not
   adaptive_new parity and not a production-model result.

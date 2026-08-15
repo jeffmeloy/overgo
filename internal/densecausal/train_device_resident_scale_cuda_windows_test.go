@@ -136,8 +136,9 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 	if pooled.allocPeak >= unpooled.allocPeak {
 		t.Fatalf("scratch pool did not lower live-alloc peak: pooled=%d >= unpooled=%d", pooled.allocPeak, unpooled.allocPeak)
 	}
-	if pooled.wall > 2*time.Second {
-		t.Fatalf("pooled resident training wall %s exceeds 2s baseline", pooled.wall)
+	// Same-run control absorbs driver, clock and host-load drift.
+	if pooled.wall*20 > unpooled.wall*21 {
+		t.Fatalf("pooled resident training wall %s exceeds unpooled %s by more than 5%%", pooled.wall, unpooled.wall)
 	}
 }
 

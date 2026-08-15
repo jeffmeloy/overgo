@@ -49,7 +49,7 @@ func run() error {
 	}
 	if len(entries) == 0 {
 		fmt.Println("smoke-lane: 0 servable models; nothing to smoke (honest empty, not green)")
-		return nil
+		return fmt.Errorf("outcome=empty: servable matrix has no models")
 	}
 	unavailable, failed, passed := 0, 0, 0
 	for _, entry := range entries {

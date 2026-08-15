@@ -9,39 +9,21 @@ import (
 	"overgo/internal/optimizer"
 )
 
-// residency reports, for the device loop, how the layer matrix weights and their
-// Muon momentum are held across steps -- surfaced so the parity test can assert the
-// residency contract (weights + momentum uploaded ONCE, neither round-tripped
-// per step: densecausal-class ZERO per-step weight motion).
+// residency records device-loop weight and momentum movement.
 type residency struct {
-	MatrixElems     int // resident matrix weight/grad/momentum buffer size
-	WeightUploads   int // host->device matrix-weight uploads over the whole run (want 1)
-	MomentumUploads int // host->device momentum uploads over the whole run (want 1)
-	MomentumReads   int // device->host momentum reads over the whole run (want 0 until checkpoint)
-	WeightReads     int // device->host matrix-weight reads PER STEP (want 0: weights resident)
-	FinalWeightRead int // device->host matrix-weight reads at the final checkpoint (want 1)
-	GradUploads     int // host->device grad uploads (one per step: grads are recomputed each step)
+	MatrixElems     int // resident weight/gradient/momentum elements
+	WeightUploads   int // one initial upload
+	MomentumUploads int // one initial upload
+	MomentumReads   int // zero before checkpoint
+	WeightReads     int // zero per step
+	FinalWeightRead int // one checkpoint read
+	GradUploads     int // one per step
 	Steps           int
 }
 
-// TrainDeviceResident runs K steps of the SAME hybrid stack + optimizer as TrainHost,
-// but with the resident-set matrix weights, their gradients and their Muon momentum
-// living in persistent device buffers: matrix weights upload ONCE (AllocResidentF32),
-// the Muon Newton-Schulz update runs in place on those buffers every step
-// (DeviceMuonMatricesResident), and NEITHER the weight buffer NOR the momentum buffer
-// is round-tripped per step. The per-layer forward/backward now consume RESIDENT
-// weight POINTERS (HybridDecoderLayerForwardDeviceResident /
-// HybridDecoderLayerBackwardDeviceResident): each layer's matrix weights are addressed
-// as sub-pointers of dW via ResidentPtr, so the updated weights are read straight from
-// the device on the next step with NO device->host copy (WeightReads == 0). Only the
-// freshly recomputed gradients upload into the resident grad buffer once per step
-// (GradUploads) and the activations round-trip (inherent to the op-composition ops).
-// The matrix weights are pulled back to host exactly ONCE, at the final checkpoint
-// (FinalWeightRead), so m.matW/m.Weights reflect the trained model on return.
-// The vector params (norms, GDN conv/bias/scalars) take the host Sign update, exactly
-// as TrainHost, so any host<->device trajectory divergence is isolated to the device
-// Muon matrices + the device fp32 forward/backward. Returns the loss trajectory and
-// the residency accounting.
+// TrainDeviceResident runs hybrid forward/backward with resident matrix weights,
+// gradients, and Muon momentum. Matrix state crosses the host boundary only at
+// initialization and final checkpoint. Vector parameters retain the host Sign path.
 func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimizer.Config) ([]float64, residency, error) {
 	acc := residency{MatrixElems: len(m.matW), Steps: steps}
 
@@ -82,6 +64,11 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimi
 			Rows:     md.rows, Cols: md.cols,
 		}
 	}
+	residentMuon, err := optimizer.NewResidentMatrixMuonPlan(worker, updates, cfg)
+	if err != nil {
+		return nil, acc, err
+	}
+	defer residentMuon.Close()
 
 	// Per-layer RESIDENT weight-pointer bundles: each layer's matrix weights are
 	// device pointers into dW (computed once), so the forward/backward read the
@@ -160,7 +147,7 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimi
 
 		// Resident Muon: matrix weights + momentum updated in place on the device.
 		// Nothing is uploaded or downloaded here; weights AND momentum stay resident.
-		if err := optimizer.DeviceMuonMatricesResident(worker, updates, step+1, cfg); err != nil {
+		if err := residentMuon.StepMatrices(updates, step+1); err != nil {
 			return nil, acc, err
 		}
 		// NO per-step weight read-back: the next forward reads dW in place.

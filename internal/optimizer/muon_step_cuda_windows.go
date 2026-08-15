@@ -72,6 +72,25 @@ func (o *deviceOps) muonMatrixGroupResidentWithScratch(
 	mu, rate float64,
 	scratch muonScratch,
 ) error {
+	return o.muonMatrixGroupWithScratch(dW, dG, dM, rows, cols, mu, rate, scratch, o.newtonSchulz)
+}
+
+func (o *deviceOps) muonMatrixGroupResidentTrainingWithScratch(
+	dW, dG, dM driver.DevicePtr,
+	rows, cols int,
+	mu, rate float64,
+	scratch muonScratch,
+) error {
+	return o.muonMatrixGroupWithScratch(dW, dG, dM, rows, cols, mu, rate, scratch, o.newtonSchulzResident)
+}
+
+func (o *deviceOps) muonMatrixGroupWithScratch(
+	dW, dG, dM driver.DevicePtr,
+	rows, cols int,
+	mu, rate float64,
+	scratch muonScratch,
+	orthogonalize func(nsBuffers, int, int) (driver.DevicePtr, error),
+) error {
 	n := rows * cols
 	if rows <= 0 || cols <= 0 || n <= 0 || scratch.ns.dX == 0 || scratch.tmp == 0 {
 		return fmt.Errorf("muonMatrixGroupResidentWithScratch: invalid group or scratch")
@@ -91,7 +110,7 @@ func (o *deviceOps) muonMatrixGroupResidentWithScratch(
 	if err := o.add(scratch.ns.dX, dG, scratch.ns.dX, n); err != nil {
 		return err
 	}
-	final, err := o.newtonSchulz(scratch.ns, rows, cols)
+	final, err := orthogonalize(scratch.ns, rows, cols)
 	if err != nil {
 		return err
 	}
@@ -136,12 +155,13 @@ type ResidentMatrix struct {
 
 // ResidentMuonPlan retains optimizer module, cuBLAS handle, and NS scratch.
 type ResidentMuonPlan struct {
-	worker  *device.Worker
-	plan    Plan
-	config  Config
-	ops     *deviceOps
-	scratch muonScratch
-	closed  bool
+	worker           *device.Worker
+	plan             Plan
+	config           Config
+	ops              *deviceOps
+	scratch          muonScratch
+	trainingSchedule bool
+	closed           bool
 }
 
 func NewResidentMuonPlan(worker *device.Worker, plan Plan, config Config) (*ResidentMuonPlan, error) {
@@ -164,6 +184,56 @@ func NewResidentMuonPlan(worker *device.Worker, plan Plan, config Config) (*Resi
 				ops.close()
 				return err
 			}
+		}
+		session.ops, session.scratch = ops, scratch
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+// NewResidentMatrixMuonPlan retains one CUDA owner and scratch sized from the
+// largest caller-owned matrix.
+func NewResidentMatrixMuonPlan(worker *device.Worker, matrices []ResidentMatrix, config Config) (*ResidentMuonPlan, error) {
+	return newResidentMatrixMuonPlan(worker, matrices, config, false)
+}
+
+// NewResidentMatrixMuonTrainingPlan selects the matched dense-training schedule.
+func NewResidentMatrixMuonTrainingPlan(worker *device.Worker, matrices []ResidentMatrix, config Config) (*ResidentMuonPlan, error) {
+	return newResidentMatrixMuonPlan(worker, matrices, config, true)
+}
+
+func newResidentMatrixMuonPlan(worker *device.Worker, matrices []ResidentMatrix, config Config, trainingSchedule bool) (*ResidentMuonPlan, error) {
+	if worker == nil || len(matrices) == 0 {
+		return nil, errors.New("resident matrix Muon plan: invalid authority")
+	}
+	if err := config.validate(); err != nil {
+		return nil, err
+	}
+	maxMatrix, maxSquare := 0, 0
+	for _, matrix := range matrices {
+		if matrix.Weights == 0 || matrix.Gradient == 0 || matrix.Momentum == 0 || matrix.Rows <= 0 || matrix.Cols <= 0 {
+			return nil, errors.New("resident matrix Muon plan: invalid matrix")
+		}
+		if matrix.Rows > int(^uint(0)>>1)/matrix.Cols {
+			return nil, errors.New("resident matrix Muon plan: matrix size overflow")
+		}
+		maxMatrix = max(maxMatrix, matrix.Rows*matrix.Cols)
+		dimension := min(matrix.Rows, matrix.Cols)
+		maxSquare = max(maxSquare, dimension*dimension)
+	}
+	session := &ResidentMuonPlan{worker: worker, config: config, trainingSchedule: trainingSchedule}
+	err := worker.Do(context.Background(), func(state *device.State) error {
+		ops, err := newDeviceOps(state)
+		if err != nil {
+			return err
+		}
+		scratch, err := ops.allocMuonScratch(maxMatrix, maxSquare)
+		if err != nil {
+			ops.close()
+			return err
 		}
 		session.ops, session.scratch = ops, scratch
 		return nil
@@ -198,6 +268,29 @@ func (s *ResidentMuonPlan) Step(weights, gradients, momentum driver.DevicePtr, s
 	})
 }
 
+// StepMatrices updates fixed caller-owned matrices with retained scratch.
+func (s *ResidentMuonPlan) StepMatrices(matrices []ResidentMatrix, step int) error {
+	if s == nil || s.closed || s.ops == nil || len(matrices) == 0 || step <= 0 {
+		return errors.New("resident matrix Muon plan: unavailable")
+	}
+	rate := s.config.LearningRate(step)
+	return s.worker.Do(context.Background(), func(_ *device.State) error {
+		update := s.ops.muonMatrixGroupResidentWithScratch
+		if s.trainingSchedule {
+			update = s.ops.muonMatrixGroupResidentTrainingWithScratch
+		}
+		for _, matrix := range matrices {
+			if err := update(
+				matrix.Weights, matrix.Gradient, matrix.Momentum, matrix.Rows, matrix.Cols,
+				s.config.Momentum, rate, s.scratch,
+			); err != nil {
+				return err
+			}
+		}
+		return s.ops.lib.StreamSynchronize(s.ops.stream)
+	})
+}
+
 func (s *ResidentMuonPlan) Close() error {
 	if s == nil || s.closed {
 		return nil
@@ -210,29 +303,6 @@ func (s *ResidentMuonPlan) Close() error {
 		s.ops.close()
 		s.ops, s.scratch = nil, muonScratch{}
 		return nil
-	})
-}
-
-// DeviceMuonMatricesResident applies one Muon step to already-resident device
-// matrices: nothing is uploaded or downloaded. Weights, gradient and momentum stay
-// on the device across calls; the caller uploads them once at the start of training
-// and downloads only at checkpoint. This is the same Newton-Schulz update
-// muonMatrixGroupResident applies inside DeviceMuonStepPlan, lifted onto persistent
-// caller buffers so the across-step training loop never scatters/gathers weights.
-func DeviceMuonMatricesResident(worker *device.Worker, matrices []ResidentMatrix, step int, config Config) error {
-	rate := config.LearningRate(step)
-	return worker.Do(context.Background(), func(state *device.State) error {
-		ops, err := newDeviceOps(state)
-		if err != nil {
-			return err
-		}
-		defer ops.close()
-		for _, m := range matrices {
-			if err := ops.muonMatrixGroupResident(m.Weights, m.Gradient, m.Momentum, m.Rows, m.Cols, config.Momentum, rate); err != nil {
-				return err
-			}
-		}
-		return ops.lib.StreamSynchronize(ops.stream)
 	})
 }
 

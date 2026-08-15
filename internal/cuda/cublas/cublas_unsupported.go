@@ -30,6 +30,10 @@ func (l *Library) SetStream(handle Handle, stream driver.Stream) error {
 	return errors.New("cuBLAS loading is currently supported only on Windows")
 }
 
+func (l *Library) SetMathMode(handle Handle, mode MathMode) error {
+	return errors.New("cuBLAS loading is currently supported only on Windows")
+}
+
 func (l *Library) SGEMM(
 	handle Handle,
 	operationA Operation,

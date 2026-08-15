@@ -19,7 +19,7 @@ import (
 // host download/reupload in between. The only host round-trips per step are the
 // embedding lookup in, the final pre-norm stream out (for the host head / final
 // RMSNorm / softmax-CE tail), and the tail's output-gradient back in. Loss, logits
-// and every parameter gradient match LossAndGrads within fp32 tolerance.
+// and every parameter gradient match LossAndGrads within the BF16 operand floor.
 // Attention bias is not yet supported (AttnBias must be false).
 func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
@@ -52,6 +52,7 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 		}
 		layers[i] = devicemath.LayerForwardWeights{
 			InLN: l.inLN, PostLN: l.postLN, Q: l.q, K: l.k, V: l.v, O: l.o,
+			QBias: l.qb, KBias: l.kb, VBias: l.vb,
 			Gate: l.gate, Up: l.up, Down: l.down,
 		}
 	}
@@ -99,6 +100,11 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 		copy(hostmath.GradientSlot(g, prefix+"self_attn.q_proj.weight", width*d.Hidden), r.DWQ)
 		copy(hostmath.GradientSlot(g, prefix+"self_attn.k_proj.weight", kvWidth*d.Hidden), r.DWK)
 		copy(hostmath.GradientSlot(g, prefix+"self_attn.v_proj.weight", kvWidth*d.Hidden), r.DWV)
+		if d.AttnBias {
+			copy(hostmath.GradientSlot(g, prefix+"self_attn.q_proj.bias", width), r.DQBias)
+			copy(hostmath.GradientSlot(g, prefix+"self_attn.k_proj.bias", kvWidth), r.DKBias)
+			copy(hostmath.GradientSlot(g, prefix+"self_attn.v_proj.bias", kvWidth), r.DVBias)
+		}
 		copy(hostmath.GradientSlot(g, prefix+"input_layernorm.weight", d.Hidden), r.DWInLN)
 	}
 

@@ -12,10 +12,11 @@ import (
 // LayerBackwardResult bundles a layer's input-gradient and weight-gradients
 // (densecausal layout), returned by LayerBackwardResident.
 type LayerBackwardResult struct {
-	DX                   []float32
-	DWInLN, DWPostLN     []float32
-	DWQ, DWK, DWV, DWO   []float32
-	DWGate, DWUp, DWDown []float32
+	DX                     []float32
+	DWInLN, DWPostLN       []float32
+	DWQ, DWK, DWV, DWO     []float32
+	DQBias, DKBias, DVBias []float32
+	DWGate, DWUp, DWDown   []float32
 }
 
 // uploadLayerCache uploads a host forward cache into resident device buffers, so
@@ -58,6 +59,11 @@ func LayerBackwardResident(worker *device.Worker, x, dOut []float32, c LayerForw
 	r.DWQ = make([]float32, d.width*hidden)
 	r.DWK = make([]float32, d.kvWidth*hidden)
 	r.DWV = make([]float32, d.kvWidth*hidden)
+	if w.QBias != nil {
+		r.DQBias = make([]float32, d.width)
+		r.DKBias = make([]float32, d.kvWidth)
+		r.DVBias = make([]float32, d.kvWidth)
+	}
 	r.DWO = make([]float32, hidden*d.width)
 	r.DWGate = make([]float32, inter*hidden)
 	r.DWUp = make([]float32, inter*hidden)
@@ -88,6 +94,9 @@ func LayerBackwardResident(worker *device.Worker, x, dOut []float32, c LayerForw
 		if err != nil {
 			return err
 		}
+		if err := allocLayerBiasGrads(s.cudaScope, &gp, d, w.QBias != nil); err != nil {
+			return err
+		}
 		dXP, err := s.alloc(seq * hidden)
 		if err != nil {
 			return err
@@ -95,13 +104,17 @@ func LayerBackwardResident(worker *device.Worker, x, dOut []float32, c LayerForw
 		if err := ops.backwardDevice(xP, dOutP, cp, wp, gp, dXP); err != nil {
 			return err
 		}
-		return s.finish(
+		downloads := []cudaDownload{
 			cudaDownload{r.DX, dXP},
 			cudaDownload{r.DWDown, gp.dDown}, cudaDownload{r.DWGate, gp.dGate}, cudaDownload{r.DWUp, gp.dUp},
 			cudaDownload{r.DWPostLN, gp.dPostLN}, cudaDownload{r.DWO, gp.dO},
 			cudaDownload{r.DWQ, gp.dQ}, cudaDownload{r.DWK, gp.dK}, cudaDownload{r.DWV, gp.dV},
 			cudaDownload{r.DWInLN, gp.dInLN},
-		)
+		}
+		if w.QBias != nil {
+			downloads = append(downloads, cudaDownload{r.DQBias, gp.dQBias}, cudaDownload{r.DKBias, gp.dKBias}, cudaDownload{r.DVBias, gp.dVBias})
+		}
+		return s.finish(downloads...)
 	})
 	if err != nil {
 		return LayerBackwardResult{}, err

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -41,95 +40,18 @@ func TestTokenBatchesUseResumableDatasetStream(t *testing.T) {
 
 func writeArtifactDir(t *testing.T, dir string, weights map[string][]float32, shapes map[string][]int) {
 	t.Helper()
-	writeArtifactDirTyped(t, dir, weights, shapes, "llama")
-}
-
-// writeArtifactDirTyped writes the fixture with the given model_type; qwen2 is
-// the bias-bearing family (Load requires qkv biases for it), llama forbids them.
-func writeArtifactDirTyped(t *testing.T, dir string, weights map[string][]float32, shapes map[string][]int, modelType string) {
-	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := safetensors.Save(filepath.Join(dir, "model.safetensors"), weights, shapes, nil); err != nil {
 		t.Fatalf("Save fixture: %v", err)
 	}
-	config := `{"model_type":"` + modelType + `","num_attention_heads":2,"head_dim":4,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`
+	config := `{"model_type":"llama","num_attention_heads":2,"head_dim":4,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(config), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "tokenizer.json"), []byte(`{"model":{"type":"BPE"}}`), 0o644); err != nil {
 		t.Fatal(err)
-	}
-}
-
-// addAttnBias augments a dense-causal fixture with the q/k/v projection biases
-// that make densecausal.Load derive Dims.AttnBias=true -- a trait the device
-// training backend does not support. out dims match the projection out-dims
-// (Heads*HeadDim for q, KVHeads*HeadDim for k/v).
-func addAttnBias(weights map[string][]float32, shapes map[string][]int, layers, qOut, kvOut int) {
-	for layer := 0; layer < layers; layer++ {
-		prefix := "model.layers." + strconv.Itoa(layer) + ".self_attn."
-		for _, b := range []struct {
-			name string
-			out  int
-		}{
-			{prefix + "q_proj.bias", qOut},
-			{prefix + "k_proj.bias", kvOut},
-			{prefix + "v_proj.bias", kvOut},
-		} {
-			weights[b.name] = make([]float32, b.out)
-			shapes[b.name] = []int{b.out}
-		}
-	}
-}
-
-// TestTrainAttnBiasRoutedToHostAtSelection proves the CUDA training admission
-// gate: a model with attention bias -- unsupported by the device training
-// backend -- is routed to the HOST path at SELECTION time (before any device
-// session is constructed), never failing mid-session. runTraining is asked to
-// prefer the device (preferDevice=true); on GPU hardware, without the
-// selection-time predicate this model would reach resident training and error on
-// the unsupported bias. Instead it must return backend "host" with a finite
-// trajectory. Host-only: no GPU required.
-func TestTrainAttnBiasRoutedToHostAtSelection(t *testing.T) {
-	const layers = 1
-	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
-		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4,
-		KVHeads: 1, Intermediate: 16, Layers: layers, Seed: 2,
-	})
-	addAttnBias(weights, shapes, layers, 2*4 /*Heads*HeadDim*/, 1*4 /*KVHeads*HeadDim*/)
-
-	src := filepath.Join(t.TempDir(), "src")
-	writeArtifactDirTyped(t, src, weights, shapes, "qwen2")
-
-	model, err := densecausal.Load(src)
-	if err != nil {
-		t.Fatalf("Load bias fixture: %v", err)
-	}
-	if !model.Dims.AttnBias {
-		t.Fatal("fixture must derive AttnBias=true")
-	}
-	// The device backend must refuse this model at selection time.
-	if ok, reason := densecausal.DeviceTrainingSupported(model.Dims); ok {
-		t.Fatal("attention-bias model must be refused by DeviceTrainingSupported")
-	} else if reason == "" {
-		t.Fatal("refusal must carry a reason")
-	}
-
-	tokens := []int{1, 2, 3, 4, 5}
-	traj, backend, _, err := runTrainingState(model, [][]int{tokens}, 0, 0.9, true, false, nil)
-	if err != nil {
-		t.Fatalf("runTraining routed a bias model into a device session (mid-session failure): %v", err)
-	}
-	if backend != "host" {
-		t.Fatalf("backend = %q, want host (bias model must fall back at selection time)", backend)
-	}
-	if len(traj) != 1 || math.IsNaN(traj[0]) || math.IsInf(traj[0], 0) {
-		t.Fatalf("trajectory = %v, want one finite loss", traj)
-	}
-	if _, _, _, err := runTrainingState(model, [][]int{tokens}, 0, 0.9, true, true, nil); err == nil {
-		t.Fatal("frozen lexical request silently fell back to host")
 	}
 }
 

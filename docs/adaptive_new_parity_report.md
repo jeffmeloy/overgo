@@ -1,8 +1,8 @@
 # adaptive_new Parity and Performance Report
 
-Validation base: Overgo `dfcebd9` plus the final-cross training slice;
-adaptive_new `214950b3b`; reviewed 2026-08-14. adaptive_new working-tree changes
-remain observations, not landed evidence.
+Validation base: current Overgo master plus the `dense-real-models` slice;
+adaptive_new references are named per measurement; reviewed 2026-08-15.
+Uncommitted changes in either repository are not reference evidence.
 
 Scope: adaptive_new Go runtime and training code, model-native Python oracles,
 Overgo host/CUDA runtime, recipes, training paths, compatibility claims, and
@@ -11,10 +11,9 @@ read-only.
 
 ## Verdict
 
-Overgo is the better destination architecture. It already beats adaptive_new
-on several real inference paths. It does not yet match adaptive_new's training
-breadth or media breadth, and its production trainer does not yet exercise its
-best resident implementation.
+Overgo is the better destination architecture. It beats adaptive_new on several
+real inference and dense-training paths. It does not yet match adaptive_new's
+training or media breadth.
 
 - Runtime lead: compiled programs, neutral capability packages, cgo-free CUDA,
   GGUF breadth, native quantization, retained device state, smaller Python
@@ -27,11 +26,12 @@ best resident implementation.
 - Critical correction: Overgo's E4B item is marked done although the real E4B
   model has not trained end to end. Device VJPs and a synthetic hybrid trainer
   are prerequisites, not E4B closure.
-- Production dense training beats adaptive's retained Carbon causal protocol;
-  Qwen, hybrid, E4B, non-dense checkpoint adoption, and promotion remain open.
+- Production dense training beats the retained Carbon and Qwen2.5-0.5B
+  protocols; hybrid, E4B, and non-dense checkpoint adoption remain open.
 - Corpus-to-model construction now matches the pinned adaptive_new scratch
   oracle. The resident three-step program leads the matched reference on wall
-  and runtime-owned peak memory; production checkpoint/publication remains open.
+  and runtime-owned peak memory; the shared exact checkpoint is now published
+  and consumed by host and resident CUDA dense training.
 - Critical evidence gap: 34 compatibility claims are marked `implemented`, but
   the current file does not encode the doctrine's evidence tiers. All 135
   architecture entries are `experimental`; only four name a validated fixture.
@@ -117,7 +117,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` compile immutable construction, dataset, operator and Muon authority; production checkpoint/promotion breadth remains open | Core authority ported; breadth gap |
 | Model from scratch | `RunFromProviderRich` derives split, rune vocabulary, topology, initialization, batching, causal training and metrics from documents | Pinned source/config/oracle parity; direct flat initialization; shared tensor forward/VJP; resident CUDA weights, gradients, momentum, compiled graphs and pooled scratch | Matched three-step wall/peak lead; artifact publication and exact resume open |
 | Optimizer | Adaptive optimizer machinery and model-specific use; historical SGD paths remain | Matrix/vector/scalar groups use one compiled Muon path; sign, BF16-SGD and family-local production updates deleted | Muon-only production authority |
-| Dense causal LM | Retained Carbon causal CUDA at `c72b6595d`: four 31-token DNA windows, LR `1.33179e-5`, Muon 0.95, loss `8.43767 -> 7.29179`, 6.816 s loop, 11.47 GiB admitted peak | Same ordered windows and settings: loss `8.437673 -> 7.293611`, 5.05-5.13 s loop, 4.620 GiB measured peak | Matched Carbon wall/peak lead; Qwen bias path open |
+| Dense causal LM | Carbon at `c72b6595d`: four 31-token DNA windows, loss `8.43767 -> 7.29179`, 6.816 s loop, 11.47 GiB. Qwen2.5-0.5B at `de547a363`: 505 ms warm step | Carbon on the same windows: loss `8.438149 -> 7.290705-7.293696`, 1.510-1.550 s loop, 4.985 GiB. Qwen on the pinned 512-token adaptive corpus: loss `4.592842 -> 2.958702`; 552-753 ms cold execution, 469-480 ms retained warm execution, 6.592 GiB peak | Carbon wall/peak lead; Qwen retained warm-wall lead with measured peak |
 | Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train -freeze-lexical` selects the no-fallback resident contract; full-parameter mode remains explicit; `-resume` restores a validated checkpoint and advances the same stream | Carbon route and exact resume reachable |
 | Checkpoint/resume | Fine-tune evidence and persistence exist, uneven by trainer | Atomic directory publication refuses overwrite and binds weight content, full Muon state, data/augmentation RNG counters, stream position, processor/projector/codec identities, compiled run/program identities, and lineage parents. Host and resident CUDA tests match uninterrupted weights and momentum exactly. | Dense production contract complete; adoption by scratch, seq2seq, speech, and diffusion trainers remains open |
 | Qwen3.5 hybrid | Inference active; training unsupported in adaptive inventory | Host/device hybrid layer VJPs and synthetic resident stack train | Overgo primitive lead; real-model gap |
@@ -146,9 +146,13 @@ Overgo's tokenizer total includes a large generated Unicode table.
   causal protocol at `c72b6595d`; current adaptive master refuses that gate at
   admission.
 - Matched Carbon causal: identical artifact, four ordered DNA windows, LR and
-  Muon setting. Overgo loss `8.437673 -> 7.293611`, resident loop 5.05-5.13 s,
-  total public-call wall 5.89-6.55 s, peak 4.620 GiB. Adaptive loss
+  Muon setting. Repeated Overgo loss is `8.438149 -> 7.290705-7.293696`,
+  resident loop is 1.510-1.550 s, and peak is 4.985 GiB. Adaptive loss
   `8.43767 -> 7.29179`, loop 6.816 s, admitted peak 11.47 GiB.
+- Qwen2.5-0.5B: checkpoint, configuration, adaptive corpus, and execution
+  protocol are hash-gated. Two retained 512-token steps report loss
+  `4.592842 -> 2.958702`; cold execution is 552-753 ms and warm execution is
+  469-480 ms versus adaptive's 505 ms warm reference. Peak use is 6.592 GiB.
 - Hybrid resident synthetic stack: loss `15.92 -> 2.56`; host/device trajectory
   difference `2.856e-6`.
 - Needle 26M, first real GSM8K training record, three compiled device-Muon
@@ -292,8 +296,9 @@ Overgo's tokenizer total includes a large generated Unicode table.
   combined host plus runtime-owned device peak. Loss/validation maximum delta is
   `1.738e-3`; final weights, cleared gradients, and Muon momentum are also gated.
 
-These results promote matched Carbon frozen-lexical leadership. They do not
-justify Qwen, E4B, 12B, controller, or system-wide training closure.
+These results promote matched Carbon and Qwen2.5-0.5B frozen-lexical
+leadership. They do not justify E4B, 12B, controller, or system-wide training
+closure.
 
 ## Recorded Performance Scoreboard
 
@@ -311,7 +316,8 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | Wan full generation | Python baselines vary by retained report: 399.1 or 463.4 s; adaptive exact Go 795.1 s warm in the current media report | fresh 331.96 s session+denoise + 38.31 s decode = 370.27 s; stage peaks 7.875 / 10.330 GB | 20.1% wall lead vs retained 463.4 s Python; fresh matched reference rerun still open |
 | Krea 256 generation | adaptive exact Go 25.430 s | 13.804 s / 25.030 GiB; MAE 0.02401, RMSE 0.05459 | 46% wall lead; lower peak; bounded quality lead |
 | Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | 35% lead vs best Python; 60% vs adaptive; 2.2% lower peak |
-| Carbon-500M causal training | adaptive `c72b6595d`: 6.816 s loop / 11.47 GiB admitted; loss 8.43767 -> 7.29179 | 5.05-5.13 s loop / 4.620 GiB measured; loss 8.437673 -> 7.293611 | 25% loop-wall lead; about 60% lower peak |
+| Carbon-500M causal training | adaptive `c72b6595d`: 6.816 s loop / 11.47 GiB admitted; loss 8.43767 -> 7.29179 | 1.510-1.550 s loop / 4.985 GiB measured; loss 8.438149 -> 7.290705-7.293696 | At least 77.3% loop-wall lead; 56.5% lower peak |
+| Qwen2.5-0.5B causal training | adaptive `de547a363`: 505 ms retained warm step | 469-480 ms retained warm execution; 552-753 ms cold execution; 6.592 GiB peak; loss 4.592842 -> 2.958702 | At least 5.0% warm-wall lead; cold and warm lifecycles gated separately |
 | Corpus-derived scratch causal training | adaptive pinned run: 221.4-231.8 ms / 3.13-3.18 MB peak heap | 58.0-65.4 ms matched steps / 1.15-1.17 MB combined runtime peak; six lifecycle phases and complete state gated | At least 3.38x step-wall lead; at least 62% lower peak; trajectory delta `1.738e-3` |
 | SenseNova generation core | Adaptive matched reusable body 6.88 s | Overgo retained session: fresh cold body 8.117 s, warm body 4.048 s / 0.710 GiB peak; cold <=8.6 s and warm <=6.2 s gated twice | 41.1% warm-body lead at the fresh measurement; cold is slower than adaptive and is not claimed as leadership; full image route open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | 81.6-81.9 s cold; 51.0-51.5 s same-source warm; 15.624 GiB peak. Final latent cosine 0.999890-0.999966 and NRMS 0.008276-0.014835 versus adaptive. MP4 output MAE/PSNR: 0.00731-0.00753/37.29-38.29 dB versus adaptive and 0.01012-0.01024/32.31-32.58 dB versus Python. Temporal-delta ratios: 1.021 and 1.008-1.009. | Cold wall and peak lead versus adaptive; warm wall and peak lead versus Python; Python retains cold-wall lead |
@@ -349,11 +355,11 @@ and `cmd/release` still reference the deleted files. Complete caller migration
 and release-contract cleanup in the same slice; do not restore compatibility
 stubs.
 
-### P0: production training leadership is Carbon-only
+### P0: production training leadership remains narrow
 
-Carbon now has a reachable frozen-lexical CUDA contract and matched wall/peak
-lead. Repeat for Qwen, hybrid, and E4B; add held-out promotion and exact
-checkpoint/resume evidence before broader claims.
+Carbon and Qwen2.5-0.5B now have reachable frozen-lexical CUDA contracts and
+matched leadership evidence. Repeat for hybrid and E4B; add held-out promotion
+before broader claims. Exact dense checkpoint/resume evidence is already gated.
 
 ### P0: E4B training is falsely closed
 

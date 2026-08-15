@@ -125,7 +125,8 @@ checks, and unresolved limitations are in the
 | RxBrain VQA | adaptive 18.4-23.1 s / 11.97 GB | Fresh device sessions 9.529-10.273 s; 3.940 GiB approximate device peak | Exact answer; faster execution and lower measured peak memory |
 | Unlimited OCR | Native BF16 image/text reference output | Exact 277-token prompt and 200-token output prefix; 273 projected tokens; complete 29-row output differs by one coordinate/text edit; native 35-gram/128-window policy | Real-model OCR comparison passes at the stated tolerance; exact full sequence and comparable peak-memory measurement are not complete |
 | Pocket-TTS speech | Adaptive real-model generation fixture | Compiled recipe plus matching latent/EOS/PCM/WAV output; 24 kHz mono; 0.48-0.53 s repeated synthesis; 0.540-0.543 GiB peak heap | Output matches and repeated execution is faster; comparable process peak-memory measurement is not complete |
-| Carbon-500M causal Muon | adaptive 6.816 s loop / 11.47 GiB | 5.05-5.13 s / 4.620 GiB; matching loss trajectory | About 25% faster training loop and 60% lower peak memory |
+| Carbon-500M causal Muon | adaptive 6.816 s loop / 11.47 GiB | 1.510-1.550 s / 4.985 GiB; matching loss trajectory | At least 77.3% faster training loop and 56.5% lower peak memory |
+| Qwen2.5-0.5B causal Muon | adaptive 505 ms retained warm step | 469-480 ms retained warm execution; 552-753 ms cold execution; 6.592 GiB peak | At least 5.0% faster retained warm execution; lifecycle phases gated separately |
 | Corpus-derived scratch causal | adaptive 221.4-231.8 ms / 3.13-3.18 MB peak | 58.0-65.4 ms matching steps / 1.15-1.17 MB combined peak; process, driver, model, PTX/program, first-run, and repeated-run phases measured separately | At least 3.38 times faster and 62% lower peak memory for the recorded configuration |
 | Krea 2048 image | Python 97.5-135.4 s; adaptive 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | Faster execution and lower peak memory within the stated quality tolerance |
 | Wan video | Resident Python 463.4 s; adaptive 795.1 s | 370.27 s; stage peaks 7.875/10.330 GB | Faster than both references; a matching repeat run is not complete |
@@ -362,8 +363,8 @@ go run ./cmd/train \
 reference and cannot be combined with it. A non-positive `-lr` derives
 `n_params^-1/2`.
 
-The frozen-lexical Carbon configuration is the currently verified production
-training configuration. The CLI atomically publishes a new directory and
+The frozen-lexical Carbon and Qwen2.5-0.5B configurations are verified
+production training configurations. The CLI atomically publishes a new directory and
 refuses an existing target. `checkpoint.json` binds weights, Muon momentum and
 step, data and augmentation RNG counters, dataset stream position, processor,
 projector and codec identities, compiled run/program identities, and RepoDB

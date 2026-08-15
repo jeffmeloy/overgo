@@ -82,6 +82,7 @@ type deviceOps struct {
 	lib     *driver.Library
 	blas    *cublas.Library
 	handle  cublas.Handle
+	tf32    cublas.Handle
 	module  driver.Module
 	scaleFn driver.Function
 	addFn   driver.Function
@@ -104,8 +105,27 @@ func newDeviceOps(state *device.State) (*deviceOps, error) {
 		blas.Close()
 		return nil, err
 	}
+	tf32, err := blas.Create()
+	if err != nil {
+		blas.Destroy(handle)
+		blas.Close()
+		return nil, err
+	}
+	if err := blas.SetStream(tf32, state.Stream); err != nil {
+		blas.Destroy(tf32)
+		blas.Destroy(handle)
+		blas.Close()
+		return nil, err
+	}
+	if err := blas.SetMathMode(tf32, cublas.MathTF32TensorOp); err != nil {
+		blas.Destroy(tf32)
+		blas.Destroy(handle)
+		blas.Close()
+		return nil, err
+	}
 	module, err := lib.ModuleLoadData(kernel.OpsF32PTX)
 	if err != nil {
+		blas.Destroy(tf32)
 		blas.Destroy(handle)
 		blas.Close()
 		return nil, err
@@ -113,6 +133,7 @@ func newDeviceOps(state *device.State) (*deviceOps, error) {
 	scaleFn, err := lib.ModuleFunction(module, "scale_f32")
 	if err != nil {
 		lib.ModuleUnload(module)
+		blas.Destroy(tf32)
 		blas.Destroy(handle)
 		blas.Close()
 		return nil, err
@@ -120,15 +141,17 @@ func newDeviceOps(state *device.State) (*deviceOps, error) {
 	addFn, err := lib.ModuleFunction(module, "add_f32")
 	if err != nil {
 		lib.ModuleUnload(module)
+		blas.Destroy(tf32)
 		blas.Destroy(handle)
 		blas.Close()
 		return nil, err
 	}
-	return &deviceOps{lib: lib, blas: blas, handle: handle, module: module, scaleFn: scaleFn, addFn: addFn, stream: state.Stream}, nil
+	return &deviceOps{lib: lib, blas: blas, handle: handle, tf32: tf32, module: module, scaleFn: scaleFn, addFn: addFn, stream: state.Stream}, nil
 }
 
 func (o *deviceOps) close() {
 	o.lib.ModuleUnload(o.module)
+	o.blas.Destroy(o.tf32)
 	o.blas.Destroy(o.handle)
 	o.blas.Close()
 }
@@ -242,11 +265,24 @@ func (b nsBuffers) free(lib *driver.Library) {
 	freeDevicePointers(lib, b.dX, b.dXNew, b.dCX, b.dGram, b.dSq, b.dRest, b.dNorm)
 }
 
-// newtonSchulz runs normalize + the 8 stage-1 + 2 stage-2 iterations in place on
-// b.dX (already populated). Returns the device pointer holding the result (ping-
-// pong between dX and dXNew); a degenerate matrix (norm below guard) returns dX
-// unchanged.
+const residentNewtonSchulzStage1Iterations = 4
+
+// newtonSchulz matches the host 8+2 FP32 oracle.
 func (o *deviceOps) newtonSchulz(b nsBuffers, rows, cols int) (driver.DevicePtr, error) {
+	return o.runNewtonSchulz(b, rows, cols, o.handle, newtonSchulzStage1Iterations)
+}
+
+// newtonSchulzResident runs the measured 4+2 TF32 training schedule.
+func (o *deviceOps) newtonSchulzResident(b nsBuffers, rows, cols int) (driver.DevicePtr, error) {
+	return o.runNewtonSchulz(b, rows, cols, o.tf32, residentNewtonSchulzStage1Iterations)
+}
+
+func (o *deviceOps) runNewtonSchulz(
+	b nsBuffers,
+	rows, cols int,
+	handle cublas.Handle,
+	stage1Iterations int,
+) (driver.DevicePtr, error) {
 	n := rows * cols
 	dim := gramDim(rows, cols)
 	gramN := dim * dim
@@ -272,10 +308,10 @@ func (o *deviceOps) newtonSchulz(b nsBuffers, rows, cols int) (driver.DevicePtr,
 		return 0, err
 	}
 
-	iterations := newtonSchulzStage1Iterations + newtonSchulzStage2Iterations
+	iterations := stage1Iterations + newtonSchulzStage2Iterations
 	for iteration := 0; iteration < iterations; iteration++ {
 		coefficients := newtonSchulzStage1
-		if iteration >= newtonSchulzStage1Iterations {
+		if iteration >= stage1Iterations {
 			coefficients = newtonSchulzStage2
 		}
 		c0 := float32(coefficients[0])
@@ -284,17 +320,17 @@ func (o *deviceOps) newtonSchulz(b nsBuffers, rows, cols int) (driver.DevicePtr,
 
 		if tall {
 			// gram = XᵀX  [cols x cols]
-			if err := o.blas.RowMajorGEMMExF32(o.handle, true, false, int32(cols), int32(rows), int32(cols), dX, dX, b.dGram); err != nil {
+			if err := o.blas.RowMajorGEMMExF32(handle, true, false, int32(cols), int32(rows), int32(cols), dX, dX, b.dGram); err != nil {
 				return 0, err
 			}
 		} else {
 			// gram = XXᵀ  [rows x rows]
-			if err := o.blas.RowMajorGEMMExF32(o.handle, false, true, int32(rows), int32(cols), int32(rows), dX, dX, b.dGram); err != nil {
+			if err := o.blas.RowMajorGEMMExF32(handle, false, true, int32(rows), int32(cols), int32(rows), dX, dX, b.dGram); err != nil {
 				return 0, err
 			}
 		}
 		// sq = gram·gram  [dim x dim]
-		if err := o.blas.RowMajorGEMMF32(o.handle, int32(dim), int32(dim), int32(dim), b.dGram, b.dGram, b.dSq); err != nil {
+		if err := o.blas.RowMajorGEMMF32(handle, int32(dim), int32(dim), int32(dim), b.dGram, b.dGram, b.dSq); err != nil {
 			return 0, err
 		}
 		// rest = c1*gram + c2*sq
@@ -310,12 +346,12 @@ func (o *deviceOps) newtonSchulz(b nsBuffers, rows, cols int) (driver.DevicePtr,
 		// Xnew = op·rest-product + c0*X  (c0*I folded into the matmul).
 		if tall {
 			// Xnew = X·rest  [rows x cols]
-			if err := o.blas.RowMajorGEMMF32(o.handle, int32(rows), int32(cols), int32(cols), dX, b.dRest, dXNew); err != nil {
+			if err := o.blas.RowMajorGEMMF32(handle, int32(rows), int32(cols), int32(cols), dX, b.dRest, dXNew); err != nil {
 				return 0, err
 			}
 		} else {
 			// Xnew = rest·X  [rows x cols]
-			if err := o.blas.RowMajorGEMMF32(o.handle, int32(rows), int32(rows), int32(cols), b.dRest, dX, dXNew); err != nil {
+			if err := o.blas.RowMajorGEMMF32(handle, int32(rows), int32(rows), int32(cols), b.dRest, dX, dXNew); err != nil {
 				return 0, err
 			}
 		}

@@ -13,9 +13,10 @@ import (
 // slices, densecausal layout: q/o are [heads*hd, hidden], k/v are [kv*hd, hidden],
 // gate/up are [inter, hidden], down is [hidden, inter], norms are [hidden]).
 type LayerForwardWeights struct {
-	InLN, PostLN   []float32
-	Q, K, V, O     []float32
-	Gate, Up, Down []float32
+	InLN, PostLN        []float32
+	Q, K, V, O          []float32
+	QBias, KBias, VBias []float32
+	Gate, Up, Down      []float32
 }
 
 // LayerForwardCache is the resident forward's downloaded intermediates, matching
@@ -36,6 +37,19 @@ func uploadLayerWeights(s *cudaScope, w LayerForwardWeights) (layerWeightPtrs, e
 		{&p.inLN, w.InLN}, {&p.postLN, w.PostLN}, {&p.q, w.Q}, {&p.k, w.K}, {&p.v, w.V},
 		{&p.o, w.O}, {&p.gate, w.Gate}, {&p.up, w.Up}, {&p.down, w.Down},
 	} {
+		ptr, err := s.upload(spec.d)
+		if err != nil {
+			return layerWeightPtrs{}, err
+		}
+		*spec.p = ptr
+	}
+	for _, spec := range []struct {
+		p *driver.DevicePtr
+		d []float32
+	}{{&p.qBias, w.QBias}, {&p.kBias, w.KBias}, {&p.vBias, w.VBias}} {
+		if spec.d == nil {
+			continue
+		}
 		ptr, err := s.upload(spec.d)
 		if err != nil {
 			return layerWeightPtrs{}, err

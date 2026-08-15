@@ -77,15 +77,24 @@ func (m *Model) TrainDeviceResidentFrozenLexicalBatches(worker *device.Worker, b
 	return trajectory, state, err
 }
 
-// MeasureDeviceResidentFrozenLexicalBatches returns the resident loop wall;
-// admission, upload, checkpoint, and teardown stay outside that phase.
-func (m *Model) MeasureDeviceResidentFrozenLexicalBatches(worker *device.Worker, batches [][]int, baseLR, mu float64) ([]float64, time.Duration, error) {
-	var wall time.Duration
-	trajectory, err := m.trainDeviceResident(worker, batches, baseLR, mu, true, &wall, nil, nil)
-	return trajectory, wall, err
+// DeviceTrainingMeasurement separates synchronized resident phases.
+type DeviceTrainingMeasurement struct {
+	ForwardBackward      time.Duration
+	HostUpdate           time.Duration
+	DeviceUpdate         time.Duration
+	Loop                 time.Duration
+	ForwardBackwardSteps []time.Duration
+	DeviceUpdateSteps    []time.Duration
 }
 
-func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, loopWall *time.Duration, resume *TrainState, stateOut *TrainState) ([]float64, error) {
+// MeasureDeviceResidentFrozenLexicalBatches excludes setup and checkpoint.
+func (m *Model) MeasureDeviceResidentFrozenLexicalBatches(worker *device.Worker, batches [][]int, baseLR, mu float64) ([]float64, DeviceTrainingMeasurement, error) {
+	var measurement DeviceTrainingMeasurement
+	trajectory, err := m.trainDeviceResident(worker, batches, baseLR, mu, true, &measurement, nil, nil)
+	return trajectory, measurement, err
+}
+
+func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, measurement *DeviceTrainingMeasurement, resume *TrainState, stateOut *TrainState) ([]float64, error) {
 	if len(batches) == 0 || len(batches[0]) < 2 {
 		return nil, fmt.Errorf("densecausal: need at least one batch with two tokens")
 	}
@@ -164,15 +173,21 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 	for i := 0; i < d.Layers; i++ {
 		p := fmt.Sprintf("model.layers.%d.", i)
 		offsets[i] = devicemath.LayerTensorOffsets{
-			InLN:   offset[p+"input_layernorm.weight"] - layerStart,
-			PostLN: offset[p+"post_attention_layernorm.weight"] - layerStart,
-			Q:      offset[p+"self_attn.q_proj.weight"] - layerStart,
-			K:      offset[p+"self_attn.k_proj.weight"] - layerStart,
-			V:      offset[p+"self_attn.v_proj.weight"] - layerStart,
-			O:      offset[p+"self_attn.o_proj.weight"] - layerStart,
-			Gate:   offset[p+"mlp.gate_proj.weight"] - layerStart,
-			Up:     offset[p+"mlp.up_proj.weight"] - layerStart,
-			Down:   offset[p+"mlp.down_proj.weight"] - layerStart,
+			InLN:     offset[p+"input_layernorm.weight"] - layerStart,
+			PostLN:   offset[p+"post_attention_layernorm.weight"] - layerStart,
+			Q:        offset[p+"self_attn.q_proj.weight"] - layerStart,
+			K:        offset[p+"self_attn.k_proj.weight"] - layerStart,
+			V:        offset[p+"self_attn.v_proj.weight"] - layerStart,
+			O:        offset[p+"self_attn.o_proj.weight"] - layerStart,
+			Gate:     offset[p+"mlp.gate_proj.weight"] - layerStart,
+			Up:       offset[p+"mlp.up_proj.weight"] - layerStart,
+			Down:     offset[p+"mlp.down_proj.weight"] - layerStart,
+			AttnBias: d.AttnBias,
+		}
+		if d.AttnBias {
+			offsets[i].QBias = offset[p+"self_attn.q_proj.bias"] - layerStart
+			offsets[i].KBias = offset[p+"self_attn.k_proj.bias"] - layerStart
+			offsets[i].VBias = offset[p+"self_attn.v_proj.bias"] - layerStart
 		}
 	}
 
@@ -239,8 +254,38 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		}
 		defer func() { _ = devicemath.FreeResident(worker, dFinalW, dFinalG, dFinalM) }()
 	}
+	updates := make([]optimizer.ResidentMatrix, len(mats))
+	for i, matrix := range mats {
+		updates[i] = optimizer.ResidentMatrix{
+			Weights:  devicemath.ResidentPtr(dW, matrix.relOff),
+			Gradient: devicemath.ResidentPtr(dG, matrix.relOff),
+			Momentum: devicemath.ResidentPtr(dM, matrix.relOff),
+			Rows:     matrix.rows, Cols: matrix.cols,
+		}
+	}
+	if frozenLexical {
+		updates = append(updates, optimizer.ResidentMatrix{
+			Weights: dFinalW, Gradient: dFinalG, Momentum: dFinalM, Rows: d.Hidden, Cols: 1,
+		})
+	}
+	residentMuon, err := optimizer.NewResidentMatrixMuonTrainingPlan(worker, updates, config)
+	if err != nil {
+		return nil, err
+	}
+	defer residentMuon.Close()
 
 	invF32 := dtype.Float64SliceToFloat32(hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim))
+	var frozenSession *devicemath.FrozenCausalTrainingSession
+	if frozenLexical {
+		frozenSession, err = devicemath.NewFrozenCausalTrainingSession(
+			worker, dW, dG, offsets, invF32, dHead, dFinalW, dFinalG,
+			len(tokens), d.Vocab, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, d.RMSEps,
+		)
+		if err != nil {
+			return nil, err
+		}
+		defer frozenSession.Close()
+	}
 	trajectory := make([]float64, 0, steps)
 
 	loopStarted := time.Now()
@@ -261,13 +306,19 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 
 		// Current host-owned norm vectors (from the flat weights buffer) to sync into
 		// the resident weight buffer before the forward reads them.
-		normW := make([]devicemath.LayerNormPair, d.Layers)
+		vectorWeights := make([]devicemath.LayerTrainVectors, d.Layers)
 		for i := 0; i < d.Layers; i++ {
 			p := fmt.Sprintf("model.layers.%d.", i)
 			io, po := offset[p+"input_layernorm.weight"], offset[p+"post_attention_layernorm.weight"]
-			normW[i] = devicemath.LayerNormPair{
+			vectorWeights[i] = devicemath.LayerTrainVectors{
 				InLN:   weights[io : io+d.Hidden],
 				PostLN: weights[po : po+d.Hidden],
+			}
+			if d.AttnBias {
+				qo, ko, vo := offset[p+"self_attn.q_proj.bias"], offset[p+"self_attn.k_proj.bias"], offset[p+"self_attn.v_proj.bias"]
+				vectorWeights[i].QBias = weights[qo : qo+d.Heads*d.HeadDim]
+				vectorWeights[i].KBias = weights[ko : ko+d.KVHeads*d.HeadDim]
+				vectorWeights[i].VBias = weights[vo : vo+d.KVHeads*d.HeadDim]
 			}
 		}
 
@@ -292,28 +343,36 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		}
 
 		var dxEmbed []float32
-		var normGrads []devicemath.LayerNormPair
+		var vectorGrads []devicemath.LayerTrainVectors
+		forwardStarted := time.Now()
 		if frozenLexical {
-			loss, normGrads, err = devicemath.StackForwardBackwardResidentFrozenCausal(
-				worker, tokens, dW, dG, offsets, normW, invF32, dHead, dFinalW, dFinalG,
-				seq, d.Vocab, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, d.RMSEps,
-			)
+			loss, vectorGrads, err = frozenSession.Run(tokens, vectorWeights)
 		} else {
-			dxEmbed, normGrads, err = devicemath.StackForwardBackwardResidentWeights(
-				worker, embeds, dW, dG, offsets, normW, invF32,
+			dxEmbed, vectorGrads, err = devicemath.StackForwardBackwardResidentWeights(
+				worker, embeds, dW, dG, offsets, vectorWeights, invF32,
 				seq, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, d.RMSEps, tail,
 			)
 		}
 		if err != nil {
 			return nil, err
 		}
+		if measurement != nil {
+			elapsed := time.Since(forwardStarted)
+			measurement.ForwardBackward += elapsed
+			measurement.ForwardBackwardSteps = append(measurement.ForwardBackwardSteps, elapsed)
+		}
 		trajectory = append(trajectory, loss)
 
 		// Assemble the host gradient buffer for the non-matrix groups only.
 		for i := 0; i < d.Layers; i++ {
 			p := fmt.Sprintf("model.layers.%d.", i)
-			copy(hostmath.GradientSlot(g, p+"input_layernorm.weight", d.Hidden), normGrads[i].InLN)
-			copy(hostmath.GradientSlot(g, p+"post_attention_layernorm.weight", d.Hidden), normGrads[i].PostLN)
+			copy(hostmath.GradientSlot(g, p+"input_layernorm.weight", d.Hidden), vectorGrads[i].InLN)
+			copy(hostmath.GradientSlot(g, p+"post_attention_layernorm.weight", d.Hidden), vectorGrads[i].PostLN)
+			if d.AttnBias {
+				copy(hostmath.GradientSlot(g, p+"self_attn.q_proj.bias", d.Heads*d.HeadDim), vectorGrads[i].QBias)
+				copy(hostmath.GradientSlot(g, p+"self_attn.k_proj.bias", d.KVHeads*d.HeadDim), vectorGrads[i].KBias)
+				copy(hostmath.GradientSlot(g, p+"self_attn.v_proj.bias", d.KVHeads*d.HeadDim), vectorGrads[i].VBias)
+			}
 		}
 		if !frozenLexical {
 			gradEmbed := hostmath.GradientSlot(g, "model.embed_tokens.weight", len(embed))
@@ -333,25 +392,21 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		}
 
 		// Host Muon: non-layer groups. Device Muon: resident layer matrices.
+		hostUpdateStarted := time.Now()
 		stepResult := opt.StepGroups(func(gr optimizer.Group) bool {
 			return !isLayerMatrixName(gr.Name) && !(frozenLexical && (gr.Name == m.headName() || gr.Name == "model.norm.weight"))
 		})
-		updates := make([]optimizer.ResidentMatrix, len(mats))
-		for i, mt := range mats {
-			updates[i] = optimizer.ResidentMatrix{
-				Weights:  devicemath.ResidentPtr(dW, mt.relOff),
-				Gradient: devicemath.ResidentPtr(dG, mt.relOff),
-				Momentum: devicemath.ResidentPtr(dM, mt.relOff),
-				Rows:     mt.rows, Cols: mt.cols,
-			}
+		if measurement != nil {
+			measurement.HostUpdate += time.Since(hostUpdateStarted)
 		}
-		if frozenLexical {
-			updates = append(updates, optimizer.ResidentMatrix{
-				Weights: dFinalW, Gradient: dFinalG, Momentum: dFinalM, Rows: d.Hidden, Cols: 1,
-			})
-		}
-		if err := optimizer.DeviceMuonMatricesResident(worker, updates, stepResult.Step, config); err != nil {
+		deviceUpdateStarted := time.Now()
+		if err := residentMuon.StepMatrices(updates, stepResult.Step); err != nil {
 			return nil, err
+		}
+		if measurement != nil {
+			elapsed := time.Since(deviceUpdateStarted)
+			measurement.DeviceUpdate += elapsed
+			measurement.DeviceUpdateSteps = append(measurement.DeviceUpdateSteps, elapsed)
 		}
 
 		// Scatter the updated host-owned (non-matrix) weights back into the model for
@@ -365,8 +420,8 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 			off += n
 		}
 	}
-	if loopWall != nil {
-		*loopWall = time.Since(loopStarted)
+	if measurement != nil {
+		measurement.Loop = time.Since(loopStarted)
 	}
 
 	// Checkpoint: pull the resident matrix weights to host, then scatter everything.

@@ -28,6 +28,7 @@ const (
 	kernelBroadcastDivideF32
 	kernelBroadcastGateAddF32
 	kernelBroadcastMultiplyF32
+	kernelCausalSoftmaxBatchedF32
 	kernelCausalSoftmaxF32
 	kernelClampF32
 	kernelConcatF32
@@ -140,6 +141,7 @@ const (
 	kernelMultiplyF32
 	kernelPixelShuffle2dF32
 	kernelQuantizeQ80InputF32
+	kernelReduceGqaHeadsF32
 	kernelReluF32
 	kernelReluBackwardF32
 	kernelReluSquaredF32
@@ -217,6 +219,7 @@ var kernelFunctionNames = [...]string{
 	"broadcast_divide_f32",
 	"broadcast_gate_add_f32",
 	"broadcast_multiply_f32",
+	"causal_softmax_batched_f32",
 	"causal_softmax_f32",
 	"clamp_f32",
 	"concat_f32",
@@ -329,6 +332,7 @@ var kernelFunctionNames = [...]string{
 	"multiply_f32",
 	"pixel_shuffle_2d_f32",
 	"quantize_q8_0_input_f32",
+	"reduce_gqa_heads_f32",
 	"relu_f32",
 	"relu_backward_f32",
 	"relu_squared_f32",
@@ -405,6 +409,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	15,
 	6,
 	15,
+	4,
 	3,
 	5,
 	8,
@@ -517,6 +522,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	7,
 	3,
+	6,
 	3,
 	4,
 	3,

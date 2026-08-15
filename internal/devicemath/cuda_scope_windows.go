@@ -34,8 +34,12 @@ type cudaDownload struct {
 
 type cudaBLAS struct {
 	*cudaScope
-	library *cublas.Library
-	handle  cublas.Handle
+	library                             *cublas.Library
+	handle                              cublas.Handle
+	bf16Left, bf16Right                 driver.DevicePtr
+	bf16LeftCapacity, bf16RightCapacity int
+	bf16Operands                        bool
+	frozenTail                          *frozenCausalTailBuffers
 }
 
 func withCUDA(worker *device.Worker, run func(*cudaScope) error) error {
@@ -51,21 +55,43 @@ func withCUDABLAS(
 	run func(*cudaBLAS) error,
 ) error {
 	return withCUDA(worker, func(scope *cudaScope) (result error) {
-		blas, err := cublas.Open()
+		session, err := openCUDABLAS(scope)
 		if err != nil {
 			return err
 		}
-		defer func() { result = errors.Join(result, blas.Close()) }()
-		handle, err := blas.Create()
-		if err != nil {
-			return err
-		}
-		defer func() { result = errors.Join(result, blas.Destroy(handle)) }()
-		if err := blas.SetStream(handle, scope.state.Stream); err != nil {
-			return err
-		}
-		return run(&cudaBLAS{cudaScope: scope, library: blas, handle: handle})
+		defer func() { result = errors.Join(result, session.closeBLAS()) }()
+		return run(session)
 	})
+}
+
+func openCUDABLAS(scope *cudaScope) (*cudaBLAS, error) {
+	blas, err := cublas.Open()
+	if err != nil {
+		return nil, err
+	}
+	handle, err := blas.Create()
+	if err != nil {
+		_ = blas.Close()
+		return nil, err
+	}
+	if err := blas.SetStream(handle, scope.state.Stream); err != nil {
+		_ = blas.Destroy(handle)
+		_ = blas.Close()
+		return nil, err
+	}
+	return &cudaBLAS{cudaScope: scope, library: blas, handle: handle}, nil
+}
+
+func (s *cudaBLAS) close() error {
+	if s == nil {
+		return nil
+	}
+	return errors.Join(s.cudaScope.close(), s.closeBLAS())
+}
+
+func (s *cudaBLAS) closeBLAS() error {
+	s.closeBF16()
+	return errors.Join(s.library.Destroy(s.handle), s.library.Close())
 }
 
 func (s *cudaBLAS) gemm(
@@ -77,9 +103,106 @@ func (s *cudaBLAS) gemm(
 		rows > math.MaxInt32 || inner > math.MaxInt32 || columns > math.MaxInt32 {
 		return errors.New("CUDA GEMM dimensions exceed the ABI")
 	}
+	if s.bf16Operands {
+		return s.gemmBF16(transposeLeft, transposeRight, rows, inner, columns, left, right, output)
+	}
 	return s.library.RowMajorGEMMExF32(
 		s.handle, transposeLeft, transposeRight,
 		int32(rows), int32(inner), int32(columns), left, right, output,
+	)
+}
+
+func (s *cudaBLAS) gemmBF16(transposeLeft, transposeRight bool, rows, inner, columns int, left, right, output driver.DevicePtr) error {
+	leftCount, valid := checkedProduct(rows, inner)
+	if !valid {
+		return errors.New("CUDA GEMM left operand size overflow")
+	}
+	rightCount, valid := checkedProduct(inner, columns)
+	if !valid {
+		return errors.New("CUDA GEMM right operand size overflow")
+	}
+	left16, err := s.ensureBF16(&s.bf16Left, &s.bf16LeftCapacity, leftCount)
+	if err != nil {
+		return err
+	}
+	right16, err := s.ensureBF16(&s.bf16Right, &s.bf16RightCapacity, rightCount)
+	if err != nil {
+		return err
+	}
+	convert, err := s.function("f32_to_bf16")
+	if err != nil {
+		return err
+	}
+	for _, item := range []struct {
+		source, target driver.DevicePtr
+		count          int
+	}{{left, left16, leftCount}, {right, right16, rightCount}} {
+		countU := uint32(item.count)
+		if err := s.launch1D(convert, countU, unsafe.Pointer(&item.source), unsafe.Pointer(&item.target), unsafe.Pointer(&countU)); err != nil {
+			return err
+		}
+	}
+	return s.library.RowMajorGEMMExBF16(
+		s.handle, transposeLeft, transposeRight,
+		int32(rows), int32(inner), int32(columns), left16, right16, output,
+	)
+}
+
+func checkedProduct(left, right int) (int, bool) {
+	product, valid := checked.Mul64(uint64(left), uint64(right))
+	if !valid {
+		return 0, false
+	}
+	return checked.Int(product)
+}
+
+func (s *cudaBLAS) ensureBF16(pointer *driver.DevicePtr, capacity *int, count int) (driver.DevicePtr, error) {
+	if count <= *capacity {
+		return *pointer, nil
+	}
+	bytes, valid := checked.Bytes(uint64(count), 2)
+	if !valid {
+		return 0, errors.New("CUDA BF16 staging size overflow")
+	}
+	next, err := s.state.Driver.MemAlloc(bytes)
+	if err != nil {
+		return 0, err
+	}
+	if *pointer != 0 {
+		if err := s.state.Driver.MemFree(*pointer); err != nil {
+			s.state.Driver.MemFree(next)
+			return 0, err
+		}
+	}
+	*pointer, *capacity = next, count
+	return next, nil
+}
+
+func (s *cudaBLAS) closeBF16() {
+	for _, pointer := range []driver.DevicePtr{s.bf16Left, s.bf16Right} {
+		if pointer != 0 {
+			_ = s.state.Driver.MemFree(pointer)
+		}
+	}
+}
+
+func (s *cudaBLAS) gemmStrided(
+	transposeLeft, transposeRight bool,
+	rows, inner, columns, batch int,
+	left driver.DevicePtr, leftStride int,
+	right driver.DevicePtr, rightStride int,
+	output driver.DevicePtr, outputStride int,
+) error {
+	for _, value := range []int{rows, inner, columns, batch} {
+		if value <= 0 || value > math.MaxInt32 {
+			return errors.New("CUDA batched GEMM dimensions exceed the ABI")
+		}
+	}
+	return s.library.RowMajorGEMMStridedBatchedF32(
+		s.handle, transposeLeft, transposeRight,
+		int32(rows), int32(inner), int32(columns),
+		left, int64(leftStride), right, int64(rightStride),
+		output, int64(outputStride), int32(batch),
 	)
 }
 

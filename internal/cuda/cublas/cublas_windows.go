@@ -20,6 +20,7 @@ type Library struct {
 	create            *syscall.Proc
 	destroy           *syscall.Proc
 	setStream         *syscall.Proc
+	setMathMode       *syscall.Proc
 	sgemm             *syscall.Proc
 	sgemmStridedBatch *syscall.Proc
 	gemmEx            *syscall.Proc
@@ -49,6 +50,7 @@ func Open() (*Library, error) {
 		{"cublasCreate_v2", &lib.create},
 		{"cublasDestroy_v2", &lib.destroy},
 		{"cublasSetStream_v2", &lib.setStream},
+		{"cublasSetMathMode", &lib.setMathMode},
 		{"cublasSgemm_v2", &lib.sgemm},
 		{"cublasSgemmStridedBatched", &lib.sgemmStridedBatch},
 		{"cublasGemmEx", &lib.gemmEx},
@@ -128,6 +130,11 @@ func (l *Library) Destroy(handle Handle) error {
 func (l *Library) SetStream(handle Handle, stream driver.Stream) error {
 	status, _, _ := l.setStream.Call(uintptr(handle), uintptr(stream))
 	return result("cublasSetStream_v2", status)
+}
+
+func (l *Library) SetMathMode(handle Handle, mode MathMode) error {
+	status, _, _ := l.setMathMode.Call(uintptr(handle), uintptr(mode))
+	return result("cublasSetMathMode", status)
 }
 
 // SGEMMStridedBatched: column-major strided-batched F32 GEMM

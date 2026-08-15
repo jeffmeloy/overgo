@@ -2951,6 +2951,57 @@ extern "C" __global__ void causal_softmax_f32(
     }
 }
 
+// causal_softmax_batched_f32: independent square causal matrices.
+extern "C" __global__ void causal_softmax_batched_f32(
+        const float * scores,
+        float * probabilities,
+        unsigned int batches,
+        unsigned int rows) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int count = batches * rows;
+    if (index >= count) return;
+    const unsigned int row = index % rows;
+    const unsigned int offset = index * rows;
+    const unsigned int keys = row + 1;
+    float maximum = scores[offset];
+    for (unsigned int column = 1; column < keys; ++column) {
+        maximum = fmaxf(maximum, scores[offset + column]);
+    }
+    float sum = 0.0f;
+    for (unsigned int column = 0; column < keys; ++column) {
+        const float value = expf(scores[offset + column] - maximum);
+        probabilities[offset + column] = value;
+        sum += value;
+    }
+    for (unsigned int column = 0; column < keys; ++column) {
+        probabilities[offset + column] /= sum;
+    }
+    for (unsigned int column = keys; column < rows; ++column) {
+        probabilities[offset + column] = 0.0f;
+    }
+}
+
+// reduce_gqa_heads_f32: sum query-head gradients into KV-head storage.
+extern "C" __global__ void reduce_gqa_heads_f32(
+        const float * expanded,
+        float * reduced,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        unsigned int elements_per_head,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const unsigned int key_value_head = index / elements_per_head;
+    const unsigned int element = index % elements_per_head;
+    const unsigned int group = query_heads / key_value_heads;
+    float sum = 0.0f;
+    for (unsigned int member = 0; member < group; ++member) {
+        const unsigned int head = key_value_head * group + member;
+        sum += expanded[head * elements_per_head + element];
+    }
+    reduced[index] = sum;
+}
+
 extern "C" __global__ void mul_mat_f32(
         const float * left,
         const float * right,

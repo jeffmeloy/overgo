@@ -12,7 +12,7 @@ import (
 
 // TestDeviceLossAndGradsMatchesHost gates the full-model device backward against
 // host LossAndGrads on the tiny model: loss, logits and every parameter gradient
-// must agree within fp32 tolerance.
+// must agree within the promoted BF16-operand, FP32-accumulation floor.
 func TestDeviceLossAndGradsMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
@@ -33,7 +33,7 @@ func TestDeviceLossAndGradsMatchesHost(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if d := math.Abs(lossHost - lossDev); d > 1e-5 {
+	if d := math.Abs(lossHost - lossDev); d > 5e-5 {
 		t.Fatalf("loss host %.6f device %.6f (|d|=%.3e)", lossHost, lossDev, d)
 	}
 	maxAbs := func(a, b []float32) float64 {
@@ -45,7 +45,7 @@ func TestDeviceLossAndGradsMatchesHost(t *testing.T) {
 		}
 		return m
 	}
-	if v := maxAbs(logitsHost, logitsDev); v > 1e-4 {
+	if v := maxAbs(logitsHost, logitsDev); v > 1e-3 {
 		t.Fatalf("logits host vs device %.3e", v)
 	}
 	if len(gHost) != len(gDev) {
@@ -65,4 +65,49 @@ func TestDeviceLossAndGradsMatchesHost(t *testing.T) {
 		}
 	}
 	t.Logf("loss |d| ok; worst weight grad %.3e over %d tensors", worst, len(gHost))
+}
+
+func TestDeviceQwen2BiasLossAndGradsMatchHost(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	golden := readQwen2Golden(t)
+	model := modelFromGolden(t, golden)
+	wantLoss, wantLogits, wantGrads, err := model.LossAndGrads(golden.Tokens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotLoss, gotLogits, gotGrads, err := model.deviceLossAndGrads(worker, golden.Tokens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if delta := math.Abs(wantLoss - gotLoss); delta > 5e-5 {
+		t.Fatalf("Qwen2 loss delta %.3e", delta)
+	}
+	if delta := maxSliceDelta(wantLogits, gotLogits); delta > 1e-3 {
+		t.Fatalf("Qwen2 logits delta %.3e", delta)
+	}
+	for name, want := range wantGrads {
+		got, ok := gotGrads[name]
+		if !ok {
+			t.Fatalf("Qwen2 device gradient %q absent", name)
+		}
+		if delta := maxSliceDelta(want, got); delta > 2e-3 {
+			t.Fatalf("Qwen2 gradient %q delta %.3e", name, delta)
+		}
+	}
+}
+
+func maxSliceDelta(left, right []float32) float64 {
+	if len(left) != len(right) {
+		return math.Inf(1)
+	}
+	var worst float64
+	for index := range left {
+		worst = max(worst, math.Abs(float64(left[index]-right[index])))
+	}
+	return worst
 }

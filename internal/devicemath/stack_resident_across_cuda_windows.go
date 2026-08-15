@@ -11,22 +11,21 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// LayerTensorOffsets are the element offsets of one pre-norm layer's nine weight
+// LayerTensorOffsets are one pre-norm layer's tensor offsets
 // tensors within a flat device buffer (the same offsets serve the weight buffer and
 // the gradient buffer, which share a layout). The caller (densecausal) computes
 // these from its sorted optimizer plan; the resident stack resolves them against the
 // flat weight/grad base pointers.
 type LayerTensorOffsets struct {
 	InLN, PostLN, Q, K, V, O, Gate, Up, Down int
+	QBias, KBias, VBias                      int
+	AttnBias                                 bool
 }
 
-// LayerNormPair carries a layer's two norm-vector slices (input_layernorm and
-// post_attention_layernorm). Used both to feed the current host-owned norm weights
-// into the resident buffer before the forward and to return the norm-vector
-// gradients to the host after the backward -- the norm vectors take a sign update
-// (no device kernel), so they stay host-owned while the matrix weights are resident.
-type LayerNormPair struct {
-	InLN, PostLN []float32
+// LayerTrainVectors carries host-updated layer vectors.
+type LayerTrainVectors struct {
+	InLN, PostLN        []float32
+	QBias, KBias, VBias []float32
 }
 
 func ptrAt(base driver.DevicePtr, elems int) driver.DevicePtr {
@@ -53,30 +52,36 @@ func StackForwardBackwardResidentWeights(
 	embeds []float32,
 	dW, dG driver.DevicePtr,
 	offsets []LayerTensorOffsets,
-	normWeights []LayerNormPair,
+	vectorWeights []LayerTrainVectors,
 	invFreq []float32,
 	seq, hidden, heads, kvHeads, hd, inter int,
 	rmsEps float64,
 	tail func(final []float32) ([]float32, error),
-) ([]float32, []LayerNormPair, error) {
+) ([]float32, []LayerTrainVectors, error) {
 	d := newLayerDims(seq, hidden, heads, kvHeads, hd, inter, rmsEps)
 	nL := len(offsets)
 	if nL == 0 || heads%kvHeads != 0 || len(embeds) != seq*hidden || len(invFreq) != hd/2 {
 		return nil, nil, fmt.Errorf("StackForwardBackwardResidentWeights: shape mismatch (layers=%d seq=%d hidden=%d heads=%d kv=%d hd=%d)", nL, seq, hidden, heads, kvHeads, hd)
 	}
-	if len(normWeights) != nL {
-		return nil, nil, fmt.Errorf("StackForwardBackwardResidentWeights: normWeights %d != layers %d", len(normWeights), nL)
+	if len(vectorWeights) != nL {
+		return nil, nil, fmt.Errorf("StackForwardBackwardResidentWeights: vectorWeights %d != layers %d", len(vectorWeights), nL)
 	}
-	for i, nw := range normWeights {
-		if len(nw.InLN) != hidden || len(nw.PostLN) != hidden {
-			return nil, nil, fmt.Errorf("StackForwardBackwardResidentWeights: layer %d norm vector length mismatch", i)
+	for i, vectors := range vectorWeights {
+		biasOK := !offsets[i].AttnBias || len(vectors.QBias) == d.width && len(vectors.KBias) == d.kvWidth && len(vectors.VBias) == d.kvWidth
+		if len(vectors.InLN) != hidden || len(vectors.PostLN) != hidden || !biasOK {
+			return nil, nil, fmt.Errorf("StackForwardBackwardResidentWeights: layer %d vector length mismatch", i)
 		}
 	}
 
 	dxEmbed := make([]float32, seq*hidden)
-	normGrads := make([]LayerNormPair, nL)
-	for i := range normGrads {
-		normGrads[i] = LayerNormPair{InLN: make([]float32, hidden), PostLN: make([]float32, hidden)}
+	vectorGrads := make([]LayerTrainVectors, nL)
+	for i := range vectorGrads {
+		vectorGrads[i] = LayerTrainVectors{InLN: make([]float32, hidden), PostLN: make([]float32, hidden)}
+		if offsets[i].AttnBias {
+			vectorGrads[i].QBias = make([]float32, d.width)
+			vectorGrads[i].KBias = make([]float32, d.kvWidth)
+			vectorGrads[i].VBias = make([]float32, d.kvWidth)
+		}
 	}
 
 	err := withCUDABLAS(worker, func(s *cudaBLAS) error {
@@ -84,7 +89,7 @@ func StackForwardBackwardResidentWeights(
 		if err != nil {
 			return err
 		}
-		wp, gp, err := residentLayerPointers(s, dW, dG, offsets, normWeights, d.hidden)
+		wp, gp, err := residentLayerPointers(s, dW, dG, offsets, vectorWeights, d)
 		if err != nil {
 			return err
 		}
@@ -96,7 +101,11 @@ func StackForwardBackwardResidentWeights(
 		downloads := make([]cudaDownload, 0, nL*2+1)
 		for i := 0; i < nL; i++ {
 			downloads = append(downloads,
-				cudaDownload{normGrads[i].InLN, gp[i].dInLN}, cudaDownload{normGrads[i].PostLN, gp[i].dPostLN})
+				cudaDownload{vectorGrads[i].InLN, gp[i].dInLN}, cudaDownload{vectorGrads[i].PostLN, gp[i].dPostLN})
+			if offsets[i].AttnBias {
+				downloads = append(downloads,
+					cudaDownload{vectorGrads[i].QBias, gp[i].dQBias}, cudaDownload{vectorGrads[i].KBias, gp[i].dKBias}, cudaDownload{vectorGrads[i].VBias, gp[i].dVBias})
+			}
 		}
 		downloads = append(downloads, cudaDownload{dxEmbed, dOutP})
 		return s.finish(downloads...)
@@ -104,7 +113,7 @@ func StackForwardBackwardResidentWeights(
 	if err != nil {
 		return nil, nil, err
 	}
-	return dxEmbed, normGrads, nil
+	return dxEmbed, vectorGrads, nil
 }
 
 // ResidentSlice names a host buffer and the element offset of its device home

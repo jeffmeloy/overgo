@@ -16,6 +16,8 @@ type ComputeType int32
 
 type GemmAlgorithm int32
 
+type MathMode int32
+
 const (
 	OperationNone      Operation     = 0
 	OperationTranspose Operation     = 1
@@ -23,6 +25,7 @@ const (
 	DataBF16           DataType      = 14
 	ComputeF32         ComputeType   = 68
 	GemmDefault        GemmAlgorithm = -1
+	MathTF32TensorOp   MathMode      = 3
 )
 
 // RowMajorGEMMF32: row-major C[m,n] = A[m,k]*B[k,n].
@@ -34,6 +37,15 @@ func (l *Library) RowMajorGEMMF32(handle Handle, m, k, n int32, a, b, c driver.D
 // Transpose flags avoid materialized X^T*X and X*X^T inputs.
 // cuBLAS uses the equivalent swapped column-major product.
 func (l *Library) RowMajorGEMMExF32(handle Handle, transA, transB bool, m, k, n int32, a, b, c driver.DevicePtr) error {
+	return l.rowMajorGEMMEx(handle, transA, transB, m, k, n, a, DataF32, b, DataF32, c)
+}
+
+// RowMajorGEMMExBF16 computes from BF16 operands into FP32 output.
+func (l *Library) RowMajorGEMMExBF16(handle Handle, transA, transB bool, m, k, n int32, a, b, c driver.DevicePtr) error {
+	return l.rowMajorGEMMEx(handle, transA, transB, m, k, n, a, DataBF16, b, DataBF16, c)
+}
+
+func (l *Library) rowMajorGEMMEx(handle Handle, transA, transB bool, m, k, n int32, a driver.DevicePtr, typeA DataType, b driver.DevicePtr, typeB DataType, c driver.DevicePtr) error {
 	opA, lda := OperationNone, k
 	if transA {
 		opA, lda = OperationTranspose, m
@@ -45,10 +57,41 @@ func (l *Library) RowMajorGEMMExF32(handle Handle, transA, transB bool, m, k, n 
 	return l.GEMMEx(
 		handle, opB, opA,
 		n, m, k, 1,
-		b, DataF32, ldb,
-		a, DataF32, lda,
+		b, typeB, ldb,
+		a, typeA, lda,
 		0, c, DataF32, n,
 		ComputeF32, GemmDefault,
+	)
+}
+
+// RowMajorGEMMStridedBatchedF32 computes independent row-major products.
+func (l *Library) RowMajorGEMMStridedBatchedF32(
+	handle Handle,
+	transA, transB bool,
+	m, k, n int32,
+	a driver.DevicePtr,
+	strideA int64,
+	b driver.DevicePtr,
+	strideB int64,
+	c driver.DevicePtr,
+	strideC int64,
+	batch int32,
+) error {
+	opA, lda := OperationNone, k
+	if transA {
+		opA, lda = OperationTranspose, m
+	}
+	opB, ldb := OperationNone, n
+	if transB {
+		opB, ldb = OperationTranspose, k
+	}
+	return l.SGEMMStridedBatched(
+		handle, opB, opA,
+		n, m, k, 1,
+		b, ldb, strideB,
+		a, lda, strideA,
+		0, c, n, strideC,
+		batch,
 	)
 }
 

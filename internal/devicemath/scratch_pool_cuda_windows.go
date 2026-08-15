@@ -50,18 +50,19 @@ func (a *scratchArena) alloc(n int) (driver.DevicePtr, error) {
 
 func (a *scratchArena) reset() { a.cur = 0 }
 
-// forwardScratchElems counts forwardDevice's transient scratch buffers
-// (qHM,kHM,vHM,attnHM,attnOut,mlp,scores,pBuf) -- the arena's forward size.
+// forwardScratchElems counts forwardDevice's attnOut and MLP buffers.
 // Single owner; drift is caught loudly by scratchArena.alloc overflow.
 func forwardScratchElems(d layerDims) int {
-	return 2*d.seq*d.width + 2*d.seq*d.kvWidth + 2*d.seq*d.hidden + 2*d.seq*d.seq
+	return 2 * d.seq * d.hidden
 }
 
 // backwardScratchElems counts backwardDevice's transient scratch buffers:
-// 4*(seq*inter) + 9*(seq*hidden) + 5*(seq*width) + 6*(seq*kvWidth)
-// + 4*(seq*seq) + (seq*hd). Single owner; drift caught by arena overflow.
+// 4*(seq*inter) + 9*(seq*hidden) + 7*(seq*width) + 6*(seq*kvWidth)
+// + 4*(heads*seq*seq) + optional bias-transpose (seq*width).
+// The arena reserves the optional term so biased and unbiased layers share one
+// capacity contract.
 func backwardScratchElems(d layerDims) int {
-	return 4*d.seq*d.inter + 9*d.seq*d.hidden + 5*d.seq*d.width + 6*d.seq*d.kvWidth + 4*d.seq*d.seq + d.seq*d.hd
+	return 4*d.seq*d.inter + 9*d.seq*d.hidden + 8*d.seq*d.width + 6*d.seq*d.kvWidth + 4*d.heads*d.seq*d.seq
 }
 
 // maxScratchElems sizes the shared arena to one layer's larger pass (backward).
@@ -84,59 +85,6 @@ func SetScratchPoolEnabled(on bool) bool {
 	prev := scratchPoolEnabled
 	scratchPoolEnabled = on
 	return prev
-}
-
-// --- Peak device-byte probe -------------------------------------------------
-
-// PeakProbe records the real device high-water of a resident stack run by
-// sampling cuMemGetInfo at each layer-op boundary (the local allocation maxima).
-// PeakBytes is the driver-reported memory consumed between session start and the
-// busiest moment -- real GPU bytes, not an accounting sum.
-type PeakProbe struct {
-	startFree uint64
-	minFree   uint64
-	inited    bool
-}
-
-// PeakBytes returns the peak device bytes the probed run held live.
-func (p *PeakProbe) PeakBytes() uint64 {
-	if p == nil || !p.inited || p.startFree < p.minFree {
-		return 0
-	}
-	return p.startFree - p.minFree
-}
-
-// activePeakProbe is the measurement seam (nil in production). runStack samples
-// it at the top and after each layer op.
-var activePeakProbe *PeakProbe
-
-// SetPeakProbe installs (nil clears) the run's peak probe and returns the prior
-// probe. A measurement seam for the peak before/after test.
-func SetPeakProbe(p *PeakProbe) *PeakProbe {
-	prev := activePeakProbe
-	activePeakProbe = p
-	return prev
-}
-
-// sampleFree records free memory into the active probe, initialising startFree
-// on first call. Cheap: cuMemGetInfo reflects synchronous cuMemAlloc immediately.
-func (o *layerOps) sampleFree() error {
-	p := activePeakProbe
-	if p == nil {
-		return nil
-	}
-	free, _, err := o.s.state.Driver.MemInfo()
-	if err != nil {
-		return err
-	}
-	if !p.inited {
-		p.startFree, p.minFree, p.inited = free, free, true
-		return nil
-	}
-	if free < p.minFree {
-		p.minFree = free
-	}
-	return nil
 }
 
 // --- Measured allocator granularity + derived resident capacity -------------

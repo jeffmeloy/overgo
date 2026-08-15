@@ -24,7 +24,9 @@ var stackFnNames = func() []string {
 }()
 
 func (w LayerForwardWeights) shapeOK(d layerDims) bool {
-	return len(w.InLN) == d.hidden && len(w.PostLN) == d.hidden &&
+	biasOK := w.QBias == nil && w.KBias == nil && w.VBias == nil ||
+		len(w.QBias) == d.width && len(w.KBias) == d.kvWidth && len(w.VBias) == d.kvWidth
+	return biasOK && len(w.InLN) == d.hidden && len(w.PostLN) == d.hidden &&
 		len(w.Q) == d.width*d.hidden && len(w.K) == d.kvWidth*d.hidden && len(w.V) == d.kvWidth*d.hidden &&
 		len(w.O) == d.hidden*d.width && len(w.Gate) == d.inter*d.hidden && len(w.Up) == d.inter*d.hidden &&
 		len(w.Down) == d.hidden*d.inter
@@ -67,6 +69,11 @@ func StackForwardBackwardResident(
 		grads[i].DWQ = make([]float32, d.width*hidden)
 		grads[i].DWK = make([]float32, d.kvWidth*hidden)
 		grads[i].DWV = make([]float32, d.kvWidth*hidden)
+		if layers[i].QBias != nil {
+			grads[i].DQBias = make([]float32, d.width)
+			grads[i].DKBias = make([]float32, d.kvWidth)
+			grads[i].DVBias = make([]float32, d.kvWidth)
+		}
 		grads[i].DWO = make([]float32, hidden*d.width)
 		grads[i].DWGate = make([]float32, inter*hidden)
 		grads[i].DWUp = make([]float32, inter*hidden)
@@ -89,6 +96,9 @@ func StackForwardBackwardResident(
 			if gp[i], err = allocLayerGrads(s.cudaScope, d); err != nil {
 				return err
 			}
+			if err = allocLayerBiasGrads(s.cudaScope, &gp[i], d, layers[i].QBias != nil); err != nil {
+				return err
+			}
 		}
 		dOutP, err := ops.runStack(embeds, wp, gp, tail)
 		if err != nil {
@@ -102,6 +112,10 @@ func StackForwardBackwardResident(
 				cudaDownload{grads[i].DWO, gp[i].dO}, cudaDownload{grads[i].DWGate, gp[i].dGate},
 				cudaDownload{grads[i].DWUp, gp[i].dUp}, cudaDownload{grads[i].DWDown, gp[i].dDown},
 			)
+			if layers[i].QBias != nil {
+				downloads = append(downloads,
+					cudaDownload{grads[i].DQBias, gp[i].dQBias}, cudaDownload{grads[i].DKBias, gp[i].dKBias}, cudaDownload{grads[i].DVBias, gp[i].dVBias})
+			}
 		}
 		downloads = append(downloads, cudaDownload{dxEmbed, dOutP})
 		return s.finish(downloads...)
@@ -142,68 +156,61 @@ func (o *layerOps) runStack(embeds []float32, wp []layerWeightPtrs, gp []layerGr
 	})
 }
 
-// runStackDevice keeps both boundary tensors in the active CUDA session.
-func (o *layerOps) runStackDevice(input driver.DevicePtr, wp []layerWeightPtrs, gp []layerGradPtrs, tail func(driver.DevicePtr) (driver.DevicePtr, error)) (driver.DevicePtr, error) {
-	d := o.d
-	nL := len(wp)
-	seqHidden := d.seq * d.hidden
+type residentStackBuffers struct {
+	xIn []driver.DevicePtr
+	cp  []layerCachePtrs
+	dX  []driver.DevicePtr
+}
 
-	// Scratch pool: one arena, sized to a single layer's larger pass, reused by
-	// every layer's transient forward/backward scratch so peak scratch stays
-	// O(1 layer). The activation caches and residuals below persist per-layer.
-	if scratchPoolEnabled {
-		capElems := maxScratchElems(d)
-		base, err := o.s.alloc(capElems)
+// runStackDevice retains the compiled stack buffers for its session.
+func (o *layerOps) runStackDevice(input driver.DevicePtr, wp []layerWeightPtrs, gp []layerGradPtrs, tail func(driver.DevicePtr) (driver.DevicePtr, error)) (driver.DevicePtr, error) {
+	d, nL := o.d, len(wp)
+	seqHidden := d.seq * d.hidden
+	if scratchPoolEnabled && o.arena == nil {
+		base, err := o.s.alloc(maxScratchElems(d))
 		if err != nil {
 			return 0, err
 		}
-		o.arena = &scratchArena{base: base, capElems: capElems}
+		o.arena = &scratchArena{base: base, capElems: maxScratchElems(d)}
 	}
-
-	xIn := make([]driver.DevicePtr, nL+1)
+	if o.stack == nil {
+		o.stack = &residentStackBuffers{xIn: make([]driver.DevicePtr, nL+1), cp: make([]layerCachePtrs, nL), dX: make([]driver.DevicePtr, nL)}
+		var err error
+		for i := range nL {
+			if o.stack.cp[i], err = allocLayerCache(o.s.cudaScope, d); err != nil {
+				return 0, err
+			}
+			if o.stack.xIn[i+1], err = o.s.alloc(seqHidden); err != nil {
+				return 0, err
+			}
+			if o.stack.dX[i], err = o.s.alloc(seqHidden); err != nil {
+				return 0, err
+			}
+		}
+	}
+	xIn, cp := o.stack.xIn, o.stack.cp
 	xIn[0] = input
-	var err error
-	if err := o.sampleFree(); err != nil { // baseline before per-layer allocations
-		return 0, err
-	}
-	cp := make([]layerCachePtrs, nL)
-	for i := 0; i < nL; i++ {
-		if cp[i], err = allocLayerCache(o.s.cudaScope, d); err != nil {
-			return 0, err
-		}
-		if xIn[i+1], err = o.s.alloc(seqHidden); err != nil {
-			return 0, err
-		}
+	for i := range nL {
 		if err := o.forwardDevice(xIn[i], wp[i], cp[i], xIn[i+1]); err != nil {
 			return 0, err
 		}
 		if o.arena != nil {
-			o.arena.reset() // forward scratch of this layer is dead; rewind
-		}
-		if err := o.sampleFree(); err != nil {
-			return 0, err
+			o.arena.reset()
 		}
 	}
-
 	dOutP, err := tail(xIn[nL])
 	if err != nil {
 		return 0, err
 	}
 	for i := nL - 1; i >= 0; i-- {
-		dXP, err := o.s.alloc(seqHidden)
-		if err != nil {
-			return 0, err
-		}
+		dXP := o.stack.dX[i]
 		if err := o.backwardDevice(xIn[i], dOutP, cp[i], wp[i], gp[i], dXP); err != nil {
 			return 0, err
 		}
 		if o.arena != nil {
-			o.arena.reset() // backward scratch of this layer is dead; rewind
+			o.arena.reset()
 		}
-		if err := o.sampleFree(); err != nil {
-			return 0, err
-		}
-		dOutP = dXP // becomes the previous layer's output gradient
+		dOutP = dXP
 	}
 	return dOutP, nil
 }

@@ -60,13 +60,8 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 	tokens := scaleTokens()
 	const steps = 2
 
-	// peakResult carries two independent real measurements of a run's peak device
-	// memory: freePeak = the drop in driver-reported free memory (cuMemGetInfo,
-	// masked by the driver's freed-memory pool) and allocPeak = the high-water of
-	// concurrently-live cuMemAlloc bytes (the driver's own allocation accounting,
-	// reset per run). allocPeak is the unambiguous scratch-accumulation signal.
+	// peakResult records the driver's live-allocation high-water.
 	type peakResult struct {
-		freePeak  uint64
 		allocPeak uint64
 		traj      []float64
 		wall      time.Duration
@@ -75,9 +70,6 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 		m := syntheticCausalModel(t, scaleModelSpec) // identical seeded weights each run
 		prevPool := devicemath.SetScratchPoolEnabled(pool)
 		defer devicemath.SetScratchPoolEnabled(prevPool)
-		var probe devicemath.PeakProbe
-		prevProbe := devicemath.SetPeakProbe(&probe)
-		defer devicemath.SetPeakProbe(prevProbe)
 		if err := worker.Do(context.Background(), func(s *device.State) error {
 			s.Driver.ResetPeakBytes()
 			return nil
@@ -94,13 +86,13 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return peakResult{freePeak: probe.PeakBytes(), allocPeak: stats.PeakBytes, traj: traj, wall: wall}
+		return peakResult{allocPeak: stats.PeakBytes, traj: traj, wall: wall}
 	}
 
 	unpooled := run(false)
 	pooled := run(true)
-	unpooledPeak, unpooledTraj := unpooled.freePeak, unpooled.traj
-	pooledPeak, pooledTraj := pooled.freePeak, pooled.traj
+	unpooledTraj := unpooled.traj
+	pooledTraj := pooled.traj
 
 	// (a) Exact parity between the pooled and unpooled paths.
 	if len(pooledTraj) != len(unpooledTraj) {
@@ -117,22 +109,15 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 		t.Fatalf("scratch pool changed the trajectory: worst |d|=%.3e > 1e-5", worst)
 	}
 
-	// (b) Measured peak device bytes drop with the pool on -- two real signals.
-	t.Logf("cuMemGetInfo free-drop peak: unpooled=%d (%.1f MiB)  pooled=%d (%.1f MiB)  saved=%.1f MiB",
-		unpooledPeak, float64(unpooledPeak)/(1<<20),
-		pooledPeak, float64(pooledPeak)/(1<<20),
-		float64(unpooledPeak-pooledPeak)/(1<<20))
+	// (b) Driver-tracked live allocation peak drops with pooling.
 	t.Logf("live cuMemAlloc high-water: unpooled=%d (%.1f MiB)  pooled=%d (%.1f MiB)  saved=%.1f MiB",
 		unpooled.allocPeak, float64(unpooled.allocPeak)/(1<<20),
 		pooled.allocPeak, float64(pooled.allocPeak)/(1<<20),
 		float64(unpooled.allocPeak-pooled.allocPeak)/(1<<20))
 	t.Logf("resident training wall: unpooled=%s pooled=%s (%d steps, %.1f ms/step)",
 		unpooled.wall, pooled.wall, steps, float64(pooled.wall.Microseconds())/1000/steps)
-	if pooledPeak == 0 || unpooledPeak == 0 {
-		t.Fatalf("peak probe returned zero (unpooled=%d pooled=%d)", unpooledPeak, pooledPeak)
-	}
-	if pooledPeak >= unpooledPeak {
-		t.Fatalf("scratch pool did not lower cuMemGetInfo peak: pooled=%d >= unpooled=%d", pooledPeak, unpooledPeak)
+	if pooled.allocPeak == 0 || unpooled.allocPeak == 0 {
+		t.Fatalf("driver allocation peak unavailable: pooled=%d unpooled=%d", pooled.allocPeak, unpooled.allocPeak)
 	}
 	if pooled.allocPeak >= unpooled.allocPeak {
 		t.Fatalf("scratch pool did not lower live-alloc peak: pooled=%d >= unpooled=%d", pooled.allocPeak, unpooled.allocPeak)

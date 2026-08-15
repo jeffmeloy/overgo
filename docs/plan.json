@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "exact-production-resume",
-          "title": "Make production checkpoints atomic and non-overwriting; persist weights, Muon state, RNG/augmentation state, modality processors/codecs, dataset cursor, compiled identities, and RepoDB lineage; resume exactly at accumulation boundaries",
-          "status": "open",
-          "verify": "go test ./cmd/train ./internal/trainingprogram -run '^TestProductionCheckpointResumeExact$' -count=1 -v"
-        },
-        {
           "id": "dense-real-models",
           "title": "Train Carbon and Qwen2.5 from identical adaptive checkpoints and ordered corpora; gradient/update/trajectory parity, then beat adaptive wall and peak",
           "status": "open",

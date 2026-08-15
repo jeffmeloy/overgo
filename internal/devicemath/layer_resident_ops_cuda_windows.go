@@ -11,8 +11,8 @@ import (
 
 // Resident layer kernel sets.
 var (
-	layerForwardFnNames  = []string{"weighted_rms_norm_f32", "rope_half_f32", "scale_f32", "add_f32", "causal_softmax_f32", "silu_f32", "multiply_f32", "head_major_f32", "head_major_inverse_f32"}
-	layerBackwardFnNames = []string{"multiply_f32", "add_f32", "scale_f32", "silu_backward_f32", "rms_norm_backward_f32", "rope_half_backward_f32", "softmax_backward_f32", "causal_softmax_f32", "head_major_f32", "head_major_inverse_f32"}
+	layerForwardFnNames  = []string{"weighted_rms_norm_f32", "rope_half_f32", "scale_f32", "add_f32", "broadcast_add_f32", "attention_online_f32", "silu_f32", "multiply_f32"}
+	layerBackwardFnNames = []string{"multiply_f32", "add_f32", "scale_f32", "silu_backward_f32", "rms_norm_backward_f32", "rope_half_backward_f32", "softmax_backward_f32", "causal_softmax_batched_f32", "reduce_gqa_heads_f32", "head_major_f32", "head_major_inverse_f32", "transpose_2d_f32", "sum_rows_f32"}
 )
 
 // layerDims: validated shape and derived widths.
@@ -39,6 +39,7 @@ type layerOps struct {
 	invP driver.DevicePtr
 	// arena: optional stack-wide scratch.
 	arena *scratchArena
+	stack *residentStackBuffers
 }
 
 // newLayerOps loads the named kernels and uploads invFreq once for the session.
@@ -107,6 +108,53 @@ func (o *layerOps) add(a, b, out driver.DevicePtr, n int) error {
 	return o.s.launchVector3(o.fns["add_f32"], a, b, out, n)
 }
 
+func (o *layerOps) addRowBias(values, bias driver.DevicePtr, rows, width int) error {
+	if bias == 0 {
+		return nil
+	}
+	count := uint32(rows * width)
+	widthU, rowsU, one := uint32(width), uint32(rows), uint32(1)
+	return o.s.launch1D(o.fns["broadcast_add_f32"], count,
+		unsafe.Pointer(&values), unsafe.Pointer(&bias), unsafe.Pointer(&values), unsafe.Pointer(&count),
+		unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&one), unsafe.Pointer(&one),
+		unsafe.Pointer(&widthU), unsafe.Pointer(&one), unsafe.Pointer(&one), unsafe.Pointer(&one),
+		unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&one))
+}
+
+func (o *layerOps) sumColumns(values, transpose, output driver.DevicePtr, rows, width int) error {
+	count, rowsU, widthU := uint32(rows*width), uint32(rows), uint32(width)
+	if err := o.s.launch1D(o.fns["transpose_2d_f32"], count,
+		unsafe.Pointer(&values), unsafe.Pointer(&transpose), unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&count)); err != nil {
+		return err
+	}
+	return o.s.launch1D(o.fns["sum_rows_f32"], widthU,
+		unsafe.Pointer(&transpose), unsafe.Pointer(&output), unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU))
+}
+
+func (o *layerOps) causalAttention(query, key, value, output driver.DevicePtr) error {
+	d := o.d
+	nilPointer := driver.DevicePtr(0)
+	keyWidth, valueWidth := uint32(d.hd), uint32(d.hd)
+	queryHeads, keyValueHeads := uint32(d.heads), uint32(d.kvHeads)
+	queryTokens, keyValueTokens, sequences := uint32(d.seq), uint32(d.seq), uint32(1)
+	scale, softcap, alibi := float32(1), float32(0), float32(0)
+	causal, queryStart, window, symmetric := uint32(1), uint32(0), uint32(0), uint32(0)
+	relativeBuckets, relativeBidirectional := uint32(0), uint32(0)
+	return o.s.state.Driver.LaunchKernel(
+		o.fns["attention_online_f32"],
+		driver.Dim3{X: uint32(d.heads * d.seq), Y: 1, Z: 1},
+		driver.Dim3{X: deviceBlockThreads, Y: 1, Z: 1}, 0, o.s.state.Stream,
+		[]unsafe.Pointer{
+			unsafe.Pointer(&query), unsafe.Pointer(&key), unsafe.Pointer(&value),
+			unsafe.Pointer(&nilPointer), unsafe.Pointer(&nilPointer), unsafe.Pointer(&nilPointer), unsafe.Pointer(&nilPointer), unsafe.Pointer(&output),
+			unsafe.Pointer(&keyWidth), unsafe.Pointer(&valueWidth), unsafe.Pointer(&queryHeads), unsafe.Pointer(&keyValueHeads),
+			unsafe.Pointer(&queryTokens), unsafe.Pointer(&keyValueTokens), unsafe.Pointer(&sequences),
+			unsafe.Pointer(&scale), unsafe.Pointer(&softcap), unsafe.Pointer(&alibi), unsafe.Pointer(&causal), unsafe.Pointer(&queryStart),
+			unsafe.Pointer(&window), unsafe.Pointer(&symmetric), unsafe.Pointer(&relativeBuckets), unsafe.Pointer(&relativeBidirectional),
+		},
+	)
+}
+
 func (o *layerOps) mul(a, b, out driver.DevicePtr, n int) error {
 	return o.s.launchVector3(o.fns["multiply_f32"], a, b, out, n)
 }
@@ -131,6 +179,7 @@ func (o *layerOps) rmsBackward(xIn, wIn, dy, dxOut, dscaleOut driver.DevicePtr) 
 // read by both the forward and the backward within a session).
 type layerWeightPtrs struct {
 	inLN, postLN, q, k, v, o, gate, up, down driver.DevicePtr
+	qBias, kBias, vBias                      driver.DevicePtr
 }
 
 // layerCachePtrs are the forward's activation intermediates, device-resident. The
@@ -142,6 +191,7 @@ type layerCachePtrs struct {
 // layerGradPtrs are the backward's weight-gradient outputs (densecausal layout).
 type layerGradPtrs struct {
 	dInLN, dPostLN, dQ, dK, dV, dO, dGate, dUp, dDown driver.DevicePtr
+	dQBias, dKBias, dVBias                            driver.DevicePtr
 }
 
 // layerCacheElemSpec is the element count of each of the 11 resident activation
@@ -194,6 +244,23 @@ func allocLayerGrads(s *cudaScope, d layerDims) (layerGradPtrs, error) {
 	return g, nil
 }
 
+func allocLayerBiasGrads(s *cudaScope, g *layerGradPtrs, d layerDims, biased bool) error {
+	if !biased {
+		return nil
+	}
+	for _, spec := range []struct {
+		p *driver.DevicePtr
+		n int
+	}{{&g.dQBias, d.width}, {&g.dKBias, d.kvWidth}, {&g.dVBias, d.kvWidth}} {
+		pointer, err := s.alloc(spec.n)
+		if err != nil {
+			return err
+		}
+		*spec.p = pointer
+	}
+	return nil
+}
+
 // forwardDevice runs one pre-norm layer forward entirely on device: reads the
 // input residual `in` (never mutated) and the resident weights `w`, writes the
 // activation cache `c` and the advanced residual `xOut`. Transient attention/MLP
@@ -202,22 +269,6 @@ func allocLayerGrads(s *cudaScope, d layerDims) (layerGradPtrs, error) {
 func (o *layerOps) forwardDevice(in driver.DevicePtr, w layerWeightPtrs, c layerCachePtrs, xOut driver.DevicePtr) error {
 	d := o.d
 	al := func(n int) (driver.DevicePtr, error) { return o.scratch(n) }
-	qHM, err := al(d.seq * d.width)
-	if err != nil {
-		return err
-	}
-	kHM, err := al(d.seq * d.kvWidth)
-	if err != nil {
-		return err
-	}
-	vHM, err := al(d.seq * d.kvWidth)
-	if err != nil {
-		return err
-	}
-	attnHM, err := al(d.seq * d.width)
-	if err != nil {
-		return err
-	}
 	attnOut, err := al(d.seq * d.hidden)
 	if err != nil {
 		return err
@@ -226,15 +277,6 @@ func (o *layerOps) forwardDevice(in driver.DevicePtr, w layerWeightPtrs, c layer
 	if err != nil {
 		return err
 	}
-	scores, err := al(d.seq * d.seq)
-	if err != nil {
-		return err
-	}
-	pBuf, err := al(d.seq * d.seq)
-	if err != nil {
-		return err
-	}
-
 	// xn = RMSNorm(in, inLN)
 	if err := o.rms(in, w.inLN, c.xn); err != nil {
 		return err
@@ -249,6 +291,15 @@ func (o *layerOps) forwardDevice(in driver.DevicePtr, w layerWeightPtrs, c layer
 	if err := o.s.gemm(false, true, d.seq, d.hidden, d.kvWidth, c.xn, w.v, c.v); err != nil {
 		return err
 	}
+	if err := o.addRowBias(c.qScaled, w.qBias, d.seq, d.width); err != nil {
+		return err
+	}
+	if err := o.addRowBias(c.kRoped, w.kBias, d.seq, d.kvWidth); err != nil {
+		return err
+	}
+	if err := o.addRowBias(c.v, w.vBias, d.seq, d.kvWidth); err != nil {
+		return err
+	}
 	// rope on q/k, then fold the score scale into q (only q is scaled).
 	if err := o.rope(c.qScaled, d.heads, ropeForward); err != nil {
 		return err
@@ -260,34 +311,7 @@ func (o *layerOps) forwardDevice(in driver.DevicePtr, w layerWeightPtrs, c layer
 		return err
 	}
 	// attention core: head-major, per-head causal-softmax scores, p·v.
-	if err := o.headMajor(c.qScaled, qHM, d.heads, headMajorPack); err != nil {
-		return err
-	}
-	if err := o.headMajor(c.kRoped, kHM, d.kvHeads, headMajorPack); err != nil {
-		return err
-	}
-	if err := o.headMajor(c.v, vHM, d.kvHeads, headMajorPack); err != nil {
-		return err
-	}
-	hs := d.seq * d.hd
-	for h := 0; h < d.heads; h++ {
-		kv := h / d.group
-		qh := o.off(qHM, h*hs)
-		kh, vh := o.off(kHM, kv*hs), o.off(vHM, kv*hs)
-		attnh := o.off(attnHM, h*hs)
-		if err := o.s.gemm(false, true, d.seq, d.hd, d.seq, qh, kh, scores); err != nil {
-			return err
-		}
-		rowsCausal := uint32(d.seq)
-		if err := o.s.launch1D(o.fns["causal_softmax_f32"], rowsCausal,
-			unsafe.Pointer(&scores), unsafe.Pointer(&pBuf), unsafe.Pointer(&rowsCausal)); err != nil {
-			return err
-		}
-		if err := o.s.gemm(false, false, d.seq, d.seq, d.hd, pBuf, vh, attnh); err != nil {
-			return err
-		}
-	}
-	if err := o.headMajor(attnHM, c.attnCore, d.heads, headMajorUnpack); err != nil {
+	if err := o.causalAttention(c.qScaled, c.kRoped, c.v, c.attnCore); err != nil {
 		return err
 	}
 	// xOut = in + o(attnCore); h2 = xOut (residual after attention).
@@ -350,8 +374,14 @@ func (o *layerOps) backwardDevice(x, dOut driver.DevicePtr, c layerCachePtrs, w 
 	qHM, kHM, vHM := al(d.seq*d.width), al(d.seq*d.kvWidth), al(d.seq*d.kvWidth)
 	dAttnHM := al(d.seq * d.width)
 	dqHM, dkHM, dvHM := al(d.seq*d.width), al(d.seq*d.kvWidth), al(d.seq*d.kvWidth)
-	scores, pBuf, dp, ds, tmpHd := al(d.seq*d.seq), al(d.seq*d.seq), al(d.seq*d.seq), al(d.seq*d.seq), al(d.seq*d.hd)
+	attentionMatrices := d.heads * d.seq * d.seq
+	scores, pBuf, dp, ds := al(attentionMatrices), al(attentionMatrices), al(attentionMatrices), al(attentionMatrices)
+	dkExpanded, dvExpanded := al(d.seq*d.width), al(d.seq*d.width)
 	dq, dk, dv := al(d.seq*d.width), al(d.seq*d.kvWidth), al(d.seq*d.kvWidth)
+	dBiasTranspose := driver.DevicePtr(0)
+	if w.qBias != 0 {
+		dBiasTranspose = al(d.seq * d.width)
+	}
 	dXnQ, dXnK, dXnV, dXn := al(d.seq*d.hidden), al(d.seq*d.hidden), al(d.seq*d.hidden), al(d.seq*d.hidden)
 	dInn := al(d.seq * d.hidden)
 	if err != nil {
@@ -419,52 +449,50 @@ func (o *layerOps) backwardDevice(x, dOut driver.DevicePtr, c layerCachePtrs, w 
 	if err := o.headMajor(dAttnCore, dAttnHM, d.heads, headMajorPack); err != nil {
 		return err
 	}
-	if err := o.s.state.Driver.MemsetD32Async(dkHM, 0, uint64(d.seq*d.kvWidth), o.s.state.Stream); err != nil {
+	hs, ss := d.seq*d.hd, d.seq*d.seq
+	for kv := 0; kv < d.kvHeads; kv++ {
+		firstHead := kv * d.group
+		qh, dOuth := o.off(qHM, firstHead*hs), o.off(dAttnHM, firstHead*hs)
+		kh, vh := o.off(kHM, kv*hs), o.off(vHM, kv*hs)
+		scoreGroup, dpGroup := o.off(scores, firstHead*ss), o.off(dp, firstHead*ss)
+		if err := o.s.gemmStrided(false, true, d.seq, d.hd, d.seq, d.group, qh, hs, kh, 0, scoreGroup, ss); err != nil {
+			return err
+		}
+		if err := o.s.gemmStrided(false, true, d.seq, d.hd, d.seq, d.group, dOuth, hs, vh, 0, dpGroup, ss); err != nil {
+			return err
+		}
+	}
+	batchesU, seqU := uint32(d.heads), uint32(d.seq)
+	if err := o.s.launch1D(o.fns["causal_softmax_batched_f32"], batchesU*seqU,
+		unsafe.Pointer(&scores), unsafe.Pointer(&pBuf), unsafe.Pointer(&batchesU), unsafe.Pointer(&seqU)); err != nil {
 		return err
 	}
-	if err := o.s.state.Driver.MemsetD32Async(dvHM, 0, uint64(d.seq*d.kvWidth), o.s.state.Stream); err != nil {
+	rowsU := batchesU * seqU
+	if err := o.s.launch1D(o.fns["softmax_backward_f32"], rowsU,
+		unsafe.Pointer(&pBuf), unsafe.Pointer(&dp), unsafe.Pointer(&ds), unsafe.Pointer(&rowsU), unsafe.Pointer(&seqU)); err != nil {
 		return err
 	}
-	hs := d.seq * d.hd
-	for h := 0; h < d.heads; h++ {
-		kv := h / d.group
-		qh, dOuth, dqh := o.off(qHM, h*hs), o.off(dAttnHM, h*hs), o.off(dqHM, h*hs)
-		kh, vh, dkh, dvh := o.off(kHM, kv*hs), o.off(vHM, kv*hs), o.off(dkHM, kv*hs), o.off(dvHM, kv*hs)
-		// p_h = causal_softmax(qh·khᵀ)
-		if err := o.s.gemm(false, true, d.seq, d.hd, d.seq, qh, kh, scores); err != nil {
+	if err := o.s.gemmStrided(true, false, d.seq, d.seq, d.hd, d.heads, pBuf, ss, dAttnHM, hs, dvExpanded, hs); err != nil {
+		return err
+	}
+	if err := o.s.gemmStrided(true, false, d.seq, d.seq, d.hd, d.heads, ds, ss, qHM, hs, dkExpanded, hs); err != nil {
+		return err
+	}
+	for kv := 0; kv < d.kvHeads; kv++ {
+		firstHead := kv * d.group
+		if err := o.s.gemmStrided(false, false, d.seq, d.seq, d.hd, d.group,
+			o.off(ds, firstHead*ss), ss, o.off(kHM, kv*hs), 0, o.off(dqHM, firstHead*hs), hs); err != nil {
 			return err
 		}
-		rc := uint32(d.seq)
-		if err := o.s.launch1D(o.fns["causal_softmax_f32"], rc, unsafe.Pointer(&scores), unsafe.Pointer(&pBuf), unsafe.Pointer(&rc)); err != nil {
-			return err
-		}
-		// dp = dOuth·vhᵀ ; ds = softmax_backward(p, dp)
-		if err := o.s.gemm(false, true, d.seq, d.hd, d.seq, dOuth, vh, dp); err != nil {
-			return err
-		}
-		rowsU, dU := uint32(d.seq), uint32(d.seq)
-		if err := o.s.launch1D(o.fns["softmax_backward_f32"], rowsU,
-			unsafe.Pointer(&pBuf), unsafe.Pointer(&dp), unsafe.Pointer(&ds), unsafe.Pointer(&rowsU), unsafe.Pointer(&dU)); err != nil {
-			return err
-		}
-		// dV_h += pᵀ·dOuth
-		if err := o.s.gemm(true, false, d.seq, d.seq, d.hd, pBuf, dOuth, tmpHd); err != nil {
-			return err
-		}
-		if err := o.add(dvh, tmpHd, dvh, hs); err != nil {
-			return err
-		}
-		// dQ_h = ds·kh (unique head, write)
-		if err := o.s.gemm(false, false, d.seq, d.seq, d.hd, ds, kh, dqh); err != nil {
-			return err
-		}
-		// dK_h += dsᵀ·qh
-		if err := o.s.gemm(true, false, d.seq, d.seq, d.hd, ds, qh, tmpHd); err != nil {
-			return err
-		}
-		if err := o.add(dkh, tmpHd, dkh, hs); err != nil {
-			return err
-		}
+	}
+	reducedCount, headsU, kvHeadsU, perHeadU := uint32(d.seq*d.kvWidth), uint32(d.heads), uint32(d.kvHeads), uint32(hs)
+	if err := o.s.launch1D(o.fns["reduce_gqa_heads_f32"], reducedCount,
+		unsafe.Pointer(&dkExpanded), unsafe.Pointer(&dkHM), unsafe.Pointer(&headsU), unsafe.Pointer(&kvHeadsU), unsafe.Pointer(&perHeadU), unsafe.Pointer(&reducedCount)); err != nil {
+		return err
+	}
+	if err := o.s.launch1D(o.fns["reduce_gqa_heads_f32"], reducedCount,
+		unsafe.Pointer(&dvExpanded), unsafe.Pointer(&dvHM), unsafe.Pointer(&headsU), unsafe.Pointer(&kvHeadsU), unsafe.Pointer(&perHeadU), unsafe.Pointer(&reducedCount)); err != nil {
+		return err
 	}
 	if err := o.headMajor(dqHM, dq, d.heads, headMajorUnpack); err != nil {
 		return err
@@ -488,6 +516,17 @@ func (o *layerOps) backwardDevice(x, dOut driver.DevicePtr, c layerCachePtrs, w 
 	}
 	if err := o.rope(dk, d.kvHeads, ropeGradient); err != nil {
 		return err
+	}
+	if w.qBias != 0 {
+		if err := o.sumColumns(dq, dBiasTranspose, g.dQBias, d.seq, d.width); err != nil {
+			return err
+		}
+		if err := o.sumColumns(dk, dBiasTranspose, g.dKBias, d.seq, d.kvWidth); err != nil {
+			return err
+		}
+		if err := o.sumColumns(dv, dBiasTranspose, g.dVBias, d.seq, d.kvWidth); err != nil {
+			return err
+		}
 	}
 	// q/k/v linear backward: dXn* = d*·W ; dW* = d*ᵀ·xn
 	if err := o.s.gemm(false, false, d.seq, d.width, d.hidden, dq, w.q, dXnQ); err != nil {

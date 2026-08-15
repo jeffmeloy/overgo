@@ -14,8 +14,8 @@ import (
 // and returns the same forward intermediates (the layerCache the device backward
 // consumes). The whole layer runs in ONE resident cudaBLAS session
 // (devicemath.LayerForwardResident) -- weights + activations upload once and
-// intermediates stay device-resident, no per-op round-trips. Attention bias is
-// not supported (matching deviceLayerBackward). Parity target: host layerForwardCached.
+// intermediates stay device-resident, no per-op round-trips. Parity target:
+// host layerForwardCached.
 func (m *Model) deviceLayerForwardCached(worker *device.Worker, x []float32, l layer, invFreq []float32, seq int) (layerCache, error) {
 	d := m.Dims
 	if ok, reason := DeviceTrainingSupported(d); !ok {
@@ -24,6 +24,7 @@ func (m *Model) deviceLayerForwardCached(worker *device.Worker, x []float32, l l
 	fc, xOut, err := devicemath.LayerForwardResident(worker, x, devicemath.LayerForwardWeights{
 		InLN: l.inLN, PostLN: l.postLN,
 		Q: l.q, K: l.k, V: l.v, O: l.o,
+		QBias: l.qb, KBias: l.kb, VBias: l.vb,
 		Gate: l.gate, Up: l.up, Down: l.down,
 	}, invFreq, seq, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, d.RMSEps)
 	if err != nil {

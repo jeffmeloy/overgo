@@ -81,7 +81,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	trajectory, loopWall, err := model.MeasureDeviceResidentFrozenLexicalBatches(worker, carbonAdaptiveCausalWindows, 1.33179e-5, 0.95)
+	trajectory, measurement, err := model.MeasureDeviceResidentFrozenLexicalBatches(worker, carbonAdaptiveCausalWindows, 1.33179e-5, 0.95)
 	totalWall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)
@@ -103,14 +103,14 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 			t.Fatalf("matched Carbon loss[%d]=%.6f want %.6f within %.3f", step, trajectory[step], want, carbonLossTolerance)
 		}
 	}
-	if loopWall >= adaptiveWall {
-		t.Fatalf("matched Carbon loop wall %s does not beat adaptive %s", loopWall, adaptiveWall)
+	if measurement.Loop >= adaptiveWall {
+		t.Fatalf("matched Carbon loop wall %s does not beat adaptive %s", measurement.Loop, adaptiveWall)
 	}
 	if memory.PeakBytes >= adaptivePeak {
 		t.Fatalf("matched Carbon peak %.3fGiB does not beat adaptive %.3fGiB", float64(memory.PeakBytes)/(1<<30), float64(adaptivePeak)/(1<<30))
 	}
 	t.Logf("matched Carbon causal: windows=%d seq=%d loss %.6f->%.6f loop=%.3fs total=%.3fs peak=%.3fGiB adaptive_loop=%.3fs/%.3fGiB",
-		len(trajectory), len(carbonAdaptiveCausalWindows[0]), trajectory[0], trajectory[len(trajectory)-1], loopWall.Seconds(), totalWall.Seconds(), float64(memory.PeakBytes)/(1<<30), adaptiveWall.Seconds(), float64(adaptivePeak)/(1<<30))
+		len(trajectory), len(carbonAdaptiveCausalWindows[0]), trajectory[0], trajectory[len(trajectory)-1], measurement.Loop.Seconds(), totalWall.Seconds(), float64(memory.PeakBytes)/(1<<30), adaptiveWall.Seconds(), float64(adaptivePeak)/(1<<30))
 }
 
 func fileSHA256(t *testing.T, path string) string {

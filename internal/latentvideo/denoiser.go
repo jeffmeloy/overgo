@@ -287,6 +287,10 @@ type DenoiserProgram struct {
 	stepHeadE        *tensor.Tensor
 	stepCrossKeys    []*tensor.Tensor
 	stepCrossValues  []*tensor.Tensor
+	stepHistoryKeys  []*tensor.Tensor
+	stepHistoryVals  []*tensor.Tensor
+	currentSelfKeys  []*tensor.Tensor
+	currentSelfVals  []*tensor.Tensor
 	stepWeightInputs map[string]*tensor.Tensor
 
 	// Blocks expose every intra-block seam for parity probes; Head is the
@@ -330,6 +334,12 @@ type DenoiserPrecision struct {
 	RoundAttentionStorage bool
 }
 
+// DenoiserHistory fixes one chunk's retained self-attention boundary.
+type DenoiserHistory struct {
+	Tokens     int
+	StartFrame int
+}
+
 // CompileDenoiserProgram: builds the context and step graphs for one latent
 // geometry with exact F32 storage everywhere.
 func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry) (*DenoiserProgram, error) {
@@ -339,6 +349,18 @@ func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 // CompileDenoiserProgramPrecision: builds both graphs under one precision
 // declaration.
 func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision) (*DenoiserProgram, error) {
+	return compileDenoiserProgram(c, weights, geometry, precision, DenoiserHistory{})
+}
+
+// CompileDenoiserProgramHistory adds retained rotated-K/value inputs.
+func CompileDenoiserProgramHistory(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history DenoiserHistory) (*DenoiserProgram, error) {
+	if history.Tokens <= 0 || history.StartFrame <= 0 {
+		return nil, fmt.Errorf("denoiser history: tokens/start frame must be positive")
+	}
+	return compileDenoiserProgram(c, weights, geometry, precision, history)
+}
+
+func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history DenoiserHistory) (*DenoiserProgram, error) {
 	matmulWeightType := precision.MatmulWeights
 	if weights == nil {
 		return nil, fmt.Errorf("denoiser program: weights are nil")
@@ -373,7 +395,7 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 	}
 	for token := 0; token < geometry.Seq; token++ {
 		spatial := geometry.Grid[1] * geometry.Grid[2]
-		options.AxisPositions[0][token] = uint32(token / spatial)
+		options.AxisPositions[0][token] = uint32(history.StartFrame + token/spatial)
 		options.AxisPositions[1][token] = uint32(token % spatial / geometry.Grid[2])
 		options.AxisPositions[2][token] = uint32(token % geometry.Grid[2])
 	}
@@ -432,13 +454,26 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 			FFNContract:     bind.Input(prefix+"ffn.2.weight", uint64(c.FFNDim), d),
 			FFNContractBias: bind.Input(prefix+"ffn.2.bias", d),
 		}
-		result, err := diffusion.BuildBlock(
-			builder, hidden, program.stepBlockE, crossKey, crossValue, blockWeights,
-		)
+		var result model.ConditionedDiffusionBlockResult
+		if history.Tokens > 0 {
+			historyKey := builder.Input(prefix+"self_history_key", dtype.F32, tensor.MustShape(headWidth, heads, uint64(history.Tokens)))
+			historyValue := builder.Input(prefix+"self_history_value", dtype.F32, tensor.MustShape(headWidth, heads, uint64(history.Tokens)))
+			program.stepHistoryKeys = append(program.stepHistoryKeys, historyKey)
+			program.stepHistoryVals = append(program.stepHistoryVals, historyValue)
+			result, err = diffusion.BuildBlockWithSelfHistory(
+				builder, hidden, program.stepBlockE, crossKey, crossValue, historyKey, historyValue, blockWeights,
+			)
+		} else {
+			result, err = diffusion.BuildBlock(
+				builder, hidden, program.stepBlockE, crossKey, crossValue, blockWeights,
+			)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("denoiser program block %d: %w", layer, err)
 		}
 		program.Blocks = append(program.Blocks, result)
+		program.currentSelfKeys = append(program.currentSelfKeys, result.SelfKeyRotated)
+		program.currentSelfVals = append(program.currentSelfVals, result.SelfValue)
 		hidden = result.Output
 	}
 	head, err := diffusion.BuildHead(

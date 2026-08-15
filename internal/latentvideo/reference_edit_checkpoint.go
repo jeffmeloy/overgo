@@ -113,13 +113,28 @@ func (p ReferenceEditCheckpoint) Binding(name string) (pytorchzip.TensorBinding,
 
 // LoadWeights: stream the compiled checkpoint into shared denoiser storage.
 func (p ReferenceEditCheckpoint) LoadWeights() (*DenoiserWeights, error) {
+	return p.LoadDenoiserWeights(p.Layers)
+}
+
+// LoadDenoiserWeights streams common tensors plus the requested block prefix.
+func (p ReferenceEditCheckpoint) LoadDenoiserWeights(layers int) (*DenoiserWeights, error) {
+	if layers <= 0 || layers > p.Layers {
+		return nil, fmt.Errorf("reference edit checkpoint: layers=%d outside 1..%d", layers, p.Layers)
+	}
 	reader, err := pytorchzip.Open(p.Path)
 	if err != nil {
 		return nil, err
 	}
 	defer reader.Close()
-	weights := &DenoiserWeights{values: make(map[string][]float32, len(p.bindings))}
-	for name, binding := range p.bindings {
+	config := p.Config
+	config.NumLayers = layers
+	lengths := denoiserTensorLengths(config)
+	weights := &DenoiserWeights{values: make(map[string][]float32, len(lengths))}
+	for name := range lengths {
+		binding, ok := p.bindings[name]
+		if !ok {
+			return nil, fmt.Errorf("reference edit checkpoint: denoiser tensor %s is absent", name)
+		}
 		values, err := reader.ReadBinding(binding)
 		if err != nil {
 			return nil, fmt.Errorf("reference edit checkpoint %s: %w", name, err)

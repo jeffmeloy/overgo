@@ -30,6 +30,7 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Need | Use |
 | --- | --- |
 | Compile and execute a Wan/LiveEdit causal VAE source encoder | `latentvideo.CompileVAEEncoderPlan` + `CompileSourceCodecBoundary`; host oracle `EncodeSourceVideo`; resident device path `NewVAEEncoderCUDASession` |
+| Execute LiveEdit chunks with retained text and bounded self-attention K/V | `latentvideo.NewReferenceEditDenoiserCUDASession`; neutral history graph: `model.ConditionedDiffusionProgram.BuildBlockWithSelfHistory` |
 
 ## Commands / process (Go owns policy; scripts are bash or Go)
 | Need | Use |

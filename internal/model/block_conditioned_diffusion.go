@@ -111,7 +111,19 @@ func (p ConditionedDiffusionProgram) BuildBlock(
 	weights ConditionedDiffusionBlockWeights,
 ) (ConditionedDiffusionBlockResult, error) {
 	return buildConditionedDiffusionBlock(
-		builder, input, conditioning, crossKey, crossValue, p.options, weights,
+		builder, input, conditioning, crossKey, crossValue, nil, nil, p.options, weights,
+	)
+}
+
+// BuildBlockWithSelfHistory attends over retained rotated keys and values
+// before the current bidirectional chunk.
+func (p ConditionedDiffusionProgram) BuildBlockWithSelfHistory(
+	builder *tensor.Builder,
+	input, conditioning, crossKey, crossValue, historyKey, historyValue *tensor.Tensor,
+	weights ConditionedDiffusionBlockWeights,
+) (ConditionedDiffusionBlockResult, error) {
+	return buildConditionedDiffusionBlock(
+		builder, input, conditioning, crossKey, crossValue, historyKey, historyValue, p.options, weights,
 	)
 }
 
@@ -140,6 +152,7 @@ type ConditionedDiffusionBlockResult struct {
 	SelfQueryProjected, SelfKeyProjected, SelfValueProjected *tensor.Tensor
 	SelfQueryNormed, SelfKeyNormed                           *tensor.Tensor
 	SelfQueryRotated, SelfKeyRotated                         *tensor.Tensor
+	SelfValue                                                *tensor.Tensor // [headWidth, heads, current tokens]
 	SelfAttention                                            *tensor.Tensor // pre-projection SDPA output
 	SelfProjected                                            *tensor.Tensor // post output projection
 	SelfResidual                                             *tensor.Tensor
@@ -247,6 +260,7 @@ func buildConditionedDiffusionBlock(
 	builder *tensor.Builder,
 	input, conditioning *tensor.Tensor,
 	crossKey, crossValue *tensor.Tensor,
+	historyKey, historyValue *tensor.Tensor,
 	options ConditionedDiffusionBlockOptions,
 	weights ConditionedDiffusionBlockWeights,
 ) (ConditionedDiffusionBlockResult, error) {
@@ -304,6 +318,17 @@ func buildConditionedDiffusionBlock(
 	value := builder.Reshape(result.SelfValueProjected, headWidth, heads, tokens)
 	result.SelfQueryRotated = buildAxisPartitionedRoPE(builder, query, options.AxisChannels, options.AxisPositions, options.RotaryBase)
 	result.SelfKeyRotated = buildAxisPartitionedRoPE(builder, key, options.AxisChannels, options.AxisPositions, options.RotaryBase)
+	result.SelfValue = value
+	attentionKey, attentionValue := result.SelfKeyRotated, value
+	if historyKey != nil || historyValue != nil {
+		if historyKey == nil || historyValue == nil || historyKey.Shape.Rank != 3 || historyValue.Shape.Rank != 3 ||
+			historyKey.Shape.Dims[0] != headWidth || historyKey.Shape.Dims[1] != heads ||
+			!historyKey.Shape.Equal(historyValue.Shape) {
+			return result, errors.New("conditioned diffusion self history shape is incompatible")
+		}
+		attentionKey = builder.Concat(historyKey, attentionKey, 2)
+		attentionValue = builder.Concat(historyValue, attentionValue, 2)
+	}
 	roundStorage := func(x *tensor.Tensor) *tensor.Tensor {
 		if options.RoundAttentionStorage {
 			return builder.BF16Round(x)
@@ -311,8 +336,8 @@ func buildConditionedDiffusionBlock(
 		return x
 	}
 	attention := builder.Attention(
-		roundStorage(result.SelfQueryRotated), roundStorage(result.SelfKeyRotated),
-		roundStorage(value), attentionScale, false,
+		roundStorage(result.SelfQueryRotated), roundStorage(attentionKey),
+		roundStorage(attentionValue), attentionScale, false,
 	)
 	result.SelfAttention = builder.Reshape(attention, dim, tokens)
 	result.SelfProjected = buildBiasedProjection(builder, weights.SelfAttention.Output, weights.SelfAttention.OutputBias, result.SelfAttention)

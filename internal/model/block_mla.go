@@ -89,7 +89,7 @@ func buildLatentAttentionMixCached(
 	frequencyScale := spec.ropeFrequencyScale()
 	if omitsRoPE {
 		// No rotary transform.
-	} else if (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == "yarn" {
+	} else if (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == ropeScalingYaRN {
 		qPE = builder.RoPENormalYaRN(qPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
 			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
 			spec.YaRNBetaFast, spec.YaRNBetaSlow)
@@ -123,7 +123,7 @@ func buildLatentAttentionMixCached(
 			indexerQuery := builder.MulMat(weights.IndexerAttentionQB, queryRank)
 			indexerQPE := builder.GroupSlice(indexerQuery, 0, ropeWidth, indexerHeads, indexerWidth)
 			indexerQNoPE := builder.GroupSlice(indexerQuery, ropeWidth, indexerWidth-ropeWidth, indexerHeads, indexerWidth)
-			if spec.RopeScalingType == "yarn" {
+			if spec.RopeScalingType == ropeScalingYaRN {
 				if usesSparseNeoXIndexer {
 					indexerQPE = builder.RoPENeoXYaRN(indexerQPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
 						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
@@ -146,7 +146,7 @@ func buildLatentAttentionMixCached(
 			indexerKey = builder.AffineLayerNorm(indexerKey, weights.IndexerKNorm, weights.IndexerKNormBias, indexerEpsilon)
 			indexerKPE := builder.GroupSlice(indexerKey, 0, ropeWidth, 1, indexerWidth)
 			indexerKNoPE := builder.GroupSlice(indexerKey, ropeWidth, indexerWidth-ropeWidth, 1, indexerWidth)
-			if spec.RopeScalingType == "yarn" {
+			if spec.RopeScalingType == ropeScalingYaRN {
 				if usesSparseNeoXIndexer {
 					indexerKPE = builder.RoPENeoXYaRN(indexerKPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
 						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
@@ -205,7 +205,7 @@ func buildLatentAttentionMixCached(
 		cacheValue = builder.Concat(pastValue, value, 2)
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
-	if (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == "yarn" {
+	if (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == ropeScalingYaRN {
 		logScale := float32(math.Log(float64(1 / frequencyScale)))
 		originalFactor := spec.YaRNAttentionFactor * (1 + yarnLogFactorStep*logScale)
 		magnitude := originalFactor * (1 + yarnLogFactorStep*spec.RopeYaRNLogMultiplier*logScale)

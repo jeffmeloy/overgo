@@ -55,6 +55,7 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Compile objective semantics through one update order | `trainingprogram.CompileObjectiveProgram` / `CompileTrainingObjectiveMatrix`; programs bind objective kind plus shared forward/backward/Muon operators, absent program bindings are refused |
 | Evaluate typed training outputs | `trainingprogram.EvaluateNative`; objective documents select token accuracy, signed/unit-range image/video PSNR, audio SNR, forecast MAE, or table accuracy |
 | Train existing latent-sequence or image-flow objectives | `speechsynth.NewJointTrainer` / `diffusionimage.NewTrainer`; both expose their compiled `TrainingProgram` |
+| Compile, train, evaluate, and externally promote a scratch workflow controller | `controllertrain.Compile` / `TrainSeed` / `Decide`; actions come from `workflowrecipe`, execution stays in `scratchmodel.ResidentTrainer`, and RepoDB stores corpus, run, evaluation, decision, and rollback lineage |
 | Bind dataset progress | `trainingdata.StreamState`; checkpoint form is `trainingprogram.DatasetState` |
 | Decode real image/audio training records | `trainingdata.ImageProcessor` / `Image`; `trainingdata.AudioProcessor` / `Audio` |
 

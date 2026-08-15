@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "controller-promotion",
-          "title": "Construct and train the small workflow controller from scratch; build an explicit immutable Git/RepoDB corpus rather than operational-state text, exercise typed text/image/audio/video component and workflow actions, require held-out action/modality validity and multi-seed gains, compare pretrained challengers under the same suite, and keep champion/challenger promotion plus rollback external to the model",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestControllerPromotionContract$' -count=1 -v"
-        },
-        {
           "id": "recursive-improvement-boundary",
           "title": "Allow the promoted controller to propose corpus, recipe, evaluator, and component-composition candidates for descendants while requiring independent admission, held-out evaluation, promotion and rollback; bind every child to parent model, data, recipe, code, evaluator, run and decision identities",
           "status": "open",

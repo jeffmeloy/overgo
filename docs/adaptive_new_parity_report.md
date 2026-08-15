@@ -39,6 +39,10 @@ training or media breadth.
   oracle. The resident three-step program leads the matched reference on wall
   and runtime-owned peak memory; the shared exact checkpoint is now published
   and consumed by host and resident CUDA dense training.
+- The scratch-controller contract now uses an immutable Git/RepoDB corpus,
+  external holdout, three resident CUDA seeds, common action/modality scoring,
+  and an external promotion decision with a rollback target. This is lifecycle
+  evidence on eight actions, not production controller quality.
 - Critical evidence gap: 34 compatibility claims are marked `implemented`, but
   the current file does not encode the doctrine's evidence tiers. All 135
   architecture entries are `experimental`; only four name a validated fixture.
@@ -134,7 +138,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | OCR | Host objective; CUDA train/eval absent | OCR token objective and image-to-text signature compile through shared authority; no production executor | Contract parity; execution remains incomplete in both repositories |
 | SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and resident CUDA VJP boundaries | The shared materializer selects structured 32x32 crops from the artifact's four real sample grids, then the common stream, normalized-image processor, seeded OT objective, full model VJP, and platform Muon stepper train the 101,828,450-parameter checkpoint. The trainer now executes the shared flow-matching forward/backward/Muon program. One train/held-out gate lowers matched train loss `1.331198 -> 1.156815` and held-out loss `1.396862 -> 1.346165`; 6,143 sampled final-projection values change. The final transpose projection and one complete 128x8x8 decoder residual block use shared resident CUDA VJPs. The residual block matches input gradients within `1.863e-9` and all nine parameter gradients within `4.768e-7` | Real-data full-checkpoint host update, shared objective program and two exact device-backward boundaries proven; remaining blocks and matched training performance remain open |
 | Pocket-TTS | Latent bridge, flow-net, backbone paths | Inference recipe and reference waveform are production-proven. The production compiled trainer binds all 85,282,848 joint backbone+flow parameters to shared Muon; native generated codec latents lower loss `0.505204 -> 0.285938` in one step | Real-artifact Muon trajectory proven; corpus audio encoding and held-out evaluation open |
-| Controller model | Strategic adaptive plan; no promoted controller | Overgo training design targets it | Not started |
+| Controller model | Strategic adaptive plan; no promoted controller | Git-pinned eight-action corpus, external holdout, three scratch CUDA seeds, RepoDB run/evaluation evidence, and external reversible decision. Held-out action accuracy improves from 12.5% to 37.5-50.0%; modality accuracy improves from 12.5-25.0% to 37.5-50.0%. | Contract proven; production activation, broader tasks, and compatible pretrained scorers remain open |
 | Tier-1 memory scaling | Adaptive streamed/checkpointed components | Resident dense session and scratch pool exist; E4B streams one selected adapter unit, but no complete-stack schedule is measured | Partial |
 
 ### Current Overgo training evidence
@@ -518,8 +522,9 @@ The authoritative steps live in `docs/plan.json`. Order:
     stack; then train E4B, exercising every adaptive-declared modality.
 10. Compile the multimodal training matrix; port remaining adaptive objective
     families through shared programs and explicitly refuse absent objectives.
-11. Train and promote the scratch workflow controller; keep recursive candidate
-    proposal inside the model but data admission and promotion external.
+11. Preserve the scratch controller's external promotion boundary while adding
+    recursive candidate proposals, independent admission, and descendant
+    lineage.
 
 ## Definition of Exceeds adaptive_new
 

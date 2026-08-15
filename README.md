@@ -101,11 +101,11 @@ sessions to execute concurrently.
 | Image generation | Typed conditioning, CUDA-resident denoising, and PNG artifact output | Krea has verified 2048-pixel execution. SenseNova has a CUDA-tested 256-pixel text-to-PNG recipe. Un-0 publishes an exact retained artifact. SimpleDiffusion uses a geometry-keyed resident CUDA recipe; its real seed-7, two-step, 64x64 generation is 15-18x faster warm than the host in repeated tests, with one decoded color channel differing by one byte from the retained PNG. Full-size and image-edit tests are not complete. |
 | Video generation | Typed oscillator, Wan, and LiveEdit recipes; encoded artifact publication; CUDA-resident Wan denoising and VAE encoding/decoding; retained LiveEdit text projection, cumulative attention history, and source-latent reuse | Un-0 publishes six real-artifact frames as a 64x64 GIF byte-identical to adaptive_new. Wan has verified full-clip execution. LiveEdit executes all 30 blocks. Its full 81-frame edit matches adaptive and Python output quality, uses 15.624 GiB peak device memory, takes 81.6-81.9 s cold, and takes 51.0-51.5 s when the same source latent is resident. The production recipe publishes GIF; the performance gate streams MP4. |
 | Speech, forecast, table, seq2seq | Shared runtime and recipe components. Pocket-TTS verifies waveform output and trains its real backbone+flow parameter set through compiled Muon on native generated codec latents. TimesFM verifies exact forecasts and a held-out Supernova baseline. Needle verifies exact numeric parity, grounded text-to-tool-call JSON, and real GSM8K training through the common dataset stream, compiled training program, and device Muon. | Needle retains BF16 matrices and measures 66.758-67.363 MiB across matched cold processes versus adaptive_new's 120.918-121.328 MiB. Shared reverse traversal trains both final norms, all eight decoder self/cross-attention pairs, all 12 encoder self-attention blocks, and the tied source/target/output embedding. A fixed 4-train/4-held-out GSM8K gate improves both aggregate losses. Pocket-TTS corpus audio encoding and held-out training evidence remain open. Comparable process peak measurements remain open for the other capabilities. |
-| Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers. Every compiled program identifies its objective. RepoDB documents bind objective kind, corpus, split, processors, projectors/codecs, loss, evaluation, and evidence. | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. Qwen3.5-4B recurrent layer 0 and the Gemma E4B layer-0 adapter train from real artifacts. Pocket-TTS latent-sequence and SimpleDiffusion flow-matching trainers use the shared program order. Eight adaptive objective contracts are represented; a missing program binding is refused. Real-record evidence approves text-to-text, image-to-text, and audio-to-text; the other 33 single-modality pairs remain refused. Complete model stacks, production FNS/forecast/OCR/image-latent/distillation executors, and checkpoint adoption by every trainer remain open. |
+| Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers. Every compiled program identifies its objective. RepoDB documents bind objective kind, corpus, split, processors, projectors/codecs, loss, evaluation, and evidence. | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. Qwen3.5-4B recurrent layer 0 and the Gemma E4B layer-0 adapter train from real artifacts. Pocket-TTS latent-sequence and SimpleDiffusion flow-matching trainers use the shared program order. Eight adaptive objective contracts are represented; a missing program binding is refused. A Git-pinned workflow corpus trains three scratch-controller seeds and records held-out evaluations plus an external promotion/rollback decision. Real-record evidence approves text-to-text, image-to-text, and audio-to-text; the other 33 single-modality pairs remain refused. Complete model stacks, production FNS/forecast/OCR/image-latent/distillation executors, and checkpoint adoption by every trainer remain open. |
 
 Known gaps include full-size SenseNova image and edit tests, LiveEdit cold-request
 leadership and recipe-configured MP4 publication, exact full-sequence Unlimited OCR comparison, comparable
-peak-memory measurements, checkpoint adoption outside dense training, publication and activation of
+peak-memory measurements, checkpoint adoption outside dense training, production activation of
 scratch-built controllers, complete real-model Qwen3.5 and E4B/Gemma4 stack training. Un-0
 training refuses execution until a recipe supplies real class/image data; the
 former synthetic constant-target trainer was deleted.
@@ -461,10 +461,18 @@ loss sequence. For the recorded small configuration, Overgo measured
 3.13-3.18 MB combined peak memory.
 
 Scratch construction is implemented as an internal package but is not exposed
-as a complete CLI workflow. RepoDB publication of the initialized model, run,
-and checkpoint; atomic resume; remaining multimodal objectives; evaluation and
-activation of a held-out controller; and descendant improvement are not
-implemented.
+as a complete CLI workflow. `internal/controllertrain` compiles typed
+text/image/audio/video component and workflow actions from Git-pinned records
+into immutable RepoDB corpus and external-holdout artifacts. Its CUDA gate trains
+three scratch seeds through `scratchmodel.ResidentTrainer`, publishes run and
+evaluation lineage, and keeps promotion plus rollback in an external evidence
+document. The current eight-case holdout improves from 12.5% action accuracy to
+37.5-50.0% and from 12.5-25.0% modality accuracy to 37.5-50.0%; all three
+held-out causal losses improve. This proves the lifecycle, not a production-ready
+controller. Fractale, Carbon, and Qwen2.5 comparisons are explicitly refused
+until a compatible controller scorer is available. CLI activation, exact
+checkpoint/resume, a larger repository-task corpus, and descendant improvement
+remain open.
 
 See the [training plan](docs/training_plan.md) for the exact boundary.
 

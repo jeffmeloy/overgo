@@ -53,15 +53,19 @@ Implemented substrate:
   shared tensor forward/VJP, resident CUDA/Muon sessions, liveness arena and
   pooled Newton–Schulz scratch;
 - matched scratch leadership: 58.0-65.4 ms versus adaptive_new 221.4 ms minimum
-  and 1.15-1.17 MB combined runtime peak versus 3.13 MB minimum.
+  and 1.15-1.17 MB combined runtime peak versus 3.13 MB minimum;
+- immutable Git-pinned controller corpus and external holdout publication,
+  three-seed resident CUDA training, common held-out action/modality scoring,
+  and external RepoDB promotion/rollback evidence.
 
 Current boundaries:
 
 - shared lazy dataset materialization, split membership, exact deduplication,
   typed processor binding, weighted/resumable order, packing, microbatching and
   bounded decode feed dense, scratch, seq2seq and diffusion-image loops;
-- scratch initialization is content-addressed in memory but initialized-model,
-  checkpoint and run publication are not yet production-reachable RepoDB flows;
+- controller acceptance publishes content-addressed candidate, run, evaluation,
+  and decision facts to RepoDB; the initialized-model/checkpoint flow is not yet
+  exposed through a production command;
 - `cmd/train` selects the resident dense device loop; the displaced per-step
   weight scatter/gradient gather training adapters are deleted;
 - dense production checkpoints atomically bind weights, Muon/RNG/data state,
@@ -85,9 +89,11 @@ Current boundaries:
   shared stream and platform Muon stepper on Windows/CUDA. Device-resident
   forward/backward, matched performance, and complete resume remain open.
 
-Scratch device training and Newton–Schulz are resident and gated. Artifact
-publication, checkpoint adoption outside dense training, controller promotion
-and real-model integration are now the long poles.
+Scratch device training and Newton–Schulz are resident and gated. The controller
+contract now proves three-seed gains and reversible external promotion on a
+small eight-action holdout. Production activation, compatible pretrained
+controller scoring, checkpoint adoption outside dense training, and real-model
+integration are now the long poles.
 
 ## 2. Authority and compiled contracts
 
@@ -490,7 +496,13 @@ increment.
 Promotion requires multiple seeds, predefined thresholds and comparison against
 the current promoted controller. RepoDB records candidate, evaluation, decision
 and rollback lineage. A single descending training-loss curve cannot promote a
-model.
+model. The first gated corpus covers eight typed component/workflow actions and
+all four modalities. Its three 800-step seeds reduce held-out causal loss;
+action accuracy rises from 12.5% to 37.5-50.0%, and modality accuracy rises from
+12.5-25.0% to 37.5-50.0%. The best seed promotes only against the same-suite
+incumbent. Fractale-350M, Carbon-500M, and Qwen2.5-0.5B remain explicit
+eligibility refusals until their tokenizers expose a comparable controller
+scoring boundary.
 
 ## 10. Implementation ladder
 

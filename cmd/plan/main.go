@@ -470,14 +470,25 @@ func runVerify(it plan.Item, st plan.Step) error {
 	if err != nil {
 		return fmt.Errorf("verify %s/%s: %w", it.ID, st.ID, err)
 	}
-	cmd := exec.Command(shell, "-c", st.Verify)
+	verifyCommand := st.Verify
+	structuredGoTest := strings.Contains(st.Verify, "go test")
+	if structuredGoTest {
+		verifyCommand = testevidence.JSONCommand(st.Verify)
+	}
+	cmd := exec.Command(shell, "-c", verifyCommand)
 	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("verify FAILED for %s/%s: %w", it.ID, st.ID, err)
 	}
-	if err := testevidence.VerifyOutput(st.Verify, buf.String()); err != nil {
-		return fmt.Errorf("verify VACUOUS for %s/%s: %v -- a skip is NOT a pass; run the oracle against the real prerequisite (on hardware / with the fixture) or record an honest stop, but do not advance on unverified parity", it.ID, st.ID, err)
+	var evidenceErr error
+	if structuredGoTest {
+		evidenceErr = testevidence.VerifyGoTestTarget(st.Verify, buf.String())
+	} else {
+		evidenceErr = testevidence.VerifyOutput(st.Verify, buf.String())
+	}
+	if evidenceErr != nil {
+		return fmt.Errorf("verify VACUOUS for %s/%s: %v -- run the named oracle against its real prerequisite or record an honest stop", it.ID, st.ID, evidenceErr)
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: PASS\n", it.ID, st.ID)
 	return nil

@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
   "items": [
     {
-      "id": "automation-test-verdict",
-      "title": "Interpret Go test JSON by targeted acceptance tests and ignore unrelated skips",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Interpret Go test JSON by targeted acceptance tests and ignore unrelated skips",
-          "status": "open",
-          "verify": "go test ./cmd/plan -run '^TestVerifyGoTestJSONTargets$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "automation-diagnostics",
       "title": "Report newly introduced magic and hygiene debt before inherited backlog",
       "status": "open",

@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -18,6 +19,14 @@ type GoTestReport struct {
 	Skipped           []string
 	Unavailable       []string
 	Failed            []string
+	Tests             []GoTestResult
+}
+
+type GoTestResult struct {
+	Package     string
+	Name        string
+	Action      string
+	Unavailable string
 }
 
 // GoTestJSON rejects skipped tests and unavailable oracle markers in go test
@@ -76,6 +85,7 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 	seen := false
 	var report GoTestReport
 	classified := map[string]bool{}
+	results := map[string]*GoTestResult{}
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -92,11 +102,17 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 		}
 		seen = true
 		key := event.Package + "\x00" + event.Test
+		if event.Test != "" && results[key] == nil {
+			results[key] = &GoTestResult{Package: event.Package, Name: event.Test}
+		}
 		if short && strings.Contains(event.Output, ShortIntegrationSkip) {
 			classified[key] = true
 		}
 		if reason := unavailable(event.Output); reason != "" {
 			report.Unavailable = append(report.Unavailable, event.Package+": "+reason)
+			if event.Test != "" {
+				results[key].Unavailable = reason
+			}
 		}
 		switch {
 		case event.Action == "pass" && event.Test != "":
@@ -112,6 +128,9 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 		case event.Action == "fail" && event.Test != "":
 			report.Failed = append(report.Failed, event.Package+": "+event.Test)
 		}
+		if event.Test != "" && (event.Action == "pass" || event.Action == "skip" || event.Action == "fail") {
+			results[key].Action = event.Action
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		return GoTestReport{}, fmt.Errorf("read go test events: %w", err)
@@ -119,7 +138,65 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 	if !seen {
 		return GoTestReport{}, fmt.Errorf("go test emitted no events")
 	}
+	for _, result := range results {
+		report.Tests = append(report.Tests, *result)
+	}
 	return report, nil
+}
+
+var goTestRunFlag = regexp.MustCompile(`(?:^|[ \t])-run(?:=|[ \t]+)(?:'([^']*)'|"([^"]*)"|([^ \t;&|]+))`)
+
+// JSONCommand enables structured events for every go test in a verifier.
+func JSONCommand(command string) string {
+	if !strings.Contains(command, "go test -json") {
+		command = strings.ReplaceAll(command, "go test ", "go test -json ")
+	}
+	return command
+}
+
+// VerifyGoTestTarget requires the declared -run target to pass while retaining
+// unrelated skips as visible, uncredited evidence.
+func VerifyGoTestTarget(command, out string) error {
+	match := goTestRunFlag.FindStringSubmatch(command)
+	if match == nil {
+		return fmt.Errorf("go test verifier must declare its acceptance target with -run")
+	}
+	pattern := match[1]
+	if pattern == "" {
+		pattern = match[2]
+	}
+	if pattern == "" {
+		pattern = match[3]
+	}
+	target, err := regexp.Compile(pattern)
+	if err != nil {
+		return fmt.Errorf("compile go test -run target: %w", err)
+	}
+	report, err := GoTestJSONReport(out)
+	if err != nil {
+		return err
+	}
+	passed := false
+	for _, result := range report.Tests {
+		if !target.MatchString(result.Name) {
+			continue
+		}
+		if result.Unavailable != "" {
+			return fmt.Errorf("%s:%s: %s", result.Package, result.Name, result.Unavailable)
+		}
+		switch result.Action {
+		case "pass":
+			passed = true
+		case "skip":
+			return fmt.Errorf("%s:%s skipped", result.Package, result.Name)
+		case "fail":
+			return fmt.Errorf("%s:%s failed", result.Package, result.Name)
+		}
+	}
+	if !passed {
+		return fmt.Errorf("go test -run %q matched no passing test", pattern)
+	}
+	return nil
 }
 
 // VerifyOutput rejects successful shell verification that did not prove its

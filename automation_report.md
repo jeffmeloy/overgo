@@ -394,17 +394,16 @@ had no production consumer. Add them only with the integration path that reads
 them and with owner authority explicit in its output. Until then Git, admitted
 review evidence, and the owner remain the merge decision.
 
-### A8: Statistical guarantees exceed current calibration depth
+### A8: Advisory calibration remains directional
 
-Advisories permit very small baselines, and repeated confirmation windows can
-overlap. The implementation is useful as a regression signal, but the terms
-"distribution-free" and "independent windows" currently claim more than the
-mechanism guarantees.
+Advisories permit very small baselines. They now label empirical thresholds as
+directional, disclaim false-alarm guarantees, and require non-overlapping
+windows before opening a finding. This removes the prior overclaim that
+median/MAD alone made the result distribution-free.
 
 Required direction: define rank/conformal or permutation calibration, derive
-minimum history from the alarm budget, require non-overlapping confirmation
-windows, and account for sequential testing and regime changes. Until then,
-label the output directional/advisory.
+minimum history from the alarm budget, and account for sequential testing and
+regime changes before any threshold becomes enforcing.
 
 ### A9: Hook and guard enforcement is harness-local and fail-open
 
@@ -452,8 +451,8 @@ necessarily the whole manually managed campaign.
 ### P0: enforce trustworthy task and evidence contracts
 
 1. Keep the open-step verifier invariant enforced by `internal/plan`.
-2. Replace advisory statistics that overclaim independence with calibrated,
-   non-overlapping evidence or explicitly directional labels.
+2. Calibrate advisory false-alarm behavior against non-overlapping history;
+   retain explicitly directional labels until that evidence exists.
 3. Share one typed lane-outcome contract and migrate smoke, device, race, and
    release callers without compatibility paths.
 

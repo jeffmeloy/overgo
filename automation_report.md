@@ -10,6 +10,14 @@ vacuous test evidence, verify generated manifests and claims, record structured
 run evidence, exercise CUDA-specific lanes, and produce reproducible release
 archives. The automation is unusually good at saying what did *not* run.
 
+The current enhancement wave also closes several model-facing gaps: gate commits
+advance the plan atomically; named Go-test verdicts come from JSON events;
+compatibility evidence can bind normalized Go symbols; agents can park typed
+findings through `cmd/finding`; prose rankings carry a freshness contract;
+`cmd/closure-scan -raw` ranks repeated policy literals; successful gate phases
+reuse per-phase input fingerprints; `cmd/plan -sync-master` merges generated plan
+projections three ways; and bounded read-only turns bypass the stop ledger.
+
 The system does not yet have an autonomous orchestration control plane. That is
 intentional: the owner currently assigns worktrees, resolves conflicts, allocates
 the shared GPU, integrates branches, and decides promotion. The next automation
@@ -44,10 +52,22 @@ and promotion appropriately remain owner decisions.
 - The measured one-consumer `gatecontrol` abstraction remains deleted.
   Multi-consumer evidence and JSON mechanics use existing common owners;
   command-local coordination stays local.
+- Gate acceptance and plan advancement now land in the same commit. Named test
+  verification consumes structured events and rejects a skipped or absent
+  target without failing on an unrelated optional skip.
+- `cmd/finding` writes one typed RepoDB batch containing the finding, owner and
+  evidence anchors, lineage, closure path, and mandatory failable check.
+- `cmd/plan -sync-master` requires a clean tree, merges plan projections from
+  their Git merge base, preserves independent work, and refuses source conflicts.
+- UserPromptSubmit distinguishes bounded read-only prompts from action and
+  continuation prompts. `docs/.bounded_request` is consumed silently by the
+  Stop hook; it never creates a `docs/plan_stop.json` record.
 
-The executable automation roadmap is complete. The only remaining roadmap row
-is the externally blocked project-source license decision; choosing that legal
-policy remains owner authority. Completed implementation history remains in Git.
+The executable automation enhancement wave is complete. The only remaining
+automation-roadmap row is the externally blocked project-source license
+decision; choosing that legal policy remains owner authority. Completed
+implementation history remains in Git. Future automation should be admitted
+only when measured friction justifies another common owner.
 
 ## Operating boundary
 
@@ -148,12 +168,18 @@ misses recurring hygiene problems.
 
 - `cmd/plan` owns a compact, open-work-only queue and selects the first open
   step. It can add work, define verification, generate a task prompt, verify,
-  advance, compact, and record one of three recognized stop reasons. The shared
+  advance atomically through the commit gate, compact, semantically synchronize
+  master, and record one of three recognized stop reasons. The shared
   validator refuses an open step without a failable verifier; blocked steps name
   their unavailable prerequisite instead.
 - `cmd/loophook` and the thin shell adapters inject doctrine at session start,
   arm a post-commit dispatch marker, and block a turn end that would leave
-  uncommitted Go work or a committed-but-undispatched boundary.
+  uncommitted work or a committed-but-undispatched boundary. UserPromptSubmit
+  marks bounded reviews, explanations, summaries, and status questions so their
+  completed turns exit without a false stop record.
+- `cmd/finding` is the agent-facing outlet for an out-of-scope observation. It
+  reuses `internal/finding` and requires owner/evidence anchors, a closure path,
+  severity, and a failable check before committing anything to RepoDB.
 - The gate requires every normal and merge commit to name the current plan
   item/step. Off-plan commits are refused inside the configured harness.
 
@@ -173,9 +199,13 @@ misses recurring hygiene problems.
 7. Route CUDA-cone changes to the device lane.
 8. Commit through a message file and write a structured RepoDB gate record.
 
-Successful expensive tree-dependent steps are cached against a hash of HEAD,
-staged changes, unstaged changes, and planned untracked content. The final
-honesty section lists skipped, reused, unavailable, and advisory evidence.
+Successful expensive steps are cached by environment-bound per-phase input
+fingerprints. Go authority is shared, while manifest, SBOM, and compatibility
+phases add their owned generated documents, manifests, and evidence paths. A
+documentation-only compatibility refresh invalidates claims without repaying a
+build. Full evidence remains in RepoDB and `bin/gate_status.json`; agent-facing
+output is limited to verdict, phase sets, deltas, test scope, reuse, and
+exceptional warnings.
 
 ### Safety guard
 
@@ -192,11 +222,18 @@ boundary, which is the correct claim.
 - Gate, smoke, benchmark, evaluation, advisory, and promotion records share the
   run-record model.
 - Compatibility claims carry explicit evidence tiers and verification targets.
+  Evidence remains whole-file by default and can opt into symbol-scoped,
+  gofmt-normalized function identities when the claim does not depend on the
+  rest of the file.
 - Kernel manifests bind generated PTX, CUDA sources, entry points, and argument
   layouts.
 - The SBOM generator binds modules and important generated/kernel files by hash.
 - Closure scanning and the magic ledger expose unexplained constants and
   capability-transfer closure rather than hiding them in prose.
+- `cmd/closure-scan -raw` groups repeated literals by package and function/file
+  owner. Tests, generated sources, small integers, indexes, dimensions,
+  arithmetic factors, struct tags, and prose strings are excluded; the ranking
+  is advisory and never authorizes constant extraction.
 
 ### Verification lanes
 

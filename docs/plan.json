@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "override-containment",
-          "title": "Persist forced advances and typed lane-scoped containment events in RepoDB",
-          "status": "open",
-          "verify": "go test ./cmd/plan -run '^TestOverrideAndContainmentEvidence$' -count=1 -v"
-        },
-        {
           "id": "release-integrity",
           "title": "Regenerate the SBOM and exclude chronological assessments from release payloads",
           "status": "open",

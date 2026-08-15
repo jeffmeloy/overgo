@@ -432,15 +432,13 @@ hooks were active in each run record rather than assuming they were.
   inference packages.
 - Smoke distinguishes `empty` from success; smoke, device, race, and release
   now share one typed result contract.
-- Release output still includes historical documents that conflict with the
-  doctrine that Git owns chronology.
-- The current SBOM is stale, and project-owned source remains
-  `NOASSERTION` in `LICENSES.md`.
+- Release output contains durable compatibility, import, licensing, and SBOM
+  contracts; chronological assessments remain repository history. The SBOM is
+  regenerated from the current dependency graph. Project-owned source remains
+  `NOASSERTION` pending the owner's license decision.
 
-Required direction: share typed lane outcomes (`pass`, `fail`, `unavailable`,
-`empty`) with future lanes; add direct device selection/reporting tests and a
-real-GPU integration lane; separate durable release contracts from historical
-assessments.
+Required direction: add direct device selection/reporting tests and a real-GPU
+integration lane.
 
 ### A11: Override and stop controls are too narrow for later autonomy
 

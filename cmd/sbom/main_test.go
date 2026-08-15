@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -28,5 +30,19 @@ func TestGenerateIsDeterministicAndValidJSON(t *testing.T) {
 	components, ok := document["components"].([]any)
 	if !ok || len(components) < 8 {
 		t.Fatalf("components = %#v", document["components"])
+	}
+}
+
+func TestReleaseIntegrityContract(t *testing.T) {
+	generated, err := generate("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	committed, err := os.ReadFile(filepath.Join("..", "..", sbomPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(generated, committed) {
+		t.Fatal("committed SBOM does not match the dependency graph")
 	}
 }

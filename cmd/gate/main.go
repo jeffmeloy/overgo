@@ -56,6 +56,7 @@ const (
 type gateContext struct {
 	repo         string
 	paths        []string
+	planRef      string
 	messageFile  string
 	storePath    string
 	steps        []runrecord.GateStep
@@ -131,7 +132,7 @@ func run() error {
 		return err
 	}
 	g := &gateContext{
-		repo: repo, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
+		repo: repo, planRef: *planRef, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
 		stepEvidence: map[string]string{},
 	}
 	if *merge {
@@ -163,6 +164,9 @@ func run() error {
 	}
 	if err := g.expandDirectoryPaths(); err != nil {
 		return err
+	}
+	if !slices.Contains(g.paths, plan.Path) {
+		g.paths = append(g.paths, plan.Path)
 	}
 	g.environment, err = discoverEnvironment(repo)
 	if err != nil {
@@ -263,6 +267,7 @@ func (g *gateContext) pipeline() error {
 		{"claims", runrecord.PhaseValidate, g.stepClaims},
 		{"magics", runrecord.PhaseValidate, g.stepMagics},
 		{"device", runrecord.PhaseTest, g.stepDevice},
+		{"acceptance", runrecord.PhaseTest, g.stepAcceptance},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
 	}
 	cache := g.loadRetryCache()
@@ -953,6 +958,12 @@ func (g *gateContext) stepDevice() (bool, error) {
 	return false, err
 }
 
+func (g *gateContext) stepAcceptance() (bool, error) {
+	g.stepEvidence["acceptance"] = g.planRef
+	_, err := command(g.repo, "go", "run", "./cmd/plan", "-verify")
+	return false, err
+}
+
 // pathsTouchDeviceSource: device-lane code lives outside internal/cuda too (e.g.
 // the device optimizer in internal/optimizer). Any _cuda_windows source/test in
 // -paths fires the lane so its device evidence is not silently skipped.
@@ -980,6 +991,18 @@ func (g *gateContext) stepCommit() (bool, error) {
 	); err != nil {
 		return false, fmt.Errorf("pre-commit record validation: %w", err)
 	}
+	rollbackPlan, err := advancePlanFile(g.repo, g.planRef)
+	if err != nil {
+		return false, err
+	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		_ = rollbackPlan()
+		_, _ = command(g.repo, "git", "add", "-A", "--", plan.Path)
+	}()
 	// Add only paths with UNSTAGED changes: git refuses an add pathspec for a
 	// file that is gone with its deletion already fully staged (observed on
 	// the .ps1 retirement commit, under both plain and -A forms). Fully
@@ -1017,7 +1040,32 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
 	}
+	committed = true
 	return false, nil
+}
+
+func advancePlanFile(repo, ref string) (func() error, error) {
+	itemID, stepID, ok := strings.Cut(ref, "/")
+	if !ok || itemID == "" || stepID == "" {
+		return nil, fmt.Errorf("advance plan: invalid reference %q", ref)
+	}
+	path := filepath.Join(repo, filepath.FromSlash(plan.Path))
+	original, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	document, err := plan.Load(path)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := plan.Advance(document, itemID, stepID)
+	if err != nil {
+		return nil, err
+	}
+	if err := plan.Save(path, updated); err != nil {
+		return nil, err
+	}
+	return func() error { return os.WriteFile(path, original, 0o644) }, nil
 }
 
 func (g *gateContext) prepare() error {

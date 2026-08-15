@@ -448,15 +448,15 @@ PROTOCOL -- no deviation:
   4. Commit ONLY via the plan-bound gate:
        go run ./cmd/gate -plan %s/%s -message-file <msg> -paths <csv>
      The gate REFUSES any commit whose -plan is not this active step.
-  5. "Done" means: 'go run ./cmd/plan -verify' exits 0 (it runs this step's
-     acceptance command below), THEN 'go run ./cmd/plan -advance %s %s'.
-  6. After advancing, re-rank/refactor the plan from the result (or user input),
+  5. "Done" means the plan-bound gate passes; it reruns this step's acceptance
+     and advances docs/plan.json atomically in the implementation commit.
+  6. After commit, re-rank/refactor the plan from the result (or user input),
      then 'go run ./cmd/plan -prompt' for the next task. Repeat until complete.
 
 VERIFY (this step's machine-checked acceptance):
   %s
 === END TASK ===
-`, document.Campaign, it.ID, it.Title, st.ID, st.Title, doctrine, it.ID, st.ID, it.ID, st.ID, verify)
+`, document.Campaign, it.ID, it.Title, st.ID, st.Title, doctrine, it.ID, st.ID, verify)
 }
 
 // runVerify executes the step's verify command; its exit code is the verdict.
@@ -511,47 +511,23 @@ func verificationShell() (string, error) {
 // package "ok" without these markers and are unaffected.
 
 func advanceStep(document plan.Plan, itemID, stepID, force string, onOverride func(string, string) error) error {
-	for i := range document.Items {
-		if document.Items[i].ID != itemID {
-			continue
-		}
-		if stepID != "." {
-			targetIndex := -1
-			for j := range document.Items[i].Steps {
-				if document.Items[i].Steps[j].ID == stepID {
-					targetIndex = j
-					break
-				}
-			}
-			if targetIndex < 0 {
-				return fmt.Errorf("step %q not found in %q", stepID, itemID)
-			}
-			if err := gateAdvance(document.Items[i], document.Items[i].Steps[targetIndex], force); err != nil {
-				return err
-			}
-			if force != "" && onOverride != nil {
-				if err := onOverride(itemID+"/"+stepID, force); err != nil {
-					return err
-				}
-			}
-			document.Items[i].Steps = append(document.Items[i].Steps[:targetIndex], document.Items[i].Steps[targetIndex+1:]...)
-			if len(document.Items[i].Steps) == 0 {
-				document.Items = append(document.Items[:i], document.Items[i+1:]...)
-			}
-			return finishAdvance(document, itemID, stepID)
-		}
-		if err := gateAdvance(document.Items[i], plan.Step{ID: "."}, force); err != nil {
+	it, st, open := plan.Current(document)
+	if !open || it.ID != itemID || st.ID != stepID {
+		return fmt.Errorf("%s/%s is not the current open step", itemID, stepID)
+	}
+	if err := gateAdvance(it, st, force); err != nil {
+		return err
+	}
+	if force != "" && onOverride != nil {
+		if err := onOverride(itemID+"/"+stepID, force); err != nil {
 			return err
 		}
-		if force != "" && onOverride != nil {
-			if err := onOverride(itemID+"/.", force); err != nil {
-				return err
-			}
-		}
-		document.Items = append(document.Items[:i], document.Items[i+1:]...)
-		return finishAdvance(document, itemID, stepID)
 	}
-	return fmt.Errorf("item %q not found", itemID)
+	updated, err := plan.Advance(document, itemID, stepID)
+	if err != nil {
+		return err
+	}
+	return finishAdvance(updated, itemID, stepID)
 }
 
 func recordOverride(lane, detail string) error {

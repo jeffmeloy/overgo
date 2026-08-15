@@ -3,6 +3,97 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
   "items": [
     {
+      "id": "automation-test-verdict",
+      "title": "Interpret Go test JSON by targeted acceptance tests and ignore unrelated skips",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Interpret Go test JSON by targeted acceptance tests and ignore unrelated skips",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestVerifyGoTestJSONTargets$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "automation-diagnostics",
+      "title": "Report newly introduced magic and hygiene debt before inherited backlog",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Report newly introduced magic and hygiene debt before inherited backlog",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestDiagnosticsPrioritizeChangedDebt$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "automation-claims",
+      "title": "Anchor compatibility evidence to normalized Go symbols when claims do not depend on whole files",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Anchor compatibility evidence to normalized Go symbols when claims do not depend on whole files",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestSymbolEvidenceIgnoresUnrelatedFileChanges$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "automation-literals",
+      "title": "Rank repeated raw policy literals with AST ownership evidence without constantizing math facts",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Rank repeated raw policy literals with AST ownership evidence without constantizing math facts",
+          "status": "open",
+          "verify": "go test ./internal/closurescan -run '^TestRankRawPolicyLiterals$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "automation-phase-cache",
+      "title": "Cache successful gate phases by their derived input fingerprints rather than the whole tree",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Cache successful gate phases by their derived input fingerprints rather than the whole tree",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestPhaseCacheUsesDerivedInputs$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "automation-sync",
+      "title": "Synchronize master through a Go owner that resolves generated plan projections safely",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Synchronize master through a Go owner that resolves generated plan projections safely",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestSyncMasterSubsumesGeneratedPlanProjection$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "automation-output",
+      "title": "Compress plan and gate output to decisions, deltas, and exceptional warnings",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compress plan and gate output to decisions, deltas, and exceptional warnings",
+          "status": "open",
+          "verify": "go test ./cmd/plan ./cmd/gate -run '^TestCompactAgentOutput$' -count=1 -v"
+        }
+      ]
+    },
+    {
       "id": "automation-roadmap",
       "title": "Complete the automation roadmap through shared Go owners",
       "status": "blocked-external-prereq",

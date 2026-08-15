@@ -2,6 +2,7 @@ package artifact
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 	"overgo/internal/strictjson"
 )
 
-// DocumentCodec: canonical typed document lifecycle.
+// DocumentCodec: canonical typed lifecycle.
 type DocumentCodec[T any] struct {
 	Name         string
 	Contract     DocumentContract
@@ -23,8 +24,7 @@ type DocumentCodec[T any] struct {
 	SetIdentity  func(*T, ID)
 }
 
-// JSONDocumentCodec supplies strict-JSON mechanics; callers retain schema
-// validation and cloning policy.
+// JSONDocumentCodec: strict JSON; caller-owned schema and cloning.
 func JSONDocumentCodec[T any](
 	name string,
 	kind Kind,
@@ -65,34 +65,53 @@ func (c DocumentCodec[T]) New(value T) (T, error) {
 }
 
 func (c DocumentCodec[T]) Parse(data []byte) (T, error) {
-	var decoded T
 	if err := c.validate(); err != nil {
-		return decoded, err
+		var zero T
+		return zero, err
 	}
-	if err := c.Decode(data, &decoded); err != nil {
-		return decoded, fmt.Errorf("%s: decode document: %w", c.Name, err)
-	}
-	value, canonical, contract, err := c.canonical(decoded)
+	value, canonical, contract, err := c.parseCanonical(data)
 	if err != nil {
-		return decoded, err
-	}
-	if !bytes.Equal(canonical, data) {
-		return decoded, fmt.Errorf("%s: non-canonical document", c.Name)
+		return value, err
 	}
 	id, err := contract.Identify(canonical)
 	if err != nil {
-		return decoded, err
+		return value, err
 	}
 	c.SetIdentity(&value, id)
 	return value, nil
 }
 
-// Normalize accepts a document in any JSON field order, validates it, and
-// returns the value plus its canonical bytes. Parse demands canonical input
-// because stored bytes are identity; Normalize is the admission path for
-// documents produced outside this codec — the importer's resolved-reference
-// marshal cannot know each type's canonical field order, and the codec is the
-// one owner of that fact.
+// Read: validated typed read; no intermediate content clone.
+func (c DocumentCodec[T]) Read(ctx context.Context, reader Reader, id ID) (T, bool, error) {
+	var zero T
+	if err := c.validate(); err != nil {
+		return zero, false, err
+	}
+	if ctx == nil || reader == nil {
+		return zero, false, errors.New("artifact: nil document reader or context")
+	}
+	if err := ctx.Err(); err != nil {
+		return zero, false, err
+	}
+	content, ok, err := reader.Content(ctx, id)
+	if err != nil || !ok {
+		return zero, ok, err
+	}
+	if err := content.Validate(); err != nil {
+		return zero, false, fmt.Errorf("artifact: read document: %w", err)
+	}
+	value, _, contract, err := c.parseCanonical(content.Data)
+	if err != nil {
+		return zero, false, err
+	}
+	if err := contract.validateDescriptor(content.Descriptor, id); err != nil {
+		return zero, false, fmt.Errorf("artifact: read document: %w", err)
+	}
+	c.SetIdentity(&value, id)
+	return value, true, nil
+}
+
+// Normalize: external bytes to canonical value and identity bytes.
 func (c DocumentCodec[T]) Normalize(data []byte) (T, []byte, error) {
 	var decoded T
 	if err := c.validate(); err != nil {
@@ -165,6 +184,21 @@ func (c DocumentCodec[T]) canonical(value T) (T, []byte, DocumentContract, error
 		return value, nil, DocumentContract{}, err
 	}
 	return value, data, c.contract(value), nil
+}
+
+func (c DocumentCodec[T]) parseCanonical(data []byte) (T, []byte, DocumentContract, error) {
+	var decoded T
+	if err := c.Decode(data, &decoded); err != nil {
+		return decoded, nil, DocumentContract{}, fmt.Errorf("%s: decode document: %w", c.Name, err)
+	}
+	value, canonical, contract, err := c.canonical(decoded)
+	if err != nil {
+		return decoded, nil, DocumentContract{}, err
+	}
+	if !bytes.Equal(canonical, data) {
+		return decoded, nil, DocumentContract{}, fmt.Errorf("%s: non-canonical document", c.Name)
+	}
+	return value, canonical, contract, nil
 }
 
 func (c DocumentCodec[T]) clone(value T) T {

@@ -21,7 +21,7 @@ func TestTensorInventoryDocumentRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseTensorInventoryDocument(content.Data)
+	parsed, err := tensorInventoryCodec.Parse(content.Data)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,9 +1,7 @@
 package artifact
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"slices"
 )
 
@@ -77,33 +75,18 @@ func (c DocumentContract) OwnedContentBytes(data []byte) (Content, error) {
 }
 
 func (c DocumentContract) ValidateContent(content Content, id ID) error {
-	if id.Kind() != c.Kind || content.Descriptor.ID != id || content.Descriptor.MediaType != c.MediaType ||
-		content.Descriptor.Schema != c.Schema {
-		return errors.New("artifact: incompatible document content")
+	if err := c.validateDescriptor(content.Descriptor, id); err != nil {
+		return err
 	}
 	return content.Validate()
 }
 
-func ReadDocument(
-	ctx context.Context,
-	reader Reader,
-	id ID,
-	contract DocumentContract,
-) (Content, bool, error) {
-	if ctx == nil || reader == nil {
-		return Content{}, false, errors.New("artifact: nil document reader or context")
+func (c DocumentContract) validateDescriptor(descriptor Descriptor, id ID) error {
+	if id.Kind() != c.Kind || descriptor.ID != id || descriptor.MediaType != c.MediaType ||
+		descriptor.Schema != c.Schema {
+		return errors.New("artifact: incompatible document content")
 	}
-	if id.Kind() != contract.Kind {
-		return Content{}, false, errors.New("artifact: document kind differs from contract")
-	}
-	content, ok, err := reader.Content(ctx, id)
-	if err != nil || !ok {
-		return Content{}, ok, err
-	}
-	if err := contract.ValidateContent(content, id); err != nil {
-		return Content{}, false, fmt.Errorf("artifact: read document: %w", err)
-	}
-	return content.Clone(), true, nil
+	return nil
 }
 
 func NewDocumentBatch(

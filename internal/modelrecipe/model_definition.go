@@ -146,10 +146,6 @@ func NewModelDefinitionDocument(
 	return modelDefinitionCodec.New(document)
 }
 
-func ParseModelDefinitionDocument(content []byte) (ModelDefinitionDocument, error) {
-	return modelDefinitionCodec.Parse(content)
-}
-
 func (d ModelDefinitionDocument) ValidateIdentity() error {
 	return modelDefinitionCodec.ValidateIdentity(d)
 }
@@ -199,36 +195,23 @@ func ResolveModelDefinition(
 	store artifact.Reader,
 	id artifact.ID,
 ) (ResolvedModelDefinition, error) {
-	content, ok, err := artifact.ReadDocument(ctx, store, id, modelDefinitionContract)
+	document, ok, err := modelDefinitionCodec.Read(ctx, store, id)
 	if err != nil {
 		return ResolvedModelDefinition{}, err
 	}
 	if !ok {
 		return ResolvedModelDefinition{}, errors.New("model recipe: model definition content is absent or incompatible")
 	}
-	document, err := ParseModelDefinitionDocument(content.Data)
-	if err != nil {
-		return ResolvedModelDefinition{}, err
-	}
-	if document.ID != id {
-		return ResolvedModelDefinition{}, errors.New("model recipe: resolved model definition identity mismatch")
-	}
 	profile, err := loadProfile(ctx, store, document.Profile)
 	if err != nil {
 		return ResolvedModelDefinition{}, err
 	}
-	tensorContent, ok, err := artifact.ReadDocument(
-		ctx, store, document.TensorInventory, modelartifact.TensorInventoryDocumentContract(),
-	)
+	tensors, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.TensorInventory)
 	if err != nil {
 		return ResolvedModelDefinition{}, err
 	}
 	if !ok {
 		return ResolvedModelDefinition{}, errors.New("model recipe: tensor inventory content is absent or incompatible")
-	}
-	tensors, err := modelartifact.ParseTensorInventoryDocument(tensorContent.Data)
-	if err != nil {
-		return ResolvedModelDefinition{}, err
 	}
 	return document.Resolve(profile, tensors)
 }

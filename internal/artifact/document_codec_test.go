@@ -1,6 +1,7 @@
 package artifact
 
 import (
+	"context"
 	"encoding/json"
 	"slices"
 	"testing"
@@ -59,6 +60,10 @@ func TestDocumentCodecOwnsCanonicalLifecycle(t *testing.T) {
 	}
 	if encodeCalls != expectedEncodesPerOperation {
 		t.Fatalf("parse encoded %d times", encodeCalls)
+	}
+	loaded, ok, err := codec.Read(context.Background(), documentReader{content: content}, document.ID)
+	if err != nil || !ok || loaded.ID != document.ID || !slices.Equal(loaded.Names, document.Names) {
+		t.Fatalf("read document = %+v/%v/%v", loaded, ok, err)
 	}
 	mutated := document
 	mutated.Names = []string{"second", "first"}

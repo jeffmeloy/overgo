@@ -39,18 +39,7 @@ func PublicationBatch(
 
 // Load: resolves one inline dataset document.
 func Load(ctx context.Context, store artifact.Reader, id artifact.ID) (Document, bool, error) {
-	content, ok, err := artifact.ReadDocument(ctx, store, id, documentContract)
-	if err != nil || !ok {
-		return Document{}, ok, err
-	}
-	document, err := Parse(content.Data)
-	if err != nil {
-		return Document{}, false, err
-	}
-	if document.ID != id {
-		return Document{}, false, errors.New("dataset: stored identity mismatch")
-	}
-	return document, true, nil
+	return documentCodec.Read(ctx, store, id)
 }
 
 // Resolve: resolves an alias to one dataset document.
@@ -71,16 +60,5 @@ func Resolve(ctx context.Context, store artifact.Reader, alias string) (Document
 
 // LoadMembership resolves one inline split-membership document.
 func LoadMembership(ctx context.Context, store artifact.Reader, id artifact.ID) (Membership, bool, error) {
-	content, ok, err := artifact.ReadDocument(ctx, store, id, membershipContract)
-	if err != nil || !ok {
-		return Membership{}, ok, err
-	}
-	membership, err := membershipCodec.Parse(content.Data)
-	if err != nil {
-		return Membership{}, false, err
-	}
-	if membership.ID != id {
-		return Membership{}, false, errors.New("dataset: stored membership identity mismatch")
-	}
-	return membership, true, nil
+	return membershipCodec.Read(ctx, store, id)
 }

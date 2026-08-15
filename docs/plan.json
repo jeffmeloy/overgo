@@ -11,7 +11,7 @@
           "id": "do",
           "title": "Delete ranked runtime duplication through existing owners",
           "status": "open",
-          "verify": "go test -v -count=1 ./internal/textcheck ./internal/recipe ./internal/runrecord ./internal/inference -run '^(TestLowerIdentifier|TestDefinitionCanonicalIdentityAndValidation|TestRunAndEvaluationRejectInvalidFacts|TestKVCacheNamedStateValidation)$'"
+          "verify": "go test -v -count=1 ./internal/artifact ./internal/closureledger ./internal/dataset ./internal/modelartifact ./internal/modelrecipe ./internal/plan ./internal/recipe ./internal/runrecord ./internal/trainingdata"
         }
       ]
     },

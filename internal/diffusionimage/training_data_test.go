@@ -16,6 +16,11 @@ func TestTrainerConsumesSharedImageBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := trainer.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 	input, target := fixedFlowPath(t, fixture.X, fixture.B, 0.001)
 	perExample := len(input) / fixture.B
 	examples := make([]trainingdata.Example, fixture.B)

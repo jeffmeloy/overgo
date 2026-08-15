@@ -59,7 +59,7 @@ func ScaledMSELossGradInto(dst, pred, target []float32, scale float64) (float64,
 type Trainer struct {
 	model  *Model
 	pack   *optimizer.TensorPack
-	update *optimizer.Optimizer
+	update optimizer.Stepper
 }
 
 func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
@@ -70,11 +70,18 @@ func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 	if err != nil {
 		return nil, err
 	}
-	update, err := pack.NewOptimizer(config)
+	update, err := pack.NewStepper(config)
 	if err != nil {
 		return nil, err
 	}
 	return &Trainer{model: model, pack: pack, update: update}, nil
+}
+
+func (trainer *Trainer) Close() error {
+	if trainer == nil || trainer.update == nil {
+		return nil
+	}
+	return trainer.update.Close()
 }
 
 // Step: forward, OT loss/backward, Muon update.
@@ -103,7 +110,9 @@ func (trainer *Trainer) Step(x, target []float32, b, height, width int) (float64
 	if err := trainer.pack.GatherGradients(grads); err != nil {
 		return 0, err
 	}
-	trainer.update.Step()
+	if err := trainer.update.Step(); err != nil {
+		return 0, err
+	}
 	trainer.pack.Scatter()
 	m.refreshScalars()
 	return loss, nil

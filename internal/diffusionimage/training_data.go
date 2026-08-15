@@ -3,10 +3,16 @@ package diffusionimage
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 
 	"overgo/internal/recipecontract"
 	"overgo/internal/trainingdata"
 )
+
+type otImageMicrobatch struct {
+	x, target   []float32
+	batch, h, w int
+}
 
 // TrainBatch applies one update per ordered stream microbatch.
 func (trainer *Trainer) TrainBatch(batch trainingdata.Batch) ([]float64, error) {
@@ -24,6 +30,66 @@ func (trainer *Trainer) TrainBatch(batch trainingdata.Batch) ([]float64, error) 
 			return nil, err
 		}
 		losses[index], err = trainer.Step(x, target, len(examples), height, width)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return losses, nil
+}
+
+// TrainOTBatch derives adaptive_new's seeded OT path from real image targets.
+func (trainer *Trainer) TrainOTBatch(batch trainingdata.Batch, sigmaMin float64, seed int64) ([]float64, error) {
+	return trainer.eachOTMicrobatch(batch, sigmaMin, seed, func(microbatch otImageMicrobatch) (float64, error) {
+		return trainer.Step(microbatch.x, microbatch.target, microbatch.batch, microbatch.h, microbatch.w)
+	})
+}
+
+// OTLoss evaluates the same seeded OT path without updating parameters.
+func (trainer *Trainer) OTLoss(batch trainingdata.Batch, sigmaMin float64, seed int64) ([]float64, error) {
+	return trainer.eachOTMicrobatch(batch, sigmaMin, seed, func(microbatch otImageMicrobatch) (float64, error) {
+		prediction, err := trainer.model.Forward(microbatch.x, microbatch.batch, microbatch.h, microbatch.w)
+		if err != nil {
+			return 0, err
+		}
+		gradient := make([]float32, len(prediction))
+		return ScaledMSELossGradInto(gradient, prediction, microbatch.target, 1)
+	})
+}
+
+func (trainer *Trainer) eachOTMicrobatch(
+	batch trainingdata.Batch,
+	sigmaMin float64,
+	seed int64,
+	execute func(otImageMicrobatch) (float64, error),
+) ([]float64, error) {
+	if trainer == nil || trainer.model == nil || sigmaMin <= 0 || sigmaMin >= 1 {
+		return nil, errors.New("diffusionimage train: invalid OT batch")
+	}
+	examples := batch.Microbatches()
+	if len(examples) == 0 || execute == nil {
+		return nil, errors.New("diffusionimage train: empty stream batch")
+	}
+	rng := rand.New(rand.NewSource(seed))
+	losses := make([]float64, len(examples))
+	for index, group := range examples {
+		x1, height, width, err := targetImageBatch(group, trainer.model.Cfg.InChannels)
+		if err != nil {
+			return nil, err
+		}
+		x0 := make([]float32, len(x1))
+		times := make([]float32, len(group))
+		for offset := range x0 {
+			x0[offset] = float32(rng.NormFloat64())
+		}
+		for offset := range times {
+			times[offset] = float32(rng.Float64())
+		}
+		x := make([]float32, len(x1))
+		target := make([]float32, len(x1))
+		if err := OTLinearFlowPathInto(x, target, x1, x0, times, len(group), len(x1)/len(group), sigmaMin); err != nil {
+			return nil, err
+		}
+		losses[index], err = execute(otImageMicrobatch{x: x, target: target, batch: len(group), h: height, w: width})
 		if err != nil {
 			return nil, err
 		}
@@ -64,6 +130,39 @@ func imageBatch(examples []trainingdata.Example, channels int) ([]float32, []flo
 		target = append(target, outputValues...)
 	}
 	return x, target, height, width, nil
+}
+
+func targetImageBatch(examples []trainingdata.Example, channels int) ([]float32, int, int, error) {
+	var target []float32
+	var height, width int
+	for _, example := range examples {
+		var image trainingdata.Value
+		for _, value := range example.Values {
+			if value.Modality == recipecontract.ModalityImage && value.Role == trainingdata.RoleTarget {
+				if len(image.Data) != 0 {
+					return nil, 0, 0, errors.New("diffusionimage train: multiple image targets")
+				}
+				image = value
+			}
+		}
+		if len(image.Shape) != 3 || image.Shape[0] != channels {
+			return nil, 0, 0, errors.New("diffusionimage train: image target shape mismatch")
+		}
+		if height == 0 {
+			height, width = image.Shape[1], image.Shape[2]
+		} else if height != image.Shape[1] || width != image.Shape[2] {
+			return nil, 0, 0, errors.New("diffusionimage train: mixed target shapes")
+		}
+		values, err := trainingdata.Float32(image)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+		if len(values) != channels*height*width {
+			return nil, 0, 0, errors.New("diffusionimage train: image target length differs")
+		}
+		target = append(target, values...)
+	}
+	return target, height, width, nil
 }
 
 func imagePair(example trainingdata.Example) (trainingdata.Value, trainingdata.Value, error) {

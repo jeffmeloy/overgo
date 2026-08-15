@@ -125,7 +125,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Gemma4 12B | Streamed CUDA LM scope | Shared backward prerequisites; no reported real 12B training | Gap |
 | Forecast/latent/FNS | CUDA objectives for LM, FNS, latent L2/sequence, forecast | TimesFM primitives remain open. Un-0 retains complete VJPs but explicitly refuses training after deletion of its synthetic constant-target ramp | Breadth gap; false capability removed |
 | OCR | Host objective; CUDA train/eval absent | No promoted training path | Both incomplete |
-| SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and revive experiments; device path incomplete | Shared Muon plan covers the real artifact; tiny Muon loss `0.026695 -> 0.002327`; real device update open | Optimizer authority fixed; performance parity incomplete |
+| SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and revive experiments; device path incomplete | The shared materializer selects structured 32x32 crops from the artifact's four real sample grids, then the common stream, normalized-image processor, seeded OT objective, full model VJP, and platform Muon stepper train the 101,828,450-parameter checkpoint. One train/held-out gate lowers matched train loss `1.331198 -> 1.156815` and held-out loss `1.396862 -> 1.346165`; 6,143 sampled final-projection values change. Two complete gates take 3.34-4.81 s on the reviewed Windows/CUDA machine | Real-data full-checkpoint update proven; device forward/backward and matched performance remain open |
 | Pocket-TTS | Latent bridge, flow-net, backbone paths | Inference recipe and reference waveform are production-proven. The production compiled trainer binds all 85,282,848 joint backbone+flow parameters to shared Muon; native generated codec latents lower loss `0.505204 -> 0.285938` in one step | Real-artifact Muon trajectory proven; corpus audio encoding and held-out evaluation open |
 | Controller model | Strategic adaptive plan; no promoted controller | Overgo training design targets it | Not started |
 | Tier-1 memory scaling | Adaptive streamed/checkpointed components | Resident dense session and scratch pool exist; no production E4B run | Partial |
@@ -203,6 +203,14 @@ Overgo's tokenizer total includes a large generated Unicode table.
   mean held-out loss `7.011798 -> 6.123598`. This replaces the single-example
   trajectory as the breadth claim; production resume and longer generation-
   quality evaluation remain open.
+- SimpleDiffusion consumes six structured training crops and two held-out crops
+  selected from the real checkpoint's sample grids through the shared binary-
+  record materializer and normalized-image processor. The adaptive-seeded OT
+  path and full 101,828,450-parameter VJP feed the shared platform Muon
+  stepper. One update lowers matched train loss `1.331198 -> 1.156815` and
+  held-out loss `1.396862 -> 1.346165`; 6,143 final-projection values change.
+  The 3.34-4.81 s focused gates are capability evidence, not a matched performance
+  claim; forward/backward remain host-owned.
 - Synthetic dense medium benchmark: host `85.6 s/step`; device full
   `1.89 s/step`; `45.4x`. This is an internal backend comparison, not
   adaptive_new parity and not a production-model result.
@@ -300,12 +308,11 @@ through the shared compiled Muon path; sign, BF16-SGD and the image-local SGD
 loop are deleted. Add a production-code scanner so new local weight-update loops
 cannot bypass the optimizer package.
 
-### P1: plan and training docs contain stale completion prose
+### P1: training documentation must track executable evidence
 
-`docs/plan.json` carries 38 done items and many legacy steps without runnable
-verification. `docs/training_plan.md` still describes device backward as
-host-only and names types that do not exist. Git owns chronology. Keep only
-open executable work plus current contracts.
+`docs/plan.json` contains only open executable work, while Git owns chronology.
+Training claims must continue to name the tested artifact, data, lifecycle,
+backend boundaries, verifier, and remaining gaps.
 
 ### P1: compatibility breadth outruns evidence depth
 

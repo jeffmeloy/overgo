@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/deviceprobe"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/routedlm"
@@ -29,11 +28,7 @@ import (
 // runDevice: device terminal parity + measurement.
 func runDevice(l *ladder) error {
 	ctx := context.Background()
-	baseMemory, err := deviceprobe.MeasureMemory()
-	if err != nil {
-		return err
-	}
-	l.log(fmt.Sprintf("DEVICE terminal parity START gpu.used=%dMiB", baseMemory.UsedMiB))
+	l.log("DEVICE terminal parity START")
 
 	cfg, err := routedlm.LoadConfig(l.modelDir, binding)
 	if err != nil {
@@ -169,11 +164,6 @@ func runDevice(l *ladder) error {
 	}
 	devLogits := devOut[dLogits].Data
 	devTop := int(devOut[dTop].Data[0])
-	afterMemory, err := deviceprobe.MeasureMemory()
-	if err != nil {
-		return err
-	}
-
 	// ---- exactness ---------------------------------------------------------
 	// device top == host-graph top == golden first token.
 	if devTop != hostTop {
@@ -222,12 +212,10 @@ func runDevice(l *ladder) error {
 		}
 	}
 	perCall := time.Since(start) / iters
-	headMiB := float64(len(headBytes)) / (1 << 20)
-
 	l.log(fmt.Sprintf("DEVICE terminal EXACT top=%d (golden first=%d) dev-vs-host worst|d|=%.3e",
 		devTop, dg.FirstToken, worstDH))
-	l.log(fmt.Sprintf("DEVICE terminal MEASURE proj=%.3fms/token head_resident=%.0fMiB gpu.used %d->%dMiB (delta=%dMiB)",
-		float64(perCall.Microseconds())/1000.0, headMiB, baseMemory.UsedMiB, afterMemory.UsedMiB, afterMemory.UsedMiB-baseMemory.UsedMiB))
+	l.log(fmt.Sprintf("DEVICE terminal MEASURE proj=%.3fms/token head_resident=%.0fMiB",
+		float64(perCall.Microseconds())/1000.0, float64(len(headBytes))/(1<<20)))
 	l.log("DEVICE terminal LANE GREEN")
 	return nil
 }

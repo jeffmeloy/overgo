@@ -170,10 +170,9 @@ func verifyActivateVQA(l *ladder, repo, imagePath, question string) error {
 		return errors.New("VQA verifier: active replay differs from promotion run")
 	}
 	l.log(fmt.Sprintf(
-		"RECIPE verify LANE GREEN recipe=%s gate=%s run=%s verify=%s active=%s peak=%dMiB",
+		"RECIPE verify LANE GREEN recipe=%s gate=%s run=%s verify=%s active=%s",
 		definition.ID, verification.Gate, verification.Run,
 		verified.result.e2eWall.Round(time.Millisecond), active.result.e2eWall.Round(time.Millisecond),
-		max(verified.result.peakMiB, active.result.peakMiB),
 	))
 	return nil
 }

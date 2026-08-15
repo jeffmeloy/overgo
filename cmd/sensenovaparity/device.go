@@ -37,7 +37,6 @@ import (
 	"time"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/deviceprobe"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/routedlm"
@@ -73,11 +72,7 @@ func maxAbs(a []float32) float64 {
 // the CUDA generic executor, appended to the ladder as device stages.
 func runDevice(l *ladder, modelDir, fixturesDir string) error {
 	ctx := context.Background()
-	startMemory, err := deviceprobe.MeasureMemory()
-	if err != nil {
-		return err
-	}
-	l.log(fmt.Sprintf("DEVICE denoise-terminal START gpu.free=%dMiB used=%dMiB", startMemory.FreeMiB, startMemory.UsedMiB))
+	l.log("DEVICE denoise-terminal START")
 
 	var edit editOracle
 	if err := loadJSON(fixturesDir+string(os.PathSeparator)+"edit_oracle_v3_256.json", &edit); err != nil {
@@ -385,11 +380,7 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			}
 		}
 		perCall := float64(time.Since(start).Microseconds()) / float64(iters) / 1000.0
-		memory, err := deviceprobe.MeasureMemory()
-		if err != nil {
-			return "", math.NaN(), "", err
-		}
-		return verdictWired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowHeadVelocity) on real fm_head: rows=%d hidden=%d flow_dim=%d worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e | head-terminal %.3fms/step gpu.used=%dMiB", rows, H, F, worst, ref, rel, relTol, perCall, memory.UsedMiB), nil
+		return verdictWired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowHeadVelocity) on real fm_head: rows=%d hidden=%d flow_dim=%d worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e | head-terminal %.3fms/step", rows, H, F, worst, ref, rel, relTol, perCall), nil
 	})
 
 	// ---- device FlowMatchEuler update vs REAL z-trajectory oracle -------------
@@ -492,11 +483,7 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 		return verdictOracle, worst, fmt.Sprintf("step0.next_z == step1.z on %d aligned probes (worst|d|=%.3e): denoise loop feeds each step's output forward", len(i0), worst), nil
 	})
 
-	doneMemory, err := deviceprobe.MeasureMemory()
-	if err != nil {
-		return err
-	}
-	l.log(fmt.Sprintf("DEVICE denoise-terminal DONE gpu.free=%dMiB used=%dMiB", doneMemory.FreeMiB, doneMemory.UsedMiB))
+	l.log("DEVICE denoise-terminal DONE")
 	if !l.failed {
 		l.log("DEVICE denoise-terminal LANE GREEN (terminal+sampler verified; 42-layer body = named remainder)")
 	}

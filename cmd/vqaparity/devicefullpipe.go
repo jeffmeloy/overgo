@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/deviceprobe"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/patchtower"
@@ -44,18 +43,14 @@ type fullOpts struct {
 
 // fullResult: the pipeline outcome the caller decodes + reports.
 type fullResult struct {
-	firstToken   int
-	generated    []int
-	e2eWall      time.Duration
-	decodeWall   time.Duration
-	steps        int
-	baseMiB      int
-	afterLoadMiB int
-	peakMiB      int
-	peakFreeMiB  int
-	launches     uint64
-	instantis    uint64
-	updates      uint64
+	firstToken int
+	generated  []int
+	e2eWall    time.Duration
+	decodeWall time.Duration
+	steps      int
+	launches   uint64
+	instantis  uint64
+	updates    uint64
 }
 
 func runDeviceFull(l *ladder) error {
@@ -108,11 +103,11 @@ func runDeviceFull(l *ladder) error {
 	}
 	l.log(fmt.Sprintf("DEVICE full ANSWER EXACT chain=%v", res.generated))
 	l.log(fmt.Sprintf("DEVICE full TEXT %q", text))
-	l.log(fmt.Sprintf("DEVICE full MEASURE e2e=%s (vision+merger+prefill+decode) decode=%s (%d steps, %.3f ms/token) peak gpu.used=%dMiB (delta=%dMiB) free=%dMiB",
-		res.e2eWall.Round(time.Millisecond), res.decodeWall.Round(time.Millisecond), res.steps, float64(res.decodeWall.Microseconds())/1000.0/float64(res.steps), res.peakMiB, res.peakMiB-res.baseMiB, res.peakFreeMiB))
+	l.log(fmt.Sprintf("DEVICE full MEASURE e2e=%s (vision+merger+prefill+decode) decode=%s (%d steps, %.3f ms/token)",
+		res.e2eWall.Round(time.Millisecond), res.decodeWall.Round(time.Millisecond), res.steps, float64(res.decodeWall.Microseconds())/1000.0/float64(res.steps)))
 	l.log(fmt.Sprintf("DEVICE full REPLAY decode graph_launches=%d graph_instantiations=%d graph_updates=%d over %d steps (single compiled decode graph, per-step runtime attrs only)",
 		res.launches, res.instantis, res.updates, res.steps))
-	l.log(fmt.Sprintf("DEVICE full vs ADAPTIVE bar: adaptive e2e 18.4-23.1s engine peak 11.97GB; overgo e2e=%s peak=%dMiB (golden-seeded KV REPLACED by device prefill)", res.e2eWall.Round(time.Millisecond), res.peakMiB))
+	l.log(fmt.Sprintf("DEVICE full vs ADAPTIVE e2e bar 18.4-23.1s: overgo=%s (golden-seeded KV REPLACED by device prefill)", res.e2eWall.Round(time.Millisecond)))
 	l.log("DEVICE full LANE GREEN")
 	return nil
 }
@@ -131,12 +126,7 @@ func runFullPipeline(
 	opts fullOpts,
 ) (fullResult, error) {
 	var res fullResult
-	baseMemory, err := deviceprobe.MeasureMemory()
-	if err != nil {
-		return res, err
-	}
-	res.baseMiB = baseMemory.UsedMiB
-	l.log(fmt.Sprintf("DEVICE full START gpu.used=%dMiB free=%dMiB", res.baseMiB, baseMemory.FreeMiB))
+	l.log("DEVICE full START")
 
 	cfg := pc.cfg
 	H := cfg.HiddenSize
@@ -321,13 +311,6 @@ func runFullPipeline(
 	if err != nil {
 		return res, err
 	}
-	afterLoadMemory, err := deviceprobe.MeasureMemory()
-	if err != nil {
-		return res, err
-	}
-	res.afterLoadMiB = afterLoadMemory.UsedMiB
-	l.log(fmt.Sprintf("DEVICE full residency gpu.used %d->%dMiB (delta=%dMiB) free=%dMiB (decode weights + prefilled KV resident)", res.baseMiB, res.afterLoadMiB, res.afterLoadMiB-res.baseMiB, afterLoadMemory.FreeMiB))
-
 	attrs := dCompiled.NewRuntimeAttributes()
 	setStep := func(tokenPos int) error {
 		pos := []uint32{uint32(tokenPos)}
@@ -407,12 +390,6 @@ func runFullPipeline(
 	res.e2eWall = time.Since(e2eStart)
 	res.steps = len(generated) - 1
 	res.generated = generated
-	peakMemory, err := deviceprobe.MeasureMemory()
-	if err != nil {
-		return res, err
-	}
-	res.peakMiB = peakMemory.UsedMiB
-	res.peakFreeMiB = peakMemory.FreeMiB
 	statsAfter, _ := worker.ExecutionStats(ctx)
 	res.launches = statsAfter.GraphLaunches - statsBefore.GraphLaunches
 	res.instantis = statsAfter.GraphInstantiations - statsBefore.GraphInstantiations

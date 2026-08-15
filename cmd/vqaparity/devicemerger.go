@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/deviceprobe"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/patchtower"
@@ -25,11 +24,7 @@ import (
 
 func runDeviceMerger(l *ladder) error {
 	ctx := context.Background()
-	baseMemory, err := deviceprobe.MeasureMemory()
-	if err != nil {
-		return err
-	}
-	l.log(fmt.Sprintf("DEVICE merger START gpu.used=%dMiB free=%dMiB", baseMemory.UsedMiB, baseMemory.FreeMiB))
+	l.log("DEVICE merger START")
 
 	vg, err := loadGoldenJSON[visionGolden](l.fixturesDir, "rxbrain_vqa_vision_golden.json")
 	if err != nil {
@@ -140,12 +135,6 @@ func runDeviceMerger(l *ladder) error {
 	); err != nil {
 		return fmt.Errorf("device merger weight upload: %w", err)
 	}
-	afterLoadMemory, err := deviceprobe.MeasureMemory()
-	if err != nil {
-		return err
-	}
-	l.log(fmt.Sprintf("DEVICE merger residency gpu.used %d->%dMiB (delta=%dMiB) free=%dMiB", baseMemory.UsedMiB, afterLoadMemory.UsedMiB, afterLoadMemory.UsedMiB-baseMemory.UsedMiB, afterLoadMemory.FreeMiB))
-
 	blockShape := tensor.MustShape(uint64(spec.Hidden), uint64(nPatch))
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		g.BlockLast: {Shape: blockShape, Data: blockLast},
@@ -195,12 +184,8 @@ func runDeviceMerger(l *ladder) error {
 	}
 	perCall := time.Since(start) / iters
 	statsAfter, _ := worker.ExecutionStats(ctx)
-	peakMemory, err := deviceprobe.MeasureMemory()
-	if err != nil {
-		return err
-	}
-	l.log(fmt.Sprintf("DEVICE merger MEASURE %.3f ms/merge (%d rows, F32 weights resident) peak gpu.used=%dMiB (delta=%dMiB vs base) free=%dMiB",
-		float64(perCall.Microseconds())/1000.0, imageRows, peakMemory.UsedMiB, peakMemory.UsedMiB-baseMemory.UsedMiB, peakMemory.FreeMiB))
+	l.log(fmt.Sprintf("DEVICE merger MEASURE %.3f ms/merge (%d rows, F32 weights resident)",
+		float64(perCall.Microseconds())/1000.0, imageRows))
 	l.log(fmt.Sprintf("DEVICE merger REPLAY graph_launches=%d graph_instantiations=%d graph_updates=%d over %d warm+%d measure",
 		statsAfter.GraphLaunches-statsBefore.GraphLaunches, statsAfter.GraphInstantiations-statsBefore.GraphInstantiations,
 		statsAfter.GraphUpdates-statsBefore.GraphUpdates, warm, iters))

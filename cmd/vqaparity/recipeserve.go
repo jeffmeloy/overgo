@@ -186,10 +186,9 @@ func executeVQAProgram(
 	execution.text = answer
 	l.log(fmt.Sprintf("RECIPE serve %s chain=%v", tag, execution.chain))
 	l.log(fmt.Sprintf("RECIPE serve %s TEXT %q", tag, execution.text))
-	l.log(fmt.Sprintf("RECIPE serve %s MEASURE e2e=%s decode=%s (%d steps, %.3f ms/token) peak gpu.used=%dMiB",
+	l.log(fmt.Sprintf("RECIPE serve %s MEASURE e2e=%s decode=%s (%d steps, %.3f ms/token)",
 		tag, execution.result.e2eWall.Round(time.Millisecond), execution.result.decodeWall.Round(time.Millisecond),
-		execution.result.steps, float64(execution.result.decodeWall.Microseconds())/1000.0/float64(max1(execution.result.steps)),
-		execution.result.peakMiB))
+		execution.result.steps, float64(execution.result.decodeWall.Microseconds())/1000.0/float64(max1(execution.result.steps))))
 	return execution, nil
 }
 

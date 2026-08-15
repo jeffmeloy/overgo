@@ -22,18 +22,19 @@ type ResidentOps struct {
 
 // ResidentOpsSession retains one module and cuBLAS handle across programs.
 type ResidentOpsSession struct {
-	worker  *device.Worker
-	library *cublas.Library
-	handle  cublas.Handle
-	module  driver.Module
-	closed  bool
+	worker      *device.Worker
+	allocations device.AllocationSet
+	library     *cublas.Library
+	handle      cublas.Handle
+	module      driver.Module
+	closed      bool
 }
 
 func NewResidentOpsSession(worker *device.Worker) (*ResidentOpsSession, error) {
 	if worker == nil {
 		return nil, errors.New("resident ops session: worker absent")
 	}
-	session := &ResidentOpsSession{worker: worker}
+	session := &ResidentOpsSession{worker: worker, allocations: device.NewAllocationSet(worker)}
 	err := worker.Do(context.Background(), func(state *device.State) (result error) {
 		if err := kernel.ValidateAssets(); err != nil {
 			return err
@@ -72,6 +73,27 @@ func NewResidentOpsSession(worker *device.Worker) (*ResidentOpsSession, error) {
 	return session, nil
 }
 
+func (s *ResidentOpsSession) Allocate(ctx context.Context, bytes uint64) (driver.DevicePtr, error) {
+	if s == nil || s.closed {
+		return 0, errors.New("resident ops session: unavailable")
+	}
+	return s.allocations.Allocate(ctx, bytes)
+}
+
+func (s *ResidentOpsSession) Upload(ctx context.Context, bytes []byte) (driver.DevicePtr, error) {
+	if s == nil || s.closed {
+		return 0, errors.New("resident ops session: unavailable")
+	}
+	return s.allocations.Upload(ctx, bytes)
+}
+
+func (s *ResidentOpsSession) Do(ctx context.Context, run func(*device.State) error) error {
+	if s == nil || s.closed || run == nil {
+		return errors.New("resident ops session: unavailable")
+	}
+	return s.worker.Do(ctx, run)
+}
+
 func (s *ResidentOpsSession) Run(run func(*ResidentOps) error) error {
 	if s == nil || s.closed || s.worker == nil || s.library == nil || s.handle == 0 || s.module == 0 || run == nil {
 		return errors.New("resident ops session: unavailable")
@@ -95,11 +117,12 @@ func (s *ResidentOpsSession) Close() error {
 		return nil
 	}
 	s.closed = true
-	return s.worker.Do(context.Background(), func(state *device.State) error {
+	result := s.worker.Do(context.Background(), func(state *device.State) error {
 		result := errors.Join(state.Driver.ModuleUnload(s.module), s.library.Destroy(s.handle), s.library.Close())
 		s.module, s.handle, s.library = 0, 0, nil
 		return result
 	})
+	return errors.Join(result, s.allocations.Close(context.Background()))
 }
 
 // ResidentArena reuses one scope-owned device slab by liveness mark.

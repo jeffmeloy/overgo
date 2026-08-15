@@ -25,9 +25,7 @@ type resBlockVJPOffsets struct {
 }
 
 type resBlockVJP struct {
-	worker      *device.Worker
-	allocations device.AllocationSet
-	session     *devicemath.ResidentOpsSession
+	program     *devicemath.ResidentOpsSession
 	workspace   driver.DevicePtr
 	norm1Weight driver.DevicePtr
 	norm2Weight driver.DevicePtr
@@ -54,13 +52,16 @@ func compileResBlockVJP(ctx context.Context, worker *device.Worker, block *resBl
 		return nil, errors.New("diffusionimage: residual block VJP weight mismatch")
 	}
 	offsets := compileResBlockVJPOffsets(elements, kernelElements, channels)
+	resident, err := devicemath.NewResidentOpsSession(worker)
+	if err != nil {
+		return nil, err
+	}
 	program := &resBlockVJP{
-		worker: worker, allocations: device.NewAllocationSet(worker), offsets: offsets,
+		program: resident, offsets: offsets,
 		name: block.name, channels: channels, height: height, width: width,
 		groups: config.Groups, epsilon: config.NormEps, scale: block.residualScale,
 	}
-	var err error
-	program.workspace, err = program.allocations.Allocate(ctx, uint64(offsets.total*4))
+	program.workspace, err = resident.Allocate(ctx, uint64(offsets.total*4))
 	if err == nil {
 		static := make([]float32, 0, 2*channels+2*kernelElements)
 		static = append(static, block.norm1Weight...)
@@ -68,7 +69,7 @@ func compileResBlockVJP(ctx context.Context, worker *device.Worker, block *resBl
 		static = append(static, block.conv1Weight...)
 		static = append(static, block.conv2Weight...)
 		var base driver.DevicePtr
-		base, err = program.allocations.Upload(ctx, driver.Bytes(static))
+		base, err = resident.Upload(ctx, driver.Bytes(static))
 		if err == nil {
 			program.norm1Weight = base
 			program.norm2Weight = devicemath.ResidentPtr(base, channels)
@@ -76,11 +77,8 @@ func compileResBlockVJP(ctx context.Context, worker *device.Worker, block *resBl
 			program.conv2Weight = devicemath.ResidentPtr(base, 2*channels+kernelElements)
 		}
 	}
-	if err == nil {
-		program.session, err = devicemath.NewResidentOpsSession(worker)
-	}
 	if err != nil {
-		return nil, errors.Join(err, program.Close(context.Background()))
+		return nil, errors.Join(err, program.Close())
 	}
 	return program, nil
 }
@@ -123,7 +121,7 @@ func (program *resBlockVJP) ptr(offset int) driver.DevicePtr {
 }
 
 func (program *resBlockVJP) Execute(ctx context.Context, trace resBlockTrace, incoming []float32) ([]float32, Grads, error) {
-	if program == nil || program.session == nil {
+	if program == nil || program.program == nil {
 		return nil, nil, errors.New("diffusionimage: residual block VJP unavailable")
 	}
 	elements := program.channels * program.height * program.width
@@ -136,7 +134,7 @@ func (program *resBlockVJP) Execute(ctx context.Context, trace resBlockTrace, in
 	for index, values := range [][]float32{trace.input, trace.norm1, trace.activated1, trace.hidden1, trace.norm2, trace.activated2, incoming} {
 		copy(input[index*elements:(index+1)*elements], nchwToGraphImage(values, program.channels, program.height, program.width))
 	}
-	if err := program.worker.Do(ctx, func(state *device.State) error {
+	if err := program.program.Do(ctx, func(state *device.State) error {
 		return state.Driver.MemcpyHtoD(program.workspace, driver.Bytes(input))
 	}); err != nil {
 		return nil, nil, err
@@ -144,7 +142,7 @@ func (program *resBlockVJP) Execute(ctx context.Context, trace resBlockTrace, in
 	o := program.offsets
 	kernelElements := program.channels * program.channels * conv3x3Kernel * conv3x3Kernel
 	result := make([]float32, o.total-o.dBranch)
-	err := program.session.Run(func(ops *devicemath.ResidentOps) error {
+	err := program.program.Run(func(ops *devicemath.ResidentOps) error {
 		if err := ops.Scale(program.ptr(o.incoming), program.ptr(o.dBranch), program.scale, elements); err != nil {
 			return err
 		}
@@ -214,15 +212,11 @@ func (program *resBlockVJP) Execute(ctx context.Context, trace resBlockTrace, in
 	return graphImageToNCHW(read(o.dInput, elements), program.channels, program.height, program.width), grads, nil
 }
 
-func (program *resBlockVJP) Close(ctx context.Context) error {
+func (program *resBlockVJP) Close() error {
 	if program == nil {
 		return nil
 	}
-	var result error
-	if program.session != nil {
-		result = errors.Join(result, program.session.Close())
-		program.session = nil
-	}
-	result = errors.Join(result, program.allocations.Close(ctx))
-	return result
+	err := program.program.Close()
+	program.program = nil
+	return err
 }

@@ -12,9 +12,7 @@ import (
 )
 
 type finalProjectionVJP struct {
-	worker                        *device.Worker
-	allocations                   device.AllocationSet
-	session                       *devicemath.ResidentOpsSession
+	program                       *devicemath.ResidentOpsSession
 	input                         driver.DevicePtr
 	weight                        driver.DevicePtr
 	gradient                      driver.DevicePtr
@@ -31,38 +29,38 @@ func compileFinalProjectionVJP(
 	if worker == nil || inputChannels <= 0 || outputChannels <= 0 || height <= 0 || width <= 0 || patch <= 0 {
 		return nil, errors.New("diffusionimage: invalid final projection resident VJP")
 	}
+	resident, err := devicemath.NewResidentOpsSession(worker)
+	if err != nil {
+		return nil, err
+	}
 	program := &finalProjectionVJP{
-		worker: worker, allocations: device.NewAllocationSet(worker),
+		program:       resident,
 		inputChannels: inputChannels, outputChannels: outputChannels,
 		height: height, width: width, patch: patch,
 	}
-	var err error
-	program.input, err = program.allocations.Allocate(ctx, uint64(inputChannels*height*width*4))
+	program.input, err = resident.Allocate(ctx, uint64(inputChannels*height*width*4))
 	if err == nil {
-		program.gradient, err = program.allocations.Allocate(ctx, uint64(outputChannels*height*width*patch*patch*4))
+		program.gradient, err = resident.Allocate(ctx, uint64(outputChannels*height*width*patch*patch*4))
 	}
 	if err == nil {
 		weight := finalProjectionLinearWeight(checkpointWeight, inputChannels, outputChannels, patch)
-		program.weight, err = program.allocations.Upload(ctx, driver.Bytes(weight))
-	}
-	if err == nil {
-		program.session, err = devicemath.NewResidentOpsSession(worker)
+		program.weight, err = resident.Upload(ctx, driver.Bytes(weight))
 	}
 	if err != nil {
-		return nil, errors.Join(err, program.Close(context.Background()))
+		return nil, errors.Join(err, program.Close())
 	}
 	return program, nil
 }
 
 func (program *finalProjectionVJP) Execute(ctx context.Context, input, outputGradient []float32) ([]float32, []float32, error) {
-	if program == nil || program.session == nil ||
+	if program == nil || program.program == nil ||
 		len(input) != program.inputChannels*program.height*program.width ||
 		len(outputGradient) != program.outputChannels*program.height*program.width*program.patch*program.patch {
 		return nil, nil, errors.New("diffusionimage: final projection VJP input mismatch")
 	}
 	graphInput := nchwToGraphImage(input, program.inputChannels, program.height, program.width)
 	linearGradient := finalProjectionOutputGradient(outputGradient, program.outputChannels, program.height, program.width, program.patch)
-	if err := program.worker.Do(ctx, func(state *device.State) error {
+	if err := program.program.Do(ctx, func(state *device.State) error {
 		return errors.Join(
 			state.Driver.MemcpyHtoD(program.input, driver.Bytes(graphInput)),
 			state.Driver.MemcpyHtoD(program.gradient, driver.Bytes(linearGradient)),
@@ -73,7 +71,7 @@ func (program *finalProjectionVJP) Execute(ctx context.Context, input, outputGra
 	expanded := program.outputChannels * program.patch * program.patch
 	inputGradient := make([]float32, len(graphInput))
 	weightGradient := make([]float32, program.inputChannels*expanded)
-	err := program.session.Run(func(ops *devicemath.ResidentOps) error {
+	err := program.program.Run(func(ops *devicemath.ResidentOps) error {
 		dX, allocErr := ops.AllocF32(len(inputGradient))
 		if allocErr != nil {
 			return allocErr
@@ -97,17 +95,13 @@ func (program *finalProjectionVJP) Execute(ctx context.Context, input, outputGra
 		finalProjectionCheckpointGradient(weightGradient, program.inputChannels, program.outputChannels, program.patch), nil
 }
 
-func (program *finalProjectionVJP) Close(ctx context.Context) error {
+func (program *finalProjectionVJP) Close() error {
 	if program == nil {
 		return nil
 	}
-	var result error
-	if program.session != nil {
-		result = errors.Join(result, program.session.Close())
-		program.session = nil
-	}
-	result = errors.Join(result, program.allocations.Close(ctx))
-	return result
+	err := program.program.Close()
+	program.program = nil
+	return err
 }
 
 func finalProjectionOutputGradient(output []float32, channels, height, width, patch int) []float32 {

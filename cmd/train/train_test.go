@@ -184,7 +184,11 @@ func checkpointSpecForTest(t *testing.T, source string, state densecausal.TrainS
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec, err := productionCheckpointSpec(model, source, batchAuthority{Dataset: dataset, Split: split, Processor: processor}, trainingdata.StreamState{Identity: streamIdentity, Position: position}, state, trainingprogram.Checkpoint{})
+	authority, err := compileTrainingAuthority(model, source, batchAuthority{Dataset: dataset, Split: split, Processor: processor}, trainingdata.StreamState{Identity: streamIdentity, Position: position}, state.Config.BaseLearningRate, trainingprogram.Checkpoint{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec, err := authority.checkpointSpec(state)
 	if err != nil {
 		t.Fatal(err)
 	}

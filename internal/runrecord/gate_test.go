@@ -39,7 +39,7 @@ func TestGateRecordAggregatesStepsAndRoundTrips(t *testing.T) {
 	}
 }
 
-func TestGateStepEvidenceRoundTrips(t *testing.T) {
+func TestProtectionEvidence(t *testing.T) {
 	record, err := NewGateRecord(
 		testutil.ArtifactID(t, artifact.KindRecipe, "gate-recipe"),
 		testutil.ArtifactID(t, artifact.KindEvidence, "gate-environment"), fixtureCodeCommit,

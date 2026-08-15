@@ -32,9 +32,9 @@ var capabilities = map[recipe.Task]capability{
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, request tabularicl.Request) (*tabularicl.Model, error) {
 			return tabularicl.LoadTask(path, request.Task)
 		}, tabularicl.RegisterRuntime)},
-	recipe.TaskSeq2Seq: {inventory: modelartifact.FromHFPath, execute: capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Model, []int](
+	recipe.TaskSeq2Seq: {inventory: modelartifact.FromHFPath, execute: capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Generator, string](
 		"seq2seq", seq2seq.ValidateGenerateRequest,
-		capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.Load), seq2seq.RegisterRuntime)},
+		capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.LoadGenerator), seq2seq.RegisterRuntime)},
 	recipe.TaskSpeech: {inventory: speechInventory, execute: capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
 		"speech", speechsynth.ValidateSynthesisRequest,
 		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)},

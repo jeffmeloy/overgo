@@ -103,18 +103,35 @@ type tokenSelector interface {
 	selectTokens() ([]int, error)
 }
 
-func (m *Model) encodeRequest(request GenerateRequest) (encodedRequest, error) {
-	if err := ValidateGenerateRequest(request); err != nil {
-		return encodedRequest{}, err
+type textSelector interface {
+	selectText() (string, error)
+}
+
+type textGeneration struct {
+	tokens    tokenSelector
+	tokenizer interface{ Decode([]int) string }
+}
+
+func (s textGeneration) selectText() (string, error) {
+	tokens, err := s.tokens.selectTokens()
+	if err != nil {
+		return "", err
 	}
-	memory, err := m.Encode(request.Source)
+	return s.tokenizer.Decode(tokens), nil
+}
+
+func (m *Model) encodeTokens(source []int, maxTokens int) (encodedRequest, error) {
+	if len(source) == 0 || maxTokens <= 0 {
+		return encodedRequest{}, fmt.Errorf("seq2seq: invalid token request")
+	}
+	memory, err := m.Encode(source)
 	if err != nil {
 		return encodedRequest{}, err
 	}
-	return encodedRequest{memory: memory, sourceRows: len(request.Source), maxTokens: request.MaxTokens}, nil
+	return encodedRequest{memory: memory, sourceRows: len(source), maxTokens: maxTokens}, nil
 }
 
-func (m *Model) prepareGeneration(encoded encodedRequest) (tokenSelector, error) {
+func (m *Model) prepareTokens(encoded encodedRequest) (tokenSelector, error) {
 	if encoded.sourceRows <= 0 || encoded.maxTokens <= 0 {
 		return nil, fmt.Errorf("seq2seq: invalid encoded request")
 	}

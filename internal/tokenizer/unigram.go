@@ -27,6 +27,7 @@ const unigramSpaceMarker = "▁"
 type Unigram struct {
 	scores   map[string]float64
 	ids      map[string]int
+	pieces   []string
 	maxPiece int // longest piece length in runes
 	unkID    int
 }
@@ -42,16 +43,57 @@ func NewUnigram(pieces []UnigramPiece, unkID int) (*Unigram, error) {
 	t := &Unigram{
 		scores: make(map[string]float64, len(pieces)),
 		ids:    make(map[string]int, len(pieces)),
+		pieces: make([]string, len(pieces)),
 		unkID:  unkID,
 	}
 	for i, p := range pieces {
 		t.scores[p.Piece] = p.Score
 		t.ids[p.Piece] = i
+		t.pieces[i] = p.Piece
 		if n := len([]rune(p.Piece)); n > t.maxPiece {
 			t.maxPiece = n
 		}
 	}
 	return t, nil
+}
+
+// Decode applies the SentencePiece decoder: concatenate pieces, restore word
+// boundaries, and fuse byte-fallback tokens.
+func (t *Unigram) Decode(ids []int) string {
+	var decoded []byte
+	for _, id := range ids {
+		if id < 0 || id >= len(t.pieces) {
+			continue
+		}
+		piece := t.pieces[id]
+		if value, ok := unigramByte(piece); ok {
+			decoded = append(decoded, value)
+			continue
+		}
+		decoded = append(decoded, strings.ReplaceAll(piece, unigramSpaceMarker, " ")...)
+	}
+	return strings.TrimPrefix(string(decoded), " ")
+}
+
+func unigramByte(piece string) (byte, bool) {
+	if len(piece) != 6 || piece[0] != '<' || piece[1] != '0' || piece[2] != 'x' || piece[5] != '>' {
+		return 0, false
+	}
+	hex := func(value byte) (byte, bool) {
+		switch {
+		case value >= '0' && value <= '9':
+			return value - '0', true
+		case value >= 'A' && value <= 'F':
+			return value - 'A' + 10, true
+		case value >= 'a' && value <= 'f':
+			return value - 'a' + 10, true
+		default:
+			return 0, false
+		}
+	}
+	high, highOK := hex(piece[3])
+	low, lowOK := hex(piece[4])
+	return high<<4 | low, highOK && lowOK
 }
 
 // PieceID resolves one literal piece to its table id.

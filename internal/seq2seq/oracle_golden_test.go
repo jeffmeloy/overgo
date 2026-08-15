@@ -219,11 +219,11 @@ func TestIncrementalMatchesFullDecode(t *testing.T) {
 // TestGreedyGenerationStable: parity leg (d) — a short greedy generation
 // from the oracle source terminates, stays in-vocab, and is deterministic.
 func executeGenerationStages(model *Model, source []int, limit int) ([]int, error) {
-	encoded, err := model.encodeRequest(GenerateRequest{Source: source, MaxTokens: limit})
+	encoded, err := model.encodeTokens(source, limit)
 	if err != nil {
 		return nil, err
 	}
-	selector, err := model.prepareGeneration(encoded)
+	selector, err := model.prepareTokens(encoded)
 	if err != nil {
 		return nil, err
 	}

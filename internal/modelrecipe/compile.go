@@ -155,9 +155,9 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 		{node: "tabular", module: ModuleTabularPredict, input: "table", output: "predictions", inputData: recipe.DataTensor, outData: recipe.DataTensor},
 	}},
 	recipe.TaskSeq2Seq: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "encode", module: ModuleSeq2SeqEncode, input: "source", output: "memory", inputData: recipe.DataTokens, outData: recipe.DataTensor},
+		{node: "encode", module: ModuleSeq2SeqEncode, input: "source", output: "memory", inputData: recipe.DataText, outData: recipe.DataTensor},
 		{node: "prepare", module: ModuleSeq2SeqPrepare, input: "memory", output: "session", inputData: recipe.DataTensor, outData: recipe.DataSessionPlan},
-		{node: "select", module: ModuleSeq2SeqSelect, input: "session", output: "tokens", inputData: recipe.DataSessionPlan, outData: recipe.DataTokens},
+		{node: "select", module: ModuleSeq2SeqSelect, input: "session", output: "text", inputData: recipe.DataSessionPlan, outData: recipe.DataText},
 	}},
 	recipe.TaskSpeech: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "tokenize", module: ModuleSpeechTokenize, input: "text", output: "tokens", inputData: recipe.DataText, outData: recipe.DataTokens},

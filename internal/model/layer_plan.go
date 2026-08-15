@@ -523,6 +523,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		)
 	}
 	spec = spec.withProfile(profile)
+	profile = spec.Profile()
 	layers := spec.BlockCount
 	if profile.Forward.Session == ForwardSessionEncoderDecoder && spec.DecoderBlockCount > layers {
 		layers = spec.DecoderBlockCount

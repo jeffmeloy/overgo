@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "objective-breadth",
-          "title": "Port adaptive FNS, latent, forecast, OCR, flow-matching, image-latent, and distillation objectives only through shared TrainingPrograms; delete family loops as displaced",
-          "status": "open",
-          "verify": "go test ./internal/adaptiveparity -run '^TestTrainingObjectiveMatrix$' -count=1 -v"
-        },
-        {
           "id": "controller-promotion",
           "title": "Construct and train the small workflow controller from scratch; build an explicit immutable Git/RepoDB corpus rather than operational-state text, exercise typed text/image/audio/video component and workflow actions, require held-out action/modality validity and multi-seed gains, compare pretrained challengers under the same suite, and keep champion/challenger promotion plus rollback external to the model",
           "status": "open",

@@ -36,7 +36,7 @@ This milestone requires all of the following:
 E4B, 12B, dynamic quantization and NVMe optimizer paging are not prerequisites
 for this milestone.
 
-### Current implementation boundary (2026-08-14)
+### Current implementation boundary (2026-08-15)
 
 Implemented substrate:
 
@@ -55,11 +55,11 @@ Implemented substrate:
 - matched scratch leadership: 58.0-65.4 ms versus adaptive_new 221.4 ms minimum
   and 1.15-1.17 MB combined runtime peak versus 3.13 MB minimum.
 
-Production gaps:
+Current boundaries:
 
 - shared lazy dataset materialization, split membership, exact deduplication,
   typed processor binding, weighted/resumable order, packing, microbatching and
-  bounded decode feed dense, scratch and diffusion-image loops; generalized objectives remain incomplete;
+  bounded decode feed dense, scratch, seq2seq and diffusion-image loops;
 - scratch initialization is content-addressed in memory but initialized-model,
   checkpoint and run publication are not yet production-reachable RepoDB flows;
 - `cmd/train` selects the resident dense device loop; the displaced per-step
@@ -69,6 +69,13 @@ Production gaps:
 - matrix, vector and scalar groups share the Muon Newton–Schulz path;
 - no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed the compiled
   resident training contract;
+- every compiled program binds an objective kind. RepoDB documents and the
+  shared program matrix cover FNS, latent L2/sequence, forecast, OCR,
+  flow-matching, image-latent and distillation contracts; absent program
+  bindings are refused;
+- Pocket-TTS latent-sequence and SimpleDiffusion flow-matching updates use the
+  shared forward/backward/Muon program order. FNS, forecast, OCR, image-latent
+  and distillation production bindings remain open;
 - compiled multimodal training authority binds dataset processor modalities;
   processor/projector/codec gradient execution is not yet the sole runtime owner;
 - real multimodal processor/projector/codec gradient and held-out quality gates
@@ -198,6 +205,14 @@ data boundary and real tokenizer/projector. The exhaustive single-modality
 matrix refuses the other 33 pairs. A refused row becomes trainable only after a
 RepoDB objective binds its real corpus, split, processors, projectors/codecs,
 loss, native evaluation, and evidence to the same `TrainingRunPlan`.
+
+Objective semantics are a separate authority. The adaptive FNS, latent L2,
+latent-sequence L2, forecast, OCR token, flow-matching, image-latent and logit
+distillation contracts compile through one shared forward/backward/Muon program
+shape. Each program carries the objective kind; RepoDB run compilation rejects
+a differing kind. A missing program produces a refused objective row. Pocket-TTS
+and SimpleDiffusion consume this owner; the other contracts do not imply a
+production executor or model-quality claim.
 
 Checkpoint identity includes processors/codecs and RNG/augmentation state.
 Promotion requires end-to-end processor-to-output evidence: exact boundaries

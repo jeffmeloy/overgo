@@ -15,10 +15,37 @@ import (
 )
 
 const (
-	ObjectiveVersion   uint16 = 1
+	ObjectiveVersion   uint16 = 2
 	ObjectiveMediaType        = "application/vnd.overgo.training-objective+json"
-	ObjectiveSchema           = "overgo/training-objective/v1"
+	ObjectiveSchema           = "overgo/training-objective/v2"
 )
+
+// ObjectiveKind names loss semantics; recipes bind model-specific execution.
+type ObjectiveKind string
+
+const (
+	ObjectiveTokenPrediction ObjectiveKind = "token-prediction"
+	ObjectiveFNS             ObjectiveKind = "fns"
+	ObjectiveLatentL2        ObjectiveKind = "latent-l2"
+	ObjectiveLatentSequence  ObjectiveKind = "latent-sequence-l2"
+	ObjectiveForecast        ObjectiveKind = "forecast"
+	ObjectiveOCR             ObjectiveKind = "ocr-token-prediction"
+	ObjectiveFlowMatching    ObjectiveKind = "flow-matching"
+	ObjectiveImageLatent     ObjectiveKind = "image-latent"
+	ObjectiveDistillation    ObjectiveKind = "logit-distillation"
+)
+
+var objectiveKinds = []ObjectiveKind{
+	ObjectiveTokenPrediction,
+	ObjectiveFNS,
+	ObjectiveLatentL2,
+	ObjectiveLatentSequence,
+	ObjectiveForecast,
+	ObjectiveOCR,
+	ObjectiveFlowMatching,
+	ObjectiveImageLatent,
+	ObjectiveDistillation,
+}
 
 type ObjectiveAuthority string
 
@@ -42,6 +69,7 @@ const (
 
 type ObjectiveSpec struct {
 	Name       string
+	Kind       ObjectiveKind
 	Signature  recipecontract.ModalitySignature
 	Dataset    artifact.ID
 	Split      artifact.ID
@@ -65,6 +93,7 @@ type ObjectiveDocument struct {
 type objectiveBody struct {
 	Version    uint16                           `json:"version"`
 	Name       string                           `json:"name"`
+	Kind       ObjectiveKind                    `json:"kind"`
 	Signature  recipecontract.ModalitySignature `json:"signature"`
 	Dataset    artifact.ID                      `json:"dataset"`
 	Split      artifact.ID                      `json:"split"`
@@ -89,7 +118,7 @@ var objectiveCodec = artifact.DocumentCodec[ObjectiveDocument]{
 			return err
 		}
 		*value = ObjectiveDocument{Version: body.Version, ObjectiveSpec: ObjectiveSpec{
-			Name: body.Name, Signature: body.Signature, Dataset: body.Dataset, Split: body.Split,
+			Name: body.Name, Kind: body.Kind, Signature: body.Signature, Dataset: body.Dataset, Split: body.Split,
 			Processors: body.Processors, Projectors: body.Projectors, Codecs: body.Codecs,
 			Loss: body.Loss, Evaluation: body.Evaluation, Metric: body.Metric,
 			Evidence: body.Evidence, Authority: body.Authority,
@@ -98,7 +127,7 @@ var objectiveCodec = artifact.DocumentCodec[ObjectiveDocument]{
 	},
 	Encode: func(value ObjectiveDocument) ([]byte, error) {
 		return json.Marshal(objectiveBody{
-			Version: value.Version, Name: value.Name, Signature: value.Signature,
+			Version: value.Version, Name: value.Name, Kind: value.Kind, Signature: value.Signature,
 			Dataset: value.Dataset, Split: value.Split, Processors: value.Processors,
 			Projectors: value.Projectors, Codecs: value.Codecs, Loss: value.Loss,
 			Evaluation: value.Evaluation, Metric: value.Metric, Evidence: value.Evidence, Authority: value.Authority,
@@ -138,7 +167,7 @@ func canonicalizeObjective(value *ObjectiveDocument) error {
 	if value.Version != ObjectiveVersion || strings.TrimSpace(value.Name) == "" || value.Name != strings.TrimSpace(value.Name) ||
 		value.Dataset.Kind() != artifact.KindDataset || value.Split.Kind() != artifact.KindDatasetShard ||
 		value.Loss.Kind() != artifact.KindProfile || value.Evaluation.Kind() != artifact.KindProfile ||
-		(value.Authority != ObjectiveAdaptive && value.Authority != ObjectiveApproved) {
+		!validObjectiveKind(value.Kind) || (value.Authority != ObjectiveAdaptive && value.Authority != ObjectiveApproved) {
 		return errors.New("training objective: invalid authority")
 	}
 	if err := value.Signature.Validate(); err != nil || len(value.Signature.Inputs) != 1 || len(value.Signature.Outputs) != 1 {
@@ -146,6 +175,9 @@ func canonicalizeObjective(value *ObjectiveDocument) error {
 	}
 	if !metricValidForModality(value.Signature.Outputs[0], value.Metric) {
 		return fmt.Errorf("training objective: metric %q differs from output modality", value.Metric)
+	}
+	if !objectiveSignatureValid(value.Kind, value.Signature) {
+		return fmt.Errorf("training objective: signature differs from %q contract", value.Kind)
 	}
 	var err error
 	if value.Processors, err = canonicalObjectiveIDs(value.Processors, artifact.KindProfile, true); err != nil {
@@ -177,6 +209,34 @@ func canonicalObjectiveIDs(source []artifact.ID, kind artifact.Kind, required bo
 	return result, nil
 }
 
+func validObjectiveKind(kind ObjectiveKind) bool {
+	return slices.Contains(objectiveKinds, kind)
+}
+
+func objectiveSignatureValid(kind ObjectiveKind, signature recipecontract.ModalitySignature) bool {
+	input, output := signature.Inputs[0], signature.Outputs[0]
+	switch kind {
+	case ObjectiveTokenPrediction:
+		return output == recipecontract.ModalityText
+	case ObjectiveFNS:
+		return input == recipecontract.ModalityText && output == recipecontract.ModalityText
+	case ObjectiveLatentL2, ObjectiveLatentSequence:
+		return input == recipecontract.ModalityText && output == recipecontract.ModalityAudio
+	case ObjectiveForecast:
+		return input == recipecontract.ModalityTimeSeries && output == recipecontract.ModalityTimeSeries
+	case ObjectiveOCR:
+		return input == recipecontract.ModalityImage && output == recipecontract.ModalityText
+	case ObjectiveFlowMatching:
+		return output == recipecontract.ModalityAudio || output == recipecontract.ModalityImage || output == recipecontract.ModalityVideo
+	case ObjectiveImageLatent:
+		return input == recipecontract.ModalityImage && output == recipecontract.ModalityImage
+	case ObjectiveDistillation:
+		return input == recipecontract.ModalityText && output == recipecontract.ModalityText
+	default:
+		return false
+	}
+}
+
 type ObjectiveDisposition string
 
 const (
@@ -188,6 +248,21 @@ type ObjectiveRow struct {
 	Signature   recipecontract.ModalitySignature
 	Objective   artifact.ID
 	Disposition ObjectiveDisposition
+	Reason      string
+}
+
+type ObjectiveProgramDisposition string
+
+const (
+	ObjectiveProgramCompiled ObjectiveProgramDisposition = "compiled"
+	ObjectiveProgramRefused  ObjectiveProgramDisposition = "refused"
+)
+
+type TrainingObjectiveRow struct {
+	Kind        ObjectiveKind
+	Objective   artifact.ID
+	Program     artifact.ID
+	Disposition ObjectiveProgramDisposition
 	Reason      string
 }
 
@@ -234,6 +309,58 @@ func CompileObjectiveMatrix(ctx context.Context, reader artifact.Reader, objecti
 	return rows, nil
 }
 
+// CompileTrainingObjectiveMatrix binds stored objective evidence to shared programs.
+func CompileTrainingObjectiveMatrix(ctx context.Context, reader artifact.Reader, objectives []artifact.ID, programs []TrainingProgram) ([]TrainingObjectiveRow, error) {
+	if ctx == nil || reader == nil {
+		return nil, errors.New("training objective: nil program matrix authority")
+	}
+	byKind := make(map[ObjectiveKind]TrainingProgram, len(programs))
+	for _, program := range programs {
+		if program.ID().Kind() != artifact.KindRecipe || !validObjectiveKind(program.Objective()) {
+			return nil, errors.New("training objective: invalid compiled program")
+		}
+		if _, duplicate := byKind[program.Objective()]; duplicate {
+			return nil, fmt.Errorf("training objective: duplicate program for %q", program.Objective())
+		}
+		byKind[program.Objective()] = program
+	}
+	documents := make([]ObjectiveDocument, len(objectives))
+	for index, id := range objectives {
+		document, err := LoadObjective(ctx, reader, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateObjectiveReferences(ctx, reader, document); err != nil {
+			return nil, fmt.Errorf("training objective %q: %w", document.Name, err)
+		}
+		documents[index] = document
+	}
+	sort.Slice(documents, func(left, right int) bool {
+		if documents[left].Kind != documents[right].Kind {
+			return documents[left].Kind < documents[right].Kind
+		}
+		return documents[left].ID.String() < documents[right].ID.String()
+	})
+	rows := make([]TrainingObjectiveRow, len(documents))
+	seen := make(map[string]struct{}, len(documents))
+	for index, document := range documents {
+		key := string(document.Kind) + "\x00" + objectivePairKey(document.Signature)
+		if _, duplicate := seen[key]; duplicate {
+			return nil, fmt.Errorf("training objective: duplicate kind/signature %s", key)
+		}
+		seen[key] = struct{}{}
+		row := TrainingObjectiveRow{
+			Kind: document.Kind, Objective: document.ID,
+			Disposition: ObjectiveProgramRefused, Reason: "shared TrainingProgram absent",
+		}
+		if program, ok := byKind[document.Kind]; ok {
+			row.Program, row.Disposition, row.Reason = program.ID(), ObjectiveProgramCompiled, ""
+		}
+		rows[index] = row
+	}
+	return rows, nil
+}
+
 // CompileTrainingRunPlanFromRepository binds opaque run IDs to stored objective facts.
 func CompileTrainingRunPlanFromRepository(ctx context.Context, reader artifact.Reader, spec RunSpec) (TrainingRunPlan, error) {
 	plan, err := CompileTrainingRunPlan(spec)
@@ -247,7 +374,7 @@ func CompileTrainingRunPlanFromRepository(ctx context.Context, reader artifact.R
 	if err := validateObjectiveReferences(ctx, reader, objective); err != nil {
 		return TrainingRunPlan{}, err
 	}
-	if objective.Dataset != plan.Dataset() || objective.Split != plan.Split() ||
+	if objective.Kind != plan.Program().Objective() || objective.Dataset != plan.Dataset() || objective.Split != plan.Split() ||
 		!slices.Equal(objective.Signature.Inputs, plan.signature.Inputs) ||
 		!slices.Equal(objective.Signature.Outputs, plan.signature.Outputs) ||
 		!slices.Equal(objective.Processors, plan.processors) ||

@@ -380,6 +380,7 @@ func (b *builder) finish() error {
 		parameters[index] = trainingprogram.ParameterSpec{Name: spec.Name, Rows: spec.Rows, Cols: spec.Cols, Trainable: !spec.Frozen}
 	}
 	b.m.program, err = trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
+		Objective: trainingprogram.ObjectiveTokenPrediction,
 		Operators: []trainingprogram.OperatorSpec{
 			{ID: "hybrid-forward", Phase: trainingprogram.PhaseForward},
 			{ID: "squared-error", Phase: trainingprogram.PhaseLoss},

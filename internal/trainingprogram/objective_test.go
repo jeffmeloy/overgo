@@ -86,6 +86,7 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	program, err := CompileTrainingProgram(ProgramSpec{
+		Objective:  ObjectiveTokenPrediction,
 		Operators:  []OperatorSpec{{ID: "forward", Phase: PhaseForward}, {ID: "backward", Phase: PhaseBackward}, {ID: "muon", Phase: PhaseOptimize}},
 		Parameters: []ParameterSpec{{Name: "weight", Rows: 1, Cols: 1, Trainable: true}}, Optimizer: muon,
 	})
@@ -150,7 +151,7 @@ func objectiveFixture(t *testing.T, input, output recipecontract.Modality, proje
 		projectors = []artifact.ID{ids(artifact.KindProjector, "projector")}
 	}
 	objective, err := NewObjective(ObjectiveSpec{
-		Name: string(input) + "-to-" + string(output),
+		Name: string(input) + "-to-" + string(output), Kind: fixtureObjectiveKind(input, output),
 		Signature: recipecontract.ModalitySignature{
 			Inputs: []recipecontract.Modality{input}, Outputs: []recipecontract.Modality{output},
 		},
@@ -164,6 +165,16 @@ func objectiveFixture(t *testing.T, input, output recipecontract.Modality, proje
 		t.Fatal(err)
 	}
 	return objective
+}
+
+func fixtureObjectiveKind(input, output recipecontract.Modality) ObjectiveKind {
+	if output == recipecontract.ModalityText {
+		return ObjectiveTokenPrediction
+	}
+	if input == recipecontract.ModalityText && output == recipecontract.ModalityAudio {
+		return ObjectiveLatentL2
+	}
+	return ObjectiveFlowMatching
 }
 
 func objectiveReferences(objective ObjectiveDocument) []artifact.Descriptor {

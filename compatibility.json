@@ -169,7 +169,7 @@
           "contains": "func LoadArtifact(",
           "path": "internal/adaptertrain/model.go",
           "role": "source",
-          "identity": "file:sha256:88c0f367434d3280f10eed897b008a558848bde00567da0f7b41aa94a0999c23"
+          "identity": "file:sha256:81a7a7c3e59511d2a52ecb8f91c792386aa96dcba9b13cc721c66a7683135f36"
         },
         {
           "contains": "func TestGemmaE4BRealTraining(",
@@ -191,7 +191,7 @@
           "contains": "func CompileObjectiveMatrix(",
           "path": "internal/trainingprogram/objective.go",
           "role": "source",
-          "identity": "file:sha256:c05b226c946e30fc71b0826f31a28adc1fd630e0e6653f0c79f978058f71c0a6"
+          "identity": "file:sha256:83e1a28b1cea5493818c6edbf82d2e7746ee998b160083805348142654ddbbc0"
         },
         {
           "contains": "func AudioProcessor(",
@@ -203,7 +203,7 @@
           "contains": "func TestMultimodalTrainingMatrix(",
           "path": "internal/adaptiveparity/multimodal_training_cuda_windows_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:2c045030413d60ef4520f454974327e7cbb26ec1754f15f68cfabb279f0b68e2"
+          "identity": "evidence:sha256:62ef4f704a9e1011dd4ff9dcf605cf0cf899b8ddf97950eead4983a78e1af7d8"
         }
       ],
       "id": "repodb-multimodal-training-objective-matrix",
@@ -212,6 +212,33 @@
       "artifact_identity": "sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e+9e9fa1ad55b1c2c95b08e37dd8e653f638fac2c6de904b79e813611eefbc985f+026362ccd74747359902464829a97e1aa1321d745efdee7f2056e226477484c0+ac135a0ddeb91a15cd70eec58949af2e329311b0d9848298ae1d9b1284ffc90f+8749bb8c9e0eaf7e10102315242a35665ad4a583f4eeb3d27f34065013ec140b",
       "status": "implemented",
       "summary": "RepoDB objective documents approve text-to-text, image-to-text, and audio-to-text only after real corpus processing, E4B tokenizer/projector execution, adapter gradients, device Muon, and token evaluation; the other 33 single-modality pairs are refused."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func CompileTrainingObjectiveMatrix(",
+          "path": "internal/trainingprogram/objective.go",
+          "role": "source",
+          "identity": "file:sha256:83e1a28b1cea5493818c6edbf82d2e7746ee998b160083805348142654ddbbc0"
+        },
+        {
+          "contains": "func CompileObjectiveProgram(",
+          "path": "internal/trainingprogram/objective_program.go",
+          "role": "source",
+          "identity": "file:sha256:b9f84597ab050644e977ff37e5e00c2d9d9fa7d0623d6044166eff232a9fcc88"
+        },
+        {
+          "contains": "func TestTrainingObjectiveMatrix(",
+          "path": "internal/adaptiveparity/training_objective_matrix_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:8851a3490e960492c38f240aee73b956c745511a968c301b6af21f0652b03fbe"
+        }
+      ],
+      "id": "adaptive-training-objective-program-matrix",
+      "evidence_tier": "contract-tested",
+      "verify": "go test ./internal/adaptiveparity -run '^TestTrainingObjectiveMatrix$' -count=1 -v",
+      "status": "implemented",
+      "summary": "RepoDB objective kind and modality facts bind adaptive FNS, latent L2, latent-sequence L2, forecast, OCR token, flow-matching, image-latent, and logit-distillation contracts to the shared forward/backward/Muon program; a missing program is refused."
     },
     {
       "evidence": [

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/testevidence"
+	"overgo/internal/trainingprogram"
 )
 
 func TestJointMuonStepTinyDecreasesLoss(t *testing.T) {
@@ -28,6 +29,9 @@ func TestJointMuonStepTinyDecreasesLoss(t *testing.T) {
 	trainer, err := NewJointTrainer(m, 1, baseLR, 0.95)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if trainer.Program().Objective() != trainingprogram.ObjectiveLatentSequence {
+		t.Fatalf("trainer objective = %q", trainer.Program().Objective())
 	}
 	defer trainer.Close()
 	stepLoss, err := trainer.Step(TrainingExample{TextIDs: ids, Latents: z, Frames: frames, Seed: seed})

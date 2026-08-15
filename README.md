@@ -101,7 +101,7 @@ sessions to execute concurrently.
 | Image generation | Typed conditioning, CUDA-resident denoising, and PNG artifact output | Krea has verified 2048-pixel execution. SenseNova has a CUDA-tested 256-pixel text-to-PNG recipe. Un-0 publishes an exact retained artifact. SimpleDiffusion uses a geometry-keyed resident CUDA recipe; its real seed-7, two-step, 64x64 generation is 15-18x faster warm than the host in repeated tests, with one decoded color channel differing by one byte from the retained PNG. Full-size and image-edit tests are not complete. |
 | Video generation | Typed oscillator, Wan, and LiveEdit recipes; encoded artifact publication; CUDA-resident Wan denoising and VAE encoding/decoding; retained LiveEdit text projection, cumulative attention history, and source-latent reuse | Un-0 publishes six real-artifact frames as a 64x64 GIF byte-identical to adaptive_new. Wan has verified full-clip execution. LiveEdit executes all 30 blocks. Its full 81-frame edit matches adaptive and Python output quality, uses 15.624 GiB peak device memory, takes 81.6-81.9 s cold, and takes 51.0-51.5 s when the same source latent is resident. The production recipe publishes GIF; the performance gate streams MP4. |
 | Speech, forecast, table, seq2seq | Shared runtime and recipe components. Pocket-TTS verifies waveform output and trains its real backbone+flow parameter set through compiled Muon on native generated codec latents. TimesFM verifies exact forecasts and a held-out Supernova baseline. Needle verifies exact numeric parity, grounded text-to-tool-call JSON, and real GSM8K training through the common dataset stream, compiled training program, and device Muon. | Needle retains BF16 matrices and measures 66.758-67.363 MiB across matched cold processes versus adaptive_new's 120.918-121.328 MiB. Shared reverse traversal trains both final norms, all eight decoder self/cross-attention pairs, all 12 encoder self-attention blocks, and the tied source/target/output embedding. A fixed 4-train/4-held-out GSM8K gate improves both aggregate losses. Pocket-TTS corpus audio encoding and held-out training evidence remain open. Comparable process peak measurements remain open for the other capabilities. |
-| Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers; scratch construction, Qwen3.5 hybrid training, and Gemma E4B per-layer adapter training use compiled programs and shared VJPs. RepoDB-backed objective documents bind the corpus, split, processors, projectors/codecs, loss, evaluation, and evidence to a 36-row modality matrix. | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. Qwen3.5-4B recurrent layer 0 trains from the real GGUF. Gemma E4B trains its real layer-0 adapter on fingerprinted Wikitext, P2 image, and LongSpeech records. Text-to-text, image-to-text, and audio-to-text are approved; the other 33 single-modality pairs are refused. The dense CLI publishes atomic, non-overwriting checkpoints. SimpleDiffusion trains its real 101.8M-parameter checkpoint on structured image crops. RepoDB dataset selection from the CLI, checkpoint adoption by every trainer, complete Qwen3.5/E4B stacks, and the refused output objectives remain open. |
+| Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers. Every compiled program identifies its objective. RepoDB documents bind objective kind, corpus, split, processors, projectors/codecs, loss, evaluation, and evidence. | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. Qwen3.5-4B recurrent layer 0 and the Gemma E4B layer-0 adapter train from real artifacts. Pocket-TTS latent-sequence and SimpleDiffusion flow-matching trainers use the shared program order. Eight adaptive objective contracts are represented; a missing program binding is refused. Real-record evidence approves text-to-text, image-to-text, and audio-to-text; the other 33 single-modality pairs remain refused. Complete model stacks, production FNS/forecast/OCR/image-latent/distillation executors, and checkpoint adoption by every trainer remain open. |
 
 Known gaps include full-size SenseNova image and edit tests, LiveEdit cold-request
 leadership and recipe-configured MP4 publication, exact full-sequence Unlimited OCR comparison, comparable
@@ -424,13 +424,21 @@ RepoDB dataset and split selection, and atomic storage of the stream position
 with optimizer and random-number-generator state, are not implemented.
 
 `internal/trainingprogram` stores each approved training objective as a RepoDB
-profile. The profile binds one ordered input/output modality pair to its real
-dataset and split, processor, optional projector and codec, loss, native
-evaluation metric, and evidence. Repository-aware run-plan compilation rejects
-any differing binding. Matrix compilation emits all 36 single-modality pairs;
-only text-to-text, image-to-text, and audio-to-text currently have approved,
-real-record E4B evidence. Every other pair remains explicitly refused until a
-corpus-bound objective and executable evidence are published.
+profile. The profile binds objective kind, one ordered input/output modality
+pair, real dataset and split, processor, optional projector and codec, loss,
+native evaluation metric, and evidence. Every `TrainingProgram` carries the
+same objective kind; repository-aware run-plan compilation rejects a mismatch.
+The contract matrix covers adaptive FNS, latent L2, latent-sequence L2,
+forecast, OCR token prediction, flow matching, image-latent, and logit
+distillation semantics. Missing shared programs compile to refused rows.
+
+Pocket-TTS latent-sequence training and SimpleDiffusion flow-matching training
+use the common forward/backward/Muon program order. This is execution evidence
+for those two objectives, not for all eight contracts. FNS, forecast, OCR,
+image-latent, and distillation still require production model bindings and
+model-quality evidence. The modality matrix remains separate: only
+text-to-text, image-to-text, and audio-to-text have approved real-record E4B
+evidence; the other 33 pairs remain refused.
 
 ### From-scratch model construction and training
 

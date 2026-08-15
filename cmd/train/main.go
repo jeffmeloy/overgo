@@ -237,6 +237,7 @@ func productionCheckpointSpec(model *densecausal.Model, modelDir string, data ba
 		parameters[index] = trainingprogram.ParameterSpec{Name: group.Name, Rows: group.Rows, Cols: group.Cols, Trainable: !group.Frozen}
 	}
 	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
+		Objective: trainingprogram.ObjectiveTokenPrediction,
 		Operators: []trainingprogram.OperatorSpec{
 			{ID: "dense-forward", Phase: trainingprogram.PhaseForward},
 			{ID: "dense-backward", Phase: trainingprogram.PhaseBackward},

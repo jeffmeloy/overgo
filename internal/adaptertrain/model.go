@@ -152,6 +152,7 @@ func LoadArtifact(ctx context.Context, path string, layer uint32) (*Model, model
 	}
 	m.config = optimizer.Config{BaseLearningRate: optimizer.DeriveBaseLR(len(m.weights)), Schedule: optimizer.ScheduleConstant}
 	m.program, err = trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
+		Objective: trainingprogram.ObjectiveTokenPrediction,
 		Operators: []trainingprogram.OperatorSpec{
 			{ID: "adapter-forward", Phase: trainingprogram.PhaseForward},
 			{ID: "squared-error", Phase: trainingprogram.PhaseLoss},

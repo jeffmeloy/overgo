@@ -52,7 +52,9 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Load and train a real gated-delta recurrent layer | `hybridtrain.LoadRecurrentLayerArtifact` / `Model.TrainDeviceResident`; execution order is `Model.Program()` |
 | Train an artifact-declared per-layer residual adapter | `adaptertrain.LoadArtifact` / `Model.BuildExample` / `Model.Step`; shared `hostmath.PerLayerAdapter*`, device Muon, and `trainingprogram` checkpoint state |
 | Compile corpus-bound multimodal training authority | `trainingprogram.NewObjective` / `CompileObjectiveMatrix` / `CompileTrainingRunPlanFromRepository`; absent RepoDB objective evidence yields a refused row |
+| Compile objective semantics through one update order | `trainingprogram.CompileObjectiveProgram` / `CompileTrainingObjectiveMatrix`; programs bind objective kind plus shared forward/backward/Muon operators, absent program bindings are refused |
 | Evaluate typed training outputs | `trainingprogram.EvaluateNative`; objective documents select token accuracy, signed/unit-range image/video PSNR, audio SNR, forecast MAE, or table accuracy |
+| Train existing latent-sequence or image-flow objectives | `speechsynth.NewJointTrainer` / `diffusionimage.NewTrainer`; both expose their compiled `TrainingProgram` |
 | Bind dataset progress | `trainingdata.StreamState`; checkpoint form is `trainingprogram.DatasetState` |
 | Decode real image/audio training records | `trainingdata.ImageProcessor` / `Image`; `trainingdata.AudioProcessor` / `Audio` |
 

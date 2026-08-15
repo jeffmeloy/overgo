@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 // OTLinearFlowPathInto: linear optimal-transport flow state and velocity
@@ -57,9 +58,21 @@ func ScaledMSELossGradInto(dst, pred, target []float32, scale float64) (float64,
 
 // Trainer: compiled Muon state over one image model.
 type Trainer struct {
-	model  *Model
-	pack   *optimizer.TensorPack
-	update optimizer.Stepper
+	model     *Model
+	pack      *optimizer.TensorPack
+	update    optimizer.Stepper
+	program   trainingprogram.TrainingProgram
+	execution trainingprogram.Execution[trainingState]
+}
+
+type trainingState struct {
+	x, target     []float32
+	batch         int
+	height, width int
+	prediction    []float32
+	trace         forwardTrace
+	gradients     Grads
+	loss          float64
 }
 
 func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
@@ -74,8 +87,32 @@ func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Trainer{model: model, pack: pack, update: update}, nil
+	plan := pack.Plan()
+	parameters := make([]trainingprogram.ParameterSpec, plan.GroupCount())
+	for index := range parameters {
+		group, _ := plan.Group(index)
+		parameters[index] = trainingprogram.ParameterSpec{Name: group.Name, Rows: group.Rows, Cols: group.Cols, Trainable: !group.Frozen}
+	}
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, parameters, plan)
+	if err != nil {
+		_ = update.Close()
+		return nil, err
+	}
+	trainer := &Trainer{model: model, pack: pack, update: update, program: program}
+	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[trainingState]{
+		{Operator: trainingprogram.ObjectiveOperatorForward, Execute: trainer.forward},
+		{Operator: trainingprogram.ObjectiveOperatorBackward, Execute: trainer.backward},
+		{Operator: trainingprogram.ObjectiveOperatorMuon, Execute: trainer.optimize},
+	})
+	if err != nil {
+		_ = update.Close()
+		return nil, err
+	}
+	trainer.execution = execution
+	return trainer, nil
 }
+
+func (trainer *Trainer) Program() trainingprogram.TrainingProgram { return trainer.program }
 
 func (trainer *Trainer) Close() error {
 	if trainer == nil || trainer.update == nil {
@@ -89,33 +126,53 @@ func (trainer *Trainer) Step(x, target []float32, b, height, width int) (float64
 	if trainer == nil || trainer.model == nil || trainer.pack == nil || trainer.update == nil {
 		return 0, fmt.Errorf("diffusionimage train: trainer is unavailable")
 	}
+	state := trainingState{x: x, target: target, batch: b, height: height, width: width}
+	if err := trainer.execution.RunPhases(&state,
+		trainingprogram.PhaseForward, trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize,
+	); err != nil {
+		return 0, err
+	}
+	return state.loss, nil
+}
+
+func (trainer *Trainer) forward(state *trainingState) error {
 	m := trainer.model
 	tile := m.Cfg.PatchSize << uint(m.Cfg.NumLevels-1)
-	if height%tile != 0 || width%tile != 0 {
-		return 0, fmt.Errorf("diffusionimage train: size %dx%d must be multiples of tile %d", width, height, tile)
+	if state.batch <= 0 || state.height <= 0 || state.width <= 0 || state.height%tile != 0 || state.width%tile != 0 {
+		return fmt.Errorf("diffusionimage train: batch=%d size=%dx%d must be positive tile %d multiples", state.batch, state.width, state.height, tile)
 	}
-	pred, trace, err := m.forward(x, b, height, width, true)
+	prediction, trace, err := m.forward(state.x, state.batch, state.height, state.width, true)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	dPred := make([]float32, len(pred))
-	loss, err := ScaledMSELossGradInto(dPred, pred, target, 1)
+	state.prediction, state.trace = prediction, trace
+	return nil
+}
+
+func (trainer *Trainer) backward(state *trainingState) error {
+	dPrediction := make([]float32, len(state.prediction))
+	loss, err := ScaledMSELossGradInto(dPrediction, state.prediction, state.target, 1)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	grads := Grads{}
-	if _, err := m.backwardFromTrace(trace, dPred, grads); err != nil {
-		return 0, err
+	state.loss = loss
+	state.gradients = Grads{}
+	if _, err := trainer.model.backwardFromTrace(state.trace, dPrediction, state.gradients); err != nil {
+		return err
 	}
-	if err := trainer.pack.GatherGradients(grads); err != nil {
-		return 0, err
+	return nil
+}
+
+func (trainer *Trainer) optimize(state *trainingState) error {
+	if err := trainer.pack.GatherGradients(state.gradients); err != nil {
+		return err
 	}
 	if err := trainer.update.Step(); err != nil {
-		return 0, err
+		return err
 	}
 	trainer.pack.Scatter()
-	m.refreshScalars()
-	return loss, nil
+	trainer.model.refreshScalars()
+	return nil
 }
 
 func (m *Model) muonGeometry() optimizer.TensorGeometry {

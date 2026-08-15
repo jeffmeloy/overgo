@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 // TestOTFlowObjectiveMatchesTorch: path, target, scaled-MSE loss and
@@ -70,6 +71,9 @@ func TestTinyModelTrainDescends(t *testing.T) {
 	trainer, err := NewTrainer(m, optimizer.Config{BaseLearningRate: lr, Momentum: 0.95, Schedule: optimizer.ScheduleConstant})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if trainer.Program().Objective() != trainingprogram.ObjectiveFlowMatching {
+		t.Fatalf("trainer objective = %q", trainer.Program().Objective())
 	}
 	defer func() {
 		if err := trainer.Close(); err != nil {

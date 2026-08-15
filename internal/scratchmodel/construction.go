@@ -445,6 +445,7 @@ func compileSharedProgram(parameters []Parameter, bindings map[string]parameterB
 		return optimizer.Plan{}, trainingprogram.TrainingProgram{}, err
 	}
 	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
+		Objective: trainingprogram.ObjectiveTokenPrediction,
 		Operators: []trainingprogram.OperatorSpec{
 			{ID: scratchOperatorBatch, Phase: trainingprogram.PhaseBatch},
 			{ID: scratchOperatorForward, Phase: trainingprogram.PhaseForward},

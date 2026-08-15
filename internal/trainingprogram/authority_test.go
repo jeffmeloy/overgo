@@ -48,6 +48,7 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	programSpec := ProgramSpec{
+		Objective: ObjectiveTokenPrediction,
 		Operators: []OperatorSpec{
 			{ID: "batch", Phase: PhaseBatch},
 			{ID: "forward", Phase: PhaseForward},
@@ -65,8 +66,8 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if program.ID().Kind() != artifact.KindRecipe || program.OptimizerIdentity() != muon.Identity() {
-		t.Fatalf("program identity/Muon = %s / %s", program.ID(), program.OptimizerIdentity())
+	if program.ID().Kind() != artifact.KindRecipe || program.Objective() != ObjectiveTokenPrediction || program.OptimizerIdentity() != muon.Identity() {
+		t.Fatalf("program identity/objective/Muon = %s / %s / %s", program.ID(), program.Objective(), program.OptimizerIdentity())
 	}
 
 	profile := func(name string) artifact.ID { return id(artifact.KindProfile, name) }
@@ -142,6 +143,13 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 			t.Fatal("backward-before-forward program accepted")
 		}
 	})
+	t.Run("objective-bound", func(t *testing.T) {
+		invalid := programSpec
+		invalid.Objective = ""
+		if _, err := CompileTrainingProgram(invalid); err == nil {
+			t.Fatal("program without objective accepted")
+		}
+	})
 }
 
 func TestBoundTrainingProgramOwnsOrder(t *testing.T) {
@@ -150,6 +158,7 @@ func TestBoundTrainingProgramOwnsOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	program, err := CompileTrainingProgram(ProgramSpec{
+		Objective: ObjectiveTokenPrediction,
 		Operators: []OperatorSpec{
 			{ID: "forward", Phase: PhaseForward},
 			{ID: "backward", Phase: PhaseBackward},

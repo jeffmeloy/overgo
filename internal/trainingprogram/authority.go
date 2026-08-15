@@ -122,6 +122,7 @@ type ParameterSpec struct {
 }
 
 type ProgramSpec struct {
+	Objective  ObjectiveKind
 	Operators  []OperatorSpec
 	Parameters []ParameterSpec
 	Optimizer  optimizer.Plan
@@ -129,12 +130,16 @@ type ProgramSpec struct {
 
 type TrainingProgram struct {
 	id          artifact.ID
+	objective   ObjectiveKind
 	operators   []OperatorSpec
 	parameters  []ParameterSpec
 	optimizerID string
 }
 
 func CompileTrainingProgram(spec ProgramSpec) (TrainingProgram, error) {
+	if !validObjectiveKind(spec.Objective) {
+		return TrainingProgram{}, errors.New("training program: invalid objective")
+	}
 	operators, err := compileOperators(spec.Operators)
 	if err != nil {
 		return TrainingProgram{}, err
@@ -144,18 +149,20 @@ func CompileTrainingProgram(spec ProgramSpec) (TrainingProgram, error) {
 		return TrainingProgram{}, err
 	}
 	body := struct {
+		Objective   ObjectiveKind   `json:"objective"`
 		Operators   []OperatorSpec  `json:"operators"`
 		Parameters  []ParameterSpec `json:"parameters"`
 		OptimizerID string          `json:"optimizer_id"`
-	}{Operators: operators, Parameters: parameters, OptimizerID: spec.Optimizer.Identity()}
+	}{Objective: spec.Objective, Operators: operators, Parameters: parameters, OptimizerID: spec.Optimizer.Identity()}
 	id, err := identifyJSON(artifact.KindRecipe, body)
 	if err != nil {
 		return TrainingProgram{}, err
 	}
-	return TrainingProgram{id: id, operators: operators, parameters: parameters, optimizerID: spec.Optimizer.Identity()}, nil
+	return TrainingProgram{id: id, objective: spec.Objective, operators: operators, parameters: parameters, optimizerID: spec.Optimizer.Identity()}, nil
 }
 
 func (p TrainingProgram) ID() artifact.ID             { return p.id }
+func (p TrainingProgram) Objective() ObjectiveKind    { return p.objective }
 func (p TrainingProgram) Operators() []OperatorSpec   { return slices.Clone(p.operators) }
 func (p TrainingProgram) Parameters() []ParameterSpec { return slices.Clone(p.parameters) }
 func (p TrainingProgram) OptimizerIdentity() string   { return p.optimizerID }

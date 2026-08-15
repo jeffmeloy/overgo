@@ -258,6 +258,7 @@ func publishMatrixObjectives(t *testing.T, store *repodb.Store, evidence []matri
 		}
 		objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 			Name:      item.name,
+			Kind:      trainingprogram.ObjectiveTokenPrediction,
 			Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{item.input}, Outputs: []recipecontract.Modality{recipecontract.ModalityText}},
 			Dataset:   dataset, Split: split, Processors: []artifact.ID{processor}, Projectors: projectors,
 			Loss: loss, Evaluation: evaluation, Metric: trainingprogram.MetricTokenAccuracy,

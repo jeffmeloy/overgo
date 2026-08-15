@@ -376,6 +376,7 @@ func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, er
 		return nil, err
 	}
 	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
+		Objective: trainingprogram.ObjectiveTokenPrediction,
 		Operators: []trainingprogram.OperatorSpec{
 			{ID: trainingForward, Phase: trainingprogram.PhaseForward},
 			{ID: trainingBackward, Phase: trainingprogram.PhaseBackward},

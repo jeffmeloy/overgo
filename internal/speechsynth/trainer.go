@@ -7,12 +7,6 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-const (
-	speechTrainingForward  = "speech-forward"
-	speechTrainingBackward = "speech-backward"
-	speechTrainingMuon     = "muon"
-)
-
 // TrainingExample binds tokenized text to normalized codec latents.
 type TrainingExample struct {
 	TextIDs []int
@@ -58,24 +52,16 @@ func NewJointTrainer(model *Model, steps int, baseLR, momentum float64) (*JointT
 		group, _ := plan.Group(index)
 		parameters[index] = trainingprogram.ParameterSpec{Name: group.Name, Rows: group.Rows, Cols: group.Cols, Trainable: !group.Frozen}
 	}
-	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
-		Operators: []trainingprogram.OperatorSpec{
-			{ID: speechTrainingForward, Phase: trainingprogram.PhaseForward},
-			{ID: speechTrainingBackward, Phase: trainingprogram.PhaseBackward},
-			{ID: speechTrainingMuon, Phase: trainingprogram.PhaseOptimize},
-		},
-		Parameters: parameters,
-		Optimizer:  plan,
-	})
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentSequence, parameters, plan)
 	if err != nil {
 		_ = stepper.Close()
 		return nil, err
 	}
 	trainer := &JointTrainer{model: model, pack: pack, stepper: stepper, program: program}
 	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[jointTrainingState]{
-		{Operator: speechTrainingForward, Execute: trainer.forward},
-		{Operator: speechTrainingBackward, Execute: trainer.backward},
-		{Operator: speechTrainingMuon, Execute: trainer.optimize},
+		{Operator: trainingprogram.ObjectiveOperatorForward, Execute: trainer.forward},
+		{Operator: trainingprogram.ObjectiveOperatorBackward, Execute: trainer.backward},
+		{Operator: trainingprogram.ObjectiveOperatorMuon, Execute: trainer.optimize},
 	})
 	if err != nil {
 		_ = stepper.Close()

@@ -16,7 +16,6 @@ package seq2seq
 
 import (
 	"fmt"
-	"io"
 	"math"
 	"path/filepath"
 
@@ -125,19 +124,9 @@ func Load(directory string) (*Model, error) {
 				return nil, fmt.Errorf("seq2seq: tensor %q shape %v, want dim %d = %d", name, shape, i, want)
 			}
 		}
-		reader, err := safetensors.F32Reader(tensor)
+		values, err := safetensors.ReadF32(tensor)
 		if err != nil {
 			return nil, fmt.Errorf("seq2seq: tensor %q: %w", name, err)
-		}
-		elements := tensor.Elements()
-		raw := make([]byte, elements*4)
-		if _, err := io.ReadFull(reader, raw); err != nil {
-			return nil, fmt.Errorf("seq2seq: tensor %q payload: %w", name, err)
-		}
-		values := make([]float32, elements)
-		for i := range values {
-			bits := uint32(raw[4*i]) | uint32(raw[4*i+1])<<8 | uint32(raw[4*i+2])<<16 | uint32(raw[4*i+3])<<24
-			values[i] = math.Float32frombits(bits)
 		}
 		weights[name] = values
 		return values, nil

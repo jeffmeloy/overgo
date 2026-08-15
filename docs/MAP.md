@@ -61,6 +61,7 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Park an out-of-scope finding | `go run ./cmd/finding -title <t> -severity <s> -owner <surface> -evidence <fact> -closure <path> -check <failable-check>` |
 | Rank repeated raw policy literals | `go run ./cmd/closure-scan -raw` (advisory ownership evidence; math/structure facts excluded) |
 | Inject / advance a plan task | `go run ./cmd/plan -add -title <t> -vcmd <verify> <id>`; `-advance <id> <step>` |
+| Synchronize local master | `go run ./cmd/plan -sync-master`; if a merge is prepared, finalize with the plan-bound gate `-merge` |
 | Commit (required; raw `git commit` is guard-blocked) | `go run ./cmd/gate -message-file <f> -paths <csv> -plan <item>/<step>` |
 | Finalize a merge | `git merge --no-ff --no-commit <branch>` then `go run ./cmd/gate -merge -plan <item>/do` (long: run backgrounded to avoid the 2-min shell timeout) |
 | RepoDB store | `repodb.Open(root)`; `store.Query` / `Content` / `Locations` / `Commit` |

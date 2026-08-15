@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
   "items": [
     {
-      "id": "automation-sync",
-      "title": "Synchronize master through a Go owner that resolves generated plan projections safely",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Synchronize master through a Go owner that resolves generated plan projections safely",
-          "status": "open",
-          "verify": "go test ./cmd/plan -run '^TestSyncMasterSubsumesGeneratedPlanProjection$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "automation-bounded-stop",
       "title": "Allow bounded-request completion without recording a continuation stop",
       "status": "open",

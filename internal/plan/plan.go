@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"overgo/internal/jsonfile"
+	"overgo/internal/strictjson"
 )
 
 // Path is the campaign plan, relative to the repo root.
@@ -52,6 +53,16 @@ func Load(path string) (Plan, error) {
 		return Plan{}, fmt.Errorf("parse %s: %w", path, err)
 	}
 	return d, nil
+}
+
+// Parse decodes an in-memory plan projection, including projections read from
+// Git refs during semantic master synchronization.
+func Parse(data []byte) (Plan, error) {
+	var document Plan
+	if err := strictjson.DecodeBytes(data, &document); err != nil {
+		return Plan{}, err
+	}
+	return document, ValidateOpenWork(document)
 }
 
 // Save writes the plan back to path (Path when empty).

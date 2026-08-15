@@ -31,13 +31,15 @@ const vaeSpatialScale = 2
 type vaeOpKind string
 
 const (
-	vaeOpPointwise  vaeOpKind = "pointwise3d"
-	vaeOpConv       vaeOpKind = "conv3d"
-	vaeOpResidual   vaeOpKind = "residual"
-	vaeOpAttention  vaeOpKind = "attention"
-	vaeOpUpsample2D vaeOpKind = "upsample2d"
-	vaeOpUpsample3D vaeOpKind = "upsample3d"
-	vaeOpHead       vaeOpKind = "head"
+	vaeOpPointwise    vaeOpKind = "pointwise3d"
+	vaeOpConv         vaeOpKind = "conv3d"
+	vaeOpResidual     vaeOpKind = "residual"
+	vaeOpAttention    vaeOpKind = "attention"
+	vaeOpDownsample2D vaeOpKind = "downsample2d"
+	vaeOpDownsample3D vaeOpKind = "downsample3d"
+	vaeOpUpsample2D   vaeOpKind = "upsample2d"
+	vaeOpUpsample3D   vaeOpKind = "upsample3d"
+	vaeOpHead         vaeOpKind = "head"
 )
 
 // vaeDecoderOp: one compiled decode operation with tensor bindings in
@@ -415,7 +417,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 
 func vaeOpTensorCount(op vaeDecoderOp) int {
 	switch op.kind {
-	case vaeOpPointwise, vaeOpConv, vaeOpUpsample2D:
+	case vaeOpPointwise, vaeOpConv, vaeOpDownsample2D, vaeOpUpsample2D:
 		return 2
 	case vaeOpResidual:
 		if op.cIn != op.cOut {
@@ -424,7 +426,7 @@ func vaeOpTensorCount(op vaeDecoderOp) int {
 		return 6
 	case vaeOpAttention:
 		return 5
-	case vaeOpUpsample3D:
+	case vaeOpDownsample3D, vaeOpUpsample3D:
 		return 4
 	case vaeOpHead:
 		return 3

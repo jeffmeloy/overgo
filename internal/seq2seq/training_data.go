@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
@@ -81,7 +82,12 @@ type Trainer struct {
 	execution trainingprogram.Execution[trainingStep]
 	weights   []float32
 	gradients []float32
-	optimizer *optimizer.Optimizer
+	optimizer trainingOptimizer
+}
+
+type trainingOptimizer interface {
+	Step() error
+	Close() error
 }
 
 type trainingStep struct {
@@ -98,10 +104,13 @@ func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, er
 	if model == nil || steps <= 0 {
 		return nil, errors.New("seq2seq: invalid trainer")
 	}
-	d, count := model.Dims.DModel, model.Dims.DModel+1
+	d, width := model.Dims.DModel, model.Dims.Heads*model.Dims.HeadDim
+	projectionStart := d + 1
+	count := projectionStart + d*width
 	plan, err := optimizer.CompilePlan(count, []optimizer.GroupSpec{
 		{Name: "decoder.final_norm", Start: 0, End: d, Rows: d, Cols: 1},
-		{Name: "decoder.final_cross.raw_gate", Start: d, End: count, Rows: 1, Cols: 1},
+		{Name: "decoder.final_cross.raw_gate", Start: d, End: projectionStart, Rows: 1, Cols: 1},
+		{Name: "decoder.final_cross.output", Start: projectionStart, End: count, Rows: d, Cols: width},
 	})
 	if err != nil {
 		return nil, err
@@ -115,6 +124,7 @@ func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, er
 		Parameters: []trainingprogram.ParameterSpec{
 			{Name: "decoder.final_norm", Rows: d, Cols: 1, Trainable: true},
 			{Name: "decoder.final_cross.raw_gate", Rows: 1, Cols: 1, Trainable: true},
+			{Name: "decoder.final_cross.output", Rows: d, Cols: width, Trainable: true},
 		},
 		Optimizer: plan,
 	})
@@ -126,9 +136,13 @@ func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, er
 	}
 	weights := make([]float32, count)
 	copy(weights, model.decFinalNorm)
-	weights[d] = model.decoderCross[len(model.decoderCross)-1].rawGate
+	block := &model.decoderCross[len(model.decoderCross)-1]
+	weights[d] = block.rawGate
+	for index, word := range block.o {
+		weights[projectionStart+index] = dtype.BF16ToFloat32(word)
+	}
 	gradients := make([]float32, count)
-	muon, err := optimizer.New(weights, gradients, plan, optimizer.Config{
+	muon, err := newTrainingOptimizer(weights, gradients, plan, optimizer.Config{
 		BaseLearningRate: baseLR, Momentum: momentum, Steps: steps, Schedule: optimizer.ScheduleConstant,
 	})
 	if err != nil {
@@ -150,6 +164,13 @@ func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, er
 }
 
 func (t *Trainer) Program() trainingprogram.TrainingProgram { return t.program }
+
+func (t *Trainer) Close() error {
+	if t == nil || t.optimizer == nil {
+		return nil
+	}
+	return t.optimizer.Close()
+}
 
 // Step executes the compiled forward/backward/optimize sequence once.
 func (t *Trainer) Step(pair TrainingPair) (float64, error) {
@@ -196,7 +217,7 @@ func (t *Trainer) backward(state *trainingStep) error {
 	state.loss = hostmath.SoftmaxCrossEntropy(dLogits, state.logits, state.pair.Targets, rows, vocab)
 	dNormed := make([]float32, len(state.normed))
 	hostmath.LinearBF16BackwardInput(dNormed, dLogits, t.model.embed, rows, d, vocab)
-	state.gradient = make([]float32, d+1)
+	state.gradient = make([]float32, len(t.gradients))
 	dHidden := make([]float32, len(state.hidden))
 	hostmath.RMSNormBackward(dHidden, state.gradient[:d], state.hidden, t.model.decFinalNorm, dNormed, rows, d, t.model.Dims.RMSEps, false)
 	if len(state.trace.finalCrossProjected) != len(dHidden) {
@@ -220,6 +241,7 @@ func (t *Trainer) backward(state *trainingStep) error {
 		nil, state.projectionGradient, nil, state.trace.finalCrossAttention, nil, dProjected,
 		rows, t.model.Dims.Heads*t.model.Dims.HeadDim, d, false,
 	)
+	copy(state.gradient[d+1:], state.projectionGradient)
 	return nil
 }
 
@@ -228,11 +250,16 @@ func (t *Trainer) optimize(state *trainingStep) error {
 		return errors.New("final-norm gradient differs from parameter plan")
 	}
 	copy(t.gradients, state.gradient)
-	t.optimizer.Step()
+	if err := t.optimizer.Step(); err != nil {
+		return err
+	}
 	d := t.model.Dims.DModel
 	copy(t.model.decFinalNorm, t.weights[:d])
 	block := &t.model.decoderCross[len(t.model.decoderCross)-1]
 	block.rawGate = t.weights[d]
 	block.gate = sigmoid(block.rawGate)
+	for index, value := range t.weights[d+1:] {
+		block.o[index] = dtype.Float32ToBF16(value)
+	}
 	return nil
 }

@@ -260,6 +260,13 @@ func DeviceMuonPlanResident(
 
 // DeviceMuonStepPlan: one flat upload/download; resident matrix updates.
 func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []float32, plan Plan, step int, config Config) error {
+	if worker == nil || plan.Identity() == "" || step <= 0 ||
+		len(weights) != plan.ParameterCount() || len(gradients) != len(weights) || len(momentum) != len(weights) {
+		return errors.New("device Muon step: invalid worker, plan, step, or storage")
+	}
+	if err := config.validate(); err != nil {
+		return err
+	}
 	rate := config.LearningRate(step)
 	return worker.Do(context.Background(), func(state *device.State) error {
 		ops, err := newDeviceOps(state)

@@ -113,6 +113,7 @@ func TestNeedleRealGSM8KCompiledTraining(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer trainer.Close()
 	operators := trainer.Program().Operators()
 	if len(operators) != 3 || operators[0].ID != trainingForward || operators[1].ID != trainingBackward || operators[2].ID != trainingMuon {
 		t.Fatalf("compiled operators = %+v", operators)
@@ -149,6 +150,7 @@ func TestNeedleRealGSM8KHeldOutEvaluation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer trainer.Close()
 	for range 3 {
 		if _, err := trainer.Step(trainPair); err != nil {
 			t.Fatal(err)
@@ -180,8 +182,9 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
-	if len(parameters) != 2 || parameters[1].Name != "decoder.final_cross.raw_gate" {
+	if len(parameters) != 3 || parameters[1].Name != "decoder.final_cross.raw_gate" || parameters[2].Name != "decoder.final_cross.output" {
 		t.Fatalf("compiled parameters = %+v", parameters)
 	}
 	probe := trainingStep{pair: pair}
@@ -234,6 +237,7 @@ func TestNeedleRealGSM8KFinalCrossOutputGradient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer trainer.Close()
 	probe := trainingStep{pair: pair}
 	if err := trainer.forward(&probe); err != nil {
 		t.Fatal(err)
@@ -275,4 +279,36 @@ func TestNeedleRealGSM8KFinalCrossOutputGradient(t *testing.T) {
 		t.Fatalf("final cross output gradient[%d] analytic=%g finite_difference=%g delta=%g limit=%g", index, analytic, finiteDifference, delta, limit)
 	}
 	t.Logf("real GSM8K final cross output gradient[%d]: analytic=%g finite_difference=%g", index, analytic, finiteDifference)
+}
+
+func TestNeedleRealGSM8KFinalCrossOutputMuon(t *testing.T) {
+	generator, pair, _ := realGSM8KTrainingPair(t, 0)
+	block := &generator.model.decoderCross[len(generator.model.decoderCross)-1]
+	original := append([]uint16(nil), block.o...)
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(pair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	changed := 0
+	for index, word := range block.o {
+		if word != original[index] {
+			changed++
+		}
+	}
+	after, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed == 0 || !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && after < trajectory[2]) {
+		t.Fatalf("output projection did not train: changed=%d trajectory=%v after=%g", changed, trajectory, after)
+	}
+	t.Logf("real GSM8K device Muon: %v -> %.6f; output BF16 words changed=%d/%d", trajectory, after, changed, len(block.o))
 }

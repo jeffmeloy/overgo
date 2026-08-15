@@ -440,9 +440,9 @@ BINDING DOCTRINE (port-first):
 
 PROTOCOL -- no deviation:
   1. Do ONLY this step. Port from adaptive_new first, verify against its goldens.
-  2. Do NOT start another step, act on a finding, or refactor off to the side. A
-     finding goes to docs/findings.json; it becomes work ONLY by later appearing
-     here as the top step -- never by you acting on it now.
+  2. Do NOT start another step, act on a finding, or refactor off to the side.
+     Park it with cmd/finding; it becomes work ONLY by later appearing here as
+     the top step -- never by you acting on it now.
   3. If this step is wrong, blocked, or you disagree with it: STOP and tell the
      user. Do NOT substitute your own work for the dispatched step.
   4. Commit ONLY via the plan-bound gate:

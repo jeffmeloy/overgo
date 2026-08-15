@@ -196,8 +196,8 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	}
 	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
-	if len(parameters) != 17 || parameters[1].Name != "decoder.final_cross.raw_gate" ||
-		parameters[2].Name != "decoder.final_cross.output" || parameters[16].Name != "decoder.final_self.v" {
+	if len(parameters) != 19 || parameters[1].Name != "decoder.final_cross.raw_gate" ||
+		parameters[2].Name != "decoder.final_cross.output" || parameters[18].Name != "decoder.layer6.cross.output" {
 		t.Fatalf("compiled parameters = %+v", parameters)
 	}
 	probe := trainingStep{pair: pair}
@@ -384,6 +384,7 @@ func TestNeedleRealGSM8KFinalCrossQKVMuon(t *testing.T) {
 		"decoder.final_self.raw_gate", "decoder.final_self.output", "decoder.final_self.input_norm",
 		"decoder.final_self.q_norm", "decoder.final_self.k_norm",
 		"decoder.final_self.q", "decoder.final_self.k", "decoder.final_self.v",
+		"decoder.layer6.cross.raw_gate", "decoder.layer6.cross.output",
 	}
 	parameters := trainer.Program().Parameters()
 	if len(parameters) != len(wantParameters) {
@@ -529,6 +530,52 @@ func TestNeedleRealGSM8KPenultimateCrossAttentionGradient(t *testing.T) {
 	}
 	t.Logf("real GSM8K decoder layer %d cross gradients: q=%g k=%g v=%g; raw gate analytic=%g finite_difference=%g",
 		layer, qNorm, kNorm, vNorm, analytic, finite)
+}
+
+func TestNeedleRealGSM8KPenultimateCrossAttentionMuon(t *testing.T) {
+	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
+	_, heldOutPair, _ := realGSM8KTrainingPair(t, 1)
+	layer := generator.model.Dims.DecoderLayers - 2
+	block := &generator.model.decoderCross[layer]
+	outputBefore := append([]uint16(nil), block.o...)
+	gateBefore := block.rawGate
+	trainBefore, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutBefore, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(trainPair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	trainAfter, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutAfter, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := changedBF16(outputBefore, block.o)
+	if changed == 0 || block.rawGate == gateBefore ||
+		!(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
+		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) {
+		t.Fatalf("layer %d cross boundary did not train: output_changed=%d gate=%g/%g train %.6f -> %v -> %.6f held-out %.6f -> %.6f",
+			layer, changed, gateBefore, block.rawGate, trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
+	}
+	t.Logf("real GSM8K decoder layer %d cross gate/output Muon: train %.6f -> %.6f via %v; held-out %.6f -> %.6f; output BF16 changed=%d/%d",
+		layer, trainBefore, trainAfter, trajectory, heldOutBefore, heldOutAfter, changed, len(block.o))
 }
 
 func TestNeedleRealGSM8KFinalSelfAttentionMuon(t *testing.T) {

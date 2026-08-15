@@ -130,6 +130,8 @@ type trainingLayout struct {
 	selfRawGate, selfOutput               parameterSpan
 	selfInputNorm, selfQNorm, selfKNorm   parameterSpan
 	selfQ, selfK, selfV                   parameterSpan
+	penultimateCrossRawGate               parameterSpan
+	penultimateCrossOutput                parameterSpan
 	count                                 int
 }
 
@@ -172,6 +174,8 @@ func (b trainingParameterBinding) publish(src []float32) {
 func trainingParameterBindings(model *Model, layout trainingLayout) []trainingParameterBinding {
 	cross := &model.decoderCross[len(model.decoderCross)-1]
 	self := &model.decoderSelf[len(model.decoderSelf)-1]
+	penultimateCross := &model.decoderCross[len(model.decoderCross)-2]
+	penultimateName := fmt.Sprintf("decoder.layer%d.cross", len(model.decoderCross)-2)
 	d := model.Dims.DModel
 	qWidth := model.Dims.Heads * model.Dims.HeadDim
 	kvWidth := model.Dims.KVHeads * model.Dims.HeadDim
@@ -193,6 +197,8 @@ func trainingParameterBindings(model *Model, layout trainingLayout) []trainingPa
 		{name: "decoder.final_self.q", span: layout.selfQ, rows: qWidth, cols: d, bf16: self.q},
 		{name: "decoder.final_self.k", span: layout.selfK, rows: kvWidth, cols: d, bf16: self.k},
 		{name: "decoder.final_self.v", span: layout.selfV, rows: kvWidth, cols: d, bf16: self.v},
+		{name: penultimateName + ".raw_gate", span: layout.penultimateCrossRawGate, rows: 1, cols: 1, scalar: &penultimateCross.rawGate, folded: &penultimateCross.gate},
+		{name: penultimateName + ".output", span: layout.penultimateCrossOutput, rows: d, cols: qWidth, bf16: penultimateCross.o},
 	}
 }
 
@@ -208,23 +214,25 @@ func newTrainingLayout(model *Model) trainingLayout {
 	kvWidth := model.Dims.KVHeads * model.Dims.HeadDim
 	cursor := 0
 	layout := trainingLayout{
-		finalNorm:     nextParameter(&cursor, d),
-		rawGate:       nextParameter(&cursor, 1),
-		output:        nextParameter(&cursor, d*qWidth),
-		inputNorm:     nextParameter(&cursor, d),
-		qNorm:         nextParameter(&cursor, model.Dims.HeadDim),
-		kNorm:         nextParameter(&cursor, model.Dims.HeadDim),
-		qProjection:   nextParameter(&cursor, qWidth*d),
-		kProjection:   nextParameter(&cursor, kvWidth*d),
-		vProjection:   nextParameter(&cursor, kvWidth*d),
-		selfRawGate:   nextParameter(&cursor, 1),
-		selfOutput:    nextParameter(&cursor, d*qWidth),
-		selfInputNorm: nextParameter(&cursor, d),
-		selfQNorm:     nextParameter(&cursor, model.Dims.HeadDim),
-		selfKNorm:     nextParameter(&cursor, model.Dims.HeadDim),
-		selfQ:         nextParameter(&cursor, qWidth*d),
-		selfK:         nextParameter(&cursor, kvWidth*d),
-		selfV:         nextParameter(&cursor, kvWidth*d),
+		finalNorm:               nextParameter(&cursor, d),
+		rawGate:                 nextParameter(&cursor, 1),
+		output:                  nextParameter(&cursor, d*qWidth),
+		inputNorm:               nextParameter(&cursor, d),
+		qNorm:                   nextParameter(&cursor, model.Dims.HeadDim),
+		kNorm:                   nextParameter(&cursor, model.Dims.HeadDim),
+		qProjection:             nextParameter(&cursor, qWidth*d),
+		kProjection:             nextParameter(&cursor, kvWidth*d),
+		vProjection:             nextParameter(&cursor, kvWidth*d),
+		selfRawGate:             nextParameter(&cursor, 1),
+		selfOutput:              nextParameter(&cursor, d*qWidth),
+		selfInputNorm:           nextParameter(&cursor, d),
+		selfQNorm:               nextParameter(&cursor, model.Dims.HeadDim),
+		selfKNorm:               nextParameter(&cursor, model.Dims.HeadDim),
+		selfQ:                   nextParameter(&cursor, qWidth*d),
+		selfK:                   nextParameter(&cursor, kvWidth*d),
+		selfV:                   nextParameter(&cursor, kvWidth*d),
+		penultimateCrossRawGate: nextParameter(&cursor, 1),
+		penultimateCrossOutput:  nextParameter(&cursor, d*qWidth),
 	}
 	layout.count = cursor
 	return layout
@@ -587,6 +595,8 @@ func (t *Trainer) backwardPenultimateCrossCore(state *trainingStep) error {
 	}
 	state.penultimateCrossQ, state.penultimateCrossK, state.penultimateCrossV = core.q, core.k, core.v
 	state.penultimateCrossRawGate = core.rawGate
+	state.gradient[t.layout.penultimateCrossRawGate.start] = core.rawGate
+	copy(state.gradient[t.layout.penultimateCrossOutput.start:t.layout.penultimateCrossOutput.end], core.output)
 	return nil
 }
 

@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -131,12 +130,12 @@ func Compile(facts CorpusFacts, profile DerivationProfile) (Construction, error)
 		}
 	}
 
-	datasetID, err := identifyJSON(artifact.KindDataset, facts.Documents)
+	datasetID, err := artifact.JSONID(artifact.KindDataset, facts.Documents)
 	if err != nil {
 		return Construction{}, err
 	}
 	split := splitDocuments(facts.Documents, facts.Seed, profile)
-	splitID, err := identifyJSON(artifact.KindDatasetShard, split)
+	splitID, err := artifact.JSONID(artifact.KindDatasetShard, split)
 	if err != nil {
 		return Construction{}, err
 	}
@@ -147,64 +146,71 @@ func Compile(facts CorpusFacts, profile DerivationProfile) (Construction, error)
 		return Construction{}, err
 	}
 
-	derivationProfile, err := identifyJSON(artifact.KindProfile, struct {
+	derivationProfile, err := artifact.JSONID(artifact.KindProfile, struct {
 		Profile DerivationProfile `json:"profile"`
 		Steps   int               `json:"steps"`
 	}{Profile: profile, Steps: facts.Steps})
+
 	if err != nil {
 		return Construction{}, err
 	}
-	topologyProfile, err := identifyJSON(artifact.KindProfile, struct {
+	topologyProfile, err := artifact.JSONID(artifact.KindProfile, struct {
 		Version string `json:"version"`
 		Config  Config `json:"config"`
 	}{Version: "adaptive-causal-topology-v1", Config: config})
+
 	if err != nil {
 		return Construction{}, err
 	}
-	tokenizerID, err := identifyJSON(artifact.KindTokenizer, struct {
+	tokenizerID, err := artifact.JSONID(artifact.KindTokenizer, struct {
 		Version    string         `json:"version"`
 		Characters []string       `json:"characters"`
 		BOS        int            `json:"bos"`
 		Index      map[string]int `json:"index"`
 	}{"adaptive-rune-tokenizer-v1", config.Characters, config.BOS, config.CharacterIndex})
+
 	if err != nil {
 		return Construction{}, err
 	}
-	processorID, err := identifyJSON(artifact.KindProfile, "adaptive-rune-document-v1")
+	processorID, err := artifact.JSONID(artifact.KindProfile, "adaptive-rune-document-v1")
 	if err != nil {
 		return Construction{}, err
 	}
-	manifestID, err := identifyJSON(artifact.KindTensorInventory, struct {
+	manifestID, err := artifact.JSONID(artifact.KindTensorInventory, struct {
 		Version    string      `json:"version"`
 		Parameters []Parameter `json:"parameters"`
 	}{Version: "adaptive-causal-parameters-v1", Parameters: parameters})
+
 	if err != nil {
 		return Construction{}, err
 	}
-	initializerProfile, err := identifyJSON(artifact.KindProfile, struct {
+	initializerProfile, err := artifact.JSONID(artifact.KindProfile, struct {
 		Version string  `json:"version"`
 		Seed    int64   `json:"seed"`
 		Scale   float64 `json:"scale"`
 	}{Version: "adaptive-uniform-zero-v1", Seed: facts.Seed, Scale: config.InitStd})
+
 	if err != nil {
 		return Construction{}, err
 	}
-	modelID, err := identifyJSON(artifact.KindModel, struct {
+	modelID, err := artifact.JSONID(artifact.KindModel, struct {
 		Topology artifact.ID `json:"topology"`
 		Manifest artifact.ID `json:"manifest"`
 	}{topologyProfile, manifestID})
+
 	if err != nil {
 		return Construction{}, err
 	}
-	recipeID, err := identifyJSON(artifact.KindRecipe, struct {
+	recipeID, err := artifact.JSONID(artifact.KindRecipe, struct {
 		Dataset artifact.ID `json:"dataset"`
 		Split   artifact.ID `json:"split"`
 		Model   artifact.ID `json:"model"`
 	}{datasetID, splitID, modelID})
+
 	if err != nil {
 		return Construction{}, err
 	}
-	rngAlgorithm, err := identifyJSON(artifact.KindProfile, "go-math-rand-v1")
+	rngAlgorithm, err := artifact.JSONID(artifact.KindProfile, "go-math-rand-v1")
 	if err != nil {
 		return Construction{}, err
 	}
@@ -475,14 +481,6 @@ func digestFloats(values []float64) string {
 		digest.Write(encoded[:])
 	}
 	return hex.EncodeToString(digest.Sum(nil))
-}
-
-func identifyJSON(kind artifact.Kind, value any) (artifact.ID, error) {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	return artifact.IdentifyBytes(kind, data)
 }
 
 func ceilLog2(value int) int { return int(math.Ceil(math.Log2(float64(value)))) }

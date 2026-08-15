@@ -99,23 +99,16 @@ func (o ScratchOracle) Content() (artifact.Content, error) {
 }
 
 func (o ScratchOracle) CorpusID() (artifact.ID, error) {
-	data, err := json.Marshal(o.Documents)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	return artifact.IdentifyBytes(artifact.KindDataset, data)
+	return artifact.JSONID(artifact.KindDataset, o.Documents)
 }
 
 func (o ScratchOracle) SplitID() (artifact.ID, error) {
-	data, err := json.Marshal(struct {
+	return artifact.JSONID(artifact.KindDatasetShard, struct {
 		Train      []string `json:"train"`
 		Validation []string `json:"validation"`
 		Test       []string `json:"test"`
 	}{Train: o.Train, Validation: o.Validation, Test: o.Test})
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	return artifact.IdentifyBytes(artifact.KindDatasetShard, data)
+
 }
 
 func validateScratchOracle(oracle *ScratchOracle) error {

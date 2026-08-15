@@ -95,6 +95,15 @@ func IdentifyBytes(kind Kind, data []byte) (ID, error) {
 	return NewID(kind, sha256.Sum256(data))
 }
 
+// JSONID hashes canonical encoding/json output.
+func JSONID(kind Kind, value any) (ID, error) {
+	data, err := json.Marshal(value)
+	if err == nil {
+		return IdentifyBytes(kind, data)
+	}
+	return ID{}, err
+}
+
 func Identify(kind Kind, reader io.Reader) (ID, uint64, error) {
 	if reader == nil {
 		return ID{}, 0, errors.New("artifact: nil content reader")

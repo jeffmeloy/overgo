@@ -38,14 +38,10 @@ func buildPairedCausalProjectionMixCached(
 	query := builder.Reshape(builder.MulMat(weights.AttentionQ, input), uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
 	key := builder.Reshape(builder.MulMat(weights.AttentionK, input), uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value := builder.Reshape(builder.MulMat(weights.AttentionV, input), uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
-	frequencyScale := float32(1)
-	if (spec.RopeScalingType == "linear" || spec.RopeScalingType == "yarn") && spec.RopeScalingFactor > 0 {
-		frequencyScale = 1 / spec.RopeScalingFactor
-	}
 	query, key = applyRoPEPairWithOptions(builder, query, key, tensor.RoPEOptions{
 		Layout: tensor.RoPELayoutNormal, Positions: positions,
 		FrequencyFactors: weights.RopeFactors, RotaryDimensions: spec.RopeDimensionCount,
-		FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: frequencyScale,
+		FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: spec.ropeFrequencyScale(),
 	})
 	cacheKey, cacheValue := key, value
 	var queryStart uint32

@@ -982,10 +982,7 @@ func buildGatedProjectionMixCached(
 	}
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
-	frequencyScale := float32(1)
-	if spec.RopeScalingType == "linear" {
-		frequencyScale = 1 / spec.RopeScalingFactor
-	}
+	frequencyScale := spec.ropeFrequencyScale()
 	if deltaProjection == gatedDeltaInterleavedProjections {
 		query = builder.RoPENeoXScaled(
 			query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,

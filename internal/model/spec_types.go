@@ -9,6 +9,22 @@ const (
 	expertGatingSqrtSoftplus    uint32 = 4
 )
 
+type ropeScalingKind string
+
+const (
+	ropeScalingNone     ropeScalingKind = ""
+	ropeScalingLinear   ropeScalingKind = "linear"
+	ropeScalingYaRN     ropeScalingKind = "yarn"
+	ropeScalingLongRoPE ropeScalingKind = "longrope"
+)
+
+func (a AttentionSpec) ropeFrequencyScale() float32 {
+	if (a.RopeScalingType == ropeScalingLinear || a.RopeScalingType == ropeScalingYaRN) && a.RopeScalingFactor > 0 {
+		return 1 / a.RopeScalingFactor
+	}
+	return 1
+}
+
 // Spec: architecture metadata grouped by runtime concern.
 type Spec struct {
 	CommonSpec
@@ -63,7 +79,7 @@ type AttentionSpec struct {
 	ValueLengthSWA        uint32
 	RopeFrequencyBase     float32
 	RopeFrequencySWA      float32
-	RopeScalingType       string
+	RopeScalingType       ropeScalingKind
 	RopeScalingFactor     float32
 	RopeAttentionFactor   float32
 	RopeYaRNLogMultiplier float32

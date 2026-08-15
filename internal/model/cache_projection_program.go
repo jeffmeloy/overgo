@@ -57,14 +57,10 @@ func compileCacheProjectionProgram(spec Spec, profile ArchitectureProfile) Cache
 	if profile.Forward.Session != ForwardSessionPairedFeatures {
 		return CacheProjectionProgram{}
 	}
-	frequencyScale := float32(1)
-	if (spec.RopeScalingType == "linear" || spec.RopeScalingType == "yarn") && spec.RopeScalingFactor > 0 {
-		frequencyScale = 1 / spec.RopeScalingFactor
-	}
 	return CacheProjectionProgram{
 		width: uint64(spec.EmbeddingLength), key: uint64(spec.KeyLength),
 		value: uint64(spec.ValueLength), heads: uint64(spec.HeadCountKV),
 		epsilon: spec.RMSNormEpsilon, rotaryDimensions: spec.RopeDimensionCount,
-		frequencyBase: spec.RopeFrequencyBase, frequencyScale: frequencyScale,
+		frequencyBase: spec.RopeFrequencyBase, frequencyScale: spec.ropeFrequencyScale(),
 	}
 }

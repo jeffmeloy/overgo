@@ -86,10 +86,7 @@ func buildLatentAttentionMixCached(
 		ropeWidth, 1, tokens,
 	)
 	kvCompressed = builder.WeightedRMSNorm(kvCompressed, weights.AttentionKVANorm, spec.RMSNormEpsilon)
-	frequencyScale := float32(1)
-	if (spec.RopeScalingType == "linear" || spec.RopeScalingType == "yarn") && spec.RopeScalingFactor > 0 {
-		frequencyScale = 1 / spec.RopeScalingFactor
-	}
+	frequencyScale := spec.ropeFrequencyScale()
 	if omitsRoPE {
 		// No rotary transform.
 	} else if (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == "yarn" {

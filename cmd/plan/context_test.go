@@ -12,6 +12,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 )
 
 func TestAutomationContextSnapshotEncoding(t *testing.T) {
@@ -93,14 +94,14 @@ func TestReviewPriority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	evaluator, err := runrecord.NewReviewEvaluator("gate", contextArtifactID(t, artifact.KindRecipe, "definition"), "0123456789abcdef0123456789abcdef01234567")
+	evaluator, err := runrecord.NewReviewEvaluator("gate", testutil.ArtifactID(t, artifact.KindRecipe, "definition"), "0123456789abcdef0123456789abcdef01234567")
 	if err != nil {
 		t.Fatal(err)
 	}
 	candidate, err := runrecord.NewReviewCandidate(runrecord.ReviewCandidate{
 		BaseCommit: "0123456789abcdef0123456789abcdef01234567", CodeCommit: target,
 		Developer: developer.ID, Worktree: developerTree.ID, Evaluator: evaluator.ID,
-		GateResult: contextArtifactID(t, artifact.KindEvidence, "result"), GateRun: contextArtifactID(t, artifact.KindEvidence, "run"),
+		GateResult: testutil.ArtifactID(t, artifact.KindEvidence, "result"), GateRun: testutil.ArtifactID(t, artifact.KindEvidence, "run"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -127,13 +128,4 @@ func TestReviewPriority(t *testing.T) {
 	if workflow.Phase != "sqa" || workflow.CandidateID != candidate.ID.String() || workflow.VerdictID != "" {
 		t.Fatalf("review priority = %+v", workflow)
 	}
-}
-
-func contextArtifactID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }

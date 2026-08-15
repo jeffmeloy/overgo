@@ -73,10 +73,11 @@ func textConditioningWithWeights(spec TextConditioningSpec, prompt string, weigh
 	if err != nil {
 		return out, err
 	}
-	metas, err := pytorchzip.ReadTensorMetadata(spec.EncoderCheckpoint)
+	catalog, err := pytorchzip.ReadCatalog(spec.EncoderCheckpoint)
 	if err != nil {
 		return out, err
 	}
+	metas := catalog.Tensors
 	plan, err := CompileEncoderPlan(metas, EncoderConfig{RelativeMaxDistance: spec.RelativeMaxDistance, NormEps: spec.NormEps})
 	if err != nil {
 		return out, err

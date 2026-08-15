@@ -48,19 +48,17 @@ func TestConfigParseMatchesShippedCheckpoint(t *testing.T) {
 		t.Skipf("checkpoint unavailable at %s: %v", path, err)
 	}
 
-	metas, err := pytorchzip.ReadTensorMetadata(path)
+	catalog, err := pytorchzip.ReadCatalog(path)
 	if err != nil {
-		t.Fatalf("ReadTensorMetadata: %v", err)
+		t.Fatalf("ReadCatalog: %v", err)
 	}
+	metas := catalog.Tensors
 	shapes := make(map[string][]int64, len(metas))
 	for _, m := range metas {
 		shapes[m.Name] = m.Shape
 	}
 
-	cfg, err := pytorchzip.ReadScalarConfig(path)
-	if err != nil {
-		t.Fatalf("ReadScalarConfig: %v", err)
-	}
+	cfg := catalog.Scalars
 	swiGLU, _ := cfg["mem_read_swiglu"].(bool)
 	if !swiGLU {
 		t.Fatalf("ck[cfg].mem_read_swiglu = %v, want true for the shipped checkpoint", cfg["mem_read_swiglu"])

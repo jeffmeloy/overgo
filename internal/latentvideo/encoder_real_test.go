@@ -33,10 +33,11 @@ func TestEncodeTokensStreamedMatchesReferenceHost(t *testing.T) {
 	}
 	modelDir := wanModelDir(t)
 	checkpoint := filepath.Join(modelDir, "models_t5_umt5-xxl-enc-bf16.pth")
-	metas, err := pytorchzip.ReadTensorMetadata(checkpoint)
+	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {
 		t.Skipf("UNAVAILABLE: encoder checkpoint unreadable: %v", err)
 	}
+	metas := catalog.Tensors
 	plan, err := CompileEncoderPlan(metas, referenceEncoderPolicy)
 	if err != nil {
 		t.Fatal(err)

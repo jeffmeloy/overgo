@@ -88,7 +88,9 @@ licenses reinventing an existing owner.
 
 - Direct user request outranks the loop. Review/explanation/status/scoped edit =
   finished when answered; a complete turn, not a stop to defend. Never let loop
-  pressure turn a bounded request into a campaign.
+  pressure turn a bounded request into a campaign. UserPromptSubmit marks
+  read-only bounded turns; the Stop hook consumes that marker without writing
+  `docs/plan_stop.json`.
 - Full loop applies only under a live continue/resume/loop directive, at a
   committed-slice close, or when no narrower user task is active.
 - Co-implementer rule: user and concurrent lanes are parallel implementers.

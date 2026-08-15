@@ -5,6 +5,8 @@
 //	loophook stop         Stop hook.      exit 2 blocks the turn-end, 0 allows.
 //	loophook post-commit  PostToolUse.    arms/clears docs/.dispatch_pending.
 //	loophook doctrine     SessionStart.   emits the turn contract + dispatch.
+//	loophook prompt       UserPromptSubmit. Classifies bounded requests before
+//	                      dispatching campaign work.
 //
 // The stop gate refuses a turn-end that ORPHANS work -- uncommitted repository
 // work, or an armed dispatch marker (a commit landed this turn but the next step was not
@@ -14,6 +16,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -24,7 +27,10 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
-const markerPath = "docs/.dispatch_pending"
+const (
+	markerPath  = "docs/.dispatch_pending"
+	boundedPath = "docs/.bounded_request"
+)
 
 func main() {
 	if len(os.Args) < 2 {
@@ -38,6 +44,8 @@ func main() {
 		runPostCommit(readStdin())
 	case "doctrine":
 		runDoctrine()
+	case "prompt":
+		runPrompt(readStdin())
 	default:
 		fmt.Fprintf(os.Stderr, "loophook: unknown subcommand %q\n", os.Args[1])
 		os.Exit(2)
@@ -52,8 +60,8 @@ func readStdin() string {
 // stopDecision is the pure verdict the Stop hook renders. block==true means the
 // turn-end is refused. Allow (block=false) whenever a valve fires; otherwise
 // block iff work is orphaned (a meaningful dirty path or an armed dispatch marker).
-func stopDecision(stopHookActive, freshStop, gateRunning, planComplete, dirtyWork, markerArmed bool) (block bool) {
-	if stopHookActive || freshStop || gateRunning || planComplete {
+func stopDecision(stopHookActive, boundedRequest, freshStop, gateRunning, planComplete, dirtyWork, markerArmed bool) (block bool) {
+	if stopHookActive || boundedRequest || freshStop || gateRunning || planComplete {
 		return false
 	}
 	return dirtyWork || markerArmed
@@ -64,6 +72,7 @@ func runStop(hookJSON string) int {
 	if strings.Contains(hookJSON, `"stop_hook_active":true`) || strings.Contains(hookJSON, `"stop_hook_active": true`) {
 		return 0
 	}
+	boundedRequest := consumeBoundedRequest(boundedPath)
 	head := gitHead()
 	freshStop := freshStopAtHead(head)
 	if freshStop {
@@ -77,7 +86,7 @@ func runStop(hookJSON string) int {
 	dirtyWork := hasDirtyPlannedScope()
 	markerArmed := fileExists(markerPath)
 
-	if !stopDecision(false, freshStop, gateRunning, complete, dirtyWork, markerArmed) {
+	if !stopDecision(false, boundedRequest, freshStop, gateRunning, complete, dirtyWork, markerArmed) {
 		return 0
 	}
 
@@ -116,11 +125,58 @@ func runPostCommit(hookJSON string) {
 func runDoctrine() {
 	// A turn never spans sessions -- any pending boundary is stale.
 	_ = os.Remove(markerPath)
+	_ = os.Remove(boundedPath)
 	fmt.Println(doctrineText)
 	fmt.Println()
 	fmt.Println("Dispatched now (go run ./cmd/plan -next):")
 	next, _ := nextAction()
 	fmt.Println(next)
+}
+
+func runPrompt(hookJSON string) {
+	var input struct {
+		Prompt string `json:"prompt"`
+	}
+	if json.Unmarshal([]byte(hookJSON), &input) == nil && boundedRequestText(input.Prompt) {
+		_ = os.WriteFile(boundedPath, []byte("bounded\n"), 0o644)
+		fmt.Println("OVERGO BOUNDED REQUEST: answer only this request; it is complete when answered. Do not record a stop or dispatch campaign work.")
+		return
+	}
+	_ = os.Remove(boundedPath)
+	command := exec.Command("go", "run", "./cmd/plan", "-prompt")
+	command.Stdout, command.Stderr = os.Stdout, os.Stderr
+	_ = command.Run()
+}
+
+func boundedRequestText(prompt string) bool {
+	prompt = strings.ToLower(strings.TrimSpace(prompt))
+	if prompt == "" {
+		return false
+	}
+	for _, prefix := range []string{"review ", "summarize ", "explain ", "describe ", "assess ", "evaluate ", "report ", "status", "what ", "why ", "how ", "should ", "would ", "is ", "are ", "does ", "do you think"} {
+		if strings.HasPrefix(prompt, prefix) {
+			return true
+		}
+	}
+	for _, action := range []string{
+		" implement", " build", " create", " add", " remove", " delete", " fix", " change", " update", " refactor", " migrate", " merge", " proceed", " continue", " press on", " keep working", " until done",
+	} {
+		if strings.Contains(" "+prompt, action) {
+			return false
+		}
+	}
+	if strings.HasSuffix(prompt, "?") {
+		return true
+	}
+	return false
+}
+
+func consumeBoundedRequest(path string) bool {
+	if !fileExists(path) {
+		return false
+	}
+	_ = os.Remove(path)
+	return true
 }
 
 // --- IO helpers (git + plan + marker), thin wrappers around the pure verdict ---

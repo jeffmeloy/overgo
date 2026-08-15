@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# overgo_next_task.sh -- emit the currently dispatched plan task.
+# overgo_next_task.sh -- classify a bounded request or emit the plan task.
 #
 # Wire it in settings.json as a UserPromptSubmit (or SessionStart) hook so every
 # turn STARTS bound to the plan's next step -- dispatch = execute, no room to open
@@ -15,4 +15,5 @@ fi
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO" || exit 0
-go run ./cmd/plan -prompt 2>/dev/null
+[ -x bin/loophook.exe ] && exec bin/loophook.exe prompt
+exec go run ./cmd/loophook prompt

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+
+	"overgo/internal/latentimage"
 )
 
 // kuramotoVelocityRowInto: one uncoupled-group velocity row. The coupling
@@ -236,7 +238,7 @@ func (m *Model) integrate(plan phasePlan) ([]float32, error) {
 	return readoutTransform(state, b, cfg.N, tot, 0, cfg.Relativization, cfg.Encoding), nil
 }
 
-func (m *Model) decode(features []float32) (Image, error) {
+func (m *Model) decodePlanar(features []float32) (planarImage, error) {
 	cfg := m.Cfg
 	// Batch derived from the readout width (b samples of in_ch*in_h*in_w).
 	b := len(features) / (cfg.InChannels * cfg.InH * cfg.InW)
@@ -244,7 +246,15 @@ func (m *Model) decode(features []float32) (Image, error) {
 		features, m.Blocks, m.ToOutW, m.ToOutB, b,
 		cfg.InChannels, cfg.InH, cfg.InW, cfg.OutChannels, m.Slope, cfg.TanhOut,
 	)
-	return Image{Pixels: pixels, Channels: cfg.OutChannels, Height: cfg.OutH(), Width: cfg.OutW()}, nil
+	return planarImage{Pixels: pixels, Channels: cfg.OutChannels, Height: cfg.OutH(), Width: cfg.OutW()}, nil
+}
+
+func (m *Model) decode(features []float32) (latentimage.EncodedImage, error) {
+	image, err := m.decodePlanar(features)
+	if err != nil {
+		return latentimage.EncodedImage{}, err
+	}
+	return latentimage.EncodePlanarPNG(image.Pixels, image.Height, image.Width)
 }
 
 // Generate samples one seeded image for classID. Initial phases are uniform

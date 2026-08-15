@@ -5,6 +5,7 @@ package main
 import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
@@ -13,7 +14,7 @@ import (
 func imageCapability() capability {
 	return capability{
 		inventory: imageGenInventory,
-		execute: capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
+		execute: capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 			"image-gen", oscillatorimage.ValidateRequest,
 			capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
 		),

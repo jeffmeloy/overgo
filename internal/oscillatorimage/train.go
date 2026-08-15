@@ -2,10 +2,6 @@ package oscillatorimage
 
 import (
 	"fmt"
-	"math"
-	"math/rand"
-
-	"overgo/internal/optimizer"
 )
 
 // Grads: parameter gradients keyed by artifact tensor name.
@@ -121,90 +117,7 @@ func (m *Model) backwardInto(trace trainingTrace, drive, dImage []float32, g Gra
 	}
 }
 
-// driftLossGrad: the reference bootstrap objective — per-class constant
-// target 0.1 + 0.2*class, squared error summed, dImage = 2*delta.
-func driftLossGrad(image []float32, classes, dim int) (float64, []float32) {
-	var loss float64
-	dImage := make([]float32, len(image))
-	for c := 0; c < classes; c++ {
-		target := 0.1 + 0.2*float64(c)
-		for i := 0; i < dim; i++ {
-			index := c*dim + i
-			delta := float64(image[index]) - target
-			loss += delta * delta
-			dImage[index] = float32(2 * delta)
-		}
-	}
-	return loss, dImage
-}
-
 func (m *Model) tensorName(suffix string) string { return m.Namespace + "." + suffix }
 func (m *Model) blockTensorName(i int, part string) string {
 	return fmt.Sprintf("%s.blocks.%d.%s", m.Namespace, i, part)
-}
-
-// trainableTensors: bound values and Muon geometry by artifact name.
-func (m *Model) trainableTensors() (map[string][]float32, map[string][2]int) {
-	cfg := m.Cfg
-	tensors := map[string][]float32{}
-	shapes := map[string][2]int{}
-	put := func(name string, values []float32, rows, cols int) {
-		tensors[name] = values
-		shapes[name] = [2]int{rows, cols}
-	}
-	put(m.tensorName("omega"), m.Omega, cfg.N, 1)
-	put(m.tensorName("omega_cond"), m.OmegaCond, cfg.NCond, 1)
-	put(m.tensorName("k"), m.K, cfg.N, cfg.N)
-	put(m.tensorName("k_cond"), m.KCond, cfg.NCond, cfg.NCond)
-	put(m.tensorName("k_drive"), m.Drive, len(m.Drive)/(cfg.N*cfg.NCond), cfg.N*cfg.NCond)
-	for i := range m.Blocks {
-		block := &m.Blocks[i]
-		put(m.blockTensorName(i, "w1"), block.W1, block.Cout, len(block.W1)/block.Cout)
-		put(m.blockTensorName(i, "b1"), block.B1, block.Cout, 1)
-		put(m.blockTensorName(i, "w2"), block.W2, block.Cout, len(block.W2)/block.Cout)
-		put(m.blockTensorName(i, "b2"), block.B2, block.Cout, 1)
-	}
-	put(m.tensorName("to_out.weight"), m.ToOutW, cfg.OutChannels, len(m.ToOutW)/cfg.OutChannels)
-	put(m.tensorName("to_out.bias"), m.ToOutB, cfg.OutChannels, 1)
-	return tensors, shapes
-}
-
-// TrainDrift: class-batch drift objective with resampled phase initialization.
-func (m *Model) TrainDrift(steps int, baseLR, mu float64, seed int64) ([]float64, error) {
-	cfg := m.Cfg
-	tensors, shapes := m.trainableTensors()
-	pack, err := optimizer.NewTensorPack(tensors, optimizer.MatrixGeometry(shapes))
-	if err != nil {
-		return nil, err
-	}
-	opt, err := pack.NewOptimizer(optimizer.Config{
-		BaseLearningRate: baseLR, Momentum: mu, Schedule: optimizer.ScheduleConstant,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	classes := cfg.NClasses
-	tot := cfg.N + cfg.NCond
-	dim := cfg.OutChannels * cfg.OutH() * cfg.OutW()
-	rng := rand.New(rand.NewSource(seed))
-	init := make([]float32, classes*tot)
-	trajectory := make([]float64, 0, steps)
-	for step := 0; step < steps; step++ {
-		pack.Scatter()
-		for i := range init {
-			init[i] = float32((rng.Float64()*2 - 1) * math.Pi)
-		}
-		image, trace := m.trainingForwardTrace(init, m.Drive, classes)
-		loss, dImage := driftLossGrad(image, classes, dim)
-		grads := Grads{}
-		m.backwardInto(trace, m.Drive, dImage, grads)
-		trajectory = append(trajectory, loss)
-		if err := pack.GatherGradients(grads); err != nil {
-			return nil, err
-		}
-		opt.Step()
-	}
-	pack.Scatter()
-	return trajectory, nil
 }

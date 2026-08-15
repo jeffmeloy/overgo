@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"overgo/internal/artifact"
+	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/workflowruntime"
 )
@@ -15,7 +16,7 @@ type Request struct {
 	Seed  int64 `json:"seed"`
 }
 
-type Image struct {
+type planarImage struct {
 	Pixels   []float32 `json:"pixels"`
 	Channels int       `json:"channels"`
 	Height   int       `json:"height"`
@@ -25,7 +26,7 @@ type Image struct {
 type generator interface {
 	prepare(Request) (phasePlan, error)
 	integrate(phasePlan) ([]float32, error)
-	decode([]float32) (Image, error)
+	decode([]float32) (latentimage.EncodedImage, error)
 }
 
 func ValidateRequest(request Request) error {
@@ -35,19 +36,19 @@ func ValidateRequest(request Request) error {
 	return nil
 }
 
-func (m *Model) generate(request Request) (Image, error) {
+func (m *Model) generate(request Request) (planarImage, error) {
 	if err := ValidateRequest(request); err != nil {
-		return Image{}, err
+		return planarImage{}, err
 	}
 	plan, err := m.prepare(request)
 	if err != nil {
-		return Image{}, err
+		return planarImage{}, err
 	}
 	features, err := m.integrate(plan)
 	if err != nil {
-		return Image{}, err
+		return planarImage{}, err
 	}
-	return m.decode(features)
+	return m.decodePlanar(features)
 }
 
 func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model *Model) error {

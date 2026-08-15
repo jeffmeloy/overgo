@@ -5,6 +5,7 @@ package seq2seq
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -196,7 +197,7 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	}
 	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
-	if len(parameters) != 33 || parameters[1].Name != "decoder.final_cross.raw_gate" ||
+	if len(parameters) < 33 || parameters[1].Name != "decoder.final_cross.raw_gate" ||
 		parameters[2].Name != "decoder.final_cross.output" || parameters[32].Name != "decoder.layer6.self.v" {
 		t.Fatalf("compiled parameters = %+v", parameters)
 	}
@@ -392,8 +393,8 @@ func TestNeedleRealGSM8KFinalCrossQKVMuon(t *testing.T) {
 		"decoder.layer6.self.q", "decoder.layer6.self.k", "decoder.layer6.self.v",
 	}
 	parameters := trainer.Program().Parameters()
-	if len(parameters) != len(wantParameters) {
-		t.Fatalf("compiled parameter count=%d want=%d", len(parameters), len(wantParameters))
+	if len(parameters) < len(wantParameters) {
+		t.Fatalf("compiled parameter count=%d want at least %d", len(parameters), len(wantParameters))
 	}
 	for index, name := range wantParameters {
 		if parameters[index].Name != name || !parameters[index].Trainable {
@@ -450,6 +451,332 @@ func TestNeedleRealGSM8KFinalCrossQKVMuon(t *testing.T) {
 	t.Logf("real GSM8K final cross finite differences: q=%g/%g k=%g/%g v=%g/%g input_norm=%g/%g q_norm=%g/%g k_norm=%g/%g",
 		qAnalytic, qFinite, kAnalytic, kFinite, vAnalytic, vFinite,
 		inAnalytic, inFinite, qNormAnalytic, qNormFinite, kNormAnalytic, kNormFinite)
+}
+
+func TestNeedleRealGSM8KFullDecoderMuon(t *testing.T) {
+	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
+	_, heldOutPair, _ := realGSM8KTrainingPair(t, 1)
+	type projectionSnapshot struct{ q, k, v []uint16 }
+	selfBefore := make([]projectionSnapshot, generator.model.Dims.DecoderLayers)
+	crossBefore := make([]projectionSnapshot, generator.model.Dims.DecoderLayers)
+	for layer := range generator.model.Dims.DecoderLayers {
+		self := &generator.model.decoderSelf[layer]
+		cross := &generator.model.decoderCross[layer]
+		selfBefore[layer] = projectionSnapshot{append([]uint16(nil), self.q...), append([]uint16(nil), self.k...), append([]uint16(nil), self.v...)}
+		crossBefore[layer] = projectionSnapshot{append([]uint16(nil), cross.q...), append([]uint16(nil), cross.k...), append([]uint16(nil), cross.v...)}
+	}
+	trainBefore, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutBefore, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	parameters := trainer.Program().Parameters()
+	wantCount := 1 + generator.model.Dims.DecoderLayers*2*8
+	if len(parameters) < wantCount {
+		t.Fatalf("compiled parameters=%d want at least %d decoder parameters", len(parameters), wantCount)
+	}
+	compiled := make(map[string]bool, len(parameters))
+	for _, parameter := range parameters {
+		compiled[parameter.Name] = parameter.Trainable
+	}
+	suffixes := []string{"raw_gate", "output", "input_norm", "q_norm", "k_norm", "q", "k", "v"}
+	for layer := range generator.model.Dims.DecoderLayers {
+		for _, kind := range []string{"self", "cross"} {
+			prefix := fmt.Sprintf("decoder.layer%d.%s", layer, kind)
+			if layer == generator.model.Dims.DecoderLayers-1 {
+				prefix = "decoder.final_" + kind
+			}
+			for _, suffix := range suffixes {
+				name := prefix + "." + suffix
+				if !compiled[name] {
+					t.Fatalf("compiled trainable parameter %q absent", name)
+				}
+			}
+		}
+	}
+	probe := trainingStep{pair: trainPair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if gradientL2(probe.decoderInputGradient) == 0 {
+		t.Fatal("decoder input gradient is zero")
+	}
+	for _, binding := range trainer.bindings {
+		gradient := probe.gradient[binding.span.start:binding.span.end]
+		if norm := gradientL2(gradient); norm == 0 || math.IsNaN(norm) || math.IsInf(norm, 0) {
+			t.Fatalf("parameter %q gradient norm=%g", binding.name, norm)
+		}
+	}
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(trainPair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	trainAfter, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutAfter, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
+		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
+		t.Fatalf("full decoder result train %.6f -> %v -> %.6f held-out %.6f -> %.6f", trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
+	}
+	changed := 0
+	for layer := range generator.model.Dims.DecoderLayers {
+		self := &generator.model.decoderSelf[layer]
+		cross := &generator.model.decoderCross[layer]
+		for name, count := range map[string]int{
+			"self.q": changedBF16(selfBefore[layer].q, self.q), "self.k": changedBF16(selfBefore[layer].k, self.k), "self.v": changedBF16(selfBefore[layer].v, self.v),
+			"cross.q": changedBF16(crossBefore[layer].q, cross.q), "cross.k": changedBF16(crossBefore[layer].k, cross.k), "cross.v": changedBF16(crossBefore[layer].v, cross.v),
+		} {
+			if count == 0 {
+				t.Fatalf("decoder layer %d %s did not update", layer, name)
+			}
+			changed += count
+		}
+	}
+	t.Logf("real GSM8K full decoder Muon: train %.6f -> %.6f; held-out %.6f -> %.6f; BF16 projection words changed=%d", trainBefore, trainAfter, heldOutBefore, heldOutAfter, changed)
+}
+
+func TestNeedleRealGSM8KEncoderMuon(t *testing.T) {
+	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
+	_, heldOutPair, _ := realGSM8KTrainingPair(t, 1)
+	type projectionSnapshot struct{ q, k, v []uint16 }
+	before := make([]projectionSnapshot, generator.model.Dims.EncoderLayers)
+	for layer := range generator.model.Dims.EncoderLayers {
+		block := &generator.model.encoder[layer]
+		before[layer] = projectionSnapshot{append([]uint16(nil), block.q...), append([]uint16(nil), block.k...), append([]uint16(nil), block.v...)}
+	}
+	finalNormBefore := append([]float32(nil), generator.model.encFinalNorm...)
+	trainBefore, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutBefore, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	wantCount := 1 + generator.model.Dims.DecoderLayers*2*8 + 1 + generator.model.Dims.EncoderLayers*8 + 1
+	if parameters := trainer.Program().Parameters(); len(parameters) != wantCount {
+		t.Fatalf("compiled parameters=%d want=%d", len(parameters), wantCount)
+	}
+	probe := trainingStep{pair: trainPair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if gradientL2(probe.memoryGradient) == 0 || gradientL2(probe.encoderInputGradient) == 0 {
+		t.Fatalf("encoder boundary gradients memory=%g input=%g", gradientL2(probe.memoryGradient), gradientL2(probe.encoderInputGradient))
+	}
+	encoderGroups := 0
+	for _, binding := range trainer.bindings {
+		if !strings.HasPrefix(binding.name, "encoder.") {
+			continue
+		}
+		encoderGroups++
+		if norm := gradientL2(probe.gradient[binding.span.start:binding.span.end]); norm == 0 || math.IsNaN(norm) || math.IsInf(norm, 0) {
+			t.Fatalf("parameter %q gradient norm=%g", binding.name, norm)
+		}
+	}
+	if want := 1 + generator.model.Dims.EncoderLayers*8; encoderGroups != want {
+		t.Fatalf("encoder parameter groups=%d want=%d", encoderGroups, want)
+	}
+	analytic, finite := verifyFloat32Gradient(
+		t, generator.model, trainPair, generator.model.encFinalNorm,
+		probe.gradient[trainer.layout.encoderFinalNorm.start:trainer.layout.encoderFinalNorm.end],
+	)
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(trainPair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	trainAfter, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutAfter, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
+		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
+		t.Fatalf("encoder result train %.6f -> %v -> %.6f held-out %.6f -> %.6f", trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
+	}
+	changed := 0
+	for layer := range generator.model.Dims.EncoderLayers {
+		block := &generator.model.encoder[layer]
+		for name, count := range map[string]int{
+			"q": changedBF16(before[layer].q, block.q),
+			"k": changedBF16(before[layer].k, block.k),
+			"v": changedBF16(before[layer].v, block.v),
+		} {
+			if count == 0 {
+				t.Fatalf("encoder layer %d %s did not update", layer, name)
+			}
+			changed += count
+		}
+	}
+	finalNormChanged := 0
+	for index, value := range generator.model.encFinalNorm {
+		if value != finalNormBefore[index] {
+			finalNormChanged++
+		}
+	}
+	if finalNormChanged == 0 {
+		t.Fatal("encoder final norm did not update")
+	}
+	t.Logf("real GSM8K encoder Muon: train %.6f -> %.6f; held-out %.6f -> %.6f; BF16 Q/K/V words changed=%d; final-norm finite difference=%g/%g", trainBefore, trainAfter, heldOutBefore, heldOutAfter, changed, analytic, finite)
+}
+
+func TestNeedleRealGSM8KTiedEmbeddingMuon(t *testing.T) {
+	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
+	_, heldOutPair, _ := realGSM8KTrainingPair(t, 1)
+	before := append([]uint16(nil), generator.model.embed...)
+	trainBefore, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutBefore, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	parameters := trainer.Program().Parameters()
+	if parameters[len(parameters)-1].Name != "shared.embedding" || !parameters[len(parameters)-1].Trainable {
+		t.Fatalf("compiled embedding parameter=%+v", parameters[len(parameters)-1])
+	}
+	probe := trainingStep{pair: trainPair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if norm := gradientL2(probe.embeddingGradient); norm == 0 || math.IsNaN(norm) || math.IsInf(norm, 0) {
+		t.Fatalf("embedding gradient norm=%g", norm)
+	}
+	analytic, finite := verifyBF16GradientRadius(t, generator.model, trainPair, generator.model.embed, probe.embeddingGradient, 4)
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(trainPair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	trainAfter, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutAfter, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
+		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
+		t.Fatalf("embedding result train %.6f -> %v -> %.6f held-out %.6f -> %.6f", trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
+	}
+	changed := changedBF16(before, generator.model.embed)
+	changedTokenRows := func(tokens []int) int {
+		seen := make(map[int]bool)
+		count := 0
+		for _, token := range tokens {
+			if seen[token] {
+				continue
+			}
+			seen[token] = true
+			start := token * generator.model.Dims.DModel
+			count += changedBF16(before[start:start+generator.model.Dims.DModel], generator.model.embed[start:start+generator.model.Dims.DModel])
+		}
+		return count
+	}
+	sourceChanged := changedTokenRows(trainPair.Source)
+	decoderChanged := changedTokenRows(trainPair.DecoderInput)
+	if changed == 0 || sourceChanged == 0 || decoderChanged == 0 {
+		t.Fatalf("tied embedding did not update total=%d source=%d decoder=%d", changed, sourceChanged, decoderChanged)
+	}
+	t.Logf("real GSM8K tied-embedding Muon: train %.6f -> %.6f; held-out %.6f -> %.6f; BF16 words changed=%d source-token=%d decoder-token=%d; finite difference=%g/%g", trainBefore, trainAfter, heldOutBefore, heldOutAfter, changed, sourceChanged, decoderChanged, analytic, finite)
+}
+
+func TestNeedleRealGSM8KCorpusTraining(t *testing.T) {
+	const trainRecords, heldOutRecords, epochs = 4, 4, 2
+	var generator *Generator
+	trainPairs := make([]TrainingPair, trainRecords)
+	heldOutPairs := make([]TrainingPair, heldOutRecords)
+	for ordinal := range trainRecords + heldOutRecords {
+		loaded, pair, _ := realGSM8KTrainingPair(t, ordinal)
+		if generator == nil {
+			generator = loaded
+		}
+		if ordinal < trainRecords {
+			trainPairs[ordinal] = pair
+		} else {
+			heldOutPairs[ordinal-trainRecords] = pair
+		}
+	}
+	meanLoss := func(pairs []TrainingPair) float64 {
+		var sum float64
+		for _, pair := range pairs {
+			loss, err := generator.model.Loss(pair)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sum += loss
+		}
+		return sum / float64(len(pairs))
+	}
+	trainBefore := meanLoss(trainPairs)
+	heldOutBefore := meanLoss(heldOutPairs)
+	steps := trainRecords * epochs
+	trainer, err := NewTrainer(generator.model, steps, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	trajectory := make([]float64, 0, steps)
+	for range epochs {
+		for _, pair := range trainPairs {
+			loss, err := trainer.Step(pair)
+			if err != nil {
+				t.Fatal(err)
+			}
+			trajectory = append(trajectory, loss)
+		}
+	}
+	trainAfter := meanLoss(trainPairs)
+	heldOutAfter := meanLoss(heldOutPairs)
+	if !(trainAfter < trainBefore) || math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
+		t.Fatalf("corpus result train %.6f -> %.6f held-out %.6f -> %.6f trajectory=%v", trainBefore, trainAfter, heldOutBefore, heldOutAfter, trajectory)
+	}
+	t.Logf("real GSM8K fixed split: train_records=%d held_out_records=%d epochs=%d train %.6f -> %.6f held-out %.6f -> %.6f trajectory=%v", trainRecords, heldOutRecords, epochs, trainBefore, trainAfter, heldOutBefore, heldOutAfter, trajectory)
 }
 
 func TestNeedleRealGSM8KFinalSelfAttentionGradient(t *testing.T) {

@@ -1032,7 +1032,7 @@
           "contains": "case modelrecipe.ModuleRoutedImagePrepare:",
           "path": "cmd/recipe/image_cuda_windows.go",
           "role": "source",
-          "identity": "file:sha256:2fa9c73f84d603cf29d47a83c16942b14e9bf2878c32c06e93555e0308841042"
+          "identity": "file:sha256:99b780e29b8dbfaf90d4b761cfb9f59fbb3a46f4d9b9c8a2c34c0b1419545c63"
         },
         {
           "contains": "func TestSenseNovaProductionImageGeneration(",

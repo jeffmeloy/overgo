@@ -82,7 +82,7 @@ func TestGeneratorMatchesTorch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	image, err := model.decode(features)
+	image, err := model.decodePlanar(features)
 	if err != nil {
 		t.Fatal(err)
 	}

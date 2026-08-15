@@ -71,12 +71,18 @@ type g6Golden struct {
 }
 
 type g7Golden struct {
+	Seed      int64  `json:"seed"`
+	Text      string `json:"text"`
 	FlowCalls []struct {
 		Cond  goldenTensor `json:"cond"`
 		S, T  float64
 		Noise goldenTensor `json:"noise"`
 		Out   goldenTensor `json:"out"`
 	} `json:"flow_calls"`
+	QuantizerCalls []struct {
+		In  goldenTensor `json:"in"`
+		Out goldenTensor `json:"out"`
+	} `json:"quantizer_calls"`
 	NQuantizerCalls int          `json:"n_quantizer_calls"`
 	EOSLogits       []float64    `json:"eos_logits"`
 	PCM             goldenTensor `json:"pcm"`

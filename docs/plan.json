@@ -41,6 +41,19 @@
       ]
     },
     {
+      "id": "un0-png-publication",
+      "title": "Publish real Un-0 images as encoded PNG artifacts",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish real Un-0 images as encoded PNG artifacts",
+          "status": "open",
+          "verify": "go test -tags modeltest ./internal/oscillatorimage -run '^TestArtifactPublishesReferencePNG$' -count=1 -v"
+        }
+      ]
+    },
+    {
       "id": "adaptive-inference-parity",
       "title": "Port and exceed adaptive_new inference through Overgo recipes and shared processing components",
       "status": "open",

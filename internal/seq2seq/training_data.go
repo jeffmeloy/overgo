@@ -106,7 +106,12 @@ type trainingStep struct {
 	selfAttentionQGradient  []float32
 	selfAttentionKGradient  []float32
 	selfAttentionVGradient  []float32
+	selfOutputGradient      []float32
+	selfQGradient           []float32
+	selfKGradient           []float32
+	selfVGradient           []float32
 	finalSelfOutputGradient []float32
+	priorDecoderGradient    []float32
 	selfRawGateGradient     float32
 	loss                    float64
 }
@@ -117,6 +122,9 @@ type trainingLayout struct {
 	finalNorm, rawGate, output            parameterSpan
 	inputNorm, qNorm, kNorm               parameterSpan
 	qProjection, kProjection, vProjection parameterSpan
+	selfRawGate, selfOutput               parameterSpan
+	selfInputNorm, selfQNorm, selfKNorm   parameterSpan
+	selfQ, selfK, selfV                   parameterSpan
 	count                                 int
 }
 
@@ -132,15 +140,23 @@ func newTrainingLayout(model *Model) trainingLayout {
 	kvWidth := model.Dims.KVHeads * model.Dims.HeadDim
 	cursor := 0
 	layout := trainingLayout{
-		finalNorm:   nextParameter(&cursor, d),
-		rawGate:     nextParameter(&cursor, 1),
-		output:      nextParameter(&cursor, d*qWidth),
-		inputNorm:   nextParameter(&cursor, d),
-		qNorm:       nextParameter(&cursor, model.Dims.HeadDim),
-		kNorm:       nextParameter(&cursor, model.Dims.HeadDim),
-		qProjection: nextParameter(&cursor, qWidth*d),
-		kProjection: nextParameter(&cursor, kvWidth*d),
-		vProjection: nextParameter(&cursor, kvWidth*d),
+		finalNorm:     nextParameter(&cursor, d),
+		rawGate:       nextParameter(&cursor, 1),
+		output:        nextParameter(&cursor, d*qWidth),
+		inputNorm:     nextParameter(&cursor, d),
+		qNorm:         nextParameter(&cursor, model.Dims.HeadDim),
+		kNorm:         nextParameter(&cursor, model.Dims.HeadDim),
+		qProjection:   nextParameter(&cursor, qWidth*d),
+		kProjection:   nextParameter(&cursor, kvWidth*d),
+		vProjection:   nextParameter(&cursor, kvWidth*d),
+		selfRawGate:   nextParameter(&cursor, 1),
+		selfOutput:    nextParameter(&cursor, d*qWidth),
+		selfInputNorm: nextParameter(&cursor, d),
+		selfQNorm:     nextParameter(&cursor, model.Dims.HeadDim),
+		selfKNorm:     nextParameter(&cursor, model.Dims.HeadDim),
+		selfQ:         nextParameter(&cursor, qWidth*d),
+		selfK:         nextParameter(&cursor, kvWidth*d),
+		selfV:         nextParameter(&cursor, kvWidth*d),
 	}
 	layout.count = cursor
 	return layout
@@ -164,6 +180,14 @@ func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, er
 		{Name: "decoder.final_cross.q", Start: layout.qProjection.start, End: layout.qProjection.end, Rows: width, Cols: d},
 		{Name: "decoder.final_cross.k", Start: layout.kProjection.start, End: layout.kProjection.end, Rows: kvWidth, Cols: d},
 		{Name: "decoder.final_cross.v", Start: layout.vProjection.start, End: layout.vProjection.end, Rows: kvWidth, Cols: d},
+		{Name: "decoder.final_self.raw_gate", Start: layout.selfRawGate.start, End: layout.selfRawGate.end, Rows: 1, Cols: 1},
+		{Name: "decoder.final_self.output", Start: layout.selfOutput.start, End: layout.selfOutput.end, Rows: d, Cols: width},
+		{Name: "decoder.final_self.input_norm", Start: layout.selfInputNorm.start, End: layout.selfInputNorm.end, Rows: d, Cols: 1},
+		{Name: "decoder.final_self.q_norm", Start: layout.selfQNorm.start, End: layout.selfQNorm.end, Rows: model.Dims.HeadDim, Cols: 1},
+		{Name: "decoder.final_self.k_norm", Start: layout.selfKNorm.start, End: layout.selfKNorm.end, Rows: model.Dims.HeadDim, Cols: 1},
+		{Name: "decoder.final_self.q", Start: layout.selfQ.start, End: layout.selfQ.end, Rows: width, Cols: d},
+		{Name: "decoder.final_self.k", Start: layout.selfK.start, End: layout.selfK.end, Rows: kvWidth, Cols: d},
+		{Name: "decoder.final_self.v", Start: layout.selfV.start, End: layout.selfV.end, Rows: kvWidth, Cols: d},
 	})
 	if err != nil {
 		return nil, err
@@ -184,6 +208,14 @@ func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, er
 			{Name: "decoder.final_cross.q", Rows: width, Cols: d, Trainable: true},
 			{Name: "decoder.final_cross.k", Rows: kvWidth, Cols: d, Trainable: true},
 			{Name: "decoder.final_cross.v", Rows: kvWidth, Cols: d, Trainable: true},
+			{Name: "decoder.final_self.raw_gate", Rows: 1, Cols: 1, Trainable: true},
+			{Name: "decoder.final_self.output", Rows: d, Cols: width, Trainable: true},
+			{Name: "decoder.final_self.input_norm", Rows: d, Cols: 1, Trainable: true},
+			{Name: "decoder.final_self.q_norm", Rows: model.Dims.HeadDim, Cols: 1, Trainable: true},
+			{Name: "decoder.final_self.k_norm", Rows: model.Dims.HeadDim, Cols: 1, Trainable: true},
+			{Name: "decoder.final_self.q", Rows: width, Cols: d, Trainable: true},
+			{Name: "decoder.final_self.k", Rows: kvWidth, Cols: d, Trainable: true},
+			{Name: "decoder.final_self.v", Rows: kvWidth, Cols: d, Trainable: true},
 		},
 		Optimizer: plan,
 	})
@@ -206,6 +238,15 @@ func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, er
 	copyBF16ToFloat32(weights[layout.qProjection.start:layout.qProjection.end], block.q)
 	copyBF16ToFloat32(weights[layout.kProjection.start:layout.kProjection.end], block.k)
 	copyBF16ToFloat32(weights[layout.vProjection.start:layout.vProjection.end], block.v)
+	self := &model.decoderSelf[len(model.decoderSelf)-1]
+	weights[layout.selfRawGate.start] = self.rawGate
+	copyBF16ToFloat32(weights[layout.selfOutput.start:layout.selfOutput.end], self.o)
+	copy(weights[layout.selfInputNorm.start:layout.selfInputNorm.end], self.inNorm)
+	copy(weights[layout.selfQNorm.start:layout.selfQNorm.end], self.qNorm)
+	copy(weights[layout.selfKNorm.start:layout.selfKNorm.end], self.kNorm)
+	copyBF16ToFloat32(weights[layout.selfQ.start:layout.selfQ.end], self.q)
+	copyBF16ToFloat32(weights[layout.selfK.start:layout.selfK.end], self.k)
+	copyBF16ToFloat32(weights[layout.selfV.start:layout.selfV.end], self.v)
 	gradients := make([]float32, layout.count)
 	muon, err := newTrainingOptimizer(weights, gradients, plan, optimizer.Config{
 		BaseLearningRate: baseLR, Momentum: momentum, Steps: steps, Schedule: optimizer.ScheduleConstant,
@@ -417,10 +458,16 @@ func (t *Trainer) backwardFinalSelfCore(state *trainingStep) error {
 		gateGradient += float64(gradient) * float64(trace.finalSelfProjected[index])
 	}
 	state.selfRawGateGradient = float32(gateGradient) * block.gate * (1 - block.gate)
+	state.gradient[t.layout.selfRawGate.start] = state.selfRawGateGradient
 	dProjected := make([]float32, len(state.finalSelfOutputGradient))
 	for index, gradient := range state.finalSelfOutputGradient {
 		dProjected[index] = block.gate * gradient
 	}
+	state.selfOutputGradient = state.gradient[t.layout.selfOutput.start:t.layout.selfOutput.end]
+	hostmath.LinearBackward(
+		nil, state.selfOutputGradient, nil, trace.finalSelfAttention, nil, dProjected,
+		rows, dims.Heads*dims.HeadDim, dims.DModel, false,
+	)
 	dAttention := make([]float32, len(trace.finalSelfAttention))
 	hostmath.LinearBF16BackwardInput(
 		dAttention, dProjected, block.o,
@@ -434,6 +481,72 @@ func (t *Trainer) backwardFinalSelfCore(state *trainingStep) error {
 		trace.finalSelfQ, trace.finalSelfK, trace.finalSelfV, dAttention,
 		rows, dims.Heads, dims.KVHeads, dims.HeadDim,
 	)
+	return t.backwardFinalSelfProjections(state, block)
+}
+
+func (t *Trainer) backwardFinalSelfProjections(state *trainingStep, block *attnBlock) error {
+	dims := t.model.Dims
+	rows := len(state.pair.Targets)
+	qWidth := dims.Heads * dims.HeadDim
+	kvWidth := dims.KVHeads * dims.HeadDim
+	trace := &state.trace
+	if len(trace.finalSelfInput) != rows*dims.DModel || len(trace.finalSelfNormed) != rows*dims.DModel ||
+		len(trace.finalSelfQRaw) != rows*qWidth || len(trace.finalSelfKRaw) != rows*kvWidth {
+		return errors.New("final self-attention projection trace differs")
+	}
+	dQNorm := append([]float32(nil), state.selfAttentionQGradient...)
+	for index := range dQNorm {
+		dQNorm[index] *= t.model.scoreScale
+	}
+	for row := range rows {
+		for head := range dims.Heads {
+			hostmath.RotaryHalfBackward(dQNorm[(row*dims.Heads+head)*dims.HeadDim:(row*dims.Heads+head+1)*dims.HeadDim], t.model.invFreq, row)
+		}
+	}
+	dKNorm := append([]float32(nil), state.selfAttentionKGradient...)
+	for row := range rows {
+		for head := range dims.KVHeads {
+			hostmath.RotaryHalfBackward(dKNorm[(row*dims.KVHeads+head)*dims.HeadDim:(row*dims.KVHeads+head+1)*dims.HeadDim], t.model.invFreq, row)
+		}
+	}
+	dQRaw := make([]float32, len(dQNorm))
+	dKRaw := make([]float32, len(dKNorm))
+	hostmath.RMSNormBackward(
+		dQRaw, state.gradient[t.layout.selfQNorm.start:t.layout.selfQNorm.end],
+		trace.finalSelfQRaw, block.qNorm, dQNorm,
+		rows*dims.Heads, dims.HeadDim, dims.RMSEps, false,
+	)
+	hostmath.RMSNormBackward(
+		dKRaw, state.gradient[t.layout.selfKNorm.start:t.layout.selfKNorm.end],
+		trace.finalSelfKRaw, block.kNorm, dKNorm,
+		rows*dims.KVHeads, dims.HeadDim, dims.RMSEps, false,
+	)
+	state.selfQGradient = state.gradient[t.layout.selfQ.start:t.layout.selfQ.end]
+	state.selfKGradient = state.gradient[t.layout.selfK.start:t.layout.selfK.end]
+	state.selfVGradient = state.gradient[t.layout.selfV.start:t.layout.selfV.end]
+	hostmath.LinearBackward(nil, state.selfQGradient, nil, trace.finalSelfNormed, nil, dQRaw, rows, dims.DModel, qWidth, false)
+	hostmath.LinearBackward(nil, state.selfKGradient, nil, trace.finalSelfNormed, nil, dKRaw, rows, dims.DModel, kvWidth, false)
+	hostmath.LinearBackward(nil, state.selfVGradient, nil, trace.finalSelfNormed, nil, state.selfAttentionVGradient, rows, dims.DModel, kvWidth, false)
+	dNormed := make([]float32, len(trace.finalSelfNormed))
+	scratch := make([]float32, len(dNormed))
+	hostmath.LinearBF16BackwardInput(dNormed, dQRaw, block.q, rows, dims.DModel, qWidth)
+	hostmath.LinearBF16BackwardInput(scratch, dKRaw, block.k, rows, dims.DModel, kvWidth)
+	for index, value := range scratch {
+		dNormed[index] += value
+	}
+	hostmath.LinearBF16BackwardInput(scratch, state.selfAttentionVGradient, block.v, rows, dims.DModel, kvWidth)
+	for index, value := range scratch {
+		dNormed[index] += value
+	}
+	dInput := make([]float32, len(dNormed))
+	hostmath.RMSNormBackward(
+		dInput, state.gradient[t.layout.selfInputNorm.start:t.layout.selfInputNorm.end],
+		trace.finalSelfInput, block.inNorm, dNormed, rows, dims.DModel, dims.RMSEps, false,
+	)
+	for index, value := range state.finalSelfOutputGradient {
+		dInput[index] += value
+	}
+	state.priorDecoderGradient = dInput
 	return nil
 }
 
@@ -456,6 +569,16 @@ func (t *Trainer) optimize(state *trainingStep) error {
 	copyFloat32ToBF16(block.q, t.weights[t.layout.qProjection.start:t.layout.qProjection.end])
 	copyFloat32ToBF16(block.k, t.weights[t.layout.kProjection.start:t.layout.kProjection.end])
 	copyFloat32ToBF16(block.v, t.weights[t.layout.vProjection.start:t.layout.vProjection.end])
+	self := &t.model.decoderSelf[len(t.model.decoderSelf)-1]
+	self.rawGate = t.weights[t.layout.selfRawGate.start]
+	self.gate = sigmoid(self.rawGate)
+	copyFloat32ToBF16(self.o, t.weights[t.layout.selfOutput.start:t.layout.selfOutput.end])
+	copy(self.inNorm, t.weights[t.layout.selfInputNorm.start:t.layout.selfInputNorm.end])
+	copy(self.qNorm, t.weights[t.layout.selfQNorm.start:t.layout.selfQNorm.end])
+	copy(self.kNorm, t.weights[t.layout.selfKNorm.start:t.layout.selfKNorm.end])
+	copyFloat32ToBF16(self.q, t.weights[t.layout.selfQ.start:t.layout.selfQ.end])
+	copyFloat32ToBF16(self.k, t.weights[t.layout.selfK.start:t.layout.selfK.end])
+	copyFloat32ToBF16(self.v, t.weights[t.layout.selfV.start:t.layout.selfV.end])
 	return nil
 }
 

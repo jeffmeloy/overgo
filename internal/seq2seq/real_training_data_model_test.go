@@ -184,8 +184,8 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	}
 	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
-	if len(parameters) != 9 || parameters[1].Name != "decoder.final_cross.raw_gate" ||
-		parameters[2].Name != "decoder.final_cross.output" || parameters[8].Name != "decoder.final_cross.v" {
+	if len(parameters) != 17 || parameters[1].Name != "decoder.final_cross.raw_gate" ||
+		parameters[2].Name != "decoder.final_cross.output" || parameters[16].Name != "decoder.final_self.v" {
 		t.Fatalf("compiled parameters = %+v", parameters)
 	}
 	probe := trainingStep{pair: pair}
@@ -369,6 +369,9 @@ func TestNeedleRealGSM8KFinalCrossQKVMuon(t *testing.T) {
 		"decoder.final_norm", "decoder.final_cross.raw_gate", "decoder.final_cross.output",
 		"decoder.final_cross.input_norm", "decoder.final_cross.q_norm", "decoder.final_cross.k_norm",
 		"decoder.final_cross.q", "decoder.final_cross.k", "decoder.final_cross.v",
+		"decoder.final_self.raw_gate", "decoder.final_self.output", "decoder.final_self.input_norm",
+		"decoder.final_self.q_norm", "decoder.final_self.k_norm",
+		"decoder.final_self.q", "decoder.final_self.k", "decoder.final_self.v",
 	}
 	parameters := trainer.Program().Parameters()
 	if len(parameters) != len(wantParameters) {
@@ -472,6 +475,67 @@ func TestNeedleRealGSM8KFinalSelfAttentionGradient(t *testing.T) {
 	}
 	t.Logf("real GSM8K final self-attention gradients: q=%g k=%g v=%g; raw gate analytic=%g finite_difference=%g",
 		qNorm, kNorm, vNorm, analytic, finite)
+}
+
+func TestNeedleRealGSM8KFinalSelfAttentionMuon(t *testing.T) {
+	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
+	_, heldOutPair, _ := realGSM8KTrainingPair(t, 1)
+	block := &generator.model.decoderSelf[len(generator.model.decoderSelf)-1]
+	qBefore := append([]uint16(nil), block.q...)
+	kBefore := append([]uint16(nil), block.k...)
+	vBefore := append([]uint16(nil), block.v...)
+	trainBefore, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutBefore, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	probe := trainingStep{pair: trainPair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	qAnalytic, qFinite := verifyBF16Gradient(t, generator.model, trainPair, block.q, probe.selfQGradient)
+	kAnalytic, kFinite := verifyBF16Gradient(t, generator.model, trainPair, block.k, probe.selfKGradient)
+	vAnalytic, vFinite := verifyBF16Gradient(t, generator.model, trainPair, block.v, probe.selfVGradient)
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(trainPair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	trainAfter, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutAfter, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	qChanged := changedBF16(qBefore, block.q)
+	kChanged := changedBF16(kBefore, block.k)
+	vChanged := changedBF16(vBefore, block.v)
+	if qChanged == 0 || kChanged == 0 || vChanged == 0 ||
+		!(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
+		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) {
+		t.Fatalf("final self Q/K/V did not train: changed=%d/%d/%d train %.6f -> %v -> %.6f held-out %.6f -> %.6f",
+			qChanged, kChanged, vChanged, trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
+	}
+	t.Logf("real GSM8K final self Muon: train %.6f -> %.6f via %v; held-out %.6f -> %.6f; BF16 changed q=%d/%d k=%d/%d v=%d/%d",
+		trainBefore, trainAfter, trajectory, heldOutBefore, heldOutAfter,
+		qChanged, len(block.q), kChanged, len(block.k), vChanged, len(block.v))
+	t.Logf("real GSM8K final self finite differences: q=%g/%g k=%g/%g v=%g/%g",
+		qAnalytic, qFinite, kAnalytic, kFinite, vAnalytic, vFinite)
 }
 
 func gradientL2(values []float32) float64 {

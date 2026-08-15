@@ -6,6 +6,7 @@ import (
 	"context"
 	"math"
 	"math/rand"
+	"slices"
 	"testing"
 	"time"
 
@@ -84,10 +85,10 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 			t.Fatal(err)
 		}
 		started := time.Now()
-		traj, err := m.TrainDeviceResident(worker, tokens, steps, 0, 0.9)
+		traj, err := m.TrainDeviceResidentBatches(worker, slices.Repeat([][]int{tokens}, steps), 0, 0.9)
 		wall := time.Since(started)
 		if err != nil {
-			t.Fatalf("TrainDeviceResident(pool=%v): %v", pool, err)
+			t.Fatalf("TrainDeviceResidentBatches(pool=%v): %v", pool, err)
 		}
 		stats, err := worker.MemoryStats(context.Background())
 		if err != nil {

@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -174,7 +175,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	trajectory, err := model.TrainDeviceResidentFrozenLexical(worker, tokens, 4, 0, 0.95)
+	trajectory, err := model.TrainDeviceResidentFrozenLexicalBatches(worker, slices.Repeat([][]int{tokens}, 4), 0, 0.95)
 	wall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)

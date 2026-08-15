@@ -8,7 +8,9 @@ package closurescan
 import (
 	"go/ast"
 	"go/token"
+	"maps"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -135,7 +137,7 @@ func RankRawPolicyLiterals(snapshot repoanalysis.SourceSnapshot) ([]RawPolicyLit
 		parts := strings.SplitN(key, "\x00", 2)
 		row := RawPolicyLiteral{
 			Package: parts[0], Value: parts[1], Count: group.count,
-			Functions: sortedKeys(group.functions), Files: sortedKeys(group.files),
+			Functions: slices.Sorted(maps.Keys(group.functions)), Files: slices.Sorted(maps.Keys(group.files)),
 		}
 		row.Score = row.Count + 2*len(row.Functions) + len(row.Files) + 2*group.policy
 		if !strings.HasPrefix(row.Value, "\"") && !strings.HasPrefix(row.Value, "`") {
@@ -218,15 +220,6 @@ func structuralLiteral(parent ast.Node) bool {
 func comparisonLiteral(parent ast.Node) bool {
 	binary, ok := parent.(*ast.BinaryExpr)
 	return ok && binary.Op >= token.EQL && binary.Op <= token.GEQ
-}
-
-func sortedKeys(values map[string]bool) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func collect(file *ast.File, relative string, out *[]Candidate) {

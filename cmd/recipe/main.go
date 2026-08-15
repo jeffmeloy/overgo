@@ -2,6 +2,8 @@
 // the sealed authority was waiting for (the lifecycle API was complete but
 // uninvoked; the wave-1 probe recorded the refusal that proved it).
 //
+//	recipe verify -task <task> -input <json> <model>
+//	                                        candidate execution evidence
 //	recipe activate -reason "..." -gate <id> -run-id <id> <model>
 //	                                        verified promotion
 //	recipe status <model>                   show the active recipe and tier
@@ -16,8 +18,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
@@ -28,6 +34,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 )
 
 func main() {
@@ -36,7 +43,7 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: recipe <activate|run|status> [options] <model>")
+		return errors.New("usage: recipe <verify|activate|run|status> [options] <model>")
 	}
 	verb := os.Args[1]
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
@@ -48,7 +55,7 @@ func run() error {
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
 	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),
 		"weight residency: stream | host-cache | device-f32 | device-native | device-native-bf16 | hybrid-native | host-reference")
-	input := flags.String("input", "", "task input as JSON (run)")
+	input := flags.String("input", "", "task input as JSON; - reads standard input (verify, run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -67,6 +74,18 @@ func run() error {
 	selectedTask := recipe.Task(*task)
 	capability, capabilityKnown := capabilities[selectedTask]
 	switch verb {
+	case "verify":
+		if !capabilityKnown || capability.execute == nil {
+			return fmt.Errorf("task %q has no registered verifier runtime", selectedTask)
+		}
+		rawInput, inputErr := readInput(*input)
+		if inputErr != nil {
+			return inputErr
+		}
+		if strings.TrimSpace(rawInput) == "" {
+			return errors.New("verify requires -input JSON")
+		}
+		return verifyCapability(repository, path, selectedTask, capability, rawInput)
 	case "activate":
 		if strings.TrimSpace(*reason) == "" {
 			return errors.New("activate requires -reason: the decision event records why")
@@ -94,15 +113,30 @@ func run() error {
 		if !capabilityKnown || capability.execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
 		}
-		if strings.TrimSpace(*input) == "" {
+		rawInput, inputErr := readInput(*input)
+		if inputErr != nil {
+			return inputErr
+		}
+		if strings.TrimSpace(rawInput) == "" {
 			return errors.New("run requires -input JSON")
 		}
-		return executeCapability(repository, path, selectedTask, capability, *input)
+		return executeCapability(repository, path, selectedTask, capability, rawInput)
 	case "status":
 		return status(repository, path, selectedTask)
 	default:
 		return fmt.Errorf("unknown verb %q", verb)
 	}
+}
+
+func readInput(value string) (string, error) {
+	if value != "-" {
+		return value, nil
+	}
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return "", fmt.Errorf("recipe: read input: %w", err)
+	}
+	return string(data), nil
 }
 
 func parseResidency(text string) (recipe.ResidencyPolicy, error) {
@@ -133,15 +167,34 @@ func activateCapability(
 	verification modelrecipe.Verification,
 ) error {
 	ctx := context.Background()
-	inventory, err := capability.inventory(path)
-	if err != nil {
-		return err
-	}
 	store, err := repodb.Open(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	modelID, definition, err := prepareCapability(ctx, store, path, task, capability)
+	if err != nil {
+		return err
+	}
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceExperimental, reason); err != nil {
+		return err
+	}
+	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
+		path, task, modelID, definition.ID, reason)
+	return nil
+}
+
+func prepareCapability(
+	ctx context.Context,
+	store artifact.Repository,
+	path string,
+	task recipe.Task,
+	capability capability,
+) (artifact.ID, recipe.Definition, error) {
+	inventory, err := capability.inventory(path)
+	if err != nil {
+		return artifact.ID{}, recipe.Definition{}, err
+	}
 	modelID := inventory.Manifest.ID
 	var definition recipe.Definition
 	var facts []artifact.Content
@@ -151,22 +204,118 @@ func activateCapability(
 		definition, err = modelrecipe.CapabilityDefinition(task, modelID)
 	}
 	if err != nil {
-		return err
+		return artifact.ID{}, recipe.Definition{}, err
 	}
 	batch, err := inventory.Batch("recipe/facts/" + modelID.String())
 	if err != nil {
-		return err
+		return artifact.ID{}, recipe.Definition{}, err
 	}
 	batch.Contents = append(batch.Contents, facts...)
 	if _, err := store.Commit(ctx, batch); err != nil {
-		return fmt.Errorf("publish model facts: %w", err)
+		return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish model facts: %w", err)
 	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceExperimental, reason); err != nil {
+	return modelID, definition, nil
+}
+
+func verifyCapability(repository, path string, task recipe.Task, capability capability, input string) error {
+	ctx := context.Background()
+	revision, err := cleanGoRevision()
+	if err != nil {
 		return err
 	}
-	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
-		path, task, modelID, definition.ID, reason)
-	return nil
+	store, err := repodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	modelID, definition, err := prepareCapability(ctx, store, path, task, capability)
+	if err != nil {
+		return err
+	}
+	if _, published, err := modelrecipe.Status(ctx, store, definition.ID); err != nil {
+		return err
+	} else if !published {
+		if _, _, err := modelrecipe.PublishCandidate(ctx, store, "recipe/candidate/"+definition.ID.String(), definition); err != nil {
+			return err
+		}
+	}
+	program, err := modelrecipe.CompileCapability(definition)
+	if err != nil {
+		return err
+	}
+	started := time.Now()
+	output, err := capability.execute(ctx, store, path, modelID, program, input)
+	if err != nil {
+		return err
+	}
+	verification, err := publishCapabilityVerification(ctx, store, definition, revision, time.Since(started))
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{
+		"gate_id": verification.Gate.String(), "output": output,
+		"recipe_id": definition.ID.String(), "run_id": verification.Run.String(),
+	})
+}
+
+func publishCapabilityVerification(
+	ctx context.Context,
+	store artifact.Repository,
+	definition recipe.Definition,
+	revision string,
+	wall time.Duration,
+) (modelrecipe.Verification, error) {
+	host, err := os.Hostname()
+	if err != nil {
+		host = "unknown"
+	}
+	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+		Host: host, OS: runtime.GOOS, Arch: runtime.GOARCH,
+		Device: "host", Backend: "go", Driver: "process", Runtime: runtime.Version(),
+	})
+	if err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	duration := uint64(max(wall.Nanoseconds(), 1))
+	record, err := runrecord.NewGateRecord(
+		definition.ID, environment.ID, revision,
+		runrecord.OutcomeSucceeded, "", duration,
+		[]runrecord.GateStep{{
+			Name: "candidate-execution", Phase: runrecord.PhaseTest,
+			Outcome: runrecord.StepSucceeded, DurationNS: duration,
+		}},
+	)
+	if err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	batch, err := record.Batch("recipe/verification/" + definition.ID.String() + "/" + record.Result.ID.String())
+	if err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	environmentContent, err := environment.Content()
+	if err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	batch.Contents = append(batch.Contents, environmentContent)
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	return modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}, nil
+}
+
+func cleanGoRevision() (string, error) {
+	status, err := exec.Command("git", "status", "--porcelain", "--untracked-files=all", "--", "*.go").Output()
+	if err != nil {
+		return "", fmt.Errorf("recipe verifier source status: %w", err)
+	}
+	if strings.TrimSpace(string(status)) != "" {
+		return "", errors.New("recipe verifier requires committed Go source")
+	}
+	revision, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("recipe verifier revision: %w", err)
+	}
+	return strings.TrimSpace(string(revision)), nil
 }
 
 func executeCapability(

@@ -232,7 +232,16 @@ Check its active inference recipe:
 go run ./cmd/recipe status -task inference D:/models/model.gguf
 ```
 
-Activation requires an existing successful verification gate and run:
+Verify a candidate with a real task input. `-input -` reads JSON from standard
+input and avoids shell quoting limits:
+
+```bash
+echo '{"text":"Weather in San Francisco?","max_tokens":64}' | \
+  go run ./cmd/recipe verify -task seq2seq -input - needle
+```
+
+Verification requires committed Go source, then prints the generated output and
+a recipe-bound gate and run ID. Activation consumes those immutable IDs:
 
 ```bash
 go run ./cmd/recipe activate \
@@ -242,6 +251,11 @@ go run ./cmd/recipe activate \
   -run-id run:sha256:<run-id> \
   D:/models/model.gguf
 ```
+
+`recipe run` executes only an active recipe. The Needle 26M recipe has been
+verified, activated at the experimental tier, and replayed with grounded
+text-to-tool-call JSON. Experimental means the real execution path is proven;
+matched process-memory evidence and an approved training objective remain open.
 
 Generate after activation:
 

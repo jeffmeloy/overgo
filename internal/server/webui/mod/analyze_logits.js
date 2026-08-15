@@ -19,13 +19,15 @@
       prompt.value = "The capital of France is";
       const maxTokens = el("input", { class: "keyfield", type: "number", value: "24", min: "1", max: "128", style: "width:90px" });
       const topK = el("input", { class: "keyfield", type: "number", value: "10", min: "1", max: "40", style: "width:90px" });
+      let controller = null;
       const run = el("button", { class: "btn", onclick: execute }, "run lens");
+      const cancel = el("button", { class: "btn alt", style: "display:none", onclick: () => controller && controller.abort() }, "cancel");
       const controls = el("div", {},
         prompt,
         el("div", { class: "row", style: "margin:10px 0" },
           el("span", { class: "note", text: "max tokens" }), maxTokens,
           el("span", { class: "note", text: "top-k" }), topK,
-          run));
+          run, cancel));
       const out = el("div");
       panel.append(controls, out);
 
@@ -35,8 +37,11 @@
       }
 
       async function execute() {
+        if (controller) return; // a run is already in flight
         out.replaceChildren(el("div", { class: "note", text: "running…" }));
         run.disabled = true;
+        cancel.style.display = "";
+        controller = new AbortController();
         try {
           await ensureVocabSize();
           const data = await overgo.api.post("/completion", {
@@ -46,12 +51,15 @@
             temperature: 0, // greedy: the lens inspects the argmax trajectory
             stream: false,
             cache_prompt: false,
-          });
+          }, { signal: controller.signal });
           render(data);
         } catch (err) {
-          out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+          if (err.name === "AbortError") out.replaceChildren(el("div", { class: "note", text: "[cancelled]" }));
+          else out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
         } finally {
           run.disabled = false;
+          cancel.style.display = "none";
+          controller = null;
         }
       }
 

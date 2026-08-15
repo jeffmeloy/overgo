@@ -173,6 +173,21 @@ func TestWebUIShellCache(t *testing.T) {
 	}
 }
 
+// TestWebUICancel guards that the tabs running a real forward pass (lens,
+// hidden-states, attention) expose an AbortController-backed cancel path so a
+// long run can be stopped instead of blocking the tab until it finishes.
+func TestWebUICancel(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	for _, asset := range []string{"/mod/analyze_logits.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {
+		body := serveTestRequest(handler, http.MethodGet, asset, "").Body.String()
+		for _, needle := range []string{"AbortController", "controller.abort", "signal: controller.signal", "AbortError"} {
+			if !strings.Contains(body, needle) {
+				t.Errorf("%s missing cancel machinery %q", asset, needle)
+			}
+		}
+	}
+}
+
 func TestWebUIRejectsNonGet(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()

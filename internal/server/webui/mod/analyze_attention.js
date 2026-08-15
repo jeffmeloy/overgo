@@ -22,13 +22,15 @@
       prompt.value = "The quick brown fox jumps over the lazy dog";
       const layer = el("input", { class: "keyfield", type: "number", placeholder: "mid", min: "0", style: "width:80px" });
       const maxPos = el("input", { class: "keyfield", type: "number", value: "32", min: "2", max: "48", style: "width:80px" });
+      let controller = null;
       const run = el("button", { class: "btn", onclick: execute }, "capture");
+      const cancel = el("button", { class: "btn alt", style: "display:none", onclick: () => controller && controller.abort() }, "cancel");
       panel.append(
         prompt,
         el("div", { class: "row", style: "margin:10px 0" },
           el("span", { class: "note", text: "layer" }), layer,
           el("span", { class: "note", text: "max tokens" }), maxPos,
-          run),
+          run, cancel),
         el("div", { class: "note", text: "Exact softmax(scale·Q·Kᵀ) per head, recomputed on the host from captured query/key. Weights are causal (row i attends to keys 0..i) and sum to 1." }));
       const out = el("div");
       panel.appendChild(out);
@@ -36,17 +38,23 @@
       let current = null; // last response, kept so the head selector can redraw.
 
       async function execute() {
+        if (controller) return; // a capture is already in flight
         out.replaceChildren(el("div", { class: "note", text: "capturing…" }));
         run.disabled = true;
+        cancel.style.display = "";
+        controller = new AbortController();
         try {
           const request = { prompt: prompt.value, max_positions: Number(maxPos.value) || 32 };
           if (layer.value !== "") request.layer = Number(layer.value);
-          current = await overgo.api.post("/analyze/attention", request);
+          current = await overgo.api.post("/analyze/attention", request, { signal: controller.signal });
           render();
         } catch (err) {
-          out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+          if (err.name === "AbortError") out.replaceChildren(el("div", { class: "note", text: "[cancelled]" }));
+          else out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
         } finally {
           run.disabled = false;
+          cancel.style.display = "none";
+          controller = null;
         }
       }
 

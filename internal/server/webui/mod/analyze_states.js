@@ -27,7 +27,9 @@
       const layer = el("input", { class: "keyfield", type: "number", placeholder: "mid", min: "0", style: "width:80px" });
       const k = el("input", { class: "keyfield", type: "number", placeholder: "auto", min: "1", max: "20", style: "width:80px" });
       const maxPos = el("input", { class: "keyfield", type: "number", value: "48", min: "2", max: "64", style: "width:80px" });
+      let controller = null;
       const run = el("button", { class: "btn", onclick: execute }, "capture");
+      const cancel = el("button", { class: "btn alt", style: "display:none", onclick: () => controller && controller.abort() }, "cancel");
       panel.append(
         prompt,
         el("div", { class: "row", style: "margin:10px 0" },
@@ -35,23 +37,29 @@
           el("span", { class: "note", text: "layer" }), layer,
           el("span", { class: "note", text: "k" }), k,
           el("span", { class: "note", text: "max tokens" }), maxPos,
-          run),
+          run, cancel),
         el("div", { class: "note", text: "Distribution-free: the metric is explicit (default = rank correlation); the layout uses only the rank order of distances (no PCA/t-SNE)." }));
       const out = el("div");
       panel.appendChild(out);
 
       async function execute() {
+        if (controller) return; // a capture is already in flight
         out.replaceChildren(el("div", { class: "note", text: "capturing…" }));
         run.disabled = true;
+        cancel.style.display = "";
+        controller = new AbortController();
         try {
           const request = { prompt: prompt.value, metric: metric.value, max_positions: Number(maxPos.value) || 48 };
           if (layer.value !== "") request.layer = Number(layer.value);
           if (k.value !== "") request.k = Number(k.value);
-          render(await overgo.api.post("/analyze/states", request));
+          render(await overgo.api.post("/analyze/states", request, { signal: controller.signal }));
         } catch (err) {
-          out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+          if (err.name === "AbortError") out.replaceChildren(el("div", { class: "note", text: "[cancelled]" }));
+          else out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
         } finally {
           run.disabled = false;
+          cancel.style.display = "none";
+          controller = null;
         }
       }
 

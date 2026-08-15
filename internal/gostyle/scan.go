@@ -3,43 +3,77 @@ package gostyle
 import (
 	"fmt"
 	"go/ast"
-	"go/build/constraint"
 	"go/token"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"overgo/internal/repoanalysis"
 )
 
-type scanner struct {
-	report    *CensusReport
-	result    map[string]*RuleCensus
-	receivers map[string][]receiver
-}
-
-type receiver struct {
+type receiverFact struct {
 	file   repoanalysis.GoFile
 	method *ast.FuncDecl
 	name   string
 	typeID string
 }
 
-// Census parses no source itself: all syntax and generated-file decisions come
-// from the shared repository snapshot.
-func Census(snapshot repoanalysis.SourceSnapshot) (CensusReport, error) {
-	report := CensusReport{Identity: snapshot.Identity(), Rules: make([]RuleCensus, len(policy))}
-	scan := scanner{report: &report, result: map[string]*RuleCensus{}, receivers: map[string][]receiver{}}
+type fileFacts struct {
+	diagnostics map[string][]Diagnostic
+	receivers   []receiverFact
+	constraint  string
+}
+
+type factCache map[string]fileFacts
+
+type fileScanner struct {
+	source      repoanalysis.GoFile
+	file        *ast.File
+	imports     map[string]string
+	diagnostics map[string][]Diagnostic
+	receivers   []receiverFact
+}
+
+// Census reports one snapshot. Compare uses the same implementation with a
+// shared content cache so unchanged candidate files reuse base facts.
+func Census(snapshot repoanalysis.SourceSnapshot, options ...Options) (CensusReport, error) {
+	return census(snapshot, firstOption(options), factCache{})
+}
+
+func census(snapshot repoanalysis.SourceSnapshot, option Options, cache factCache) (CensusReport, error) {
+	started := time.Now()
+	if err := validatePolicy(); err != nil {
+		return CensusReport{}, err
+	}
+	report := CensusReport{
+		Identity: snapshot.Identity(), BuildContext: option.Build.Context,
+		Rules: make([]RuleCensus, len(policy)),
+	}
+	results := make(map[string]*RuleCensus, len(policy))
 	for index, rule := range policy {
-		report.Rules[index] = RuleCensus{Rule: rule, Available: rule.Mechanism == Syntax}
-		if !report.Rules[index].Available {
+		selected := rule.Mechanism == Syntax
+		report.Rules[index] = RuleCensus{Rule: rule, Selected: selected}
+		if !selected {
 			report.Rules[index].SkipReason = unavailableReason(rule.Mechanism)
 		}
-		scan.result[rule.ID] = &report.Rules[index]
+		results[rule.ID] = &report.Rules[index]
 	}
+	var receivers []receiverFact
 	for _, source := range snapshot.Files {
+		selected, classified := option.Build.Files[source.Path]
+		if classified && !selected {
+			report.Exclusions = append(report.Exclusions, Exclusion{
+				File: source.Path, Scope: "host build context", Reason: "excluded by go list for " + option.Build.Context,
+			})
+			report.BuildConstraints = append(report.BuildConstraints, BuildConstraint{
+				File: source.Path, Expression: "go list selection", Selected: false,
+			})
+			continue
+		}
 		generated, err := source.Generated()
 		if err != nil {
 			return CensusReport{}, fmt.Errorf("parse %s: %w", source.Path, err)
@@ -50,26 +84,49 @@ func Census(snapshot repoanalysis.SourceSnapshot) (CensusReport, error) {
 			})
 			continue
 		}
-		file, _ := source.Syntax()
-		if expression, err := buildExpression(file); err != nil {
-			return CensusReport{}, fmt.Errorf("build constraint %s: %w", source.Path, err)
-		} else if expression != "" {
-			report.BuildConstraints = append(report.BuildConstraints, BuildConstraint{File: source.Path, Expression: expression})
+		key := source.Path + "\x00" + source.ContentID
+		facts, reused := cache[key]
+		if reused {
+			report.Analysis.FilesReused++
+		} else {
+			facts, err = analyzeFile(source)
+			if err != nil {
+				return CensusReport{}, err
+			}
+			cache[key] = facts
+			report.Analysis.FilesScanned++
+			report.Analysis.SyntaxPasses++
 		}
-		scan.file(source, file)
+		if facts.constraint != "" {
+			report.BuildConstraints = append(report.BuildConstraints, BuildConstraint{
+				File: source.Path, Expression: facts.constraint, Selected: true,
+			})
+		}
+		for ruleID, diagnostics := range facts.diagnostics {
+			results[ruleID].Diagnostics = append(results[ruleID].Diagnostics, diagnostics...)
+		}
+		receivers = append(receivers, facts.receivers...)
 	}
-	scan.receiverConsistency()
+	receiverConsistency(results["receivers"], receivers)
 	for index := range report.Rules {
-		diagnostics := report.Rules[index].Diagnostics
-		sortDiagnostics(diagnostics)
+		sortDiagnostics(report.Rules[index].Diagnostics)
+		report.Analysis.Diagnostics += len(report.Rules[index].Diagnostics)
 	}
+	report.Analysis.Duration = time.Since(started)
 	return report, nil
+}
+
+func firstOption(options []Options) Options {
+	if len(options) == 0 {
+		return Options{}
+	}
+	return options[0]
 }
 
 func unavailableReason(mechanism Mechanism) string {
 	switch mechanism {
 	case Toolchain:
-		return "recorded by the toolchain adapter; syntax census does not imitate it"
+		return "selected by the toolchain adapter; syntax census does not imitate it"
 	case TypeAware:
 		return "reserved for the shared type-aware pass; syntax-only guesses are not evidence"
 	case Delegated:
@@ -79,198 +136,303 @@ func unavailableReason(mechanism Mechanism) string {
 	}
 }
 
-func buildExpression(file *ast.File) (string, error) {
-	for _, group := range file.Comments {
-		if group.End() > file.Package {
-			break
-		}
-		for _, comment := range group.List {
-			if constraint.IsGoBuild(comment.Text) {
-				expression, err := constraint.Parse(comment.Text)
-				if err != nil {
-					return "", err
-				}
-				return expression.String(), nil
-			}
-		}
+func analyzeFile(source repoanalysis.GoFile) (fileFacts, error) {
+	file, err := source.Syntax()
+	if err != nil {
+		return fileFacts{}, fmt.Errorf("parse %s: %w", source.Path, err)
 	}
-	return "", nil
-}
-
-func (s *scanner) file(source repoanalysis.GoFile, file *ast.File) {
-	s.packageImports(source, file)
+	constraint, err := source.BuildExpression()
+	if err != nil {
+		return fileFacts{}, fmt.Errorf("build constraint %s: %w", source.Path, err)
+	}
+	scanner := fileScanner{
+		source: source, file: file, imports: importBindings(file), diagnostics: map[string][]Diagnostic{},
+	}
+	scanner.packageImports()
+	scanner.declarationNames()
 	for _, declaration := range file.Decls {
-		s.declaration(source, file, declaration)
+		scanner.declaration(declaration)
 	}
+	return fileFacts{diagnostics: scanner.diagnostics, receivers: scanner.receivers, constraint: constraint}, nil
 }
 
-func (s *scanner) packageImports(source repoanalysis.GoFile, file *ast.File) {
-	packageName := file.Name.Name
+func importBindings(file *ast.File) map[string]string {
+	bindings := make(map[string]string, len(file.Imports))
+	for _, spec := range file.Imports {
+		importPath, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		name := path.Base(importPath)
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		if name != "." && name != "_" {
+			bindings[name] = importPath
+		}
+	}
+	return bindings
+}
+
+func (s *fileScanner) packageImports() {
+	packageName := s.file.Name.Name
 	baseName := strings.TrimSuffix(packageName, "_test")
 	if baseName == "" || strings.ToLower(baseName) != baseName || strings.Contains(baseName, "_") {
-		s.add("package-imports", source, file.Name, packageName, "package name is not lowercase and concise")
+		s.add("package-imports", s.file.Name, packageName, "package name is not lowercase and concise")
 	}
-	for _, spec := range file.Imports {
+	for _, spec := range s.file.Imports {
 		if spec.Name == nil {
 			continue
 		}
 		if spec.Name.Name == "." {
-			s.add("package-imports", source, spec, "", "dot import obscures package ownership")
+			s.add("package-imports", spec, "", "dot import obscures package ownership")
 		}
-		path, _ := strconv.Unquote(spec.Path.Value)
-		if spec.Name.Name == "_" && packageName != "main" && !source.Test && path != "embed" {
-			s.add("package-imports", source, spec, "", "blank import is outside main, tests, or compiler-defined embed use")
+		importPath, _ := strconv.Unquote(spec.Path.Value)
+		if spec.Name.Name == "_" && packageName != "main" && !s.source.Test && importPath != "embed" {
+			s.add("package-imports", spec, "", "blank import is outside main, tests, or compiler-defined embed use")
 		}
 	}
 }
 
-func (s *scanner) declaration(source repoanalysis.GoFile, file *ast.File, declaration ast.Decl) {
+func (s *fileScanner) declarationNames() {
+	exceptions := map[token.Pos]bool{}
+	for _, declaration := range s.file.Decls {
+		if function, ok := declaration.(*ast.FuncDecl); ok && s.source.Test && isTestEntry(function.Name.Name) {
+			exceptions[function.Name.Pos()] = true
+		}
+	}
+	cgo := s.imports["C"] == "C"
+	seen := map[token.Pos]bool{}
+	ast.Inspect(s.file, func(node ast.Node) bool {
+		switch node := node.(type) {
+		case *ast.Ident:
+			if node.Obj != nil && node.Obj.Pos() == node.Pos() && !seen[node.Pos()] {
+				seen[node.Pos()] = true
+				s.mixedCaps(node, exceptions[node.Pos()] || cgo)
+			}
+		case *ast.Field:
+			for _, name := range node.Names {
+				if !seen[name.Pos()] {
+					seen[name.Pos()] = true
+					s.mixedCaps(name, false)
+				}
+			}
+		case *ast.ImportSpec:
+			if node.Name != nil && node.Name.Name != "." && node.Name.Name != "_" {
+				s.mixedCaps(node.Name, false)
+			}
+		}
+		return true
+	})
+}
+
+func (s *fileScanner) declaration(declaration ast.Decl) {
 	switch declaration := declaration.(type) {
 	case *ast.GenDecl:
 		if declaration.Tok == token.VAR {
-			s.add("global-state", source, declaration, "", "package-level mutable state requires ownership review")
+			s.add("global-state", declaration, "", "package-level mutable state requires ownership review")
 		}
 		for _, spec := range declaration.Specs {
-			switch spec := spec.(type) {
-			case *ast.TypeSpec:
-				s.mixedCaps(source, spec.Name)
-				if _, ok := spec.Type.(*ast.InterfaceType); ok {
-					s.add("interface-ownership", source, spec, spec.Name.Name, "interface declaration requires demonstrated consumer ownership")
+			if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+				if _, ok := typeSpec.Type.(*ast.InterfaceType); ok {
+					s.add("interface-ownership", typeSpec, typeSpec.Name.Name, "interface declaration requires demonstrated consumer ownership")
 				}
-				if structure, ok := spec.Type.(*ast.StructType); ok {
+				if structure, ok := typeSpec.Type.(*ast.StructType); ok {
 					for _, field := range structure.Fields.List {
-						if isSelector(field.Type, "context", "Context") {
-							s.add("context", source, field, fieldName(field), "context.Context stored in a struct")
+						if s.qualifiedSelector(field.Type, "context", "Context") {
+							s.add("context", field, fieldName(field), "context.Context stored in a struct")
 						}
 					}
 				}
-			case *ast.ValueSpec:
-				for _, name := range spec.Names {
-					s.mixedCaps(source, name)
-				}
 			}
 		}
-		ast.Inspect(declaration, func(node ast.Node) bool {
-			s.node(source, file, node, "")
-			return true
-		})
+		ast.Inspect(declaration, func(node ast.Node) bool { s.node(node, ""); return true })
 	case *ast.FuncDecl:
-		s.function(source, file, declaration)
+		s.function(declaration)
 	}
 }
 
-func (s *scanner) function(source repoanalysis.GoFile, file *ast.File, function *ast.FuncDecl) {
-	if !source.Test || (!strings.HasPrefix(function.Name.Name, "Test") && !strings.HasPrefix(function.Name.Name, "Benchmark") && !strings.HasPrefix(function.Name.Name, "Example")) {
-		s.mixedCaps(source, function.Name)
-	}
+func (s *fileScanner) function(function *ast.FuncDecl) {
 	if strings.HasPrefix(function.Name.Name, "Get") && function.Name.Name != "Get" {
-		s.add("get-prefix", source, function.Name, function.Name.Name, "Get-prefixed API may hide cost or blocking")
+		s.add("get-prefix", function.Name, function.Name.Name, "Get-prefixed API may hide cost or blocking")
 	}
+	var receiverObject *ast.Object
 	if function.Recv != nil && len(function.Recv.List) > 0 {
 		field := function.Recv.List[0]
 		name := ""
 		if len(field.Names) > 0 {
-			name = field.Names[0].Name
+			name, receiverObject = field.Names[0].Name, field.Names[0].Obj
 		}
-		typeID := path.Dir(source.Path) + "/" + receiverType(field.Type)
-		s.receivers[typeID] = append(s.receivers[typeID], receiver{source, function, name, typeID})
+		typeID := path.Dir(s.source.Path) + "/" + receiverType(field.Type)
+		s.receivers = append(s.receivers, receiverFact{s.source, function, name, typeID})
 		if name == "this" || name == "self" || name == "receiver" {
-			s.add("receivers", source, field, function.Name.Name, "receiver name is needlessly verbose")
-		}
-		if name != "" && function.Body != nil && !identUsed(function.Body, name) {
-			s.add("receivers", source, field, function.Name.Name, "unused receiver should be unnamed")
+			s.add("receivers", field, function.Name.Name, "receiver name is needlessly verbose")
 		}
 	}
 	parameters := fieldList(function.Type.Params)
 	for index, field := range parameters {
-		if isSelector(field.Type, "context", "Context") && index != 0 {
-			s.add("context", source, field, function.Name.Name, "context.Context is not the first parameter")
+		if s.qualifiedSelector(field.Type, "context", "Context") && index != 0 {
+			s.add("context", field, function.Name.Name, "context.Context is not the first parameter")
 		}
 	}
 	results := fieldList(function.Type.Results)
 	for index, field := range results {
-		if isIdent(field.Type, "error") && index != len(results)-1 {
-			s.add("errors", source, field, function.Name.Name, "error is not the final return")
-		}
-		if function.Name.IsExported() && pointerError(field.Type) {
-			s.add("errors", source, field, function.Name.Name, "exported API returns a concrete error pointer")
+		if builtinIdent(field.Type, "error") && index != len(results)-1 {
+			s.add("errors", field, function.Name.Name, "error is not the final return")
 		}
 	}
-	if function.Body != nil && len(function.Body.List) > 5 && hasNakedReturn(function.Body) {
-		s.add("returns-copy", source, function.Name, function.Name.Name, "nontrivial function uses a naked return")
+	if function.Body == nil {
+		return
 	}
-	if source.Test && !isTestEntry(function.Name.Name) && testingParameter(parameters) && callsFailureWithoutHelper(function.Body) {
-		s.add("test-quality", source, function.Name, function.Name.Name, "test helper can fail without calling testing.TB.Helper")
+	facts := struct{ receiverUsed, nakedReturn, testFailure, testHelper bool }{}
+	symbol := functionSymbol(function)
+	ast.Inspect(function.Body, func(node ast.Node) bool {
+		if literal, nested := node.(*ast.FuncLit); nested {
+			s.scanNested(literal.Body, symbol)
+			return false
+		}
+		if identifier, ok := node.(*ast.Ident); ok && receiverObject != nil && identifier.Obj == receiverObject {
+			facts.receiverUsed = true
+		}
+		if statement, ok := node.(*ast.ReturnStmt); ok && len(statement.Results) == 0 {
+			facts.nakedReturn = true
+		}
+		if call, ok := node.(*ast.CallExpr); ok {
+			switch lastName(callName(call.Fun)) {
+			case "Fatal", "Fatalf", "Fail", "FailNow", "Error", "Errorf":
+				facts.testFailure = true
+			case "Helper":
+				facts.testHelper = true
+			}
+		}
+		s.node(node, symbol)
+		return true
+	})
+	if receiverObject != nil && !facts.receiverUsed {
+		s.add("receivers", function.Recv.List[0], function.Name.Name, "unused receiver should be unnamed")
 	}
-	if function.Body != nil {
-		symbol := functionSymbol(function)
-		ast.Inspect(function.Body, func(node ast.Node) bool {
-			s.node(source, file, node, symbol)
-			return true
-		})
+	if len(function.Body.List) > 5 && facts.nakedReturn {
+		s.add("returns-copy", function.Name, function.Name.Name, "nontrivial function uses a naked return")
+	}
+	if s.source.Test && !isTestEntry(function.Name.Name) && s.testingParameter(parameters) && facts.testFailure && !facts.testHelper {
+		s.add("test-quality", function.Name, function.Name.Name, "test helper can fail without calling testing.TB.Helper")
 	}
 }
 
-func (s *scanner) node(source repoanalysis.GoFile, file *ast.File, node ast.Node, symbol string) {
+func (s *fileScanner) scanNested(body *ast.BlockStmt, symbol string) {
+	ast.Inspect(body, func(node ast.Node) bool {
+		s.node(node, symbol)
+		return true
+	})
+}
+
+func (s *fileScanner) node(node ast.Node, symbol string) {
 	switch node := node.(type) {
 	case *ast.CallExpr:
+		qualified := s.qualifiedCall(node.Fun)
 		name := callName(node.Fun)
 		switch {
-		case file.Name.Name != "main" && flagRegistration(name):
-			s.add("library-flags", source, node, symbol, "importable package registers a command-line flag")
-		case file.Name.Name != "main" && name == "context.Background":
-			s.add("background-context", source, node, symbol, "library call chain starts a background context")
-		case name == "panic" || strings.HasPrefix(lastName(name), "Must"):
-			s.add("panic-must", source, node, symbol, "panic-style call requires initialization or invariant ownership")
-		case name == "reflect.DeepEqual" && source.Test:
-			s.add("test-quality", source, node, symbol, "reflect.DeepEqual can hide useful got/want evidence")
-		case (name == "errors.New" || name == "fmt.Errorf") && len(node.Args) > 0:
+		case s.file.Name.Name != "main" && flagRegistration(qualified):
+			s.add("library-flags", node, symbol, "importable package registers a command-line flag")
+		case s.file.Name.Name != "main" && qualified == "context.Background":
+			s.add("background-context", node, symbol, "library call chain starts a background context")
+		case name == "panic" && builtinCall(node.Fun) || strings.HasPrefix(lastName(name), "Must"):
+			s.add("panic-must", node, symbol, "panic-style call requires initialization or invariant ownership")
+		case qualified == "reflect.DeepEqual" && s.source.Test:
+			s.add("test-quality", node, symbol, "reflect.DeepEqual can hide useful got/want evidence")
+		case (qualified == "errors.New" || qualified == "fmt.Errorf") && len(node.Args) > 0:
 			if literal, ok := node.Args[0].(*ast.BasicLit); ok && literal.Kind == token.STRING {
 				message, err := strconv.Unquote(literal.Value)
 				if err == nil && unconventionalError(message) {
-					s.add("errors", source, literal, symbol, "static error string starts uppercase or ends with punctuation")
+					s.add("errors", literal, symbol, "static error string starts uppercase or ends with punctuation")
 				}
 			}
 		}
 	case *ast.GoStmt:
-		s.add("goroutine-ownership", source, node, symbol, "goroutine requires visible cancellation, join, or process-lifetime ownership")
+		s.add("goroutine-ownership", node, symbol, "goroutine requires visible cancellation, join, or process-lifetime ownership")
 	}
 }
 
-func (s *scanner) receiverConsistency() {
-	for _, receivers := range s.receivers {
+func (s *fileScanner) qualifiedSelector(expression ast.Expr, importPath, name string) bool {
+	selector, ok := expression.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	owner, ownerOK := selector.X.(*ast.Ident)
+	return ownerOK && owner.Obj == nil && s.imports[owner.Name] == importPath && selector.Sel.Name == name
+}
+
+func (s *fileScanner) qualifiedCall(expression ast.Expr) string {
+	selector, ok := expression.(*ast.SelectorExpr)
+	if !ok {
+		return ""
+	}
+	owner, ok := selector.X.(*ast.Ident)
+	if !ok || owner.Obj != nil {
+		return ""
+	}
+	if importPath := s.imports[owner.Name]; importPath != "" {
+		return importPath + "." + selector.Sel.Name
+	}
+	return ""
+}
+
+func (s *fileScanner) testingParameter(fields []*ast.Field) bool {
+	for _, field := range fields {
+		expression := field.Type
+		if pointer, ok := expression.(*ast.StarExpr); ok {
+			expression = pointer.X
+		}
+		if s.qualifiedSelector(expression, "testing", "T") || s.qualifiedSelector(expression, "testing", "B") || s.qualifiedSelector(expression, "testing", "TB") {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *fileScanner) mixedCaps(name *ast.Ident, exception bool) {
+	if !exception && name.Name != "_" && !strings.HasPrefix(name.Name, "_C") && strings.Contains(name.Name, "_") {
+		s.add("mixed-caps", name, name.Name, "identifier uses underscore-separated words")
+	}
+}
+
+func (s *fileScanner) add(ruleID string, node ast.Node, symbol, message string) {
+	s.diagnostics[ruleID] = append(s.diagnostics[ruleID], Diagnostic{
+		File: s.source.Path, Line: s.source.Line(node.Pos()), Symbol: symbol, Message: message,
+	})
+}
+
+func receiverConsistency(result *RuleCensus, receivers []receiverFact) {
+	byType := map[string][]receiverFact{}
+	for _, receiver := range receivers {
+		byType[receiver.typeID] = append(byType[receiver.typeID], receiver)
+	}
+	for typeID, methods := range byType {
 		names := map[string]bool{}
-		for _, receiver := range receivers {
-			if receiver.name != "" {
-				names[receiver.name] = true
+		for _, method := range methods {
+			if method.name != "" {
+				names[method.name] = true
 			}
 		}
 		if len(names) < 2 {
 			continue
 		}
-		for _, receiver := range receivers {
-			s.add("receivers", receiver.file, receiver.method, receiver.method.Name.Name, "receiver name is inconsistent across methods on "+receiver.typeID)
+		for _, method := range methods {
+			result.Diagnostics = append(result.Diagnostics, Diagnostic{
+				File: method.file.Path, Line: method.file.Line(method.method.Pos()), Symbol: method.method.Name.Name,
+				Message: "receiver name is inconsistent across methods on " + typeID,
+			})
 		}
 	}
 }
 
-func (s *scanner) mixedCaps(source repoanalysis.GoFile, name *ast.Ident) {
-	if name.Name != "_" && !strings.HasPrefix(name.Name, "_C") && strings.Contains(name.Name, "_") {
-		s.add("mixed-caps", source, name, name.Name, "identifier uses underscore-separated words")
-	}
-}
-
 func isTestEntry(name string) bool {
-	return strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Benchmark") || strings.HasPrefix(name, "Fuzz") || strings.HasPrefix(name, "Example")
-}
-
-func (s *scanner) add(ruleID string, source repoanalysis.GoFile, node ast.Node, symbol, rationale string) {
-	result := s.result[ruleID]
-	result.Diagnostics = append(result.Diagnostics, Diagnostic{
-		RuleID: ruleID, Tier: result.Rule.Tier, SourceSection: result.Rule.SourceSection,
-		File: source.Path, Line: source.Line(node.Pos()), Symbol: symbol, Rationale: rationale,
-		DeterministicFix: result.Rule.DeterministicFix,
-	})
+	for _, prefix := range []string{"Test", "Benchmark", "Fuzz", "Example"} {
+		if strings.HasPrefix(name, prefix) && (len(name) == len(prefix) || !unicode.IsLower(rune(name[len(prefix)]))) {
+			return true
+		}
+	}
+	return false
 }
 
 func fieldList(list *ast.FieldList) []*ast.Field {
@@ -279,10 +441,7 @@ func fieldList(list *ast.FieldList) []*ast.Field {
 	}
 	var fields []*ast.Field
 	for _, field := range list.List {
-		count := len(field.Names)
-		if count == 0 {
-			count = 1
-		}
+		count := max(1, len(field.Names))
 		for range count {
 			fields = append(fields, field)
 		}
@@ -290,27 +449,14 @@ func fieldList(list *ast.FieldList) []*ast.Field {
 	return fields
 }
 
-func isSelector(expression ast.Expr, packageName, name string) bool {
-	selector, ok := expression.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	owner, ownerOK := selector.X.(*ast.Ident)
-	return ownerOK && owner.Name == packageName && selector.Sel.Name == name
-}
-
-func isIdent(expression ast.Expr, name string) bool {
+func builtinIdent(expression ast.Expr, name string) bool {
 	identifier, ok := expression.(*ast.Ident)
-	return ok && identifier.Name == name
+	return ok && identifier.Name == name && identifier.Obj == nil
 }
 
-func pointerError(expression ast.Expr) bool {
-	pointer, ok := expression.(*ast.StarExpr)
-	if !ok {
-		return false
-	}
-	name := lastName(callName(pointer.X))
-	return strings.HasSuffix(name, "Error") || strings.HasSuffix(name, "Err")
+func builtinCall(expression ast.Expr) bool {
+	identifier, ok := expression.(*ast.Ident)
+	return ok && identifier.Obj == nil
 }
 
 func fieldName(field *ast.Field) string {
@@ -325,17 +471,6 @@ func receiverType(expression ast.Expr) string {
 		expression = pointer.X
 	}
 	return callName(expression)
-}
-
-func identUsed(node ast.Node, name string) bool {
-	used := false
-	ast.Inspect(node, func(node ast.Node) bool {
-		if identifier, ok := node.(*ast.Ident); ok && identifier.Name == name {
-			used = true
-		}
-		return !used
-	})
-	return used
 }
 
 func callName(expression ast.Expr) string {
@@ -385,69 +520,9 @@ func unconventionalError(message string) bool {
 	if message == "" {
 		return false
 	}
-	first, _ := utf8Rune(message)
-	last, _ := utf8LastRune(message)
+	first, _ := utf8.DecodeRuneInString(message)
+	last, _ := utf8.DecodeLastRuneInString(message)
 	return unicode.IsUpper(first) || strings.ContainsRune(".:;!?", last)
-}
-
-func utf8Rune(value string) (rune, int) {
-	for _, r := range value {
-		return r, len(string(r))
-	}
-	return 0, 0
-}
-
-func utf8LastRune(value string) (rune, int) {
-	var last rune
-	for _, r := range value {
-		last = r
-	}
-	return last, len(string(last))
-}
-
-func hasNakedReturn(body *ast.BlockStmt) bool {
-	found := false
-	ast.Inspect(body, func(node ast.Node) bool {
-		if statement, ok := node.(*ast.ReturnStmt); ok && len(statement.Results) == 0 {
-			found = true
-		}
-		return !found
-	})
-	return found
-}
-
-func testingParameter(fields []*ast.Field) bool {
-	for _, field := range fields {
-		expression := field.Type
-		if pointer, ok := expression.(*ast.StarExpr); ok {
-			expression = pointer.X
-		}
-		if isSelector(expression, "testing", "T") || isSelector(expression, "testing", "B") || isSelector(expression, "testing", "TB") {
-			return true
-		}
-	}
-	return false
-}
-
-func callsFailureWithoutHelper(body *ast.BlockStmt) bool {
-	if body == nil {
-		return false
-	}
-	fails, helper := false, false
-	ast.Inspect(body, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		switch lastName(callName(call.Fun)) {
-		case "Fatal", "Fatalf", "Fail", "FailNow", "Error", "Errorf":
-			fails = true
-		case "Helper":
-			helper = true
-		}
-		return true
-	})
-	return fails && !helper
 }
 
 func sortDiagnostics(diagnostics []Diagnostic) {
@@ -462,6 +537,6 @@ func sortDiagnostics(diagnostics []Diagnostic) {
 		if left.Symbol != right.Symbol {
 			return left.Symbol < right.Symbol
 		}
-		return left.Rationale < right.Rationale
+		return left.Message < right.Message
 	})
 }

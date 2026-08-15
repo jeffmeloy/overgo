@@ -263,6 +263,7 @@ func (g *gateContext) pipeline() error {
 		{"protection", runrecord.PhaseValidate, g.stepProtection},
 		{"scope", runrecord.PhaseValidate, g.stepScope},
 		{"profile", runrecord.PhaseValidate, g.stepProfile},
+		{"readability", runrecord.PhaseValidate, g.stepReadability},
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
 		{"vet", runrecord.PhaseVet, g.stepVet},
 		{"build", runrecord.PhaseBuild, g.stepBuild},
@@ -508,13 +509,21 @@ func cliMainClone(clone codeprofile.Clone) bool {
 }
 
 func profileAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (codeprofile.Profile, error) {
-	raw, err := command(repo, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	base, err := sourceAtHEAD(repo, candidate)
 	if err != nil {
 		return codeprofile.Profile{}, err
 	}
+	return codeprofile.Build(base)
+}
+
+func sourceAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (repoanalysis.SourceSnapshot, error) {
+	raw, err := command(repo, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	if err != nil {
+		return repoanalysis.SourceSnapshot{}, err
+	}
 	dirty, err := repoanalysis.ParseDirtyStatus([]byte(raw))
 	if err != nil {
-		return codeprofile.Profile{}, err
+		return repoanalysis.SourceSnapshot{}, err
 	}
 	overlay := map[string][]byte{}
 	for _, entry := range dirty {
@@ -530,16 +539,16 @@ func profileAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (codeprof
 					overlay[path] = nil
 					continue
 				}
-				return codeprofile.Profile{}, err
+				return repoanalysis.SourceSnapshot{}, err
 			}
 			overlay[path] = data
 		}
 	}
 	base, err := candidate.Overlay(overlay)
 	if err != nil {
-		return codeprofile.Profile{}, err
+		return repoanalysis.SourceSnapshot{}, err
 	}
-	return codeprofile.Build(base)
+	return base, nil
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,
@@ -1661,6 +1670,8 @@ func compactHonesty(lines []string) []string {
 		switch {
 		case strings.Contains(line, "code profile delta vs HEAD"):
 			label = "delta: "
+		case strings.HasPrefix(line, "go readability:"):
+			label = "style: "
 		case strings.HasPrefix(line, "test scope:"):
 			label = "scope: "
 		case strings.Contains(line, " reused:"):

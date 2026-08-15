@@ -1,6 +1,6 @@
 {
   "campaign": "Recursive self-improvement through constrained, content-addressed artifact improvement",
-  "revision": 6,
+  "revision": 7,
   "doctrine": "Design record, not live executable work. docs/plan.json remains the only dispatch surface; cmd/plan does not read this file. A thin roadmap command over a common Go owner may validate this record and emit a PROPOSED live-plan insertion, but never mutate or dispatch it. The governing principle: the model may propose increasingly powerful ARTIFACTS, but deterministic Go owns execution, resource limits, evidence capture, admission, promotion and rollback. RSI here is constrained artifact improvement, never unrestricted code self-modification, and proposal / evaluation / authorization / rollback stay in separate authority domains.",
   "thesis": "Overgo is a content-addressed population of artifacts with a promotion mechanism. Automated composition needs three missing operators: bridge, compose, and a runtime experiment control plane to exercise them. RSI depth is a separate axis -- how many layers of the stack are themselves artifacts under the same lifecycle. Phase D lifts that ceiling and is safe only because ground truth is externally sourced and unauthorable by the system.",
   "control_plane_status": {
@@ -39,6 +39,29 @@
       "scope": "Compare candidate diagnostics with HEAD at changed declaration identity. Existing untouched debt is reported but never blocks unrelated work. Generated sources are identified structurally and checked only for formatting and generator-owned invariants.",
       "output": "Structured diagnostics carry rule id, enforcement tier, Google source section, file, line, symbol, candidate/base state, rationale and whether a deterministic fix exists.",
       "dependency_policy": "Use the Go toolchain and existing common owners first. Do not add a kitchen-sink linter or parallel parser merely to obtain a rule that can be expressed through go/ast, go/types, go list, gofmt or go vet."
+    },
+    "automation_contract": {
+      "rule_lifecycle": {
+        "states": ["declared", "observed", "authoritative", "enforceable"],
+        "transition_authority": "A rule or independently testable subcheck advances only through a gated code revision carrying source-section identity, positive and negative regression cases, selected/skipped evidence and candidate-history dispositions. Merely having a syntax detector means observed, never enforceable.",
+        "gate_rule": "Only enforceable hard subchecks may fail a candidate. Observed and authoritative-but-not-promoted subchecks emit rule-local advisories; judgment-heavy rules never promote without a deterministic predicate replacing the judgment.",
+        "history": "RepoDB records useful, false-positive, exempted and unresolved dispositions by rule and detector revision. Promotion is individual, reversible and cannot be inferred from an aggregate style score."
+      },
+      "source_freshness": {
+        "offline_authority": "A reviewed local manifest maps every rule to document, section identity, rationale and detector revision. The commit gate validates this manifest and never browses.",
+        "network_advisory": "A periodic non-blocking check reports upstream document or section changes for owner review. Upstream change cannot silently alter local semantics, and a missing or stale section identity is failable before rule promotion."
+      },
+      "build_context": {
+        "owner": "internal/repoanalysis derives build membership once from go list, go:build, legacy +build and filename constraints; analyzers do not independently reimplement build selection.",
+        "rule": "Cross-file diagnostics compare only files that can coexist in a declared target context. Generated and excluded files retain explicit selected/skipped reasons. Host coverage is mandatory; other changed platform cones are selected from derived context facts."
+      },
+      "analysis_efficiency": {
+        "reuse": "Candidate and HEAD share content-addressed per-file facts keyed by repository path, content identity, detector revision and build context. Unchanged files are never reparsed or rescanned; only cross-file aggregates are recomputed.",
+        "walks": "Each analyzer performs one deliberate syntax/type fact pass per changed file. Common parsing, position, identity and build facts belong to repoanalysis; rule-specific facts remain private to gostyle until another real consumer exists.",
+        "report_shape": "Rule metadata is stored once. Diagnostics carry only rule-local location, symbol, state and message; base/candidate snapshot evidence is nested rather than represented by parallel fields.",
+        "telemetry": "Gate evidence records files reused and rescanned, syntax and type passes, cache hits, diagnostic and encoded byte counts, analysis wall time, peak memory when available, exports added and production consumers. These are rule-local accountability signals, never a composite score or fixed ratchet."
+      },
+      "surface_policy": "Existing codeprofile clone, function and export facts remain the structural owner. A new export without a production consumer is an advisory requiring ownership rationale; no fixed surface ceiling may substitute for deletion-led review."
     },
     "hard_candidate_delta_rules": [
       "gofmt for changed and generated Go; go vet ./... for any Go ownership change",
@@ -162,13 +185,14 @@
         },
         {
           "id": "go-readability-gate",
-          "title": "Add a candidate-delta Go readability phase to cmd/gate: fail newly introduced low-noise Google-style violations, emit structured advisory findings for semantic guidance, and record selected/skipped reasons with rule identities",
+          "title": "Harden the Go policy baseline and add an observe-first candidate-delta readability phase to cmd/gate: promote only authoritative low-noise subchecks, retain semantic guidance as structured advisories, and record rule-local coverage, cost and disposition evidence",
           "status": "new",
           "verify": "go test ./internal/gostyle ./cmd/gate -run '^TestGoReadabilityCandidateDelta$' -count=1 -v",
           "verifier_status": "declared",
           "depends_on": ["go-hygiene-policy-baseline"],
           "priority": "bootstrap second",
-          "rationale": "This converts readability review that is safe to automate into deterministic code. Existing debt does not block unrelated commits; changed declarations cannot add new hard-rule debt; advisory findings retain judgment and evidence rather than becoming a score.",
+          "rationale": "This converts only readability review proven safe to automate into deterministic code. The implementation first separates detector availability from enforcement readiness, honors build contexts, validates local source-section authority, reuses unchanged facts and measures its own cost. Existing debt does not block unrelated commits; changed declarations cannot add new enforceable hard-rule debt; heuristic and semantic findings retain judgment and evidence rather than becoming a score.",
+          "acceptance": "The named verifier covers aliased and shadowed imports, declaration identity, mutually exclusive build-tag and filename-constrained variants, generated sources, receiver object identity, MixedCaps declaration scope, valid source-section mappings and line-only movement. Gate evidence names every selected/skipped subcheck and maturity state; only enforceable subchecks fail. Candidate-versus-HEAD analysis reuses unchanged content facts, performs one rule-fact pass per changed file, stores rule metadata once and reports analysis-cost telemetry without a composite score. The first landed gate revision may leave every new detector observe-only; promotion occurs subcheck-by-subcheck from recorded evidence.",
           "bootstrap": "The owner manually inserts the two Go-hygiene rows into docs/plan.json. Once this row lands, every remaining non-landed Go row must reach it through depends_on and every Go commit runs the gate phase automatically."
         },
         {

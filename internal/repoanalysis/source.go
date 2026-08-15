@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"go/ast"
+	"go/build/constraint"
 	"go/parser"
 	"go/token"
 	"os"
@@ -39,6 +40,38 @@ func (f GoFile) Syntax() (*ast.File, error) {
 func (f GoFile) Generated() (bool, error) {
 	syntax, err := f.Syntax()
 	return err == nil && (hasPathPart(f.Path, "generated") || ast.IsGenerated(syntax)), err
+}
+
+// BuildExpression returns the normalized leading source constraint. Filename
+// and toolchain context selection are owned by HostBuildSelection.
+func (f GoFile) BuildExpression() (string, error) {
+	syntax, err := f.Syntax()
+	if err != nil {
+		return "", err
+	}
+	var legacy []string
+	for _, group := range syntax.Comments {
+		if group.End() > syntax.Package {
+			break
+		}
+		for _, comment := range group.List {
+			switch {
+			case constraint.IsGoBuild(comment.Text):
+				expression, err := constraint.Parse(comment.Text)
+				if err != nil {
+					return "", err
+				}
+				return expression.String(), nil
+			case constraint.IsPlusBuild(comment.Text):
+				expression, err := constraint.Parse(comment.Text)
+				if err != nil {
+					return "", err
+				}
+				legacy = append(legacy, "("+expression.String()+")")
+			}
+		}
+	}
+	return strings.Join(legacy, " && "), nil
 }
 
 // Line resolves a syntax position without exposing or recreating the parser's

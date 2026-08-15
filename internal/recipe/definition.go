@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 type legacyDefinitionBody struct {
@@ -171,7 +172,7 @@ func canonicalize(d *Definition) error {
 		return errors.New("recipe: definition requires nodes and outputs")
 	}
 	for _, node := range d.Nodes {
-		if !validName(string(node.ID)) || !validName(string(node.Module)) {
+		if !textcheck.LowerIdentifier(string(node.ID), maxName) || !textcheck.LowerIdentifier(string(node.Module), maxName) {
 			return errors.New("recipe: invalid node or module identity")
 		}
 		if err := validatePlacement(node.Placement); err != nil {
@@ -179,7 +180,7 @@ func canonicalize(d *Definition) error {
 		}
 	}
 	for _, input := range d.Inputs {
-		if !validName(string(input.Name)) || !validEndpoint(input.Target) {
+		if !textcheck.LowerIdentifier(string(input.Name), maxName) || !validEndpoint(input.Target) {
 			return errors.New("recipe: invalid graph input")
 		}
 		if err := validateDataKind(input.Data); err != nil {
@@ -187,7 +188,7 @@ func canonicalize(d *Definition) error {
 		}
 	}
 	for _, output := range d.Outputs {
-		if !validName(string(output.Name)) || !validEndpoint(output.Source) {
+		if !textcheck.LowerIdentifier(string(output.Name), maxName) || !validEndpoint(output.Source) {
 			return errors.New("recipe: invalid graph output")
 		}
 		if err := validateDataKind(output.Data); err != nil {
@@ -230,7 +231,7 @@ func definitionContent(d Definition) ([]byte, error) {
 }
 
 func validEndpoint(endpoint Endpoint) bool {
-	return validName(string(endpoint.Node)) && validName(string(endpoint.Port))
+	return textcheck.LowerIdentifier(string(endpoint.Node), maxName) && textcheck.LowerIdentifier(string(endpoint.Port), maxName)
 }
 
 func edgeKey(edge Edge) string {

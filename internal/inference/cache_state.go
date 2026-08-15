@@ -11,6 +11,7 @@ import (
 	"overgo/internal/statecodec"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -696,7 +697,7 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 			if decoder.Err() != nil || name == "" {
 				return nil, fmt.Errorf("inference: KV cache layer %d state name is invalid", index)
 			}
-			if !validCacheStateName(name) {
+			if !textcheck.LowerIdentifier(name, maxCacheStateName) {
 				return nil, fmt.Errorf("inference: KV cache layer %d state name %q is invalid", index, name)
 			}
 			if _, duplicate := seen[name]; duplicate {
@@ -749,7 +750,7 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 }
 
 func validateLayerState(name model.CacheStateName, state LayerState, tokens uint32) error {
-	if !validCacheStateName(string(name)) || name == "key" || name == "value" {
+	if !textcheck.LowerIdentifier(string(name), maxCacheStateName) || name == "key" || name == "value" {
 		return errors.New("invalid name")
 	}
 	if !state.Mode.Valid() {
@@ -763,22 +764,6 @@ func validateLayerState(name model.CacheStateName, state LayerState, tokens uint
 		return fmt.Errorf("token-aligned shape %v does not contain %d tokens", state.Value.Shape.Slice(), tokens)
 	}
 	return nil
-}
-
-func validCacheStateName(name string) bool {
-	if len(name) == 0 || len(name) > maxCacheStateName {
-		return false
-	}
-	for index := range len(name) {
-		character := name[index]
-		if (character >= 'a' && character <= 'z') ||
-			(character >= '0' && character <= '9') ||
-			character == '_' || character == '-' || character == '.' {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 func validateStateValue(value reference.Value) error {

@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -141,7 +142,7 @@ func canonicalizeGateResult(result *GateResult) error {
 			return errors.New("run record: successful gate has failure code")
 		}
 	case OutcomeFailed:
-		if !validLabel(result.Failure) {
+		if !textcheck.LowerIdentifier(result.Failure, maxLabelBytes) {
 			return errors.New("run record: failed gate lacks failure code")
 		}
 	case OutcomeCancelled:
@@ -155,7 +156,7 @@ func canonicalizeGateResult(result *GateResult) error {
 	terminalMatch := false
 	for _, step := range result.Steps {
 		_, duplicate := seen[step.Name]
-		if !validLabel(step.Name) || !validPhase(step.Phase) ||
+		if !textcheck.LowerIdentifier(step.Name, maxLabelBytes) || !validPhase(step.Phase) ||
 			step.DurationNS > math.MaxInt64 || step.Outcome != StepSkipped && step.DurationNS == 0 ||
 			duplicate {
 			return errors.New("run record: invalid gate step")

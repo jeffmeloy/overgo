@@ -36,13 +36,13 @@ func TestASTProfileReviewFocus(t *testing.T) {
 			{Nodes: 12, Functions: []string{"internal/p/p.go:changed", "internal/q/q.go:peer"}},
 		},
 	}
-	want := "code review focus: largest_changed_function=internal/p/p.go:changed nodes=20 branches=3; " +
-		"largest_changed_clone=nodes=12 functions=internal/p/p.go:changed,internal/q/q.go:peer"
+	want := "code review focus: largest_function_in_changed_file=internal/p/p.go:changed nodes=20 branches=3; " +
+		"largest_clone_touching_changed_file=nodes=12 functions=internal/p/p.go:changed,internal/q/q.go:peer"
 	if got := profileReviewFocus(profile, []string{"internal/p/p.go"}); got != want {
 		t.Fatalf("review focus = %q, want %q", got, want)
 	}
-	if got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); !strings.HasSuffix(got, "largest_changed_clone=none") ||
-		!strings.Contains(got, "largest_changed_function=none") {
+	if got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); !strings.HasSuffix(got, "largest_clone_touching_changed_file=none") ||
+		!strings.Contains(got, "largest_function_in_changed_file=none") {
 		t.Fatalf("empty review focus = %q", got)
 	}
 }

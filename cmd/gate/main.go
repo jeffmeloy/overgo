@@ -325,22 +325,15 @@ func profileReviewFocus(profile codeprofile.Profile, changed []string) string {
 	}
 	cloneText := "none"
 	for _, clone := range profile.Clones {
-		if cloneTouchesPaths(clone, paths) {
+		if slices.ContainsFunc(clone.Functions, func(function string) bool {
+			path, _, ok := strings.Cut(function, ":")
+			return ok && paths[path]
+		}) {
 			cloneText = fmt.Sprintf("nodes=%d functions=%s", clone.Nodes, strings.Join(clone.Functions, ","))
 			break
 		}
 	}
-	return "code review focus: largest_changed_function=" + functionText + "; largest_changed_clone=" + cloneText
-}
-
-func cloneTouchesPaths(clone codeprofile.Clone, paths map[string]bool) bool {
-	for _, function := range clone.Functions {
-		path, _, ok := strings.Cut(function, ":")
-		if ok && paths[path] {
-			return true
-		}
-	}
-	return false
+	return "code review focus: largest_function_in_changed_file=" + functionText + "; largest_clone_touching_changed_file=" + cloneText
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,

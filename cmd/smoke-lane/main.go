@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/repodb"
@@ -26,10 +27,7 @@ import (
 const smokePrompt = "The capital of France is"
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "smoke-lane: %v\n", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("smoke-lane", run)
 }
 
 func run() error {

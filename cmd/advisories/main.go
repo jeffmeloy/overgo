@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/finding"
 	"overgo/internal/repodb"
@@ -31,10 +32,7 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "advisories: %v\n", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("advisories", run)
 }
 
 func run() error {

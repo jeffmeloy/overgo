@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"overgo/internal/clioptions"
 )
 
 // deviceArch is the pinned primary device class (compute capability 8.9, per
@@ -44,10 +46,7 @@ var runtimePins = map[string]string{
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "build-kernels: %v\n", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("build-kernels", run)
 }
 
 func run() error {

@@ -17,6 +17,16 @@ func Main(run func() error) {
 	}
 }
 
+// MainNamed preserves the command prefix while sharing exit mechanics.
+func MainNamed(name string, run func() error) {
+	Main(func() error {
+		if err := run(); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		return nil
+	})
+}
+
 // WriteJSON: one JSON document.
 func WriteJSON(writer io.Writer, value any) error {
 	return json.NewEncoder(writer).Encode(value)

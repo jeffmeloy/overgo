@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
 	"overgo/internal/codeprofile"
@@ -67,10 +68,7 @@ type gateContext struct {
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "gate: %v\n", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("gate", run)
 }
 
 func run() error {

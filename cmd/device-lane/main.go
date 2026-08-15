@@ -14,15 +14,14 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"overgo/internal/clioptions"
 )
 
 const cudaTestEnv = "OVERGO_CUDA_TEST"
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "device-lane: %v\n", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("device-lane", run)
 }
 
 func run() error {

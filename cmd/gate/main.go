@@ -80,6 +80,7 @@ func run() error {
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
 	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the plan's current open step (see `go run ./cmd/plan -next`). Required unless -merge. Off-plan commits are refused.")
 	reconcile := flag.Bool("reconcile", false, "finalize the deterministic RepoDB batch in bin/gate_debt.json")
+	recordFailure := flag.Bool("record-failure", false, "recover an unbatchable post-commit record as a typed failed finalization")
 	admitReview := flag.String("admit-review", "", "read-only: admit a RepoDB review-verdict ID against the current HEAD")
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
 	staleAfter := flag.Duration("stale-after", 30*time.Second, "heartbeat age classified stale by -watchdog")
@@ -96,6 +97,13 @@ func run() error {
 		preparation, err := reconcileGateDebt(repo, cleanStore)
 		if err == nil {
 			fmt.Printf("gate: reconciled RepoDB record debt for %s\n", preparation)
+		}
+		return err
+	}
+	if *recordFailure {
+		preparation, err := recordUnbatchableFailure(repo, cleanStore)
+		if err == nil {
+			fmt.Printf("gate: recorded failed finalization for %s\n", preparation)
 		}
 		return err
 	}
@@ -273,9 +281,13 @@ func (g *gateContext) pipeline() error {
 		} else {
 			skipped, err = s.fn()
 		}
+		duration := uint64(time.Since(began).Nanoseconds())
+		if duration == 0 && !skipped {
+			duration = 1
+		}
 		record := runrecord.GateStep{
 			Name: s.name, Phase: s.phase, Outcome: runrecord.StepSucceeded,
-			DurationNS: uint64(time.Since(began).Nanoseconds()), Evidence: g.stepEvidence[s.name],
+			DurationNS: duration, Evidence: g.stepEvidence[s.name],
 		}
 		switch {
 		case err != nil:
@@ -954,6 +966,20 @@ func (g *gateContext) pathsTouchDeviceSource() bool {
 }
 
 func (g *gateContext) stepCommit() (bool, error) {
+	// Validate the immutable result shape before Git advances. A schema error
+	// discovered after commit cannot be represented by the normal debt batch.
+	recipeID, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
+	if err != nil {
+		return false, err
+	}
+	steps := append(slices.Clone(g.steps), runrecord.GateStep{
+		Name: "commit", Phase: runrecord.PhasePackage, Outcome: runrecord.StepSucceeded, DurationNS: 1,
+	})
+	if _, err := runrecord.NewGateRecord(
+		recipeID, g.environment.ID, strings.Repeat("0", 40), runrecord.OutcomeSucceeded, "", 1, steps,
+	); err != nil {
+		return false, fmt.Errorf("pre-commit record validation: %w", err)
+	}
 	// Add only paths with UNSTAGED changes: git refuses an add pathspec for a
 	// file that is gone with its deletion already fully staged (observed on
 	// the .ps1 retirement commit, under both plain and -A forms). Fully
@@ -1114,6 +1140,71 @@ func reconcileGateDebt(repo, storePath string) (artifact.ID, error) {
 		return artifact.ID{}, err
 	}
 	return debt.Preparation, nil
+}
+
+func recordUnbatchableFailure(repo, storePath string) (artifact.ID, error) {
+	var heartbeat runrecord.GateHeartbeat
+	if err := readJSON(repo, gateHeartbeatFile, &heartbeat); err != nil {
+		return artifact.ID{}, err
+	}
+	if err := heartbeat.Validate(); err != nil || heartbeat.State != runrecord.HeartbeatRecordDebt {
+		return artifact.ID{}, errors.New("gate: no valid record-debt heartbeat to finalize")
+	}
+	store, err := repodb.Open(filepath.Join(repo, storePath))
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	defer store.Close()
+	content, ok, err := store.Content(context.Background(), heartbeat.Preparation)
+	if err != nil {
+		return artifact.ID{}, fmt.Errorf("gate: prepared lifecycle unavailable: %w", err)
+	}
+	if !ok {
+		return artifact.ID{}, errors.New("gate: prepared lifecycle unavailable")
+	}
+	preparation, err := runrecord.ParseGateLifecycle(content.Data)
+	if err != nil || preparation.State != runrecord.GatePrepared || preparation.Environment != heartbeat.Environment {
+		return artifact.ID{}, errors.New("gate: record-debt heartbeat contradicts its preparation")
+	}
+	codeCommit, err := command(repo, "git", "rev-parse", "HEAD")
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	codeCommit = strings.TrimSpace(codeCommit)
+	recipeID, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	record, err := runrecord.NewGateRecord(
+		recipeID, preparation.Environment, codeCommit, runrecord.OutcomeFailed, "record", 1,
+		[]runrecord.GateStep{{Name: "record", Phase: runrecord.PhaseValidate, Outcome: runrecord.StepFailed, DurationNS: 1}},
+	)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	batch, err := record.Batch("gate/final/" + preparation.ID.String())
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	finalized, err := runrecord.NewGateFinalization(preparation, codeCommit, record.Result.ID, runrecord.OutcomeFailed)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	finalizedContent, err := finalized.Content()
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
+	batch.Contents = append(batch.Contents, finalizedContent)
+	batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		return artifact.ID{}, err
+	}
+	heartbeat.State, heartbeat.PID, heartbeat.Updated = runrecord.HeartbeatFinalized, os.Getpid(), time.Now().UTC()
+	if err := writeJSON(repo, gateHeartbeatFile, heartbeat, 0o644); err != nil {
+		return artifact.ID{}, err
+	}
+	return preparation.ID, nil
 }
 
 func validateGateDebt(debt gateDebtEnvelope) error {

@@ -16,21 +16,7 @@ const NullToken TokenID = -1
 // TokenID: compatible with llama_token
 type TokenID int32
 
-const (
-	legacyDefaultSpecialTokenID TokenID = 11
-	llamaBOSTokenID             TokenID = 1
-	llamaEOSTokenID             TokenID = 2
-	llamaUNKTokenID             TokenID = 0
-	t5EOSTokenID                TokenID = 1
-	t5UNKTokenID                TokenID = 2
-	bertBOSTokenID              TokenID = 101
-	bertUNKTokenID              TokenID = 100
-	bertSEPTokenID              TokenID = 102
-	bertPADTokenID              TokenID = 0
-	bertMaskTokenID             TokenID = 103
-)
-
-// TokenType: legacy tokenizer.ggml.token_type value
+// TokenType: tokenizer.ggml.token_type value.
 type TokenType int32
 
 const (
@@ -86,12 +72,12 @@ type Vocab struct {
 	Lowercase    bool
 	StripAccents bool
 
-	tokenToID     map[string]TokenID
-	mergeRank     map[pair]int
-	special       []TokenID
-	ugmMaxLen     int
-	maxTokenLen   int
-	fimConfigured bool
+	tokenToID   map[string]TokenID
+	mergeRank   map[pair]int
+	special     []TokenID
+	ugmMaxLen   int
+	maxTokenLen int
+	fimDeclared bool
 }
 
 // Load: reads and validates supported vocabulary profile
@@ -111,12 +97,15 @@ func Load(file *gguf.File) (*Vocab, error) {
 	if model != "gpt2" && model != "gemma4" && model != "llama" && model != "t5" && model != "bert" {
 		return nil, fmt.Errorf("tokenizer: model %q is unsupported; need bert, gemma4, gpt2, llama, or t5", model)
 	}
-	pre, err := optionalScalar[string](values, "tokenizer.ggml.pre", gguf.ValueTypeString, "")
-	if err != nil {
-		return nil, err
-	}
-	if model == "gpt2" && !supportedPreTokenizer(pre) {
-		return nil, fmt.Errorf("tokenizer: GPT-2 pre-tokenizer %q is unsupported", pre)
+	pre := ""
+	if model == "gpt2" {
+		pre, err = requiredScalar[string](values, "tokenizer.ggml.pre", gguf.ValueTypeString)
+		if err != nil {
+			return nil, err
+		}
+		if !supportedPreTokenizer(pre) {
+			return nil, fmt.Errorf("tokenizer: GPT-2 pre-tokenizer %q is unsupported", pre)
+		}
 	}
 	if model == "gemma4" {
 		pre = "gemma4"
@@ -148,51 +137,26 @@ func Load(file *gguf.File) (*Vocab, error) {
 	}
 
 	vocab := &Vocab{
-		Model:         model,
-		Pre:           pre,
-		Tokens:        make([]Token, len(tokenTexts)),
-		BOS:           legacyDefaultSpecialTokenID,
-		EOS:           legacyDefaultSpecialTokenID,
-		EOT:           NullToken,
-		EOM:           NullToken,
-		UNK:           NullToken,
-		SEP:           NullToken,
-		PAD:           NullToken,
-		Mask:          NullToken,
-		FIMPre:        NullToken,
-		FIMSuf:        NullToken,
-		FIMMid:        NullToken,
-		FIMPad:        NullToken,
-		FIMRep:        NullToken,
-		FIMSep:        NullToken,
-		fimConfigured: true,
-		tokenToID:     make(map[string]TokenID, len(tokenTexts)),
+		Model:     model,
+		Pre:       pre,
+		Tokens:    make([]Token, len(tokenTexts)),
+		BOS:       NullToken,
+		EOS:       NullToken,
+		EOT:       NullToken,
+		EOM:       NullToken,
+		UNK:       NullToken,
+		SEP:       NullToken,
+		PAD:       NullToken,
+		Mask:      NullToken,
+		FIMPre:    NullToken,
+		FIMSuf:    NullToken,
+		FIMMid:    NullToken,
+		FIMPad:    NullToken,
+		FIMRep:    NullToken,
+		FIMSep:    NullToken,
+		tokenToID: make(map[string]TokenID, len(tokenTexts)),
 	}
-	if model == "gemma4" {
-		vocab.BOS = NullToken
-		vocab.EOS = NullToken
-		vocab.AddBOS = true
-	} else if model == "llama" {
-		vocab.BOS = llamaBOSTokenID
-		vocab.EOS = llamaEOSTokenID
-		vocab.UNK = llamaUNKTokenID
-		vocab.AddBOS = true
-		vocab.AddPrefix = true
-	} else if model == "t5" {
-		vocab.BOS = NullToken
-		vocab.EOS = t5EOSTokenID
-		vocab.UNK = t5UNKTokenID
-		vocab.AddPrefix = true
-	} else if model == "bert" {
-		vocab.BOS = bertBOSTokenID
-		vocab.EOS = NullToken
-		vocab.UNK = bertUNKTokenID
-		vocab.SEP = bertSEPTokenID
-		vocab.PAD = bertPADTokenID
-		vocab.Mask = bertMaskTokenID
-		vocab.AddBOS = true
-		vocab.AddSEP = true
-	} else if policy := preTokenizers[pre]; policy.ignoreMerges {
+	if policy := preTokenizers[pre]; model == "gpt2" && policy.ignoreMerges {
 		vocab.AddBOS = policy.addBOS
 		vocab.IgnoreMerges = true
 	}
@@ -279,11 +243,6 @@ func Load(file *gguf.File) (*Vocab, error) {
 		{"tokenizer.ggml.fim_pad_token_id", &vocab.FIMPad},
 		{"tokenizer.ggml.fim_rep_token_id", &vocab.FIMRep},
 		{"tokenizer.ggml.fim_sep_token_id", &vocab.FIMSep},
-		// Deprecated aliases are read after current keys, matching
-		// pinned vocabulary loader's precedence
-		{"tokenizer.ggml.prefix_token_id", &vocab.FIMPre},
-		{"tokenizer.ggml.suffix_token_id", &vocab.FIMSuf},
-		{"tokenizer.ggml.middle_token_id", &vocab.FIMMid},
 	}
 	for _, item := range specialKeys {
 		id, found, readErr := optionalTokenID(values, item.key)
@@ -297,29 +256,26 @@ func Load(file *gguf.File) (*Vocab, error) {
 			*item.destination = id
 		}
 	}
+	vocab.fimDeclared = vocab.FIMPad != NullToken || vocab.FIMRep != NullToken || vocab.FIMSep != NullToken
 	if vocab.BOS >= TokenID(len(vocab.Tokens)) {
 		vocab.BOS = NullToken
 	}
 	if vocab.EOS >= TokenID(len(vocab.Tokens)) {
 		vocab.EOS = NullToken
 	}
-	vocab.detectFIMTokens()
 	if vocab.AddBOS, err = optionalScalar[bool](
 		values,
 		"tokenizer.ggml.add_bos_token",
 		gguf.ValueTypeBool,
-		vocab.AddBOS,
+		false,
 	); err != nil {
 		return nil, err
-	}
-	if model == "gemma4" {
-		vocab.AddBOS = true
 	}
 	if vocab.AddEOS, err = optionalScalar[bool](
 		values,
 		"tokenizer.ggml.add_eos_token",
 		gguf.ValueTypeBool,
-		vocab.AddEOS,
+		false,
 	); err != nil {
 		return nil, err
 	}
@@ -327,7 +283,7 @@ func Load(file *gguf.File) (*Vocab, error) {
 		values,
 		"tokenizer.ggml.add_sep_token",
 		gguf.ValueTypeBool,
-		vocab.AddSEP,
+		false,
 	); err != nil {
 		return nil, err
 	}
@@ -335,7 +291,7 @@ func Load(file *gguf.File) (*Vocab, error) {
 		values,
 		"tokenizer.ggml.add_space_prefix",
 		gguf.ValueTypeBool,
-		vocab.AddPrefix,
+		false,
 	); err != nil {
 		return nil, err
 	}
@@ -348,12 +304,11 @@ func Load(file *gguf.File) (*Vocab, error) {
 	if vocab.AddSEP && vocab.SEP == NullToken {
 		return nil, errors.New("tokenizer: add_sep_token is true but separator token is unavailable")
 	}
-	defaultLowercase := model == "bert"
 	if vocab.Lowercase, err = optionalScalar[bool](
 		values,
 		"tokenizer.ggml.normalizer.lowercase",
 		gguf.ValueTypeBool,
-		defaultLowercase,
+		false,
 	); err != nil {
 		return nil, err
 	}
@@ -361,7 +316,7 @@ func Load(file *gguf.File) (*Vocab, error) {
 		values,
 		"tokenizer.ggml.normalizer.strip_accents",
 		gguf.ValueTypeBool,
-		vocab.Lowercase,
+		false,
 	); err != nil {
 		return nil, err
 	}
@@ -375,7 +330,6 @@ type preTokenizerPolicy struct {
 }
 
 var preTokenizers = map[string]preTokenizerPolicy{
-	"":                 {split: preTokenizeGPT2},
 	"default":          {split: preTokenizeGPT2},
 	"gpt-2":            {split: preTokenizeGPT2},
 	"phi-2":            {split: preTokenizeGPT2},
@@ -404,11 +358,7 @@ func supportedPreTokenizer(pre string) bool {
 }
 
 func preTokenizeFor(pre, text string) []string {
-	policy, ok := preTokenizers[pre]
-	if !ok {
-		policy = preTokenizers[""]
-	}
-	return policy.split(text)
+	return preTokenizers[pre].split(text)
 }
 
 func (v *Vocab) Len() int {
@@ -425,89 +375,17 @@ func (v *Vocab) Token(id TokenID) (Token, bool) {
 	return v.Tokens[id], true
 }
 
-// IsEOG: reports explicit GGUF terminal IDs and common terminal control
-// tokens that llama.cpp promotes to end-of-generation markers
+// IsEOG reports declared terminal IDs.
 func (v *Vocab) IsEOG(id TokenID) bool {
 	if v == nil || id < 0 || int(id) >= len(v.Tokens) {
 		return false
 	}
-	if id == v.EOS || id == v.EOT || id == v.EOM {
-		return true
-	}
-	if v.fimConfigured &&
-		(id == v.FIMPad || id == v.FIMRep || id == v.FIMSep) {
-		return true
-	}
-	switch v.Tokens[id].Text {
-	case "<eos>", "</s>", "<|end_of_text|>", "<|eot_id|>", "<end_of_turn>",
-		"<turn|>", "<|tool_response>",
-		"<|fim_pad|>", "<fim-pad>", "<fim_pad>", "<PAD>", "[PAD]",
-		"<|fim_repo|>", "<|repo_name|>", "<fim-repo>", "<REPO>", "<reponame>",
-		"<|file_sep|>":
-		return true
-	default:
-		return false
-	}
-}
-
-func (v *Vocab) detectFIMTokens() {
-	if v == nil {
-		return
-	}
-	promoted := false
-	detect := func(destination *TokenID, names ...string) {
-		if *destination != NullToken {
-			return
-		}
-		for _, name := range names {
-			if id, ok := v.tokenToID[name]; ok {
-				*destination = id
-				if v.Tokens[id].Type != TokenControl {
-					v.Tokens[id].Type = TokenControl
-					promoted = true
-				}
-				return
-			}
+	for _, terminal := range [...]TokenID{v.EOS, v.EOT, v.EOM} {
+		if terminal != NullToken && id == terminal {
+			return true
 		}
 	}
-	detect(
-		&v.FIMPre,
-		"<|fim_prefix|>", "<fim-prefix>", "<fim_prefix>",
-		"<｜fim▁begin｜>", "<PRE>", "▁<PRE>", "<|code_prefix|>", "<|prefix|>",
-	)
-	detect(
-		&v.FIMSuf,
-		"<|fim_suffix|>", "<fim-suffix>", "<fim_suffix>",
-		"<｜fim▁hole｜>", "<SUF>", "▁<SUF>", "<|code_suffix|>", "<|suffix|>",
-	)
-	detect(
-		&v.FIMMid,
-		"<|fim_middle|>", "<fim-middle>", "<fim_middle>",
-		"<｜fim▁end｜>", "<MID>", "▁<MID>", "<|code_middle|>", "<|middle|>",
-	)
-	detect(
-		&v.FIMPad,
-		"<|fim_pad|>", "<fim-pad>", "<fim_pad>", "<PAD>", "[PAD]",
-	)
-	detect(
-		&v.FIMRep,
-		"<|fim_repo|>", "<|repo_name|>", "<fim-repo>", "<REPO>", "<reponame>",
-	)
-	detect(&v.FIMSep, "<|file_sep|>")
-	if promoted {
-		v.special = v.special[:0]
-		for id, token := range v.Tokens {
-			if token.Type == TokenControl ||
-				token.Type == TokenUnknown ||
-				token.Type == TokenUserDefined {
-				v.special = append(v.special, TokenID(id))
-			}
-		}
-		sort.SliceStable(v.special, func(i, j int) bool {
-			return len(v.Tokens[v.special[i]].Text) >
-				len(v.Tokens[v.special[j]].Text)
-		})
-	}
+	return v.fimDeclared && (id == v.FIMPad || id == v.FIMRep || id == v.FIMSep)
 }
 
 func (v *Vocab) EOGTokens() []TokenID {

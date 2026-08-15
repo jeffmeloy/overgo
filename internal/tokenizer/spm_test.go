@@ -25,6 +25,11 @@ func TestLlamaSPMEncodeDecode(t *testing.T) {
 	types[2] = int32(TokenControl)
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		scalar("tokenizer.ggml.model", gguf.ValueTypeString, "llama"),
+		scalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(1)),
+		scalar("tokenizer.ggml.eos_token_id", gguf.ValueTypeUint32, uint32(2)),
+		scalar("tokenizer.ggml.unknown_token_id", gguf.ValueTypeUint32, uint32(0)),
+		scalar("tokenizer.ggml.add_bos_token", gguf.ValueTypeBool, true),
+		scalar("tokenizer.ggml.add_space_prefix", gguf.ValueTypeBool, true),
 		array("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
 		array("tokenizer.ggml.scores", gguf.ValueTypeFloat32, scores),
 		array("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
@@ -68,6 +73,7 @@ func TestLlamaSPMByteFallback(t *testing.T) {
 	}
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		scalar("tokenizer.ggml.model", gguf.ValueTypeString, "llama"),
+		scalar("tokenizer.ggml.unknown_token_id", gguf.ValueTypeUint32, uint32(0)),
 		scalar("tokenizer.ggml.add_space_prefix", gguf.ValueTypeBool, false),
 		array("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
 		array("tokenizer.ggml.scores", gguf.ValueTypeFloat32, make([]float32, len(tokens))),

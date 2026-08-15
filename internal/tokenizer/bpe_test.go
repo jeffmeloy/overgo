@@ -22,12 +22,15 @@ func TestByteCodecRoundTrip(t *testing.T) {
 	}
 }
 
-func TestEndOfGenerationRecognizesPromotedTokenText(t *testing.T) {
+func TestEndOfGenerationUsesDeclaredTokenIDs(t *testing.T) {
 	vocab := &Vocab{
 		Tokens: []Token{{Text: "ordinary"}, {Text: "<eos>"}, {Text: "<end_of_turn>"}},
-		EOS:    NullToken,
-		EOT:    NullToken,
+		EOS:    1,
+		EOT:    2,
 		EOM:    NullToken,
+		FIMPad: NullToken,
+		FIMRep: NullToken,
+		FIMSep: NullToken,
 	}
 	if vocab.IsEOG(0) || !vocab.IsEOG(1) || !vocab.IsEOG(2) {
 		t.Fatalf("unexpected EOG classification: %v", vocab.EOGTokens())
@@ -180,7 +183,8 @@ func TestGemma4RawBPEAndNewlines(t *testing.T) {
 			"\u2581 h", "\u2581h i",
 		}),
 		scalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(0)),
-		scalar("tokenizer.ggml.add_bos_token", gguf.ValueTypeBool, false),
+		scalar("tokenizer.ggml.add_bos_token", gguf.ValueTypeBool, true),
+		scalar("tokenizer.ggml.eot_token_id", gguf.ValueTypeUint32, uint32(8)),
 	}}
 	vocab, err := Load(file)
 	if err != nil {
@@ -208,6 +212,7 @@ func TestGemma4RawBPEAndNewlines(t *testing.T) {
 func TestLoadRejectsDuplicateTokens(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		scalar("tokenizer.ggml.model", gguf.ValueTypeString, "gpt2"),
+		scalar("tokenizer.ggml.pre", gguf.ValueTypeString, "default"),
 		array("tokenizer.ggml.tokens", gguf.ValueTypeString, []string{"x", "x"}),
 		array("tokenizer.ggml.merges", gguf.ValueTypeString, []string{"x x"}),
 	}}
@@ -216,9 +221,10 @@ func TestLoadRejectsDuplicateTokens(t *testing.T) {
 	}
 }
 
-func TestLoadFIMMetadataFallbacksAndEOGPromotion(t *testing.T) {
+func TestLoadDeclaredFIMMetadata(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		scalar("tokenizer.ggml.model", gguf.ValueTypeString, "gpt2"),
+		scalar("tokenizer.ggml.pre", gguf.ValueTypeString, "default"),
 		array("tokenizer.ggml.tokens", gguf.ValueTypeString, []string{
 			"x",
 			"<|fim_prefix|>",
@@ -234,13 +240,17 @@ func TestLoadFIMMetadataFallbacksAndEOGPromotion(t *testing.T) {
 		}),
 		array("tokenizer.ggml.merges", gguf.ValueTypeString, []string{}),
 		scalar("tokenizer.ggml.fim_pre_token_id", gguf.ValueTypeUint32, uint32(1)),
-		scalar("tokenizer.ggml.prefix_token_id", gguf.ValueTypeUint32, uint32(7)),
+		scalar("tokenizer.ggml.fim_suf_token_id", gguf.ValueTypeUint32, uint32(2)),
+		scalar("tokenizer.ggml.fim_mid_token_id", gguf.ValueTypeUint32, uint32(3)),
+		scalar("tokenizer.ggml.fim_pad_token_id", gguf.ValueTypeUint32, uint32(4)),
+		scalar("tokenizer.ggml.fim_rep_token_id", gguf.ValueTypeUint32, uint32(5)),
+		scalar("tokenizer.ggml.fim_sep_token_id", gguf.ValueTypeUint32, uint32(6)),
 	}}
 	vocab, err := Load(file)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if vocab.FIMPre != 7 ||
+	if vocab.FIMPre != 1 ||
 		vocab.FIMSuf != 2 ||
 		vocab.FIMMid != 3 ||
 		vocab.FIMPad != 4 ||
@@ -258,11 +268,6 @@ func TestLoadFIMMetadataFallbacksAndEOGPromotion(t *testing.T) {
 	}
 	if !vocab.IsEOG(4) || !vocab.IsEOG(5) || !vocab.IsEOG(6) {
 		t.Fatal("FIM pad/repository/separator tokens were not promoted to EOG")
-	}
-	for _, id := range []TokenID{2, 3, 4, 5, 6} {
-		if vocab.Tokens[id].Type != TokenControl {
-			t.Fatalf("auto-detected FIM token %d was not promoted to control", id)
-		}
 	}
 }
 

@@ -167,6 +167,9 @@ func (m *Model) decodeHiddenFull(memory []float32, memRows int, tgt []int) ([]fl
 type decoderTrainingTrace struct {
 	finalCrossProjected []float32
 	finalCrossAttention []float32
+	finalCrossQ         []float32
+	finalCrossK         []float32
+	finalCrossV         []float32
 }
 
 func (m *Model) decodeHiddenFullTrace(memory []float32, memRows int, tgt []int, trace *decoderTrainingTrace) ([]float32, error) {
@@ -202,6 +205,9 @@ func (m *Model) decodeHiddenFullTrace(memory []float32, memRows int, tgt []int, 
 		hostmath.MaskedBidirectionalAttention(attn, q, cross.k[layer], cross.v[layer], rows, cross.rows, dims.Heads, dims.KVHeads, dims.HeadDim, nil)
 		if trace != nil && layer == len(m.decoderCross)-1 {
 			trace.finalCrossAttention = append(trace.finalCrossAttention[:0], attn...)
+			trace.finalCrossQ = append(trace.finalCrossQ[:0], q...)
+			trace.finalCrossK = append(trace.finalCrossK[:0], cross.k[layer]...)
+			trace.finalCrossV = append(trace.finalCrossV[:0], cross.v[layer]...)
 			trace.finalCrossProjected = make([]float32, rows*d)
 			hostmath.LinearBF16(trace.finalCrossProjected, attn, crossBlock.o, rows, dims.Heads*dims.HeadDim, d)
 			addGatedResidual(hidden, trace.finalCrossProjected, crossBlock.gate)

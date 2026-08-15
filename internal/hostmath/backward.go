@@ -292,3 +292,75 @@ func CausalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, heads, kv
 		}
 	}
 }
+
+// MaskedBidirectionalAttentionBackward is the VJP of full-span grouped-query attention.
+func MaskedBidirectionalAttentionBackward(
+	dq, dk, dv, q, k, v, dOut []float32,
+	querySeq, keySeq, heads, kvHeads, headDim int,
+	keyMask []bool,
+) {
+	if keyMask != nil && len(keyMask) != keySeq {
+		panic("hostmath: attention key mask length != keySeq")
+	}
+	clear(dq)
+	clear(dk)
+	clear(dv)
+	probs, dP := make([]float64, keySeq), make([]float64, keySeq)
+	group := heads / kvHeads
+	for h := 0; h < heads; h++ {
+		kv := h / group
+		for qi := 0; qi < querySeq; qi++ {
+			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
+			dout := dOut[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
+			dqRow := dq[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
+			mx := math.Inf(-1)
+			for ki := 0; ki < keySeq; ki++ {
+				if keyMask != nil && !keyMask[ki] {
+					probs[ki] = math.Inf(-1)
+					continue
+				}
+				kRow := k[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+				var score float64
+				for x := range headDim {
+					score += float64(qRow[x]) * float64(kRow[x])
+				}
+				probs[ki] = score
+				mx = max(mx, score)
+			}
+			var sum float64
+			for ki := range keySeq {
+				if math.IsInf(probs[ki], -1) {
+					probs[ki] = 0
+					continue
+				}
+				probs[ki] = math.Exp(probs[ki] - mx)
+				sum += probs[ki]
+			}
+			var dot float64
+			for ki := range keySeq {
+				probs[ki] /= sum
+				vRow := v[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+				dvRow := dv[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+				var valueGradient float64
+				for x := range headDim {
+					valueGradient += float64(dout[x]) * float64(vRow[x])
+					dvRow[x] += float32(probs[ki]) * dout[x]
+				}
+				dP[ki] = valueGradient
+				dot += probs[ki] * valueGradient
+			}
+			for ki := range keySeq {
+				if probs[ki] == 0 {
+					continue
+				}
+				gradient := probs[ki] * (dP[ki] - dot)
+				kRow := k[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+				dkRow := dk[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
+				for x := range headDim {
+					dqRow[x] += float32(gradient * float64(kRow[x]))
+					dkRow[x] += float32(gradient * float64(qRow[x]))
+				}
+			}
+		}
+	}
+}

@@ -46,7 +46,8 @@ type attnBlock struct {
 	inNorm       []float32 // [d], folded 1+w
 	q, k, v, o   []uint16  // BF16 [heads*hd,d], [kv*hd,d], [kv*hd,d], [d,heads*hd]
 	qNorm, kNorm []float32 // [hd], folded 1+w
-	gate         float32   // folded sigmoid(raw)
+	rawGate      float32
+	gate         float32 // folded sigmoid(raw)
 }
 
 // Model: loaded weights and derived dims.
@@ -209,7 +210,8 @@ func Load(directory string) (*Model, error) {
 			fold1p(block.inNorm)
 			fold1p(block.qNorm)
 			fold1p(block.kNorm)
-			block.gate = float32(1 / (1 + math.Exp(-float64(gateValues[0]))))
+			block.rawGate = gateValues[0]
+			block.gate = sigmoid(block.rawGate)
 		}
 		return stack, nil
 	}
@@ -224,6 +226,8 @@ func Load(directory string) (*Model, error) {
 	}
 	return m, nil
 }
+
+func sigmoid(value float32) float32 { return float32(1 / (1 + math.Exp(-float64(value)))) }
 
 // fold1p: the checkpoint stores RMSNorm scales as w with effective scale 1+w
 // (zero-centered init); fold once at load so runtime norms are plain.

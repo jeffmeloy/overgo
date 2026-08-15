@@ -16,15 +16,15 @@
       ]
     },
     {
-      "id": "needle-heldout-evaluation",
-      "title": "Measure Needle held-out loss after real-data Muon updates",
+      "id": "needle-final-cross-gradient",
+      "title": "Extend Needle gradients through the final decoder cross-attention block",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Measure Needle held-out loss after real-data Muon updates",
+          "title": "Extend Needle gradients through the final decoder cross-attention block",
           "status": "open",
-          "verify": "go test -tags modeltest ./internal/seq2seq -run '^TestNeedleRealGSM8KHeldOutEvaluation$' -count=1 -v"
+          "verify": "go test -tags modeltest ./internal/seq2seq -run '^TestNeedleRealGSM8KFinalCrossAttentionTraining$' -count=1 -v"
         }
       ]
     },

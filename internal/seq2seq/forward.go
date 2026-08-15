@@ -71,6 +71,10 @@ func (m *Model) gatedResidualOut(hidden, attn []float32, oProj []uint16, rows in
 	d := m.Dims.DModel
 	projected := make([]float32, rows*d)
 	hostmath.LinearBF16(projected, attn, oProj, rows, m.Dims.Heads*m.Dims.HeadDim, d)
+	addGatedResidual(hidden, projected, gate)
+}
+
+func addGatedResidual(hidden, projected []float32, gate float32) {
 	for i, value := range projected {
 		hidden[i] += gate * value
 	}
@@ -157,6 +161,14 @@ func (m *Model) DecodeFull(memory []float32, memRows int, tgt []int) ([]float32,
 }
 
 func (m *Model) decodeHiddenFull(memory []float32, memRows int, tgt []int) ([]float32, error) {
+	return m.decodeHiddenFullTrace(memory, memRows, tgt, nil)
+}
+
+type decoderTrainingTrace struct {
+	finalCrossProjected []float32
+}
+
+func (m *Model) decodeHiddenFullTrace(memory []float32, memRows int, tgt []int, trace *decoderTrainingTrace) ([]float32, error) {
 	if len(tgt) == 0 {
 		return nil, fmt.Errorf("seq2seq: empty target")
 	}
@@ -187,7 +199,13 @@ func (m *Model) decodeHiddenFull(memory []float32, memRows int, tgt []int) ([]fl
 		hostmath.RMSNormInto(normed, hidden, crossBlock.inNorm, rows, d, dims.RMSEps)
 		m.projectQ(q, normed, rows, crossBlock, 0, false)
 		hostmath.MaskedBidirectionalAttention(attn, q, cross.k[layer], cross.v[layer], rows, cross.rows, dims.Heads, dims.KVHeads, dims.HeadDim, nil)
-		m.gatedResidualOut(hidden, attn, crossBlock.o, rows, crossBlock.gate)
+		if trace != nil && layer == len(m.decoderCross)-1 {
+			trace.finalCrossProjected = make([]float32, rows*d)
+			hostmath.LinearBF16(trace.finalCrossProjected, attn, crossBlock.o, rows, dims.Heads*dims.HeadDim, d)
+			addGatedResidual(hidden, trace.finalCrossProjected, crossBlock.gate)
+		} else {
+			m.gatedResidualOut(hidden, attn, crossBlock.o, rows, crossBlock.gate)
+		}
 	}
 	return hidden, nil
 }

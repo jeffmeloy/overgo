@@ -240,6 +240,7 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	}{
 		{"latent", func(model artifact.ID) (recipe.Definition, error) { return LatentImageDefinition(model, profileID) }, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleLatentImagePrepare, ModuleLatentImageIntegrate, ModuleLatentImageDecode}},
 		{"oscillator", OscillatorImageDefinition, recipe.DataClassConditioning, recipe.PlacementHost, []recipe.ModuleID{ModuleOscillatorImagePrepare, ModuleOscillatorImageIntegrate, ModuleOscillatorImageDecode}},
+		{"diffusion", DiffusionImageDefinition, recipe.DataImageTensor, recipe.PlacementHost, []recipe.ModuleID{ModuleDiffusionImagePrepare, ModuleDiffusionImageIntegrate, ModuleDiffusionImageDecode}},
 		{"routed", RoutedImageDefinition, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode}},
 	}
 	for _, test := range tests {

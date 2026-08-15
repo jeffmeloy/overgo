@@ -77,6 +77,27 @@ func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 	} else {
 		compiled, err = modelrecipe.CapabilityDefinition(task, modelID)
 	}
+	return newDefinedCapability(t, store, modelID, compiled, err)
+}
+
+// NewDefinedCapability compiles one caller-supplied capability definition.
+func NewDefinedCapability(
+	t testing.TB,
+	name string,
+	define func(artifact.ID) (recipe.Definition, error),
+) Capability {
+	t.Helper()
+	store, err := repodb.Open(t.TempDir())
+	check(t, err)
+	t.Cleanup(func() { check(t, store.Close()) })
+	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
+	testutil.PublishArtifact(t, store, modelID)
+	compiled, err := define(modelID)
+	return newDefinedCapability(t, store, modelID, compiled, err)
+}
+
+func newDefinedCapability(t testing.TB, store artifact.Repository, modelID artifact.ID, compiled recipe.Definition, err error) Capability {
+	t.Helper()
 	check(t, err)
 	program, err := modelrecipe.CompileCapability(compiled)
 	check(t, err)

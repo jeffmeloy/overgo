@@ -81,6 +81,14 @@ func imageGenInventory(path string) (modelartifact.Inventory, error) {
 	return safetensorsInventory("image-gen", path, "config.json")
 }
 
+func imageProgramModule(program recipe.Program) recipe.ModuleID {
+	stages := program.Stages()
+	if len(stages) == 0 {
+		return ""
+	}
+	return stages[0].Module.ID
+}
+
 func tabularInventory(path string) (modelartifact.Inventory, error) {
 	var specs []modelartifact.FileSpec
 	for _, head := range tabularicl.Tasks() {

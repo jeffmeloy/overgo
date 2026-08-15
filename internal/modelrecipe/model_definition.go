@@ -195,12 +195,9 @@ func ResolveModelDefinition(
 	store artifact.Reader,
 	id artifact.ID,
 ) (ResolvedModelDefinition, error) {
-	document, ok, err := modelDefinitionCodec.Read(ctx, store, id)
+	document, err := modelDefinitionCodec.Require(ctx, store, id)
 	if err != nil {
 		return ResolvedModelDefinition{}, err
-	}
-	if !ok {
-		return ResolvedModelDefinition{}, errors.New("model recipe: model definition content is absent or incompatible")
 	}
 	profile, err := loadProfile(ctx, store, document.Profile)
 	if err != nil {

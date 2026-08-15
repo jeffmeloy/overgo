@@ -111,6 +111,18 @@ func (c DocumentCodec[T]) Read(ctx context.Context, reader Reader, id ID) (T, bo
 	return value, true, nil
 }
 
+// Require: validated typed read; absence is an error.
+func (c DocumentCodec[T]) Require(ctx context.Context, reader Reader, id ID) (T, error) {
+	value, ok, err := c.Read(ctx, reader, id)
+	if err != nil {
+		return value, err
+	}
+	if !ok {
+		return value, fmt.Errorf("%s: document is absent", c.Name)
+	}
+	return value, nil
+}
+
 // Normalize: external bytes to canonical value and identity bytes.
 func (c DocumentCodec[T]) Normalize(data []byte) (T, []byte, error) {
 	var decoded T

@@ -12,6 +12,12 @@ type codecFixture struct {
 	ID    ID       `json:"-"`
 }
 
+type absentDocumentReader struct{ Reader }
+
+func (absentDocumentReader) Content(context.Context, ID) (Content, bool, error) {
+	return Content{}, false, nil
+}
+
 func TestDocumentCodecOwnsCanonicalLifecycle(t *testing.T) {
 	const expectedEncodesPerOperation = 1
 	contract := DocumentContract{
@@ -64,6 +70,13 @@ func TestDocumentCodecOwnsCanonicalLifecycle(t *testing.T) {
 	loaded, ok, err := codec.Read(context.Background(), documentReader{content: content}, document.ID)
 	if err != nil || !ok || loaded.ID != document.ID || !slices.Equal(loaded.Names, document.Names) {
 		t.Fatalf("read document = %+v/%v/%v", loaded, ok, err)
+	}
+	required, err := codec.Require(context.Background(), documentReader{content: content}, document.ID)
+	if err != nil || required.ID != document.ID {
+		t.Fatalf("required document = %+v/%v", required, err)
+	}
+	if _, err := codec.Require(context.Background(), absentDocumentReader{}, document.ID); err == nil {
+		t.Fatal("absent required document accepted")
 	}
 	mutated := document
 	mutated.Names = []string{"second", "first"}

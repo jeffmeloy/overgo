@@ -13,12 +13,10 @@ import (
 	"io"
 	"math"
 	"path/filepath"
-	"sort"
-	"strconv"
-	"strings"
 
 	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensorcatalog"
 )
 
 // patchInputStreams: each patch token carries values plus their mask.
@@ -240,7 +238,7 @@ func dimsFromShapes(shapes map[string][]int, outputDim int) (Dims, error) {
 	if outputDim < 2 {
 		return d, fmt.Errorf("seriesforecast: output dimension %d must hold point and quantile columns", outputDim)
 	}
-	tokenHidden, err := shapeOf(shapes, "tokenizer.hidden_layer.weight", 2)
+	tokenHidden, err := tensorcatalog.Shape(shapes, "tokenizer.hidden_layer.weight", 2)
 	if err != nil {
 		return d, err
 	}
@@ -249,7 +247,7 @@ func dimsFromShapes(shapes map[string][]int, outputDim int) (Dims, error) {
 	}
 	d.PatchLen = tokenHidden[1] / patchInputStreams
 
-	tokenOutput, err := shapeOf(shapes, "tokenizer.output_layer.weight", 2)
+	tokenOutput, err := tensorcatalog.Shape(shapes, "tokenizer.output_layer.weight", 2)
 	if err != nil {
 		return d, err
 	}
@@ -258,20 +256,20 @@ func dimsFromShapes(shapes map[string][]int, outputDim int) (Dims, error) {
 	}
 	d.Hidden = tokenOutput[0]
 
-	d.Layers, err = layerCount(shapes)
+	d.Layers, err = tensorcatalog.IndexedCount(shapes, "stacked_xf.", ".attn.qkv_proj.weight")
 	if err != nil {
 		return d, err
 	}
 	for layer := 0; layer < d.Layers; layer++ {
 		prefix := fmt.Sprintf("stacked_xf.%d.attn.", layer)
-		qkv, err := shapeOf(shapes, prefix+"qkv_proj.weight", 2)
+		qkv, err := tensorcatalog.Shape(shapes, prefix+"qkv_proj.weight", 2)
 		if err != nil {
 			return d, err
 		}
 		if qkv[0] != qkvProjections*d.Hidden || qkv[1] != d.Hidden {
 			return d, fmt.Errorf("seriesforecast: layer %d qkv shape %v incompatible with hidden %d", layer, qkv, d.Hidden)
 		}
-		queryNorm, err := shapeOf(shapes, prefix+"query_ln.scale", 1)
+		queryNorm, err := tensorcatalog.Shape(shapes, prefix+"query_ln.scale", 1)
 		if err != nil {
 			return d, err
 		}
@@ -286,7 +284,7 @@ func dimsFromShapes(shapes map[string][]int, outputDim int) (Dims, error) {
 		}
 	}
 
-	pointOutput, err := shapeOf(shapes, "output_projection_point.output_layer.weight", 2)
+	pointOutput, err := tensorcatalog.Shape(shapes, "output_projection_point.output_layer.weight", 2)
 	if err != nil {
 		return d, err
 	}
@@ -296,41 +294,4 @@ func dimsFromShapes(shapes map[string][]int, outputDim int) (Dims, error) {
 	}
 	d.Horizon = pointOutput[0] / d.Quantiles
 	return d, nil
-}
-
-func shapeOf(shapes map[string][]int, name string, rank int) ([]int, error) {
-	shape, ok := shapes[name]
-	if !ok {
-		return nil, fmt.Errorf("seriesforecast: missing tensor %q", name)
-	}
-	if len(shape) != rank {
-		return nil, fmt.Errorf("seriesforecast: tensor %q rank %d, want %d", name, len(shape), rank)
-	}
-	return shape, nil
-}
-
-// layerCount: contiguous stacked_xf.N indices starting at zero.
-func layerCount(shapes map[string][]int) (int, error) {
-	const prefix, suffix = "stacked_xf.", ".attn.qkv_proj.weight"
-	var indices []int
-	for name := range shapes {
-		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
-			continue
-		}
-		index, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix))
-		if err != nil || index < 0 {
-			return 0, fmt.Errorf("seriesforecast: malformed layer tensor %q", name)
-		}
-		indices = append(indices, index)
-	}
-	if len(indices) == 0 {
-		return 0, fmt.Errorf("seriesforecast: no decoder layers found")
-	}
-	sort.Ints(indices)
-	for i, index := range indices {
-		if index != i {
-			return 0, fmt.Errorf("seriesforecast: decoder layer indices not contiguous from zero: %v", indices)
-		}
-	}
-	return len(indices), nil
 }

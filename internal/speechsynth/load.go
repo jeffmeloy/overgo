@@ -28,6 +28,7 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensorcatalog"
 )
 
 // Vendor-source epsilons: not config fields, not tensors — code facts of the
@@ -382,7 +383,7 @@ func deriveDims(shapes map[string][]int, config artifactConfig) (Dims, error) {
 	d.DModel = outNorm[0]
 
 	var err error
-	if d.Layers, err = layerCount(shapes, layerPrefix, ".norm1.weight"); err != nil {
+	if d.Layers, err = tensorcatalog.IndexedCount(shapes, layerPrefix, ".norm1.weight"); err != nil {
 		return d, err
 	}
 	lin1, ok := shapes[layerPrefix+"0.linear1.weight"]
@@ -413,7 +414,7 @@ func deriveDims(shapes map[string][]int, config artifactConfig) (Dims, error) {
 	}
 	d.FlowDim = inputProj[0]
 
-	if d.FlowDepth, err = layerCount(shapes, resBlockPrefix, ".in_ln.weight"); err != nil {
+	if d.FlowDepth, err = tensorcatalog.IndexedCount(shapes, resBlockPrefix, ".in_ln.weight"); err != nil {
 		return d, err
 	}
 	freqs, ok := shapes["flow_lm.flow_net.time_embed.0.freqs"]
@@ -455,19 +456,4 @@ func deriveDims(shapes map[string][]int, config artifactConfig) (Dims, error) {
 		}
 	}
 	return d, nil
-}
-
-// layerCount: contiguous prefix+N indices starting at zero.
-func layerCount(shapes map[string][]int, prefix, suffix string) (int, error) {
-	count := 0
-	for {
-		if _, ok := shapes[fmt.Sprintf("%s%d%s", prefix, count, suffix)]; !ok {
-			break
-		}
-		count++
-	}
-	if count == 0 {
-		return 0, fmt.Errorf("speechsynth: no layers under %q", prefix)
-	}
-	return count, nil
 }

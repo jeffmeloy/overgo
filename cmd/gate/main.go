@@ -167,27 +167,41 @@ func run() error {
 	defer stopHeartbeat()
 
 	outcome := runrecord.OutcomeSucceeded
-	failure := ""
-	if err := g.pipeline(); err != nil {
+	failureCode := ""
+	var pipelineErr error
+	if pipelineErr = g.pipeline(); pipelineErr != nil {
 		outcome = runrecord.OutcomeFailed
-		failure = err.Error()
+		failureCode = terminalFailureCode(g.steps)
 	}
-	recordErr := g.record(outcome, failure)
+	recordErr := g.record(outcome, failureCode)
 	stopHeartbeat()
-	g.printSummary(outcome, failure)
+	failureDetail := ""
+	if pipelineErr != nil {
+		failureDetail = pipelineErr.Error()
+	}
+	g.printSummary(outcome, failureDetail)
 	if recordErr != nil {
 		_ = g.writeHeartbeat(runrecord.HeartbeatRecordDebt)
 		fmt.Fprintf(os.Stderr, "gate: store record failed (result stands, record owed): %v\n", recordErr)
 	} else {
 		_ = g.writeHeartbeat(runrecord.HeartbeatFinalized)
 	}
-	if outcome != runrecord.OutcomeSucceeded {
-		return fmt.Errorf("%s", failure)
+	if pipelineErr != nil {
+		return pipelineErr
 	}
 	if recordErr != nil {
 		return fmt.Errorf("commit landed but RepoDB record debt remains: %w", recordErr)
 	}
 	return nil
+}
+
+func terminalFailureCode(steps []runrecord.GateStep) string {
+	for index := len(steps) - 1; index >= 0; index-- {
+		if steps[index].Outcome == runrecord.StepFailed {
+			return steps[index].Name
+		}
+	}
+	return "gate"
 }
 
 // checkPlanBinding refuses any commit whose -plan is not the plan's current open

@@ -435,8 +435,11 @@ hooks were active in each run record rather than assuming they were.
   selects the affected internal packages plus the CUDA smoke probe. An empty
   path set retains the explicit full-device mode; direct tests pin both routing
   and reporting.
-- Hosted CI has no real-GPU lane and the race workflow covers only server and
-  inference packages.
+- A manual real-GPU workflow targets a labelled self-hosted Windows runner and
+  invokes the same typed device lane; missing hardware is a non-passing
+  `unavailable` outcome. Runner registration and host branch enforcement remain
+  external owner infrastructure. The race workflow still covers only server
+  and inference packages.
 - Smoke distinguishes `empty` from success; smoke, device, race, and release
   now share one typed result contract.
 - Release output contains durable compatibility, import, licensing, and SBOM
@@ -444,8 +447,7 @@ hooks were active in each run record rather than assuming they were.
   regenerated from the current dependency graph. Project-owned source remains
   `NOASSERTION` pending the owner's license decision.
 
-Required direction: add direct device selection/reporting tests and a real-GPU
-integration lane.
+Required direction: expand race coverage only from measured concurrency risk.
 
 ### A11: Override and stop controls are too narrow for later autonomy
 

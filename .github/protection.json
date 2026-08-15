@@ -4,6 +4,7 @@
     "master"
   ],
   "workflow": ".github/workflows/test.yml",
+  "gpu_workflow": ".github/workflows/gpu.yml",
   "required_jobs": [
     "unit",
     "race"

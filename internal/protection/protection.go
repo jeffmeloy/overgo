@@ -20,6 +20,7 @@ type policy struct {
 	Version                 uint16            `json:"version"`
 	ProtectedBranches       []string          `json:"protected_branches"`
 	Workflow                string            `json:"workflow"`
+	GPUWorkflow             string            `json:"gpu_workflow"`
 	RequiredJobs            []string          `json:"required_jobs"`
 	RequiredHooks           map[string]string `json:"required_hooks"`
 	HostEnforcementRequired bool              `json:"host_enforcement_required"`
@@ -49,7 +50,7 @@ func Verify(root string) (configured, activated string, err error) {
 	}
 	if contract.Version != 1 || len(contract.ProtectedBranches) == 0 ||
 		len(contract.RequiredJobs) == 0 || len(contract.RequiredHooks) == 0 ||
-		!contract.HostEnforcementRequired || !safeRelative(contract.Workflow) {
+		!contract.HostEnforcementRequired || !safeRelative(contract.Workflow) || !safeRelative(contract.GPUWorkflow) {
 		return "", "", errors.New("protection policy: incomplete contract")
 	}
 	var configuredHooks settings
@@ -77,6 +78,16 @@ func Verify(root string) (configured, activated string, err error) {
 	for _, job := range contract.RequiredJobs {
 		if !strings.Contains(workflowText, "\n  "+job+":") {
 			return "", "", fmt.Errorf("protection workflow: required job %q missing", job)
+		}
+	}
+	gpuWorkflow, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(contract.GPUWorkflow)))
+	if err != nil {
+		return "", "", fmt.Errorf("GPU workflow: %w", err)
+	}
+	gpuText := strings.ReplaceAll(string(gpuWorkflow), "\r\n", "\n")
+	for _, required := range []string{"\n  workflow_dispatch:", "runs-on: [self-hosted, windows, x64, gpu]", "run: go run ./cmd/device-lane"} {
+		if !strings.Contains(gpuText, required) {
+			return "", "", fmt.Errorf("GPU workflow: required contract %q missing", required)
 		}
 	}
 	return fmt.Sprintf("configured:branches=%s,jobs=%s,hooks=%d;host_enforcement=external",

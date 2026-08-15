@@ -105,7 +105,7 @@ func (r *Runner) NewContinuousGenerator(
 	return generator, nil
 }
 
-// Generate: queued fused generation; unsupported request modes fall back.
+// Generate: queued fused generation.
 func (g *ContinuousGenerator) Generate(
 	ctx context.Context,
 	prompt string,
@@ -114,8 +114,8 @@ func (g *ContinuousGenerator) Generate(
 	if g == nil || g.runner == nil {
 		return nil, "", errors.New("inference: continuous generator is nil")
 	}
-	if g.requiresFallback(options) {
-		return g.runner.Generate(ctx, prompt, options)
+	if err := g.validateOptions(options); err != nil {
+		return nil, "", err
 	}
 	request := continuousGenerateRequest{
 		ctx: ctx, prompt: prompt, options: options,
@@ -138,13 +138,16 @@ func (g *ContinuousGenerator) Generate(
 	}
 }
 
-func (g *ContinuousGenerator) requiresFallback(options GenerateOptions) bool {
-	return options.ProjectedInputs != nil || options.CachePrompt ||
+func (g *ContinuousGenerator) validateOptions(options GenerateOptions) error {
+	if options.ProjectedInputs != nil || options.CachePrompt ||
 		options.MinCacheReuse != 0 || options.LoRAConfigured || len(options.LoRA) > 0 ||
 		g.runner.hasInvocationLoRA() ||
 		options.KeepTokens != int(g.options.KeepTokens) ||
 		options.DiscardTokens != g.options.DiscardTokens ||
-		options.ContextShift != g.options.ContextShift
+		options.ContextShift != g.options.ContextShift {
+		return errors.New("inference: request is incompatible with continuous generation plan")
+	}
+	return nil
 }
 
 func (r *Runner) hasInvocationLoRA() bool {

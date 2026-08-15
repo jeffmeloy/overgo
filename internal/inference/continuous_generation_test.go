@@ -149,6 +149,13 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 	}
 }
 
+func TestContinuousGeneratorRejectsUncompiledRequestPolicy(t *testing.T) {
+	generator := &ContinuousGenerator{runner: &Runner{}}
+	if _, _, err := generator.Generate(context.Background(), "fixture", GenerateOptions{CachePrompt: true}); err == nil {
+		t.Fatal("uncompiled request policy accepted")
+	}
+}
+
 func TestContinuousStatesUseDeviceTopKRequiresUniformSafePrefix(t *testing.T) {
 	makeState := func(config sampling.Config) *continuousGenerateState {
 		sampler, err := sampling.New(config)

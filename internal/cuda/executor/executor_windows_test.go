@@ -16,6 +16,44 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
+func (e *Executor) executeWithDeviceFeeds(
+	ctx context.Context,
+	outputs []*tensor.Tensor,
+	host map[*tensor.Tensor]reference.Value,
+	device map[*tensor.Tensor]driver.DevicePtr,
+) (map[*tensor.Tensor]reference.Value, error) {
+	compiled, inputs, err := compileDeviceFeeds(outputs, device)
+	if err != nil {
+		return nil, err
+	}
+	return e.ExecuteCompiled(ctx, compiled, host, inputs)
+}
+
+func (e *Executor) executeRetainedWithDeviceFeeds(
+	ctx context.Context,
+	outputs []*tensor.Tensor,
+	host map[*tensor.Tensor]reference.Value,
+	device map[*tensor.Tensor]driver.DevicePtr,
+) (*RetainedOutputs, error) {
+	compiled, inputs, err := compileDeviceFeeds(outputs, device)
+	if err != nil {
+		return nil, err
+	}
+	return e.ExecuteRetainedCompiled(ctx, compiled, host, inputs, nil, nil)
+}
+
+func compileDeviceFeeds(
+	outputs []*tensor.Tensor,
+	device map[*tensor.Tensor]driver.DevicePtr,
+) (*CompiledGraph, *DeviceInputs, error) {
+	compiled, err := Compile(outputs...)
+	if err != nil {
+		return nil, nil, err
+	}
+	inputs, err := compiled.BindDeviceInputs(device)
+	return compiled, inputs, err
+}
+
 func TestExecutorImplicitZeroFeed(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("zero", dtype.F32, tensor.MustShape(4))
@@ -922,7 +960,7 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 		deviceFeeds[item.node] = copyFixtureDeviceBytes(t, worker, item.data)
 	}
 	cuda := newFixtureExecutorWithWorker(t, worker)
-	got, err := cuda.ExecuteWithDeviceFeeds(
+	got, err := cuda.executeWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{output, fusedOutput, squaredOutput},
 		map[*tensor.Tensor]reference.Value{

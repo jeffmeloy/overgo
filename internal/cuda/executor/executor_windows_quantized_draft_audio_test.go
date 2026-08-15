@@ -269,7 +269,7 @@ func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {
 	right := builder.Input("right", dtype.F32, shape)
 	output := builder.Add(left, right)
 	rightValue, _ := reference.NewValue(shape, []float32{10, 20, 30, 40})
-	got, err := cuda.ExecuteWithDeviceFeeds(
+	got, err := cuda.executeWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{right: rightValue},
@@ -314,7 +314,7 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 		}
 	}
 	inputValue, _ := reference.NewValue(input.Shape, inputData)
-	results, err := cuda.ExecuteWithDeviceFeeds(
+	results, err := cuda.executeWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{rows, dynamicRows, product},
 		map[*tensor.Tensor]reference.Value{
@@ -370,7 +370,7 @@ func TestExecutorQ6KDeviceEmbeddingAndMulMat(t *testing.T) {
 		ones[index] = 1
 	}
 	inputValue, _ := reference.NewValue(input.Shape, ones)
-	results, err := cuda.ExecuteWithDeviceFeeds(
+	results, err := cuda.executeWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{rows, product},
 		map[*tensor.Tensor]reference.Value{input: inputValue},
@@ -509,7 +509,7 @@ func testExecutorSmallQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type)
 		ones[index] = 1
 	}
 	inputValue, _ := reference.NewValue(input.Shape, ones)
-	results, err := cuda.ExecuteWithDeviceFeeds(
+	results, err := cuda.executeWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{rows, product},
 		map[*tensor.Tensor]reference.Value{input: inputValue},
@@ -588,7 +588,7 @@ func testExecutorClassicQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Typ
 		ones[index] = 1
 	}
 	inputValue, _ := reference.NewValue(input.Shape, ones)
-	results, err := cuda.ExecuteWithDeviceFeeds(
+	results, err := cuda.executeWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{rows, product},
 		map[*tensor.Tensor]reference.Value{input: inputValue},
@@ -731,7 +731,7 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 		ones[index] = 1
 	}
 	inputValue, _ := reference.NewValue(input.Shape, ones)
-	results, err := cuda.ExecuteWithDeviceFeeds(
+	results, err := cuda.executeWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{rows, product},
 		map[*tensor.Tensor]reference.Value{input: inputValue},

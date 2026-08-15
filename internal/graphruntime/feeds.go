@@ -52,8 +52,13 @@ func (f *Feeds) Execute(
 	if device == nil {
 		return reference.Execute(outputs, f.Host)
 	}
-	if len(f.Device) == 0 {
-		return device.Execute(ctx, outputs, f.Host)
+	compiled, err := executor.Compile(outputs...)
+	if err != nil {
+		return nil, err
 	}
-	return device.ExecuteWithDeviceFeeds(ctx, outputs, f.Host, f.Device)
+	inputs, err := compiled.BindDeviceInputs(f.Device)
+	if err != nil {
+		return nil, err
+	}
+	return device.ExecuteCompiled(ctx, compiled, f.Host, inputs)
 }

@@ -1388,44 +1388,6 @@ func (e *Executor) ExecuteCompiled(
 	return hostResult(e.runCompiled(ctx, compiled, feeds, inputs, nil, nil, false))
 }
 
-// ExecuteWithDeviceFeeds: evaluates graph with selected F32 input nodes
-// already resident in executor's CUDA context
-func (e *Executor) ExecuteWithDeviceFeeds(
-	ctx context.Context,
-	outputs []*tensor.Tensor,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-) (map[*tensor.Tensor]reference.Value, error) {
-	compiled, err := Compile(outputs...)
-	if err != nil {
-		return nil, err
-	}
-	inputs, err := compiled.BindDeviceInputs(deviceFeeds)
-	if err != nil {
-		return nil, err
-	}
-	return e.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
-}
-
-// ExecuteRetainedWithDeviceFeeds: evaluates graph but leaves each requested
-// output in individually owned device allocation
-func (e *Executor) ExecuteRetainedWithDeviceFeeds(
-	ctx context.Context,
-	outputs []*tensor.Tensor,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
-) (*RetainedOutputs, error) {
-	compiled, err := Compile(outputs...)
-	if err != nil {
-		return nil, err
-	}
-	inputs, err := compiled.BindDeviceInputs(deviceFeeds)
-	if err != nil {
-		return nil, err
-	}
-	return e.ExecuteRetainedCompiled(ctx, compiled, hostFeeds, inputs, nil, nil)
-}
-
 // ExecuteRetainedCompiled: indexed retained execution.
 func (e *Executor) ExecuteRetainedCompiled(
 	ctx context.Context,

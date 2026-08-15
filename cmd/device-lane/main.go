@@ -9,8 +9,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,7 +22,10 @@ import (
 
 const cudaTestEnv = "OVERGO_CUDA_TEST"
 
+var pathsFlag = flag.String("paths", "", "comma-separated changed paths; empty runs the full device set")
+
 func main() {
+	flag.Parse()
 	clioptions.MainNamed("device-lane", run)
 }
 
@@ -34,11 +39,8 @@ func run() error {
 		fmt.Print(clioptions.Tail(out, 800))
 		return runrecord.LaneError(runrecord.LaneUnavailable, err.Error())
 	}
-	steps := [][]string{
-		{"go", "run", "./cmd/cuda-smoke"},
-		{"go", "test", "./internal/cuda/...", "./internal/model", "./internal/projector", "./internal/optimizer", "./internal/devicemath", "-count=1"},
-		{"go", "test", "-run", "Device", "./internal/densecausal", "-count=1"},
-	}
+	paths := splitPaths(*pathsFlag)
+	steps := deviceSteps(paths)
 	for _, step := range steps {
 		began := time.Now()
 		out, err := clioptions.CombinedOutput(append(os.Environ(), cudaTestEnv+"=1"), step[0], step[1:]...)
@@ -49,6 +51,52 @@ func run() error {
 		}
 	}
 	fmt.Printf("=== DEVICE LANE GREEN in %.1fs ===\n", time.Since(start).Seconds())
-	fmt.Println("honesty: full device set (manifest-scoped lane is the target form; see docs/MERGE_FLOOR_PLAN.md component 8)")
+	fmt.Printf("honesty: device scope=%s\n", deviceScopeLabel(paths))
 	return nil
+}
+
+func splitPaths(csv string) []string {
+	var paths []string
+	for _, path := range strings.Split(csv, ",") {
+		if path = strings.TrimSpace(strings.ReplaceAll(path, "\\", "/")); path != "" {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
+func deviceSteps(paths []string) [][]string {
+	steps := [][]string{{"go", "run", "./cmd/cuda-smoke"}}
+	if len(paths) == 0 {
+		return append(steps,
+			[]string{"go", "test", "./internal/cuda/...", "./internal/model", "./internal/projector", "./internal/optimizer", "./internal/devicemath", "-count=1"},
+			[]string{"go", "test", "-run", "Device", "./internal/densecausal", "-count=1"})
+	}
+	packages := map[string]bool{}
+	for _, path := range paths {
+		parts := strings.Split(path, "/")
+		switch {
+		case strings.HasPrefix(path, "kernels/") || strings.HasPrefix(path, "internal/cuda/"):
+			packages["./internal/cuda/..."] = true
+		case len(parts) > 2 && parts[0] == "internal":
+			packages["./internal/"+parts[1]] = true
+		}
+	}
+	ordered := make([]string, 0, len(packages))
+	for pkg := range packages {
+		ordered = append(ordered, pkg)
+	}
+	sort.Strings(ordered)
+	if len(ordered) > 0 {
+		command := append([]string{"go", "test"}, ordered...)
+		steps = append(steps, append(command, "-count=1"))
+	}
+	return steps
+}
+
+func deviceScopeLabel(paths []string) string {
+	if len(paths) == 0 {
+		return "full"
+	}
+	return fmt.Sprintf("changed-paths(%d)", len(paths))
 }

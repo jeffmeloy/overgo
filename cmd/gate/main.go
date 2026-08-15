@@ -949,7 +949,7 @@ func (g *gateContext) stepDevice() (bool, error) {
 		g.honesty = append(g.honesty, "device lane skipped: no kernel or CUDA-cone paths in -paths")
 		return true, nil
 	}
-	_, err := command(g.repo, "go", "run", "./cmd/device-lane")
+	_, err := command(g.repo, "go", "run", "./cmd/device-lane", "-paths", strings.Join(g.paths, ","))
 	return false, err
 }
 

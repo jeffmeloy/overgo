@@ -8,15 +8,21 @@
       "status": "open",
       "steps": [
         {
+          "id": "device-lane-contract",
+          "title": "Derive device verification packages from changed paths and directly test selection and terminal reporting",
+          "status": "open",
+          "verify": "go test ./cmd/device-lane -run '^TestDeviceLaneSelectionAndReporting$' -count=1 -v"
+        },
+        {
+          "id": "gpu-ci",
+          "title": "Add a repository-owned real-GPU integration workflow whose unavailable device outcome cannot pass",
+          "status": "open",
+          "verify": "go test ./internal/protection -run '^TestGPUWorkflowContract$' -count=1 -v"
+        },
+        {
           "id": "source-license",
           "title": "Blocked: the repository owner must select the distribution license before project-owned source can replace NOASSERTION",
           "status": "blocked-external-prereq"
-        },
-        {
-          "id": "autonomy-admission",
-          "title": "Admit autonomous scheduling classes only with measured benefit, independent SQA, containment, rollback, and recovery evidence",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestAutonomyAdmissionRequiresRecoveryEvidence$' -count=1 -v"
         }
       ]
     },

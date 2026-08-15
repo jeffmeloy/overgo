@@ -431,9 +431,10 @@ hooks were active in each run record rather than assuming they were.
 
 ### A10: Lane and release coverage remains uneven
 
-- The device lane runs the full device set; manifest-scoped selection remains a
-  documented target.
-- `cmd/device-lane` has no direct unit tests around selection or reporting.
+- The gate passes changed paths to the device lane, which deterministically
+  selects the affected internal packages plus the CUDA smoke probe. An empty
+  path set retains the explicit full-device mode; direct tests pin both routing
+  and reporting.
 - Hosted CI has no real-GPU lane and the race workflow covers only server and
   inference packages.
 - Smoke distinguishes `empty` from success; smoke, device, race, and release

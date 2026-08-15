@@ -444,14 +444,11 @@ assessments.
 
 ### A11: Override and stop controls are too narrow for later autonomy
 
-`plan -advance -force` prints a reason but does not create a durable structured
-override record. The three valid stop reasons omit evidence corruption,
-evaluator contamination, worktree collision, device instability, and loss of
-rollback guarantees.
-
-Required direction: record overrides as immutable evidence and add typed
-containment stops. These should stop the affected lane or promotion, not
-necessarily the whole manually managed campaign.
+`plan -advance -force` now records immutable override evidence before mutating
+the plan. `plan -contain` records a lane-scoped event for evidence corruption,
+evaluator contamination, worktree collision, device instability, or unavailable
+rollback. These events contain the affected lane or promotion and do not
+masquerade as a stop for the whole manually managed campaign.
 
 ## Prioritized roadmap
 

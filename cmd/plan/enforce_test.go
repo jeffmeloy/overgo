@@ -41,7 +41,7 @@ func TestPlanContainsOpenWorkOnly(t *testing.T) {
 			{ID: "second", Status: "open", Verify: "go test ./..."},
 		},
 	}}}
-	if err := advanceStep(document, "item", "first", "test-verified"); err != nil {
+	if err := advanceStep(document, "item", "first", "test-verified", nil); err != nil {
 		t.Fatal(err)
 	}
 	saved, err := plan.Load("")

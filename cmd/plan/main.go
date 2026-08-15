@@ -64,13 +64,15 @@ func main() {
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	compact := flag.Bool("compact", false, "drop completed rows and normalize partial rows to open work")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
+	contain := flag.String("contain", "", "record typed lane containment: -contain <reason-code> -lane <lane> <detail>")
+	lane := flag.String("lane", "", "lane affected by -contain")
 	force := flag.String("force", "", "with -advance: skip verify, REQUIRES a reason (logged loudly)")
 	title := flag.String("title", "", "with -add: the task title")
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "with -context: explicit lane role (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, contain: *contain, lane: *lane, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -78,7 +80,7 @@ func main() {
 
 type cli struct {
 	next, prompt, verify, status, context, advance, add, setverify, compact, stop bool
-	force, title, before, verifyCmd, role, recordLease                            string
+	force, title, before, verifyCmd, role, recordLease, contain, lane             string
 	leaseReport                                                                   bool
 	capacity                                                                      plan.Resources
 }
@@ -117,11 +119,13 @@ func run(c cli, args []string) error {
 		return setStepVerify(document, args[0], args[1], c.verifyCmd)
 	case c.stop:
 		return recordStop(strings.Join(args, " "))
+	case c.contain != "":
+		return recordControl(c.lane, "containment", c.contain, strings.Join(args, " "))
 	case c.advance:
 		if len(args) != 2 {
 			return errors.New("usage: plan -advance <item-id> <step-id|.>")
 		}
-		return advanceStep(document, args[0], args[1], c.force)
+		return advanceStep(document, args[0], args[1], c.force, recordOverride)
 	case c.status:
 		printStatus(document)
 		return nil
@@ -503,7 +507,7 @@ func verificationShell() (string, error) {
 // Environment-gated skips that DID run real assertions elsewhere still print a
 // package "ok" without these markers and are unaffected.
 
-func advanceStep(document plan.Plan, itemID, stepID, force string) error {
+func advanceStep(document plan.Plan, itemID, stepID, force string, onOverride func(string, string) error) error {
 	for i := range document.Items {
 		if document.Items[i].ID != itemID {
 			continue
@@ -522,6 +526,11 @@ func advanceStep(document plan.Plan, itemID, stepID, force string) error {
 			if err := gateAdvance(document.Items[i], document.Items[i].Steps[targetIndex], force); err != nil {
 				return err
 			}
+			if force != "" && onOverride != nil {
+				if err := onOverride(itemID+"/"+stepID, force); err != nil {
+					return err
+				}
+			}
 			document.Items[i].Steps = append(document.Items[i].Steps[:targetIndex], document.Items[i].Steps[targetIndex+1:]...)
 			if len(document.Items[i].Steps) == 0 {
 				document.Items = append(document.Items[:i], document.Items[i+1:]...)
@@ -531,10 +540,40 @@ func advanceStep(document plan.Plan, itemID, stepID, force string) error {
 		if err := gateAdvance(document.Items[i], plan.Step{ID: "."}, force); err != nil {
 			return err
 		}
+		if force != "" && onOverride != nil {
+			if err := onOverride(itemID+"/.", force); err != nil {
+				return err
+			}
+		}
 		document.Items = append(document.Items[:i], document.Items[i+1:]...)
 		return finishAdvance(document, itemID, stepID)
 	}
 	return fmt.Errorf("item %q not found", itemID)
+}
+
+func recordOverride(lane, detail string) error {
+	return recordControl(lane, "override", "forced-advance", detail)
+}
+
+func recordControl(lane, kind, reason, detail string) error {
+	head, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	if err != nil {
+		return fmt.Errorf("resolve control-event commit: %w", err)
+	}
+	store, err := repodb.Open("repodb-store")
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	event, err := plan.RecordControlEvent(context.Background(), store, plan.ControlEvent{
+		Kind: kind, Lane: strings.TrimSpace(lane), ReasonCode: reason,
+		Detail: strings.TrimSpace(detail), CodeCommit: strings.TrimSpace(string(head)),
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("recorded %s event %s for %s\n", kind, event.ID, event.Lane)
+	return nil
 }
 
 // gateAdvance refuses the advance unless the step's verify passes, or a -force

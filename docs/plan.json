@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "protection-evidence",
-          "title": "Record hook/guard activation in gate evidence and verify protected integration configuration repository-side",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./cmd/gate -run '^TestProtectionEvidence$' -count=1 -v"
-        },
-        {
           "id": "override-containment",
           "title": "Persist forced advances and typed lane-scoped containment events in RepoDB",
           "status": "open",

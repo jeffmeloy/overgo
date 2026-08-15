@@ -11,7 +11,7 @@ const (
 	metadataComparisonEpsilon = float64(1e-4)
 )
 
-func (s Spec) validateHybridMoEFamilies() error {
+func (s Spec) validateHybridMetadata() error {
 	hybrid := s.Profile().Validation.Hybrid
 	qwenHybrid := hybrid == HybridValidationQwen3Next ||
 		hybrid == HybridValidationQwen35 || hybrid == HybridValidationQwen35MoE
@@ -87,7 +87,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		switch {
 		case !validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("Step3.5 expert metadata is invalid")
-		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+		case !validExpertRouting(s):
 			return errors.New("Step3.5 expert routing function is unsupported")
 		case len(s.LayerHeadCounts) != layerCount || len(s.LayerKVHeadCounts) != layerCount:
 			return errors.New("Step3.5 layer head metadata is invalid")
@@ -130,14 +130,12 @@ func (s Spec) validateHybridMoEFamilies() error {
 	}
 	if hybrid == HybridValidationBailingMoE {
 		switch {
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+		case !validExpertDimensions(s) || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("BailingMoE expert metadata is invalid")
 		case s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
 			return errors.New("BailingMoE shared expert width overflows")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("BailingMoE expert weight scale is invalid")
 		}
 	}
@@ -145,41 +143,31 @@ func (s Spec) validateHybridMoEFamilies() error {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("DeepSeek leading dense block count leaves no MoE layers")
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+		case !validExpertDimensions(s) || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("DeepSeek expert metadata is invalid")
 		case s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
 			return errors.New("DeepSeek shared expert width overflows")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("DeepSeek expert weight scale is invalid")
 		}
 	}
 	if (hybrid == HybridValidationGraniteMoE || hybrid == HybridValidationGranite && s.ExpertCount > 0) &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
-			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("GraniteMoE expert metadata is invalid")
 	}
 	if hybrid == HybridValidationDBRX &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
-			s.AttentionClamp < 0 || math.IsNaN(float64(s.AttentionClamp)) ||
-			math.IsInf(float64(s.AttentionClamp), 0) || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale) ||
+			!nonNegativeFinite(s.AttentionClamp)) {
 		return errors.New("DBRX expert or attention metadata is invalid")
 	}
 	if hybrid == HybridValidationGrok {
 		switch {
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
+		case !validExpertDimensions(s):
 			return errors.New("Grok expert metadata is invalid")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("Grok expert weight scale is invalid")
-		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
-			s.RopeDimensionCount%2 != 0:
+		case !validFullRotaryHead(s):
 			return errors.New("Grok rotary/head dimensions are invalid")
 		case s.AttentionScale <= 0 || s.AttentionSoftcap <= 0:
 			return errors.New("Grok attention scaling metadata is invalid")
@@ -197,10 +185,9 @@ func (s Spec) validateHybridMoEFamilies() error {
 	}
 	if hybrid == HybridValidationMellum {
 		switch {
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
+		case !validExpertDimensions(s):
 			return errors.New("Mellum expert metadata is invalid")
-		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0:
+		case !validFullRotaryHead(s):
 			return errors.New("Mellum rotary/head dimensions are invalid")
 		case s.SlidingWindow > 0 && (s.RopeFrequencySWA <= 0 ||
 			(len(s.SlidingLayers) == 0 && s.SlidingPattern < 2)):
@@ -212,24 +199,19 @@ func (s Spec) validateHybridMoEFamilies() error {
 		}
 	}
 	if hybrid == HybridValidationHunyuanMoE &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 ||
-			s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
-			s.RopeDimensionCount%2 != 0) {
+		(!validExpertDimensions(s) || s.SharedExpertFF == 0 ||
+			!validFullRotaryHead(s)) {
 		return errors.New("Hunyuan-MoE metadata is invalid")
 	}
 	if hybrid == HybridValidationHYV3 {
 		switch {
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
+		case !validExpertDimensions(s) || s.SharedExpertFF == 0:
 			return errors.New("HY-V3 expert metadata is invalid")
-		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+		case !validExpertRouting(s):
 			return errors.New("HY-V3 expert routing function is unsupported")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("HY-V3 expert weight scale is invalid")
-		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
-			s.RopeDimensionCount%2 != 0:
+		case !validFullRotaryHead(s):
 			return errors.New("HY-V3 rotary/head dimensions are invalid")
 		}
 	}
@@ -237,36 +219,30 @@ func (s Spec) validateHybridMoEFamilies() error {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("DeepSeek2-OCR leading dense block count leaves no MoE layers")
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+		case !validExpertDimensions(s) || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("DeepSeek2-OCR expert metadata is invalid")
-		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+		case !validExpertRouting(s):
 			return errors.New("DeepSeek2-OCR expert routing function is unsupported")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("DeepSeek2-OCR expert weight scale is invalid")
 		case math.Abs(float64(s.RopeFrequencyBase-deepSeek2OCRRopeBase)) >= metadataComparisonEpsilon ||
 			s.RopeScalingType != "" ||
 			s.AttentionScale != 0:
 			return errors.New("DeepSeek2-OCR attention scaling is unsupported")
-		case s.HeadCountKV != s.HeadCount || s.RopeDimensionCount != s.KeyLength ||
-			s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0:
+		case s.HeadCountKV != s.HeadCount || !validFullRotaryHead(s):
 			return errors.New("DeepSeek2-OCR attention metadata is invalid")
 		}
 	}
 	if hybrid == HybridValidationSmallThinker {
 		switch {
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
+		case !validExpertDimensions(s):
 			return errors.New("SmallThinker expert metadata is invalid")
-		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+		case !validExpertRouting(s):
 			return errors.New("SmallThinker expert routing function is unsupported")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("SmallThinker expert weight scale is invalid")
-		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
-			s.RopeDimensionCount%2 != 0:
+		case !validFullRotaryHead(s):
 			return errors.New("SmallThinker rotary/head dimensions are invalid")
 		case s.SlidingWindow > 0 && (s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0):
 			return errors.New("SmallThinker sliding-attention metadata is invalid")
@@ -276,16 +252,14 @@ func (s Spec) validateHybridMoEFamilies() error {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("DOTS1 leading dense block count leaves no MoE layers")
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+		case !validExpertDimensions(s) || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("DOTS1 expert metadata is invalid")
 		case s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
 			return errors.New("DOTS1 shared expert width overflows")
-		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+		case !validExpertRouting(s):
 			return errors.New("DOTS1 expert routing function is unsupported")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("DOTS1 expert weight scale is invalid")
 		case s.RopeDimensionCount > 0 && s.RopeDimensionCount != s.KeyLength:
 			return errors.New("DOTS1 rotary dimension must equal key length")
@@ -295,16 +269,13 @@ func (s Spec) validateHybridMoEFamilies() error {
 	}
 	if hybrid == HybridValidationMiniMaxM2 {
 		switch {
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
+		case !validExpertDimensions(s):
 			return errors.New("MiniMax-M2 expert metadata is invalid")
-		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+		case !validExpertRouting(s):
 			return errors.New("MiniMax-M2 expert routing function is unsupported")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("MiniMax-M2 expert weight scale is invalid")
-		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
-			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength:
+		case !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.KeyLength != s.ValueLength:
 			return errors.New("MiniMax-M2 rotary/head dimensions are invalid")
 		}
 	}
@@ -312,8 +283,7 @@ func (s Spec) validateHybridMoEFamilies() error {
 		hybrid == HybridValidationGraniteHybrid
 	if graniteFamily &&
 		s.RopeScalingType == "longrope" &&
-		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
-			s.RopeDimensionCount%2 != 0 || s.OriginalContextLength == 0 ||
+		(!validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 		return errors.New("Granite LongRoPE metadata is invalid")
@@ -322,38 +292,32 @@ func (s Spec) validateHybridMoEFamilies() error {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("BailingMoE2 leading dense block count leaves no MoE layers")
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 ||
+		case !validExpertDimensions(s) || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
 			return errors.New("BailingMoE2 expert metadata is invalid")
-		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+		case !validExpertRouting(s):
 			return errors.New("BailingMoE2 expert routing function is unsupported")
 		case s.SharedExpertFF%s.SharedExpertCount != 0:
 			return errors.New("BailingMoE2 shared expert width is invalid")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("BailingMoE2 expert weight scale is invalid")
-		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
-			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength:
+		case !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.KeyLength != s.ValueLength:
 			return errors.New("BailingMoE2 rotary/head dimensions are invalid")
 		}
 	}
 	if hybrid == HybridValidationOLMoE &&
 		(s.HeadCountKV != s.HeadCount || !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
-			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
-			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+			s.ExpertFeedForward == 0 || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("OLMoE expert or attention metadata is invalid")
 	}
 	if hybrid == HybridValidationLlama && s.ExpertCount > 0 &&
 		(!validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
-			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
-			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+			s.ExpertFeedForward == 0 || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("Llama MoE expert metadata is invalid")
 	}
 	ropeScalingFamily := hybrid == HybridValidationLlama || hybrid == HybridValidationRopeScaling
 	if s.RopeScalingType == "longrope" && ropeScalingFamily &&
-		(s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
-			s.RopeDimensionCount%2 != 0 || s.OriginalContextLength == 0 ||
+		(!validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 		return fmt.Errorf("%s LongRoPE metadata is invalid", s.Architecture)
@@ -371,13 +335,11 @@ func (s Spec) validateHybridMoEFamilies() error {
 	}
 	if hybrid == HybridValidationLlama4 {
 		switch {
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0 || s.MoELayerStep == 0:
+		case !validExpertDimensions(s) || s.SharedExpertFF == 0 || s.MoELayerStep == 0:
 			return errors.New("Llama 4 expert metadata is invalid")
-		case s.ExpertGatingFunc != expertGatingSigmoid || s.ExpertWeightsScale <= 0 ||
-			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case s.ExpertGatingFunc != expertGatingSigmoid || !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("Llama 4 expert routing metadata is invalid")
-		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0:
+		case !validFullRotaryHead(s):
 			return errors.New("Llama 4 rotary/head dimensions are invalid")
 		case s.SlidingWindow > 0 && (s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0 ||
 			s.AttentionTempFloor == 0 || s.AttentionTempScale <= 0 ||
@@ -387,17 +349,13 @@ func (s Spec) validateHybridMoEFamilies() error {
 		}
 	}
 	if hybrid == HybridValidationGPTOSS &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertGatingFunc != expertGatingSelectedSoftmax ||
-			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0) ||
-			s.SlidingWindow == 0 || s.SlidingPattern < 2 || s.RopeDimensionCount != s.KeyLength ||
-			s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0 || s.RopeFrequencySWA <= 0) {
+		(!validExpertDimensions(s) || s.ExpertGatingFunc != expertGatingSelectedSoftmax ||
+			!positiveFinite(s.ExpertWeightsScale) ||
+			s.SlidingWindow == 0 || s.SlidingPattern < 2 || !validFullRotaryHead(s) || s.RopeFrequencySWA <= 0) {
 		return errors.New("GPT-OSS metadata is invalid")
 	}
 	if hybrid == HybridValidationPhiMoE &&
-		(s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 ||
-			math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("PhiMoE expert metadata is invalid")
 	}
 	if hybrid == HybridValidationLaguna {
@@ -420,11 +378,9 @@ func (s Spec) validateHybridMoEFamilies() error {
 			return errors.New("Laguna expert metadata is invalid")
 		case s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("Laguna requires sigmoid expert routing")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("Laguna expert weight scale is invalid")
-		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
-			s.RopeDimensionCount%2 != 0:
+		case !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment):
 			return errors.New("Laguna full-attention rotary dimension count is invalid")
 		case s.RopeScalingType != "yarn":
 			return errors.New("Laguna full-attention layers require YaRN RoPE")
@@ -452,13 +408,11 @@ func (s Spec) validateHybridMoEFamilies() error {
 			return errors.New("AFMoE expert metadata is invalid")
 		case s.ExpertGatingFunc != expertGatingSigmoid:
 			return errors.New("AFMoE requires sigmoid expert routing")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("AFMoE expert weight scale is invalid")
 		case s.SharedExpertCount > 0 && s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
 			return errors.New("AFMoE shared expert width overflows")
-		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
-			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength:
+		case !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.KeyLength != s.ValueLength:
 			return errors.New("AFMoE rotary/head dimensions are invalid")
 		case s.SlidingWindow > 0 && (s.SlidingPattern < 2 || s.RopeFrequencySWA <= 0):
 			return errors.New("AFMoE sliding-attention metadata is invalid")
@@ -468,14 +422,13 @@ func (s Spec) validateHybridMoEFamilies() error {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("EXAONE-MoE leading dense block count leaves no MoE layers")
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertFF == 0:
+		case !validExpertDimensions(s) || s.SharedExpertFF == 0:
 			return errors.New("EXAONE-MoE expert metadata is invalid")
-		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+		case !validExpertRouting(s):
 			return errors.New("EXAONE-MoE expert routing function is unsupported")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("EXAONE-MoE expert weight scale is invalid")
-		case s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength || s.RopeDimensionCount%2 != 0:
+		case !validFullRotaryHead(s):
 			return errors.New("EXAONE-MoE rotary/head dimensions are invalid")
 		case s.SlidingWindow == 0 || (len(s.SlidingLayers) == 0 && s.SlidingPattern < 2) || s.RopeFrequencySWA <= 0:
 			return errors.New("EXAONE-MoE sliding attention metadata is invalid")
@@ -498,13 +451,11 @@ func (s Spec) validateHybridMoEFamilies() error {
 			switch {
 			case s.LeadingDenseBlocks >= s.BlockCount:
 				return errors.New("LFM2-MoE leading dense block count leaves no MoE layers")
-			case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-				exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0:
+			case !validExpertDimensions(s):
 				return errors.New("LFM2-MoE expert metadata is invalid")
-			case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+			case !validExpertRouting(s):
 				return errors.New("LFM2-MoE expert routing function is unsupported")
-			case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-				math.IsInf(float64(s.ExpertWeightsScale), 0):
+			case !positiveFinite(s.ExpertWeightsScale):
 				return errors.New("LFM2-MoE expert weight scale is invalid")
 			}
 		}

@@ -28,7 +28,7 @@ func (t *cogVLMPromptTokenizer) TokenizeText(text string, addSpecial, _ bool) ([
 }
 
 func TestCogVLMVisionRunnerTinyFixture(t *testing.T) {
-	runner, err := OpenCogVLMVisionWithOptions(writeTinyCogVLM(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*CogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestCogVLMVisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestCogVLMPromptMarksVisualExpertBlock(t *testing.T) {
-	runner, err := OpenCogVLMVisionWithOptions(writeTinyCogVLM(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*CogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestCogVLMPromptMarksVisualExpertBlock(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesCogVLM(t *testing.T) {
-	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyCogVLM(t, false), OpenOptions{})
+	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyCogVLM(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,12 +82,12 @@ func TestOpenImageProjectorDispatchesCogVLM(t *testing.T) {
 func TestCogVLMCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyCogVLM(t, true)
-	cpu, err := OpenCogVLMVisionWithOptions(path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*CogVLMVisionRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenCogVLMVisionWithOptions(path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*CogVLMVisionRunner](path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

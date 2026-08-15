@@ -202,7 +202,7 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
-	runner, err := projector.OpenGemma4TowerWithOptions(path, projector.OpenOptions{})
+	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), path, projector.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

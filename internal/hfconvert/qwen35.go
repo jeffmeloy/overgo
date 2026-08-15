@@ -5,6 +5,7 @@ package hfconvert
 // metadata, catalog self-check, and the GGUF write.
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/hfgguf"
 	"overgo/internal/hfrepo"
+	"overgo/internal/modelartifact"
 	"overgo/internal/projector"
 )
 
@@ -43,10 +45,10 @@ func convertQwen35(directory string, options Options) (Report, error) {
 		if projectorErr != nil {
 			return report, projectorErr
 		}
-		if err := writeOutput(options.ProjectorPath, metadata, tensors); err != nil {
+		if err := gguf.WriteFileExclusive(options.ProjectorPath, metadata, tensors, gguf.WriteOptions{}); err != nil {
 			return report, err
 		}
-		runner, openErr := projector.OpenQwen3VLWithOptions(options.ProjectorPath, projector.OpenOptions{})
+		runner, openErr := projector.OpenAs[projector.ImageProjector](context.Background(), options.ProjectorPath, projector.OpenOptions{})
 		if openErr != nil {
 			_ = os.Remove(options.ProjectorPath)
 			return report, fmt.Errorf("HF converter: generated Qwen 3.5 projector: %w", openErr)
@@ -100,10 +102,10 @@ func writeQwen35Model(directory string, repository *hfrepo.Repository, options O
 	}
 	metadata = append(metadata, template...)
 	sort.Slice(tensors, func(i, j int) bool { return tensors[i].Name < tensors[j].Name })
-	if err := validateModelCatalog(metadata, tensors); err != nil {
+	if err := modelartifact.ValidateGeneratedCatalog(metadata, tensors); err != nil {
 		return Report{}, err
 	}
-	if err := writeOutput(options.OutputPath, metadata, tensors); err != nil {
+	if err := gguf.WriteFileExclusive(options.OutputPath, metadata, tensors, gguf.WriteOptions{}); err != nil {
 		return Report{}, err
 	}
 	written, err := os.Stat(options.OutputPath)

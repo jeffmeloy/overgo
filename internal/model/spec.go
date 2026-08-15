@@ -1998,19 +1998,19 @@ func (s Spec) validate() error {
 	if err := s.validateBaseMetadata(); err != nil {
 		return err
 	}
-	if err := s.validateRecurrentFamilies(); err != nil {
+	if err := s.validateRecurrentMetadata(); err != nil {
 		return err
 	}
-	if err := s.validateEncoderFamilies(); err != nil {
+	if err := s.validateEncoderMetadata(); err != nil {
 		return err
 	}
-	if err := s.validateHybridMoEFamilies(); err != nil {
+	if err := s.validateHybridMetadata(); err != nil {
 		return err
 	}
-	if err := s.validateMLAFamilies(); err != nil {
+	if err := s.validateMLAMetadata(); err != nil {
 		return err
 	}
-	if err := s.validateAttentionFamilies(); err != nil {
+	if err := s.validateAttentionMetadata(); err != nil {
 		return err
 	}
 	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {

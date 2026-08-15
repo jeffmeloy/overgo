@@ -153,7 +153,7 @@
           "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
           "path": "internal/server/server_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:7ded643989885af5c582161409ed35010bc3a9886042da70aed940477b4c6171"
+          "identity": "evidence:sha256:e6c5cd8b59aa41b86707787123425703a6da9cc5eea36642a94347324e1adb73"
         }
       ],
       "id": "bounded-server-media",
@@ -165,16 +165,16 @@
     {
       "evidence": [
         {
-          "contains": "func OpenGemma4WithOptions(",
-          "path": "internal/projector/gemma4.go",
+          "contains": "func OpenAs[T Projector](",
+          "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:c133f580743730bd8bf388555882925e22a4b0861a3f52538c0337c04502de18"
+          "identity": "file:sha256:c1f1e75ef940e3690f663e61d13b8ba77e4dff94459c7bd148d845a1ec780299"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:f996ca78f530be003aed1abd076c69553f962815c5b8f8a474bc059a03bb008f"
+          "identity": "evidence:sha256:027417189506a69e3b41538c81035151d06761377078e8afac4a0c5e7c7889f4"
         }
       ],
       "id": "gemma4-multimodal-oracle",
@@ -202,7 +202,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:f996ca78f530be003aed1abd076c69553f962815c5b8f8a474bc059a03bb008f"
+          "identity": "evidence:sha256:027417189506a69e3b41538c81035151d06761377078e8afac4a0c5e7c7889f4"
         }
       ],
       "id": "gemma-e4b-audio-tower-oracle",
@@ -224,7 +224,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:f996ca78f530be003aed1abd076c69553f962815c5b8f8a474bc059a03bb008f"
+          "identity": "evidence:sha256:027417189506a69e3b41538c81035151d06761377078e8afac4a0c5e7c7889f4"
         }
       ],
       "id": "gemma-e4b-image-language-oracle",
@@ -252,7 +252,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:f996ca78f530be003aed1abd076c69553f962815c5b8f8a474bc059a03bb008f"
+          "identity": "evidence:sha256:027417189506a69e3b41538c81035151d06761377078e8afac4a0c5e7c7889f4"
         }
       ],
       "id": "qwen35-image-video-language-oracle",
@@ -353,7 +353,7 @@
           "contains": "func Quantize(",
           "path": "internal/quant/quantize.go",
           "role": "source",
-          "identity": "file:sha256:de19b1a8af70b00c1deedf69e48d8f5fbf79bc4b832a1aaa7b009dc28bb41b21"
+          "identity": "file:sha256:8bbd9e1e5f71407812546da597482cbd4937175cf3995c6ec97f9275d79b7148"
         },
         {
           "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
@@ -503,7 +503,7 @@
           "contains": "func (r *Qwen3VLRunner) BuildImagesPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:fd1c4549edf03f740037296d0e52b3446f43c907ebe28ed75bd0b1ee8310006e"
+          "identity": "file:sha256:c1f1e75ef940e3690f663e61d13b8ba77e4dff94459c7bd148d845a1ec780299"
         },
         {
           "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -524,7 +524,7 @@
           "contains": "func (r *Gemma4Runner) BuildImagesHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:fd1c4549edf03f740037296d0e52b3446f43c907ebe28ed75bd0b1ee8310006e"
+          "identity": "file:sha256:c1f1e75ef940e3690f663e61d13b8ba77e4dff94459c7bd148d845a1ec780299"
         },
         {
           "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -545,7 +545,7 @@
           "contains": "func (r *Gemma4Runner) BuildMediaHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:fd1c4549edf03f740037296d0e52b3446f43c907ebe28ed75bd0b1ee8310006e"
+          "identity": "file:sha256:c1f1e75ef940e3690f663e61d13b8ba77e4dff94459c7bd148d845a1ec780299"
         },
         {
           "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
@@ -830,7 +830,7 @@
           "contains": "func TestArchitectureRegistryProfiles(",
           "path": "internal/model/architecture_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:5c06fdbb0c32934c1fbcd8c7979911db9c18ff1348f81b923e295826f9a2aee1"
+          "identity": "evidence:sha256:972fc1b502802cf01b0fe8a2a862401fa2cd46686d392219a3ec11052ce79b2f"
         }
       ],
       "id": "architecture-profiles",

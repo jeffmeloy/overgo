@@ -115,12 +115,12 @@ func TestEncoderValidationUsesBoundProfilePolicy(t *testing.T) {
 			KeyLength: runtimePolicyFixtureHeadWidth, ValueLength: runtimePolicyFixtureHeadWidth,
 		},
 	}.withProfile(profile)
-	if err := spec.validateEncoderFamilies(); err == nil {
+	if err := spec.validateEncoderMetadata(); err == nil {
 		t.Fatal("bound encoder policy accepted invalid metadata")
 	}
 	spec.TokenTypeCount = runtimePolicyFixtureTokenTypes
 	spec.HeadCountKV = spec.HeadCount
-	if err := spec.validateEncoderFamilies(); err != nil {
+	if err := spec.validateEncoderMetadata(); err != nil {
 		t.Fatalf("bound encoder policy rejected valid metadata: %v", err)
 	}
 }
@@ -137,11 +137,11 @@ func TestAttentionValidationUsesBoundProfilePolicy(t *testing.T) {
 			RopeDimensionCount: runtimePolicyFixtureHeadWidth,
 		},
 	}.withProfile(profile)
-	if err := spec.validateAttentionFamilies(); err == nil {
+	if err := spec.validateAttentionMetadata(); err == nil {
 		t.Fatal("bound attention policy accepted invalid metadata")
 	}
 	spec.ValueLength = spec.KeyLength
-	if err := spec.validateAttentionFamilies(); err != nil {
+	if err := spec.validateAttentionMetadata(); err != nil {
 		t.Fatalf("bound attention policy rejected valid metadata: %v", err)
 	}
 }
@@ -154,14 +154,14 @@ func TestMLAValidationUsesBoundProfilePolicy(t *testing.T) {
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
 	}.withProfile(profile)
-	if err := spec.validateMLAFamilies(); err == nil {
+	if err := spec.validateMLAMetadata(); err == nil {
 		t.Fatal("bound MLA policy accepted invalid metadata")
 	}
 	spec.QLoRARank = runtimePolicyFixtureRank
 	spec.ResidualScale = runtimePolicyFixturePositive
 	spec.OriginalContextLength = runtimePolicyFixtureBlocks
 	spec.RopeAttentionFactor = runtimePolicyFixturePositive
-	if err := spec.validateMLAFamilies(); err != nil {
+	if err := spec.validateMLAMetadata(); err != nil {
 		t.Fatalf("bound MLA policy rejected valid metadata: %v", err)
 	}
 }
@@ -174,12 +174,12 @@ func TestRecurrentValidationUsesBoundProfilePolicy(t *testing.T) {
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
 	}.withProfile(profile)
-	if err := spec.validateRecurrentFamilies(); err == nil {
+	if err := spec.validateRecurrentMetadata(); err == nil {
 		t.Fatal("bound recurrent policy accepted invalid metadata")
 	}
 	spec.TargetLayers = []int32{runtimePolicyFixtureTargetLayer}
 	spec.DFlashBlockSize = runtimePolicyFixtureBlocks
-	if err := spec.validateRecurrentFamilies(); err != nil {
+	if err := spec.validateRecurrentMetadata(); err != nil {
 		t.Fatalf("bound recurrent policy rejected valid metadata: %v", err)
 	}
 }
@@ -192,14 +192,14 @@ func TestHybridValidationUsesBoundProfilePolicy(t *testing.T) {
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
 	}.withProfile(profile)
-	if err := spec.validateHybridMoEFamilies(); err == nil {
+	if err := spec.validateHybridMetadata(); err == nil {
 		t.Fatal("bound hybrid policy accepted invalid metadata")
 	}
 	spec.ExpertCount = runtimePolicyFixtureHeads
 	spec.ExpertUsedCount = runtimePolicyFixtureRank
 	spec.ExpertFeedForward = runtimePolicyFixtureHeadWidth
 	spec.ExpertWeightsScale = runtimePolicyFixturePositive
-	if err := spec.validateHybridMoEFamilies(); err != nil {
+	if err := spec.validateHybridMetadata(); err != nil {
 		t.Fatalf("bound hybrid policy rejected valid metadata: %v", err)
 	}
 }

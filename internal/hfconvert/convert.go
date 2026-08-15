@@ -17,9 +17,8 @@ import (
 	"strings"
 
 	"overgo/internal/gguf"
-	"overgo/internal/model"
+	"overgo/internal/modelartifact"
 	"overgo/internal/safetensors"
-	"overgo/internal/tokenizer"
 )
 
 type modelConfig struct {
@@ -126,10 +125,10 @@ func Convert(options Options) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	if err := validateModelCatalog(metadata, tensors); err != nil {
+	if err := modelartifact.ValidateGeneratedCatalog(metadata, tensors); err != nil {
 		return Report{}, err
 	}
-	if err := writeOutput(options.OutputPath, metadata, tensors); err != nil {
+	if err := gguf.WriteFileExclusive(options.OutputPath, metadata, tensors, gguf.WriteOptions{}); err != nil {
 		return Report{}, err
 	}
 	written, err := os.Stat(options.OutputPath)
@@ -693,61 +692,6 @@ func modelTensorReader(tensor safetensors.Tensor, destinationName string) (gguf.
 	default:
 		return 0, nil, fmt.Errorf("unsupported dtype %q", tensor.DType)
 	}
-}
-
-func validateModelCatalog(metadata []gguf.Metadata, tensors []gguf.TensorData) error {
-	file := &gguf.File{Metadata: metadata, Tensors: make([]gguf.TensorInfo, len(tensors))}
-	for index, tensor := range tensors {
-		if len(tensor.Shape) > gguf.MaxDimensions {
-			return fmt.Errorf("HF converter: tensor %q rank exceeds GGUF", tensor.Name)
-		}
-		info := gguf.TensorInfo{
-			Name: tensor.Name, Dimensions: uint32(len(tensor.Shape)), Type: tensor.Type,
-			Shape: [gguf.MaxDimensions]uint64{1, 1, 1, 1},
-		}
-		copy(info.Shape[:], tensor.Shape)
-		file.Tensors[index] = info
-	}
-	spec, err := model.ReadSpec(file)
-	if err != nil {
-		return fmt.Errorf("HF converter: generated model metadata: %w", err)
-	}
-	if _, err := model.ReadWeights(file, spec); err != nil {
-		return fmt.Errorf("HF converter: generated tensor catalog: %w", err)
-	}
-	if _, err := tokenizer.Load(file); err != nil {
-		return fmt.Errorf("HF converter: generated tokenizer: %w", err)
-	}
-	return nil
-}
-
-func writeOutput(path string, metadata []gguf.Metadata, tensors []gguf.TensorData) error {
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	file, err := os.OpenFile(absolute, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if err != nil {
-		return fmt.Errorf("HF converter: create %s: %w", absolute, err)
-	}
-	succeeded := false
-	defer func() {
-		_ = file.Close()
-		if !succeeded {
-			_ = os.Remove(absolute)
-		}
-	}()
-	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		return fmt.Errorf("HF converter: write %s: %w", absolute, err)
-	}
-	if err := file.Sync(); err != nil {
-		return err
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
-	succeeded = true
-	return nil
 }
 
 func reverseShape(shape []uint64) []uint64 {

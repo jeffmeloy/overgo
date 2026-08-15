@@ -55,12 +55,6 @@ type DeepSeekOCRRunner struct {
 	dynamicTiles              bool
 }
 
-func OpenDeepSeekOCRWithOptions(path string, options OpenOptions) (*DeepSeekOCRRunner, error) {
-	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*DeepSeekOCRRunner, error) {
-		return openDeepSeekOCR(context.Background(), file, options)
-	})
-}
-
 func openDeepSeekOCR(ctx context.Context, file *gguf.File, options OpenOptions) (*DeepSeekOCRRunner, error) {
 	spec, err := ReadDeepSeekOCRSpec(file)
 	if err != nil {

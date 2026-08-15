@@ -38,12 +38,6 @@ type Qwen2VLImage = Qwen3VLImage
 type Qwen2VLOutput = Qwen3VLOutput
 type Qwen2VLPreprocessOptions = Qwen3VLPreprocessOptions
 
-func OpenQwen2VLWithOptions(path string, options OpenOptions) (*Qwen2VLRunner, error) {
-	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Qwen2VLRunner, error) {
-		return openQwen2VL(context.Background(), file, options)
-	})
-}
-
 func openQwen2VL(ctx context.Context, file *gguf.File, options OpenOptions) (*Qwen2VLRunner, error) {
 	return buildCatalogProjector(ctx, file, options, "Qwen2-VL", nil,
 		ReadQwen2VLSpec, validateQwen2VLCatalog,

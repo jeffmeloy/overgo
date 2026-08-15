@@ -6,7 +6,7 @@ import (
 	"math"
 )
 
-func (s Spec) validateAttentionFamilies() error {
+func (s Spec) validateAttentionMetadata() error {
 	validation := s.Profile().Validation
 	defaults := s.Profile().MetadataDefaults
 	attention := validation.Attention
@@ -356,10 +356,7 @@ func (s Spec) validateAttentionFamilies() error {
 		return errors.New("Falcon rotary dimension count must equal the key length")
 	}
 	if attention == AttentionValidationRefact && s.ExpertCount > 0 &&
-		(s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 ||
-			s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-			math.IsInf(float64(s.ExpertWeightsScale), 0)) {
+		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("Refact expert metadata is invalid")
 	}
 	return nil

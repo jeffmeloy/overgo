@@ -64,12 +64,6 @@ type Llama4VisionRunner struct {
 	attention visionAttentionPlan
 }
 
-func OpenLlama4VisionWithOptions(path string, options OpenOptions) (*Llama4VisionRunner, error) {
-	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Llama4VisionRunner, error) {
-		return openLlama4Vision(context.Background(), file, options)
-	})
-}
-
 func openLlama4Vision(ctx context.Context, file *gguf.File, options OpenOptions) (*Llama4VisionRunner, error) {
 	return buildCatalogProjector(ctx, file, options, "Llama-4", nil,
 		ReadLlama4VisionSpec, validateLlama4VisionCatalog,

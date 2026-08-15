@@ -17,16 +17,6 @@ type HiddenStateCaptureAPI interface {
 	ExtractLayerInputs(ctx context.Context, tokenIDs []tokenizer.TokenID, layerIDs []int32) (reference.Value, error)
 }
 
-const (
-	// analyzeStatesMaxPositions bounds captured tokens for latency/memory; it is
-	// surfaced to the caller via max_positions, not a hidden modeling choice.
-	analyzeStatesMaxPositions = 64
-	// The two below are numerical-convergence bounds for SMACOF (a safety cap and
-	// a relative-improvement stop), not model parameters.
-	analyzeStatesMDSMaxIters  = 1000
-	analyzeStatesMDSTolerance = 1e-6
-)
-
 type analyzeStatesRequest struct {
 	Prompt       string `json:"prompt"`
 	Layer        *int   `json:"layer"`
@@ -42,21 +32,23 @@ type analyzeStatesToken struct {
 }
 
 type analyzeStatesResponse struct {
-	Layer              int                  `json:"layer"`
-	Block              int                  `json:"block_count"`
-	Positions          int                  `json:"positions"`
-	RequestedPositions int                  `json:"requested_positions"`
-	MaxPositions       int                  `json:"max_positions"`
-	Truncated          bool                 `json:"truncated"`
-	Width              int                  `json:"width"`
-	Metric             string               `json:"metric"`
-	K                  int                  `json:"k"`
-	Tokens             []analyzeStatesToken `json:"tokens"`
-	Distance           [][]float64          `json:"distance"`
-	Neighbors          [][]int              `json:"neighbors"`
-	Layout             [][2]float64         `json:"layout"`
-	Stress             float64              `json:"stress"`
-	LayoutIterations   int                  `json:"layout_iterations"`
+	Layer               int                  `json:"layer"`
+	Block               int                  `json:"block_count"`
+	Positions           int                  `json:"positions"`
+	RequestedPositions  int                  `json:"requested_positions"`
+	MaxPositions        int                  `json:"max_positions"`
+	Truncated           bool                 `json:"truncated"`
+	Width               int                  `json:"width"`
+	Metric              string               `json:"metric"`
+	K                   int                  `json:"k"`
+	Tokens              []analyzeStatesToken `json:"tokens"`
+	Distance            [][]float64          `json:"distance"`
+	Neighbors           [][]int              `json:"neighbors"`
+	Layout              [][2]float64         `json:"layout"`
+	Stress              float64              `json:"stress"`
+	LayoutIterations    int                  `json:"layout_iterations"`
+	LayoutMaxIterations int                  `json:"layout_max_iterations"`
+	LayoutTolerance     float64              `json:"layout_tolerance"`
 }
 
 // analyzeStates: capture the residual-stream vectors at one layer over the
@@ -65,6 +57,10 @@ type analyzeStatesResponse struct {
 // non-metric-MDS layout. Nothing here fits a model or assumes a shape.
 func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodPost) {
+		return
+	}
+	if h.config.Analysis == (AnalysisPolicy{}) {
+		writeError(response, http.StatusNotImplemented, "unsupported_operation", "state analysis policy is unavailable")
 		return
 	}
 	capture, ok := h.generator.(HiddenStateCaptureAPI)
@@ -97,8 +93,8 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	limit := body.MaxPositions
-	if limit <= 0 || limit > analyzeStatesMaxPositions {
-		limit = analyzeStatesMaxPositions
+	if limit <= 0 || limit > h.config.Analysis.StatePositions {
+		limit = h.config.Analysis.StatePositions
 	}
 	requestedPositions := len(tokens)
 	truncated := requestedPositions > limit
@@ -140,7 +136,7 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 	}
 	distance := dissimilarityMatrix(vectors, metric)
 	neighbors := kNNAdjacency(distance, k)
-	layout, stress, iterations := nonMetricMDS(distance, analyzeStatesMDSMaxIters, analyzeStatesMDSTolerance)
+	layout, stress, iterations := nonMetricMDS(distance, h.config.Analysis.MDSIterations, h.config.Analysis.MDSTolerance)
 
 	tokenList := make([]analyzeStatesToken, len(tokens))
 	pieceAPI, hasPieces := h.generator.(TokenPieceAPI)
@@ -155,21 +151,23 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 	}
 
 	writeJSON(response, http.StatusOK, analyzeStatesResponse{
-		Layer:              layer,
-		Block:              blockCount,
-		Positions:          len(tokens),
-		RequestedPositions: requestedPositions,
-		MaxPositions:       limit,
-		Truncated:          truncated,
-		Width:              width,
-		Metric:             string(metric),
-		K:                  k,
-		Tokens:             tokenList,
-		Distance:           distance,
-		Neighbors:          neighbors,
-		Layout:             layout,
-		Stress:             stress,
-		LayoutIterations:   iterations,
+		Layer:               layer,
+		Block:               blockCount,
+		Positions:           len(tokens),
+		RequestedPositions:  requestedPositions,
+		MaxPositions:        limit,
+		Truncated:           truncated,
+		Width:               width,
+		Metric:              string(metric),
+		K:                   k,
+		Tokens:              tokenList,
+		Distance:            distance,
+		Neighbors:           neighbors,
+		Layout:              layout,
+		Stress:              stress,
+		LayoutIterations:    iterations,
+		LayoutMaxIterations: h.config.Analysis.MDSIterations,
+		LayoutTolerance:     h.config.Analysis.MDSTolerance,
 	})
 }
 

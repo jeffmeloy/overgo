@@ -144,7 +144,7 @@ func testGemma4InputParity(t *testing.T) {
 	if decodeErr != nil || closeErr != nil {
 		t.Fatal(errors.Join(decodeErr, closeErr))
 	}
-	runner, err := projector.OpenGemma4WithOptions(projectorPath, projector.OpenOptions{CUDA: true})
+	runner, err := projector.OpenAs[*projector.Gemma4Runner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Gemma4 projector or CUDA absent; parity NOT verified: %v", err)
 	}
@@ -299,7 +299,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	if decodeErr != nil || closeErr != nil {
 		t.Fatal(errors.Join(decodeErr, closeErr))
 	}
-	vision, err := projector.OpenQwen3VLWithOptions(projectorPath, projector.OpenOptions{CUDA: true})
+	vision, err := projector.OpenAs[*projector.Qwen3VLRunner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Qwen3.5 projector or CUDA absent; parity NOT verified: %v", err)
 	}
@@ -483,7 +483,7 @@ func testGemmaE4BImageLanguageParity(t *testing.T) {
 	if decodeErr != nil || closeErr != nil {
 		t.Fatal(errors.Join(decodeErr, closeErr))
 	}
-	projectorRunner, err := projector.OpenGemma4TowerWithOptions(projectorPath, projector.OpenOptions{CUDA: true})
+	projectorRunner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
 	}
@@ -578,7 +578,7 @@ func testGemmaE4BAudioParity(t *testing.T) {
 	}
 	features := readFloat32Evidence(t, featurePath, "E4B audio features")
 	wave := readFloat32Evidence(t, wavePath, "E4B audio wave")
-	runner, err := projector.OpenGemma4TowerWithOptions(projectorPath, projector.OpenOptions{CUDA: true})
+	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
 	}
@@ -692,7 +692,7 @@ func testGemmaE4BImageParity(t *testing.T) {
 	if closeErr != nil {
 		t.Fatal(closeErr)
 	}
-	runner, err := projector.OpenGemma4TowerWithOptions(projectorPath, projector.OpenOptions{CUDA: true})
+	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
 	}
@@ -791,7 +791,7 @@ func testGemmaE4BResizeParity(t *testing.T) {
 	if closeErr != nil {
 		t.Fatal(closeErr)
 	}
-	runner, err := projector.OpenGemma4TowerWithOptions(projectorPath, projector.OpenOptions{})
+	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), projectorPath, projector.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -861,7 +861,7 @@ func testGemmaE4BVideoOrder(t *testing.T) {
 		t.Fatal(closeErr)
 	}
 	second := flipHorizontal(first)
-	runner, err := projector.OpenGemma4TowerWithOptions(projectorPath, projector.OpenOptions{CUDA: true})
+	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

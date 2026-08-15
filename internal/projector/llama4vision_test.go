@@ -30,7 +30,7 @@ func (llama4PromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.T
 }
 
 func TestLlama4VisionRunnerTinyFixture(t *testing.T) {
-	runner, err := OpenLlama4VisionWithOptions(writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*Llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestLlama4VisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesLlama4(t *testing.T) {
-	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
+	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestPreprocessLlama4VisionUHDOrder(t *testing.T) {
 }
 
 func TestLlama4MultipleImagePrompt(t *testing.T) {
-	runner, err := OpenLlama4VisionWithOptions(writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*Llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestLlama4VisionRoPEUsesWidthAndHeight(t *testing.T) {
 
 func TestLlama4CatalogRejectsIncompletePreNorm(t *testing.T) {
 	tensors := append(tinyLlama4VisionTensors(), f32Tensor("v.pre_ln.weight", []uint64{4}, []float32{1, 1, 1, 1}))
-	if _, err := OpenLlama4VisionWithOptions(writeTinyLlama4Vision(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
+	if _, err := openImageProjectorAs[*Llama4VisionRunner](writeTinyLlama4Vision(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -129,12 +129,12 @@ func TestLlama4CatalogRejectsIncompletePreNorm(t *testing.T) {
 func TestLlama4VisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyLlama4Vision(t, nonzeroTinyLlama4VisionTensors())
-	cpu, err := OpenLlama4VisionWithOptions(path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*Llama4VisionRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenLlama4VisionWithOptions(path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*Llama4VisionRunner](path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

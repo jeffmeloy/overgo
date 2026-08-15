@@ -131,7 +131,7 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 	metadata := tinyQwen3VLMetadata()
 	tensors := tinyQwen3VLTensors()
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	runner, err := OpenQwen3VLWithOptions(path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 		return item.Key == "clip.vision.is_deepstack_layers"
 	})
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tinyQwen3VLDeepstackTensors())
-	runner, err := OpenQwen3VLWithOptions(path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,12 +194,12 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLDeepstackMetadata(), tinyQwen3VLDeepstackTensors())
-	cpu, err := OpenQwen3VLWithOptions(path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenQwen3VLWithOptions(path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	runner, err := OpenQwen3VLWithOptions(path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,12 +263,12 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 func TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLMetadata(), nonzeroTinyQwen3VLTensors())
-	cpu, err := OpenQwen3VLWithOptions(path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenQwen3VLWithOptions(path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,9 +478,10 @@ func tinyQwen3VLMetadata() []gguf.Metadata {
 }
 
 func openQwen3VLFixture(path string) (*Qwen3VLRunner, error) {
-	return OpenQwen3VLWithOptions(path, OpenOptions{
+	return openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{
 		CUDA: os.Getenv("OVERGO_QWEN35_PROJECTOR_CUDA") != "",
 	})
+
 }
 
 func tinyQwen3VLDeepstackMetadata() []gguf.Metadata {

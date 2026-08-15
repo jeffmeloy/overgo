@@ -43,12 +43,6 @@ type MiMoVLRunner struct {
 	spec MiMoVLSpec
 }
 
-func OpenMiMoVLWithOptions(path string, options OpenOptions) (*MiMoVLRunner, error) {
-	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*MiMoVLRunner, error) {
-		return openMiMoVL(context.Background(), file, options)
-	})
-}
-
 func openMiMoVL(ctx context.Context, file *gguf.File, options OpenOptions) (*MiMoVLRunner, error) {
 	return buildCatalogProjector(ctx, file, options, "MiMo-VL", nil,
 		ReadMiMoVLSpec, validateMiMoVLCatalog,

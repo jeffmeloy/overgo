@@ -532,34 +532,6 @@ func channelRMSNormInto(out, x, gamma []float32, c, plane int) error {
 	return nil
 }
 
-// pointwiseConvInto: 1x1 channel mix at every position (qkv/proj/shortcut).
-func pointwiseConvInto(out, x, w, bias []float32, cIn, cOut, plane int) error {
-	if len(x) != cIn*plane || len(out) != cOut*plane {
-		return fmt.Errorf("vae pointwise: bad lengths out=%d x=%d", len(out), len(x))
-	}
-	if len(w) != cOut*cIn {
-		return fmt.Errorf("vae pointwise: weight len=%d want %d", len(w), cOut*cIn)
-	}
-	if bias != nil && len(bias) != cOut {
-		return fmt.Errorf("vae pointwise: bias len=%d want %d", len(bias), cOut)
-	}
-	hostmath.ParallelRangeF64(cOut, cIn*plane, func(coLo, coHi int) {
-		for co := coLo; co < coHi; co++ {
-			for pos := 0; pos < plane; pos++ {
-				acc := float64(0)
-				if bias != nil {
-					acc = float64(bias[co])
-				}
-				for ci := 0; ci < cIn; ci++ {
-					acc += float64(x[ci*plane+pos]) * float64(w[co*cIn+ci])
-				}
-				out[co*plane+pos] = float32(acc)
-			}
-		}
-	})
-	return nil
-}
-
 // spatialAttentionInto: per-frame spatial self-attention over qkv
 // [3c][t][h*w] planes, residual added by the caller.
 func spatialAttentionInto(out, qkv []float32, c, t, frame int) error {
@@ -697,7 +669,7 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 			return out, frames, h, w, nil
 		}
 		shortcut := make([]float32, len(out))
-		if err := pointwiseConvInto(shortcut, x, op.values[6], op.values[7], c, op.cOut, frames*spatial); err != nil {
+		if err := hostmath.ChannelMixF64Into(shortcut, x, op.values[6], op.values[7], c, op.cOut, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		for i := range out {
@@ -712,14 +684,14 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 			return nil, 0, 0, 0, err
 		}
 		qkv := make([]float32, 3*c*frames*spatial)
-		if err := pointwiseConvInto(qkv, norm, qkvW, qkvB, c, 3*c, frames*spatial); err != nil {
+		if err := hostmath.ChannelMixF64Into(qkv, norm, qkvW, qkvB, c, 3*c, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		if err := spatialAttentionInto(norm, qkv, c, frames, spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		out := make([]float32, len(x))
-		if err := pointwiseConvInto(out, norm, projW, projB, c, c, frames*spatial); err != nil {
+		if err := hostmath.ChannelMixF64Into(out, norm, projW, projB, c, c, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		for i := range out {

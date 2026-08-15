@@ -29,7 +29,7 @@ func (t *mimoVLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenize
 }
 
 func TestMiMoVLRunnerTinyFixture(t *testing.T) {
-	runner, err := OpenMiMoVLWithOptions(writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
+	runner, err := openImageProjectorAs[*MiMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestMiMoVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesMiMoVL(t *testing.T) {
-	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
+	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestOpenImageProjectorDispatchesMiMoVL(t *testing.T) {
 }
 
 func TestMiMoVLPromptContract(t *testing.T) {
-	runner, err := OpenMiMoVLWithOptions(writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
+	runner, err := openImageProjectorAs[*MiMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,12 +98,12 @@ func TestMiMoVLColumnOrderRoundTrip(t *testing.T) {
 func TestMiMoVLCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyMiMoVL(t, tinyMiMoVLTensors(true))
-	cpu, err := OpenMiMoVLWithOptions(path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*MiMoVLRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenMiMoVLWithOptions(path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*MiMoVLRunner](path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

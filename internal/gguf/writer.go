@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
 
 	"overgo/internal/binaryschema"
@@ -35,6 +37,36 @@ type preparedTensor struct {
 	input  TensorData
 	info   TensorInfo
 	offset uint64
+}
+
+// WriteFileExclusive: create, stream, sync; remove partial output on failure.
+func WriteFileExclusive(path string, metadata []Metadata, tensors []TensorData, options WriteOptions) error {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	file, err := os.OpenFile(absolute, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return fmt.Errorf("GGUF create %s: %w", absolute, err)
+	}
+	succeeded := false
+	defer func() {
+		_ = file.Close()
+		if !succeeded {
+			_ = os.Remove(absolute)
+		}
+	}()
+	if err := Write(file, metadata, tensors, options); err != nil {
+		return fmt.Errorf("GGUF write %s: %w", absolute, err)
+	}
+	if err := file.Sync(); err != nil {
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	succeeded = true
+	return nil
 }
 
 // Write: serializes one canonical GGUF file without buffering tensor payloads

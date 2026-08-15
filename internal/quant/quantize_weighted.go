@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	iq2XXSQuantCodebook = buildIQ2QuantCodebook(iq2XXSGrid[:])
-	iq2XSQuantCodebook  = buildIQ2QuantCodebook(iq2XSGrid[:])
+	iq2XXSQuantCodebook = buildIQQuantCodebook(iq2XXSGrid[:], iqCodebookLaneWidth, 2)
+	iq2XSQuantCodebook  = buildIQQuantCodebook(iq2XSGrid[:], iqCodebookLaneWidth, 2)
 	iq1Codebook         = buildIQ1QuantCodebook(iq1SGrid[:])
 )
 
@@ -147,7 +147,7 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 					_, direct := codebook.index[encoded]
 					auxiliaryOnGrid[subGroup] = direct
 					if !direct {
-						iq2FindBest(codebook, encoded,
+						iqFindBest(codebook, encoded,
 							absoluteValues[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
 							neighborWeight[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
 							candidateScale, auxiliary[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth], 2)
@@ -183,7 +183,7 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 						encoded |= uint16(level) << uint(2*lane)
 					}
 					if _, direct := codebook.index[encoded]; !direct {
-						iq2FindBest(codebook, encoded,
+						iqFindBest(codebook, encoded,
 							absoluteValues[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
 							neighborWeight[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
 							scale, levels[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth], 2)

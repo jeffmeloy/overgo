@@ -2,8 +2,26 @@ package hostmath
 
 import (
 	"math"
+	"slices"
 	"testing"
 )
+
+func TestChannelMixF64Into(t *testing.T) {
+	const channels, positions = 2, 2
+	input := []float32{1, 2, 3, 4}
+	identity := []float32{1, 0, 0, 1}
+	bias := []float32{5, 6}
+	output := make([]float32, channels*positions)
+	if err := ChannelMixF64Into(output, input, identity, bias, channels, channels, positions); err != nil {
+		t.Fatal(err)
+	}
+	if want := []float32{6, 7, 9, 10}; !slices.Equal(output, want) {
+		t.Fatalf("channel mix = %v, want %v", output, want)
+	}
+	if err := ChannelMixF64Into(output[:len(output)-1], input, identity, bias, channels, channels, positions); err == nil {
+		t.Fatal("channel mix accepted a short destination")
+	}
+}
 
 // TestGELUTanh pins the tanh approximation against PyTorch gelu(approximate="tanh").
 func TestGELUTanh(t *testing.T) {

@@ -49,7 +49,7 @@ func (gemma4PromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.T
 
 func TestGemma4RunnerTinyFixture(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenGemma4WithOptions(path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,9 +75,18 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 	}
 }
 
+func TestGemma4ArtifactAdmitsAudioContract(t *testing.T) {
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
+	runner, err := OpenAs[AudioProjector](context.Background(), path, OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner.Close()
+}
+
 func TestGemma4MultipleImagePrompt(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenGemma4WithOptions(path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,12 +114,12 @@ func TestGemma4MultipleImagePrompt(t *testing.T) {
 func TestGemma4RunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	cpu, err := OpenGemma4WithOptions(path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenGemma4WithOptions(path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +174,7 @@ func compareExactFloat32(t *testing.T, name string, got, want []float32) {
 
 func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenGemma4WithOptions(path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +206,7 @@ func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 
 func TestGemma4AudioTinyFixture(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenGemma4WithOptions(path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -681,9 +690,10 @@ func tinyGemma4Metadata() []gguf.Metadata {
 }
 
 func openGemma4Fixture(path string) (*Gemma4Runner, error) {
-	return OpenGemma4WithOptions(path, OpenOptions{
+	return openImageProjectorAs[*Gemma4Runner](path, OpenOptions{
 		CUDA: os.Getenv("OVERGO_GEMMA4_PROJECTOR_CUDA") != "",
 	})
+
 }
 
 func tinyGemma4Tensors() []gguf.TensorData {

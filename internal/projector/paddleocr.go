@@ -44,20 +44,12 @@ type PaddleOCRSpec struct {
 	FusedQKV              []bool
 }
 
-type PaddleOCRPreprocessOptions pixelBudget
-type PaddleOCRImage gridImage
 type PaddleOCROutput gridOutput
 
 type PaddleOCRRunner struct {
 	projectorResources
 	spec      PaddleOCRSpec
 	attention visionAttentionPlan
-}
-
-func OpenPaddleOCRWithOptions(path string, options OpenOptions) (*PaddleOCRRunner, error) {
-	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*PaddleOCRRunner, error) {
-		return openPaddleOCR(context.Background(), file, options)
-	})
 }
 
 func openPaddleOCR(ctx context.Context, file *gguf.File, options OpenOptions) (*PaddleOCRRunner, error) {
@@ -209,53 +201,6 @@ func validatePaddleOCRCatalog(file *gguf.File, spec PaddleOCRSpec) ([]string, er
 	return validateProjectorTensorCatalog(file, required)
 }
 
-func DefaultPaddleOCRPreprocessOptions(spec PaddleOCRSpec) PaddleOCRPreprocessOptions {
-	return PaddleOCRPreprocessOptions{
-		MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels, MaxAspectRatio: defaultVisionMaxAspectRatio,
-	}
-}
-
-func PreprocessPaddleOCRImage(source image.Image, spec PaddleOCRSpec, options PaddleOCRPreprocessOptions) (PaddleOCRImage, error) {
-	if source == nil {
-		return PaddleOCRImage{}, errors.New("projector: image is nil")
-	}
-	if err := spec.validate(); err != nil {
-		return PaddleOCRImage{}, err
-	}
-	if options == (PaddleOCRPreprocessOptions{}) {
-		options = DefaultPaddleOCRPreprocessOptions(spec)
-	}
-	bounds := source.Bounds()
-	resizedH, resizedW, err := pixelBudget(options).resize(
-		bounds.Dy(), bounds.Dx(), spec.PatchSize*spec.MergeSize,
-	)
-	if err != nil {
-		return PaddleOCRImage{}, err
-	}
-	resized := resizeImageBilinear(source, resizedW, resizedH)
-	gridH, gridW := resizedH/spec.PatchSize, resizedW/spec.PatchSize
-	patchArea := spec.PatchSize * spec.PatchSize
-	patchWidth := 3 * patchArea
-	pixels := make([]float32, gridH*gridW*patchWidth)
-	for patchY := 0; patchY < gridH; patchY++ {
-		for patchX := 0; patchX < gridW; patchX++ {
-			row := (patchY*gridW + patchX) * patchWidth
-			for channel := 0; channel < 3; channel++ {
-				position := row + channel*patchArea
-				for y := 0; y < spec.PatchSize; y++ {
-					for x := 0; x < spec.PatchSize; x++ {
-						r, g, b, _ := resized.At(patchX*spec.PatchSize+x, patchY*spec.PatchSize+y).RGBA()
-						value := [3]uint32{r, g, b}[channel]
-						pixels[position] = (normalizedImageChannel(value) - spec.ImageMean[channel]) / spec.ImageStd[channel]
-						position++
-					}
-				}
-			}
-		}
-	}
-	return PaddleOCRImage{PixelValues: pixels, GridH: gridH, GridW: gridW}, nil
-}
-
 func resizeImageBilinear(source image.Image, width, height int) *image.RGBA {
 	bounds := source.Bounds()
 	inputW, inputH := bounds.Dx(), bounds.Dy()
@@ -296,18 +241,25 @@ func resizeImageBilinear(source image.Image, width, height int) *image.RGBA {
 	return output
 }
 
-func (r *PaddleOCRRunner) EncodeImage(ctx context.Context, source image.Image, options PaddleOCRPreprocessOptions) (PaddleOCROutput, error) {
+func (r *PaddleOCRRunner) EncodeImage(ctx context.Context, source image.Image, options RasterPatchOptions) (PaddleOCROutput, error) {
 	if r == nil || r.file == nil {
 		return PaddleOCROutput{}, errors.New("projector: runner is closed")
 	}
-	input, err := PreprocessPaddleOCRImage(source, r.spec, options)
+	if err := r.spec.validate(); err != nil {
+		return PaddleOCROutput{}, err
+	}
+	input, err := preprocessRasterPatches(source, rasterPatchPlan{
+		patchSize: r.spec.PatchSize, mergeSize: r.spec.MergeSize,
+		defaultBudget: pixelBudget{MinPixels: r.spec.MinPixels, MaxPixels: r.spec.MaxPixels, MaxAspectRatio: defaultVisionMaxAspectRatio},
+		mean:          r.spec.ImageMean, std: r.spec.ImageStd, interpolation: rasterBilinear,
+	}, options)
 	if err != nil {
 		return PaddleOCROutput{}, err
 	}
 	return r.encode(ctx, input)
 }
 
-func (r *PaddleOCRRunner) encode(ctx context.Context, input PaddleOCRImage) (PaddleOCROutput, error) {
+func (r *PaddleOCRRunner) encode(ctx context.Context, input RasterPatchImage) (PaddleOCROutput, error) {
 	return r.encodeGraph(ctx, input)
 }
 

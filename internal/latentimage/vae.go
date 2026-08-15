@@ -311,7 +311,7 @@ func (d *VAEDecoder) runOp(op vaeOp, x []float32, c, h, w int) ([]float32, int, 
 	switch op.kind {
 	case vaePointwise:
 		out := make([]float32, op.cOut*plane)
-		if err := vaePointwiseInto(out, x, op.weights[0], op.weights[1], c, op.cOut, plane); err != nil {
+		if err := hostmath.ChannelMixF64Into(out, x, op.weights[0], op.weights[1], c, op.cOut, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, op.cOut, h, w, nil
@@ -349,7 +349,7 @@ func (d *VAEDecoder) runOp(op vaeOp, x []float32, c, h, w int) ([]float32, int, 
 			return out, op.cOut, h, w, nil
 		}
 		shortcut := make([]float32, len(out))
-		if err := vaePointwiseInto(shortcut, x, op.weights[6], op.weights[7], c, op.cOut, plane); err != nil {
+		if err := hostmath.ChannelMixF64Into(shortcut, x, op.weights[6], op.weights[7], c, op.cOut, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		for i := range out {
@@ -364,14 +364,14 @@ func (d *VAEDecoder) runOp(op vaeOp, x []float32, c, h, w int) ([]float32, int, 
 			return nil, 0, 0, 0, err
 		}
 		qkv := make([]float32, 3*c*plane)
-		if err := vaePointwiseInto(qkv, norm, qkvW, qkvB, c, 3*c, plane); err != nil {
+		if err := hostmath.ChannelMixF64Into(qkv, norm, qkvW, qkvB, c, 3*c, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		if err := vaeSpatialAttention(norm, qkv, c, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		out := make([]float32, len(x))
-		if err := vaePointwiseInto(out, norm, projW, projB, c, c, plane); err != nil {
+		if err := hostmath.ChannelMixF64Into(out, norm, projW, projB, c, c, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		for i := range out {
@@ -411,34 +411,6 @@ func vaeCausalConv(out, x, weight, bias []float32, cIn, cOut, h, w int) error {
 		StrideT: 1, StrideH: 1, StrideW: 1,
 	}
 	return hostmath.CausalConv3DInto(out, x, nil, weight, bias, 0, shape)
-}
-
-// vaePointwiseInto: 1x1(x1) channel mix at every spatial position.
-func vaePointwiseInto(out, x, weight, bias []float32, cIn, cOut, plane int) error {
-	if len(x) != cIn*plane || len(out) != cOut*plane {
-		return fmt.Errorf("vae pointwise: bad lengths out=%d x=%d", len(out), len(x))
-	}
-	if len(weight) != cOut*cIn {
-		return fmt.Errorf("vae pointwise: weight len=%d want %d", len(weight), cOut*cIn)
-	}
-	if bias != nil && len(bias) != cOut {
-		return fmt.Errorf("vae pointwise: bias len=%d want %d", len(bias), cOut)
-	}
-	hostmath.ParallelRangeF64(cOut, cIn*plane, func(coLo, coHi int) {
-		for co := coLo; co < coHi; co++ {
-			for pos := 0; pos < plane; pos++ {
-				acc := float64(0)
-				if bias != nil {
-					acc = float64(bias[co])
-				}
-				for ci := 0; ci < cIn; ci++ {
-					acc += float64(x[ci*plane+pos]) * float64(weight[co*cIn+ci])
-				}
-				out[co*plane+pos] = float32(acc)
-			}
-		}
-	})
-	return nil
 }
 
 // vaeChannelRMSNorm: RMS over channels at each position, sqrt(C)-scaled,

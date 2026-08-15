@@ -18,9 +18,6 @@ const (
 	TensorMeasurementVersion   uint16 = 2
 	TensorMeasurementMediaType        = "application/vnd.overgo.tensor-measurement+json"
 	TensorMeasurementSchema           = "overgo/tensor-measurement/v2"
-
-	minimumMeasurementSamples = 256
-	maximumMeasurementSamples = 1 << 20
 )
 
 var tensorMeasurementContract = artifact.DocumentContract{
@@ -108,8 +105,7 @@ func measurementFromSamples(name string, elements uint64, samples []float64) (Te
 func canonicalizeTensorMeasurements(document *TensorMeasurementDocument) error {
 	if document == nil || document.Version != TensorMeasurementVersion ||
 		document.Inventory.Kind() != artifact.KindTensorInventory ||
-		document.Policy.MaxSamplesPerTensor < minimumMeasurementSamples ||
-		document.Policy.MaxSamplesPerTensor > maximumMeasurementSamples ||
+		document.Policy.MaxSamplesPerTensor == 0 ||
 		document.Policy.MaxReadBytes == 0 || document.ReadBytes == 0 ||
 		document.ReadBytes > document.Policy.MaxReadBytes || len(document.Measurements) == 0 ||
 		len(document.Measurements) > maxInventoryTensors {

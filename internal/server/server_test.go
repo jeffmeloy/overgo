@@ -66,7 +66,19 @@ const (
 	pngDeflateMethod     = 0
 	pngAdaptiveFilter    = 0
 	pngNoInterlace       = 0
+
+	testAnalysisSamples       = 512
+	testAnalysisReadBytes     = 1 << 20
+	testAnalysisPositions     = 64
+	testAnalysisMDSIterations = 1000
+	testAnalysisMDSTolerance  = 1e-6
 )
+
+var testAnalysisPolicy = AnalysisPolicy{
+	TensorSamples: testAnalysisSamples, TensorReadBytes: testAnalysisReadBytes,
+	StatePositions: testAnalysisPositions, MDSIterations: testAnalysisMDSIterations,
+	MDSTolerance: testAnalysisMDSTolerance,
+}
 
 func tinyPCM16WAV() []byte {
 	return testutil.MonoPCM16WAV(
@@ -436,6 +448,7 @@ func TestServerContextShiftOptionReachesGenerator(t *testing.T) {
 		MaxTokens:          testMaxTokens,
 		DefaultTemperature: testNeutralTemperature,
 		DefaultTopP:        testFullTopP,
+		Analysis:           testAnalysisPolicy,
 		ContextShift:       true,
 	}, generator)
 	if err != nil {
@@ -899,6 +912,7 @@ func newTestHandler(t testing.TB, generator Generator) *Handler {
 		MaxTokens:          testMaxTokens,
 		DefaultTemperature: testNeutralTemperature,
 		DefaultTopP:        testFullTopP,
+		Analysis:           testAnalysisPolicy,
 	}, generator)
 	if err != nil {
 		t.Fatal(err)

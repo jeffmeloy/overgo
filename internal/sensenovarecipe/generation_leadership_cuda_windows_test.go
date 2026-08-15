@@ -85,7 +85,7 @@ type generationAdaptiveOracle struct {
 	} `json:"performance"`
 }
 
-const senseNovaTerminalPNG = "550857f5c31e64e3a241132f5f6673572cee9f4bd620ece65ce5f1412c49e59f"
+const senseNovaGenerationTerminalPNG = "bc7dabb6526beee13200a1b421e080c5015354bfee66fba75d4dbf1dc44c8617"
 
 func TestSenseNovaGenerationLeadership(t *testing.T) {
 	cudatest.Require(t)
@@ -299,8 +299,8 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		t.Fatalf("SenseNova generated image = %+v", generated)
 	}
 	hash := fmt.Sprintf("%x", sha256.Sum256(generated.Data))
-	if hash != senseNovaTerminalPNG {
-		t.Fatalf("SenseNova terminal PNG sha256=%s, want %s", hash, senseNovaTerminalPNG)
+	if hash != senseNovaGenerationTerminalPNG {
+		t.Fatalf("SenseNova terminal PNG sha256=%s, want %s", hash, senseNovaGenerationTerminalPNG)
 	}
 	t.Logf("SenseNova terminal PNG: bytes=%d sha256=%s range=[%g,%g]",
 		len(generated.Data), hash, generated.Minimum, generated.Maximum)

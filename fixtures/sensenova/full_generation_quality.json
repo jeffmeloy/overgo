@@ -1,0 +1,53 @@
+{
+  "schema": "overgo.sensenova-full-generation/v1",
+  "source": {
+    "prompt_path": "SenseNova-U1/examples/t2i/data/samples_infographic_V2.jsonl",
+    "prompt_sha256": "da4f22489ff1020346ab3059de222ff34ab6ef251fa9def3d14f88319ee02055",
+    "source_sha256": "82879a5619f36ca3fa16d6a435a12769202fb35b2396d8015eca4e444afe331d"
+  },
+  "request": {
+    "width": 1536,
+    "height": 2720,
+    "steps": 50,
+    "seed": 42,
+    "cfg_scale": 4.0,
+    "timestep_shift": 3.0
+  },
+  "adaptive_native": {
+    "wall_seconds": 206.010,
+    "peak_bytes": 19501114166,
+    "reference_png_sha256": "3d0723fe455c62cf5ebd4ee014fa96afeaf09f31ae84d4dcc7a4c82396f37a8a"
+  },
+  "overgo_quality": {
+    "reviewed_png_sha256": "5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68",
+    "review": "original-resolution reviewed artifact",
+    "assertions": [
+      "central employee in a modern office scene",
+      "five numbered modules surround the employee",
+      "module 1 is left, module 3 is upper-right, and module 5 is lower-right",
+      "Chinese title, day-one heading, and week-principle heading are legible"
+    ],
+    "signature": {
+      "mean": 0.6988896385,
+      "standard_deviation": 0.3246021829,
+      "edge_mean": 0.02878840557,
+      "blue_fraction": 0.1315056296,
+      "orange_fraction": 0.03784778071,
+      "white_fraction": 0.4237273572,
+      "dark_fraction": 0.1023645738,
+      "grid": [
+        0.627016381, 0.720682186, 0.745513214, 0.882992477, 0.984757269, 0.844969318, 0.853057651, 0.806239113,
+        0.755301442, 0.661194744, 0.631991897, 0.791393859, 0.840011018, 0.854636572, 0.786613871, 0.807886228,
+        0.805693402, 0.815945829, 0.755433800, 0.628506347, 0.691897899, 0.725378338, 0.696957416, 0.698546129,
+        0.689806360, 0.777243517, 0.796871785, 0.498073271, 0.625650258, 0.652157170, 0.587360299, 0.647868888,
+        0.355716658, 0.455599854, 0.526761513, 0.398750468, 0.549667225, 0.573795137, 0.720488236, 0.770434334,
+        0.688923636, 0.752738939, 0.534412693, 0.553357511, 0.781090718, 0.646076644, 0.699613774, 0.545358547,
+        0.689881768, 0.891176190, 0.757473016, 0.718379543, 0.759829228, 0.743618524, 0.773723223, 0.745771414,
+        0.324924950, 0.733600178, 0.794799105, 0.742655767, 0.805930279, 0.734306883, 0.665607097, 0.606825871
+      ],
+      "scalar_tolerance": 0.08,
+      "grid_mae_max": 0.10,
+      "grid_worst_max": 0.30
+    }
+  }
+}

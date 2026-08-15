@@ -57,6 +57,7 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Train existing latent-sequence or image-flow objectives | `speechsynth.NewJointTrainer` / `diffusionimage.NewTrainer`; both expose their compiled `TrainingProgram` |
 | Compile, train, evaluate, and externally promote a scratch workflow controller | `controllertrain.Compile` / `TrainSeed` / `Decide`; actions come from `workflowrecipe`, execution stays in `scratchmodel.ResidentTrainer`, and RepoDB stores corpus, run, evaluation, decision, and rollback lineage |
 | Compile and admit recursive improvement trials | `trainingprogram.CompileImprovementProposal` / `runrecord.AdmitImprovement` / `DecideImprovement`; proposals cannot authorize admission, evaluation, promotion, or rollback |
+| Compile a measured training-memory schedule | `trainingprogram.CompileMemorySchedule`; `scratchmodel.TrainingMemorySegments` supplies exact flat parameter, gradient, and Muon-state geometry |
 | Bind dataset progress | `trainingdata.StreamState`; checkpoint form is `trainingprogram.DatasetState` |
 | Decode real image/audio training records | `trainingdata.ImageProcessor` / `Image`; `trainingdata.AudioProcessor` / `Audio` |
 

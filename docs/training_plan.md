@@ -554,8 +554,10 @@ not redefine an earlier rung's correctness contract.
     promotion and rollback. Each decision binds its child, parent, data, splits,
     recipe, code, evaluator, run, evaluation and authority identities; the child
     keeps acyclic construction lineage. No proposal can authorize itself.
-11. **Forced Tier-1 streaming.** Artificially cap VRAM on the small model; prove
-   double-buffered weight/gradient transfer, overlap and exact results.
+11. **Tier-1 execution.** Bind the measured small-model schedule to real
+   double-buffered weight, gradient and Muon-state transfer; prove exact results
+   and overlap separately. The schedule reduces the measured physical capacity
+   class, but no leadership claim is valid until the streamed executor binds.
 12. **Checkpointed activations.** Prove recomputation independently, then compose
    it with Tier-1 streaming.
 13. **Layer-major accumulation.** Reuse each loaded layer across microbatches;

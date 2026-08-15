@@ -15,19 +15,6 @@
       ]
     },
     {
-      "id": "adaptive-training-parity",
-      "title": "Make Overgo the Muon-only production training system and exceed adaptive_new on matched real-model runs",
-      "status": "open",
-      "steps": [
-        {
-          "id": "tier1-scale",
-          "title": "Force the promoted small model through Tier-1 memory scheduling, including applicable multimodal activations and connector states; add checkpointing, layer-major accumulation, and paging only when measured",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestTier1TrainingSchedule$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "session-repo-scoping",
       "title": "Scope Stop hooks once the harness exposes authoritative active-repository identity",
       "status": "blocked-external-prereq",

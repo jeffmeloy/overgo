@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "e4b-real-model",
-          "title": "Train the real Gemma E4B artifact with AltUp, PLE, Laurel, SharedKV, mixed-window semantics, device Muon, exact resume, and matched adaptive evidence across every adaptive-declared trainable text/image/audio modality",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestGemmaE4BRealTraining$' -count=1 -v"
-        },
-        {
           "id": "multimodal-objectives",
           "title": "Compile the training modality matrix from RepoDB objectives: text-to-text, image/audio/video-to-text, text-to-audio, text/image-to-image, text/image/video-to-video, forecast, and table only where adaptive evidence or an approved objective exists; run real corpora through processor/projector/codec gradients and modality-native evaluation; record all other pairs refused",
           "status": "open",

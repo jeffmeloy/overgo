@@ -30,11 +30,11 @@ training or media breadth.
   and Krea 256/2048 generation on the recorded protocols.
 - Training lead remains adaptive_new: more objective types, more artifact
   trainers, more promotion/evidence machinery, and real media-training paths.
-- Critical correction: Overgo's E4B item is marked done although the real E4B
-  model has not trained end to end. Device VJPs and a synthetic hybrid trainer
-  are prerequisites, not E4B closure.
+- E4B now has real, exact-resume layer-0 adapter training over text, image, and
+  audio representations. Complete 42-layer language/tower training remains open.
 - Production dense training beats the retained Carbon and Qwen2.5-0.5B
-  protocols; hybrid, E4B, and non-dense checkpoint adoption remain open.
+  protocols; hybrid and E4B selected-layer programs now run real artifacts,
+  while complete-stack training and broad checkpoint adoption remain open.
 - Corpus-to-model construction now matches the pinned adaptive_new scratch
   oracle. The resident three-step program leads the matched reference on wall
   and runtime-owned peak memory; the shared exact checkpoint is now published
@@ -128,14 +128,14 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train -freeze-lexical` selects the no-fallback resident contract; full-parameter mode remains explicit; `-resume` restores a validated checkpoint and advances the same stream | Carbon route and exact resume reachable |
 | Checkpoint/resume | Fine-tune evidence and persistence exist, uneven by trainer | Atomic directory publication refuses overwrite and binds weight content, full Muon state, data/augmentation RNG counters, stream position, processor/projector/codec identities, compiled run/program identities, and lineage parents. Host and resident CUDA tests match uninterrupted weights and momentum exactly. | Dense production contract complete; adoption by scratch, seq2seq, speech, and diffusion trainers remains open |
 | Qwen3.5 hybrid | Inference active; no Qwen3.5 training oracle at `214950b3b` | Model-native per-head GDN norm matches the local PyTorch gradient oracle. Real 4B GGUF recurrent layer 0 trains 112,885,760 matrix and 38,080 vector parameters through the compiled resident program on all five token IDs from a recorded prompt; loss `13.185789 -> 11.006020` | Overgo-only real-layer capability; complete 32-layer training remains open |
-| Gemma E4B | Adaptive declares streamed CUDA LM scope and supplies real semantics/oracles | Host E4B VJPs plus device primitives; no real E4B end-to-end training | Open; current done status is false closure |
+| Gemma E4B | Adaptive declares streamed CUDA LM scope and supplies real inference semantics/oracles; no retained adapter-training trajectory | Fingerprinted real language/projector artifacts and adaptive image/audio inputs feed one compiled layer-0 residual-adapter program. Device Muon updates 1,313,280 parameters on text, image, and audio examples; shared checkpoint resume reproduces weights and momentum exactly. The bound model plan verifies PLE, sliding/full layers, and shared-KV ownership. | Real multimodal adapter training proven; complete 42-layer language and projector training remains open |
 | Gemma4 12B | Streamed CUDA LM scope | Shared backward prerequisites; no reported real 12B training | Gap |
 | Forecast/latent/FNS | CUDA objectives for LM, FNS, latent L2/sequence, forecast | TimesFM primitives remain open. Un-0 retains complete VJPs but explicitly refuses training after deletion of its synthetic constant-target ramp | Breadth gap; false capability removed |
 | OCR | Host objective; CUDA train/eval absent | No promoted training path | Both incomplete |
 | SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and resident CUDA VJP boundaries | The shared materializer selects structured 32x32 crops from the artifact's four real sample grids, then the common stream, normalized-image processor, seeded OT objective, full model VJP, and platform Muon stepper train the 101,828,450-parameter checkpoint. One train/held-out gate lowers matched train loss `1.331198 -> 1.156815` and held-out loss `1.396862 -> 1.346165`; 6,143 sampled final-projection values change. The final transpose projection and one complete 128x8x8 decoder residual block use shared resident CUDA VJPs. The residual block matches input gradients within `1.863e-9` and all nine parameter gradients within `4.768e-7` | Real-data full-checkpoint host update and two exact device-backward boundaries proven; remaining blocks and matched training performance remain open |
 | Pocket-TTS | Latent bridge, flow-net, backbone paths | Inference recipe and reference waveform are production-proven. The production compiled trainer binds all 85,282,848 joint backbone+flow parameters to shared Muon; native generated codec latents lower loss `0.505204 -> 0.285938` in one step | Real-artifact Muon trajectory proven; corpus audio encoding and held-out evaluation open |
 | Controller model | Strategic adaptive plan; no promoted controller | Overgo training design targets it | Not started |
-| Tier-1 memory scaling | Adaptive streamed/checkpointed components | Resident dense session and scratch pool exist; no production E4B run | Partial |
+| Tier-1 memory scaling | Adaptive streamed/checkpointed components | Resident dense session and scratch pool exist; E4B streams one selected adapter unit, but no complete-stack schedule is measured | Partial |
 
 ### Current Overgo training evidence
 
@@ -168,6 +168,15 @@ Overgo's tokenizer total includes a large generated Unicode table.
   vector parameters; loss is `13.185789 -> 11.006020`, training wall is 1.552 s,
   and peak device allocation is 1.775 GiB. adaptive_new `214950b3b` has no Qwen3.5 training
   oracle; no parity or full-model claim is made.
+- Gemma E4B layer-0 adapter: language GGUF `cd4ada47...`, projector
+  `185786ec...`, and adaptive vision/audio inputs are fingerprinted. The bound
+  model plan verifies layer 0 sliding attention, layer 5 full attention, and
+  layer 24 shared KV from layer 22; it declares PLE and no AltUp/Laurel. Real
+  text rows and CUDA-projected image/audio representations drive three compiled
+  Muon updates over 1,313,280 adapter parameters. Losses are
+  `14.315110/16.071185/16.074883`; update wall is 68.989 ms. Checkpointed and
+  uninterrupted weights and Muon state are bit-identical. adaptive_new has no
+  matched adapter-training trajectory; no complete-model claim is made.
 - Needle 26M, first real GSM8K training record, three compiled device-Muon
   steps over the decoder final norm and complete last cross-attention block:
   train loss `6.541863 -> 6.415488`; separate held-out record
@@ -310,8 +319,8 @@ Overgo's tokenizer total includes a large generated Unicode table.
   `1.738e-3`; final weights, cleared gradients, and Muon momentum are also gated.
 
 These results promote matched Carbon and Qwen2.5-0.5B frozen-lexical
-leadership. They do not justify E4B, 12B, controller, or system-wide training
-closure.
+leadership and real E4B adapter capability. They do not justify complete E4B,
+12B, controller, or system-wide training closure.
 
 ## Recorded Performance Scoreboard
 
@@ -332,6 +341,7 @@ closure.
 | Carbon-500M causal training | adaptive `c72b6595d`: 6.816 s loop / 11.47 GiB admitted; loss 8.43767 -> 7.29179 | 1.510-1.550 s loop / 4.985 GiB measured; loss 8.438149 -> 7.290705-7.293696 | At least 77.3% loop-wall lead; 56.5% lower peak |
 | Qwen2.5-0.5B causal training | adaptive `de547a363`: 505 ms retained warm step | 469-480 ms retained warm execution; 552-753 ms cold execution; 6.592 GiB peak; loss 4.592842 -> 2.958702 | At least 5.0% warm-wall lead; cold and warm lifecycles gated separately |
 | Corpus-derived scratch causal training | adaptive pinned run: 221.4-231.8 ms / 3.13-3.18 MB peak heap | 58.0-65.4 ms matched steps / 1.15-1.17 MB combined runtime peak; six lifecycle phases and complete state gated | At least 3.38x step-wall lead; at least 62% lower peak; trajectory delta `1.738e-3` |
+| Gemma E4B per-layer adapter training | No retained adaptive adapter-training trajectory | Three real text/image/audio updates over 1,313,280 layer-0 parameters in 68.989 ms; exact checkpoint resume | Overgo-only real adapter capability; complete stack open |
 | SenseNova generation core | Adaptive matched reusable body 6.88 s | Overgo retained session: fresh cold body 8.117 s, warm body 4.048 s / 0.710 GiB peak; cold <=8.6 s and warm <=6.2 s gated twice | 41.1% warm-body lead at the fresh measurement; cold is slower than adaptive and is not claimed as leadership; full image route open |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | 81.6-81.9 s cold; 51.0-51.5 s same-source warm; 15.624 GiB peak. Final latent cosine 0.999890-0.999966 and NRMS 0.008276-0.014835 versus adaptive. MP4 output MAE/PSNR: 0.00731-0.00753/37.29-38.29 dB versus adaptive and 0.01012-0.01024/32.31-32.58 dB versus Python. Temporal-delta ratios: 1.021 and 1.008-1.009. | Cold wall and peak lead versus adaptive; warm wall and peak lead versus Python; Python retains cold-wall lead |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |

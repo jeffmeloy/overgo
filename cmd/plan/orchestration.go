@@ -20,29 +20,13 @@ func recordWorkLease(root, inputPath string, output io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("read work lease: %w", err)
 	}
-	lease, err := plan.NormalizeWorkLease(data)
-	if err != nil {
-		return err
-	}
 	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	ctx := context.Background()
-	current, exists, err := store.ResolveAlias(ctx, plan.WorkLeaseAlias(lease.Worktree))
+	lease, err := plan.RecordWorkLease(context.Background(), store, data)
 	if err != nil {
-		return err
-	}
-	var previous *artifact.ID
-	if exists {
-		previous = &current
-	}
-	batch, err := plan.WorkLeaseBatch(lease, previous)
-	if err != nil {
-		return err
-	}
-	if _, err := store.Commit(ctx, batch); err != nil {
 		return fmt.Errorf("record work lease: %w", err)
 	}
 	_, err = fmt.Fprintf(output, "recorded advisory work lease %s for %s\n", lease.ID, lease.Task)
@@ -55,7 +39,7 @@ type leaseReport struct {
 	Advisory    plan.ResourceAdvisory `json:"advisory"`
 }
 
-func printLeaseReport(root string, capacity plan.ResourceCapacity, output io.Writer) error {
+func printLeaseReport(root string, capacity plan.Resources, output io.Writer) error {
 	store, err := repodb.OpenReadOnly(filepath.Join(root, "repodb-store"))
 	if err != nil {
 		return err
@@ -75,16 +59,12 @@ func printLeaseReport(root string, capacity plan.ResourceCapacity, output io.Wri
 		if seen[alias.Target] {
 			continue
 		}
-		content, ok, err := store.Content(ctx, alias.Target)
+		lease, ok, err := plan.ReadWorkLease(ctx, store, alias.Target)
 		if err != nil {
 			return err
 		}
-		if !ok || content.Descriptor.MediaType != plan.WorkLeaseMediaType || content.Descriptor.Schema != plan.WorkLeaseSchema {
+		if !ok {
 			continue
-		}
-		lease, err := plan.ParseWorkLease(content.Data)
-		if err != nil {
-			return err
 		}
 		leases, seen[lease.ID] = append(leases, lease), true
 	}

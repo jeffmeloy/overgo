@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -14,14 +15,14 @@ import (
 )
 
 const (
-	WorkLeaseVersion   uint16 = 1
-	WorkLeaseMediaType        = "application/vnd.overgo.work-lease+json"
-	WorkLeaseSchema           = "overgo/work-lease/v1"
+	workLeaseVersion   uint16 = 1
+	workLeaseMediaType        = "application/vnd.overgo.work-lease+json"
+	workLeaseSchema           = "overgo/work-lease/v1"
 	workLeaseAliasRoot        = "automation/worktree/"
 )
 
-// ResourceRequest is advisory capacity metadata; it never acquires hardware.
-type ResourceRequest struct {
+// Resources is advisory capacity metadata; it never acquires hardware.
+type Resources struct {
 	CPUThreads   int  `json:"cpu_threads"`
 	HostRAMGiB   int  `json:"host_ram_gib"`
 	VRAMGiB      int  `json:"vram_gib"`
@@ -31,61 +32,74 @@ type ResourceRequest struct {
 // WorkLease records an owner-approved lane assignment. The worktree alias is
 // compare-and-set in RepoDB, but the document itself is immutable evidence.
 type WorkLease struct {
-	Version       uint16          `json:"version"`
-	Task          string          `json:"task"`
-	Worktree      string          `json:"worktree"`
-	Branch        string          `json:"branch"`
-	Role          string          `json:"role"`
-	TargetHead    string          `json:"target_head"`
-	DependsOn     []string        `json:"depends_on"`
-	ConflictsWith []string        `json:"conflicts_with"`
-	Resources     ResourceRequest `json:"resources"`
-	EvidenceLanes []string        `json:"evidence_lanes"`
-	ExpiresAt     string          `json:"expires_at"`
-	ID            artifact.ID     `json:"-"`
+	Version       uint16      `json:"version"`
+	Task          string      `json:"task"`
+	Worktree      string      `json:"worktree"`
+	Branch        string      `json:"branch"`
+	Role          string      `json:"role"`
+	TargetHead    string      `json:"target_head"`
+	ConflictsWith []string    `json:"conflicts_with"`
+	Resources     Resources   `json:"resources"`
+	ExpiresAt     string      `json:"expires_at"`
+	ID            artifact.ID `json:"-"`
 }
 
-var workLeaseCodec = artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, WorkLeaseMediaType, WorkLeaseSchema,
+var workLeaseCodec = artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, workLeaseMediaType, workLeaseSchema,
 	canonicalizeWorkLease, func(value WorkLease) artifact.ID { return value.ID },
 	func(value *WorkLease, id artifact.ID) { value.ID = id }, func(value WorkLease) WorkLease {
-		value.DependsOn = slices.Clone(value.DependsOn)
 		value.ConflictsWith = slices.Clone(value.ConflictsWith)
-		value.EvidenceLanes = slices.Clone(value.EvidenceLanes)
 		return value
 	})
 
-func NewWorkLease(value WorkLease) (WorkLease, error) {
-	value.Version = WorkLeaseVersion
-	return workLeaseCodec.New(value)
-}
-
-func NormalizeWorkLease(data []byte) (WorkLease, error) {
+// RecordWorkLease normalizes owner-authored JSON and atomically moves the
+// worktree's RepoDB alias with compare-and-set semantics.
+func RecordWorkLease(ctx context.Context, repository artifact.Repository, data []byte) (WorkLease, error) {
 	value, _, err := workLeaseCodec.Normalize(data)
+	if err != nil {
+		return WorkLease{}, err
+	}
+	current, exists, err := artifact.ResolveAlias(ctx, repository, workLeaseAlias(value.Worktree))
+	if err != nil {
+		return WorkLease{}, err
+	}
+	var previous *artifact.ID
+	if exists {
+		previous = &current
+	}
+	content, err := workLeaseCodec.Content(value)
+	if err != nil {
+		return WorkLease{}, err
+	}
+	batch, err := artifact.NewDocumentBatch("automation/work-lease/"+value.ID.String(), []artifact.Content{content}, nil,
+		[]artifact.AliasBinding{{Name: workLeaseAlias(value.Worktree), Target: value.ID, Previous: previous}})
+	if err != nil {
+		return WorkLease{}, err
+	}
+	_, err = artifact.CommitBatch(ctx, repository, batch)
 	return value, err
 }
 
-func ParseWorkLease(data []byte) (WorkLease, error)        { return workLeaseCodec.Parse(data) }
-func (value WorkLease) Content() (artifact.Content, error) { return workLeaseCodec.Content(value) }
-func (value WorkLease) ValidateIdentity() error            { return workLeaseCodec.ValidateIdentity(value) }
-
-// WorkLeaseBatch atomically records a lease and moves its worktree alias. A
-// nil previous ID acquires an unbound worktree; a non-nil ID is RepoDB CAS.
-func WorkLeaseBatch(value WorkLease, previous *artifact.ID) (artifact.Batch, error) {
-	content, err := value.Content()
-	if err != nil {
-		return artifact.Batch{}, err
+// ReadWorkLease returns false for a non-lease artifact.
+func ReadWorkLease(ctx context.Context, reader artifact.Reader, id artifact.ID) (WorkLease, bool, error) {
+	descriptor, ok, err := reader.Artifact(ctx, id)
+	if err != nil || !ok || descriptor.MediaType != workLeaseMediaType || descriptor.Schema != workLeaseSchema {
+		return WorkLease{}, false, err
 	}
-	return artifact.NewDocumentBatch("automation/work-lease/"+value.ID.String(), []artifact.Content{content}, nil,
-		[]artifact.AliasBinding{{Name: WorkLeaseAlias(value.Worktree), Target: value.ID, Previous: previous}})
+	content, ok, err := artifact.ReadDocument(ctx, reader, id, workLeaseCodec.Contract)
+	if err != nil || !ok {
+		return WorkLease{}, ok, err
+	}
+	value, err := workLeaseCodec.Parse(content.Data)
+	return value, err == nil, err
 }
 
-func WorkLeaseAlias(worktree string) string {
+func workLeaseAlias(worktree string) string {
 	digest := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(worktree))))
 	return fmt.Sprintf("%s%x", workLeaseAliasRoot, digest)
 }
 
 func canonicalizeWorkLease(value *WorkLease) error {
-	if value == nil || value.Version != WorkLeaseVersion || !textcheck.Bounded(value.Task, 2048, "\x00\r\n") ||
+	if value == nil || value.Version != workLeaseVersion || !textcheck.Bounded(value.Task, 2048, "\x00\r\n") ||
 		!textcheck.Bounded(value.Worktree, 2048, "\x00\r\n") || strings.Contains(value.Worktree, "\\") ||
 		!textcheck.Bounded(value.Branch, 2048, "\x00\r\n") || !textcheck.Bounded(value.Role, 2048, "\x00\r\n") || !validCommit(value.TargetHead) ||
 		value.Resources.CPUThreads <= 0 || value.Resources.HostRAMGiB <= 0 || value.Resources.VRAMGiB < 0 ||
@@ -97,40 +111,32 @@ func canonicalizeWorkLease(value *WorkLease) error {
 		return errors.New("plan: invalid work lease expiry")
 	}
 	value.ExpiresAt = parsed.UTC().Format(time.RFC3339Nano)
-	for _, values := range []*[]string{&value.DependsOn, &value.ConflictsWith, &value.EvidenceLanes} {
-		if *values == nil {
-			return errors.New("plan: work lease lists must not be nil")
-		}
-		sort.Strings(*values)
-		*values = slices.Compact(*values)
-		for _, item := range *values {
-			if !textcheck.Bounded(item, 2048, "\x00\r\n") {
-				return errors.New("plan: invalid work lease list value")
-			}
+	if value.ConflictsWith == nil {
+		return errors.New("plan: work lease conflicts must not be nil")
+	}
+	sort.Strings(value.ConflictsWith)
+	value.ConflictsWith = slices.Compact(value.ConflictsWith)
+	for _, item := range value.ConflictsWith {
+		if !textcheck.Bounded(item, 2048, "\x00\r\n") {
+			return errors.New("plan: invalid work lease conflict")
 		}
 	}
-	if slices.Contains(value.DependsOn, value.Task) || slices.Contains(value.ConflictsWith, value.Task) {
-		return errors.New("plan: work lease cannot depend on or conflict with itself")
+	if slices.Contains(value.ConflictsWith, value.Task) {
+		return errors.New("plan: work lease cannot conflict with itself")
 	}
 	return nil
 }
 
-type ResourceCapacity struct {
-	CPUThreads int `json:"cpu_threads,omitempty"`
-	HostRAMGiB int `json:"host_ram_gib,omitempty"`
-	VRAMGiB    int `json:"vram_gib,omitempty"`
-}
-
 type ResourceAdvisory struct {
-	ActiveTasks []string        `json:"active_tasks"`
-	Reserved    ResourceRequest `json:"reserved"`
-	Fits        bool            `json:"fits"`
-	Conflicts   []string        `json:"conflicts"`
+	ActiveTasks []string  `json:"active_tasks"`
+	Reserved    Resources `json:"reserved"`
+	Fits        bool      `json:"fits"`
+	Conflicts   []string  `json:"conflicts"`
 }
 
 // AssessResources reports active reservations and collisions. Zero capacity
 // means unknown, not zero available; this remains advice for the owner.
-func AssessResources(now time.Time, capacity ResourceCapacity, leases []WorkLease) ResourceAdvisory {
+func AssessResources(now time.Time, capacity Resources, leases []WorkLease) ResourceAdvisory {
 	active := make([]WorkLease, 0, len(leases))
 	for _, lease := range leases {
 		expires, err := time.Parse(time.RFC3339Nano, lease.ExpiresAt)
@@ -170,64 +176,6 @@ func AssessResources(now time.Time, capacity ResourceCapacity, leases []WorkLeas
 		}
 	}
 	result.Fits = len(result.Conflicts) == 0
-	return result
-}
-
-type MergeEligibilityInput struct {
-	CurrentTargetHead string
-	CandidateHead     string
-	Lease             WorkLease
-	ActiveLease       artifact.ID
-	WorktreeClean     bool
-	Conflicts         []string
-	ReviewVerdict     artifact.ID
-	RequiredEvidence  []artifact.ID
-	ObservedEvidence  []artifact.ID
-}
-
-type MergeEligibility struct {
-	TargetHead            string   `json:"target_head"`
-	CandidateHead         string   `json:"candidate_head"`
-	Eligible              bool     `json:"eligible"`
-	OwnerDecisionRequired bool     `json:"owner_decision_required"`
-	Reasons               []string `json:"reasons"`
-}
-
-// AssessMergeEligibility produces an advisory packet only. The owner still
-// chooses whether and when to merge or promote the candidate.
-func AssessMergeEligibility(input MergeEligibilityInput) MergeEligibility {
-	result := MergeEligibility{TargetHead: input.CurrentTargetHead, CandidateHead: input.CandidateHead, OwnerDecisionRequired: true, Reasons: []string{}}
-	if !validCommit(input.CurrentTargetHead) || !validCommit(input.CandidateHead) || input.CurrentTargetHead == input.CandidateHead {
-		result.Reasons = append(result.Reasons, "target and candidate heads must be distinct valid commits")
-	}
-	if input.Lease.TargetHead != input.CurrentTargetHead {
-		result.Reasons = append(result.Reasons, "target head moved after the lease was recorded")
-	}
-	if input.Lease.ValidateIdentity() != nil {
-		result.Reasons = append(result.Reasons, "worktree lease identity is invalid")
-	}
-	if input.ActiveLease != input.Lease.ID {
-		result.Reasons = append(result.Reasons, "worktree lease is not current")
-	}
-	if !input.WorktreeClean {
-		result.Reasons = append(result.Reasons, "worktree is dirty")
-	}
-	if len(input.Conflicts) > 0 {
-		result.Reasons = append(result.Reasons, "worktree or resource conflicts remain")
-	}
-	if input.ReviewVerdict.Kind() != artifact.KindEvidence {
-		result.Reasons = append(result.Reasons, "admitted SQA verdict is absent")
-	}
-	observed := make(map[artifact.ID]bool, len(input.ObservedEvidence))
-	for _, id := range input.ObservedEvidence {
-		observed[id] = true
-	}
-	for _, id := range input.RequiredEvidence {
-		if id.Kind() != artifact.KindEvidence || !observed[id] {
-			result.Reasons = append(result.Reasons, "required evidence is absent: "+id.String())
-		}
-	}
-	result.Eligible = len(result.Reasons) == 0
 	return result
 }
 

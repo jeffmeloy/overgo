@@ -11,11 +11,12 @@ import (
 // ThoughtBank runtime. Architecture and execution settings come from the file.
 // Port source: adaptive_new 0ff1e66b9.
 func LoadCheckpoint(path string) (*FastWeightBankLMWeights, ArchConfig, error) {
-	metas, err := pytorchzip.ReadTensorMetadata(path)
+	catalog, err := pytorchzip.ReadCatalog(path)
 	if err != nil {
 		return nil, ArchConfig{}, fmt.Errorf("thoughtbank load metadata: %w", err)
 	}
-	config, err := checkpointConfig(path, metas)
+	metas := catalog.Tensors
+	config, err := checkpointConfig(metas, catalog.Scalars)
 	if err != nil {
 		return nil, ArchConfig{}, err
 	}
@@ -47,14 +48,10 @@ func LoadCheckpoint(path string) (*FastWeightBankLMWeights, ArchConfig, error) {
 	return weights, config, nil
 }
 
-func checkpointConfig(path string, metas []pytorchzip.TensorMeta) (ArchConfig, error) {
+func checkpointConfig(metas []pytorchzip.TensorMeta, scalars map[string]any) (ArchConfig, error) {
 	shapes := make(map[string][]int64, len(metas))
 	for _, meta := range metas {
 		shapes[meta.Name] = meta.Shape
-	}
-	scalars, err := pytorchzip.ReadScalarConfig(path)
-	if err != nil {
-		return ArchConfig{}, fmt.Errorf("thoughtbank read config: %w", err)
 	}
 	swiGLU, ok := scalars["mem_read_swiglu"].(bool)
 	if !ok {

@@ -2,25 +2,13 @@ package closureledger
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"overgo/internal/artifact"
 )
 
 func Load(ctx context.Context, store artifact.Reader, id artifact.ID) (Document, bool, error) {
-	content, ok, err := artifact.ReadDocument(ctx, store, id, documentContract)
-	if err != nil || !ok {
-		return Document{}, ok, err
-	}
-	document, err := Parse(content.Data)
-	if err != nil {
-		return Document{}, false, err
-	}
-	if document.ID != id {
-		return Document{}, false, errors.New("closure ledger: stored identity mismatch")
-	}
-	return document, true, nil
+	return documentCodec.Read(ctx, store, id)
 }
 
 func Resolve(ctx context.Context, store artifact.Reader, alias string) (Document, bool, error) {

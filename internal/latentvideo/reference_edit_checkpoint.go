@@ -23,10 +23,11 @@ func CompileReferenceEditCheckpoint(path string, base DenoiserConfig) (Reference
 	if err := base.validate(); err != nil {
 		return plan, err
 	}
-	metas, err := pytorchzip.ReadTensorMetadata(path)
+	catalog, err := pytorchzip.ReadCatalog(path)
 	if err != nil {
 		return plan, fmt.Errorf("reference edit checkpoint: %w", err)
 	}
+	metas := catalog.Tensors
 	normalized := make([]pytorchzip.TensorMeta, len(metas))
 	seen := make(map[string]bool, len(metas))
 	layers := make(map[int]bool)

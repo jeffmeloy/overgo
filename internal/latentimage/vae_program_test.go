@@ -90,7 +90,7 @@ func syntheticVAEDecoder(t *testing.T) *VAEDecoder {
 		ClassName: "fixture-vae", BaseDim: base, DimMult: dimMult, ZDim: z,
 		NumResBlks: 1, LatentsMean: mean, LatentsStd: std,
 	}
-	d := &VAEDecoder{ZDim: z, LatentsMean: f64sToF32(mean), LatentsStd: f64sToF32(std)}
+	d := &VAEDecoder{ZDim: z, LatentsMean: dtype.Float64SliceToFloat32(mean), LatentsStd: dtype.Float64SliceToFloat32(std)}
 	if err := d.build(w, cfg); err != nil {
 		t.Fatalf("synthetic build: %v", err)
 	}

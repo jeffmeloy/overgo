@@ -85,12 +85,7 @@ func ReadWorkLease(ctx context.Context, reader artifact.Reader, id artifact.ID) 
 	if err != nil || !ok || descriptor.MediaType != workLeaseMediaType || descriptor.Schema != workLeaseSchema {
 		return WorkLease{}, false, err
 	}
-	content, ok, err := artifact.ReadDocument(ctx, reader, id, workLeaseCodec.Contract)
-	if err != nil || !ok {
-		return WorkLease{}, ok, err
-	}
-	value, err := workLeaseCodec.Parse(content.Data)
-	return value, err == nil, err
+	return workLeaseCodec.Read(ctx, reader, id)
 }
 
 func workLeaseAlias(worktree string) string {

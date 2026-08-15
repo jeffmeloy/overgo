@@ -327,14 +327,6 @@ func (r *DeepSeekOCR2Runner) BuildImagesHistoryPrompt(ctx context.Context, token
 }
 
 func (r *DeepSeekOCR2Runner) buildImagesPrompt(ctx context.Context, tokenizer ImageTokenizer, sources []image.Image, text []string, _ bool) (MultimodalPrompt, error) {
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, imagePromptPlan{
-		Family: "DeepSeek-OCR-2", Placeholder: DeepSeekOCRImagePad, PlaceholderLabel: "DeepSeek-OCR-2 placeholder",
-		AddSpecial: true, EmbeddingWidth: r.spec.OutputHidden,
-		Render: func(text []string, items []imagePromptItem) string {
-			return renderDelimitedImagePrompt(text, items, DeepSeekOCRImagePad, "", "")
-		},
-	}, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-		value, err := r.EncodeImage(ctx, source)
-		return imagePromptItem{Embeddings: value.Data, Count: int(value.Shape.Dims[1])}, err
-	})
+	plan := delimitedImagePromptPlan("DeepSeek-OCR-2", DeepSeekOCRImagePad, "DeepSeek-OCR-2 placeholder", true, r.spec.OutputHidden, "", "")
+	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, referenceImageEncoder(r.EncodeImage))
 }

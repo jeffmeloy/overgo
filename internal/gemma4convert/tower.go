@@ -5,11 +5,8 @@ package gemma4convert
 // source tensor shapes; every source tensor maps 1:1 into the output.
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -37,18 +34,6 @@ type processorConfig struct {
 	Video struct {
 		MaxSoftTokens uint32 `json:"max_soft_tokens"`
 	} `json:"video_processor"`
-}
-
-func readProcessorConfig(directory string) (processorConfig, error) {
-	var processor processorConfig
-	encoded, err := os.ReadFile(filepath.Join(directory, "processor_config.json"))
-	if err != nil {
-		return processor, fmt.Errorf("Gemma 4 converter: read processor config: %w", err)
-	}
-	if err := json.Unmarshal(encoded, &processor); err != nil {
-		return processor, fmt.Errorf("Gemma 4 converter: parse processor config: %w", err)
-	}
-	return processor, nil
 }
 
 // towerLayout: E4B checkpoints declare full towers via vision_config

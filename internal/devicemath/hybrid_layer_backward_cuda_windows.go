@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/hostmath"
+	"overgo/internal/tensor/dtype"
 )
 
 // HybridDecoderLayerBackwardDevice is the device VJP of hostmath's qwen3.5 hybrid
@@ -175,7 +176,7 @@ func attentionMixForwardDeviceW(worker *device.Worker, xn []float32, mw attnMatW
 	c.heads, c.kv, c.hd = ad.Heads, ad.KVHeads, ad.HeadDim
 	c.qDim, c.kvDim = c.heads*c.hd, c.kv*c.hd
 	c.rd = hostmath.RopeWidth(ad.RopeDim, c.hd)
-	c.invFreq = f64To32(hostmath.RopeInvFreq(ad.RopeTheta, c.rd))
+	c.invFreq = dtype.Float64SliceToFloat32(hostmath.RopeInvFreq(ad.RopeTheta, c.rd))
 	c.scale = float32(1.0 / math.Sqrt(float64(c.hd)))
 
 	qProj, err := linearForwardTW(worker, xn, mw.wq, T, H, c.qDim)
@@ -201,14 +202,14 @@ func attentionMixForwardDeviceW(worker *device.Worker, xn []float32, mw attnMatW
 		return nil, c, err
 	}
 	// partial rope then fold the score scale into q (only q is scaled).
-	qs, err := ropePartialForward(worker, qn, c.invFreq, T, c.heads, c.hd, c.rd)
+	qs, err := ropePartial(worker, qn, c.invFreq, T, c.heads, c.hd, c.rd, ropeForward)
 	if err != nil {
 		return nil, c, err
 	}
 	for i := range qs {
 		qs[i] *= c.scale
 	}
-	kr, err := ropePartialForward(worker, kn, c.invFreq, T, c.kv, c.hd, c.rd)
+	kr, err := ropePartial(worker, kn, c.invFreq, T, c.kv, c.hd, c.rd, ropeForward)
 	if err != nil {
 		return nil, c, err
 	}
@@ -254,11 +255,11 @@ func attentionMixBackwardDeviceW(worker *device.Worker, xn []float32, mw attnMat
 	for i := range dqs {
 		dqs[i] *= c.scale
 	}
-	dqs, err = ropePartialBackward(worker, dqs, c.invFreq, T, c.heads, c.hd, c.rd)
+	dqs, err = ropePartial(worker, dqs, c.invFreq, T, c.heads, c.hd, c.rd, ropeGradient)
 	if err != nil {
 		return nil, dw, err
 	}
-	dkr, err = ropePartialBackward(worker, dkr, c.invFreq, T, c.kv, c.hd, c.rd)
+	dkr, err = ropePartial(worker, dkr, c.invFreq, T, c.kv, c.hd, c.rd, ropeGradient)
 	if err != nil {
 		return nil, dw, err
 	}
@@ -293,61 +294,38 @@ func attentionMixBackwardDeviceW(worker *device.Worker, xn []float32, mw attnMat
 	return dXn, dw, nil
 }
 
-// ropePartialForward applies split-half rotary to only the first rd dims of each
-// hd-wide head (the serving partial-rope convention, hostmath.RopeWidth), leaving
-// [rd:hd] untouched. It reuses the full-width RoPEHalfForward kernel by gathering
-// the rotary sub-block into a compact [rows, nHeads*rd] tensor, rotating, and
-// scattering back. rd == hd is the full-rope fast path.
-func ropePartialForward(worker *device.Worker, x, invFreq []float32, T, nHeads, hd, rd int) ([]float32, error) {
-	if rd == hd {
-		return RoPEHalfForward(worker, x, invFreq, T, nHeads, hd)
+// ropePartial: split-half rotation over each head prefix.
+func ropePartial(worker *device.Worker, values, invFreq []float32, tokens, heads, width, rotaryWidth int, direction ropeDirection) ([]float32, error) {
+	transform := RoPEHalfForward
+	if direction == ropeGradient {
+		transform = RoPEHalfBackward
 	}
-	packed := gatherRotary(x, T*nHeads, hd, rd)
-	rot, err := RoPEHalfForward(worker, packed, invFreq, T, nHeads, rd)
+	if rotaryWidth == width {
+		return transform(worker, values, invFreq, tokens, heads, width)
+	}
+	rows := tokens * heads
+	packed := gatherRotary(values, rows, width, rotaryWidth)
+	rotated, err := transform(worker, packed, invFreq, tokens, heads, rotaryWidth)
 	if err != nil {
 		return nil, err
 	}
-	return scatterRotary(x, rot, T*nHeads, hd, rd), nil
+	return scatterRotary(values, rotated, rows, width, rotaryWidth), nil
 }
 
-// ropePartialBackward is the VJP of ropePartialForward: the pass-through dims are
-// identity, the rotary sub-block reverses through RoPEHalfBackward.
-func ropePartialBackward(worker *device.Worker, dx, invFreq []float32, T, nHeads, hd, rd int) ([]float32, error) {
-	if rd == hd {
-		return RoPEHalfBackward(worker, dx, invFreq, T, nHeads, hd)
-	}
-	packed := gatherRotary(dx, T*nHeads, hd, rd)
-	rot, err := RoPEHalfBackward(worker, packed, invFreq, T, nHeads, rd)
-	if err != nil {
-		return nil, err
-	}
-	return scatterRotary(dx, rot, T*nHeads, hd, rd), nil
-}
-
-// gatherRotary packs the first rd dims of each hd-wide row into [rows, rd].
-func gatherRotary(x []float32, rows, hd, rd int) []float32 {
-	out := make([]float32, rows*rd)
-	for r := 0; r < rows; r++ {
-		copy(out[r*rd:(r+1)*rd], x[r*hd:r*hd+rd])
+// gatherRotary: compact row prefixes.
+func gatherRotary(values []float32, rows, width, rotaryWidth int) []float32 {
+	out := make([]float32, rows*rotaryWidth)
+	for row := 0; row < rows; row++ {
+		copy(out[row*rotaryWidth:(row+1)*rotaryWidth], values[row*width:row*width+rotaryWidth])
 	}
 	return out
 }
 
-// scatterRotary writes the rotated [rows, rd] block back over the first rd dims of
-// each hd-wide row of a copy of base (base supplies the untouched [rd:hd] tail).
-func scatterRotary(base, rot []float32, rows, hd, rd int) []float32 {
+// scatterRotary: replace row prefixes; preserve tails.
+func scatterRotary(base, rotated []float32, rows, width, rotaryWidth int) []float32 {
 	out := append([]float32(nil), base...)
-	for r := 0; r < rows; r++ {
-		copy(out[r*hd:r*hd+rd], rot[r*rd:(r+1)*rd])
-	}
-	return out
-}
-
-// f64To32 narrows a f64 slice (RopeInvFreq output) to f32 for the device kernels.
-func f64To32(v []float64) []float32 {
-	out := make([]float32, len(v))
-	for i, x := range v {
-		out[i] = float32(x)
+	for row := 0; row < rows; row++ {
+		copy(out[row*width:row*width+rotaryWidth], rotated[row*rotaryWidth:(row+1)*rotaryWidth])
 	}
 	return out
 }

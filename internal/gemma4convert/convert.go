@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"overgo/internal/gguf"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
 	"overgo/internal/projector"
 	"overgo/internal/safetensors"
@@ -138,9 +139,9 @@ func Convert(options Options) (Report, error) {
 		strings.EqualFold(filepath.Clean(options.ModelPath), filepath.Clean(options.MMProjPath)) {
 		return Report{}, errors.New("Gemma 4 converter: model and mmproj outputs are identical")
 	}
-	config, err := readConfig(directory)
-	if err != nil {
-		return Report{}, err
+	var config modelConfig
+	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &config); err != nil {
+		return Report{}, fmt.Errorf("Gemma 4 converter: config: %w", err)
 	}
 	if config.Text.GlobalKVHeads == 0 {
 		// null num_global_key_value_heads: global layers reuse num_key_value_heads (E4B)
@@ -181,9 +182,9 @@ func Convert(options Options) (Report, error) {
 		var metadata []gguf.Metadata
 		var tensors []gguf.TensorData
 		if tower {
-			processor, processorErr := readProcessorConfig(directory)
-			if processorErr != nil {
-				return report, processorErr
+			var processor processorConfig
+			if err := jsonfile.Decode(filepath.Join(directory, "processor_config.json"), &processor); err != nil {
+				return report, fmt.Errorf("Gemma 4 converter: processor config: %w", err)
 			}
 			if err := validateTowerConfig(config, processor); err != nil {
 				return report, err
@@ -223,18 +224,6 @@ func Convert(options Options) (Report, error) {
 		report.MMProjTensors = len(tensors)
 	}
 	return report, nil
-}
-
-func readConfig(directory string) (modelConfig, error) {
-	var config modelConfig
-	encoded, err := os.ReadFile(filepath.Join(directory, "config.json"))
-	if err != nil {
-		return config, fmt.Errorf("Gemma 4 converter: read config: %w", err)
-	}
-	if err := json.Unmarshal(encoded, &config); err != nil {
-		return config, fmt.Errorf("Gemma 4 converter: parse config: %w", err)
-	}
-	return config, nil
 }
 
 func validateConfig(config modelConfig) error {

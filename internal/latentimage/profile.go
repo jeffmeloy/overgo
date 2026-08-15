@@ -166,19 +166,12 @@ func profileCatalog() ([]catalogProfile, error) {
 }
 
 func ReadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Profile, error) {
-	content, ok, err := artifact.ReadDocument(ctx, store, id, profileContract)
+	profile, ok, err := profileCodec.Read(ctx, store, id)
 	if err != nil {
 		return Profile{}, err
 	}
 	if !ok {
 		return Profile{}, errors.New("latent image: recipe profile is absent")
-	}
-	profile, err := profileCodec.Parse(content.Data)
-	if err != nil {
-		return Profile{}, err
-	}
-	if profile.ID != id {
-		return Profile{}, errors.New("latent image: recipe profile identity differs")
 	}
 	return profile, nil
 }

@@ -9,16 +9,13 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// Kernel names the resident layer forward / backward device ops launch. Kept as
-// package vars so the single-layer wrappers and the whole-stack driver load the
-// same set once per session.
+// Resident layer kernel sets.
 var (
 	layerForwardFnNames  = []string{"weighted_rms_norm_f32", "rope_half_f32", "scale_f32", "add_f32", "causal_softmax_f32", "silu_f32", "multiply_f32", "head_major_f32", "head_major_inverse_f32"}
 	layerBackwardFnNames = []string{"multiply_f32", "add_f32", "scale_f32", "silu_backward_f32", "rms_norm_backward_f32", "rope_half_backward_f32", "softmax_backward_f32", "causal_softmax_f32", "head_major_f32", "head_major_inverse_f32"}
 )
 
-// layerDims carries one pre-norm transformer layer's shape (derived widths and
-// the folded 1/sqrt(hd) score scale) so the device ops need no per-op recompute.
+// layerDims: validated shape and derived widths.
 type layerDims struct {
 	seq, hidden, heads, kvHeads, hd, inter int
 	group, width, kvWidth                  int
@@ -34,19 +31,13 @@ func newLayerDims(seq, hidden, heads, kvHeads, hd, inter int, rmsEps float64) la
 	}
 }
 
-// layerOps binds a resident cudaBLAS session, the loaded kernel functions, the
-// layer shape and the device-resident rope inverse-frequency table. Its methods
-// are the exact kernel launches the per-op resident forward/backward composed,
-// now shared by the single-layer wrappers and the whole-stack driver (one owner
-// for the layer math, no drift).
+// layerOps: resident layer launch state.
 type layerOps struct {
 	s    *cudaBLAS
 	fns  map[string]driver.Function
 	d    layerDims
 	invP driver.DevicePtr
-	// arena, when non-nil, pools every layer's transient forward/backward scratch
-	// into one reused region (set by runStack). nil for the single-layer wrappers,
-	// which keep the legacy per-call session allocations.
+	// arena: optional stack-wide scratch.
 	arena *scratchArena
 }
 
@@ -71,8 +62,7 @@ func (o *layerOps) off(base driver.DevicePtr, elems int) driver.DevicePtr {
 	return base + driver.DevicePtr(uint64(elems)*f32Bytes)
 }
 
-// scratch returns transient per-op device memory: from the reused arena when
-// pooling (peak O(1 layer)) or from the session scope otherwise.
+// scratch: arena or session allocation.
 func (o *layerOps) scratch(n int) (driver.DevicePtr, error) {
 	if o.arena != nil {
 		return o.arena.alloc(n)
@@ -87,17 +77,17 @@ func (o *layerOps) rms(in, weight, out driver.DevicePtr) error {
 		unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&epsF))
 }
 
-func (o *layerOps) rope(t driver.DevicePtr, nHeads int) error {
-	seqU, nhU, hdU := uint32(o.d.seq), uint32(nHeads), uint32(o.d.hd)
-	total := uint32(o.d.seq * nHeads * (o.d.hd / 2))
-	return o.s.launch1D(o.fns["rope_half_f32"], total,
-		unsafe.Pointer(&t), unsafe.Pointer(&o.invP), unsafe.Pointer(&seqU), unsafe.Pointer(&nhU), unsafe.Pointer(&hdU))
-}
+type ropeDirection string
 
-func (o *layerOps) ropeBackward(t driver.DevicePtr, nHeads int) error {
+const (
+	ropeForward  ropeDirection = "rope_half_f32"
+	ropeGradient ropeDirection = "rope_half_backward_f32"
+)
+
+func (o *layerOps) rope(t driver.DevicePtr, nHeads int, direction ropeDirection) error {
 	seqU, nhU, hdU := uint32(o.d.seq), uint32(nHeads), uint32(o.d.hd)
 	total := uint32(o.d.seq * nHeads * (o.d.hd / 2))
-	return o.s.launch1D(o.fns["rope_half_backward_f32"], total,
+	return o.s.launch1D(o.fns[string(direction)], total,
 		unsafe.Pointer(&t), unsafe.Pointer(&o.invP), unsafe.Pointer(&seqU), unsafe.Pointer(&nhU), unsafe.Pointer(&hdU))
 }
 
@@ -107,15 +97,9 @@ func (o *layerOps) scale(in, out driver.DevicePtr, sc float32, n int) error {
 		unsafe.Pointer(&in), unsafe.Pointer(&out), unsafe.Pointer(&sc), unsafe.Pointer(&cU))
 }
 
-func (o *layerOps) toHM(in, out driver.DevicePtr, nHeads int) error {
+func (o *layerOps) headMajor(in, out driver.DevicePtr, nHeads int, direction headMajorDirection) error {
 	seqU, nhU, hdU := uint32(o.d.seq), uint32(nHeads), uint32(o.d.hd)
-	return o.s.launch1D(o.fns["head_major_f32"], uint32(o.d.seq*nHeads*o.d.hd),
-		unsafe.Pointer(&in), unsafe.Pointer(&out), unsafe.Pointer(&seqU), unsafe.Pointer(&nhU), unsafe.Pointer(&hdU))
-}
-
-func (o *layerOps) fromHM(in, out driver.DevicePtr, nHeads int) error {
-	seqU, nhU, hdU := uint32(o.d.seq), uint32(nHeads), uint32(o.d.hd)
-	return o.s.launch1D(o.fns["head_major_inverse_f32"], uint32(o.d.seq*nHeads*o.d.hd),
+	return o.s.launch1D(o.fns[string(direction)], uint32(o.d.seq*nHeads*o.d.hd),
 		unsafe.Pointer(&in), unsafe.Pointer(&out), unsafe.Pointer(&seqU), unsafe.Pointer(&nhU), unsafe.Pointer(&hdU))
 }
 
@@ -131,8 +115,7 @@ func (o *layerOps) siluBackward(x, dy, out driver.DevicePtr, n int) error {
 	return o.s.launchVector3(o.fns["silu_backward_f32"], dy, x, out, n)
 }
 
-// rmsBackward launches rms_norm_backward_f32; the norm-weight grad accumulator is
-// zeroed first (the kernel adds into it).
+// rmsBackward: zero then accumulate scale gradient.
 func (o *layerOps) rmsBackward(xIn, wIn, dy, dxOut, dscaleOut driver.DevicePtr) error {
 	if err := o.s.state.Driver.MemsetD32Async(dscaleOut, 0, uint64(o.d.hidden), o.s.state.Stream); err != nil {
 		return err
@@ -267,23 +250,23 @@ func (o *layerOps) forwardDevice(in driver.DevicePtr, w layerWeightPtrs, c layer
 		return err
 	}
 	// rope on q/k, then fold the score scale into q (only q is scaled).
-	if err := o.rope(c.qScaled, d.heads); err != nil {
+	if err := o.rope(c.qScaled, d.heads, ropeForward); err != nil {
 		return err
 	}
-	if err := o.rope(c.kRoped, d.kvHeads); err != nil {
+	if err := o.rope(c.kRoped, d.kvHeads, ropeForward); err != nil {
 		return err
 	}
 	if err := o.scale(c.qScaled, c.qScaled, d.scaleQ, d.seq*d.width); err != nil {
 		return err
 	}
 	// attention core: head-major, per-head causal-softmax scores, p·v.
-	if err := o.toHM(c.qScaled, qHM, d.heads); err != nil {
+	if err := o.headMajor(c.qScaled, qHM, d.heads, headMajorPack); err != nil {
 		return err
 	}
-	if err := o.toHM(c.kRoped, kHM, d.kvHeads); err != nil {
+	if err := o.headMajor(c.kRoped, kHM, d.kvHeads, headMajorPack); err != nil {
 		return err
 	}
-	if err := o.toHM(c.v, vHM, d.kvHeads); err != nil {
+	if err := o.headMajor(c.v, vHM, d.kvHeads, headMajorPack); err != nil {
 		return err
 	}
 	hs := d.seq * d.hd
@@ -304,7 +287,7 @@ func (o *layerOps) forwardDevice(in driver.DevicePtr, w layerWeightPtrs, c layer
 			return err
 		}
 	}
-	if err := o.fromHM(attnHM, c.attnCore, d.heads); err != nil {
+	if err := o.headMajor(attnHM, c.attnCore, d.heads, headMajorUnpack); err != nil {
 		return err
 	}
 	// xOut = in + o(attnCore); h2 = xOut (residual after attention).
@@ -424,16 +407,16 @@ func (o *layerOps) backwardDevice(x, dOut driver.DevicePtr, c layerCachePtrs, w 
 		return err
 	}
 	// MHA backward (GQA, causal), everything head-major on device.
-	if err := o.toHM(c.qScaled, qHM, d.heads); err != nil {
+	if err := o.headMajor(c.qScaled, qHM, d.heads, headMajorPack); err != nil {
 		return err
 	}
-	if err := o.toHM(c.kRoped, kHM, d.kvHeads); err != nil {
+	if err := o.headMajor(c.kRoped, kHM, d.kvHeads, headMajorPack); err != nil {
 		return err
 	}
-	if err := o.toHM(c.v, vHM, d.kvHeads); err != nil {
+	if err := o.headMajor(c.v, vHM, d.kvHeads, headMajorPack); err != nil {
 		return err
 	}
-	if err := o.toHM(dAttnCore, dAttnHM, d.heads); err != nil {
+	if err := o.headMajor(dAttnCore, dAttnHM, d.heads, headMajorPack); err != nil {
 		return err
 	}
 	if err := o.s.state.Driver.MemsetD32Async(dkHM, 0, uint64(d.seq*d.kvWidth), o.s.state.Stream); err != nil {
@@ -483,13 +466,13 @@ func (o *layerOps) backwardDevice(x, dOut driver.DevicePtr, c layerCachePtrs, w 
 			return err
 		}
 	}
-	if err := o.fromHM(dqHM, dq, d.heads); err != nil {
+	if err := o.headMajor(dqHM, dq, d.heads, headMajorUnpack); err != nil {
 		return err
 	}
-	if err := o.fromHM(dkHM, dk, d.kvHeads); err != nil {
+	if err := o.headMajor(dkHM, dk, d.kvHeads, headMajorUnpack); err != nil {
 		return err
 	}
-	if err := o.fromHM(dvHM, dv, d.kvHeads); err != nil {
+	if err := o.headMajor(dvHM, dv, d.kvHeads, headMajorUnpack); err != nil {
 		return err
 	}
 	// The 1/sqrt(hd) score scale is folded into qScaled, so by the chain rule ONLY
@@ -500,10 +483,10 @@ func (o *layerOps) backwardDevice(x, dOut driver.DevicePtr, c layerCachePtrs, w 
 		return err
 	}
 	// rope backward on dq/dk.
-	if err := o.ropeBackward(dq, d.heads); err != nil {
+	if err := o.rope(dq, d.heads, ropeGradient); err != nil {
 		return err
 	}
-	if err := o.ropeBackward(dk, d.kvHeads); err != nil {
+	if err := o.rope(dk, d.kvHeads, ropeGradient); err != nil {
 		return err
 	}
 	// q/k/v linear backward: dXn* = d*·W ; dW* = d*ᵀ·xn

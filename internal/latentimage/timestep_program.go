@@ -36,26 +36,26 @@ func compileTimestepProgram(spec TransformerSpec, storage dtype.Type) (*timestep
 	program := &timestepProgram{
 		weightInputs: make(map[string]*tensor.Tensor), dim: spec.TimestepEmbed,
 	}
-	binder := weightBinder{builder: builder, inputs: program.weightInputs, matmulType: storage}
+	binder := tensor.WeightInputs{Builder: builder, Inputs: program.weightInputs, MatrixType: storage}
 	hidden := uint64(spec.Hidden)
 	fields := uint64(spec.ModFieldsOr6())
 	program.Input = builder.Input(
 		"timestep_sinusoid", dtype.F32, tensor.MustShape(uint64(spec.TimestepEmbed), 1),
 	)
 	first := builder.GELUTanhExact(builder.Add(
-		builder.MulMat(binder.input("time_embed.linear_1.weight", uint64(spec.TimestepEmbed), hidden), program.Input),
-		binder.input("time_embed.linear_1.bias", hidden),
+		builder.MulMat(binder.Input("time_embed.linear_1.weight", uint64(spec.TimestepEmbed), hidden), program.Input),
+		binder.Input("time_embed.linear_1.bias", hidden),
 	))
 	program.Embedding = builder.Add(
-		builder.MulMat(binder.input("time_embed.linear_2.weight", hidden, hidden), first),
-		binder.input("time_embed.linear_2.bias", hidden),
+		builder.MulMat(binder.Input("time_embed.linear_2.weight", hidden, hidden), first),
+		binder.Input("time_embed.linear_2.bias", hidden),
 	)
 	program.Modulation = builder.Add(
 		builder.MulMat(
-			binder.input("time_mod_proj.weight", hidden, fields*hidden),
+			binder.Input("time_mod_proj.weight", hidden, fields*hidden),
 			builder.GELUTanhExact(program.Embedding),
 		),
-		binder.input("time_mod_proj.bias", fields*hidden),
+		binder.Input("time_mod_proj.bias", fields*hidden),
 	)
 	if err := builder.Err(); err != nil {
 		return nil, fmt.Errorf("timestep program: %w", err)

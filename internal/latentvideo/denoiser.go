@@ -295,48 +295,29 @@ type DenoiserProgram struct {
 	Head   *tensor.Tensor
 }
 
-// weightInputBinder: binds named weight inputs on one builder; rank-2
-// projection weights take the program's matmul storage type, everything
-// else stays F32.
-type weightInputBinder struct {
-	builder    *tensor.Builder
-	inputs     map[string]*tensor.Tensor
-	matmulType dtype.Type
-}
-
-func (b weightInputBinder) input(name string, dimensions ...uint64) *tensor.Tensor {
-	storage := dtype.F32
-	if len(dimensions) == 2 {
-		storage = b.matmulType
-	}
-	node := b.builder.Input(name, storage, tensor.MustShape(dimensions...))
-	b.inputs[name] = node
-	return node
-}
-
-func crossAttentionContextWeights(bind weightInputBinder, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
+func crossAttentionContextWeights(bind tensor.WeightInputs, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
 	return model.ConditionedDiffusionAttentionWeights{
-		Key: bind.input(prefix+"k.weight", d, d), KeyBias: bind.input(prefix+"k.bias", d),
-		Value: bind.input(prefix+"v.weight", d, d), ValueBias: bind.input(prefix+"v.bias", d),
-		KeyNorm: bind.input(prefix+"norm_k.weight", d),
+		Key: bind.Input(prefix+"k.weight", d, d), KeyBias: bind.Input(prefix+"k.bias", d),
+		Value: bind.Input(prefix+"v.weight", d, d), ValueBias: bind.Input(prefix+"v.bias", d),
+		KeyNorm: bind.Input(prefix+"norm_k.weight", d),
 	}
 }
 
-func attentionQueryOutputWeights(bind weightInputBinder, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
+func attentionQueryOutputWeights(bind tensor.WeightInputs, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
 	return model.ConditionedDiffusionAttentionWeights{
-		Query: bind.input(prefix+"q.weight", d, d), QueryBias: bind.input(prefix+"q.bias", d),
-		Output: bind.input(prefix+"o.weight", d, d), OutputBias: bind.input(prefix+"o.bias", d),
-		QueryNorm: bind.input(prefix+"norm_q.weight", d),
+		Query: bind.Input(prefix+"q.weight", d, d), QueryBias: bind.Input(prefix+"q.bias", d),
+		Output: bind.Input(prefix+"o.weight", d, d), OutputBias: bind.Input(prefix+"o.bias", d),
+		QueryNorm: bind.Input(prefix+"norm_q.weight", d),
 	}
 }
 
-func selfAttentionWeights(bind weightInputBinder, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
+func selfAttentionWeights(bind tensor.WeightInputs, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
 	weights := attentionQueryOutputWeights(bind, prefix, d)
-	weights.Key = bind.input(prefix+"k.weight", d, d)
-	weights.KeyBias = bind.input(prefix+"k.bias", d)
-	weights.Value = bind.input(prefix+"v.weight", d, d)
-	weights.ValueBias = bind.input(prefix+"v.bias", d)
-	weights.KeyNorm = bind.input(prefix+"norm_k.weight", d)
+	weights.Key = bind.Input(prefix+"k.weight", d, d)
+	weights.KeyBias = bind.Input(prefix+"k.bias", d)
+	weights.Value = bind.Input(prefix+"v.weight", d, d)
+	weights.ValueBias = bind.Input(prefix+"v.bias", d)
+	weights.KeyNorm = bind.Input(prefix+"norm_k.weight", d)
 	return weights
 }
 
@@ -405,7 +386,7 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 	contextBuilder := tensor.NewBuilder()
 	contextBuilder.SetMulMatCompute(matmulCompute)
 	program.contextWeightInputs = make(map[string]*tensor.Tensor)
-	contextBind := weightInputBinder{builder: contextBuilder, inputs: program.contextWeightInputs, matmulType: matmulWeightType}
+	contextBind := tensor.WeightInputs{Builder: contextBuilder, Inputs: program.contextWeightInputs, MatrixType: matmulWeightType}
 	program.contextInput = contextBuilder.Input("context", dtype.F32, tensor.MustShape(d, textLen))
 	for layer := 0; layer < c.NumLayers; layer++ {
 		prefix := denoiserBlockPrefix(layer) + "cross_attn."
@@ -426,12 +407,12 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 	builder := tensor.NewBuilder()
 	builder.SetMulMatCompute(matmulCompute)
 	program.stepWeightInputs = make(map[string]*tensor.Tensor)
-	bind := weightInputBinder{builder: builder, inputs: program.stepWeightInputs, matmulType: matmulWeightType}
+	bind := tensor.WeightInputs{Builder: builder, Inputs: program.stepWeightInputs, MatrixType: matmulWeightType}
 	program.stepPatch = builder.Input("patch_tokens", dtype.F32, tensor.MustShape(uint64(c.patchIn()), seq))
 	program.stepBlockE = builder.Input("conditioning_block", dtype.F32, tensor.MustShape(6*d))
 	program.stepHeadE = builder.Input("conditioning_head", dtype.F32, tensor.MustShape(d))
-	embedW := bind.input("patch_embedding.weight", uint64(c.patchIn()), d)
-	embedB := bind.input("patch_embedding.bias", d)
+	embedW := bind.Input("patch_embedding.weight", uint64(c.patchIn()), d)
+	embedB := bind.Input("patch_embedding.bias", d)
 	hidden := builder.Add(builder.MulMat(embedW, program.stepPatch), embedB)
 
 	for layer := 0; layer < c.NumLayers; layer++ {
@@ -441,15 +422,15 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 		program.stepCrossKeys = append(program.stepCrossKeys, crossKey)
 		program.stepCrossValues = append(program.stepCrossValues, crossValue)
 		blockWeights := model.ConditionedDiffusionBlockWeights{
-			Modulation:      bind.input(prefix+"modulation", 6*d),
+			Modulation:      bind.Input(prefix+"modulation", 6*d),
 			SelfAttention:   selfAttentionWeights(bind, prefix+"self_attn.", d),
 			CrossAttention:  attentionQueryOutputWeights(bind, prefix+"cross_attn.", d),
-			CrossNormWeight: bind.input(prefix+"norm3.weight", d),
-			CrossNormBias:   bind.input(prefix+"norm3.bias", d),
-			FFNExpand:       bind.input(prefix+"ffn.0.weight", d, uint64(c.FFNDim)),
-			FFNExpandBias:   bind.input(prefix+"ffn.0.bias", uint64(c.FFNDim)),
-			FFNContract:     bind.input(prefix+"ffn.2.weight", uint64(c.FFNDim), d),
-			FFNContractBias: bind.input(prefix+"ffn.2.bias", d),
+			CrossNormWeight: bind.Input(prefix+"norm3.weight", d),
+			CrossNormBias:   bind.Input(prefix+"norm3.bias", d),
+			FFNExpand:       bind.Input(prefix+"ffn.0.weight", d, uint64(c.FFNDim)),
+			FFNExpandBias:   bind.Input(prefix+"ffn.0.bias", uint64(c.FFNDim)),
+			FFNContract:     bind.Input(prefix+"ffn.2.weight", uint64(c.FFNDim), d),
+			FFNContractBias: bind.Input(prefix+"ffn.2.bias", d),
 		}
 		result, err := diffusion.BuildBlock(
 			builder, hidden, program.stepBlockE, crossKey, crossValue, blockWeights,
@@ -462,9 +443,9 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 	}
 	head, err := diffusion.BuildHead(
 		builder, hidden, program.stepHeadE,
-		bind.input("head.modulation", 2*d),
-		bind.input("head.head.weight", d, uint64(c.patchOut())),
-		bind.input("head.head.bias", uint64(c.patchOut())),
+		bind.Input("head.modulation", 2*d),
+		bind.Input("head.head.weight", d, uint64(c.patchOut())),
+		bind.Input("head.head.bias", uint64(c.patchOut())),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("denoiser program head: %w", err)

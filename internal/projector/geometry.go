@@ -1,6 +1,7 @@
 package projector
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -39,6 +40,18 @@ type rasterPatchPlan struct {
 	mean          [rgbChannelCount]float32
 	std           [rgbChannelCount]float32
 	interpolation rasterInterpolation
+}
+
+func encodeRasterPatches[Output any](ctx context.Context, source image.Image, options RasterPatchOptions, plan rasterPatchPlan, validate func() error, encode func(context.Context, RasterPatchImage) (Output, error)) (Output, error) {
+	var zero Output
+	if err := validate(); err != nil {
+		return zero, err
+	}
+	input, err := preprocessRasterPatches(source, plan, options)
+	if err != nil {
+		return zero, err
+	}
+	return encode(ctx, input)
 }
 
 func preprocessRasterPatches(source image.Image, plan rasterPatchPlan, options RasterPatchOptions) (RasterPatchImage, error) {

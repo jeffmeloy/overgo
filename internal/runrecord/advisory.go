@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -81,7 +82,7 @@ func DetectRegression(
 	threshold float64,
 ) (Advisory, bool, error) {
 	if window < MinAdvisoryWindow || window > MaxAdvisoryWindow ||
-		threshold <= 0 || math.IsNaN(threshold) || math.IsInf(threshold, 0) || !validLabel(metricName) {
+		threshold <= 0 || math.IsNaN(threshold) || math.IsInf(threshold, 0) || !textcheck.LowerIdentifier(metricName, maxLabelBytes) {
 		return Advisory{}, false, errors.New("run record: invalid advisory configuration")
 	}
 	ordered := slices.Clone(observations)
@@ -267,7 +268,7 @@ func medianUint(values []uint64) uint64 {
 func canonicalizeAdvisory(advisory *Advisory) error {
 	if advisory == nil || advisory.Version != AdvisoryVersion ||
 		advisory.Recipe.Kind() != artifact.KindRecipe || advisory.Environment.Kind() != artifact.KindEvidence ||
-		advisory.LatestRun.Kind() != artifact.KindRun || !validLabel(advisory.Metric) ||
+		advisory.LatestRun.Kind() != artifact.KindRun || !textcheck.LowerIdentifier(advisory.Metric, maxLabelBytes) ||
 		len(advisory.Unit) > maxLabelBytes || strings.TrimSpace(advisory.Unit) != advisory.Unit ||
 		strings.ContainsAny(advisory.Unit, "\r\n") || advisory.WindowStart == 0 ||
 		advisory.WindowEnd < advisory.WindowStart || advisory.LatestSequence <= advisory.WindowEnd ||

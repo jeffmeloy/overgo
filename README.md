@@ -127,6 +127,36 @@ Cross-repo comparisons are valid only for the stated artifact, input, seed,
 precision, output contract, lifecycle, and uncontended device. A faster host-vs-
 device comparison is not labeled a like-for-like runtime win.
 
+## Automation and evidence control
+
+Automation is Go-owned and plan-bound. `cmd/plan -context` emits one deterministic
+task context containing HEAD, branch, worktree, role, current step, normalized
+dirty paths, and RepoDB evidence debt. It does not create a second priority
+surface or autonomously assign work.
+
+`cmd/gate` owns integration:
+
+- staged paths must match the current plan step;
+- structural code profiles and review focus are computed from the candidate;
+- affected tests derive from imports and embedded-file ownership;
+- kernel, compatibility, SBOM, magic, and device checks activate from changed
+  ownership and claims; race and smoke remain explicit derived lanes;
+- skipped, unavailable, and uncredited fixture evidence remain visible;
+- typed RepoDB preparation, heartbeat, result, and reconciliation records bind
+  plan, environment, paths, commit, and verdict.
+
+Shared command execution preserves exit status and bounded output without shell
+wrappers. CI and release use the same Go test classifier as local gates. Failed
+post-commit evidence publication remains explicit debt; `cmd/gate -watchdog`
+classifies it and `cmd/gate -reconcile` replays only the validated prepared
+batch.
+
+Independent SQA records bind developer and reviewer identities, clean separate
+worktrees, frozen evaluator revision, candidate commit, findings disposition,
+target HEAD, and verdict. Promotion remains externally controlled. Git/RepoDB-
+derived review priority and advisory worktree/resource leases remain open; the
+system does not yet schedule or merge candidates autonomously.
+
 ## Requirements and data roots
 
 Required:
@@ -296,15 +326,53 @@ reference and cannot be combined with it. A non-positive `-lr` derives
 
 Current production evidence is the frozen-lexical Carbon route. The CLI writes
 model weights plus `config.json` and `tokenizer.json`; it is not yet an atomic,
-complete-state resume containing optimizer, RNG, and data cursor. Internal
-scratch construction compiles corpus-derived topology, a flat initialized slab,
-shared tensor forward/VJP, and host/resident Muon programs with matched evidence.
-Dense, scratch, and diffusion-image loops consume the same ordered stream owner. RepoDB dataset
-materialization supplies lazy offset-indexed file access, immutable membership
-selection, exact deduplication, typed processors, weighted deterministic order,
-cursor snapshots, byte packing, microbatches, and bounded parallel decode.
-`cmd/train` does not yet publish that construction as a complete model artifact
-or select a RepoDB dataset/split as its production CLI path.
+complete-state resume containing optimizer, RNG, and data cursor.
+
+### Dataset processing
+
+`internal/trainingdata` is the neutral data plane for dense, scratch, and
+diffusion-image training:
+
+- resolves RepoDB dataset versions, views, mixtures, asset locations, and
+  immutable split memberships;
+- builds line-offset indexes, retains one cached file owner per artifact, and
+  reads record bytes lazily;
+- applies exact content deduplication before sampling;
+- binds processor-profile identities and typed input/target modalities from a
+  compiled `TrainingRunPlan`;
+- produces deterministic weighted order from dataset identity, seed, member,
+  epoch, and record identity;
+- snapshots `{stream identity, position}` for exact order resume;
+- packs by example and byte bounds, forms microbatches, and decodes with bounded
+  parallel workers while preserving order and rolling back on failure.
+
+`cmd/train` currently routes one UTF-8 file through this owner as an in-memory
+document. Direct RepoDB dataset/split selection and atomic persistence of the
+stream cursor with optimizer/RNG state remain open.
+
+### From-scratch model construction and training
+
+`internal/scratchmodel` ports adaptive_new's corpus-derived causal controller
+behind Overgo contracts. A versioned derivation profile and immutable corpus
+facts deterministically produce train/validation/test membership, rune
+tokenizer, context and topology, learning/init facts, parameter manifest,
+tied-weight rules, and a single flat initialized slab. Content identities bind
+the dataset, split, derivation/topology/initializer profiles, tokenizer,
+manifest, initialized model, recipe, and named RNG streams.
+
+Construction compiles one ordered `TrainingProgram` and shared Muon parameter
+plan. Production execution uses shared tensor forward/VJP and optimizer owners;
+the adaptive pointer-autodiff implementation remains test-only. Host and
+resident CUDA trainers consume the same dataset stream, retain device weights
+and momentum, and match the pinned adaptive trajectory. On the recorded tiny
+profile, Overgo measured 58.0-65.4 ms versus adaptive's 221.4-231.8 ms and
+1.15-1.17 MB versus 3.13-3.18 MB combined peak.
+
+Scratch construction remains an internal production component, not a complete
+CLI workflow. RepoDB publication of the initialized model/run/checkpoint,
+atomic resume, generalized multimodal objectives, held-out controller
+promotion, and descendant improvement remain open.
+
 See the [training plan](docs/training_plan.md) for the exact boundary.
 
 ## Commands

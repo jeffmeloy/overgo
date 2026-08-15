@@ -37,10 +37,6 @@ func readEmbedRowsF32(modelDir string, spec TextEncoderSpec, ids []int) ([]float
 	return result, nil
 }
 
-var encodedImageContract = artifact.DocumentContract{
-	Kind: artifact.KindOutput, MediaType: encodedImageMediaType, Schema: "overgo.encoded-image.png.v1",
-}
-
 type Request struct {
 	Prompt            string  `json:"prompt"`
 	Width             int     `json:"width"`
@@ -290,11 +286,6 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 	}
 	return workflowruntime.RegisterContextStage(
 		runtime, modelrecipe.ModuleLatentImageDecode, modelID, generator.decode,
-		func(image EncodedImage) (artifact.Content, error) {
-			if image.MediaType != encodedImageMediaType {
-				return artifact.Content{}, errors.New("latent image: invalid encoded media type")
-			}
-			return encodedImageContract.OwnedContentBytes(image.Data)
-		},
+		PNGContent,
 	)
 }

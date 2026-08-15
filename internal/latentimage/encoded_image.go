@@ -7,6 +7,8 @@ import (
 	"image/color"
 	"image/png"
 	"math"
+
+	"overgo/internal/artifact"
 )
 
 const encodedImageMediaType = "image/png"
@@ -20,6 +22,18 @@ type EncodedImage struct {
 	Width     int     `json:"width"`
 	Minimum   float32 `json:"minimum"`
 	Maximum   float32 `json:"maximum"`
+}
+
+var encodedPNGContract = artifact.DocumentContract{
+	Kind: artifact.KindOutput, MediaType: encodedImageMediaType, Schema: "overgo.encoded-image.png.v1",
+}
+
+// PNGContent validates and publishes the encoded PNG bytes without a JSON copy.
+func PNGContent(image EncodedImage) (artifact.Content, error) {
+	if image.MediaType != encodedImageMediaType || image.Channels != 3 || image.Height <= 0 || image.Width <= 0 {
+		return artifact.Content{}, errors.New("latent image: invalid encoded PNG")
+	}
+	return encodedPNGContract.OwnedContentBytes(image.Data)
 }
 
 type hwcRGB struct {

@@ -21,10 +21,6 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-var routedImageContract = artifact.DocumentContract{
-	Kind: artifact.KindOutput, MediaType: "image/png", Schema: "overgo.encoded-image.png.v1",
-}
-
 type GenerationRequest struct {
 	Prompt        string  `json:"prompt"`
 	Width         int     `json:"width"`
@@ -289,10 +285,11 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 	if generator == nil {
 		return errors.New("sensenova recipe: incomplete runtime binding")
 	}
-	return workflowruntime.RegisterJSONPipeline(
-		runtime, modelID, routedImageContract,
+	return workflowruntime.RegisterPipeline(
+		runtime, modelID,
 		modelrecipe.ModuleRoutedImagePrepare, generator.prepare,
 		modelrecipe.ModuleRoutedImageIntegrate, generator.integrate,
 		modelrecipe.ModuleRoutedImageDecode, generator.decode,
+		latentimage.PNGContent,
 	)
 }

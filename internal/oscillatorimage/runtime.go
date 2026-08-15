@@ -9,7 +9,6 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-var imageContract = artifact.JSONContract(artifact.KindOutput, "overgo.generated-image.v1")
 var videoContract = artifact.JSONContract(artifact.KindOutput, "overgo.generated-video.v1")
 
 type videoGenerator interface {
@@ -82,10 +81,11 @@ func registerVideoRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID,
 }
 
 func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model generator) error {
-	return workflowruntime.RegisterJSONPipeline(
-		runtime, modelID, imageContract,
+	return workflowruntime.RegisterPipeline(
+		runtime, modelID,
 		modelrecipe.ModuleOscillatorImagePrepare, model.prepare,
 		modelrecipe.ModuleOscillatorImageIntegrate, model.integrate,
 		modelrecipe.ModuleOscillatorImageDecode, model.decode,
+		latentimage.PNGContent,
 	)
 }

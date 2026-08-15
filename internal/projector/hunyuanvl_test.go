@@ -48,7 +48,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 	if !slices.Equal(output.Embeddings.Data, make([]float32, 24)) {
 		t.Fatalf("output = %v", output.Embeddings.Data)
 	}
-	if output.GridH != 2 || output.GridW != 2 || output.MergeSize != 2 {
+	if output.GridH != 2 || output.GridW != 2 || output.MergeSize != fixtureSpatialMerge {
 		t.Fatalf("output grid = %d,%d merge=%d", output.GridH, output.GridW, output.MergeSize)
 	}
 }
@@ -214,9 +214,9 @@ func tinyHunyuanVLMetadata() []gguf.Metadata {
 		{Key: "clip.vision.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(6)}},
 		{Key: "clip.vision.block_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
 		{Key: "clip.vision.attention.head_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
-		{Key: "clip.vision.spatial_merge_size", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
-		{Key: "clip.vision.image_min_pixels", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(16)}},
-		{Key: "clip.vision.image_max_pixels", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(64)}},
+		{Key: visionSpatialMergeKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSpatialMerge)}},
+		{Key: visionMinPixelsKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSmallPixelBudget)}},
+		{Key: visionMaxPixelsKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureLargePixelBudget)}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},
 		{Key: "clip.vision.image_std", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{1, 1, 1}}},
@@ -226,7 +226,7 @@ func tinyHunyuanVLMetadata() []gguf.Metadata {
 func tinyHunyuanVLSpec() HunyuanVLSpec {
 	return HunyuanVLSpec{
 		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1), OutputHidden: 6,
-		MergeSize: 2, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
+		MergeSize: fixtureSpatialMerge, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
 		ConvIntermediate: 8, ProjectorInput: 5, FusedQKV: []bool{true},
 	}
 }

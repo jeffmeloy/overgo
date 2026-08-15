@@ -68,7 +68,7 @@ func openDeepSeekOCR(ctx context.Context, file *gguf.File, options OpenOptions) 
 	if err != nil {
 		return nil, err
 	}
-	runner.clipPosition, err = loadProjectorHostTensor(ctx, file, "v.position_embd.weight")
+	runner.clipPosition, err = loadProjectorHostTensor(ctx, file, visionPositionWeightTensor)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func (s DeepSeekOCRSpec) validate() error {
 func deepSeekOCRTensorNames(file *gguf.File, spec DeepSeekOCRSpec) []string {
 	names := deepSeekOCRSAMTensorNames(spec)
 	names = append(names,
-		"v.class_embd", "v.position_embd.weight",
+		"v.class_embd", visionPositionWeightTensor,
 		"mm.model.fc.weight", "mm.model.fc.bias", "v.image_newline", "v.view_seperator",
 	)
 	for layer := 0; layer < spec.Layers; layer++ {
@@ -233,7 +233,7 @@ func deepSeekOCRTensorNames(file *gguf.File, spec DeepSeekOCRSpec) []string {
 			names = append(names, prefix+suffix)
 		}
 	}
-	for _, name := range []string{"v.pre_ln.weight", "v.pre_ln.bias", "v.post_ln.weight", "v.post_ln.bias"} {
+	for _, name := range []string{visionPreNormWeightTensor, visionPreNormBiasTensor, visionPostNormWeightTensor, visionPostNormBiasTensor} {
 		if hasTensor(file, name) {
 			names = append(names, name)
 		}
@@ -281,7 +281,7 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 		"v.sam.pos_embd.weight":   positionShape,
 		"v.sam.patch_embd.weight": {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.SAMHidden)},
 		"v.sam.patch_embd.bias":   {uint64(spec.SAMHidden)},
-		"v.position_embd.weight": {uint64(spec.Hidden), uint64(
+		visionPositionWeightTensor: {uint64(spec.Hidden), uint64(
 			(spec.ImageSize/spec.PatchSize/deepSeekOCRPositionDownsample)*
 				(spec.ImageSize/spec.PatchSize/deepSeekOCRPositionDownsample) + 1,
 		)},
@@ -301,7 +301,7 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 			return fmt.Errorf("projector: tensor %q has %d elements, want %d", name, elements, spec.OutputHidden)
 		}
 	}
-	for _, pair := range [][2]string{{"v.pre_ln.weight", "v.pre_ln.bias"}, {"v.post_ln.weight", "v.post_ln.bias"}} {
+	for _, pair := range [][2]string{{visionPreNormWeightTensor, visionPreNormBiasTensor}, {visionPostNormWeightTensor, visionPostNormBiasTensor}} {
 		_, first := file.Tensor(pair[0])
 		_, second := file.Tensor(pair[1])
 		if first != second {
@@ -528,8 +528,8 @@ func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Te
 	clipPosition := builder.Input("clip_position", dtype.F32, tensor.MustShape(uint64(r.spec.Hidden), patches+1))
 	hostFeeds[clipPosition] = interpolateSpatialPosition(r.clipPosition, r.spec.Hidden, int(cur.Shape.Dims[1]), int(cur.Shape.Dims[2]), true)
 	hidden = builder.Add(hidden, clipPosition)
-	if hasTensor(r.file, "v.pre_ln.weight") {
-		hidden = builder.AffineLayerNorm(hidden, builder.Reshape(weight("v.pre_ln.weight"), uint64(r.spec.Hidden)), builder.Reshape(weight("v.pre_ln.bias"), uint64(r.spec.Hidden)), r.spec.LayerNormEpsilon)
+	if hasTensor(r.file, visionPreNormWeightTensor) {
+		hidden = builder.AffineLayerNorm(hidden, builder.Reshape(weight(visionPreNormWeightTensor), uint64(r.spec.Hidden)), builder.Reshape(weight(visionPreNormBiasTensor), uint64(r.spec.Hidden)), r.spec.LayerNormEpsilon)
 	}
 	for layer := 0; layer < r.spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
@@ -554,8 +554,8 @@ func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Te
 		down := builder.Add(builder.MulMat(weight(prefix+"ffn_down.weight"), up), builder.Reshape(weight(prefix+"ffn_down.bias"), uint64(r.spec.Hidden), 1))
 		hidden = builder.Add(hidden, down)
 	}
-	if hasTensor(r.file, "v.post_ln.weight") {
-		hidden = builder.AffineLayerNorm(hidden, builder.Reshape(weight("v.post_ln.weight"), uint64(r.spec.Hidden)), builder.Reshape(weight("v.post_ln.bias"), uint64(r.spec.Hidden)), r.spec.LayerNormEpsilon)
+	if hasTensor(r.file, visionPostNormWeightTensor) {
+		hidden = builder.AffineLayerNorm(hidden, builder.Reshape(weight(visionPostNormWeightTensor), uint64(r.spec.Hidden)), builder.Reshape(weight(visionPostNormBiasTensor), uint64(r.spec.Hidden)), r.spec.LayerNormEpsilon)
 	}
 	clip := builder.FlatSlice(hidden, uint64(r.spec.Hidden), uint64(r.spec.Hidden), patches)
 	joined := builder.Concat(clip, sam, 0)

@@ -53,12 +53,13 @@ func (r *PaddleOCRRunner) Spec() PaddleOCRSpec {
 
 func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
 	spec := PaddleOCRSpec{}
-	if err := readVisionBackbone(file, paddleOCRProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
+	if err := readRotaryVisionBackbone(file, paddleOCRProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
 		return PaddleOCRSpec{}, err
 	}
 	if err := readMetadataIntFields(file,
-		metadataIntField{"clip.vision.image_min_pixels", &spec.MinPixels},
-		metadataIntField{"clip.vision.image_max_pixels", &spec.MaxPixels},
+		metadataIntField{visionMinPixelsKey, &spec.MinPixels},
+		metadataIntField{visionMaxPixelsKey, &spec.MaxPixels},
+		metadataIntField{visionSpatialMergeKey, &spec.MergeSize},
 	); err != nil {
 		return PaddleOCRSpec{}, err
 	}
@@ -70,11 +71,10 @@ func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
 	if !ok || merger.Dimensions != 2 || merger.Shape[1] > uint64(^uint(0)>>1) {
 		return PaddleOCRSpec{}, errors.New("projector: PaddleOCR merger tensor is unavailable or invalid")
 	}
-	spec.MergeSize = 2
 	spec.ProjectorIntermediate = int(merger.Shape[1])
 	spec.Activation = activation
-	spec.PreLayerNorm = hasTensor(file, "v.pre_ln.weight")
-	spec.PostLayerNorm = hasTensor(file, "v.post_ln.weight")
+	spec.PreLayerNorm = hasTensor(file, visionPreNormWeightTensor)
+	spec.PostLayerNorm = hasTensor(file, visionPostNormWeightTensor)
 	spec.FusedQKV = make([]bool, spec.Layers)
 	for layer := range spec.FusedQKV {
 		spec.FusedQKV[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.attn_qkv.weight", layer))
@@ -127,11 +127,11 @@ func hasTensor(file *gguf.File, name string) bool {
 }
 
 func (s PaddleOCRSpec) validate() error {
-	if err := s.visionBackboneSpec.validate(); err != nil {
+	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
-	if s.ProjectorIntermediate <= 0 || s.OutputHidden <= 0 || s.MergeSize != 2 ||
-		s.MinPixels <= 0 || s.MaxPixels < s.MinPixels || (s.Hidden/s.Heads)%4 != 0 || len(s.FusedQKV) != s.Layers {
+	if s.ProjectorIntermediate <= 0 || s.OutputHidden <= 0 || s.MergeSize <= 0 ||
+		s.MinPixels <= 0 || s.MaxPixels < s.MinPixels || (s.Hidden/s.Heads)%visionRoPEComponentCount != 0 || len(s.FusedQKV) != s.Layers {
 		return fmt.Errorf("projector: invalid PaddleOCR metadata: %+v", s)
 	}
 	return nil
@@ -139,22 +139,18 @@ func (s PaddleOCRSpec) validate() error {
 
 func validatePaddleOCRCatalog(file *gguf.File, spec PaddleOCRSpec) ([]string, error) {
 	required := map[string][]uint64{
-		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
-		"v.position_embd.weight": {uint64(spec.Hidden), uint64((spec.ImageSize / spec.PatchSize) * (spec.ImageSize / spec.PatchSize))},
-		"mm.input_norm.weight":   {uint64(spec.Hidden)}, "mm.input_norm.bias": {uint64(spec.Hidden)},
-		"mm.1.weight": {uint64(spec.Hidden * 4), uint64(spec.ProjectorIntermediate)},
+		"mm.input_norm.weight": {uint64(spec.Hidden)}, "mm.input_norm.bias": {uint64(spec.Hidden)},
+		"mm.1.weight": {uint64(spec.Hidden * spec.MergeSize * spec.MergeSize), uint64(spec.ProjectorIntermediate)},
 		"mm.1.bias":   {uint64(spec.ProjectorIntermediate)},
 		"mm.2.weight": {uint64(spec.ProjectorIntermediate), uint64(spec.OutputHidden)},
 		"mm.2.bias":   {uint64(spec.OutputHidden)},
 	}
-	if err := addOptionalProjectorPair(file, required, "v.pre_ln.weight", "v.pre_ln.bias", []uint64{uint64(spec.Hidden)}); err != nil {
+	positionSide := spec.ImageSize / spec.PatchSize
+	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, positionSide*positionSide, tensorOptional)
+	if err := addOptionalVisionNormCatalog(file, required, spec.Hidden); err != nil {
 		return nil, err
 	}
-	if err := addOptionalProjectorPair(file, required, "v.post_ln.weight", "v.post_ln.bias", []uint64{uint64(spec.Hidden)}); err != nil {
-		return nil, err
-	}
-	addOptionalProjectorTensor(file, required, "v.patch_embd.bias", []uint64{uint64(spec.Hidden)})
-	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV)
+	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV, false, tensorOptional)
 	return validateProjectorTensorCatalog(file, required)
 }
 

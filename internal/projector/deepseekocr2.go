@@ -91,7 +91,7 @@ func deepSeekOCR2TensorNames(file *gguf.File, spec DeepSeekOCR2Spec) []string {
 	names := append(deepSeekOCRSAMTensorNames(spec.DeepSeekOCRSpec),
 		"v.resample_query_768.weight", "v.resample_query_1024.weight",
 		"mm.model.fc.weight", "mm.model.fc.bias", "v.view_seperator")
-	for _, name := range []string{"v.pre_ln.weight", "v.pre_ln.bias", "v.post_ln.weight", "v.post_ln.bias"} {
+	for _, name := range []string{visionPreNormWeightTensor, visionPreNormBiasTensor, visionPostNormWeightTensor, visionPostNormBiasTensor} {
 		if hasTensor(file, name) {
 			names = append(names, name)
 		}
@@ -226,7 +226,7 @@ func (r *DeepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.T
 		value = builder.WeightedRMSNorm(value, weight(prefix+".weight"), r.spec.LayerNormEpsilon)
 		return addOptionalBias(value, prefix+".bias", uint64(r.spec.Hidden))
 	}
-	if hasTensor(r.file, "v.pre_ln.weight") {
+	if hasTensor(r.file, visionPreNormWeightTensor) {
 		hidden = norm(hidden, "v.pre_ln")
 	}
 	positions := make([]uint32, sequence)
@@ -268,7 +268,7 @@ func (r *DeepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.T
 		down = addOptionalBias(down, prefix+"ffn_down.bias", uint64(r.spec.Hidden))
 		hidden = builder.Add(residual, down)
 	}
-	if hasTensor(r.file, "v.post_ln.weight") {
+	if hasTensor(r.file, visionPostNormWeightTensor) {
 		hidden = norm(hidden, "v.post_ln")
 	}
 	hidden = builder.FlatSlice(hidden, uint64(r.spec.Hidden)*patches, uint64(r.spec.Hidden), patches)

@@ -23,9 +23,9 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 	hostFeeds := graph.hostFeeds
 	hostFeeds[pixels] = pixelsValue(pixels, tile.PixelValues)
 	weight := graph.weight
-	patch := builder.Reshape(weight("v.patch_embd.weight"), uint64(patchWidth), uint64(r.spec.Hidden))
-	hidden := builder.Add(builder.MulMat(patch, pixels), weight("v.patch_embd.bias"))
-	hidden = builder.Add(hidden, weight("v.position_embd.weight"))
+	patch := builder.Reshape(weight(visionPatchWeightTensor), uint64(patchWidth), uint64(r.spec.Hidden))
+	hidden := builder.Add(builder.MulMat(patch, pixels), weight(visionPatchBiasTensor))
+	hidden = builder.Add(hidden, weight(visionPositionWeightTensor))
 	layerOutputs := make([]*tensor.Tensor, r.spec.Layers)
 	headWidth := uint64(r.spec.Hidden / r.spec.Heads)
 	for layer := 0; layer < r.spec.Layers; layer++ {

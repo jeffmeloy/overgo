@@ -18,7 +18,11 @@ import (
 	"overgo/internal/strictjson"
 )
 
-const qwen35VisionNormEpsilon = 1e-6
+const (
+	qwen35VisionNormEpsilon   = 1e-6
+	qwen35VisionChannels      = 3
+	qwen35TemporalPatchSlices = 2
+)
 
 var qwen35VisionLayerPattern = regexp.MustCompile(`^model\.visual\.blocks\.(\d+)\.(.+)$`)
 
@@ -36,6 +40,7 @@ type qwen35VisionConfig struct {
 	PatchSize         uint32  `json:"patch_size"`
 	MergeSize         uint32  `json:"spatial_merge_size"`
 	TemporalPatchSize uint32  `json:"temporal_patch_size"`
+	RopeTheta         float32 `json:"rope_theta"`
 	DeepstackIndexes  []int   `json:"deepstack_visual_indexes"`
 }
 
@@ -90,6 +95,7 @@ func Qwen35ProjectorConversion(repository *hfrepo.Repository) ([]gguf.Metadata, 
 		metadata("clip.vision.block_count", gguf.ValueTypeUint32, config.Depth),
 		metadata("clip.vision.attention.head_count", gguf.ValueTypeUint32, config.Heads),
 		metadata("clip.vision.spatial_merge_size", gguf.ValueTypeUint32, config.MergeSize),
+		metadata("clip.vision.rope.freq_base", gguf.ValueTypeFloat32, config.RopeTheta),
 		metadata("clip.vision.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(qwen35VisionNormEpsilon)),
 		gguf.ArrayMetadata("clip.vision.image_mean", gguf.ValueTypeFloat32, processor.ImageMean),
 		gguf.ArrayMetadata("clip.vision.image_std", gguf.ValueTypeFloat32, processor.ImageStd),
@@ -103,13 +109,13 @@ func Qwen35ProjectorConversion(repository *hfrepo.Repository) ([]gguf.Metadata, 
 
 func validateQwen35VisionConfig(config qwen35VisionConfig, processor qwen35VisionProcessor) error {
 	side := uint32(math.Sqrt(float64(config.Positions)))
-	if config.ModelType != "qwen3_5" || config.HiddenActivation != "gelu_pytorch_tanh" || config.InChannels != 3 ||
+	if config.ModelType != "qwen3_5" || config.HiddenActivation != "gelu_pytorch_tanh" || config.InChannels != qwen35VisionChannels ||
 		config.Depth == 0 || config.HiddenSize == 0 || config.IntermediateSize == 0 || config.Heads == 0 ||
 		config.Positions == 0 || side*side != config.Positions || config.OutputHidden == 0 || config.PatchSize == 0 ||
-		config.MergeSize != 2 || config.TemporalPatchSize != 2 || config.HiddenSize%config.Heads != 0 ||
+		config.MergeSize == 0 || config.TemporalPatchSize != qwen35TemporalPatchSlices || config.RopeTheta <= 0 || config.HiddenSize%config.Heads != 0 ||
 		processor.PatchSize != config.PatchSize || processor.TemporalPatchSize != config.TemporalPatchSize ||
 		processor.MergeSize != config.MergeSize || len(config.DeepstackIndexes) != 0 ||
-		len(processor.ImageMean) != 3 || len(processor.ImageStd) != 3 {
+		len(processor.ImageMean) != qwen35VisionChannels || len(processor.ImageStd) != qwen35VisionChannels {
 		return errors.New("HF/GGUF adapter: Qwen 3.5 vision configuration is unsupported")
 	}
 	for channel := range processor.ImageStd {
@@ -191,7 +197,7 @@ func qwen35ProjectorTensorName(source string) (string, bool) {
 }
 
 func qwen35TemporalPatchTensors(tensor safetensors.Tensor, config qwen35VisionConfig) ([]gguf.TensorData, error) {
-	want := []uint64{uint64(config.HiddenSize), 3, uint64(config.TemporalPatchSize), uint64(config.PatchSize), uint64(config.PatchSize)}
+	want := []uint64{uint64(config.HiddenSize), qwen35VisionChannels, uint64(config.TemporalPatchSize), uint64(config.PatchSize), uint64(config.PatchSize)}
 	if len(tensor.Shape) != len(want) {
 		return nil, errors.New("HF/GGUF adapter: Qwen 3.5 temporal patch rank is invalid")
 	}
@@ -200,8 +206,8 @@ func qwen35TemporalPatchTensors(tensor safetensors.Tensor, config qwen35VisionCo
 			return nil, fmt.Errorf("HF/GGUF adapter: Qwen 3.5 temporal patch shape is %v", tensor.Shape)
 		}
 	}
-	shape := []uint64{uint64(config.PatchSize), uint64(config.PatchSize), 3, uint64(config.HiddenSize)}
-	result := make([]gguf.TensorData, 2)
+	shape := []uint64{uint64(config.PatchSize), uint64(config.PatchSize), qwen35VisionChannels, uint64(config.HiddenSize)}
+	result := make([]gguf.TensorData, qwen35TemporalPatchSlices)
 	for temporal := range result {
 		name := "v.patch_embd.weight"
 		if temporal == 1 {

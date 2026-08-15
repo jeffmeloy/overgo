@@ -50,7 +50,7 @@ func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 	if !slices.Equal(output.Embeddings.Data, want) {
 		t.Fatalf("output = %v, want %v", output.Embeddings.Data, want)
 	}
-	if output.GridH != 2 || output.GridW != 2 || output.MergeSize != 2 {
+	if output.GridH != 2 || output.GridW != 2 || output.MergeSize != fixtureSpatialMerge {
 		t.Fatalf("output grid = %d,%d merge=%d", output.GridH, output.GridW, output.MergeSize)
 	}
 }
@@ -161,8 +161,10 @@ func tinyPaddleOCRMetadata() []gguf.Metadata {
 		{Key: "clip.vision.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(6)}},
 		{Key: "clip.vision.block_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
 		{Key: "clip.vision.attention.head_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
-		{Key: "clip.vision.image_min_pixels", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(16)}},
-		{Key: "clip.vision.image_max_pixels", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(64)}},
+		{Key: visionMinPixelsKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSmallPixelBudget)}},
+		{Key: visionMaxPixelsKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureLargePixelBudget)}},
+		{Key: visionSpatialMergeKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSpatialMerge)}},
+		{Key: visionRopeFrequencyKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: fixtureRopeFrequency}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},
 		{Key: "clip.vision.image_std", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{1, 1, 1}}},
@@ -172,7 +174,7 @@ func tinyPaddleOCRMetadata() []gguf.Metadata {
 func tinyPaddleOCRSpec() PaddleOCRSpec {
 	return PaddleOCRSpec{
 		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1), ProjectorIntermediate: 16,
-		OutputHidden: 6, MergeSize: 2, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
+		OutputHidden: 6, MergeSize: fixtureSpatialMerge, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
 		FusedQKV: []bool{true},
 	}
 }

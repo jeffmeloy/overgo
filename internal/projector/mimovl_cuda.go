@@ -29,8 +29,8 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 	hostFeeds[input0] = reference.Value{Shape: input0.Shape, Data: pixels0}
 	hostFeeds[input1] = reference.Value{Shape: input1.Shape, Data: pixels1}
 	weight := graph.weight
-	patch0 := builder.Reshape(weight("v.patch_embd.weight"), uint64(temporalWidth), uint64(r.spec.Hidden))
-	patch1 := builder.Reshape(weight("v.patch_embd.weight.1"), uint64(temporalWidth), uint64(r.spec.Hidden))
+	patch0 := builder.Reshape(weight(visionPatchWeightTensor), uint64(temporalWidth), uint64(r.spec.Hidden))
+	patch1 := builder.Reshape(weight(visionPatchWeightTensor1), uint64(temporalWidth), uint64(r.spec.Hidden))
 	hidden := builder.Add(builder.MulMat(patch0, input0), builder.MulMat(patch1, input1))
 	rowPositions, columnPositions := mergedGrid(input.GridH, input.GridW, r.spec.MergeSize)
 	positionsH, positionsW := intsToUint32(rowPositions), intsToUint32(columnPositions)
@@ -55,8 +55,8 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 		q := builder.GroupSlice(qkv, 0, headDim, uint64(r.spec.Heads), headDim)
 		k := builder.GroupSlice(qkv, uint64(qWidth), headDim, uint64(r.spec.KVHeads), headDim)
 		v := builder.GroupSlice(qkv, uint64(qWidth+kvWidth), headDim, uint64(r.spec.KVHeads), headDim)
-		q = qwen3VLVisionRoPE(builder, q, positionsH, positionsW)
-		k = qwen3VLVisionRoPE(builder, k, positionsH, positionsW)
+		q = interleavedVisionRoPE(builder, q, positionsH, positionsW, r.spec.RopeFrequency)
+		k = interleavedVisionRoPE(builder, k, positionsH, positionsW, r.spec.RopeFrequency)
 		scale := float32(1 / math.Sqrt(float64(r.spec.HeadDim)))
 		var attention *tensor.Tensor
 		if mode == -1 {
@@ -80,10 +80,10 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 	if previousMode == 1 {
 		hidden = builder.GetRows(hidden, intsToUint32(inverseColumnOrder))
 	}
-	normalized := builder.Multiply(builder.LayerNorm(hidden, mimoVLPostNormEpsilon), weight("v.post_ln.weight"))
-	normalized = graph.addOptionalBias(normalized, "v.post_ln.bias")
+	normalized := builder.Multiply(builder.LayerNorm(hidden, mimoVLPostNormEpsilon), weight(visionPostNormWeightTensor))
+	normalized = graph.addOptionalBias(normalized, visionPostNormBiasTensor)
 	mergedRows := rows / (r.spec.MergeSize * r.spec.MergeSize)
-	merged := builder.Reshape(normalized, uint64(r.spec.Hidden*4), uint64(mergedRows))
+	merged := builder.Reshape(normalized, uint64(r.spec.Hidden*r.spec.MergeSize*r.spec.MergeSize), uint64(mergedRows))
 	fc1 := builder.MulMat(weight("mm.0.weight"), merged)
 	fc1 = qwen3VLGELUTanh(builder, graph.addOptionalBias(fc1, "mm.0.bias"), hostFeeds)
 	output := builder.MulMat(weight("mm.2.weight"), fc1)

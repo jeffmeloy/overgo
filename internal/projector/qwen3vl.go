@@ -85,11 +85,11 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 		deepstackLayers = slices.Clone(layers)
 	}
 	spec := Qwen3VLSpec{}
-	if err := readVisionBackbone(file, qwen3VLProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
+	if err := readRotaryVisionBackbone(file, qwen3VLProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
 		return Qwen3VLSpec{}, err
 	}
 	if err := readMetadataIntFields(file,
-		metadataIntField{"clip.vision.spatial_merge_size", &spec.MergeSize},
+		metadataIntField{visionSpatialMergeKey, &spec.MergeSize},
 	); err != nil {
 		return Qwen3VLSpec{}, err
 	}
@@ -134,10 +134,10 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 }
 
 func (s Qwen3VLSpec) validate() error {
-	if err := s.visionBackboneSpec.validate(); err != nil {
+	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
-	if s.MergerIntermediate <= 0 || s.OutputHidden <= 0 || (s.Hidden/s.Heads)%4 != 0 || s.MergeSize != 2 {
+	if s.MergerIntermediate <= 0 || s.OutputHidden <= 0 || (s.Hidden/s.Heads)%visionRoPEComponentCount != 0 || s.MergeSize <= 0 {
 		return fmt.Errorf("projector: invalid Qwen3VL metadata: %+v", s)
 	}
 	if len(s.DeepstackLayers) != 0 && len(s.DeepstackLayers) != s.Layers {
@@ -148,35 +148,18 @@ func (s Qwen3VLSpec) validate() error {
 
 func validateQwen3VLCatalog(file *gguf.File, spec Qwen3VLSpec) ([]string, error) {
 	required := map[string][]uint64{
-		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
-		"v.patch_embd.weight.1":  {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
-		"v.patch_embd.bias":      {uint64(spec.Hidden)},
-		"v.position_embd.weight": {uint64(spec.Hidden), uint64((spec.ImageSize / spec.PatchSize) * (spec.ImageSize / spec.PatchSize))},
-		"v.post_ln.weight":       {uint64(spec.Hidden)},
-		"v.post_ln.bias":         {uint64(spec.Hidden)},
-		"mm.0.weight":            {uint64(spec.Hidden * 4), uint64(spec.MergerIntermediate)},
-		"mm.0.bias":              {uint64(spec.MergerIntermediate)},
-		"mm.2.weight":            {uint64(spec.MergerIntermediate), uint64(spec.OutputHidden)},
-		"mm.2.bias":              {uint64(spec.OutputHidden)},
+		visionPatchWeightTensor1:   {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
+		visionPostNormWeightTensor: {uint64(spec.Hidden)},
+		visionPostNormBiasTensor:   {uint64(spec.Hidden)},
+		"mm.0.weight":              {uint64(spec.Hidden * spec.MergeSize * spec.MergeSize), uint64(spec.MergerIntermediate)},
+		"mm.0.bias":                {uint64(spec.MergerIntermediate)},
+		"mm.2.weight":              {uint64(spec.MergerIntermediate), uint64(spec.OutputHidden)},
+		"mm.2.bias":                {uint64(spec.OutputHidden)},
 	}
+	positionSide := spec.ImageSize / spec.PatchSize
+	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, positionSide*positionSide, tensorRequired)
+	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, nil, true, tensorRequired)
 	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for name, shape := range map[string][]uint64{
-			"attn_qkv.weight": {uint64(spec.Hidden), uint64(3 * spec.Hidden)},
-			"attn_qkv.bias":   {uint64(3 * spec.Hidden)},
-			"attn_out.weight": {uint64(spec.Hidden), uint64(spec.Hidden)},
-			"attn_out.bias":   {uint64(spec.Hidden)},
-			"ffn_up.weight":   {uint64(spec.Hidden), uint64(spec.Intermediate)},
-			"ffn_up.bias":     {uint64(spec.Intermediate)},
-			"ffn_down.weight": {uint64(spec.Intermediate), uint64(spec.Hidden)},
-			"ffn_down.bias":   {uint64(spec.Hidden)},
-			"ln1.weight":      {uint64(spec.Hidden)},
-			"ln1.bias":        {uint64(spec.Hidden)},
-			"ln2.weight":      {uint64(spec.Hidden)},
-			"ln2.bias":        {uint64(spec.Hidden)},
-		} {
-			required[prefix+name] = shape
-		}
 		if len(spec.DeepstackLayers) > layer && spec.DeepstackLayers[layer] {
 			deepstackPrefix := fmt.Sprintf("v.deepstack.%d.", layer)
 			mergedWidth := uint64(spec.Hidden * spec.MergeSize * spec.MergeSize)

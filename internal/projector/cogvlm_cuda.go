@@ -19,10 +19,10 @@ func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float
 	graph.hostFeeds[pixels] = pixelsValue(pixels, pixelsData)
 	weight := graph.weight
 	hostFeeds := graph.hostFeeds
-	patch := builder.Reshape(weight("v.patch_embd.weight"), uint64(patchWidth), uint64(r.spec.Hidden))
-	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), "v.patch_embd.bias")
+	patch := builder.Reshape(weight(visionPatchWeightTensor), uint64(patchWidth), uint64(r.spec.Hidden))
+	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), visionPatchBiasTensor)
 	hidden = builder.Concat(hidden, builder.Reshape(weight("v.class_embd"), uint64(r.spec.Hidden), 1), 1)
-	hidden = builder.Add(hidden, weight("v.position_embd.weight"))
+	hidden = builder.Add(hidden, weight(visionPositionWeightTensor))
 	for layer := 0; layer < r.spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		qkv := builder.Add(builder.MulMat(weight(prefix+"attn_qkv.weight"), hidden), weight(prefix+"attn_qkv.bias"))

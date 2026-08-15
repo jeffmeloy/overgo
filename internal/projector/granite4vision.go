@@ -193,26 +193,10 @@ func (s Granite4VisionSpec) validate() error {
 func validateGranite4VisionCatalog(file *gguf.File, spec Granite4VisionSpec) ([]string, error) {
 	patches := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
-		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
-		"v.patch_embd.bias":      {uint64(spec.Hidden)},
-		"v.position_embd.weight": {uint64(spec.Hidden), uint64(patches * patches)},
-		"v.image_newline":        {uint64(spec.ProjectionDim)},
+		"v.image_newline": {uint64(spec.ProjectionDim)},
 	}
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for name, shape := range map[string][]uint64{
-			"attn_q.weight": {uint64(spec.Hidden), uint64(spec.Hidden)}, "attn_q.bias": {uint64(spec.Hidden)},
-			"attn_k.weight": {uint64(spec.Hidden), uint64(spec.Hidden)}, "attn_k.bias": {uint64(spec.Hidden)},
-			"attn_v.weight": {uint64(spec.Hidden), uint64(spec.Hidden)}, "attn_v.bias": {uint64(spec.Hidden)},
-			"attn_out.weight": {uint64(spec.Hidden), uint64(spec.Hidden)}, "attn_out.bias": {uint64(spec.Hidden)},
-			"ffn_up.weight": {uint64(spec.Hidden), uint64(spec.Intermediate)}, "ffn_up.bias": {uint64(spec.Intermediate)},
-			"ffn_down.weight": {uint64(spec.Intermediate), uint64(spec.Hidden)}, "ffn_down.bias": {uint64(spec.Hidden)},
-			"ln1.weight": {uint64(spec.Hidden)}, "ln1.bias": {uint64(spec.Hidden)},
-			"ln2.weight": {uint64(spec.Hidden)}, "ln2.bias": {uint64(spec.Hidden)},
-		} {
-			required[prefix+name] = shape
-		}
-	}
+	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, patches*patches, tensorRequired)
+	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, nil, false, tensorRequired)
 	queryLength := spec.QuerySide * spec.QuerySide
 	windowLength := spec.WindowSide * spec.WindowSide
 	for block := range spec.FeatureLayers {
@@ -364,16 +348,16 @@ func (r *Granite4VisionRunner) encodeTile(ctx context.Context, tile Granite4Visi
 	if len(tile.PixelValues) != rows*patchWidth {
 		return nil, errors.New("projector: Granite 4 Vision tile shape is inconsistent")
 	}
-	patchWeight, err := r.load(ctx, "v.patch_embd.weight")
+	patchWeight, err := r.load(ctx, visionPatchWeightTensor)
 	if err != nil {
 		return nil, err
 	}
-	patchBias, err := r.load(ctx, "v.patch_embd.bias")
+	patchBias, err := r.load(ctx, visionPatchBiasTensor)
 	if err != nil {
 		return nil, err
 	}
 	hidden := linear(tile.PixelValues, patchWeight.Data, patchBias.Data, rows, patchWidth, r.spec.Hidden)
-	positions, err := r.load(ctx, "v.position_embd.weight")
+	positions, err := r.load(ctx, visionPositionWeightTensor)
 	if err != nil {
 		return nil, err
 	}

@@ -42,11 +42,11 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	pixelsNode := builder.BF16Round(pixelInput)
 	ln1 := affineNorm.graph(builder, pixelsNode, weight("v.patch_norm.1.weight"), weight("v.patch_norm.1.bias"))
 	patchDense := builder.BF16Round(builder.Add(
-		builder.MulMat(weight("v.patch_embd.weight"), ln1), weight("v.patch_embd.bias"),
+		builder.MulMat(weight(visionPatchWeightTensor), ln1), weight(visionPatchBiasTensor),
 	))
 	ln2 := affineNorm.graph(builder, patchDense, weight("v.patch_norm.2.weight"), weight("v.patch_norm.2.bias"))
 	position := builder.Reshape(
-		weight("v.position_embd.weight"), uint64(r.spec.Hidden), uint64(r.spec.PositionCount*2),
+		weight(visionPositionWeightTensor), uint64(r.spec.Hidden), uint64(r.spec.PositionCount*2),
 	)
 	xRows := make([]uint32, rows)
 	yRows := make([]uint32, rows)

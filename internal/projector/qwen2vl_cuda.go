@@ -22,14 +22,14 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 	input1 := builder.Input("pixel_values.1", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	weight := graph.weight
-	patch0 := builder.Reshape(weight("v.patch_embd.weight"), uint64(temporalWidth), uint64(r.spec.Hidden))
-	patch1 := builder.Reshape(weight("v.patch_embd.weight.1"), uint64(temporalWidth), uint64(r.spec.Hidden))
+	patch0 := builder.Reshape(weight(visionPatchWeightTensor), uint64(temporalWidth), uint64(r.spec.Hidden))
+	patch1 := builder.Reshape(weight(visionPatchWeightTensor1), uint64(temporalWidth), uint64(r.spec.Hidden))
 	hidden := builder.Add(builder.MulMat(patch0, input0), builder.MulMat(patch1, input1))
 	graph.hostFeeds[input0] = reference.Value{Shape: input0.Shape, Data: pixels0}
 	graph.hostFeeds[input1] = reference.Value{Shape: input1.Shape, Data: pixels1}
 	hostFeeds := graph.hostFeeds
 	if r.spec.PreLayerNorm {
-		hidden = builder.AffineLayerNorm(hidden, weight("v.pre_ln.weight"), weight("v.pre_ln.bias"), r.spec.LayerNormEpsilon)
+		hidden = builder.AffineLayerNorm(hidden, weight(visionPreNormWeightTensor), weight(visionPreNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
 	rowOrder, columnOrder := mergedGrid(input.GridH, input.GridW, r.spec.MergeSize)
 	positionsY := make([]uint32, rows)
@@ -49,8 +49,8 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 		q := builder.Reshape(project("attn_q"), headWidth, uint64(r.spec.Heads), uint64(rows))
 		k := builder.Reshape(project("attn_k"), headWidth, uint64(r.spec.Heads), uint64(rows))
 		v := builder.Reshape(project("attn_v"), headWidth, uint64(r.spec.Heads), uint64(rows))
-		q = qwen3VLVisionRoPE(builder, q, positionsY, positionsX)
-		k = qwen3VLVisionRoPE(builder, k, positionsY, positionsX)
+		q = interleavedVisionRoPE(builder, q, positionsY, positionsX, r.spec.RopeFrequency)
+		k = interleavedVisionRoPE(builder, k, positionsY, positionsX, r.spec.RopeFrequency)
 		var attention *tensor.Tensor
 		for temporal := 0; temporal < input.GridT; temporal++ {
 			offset := uint64(temporal * spatial * r.spec.Hidden)
@@ -69,20 +69,16 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 		projected := builder.Add(builder.MulMat(weight(prefix+"attn_out.weight"), attention), weight(prefix+"attn_out.bias"))
 		hidden = builder.Add(hidden, projected)
 		norm = builder.AffineLayerNorm(hidden, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
-		upName, downName := "ffn_up", "ffn_down"
-		if r.spec.LegacyFFNSwapped {
-			upName, downName = downName, upName
-		}
-		up := builder.Add(builder.MulMat(weight(prefix+upName+".weight"), norm), weight(prefix+upName+".bias"))
+		up := builder.Add(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), weight(prefix+"ffn_up.bias"))
 		up = qwen3VLGELUTanh(builder, up, hostFeeds)
-		down := builder.Add(builder.MulMat(weight(prefix+downName+".weight"), up), weight(prefix+downName+".bias"))
+		down := builder.Add(builder.MulMat(weight(prefix+"ffn_down.weight"), up), weight(prefix+"ffn_down.bias"))
 		hidden = builder.Add(hidden, down)
 	}
 	if r.spec.PostLayerNorm {
-		hidden = builder.AffineLayerNorm(hidden, weight("v.post_ln.weight"), weight("v.post_ln.bias"), r.spec.LayerNormEpsilon)
+		hidden = builder.AffineLayerNorm(hidden, weight(visionPostNormWeightTensor), weight(visionPostNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
-	mergedRows := rows / 4
-	merged := builder.Reshape(hidden, uint64(r.spec.Hidden*4), uint64(mergedRows))
+	mergedRows := rows / (r.spec.MergeSize * r.spec.MergeSize)
+	merged := builder.Reshape(hidden, uint64(r.spec.Hidden*r.spec.MergeSize*r.spec.MergeSize), uint64(mergedRows))
 	fc1 := builder.Add(builder.MulMat(weight("mm.0.weight"), merged), weight("mm.0.bias"))
 	fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))

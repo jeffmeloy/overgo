@@ -28,7 +28,6 @@ type Llama4VisionSpec struct {
 	AdapterIntermediate int
 	AdapterHidden       int
 	MergeSize           int
-	RopeTheta           float32
 	Activation          llama4VisionActivation
 	PreLayerNorm        bool
 	PostLayerNorm       bool
@@ -65,15 +64,12 @@ func (r *Llama4VisionRunner) Spec() Llama4VisionSpec {
 
 func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 	spec := Llama4VisionSpec{}
-	if err := readVisionBackbone(file, llama4ProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
+	if err := readRotaryVisionBackbone(file, llama4ProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
 		return Llama4VisionSpec{}, err
 	}
-	merge, ok, err := optionalMetadataUint32(file, "clip.vision.projector.scale_factor")
+	merge, err := metadataUint32(file, visionProjectorScaleKey)
 	if err != nil {
 		return Llama4VisionSpec{}, err
-	}
-	if !ok {
-		merge = 2
 	}
 	mlp1, ok := file.Tensor("mm.model.mlp.1.weight")
 	if !ok || mlp1.Dimensions != 2 {
@@ -86,9 +82,8 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 	spec.AdapterIntermediate = int(mlp1.Shape[1])
 	spec.AdapterHidden = int(mlp2.Shape[1])
 	spec.MergeSize = int(merge)
-	spec.RopeTheta = 10000
-	spec.PreLayerNorm = hasTensor(file, "v.pre_ln.weight")
-	spec.PostLayerNorm = hasTensor(file, "v.post_ln.weight")
+	spec.PreLayerNorm = hasTensor(file, visionPreNormWeightTensor)
+	spec.PostLayerNorm = hasTensor(file, visionPostNormWeightTensor)
 	spec.FusedQKV = make([]bool, spec.Layers)
 	for layer := range spec.FusedQKV {
 		spec.FusedQKV[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.attn_qkv.weight", layer))
@@ -116,7 +111,7 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 }
 
 func (s Llama4VisionSpec) validate() error {
-	if err := s.visionBackboneSpec.validate(); err != nil {
+	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
 	headWidth := 0
@@ -124,7 +119,7 @@ func (s Llama4VisionSpec) validate() error {
 		headWidth = s.Hidden / s.Heads
 	}
 	if s.OutputHidden <= 0 || s.AdapterIntermediate <= 0 || s.AdapterHidden <= 0 || s.MergeSize <= 0 ||
-		headWidth%4 != 0 || (s.ImageSize/s.PatchSize)%s.MergeSize != 0 || s.RopeTheta <= 0 || len(s.FusedQKV) != s.Layers {
+		headWidth%visionRoPEComponentCount != 0 || (s.ImageSize/s.PatchSize)%s.MergeSize != 0 || len(s.FusedQKV) != s.Layers {
 		return fmt.Errorf("projector: invalid Llama-4 vision metadata: %+v", s)
 	}
 	return nil
@@ -134,22 +129,16 @@ func validateLlama4VisionCatalog(file *gguf.File, spec Llama4VisionSpec) ([]stri
 	patches := spec.ImageSize / spec.PatchSize
 	shuffleWidth := spec.Hidden * spec.MergeSize * spec.MergeSize
 	required := map[string][]uint64{
-		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
-		"v.class_embd":           {uint64(spec.Hidden)},
-		"v.position_embd.weight": {uint64(spec.Hidden), uint64(patches*patches + 1)},
-		"mm.model.mlp.1.weight":  {uint64(shuffleWidth), uint64(spec.AdapterIntermediate)},
-		"mm.model.mlp.2.weight":  {uint64(spec.AdapterIntermediate), uint64(spec.AdapterHidden)},
-		"mm.model.fc.weight":     {uint64(spec.AdapterHidden), uint64(spec.OutputHidden)},
+		"v.class_embd":          {uint64(spec.Hidden)},
+		"mm.model.mlp.1.weight": {uint64(shuffleWidth), uint64(spec.AdapterIntermediate)},
+		"mm.model.mlp.2.weight": {uint64(spec.AdapterIntermediate), uint64(spec.AdapterHidden)},
+		"mm.model.fc.weight":    {uint64(spec.AdapterHidden), uint64(spec.OutputHidden)},
 	}
-	addOptionalProjectorTensor(file, required, "v.patch_embd.bias", []uint64{uint64(spec.Hidden)})
-	for _, prefix := range []string{"v.pre_ln", "v.post_ln"} {
-		if err := addOptionalProjectorPair(
-			file, required, prefix+".weight", prefix+".bias", []uint64{uint64(spec.Hidden)},
-		); err != nil {
-			return nil, err
-		}
+	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, patches*patches+1, tensorOptional)
+	if err := addOptionalVisionNormCatalog(file, required, spec.Hidden); err != nil {
+		return nil, err
 	}
-	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV)
+	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV, false, tensorOptional)
 	return validateProjectorTensorCatalog(file, required)
 }
 
@@ -290,11 +279,11 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 	if patchRows <= 0 || input.GridH != input.GridW || input.GridH%r.spec.MergeSize != 0 || len(input.PixelValues) != patchRows*patchWidth {
 		return reference.Value{}, errors.New("projector: Llama-4 tile shape is inconsistent")
 	}
-	patchWeight, err := r.load(ctx, "v.patch_embd.weight")
+	patchWeight, err := r.load(ctx, visionPatchWeightTensor)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	patchBias, err := r.optionalBias(ctx, "v.patch_embd.bias")
+	patchBias, err := r.optionalBias(ctx, visionPatchBiasTensor)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -305,7 +294,7 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 	}
 	hidden = append(hidden, classEmbedding.Data...)
 	rows := patchRows + 1
-	positions, err := r.load(ctx, "v.position_embd.weight")
+	positions, err := r.load(ctx, visionPositionWeightTensor)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -374,7 +363,7 @@ func (r *Llama4VisionRunner) runLayer(ctx context.Context, hidden []float32, gri
 	if err != nil {
 		return err
 	}
-	llama4VisionRoPE(qkv, gridH, gridW, r.spec.Hidden, r.spec.Heads, r.spec.RopeTheta)
+	llama4VisionRoPE(qkv, gridH, gridW, r.spec.Hidden, r.spec.Heads, r.spec.RopeFrequency)
 	attention := r.attention.cpu(qkv, rows)
 	outWeight, err := r.load(ctx, prefix+"attn_out.weight")
 	if err != nil {

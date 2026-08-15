@@ -41,7 +41,7 @@ func TestMiMoVLRunnerTinyFixture(t *testing.T) {
 	if !output.Embeddings.Shape.Equal(mustShape(4, 4)) || !slices.Equal(output.Embeddings.Data, make([]float32, 16)) {
 		t.Fatalf("output = shape %v values %v", output.Embeddings.Shape, output.Embeddings.Data)
 	}
-	if output.GridH != 4 || output.GridW != 4 || output.MergeSize != 2 {
+	if output.GridH != 4 || output.GridW != 4 || output.MergeSize != fixtureSpatialMerge {
 		t.Fatalf("grid=%d,%d merge=%d", output.GridH, output.GridW, output.MergeSize)
 	}
 }
@@ -143,10 +143,11 @@ func tinyMiMoVLMetadata() []gguf.Metadata {
 		{Key: "clip.vision.block_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(3)}},
 		{Key: "clip.vision.attention.head_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
 		{Key: "clip.vision.attention.head_count_kv", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
-		{Key: "clip.vision.spatial_merge_size", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
+		{Key: visionSpatialMergeKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSpatialMerge)}},
+		{Key: visionRopeFrequencyKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: fixtureRopeFrequency}},
 		{Key: "clip.vision.window_size", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
-		{Key: "clip.vision.image_min_pixels", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(16)}},
-		{Key: "clip.vision.image_max_pixels", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(16)}},
+		{Key: visionMinPixelsKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSmallPixelBudget)}},
+		{Key: visionMaxPixelsKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSmallPixelBudget)}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},
 		{Key: "clip.vision.image_std", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{1, 1, 1}}},

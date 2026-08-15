@@ -251,8 +251,8 @@ func validateGemma4TowerCatalog(file *gguf.File, spec Gemma4TowerSpec) ([]string
 	kvWidth := uint64(vision.KVHeads * vision.HeadDim)
 	inter := uint64(vision.Intermediate)
 	required := map[string][]uint64{
-		"v.patch_embd.weight":        {patchPixels, hidden},
-		"v.position_embd.weight":     {hidden, uint64(vision.PositionCount), 2},
+		visionPatchWeightTensor:      {patchPixels, hidden},
+		visionPositionWeightTensor:   {hidden, uint64(vision.PositionCount), 2},
 		"mm.input_projection.weight": {hidden, uint64(vision.ProjectionDim)},
 	}
 	for layer := 0; layer < vision.Layers; layer++ {

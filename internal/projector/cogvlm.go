@@ -70,9 +70,7 @@ func (s CogVLMVisionSpec) validate() error {
 func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) ([]string, error) {
 	grid := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
-		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
 		"v.class_embd":           {uint64(spec.Hidden), 1},
-		"v.position_embd.weight": {uint64(spec.Hidden), uint64(grid*grid + 1)},
 		"mm.model.fc.weight":     {uint64(spec.Hidden), uint64(spec.OutputHidden)},
 		"mm.post_fc_norm.weight": {uint64(spec.OutputHidden)}, "mm.post_fc_norm.bias": {uint64(spec.OutputHidden)},
 		"mm.up.weight":   {uint64(spec.OutputHidden), uint64(spec.AdapterIntermediate)},
@@ -80,9 +78,7 @@ func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) ([]stri
 		"mm.down.weight": {uint64(spec.AdapterIntermediate), uint64(spec.OutputHidden)},
 		"v.boi":          {uint64(spec.OutputHidden), 1, 1}, "v.eoi": {uint64(spec.OutputHidden), 1, 1},
 	}
-	if hasTensor(file, "v.patch_embd.bias") {
-		required["v.patch_embd.bias"] = []uint64{uint64(spec.Hidden)}
-	}
+	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, grid*grid+1, tensorOptional)
 	for layer := 0; layer < spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		for name, shape := range map[string][]uint64{

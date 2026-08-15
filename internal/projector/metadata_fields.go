@@ -18,7 +18,12 @@ const (
 	visionImageMeanKey       = "clip.vision.image_mean"
 	visionImageStandardKey   = "clip.vision.image_std"
 	visionProjectorTypeKey   = "clip.projector_type"
-	visionNormalizationWidth = 3
+	visionSpatialMergeKey    = "clip.vision.spatial_merge_size"
+	visionProjectorScaleKey  = "clip.vision.projector.scale_factor"
+	visionRopeFrequencyKey   = "clip.vision.rope.freq_base"
+	visionMinPixelsKey       = "clip.vision.image_min_pixels"
+	visionMaxPixelsKey       = "clip.vision.image_max_pixels"
+	visionNormalizationWidth = rgbChannelCount
 )
 
 type visionBackboneSpec struct {
@@ -29,6 +34,7 @@ type visionBackboneSpec struct {
 	Layers           int
 	Heads            int
 	LayerNormEpsilon float32
+	RopeFrequency    float32
 	ImageMean        [visionNormalizationWidth]float32
 	ImageStd         [visionNormalizationWidth]float32
 }
@@ -43,6 +49,16 @@ func (s visionBackboneSpec) validate() error {
 		if s.ImageStd[channel] <= 0 || !finite32(s.ImageMean[channel]) || !finite32(s.ImageStd[channel]) {
 			return fmt.Errorf("projector: invalid vision normalization channel %d", channel)
 		}
+	}
+	return nil
+}
+
+func (s visionBackboneSpec) validateRotary() error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	if s.RopeFrequency <= 0 {
+		return fmt.Errorf("projector: invalid vision RoPE frequency %g", s.RopeFrequency)
 	}
 	return nil
 }
@@ -101,5 +117,17 @@ func readVisionBackbone(file *gguf.File, projectorType string, projection *int, 
 	spec.LayerNormEpsilon = epsilon
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], standard)
+	return nil
+}
+
+func readRotaryVisionBackbone(file *gguf.File, projectorType string, projection *int, spec *visionBackboneSpec) error {
+	if err := readVisionBackbone(file, projectorType, projection, spec); err != nil {
+		return err
+	}
+	frequency, err := metadataFloat32(file, visionRopeFrequencyKey)
+	if err != nil {
+		return err
+	}
+	spec.RopeFrequency = frequency
 	return nil
 }

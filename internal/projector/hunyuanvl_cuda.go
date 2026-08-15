@@ -45,11 +45,11 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	hostFeeds[pixels] = pixelsValue(pixels, input.PixelValues)
 	hostFeeds[conv0Input] = pixelsValue(conv0Input, reordered)
 	weight := graph.weight
-	patch := builder.Reshape(weight("v.patch_embd.weight"), uint64(patchWidth), uint64(r.spec.Hidden))
-	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), "v.patch_embd.bias")
-	hidden = r.hunyuanVLPositionGraph(builder, hidden, weight("v.position_embd.weight"), input.GridH, input.GridW, hostFeeds)
+	patch := builder.Reshape(weight(visionPatchWeightTensor), uint64(patchWidth), uint64(r.spec.Hidden))
+	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), visionPatchBiasTensor)
+	hidden = r.hunyuanVLPositionGraph(builder, hidden, weight(visionPositionWeightTensor), input.GridH, input.GridW, hostFeeds)
 	if r.spec.PreLayerNorm {
-		hidden = builder.AffineLayerNorm(hidden, weight("v.pre_ln.weight"), weight("v.pre_ln.bias"), r.spec.LayerNormEpsilon)
+		hidden = builder.AffineLayerNorm(hidden, weight(visionPreNormWeightTensor), weight(visionPreNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
 	for layer := 0; layer < r.spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
@@ -79,7 +79,7 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 		hidden = builder.Add(hidden, down)
 	}
 	if r.spec.PostLayerNorm {
-		hidden = builder.AffineLayerNorm(hidden, weight("v.post_ln.weight"), weight("v.post_ln.bias"), r.spec.LayerNormEpsilon)
+		hidden = builder.AffineLayerNorm(hidden, weight(visionPostNormWeightTensor), weight(visionPostNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
 	hidden = builder.WeightedRMSNorm(hidden, weight("mm.pre_norm.weight"), r.spec.LayerNormEpsilon)
 	mergedH, mergedW := input.GridH/r.spec.MergeSize, input.GridW/r.spec.MergeSize

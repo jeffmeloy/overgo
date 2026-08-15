@@ -51,15 +51,15 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 		return MiMoVLSpec{}, errors.New("projector: MiMo-VL SiLU is disabled")
 	}
 	spec := MiMoVLSpec{}
-	if err := readVisionBackbone(file, mimoVLProjectorType, &spec.ProjectionDim, &spec.visionBackboneSpec); err != nil {
+	if err := readRotaryVisionBackbone(file, mimoVLProjectorType, &spec.ProjectionDim, &spec.visionBackboneSpec); err != nil {
 		return MiMoVLSpec{}, err
 	}
 	if err := readMetadataIntFields(file,
 		metadataIntField{"clip.vision.attention.head_count_kv", &spec.KVHeads},
-		metadataIntField{"clip.vision.spatial_merge_size", &spec.MergeSize},
+		metadataIntField{visionSpatialMergeKey, &spec.MergeSize},
 		metadataIntField{"clip.vision.window_size", &spec.WindowSize},
-		metadataIntField{"clip.vision.image_min_pixels", &spec.MinPixels},
-		metadataIntField{"clip.vision.image_max_pixels", &spec.MaxPixels},
+		metadataIntField{visionMinPixelsKey, &spec.MinPixels},
+		metadataIntField{visionMaxPixelsKey, &spec.MaxPixels},
 	); err != nil {
 		return MiMoVLSpec{}, err
 	}
@@ -89,12 +89,12 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 }
 
 func (s MiMoVLSpec) validate() error {
-	if err := s.visionBackboneSpec.validate(); err != nil {
+	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
 	if s.ProjectionDim <= 0 || s.MergerIntermediate <= 0 || s.KVHeads <= 0 || s.HeadDim <= 0 ||
-		s.MergeSize != 2 || s.WindowSize <= 0 || s.MinPixels <= 0 || s.MaxPixels < s.MinPixels ||
-		s.Heads%s.KVHeads != 0 || s.HeadDim%4 != 0 || len(s.WindowModes) != s.Layers {
+		s.MergeSize <= 0 || s.WindowSize <= 0 || s.MinPixels <= 0 || s.MaxPixels < s.MinPixels ||
+		s.Heads%s.KVHeads != 0 || s.HeadDim%visionRoPEComponentCount != 0 || len(s.WindowModes) != s.Layers {
 		return fmt.Errorf("projector: invalid MiMo-VL metadata: %+v", s)
 	}
 	for layer, mode := range s.WindowModes {
@@ -109,16 +109,16 @@ func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) ([]string, error) {
 	qWidth := spec.Heads * spec.HeadDim
 	kvWidth := spec.KVHeads * spec.HeadDim
 	required := map[string][]uint64{
-		"v.patch_embd.weight":   {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
-		"v.patch_embd.weight.1": {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
-		"v.post_ln.weight":      {uint64(spec.Hidden)},
-		"mm.0.weight":           {uint64(spec.Hidden * 4), uint64(spec.MergerIntermediate)},
-		"mm.2.weight":           {uint64(spec.MergerIntermediate), uint64(spec.ProjectionDim)},
+		visionPatchWeightTensor:    {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
+		visionPatchWeightTensor1:   {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
+		visionPostNormWeightTensor: {uint64(spec.Hidden)},
+		"mm.0.weight":              {uint64(spec.Hidden * spec.MergeSize * spec.MergeSize), uint64(spec.MergerIntermediate)},
+		"mm.2.weight":              {uint64(spec.MergerIntermediate), uint64(spec.ProjectionDim)},
 	}
 	for name, width := range map[string]int{
-		"v.post_ln.bias": spec.Hidden,
-		"mm.0.bias":      spec.MergerIntermediate,
-		"mm.2.bias":      spec.ProjectionDim,
+		visionPostNormBiasTensor: spec.Hidden,
+		"mm.0.bias":              spec.MergerIntermediate,
+		"mm.2.bias":              spec.ProjectionDim,
 	} {
 		addOptionalProjectorTensor(file, required, name, []uint64{uint64(width)})
 	}

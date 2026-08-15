@@ -17,6 +17,9 @@ const (
 	temporalPatchFrames                = 2
 	rgbChannelCount                    = 3
 	attentionProjectionCount           = 3
+	rotaryPairWidth                    = 2
+	visionRoPEAxisCount                = 2
+	visionRoPEComponentCount           = rotaryPairWidth * visionRoPEAxisCount
 	rgba16To8Shift                     = 8
 	maxUint8Channel                    = 255
 	opaqueAlpha                        = 255

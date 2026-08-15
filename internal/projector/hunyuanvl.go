@@ -44,26 +44,12 @@ func ReadHunyuanVLSpec(file *gguf.File) (HunyuanVLSpec, error) {
 	if err := readVisionBackbone(file, hunyuanVLProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
 		return HunyuanVLSpec{}, err
 	}
-	merge := 2
-	if value, ok, valueErr := optionalMetadataUint32(file, "clip.vision.spatial_merge_size"); valueErr != nil {
-		return HunyuanVLSpec{}, valueErr
-	} else if ok {
-		merge = int(value)
-	}
-	minPixels, _, err := optionalMetadataUint32(file, "clip.vision.image_min_pixels")
-	if err != nil {
+	if err := readMetadataIntFields(file,
+		metadataIntField{visionSpatialMergeKey, &spec.MergeSize},
+		metadataIntField{visionMinPixelsKey, &spec.MinPixels},
+		metadataIntField{visionMaxPixelsKey, &spec.MaxPixels},
+	); err != nil {
 		return HunyuanVLSpec{}, err
-	}
-	maxPixels, _, err := optionalMetadataUint32(file, "clip.vision.image_max_pixels")
-	if err != nil {
-		return HunyuanVLSpec{}, err
-	}
-	factor := spec.PatchSize * merge
-	if minPixels == 0 {
-		minPixels = uint32(factor * factor * 256)
-	}
-	if maxPixels == 0 {
-		maxPixels = uint32(factor * factor * 16384)
 	}
 	conv0, ok := file.Tensor("mm.0.weight")
 	if !ok || conv0.Dimensions != 4 {
@@ -73,13 +59,10 @@ func ReadHunyuanVLSpec(file *gguf.File) (HunyuanVLSpec, error) {
 	if !ok || conv2.Dimensions != 4 {
 		return HunyuanVLSpec{}, errors.New("projector: Hunyuan-VL second convolution is unavailable or invalid")
 	}
-	spec.MergeSize = merge
-	spec.MinPixels = int(minPixels)
-	spec.MaxPixels = int(maxPixels)
 	spec.ConvIntermediate = int(conv0.Shape[3])
 	spec.ProjectorInput = int(conv2.Shape[3])
-	spec.PreLayerNorm = hasTensor(file, "v.pre_ln.weight")
-	spec.PostLayerNorm = hasTensor(file, "v.post_ln.weight")
+	spec.PreLayerNorm = hasTensor(file, visionPreNormWeightTensor)
+	spec.PostLayerNorm = hasTensor(file, visionPostNormWeightTensor)
 	spec.FusedQKV = make([]bool, spec.Layers)
 	for layer := range spec.FusedQKV {
 		spec.FusedQKV[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.attn_qkv.weight", layer))
@@ -119,28 +102,22 @@ func (s HunyuanVLSpec) validate() error {
 func validateHunyuanVLCatalog(file *gguf.File, spec HunyuanVLSpec) ([]string, error) {
 	positionSide := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
-		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
-		"v.position_embd.weight": {uint64(spec.Hidden), uint64(positionSide * positionSide)},
-		"mm.pre_norm.weight":     {uint64(spec.Hidden)},
-		"mm.0.weight":            {uint64(spec.MergeSize), uint64(spec.MergeSize), uint64(spec.Hidden), uint64(spec.ConvIntermediate)},
-		"mm.0.bias":              {uint64(spec.ConvIntermediate)},
-		"mm.2.weight":            {1, 1, uint64(spec.ConvIntermediate), uint64(spec.ProjectorInput)},
-		"mm.2.bias":              {uint64(spec.ProjectorInput)},
-		"v.image_newline":        {uint64(spec.ProjectorInput)},
-		"mm.model.fc.weight":     {uint64(spec.ProjectorInput), uint64(spec.OutputHidden)},
-		"mm.model.fc.bias":       {uint64(spec.OutputHidden)},
-		"mm.image_begin":         {uint64(spec.OutputHidden)}, "mm.image_end": {uint64(spec.OutputHidden)},
+		"mm.pre_norm.weight": {uint64(spec.Hidden)},
+		"mm.0.weight":        {uint64(spec.MergeSize), uint64(spec.MergeSize), uint64(spec.Hidden), uint64(spec.ConvIntermediate)},
+		"mm.0.bias":          {uint64(spec.ConvIntermediate)},
+		"mm.2.weight":        {1, 1, uint64(spec.ConvIntermediate), uint64(spec.ProjectorInput)},
+		"mm.2.bias":          {uint64(spec.ProjectorInput)},
+		"v.image_newline":    {uint64(spec.ProjectorInput)},
+		"mm.model.fc.weight": {uint64(spec.ProjectorInput), uint64(spec.OutputHidden)},
+		"mm.model.fc.bias":   {uint64(spec.OutputHidden)},
+		"mm.image_begin":     {uint64(spec.OutputHidden)}, "mm.image_end": {uint64(spec.OutputHidden)},
 		"mm.post_norm.weight": {uint64(spec.OutputHidden)},
 	}
-	addOptionalProjectorTensor(file, required, "v.patch_embd.bias", []uint64{uint64(spec.Hidden)})
-	for _, prefix := range []string{"v.pre_ln", "v.post_ln"} {
-		if err := addOptionalProjectorPair(
-			file, required, prefix+".weight", prefix+".bias", []uint64{uint64(spec.Hidden)},
-		); err != nil {
-			return nil, err
-		}
+	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, positionSide*positionSide, tensorOptional)
+	if err := addOptionalVisionNormCatalog(file, required, spec.Hidden); err != nil {
+		return nil, err
 	}
-	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV)
+	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV, false, tensorOptional)
 	return validateProjectorTensorCatalog(file, required, "mm.0.weight")
 }
 

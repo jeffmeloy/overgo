@@ -41,41 +41,30 @@ func addSpatialVisionEmbeddingCatalog(
 	addProjectorTensor(file, required, visionPatchBiasTensor, []uint64{uint64(spec.Hidden)}, bias)
 }
 
-func validateProjectorTensorShapes(file *gguf.File, required map[string][]uint64) error {
-	tensors := make(map[string]gguf.TensorInfo, len(required))
-	requirements := make([]tensorcatalog.Requirement, 0, len(required))
-	for name, shape := range required {
-		if info, ok := file.Tensor(name); ok {
-			tensors[name] = info
-		}
-		requirements = append(requirements, tensorcatalog.Requirement{Name: name, Shapes: [][]uint64{shape}})
-	}
-	if err := tensorcatalog.Validate(tensors, "", requirements); err != nil {
-		return fmt.Errorf("projector: %w", err)
-	}
-	return nil
-}
-
 func validateProjectorTensorCatalog(
 	file *gguf.File,
 	required map[string][]uint64,
 	hostOnly ...string,
 ) ([]string, error) {
-	if err := validateProjectorTensorShapes(file, required); err != nil {
-		return nil, err
-	}
 	names := slices.Sorted(maps.Keys(required))
-	if len(hostOnly) == 0 {
-		return names, nil
-	}
-	excluded := make(map[string]struct{}, len(hostOnly))
-	for _, name := range hostOnly {
-		excluded[name] = struct{}{}
+	for _, name := range names {
+		info, ok := file.Tensor(name)
+		if !ok {
+			return nil, fmt.Errorf("projector: missing tensor %q", name)
+		}
+		requirement := tensorcatalog.Requirement{Name: name, Shapes: [][]uint64{required[name]}}
+		if err := tensorcatalog.ValidateInfo(info, requirement); err != nil {
+			return nil, fmt.Errorf("projector: %w", err)
+		}
 	}
 	return slices.DeleteFunc(names, func(name string) bool {
-		_, ok := excluded[name]
-		return ok
+		return slices.Contains(hostOnly, name)
 	}), nil
+}
+
+func validateProjectorTensorShapes(file *gguf.File, required map[string][]uint64) error {
+	_, err := validateProjectorTensorCatalog(file, required)
+	return err
 }
 
 func addOptionalProjectorTensor(

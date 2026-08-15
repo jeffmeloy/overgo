@@ -491,7 +491,7 @@ func largestChangedFunction(profile codeprofile.Profile, paths map[string]bool, 
 
 func largestChangedClone(profile codeprofile.Profile, paths map[string]bool, class string) string {
 	for _, clone := range profile.Clones {
-		if clone.AdvisoryClass == class && slices.ContainsFunc(clone.Functions, func(function string) bool {
+		if clone.AdvisoryClass == class && !cliMainClone(clone) && slices.ContainsFunc(clone.Functions, func(function string) bool {
 			path, _, ok := strings.Cut(function, ":")
 			return ok && paths[path]
 		}) {
@@ -499,6 +499,12 @@ func largestChangedClone(profile codeprofile.Profile, paths map[string]bool, cla
 		}
 	}
 	return "none"
+}
+
+func cliMainClone(clone codeprofile.Clone) bool {
+	return len(clone.Functions) > 1 && !slices.ContainsFunc(clone.Functions, func(function string) bool {
+		return !strings.HasSuffix(function, ":main")
+	})
 }
 
 func profileAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (codeprofile.Profile, error) {

@@ -15,6 +15,19 @@
       ]
     },
     {
+      "id": "automation-report-refresh",
+      "title": "Refresh automation report and bind its live capability claims to a failable check",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refresh automation report and bind its live capability claims to a failable check",
+          "status": "open",
+          "verify": "go test ./cmd/release -run '^TestAutomationReportNamesLiveOwners$' -count=1 -v"
+        }
+      ]
+    },
+    {
       "id": "adaptive-training-parity",
       "title": "Make Overgo the Muon-only production training system and exceed adaptive_new on matched real-model runs",
       "status": "open",

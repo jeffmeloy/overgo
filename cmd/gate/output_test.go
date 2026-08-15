@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/codeprofile"
 	"overgo/internal/runrecord"
 )
 
@@ -33,5 +34,11 @@ func TestCompactAgentOutput(t *testing.T) {
 	}
 	if strings.Contains(text, "routine baseline") || strings.Contains(text, "claims skipped:") {
 		t.Fatalf("gate output repeated stored routine evidence:\n%s", text)
+	}
+	profile := codeprofile.Profile{Clones: []codeprofile.Clone{{
+		Nodes: 8, Functions: []string{"cmd/first/main.go:main", "cmd/second/main.go:main"},
+	}}}
+	if clone := largestChangedClone(profile, map[string]bool{"cmd/first/main.go": true}, ""); clone != "none" {
+		t.Fatalf("CLI wrapper clone reached agent output: %s", clone)
 	}
 }

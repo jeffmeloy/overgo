@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/densecausal"
 	"overgo/internal/hfbpe"
 	"overgo/internal/recipecontract"
@@ -24,10 +25,7 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "train:", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("train", run)
 }
 
 func run() error {

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
@@ -279,8 +280,5 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "latentvideo-run:", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("latentvideo-run", run)
 }

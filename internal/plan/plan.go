@@ -6,9 +6,7 @@
 package plan
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -49,7 +47,7 @@ func Load(path string) (Plan, error) {
 		path = Path
 	}
 	var d Plan
-	if err := jsonfile.Decode(filepath.FromSlash(path), &d); err != nil {
+	if err := jsonfile.DecodeStrict(filepath.FromSlash(path), &d); err != nil {
 		return Plan{}, fmt.Errorf("parse %s: %w", path, err)
 	}
 	return d, nil
@@ -63,11 +61,7 @@ func Save(path string, d Plan) error {
 	if path == "" {
 		path = Path
 	}
-	raw, err := json.MarshalIndent(d, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.FromSlash(path), append(raw, '\n'), 0o644)
+	return jsonfile.Write(filepath.FromSlash(path), d, 0o644)
 }
 
 // ValidateOpenWork rejects chronology in the live plan. Git and RepoDB own

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testevidence"
 )
 
 func TestExecuteHashesAndChecksManifest(t *testing.T) {
@@ -58,6 +59,9 @@ func TestExecuteHashesAndChecksManifest(t *testing.T) {
 }
 
 func TestExecuteMatchesPinnedLlamaCPPGGUFHash(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip + ": requires pinned llama-gguf-hash")
+	}
 	oracle := os.Getenv("OVERGO_GGUF_HASH_ORACLE")
 	if oracle == "" {
 		t.Skip("set OVERGO_GGUF_HASH_ORACLE to pinned llama-gguf-hash")

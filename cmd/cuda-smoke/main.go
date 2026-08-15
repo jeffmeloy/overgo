@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/kernel"
 )
@@ -31,8 +31,5 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "cuda-smoke:", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("cuda-smoke", run)
 }

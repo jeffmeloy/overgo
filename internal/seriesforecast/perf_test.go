@@ -4,6 +4,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"overgo/internal/testevidence"
 )
 
 // TestForecastWallDecomposition attributes the head-to-head gap: load wall
@@ -12,7 +14,7 @@ import (
 // plan measurement, and this probe feeds it.
 func TestForecastWallDecomposition(t *testing.T) {
 	if testing.Short() {
-		t.Skip("loads ~930MB weights; skipped in -short")
+		t.Skip(testevidence.ShortIntegrationSkip + ": loads ~930MB weights")
 	}
 	g := readGolden(t)
 	dir := artifactDir(t)

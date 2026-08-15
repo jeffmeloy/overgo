@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
@@ -88,7 +89,7 @@ func maxAbsDiff(got, want []float32) float64 {
 // and compares every golden case's outputs.
 func TestPredictParity(t *testing.T) {
 	if testing.Short() {
-		t.Skip("loads ~6.5GB weights per head; skipped in -short")
+		t.Skip(testevidence.ShortIntegrationSkip + ": loads ~6.5GB weights per head")
 	}
 	golden := readGolden(t)
 	wantDims := map[string]Dims{

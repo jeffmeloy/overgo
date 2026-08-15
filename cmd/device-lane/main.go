@@ -11,18 +11,16 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
+
+	"overgo/internal/clioptions"
 )
 
 const cudaTestEnv = "OVERGO_CUDA_TEST"
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "device-lane: %v\n", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("device-lane", run)
 }
 
 func run() error {
@@ -30,9 +28,9 @@ func run() error {
 	// cuda-info first: it is the availability probe. Failure here means no
 	// usable device/driver -- report UNAVAILABLE and exit nonzero so a caller
 	// can never mistake absence for green.
-	if out, err := command("go", "run", "./cmd/cuda-info"); err != nil {
+	if out, err := clioptions.CombinedOutput(os.Environ(), "go", "run", "./cmd/cuda-info"); err != nil {
 		fmt.Println("device-lane: UNAVAILABLE -- cuda-info failed; no passing evidence exists")
-		fmt.Print(tail(out, 800))
+		fmt.Print(clioptions.Tail(out, 800))
 		return err
 	}
 	steps := [][]string{
@@ -42,39 +40,14 @@ func run() error {
 	}
 	for _, step := range steps {
 		began := time.Now()
-		out, err := commandEnv(append(os.Environ(), cudaTestEnv+"=1"), step[0], step[1:]...)
-		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), verdict(err))
+		out, err := clioptions.CombinedOutput(append(os.Environ(), cudaTestEnv+"=1"), step[0], step[1:]...)
+		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), clioptions.Verdict(err))
 		if err != nil {
-			fmt.Print(tail(out, 2000))
+			fmt.Print(clioptions.Tail(out, 2000))
 			return fmt.Errorf("%s failed", strings.Join(step, " "))
 		}
 	}
 	fmt.Printf("=== DEVICE LANE GREEN in %.1fs ===\n", time.Since(start).Seconds())
 	fmt.Println("honesty: full device set (manifest-scoped lane is the target form; see docs/MERGE_FLOOR_PLAN.md component 8)")
 	return nil
-}
-
-func verdict(err error) string {
-	if err != nil {
-		return "FAIL"
-	}
-	return "ok"
-}
-
-func command(name string, args ...string) (string, error) {
-	return commandEnv(os.Environ(), name, args...)
-}
-
-func commandEnv(env []string, name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
-	cmd.Env = env
-	out, err := cmd.CombinedOutput()
-	return string(out), err
-}
-
-func tail(s string, limit int) string {
-	if len(s) <= limit {
-		return s
-	}
-	return "..." + s[len(s)-limit:]
 }

@@ -37,6 +37,29 @@ func TestGoTestJSONReportPreservesSkippedEvidence(t *testing.T) {
 	}
 }
 
+func TestCIRequiredEvidence(t *testing.T) {
+	out := fmt.Sprintf(
+		"{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestPass\"}\n"+
+			"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestSlow\",\"Output\":%q}\n"+
+			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestSlow\"}\n"+
+			"{\"Action\":\"pass\",\"Package\":\"x\"}\n",
+		ShortIntegrationSkip+"\n",
+	)
+	report, err := GoTestJSONShortReport(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.PassedTests != 1 || report.PassedPackages != 1 || len(report.ClassifiedSkipped) != 1 {
+		t.Fatalf("required evidence counts are dishonest: %+v", report)
+	}
+	if len(report.Skipped) != 0 || len(report.Unavailable) != 0 {
+		t.Fatalf("required evidence unexpectedly incomplete: %+v", report)
+	}
+	if err := GoTestJSONShort(out + "{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n"); err == nil {
+		t.Fatal("CI evidence accepted an unclassified skip")
+	}
+}
+
 func TestVerifyOutput(t *testing.T) {
 	tests := []struct {
 		name, command, output string

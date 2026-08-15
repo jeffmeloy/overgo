@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testevidence"
 )
 
 func TestUGMViterbiPrefersHighestSequenceScore(t *testing.T) {
@@ -29,6 +30,9 @@ func TestUGMViterbiPrefersHighestSequenceScore(t *testing.T) {
 }
 
 func TestRealUMT5Tokenization(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip + ": requires a real UMT5 model")
+	}
 	path := os.Getenv("OVERGO_UMT5_MODEL")
 	if path == "" {
 		t.Skip("OVERGO_UMT5_MODEL is not set")

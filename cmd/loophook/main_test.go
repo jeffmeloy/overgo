@@ -3,7 +3,7 @@ package main
 import "testing"
 
 // TestStopDecision pins the pure Stop verdict: any valve allows; otherwise the
-// turn-end is blocked iff work is orphaned (uncommitted .go or an armed dispatch
+// turn-end is blocked iff work is orphaned (uncommitted work or an armed dispatch
 // marker). Crucially, a committed-but-not-dispatched turn (markerArmed, clean
 // tree) BLOCKS -- that is the milestone-stop the old progress-based gate let
 // through.
@@ -33,5 +33,26 @@ func TestStopDecision(t *testing.T) {
 		if got != c.wantBlock {
 			t.Errorf("%s: stopDecision=%v want %v", c.name, got, c.wantBlock)
 		}
+	}
+}
+
+func TestLoopDirtySnapshot(t *testing.T) {
+	for _, path := range []string{
+		"internal/model/model.go",
+		"internal/model/architecture_profiles.json",
+		"internal/server/webui/index.html",
+		"docs/design.md",
+	} {
+		dirty, err := dirtyPlannedScope([]byte("?? " + path + "\x00"))
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if !dirty {
+			t.Errorf("%s was not treated as meaningful dirty work", path)
+		}
+	}
+	dirty, err := dirtyPlannedScope(nil)
+	if err != nil || dirty {
+		t.Fatalf("clean status = (%v, %v), want (false, nil)", dirty, err)
 	}
 }

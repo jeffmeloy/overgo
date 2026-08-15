@@ -1,13 +1,10 @@
 package runrecord
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 )
 
 const (
@@ -17,18 +14,11 @@ const (
 	maxEnvironmentBytes         = 512
 )
 
-var environmentContract = artifact.DocumentContract{
-	Kind: artifact.KindEvidence, MediaType: EnvironmentMediaType, Schema: EnvironmentSchema,
-}
-
-var environmentCodec = artifact.DocumentCodec[Environment]{
-	Name: "run record environment", Contract: environmentContract,
-	Decode:       func(data []byte, value *Environment) error { return strictjson.DecodeBytes(data, value) },
-	Encode:       environmentContent,
-	Canonicalize: canonicalizeEnvironment,
-	Identity:     func(value Environment) artifact.ID { return value.ID },
-	SetIdentity:  func(value *Environment, id artifact.ID) { value.ID = id },
-}
+var environmentCodec = artifact.JSONDocumentCodec(
+	"run record environment", artifact.KindEvidence, EnvironmentMediaType, EnvironmentSchema, canonicalizeEnvironment,
+	func(value Environment) artifact.ID { return value.ID },
+	func(value *Environment, id artifact.ID) { value.ID = id }, nil,
+)
 
 // Environment: immutable execution platform identity.
 type Environment struct {
@@ -80,13 +70,4 @@ func canonicalizeEnvironment(environment *Environment) error {
 func validEnvironmentField(value string) bool {
 	return value != "" && len(value) <= maxEnvironmentBytes && strings.TrimSpace(value) == value &&
 		!strings.ContainsAny(value, "\x00\r\n")
-}
-
-func environmentContent(environment Environment) ([]byte, error) {
-	environment.ID = artifact.ID{}
-	content, err := json.Marshal(environment)
-	if err != nil {
-		return nil, fmt.Errorf("run record: encode environment: %w", err)
-	}
-	return content, nil
 }

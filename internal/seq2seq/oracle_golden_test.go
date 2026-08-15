@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
@@ -61,7 +62,7 @@ func readOracle(t *testing.T) *oracleFile {
 func loadArtifactModel(t *testing.T) *Model {
 	t.Helper()
 	if testing.Short() {
-		t.Skip("loads the full artifact; skipped in -short")
+		t.Skip(testevidence.ShortIntegrationSkip + ": loads the full artifact")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

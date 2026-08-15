@@ -17,6 +17,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 	}{
 		{"/", "text/html; charset=utf-8", "overgo"},
 		{"/index.html", "text/html; charset=utf-8", "probing /health"},
+		{"/probe.js", "text/javascript; charset=utf-8", "window.probe"},
 		{"/app.html", "text/html; charset=utf-8", "workbench"},
 		{"/style.css", "text/css; charset=utf-8", "--acc"},
 		{"/boot.js", "text/javascript; charset=utf-8", "window.overgo"},
@@ -238,6 +239,38 @@ func TestWebUIChatMarkdown(t *testing.T) {
 	app := get("/app.html")
 	if strings.Index(app, "/md.js") < 0 || strings.Index(app, "/md.js") > strings.Index(app, "/mod/chat.js") {
 		t.Error("app.html must load /md.js before /mod/chat.js")
+	}
+}
+
+// TestWebUIContentSecurityPolicy guards the strict CSP: same-origin scripts only
+// (no inline), nosniff, and no framing. The landing page must therefore carry no
+// inline <script> or inline event handler — those moved to probe.js.
+func TestWebUIContentSecurityPolicy(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	for _, p := range []string{"/", "/index.html", "/app.html", "/boot.js"} {
+		resp := serveTestRequest(handler, http.MethodGet, p, "")
+		csp := resp.Header().Get("Content-Security-Policy")
+		if !strings.Contains(csp, "script-src 'self';") {
+			t.Errorf("GET %s CSP script-src not strict-self: %q", p, csp)
+		}
+		if strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
+			t.Errorf("GET %s CSP allows inline script: %q", p, csp)
+		}
+		for _, directive := range []string{"object-src 'none'", "frame-ancestors 'none'", "connect-src 'self'"} {
+			if !strings.Contains(csp, directive) {
+				t.Errorf("GET %s CSP missing %q", p, directive)
+			}
+		}
+		if resp.Header().Get("X-Content-Type-Options") != "nosniff" {
+			t.Errorf("GET %s missing X-Content-Type-Options: nosniff", p)
+		}
+	}
+	index := serveTestRequest(handler, http.MethodGet, "/index.html", "").Body.String()
+	if strings.Contains(index, "<script>") {
+		t.Error("index.html has an inline <script> — blocked by script-src 'self'")
+	}
+	if strings.Contains(index, "onclick=") {
+		t.Error("index.html has an inline onclick — blocked by script-src 'self'")
 	}
 }
 

@@ -11,6 +11,20 @@ import (
 //go:embed webui
 var webuiEmbed embed.FS
 
+// webuiContentSecurityPolicy locks the self-contained client to same-origin
+// scripts/connections with no inline scripts, no plugins, and no framing. Style
+// keeps 'unsafe-inline' for the inline style attributes el()/SVG rely on.
+const webuiContentSecurityPolicy = "default-src 'self'; " +
+	"script-src 'self'; " +
+	"style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data:; " +
+	"connect-src 'self'; " +
+	"font-src 'self'; " +
+	"object-src 'none'; " +
+	"base-uri 'self'; " +
+	"frame-ancestors 'none'; " +
+	"form-action 'self'"
+
 // webuiFS: the embedded client rooted at the webui/ directory, so request path
 // "/style.css" maps to "style.css".
 var webuiFS = mustSubFS(webuiEmbed, "webui")
@@ -66,6 +80,16 @@ func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request
 		response.Header().Set("Content-Type", contentType)
 	}
 	response.Header().Set("Cache-Control", "no-cache")
+	// The client is fully self-contained (no external hosts) and carries no inline
+	// scripts — index.html's probe lives in probe.js and DOM handlers are attached
+	// via addEventListener — so a strict CSP holds: script from same origin only,
+	// no plugins, no framing. Inline STYLE attributes are used throughout (el()
+	// and SVG), so style keeps 'unsafe-inline' (style injection is far lower risk
+	// than script). This is defense in depth over the markdown renderer's own
+	// DOM-only, scheme-checked output.
+	response.Header().Set("Content-Security-Policy", webuiContentSecurityPolicy)
+	response.Header().Set("X-Content-Type-Options", "nosniff")
+	response.Header().Set("Referrer-Policy", "no-referrer")
 	response.WriteHeader(http.StatusOK)
 	if request.Method == http.MethodHead {
 		return

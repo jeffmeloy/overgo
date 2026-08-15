@@ -184,7 +184,8 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	}
 	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
-	if len(parameters) != 3 || parameters[1].Name != "decoder.final_cross.raw_gate" || parameters[2].Name != "decoder.final_cross.output" {
+	if len(parameters) != 9 || parameters[1].Name != "decoder.final_cross.raw_gate" ||
+		parameters[2].Name != "decoder.final_cross.output" || parameters[8].Name != "decoder.final_cross.v" {
 		t.Fatalf("compiled parameters = %+v", parameters)
 	}
 	probe := trainingStep{pair: pair}
@@ -342,4 +343,185 @@ func TestNeedleRealGSM8KFinalCrossAttentionCoreGradient(t *testing.T) {
 		t.Fatalf("real cross-attention gradient norms q=%g k=%g v=%g", qNorm, kNorm, vNorm)
 	}
 	t.Logf("real GSM8K final cross-attention gradient norms: q=%g k=%g v=%g", qNorm, kNorm, vNorm)
+}
+
+func TestNeedleRealGSM8KFinalCrossQKVMuon(t *testing.T) {
+	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
+	_, heldOutPair, _ := realGSM8KTrainingPair(t, 1)
+	block := &generator.model.decoderCross[len(generator.model.decoderCross)-1]
+	qBefore := append([]uint16(nil), block.q...)
+	kBefore := append([]uint16(nil), block.k...)
+	vBefore := append([]uint16(nil), block.v...)
+	trainBefore, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutBefore, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	wantParameters := []string{
+		"decoder.final_norm", "decoder.final_cross.raw_gate", "decoder.final_cross.output",
+		"decoder.final_cross.input_norm", "decoder.final_cross.q_norm", "decoder.final_cross.k_norm",
+		"decoder.final_cross.q", "decoder.final_cross.k", "decoder.final_cross.v",
+	}
+	parameters := trainer.Program().Parameters()
+	if len(parameters) != len(wantParameters) {
+		t.Fatalf("compiled parameter count=%d want=%d", len(parameters), len(wantParameters))
+	}
+	for index, name := range wantParameters {
+		if parameters[index].Name != name || !parameters[index].Trainable {
+			t.Fatalf("compiled parameter[%d]=%+v want trainable %q", index, parameters[index], name)
+		}
+	}
+	probe := trainingStep{pair: trainPair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	for name, gradient := range map[string][]float32{
+		"q": probe.qProjectionGradient, "k": probe.kProjectionGradient, "v": probe.vProjectionGradient,
+	} {
+		if gradientL2(gradient) == 0 {
+			t.Fatalf("final cross %s projection gradient is zero", name)
+		}
+	}
+	qAnalytic, qFinite := verifyBF16Gradient(t, generator.model, trainPair, block.q, probe.qProjectionGradient)
+	kAnalytic, kFinite := verifyBF16Gradient(t, generator.model, trainPair, block.k, probe.kProjectionGradient)
+	vAnalytic, vFinite := verifyBF16Gradient(t, generator.model, trainPair, block.v, probe.vProjectionGradient)
+	inAnalytic, inFinite := verifyFloat32Gradient(t, generator.model, trainPair, block.inNorm, probe.gradient[trainer.layout.inputNorm.start:trainer.layout.inputNorm.end])
+	qNormAnalytic, qNormFinite := verifyFloat32Gradient(t, generator.model, trainPair, block.qNorm, probe.gradient[trainer.layout.qNorm.start:trainer.layout.qNorm.end])
+	kNormAnalytic, kNormFinite := verifyFloat32Gradient(t, generator.model, trainPair, block.kNorm, probe.gradient[trainer.layout.kNorm.start:trainer.layout.kNorm.end])
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(trainPair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	trainAfter, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutAfter, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	qChanged := changedBF16(qBefore, block.q)
+	kChanged := changedBF16(kBefore, block.k)
+	vChanged := changedBF16(vBefore, block.v)
+	if qChanged == 0 || kChanged == 0 || vChanged == 0 ||
+		!(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
+		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) {
+		t.Fatalf("final cross Q/K/V did not train: changed=%d/%d/%d train %.6f -> %v -> %.6f held-out %.6f -> %.6f",
+			qChanged, kChanged, vChanged, trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
+	}
+	t.Logf("real GSM8K final cross Q/K/V Muon: train %.6f -> %.6f via %v; held-out %.6f -> %.6f; BF16 changed q=%d/%d k=%d/%d v=%d/%d",
+		trainBefore, trainAfter, trajectory, heldOutBefore, heldOutAfter,
+		qChanged, len(block.q), kChanged, len(block.k), vChanged, len(block.v))
+	t.Logf("real GSM8K final cross finite differences: q=%g/%g k=%g/%g v=%g/%g input_norm=%g/%g q_norm=%g/%g k_norm=%g/%g",
+		qAnalytic, qFinite, kAnalytic, kFinite, vAnalytic, vFinite,
+		inAnalytic, inFinite, qNormAnalytic, qNormFinite, kNormAnalytic, kNormFinite)
+}
+
+func gradientL2(values []float32) float64 {
+	var sum float64
+	for _, value := range values {
+		sum += float64(value) * float64(value)
+	}
+	return math.Sqrt(sum)
+}
+
+func changedBF16(before, after []uint16) int {
+	changed := 0
+	for index, word := range after {
+		if word != before[index] {
+			changed++
+		}
+	}
+	return changed
+}
+
+func verifyBF16Gradient(t *testing.T, model *Model, pair TrainingPair, weights []uint16, gradient []float32) (float64, float64) {
+	t.Helper()
+	index := strongestFiniteGradient(gradient)
+	if index < 0 {
+		t.Fatal("finite BF16 gradient absent")
+	}
+	original := weights[index]
+	if original <= 1 || original >= 0xff7e {
+		t.Fatalf("BF16 gradient probe[%d] has unusable word %#x", index, original)
+	}
+	firstWord, secondWord := original-1, original+1
+	firstValue := float64(math.Float32frombits(uint32(firstWord) << 16))
+	secondValue := float64(math.Float32frombits(uint32(secondWord) << 16))
+	weights[index] = firstWord
+	firstLoss, err := model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weights[index] = secondWord
+	secondLoss, err := model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weights[index] = original
+	finite := (secondLoss - firstLoss) / (secondValue - firstValue)
+	analytic := float64(gradient[index])
+	verifyGradientClose(t, index, analytic, finite, 0.15)
+	return analytic, finite
+}
+
+func verifyFloat32Gradient(t *testing.T, model *Model, pair TrainingPair, weights, gradient []float32) (float64, float64) {
+	t.Helper()
+	index := strongestFiniteGradient(gradient)
+	if index < 0 {
+		t.Fatal("finite float32 gradient absent")
+	}
+	original := weights[index]
+	const epsilon = float32(1e-3)
+	weights[index] = original + epsilon
+	plus, err := model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weights[index] = original - epsilon
+	minus, err := model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weights[index] = original
+	finite := (plus - minus) / (2 * float64(epsilon))
+	analytic := float64(gradient[index])
+	verifyGradientClose(t, index, analytic, finite, 0.04)
+	return analytic, finite
+}
+
+func strongestFiniteGradient(gradient []float32) int {
+	index := -1
+	for candidate, value := range gradient {
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			continue
+		}
+		if index < 0 || math.Abs(float64(value)) > math.Abs(float64(gradient[index])) {
+			index = candidate
+		}
+	}
+	return index
+}
+
+func verifyGradientClose(t *testing.T, index int, analytic, finite, relativeLimit float64) {
+	t.Helper()
+	delta := math.Abs(analytic - finite)
+	limit := relativeLimit*max(math.Abs(analytic), math.Abs(finite)) + 1e-5
+	if delta > limit {
+		t.Fatalf("gradient[%d] analytic=%g finite_difference=%g delta=%g limit=%g", index, analytic, finite, delta, limit)
+	}
 }

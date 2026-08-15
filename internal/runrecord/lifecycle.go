@@ -23,8 +23,8 @@ const (
 	GateFinalized GateLifecycleState = "finalized"
 )
 
-var gateLifecycleCodec = evidenceDocumentCodec(
-	"gate lifecycle", GateLifecycleMediaType, GateLifecycleSchema, canonicalizeGateLifecycle,
+var gateLifecycleCodec = artifact.JSONDocumentCodec(
+	"gate lifecycle", artifact.KindEvidence, GateLifecycleMediaType, GateLifecycleSchema, canonicalizeGateLifecycle,
 	func(value GateLifecycle) artifact.ID { return value.ID },
 	func(value *GateLifecycle, id artifact.ID) { value.ID = id }, nil,
 )

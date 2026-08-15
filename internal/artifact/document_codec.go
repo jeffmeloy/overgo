@@ -2,9 +2,12 @@ package artifact
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
+
+	"overgo/internal/strictjson"
 )
 
 // DocumentCodec: canonical typed document lifecycle.
@@ -18,6 +21,31 @@ type DocumentCodec[T any] struct {
 	Clone        func(T) T
 	Identity     func(T) ID
 	SetIdentity  func(*T, ID)
+}
+
+// JSONDocumentCodec supplies strict-JSON mechanics; callers retain schema
+// validation and cloning policy.
+func JSONDocumentCodec[T any](
+	name string,
+	kind Kind,
+	mediaType, schema string,
+	canonicalize func(*T) error,
+	identity func(T) ID,
+	setIdentity func(*T, ID),
+	clone func(T) T,
+) DocumentCodec[T] {
+	return DocumentCodec[T]{
+		Name: name,
+		Contract: DocumentContract{
+			Kind: kind, MediaType: mediaType, Schema: schema,
+		},
+		Decode:       func(data []byte, value *T) error { return strictjson.DecodeBytes(data, value) },
+		Encode:       func(value T) ([]byte, error) { return json.Marshal(value) },
+		Canonicalize: canonicalize,
+		Clone:        clone,
+		Identity:     identity,
+		SetIdentity:  setIdentity,
+	}
 }
 
 func (c DocumentCodec[T]) New(value T) (T, error) {

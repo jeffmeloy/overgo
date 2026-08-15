@@ -2,12 +2,10 @@ package codeprofile
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"slices"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 )
 
 const (
@@ -24,24 +22,18 @@ type Evidence struct {
 	ID         artifact.ID `json:"-"`
 }
 
-var evidenceCodec = artifact.DocumentCodec[Evidence]{
-	Name: "code profile evidence",
-	Contract: artifact.DocumentContract{
-		Kind: artifact.KindEvidence, MediaType: EvidenceMediaType, Schema: EvidenceSchema,
-	},
-	Decode: func(data []byte, value *Evidence) error { return strictjson.DecodeBytes(data, value) },
-	Encode: func(value Evidence) ([]byte, error) {
-		value.ID = artifact.ID{}
-		return json.Marshal(value)
-	},
-	Canonicalize: func(value *Evidence) error {
+var evidenceCodec = artifact.JSONDocumentCodec(
+	"code profile evidence", artifact.KindEvidence, EvidenceMediaType, EvidenceSchema,
+	func(value *Evidence) error {
 		if value == nil || value.Version != EvidenceVersion || !commitIdentity(value.CodeCommit) ||
 			value.GateResult.Kind() != artifact.KindEvidence || validateProfile(value.Profile) != nil {
 			return errors.New("code profile: invalid evidence")
 		}
 		return nil
 	},
-	Clone: func(value Evidence) Evidence {
+	func(value Evidence) artifact.ID { return value.ID },
+	func(value *Evidence, id artifact.ID) { value.ID = id },
+	func(value Evidence) Evidence {
 		value.Profile.Functions = slices.Clone(value.Profile.Functions)
 		value.Profile.Clones = slices.Clone(value.Profile.Clones)
 		for index := range value.Profile.Clones {
@@ -49,9 +41,7 @@ var evidenceCodec = artifact.DocumentCodec[Evidence]{
 		}
 		return value
 	},
-	Identity:    func(value Evidence) artifact.ID { return value.ID },
-	SetIdentity: func(value *Evidence, id artifact.ID) { value.ID = id },
-}
+)
 
 func NewEvidence(codeCommit string, gateResult artifact.ID, profile Profile) (Evidence, error) {
 	return evidenceCodec.New(Evidence{Version: EvidenceVersion, CodeCommit: codeCommit, GateResult: gateResult, Profile: profile})

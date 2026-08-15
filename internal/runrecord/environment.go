@@ -14,8 +14,8 @@ const (
 	maxEnvironmentBytes         = 512
 )
 
-var environmentCodec = evidenceDocumentCodec(
-	"run record environment", EnvironmentMediaType, EnvironmentSchema, canonicalizeEnvironment,
+var environmentCodec = artifact.JSONDocumentCodec(
+	"run record environment", artifact.KindEvidence, EnvironmentMediaType, EnvironmentSchema, canonicalizeEnvironment,
 	func(value Environment) artifact.ID { return value.ID },
 	func(value *Environment, id artifact.ID) { value.ID = id }, nil,
 )

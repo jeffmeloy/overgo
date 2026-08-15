@@ -125,7 +125,7 @@ type ReviewAdmission struct {
 	Verdict           ReviewVerdict
 }
 
-var reviewActorCodec = evidenceDocumentCodec("review actor", ReviewActorMediaType, ReviewActorSchema,
+var reviewActorCodec = artifact.JSONDocumentCodec("review actor", artifact.KindEvidence, ReviewActorMediaType, ReviewActorSchema,
 	func(value *ReviewActor) error {
 		if value == nil || value.Version != ReviewVersion || !validReviewText(value.Principal) ||
 			value.Role != ReviewDeveloper && value.Role != ReviewSQA {
@@ -134,7 +134,7 @@ var reviewActorCodec = evidenceDocumentCodec("review actor", ReviewActorMediaTyp
 		return nil
 	}, func(value ReviewActor) artifact.ID { return value.ID }, func(value *ReviewActor, id artifact.ID) { value.ID = id }, nil)
 
-var reviewWorktreeCodec = evidenceDocumentCodec("review worktree", ReviewWorktreeMediaType, ReviewWorktreeSchema,
+var reviewWorktreeCodec = artifact.JSONDocumentCodec("review worktree", artifact.KindEvidence, ReviewWorktreeMediaType, ReviewWorktreeSchema,
 	func(value *ReviewWorktree) error {
 		if value == nil || value.Version != ReviewVersion || !validReviewText(value.Path) ||
 			strings.Contains(value.Path, "\\") || !validReviewText(value.Branch) || !validCodeCommit(value.Head) {
@@ -143,7 +143,7 @@ var reviewWorktreeCodec = evidenceDocumentCodec("review worktree", ReviewWorktre
 		return nil
 	}, func(value ReviewWorktree) artifact.ID { return value.ID }, func(value *ReviewWorktree, id artifact.ID) { value.ID = id }, nil)
 
-var reviewEvaluatorCodec = evidenceDocumentCodec("review evaluator", ReviewEvaluatorMediaType, ReviewEvaluatorSchema,
+var reviewEvaluatorCodec = artifact.JSONDocumentCodec("review evaluator", artifact.KindEvidence, ReviewEvaluatorMediaType, ReviewEvaluatorSchema,
 	func(value *ReviewEvaluator) error {
 		if value == nil || value.Version != ReviewVersion || !validReviewText(value.Name) ||
 			!value.Definition.Valid() || !validCodeCommit(value.Revision) {
@@ -152,7 +152,7 @@ var reviewEvaluatorCodec = evidenceDocumentCodec("review evaluator", ReviewEvalu
 		return nil
 	}, func(value ReviewEvaluator) artifact.ID { return value.ID }, func(value *ReviewEvaluator, id artifact.ID) { value.ID = id }, nil)
 
-var reviewCandidateCodec = evidenceDocumentCodec("review candidate", ReviewCandidateMediaType, ReviewCandidateSchema,
+var reviewCandidateCodec = artifact.JSONDocumentCodec("review candidate", artifact.KindEvidence, ReviewCandidateMediaType, ReviewCandidateSchema,
 	func(value *ReviewCandidate) error {
 		if value == nil || value.Version != ReviewVersion || !validCodeCommit(value.BaseCommit) ||
 			!validCodeCommit(value.CodeCommit) || value.BaseCommit == value.CodeCommit ||
@@ -162,7 +162,7 @@ var reviewCandidateCodec = evidenceDocumentCodec("review candidate", ReviewCandi
 		return nil
 	}, func(value ReviewCandidate) artifact.ID { return value.ID }, func(value *ReviewCandidate, id artifact.ID) { value.ID = id }, nil)
 
-var reviewFindingCodec = evidenceDocumentCodec("review finding", ReviewFindingMediaType, ReviewFindingSchema,
+var reviewFindingCodec = artifact.JSONDocumentCodec("review finding", artifact.KindEvidence, ReviewFindingMediaType, ReviewFindingSchema,
 	func(value *ReviewFinding) error {
 		if value == nil || value.Version != ReviewVersion || !allEvidenceIDs(value.Candidate, value.Reviewer, value.Evaluator) ||
 			!validReviewText(value.Summary) || !validReviewText(value.Check) ||
@@ -173,7 +173,7 @@ var reviewFindingCodec = evidenceDocumentCodec("review finding", ReviewFindingMe
 		return nil
 	}, func(value ReviewFinding) artifact.ID { return value.ID }, func(value *ReviewFinding, id artifact.ID) { value.ID = id }, nil)
 
-var reviewVerdictCodec = evidenceDocumentCodec("review verdict", ReviewVerdictMediaType, ReviewVerdictSchema,
+var reviewVerdictCodec = artifact.JSONDocumentCodec("review verdict", artifact.KindEvidence, ReviewVerdictMediaType, ReviewVerdictSchema,
 	func(value *ReviewVerdict) error {
 		if value == nil || value.Version != ReviewVersion || !allEvidenceIDs(value.Candidate, value.Reviewer, value.Worktree, value.Evaluator) ||
 			!validCodeCommit(value.TargetHead) || value.Findings == nil ||

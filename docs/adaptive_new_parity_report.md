@@ -170,7 +170,10 @@ Overgo's tokenizer total includes a large generated Unicode table.
   Q/K/V projections; input/Q/K norm gradients use direct float32 differences.
   Three steps lower train loss `6.541863 -> 6.394826` and held-out loss
   `8.629535 -> 8.533603`, changing 21,334/262,144 Q, 13,886/131,072 K, and
-  11,389/131,072 V words. Layer 6 self-attention remains open.
+  11,389/131,072 V words. The resulting gradient reaches layer 6 causal
+  self-attention: Q/K/V core norms are `0.119058/0.035726/0.000921`, and raw
+  gate analytic `0.103774` matches the direct `0.103737` finite difference.
+  Layer 6 self parameters remain open.
 - Synthetic dense medium benchmark: host `85.6 s/step`; device full
   `1.89 s/step`; `45.4x`. This is an internal backend comparison, not
   adaptive_new parity and not a production-model result.

@@ -121,6 +121,10 @@ type trainingStep struct {
 	penultimateCrossKProjection   []float32
 	penultimateCrossVProjection   []float32
 	penultimateSelfOutputGradient []float32
+	penultimateSelfQ              []float32
+	penultimateSelfK              []float32
+	penultimateSelfV              []float32
+	penultimateSelfRawGate        float32
 	penultimateCrossRawGate       float32
 	loss                          float64
 }
@@ -514,40 +518,41 @@ func (t *Trainer) backwardFinalSelfCore(state *trainingStep) error {
 	dims := t.model.Dims
 	rows := len(state.pair.Targets)
 	trace := state.trace.finalSelf()
-	if len(state.finalSelfOutputGradient) != rows*dims.DModel || len(trace.projected) != rows*dims.DModel ||
-		len(trace.attention) != rows*dims.Heads*dims.HeadDim {
-		return errors.New("final self-attention trace differs")
-	}
 	block := &t.model.decoderSelf[len(t.model.decoderSelf)-1]
+	core, err := backwardCausalAttentionCore(trace, block, state.finalSelfOutputGradient, rows, dims)
+	if err != nil {
+		return err
+	}
+	state.selfRawGateGradient = core.rawGate
+	state.gradient[t.layout.selfRawGate.start] = state.selfRawGateGradient
+	state.selfOutputGradient = state.gradient[t.layout.selfOutput.start:t.layout.selfOutput.end]
+	copy(state.selfOutputGradient, core.output)
+	state.selfAttentionQGradient, state.selfAttentionKGradient, state.selfAttentionVGradient = core.q, core.k, core.v
+	return t.backwardFinalSelfProjections(state, block)
+}
+
+func backwardCausalAttentionCore(trace *attentionTrainingTrace, block *attnBlock, dOutput []float32, rows int, dims Dims) (attentionCoreGradient, error) {
+	if len(dOutput) != rows*dims.DModel || len(trace.projected) != len(dOutput) || len(trace.attention) != rows*dims.Heads*dims.HeadDim {
+		return attentionCoreGradient{}, errors.New("causal-attention core trace differs")
+	}
 	var gateGradient float64
-	for index, gradient := range state.finalSelfOutputGradient {
+	for index, gradient := range dOutput {
 		gateGradient += float64(gradient) * float64(trace.projected[index])
 	}
-	state.selfRawGateGradient = float32(gateGradient) * block.gate * (1 - block.gate)
-	state.gradient[t.layout.selfRawGate.start] = state.selfRawGateGradient
-	dProjected := make([]float32, len(state.finalSelfOutputGradient))
-	for index, gradient := range state.finalSelfOutputGradient {
+	result := attentionCoreGradient{rawGate: float32(gateGradient) * block.gate * (1 - block.gate)}
+	dProjected := make([]float32, len(dOutput))
+	for index, gradient := range dOutput {
 		dProjected[index] = block.gate * gradient
 	}
-	state.selfOutputGradient = state.gradient[t.layout.selfOutput.start:t.layout.selfOutput.end]
-	hostmath.LinearBackward(
-		nil, state.selfOutputGradient, nil, trace.attention, nil, dProjected,
-		rows, dims.Heads*dims.HeadDim, dims.DModel, false,
-	)
+	result.output = make([]float32, len(block.o))
+	hostmath.LinearBackward(nil, result.output, nil, trace.attention, nil, dProjected, rows, dims.Heads*dims.HeadDim, dims.DModel, false)
 	dAttention := make([]float32, len(trace.attention))
-	hostmath.LinearBF16BackwardInput(
-		dAttention, dProjected, block.o,
-		rows, dims.Heads*dims.HeadDim, dims.DModel,
-	)
-	state.selfAttentionQGradient = make([]float32, len(trace.q))
-	state.selfAttentionKGradient = make([]float32, len(trace.k))
-	state.selfAttentionVGradient = make([]float32, len(trace.v))
-	hostmath.CausalAttentionBackward(
-		state.selfAttentionQGradient, state.selfAttentionKGradient, state.selfAttentionVGradient,
-		trace.q, trace.k, trace.v, dAttention,
-		rows, dims.Heads, dims.KVHeads, dims.HeadDim,
-	)
-	return t.backwardFinalSelfProjections(state, block)
+	hostmath.LinearBF16BackwardInput(dAttention, dProjected, block.o, rows, dims.Heads*dims.HeadDim, dims.DModel)
+	result.q = make([]float32, len(trace.q))
+	result.k = make([]float32, len(trace.k))
+	result.v = make([]float32, len(trace.v))
+	hostmath.CausalAttentionBackward(result.q, result.k, result.v, trace.q, trace.k, trace.v, dAttention, rows, dims.Heads, dims.KVHeads, dims.HeadDim)
+	return result, nil
 }
 
 func (t *Trainer) backwardFinalSelfProjections(state *trainingStep, block *attnBlock) error {
@@ -649,6 +654,23 @@ func (t *Trainer) backwardPenultimateCrossCore(state *trainingStep) error {
 	copy(state.penultimateCrossKProjection, projections.k)
 	copy(state.penultimateCrossVProjection, projections.v)
 	state.penultimateSelfOutputGradient = projections.input
+	return t.backwardPenultimateSelfCore(state)
+}
+
+func (t *Trainer) backwardPenultimateSelfCore(state *trainingStep) error {
+	layer := len(t.model.decoderSelf) - 2
+	if layer < 0 {
+		return nil
+	}
+	core, err := backwardCausalAttentionCore(
+		&state.trace.layers[layer].self, &t.model.decoderSelf[layer],
+		state.penultimateSelfOutputGradient, len(state.pair.Targets), t.model.Dims,
+	)
+	if err != nil {
+		return err
+	}
+	state.penultimateSelfQ, state.penultimateSelfK, state.penultimateSelfV = core.q, core.k, core.v
+	state.penultimateSelfRawGate = core.rawGate
 	return nil
 }
 

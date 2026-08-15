@@ -97,9 +97,11 @@ a { color:var(--acc); }
 .tab:hover { color:var(--ink); }
 .tab.active { color:var(--ink); background:var(--bg1); border-color:var(--line); }
 .tab.disabled-tab { opacity:.4; cursor:not-allowed; }
-.wrap { padding:20px 22px 60px; max-width:1100px; }
+.wrap { padding:20px 22px 60px; max-width:1100px; overflow-x:hidden; }
 .panel { display:none; }
-.panel.active { display:block; }
+/* Wide content (multi-column tables, heatmaps) scrolls inside the panel rather
+   than forcing the whole page body to scroll sideways on narrow viewports. */
+.panel.active { display:block; overflow-x:auto; }
 
 /* ---- components ---- */
 .statgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px,1fr)); gap:12px; }

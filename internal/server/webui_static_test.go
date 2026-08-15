@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -71,6 +72,35 @@ func TestWebUIAssetsPublicWhenAPIKeyConfigured(t *testing.T) {
 	protected := serveTestRequest(handler, http.MethodGet, "/analyze/model", "")
 	if protected.Code != http.StatusUnauthorized {
 		t.Fatalf("GET /analyze/model without bearer = %d, want 401", protected.Code)
+	}
+}
+
+// TestWebUIStyleInvariants guards two concrete regressions: (1) client CSS
+// custom properties must reference names the palette actually defines — an
+// undefined var silently renders nothing (the energy-entropy bar filled with a
+// non-existent --accent); (2) the panel must own its horizontal overflow so a
+// wide table cannot force the whole page body to scroll sideways.
+func TestWebUIStyleInvariants(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+
+	// Every var(--name) used in a module must be a name style.css defines.
+	css := serveTestRequest(handler, http.MethodGet, "/style.css", "").Body.String()
+	defined := map[string]bool{}
+	for _, m := range regexp.MustCompile(`--[a-z0-9-]+\s*:`).FindAllString(css, -1) {
+		defined[strings.TrimSpace(strings.TrimSuffix(m, ":"))] = true
+	}
+	for _, asset := range []string{"/mod/analyze_tensors.js", "/viz.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {
+		body := serveTestRequest(handler, http.MethodGet, asset, "").Body.String()
+		for _, ref := range regexp.MustCompile(`var\(\s*(--[a-z0-9-]+)`).FindAllStringSubmatch(body, -1) {
+			if !defined[ref[1]] {
+				t.Errorf("%s references undefined CSS var %q", asset, ref[1])
+			}
+		}
+	}
+
+	// Panels scroll their own overflow so wide tables never scroll the body.
+	if !strings.Contains(css, "overflow-x:auto") {
+		t.Error("style.css: expected a panel overflow-x:auto rule so wide tables scroll in-panel")
 	}
 }
 

@@ -121,7 +121,7 @@
           style: "width:64px;height:8px;border-radius:4px;background:var(--bg2);overflow:hidden",
         });
         track.appendChild(el("div", {
-          style: "height:100%;width:" + (clamped * 100).toFixed(1) + "%;background:var(--accent)",
+          style: "height:100%;width:" + (clamped * 100).toFixed(1) + "%;background:var(--acc)",
         }));
         wrap.append(el("span", { text: clamped.toFixed(3) }), track);
         return wrap;

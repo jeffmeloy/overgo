@@ -3,12 +3,8 @@
 package densecausal
 
 import (
-	"context"
-	"math"
 	"math/rand"
-	"slices"
 	"testing"
-	"time"
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
@@ -41,91 +37,6 @@ func scaleTokens() []int {
 		tokens[i] = rng.Intn(scaleModelSpec.Vocab)
 	}
 	return tokens
-}
-
-// TestTrainDeviceResidentScratchPoolPeak proves the milestone-3 scratch pool:
-// (a) the resident trajectory is UNCHANGED whether scratch is pooled or not (exact
-// parity, so the pool does not perturb the math), and (b) the peak device bytes --
-// measured from cuMemGetInfo, real GPU memory -- drop when the pool is on. The peak
-// is sampled at each layer-op boundary; pooling reuses one arena so peak scratch is
-// O(1 layer) instead of O(all layers).
-func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
-	cudatest.Require(t)
-	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
-
-	tokens := scaleTokens()
-	const steps = 2
-
-	// peakResult records the driver's live-allocation high-water.
-	type peakResult struct {
-		allocPeak uint64
-		traj      []float64
-		wall      time.Duration
-	}
-	run := func(pool bool) peakResult {
-		m := syntheticCausalModel(t, scaleModelSpec) // identical seeded weights each run
-		prevPool := devicemath.SetScratchPoolEnabled(pool)
-		defer devicemath.SetScratchPoolEnabled(prevPool)
-		if err := worker.Do(context.Background(), func(s *device.State) error {
-			s.Driver.ResetPeakBytes()
-			return nil
-		}); err != nil {
-			t.Fatal(err)
-		}
-		started := time.Now()
-		traj, _, err := m.TrainDeviceResidentBatches(worker, slices.Repeat([][]int{tokens}, steps), 0, 0.9, nil)
-		wall := time.Since(started)
-		if err != nil {
-			t.Fatalf("TrainDeviceResidentBatches(pool=%v): %v", pool, err)
-		}
-		stats, err := worker.MemoryStats(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-		return peakResult{allocPeak: stats.PeakBytes, traj: traj, wall: wall}
-	}
-
-	unpooled := run(false)
-	pooled := run(true)
-	unpooledTraj := unpooled.traj
-	pooledTraj := pooled.traj
-
-	// (a) Exact parity between the pooled and unpooled paths.
-	if len(pooledTraj) != len(unpooledTraj) {
-		t.Fatalf("trajectory lengths differ: pooled %d unpooled %d", len(pooledTraj), len(unpooledTraj))
-	}
-	var worst float64
-	for i := range pooledTraj {
-		if d := math.Abs(pooledTraj[i] - unpooledTraj[i]); d > worst {
-			worst = d
-		}
-	}
-	t.Logf("pool parity worst |d|=%.3e (pooled[last]=%.6f unpooled[last]=%.6f)", worst, pooledTraj[len(pooledTraj)-1], unpooledTraj[len(unpooledTraj)-1])
-	if worst > 1e-5 {
-		t.Fatalf("scratch pool changed the trajectory: worst |d|=%.3e > 1e-5", worst)
-	}
-
-	// (b) Driver-tracked live allocation peak drops with pooling.
-	t.Logf("live cuMemAlloc high-water: unpooled=%d (%.1f MiB)  pooled=%d (%.1f MiB)  saved=%.1f MiB",
-		unpooled.allocPeak, float64(unpooled.allocPeak)/(1<<20),
-		pooled.allocPeak, float64(pooled.allocPeak)/(1<<20),
-		float64(unpooled.allocPeak-pooled.allocPeak)/(1<<20))
-	t.Logf("resident training wall: unpooled=%s pooled=%s (%d steps, %.1f ms/step)",
-		unpooled.wall, pooled.wall, steps, float64(pooled.wall.Microseconds())/1000/steps)
-	if pooled.allocPeak == 0 || unpooled.allocPeak == 0 {
-		t.Fatalf("driver allocation peak unavailable: pooled=%d unpooled=%d", pooled.allocPeak, unpooled.allocPeak)
-	}
-	if pooled.allocPeak >= unpooled.allocPeak {
-		t.Fatalf("scratch pool did not lower live-alloc peak: pooled=%d >= unpooled=%d", pooled.allocPeak, unpooled.allocPeak)
-	}
-	// Same-run control absorbs driver, clock and host-load drift.
-	if pooled.wall*20 > unpooled.wall*21 {
-		t.Fatalf("pooled resident training wall %s exceeds unpooled %s by more than 5%%", pooled.wall, unpooled.wall)
-	}
 }
 
 // TestTrainDeviceResidentDerivedCapacity proves milestone-3 part 2: the resident

@@ -1,7 +1,7 @@
 # Model Runtime Cleanup
 
 Status: active  
-Updated: 2026-08-14
+Updated: 2026-08-15
 Scope: `internal/model`, `internal/inference`, model recipes, direct callers
 
 ## Endpoint
@@ -26,8 +26,12 @@ active recipe + resolved artifact facts
 
 | Surface | Count | Treatment |
 |---|---:|---|
+| Repo production files / AST nodes | 748 / 1,024,181 | Structural baseline |
+| Repo test files / AST nodes | 584 / 699,753 | Structural baseline |
+| Exported declarations / import edges | 4,405 / 2,226 | Reduce single-consumer exports |
+| Exact duplicate excess AST nodes | 11,663 | Profiler-ranked deletion queue |
 | Model/inference production files | 143 | Diagnostic; ownership matters, not file count |
-| Model/inference production functions | 948 | Four FFN builders deleted; shared policy runtime owns projection |
+| Model/inference production functions | 943 | Typed plans and operators own execution |
 | Family-named production files | 0 | Hold at zero |
 | Family-identity-bearing production files | 21 | Restrict to parsing/wire facts, then remove runtime uses |
 | Post-resolution architecture catalog lookups in execution compilation | 0 | Hold at zero |
@@ -81,29 +85,43 @@ active recipe + resolved artifact facts
 | General recipe VQA runtime adapters | 0 | Extract command-local processor/device pipeline |
 | Production video recipe activation paths | 1 | Shared capability preparation and active resolution |
 | Projector no-policy constructor wrappers | 0 | Fifteen callers migrated to option-bearing constructors |
-| Workflow recipe production consumers | 0 | Generation, embedding, rerank, projection, and training remain advisory |
+| Advisory workflow recipe implementations | 0 | Deleted; executable model recipes remain |
 | Capability command family switches | 0 | Compiled entry module selects implementation |
 | Repeated image/video artifact classifiers | 0 | Inventory and definition share one source resolution |
 | Coarse capability modules | 31/34 | Replace staged family shells with neutral operators |
 | Family capability runtime files | 91 / 21,953 lines | Separate unique math from displaced orchestration |
 | Family capability exported functions | 295 | Delete wrappers and direct orchestration after caller migration |
 | Production projector recipe consumers | 0 | Route server and generate through active projection plans |
-| Executable training recipes | 0 | Compile before allocation; runtime currently records after execution |
-| Explicit legacy runtime references | 13 | Remove recipe v1, old cache, and legacy tokenizer paths after data migration |
+| Training authority timing | pre-allocation | Training plan resolves before runtime construction |
+| Production `legacy` / `fallback` text hits | 20 / 73 | Classify format support vs runtime authority; delete authority branches |
 | Parallel image/video VAE operation systems | 2 | Compile one neutral media codec program |
 
 Family-named production files: none.
 
 ## Ordered Work
 
-1. Make compiled recipe modules the sole capability dispatcher; compile artifact classification once.
-2. Delete family registration wrappers and direct duplicate orchestration after migrating callers.
-3. Execute training recipes before allocation; remove post-run plan reconstruction and host fallback.
-4. Route projector serving through active projection recipes; move prompt policy into typed profiles.
-5. Replace coarse prepare/integrate/decode family shells with neutral operator programs.
-6. Compile one image/video codec program; migrate host and CUDA execution together.
-7. Remove recipe v1, old cache, legacy tokenizer, and feature fallback runtime paths.
-8. Convert family-named model validation modes into profile-selected relational constraints.
+1. Route projector serving through active projection recipes; bind base and projector identities together.
+2. Move omitted metadata defaults into profile/artifact facts; require them before `Spec` construction.
+3. Make typed `RoPEOptions` the sole single-axis rotary API; migrate and delete remaining wrappers.
+4. Replace video runtime registration names and duplicated stage plumbing only when the wave is net-negative.
+5. Bind VQA production execution to its active recipe; remove inventory-only activation.
+6. Replace coarse prepare/integrate/decode shells with neutral operator programs.
+7. Compile one image/video codec program; migrate host and CUDA execution together.
+8. Classify remaining legacy/fallback hits; retain explicit file-format support only.
+
+## Completed Waves
+
+- Recipe module dispatch authoritative; family capability switch deleted.
+- Recipe v1, old KV readers, sampler readers, and undeclared tokenizer policy deleted.
+- Training authority compiled before execution allocation.
+- Advisory workflow recipes deleted: `-443` net lines.
+- Scalar GGUF metadata construction centralized: `-67` net lines.
+- Stack scratch pooling mandatory: `-31` net lines; compatibility branch deleted.
+- BF16 slice rounding centralized: `-18` net lines.
+- Flow-time shifting centralized: `-20` net lines including touched-comment cleanup.
+- Latent-attention RoPE policy compiled once: `-28` net lines; YaRN wrappers deleted.
+- JSON artifact identity centralized across four domains: `-5` net lines.
+- Context-pipeline-tail abstraction rejected: `+26` lines for three consumers; no commit.
 
 ## Per-Wave Gate
 

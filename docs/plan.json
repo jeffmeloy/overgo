@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "dense-real-models",
-          "title": "Train Carbon and Qwen2.5 from identical adaptive checkpoints and ordered corpora; gradient/update/trajectory parity, then beat adaptive wall and peak",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestDenseTrainingLeadership$' -count=1 -v"
-        },
-        {
           "id": "qwen35-real-model",
           "title": "Train a real Qwen3.5 artifact through the shared resident program as an Overgo-only capability; use local gradient fixtures and record adaptive's absent training oracle",
           "status": "open",

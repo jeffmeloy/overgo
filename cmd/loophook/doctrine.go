@@ -31,6 +31,7 @@ flight, or a valid stop was recorded: go run ./cmd/plan -stop
 <user-stop|irreversible|external-prereq>: <detail>. A checkpoint, milestone,
 written summary, "big change do fresh", or "should I continue?" is NOT valid.
 
-SCOPE. A bounded request -- a status readout, an explanation, a review, one
-scoped edit -- is a COMPLETE turn once answered; do not inflate it into a
-campaign. The Stop gate enforces the loop, not bounded requests.`
+SCOPE. A bounded request -- a status readout, an explanation, or a review --
+is a COMPLETE turn once answered; do not inflate it into a campaign or record
+a stop. UserPromptSubmit marks that turn and the Stop gate consumes the marker
+silently. The Stop gate enforces the loop, not bounded requests.`

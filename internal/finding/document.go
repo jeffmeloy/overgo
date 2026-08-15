@@ -109,6 +109,57 @@ func (d Document) Batch(key string) (artifact.Batch, error) {
 	return artifact.NewDocumentBatch(key, []artifact.Content{content}, d.Lineage(), nil)
 }
 
+// NewTextBatch packages an agent-authored finding and its textual owner and
+// evidence anchors into one atomic store commit. The typed document remains
+// the authority; text inputs are content-addressed parents, not a side ledger.
+func NewTextBatch(title string, severity Severity, ownerSurfaces, evidence []string, closurePath, failableCheck string) (Document, artifact.Batch, error) {
+	owners, ownerContents, err := textContents(artifact.KindFile, ownerSurfaces)
+	if err != nil {
+		return Document{}, artifact.Batch{}, err
+	}
+	evidenceIDs, evidenceContents, err := textContents(artifact.KindEvidence, evidence)
+	if err != nil {
+		return Document{}, artifact.Batch{}, err
+	}
+	document, err := New(title, severity, StatusOpen, owners, evidenceIDs, closurePath, failableCheck)
+	if err != nil {
+		return Document{}, artifact.Batch{}, err
+	}
+	content, err := document.Content()
+	if err != nil {
+		return Document{}, artifact.Batch{}, err
+	}
+	contents := append(append(ownerContents, evidenceContents...), content)
+	batch, err := artifact.NewDocumentBatch("finding/"+document.ID.String(), contents, document.Lineage(), nil)
+	return document, batch, err
+}
+
+func textContents(kind artifact.Kind, values []string) ([]artifact.ID, []artifact.Content, error) {
+	ids := make([]artifact.ID, 0, len(values))
+	contents := make([]artifact.Content, 0, len(values))
+	seen := make(map[artifact.ID]bool, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if !textcheck.Bounded(value, 4096, "\x00\r") {
+			return nil, nil, errors.New("finding: invalid text anchor")
+		}
+		data := []byte(value)
+		id, err := artifact.IdentifyBytes(kind, data)
+		if err != nil {
+			return nil, nil, err
+		}
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+		contents = append(contents, artifact.Content{Descriptor: artifact.Descriptor{
+			ID: id, Size: uint64(len(data)), MediaType: "text/plain",
+		}, Data: data})
+	}
+	return ids, contents, nil
+}
+
 func canonicalize(document *Document) error {
 	if document == nil || document.Version != Version ||
 		!textcheck.Bounded(document.Title, 4096, "\x00\r") || !textcheck.Bounded(document.ClosurePath, 4096, "\x00\r") ||

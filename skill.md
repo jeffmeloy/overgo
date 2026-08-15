@@ -32,7 +32,8 @@ back to the manual path:
 1. `go run ./cmd/plan -prompt` => the ONE dispatched step. Do exactly that step.
 2. Need an existing capability? `docs/MAP.md` => the owner. Do not re-derive.
 3. Commit ONLY via `go run ./cmd/gate -plan <item>/<step> -message-file <f>
-   -paths <csv>`; then `go run ./cmd/plan -advance <item> <step>`.
+   -paths <csv>`; the gate reruns acceptance and advances the plan in that
+   implementation commit.
 4. Step wrong / blocked / you disagree => STOP and tell the user
    (`cmd/plan -stop`). Never substitute your own work for the dispatched step;
    never end a turn on a summary or a "should I continue?".
@@ -87,7 +88,9 @@ licenses reinventing an existing owner.
 
 - Direct user request outranks the loop. Review/explanation/status/scoped edit =
   finished when answered; a complete turn, not a stop to defend. Never let loop
-  pressure turn a bounded request into a campaign.
+  pressure turn a bounded request into a campaign. UserPromptSubmit marks
+  read-only bounded turns; the Stop hook consumes that marker without writing
+  `docs/plan_stop.json`.
 - Full loop applies only under a live continue/resume/loop directive, at a
   committed-slice close, or when no narrower user task is active.
 - Co-implementer rule: user and concurrent lanes are parallel implementers.
@@ -161,7 +164,8 @@ Gate holds itself to the code's standard.
    bounded probe => rerank, not a closure essay.
 5. Commit body carries the narrative: Why (one paragraph), Evidence (gate
    commands + numbers), Next. Ports cite the adaptive_new sha(s) that proved it.
-6. Commit through the gate; never raw `git commit` during a campaign.
+6. Commit through the gate; it advances the active plan step atomically. Never
+   raw `git commit` during a campaign.
 7. Review batched + risk-scoped (see Governance). After a slice lands, pick the
    next action fresh; the previous rank-1 is a candidate, not a default.
 

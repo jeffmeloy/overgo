@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"overgo/internal/jsonfile"
+	"overgo/internal/strictjson"
 )
 
 // Path is the campaign plan, relative to the repo root.
@@ -52,6 +53,16 @@ func Load(path string) (Plan, error) {
 		return Plan{}, fmt.Errorf("parse %s: %w", path, err)
 	}
 	return d, nil
+}
+
+// Parse decodes an in-memory plan projection, including projections read from
+// Git refs during semantic master synchronization.
+func Parse(data []byte) (Plan, error) {
+	var document Plan
+	if err := strictjson.DecodeBytes(data, &document); err != nil {
+		return Plan{}, err
+	}
+	return document, ValidateOpenWork(document)
 }
 
 // Save writes the plan back to path (Path when empty).
@@ -152,4 +163,36 @@ func Current(d Plan) (Item, Step, bool) {
 		return it, Step{ID: ".", Title: "open the rung (define its steps)"}, true
 	}
 	return Item{}, Step{}, false
+}
+
+// Advance returns the open-work plan after removing one completed step. The
+// gate writes this result in the implementation commit so dispatch cannot lag
+// the code it describes.
+func Advance(d Plan, itemID, stepID string) (Plan, error) {
+	d.Items = slices.Clone(d.Items)
+	for itemIndex := range d.Items {
+		if d.Items[itemIndex].ID != itemID {
+			continue
+		}
+		if stepID == "." {
+			d.Items = append(d.Items[:itemIndex], d.Items[itemIndex+1:]...)
+			return d, ValidateOpenWork(d)
+		}
+		d.Items[itemIndex].Steps = slices.Clone(d.Items[itemIndex].Steps)
+		for stepIndex := range d.Items[itemIndex].Steps {
+			if d.Items[itemIndex].Steps[stepIndex].ID != stepID {
+				continue
+			}
+			d.Items[itemIndex].Steps = append(
+				d.Items[itemIndex].Steps[:stepIndex],
+				d.Items[itemIndex].Steps[stepIndex+1:]...,
+			)
+			if len(d.Items[itemIndex].Steps) == 0 {
+				d.Items = append(d.Items[:itemIndex], d.Items[itemIndex+1:]...)
+			}
+			return d, ValidateOpenWork(d)
+		}
+		return Plan{}, fmt.Errorf("step %q not found in %q", stepID, itemID)
+	}
+	return Plan{}, fmt.Errorf("item %q not found", itemID)
 }

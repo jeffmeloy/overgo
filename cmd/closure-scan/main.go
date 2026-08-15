@@ -15,10 +15,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/repodb"
 	"overgo/internal/strictjson"
 )
@@ -40,10 +42,19 @@ func main() {
 	triagePath := flag.String("triage", "", "triage JSON ({rows:[{name,file,tier,status,closure_path,rerank_trigger}]}); emits closure documents to the store")
 	storePath := flag.String("store", "repodb-store", "RepoDB store directory (emit mode)")
 	limit := flag.Int("limit", 40, "report mode: top-N candidates to print")
+	raw := flag.Bool("raw", false, "rank repeated raw policy literals instead of declared constants")
 	flag.Parse()
 	root, err := os.Getwd()
 	if err != nil {
 		fatal(err)
+	}
+	if *raw {
+		ranked, err := closurescan.RankRawPolicyLiterals(mustSnapshot(root))
+		if err != nil {
+			fatal(err)
+		}
+		reportRaw(ranked, *limit)
+		return
 	}
 	candidates, err := closurescan.ScanRoot(root)
 	if err != nil {
@@ -56,6 +67,14 @@ func main() {
 	if err := emit(root, *storePath, *triagePath, candidates); err != nil {
 		fatal(err)
 	}
+}
+
+func mustSnapshot(root string) repoanalysis.SourceSnapshot {
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	if err != nil {
+		fatal(err)
+	}
+	return snapshot
 }
 
 func fatal(err error) {
@@ -72,6 +91,22 @@ func report(candidates []closurescan.Candidate, limit int) {
 			break
 		}
 		fmt.Printf("%-6d %-44s %-16s %s\n", row.Score, row.Name, row.Value, row.File)
+	}
+}
+
+func reportRaw(candidates []closurescan.RawPolicyLiteral, limit int) {
+	fmt.Printf("closure-scan: %d repeated raw policy candidates (tests, generated, structural math excluded)\n", len(candidates))
+	fmt.Printf("%-6s %-8s %-24s %-28s %s\n", "score", "count", "value", "package", "functions")
+	for index, row := range candidates {
+		if index >= limit {
+			fmt.Printf("... %d more (raise -limit)\n", len(candidates)-limit)
+			break
+		}
+		owners := row.Functions
+		if len(owners) > 5 {
+			owners = append(append([]string(nil), owners[:5]...), fmt.Sprintf("+%d", len(row.Functions)-5))
+		}
+		fmt.Printf("%-6d %-8d %-24s %-28s %s\n", row.Score, row.Count, row.Value, row.Package, strings.Join(owners, ","))
 	}
 }
 

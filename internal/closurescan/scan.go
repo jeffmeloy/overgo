@@ -8,8 +8,11 @@ package closurescan
 import (
 	"go/ast"
 	"go/token"
+	"maps"
 	"path/filepath"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"overgo/internal/repoanalysis"
@@ -22,6 +25,25 @@ type Candidate struct {
 	Doc     string `json:"doc,omitempty"`
 	Score   int    `json:"score"`
 	Package string `json:"package"`
+}
+
+// RawPolicyLiteral is an advisory group of the same raw literal repeated in
+// multiple functions in one package. Functions and files are ownership
+// evidence; the score ranks inspection and never authorizes extraction.
+type RawPolicyLiteral struct {
+	Value     string   `json:"value"`
+	Package   string   `json:"package"`
+	Functions []string `json:"functions"`
+	Files     []string `json:"files"`
+	Count     int      `json:"count"`
+	Score     int      `json:"score"`
+}
+
+type rawLiteralGroup struct {
+	functions map[string]bool
+	files     map[string]bool
+	count     int
+	policy    int
 }
 
 // ScanRoot walks internal/ and cmd/ under root.
@@ -75,6 +97,129 @@ func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]C
 		return out[i].Name < out[j].Name
 	})
 	return out, nil
+}
+
+// RankRawPolicyLiterals finds repeated non-trivial numeric and string literals
+// in function bodies. Indexes, slice/array extents, arithmetic factors, tests,
+// and generated files are excluded to avoid recommending constants for local
+// math or structure facts.
+func RankRawPolicyLiterals(snapshot repoanalysis.SourceSnapshot) ([]RawPolicyLiteral, error) {
+	groups := map[string]*rawLiteralGroup{}
+	for _, source := range snapshot.Files {
+		if source.Test {
+			continue
+		}
+		generated, err := source.Generated()
+		if err != nil {
+			return nil, err
+		}
+		if generated {
+			continue
+		}
+		parsed, err := source.Syntax()
+		if err != nil {
+			return nil, err
+		}
+		pkg := filepath.ToSlash(filepath.Dir(source.Path))
+		for _, declaration := range parsed.Decls {
+			function, ok := declaration.(*ast.FuncDecl)
+			if !ok || function.Body == nil {
+				continue
+			}
+			collectRawLiterals(function, pkg, source.Path, groups)
+		}
+	}
+	var ranked []RawPolicyLiteral
+	for key, group := range groups {
+		if len(group.functions) < 2 {
+			continue
+		}
+		parts := strings.SplitN(key, "\x00", 2)
+		row := RawPolicyLiteral{
+			Package: parts[0], Value: parts[1], Count: group.count,
+			Functions: slices.Sorted(maps.Keys(group.functions)), Files: slices.Sorted(maps.Keys(group.files)),
+		}
+		row.Score = row.Count + 2*len(row.Functions) + len(row.Files) + 2*group.policy
+		if !strings.HasPrefix(row.Value, "\"") && !strings.HasPrefix(row.Value, "`") {
+			row.Score++
+		}
+		ranked = append(ranked, row)
+	}
+	sort.Slice(ranked, func(i, j int) bool {
+		if ranked[i].Score != ranked[j].Score {
+			return ranked[i].Score > ranked[j].Score
+		}
+		if ranked[i].Package != ranked[j].Package {
+			return ranked[i].Package < ranked[j].Package
+		}
+		return ranked[i].Value < ranked[j].Value
+	})
+	return ranked, nil
+}
+
+func collectRawLiterals(function *ast.FuncDecl, pkg, file string, groups map[string]*rawLiteralGroup) {
+	var stack []ast.Node
+	ast.Inspect(function.Body, func(node ast.Node) bool {
+		if node == nil {
+			stack = stack[:len(stack)-1]
+			return true
+		}
+		var parent ast.Node
+		if len(stack) != 0 {
+			parent = stack[len(stack)-1]
+		}
+		stack = append(stack, node)
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || !rawPolicyValue(literal) || structuralLiteral(parent) {
+			return true
+		}
+		key := pkg + "\x00" + literal.Value
+		group := groups[key]
+		if group == nil {
+			group = &rawLiteralGroup{functions: map[string]bool{}, files: map[string]bool{}}
+			groups[key] = group
+		}
+		group.functions[file+"#"+function.Name.Name] = true
+		group.files[file] = true
+		group.count++
+		if comparisonLiteral(parent) {
+			group.policy++
+		}
+		return true
+	})
+}
+
+func rawPolicyValue(literal *ast.BasicLit) bool {
+	switch literal.Kind {
+	case token.INT:
+		value, err := strconv.ParseInt(literal.Value, 0, 64)
+		return err != nil || value > 16
+	case token.FLOAT:
+		return literal.Value != "0.0" && literal.Value != "1.0" && literal.Value != "2.0"
+	case token.STRING:
+		value, err := strconv.Unquote(literal.Value)
+		return err == nil && len(value) >= 4 && !strings.ContainsAny(value, "%\r\n \t")
+	default:
+		return false
+	}
+}
+
+func structuralLiteral(parent ast.Node) bool {
+	switch typed := parent.(type) {
+	case *ast.IndexExpr, *ast.IndexListExpr, *ast.SliceExpr, *ast.ArrayType, *ast.Field:
+		return true
+	case *ast.BinaryExpr:
+		switch typed.Op {
+		case token.ADD, token.SUB, token.MUL, token.QUO, token.REM, token.SHL, token.SHR, token.AND, token.OR, token.XOR, token.AND_NOT:
+			return true
+		}
+	}
+	return false
+}
+
+func comparisonLiteral(parent ast.Node) bool {
+	binary, ok := parent.(*ast.BinaryExpr)
+	return ok && binary.Op >= token.EQL && binary.Op <= token.GEQ
 }
 
 func collect(file *ast.File, relative string, out *[]Candidate) {

@@ -20,11 +20,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +59,7 @@ const (
 type gateContext struct {
 	repo         string
 	paths        []string
+	planRef      string
 	messageFile  string
 	storePath    string
 	steps        []runrecord.GateStep
@@ -67,6 +71,8 @@ type gateContext struct {
 	profile      *codeprofile.Profile
 	profileDirty bool
 	stepEvidence map[string]string
+	phaseKeys    map[string]string
+	cachePaths   []string
 }
 
 func main() {
@@ -131,8 +137,8 @@ func run() error {
 		return err
 	}
 	g := &gateContext{
-		repo: repo, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
-		stepEvidence: map[string]string{},
+		repo: repo, planRef: *planRef, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
+		stepEvidence: map[string]string{}, phaseKeys: map[string]string{},
 	}
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
@@ -164,6 +170,9 @@ func run() error {
 	if err := g.expandDirectoryPaths(); err != nil {
 		return err
 	}
+	if !slices.Contains(g.paths, plan.Path) {
+		g.paths = append(g.paths, plan.Path)
+	}
 	g.environment, err = discoverEnvironment(repo)
 	if err != nil {
 		return err
@@ -190,7 +199,7 @@ func run() error {
 	if pipelineErr != nil {
 		failureDetail = pipelineErr.Error()
 	}
-	g.printSummary(outcome, failureDetail)
+	g.printSummary(os.Stdout, outcome, failureDetail)
 	if recordErr != nil {
 		_ = g.writeHeartbeat(runrecord.HeartbeatRecordDebt)
 		fmt.Fprintf(os.Stderr, "gate: store record failed (result stands, record owed): %v\n", recordErr)
@@ -261,8 +270,10 @@ func (g *gateContext) pipeline() error {
 		{"manifest", runrecord.PhaseValidate, g.stepManifest},
 		{"sbom", runrecord.PhaseValidate, g.stepSBOM},
 		{"claims", runrecord.PhaseValidate, g.stepClaims},
+		{"docs", runrecord.PhaseValidate, g.stepDocumentation},
 		{"magics", runrecord.PhaseValidate, g.stepMagics},
 		{"device", runrecord.PhaseTest, g.stepDevice},
+		{"acceptance", runrecord.PhaseTest, g.stepAcceptance},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
 	}
 	cache := g.loadRetryCache()
@@ -275,10 +286,15 @@ func (g *gateContext) pipeline() error {
 		began := time.Now()
 		var skipped bool
 		var err error
-		if cacheable[s.name] && cache.Steps[s.name] == string(runrecord.StepSucceeded) {
+		input := ""
+		if cacheable[s.name] {
+			input, err = g.phaseInputFingerprint(s.name)
+		}
+		cached := cache.Steps[s.name]
+		if err == nil && cached.Input == input && cached.Outcome == string(runrecord.StepSucceeded) {
 			skipped = true
-			g.honesty = append(g.honesty, s.name+" reused: identical tree already passed this step")
-		} else {
+			g.honesty = append(g.honesty, s.name+" reused: derived inputs already passed this step")
+		} else if err == nil {
 			skipped, err = s.fn()
 		}
 		duration := uint64(time.Since(began).Nanoseconds())
@@ -296,9 +312,8 @@ func (g *gateContext) pipeline() error {
 			record.Outcome = runrecord.StepSkipped
 		}
 		g.steps = append(g.steps, record)
-		fmt.Printf("[gate] %-8s %-9s %6.2fs\n", s.name, record.Outcome, time.Since(began).Seconds())
 		if err == nil && cacheable[s.name] && !skipped {
-			cache.Steps[s.name] = string(runrecord.StepSucceeded)
+			cache.Steps[s.name] = phaseCache{Input: input, Outcome: string(runrecord.StepSucceeded)}
 			g.saveRetryCache(cache)
 		}
 		if err != nil {
@@ -306,6 +321,45 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	return nil
+}
+
+const (
+	historicalRankingMarker = "<!-- overgo-document: historical-ranking -->"
+	currentWorkMarker       = "<!-- overgo-current-work: docs/plan.json -->"
+)
+
+// stepDocumentation keeps prose assessments from masquerading as current
+// work authority. Ranked current work belongs to the failable plan; prose may
+// retain its historical ordering only with an explicit warning and redirect.
+func (g *gateContext) stepDocumentation() (bool, error) {
+	return false, documentationFreshness(g.repo)
+}
+
+func documentationFreshness(root string) error {
+	return filepath.WalkDir(filepath.Join(root, "docs"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		text := string(data)
+		if !strings.Contains(text, "## Execution Program") {
+			return nil
+		}
+		header := text
+		if len(header) > 1024 {
+			header = header[:1024]
+		}
+		if !strings.Contains(header, historicalRankingMarker) || !strings.Contains(header, currentWorkMarker) {
+			return fmt.Errorf("documentation ranking %s lacks a prominent historical marker and docs/plan.json redirect", filepath.ToSlash(path))
+		}
+		return nil
+	})
 }
 
 func (g *gateContext) stepProtection() (bool, error) {
@@ -437,7 +491,7 @@ func largestChangedFunction(profile codeprofile.Profile, paths map[string]bool, 
 
 func largestChangedClone(profile codeprofile.Profile, paths map[string]bool, class string) string {
 	for _, clone := range profile.Clones {
-		if clone.AdvisoryClass == class && slices.ContainsFunc(clone.Functions, func(function string) bool {
+		if clone.AdvisoryClass == class && !cliMainClone(clone) && slices.ContainsFunc(clone.Functions, func(function string) bool {
 			path, _, ok := strings.Cut(function, ":")
 			return ok && paths[path]
 		}) {
@@ -445,6 +499,12 @@ func largestChangedClone(profile codeprofile.Profile, paths map[string]bool, cla
 		}
 	}
 	return "none"
+}
+
+func cliMainClone(clone codeprofile.Clone) bool {
+	return len(clone.Functions) > 1 && !slices.ContainsFunc(clone.Functions, func(function string) bool {
+		return !strings.HasSuffix(function, ":main")
+	})
 }
 
 func profileAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (codeprofile.Profile, error) {
@@ -513,30 +573,139 @@ func (g *gateContext) treeStateKey() (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
+type phaseCache struct {
+	Input   string `json:"input"`
+	Outcome string `json:"outcome"`
+}
+
 type retryCache struct {
-	TreeKey     string            `json:"tree_key"`
-	Environment string            `json:"environment"`
-	Steps       map[string]string `json:"steps"`
+	Environment string                `json:"environment"`
+	Steps       map[string]phaseCache `json:"steps"`
 }
 
 func (g *gateContext) loadRetryCache() retryCache {
-	key, _ := g.treeStateKey()
-	empty := retryCache{TreeKey: key, Environment: g.environment.ID.String(), Steps: map[string]string{}}
+	empty := retryCache{Environment: g.environment.ID.String(), Steps: map[string]phaseCache{}}
 	var cache retryCache
-	if key == "" || readJSON(g.repo, gateRetryFile, &cache) != nil || !retryReusable(cache, key, empty.Environment) {
+	if readJSON(g.repo, gateRetryFile, &cache) != nil || !retryReusable(cache, empty.Environment) {
 		return empty
 	}
 	return cache
 }
 
 func (g *gateContext) saveRetryCache(cache retryCache) {
-	if cache.TreeKey != "" {
+	if cache.Environment != "" {
 		_ = writeJSON(g.repo, gateRetryFile, cache, 0o644)
 	}
 }
 
-func retryReusable(cache retryCache, treeKey, environment string) bool {
-	return cache.TreeKey == treeKey && cache.Environment == environment && cache.Steps != nil
+func retryReusable(cache retryCache, environment string) bool {
+	return cache.Environment == environment && cache.Steps != nil
+}
+
+func (g *gateContext) phaseInputFingerprint(phase string) (string, error) {
+	if key := g.phaseKeys[phase]; key != "" {
+		return key, nil
+	}
+	paths := g.cachePaths
+	var err error
+	if paths == nil {
+		paths, err = gitLines(g.repo, "ls-files", "-co", "--exclude-standard")
+		if err != nil {
+			return "", err
+		}
+		g.cachePaths = paths
+	}
+	var evidence map[string]bool
+	if phase == "claims" {
+		evidence, err = compatibilityEvidencePaths(g.repo)
+		if err != nil {
+			return "", err
+		}
+	}
+	key, err := fingerprintPhaseInputs(g.repo, phase, paths, evidence)
+	if err == nil {
+		if g.phaseKeys == nil {
+			g.phaseKeys = map[string]string{}
+		}
+		g.phaseKeys[phase] = key
+	}
+	return key, err
+}
+
+func fingerprintPhaseInputs(root, phase string, paths []string, claimEvidence map[string]bool) (string, error) {
+	var selected []string
+	for _, path := range paths {
+		path = filepath.ToSlash(path)
+		if phaseOwnsPath(phase, path, claimEvidence) {
+			selected = append(selected, path)
+		}
+	}
+	sort.Strings(selected)
+	hasher := sha256.New()
+	hasher.Write([]byte(phase + "\x00"))
+	for _, path := range selected {
+		hasher.Write([]byte(path + "\x00"))
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if errors.Is(err, os.ErrNotExist) {
+			hasher.Write([]byte("<deleted>\x00"))
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		hasher.Write(data)
+		hasher.Write([]byte{0})
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func phaseOwnsPath(phase, path string, claimEvidence map[string]bool) bool {
+	goSource := path == "go.mod" || path == "go.sum" || strings.HasSuffix(path, ".go")
+	goInput := goSource ||
+		(strings.HasPrefix(path, "internal/") || strings.HasPrefix(path, "cmd/")) && !strings.HasSuffix(path, ".md")
+	switch phase {
+	case "vet", "build":
+		return goInput
+	case "test":
+		return goInput || path == "README.md" || strings.HasPrefix(path, "docs/")
+	case "manifest":
+		return goSource || strings.HasPrefix(path, "kernels/") || strings.HasPrefix(path, "cmd/kernel-") ||
+			strings.HasPrefix(path, "internal/cuda/executor/")
+	case "sbom":
+		return goSource || path == "SBOM.cdx.json" || strings.HasPrefix(path, "cmd/sbom/")
+	case "claims":
+		return goSource || path == "compatibility.json" || path == "docs/COMPATIBILITY.md" ||
+			strings.HasPrefix(path, "cmd/compatibility/") || claimEvidence[path]
+	default:
+		return false
+	}
+}
+
+func compatibilityEvidencePaths(root string) (map[string]bool, error) {
+	raw, err := os.ReadFile(filepath.Join(root, "compatibility.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string]bool{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var document struct {
+		Claims []struct {
+			Evidence []struct {
+				Path string `json:"path"`
+			} `json:"evidence"`
+		} `json:"claims"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		return nil, err
+	}
+	paths := map[string]bool{}
+	for _, claim := range document.Claims {
+		for _, evidence := range claim.Evidence {
+			paths[filepath.ToSlash(evidence.Path)] = true
+		}
+	}
+	return paths, nil
 }
 
 func discoverEnvironment(repo string) (runrecord.Environment, error) {
@@ -891,24 +1060,75 @@ func (g *gateContext) stepMagics() (bool, error) {
 	if len(candidates) == 0 {
 		return true, nil
 	}
+	baseline, err := magicCandidatesAtHEAD(g.repo, snapshot, g.paths)
+	if err != nil {
+		return false, err
+	}
 	catalogued, err := ledgerNames(g.repo, g.storePath)
 	if err != nil {
 		g.honesty = append(g.honesty, "magic scan: ledger unreadable ("+err.Error()+"); constants unchecked")
 		return false, nil
 	}
-	uncatalogued := 0
-	for _, candidate := range candidates {
+	g.honesty = append(g.honesty, magicDiagnostics(candidates, baseline, catalogued)...)
+	return false, nil
+}
+
+func magicCandidatesAtHEAD(repo string, snapshot repoanalysis.SourceSnapshot, paths []string) ([]closurescan.Candidate, error) {
+	overlay := map[string][]byte{}
+	for _, path := range paths {
+		if !strings.HasSuffix(path, ".go") {
+			continue
+		}
+		cmd := exec.Command("git", "show", "HEAD:"+path)
+		cmd.Dir = repo
+		data, err := cmd.Output()
+		if err != nil {
+			if _, missing := err.(*exec.ExitError); missing {
+				overlay[path] = nil
+				continue
+			}
+			return nil, err
+		}
+		overlay[path] = data
+	}
+	baseline, err := snapshot.Overlay(overlay)
+	if err != nil {
+		return nil, err
+	}
+	return closurescan.ScanSnapshot(baseline, paths)
+}
+
+func magicDiagnostics(current, baseline []closurescan.Candidate, catalogued map[string]bool) []string {
+	previous := map[string]bool{}
+	for _, candidate := range baseline {
+		previous[candidate.File+"\x00"+candidate.Name+"\x00"+candidate.Value] = true
+	}
+	var lines []string
+	inherited := 0
+	for _, candidate := range current {
 		if catalogued[candidate.Name] {
 			continue
 		}
-		uncatalogued++
-		g.honesty = append(g.honesty, fmt.Sprintf(
-			"uncatalogued constant %s=%s (%s) — triage via closure-scan", candidate.Name, candidate.Value, candidate.File))
+		key := candidate.File + "\x00" + candidate.Name + "\x00" + candidate.Value
+		if previous[key] {
+			inherited++
+			continue
+		}
+		lines = append(lines, fmt.Sprintf(
+			"new uncatalogued constant %s=%s (%s) — triage via closure-scan",
+			candidate.Name, candidate.Value, candidate.File,
+		))
 	}
-	if uncatalogued == 0 {
-		g.honesty = append(g.honesty, fmt.Sprintf("magic scan: %d constant(s) in scope, all catalogued", len(candidates)))
+	if inherited > 0 {
+		lines = append(lines, fmt.Sprintf(
+			"magic backlog: %d inherited uncatalogued constant(s) in touched files; run closure-scan for ranked detail",
+			inherited,
+		))
 	}
-	return false, nil
+	if len(lines) == 0 {
+		lines = append(lines, fmt.Sprintf("magic scan: %d constant(s) in scope, all catalogued", len(current)))
+	}
+	return lines
 }
 
 func ledgerNames(repo, storePath string) (map[string]bool, error) {
@@ -953,6 +1173,12 @@ func (g *gateContext) stepDevice() (bool, error) {
 	return false, err
 }
 
+func (g *gateContext) stepAcceptance() (bool, error) {
+	g.stepEvidence["acceptance"] = g.planRef
+	_, err := command(g.repo, "go", "run", "./cmd/plan", "-verify")
+	return false, err
+}
+
 // pathsTouchDeviceSource: device-lane code lives outside internal/cuda too (e.g.
 // the device optimizer in internal/optimizer). Any _cuda_windows source/test in
 // -paths fires the lane so its device evidence is not silently skipped.
@@ -980,6 +1206,18 @@ func (g *gateContext) stepCommit() (bool, error) {
 	); err != nil {
 		return false, fmt.Errorf("pre-commit record validation: %w", err)
 	}
+	rollbackPlan, err := advancePlanFile(g.repo, g.planRef)
+	if err != nil {
+		return false, err
+	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		_ = rollbackPlan()
+		_, _ = command(g.repo, "git", "add", "-A", "--", plan.Path)
+	}()
 	// Add only paths with UNSTAGED changes: git refuses an add pathspec for a
 	// file that is gone with its deletion already fully staged (observed on
 	// the .ps1 retirement commit, under both plain and -A forms). Fully
@@ -1017,7 +1255,32 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
 	}
+	committed = true
 	return false, nil
+}
+
+func advancePlanFile(repo, ref string) (func() error, error) {
+	itemID, stepID, ok := strings.Cut(ref, "/")
+	if !ok || itemID == "" || stepID == "" {
+		return nil, fmt.Errorf("advance plan: invalid reference %q", ref)
+	}
+	path := filepath.Join(repo, filepath.FromSlash(plan.Path))
+	original, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	document, err := plan.Load(path)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := plan.Advance(document, itemID, stepID)
+	if err != nil {
+		return nil, err
+	}
+	if err := plan.Save(path, updated); err != nil {
+		return nil, err
+	}
+	return func() error { return os.WriteFile(path, original, 0o644) }, nil
 }
 
 func (g *gateContext) prepare() error {
@@ -1373,24 +1636,51 @@ func (g *gateContext) writeStatus(record runrecord.GateRecord, codeCommit string
 	return writeJSON(g.repo, "bin/gate_status.json", status, 0o644)
 }
 
-func (g *gateContext) printSummary(outcome runrecord.Outcome, failure string) {
-	fmt.Printf("=== GATE %s in %.1fs ===\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds())
-	if failure != "" {
-		fmt.Printf("failure: %s\n", failure)
-	}
-	run, skipped := 0, 0
-	for _, s := range g.steps {
-		switch s.Outcome {
-		case runrecord.StepSkipped:
-			skipped++
-		default:
-			run++
+func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, failure string) {
+	var run, skipped []string
+	for _, step := range g.steps {
+		if step.Outcome == runrecord.StepSkipped {
+			skipped = append(skipped, step.Name)
+		} else {
+			run = append(run, step.Name)
 		}
 	}
-	fmt.Printf("honesty: steps run=%d skipped=%d\n", run, skipped)
-	for _, line := range g.honesty {
-		fmt.Printf("honesty: %s\n", line)
+	fmt.Fprintf(output, "GATE %s %.1fs | ran=%s | skipped=%s\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds(), strings.Join(run, ","), strings.Join(skipped, ","))
+	if failure != "" {
+		fmt.Fprintf(output, "failure: %s\n", failure)
 	}
+	for _, line := range compactHonesty(g.honesty) {
+		fmt.Fprintln(output, line)
+	}
+}
+
+func compactHonesty(lines []string) []string {
+	var output []string
+	for _, line := range lines {
+		label := ""
+		switch {
+		case strings.Contains(line, "code profile delta vs HEAD"):
+			label = "delta: "
+		case strings.HasPrefix(line, "test scope:"):
+			label = "scope: "
+		case strings.Contains(line, " reused:"):
+			label = "reuse: "
+		case strings.Contains(line, "exact_clone_") && !strings.Contains(line, "exact_clone_production=none; exact_clone_validator=none; exact_clone_test=none"):
+			label = "review: "
+		case strings.Contains(line, "uncatalogued") || strings.Contains(line, "unplanned dirty") ||
+			strings.Contains(line, "unavailable") || strings.Contains(line, "unreadable") || strings.Contains(line, "not persisted"):
+			label = "warning: "
+		}
+		if label == "" {
+			continue
+		}
+		line = label + line
+		if len(line) > 600 {
+			line = line[:600] + "..."
+		}
+		output = append(output, line)
+	}
+	return output
 }
 
 func command(dir, name string, args ...string) (string, error) {

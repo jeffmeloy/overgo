@@ -17,6 +17,8 @@
 //	                               item). -force <reason> overrides loudly.
 //	plan -status                   one line per item
 //	plan -compact                  drop completed rows; normalize partial work
+//	plan -sync-master              prepare a safe master merge and semantically
+//	                               merge generated plan projections
 //
 // Enforcement rationale (owner 2026-08-11, after a session drifted off-plan for
 // ~13 commits with zero -advance): "done" must be machine-checked, not
@@ -41,6 +43,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/repodb"
@@ -64,6 +67,7 @@ func main() {
 	add := flag.Bool("add", false, "inject a new top-priority task: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	compact := flag.Bool("compact", false, "drop completed rows and normalize partial rows to open work")
+	syncMasterFlag := flag.Bool("sync-master", false, "prepare a master merge with a semantic docs/plan.json projection")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
 	contain := flag.String("contain", "", "record typed lane containment: -contain <reason-code> -lane <lane> <detail>")
 	lane := flag.String("lane", "", "lane affected by -contain")
@@ -73,17 +77,17 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "with -context: explicit lane role (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, contain: *contain, lane: *lane, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, syncMaster: *syncMasterFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, contain: *contain, lane: *lane, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	next, prompt, verify, status, context, advance, add, setverify, compact, stop         bool
-	force, title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane string
-	leaseReport                                                                           bool
-	capacity                                                                              plan.Resources
+	next, prompt, verify, status, context, advance, add, setverify, compact, syncMaster, stop bool
+	force, title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane     string
+	leaseReport                                                                               bool
+	capacity                                                                                  plan.Resources
 }
 
 func run(c cli, args []string) error {
@@ -104,6 +108,8 @@ func run(c cli, args []string) error {
 		return err
 	}
 	switch {
+	case c.syncMaster:
+		return syncMaster(".", document, os.Stdout)
 	case c.recordLease != "":
 		return recordWorkLease(".", c.recordLease, os.Stdout)
 	case c.recordLeaseOutcome != "":
@@ -135,7 +141,7 @@ func run(c cli, args []string) error {
 	case c.context:
 		return printAutomationContext(document, c.role, os.Stdout)
 	case c.prompt:
-		printPrompt(document)
+		printPrompt(document, os.Stdout)
 		return nil
 	case c.verify:
 		it, st, ok := plan.Current(document)
@@ -415,48 +421,22 @@ func nextAction(document plan.Plan) (string, bool) {
 
 // printPrompt emits the self-contained, non-negotiable task for the current
 // step. The loop feeds THIS to the agent; the agent does not author it.
-func printPrompt(document plan.Plan) {
+func printPrompt(document plan.Plan, output io.Writer) {
 	it, st, ok := plan.Current(document)
 	if !ok {
-		fmt.Println("PLAN COMPLETE: every item is done. Stop and tell the user.")
+		fmt.Fprintln(output, "PLAN COMPLETE: every item is done. Stop and tell the user.")
 		return
-	}
-	doctrine := document.Doctrine
-	if len(doctrine) > 700 {
-		doctrine = doctrine[:700] + " ...[see docs/plan.json for the full doctrine]"
 	}
 	verify := st.Verify
 	if strings.TrimSpace(verify) == "" {
-		verify = "(NONE DEFINED -- you MUST add a runnable step.verify that exits 0 iff this step's\n" +
-			"         acceptance holds, to docs/plan.json, before this step can be advanced.)"
+		verify = "MISSING -- add a runnable step.verify before implementation"
 	}
-	fmt.Printf(`=== PLAN TASK (generated -- do exactly this step, nothing else) ===
-Campaign: %s
-Item:  %s -- %s
-Step:  %s -- %s
-
-BINDING DOCTRINE (port-first):
+	fmt.Fprintf(output, `TASK %s/%s
 %s
-
-PROTOCOL -- no deviation:
-  1. Do ONLY this step. Port from adaptive_new first, verify against its goldens.
-  2. Do NOT start another step, act on a finding, or refactor off to the side. A
-     finding goes to docs/findings.json; it becomes work ONLY by later appearing
-     here as the top step -- never by you acting on it now.
-  3. If this step is wrong, blocked, or you disagree with it: STOP and tell the
-     user. Do NOT substitute your own work for the dispatched step.
-  4. Commit ONLY via the plan-bound gate:
-       go run ./cmd/gate -plan %s/%s -message-file <msg> -paths <csv>
-     The gate REFUSES any commit whose -plan is not this active step.
-  5. "Done" means: 'go run ./cmd/plan -verify' exits 0 (it runs this step's
-     acceptance command below), THEN 'go run ./cmd/plan -advance %s %s'.
-  6. After advancing, re-rank/refactor the plan from the result (or user input),
-     then 'go run ./cmd/plan -prompt' for the next task. Repeat until complete.
-
-VERIFY (this step's machine-checked acceptance):
-  %s
-=== END TASK ===
-`, document.Campaign, it.ID, it.Title, st.ID, st.Title, doctrine, it.ID, st.ID, it.ID, st.ID, verify)
+VERIFY %s
+COMMIT go run ./cmd/gate -plan %s/%s -message-file <msg> -paths <csv>
+RULES skill.md; only this task; port-first; park off-scope findings with cmd/finding; gate advances atomically; then rerun plan -prompt.
+`, it.ID, st.ID, st.Title, verify, it.ID, st.ID)
 }
 
 // runVerify executes the step's verify command; its exit code is the verdict.
@@ -470,14 +450,24 @@ func runVerify(it plan.Item, st plan.Step) error {
 	if err != nil {
 		return fmt.Errorf("verify %s/%s: %w", it.ID, st.ID, err)
 	}
-	cmd := exec.Command(shell, "-c", st.Verify)
-	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
-	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("verify FAILED for %s/%s: %w", it.ID, st.ID, err)
+	verifyCommand := st.Verify
+	structuredGoTest := strings.Contains(st.Verify, "go test")
+	if structuredGoTest {
+		verifyCommand = testevidence.JSONCommand(st.Verify)
 	}
-	if err := testevidence.VerifyOutput(st.Verify, buf.String()); err != nil {
-		return fmt.Errorf("verify VACUOUS for %s/%s: %v -- a skip is NOT a pass; run the oracle against the real prerequisite (on hardware / with the fixture) or record an honest stop, but do not advance on unverified parity", it.ID, st.ID, err)
+	cmd := exec.Command(shell, "-c", verifyCommand)
+	cmd.Stdout, cmd.Stderr = &buf, &buf
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("verify FAILED for %s/%s: %w: %s", it.ID, st.ID, err, clioptions.Tail(buf.String(), 2000))
+	}
+	var evidenceErr error
+	if structuredGoTest {
+		evidenceErr = testevidence.VerifyGoTestTarget(st.Verify, buf.String())
+	} else {
+		evidenceErr = testevidence.VerifyOutput(st.Verify, buf.String())
+	}
+	if evidenceErr != nil {
+		return fmt.Errorf("verify VACUOUS for %s/%s: %v -- run the named oracle against its real prerequisite or record an honest stop", it.ID, st.ID, evidenceErr)
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: PASS\n", it.ID, st.ID)
 	return nil
@@ -511,47 +501,23 @@ func verificationShell() (string, error) {
 // package "ok" without these markers and are unaffected.
 
 func advanceStep(document plan.Plan, itemID, stepID, force string, onOverride func(string, string) error) error {
-	for i := range document.Items {
-		if document.Items[i].ID != itemID {
-			continue
-		}
-		if stepID != "." {
-			targetIndex := -1
-			for j := range document.Items[i].Steps {
-				if document.Items[i].Steps[j].ID == stepID {
-					targetIndex = j
-					break
-				}
-			}
-			if targetIndex < 0 {
-				return fmt.Errorf("step %q not found in %q", stepID, itemID)
-			}
-			if err := gateAdvance(document.Items[i], document.Items[i].Steps[targetIndex], force); err != nil {
-				return err
-			}
-			if force != "" && onOverride != nil {
-				if err := onOverride(itemID+"/"+stepID, force); err != nil {
-					return err
-				}
-			}
-			document.Items[i].Steps = append(document.Items[i].Steps[:targetIndex], document.Items[i].Steps[targetIndex+1:]...)
-			if len(document.Items[i].Steps) == 0 {
-				document.Items = append(document.Items[:i], document.Items[i+1:]...)
-			}
-			return finishAdvance(document, itemID, stepID)
-		}
-		if err := gateAdvance(document.Items[i], plan.Step{ID: "."}, force); err != nil {
+	it, st, open := plan.Current(document)
+	if !open || it.ID != itemID || st.ID != stepID {
+		return fmt.Errorf("%s/%s is not the current open step", itemID, stepID)
+	}
+	if err := gateAdvance(it, st, force); err != nil {
+		return err
+	}
+	if force != "" && onOverride != nil {
+		if err := onOverride(itemID+"/"+stepID, force); err != nil {
 			return err
 		}
-		if force != "" && onOverride != nil {
-			if err := onOverride(itemID+"/.", force); err != nil {
-				return err
-			}
-		}
-		document.Items = append(document.Items[:i], document.Items[i+1:]...)
-		return finishAdvance(document, itemID, stepID)
 	}
-	return fmt.Errorf("item %q not found", itemID)
+	updated, err := plan.Advance(document, itemID, stepID)
+	if err != nil {
+		return err
+	}
+	return finishAdvance(updated, itemID, stepID)
 }
 
 func recordOverride(lane, detail string) error {

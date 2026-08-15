@@ -3,7 +3,7 @@
 Archived compatibility and validation record through 2026-08-01. This file is
 append-only historical evidence, not the live roadmap. See [`plan.json`](plan.json)
 for current work, [`adaptive_new_parity_report.md`](adaptive_new_parity_report.md)
-for the current assessment, and [`COMPATIBILITY.md`](COMPATIBILITY.md) for the
+for the historical 2026-08-14 assessment, and [`COMPATIBILITY.md`](COMPATIBILITY.md) for the
 generated compatibility matrix. Statements that work "remains pending" record
 their point in the chronology and may be superseded by later commits and live
 compatibility claims.

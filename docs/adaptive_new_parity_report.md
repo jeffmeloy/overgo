@@ -1,8 +1,15 @@
 # adaptive_new Parity and Performance Report
 
+<!-- overgo-document: historical-ranking -->
+<!-- overgo-current-work: docs/plan.json -->
+
+> Evidence snapshot reviewed 2026-08-15. Its priorities are not current work
+> authority; use `docs/plan.json` and generated compatibility evidence for
+> current work and status.
+
 Validation base: current Overgo master plus the `dense-real-models` slice;
-adaptive_new references are named per measurement; reviewed 2026-08-15.
-Uncommitted changes in either repository are not reference evidence.
+adaptive_new references are named per measurement. Uncommitted changes in
+either repository are not reference evidence.
 
 Scope: adaptive_new Go runtime and training code, model-native Python oracles,
 Overgo host/CUDA runtime, recipes, training paths, compatibility claims, and

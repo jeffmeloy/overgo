@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 // TestStopDecision pins the pure Stop verdict: any valve allows; otherwise the
 // turn-end is blocked iff work is orphaned (uncommitted work or an armed dispatch
@@ -29,10 +33,30 @@ func TestStopDecision(t *testing.T) {
 		{"both orphans", false, false, false, false, true, true, true},
 	}
 	for _, c := range cases {
-		got := stopDecision(c.stopHookActive, c.freshStop, c.gateRunning, c.planComplete, c.dirtyGo, c.marker)
+		got := stopDecision(c.stopHookActive, false, c.freshStop, c.gateRunning, c.planComplete, c.dirtyGo, c.marker)
 		if got != c.wantBlock {
 			t.Errorf("%s: stopDecision=%v want %v", c.name, got, c.wantBlock)
 		}
+	}
+}
+
+func TestBoundedRequestCompletionDoesNotRecordStop(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "bounded")
+	if err := os.WriteFile(marker, []byte("bounded\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bounded := consumeBoundedRequest(marker)
+	if !bounded || fileExists(marker) {
+		t.Fatal("bounded request marker was not consumed")
+	}
+	if stopDecision(false, bounded, false, false, false, true, true) {
+		t.Fatal("bounded answer was blocked by continuation state")
+	}
+	if !boundedRequestText("automation plan completed?") || !boundedRequestText("summarize work completed") || !boundedRequestText("should we add a doc check?") {
+		t.Fatal("bounded question/status request was not classified")
+	}
+	if boundedRequestText("can you implement all remaining tasks?") || boundedRequestText("continue until done") {
+		t.Fatal("action or continuation request was classified as bounded")
 	}
 }
 

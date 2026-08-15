@@ -20,11 +20,14 @@ description: Autonomous iteration doctrine for overgo. Use when working in this 
 
 ## Operating procedure (non-negotiable)
 
-The automation carries the cognitive load so you do not have to. Following it is
-what keeps an agent on task for days; self-managing the goal, next action, and
-commit path is the overload that produces over-analysis, forgotten goals, and
-invented forks. Every turn, run the loop — do not reinvent it, improve it
-in-flight, or fall back to the manual path:
+The loop is cognitive offloading, not control. A repo this size plus continuous
+iteration exceeds what any agent can hold at once. Self-managing the goal, the
+next action, the commit path, and where code lives eats the exact budget you
+need for the actual problem — and that starvation IS the over-analysis, the
+forgotten goal, the invented fork. Handing that bookkeeping to the loop frees
+your reasoning for the hard part: following it makes you more capable, not less.
+Every turn, run the loop — do not reinvent it, improve it in-flight, or fall
+back to the manual path:
 
 1. `go run ./cmd/plan -prompt` => the ONE dispatched step. Do exactly that step.
 2. Need an existing capability? `docs/MAP.md` => the owner. Do not re-derive.

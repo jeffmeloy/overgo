@@ -15,7 +15,6 @@ package diffusionimage
 
 import (
 	"fmt"
-	"io"
 	"math"
 	"path/filepath"
 	"strings"
@@ -150,20 +149,11 @@ func loadTensors(directory string) (map[string][]float32, error) {
 	}
 	defer source.Close()
 	tensors := make(map[string][]float32, len(source.Tensors))
-	for name, tensor := range source.Tensors {
-		reader, err := safetensors.F32Reader(tensor)
+	for _, name := range source.Names() {
+		tensor := source.Tensors[name]
+		values, err := safetensors.ReadF32(tensor)
 		if err != nil {
 			return nil, fmt.Errorf("diffusionimage: tensor %q: %w", name, err)
-		}
-		elements := tensor.Elements()
-		raw := make([]byte, elements*4)
-		if _, err := io.ReadFull(reader, raw); err != nil {
-			return nil, fmt.Errorf("diffusionimage: tensor %q payload: %w", name, err)
-		}
-		values := make([]float32, elements)
-		for i := range values {
-			bits := uint32(raw[4*i]) | uint32(raw[4*i+1])<<8 | uint32(raw[4*i+2])<<16 | uint32(raw[4*i+3])<<24
-			values[i] = math.Float32frombits(bits)
 		}
 		tensors[strings.TrimPrefix(name, compilePrefix)] = values
 	}

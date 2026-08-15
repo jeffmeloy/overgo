@@ -163,7 +163,7 @@ func (r *CogVLMVisionRunner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	_ bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizerAPI, []image.Image{source}, []string{beforeImage, afterImage}, false)
+	return r.BuildImagesPrompt(ctx, tokenizerAPI, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
 }
 
 func (r *CogVLMVisionRunner) BuildImagesPrompt(
@@ -171,7 +171,7 @@ func (r *CogVLMVisionRunner) BuildImagesPrompt(
 	tokenizerAPI ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	_ bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
 	if tokenizerAPI == nil {
 		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
@@ -179,22 +179,11 @@ func (r *CogVLMVisionRunner) BuildImagesPrompt(
 	if len(sources) == 0 || len(text) != len(sources)+1 {
 		return MultimodalPrompt{}, errors.New("projector: CogVLM image/text sequence is inconsistent")
 	}
-	return r.buildImagesPrompt(ctx, tokenizerAPI, sources, "Question: "+strings.Join(text, "")+" Answer:")
-}
-
-func (r *CogVLMVisionRunner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizerAPI ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	if tokenizerAPI == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	prompt := strings.Join(text, "")
+	if !options.History {
+		prompt = "Question: " + prompt + " Answer:"
 	}
-	if len(sources) == 0 || len(text) != len(sources)+1 {
-		return MultimodalPrompt{}, errors.New("projector: CogVLM history sequence is inconsistent")
-	}
-	return r.buildImagesPrompt(ctx, tokenizerAPI, sources, strings.Join(text, ""))
+	return r.buildImagesPrompt(ctx, tokenizerAPI, sources, prompt)
 }
 
 func (r *CogVLMVisionRunner) buildImagesPrompt(

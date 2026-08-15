@@ -76,7 +76,7 @@ func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {
 	second := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	prompt, err := runner.BuildImagesPrompt(
 		context.Background(), paddleOCRPromptTokenizer{}, []image.Image{first, second},
-		[]string{"OCR:", " and ", "Table Recognition:"}, false,
+		[]string{"OCR:", " and ", "Table Recognition:"}, PromptOptions{},
 	)
 	if err != nil {
 		t.Fatal(err)

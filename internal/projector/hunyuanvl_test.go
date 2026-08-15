@@ -73,7 +73,7 @@ func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
 	prompt, err := runner.BuildImagesPrompt(
 		context.Background(), hunyuanVLPromptTokenizer{},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
-		[]string{"first ", " then ", " question"}, false,
+		[]string{"first ", " then ", " question"}, PromptOptions{},
 	)
 	if err != nil {
 		t.Fatal(err)

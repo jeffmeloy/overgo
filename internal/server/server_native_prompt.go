@@ -456,17 +456,17 @@ func (h *Handler) projectNativeMultimodalPrompt(
 			if selected == nil {
 				selected = h.config.Qwen3VLProjector
 			}
-			history, ok := selected.(projector.ImageHistoryProjector)
+			history, ok := selected.(projector.MultiImageProjector)
 			if !ok {
 				return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: selected projector does not support media history")
 			}
-			projected, err = history.BuildImagesHistoryPrompt(ctx, tokenizerAPI, images, prompt.MediaText)
+			projected, err = history.BuildImagesPrompt(ctx, tokenizerAPI, images, prompt.MediaText, projector.PromptOptions{History: true})
 		} else if len(images) > 1 {
 			multi, ok := h.config.ImageProjector.(projector.MultiImageProjector)
 			if !ok {
 				return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: selected projector does not support multiple images")
 			}
-			projected, err = multi.BuildImagesPrompt(ctx, tokenizerAPI, images, prompt.MediaText, thinking)
+			projected, err = multi.BuildImagesPrompt(ctx, tokenizerAPI, images, prompt.MediaText, projector.PromptOptions{Thinking: thinking})
 		} else if h.config.ImageProjector != nil {
 			projected, err = h.config.ImageProjector.BuildImagePrompt(
 				ctx, tokenizerAPI, images[0], prompt.BeforeMedia, prompt.AfterMedia, thinking,

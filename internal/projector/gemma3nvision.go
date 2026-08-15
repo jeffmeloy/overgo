@@ -495,7 +495,7 @@ func (r *Gemma3nVisionRunner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	_ bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
 }
 
 func (r *Gemma3nVisionRunner) BuildImagesPrompt(
@@ -503,25 +503,17 @@ func (r *Gemma3nVisionRunner) BuildImagesPrompt(
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	_ bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
 	if len(sources) == 0 || len(text) != len(sources)+1 {
 		return MultimodalPrompt{}, errors.New("projector: Gemma 3n image/text sequence is inconsistent")
 	}
-	formatted := make([]string, len(text))
-	copy(formatted, text)
-	formatted[0] = "<bos><start_of_turn>user\n" + formatted[0]
-	formatted[len(formatted)-1] += "<end_of_turn>\n<start_of_turn>model\n"
-	return r.buildImagesPrompt(ctx, tokenizer, sources, formatted, false)
-}
-
-func (r *Gemma3nVisionRunner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+	if !options.History {
+		text = slices.Clone(text)
+		text[0] = "<bos><start_of_turn>user\n" + text[0]
+		text[len(text)-1] += "<end_of_turn>\n<start_of_turn>model\n"
+	}
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
 }
 
 func (r *Gemma3nVisionRunner) buildImagesPrompt(

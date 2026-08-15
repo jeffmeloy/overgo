@@ -164,12 +164,16 @@ type fakeHistoryProjector struct {
 	mediaKinds  []projector.MediaKind
 }
 
-func (f *fakeHistoryProjector) BuildImagesHistoryPrompt(
+func (f *fakeHistoryProjector) BuildImagesPrompt(
 	_ context.Context,
 	_ projector.ImageTokenizer,
 	images []image.Image,
 	text []string,
+	options projector.PromptOptions,
 ) (projector.MultimodalPrompt, error) {
+	if !options.History {
+		return f.fakeQwen3VLProjector.BuildImagesPrompt(context.Background(), nil, images, text, options)
+	}
 	f.images = len(images)
 	f.historyText = append([]string(nil), text...)
 	f.historyRuns++
@@ -244,7 +248,7 @@ func (f *fakeQwen3VLProjector) BuildImagesPrompt(
 	_ projector.ImageTokenizer,
 	images []image.Image,
 	text []string,
-	_ bool,
+	_ projector.PromptOptions,
 ) (projector.MultimodalPrompt, error) {
 	f.images = len(images)
 	f.text = append([]string(nil), text...)

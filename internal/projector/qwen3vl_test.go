@@ -242,7 +242,7 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	prompt, err := runner.BuildImagesPrompt(
 		context.Background(), qwen3VLPromptTokenizer{}, []image.Image{input, input},
-		[]string{"A", "B", "C"}, true,
+		[]string{"A", "B", "C"}, PromptOptions{Thinking: true},
 	)
 	if err != nil {
 		t.Fatal(err)

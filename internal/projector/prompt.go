@@ -69,11 +69,12 @@ type Projector interface {
 }
 
 type MultiImageProjector interface {
-	BuildImagesPrompt(context.Context, ImageTokenizer, []image.Image, []string, bool) (MultimodalPrompt, error)
+	BuildImagesPrompt(context.Context, ImageTokenizer, []image.Image, []string, PromptOptions) (MultimodalPrompt, error)
 }
 
-type ImageHistoryProjector interface {
-	BuildImagesHistoryPrompt(context.Context, ImageTokenizer, []image.Image, []string) (MultimodalPrompt, error)
+type PromptOptions struct {
+	Thinking bool
+	History  bool
 }
 
 type MediaKind uint8
@@ -354,7 +355,7 @@ func (r *Granite4VisionRunner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	_ bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
 }
 
 func (r *Granite4VisionRunner) BuildImagesPrompt(
@@ -362,18 +363,9 @@ func (r *Granite4VisionRunner) BuildImagesPrompt(
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	_ bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
-}
-
-func (r *Granite4VisionRunner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
 }
 
 func (r *Granite4VisionRunner) buildImagesPrompt(
@@ -426,7 +418,7 @@ func (r *Llama4VisionRunner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	_ bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
 }
 
 func (r *Llama4VisionRunner) BuildImagesPrompt(
@@ -434,18 +426,9 @@ func (r *Llama4VisionRunner) BuildImagesPrompt(
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	_ bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
-}
-
-func (r *Llama4VisionRunner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
 }
 
 func (r *Llama4VisionRunner) buildImagesPrompt(
@@ -492,7 +475,7 @@ func (r *HunyuanVLRunner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	_ bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
 }
 
 func (r *HunyuanVLRunner) BuildImagesPrompt(
@@ -500,18 +483,9 @@ func (r *HunyuanVLRunner) BuildImagesPrompt(
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	_ bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
-}
-
-func (r *HunyuanVLRunner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
 }
 
 func (r *HunyuanVLRunner) buildImagesPrompt(
@@ -561,7 +535,7 @@ func (r *PaddleOCRRunner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	_ bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
 }
 
 func (r *PaddleOCRRunner) BuildImagesPrompt(
@@ -569,18 +543,9 @@ func (r *PaddleOCRRunner) BuildImagesPrompt(
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	_ bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
-}
-
-func (r *PaddleOCRRunner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
 }
 
 func (r *PaddleOCRRunner) buildImagesPrompt(
@@ -637,7 +602,7 @@ func (r *MiMoVLRunner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	_ bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
 }
 
 func (r *MiMoVLRunner) BuildImagesPrompt(
@@ -645,18 +610,9 @@ func (r *MiMoVLRunner) BuildImagesPrompt(
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	_ bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
-}
-
-func (r *MiMoVLRunner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
 }
 
 func (r *MiMoVLRunner) buildImagesPrompt(
@@ -705,7 +661,7 @@ func (r *Qwen3VLRunner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	thinking bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, thinking)
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{Thinking: thinking})
 }
 
 func (r *Qwen2VLRunner) BuildImagePrompt(
@@ -715,7 +671,7 @@ func (r *Qwen2VLRunner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	_ bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
 }
 
 func (r *Qwen2VLRunner) BuildImagesPrompt(
@@ -723,18 +679,9 @@ func (r *Qwen2VLRunner) BuildImagesPrompt(
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	_ bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, false)
-}
-
-func (r *Qwen2VLRunner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, true)
+	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
 }
 
 func (r *Qwen2VLRunner) buildImagesPrompt(
@@ -795,7 +742,7 @@ func (r *Gemma4Runner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	_ bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, false)
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
 }
 
 func (r *Gemma4Runner) BuildImagesPrompt(
@@ -803,53 +750,40 @@ func (r *Gemma4Runner) BuildImagesPrompt(
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	_ bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
 	if err := validateImagePromptInputs(tokenizer, sources, text, "Gemma 4"); err != nil {
 		return MultimodalPrompt{}, err
 	}
-	for _, segment := range text[:len(text)-1] {
-		if strings.TrimSpace(segment) != "" {
-			return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires images before user text")
+	if !options.History {
+		for _, segment := range text[:len(text)-1] {
+			if strings.TrimSpace(segment) != "" {
+				return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires images before user text")
+			}
 		}
 	}
 	plan := imagePromptPlan{
 		Family: "Gemma 4", Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
-		AttentionBlocks: imagePromptBlocks,
+		AddSpecial: options.History, AttentionBlocks: imagePromptBlocks,
 		Render: func(text []string, items []imagePromptItem) string {
 			var prompt strings.Builder
-			prompt.WriteString("<bos><|turn>user\n")
-			for _, item := range items {
-				prompt.WriteString("<|image>")
-				prompt.WriteString(strings.Repeat("<|image|>", item.RunCount))
-				prompt.WriteString("<image|>")
+			if !options.History {
+				prompt.WriteString("<bos><|turn>user\n")
 			}
-			prompt.WriteString(strings.TrimSpace(text[len(text)-1]))
-			prompt.WriteString("<turn|>\n<|turn>model\n<|channel>thought\n<channel|>")
-			return prompt.String()
-		},
-	}
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, r.gemma4ImagePromptItem)
-}
-
-func (r *Gemma4Runner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	plan := imagePromptPlan{
-		Family: "Gemma 4 history", Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
-		AddSpecial: true, AttentionBlocks: imagePromptBlocks,
-		Render: func(text []string, items []imagePromptItem) string {
-			var prompt strings.Builder
 			for index, item := range items {
-				prompt.WriteString(text[index])
+				if options.History {
+					prompt.WriteString(text[index])
+				}
 				prompt.WriteString("<|image>")
 				prompt.WriteString(strings.Repeat("<|image|>", item.RunCount))
 				prompt.WriteString("<image|>")
 			}
-			prompt.WriteString(text[len(text)-1])
+			if options.History {
+				prompt.WriteString(text[len(text)-1])
+			} else {
+				prompt.WriteString(strings.TrimSpace(text[len(text)-1]))
+				prompt.WriteString("<turn|>\n<|turn>model\n<|channel>thought\n<channel|>")
+			}
 			return prompt.String()
 		},
 	}
@@ -1000,7 +934,7 @@ func (r *Qwen3VLRunner) BuildQwen35ImagePrompt(
 	beforeImage, afterImage string,
 	thinking bool,
 ) (Qwen3VLPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, thinking)
+	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{Thinking: thinking})
 }
 
 func (r *Qwen3VLRunner) BuildImagesPrompt(
@@ -1008,32 +942,17 @@ func (r *Qwen3VLRunner) BuildImagesPrompt(
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	thinking bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	suffix := "<|im_end|>\n<|im_start|>assistant\n<think>\n"
-	if !thinking {
-		suffix += "\n</think>\n\n"
-	}
-	plan := qwenImagePlan("Qwen3-VL", false, r.spec.OutputHidden, func(text []string, items []imagePromptItem) string {
-		return renderQwenImagePrompt(text, items, false, suffix)
-	})
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-		output, err := r.EncodeImage(ctx, source, DefaultQwen3VLPreprocessOptions())
-		if err != nil {
-			return imagePromptItem{}, err
+	suffix := ""
+	if !options.History {
+		suffix = "<|im_end|>\n<|im_start|>assistant\n<think>\n"
+		if !options.Thinking {
+			suffix += "\n</think>\n\n"
 		}
-		return qwenImagePromptItem(output)
-	})
-}
-
-func (r *Qwen3VLRunner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	plan := qwenImagePlan("Qwen3-VL history", true, r.spec.OutputHidden, func(text []string, items []imagePromptItem) string {
-		return renderQwenImagePrompt(text, items, true, "")
+	}
+	plan := qwenImagePlan("Qwen3-VL", options.History, r.spec.OutputHidden, func(text []string, items []imagePromptItem) string {
+		return renderQwenImagePrompt(text, items, options.History, suffix)
 	})
 	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		output, err := r.EncodeImage(ctx, source, DefaultQwen3VLPreprocessOptions())

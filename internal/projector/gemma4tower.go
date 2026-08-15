@@ -6,7 +6,6 @@ package projector
 // Encoding runs in a later serving step; opening validates the catalog.
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -74,16 +73,6 @@ type Gemma4TowerRunner struct {
 	projectorResources
 	spec      Gemma4TowerSpec
 	audioPlan *gemma4AudioFrontendPlan
-}
-
-func openGemma4Tower(ctx context.Context, file *gguf.File, options OpenOptions) (*Gemma4TowerRunner, error) {
-	return buildCatalogProjector(ctx, file, options, "Gemma 4 tower", nil,
-		ReadGemma4TowerSpec, validateGemma4TowerCatalog,
-		func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
-			return &Gemma4TowerRunner{
-				projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, audioPlan: newGemma4AudioFrontendPlan(spec.Audio),
-			}
-		})
 }
 
 func (r *Gemma4TowerRunner) Spec() Gemma4TowerSpec {

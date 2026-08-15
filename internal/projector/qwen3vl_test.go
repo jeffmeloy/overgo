@@ -315,10 +315,8 @@ func compareFloat32Tolerance(t *testing.T, name string, got, want []float32, tol
 
 func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 	spec := Qwen3VLSpec{
-		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8,
-		MergerIntermediate: 16, OutputHidden: 6, Layers: 1, Heads: 1,
-		MergeSize: 2, LayerNormEpsilon: 1e-6,
-		ImageStd: [3]float32{1, 1, 1},
+		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1),
+		MergerIntermediate: 16, OutputHidden: 6, MergeSize: 2,
 	}
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
@@ -346,10 +344,8 @@ func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 
 func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
 	spec := Qwen3VLSpec{
-		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8,
-		MergerIntermediate: 16, OutputHidden: 6, Layers: 1, Heads: 1,
-		MergeSize: 2, LayerNormEpsilon: 1e-6,
-		ImageStd: [3]float32{1, 1, 1},
+		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1),
+		MergerIntermediate: 16, OutputHidden: 6, MergeSize: 2,
 	}
 	frames := make([]image.Image, 3)
 	for index, red := range []uint8{10, 20, 30} {

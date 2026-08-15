@@ -25,22 +25,14 @@ type Granite4VisionResolution struct {
 }
 
 type Granite4VisionSpec struct {
-	ImageSize        int
-	PatchSize        int
-	Hidden           int
-	Intermediate     int
-	ProjectionDim    int
-	QFormerWidth     int
-	Layers           int
-	Heads            int
-	WindowSide       int
-	QuerySide        int
-	LayerNormEpsilon float32
-	ImageMean        [3]float32
-	ImageStd         [3]float32
-	FeatureLayers    []int
-	SpatialOffsets   []int
-	GridCandidates   []Granite4VisionResolution
+	visionBackboneSpec
+	ProjectionDim  int
+	QFormerWidth   int
+	WindowSide     int
+	QuerySide      int
+	FeatureLayers  []int
+	SpatialOffsets []int
+	GridCandidates []Granite4VisionResolution
 }
 
 type Granite4VisionTile struct {
@@ -68,14 +60,6 @@ type Granite4VisionRunner struct {
 	attention visionAttentionPlan
 }
 
-func openGranite4Vision(ctx context.Context, file *gguf.File, options OpenOptions) (*Granite4VisionRunner, error) {
-	return buildCatalogProjector(ctx, file, options, "Granite 4 Vision", nil,
-		ReadGranite4VisionSpec, validateGranite4VisionCatalog,
-		func(file *gguf.File, spec Granite4VisionSpec, cuda *projectorCUDA) *Granite4VisionRunner {
-			return &Granite4VisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		})
-}
-
 func (r *Granite4VisionRunner) Spec() Granite4VisionSpec {
 	if r == nil {
 		return Granite4VisionSpec{}
@@ -84,33 +68,14 @@ func (r *Granite4VisionRunner) Spec() Granite4VisionSpec {
 }
 
 func ReadGranite4VisionSpec(file *gguf.File) (Granite4VisionSpec, error) {
-	if err := validateVisionProjector(file, "clip.projector_type", granite4VisionProjectorType); err != nil {
+	spec := Granite4VisionSpec{}
+	if err := readVisionBackbone(file, granite4VisionProjectorType, &spec.ProjectionDim, &spec.visionBackboneSpec); err != nil {
 		return Granite4VisionSpec{}, err
 	}
-	spec := Granite4VisionSpec{}
 	if err := readMetadataIntFields(file,
-		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
-		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
-		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
-		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
-		metadataIntField{"clip.vision.projection_dim", &spec.ProjectionDim},
-		metadataIntField{"clip.vision.block_count", &spec.Layers},
-		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
 		metadataIntField{"clip.vision.projector.window_side", &spec.WindowSide},
 		metadataIntField{"clip.vision.projector.query_side", &spec.QuerySide},
 	); err != nil {
-		return Granite4VisionSpec{}, err
-	}
-	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
-	if err != nil {
-		return Granite4VisionSpec{}, err
-	}
-	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
-	if err != nil {
-		return Granite4VisionSpec{}, err
-	}
-	std, err := metadataFloat32Array(file, "clip.vision.image_std", 3)
-	if err != nil {
 		return Granite4VisionSpec{}, err
 	}
 	features, err := granite4MetadataInts(file, "clip.vision.feature_layer", true)
@@ -130,12 +95,9 @@ func ReadGranite4VisionSpec(file *gguf.File) (Granite4VisionSpec, error) {
 		return Granite4VisionSpec{}, errors.New("projector: Granite 4 Vision QFormer FFN is unavailable")
 	}
 	spec.QFormerWidth = int(qfUp.Shape[1])
-	spec.LayerNormEpsilon = epsilon
 	spec.FeatureLayers = features
 	spec.SpatialOffsets = offsets
 	spec.GridCandidates = candidates
-	copy(spec.ImageMean[:], mean)
-	copy(spec.ImageStd[:], std)
 	if err := spec.validate(); err != nil {
 		return Granite4VisionSpec{}, err
 	}
@@ -193,6 +155,9 @@ func granite4GridCandidates(file *gguf.File) ([]Granite4VisionResolution, error)
 }
 
 func (s Granite4VisionSpec) validate() error {
+	if err := s.visionBackboneSpec.validate(); err != nil {
+		return err
+	}
 	patchSide := 0
 	if s.PatchSize > 0 {
 		patchSide = s.ImageSize / s.PatchSize
@@ -201,11 +166,10 @@ func (s Granite4VisionSpec) validate() error {
 	if s.WindowSide > 0 {
 		newSide = patchSide / s.WindowSide * s.QuerySide
 	}
-	if s.ImageSize <= 0 || s.PatchSize <= 0 || s.Hidden <= 0 || s.Intermediate <= 0 || s.ProjectionDim <= 0 ||
-		s.QFormerWidth <= 0 || s.Layers <= 0 || s.Heads <= 0 || s.WindowSide <= 0 || s.QuerySide <= 0 ||
-		s.ImageSize%s.PatchSize != 0 || s.Hidden%s.Heads != 0 || s.Hidden%granite4VisionAttentionHeadWidth != 0 || patchSide%s.WindowSide != 0 ||
+	if s.ProjectionDim <= 0 || s.QFormerWidth <= 0 || s.WindowSide <= 0 || s.QuerySide <= 0 ||
+		s.Hidden%granite4VisionAttentionHeadWidth != 0 || patchSide%s.WindowSide != 0 ||
 		s.WindowSide%s.QuerySide != 0 || newSide <= 0 || patchSide%newSide != 0 ||
-		len(s.FeatureLayers) == 0 || len(s.FeatureLayers) != len(s.SpatialOffsets) || s.LayerNormEpsilon <= 0 {
+		len(s.FeatureLayers) == 0 || len(s.FeatureLayers) != len(s.SpatialOffsets) {
 		return fmt.Errorf("projector: invalid Granite 4 Vision metadata: %+v", s)
 	}
 	for _, layer := range s.FeatureLayers {
@@ -221,11 +185,6 @@ func (s Granite4VisionSpec) validate() error {
 	for _, candidate := range s.GridCandidates {
 		if candidate.Width <= 0 || candidate.Height <= 0 || candidate.Width%s.ImageSize != 0 || candidate.Height%s.ImageSize != 0 {
 			return fmt.Errorf("projector: Granite 4 Vision grid candidate %+v is invalid", candidate)
-		}
-	}
-	for channel := range s.ImageStd {
-		if s.ImageStd[channel] <= 0 || !finite32(s.ImageMean[channel]) || !finite32(s.ImageStd[channel]) {
-			return fmt.Errorf("projector: invalid Granite 4 Vision normalization channel %d", channel)
 		}
 	}
 	return nil

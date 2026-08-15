@@ -181,9 +181,9 @@ func tinyLlama4VisionMetadata() []gguf.Metadata {
 
 func tinyLlama4VisionSpec() Llama4VisionSpec {
 	return Llama4VisionSpec{
-		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8, OutputHidden: 6,
-		AdapterIntermediate: 8, AdapterHidden: 5, Layers: 1, Heads: 1, MergeSize: 2,
-		LayerNormEpsilon: 1e-6, RopeTheta: 10000, ImageStd: [3]float32{1, 1, 1}, FusedQKV: []bool{true},
+		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1), OutputHidden: 6,
+		AdapterIntermediate: 8, AdapterHidden: 5, MergeSize: 2,
+		RopeTheta: 10000, FusedQKV: []bool{true},
 	}
 }
 

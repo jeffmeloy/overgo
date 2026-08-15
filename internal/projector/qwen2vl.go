@@ -12,18 +12,10 @@ import (
 const qwen2VLProjectorType = "qwen2vl_merger"
 
 type Qwen2VLSpec struct {
-	ImageSize          int
-	PatchSize          int
-	Hidden             int
-	Intermediate       int
+	visionBackboneSpec
 	MergerIntermediate int
 	OutputHidden       int
-	Layers             int
-	Heads              int
 	MergeSize          int
-	LayerNormEpsilon   float32
-	ImageMean          [3]float32
-	ImageStd           [3]float32
 	PreLayerNorm       bool
 	PostLayerNorm      bool
 	LegacyFFNSwapped   bool
@@ -38,14 +30,6 @@ type Qwen2VLImage = Qwen3VLImage
 type Qwen2VLOutput = Qwen3VLOutput
 type Qwen2VLPreprocessOptions = Qwen3VLPreprocessOptions
 
-func openQwen2VL(ctx context.Context, file *gguf.File, options OpenOptions) (*Qwen2VLRunner, error) {
-	return buildCatalogProjector(ctx, file, options, "Qwen2-VL", nil,
-		ReadQwen2VLSpec, validateQwen2VLCatalog,
-		func(file *gguf.File, spec Qwen2VLSpec, cuda *projectorCUDA) *Qwen2VLRunner {
-			return &Qwen2VLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		})
-}
-
 func (r *Qwen2VLRunner) Spec() Qwen2VLSpec {
 	if r == nil {
 		return Qwen2VLSpec{}
@@ -54,36 +38,13 @@ func (r *Qwen2VLRunner) Spec() Qwen2VLSpec {
 }
 
 func ReadQwen2VLSpec(file *gguf.File) (Qwen2VLSpec, error) {
-	if err := validateVisionProjector(file, "clip.projector_type", qwen2VLProjectorType); err != nil {
-		return Qwen2VLSpec{}, err
-	}
 	if useGELU, geluErr := metadataBool(file, "clip.use_gelu"); geluErr != nil {
 		return Qwen2VLSpec{}, geluErr
 	} else if !useGELU {
 		return Qwen2VLSpec{}, errors.New("projector: Qwen2-VL GELU is disabled")
 	}
 	spec := Qwen2VLSpec{}
-	if err := readMetadataIntFields(file,
-		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
-		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
-		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
-		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
-		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
-		metadataIntField{"clip.vision.block_count", &spec.Layers},
-		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
-	); err != nil {
-		return Qwen2VLSpec{}, err
-	}
-	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
-	if err != nil {
-		return Qwen2VLSpec{}, err
-	}
-	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
-	if err != nil {
-		return Qwen2VLSpec{}, err
-	}
-	std, err := metadataFloat32Array(file, "clip.vision.image_std", 3)
-	if err != nil {
+	if err := readVisionBackbone(file, qwen2VLProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
 		return Qwen2VLSpec{}, err
 	}
 	merger, ok := file.Tensor("mm.0.weight")
@@ -110,13 +71,10 @@ func ReadQwen2VLSpec(file *gguf.File) (Qwen2VLSpec, error) {
 		legacyFFN = down.Shape[0] == uint64(spec.Hidden)
 	}
 	spec.MergeSize = mergeSize
-	spec.LayerNormEpsilon = epsilon
 	spec.MergerIntermediate = int(merger.Shape[1])
 	spec.PreLayerNorm = preWeight
 	spec.PostLayerNorm = postWeight
 	spec.LegacyFFNSwapped = legacyFFN
-	copy(spec.ImageMean[:], mean)
-	copy(spec.ImageStd[:], std)
 	if err := spec.validate(); err != nil {
 		return Qwen2VLSpec{}, err
 	}
@@ -124,27 +82,19 @@ func ReadQwen2VLSpec(file *gguf.File) (Qwen2VLSpec, error) {
 }
 
 func (s Qwen2VLSpec) validate() error {
-	if s.ImageSize <= 0 || s.PatchSize <= 0 || s.Hidden <= 0 || s.Intermediate <= 0 ||
-		s.MergerIntermediate <= 0 || s.OutputHidden <= 0 || s.Layers <= 0 || s.Heads <= 0 ||
-		s.MergeSize != 2 || s.Hidden%s.Heads != 0 || (s.Hidden/s.Heads)%4 != 0 ||
-		s.ImageSize%s.PatchSize != 0 || s.LayerNormEpsilon <= 0 {
-		return fmt.Errorf("projector: invalid Qwen2-VL metadata: %+v", s)
+	if err := s.visionBackboneSpec.validate(); err != nil {
+		return err
 	}
-	for channel := range s.ImageStd {
-		if s.ImageStd[channel] <= 0 || !finite32(s.ImageMean[channel]) || !finite32(s.ImageStd[channel]) {
-			return fmt.Errorf("projector: invalid normalization channel %d", channel)
-		}
+	if s.MergerIntermediate <= 0 || s.OutputHidden <= 0 || s.MergeSize != 2 || (s.Hidden/s.Heads)%4 != 0 {
+		return fmt.Errorf("projector: invalid Qwen2-VL metadata: %+v", s)
 	}
 	return nil
 }
 
 func (s Qwen2VLSpec) preprocessSpec() Qwen3VLSpec {
 	return Qwen3VLSpec{
-		ImageSize: s.ImageSize, PatchSize: s.PatchSize, Hidden: s.Hidden,
-		Intermediate: s.Intermediate, MergerIntermediate: s.MergerIntermediate,
-		OutputHidden: s.OutputHidden, Layers: s.Layers, Heads: s.Heads,
-		MergeSize: s.MergeSize, LayerNormEpsilon: s.LayerNormEpsilon,
-		ImageMean: s.ImageMean, ImageStd: s.ImageStd,
+		visionBackboneSpec: s.visionBackboneSpec,
+		MergerIntermediate: s.MergerIntermediate, OutputHidden: s.OutputHidden, MergeSize: s.MergeSize,
 	}
 }
 

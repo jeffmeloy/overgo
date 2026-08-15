@@ -171,9 +171,9 @@ func tinyPaddleOCRMetadata() []gguf.Metadata {
 
 func tinyPaddleOCRSpec() PaddleOCRSpec {
 	return PaddleOCRSpec{
-		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8, ProjectorIntermediate: 16,
-		OutputHidden: 6, Layers: 1, Heads: 1, MergeSize: 2, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
-		LayerNormEpsilon: 1e-6, ImageStd: [3]float32{1, 1, 1}, FusedQKV: []bool{true},
+		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1), ProjectorIntermediate: 16,
+		OutputHidden: 6, MergeSize: 2, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
+		FusedQKV: []bool{true},
 	}
 }
 

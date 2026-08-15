@@ -57,14 +57,6 @@ type Gemma4Runner struct {
 	spec Gemma4Spec
 }
 
-func openGemma4(ctx context.Context, file *gguf.File, options OpenOptions) (*Gemma4Runner, error) {
-	return buildCatalogProjector(ctx, file, options, "Gemma 4", []string{"mm.a.input_projection.weight"},
-		ReadGemma4Spec, validateGemma4Catalog,
-		func(file *gguf.File, spec Gemma4Spec, cuda *projectorCUDA) *Gemma4Runner {
-			return &Gemma4Runner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		})
-}
-
 func (r *Gemma4Runner) Spec() Gemma4Spec {
 	if r == nil {
 		return Gemma4Spec{}

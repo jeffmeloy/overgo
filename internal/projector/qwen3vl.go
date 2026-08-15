@@ -17,18 +17,10 @@ import (
 const qwen3VLProjectorType = "qwen3vl_merger"
 
 type Qwen3VLSpec struct {
-	ImageSize          int
-	PatchSize          int
-	Hidden             int
-	Intermediate       int
+	visionBackboneSpec
 	MergerIntermediate int
 	OutputHidden       int
-	Layers             int
-	Heads              int
 	MergeSize          int
-	LayerNormEpsilon   float32
-	ImageMean          [3]float32
-	ImageStd           [3]float32
 	DeepstackLayers    []bool
 }
 
@@ -71,14 +63,6 @@ func DefaultQwen3VLVideoPreprocessOptions() Qwen3VLPreprocessOptions {
 	}
 }
 
-func openQwen3VL(ctx context.Context, file *gguf.File, options OpenOptions) (*Qwen3VLRunner, error) {
-	return buildCatalogProjector(ctx, file, options, "Qwen3-VL", nil,
-		ReadQwen3VLSpec, validateQwen3VLCatalog,
-		func(file *gguf.File, spec Qwen3VLSpec, cuda *projectorCUDA) *Qwen3VLRunner {
-			return &Qwen3VLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		})
-}
-
 func (r *Qwen3VLRunner) Spec() Qwen3VLSpec {
 	if r == nil {
 		return Qwen3VLSpec{}
@@ -87,9 +71,6 @@ func (r *Qwen3VLRunner) Spec() Qwen3VLSpec {
 }
 
 func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
-	if err := validateVisionProjector(file, "clip.projector_type", qwen3VLProjectorType); err != nil {
-		return Qwen3VLSpec{}, err
-	}
 	if useGELU, geluErr := metadataBool(file, "clip.use_gelu"); geluErr != nil {
 		return Qwen3VLSpec{}, geluErr
 	} else if !useGELU {
@@ -104,28 +85,12 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 		deepstackLayers = slices.Clone(layers)
 	}
 	spec := Qwen3VLSpec{}
+	if err := readVisionBackbone(file, qwen3VLProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
+		return Qwen3VLSpec{}, err
+	}
 	if err := readMetadataIntFields(file,
-		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
-		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
-		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
-		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
-		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
-		metadataIntField{"clip.vision.block_count", &spec.Layers},
-		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
 		metadataIntField{"clip.vision.spatial_merge_size", &spec.MergeSize},
 	); err != nil {
-		return Qwen3VLSpec{}, err
-	}
-	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
-	if err != nil {
-		return Qwen3VLSpec{}, err
-	}
-	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
-	if err != nil {
-		return Qwen3VLSpec{}, err
-	}
-	std, err := metadataFloat32Array(file, "clip.vision.image_std", 3)
-	if err != nil {
 		return Qwen3VLSpec{}, err
 	}
 	tensorDeepstack := make([]bool, spec.Layers)
@@ -156,10 +121,7 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 			}
 		}
 	}
-	spec.LayerNormEpsilon = epsilon
 	spec.DeepstackLayers = deepstackLayers
-	copy(spec.ImageMean[:], mean)
-	copy(spec.ImageStd[:], std)
 	merger, ok := file.Tensor("mm.0.weight")
 	if !ok || merger.Dimensions != 2 || merger.Shape[1] > uint64(^uint(0)>>1) {
 		return Qwen3VLSpec{}, errors.New("projector: merger input tensor is unavailable or invalid")
@@ -172,19 +134,14 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 }
 
 func (s Qwen3VLSpec) validate() error {
-	if s.ImageSize <= 0 || s.PatchSize <= 0 || s.Hidden <= 0 || s.Intermediate <= 0 ||
-		s.MergerIntermediate <= 0 || s.OutputHidden <= 0 || s.Layers <= 0 || s.Heads <= 0 || s.MergeSize <= 0 ||
-		s.Hidden%s.Heads != 0 || (s.Hidden/s.Heads)%4 != 0 || s.ImageSize%s.PatchSize != 0 || s.MergeSize != 2 ||
-		s.LayerNormEpsilon <= 0 {
+	if err := s.visionBackboneSpec.validate(); err != nil {
+		return err
+	}
+	if s.MergerIntermediate <= 0 || s.OutputHidden <= 0 || (s.Hidden/s.Heads)%4 != 0 || s.MergeSize != 2 {
 		return fmt.Errorf("projector: invalid Qwen3VL metadata: %+v", s)
 	}
 	if len(s.DeepstackLayers) != 0 && len(s.DeepstackLayers) != s.Layers {
 		return fmt.Errorf("projector: deepstack flags = %d, want %d", len(s.DeepstackLayers), s.Layers)
-	}
-	for channel := range s.ImageStd {
-		if s.ImageStd[channel] <= 0 || !finite32(s.ImageMean[channel]) || !finite32(s.ImageStd[channel]) {
-			return fmt.Errorf("projector: invalid normalization channel %d", channel)
-		}
 	}
 	return nil
 }

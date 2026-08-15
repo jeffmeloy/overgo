@@ -255,21 +255,66 @@ func describeProjector[T Projector](kind string, open func(context.Context, *ggu
 	}}
 }
 
+func describeCatalogProjector[S any, T Projector](
+	kind, label string,
+	excluded []string,
+	read func(*gguf.File) (S, error),
+	validate func(*gguf.File, S) ([]string, error),
+	build func(*gguf.File, S, *projectorCUDA) T,
+) projectorDescriptor {
+	return describeProjector(kind, func(ctx context.Context, file *gguf.File, options OpenOptions) (T, error) {
+		return buildCatalogProjector(ctx, file, options, label, excluded, read, validate, build)
+	})
+}
+
 var projectorCatalog = []projectorDescriptor{
 	describeProjector(deepSeekOCR2ProjectorType, openDeepSeekOCR2),
 	describeProjector(deepSeekOCRProjectorType, openDeepSeekOCR),
-	describeProjector(cogVLMProjectorType, openCogVLMVision),
+	describeCatalogProjector(cogVLMProjectorType, "CogVLM", nil, ReadCogVLMVisionSpec, validateCogVLMVisionCatalog,
+		func(file *gguf.File, spec CogVLMVisionSpec, cuda *projectorCUDA) *CogVLMVisionRunner {
+			return &CogVLMVisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
+		}),
 	describeProjector(gemma3nVisionProjectorType, openGemma3nVision),
-	describeProjector(mimoVLProjectorType, openMiMoVL),
-	describeProjector(granite4VisionProjectorType, openGranite4Vision),
-	describeProjector(llama4ProjectorType, openLlama4Vision),
-	describeProjector(hunyuanVLProjectorType, openHunyuanVL),
-	describeProjector(paddleOCRProjectorType, openPaddleOCR),
-	describeProjector(qwen2VLProjectorType, openQwen2VL),
-	describeProjector(qwen3VLProjectorType, openQwen3VL),
-	describeProjector(gemma4UVProjectorType, openGemma4),
-	describeProjector(gemma4UAProjectorType, openGemma4),
-	describeProjector(gemma4VisionTowerProjectorType, openGemma4Tower),
+	describeCatalogProjector(mimoVLProjectorType, "MiMo-VL", nil, ReadMiMoVLSpec, validateMiMoVLCatalog,
+		func(file *gguf.File, spec MiMoVLSpec, cuda *projectorCUDA) *MiMoVLRunner {
+			return &MiMoVLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
+		}),
+	describeCatalogProjector(granite4VisionProjectorType, "Granite 4 Vision", nil, ReadGranite4VisionSpec, validateGranite4VisionCatalog,
+		func(file *gguf.File, spec Granite4VisionSpec, cuda *projectorCUDA) *Granite4VisionRunner {
+			return &Granite4VisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
+		}),
+	describeCatalogProjector(llama4ProjectorType, "Llama-4", nil, ReadLlama4VisionSpec, validateLlama4VisionCatalog,
+		func(file *gguf.File, spec Llama4VisionSpec, cuda *projectorCUDA) *Llama4VisionRunner {
+			return &Llama4VisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
+		}),
+	describeCatalogProjector(hunyuanVLProjectorType, "Hunyuan-VL", nil, ReadHunyuanVLSpec, validateHunyuanVLCatalog,
+		func(file *gguf.File, spec HunyuanVLSpec, cuda *projectorCUDA) *HunyuanVLRunner {
+			return &HunyuanVLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
+		}),
+	describeCatalogProjector(paddleOCRProjectorType, "PaddleOCR", nil, ReadPaddleOCRSpec, validatePaddleOCRCatalog,
+		func(file *gguf.File, spec PaddleOCRSpec, cuda *projectorCUDA) *PaddleOCRRunner {
+			return &PaddleOCRRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
+		}),
+	describeCatalogProjector(qwen2VLProjectorType, "Qwen2-VL", nil, ReadQwen2VLSpec, validateQwen2VLCatalog,
+		func(file *gguf.File, spec Qwen2VLSpec, cuda *projectorCUDA) *Qwen2VLRunner {
+			return &Qwen2VLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
+		}),
+	describeCatalogProjector(qwen3VLProjectorType, "Qwen3-VL", nil, ReadQwen3VLSpec, validateQwen3VLCatalog,
+		func(file *gguf.File, spec Qwen3VLSpec, cuda *projectorCUDA) *Qwen3VLRunner {
+			return &Qwen3VLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
+		}),
+	describeCatalogProjector(gemma4UVProjectorType, "Gemma 4", []string{"mm.a.input_projection.weight"}, ReadGemma4Spec, validateGemma4Catalog,
+		func(file *gguf.File, spec Gemma4Spec, cuda *projectorCUDA) *Gemma4Runner {
+			return &Gemma4Runner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
+		}),
+	describeCatalogProjector(gemma4UAProjectorType, "Gemma 4", []string{"mm.a.input_projection.weight"}, ReadGemma4Spec, validateGemma4Catalog,
+		func(file *gguf.File, spec Gemma4Spec, cuda *projectorCUDA) *Gemma4Runner {
+			return &Gemma4Runner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
+		}),
+	describeCatalogProjector(gemma4VisionTowerProjectorType, "Gemma 4 tower", nil, ReadGemma4TowerSpec, validateGemma4TowerCatalog,
+		func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
+			return &Gemma4TowerRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, audioPlan: newGemma4AudioFrontendPlan(spec.Audio)}
+		}),
 }
 
 func OpenAs[T Projector](ctx context.Context, path string, options OpenOptions) (T, error) {

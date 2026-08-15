@@ -225,10 +225,9 @@ func tinyHunyuanVLMetadata() []gguf.Metadata {
 
 func tinyHunyuanVLSpec() HunyuanVLSpec {
 	return HunyuanVLSpec{
-		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8, OutputHidden: 6,
-		Layers: 1, Heads: 1, MergeSize: 2, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
-		ConvIntermediate: 8, ProjectorInput: 5, LayerNormEpsilon: 1e-6,
-		ImageStd: [3]float32{1, 1, 1}, FusedQKV: []bool{true},
+		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1), OutputHidden: 6,
+		MergeSize: 2, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
+		ConvIntermediate: 8, ProjectorInput: 5, FusedQKV: []bool{true},
 	}
 }
 

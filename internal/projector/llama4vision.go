@@ -23,20 +23,12 @@ const (
 )
 
 type Llama4VisionSpec struct {
-	ImageSize           int
-	PatchSize           int
-	Hidden              int
-	Intermediate        int
+	visionBackboneSpec
 	OutputHidden        int
 	AdapterIntermediate int
 	AdapterHidden       int
-	Layers              int
-	Heads               int
 	MergeSize           int
-	LayerNormEpsilon    float32
 	RopeTheta           float32
-	ImageMean           [3]float32
-	ImageStd            [3]float32
 	Activation          llama4VisionActivation
 	PreLayerNorm        bool
 	PostLayerNorm       bool
@@ -64,14 +56,6 @@ type Llama4VisionRunner struct {
 	attention visionAttentionPlan
 }
 
-func openLlama4Vision(ctx context.Context, file *gguf.File, options OpenOptions) (*Llama4VisionRunner, error) {
-	return buildCatalogProjector(ctx, file, options, "Llama-4", nil,
-		ReadLlama4VisionSpec, validateLlama4VisionCatalog,
-		func(file *gguf.File, spec Llama4VisionSpec, cuda *projectorCUDA) *Llama4VisionRunner {
-			return &Llama4VisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		})
-}
-
 func (r *Llama4VisionRunner) Spec() Llama4VisionSpec {
 	if r == nil {
 		return Llama4VisionSpec{}
@@ -80,19 +64,8 @@ func (r *Llama4VisionRunner) Spec() Llama4VisionSpec {
 }
 
 func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
-	if err := validateVisionProjector(file, "clip.projector_type", llama4ProjectorType); err != nil {
-		return Llama4VisionSpec{}, err
-	}
 	spec := Llama4VisionSpec{}
-	if err := readMetadataIntFields(file,
-		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
-		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
-		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
-		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
-		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
-		metadataIntField{"clip.vision.block_count", &spec.Layers},
-		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
-	); err != nil {
+	if err := readVisionBackbone(file, llama4ProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
 		return Llama4VisionSpec{}, err
 	}
 	merge, ok, err := optionalMetadataUint32(file, "clip.vision.projector.scale_factor")
@@ -101,18 +74,6 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 	}
 	if !ok {
 		merge = 2
-	}
-	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
-	if err != nil {
-		return Llama4VisionSpec{}, err
-	}
-	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
-	if err != nil {
-		return Llama4VisionSpec{}, err
-	}
-	std, err := metadataFloat32Array(file, "clip.vision.image_std", 3)
-	if err != nil {
-		return Llama4VisionSpec{}, err
 	}
 	mlp1, ok := file.Tensor("mm.model.mlp.1.weight")
 	if !ok || mlp1.Dimensions != 2 {
@@ -125,13 +86,10 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 	spec.AdapterIntermediate = int(mlp1.Shape[1])
 	spec.AdapterHidden = int(mlp2.Shape[1])
 	spec.MergeSize = int(merge)
-	spec.LayerNormEpsilon = epsilon
 	spec.RopeTheta = 10000
 	spec.PreLayerNorm = hasTensor(file, "v.pre_ln.weight")
 	spec.PostLayerNorm = hasTensor(file, "v.post_ln.weight")
 	spec.FusedQKV = make([]bool, spec.Layers)
-	copy(spec.ImageMean[:], mean)
-	copy(spec.ImageStd[:], std)
 	for layer := range spec.FusedQKV {
 		spec.FusedQKV[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.attn_qkv.weight", layer))
 	}
@@ -158,20 +116,16 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 }
 
 func (s Llama4VisionSpec) validate() error {
+	if err := s.visionBackboneSpec.validate(); err != nil {
+		return err
+	}
 	headWidth := 0
 	if s.Heads > 0 {
 		headWidth = s.Hidden / s.Heads
 	}
-	if s.ImageSize <= 0 || s.PatchSize <= 0 || s.Hidden <= 0 || s.Intermediate <= 0 || s.OutputHidden <= 0 ||
-		s.AdapterIntermediate <= 0 || s.AdapterHidden <= 0 || s.Layers <= 0 || s.Heads <= 0 || s.MergeSize <= 0 ||
-		s.Hidden%s.Heads != 0 || headWidth%4 != 0 || s.ImageSize%s.PatchSize != 0 ||
-		(s.ImageSize/s.PatchSize)%s.MergeSize != 0 || s.LayerNormEpsilon <= 0 || s.RopeTheta <= 0 || len(s.FusedQKV) != s.Layers {
+	if s.OutputHidden <= 0 || s.AdapterIntermediate <= 0 || s.AdapterHidden <= 0 || s.MergeSize <= 0 ||
+		headWidth%4 != 0 || (s.ImageSize/s.PatchSize)%s.MergeSize != 0 || s.RopeTheta <= 0 || len(s.FusedQKV) != s.Layers {
 		return fmt.Errorf("projector: invalid Llama-4 vision metadata: %+v", s)
-	}
-	for channel := range s.ImageStd {
-		if s.ImageStd[channel] <= 0 || !finite32(s.ImageMean[channel]) || !finite32(s.ImageStd[channel]) {
-			return fmt.Errorf("projector: invalid Llama-4 normalization channel %d", channel)
-		}
 	}
 	return nil
 }

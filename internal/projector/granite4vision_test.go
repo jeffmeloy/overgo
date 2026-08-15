@@ -198,9 +198,8 @@ func granite4VisionMultiwindowMetadata() []gguf.Metadata {
 
 func tinyGranite4VisionSpec() Granite4VisionSpec {
 	return Granite4VisionSpec{
-		ImageSize: 4, PatchSize: 2, Hidden: 64, Intermediate: 8, ProjectionDim: 4, QFormerWidth: 8,
-		Layers: 1, Heads: 1, WindowSide: 2, QuerySide: 1, LayerNormEpsilon: 1e-6,
-		ImageStd: [3]float32{1, 1, 1}, FeatureLayers: []int{0, 0}, SpatialOffsets: []int{-1, 0},
+		visionBackboneSpec: fixtureVisionBackbone(4, 2, 64, 8, 1, 1), ProjectionDim: 4, QFormerWidth: 8,
+		WindowSide: 2, QuerySide: 1, FeatureLayers: []int{0, 0}, SpatialOffsets: []int{-1, 0},
 		GridCandidates: []Granite4VisionResolution{{Width: 4, Height: 4}, {Width: 8, Height: 4}},
 	}
 }

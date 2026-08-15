@@ -52,13 +52,16 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := surfaces[1].grant.Allows(1, 1, expires.Add(-time.Second)); err != nil {
+	if err := surfaces[1].grant.Allows(surfaces[1].split, 1, 1, expires.Add(-time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if err := surfaces[1].grant.Allows(2, 1, expires.Add(-time.Second)); err == nil {
+	if err := surfaces[1].grant.Allows(surfaces[0].split, 0, 1, expires.Add(-time.Second)); err == nil {
+		t.Fatal("query budget accepted a different split")
+	}
+	if err := surfaces[1].grant.Allows(surfaces[1].split, 2, 1, expires.Add(-time.Second)); err == nil {
 		t.Fatal("exhausted query budget accepted")
 	}
-	if err := surfaces[3].grant.Allows(0, 1, expires); err == nil {
+	if err := surfaces[3].grant.Allows(surfaces[3].split, 0, 1, expires); err == nil {
 		t.Fatal("expired query budget accepted")
 	}
 	if _, err := policy.Batch("fixture/evaluation-isolation"); err != nil {

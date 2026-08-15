@@ -34,7 +34,6 @@ var evaluationIsolationCodec = artifact.JSONDocumentCodec(
 )
 
 func NewEvaluationIsolation(value EvaluationIsolation) (EvaluationIsolation, error) {
-	value.ID = artifact.ID{}
 	return evaluationIsolationCodec.New(value)
 }
 

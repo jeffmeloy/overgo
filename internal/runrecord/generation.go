@@ -44,7 +44,6 @@ var generationCodec = artifact.JSONDocumentCodec(
 )
 
 func NewGenerationRecord(value GenerationRecord) (GenerationRecord, error) {
-	value.ID = artifact.ID{}
 	return generationCodec.New(value)
 }
 

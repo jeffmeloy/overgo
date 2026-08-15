@@ -31,14 +31,16 @@ var budgetCodec = artifact.JSONDocumentCodec(
 )
 
 func NewBudgetGrant(value BudgetGrant) (BudgetGrant, error) {
-	value.ID = artifact.ID{}
 	return budgetCodec.New(value)
 }
 
 // Allows checks a derived consumed amount without creating another authority.
-func (value BudgetGrant) Allows(consumed, requested uint64, now time.Time) error {
+func (value BudgetGrant) Allows(subject artifact.ID, consumed, requested uint64, now time.Time) error {
 	if err := budgetCodec.ValidateIdentity(value); err != nil {
 		return err
+	}
+	if subject != value.Subject {
+		return errors.New("run record: budget subject differs")
 	}
 	expires, _ := time.Parse(time.RFC3339Nano, value.ExpiresAt)
 	if requested == 0 || consumed > value.Issued || requested > value.Issued-consumed {

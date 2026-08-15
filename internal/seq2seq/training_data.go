@@ -92,18 +92,23 @@ type trainingOptimizer interface {
 }
 
 type trainingStep struct {
-	pair                   TrainingPair
-	hidden, normed, logits []float32
-	trace                  decoderTrainingTrace
-	gradient               []float32
-	projectionGradient     []float32
-	qProjectionGradient    []float32
-	kProjectionGradient    []float32
-	vProjectionGradient    []float32
-	attentionQGradient     []float32
-	attentionKGradient     []float32
-	attentionVGradient     []float32
-	loss                   float64
+	pair                    TrainingPair
+	hidden, normed, logits  []float32
+	trace                   decoderTrainingTrace
+	gradient                []float32
+	projectionGradient      []float32
+	qProjectionGradient     []float32
+	kProjectionGradient     []float32
+	vProjectionGradient     []float32
+	attentionQGradient      []float32
+	attentionKGradient      []float32
+	attentionVGradient      []float32
+	selfAttentionQGradient  []float32
+	selfAttentionKGradient  []float32
+	selfAttentionVGradient  []float32
+	finalSelfOutputGradient []float32
+	selfRawGateGradient     float32
+	loss                    float64
 }
 
 type parameterSpan struct{ start, end int }
@@ -331,10 +336,13 @@ func (t *Trainer) backwardFinalCross(state *trainingStep, dHidden []float32) err
 		rows, len(state.trace.finalCrossK)/(t.model.Dims.KVHeads*t.model.Dims.HeadDim),
 		t.model.Dims.Heads, t.model.Dims.KVHeads, t.model.Dims.HeadDim, nil,
 	)
-	return t.backwardFinalCrossProjections(state, block)
+	if err := t.backwardFinalCrossProjections(state, block, dHidden); err != nil {
+		return err
+	}
+	return t.backwardFinalSelfCore(state)
 }
 
-func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attnBlock) error {
+func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attnBlock, residualGradient []float32) error {
 	dims := t.model.Dims
 	rows := len(state.pair.Targets)
 	memRows := len(state.trace.finalCrossMemory) / dims.DModel
@@ -370,6 +378,10 @@ func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attn
 		state.trace.finalCrossInput, block.inNorm, dCrossNormed,
 		rows, dims.DModel, dims.RMSEps, false,
 	)
+	for index, value := range residualGradient {
+		dCrossInput[index] += value
+	}
+	state.finalSelfOutputGradient = dCrossInput
 
 	dKRaw := make([]float32, len(state.attentionKGradient))
 	hostmath.RMSNormBackward(
@@ -386,6 +398,41 @@ func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attn
 	hostmath.LinearBackward(
 		nil, state.vProjectionGradient, nil, state.trace.finalCrossMemory, nil, state.attentionVGradient,
 		memRows, dims.DModel, kvWidth, false,
+	)
+	return nil
+}
+
+func (t *Trainer) backwardFinalSelfCore(state *trainingStep) error {
+	dims := t.model.Dims
+	rows := len(state.pair.Targets)
+	trace := &state.trace
+	if len(state.finalSelfOutputGradient) != rows*dims.DModel ||
+		len(trace.finalSelfProjected) != rows*dims.DModel ||
+		len(trace.finalSelfAttention) != rows*dims.Heads*dims.HeadDim {
+		return errors.New("final self-attention trace differs")
+	}
+	block := &t.model.decoderSelf[len(t.model.decoderSelf)-1]
+	var gateGradient float64
+	for index, gradient := range state.finalSelfOutputGradient {
+		gateGradient += float64(gradient) * float64(trace.finalSelfProjected[index])
+	}
+	state.selfRawGateGradient = float32(gateGradient) * block.gate * (1 - block.gate)
+	dProjected := make([]float32, len(state.finalSelfOutputGradient))
+	for index, gradient := range state.finalSelfOutputGradient {
+		dProjected[index] = block.gate * gradient
+	}
+	dAttention := make([]float32, len(trace.finalSelfAttention))
+	hostmath.LinearBF16BackwardInput(
+		dAttention, dProjected, block.o,
+		rows, dims.Heads*dims.HeadDim, dims.DModel,
+	)
+	state.selfAttentionQGradient = make([]float32, len(trace.finalSelfQ))
+	state.selfAttentionKGradient = make([]float32, len(trace.finalSelfK))
+	state.selfAttentionVGradient = make([]float32, len(trace.finalSelfV))
+	hostmath.CausalAttentionBackward(
+		state.selfAttentionQGradient, state.selfAttentionKGradient, state.selfAttentionVGradient,
+		trace.finalSelfQ, trace.finalSelfK, trace.finalSelfV, dAttention,
+		rows, dims.Heads, dims.KVHeads, dims.HeadDim,
 	)
 	return nil
 }

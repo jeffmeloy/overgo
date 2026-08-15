@@ -189,6 +189,11 @@ func (m *Model) decodeHiddenFull(memory []float32, memRows int, tgt []int) ([]fl
 }
 
 type decoderTrainingTrace struct {
+	finalSelfProjected  []float32
+	finalSelfAttention  []float32
+	finalSelfQ          []float32
+	finalSelfK          []float32
+	finalSelfV          []float32
 	finalCrossProjected []float32
 	finalCrossAttention []float32
 	finalCrossInput     []float32
@@ -226,7 +231,17 @@ func (m *Model) decodeHiddenFullTrace(memory []float32, memRows int, tgt []int, 
 		m.projectQ(q, normed, rows, self, 0, true)
 		m.projectKV(k, v, normed, rows, self, 0, true)
 		hostmath.CausalAttention(attn, q, k, v, rows, dims.Heads, dims.KVHeads, dims.HeadDim)
-		m.gatedResidualOut(hidden, attn, self.o, rows, self.gate)
+		if trace != nil && layer == len(m.decoderSelf)-1 {
+			trace.finalSelfAttention = append(trace.finalSelfAttention[:0], attn...)
+			trace.finalSelfQ = append(trace.finalSelfQ[:0], q...)
+			trace.finalSelfK = append(trace.finalSelfK[:0], k...)
+			trace.finalSelfV = append(trace.finalSelfV[:0], v...)
+			trace.finalSelfProjected = make([]float32, rows*d)
+			hostmath.LinearBF16(trace.finalSelfProjected, attn, self.o, rows, dims.Heads*dims.HeadDim, d)
+			addGatedResidual(hidden, trace.finalSelfProjected, self.gate)
+		} else {
+			m.gatedResidualOut(hidden, attn, self.o, rows, self.gate)
+		}
 
 		crossBlock := &m.decoderCross[layer]
 		if trace != nil && layer == len(m.decoderCross)-1 {

@@ -431,6 +431,49 @@ func TestNeedleRealGSM8KFinalCrossQKVMuon(t *testing.T) {
 		inAnalytic, inFinite, qNormAnalytic, qNormFinite, kNormAnalytic, kNormFinite)
 }
 
+func TestNeedleRealGSM8KFinalSelfAttentionGradient(t *testing.T) {
+	generator, pair, _ := realGSM8KTrainingPair(t, 0)
+	trainer, err := NewTrainer(generator.model, 1, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	probe := trainingStep{pair: pair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	qNorm := gradientL2(probe.selfAttentionQGradient)
+	kNorm := gradientL2(probe.selfAttentionKGradient)
+	vNorm := gradientL2(probe.selfAttentionVGradient)
+	if qNorm == 0 || kNorm == 0 || vNorm == 0 {
+		t.Fatalf("real final self-attention gradient norms q=%g k=%g v=%g", qNorm, kNorm, vNorm)
+	}
+	block := &generator.model.decoderSelf[len(generator.model.decoderSelf)-1]
+	originalRaw, originalGate := block.rawGate, block.gate
+	const epsilon = float32(1e-3)
+	block.rawGate, block.gate = originalRaw+epsilon, sigmoid(originalRaw+epsilon)
+	plus, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block.rawGate, block.gate = originalRaw-epsilon, sigmoid(originalRaw-epsilon)
+	minus, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block.rawGate, block.gate = originalRaw, originalGate
+	finite := (plus - minus) / (2 * float64(epsilon))
+	analytic := float64(probe.selfRawGateGradient)
+	if delta := math.Abs(analytic - finite); delta > 2e-3 {
+		t.Fatalf("final self gate gradient analytic=%g finite_difference=%g delta=%g", analytic, finite, delta)
+	}
+	t.Logf("real GSM8K final self-attention gradients: q=%g k=%g v=%g; raw gate analytic=%g finite_difference=%g",
+		qNorm, kNorm, vNorm, analytic, finite)
+}
+
 func gradientL2(values []float32) float64 {
 	var sum float64
 	for _, value := range values {

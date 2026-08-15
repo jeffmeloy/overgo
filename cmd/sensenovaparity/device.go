@@ -33,12 +33,11 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"strconv"
-	"strings"
 	"time"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/deviceprobe"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/routedlm"
@@ -47,26 +46,6 @@ import (
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
-
-// smiField: one integer nvidia-smi gpu field (memory.free / memory.used).
-func smiField(query string) int {
-	out, err := exec.Command("nvidia-smi", "--query-gpu="+query, "--format=csv,noheader,nounits").Output()
-	if err != nil {
-		return -1
-	}
-	fields := strings.Fields(strings.TrimSpace(string(out)))
-	if len(fields) == 0 {
-		return -1
-	}
-	v, err := strconv.Atoi(fields[0])
-	if err != nil {
-		return -1
-	}
-	return v
-}
-
-func gpuUsedMiB() int { return smiField("memory.used") }
-func gpuFreeMiB() int { return smiField("memory.free") }
 
 // worstAbs: worst |a-b| over aligned slices.
 func worstAbs(a, b []float32) float64 {
@@ -94,7 +73,11 @@ func maxAbs(a []float32) float64 {
 // the CUDA generic executor, appended to the ladder as device stages.
 func runDevice(l *ladder, modelDir, fixturesDir string) error {
 	ctx := context.Background()
-	l.log(fmt.Sprintf("DEVICE denoise-terminal START gpu.free=%dMiB used=%dMiB", gpuFreeMiB(), gpuUsedMiB()))
+	startMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
+	l.log(fmt.Sprintf("DEVICE denoise-terminal START gpu.free=%dMiB used=%dMiB", startMemory.FreeMiB, startMemory.UsedMiB))
 
 	var edit editOracle
 	if err := loadJSON(fixturesDir+string(os.PathSeparator)+"edit_oracle_v3_256.json", &edit); err != nil {
@@ -402,7 +385,11 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			}
 		}
 		perCall := float64(time.Since(start).Microseconds()) / float64(iters) / 1000.0
-		return verdictWired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowHeadVelocity) on real fm_head: rows=%d hidden=%d flow_dim=%d worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e | head-terminal %.3fms/step gpu.used=%dMiB", rows, H, F, worst, ref, rel, relTol, perCall, gpuUsedMiB()), nil
+		memory, err := deviceprobe.MeasureMemory()
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		return verdictWired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowHeadVelocity) on real fm_head: rows=%d hidden=%d flow_dim=%d worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e | head-terminal %.3fms/step gpu.used=%dMiB", rows, H, F, worst, ref, rel, relTol, perCall, memory.UsedMiB), nil
 	})
 
 	// ---- device FlowMatchEuler update vs REAL z-trajectory oracle -------------
@@ -505,7 +492,11 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 		return verdictOracle, worst, fmt.Sprintf("step0.next_z == step1.z on %d aligned probes (worst|d|=%.3e): denoise loop feeds each step's output forward", len(i0), worst), nil
 	})
 
-	l.log(fmt.Sprintf("DEVICE denoise-terminal DONE gpu.free=%dMiB used=%dMiB", gpuFreeMiB(), gpuUsedMiB()))
+	doneMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
+	l.log(fmt.Sprintf("DEVICE denoise-terminal DONE gpu.free=%dMiB used=%dMiB", doneMemory.FreeMiB, doneMemory.UsedMiB))
 	if !l.failed {
 		l.log("DEVICE denoise-terminal LANE GREEN (terminal+sampler verified; 42-layer body = named remainder)")
 	}

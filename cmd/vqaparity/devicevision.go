@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/deviceprobe"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/patchtower"
@@ -28,8 +29,11 @@ import (
 // runDeviceVision: device vision-blocks parity + measurement.
 func runDeviceVision(l *ladder) error {
 	ctx := context.Background()
-	baseMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE vision START gpu.used=%dMiB free=%dMiB", baseMiB, gpuFreeMiB()))
+	baseMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
+	l.log(fmt.Sprintf("DEVICE vision START gpu.used=%dMiB free=%dMiB", baseMemory.UsedMiB, baseMemory.FreeMiB))
 
 	vg, err := loadGoldenJSON[visionGolden](l.fixturesDir, "rxbrain_vqa_vision_golden.json")
 	if err != nil {
@@ -159,9 +163,12 @@ func runDeviceVision(l *ladder) error {
 			return fmt.Errorf("device vision weight upload block %d: %w", layer, err)
 		}
 	}
-	afterLoadMiB := gpuUsedMiB()
+	afterLoadMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
 	l.log(fmt.Sprintf("DEVICE vision residency gpu.used %d->%dMiB (delta=%dMiB) free=%dMiB",
-		baseMiB, afterLoadMiB, afterLoadMiB-baseMiB, gpuFreeMiB()))
+		baseMemory.UsedMiB, afterLoadMemory.UsedMiB, afterLoadMemory.UsedMiB-baseMemory.UsedMiB, afterLoadMemory.FreeMiB))
 
 	preShape := tensor.MustShape(uint64(H), uint64(nPatch))
 	hostFeeds := map[*tensor.Tensor]reference.Value{
@@ -283,9 +290,12 @@ func runDeviceVision(l *ladder) error {
 	}
 	perCall := time.Since(start) / iters
 	statsAfter, _ := worker.ExecutionStats(ctx)
-	peakMiB := gpuUsedMiB()
+	peakMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
 	l.log(fmt.Sprintf("DEVICE vision MEASURE %.3f ms/tower (%d blocks, %d rows, F32 weights resident) peak gpu.used=%dMiB (delta=%dMiB vs base) free=%dMiB",
-		float64(perCall.Microseconds())/1000.0, spec.Depth, nPatch, peakMiB, peakMiB-baseMiB, gpuFreeMiB()))
+		float64(perCall.Microseconds())/1000.0, spec.Depth, nPatch, peakMemory.UsedMiB, peakMemory.UsedMiB-baseMemory.UsedMiB, peakMemory.FreeMiB))
 	l.log(fmt.Sprintf("DEVICE vision REPLAY graph_launches=%d graph_instantiations=%d graph_updates=%d over %d warm+%d measure",
 		statsAfter.GraphLaunches-statsBefore.GraphLaunches,
 		statsAfter.GraphInstantiations-statsBefore.GraphInstantiations,

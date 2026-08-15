@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/deviceprobe"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/patchtower"
@@ -161,8 +162,11 @@ type devKV struct {
 // runDeviceDecode: device 32-layer decode parity + measurement.
 func runDeviceDecode(l *ladder) error {
 	ctx := context.Background()
-	baseMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE decode START gpu.used=%dMiB free=%dMiB", baseMiB, gpuFreeMiB()))
+	baseMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
+	l.log(fmt.Sprintf("DEVICE decode START gpu.used=%dMiB free=%dMiB", baseMemory.UsedMiB, baseMemory.FreeMiB))
 
 	h, err := loadDecodeHarness(l)
 	if err != nil {
@@ -340,9 +344,12 @@ func runDeviceDecode(l *ladder) error {
 	if err != nil {
 		return err
 	}
-	afterLoadMiB := gpuUsedMiB()
+	afterLoadMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
 	l.log(fmt.Sprintf("DEVICE decode residency gpu.used %d->%dMiB (delta=%dMiB) free=%dMiB kv_capacity_bytes=%d/layer",
-		baseMiB, afterLoadMiB, afterLoadMiB-baseMiB, gpuFreeMiB(), kvBytes))
+		baseMemory.UsedMiB, afterLoadMemory.UsedMiB, afterLoadMemory.UsedMiB-baseMemory.UsedMiB, afterLoadMemory.FreeMiB, kvBytes))
 
 	// ---- per-step runtime attribute updater --------------------------------
 	attrs := compiled.NewRuntimeAttributes()
@@ -491,9 +498,12 @@ func runDeviceDecode(l *ladder) error {
 	dInst := statsAfter.GraphInstantiations - statsBefore.GraphInstantiations
 	dUpd := statsAfter.GraphUpdates - statsBefore.GraphUpdates
 	dLaunch := statsAfter.GraphLaunches - statsBefore.GraphLaunches
-	peakMiB := gpuUsedMiB()
+	peakMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
 	l.log(fmt.Sprintf("DEVICE decode MEASURE %.3f ms/token (32 layers + KV resident, replayed %d x) peak gpu.used=%dMiB (delta=%dMiB vs base) free=%dMiB",
-		float64(perTok.Microseconds())/1000.0, iters, peakMiB, peakMiB-baseMiB, gpuFreeMiB()))
+		float64(perTok.Microseconds())/1000.0, iters, peakMemory.UsedMiB, peakMemory.UsedMiB-baseMemory.UsedMiB, peakMemory.FreeMiB))
 	l.log(fmt.Sprintf("DEVICE decode REPLAY over %d steps + %d measure iters: graph_launches=%d graph_instantiations=%d graph_updates=%d (single compiled graph, per-step runtime attrs only: rope pos, attn window, cache offset)", steps, iters+warm, dLaunch, dInst, dUpd))
 	l.log("DEVICE decode LANE GREEN")
 	return nil

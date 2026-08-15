@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/deviceprobe"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/patchtower"
@@ -202,8 +203,11 @@ func bindPrefillBranch(ctx context.Context, allocations *device.AllocationSet, f
 
 func runDevicePrefill(l *ladder) error {
 	ctx := context.Background()
-	baseMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE prefill START gpu.used=%dMiB free=%dMiB", baseMiB, gpuFreeMiB()))
+	baseMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
+	l.log(fmt.Sprintf("DEVICE prefill START gpu.used=%dMiB free=%dMiB", baseMemory.UsedMiB, baseMemory.FreeMiB))
 
 	pc, err := loadPrefillContext(l)
 	if err != nil {
@@ -395,8 +399,11 @@ func runDevicePrefill(l *ladder) error {
 		return fmt.Errorf("device prefill chained terminal top %d != golden first token %d", topID, dg.FirstToken)
 	}
 	l.log(fmt.Sprintf("DEVICE prefill CHAINED terminal top=%d logit=%.4f == golden first token (EXACT)", topID, topLogit))
-	peakMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE prefill peak gpu.used=%dMiB (delta=%dMiB vs base) free=%dMiB", peakMiB, peakMiB-baseMiB, gpuFreeMiB()))
+	peakMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
+	l.log(fmt.Sprintf("DEVICE prefill peak gpu.used=%dMiB (delta=%dMiB vs base) free=%dMiB", peakMemory.UsedMiB, peakMemory.UsedMiB-baseMemory.UsedMiB, peakMemory.FreeMiB))
 	l.log("DEVICE prefill LANE GREEN")
 	return nil
 }

@@ -13,12 +13,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"os/exec"
-	"strconv"
-	"strings"
 	"time"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/deviceprobe"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/routedlm"
@@ -28,46 +26,14 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-// gpuUsedMiB: coarse device-memory probe via nvidia-smi (peak/residency
-// cross-check; the driver ABI exposes no MemGetInfo here).
-func gpuUsedMiB() int {
-	out, err := exec.Command("nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits").Output()
-	if err != nil {
-		return -1
-	}
-	fields := strings.Fields(strings.TrimSpace(string(out)))
-	if len(fields) == 0 {
-		return -1
-	}
-	v, err := strconv.Atoi(fields[0])
-	if err != nil {
-		return -1
-	}
-	return v
-}
-
-// gpuFreeMiB: coarse free-VRAM probe via nvidia-smi.
-func gpuFreeMiB() int {
-	out, err := exec.Command("nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits").Output()
-	if err != nil {
-		return -1
-	}
-	fields := strings.Fields(strings.TrimSpace(string(out)))
-	if len(fields) == 0 {
-		return -1
-	}
-	v, err := strconv.Atoi(fields[0])
-	if err != nil {
-		return -1
-	}
-	return v
-}
-
 // runDevice: device terminal parity + measurement.
 func runDevice(l *ladder) error {
 	ctx := context.Background()
-	baseMiB := gpuUsedMiB()
-	l.log(fmt.Sprintf("DEVICE terminal parity START gpu.used=%dMiB", baseMiB))
+	baseMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
+	l.log(fmt.Sprintf("DEVICE terminal parity START gpu.used=%dMiB", baseMemory.UsedMiB))
 
 	cfg, err := routedlm.LoadConfig(l.modelDir, binding)
 	if err != nil {
@@ -203,7 +169,10 @@ func runDevice(l *ladder) error {
 	}
 	devLogits := devOut[dLogits].Data
 	devTop := int(devOut[dTop].Data[0])
-	afterMiB := gpuUsedMiB()
+	afterMemory, err := deviceprobe.MeasureMemory()
+	if err != nil {
+		return err
+	}
 
 	// ---- exactness ---------------------------------------------------------
 	// device top == host-graph top == golden first token.
@@ -258,7 +227,7 @@ func runDevice(l *ladder) error {
 	l.log(fmt.Sprintf("DEVICE terminal EXACT top=%d (golden first=%d) dev-vs-host worst|d|=%.3e",
 		devTop, dg.FirstToken, worstDH))
 	l.log(fmt.Sprintf("DEVICE terminal MEASURE proj=%.3fms/token head_resident=%.0fMiB gpu.used %d->%dMiB (delta=%dMiB)",
-		float64(perCall.Microseconds())/1000.0, headMiB, baseMiB, afterMiB, afterMiB-baseMiB))
+		float64(perCall.Microseconds())/1000.0, headMiB, baseMemory.UsedMiB, afterMemory.UsedMiB, afterMemory.UsedMiB-baseMemory.UsedMiB))
 	l.log("DEVICE terminal LANE GREEN")
 	return nil
 }

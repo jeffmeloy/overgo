@@ -36,43 +36,23 @@ func PNGContent(image EncodedImage) (artifact.Content, error) {
 	return encodedPNGContract.OwnedContentBytes(image.Data)
 }
 
-type hwcRGB struct {
-	pixels        []float32
-	width, height int
+type rgbImage struct {
+	pixels                     []float32
+	width, height              int
+	pixelStride, channelStride int
 }
 
-type planarRGB struct {
-	pixels        []float32
-	width, height int
-}
-
-func (i hwcRGB) ColorModel() color.Model { return color.RGBAModel }
-func (i hwcRGB) Bounds() image.Rectangle { return image.Rect(0, 0, i.width, i.height) }
-func (i hwcRGB) At(x, y int) color.Color {
+func (i rgbImage) ColorModel() color.Model { return color.RGBAModel }
+func (i rgbImage) Bounds() image.Rectangle { return image.Rect(0, 0, i.width, i.height) }
+func (i rgbImage) At(x, y int) color.Color {
 	if x < 0 || x >= i.width || y < 0 || y >= i.height {
 		return color.RGBA{}
 	}
-	base := (y*i.width + x) * 3
-	return color.RGBA{
-		R: pixelU8(i.pixels[base]),
-		G: pixelU8(i.pixels[base+1]),
-		B: pixelU8(i.pixels[base+2]),
-		A: 255,
-	}
-}
-
-func (i planarRGB) ColorModel() color.Model { return color.RGBAModel }
-func (i planarRGB) Bounds() image.Rectangle { return image.Rect(0, 0, i.width, i.height) }
-func (i planarRGB) At(x, y int) color.Color {
-	if x < 0 || x >= i.width || y < 0 || y >= i.height {
-		return color.RGBA{}
-	}
-	plane := i.width * i.height
-	offset := y*i.width + x
+	offset := (y*i.width + x) * i.pixelStride
 	return color.RGBA{
 		R: pixelU8(i.pixels[offset]),
-		G: pixelU8(i.pixels[plane+offset]),
-		B: pixelU8(i.pixels[2*plane+offset]),
+		G: pixelU8(i.pixels[offset+i.channelStride]),
+		B: pixelU8(i.pixels[offset+2*i.channelStride]),
 		A: 255,
 	}
 }
@@ -83,12 +63,16 @@ func pixelU8(value float32) uint8 {
 }
 
 func encodePNG(pixels []float32, height, width int) (EncodedImage, error) {
-	return encodeRGB(pixels, height, width, hwcRGB{pixels: pixels, width: width, height: height})
+	return encodeRGB(pixels, height, width, rgbImage{
+		pixels: pixels, width: width, height: height, pixelStride: 3, channelStride: 1,
+	})
 }
 
 // EncodePlanarPNG publishes normalized CHW RGB without an HWC copy.
 func EncodePlanarPNG(pixels []float32, height, width int) (EncodedImage, error) {
-	return encodeRGB(pixels, height, width, planarRGB{pixels: pixels, width: width, height: height})
+	return encodeRGB(pixels, height, width, rgbImage{
+		pixels: pixels, width: width, height: height, pixelStride: 1, channelStride: width * height,
+	})
 }
 
 func encodeRGB(pixels []float32, height, width int, source image.Image) (EncodedImage, error) {

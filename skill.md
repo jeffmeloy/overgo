@@ -18,6 +18,25 @@ description: Autonomous iteration doctrine for overgo. Use when working in this 
 
 # Overgo Iteration
 
+## Operating procedure (non-negotiable)
+
+The automation carries the cognitive load so you do not have to. Following it is
+what keeps an agent on task for days; self-managing the goal, next action, and
+commit path is the overload that produces over-analysis, forgotten goals, and
+invented forks. Every turn, run the loop — do not reinvent it, improve it
+in-flight, or fall back to the manual path:
+
+1. `go run ./cmd/plan -prompt` => the ONE dispatched step. Do exactly that step.
+2. Need an existing capability? `docs/MAP.md` => the owner. Do not re-derive.
+3. Commit ONLY via `go run ./cmd/gate -plan <item>/<step> -message-file <f>
+   -paths <csv>`; then `go run ./cmd/plan -advance <item> <step>`.
+4. Step wrong / blocked / you disagree => STOP and tell the user
+   (`cmd/plan -stop`). Never substitute your own work for the dispatched step;
+   never end a turn on a summary or a "should I continue?".
+
+Going off-script IS the failure mode. When in doubt, offload to the tool, not to
+your own reasoning.
+
 ## Mission
 
 - One Go-native system: serve, train, evaluate, compose models on consumer

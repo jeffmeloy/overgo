@@ -14,6 +14,9 @@ type pixelBudget struct {
 	MaxAspectRatio int
 }
 
+type RasterPatchOptions = pixelBudget
+type RasterPatchImage = gridImage
+
 type gridOutput struct {
 	Embeddings reference.Value
 	GridH      int

@@ -3,6 +3,7 @@ package projector
 import (
 	"errors"
 	"fmt"
+	"image"
 
 	"overgo/internal/checked"
 	"overgo/internal/tensor"
@@ -22,6 +23,74 @@ const (
 
 func normalizedImageChannel(value uint32) float32 {
 	return float32(value>>rgba16To8Shift) / maxUint8Channel
+}
+
+type rasterInterpolation uint8
+
+const (
+	rasterBicubic rasterInterpolation = iota
+	rasterBilinear
+)
+
+type rasterPatchPlan struct {
+	patchSize     int
+	mergeSize     int
+	defaultBudget pixelBudget
+	mean          [rgbChannelCount]float32
+	std           [rgbChannelCount]float32
+	interpolation rasterInterpolation
+}
+
+func preprocessRasterPatches(source image.Image, plan rasterPatchPlan, options RasterPatchOptions) (RasterPatchImage, error) {
+	if source == nil {
+		return RasterPatchImage{}, errors.New("projector: image is nil")
+	}
+	if plan.patchSize <= 0 || plan.mergeSize <= 0 {
+		return RasterPatchImage{}, errors.New("projector: invalid raster patch geometry")
+	}
+	for channel := range plan.std {
+		if plan.std[channel] <= 0 {
+			return RasterPatchImage{}, fmt.Errorf("projector: invalid raster normalization channel %d", channel)
+		}
+	}
+	budget := pixelBudget(options)
+	if budget == (pixelBudget{}) {
+		budget = plan.defaultBudget
+	}
+	bounds := source.Bounds()
+	resizedH, resizedW, err := budget.resize(bounds.Dy(), bounds.Dx(), plan.patchSize*plan.mergeSize)
+	if err != nil {
+		return RasterPatchImage{}, err
+	}
+	var resized *image.RGBA
+	switch plan.interpolation {
+	case rasterBicubic:
+		resized = resizeImageBicubic(source, resizedW, resizedH)
+	case rasterBilinear:
+		resized = resizeImageBilinear(source, resizedW, resizedH)
+	default:
+		return RasterPatchImage{}, errors.New("projector: invalid raster interpolation")
+	}
+	gridH, gridW := resizedH/plan.patchSize, resizedW/plan.patchSize
+	patchArea := plan.patchSize * plan.patchSize
+	patchWidth := rgbChannelCount * patchArea
+	pixels := make([]float32, gridH*gridW*patchWidth)
+	for patchY := 0; patchY < gridH; patchY++ {
+		for patchX := 0; patchX < gridW; patchX++ {
+			row := (patchY*gridW + patchX) * patchWidth
+			for y := 0; y < plan.patchSize; y++ {
+				for x := 0; x < plan.patchSize; x++ {
+					red, green, blue, _ := resized.At(patchX*plan.patchSize+x, patchY*plan.patchSize+y).RGBA()
+					values := [rgbChannelCount]uint32{red, green, blue}
+					pixel := y*plan.patchSize + x
+					for channel, value := range values {
+						pixels[row+channel*patchArea+pixel] = (normalizedImageChannel(value) - plan.mean[channel]) / plan.std[channel]
+					}
+				}
+			}
+		}
+	}
+	return RasterPatchImage{PixelValues: pixels, GridH: gridH, GridW: gridW}, nil
 }
 
 type pixelMergePlan struct {

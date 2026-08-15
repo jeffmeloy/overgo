@@ -5,7 +5,10 @@ package hostmath
 // is the reference oracle's contract). Storage variants share one kernel
 // shape; the bf16 variant expands uint16 bf16 weights inline (exact).
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // LinearF64: dst[rows,out] = x[rows,in] * w[out,in]^T (+bias), f64 accumulate.
 func LinearF64(dst, x, w, bias []float32, rows, inDim, outDim int) {
@@ -63,4 +66,32 @@ func linearBF16F64Cols(dst, x []float32, w []uint16, bias []float32, oLo, oHi, i
 		}
 		dst[o] = float32(acc)
 	}
+}
+
+// ChannelMixF64Into: channel-major pointwise linear; FP64 accumulation.
+func ChannelMixF64Into(dst, x, w, bias []float32, inChannels, outChannels, positions int) error {
+	if len(x) != inChannels*positions || len(dst) != outChannels*positions {
+		return fmt.Errorf("hostmath channel mix: bad lengths dst=%d x=%d", len(dst), len(x))
+	}
+	if len(w) != outChannels*inChannels {
+		return fmt.Errorf("hostmath channel mix: weight len=%d want %d", len(w), outChannels*inChannels)
+	}
+	if bias != nil && len(bias) != outChannels {
+		return fmt.Errorf("hostmath channel mix: bias len=%d want %d", len(bias), outChannels)
+	}
+	ParallelRangeF64(outChannels, inChannels*positions, func(lo, hi int) {
+		for outChannel := lo; outChannel < hi; outChannel++ {
+			for position := 0; position < positions; position++ {
+				acc := 0.0
+				if bias != nil {
+					acc = float64(bias[outChannel])
+				}
+				for inChannel := 0; inChannel < inChannels; inChannel++ {
+					acc += float64(x[inChannel*positions+position]) * float64(w[outChannel*inChannels+inChannel])
+				}
+				dst[outChannel*positions+position] = float32(acc)
+			}
+		}
+	})
+	return nil
 }

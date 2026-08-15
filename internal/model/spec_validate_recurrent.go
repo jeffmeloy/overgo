@@ -14,7 +14,7 @@ const (
 	rotaryPairAlignment      = uint32(2)
 )
 
-func (s Spec) validateRecurrentFamilies() error {
+func (s Spec) validateRecurrentMetadata() error {
 	validation := s.Profile().Validation.Recurrent
 	switch validation {
 	case RecurrentValidationWavTokenizer:

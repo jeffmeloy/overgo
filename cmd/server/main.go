@@ -26,6 +26,12 @@ const (
 	serverIdleTimeout       = 2 * time.Minute
 	serverShutdownTimeout   = 30 * time.Second
 	serverMaxHeaderBytes    = 1 << 20
+
+	defaultAnalysisTensorSamples = 4096
+	defaultAnalysisTensorBytes   = 64 << 20
+	defaultAnalysisPositions     = 64
+	defaultAnalysisMDSIterations = 1000
+	defaultAnalysisMDSTolerance  = 1e-6
 )
 
 func main() {
@@ -89,6 +95,11 @@ func run() error {
 	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for encoded video")
 	videoFPS := flag.Float64("video-fps", llamaserver.DefaultVideoFPS, "video frame sampling rate")
 	videoMaxFrames := flag.Int("video-max-frames", llamaserver.DefaultVideoFrameLimit, "maximum decoded video frames")
+	analysisTensorSamples := flag.Uint64("analysis-tensor-samples", defaultAnalysisTensorSamples, "samples retained per analyzed tensor")
+	analysisTensorBytes := flag.Uint64("analysis-tensor-bytes", defaultAnalysisTensorBytes, "aggregate tensor bytes read per analysis")
+	analysisPositions := flag.Int("analysis-state-positions", defaultAnalysisPositions, "maximum positions retained by state analysis")
+	analysisMDSIterations := flag.Int("analysis-mds-iterations", defaultAnalysisMDSIterations, "state-layout convergence iteration bound")
+	analysisMDSTolerance := flag.Float64("analysis-mds-tolerance", defaultAnalysisMDSTolerance, "state-layout relative convergence tolerance")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
@@ -120,7 +131,7 @@ func run() error {
 	var vision projector.ImageProjector
 	var audio projector.AudioProjector
 	if *projectorPath != "" {
-		vision, err = projector.OpenImageProjectorWithOptions(shutdownContext, *projectorPath, projector.OpenOptions{
+		vision, err = projector.OpenAs[projector.ImageProjector](shutdownContext, *projectorPath, projector.OpenOptions{
 			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
 		})
 		if err != nil {
@@ -181,6 +192,11 @@ func run() error {
 		VideoMaxFrames:     *videoMaxFrames,
 		DatasetsRoot:       datasetsRoot,
 		RepoDBPath:         repoPath,
+		Analysis: llamaserver.AnalysisPolicy{
+			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,
+			StatePositions: *analysisPositions, MDSIterations: *analysisMDSIterations,
+			MDSTolerance: *analysisMDSTolerance,
+		},
 	}, runner)
 	if err != nil {
 		return err

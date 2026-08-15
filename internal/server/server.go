@@ -262,6 +262,7 @@ type Config struct {
 	// corresponding /datasets or /runs endpoint.
 	DatasetsRoot string
 	RepoDBPath   string
+	Analysis     AnalysisPolicy
 }
 
 type slotRuntimeStats struct {
@@ -383,6 +384,11 @@ type Handler struct {
 func New(config Config, generator Generator) (*Handler, error) {
 	if generator == nil {
 		return nil, errors.New("server: generator is nil")
+	}
+	if config.Analysis != (AnalysisPolicy{}) {
+		if err := config.Analysis.validate(); err != nil {
+			return nil, err
+		}
 	}
 	if config.ModelID == "" {
 		config.ModelID = DefaultModelID

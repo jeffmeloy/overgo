@@ -11,7 +11,7 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input HunyuanVLImage) (HunyuanVLOutput, error) {
+func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImage) (HunyuanVLOutput, error) {
 	rows := input.GridH * input.GridW
 	patchWidth := 3 * r.spec.PatchSize * r.spec.PatchSize
 	if rows <= 0 || input.GridH%r.spec.MergeSize != 0 || input.GridW%r.spec.MergeSize != 0 || len(input.PixelValues) != rows*patchWidth {

@@ -52,12 +52,6 @@ type Gemma3nVisionRunner struct {
 	spec Gemma3nVisionSpec
 }
 
-func OpenGemma3nVisionWithOptions(path string, options OpenOptions) (*Gemma3nVisionRunner, error) {
-	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Gemma3nVisionRunner, error) {
-		return openGemma3nVision(context.Background(), file, options)
-	})
-}
-
 func openGemma3nVision(ctx context.Context, file *gguf.File, options OpenOptions) (*Gemma3nVisionRunner, error) {
 	spec, err := ReadGemma3nVisionSpec(file)
 	if err != nil {

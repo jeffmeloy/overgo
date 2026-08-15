@@ -10,6 +10,10 @@ import (
 	"overgo/internal/gguf"
 )
 
+func openImageProjectorAs[T ImageProjector](path string, options OpenOptions) (T, error) {
+	return OpenAs[T](context.Background(), path, options)
+}
+
 func TestOpenProjectorResourceClosesFileOnBuildFailure(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "projector.gguf")
 	output, err := os.Create(path)

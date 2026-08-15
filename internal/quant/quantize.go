@@ -157,20 +157,30 @@ func quantize(dataType dtype.Type, values, weights []float32) ([]byte, error) {
 	return output, nil
 }
 
-type iq3QuantCodebook struct {
-	lanes [][4]int8
-	index map[uint16]int
+type iqQuantCodebook struct {
+	width     int
+	levelBits uint
+	lanes     []int8
+	index     map[uint16]int
+}
+
+func (codebook iqQuantCodebook) lane(index int) []int8 {
+	return codebook.lanes[index*codebook.width : (index+1)*codebook.width]
+}
+
+type iqPackedGrid interface {
+	~uint32 | ~uint64
 }
 
 var (
-	iq3XXSQuantCodebook = buildIQ3QuantCodebook(iq3XXSGrid[:])
-	iq3SQuantCodebook   = buildIQ3QuantCodebook(iq3SGrid[:])
+	iq3XXSQuantCodebook = buildIQQuantCodebook(iq3XXSGrid[:], iq3CodebookWidth, 3)
+	iq3SQuantCodebook   = buildIQQuantCodebook(iq3SGrid[:], iq3CodebookWidth, 3)
 )
 
-func buildIQ3QuantCodebook(grid []uint32) iq3QuantCodebook {
-	unique := make([]byte, 0, 8)
+func buildIQQuantCodebook[T iqPackedGrid](grid []T, width int, levelBits uint) iqQuantCodebook {
+	unique := make([]byte, 0, width)
 	for _, packed := range grid {
-		for lane := 0; lane < 4; lane++ {
+		for lane := 0; lane < width; lane++ {
 			value := byte(packed >> uint(lane*8))
 			if !slices.Contains(unique, value) {
 				unique = append(unique, value)
@@ -178,17 +188,17 @@ func buildIQ3QuantCodebook(grid []uint32) iq3QuantCodebook {
 		}
 	}
 	slices.Sort(unique)
-	result := iq3QuantCodebook{
-		lanes: make([][4]int8, len(grid)),
-		index: make(map[uint16]int, len(grid)),
+	result := iqQuantCodebook{
+		width: width, levelBits: levelBits,
+		lanes: make([]int8, len(grid)*width), index: make(map[uint16]int, len(grid)),
 	}
 	for gridIndex, packed := range grid {
 		var encoded uint16
-		for lane := 0; lane < 4; lane++ {
+		for lane := 0; lane < width; lane++ {
 			value := byte(packed >> uint(lane*8))
 			level, _ := slices.BinarySearch(unique, value)
-			result.lanes[gridIndex][lane] = int8(2*level + 1)
-			encoded |= uint16(level) << uint(3*lane)
+			result.lanes[gridIndex*width+lane] = int8(2*level + 1)
+			encoded |= uint16(level) << uint(levelBits*uint(lane))
 		}
 		result.index[encoded] = gridIndex
 	}
@@ -293,7 +303,7 @@ func quantizeIQ3(
 
 func quantizeIQ3Group(
 	input []float32,
-	codebook iq3QuantCodebook,
+	codebook iqQuantCodebook,
 	distanceTiers, attempts int,
 	attemptStep float32,
 	paritySigns, refineAll bool,
@@ -367,7 +377,7 @@ func quantizeIQ3Group(
 			_, direct := codebook.index[encoded]
 			auxiliaryOnGrid[subGroup] = direct
 			if !direct {
-				iq3FindBest(
+				iqFindBest(
 					codebook,
 					encoded,
 					absoluteValues[subGroup*iq3CodebookWidth:(subGroup+1)*iq3CodebookWidth],
@@ -407,11 +417,11 @@ func quantizeIQ3Group(
 				encoded |= uint16(level) << uint(3*lane)
 			}
 			if gridIndex, direct := codebook.index[encoded]; direct {
-				for lane, value := range codebook.lanes[gridIndex] {
+				for lane, value := range codebook.lane(gridIndex) {
 					levels[subGroup*iq3CodebookWidth+lane] = (value - 1) / 2
 				}
 			} else {
-				iq3FindBest(
+				iqFindBest(
 					codebook,
 					encoded,
 					absoluteValues[subGroup*iq3CodebookWidth:(subGroup+1)*iq3CodebookWidth],
@@ -465,41 +475,55 @@ func bitsSet(value byte) int {
 	return count
 }
 
-func iq3FindBest(
-	codebook iq3QuantCodebook,
+func iqFindBest(
+	codebook iqQuantCodebook,
 	encoded uint16,
 	values, weights []float32,
 	scale float32,
 	levels []int8,
 	distanceTiers int,
 ) int {
-	target := [4]int8{}
-	for lane := 0; lane < 4; lane++ {
-		target[lane] = 2*int8((encoded>>uint(3*lane))&7) + 1
+	var targetStorage [iqCodebookLaneWidth]int8
+	target := targetStorage[:codebook.width]
+	mask := uint16(1<<codebook.levelBits) - 1
+	for lane := range target {
+		target[lane] = 2*int8((encoded>>uint(codebook.levelBits*uint(lane)))&mask) + 1
 	}
-	distances := make([]int, len(codebook.lanes))
-	uniqueDistances := make([]int, 0, len(codebook.lanes))
-	for index, grid := range codebook.lanes {
+	gridCount := len(codebook.lanes) / codebook.width
+	tiers := make([]int, 0, min(distanceTiers, gridCount))
+	distance := func(grid []int8) int {
 		distance := 0
-		for lane := 0; lane < 4; lane++ {
+		for lane := range target {
 			difference := int(grid[lane] - target[lane])
 			distance += difference * difference
 		}
-		distances[index] = distance
-		if !slices.Contains(uniqueDistances, distance) {
-			uniqueDistances = append(uniqueDistances, distance)
+		return distance
+	}
+	for index := 0; index < gridCount; index++ {
+		value := distance(codebook.lane(index))
+		position, present := slices.BinarySearch(tiers, value)
+		if present || position >= distanceTiers {
+			continue
+		}
+		if len(tiers) < distanceTiers {
+			tiers = append(tiers, 0)
+		}
+		copy(tiers[position+1:], tiers[position:])
+		tiers[position] = value
+		if len(tiers) > distanceTiers {
+			tiers = tiers[:distanceTiers]
 		}
 	}
-	slices.Sort(uniqueDistances)
-	threshold := uniqueDistances[min(distanceTiers, len(uniqueDistances))-1]
+	threshold := tiers[len(tiers)-1]
 	bestError := float32(math.MaxFloat32)
 	bestIndex := -1
-	for index, grid := range codebook.lanes {
-		if distances[index] > threshold {
+	for index := 0; index < gridCount; index++ {
+		grid := codebook.lane(index)
+		if distance(grid) > threshold {
 			continue
 		}
 		currentError := float32(0)
-		for lane := 0; lane < 4; lane++ {
+		for lane := range target {
 			difference := scale*float32(grid[lane]) - values[lane]
 			currentError += weights[lane] * difference * difference
 		}
@@ -508,46 +532,13 @@ func iq3FindBest(
 			bestIndex = index
 		}
 	}
-	for lane, value := range codebook.lanes[bestIndex] {
+	for lane, value := range codebook.lane(bestIndex) {
 		levels[lane] = (value - 1) / 2
 	}
 	return bestIndex
 }
 
-type iq2QuantCodebook struct {
-	lanes [][8]int8
-	index map[uint16]int
-}
-
-var iq2SQuantCodebook = buildIQ2QuantCodebook(iq2SGrid[:])
-
-func buildIQ2QuantCodebook(grid []uint64) iq2QuantCodebook {
-	unique := make([]byte, 0, 4)
-	for _, packed := range grid {
-		for lane := 0; lane < 8; lane++ {
-			value := byte(packed >> uint(lane*8))
-			if !slices.Contains(unique, value) {
-				unique = append(unique, value)
-			}
-		}
-	}
-	slices.Sort(unique)
-	result := iq2QuantCodebook{
-		lanes: make([][8]int8, len(grid)),
-		index: make(map[uint16]int, len(grid)),
-	}
-	for gridIndex, packed := range grid {
-		var encoded uint16
-		for lane := 0; lane < 8; lane++ {
-			value := byte(packed >> uint(lane*8))
-			level, _ := slices.BinarySearch(unique, value)
-			result.lanes[gridIndex][lane] = int8(2*level + 1)
-			encoded |= uint16(level) << uint(2*lane)
-		}
-		result.index[encoded] = gridIndex
-	}
-	return result
-}
+var iq2SQuantCodebook = buildIQQuantCodebook(iq2SGrid[:], iqCodebookLaneWidth, 2)
 
 func quantizeIQ2S(values []float32, output []byte) error {
 	const (
@@ -619,7 +610,7 @@ func quantizeIQ2S(values []float32, output []byte) error {
 					_, direct := iq2SQuantCodebook.index[encoded]
 					auxiliaryOnGrid[subGroup] = direct
 					if !direct {
-						iq2FindBest(
+						iqFindBest(
 							iq2SQuantCodebook,
 							encoded,
 							absoluteValues[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
@@ -661,7 +652,7 @@ func quantizeIQ2S(values []float32, output []byte) error {
 						encoded |= uint16(level) << uint(2*lane)
 					}
 					if _, direct := iq2SQuantCodebook.index[encoded]; !direct {
-						iq2FindBest(
+						iqFindBest(
 							iq2SQuantCodebook,
 							encoded,
 							absoluteValues[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
@@ -732,55 +723,6 @@ func encodeIQ2Levels(levels []int8) uint16 {
 		encoded |= uint16(level) << uint(2*lane)
 	}
 	return encoded
-}
-
-func iq2FindBest(
-	codebook iq2QuantCodebook,
-	encoded uint16,
-	values, weights []float32,
-	scale float32,
-	levels []int8,
-	distanceTiers int,
-) int {
-	target := [8]int8{}
-	for lane := 0; lane < 8; lane++ {
-		target[lane] = 2*int8((encoded>>uint(2*lane))&3) + 1
-	}
-	distances := make([]int, len(codebook.lanes))
-	uniqueDistances := make([]int, 0, len(codebook.lanes))
-	for index, grid := range codebook.lanes {
-		distance := 0
-		for lane := 0; lane < 8; lane++ {
-			difference := int(grid[lane] - target[lane])
-			distance += difference * difference
-		}
-		distances[index] = distance
-		if !slices.Contains(uniqueDistances, distance) {
-			uniqueDistances = append(uniqueDistances, distance)
-		}
-	}
-	slices.Sort(uniqueDistances)
-	threshold := uniqueDistances[min(distanceTiers, len(uniqueDistances))-1]
-	bestError := float32(math.MaxFloat32)
-	bestIndex := -1
-	for index, grid := range codebook.lanes {
-		if distances[index] > threshold {
-			continue
-		}
-		currentError := float32(0)
-		for lane := 0; lane < 8; lane++ {
-			difference := scale*float32(grid[lane]) - values[lane]
-			currentError += weights[lane] * difference * difference
-		}
-		if currentError < bestError {
-			bestError = currentError
-			bestIndex = index
-		}
-	}
-	for lane, value := range codebook.lanes[bestIndex] {
-		levels[lane] = (value - 1) / 2
-	}
-	return bestIndex
 }
 
 func quantizeIQ4(

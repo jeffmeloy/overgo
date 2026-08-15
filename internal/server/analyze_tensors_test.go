@@ -64,8 +64,8 @@ func TestAnalyzeTensorsReturnsDistributionFreeProfiles(t *testing.T) {
 	if result.Count != 1 || len(result.Tensors) != 1 {
 		t.Fatalf("count = %d / %d, want 1", result.Count, len(result.Tensors))
 	}
-	if result.Policy.MaxSamplesPerTensor != analyzeTensorMaxSamplesPerTensor {
-		t.Errorf("policy sample cap = %d, want %d", result.Policy.MaxSamplesPerTensor, analyzeTensorMaxSamplesPerTensor)
+	if result.Policy.MaxSamplesPerTensor != testAnalysisPolicy.TensorSamples {
+		t.Errorf("policy sample cap = %d, want %d", result.Policy.MaxSamplesPerTensor, testAnalysisPolicy.TensorSamples)
 	}
 	tensor := result.Tensors[0]
 	if tensor.Name != "blk.0.weight" || tensor.Storage != "f32" || tensor.Elements != 512 {

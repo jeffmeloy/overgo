@@ -1,6 +1,8 @@
 package server
 
 import (
+	"errors"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -9,16 +11,21 @@ import (
 	"overgo/internal/tensorstats"
 )
 
-// Bounds for the read-only tensor-statistics endpoints. Sampling is per-tensor
-// evenly spaced and the total read is capped, so the calls are cheap and
-// constant regardless of model size.
-const (
-	analyzeTensorMaxSamplesPerTensor = 4096
-	analyzeTensorMaxReadBytes        = 64 << 20
+type AnalysisPolicy struct {
+	TensorSamples   uint64  `json:"tensor_samples"`
+	TensorReadBytes uint64  `json:"tensor_read_bytes"`
+	StatePositions  int     `json:"state_positions"`
+	MDSIterations   int     `json:"mds_iterations"`
+	MDSTolerance    float64 `json:"mds_tolerance"`
+}
 
-	analyzeTensorSimilarDefaultK = 8
-	analyzeTensorSimilarMaxK     = 64
-)
+func (policy AnalysisPolicy) validate() error {
+	if policy.TensorSamples == 0 || policy.TensorReadBytes == 0 || policy.StatePositions <= 0 ||
+		policy.MDSIterations <= 0 || policy.MDSTolerance <= 0 || math.IsNaN(policy.MDSTolerance) || math.IsInf(policy.MDSTolerance, 0) {
+		return errors.New("server: invalid analysis policy")
+	}
+	return nil
+}
 
 // analyzeTensor is one tensor's storage identity plus its distribution-free
 // value profile (the embedded characterization flattens into the JSON object).
@@ -57,7 +64,7 @@ func (h *Handler) analyzeTensors(response http.ResponseWriter, request *http.Req
 	}
 	writeJSON(response, http.StatusOK, analyzeTensorsResponse{
 		Model:   h.config.ModelID,
-		Policy:  analyzeTensorPolicy{analyzeTensorMaxSamplesPerTensor, analyzeTensorMaxReadBytes},
+		Policy:  analyzeTensorPolicy{h.config.Analysis.TensorSamples, h.config.Analysis.TensorReadBytes},
 		Count:   len(profiles),
 		Tensors: profiles,
 	})
@@ -88,14 +95,14 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 		writeError(response, http.StatusBadRequest, "invalid_request", "name query parameter is required")
 		return
 	}
-	k := analyzeTensorSimilarDefaultK
+	k := 0
 	if raw := request.URL.Query().Get("k"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed < 1 {
 			writeError(response, http.StatusBadRequest, "invalid_request", "k must be a positive integer")
 			return
 		}
-		k = min(parsed, analyzeTensorSimilarMaxK)
+		k = parsed
 	}
 	profiles, ok := h.characterizeLoadedModel(response)
 	if !ok {
@@ -113,6 +120,10 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 		writeError(response, http.StatusNotFound, "not_found", "tensor "+name+" is not in the model")
 		return
 	}
+	if k == 0 {
+		k = defaultNeighborCount(len(profiles))
+	}
+	k = min(k, len(profiles)-1)
 	nearest := tensorstats.Nearest(pool, targetIndex, k)
 	neighbors := make([]tensorSimilarNeighbor, len(nearest))
 	for i, n := range nearest {
@@ -128,6 +139,10 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 // characterizeLoadedModel opens the served model and profiles every tensor via
 // the shared measurement pipeline, or writes an HTTP error and returns false.
 func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analyzeTensor, bool) {
+	if h.config.Analysis == (AnalysisPolicy{}) {
+		writeError(response, http.StatusNotImplemented, "unsupported_operation", "tensor analysis policy is unavailable")
+		return nil, false
+	}
 	api, ok := h.generator.(ModelPropertiesAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model properties are unavailable")
@@ -144,7 +159,10 @@ func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analy
 		return nil, false
 	}
 	defer file.Close()
-	profiles, err := characterizeGGUF(file)
+	profiles, err := characterizeGGUF(file, modelartifact.MeasurementPolicy{
+		MaxSamplesPerTensor: h.config.Analysis.TensorSamples,
+		MaxReadBytes:        h.config.Analysis.TensorReadBytes,
+	})
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "tensor_characterization_failed", err.Error())
 		return nil, false
@@ -155,15 +173,12 @@ func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analy
 // characterizeGGUF builds the tensor inventory and measures every tensor through
 // the shared, identity-keyed measurement pipeline, pairing each characterization
 // with its storage and shape facts.
-func characterizeGGUF(file *gguf.File) ([]analyzeTensor, error) {
+func characterizeGGUF(file *gguf.File, policy modelartifact.MeasurementPolicy) ([]analyzeTensor, error) {
 	inventory, err := modelartifact.FromGGUF(file)
 	if err != nil {
 		return nil, err
 	}
-	document, err := modelartifact.MeasureGGUF(inventory.TensorInventory, file, modelartifact.MeasurementPolicy{
-		MaxSamplesPerTensor: analyzeTensorMaxSamplesPerTensor,
-		MaxReadBytes:        analyzeTensorMaxReadBytes,
-	})
+	document, err := modelartifact.MeasureGGUF(inventory.TensorInventory, file, policy)
 	if err != nil {
 		return nil, err
 	}

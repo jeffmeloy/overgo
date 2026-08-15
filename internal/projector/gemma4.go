@@ -57,12 +57,6 @@ type Gemma4Runner struct {
 	spec Gemma4Spec
 }
 
-func OpenGemma4WithOptions(path string, options OpenOptions) (*Gemma4Runner, error) {
-	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Gemma4Runner, error) {
-		return openGemma4(context.Background(), file, options)
-	})
-}
-
 func openGemma4(ctx context.Context, file *gguf.File, options OpenOptions) (*Gemma4Runner, error) {
 	return buildCatalogProjector(ctx, file, options, "Gemma 4", []string{"mm.a.input_projection.weight"},
 		ReadGemma4Spec, validateGemma4Catalog,

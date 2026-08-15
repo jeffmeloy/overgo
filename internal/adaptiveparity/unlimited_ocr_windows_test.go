@@ -102,9 +102,10 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	if decodeErr != nil || closeErr != nil {
 		t.Fatal(errors.Join(decodeErr, closeErr))
 	}
-	vision, err := projector.OpenDeepSeekOCRWithOptions(projectorPath, projector.OpenOptions{
+	vision, err := projector.OpenAs[*projector.DeepSeekOCRRunner](context.Background(), projectorPath, projector.OpenOptions{
 		CUDA: true, DisableDynamicTiles: true,
 	})
+
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Unlimited OCR projector or CUDA absent; parity NOT verified: %v", err)
 	}

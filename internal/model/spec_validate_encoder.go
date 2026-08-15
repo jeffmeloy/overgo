@@ -2,7 +2,7 @@ package model
 
 import "errors"
 
-func (s Spec) validateEncoderFamilies() error {
+func (s Spec) validateEncoderMetadata() error {
 	switch s.Profile().Validation.Encoder {
 	case EncoderValidationBERT:
 		if s.TokenTypeCount != 0 && s.HeadCountKV == s.HeadCount && s.KeyLength == s.ValueLength {

@@ -68,12 +68,6 @@ type Granite4VisionRunner struct {
 	attention visionAttentionPlan
 }
 
-func OpenGranite4VisionWithOptions(path string, options OpenOptions) (*Granite4VisionRunner, error) {
-	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Granite4VisionRunner, error) {
-		return openGranite4Vision(context.Background(), file, options)
-	})
-}
-
 func openGranite4Vision(ctx context.Context, file *gguf.File, options OpenOptions) (*Granite4VisionRunner, error) {
 	return buildCatalogProjector(ctx, file, options, "Granite 4 Vision", nil,
 		ReadGranite4VisionSpec, validateGranite4VisionCatalog,

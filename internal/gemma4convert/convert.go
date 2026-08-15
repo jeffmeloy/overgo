@@ -2,6 +2,7 @@ package gemma4convert
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -16,10 +17,9 @@ import (
 	"strings"
 
 	"overgo/internal/gguf"
-	"overgo/internal/model"
+	"overgo/internal/modelartifact"
 	"overgo/internal/projector"
 	"overgo/internal/safetensors"
-	"overgo/internal/tokenizer"
 )
 
 const gemma4ProjectorImageSize = 224
@@ -168,10 +168,10 @@ func Convert(options Options) (Report, error) {
 		if tensorErr != nil {
 			return report, tensorErr
 		}
-		if err := validateModelCatalog(metadata, tensors); err != nil {
+		if err := modelartifact.ValidateGeneratedCatalog(metadata, tensors); err != nil {
 			return report, err
 		}
-		if err := writeOutput(options.ModelPath, metadata, tensors); err != nil {
+		if err := gguf.WriteFileExclusive(options.ModelPath, metadata, tensors, gguf.WriteOptions{}); err != nil {
 			return report, err
 		}
 		report.ModelTensors = len(tensors)
@@ -209,16 +209,10 @@ func Convert(options Options) (Report, error) {
 				return report, tensorErr
 			}
 		}
-		if err := writeOutput(options.MMProjPath, metadata, tensors); err != nil {
+		if err := gguf.WriteFileExclusive(options.MMProjPath, metadata, tensors, gguf.WriteOptions{}); err != nil {
 			return report, err
 		}
-		var runner io.Closer
-		var openErr error
-		if tower {
-			runner, openErr = projector.OpenGemma4TowerWithOptions(options.MMProjPath, projector.OpenOptions{})
-		} else {
-			runner, openErr = projector.OpenGemma4WithOptions(options.MMProjPath, projector.OpenOptions{})
-		}
+		runner, openErr := projector.OpenAs[projector.Projector](context.Background(), options.MMProjPath, projector.OpenOptions{})
 		if openErr != nil {
 			_ = os.Remove(options.MMProjPath)
 			return report, fmt.Errorf("Gemma 4 converter: generated projector: %w", openErr)
@@ -571,32 +565,6 @@ func isFFNProjection(destination string) bool {
 		strings.HasSuffix(destination, ".ffn_down.weight")
 }
 
-func validateModelCatalog(metadata []gguf.Metadata, tensors []gguf.TensorData) error {
-	file := &gguf.File{Metadata: metadata, Tensors: make([]gguf.TensorInfo, len(tensors))}
-	for index, tensor := range tensors {
-		if len(tensor.Shape) > gguf.MaxDimensions {
-			return fmt.Errorf("Gemma 4 converter: tensor %q rank exceeds GGUF", tensor.Name)
-		}
-		info := gguf.TensorInfo{
-			Name: tensor.Name, Dimensions: uint32(len(tensor.Shape)), Type: tensor.Type,
-			Shape: [gguf.MaxDimensions]uint64{1, 1, 1, 1},
-		}
-		copy(info.Shape[:], tensor.Shape)
-		file.Tensors[index] = info
-	}
-	spec, err := model.ReadSpec(file)
-	if err != nil {
-		return fmt.Errorf("Gemma 4 converter: generated model metadata: %w", err)
-	}
-	if _, err := model.ReadWeights(file, spec); err != nil {
-		return fmt.Errorf("Gemma 4 converter: generated tensor catalog: %w", err)
-	}
-	if _, err := tokenizer.Load(file); err != nil {
-		return fmt.Errorf("Gemma 4 converter: generated tokenizer: %w", err)
-	}
-	return nil
-}
-
 func projectorMetadata(name string, config modelConfig) []gguf.Metadata {
 	return []gguf.Metadata{
 		stringMetadata("general.architecture", "clip"),
@@ -682,35 +650,6 @@ func projectorTensors(source *safetensors.Source, outputF32 bool) ([]gguf.Tensor
 		})
 	}
 	return tensors, nil
-}
-
-func writeOutput(path string, metadata []gguf.Metadata, tensors []gguf.TensorData) error {
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	file, err := os.OpenFile(absolute, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if err != nil {
-		return fmt.Errorf("Gemma 4 converter: create %s: %w", absolute, err)
-	}
-	succeeded := false
-	defer func() {
-		_ = file.Close()
-		if !succeeded {
-			_ = os.Remove(absolute)
-		}
-	}()
-	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		return fmt.Errorf("Gemma 4 converter: write %s: %w", absolute, err)
-	}
-	if err := file.Sync(); err != nil {
-		return err
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
-	succeeded = true
-	return nil
 }
 
 func reverseShape(shape []uint64) []uint64 {

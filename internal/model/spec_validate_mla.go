@@ -18,7 +18,7 @@ const (
 	deepSeek2LiteVocabulary    = uint32(128256)
 )
 
-func (s Spec) validateMLAFamilies() error {
+func (s Spec) validateMLAMetadata() error {
 	profile := s.Profile()
 	validation := profile.Validation.MLA
 	kimiLinear := validation == MLAValidationKimiLinear
@@ -87,12 +87,11 @@ func (s Spec) validateMLAFamilies() error {
 		case s.IndexerHeadCount == 0 || s.IndexerKeyLength < s.RopeDimensionCount || s.IndexerTopK == 0 ||
 			s.IndexerTopK > s.ContextLength || s.IndexerKeyLength&(s.IndexerKeyLength-1) != 0:
 			return errors.New("DeepSeek 4 indexer metadata is invalid")
-		case s.ExpertCount == 0 || s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 || s.SharedExpertFF == 0:
+		case !validExpertDimensions(s) || s.SharedExpertCount == 0 || s.SharedExpertFF == 0:
 			return errors.New("DeepSeek 4 expert metadata is invalid")
 		case s.ExpertGatingFunc != expertGatingSqrtSoftplus:
 			return errors.New("DeepSeek 4 expert routing function is unsupported")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("DeepSeek 4 expert weight scale is invalid")
 		case s.HashLayerCount > s.BlockCount || len(s.CompressRatios) != int(s.BlockCount) ||
 			len(s.LayerSwiGLUClamp) != int(s.BlockCount) || len(s.LayerSharedSwiGLUClamp) != int(s.BlockCount):
@@ -107,7 +106,7 @@ func (s Spec) validateMLAFamilies() error {
 				return fmt.Errorf("DeepSeek 4 layer %d compression ratio is invalid", block)
 			}
 			for _, limit := range []float32{s.LayerSwiGLUClamp[block], s.LayerSharedSwiGLUClamp[block]} {
-				if limit < 0 || math.IsNaN(float64(limit)) || math.IsInf(float64(limit), 0) {
+				if !nonNegativeFinite(limit) {
 					return fmt.Errorf("DeepSeek 4 layer %d SwiGLU clamp is invalid", block)
 				}
 			}
@@ -119,13 +118,12 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("Kimi Linear layer schedule is invalid")
 		case s.SSMConvKernel < kimiLinearMinimumConvWidth || s.KDAHeadDim == 0 || s.SSMInnerSize != s.HeadCount*s.KDAHeadDim:
 			return errors.New("Kimi Linear KDA metadata is invalid")
-		case s.LeadingDenseBlocks >= s.BlockCount || !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
-			s.ExpertFeedForward == 0 ||
+		case s.LeadingDenseBlocks >= s.BlockCount || !validExpertDimensions(s) ||
 			s.SharedExpertCount == 0 || s.SharedExpertFF == 0:
 			return errors.New("Kimi Linear expert metadata is invalid")
-		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+		case !validExpertRouting(s):
 			return errors.New("Kimi Linear expert routing function is unsupported")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("Kimi Linear expert weight scale is invalid")
 		}
 		var recurrent, attention bool
@@ -147,14 +145,13 @@ func (s Spec) validateMLAFamilies() error {
 			return errors.New("DeepSeek2 leading dense block count leaves no MoE layers")
 		case s.ExpertCount == 0 && (s.ExpertUsedCount != 0 || s.SharedExpertCount != 0 || s.SharedExpertFF != 0):
 			return errors.New("dense DeepSeek2 expert metadata is inconsistent")
-		case s.ExpertCount > 0 && (s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-			exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 || s.SharedExpertCount == 0 || s.SharedExpertFF == 0):
+		case s.ExpertCount > 0 && (!validExpertDimensions(s) || s.SharedExpertCount == 0 || s.SharedExpertFF == 0):
 			return errors.New("DeepSeek2 expert metadata is invalid")
 		case s.ExpertCount > 0 && s.SharedExpertFF/s.SharedExpertCount != s.ExpertFeedForward:
 			return errors.New("DeepSeek2 shared expert width overflows")
-		case s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) || math.IsInf(float64(s.ExpertWeightsScale), 0):
+		case !positiveFinite(s.ExpertWeightsScale):
 			return errors.New("DeepSeek2 expert weight scale is invalid")
-		case s.ExpertGatingFunc != expertGatingSoftmax && s.ExpertGatingFunc != expertGatingSigmoid:
+		case !validExpertRouting(s):
 			return errors.New("DeepSeek2 expert routing function is unsupported")
 		case !lite && s.QLoRARank == 0:
 			return errors.New("DeepSeek2 query LoRA rank is missing")
@@ -185,10 +182,7 @@ func (s Spec) validateMLAFamilies() error {
 		case s.ExpertCount == 0 && (s.ExpertUsedCount != 0 || s.ExpertFeedForward != 0):
 			return errors.New("dense Mistral 3 expert metadata is inconsistent")
 		case s.ExpertCount > 0 &&
-			(s.ExpertUsedCount == 0 || s.ExpertUsedCount > s.ExpertCount ||
-				exceedsMoETopK(s.ExpertUsedCount) || s.ExpertFeedForward == 0 ||
-				s.ExpertWeightsScale <= 0 || math.IsNaN(float64(s.ExpertWeightsScale)) ||
-				math.IsInf(float64(s.ExpertWeightsScale), 0)):
+			(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)):
 			return errors.New("Mistral 3 expert metadata is invalid")
 		case s.RopeScalingType == "yarn" &&
 			(math.IsNaN(float64(s.RopeYaRNLogMultiplier)) || math.IsInf(float64(s.RopeYaRNLogMultiplier), 0)):

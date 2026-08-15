@@ -11,7 +11,7 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input PaddleOCRImage) (PaddleOCROutput, error) {
+func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImage) (PaddleOCROutput, error) {
 	rows := input.GridH * input.GridW
 	patchWidth := 3 * r.spec.PatchSize * r.spec.PatchSize
 	if rows <= 0 || len(input.PixelValues) != rows*patchWidth {
@@ -94,7 +94,7 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input PaddleOCRImage)
 func (r *PaddleOCRRunner) paddleOCRPositionGraph(
 	builder *tensor.Builder,
 	hidden, table *tensor.Tensor,
-	input PaddleOCRImage,
+	input RasterPatchImage,
 	rowOrder, columnOrder []int,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 ) *tensor.Tensor {

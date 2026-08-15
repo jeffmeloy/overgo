@@ -31,12 +31,12 @@ func (hunyuanVLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenize
 
 func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 	path := writeTinyHunyuanVL(t, tinyHunyuanVLTensors())
-	runner, err := OpenHunyuanVLWithOptions(path, OpenOptions{})
+	runner, err := openImageProjectorAs[*HunyuanVLRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	output, err := runner.EncodeImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 4, 4)), HunyuanVLPreprocessOptions{
+	output, err := runner.EncodeImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 4, 4)), RasterPatchOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
 	})
 	if err != nil {
@@ -54,7 +54,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
-	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
+	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
 }
 
 func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
-	runner, err := OpenHunyuanVLWithOptions(writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*HunyuanVLRunner](writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
 	}
 }
 
-func TestPreprocessHunyuanVLImageRasterPatchOrder(t *testing.T) {
+func TestPreprocessRasterPatchOrder(t *testing.T) {
 	spec := tinyHunyuanVLSpec()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
@@ -112,7 +112,11 @@ func TestPreprocessHunyuanVLImageRasterPatchOrder(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(y*16 + x), A: fixtureOpaqueAlpha})
 		}
 	}
-	processed, err := PreprocessHunyuanVLImage(input, spec, HunyuanVLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio})
+	processed, err := preprocessRasterPatches(input, rasterPatchPlan{
+		patchSize: spec.PatchSize, mergeSize: spec.MergeSize,
+		defaultBudget: pixelBudget{MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels, MaxAspectRatio: defaultVisionMaxAspectRatio},
+		mean:          spec.ImageMean, std: spec.ImageStd, interpolation: rasterBicubic,
+	}, RasterPatchOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +135,7 @@ func TestPreprocessHunyuanVLImageRasterPatchOrder(t *testing.T) {
 
 func TestHunyuanVLCatalogRejectsIncompletePreNorm(t *testing.T) {
 	tensors := append(tinyHunyuanVLTensors(), f32Tensor("v.pre_ln.weight", []uint64{4}, []float32{1, 1, 1, 1}))
-	if _, err := OpenHunyuanVLWithOptions(writeTinyHunyuanVL(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
+	if _, err := openImageProjectorAs[*HunyuanVLRunner](writeTinyHunyuanVL(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -166,12 +170,12 @@ func TestHunyuanVLCatalogKeepsHostReorderedWeightOffDevice(t *testing.T) {
 func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyHunyuanVL(t, nonzeroTinyHunyuanVLTensors())
-	cpu, err := OpenHunyuanVLWithOptions(path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*HunyuanVLRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenHunyuanVLWithOptions(path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*HunyuanVLRunner](path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +186,7 @@ func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	options := HunyuanVLPreprocessOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
+	options := RasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
 	want, err := cpu.EncodeImage(context.Background(), input, options)
 	if err != nil {
 		t.Fatal(err)

@@ -30,7 +30,7 @@ func (granite4VisionPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tok
 }
 
 func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
-	runner, err := OpenGranite4VisionWithOptions(writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*Granite4VisionRunner](writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesGranite4Vision(t *testing.T) {
-	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
+	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestPreprocessGranite4VisionOverviewAndTileNewlines(t *testing.T) {
 }
 
 func TestGranite4VisionPromptCarriesDeepstack(t *testing.T) {
-	runner, err := OpenGranite4VisionWithOptions(writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*Granite4VisionRunner](writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestGranite4VisionCatalogRejectsMissingQFormerTensor(t *testing.T) {
 	tensors := slices.DeleteFunc(tinyGranite4VisionTensors(), func(item gguf.TensorData) bool {
 		return item.Name == "v.proj_blk.1.cross_attn_q.weight"
 	})
-	if _, err := OpenGranite4VisionWithOptions(writeTinyGranite4Vision(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "missing tensor") {
+	if _, err := openImageProjectorAs[*Granite4VisionRunner](writeTinyGranite4Vision(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "missing tensor") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -119,12 +119,12 @@ func TestGranite4VisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyGranite4Vision(t, nonzeroGranite4VisionTensors(true))
 	rewriteGranite4VisionMetadata(t, path, granite4VisionMultiwindowMetadata(), nonzeroGranite4VisionTensors(true))
-	cpu, err := OpenGranite4VisionWithOptions(path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*Granite4VisionRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenGranite4VisionWithOptions(path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*Granite4VisionRunner](path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

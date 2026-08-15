@@ -29,7 +29,7 @@ func (t *deepSeekOCRPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tok
 }
 
 func TestDeepSeekOCRTinyFixture(t *testing.T) {
-	runner, err := OpenDeepSeekOCRWithOptions(writeTinyDeepSeekOCR(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*DeepSeekOCRRunner](writeTinyDeepSeekOCR(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,9 +58,9 @@ func TestDeepSeekOCRPreprocessesLocalTilesBeforeOverview(t *testing.T) {
 }
 
 func TestDeepSeekOCRCanDisableDynamicTiles(t *testing.T) {
-	runner, err := OpenDeepSeekOCRWithOptions(
-		writeTinyDeepSeekOCR(t, false), OpenOptions{DisableDynamicTiles: true},
-	)
+	runner, err := openImageProjectorAs[*DeepSeekOCRRunner](
+		writeTinyDeepSeekOCR(t, false), OpenOptions{DisableDynamicTiles: true})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestDeepSeekOCRCanDisableDynamicTiles(t *testing.T) {
 }
 
 func TestDeepSeekOCRPromptContract(t *testing.T) {
-	runner, err := OpenDeepSeekOCRWithOptions(writeTinyDeepSeekOCR(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*DeepSeekOCRRunner](writeTinyDeepSeekOCR(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestDeepSeekOCRPromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesDeepSeekOCR(t *testing.T) {
-	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyDeepSeekOCR(t, false), OpenOptions{})
+	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyDeepSeekOCR(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,12 +107,12 @@ func TestOpenImageProjectorDispatchesDeepSeekOCR(t *testing.T) {
 func TestDeepSeekOCRCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyDeepSeekOCR(t, true)
-	cpu, err := OpenDeepSeekOCRWithOptions(path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*DeepSeekOCRRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := OpenDeepSeekOCRWithOptions(path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*DeepSeekOCRRunner](path, OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}

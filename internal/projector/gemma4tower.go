@@ -76,17 +76,14 @@ type Gemma4TowerRunner struct {
 	audioPlan *gemma4AudioFrontendPlan
 }
 
-func OpenGemma4TowerWithOptions(path string, options OpenOptions) (*Gemma4TowerRunner, error) {
-	ctx := context.Background()
-	return openProjectorResource(ctx, path, func(file *gguf.File) (*Gemma4TowerRunner, error) {
-		return buildCatalogProjector(ctx, file, options, "Gemma 4 tower", nil,
-			ReadGemma4TowerSpec, validateGemma4TowerCatalog,
-			func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
-				return &Gemma4TowerRunner{
-					projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, audioPlan: newGemma4AudioFrontendPlan(spec.Audio),
-				}
-			})
-	})
+func openGemma4Tower(ctx context.Context, file *gguf.File, options OpenOptions) (*Gemma4TowerRunner, error) {
+	return buildCatalogProjector(ctx, file, options, "Gemma 4 tower", nil,
+		ReadGemma4TowerSpec, validateGemma4TowerCatalog,
+		func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
+			return &Gemma4TowerRunner{
+				projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, audioPlan: newGemma4AudioFrontendPlan(spec.Audio),
+			}
+		})
 }
 
 func (r *Gemma4TowerRunner) Spec() Gemma4TowerSpec {

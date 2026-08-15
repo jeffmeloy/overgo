@@ -232,6 +232,27 @@ func (m *Model) Program() trainingprogram.TrainingProgram { return m.program }
 func (m *Model) ParameterCount() int                      { return len(m.weights) }
 func (m *Model) Layer() uint32                            { return m.layer }
 
+// Output evaluates one typed example without changing trainer state.
+func (m *Model) Output(example Example) ([]float32, error) {
+	if err := m.validateExample(example); err != nil {
+		return nil, err
+	}
+	output, _, err := hostmath.PerLayerAdapterForward(
+		example.Input, example.Side, m.gate, m.projection, m.norm,
+		example.Rows, m.hidden, m.width, m.epsilon,
+	)
+	return output, err
+}
+
+func (m *Model) validateExample(example Example) error {
+	if m == nil || example.Rows <= 0 || example.Kind == "" ||
+		len(example.Input) != example.Rows*m.hidden || len(example.Side) != example.Rows*m.width ||
+		len(example.Target) != example.Rows*m.hidden {
+		return errors.New("adapter training: invalid step input")
+	}
+	return nil
+}
+
 // Snapshot returns portable optimizer state; weights publish separately.
 func (m *Model) Snapshot() State {
 	momentum := make([]float64, len(m.momentum))

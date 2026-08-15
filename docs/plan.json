@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "multimodal-objectives",
-          "title": "Compile the training modality matrix from RepoDB objectives: text-to-text, image/audio/video-to-text, text-to-audio, text/image-to-image, text/image/video-to-video, forecast, and table only where adaptive evidence or an approved objective exists; run real corpora through processor/projector/codec gradients and modality-native evaluation; record all other pairs refused",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalTrainingMatrix$' -count=1 -v"
-        },
-        {
           "id": "objective-breadth",
           "title": "Port adaptive FNS, latent, forecast, OCR, flow-matching, image-latent, and distillation objectives only through shared TrainingPrograms; delete family loops as displaced",
           "status": "open",

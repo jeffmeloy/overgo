@@ -11,7 +11,7 @@ func TestDeviceLaneSelectionAndReporting(t *testing.T) {
 	if len(steps) != 2 || !slices.Equal(steps[0], []string{"go", "run", "./cmd/cuda-smoke"}) {
 		t.Fatalf("scoped steps = %v", steps)
 	}
-	want := []string{"go", "test", "-p=1", "./internal/cuda/...", "./internal/optimizer", "-count=1"}
+	want := []string{"go", "test", "-p=1", "-timeout=20m", "./internal/cuda/...", "./internal/optimizer", "-count=1"}
 	if !slices.Equal(steps[1], want) {
 		t.Fatalf("selected packages = %v, want %v", steps[1], want)
 	}
@@ -24,6 +24,9 @@ func TestDeviceLaneSelectionAndReporting(t *testing.T) {
 	for _, step := range deviceSteps(nil)[1:] {
 		if !slices.Contains(step, "-p=1") {
 			t.Fatalf("device test step is not serialized: %v", step)
+		}
+		if !slices.Contains(step, "-timeout=20m") {
+			t.Fatalf("device test step lacks real-suite timeout: %v", step)
 		}
 	}
 }

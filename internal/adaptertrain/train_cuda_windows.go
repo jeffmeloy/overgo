@@ -24,10 +24,11 @@ type stepState struct {
 
 // Step executes the compiled forward/loss/backward/Muon program.
 func (m *Model) Step(worker *device.Worker, example Example) (float64, error) {
-	if m == nil || worker == nil || example.Rows <= 0 || example.Kind == "" ||
-		len(example.Input) != example.Rows*m.hidden || len(example.Side) != example.Rows*m.width ||
-		len(example.Target) != example.Rows*m.hidden {
-		return 0, errors.New("adapter training: invalid step input")
+	if worker == nil {
+		return 0, errors.New("adapter training: worker unavailable")
+	}
+	if err := m.validateExample(example); err != nil {
+		return 0, err
 	}
 	execution, err := trainingprogram.Bind(m.program, []trainingprogram.Binding[stepState]{
 		{Operator: "adapter-forward", Execute: func(state *stepState) error {

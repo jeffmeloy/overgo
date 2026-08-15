@@ -56,11 +56,12 @@ const (
 
 // Value is one processor-produced typed payload.
 type Value struct {
-	Role     ValueRole
-	Modality recipecontract.Modality
-	Encoding string
-	Shape    []int
-	Data     []byte
+	Role       ValueRole
+	Modality   recipecontract.Modality
+	Encoding   string
+	Shape      []int
+	SampleRate int
+	Data       []byte
 }
 
 // Example preserves source identity across processing and batching.

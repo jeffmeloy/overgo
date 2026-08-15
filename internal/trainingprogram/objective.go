@@ -1,0 +1,297 @@
+package trainingprogram
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"slices"
+	"sort"
+	"strings"
+
+	"overgo/internal/artifact"
+	"overgo/internal/recipecontract"
+	"overgo/internal/strictjson"
+)
+
+const (
+	ObjectiveVersion   uint16 = 1
+	ObjectiveMediaType        = "application/vnd.overgo.training-objective+json"
+	ObjectiveSchema           = "overgo/training-objective/v1"
+)
+
+type ObjectiveAuthority string
+
+const (
+	ObjectiveAdaptive ObjectiveAuthority = "adaptive-evidence"
+	ObjectiveApproved ObjectiveAuthority = "approved"
+)
+
+type EvaluationMetric string
+
+const (
+	MetricTokenAccuracy   EvaluationMetric = "token-accuracy"
+	MetricImagePSNRSigned EvaluationMetric = "image-psnr-signed"
+	MetricImagePSNRUnit   EvaluationMetric = "image-psnr-unit"
+	MetricAudioSNR        EvaluationMetric = "audio-snr"
+	MetricVideoPSNRSigned EvaluationMetric = "video-psnr-signed"
+	MetricVideoPSNRUnit   EvaluationMetric = "video-psnr-unit"
+	MetricForecastMAE     EvaluationMetric = "forecast-mae"
+	MetricTableAccuracy   EvaluationMetric = "table-accuracy"
+)
+
+type ObjectiveSpec struct {
+	Name       string
+	Signature  recipecontract.ModalitySignature
+	Dataset    artifact.ID
+	Split      artifact.ID
+	Processors []artifact.ID
+	Projectors []artifact.ID
+	Codecs     []artifact.ID
+	Loss       artifact.ID
+	Evaluation artifact.ID
+	Metric     EvaluationMetric
+	Evidence   []artifact.ID
+	Authority  ObjectiveAuthority
+}
+
+// ObjectiveDocument binds one trainable modality pair to RepoDB evidence.
+type ObjectiveDocument struct {
+	ID      artifact.ID
+	Version uint16
+	ObjectiveSpec
+}
+
+type objectiveBody struct {
+	Version    uint16                           `json:"version"`
+	Name       string                           `json:"name"`
+	Signature  recipecontract.ModalitySignature `json:"signature"`
+	Dataset    artifact.ID                      `json:"dataset"`
+	Split      artifact.ID                      `json:"split"`
+	Processors []artifact.ID                    `json:"processors"`
+	Projectors []artifact.ID                    `json:"projectors,omitempty"`
+	Codecs     []artifact.ID                    `json:"codecs,omitempty"`
+	Loss       artifact.ID                      `json:"loss"`
+	Evaluation artifact.ID                      `json:"evaluation"`
+	Metric     EvaluationMetric                 `json:"metric"`
+	Evidence   []artifact.ID                    `json:"evidence"`
+	Authority  ObjectiveAuthority               `json:"authority"`
+}
+
+var objectiveCodec = artifact.DocumentCodec[ObjectiveDocument]{
+	Name: "training objective",
+	Contract: artifact.DocumentContract{
+		Kind: artifact.KindProfile, MediaType: ObjectiveMediaType, Schema: ObjectiveSchema,
+	},
+	Decode: func(data []byte, value *ObjectiveDocument) error {
+		var body objectiveBody
+		if err := strictjson.DecodeBytes(data, &body); err != nil {
+			return err
+		}
+		*value = ObjectiveDocument{Version: body.Version, ObjectiveSpec: ObjectiveSpec{
+			Name: body.Name, Signature: body.Signature, Dataset: body.Dataset, Split: body.Split,
+			Processors: body.Processors, Projectors: body.Projectors, Codecs: body.Codecs,
+			Loss: body.Loss, Evaluation: body.Evaluation, Metric: body.Metric,
+			Evidence: body.Evidence, Authority: body.Authority,
+		}}
+		return nil
+	},
+	Encode: func(value ObjectiveDocument) ([]byte, error) {
+		return json.Marshal(objectiveBody{
+			Version: value.Version, Name: value.Name, Signature: value.Signature,
+			Dataset: value.Dataset, Split: value.Split, Processors: value.Processors,
+			Projectors: value.Projectors, Codecs: value.Codecs, Loss: value.Loss,
+			Evaluation: value.Evaluation, Metric: value.Metric, Evidence: value.Evidence, Authority: value.Authority,
+		})
+	},
+	Canonicalize: canonicalizeObjective,
+	Clone: func(value ObjectiveDocument) ObjectiveDocument {
+		value.Signature = value.Signature.Clone()
+		value.Processors = slices.Clone(value.Processors)
+		value.Projectors = slices.Clone(value.Projectors)
+		value.Codecs = slices.Clone(value.Codecs)
+		value.Evidence = slices.Clone(value.Evidence)
+		return value
+	},
+	Identity:    func(value ObjectiveDocument) artifact.ID { return value.ID },
+	SetIdentity: func(value *ObjectiveDocument, id artifact.ID) { value.ID = id },
+}
+
+func NewObjective(spec ObjectiveSpec) (ObjectiveDocument, error) {
+	return objectiveCodec.New(ObjectiveDocument{Version: ObjectiveVersion, ObjectiveSpec: spec})
+}
+
+func (d ObjectiveDocument) Content() (artifact.Content, error) { return objectiveCodec.Content(d) }
+
+func LoadObjective(ctx context.Context, reader artifact.Reader, id artifact.ID) (ObjectiveDocument, error) {
+	document, ok, err := objectiveCodec.Read(ctx, reader, id)
+	if err != nil {
+		return ObjectiveDocument{}, err
+	}
+	if !ok {
+		return ObjectiveDocument{}, errors.New("training objective: RepoDB content absent")
+	}
+	return document, nil
+}
+
+func canonicalizeObjective(value *ObjectiveDocument) error {
+	if value.Version != ObjectiveVersion || strings.TrimSpace(value.Name) == "" || value.Name != strings.TrimSpace(value.Name) ||
+		value.Dataset.Kind() != artifact.KindDataset || value.Split.Kind() != artifact.KindDatasetShard ||
+		value.Loss.Kind() != artifact.KindProfile || value.Evaluation.Kind() != artifact.KindProfile ||
+		(value.Authority != ObjectiveAdaptive && value.Authority != ObjectiveApproved) {
+		return errors.New("training objective: invalid authority")
+	}
+	if err := value.Signature.Validate(); err != nil || len(value.Signature.Inputs) != 1 || len(value.Signature.Outputs) != 1 {
+		return errors.New("training objective: one input and one output modality required")
+	}
+	if !metricValidForModality(value.Signature.Outputs[0], value.Metric) {
+		return fmt.Errorf("training objective: metric %q differs from output modality", value.Metric)
+	}
+	var err error
+	if value.Processors, err = canonicalObjectiveIDs(value.Processors, artifact.KindProfile, true); err != nil {
+		return fmt.Errorf("training objective: processors: %w", err)
+	}
+	if value.Projectors, err = canonicalObjectiveIDs(value.Projectors, artifact.KindProjector, false); err != nil {
+		return fmt.Errorf("training objective: projectors: %w", err)
+	}
+	if value.Codecs, err = canonicalObjectiveIDs(value.Codecs, artifact.KindProfile, false); err != nil {
+		return fmt.Errorf("training objective: codecs: %w", err)
+	}
+	if value.Evidence, err = canonicalObjectiveIDs(value.Evidence, artifact.KindEvidence, true); err != nil {
+		return fmt.Errorf("training objective: evidence: %w", err)
+	}
+	return nil
+}
+
+func canonicalObjectiveIDs(source []artifact.ID, kind artifact.Kind, required bool) ([]artifact.ID, error) {
+	result := slices.Clone(source)
+	sort.Slice(result, func(left, right int) bool { return result[left].String() < result[right].String() })
+	if required && len(result) == 0 {
+		return nil, errors.New("required identities absent")
+	}
+	for index, id := range result {
+		if id.Kind() != kind || index > 0 && result[index-1] == id {
+			return nil, errors.New("invalid or duplicate identity")
+		}
+	}
+	return result, nil
+}
+
+type ObjectiveDisposition string
+
+const (
+	ObjectiveTrainable ObjectiveDisposition = "trainable"
+	ObjectiveRefused   ObjectiveDisposition = "refused"
+)
+
+type ObjectiveRow struct {
+	Signature   recipecontract.ModalitySignature
+	Objective   artifact.ID
+	Disposition ObjectiveDisposition
+	Reason      string
+}
+
+var objectiveModalities = []recipecontract.Modality{
+	recipecontract.ModalityText,
+	recipecontract.ModalityImage,
+	recipecontract.ModalityAudio,
+	recipecontract.ModalityVideo,
+	recipecontract.ModalityTimeSeries,
+	recipecontract.ModalityTable,
+}
+
+// CompileObjectiveMatrix derives trainable rows only from stored objective documents.
+func CompileObjectiveMatrix(ctx context.Context, reader artifact.Reader, objectives []artifact.ID) ([]ObjectiveRow, error) {
+	if ctx == nil || reader == nil {
+		return nil, errors.New("training objective: nil matrix authority")
+	}
+	approved := make(map[string]ObjectiveDocument, len(objectives))
+	for _, id := range objectives {
+		document, err := LoadObjective(ctx, reader, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateObjectiveReferences(ctx, reader, document); err != nil {
+			return nil, fmt.Errorf("training objective %q: %w", document.Name, err)
+		}
+		key := objectivePairKey(document.Signature)
+		if _, duplicate := approved[key]; duplicate {
+			return nil, fmt.Errorf("training objective: duplicate pair %s", key)
+		}
+		approved[key] = document
+	}
+	rows := make([]ObjectiveRow, 0, len(objectiveModalities)*len(objectiveModalities))
+	for _, input := range objectiveModalities {
+		for _, output := range objectiveModalities {
+			signature := recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{input}, Outputs: []recipecontract.Modality{output}}
+			row := ObjectiveRow{Signature: signature, Disposition: ObjectiveRefused, Reason: "no RepoDB objective with corpus and evidence"}
+			if objective, ok := approved[objectivePairKey(signature)]; ok {
+				row.Objective, row.Disposition, row.Reason = objective.ID, ObjectiveTrainable, ""
+			}
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+
+// CompileTrainingRunPlanFromRepository binds opaque run IDs to stored objective facts.
+func CompileTrainingRunPlanFromRepository(ctx context.Context, reader artifact.Reader, spec RunSpec) (TrainingRunPlan, error) {
+	plan, err := CompileTrainingRunPlan(spec)
+	if err != nil {
+		return TrainingRunPlan{}, err
+	}
+	objective, err := LoadObjective(ctx, reader, spec.Policies.Objective)
+	if err != nil {
+		return TrainingRunPlan{}, err
+	}
+	if err := validateObjectiveReferences(ctx, reader, objective); err != nil {
+		return TrainingRunPlan{}, err
+	}
+	if objective.Dataset != plan.Dataset() || objective.Split != plan.Split() ||
+		!slices.Equal(objective.Signature.Inputs, plan.signature.Inputs) ||
+		!slices.Equal(objective.Signature.Outputs, plan.signature.Outputs) ||
+		!slices.Equal(objective.Processors, plan.processors) ||
+		!slices.Equal(objective.Projectors, plan.projectors) ||
+		!slices.Equal(objective.Codecs, plan.codecs) || objective.Evaluation != plan.policies.Evaluation {
+		return TrainingRunPlan{}, errors.New("training objective: run authority differs from RepoDB objective")
+	}
+	return plan, nil
+}
+
+func validateObjectiveReferences(ctx context.Context, reader artifact.Reader, document ObjectiveDocument) error {
+	references := append([]artifact.ID{document.Dataset, document.Split, document.Loss, document.Evaluation}, document.Processors...)
+	references = append(references, document.Projectors...)
+	references = append(references, document.Codecs...)
+	references = append(references, document.Evidence...)
+	for _, id := range references {
+		if _, ok, err := reader.Artifact(ctx, id); err != nil {
+			return err
+		} else if !ok {
+			return fmt.Errorf("referenced artifact %s absent", id)
+		}
+	}
+	return nil
+}
+
+func objectivePairKey(signature recipecontract.ModalitySignature) string {
+	return string(signature.Inputs[0]) + "->" + string(signature.Outputs[0])
+}
+
+func metricValidForModality(modality recipecontract.Modality, metric EvaluationMetric) bool {
+	switch modality {
+	case recipecontract.ModalityText:
+		return metric == MetricTokenAccuracy
+	case recipecontract.ModalityImage:
+		return metric == MetricImagePSNRSigned || metric == MetricImagePSNRUnit
+	case recipecontract.ModalityAudio:
+		return metric == MetricAudioSNR
+	case recipecontract.ModalityVideo:
+		return metric == MetricVideoPSNRSigned || metric == MetricVideoPSNRUnit
+	case recipecontract.ModalityTimeSeries:
+		return metric == MetricForecastMAE
+	case recipecontract.ModalityTable:
+		return metric == MetricTableAccuracy
+	default:
+		return false
+	}
+}

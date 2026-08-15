@@ -101,7 +101,7 @@ sessions to execute concurrently.
 | Image generation | Typed conditioning, CUDA-resident denoising, and PNG artifact output | Krea has verified 2048-pixel execution. SenseNova has a CUDA-tested 256-pixel text-to-PNG recipe. Un-0 publishes an exact retained artifact. SimpleDiffusion uses a geometry-keyed resident CUDA recipe; its real seed-7, two-step, 64x64 generation is 15-18x faster warm than the host in repeated tests, with one decoded color channel differing by one byte from the retained PNG. Full-size and image-edit tests are not complete. |
 | Video generation | Typed oscillator, Wan, and LiveEdit recipes; encoded artifact publication; CUDA-resident Wan denoising and VAE encoding/decoding; retained LiveEdit text projection, cumulative attention history, and source-latent reuse | Un-0 publishes six real-artifact frames as a 64x64 GIF byte-identical to adaptive_new. Wan has verified full-clip execution. LiveEdit executes all 30 blocks. Its full 81-frame edit matches adaptive and Python output quality, uses 15.624 GiB peak device memory, takes 81.6-81.9 s cold, and takes 51.0-51.5 s when the same source latent is resident. The production recipe publishes GIF; the performance gate streams MP4. |
 | Speech, forecast, table, seq2seq | Shared runtime and recipe components. Pocket-TTS verifies waveform output and trains its real backbone+flow parameter set through compiled Muon on native generated codec latents. TimesFM verifies exact forecasts and a held-out Supernova baseline. Needle verifies exact numeric parity, grounded text-to-tool-call JSON, and real GSM8K training through the common dataset stream, compiled training program, and device Muon. | Needle retains BF16 matrices and measures 66.758-67.363 MiB across matched cold processes versus adaptive_new's 120.918-121.328 MiB. Shared reverse traversal trains both final norms, all eight decoder self/cross-attention pairs, all 12 encoder self-attention blocks, and the tied source/target/output embedding. A fixed 4-train/4-held-out GSM8K gate improves both aggregate losses. Pocket-TTS corpus audio encoding and held-out training evidence remain open. Comparable process peak measurements remain open for the other capabilities. |
-| Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers; scratch construction, Qwen3.5 hybrid training, and Gemma E4B per-layer adapter training use compiled programs and shared VJPs | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. Qwen3.5-4B recurrent layer 0 trains from the real GGUF. Gemma E4B trains its real layer-0 adapter on fingerprinted text, image, and audio representations with exact checkpoint resume. The dense CLI publishes atomic, non-overwriting checkpoints. SimpleDiffusion trains its real 101.8M-parameter checkpoint on structured image crops. RepoDB dataset selection from the CLI, checkpoint adoption by every trainer, complete Qwen3.5/E4B stacks, and general multimodal objectives are not implemented. |
+| Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers; scratch construction, Qwen3.5 hybrid training, and Gemma E4B per-layer adapter training use compiled programs and shared VJPs. RepoDB-backed objective documents bind the corpus, split, processors, projectors/codecs, loss, evaluation, and evidence to a 36-row modality matrix. | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. Qwen3.5-4B recurrent layer 0 trains from the real GGUF. Gemma E4B trains its real layer-0 adapter on fingerprinted Wikitext, P2 image, and LongSpeech records. Text-to-text, image-to-text, and audio-to-text are approved; the other 33 single-modality pairs are refused. The dense CLI publishes atomic, non-overwriting checkpoints. SimpleDiffusion trains its real 101.8M-parameter checkpoint on structured image crops. RepoDB dataset selection from the CLI, checkpoint adoption by every trainer, complete Qwen3.5/E4B stacks, and the refused output objectives remain open. |
 
 Known gaps include full-size SenseNova image and edit tests, LiveEdit cold-request
 leadership and recipe-configured MP4 publication, exact full-sequence Unlimited OCR comparison, comparable
@@ -411,6 +411,8 @@ and diffusion-image training:
 - applies exact content deduplication before sampling;
 - uses the processor profiles and typed input and target modalities specified by
   a compiled `TrainingRunPlan`;
+- decodes normalized image and rate-bearing audio values through shared typed
+  processors;
 - produces deterministic weighted order from dataset identity, seed, member,
   epoch, and record identity;
 - snapshots `{stream identity, position}` for exact order resume;
@@ -420,6 +422,15 @@ and diffusion-image training:
 `cmd/train` currently processes one UTF-8 file as an in-memory document. Direct
 RepoDB dataset and split selection, and atomic storage of the stream position
 with optimizer and random-number-generator state, are not implemented.
+
+`internal/trainingprogram` stores each approved training objective as a RepoDB
+profile. The profile binds one ordered input/output modality pair to its real
+dataset and split, processor, optional projector and codec, loss, native
+evaluation metric, and evidence. Repository-aware run-plan compilation rejects
+any differing binding. Matrix compilation emits all 36 single-modality pairs;
+only text-to-text, image-to-text, and audio-to-text currently have approved,
+real-record E4B evidence. Every other pair remains explicitly refused until a
+corpus-bound objective and executable evidence are published.
 
 ### From-scratch model construction and training
 
@@ -443,7 +454,7 @@ loss sequence. For the recorded small configuration, Overgo measured
 
 Scratch construction is implemented as an internal package but is not exposed
 as a complete CLI workflow. RepoDB publication of the initialized model, run,
-and checkpoint; atomic resume; general multimodal objectives; evaluation and
+and checkpoint; atomic resume; remaining multimodal objectives; evaluation and
 activation of a held-out controller; and descendant improvement are not
 implemented.
 

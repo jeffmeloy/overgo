@@ -191,6 +191,14 @@ approved objective and real corpus. Inference support alone does not create a
 training claim. Missing pairs compile to explicit non-trainable/refused rows;
 synthetic tensors cannot substitute for real modality evidence.
 
+Current executable evidence approves text-to-text, image-to-text, and
+audio-to-text for the real Gemma E4B layer-0 adapter. The inputs are fingerprinted
+Wikitext, P2 image, and LongSpeech records processed through the shared typed
+data boundary and real tokenizer/projector. The exhaustive single-modality
+matrix refuses the other 33 pairs. A refused row becomes trainable only after a
+RepoDB objective binds its real corpus, split, processors, projectors/codecs,
+loss, native evaluation, and evidence to the same `TrainingRunPlan`.
+
 Checkpoint identity includes processors/codecs and RNG/augmentation state.
 Promotion requires end-to-end processor-to-output evidence: exact boundaries
 where deterministic, modality-native held-out quality otherwise, plus matched

@@ -22,6 +22,10 @@ import (
 
 const cudaTestEnv = "OVERGO_CUDA_TEST"
 
+// Two default Go test windows. Measured adaptiveparity device suite: 624.107s.
+// Revisit when stored device-run history supports a tighter derived bound.
+const devicePackageTimeout = "20m"
+
 var pathsFlag = flag.String("paths", "", "comma-separated changed paths; empty runs the full device set")
 
 func main() {
@@ -69,8 +73,8 @@ func deviceSteps(paths []string) [][]string {
 	steps := [][]string{{"go", "run", "./cmd/cuda-smoke"}}
 	if len(paths) == 0 {
 		return append(steps,
-			[]string{"go", "test", "-p=1", "./internal/cuda/...", "./internal/model", "./internal/projector", "./internal/optimizer", "./internal/devicemath", "-count=1"},
-			[]string{"go", "test", "-p=1", "-run", "Device", "./internal/densecausal", "-count=1"})
+			deviceTestStep("./internal/cuda/...", "./internal/model", "./internal/projector", "./internal/optimizer", "./internal/devicemath"),
+			deviceTestStep("-run", "Device", "./internal/densecausal"))
 	}
 	packages := map[string]bool{}
 	for _, path := range paths {
@@ -89,10 +93,15 @@ func deviceSteps(paths []string) [][]string {
 	sort.Strings(ordered)
 	if len(ordered) > 0 {
 		// One device owner: package concurrency invalidates wall and peak ratchets.
-		command := append([]string{"go", "test", "-p=1"}, ordered...)
-		steps = append(steps, append(command, "-count=1"))
+		steps = append(steps, deviceTestStep(ordered...))
 	}
 	return steps
+}
+
+func deviceTestStep(arguments ...string) []string {
+	command := []string{"go", "test", "-p=1", "-timeout=" + devicePackageTimeout}
+	command = append(command, arguments...)
+	return append(command, "-count=1")
 }
 
 func deviceScopeLabel(paths []string) string {

@@ -169,7 +169,7 @@
           "contains": "func LoadArtifact(",
           "path": "internal/adaptertrain/model.go",
           "role": "source",
-          "identity": "file:sha256:35bdd84bdbc2c28f783c4cc6d2d8eba45952f6105eaf8f493cc670f4b6cdd2cd"
+          "identity": "file:sha256:88c0f367434d3280f10eed897b008a558848bde00567da0f7b41aa94a0999c23"
         },
         {
           "contains": "func TestGemmaE4BRealTraining(",
@@ -184,6 +184,34 @@
       "artifact_identity": "sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e+6d30559c2d237385a19b1ff68817c25c5e999f3d44290cf029676b031b80b710+f6d78057fb188166f763d174659f30abfea1720005b9300e13e49a3e9d133089+6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca",
       "status": "implemented",
       "summary": "Gemma E4B layer 0 trains its real per-layer adapter on fingerprinted text, image, and audio representations through a compiled device-Muon program with exact checkpoint resume; complete 42-layer training remains open."
+    },
+    {
+      "evidence": [
+        {
+          "contains": "func CompileObjectiveMatrix(",
+          "path": "internal/trainingprogram/objective.go",
+          "role": "source",
+          "identity": "file:sha256:c05b226c946e30fc71b0826f31a28adc1fd630e0e6653f0c79f978058f71c0a6"
+        },
+        {
+          "contains": "func AudioProcessor(",
+          "path": "internal/trainingdata/audio.go",
+          "role": "source",
+          "identity": "file:sha256:79be318d9f4a60e52285789a968bcf62e46c7f36824842065d27d09ef85a44cb"
+        },
+        {
+          "contains": "func TestMultimodalTrainingMatrix(",
+          "path": "internal/adaptiveparity/multimodal_training_cuda_windows_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:2c045030413d60ef4520f454974327e7cbb26ec1754f15f68cfabb279f0b68e2"
+        }
+      ],
+      "id": "repodb-multimodal-training-objective-matrix",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalTrainingMatrix$' -count=1 -v",
+      "artifact_identity": "sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e+9e9fa1ad55b1c2c95b08e37dd8e653f638fac2c6de904b79e813611eefbc985f+026362ccd74747359902464829a97e1aa1321d745efdee7f2056e226477484c0+ac135a0ddeb91a15cd70eec58949af2e329311b0d9848298ae1d9b1284ffc90f+8749bb8c9e0eaf7e10102315242a35665ad4a583f4eeb3d27f34065013ec140b",
+      "status": "implemented",
+      "summary": "RepoDB objective documents approve text-to-text, image-to-text, and audio-to-text only after real corpus processing, E4B tokenizer/projector execution, adapter gradients, device Muon, and token evaluation; the other 33 single-modality pairs are refused."
     },
     {
       "evidence": [

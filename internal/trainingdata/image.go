@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	_ "image/jpeg"
 	"image/png"
@@ -96,6 +97,36 @@ func ImageProcessor(role ValueRole) Processor {
 			Shape: []int{3, height, width}, Data: EncodeFloat32(values),
 		}}}, nil
 	}
+}
+
+// Image reconstructs one processor-owned normalized CHW image.
+func Image(value Value) (image.Image, error) {
+	if value.Modality != recipecontract.ModalityImage || len(value.Shape) != 3 || value.Shape[0] != 3 {
+		return nil, errors.New("training data: invalid image value")
+	}
+	values, err := Float32(value)
+	if err != nil {
+		return nil, err
+	}
+	height, width := value.Shape[1], value.Shape[2]
+	if len(values) != 3*height*width {
+		return nil, errors.New("training data: image payload differs from shape")
+	}
+	result := image.NewNRGBA(image.Rect(0, 0, width, height))
+	plane := height * width
+	channel := func(input float32) uint8 {
+		return uint8(math.Round(float64(min(max(input, -1), 1)+1) * 127.5))
+	}
+	for y := range height {
+		for x := range width {
+			index := y*width + x
+			result.SetNRGBA(x, y, color.NRGBA{
+				R: channel(values[index]), G: channel(values[plane+index]),
+				B: channel(values[2*plane+index]), A: 255,
+			})
+		}
+	}
+	return result, nil
 }
 
 func normalizedCHW(source image.Image) []float32 {

@@ -121,7 +121,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 
 | Training concern | adaptive_new | Overgo | Verdict |
 | --- | --- | --- | --- |
-| Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` compile immutable construction, dataset, operator and Muon authority; production checkpoint/promotion breadth remains open | Core authority ported; breadth gap |
+| Training authority | Typed examples, objectives, admission, memory, progress, evidence; recipes not yet universal | `TrainingRunPlan` and `TrainingProgram` compile immutable construction, dataset, operator and Muon authority. RepoDB objective documents bind each trainable modality pair to corpus, split, processors, projectors/codecs, loss, native evaluation, and evidence. The exhaustive 36-row matrix currently approves three E4B input-to-text objectives and refuses 33 rows. | Core authority and explicit refusal matrix ported; objective breadth remains narrower |
 | Model from scratch | `RunFromProviderRich` derives split, rune vocabulary, topology, initialization, batching, causal training and metrics from documents | Pinned source/config/oracle parity; direct flat initialization; shared tensor forward/VJP; resident CUDA weights, gradients, momentum, compiled graphs and pooled scratch | Matched three-step wall/peak lead; artifact publication and exact resume open |
 | Optimizer | Adaptive optimizer machinery and model-specific use; historical SGD paths remain | Matrix/vector/scalar groups use one compiled Muon path; sign, BF16-SGD and family-local production updates deleted | Muon-only production authority |
 | Dense causal LM | Carbon at `c72b6595d`: four 31-token DNA windows, loss `8.43767 -> 7.29179`, 6.816 s loop, 11.47 GiB. Qwen2.5-0.5B at `de547a363`: 505 ms warm step | Carbon on the same windows: loss `8.438149 -> 7.290705-7.293696`, 1.510-1.550 s loop, 4.985 GiB. Qwen on the pinned 512-token adaptive corpus: loss `4.592842 -> 2.958702`; 552-753 ms cold execution, 469-480 ms retained warm execution, 6.592 GiB peak | Carbon wall/peak lead; Qwen retained warm-wall lead with measured peak |
@@ -177,6 +177,15 @@ Overgo's tokenizer total includes a large generated Unicode table.
   `14.315110/16.071185/16.074883`; update wall is 68.989 ms. Checkpointed and
   uninterrupted weights and Muon state are bit-identical. adaptive_new has no
   matched adapter-training trajectory; no complete-model claim is made.
+- Multimodal objective matrix: fingerprinted Wikitext (`9e9fa1ad...`), P2 image
+  (`026362cc...`), and LongSpeech audio/label (`ac135a0d...`/`8749bb8c...`)
+  records pass the shared materializer and typed processors,
+  the real E4B tokenizer or CUDA image/audio projector, the 1,313,280-parameter
+  adapter, device Muon, and token-accuracy evaluation. Losses are
+  `11.091556/11.795913/5.802830`; repeated three-update runs take
+  60.045-61.414 ms. RepoDB approves
+  text-to-text, image-to-text, and audio-to-text. The other 33 single-modality
+  pairs are explicit refusals, not inferred training support.
 - Needle 26M, first real GSM8K training record, three compiled device-Muon
   steps over the decoder final norm and complete last cross-attention block:
   train loss `6.541863 -> 6.415488`; separate held-out record
@@ -386,12 +395,13 @@ an adaptive oracle. Extend that compiled path across the complete stack, then
 E4B; add held-out promotion before broader claims. Exact dense checkpoint/resume
 evidence is already gated.
 
-### P0: E4B training is falsely closed
+### P0: E4B complete-stack training remains open
 
-`rung13-e4b/training-leg` says the remaining work is real device training, but
-the item and step are `done`. Reopen against the actual Gemma E4B artifact.
-Synthetic Qwen-style hybrid training is not a substitute for AltUp, PLE,
-Laurel, SharedKV, and mixed-window execution together.
+The real artifact now drives layer-0 adapter training and the bound topology
+verifies PLE, SharedKV, and mixed sliding/full attention. The artifact declares
+no AltUp or Laurel tensors, so those mechanisms are not part of this E4B claim.
+Training all 42 language layers and the vision/audio towers, with retained
+device state and held-out promotion, remains open.
 
 ### P1: checkpoint adoption is incomplete
 

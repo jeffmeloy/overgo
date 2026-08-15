@@ -235,11 +235,11 @@ func buildAttentionSSMHybridMixCached(
 	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeads, tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeads, tokens)
 	if weights.RopeFactors != nil {
-		query = builder.RoPENeoXScaledWithFactors(query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1, weights.RopeFactors)
-		key = builder.RoPENeoXScaledWithFactors(key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1, weights.RopeFactors)
+		query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, FrequencyFactors: weights.RopeFactors, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: 1})
+		key = builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, FrequencyFactors: weights.RopeFactors, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: 1})
 	} else {
-		query = builder.RoPENeoXScaled(query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1)
-		key = builder.RoPENeoXScaled(key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1)
+		query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: 1})
+		key = builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: 1})
 	}
 	cacheKey, cacheValue := key, value
 	var queryStart uint32

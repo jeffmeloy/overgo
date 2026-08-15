@@ -96,8 +96,8 @@ func llama4VisionRoPEGraph(
 	half, heads, rows := headWidth/2, input.Shape.Dims[1], input.Shape.Dims[2]
 	w := builder.Reshape(builder.GroupSlice(input, 0, half, 1, half), half, heads, rows)
 	h := builder.Reshape(builder.GroupSlice(input, half, half, 1, half), half, heads, rows)
-	w = builder.RoPENormal(w, positionsW, uint32(half), theta)
-	h = builder.RoPENormal(h, positionsH, uint32(half), theta)
+	w = builder.RoPEWithOptions(w, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positionsW, RotaryDimensions: uint32(half), FrequencyBase: theta, FrequencyScale: 1})
+	h = builder.RoPEWithOptions(h, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positionsH, RotaryDimensions: uint32(half), FrequencyBase: theta, FrequencyScale: 1})
 	return builder.Concat(w, h, 0)
 }
 

@@ -121,8 +121,8 @@ func (graph *modelGraph) transformerTokens(block *attnBlock, config Config, inpu
 	for index := range positions {
 		positions[index] = uint32(index)
 	}
-	query = graph.builder.RoPENeoXReverse(query, positions, uint32(headDim), float32(config.RopeTheta))
-	key = graph.builder.RoPENeoXReverse(key, positions, uint32(headDim), float32(config.RopeTheta))
+	query = graph.builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: float32(config.RopeTheta), FrequencyScale: 1, Reverse: true})
+	key = graph.builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: float32(config.RopeTheta), FrequencyScale: 1, Reverse: true})
 	attended := graph.builder.Reshape(
 		graph.builder.Attention(query, key, value, 1/float32(math.Sqrt(float64(headDim))), false),
 		heads*headDim, sequence,

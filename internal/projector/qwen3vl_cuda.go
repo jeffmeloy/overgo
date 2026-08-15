@@ -181,8 +181,8 @@ func interleavedVisionRoPE(
 		builder.GroupSlice(input, quarter, quarter, visionRoPEAxisCount, axisWidth),
 		axisWidth, heads, rows,
 	)
-	y = builder.RoPENeoX(y, positionsY, uint32(axisWidth), frequencyBase)
-	x = builder.RoPENeoX(x, positionsX, uint32(axisWidth), frequencyBase)
+	y = builder.RoPEWithOptions(y, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positionsY, RotaryDimensions: uint32(axisWidth), FrequencyBase: frequencyBase, FrequencyScale: 1})
+	x = builder.RoPEWithOptions(x, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positionsX, RotaryDimensions: uint32(axisWidth), FrequencyBase: frequencyBase, FrequencyScale: 1})
 	split := func(value *tensor.Tensor, offset uint64) *tensor.Tensor {
 		return builder.Reshape(builder.GroupSlice(value, offset, quarter, 1, quarter), quarter, heads, rows)
 	}

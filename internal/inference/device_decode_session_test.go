@@ -62,7 +62,7 @@ func TestParameterizedDecodeAttributesCoverDynamicNodes(t *testing.T) {
 	table := builder.Input("table", dtype.F32, tensor.MustShape(2, 4))
 	tokenRows := builder.GetRows(table, []uint32{1})
 	query := builder.Reshape(tokenRows, 2, 1, 1)
-	query = builder.RoPENeoX(query, []uint32{activeTokens}, 2, 10_000)
+	query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: []uint32{activeTokens}, RotaryDimensions: 2, FrequencyBase: 10_000, FrequencyScale: 1})
 	output := builder.AttentionWithOffset(query, key, key, 1, true, activeTokens)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)

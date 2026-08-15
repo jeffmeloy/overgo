@@ -54,7 +54,7 @@ func (p RopePlan) DeviceApply(b *tensor.Builder, q *tensor.Tensor, positions []R
 		// contiguous channel window [offset, offset+w) over every (head, token).
 		sliced := b.GroupSlice(q, offset, w, 1, w) // [w, 1, heads, tokens]
 		sec := b.Reshape(sliced, w, heads, tokens) // [w, heads, tokens]
-		roped := b.RoPENeoX(sec, axisPositions(positions, section.Axis), uint32(w), float32(section.Theta))
+		roped := b.RoPEWithOptions(sec, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: axisPositions(positions, section.Axis), RotaryDimensions: uint32(w), FrequencyBase: float32(section.Theta), FrequencyScale: 1})
 		if out == nil {
 			out = roped
 		} else {
@@ -103,9 +103,9 @@ func (p RopePlan) DeviceNormalizeApply(
 		width := uint64(section.Width)
 		window := b.GroupSlice(normalized, offset, width, 1, width)
 		window = b.Reshape(window, width, heads, tokens)
-		window = b.RoPENeoX(
-			window, axisPositions(positions, section.Axis), uint32(width), float32(section.Theta),
-		)
+		window = b.RoPEWithOptions(
+			window, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: axisPositions(positions, section.Axis), RotaryDimensions: uint32(width), FrequencyBase: float32(section.Theta), FrequencyScale: 1})
+
 		window = b.BF16Round(window)
 		if out == nil {
 			out = window

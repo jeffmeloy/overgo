@@ -234,7 +234,7 @@ func TestExecuteRoPENormalWithFrequencyFactors(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 1))
 	factors := builder.Input("factors", dtype.F32, tensor.MustShape(2))
-	output := builder.RoPENormalWithFactors(input, []uint32{2}, 4, 1, factors)
+	output := builder.RoPEWithOptions(input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: []uint32{2}, FrequencyFactors: factors, RotaryDimensions: 4, FrequencyBase: 1, FrequencyScale: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1022,7 +1022,7 @@ func TestExecuteEmbeddingWeightedNormAndSwiGLU(t *testing.T) {
 func TestExecuteRoPENeoX(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 2))
-	output := builder.RoPENeoX(input, []uint32{0, 1}, 4, 10000)
+	output := builder.RoPEWithOptions(input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: []uint32{0, 1}, RotaryDimensions: 4, FrequencyBase: 10000, FrequencyScale: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1058,7 +1058,7 @@ func TestExecuteRoPENeoX(t *testing.T) {
 func TestExecuteRoPENormal(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 2))
-	output := builder.RoPENormal(input, []uint32{0, 1}, 4, 10000)
+	output := builder.RoPEWithOptions(input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: []uint32{0, 1}, RotaryDimensions: 4, FrequencyBase: 10000, FrequencyScale: 1})
 	feed, err := NewValue(input.Shape, []float32{
 		1, 2, 3, 4,
 		1, 2, 3, 4,
@@ -1090,7 +1090,7 @@ func TestExecuteYaRNRoPEAppliesMagnitudeAndFrequencyBlend(t *testing.T) {
 		OriginalContext: 8, FrequencyBase: 10_000, FrequencyScale: 0.25,
 		YaRN: true, ExtFactor: 1, AttentionFactor: 1, BetaFast: 32, BetaSlow: 1,
 	})
-	linear := builder.RoPENeoXScaled(input, []uint32{17}, 4, 10_000, 0.25)
+	linear := builder.RoPEWithOptions(input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: []uint32{17}, RotaryDimensions: 4, FrequencyBase: 10_000, FrequencyScale: 0.25})
 	feed, _ := NewValue(input.Shape, []float32{1, 2, 3, 4})
 	results, err := Execute([]*tensor.Tensor{yarn, linear}, map[*tensor.Tensor]Value{input: feed})
 	if err != nil {

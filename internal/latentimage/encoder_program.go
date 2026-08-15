@@ -183,8 +183,8 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 		v = b.Reshape(v, headDim, kvHeads, uint64(seq))
 		q = b.WeightedRMSNorm(q, bind.Input(prefix+"self_attn.q_norm.weight", headDim), eps)
 		k = b.WeightedRMSNorm(k, bind.Input(prefix+"self_attn.k_norm.weight", headDim), eps)
-		q = b.RoPENeoX(q, positions, uint32(headDim), theta)
-		k = b.RoPENeoX(k, positions, uint32(headDim), theta)
+		q = b.RoPEWithOptions(q, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: theta, FrequencyScale: 1})
+		k = b.RoPEWithOptions(k, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: theta, FrequencyScale: 1})
 
 		var attn *tensor.Tensor
 		if p.keyBias != nil {

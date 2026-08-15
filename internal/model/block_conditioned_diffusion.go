@@ -192,7 +192,7 @@ func buildAxisPartitionedRoPE(
 			builder.GroupSlice(input, offset, span, 1, span),
 			span, heads, tokens,
 		)
-		rotated := builder.RoPENormal(part, positions[axis], uint32(span), frequencyBase)
+		rotated := builder.RoPEWithOptions(part, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positions[axis], RotaryDimensions: uint32(span), FrequencyBase: frequencyBase, FrequencyScale: 1})
 		if joined == nil {
 			joined = rotated
 		} else {

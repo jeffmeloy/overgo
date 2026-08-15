@@ -312,7 +312,7 @@ func buildInterleavedRoPE(b *tensor.Builder, x *tensor.Tensor, axes [3]uint64, p
 	for axis := 0; axis < 3; axis++ {
 		span := axes[axis]
 		part := b.Reshape(b.GroupSlice(x, offset, span, 1, span), span, heads, tokens)
-		rotated := b.RoPENormal(part, positions[axis], uint32(span), theta)
+		rotated := b.RoPEWithOptions(part, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positions[axis], RotaryDimensions: uint32(span), FrequencyBase: theta, FrequencyScale: 1})
 		if joined == nil {
 			joined = rotated
 		} else {

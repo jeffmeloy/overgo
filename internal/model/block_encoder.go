@@ -351,8 +351,8 @@ func buildCausalPostQKNormMixCached(
 	query = builder.Reshape(query, uint64(spec.KeyLength), headCount, tokens)
 	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeadCount, tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeadCount, tokens)
-	query = builder.RoPENeoXScaled(query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1)
-	key = builder.RoPENeoXScaled(key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, 1)
+	query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: 1})
+	key = builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: 1})
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	key = builder.RMSNorm(key, spec.RMSNormEpsilon)
 

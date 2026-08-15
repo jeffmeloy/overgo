@@ -780,12 +780,9 @@ func TestBuilderGetRowsAndRoPE(t *testing.T) {
 	builder := NewBuilder()
 	table := builder.Input("table", dtype.F32, MustShape(8, 16))
 	embedding := builder.GetRows(table, []uint32{3, 5})
-	rope := builder.RoPENeoX(
-		builder.Input("query", dtype.F32, MustShape(8, 2, 2)),
-		[]uint32{4, 5},
-		8,
-		10000,
-	)
+	rope := builder.RoPEWithOptions(
+		builder.Input("query", dtype.F32, MustShape(8, 2, 2)), RoPEOptions{Layout: RoPELayoutNeoX, Positions: []uint32{4, 5}, RotaryDimensions: 8, FrequencyBase: 10000, FrequencyScale: 1})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -798,13 +795,13 @@ func TestBuilderGetRowsAndRoPE(t *testing.T) {
 	positions[1] = []uint32{3, 4}
 	positions[2] = []uint32{5, 6}
 	positions[3] = []uint32{7, 8}
-	multi := builder.RoPEMulti(
+	multi := builder.RoPEMultiScaled(
 		builder.Input("multi", dtype.F32, MustShape(8, 1, 2)),
 		positions,
 		[4]int32{2, 2, 2, 2},
 		8,
-		10000,
-	)
+		10000, 1)
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}

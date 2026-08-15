@@ -2,9 +2,9 @@ package runrecord
 
 import (
 	"errors"
-	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -57,17 +57,11 @@ func (e Environment) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizeEnvironment(environment *Environment) error {
+	valid := func(value string) bool { return textcheck.Bounded(value, maxEnvironmentBytes, "\x00\r\n") }
 	if environment == nil || environment.Version != EnvironmentVersion ||
-		!validEnvironmentField(environment.Host) || !validEnvironmentField(environment.OS) ||
-		!validEnvironmentField(environment.Arch) || !validEnvironmentField(environment.Device) ||
-		!validEnvironmentField(environment.Backend) || !validEnvironmentField(environment.Driver) ||
-		environment.Runtime != "" && !validEnvironmentField(environment.Runtime) {
+		!valid(environment.Host) || !valid(environment.OS) || !valid(environment.Arch) || !valid(environment.Device) ||
+		!valid(environment.Backend) || !valid(environment.Driver) || environment.Runtime != "" && !valid(environment.Runtime) {
 		return errors.New("run record: invalid environment")
 	}
 	return nil
-}
-
-func validEnvironmentField(value string) bool {
-	return value != "" && len(value) <= maxEnvironmentBytes && strings.TrimSpace(value) == value &&
-		!strings.ContainsAny(value, "\x00\r\n")
 }

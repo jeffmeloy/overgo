@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -129,7 +130,8 @@ func (d Document) Batch(key string, alias *artifact.AliasBinding) (artifact.Batc
 func canonicalize(document *Document) error {
 	if document == nil || document.Version != Version || !validName(document.Name) ||
 		!validTier(document.Tier) || !validTierStatus(document.Tier, document.Status) ||
-		!validText(document.ClosurePath) || !validText(document.RerankTrigger) ||
+		!textcheck.Bounded(document.ClosurePath, maxTextBytes, "\x00\r") ||
+		!textcheck.Bounded(document.RerankTrigger, maxTextBytes, "\x00\r") ||
 		!document.Fixture.Valid() || len(document.OwnerSurfaces) == 0 {
 		return errors.New("closure ledger: invalid document")
 	}
@@ -206,11 +208,6 @@ func validName(value string) bool {
 		return false
 	}
 	return true
-}
-
-func validText(value string) bool {
-	return value != "" && len(value) <= maxTextBytes && strings.TrimSpace(value) == value &&
-		!strings.ContainsAny(value, "\x00\r")
 }
 
 func documentContent(document Document) ([]byte, error) {

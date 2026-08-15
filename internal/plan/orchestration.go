@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -84,9 +85,9 @@ func WorkLeaseAlias(worktree string) string {
 }
 
 func canonicalizeWorkLease(value *WorkLease) error {
-	if value == nil || value.Version != WorkLeaseVersion || !validOrchestrationText(value.Task) ||
-		!validOrchestrationText(value.Worktree) || strings.Contains(value.Worktree, "\\") ||
-		!validOrchestrationText(value.Branch) || !validOrchestrationText(value.Role) || !validCommit(value.TargetHead) ||
+	if value == nil || value.Version != WorkLeaseVersion || !textcheck.Bounded(value.Task, 2048, "\x00\r\n") ||
+		!textcheck.Bounded(value.Worktree, 2048, "\x00\r\n") || strings.Contains(value.Worktree, "\\") ||
+		!textcheck.Bounded(value.Branch, 2048, "\x00\r\n") || !textcheck.Bounded(value.Role, 2048, "\x00\r\n") || !validCommit(value.TargetHead) ||
 		value.Resources.CPUThreads <= 0 || value.Resources.HostRAMGiB <= 0 || value.Resources.VRAMGiB < 0 ||
 		value.Resources.GPUExclusive && value.Resources.VRAMGiB == 0 {
 		return errors.New("plan: invalid work lease")
@@ -103,7 +104,7 @@ func canonicalizeWorkLease(value *WorkLease) error {
 		sort.Strings(*values)
 		*values = slices.Compact(*values)
 		for _, item := range *values {
-			if !validOrchestrationText(item) {
+			if !textcheck.Bounded(item, 2048, "\x00\r\n") {
 				return errors.New("plan: invalid work lease list value")
 			}
 		}
@@ -228,10 +229,6 @@ func AssessMergeEligibility(input MergeEligibilityInput) MergeEligibility {
 	}
 	result.Eligible = len(result.Reasons) == 0
 	return result
-}
-
-func validOrchestrationText(value string) bool {
-	return value != "" && len(value) <= 2048 && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\x00\r\n")
 }
 
 func validCommit(value string) bool {

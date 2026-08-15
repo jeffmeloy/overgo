@@ -25,6 +25,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -150,7 +151,7 @@ func Import(
 		switch record.Type {
 		case "artifact":
 			kind, err := artifact.ParseKind(record.Kind)
-			if err != nil || !validLogicalName(record.Name) {
+			if err != nil || !textcheck.Bounded(record.Name, 512, "\x00\r\n") {
 				return Result{}, errors.New("repodb import: invalid artifact record")
 			}
 			if _, duplicate := names[record.Name]; duplicate || containsPending(pending, record.Name) {
@@ -171,7 +172,7 @@ func Import(
 			}
 		case "manifest":
 			kind, err := artifact.ParseKind(record.Kind)
-			if err != nil || !validLogicalName(record.Name) || len(record.Components) == 0 ||
+			if err != nil || !textcheck.Bounded(record.Name, 512, "\x00\r\n") || len(record.Components) == 0 ||
 				containsPending(pending, record.Name) {
 				return Result{}, errors.New("repodb import: invalid manifest record")
 			}
@@ -566,11 +567,6 @@ func containsPending(nodes []pendingNode, name string) bool {
 		}
 	}
 	return false
-}
-
-func validLogicalName(value string) bool {
-	return value != "" && len(value) <= 512 && strings.TrimSpace(value) == value &&
-		!strings.ContainsAny(value, "\x00\r\n")
 }
 
 func validCommit(value string) bool {

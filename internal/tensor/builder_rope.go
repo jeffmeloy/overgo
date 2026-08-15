@@ -122,19 +122,6 @@ func (b *Builder) RoPENormal(input *Tensor, positions []uint32, rotaryDimensions
 	})
 }
 
-func (b *Builder) RoPENormalScaled(
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	frequencyBase float32,
-	frequencyScale float32,
-) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENormal, name: "rope_normal", positions: positions,
-		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: frequencyScale,
-	})
-}
-
 // RoPENormalYaRNWithFactors: YaRN plus pair divisors.
 func (b *Builder) RoPENormalYaRNWithFactors(
 	input *Tensor,

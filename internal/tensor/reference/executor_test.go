@@ -643,7 +643,7 @@ func TestExecuteMoETopKNormalization(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
-	output := builder.MoE(input, router, gate, up, down, 2, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -685,7 +685,7 @@ func TestExecuteUngatedMoE(t *testing.T) {
 	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
-	output := builder.MoEUngated(input, router, up, down, 2, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -727,7 +727,7 @@ func TestExecuteUngatedMoEWithSelectionBias(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(2))
-	output := builder.MoEUngatedWithSelectionBias(input, router, up, down, bias, 1, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{SelectionBias: bias, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -765,9 +765,9 @@ func TestExecuteReLUMoEWithRouterInput(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
-	output := builder.MoEReLUWithRouterInput(
-		input, routerInput, router, gate, up, down, 1, true, 1, tensor.MoERoutingSoftmax,
-	)
+	output := builder.MoEWithOptions(
+		input, router, up, down, tensor.MoEOptions{RouterInput: routerInput, Gate: gate, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationReLU, ExpertIndexDivisor: 1})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -805,9 +805,9 @@ func TestExecuteGroupedMoEWithRouterInput(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
-	output := builder.MoEGroupedWithRouterInput(
-		input, routerInput, router, gate, up, down, 1, true, 1, 2,
-	)
+	output := builder.MoEWithOptions(
+		input, router, up, down, tensor.MoEOptions{RouterInput: routerInput, Gate: gate, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 2})
+
 	value := func(shape tensor.Shape, data []float32) Value {
 		result, err := NewValue(shape, data)
 		if err != nil {
@@ -842,7 +842,7 @@ func TestExecuteGELUMoE(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 1))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 1))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 1))
-	output := builder.MoEGELU(input, router, gate, up, down, 1, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationGELU, ExpertIndexDivisor: 1})
 	value := func(shape tensor.Shape, data []float32) Value {
 		result, err := NewValue(shape, data)
 		if err != nil {
@@ -879,9 +879,9 @@ func TestExecuteGELUMoEExpertScale(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 1))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 1))
 	scale := builder.Input("scale", dtype.F32, tensor.MustShape(1))
-	output := builder.MoEGELUWithRouterInput(
-		input, input, router, gate, up, down, scale, 1, true, 1,
-	)
+	output := builder.MoEWithOptions(
+		input, router, up, down, tensor.MoEOptions{RouterInput: input, Gate: gate, ExpertScale: scale, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationGELU, ExpertIndexDivisor: 1})
+
 	makeValue := func(shape tensor.Shape, data []float32) Value {
 		result, err := NewValue(shape, data)
 		if err != nil {
@@ -1216,7 +1216,7 @@ func TestExecuteSigmoidMoEUsesBiasOnlyForSelection(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 2))
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(2))
-	output := builder.MoESigmoid(input, router, gate, up, down, bias, 1, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: bias, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{1}},
 		router: {Shape: router.Shape, Data: []float32{2, 1}},
@@ -1241,7 +1241,7 @@ func TestExecuteLimitedSigmoidMoE(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(1, 1, 1))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 1))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 1))
-	output := builder.MoESigmoidLimited(input, router, gate, up, down, nil, 1, true, 1, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: nil, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1, SwiGLUClamp: 1})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{2}},
 		router: {Shape: router.Shape, Data: []float32{0}},
@@ -1265,8 +1265,8 @@ func TestExecuteFusedGateUpMoEMatchesSeparate(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 2))
 	gateUp := builder.Input("gate_up", dtype.F32, tensor.MustShape(1, 2, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 2))
-	separate := builder.MoESigmoid(input, router, gate, up, down, nil, 2, true, 1)
-	fused := builder.MoESigmoidFusedGateUp(input, router, gateUp, down, nil, 2, true, 1)
+	separate := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
+	fused := builder.MoEWithOptions(input, router, gateUp, down, tensor.MoEOptions{SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, FusedGateUp: true, ExpertIndexDivisor: 1})
 	results, err := Execute([]*tensor.Tensor{separate, fused}, map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{1}},
 		router: {Shape: router.Shape, Data: []float32{2, 1}},
@@ -1480,7 +1480,7 @@ func TestExecuteOpenAIMoEUsesSelectedSoftmaxAndBiases(t *testing.T) {
 	upBias := builder.Input("up_bias", dtype.F32, tensor.MustShape(1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
 	downBias := builder.Input("down_bias", dtype.F32, tensor.MustShape(2, 2))
-	output := builder.MoEOpenAI(input, router, routerBias, gate, gateBias, up, upBias, down, downBias, 2, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, Biases: &tensor.MoEBiases{Router: routerBias, Gate: gateBias, Up: upBias, Down: downBias}, TopK: 2, Scale: 1, Routing: tensor.MoERoutingSelectedSoftmax, Activation: tensor.MoEActivationSwiGLUOAI, ExpertIndexDivisor: 1})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:      {Shape: input.Shape, Data: []float32{1, 2}},
 		router:     {Shape: router.Shape, Data: make([]float32, 4)},
@@ -1686,7 +1686,7 @@ func TestExecuteDeepSeek4HCAndFixedRouting(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
 	selected := builder.Input("selected", dtype.F32, tensor.MustShape(1, 1))
-	moe := builder.MoESqrtSoftplusLimited(input, router, gate, up, down, nil, selected, 1, true, 1, 1)
+	moe := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: nil, SelectedExperts: selected, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSqrtSoftplus, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1, SwiGLUClamp: 1})
 	results, err := Execute([]*tensor.Tensor{head, moe}, map[*tensor.Tensor]Value{
 		input: {Shape: input.Shape, Data: []float32{2, 4}},
 		fn:    {Shape: fn.Shape, Data: make([]float32, 8)}, scale: {Shape: scale.Shape, Data: []float32{0}},
@@ -1894,7 +1894,7 @@ func TestExecuteLoRAFusedMoE(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 1))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 1))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 1))
-	output := builder.MoE(input, router, gate, up, down, 1, false, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: 1, NormalizeTopKProb: false, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	feeds := map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{1, 2}},
 		router: {Shape: router.Shape, Data: []float32{0, 0}},

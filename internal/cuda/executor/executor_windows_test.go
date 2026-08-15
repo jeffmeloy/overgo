@@ -120,7 +120,7 @@ func TestExecutorLoRAMatchesReference(t *testing.T) {
 	moeGate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 1))
 	moeUp := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 1))
 	moeDown := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 1))
-	outputs = append(outputs, builder.MoE(input, moeRouter, moeGate, moeUp, moeDown, 1, false, 1))
+	outputs = append(outputs, builder.MoEWithOptions(input, moeRouter, moeUp, moeDown, tensor.MoEOptions{Gate: moeGate, TopK: 1, NormalizeTopKProb: false, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1}))
 	feeds := map[*tensor.Tensor]reference.Value{
 		projection: {Shape: projection.Shape, Data: []float32{1, 0, 0, 1}},
 		input:      {Shape: input.Shape, Data: []float32{1, 2}},
@@ -210,7 +210,7 @@ func TestExecutorDeepSeek4PrimitivesMatchReference(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 2, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(2, 2, 2))
 	selected := builder.Input("selected", dtype.F32, tensor.MustShape(1, 1))
-	moe := builder.MoESqrtSoftplusLimited(input, router, gate, up, down, nil, selected, 1, true, 1, 0.15)
+	moe := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: nil, SelectedExperts: selected, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSqrtSoftplus, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1, SwiGLUClamp: 0.15})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -443,7 +443,7 @@ func TestExecutorMoEMatchesReference(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 2, 3))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 2, 3))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(2, 2, 3))
-	output := builder.MoE(input, router, gate, up, down, 2, true, 1.25)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -488,9 +488,9 @@ func TestExecutorMoEExpertScaleMatchesReference(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 2, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(2, 2, 2))
 	expertScale := builder.Input("expert_scale", dtype.F32, tensor.MustShape(2))
-	output := builder.MoEGELUWithRouterInput(
-		input, input, router, gate, up, down, expertScale, 1, true, 1,
-	)
+	output := builder.MoEWithOptions(
+		input, router, up, down, tensor.MoEOptions{RouterInput: input, Gate: gate, ExpertScale: expertScale, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationGELU, ExpertIndexDivisor: 1})
+
 	scaleValue, err := reference.NewValue(expertScale.Shape, []float32{0.5, 1.75})
 	if err != nil {
 		t.Fatal(err)
@@ -514,9 +514,9 @@ func TestExecutorGroupedMoEMatchesReference(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(4, 3, 2))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(4, 3, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(3, 4, 2))
-	output := builder.MoEGroupedWithRouterInput(
-		input, routerInput, router, gate, up, down, 2, true, 1.25, 2,
-	)
+	output := builder.MoEWithOptions(
+		input, router, up, down, tensor.MoEOptions{RouterInput: routerInput, Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 2})
+
 	feeds := map[*tensor.Tensor]reference.Value{
 		input:       patternedValue(input.Shape, 3, 0.2, 0),
 		routerInput: patternedValue(routerInput.Shape, 5, 0.15, 0),
@@ -536,7 +536,7 @@ func TestExecutorGroupedMoESupportsTopKPolicyBoundary(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(1, 1, expertCount))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, expertCount))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, expertCount))
-	output := builder.MoE(input, router, gate, up, down, uint32(expertCount), true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: uint32(expertCount), NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -903,16 +903,15 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	referenceUp := referenceBuilder.Input("up", dtype.F32, gateShape)
 	referenceDown := referenceBuilder.Input("down", dtype.F32, downShape)
 	referenceGateUp := referenceBuilder.Input("gate_up", dtype.F32, gateUpShape)
-	referenceOutput := referenceBuilder.MoE(
-		referenceInput, referenceRouter, referenceGate, referenceUp, referenceDown, 2, true, 1.25,
-	)
-	referenceFusedOutput := referenceBuilder.MoESigmoidFusedGateUp(
-		referenceInput, referenceRouter, referenceGateUp, referenceDown, nil, 2, true, 1.25,
-	)
-	referenceSquaredOutput := referenceBuilder.MoEReLUSquaredWithRouterInput(
-		referenceInput, referenceWideRouterInput, referenceWideRouter, referenceUp, referenceDown,
-		referenceSelectionBias, 2, true, 1.25, tensor.MoERoutingSigmoid,
-	)
+	referenceOutput := referenceBuilder.MoEWithOptions(
+		referenceInput, referenceRouter, referenceUp, referenceDown, tensor.MoEOptions{Gate: referenceGate, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
+
+	referenceFusedOutput := referenceBuilder.MoEWithOptions(
+		referenceInput, referenceRouter, referenceGateUp, referenceDown, tensor.MoEOptions{SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, FusedGateUp: true, ExpertIndexDivisor: 1})
+
+	referenceSquaredOutput := referenceBuilder.MoEWithOptions(
+		referenceInput, referenceWideRouter, referenceUp, referenceDown, tensor.MoEOptions{RouterInput: referenceWideRouterInput, SelectionBias: referenceSelectionBias, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationReLUSquared, ExpertIndexDivisor: 1})
+
 	want, err := reference.Execute(
 		[]*tensor.Tensor{referenceOutput, referenceFusedOutput, referenceSquaredOutput},
 		map[*tensor.Tensor]reference.Value{
@@ -941,11 +940,11 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	up := builder.Input("up", dataType, gateShape)
 	down := builder.Input("down", dataType, downShape)
 	gateUp := builder.Input("gate_up", dataType, gateUpShape)
-	output := builder.MoE(input, router, gate, up, down, 2, true, 1.25)
-	fusedOutput := builder.MoESigmoidFusedGateUp(input, router, gateUp, down, nil, 2, true, 1.25)
-	squaredOutput := builder.MoEReLUSquaredWithRouterInput(
-		input, wideRouterInput, wideRouter, up, down, selectionBias, 2, true, 1.25, tensor.MoERoutingSigmoid,
-	)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
+	fusedOutput := builder.MoEWithOptions(input, router, gateUp, down, tensor.MoEOptions{SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, FusedGateUp: true, ExpertIndexDivisor: 1})
+	squaredOutput := builder.MoEWithOptions(
+		input, wideRouter, up, down, tensor.MoEOptions{RouterInput: wideRouterInput, SelectionBias: selectionBias, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationReLUSquared, ExpertIndexDivisor: 1})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -985,7 +984,7 @@ func TestExecutorSigmoidMoEWithSelectionBiasMatchesReference(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(3, 5, 4))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(5, 3, 4))
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(4))
-	output := builder.MoESigmoid(input, router, gate, up, down, bias, 2, true, 1.25)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: bias, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	feeds := map[*tensor.Tensor]reference.Value{
 		input:  patternedValue(input.Shape, 3, 0.4, 0),
 		router: patternedValue(router.Shape, 5, 0.3, 0),

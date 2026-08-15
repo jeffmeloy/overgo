@@ -11,7 +11,7 @@
           "id": "do",
           "title": "Delete ranked runtime duplication through existing owners",
           "status": "open",
-          "verify": "go test -v -count=1 ./internal/projector ./internal/latentvideo ./cmd/generate ./internal/gemma4convert ./cmd/vqaparity -run '^(TestDeepSeekOCRPromptContract|TestDeepSeekOCR2PromptContract|TestGemma3nVisionPromptContract|TestVAEEncoderPlanCompilesInventory|TestVAEDecodeRejectsInvalidInputs|TestResolveFFmpegRejectsMissingConfiguredPath|TestProjectorMetadataMatchesPinnedLoader|TestExecuteVQABindsDescriptorInputsAndOutput)$'"
+          "verify": "go test -v -count=1 ./internal/projector -run '^(TestOpenImageProjectorDispatchesHunyuanVL|TestOpenImageProjectorDispatchesPaddleOCR)$'"
         }
       ]
     },

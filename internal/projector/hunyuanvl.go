@@ -195,20 +195,10 @@ func (r *HunyuanVLRunner) EncodeImage(ctx context.Context, source image.Image, o
 	if r == nil || r.file == nil {
 		return HunyuanVLOutput{}, errors.New("projector: runner is closed")
 	}
-	if err := r.spec.validate(); err != nil {
-		return HunyuanVLOutput{}, err
-	}
-	input, err := preprocessRasterPatches(source, rasterPatchPlan{
+	plan := rasterPatchPlan{
 		patchSize: r.spec.PatchSize, mergeSize: r.spec.MergeSize,
 		defaultBudget: pixelBudget{MinPixels: r.spec.MinPixels, MaxPixels: r.spec.MaxPixels, MaxAspectRatio: defaultVisionMaxAspectRatio},
 		mean:          r.spec.ImageMean, std: r.spec.ImageStd, interpolation: rasterBicubic,
-	}, options)
-	if err != nil {
-		return HunyuanVLOutput{}, err
 	}
-	return r.encode(ctx, input)
-}
-
-func (r *HunyuanVLRunner) encode(ctx context.Context, input RasterPatchImage) (HunyuanVLOutput, error) {
-	return r.encodeGraph(ctx, input)
+	return encodeRasterPatches(ctx, source, options, plan, r.spec.validate, r.encodeGraph)
 }

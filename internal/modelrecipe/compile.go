@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/model"
 	"overgo/internal/recipe"
+	"overgo/internal/workflowrecipe"
 )
 
 const (
@@ -117,6 +118,78 @@ type scalarStage struct {
 type linearCapability struct {
 	placement recipe.Placement
 	stages    []scalarStage
+}
+
+// ProjectionModality: typed projection graph branch.
+type ProjectionModality uint8
+
+const (
+	ProjectionImage ProjectionModality = iota + 1
+	ProjectionAudio
+	ProjectionVideo
+)
+
+type projectionStage struct {
+	name    string
+	media   recipe.DataKind
+	tensor  recipe.DataKind
+	decode  recipe.ModuleID
+	project recipe.ModuleID
+}
+
+var projectionStages = map[ProjectionModality]projectionStage{
+	ProjectionImage: {"image", recipe.DataImage, recipe.DataImageTensor, workflowrecipe.ModuleDecodeImage, workflowrecipe.ModuleProjectImage},
+	ProjectionAudio: {"audio", recipe.DataAudio, recipe.DataAudioTensor, workflowrecipe.ModuleDecodeAudio, workflowrecipe.ModuleProjectAudio},
+	ProjectionVideo: {"video", recipe.DataVideo, recipe.DataVideoTensor, workflowrecipe.ModuleDecodeVideo, workflowrecipe.ModuleProjectVideo},
+}
+
+// ProjectionDefinition: one exact projector bundle; one branch per supported modality.
+func ProjectionDefinition(
+	modelID, projectorID artifact.ID,
+	modalities ...ProjectionModality,
+) (recipe.Definition, error) {
+	if len(modalities) == 0 {
+		return recipe.Definition{}, errors.New("model recipe: projection bundle is empty")
+	}
+	modalities = slices.Clone(modalities)
+	slices.Sort(modalities)
+	modalities = slices.Compact(modalities)
+	nodes := make([]recipe.Node, 0, 2*len(modalities))
+	edges := make([]recipe.Edge, 0, len(modalities))
+	inputs := make([]recipe.Input, 0, len(modalities))
+	outputs := make([]recipe.Output, 0, len(modalities))
+	for _, modality := range modalities {
+		stage, ok := projectionStages[modality]
+		if !ok {
+			return recipe.Definition{}, fmt.Errorf("model recipe: unknown projection modality %d", modality)
+		}
+		decodeID := recipe.NodeID(stage.name + "-decode")
+		projectID := recipe.NodeID(stage.name + "-project")
+		nodes = append(nodes,
+			recipe.Node{ID: decodeID, Module: stage.decode, Placement: recipe.PlacementHybrid},
+			recipe.Node{ID: projectID, Module: stage.project, Placement: recipe.PlacementHybrid},
+		)
+		edges = append(edges, recipe.Edge{
+			From: recipe.Endpoint{Node: decodeID, Port: "tensor"},
+			To:   recipe.Endpoint{Node: projectID, Port: "tensor"},
+		})
+		inputs = append(inputs, recipe.Input{
+			Name: recipe.PortName(stage.name), Data: stage.media,
+			Target: recipe.Endpoint{Node: decodeID, Port: "media"},
+		})
+		outputs = append(outputs, recipe.Output{
+			Name: recipe.PortName(stage.name + "-embeddings"), Data: recipe.DataEmbeddings,
+			Source: recipe.Endpoint{Node: projectID, Port: "embeddings"},
+		})
+	}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskProjection,
+		[]recipe.Dependency{
+			{Role: recipe.DependencyModel, Artifact: modelID},
+			{Role: recipe.DependencyProjector, Artifact: projectorID},
+		},
+		nodes, edges, inputs, outputs,
+	)
 }
 
 func (c linearCapability) definition(task recipe.Task, modelID artifact.ID, dependencies ...recipe.Dependency) (recipe.Definition, error) {
@@ -351,6 +424,9 @@ func inference(
 func CompileCapability(definition recipe.Definition) (recipe.Program, error) {
 	if definition.Task == recipe.TaskInference {
 		return recipe.Program{}, fmt.Errorf("model recipe: unsupported runtime task %q", definition.Task)
+	}
+	if definition.Task == recipe.TaskProjection {
+		return recipe.CompileProgram(definition, workflowrecipe.Catalog())
 	}
 	return recipe.CompileProgram(definition, catalog)
 }

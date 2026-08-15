@@ -5,6 +5,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/testutil"
 )
@@ -21,7 +22,7 @@ func openGGUF(t *testing.T, tensors []gguf.TensorData) *gguf.File {
 
 func measure(t *testing.T, file *gguf.File, policy MeasurementPolicy) map[string]TensorMeasurement {
 	t.Helper()
-	inventory, err := FromGGUF(file)
+	inventory, err := FromGGUF(file, artifact.KindModel)
 	if err != nil {
 		t.Fatal(err)
 	}

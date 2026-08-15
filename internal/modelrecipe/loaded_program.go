@@ -76,7 +76,7 @@ func loadGGUFFacts(path string) (LoadedProgram, error) {
 	fail := func(cause error) (LoadedProgram, error) {
 		return LoadedProgram{}, errors.Join(cause, file.Close())
 	}
-	loaded.state.Inventory, err = modelartifact.FromGGUF(file)
+	loaded.state.Inventory, err = modelartifact.FromGGUF(file, artifact.KindModel)
 	if err != nil {
 		return fail(err)
 	}

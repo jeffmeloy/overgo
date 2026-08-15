@@ -15,6 +15,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/model"
 	"overgo/internal/projector"
+	"overgo/internal/repodb"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -359,19 +360,28 @@ func run() error {
 			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
 			DisableDynamicTiles: !*imageDynamicTiles,
 		}
+		repository, repositoryErr := modelFlags.RepositoryPath()
+		if repositoryErr != nil {
+			return repositoryErr
+		}
+		store, openErr := repodb.OpenReadOnly(repository)
+		if openErr != nil {
+			return fmt.Errorf("generate: open model recipe repository: %w", openErr)
+		}
+		defer store.Close()
 		if *imagePath != "" {
 			promptIDs, projected, projectedErr = imageProjectedPrompt(
-				context.Background(), runner, *projectorPath, *imagePath, flag.Arg(1), *imageThinking,
+				context.Background(), store, runner, *projectorPath, *imagePath, flag.Arg(1), *imageThinking,
 				projectorOptions,
 			)
 		} else if *audioPath != "" {
 			promptIDs, projected, projectedErr = audioProjectedPrompt(
-				context.Background(), runner, *projectorPath, *audioPath, flag.Arg(1),
+				context.Background(), store, runner, *projectorPath, *audioPath, flag.Arg(1),
 				projectorOptions,
 			)
 		} else {
 			promptIDs, projected, projectedErr = videoProjectedPrompt(
-				context.Background(), runner, *projectorPath, videoFrames, *videoPath, *videoMaxFrames,
+				context.Background(), store, runner, *projectorPath, videoFrames, *videoPath, *videoMaxFrames,
 				*ffmpegPath, flag.Arg(1), *videoFPS, *imageThinking,
 				projectorOptions,
 			)

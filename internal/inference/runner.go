@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
@@ -215,6 +216,14 @@ func (r *Runner) EvidenceTier() recipe.EvidenceTier {
 		return ""
 	}
 	return r.evidenceTier
+}
+
+// ModelID: exact model artifact bound by the active inference recipe.
+func (r *Runner) ModelID() artifact.ID {
+	if r == nil {
+		return artifact.ID{}
+	}
+	return r.program.Identity.Model
 }
 
 // Residency: compiled weight-storage policy.

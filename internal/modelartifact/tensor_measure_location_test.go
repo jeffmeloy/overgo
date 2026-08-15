@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
 	"overgo/internal/testutil"
@@ -26,7 +27,7 @@ func TestMeasureAtLocationGGUF(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	inventory, err := FromGGUF(file)
+	inventory, err := FromGGUF(file, artifact.KindModel)
 	if err != nil {
 		t.Fatal(err)
 	}

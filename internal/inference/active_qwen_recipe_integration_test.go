@@ -74,7 +74,7 @@ func publishActiveGGUFRecipe(
 		t.Fatal(err)
 	}
 	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file)
+	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if err != nil {
 		t.Fatal(err)
 	}

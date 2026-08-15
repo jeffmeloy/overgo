@@ -57,10 +57,13 @@ func (i Inventory) Batch(key string) (artifact.Batch, error) {
 	}, nil
 }
 
-// FromGGUF: inventory from an already-validated logical GGUF
-func FromGGUF(file *gguf.File) (Inventory, error) {
+// FromGGUF: typed inventory from an already-validated logical GGUF.
+func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
 	if file == nil {
 		return Inventory{}, errors.New("model artifact: nil GGUF")
+	}
+	if kind != artifact.KindModel && kind != artifact.KindProjector {
+		return Inventory{}, errors.New("model artifact: GGUF logical kind must be model or projector")
 	}
 	paths := file.SourcePaths()
 	if len(paths) == 0 {
@@ -88,7 +91,7 @@ func FromGGUF(file *gguf.File) (Inventory, error) {
 		descriptors = append(descriptors, descriptor)
 		locations = append(locations, artifact.Location{Artifact: descriptor.ID, Kind: artifact.LocationFile, Value: absolute})
 	}
-	manifest, err := artifact.NewManifest(artifact.KindModel, components)
+	manifest, err := artifact.NewManifest(kind, components)
 	if err != nil {
 		return Inventory{}, err
 	}

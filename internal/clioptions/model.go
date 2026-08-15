@@ -51,24 +51,50 @@ func (flags *ModelFlags) OpenRunner(
 	path string,
 	loraScale float32,
 ) (*inference.Runner, error) {
+	return flags.OpenRunnerWithOptions(ctx, path, flags.OpenOptions(loraScale))
+}
+
+// OpenRunnerWithOptions: flag-bound repository and model resolution.
+func (flags *ModelFlags) OpenRunnerWithOptions(
+	ctx context.Context,
+	path string,
+	options inference.OpenOptions,
+) (*inference.Runner, error) {
 	if flags == nil || flags.Repository == nil {
 		return nil, errors.New("model recipe repository is required")
 	}
-	repository := strings.TrimSpace(*flags.Repository)
-	// The data-root contract owns defaults; an explicit -repo flag stays
-	// authoritative. Bare model references resolve under the models and
-	// checkpoints roots so discovery cannot drift per-tool.
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return nil, err
 	}
-	if repository == "" {
-		repository = roots.Store
-		if _, err := os.Stat(repository); err != nil {
-			return nil, fmt.Errorf("model recipe repository is required: no -repo flag and no store at %s (%s)", repository, roots.Source)
-		}
+	repository, err := flags.repositoryPath(roots)
+	if err != nil {
+		return nil, err
 	}
-	return OpenRunner(ctx, repository, roots.ResolveModelPath(path), flags.OpenOptions(loraScale))
+	return OpenRunner(ctx, repository, roots.ResolveModelPath(path), options)
+}
+
+// RepositoryPath: exact RepoDB selected by model-loading flags.
+func (flags *ModelFlags) RepositoryPath() (string, error) {
+	if flags == nil || flags.Repository == nil {
+		return "", errors.New("model recipe repository is required")
+	}
+	roots, err := dataroot.ResolveCurrent()
+	if err != nil {
+		return "", err
+	}
+	return flags.repositoryPath(roots)
+}
+
+func (flags *ModelFlags) repositoryPath(roots dataroot.Roots) (string, error) {
+	repository := strings.TrimSpace(*flags.Repository)
+	if repository != "" {
+		return repository, nil
+	}
+	if _, err := os.Stat(roots.Store); err != nil {
+		return "", fmt.Errorf("model recipe repository is required: no -repo flag and no store at %s (%s)", roots.Store, roots.Source)
+	}
+	return roots.Store, nil
 }
 
 // OpenRunner: storage-bound assembly; inference receives only a compiled program.

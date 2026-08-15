@@ -38,7 +38,7 @@ func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer opened.Close()
-	inventory, err := FromGGUF(opened)
+	inventory, err := FromGGUF(opened, artifact.KindModel)
 	if err != nil {
 		t.Fatal(err)
 	}

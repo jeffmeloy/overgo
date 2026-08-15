@@ -10,6 +10,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/testutil"
+	"overgo/internal/workflowrecipe"
 )
 
 func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
@@ -165,6 +166,45 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 	}
 	if _, err := CapabilityDefinition(recipe.TaskVideoGen, artifact.ID{}); err == nil {
 		t.Fatal("ambiguous video recipe accepted")
+	}
+}
+
+func TestProjectionDefinitionCompilesAllSelectedModalities(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "projection-model")
+	projectorID := testutil.ArtifactID(t, artifact.KindProjector, "projection-projector")
+	definition, err := ProjectionDefinition(
+		modelID, projectorID, ProjectionVideo, ProjectionImage, ProjectionAudio, ProjectionImage,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, ok := definition.Dependency(recipe.DependencyProjector, 0)
+	if !ok || bound != projectorID || len(definition.Inputs) != len(projectionStages) {
+		t.Fatalf("projection definition = %+v", definition)
+	}
+	program, err := CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !program.UsesCatalog(workflowrecipe.Catalog()) {
+		t.Fatal("projection program omitted workflow catalog authority")
+	}
+	want := []recipe.ModuleID{
+		workflowrecipe.ModuleDecodeAudio, workflowrecipe.ModuleProjectAudio,
+		workflowrecipe.ModuleDecodeImage, workflowrecipe.ModuleProjectImage,
+		workflowrecipe.ModuleDecodeVideo, workflowrecipe.ModuleProjectVideo,
+	}
+	stages := program.Stages()
+	if len(stages) != len(want) {
+		t.Fatalf("projection stages = %+v", stages)
+	}
+	for index := range stages {
+		if stages[index].Module.ID != want[index] {
+			t.Fatalf("projection stage[%d] = %+v", index, stages[index])
+		}
+	}
+	if _, err := ProjectionDefinition(modelID, projectorID); err == nil {
+		t.Fatal("empty projection bundle accepted")
 	}
 }
 

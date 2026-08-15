@@ -61,6 +61,54 @@ func TestCompilePlanCompilesAllGeometryAndIdentity(t *testing.T) {
 	}
 }
 
+func TestMuonOwnsEveryTrainableGeometry(t *testing.T) {
+	specs := []GroupSpec{
+		{Name: "matrix", Start: 0, End: 4, Rows: 2, Cols: 2},
+		{Name: "vector", Start: 4, End: 7, Rows: 3, Cols: 1},
+		{Name: "scalar", Start: 7, End: 8, Rows: 1, Cols: 1},
+	}
+	plan, err := CompilePlan(8, specs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weights := []float32{1, 2, 3, 4, 5, 6, 7, 8}
+	before := append([]float32(nil), weights...)
+	gradients := []float32{1, -2, 3, -4, 2, -3, 4, -5}
+	muon, err := New(weights, gradients, plan, Config{
+		BaseLearningRate: 0.01,
+		Momentum:         0.9,
+		Schedule:         ScheduleConstant,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := muon.Step()
+	if result.Step != 1 || result.LearningRate != 0.01 {
+		t.Fatalf("step = %+v", result)
+	}
+	for index, spec := range specs {
+		if group, ok := plan.Group(index); !ok || group.GroupSpec != spec {
+			t.Fatalf("group %d = %+v, want %+v", index, group, spec)
+		}
+		changed := false
+		for offset := spec.Start; offset < spec.End; offset++ {
+			changed = changed || weights[offset] != before[offset]
+			if gradients[offset] != 0 {
+				t.Fatalf("%s gradient %d = %g", spec.Name, offset, gradients[offset])
+			}
+		}
+		if !changed {
+			t.Fatalf("%s weights unchanged", spec.Name)
+		}
+	}
+	state := muon.Snapshot()
+	for index, value := range state.Momentum {
+		if value == 0 {
+			t.Fatalf("momentum %d is zero", index)
+		}
+	}
+}
+
 func TestCompilePlanRejectsInvalidLayouts(t *testing.T) {
 	const parameterCount = 4
 	cases := map[string][]GroupSpec{

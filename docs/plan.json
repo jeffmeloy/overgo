@@ -15,19 +15,6 @@
       ]
     },
     {
-      "id": "adaptive-inference-parity",
-      "title": "Port and exceed adaptive_new inference through Overgo recipes and shared processing components",
-      "status": "open",
-      "steps": [
-        {
-          "id": "serve-contract",
-          "title": "Close server parity for streaming, tools, embeddings, media, sessions, cache editing, cancellation, and explicit refusal",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestAdaptiveServingContractMatrix$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "adaptive-training-parity",
       "title": "Make Overgo the Muon-only production training system and exceed adaptive_new on matched real-model runs",
       "status": "open",

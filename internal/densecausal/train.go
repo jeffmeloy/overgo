@@ -137,6 +137,11 @@ func scatter(m *Model, names []string, weights []float32) {
 // tensorGeometry: stored shape -> Muon matrix/vector geometry.
 func tensorGeometry(shape []int, length int) (int, int, error) {
 	switch len(shape) {
+	case 0:
+		if length != 1 {
+			return 0, 0, fmt.Errorf("scalar shape does not match length %d", length)
+		}
+		return 1, 1, nil
 	case 2:
 		if shape[0] <= 0 || shape[1] <= 0 {
 			return 0, 0, fmt.Errorf("shape %v has non-positive dimensions", shape)

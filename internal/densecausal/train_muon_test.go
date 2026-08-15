@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/optimizer"
 	"overgo/internal/testutil"
 )
 
@@ -36,6 +37,39 @@ func TestTensorGeometryRejectsNonPositiveDimensions(t *testing.T) {
 				t.Fatal("invalid tensor geometry accepted")
 			}
 		})
+	}
+}
+
+func TestMuonOwnsEveryTrainableGeometry(t *testing.T) {
+	cases := []struct {
+		name       string
+		shape      []int
+		length     int
+		rows, cols int
+	}{
+		{"matrix", []int{2, 3}, 6, 2, 3},
+		{"vector", []int{3}, 3, 3, 1},
+		{"scalar", []int{}, 1, 1, 1},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			rows, cols, err := tensorGeometry(test.shape, test.length)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rows != test.rows || cols != test.cols {
+				t.Fatalf("geometry = %dx%d, want %dx%d", rows, cols, test.rows, test.cols)
+			}
+			plan, err := optimizer.CompilePlan(test.length, []optimizer.GroupSpec{{
+				Name: test.name, Start: 0, End: test.length, Rows: rows, Cols: cols,
+			}})
+			if err != nil || plan.GroupCount() != 1 {
+				t.Fatalf("compile = %v groups=%d", err, plan.GroupCount())
+			}
+		})
+	}
+	if _, _, err := tensorGeometry(nil, 2); err == nil {
+		t.Fatal("multi-element scalar accepted")
 	}
 }
 

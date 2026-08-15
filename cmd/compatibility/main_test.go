@@ -51,6 +51,26 @@ func TestGenerateRejectsStaleClaimEvidence(t *testing.T) {
 	}
 }
 
+func TestSymbolEvidenceIgnoresUnrelatedFileChanges(t *testing.T) {
+	root := t.TempDir()
+	data := "package feature\nfunc Feature() int { return 1 }\nfunc Unrelated() int { return 2 }\n"
+	proof := writeSymbolEvidence(t, root, "feature.go", data, "func Feature(", "Feature", roleSource)
+	testProof := writeSymbolEvidence(t, root, "feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", "TestFeature", roleArtifact)
+	writeTestManifest(t, root, []claim{{
+		ID: "symbol", Status: "implemented", EvidenceTier: tierContract,
+		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Symbol evidence.",
+		Evidence: []evidence{proof, testProof},
+	}}, testModels())
+	writeTestFile(t, root, "feature.go", "package feature\nfunc Feature() int { return 1 }\nfunc Unrelated() int { return 3 }\n")
+	if _, err := generate(root); err != nil {
+		t.Fatalf("unrelated declaration invalidated symbol evidence: %v", err)
+	}
+	writeTestFile(t, root, "feature.go", "package feature\nfunc Feature() int { return 4 }\nfunc Unrelated() int { return 3 }\n")
+	if _, err := generate(root); err == nil || !strings.Contains(err.Error(), "is stale") {
+		t.Fatalf("changed symbol evidence error = %v", err)
+	}
+}
+
 func TestGenerateNormalizesEvidenceLineEndings(t *testing.T) {
 	root := t.TempDir()
 	sourceText := "package feature\nfunc Feature() {}\n"
@@ -72,13 +92,15 @@ func TestGenerateNormalizesEvidenceLineEndings(t *testing.T) {
 func TestRefreshEvidenceIdentitiesUsesCanonicalBytes(t *testing.T) {
 	root := t.TempDir()
 	source := writeEvidence(t, root, "feature.go", "package feature\r\nfunc Feature() {}\r\n", "func Feature(", roleSource)
+	extra := writeEvidence(t, root, "extra.go", "package feature\r\nfunc Extra() {}\r\n", "func Extra(", roleSource)
 	proof := writeEvidence(t, root, "feature_test.go", "package feature\r\nfunc TestFeature() {}\r\n", "func TestFeature(", roleArtifact)
 	source.Identity = "file:sha256:" + strings.Repeat("0", 64)
+	extra.Identity = source.Identity
 	proof.Identity = "evidence:sha256:" + strings.Repeat("0", 64)
 	writeTestManifest(t, root, []claim{{
 		ID: "refresh", Status: "implemented", EvidenceTier: tierContract,
 		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Refresh evidence.",
-		Evidence: []evidence{source, proof},
+		Evidence: []evidence{source, extra, proof},
 	}}, testModels())
 	if err := refreshEvidenceIdentities(root); err != nil {
 		t.Fatal(err)
@@ -167,6 +189,26 @@ func writeEvidence(t *testing.T, root, path, data, contains string, role evidenc
 		t.Fatal(err)
 	}
 	return evidence{Path: path, Contains: contains, Role: role, Identity: id.String()}
+}
+
+func writeSymbolEvidence(t *testing.T, root, path, data, contains, symbol string, role evidenceRole) evidence {
+	t.Helper()
+	writeTestFile(t, root, path, data)
+	proof := evidence{Path: path, Contains: contains, Symbol: symbol, Role: role}
+	payload, err := evidencePayload(proof, []byte(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	kind := artifact.KindFile
+	if role == roleArtifact {
+		kind = artifact.KindEvidence
+	}
+	id, err := artifact.IdentifyBytes(kind, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proof.Identity = id.String()
+	return proof
 }
 
 func writeTestManifest(t *testing.T, root string, claims []claim, models map[string]modelClaim) {

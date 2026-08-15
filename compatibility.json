@@ -189,20 +189,23 @@
         {
           "contains": "func (r *Gemma4TowerRunner) EncodeAudioFeatures(",
           "path": "internal/projector/gemma4tower_audio.go",
+          "symbol": "EncodeAudioFeatures",
           "role": "source",
-          "identity": "file:sha256:77b7aa93b2a5c11d428225614cf4b71433d0081fc6dbc08690b0cf63741f54c6"
+          "identity": "file:sha256:4a12223337c45751f7f8e837533c510ffc80b9fae53e747535b2bf2e0c0cd3d2"
         },
         {
           "contains": "func PreprocessGemma4AudioTower(",
           "path": "internal/projector/gemma4tower_audio_frontend.go",
+          "symbol": "PreprocessGemma4AudioTower",
           "role": "source",
-          "identity": "file:sha256:6d268eee5b5832cbbe11bf32d0dab47fbae15d06c62e6563b7efe02274a44ea5"
+          "identity": "file:sha256:6b0bbde6a51c78fb1b3815992c5e0f1dbba52e40421c210007311605e7e484b2"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
+          "symbol": "TestMultimodalInputMatrix",
           "role": "artifact",
-          "identity": "evidence:sha256:027417189506a69e3b41538c81035151d06761377078e8afac4a0c5e7c7889f4"
+          "identity": "evidence:sha256:1d0090050a6b3932c9d2faf297616a3e083612a00d486ffe376e579e19b62ba7"
         }
       ],
       "id": "gemma-e4b-audio-tower-oracle",

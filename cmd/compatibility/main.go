@@ -6,6 +6,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"path/filepath"
@@ -61,6 +65,7 @@ type claim struct {
 type evidence struct {
 	Path     string       `json:"path"`
 	Contains string       `json:"contains"`
+	Symbol   string       `json:"symbol,omitempty"`
 	Role     evidenceRole `json:"role"`
 	Identity string       `json:"identity"`
 }
@@ -131,6 +136,7 @@ func refreshEvidenceIdentities(root string) error {
 	if err != nil {
 		return err
 	}
+	cursor := 0
 	for i := range document.Claims {
 		for j := range document.Claims[i].Evidence {
 			proof := &document.Claims[i].Evidence[j]
@@ -138,20 +144,31 @@ func refreshEvidenceIdentities(root string) error {
 			if err != nil {
 				return err
 			}
+			payload, err := evidencePayload(*proof, data)
+			if err != nil {
+				return err
+			}
 			kind := artifact.KindFile
 			if proof.Role == roleArtifact {
 				kind = artifact.KindEvidence
 			}
-			id, err := artifact.IdentifyBytes(kind, canonicalEvidence(data))
+			id, err := artifact.IdentifyBytes(kind, payload)
 			if err != nil {
 				return err
 			}
-			before := []byte(proof.Identity)
-			after := []byte(id.String())
-			if bytes.Contains(raw, before) {
-				raw = bytes.ReplaceAll(raw, before, after)
-			} else if !bytes.Contains(raw, after) {
+			before, after := []byte(proof.Identity), []byte(id.String())
+			offset := bytes.Index(raw[cursor:], before)
+			if offset < 0 {
 				return fmt.Errorf("compatibility manifest: identity %q not found", proof.Identity)
+			}
+			start := cursor + offset
+			if len(before) != len(after) {
+				return fmt.Errorf("compatibility manifest: identity length changed")
+			}
+			copy(raw[start:], after)
+			cursor = start + len(after)
+			if !bytes.Equal(before, after) && bytes.HasPrefix(raw[cursor:], []byte("\"\r\n")) {
+				raw = append(raw[:cursor+1], raw[cursor+2:]...)
 			}
 		}
 	}
@@ -180,7 +197,11 @@ func generate(root string) ([]byte, error) {
 	for _, item := range claims {
 		links := make([]string, 0, len(item.Evidence)+1)
 		for _, proof := range item.Evidence {
-			links = append(links, fmt.Sprintf("%s: [`%s`](../%s) `%s`", proof.Role, proof.Contains, filepath.ToSlash(proof.Path), proof.Identity))
+			label := proof.Contains
+			if proof.Symbol != "" {
+				label = "symbol " + proof.Symbol
+			}
+			links = append(links, fmt.Sprintf("%s: [`%s`](../%s) `%s`", proof.Role, label, filepath.ToSlash(proof.Path), proof.Identity))
 		}
 		fmt.Fprintf(&output, "| `%s` | %s | %s | %s | %s |\n",
 			item.ID, item.Status, item.EvidenceTier, escapeCell(item.Summary), strings.Join(append(links, "verify: `"+item.Verify+"`"), "<br>"))
@@ -344,7 +365,11 @@ func validateEvidence(root, claimID string, proof evidence) error {
 	default:
 		return fmt.Errorf("compatibility manifest: claim %q evidence %q has invalid role %q", claimID, proof.Path, proof.Role)
 	}
-	want, err := artifact.IdentifyBytes(kind, canonicalEvidence(data))
+	payload, err := evidencePayload(proof, data)
+	if err != nil {
+		return fmt.Errorf("compatibility manifest: claim %q evidence %q: %w", claimID, proof.Path, err)
+	}
+	want, err := artifact.IdentifyBytes(kind, payload)
 	if err != nil {
 		return err
 	}
@@ -356,6 +381,44 @@ func validateEvidence(root, claimID string, proof evidence) error {
 
 func canonicalEvidence(data []byte) []byte {
 	return bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+}
+
+func evidencePayload(proof evidence, data []byte) ([]byte, error) {
+	if proof.Symbol == "" {
+		return canonicalEvidence(data), nil
+	}
+	if !strings.HasSuffix(proof.Path, ".go") {
+		return nil, errors.New("symbol evidence requires a Go file")
+	}
+	files := token.NewFileSet()
+	parsed, err := parser.ParseFile(files, proof.Path, data, parser.ParseComments)
+	if err != nil {
+		return nil, err
+	}
+	var matched *ast.FuncDecl
+	for _, declaration := range parsed.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || function.Name.Name != proof.Symbol {
+			continue
+		}
+		start := files.Position(function.Pos()).Offset
+		end := files.Position(function.End()).Offset
+		if start < 0 || end > len(data) || !bytes.Contains(data[start:end], []byte(proof.Contains)) {
+			continue
+		}
+		if matched != nil {
+			return nil, fmt.Errorf("symbol %q is ambiguous", proof.Symbol)
+		}
+		matched = function
+	}
+	if matched == nil {
+		return nil, fmt.Errorf("symbol %q containing %q not found", proof.Symbol, proof.Contains)
+	}
+	var normalized bytes.Buffer
+	if err := format.Node(&normalized, files, matched); err != nil {
+		return nil, err
+	}
+	return canonicalEvidence(normalized.Bytes()), nil
 }
 
 func (tier evidenceTier) valid() bool {

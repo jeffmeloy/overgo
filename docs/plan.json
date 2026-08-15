@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
   "items": [
     {
-      "id": "automation-claims",
-      "title": "Anchor compatibility evidence to normalized Go symbols when claims do not depend on whole files",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Anchor compatibility evidence to normalized Go symbols when claims do not depend on whole files",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestSymbolEvidenceIgnoresUnrelatedFileChanges$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "automation-literals",
       "title": "Rank repeated raw policy literals with AST ownership evidence without constantizing math facts",
       "status": "open",

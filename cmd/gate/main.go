@@ -13,8 +13,6 @@
 package main
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -22,7 +20,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -304,7 +301,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	base, err := profileAtHEAD(g.repo)
+	base, err := profileAtHEAD(g.repo, snapshot)
 	if err != nil {
 		return false, err
 	}
@@ -410,64 +407,39 @@ func largestChangedClone(profile codeprofile.Profile, paths map[string]bool, cla
 	return "none"
 }
 
-func profileAtHEAD(repo string) (codeprofile.Profile, error) {
-	tree, err := gitLines(repo, "ls-tree", "--name-only", "HEAD")
-	if err != nil {
-		return codeprofile.Profile{}, fmt.Errorf("profile HEAD: %w", err)
-	}
-	args := []string{"archive", "--format=tar", "HEAD", "--"}
-	for _, top := range []string{"internal", "cmd"} {
-		if slices.Contains(tree, top) {
-			args = append(args, top)
-		}
-	}
-	if len(args) == 4 {
-		return codeprofile.Profile{}, errors.New("profile HEAD: no Go source roots")
-	}
-	cmd := exec.Command("git", args...)
-	cmd.Dir = repo
-	data, err := cmd.Output()
-	if err != nil {
-		return codeprofile.Profile{}, fmt.Errorf("profile HEAD: %w", err)
-	}
-	root, err := os.MkdirTemp("", "overgo-profile-head-")
+func profileAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (codeprofile.Profile, error) {
+	raw, err := command(repo, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
 		return codeprofile.Profile{}, err
 	}
-	defer os.RemoveAll(root)
-	reader := tar.NewReader(bytes.NewReader(data))
-	for {
-		header, err := reader.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return codeprofile.Profile{}, err
-		}
-		if header.Typeflag != tar.TypeReg || !strings.HasSuffix(header.Name, ".go") {
-			continue
-		}
-		relative := filepath.Clean(filepath.FromSlash(header.Name))
-		if filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			return codeprofile.Profile{}, fmt.Errorf("profile HEAD path escapes repository: %q", header.Name)
-		}
-		content, err := io.ReadAll(reader)
-		if err != nil {
-			return codeprofile.Profile{}, err
-		}
-		target := filepath.Join(root, relative)
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return codeprofile.Profile{}, err
-		}
-		if err := os.WriteFile(target, content, 0o644); err != nil {
-			return codeprofile.Profile{}, err
-		}
-	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	dirty, err := repoanalysis.ParseDirtyStatus([]byte(raw))
 	if err != nil {
 		return codeprofile.Profile{}, err
 	}
-	return codeprofile.Build(snapshot)
+	overlay := map[string][]byte{}
+	for _, entry := range dirty {
+		for _, path := range []string{entry.Path, entry.OriginalPath} {
+			if !strings.HasSuffix(path, ".go") || !strings.HasPrefix(path, "internal/") && !strings.HasPrefix(path, "cmd/") {
+				continue
+			}
+			cmd := exec.Command("git", "show", "HEAD:"+path)
+			cmd.Dir = repo
+			data, err := cmd.Output()
+			if err != nil {
+				if _, missing := err.(*exec.ExitError); missing {
+					overlay[path] = nil
+					continue
+				}
+				return codeprofile.Profile{}, err
+			}
+			overlay[path] = data
+		}
+	}
+	base, err := candidate.Overlay(overlay)
+	if err != nil {
+		return codeprofile.Profile{}, err
+	}
+	return codeprofile.Build(base)
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,

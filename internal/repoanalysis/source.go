@@ -42,6 +42,37 @@ func (f GoFile) Generated() (bool, error) {
 
 type SourceSnapshot struct{ Files []GoFile }
 
+// Overlay returns a snapshot with repository-relative source replacements.
+// A nil value deletes the path; input snapshots remain immutable.
+func (s SourceSnapshot) Overlay(contents map[string][]byte) (SourceSnapshot, error) {
+	files := make(map[string]GoFile, len(s.Files)+len(contents))
+	for _, file := range s.Files {
+		files[file.Path] = file
+	}
+	for name, data := range contents {
+		path := filepath.Clean(filepath.FromSlash(name))
+		if filepath.IsAbs(path) || path == ".." || strings.HasPrefix(path, ".."+string(filepath.Separator)) || !strings.HasSuffix(path, ".go") {
+			return SourceSnapshot{}, fmt.Errorf("repository source path %q escapes root or is not Go", name)
+		}
+		path = filepath.ToSlash(path)
+		if data == nil {
+			delete(files, path)
+			continue
+		}
+		digest := sha256.Sum256(data)
+		files[path] = GoFile{
+			Path: path, ContentID: hex.EncodeToString(digest[:]), blob: &sourceBlob{data: append([]byte(nil), data...)},
+			Test: strings.HasSuffix(path, "_test.go") || hasPathPart(path, "testdata"),
+		}
+	}
+	out := SourceSnapshot{Files: make([]GoFile, 0, len(files))}
+	for _, file := range files {
+		out.Files = append(out.Files, file)
+	}
+	sort.Slice(out.Files, func(i, j int) bool { return out.Files[i].Path < out.Files[j].Path })
+	return out, nil
+}
+
 func LoadGo(root string, relatives []string) (SourceSnapshot, error) {
 	paths := append([]string(nil), relatives...)
 	for index, name := range paths {

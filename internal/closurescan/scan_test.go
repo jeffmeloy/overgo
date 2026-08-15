@@ -35,3 +35,40 @@ func TestClosureScanSnapshotConsumer(t *testing.T) {
 		t.Fatalf("candidates = %+v", candidates)
 	}
 }
+
+func TestRankRawPolicyLiterals(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "internal", "policy.go")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	source := `package policy
+func first(n int, values []int) bool {
+	_ = 3 * 3
+	return n > 4096 && values[3] > 0 && "strict" != ""
+}
+func second(n int) bool {
+	_ = 6 / 3
+	return n <= 4096 && "strict" != ""
+}
+`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ranked, err := RankRawPolicyLiterals(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range ranked {
+		if row.Value == "3" {
+			t.Fatalf("structural math literal ranked: %+v", row)
+		}
+	}
+	if len(ranked) == 0 || ranked[0].Value != "4096" || len(ranked[0].Functions) != 2 {
+		t.Fatalf("ranked = %+v", ranked)
+	}
+}

@@ -32,6 +32,23 @@ func TestSenseNovaProductionImageGeneration(t *testing.T) {
 		Steps: oracle.Request.Steps, Seed: oracle.Request.Seed, CFGScale: oracle.Request.CFGScale,
 		TimestepShift: oracle.Request.TimestepShift,
 	}
+	result := runProductionImageGeneration(t, request)
+	hash := fmt.Sprintf("%x", sha256.Sum256(result.image.Data))
+	const productionPNG = "6ef4065018d328c2945e6de0a8b87fe3eb2aec44039b43207398969712446de0"
+	if hash != productionPNG || result.image.Width != request.Width || result.image.Height != request.Height || result.image.Channels != 3 {
+		t.Fatalf("production image=%dx%dx%d sha256=%s", result.image.Width, result.image.Height, result.image.Channels, hash)
+	}
+	t.Logf("SenseNova production recipe: wall=%.3fs peak=%.3fGiB png=%s", result.wall.Seconds(), float64(result.peakBytes)/(1<<30), hash)
+}
+
+type productionGenerationResult struct {
+	image     latentimage.EncodedImage
+	wall      time.Duration
+	peakBytes uint64
+}
+
+func runProductionImageGeneration(t testing.TB, request GenerationRequest) productionGenerationResult {
+	t.Helper()
 	ctx := context.Background()
 	started := time.Now()
 	generator, err := LoadGenerator(senseNovaModelDir)
@@ -71,6 +88,10 @@ func TestSenseNovaProductionImageGeneration(t *testing.T) {
 		input.Name: {Kind: input.Data, Items: []workflowruntime.Datum{{Value: request}}},
 	})
 	if err != nil {
+		stats := generator.Stats()
+		t.Logf("SenseNova failed phases: steps=%d prepare=%.3fs vision=%.3fs condition=%.3fs body=%.3fs flow=%.3fs guidance=%.3fs decode=%.3fs",
+			stats.Steps, stats.Prepare.Seconds(), stats.Vision.Seconds(), stats.Condition.Seconds(), stats.Body.Seconds(),
+			stats.Flow.Seconds(), stats.Guidance.Seconds(), stats.Decode.Seconds())
 		t.Fatal(err)
 	}
 	output := definition.Outputs[0]
@@ -82,13 +103,13 @@ func TestSenseNovaProductionImageGeneration(t *testing.T) {
 	if datum.Content == nil || datum.Content.Descriptor.MediaType != image.MediaType || !bytes.Equal(datum.Content.Data, image.Data) {
 		t.Fatal("production artifact is not the encoded PNG")
 	}
-	hash := fmt.Sprintf("%x", sha256.Sum256(image.Data))
-	if hash != senseNovaTerminalPNG || image.Width != request.Width || image.Height != request.Height || image.Channels != 3 {
-		t.Fatalf("production image=%dx%dx%d sha256=%s", image.Width, image.Height, image.Channels, hash)
-	}
 	memory, err := generator.worker.MemoryStats(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("SenseNova production recipe: wall=%.3fs peak=%.3fGiB png=%s", time.Since(started).Seconds(), float64(memory.PeakBytes)/(1<<30), hash)
+	stats := generator.Stats()
+	t.Logf("SenseNova production phases: steps=%d prepare=%.3fs vision=%.3fs condition=%.3fs body=%.3fs flow=%.3fs guidance=%.3fs decode=%.3fs",
+		stats.Steps, stats.Prepare.Seconds(), stats.Vision.Seconds(), stats.Condition.Seconds(), stats.Body.Seconds(),
+		stats.Flow.Seconds(), stats.Guidance.Seconds(), stats.Decode.Seconds())
+	return productionGenerationResult{image: image, wall: time.Since(started), peakBytes: memory.PeakBytes}
 }

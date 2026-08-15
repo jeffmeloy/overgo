@@ -27,7 +27,8 @@ training or media breadth.
   surface.
 - Proven wins: Qwen3.5-4B decode, Gemma E4B text decode, RxBrain VQA,
   SimpleDiffusion host forward, MiniCPM decode, Wan exact-quality generation,
-  and Krea 256/2048 generation on the recorded protocols.
+  Krea 256/2048 generation, and SenseNova 1536x2720 generation on the recorded
+  protocols.
 - Training lead remains adaptive_new: more objective types, more artifact
   trainers, more promotion/evidence machinery, and real media-training paths.
 - E4B now has real, exact-resume layer-0 adapter training over text, image, and
@@ -123,7 +124,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | SimpleDiffusion image | Real resident CUDA generation and real-checkpoint training | The retained seed-7, two-step, 64x64 host PNG remains byte-identical to adaptive_new. The typed production recipe now caches a geometry-keyed resident CUDA generator. Three repeated generation gates report 17.89-18.04 ms warm median versus 269.88-318.30 ms host median, float maximum difference `2.265e-6`, and one of 12,288 decoded channels differing by one byte (`0.000081` byte MAE). The complete forward retains 388.456 MiB of weights and peaks at 516.660 MiB. Final-projection and one complete decoder residual-block VJP now execute through shared resident CUDA owners | Real retained graph and recipe activation; at least 4x warm generation leadership without material pixel loss; two exact device-backward boundaries | Remaining backward blocks and matched whole-process generation-memory evidence |
 | Wan text-to-video | Native adaptive exact path; Python oracle | Fresh session+denoise 331.96 s / 7.875 GB; decode 38.31 s / 10.330 GB; exact G3/G4 bounded, BF16 G3 cosine 0.999899, frame-0 CUDA/host max error 8.04e-6 | 370.27 s staged wall beats retained 463.4 s Python wall | Fresh same-revision Python/adaptive run; semantic clip gate |
 | Krea text-to-image | Matched 256 fixture: 25.430 s; exact u8 SHA `b257e244`; full 2048 record: 158.144 s, 33.47 GB device | 256: 13.804 s / 25.030 GiB, MAE 0.02401. 2048: 63.510 s / 32.732 GB, MAE 0.03910; production caller and phased residency gated | Wall/peak lead at both sizes; bounded image quality | Exact SHA remains numerically unstable; retain robust pixel oracle and RMSE advisory |
-| SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Compiled routed-image recipe owns tokenizer/prompt, retained prefix/body, shifted integration, and planar PNG publication. Pinned 256px/2-step case: boundary cosine >=0.99914, velocity >=0.99863, final state >=0.99832, exact PNG `d439b8ce...`, 13.56 s total, 0.708 GiB peak | Production text-to-image route gated; warm-body lead | Run the full-size 50-step quality case; edit route still needs its absent source PNG |
+| SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Compiled routed-image recipe owns tokenizer/prompt, retained prefix/body weights, device vision/condition/head projections, shifted integration, and PNG publication. The native 1536x2720 infographic prompt runs for 50 steps in 136.603-136.829 s at 17.069 GiB. Both cold runs reproduce the reviewed PNG and pass its spatial, contrast, edge, and palette signature | 33.6% wall lead and 6.0% peak lead over adaptive on the full production route | Edit route still needs the fingerprinted source PNG absent from both repositories |
 | LiveEdit video edit | Adaptive complete experimental route: best 109.5 s, 20.61 GB; Python: 60.1 s, 23.50 GiB | Shared Wan VAE encoding/decoding, tensor graph operators, and recipe/session owners execute the complete 30-block edit. Text projection, compiled graphs, cumulative per-layer K/V history, output buffers, and same-source latents remain resident. Exact bounded latent/frame replay remains gated. Three full 81-frame currant-to-grape gates take 81.6-81.9 s cold and 51.0-51.5 s with the source latent cached, at 15.624 GiB peak. Final latent cosine is 0.999890-0.999966 with 0.008276-0.014835 NRMS versus adaptive. Streamed MP4 comparison measures 0.00731-0.00753 MAE / 37.29-38.29 dB versus adaptive and 0.01012-0.01024 MAE / 32.31-32.58 dB versus Python; temporal-delta ratios are 1.021 and 1.008-1.009. LiveEdit uses its validated `[0,1]` output range; Wan uses `[-1,1]`. | Full numerical, conditioned-output, temporal, warm-wall, and peak leadership proven; cold wall beats adaptive | Python retains cold-wall leadership; recipe output remains GIF while the leadership gate streams MP4 |
 | Server/API/session/cache | Mature adaptive-specific multimodal surface | One passing contract matrix covers native, OpenAI, and Anthropic streaming; structured tools; exact embedding inputs; ordered image/audio/video projection; stored response continuation; prompt-cache reuse and `n_keep`/`n_discard` context editing; client/timeout cancellation; and explicit missing-capability refusal | Broader protocol surface with consolidated behavioral evidence | Keep model-quality claims in recipe gates; add external protocol fixtures only when behavior changes |
 
@@ -368,7 +369,7 @@ leadership and real E4B adapter capability. They do not justify complete E4B,
 | Qwen2.5-0.5B causal training | adaptive `de547a363`: 505 ms retained warm step | 469-480 ms retained warm execution; 552-753 ms cold execution; 6.592 GiB peak; loss 4.592842 -> 2.958702 | At least 5.0% warm-wall lead; cold and warm lifecycles gated separately |
 | Corpus-derived scratch causal training | adaptive pinned run: 221.4-231.8 ms / 3.13-3.18 MB peak heap | 58.0-65.4 ms matched steps / 1.15-1.17 MB combined runtime peak; six lifecycle phases and complete state gated | At least 3.38x step-wall lead; at least 62% lower peak; trajectory delta `1.738e-3` |
 | Gemma E4B per-layer adapter training | No retained adaptive adapter-training trajectory | Three real text/image/audio updates over 1,313,280 layer-0 parameters in 68.989 ms; exact checkpoint resume | Overgo-only real adapter capability; complete stack open |
-| SenseNova generation core | Adaptive matched reusable body 6.88 s | Overgo retained session: fresh cold body 8.117 s, warm body 4.048 s / 0.710 GiB peak; cold <=8.6 s and warm <=6.2 s gated twice | 41.1% warm-body lead at the fresh measurement; cold is slower than adaptive and is not claimed as leadership; full image route open |
+| SenseNova full generation | Adaptive exact Go replay 206.010 s / 18.162 GiB | Two cold production runs at 1536x2720 and 50 steps: 136.603-136.829 s / 17.069 GiB; reviewed PNG signature passes and both measured runs are byte-identical to the reviewed output | 33.6% wall lead and 6.0% peak lead; edit input oracle remains absent |
 | LiveEdit full edit | Python 60.1 s / 23.50 GiB; adaptive best 109.5 s / 20.61 GB | 81.6-81.9 s cold; 51.0-51.5 s same-source warm; 15.624 GiB peak. Final latent cosine 0.999890-0.999966 and NRMS 0.008276-0.014835 versus adaptive. MP4 output MAE/PSNR: 0.00731-0.00753/37.29-38.29 dB versus adaptive and 0.01012-0.01024/32.31-32.58 dB versus Python. Temporal-delta ratios: 1.021 and 1.008-1.009. | Cold wall and peak lead versus adaptive; warm wall and peak lead versus Python; Python retains cold-wall lead |
 | Gemma4 12B FP8 | adaptive comparison not yet recorded in Overgo plan | 29.81 ms/token / 18.89 GiB | Cross-repo open |
 
@@ -447,11 +448,10 @@ encoder name validated fixtures. Add evidence tiers, source commits, artifact
 hashes, failable commands, and expiry/reverification rules. An architecture
 parser is not a promoted model capability.
 
-### P1: media breadth remains SenseNova and LiveEdit
+### P1: media breadth remains SenseNova edit and LiveEdit publication
 
-Krea and Wan have production performance gates. SenseNova's neutral generation
-core is native-gated and faster than adaptive; production decode, publication,
-and request-session binding remain. LiveEdit now has typed production activation,
+Krea, Wan, and full-size SenseNova have production performance gates. SenseNova
+editing still lacks its source PNG oracle. LiveEdit has typed production activation,
 exact bounded replay, a full native quality comparison, and lifecycle-separated
 performance evidence. Its remaining gaps are cold-wall leadership versus Python
 and recipe-configured MP4 publication.

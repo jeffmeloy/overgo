@@ -29,6 +29,7 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 
 | Need | Use |
 | --- | --- |
+| Execute SenseNova routed-image denoising | `routedlm.NewDeviceGenerationSession` retains prefix/body state; `routedlm.NewDeviceFlowPeripheralSession` retains vision, condition, and flow-head projections; `sensenovarecipe.LoadGenerator` binds the production recipe |
 | Compile and execute a Wan/LiveEdit causal VAE source encoder | `latentvideo.CompileVAEEncoderPlan` + `CompileSourceCodecBoundary`; host oracle `EncodeSourceVideo`; resident device path `NewVAEEncoderCUDASession` |
 | Execute LiveEdit chunks with retained text and bounded self-attention K/V | `latentvideo.NewReferenceEditDenoiserCUDASession`; neutral history graph: `model.ConditionedDiffusionProgram.BuildBlockWithSelfHistory` |
 | Run typed LiveEdit source-to-frames device composition | `latentvideo.NewReferenceEditRuntime` → `ReferenceEditRuntime.Run` |

@@ -88,6 +88,10 @@ func (l *Library) GEMMEx(
 	if m <= 0 || n <= 0 || k <= 0 {
 		return errors.New("cublasGemmEx: matrix dimensions must be positive")
 	}
+	var pinned runtime.Pinner
+	pinned.Pin(&alpha)
+	pinned.Pin(&beta)
+	defer pinned.Unpin()
 	status, _, _ := l.gemmEx.Call(
 		uintptr(handle), uintptr(operationA), uintptr(operationB),
 		uintptr(m), uintptr(n), uintptr(k), uintptr(unsafe.Pointer(&alpha)),
@@ -112,6 +116,9 @@ func (l *Library) Close() error {
 
 func (l *Library) Create() (Handle, error) {
 	var handle Handle
+	var pinned runtime.Pinner
+	pinned.Pin(&handle)
+	defer pinned.Unpin()
 	status, _, _ := l.create.Call(uintptr(unsafe.Pointer(&handle)))
 	if err := result("cublasCreate_v2", status); err != nil {
 		return 0, err
@@ -159,6 +166,10 @@ func (l *Library) SGEMMStridedBatched(
 	if m <= 0 || n <= 0 || k <= 0 || batch <= 0 {
 		return errors.New("cublasSgemmStridedBatched: dimensions must be positive")
 	}
+	var pinned runtime.Pinner
+	pinned.Pin(&alpha)
+	pinned.Pin(&beta)
+	defer pinned.Unpin()
 	status, _, _ := l.sgemmStridedBatch.Call(
 		uintptr(handle), uintptr(operationA), uintptr(operationB),
 		uintptr(m), uintptr(n), uintptr(k),
@@ -192,6 +203,10 @@ func (l *Library) SGEMM(
 	if m <= 0 || n <= 0 || k <= 0 {
 		return errors.New("cublasSgemm_v2: matrix dimensions must be positive")
 	}
+	var pinned runtime.Pinner
+	pinned.Pin(&alpha)
+	pinned.Pin(&beta)
+	defer pinned.Unpin()
 	status, _, _ := l.sgemm.Call(
 		uintptr(handle),
 		uintptr(operationA),

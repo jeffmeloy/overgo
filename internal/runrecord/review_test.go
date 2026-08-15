@@ -1,9 +1,12 @@
 package runrecord
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/repodb"
 )
 
 func TestIndependentSQAIdentities(t *testing.T) {
@@ -155,6 +158,55 @@ func TestReviewAdmission(t *testing.T) {
 	})
 	if err := AdmitReview(reviewCommitB, notApproved); err == nil {
 		t.Fatal("changes-required verdict admitted")
+	}
+}
+
+func TestReviewPriority(t *testing.T) {
+	developer, _ := NewReviewActor("local:developer", ReviewDeveloper)
+	reviewer, _ := NewReviewActor("local:sqa", ReviewSQA)
+	devTree, _ := NewReviewWorktree("C:/repo/dev", "codex/dev", reviewCommitB, true)
+	reviewTree, _ := NewReviewWorktree("C:/repo/review", "codex/review", reviewCommitB, true)
+	evaluator, _ := NewReviewEvaluator("review", reviewID(t, artifact.KindRecipe, "priority definition"), reviewCommitA)
+	candidate, _ := NewReviewCandidate(ReviewCandidate{
+		BaseCommit: reviewCommitA, CodeCommit: reviewCommitB, Developer: developer.ID,
+		Worktree: devTree.ID, Evaluator: evaluator.ID,
+		GateResult: reviewID(t, artifact.KindEvidence, "priority result"), GateRun: reviewID(t, artifact.KindEvidence, "priority run"),
+	})
+	verdict, _ := NewReviewVerdict(ReviewVerdict{
+		Candidate: candidate.ID, Reviewer: reviewer.ID, Worktree: reviewTree.ID, Evaluator: evaluator.ID,
+		TargetHead: reviewCommitB, Findings: []artifact.ID{}, Outcome: ReviewApproved,
+	})
+	contents, err := ReviewContents(developer, reviewer, devTree, reviewTree, evaluator, candidate, verdict)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch("test/review-priority", contents, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := repodb.Open(filepath.Join(t.TempDir(), "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		t.Fatal(err)
+	}
+	descriptors := make([]artifact.Descriptor, len(contents))
+	for index := range contents {
+		descriptors[index] = contents[index].Descriptor
+	}
+	priority, err := DeriveReviewPriority(context.Background(), store, reviewCommitB, descriptors[:len(descriptors)-1])
+	if err != nil || priority.Phase != ReviewPhaseSQA || priority.Candidate != candidate.ID {
+		t.Fatalf("candidate phase = (%+v, %v)", priority, err)
+	}
+	priority, err = DeriveReviewPriority(context.Background(), store, reviewCommitB, descriptors)
+	if err != nil || priority.Phase != ReviewPhasePriority || priority.Candidate != candidate.ID || priority.Verdict != verdict.ID {
+		t.Fatalf("admitted phase = (%+v, %v)", priority, err)
+	}
+	priority, err = DeriveReviewPriority(context.Background(), store, reviewCommitA, descriptors)
+	if err != nil || priority.Phase != ReviewPhaseImplementation {
+		t.Fatalf("unreviewed head phase = (%+v, %v)", priority, err)
 	}
 }
 

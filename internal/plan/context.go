@@ -8,21 +8,22 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
-const AutomationContextVersion = 1
+const AutomationContextVersion = 2
 
 // AutomationContext is the compact machine grounding for one automation turn.
 // It intentionally exposes one current task; campaign strategy remains in the
 // plan and does not compete with dispatch under another "rank-1" name.
 type AutomationContext struct {
-	SchemaVersion int          `json:"schema_version"`
-	Head          string       `json:"head"`
-	Branch        string       `json:"branch"`
-	Worktree      string       `json:"worktree"`
-	Role          string       `json:"role"`
-	PlanState     string       `json:"plan_state"`
-	CurrentTask   *TaskContext `json:"current_task,omitempty"`
-	Dirty         []DirtyPath  `json:"dirty"`
-	EvidenceDebt  EvidenceDebt `json:"evidence_debt"`
+	SchemaVersion int             `json:"schema_version"`
+	Head          string          `json:"head"`
+	Branch        string          `json:"branch"`
+	Worktree      string          `json:"worktree"`
+	Role          string          `json:"role"`
+	PlanState     string          `json:"plan_state"`
+	CurrentTask   *TaskContext    `json:"current_task,omitempty"`
+	Workflow      WorkflowContext `json:"workflow"`
+	Dirty         []DirtyPath     `json:"dirty"`
+	EvidenceDebt  EvidenceDebt    `json:"evidence_debt"`
 }
 
 type TaskContext struct {
@@ -44,6 +45,16 @@ type EvidenceDebt struct {
 	ResultID string `json:"result_id,omitempty"`
 }
 
+// WorkflowContext is a Git-HEAD-derived implementation -> SQA -> priority
+// guide. CurrentTask remains the sole executable work owner.
+type WorkflowContext struct {
+	Phase       string `json:"phase"`
+	Source      string `json:"source"`
+	Reason      string `json:"reason,omitempty"`
+	CandidateID string `json:"candidate_id,omitempty"`
+	VerdictID   string `json:"verdict_id,omitempty"`
+}
+
 type ContextFacts struct {
 	Head         string
 	Branch       string
@@ -51,6 +62,7 @@ type ContextFacts struct {
 	Role         string
 	Dirty        []DirtyPath
 	EvidenceDebt EvidenceDebt
+	Workflow     WorkflowContext
 }
 
 func BuildAutomationContext(document Plan, facts ContextFacts) (AutomationContext, error) {
@@ -73,7 +85,7 @@ func BuildAutomationContext(document Plan, facts ContextFacts) (AutomationContex
 	ctx := AutomationContext{
 		SchemaVersion: AutomationContextVersion,
 		Head:          facts.Head, Branch: facts.Branch, Worktree: facts.Worktree,
-		Role: facts.Role, PlanState: "complete",
+		Role: facts.Role, PlanState: "complete", Workflow: facts.Workflow,
 		Dirty: repoanalysis.NormalizeDirty(facts.Dirty), EvidenceDebt: facts.EvidenceDebt,
 	}
 	if ctx.Dirty == nil {
@@ -81,6 +93,9 @@ func BuildAutomationContext(document Plan, facts ContextFacts) (AutomationContex
 	}
 	if ctx.EvidenceDebt.State == "" || ctx.EvidenceDebt.Source == "" {
 		return AutomationContext{}, errors.New("automation context requires evidence-debt state and source")
+	}
+	if ctx.Workflow.Source == "" || ctx.Workflow.Phase != "implementation" && ctx.Workflow.Phase != "sqa" && ctx.Workflow.Phase != "priority" {
+		return AutomationContext{}, errors.New("automation context requires a valid workflow phase and source")
 	}
 	if item, step, ok := Current(document); ok {
 		ctx.PlanState = "active"

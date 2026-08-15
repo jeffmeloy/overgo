@@ -185,51 +185,73 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 	if strings.TrimSpace(role) == "" {
 		role = os.Getenv("OVERGO_AUTOMATION_ROLE")
 	}
-	debt := authoritativeEvidenceDebt(worktree)
+	debt, workflow := authoritativeContextEvidence(worktree, head)
 	return plan.ContextFacts{
 		Head: head, Branch: branch, Worktree: worktree, Role: role, Dirty: dirty,
-		EvidenceDebt: debt,
+		EvidenceDebt: debt, Workflow: workflow,
 	}, nil
 }
 
-func authoritativeEvidenceDebt(worktree string) plan.EvidenceDebt {
-	const source = "repodb:repodb-store"
+func authoritativeContextEvidence(worktree, head string) (plan.EvidenceDebt, plan.WorkflowContext) {
+	const debtSource = "repodb:repodb-store"
+	const workflowSource = "git:HEAD+repodb:repodb-store"
+	unavailable := func(reason string) (plan.EvidenceDebt, plan.WorkflowContext) {
+		return plan.EvidenceDebt{State: "unknown", Source: debtSource, Reason: reason},
+			plan.WorkflowContext{Phase: string(runrecord.ReviewPhaseImplementation), Source: workflowSource, Reason: reason}
+	}
 	store, err := repodb.OpenReadOnly(filepath.Join(worktree, "repodb-store"))
 	if err != nil {
-		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
+		return unavailable(err.Error())
 	}
 	defer store.Close()
-	result, err := store.Query(context.Background(), repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
-		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
+		return unavailable(err.Error())
 	}
 	if result.Truncated {
-		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: "RepoDB evidence query was truncated"}
+		return unavailable("RepoDB evidence query was truncated")
 	}
 	contents := make([]artifact.Content, 0)
 	for _, descriptor := range result.Artifacts {
 		if descriptor.MediaType != runrecord.GateLifecycleMediaType || descriptor.Schema != runrecord.GateLifecycleSchema {
 			continue
 		}
-		content, ok, err := store.Content(context.Background(), descriptor.ID)
+		content, ok, err := store.Content(ctx, descriptor.ID)
 		if err != nil {
-			return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
+			debt := plan.EvidenceDebt{State: "unknown", Source: debtSource, Reason: err.Error()}
+			return debt, authoritativeReviewPriority(ctx, store, head, result.Artifacts, workflowSource)
 		}
 		if ok {
 			contents = append(contents, content)
 		}
 	}
 	debt, err := runrecord.OutstandingGateDebt(contents)
+	debtContext := plan.EvidenceDebt{State: "none_observed", Source: debtSource}
 	if err != nil {
-		return plan.EvidenceDebt{State: "unknown", Source: source, Reason: err.Error()}
+		debtContext = plan.EvidenceDebt{State: "unknown", Source: debtSource, Reason: err.Error()}
+	} else if len(debt) > 0 {
+		debtContext = plan.EvidenceDebt{
+			State: "present", Source: debtSource, ResultID: debt[0].ID.String(),
+			Reason: fmt.Sprintf("%d prepared gate lifecycle record(s) lack finalization", len(debt)),
+		}
 	}
-	if len(debt) == 0 {
-		return plan.EvidenceDebt{State: "none_observed", Source: source}
+	return debtContext, authoritativeReviewPriority(ctx, store, head, result.Artifacts, workflowSource)
+}
+
+func authoritativeReviewPriority(ctx context.Context, reader artifact.Reader, head string, descriptors []artifact.Descriptor, source string) plan.WorkflowContext {
+	priority, err := runrecord.DeriveReviewPriority(ctx, reader, head, descriptors)
+	if err != nil {
+		return plan.WorkflowContext{Phase: string(runrecord.ReviewPhaseImplementation), Source: source, Reason: err.Error()}
 	}
-	return plan.EvidenceDebt{
-		State: "present", Source: source, ResultID: debt[0].ID.String(),
-		Reason: fmt.Sprintf("%d prepared gate lifecycle record(s) lack finalization", len(debt)),
+	workflow := plan.WorkflowContext{Phase: string(priority.Phase), Source: source}
+	if priority.Candidate.Valid() {
+		workflow.CandidateID = priority.Candidate.String()
 	}
+	if priority.Verdict.Valid() {
+		workflow.VerdictID = priority.Verdict.String()
+	}
+	return workflow
 }
 
 // addItem injects a new task as a top-priority item (one step "do"), inserted

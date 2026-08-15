@@ -23,6 +23,7 @@ func TestAutomationContextSnapshotEncoding(t *testing.T) {
 		Head: "0123456789abcdef0123456789abcdef01234567", Branch: "codex/automation",
 		Worktree: "C:/repo", Role: "sqa",
 		EvidenceDebt: plan.EvidenceDebt{State: "possible", Source: "bin/gate_status.json", Reason: "fixture"},
+		Workflow:     plan.WorkflowContext{Phase: "sqa", Source: "git:HEAD+repodb:repodb-store"},
 	}
 	context, err := plan.BuildAutomationContext(document, facts)
 	if err != nil {
@@ -36,7 +37,7 @@ func TestAutomationContextSnapshotEncoding(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.Role != "sqa" || decoded.CurrentTask == nil || decoded.CurrentTask.ItemID != "automation" || decoded.CurrentTask.StepID != "context" {
+	if decoded.Role != "sqa" || decoded.Workflow.Phase != "sqa" || decoded.CurrentTask == nil || decoded.CurrentTask.ItemID != "automation" || decoded.CurrentTask.StepID != "context" {
 		t.Fatalf("encoded context = %+v", decoded)
 	}
 }
@@ -75,8 +76,64 @@ func TestGateDebtAutomationContext(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	debt := authoritativeEvidenceDebt(worktree)
+	debt, _ := authoritativeContextEvidence(worktree, "0123456789abcdef0123456789abcdef01234567")
 	if debt.State != "present" || debt.Source != "repodb:repodb-store" || debt.ResultID != prepared.ID.String() {
 		t.Fatalf("authoritative debt = %+v", debt)
 	}
+}
+
+func TestReviewPriority(t *testing.T) {
+	const target = "89abcdef0123456789abcdef0123456789abcdef"
+	worktree := t.TempDir()
+	developer, err := runrecord.NewReviewActor("local:developer", runrecord.ReviewDeveloper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	developerTree, err := runrecord.NewReviewWorktree("C:/repo/dev", "codex/dev", target, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evaluator, err := runrecord.NewReviewEvaluator("gate", contextArtifactID(t, artifact.KindRecipe, "definition"), "0123456789abcdef0123456789abcdef01234567")
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := runrecord.NewReviewCandidate(runrecord.ReviewCandidate{
+		BaseCommit: "0123456789abcdef0123456789abcdef01234567", CodeCommit: target,
+		Developer: developer.ID, Worktree: developerTree.ID, Evaluator: evaluator.ID,
+		GateResult: contextArtifactID(t, artifact.KindEvidence, "result"), GateRun: contextArtifactID(t, artifact.KindEvidence, "run"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := candidate.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch("test/review-priority", []artifact.Content{content}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := repodb.Open(filepath.Join(worktree, "repodb-store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, workflow := authoritativeContextEvidence(worktree, target)
+	if workflow.Phase != "sqa" || workflow.CandidateID != candidate.ID.String() || workflow.VerdictID != "" {
+		t.Fatalf("review priority = %+v", workflow)
+	}
+}
+
+func contextArtifactID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
+	t.Helper()
+	id, err := artifact.IdentifyBytes(kind, []byte(value))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

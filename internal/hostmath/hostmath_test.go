@@ -23,6 +23,21 @@ func TestChannelMixF64Into(t *testing.T) {
 	}
 }
 
+func TestLinearBF16MatchesPromotedLinear(t *testing.T) {
+	x := []float32{0.25, -2, 3.5, 1}
+	words := []uint16{0x3f80, 0xc000, 0x3f00, 0x4040}
+	weights := make([]float32, len(words))
+	for index, word := range words {
+		weights[index] = math.Float32frombits(uint32(word) << 16)
+	}
+	want, got := make([]float32, 4), make([]float32, 4)
+	Linear(want, x, weights, 2, 2, 2)
+	LinearBF16(got, x, words, 2, 2, 2)
+	if !slices.Equal(got, want) {
+		t.Fatalf("native BF16 linear = %v, promoted = %v", got, want)
+	}
+}
+
 // TestGELUTanh pins the tanh approximation against PyTorch gelu(approximate="tanh").
 func TestGELUTanh(t *testing.T) {
 	v := []float32{0, 1, -1, 2, -2, 0.5}

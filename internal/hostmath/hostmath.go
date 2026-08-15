@@ -165,6 +165,24 @@ func Linear(dst, x, w []float32, rows, inDim, outDim int) {
 	})
 }
 
+// LinearBF16: Linear with native BF16 weight storage and F32 accumulation.
+func LinearBF16(dst, x []float32, w []uint16, rows, inDim, outDim int) {
+	parallelRangeCost(outDim, rows*inDim, macF32, func(oStart, oEnd int) {
+		for r := 0; r < rows; r++ {
+			xRow := x[r*inDim : (r+1)*inDim]
+			dRow := dst[r*outDim : (r+1)*outDim]
+			for o := oStart; o < oEnd; o++ {
+				wRow := w[o*inDim : (o+1)*inDim]
+				var sum float32
+				for c, value := range wRow {
+					sum += math.Float32frombits(uint32(value)<<16) * xRow[c]
+				}
+				dRow[o] = sum
+			}
+		}
+	})
+}
+
 // linearCols: output columns [oStart,oEnd) of Linear — the serial kernel the
 // dispatch calibration times.
 func linearCols(dst, x, w []float32, rows, inDim, outDim, oStart, oEnd int) {

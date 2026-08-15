@@ -49,6 +49,32 @@ func ReadF32(tensor Tensor) ([]float32, error) {
 	return values, nil
 }
 
+// ReadBF16 retains one BF16 tensor in native word storage.
+func ReadBF16(tensor Tensor) ([]uint16, error) {
+	if tensor.DType != "BF16" {
+		return nil, fmt.Errorf("safetensors: cannot read %s as BF16", tensor.DType)
+	}
+	elements := tensor.Elements()
+	count := int(elements)
+	if count < 0 || uint64(count) != elements {
+		return nil, errors.New("safetensors: tensor is too large for host memory")
+	}
+	values := make([]uint16, count)
+	var encoded [f32PromotionBufferBytes]byte
+	for offset := 0; offset < count; {
+		batch := min(count-offset, len(encoded)/float16StorageBytes)
+		payload := encoded[:batch*float16StorageBytes]
+		if _, err := tensor.ReadAt(payload, int64(offset*float16StorageBytes)); err != nil {
+			return nil, err
+		}
+		for index := range batch {
+			values[offset+index] = binary.LittleEndian.Uint16(payload[index*float16StorageBytes:])
+		}
+		offset += batch
+	}
+	return values, nil
+}
+
 // PromoteF32Reader: stream one floating storage type as F32.
 func PromoteF32Reader(source io.Reader, dataType string) (io.Reader, error) {
 	switch dataType {

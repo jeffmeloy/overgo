@@ -64,3 +64,18 @@ func TestReadF32PromotesIntoFinalSlab(t *testing.T) {
 		})
 	}
 }
+
+func TestReadBF16RetainsNativeWords(t *testing.T) {
+	encoded := []byte{0x80, 0x3f, 0x00, 0xc0}
+	tensor, err := NewTensor("x", "BF16", []uint64{2}, bytes.NewReader(encoded), 0, int64(len(encoded)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadBF16(tensor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != 0x3f80 || got[1] != 0xc000 {
+		t.Fatalf("words = %x", got)
+	}
+}

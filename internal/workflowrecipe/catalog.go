@@ -2,6 +2,34 @@ package workflowrecipe
 
 import "overgo/internal/recipe"
 
+const (
+	ModuleTokenize        recipe.ModuleID = "text.tokenize"
+	ModuleDetokenize      recipe.ModuleID = "text.detokenize"
+	ModuleGenerate        recipe.ModuleID = "model.generate"
+	ModuleEmbed           recipe.ModuleID = "model.embed"
+	ModulePool            recipe.ModuleID = "embedding.pool"
+	ModuleNormalize       recipe.ModuleID = "embedding.normalize"
+	ModuleRerankPrepare   recipe.ModuleID = "rerank.prepare"
+	ModuleScore           recipe.ModuleID = "model.score"
+	ModuleOrder           recipe.ModuleID = "rerank.order"
+	ModuleDecodeImage     recipe.ModuleID = "media.decode-image"
+	ModuleDecodeAudio     recipe.ModuleID = "media.decode-audio"
+	ModuleDecodeVideo     recipe.ModuleID = "media.decode-video"
+	ModuleProjectImage    recipe.ModuleID = "projector.image"
+	ModuleProjectAudio    recipe.ModuleID = "projector.audio"
+	ModuleProjectVideo    recipe.ModuleID = "projector.video"
+	ModuleBatchDataset    recipe.ModuleID = "training.batch-dataset"
+	ModuleTrainingForward recipe.ModuleID = "training.forward"
+	ModuleBackward        recipe.ModuleID = "training.backward"
+	ModuleOptimize        recipe.ModuleID = "training.optimize"
+)
+
+var catalog = mustCatalog()
+
+func Catalog() *recipe.Catalog { return catalog }
+
+func Module(id recipe.ModuleID) (recipe.Module, bool) { return catalog.Module(id) }
+
 var placements = []recipe.Placement{
 	recipe.PlacementHost, recipe.PlacementDevice, recipe.PlacementHybrid,
 }

@@ -389,27 +389,6 @@
     {
       "evidence": [
         {
-          "contains": "func Projection(",
-          "path": "internal/workflowrecipe/workflow.go",
-          "role": "source",
-          "identity": "file:sha256:68e2709d41b08983272a77fa6d573c073a92434eb716691142a01019688a8164"
-        },
-        {
-          "contains": "func TestProjectionMediaContracts(",
-          "path": "internal/workflowrecipe/workflow_test.go",
-          "role": "artifact",
-          "identity": "evidence:sha256:6f5db4cca007d9ee33043ee9407b8f8e9e220f6b376161d90c61de81b73ebbda"
-        }
-      ],
-      "id": "typed-multimodal-projection-recipes",
-      "evidence_tier": "contract-tested",
-      "verify": "go test ./internal/workflowrecipe -run '^TestProjectionMediaContracts$' -count=1 -v",
-      "status": "implemented",
-      "summary": "Image, audio, and video projection recipes name distinct decode/project modules and tensor contracts independent of placement."
-    },
-    {
-      "evidence": [
-        {
           "contains": "func NewAudioProjectionProfile(",
           "path": "internal/projector/audio_profile.go",
           "role": "source",
@@ -926,13 +905,13 @@
           "contains": "func LookupArchitecture(",
           "path": "internal/model/architecture.go",
           "role": "source",
-          "identity": "file:sha256:64ec30347e54386f1fa63911e3067f0377696db4b2a0e77d8ee4409c0a6f9c1c"
+          "identity": "file:sha256:5cd70a56263dac2d6fab906c9bccc1681f4094d7ddafd29a0675e15be699b597"
         },
         {
           "contains": "func TestArchitectureRegistryProfiles(",
           "path": "internal/model/architecture_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:972fc1b502802cf01b0fe8a2a862401fa2cd46686d392219a3ec11052ce79b2f"
+          "identity": "evidence:sha256:dd601241e822956c904f28b2a66dbbadecf26881906b0629b8e82877831fddad"
         }
       ],
       "id": "architecture-profiles",
@@ -1037,7 +1016,7 @@
           "contains": "func LoadSynthesizer(",
           "path": "internal/speechsynth/runtime.go",
           "role": "source",
-          "identity": "file:sha256:e8935d4b8eadcd3193cad9baa5701e0cbaa0c375292b1f0b54a44823a7aa4d83"
+          "identity": "file:sha256:eff30c406de36c940dfdbcf4ae4a8bab08e848b0f70fdb35d32b30f0e91339c1"
         },
         {
           "contains": "func TestPocketTTSProductionParity(",
@@ -1131,10 +1110,10 @@
           "identity": "file:sha256:e50e0209519eda83612edc237bbf28ff25f288584f4f124771ba4abdd844a320"
         },
         {
-          "contains": "case modelrecipe.ModuleRoutedImagePrepare:",
+          "contains": "capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed}",
           "path": "cmd/recipe/image_cuda_windows.go",
           "role": "source",
-          "identity": "file:sha256:a65b5729a0bc809ab543a34bf7af6b99e9d84dcae1a8142cc58c34a59fe10742"
+          "identity": "file:sha256:7826bd918180225448a8801b1ba22931adadaf6d943709fc241b43e0525dff75"
         },
         {
           "contains": "func TestSenseNovaProductionImageGeneration(",

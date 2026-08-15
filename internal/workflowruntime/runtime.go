@@ -12,7 +12,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/workflowrecipe"
 )
 
 const executionFailureCode = "execution_failed"
@@ -77,19 +76,12 @@ type Runtime struct {
 	adapters map[recipe.ModuleID]Adapter
 }
 
-func New(store artifact.Repository) (*Runtime, error) {
-	return newRuntime(store, workflowrecipe.Catalog())
-}
-
 // NewForProgram binds execution to a compiled program's module authority.
 func NewForProgram(store artifact.Repository, program recipe.Program) (*Runtime, error) {
-	return newRuntime(store, program.Catalog())
-}
-
-func newRuntime(store artifact.Repository, catalog *recipe.Catalog) (*Runtime, error) {
 	if store == nil {
 		return nil, errors.New("workflow runtime: nil repository")
 	}
+	catalog := program.Catalog()
 	if catalog == nil {
 		return nil, errors.New("workflow runtime: nil module catalog")
 	}

@@ -18,7 +18,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	ctx := context.Background()
 	store, program := runtimeFixture(t)
 	defer store.Close()
-	runtime, err := New(store)
+	runtime, err := NewForProgram(store, program)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestRuntimePublishesFailedRun(t *testing.T) {
 	ctx := context.Background()
 	store, program := runtimeFixture(t)
 	defer store.Close()
-	runtime, err := New(store)
+	runtime, err := NewForProgram(store, program)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestRuntimePublishesFailedRun(t *testing.T) {
 func TestRuntimePublishesCancelledRun(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
-	runtime, err := New(store)
+	runtime, err := NewForProgram(store, program)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,18 +91,24 @@ func TestRuntimePublishesCancelledRun(t *testing.T) {
 func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
 	store, _ := runtimeFixture(t)
 	defer store.Close()
-	runtime, err := New(store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	definition, err := workflowrecipe.Training(workflowrecipe.Bindings{
-		Model:   testutil.ArtifactID(t, artifact.KindModel, "training-model"),
-		Dataset: testutil.ArtifactID(t, artifact.KindDataset, "training-dataset"),
-	}, recipe.PlacementHost)
+	batch := recipe.Node{ID: "batch", Module: workflowrecipe.ModuleBatchDataset, Placement: recipe.PlacementHost}
+	definition, err := recipe.NewDefinitionWithDependencies(
+		recipe.TaskTraining,
+		[]recipe.Dependency{
+			{Role: recipe.DependencyModel, Artifact: testutil.ArtifactID(t, artifact.KindModel, "training-model")},
+			{Role: recipe.DependencyDataset, Artifact: testutil.ArtifactID(t, artifact.KindDataset, "training-dataset")},
+		},
+		[]recipe.Node{batch}, nil, nil,
+		[]recipe.Output{{Name: "batch", Data: recipe.DataBatch, Source: recipe.Endpoint{Node: batch.ID, Port: "batch"}}},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := NewForProgram(store, program)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,15 +120,15 @@ func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
 func TestExecuteProgramRejectsAnotherCatalogAuthority(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
+	runtime, err := NewForProgram(store, program)
+	if err != nil {
+		t.Fatal(err)
+	}
 	foreign, err := recipe.NewCatalog(workflowrecipe.Catalog().Modules()...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	program, err = recipe.CompileProgram(program.Definition(), foreign)
-	if err != nil {
-		t.Fatal(err)
-	}
-	runtime, err := New(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,9 +180,23 @@ func runtimeFixture(t *testing.T) (*repodb.Store, recipe.Program) {
 		store.Close()
 		t.Fatal(err)
 	}
-	definition, err := workflowrecipe.Generation(workflowrecipe.Bindings{
-		Model: modelID, Tokenizer: tokenizerID,
-	}, recipe.PlacementHost)
+	tokenize := recipe.Node{ID: "tokenize", Module: workflowrecipe.ModuleTokenize, Placement: recipe.PlacementHost}
+	generate := recipe.Node{ID: "generate", Module: workflowrecipe.ModuleGenerate, Placement: recipe.PlacementHost}
+	detokenize := recipe.Node{ID: "detokenize", Module: workflowrecipe.ModuleDetokenize, Placement: recipe.PlacementHost}
+	definition, err := recipe.NewDefinitionWithDependencies(
+		recipe.TaskGeneration,
+		[]recipe.Dependency{
+			{Role: recipe.DependencyModel, Artifact: modelID},
+			{Role: recipe.DependencyTokenizer, Artifact: tokenizerID},
+		},
+		[]recipe.Node{tokenize, generate, detokenize},
+		[]recipe.Edge{
+			{From: recipe.Endpoint{Node: tokenize.ID, Port: "tokens"}, To: recipe.Endpoint{Node: generate.ID, Port: "tokens"}},
+			{From: recipe.Endpoint{Node: generate.ID, Port: "tokens"}, To: recipe.Endpoint{Node: detokenize.ID, Port: "tokens"}},
+		},
+		[]recipe.Input{{Name: "prompt", Data: recipe.DataText, Target: recipe.Endpoint{Node: tokenize.ID, Port: "text"}}},
+		[]recipe.Output{{Name: "text", Data: recipe.DataText, Source: recipe.Endpoint{Node: detokenize.ID, Port: "text"}}},
+	)
 	if err != nil {
 		store.Close()
 		t.Fatal(err)

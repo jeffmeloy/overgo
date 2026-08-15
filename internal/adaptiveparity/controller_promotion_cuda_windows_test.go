@@ -107,7 +107,7 @@ func controllerRecords(commit string, holdout bool) []controllertrain.Record {
 			records = append(records, controllertrain.Record{
 				ID:     fmt.Sprintf("%s-%02d-%02d", split, actionIndex, variant),
 				Group:  fmt.Sprintf("%s-action-%02d", split, actionIndex),
-				Source: controllertrain.GitSource{Commit: commit, Path: "internal/workflowrecipe/workflow.go"},
+				Source: controllertrain.GitSource{Commit: commit, Path: "internal/workflowrecipe/catalog.go"},
 				Prompt: fmt.Sprintf("%s case %02d", item.prompt, caseNumber), Action: item.action,
 			})
 		}
@@ -128,7 +128,7 @@ func controllerSourceCommit(t *testing.T) string {
 
 func verifyControllerSources(t *testing.T, commit string) {
 	t.Helper()
-	command := exec.Command("git", "show", commit+":internal/workflowrecipe/workflow.go")
+	command := exec.Command("git", "show", commit+":internal/workflowrecipe/catalog.go")
 	command.Dir = "../.."
 	output, err := command.Output()
 	if err != nil {

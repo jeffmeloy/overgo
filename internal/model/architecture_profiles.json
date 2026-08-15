@@ -288,7 +288,7 @@
       "Routing": 1,
       "SharedCatalog": 2
     },
-    "MetadataDefaults": {"RopeFrequencyFromBase": true, "SlidingPattern": 4},
+    "MetadataDefaults": {"RopeFrequencyFromBase": true, "SharedExpert": 3, "SlidingPattern": 4},
     "Name": "cohere2moe",
     "Validation": {
       "Attention": 13,
@@ -1167,7 +1167,7 @@
       "Composition": 1,
       "SharedCatalog": 1
     },
-    "MetadataDefaults": {"RopeDimension": 1},
+    "MetadataDefaults": {"RopeDimension": 1, "SharedExpert": 1},
     "Name": "hunyuan-moe",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1209,7 +1209,7 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "MetadataDefaults": {"RopeDimension": 1},
+    "MetadataDefaults": {"RopeDimension": 1, "SharedExpert": 2},
     "Name": "hy_v3",
     "Validation": {
       "ExpertMetadata": 1,
@@ -2158,7 +2158,7 @@
     },
     "FFNNormLayout": 4,
     "Metadata": {"DraftBeforeShape": true},
-    "MetadataDefaults": {"FullAttentionInterval": 4},
+    "MetadataDefaults": {"FullAttentionInterval": 4, "SharedExpert": 1},
     "Name": "qwen35moe",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2204,7 +2204,7 @@
       "SharedCatalog": 3
     },
     "FFNNormLayout": 4,
-    "MetadataDefaults": {"FullAttentionInterval": 4, "RopeDimension": 2},
+    "MetadataDefaults": {"FullAttentionInterval": 4, "RopeDimension": 2, "SharedExpert": 1},
     "Name": "qwen3next",
     "RecurrentMixer": 8,
     "Validation": {

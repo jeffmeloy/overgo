@@ -98,7 +98,7 @@ active recipe + resolved artifact facts
 | Active projection lifecycle dimensions | model + projector + modules | Exact bundle authority |
 | Training authority timing | pre-allocation | Training plan resolves before runtime construction |
 | Typed architecture profile facts | 166 | Profile/artifact facts own omitted-value policy |
-| `optionalOr` calls in `model/spec.go` | 8 | Move remaining expert relationships into typed policies |
+| Model-specific `optionalOr` defaults in `model/spec.go` | 0 | Three remaining calls use multiplicative identity |
 | Production `legacy` / `fallback` text hits | 20 / 73 | Classify format support vs runtime authority; delete authority branches |
 | Parallel image/video VAE operation systems | 2 | Compile one neutral media codec program |
 
@@ -106,10 +106,9 @@ Family-named production files: none.
 
 ## Ordered Work
 
-1. Move eight expert-width/scale relationships into typed profile policies.
-2. Replace coarse prepare/integrate/decode shells with neutral operator programs.
-3. Compile one image/video codec topology; migrate host and CUDA execution together.
-4. Classify remaining legacy/fallback hits; retain format, tokenizer, and explicit resource-policy behavior only.
+1. Replace coarse prepare/integrate/decode shells with neutral operator programs.
+2. Compile one image/video codec topology; migrate host and CUDA execution together.
+3. Classify remaining legacy/fallback hits; retain format, tokenizer, and explicit resource-policy behavior only.
 
 ## Completed Waves
 
@@ -136,6 +135,8 @@ Family-named production files: none.
 - Inventory-only VQA capability registration deleted; verified VQA runtime remains recipe-bound.
 - T5/Qwen/Step/Grove omitted metadata moved into typed profile facts: four literals removed.
 - Image/video codec channel norm and spatial attention unified in `hostmath`; two local implementations deleted.
+- Expert width derivation is exact; shared-expert fallback relationships are typed profile facts.
+- Oscillator image/video share one runtime registration owner; video-only facade deleted.
 - Context-pipeline-tail abstraction rejected: `+26` lines for three consumers; no commit.
 
 ## Per-Wave Gate

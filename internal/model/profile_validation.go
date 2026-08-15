@@ -67,6 +67,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Metadata.FeedForward", profile.Metadata.FeedForward, metadataHybridLayers),
 		validateProfileOrdinal("Metadata.Heads", profile.Metadata.Heads, metadataHybridLayers),
 		validateProfileOrdinal("Metadata.KVHeads", profile.Metadata.KVHeads, metadataHybridLayers),
+		validateProfileOrdinal("MetadataDefaults.SharedExpert", profile.MetadataDefaults.SharedExpert, SharedExpertDefaultExpertProduct),
 		validateProfileOrdinal("Validation.BaseRotary", profile.Validation.BaseRotary, BaseRotaryValidationHalfWidth),
 		validateProfileOrdinal("Validation.ExpertMetadata", profile.Validation.ExpertMetadata, ExpertMetadataWhenDeclared),
 		validateProfileOrdinal("Validation.Encoder", profile.Validation.Encoder, EncoderValidationNomicBERTMoE),
@@ -178,6 +179,16 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	}
 	if profile.Validation.Hybrid == HybridValidationGroveMoE && !defaults.ExpertChunkFromKey {
 		return fmt.Errorf("architecture profile %q: expert chunk-width relationship is absent", profile.Name)
+	}
+	if profile.Validation.hybridOneOf(HybridValidationQwen3Next, HybridValidationQwen35MoE, HybridValidationHunyuanMoE) &&
+		defaults.SharedExpert != SharedExpertDefaultModelFeedForward {
+		return fmt.Errorf("architecture profile %q: model-width shared expert relationship is absent", profile.Name)
+	}
+	if profile.Validation.Hybrid == HybridValidationHYV3 && defaults.SharedExpert != SharedExpertDefaultExpertFeedForward {
+		return fmt.Errorf("architecture profile %q: expert-width shared expert relationship is absent", profile.Name)
+	}
+	if profile.Validation.Attention == AttentionValidationCohere2MoE && defaults.SharedExpert != SharedExpertDefaultExpertProduct {
+		return fmt.Errorf("architecture profile %q: repeated shared expert relationship is absent", profile.Name)
 	}
 	if profile.Validation.Attention == AttentionValidationGemma3N &&
 		(defaults.AlternateStateCount == 0 || defaults.LowRankResidualWidth == 0 ||

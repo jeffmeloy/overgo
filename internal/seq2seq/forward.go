@@ -7,9 +7,9 @@ package seq2seq
 
 import (
 	"fmt"
-	"math"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/tensor/dtype"
 )
 
 // embedRows: dst[rows,d] = embed[token]*sqrt(d) — the reference's scaled
@@ -22,7 +22,7 @@ func (m *Model) embedRows(dst []float32, tokens []int) error {
 		}
 		row, source := dst[i*d:(i+1)*d], m.embed[token*d:(token+1)*d]
 		for j, value := range source {
-			row[j] = float32FromBF16(value) * m.embedScale
+			row[j] = dtype.BF16ToFloat32(value) * m.embedScale
 		}
 	}
 	return nil
@@ -33,9 +33,17 @@ func (m *Model) embedRows(dst []float32, tokens []int) error {
 // Score scale folds into q because the hostmath cores run scale 1; with a
 // power-of-two head dim the fold is bit-exact against scaling the scores.
 func (m *Model) projectQ(dst, normed []float32, rows int, block *attnBlock, posBase int, roped bool) {
+	m.projectQTrace(dst, nil, normed, rows, block, posBase, roped)
+}
+
+func (m *Model) projectQTrace(dst, raw, normed []float32, rows int, block *attnBlock, posBase int, roped bool) {
 	heads, hd := m.Dims.Heads, m.Dims.HeadDim
-	hostmath.LinearBF16(dst, normed, block.q, rows, m.Dims.DModel, heads*hd)
-	hostmath.RMSNormInto(dst, dst, block.qNorm, rows*heads, hd, m.Dims.RMSEps)
+	projected := dst
+	if raw != nil {
+		projected = raw
+	}
+	hostmath.LinearBF16(projected, normed, block.q, rows, m.Dims.DModel, heads*hd)
+	hostmath.RMSNormInto(dst, projected, block.qNorm, rows*heads, hd, m.Dims.RMSEps)
 	if roped {
 		m.ropeRows(dst, rows, heads, posBase)
 	}
@@ -46,9 +54,17 @@ func (m *Model) projectQ(dst, normed []float32, rows int, block *attnBlock, posB
 
 // projectKV: normed source rows -> per-head-normed roped keys and raw values.
 func (m *Model) projectKV(dstK, dstV, source []float32, rows int, block *attnBlock, posBase int, roped bool) {
+	m.projectKVTrace(dstK, dstV, nil, source, rows, block, posBase, roped)
+}
+
+func (m *Model) projectKVTrace(dstK, dstV, rawK, source []float32, rows int, block *attnBlock, posBase int, roped bool) {
 	kv, hd := m.Dims.KVHeads, m.Dims.HeadDim
-	hostmath.LinearBF16(dstK, source, block.k, rows, m.Dims.DModel, kv*hd)
-	hostmath.RMSNormInto(dstK, dstK, block.kNorm, rows*kv, hd, m.Dims.RMSEps)
+	projectedK := dstK
+	if rawK != nil {
+		projectedK = rawK
+	}
+	hostmath.LinearBF16(projectedK, source, block.k, rows, m.Dims.DModel, kv*hd)
+	hostmath.RMSNormInto(dstK, projectedK, block.kNorm, rows*kv, hd, m.Dims.RMSEps)
 	if roped {
 		m.ropeRows(dstK, rows, kv, posBase)
 	}
@@ -119,6 +135,10 @@ type crossMemory struct {
 // projectCrossMemory computes every cross layer's static K/V from memory.
 // Shared by full and incremental decode so both read identical values.
 func (m *Model) projectCrossMemory(memory []float32, memRows int) (*crossMemory, error) {
+	return m.projectCrossMemoryTrace(memory, memRows, nil)
+}
+
+func (m *Model) projectCrossMemoryTrace(memory []float32, memRows int, trace *decoderTrainingTrace) (*crossMemory, error) {
 	if memRows <= 0 || len(memory) != memRows*m.Dims.DModel {
 		return nil, fmt.Errorf("seq2seq: memory %d values for %d rows of width %d", len(memory), memRows, m.Dims.DModel)
 	}
@@ -127,7 +147,13 @@ func (m *Model) projectCrossMemory(memory []float32, memRows int) (*crossMemory,
 	for layer := range m.decoderCross {
 		block := &m.decoderCross[layer]
 		k, v := make([]float32, width), make([]float32, width)
-		m.projectKV(k, v, memory, memRows, block, 0, false)
+		if trace != nil && layer == len(m.decoderCross)-1 {
+			trace.finalCrossMemory = memory
+			trace.finalCrossKRaw = make([]float32, width)
+			m.projectKVTrace(k, v, trace.finalCrossKRaw, memory, memRows, block, 0, false)
+		} else {
+			m.projectKV(k, v, memory, memRows, block, 0, false)
+		}
 		cross.k = append(cross.k, k)
 		cross.v = append(cross.v, v)
 	}
@@ -140,8 +166,6 @@ func (m *Model) projectLogits(logits, hiddenRow, normedScratch []float32) {
 	hostmath.RMSNormInto(normedScratch[:d], hiddenRow, m.decFinalNorm, 1, d, m.Dims.RMSEps)
 	hostmath.LinearBF16(logits[:m.Dims.Vocab], normedScratch[:d], m.embed, 1, d, m.Dims.Vocab)
 }
-
-func float32FromBF16(value uint16) float32 { return math.Float32frombits(uint32(value) << 16) }
 
 // DecodeFull teacher-forces tgt through the decoder in one full-sequence
 // pass and returns logits [len(tgt), vocab] — the recompute reference the
@@ -165,8 +189,18 @@ func (m *Model) decodeHiddenFull(memory []float32, memRows int, tgt []int) ([]fl
 }
 
 type decoderTrainingTrace struct {
+	finalSelfProjected  []float32
+	finalSelfAttention  []float32
+	finalSelfQ          []float32
+	finalSelfK          []float32
+	finalSelfV          []float32
 	finalCrossProjected []float32
 	finalCrossAttention []float32
+	finalCrossInput     []float32
+	finalCrossNormed    []float32
+	finalCrossMemory    []float32
+	finalCrossQRaw      []float32
+	finalCrossKRaw      []float32
 	finalCrossQ         []float32
 	finalCrossK         []float32
 	finalCrossV         []float32
@@ -176,7 +210,7 @@ func (m *Model) decodeHiddenFullTrace(memory []float32, memRows int, tgt []int, 
 	if len(tgt) == 0 {
 		return nil, fmt.Errorf("seq2seq: empty target")
 	}
-	cross, err := m.projectCrossMemory(memory, memRows)
+	cross, err := m.projectCrossMemoryTrace(memory, memRows, trace)
 	if err != nil {
 		return nil, err
 	}
@@ -197,11 +231,30 @@ func (m *Model) decodeHiddenFullTrace(memory []float32, memRows int, tgt []int, 
 		m.projectQ(q, normed, rows, self, 0, true)
 		m.projectKV(k, v, normed, rows, self, 0, true)
 		hostmath.CausalAttention(attn, q, k, v, rows, dims.Heads, dims.KVHeads, dims.HeadDim)
-		m.gatedResidualOut(hidden, attn, self.o, rows, self.gate)
+		if trace != nil && layer == len(m.decoderSelf)-1 {
+			trace.finalSelfAttention = append(trace.finalSelfAttention[:0], attn...)
+			trace.finalSelfQ = append(trace.finalSelfQ[:0], q...)
+			trace.finalSelfK = append(trace.finalSelfK[:0], k...)
+			trace.finalSelfV = append(trace.finalSelfV[:0], v...)
+			trace.finalSelfProjected = make([]float32, rows*d)
+			hostmath.LinearBF16(trace.finalSelfProjected, attn, self.o, rows, dims.Heads*dims.HeadDim, d)
+			addGatedResidual(hidden, trace.finalSelfProjected, self.gate)
+		} else {
+			m.gatedResidualOut(hidden, attn, self.o, rows, self.gate)
+		}
 
 		crossBlock := &m.decoderCross[layer]
+		if trace != nil && layer == len(m.decoderCross)-1 {
+			trace.finalCrossInput = append(trace.finalCrossInput[:0], hidden...)
+		}
 		hostmath.RMSNormInto(normed, hidden, crossBlock.inNorm, rows, d, dims.RMSEps)
-		m.projectQ(q, normed, rows, crossBlock, 0, false)
+		if trace != nil && layer == len(m.decoderCross)-1 {
+			trace.finalCrossNormed = append(trace.finalCrossNormed[:0], normed...)
+			trace.finalCrossQRaw = make([]float32, len(q))
+			m.projectQTrace(q, trace.finalCrossQRaw, normed, rows, crossBlock, 0, false)
+		} else {
+			m.projectQ(q, normed, rows, crossBlock, 0, false)
+		}
 		hostmath.MaskedBidirectionalAttention(attn, q, cross.k[layer], cross.v[layer], rows, cross.rows, dims.Heads, dims.KVHeads, dims.HeadDim, nil)
 		if trace != nil && layer == len(m.decoderCross)-1 {
 			trace.finalCrossAttention = append(trace.finalCrossAttention[:0], attn...)

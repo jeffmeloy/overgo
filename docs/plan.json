@@ -16,15 +16,15 @@
       ]
     },
     {
-      "id": "needle-cross-attention-vjp",
-      "title": "Add the shared bidirectional attention VJP for Needle cross-attention",
+      "id": "needle-final-self-attention-vjp",
+      "title": "Propagate Needle training through final decoder self-attention",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Add the shared bidirectional attention VJP for Needle cross-attention",
+          "title": "Propagate Needle training through final decoder self-attention",
           "status": "open",
-          "verify": "go test -tags modeltest ./internal/seq2seq -run '^TestNeedleRealGSM8KFinalCrossAttentionCoreGradient$' -count=1 -v"
+          "verify": "go test -tags modeltest ./internal/seq2seq -run '^TestNeedleRealGSM8KFinalSelfAttentionGradient$' -count=1 -v"
         }
       ]
     },

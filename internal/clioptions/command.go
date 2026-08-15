@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 )
 
 // Main: common command error exit.
@@ -38,10 +40,34 @@ func Tail(text string, limit int) string {
 
 // CombinedOutput runs one command with an explicit environment.
 func CombinedOutput(env []string, name string, args ...string) (string, error) {
+	return CombinedOutputIn("", env, name, args...)
+}
+
+// CombinedOutputIn runs one command from an explicit working directory.
+func CombinedOutputIn(directory string, env []string, name string, args ...string) (string, error) {
 	command := exec.Command(name, args...)
+	command.Dir = directory
 	command.Env = env
 	output, err := command.CombinedOutput()
 	return string(output), err
+}
+
+// POSIXShell resolves the repository command shell on supported hosts.
+func POSIXShell() (string, error) {
+	if shell, err := exec.LookPath("sh"); err == nil {
+		return shell, nil
+	}
+	if runtime.GOOS == "windows" {
+		for _, path := range []string{
+			`C:\Program Files\Git\bin\bash.exe`,
+			`C:\Program Files\Git\usr\bin\bash.exe`,
+		} {
+			if info, err := os.Stat(filepath.Clean(path)); err == nil && !info.IsDir() {
+				return path, nil
+			}
+		}
+	}
+	return "", errors.New("POSIX shell unavailable")
 }
 
 // Verdict renders command success without treating skipped work as green.

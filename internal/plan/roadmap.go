@@ -145,24 +145,9 @@ type RoadmapReport struct {
 
 // EvaluateRoadmap validates the design record and derives advisory state.
 func EvaluateRoadmap(data []byte, evidence RoadmapEvidence) (RoadmapReport, error) {
-	var document roadmapDocument
-	if err := strictjson.DecodeBytes(data, &document); err != nil {
-		return RoadmapReport{}, fmt.Errorf("parse roadmap: %w", err)
-	}
-	rows := map[string]roadmapStep{}
-	for _, item := range document.Items {
-		if item.ID == "" || item.Title == "" || len(item.Steps) == 0 {
-			return RoadmapReport{}, fmt.Errorf("roadmap group %q is incomplete", item.ID)
-		}
-		for _, row := range item.Steps {
-			if row.ID == "" || row.Title == "" || rows[row.ID].ID != "" {
-				return RoadmapReport{}, fmt.Errorf("roadmap row id %q is empty or duplicated", row.ID)
-			}
-			if err := testevidence.ValidateGoTestCommand(row.Verify); err != nil {
-				return RoadmapReport{}, fmt.Errorf("roadmap row %s verifier: %w", row.ID, err)
-			}
-			rows[row.ID] = row
-		}
+	document, rows, err := parseRoadmap(data)
+	if err != nil {
+		return RoadmapReport{}, err
 	}
 	if err := validateRoadmapReferences(document, rows); err != nil {
 		return RoadmapReport{}, err
@@ -197,6 +182,42 @@ func EvaluateRoadmap(data []byte, evidence RoadmapEvidence) (RoadmapReport, erro
 	}
 	sort.Slice(report.Proposed, func(i, j int) bool { return report.Proposed[i].Item.ID < report.Proposed[j].Item.ID })
 	return report, nil
+}
+
+// RoadmapVerifier returns the canonical verifier for one validated row.
+func RoadmapVerifier(data []byte, id string) (string, error) {
+	_, rows, err := parseRoadmap(data)
+	if err != nil {
+		return "", err
+	}
+	row, ok := rows[id]
+	if !ok {
+		return "", fmt.Errorf("roadmap row %q is absent", id)
+	}
+	return row.Verify, nil
+}
+
+func parseRoadmap(data []byte) (roadmapDocument, map[string]roadmapStep, error) {
+	var document roadmapDocument
+	if err := strictjson.DecodeBytes(data, &document); err != nil {
+		return roadmapDocument{}, nil, fmt.Errorf("parse roadmap: %w", err)
+	}
+	rows := map[string]roadmapStep{}
+	for _, item := range document.Items {
+		if item.ID == "" || item.Title == "" || len(item.Steps) == 0 {
+			return roadmapDocument{}, nil, fmt.Errorf("roadmap group %q is incomplete", item.ID)
+		}
+		for _, row := range item.Steps {
+			if row.ID == "" || row.Title == "" || rows[row.ID].ID != "" {
+				return roadmapDocument{}, nil, fmt.Errorf("roadmap row id %q is empty or duplicated", row.ID)
+			}
+			if err := testevidence.ValidateGoTestCommand(row.Verify); err != nil {
+				return roadmapDocument{}, nil, fmt.Errorf("roadmap row %s verifier: %w", row.ID, err)
+			}
+			rows[row.ID] = row
+		}
+	}
+	return document, rows, nil
 }
 
 func validateRoadmapReferences(document roadmapDocument, rows map[string]roadmapStep) error {

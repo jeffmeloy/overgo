@@ -81,3 +81,18 @@ func TestVerifyOutput(t *testing.T) {
 		})
 	}
 }
+
+func TestVerifyGoTestTargetAbsent(t *testing.T) {
+	command := "go test ./x -run '^TestMissing$' -count=1 -v"
+	absent := "{\"Action\":\"pass\",\"Package\":\"x\"}\n"
+	if err := VerifyGoTestTargetAbsent(command, absent); err != nil {
+		t.Fatal(err)
+	}
+	matched := "{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestMissing\"}\n" + absent
+	if err := VerifyGoTestTargetAbsent(command, matched); err == nil {
+		t.Fatal("existing target accepted as an absent roadmap probe")
+	}
+	if err := VerifyGoTestTargetAbsent(command, "{\"Action\":\"fail\",\"Package\":\"x\"}\n"); err == nil {
+		t.Fatal("failed package accepted as an absent roadmap probe")
+	}
+}

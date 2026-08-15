@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 )
 
 func TestRoadmapDAGAndReadiness(t *testing.T) {
@@ -88,6 +91,37 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 			t.Fatalf("live safety error = %v", err)
 		}
 	})
+}
+
+func TestRoadmapProbeExecutesAbsentVerifier(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	storePath := t.TempDir()
+	verifier := "go test ./internal/testevidence/testdata/probefixture -run '^TestMissingCapability$' -count=1 -v"
+	store, err := repodb.Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe, err := plan.ExecuteRoadmapProbe(context.Background(), root, store, "fixture-row", verifier)
+	store.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err = repodb.OpenReadOnly(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	content, ok, err := store.Content(context.Background(), probe.Run)
+	if err != nil || !ok {
+		t.Fatalf("probe run read = (%v, %v)", ok, err)
+	}
+	run, err := runrecord.ParseRun(content.Data)
+	if err != nil || run.Outcome != runrecord.OutcomeFailed || run.Failure != probe.ExpectedFailure {
+		t.Fatalf("probe run = (%+v, %v)", run, err)
+	}
 }
 
 func mutateRoadmap(t *testing.T, data []byte, id string, mutate func(map[string]any)) []byte {

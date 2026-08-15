@@ -198,6 +198,28 @@ func VerifyGoTestTarget(command, out string) error {
 	return nil
 }
 
+// VerifyGoTestTargetAbsent accepts only a healthy package run in which the
+// declared target did not exist. It is the bootstrap verdict for roadmap work.
+func VerifyGoTestTargetAbsent(command, out string) error {
+	target, err := goTestTarget(command)
+	if err != nil {
+		return err
+	}
+	report, err := GoTestJSONReport(out)
+	if err != nil {
+		return err
+	}
+	for _, result := range report.tests {
+		if target.MatchString(result.Name) {
+			return fmt.Errorf("go test -run %q already matched %s", target.String(), result.Name)
+		}
+	}
+	if report.PassedPackages == 0 {
+		return fmt.Errorf("go test -run %q produced no passing package", target.String())
+	}
+	return nil
+}
+
 func goTestTarget(command string) (*regexp.Regexp, error) {
 	match := goTestRunFlag.FindStringSubmatch(command)
 	if match == nil {

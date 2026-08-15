@@ -15,7 +15,6 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/strictjson"
 )
 
 func main() { clioptions.MainNamed("roadmap", run) }
@@ -24,14 +23,14 @@ func run() error {
 	root := flag.String("root", ".", "repository root")
 	roadmapPath := flag.String("roadmap", "docs/rsi_plan.json", "roadmap design record")
 	storePath := flag.String("store", "repodb-store", "RepoDB evidence store")
-	recordProbe := flag.String("record-probe", "", "record owner-approved isolated probe JSON in RepoDB")
+	probeRow := flag.String("probe-row", "", "execute and record the named roadmap row's absent verifier")
 	flag.Parse()
-	if *recordProbe != "" {
-		return recordRoadmapProbe(*root, *storePath, *recordProbe)
-	}
 	data, err := os.ReadFile(filepath.Join(*root, filepath.FromSlash(*roadmapPath)))
 	if err != nil {
 		return err
+	}
+	if *probeRow != "" {
+		return probeRoadmapRow(*root, filepath.Join(*root, filepath.FromSlash(*storePath)), data, *probeRow)
 	}
 	evidence, err := collectEvidence(*root, filepath.Join(*root, filepath.FromSlash(*storePath)))
 	if err != nil {
@@ -111,21 +110,17 @@ func collectEvidence(root, storePath string) (plan.RoadmapEvidence, error) {
 	return evidence, nil
 }
 
-func recordRoadmapProbe(root, storePath, input string) error {
-	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(input)))
+func probeRoadmapRow(root, storePath string, data []byte, row string) error {
+	verifier, err := plan.RoadmapVerifier(data, row)
 	if err != nil {
 		return err
 	}
-	var probe plan.RoadmapProbe
-	if err := strictjson.DecodeBytes(data, &probe); err != nil {
-		return err
-	}
-	store, err := repodb.Open(filepath.Join(root, filepath.FromSlash(storePath)))
+	store, err := repodb.Open(storePath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	probe, err = plan.RecordRoadmapProbe(context.Background(), store, probe)
+	probe, err := plan.ExecuteRoadmapProbe(context.Background(), root, store, row, verifier)
 	if err != nil {
 		return err
 	}

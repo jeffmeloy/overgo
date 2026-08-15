@@ -8,6 +8,9 @@ import (
 )
 
 func TestWriteJSON(t *testing.T) {
+	if _, err := CombinedOutput(os.Environ(), os.Args[0], "-test.run=^$"); err != nil {
+		t.Fatal(err)
+	}
 	if got := Tail("abcdef", 3); got != "...def" {
 		t.Fatalf("tail = %q", got)
 	}

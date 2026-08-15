@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 )
 
 // Main: common command error exit.
@@ -33,6 +34,14 @@ func Tail(text string, limit int) string {
 		return text
 	}
 	return "..." + text[len(text)-limit:]
+}
+
+// CombinedOutput runs one command with an explicit environment.
+func CombinedOutput(env []string, name string, args ...string) (string, error) {
+	command := exec.Command(name, args...)
+	command.Env = env
+	output, err := command.CombinedOutput()
+	return string(output), err
 }
 
 // WriteJSON: one JSON document.

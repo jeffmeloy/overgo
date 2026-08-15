@@ -11,7 +11,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -29,7 +28,7 @@ func run() error {
 	// cuda-info first: it is the availability probe. Failure here means no
 	// usable device/driver -- report UNAVAILABLE and exit nonzero so a caller
 	// can never mistake absence for green.
-	if out, err := command("go", "run", "./cmd/cuda-info"); err != nil {
+	if out, err := clioptions.CombinedOutput(os.Environ(), "go", "run", "./cmd/cuda-info"); err != nil {
 		fmt.Println("device-lane: UNAVAILABLE -- cuda-info failed; no passing evidence exists")
 		fmt.Print(clioptions.Tail(out, 800))
 		return err
@@ -41,7 +40,7 @@ func run() error {
 	}
 	for _, step := range steps {
 		began := time.Now()
-		out, err := commandEnv(append(os.Environ(), cudaTestEnv+"=1"), step[0], step[1:]...)
+		out, err := clioptions.CombinedOutput(append(os.Environ(), cudaTestEnv+"=1"), step[0], step[1:]...)
 		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), verdict(err))
 		if err != nil {
 			fmt.Print(clioptions.Tail(out, 2000))
@@ -58,15 +57,4 @@ func verdict(err error) string {
 		return "FAIL"
 	}
 	return "ok"
-}
-
-func command(name string, args ...string) (string, error) {
-	return commandEnv(os.Environ(), name, args...)
-}
-
-func commandEnv(env []string, name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
-	cmd.Env = env
-	out, err := cmd.CombinedOutput()
-	return string(out), err
 }

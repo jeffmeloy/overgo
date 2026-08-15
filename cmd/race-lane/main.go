@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"overgo/internal/clioptions"
 )
 
 const (
@@ -69,7 +71,7 @@ func hostRace() error {
 	}
 	cmd := []string{"go", "test", "-race", "-count=1", hostRacePattern}
 	began := time.Now()
-	out, err := commandEnv(append(os.Environ(), "CGO_ENABLED=1"), cmd[0], cmd[1:]...)
+	out, err := clioptions.CombinedOutput(append(os.Environ(), "CGO_ENABLED=1"), cmd[0], cmd[1:]...)
 	report("host", hostRacePattern, began, err)
 	if err != nil {
 		fmt.Print(out)
@@ -80,7 +82,7 @@ func hostRace() error {
 
 func deviceRace() error {
 	// cuda-info is the availability probe: failure means no usable device.
-	if out, err := command("go", "run", "./cmd/cuda-info"); err != nil {
+	if out, err := clioptions.CombinedOutput(os.Environ(), "go", "run", "./cmd/cuda-info"); err != nil {
 		fmt.Print(out)
 		return unavailable("device", "cuda-info failed; no usable GPU/driver")
 	}
@@ -96,14 +98,14 @@ func deviceRace() error {
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
 	}
-	if out, err := command("go", "test", "-c", "-o", bin, deviceRacePackage); err != nil {
+	if out, err := clioptions.CombinedOutput(os.Environ(), "go", "test", "-c", "-o", bin, deviceRacePackage); err != nil {
 		fmt.Print(out)
 		return fmt.Errorf("building device test binary failed")
 	}
 	for _, tool := range deviceRaceTools {
 		cmd := sanitizerCmd(tool, bin, "-test.run", "Device", "-test.count=1")
 		began := time.Now()
-		out, err := commandEnv(append(os.Environ(), cudaTestEnv+"=1"), cmd[0], cmd[1:]...)
+		out, err := clioptions.CombinedOutput(append(os.Environ(), cudaTestEnv+"=1"), cmd[0], cmd[1:]...)
 		report("device:"+tool, deviceRacePackage, began, err)
 		if err != nil {
 			fmt.Print(out)
@@ -114,7 +116,7 @@ func deviceRace() error {
 }
 
 func cCompiler() string {
-	out, err := command("go", "env", "CC")
+	out, err := clioptions.CombinedOutput(os.Environ(), "go", "env", "CC")
 	if err == nil {
 		if cc := strings.TrimSpace(out); cc != "" {
 			return cc
@@ -144,15 +146,4 @@ func verdict(err error) string {
 		return "FAIL"
 	}
 	return "ok"
-}
-
-func command(name string, args ...string) (string, error) {
-	return commandEnv(os.Environ(), name, args...)
-}
-
-func commandEnv(env []string, name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
-	cmd.Env = env
-	out, err := cmd.CombinedOutput()
-	return string(out), err
 }

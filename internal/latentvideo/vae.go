@@ -493,6 +493,50 @@ type VAEDecodeStats struct {
 	PeakDeviceBytes uint64
 }
 
+type vaeDecodeGeometry struct {
+	spatial, frames, channels, height, width int
+}
+
+func prepareVAEDecode(scope, engine string, plan VAEDecoderPlan, opCount int, stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, vaeDecodeGeometry, error) {
+	var result VAEDecodeStats
+	if sink == nil || opCount == 0 {
+		return result, vaeDecodeGeometry{}, fmt.Errorf("%s: sink or operations absent", scope)
+	}
+	if len(stats.Mean) != plan.ZDim || len(stats.Std) != plan.ZDim {
+		return result, vaeDecodeGeometry{}, fmt.Errorf("%s: latent stats mean=%d std=%d want %d", scope, len(stats.Mean), len(stats.Std), plan.ZDim)
+	}
+	for channel, std := range stats.Std {
+		if std <= 0 {
+			return result, vaeDecodeGeometry{}, fmt.Errorf("%s: nonpositive std for channel %d", scope, channel)
+		}
+	}
+	spatial := latentH * latentW
+	if latentFrames <= 0 || spatial <= 0 || len(z) != plan.ZDim*latentFrames*spatial {
+		return result, vaeDecodeGeometry{}, fmt.Errorf("%s: latent len=%d want %d", scope, len(z), plan.ZDim*latentFrames*spatial)
+	}
+	channels, frames, height, width, err := VideoDecodeShape(plan, latentFrames, latentH, latentW)
+	if err != nil {
+		return result, vaeDecodeGeometry{}, err
+	}
+	result = VAEDecodeStats{
+		Ops: opCount, LatentFrames: latentFrames, WeightBytesRead: plan.UsedWeightBytes,
+		MaxOpWeightBytes: plan.LargestOpWeightBytes, OutputChannels: channels,
+		OutputHeight: height, OutputWidth: width, Engine: engine,
+	}
+	return result, vaeDecodeGeometry{spatial: spatial, frames: frames, channels: channels, height: height, width: width}, nil
+}
+
+func denormalizeLatentChunk(dst, z []float32, stats VAELatentStats, channels, frames, spatial, chunk int) {
+	for channel := range channels {
+		source := z[(channel*frames+chunk)*spatial:]
+		target := dst[channel*spatial:]
+		mean, std := stats.Mean[channel], stats.Std[channel]
+		for position := range spatial {
+			target[position] = source[position]*std + mean
+		}
+	}
+}
+
 // vaeTemporalCache: per-convolution stream state — the last <=2 frames of
 // that convolution's input (reference feat_cache). rep marks the temporal
 // upsample's first-chunk placeholder (reference 'Rep': the next chunk's
@@ -895,29 +939,11 @@ func VideoDecodeShape(plan VAEDecoderPlan, latentFrames, latentH, latentW int) (
 // stay resident (the reference chunk-major graph residency); peak host
 // memory is weights plus one chunk's activations.
 func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, error) {
-	var decodeStats VAEDecodeStats
-	if sink == nil {
-		return decodeStats, fmt.Errorf("vae decode: nil frame sink")
-	}
-	if len(plan.ops) == 0 {
-		return decodeStats, fmt.Errorf("vae decode: empty plan")
-	}
-	if len(stats.Mean) != plan.ZDim || len(stats.Std) != plan.ZDim {
-		return decodeStats, fmt.Errorf("vae decode: latent stats mean=%d std=%d want %d", len(stats.Mean), len(stats.Std), plan.ZDim)
-	}
-	for channel, std := range stats.Std {
-		if std <= 0 {
-			return decodeStats, fmt.Errorf("vae decode: nonpositive std for channel %d", channel)
-		}
-	}
-	spatial := latentH * latentW
-	if latentFrames <= 0 || spatial <= 0 || len(z) != plan.ZDim*latentFrames*spatial {
-		return decodeStats, fmt.Errorf("vae decode: latent len=%d want %d", len(z), plan.ZDim*latentFrames*spatial)
-	}
-	outputChannels, totalFrames, outputH, outputW, err := VideoDecodeShape(plan, latentFrames, latentH, latentW)
+	decodeStats, geometry, err := prepareVAEDecode("vae decode", "host_streamed_chunks", plan, len(plan.ops), stats, z, latentFrames, latentH, latentW, sink)
 	if err != nil {
 		return decodeStats, err
 	}
+	spatial := geometry.spatial
 	var baseline runtime.MemStats
 	runtime.ReadMemStats(&baseline)
 	samplePeak := func() {
@@ -938,26 +964,12 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 		return decodeStats, err
 	}
 	samplePeak()
-	decodeStats.Ops = len(ops)
-	decodeStats.LatentFrames = latentFrames
-	decodeStats.WeightBytesRead = plan.UsedWeightBytes
-	decodeStats.MaxOpWeightBytes = plan.LargestOpWeightBytes
-	decodeStats.OutputChannels, decodeStats.OutputHeight, decodeStats.OutputWidth = outputChannels, outputH, outputW
-	decodeStats.Engine = "host_streamed_chunks"
 	states := make([]vaeOpState, len(ops))
 	frameScratch := make([]float32, 0)
 	frameIndex := 0
 	for chunkIndex := 0; chunkIndex < latentFrames; chunkIndex++ {
-		// Denormalized chunk [z][1][h][w].
 		x := make([]float32, plan.ZDim*spatial)
-		for ch := 0; ch < plan.ZDim; ch++ {
-			mean, std := stats.Mean[ch], stats.Std[ch]
-			src := z[(ch*latentFrames+chunkIndex)*spatial:]
-			dst := x[ch*spatial:]
-			for pos := 0; pos < spatial; pos++ {
-				dst[pos] = src[pos]*std + mean
-			}
-		}
+		denormalizeLatentChunk(x, z, stats, plan.ZDim, latentFrames, spatial, chunkIndex)
 		frames, h, w := 1, latentH, latentW
 		for opIndex := range ops {
 			x, frames, h, w, err = runVAEOp(ops[opIndex], &states[opIndex], chunkIndex, x, frames, h, w)
@@ -966,8 +978,8 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 			}
 			samplePeak()
 		}
-		if h != outputH || w != outputW {
-			return decodeStats, fmt.Errorf("vae decode chunk %d output %dx%d, want %dx%d", chunkIndex, w, h, outputW, outputH)
+		if h != geometry.height || w != geometry.width {
+			return decodeStats, fmt.Errorf("vae decode chunk %d output %dx%d, want %dx%d", chunkIndex, w, h, geometry.width, geometry.height)
 		}
 		for i, v := range x {
 			switch {
@@ -978,13 +990,13 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 			}
 		}
 		chunkSpatial := h * w
-		frameElements := outputChannels * chunkSpatial
+		frameElements := geometry.channels * chunkSpatial
 		if cap(frameScratch) < frameElements {
 			frameScratch = make([]float32, frameElements)
 		}
 		frame := frameScratch[:frameElements]
 		for chunkFrame := 0; chunkFrame < frames; chunkFrame++ {
-			for ch := 0; ch < outputChannels; ch++ {
+			for ch := 0; ch < geometry.channels; ch++ {
 				copy(frame[ch*chunkSpatial:(ch+1)*chunkSpatial], x[(ch*frames+chunkFrame)*chunkSpatial:])
 			}
 			if err := sink(frameIndex, frame, h, w); err != nil {
@@ -994,8 +1006,8 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 		}
 		samplePeak()
 	}
-	if frameIndex != totalFrames {
-		return decodeStats, fmt.Errorf("vae decode produced %d frames, want %d", frameIndex, totalFrames)
+	if frameIndex != geometry.frames {
+		return decodeStats, fmt.Errorf("vae decode produced %d frames, want %d", frameIndex, geometry.frames)
 	}
 	decodeStats.OutputFrames = frameIndex
 	decodeStats.DecodeWallSec = time.Since(started).Seconds()

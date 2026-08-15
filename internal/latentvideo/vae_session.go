@@ -573,49 +573,20 @@ func (s *VAEDecoderCUDASession) temporalDownsample(state *device.State, out, x, 
 // (z*std+mean) per chunk, upload, the op chain with device temporal caches,
 // clamp to [-1,1], then per-frame device-to-host emission through the sink.
 func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, error) {
-	var decodeStats VAEDecodeStats
 	plan := s.Plan
-	if sink == nil {
-		return decodeStats, fmt.Errorf("vae cuda decode: nil frame sink")
-	}
-	if len(stats.Mean) != plan.ZDim || len(stats.Std) != plan.ZDim {
-		return decodeStats, fmt.Errorf("vae cuda decode: latent stats mean=%d std=%d want %d", len(stats.Mean), len(stats.Std), plan.ZDim)
-	}
-	for channel, std := range stats.Std {
-		if std <= 0 {
-			return decodeStats, fmt.Errorf("vae cuda decode: nonpositive std for channel %d", channel)
-		}
-	}
-	spatial := latentH * latentW
-	if latentFrames <= 0 || spatial <= 0 || len(z) != plan.ZDim*latentFrames*spatial {
-		return decodeStats, fmt.Errorf("vae cuda decode: latent len=%d want %d", len(z), plan.ZDim*latentFrames*spatial)
-	}
-	outputChannels, totalFrames, outputH, outputW, err := VideoDecodeShape(plan, latentFrames, latentH, latentW)
+	decodeStats, geometry, err := prepareVAEDecode("vae cuda decode", "cuda_streamed_chunks", plan, len(s.ops), stats, z, latentFrames, latentH, latentW, sink)
 	if err != nil {
 		return decodeStats, err
 	}
+	spatial := geometry.spatial
 	started := time.Now()
-	decodeStats.Ops = len(s.ops)
-	decodeStats.LatentFrames = latentFrames
-	decodeStats.WeightBytesRead = plan.UsedWeightBytes
-	decodeStats.MaxOpWeightBytes = plan.LargestOpWeightBytes
-	decodeStats.OutputChannels, decodeStats.OutputHeight, decodeStats.OutputWidth = outputChannels, outputH, outputW
-	decodeStats.Engine = "cuda_streamed_chunks"
 	states := make([]vaeDeviceOpState, len(s.ops))
 	staging := make([]float32, plan.ZDim*spatial)
 	var frameScratch []float32
 	frameIndex := 0
 	for chunkIndex := 0; chunkIndex < latentFrames; chunkIndex++ {
 		if err := s.worker.Do(s.ctx, func(state *device.State) error {
-			// Denormalized chunk [z][1][h][w] (host affine, reference upload).
-			for ch := 0; ch < plan.ZDim; ch++ {
-				mean, std := stats.Mean[ch], stats.Std[ch]
-				src := z[(ch*latentFrames+chunkIndex)*spatial:]
-				dst := staging[ch*spatial:]
-				for pos := 0; pos < spatial; pos++ {
-					dst[pos] = src[pos]*std + mean
-				}
-			}
+			denormalizeLatentChunk(staging, z, stats, plan.ZDim, latentFrames, spatial, chunkIndex)
 			x, err := s.buffer(state, "act_0", plan.ZDim*spatial)
 			if err != nil {
 				return err
@@ -639,10 +610,10 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 					s.profile[s.ops[opIndex].prefix] += time.Since(opStarted)
 				}
 			}
-			if h != outputH || w != outputW {
-				return fmt.Errorf("vae cuda decode chunk %d output %dx%d, want %dx%d", chunkIndex, w, h, outputW, outputH)
+			if h != geometry.height || w != geometry.width {
+				return fmt.Errorf("vae cuda decode chunk %d output %dx%d, want %dx%d", chunkIndex, w, h, geometry.width, geometry.height)
 			}
-			elements := outputChannels * frames * h * w
+			elements := geometry.channels * frames * h * w
 			minimum, maximum, count := float32(-1), float32(1), uint32(elements)
 			if err := launchVAEKernel(state, s.kernels.clamp, vaeElementwiseGrid(elements), vaeBlock1D, 0,
 				&x, &x, &minimum, &maximum, &count); err != nil {
@@ -652,13 +623,13 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 				return err
 			}
 			chunkSpatial := h * w
-			frameElements := outputChannels * chunkSpatial
+			frameElements := geometry.channels * chunkSpatial
 			if cap(frameScratch) < frameElements {
 				frameScratch = make([]float32, frameElements)
 			}
 			frame := frameScratch[:frameElements]
 			for chunkFrame := 0; chunkFrame < frames; chunkFrame++ {
-				for ch := 0; ch < outputChannels; ch++ {
+				for ch := 0; ch < geometry.channels; ch++ {
 					source := x + driver.DevicePtr((ch*frames+chunkFrame)*chunkSpatial*4)
 					if err := state.Driver.MemcpyDtoH(driver.Bytes(frame[ch*chunkSpatial:(ch+1)*chunkSpatial]), source); err != nil {
 						return err
@@ -674,8 +645,8 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 			return decodeStats, err
 		}
 	}
-	if frameIndex != totalFrames {
-		return decodeStats, fmt.Errorf("vae cuda decode produced %d frames, want %d", frameIndex, totalFrames)
+	if frameIndex != geometry.frames {
+		return decodeStats, fmt.Errorf("vae cuda decode produced %d frames, want %d", frameIndex, geometry.frames)
 	}
 	decodeStats.OutputFrames = frameIndex
 	decodeStats.DecodeWallSec = time.Since(started).Seconds()

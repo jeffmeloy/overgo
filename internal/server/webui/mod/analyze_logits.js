@@ -12,16 +12,15 @@
     section: "workbench",
     requires: "logits",
     async mount(panel, overgo) {
-      const { el, clear } = overgo;
+      const { el, clear, displayToken } = overgo;
       clear(panel);
 
       const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
       prompt.value = "The capital of France is";
       const maxTokens = el("input", { class: "keyfield", type: "number", value: "24", min: "1", max: "128", style: "width:90px" });
       const topK = el("input", { class: "keyfield", type: "number", value: "10", min: "1", max: "40", style: "width:90px" });
-      let controller = null;
       const run = el("button", { class: "btn", onclick: execute }, "run lens");
-      const cancel = el("button", { class: "btn alt", style: "display:none", onclick: () => controller && controller.abort() }, "cancel");
+      const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
       const controls = el("div", {},
         prompt,
         el("div", { class: "row", style: "margin:10px 0" },
@@ -30,19 +29,19 @@
           run, cancel));
       const out = el("div");
       panel.append(controls, out);
+      const runAction = overgo.runner(run, cancel, {
+        onError: (err) => out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))),
+        onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
+      });
 
       async function ensureVocabSize() {
         if (vocabSize > 0) return;
         try { vocabSize = (await overgo.modelInfo()).model.vocabulary_size || 0; } catch (_) { /* optional */ }
       }
 
-      async function execute() {
-        if (controller) return; // a run is already in flight
+      function execute() {
         out.replaceChildren(el("div", { class: "note", text: "running…" }));
-        run.disabled = true;
-        cancel.style.display = "";
-        controller = new AbortController();
-        try {
+        runAction(async (signal) => {
           await ensureVocabSize();
           const data = await overgo.api.post("/completion", {
             prompt: prompt.value,
@@ -51,16 +50,9 @@
             temperature: 0, // greedy: the lens inspects the argmax trajectory
             stream: false,
             cache_prompt: false,
-          }, { signal: controller.signal });
+          }, { signal });
           render(data);
-        } catch (err) {
-          if (err.name === "AbortError") out.replaceChildren(el("div", { class: "note", text: "[cancelled]" }));
-          else out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        } finally {
-          run.disabled = false;
-          cancel.style.display = "none";
-          controller = null;
-        }
+        });
       }
 
       function render(data) {
@@ -107,13 +99,6 @@
         });
       }
 
-      // displayToken: make whitespace-only / empty pieces visible without
-      // altering the measured text elsewhere.
-      function displayToken(text) {
-        if (text === "" ) return "∅";
-        if (/^\s+$/.test(text)) return "␠".repeat(text.length);
-        return text.replace(/\n/g, "⏎");
-      }
     },
   });
 })();

@@ -15,16 +15,15 @@
     section: "workbench",
     requires: "attention",
     async mount(panel, overgo) {
-      const { el, clear } = overgo;
+      const { el, clear, displayToken } = overgo;
       clear(panel);
 
       const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
       prompt.value = "The quick brown fox jumps over the lazy dog";
       const layer = el("input", { class: "keyfield", type: "number", placeholder: "mid", min: "0", style: "width:80px" });
       const maxPos = el("input", { class: "keyfield", type: "number", value: "32", min: "2", max: "48", style: "width:80px" });
-      let controller = null;
       const run = el("button", { class: "btn", onclick: execute }, "capture");
-      const cancel = el("button", { class: "btn alt", style: "display:none", onclick: () => controller && controller.abort() }, "cancel");
+      const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
       panel.append(
         prompt,
         el("div", { class: "row", style: "margin:10px 0" },
@@ -36,32 +35,25 @@
       panel.appendChild(out);
 
       let current = null; // last response, kept so the head selector can redraw.
+      const runAction = overgo.runner(run, cancel, {
+        onError: (err) => out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))),
+        onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
+      });
 
-      async function execute() {
-        if (controller) return; // a capture is already in flight
+      function execute() {
         out.replaceChildren(el("div", { class: "note", text: "capturing…" }));
-        run.disabled = true;
-        cancel.style.display = "";
-        controller = new AbortController();
-        try {
+        runAction(async (signal) => {
           const request = { prompt: prompt.value, max_positions: Number(maxPos.value) || 32 };
           if (layer.value !== "") request.layer = Number(layer.value);
-          current = await overgo.api.post("/analyze/attention", request, { signal: controller.signal });
+          current = await overgo.api.post("/analyze/attention", request, { signal });
           render();
-        } catch (err) {
-          if (err.name === "AbortError") out.replaceChildren(el("div", { class: "note", text: "[cancelled]" }));
-          else out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        } finally {
-          run.disabled = false;
-          cancel.style.display = "none";
-          controller = null;
-        }
+        });
       }
 
       function render() {
         const data = current;
         clear(out);
-        const labels = data.tokens.map((t) => displayToken(t.text) || String(t.id));
+        const labels = data.tokens.map((t) => (t.text ? displayToken(t.text) : String(t.id)));
 
         if (data.truncated) {
           out.appendChild(el("div", { class: "note", style: "color:var(--amber)",
@@ -99,11 +91,6 @@
         draw();
       }
 
-      function displayToken(text) {
-        if (!text) return "";
-        if (/^\s+$/.test(text)) return "␠";
-        return text.replace(/\n/g, "⏎");
-      }
     },
   });
 })();

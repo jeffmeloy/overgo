@@ -174,17 +174,40 @@ func TestWebUIShellCache(t *testing.T) {
 	}
 }
 
-// TestWebUICancel guards that the tabs running a real forward pass (lens,
-// hidden-states, attention) expose an AbortController-backed cancel path so a
-// long run can be stopped instead of blocking the tab until it finishes.
+// TestWebUICancel guards the cancelable-run path for the tabs that drive a real
+// forward pass (lens, hidden-states, attention). The abort semantics live once
+// in the shared runner; each tab drives it and forwards the signal.
 func TestWebUICancel(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
+	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
+	boot := get("/boot.js")
+	for _, needle := range []string{"AbortController", "controller.abort", "AbortError", "function runner"} {
+		if !strings.Contains(boot, needle) {
+			t.Errorf("boot.js shared runner missing %q", needle)
+		}
+	}
 	for _, asset := range []string{"/mod/analyze_logits.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {
-		body := serveTestRequest(handler, http.MethodGet, asset, "").Body.String()
-		for _, needle := range []string{"AbortController", "controller.abort", "signal: controller.signal", "AbortError"} {
-			if !strings.Contains(body, needle) {
-				t.Errorf("%s missing cancel machinery %q", asset, needle)
-			}
+		body := get(asset)
+		if !strings.Contains(body, "overgo.runner(") {
+			t.Errorf("%s does not use the shared overgo.runner", asset)
+		}
+		if !strings.Contains(body, "{ signal }") {
+			t.Errorf("%s does not forward the abort signal to its request", asset)
+		}
+	}
+}
+
+// TestWebUIClientDedup guards the tightening: displayToken is defined once in the
+// shell and the token-showing tabs use it instead of each redefining it.
+func TestWebUIClientDedup(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
+	if !strings.Contains(get("/boot.js"), "function displayToken") {
+		t.Error("boot.js should define the shared displayToken")
+	}
+	for _, asset := range []string{"/mod/analyze_logits.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {
+		if strings.Contains(get(asset), "function displayToken") {
+			t.Errorf("%s redefines displayToken instead of using the shared overgo.displayToken", asset)
 		}
 	}
 }

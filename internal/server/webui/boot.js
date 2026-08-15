@@ -113,12 +113,49 @@
     return String(n);
   }
 
+  // displayToken: make an empty / whitespace-only / multiline token piece
+  // visible without altering the underlying text. Shared by every tab that shows
+  // token strings (logit lens, hidden states, attention).
+  function displayToken(text) {
+    if (text === "" || text == null) return "∅";
+    if (/^\s+$/.test(text)) return "␠".repeat(text.length);
+    return text.replace(/\n/g, "⏎");
+  }
+
+  // runner: manage an exclusive, cancelable async action bound to a run button
+  // and a cancel button. run(task) ignores re-entrant calls, disables run and
+  // reveals cancel while task(signal) is in flight, and dispatches an abort to
+  // onCancel and any other failure to onError. Factored out of the three tabs
+  // that drive a real forward pass so the abort semantics live in one place.
+  function runner(runButton, cancelButton, handlers) {
+    handlers = handlers || {};
+    let controller = null;
+    cancelButton.addEventListener("click", () => controller && controller.abort());
+    return async function run(task) {
+      if (controller) return; // a run is already in flight
+      runButton.disabled = true;
+      cancelButton.style.display = "";
+      controller = new AbortController();
+      try {
+        await task(controller.signal);
+      } catch (err) {
+        if (err && err.name === "AbortError") { if (handlers.onCancel) handlers.onCancel(); }
+        else if (handlers.onError) handlers.onError(err);
+      } finally {
+        runButton.disabled = false;
+        cancelButton.style.display = "none";
+        controller = null;
+      }
+    };
+  }
+
   const tabs = [];
   function registerTab(tab) { tabs.push(tab); }
 
   window.overgo = {
     api, el, clear, errorBanner, friendlyError, registerTab,
     getKey, setKey, modelInfo, invalidateModel,
+    displayToken, runner,
     fmt: { grouped, bytes, compact },
   };
 

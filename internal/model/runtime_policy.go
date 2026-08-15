@@ -35,21 +35,12 @@ const (
 	NormalizationBiasAlways
 )
 
-// NormalizationFallbackPolicy: metadata-dependent operation fallback.
-type NormalizationFallbackPolicy uint8
-
-const (
-	NormalizationFallbackNone NormalizationFallbackPolicy = iota
-	NormalizationFallbackRMSWithoutLayerEpsilon
-)
-
 // RuntimePolicy: scalar and normalization runtime decisions.
 type RuntimePolicy struct {
 	EmbeddingScale         EmbeddingScalePolicy
 	LogitScale             LogitScalePolicy
 	NormalizationPlacement NormalizationPlacementPolicy
 	NormalizationBias      NormalizationBiasPolicy
-	NormalizationFallback  NormalizationFallbackPolicy
 	Recurrent              RecurrentRuntimePolicy
 }
 
@@ -83,10 +74,6 @@ func (p RuntimePolicy) outputLogitMultiplier(spec Spec) float32 {
 
 func (p RuntimePolicy) normalizationPlan(spec Spec, profile ArchitectureProfile) NormalizationPlan {
 	operation := profile.Normalization
-	if p.NormalizationFallback == NormalizationFallbackRMSWithoutLayerEpsilon &&
-		operation == NormalizationWeightOnlyLayer && spec.LayerNormEpsilon <= 0 {
-		operation = NormalizationRMS
-	}
 	pre := !profile.Has(ArchitecturePostOnlyNorm)
 	post := profile.Has(ArchitecturePostNorm)
 	if p.NormalizationPlacement == NormalizationPlacementPostOnly {

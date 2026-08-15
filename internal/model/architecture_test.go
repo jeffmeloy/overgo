@@ -75,13 +75,12 @@ func TestResolvedProfilePrefersExactBinding(t *testing.T) {
 
 func TestRuntimeBehaviorUsesBoundProfilePolicies(t *testing.T) {
 	profile := ArchitectureProfile{
-		Name: runtimePolicyFixtureArchitecture, Normalization: NormalizationWeightOnlyLayer,
+		Name: runtimePolicyFixtureArchitecture, Normalization: NormalizationRMS,
 		Rotary: RotaryPolicy{Usage: RotaryUsageSlidingOnly},
 		Runtime: RuntimePolicy{
 			EmbeddingScale: EmbeddingScaleSqrtWidth, LogitScale: LogitScaleDirect,
 			NormalizationPlacement: NormalizationPlacementPostOnly,
 			NormalizationBias:      NormalizationBiasAlways,
-			NormalizationFallback:  NormalizationFallbackRMSWithoutLayerEpsilon,
 		},
 	}
 	spec := Spec{
@@ -372,7 +371,7 @@ func TestArchitectureProfileNormTensorCatalog(t *testing.T) {
 		},
 		"grok": {
 			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
-			FeedForwardFallback: "ffn_post_norm.weight",
+			FeedForwardAlternate: "ffn_post_norm.weight",
 		},
 	} {
 		profile, _ := LookupArchitecture(architecture)

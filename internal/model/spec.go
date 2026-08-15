@@ -44,7 +44,7 @@ func BindSpecProfile(spec Spec, profile ArchitectureProfile) (Spec, error) {
 	if profile.Name == "" || spec.Architecture != profile.Name {
 		return Spec{}, errors.New("model profile does not match persisted metadata")
 	}
-	spec.profile = &profile
+	spec = spec.withProfile(profile)
 	if err := spec.validate(); err != nil {
 		return Spec{}, err
 	}
@@ -117,6 +117,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	if validation.Attention == AttentionValidationCohere2MoE {
 		if value, ok := optional[float32](values, prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32); ok {
 			spec.RMSNormEpsilon = value
+			spec.profile.Normalization = NormalizationRMS
 		} else if value, ok := optional[float32](values, prefix+"attention.layer_norm_epsilon", gguf.ValueTypeFloat32); ok {
 			spec.LayerNormEpsilon = value
 		} else {

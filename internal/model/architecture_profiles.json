@@ -224,7 +224,7 @@
     "Capabilities": 8421376,
     "FeedForward": 1,
     "ModelCatalog": {
-      "TokenEmbeddingFallback": true
+      "TiedTokenEmbedding": true
     },
     "Name": "codeshell",
     "Normalization": 1
@@ -297,8 +297,7 @@
       "Usage": 2
     },
     "Runtime": {
-      "LogitScale": 1,
-      "NormalizationFallback": 1
+      "LogitScale": 1
     }
   },
   {

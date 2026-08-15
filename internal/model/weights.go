@@ -480,6 +480,16 @@ func (c weightCatalog) required(name string, shape ...uint64) (gguf.TensorInfo, 
 	return item, nil
 }
 
+func (c weightCatalog) selectName(prefix, primary, alternate string) string {
+	if alternate == "" {
+		return primary
+	}
+	if _, ok := c.tensors[prefix+primary]; ok {
+		return primary
+	}
+	return alternate
+}
+
 func readWeightCatalog(file *gguf.File, spec Spec) (Weights, error) {
 	catalog, err := newWeightCatalog(file)
 	if err != nil {
@@ -544,14 +554,12 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	catalog := l.catalog
 	spec, profile, draftPlan, normPlan := l.spec, l.profile, l.draftPlan, l.normPlan
 	var err error
-	tokenEmbeddingName := "token_embd.weight"
-	if profile.ModelCatalog.TokenEmbeddingFallback {
-		if _, ok := catalog.tensors[tokenEmbeddingName]; !ok {
-			tokenEmbeddingName = "output.weight"
-		}
+	tokenEmbeddingAlternate := ""
+	if profile.ModelCatalog.TiedTokenEmbedding {
+		tokenEmbeddingAlternate = "output.weight"
 	}
 	if result.TokenEmbedding, err = catalog.required(
-		tokenEmbeddingName,
+		catalog.selectName("", "token_embd.weight", tokenEmbeddingAlternate),
 		uint64(spec.EmbeddingLength),
 		uint64(spec.VocabularySize),
 	); err != nil {
@@ -1438,11 +1446,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		if normPlan.PostAttention {
 			normNames := normPlan.PostNormTensors()
-			if normNames.FeedForwardFallback != "" {
-				if _, ok := catalog.tensors[prefix+normNames.FeedForwardWeight]; !ok {
-					normNames.FeedForwardWeight = normNames.FeedForwardFallback
-				}
-			}
+			normNames.FeedForwardWeight = catalog.selectName(
+				prefix, normNames.FeedForwardWeight, normNames.FeedForwardAlternate,
+			)
 			width := uint64(spec.EmbeddingLength)
 			requirements := []tensorRequirement{
 				requiredTensorPointer(normNames.AttentionWeight, &layer.AttentionPostNorm, width),

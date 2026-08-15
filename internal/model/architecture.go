@@ -219,7 +219,7 @@ func (p NormalizationPlan) PostNormTensors() PostNormTensorNames {
 	case PostNormLayoutGrok:
 		return PostNormTensorNames{
 			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
-			FeedForwardFallback: "ffn_post_norm.weight",
+			FeedForwardAlternate: "ffn_post_norm.weight",
 		}
 	default:
 		return PostNormTensorNames{
@@ -246,11 +246,11 @@ func (p NormalizationPlan) FeedForwardNormTensor() string {
 
 // PostNormTensorNames: post-norm tensor catalog entry.
 type PostNormTensorNames struct {
-	AttentionWeight     string
-	FeedForwardWeight   string
-	FeedForwardFallback string
-	AttentionBias       string
-	FeedForwardBias     string
+	AttentionWeight      string
+	FeedForwardWeight    string
+	FeedForwardAlternate string
+	AttentionBias        string
+	FeedForwardBias      string
 }
 
 // ArchitectureCapability: orthogonal runtime behavior.
@@ -420,6 +420,10 @@ func (s Spec) Profile() ArchitectureProfile {
 }
 
 func (s Spec) withProfile(profile ArchitectureProfile) Spec {
+	if profile.Validation.Attention == AttentionValidationCohere2MoE &&
+		s.LayerNormEpsilon <= 0 && s.RMSNormEpsilon > 0 {
+		profile.Normalization = NormalizationRMS
+	}
 	s.profile = &profile
 	return s
 }

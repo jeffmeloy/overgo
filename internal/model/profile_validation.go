@@ -83,7 +83,6 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Runtime.LogitScale", profile.Runtime.LogitScale, LogitScaleDirect),
 		validateProfileOrdinal("Runtime.NormalizationPlacement", profile.Runtime.NormalizationPlacement, NormalizationPlacementPostOnly),
 		validateProfileOrdinal("Runtime.NormalizationBias", profile.Runtime.NormalizationBias, NormalizationBiasAlways),
-		validateProfileOrdinal("Runtime.NormalizationFallback", profile.Runtime.NormalizationFallback, NormalizationFallbackRMSWithoutLayerEpsilon),
 		validateProfileOrdinal("MetadataDefaults.RopeDimension", profile.MetadataDefaults.RopeDimension, RopeDimensionDefaultKeyLengthOverride),
 	}
 	for _, err := range checks {

@@ -114,6 +114,10 @@ type trainingStep struct {
 	finalSelfOutputGradient []float32
 	priorDecoderGradient    []float32
 	selfRawGateGradient     float32
+	penultimateCrossQ       []float32
+	penultimateCrossK       []float32
+	penultimateCrossV       []float32
+	penultimateCrossRawGate float32
 	loss                    float64
 }
 
@@ -355,48 +359,53 @@ func (t *Trainer) backward(state *trainingStep) error {
 }
 
 func (t *Trainer) backwardFinalCross(state *trainingStep, dHidden []float32) error {
-	rows, d := len(state.pair.Targets), t.model.Dims.DModel
+	rows := len(state.pair.Targets)
 	trace := state.trace.finalCross()
-	if len(trace.projected) != len(dHidden) {
-		return errors.New("final cross-attention trace differs")
-	}
-	var gateGradient float64
-	for index, gradient := range dHidden {
-		gateGradient += float64(gradient) * float64(trace.projected[index])
-	}
 	block := &t.model.decoderCross[len(t.model.decoderCross)-1]
-	gate := block.gate
-	state.gradient[t.layout.rawGate.start] = float32(gateGradient) * gate * (1 - gate)
-	if len(trace.attention) != rows*t.model.Dims.Heads*t.model.Dims.HeadDim {
-		return errors.New("final cross-attention core trace differs")
+	core, err := backwardCrossAttentionCore(trace, block, dHidden, rows, t.model.Dims)
+	if err != nil {
+		return err
 	}
-	dProjected := make([]float32, len(dHidden))
-	for index, gradient := range dHidden {
-		dProjected[index] = gate * gradient
-	}
+	state.gradient[t.layout.rawGate.start] = core.rawGate
 	state.projectionGradient = state.gradient[t.layout.output.start:t.layout.output.end]
-	hostmath.LinearBackward(
-		nil, state.projectionGradient, nil, trace.attention, nil, dProjected,
-		rows, t.model.Dims.Heads*t.model.Dims.HeadDim, d, false,
-	)
-	state.attentionQGradient = make([]float32, len(trace.q))
-	state.attentionKGradient = make([]float32, len(trace.k))
-	state.attentionVGradient = make([]float32, len(trace.v))
-	dAttention := make([]float32, len(trace.attention))
-	hostmath.LinearBF16BackwardInput(
-		dAttention, dProjected, block.o,
-		rows, t.model.Dims.Heads*t.model.Dims.HeadDim, d,
-	)
-	hostmath.MaskedBidirectionalAttentionBackward(
-		state.attentionQGradient, state.attentionKGradient, state.attentionVGradient,
-		trace.q, trace.k, trace.v, dAttention,
-		rows, len(trace.k)/(t.model.Dims.KVHeads*t.model.Dims.HeadDim),
-		t.model.Dims.Heads, t.model.Dims.KVHeads, t.model.Dims.HeadDim, nil,
-	)
+	copy(state.projectionGradient, core.output)
+	state.attentionQGradient, state.attentionKGradient, state.attentionVGradient = core.q, core.k, core.v
 	if err := t.backwardFinalCrossProjections(state, block, dHidden); err != nil {
 		return err
 	}
 	return t.backwardFinalSelfCore(state)
+}
+
+type attentionCoreGradient struct {
+	rawGate         float32
+	output, q, k, v []float32
+}
+
+func backwardCrossAttentionCore(trace *attentionTrainingTrace, block *attnBlock, dOutput []float32, rows int, dims Dims) (attentionCoreGradient, error) {
+	if len(trace.projected) != len(dOutput) || len(trace.attention) != rows*dims.Heads*dims.HeadDim {
+		return attentionCoreGradient{}, errors.New("cross-attention core trace differs")
+	}
+	var gateGradient float64
+	for index, gradient := range dOutput {
+		gateGradient += float64(gradient) * float64(trace.projected[index])
+	}
+	result := attentionCoreGradient{rawGate: float32(gateGradient) * block.gate * (1 - block.gate)}
+	dProjected := make([]float32, len(dOutput))
+	for index, gradient := range dOutput {
+		dProjected[index] = block.gate * gradient
+	}
+	result.output = make([]float32, len(block.o))
+	hostmath.LinearBackward(nil, result.output, nil, trace.attention, nil, dProjected, rows, dims.Heads*dims.HeadDim, dims.DModel, false)
+	dAttention := make([]float32, len(trace.attention))
+	hostmath.LinearBF16BackwardInput(dAttention, dProjected, block.o, rows, dims.Heads*dims.HeadDim, dims.DModel)
+	result.q = make([]float32, len(trace.q))
+	result.k = make([]float32, len(trace.k))
+	result.v = make([]float32, len(trace.v))
+	hostmath.MaskedBidirectionalAttentionBackward(
+		result.q, result.k, result.v, trace.q, trace.k, trace.v, dAttention,
+		rows, len(trace.k)/(dims.KVHeads*dims.HeadDim), dims.Heads, dims.KVHeads, dims.HeadDim, nil,
+	)
+	return result, nil
 }
 
 func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attnBlock, residualGradient []float32) error {
@@ -561,6 +570,23 @@ func (t *Trainer) backwardFinalSelfProjections(state *trainingStep, block *attnB
 		dInput[index] += value
 	}
 	state.priorDecoderGradient = dInput
+	return t.backwardPenultimateCrossCore(state)
+}
+
+func (t *Trainer) backwardPenultimateCrossCore(state *trainingStep) error {
+	layer := len(t.model.decoderCross) - 2
+	if layer < 0 {
+		return nil
+	}
+	core, err := backwardCrossAttentionCore(
+		&state.trace.layers[layer].cross, &t.model.decoderCross[layer],
+		state.priorDecoderGradient, len(state.pair.Targets), t.model.Dims,
+	)
+	if err != nil {
+		return err
+	}
+	state.penultimateCrossQ, state.penultimateCrossK, state.penultimateCrossV = core.q, core.k, core.v
+	state.penultimateCrossRawGate = core.rawGate
 	return nil
 }
 

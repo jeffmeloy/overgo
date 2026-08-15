@@ -44,6 +44,14 @@ func CombinedOutput(env []string, name string, args ...string) (string, error) {
 	return string(output), err
 }
 
+// Verdict renders command success without treating skipped work as green.
+func Verdict(err error) string {
+	if err != nil {
+		return "FAIL"
+	}
+	return "ok"
+}
+
 // WriteJSON: one JSON document.
 func WriteJSON(writer io.Writer, value any) error {
 	return json.NewEncoder(writer).Encode(value)

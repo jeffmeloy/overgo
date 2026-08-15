@@ -41,7 +41,7 @@ func run() error {
 	for _, step := range steps {
 		began := time.Now()
 		out, err := clioptions.CombinedOutput(append(os.Environ(), cudaTestEnv+"=1"), step[0], step[1:]...)
-		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), verdict(err))
+		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), clioptions.Verdict(err))
 		if err != nil {
 			fmt.Print(clioptions.Tail(out, 2000))
 			return fmt.Errorf("%s failed", strings.Join(step, " "))
@@ -50,11 +50,4 @@ func run() error {
 	fmt.Printf("=== DEVICE LANE GREEN in %.1fs ===\n", time.Since(start).Seconds())
 	fmt.Println("honesty: full device set (manifest-scoped lane is the target form; see docs/MERGE_FLOOR_PLAN.md component 8)")
 	return nil
-}
-
-func verdict(err error) string {
-	if err != nil {
-		return "FAIL"
-	}
-	return "ok"
 }

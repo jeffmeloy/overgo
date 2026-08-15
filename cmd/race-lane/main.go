@@ -138,12 +138,5 @@ func ranLabel(ran bool) string {
 }
 
 func report(name, detail string, began time.Time, err error) {
-	fmt.Printf("[%-14s] %-45s %6.1fs %s\n", name, detail, time.Since(began).Seconds(), verdict(err))
-}
-
-func verdict(err error) string {
-	if err != nil {
-		return "FAIL"
-	}
-	return "ok"
+	fmt.Printf("[%-14s] %-45s %6.1fs %s\n", name, detail, time.Since(began).Seconds(), clioptions.Verdict(err))
 }

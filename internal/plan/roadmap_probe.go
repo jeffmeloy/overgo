@@ -11,14 +11,12 @@ import (
 )
 
 const (
-	roadmapProbeVersion   uint16 = 1
-	roadmapProbeMediaType        = "application/vnd.overgo.roadmap-probe+json"
-	roadmapProbeSchema           = "overgo/roadmap-probe/v1"
+	roadmapProbeMediaType = "application/vnd.overgo.roadmap-probe+json"
+	roadmapProbeSchema    = "overgo/roadmap-probe/v1"
 )
 
 // RoadmapProbe binds one isolated expected failure to a roadmap verifier.
 type RoadmapProbe struct {
-	Version         uint16      `json:"version"`
 	Row             string      `json:"row"`
 	Verifier        string      `json:"verifier"`
 	CodeCommit      string      `json:"code_commit"`
@@ -34,7 +32,6 @@ var roadmapProbeCodec = artifact.JSONDocumentCodec("roadmap probe", artifact.Kin
 // RecordRoadmapProbe stores immutable probe evidence; it grants no dispatch or
 // landing authority.
 func RecordRoadmapProbe(ctx context.Context, repository artifact.Repository, value RoadmapProbe) (RoadmapProbe, error) {
-	value.Version = roadmapProbeVersion
 	identified, err := roadmapProbeCodec.New(value)
 	if err != nil {
 		return RoadmapProbe{}, err
@@ -58,7 +55,7 @@ func ReadRoadmapProbe(ctx context.Context, reader artifact.Reader, id artifact.I
 }
 
 func canonicalizeRoadmapProbe(value *RoadmapProbe) error {
-	if value == nil || value.Version != roadmapProbeVersion || !textcheck.LowerIdentifier(value.Row, 2048) ||
+	if value == nil || !textcheck.LowerIdentifier(value.Row, 2048) ||
 		!validCommit(value.CodeCommit) || value.Run.Kind() != artifact.KindRun ||
 		!textcheck.LowerIdentifier(value.ExpectedFailure, 2048) {
 		return errors.New("plan: invalid roadmap probe")

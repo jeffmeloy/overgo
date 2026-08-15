@@ -50,9 +50,6 @@ func collectEvidence(root, storePath string) (plan.RoadmapEvidence, error) {
 		return plan.RoadmapEvidence{}, err
 	}
 	evidence := plan.RoadmapEvidence{Live: map[string]bool{}, InFlight: map[string]bool{}, Landed: map[string]bool{}, ProbeBound: map[string]string{}}
-	for _, item := range document.Items {
-		evidence.Live[item.ID] = true
-	}
 	reachable, err := gitCommits(root)
 	if err != nil {
 		return plan.RoadmapEvidence{}, err
@@ -87,6 +84,7 @@ func collectEvidence(root, storePath string) (plan.RoadmapEvidence, error) {
 					evidence.Landed[id] = id != ""
 				}
 			}
+			continue
 		}
 		probe, probeOK, err := plan.ReadRoadmapProbe(ctx, store, descriptor.ID)
 		if err == nil && probeOK && reachable[probe.CodeCommit] {
@@ -96,6 +94,7 @@ func collectEvidence(root, storePath string) (plan.RoadmapEvidence, error) {
 				run.CodeCommit == probe.CodeCommit && run.Failure == probe.ExpectedFailure {
 				evidence.ProbeBound[probe.Row] = probe.Verifier
 			}
+			continue
 		}
 		lease, leaseOK, err := plan.ReadWorkLease(ctx, store, descriptor.ID)
 		if err == nil && leaseOK {
@@ -105,6 +104,9 @@ func collectEvidence(root, storePath string) (plan.RoadmapEvidence, error) {
 				evidence.InFlight[id] = true
 			}
 		}
+	}
+	for _, item := range document.Items {
+		evidence.Live[item.ID] = true
 	}
 	return evidence, nil
 }

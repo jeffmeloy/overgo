@@ -9,7 +9,7 @@ import (
 
 func TestRoadmapProbeBindsExpectedFailure(t *testing.T) {
 	probe, err := roadmapProbeCodec.New(RoadmapProbe{
-		Version: roadmapProbeVersion, Row: "refusal-ledger",
+		Row:             "refusal-ledger",
 		Verifier:        "go test ./internal/runrecord -run '^TestRefusalDecisionCarriesMeasuredReason$' -count=1 -v",
 		CodeCommit:      "0123456789abcdef0123456789abcdef01234567",
 		Run:             testutil.ArtifactID(t, artifact.KindRun, "isolated-failed-probe"),

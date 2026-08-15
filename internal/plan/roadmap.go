@@ -167,14 +167,14 @@ func EvaluateRoadmap(data []byte, evidence RoadmapEvidence) (RoadmapReport, erro
 	if err := validateRoadmapReferences(document, rows); err != nil {
 		return RoadmapReport{}, err
 	}
-	stages, err := roadmapStages(rows)
+	stages, closures, err := deriveRoadmapGraph(rows)
 	if err != nil {
 		return RoadmapReport{}, err
 	}
 	if err := validateStoredStages(document.Execution, rows, stages); err != nil {
 		return RoadmapReport{}, err
 	}
-	if err := validateRoadmapSafety(document, rows, evidence); err != nil {
+	if err := validateRoadmapSafety(document, rows, closures, evidence); err != nil {
 		return RoadmapReport{}, err
 	}
 	report := RoadmapReport{States: map[string]string{}, Stages: stages, Proposed: []proposedRoadmapItem{}}
@@ -239,8 +239,8 @@ func validateRoadmapReferences(document roadmapDocument, rows map[string]roadmap
 	return nil
 }
 
-func roadmapStages(rows map[string]roadmapStep) (map[string]int, error) {
-	stages, visiting := map[string]int{}, map[string]bool{}
+func deriveRoadmapGraph(rows map[string]roadmapStep) (map[string]int, map[string]map[string]bool, error) {
+	stages, closures, visiting := map[string]int{}, map[string]map[string]bool{}, map[string]bool{}
 	var visit func(string) (int, error)
 	visit = func(id string) (int, error) {
 		if stages[id] != 0 {
@@ -251,23 +251,29 @@ func roadmapStages(rows map[string]roadmapStep) (map[string]int, error) {
 		}
 		visiting[id] = true
 		stage := 1
+		closure := map[string]bool{}
 		for _, dependency := range rows[id].DependsOn {
 			prior, err := visit(dependency)
 			if err != nil {
 				return 0, err
 			}
 			stage = max(stage, prior+1)
+			closure[dependency] = true
+			for inherited := range closures[dependency] {
+				closure[inherited] = true
+			}
 		}
 		delete(visiting, id)
 		stages[id] = stage
+		closures[id] = closure
 		return stage, nil
 	}
 	for id := range rows {
 		if _, err := visit(id); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return stages, nil
+	return stages, closures, nil
 }
 
 func validateStoredStages(execution roadmapExecution, rows map[string]roadmapStep, stages map[string]int) error {
@@ -292,12 +298,11 @@ func validateStoredStages(execution roadmapExecution, rows map[string]roadmapSte
 	return nil
 }
 
-func validateRoadmapSafety(document roadmapDocument, rows map[string]roadmapStep, evidence RoadmapEvidence) error {
+func validateRoadmapSafety(document roadmapDocument, rows map[string]roadmapStep, closures map[string]map[string]bool, evidence RoadmapEvidence) error {
 	for id, row := range rows {
-		closure := dependencyClosure(id, rows)
 		for _, capability := range row.Capabilities {
 			for _, required := range document.Graph.MandatoryPreconditions.ByCapability[capability] {
-				if !closure[required] {
+				if !closures[id][required] {
 					return fmt.Errorf("roadmap row %s capability %s lacks mandatory dependency %s", id, capability, required)
 				}
 			}
@@ -310,21 +315,6 @@ func validateRoadmapSafety(document roadmapDocument, rows map[string]roadmapStep
 		}
 	}
 	return nil
-}
-
-func dependencyClosure(id string, rows map[string]roadmapStep) map[string]bool {
-	closure := map[string]bool{}
-	var visit func(string)
-	visit = func(current string) {
-		for _, dependency := range rows[current].DependsOn {
-			if !closure[dependency] {
-				closure[dependency] = true
-				visit(dependency)
-			}
-		}
-	}
-	visit(id)
-	return closure
 }
 
 func goLandingReady(id string, row roadmapStep, document roadmapDocument, landed map[string]bool) bool {

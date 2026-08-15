@@ -96,7 +96,7 @@ sessions to execute concurrently.
 | --- | --- | --- |
 | Text inference | Dense, MoE, recurrent, hybrid, encoder, encoder-decoder, diffusion-text, and speculative components | Each model artifact requires its own verification. |
 | Quantized execution | GGUF parsing and conversion plus native quantized weights and experts selected by recipe | Exact data-type and model-family coverage is generated in `docs/COMPATIBILITY.md`. |
-| Serving | Native llama.cpp-style endpoints; OpenAI Chat/Completions/Embeddings/Responses; Anthropic Messages; built-in inference, RepoDB browsing, and model-analysis UI | Protocol behavior has automated contract tests. Model output quality requires recipe-specific tests. |
+| Serving | Native llama.cpp-style endpoints; OpenAI Chat/Completions/Embeddings/Responses; Anthropic Messages; built-in inference, RepoDB browsing, and model-analysis UI | One contract matrix verifies streaming, structured tools, embeddings, ordered media, response continuation, prompt-cache reuse and context-window editing, cancellation, and unsupported-operation errors. Model output quality requires recipe-specific tests. |
 | Multimodal input | Image, audio, and video projection; size-limited local and allowlisted remote media; mixed-media conversation history | E4B, Gemma/Qwen, RxBrain, and Unlimited OCR have tests using model files. Many catalog entries have only synthetic-fixture tests. |
 | Image generation | Typed conditioning, CUDA-resident denoising, and PNG artifact output | Krea has verified 2048-pixel execution. SenseNova has a CUDA-tested 256-pixel text-to-PNG recipe. Un-0 publishes an exact retained artifact. SimpleDiffusion uses a geometry-keyed resident CUDA recipe; its real seed-7, two-step, 64x64 generation is 15-18x faster warm than the host in repeated tests, with one decoded color channel differing by one byte from the retained PNG. Full-size and image-edit tests are not complete. |
 | Video generation | Typed oscillator, Wan, and LiveEdit recipes; encoded artifact publication; CUDA-resident Wan denoising and VAE encoding/decoding; retained LiveEdit text projection, cumulative attention history, and source-latent reuse | Un-0 publishes six real-artifact frames as a 64x64 GIF byte-identical to adaptive_new. Wan has verified full-clip execution. LiveEdit executes all 30 blocks. Its full 81-frame edit matches adaptive and Python output quality, uses 15.624 GiB peak device memory, takes 81.6-81.9 s cold, and takes 51.0-51.5 s when the same source latent is resident. The production recipe publishes GIF; the performance gate streams MP4. |
@@ -333,6 +333,13 @@ Set `OVERGO_API_KEY` or `-api-key-file` to protect generation and endpoints that
 run or modify models. Health, metrics, and model discovery remain public.
 Request sizes, media geometry, generation length, batching, caches, and stored
 response history have configured limits.
+
+`TestAdaptiveServingContractMatrix` is the server compatibility gate. It covers
+native, OpenAI, and Anthropic streaming; structured tool calls; exact token and
+text embedding inputs; ordered image, audio, and video projection; stored
+response continuation; prompt-cache reuse plus `n_keep`/`n_discard` context
+editing; client and timeout cancellation; and explicit refusal when an
+unconfigured projector or tool executor is required.
 
 ## Training
 

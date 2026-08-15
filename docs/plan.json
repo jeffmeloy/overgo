@@ -20,16 +20,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "video-output-leadership",
-          "title": "Gate the full LiveEdit clip against native Python and adaptive Go: exact bounded seams, temporal and conditioning quality, cold/warm wall, and peak memory; beat adaptive cold and Python warm without quality loss",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo ./internal/adaptiveparity -run '^(TestLiveEditDeviceRuntime|TestVideoGenerationLeadership)$' -count=1 -v"
-        },
-        {
           "id": "serve-contract",
           "title": "Close server parity for streaming, tools, embeddings, media, sessions, cache editing, cancellation, and explicit refusal",
           "status": "open",
-          "verify": "go test ./internal/adaptiveparity ./internal/server -run '^TestAdaptiveServingContractMatrix$' -count=1 -v"
+          "verify": "go test ./internal/server -run '^TestAdaptiveServingContractMatrix$' -count=1 -v"
         }
       ]
     },

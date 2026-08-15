@@ -35,6 +35,14 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Activate Wan or LiveEdit through a retained recipe session | `cmd/recipe.videoCapability` routes `model.latent-video-*` / `model.reference-video-*`; `capabilityruntime.NewScalarSessionCache` / `NewMappedSessionCache` owns residency |
 | Publish decoded Wan or LiveEdit frames | `latentvideo.EncodedVideo` + `GIFContent`; `PixelRange` owns signed Wan versus unit-range LiveEdit quantization; `MP4Encoder` streams full-clip evidence through FFmpeg without retaining float frames |
 
+## HTTP serving
+
+| Need | Use |
+| --- | --- |
+| Serve native, OpenAI, or Anthropic protocols | `server.Handler`; protocol files translate into shared generation options |
+| Prove cross-protocol behavior | `server.TestAdaptiveServingContractMatrix`; focused endpoint tests remain the implementation evidence |
+| Edit request cache windows | Native completion `cache_prompt`, `n_cache_reuse`, `n_keep`, and `n_discard`; `inference.Runner` owns retained state |
+
 ## Commands / process (Go owns policy; scripts are bash or Go)
 | Need | Use |
 | --- | --- |

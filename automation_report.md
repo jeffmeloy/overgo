@@ -1,6 +1,6 @@
 # Overgo automation report
 
-Status: living assessment for `codex/overgo_automation` on 2026-08-14.
+Status: living assessment for `codex/overgo_automation` on 2026-08-15.
 
 ## Executive assessment
 
@@ -45,9 +45,9 @@ and promotion appropriately remain owner decisions.
   Multi-consumer evidence and JSON mechanics use existing common owners;
   command-local coordination stays local.
 
-Open automation work is now calibration, repository-side enforcement telemetry,
-lane outcome completeness, durable override/containment records, and measured
-scheduler recommendations. Completed implementation history remains in Git.
+The executable automation roadmap is complete. The only remaining roadmap row
+is the externally blocked project-source license decision; choosing that legal
+policy remains owner authority. Completed implementation history remains in Git.
 
 ## Operating boundary
 

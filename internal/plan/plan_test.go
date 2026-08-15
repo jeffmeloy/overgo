@@ -62,3 +62,16 @@ func TestOpenStepRequiresVerifier(t *testing.T) {
 		t.Fatalf("blocked step should name its blocker without a runnable verifier: %v", err)
 	}
 }
+
+func TestCompactPropagatesBlockedStatus(t *testing.T) {
+	document := Plan{Items: []Item{{
+		ID: "roadmap", Status: "open", Steps: []Step{{ID: "license", Status: "blocked-external-prereq"}},
+	}}}
+	compacted := Compact(document)
+	if compacted.Items[0].Status != "blocked-external-prereq" {
+		t.Fatalf("blocked-only item status = %q", compacted.Items[0].Status)
+	}
+	if item, _, ok := Current(compacted); ok && item.ID == "roadmap" {
+		t.Fatal("blocked-only item remained dispatchable")
+	}
+}

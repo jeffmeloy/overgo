@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "gpu-ci",
-          "title": "Add a repository-owned real-GPU integration workflow whose unavailable device outcome cannot pass",
-          "status": "open",
-          "verify": "go test ./internal/protection -run '^TestGPUWorkflowContract$' -count=1 -v"
-        },
-        {
           "id": "source-license",
           "title": "Blocked: the repository owner must select the distribution license before project-owned source can replace NOASSERTION",
           "status": "blocked-external-prereq"

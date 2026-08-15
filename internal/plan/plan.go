@@ -8,6 +8,7 @@ package plan
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/jsonfile"
@@ -115,6 +116,15 @@ func Compact(d Plan) Plan {
 			steps = append(steps, step)
 		}
 		item.Steps = steps
+		if item.Status == "open" && len(steps) > 0 && !slices.ContainsFunc(steps, func(step Step) bool { return step.Status == "open" }) {
+			item.Status = steps[0].Status
+			for _, step := range steps[1:] {
+				if step.Status != item.Status {
+					item.Status = "blocked-external-prereq"
+					break
+				}
+			}
+		}
 		items = append(items, item)
 	}
 	d.Items = items

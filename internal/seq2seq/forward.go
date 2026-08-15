@@ -99,8 +99,20 @@ func addGatedResidual(hidden, projected []float32, gate float32) {
 // Encode runs the bidirectional encoder over source token ids and returns
 // the final-normed memory [len(src), d].
 func (m *Model) Encode(src []int) ([]float32, error) {
+	return m.encodeTrace(src, nil)
+}
+
+type encoderTrainingTrace struct {
+	layers []attentionTrainingTrace
+	hidden []float32
+}
+
+func (m *Model) encodeTrace(src []int, trace *encoderTrainingTrace) ([]float32, error) {
 	if len(src) == 0 {
 		return nil, fmt.Errorf("seq2seq: empty source")
+	}
+	if trace != nil {
+		trace.layers = make([]attentionTrainingTrace, len(m.encoder))
 	}
 	dims := m.Dims
 	rows, d := len(src), dims.DModel
@@ -115,11 +127,37 @@ func (m *Model) Encode(src []int) ([]float32, error) {
 	attn := make([]float32, rows*dims.Heads*dims.HeadDim)
 	for layer := range m.encoder {
 		block := &m.encoder[layer]
+		var layerTrace *attentionTrainingTrace
+		if trace != nil {
+			layerTrace = &trace.layers[layer]
+			layerTrace.input = append(layerTrace.input[:0], hidden...)
+		}
 		hostmath.RMSNormInto(normed, hidden, block.inNorm, rows, d, dims.RMSEps)
-		m.projectQ(q, normed, rows, block, 0, true)
-		m.projectKV(k, v, normed, rows, block, 0, true)
+		if layerTrace != nil {
+			layerTrace.normed = append(layerTrace.normed[:0], normed...)
+			layerTrace.qRaw = make([]float32, len(q))
+			layerTrace.kRaw = make([]float32, len(k))
+			m.projectQTrace(q, layerTrace.qRaw, normed, rows, block, 0, true)
+			m.projectKVTrace(k, v, layerTrace.kRaw, normed, rows, block, 0, true)
+		} else {
+			m.projectQ(q, normed, rows, block, 0, true)
+			m.projectKV(k, v, normed, rows, block, 0, true)
+		}
 		hostmath.MaskedBidirectionalAttention(attn, q, k, v, rows, rows, dims.Heads, dims.KVHeads, dims.HeadDim, nil)
-		m.gatedResidualOut(hidden, attn, block.o, rows, block.gate)
+		if layerTrace != nil {
+			layerTrace.attention = append(layerTrace.attention[:0], attn...)
+			layerTrace.q = append(layerTrace.q[:0], q...)
+			layerTrace.k = append(layerTrace.k[:0], k...)
+			layerTrace.v = append(layerTrace.v[:0], v...)
+			layerTrace.projected = make([]float32, rows*d)
+			hostmath.LinearBF16(layerTrace.projected, attn, block.o, rows, dims.Heads*dims.HeadDim, d)
+			addGatedResidual(hidden, layerTrace.projected, block.gate)
+		} else {
+			m.gatedResidualOut(hidden, attn, block.o, rows, block.gate)
+		}
+	}
+	if trace != nil {
+		trace.hidden = append(trace.hidden[:0], hidden...)
 	}
 	hostmath.RMSNormInto(hidden, hidden, m.encFinalNorm, rows, d, dims.RMSEps)
 	return hidden, nil

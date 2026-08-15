@@ -93,45 +93,48 @@ type trainingOptimizer interface {
 }
 
 type trainingStep struct {
-	pair                          TrainingPair
-	hidden, normed, logits        []float32
-	trace                         decoderTrainingTrace
-	gradient                      []float32
-	projectionGradient            []float32
-	qProjectionGradient           []float32
-	kProjectionGradient           []float32
-	vProjectionGradient           []float32
-	attentionQGradient            []float32
-	attentionKGradient            []float32
-	attentionVGradient            []float32
-	selfAttentionQGradient        []float32
-	selfAttentionKGradient        []float32
-	selfAttentionVGradient        []float32
-	selfOutputGradient            []float32
-	selfQGradient                 []float32
-	selfKGradient                 []float32
-	selfVGradient                 []float32
-	finalSelfOutputGradient       []float32
-	priorDecoderGradient          []float32
-	selfRawGateGradient           float32
-	penultimateCrossQ             []float32
-	penultimateCrossK             []float32
-	penultimateCrossV             []float32
-	penultimateCrossQProjection   []float32
-	penultimateCrossKProjection   []float32
-	penultimateCrossVProjection   []float32
-	penultimateSelfOutputGradient []float32
-	penultimateSelfQ              []float32
-	penultimateSelfK              []float32
-	penultimateSelfV              []float32
-	penultimateSelfQProjection    []float32
-	penultimateSelfKProjection    []float32
-	penultimateSelfVProjection    []float32
-	previousDecoderGradient       []float32
-	decoderInputGradient          []float32
-	penultimateSelfRawGate        float32
-	penultimateCrossRawGate       float32
-	loss                          float64
+	pair                           TrainingPair
+	memory, hidden, normed, logits []float32
+	encoderTrace                   encoderTrainingTrace
+	trace                          decoderTrainingTrace
+	gradient                       []float32
+	projectionGradient             []float32
+	qProjectionGradient            []float32
+	kProjectionGradient            []float32
+	vProjectionGradient            []float32
+	attentionQGradient             []float32
+	attentionKGradient             []float32
+	attentionVGradient             []float32
+	selfAttentionQGradient         []float32
+	selfAttentionKGradient         []float32
+	selfAttentionVGradient         []float32
+	selfOutputGradient             []float32
+	selfQGradient                  []float32
+	selfKGradient                  []float32
+	selfVGradient                  []float32
+	finalSelfOutputGradient        []float32
+	priorDecoderGradient           []float32
+	selfRawGateGradient            float32
+	penultimateCrossQ              []float32
+	penultimateCrossK              []float32
+	penultimateCrossV              []float32
+	penultimateCrossQProjection    []float32
+	penultimateCrossKProjection    []float32
+	penultimateCrossVProjection    []float32
+	penultimateSelfOutputGradient  []float32
+	penultimateSelfQ               []float32
+	penultimateSelfK               []float32
+	penultimateSelfV               []float32
+	penultimateSelfQProjection     []float32
+	penultimateSelfKProjection     []float32
+	penultimateSelfVProjection     []float32
+	previousDecoderGradient        []float32
+	decoderInputGradient           []float32
+	memoryGradient                 []float32
+	encoderInputGradient           []float32
+	penultimateSelfRawGate         float32
+	penultimateCrossRawGate        float32
+	loss                           float64
 }
 
 type parameterSpan struct{ start, end int }
@@ -168,6 +171,8 @@ type trainingLayout struct {
 	penultimateSelfK                      parameterSpan
 	penultimateSelfV                      parameterSpan
 	earlierDecoder                        []decoderLayerParameterLayout
+	encoderFinalNorm                      parameterSpan
+	encoder                               []attentionParameterLayout
 	count                                 int
 }
 
@@ -256,6 +261,10 @@ func trainingParameterBindings(model *Model, layout trainingLayout) []trainingPa
 		bindings = appendAttentionParameterBindings(bindings, fmt.Sprintf("decoder.layer%d.self", layer), layout.earlierDecoder[layer].self, &model.decoderSelf[layer], d, qWidth, kvWidth)
 		bindings = appendAttentionParameterBindings(bindings, fmt.Sprintf("decoder.layer%d.cross", layer), layout.earlierDecoder[layer].cross, &model.decoderCross[layer], d, qWidth, kvWidth)
 	}
+	bindings = append(bindings, trainingParameterBinding{name: "encoder.final_norm", span: layout.encoderFinalNorm, rows: d, cols: 1, f32: model.encFinalNorm})
+	for layer := range layout.encoder {
+		bindings = appendAttentionParameterBindings(bindings, fmt.Sprintf("encoder.layer%d.self", layer), layout.encoder[layer], &model.encoder[layer], d, qWidth, kvWidth)
+	}
 	return bindings
 }
 
@@ -335,6 +344,11 @@ func newTrainingLayout(model *Model) trainingLayout {
 			self:  nextAttentionLayout(&cursor, d, model.Dims.HeadDim, qWidth, kvWidth),
 			cross: nextAttentionLayout(&cursor, d, model.Dims.HeadDim, qWidth, kvWidth),
 		}
+	}
+	layout.encoderFinalNorm = nextParameter(&cursor, d)
+	layout.encoder = make([]attentionParameterLayout, model.Dims.EncoderLayers)
+	for layer := range layout.encoder {
+		layout.encoder[layer] = nextAttentionLayout(&cursor, d, model.Dims.HeadDim, qWidth, kvWidth)
 	}
 	layout.count = cursor
 	return layout
@@ -432,11 +446,12 @@ func (t *Trainer) forward(state *trainingStep) error {
 	if len(state.pair.Source) == 0 || len(state.pair.DecoderInput) == 0 || len(state.pair.DecoderInput) != len(state.pair.Targets) {
 		return errors.New("invalid training pair")
 	}
-	memory, err := t.model.Encode(state.pair.Source)
+	var err error
+	state.memory, err = t.model.encodeTrace(state.pair.Source, &state.encoderTrace)
 	if err != nil {
 		return err
 	}
-	state.hidden, err = t.model.decodeHiddenFullTrace(memory, len(state.pair.Source), state.pair.DecoderInput, &state.trace)
+	state.hidden, err = t.model.decodeHiddenFullTrace(state.memory, len(state.pair.Source), state.pair.DecoderInput, &state.trace)
 	if err != nil {
 		return err
 	}
@@ -492,8 +507,8 @@ type attentionCoreGradient struct {
 }
 
 type crossProjectionGradient struct {
-	input, inputNorm, qNorm, kNorm []float32
-	q, k, v                        []float32
+	input, source, inputNorm, qNorm, kNorm []float32
+	q, k, v                                []float32
 }
 
 func backwardCrossAttentionCore(trace *attentionTrainingTrace, block *attnBlock, dOutput []float32, rows int, dims Dims) (attentionCoreGradient, error) {
@@ -565,7 +580,31 @@ func backwardCrossAttentionProjections(
 	)
 	hostmath.LinearBackward(nil, result.k, nil, trace.source, nil, dKRaw, memRows, dims.DModel, kvWidth, false)
 	hostmath.LinearBackward(nil, result.v, nil, trace.source, nil, core.v, memRows, dims.DModel, kvWidth, false)
+	result.source = make([]float32, len(trace.source))
+	sourceScratch := make([]float32, len(trace.source))
+	hostmath.LinearBF16BackwardInput(result.source, dKRaw, block.k, memRows, dims.DModel, kvWidth)
+	hostmath.LinearBF16BackwardInput(sourceScratch, core.v, block.v, memRows, dims.DModel, kvWidth)
+	for index, value := range sourceScratch {
+		result.source[index] += value
+	}
 	return result, nil
+}
+
+func accumulateGradient(dst *[]float32, src []float32) error {
+	if len(src) == 0 {
+		return errors.New("seq2seq: empty accumulated gradient")
+	}
+	if len(*dst) == 0 {
+		*dst = append([]float32(nil), src...)
+		return nil
+	}
+	if len(*dst) != len(src) {
+		return errors.New("seq2seq: accumulated gradient geometry differs")
+	}
+	for index, value := range src {
+		(*dst)[index] += value
+	}
+	return nil
 }
 
 func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attnBlock, residualGradient []float32) error {
@@ -587,7 +626,7 @@ func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attn
 	copy(state.kProjectionGradient, result.k)
 	copy(state.vProjectionGradient, result.v)
 	state.finalSelfOutputGradient = result.input
-	return nil
+	return accumulateGradient(&state.memoryGradient, result.source)
 }
 
 func (t *Trainer) backwardFinalSelfCore(state *trainingStep) error {
@@ -752,6 +791,9 @@ func (t *Trainer) backwardPenultimateCrossCore(state *trainingStep) error {
 	copy(state.penultimateCrossKProjection, projections.k)
 	copy(state.penultimateCrossVProjection, projections.v)
 	state.penultimateSelfOutputGradient = projections.input
+	if err := accumulateGradient(&state.memoryGradient, projections.source); err != nil {
+		return err
+	}
 	return t.backwardPenultimateSelfCore(state)
 }
 
@@ -820,6 +862,9 @@ func (t *Trainer) backwardEarlierDecoderLayers(state *trainingStep) error {
 			return err
 		}
 		writeAttentionGradients(state.gradient, layout.cross, crossCore, crossProjections)
+		if err := accumulateGradient(&state.memoryGradient, crossProjections.source); err != nil {
+			return err
+		}
 		gradient = crossProjections.input
 
 		selfTrace := &state.trace.layers[layer].self
@@ -838,6 +883,37 @@ func (t *Trainer) backwardEarlierDecoderLayers(state *trainingStep) error {
 		gradient = selfProjections.input
 	}
 	state.decoderInputGradient = gradient
+	return t.backwardEncoder(state)
+}
+
+func (t *Trainer) backwardEncoder(state *trainingStep) error {
+	rows, d := len(state.pair.Source), t.model.Dims.DModel
+	if len(state.memoryGradient) != len(state.memory) || len(state.encoderTrace.hidden) != rows*d {
+		return errors.New("seq2seq: encoder gradient trace differs")
+	}
+	gradient := make([]float32, len(state.encoderTrace.hidden))
+	hostmath.RMSNormBackward(
+		gradient, state.gradient[t.layout.encoderFinalNorm.start:t.layout.encoderFinalNorm.end],
+		state.encoderTrace.hidden, t.model.encFinalNorm, state.memoryGradient,
+		rows, d, t.model.Dims.RMSEps, false,
+	)
+	for layer := len(t.layout.encoder) - 1; layer >= 0; layer-- {
+		trace := &state.encoderTrace.layers[layer]
+		block := &t.model.encoder[layer]
+		core, err := backwardCrossAttentionCore(trace, block, gradient, rows, t.model.Dims)
+		if err != nil {
+			return err
+		}
+		projections, err := backwardCausalAttentionProjections(
+			trace, block, core, gradient, rows, t.model.Dims, t.model.scoreScale, t.model.invFreq,
+		)
+		if err != nil {
+			return err
+		}
+		writeAttentionGradients(state.gradient, t.layout.encoder[layer], core, projections)
+		gradient = projections.input
+	}
+	state.encoderInputGradient = gradient
 	return nil
 }
 

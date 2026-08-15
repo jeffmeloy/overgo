@@ -22,39 +22,46 @@ type ReferenceEditDenoiserStats struct {
 	WeightBytes                      uint64
 }
 
-// ReferenceEditDenoiserCUDASession owns weights, text K/V, and one bounded
-// chunk of per-layer self-attention K/V.
+// ReferenceEditDenoiserCUDASession owns weights, text K/V, and retained
+// per-layer self-attention K/V.
 type ReferenceEditDenoiserCUDASession struct {
 	worker *device.Worker
 	cuda   *executor.Executor
 	allocs device.AllocationSet
 
-	cold, warm             *DenoiserProgram
+	cold                   *DenoiserProgram
+	warm                   map[int]*DenoiserProgram
 	contextGraph           *executor.CompiledGraph
-	coldGraph, warmGraph   *executor.CompiledGraph
+	coldGraph              *executor.CompiledGraph
+	warmGraphs             map[int]*executor.CompiledGraph
 	contextInputs          *executor.DeviceInputs
-	coldInputs, warmInputs *executor.DeviceInputs
+	coldInputs             *executor.DeviceInputs
+	warmInputs             map[int]*executor.DeviceInputs
+	targets                map[int]*executor.RetainedTargets
+	headBuffer             *executor.DeviceBuffer
+	cacheKeys, cacheValues []*executor.DeviceBuffer
 	contextRetained        *executor.RetainedOutputs
-	historyRetained        *executor.RetainedOutputs
 	historyProgram         *DenoiserProgram
+	historyFrames          int
 	ctx                    context.Context
 	stats                  ReferenceEditDenoiserStats
 }
 
-// NewReferenceEditDenoiserCUDASession compiles cold and one-chunk-history
-// graphs over a checkpoint block prefix.
+// NewReferenceEditDenoiserCUDASession compiles each bounded prefix shape.
 func NewReferenceEditDenoiserCUDASession(
 	ctx context.Context,
 	checkpoint ReferenceEditCheckpoint,
 	geometry LatentGeometry,
-	layers, historyStartFrame, ordinal int,
+	layers, framesPerChunk, localAttentionFrames, totalFrames, ordinal int,
 	textContext []float32,
 ) (session *ReferenceEditDenoiserCUDASession, err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	config := checkpoint.Config
-	if layers <= 0 || layers > config.NumLayers || geometry.Channels != config.InDim || historyStartFrame <= 0 {
+	if layers <= 0 || layers > config.NumLayers || geometry.Channels != config.InDim || framesPerChunk <= 0 ||
+		localAttentionFrames < framesPerChunk || localAttentionFrames%framesPerChunk != 0 ||
+		totalFrames <= framesPerChunk || totalFrames > localAttentionFrames+framesPerChunk || totalFrames%framesPerChunk != 0 {
 		return nil, fmt.Errorf("reference edit denoiser: invalid layers/geometry/history")
 	}
 	weights, err := checkpoint.LoadDenoiserWeights(layers)
@@ -64,12 +71,6 @@ func NewReferenceEditDenoiserCUDASession(
 	config.NumLayers = layers
 	precision := DenoiserPrecision{MatmulWeights: dtype.BF16, RoundAttentionStorage: true}
 	cold, err := CompileDenoiserProgramPrecision(config, weights, geometry, precision)
-	if err != nil {
-		return nil, err
-	}
-	warm, err := CompileDenoiserProgramHistory(config, weights, geometry, precision, DenoiserHistory{
-		Tokens: geometry.Seq, StartFrame: historyStartFrame,
-	})
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +84,17 @@ func NewReferenceEditDenoiserCUDASession(
 	}
 	session = &ReferenceEditDenoiserCUDASession{
 		worker: worker, cuda: cuda, allocs: device.NewAllocationSet(worker),
-		cold: cold, warm: warm, ctx: ctx,
-		stats: ReferenceEditDenoiserStats{Layers: layers, HistoryTokens: geometry.Seq},
+		cold: cold, warm: make(map[int]*DenoiserProgram), warmGraphs: make(map[int]*executor.CompiledGraph),
+		warmInputs: make(map[int]*executor.DeviceInputs), targets: make(map[int]*executor.RetainedTargets), ctx: ctx,
+		stats: ReferenceEditDenoiserStats{Layers: layers, HistoryTokens: localAttentionFrames * geometry.Seq / framesPerChunk},
+	}
+	for startFrame := framesPerChunk; startFrame < totalFrames; startFrame += framesPerChunk {
+		session.warm[startFrame], err = CompileDenoiserProgramHistory(config, weights, geometry, precision, DenoiserHistory{
+			Tokens: startFrame * geometry.Seq / framesPerChunk, StartFrame: startFrame,
+		})
+		if err != nil {
+			return session, err
+		}
 	}
 	defer func() {
 		if err != nil {
@@ -94,30 +104,126 @@ func NewReferenceEditDenoiserCUDASession(
 	}()
 	session.contextGraph, err = executor.Compile(contextGraphOutputs(cold)...)
 	if err == nil {
-		session.coldGraph, err = executor.Compile(stepHistoryOutputs(cold)...)
+		session.coldGraph, err = executor.CompileExternal(stepHistoryOutputs(cold)...)
 	}
 	if err == nil {
-		session.warmGraph, err = executor.Compile(stepHistoryOutputs(warm)...)
+		for startFrame, program := range session.warm {
+			session.warmGraphs[startFrame], err = executor.CompileExternal(stepHistoryOutputs(program)...)
+			if err != nil {
+				break
+			}
+		}
 	}
 	if err != nil {
 		return session, err
 	}
-	for _, graph := range []*executor.CompiledGraph{session.contextGraph, session.coldGraph, session.warmGraph} {
+	graphs := []*executor.CompiledGraph{session.contextGraph, session.coldGraph}
+	for _, graph := range session.warmGraphs {
+		graphs = append(graphs, graph)
+	}
+	for _, graph := range graphs {
 		if err = cuda.PrepareCompiled(ctx, graph); err != nil {
 			return session, err
 		}
 	}
 	session.contextInputs = session.contextGraph.NewDeviceInputs()
 	session.coldInputs = session.coldGraph.NewDeviceInputs()
-	session.warmInputs = session.warmGraph.NewDeviceInputs()
+	for startFrame, graph := range session.warmGraphs {
+		session.warmInputs[startFrame] = graph.NewDeviceInputs()
+	}
 	if err = session.uploadWeights(weights); err != nil {
+		return session, err
+	}
+	if err = session.prepareHistoryCache(totalFrames); err != nil {
 		return session, err
 	}
 	if err = session.projectContext(textContext); err != nil {
 		return session, err
 	}
-	cold.weights, warm.weights = nil, nil
+	cold.weights = nil
+	for _, program := range session.warm {
+		program.weights = nil
+	}
 	return session, nil
+}
+
+func (s *ReferenceEditDenoiserCUDASession) prepareHistoryCache(totalFrames int) error {
+	programs := map[int]*DenoiserProgram{0: s.cold}
+	graphs := map[int]*executor.CompiledGraph{0: s.coldGraph}
+	inputs := map[int]*executor.DeviceInputs{0: s.coldInputs}
+	for startFrame, program := range s.warm {
+		programs[startFrame] = program
+		graphs[startFrame] = s.warmGraphs[startFrame]
+		inputs[startFrame] = s.warmInputs[startFrame]
+	}
+	tokensPerFrame := s.cold.Geometry.Seq / s.cold.Geometry.LatentFrames
+	cacheShape := tensor.MustShape(
+		uint64(s.cold.Config.Dim/s.cold.Config.NumHeads), uint64(s.cold.Config.NumHeads),
+		uint64(totalFrames*tokensPerFrame),
+	)
+	cacheBytes, err := cacheShape.Bytes(dtype.F32)
+	if err != nil {
+		return err
+	}
+	headBytes, err := s.cold.Head.Shape.Bytes(dtype.F32)
+	if err != nil {
+		return err
+	}
+	s.headBuffer, err = s.cuda.AllocateDeviceBuffer(s.ctx, headBytes)
+	if err != nil {
+		return err
+	}
+	for range s.stats.Layers {
+		key, err := s.cuda.AllocateDeviceBuffer(s.ctx, cacheBytes)
+		if err != nil {
+			return err
+		}
+		value, err := s.cuda.AllocateDeviceBuffer(s.ctx, cacheBytes)
+		if err != nil {
+			_ = key.Release(s.ctx)
+			return err
+		}
+		s.cacheKeys = append(s.cacheKeys, key)
+		s.cacheValues = append(s.cacheValues, value)
+	}
+	for startFrame, program := range programs {
+		target := graphs[startFrame].NewRetainedTargets()
+		head, err := s.headBuffer.Value(program.Head.Shape)
+		if err != nil {
+			return err
+		}
+		if err := target.Set(program.Head, head); err != nil {
+			return err
+		}
+		for layer := range program.currentSelfKeys {
+			key, err := s.cacheKeys[layer].Value(program.currentSelfKeys[layer].Shape)
+			if err != nil {
+				return err
+			}
+			value, err := s.cacheValues[layer].Value(program.currentSelfVals[layer].Shape)
+			if err != nil {
+				return err
+			}
+			if err := target.Set(program.currentSelfKeys[layer], key); err != nil {
+				return err
+			}
+			if err := target.Set(program.currentSelfVals[layer], value); err != nil {
+				return err
+			}
+			if startFrame == 0 {
+				continue
+			}
+			keySlot, keyOK := graphs[startFrame].InputSlot(program.stepHistoryKeys[layer])
+			valueSlot, valueOK := graphs[startFrame].InputSlot(program.stepHistoryVals[layer])
+			if !keyOK || !valueOK {
+				return fmt.Errorf("reference edit denoiser history layer %d is not compiled", layer)
+			}
+			inputs[startFrame].Pointers[keySlot] = key.Pointer
+			inputs[startFrame].Pointers[valueSlot] = value.Pointer
+		}
+		s.targets[startFrame] = target
+	}
+	return nil
 }
 
 func stepHistoryOutputs(program *DenoiserProgram) []*tensor.Tensor {
@@ -141,7 +247,14 @@ func (s *ReferenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeight
 	}{
 		{s.cold, s.contextGraph, s.contextInputs, true},
 		{s.cold, s.coldGraph, s.coldInputs, false},
-		{s.warm, s.warmGraph, s.warmInputs, false},
+	}
+	for startFrame, program := range s.warm {
+		graphs = append(graphs, struct {
+			program *DenoiserProgram
+			graph   *executor.CompiledGraph
+			inputs  *executor.DeviceInputs
+			context bool
+		}{program, s.warmGraphs[startFrame], s.warmInputs[startFrame], false})
 	}
 	for name, values := range weights.values {
 		var binds []binding
@@ -196,11 +309,19 @@ func (s *ReferenceEditDenoiserCUDASession) projectContext(textContext []float32)
 	if err != nil {
 		return err
 	}
-	for _, target := range []struct {
+	targets := []struct {
 		program *DenoiserProgram
 		graph   *executor.CompiledGraph
 		inputs  *executor.DeviceInputs
-	}{{s.cold, s.coldGraph, s.coldInputs}, {s.warm, s.warmGraph, s.warmInputs}} {
+	}{{s.cold, s.coldGraph, s.coldInputs}}
+	for startFrame, program := range s.warm {
+		targets = append(targets, struct {
+			program *DenoiserProgram
+			graph   *executor.CompiledGraph
+			inputs  *executor.DeviceInputs
+		}{program, s.warmGraphs[startFrame], s.warmInputs[startFrame]})
+	}
+	for _, target := range targets {
 		for layer := range s.cold.contextKeys {
 			key, keyOK := s.contextRetained.Value(s.cold.contextKeys[layer])
 			value, valueOK := s.contextRetained.Value(s.cold.contextValues[layer])
@@ -220,28 +341,22 @@ func (s *ReferenceEditDenoiserCUDASession) projectContext(textContext []float32)
 	return nil
 }
 
-// RunChunk executes one chunk. commitHistory advances the bounded tail.
-func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE []float32, commitHistory bool) ([]float32, error) {
+// RunChunk executes one absolute-position chunk. commitHistory advances K/V.
+func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE []float32, startFrame int, commitHistory bool) ([]float32, error) {
 	if s == nil || s.cuda == nil {
 		return nil, errors.New("reference edit denoiser: closed")
 	}
 	program, graph, inputs := s.cold, s.coldGraph, s.coldInputs
-	if s.historyRetained != nil {
-		program, graph, inputs = s.warm, s.warmGraph, s.warmInputs
-		for layer := range program.stepHistoryKeys {
-			key, keyOK := s.historyRetained.Value(s.historyProgram.currentSelfKeys[layer])
-			value, valueOK := s.historyRetained.Value(s.historyProgram.currentSelfVals[layer])
-			if !keyOK || !valueOK {
-				return nil, fmt.Errorf("reference edit denoiser history layer %d is not retained", layer)
-			}
-			keySlot, keyOK := graph.InputSlot(program.stepHistoryKeys[layer])
-			valueSlot, valueOK := graph.InputSlot(program.stepHistoryVals[layer])
-			if !keyOK || !valueOK {
-				return nil, fmt.Errorf("reference edit denoiser history layer %d is not compiled", layer)
-			}
-			inputs.Pointers[keySlot] = key.Pointer
-			inputs.Pointers[valueSlot] = value.Pointer
+	if startFrame != 0 {
+		var ok bool
+		program, ok = s.warm[startFrame]
+		if !ok {
+			return nil, fmt.Errorf("reference edit denoiser: start frame %d exceeds compiled history", startFrame)
 		}
+		graph, inputs = s.warmGraphs[startFrame], s.warmInputs[startFrame]
+	}
+	if startFrame != s.historyFrames {
+		return nil, fmt.Errorf("reference edit denoiser: start frame %d does not continue %d", startFrame, s.historyFrames)
 	}
 	feeds := make(map[*tensor.Tensor]reference.Value, 3)
 	for _, feed := range []struct {
@@ -255,7 +370,7 @@ func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE [
 		}
 		feeds[feed.node] = value
 	}
-	next, err := s.cuda.ExecuteRetainedCompiled(s.ctx, graph, feeds, inputs, nil, nil)
+	next, err := s.cuda.ExecuteRetainedCompiled(s.ctx, graph, feeds, inputs, s.targets[startFrame], nil)
 	if err != nil {
 		return nil, err
 	}
@@ -264,14 +379,10 @@ func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE [
 		return nil, errors.Join(err, next.Release(s.ctx))
 	}
 	if commitHistory {
-		prior := s.historyRetained
-		s.historyRetained, s.historyProgram = next, program
-		if prior != nil {
-			if err := prior.Release(s.ctx); err != nil {
-				return nil, err
-			}
-		}
-	} else if err := next.Release(s.ctx); err != nil {
+		s.historyFrames += program.Geometry.LatentFrames
+		s.historyProgram = program
+	}
+	if err := next.Release(s.ctx); err != nil {
 		return nil, err
 	}
 	s.stats.Runs++
@@ -304,12 +415,8 @@ func (s *ReferenceEditDenoiserCUDASession) ResetHistory() error {
 	if s == nil || s.cuda == nil {
 		return errors.New("reference edit denoiser: closed")
 	}
-	if s.historyRetained == nil {
-		return nil
-	}
-	err := s.historyRetained.Release(context.WithoutCancel(s.ctx))
-	s.historyRetained, s.historyProgram = nil, nil
-	return err
+	s.historyFrames, s.historyProgram = 0, nil
+	return nil
 }
 
 func (s *ReferenceEditDenoiserCUDASession) Close() error {
@@ -317,13 +424,15 @@ func (s *ReferenceEditDenoiserCUDASession) Close() error {
 		return nil
 	}
 	var errs []error
-	if s.historyRetained != nil {
-		errs = append(errs, s.historyRetained.Release(context.WithoutCancel(s.ctx)))
-		s.historyRetained = nil
-	}
 	if s.contextRetained != nil {
 		errs = append(errs, s.contextRetained.Release(context.WithoutCancel(s.ctx)))
 		s.contextRetained = nil
+	}
+	errs = append(errs, executor.ReleaseDeviceBuffers(context.WithoutCancel(s.ctx), append(s.cacheKeys, s.cacheValues...)...))
+	s.cacheKeys, s.cacheValues = nil, nil
+	if s.headBuffer != nil {
+		errs = append(errs, s.headBuffer.Release(context.WithoutCancel(s.ctx)))
+		s.headBuffer = nil
 	}
 	errs = append(errs, s.allocs.Close(context.WithoutCancel(s.ctx)))
 	if s.cuda != nil {

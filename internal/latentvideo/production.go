@@ -27,6 +27,16 @@ const (
 	encodedGIFMediaType        = "image/gif"
 )
 
+// PixelRange names the decoder output interval.
+type PixelRange string
+
+const (
+	// SignedUnitPixels maps [-1,1] to bytes.
+	SignedUnitPixels PixelRange = "signed_unit"
+	// UnitPixels maps [0,1] to bytes.
+	UnitPixels PixelRange = "unit"
+)
+
 var (
 	videoProfileContract = artifact.DocumentContract{
 		Kind: artifact.KindProfile, MediaType: "application/vnd.overgo.video-profile+json", Schema: "overgo/video-profile/v1",
@@ -147,8 +157,10 @@ func GIFContent(video EncodedVideo) (artifact.Content, error) {
 	return encodedGIFContract.OwnedContentBytes(video.Data)
 }
 
-type gifSink struct {
+// GIFEncoder streams borrowed planar frames into one encoded artifact.
+type GIFEncoder struct {
 	fps       int
+	pixels    PixelRange
 	animation gif.GIF
 	prior     []uint8
 	changed   int
@@ -156,14 +168,14 @@ type gifSink struct {
 	width     int
 }
 
-func newGIFSink(fps int) (*gifSink, error) {
-	if fps <= 0 {
-		return nil, errors.New("latent video: GIF frame rate must be positive")
+func NewGIFEncoder(fps int, pixels PixelRange) (*GIFEncoder, error) {
+	if fps <= 0 || !pixels.valid() {
+		return nil, errors.New("latent video: invalid GIF encoding policy")
 	}
-	return &gifSink{fps: fps}, nil
+	return &GIFEncoder{fps: fps, pixels: pixels}, nil
 }
 
-func (s *gifSink) Add(_ int, frame []float32, height, width int) error {
+func (s *GIFEncoder) Add(_ int, frame []float32, height, width int) error {
 	if height <= 0 || width <= 0 || len(frame) != 3*height*width {
 		return errors.New("latent video: invalid planar RGB frame")
 	}
@@ -180,7 +192,7 @@ func (s *gifSink) Add(_ int, frame []float32, height, width int) error {
 			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
 				return errors.New("latent video: non-finite frame")
 			}
-			raw[index*3+channel] = uint8(min(max((float64(value)+1)*127.5, 0), 255))
+			raw[index*3+channel] = encodeVideoByte(value, s.pixels)
 		}
 		if s.prior != nil && (raw[index*3] != s.prior[index*3] || raw[index*3+1] != s.prior[index*3+1] || raw[index*3+2] != s.prior[index*3+2]) {
 			s.changed++
@@ -195,7 +207,17 @@ func (s *gifSink) Add(_ int, frame []float32, height, width int) error {
 	return nil
 }
 
-func (s *gifSink) Finish() (EncodedVideo, error) {
+func (p PixelRange) valid() bool { return p == SignedUnitPixels || p == UnitPixels }
+
+func encodeVideoByte(value float32, pixels PixelRange) byte {
+	scaled := float64(value) * 255
+	if pixels == SignedUnitPixels {
+		scaled = (float64(value) + 1) * 127.5
+	}
+	return byte(min(max(math.Round(scaled), 0), 255))
+}
+
+func (s *GIFEncoder) Finish() (EncodedVideo, error) {
 	if len(s.animation.Image) == 0 {
 		return EncodedVideo{}, errors.New("latent video: no frames emitted")
 	}
@@ -246,6 +268,7 @@ type ReferenceEditCondition struct {
 	Timesteps       []int64   `json:"timesteps"`
 	Sigmas          []float32 `json:"sigmas"`
 	ContextTimestep int64     `json:"context_timestep"`
+	Seed            int64     `json:"seed"`
 }
 
 type SourceVideo struct {
@@ -263,7 +286,7 @@ type ReferenceEditRequest struct {
 
 func ValidateReferenceEditRequest(request ReferenceEditRequest) error {
 	c, s := request.Condition, request.Source
-	if len(c.TextContext) == 0 || len(c.InitialNoise) == 0 || c.FramesPerChunk <= 0 || c.LocalAttention <= 0 ||
+	if len(c.TextContext) == 0 || c.FramesPerChunk <= 0 || c.LocalAttention <= 0 ||
 		len(c.Timesteps) == 0 || len(c.Timesteps) != len(c.Sigmas) || s.Channels != 3 || s.Frames <= 0 || s.Height <= 0 || s.Width <= 0 ||
 		len(s.Pixels) != s.Channels*s.Frames*s.Height*s.Width {
 		return errors.New("latent video: incomplete LiveEdit request")
@@ -276,14 +299,18 @@ func ReferenceEditSessionPolicy(request ReferenceEditRequest) (string, error) {
 		return "", err
 	}
 	content, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.liveedit-session-policy.v1"), struct {
-		Context []float32 `json:"context"`
-		Shape   [4]int    `json:"shape"`
-		Chunk   [2]int    `json:"chunk"`
-		Steps   []int64   `json:"steps"`
+		Context  []float32 `json:"context"`
+		Shape    [4]int    `json:"shape"`
+		Chunk    [2]int    `json:"chunk"`
+		Steps    []int64   `json:"steps"`
+		Sigmas   []float32 `json:"sigmas"`
+		Timestep int64     `json:"context_timestep"`
+		Seed     int64     `json:"seed"`
 	}{
 		Context: request.Condition.TextContext,
 		Shape:   [4]int{request.Source.Channels, request.Source.Frames, request.Source.Height, request.Source.Width},
 		Chunk:   [2]int{request.Condition.FramesPerChunk, request.Condition.LocalAttention}, Steps: request.Condition.Timesteps,
+		Sigmas: request.Condition.Sigmas, Timestep: request.Condition.ContextTimestep, Seed: request.Condition.Seed,
 	})
 	if err != nil {
 		return "", err

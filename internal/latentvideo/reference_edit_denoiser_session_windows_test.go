@@ -48,7 +48,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	}
 	context := readRetainedDenoiserF32(t, testutil.FixturePath(t, "wan", "raw", "g1_cond_context.f32le"), base.TextLen*base.Dim)
 	started := time.Now()
-	session, err := NewReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 0, context)
+	session, err := NewReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0, context)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		output, err := session.RunChunk(patches, blockE, headE, true)
+		output, err := session.RunChunk(patches, blockE, headE, frame, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -86,7 +86,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	if stats.Layers != 2 || stats.Runs != 2 || stats.ContextProjections != 1 || stats.HistoryTokens != geometry.Seq || stats.WeightBytes == 0 {
 		t.Fatalf("retained denoiser stats=%+v", stats)
 	}
-	if session.historyProgram != session.warm || session.historyRetained == nil {
+	if session.historyProgram != session.warm[1] || session.historyFrames != 2 {
 		t.Fatal("second chunk did not execute through the retained-history graph")
 	}
 	for _, output := range outputs {
@@ -109,7 +109,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 		t.Fatal(err)
 	}
 	session = nil
-	fresh, err := NewReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 0, context)
+	fresh, err := NewReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0, context)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	coldSecond, err := fresh.RunChunk(second, blockE, headE, true)
+	coldSecond, err := fresh.RunChunk(second, blockE, headE, 0, true)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -472,8 +472,8 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 			return nil, fmt.Errorf("denoiser program block %d: %w", layer, err)
 		}
 		program.Blocks = append(program.Blocks, result)
-		program.currentSelfKeys = append(program.currentSelfKeys, result.SelfKeyRotated)
-		program.currentSelfVals = append(program.currentSelfVals, result.SelfValue)
+		program.currentSelfKeys = append(program.currentSelfKeys, result.SelfKeyCache)
+		program.currentSelfVals = append(program.currentSelfVals, result.SelfValueCache)
 		hidden = result.Output
 	}
 	head, err := diffusion.BuildHead(

@@ -33,7 +33,7 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Execute LiveEdit chunks with retained text and bounded self-attention K/V | `latentvideo.NewReferenceEditDenoiserCUDASession`; neutral history graph: `model.ConditionedDiffusionProgram.BuildBlockWithSelfHistory` |
 | Run typed LiveEdit source-to-frames device composition | `latentvideo.NewReferenceEditRuntime` → `ReferenceEditRuntime.Run` |
 | Activate Wan or LiveEdit through a retained recipe session | `cmd/recipe.videoCapability` routes `model.latent-video-*` / `model.reference-video-*`; `capabilityruntime.NewScalarSessionCache` / `NewMappedSessionCache` owns residency |
-| Publish decoded Wan or LiveEdit frames | `latentvideo.EncodedVideo` + `GIFContent`; the frame sink quantizes each borrowed planar frame without retaining float-frame copies |
+| Publish decoded Wan or LiveEdit frames | `latentvideo.EncodedVideo` + `GIFContent`; `PixelRange` owns signed Wan versus unit-range LiveEdit quantization; `MP4Encoder` streams full-clip evidence through FFmpeg without retaining float frames |
 
 ## Commands / process (Go owns policy; scripts are bash or Go)
 | Need | Use |

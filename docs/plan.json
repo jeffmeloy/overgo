@@ -20,16 +20,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "video-production-activation",
-          "title": "Activate typed Wan and LiveEdit recipes through the shared capability runtime; publish encoded clips and support repeated resident requests",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/recipe ./internal/capabilityruntime -run '^TestVideoProductionActivation$' -count=1 -v"
-        },
-        {
           "id": "video-output-leadership",
-          "title": "Gate full Wan and LiveEdit clips against native Python and adaptive Go: exact bounded seams, temporal and conditioning quality, cold/warm wall, and peak memory; beat Python without quality loss",
+          "title": "Gate the full LiveEdit clip against native Python and adaptive Go: exact bounded seams, temporal and conditioning quality, cold/warm wall, and peak memory; beat adaptive cold and Python warm without quality loss",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestVideoGenerationLeadership$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo ./internal/adaptiveparity -run '^(TestLiveEditDeviceRuntime|TestVideoGenerationLeadership)$' -count=1 -v"
         },
         {
           "id": "serve-contract",

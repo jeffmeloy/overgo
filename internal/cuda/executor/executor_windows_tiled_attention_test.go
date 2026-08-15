@@ -59,6 +59,13 @@ func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
 			if fusion := compiled.nodes[compiled.orderIndexes[attention]].fusion; fusion == nil || fusion.kind != compiledFusionBF16Attention {
 				t.Fatalf("bf16 attention fusion did not apply: %+v", fusion)
 			}
+			keyElements, err := key.Shape.Elements()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := keyElements * 4; compiled.attentionScoreBytes != want {
+				t.Fatalf("bf16 attention staging=%d want=%d", compiled.attentionScoreBytes, want)
+			}
 			feeds := map[*tensor.Tensor]reference.Value{
 				query: patternedValue(query.Shape, 1, 0.11, 0),
 				key:   patternedValue(key.Shape, 2, 0.09, 0),

@@ -55,7 +55,7 @@ func (r *WanRuntime) Reset(_ context.Context, request WanRequest) error {
 }
 
 func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedVideo, error) {
-	sink, err := newGIFSink(r.profile.SampleFPS)
+	sink, err := NewGIFEncoder(r.profile.SampleFPS, SignedUnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}
@@ -116,7 +116,7 @@ func LoadLiveEditRuntime(ctx context.Context, store artifact.Reader, path string
 		Source:         SourceVideoShape{Channels: source.Channels, Frames: source.Frames, Height: source.Height, Width: source.Width},
 		FramesPerChunk: condition.FramesPerChunk, LocalAttentionFrames: condition.LocalAttention,
 		Timesteps: condition.Timesteps, Sigmas: condition.Sigmas, ContextTimestep: condition.ContextTimestep,
-		Layers: base.NumLayers, DeviceOrdinal: 0, TextContext: condition.TextContext,
+		Layers: base.NumLayers, DeviceOrdinal: 0, Seed: condition.Seed, TextContext: condition.TextContext,
 	})
 	if err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ func (r *LiveEditRuntime) Reset(context.Context, ReferenceEditRequest) error {
 }
 
 func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditRequest) (EncodedVideo, error) {
-	sink, err := newGIFSink(r.profile.SampleFPS)
+	sink, err := NewGIFEncoder(r.profile.SampleFPS, UnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}

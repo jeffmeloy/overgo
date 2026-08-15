@@ -80,6 +80,19 @@ func TestCompiledRetainedTargetsUseOutputSlots(t *testing.T) {
 	}
 }
 
+func TestCompileExternalOmitsCallerOwnedOutput(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
+	output := builder.Scale(input, 2)
+	compiled, err := CompileExternal(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !compiled.externalOutputs || compiled.memory.ArenaSize != 0 {
+		t.Fatalf("external output plan external=%t arena=%d", compiled.externalOutputs, compiled.memory.ArenaSize)
+	}
+}
+
 func TestCompiledRuntimeAttributesUseNodeIndexes(t *testing.T) {
 	builder := tensor.NewBuilder()
 	builder.SetCacheAppendPlan(tensor.CacheAppendPlan{ActiveTokens: 2, CapacityTokens: 4})

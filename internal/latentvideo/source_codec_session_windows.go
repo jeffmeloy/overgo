@@ -18,6 +18,7 @@ type SourceEncodeStats struct {
 	PeakDeviceBytes uint64
 	SourceChunks    int
 	LatentFrames    int
+	CacheHit        bool
 }
 
 // VAEEncoderCUDASession shares the resident causal-codec executor with decode.

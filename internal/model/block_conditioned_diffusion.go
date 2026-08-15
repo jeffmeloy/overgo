@@ -153,6 +153,7 @@ type ConditionedDiffusionBlockResult struct {
 	SelfQueryNormed, SelfKeyNormed                           *tensor.Tensor
 	SelfQueryRotated, SelfKeyRotated                         *tensor.Tensor
 	SelfValue                                                *tensor.Tensor // [headWidth, heads, current tokens]
+	SelfKeyCache, SelfValueCache                             *tensor.Tensor // retained history plus current tokens
 	SelfAttention                                            *tensor.Tensor // pre-projection SDPA output
 	SelfProjected                                            *tensor.Tensor // post output projection
 	SelfResidual                                             *tensor.Tensor
@@ -329,6 +330,7 @@ func buildConditionedDiffusionBlock(
 		attentionKey = builder.Concat(historyKey, attentionKey, 2)
 		attentionValue = builder.Concat(historyValue, attentionValue, 2)
 	}
+	result.SelfKeyCache, result.SelfValueCache = attentionKey, attentionValue
 	roundStorage := func(x *tensor.Tensor) *tensor.Tensor {
 		if options.RoundAttentionStorage {
 			return builder.BF16Round(x)

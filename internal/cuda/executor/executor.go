@@ -802,6 +802,7 @@ type CompiledGraph struct {
 	elided          map[*tensor.Tensor]struct{}
 	q8Emit          map[*tensor.Tensor]struct{}
 	targetContracts []tensor.OutputTargetContract
+	externalOutputs bool
 	skipped         map[*tensor.Tensor]struct{}
 	needBlas        bool
 	q8InputBytes    uint64
@@ -1129,6 +1130,15 @@ func retainedOutputLayout(
 
 // Compile: validates and plans an immutable tensor graph.
 func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
+	return compileGraph(false, outputs...)
+}
+
+// CompileExternal plans outputs in caller-owned device buffers.
+func CompileExternal(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
+	return compileGraph(true, outputs...)
+}
+
+func compileGraph(externalOutputs bool, outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	order, err := tensor.Topological(outputs...)
 	if err != nil {
 		return nil, err
@@ -1139,6 +1149,7 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		outputViews:     make([]retainedStorageView, len(outputs)),
 		outputAliases:   make([]bool, len(outputs)),
 		targetContracts: make([]tensor.OutputTargetContract, len(outputs)),
+		externalOutputs: externalOutputs,
 		order:           order,
 		orderIndexes:    make(map[*tensor.Tensor]int, len(order)),
 	}
@@ -1215,12 +1226,6 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, stagingElements*stagingWidth)
 			}
 		}
-		if node.Op == tensor.OpAttention {
-			if bytes, ok := blasAttentionScoreBytes(node); ok {
-				compiled.needBlas = true
-				compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
-			}
-		}
 		if node.Op == tensor.OpConv2D {
 			attributes, ok := node.Attrs.(tensor.Conv2DAttributes)
 			if ok && !attributes.Depthwise && node.Inputs[0].Type == dtype.F32 &&
@@ -1243,20 +1248,36 @@ func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		}
 	}
 	dependencies := compileGraphRewrites(compiled, order, uses, consumers, outputSet)
-	for _, descriptor := range compiled.fusions {
-		if descriptor.kind != compiledFusionBF16Attention {
+	for _, node := range order {
+		if node.Op != tensor.OpAttention {
 			continue
 		}
-		bytes, ok := blasBF16AttentionStagingBytes(descriptor.bf16Attention)
-		if !ok {
-			return nil, errors.New("fused attention BF16 staging size overflows")
+		descriptor := compiled.fusions[node]
+		if descriptor != nil && descriptor.kind == compiledFusionBF16Attention {
+			bytes, ok := blasBF16AttentionStagingBytes(descriptor.bf16Attention)
+			if !ok {
+				return nil, errors.New("fused attention BF16 staging size overflows")
+			}
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
+			continue
 		}
-		compiled.needBlas = true
-		compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
+		if bytes, ok := blasAttentionScoreBytes(node); ok {
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
+		}
 	}
-	memory, err := planner.BuildWithRewrites(
-		outputs, graphArenaAlignment, dependencies, compiled.skipped,
-	)
+	plannerExcluded := compiled.skipped
+	if externalOutputs {
+		plannerExcluded = make(map[*tensor.Tensor]struct{}, len(compiled.skipped)+len(outputs))
+		for node := range compiled.skipped {
+			plannerExcluded[node] = struct{}{}
+		}
+		for _, output := range outputs {
+			plannerExcluded[output] = struct{}{}
+		}
+	}
+	memory, err := planner.BuildWithRewrites(outputs, graphArenaAlignment, dependencies, plannerExcluded)
 	if err != nil {
 		return nil, err
 	}
@@ -1605,6 +1626,16 @@ func execute(
 			return nil, errors.New("CUDA retained targets belong to another compiled graph")
 		}
 		targetValues = retainedTargets.values
+	}
+	if compiled.externalOutputs {
+		if len(targetValues) != len(outputs) {
+			return nil, errors.New("CUDA external-output graph requires retained targets")
+		}
+		for _, target := range targetValues {
+			if target.Pointer == 0 {
+				return nil, errors.New("CUDA external-output graph has an unbound target")
+			}
+		}
 	}
 	ownsOutput := func(index int) bool {
 		return len(targetValues) == 0 || targetValues[index].Pointer == 0

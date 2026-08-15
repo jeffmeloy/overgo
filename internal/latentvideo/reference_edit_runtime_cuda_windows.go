@@ -4,9 +4,11 @@ package latentvideo
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/pytorchzip"
@@ -24,17 +26,19 @@ type ReferenceEditRuntimeConfig struct {
 	Sigmas                       []float32
 	ContextTimestep              int64
 	Layers, DeviceOrdinal        int
+	Seed                         int64
 	TextContext                  []float32
 }
 
 type ReferenceEditRuntimeResult struct {
-	Latent        []float32
-	Sampler       EditSamplerStats
-	Source        SourceEncodeStats
-	Decode        VAEDecodeStats
-	Denoiser      ReferenceEditDenoiserStats
-	DenoiseMemory driver.MemoryStats
-	DecoderMemory driver.MemoryStats
+	Latent         []float32
+	Sampler        EditSamplerStats
+	Source         SourceEncodeStats
+	Decode         VAEDecodeStats
+	Denoiser       ReferenceEditDenoiserStats
+	DenoiseWallSec float64
+	DenoiseMemory  driver.MemoryStats
+	DecoderMemory  driver.MemoryStats
 }
 
 // ReferenceEditRuntime composes shared codec, transformer, sampler, and decode
@@ -42,14 +46,17 @@ type ReferenceEditRuntimeResult struct {
 type ReferenceEditRuntime struct {
 	mu sync.Mutex
 
-	config     ReferenceEditRuntimeConfig
-	base       DenoiserConfig
-	checkpoint ReferenceEditCheckpoint
-	sourcePlan SourceCodecPlan
-	editPlan   EditPlan
-	encoder    *VAEEncoderCUDASession
-	denoiser   *ReferenceEditDenoiserCUDASession
-	decoder    *VAEDecoderCUDASession
+	config            ReferenceEditRuntimeConfig
+	base              DenoiserConfig
+	checkpoint        ReferenceEditCheckpoint
+	sourcePlan        SourceCodecPlan
+	editPlan          EditPlan
+	encoder           *VAEEncoderCUDASession
+	denoiser          *ReferenceEditDenoiserCUDASession
+	decoder           *VAEDecoderCUDASession
+	sourceFingerprint [sha256.Size]byte
+	sourceLatent      []float32
+	sourceStats       SourceEncodeStats
 }
 
 func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *ReferenceEditRuntime, err error) {
@@ -90,6 +97,9 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *Refere
 		latent.LatentWidth / checkpoint.Config.PatchSize[2],
 	}
 	latent.Seq = latent.Grid[0] * latent.Grid[1] * latent.Grid[2]
+	if latent.LatentFrames > config.LocalAttentionFrames+config.FramesPerChunk {
+		return nil, errors.New("reference edit runtime: sliding history window is not compiled")
+	}
 	editPlan, err := CompileEditPlan(EditModelConfig{
 		PatchSize: checkpoint.Config.PatchSize, InputChannels: checkpoint.Config.InDim,
 		Dim: checkpoint.Config.Dim, TextLength: checkpoint.Config.TextLen,
@@ -122,7 +132,7 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *Refere
 	if err == nil {
 		runtime.denoiser, err = NewReferenceEditDenoiserCUDASession(
 			context.Background(), checkpoint, chunkGeometry, config.Layers,
-			config.FramesPerChunk, config.DeviceOrdinal, config.TextContext,
+			config.FramesPerChunk, config.LocalAttentionFrames, latent.LatentFrames, config.DeviceOrdinal, config.TextContext,
 		)
 	}
 	if err != nil {
@@ -151,11 +161,32 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 	if err := r.denoiser.ResetHistory(); err != nil {
 		return result, err
 	}
-	sourceLatent, sourceStats, err := r.encoder.Encode(ctx, r.sourcePlan, source)
+	noise, err := newEditNoiseStream(r.config.Seed, r.config.DeviceOrdinal)
 	if err != nil {
 		return result, err
 	}
+	if len(initialNoise) == 0 {
+		initialNoise = make([]float32, r.editPlan.Latent.Channels*r.editPlan.Latent.LatentFrames*r.editPlan.Latent.LatentHeight*r.editPlan.Latent.LatentWidth)
+		if err := noise.FillChannelMajor(initialNoise, r.editPlan.Latent.Channels, r.editPlan.Latent.LatentFrames, r.editPlan.Latent.LatentHeight*r.editPlan.Latent.LatentWidth); err != nil {
+			return result, err
+		}
+	} else if err := noise.Advance(len(initialNoise)); err != nil {
+		return result, err
+	}
+	fingerprint := sha256.Sum256(driver.Bytes(source))
+	sourceLatent, sourceStats := r.sourceLatent, r.sourceStats
+	if sourceLatent == nil || fingerprint != r.sourceFingerprint {
+		sourceLatent, sourceStats, err = r.encoder.Encode(ctx, r.sourcePlan, source)
+		if err != nil {
+			return result, err
+		}
+		r.sourceFingerprint, r.sourceLatent, r.sourceStats = fingerprint, sourceLatent, sourceStats
+	} else {
+		sourceStats.CacheHit = true
+		sourceStats.WallSeconds = 0
+	}
 	result.Source = sourceStats
+	denoiseStarted := time.Now()
 	result.Latent, result.Sampler, err = RunEditSampler(ctx, EditSamplerRequest{
 		Plan: r.editPlan, InitialNoise: initialNoise, Source: sourceLatent,
 		Sigmas: r.config.Sigmas, ContextTimestep: r.config.ContextTimestep, Arithmetic: EditBF16,
@@ -168,7 +199,7 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 			if err != nil {
 				return err
 			}
-			head, err := r.denoiser.RunChunk(patches, blockE, headE, step.Pass == EditContextRefresh)
+			head, err := r.denoiser.RunChunk(patches, blockE, headE, step.StartFrame, step.Pass == EditContextRefresh)
 			if err != nil {
 				return err
 			}
@@ -179,7 +210,11 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 			copy(flow, decoded)
 			return nil
 		},
+		Noise: func(_ context.Context, step EditStep, destination []float32) error {
+			return noise.FillChannelMajor(destination, r.editPlan.Latent.Channels, step.Frames, r.editPlan.Latent.LatentHeight*r.editPlan.Latent.LatentWidth)
+		},
 	})
+	result.DenoiseWallSec = time.Since(denoiseStarted).Seconds()
 	if err != nil {
 		return result, err
 	}
@@ -196,6 +231,67 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 		result.DecoderMemory, err = r.decoder.MemoryStats()
 	}
 	return result, err
+}
+
+type editNoiseStream struct {
+	seed, offset          uint64
+	smCount, threadsPerSM int
+}
+
+func newEditNoiseStream(seed int64, deviceOrdinal int) (editNoiseStream, error) {
+	library, err := driver.Open()
+	if err != nil {
+		return editNoiseStream{}, err
+	}
+	defer library.Close()
+	if err := library.Init(); err != nil {
+		return editNoiseStream{}, err
+	}
+	smCount, threadsPerSM, err := library.DeviceProfile(driver.Device(deviceOrdinal))
+	return editNoiseStream{seed: uint64(seed), smCount: smCount, threadsPerSM: threadsPerSM}, err
+}
+
+func (s *editNoiseStream) Advance(elements int) error {
+	_, advance, err := s.plan(elements)
+	if err == nil {
+		s.offset += advance
+	}
+	return err
+}
+
+func (s *editNoiseStream) FillChannelMajor(destination []float32, channels, frames, spatial int) error {
+	if len(destination) != channels*frames*spatial {
+		return errors.New("reference edit noise: channel-major shape differs")
+	}
+	plan, advance, err := s.plan(len(destination))
+	if err != nil {
+		return err
+	}
+	frameMajor := make([]float32, len(destination))
+	if err := FillNormalNoise(frameMajor, plan); err != nil {
+		return err
+	}
+	for frame := range frames {
+		for channel := range channels {
+			from := (frame*channels + channel) * spatial
+			to := (channel*frames + frame) * spatial
+			copy(destination[to:to+spatial], frameMajor[from:from+spatial])
+		}
+	}
+	s.offset += advance
+	return nil
+}
+
+func (s *editNoiseStream) plan(elements int) (NoisePlan, uint64, error) {
+	const block, unroll = 256, 4
+	if elements <= 0 || s.smCount <= 0 || s.threadsPerSM < block {
+		return NoisePlan{}, 0, errors.New("reference edit noise: invalid extent or device profile")
+	}
+	grid := min((elements+block-1)/block, s.smCount*(s.threadsPerSM/block))
+	grid = max(grid, 1)
+	stride := block * grid * unroll
+	advance := uint64((elements+stride-1)/stride) * unroll
+	return NoisePlan{Seed: s.seed, Offset: s.offset, Grid: grid, Block: block, Unroll: unroll}, advance, nil
 }
 
 func (r *ReferenceEditRuntime) Close() error {

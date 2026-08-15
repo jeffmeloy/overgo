@@ -2,6 +2,8 @@ package oscillatorimage
 
 import (
 	"fmt"
+
+	"overgo/internal/hostmath"
 )
 
 // Grads: parameter gradients keyed by artifact tensor name.
@@ -38,23 +40,10 @@ func (m *Model) trainingForwardTrace(init, drive []float32, b int) ([]float32, t
 }
 
 func (g Grads) add(name string, values []float32) {
-	dst, ok := g[name]
-	if !ok {
-		dst = make([]float32, len(values))
-		g[name] = dst
-	}
+	dst := hostmath.GradientSlot(g, name, len(values))
 	for i, v := range values {
 		dst[i] += v
 	}
-}
-
-func (g Grads) ensure(name string, n int) []float32 {
-	dst, ok := g[name]
-	if !ok || len(dst) != n {
-		dst = make([]float32, n)
-		g[name] = dst
-	}
-	return dst
 }
 
 // backwardInto: full generator VJP — tanh/decoder, readout, then Euler BPTT.
@@ -98,11 +87,11 @@ func (m *Model) backwardInto(trace trainingTrace, drive, dImage []float32, g Gra
 	readoutTransformBackwardInto(dState, tot, 0, dx, finalState, b, cfg.N, tot, 0, cfg.Relativization, cfg.Encoding)
 
 	// Euler BPTT through the dynamics.
-	dOmega := g.ensure(m.tensorName("omega"), cfg.N)
-	dOmegaCond := g.ensure(m.tensorName("omega_cond"), cfg.NCond)
-	dK := g.ensure(m.tensorName("k"), cfg.N*cfg.N)
-	dKCond := g.ensure(m.tensorName("k_cond"), cfg.NCond*cfg.NCond)
-	dDrive := g.ensure(m.tensorName("k_drive"), len(drive))
+	dOmega := hostmath.GradientSlot(g, m.tensorName("omega"), cfg.N)
+	dOmegaCond := hostmath.GradientSlot(g, m.tensorName("omega_cond"), cfg.NCond)
+	dK := hostmath.GradientSlot(g, m.tensorName("k"), cfg.N*cfg.N)
+	dKCond := hostmath.GradientSlot(g, m.tensorName("k_cond"), cfg.NCond*cfg.NCond)
+	dDrive := hostmath.GradientSlot(g, m.tensorName("k_drive"), len(drive))
 	dVel := make([]float32, stateSize)
 	stepDState := make([]float32, stateSize)
 	for s := numSteps - 1; s >= 0; s-- {

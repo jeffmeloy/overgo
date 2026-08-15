@@ -298,11 +298,11 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 			hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
 			dLogits := make([]float32, seq*d.Vocab)
 			loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
-			gradHead := g.slot(m.headName(), len(head))
+			gradHead := hostmath.GradientSlot(g, m.headName(), len(head))
 			dNormed := make([]float32, seq*d.Hidden)
 			hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
 			dx := make([]float32, seq*d.Hidden)
-			hostmath.RMSNormBackward(dx, g.slot("model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
+			hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, "model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
 			return dx, nil
 		}
 
@@ -327,11 +327,11 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		// Assemble the host gradient buffer for the non-matrix groups only.
 		for i := 0; i < d.Layers; i++ {
 			p := fmt.Sprintf("model.layers.%d.", i)
-			copy(g.slot(p+"input_layernorm.weight", d.Hidden), normGrads[i].InLN)
-			copy(g.slot(p+"post_attention_layernorm.weight", d.Hidden), normGrads[i].PostLN)
+			copy(hostmath.GradientSlot(g, p+"input_layernorm.weight", d.Hidden), normGrads[i].InLN)
+			copy(hostmath.GradientSlot(g, p+"post_attention_layernorm.weight", d.Hidden), normGrads[i].PostLN)
 		}
 		if !frozenLexical {
-			gradEmbed := g.slot("model.embed_tokens.weight", len(embed))
+			gradEmbed := hostmath.GradientSlot(g, "model.embed_tokens.weight", len(embed))
 			scatterEmbeddingGradient(gradEmbed, dxEmbed, tokens, d.Hidden)
 		}
 		off := 0

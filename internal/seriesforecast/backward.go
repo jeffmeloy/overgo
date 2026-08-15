@@ -16,15 +16,6 @@ import (
 // the canonical tensor names an optimizer will consume.
 type Grads map[string][]float32
 
-func (g Grads) slot(name string, n int) []float32 {
-	if buf, ok := g[name]; ok {
-		return buf
-	}
-	buf := make([]float32, n)
-	g[name] = buf
-	return buf
-}
-
 // gradFor returns the accumulation slot only when the forward weight exists
 // (heads ship without biases; absent weight means no gradient to hold).
 func (m *Model) gradFor(g Grads, name string) []float32 {
@@ -32,7 +23,7 @@ func (m *Model) gradFor(g Grads, name string) []float32 {
 	if w == nil {
 		return nil
 	}
-	return g.slot(name, len(w))
+	return hostmath.GradientSlot(g, name, len(w))
 }
 
 // residualBlockBackward: VJP of residualBlock; returns dx and accumulates
@@ -59,18 +50,18 @@ func (m *Model) residualBlockBackward(prefix string, x, dOut []float32, g Grads)
 
 	dActivated := make([]float32, hiddenDim)
 	hostmath.LinearBackward(dActivated,
-		g.slot(prefix+".output_layer.weight", outputDim*hiddenDim),
+		hostmath.GradientSlot(g, prefix+".output_layer.weight", outputDim*hiddenDim),
 		m.gradFor(g, prefix+".output_layer.bias"),
 		activated, m.Weights[prefix+".output_layer.weight"], dOut, 1, hiddenDim, outputDim, false)
 	dHidden := make([]float32, hiddenDim)
 	hostmath.SiLUBackward(dHidden, hidden, dActivated)
 	dx := make([]float32, inputDim)
 	hostmath.LinearBackward(dx,
-		g.slot(prefix+".hidden_layer.weight", hiddenDim*inputDim),
+		hostmath.GradientSlot(g, prefix+".hidden_layer.weight", hiddenDim*inputDim),
 		m.gradFor(g, prefix+".hidden_layer.bias"),
 		x, m.Weights[prefix+".hidden_layer.weight"], dHidden, 1, inputDim, hiddenDim, false)
 	hostmath.LinearBackward(dx,
-		g.slot(prefix+".residual_layer.weight", outputDim*inputDim),
+		hostmath.GradientSlot(g, prefix+".residual_layer.weight", outputDim*inputDim),
 		m.gradFor(g, prefix+".residual_layer.bias"),
 		x, m.Weights[prefix+".residual_layer.weight"], dOut, 1, inputDim, outputDim, true)
 	return dx, nil
@@ -230,7 +221,7 @@ func (m *Model) attnSubBackward(index int, l layer, x, dOut []float32, invFreq [
 	tr := m.attnSubForward(l, x, invFreq, seq)
 
 	dAttnCore := make([]float32, seq*width)
-	hostmath.LinearBackward(dAttnCore, g.slot(attn+".out.weight", d*width), nil,
+	hostmath.LinearBackward(dAttnCore, hostmath.GradientSlot(g, attn+".out.weight", d*width), nil,
 		tr.attnCore, l.o, dOut, seq, width, d, false)
 	dq := make([]float32, seq*width)
 	dk := make([]float32, seq*width)
@@ -240,7 +231,7 @@ func (m *Model) attnSubBackward(index int, l layer, x, dOut []float32, invFreq [
 	// Per-dim softplus query scale: parameter gradient reads the normed
 	// (pre-scale) query; the incoming dq then scales down to the norm output.
 	factor := math.Log2E / math.Sqrt(float64(hd))
-	gradPds := g.slot(attn+".per_dim_scale.per_dim_scale", hd)
+	gradPds := hostmath.GradientSlot(g, attn+".per_dim_scale.per_dim_scale", hd)
 	scale := compiledQueryScale(l.perDimScale, hd)
 	for row := 0; row < seq*heads; row++ {
 		for dim := 0; dim < hd; dim++ {
@@ -255,8 +246,8 @@ func (m *Model) attnSubBackward(index int, l layer, x, dOut []float32, invFreq [
 	// backward.
 	dqNorm := make([]float32, seq*width)
 	dkNorm := make([]float32, seq*width)
-	hostmath.RMSNormBackward(dqNorm, g.slot(attn+".query_ln.scale", hd), tr.qRoped, l.queryLN, dq, seq*heads, hd, eps, false)
-	hostmath.RMSNormBackward(dkNorm, g.slot(attn+".key_ln.scale", hd), tr.kRoped, l.keyLN, dk, seq*heads, hd, eps, false)
+	hostmath.RMSNormBackward(dqNorm, hostmath.GradientSlot(g, attn+".query_ln.scale", hd), tr.qRoped, l.queryLN, dq, seq*heads, hd, eps, false)
+	hostmath.RMSNormBackward(dkNorm, hostmath.GradientSlot(g, attn+".key_ln.scale", hd), tr.kRoped, l.keyLN, dk, seq*heads, hd, eps, false)
 	for p := 0; p < seq; p++ {
 		for h := 0; h < heads; h++ {
 			hostmath.RotaryHalfBackward(dqNorm[(p*heads+h)*hd:(p*heads+h+1)*hd], invFreq, p)
@@ -265,7 +256,7 @@ func (m *Model) attnSubBackward(index int, l layer, x, dOut []float32, invFreq [
 	}
 
 	matrix := d * d
-	gradQKV := g.slot(attn+".qkv_proj.weight", 3*matrix)
+	gradQKV := hostmath.GradientSlot(g, attn+".qkv_proj.weight", 3*matrix)
 	dx := make([]float32, seq*d)
 	hostmath.LinearBackward(dx, gradQKV[:matrix], nil, x, l.q, dqNorm, seq, d, width, false)
 	hostmath.LinearBackward(dx, gradQKV[matrix:2*matrix], nil, x, l.k, dkNorm, seq, d, width, true)
@@ -309,19 +300,19 @@ func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, s
 	// Feed-forward branch backward.
 	dhsum := append([]float32(nil), dOut...)
 	dMlp := make([]float32, seq*d)
-	hostmath.RMSNormBackward(dMlp, g.slot(prefix+".post_ff_ln.scale", d), mlp, l.postFFLN, dOut, seq, d, eps, false)
+	hostmath.RMSNormBackward(dMlp, hostmath.GradientSlot(g, prefix+".post_ff_ln.scale", d), mlp, l.postFFLN, dOut, seq, d, eps, false)
 	dActivated := make([]float32, seq*d)
-	hostmath.LinearBackward(dActivated, g.slot(prefix+".ff1.weight", d*d), nil, activated, l.ff1, dMlp, seq, d, d, false)
+	hostmath.LinearBackward(dActivated, hostmath.GradientSlot(g, prefix+".ff1.weight", d*d), nil, activated, l.ff1, dMlp, seq, d, d, false)
 	dPre := make([]float32, seq*d)
 	hostmath.SiLUBackward(dPre, pre, dActivated)
 	dFFIn := make([]float32, seq*d)
-	hostmath.LinearBackward(dFFIn, g.slot(prefix+".ff0.weight", d*d), nil, ffIn, l.ff0, dPre, seq, d, d, false)
-	hostmath.RMSNormBackward(dhsum, g.slot(prefix+".pre_ff_ln.scale", d), hsum, l.preFFLN, dFFIn, seq, d, eps, true)
+	hostmath.LinearBackward(dFFIn, hostmath.GradientSlot(g, prefix+".ff0.weight", d*d), nil, ffIn, l.ff0, dPre, seq, d, d, false)
+	hostmath.RMSNormBackward(dhsum, hostmath.GradientSlot(g, prefix+".pre_ff_ln.scale", d), hsum, l.preFFLN, dFFIn, seq, d, eps, true)
 
 	// Attention branch backward.
 	dOProj := make([]float32, seq*d)
-	hostmath.RMSNormBackward(dOProj, g.slot(prefix+".post_attn_ln.scale", d), oProj, l.postAttnLN, dhsum, seq, d, eps, false)
+	hostmath.RMSNormBackward(dOProj, hostmath.GradientSlot(g, prefix+".post_attn_ln.scale", d), oProj, l.postAttnLN, dhsum, seq, d, eps, false)
 	dInNorm := m.attnSubBackward(index, l, inNorm, dOProj, invFreq, seq, g)
-	hostmath.RMSNormBackward(dhsum, g.slot(prefix+".pre_attn_ln.scale", d), x, l.preAttnLN, dInNorm, seq, d, eps, true)
+	hostmath.RMSNormBackward(dhsum, hostmath.GradientSlot(g, prefix+".pre_attn_ln.scale", d), x, l.preAttnLN, dInNorm, seq, d, eps, true)
 	return dhsum, nil
 }

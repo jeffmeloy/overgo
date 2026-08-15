@@ -17,6 +17,15 @@ func TestTranspose2D(t *testing.T) {
 	}
 }
 
+func TestGradientSlot(t *testing.T) {
+	gradients := map[string][]float32{}
+	slot := GradientSlot(gradients, "weight", 3)
+	slot[1] = 2
+	if reused := GradientSlot(gradients, "weight", 3); !slices.Equal(reused, []float32{0, 2, 0}) {
+		t.Fatalf("reused slot = %v", reused)
+	}
+}
+
 func TestChannelMixF64Into(t *testing.T) {
 	const channels, positions = 2, 2
 	input := []float32{1, 2, 3, 4}

@@ -17,6 +17,16 @@ func Transpose2D(x []float32, rows, columns int) []float32 {
 	return out
 }
 
+// GradientSlot returns the named accumulation buffer, allocating it on first touch.
+func GradientSlot(gradients map[string][]float32, name string, size int) []float32 {
+	if slot, ok := gradients[name]; ok {
+		return slot
+	}
+	slot := make([]float32, size)
+	gradients[name] = slot
+	return slot
+}
+
 // RMSNormInto: out = x/sqrt(mean(x^2)+eps) * weight per row; a nil weight is
 // unit scale. out may alias x.
 func RMSNormInto(out, x, weight []float32, rows, d int, eps float64) {

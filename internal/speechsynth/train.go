@@ -20,15 +20,6 @@ import (
 // Grads accumulates named weight gradients, allocated on first touch.
 type Grads map[string][]float32
 
-func (g Grads) slot(name string, n int) []float32 {
-	if buf, ok := g[name]; ok {
-		return buf
-	}
-	buf := make([]float32, n)
-	g[name] = buf
-	return buf
-}
-
 // forwardStates: full-sequence teacher-forced backbone pass. states[i] is
 // layer i's input residual stream [T*d]; states[Layers] is the final stream
 // (pre-out_norm). Per-row math is identical to AppendForward (the full
@@ -108,15 +99,15 @@ func (m *Model) layerBackward(li int, x, dOut []float32, T int, g Grads) []float
 	// FFN residual: out = mid + lin2(gelu(lin1(LN2(mid)))).
 	dMid := append([]float32(nil), dOut...)
 	dH1 := make([]float32, T*ff)
-	hostmath.LinearBackward(dH1, g.slot(prefix+"linear2.weight", d*ff), nil, tr.h1post, l.lin2, dOut, T, ff, d, false)
+	hostmath.LinearBackward(dH1, hostmath.GradientSlot(g, prefix+"linear2.weight", d*ff), nil, tr.h1post, l.lin2, dOut, T, ff, d, false)
 	hostmath.GELUErfBackward(dH1, tr.h1pre, dH1)
 	dXn2 := make([]float32, T*d)
-	hostmath.LinearBackward(dXn2, g.slot(prefix+"linear1.weight", ff*d), nil, tr.xn2, l.lin1, dH1, T, d, ff, false)
-	hostmath.LayerNormBackward(dMid, g.slot(prefix+"norm2.weight", d), g.slot(prefix+"norm2.bias", d), tr.mid, l.norm2W, dXn2, T, d, transformerLayerNormEps, true)
+	hostmath.LinearBackward(dXn2, hostmath.GradientSlot(g, prefix+"linear1.weight", ff*d), nil, tr.xn2, l.lin1, dH1, T, d, ff, false)
+	hostmath.LayerNormBackward(dMid, hostmath.GradientSlot(g, prefix+"norm2.weight", d), hostmath.GradientSlot(g, prefix+"norm2.bias", d), tr.mid, l.norm2W, dXn2, T, d, transformerLayerNormEps, true)
 
 	// Attention residual: mid = x + outProj(attn(rope(qkv(LN1(x))))).
 	dAttn := make([]float32, T*d)
-	hostmath.LinearBackward(dAttn, g.slot(prefix+"self_attn.out_proj.weight", d*d), nil, tr.attn, l.outProj, dMid, T, d, d, false)
+	hostmath.LinearBackward(dAttn, hostmath.GradientSlot(g, prefix+"self_attn.out_proj.weight", d*d), nil, tr.attn, l.outProj, dMid, T, d, d, false)
 	dq := make([]float32, T*d)
 	dk := make([]float32, T*d)
 	dv := make([]float32, T*d)
@@ -138,9 +129,9 @@ func (m *Model) layerBackward(li int, x, dOut []float32, T int, g Grads) []float
 		copy(row[2*d:], dv[t*d:(t+1)*d])
 	}
 	dXn1 := dXn2 // fully overwritten below
-	hostmath.LinearBackward(dXn1, g.slot(prefix+"self_attn.in_proj.weight", 3*d*d), nil, tr.xn1, l.inProj, dqkv, T, d, 3*d, false)
+	hostmath.LinearBackward(dXn1, hostmath.GradientSlot(g, prefix+"self_attn.in_proj.weight", 3*d*d), nil, tr.xn1, l.inProj, dqkv, T, d, 3*d, false)
 	dx := dMid // residual skip: dx = dMid + LN1 path
-	hostmath.LayerNormBackward(dx, g.slot(prefix+"norm1.weight", d), g.slot(prefix+"norm1.bias", d), x, l.norm1W, dXn1, T, d, transformerLayerNormEps, true)
+	hostmath.LayerNormBackward(dx, hostmath.GradientSlot(g, prefix+"norm1.weight", d), hostmath.GradientSlot(g, prefix+"norm1.bias", d), x, l.norm1W, dXn1, T, d, transformerLayerNormEps, true)
 	return dx
 }
 
@@ -202,7 +193,7 @@ func (te *timeEmbed) forwardTrace(out []float32, t float64, flowDim int) timeEmb
 // the UNBIASED mean-subtracted variance of h (the vendor quirk). emb is
 // constant w.r.t. parameters, so l0 takes parameter grads only.
 func (te *timeEmbed) backward(tr *timeEmbedTrace, dY []float32, flowDim int, g Grads, prefix string) {
-	alpha := g.slot(prefix+"mlp.3.alpha", flowDim)
+	alpha := hostmath.GradientSlot(g, prefix+"mlp.3.alpha", flowDim)
 	var dInv float64
 	for i := range dY {
 		alpha[i] += float32(float64(dY[i]) * float64(tr.h[i]) * tr.inv)
@@ -215,9 +206,9 @@ func (te *timeEmbed) backward(tr *timeEmbedTrace, dY []float32, flowDim int, g G
 			dVar*2*(float64(tr.h[i])-tr.mean)/float64(flowDim-1))
 	}
 	dH0 := make([]float32, flowDim)
-	hostmath.LinearBackward(dH0, g.slot(prefix+"mlp.2.weight", flowDim*flowDim), g.slot(prefix+"mlp.2.bias", flowDim), tr.h0post, te.l2w, dH, 1, flowDim, flowDim, false)
+	hostmath.LinearBackward(dH0, hostmath.GradientSlot(g, prefix+"mlp.2.weight", flowDim*flowDim), hostmath.GradientSlot(g, prefix+"mlp.2.bias", flowDim), tr.h0post, te.l2w, dH, 1, flowDim, flowDim, false)
 	hostmath.SiLUBackward(dH0, tr.h0pre, dH0)
-	hostmath.LinearBackward(nil, g.slot(prefix+"mlp.0.weight", flowDim*2*len(te.freqs)), g.slot(prefix+"mlp.0.bias", flowDim), tr.emb, te.l0w, dH0, 1, 2*len(te.freqs), flowDim, false)
+	hostmath.LinearBackward(nil, hostmath.GradientSlot(g, prefix+"mlp.0.weight", flowDim*2*len(te.freqs)), hostmath.GradientSlot(g, prefix+"mlp.0.bias", flowDim), tr.emb, te.l0w, dH0, 1, 2*len(te.freqs), flowDim, false)
 }
 
 // flowForwardTrace mirrors flowForwardInto, retaining every intermediate the
@@ -297,7 +288,7 @@ func (m *Model) flowBackward(tr *flowTrace, cond, x, dOut []float32, g Grads, dX
 	const p = "flow_lm.flow_net."
 
 	dNfm := make([]float32, dim)
-	hostmath.LinearBackward(dNfm, g.slot(p+"final_layer.linear.weight", latent*dim), g.slot(p+"final_layer.linear.bias", latent), tr.nfm, fn.finalLinW, dOut, 1, dim, latent, false)
+	hostmath.LinearBackward(dNfm, hostmath.GradientSlot(g, p+"final_layer.linear.weight", latent*dim), hostmath.GradientSlot(g, p+"final_layer.linear.bias", latent), tr.nfm, fn.finalLinW, dOut, 1, dim, latent, false)
 	scaleF := tr.adaF[dim:]
 	dNf := make([]float32, dim)
 	dAdaF := make([]float32, 2*dim)
@@ -307,7 +298,7 @@ func (m *Model) flowBackward(tr *flowTrace, cond, x, dOut []float32, g Grads, dX
 		dAdaF[dim+i] = dNfm[i] * tr.nf[i] // dScale
 	}
 	dYSiLU := make([]float32, dim)
-	hostmath.LinearBackward(dYSiLU, g.slot(p+"final_layer.adaLN_modulation.1.weight", 2*dim*dim), g.slot(p+"final_layer.adaLN_modulation.1.bias", 2*dim), tr.ySiLU, fn.finalAdaW, dAdaF, 1, dim, 2*dim, false)
+	hostmath.LinearBackward(dYSiLU, hostmath.GradientSlot(g, p+"final_layer.adaLN_modulation.1.weight", 2*dim*dim), hostmath.GradientSlot(g, p+"final_layer.adaLN_modulation.1.bias", 2*dim), tr.ySiLU, fn.finalAdaW, dAdaF, 1, dim, 2*dim, false)
 	dCur := make([]float32, dim)
 	hostmath.LayerNormBackward(dCur, nil, nil, tr.cur[len(fn.blocks)], nil, dNf, 1, dim, flowLayerNormEps, false)
 
@@ -326,22 +317,22 @@ func (m *Model) flowBackward(tr *flowTrace, cond, x, dOut []float32, g Grads, dX
 			dH2[i] = dCur[i] * gate[i]
 			dAda[2*dim+i] = dCur[i] * bt.h2[i] // dGate
 		}
-		hostmath.LinearBackward(dH1, g.slot(bp+"mlp.2.weight", dim*dim), g.slot(bp+"mlp.2.bias", dim), bt.h1post, b.mlp2w, dH2, 1, dim, dim, false)
+		hostmath.LinearBackward(dH1, hostmath.GradientSlot(g, bp+"mlp.2.weight", dim*dim), hostmath.GradientSlot(g, bp+"mlp.2.bias", dim), bt.h1post, b.mlp2w, dH2, 1, dim, dim, false)
 		hostmath.SiLUBackward(dH1, bt.h1pre, dH1)
-		hostmath.LinearBackward(dHmod, g.slot(bp+"mlp.0.weight", dim*dim), g.slot(bp+"mlp.0.bias", dim), bt.hmod, b.mlp0w, dH1, 1, dim, dim, false)
+		hostmath.LinearBackward(dHmod, hostmath.GradientSlot(g, bp+"mlp.0.weight", dim*dim), hostmath.GradientSlot(g, bp+"mlp.0.bias", dim), bt.hmod, b.mlp0w, dH1, 1, dim, dim, false)
 		for i := 0; i < dim; i++ {
 			dHln[i] = dHmod[i] * (1 + scale[i])
 			dAda[i] = dHmod[i]                 // dShift
 			dAda[dim+i] = dHmod[i] * bt.hln[i] // dScale
 		}
-		hostmath.LinearBackward(dYSiLU, g.slot(bp+"adaLN_modulation.1.weight", 3*dim*dim), g.slot(bp+"adaLN_modulation.1.bias", 3*dim), tr.ySiLU, b.adaW, dAda, 1, dim, 3*dim, true)
-		hostmath.LayerNormBackward(dCurLn, g.slot(bp+"in_ln.weight", dim), g.slot(bp+"in_ln.bias", dim), tr.cur[bi], b.inLnW, dHln, 1, dim, flowLayerNormEps, false)
+		hostmath.LinearBackward(dYSiLU, hostmath.GradientSlot(g, bp+"adaLN_modulation.1.weight", 3*dim*dim), hostmath.GradientSlot(g, bp+"adaLN_modulation.1.bias", 3*dim), tr.ySiLU, b.adaW, dAda, 1, dim, 3*dim, true)
+		hostmath.LayerNormBackward(dCurLn, hostmath.GradientSlot(g, bp+"in_ln.weight", dim), hostmath.GradientSlot(g, bp+"in_ln.bias", dim), tr.cur[bi], b.inLnW, dHln, 1, dim, flowLayerNormEps, false)
 		for i := range dCur { // block input feeds residual and LN
 			dCur[i] += dCurLn[i]
 		}
 	}
 
-	hostmath.LinearBackward(dX, g.slot(p+"input_proj.weight", dim*latent), g.slot(p+"input_proj.bias", dim), x, fn.inputProjW, dCur, 1, latent, dim, false)
+	hostmath.LinearBackward(dX, hostmath.GradientSlot(g, p+"input_proj.weight", dim*latent), hostmath.GradientSlot(g, p+"input_proj.bias", dim), x, fn.inputProjW, dCur, 1, latent, dim, false)
 	dY := make([]float32, dim)
 	hostmath.SiLUBackward(dY, tr.y, dYSiLU)
 	dTE := make([]float32, dim)
@@ -350,7 +341,7 @@ func (m *Model) flowBackward(tr *flowTrace, cond, x, dOut []float32, g Grads, dX
 	}
 	fn.timeEmbeds[0].backward(&tr.te[0], dTE, dim, g, p+"time_embed.0.")
 	fn.timeEmbeds[1].backward(&tr.te[1], dTE, dim, g, p+"time_embed.1.")
-	hostmath.LinearBackward(dCond, g.slot(p+"cond_embed.weight", dim*len(cond)), g.slot(p+"cond_embed.bias", dim), cond, fn.condEmbedW, dY, 1, len(cond), dim, false)
+	hostmath.LinearBackward(dCond, hostmath.GradientSlot(g, p+"cond_embed.weight", dim*len(cond)), hostmath.GradientSlot(g, p+"cond_embed.bias", dim), cond, fn.condEmbedW, dY, 1, len(cond), dim, false)
 }
 
 // LossAndGrads: joint teacher-forced fine-tune step math. Stream =
@@ -417,7 +408,7 @@ func (m *Model) LossAndGrads(textIDs []int, z []float32, frames int, noiseSeed i
 	}
 	// out_norm VJP over the full stream, then the backbone walk.
 	dStream := make([]float32, T*d)
-	hostmath.LayerNormBackward(dStream, g.slot("flow_lm.out_norm.weight", d), g.slot("flow_lm.out_norm.bias", d), final, m.outNormW, dCondFull, T, d, transformerLayerNormEps, false)
+	hostmath.LayerNormBackward(dStream, hostmath.GradientSlot(g, "flow_lm.out_norm.weight", d), hostmath.GradientSlot(g, "flow_lm.out_norm.bias", d), final, m.outNormW, dCondFull, T, d, transformerLayerNormEps, false)
 	for li := len(m.layers) - 1; li >= 0; li-- {
 		dStream = m.layerBackward(li, states[li], dStream, T, g)
 	}

@@ -54,7 +54,14 @@ func (m *Model) decode(features sampleFeatures) (latentimage.EncodedImage, error
 	return latentimage.EncodePlanarPNG(features.pixels, features.height, features.width)
 }
 
-func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model *Model) error {
+type runtimeBinding interface {
+	*Model | *ResidentGenerator
+	prepare(Request) (samplePlan, error)
+	integrate(samplePlan) (sampleFeatures, error)
+	decode(sampleFeatures) (latentimage.EncodedImage, error)
+}
+
+func RegisterRuntime[T runtimeBinding](runtime *workflowruntime.Runtime, modelID artifact.ID, model T) error {
 	if model == nil {
 		return errors.New("diffusionimage: incomplete runtime binding")
 	}

@@ -84,7 +84,7 @@ func imageCapability() capability {
 		func(ctx context.Context, generator *diffusionimage.ResidentGenerator, request diffusionimage.Request) error {
 			return generator.Reset(ctx, request)
 		},
-		diffusionimage.RegisterResidentRuntime,
+		diffusionimage.RegisterRuntime[*diffusionimage.ResidentGenerator],
 	)
 	diffusion := residentExecutor(diffusionCache, diffusionErr)
 	return capability{

@@ -726,6 +726,59 @@ func TestNeedleRealGSM8KTiedEmbeddingMuon(t *testing.T) {
 	t.Logf("real GSM8K tied-embedding Muon: train %.6f -> %.6f; held-out %.6f -> %.6f; BF16 words changed=%d source-token=%d decoder-token=%d; finite difference=%g/%g", trainBefore, trainAfter, heldOutBefore, heldOutAfter, changed, sourceChanged, decoderChanged, analytic, finite)
 }
 
+func TestNeedleRealGSM8KCorpusTraining(t *testing.T) {
+	const trainRecords, heldOutRecords, epochs = 4, 4, 2
+	var generator *Generator
+	trainPairs := make([]TrainingPair, trainRecords)
+	heldOutPairs := make([]TrainingPair, heldOutRecords)
+	for ordinal := range trainRecords + heldOutRecords {
+		loaded, pair, _ := realGSM8KTrainingPair(t, ordinal)
+		if generator == nil {
+			generator = loaded
+		}
+		if ordinal < trainRecords {
+			trainPairs[ordinal] = pair
+		} else {
+			heldOutPairs[ordinal-trainRecords] = pair
+		}
+	}
+	meanLoss := func(pairs []TrainingPair) float64 {
+		var sum float64
+		for _, pair := range pairs {
+			loss, err := generator.model.Loss(pair)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sum += loss
+		}
+		return sum / float64(len(pairs))
+	}
+	trainBefore := meanLoss(trainPairs)
+	heldOutBefore := meanLoss(heldOutPairs)
+	steps := trainRecords * epochs
+	trainer, err := NewTrainer(generator.model, steps, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	trajectory := make([]float64, 0, steps)
+	for range epochs {
+		for _, pair := range trainPairs {
+			loss, err := trainer.Step(pair)
+			if err != nil {
+				t.Fatal(err)
+			}
+			trajectory = append(trajectory, loss)
+		}
+	}
+	trainAfter := meanLoss(trainPairs)
+	heldOutAfter := meanLoss(heldOutPairs)
+	if !(trainAfter < trainBefore) || math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
+		t.Fatalf("corpus result train %.6f -> %.6f held-out %.6f -> %.6f trajectory=%v", trainBefore, trainAfter, heldOutBefore, heldOutAfter, trajectory)
+	}
+	t.Logf("real GSM8K fixed split: train_records=%d held_out_records=%d epochs=%d train %.6f -> %.6f held-out %.6f -> %.6f trajectory=%v", trainRecords, heldOutRecords, epochs, trainBefore, trainAfter, heldOutBefore, heldOutAfter, trajectory)
+}
+
 func TestNeedleRealGSM8KFinalSelfAttentionGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
 	trainer, err := NewTrainer(generator.model, 1, 0.001, 0.9)

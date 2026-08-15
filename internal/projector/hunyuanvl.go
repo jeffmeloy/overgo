@@ -42,10 +42,6 @@ type HunyuanVLRunner struct {
 	attention visionAttentionPlan
 }
 
-func OpenHunyuanVL(path string) (*HunyuanVLRunner, error) {
-	return OpenHunyuanVLWithOptions(path, OpenOptions{})
-}
-
 func OpenHunyuanVLWithOptions(path string, options OpenOptions) (*HunyuanVLRunner, error) {
 	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*HunyuanVLRunner, error) {
 		return openHunyuanVL(context.Background(), file, options)

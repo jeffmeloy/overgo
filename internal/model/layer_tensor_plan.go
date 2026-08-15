@@ -365,6 +365,9 @@ func (p MoEGraphPlan) BuildLayer(
 	input, routerInput *tensor.Tensor,
 	weights LayerGraphWeights,
 ) *tensor.Tensor {
+	if p.OptionalSelectionBias {
+		p.SelectionBias = weights.FeedForwardExpertBias != nil
+	}
 	up := weights.FeedForwardUpExperts
 	gate := weights.FeedForwardGateExperts
 	if weights.FeedForwardGateUpExperts != nil {

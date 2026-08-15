@@ -78,6 +78,11 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, tokens []int, steps i
 	return m.trainDeviceResident(worker, repeatedBatches(tokens, steps), baseLR, mu, false, nil)
 }
 
+// TrainDeviceResidentBatches preserves ordered batches under one resident lifecycle.
+func (m *Model) TrainDeviceResidentBatches(worker *device.Worker, batches [][]int, baseLR, mu float64) ([]float64, error) {
+	return m.trainDeviceResident(worker, batches, baseLR, mu, false, nil)
+}
+
 // TrainDeviceResidentFrozenLexical keeps the production frozen lexical tail on
 // device; only scalar loss and layer norm gradients cross to host per step.
 func (m *Model) TrainDeviceResidentFrozenLexical(worker *device.Worker, tokens []int, steps int, baseLR, mu float64) ([]float64, error) {

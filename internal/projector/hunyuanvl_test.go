@@ -31,7 +31,7 @@ func (hunyuanVLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenize
 
 func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 	path := writeTinyHunyuanVL(t, tinyHunyuanVLTensors())
-	runner, err := OpenHunyuanVL(path)
+	runner, err := OpenHunyuanVLWithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
-	projector, err := OpenImageProjector(context.Background(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()))
+	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
 }
 
 func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
-	runner, err := OpenHunyuanVL(writeTinyHunyuanVL(t, tinyHunyuanVLTensors()))
+	runner, err := OpenHunyuanVLWithOptions(writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestPreprocessHunyuanVLImageRasterPatchOrder(t *testing.T) {
 
 func TestHunyuanVLCatalogRejectsIncompletePreNorm(t *testing.T) {
 	tensors := append(tinyHunyuanVLTensors(), f32Tensor("v.pre_ln.weight", []uint64{4}, []float32{1, 1, 1, 1}))
-	if _, err := OpenHunyuanVL(writeTinyHunyuanVL(t, tensors)); err == nil || !strings.Contains(err.Error(), "must be paired") {
+	if _, err := OpenHunyuanVLWithOptions(writeTinyHunyuanVL(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -166,7 +166,7 @@ func TestHunyuanVLCatalogKeepsHostReorderedWeightOffDevice(t *testing.T) {
 func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyHunyuanVL(t, nonzeroTinyHunyuanVLTensors())
-	cpu, err := OpenHunyuanVL(path)
+	cpu, err := OpenHunyuanVLWithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

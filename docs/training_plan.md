@@ -57,8 +57,9 @@ Implemented substrate:
 
 Production gaps:
 
-- scratch construction and program types are implemented; generalized
-  multimodal/objective compilation is incomplete;
+- shared lazy dataset materialization, split membership, exact deduplication,
+  typed processor binding, weighted/resumable order, packing, microbatching and
+  bounded decode feed dense, scratch and diffusion-image loops; generalized objectives remain incomplete;
 - scratch initialization is content-addressed in memory but initialized-model,
   checkpoint and run publication are not yet production-reachable RepoDB flows;
 - `cmd/train` selects the resident dense device loop; the displaced per-step
@@ -67,8 +68,8 @@ Production gaps:
 - matrix, vector and scalar groups share the Muon Newton–Schulz path;
 - no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed the compiled
   resident training contract;
-- compiled multimodal training authority is not implemented as a sole runtime
-  owner;
+- compiled multimodal training authority binds dataset processor modalities;
+  processor/projector/codec gradient execution is not yet the sole runtime owner;
 - real multimodal processor/projector/codec gradient and held-out quality gates
   remain open.
 - SimpleDiffusion compiles every real tensor into shared Muon geometry; its

@@ -336,6 +336,10 @@ func runDeviceDecode(l *ladder) error {
 			}
 		}
 	}()
+	deviceInputs, err := compiled.BindDeviceInputs(deviceFeeds)
+	if err != nil {
+		return err
+	}
 	afterLoadMiB := gpuUsedMiB()
 	l.log(fmt.Sprintf("DEVICE decode residency gpu.used %d->%dMiB (delta=%dMiB) free=%dMiB kv_capacity_bytes=%d/layer",
 		baseMiB, afterLoadMiB, afterLoadMiB-baseMiB, gpuFreeMiB(), kvBytes))
@@ -412,7 +416,7 @@ func runDeviceDecode(l *ladder) error {
 		hostFeeds := map[*tensor.Tensor]reference.Value{
 			g.Embedding: {Shape: tensor.MustShape(uint64(H), 1), Data: embedding},
 		}
-		retained, err := exe.ExecuteRetainedCompiledParameterized(ctx, compiled, hostFeeds, deviceFeeds, targets, attrs)
+		retained, err := exe.ExecuteRetainedCompiled(ctx, compiled, hostFeeds, deviceInputs, targets, attrs)
 		if err != nil {
 			return fmt.Errorf("device execute step %d: %w", step, err)
 		}
@@ -468,7 +472,7 @@ func runDeviceDecode(l *ladder) error {
 	}
 	const warm, iters = 5, 50
 	for i := 0; i < warm; i++ {
-		r, e := exe.ExecuteRetainedCompiledParameterized(ctx, compiled, measFeeds, deviceFeeds, targets, attrs)
+		r, e := exe.ExecuteRetainedCompiled(ctx, compiled, measFeeds, deviceInputs, targets, attrs)
 		if e != nil {
 			return e
 		}
@@ -476,7 +480,7 @@ func runDeviceDecode(l *ladder) error {
 	}
 	start := time.Now()
 	for i := 0; i < iters; i++ {
-		r, e := exe.ExecuteRetainedCompiledParameterized(ctx, compiled, measFeeds, deviceFeeds, targets, attrs)
+		r, e := exe.ExecuteRetainedCompiled(ctx, compiled, measFeeds, deviceInputs, targets, attrs)
 		if e != nil {
 			return e
 		}

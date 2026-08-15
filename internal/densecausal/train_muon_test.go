@@ -2,6 +2,7 @@ package densecausal
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"overgo/internal/testutil"
@@ -91,6 +92,31 @@ func TestTrainResumeMatchesUninterrupted(t *testing.T) {
 			if wa[i] != wb[i] {
 				t.Fatalf("weight %q[%d]: uninterrupted %g != resumed %g", name, i, wa[i], wb[i])
 			}
+		}
+	}
+}
+
+func TestTrainBatchesResumeMatchesUninterrupted(t *testing.T) {
+	batches := [][]int{
+		{1, 5, 9, 3, 7, 2, 11, 4},
+		{4, 11, 2, 7, 3, 9, 5, 1},
+		{1, 2, 3, 4, 5, 6, 7, 8},
+	}
+	uninterrupted := tinyMuonModel(t)
+	if _, err := uninterrupted.TrainBatches(batches, 0, 0.9); err != nil {
+		t.Fatal(err)
+	}
+	resumed := tinyMuonModel(t)
+	_, state, err := resumed.TrainBatchesResume(batches[:2], 0, 0.9, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := resumed.TrainBatchesResume(batches[2:], 0, 0.9, &state); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range uninterrupted.Weights {
+		if got := resumed.Weights[name]; !slices.Equal(got, want) {
+			t.Fatalf("resumed batch weights differ for %q", name)
 		}
 	}
 }

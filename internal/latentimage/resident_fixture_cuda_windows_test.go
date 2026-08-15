@@ -28,7 +28,7 @@ func newResidentFixture(
 	if err != nil {
 		t.Fatal(err)
 	}
-	graph, err := runtime.compile(ctx, label, source, inputs, outputs...)
+	graph, err := runtime.compile(ctx, label, source, inputs, nil, outputs...)
 	if err != nil {
 		_ = runtime.close(ctx)
 		t.Fatal(err)

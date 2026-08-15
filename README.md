@@ -94,7 +94,7 @@ policy. Per-entry leases allow unrelated keys to execute concurrently.
 | Image generation | Typed conditioning, resident CUDA denoise, PNG artifact publication | Krea has retained 2048 evidence; SenseNova has a device-gated text request-to-PNG recipe at the pinned 256px case; full-size and edit evidence remain open |
 | Video generation | Resident Wan denoise and CUDA VAE decode; LiveEdit schedule, checkpoint binding, neutral trajectory, and shared text conditioning | Wan has full-clip evidence; LiveEdit source encode, retained denoise integration, production activation, and output leadership remain open |
 | Speech, forecast, table, seq2seq | Shared runtime/recipe components exist | Pocket-TTS has real recipe, latent/EOS, PCM/WAV, channel/rate, wall, and heap evidence; other promotions vary |
-| Training | Muon-only dense/hybrid primitives plus corpus-derived scratch construction through shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the pinned scratch profile lead; complete-state resume and universal objectives remain open |
+| Training | Shared dataset streaming feeds dense, scratch, and diffusion-image Muon trainers; scratch construction uses shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the pinned scratch profile lead; RepoDB CLI selection, complete-state resume, and universal multimodal objectives remain open |
 
 Explicit gaps include full-size SenseNova image/edit evidence, the remaining
 LiveEdit device pipeline, Unlimited OCR exact full-sequence numerics and matched peak
@@ -285,7 +285,7 @@ Train a dense safetensors causal model:
 ```bash
 go run ./cmd/train \
   -model D:/models/carbon \
-  -text D:/datasets/train.txt \
+  -dataset D:/datasets/train.txt \
   -out D:/checkpoints/carbon-run \
   -steps 4 -freeze-lexical
 ```
@@ -299,8 +299,12 @@ model weights plus `config.json` and `tokenizer.json`; it is not yet an atomic,
 complete-state resume containing optimizer, RNG, and data cursor. Internal
 scratch construction compiles corpus-derived topology, a flat initialized slab,
 shared tensor forward/VJP, and host/resident Muon programs with matched evidence.
+Dense, scratch, and diffusion-image loops consume the same ordered stream owner. RepoDB dataset
+materialization supplies lazy offset-indexed file access, immutable membership
+selection, exact deduplication, typed processors, weighted deterministic order,
+cursor snapshots, byte packing, microbatches, and bounded parallel decode.
 `cmd/train` does not yet publish that construction as a complete model artifact
-or expose scratch construction as its production CLI path.
+or select a RepoDB dataset/split as its production CLI path.
 See the [training plan](docs/training_plan.md) for the exact boundary.
 
 ## Commands

@@ -791,7 +791,7 @@ func testGemmaE4BResizeParity(t *testing.T) {
 	if closeErr != nil {
 		t.Fatal(closeErr)
 	}
-	runner, err := projector.OpenGemma4Tower(projectorPath)
+	runner, err := projector.OpenGemma4TowerWithOptions(projectorPath, projector.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

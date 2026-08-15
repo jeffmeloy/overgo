@@ -49,7 +49,7 @@ func (gemma4PromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.T
 
 func TestGemma4RunnerTinyFixture(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenGemma4(path)
+	runner, err := OpenGemma4WithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 
 func TestGemma4MultipleImagePrompt(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenGemma4(path)
+	runner, err := OpenGemma4WithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestGemma4MultipleImagePrompt(t *testing.T) {
 func TestGemma4RunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	cpu, err := OpenGemma4(path)
+	cpu, err := OpenGemma4WithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func compareExactFloat32(t *testing.T, name string, got, want []float32) {
 
 func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenGemma4(path)
+	runner, err := OpenGemma4WithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 
 func TestGemma4AudioTinyFixture(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenGemma4(path)
+	runner, err := OpenGemma4WithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

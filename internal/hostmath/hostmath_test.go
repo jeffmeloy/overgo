@@ -38,6 +38,16 @@ func TestLinearBF16MatchesPromotedLinear(t *testing.T) {
 	}
 }
 
+func TestLinearBF16BackwardInput(t *testing.T) {
+	words := []uint16{0x3f80, 0xc000, 0x3f00, 0x4040}
+	dy := []float32{2, -1}
+	dx := make([]float32, 2)
+	LinearBF16BackwardInput(dx, dy, words, 1, 2, 2)
+	if want := []float32{1.5, -7}; !slices.Equal(dx, want) {
+		t.Fatalf("input gradient = %v, want %v", dx, want)
+	}
+}
+
 // TestGELUTanh pins the tanh approximation against PyTorch gelu(approximate="tanh").
 func TestGELUTanh(t *testing.T) {
 	v := []float32{0, 1, -1, 2, -2, 0.5}

@@ -143,6 +143,20 @@ func float32FromBF16(value uint16) float32 { return math.Float32frombits(uint32(
 // pass and returns logits [len(tgt), vocab] — the recompute reference the
 // incremental session is checked against.
 func (m *Model) DecodeFull(memory []float32, memRows int, tgt []int) ([]float32, error) {
+	hidden, err := m.decodeHiddenFull(memory, memRows, tgt)
+	if err != nil {
+		return nil, err
+	}
+	rows, d := len(tgt), m.Dims.DModel
+	logits := make([]float32, rows*m.Dims.Vocab)
+	scratch := make([]float32, d)
+	for row := 0; row < rows; row++ {
+		m.projectLogits(logits[row*m.Dims.Vocab:(row+1)*m.Dims.Vocab], hidden[row*d:(row+1)*d], scratch)
+	}
+	return logits, nil
+}
+
+func (m *Model) decodeHiddenFull(memory []float32, memRows int, tgt []int) ([]float32, error) {
 	if len(tgt) == 0 {
 		return nil, fmt.Errorf("seq2seq: empty target")
 	}
@@ -175,10 +189,5 @@ func (m *Model) DecodeFull(memory []float32, memRows int, tgt []int) ([]float32,
 		hostmath.MaskedBidirectionalAttention(attn, q, cross.k[layer], cross.v[layer], rows, cross.rows, dims.Heads, dims.KVHeads, dims.HeadDim, nil)
 		m.gatedResidualOut(hidden, attn, crossBlock.o, rows, crossBlock.gate)
 	}
-	logits := make([]float32, rows*dims.Vocab)
-	scratch := make([]float32, d)
-	for row := 0; row < rows; row++ {
-		m.projectLogits(logits[row*dims.Vocab:(row+1)*dims.Vocab], hidden[row*d:(row+1)*d], scratch)
-	}
-	return logits, nil
+	return hidden, nil
 }

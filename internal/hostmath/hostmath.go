@@ -183,6 +183,23 @@ func LinearBF16(dst, x []float32, w []uint16, rows, inDim, outDim int) {
 	})
 }
 
+// LinearBF16BackwardInput applies the input VJP for a native-BF16 linear.
+func LinearBF16BackwardInput(dx, dy []float32, w []uint16, rows, inDim, outDim int) {
+	parallelRangeCost(inDim, rows*outDim, macF32, func(cStart, cEnd int) {
+		for r := 0; r < rows; r++ {
+			dyRow := dy[r*outDim : (r+1)*outDim]
+			dxRow := dx[r*inDim : (r+1)*inDim]
+			for c := cStart; c < cEnd; c++ {
+				var sum float32
+				for o, gradient := range dyRow {
+					sum += gradient * math.Float32frombits(uint32(w[o*inDim+c])<<16)
+				}
+				dxRow[c] = sum
+			}
+		}
+	})
+}
+
 // linearCols: output columns [oStart,oEnd) of Linear — the serial kernel the
 // dispatch calibration times.
 func linearCols(dst, x, w []float32, rows, inDim, outDim, oStart, oEnd int) {

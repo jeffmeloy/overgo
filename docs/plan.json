@@ -41,15 +41,15 @@
       ]
     },
     {
-      "id": "un0-png-publication",
-      "title": "Publish real Un-0 images as encoded PNG artifacts",
+      "id": "simplediffusion-png-publication",
+      "title": "Publish real SimpleDiffusion samples through a typed PNG recipe",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Publish real Un-0 images as encoded PNG artifacts",
+          "title": "Publish real SimpleDiffusion samples through a typed PNG recipe",
           "status": "open",
-          "verify": "go test -tags modeltest ./internal/oscillatorimage -run '^TestArtifactPublishesReferencePNG$' -count=1 -v"
+          "verify": "go test -tags modeltest ./internal/diffusionimage -run '^TestRealCheckpointPublishesReferencePNG$' -count=1 -v"
         }
       ]
     },

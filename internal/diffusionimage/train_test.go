@@ -71,6 +71,11 @@ func TestTinyModelTrainDescends(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := trainer.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 	losses := make([]float64, 0, steps)
 	for step := 0; step < steps; step++ {
 		loss, err := trainer.Step(x, target, fx.B, fx.H, fx.W)
@@ -101,6 +106,11 @@ func TestRealCheckpointMuonPlanCompiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := trainer.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}()
 	if trainer.pack.ParameterCount() == 0 {
 		t.Fatal("real-artifact Muon plan is empty")
 	}

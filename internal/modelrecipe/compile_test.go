@@ -207,6 +207,27 @@ func TestTypedVideoRecipesSelectRuntimeWithoutPlacement(t *testing.T) {
 	}
 }
 
+func TestTypedOscillatorVideoRecipeSelectsHostRuntime(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-oscillator-video-model")
+	definition, err := OscillatorVideoDefinition(modelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if definition.Inputs[0].Data != recipe.DataClassConditioning || definition.Outputs[0].Data != recipe.DataVideo {
+		t.Fatalf("definition = %+v", definition)
+	}
+	program, err := CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []recipe.ModuleID{ModuleOscillatorVideoPrepare, ModuleOscillatorVideoIntegrate, ModuleOscillatorVideoDecode}
+	for index, stage := range program.Stages() {
+		if stage.Module.ID != want[index] || stage.Node.Placement != recipe.PlacementHost {
+			t.Fatalf("stage[%d] = %+v", index, stage)
+		}
+	}
+}
+
 func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-image-model")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-image-profile")
@@ -219,6 +240,7 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	}{
 		{"latent", func(model artifact.ID) (recipe.Definition, error) { return LatentImageDefinition(model, profileID) }, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleLatentImagePrepare, ModuleLatentImageIntegrate, ModuleLatentImageDecode}},
 		{"oscillator", OscillatorImageDefinition, recipe.DataClassConditioning, recipe.PlacementHost, []recipe.ModuleID{ModuleOscillatorImagePrepare, ModuleOscillatorImageIntegrate, ModuleOscillatorImageDecode}},
+		{"diffusion", DiffusionImageDefinition, recipe.DataImageTensor, recipe.PlacementHost, []recipe.ModuleID{ModuleDiffusionImagePrepare, ModuleDiffusionImageIntegrate, ModuleDiffusionImageDecode}},
 		{"routed", RoutedImageDefinition, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode}},
 	}
 	for _, test := range tests {

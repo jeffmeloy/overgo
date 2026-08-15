@@ -251,24 +251,43 @@ func MaterializeRun(
 // MaterializeDocuments routes in-memory documents through the same stream owner.
 // Dataset and split identities remain caller-owned authority facts.
 func MaterializeDocuments(authority Authority, processor artifact.ID, documents []string, binding ProcessorBinding) (*Dataset, error) {
+	records := make([]RawRecord, len(documents))
+	for index, document := range documents {
+		if document == "" {
+			return nil, errors.New("training data: empty document")
+		}
+		id := fmt.Sprintf("%s/document/%d", authority.Dataset, index)
+		records[index] = RawRecord{ID: id, Group: id, Data: []byte(document)}
+	}
+	return MaterializeRecords(authority, processor, records, binding)
+}
+
+// MaterializeRecords routes in-memory binary records through the shared stream.
+func MaterializeRecords(authority Authority, processor artifact.ID, records []RawRecord, binding ProcessorBinding) (*Dataset, error) {
 	if authority.Dataset.Kind() != artifact.KindDataset || authority.Split.Kind() != artifact.KindDatasetShard ||
-		processor.Kind() != artifact.KindProfile || binding.Artifact != processor || len(documents) == 0 {
-		return nil, errors.New("training data: invalid document materialization")
+		processor.Kind() != artifact.KindProfile || binding.Artifact != processor || len(records) == 0 {
+		return nil, errors.New("training data: invalid record materialization")
 	}
 	processors, _, _, err := compileBindings(authority, []ProcessorBinding{binding})
 	if err != nil {
 		return nil, err
 	}
-	records := make([]recordRef, len(documents))
-	for index, document := range documents {
-		if document == "" {
-			return nil, errors.New("training data: empty document")
+	indexed := make([]recordRef, len(records))
+	for index, record := range records {
+		if strings.TrimSpace(record.ID) == "" || len(record.Data) == 0 {
+			return nil, errors.New("training data: record identity and data required")
 		}
-		data := []byte(document)
-		id := fmt.Sprintf("%s/document/%d", authority.Dataset, index)
-		records[index] = recordRef{id: id, group: id, processor: processor, length: int64(len(data)), digest: sha256.Sum256(data), inline: data}
+		group := record.Group
+		if group == "" {
+			group = record.ID
+		}
+		data := slices.Clone(record.Data)
+		indexed[index] = recordRef{
+			id: record.ID, group: group, fields: slices.Clone(record.Fields), processor: processor,
+			length: int64(len(data)), digest: sha256.Sum256(data), inline: data,
+		}
 	}
-	members := []member{{identity: authority.Dataset.String(), weight: 1, records: records}}
+	members := []member{{identity: authority.Dataset.String(), weight: 1, records: indexed}}
 	deduplicate(members)
 	identity, err := identifyAuthority(authority)
 	if err != nil {

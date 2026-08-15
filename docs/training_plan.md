@@ -72,9 +72,10 @@ Production gaps:
   processor/projector/codec gradient execution is not yet the sole runtime owner;
 - real multimodal processor/projector/codec gradient and held-out quality gates
   remain open.
-- SimpleDiffusion compiles every real tensor into shared Muon geometry; its
-  real update remains blocked on a device/resident Muon program because host
-  Newton–Schulz at artifact scale is not an admissible production path.
+- SimpleDiffusion compiles every real tensor into shared Muon geometry. Its
+  real 101.8M-parameter update consumes structured image records through the
+  shared stream and platform Muon stepper on Windows/CUDA. Device-resident
+  forward/backward, matched performance, and complete resume remain open.
 
 Scratch device training and Newton–Schulz are resident and gated. Artifact
 publication, exact resume, controller promotion and real-model integration are

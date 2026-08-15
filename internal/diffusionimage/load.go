@@ -37,6 +37,10 @@ const (
 	modelType = "uvit"
 )
 
+type artifactConfig struct {
+	ModelType string `json:"model_type"`
+}
+
 // Config: derived architecture facts (see package doc for provenance).
 type Config struct {
 	InChannels   int
@@ -112,13 +116,20 @@ type Model struct {
 	raw            map[string][]float32
 }
 
+// Recognize checks the artifact-owned model type without loading weights.
+func Recognize(directory string) (bool, error) {
+	var cfg artifactConfig
+	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &cfg); err != nil {
+		return false, fmt.Errorf("diffusionimage: recognize config: %w", err)
+	}
+	return cfg.ModelType == modelType, nil
+}
+
 // Load reads config.json (family tag) and the artifact's single top-level
 // safetensors file, strips the torch.compile prefix, derives the
 // architecture from flat tensor lengths, and binds weights.
 func Load(directory string) (*Model, error) {
-	var cfg struct {
-		ModelType string `json:"model_type"`
-	}
+	var cfg artifactConfig
 	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &cfg); err != nil {
 		return nil, fmt.Errorf("diffusionimage: parse config.json: %w", err)
 	}

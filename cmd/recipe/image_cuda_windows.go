@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/diffusionimage"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
@@ -74,6 +75,10 @@ func imageCapability() capability {
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
 	)
+	diffusion := capabilityruntime.JSONScalar[diffusionimage.Request, *diffusionimage.Model, latentimage.EncodedImage](
+		"image-gen", diffusionimage.ValidateRequest,
+		capabilityruntime.IgnoreInput[diffusionimage.Request](diffusionimage.Load), diffusionimage.RegisterRuntime,
+	)
 	return capability{
 		inventory: func(path string) (modelartifact.Inventory, error) {
 			routedModel, err := sensenovarecipe.Recognize(path)
@@ -100,6 +105,8 @@ func imageCapability() capability {
 				return latent(ctx, store, path, modelID, program, raw)
 			case modelrecipe.ModuleOscillatorImagePrepare:
 				return oscillator(ctx, store, path, modelID, program, raw)
+			case modelrecipe.ModuleDiffusionImagePrepare:
+				return diffusion(ctx, store, path, modelID, program, raw)
 			default:
 				return nil, fmt.Errorf("image-gen: compiled recipe has no registered operator")
 			}
@@ -129,18 +136,25 @@ func imageCapability() capability {
 				definition, err := modelrecipe.LatentImageDefinition(modelID, profile.ID)
 				return definition, []artifact.Content{content}, err
 			}
+			recognized, err = diffusionimage.Recognize(path)
+			if err != nil {
+				return recipe.Definition{}, nil, err
+			}
+			if recognized {
+				definition, err := modelrecipe.DiffusionImageDefinition(modelID)
+				return definition, nil, err
+			}
+			recognized, err = oscillatorimage.Recognize(path)
+			if err != nil {
+				return recipe.Definition{}, nil, err
+			}
+			if !recognized {
+				return recipe.Definition{}, nil, fmt.Errorf("image-gen: artifact has no registered image recipe")
+			}
 			definition, err := modelrecipe.OscillatorImageDefinition(modelID)
 			return definition, nil, err
 		},
 	}
-}
-
-func imageProgramModule(program recipe.Program) recipe.ModuleID {
-	stages := program.Stages()
-	if len(stages) == 0 {
-		return ""
-	}
-	return stages[0].Module.ID
 }
 
 func latentImageInventory(path string) (modelartifact.Inventory, error) {

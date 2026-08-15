@@ -102,8 +102,8 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Text embedding | No evidence-qualified encoder artifact in configured roots | Runtime and recipe exist; causal hidden-state substitution refused | Explicit refusal | Add a real encoder artifact, corpus, golden, wall, and peak |
 | Text rerank | No evidence-qualified classifier-head artifact in configured roots | Runtime and recipe exist; causal LM substitution refused | Explicit refusal | Add a real reranker artifact, pair corpus, scores, wall, and peak |
 | Pocket-TTS speech | Active adaptive host audio recipe and real-model generation fixture | Compiled production recipe; every generated latent/EOS value is bounded against the adaptive oracle; PCM max error `3.38e-4`, RMS `0.089438`, encoded WAV `24 kHz` mono; warm matched synthesis `0.48-0.53 s`; peak heap `0.540-0.543 GiB`. A compiled joint backbone+flow trainer consumes the native `Hello world.` generated codec latents through shared platform Muon. One real-artifact step at derived LR `3.383e-5` lowers loss `0.505204 -> 0.285938` and changes 16,358/16,384 sampled final-projection weights | Production output parity; warm-wall lead versus adaptive's retained `2.0 s` optimized route; real-artifact native-latent Muon trajectory | Measure both inference implementations under one cold/process-memory harness; add corpus audio encoding and held-out speech-training evidence |
-| Un-0 image/video | Active deterministic Go route; synthetic bootstrap training was deleted | Exact fixture within `3.13e-7`; about 1.25 ms warm generation. The image recipe now publishes typed PNG bytes instead of float JSON; the real class-1/seed-42 output is 8x8, 173 bytes, and pixel-exact against adaptive's retained PNG. Full generator VJPs remain finite-difference and adaptive-golden gated. The prior constant color-ramp objective and its public `TrainDrift` entry point were deleted; training now refuses until a recipe supplies real class/image authority | Exact image inference and publication parity; honest training refusal | Publish encoded real-artifact video output through a video recipe; add real class/image training authority before restoring a trainer |
-| SimpleDiffusion image | Host generation and real-checkpoint training | Forward max error `3.99e-6`; recorded 0.17 s vs adaptive 0.21 s | Host lead | Device forward/backward; real output quality and peak |
+| Un-0 image/video | Active deterministic Go route; synthetic bootstrap training was deleted | Exact fixture within `3.13e-7`; about 1.25 ms warm generation. Typed image and video recipes publish encoded media instead of float JSON. The real class-1/seed-42 PNG is 8x8, 173 bytes, and pixel-exact against adaptive's retained PNG. The real class-1/seed-202 route advances the seed for six frames, applies the request-owned 8x publication scale, and emits a 64x64, 10,028-byte GIF that is byte-identical to adaptive's retained artifact; 319 source pixels change between adjacent frames. Full generator VJPs remain finite-difference and adaptive-golden gated. The prior constant color-ramp objective and its public `TrainDrift` entry point were deleted; training now refuses until a recipe supplies real class/image authority | Exact image and video inference/publication parity; honest training refusal | Add real class/image training authority before restoring a trainer |
+| SimpleDiffusion image | Host generation and real-checkpoint training | Typed recipe publication reproduces the retained seed-7, two-step, 64x64 PNG byte-for-byte: 10,506 encoded bytes with range `[-0.136066,1.155296]`. Forward max error is `3.99e-6`; recorded forward wall is 0.17 s vs adaptive 0.21 s | Exact retained output; host forward lead | Device forward/backward and matched process peak |
 | Wan text-to-video | Native adaptive exact path; Python oracle | Fresh session+denoise 331.96 s / 7.875 GB; decode 38.31 s / 10.330 GB; exact G3/G4 bounded, BF16 G3 cosine 0.999899, frame-0 CUDA/host max error 8.04e-6 | 370.27 s staged wall beats retained 463.4 s Python wall | Fresh same-revision Python/adaptive run; semantic clip gate |
 | Krea text-to-image | Matched 256 fixture: 25.430 s; exact u8 SHA `b257e244`; full 2048 record: 158.144 s, 33.47 GB device | 256: 13.804 s / 25.030 GiB, MAE 0.02401. 2048: 63.510 s / 32.732 GB, MAE 0.03910; production caller and phased residency gated | Wall/peak lead at both sizes; bounded image quality | Exact SHA remains numerically unstable; retain robust pixel oracle and RMSE advisory |
 | SenseNova image/edit | Adaptive exact Go replay: 206.010 s, 19.50 GB; Python 366.6 s, 47.58 GiB | Compiled routed-image recipe owns tokenizer/prompt, retained prefix/body, shifted integration, and planar PNG publication. Pinned 256px/2-step case: boundary cosine >=0.99914, velocity >=0.99863, final state >=0.99832, exact PNG `d439b8ce...`, 13.56 s total, 0.708 GiB peak | Production text-to-image route gated; warm-body lead | Run the full-size 50-step quality case; edit route still needs its absent source PNG |
@@ -125,7 +125,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Gemma4 12B | Streamed CUDA LM scope | Shared backward prerequisites; no reported real 12B training | Gap |
 | Forecast/latent/FNS | CUDA objectives for LM, FNS, latent L2/sequence, forecast | TimesFM primitives remain open. Un-0 retains complete VJPs but explicitly refuses training after deletion of its synthetic constant-target ramp | Breadth gap; false capability removed |
 | OCR | Host objective; CUDA train/eval absent | No promoted training path | Both incomplete |
-| SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and revive experiments; device path incomplete | Shared Muon plan covers the real artifact; tiny Muon loss `0.026695 -> 0.002327`; real device update open | Optimizer authority fixed; performance parity incomplete |
+| SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and revive experiments; device path incomplete | The shared materializer selects structured 32x32 crops from the artifact's four real sample grids, then the common stream, normalized-image processor, seeded OT objective, full model VJP, and platform Muon stepper train the 101,828,450-parameter checkpoint. One train/held-out gate lowers matched train loss `1.331198 -> 1.156815` and held-out loss `1.396862 -> 1.346165`; 6,143 sampled final-projection values change. Two complete gates take 3.34-4.81 s on the reviewed Windows/CUDA machine | Real-data full-checkpoint update proven; device forward/backward and matched performance remain open |
 | Pocket-TTS | Latent bridge, flow-net, backbone paths | Inference recipe and reference waveform are production-proven. The production compiled trainer binds all 85,282,848 joint backbone+flow parameters to shared Muon; native generated codec latents lower loss `0.505204 -> 0.285938` in one step | Real-artifact Muon trajectory proven; corpus audio encoding and held-out evaluation open |
 | Controller model | Strategic adaptive plan; no promoted controller | Overgo training design targets it | Not started |
 | Tier-1 memory scaling | Adaptive streamed/checkpointed components | Resident dense session and scratch pool exist; no production E4B run | Partial |
@@ -203,6 +203,19 @@ Overgo's tokenizer total includes a large generated Unicode table.
   mean held-out loss `7.011798 -> 6.123598`. This replaces the single-example
   trajectory as the breadth claim; production resume and longer generation-
   quality evaluation remain open.
+- SimpleDiffusion consumes six structured training crops and two held-out crops
+  selected from the real checkpoint's sample grids through the shared binary-
+  record materializer and normalized-image processor. The adaptive-seeded OT
+  path and full 101,828,450-parameter VJP feed the shared platform Muon
+  stepper. One update lowers matched train loss `1.331198 -> 1.156815` and
+  held-out loss `1.396862 -> 1.346165`; 6,143 final-projection values change.
+  The 3.34-4.81 s focused gates are capability evidence, not a matched performance
+  claim; forward/backward remain host-owned.
+- SimpleDiffusion's typed prepare/integrate/decode recipe publishes the real
+  checkpoint's seed-7, two-step, 64x64 sample as a 10,506-byte PNG identical
+  to adaptive_new's retained artifact. The focused generation gate takes about
+  0.93 s including checkpoint load; this is output-parity evidence, not a
+  matched process-wall or peak-memory claim.
 - Synthetic dense medium benchmark: host `85.6 s/step`; device full
   `1.89 s/step`; `45.4x`. This is an internal backend comparison, not
   adaptive_new parity and not a production-model result.
@@ -231,7 +244,7 @@ justify Qwen, E4B, 12B, controller, or system-wide training closure.
 | Unlimited OCR image/text | Native BF16 811-token/29-row golden | 10.02 s projection + 4m22.482s full generation; exact 200-token prefix; complete 29-row output within one coordinate/text edit; 273 image tokens | Functional full-output parity; exact sequence and matched reference wall/peak open |
 | SimpleDiffusion host forward | adaptive median 0.21 s | median 0.17 s | 0.81x wall |
 | MiniCPM decode | adaptive 294.6-295.8 token/s | 321.7-363.0 token/s | Overgo faster |
-| Un-0 generation | 0.01 s test resolution | 0.01 s test resolution | Tie; resolution-limited |
+| Un-0 generation | Retained PNG and class-1/seed-202 six-frame GIF | Pixel-exact PNG; byte-identical 64x64 GIF, 10,028 bytes, 319 changed source pixels | Exact image and video publication parity; matched peak remains open |
 | Wan full generation | Python baselines vary by retained report: 399.1 or 463.4 s; adaptive exact Go 795.1 s warm in the current media report | fresh 331.96 s session+denoise + 38.31 s decode = 370.27 s; stage peaks 7.875 / 10.330 GB | 20.1% wall lead vs retained 463.4 s Python; fresh matched reference rerun still open |
 | Krea 256 generation | adaptive exact Go 25.430 s | 13.804 s / 25.030 GiB; MAE 0.02401, RMSE 0.05459 | 46% wall lead; lower peak; bounded quality lead |
 | Krea 2048 generation | Python 97.5-135.4 s; adaptive exact Go 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | 35% lead vs best Python; 60% vs adaptive; 2.2% lower peak |
@@ -300,12 +313,11 @@ through the shared compiled Muon path; sign, BF16-SGD and the image-local SGD
 loop are deleted. Add a production-code scanner so new local weight-update loops
 cannot bypass the optimizer package.
 
-### P1: plan and training docs contain stale completion prose
+### P1: training documentation must track executable evidence
 
-`docs/plan.json` carries 38 done items and many legacy steps without runnable
-verification. `docs/training_plan.md` still describes device backward as
-host-only and names types that do not exist. Git owns chronology. Keep only
-open executable work plus current contracts.
+`docs/plan.json` contains only open executable work, while Git owns chronology.
+Training claims must continue to name the tested artifact, data, lifecycle,
+backend boundaries, verifier, and remaining gaps.
 
 ### P1: compatibility breadth outruns evidence depth
 

@@ -32,6 +32,12 @@ const (
 	ModuleOscillatorImagePrepare   recipe.ModuleID = "model.oscillator-image-prepare"
 	ModuleOscillatorImageIntegrate recipe.ModuleID = "model.oscillator-image-integrate"
 	ModuleOscillatorImageDecode    recipe.ModuleID = "model.oscillator-image-decode"
+	ModuleDiffusionImagePrepare    recipe.ModuleID = "model.diffusion-image-prepare"
+	ModuleDiffusionImageIntegrate  recipe.ModuleID = "model.diffusion-image-integrate"
+	ModuleDiffusionImageDecode     recipe.ModuleID = "model.diffusion-image-decode"
+	ModuleOscillatorVideoPrepare   recipe.ModuleID = "model.oscillator-video-prepare"
+	ModuleOscillatorVideoIntegrate recipe.ModuleID = "model.oscillator-video-integrate"
+	ModuleOscillatorVideoDecode    recipe.ModuleID = "model.oscillator-video-decode"
 	ModuleRoutedImagePrepare       recipe.ModuleID = "model.routed-image-prepare"
 	ModuleRoutedImageIntegrate     recipe.ModuleID = "model.routed-image-integrate"
 	ModuleRoutedImageDecode        recipe.ModuleID = "model.routed-image-decode"
@@ -182,6 +188,14 @@ var latentImageCapability = imageCapability(recipe.PlacementHybrid, recipe.DataP
 
 var oscillatorImageCapability = imageCapability(recipe.PlacementHost, recipe.DataClassConditioning, ModuleOscillatorImagePrepare, ModuleOscillatorImageIntegrate, ModuleOscillatorImageDecode)
 
+var diffusionImageCapability = imageCapability(recipe.PlacementHost, recipe.DataImageTensor, ModuleDiffusionImagePrepare, ModuleDiffusionImageIntegrate, ModuleDiffusionImageDecode)
+
+var oscillatorVideoCapability = linearCapability{placement: recipe.PlacementHost, stages: []scalarStage{
+	{node: "prepare", module: ModuleOscillatorVideoPrepare, input: "condition", output: "session", inputData: recipe.DataClassConditioning, outData: recipe.DataSessionPlan},
+	{node: "integrate", module: ModuleOscillatorVideoIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataVideoTensor},
+	{node: "decode", module: ModuleOscillatorVideoDecode, input: "features", output: "video", inputData: recipe.DataVideoTensor, outData: recipe.DataVideo},
+}}
+
 var routedImageCapability = imageCapability(recipe.PlacementHybrid, recipe.DataPromptConditioning, ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode)
 
 var latentVideoCapability = linearCapability{placement: recipe.PlacementHybrid, stages: []scalarStage{
@@ -212,6 +226,16 @@ func LatentImageDefinition(modelID, profileID artifact.ID) (recipe.Definition, e
 // OscillatorImageDefinition: class-conditioned oscillator image graph.
 func OscillatorImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	return oscillatorImageCapability.definition(recipe.TaskImageGen, modelID)
+}
+
+// DiffusionImageDefinition: seeded image-tensor flow graph.
+func DiffusionImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	return diffusionImageCapability.definition(recipe.TaskImageGen, modelID)
+}
+
+// OscillatorVideoDefinition: class-conditioned oscillator video graph.
+func OscillatorVideoDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	return oscillatorVideoCapability.definition(recipe.TaskVideoGen, modelID)
 }
 
 // RoutedImageDefinition: prompt-conditioned routed-transformer image graph.
@@ -521,9 +545,10 @@ func mustCatalog() *recipe.Catalog {
 	} {
 		modules = append(modules, linearCapabilities[task].modules(task)...)
 	}
-	for _, capability := range []linearCapability{latentImageCapability, oscillatorImageCapability, routedImageCapability} {
+	for _, capability := range []linearCapability{latentImageCapability, oscillatorImageCapability, diffusionImageCapability, routedImageCapability} {
 		modules = append(modules, capability.modules(recipe.TaskImageGen)...)
 	}
+	modules = append(modules, oscillatorVideoCapability.modules(recipe.TaskVideoGen)...)
 	modules = append(modules, latentVideoCapability.modules(recipe.TaskVideoGen)...)
 	modules = append(modules,
 		recipe.Module{

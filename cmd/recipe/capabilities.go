@@ -39,6 +39,7 @@ var capabilities = map[recipe.Task]capability{
 		"speech", speechsynth.ValidateSynthesisRequest,
 		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)},
 	recipe.TaskImageGen: imageCapability(),
+	recipe.TaskVideoGen: videoCapability(),
 	recipe.TaskVQA:      {inventory: modelartifact.FromHFPath},
 }
 
@@ -78,6 +79,14 @@ func speechInventory(path string) (modelartifact.Inventory, error) {
 
 func imageGenInventory(path string) (modelartifact.Inventory, error) {
 	return safetensorsInventory("image-gen", path, "config.json")
+}
+
+func imageProgramModule(program recipe.Program) recipe.ModuleID {
+	stages := program.Stages()
+	if len(stages) == 0 {
+		return ""
+	}
+	return stages[0].Module.ID
 }
 
 func tabularInventory(path string) (modelartifact.Inventory, error) {

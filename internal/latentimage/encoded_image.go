@@ -89,7 +89,7 @@ func encodeRGB(pixels []float32, height, width int, source image.Image) (Encoded
 		minimum, maximum = min(minimum, value), max(maximum, value)
 	}
 	var encoded bytes.Buffer
-	encoder := png.Encoder{CompressionLevel: png.BestSpeed}
+	encoder := png.Encoder{CompressionLevel: png.DefaultCompression}
 	if err := encoder.Encode(&encoded, source); err != nil {
 		return EncodedImage{}, err
 	}

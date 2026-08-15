@@ -2,6 +2,7 @@ package oscillatorimage
 
 import (
 	"bytes"
+	"image/gif"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -28,6 +29,41 @@ func TestArtifactLoadDerivesDims(t *testing.T) {
 	t.Logf("namespace=%s n=%d nc=%d classes=%d in=%dx%dx%d out=%dx%dx%d steps=%d dt=%g blocks=%v",
 		m.Namespace, cfg.N, cfg.NCond, cfg.NClasses, cfg.InChannels, cfg.InH, cfg.InW,
 		cfg.OutChannels, cfg.OutH(), cfg.OutW(), cfg.NumSteps, cfg.Dt, cfg.BlockChannels)
+}
+
+func TestArtifactPublishesReferenceGIF(t *testing.T) {
+	m := loadArtifactModel(t)
+	plan, err := m.prepareVideo(VideoRequest{Class: 1, Seed: 202, Frames: 6, Scale: 8})
+	if err != nil {
+		t.Fatal(err)
+	}
+	features, err := m.integrateVideo(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := m.decodeVideo(features)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if encoded.MediaType != "image/gif" || encoded.Frames != 6 || encoded.Channels != 3 || encoded.Height != 64 || encoded.Width != 64 || encoded.ChangedPixels <= 0 {
+		t.Fatalf("encoded video = %+v", encoded)
+	}
+	decoded, err := gif.DecodeAll(bytes.NewReader(encoded.Data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded.Image) != encoded.Frames || decoded.Image[0].Bounds().Dx() != encoded.Width || decoded.Image[0].Bounds().Dy() != encoded.Height {
+		t.Fatalf("decoded GIF frames=%d bounds=%v", len(decoded.Image), decoded.Image[0].Bounds())
+	}
+	referencePath := filepath.Join(filepath.Dir(filepath.Dir(artifactDir(t))), "docs", "image_gen_samples", "un0_video_direct_seed202_frames6.gif")
+	reference, err := os.ReadFile(referencePath)
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: reference video %s: %v", referencePath, err)
+	}
+	if !bytes.Equal(encoded.Data, reference) {
+		t.Fatalf("GIF differs from adaptive_new reference: bytes=%d want=%d", len(encoded.Data), len(reference))
+	}
+	t.Logf("real Un-0 GIF: class=1 seed=202 frames=6 size=64x64 encoded_bytes=%d changed_source_pixels=%d exact_reference=true", len(encoded.Data), encoded.ChangedPixels)
 }
 
 // TestArtifactGenerateDeterministicAndClassSensitive: same seed+class is

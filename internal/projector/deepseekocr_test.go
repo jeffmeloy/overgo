@@ -29,7 +29,7 @@ func (t *deepSeekOCRPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tok
 }
 
 func TestDeepSeekOCRTinyFixture(t *testing.T) {
-	runner, err := OpenDeepSeekOCR(writeTinyDeepSeekOCR(t, false))
+	runner, err := OpenDeepSeekOCRWithOptions(writeTinyDeepSeekOCR(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestDeepSeekOCRCanDisableDynamicTiles(t *testing.T) {
 }
 
 func TestDeepSeekOCRPromptContract(t *testing.T) {
-	runner, err := OpenDeepSeekOCR(writeTinyDeepSeekOCR(t, false))
+	runner, err := OpenDeepSeekOCRWithOptions(writeTinyDeepSeekOCR(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestDeepSeekOCRPromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesDeepSeekOCR(t *testing.T) {
-	projector, err := OpenImageProjector(context.Background(), writeTinyDeepSeekOCR(t, false))
+	projector, err := OpenImageProjectorWithOptions(context.Background(), writeTinyDeepSeekOCR(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestOpenImageProjectorDispatchesDeepSeekOCR(t *testing.T) {
 func TestDeepSeekOCRCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyDeepSeekOCR(t, true)
-	cpu, err := OpenDeepSeekOCR(path)
+	cpu, err := OpenDeepSeekOCRWithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 )
 
 // Main: common command error exit.
@@ -15,6 +16,40 @@ func Main(run func() error) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// MainNamed preserves the command prefix while sharing exit mechanics.
+func MainNamed(name string, run func() error) {
+	Main(func() error {
+		if err := run(); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		return nil
+	})
+}
+
+// Tail bounds diagnostic output while retaining its most recent bytes.
+func Tail(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	return "..." + text[len(text)-limit:]
+}
+
+// CombinedOutput runs one command with an explicit environment.
+func CombinedOutput(env []string, name string, args ...string) (string, error) {
+	command := exec.Command(name, args...)
+	command.Env = env
+	output, err := command.CombinedOutput()
+	return string(output), err
+}
+
+// Verdict renders command success without treating skipped work as green.
+func Verdict(err error) string {
+	if err != nil {
+		return "FAIL"
+	}
+	return "ok"
 }
 
 // WriteJSON: one JSON document.

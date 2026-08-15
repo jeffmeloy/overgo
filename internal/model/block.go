@@ -482,11 +482,18 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 	var activation *tensor.Tensor
 	switch r.plan.FeedForward {
 	case FeedForwardFusedGateUp:
-		width := uint64(r.spec.FeedForwardLength)
+		width := uint64(r.spec.LayerFeedForwardLength(r.layer))
 		stride := 2 * width
 		gate := r.builder.Reshape(r.builder.GroupSlice(up, 0, width, 1, stride), width, r.tokens)
 		up = r.builder.Reshape(r.builder.GroupSlice(up, width, width, 1, stride), width, r.tokens)
-		activation = r.builder.SwiGLU(gate, up)
+		switch r.spec.HiddenActivation {
+		case "reglu":
+			activation = r.builder.ReGLU(gate, up)
+		case "gelu", "geglu":
+			activation = r.builder.GEGLU(gate, up)
+		default:
+			activation = r.builder.SwiGLU(gate, up)
+		}
 	case FeedForwardXIELU:
 		activation = r.builder.XIELU(
 			up, r.spec.XIELUAlphaN[r.layer], r.spec.XIELUAlphaP[r.layer],

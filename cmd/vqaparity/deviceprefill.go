@@ -312,7 +312,11 @@ func runDevicePrefill(l *ladder) error {
 			g.MaskText: {Shape: maskShape, Data: pc.maskText},
 			g.MaskVis:  {Shape: maskShape, Data: pc.maskVis},
 		}
-		out, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, feeds)
+		inputs, err := compiled.BindDeviceInputs(feeds)
+		if err != nil {
+			return err
+		}
+		out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 		if err != nil {
 			binder.free()
 			return fmt.Errorf("device prefill execute layer %d: %w", layer, err)
@@ -385,7 +389,11 @@ func runDevicePrefill(l *ladder) error {
 			g.MaskText: {Shape: maskShape, Data: pc.maskText},
 			g.MaskVis:  {Shape: maskShape, Data: pc.maskVis},
 		}
-		out, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, feeds)
+		inputs, err := compiled.BindDeviceInputs(feeds)
+		if err != nil {
+			return err
+		}
+		out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 		if err != nil {
 			binder.free()
 			return fmt.Errorf("device prefill chained layer %d: %w", layer, err)

@@ -240,10 +240,6 @@ func embeddingTokenIndices(starts, counts []int, offset int) []uint32 {
 	return indices
 }
 
-func OpenImageProjector(ctx context.Context, path string) (ImageProjector, error) {
-	return OpenImageProjectorWithOptions(ctx, path, OpenOptions{})
-}
-
 func OpenImageProjectorWithOptions(ctx context.Context, path string, options OpenOptions) (ImageProjector, error) {
 	return openProjectorResource(ctx, path, func(file *gguf.File) (ImageProjector, error) {
 		projectorType := ""
@@ -567,10 +563,6 @@ func (r *PaddleOCRRunner) buildImagesPrompt(
 			Columns: (output.GridW + output.MergeSize - 1) / output.MergeSize,
 		}, nil
 	})
-}
-
-func OpenAudioProjector(ctx context.Context, path string) (AudioProjector, error) {
-	return OpenAudioProjectorWithOptions(ctx, path, OpenOptions{})
 }
 
 func OpenAudioProjectorWithOptions(ctx context.Context, path string, options OpenOptions) (AudioProjector, error) {

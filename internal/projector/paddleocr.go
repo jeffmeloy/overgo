@@ -54,10 +54,6 @@ type PaddleOCRRunner struct {
 	attention visionAttentionPlan
 }
 
-func OpenPaddleOCR(path string) (*PaddleOCRRunner, error) {
-	return OpenPaddleOCRWithOptions(path, OpenOptions{})
-}
-
 func OpenPaddleOCRWithOptions(path string, options OpenOptions) (*PaddleOCRRunner, error) {
 	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*PaddleOCRRunner, error) {
 		return openPaddleOCR(context.Background(), file, options)

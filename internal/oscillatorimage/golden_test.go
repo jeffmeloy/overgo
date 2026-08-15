@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
@@ -38,6 +39,9 @@ func referenceFixturePath(t *testing.T, name string) string {
 // loadReferenceGolden decodes a reference-shipped golden; absence skips LOUDLY.
 func loadReferenceGolden(t *testing.T, name string, out any) {
 	t.Helper()
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip + ": requires adaptive_new reference goldens")
+	}
 	raw, err := os.ReadFile(referenceFixturePath(t, name))
 	if err != nil {
 		t.Skipf("UNAVAILABLE: reference golden %s absent; parity NOT verified", name)
@@ -113,6 +117,9 @@ var (
 
 func artifactDir(t *testing.T) string {
 	t.Helper()
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip + ": requires the Un-0 model artifact")
+	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

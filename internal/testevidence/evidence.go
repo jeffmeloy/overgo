@@ -11,8 +11,13 @@ import (
 const ShortIntegrationSkip = "integration excluded by -short"
 
 type GoTestReport struct {
-	Skipped     []string
-	Unavailable []string
+	PassedTests       int
+	PassedPackages    int
+	NoTestPackages    int
+	ClassifiedSkipped []string
+	Skipped           []string
+	Unavailable       []string
+	Failed            []string
 }
 
 // GoTestJSON rejects skipped tests and unavailable oracle markers in go test
@@ -34,10 +39,16 @@ func GoTestJSON(out string) error {
 
 // GoTestJSONShort permits only explicitly classified short-mode exclusions.
 func GoTestJSONShort(out string) error {
-	report, err := goTestJSONReport(out, true)
+	report, err := GoTestJSONShortReport(out)
 	if err != nil {
 		return err
 	}
+	return RequireComplete(report)
+}
+
+// RequireComplete rejects evidence that contains unavailable or unclassified
+// skipped tests. Classified short exclusions remain visible but are permitted.
+func RequireComplete(report GoTestReport) error {
 	if len(report.Unavailable) > 0 {
 		return fmt.Errorf("%s", report.Unavailable[0])
 	}
@@ -45,6 +56,13 @@ func GoTestJSONShort(out string) error {
 		return fmt.Errorf("%s skipped", report.Skipped[0])
 	}
 	return nil
+}
+
+// GoTestJSONShortReport decodes a hermetic short-mode lane. Only skips whose
+// output carries ShortIntegrationSkip are classified exclusions; they remain
+// visible in the report and are never counted as passing evidence.
+func GoTestJSONShortReport(out string) (GoTestReport, error) {
+	return goTestJSONReport(out, true)
 }
 
 // GoTestJSONReport decodes complete test evidence without crediting skips.
@@ -80,8 +98,19 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 		if reason := unavailable(event.Output); reason != "" {
 			report.Unavailable = append(report.Unavailable, event.Package+": "+reason)
 		}
-		if event.Action == "skip" && event.Test != "" && !classified[key] {
+		switch {
+		case event.Action == "pass" && event.Test != "":
+			report.PassedTests++
+		case event.Action == "pass" && event.Test == "":
+			report.PassedPackages++
+		case event.Action == "skip" && event.Test != "" && classified[key]:
+			report.ClassifiedSkipped = append(report.ClassifiedSkipped, event.Package+": "+event.Test)
+		case event.Action == "skip" && event.Test != "":
 			report.Skipped = append(report.Skipped, event.Package+": "+event.Test)
+		case event.Action == "skip" && event.Test == "":
+			report.NoTestPackages++
+		case event.Action == "fail" && event.Test != "":
+			report.Failed = append(report.Failed, event.Package+": "+event.Test)
 		}
 	}
 	if err := scanner.Err(); err != nil {

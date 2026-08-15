@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
@@ -86,7 +87,7 @@ func embedCase(t *testing.T, m *Model, context []float32) (padded, masks, hidden
 // embedding against the reference intermediates.
 func TestTokenizerMatchesGolden(t *testing.T) {
 	if testing.Short() {
-		t.Skip("loads ~930MB weights; skipped in -short")
+		t.Skip(testevidence.ShortIntegrationSkip + ": loads ~930MB weights")
 	}
 	g := readGolden(t)
 	model, err := Load(artifactDir(t))
@@ -113,7 +114,7 @@ func TestTokenizerMatchesGolden(t *testing.T) {
 // per-dim softplus query scale, causal attention, sequential feed-forward.
 func TestDecoderLayer0MatchesGolden(t *testing.T) {
 	if testing.Short() {
-		t.Skip("loads ~930MB weights; skipped in -short")
+		t.Skip(testevidence.ShortIntegrationSkip + ": loads ~930MB weights")
 	}
 	g := readGolden(t)
 	model, err := Load(artifactDir(t))
@@ -138,7 +139,7 @@ func TestDecoderLayer0MatchesGolden(t *testing.T) {
 // cases through the full 20-layer stack and denormalized quantile head.
 func TestForecastMatchesGolden(t *testing.T) {
 	if testing.Short() {
-		t.Skip("loads ~930MB weights; skipped in -short")
+		t.Skip(testevidence.ShortIntegrationSkip + ": loads ~930MB weights")
 	}
 	g := readGolden(t)
 	model, err := Load(artifactDir(t))

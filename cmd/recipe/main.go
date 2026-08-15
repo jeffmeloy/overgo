@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
@@ -30,10 +31,7 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "recipe: %v\n", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("recipe", run)
 }
 
 func run() error {

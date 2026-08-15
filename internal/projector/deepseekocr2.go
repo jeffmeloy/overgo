@@ -32,10 +32,6 @@ type DeepSeekOCR2Runner struct {
 	dynamicTiles bool
 }
 
-func OpenDeepSeekOCR2(path string) (*DeepSeekOCR2Runner, error) {
-	return OpenDeepSeekOCR2WithOptions(path, OpenOptions{})
-}
-
 func OpenDeepSeekOCR2WithOptions(path string, options OpenOptions) (*DeepSeekOCR2Runner, error) {
 	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*DeepSeekOCR2Runner, error) {
 		return openDeepSeekOCR2(context.Background(), file, options)

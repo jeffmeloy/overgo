@@ -165,12 +165,16 @@ func runSenseNovaPrefixBranch(
 		if err := binder.bind(feeds, graph.Weights, weights); err != nil {
 			t.Fatal(err)
 		}
-		result, err := cuda.ExecuteCompiledWithDeviceFeeds(
+		inputs, err := compiled.BindDeviceInputs(feeds)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := cuda.ExecuteCompiled(
 			context.Background(), compiled,
 			map[*tensor.Tensor]reference.Value{
 				graph.Row: {Shape: graph.Row.Shape, Data: row},
 			},
-			feeds,
+			inputs,
 		)
 		if err != nil {
 			binder.free()

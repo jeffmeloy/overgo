@@ -8,6 +8,18 @@ import (
 )
 
 func TestWriteJSON(t *testing.T) {
+	if _, err := CombinedOutput(os.Environ(), os.Args[0], "-test.run=^$"); err != nil {
+		t.Fatal(err)
+	}
+	if Verdict(nil) != "ok" || Verdict(os.ErrInvalid) != "FAIL" {
+		t.Fatal("command verdict differs from exit state")
+	}
+	if got := Tail("abcdef", 3); got != "...def" {
+		t.Fatalf("tail = %q", got)
+	}
+	if got := Tail("abc", 3); got != "abc" {
+		t.Fatalf("unbounded tail = %q", got)
+	}
 	var compact bytes.Buffer
 	if err := WriteJSON(&compact, map[string]int{"value": 3}); err != nil {
 		t.Fatal(err)

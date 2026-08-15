@@ -113,6 +113,7 @@ type Construction struct {
 	authority  trainingprogram.ScratchConstruction
 	optimizer  optimizer.Plan
 	program    trainingprogram.TrainingProgram
+	processor  artifact.ID
 }
 
 type parameterBinding struct{ start, end int }
@@ -166,6 +167,10 @@ func Compile(facts CorpusFacts, profile DerivationProfile) (Construction, error)
 		BOS        int            `json:"bos"`
 		Index      map[string]int `json:"index"`
 	}{"adaptive-rune-tokenizer-v1", config.Characters, config.BOS, config.CharacterIndex})
+	if err != nil {
+		return Construction{}, err
+	}
+	processorID, err := identifyJSON(artifact.KindProfile, "adaptive-rune-document-v1")
 	if err != nil {
 		return Construction{}, err
 	}
@@ -223,6 +228,7 @@ func Compile(facts CorpusFacts, profile DerivationProfile) (Construction, error)
 		id: modelID, dataset: datasetID, splitID: splitID, config: cloneConfig(config),
 		split: cloneSplit(split), parameters: slices.Clone(parameters), weights: weights, bindings: bindings, seed: facts.Seed,
 		authority: authority, optimizer: optimizerPlan, program: program,
+		processor: processorID,
 	}, nil
 }
 
@@ -235,6 +241,7 @@ func (c Construction) Parameters() []Parameter                        { return s
 func (c Construction) Authority() trainingprogram.ScratchConstruction { return c.authority }
 func (c Construction) OptimizerPlan() optimizer.Plan                  { return c.optimizer }
 func (c Construction) Program() trainingprogram.TrainingProgram       { return c.program }
+func (c Construction) Processor() artifact.ID                         { return c.processor }
 
 func (c Construction) Weights(name string) ([]float32, bool) {
 	values, ok := c.weightView(name)

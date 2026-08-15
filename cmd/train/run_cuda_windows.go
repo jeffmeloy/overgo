@@ -16,14 +16,14 @@ import (
 // using a device-unsupported trait (e.g. attention bias) is routed to host up
 // front instead of failing mid-session. It returns the loss trajectory and the
 // backend label actually used ("cuda" or "host").
-func runTraining(m *densecausal.Model, tokens []int, steps int, baseLR, mu float64, preferDevice, freezeLexical bool) ([]float64, string, error) {
+func runTraining(m *densecausal.Model, batches [][]int, baseLR, mu float64, preferDevice, freezeLexical bool) ([]float64, string, error) {
 	if preferDevice {
 		if ok, reason := densecausal.DeviceTrainingSupported(m.Dims); !ok {
 			if freezeLexical {
 				return nil, "", fmt.Errorf("frozen lexical CUDA training unsupported: %s", reason)
 			}
 			fmt.Printf("train: device training unsupported (%s); using host path\n", reason)
-			return runHostTraining(m, tokens, steps, baseLR, mu)
+			return runHostTraining(m, batches, baseLR, mu)
 		}
 		worker, err := device.New(0)
 		if err == nil {
@@ -31,9 +31,9 @@ func runTraining(m *densecausal.Model, tokens []int, steps int, baseLR, mu float
 			var traj []float64
 			var terr error
 			if freezeLexical {
-				traj, terr = m.TrainDeviceResidentFrozenLexical(worker, tokens, steps, baseLR, mu)
+				traj, terr = m.TrainDeviceResidentFrozenLexicalBatches(worker, batches, baseLR, mu)
 			} else {
-				traj, terr = m.TrainDeviceResident(worker, tokens, steps, baseLR, mu)
+				traj, terr = m.TrainDeviceResidentBatches(worker, batches, baseLR, mu)
 			}
 			if terr != nil {
 				return nil, "", terr
@@ -45,5 +45,5 @@ func runTraining(m *densecausal.Model, tokens []int, steps int, baseLR, mu float
 		}
 		fmt.Printf("train: CUDA unavailable (%v); using host path\n", err)
 	}
-	return runHostTraining(m, tokens, steps, baseLR, mu)
+	return runHostTraining(m, batches, baseLR, mu)
 }

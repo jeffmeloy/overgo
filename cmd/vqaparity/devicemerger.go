@@ -143,7 +143,11 @@ func runDeviceMerger(l *ladder) error {
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		g.BlockLast: {Shape: blockShape, Data: blockLast},
 	}
-	outVals, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, deviceFeeds)
+	deviceInputs, err := compiled.BindDeviceInputs(deviceFeeds)
+	if err != nil {
+		return err
+	}
+	outVals, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs)
 	if err != nil {
 		return fmt.Errorf("device merger execute: %w", err)
 	}
@@ -172,13 +176,13 @@ func runDeviceMerger(l *ladder) error {
 	statsBefore, _ := worker.ExecutionStats(ctx)
 	const warm, iters = 3, 30
 	for i := 0; i < warm; i++ {
-		if _, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, deviceFeeds); err != nil {
+		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs); err != nil {
 			return err
 		}
 	}
 	start := time.Now()
 	for i := 0; i < iters; i++ {
-		if _, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, deviceFeeds); err != nil {
+		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs); err != nil {
 			return err
 		}
 	}

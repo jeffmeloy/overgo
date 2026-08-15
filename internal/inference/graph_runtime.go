@@ -3,7 +3,6 @@ package inference
 import (
 	"context"
 
-	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
 	"overgo/internal/graphruntime"
 	"overgo/internal/model"
@@ -98,18 +97,8 @@ func (r *Runner) hostLayer(ctx context.Context, key string, info model.LayerWeig
 }
 
 func (runtime *inferenceGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*tensor.Tensor]reference.Value, error) {
-	// Host-execute mode (no CUDA context): the reference executor IS the
-	// golden implementation; GPU-free parity path.
 	if runtime.runner.cuda == nil {
-		return runtime.feeds.Execute(outputs, false, reference.Execute, nil)
+		return runtime.feeds.Execute(runtime.ctx, outputs, nil)
 	}
-	return runtime.feeds.Execute(
-		outputs, runtime.runner.hasPreloadedWeights(),
-		func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
-			return runtime.runner.cuda.Execute(runtime.ctx, outputs, feeds)
-		},
-		func(outputs []*tensor.Tensor, host map[*tensor.Tensor]reference.Value, device map[*tensor.Tensor]driver.DevicePtr) (map[*tensor.Tensor]reference.Value, error) {
-			return runtime.runner.cuda.ExecuteWithDeviceFeeds(runtime.ctx, outputs, host, device)
-		},
-	)
+	return runtime.feeds.Execute(runtime.ctx, outputs, runtime.runner.cuda)
 }

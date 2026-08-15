@@ -4,7 +4,6 @@ package routedlm
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -27,6 +26,9 @@ type DeviceGenerationStackStats struct {
 type generationStackBranch struct {
 	graph        *DeviceGenerationLayerGraph
 	compiled     *executor.CompiledGraph
+	inputs       branchInputProgram
+	prefixKey    executor.InputSlot
+	prefixValue  executor.InputSlot
 	prefixKeys   []driver.DevicePtr
 	prefixValues []driver.DevicePtr
 	row          driver.DevicePtr
@@ -43,7 +45,7 @@ type DeviceGenerationSession struct {
 	image     FlowImagePlan
 	layers    []branchLayerPlan
 	branches  []generationStackBranch
-	resources branchDeviceUploader
+	resources device.AllocationSet
 	setupWall time.Duration
 	prefixB   uint64
 	closed    bool
@@ -79,10 +81,10 @@ func NewDeviceGenerationSession(
 	session := &DeviceGenerationSession{
 		worker: worker, cuda: cuda, cfg: cfg, image: image, layers: layers,
 		branches:  make([]generationStackBranch, len(prefixes)),
-		resources: branchDeviceUploader{worker: worker, ctx: context.WithoutCancel(ctx)},
+		resources: device.NewAllocationSet(worker),
 	}
 	fail := func(err error) (*DeviceGenerationSession, error) {
-		session.resources.free()
+		_ = session.resources.Close(context.WithoutCancel(ctx))
 		return nil, err
 	}
 	inputBytes := uint64(image.Tokens) * uint64(cfg.HiddenSize) * 4
@@ -102,11 +104,28 @@ func NewDeviceGenerationSession(
 			graph: graph, compiled: compiled,
 			prefixKeys: make([]driver.DevicePtr, cfg.NumHiddenLayers), prefixValues: make([]driver.DevicePtr, cfg.NumHiddenLayers),
 		}
-		branch.row, err = session.resources.allocate(inputBytes)
+		branch.inputs, err = compileBranchInputProgram(compiled, graph.Vision)
 		if err != nil {
 			return fail(err)
 		}
-		branch.output, err = session.resources.allocate(inputBytes)
+		branch.prefixKey, err = compiledInputSlot(compiled, graph.PrefixKey)
+		if err != nil {
+			return fail(err)
+		}
+		branch.prefixValue, err = compiledInputSlot(compiled, graph.PrefixValue)
+		if err != nil {
+			return fail(err)
+		}
+		rowSlot, err := compiledInputSlot(compiled, graph.Row)
+		if err != nil {
+			return fail(err)
+		}
+		branch.row, err = session.resources.Allocate(ctx, inputBytes)
+		if err != nil {
+			return fail(err)
+		}
+		branch.inputs.inputs.Pointers[rowSlot] = branch.row
+		branch.output, err = session.resources.Allocate(ctx, inputBytes)
 		if err != nil {
 			return fail(err)
 		}
@@ -121,11 +140,11 @@ func NewDeviceGenerationSession(
 			if uint64(len(kv.Key))*4 != prefixBytes || len(kv.Value) != len(kv.Key) {
 				return fail(fmt.Errorf("routed lm generation session: prefix %d layer %d changed geometry", index, layer))
 			}
-			branch.prefixKeys[layer], err = session.resources.uploadF32(kv.Key)
+			branch.prefixKeys[layer], err = session.resources.Upload(ctx, driver.Bytes(kv.Key))
 			if err != nil {
 				return fail(err)
 			}
-			branch.prefixValues[layer], err = session.resources.uploadF32(kv.Value)
+			branch.prefixValues[layer], err = session.resources.Upload(ctx, driver.Bytes(kv.Value))
 			if err != nil {
 				return fail(err)
 			}
@@ -186,8 +205,8 @@ func (s *DeviceGenerationSession) Run(
 		return nil, stats, err
 	}
 	stats.HostToDevice += uint64(len(hidden)*len(s.branches)) * 4
-	uploader := branchDeviceUploader{worker: s.worker, ctx: ctx}
-	defer uploader.free()
+	uploads := device.NewAllocationSet(s.worker)
+	defer uploads.Close(context.WithoutCancel(ctx))
 	out := make([][]float32, len(s.branches))
 	type layerLoad struct {
 		weights BranchLayerWeights
@@ -210,14 +229,17 @@ func (s *DeviceGenerationSession) Run(
 		if layer+1 < s.cfg.NumHiddenLayers {
 			pending = load(layer + 1)
 		}
-		shared, err := uploader.uploadBranchWeights(loaded.weights)
+		shared, err := uploadBranchWeights(ctx, &uploads, loaded.weights)
 		if err != nil {
 			return nil, stats, err
 		}
 		for index := range s.branches {
 			branch := &s.branches[index]
-			feeds := bindGenerationBranch(branch, shared, layer)
-			retained, err := s.cuda.ExecuteRetainedCompiledWithTargets(ctx, branch.compiled, nil, feeds, branch.target)
+			branch.inputs.bindWeights(shared)
+			branch.bindPrefix(layer)
+			retained, err := s.cuda.ExecuteRetainedCompiled(
+				ctx, branch.compiled, nil, branch.inputs.inputs, branch.target, nil,
+			)
 			if err != nil {
 				return nil, stats, fmt.Errorf("routed lm generation stack: branch=%d layer=%d: %w", index, layer, err)
 			}
@@ -251,18 +273,17 @@ func (s *DeviceGenerationSession) Run(
 				return nil, stats, err
 			}
 		}
-		uploader.free()
+		if err := uploads.Close(ctx); err != nil {
+			return nil, stats, err
+		}
 	}
 	stats.Wall = time.Since(started)
 	return out, stats, nil
 }
 
-func bindGenerationBranch(branch *generationStackBranch, weights branchDeviceWeights, layer int) map[*tensor.Tensor]driver.DevicePtr {
-	feeds := bindBranchWeights(branch.graph.Vision, weights)
-	feeds[branch.graph.PrefixKey] = branch.prefixKeys[layer]
-	feeds[branch.graph.PrefixValue] = branch.prefixValues[layer]
-	feeds[branch.graph.Row] = branch.row
-	return feeds
+func (b *generationStackBranch) bindPrefix(layer int) {
+	b.inputs.inputs.Pointers[b.prefixKey] = b.prefixKeys[layer]
+	b.inputs.inputs.Pointers[b.prefixValue] = b.prefixValues[layer]
 }
 
 // Close releases retained prefix KV and input storage.
@@ -276,59 +297,15 @@ func (s *DeviceGenerationSession) Close(ctx context.Context) error {
 		return nil
 	}
 	s.closed = true
-	s.resources.ctx = context.WithoutCancel(ctx)
 	s.branches = nil
-	return s.resources.releaseAfter(0)
+	return s.resources.Close(context.WithoutCancel(ctx))
 }
 
 type branchDeviceWeights struct {
 	pointers [11]driver.DevicePtr
 }
 
-type branchDeviceUploader struct {
-	worker *device.Worker
-	ctx    context.Context
-	ptrs   []driver.DevicePtr
-}
-
-func (u *branchDeviceUploader) upload(raw []byte) (driver.DevicePtr, error) {
-	var pointer driver.DevicePtr
-	err := u.worker.Do(u.ctx, func(state *device.State) error {
-		var err error
-		pointer, err = state.Driver.MemAlloc(uint64(len(raw)))
-		if err != nil {
-			return err
-		}
-		if err = state.Driver.MemcpyHtoD(pointer, raw); err != nil {
-			_ = state.Driver.MemFree(pointer)
-			return err
-		}
-		return nil
-	})
-	if err == nil {
-		u.ptrs = append(u.ptrs, pointer)
-	}
-	return pointer, err
-}
-
-func (u *branchDeviceUploader) allocate(bytes uint64) (driver.DevicePtr, error) {
-	var pointer driver.DevicePtr
-	err := u.worker.Do(u.ctx, func(state *device.State) error {
-		var err error
-		pointer, err = state.Driver.MemAlloc(bytes)
-		return err
-	})
-	if err == nil {
-		u.ptrs = append(u.ptrs, pointer)
-	}
-	return pointer, err
-}
-
-func (u *branchDeviceUploader) uploadF32(values []float32) (driver.DevicePtr, error) {
-	return u.upload(driver.Bytes(values))
-}
-
-func (u *branchDeviceUploader) uploadBranchWeights(w BranchLayerWeights) (branchDeviceWeights, error) {
+func uploadBranchWeights(ctx context.Context, allocations *device.AllocationSet, w BranchLayerWeights) (branchDeviceWeights, error) {
 	var out branchDeviceWeights
 	raw := [][]byte{
 		driver.Bytes(w.InputNorm), bf16MatrixBytes(w.Q), bf16MatrixBytes(w.K), bf16MatrixBytes(w.V),
@@ -336,7 +313,7 @@ func (u *branchDeviceUploader) uploadBranchWeights(w BranchLayerWeights) (branch
 		bf16MatrixBytes(w.Gate), bf16MatrixBytes(w.Up), bf16MatrixBytes(w.Down),
 	}
 	for index := range raw {
-		pointer, err := u.upload(raw[index])
+		pointer, err := allocations.Upload(ctx, raw[index])
 		if err != nil {
 			return out, err
 		}
@@ -352,30 +329,37 @@ func bf16MatrixBytes(matrix BF16Matrix) []byte {
 	return driver.Bytes(matrix.Data)
 }
 
-func bindBranchWeights(nodes DevicePrefillBranch, weights branchDeviceWeights) map[*tensor.Tensor]driver.DevicePtr {
-	inputs := []*tensor.Tensor{nodes.InputNorm, nodes.Q, nodes.K, nodes.V, nodes.O, nodes.QNorm, nodes.KNorm, nodes.PostNorm, nodes.Gate, nodes.Up, nodes.Down}
-	feeds := make(map[*tensor.Tensor]driver.DevicePtr, len(inputs)+2)
-	for index, input := range inputs {
-		feeds[input] = weights.pointers[index]
-	}
-	return feeds
+type branchInputProgram struct {
+	inputs  *executor.DeviceInputs
+	weights [11]executor.InputSlot
 }
 
-func (u *branchDeviceUploader) releaseAfter(keep int) error {
-	if keep < 0 || keep > len(u.ptrs) {
-		return fmt.Errorf("routed lm device release: keep=%d allocations=%d", keep, len(u.ptrs))
+func compileBranchInputProgram(compiled *executor.CompiledGraph, nodes DevicePrefillBranch) (branchInputProgram, error) {
+	program := branchInputProgram{inputs: compiled.NewDeviceInputs()}
+	weightNodes := [...]*tensor.Tensor{
+		nodes.InputNorm, nodes.Q, nodes.K, nodes.V, nodes.O, nodes.QNorm,
+		nodes.KNorm, nodes.PostNorm, nodes.Gate, nodes.Up, nodes.Down,
 	}
-	err := u.worker.Do(u.ctx, func(state *device.State) error {
-		var releaseErr error
-		for _, pointer := range u.ptrs[keep:] {
-			releaseErr = errors.Join(releaseErr, state.Driver.MemFree(pointer))
+	for index, node := range weightNodes {
+		slot, err := compiledInputSlot(compiled, node)
+		if err != nil {
+			return branchInputProgram{}, err
 		}
-		return releaseErr
-	})
-	u.ptrs = u.ptrs[:keep]
-	return err
+		program.weights[index] = slot
+	}
+	return program, nil
 }
 
-func (u *branchDeviceUploader) free() {
-	_ = u.releaseAfter(0)
+func compiledInputSlot(compiled *executor.CompiledGraph, node *tensor.Tensor) (executor.InputSlot, error) {
+	slot, ok := compiled.InputSlot(node)
+	if !ok {
+		return 0, fmt.Errorf("routed lm: input %q is not compiled", node.Name)
+	}
+	return slot, nil
+}
+
+func (p *branchInputProgram) bindWeights(weights branchDeviceWeights) {
+	for index, slot := range p.weights {
+		p.inputs.Pointers[slot] = weights.pointers[index]
+	}
 }

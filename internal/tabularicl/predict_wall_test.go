@@ -4,6 +4,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"overgo/internal/testevidence"
 )
 
 // TestPredictWall: matched-protocol wall measurement against the reference
@@ -16,7 +18,7 @@ const predictWallRuns = 5
 
 func TestPredictWall(t *testing.T) {
 	if testing.Short() {
-		t.Skip("loads ~6.5GB weights per head; skipped in -short")
+		t.Skip(testevidence.ShortIntegrationSkip + ": loads ~6.5GB weights per head")
 	}
 	golden := readGolden(t)
 	for _, task := range Tasks() {

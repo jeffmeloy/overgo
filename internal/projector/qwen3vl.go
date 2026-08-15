@@ -71,10 +71,6 @@ func DefaultQwen3VLVideoPreprocessOptions() Qwen3VLPreprocessOptions {
 	}
 }
 
-func OpenQwen3VL(path string) (*Qwen3VLRunner, error) {
-	return OpenQwen3VLWithOptions(path, OpenOptions{})
-}
-
 func OpenQwen3VLWithOptions(path string, options OpenOptions) (*Qwen3VLRunner, error) {
 	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Qwen3VLRunner, error) {
 		return openQwen3VL(context.Background(), file, options)

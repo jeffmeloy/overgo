@@ -26,12 +26,12 @@ func TestTrainingPlanMatchesImplementation(t *testing.T) {
 	for _, fact := range []string{
 		"dense host and CUDA forward, loss, backward and Muon matrix updates",
 		"compiled scratch construction/program authority",
-		"scratch construction and program types are implemented",
+		"shared lazy dataset materialization",
 		"`ScratchConstruction`",
 		"Adaptive_new is an offline oracle, not a runtime dependency",
 		"`cmd/train` selects the resident dense device loop",
 		"production checkpoints are not atomic complete-state resumes",
-		"compiled multimodal training authority is not implemented",
+		"compiled multimodal training authority binds dataset processor modalities",
 		"no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed",
 		"real multimodal processor/projector/codec gradient",
 	} {

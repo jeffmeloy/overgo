@@ -244,7 +244,7 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			return "", math.NaN(), "", fmt.Errorf("compile: %w", err)
 		}
 		host := map[*tensor.Tensor]reference.Value{qNode: {Shape: qShape, Data: q}}
-		out, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, host, map[*tensor.Tensor]driver.DevicePtr{})
+		out, err := exe.ExecuteCompiled(ctx, compiled, host, nil)
 		if err != nil {
 			return "", math.NaN(), "", fmt.Errorf("execute: %w", err)
 		}
@@ -340,7 +340,11 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			nB0:    {Shape: midBiasShape, Data: weights.NoiseScale.B0},
 			nB2:    {Shape: midBiasShape, Data: weights.NoiseScale.B2},
 		}
-		out, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, host, dev)
+		inputs, err := compiled.BindDeviceInputs(dev)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		out, err := exe.ExecuteCompiled(ctx, compiled, host, inputs)
 		if err != nil {
 			return "", math.NaN(), "", fmt.Errorf("execute: %w", err)
 		}
@@ -408,7 +412,11 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			b2:      {Shape: tensor.MustShape(uint64(F), 1), Data: weights.Head.B2},
 		}
 		dev := map[*tensor.Tensor]driver.DevicePtr{w0: pw0, w2: pw2}
-		res, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, host, dev)
+		inputs, err := compiled.BindDeviceInputs(dev)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		res, err := exe.ExecuteCompiled(ctx, compiled, host, inputs)
 		if err != nil {
 			return "", math.NaN(), "", fmt.Errorf("execute: %w", err)
 		}
@@ -425,13 +433,13 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 		// measurement: denoise-step TERMINAL latency (flow head over 64 tokens).
 		const warm, iters = 3, 30
 		for i := 0; i < warm; i++ {
-			if _, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, host, dev); err != nil {
+			if _, err := exe.ExecuteCompiled(ctx, compiled, host, inputs); err != nil {
 				return "", math.NaN(), "", err
 			}
 		}
 		start := time.Now()
 		for i := 0; i < iters; i++ {
-			if _, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, host, dev); err != nil {
+			if _, err := exe.ExecuteCompiled(ctx, compiled, host, inputs); err != nil {
 				return "", math.NaN(), "", err
 			}
 		}
@@ -477,7 +485,7 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 				zin: {Shape: vecShape, Data: zv},
 				vin: {Shape: vecShape, Data: vv},
 			}
-			out, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, host, map[*tensor.Tensor]driver.DevicePtr{})
+			out, err := exe.ExecuteCompiled(ctx, compiled, host, nil)
 			if err != nil {
 				return "", math.NaN(), "", fmt.Errorf("execute: %w", err)
 			}

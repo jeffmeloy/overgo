@@ -62,10 +62,10 @@ func (s *residentTrainingState) release() {
 }
 
 type residentForwardProgram struct {
-	graph       ForwardGraph
-	compiled    *executor.CompiledGraph
-	hostFeeds   map[*tensor.Tensor]reference.Value
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr
+	graph     ForwardGraph
+	compiled  *executor.CompiledGraph
+	hostFeeds map[*tensor.Tensor]reference.Value
+	inputs    *executor.DeviceInputs
 }
 
 func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTrainer, error) {
@@ -266,8 +266,8 @@ func (t *ResidentTrainer) forward(tokens []int, positions int) (ForwardGraph, *e
 	if err := attributes.Set(program.graph.tokenRows, tensor.GetRowsAttributes{Rows: rows}); err != nil {
 		return ForwardGraph{}, nil, err
 	}
-	retained, err := t.executor.ExecuteRetainedCompiledParameterized(
-		context.Background(), program.compiled, program.hostFeeds, program.deviceFeeds, nil, attributes,
+	retained, err := t.executor.ExecuteRetainedCompiled(
+		context.Background(), program.compiled, program.hostFeeds, program.inputs, nil, attributes,
 	)
 	return program.graph, retained, err
 }
@@ -319,26 +319,27 @@ func (t *ResidentTrainer) forwardProgram(tokens []int) (*residentForwardProgram,
 	if err != nil {
 		return nil, err
 	}
-	hostFeeds, deviceFeeds, err := graph.residentFeeds(t.construction, t.weights)
+	compiled, err := executor.Compile(graph.cacheOutputs()...)
 	if err != nil {
 		return nil, err
 	}
-	compiled, err := executor.Compile(graph.cacheOutputs()...)
+	hostFeeds, inputs, err := graph.residentInputs(compiled, t.construction, t.weights)
 	if err != nil {
 		return nil, err
 	}
 	t.programs = append(t.programs, residentForwardProgram{
 		graph: graph, compiled: compiled,
-		hostFeeds: hostFeeds, deviceFeeds: deviceFeeds,
+		hostFeeds: hostFeeds, inputs: inputs,
 	})
 	return &t.programs[len(t.programs)-1], nil
 }
 
-func (g ForwardGraph) residentFeeds(
+func (g ForwardGraph) residentInputs(
+	compiled *executor.CompiledGraph,
 	c Construction,
 	weightSlab driver.DevicePtr,
-) (map[*tensor.Tensor]reference.Value, map[*tensor.Tensor]driver.DevicePtr, error) {
-	if weightSlab == 0 || g.Mask == nil || len(g.Parameters) != len(c.parameters) {
+) (map[*tensor.Tensor]reference.Value, *executor.DeviceInputs, error) {
+	if compiled == nil || weightSlab == 0 || g.Mask == nil || len(g.Parameters) != len(c.parameters) {
 		return nil, nil, errors.New("scratch model: resident graph or slab differs")
 	}
 	mask, err := reference.NewValue(g.Mask.Shape, g.mask)
@@ -346,15 +347,19 @@ func (g ForwardGraph) residentFeeds(
 		return nil, nil, err
 	}
 	hostFeeds := map[*tensor.Tensor]reference.Value{g.Mask: mask}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr, len(g.Parameters))
+	inputs := compiled.NewDeviceInputs()
 	for name, input := range g.Parameters {
 		binding, ok := c.bindings[name]
 		if !ok {
 			return nil, nil, fmt.Errorf("scratch model: resident parameter %q absent", name)
 		}
-		deviceFeeds[input] = devicemath.ResidentPtr(weightSlab, binding.start)
+		slot, ok := compiled.InputSlot(input)
+		if !ok {
+			return nil, nil, fmt.Errorf("scratch model: resident parameter %q is not compiled", name)
+		}
+		inputs.Pointers[slot] = devicemath.ResidentPtr(weightSlab, binding.start)
 	}
-	return hostFeeds, deviceFeeds, nil
+	return hostFeeds, inputs, nil
 }
 
 func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {
@@ -763,8 +768,17 @@ func (c Construction) TrainResident(totalSteps int) (TrainingResult, error) {
 	}
 	defer trainer.Close()
 	result := TrainingResult{Losses: make([]float64, totalSteps)}
+	materialized, batcher, err := c.documentBatcher(c.split.Train)
+	if err != nil {
+		return TrainingResult{}, err
+	}
+	defer materialized.Close()
 	for step := range totalSteps {
-		tokens, err := c.Tokens(c.split.Train[step%len(c.split.Train)])
+		document, err := nextDocument(context.Background(), batcher)
+		if err != nil {
+			return TrainingResult{}, err
+		}
+		tokens, err := c.Tokens(document)
 		if err != nil {
 			return TrainingResult{}, err
 		}

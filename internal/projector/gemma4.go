@@ -57,10 +57,6 @@ type Gemma4Runner struct {
 	spec Gemma4Spec
 }
 
-func OpenGemma4(path string) (*Gemma4Runner, error) {
-	return OpenGemma4WithOptions(path, OpenOptions{})
-}
-
 func OpenGemma4WithOptions(path string, options OpenOptions) (*Gemma4Runner, error) {
 	return openProjectorResource(context.Background(), path, func(file *gguf.File) (*Gemma4Runner, error) {
 		return openGemma4(context.Background(), file, options)

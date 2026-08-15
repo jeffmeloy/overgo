@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"overgo/internal/clioptions"
@@ -48,8 +47,5 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "cuda-info:", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("cuda-info", run)
 }

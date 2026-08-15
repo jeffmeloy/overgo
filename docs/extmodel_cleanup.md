@@ -27,7 +27,7 @@ active recipe + resolved artifact facts
 | Surface | Count | Treatment |
 |---|---:|---|
 | Model/inference production files | 143 | Diagnostic; ownership matters, not file count |
-| Model/inference production functions | 952 | Reduce by caller migration and deletion |
+| Model/inference production functions | 948 | Four FFN builders deleted; shared policy runtime owns projection |
 | Family-named production files | 0 | Hold at zero |
 | Family-identity-bearing production files | 21 | Restrict to parsing/wire facts, then remove runtime uses |
 | Post-resolution architecture catalog lookups in execution compilation | 0 | Hold at zero |
@@ -52,6 +52,7 @@ active recipe + resolved artifact facts
 | Image stage topology declarations | 1 | Shared prepare, integrate, and decode schema; modules supply math |
 | Resident capability construction/failure adapters | 1 | One typed executor adapter owns ready/error conversion |
 | Dead graph-runtime feed mutators | 0 | Weight/layer binders own feed registration |
+| Graph-runtime executor callback types | 0 | Runtime selects reference, CUDA host-feed, or CUDA device-feed execution |
 | Hardcoded Gemma3N validation facts | 0 | Serialized typed profile facts |
 | Exported registry-backed profile resolution APIs | 0 | Bootstrap stays inside model package |
 | Hardcoded RWKV execution/validation scalars | 0 | Serialized typed recurrent profile facts |
@@ -65,12 +66,21 @@ active recipe + resolved artifact facts
 | Ordinary CUDA launch tensor-pointer lookups | 0 | Flat compiled operand slots |
 | CUDA launch tensor-pointer lookups | 0 | Ordinary and fused launches use compiled slots |
 | Runtime CUDA fusion descriptor maps | 0 | Rewrite map released after indexed launch compilation |
+| Runtime CUDA rewrite decision maps | 0 | Node and fusion frames retain compiled decisions |
+| Compiled CUDA tensor-pointer map APIs | 0 | Indexed input slabs are the sole compiled contract |
+| Retained compiled CUDA execution methods | 1 | Inputs, targets, and attributes share one indexed entry point |
+| Routed per-layer device-binding maps | 0 | Branch input programs retain compiled slots |
+| Duplicate dense FFN builders | 0 | Feed-forward policy owns layout, activation, bias, and projection |
+| Routed/denoiser allocation owners | 1 | Shared ordered allocation set; VAE keeps distinct batched/workspace ownership |
 | Duplicated CUDA launch frames | 0 | Node frames plus compact launch indices |
+| Resident image per-execution device-feed maps | 0 | Compiled input slots; reusable pointer slabs |
+| Resident image parallel weight ownership maps | 0 | Indexed pointer/refcount/byte slots |
 | Hybrid-local Q/K/V projection implementations | 0 | Shared projection stage owns fused/separate binding |
 | Resident video full host-weight owners after upload | 0 | Retain timestep bundle only |
-| Resident video named weight maps after binding | 0 | Node-to-device feeds own execution bindings |
+| Resident video named weight/feed maps after binding | 0 | Compiled input slots own execution bindings |
 | General recipe VQA runtime adapters | 0 | Extract command-local processor/device pipeline |
 | Production video recipe activation paths | 0 | Bind profile artifact; require active recipe |
+| Projector no-policy constructor wrappers | 0 | Fifteen callers migrated to option-bearing constructors |
 
 Family-named production files: none.
 

@@ -6,8 +6,8 @@
 //	loophook post-commit  PostToolUse.    arms/clears docs/.dispatch_pending.
 //	loophook doctrine     SessionStart.   emits the turn contract + dispatch.
 //
-// The stop gate refuses a turn-end that ORPHANS work -- uncommitted .go, or an
-// armed dispatch marker (a commit landed this turn but the next step was not
+// The stop gate refuses a turn-end that ORPHANS work -- uncommitted repository
+// work, or an armed dispatch marker (a commit landed this turn but the next step was not
 // dispatched: the milestone-stop). A bare commit is NOT a clean exit. Valves
 // keep it from ever wedging: a stop_hook_active retry passes, a live background
 // gate steps aside, a fresh recorded stop at HEAD passes, plan-complete passes.
@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"overgo/internal/plan"
+	"overgo/internal/repoanalysis"
 )
 
 const markerPath = "docs/.dispatch_pending"
@@ -50,12 +51,12 @@ func readStdin() string {
 
 // stopDecision is the pure verdict the Stop hook renders. block==true means the
 // turn-end is refused. Allow (block=false) whenever a valve fires; otherwise
-// block iff work is orphaned (uncommitted .go or an armed dispatch marker).
-func stopDecision(stopHookActive, freshStop, gateRunning, planComplete, dirtyGo, markerArmed bool) (block bool) {
+// block iff work is orphaned (a meaningful dirty path or an armed dispatch marker).
+func stopDecision(stopHookActive, freshStop, gateRunning, planComplete, dirtyWork, markerArmed bool) (block bool) {
 	if stopHookActive || freshStop || gateRunning || planComplete {
 		return false
 	}
-	return dirtyGo || markerArmed
+	return dirtyWork || markerArmed
 }
 
 func runStop(hookJSON string) int {
@@ -73,17 +74,17 @@ func runStop(hookJSON string) int {
 	if complete {
 		_ = os.Remove(markerPath)
 	}
-	dirtyGo := hasDirtyGo()
+	dirtyWork := hasDirtyPlannedScope()
 	markerArmed := fileExists(markerPath)
 
-	if !stopDecision(false, freshStop, gateRunning, complete, dirtyGo, markerArmed) {
+	if !stopDecision(false, freshStop, gateRunning, complete, dirtyWork, markerArmed) {
 		return 0
 	}
 
 	var b strings.Builder
 	b.WriteString("overgo loop gate: this turn orphans work -- do not end it.\n")
-	if dirtyGo {
-		b.WriteString("  * uncommitted .go: commit via 'go run ./cmd/gate -plan <item>/<step> ...' or revert.\n")
+	if dirtyWork {
+		b.WriteString("  * uncommitted repository work: commit via 'go run ./cmd/gate -plan <item>/<step> ...' or revert.\n")
 	}
 	if markerArmed {
 		b.WriteString("  * a commit landed but the next step is NOT dispatched (the milestone-stop). Run 'go run ./cmd/plan -next' and take its first real action THIS turn.\n")
@@ -100,14 +101,14 @@ func runStop(hookJSON string) int {
 
 // runPostCommit owns the dispatch-marker lifecycle. A plan-bound gate call is the
 // commit boundary: arm the marker so the Stop gate refuses a milestone-stop until
-// the next step is dispatched. A later non-gate command that has left new .go
-// work in the tree consumes the boundary (the next step is underway): clear it.
+// the next step is dispatched. A later non-gate command that has left new
+// repository work in the tree consumes the boundary (the next step is underway): clear it.
 func runPostCommit(hookJSON string) {
 	if strings.Contains(hookJSON, "cmd/gate") {
 		_ = os.WriteFile(markerPath, []byte(gitHead()+"\n"), 0o644)
 		return
 	}
-	if fileExists(markerPath) && hasDirtyGo() {
+	if fileExists(markerPath) && hasDirtyPlannedScope() {
 		_ = os.Remove(markerPath)
 	}
 }
@@ -132,12 +133,21 @@ func gitHead() string {
 	return strings.TrimSpace(string(out))
 }
 
-func hasDirtyGo() bool {
-	out, err := exec.Command("git", "status", "--porcelain", "--", "*.go").Output()
+func hasDirtyPlannedScope() bool {
+	out, err := exec.Command("git", "status", "--porcelain=v1", "-z", "--untracked-files=all").Output()
 	if err != nil {
 		return false
 	}
-	return strings.TrimSpace(string(out)) != ""
+	dirty, err := dirtyPlannedScope(out)
+	return err == nil && dirty
+}
+
+func dirtyPlannedScope(status []byte) (bool, error) {
+	paths, err := repoanalysis.ParseDirtyStatus(status)
+	if err != nil {
+		return false, err
+	}
+	return len(paths) > 0, nil
 }
 
 func freshStopAtHead(head string) bool {

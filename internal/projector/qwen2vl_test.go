@@ -34,7 +34,7 @@ func (t *qwen2VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokeniz
 
 func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), tinyQwen2VLTensors())
-	runner, err := OpenQwen2VL(path)
+	runner, err := OpenQwen2VLWithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestQwen2VLLegacyFFNNamesAndDefaultMerge(t *testing.T) {
 		}
 	}
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	runner, err := OpenQwen2VL(path)
+	runner, err := OpenQwen2VLWithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	opened, err := OpenImageProjector(context.Background(), path)
+	opened, err := OpenImageProjectorWithOptions(context.Background(), path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestQwen2VLVideoPositions(t *testing.T) {
 func TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), nonzeroTinyQwen2VLTensors())
-	cpu, err := OpenQwen2VL(path)
+	cpu, err := OpenQwen2VLWithOptions(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

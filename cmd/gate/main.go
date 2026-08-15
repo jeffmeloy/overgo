@@ -17,6 +17,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -25,38 +26,49 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/codeprofile"
 	"overgo/internal/guard"
+	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
+	"overgo/internal/testscope"
 )
 
 const (
-	gateRecipeSeed   = "overgo-gate/v1"
-	gateWorkloadSeed = "overgo-gate-workload/v1"
+	gateRecipeSeed    = "overgo-gate/v1"
+	gateWorkloadSeed  = "overgo-gate-workload/v1"
+	gateDebtFile      = "bin/gate_debt.json"
+	gateHeartbeatFile = "bin/gate_lifecycle.json"
+	gateRetryFile     = "bin/gate_cache.json"
 )
 
 type gateContext struct {
-	repo        string
-	paths       []string
-	messageFile string
-	storePath   string
-	steps       []runrecord.GateStep
-	honesty     []string
-	start       time.Time
+	repo         string
+	paths        []string
+	messageFile  string
+	storePath    string
+	steps        []runrecord.GateStep
+	honesty      []string
+	start        time.Time
+	environment  runrecord.Environment
+	preparation  runrecord.GateLifecycle
+	source       *repoanalysis.SourceSnapshot
+	profile      *codeprofile.Profile
+	profileDirty bool
 }
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "gate: %v\n", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("gate", run)
 }
 
 func run() error {
@@ -65,13 +77,42 @@ func run() error {
 	storePath := flag.String("store", "repodb-store", "RepoDB store directory (relative to repo root)")
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
 	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the plan's current open step (see `go run ./cmd/plan -next`). Required unless -merge. Off-plan commits are refused.")
+	reconcile := flag.Bool("reconcile", false, "finalize the deterministic RepoDB batch in bin/gate_debt.json")
+	admitReview := flag.String("admit-review", "", "read-only: admit a RepoDB review-verdict ID against the current HEAD")
+	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
+	staleAfter := flag.Duration("stale-after", 30*time.Second, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
-	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
-		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
-	}
 	repo, err := os.Getwd()
 	if err != nil {
 		return err
+	}
+	cleanStore := filepath.Clean(*storePath)
+	if cleanStore == "." || filepath.IsAbs(cleanStore) || cleanStore == ".." || strings.HasPrefix(cleanStore, ".."+string(filepath.Separator)) {
+		return errors.New("gate: store path must stay below the repository root")
+	}
+	if *reconcile {
+		preparation, err := reconcileGateDebt(repo, cleanStore)
+		if err == nil {
+			fmt.Printf("gate: reconciled RepoDB record debt for %s\n", preparation)
+		}
+		return err
+	}
+	if *admitReview != "" {
+		head, err := command(repo, "git", "rev-parse", "HEAD")
+		if err != nil {
+			return err
+		}
+		if err := admitStoredReview(repo, cleanStore, *admitReview, strings.TrimSpace(head)); err != nil {
+			return err
+		}
+		fmt.Printf("gate: review %s admitted at %s\n", *admitReview, strings.TrimSpace(head))
+		return nil
+	}
+	if *watchdog {
+		return printGateWatchdog(repo, *staleAfter)
+	}
+	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
+		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
 	}
 	// Every commit -- including a merge finalize -- is bound to the plan's current
 	// open step. Merges are no longer exempt: a sync/merge is a first-class plan
@@ -80,7 +121,7 @@ func run() error {
 		return err
 	}
 	g := &gateContext{
-		repo: repo, messageFile: *messageFile, storePath: *storePath, start: time.Now(),
+		repo: repo, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
 	}
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
@@ -112,6 +153,18 @@ func run() error {
 	if err := g.expandDirectoryPaths(); err != nil {
 		return err
 	}
+	g.environment, err = discoverEnvironment(repo)
+	if err != nil {
+		return err
+	}
+	if err := g.prepare(); err != nil {
+		return err
+	}
+	stopHeartbeat, err := g.startHeartbeat()
+	if err != nil {
+		return err
+	}
+	defer stopHeartbeat()
 
 	outcome := runrecord.OutcomeSucceeded
 	failure := ""
@@ -120,12 +173,19 @@ func run() error {
 		failure = err.Error()
 	}
 	recordErr := g.record(outcome, failure)
+	stopHeartbeat()
 	g.printSummary(outcome, failure)
 	if recordErr != nil {
+		_ = g.writeHeartbeat(runrecord.HeartbeatRecordDebt)
 		fmt.Fprintf(os.Stderr, "gate: store record failed (result stands, record owed): %v\n", recordErr)
+	} else {
+		_ = g.writeHeartbeat(runrecord.HeartbeatFinalized)
 	}
 	if outcome != runrecord.OutcomeSucceeded {
 		return fmt.Errorf("%s", failure)
+	}
+	if recordErr != nil {
+		return fmt.Errorf("commit landed but RepoDB record debt remains: %w", recordErr)
 	}
 	return nil
 }
@@ -167,6 +227,7 @@ func (g *gateContext) pipeline() error {
 	}
 	steps := []step{
 		{"scope", runrecord.PhaseValidate, g.stepScope},
+		{"profile", runrecord.PhaseValidate, g.stepProfile},
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
 		{"vet", runrecord.PhaseVet, g.stepVet},
 		{"build", runrecord.PhaseBuild, g.stepBuild},
@@ -178,7 +239,7 @@ func (g *gateContext) pipeline() error {
 		{"device", runrecord.PhaseTest, g.stepDevice},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
 	}
-	treeKey, cache := g.loadRetryCache()
+	cache := g.loadRetryCache()
 	// Verification steps whose result depends only on tree state may reuse a
 	// prior identical-tree success (the retry-loop tax: a failed commit step
 	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
@@ -208,7 +269,7 @@ func (g *gateContext) pipeline() error {
 		fmt.Printf("[gate] %-8s %-9s %6.2fs\n", s.name, record.Outcome, time.Since(began).Seconds())
 		if err == nil && cacheable[s.name] && !skipped {
 			cache.Steps[s.name] = string(runrecord.StepSucceeded)
-			g.saveRetryCache(treeKey, cache)
+			g.saveRetryCache(cache)
 		}
 		if err != nil {
 			return fmt.Errorf("%s: %w", s.name, err)
@@ -217,9 +278,62 @@ func (g *gateContext) pipeline() error {
 	return nil
 }
 
-type retryCache struct {
-	TreeKey string            `json:"tree_key"`
-	Steps   map[string]string `json:"steps"`
+func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
+	if g.source != nil {
+		return *g.source, nil
+	}
+	snapshot, err := repoanalysis.DiscoverGo(g.repo, "internal", "cmd")
+	if err == nil {
+		g.source = &snapshot
+	}
+	return snapshot, err
+}
+
+func (g *gateContext) stepProfile() (bool, error) {
+	if len(g.changedGoFiles()) == 0 {
+		return true, nil
+	}
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	profile, err := codeprofile.Build(snapshot)
+	if err != nil {
+		return false, err
+	}
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"code profile: production=%d files/%d nodes test=%d/%d duplicate_excess=%d clones=%d functions=%d exported=%d imports=%d",
+		profile.Production.Files, profile.Production.Nodes, profile.Test.Files, profile.Test.Nodes,
+		profile.DuplicateExcessNodes, len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
+	))
+	g.honesty = append(g.honesty, profileReviewFocus(profile, g.changedGoFiles()))
+	g.profile = &profile
+	return false, nil
+}
+
+func profileReviewFocus(profile codeprofile.Profile, changed []string) string {
+	paths := make(map[string]bool, len(changed))
+	for _, path := range changed {
+		paths[path] = true
+	}
+	functionText := "none"
+	for _, function := range profile.Functions {
+		if paths[function.File] {
+			functionText = fmt.Sprintf("%s:%s nodes=%d branches=%d", function.File, function.Name, function.Nodes, function.Branches)
+			break
+		}
+	}
+	cloneText := "none"
+	for _, clone := range profile.Clones {
+		if slices.ContainsFunc(clone.Functions, func(function string) bool {
+			path, _, ok := strings.Cut(function, ":")
+			return ok && paths[path]
+		}) {
+			cloneText = fmt.Sprintf("nodes=%d functions=%s", clone.Nodes, strings.Join(clone.Functions, ","))
+			break
+		}
+	}
+	return "code review focus: largest_function_in_changed_file=" + functionText + "; largest_clone_touching_changed_file=" + cloneText
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,
@@ -253,38 +367,51 @@ func (g *gateContext) treeStateKey() (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-func (g *gateContext) loadRetryCache() (string, retryCache) {
-	empty := retryCache{Steps: map[string]string{}}
-	key, err := g.treeStateKey()
-	if err != nil {
-		return "", empty
-	}
-	empty.TreeKey = key
-	raw, err := os.ReadFile(filepath.Join(g.repo, "bin", "gate_cache.json"))
-	if err != nil {
-		return key, empty
-	}
-	var cache retryCache
-	if json.Unmarshal(raw, &cache) != nil || cache.TreeKey != key || cache.Steps == nil {
-		return key, empty
-	}
-	return key, cache
+type retryCache struct {
+	TreeKey     string            `json:"tree_key"`
+	Environment string            `json:"environment"`
+	Steps       map[string]string `json:"steps"`
 }
 
-func (g *gateContext) saveRetryCache(key string, cache retryCache) {
-	if key == "" {
-		return
+func (g *gateContext) loadRetryCache() retryCache {
+	key, _ := g.treeStateKey()
+	empty := retryCache{TreeKey: key, Environment: g.environment.ID.String(), Steps: map[string]string{}}
+	var cache retryCache
+	if key == "" || readJSON(g.repo, gateRetryFile, &cache) != nil || !retryReusable(cache, key, empty.Environment) {
+		return empty
 	}
-	cache.TreeKey = key
-	raw, err := json.MarshalIndent(cache, "", "  ")
+	return cache
+}
+
+func (g *gateContext) saveRetryCache(cache retryCache) {
+	if cache.TreeKey != "" {
+		_ = writeJSON(g.repo, gateRetryFile, cache, 0o644)
+	}
+}
+
+func retryReusable(cache retryCache, treeKey, environment string) bool {
+	return cache.TreeKey == treeKey && cache.Environment == environment && cache.Steps != nil
+}
+
+func discoverEnvironment(repo string) (runrecord.Environment, error) {
+	out, err := command(repo, "go", "env", "CGO_ENABLED", "GOFLAGS", "GOEXPERIMENT", "GOTOOLCHAIN")
 	if err != nil {
-		return
+		return runrecord.Environment{}, err
 	}
-	dir := filepath.Join(g.repo, "bin")
-	if os.MkdirAll(dir, 0o755) != nil {
-		return
+	values := strings.Split(strings.ReplaceAll(out, "\r\n", "\n"), "\n")
+	for len(values) < 4 {
+		values = append(values, "")
 	}
-	_ = os.WriteFile(filepath.Join(dir, "gate_cache.json"), append(raw, '\n'), 0o644)
+	host, err := os.Hostname()
+	if err != nil {
+		host = "unknown"
+	}
+	return runrecord.NewEnvironment(runrecord.Environment{
+		Host: host, OS: runtime.GOOS, Arch: runtime.GOARCH, Device: "host", Backend: "go",
+		Driver: "cgo=" + strings.TrimSpace(values[0]),
+		Runtime: fmt.Sprintf("%s;goflags=%s;goexperiment=%s;gotoolchain=%s", runtime.Version(),
+			strings.TrimSpace(values[1]), strings.TrimSpace(values[2]), strings.TrimSpace(values[3])),
+	})
 }
 
 // expandDirectoryPaths rewrites a -paths entry naming a directory into that
@@ -339,27 +466,44 @@ func (g *gateContext) stepScope() (bool, error) {
 	if len(rogue) > 0 {
 		return false, fmt.Errorf("staged outside -paths (would ship): %s", strings.Join(rogue, ", "))
 	}
-	dirty, err := gitLines(g.repo, "status", "--porcelain")
+	status, err := command(g.repo, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
 		return false, err
 	}
-	for _, line := range dirty {
-		if len(line) < 4 {
-			continue
-		}
-		p := filepath.ToSlash(strings.TrimSpace(line[3:]))
-		if !slices.Contains(g.paths, p) {
-			g.honesty = append(g.honesty, "unplanned dirty (not shipped): "+p)
-		}
+	dirty, err := repoanalysis.ParseDirtyStatus([]byte(status))
+	if err != nil {
+		return false, err
+	}
+	dirtyPaths, unplanned := scopeDirty(g.paths, dirty)
+	for _, path := range unplanned {
+		g.honesty = append(g.honesty, "unplanned dirty (not shipped): "+path)
+		g.profileDirty = g.profileDirty || strings.HasSuffix(path, ".go")
 	}
 	for _, p := range g.paths {
 		if _, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(p))); err != nil {
-			if deleted, _ := gitLines(g.repo, "status", "--porcelain", "--", p); len(deleted) == 0 {
+			if !dirtyPaths[p] {
 				return false, fmt.Errorf("planned path %s neither exists nor is a tracked deletion", p)
 			}
 		}
 	}
 	return false, nil
+}
+
+func scopeDirty(planned []string, dirty []repoanalysis.DirtyPath) (map[string]bool, []string) {
+	visible := map[string]bool{}
+	var unplanned []string
+	for _, entry := range dirty {
+		for _, path := range []string{entry.Path, entry.OriginalPath} {
+			if path == "" || visible[path] {
+				continue
+			}
+			visible[path] = true
+			if !slices.Contains(planned, path) {
+				unplanned = append(unplanned, path)
+			}
+		}
+	}
+	return visible, unplanned
 }
 
 func (g *gateContext) changedGoFiles() []string {
@@ -424,8 +568,8 @@ func (g *gateContext) pathsTouchAny(prefixes ...string) bool {
 }
 
 func (g *gateContext) stepBuild() (bool, error) {
-	if !g.pathsTouchGo() {
-		g.honesty = append(g.honesty, "build skipped: no Go source or module files in -paths")
+	if !g.pathsTouchGo() && !g.pathsTouchAny("cmd/", "internal/") {
+		g.honesty = append(g.honesty, "build skipped: no Go-owned source or asset paths in -paths")
 		return true, nil
 	}
 	_, err := command(g.repo, "go", "build", "./...")
@@ -436,17 +580,12 @@ func (g *gateContext) stepBuild() (bool, error) {
 // files plus every package whose transitive deps include one. A hand-listed
 // impact table is a process magic; the graph is the derivation.
 func (g *gateContext) stepTest() (bool, error) {
-	changed := map[string]bool{}
-	for _, f := range g.changedGoFiles() {
-		dir := filepath.ToSlash(filepath.Dir(f))
-		out, err := command(g.repo, "go", "list", "./"+dir)
-		if err != nil {
-			continue // deleted package: its importers still test below
-		}
-		changed[strings.TrimSpace(out)] = true
+	changed, err := g.directChangedPackages()
+	if err != nil {
+		return false, err
 	}
 	if len(changed) == 0 {
-		g.honesty = append(g.honesty, "tests skipped: no .go in -paths")
+		g.honesty = append(g.honesty, "tests skipped: no Go package owns a source or embedded asset in -paths")
 		return true, nil
 	}
 	out, err := command(g.repo, "go", "list", "-f", "{{.ImportPath}} {{join .Deps \",\"}}", "./...")
@@ -491,6 +630,22 @@ func (g *gateContext) stepTest() (bool, error) {
 		))
 	}
 	return false, nil
+}
+
+func (g *gateContext) directChangedPackages() (map[string]bool, error) {
+	out, err := command(g.repo, "go", "list", "-json", "./...")
+	if err != nil {
+		return nil, fmt.Errorf("derive Go ownership: %w", err)
+	}
+	packages, err := testscope.DecodePackages(strings.NewReader(out))
+	if err != nil {
+		return nil, err
+	}
+	changed := map[string]bool{}
+	for _, importPath := range testscope.DirectPackages(g.repo, g.paths, packages) {
+		changed[importPath] = true
+	}
+	return changed, nil
 }
 
 func runGoTests(repo string, packages []string) (string, error) {
@@ -579,7 +734,11 @@ func (g *gateContext) stepClaims() (bool, error) {
 // enforcement hardens once the 530-constant backlog is triaged
 // (first-run-calibrates applied to enforcement itself).
 func (g *gateContext) stepMagics() (bool, error) {
-	candidates, err := closurescan.ScanFiles(g.repo, g.paths)
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	candidates, err := closurescan.ScanSnapshot(snapshot, g.paths)
 	if err != nil {
 		return false, err
 	}
@@ -701,6 +860,180 @@ func (g *gateContext) stepCommit() (bool, error) {
 	return false, nil
 }
 
+func (g *gateContext) prepare() error {
+	if _, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(gateDebtFile))); err == nil {
+		return errors.New("gate: unresolved bin/gate_debt.json; run `go run ./cmd/gate -reconcile` before another gate")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	treeKey, err := g.treeStateKey()
+	if err != nil {
+		return err
+	}
+	g.preparation, err = runrecord.NewGatePreparation(treeKey, g.environment.ID, g.start)
+	if err != nil {
+		return err
+	}
+	preparationContent, err := g.preparation.Content()
+	if err != nil {
+		return err
+	}
+	environmentContent, err := g.environment.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"gate/prepared/"+g.preparation.ID.String(),
+		[]artifact.Content{environmentContent, preparationContent},
+		g.preparation.Lineage(), nil,
+	)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(filepath.Join(g.repo, g.storePath))
+	if err != nil {
+		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
+	}
+	defer store.Close()
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
+	}
+	return nil
+}
+
+func (g *gateContext) heartbeat(state runrecord.GateHeartbeatState) runrecord.GateHeartbeat {
+	return runrecord.GateHeartbeat{
+		Version: runrecord.GateHeartbeatVersion, State: state, Preparation: g.preparation.ID,
+		TreeKey: g.preparation.TreeKey, Environment: g.environment.ID,
+		PID: os.Getpid(), Updated: time.Now().UTC(),
+	}
+}
+
+func (g *gateContext) writeHeartbeat(state runrecord.GateHeartbeatState) error {
+	heartbeat := g.heartbeat(state)
+	if err := heartbeat.Validate(); err != nil {
+		return err
+	}
+	return writeJSON(g.repo, gateHeartbeatFile, heartbeat, 0o644)
+}
+
+func (g *gateContext) startHeartbeat() (func(), error) {
+	if err := g.writeHeartbeat(runrecord.HeartbeatRunning); err != nil {
+		return nil, err
+	}
+	stop, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				_ = g.writeHeartbeat(runrecord.HeartbeatRunning)
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return sync.OnceFunc(func() { close(stop); <-done }), nil
+}
+
+type gateDebtEnvelope struct {
+	Version     uint16         `json:"version"`
+	Preparation artifact.ID    `json:"preparation"`
+	Batch       artifact.Batch `json:"batch"`
+}
+
+func (g *gateContext) oweRecord(batch artifact.Batch, cause error) error {
+	debt := gateDebtEnvelope{Version: runrecord.GateLifecycleVersion, Preparation: g.preparation.ID, Batch: batch}
+	if err := validateGateDebt(debt); err != nil {
+		return fmt.Errorf("%w; invalid record debt: %v", cause, err)
+	}
+	if err := writeJSON(g.repo, gateDebtFile, debt, 0o600); err != nil {
+		return fmt.Errorf("%w; persist record debt: %v", cause, err)
+	}
+	return cause
+}
+
+func reconcileGateDebt(repo, storePath string) (artifact.ID, error) {
+	var debt gateDebtEnvelope
+	if err := readJSON(repo, gateDebtFile, &debt); err != nil {
+		return artifact.ID{}, fmt.Errorf("read record debt: %w", err)
+	}
+	if err := validateGateDebt(debt); err != nil {
+		return artifact.ID{}, err
+	}
+	store, err := repodb.Open(filepath.Join(repo, storePath))
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	defer store.Close()
+	if _, ok, err := store.Content(context.Background(), debt.Preparation); err != nil {
+		return artifact.ID{}, err
+	} else if !ok {
+		return artifact.ID{}, errors.New("gate: debt preparation is absent from RepoDB")
+	}
+	if _, err := store.Commit(context.Background(), debt.Batch); err != nil {
+		return artifact.ID{}, err
+	}
+	if err := os.Remove(filepath.Join(repo, filepath.FromSlash(gateDebtFile))); err != nil {
+		return artifact.ID{}, err
+	}
+	return debt.Preparation, nil
+}
+
+func validateGateDebt(debt gateDebtEnvelope) error {
+	if debt.Version != runrecord.GateLifecycleVersion || debt.Preparation.Kind() != artifact.KindEvidence {
+		return errors.New("gate: invalid record debt envelope")
+	}
+	if err := debt.Batch.Validate(); err != nil {
+		return err
+	}
+	if debt.Batch.Key != "gate/final/"+debt.Preparation.String() {
+		return errors.New("gate: record debt is not bound to its preparation")
+	}
+	matching := 0
+	for _, content := range debt.Batch.Contents {
+		if content.Descriptor.MediaType != runrecord.GateLifecycleMediaType || content.Descriptor.Schema != runrecord.GateLifecycleSchema {
+			continue
+		}
+		lifecycle, err := runrecord.ParseGateLifecycle(content.Data)
+		if err != nil {
+			return err
+		}
+		if lifecycle.State == runrecord.GateFinalized && lifecycle.Preparation != nil && *lifecycle.Preparation == debt.Preparation {
+			matching++
+		}
+	}
+	if matching != 1 {
+		return fmt.Errorf("gate: record debt has %d matching finalizations, want 1", matching)
+	}
+	return nil
+}
+
+type watchdogStatus struct {
+	Version   uint16                       `json:"version"`
+	State     runrecord.GateHeartbeatState `json:"state"`
+	Heartbeat *runrecord.GateHeartbeat     `json:"heartbeat,omitempty"`
+}
+
+func printGateWatchdog(repo string, staleAfter time.Duration) error {
+	var heartbeat runrecord.GateHeartbeat
+	err := readJSON(repo, gateHeartbeatFile, &heartbeat)
+	if errors.Is(err, os.ErrNotExist) {
+		return printJSON(watchdogStatus{Version: runrecord.GateHeartbeatVersion, State: runrecord.HeartbeatAbsent})
+	}
+	if err != nil {
+		return err
+	}
+	if err := heartbeat.Validate(); err != nil {
+		return err
+	}
+	return printJSON(watchdogStatus{
+		Version: heartbeat.Version, State: heartbeat.Watchdog(time.Now().UTC(), staleAfter), Heartbeat: &heartbeat,
+	})
+}
+
 func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	codeCommit, err := command(g.repo, "git", "rev-parse", "HEAD")
 	if err != nil {
@@ -712,29 +1045,37 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	if err != nil {
 		return err
 	}
-	envDoc, err := json.Marshal(map[string]string{
-		"os": runtime.GOOS, "arch": runtime.GOARCH, "go": runtime.Version(), "host": hostname(),
-	})
-	if err != nil {
-		return err
-	}
-	environmentID, err := artifact.IdentifyBytes(artifact.KindEvidence, envDoc)
-	if err != nil {
-		return err
-	}
 	record, err := runrecord.NewGateRecord(
-		recipeID, environmentID, codeCommit, outcome, failure,
+		recipeID, g.environment.ID, codeCommit, outcome, failure,
 		uint64(time.Since(g.start).Nanoseconds()), g.steps,
 	)
 	if err != nil {
 		return err
 	}
-	batch, err := record.Batch("gate/" + codeCommit)
+	batch, err := record.Batch("gate/final/" + g.preparation.ID.String())
 	if err != nil {
 		return err
 	}
-	batch.Artifacts = append(batch.Artifacts,
-		artifact.Descriptor{ID: recipeID}, artifact.Descriptor{ID: environmentID})
+	environmentContent, err := g.environment.Content()
+	if err != nil {
+		return err
+	}
+	finalized, err := runrecord.NewGateFinalization(g.preparation, codeCommit, record.Result.ID, outcome)
+	if err != nil {
+		return err
+	}
+	finalizedContent, err := finalized.Content()
+	if err != nil {
+		return err
+	}
+	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
+	batch.Contents = append(batch.Contents, environmentContent, finalizedContent)
+	batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
+	if outcome == runrecord.OutcomeSucceeded {
+		if err := g.appendProfileEvidence(&batch, codeCommit, record.Result.ID); err != nil {
+			return err
+		}
+	}
 	// A wall-time evaluation rides every successful run: evaluations are the
 	// advisory layer's observation unit, so the gate's own history becomes
 	// the calibration corpus (first run calibrates, second enforces).
@@ -761,13 +1102,38 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 
 	store, err := repodb.Open(filepath.Join(g.repo, g.storePath))
 	if err != nil {
-		return err
+		return g.oweRecord(batch, err)
 	}
 	defer store.Close()
 	if _, err := store.Commit(context.Background(), batch); err != nil {
+		return g.oweRecord(batch, err)
+	}
+	_ = os.Remove(filepath.Join(g.repo, filepath.FromSlash(gateDebtFile)))
+	if err := g.writeStatus(record, codeCommit, outcome, failure); err != nil {
+		g.honesty = append(g.honesty, "advisory gate status mirror write failed: "+err.Error())
+	}
+	return nil
+}
+
+func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit string, gateResult artifact.ID) error {
+	if g.profile == nil {
+		return nil
+	}
+	if g.profileDirty {
+		g.honesty = append(g.honesty, "code profile evidence not persisted: unplanned Go dirt is outside the committed target")
+		return nil
+	}
+	evidence, err := codeprofile.NewEvidence(codeCommit, gateResult, *g.profile)
+	if err != nil {
 		return err
 	}
-	return g.writeStatus(record, codeCommit, outcome, failure)
+	content, err := evidence.Content()
+	if err != nil {
+		return err
+	}
+	batch.Contents = append(batch.Contents, content)
+	batch.Lineage = append(batch.Lineage, evidence.Lineage()...)
+	return nil
 }
 
 // writeStatus mirrors the store record for cheap shell consumption; the store
@@ -775,18 +1141,11 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 func (g *gateContext) writeStatus(record runrecord.GateRecord, codeCommit string, outcome runrecord.Outcome, failure string) error {
 	status := map[string]any{
 		"result_id": record.Result.ID.String(), "code_commit": codeCommit,
+		"preparation_id": g.preparation.ID.String(), "environment_id": g.environment.ID.String(),
 		"outcome": outcome, "failure": failure, "steps": record.Result.Steps,
 		"honesty": g.honesty, "written": time.Now().UTC().Format(time.RFC3339),
 	}
-	raw, err := json.MarshalIndent(status, "", "  ")
-	if err != nil {
-		return err
-	}
-	dir := filepath.Join(g.repo, "bin")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(dir, "gate_status.json"), append(raw, '\n'), 0o644)
+	return writeJSON(g.repo, "bin/gate_status.json", status, 0o644)
 }
 
 func (g *gateContext) printSummary(outcome runrecord.Outcome, failure string) {
@@ -814,7 +1173,7 @@ func command(dir, name string, args ...string) (string, error) {
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(out), fmt.Errorf("%s %s: %v: %s", name, strings.Join(args, " "), err, tail(string(out), 2000))
+		return string(out), fmt.Errorf("%s %s: %v: %s", name, strings.Join(args, " "), err, clioptions.Tail(string(out), 2000))
 	}
 	return string(out), nil
 }
@@ -833,17 +1192,16 @@ func gitLines(dir string, args ...string) ([]string, error) {
 	return lines, nil
 }
 
-func hostname() string {
-	name, err := os.Hostname()
-	if err != nil {
-		return "unknown"
-	}
-	return name
+func readJSON(repo, name string, value any) error {
+	return jsonfile.DecodeStrict(filepath.Join(repo, filepath.FromSlash(name)), value)
 }
 
-func tail(s string, limit int) string {
-	if len(s) <= limit {
-		return s
-	}
-	return "..." + s[len(s)-limit:]
+func writeJSON(repo, name string, value any, mode os.FileMode) error {
+	return jsonfile.Write(filepath.Join(repo, filepath.FromSlash(name)), value, mode)
+}
+
+func printJSON(value any) error {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(value)
 }

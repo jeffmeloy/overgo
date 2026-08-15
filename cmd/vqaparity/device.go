@@ -193,7 +193,11 @@ func runDevice(l *ladder) error {
 		dNorm: {Shape: normShape, Data: normWeight},
 	}
 	devFeeds := map[*tensor.Tensor]driver.DevicePtr{dHead: headPtr}
-	devOut, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, devFeeds)
+	devInputs, err := compiled.BindDeviceInputs(devFeeds)
+	if err != nil {
+		return err
+	}
+	devOut, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, devInputs)
 	if err != nil {
 		return fmt.Errorf("device terminal: device execute: %w", err)
 	}
@@ -238,13 +242,13 @@ func runDevice(l *ladder) error {
 	// ---- measurement -------------------------------------------------------
 	const warm, iters = 3, 30
 	for i := 0; i < warm; i++ {
-		if _, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, devFeeds); err != nil {
+		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, devInputs); err != nil {
 			return err
 		}
 	}
 	start := time.Now()
 	for i := 0; i < iters; i++ {
-		if _, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, devFeeds); err != nil {
+		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, devInputs); err != nil {
 			return err
 		}
 	}

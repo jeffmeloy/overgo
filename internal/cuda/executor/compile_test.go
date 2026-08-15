@@ -24,6 +24,19 @@ func TestCompilePinsTopologyAndMemoryPlan(t *testing.T) {
 	if compiled.memory.ArenaSize == 0 || compiled.needBlas {
 		t.Fatalf("compiled memory/BLAS = %d/%t", compiled.memory.ArenaSize, compiled.needBlas)
 	}
+	inputs := compiled.NewDeviceInputs()
+	inputNodes := [...]*tensor.Tensor{left, right}
+	if len(inputs.Pointers) != len(inputNodes) {
+		t.Fatalf("input pointers = %d, want %d", len(inputs.Pointers), len(inputNodes))
+	}
+	for _, input := range inputNodes {
+		if _, ok := compiled.InputSlot(input); !ok {
+			t.Fatalf("input %q has no slot", input.Name)
+		}
+	}
+	if _, ok := compiled.InputSlot(output); ok {
+		t.Fatal("operator output received an input slot")
+	}
 }
 
 func TestCompiledRetainedTargetsUseOutputSlots(t *testing.T) {
@@ -193,7 +206,7 @@ func TestCompileFusesSingleUseWeightedRMSNorm(t *testing.T) {
 	if compiled.fusions != nil || descriptor.operands != nil || descriptor.operandCount == 0 {
 		t.Fatal("fusion compile state remains resident")
 	}
-	if _, skipped := compiled.skipped[normalized]; !skipped {
+	if !compiled.nodes[compiled.orderIndexes[normalized]].skipped {
 		t.Fatal("fused RMSNorm launch was not skipped")
 	}
 }
@@ -217,7 +230,7 @@ func TestCompileFusesResidualAddIntoWeightedRMSNorm(t *testing.T) {
 		descriptor.weightedRMS.addLeft != left || descriptor.weightedRMS.addRight != right {
 		t.Fatalf("weighted residual RMSNorm fusion = %+v", descriptor)
 	}
-	if _, skipped := compiled.skipped[residual]; !skipped {
+	if !compiled.nodes[compiled.orderIndexes[residual]].skipped {
 		t.Fatal("fused residual launch was not skipped")
 	}
 }
@@ -247,7 +260,7 @@ func TestCompileKeepsBroadcastAddOutOfWeightedRMSNorm(t *testing.T) {
 	if fusion.addLeft != nil || fusion.addRight != nil {
 		t.Fatal("broadcast bias add was folded into the fused RMSNorm")
 	}
-	if _, skipped := compiled.skipped[biased]; skipped {
+	if compiled.nodes[compiled.orderIndexes[biased]].skipped {
 		t.Fatal("broadcast bias add launch was skipped")
 	}
 }
@@ -277,7 +290,7 @@ func TestCompileFusesWeightedRMSNormAndActivatedGate(t *testing.T) {
 		t.Fatalf("weighted RMS gate fusion = %+v", fusion)
 	}
 	for _, skipped := range []*tensor.Tensor{normalized, weighted, activation} {
-		if _, ok := compiled.skipped[skipped]; !ok {
+		if !compiled.nodes[compiled.orderIndexes[skipped]].skipped {
 			t.Fatalf("fused tensor %d was not skipped", skipped.ID)
 		}
 	}

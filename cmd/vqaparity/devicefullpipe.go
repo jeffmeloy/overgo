@@ -310,6 +310,10 @@ func runFullPipeline(
 			}
 		}
 	}()
+	deviceInputs, err := dCompiled.BindDeviceInputs(deviceFeeds)
+	if err != nil {
+		return res, err
+	}
 	res.afterLoadMiB = gpuUsedMiB()
 	l.log(fmt.Sprintf("DEVICE full residency gpu.used %d->%dMiB (delta=%dMiB) free=%dMiB (decode weights + prefilled KV resident)", res.baseMiB, res.afterLoadMiB, res.afterLoadMiB-res.baseMiB, gpuFreeMiB()))
 
@@ -368,7 +372,7 @@ func runFullPipeline(
 		hostFeeds := map[*tensor.Tensor]reference.Value{
 			dgraph.Embedding: {Shape: tensor.MustShape(uint64(H), 1), Data: embedding},
 		}
-		retained, err := exe.ExecuteRetainedCompiledParameterized(ctx, dCompiled, hostFeeds, deviceFeeds, targets, attrs)
+		retained, err := exe.ExecuteRetainedCompiled(ctx, dCompiled, hostFeeds, deviceInputs, targets, attrs)
 		if err != nil {
 			return res, fmt.Errorf("device full decode step %d: %w", step, err)
 		}
@@ -430,7 +434,11 @@ func runFullMerger(
 	mgHost := map[*tensor.Tensor]reference.Value{
 		mg.BlockLast: {Shape: tensor.MustShape(uint64(pc.spec.Hidden), uint64(nPatch)), Data: blockLast},
 	}
-	mgOut, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, mgCompiled, mgHost, mgFeeds)
+	mgInputs, err := mgCompiled.BindDeviceInputs(mgFeeds)
+	if err != nil {
+		return nil, err
+	}
+	mgOut, err := exe.ExecuteCompiled(ctx, mgCompiled, mgHost, mgInputs)
 	if err != nil {
 		return nil, fmt.Errorf("device full merger execute: %w", err)
 	}
@@ -486,7 +494,11 @@ func runFullPrefill(
 			pg.MaskText: {Shape: maskShape, Data: pc.maskText},
 			pg.MaskVis:  {Shape: maskShape, Data: pc.maskVis},
 		}
-		out, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, pgCompiled, hostFeeds, feeds)
+		inputs, err := pgCompiled.BindDeviceInputs(feeds)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		out, err := exe.ExecuteCompiled(ctx, pgCompiled, hostFeeds, inputs)
 		if err != nil {
 			binder.free()
 			return nil, nil, nil, fmt.Errorf("device full prefill layer %d: %w", layer, err)
@@ -554,7 +566,11 @@ func runFullVision(l *ladder, ctx context.Context, worker *device.Worker, exe *e
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		g.PreBlock0: {Shape: tensor.MustShape(uint64(pc.spec.Hidden), uint64(nPatch)), Data: preBlock0},
 	}
-	out, err := exe.ExecuteCompiledWithDeviceFeeds(ctx, compiled, hostFeeds, feeds)
+	inputs, err := compiled.BindDeviceInputs(feeds)
+	if err != nil {
+		return nil, err
+	}
+	out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 	if err != nil {
 		return nil, fmt.Errorf("device full vision execute: %w", err)
 	}

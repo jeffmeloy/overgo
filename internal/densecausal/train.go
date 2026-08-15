@@ -1,6 +1,7 @@
 package densecausal
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -12,7 +13,13 @@ import (
 // Train: full-parameter Muon updates; pre-update loss trajectory.
 // Non-positive baseLR derives from parameter count.
 func (m *Model) Train(tokens []int, steps int, baseLR, mu float64) ([]float64, error) {
-	trajectory, _, err := m.train(tokens, steps, baseLR, mu, nil)
+	trajectory, _, err := m.train(repeatedTokenBatches(tokens, steps), baseLR, mu, nil)
+	return trajectory, err
+}
+
+// TrainBatches applies one Muon update per ordered token batch.
+func (m *Model) TrainBatches(batches [][]int, baseLR, mu float64) ([]float64, error) {
+	trajectory, _, err := m.train(batches, baseLR, mu, nil)
 	return trajectory, err
 }
 
@@ -21,10 +28,18 @@ type TrainState = optimizer.State
 
 // TrainResume: resumable Muon updates; nil starts fresh.
 func (m *Model) TrainResume(tokens []int, steps int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
-	return m.train(tokens, steps, baseLR, mu, resume)
+	return m.train(repeatedTokenBatches(tokens, steps), baseLR, mu, resume)
 }
 
-func (m *Model) train(tokens []int, steps int, baseLR, mu float64, resume *optimizer.State) ([]float64, optimizer.State, error) {
+// TrainBatchesResume resumes an ordered sequence at an update boundary.
+func (m *Model) TrainBatchesResume(batches [][]int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
+	return m.train(batches, baseLR, mu, resume)
+}
+
+func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.State) ([]float64, optimizer.State, error) {
+	if err := validateTokenBatches(batches); err != nil {
+		return nil, optimizer.State{}, err
+	}
 	names, weights, gradients, plan, resolvedLR, err := m.trainSetup(baseLR)
 	if err != nil {
 		return nil, optimizer.State{}, err
@@ -41,8 +56,8 @@ func (m *Model) train(tokens []int, steps int, baseLR, mu float64, resume *optim
 		}
 	}
 
-	trajectory := make([]float64, 0, steps)
-	for step := 0; step < steps; step++ {
+	trajectory := make([]float64, 0, len(batches))
+	for _, tokens := range batches {
 		scatter(m, names, weights)
 		loss, _, grads, err := m.LossAndGrads(tokens)
 		if err != nil {
@@ -54,6 +69,29 @@ func (m *Model) train(tokens []int, steps int, baseLR, mu float64, resume *optim
 	}
 	scatter(m, names, weights)
 	return trajectory, opt.Snapshot(), nil
+}
+
+func repeatedTokenBatches(tokens []int, steps int) [][]int {
+	if steps <= 0 {
+		return nil
+	}
+	batches := make([][]int, steps)
+	for index := range batches {
+		batches[index] = tokens
+	}
+	return batches
+}
+
+func validateTokenBatches(batches [][]int) error {
+	if len(batches) == 0 {
+		return errors.New("densecausal: token batches absent")
+	}
+	for index, tokens := range batches {
+		if len(tokens) < 2 {
+			return fmt.Errorf("densecausal: batch %d needs at least two tokens", index)
+		}
+	}
+	return nil
 }
 
 // trainSetup: sorted tensors, flat buffers, compiled geometry, resolved LR.

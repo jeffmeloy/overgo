@@ -7,26 +7,38 @@ import (
 	"testing"
 
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
 
-func TestSenseNovaRetainedPrefixDirectBinding(t *testing.T) {
+func TestGenerationRetainedPrefixDirectBinding(t *testing.T) {
 	b := tensor.NewBuilder()
+	row := b.Input("row", dtype.F32, tensor.MustShape(1))
+	prefixKey := b.Input("prefix-key", dtype.F32, tensor.MustShape(1))
+	prefixValue := b.Input("prefix-value", dtype.F32, tensor.MustShape(1))
+	output := b.Add(b.Add(row, prefixKey), prefixValue)
+	compiled, err := executor.Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rowSlot, _ := compiled.InputSlot(row)
+	keySlot, _ := compiled.InputSlot(prefixKey)
+	valueSlot, _ := compiled.InputSlot(prefixValue)
 	graph := &DeviceGenerationLayerGraph{
-		Row:         b.Input("row", dtype.F32, tensor.MustShape(1)),
-		PrefixKey:   b.Input("prefix-key", dtype.F32, tensor.MustShape(1)),
-		PrefixValue: b.Input("prefix-value", dtype.F32, tensor.MustShape(1)),
-		Vision:      DevicePrefillBranch{},
+		Row: row, PrefixKey: prefixKey, PrefixValue: prefixValue,
+		Vision: DevicePrefillBranch{},
 	}
 	branch := &generationStackBranch{
-		graph:      graph,
+		graph: graph, inputs: branchInputProgram{inputs: compiled.NewDeviceInputs()},
+		prefixKey: keySlot, prefixValue: valueSlot,
 		prefixKeys: []driver.DevicePtr{11, 12}, prefixValues: []driver.DevicePtr{21, 22},
 		row: 31,
 	}
-	feeds := bindGenerationBranch(branch, branchDeviceWeights{}, 1)
-	if feeds[graph.PrefixKey] != 12 || feeds[graph.PrefixValue] != 22 || feeds[graph.Row] != 31 {
-		t.Fatalf("generation feeds key=%d value=%d row=%d", feeds[graph.PrefixKey], feeds[graph.PrefixValue], feeds[graph.Row])
+	branch.inputs.inputs.Pointers[rowSlot] = branch.row
+	branch.bindPrefix(1)
+	if branch.inputs.inputs.Pointers[keySlot] != 12 || branch.inputs.inputs.Pointers[valueSlot] != 22 || branch.inputs.inputs.Pointers[rowSlot] != 31 {
+		t.Fatalf("generation inputs=%v", branch.inputs.inputs.Pointers)
 	}
 }
 

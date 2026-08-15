@@ -18,9 +18,10 @@ func MergeOpenProjections(base, local, upstream Plan) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	baseItems, localItems, upstreamItems := itemMap(base.Items), itemMap(local.Items), itemMap(upstream.Items)
+	itemID := func(item Item) string { return item.ID }
+	baseItems, localItems, upstreamItems := indexByID(base.Items, itemID), indexByID(local.Items, itemID), indexByID(upstream.Items, itemID)
 	merged := Plan{Campaign: campaign, Doctrine: doctrine}
-	for _, id := range unionOrder(local.Items, upstream.Items, func(item Item) string { return item.ID }) {
+	for _, id := range unionOrder(local.Items, upstream.Items, itemID) {
 		baseItem, inBase := baseItems[id]
 		localItem, inLocal := localItems[id]
 		upstreamItem, inUpstream := upstreamItems[id]
@@ -56,9 +57,10 @@ func mergeItem(base, local, upstream Item) (Item, error) {
 	if err != nil {
 		return Item{}, err
 	}
-	baseSteps, localSteps, upstreamSteps := stepMap(base.Steps), stepMap(local.Steps), stepMap(upstream.Steps)
+	stepID := func(step Step) string { return step.ID }
+	baseSteps, localSteps, upstreamSteps := indexByID(base.Steps, stepID), indexByID(local.Steps, stepID), indexByID(upstream.Steps, stepID)
 	merged := Item{ID: base.ID, Title: title, Status: status}
-	for _, id := range unionOrder(local.Steps, upstream.Steps, func(step Step) string { return step.ID }) {
+	for _, id := range unionOrder(local.Steps, upstream.Steps, stepID) {
 		baseStep, inBase := baseSteps[id]
 		localStep, inLocal := localSteps[id]
 		upstreamStep, inUpstream := upstreamSteps[id]
@@ -102,18 +104,10 @@ func mergeText(name, base, local, upstream string) (string, error) {
 	}
 }
 
-func itemMap(items []Item) map[string]Item {
-	result := make(map[string]Item, len(items))
-	for _, item := range items {
-		result[item.ID] = item
-	}
-	return result
-}
-
-func stepMap(steps []Step) map[string]Step {
-	result := make(map[string]Step, len(steps))
-	for _, step := range steps {
-		result[step.ID] = step
+func indexByID[T any](values []T, idOf func(T) string) map[string]T {
+	result := make(map[string]T, len(values))
+	for _, value := range values {
+		result[idOf(value)] = value
 	}
 	return result
 }

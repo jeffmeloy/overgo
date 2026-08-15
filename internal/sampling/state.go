@@ -12,16 +12,12 @@ import (
 )
 
 const (
-	samplerStateMagic         = "L2GSMP04"
-	previousSamplerStateMagic = "L2GSMP03"
-	legacySamplerStateMagic   = "L2GSMP02"
-	samplerStateMagicBytes    = uint64(len(samplerStateMagic))
-	samplerStateHeaderSize    = 60
-	previousSamplerHeaderSize = 44
-	legacySamplerStateSize    = 40
-	samplerTokenBytes         = 4
-	maxSamplerStateBytes      = 1 << 20
-	maxGBNFHistoryTokens      = (maxSamplerStateBytes - samplerStateHeaderSize) / samplerTokenBytes
+	samplerStateMagic      = "L2GSMP04"
+	samplerStateMagicBytes = uint64(len(samplerStateMagic))
+	samplerStateHeaderSize = 60
+	samplerTokenBytes      = 4
+	maxSamplerStateBytes   = 1 << 20
+	maxGBNFHistoryTokens   = (maxSamplerStateBytes - samplerStateHeaderSize) / samplerTokenBytes
 )
 
 // SaveState: stores random stream, Mirostat, adaptive-p, and grammar state
@@ -56,39 +52,16 @@ func (s *Sampler) LoadState(data []byte) error {
 	}
 	decoder := statecodec.NewDecoder(data, maxSamplerStateBytes)
 	magic := string(decoder.Raw(samplerStateMagicBytes))
-	legacy := magic == legacySamplerStateMagic
-	previous := magic == previousSamplerStateMagic
-	if magic != samplerStateMagic && !previous && !legacy {
+	if magic != samplerStateMagic {
 		return errors.New("sampler state has invalid magic or version")
-	}
-	if legacy {
-		if len(data) != legacySamplerStateSize {
-			return errors.New("sampler state has invalid size")
-		}
-		if s.gbnf != nil {
-			return errors.New("legacy sampler state cannot restore GBNF history")
-		}
-	} else if previous {
-		if len(data) < previousSamplerHeaderSize {
-			return errors.New("sampler state has invalid size")
-		}
-		if s.adaptive {
-			return errors.New("previous sampler state cannot restore adaptive-p state")
-		}
 	}
 	signature := decoder.U64()
 	sourceState := decoder.U64()
 	mu := decoder.F64()
 	grammarState := decoder.U64()
-	count := uint32(0)
-	if !legacy {
-		count = decoder.U32()
-	}
-	adaptiveSum, adaptiveWeight := 0.0, 0.0
-	if !legacy && !previous {
-		adaptiveSum = decoder.F64()
-		adaptiveWeight = decoder.F64()
-	}
+	count := decoder.U32()
+	adaptiveSum := decoder.F64()
+	adaptiveWeight := decoder.F64()
 	if decoder.Err() != nil {
 		return errors.New("sampler state has invalid size")
 	}
@@ -114,9 +87,6 @@ func (s *Sampler) LoadState(data []byte) error {
 	nextAdaptiveSum := 0.0
 	nextAdaptiveWeight := 0.0
 	if s.adaptive {
-		if legacy || previous {
-			return errors.New("legacy sampler state lacks adaptive-p state")
-		}
 		nextAdaptiveSum = adaptiveSum
 		nextAdaptiveWeight = adaptiveWeight
 		if math.IsNaN(nextAdaptiveSum) || math.IsInf(nextAdaptiveSum, 0) ||
@@ -124,7 +94,7 @@ func (s *Sampler) LoadState(data []byte) error {
 			nextAdaptiveWeight <= 0 {
 			return errors.New("sampler state has invalid adaptive-p state")
 		}
-	} else if !legacy && !previous {
+	} else {
 		if adaptiveSum != 0 || adaptiveWeight != 0 {
 			return errors.New("sampler state has unexpected adaptive-p state")
 		}
@@ -136,35 +106,27 @@ func (s *Sampler) LoadState(data []byte) error {
 			return fmt.Errorf("sampler state initialize GBNF: %w", err)
 		}
 	}
-	if !legacy {
-		maxHistory := maxGBNFHistoryTokens
-		if previous {
-			maxHistory = (maxSamplerStateBytes - previousSamplerHeaderSize) / samplerTokenBytes
+	if count > uint32(maxGBNFHistoryTokens) {
+		return errors.New("sampler state has invalid GBNF history length")
+	}
+	if s.gbnf == nil && count != 0 {
+		return errors.New("sampler state has unexpected GBNF history")
+	}
+	nextGBNFHistory = make([]int, int(count))
+	for index := range nextGBNFHistory {
+		token := decoder.U32()
+		if token > math.MaxInt32 {
+			return errors.New("sampler state has invalid GBNF token")
 		}
-		if count > uint32(maxHistory) {
-			return errors.New("sampler state has invalid GBNF history length")
+		nextGBNFHistory[index] = int(token)
+		var ok bool
+		nextGBNFState, ok = s.gbnf.advanceToken(nextGBNFState, int(token))
+		if !ok {
+			return fmt.Errorf(
+				"sampler state GBNF history token %d is rejected",
+				index,
+			)
 		}
-		if s.gbnf == nil && count != 0 {
-			return errors.New("sampler state has unexpected GBNF history")
-		}
-		nextGBNFHistory = make([]int, int(count))
-		for index := range nextGBNFHistory {
-			token := decoder.U32()
-			if token > math.MaxInt32 {
-				return errors.New("sampler state has invalid GBNF token")
-			}
-			nextGBNFHistory[index] = int(token)
-			var ok bool
-			nextGBNFState, ok = s.gbnf.advanceToken(nextGBNFState, int(token))
-			if !ok {
-				return fmt.Errorf(
-					"sampler state GBNF history token %d is rejected",
-					index,
-				)
-			}
-		}
-	} else if s.gbnf != nil {
-		return errors.New("legacy sampler state lacks GBNF history")
 	}
 	if err := decoder.Done(); err != nil {
 		return errors.New("sampler state has invalid GBNF history length")

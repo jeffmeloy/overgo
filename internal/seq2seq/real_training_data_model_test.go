@@ -196,8 +196,8 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	}
 	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
-	if len(parameters) != 25 || parameters[1].Name != "decoder.final_cross.raw_gate" ||
-		parameters[2].Name != "decoder.final_cross.output" || parameters[24].Name != "decoder.layer6.cross.v" {
+	if len(parameters) != 33 || parameters[1].Name != "decoder.final_cross.raw_gate" ||
+		parameters[2].Name != "decoder.final_cross.output" || parameters[32].Name != "decoder.layer6.self.v" {
 		t.Fatalf("compiled parameters = %+v", parameters)
 	}
 	probe := trainingStep{pair: pair}
@@ -387,6 +387,9 @@ func TestNeedleRealGSM8KFinalCrossQKVMuon(t *testing.T) {
 		"decoder.layer6.cross.raw_gate", "decoder.layer6.cross.output",
 		"decoder.layer6.cross.input_norm", "decoder.layer6.cross.q_norm", "decoder.layer6.cross.k_norm",
 		"decoder.layer6.cross.q", "decoder.layer6.cross.k", "decoder.layer6.cross.v",
+		"decoder.layer6.self.raw_gate", "decoder.layer6.self.output", "decoder.layer6.self.input_norm",
+		"decoder.layer6.self.q_norm", "decoder.layer6.self.k_norm",
+		"decoder.layer6.self.q", "decoder.layer6.self.k", "decoder.layer6.self.v",
 	}
 	parameters := trainer.Program().Parameters()
 	if len(parameters) != len(wantParameters) {
@@ -574,6 +577,70 @@ func TestNeedleRealGSM8KPenultimateSelfAttentionGradient(t *testing.T) {
 	}
 	t.Logf("real GSM8K decoder layer %d self gradients: q=%g k=%g v=%g; raw gate analytic=%g finite_difference=%g",
 		layer, qNorm, kNorm, vNorm, analytic, finite)
+}
+
+func TestNeedleRealGSM8KPenultimateSelfAttentionMuon(t *testing.T) {
+	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
+	_, heldOutPair, _ := realGSM8KTrainingPair(t, 1)
+	layer := generator.model.Dims.DecoderLayers - 2
+	block := &generator.model.decoderSelf[layer]
+	qBefore := append([]uint16(nil), block.q...)
+	kBefore := append([]uint16(nil), block.k...)
+	vBefore := append([]uint16(nil), block.v...)
+	trainBefore, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutBefore, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	probe := trainingStep{pair: trainPair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	qAnalytic, qFinite := verifyBF16GradientRadius(t, generator.model, trainPair, block.q, probe.penultimateSelfQProjection, 4)
+	kAnalytic, kFinite := verifyBF16GradientRadius(t, generator.model, trainPair, block.k, probe.penultimateSelfKProjection, 4)
+	vAnalytic, vFinite := verifyBF16GradientRadius(t, generator.model, trainPair, block.v, probe.penultimateSelfVProjection, 4)
+	inAnalytic, inFinite := verifyFloat32Gradient(t, generator.model, trainPair, block.inNorm, probe.gradient[trainer.layout.penultimateSelfInputNorm.start:trainer.layout.penultimateSelfInputNorm.end])
+	qNormAnalytic, qNormFinite := verifyFloat32Gradient(t, generator.model, trainPair, block.qNorm, probe.gradient[trainer.layout.penultimateSelfQNorm.start:trainer.layout.penultimateSelfQNorm.end])
+	kNormAnalytic, kNormFinite := verifyFloat32Gradient(t, generator.model, trainPair, block.kNorm, probe.gradient[trainer.layout.penultimateSelfKNorm.start:trainer.layout.penultimateSelfKNorm.end])
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(trainPair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	trainAfter, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutAfter, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	qChanged, kChanged, vChanged := changedBF16(qBefore, block.q), changedBF16(kBefore, block.k), changedBF16(vBefore, block.v)
+	if qChanged == 0 || kChanged == 0 || vChanged == 0 ||
+		!(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
+		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) {
+		t.Fatalf("layer %d self attention did not train: changed=%d/%d/%d train %.6f -> %v -> %.6f held-out %.6f -> %.6f",
+			layer, qChanged, kChanged, vChanged, trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
+	}
+	t.Logf("real GSM8K decoder layer %d self Muon: train %.6f -> %.6f via %v; held-out %.6f -> %.6f; BF16 changed q=%d/%d k=%d/%d v=%d/%d",
+		layer, trainBefore, trainAfter, trajectory, heldOutBefore, heldOutAfter,
+		qChanged, len(block.q), kChanged, len(block.k), vChanged, len(block.v))
+	t.Logf("real GSM8K decoder layer %d self finite differences: q=%g/%g k=%g/%g v=%g/%g input_norm=%g/%g q_norm=%g/%g k_norm=%g/%g",
+		layer, qAnalytic, qFinite, kAnalytic, kFinite, vAnalytic, vFinite,
+		inAnalytic, inFinite, qNormAnalytic, qNormFinite, kNormAnalytic, kNormFinite)
 }
 
 func TestNeedleRealGSM8KPenultimateCrossAttentionMuon(t *testing.T) {

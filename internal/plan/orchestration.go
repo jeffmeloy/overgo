@@ -81,16 +81,20 @@ func RecordWorkLease(ctx context.Context, repository artifact.Repository, data [
 
 // ReadWorkLease returns false for a non-lease artifact.
 func ReadWorkLease(ctx context.Context, reader artifact.Reader, id artifact.ID) (WorkLease, bool, error) {
-	descriptor, ok, err := reader.Artifact(ctx, id)
-	if err != nil || !ok || descriptor.MediaType != workLeaseMediaType || descriptor.Schema != workLeaseSchema {
-		return WorkLease{}, false, err
-	}
-	content, ok, err := artifact.ReadDocument(ctx, reader, id, workLeaseCodec.Contract)
+	content, ok, err := readTypedDocument(ctx, reader, id, workLeaseCodec.Contract)
 	if err != nil || !ok {
 		return WorkLease{}, ok, err
 	}
 	value, err := workLeaseCodec.Parse(content.Data)
 	return value, err == nil, err
+}
+
+func readTypedDocument(ctx context.Context, reader artifact.Reader, id artifact.ID, contract artifact.DocumentContract) (artifact.Content, bool, error) {
+	descriptor, ok, err := reader.Artifact(ctx, id)
+	if err != nil || !ok || descriptor.MediaType != contract.MediaType || descriptor.Schema != contract.Schema {
+		return artifact.Content{}, false, err
+	}
+	return artifact.ReadDocument(ctx, reader, id, contract)
 }
 
 func workLeaseAlias(worktree string) string {

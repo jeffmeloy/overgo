@@ -19,7 +19,7 @@
         clear(panel);
         const message = err.status === 501
           ? "Dataset browsing is not configured on this server (no data root)."
-          : (err.status === 401 ? "API key required — enter it in the top bar." : String(err.message || err));
+          : overgo.friendlyError(err);
         panel.appendChild(overgo.errorBanner(message));
         return;
       }

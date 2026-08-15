@@ -8,11 +8,46 @@ import (
 	"slices"
 	"strings"
 
+	"os"
+	"path/filepath"
+
 	"overgo/internal/gguf"
 	"overgo/internal/quant"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensorstats"
 )
+
+// MeasureAtLocation characterizes a model at a recorded location, dispatching on
+// the inventory's format. Callers address a model by its RepoDB identity (the
+// inventory) and location, never by file type: GGUF opens the file, safetensors
+// opens its directory. The opened source is closed before returning.
+func MeasureAtLocation(
+	inventory TensorInventoryDocument, location string, policy MeasurementPolicy,
+) (TensorMeasurementDocument, error) {
+	switch inventory.Format {
+	case TensorFormatGGUF:
+		file, err := gguf.Open(location)
+		if err != nil {
+			return TensorMeasurementDocument{}, err
+		}
+		defer file.Close()
+		return MeasureGGUF(inventory, file, policy)
+	case TensorFormatSafetensors:
+		directory := location
+		if info, err := os.Stat(location); err == nil && !info.IsDir() {
+			directory = filepath.Dir(location)
+		}
+		source, err := safetensors.OpenSource(directory)
+		if err != nil {
+			return TensorMeasurementDocument{}, err
+		}
+		defer source.Close()
+		return MeasureSafetensors(inventory, source, policy)
+	default:
+		return TensorMeasurementDocument{}, fmt.Errorf("model artifact: unsupported inventory format %q", inventory.Format)
+	}
+}
 
 func MeasureGGUF(
 	inventory TensorInventoryDocument,
@@ -44,10 +79,52 @@ func MeasureGGUF(
 		if err != nil {
 			return TensorMeasurementDocument{}, err
 		}
+		if policy.SpectralMaxDim > 0 {
+			if err := applyEffectiveRank(&measurement, file, tensor, policy.SpectralMaxDim); err != nil {
+				return TensorMeasurementDocument{}, err
+			}
+		}
 		measurements = append(measurements, measurement)
 		readBytes += bytesNeeded
 	}
 	return newTensorMeasurementDocument(inventory.ID, policy, readBytes, measurements)
+}
+
+// applyEffectiveRank sets a measurement's spectral fields: the normalized
+// effective rank of a 2-D matrix whose dimensions are both within maxDim,
+// deferred when larger (the compute is O(dim³)), not-applicable otherwise.
+// Effective rank is transpose-invariant, so the row/col assignment is immaterial.
+func applyEffectiveRank(measurement *TensorMeasurement, file *gguf.File, tensor gguf.TensorInfo, maxDim uint64) error {
+	dims := tensor.Shape[:tensor.Dimensions]
+	if tensor.Dimensions != 2 {
+		measurement.SpectralStatus = SpectralNotApplicable
+		return nil
+	}
+	if dims[0] > maxDim || dims[1] > maxDim {
+		measurement.SpectralStatus = SpectralDeferred
+		return nil
+	}
+	data, err := fullGGUFTensorValues(file, tensor)
+	if err != nil {
+		return err
+	}
+	value, ok := tensorstats.EffectiveRankOf(data, int(dims[1]), int(dims[0]))
+	if !ok {
+		measurement.SpectralStatus = SpectralNotApplicable
+		return nil
+	}
+	measurement.EffectiveRank = value
+	measurement.SpectralStatus = SpectralComputed
+	return nil
+}
+
+// fullGGUFTensorValues reads and dequantizes every element of a GGUF tensor in
+// storage order. It is sampleGGUFTensorValues at full coverage: with the sample
+// count equal to the block count, evenlySpacedIndex is the identity, so the read
+// is sequential. Callers must bound the tensor size (see SpectralMaxDim).
+func fullGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo) ([]float64, error) {
+	values, _, _, err := sampleGGUFTensorValues(file, tensor, math.MaxUint64)
+	return values, err
 }
 
 // sampleGGUFTensorValues evenly samples up to maxSamples stored values from one

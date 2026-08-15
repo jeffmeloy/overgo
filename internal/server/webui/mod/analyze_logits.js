@@ -12,7 +12,7 @@
     section: "workbench",
     requires: "logits",
     async mount(panel, overgo) {
-      const { el, clear } = overgo;
+      const { el, clear, displayToken } = overgo;
       clear(panel);
 
       const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
@@ -20,24 +20,28 @@
       const maxTokens = el("input", { class: "keyfield", type: "number", value: "24", min: "1", max: "128", style: "width:90px" });
       const topK = el("input", { class: "keyfield", type: "number", value: "10", min: "1", max: "40", style: "width:90px" });
       const run = el("button", { class: "btn", onclick: execute }, "run lens");
+      const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
       const controls = el("div", {},
         prompt,
         el("div", { class: "row", style: "margin:10px 0" },
           el("span", { class: "note", text: "max tokens" }), maxTokens,
           el("span", { class: "note", text: "top-k" }), topK,
-          run));
+          run, cancel));
       const out = el("div");
       panel.append(controls, out);
+      const runAction = overgo.runner(run, cancel, {
+        onError: (err) => out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))),
+        onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
+      });
 
       async function ensureVocabSize() {
         if (vocabSize > 0) return;
-        try { vocabSize = (await overgo.api.get("/analyze/model")).model.vocabulary_size || 0; } catch (_) { /* optional */ }
+        try { vocabSize = (await overgo.modelInfo()).model.vocabulary_size || 0; } catch (_) { /* optional */ }
       }
 
-      async function execute() {
+      function execute() {
         out.replaceChildren(el("div", { class: "note", text: "running…" }));
-        run.disabled = true;
-        try {
+        runAction(async (signal) => {
           await ensureVocabSize();
           const data = await overgo.api.post("/completion", {
             prompt: prompt.value,
@@ -46,14 +50,9 @@
             temperature: 0, // greedy: the lens inspects the argmax trajectory
             stream: false,
             cache_prompt: false,
-          });
+          }, { signal });
           render(data);
-        } catch (err) {
-          const message = err.status === 401 ? "API key required — enter it in the top bar." : String(err.message || err);
-          out.replaceChildren(overgo.errorBanner(message));
-        } finally {
-          run.disabled = false;
-        }
+        });
       }
 
       function render(data) {
@@ -100,13 +99,6 @@
         });
       }
 
-      // displayToken: make whitespace-only / empty pieces visible without
-      // altering the measured text elsewhere.
-      function displayToken(text) {
-        if (text === "" ) return "∅";
-        if (/^\s+$/.test(text)) return "␠".repeat(text.length);
-        return text.replace(/\n/g, "⏎");
-      }
     },
   });
 })();

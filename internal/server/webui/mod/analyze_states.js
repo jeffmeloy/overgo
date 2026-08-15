@@ -15,7 +15,7 @@
     section: "workbench",
     requires: "hidden_states",
     async mount(panel, overgo) {
-      const { el, clear } = overgo;
+      const { el, clear, displayToken } = overgo;
       clear(panel);
 
       const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
@@ -28,6 +28,7 @@
       const k = el("input", { class: "keyfield", type: "number", placeholder: "auto", min: "1", max: "20", style: "width:80px" });
       const maxPos = el("input", { class: "keyfield", type: "number", value: "48", min: "2", max: "64", style: "width:80px" });
       const run = el("button", { class: "btn", onclick: execute }, "capture");
+      const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
       panel.append(
         prompt,
         el("div", { class: "row", style: "margin:10px 0" },
@@ -35,30 +36,28 @@
           el("span", { class: "note", text: "layer" }), layer,
           el("span", { class: "note", text: "k" }), k,
           el("span", { class: "note", text: "max tokens" }), maxPos,
-          run),
+          run, cancel),
         el("div", { class: "note", text: "Distribution-free: the metric is explicit (default = rank correlation); the layout uses only the rank order of distances (no PCA/t-SNE)." }));
       const out = el("div");
       panel.appendChild(out);
+      const runAction = overgo.runner(run, cancel, {
+        onError: (err) => out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))),
+        onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
+      });
 
-      async function execute() {
+      function execute() {
         out.replaceChildren(el("div", { class: "note", text: "capturing…" }));
-        run.disabled = true;
-        try {
+        runAction(async (signal) => {
           const request = { prompt: prompt.value, metric: metric.value, max_positions: Number(maxPos.value) || 48 };
           if (layer.value !== "") request.layer = Number(layer.value);
           if (k.value !== "") request.k = Number(k.value);
-          render(await overgo.api.post("/analyze/states", request));
-        } catch (err) {
-          const message = err.status === 401 ? "API key required — enter it in the top bar." : String(err.message || err);
-          out.replaceChildren(overgo.errorBanner(message));
-        } finally {
-          run.disabled = false;
-        }
+          render(await overgo.api.post("/analyze/states", request, { signal }));
+        });
       }
 
       function render(data) {
         clear(out);
-        const labels = data.tokens.map((t) => displayToken(t.text) || String(t.id));
+        const labels = data.tokens.map((t) => (t.text ? displayToken(t.text) : String(t.id)));
         // Color nodes by sequence position (early → late) so the graph shows how
         // token order maps onto the structure.
         const colors = data.tokens.map((_, i) => {
@@ -79,7 +78,7 @@
           el("span", { class: "note", text: "MDS stress " + data.stress.toFixed(3) + " (" + data.layout_iterations + " iters)" })));
 
         out.appendChild(el("div", { class: "section-title", text: "Distance matrix — " + data.metric + " (token × token)" }));
-        out.appendChild(overgo.viz.heatmap(data.distance)); // auto-scaled; no assumed range
+        out.appendChild(overgo.viz.heatmap(data.distance, { labels: labels })); // auto-scaled; no assumed range
 
         out.appendChild(el("div", { class: "section-title", text: "Neighbor graph (kNN edges, non-metric-MDS layout)" }));
         const edges = [];
@@ -89,11 +88,6 @@
           text: "The matrix and neighbor graph are primary. The 2D layout is a rank-preserving summary only — read it together with the stress above (higher stress = the 2D placement is a poorer summary)." }));
       }
 
-      function displayToken(text) {
-        if (!text) return "";
-        if (/^\s+$/.test(text)) return "␠";
-        return text.replace(/\n/g, "⏎");
-      }
     },
   });
 })();

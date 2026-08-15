@@ -2,16 +2,14 @@ package server
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"math"
 	"net/http"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/gguf"
 	"overgo/internal/inference"
+	"overgo/internal/testutil"
 )
 
 // tensorPathGenerator is a fakeGenerator whose model path points at a real GGUF
@@ -29,24 +27,13 @@ func (g tensorPathGenerator) ModelProperties() inference.ModelProperties {
 
 func writeTensorFixture(t *testing.T) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "model.gguf")
-	values := make([]byte, 512*4) // symmetric range [-256, 255]
-	for i := 0; i < 512; i++ {
-		binary.LittleEndian.PutUint32(values[i*4:], math.Float32bits(float32(i-256)))
+	values := make([]float32, 512) // symmetric range [-256, 255]
+	for i := range values {
+		values[i] = float32(i - 256)
 	}
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, nil, []gguf.TensorData{
-		{Name: "blk.0.weight", Shape: []uint64{512}, Type: gguf.DTypeF32, Data: bytes.NewReader(values)},
-	}, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
+	return testutil.TempGGUF(t, "model.gguf", nil, []gguf.TensorData{
+		{Name: "blk.0.weight", Shape: []uint64{512}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(values))},
+	})
 }
 
 func TestAnalyzeTensorsReturnsDistributionFreeProfiles(t *testing.T) {
@@ -110,31 +97,12 @@ func writeMultiTensorFixture(t *testing.T) string {
 	skewed[n-1] = 500
 	skewed[n-2] = 300
 	toData := func(name string, v []float32) gguf.TensorData {
-		return gguf.TensorData{Name: name, Shape: []uint64{n}, Type: gguf.DTypeF32, Data: bytes.NewReader(f32Bytes(v))}
+		return gguf.TensorData{Name: name, Shape: []uint64{n}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(v))}
 	}
-	path := filepath.Join(t.TempDir(), "multi.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, nil, []gguf.TensorData{
+	return testutil.TempGGUF(t, "multi.gguf", nil, []gguf.TensorData{
 		toData("sym", sym), toData("sym_scaled", scaled),
 		toData("sparse", sparse), toData("skewed", skewed),
-	}, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
-func f32Bytes(values []float32) []byte {
-	out := make([]byte, len(values)*4)
-	for i, v := range values {
-		binary.LittleEndian.PutUint32(out[i*4:], math.Float32bits(v))
-	}
-	return out
+	})
 }
 
 func TestAnalyzeTensorsSimilarRanksByShape(t *testing.T) {
@@ -182,6 +150,33 @@ func TestAnalyzeTensorsSimilarValidation(t *testing.T) {
 		if response.Code != tc.want {
 			t.Errorf("%s -> %d, want %d", tc.query, response.Code, tc.want)
 		}
+	}
+}
+
+func TestAnalyzeTensorsSurfacesEffectiveRank(t *testing.T) {
+	ones := make([]float32, 16) // 4x4 all-ones -> rank 1 -> effective rank 0.25
+	for i := range ones {
+		ones[i] = 1
+	}
+	path := testutil.TempGGUF(t, "matrix.gguf", nil, []gguf.TensorData{
+		{Name: "attn.weight", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(ones))},
+	})
+
+	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: path})
+	response := serveTestRequest(handler, http.MethodGet, "/analyze/tensors", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var result analyzeTensorsResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(result.Tensors) != 1 {
+		t.Fatalf("want 1 tensor, got %d", len(result.Tensors))
+	}
+	m := result.Tensors[0]
+	if m.SpectralStatus != "computed" || math.Abs(m.EffectiveRank-0.25) > 1e-6 {
+		t.Errorf("effective rank: status=%q value=%.4f, want computed 0.25", m.SpectralStatus, m.EffectiveRank)
 	}
 }
 

@@ -15,7 +15,7 @@
     section: "workbench",
     requires: "attention",
     async mount(panel, overgo) {
-      const { el, clear } = overgo;
+      const { el, clear, displayToken } = overgo;
       clear(panel);
 
       const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
@@ -23,38 +23,37 @@
       const layer = el("input", { class: "keyfield", type: "number", placeholder: "mid", min: "0", style: "width:80px" });
       const maxPos = el("input", { class: "keyfield", type: "number", value: "32", min: "2", max: "48", style: "width:80px" });
       const run = el("button", { class: "btn", onclick: execute }, "capture");
+      const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
       panel.append(
         prompt,
         el("div", { class: "row", style: "margin:10px 0" },
           el("span", { class: "note", text: "layer" }), layer,
           el("span", { class: "note", text: "max tokens" }), maxPos,
-          run),
+          run, cancel),
         el("div", { class: "note", text: "Exact softmax(scale·Q·Kᵀ) per head, recomputed on the host from captured query/key. Weights are causal (row i attends to keys 0..i) and sum to 1." }));
       const out = el("div");
       panel.appendChild(out);
 
       let current = null; // last response, kept so the head selector can redraw.
+      const runAction = overgo.runner(run, cancel, {
+        onError: (err) => out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))),
+        onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
+      });
 
-      async function execute() {
+      function execute() {
         out.replaceChildren(el("div", { class: "note", text: "capturing…" }));
-        run.disabled = true;
-        try {
+        runAction(async (signal) => {
           const request = { prompt: prompt.value, max_positions: Number(maxPos.value) || 32 };
           if (layer.value !== "") request.layer = Number(layer.value);
-          current = await overgo.api.post("/analyze/attention", request);
+          current = await overgo.api.post("/analyze/attention", request, { signal });
           render();
-        } catch (err) {
-          const message = err.status === 401 ? "API key required — enter it in the top bar." : String(err.message || err);
-          out.replaceChildren(overgo.errorBanner(message));
-        } finally {
-          run.disabled = false;
-        }
+        });
       }
 
       function render() {
         const data = current;
         clear(out);
-        const labels = data.tokens.map((t) => displayToken(t.text) || String(t.id));
+        const labels = data.tokens.map((t) => (t.text ? displayToken(t.text) : String(t.id)));
 
         if (data.truncated) {
           out.appendChild(el("div", { class: "note", style: "color:var(--amber)",
@@ -87,16 +86,11 @@
           map.replaceChildren(
             el("div", { class: "section-title", text: "Attention weights — head " + h + " (query × key)" }),
             // Fixed 0..1 scale: these are probabilities, not an inferred range.
-            overgo.viz.heatmap(data.weights[h], { max: 1 }));
+            overgo.viz.heatmap(data.weights[h], { max: 1, labels: labels }));
         }
         draw();
       }
 
-      function displayToken(text) {
-        if (!text) return "";
-        if (/^\s+$/.test(text)) return "␠";
-        return text.replace(/\n/g, "⏎");
-      }
     },
   });
 })();

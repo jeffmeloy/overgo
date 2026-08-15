@@ -149,12 +149,18 @@ func (l *Library) StreamBeginCapture(stream Stream) error {
 
 func (l *Library) StreamEndCapture(stream Stream) (Graph, error) {
 	var graph Graph
+	var pinned runtime.Pinner
+	pinned.Pin(&graph)
+	defer pinned.Unpin()
 	result, _, _ := l.cuStreamEndCapture.Call(uintptr(stream), uintptr(unsafe.Pointer(&graph)))
 	return graph, l.result("cuStreamEndCapture", result)
 }
 
 func (l *Library) GraphInstantiate(graph Graph) (GraphExec, error) {
 	var execution GraphExec
+	var pinned runtime.Pinner
+	pinned.Pin(&execution)
+	defer pinned.Unpin()
 	result, _, _ := l.cuGraphInstantiate.Call(uintptr(unsafe.Pointer(&execution)), uintptr(graph), 0)
 	err := l.result("cuGraphInstantiateWithFlags", result)
 	if err == nil {
@@ -166,6 +172,10 @@ func (l *Library) GraphInstantiate(graph Graph) (GraphExec, error) {
 func (l *Library) GraphExecUpdate(execution GraphExec, graph Graph) (bool, error) {
 	var errorNode uintptr
 	var updateResult int32
+	var pinned runtime.Pinner
+	pinned.Pin(&errorNode)
+	pinned.Pin(&updateResult)
+	defer pinned.Unpin()
 	result, _, _ := l.cuGraphExecUpdate.Call(
 		uintptr(execution), uintptr(graph), uintptr(unsafe.Pointer(&errorNode)), uintptr(unsafe.Pointer(&updateResult)),
 	)
@@ -220,6 +230,9 @@ func (l *Library) Init() error {
 // DriverVersion: returns highest CUDA version supported by driver
 func (l *Library) DriverVersion() (Version, error) {
 	var version int32
+	var pinned runtime.Pinner
+	pinned.Pin(&version)
+	defer pinned.Unpin()
 	result, _, _ := l.cuDriverGetVersion.Call(uintptr(unsafe.Pointer(&version)))
 	if err := l.result("cuDriverGetVersion", result); err != nil {
 		return 0, err
@@ -230,6 +243,9 @@ func (l *Library) DriverVersion() (Version, error) {
 // DeviceCount: returns number of CUDA devices visible to driver
 func (l *Library) DeviceCount() (int, error) {
 	var count int32
+	var pinned runtime.Pinner
+	pinned.Pin(&count)
+	defer pinned.Unpin()
 	result, _, _ := l.cuDeviceGetCount.Call(uintptr(unsafe.Pointer(&count)))
 	if err := l.result("cuDeviceGetCount", result); err != nil {
 		return 0, err
@@ -240,6 +256,9 @@ func (l *Library) DeviceCount() (int, error) {
 // Device: returns CUDA device handle for ordinal
 func (l *Library) Device(ordinal int) (Device, error) {
 	var device int32
+	var pinned runtime.Pinner
+	pinned.Pin(&device)
+	defer pinned.Unpin()
 	result, _, _ := l.cuDeviceGet.Call(
 		uintptr(unsafe.Pointer(&device)),
 		uintptr(ordinal),
@@ -258,6 +277,9 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	}
 
 	nameBytes := make([]byte, cudaDeviceNameBytes)
+	var pinned runtime.Pinner
+	pinned.Pin(&nameBytes[0])
+	defer pinned.Unpin()
 	result, _, _ := l.cuDeviceGetName.Call(
 		uintptr(unsafe.Pointer(&nameBytes[0])),
 		uintptr(len(nameBytes)),
@@ -268,6 +290,7 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	}
 
 	var totalMemory uint64
+	pinned.Pin(&totalMemory)
 	result, _, _ = l.cuDeviceTotalMem.Call(
 		uintptr(unsafe.Pointer(&totalMemory)),
 		uintptr(device),
@@ -304,6 +327,9 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 // must remain locked to its OS thread while it uses context
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 	var context Context
+	var pinned runtime.Pinner
+	pinned.Pin(&context)
+	defer pinned.Unpin()
 	result, _, _ := l.cuCtxCreate.Call(
 		uintptr(unsafe.Pointer(&context)),
 		uintptr(flags),
@@ -340,6 +366,9 @@ func (l *Library) ContextSynchronize() error {
 // StreamCreate creates stream in current context
 func (l *Library) StreamCreate(flags uint32) (Stream, error) {
 	var stream Stream
+	var pinned runtime.Pinner
+	pinned.Pin(&stream)
+	defer pinned.Unpin()
 	result, _, _ := l.cuStreamCreate.Call(
 		uintptr(unsafe.Pointer(&stream)),
 		uintptr(flags),
@@ -372,6 +401,9 @@ func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 		return 0, errors.New("cuMemAlloc_v2: allocation size is zero")
 	}
 	var pointer DevicePtr
+	var pinned runtime.Pinner
+	pinned.Pin(&pointer)
+	defer pinned.Unpin()
 	result, _, _ := l.cuMemAlloc.Call(
 		uintptr(unsafe.Pointer(&pointer)),
 		uintptr(bytes),
@@ -397,6 +429,10 @@ func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 // capacity and real peak sampling (never a synthetic accounting sum).
 func (l *Library) MemInfo() (free, total uint64, err error) {
 	var f, t uint64
+	var pinned runtime.Pinner
+	pinned.Pin(&f)
+	pinned.Pin(&t)
+	defer pinned.Unpin()
 	result, _, _ := l.cuMemGetInfo.Call(
 		uintptr(unsafe.Pointer(&f)),
 		uintptr(unsafe.Pointer(&t)),
@@ -477,6 +513,12 @@ func (l *Library) MemcpyHtoD(destination DevicePtr, source []byte) error {
 	if len(source) == 0 {
 		return nil
 	}
+	if !l.ownsDeviceRange(destination, uint64(len(source))) {
+		return errors.New("cuMemcpyHtoD_v2: destination range is not allocated")
+	}
+	var pinned runtime.Pinner
+	pinned.Pin(&source[0])
+	defer pinned.Unpin()
 	result, _, _ := l.cuMemcpyHtoD.Call(
 		uintptr(destination),
 		uintptr(unsafe.Pointer(&source[0])),
@@ -496,6 +538,12 @@ func (l *Library) MemcpyDtoH(destination []byte, source DevicePtr) error {
 	if len(destination) == 0 {
 		return nil
 	}
+	if !l.ownsDeviceRange(source, uint64(len(destination))) {
+		return errors.New("cuMemcpyDtoH_v2: source range is not allocated")
+	}
+	var pinned runtime.Pinner
+	pinned.Pin(&destination[0])
+	defer pinned.Unpin()
 	result, _, _ := l.cuMemcpyDtoH.Call(
 		uintptr(unsafe.Pointer(&destination[0])),
 		uintptr(source),
@@ -518,6 +566,9 @@ func (l *Library) MemcpyDtoD(
 ) error {
 	if bytes == 0 {
 		return nil
+	}
+	if !l.ownsDeviceRange(destination, bytes) || !l.ownsDeviceRange(source, bytes) {
+		return errors.New("cuMemcpyDtoD_v2: source or destination range is not allocated")
 	}
 	result, _, _ := l.cuMemcpyDtoD.Call(
 		uintptr(destination),
@@ -542,6 +593,9 @@ func (l *Library) MemsetD32Async(
 	if count == 0 {
 		return nil
 	}
+	if count > ^uint64(0)/4 || !l.ownsDeviceRange(destination, count*4) {
+		return errors.New("cuMemsetD32Async: destination range is not allocated")
+	}
 	result, _, _ := l.cuMemsetD32Async.Call(
 		uintptr(destination),
 		uintptr(value),
@@ -556,6 +610,24 @@ func (l *Library) MemsetD32Async(
 	return nil
 }
 
+func (l *Library) ownsDeviceRange(pointer DevicePtr, bytes uint64) bool {
+	if l == nil || pointer == 0 || bytes == 0 {
+		return false
+	}
+	l.allocationMu.Lock()
+	defer l.allocationMu.Unlock()
+	for base, capacity := range l.allocations {
+		if pointer < base {
+			continue
+		}
+		offset := uint64(pointer - base)
+		if offset <= capacity && bytes <= capacity-offset {
+			return true
+		}
+	}
+	return false
+}
+
 // ModuleLoadData: loads PTX or CUDA binary module from memory
 func (l *Library) ModuleLoadData(image []byte) (Module, error) {
 	if len(image) == 0 {
@@ -567,6 +639,10 @@ func (l *Library) ModuleLoadData(image []byte) (Module, error) {
 		copy(data, image)
 	}
 	var module Module
+	var pinned runtime.Pinner
+	pinned.Pin(&module)
+	pinned.Pin(&data[0])
+	defer pinned.Unpin()
 	result, _, _ := l.cuModuleLoadData.Call(
 		uintptr(unsafe.Pointer(&module)),
 		uintptr(unsafe.Pointer(&data[0])),
@@ -594,6 +670,10 @@ func (l *Library) ModuleFunction(module Module, name string) (Function, error) {
 	}
 	nameBytes := append([]byte(name), 0)
 	var function Function
+	var pinned runtime.Pinner
+	pinned.Pin(&function)
+	pinned.Pin(&nameBytes[0])
+	defer pinned.Unpin()
 	result, _, _ := l.cuModuleGetFunction.Call(
 		uintptr(unsafe.Pointer(&function)),
 		uintptr(module),
@@ -638,7 +718,16 @@ func (l *Library) LaunchKernel(
 		return errors.New("cuLaunchKernel: block dimensions must be nonzero")
 	}
 	var argumentPointer uintptr
+	var pinned runtime.Pinner
 	if len(arguments) > 0 {
+		pinned.Pin(&arguments[0])
+		defer pinned.Unpin()
+		for _, argument := range arguments {
+			if argument == nil {
+				return errors.New("cuLaunchKernel: kernel argument is nil")
+			}
+			pinned.Pin(argument)
+		}
 		argumentPointer = uintptr(unsafe.Pointer(&arguments[0]))
 	}
 	result, _, _ := l.cuLaunchKernel.Call(
@@ -679,6 +768,9 @@ func (l *Library) DeviceProfile(device Device) (smCount, maxThreadsPerSM int, er
 
 func (l *Library) deviceAttribute(device Device, attribute int) (int, error) {
 	var value int32
+	var pinned runtime.Pinner
+	pinned.Pin(&value)
+	defer pinned.Unpin()
 	result, _, _ := l.cuDeviceGetAttribute.Call(
 		uintptr(unsafe.Pointer(&value)),
 		uintptr(attribute),
@@ -698,10 +790,14 @@ func (l *Library) result(operation string, value uintptr) error {
 
 	err := &ResultError{Operation: operation, Code: code}
 	var namePtr uintptr
+	var pinned runtime.Pinner
+	pinned.Pin(&namePtr)
+	defer pinned.Unpin()
 	if result, _, _ := l.cuGetErrorName.Call(uintptr(code), uintptr(unsafe.Pointer(&namePtr))); int32(result) == 0 {
 		err.Name = readCString(namePtr, cudaDeviceNameBytes)
 	}
 	var messagePtr uintptr
+	pinned.Pin(&messagePtr)
 	if result, _, _ := l.cuGetErrorString.Call(uintptr(code), uintptr(unsafe.Pointer(&messagePtr))); int32(result) == 0 {
 		err.Message = readCString(messagePtr, 1024)
 	}
@@ -719,6 +815,9 @@ func readCString(pointer uintptr, limit int) string {
 		return ""
 	}
 	data := make([]byte, length)
+	var pinned runtime.Pinner
+	pinned.Pin(&data[0])
+	defer pinned.Unpin()
 	_, _, _ = rtlMoveMemory.Call(
 		uintptr(unsafe.Pointer(&data[0])),
 		pointer,

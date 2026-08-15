@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/cuda/device"
@@ -29,6 +30,13 @@ type GenerationRequest struct {
 	Seed          int64   `json:"seed"`
 	CFGScale      float32 `json:"cfg_scale"`
 	TimestepShift float64 `json:"timestep_shift"`
+}
+
+// GenerationStats partitions one production request without synchronizing
+// inside device stages.
+type GenerationStats struct {
+	Prepare, Vision, Condition, Body, Flow, Guidance, Decode time.Duration
+	Steps                                                    int
 }
 
 func ValidateGenerationRequest(request GenerationRequest) error {
@@ -54,6 +62,7 @@ type generationPlan struct {
 	schedule []float64
 	z        []float32
 	session  *routedlm.DeviceGenerationSession
+	flow     *routedlm.DeviceFlowPeripheralSession
 }
 
 type generationFeatures struct {
@@ -75,6 +84,8 @@ type Generator struct {
 	flowTerminal routedlm.FlowTerminalWeights
 	terminal     routedlm.TerminalWeights
 	active       *routedlm.DeviceGenerationSession
+	activeFlow   *routedlm.DeviceFlowPeripheralSession
+	stats        GenerationStats
 }
 
 func LoadGenerator(modelDir string) (_ *Generator, result error) {
@@ -137,10 +148,19 @@ func (g *Generator) Reset(ctx context.Context, request GenerationRequest) error 
 		}
 		g.active = nil
 	}
+	if g.activeFlow != nil {
+		if err := g.activeFlow.Close(ctx); err != nil {
+			return err
+		}
+		g.activeFlow = nil
+	}
 	return nil
 }
 
 func (g *Generator) prepare(request GenerationRequest) (*generationPlan, error) {
+	started := time.Now()
+	g.stats = GenerationStats{Steps: request.Steps}
+	defer func() { g.stats.Prepare = time.Since(started) }()
 	if err := g.Reset(context.Background(), request); err != nil {
 		return nil, err
 	}
@@ -177,6 +197,16 @@ func (g *Generator) prepare(request GenerationRequest) (*generationPlan, error) 
 		return nil, err
 	}
 	g.active = session
+	flow, err := routedlm.NewDeviceFlowPeripheralSession(
+		context.Background(), g.worker, g.cuda, g.flow, image, g.vision, g.flowTerminal,
+		g.terminal.FinalNorm[1], g.config.RMSNormEps,
+	)
+	if err != nil {
+		_ = session.Close(context.Background())
+		g.active = nil
+		return nil, err
+	}
+	g.activeFlow = flow
 	var z []float32
 	if err := g.worker.Do(context.Background(), func(state *device.State) error {
 		stream := torchrng.NewStream(request.Seed)
@@ -185,23 +215,26 @@ func (g *Generator) prepare(request GenerationRequest) (*generationPlan, error) 
 		z, seedErr = routedlm.SeededFlowLatent(stream, state, g.flow, image)
 		return seedErr
 	}); err != nil {
+		_ = flow.Close(context.Background())
 		_ = session.Close(context.Background())
-		g.active = nil
+		g.active, g.activeFlow = nil, nil
 		return nil, err
 	}
-	return &generationPlan{request: request, image: image, schedule: schedule, z: z, session: session}, nil
+	return &generationPlan{request: request, image: image, schedule: schedule, z: z, session: session, flow: flow}, nil
 }
 
 func (g *Generator) integrate(plan *generationPlan) (generationFeatures, error) {
-	if plan == nil || plan.session == nil || plan.session != g.active || len(plan.schedule) != plan.request.Steps+1 {
+	if plan == nil || plan.session == nil || plan.session != g.active || plan.flow == nil || plan.flow != g.activeFlow || len(plan.schedule) != plan.request.Steps+1 {
 		return generationFeatures{}, errors.New("sensenova recipe: invalid generation plan")
 	}
 	defer func() {
+		_ = plan.flow.Close(context.Background())
 		_ = plan.session.Close(context.Background())
-		plan.session, g.active = nil, nil
+		plan.session, plan.flow, g.active, g.activeFlow = nil, nil, nil, nil
 	}()
 	z := plan.z
 	for step := range plan.request.Steps {
+		started := time.Now()
 		planar, err := latentimage.UnpackPlanarF32(
 			z, g.flow.VisionChannels, plan.image.TokenHeight, plan.image.TokenWidth,
 			plan.image.TokenPatch, latentimage.PatchChannelsLast,
@@ -209,39 +242,39 @@ func (g *Generator) integrate(plan *generationPlan) (generationFeatures, error) 
 		if err != nil {
 			return generationFeatures{}, err
 		}
-		hidden, shape, err := routedlm.VisionEmbedTokens(g.vision, g.flow, planar, plan.image.Width, plan.image.Height)
+		hidden, err := plan.flow.VisionEmbedTokens(context.Background(), planar)
 		if err != nil {
-			return generationFeatures{}, fmt.Errorf("sensenova recipe: vision embedding: %w", err)
+			return generationFeatures{}, fmt.Errorf("sensenova recipe: step %d vision embedding: %w", step, err)
 		}
-		if shape != plan.image {
-			return generationFeatures{}, fmt.Errorf("sensenova recipe: vision embedding shape=%+v want=%+v", shape, plan.image)
-		}
+		g.stats.Vision += time.Since(started)
+		started = time.Now()
 		timestep := plan.schedule[step]
-		condition, err := routedlm.FlowConditionRow(g.flowTerminal, g.flow, timestep, g.flow.NormalizedNoiseScale(plan.image.NoiseScale))
+		condition, err := plan.flow.FlowConditionRow(
+			context.Background(), timestep, g.flow.NormalizedNoiseScale(plan.image.NoiseScale),
+		)
 		if err != nil {
-			return generationFeatures{}, err
+			return generationFeatures{}, fmt.Errorf("sensenova recipe: step %d condition: %w", step, err)
 		}
 		if err := routedlm.AddConditionRows(hidden, condition); err != nil {
 			return generationFeatures{}, err
 		}
+		g.stats.Condition += time.Since(started)
+		started = time.Now()
 		branches, _, err := plan.session.Run(context.Background(), hidden, nil, nil)
 		if err != nil {
-			return generationFeatures{}, err
+			return generationFeatures{}, fmt.Errorf("sensenova recipe: step %d body: %w", step, err)
 		}
+		g.stats.Body += time.Since(started)
+		started = time.Now()
 		velocities := make([][]float32, len(branches))
 		for branch := range branches {
-			final, err := routedlm.GenerationFinalHidden(
-				branches[branch], g.terminal.FinalNorm[1], plan.image.Tokens,
-				g.config.HiddenSize, g.config.RMSNormEps,
-			)
+			velocities[branch], err = plan.flow.FlowHeadVelocity(context.Background(), branches[branch], z, timestep)
 			if err != nil {
-				return generationFeatures{}, err
-			}
-			velocities[branch], err = routedlm.FlowHeadVelocity(g.flowTerminal.Head, g.flow, final, z, timestep)
-			if err != nil {
-				return generationFeatures{}, err
+				return generationFeatures{}, fmt.Errorf("sensenova recipe: step %d branch %d flow head: %w", step, branch, err)
 			}
 		}
+		g.stats.Flow += time.Since(started)
+		started = time.Now()
 		guided, err := routedlm.GuidedFlowVelocity(velocities, []float32{plan.request.CFGScale, 1 - plan.request.CFGScale})
 		if err != nil {
 			return generationFeatures{}, err
@@ -249,13 +282,20 @@ func (g *Generator) integrate(plan *generationPlan) (generationFeatures, error) 
 		if err := routedlm.FlowEulerStep(z, guided, float32(plan.schedule[step+1]-timestep)); err != nil {
 			return generationFeatures{}, err
 		}
+		g.stats.Guidance += time.Since(started)
 	}
 	return generationFeatures{patches: z, image: plan.image, flow: g.flow}, nil
 }
 
 func (g *Generator) decode(features generationFeatures) (latentimage.EncodedImage, error) {
-	return DecodeGeneratedImage(features.patches, features.flow, features.image)
+	started := time.Now()
+	image, err := DecodeGeneratedImage(features.patches, features.flow, features.image)
+	g.stats.Decode += time.Since(started)
+	return image, err
 }
+
+// Stats returns the last completed or failed request's measured phases.
+func (g *Generator) Stats() GenerationStats { return g.stats }
 
 func (g *Generator) Close(ctx context.Context) error {
 	if g == nil {
@@ -265,6 +305,10 @@ func (g *Generator) Close(ctx context.Context) error {
 	if g.active != nil {
 		result = errors.Join(result, g.active.Close(ctx))
 		g.active = nil
+	}
+	if g.activeFlow != nil {
+		result = errors.Join(result, g.activeFlow.Close(ctx))
+		g.activeFlow = nil
 	}
 	if g.cuda != nil {
 		result = errors.Join(result, g.cuda.Close())

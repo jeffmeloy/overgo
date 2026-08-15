@@ -43,7 +43,7 @@ type DeviceGenerationSession struct {
 	cuda      *executor.Executor
 	cfg       Config
 	image     FlowImagePlan
-	layers    []branchLayerPlan
+	weights   []branchDeviceWeights
 	branches  []generationStackBranch
 	resources device.AllocationSet
 	setupWall time.Duration
@@ -79,7 +79,8 @@ func NewDeviceGenerationSession(
 		return nil, err
 	}
 	session := &DeviceGenerationSession{
-		worker: worker, cuda: cuda, cfg: cfg, image: image, layers: layers,
+		worker: worker, cuda: cuda, cfg: cfg, image: image,
+		weights:   make([]branchDeviceWeights, len(layers)),
 		branches:  make([]generationStackBranch, len(prefixes)),
 		resources: device.NewAllocationSet(worker),
 	}
@@ -155,6 +156,16 @@ func NewDeviceGenerationSession(
 		}
 		session.branches[index] = branch
 	}
+	for layer := range layers {
+		loaded, err := layers[layer].load()
+		if err != nil {
+			return fail(fmt.Errorf("load layer %d: %w", layer, err))
+		}
+		session.weights[layer], err = uploadBranchWeights(ctx, &session.resources, loaded)
+		if err != nil {
+			return fail(fmt.Errorf("retain layer %d: %w", layer, err))
+		}
+	}
 	session.setupWall = time.Since(started)
 	return session, nil
 }
@@ -169,7 +180,7 @@ func (s *DeviceGenerationSession) Stats() DeviceGenerationSessionStats {
 	return DeviceGenerationSessionStats{Graphs: len(s.branches), SetupWall: s.setupWall, PrefixBytes: s.prefixB}
 }
 
-// Run streams layer weights while hidden state stays device-resident.
+// Run reuses retained layer weights and device-resident hidden state.
 func (s *DeviceGenerationSession) Run(
 	ctx context.Context,
 	hidden []float32,
@@ -208,37 +219,11 @@ func (s *DeviceGenerationSession) Run(
 		return nil, stats, err
 	}
 	stats.HostToDevice += uint64(len(hidden)*len(s.branches)) * 4
-	uploads := device.NewAllocationSet(s.worker)
-	defer uploads.Close(context.WithoutCancel(ctx))
 	out := make([][]float32, len(s.branches))
-	type layerLoad struct {
-		weights BranchLayerWeights
-		err     error
-	}
-	load := func(layer int) <-chan layerLoad {
-		result := make(chan layerLoad, 1)
-		go func() {
-			weights, err := s.layers[layer].load()
-			result <- layerLoad{weights: weights, err: err}
-		}()
-		return result
-	}
-	pending := load(0)
 	for layer := 0; layer < s.cfg.NumHiddenLayers; layer++ {
-		loaded := <-pending
-		if loaded.err != nil {
-			return nil, stats, loaded.err
-		}
-		if layer+1 < s.cfg.NumHiddenLayers {
-			pending = load(layer + 1)
-		}
-		shared, err := uploadBranchWeights(ctx, &uploads, loaded.weights)
-		if err != nil {
-			return nil, stats, err
-		}
 		for index := range s.branches {
 			branch := &s.branches[index]
-			branch.inputs.bindWeights(shared)
+			branch.inputs.bindWeights(s.weights[layer])
 			branch.bindPrefix(layer)
 			retained, err := s.cuda.ExecuteRetainedCompiled(
 				ctx, branch.compiled, nil, branch.inputs.inputs, branch.target, nil,
@@ -264,20 +249,20 @@ func (s *DeviceGenerationSession) Run(
 			}
 		}
 		if layer < s.cfg.NumHiddenLayers-1 {
-			if err := s.worker.Do(ctx, func(state *device.State) error {
-				for index := range s.branches {
-					branch := &s.branches[index]
-					if err := state.Driver.MemcpyDtoD(branch.row, branch.output, uint64(len(hidden))*4); err != nil {
-						return err
-					}
+			for index := range s.branches {
+				branch := &s.branches[index]
+				branch.row, branch.output = branch.output, branch.row
+				rowSlot, err := compiledInputSlot(branch.compiled, branch.graph.Row)
+				if err != nil {
+					return nil, stats, err
 				}
-				return nil
-			}); err != nil {
-				return nil, stats, err
+				branch.inputs.inputs.Pointers[rowSlot] = branch.row
+				if err := branch.target.Set(branch.graph.Output, executor.DeviceValue{
+					Pointer: branch.output, Shape: branch.graph.Output.Shape, CapacityBytes: uint64(len(hidden)) * 4,
+				}); err != nil {
+					return nil, stats, err
+				}
 			}
-		}
-		if err := uploads.Close(ctx); err != nil {
-			return nil, stats, err
 		}
 	}
 	stats.Wall = time.Since(started)
@@ -300,6 +285,7 @@ func (s *DeviceGenerationSession) Close(ctx context.Context) error {
 		return nil
 	}
 	s.closed = true
+	s.weights = nil
 	s.branches = nil
 	return s.resources.Close(context.WithoutCancel(ctx))
 }

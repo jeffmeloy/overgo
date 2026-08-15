@@ -1107,7 +1107,7 @@
           "contains": "func LoadGenerator(",
           "path": "internal/sensenovarecipe/runtime_cuda_windows.go",
           "role": "source",
-          "identity": "file:sha256:392339ba59378d1cc82731a73d53df2029db95fb2c20f9546805231f77778cb1"
+          "identity": "file:sha256:6c1a29e7d42019bcb74957153cd12d2d6e51625e5e6eb976a2753fa9b737cd99"
         },
         {
           "contains": "capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed}",
@@ -1119,7 +1119,7 @@
           "contains": "func TestSenseNovaProductionImageGeneration(",
           "path": "internal/sensenovarecipe/runtime_cuda_windows_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:39cc12712a05673c386210364d3268f9975f3e7f14e03672ec032a2a426bbc04"
+          "identity": "evidence:sha256:539f5519f85251c80393527df861707af7638ab1b15488c8d5456b7927915708"
         }
       ],
       "id": "sensenova-production-image-oracle",

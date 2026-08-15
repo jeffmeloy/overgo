@@ -56,6 +56,9 @@ func buildDeviceGenerationLayer(
 	}
 
 	b := tensor.NewBuilder()
+	if weightType == dtype.BF16 {
+		b.SetMulMatCompute(tensor.MulMatComputeBF16TensorCore)
+	}
 	g := &DeviceGenerationLayerGraph{
 		Builder: b, Tokens: tokens, PrefixTokens: prefixTokens,
 	}

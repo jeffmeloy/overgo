@@ -203,17 +203,6 @@ type DeviceExecutionAPI interface {
 	DeviceExecutionStats(context.Context) (driver.ExecutionStats, error)
 }
 
-type Qwen3VLProjector interface {
-	BuildQwen35ImagePrompt(
-		context.Context,
-		projector.Qwen3VLTokenizer,
-		image.Image,
-		string,
-		string,
-		bool,
-	) (projector.Qwen3VLPrompt, error)
-}
-
 type ImageProjector interface {
 	BuildImagePrompt(
 		context.Context,
@@ -248,7 +237,7 @@ type Config struct {
 	RequestTimeout     time.Duration
 	InfillBatchSize    int
 	SPMInfill          bool
-	Qwen3VLProjector   Qwen3VLProjector
+	Qwen3VLProjector   ImageProjector
 	ImageProjector     ImageProjector
 	AudioProjector     AudioProjector
 	RemoteMediaPolicy  *RemoteMediaPolicy

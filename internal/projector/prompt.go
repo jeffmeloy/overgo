@@ -927,16 +927,6 @@ func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps floa
 	return prompt.String()
 }
 
-func (r *Qwen3VLRunner) BuildQwen35ImagePrompt(
-	ctx context.Context,
-	tokenizer Qwen3VLTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	thinking bool,
-) (Qwen3VLPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{Thinking: thinking})
-}
-
 func (r *Qwen3VLRunner) BuildImagesPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,

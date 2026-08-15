@@ -472,7 +472,7 @@ func (h *Handler) projectNativeMultimodalPrompt(
 				ctx, tokenizerAPI, images[0], prompt.BeforeMedia, prompt.AfterMedia, thinking,
 			)
 		} else {
-			projected, err = h.config.Qwen3VLProjector.BuildQwen35ImagePrompt(
+			projected, err = h.config.Qwen3VLProjector.BuildImagePrompt(
 				ctx, tokenizerAPI, images[0], prompt.BeforeMedia, prompt.AfterMedia, thinking,
 			)
 		}

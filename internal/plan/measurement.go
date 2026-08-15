@@ -35,18 +35,15 @@ var leaseOutcomeCodec = artifact.JSONDocumentCodec("lease outcome", artifact.Kin
 	func(value *LeaseOutcome, id artifact.ID) { value.ID = id }, nil)
 
 // RecordLeaseOutcome normalizes owner-authored evidence and requires its
-// predictions to match the referenced lease reservation.
+// referenced owner-approved lease to exist.
 func RecordLeaseOutcome(ctx context.Context, repository artifact.Repository, data []byte) (LeaseOutcome, error) {
 	value, _, err := leaseOutcomeCodec.Normalize(data)
 	if err != nil {
 		return LeaseOutcome{}, err
 	}
-	lease, ok, err := ReadWorkLease(ctx, repository, value.Lease)
+	_, ok, err := ReadWorkLease(ctx, repository, value.Lease)
 	if err != nil || !ok {
 		return LeaseOutcome{}, errors.New("plan: lease outcome references no work lease")
-	}
-	if value.Predicted != lease.Resources {
-		return LeaseOutcome{}, errors.New("plan: lease outcome prediction differs from its lease")
 	}
 	content, err := leaseOutcomeCodec.Content(value)
 	if err != nil {

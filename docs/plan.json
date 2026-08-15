@@ -13,12 +13,6 @@
           "status": "blocked-external-prereq"
         },
         {
-          "id": "lease-measurements",
-          "title": "Record predicted and actual CPU, RAM, VRAM, wall, interference, collision, abandonment, and recovery measurements on exercised leases",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestLeaseOutcomeMetrics$' -count=1 -v"
-        },
-        {
           "id": "recommendation-evaluation",
           "title": "Compare deterministic scheduling recommendations with owner decisions and report error bounds without assigning work",
           "status": "open",

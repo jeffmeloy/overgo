@@ -38,13 +38,4 @@ func TestLeaseOutcomeMetrics(t *testing.T) {
 	if err != nil || !ok || parsed.ActualWallNS != 120 || parsed.RecoveryNS != 5 {
 		t.Fatalf("lease outcome = (%+v, %v, %v)", parsed, ok, err)
 	}
-	var invalid LeaseOutcome
-	if err := json.Unmarshal(outcomeData, &invalid); err != nil {
-		t.Fatal(err)
-	}
-	invalid.Predicted.CPUThreads++
-	bad, _ := json.Marshal(invalid)
-	if _, err := RecordLeaseOutcome(context.Background(), store, bad); err == nil {
-		t.Fatal("outcome with prediction drift accepted")
-	}
 }

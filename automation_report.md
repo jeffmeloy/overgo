@@ -393,7 +393,10 @@ owns each worktree; `cmd/plan -lease-report` reports active reservations and
 collisions without assigning, terminating, merging, or promoting work.
 `cmd/plan -record-lease-outcome` now binds predicted and actual CPU, RAM, VRAM,
 wall, overlap interference, collision, abandonment, and recovery measurements
-to an exercised lease. Prediction drift from the approved lease is refused.
+to an exercised lease. Deterministic evaluation reports finite-sample maximum
+errors, resource packing totals, collision/abandonment/recovery counts, and
+componentwise recommendation wins against owner-approved reservations; it does
+not assign work or claim statistical confidence.
 
 Dependency, evidence-lane, and merge-eligibility APIs were removed because they
 had no production consumer. Add them only with the integration path that reads

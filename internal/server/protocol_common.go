@@ -266,7 +266,7 @@ func (h *Handler) requireChatFormatter(
 		writeError(
 			response,
 			http.StatusNotImplemented,
-			"unsupported_operation",
+			errorCodeUnsupportedOperation,
 			"chat formatting is unavailable",
 		)
 	}
@@ -294,7 +294,7 @@ func (h *Handler) requireChatOutputParser(
 	parser, ok := h.generator.(ChatOutputParser)
 	if !ok {
 		writeError(
-			response, http.StatusNotImplemented, "unsupported_operation",
+			response, http.StatusNotImplemented, errorCodeUnsupportedOperation,
 			feature+" output parsing is unavailable",
 		)
 	}
@@ -308,7 +308,7 @@ func (h *Handler) requireTokenCounting(response http.ResponseWriter) bool {
 	writeError(
 		response,
 		http.StatusNotImplemented,
-		"unsupported_operation",
+		errorCodeUnsupportedOperation,
 		"token counting is unavailable",
 	)
 	return false
@@ -464,7 +464,7 @@ func (h *Handler) configureChatToolGrammar(
 		writeError(
 			response,
 			http.StatusNotImplemented,
-			"unsupported_operation",
+			errorCodeUnsupportedOperation,
 			"tool-call grammar generation is unavailable",
 		)
 		return false

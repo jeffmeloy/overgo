@@ -18,7 +18,7 @@ import (
 // ClearPromptCaches: releases retained request state; preserves prepared assets.
 func (r *Runner) ClearPromptCaches(ctx context.Context) error {
 	if r == nil {
-		return errors.New("inference: runner is nil")
+		return errRunnerNil
 	}
 	if ctx == nil {
 		return errors.New("inference: prompt-cache context is nil")

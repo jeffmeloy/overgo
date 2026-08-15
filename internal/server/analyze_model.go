@@ -72,7 +72,7 @@ func (h *Handler) analyzeModel(response http.ResponseWriter, request *http.Reque
 	}
 	api, ok := h.generator.(ModelPropertiesAPI)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "model properties are unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model properties are unavailable")
 		return
 	}
 	model := api.ModelProperties()

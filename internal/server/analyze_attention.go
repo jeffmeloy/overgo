@@ -56,12 +56,12 @@ func (h *Handler) analyzeAttention(response http.ResponseWriter, request *http.R
 	}
 	capture, ok := h.generator.(AttentionCaptureAPI)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "attention capture is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "attention capture is unavailable")
 		return
 	}
 	tokenizerAPI, ok := h.generator.(TokenizationAPI)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "tokenization is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tokenization is unavailable")
 		return
 	}
 	var body analyzeAttentionRequest
@@ -90,7 +90,7 @@ func (h *Handler) analyzeAttention(response http.ResponseWriter, request *http.R
 
 	layers := capture.AttentionCaptureLayers()
 	if len(layers) == 0 {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "exact attention capture is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "exact attention capture is unavailable")
 		return
 	}
 	blockCount := 0

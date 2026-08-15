@@ -20,7 +20,7 @@ func (r *Runner) StartSession(
 	options GenerateOptions,
 ) (*Session, string, error) {
 	if r == nil || r.vocab == nil {
-		return nil, "", errors.New("inference: runner is nil")
+		return nil, "", errRunnerNil
 	}
 	if options.MaxNewTokens <= 0 {
 		return nil, "", errors.New("inference: resumable generation needs at least one new token")
@@ -64,7 +64,7 @@ func (r *Runner) ContinueSession(
 	options GenerateOptions,
 ) (*Session, string, error) {
 	if r == nil || r.vocab == nil {
-		return nil, "", errors.New("inference: runner is nil")
+		return nil, "", errRunnerNil
 	}
 	if options.MaxNewTokens < 0 {
 		return nil, "", errors.New("inference: max new tokens is negative")

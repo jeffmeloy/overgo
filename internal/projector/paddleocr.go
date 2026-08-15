@@ -243,7 +243,7 @@ func resizeImageBilinear(source image.Image, width, height int) *image.RGBA {
 
 func (r *PaddleOCRRunner) EncodeImage(ctx context.Context, source image.Image, options RasterPatchOptions) (PaddleOCROutput, error) {
 	if r == nil || r.file == nil {
-		return PaddleOCROutput{}, errors.New("projector: runner is closed")
+		return PaddleOCROutput{}, errRunnerClosed
 	}
 	plan := rasterPatchPlan{
 		patchSize: r.spec.PatchSize, mergeSize: r.spec.MergeSize,

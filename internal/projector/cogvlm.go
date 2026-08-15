@@ -193,7 +193,7 @@ func PreprocessCogVLMImage(source image.Image, spec CogVLMVisionSpec) ([]float32
 
 func (r *CogVLMVisionRunner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
 	if r == nil || r.file == nil {
-		return reference.Value{}, errors.New("projector: runner is closed")
+		return reference.Value{}, errRunnerClosed
 	}
 	pixels, err := PreprocessCogVLMImage(source, r.spec)
 	if err != nil {

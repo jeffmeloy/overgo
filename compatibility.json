@@ -190,13 +190,13 @@
           "contains": "func (r *Gemma4TowerRunner) EncodeAudioFeatures(",
           "path": "internal/projector/gemma4tower_audio.go",
           "role": "source",
-          "identity": "file:sha256:dbbe472cf9c686daebc102bc0326859f00ed6b8463ac380f436c762fcc540cc8"
+          "identity": "file:sha256:77b7aa93b2a5c11d428225614cf4b71433d0081fc6dbc08690b0cf63741f54c6"
         },
         {
           "contains": "func PreprocessGemma4AudioTower(",
           "path": "internal/projector/gemma4tower_audio_frontend.go",
           "role": "source",
-          "identity": "file:sha256:743cad2c9ed44d071416ca6b9e782d6e3bcb73de72eb04a8becaeb7532a3bb1e"
+          "identity": "file:sha256:6d268eee5b5832cbbe11bf32d0dab47fbae15d06c62e6563b7efe02274a44ea5"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",
@@ -460,7 +460,7 @@
           "contains": "func (r *Runner) selectPromptCache(",
           "path": "internal/inference/prompt_cache.go",
           "role": "source",
-          "identity": "file:sha256:c0b13b561a3f9c3a62051732c7b07540e3c225317be9a724910b2ae6ee39ca38"
+          "identity": "file:sha256:e42134155166e1c994969b46f796e9b5113df1d71d7e78594730ed5840431f2f"
         },
         {
           "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
@@ -677,7 +677,7 @@
           "contains": "func (h *Handler) prepareProtocolGeneration(",
           "path": "internal/server/protocol_common.go",
           "role": "source",
-          "identity": "file:sha256:395cefcb4efe0bd58410654edb70cddf9bb8a7ce935fc96331f61a62582f0846"
+          "identity": "file:sha256:a3ab1342e9f752d8a27644e49bf23f444bc77e581b21338f550210eeebb1659c"
         },
         {
           "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -698,7 +698,7 @@
           "contains": "func (s *chatOutputStream) Accept(",
           "path": "internal/inference/chat_stream.go",
           "role": "source",
-          "identity": "file:sha256:83954e203e3b73e6193b83b5e1f849bc54a56f5b18791843cfdee4dc08dc5a5a"
+          "identity": "file:sha256:dbe4579c983019ea1be0863ee4b87dba5314b342251fe1fdf249f3239b522955"
         },
         {
           "contains": "func TestStreamingResponsesFunctionCallLifecycle(",
@@ -872,7 +872,7 @@
           "contains": "func (b *ContinuousBatch) Step(",
           "path": "internal/inference/continuous_batch.go",
           "role": "source",
-          "identity": "file:sha256:b687d385942dafe496d4732fbbbac4f2087f0852fc3321d7ddcd3e613790f7eb"
+          "identity": "file:sha256:8aa4a837c620902653e27096b01d33a1a138dd2346bd64f75de7b0408a7ed7a3"
         },
         {
           "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
@@ -893,7 +893,7 @@
           "contains": "func (r *Runner) NewEncoderDecoderBatchSession(",
           "path": "internal/inference/encoder_decoder_batch.go",
           "role": "source",
-          "identity": "file:sha256:2a8f9a3c77309e8ea4b4e8c1bc0fcbf590a8a225e25273788e7baa317884e8b9"
+          "identity": "file:sha256:31a9e3f17b25d76803308272ba4441c6da6bd3fce8796196f17bbe632304ac09"
         },
         {
           "contains": "func TestValidatePaddedTokenBatchMasksSuffixes(",
@@ -957,7 +957,7 @@
           "contains": "func (h *Handler) analyzeAttention(",
           "path": "internal/server/analyze_attention.go",
           "role": "source",
-          "identity": "file:sha256:dd6bb2e9fa234a16ea62c08866044867c1d0e2c18d224742c17b32f2ea299e9c"
+          "identity": "file:sha256:e8bbbade5e7e72a94dd6348598ec29eefe7dec9c4e65272ead9b0088874b5270"
         },
         {
           "contains": "func TestAttentionWeightsHostMath(",
@@ -984,7 +984,7 @@
           "contains": "func (h *Handler) browseDatasets(",
           "path": "internal/server/browse_datasets.go",
           "role": "source",
-          "identity": "file:sha256:c3f3cb5b115c0f9e4b7f0e5a928f4673743099bdb5617c6fd277ee0dc3d70783"
+          "identity": "file:sha256:39f41784db88b8521fc1032dfc5f9260fbfa59da1ce05d220dceef5855accb14"
         },
         {
           "contains": "func TestBrowseDatasetsReadsManifest(",
@@ -1005,7 +1005,7 @@
           "contains": "func (h *Handler) browseRuns(",
           "path": "internal/server/browse_runs.go",
           "role": "source",
-          "identity": "file:sha256:3c70b9f37e41434b2a382e4a33511dbb0fd844dc3b7fb062aa6ddb78b7048eba"
+          "identity": "file:sha256:1103d956991ec2418a5ce524acb7930c354173b4e292865241d764ae2c1b3de2"
         },
         {
           "contains": "func TestBrowseRunsReadsRepoDBRecords(",

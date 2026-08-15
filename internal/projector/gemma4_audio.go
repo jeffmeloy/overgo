@@ -73,7 +73,7 @@ func (s Gemma4AudioSpec) validate() error {
 
 func (r *Gemma4Runner) AudioSpec() (Gemma4AudioSpec, error) {
 	if r == nil || r.file == nil {
-		return Gemma4AudioSpec{}, errors.New("projector: runner is closed")
+		return Gemma4AudioSpec{}, errRunnerClosed
 	}
 	return ReadGemma4AudioSpec(r.file)
 }

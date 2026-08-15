@@ -20,7 +20,7 @@ func (r *Runner) GenerateEncoderDecoder(
 	options GenerateOptions,
 ) ([]tokenizer.TokenID, string, *EncoderDecoderSession, error) {
 	if r == nil || r.vocab == nil {
-		return nil, "", nil, errors.New("inference: runner is nil")
+		return nil, "", nil, errRunnerNil
 	}
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return nil, "", nil, errors.New("inference: generation requires a compiled encoder-decoder program")

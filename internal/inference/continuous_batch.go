@@ -86,7 +86,7 @@ func (r *Runner) NewContinuousBatch(
 	options ContinuousBatchOptions,
 ) (*ContinuousBatch, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if options.MaxSequences <= 0 {
 		return nil, errors.New("inference: maximum sequence count must be positive")

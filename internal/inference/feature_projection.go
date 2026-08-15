@@ -11,7 +11,7 @@ import (
 // projectFeatures: execute the compiled feature projection.
 func (r *Runner) projectFeatures(ctx context.Context, features reference.Value) (reference.Value, error) {
 	if r == nil {
-		return reference.Value{}, errors.New("inference: runner is nil")
+		return reference.Value{}, errRunnerNil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

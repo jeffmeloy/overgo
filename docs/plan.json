@@ -3,6 +3,19 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
   "items": [
     {
+      "id": "literal-ownership",
+      "title": "Centralize repeated package policy literals at their runtime owners",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Centralize repeated package policy literals at their runtime owners",
+          "status": "open",
+          "verify": "go test -v ./internal/inference ./internal/projector ./internal/server -run '^(TestRunnerLockOpenRejectsUnavailableRunner|TestQwen2VLRunnerRejectsClosed|TestAnalyzeVocabUnsupportedWhenNoVocabulary)$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "automation-roadmap",
       "title": "Complete the automation roadmap through shared Go owners",
       "status": "blocked-external-prereq",
@@ -11,45 +24,6 @@
           "id": "source-license",
           "title": "Blocked: the repository owner must select the distribution license before project-owned source can replace NOASSERTION",
           "status": "blocked-external-prereq"
-        }
-      ]
-    },
-    {
-      "id": "runtime-tightening",
-      "title": "Delete ranked runtime duplication through existing owners",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete ranked runtime duplication through existing owners",
-          "status": "open",
-          "verify": "go test -v -count=1 ./internal/tensor ./internal/latentimage -run '^(TestWeightInputsSelectsCompiledMatrixStorage|TestDenoiserProgramMatchesHostReference|TestEncoderProgramMatchesHostReference|TestEncoderProgramMaskedMatchesHostReference|TestFusionProgramMatchesHostReference|TestTimestepProgramMatchesHostReference)$' \u0026\u0026 go test -short -count=1 ./internal/latentvideo"
-        }
-      ]
-    },
-    {
-      "id": "liveedit-source-graph",
-      "title": "Compile the real LiveEdit causal VAE encoder graph",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile the real LiveEdit causal VAE encoder graph",
-          "status": "open",
-          "verify": "go test -tags modeltest ./internal/latentvideo -run '^TestLiveEditSourceCodecGraph$' -count=1 -v"
-        }
-      ]
-    },
-    {
-      "id": "simplediffusion-device-resblock",
-      "title": "Execute a real SimpleDiffusion residual block through the shared CUDA graph",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Execute a real SimpleDiffusion residual block through the shared CUDA graph",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/diffusionimage -run '^TestRealResBlockCUDAParity$' -count=1 -v"
         }
       ]
     },

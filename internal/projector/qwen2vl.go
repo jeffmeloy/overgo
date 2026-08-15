@@ -201,7 +201,7 @@ func PreprocessQwen2VLFrames(frames []image.Image, spec Qwen2VLSpec, options Qwe
 
 func (r *Qwen2VLRunner) EncodeImage(ctx context.Context, source image.Image, options Qwen2VLPreprocessOptions) (Qwen2VLOutput, error) {
 	if r == nil || r.file == nil {
-		return Qwen2VLOutput{}, errors.New("projector: runner is closed")
+		return Qwen2VLOutput{}, errRunnerClosed
 	}
 	input, err := PreprocessQwen2VLImage(source, r.spec, options)
 	if err != nil {
@@ -212,7 +212,7 @@ func (r *Qwen2VLRunner) EncodeImage(ctx context.Context, source image.Image, opt
 
 func (r *Qwen2VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options Qwen2VLPreprocessOptions) (Qwen2VLOutput, error) {
 	if r == nil || r.file == nil {
-		return Qwen2VLOutput{}, errors.New("projector: runner is closed")
+		return Qwen2VLOutput{}, errRunnerClosed
 	}
 	input, err := PreprocessQwen2VLFrames(frames, r.spec, options)
 	if err != nil {

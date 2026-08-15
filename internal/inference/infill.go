@@ -28,7 +28,7 @@ func (r *Runner) FormatInfillTokens(
 	options InfillFormatOptions,
 ) ([]tokenizer.TokenID, error) {
 	if r == nil || r.vocab == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if r.vocab.FIMPre == tokenizer.NullToken {
 		return nil, errors.New("inference: FIM prefix token is unavailable")

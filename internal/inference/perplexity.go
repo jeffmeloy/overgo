@@ -49,7 +49,7 @@ func (r *Runner) PerplexityWithOptions(
 	options PerplexityOptions,
 ) (PerplexityResult, error) {
 	if r == nil || r.vocab == nil {
-		return PerplexityResult{}, errors.New("inference: runner is nil")
+		return PerplexityResult{}, errRunnerNil
 	}
 	if text == "" {
 		return PerplexityResult{}, errors.New("inference: perplexity text is empty")

@@ -71,7 +71,7 @@ func (r *Runner) GenerateDiffusion(
 	options DiffusionOptions,
 ) ([]tokenizer.TokenID, string, error) {
 	if r == nil || r.vocab == nil {
-		return nil, "", errors.New("inference: runner is nil")
+		return nil, "", errRunnerNil
 	}
 	if r.forwardProgram().Operation != model.ForwardOperationDiffusion {
 		return nil, "", fmt.Errorf("inference: architecture %q is not a diffusion model", r.spec.Architecture)

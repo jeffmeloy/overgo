@@ -105,7 +105,7 @@ func (r *Runner) InjectPairedFeatures(
 	cache *KVCache,
 ) (*KVCache, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if err := r.lockOpen(); err != nil {
 		return nil, err

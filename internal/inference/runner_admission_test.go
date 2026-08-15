@@ -10,6 +10,9 @@ func TestRunnerLockOpenRejectsUnavailableRunner(t *testing.T) {
 	if err := missing.lockOpen(); !errors.Is(err, errRunnerNil) {
 		t.Fatalf("missing runner error = %v", err)
 	}
+	if _, err := missing.TokenizeSamplingText(""); !errors.Is(err, errRunnerNil) {
+		t.Fatalf("missing runner tokenizer error = %v", err)
+	}
 
 	closed := &Runner{runnerState: runnerState{closed: true}}
 	if err := closed.lockOpen(); !errors.Is(err, errRunnerClosed) {

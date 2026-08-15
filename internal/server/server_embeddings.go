@@ -67,11 +67,11 @@ func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
 	}
 	ranker, ok := h.generator.(Ranker)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "reranking is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "reranking is unavailable")
 		return
 	}
 	if capability, ok := h.generator.(RankCapability); ok && !capability.SupportsRank() {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "reranking is unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "reranking is unavailable")
 		return
 	}
 	var body rerankRequest
@@ -163,7 +163,7 @@ func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request
 	}
 	embedder, ok := h.generator.(Embedder)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "embeddings are unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "embeddings are unavailable")
 		return
 	}
 	var body embeddingRequest
@@ -244,7 +244,7 @@ func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.R
 	}
 	embedder, ok := h.generator.(Embedder)
 	if !ok {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "embeddings are unavailable")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "embeddings are unavailable")
 		return
 	}
 	var body nativeEmbeddingRequest

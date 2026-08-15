@@ -2,7 +2,6 @@ package projector
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 
@@ -47,7 +46,7 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 	trace bool,
 ) (Gemma4AudioTowerOutput, Gemma4AudioTowerTrace, error) {
 	if r == nil || r.file == nil {
-		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, errors.New("projector: runner is closed")
+		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, errRunnerClosed
 	}
 	spec := r.spec.Audio
 	if frames <= 0 || len(features) != frames*spec.MelBins {

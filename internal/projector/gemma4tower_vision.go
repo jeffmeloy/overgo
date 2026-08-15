@@ -118,7 +118,7 @@ func (r *Gemma4TowerRunner) EncodeVisionImage(
 	source image.Image,
 ) (Gemma4VisionTowerOutput, error) {
 	if r == nil || r.file == nil {
-		return Gemma4VisionTowerOutput{}, errors.New("projector: runner is closed")
+		return Gemma4VisionTowerOutput{}, errRunnerClosed
 	}
 	input, err := PreprocessGemma4VisionTowerImage(source, r.spec.Vision)
 	if err != nil {
@@ -132,7 +132,7 @@ func (r *Gemma4TowerRunner) EncodeVisionFrames(
 	frames []image.Image,
 ) (Gemma4VisionTowerVideoOutput, error) {
 	if r == nil || r.file == nil {
-		return Gemma4VisionTowerVideoOutput{}, errors.New("projector: runner is closed")
+		return Gemma4VisionTowerVideoOutput{}, errRunnerClosed
 	}
 	if len(frames) == 0 {
 		return Gemma4VisionTowerVideoOutput{}, errors.New("projector: video has no frames")
@@ -190,7 +190,7 @@ func (r *Gemma4TowerRunner) encodeVisionPatches(
 	trace bool,
 ) (Gemma4VisionTowerOutput, Gemma4VisionTowerTrace, error) {
 	if r == nil || r.file == nil {
-		return Gemma4VisionTowerOutput{}, Gemma4VisionTowerTrace{}, errors.New("projector: runner is closed")
+		return Gemma4VisionTowerOutput{}, Gemma4VisionTowerTrace{}, errRunnerClosed
 	}
 	spec := r.spec.Vision
 	patchWidth := spec.PatchSize * spec.PatchSize * 3

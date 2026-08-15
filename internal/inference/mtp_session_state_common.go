@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"errors"
 	"fmt"
 	"math"
 
@@ -20,7 +19,7 @@ const (
 // SaveMTPSession encodes compiled-program-bound single-head draft state.
 func (r *Runner) SaveMTPSession(session *MTPSession) ([]byte, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	_, _, err := r.singleHeadMTP()
 	if err != nil {
@@ -73,7 +72,7 @@ func (r *Runner) SaveMTPSession(session *MTPSession) ([]byte, error) {
 // LoadMTPSession restores compiled-program-bound single-head draft state.
 func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	_, _, err := r.singleHeadMTP()
 	if err != nil {

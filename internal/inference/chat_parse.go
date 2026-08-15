@@ -21,7 +21,7 @@ func (r *Runner) ParseChatOutput(
 	tools []ChatTool,
 ) (ChatMessage, error) {
 	if r == nil {
-		return ChatMessage{}, errors.New("inference: runner is nil")
+		return ChatMessage{}, errRunnerNil
 	}
 	source := metadataString(r.file, "tokenizer.chat_template")
 	if len(tools) != 0 {

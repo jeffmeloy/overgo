@@ -39,7 +39,7 @@ func (h *Handler) browseDatasets(response http.ResponseWriter, request *http.Req
 		return
 	}
 	if h.config.DatasetsRoot == "" {
-		writeError(response, http.StatusNotImplemented, "unsupported_operation", "dataset browsing is not configured")
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "dataset browsing is not configured")
 		return
 	}
 	file, err := os.Open(filepath.Join(h.config.DatasetsRoot, "manifest.json"))

@@ -31,7 +31,7 @@ func (r *Runner) RankPair(
 	document string,
 ) (RankResult, error) {
 	if r == nil || r.vocab == nil {
-		return RankResult{}, errors.New("inference: runner is nil")
+		return RankResult{}, errRunnerNil
 	}
 	prompt := metadataString(r.file, "tokenizer.chat_template.rerank")
 	if prompt != "" {
@@ -104,7 +104,7 @@ func assembleRankPairTokens(
 
 func (r *Runner) Rank(ctx context.Context, text string) (RankResult, error) {
 	if r == nil || r.vocab == nil {
-		return RankResult{}, errors.New("inference: runner is nil")
+		return RankResult{}, errRunnerNil
 	}
 	ids, err := r.vocab.Encode(text, tokenizer.EncodeOptions{AddSpecial: true})
 	if err != nil {
@@ -127,7 +127,7 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	inputs ProjectedInputs,
 ) (RankResult, error) {
 	if r == nil || r.vocab == nil {
-		return RankResult{}, errors.New("inference: runner is nil")
+		return RankResult{}, errRunnerNil
 	}
 	if err := r.lockOpen(); err != nil {
 		return RankResult{}, err

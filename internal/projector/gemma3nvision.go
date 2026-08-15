@@ -218,7 +218,7 @@ func PreprocessGemma3nVisionImage(source image.Image, spec Gemma3nVisionSpec) ([
 
 func (r *Gemma3nVisionRunner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
 	if r == nil || r.file == nil {
-		return reference.Value{}, errors.New("projector: runner is closed")
+		return reference.Value{}, errRunnerClosed
 	}
 	pixels, err := PreprocessGemma3nVisionImage(source, r.spec)
 	if err != nil {

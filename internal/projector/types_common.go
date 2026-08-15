@@ -1,6 +1,12 @@
 package projector
 
-import "overgo/internal/tensor/reference"
+import (
+	"errors"
+
+	"overgo/internal/tensor/reference"
+)
+
+var errRunnerClosed = errors.New("projector: runner is closed")
 
 type gridImage struct {
 	PixelValues []float32

@@ -193,7 +193,7 @@ func validateHunyuanVLCatalog(file *gguf.File, spec HunyuanVLSpec) ([]string, er
 
 func (r *HunyuanVLRunner) EncodeImage(ctx context.Context, source image.Image, options RasterPatchOptions) (HunyuanVLOutput, error) {
 	if r == nil || r.file == nil {
-		return HunyuanVLOutput{}, errors.New("projector: runner is closed")
+		return HunyuanVLOutput{}, errRunnerClosed
 	}
 	plan := rasterPatchPlan{
 		patchSize: r.spec.PatchSize, mergeSize: r.spec.MergeSize,

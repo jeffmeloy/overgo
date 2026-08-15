@@ -2,7 +2,6 @@ package inference
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -53,7 +52,7 @@ func (r *Runner) NewChatOutputStream(
 	tools []ChatTool,
 ) (ChatOutputStream, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	template := metadataString(r.file, "tokenizer.chat_template")
 	if len(tools) != 0 {

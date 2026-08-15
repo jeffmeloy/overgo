@@ -18,7 +18,7 @@ func (r *Runner) DecodeAudioTokens(
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
 	if r == nil {
-		return reference.Value{}, errors.New("inference: runner is nil")
+		return reference.Value{}, errRunnerNil
 	}
 	if err := r.lockOpen(); err != nil {
 		return reference.Value{}, err
@@ -234,7 +234,7 @@ func (r *Runner) forwardEncoderLocked(
 // NewEncoderDecoderSession: encodes one source sequence.
 func (r *Runner) NewEncoderDecoderSession(ctx context.Context, sourceIDs []tokenizer.TokenID) (*EncoderDecoderSession, error) {
 	if r == nil {
-		return nil, errors.New("inference: runner is nil")
+		return nil, errRunnerNil
 	}
 	if err := r.lockOpen(); err != nil {
 		return nil, err
@@ -256,7 +256,7 @@ func (r *Runner) DecodeEncoderDecoder(
 	session *EncoderDecoderSession, decoderIDs []tokenizer.TokenID,
 ) (reference.Value, *EncoderDecoderSession, error) {
 	if r == nil {
-		return reference.Value{}, nil, errors.New("inference: runner is nil")
+		return reference.Value{}, nil, errRunnerNil
 	}
 	if err := r.lockOpen(); err != nil {
 		return reference.Value{}, nil, err

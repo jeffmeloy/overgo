@@ -50,7 +50,7 @@ func (r *Runner) EmbedAdvanced(
 	options EmbeddingOptions,
 ) (EmbeddingResult, error) {
 	if r == nil || r.vocab == nil {
-		return EmbeddingResult{}, errors.New("inference: runner is nil")
+		return EmbeddingResult{}, errRunnerNil
 	}
 	ids, err := r.vocab.Encode(text, tokenizer.EncodeOptions{AddSpecial: true})
 	if err != nil {
@@ -84,7 +84,7 @@ func (r *Runner) EmbedTokensAdvanced(
 	options EmbeddingOptions,
 ) (EmbeddingResult, error) {
 	if r == nil || r.vocab == nil {
-		return EmbeddingResult{}, errors.New("inference: runner is nil")
+		return EmbeddingResult{}, errRunnerNil
 	}
 	if len(input) == 0 {
 		return EmbeddingResult{}, errors.New("inference: embedding token list is empty")

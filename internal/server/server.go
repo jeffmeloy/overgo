@@ -27,6 +27,8 @@ import (
 )
 
 const (
+	errorCodeUnsupportedOperation = "unsupported_operation"
+
 	DefaultModelID             = "overgo"
 	DefaultMaxTokens           = 4096
 	DefaultMaxConcurrent       = 1

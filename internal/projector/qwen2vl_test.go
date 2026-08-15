@@ -2,6 +2,7 @@ package projector
 
 import (
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"testing"
@@ -11,6 +12,13 @@ import (
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
+
+func TestQwen2VLRunnerRejectsClosed(t *testing.T) {
+	var runner *Qwen2VLRunner
+	if _, err := runner.EncodeImage(context.Background(), nil, Qwen2VLPreprocessOptions{}); !errors.Is(err, errRunnerClosed) {
+		t.Fatalf("closed runner error = %v", err)
+	}
+}
 
 type qwen2VLPromptTokenizer struct {
 	text string

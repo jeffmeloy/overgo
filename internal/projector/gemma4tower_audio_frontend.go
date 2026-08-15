@@ -20,7 +20,7 @@ func (r *Gemma4TowerRunner) EncodeAudio(
 	profile AudioProjectionProfile,
 ) (Gemma4AudioTowerOutput, error) {
 	if r == nil || r.file == nil {
-		return Gemma4AudioTowerOutput{}, errors.New("projector: runner is closed")
+		return Gemma4AudioTowerOutput{}, errRunnerClosed
 	}
 	features, frames, err := r.audioPlan.preprocess(samples, sampleRate)
 	if err != nil {
@@ -36,7 +36,7 @@ func (r *Gemma4TowerRunner) EncodeAudioTrace(
 	profile AudioProjectionProfile,
 ) (Gemma4AudioTowerOutput, Gemma4AudioTowerTrace, error) {
 	if r == nil || r.file == nil {
-		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, errors.New("projector: runner is closed")
+		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, errRunnerClosed
 	}
 	features, frames, err := r.audioPlan.preprocess(samples, sampleRate)
 	if err != nil {

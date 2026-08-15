@@ -43,6 +43,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/repodb"
@@ -140,7 +141,7 @@ func run(c cli, args []string) error {
 	case c.context:
 		return printAutomationContext(document, c.role, os.Stdout)
 	case c.prompt:
-		printPrompt(document)
+		printPrompt(document, os.Stdout)
 		return nil
 	case c.verify:
 		it, st, ok := plan.Current(document)
@@ -420,48 +421,22 @@ func nextAction(document plan.Plan) (string, bool) {
 
 // printPrompt emits the self-contained, non-negotiable task for the current
 // step. The loop feeds THIS to the agent; the agent does not author it.
-func printPrompt(document plan.Plan) {
+func printPrompt(document plan.Plan, output io.Writer) {
 	it, st, ok := plan.Current(document)
 	if !ok {
-		fmt.Println("PLAN COMPLETE: every item is done. Stop and tell the user.")
+		fmt.Fprintln(output, "PLAN COMPLETE: every item is done. Stop and tell the user.")
 		return
-	}
-	doctrine := document.Doctrine
-	if len(doctrine) > 700 {
-		doctrine = doctrine[:700] + " ...[see docs/plan.json for the full doctrine]"
 	}
 	verify := st.Verify
 	if strings.TrimSpace(verify) == "" {
-		verify = "(NONE DEFINED -- you MUST add a runnable step.verify that exits 0 iff this step's\n" +
-			"         acceptance holds, to docs/plan.json, before this step can be advanced.)"
+		verify = "MISSING -- add a runnable step.verify before implementation"
 	}
-	fmt.Printf(`=== PLAN TASK (generated -- do exactly this step, nothing else) ===
-Campaign: %s
-Item:  %s -- %s
-Step:  %s -- %s
-
-BINDING DOCTRINE (port-first):
+	fmt.Fprintf(output, `TASK %s/%s
 %s
-
-PROTOCOL -- no deviation:
-  1. Do ONLY this step. Port from adaptive_new first, verify against its goldens.
-  2. Do NOT start another step, act on a finding, or refactor off to the side.
-     Park it with cmd/finding; it becomes work ONLY by later appearing here as
-     the top step -- never by you acting on it now.
-  3. If this step is wrong, blocked, or you disagree with it: STOP and tell the
-     user. Do NOT substitute your own work for the dispatched step.
-  4. Commit ONLY via the plan-bound gate:
-       go run ./cmd/gate -plan %s/%s -message-file <msg> -paths <csv>
-     The gate REFUSES any commit whose -plan is not this active step.
-  5. "Done" means the plan-bound gate passes; it reruns this step's acceptance
-     and advances docs/plan.json atomically in the implementation commit.
-  6. After commit, re-rank/refactor the plan from the result (or user input),
-     then 'go run ./cmd/plan -prompt' for the next task. Repeat until complete.
-
-VERIFY (this step's machine-checked acceptance):
-  %s
-=== END TASK ===
-`, document.Campaign, it.ID, it.Title, st.ID, st.Title, doctrine, it.ID, st.ID, verify)
+VERIFY %s
+COMMIT go run ./cmd/gate -plan %s/%s -message-file <msg> -paths <csv>
+RULES skill.md; only this task; port-first; park off-scope findings with cmd/finding; gate advances atomically; then rerun plan -prompt.
+`, it.ID, st.ID, st.Title, verify, it.ID, st.ID)
 }
 
 // runVerify executes the step's verify command; its exit code is the verdict.
@@ -481,10 +456,9 @@ func runVerify(it plan.Item, st plan.Step) error {
 		verifyCommand = testevidence.JSONCommand(st.Verify)
 	}
 	cmd := exec.Command(shell, "-c", verifyCommand)
-	cmd.Stdout = io.MultiWriter(os.Stdout, &buf)
-	cmd.Stderr = io.MultiWriter(os.Stderr, &buf)
+	cmd.Stdout, cmd.Stderr = &buf, &buf
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("verify FAILED for %s/%s: %w", it.ID, st.ID, err)
+		return fmt.Errorf("verify FAILED for %s/%s: %w: %s", it.ID, st.ID, err, clioptions.Tail(buf.String(), 2000))
 	}
 	var evidenceErr error
 	if structuredGoTest {

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -198,7 +199,7 @@ func run() error {
 	if pipelineErr != nil {
 		failureDetail = pipelineErr.Error()
 	}
-	g.printSummary(outcome, failureDetail)
+	g.printSummary(os.Stdout, outcome, failureDetail)
 	if recordErr != nil {
 		_ = g.writeHeartbeat(runrecord.HeartbeatRecordDebt)
 		fmt.Fprintf(os.Stderr, "gate: store record failed (result stands, record owed): %v\n", recordErr)
@@ -311,7 +312,6 @@ func (g *gateContext) pipeline() error {
 			record.Outcome = runrecord.StepSkipped
 		}
 		g.steps = append(g.steps, record)
-		fmt.Printf("[gate] %-8s %-9s %6.2fs\n", s.name, record.Outcome, time.Since(began).Seconds())
 		if err == nil && cacheable[s.name] && !skipped {
 			cache.Steps[s.name] = phaseCache{Input: input, Outcome: string(runrecord.StepSucceeded)}
 			g.saveRetryCache(cache)
@@ -1630,24 +1630,51 @@ func (g *gateContext) writeStatus(record runrecord.GateRecord, codeCommit string
 	return writeJSON(g.repo, "bin/gate_status.json", status, 0o644)
 }
 
-func (g *gateContext) printSummary(outcome runrecord.Outcome, failure string) {
-	fmt.Printf("=== GATE %s in %.1fs ===\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds())
-	if failure != "" {
-		fmt.Printf("failure: %s\n", failure)
-	}
-	run, skipped := 0, 0
-	for _, s := range g.steps {
-		switch s.Outcome {
-		case runrecord.StepSkipped:
-			skipped++
-		default:
-			run++
+func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, failure string) {
+	var run, skipped []string
+	for _, step := range g.steps {
+		if step.Outcome == runrecord.StepSkipped {
+			skipped = append(skipped, step.Name)
+		} else {
+			run = append(run, step.Name)
 		}
 	}
-	fmt.Printf("honesty: steps run=%d skipped=%d\n", run, skipped)
-	for _, line := range g.honesty {
-		fmt.Printf("honesty: %s\n", line)
+	fmt.Fprintf(output, "GATE %s %.1fs | ran=%s | skipped=%s\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds(), strings.Join(run, ","), strings.Join(skipped, ","))
+	if failure != "" {
+		fmt.Fprintf(output, "failure: %s\n", failure)
 	}
+	for _, line := range compactHonesty(g.honesty) {
+		fmt.Fprintln(output, line)
+	}
+}
+
+func compactHonesty(lines []string) []string {
+	var output []string
+	for _, line := range lines {
+		label := ""
+		switch {
+		case strings.Contains(line, "code profile delta vs HEAD"):
+			label = "delta: "
+		case strings.HasPrefix(line, "test scope:"):
+			label = "scope: "
+		case strings.Contains(line, " reused:"):
+			label = "reuse: "
+		case strings.Contains(line, "exact_clone_") && !strings.Contains(line, "exact_clone_production=none; exact_clone_validator=none; exact_clone_test=none"):
+			label = "review: "
+		case strings.Contains(line, "uncatalogued") || strings.Contains(line, "unplanned dirty") ||
+			strings.Contains(line, "unavailable") || strings.Contains(line, "unreadable") || strings.Contains(line, "not persisted"):
+			label = "warning: "
+		}
+		if label == "" {
+			continue
+		}
+		line = label + line
+		if len(line) > 600 {
+			line = line[:600] + "..."
+		}
+		output = append(output, line)
+	}
+	return output
 }
 
 func command(dir, name string, args ...string) (string, error) {

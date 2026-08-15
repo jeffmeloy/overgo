@@ -19,10 +19,10 @@ type GoTestReport struct {
 	Skipped           []string
 	Unavailable       []string
 	Failed            []string
-	Tests             []GoTestResult
+	tests             []testResult
 }
 
-type GoTestResult struct {
+type testResult struct {
 	Package     string
 	Name        string
 	Action      string
@@ -85,7 +85,7 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 	seen := false
 	var report GoTestReport
 	classified := map[string]bool{}
-	results := map[string]*GoTestResult{}
+	results := map[string]*testResult{}
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -103,7 +103,7 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 		seen = true
 		key := event.Package + "\x00" + event.Test
 		if event.Test != "" && results[key] == nil {
-			results[key] = &GoTestResult{Package: event.Package, Name: event.Test}
+			results[key] = &testResult{Package: event.Package, Name: event.Test}
 		}
 		if short && strings.Contains(event.Output, ShortIntegrationSkip) {
 			classified[key] = true
@@ -139,7 +139,7 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 		return GoTestReport{}, fmt.Errorf("go test emitted no events")
 	}
 	for _, result := range results {
-		report.Tests = append(report.Tests, *result)
+		report.tests = append(report.tests, *result)
 	}
 	return report, nil
 }
@@ -177,7 +177,7 @@ func VerifyGoTestTarget(command, out string) error {
 		return err
 	}
 	passed := false
-	for _, result := range report.Tests {
+	for _, result := range report.tests {
 		if !target.MatchString(result.Name) {
 			continue
 		}

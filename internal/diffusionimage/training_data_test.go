@@ -1,7 +1,6 @@
 package diffusionimage
 
 import (
-	"encoding/binary"
 	"math"
 	"testing"
 
@@ -41,12 +40,8 @@ func TestTrainerConsumesSharedImageBatch(t *testing.T) {
 }
 
 func imageValue(role trainingdata.ValueRole, channels, height, width int, values []float32) trainingdata.Value {
-	data := make([]byte, len(values)*4)
-	for index, value := range values {
-		binary.LittleEndian.PutUint32(data[index*4:], math.Float32bits(value))
-	}
 	return trainingdata.Value{
 		Role: role, Modality: recipecontract.ModalityImage, Encoding: trainingdata.EncodingFloat32LE,
-		Shape: []int{channels, height, width}, Data: data,
+		Shape: []int{channels, height, width}, Data: trainingdata.EncodeFloat32(values),
 	}
 }

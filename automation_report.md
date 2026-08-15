@@ -25,62 +25,29 @@ and promotion appropriately remain owner decisions.
 
 ## Incremental implementation status
 
-- Current `master` was refreshed into the automation lane at `fa67865`; the
-  original merge at `57a5749` passed the repository gate, including the device
-  lane.
-- `cmd/plan -context` now emits one deterministic task context containing exact
-  Git/worktree identity, explicit role, one current task, normalized dirt, and
-  conservative evidence debt (`e5fe81f`).
-- The first evidence-honesty slice landed at `9626b9f`:
-  CI and release use a Go-owned hermetic test lane, unclassified skips and
-  unavailable evidence fail that lane, classified short exclusions are reported
-  but not credited, loop orphan detection covers all Git-visible work, and
-  changed embedded assets inherit their package tests from compiler-resolved
-  `go:embed` metadata.
+- Current `master` is an ancestor of this branch; the latest merge gate passed
+  scope, profile, formatting, vet, build, impacted tests, and evidence routing.
+- `cmd/plan -context` emits one deterministic task identity with Git/worktree
+  state, role, normalized dirt, and evidence debt. Plan validation now refuses
+  any open step without a runnable verifier.
+- Gate lifecycle is typed and RepoDB-backed: preparation precedes Git mutation,
+  finalization is atomic, retry identity includes the environment, and record
+  debt is explicit and reconcilable.
+- Independent review admission binds immutable developer, SQA, worktree,
+  evaluator, candidate, finding, and verdict identities. Owner-authored leases
+  expose resource and conflict state without taking dispatch authority.
+- Structural profiling reports production/test/validator mass, exact-clone
+  excess, exports, and imports against `HEAD`. Ranking is advisory; parity
+  evidence and semantic ownership remain authoritative.
+- An empty smoke matrix is a typed nonzero `empty` outcome. CI/release test
+  evidence rejects unclassified skips and unavailable required prerequisites.
+- The measured one-consumer `gatecontrol` abstraction remains deleted.
+  Multi-consumer evidence and JSON mechanics use existing common owners;
+  command-local coordination stays local.
 
-- The gate-lifecycle slice landed at `fc822ac`. A typed
-  preparation now lands in RepoDB before Git can advance; finalization closes it
-  atomically with result evidence. Post-commit record failure is non-green and
-  leaves a validated reconciliation batch. Retry reuse is bound to the typed
-  environment identity, a Go heartbeat supports stale detection, and automation
-  context derives record debt from RepoDB rather than the advisory status mirror.
-- Immutable developer, SQA, worktree, evaluator, candidate, finding, and verdict
-  identities landed at `98fd512` as the evidence substrate for review admission.
-- The initial `internal/gatecontrol` extraction (`7a8774a`) improved ownership
-  locally but increased total production Go. It was removed after measuring the
-  full delta: lifecycle, retry, and environment mechanics each have one command
-  consumer and therefore remain local. Shared domain behavior stays in
-  `runrecord`, `artifact`, and `repodb`.
-- Strict evidence-document construction is shared across review, lifecycle, and
-  environment records (`1f88d21`); the obsolete advisory-mirror classifier is
-  deleted.
-
-The next highest-priority gap is honest advisory targeting: structural reports
-must expose production/test growth beside duplication changes and must not imply
-that clone similarity proves semantic or numerical equivalence.
-
-### Tightening measurements
-
-The fixed baseline is `fa67865`; measurements use committed
-`git diff --no-renames --numstat` over Go files, with `_test.go` reported
-separately. The first three passes had actually grown production Go by 109 lines
-and tests by 177 lines. The correction removes the one-consumer `gatecontrol`
-abstraction while preserving its behavior.
-
-| Surface vs `fa67865` | Net change |
-| --- | ---: |
-| Production Go | -52 lines |
-| Go tests | +45 lines |
-| Total Go | -7 lines |
-| `internal/plan/context.go` | -48 lines |
-| Run-record document family | -9 production lines |
-| `cmd/gate/main.go` | -12 lines |
-
-The result has no `gatecontrol` package or exported automation API. Common code
-is retained only where multiple real consumers exist: record codecs and lineage
-use the document-family primitive; gate and plan use `internal/jsonfile` for
-strict decoding and canonical writes. Command-specific coordination stays in
-its command.
+Open automation work is now calibration, repository-side enforcement telemetry,
+lane outcome completeness, durable override/containment records, and measured
+scheduler recommendations. Completed implementation history remains in Git.
 
 ## Operating boundary
 
@@ -181,7 +148,9 @@ misses recurring hygiene problems.
 
 - `cmd/plan` owns a compact, open-work-only queue and selects the first open
   step. It can add work, define verification, generate a task prompt, verify,
-  advance, compact, and record one of three recognized stop reasons.
+  advance, compact, and record one of three recognized stop reasons. The shared
+  validator refuses an open step without a failable verifier; blocked steps name
+  their unavailable prerequisite instead.
 - `cmd/loophook` and the thin shell adapters inject doctrine at session start,
   arm a post-commit dispatch marker, and block a turn end that would leave
   uncommitted Go work or a committed-but-undispatched boundary.
@@ -292,17 +261,17 @@ Adaptive_new's `-dispatch-context` combines HEAD, dirty paths, workflow phase,
 state summary, current priority, plan anchor, and last cycle into JSON. This is
 the clearest direct example of the desired cognitive-load transfer: the model no
 longer needs to run several commands, reconcile outputs, and infer the legal
-phase. Overgo should make this the first implementation slice.
+phase. Overgo's `cmd/plan -context` now emits the narrower, single-task form.
 
 The adaptive_new payload also demonstrates the failure mode. Its current output
 names `media-execution-maturity` in the state rank-1 while separately naming
 `controller-training-system` as plan live-rank-1. Validation deliberately allows
 any active plan row because parallel lanes made exact equality oscillate. That
 choice is reasonable internally, but presenting both as rank-1 pushes ambiguity
-back onto the consumer. Overgo should distinguish `current_task` from
-`campaign_focus`, or omit the latter from task dispatch.
+back onto the consumer. Overgo exposes one `current_task`; campaign context
+does not compete with dispatch identity.
 
-#### Workflow phase ordering is proven; actor independence is not
+#### Workflow ordering needs immutable actor identity
 
 Adaptive_new derives workflow phase from Git history instead of storing a phase
 marker. After an implementation commit, another implementation is refused until
@@ -310,10 +279,9 @@ a distinct findings update lands, followed by a fresh priority update. Open SQA
 findings can also require reviewed commit, prototype worktree, branch, prototype
 commit, and paired checks.
 
-This is worth porting, but no field establishes who performed development versus
-review. Overgo's version should retain Git-derived ordering and add immutable
-actor/run identities, candidate bytes, evaluator identities, and a rule that the
-SQA actor cannot modify the candidate being judged.
+Adaptive_new did not establish who performed development versus review. Overgo
+retains Git-derived ordering and binds immutable actor/run, candidate, evaluator,
+finding, and verdict identities; review admission rejects candidate mutation.
 
 #### Gate lifecycle and watchdog semantics are mature
 
@@ -325,9 +293,9 @@ identity across malformed status reads, and stamps abandoned or killed runs
 loudly. Tests cover concurrent-run refusal, stale status, early watchdog exit,
 and terminal persistence.
 
-This is a stronger basis than Overgo's current process-name probe and shell
-stall check. The transfer should use Overgo's RepoDB/run-record model and should
-solve gate-record debt at the same time.
+Overgo transferred the lifecycle properties through RepoDB/run-record evidence,
+environment-bound retries, typed heartbeats, and explicit gate-record debt.
+Resource-progress watchdog calibration remains open.
 
 #### Impact classification contains both a model and an anti-model
 
@@ -367,18 +335,13 @@ the hook is missing. Overgo can go one step further: generate the inventory from
 the Go gate/guard catalogs and compare it with installed hook configuration,
 leaving no manually duplicated command list.
 
-### Transfer order
+### Transfer status
 
-1. Typed automation context with one current-task identity.
-2. Unified evidence honesty across CI, gate, loop dirtiness, and non-Go owners.
-3. Typed gate lifecycle, environment-bound retry, heartbeat, and record-debt
-   reconciliation.
-4. Git/RepoDB-derived review phase with independently identified SQA.
-5. Advisory worktree leases, resource estimates, and conflict reporting while
-   the owner continues to dispatch manually.
-
-This order first reduces immediate model reconstruction, then makes evidence and
-long-running execution trustworthy, and only then adds coordination state.
+The first transfer wave is complete: one task context, evidence honesty, typed
+gate lifecycle and reconciliation, independent SQA identity, and advisory
+worktree/resource leases all have exercised Go consumers. Remaining
+adaptive_new mechanisms are admitted only when they delete model work through an
+existing Overgo owner; no monolithic state controller is planned.
 
 ## Strengths
 
@@ -461,16 +424,17 @@ active in each run record rather than assuming they were.
 - `cmd/device-lane` has no direct unit tests around selection or reporting.
 - Hosted CI has no real-GPU lane and the race workflow covers only server and
   inference packages.
-- The smoke lane returns success for an empty servable matrix while saying the
-  result is "not green"; callers relying on exit status cannot distinguish it.
+- Smoke distinguishes `empty` from success with a nonzero exit, but lane
+  outcomes do not yet share one typed result contract.
 - Release output still includes historical documents that conflict with the
   doctrine that Git owns chronology.
-- The current baseline SBOM is stale, and project-owned source remains
+- The current SBOM is stale, and project-owned source remains
   `NOASSERTION` in `LICENSES.md`.
 
-Required direction: make lane outcomes typed (`pass`, `fail`, `unavailable`,
-`empty`) and ensure callers declare which outcomes they accept. Separate durable
-release contracts from historical assessment documents.
+Required direction: share typed lane outcomes (`pass`, `fail`, `unavailable`,
+`empty`) and require callers to declare accepted outcomes; add direct device
+selection/reporting tests and a real-GPU integration lane; separate durable
+release contracts from historical assessments.
 
 ### A11: Override and stop controls are too narrow for later autonomy
 
@@ -485,38 +449,37 @@ necessarily the whole manually managed campaign.
 
 ## Prioritized roadmap
 
-### Phase 1: establish independent development and SQA
+### P0: enforce trustworthy task and evidence contracts
 
-1. Enforce distinct identities and clean worktrees for protected surfaces.
-2. Freeze evaluators and holdouts before the SQA run.
-3. Require target-head findings disposition, rerun evidence, and an independent
-   verdict while keeping promotion under owner/external authority.
+1. Keep the open-step verifier invariant enforced by `internal/plan`.
+2. Replace advisory statistics that overclaim independence with calibrated,
+   non-overlapping evidence or explicitly directional labels.
+3. Share one typed lane-outcome contract and migrate smoke, device, race, and
+   release callers without compatibility paths.
 
-### Phase 2: make manual orchestration observable
+### P1: close repository and containment gaps
 
-1. Retain the exercised owner-authored resource/conflict/worktree/role lease and
-   RepoDB compare-and-set path.
-2. Extend the report only from measured scheduling needs; stale leases and
-   reservations are current, suggested assignment remains deferred.
-3. Add dependency, evidence-status, and target-head merge eligibility only with
-   their first integration consumer and required post-integration gate reruns.
+1. Record hook/guard activation in run evidence and verify protected integration
+   paths repository-side while retaining fail-open interactive safety.
+2. Record forced advances as immutable override events.
+3. Add typed lane-scoped containment reasons for evidence corruption, evaluator
+   contamination, worktree collision, device instability, and lost rollback.
+4. Regenerate the SBOM, resolve source-license authority, and remove historical
+   documents from release payloads.
 
-No automatic assignment or lane termination is required in this phase.
+### P2: calibrate recommendations under human dispatch
 
-### Phase 3: calibrate scheduling before delegating it
+1. Record predicted and actual CPU, RAM, VRAM, wall time, and interference on
+   exercised leases.
+2. Measure packing quality, collision rate, abandonment, and recovery cost.
+3. Compare deterministic recommendations with owner choices; add dependency or
+   merge-eligibility packets only with their first integration consumer.
 
-1. Record predicted and actual CPU, RAM, VRAM, wall time, and interference.
-2. Measure packing quality, collision rate, abandonment rate, and recovery cost.
-3. Let automation recommend assignments and compare them with owner choices.
-4. Delegate only low-risk scheduling classes whose recommendations demonstrate
-   sustained benefit and reliable recovery.
+### P3: bound autonomy by measured recovery
 
-### Phase 4: bounded autonomous operation
-
-Autonomous dispatch is appropriate only after leases, independent SQA, sealed
-promotion evidence, containment stops, rollback, and scheduler calibration are
-all enforced. The owner should then move from being the dispatch loop to being
-the objective, exception, and promotion authority.
+Delegate only scheduling classes with sustained benefit, independent SQA,
+sealed promotion evidence, lane-scoped containment, rollback, and measured
+recovery. The owner remains objective, exception, and promotion authority.
 
 ## Suggested success measures
 
@@ -538,6 +501,10 @@ the objective, exception, and promotion authority.
   `internal/testevidence`, `internal/runrecord`, and `internal/repodb`.
 - Kernel-manifest and compatibility checks pass.
 - `go run ./cmd/sbom -check` fails because `SBOM.cdx.json` is stale.
+- Smoke's empty-matrix contract is tested and exits nonzero with
+  `outcome=empty`.
+- Every current open plan step has a nonempty verifier; validation now rejects
+  regressions before dispatch or save.
 - Project-owned Go and CUDA sources have no declared distribution license.
 - The scheduler remains intentionally human-operated; this report does not
   classify that boundary itself as a defect.

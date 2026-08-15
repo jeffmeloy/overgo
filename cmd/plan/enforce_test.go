@@ -37,8 +37,8 @@ func TestPlanContainsOpenWorkOnly(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(old) })
 	document := plan.Plan{Items: []plan.Item{{
 		ID: "item", Status: "open", Steps: []plan.Step{
-			{ID: "first", Status: "open"},
-			{ID: "second", Status: "open"},
+			{ID: "first", Status: "open", Verify: "go test ./..."},
+			{ID: "second", Status: "open", Verify: "go test ./..."},
 		},
 	}}}
 	if err := advanceStep(document, "item", "first", "test-verified"); err != nil {

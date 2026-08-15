@@ -85,6 +85,9 @@ func ValidateOpenWork(d Plan) error {
 			if !unfinished(step.Status) {
 				return fmt.Errorf("plan step %s/%s has chronology status %q", item.ID, step.ID, step.Status)
 			}
+			if step.Status == "open" && strings.TrimSpace(step.Verify) == "" {
+				return fmt.Errorf("plan step %s/%s is open without a verifier", item.ID, step.ID)
+			}
 		}
 	}
 	return nil

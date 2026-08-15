@@ -31,7 +31,7 @@
 
       async function ensureVocabSize() {
         if (vocabSize > 0) return;
-        try { vocabSize = (await overgo.api.get("/analyze/model")).model.vocabulary_size || 0; } catch (_) { /* optional */ }
+        try { vocabSize = (await overgo.modelInfo()).model.vocabulary_size || 0; } catch (_) { /* optional */ }
       }
 
       async function execute() {

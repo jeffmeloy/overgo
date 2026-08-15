@@ -36,17 +36,31 @@
   }
 
   const api = {
-    async get(path) {
-      return readJSON(await fetch(path, { headers: authHeaders() }));
+    async get(path, opts) {
+      return readJSON(await fetch(path, { headers: authHeaders(), signal: opts && opts.signal }));
     },
-    async post(path, body) {
+    async post(path, body, opts) {
       return readJSON(await fetch(path, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
+        signal: opts && opts.signal,
       }));
     },
   };
+
+  // /analyze/model is fetched by the shell (capability gating), the Model tab,
+  // and the lens (vocab size). Cache the in-flight/last promise so a page load
+  // hits it once; a rejection clears the cache so a retry after the key is set
+  // refetches, and a key change invalidates it explicitly.
+  let modelPromise = null;
+  function modelInfo() {
+    if (!modelPromise) {
+      modelPromise = api.get("/analyze/model").catch((err) => { modelPromise = null; throw err; });
+    }
+    return modelPromise;
+  }
+  function invalidateModel() { modelPromise = null; }
 
   // Minimal hyperscript: el("div", {class:"x"}, child, child...).
   function el(tag, attrs, ...children) {
@@ -104,7 +118,7 @@
 
   window.overgo = {
     api, el, clear, errorBanner, friendlyError, registerTab,
-    getKey, setKey,
+    getKey, setKey, modelInfo, invalidateModel,
     fmt: { grouped, bytes, compact },
   };
 
@@ -219,7 +233,7 @@
 
   async function refreshCapabilities() {
     try {
-      const model = await api.get("/analyze/model");
+      const model = await modelInfo();
       capabilities = model.analysis || {};
       showAuthNotice(false);
     } catch (err) {
@@ -252,6 +266,7 @@
     keyInput.value = getKey();
     keyInput.addEventListener("change", () => {
       setKey(keyInput.value.trim());
+      invalidateModel(); // the cached model was fetched under the old key
       // Re-mount the active tab so its data reloads under the new key.
       for (const tab of tabs) tab.mounted = false;
       const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
@@ -267,6 +282,9 @@
     activate(tabs.some((t) => t.id === start) ? start : (tabs[0] && tabs[0].id));
     refreshStatus();
     refreshCapabilities();
+    // Re-probe health so a server that drops (or comes back) is reflected in the
+    // status pill instead of showing a stale "online" until the next key change.
+    setInterval(refreshStatus, 10000);
   }
 
   // boot.js is deferred, so it runs while readyState is "interactive" — before

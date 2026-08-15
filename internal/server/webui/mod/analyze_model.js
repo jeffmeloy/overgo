@@ -13,7 +13,7 @@
 
       let data;
       try {
-        data = await overgo.api.get("/analyze/model");
+        data = await overgo.modelInfo();
       } catch (err) {
         clear(panel);
         panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));

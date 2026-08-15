@@ -150,6 +150,29 @@ func TestWebUIHeatmapLegend(t *testing.T) {
 	}
 }
 
+// TestWebUIShellCache guards the shared /analyze/model cache (fetched once for
+// capability gating, the Model tab, and the lens vocab size) and the periodic
+// health re-probe so a dropped/restored server updates the status pill.
+func TestWebUIShellCache(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
+	boot := get("/boot.js")
+	for _, needle := range []string{"modelInfo", "invalidateModel", "setInterval(refreshStatus"} {
+		if !strings.Contains(boot, needle) {
+			t.Errorf("boot.js missing %q", needle)
+		}
+	}
+	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_logits.js"} {
+		body := get(asset)
+		if !strings.Contains(body, "modelInfo") {
+			t.Errorf("%s does not use the shared modelInfo cache", asset)
+		}
+		if strings.Contains(body, `api.get("/analyze/model")`) {
+			t.Errorf("%s still fetches /analyze/model directly (bypasses the cache)", asset)
+		}
+	}
+}
+
 func TestWebUIRejectsNonGet(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()

@@ -106,7 +106,9 @@ sessions to execute concurrently.
 Known gaps include full-size SenseNova image and edit tests, the remaining
 LiveEdit CUDA pipeline, exact full-sequence Unlimited OCR comparison, comparable
 peak-memory measurements, complete-state resume, publication and activation of
-scratch-built controllers, and real-model Qwen3.5/E4B/Gemma4 training.
+scratch-built controllers, and real-model Qwen3.5/E4B/Gemma4 training. Un-0
+training refuses execution until a recipe supplies real class/image data; the
+former synthetic constant-target trainer was deleted.
 
 ## Recorded performance
 

@@ -2,16 +2,6 @@ package oscillatorimage
 
 import "testing"
 
-// Training constants are the reference bootstrap's execution facts
-// (TrainConditionalOscillatorCheckpoint: baseLR 0.02, mu 0.95; the reference
-// test gates 60 steps to below 0.8x the starting loss).
-const (
-	trainSteps      = 60
-	trainBaseLR     = 0.02
-	trainMu         = 0.95
-	trainStrongFrac = 0.8
-)
-
 // tinyModel: a small but complete generator, reference buildTinyUn0 geometry
 // (two classes; conv weights damped 0.2 so activations stay in range).
 func tinyModel() *Model {
@@ -92,19 +82,4 @@ func TestGeneratorBackwardFiniteDiff(t *testing.T) {
 	check("dK", m.K, grads[m.tensorName("k")], 1)
 	check("dToOutW", m.ToOutW, grads[m.tensorName("to_out.weight")], 0)
 	check("dBlock0W2", m.Blocks[0].W2, grads[m.blockTensorName(0, "w2")], 5)
-}
-
-// TestTrainDriftDecreasesLoss: the ported objective under the ported Muon
-// optimizer descends on the tiny generator.
-func TestTrainDriftDecreasesLoss(t *testing.T) {
-	m := tinyModel()
-	trajectory, err := m.TrainDrift(trainSteps, trainBaseLR, trainMu, 7)
-	if err != nil {
-		t.Fatal(err)
-	}
-	first, last := trajectory[0], trajectory[len(trajectory)-1]
-	t.Logf("drift loss %.5f -> %.5f over %d steps (lr %g mu %g)", first, last, trainSteps, trainBaseLR, trainMu)
-	if !(last < first*trainStrongFrac) {
-		t.Fatalf("loss did not clearly descend: %.5f -> %.5f", first, last)
-	}
 }

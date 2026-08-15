@@ -74,6 +74,14 @@
     return el("div", { class: "err-banner", text: message });
   }
 
+  // friendlyError: one place that turns a 401 into the actionable hint every tab
+  // should show, so auth failures read the same everywhere instead of leaking
+  // the raw "missing or invalid bearer token".
+  function friendlyError(err) {
+    if (err && err.status === 401) return "API key required — enter it in the top bar.";
+    return String((err && err.message) || err);
+  }
+
   // Number formatting helpers (grouping, byte sizes, compact counts).
   function grouped(n) { return Number(n).toLocaleString("en-US"); }
   function bytes(n) {
@@ -95,7 +103,7 @@
   function registerTab(tab) { tabs.push(tab); }
 
   window.overgo = {
-    api, el, clear, errorBanner, registerTab,
+    api, el, clear, errorBanner, friendlyError, registerTab,
     getKey, setKey,
     fmt: { grouped, bytes, compact },
   };
@@ -179,6 +187,16 @@
   // fail. Fail-open: if capabilities can't be fetched (offline / key required),
   // every tab stays enabled and errors surface per-request instead.
   let capabilities = null;
+  let authNoticeEl = null;
+
+  // When /analyze/model answers 401 the whole analysis surface is locked behind
+  // the key; surface one banner + highlight the field instead of letting each
+  // tab fail on its own with a raw bearer-token error.
+  function showAuthNotice(show) {
+    if (authNoticeEl) authNoticeEl.style.display = show ? "" : "none";
+    const key = document.getElementById("api-key");
+    if (key) key.classList.toggle("needs-key", show);
+  }
 
   function tabSupported(tab) {
     if (!tab.requires || !capabilities) return true;
@@ -203,8 +221,10 @@
     try {
       const model = await api.get("/analyze/model");
       capabilities = model.analysis || {};
+      showAuthNotice(false);
     } catch (err) {
       capabilities = null; // fail-open
+      showAuthNotice(err && err.status === 401);
     }
     applyCapabilities();
   }
@@ -224,6 +244,10 @@
       tabBar.appendChild(tab.button);
       panels.appendChild(tab.panel);
     }
+    authNoticeEl = el("div", { class: "auth-banner", style: "display:none" },
+      "This server requires an API key — enter it in the field at the top right to load analysis and chat.");
+    document.querySelector(".wrap").insertBefore(authNoticeEl, panels);
+
     const keyInput = document.getElementById("api-key");
     keyInput.value = getKey();
     keyInput.addEventListener("change", () => {

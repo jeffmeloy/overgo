@@ -104,6 +104,33 @@ func TestWebUIStyleInvariants(t *testing.T) {
 	}
 }
 
+// TestWebUIAuthUX guards the centralized 401 handling: a shared friendlyError
+// helper, a global key-required banner, and the previously-inconsistent tabs
+// routing their errors through the helper instead of leaking the raw bearer
+// error.
+func TestWebUIAuthUX(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
+
+	boot := get("/boot.js")
+	for _, needle := range []string{"friendlyError", "showAuthNotice", "auth-banner"} {
+		if !strings.Contains(boot, needle) {
+			t.Errorf("boot.js missing %q", needle)
+		}
+	}
+	css := get("/style.css")
+	for _, needle := range []string{".auth-banner", ".keyfield.needs-key"} {
+		if !strings.Contains(css, needle) {
+			t.Errorf("style.css missing %q", needle)
+		}
+	}
+	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_vocab.js", "/mod/analyze_tensors.js"} {
+		if !strings.Contains(get(asset), "friendlyError") {
+			t.Errorf("%s does not route errors through friendlyError", asset)
+		}
+	}
+}
+
 func TestWebUIRejectsNonGet(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()

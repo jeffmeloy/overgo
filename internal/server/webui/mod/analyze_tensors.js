@@ -45,7 +45,14 @@
       clear(panel);
       panel.appendChild(el("div", { class: "note", text: "loading /analyze/tensors…" }));
 
-      const data = await overgo.api.get("/analyze/tensors");
+      let data;
+      try {
+        data = await overgo.api.get("/analyze/tensors");
+      } catch (err) {
+        clear(panel);
+        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
+        return;
+      }
       const rows = data.tensors || [];
       clear(panel);
 

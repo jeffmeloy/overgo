@@ -39,7 +39,7 @@
         try {
           data = await overgo.api.get("/analyze/vocab?" + params.toString());
         } catch (err) {
-          host.replaceChildren(overgo.errorBanner(String(err.message || err)));
+          host.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
           return;
         }
         // Clamp a past-the-end page back to the last populated window.

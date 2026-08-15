@@ -133,6 +133,9 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .note { color:var(--faint); font:12px var(--mono); }
 .err-banner { color:var(--err); font:12.5px var(--mono); background:color-mix(in srgb, var(--err) 10%, transparent);
   border:1px solid color-mix(in srgb, var(--err) 30%, transparent); border-radius:8px; padding:10px 12px; margin:10px 0; }
+.auth-banner { color:var(--amber); font:12.5px var(--mono); background:color-mix(in srgb, var(--amber) 10%, transparent);
+  border:1px solid color-mix(in srgb, var(--amber) 35%, transparent); border-radius:8px; padding:10px 12px; margin:0 0 14px; }
+.keyfield.needs-key { border-color:var(--amber); box-shadow:0 0 0 3px color-mix(in srgb, var(--amber) 20%, transparent); }
 
 /* ---- probability bars (viz.js) ---- */
 .pbar-row { display:grid; grid-template-columns:minmax(90px,150px) 1fr 62px; gap:10px; align-items:center; margin:3px 0; }

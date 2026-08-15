@@ -49,8 +49,7 @@
           if (k.value !== "") request.k = Number(k.value);
           render(await overgo.api.post("/analyze/states", request));
         } catch (err) {
-          const message = err.status === 401 ? "API key required — enter it in the top bar." : String(err.message || err);
-          out.replaceChildren(overgo.errorBanner(message));
+          out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
         } finally {
           run.disabled = false;
         }

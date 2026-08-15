@@ -126,7 +126,7 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmu
 	}
 	b := tensor.NewBuilder()
 	setBuilderMatmulCompute(b, matmulType)
-	bind := weightBinder{builder: b, inputs: p.weightInputs, matmulType: matmulType}
+	bind := tensor.WeightInputs{Builder: b, Inputs: p.weightInputs, MatrixType: matmulType}
 
 	p.InEncoder = b.Input("encoder_hidden", dtype.F32, tensor.MustShape(th, L*ts))
 	for _, attended := range textMask {
@@ -154,7 +154,7 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmu
 	// view [th, L*textSeq] as [L*th, textSeq]; layer l occupies the contiguous
 	// Dims[0] span [l*th, (l+1)*th). Accumulate each layer's [th,textSeq] scaled
 	// by the projector weight -- no transpose needed.
-	projW := bind.input("text_fusion.projector.weight", L) // F32 (L)
+	projW := bind.Input("text_fusion.projector.weight", L) // F32 (L)
 	viewed := b.Reshape(hidden, L*th, ts)
 	var fused *tensor.Tensor
 	for l := uint64(0); l < L; l++ {
@@ -174,15 +174,15 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmu
 	}
 
 	// --- txt_in: zero-centered norm -> linear_1 -> gelu(tanh) -> linear_2 ---
-	normed := zeroCenteredRMSNorm(b, fused, bind.input("txt_in.norm.weight", th), eps)
+	normed := zeroCenteredRMSNorm(b, fused, bind.Input("txt_in.norm.weight", th), eps)
 	l1 := b.Add(
-		b.MulMat(bind.input("txt_in.linear_1.weight", th, h), normed),
-		bind.input("txt_in.linear_1.bias", h),
+		b.MulMat(bind.Input("txt_in.linear_1.weight", th, h), normed),
+		bind.Input("txt_in.linear_1.bias", h),
 	)
 	l1 = b.GELUTanhExact(l1)
 	p.Fused = b.Add(
-		b.MulMat(bind.input("txt_in.linear_2.weight", h, h), l1),
-		bind.input("txt_in.linear_2.bias", h),
+		b.MulMat(bind.Input("txt_in.linear_2.weight", h, h), l1),
+		bind.Input("txt_in.linear_2.bias", h),
 	)
 
 	if err := b.Err(); err != nil {
@@ -196,24 +196,24 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmu
 // batch>1 the attention runs rank-4 [head_dim, heads, seqLen, batch] (per-batch
 // bidirectional); when batch==1 it collapses to rank-3. Mirrors host fusionBlock.
 func fusionAttnFF(
-	b *tensor.Builder, bind weightBinder, prefix string, hidden, keyBias *tensor.Tensor,
+	b *tensor.Builder, bind tensor.WeightInputs, prefix string, hidden, keyBias *tensor.Tensor,
 	eps, scale float32,
 	th, headDim, qHeads, kvHeads, qDim, kvDim, inter, seqLen, batch uint64,
 ) *tensor.Tensor {
 	cols := seqLen * batch
 
-	n1 := zeroCenteredRMSNorm(b, hidden, bind.input(prefix+"norm1.weight", th), eps)
-	q := b.MulMat(bind.input(prefix+"attn.to_q.weight", th, qDim), n1)
-	k := b.MulMat(bind.input(prefix+"attn.to_k.weight", th, kvDim), n1)
-	v := b.MulMat(bind.input(prefix+"attn.to_v.weight", th, kvDim), n1)
-	gate := b.MulMat(bind.input(prefix+"attn.to_gate.weight", th, th), n1)
+	n1 := zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm1.weight", th), eps)
+	q := b.MulMat(bind.Input(prefix+"attn.to_q.weight", th, qDim), n1)
+	k := b.MulMat(bind.Input(prefix+"attn.to_k.weight", th, kvDim), n1)
+	v := b.MulMat(bind.Input(prefix+"attn.to_v.weight", th, kvDim), n1)
+	gate := b.MulMat(bind.Input(prefix+"attn.to_gate.weight", th, th), n1)
 
 	// per-head zero-centered q/k RMSNorm over head_dim.
 	q = b.Reshape(q, headDim, qHeads, cols)
 	k = b.Reshape(k, headDim, kvHeads, cols)
 	v = b.Reshape(v, headDim, kvHeads, cols)
-	q = zeroCenteredRMSNorm(b, q, bind.input(prefix+"attn.norm_q.weight", headDim), eps)
-	k = zeroCenteredRMSNorm(b, k, bind.input(prefix+"attn.norm_k.weight", headDim), eps)
+	q = zeroCenteredRMSNorm(b, q, bind.Input(prefix+"attn.norm_q.weight", headDim), eps)
+	k = zeroCenteredRMSNorm(b, k, bind.Input(prefix+"attn.norm_k.weight", headDim), eps)
 	// NO RoPE, NO AdaLN modulation.
 
 	if batch > 1 {
@@ -221,7 +221,7 @@ func fusionAttnFF(
 		k = b.Reshape(k, headDim, kvHeads, seqLen, batch)
 		v = b.Reshape(v, headDim, kvHeads, seqLen, batch)
 	}
-	q, k, v = roundAttentionForStorage(b, bind.matmulType, q, k, v)
+	q, k, v = roundAttentionForStorage(b, bind.MatrixType, q, k, v)
 	var attn *tensor.Tensor
 	if keyBias != nil {
 		attn = b.AttentionWithKeyBias(q, k, v, keyBias, scale, false)
@@ -230,13 +230,13 @@ func fusionAttnFF(
 	}
 	attn = b.Reshape(attn, th, cols)
 	attn = b.Multiply(attn, b.Sigmoid(gate)) // sigmoid output gate
-	attn = b.MulMat(bind.input(prefix+"attn.to_out.0.weight", th, th), attn)
+	attn = b.MulMat(bind.Input(prefix+"attn.to_out.0.weight", th, th), attn)
 	hidden = b.Add(hidden, attn)
 
-	n2 := zeroCenteredRMSNorm(b, hidden, bind.input(prefix+"norm2.weight", th), eps)
-	g := b.MulMat(bind.input(prefix+"ff.gate.weight", th, inter), n2)
-	u := b.MulMat(bind.input(prefix+"ff.up.weight", th, inter), n2)
-	ff := b.MulMat(bind.input(prefix+"ff.down.weight", inter, th), b.SwiGLU(g, u))
+	n2 := zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm2.weight", th), eps)
+	g := b.MulMat(bind.Input(prefix+"ff.gate.weight", th, inter), n2)
+	u := b.MulMat(bind.Input(prefix+"ff.up.weight", th, inter), n2)
+	ff := b.MulMat(bind.Input(prefix+"ff.down.weight", inter, th), b.SwiGLU(g, u))
 	return b.Add(hidden, ff)
 }
 

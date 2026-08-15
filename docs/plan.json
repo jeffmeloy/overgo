@@ -11,7 +11,7 @@
           "id": "do",
           "title": "Delete ranked runtime duplication through existing owners",
           "status": "open",
-          "verify": "go test -v -count=1 ./internal/tensor/dtype ./internal/diffusionimage ./internal/latentimage ./internal/oscillatorimage -run '^(TestFloat64SliceToFloat32OwnsNarrowedStorage|TestTinyModelBackwardMatchesTorch|TestTinyModelForwardMatchesTorch|TestDenoiserProgramMatchesHostReference|TestVAEProgramReferenceMatchesHost|TestDynamicsBackwardFiniteDiff|TestGeneratorBackwardFiniteDiff)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test -v -count=1 ./internal/densecausal ./internal/devicemath -run '^(TestDeviceLossAndGradsMatchesHost|TestTrainDeviceResidentMatchesHost|TestHybridDecoderLayerBackwardDeviceMatchesHost)$'"
+          "verify": "go test -v -count=1 ./internal/tensor ./internal/latentimage -run '^(TestWeightInputsSelectsCompiledMatrixStorage|TestDenoiserProgramMatchesHostReference|TestEncoderProgramMatchesHostReference|TestEncoderProgramMaskedMatchesHostReference|TestFusionProgramMatchesHostReference|TestTimestepProgramMatchesHostReference)$' \u0026\u0026 go test -short -count=1 ./internal/latentvideo"
         }
       ]
     },

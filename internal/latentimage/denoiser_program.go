@@ -61,25 +61,6 @@ type DenoiserProgram struct {
 	NextLatent   *tensor.Tensor
 }
 
-// weightBinder binds named weight inputs; rank-2 projections take matmulType.
-type weightBinder struct {
-	builder    *tensor.Builder
-	inputs     map[string]*tensor.Tensor
-	matmulType dtype.Type
-}
-
-// input declares a weight tensor with the MulMat storage convention: a torch
-// Linear weight [out,in] is declared as shape (in,out); rank-1 tensors stay F32.
-func (b weightBinder) input(name string, dimensions ...uint64) *tensor.Tensor {
-	storage := dtype.F32
-	if len(dimensions) == 2 {
-		storage = b.matmulType
-	}
-	node := b.builder.Input(name, storage, tensor.MustShape(dimensions...))
-	b.inputs[name] = node
-	return node
-}
-
 // CompileDenoiserProgram builds the Krea2 step graph for one text/image
 // geometry. matmulType selects rank-2 weight storage (dtype.F32 exact, dtype.BF16
 // device path). imgSeq must equal gh*gw.
@@ -115,7 +96,7 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 	}
 	b := tensor.NewBuilder()
 	setBuilderMatmulCompute(b, matmulType)
-	bind := weightBinder{builder: b, inputs: p.weightInputs, matmulType: matmulType}
+	bind := tensor.WeightInputs{Builder: b, Inputs: p.weightInputs, MatrixType: matmulType}
 
 	p.InLatent = b.Input("latent_patches", dtype.F32, tensor.MustShape(inCh, uint64(imgSeq)))
 	p.InText = b.Input("text_conditioning", dtype.F32, tensor.MustShape(h, uint64(textSeq)))
@@ -137,8 +118,8 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 
 	// img_in: (InChannels->Hidden) + bias, over the image tokens only.
 	img := b.Add(
-		b.MulMat(bind.input("img_in.weight", inCh, h), p.InLatent),
-		bind.input("img_in.bias", h),
+		b.MulMat(bind.Input("img_in.weight", inCh, h), p.InLatent),
+		bind.Input("img_in.bias", h),
 	)
 	// [text, image] token concatenation -> the co-attention sequence.
 	hidden := b.Concat(p.InText, img, 1) // (Hidden, seq)
@@ -164,23 +145,23 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 		prefix := fmt.Sprintf("transformer_blocks.%d.", layer)
 
 		// AdaLN-single: shared timestep vector + per-block learned table.
-		mod := b.Add(p.InTembMod, bind.input(prefix+"scale_shift_table", 6*h))
+		mod := b.Add(p.InTembMod, bind.Input(prefix+"scale_shift_table", 6*h))
 		chunk := func(i uint64) *tensor.Tensor { return b.FlatSlice(mod, i*h, h) }
 		preScale, preShift, preGate := chunk(0), chunk(1), chunk(2)
 		postScale, postShift, postGate := chunk(3), chunk(4), chunk(5)
 
 		// --- gated GQA co-attention ---
-		n1 := adaptiveShiftScale(b, zeroCenteredRMSNorm(b, hidden, bind.input(prefix+"norm1.weight", h), eps), preShift, preScale)
-		q := b.MulMat(bind.input(prefix+"attn.to_q.weight", h, qDim), n1)
-		k := b.MulMat(bind.input(prefix+"attn.to_k.weight", h, kvDim), n1)
-		v := b.MulMat(bind.input(prefix+"attn.to_v.weight", h, kvDim), n1)
-		gate := b.MulMat(bind.input(prefix+"attn.to_gate.weight", h, h), n1)
+		n1 := adaptiveShiftScale(b, zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm1.weight", h), eps), preShift, preScale)
+		q := b.MulMat(bind.Input(prefix+"attn.to_q.weight", h, qDim), n1)
+		k := b.MulMat(bind.Input(prefix+"attn.to_k.weight", h, kvDim), n1)
+		v := b.MulMat(bind.Input(prefix+"attn.to_v.weight", h, kvDim), n1)
+		gate := b.MulMat(bind.Input(prefix+"attn.to_gate.weight", h, h), n1)
 
 		q = b.Reshape(q, headDim, heads, uint64(seq))
 		k = b.Reshape(k, headDim, kvHeads, uint64(seq))
 		v = b.Reshape(v, headDim, kvHeads, uint64(seq))
-		q = zeroCenteredRMSNorm(b, q, bind.input(prefix+"attn.norm_q.weight", headDim), eps)
-		k = zeroCenteredRMSNorm(b, k, bind.input(prefix+"attn.norm_k.weight", headDim), eps)
+		q = zeroCenteredRMSNorm(b, q, bind.Input(prefix+"attn.norm_q.weight", headDim), eps)
+		k = zeroCenteredRMSNorm(b, k, bind.Input(prefix+"attn.norm_k.weight", headDim), eps)
 		q = buildInterleavedRoPE(b, q, axes, positions, theta)
 		k = buildInterleavedRoPE(b, k, axes, positions, theta)
 		q, k, v = roundAttentionForStorage(b, matmulType, q, k, v)
@@ -192,14 +173,14 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 		}
 		attn = b.Reshape(attn, h, uint64(seq))   // (Hidden, seq)
 		attn = b.Multiply(attn, b.Sigmoid(gate)) // sigmoid output gate
-		attn = b.MulMat(bind.input(prefix+"attn.to_out.0.weight", h, h), attn)
+		attn = b.MulMat(bind.Input(prefix+"attn.to_out.0.weight", h, h), attn)
 		hidden = b.Add(hidden, b.Multiply(attn, preGate))
 
 		// --- SwiGLU feed-forward ---
-		n2 := adaptiveShiftScale(b, zeroCenteredRMSNorm(b, hidden, bind.input(prefix+"norm2.weight", h), eps), postShift, postScale)
-		g := b.MulMat(bind.input(prefix+"ff.gate.weight", h, inter), n2)
-		u := b.MulMat(bind.input(prefix+"ff.up.weight", h, inter), n2)
-		ff := b.MulMat(bind.input(prefix+"ff.down.weight", inter, h), b.SwiGLU(g, u))
+		n2 := adaptiveShiftScale(b, zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm2.weight", h), eps), postShift, postScale)
+		g := b.MulMat(bind.Input(prefix+"ff.gate.weight", h, inter), n2)
+		u := b.MulMat(bind.Input(prefix+"ff.up.weight", h, inter), n2)
+		ff := b.MulMat(bind.Input(prefix+"ff.down.weight", inter, h), b.SwiGLU(g, u))
 		hidden = b.Add(hidden, b.Multiply(ff, postGate))
 
 		p.BlockOutputs = append(p.BlockOutputs, hidden)
@@ -208,15 +189,15 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 	// final adaptive-norm + projection to the flow-matching velocity. The
 	// modulation is temb + the [2,Hidden] table; run over the full sequence
 	// (image columns are sliced host-side in Forward).
-	table := bind.input("final_layer.scale_shift_table", 2*h)
+	table := bind.Input("final_layer.scale_shift_table", 2*h)
 	finScale := b.Add(p.InTemb, b.FlatSlice(table, 0, h))
 	finShift := b.Add(p.InTemb, b.FlatSlice(table, h, h))
 	fn := adaptiveShiftScale(b,
-		zeroCenteredRMSNorm(b, hidden, bind.input("final_layer.norm.weight", h), eps),
+		zeroCenteredRMSNorm(b, hidden, bind.Input("final_layer.norm.weight", h), eps),
 		finShift, finScale)
 	p.Velocity = b.Add(
-		b.MulMat(bind.input("final_layer.linear.weight", h, inCh), fn),
-		bind.input("final_layer.linear.bias", inCh),
+		b.MulMat(bind.Input("final_layer.linear.weight", h, inCh), fn),
+		bind.Input("final_layer.linear.bias", inCh),
 	)
 	imageVelocity := b.FlatSlice(
 		p.Velocity, uint64(textSeq)*inCh, inCh, uint64(imgSeq),

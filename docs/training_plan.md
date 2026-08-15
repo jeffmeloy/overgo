@@ -548,10 +548,12 @@ not redefine an earlier rung's correctness contract.
    and RepoDB evidence, train multiple scratch seeds, and pass the immutable
    held-out promotion suite, including typed text/image/audio/video component and
    workflow actions. Compare against pretrained candidates under the same suite.
-10. **Recursive improvement boundary.** Let the promoted controller propose data,
-    recipe and component-composition candidates, but keep corpus admission,
-    evaluation and promotion outside the model. Every descendant names parent,
-    data, recipe, evaluator and decision identities; no model self-promotes.
+10. **Recursive improvement boundary.** The controller may compile corpus,
+    recipe, evaluator and component-composition proposals. Independent authority
+    admits a distinct held-out split. A separate evaluator and decider control
+    promotion and rollback. Each decision binds its child, parent, data, splits,
+    recipe, code, evaluator, run, evaluation and authority identities; the child
+    keeps acyclic construction lineage. No proposal can authorize itself.
 11. **Forced Tier-1 streaming.** Artificially cap VRAM on the small model; prove
    double-buffered weight/gradient transfer, overlap and exact results.
 12. **Checkpointed activations.** Prove recomputation independently, then compose

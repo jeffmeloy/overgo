@@ -43,6 +43,12 @@ training or media breadth.
   external holdout, three resident CUDA seeds, common action/modality scoring,
   and an external promotion decision with a rollback target. This is lifecycle
   evidence on eight actions, not production controller quality.
+- Recursive trials now compile four bounded proposal classes: corpus, recipe,
+  evaluator, and component composition. Admission requires separate authority
+  and development/promotion splits. Promotion requires an independently bound
+  evaluator, run, evaluation, decider, rollback target, and complete decision
+  aggregate with acyclic child construction lineage. No recursive improvement
+  outcome has been demonstrated yet.
 - Critical evidence gap: 34 compatibility claims are marked `implemented`, but
   the current file does not encode the doctrine's evidence tiers. All 135
   architecture entries are `experimental`; only four name a validated fixture.
@@ -522,9 +528,9 @@ The authoritative steps live in `docs/plan.json`. Order:
     stack; then train E4B, exercising every adaptive-declared modality.
 10. Compile the multimodal training matrix; port remaining adaptive objective
     families through shared programs and explicitly refuse absent objectives.
-11. Preserve the scratch controller's external promotion boundary while adding
-    recursive candidate proposals, independent admission, and descendant
-    lineage.
+11. Exercise the recursive proposal and admission boundary with measured
+    descendants; require a child to beat its parent under matched evaluator and
+    split identities before recording improvement.
 
 ## Definition of Exceeds adaptive_new
 

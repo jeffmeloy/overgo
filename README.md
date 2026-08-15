@@ -470,9 +470,17 @@ document. The current eight-case holdout improves from 12.5% action accuracy to
 37.5-50.0% and from 12.5-25.0% modality accuracy to 37.5-50.0%; all three
 held-out causal losses improve. This proves the lifecycle, not a production-ready
 controller. Fractale, Carbon, and Qwen2.5 comparisons are explicitly refused
-until a compatible controller scorer is available. CLI activation, exact
-checkpoint/resume, a larger repository-task corpus, and descendant improvement
-remain open.
+until a compatible controller scorer is available.
+
+Recursive trials have a separate authority boundary. `trainingprogram` compiles
+non-authorizing corpus, recipe, evaluator, and component-composition proposals.
+`runrecord` requires a separate admission authority, distinct development and
+promotion splits, an independent evaluator and decider, a bound evaluation run,
+and rollback to the parent. The decision aggregate names the child, parent model,
+data, splits, recipe, code, evaluator, run, evaluation, and authorities. The
+child retains acyclic construction lineage to the parent and governing facts.
+No descendant improvement has been demonstrated yet. CLI activation, exact
+checkpoint/resume, and a larger repository-task corpus remain open.
 
 See the [training plan](docs/training_plan.md) for the exact boundary.
 

@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "recursive-improvement-boundary",
-          "title": "Allow the promoted controller to propose corpus, recipe, evaluator, and component-composition candidates for descendants while requiring independent admission, held-out evaluation, promotion and rollback; bind every child to parent model, data, recipe, code, evaluator, run and decision identities",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/trainingprogram -run '^TestRecursiveImprovementLineageAndExternalPromotion$' -count=1 -v"
-        },
-        {
           "id": "tier1-scale",
           "title": "Force the promoted small model through Tier-1 memory scheduling, including applicable multimodal activations and connector states; add checkpointing, layer-major accumulation, and paging only when measured",
           "status": "open",

@@ -896,24 +896,75 @@ func (g *gateContext) stepMagics() (bool, error) {
 	if len(candidates) == 0 {
 		return true, nil
 	}
+	baseline, err := magicCandidatesAtHEAD(g.repo, snapshot, g.paths)
+	if err != nil {
+		return false, err
+	}
 	catalogued, err := ledgerNames(g.repo, g.storePath)
 	if err != nil {
 		g.honesty = append(g.honesty, "magic scan: ledger unreadable ("+err.Error()+"); constants unchecked")
 		return false, nil
 	}
-	uncatalogued := 0
-	for _, candidate := range candidates {
+	g.honesty = append(g.honesty, magicDiagnostics(candidates, baseline, catalogued)...)
+	return false, nil
+}
+
+func magicCandidatesAtHEAD(repo string, snapshot repoanalysis.SourceSnapshot, paths []string) ([]closurescan.Candidate, error) {
+	overlay := map[string][]byte{}
+	for _, path := range paths {
+		if !strings.HasSuffix(path, ".go") {
+			continue
+		}
+		cmd := exec.Command("git", "show", "HEAD:"+path)
+		cmd.Dir = repo
+		data, err := cmd.Output()
+		if err != nil {
+			if _, missing := err.(*exec.ExitError); missing {
+				overlay[path] = nil
+				continue
+			}
+			return nil, err
+		}
+		overlay[path] = data
+	}
+	baseline, err := snapshot.Overlay(overlay)
+	if err != nil {
+		return nil, err
+	}
+	return closurescan.ScanSnapshot(baseline, paths)
+}
+
+func magicDiagnostics(current, baseline []closurescan.Candidate, catalogued map[string]bool) []string {
+	previous := map[string]bool{}
+	for _, candidate := range baseline {
+		previous[candidate.File+"\x00"+candidate.Name+"\x00"+candidate.Value] = true
+	}
+	var lines []string
+	inherited := 0
+	for _, candidate := range current {
 		if catalogued[candidate.Name] {
 			continue
 		}
-		uncatalogued++
-		g.honesty = append(g.honesty, fmt.Sprintf(
-			"uncatalogued constant %s=%s (%s) — triage via closure-scan", candidate.Name, candidate.Value, candidate.File))
+		key := candidate.File + "\x00" + candidate.Name + "\x00" + candidate.Value
+		if previous[key] {
+			inherited++
+			continue
+		}
+		lines = append(lines, fmt.Sprintf(
+			"new uncatalogued constant %s=%s (%s) — triage via closure-scan",
+			candidate.Name, candidate.Value, candidate.File,
+		))
 	}
-	if uncatalogued == 0 {
-		g.honesty = append(g.honesty, fmt.Sprintf("magic scan: %d constant(s) in scope, all catalogued", len(candidates)))
+	if inherited > 0 {
+		lines = append(lines, fmt.Sprintf(
+			"magic backlog: %d inherited uncatalogued constant(s) in touched files; run closure-scan for ranked detail",
+			inherited,
+		))
 	}
-	return false, nil
+	if len(lines) == 0 {
+		lines = append(lines, fmt.Sprintf("magic scan: %d constant(s) in scope, all catalogued", len(current)))
+	}
+	return lines
 }
 
 func ledgerNames(repo, storePath string) (map[string]bool, error) {

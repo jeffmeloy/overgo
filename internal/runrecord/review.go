@@ -473,13 +473,9 @@ func loadReviewAdmission(ctx context.Context, reader artifact.Reader, verdict Re
 }
 
 func readReviewDocument[T any](ctx context.Context, reader artifact.Reader, id artifact.ID, codec artifact.DocumentCodec[T]) (T, error) {
-	var zero T
-	value, ok, err := codec.Read(ctx, reader, id)
+	value, err := codec.Require(ctx, reader, id)
 	if err != nil {
-		return zero, fmt.Errorf("load review document %s: %w", id, err)
-	}
-	if !ok {
-		return zero, fmt.Errorf("review document %s is absent", id)
+		return value, fmt.Errorf("load review document %s: %w", id, err)
 	}
 	return value, nil
 }

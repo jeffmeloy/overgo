@@ -25,7 +25,7 @@ type ResidentTrainer struct {
 	construction Construction
 	worker       *device.Worker
 	executor     *executor.Executor
-	residentOps  *devicemath.ResidentOpsSession
+	resident     *devicemath.ResidentOpsSession
 	muon         *optimizer.ResidentMuonPlan
 	weights      driver.DevicePtr
 	gradients    driver.DevicePtr
@@ -94,16 +94,23 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 	if err != nil {
 		return fail(err)
 	}
+	residentStarted := time.Now()
+	trainer.resident, err = devicemath.NewResidentOpsSession(worker)
+	if err != nil {
+		return fail(err)
+	}
+	residentPreparation := time.Since(residentStarted)
 	modelStarted := time.Now()
-	trainer.weights, err = devicemath.AllocResidentF32(worker, len(construction.weights), construction.weights)
+	weightBytes := driver.Bytes(construction.weights)
+	trainer.weights, err = trainer.resident.Upload(context.Background(), weightBytes)
 	if err != nil {
 		return fail(err)
 	}
-	trainer.gradients, err = devicemath.AllocResidentF32(worker, len(construction.weights), nil)
+	trainer.gradients, err = trainer.resident.Allocate(context.Background(), uint64(len(weightBytes)))
 	if err != nil {
 		return fail(err)
 	}
-	trainer.momentum, err = devicemath.AllocResidentF32(worker, len(construction.weights), nil)
+	trainer.momentum, err = trainer.resident.Allocate(context.Background(), uint64(len(weightBytes)))
 	if err != nil {
 		return fail(err)
 	}
@@ -120,10 +127,6 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 	}
 	trainer.lifecycle.ModelInitialization = time.Since(modelStarted)
 	programStarted := time.Now()
-	trainer.residentOps, err = devicemath.NewResidentOpsSession(worker)
-	if err != nil {
-		return fail(err)
-	}
 	trainer.muon, err = optimizer.NewResidentMuonPlan(worker, construction.optimizer, trainer.config)
 	if err != nil {
 		return fail(err)
@@ -137,7 +140,7 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 			return fail(err)
 		}
 	}
-	trainer.lifecycle.ProgramPreparation = time.Since(programStarted)
+	trainer.lifecycle.ProgramPreparation = residentPreparation + time.Since(programStarted)
 	return trainer, nil
 }
 
@@ -157,14 +160,13 @@ func (t *ResidentTrainer) Close() error {
 	if t.muon != nil {
 		result = errors.Join(result, t.muon.Close())
 	}
-	if t.residentOps != nil {
-		result = errors.Join(result, t.residentOps.Close())
-	}
 	if t.executor != nil {
 		result = errors.Join(result, t.executor.Close())
 	}
+	if t.resident != nil {
+		result = errors.Join(result, t.resident.Close())
+	}
 	if t.worker != nil {
-		result = errors.Join(result, devicemath.FreeResident(t.worker, t.weights, t.gradients, t.momentum))
 		result = errors.Join(result, t.worker.Close())
 	}
 	return result
@@ -364,7 +366,7 @@ func (g ForwardGraph) residentInputs(
 
 func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {
 	var loss float64
-	err := t.residentOps.Run(func(ops *devicemath.ResidentOps) error {
+	err := t.resident.Run(func(ops *devicemath.ResidentOps) error {
 		var err error
 		loss, err = t.backwardWithOps(ops, graph, retained, tokens)
 		return err

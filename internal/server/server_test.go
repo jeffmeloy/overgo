@@ -164,12 +164,16 @@ type fakeHistoryProjector struct {
 	mediaKinds  []projector.MediaKind
 }
 
-func (f *fakeHistoryProjector) BuildImagesHistoryPrompt(
+func (f *fakeHistoryProjector) BuildImagesPrompt(
 	_ context.Context,
 	_ projector.ImageTokenizer,
 	images []image.Image,
 	text []string,
+	options projector.PromptOptions,
 ) (projector.MultimodalPrompt, error) {
+	if !options.History {
+		return f.fakeQwen3VLProjector.BuildImagesPrompt(context.Background(), nil, images, text, options)
+	}
 	f.images = len(images)
 	f.historyText = append([]string(nil), text...)
 	f.historyRuns++
@@ -244,7 +248,7 @@ func (f *fakeQwen3VLProjector) BuildImagesPrompt(
 	_ projector.ImageTokenizer,
 	images []image.Image,
 	text []string,
-	_ bool,
+	_ projector.PromptOptions,
 ) (projector.MultimodalPrompt, error) {
 	f.images = len(images)
 	f.text = append([]string(nil), text...)
@@ -265,6 +269,10 @@ type fakeAudioProjector struct {
 	samples []float32
 }
 
+func (*fakeQwen3VLProjector) Close() error { return nil }
+
+func (*fakeAudioProjector) Close() error { return nil }
+
 func (f *fakeAudioProjector) BuildAudioPrompt(
 	_ context.Context,
 	_ projector.ImageTokenizer,
@@ -280,32 +288,22 @@ func (f *fakeAudioProjector) BuildAudioPrompt(
 	}, nil
 }
 
-func (f *fakeQwen3VLProjector) BuildQwen35ImagePrompt(
+func (f *fakeQwen3VLProjector) BuildImagePrompt(
 	_ context.Context,
-	_ projector.Qwen3VLTokenizer,
+	_ projector.ImageTokenizer,
 	_ image.Image,
 	before, after string,
 	_ bool,
-) (projector.Qwen3VLPrompt, error) {
+) (projector.MultimodalPrompt, error) {
 	f.before, f.after = before, after
 	positions := [4][]uint32{
 		{0, 1, 1, 2}, {0, 1, 1, 2}, {0, 1, 2, 2}, {0, 0, 0, 2},
 	}
-	return projector.Qwen3VLPrompt{
+	return projector.MultimodalPrompt{
 		TokenIDs:   []tokenizer.TokenID{1, 2, 2, 3},
 		Embeddings: make([]float32, 2*2560), EmbeddingWidth: 2560,
 		EmbeddingStart: 1, EmbeddingTokenIndices: []uint32{1, 2}, MultiAxisPositions: positions,
 	}, nil
-}
-
-func (f *fakeQwen3VLProjector) BuildImagePrompt(
-	ctx context.Context,
-	tokenizer projector.ImageTokenizer,
-	input image.Image,
-	before, after string,
-	thinking bool,
-) (projector.MultimodalPrompt, error) {
-	return f.BuildQwen35ImagePrompt(ctx, tokenizer, input, before, after, thinking)
 }
 
 type failingMemoryGenerator struct {

@@ -57,14 +57,6 @@ type Gemma4Runner struct {
 	spec Gemma4Spec
 }
 
-func openGemma4(ctx context.Context, file *gguf.File, options OpenOptions) (*Gemma4Runner, error) {
-	return buildCatalogProjector(ctx, file, options, "Gemma 4", []string{"mm.a.input_projection.weight"},
-		ReadGemma4Spec, validateGemma4Catalog,
-		func(file *gguf.File, spec Gemma4Spec, cuda *projectorCUDA) *Gemma4Runner {
-			return &Gemma4Runner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		})
-}
-
 func (r *Gemma4Runner) Spec() Gemma4Spec {
 	if r == nil {
 		return Gemma4Spec{}
@@ -88,11 +80,11 @@ func ReadGemma4Spec(file *gguf.File) (Gemma4Spec, error) {
 	if err != nil {
 		return Gemma4Spec{}, err
 	}
-	patch, ok := file.Tensor("v.patch_embd.weight")
+	patch, ok := file.Tensor(visionPatchWeightTensor)
 	if !ok || patch.Dimensions != 2 {
 		return Gemma4Spec{}, errors.New("projector: Gemma 4 patch tensor is unavailable or invalid")
 	}
-	position, ok := file.Tensor("v.position_embd.weight")
+	position, ok := file.Tensor(visionPositionWeightTensor)
 	if !ok || position.Dimensions != 3 {
 		return Gemma4Spec{}, errors.New("projector: Gemma 4 position tensor is unavailable or invalid")
 	}
@@ -130,13 +122,13 @@ func (s Gemma4Spec) validate() error {
 
 func validateGemma4Catalog(file *gguf.File, spec Gemma4Spec) ([]string, error) {
 	required := map[string][]uint64{
-		"v.patch_embd.weight":        {uint64(spec.PatchWidth), uint64(spec.Hidden)},
-		"v.patch_embd.bias":          {uint64(spec.Hidden)},
+		visionPatchWeightTensor:      {uint64(spec.PatchWidth), uint64(spec.Hidden)},
+		visionPatchBiasTensor:        {uint64(spec.Hidden)},
 		"v.patch_norm.1.weight":      {uint64(spec.PatchWidth)},
 		"v.patch_norm.1.bias":        {uint64(spec.PatchWidth)},
 		"v.patch_norm.2.weight":      {uint64(spec.Hidden)},
 		"v.patch_norm.2.bias":        {uint64(spec.Hidden)},
-		"v.position_embd.weight":     {uint64(spec.Hidden), uint64(spec.PositionCount), 2},
+		visionPositionWeightTensor:   {uint64(spec.Hidden), uint64(spec.PositionCount), 2},
 		"v.patch_norm.3.weight":      {uint64(spec.Hidden)},
 		"v.patch_norm.3.bias":        {uint64(spec.Hidden)},
 		"mm.input_projection.weight": {uint64(spec.Hidden), uint64(spec.Hidden)},
@@ -289,7 +281,7 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	layerNorm(ln1, pixels, ln1Weight.Data, ln1Bias.Data, rows, r.spec.PatchWidth, r.spec.LayerNormEpsilon)
 	bf16RoundSlice(ln1)
 	traceGemma4(trace, "patch_ln1", ln1)
-	patchWeight, patchBias, err := r.loadPair(ctx, "v.patch_embd.weight", "v.patch_embd.bias")
+	patchWeight, patchBias, err := r.loadPair(ctx, visionPatchWeightTensor, visionPatchBiasTensor)
 	if err != nil {
 		return Gemma4Output{}, err
 	}
@@ -304,7 +296,7 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	layerNorm(ln2, hidden, ln2Weight.Data, ln2Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
 	bf16RoundSlice(ln2)
 	traceGemma4(trace, "patch_ln2", ln2)
-	position, err := r.load(ctx, "v.position_embd.weight")
+	position, err := r.load(ctx, visionPositionWeightTensor)
 	if err != nil {
 		return Gemma4Output{}, err
 	}

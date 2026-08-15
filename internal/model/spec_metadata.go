@@ -300,22 +300,23 @@ func (m specMetadata) readPosition(spec *Spec) error {
 		}
 		if scalingType, ok := optional[string](values, prefix+"rope.scaling.type", gguf.ValueTypeString); ok &&
 			scalingType != "" && scalingType != "none" {
+			kind := ropeScalingKind(scalingType)
 			gatedDeltaMulti := profile.Attention == AttentionGatedDelta && profile.Has(ArchitectureMultiAxisPositions)
-			longRoPE := profile.Has(ArchitectureLongRoPE) && scalingType == "longrope"
-			yarn := scalingType == "yarn" && (profile.Has(ArchitectureLatentKVLayout) ||
+			longRoPE := profile.Has(ArchitectureLongRoPE) && kind == ropeScalingLongRoPE
+			yarn := kind == ropeScalingYaRN && (profile.Has(ArchitectureLatentKVLayout) ||
 				validation.MLA == MLAValidationDeepSeek4 || validation.supportsYaRN())
-			if gatedDeltaMulti || scalingType != "linear" && !longRoPE && !yarn {
+			if gatedDeltaMulti || kind != ropeScalingLinear && !longRoPE && !yarn {
 				return fmt.Errorf("model architecture %q uses unsupported RoPE scaling type %q", architecture, scalingType)
 			}
-			spec.RopeScalingType = scalingType
-			if scalingType == "linear" || scalingType == "yarn" {
+			spec.RopeScalingType = kind
+			if kind == ropeScalingLinear || kind == ropeScalingYaRN {
 				value, err := required[float32](values, prefix+"rope.scaling.factor", gguf.ValueTypeFloat32)
 				if err != nil {
 					return err
 				}
 				spec.RopeScalingFactor = value
 			}
-			if scalingType == "yarn" {
+			if kind == ropeScalingYaRN {
 				value, err := required[uint32](values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32)
 				if err != nil {
 					return err

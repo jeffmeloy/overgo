@@ -4,10 +4,49 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
+	"strings"
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
 )
+
+func Shape(shapes map[string][]int, name string, rank int) ([]int, error) {
+	shape, ok := shapes[name]
+	if !ok {
+		return nil, fmt.Errorf("missing tensor %q", name)
+	}
+	if len(shape) != rank {
+		return nil, fmt.Errorf("tensor %q rank %d, want %d", name, len(shape), rank)
+	}
+	return shape, nil
+}
+
+// IndexedCount validates contiguous prefix+index+suffix names.
+func IndexedCount(shapes map[string][]int, prefix, suffix string) (int, error) {
+	var indices []int
+	for name := range shapes {
+		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+			continue
+		}
+		indexText := strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
+		index, err := strconv.Atoi(indexText)
+		if err != nil || index < 0 {
+			return 0, fmt.Errorf("malformed indexed tensor %q", name)
+		}
+		indices = append(indices, index)
+	}
+	if len(indices) == 0 {
+		return 0, fmt.Errorf("no indexed tensors under %q", prefix)
+	}
+	sort.Ints(indices)
+	for expected, index := range indices {
+		if index != expected {
+			return 0, fmt.Errorf("tensor indices under %q are not contiguous from zero: %v", prefix, indices)
+		}
+	}
+	return len(indices), nil
+}
 
 type Requirement struct {
 	Name     string

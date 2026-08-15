@@ -22,6 +22,7 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensorcatalog"
 )
 
 // Dims: model geometry, derived from tensor shapes and config.
@@ -283,10 +284,10 @@ func deriveDims(shapes map[string][]int, config artifactConfig) (Dims, error) {
 	}
 
 	var err error
-	if d.EncoderLayers, err = layerCount(shapes, encLayerPrefix, ".self_attn.q_proj.weight"); err != nil {
+	if d.EncoderLayers, err = tensorcatalog.IndexedCount(shapes, encLayerPrefix, ".self_attn.q_proj.weight"); err != nil {
 		return d, err
 	}
-	if d.DecoderLayers, err = layerCount(shapes, decLayerPrefix, ".self_attn.q_proj.weight"); err != nil {
+	if d.DecoderLayers, err = tensorcatalog.IndexedCount(shapes, decLayerPrefix, ".self_attn.q_proj.weight"); err != nil {
 		return d, err
 	}
 	d.RopeTheta = config.RopeTheta
@@ -294,19 +295,4 @@ func deriveDims(shapes map[string][]int, config artifactConfig) (Dims, error) {
 	d.StartToken = config.DecoderStartTokenID
 	d.EOSToken = config.EOSTokenID
 	return d, nil
-}
-
-// layerCount: contiguous prefix+N indices starting at zero.
-func layerCount(shapes map[string][]int, prefix, suffix string) (int, error) {
-	count := 0
-	for {
-		if _, ok := shapes[fmt.Sprintf("%s%d%s", prefix, count, suffix)]; !ok {
-			break
-		}
-		count++
-	}
-	if count == 0 {
-		return 0, fmt.Errorf("seq2seq: no layers under %q", prefix)
-	}
-	return count, nil
 }

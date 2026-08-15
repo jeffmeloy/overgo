@@ -18,17 +18,9 @@ const (
 )
 
 type CogVLMVisionSpec struct {
-	ImageSize           int
-	PatchSize           int
-	Hidden              int
-	Intermediate        int
+	visionBackboneSpec
 	OutputHidden        int
 	AdapterIntermediate int
-	Layers              int
-	Heads               int
-	LayerNormEpsilon    float32
-	ImageMean           [3]float32
-	ImageStd            [3]float32
 	GatedFFN            []bool
 }
 
@@ -36,14 +28,6 @@ type CogVLMVisionRunner struct {
 	projectorResources
 	spec      CogVLMVisionSpec
 	attention visionAttentionPlan
-}
-
-func openCogVLMVision(ctx context.Context, file *gguf.File, options OpenOptions) (*CogVLMVisionRunner, error) {
-	return buildCatalogProjector(ctx, file, options, "CogVLM", nil,
-		ReadCogVLMVisionSpec, validateCogVLMVisionCatalog,
-		func(file *gguf.File, spec CogVLMVisionSpec, cuda *projectorCUDA) *CogVLMVisionRunner {
-			return &CogVLMVisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		})
 }
 
 func (r *CogVLMVisionRunner) Spec() CogVLMVisionSpec {
@@ -54,31 +38,8 @@ func (r *CogVLMVisionRunner) Spec() CogVLMVisionSpec {
 }
 
 func ReadCogVLMVisionSpec(file *gguf.File) (CogVLMVisionSpec, error) {
-	if err := validateVisionProjector(file, "clip.projector_type", cogVLMProjectorType); err != nil {
-		return CogVLMVisionSpec{}, err
-	}
 	spec := CogVLMVisionSpec{}
-	if err := readMetadataIntFields(file,
-		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
-		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
-		metadataIntField{"clip.vision.embedding_length", &spec.Hidden},
-		metadataIntField{"clip.vision.feed_forward_length", &spec.Intermediate},
-		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
-		metadataIntField{"clip.vision.block_count", &spec.Layers},
-		metadataIntField{"clip.vision.attention.head_count", &spec.Heads},
-	); err != nil {
-		return CogVLMVisionSpec{}, err
-	}
-	epsilon, err := metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
-	if err != nil {
-		return CogVLMVisionSpec{}, err
-	}
-	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
-	if err != nil {
-		return CogVLMVisionSpec{}, err
-	}
-	std, err := metadataFloat32Array(file, "clip.vision.image_std", 3)
-	if err != nil {
+	if err := readVisionBackbone(file, cogVLMProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
 		return CogVLMVisionSpec{}, err
 	}
 	up, ok := file.Tensor("mm.up.weight")
@@ -86,10 +47,7 @@ func ReadCogVLMVisionSpec(file *gguf.File) (CogVLMVisionSpec, error) {
 		return CogVLMVisionSpec{}, errors.New("projector: CogVLM adapter up tensor is unavailable or invalid")
 	}
 	spec.AdapterIntermediate = int(up.Shape[1])
-	spec.LayerNormEpsilon = epsilon
 	spec.GatedFFN = make([]bool, spec.Layers)
-	copy(spec.ImageMean[:], mean)
-	copy(spec.ImageStd[:], std)
 	for layer := range spec.GatedFFN {
 		spec.GatedFFN[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.ffn_gate.weight", layer))
 	}
@@ -100,15 +58,11 @@ func ReadCogVLMVisionSpec(file *gguf.File) (CogVLMVisionSpec, error) {
 }
 
 func (s CogVLMVisionSpec) validate() error {
-	if s.ImageSize <= 0 || s.PatchSize <= 0 || s.Hidden <= 0 || s.Intermediate <= 0 || s.OutputHidden <= 0 ||
-		s.AdapterIntermediate <= 0 || s.Layers <= 0 || s.Heads <= 0 || s.Hidden%s.Heads != 0 ||
-		s.ImageSize%s.PatchSize != 0 || s.LayerNormEpsilon <= 0 || len(s.GatedFFN) != s.Layers {
-		return fmt.Errorf("projector: invalid CogVLM vision metadata: %+v", s)
+	if err := s.visionBackboneSpec.validate(); err != nil {
+		return err
 	}
-	for channel := range s.ImageStd {
-		if s.ImageStd[channel] <= 0 || !finite32(s.ImageMean[channel]) || !finite32(s.ImageStd[channel]) {
-			return fmt.Errorf("projector: invalid CogVLM normalization channel %d", channel)
-		}
+	if s.OutputHidden <= 0 || s.AdapterIntermediate <= 0 || len(s.GatedFFN) != s.Layers {
+		return fmt.Errorf("projector: invalid CogVLM vision metadata: %+v", s)
 	}
 	return nil
 }
@@ -116,9 +70,7 @@ func (s CogVLMVisionSpec) validate() error {
 func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) ([]string, error) {
 	grid := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
-		"v.patch_embd.weight":    {uint64(spec.PatchSize), uint64(spec.PatchSize), 3, uint64(spec.Hidden)},
 		"v.class_embd":           {uint64(spec.Hidden), 1},
-		"v.position_embd.weight": {uint64(spec.Hidden), uint64(grid*grid + 1)},
 		"mm.model.fc.weight":     {uint64(spec.Hidden), uint64(spec.OutputHidden)},
 		"mm.post_fc_norm.weight": {uint64(spec.OutputHidden)}, "mm.post_fc_norm.bias": {uint64(spec.OutputHidden)},
 		"mm.up.weight":   {uint64(spec.OutputHidden), uint64(spec.AdapterIntermediate)},
@@ -126,9 +78,7 @@ func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) ([]stri
 		"mm.down.weight": {uint64(spec.AdapterIntermediate), uint64(spec.OutputHidden)},
 		"v.boi":          {uint64(spec.OutputHidden), 1, 1}, "v.eoi": {uint64(spec.OutputHidden), 1, 1},
 	}
-	if hasTensor(file, "v.patch_embd.bias") {
-		required["v.patch_embd.bias"] = []uint64{uint64(spec.Hidden)}
-	}
+	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, grid*grid+1, tensorOptional)
 	for layer := 0; layer < spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		for name, shape := range map[string][]uint64{
@@ -209,7 +159,7 @@ func (r *CogVLMVisionRunner) BuildImagePrompt(
 	beforeImage, afterImage string,
 	_ bool,
 ) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizerAPI, []image.Image{source}, []string{beforeImage, afterImage}, false)
+	return r.BuildImagesPrompt(ctx, tokenizerAPI, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
 }
 
 func (r *CogVLMVisionRunner) BuildImagesPrompt(
@@ -217,7 +167,7 @@ func (r *CogVLMVisionRunner) BuildImagesPrompt(
 	tokenizerAPI ImageTokenizer,
 	sources []image.Image,
 	text []string,
-	_ bool,
+	options PromptOptions,
 ) (MultimodalPrompt, error) {
 	if tokenizerAPI == nil {
 		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
@@ -225,22 +175,11 @@ func (r *CogVLMVisionRunner) BuildImagesPrompt(
 	if len(sources) == 0 || len(text) != len(sources)+1 {
 		return MultimodalPrompt{}, errors.New("projector: CogVLM image/text sequence is inconsistent")
 	}
-	return r.buildImagesPrompt(ctx, tokenizerAPI, sources, "Question: "+strings.Join(text, "")+" Answer:")
-}
-
-func (r *CogVLMVisionRunner) BuildImagesHistoryPrompt(
-	ctx context.Context,
-	tokenizerAPI ImageTokenizer,
-	sources []image.Image,
-	text []string,
-) (MultimodalPrompt, error) {
-	if tokenizerAPI == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	prompt := strings.Join(text, "")
+	if !options.History {
+		prompt = "Question: " + prompt + " Answer:"
 	}
-	if len(sources) == 0 || len(text) != len(sources)+1 {
-		return MultimodalPrompt{}, errors.New("projector: CogVLM history sequence is inconsistent")
-	}
-	return r.buildImagesPrompt(ctx, tokenizerAPI, sources, strings.Join(text, ""))
+	return r.buildImagesPrompt(ctx, tokenizerAPI, sources, prompt)
 }
 
 func (r *CogVLMVisionRunner) buildImagesPrompt(

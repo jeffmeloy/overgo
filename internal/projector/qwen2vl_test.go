@@ -67,7 +67,7 @@ func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 			t.Fatalf("output[%d] = %g, want %g", index, output.Embeddings.Data[index], want)
 		}
 	}
-	if output.GridT != 1 || output.GridH != 2 || output.GridW != 2 || output.MergeSize != 2 {
+	if output.GridT != 1 || output.GridH != 2 || output.GridW != 2 || output.MergeSize != fixtureSpatialMerge {
 		t.Fatalf("output grid = %d,%d,%d merge=%d", output.GridT, output.GridH, output.GridW, output.MergeSize)
 	}
 }
@@ -86,39 +86,17 @@ func TestQwen2VLSpecOptionalNormPairs(t *testing.T) {
 	}
 }
 
-func TestQwen2VLLegacyFFNNamesAndDefaultMerge(t *testing.T) {
+func TestQwen2VLMissingMergeMetadata(t *testing.T) {
 	metadata := tinyQwen2VLMetadata()
 	for index := range metadata {
-		if metadata[index].Key == "clip.vision.spatial_merge_size" {
+		if metadata[index].Key == visionSpatialMergeKey {
 			metadata = append(metadata[:index], metadata[index+1:]...)
 			break
 		}
 	}
-	tensors := tinyQwen2VLTensors()
-	for index := range tensors {
-		switch tensors[index].Name {
-		case "v.blk.0.ffn_up.weight":
-			tensors[index] = f32Tensor(tensors[index].Name, []uint64{8, 4}, nil)
-		case "v.blk.0.ffn_up.bias":
-			tensors[index] = f32Tensor(tensors[index].Name, []uint64{4}, nil)
-		case "v.blk.0.ffn_down.weight":
-			tensors[index] = f32Tensor(tensors[index].Name, []uint64{4, 8}, nil)
-		case "v.blk.0.ffn_down.bias":
-			tensors[index] = f32Tensor(tensors[index].Name, []uint64{8}, nil)
-		}
-	}
-	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	runner, err := openImageProjectorAs[*Qwen2VLRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer runner.Close()
-	if !runner.Spec().LegacyFFNSwapped || runner.Spec().MergeSize != 2 {
-		t.Fatalf("legacy/default spec = %+v", runner.Spec())
-	}
-	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	if _, err := runner.EncodeImage(context.Background(), input, Qwen2VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}); err != nil {
-		t.Fatal(err)
+	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tinyQwen2VLTensors())
+	if _, err := openImageProjectorAs[*Qwen2VLRunner](path, OpenOptions{}); err == nil {
+		t.Fatal("expected missing merge metadata rejection")
 	}
 }
 
@@ -237,7 +215,8 @@ func tinyQwen2VLMetadata() []gguf.Metadata {
 		{Key: "clip.vision.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(6)}},
 		{Key: "clip.vision.block_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
 		{Key: "clip.vision.attention.head_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
-		{Key: "clip.vision.spatial_merge_size", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
+		{Key: visionSpatialMergeKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSpatialMerge)}},
+		{Key: visionRopeFrequencyKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: fixtureRopeFrequency}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},
 		{Key: "clip.vision.image_std", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{1, 1, 1}}},

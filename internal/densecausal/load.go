@@ -23,6 +23,7 @@ import (
 
 	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensorcatalog"
 )
 
 // Dims: model geometry, derived from tensor shapes and config.
@@ -127,14 +128,14 @@ func Load(directory string) (*Model, error) {
 // is adopted, not copied. headDim zero falls back to hidden/heads.
 func NewModel(weights map[string][]float32, shapes map[string][]int, heads, headDim int, ropeTheta, rmsEps float64) (*Model, error) {
 	var d Dims
-	embed, err := shapeOf(shapes, "model.embed_tokens.weight", 2)
+	embed, err := tensorcatalog.Shape(shapes, "model.embed_tokens.weight", 2)
 	if err != nil {
 		return nil, err
 	}
 	d.Vocab, d.Hidden = embed[0], embed[1]
 	headName := "model.embed_tokens.weight"
 	if _, untied := shapes["lm_head.weight"]; untied {
-		head, err := shapeOf(shapes, "lm_head.weight", 2)
+		head, err := tensorcatalog.Shape(shapes, "lm_head.weight", 2)
 		if err != nil {
 			return nil, err
 		}
@@ -166,15 +167,15 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 			d.Layers = layer
 			break
 		}
-		q, err := shapeOf(shapes, prefix+"self_attn.q_proj.weight", 2)
+		q, err := tensorcatalog.Shape(shapes, prefix+"self_attn.q_proj.weight", 2)
 		if err != nil {
 			return nil, err
 		}
-		k, err := shapeOf(shapes, prefix+"self_attn.k_proj.weight", 2)
+		k, err := tensorcatalog.Shape(shapes, prefix+"self_attn.k_proj.weight", 2)
 		if err != nil {
 			return nil, err
 		}
-		gate, err := shapeOf(shapes, prefix+"mlp.gate_proj.weight", 2)
+		gate, err := tensorcatalog.Shape(shapes, prefix+"mlp.gate_proj.weight", 2)
 		if err != nil {
 			return nil, err
 		}
@@ -205,7 +206,7 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 			return nil, fmt.Errorf("densecausal: layer %d bias presence differs from layer 0", layer)
 		}
 	}
-	if _, err := shapeOf(shapes, "model.norm.weight", 1); err != nil {
+	if _, err := tensorcatalog.Shape(shapes, "model.norm.weight", 1); err != nil {
 		return nil, err
 	}
 	// Any bias outside the q/k/v attention triple is an unverified layout.
@@ -254,15 +255,4 @@ func attnBiasName(name string) bool {
 		rest = rest[dot+1:]
 	}
 	return rest == "self_attn.q_proj.bias" || rest == "self_attn.k_proj.bias" || rest == "self_attn.v_proj.bias"
-}
-
-func shapeOf(shapes map[string][]int, name string, rank int) ([]int, error) {
-	shape, ok := shapes[name]
-	if !ok {
-		return nil, fmt.Errorf("densecausal: missing tensor %q", name)
-	}
-	if len(shape) != rank {
-		return nil, fmt.Errorf("densecausal: tensor %q rank %d, want %d", name, len(shape), rank)
-	}
-	return shape, nil
 }

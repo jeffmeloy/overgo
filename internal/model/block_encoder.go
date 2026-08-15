@@ -57,14 +57,10 @@ func buildBidirectionalEncoderAttentionMix(
 	key = builder.Reshape(key, uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
 	if encoder.usesRoPE() {
-		frequencyScale := float32(1)
-		if spec.RopeScalingType == "linear" {
-			frequencyScale = 1 / spec.RopeScalingFactor
-		}
 		query, key = applyRoPEPairWithOptions(builder, query, key, tensor.RoPEOptions{
 			Layout: tensor.RoPELayoutNeoX, Positions: positions,
 			RotaryDimensions: spec.RopeDimensionCount,
-			FrequencyBase:    spec.RopeFrequencyBase, FrequencyScale: frequencyScale,
+			FrequencyBase:    spec.RopeFrequencyBase, FrequencyScale: spec.ropeFrequencyScale(),
 		})
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
@@ -206,14 +202,10 @@ func buildBidirectionalFusedQKVMix(
 	if plan.Sliding {
 		frequencyBase = spec.RopeFrequencySWA
 	}
-	frequencyScale := float32(1)
-	if spec.RopeScalingType == "linear" {
-		frequencyScale = 1 / spec.RopeScalingFactor
-	}
 	query, key = applyRoPEPairWithOptions(builder, query, key, tensor.RoPEOptions{
 		Layout: tensor.RoPELayoutNeoX, Positions: positions,
 		RotaryDimensions: spec.RopeDimensionCount,
-		FrequencyBase:    frequencyBase, FrequencyScale: frequencyScale,
+		FrequencyBase:    frequencyBase, FrequencyScale: spec.ropeFrequencyScale(),
 	})
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	attentionOptions := tensor.AttentionOptions{Scale: attentionScale}
@@ -288,14 +280,10 @@ func buildBidirectionalQKNormMix(
 	if plan.Sliding {
 		frequencyBase = spec.RopeFrequencySWA
 	}
-	frequencyScale := float32(1)
-	if spec.RopeScalingType == "linear" {
-		frequencyScale = 1 / spec.RopeScalingFactor
-	}
 	query, key = applyRoPEPairWithOptions(builder, query, key, tensor.RoPEOptions{
 		Layout: tensor.RoPELayoutNeoX, Positions: positions,
 		RotaryDimensions: spec.RopeDimensionCount,
-		FrequencyBase:    frequencyBase, FrequencyScale: frequencyScale,
+		FrequencyBase:    frequencyBase, FrequencyScale: spec.ropeFrequencyScale(),
 	})
 	query = builder.Scale(query, float32(1/math.Sqrt(float64(spec.KeyLength))))
 	attentionOptions := tensor.AttentionOptions{Scale: 1}

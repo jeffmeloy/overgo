@@ -94,7 +94,7 @@ func TestGemma4MultipleImagePrompt(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
 	prompt, err := runner.BuildImagesPrompt(
 		context.Background(), gemma4PromptTokenizer{}, []image.Image{input, input},
-		[]string{"", "", "Compare."}, false,
+		[]string{"", "", "Compare."}, PromptOptions{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -105,7 +105,7 @@ func TestGemma4MultipleImagePrompt(t *testing.T) {
 	}
 	if _, err := runner.BuildImagesPrompt(
 		context.Background(), gemma4PromptTokenizer{}, []image.Image{input, input},
-		[]string{"text", "", "Compare."}, false,
+		[]string{"text", "", "Compare."}, PromptOptions{},
 	); err == nil {
 		t.Fatal("Gemma 4 accepted text before images")
 	}

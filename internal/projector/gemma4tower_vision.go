@@ -227,9 +227,9 @@ func (r *Gemma4TowerRunner) encodeVisionPatches(
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = reference.Value{Shape: input.Shape, Data: scaled}
 
-	hidden := builder.MulMat(graph.weight("v.patch_embd.weight"), input)
+	hidden := builder.MulMat(graph.weight(visionPatchWeightTensor), input)
 	positionTable := builder.Reshape(
-		graph.weight("v.position_embd.weight"),
+		graph.weight(visionPositionWeightTensor),
 		uint64(spec.Hidden), uint64(2*spec.PositionCount),
 	)
 	xRows, yRows := gemma4VisionPositionRows(positions, spec.PositionCount)

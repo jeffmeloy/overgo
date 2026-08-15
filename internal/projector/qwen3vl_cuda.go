@@ -12,9 +12,6 @@ import (
 
 const (
 	qwen3VLBilinearCornerCount = 4
-	qwen3VLRoPEComponentCount  = 4
-	qwen3VLRoPEAxisCount       = 2
-	qwen3VLRoPEFrequencyBase   = 10_000
 	qwen3VLGELUCubicFactor     = 0.044715
 	qwen3VLGELUOutputScale     = 0.5
 )
@@ -31,14 +28,14 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 	input1 := builder.Input("pixel_values.1", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	weight := graph.weight
-	patch0 := builder.Reshape(weight("v.patch_embd.weight"), uint64(temporalWidth), uint64(r.spec.Hidden))
-	patch1 := builder.Reshape(weight("v.patch_embd.weight.1"), uint64(temporalWidth), uint64(r.spec.Hidden))
-	hidden := builder.Add(builder.Add(builder.MulMat(patch0, input0), builder.MulMat(patch1, input1)), weight("v.patch_embd.bias"))
+	patch0 := builder.Reshape(weight(visionPatchWeightTensor), uint64(temporalWidth), uint64(r.spec.Hidden))
+	patch1 := builder.Reshape(weight(visionPatchWeightTensor1), uint64(temporalWidth), uint64(r.spec.Hidden))
+	hidden := builder.Add(builder.Add(builder.MulMat(patch0, input0), builder.MulMat(patch1, input1)), weight(visionPatchBiasTensor))
 	rowOrder, columnOrder := mergedGrid(input.GridH, input.GridW, r.spec.MergeSize)
 	hostFeeds := graph.hostFeeds
 	hostFeeds[input0] = reference.Value{Shape: input0.Shape, Data: pixels0}
 	hostFeeds[input1] = reference.Value{Shape: input1.Shape, Data: pixels1}
-	hidden = r.qwen3VLPositionGraph(builder, hidden, weight("v.position_embd.weight"), input, rowOrder, columnOrder, hostFeeds)
+	hidden = r.qwen3VLPositionGraph(builder, hidden, weight(visionPositionWeightTensor), input, rowOrder, columnOrder, hostFeeds)
 	positionsY := make([]uint32, rows)
 	positionsX := make([]uint32, rows)
 	spatial := input.GridH * input.GridW
@@ -58,8 +55,8 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 		q := builder.GroupSlice(qkv, 0, headWidth, uint64(r.spec.Heads), headWidth)
 		k := builder.GroupSlice(qkv, uint64(r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
 		v := builder.GroupSlice(qkv, uint64(2*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
-		q = qwen3VLVisionRoPE(builder, q, positionsY, positionsX)
-		k = qwen3VLVisionRoPE(builder, k, positionsY, positionsX)
+		q = interleavedVisionRoPE(builder, q, positionsY, positionsX, r.spec.RopeFrequency)
+		k = interleavedVisionRoPE(builder, k, positionsY, positionsX, r.spec.RopeFrequency)
 		var attention *tensor.Tensor
 		for temporal := 0; temporal < input.GridT; temporal++ {
 			offset := uint64(temporal * spatial * r.spec.Hidden)
@@ -91,7 +88,7 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 			deepstack = append(deepstack, builder.Add(builder.MulMat(weight(prefix+"fc2.weight"), fc1), weight(prefix+"fc2.bias")))
 		}
 	}
-	normalized := builder.AffineLayerNorm(hidden, weight("v.post_ln.weight"), weight("v.post_ln.bias"), r.spec.LayerNormEpsilon)
+	normalized := builder.AffineLayerNorm(hidden, weight(visionPostNormWeightTensor), weight(visionPostNormBiasTensor), r.spec.LayerNormEpsilon)
 	merged := builder.Reshape(normalized, uint64(mergedWidth), uint64(mergedRows))
 	fc1 := builder.Add(builder.MulMat(weight("mm.0.weight"), merged), weight("mm.0.bias"))
 	fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
@@ -165,26 +162,27 @@ func (r *Qwen3VLRunner) qwen3VLPositionGraph(
 	return builder.Add(hidden, position)
 }
 
-func qwen3VLVisionRoPE(
+func interleavedVisionRoPE(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	positionsY, positionsX []uint32,
+	frequencyBase float32,
 ) *tensor.Tensor {
 	headWidth := input.Shape.Dims[0]
-	quarter := headWidth / qwen3VLRoPEComponentCount
+	quarter := headWidth / visionRoPEComponentCount
 	heads := input.Shape.Dims[1]
 	rows := input.Shape.Dims[2]
-	axisWidth := headWidth / qwen3VLRoPEAxisCount
+	axisWidth := headWidth / visionRoPEAxisCount
 	y := builder.Reshape(
-		builder.GroupSlice(input, 0, quarter, qwen3VLRoPEAxisCount, axisWidth),
+		builder.GroupSlice(input, 0, quarter, visionRoPEAxisCount, axisWidth),
 		axisWidth, heads, rows,
 	)
 	x := builder.Reshape(
-		builder.GroupSlice(input, quarter, quarter, qwen3VLRoPEAxisCount, axisWidth),
+		builder.GroupSlice(input, quarter, quarter, visionRoPEAxisCount, axisWidth),
 		axisWidth, heads, rows,
 	)
-	y = builder.RoPENeoX(y, positionsY, uint32(axisWidth), qwen3VLRoPEFrequencyBase)
-	x = builder.RoPENeoX(x, positionsX, uint32(axisWidth), qwen3VLRoPEFrequencyBase)
+	y = builder.RoPENeoX(y, positionsY, uint32(axisWidth), frequencyBase)
+	x = builder.RoPENeoX(x, positionsX, uint32(axisWidth), frequencyBase)
 	split := func(value *tensor.Tensor, offset uint64) *tensor.Tensor {
 		return builder.Reshape(builder.GroupSlice(value, offset, quarter, 1, quarter), quarter, heads, rows)
 	}

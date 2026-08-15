@@ -171,7 +171,7 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("Grok rotary/head dimensions are invalid")
 		case s.AttentionScale <= 0 || s.AttentionSoftcap <= 0:
 			return errors.New("Grok attention scaling metadata is invalid")
-		case s.RopeScalingType == "yarn" &&
+		case s.RopeScalingType == ropeScalingYaRN &&
 			(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 ||
 				s.YaRNExtFactor < 0 || s.YaRNAttentionFactor <= 0 ||
 				s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0 ||
@@ -192,7 +192,7 @@ func (s Spec) validateHybridMetadata() error {
 		case s.SlidingWindow > 0 && (s.RopeFrequencySWA <= 0 ||
 			(len(s.SlidingLayers) == 0 && s.SlidingPattern < 2)):
 			return errors.New("Mellum sliding-attention metadata is invalid")
-		case s.RopeScalingType == "yarn" &&
+		case s.RopeScalingType == ropeScalingYaRN &&
 			(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 || s.YaRNExtFactor < 0 ||
 				s.YaRNAttentionFactor <= 0 || s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0):
 			return errors.New("Mellum YaRN metadata is invalid")
@@ -282,7 +282,7 @@ func (s Spec) validateHybridMetadata() error {
 	graniteFamily := hybrid == HybridValidationGranite || hybrid == HybridValidationGraniteMoE ||
 		hybrid == HybridValidationGraniteHybrid
 	if graniteFamily &&
-		s.RopeScalingType == "longrope" &&
+		s.RopeScalingType == ropeScalingLongRoPE &&
 		(!validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
@@ -316,13 +316,13 @@ func (s Spec) validateHybridMetadata() error {
 		return errors.New("Llama MoE expert metadata is invalid")
 	}
 	ropeScalingFamily := hybrid == HybridValidationLlama || hybrid == HybridValidationRopeScaling
-	if s.RopeScalingType == "longrope" && ropeScalingFamily &&
+	if s.RopeScalingType == ropeScalingLongRoPE && ropeScalingFamily &&
 		(!validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 		return fmt.Errorf("%s LongRoPE metadata is invalid", s.Architecture)
 	}
-	if s.RopeScalingType == "yarn" && ropeScalingFamily &&
+	if s.RopeScalingType == ropeScalingYaRN && ropeScalingFamily &&
 		(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 ||
 			s.YaRNExtFactor < 0 || s.YaRNAttentionFactor <= 0 ||
 			s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0 ||
@@ -382,7 +382,7 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("Laguna expert weight scale is invalid")
 		case !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment):
 			return errors.New("Laguna full-attention rotary dimension count is invalid")
-		case s.RopeScalingType != "yarn":
+		case s.RopeScalingType != ropeScalingYaRN:
 			return errors.New("Laguna full-attention layers require YaRN RoPE")
 		case s.KeyLength != s.ValueLength:
 			return errors.New("Laguna requires matching attention key and value lengths")

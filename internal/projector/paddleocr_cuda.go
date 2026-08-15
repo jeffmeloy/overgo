@@ -30,12 +30,12 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	hostFeeds := graph.hostFeeds
 	hostFeeds[pixels] = reference.Value{Shape: pixels.Shape, Data: input.PixelValues}
 	weight := graph.weight
-	patch := builder.Reshape(weight("v.patch_embd.weight"), uint64(patchWidth), uint64(r.spec.Hidden))
-	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), "v.patch_embd.bias")
+	patch := builder.Reshape(weight(visionPatchWeightTensor), uint64(patchWidth), uint64(r.spec.Hidden))
+	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), visionPatchBiasTensor)
 	rowOrder, columnOrder := paddleOCRGrid(input.GridH, input.GridW)
-	hidden = r.paddleOCRPositionGraph(builder, hidden, weight("v.position_embd.weight"), input, rowOrder, columnOrder, hostFeeds)
+	hidden = r.paddleOCRPositionGraph(builder, hidden, weight(visionPositionWeightTensor), input, rowOrder, columnOrder, hostFeeds)
 	if r.spec.PreLayerNorm {
-		hidden = builder.AffineLayerNorm(hidden, weight("v.pre_ln.weight"), weight("v.pre_ln.bias"), r.spec.LayerNormEpsilon)
+		hidden = builder.AffineLayerNorm(hidden, weight(visionPreNormWeightTensor), weight(visionPreNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
 	positionsY := make([]uint32, rows)
 	positionsX := make([]uint32, rows)
@@ -60,8 +60,8 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 		q := builder.GroupSlice(qkv, 0, headWidth, uint64(r.spec.Heads), headWidth)
 		k := builder.GroupSlice(qkv, uint64(r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
 		v := builder.GroupSlice(qkv, uint64(2*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
-		q = qwen3VLVisionRoPE(builder, q, positionsY, positionsX)
-		k = qwen3VLVisionRoPE(builder, k, positionsY, positionsX)
+		q = interleavedVisionRoPE(builder, q, positionsY, positionsX, r.spec.RopeFrequency)
+		k = interleavedVisionRoPE(builder, k, positionsY, positionsX, r.spec.RopeFrequency)
 		attention := r.attention.graph(builder, q, k, v)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))
 		projected := graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_out.weight"), attention), prefix+"attn_out.bias")
@@ -73,7 +73,7 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 		hidden = builder.Add(hidden, down)
 	}
 	if r.spec.PostLayerNorm {
-		hidden = builder.AffineLayerNorm(hidden, weight("v.post_ln.weight"), weight("v.post_ln.bias"), r.spec.LayerNormEpsilon)
+		hidden = builder.AffineLayerNorm(hidden, weight(visionPostNormWeightTensor), weight(visionPostNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
 	hidden = builder.AffineLayerNorm(
 		hidden, weight("mm.input_norm.weight"), weight("mm.input_norm.bias"), paddleOCRInputNormEpsilon,

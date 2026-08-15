@@ -92,7 +92,7 @@ func TestLlama4MultipleImagePrompt(t *testing.T) {
 	prompt, err := runner.BuildImagesPrompt(
 		context.Background(), llama4PromptTokenizer{},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
-		[]string{"first ", " then ", " question"}, false,
+		[]string{"first ", " then ", " question"}, PromptOptions{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -172,7 +172,8 @@ func tinyLlama4VisionMetadata() []gguf.Metadata {
 		{Key: "clip.vision.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(6)}},
 		{Key: "clip.vision.block_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
 		{Key: "clip.vision.attention.head_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
-		{Key: "clip.vision.projector.scale_factor", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
+		{Key: visionProjectorScaleKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSpatialMerge)}},
+		{Key: visionRopeFrequencyKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: fixtureRopeFrequency}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},
 		{Key: "clip.vision.image_std", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{1, 1, 1}}},
@@ -181,9 +182,9 @@ func tinyLlama4VisionMetadata() []gguf.Metadata {
 
 func tinyLlama4VisionSpec() Llama4VisionSpec {
 	return Llama4VisionSpec{
-		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8, OutputHidden: 6,
-		AdapterIntermediate: 8, AdapterHidden: 5, Layers: 1, Heads: 1, MergeSize: 2,
-		LayerNormEpsilon: 1e-6, RopeTheta: 10000, ImageStd: [3]float32{1, 1, 1}, FusedQKV: []bool{true},
+		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1), OutputHidden: 6,
+		AdapterIntermediate: 8, AdapterHidden: 5, MergeSize: fixtureSpatialMerge,
+		FusedQKV: []bool{true},
 	}
 }
 

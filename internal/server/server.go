@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -203,38 +202,6 @@ type DeviceExecutionAPI interface {
 	DeviceExecutionStats(context.Context) (driver.ExecutionStats, error)
 }
 
-type Qwen3VLProjector interface {
-	BuildQwen35ImagePrompt(
-		context.Context,
-		projector.Qwen3VLTokenizer,
-		image.Image,
-		string,
-		string,
-		bool,
-	) (projector.Qwen3VLPrompt, error)
-}
-
-type ImageProjector interface {
-	BuildImagePrompt(
-		context.Context,
-		projector.ImageTokenizer,
-		image.Image,
-		string,
-		string,
-		bool,
-	) (projector.MultimodalPrompt, error)
-}
-
-type AudioProjector interface {
-	BuildAudioPrompt(
-		context.Context,
-		projector.ImageTokenizer,
-		[]float32,
-		string,
-		string,
-	) (projector.MultimodalPrompt, error)
-}
-
 type Config struct {
 	ModelID            string
 	MaxTokens          int
@@ -248,9 +215,9 @@ type Config struct {
 	RequestTimeout     time.Duration
 	InfillBatchSize    int
 	SPMInfill          bool
-	Qwen3VLProjector   Qwen3VLProjector
-	ImageProjector     ImageProjector
-	AudioProjector     AudioProjector
+	Qwen3VLProjector   projector.ImageProjector
+	ImageProjector     projector.ImageProjector
+	AudioProjector     projector.AudioProjector
 	RemoteMediaPolicy  *RemoteMediaPolicy
 	ResponseFiles      ResponseFileResolver
 	ResponseToolPolicy ResponseToolPolicy

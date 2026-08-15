@@ -88,7 +88,7 @@ func (s Spec) validateAttentionMetadata() error {
 			s.RopeDimensionCount%2 != 0 || s.KeyLength != s.ValueLength {
 			return errors.New("Deci rotary/head dimensions are invalid")
 		}
-		if s.RopeScalingType == "longrope" &&
+		if s.RopeScalingType == ropeScalingLongRoPE &&
 			(s.OriginalContextLength == 0 || s.RopeAttentionFactor <= 0 ||
 				math.IsNaN(float64(s.RopeAttentionFactor)) || math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 			return errors.New("Deci LongRoPE metadata is invalid")

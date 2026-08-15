@@ -19,6 +19,7 @@ import (
 	"math"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/tensorcatalog"
 )
 
 // codecConv: one SEANet convolution (weights + geometry).
@@ -116,7 +117,7 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 		return nil, fmt.Errorf("speechsynth: decoder transformer width %v != outer dim %d", norm1, outerDim)
 	}
 	d := norm1[0]
-	nLayers, err := layerCount(shapes, codecLayerPrefix, ".norm1.weight")
+	nLayers, err := tensorcatalog.IndexedCount(shapes, codecLayerPrefix, ".norm1.weight")
 	if err != nil {
 		return nil, err
 	}

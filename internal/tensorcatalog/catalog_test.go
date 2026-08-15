@@ -42,3 +42,22 @@ func TestValidateRelationalRequirement(t *testing.T) {
 		}
 	}
 }
+
+func TestShapeAndIndexedCount(t *testing.T) {
+	shapes := map[string][]int{
+		"layer.0.weight": {2, 3},
+		"layer.1.weight": {2, 3},
+	}
+	shape, err := Shape(shapes, "layer.0.weight", 2)
+	if err != nil || shape[0] != 2 || shape[1] != 3 {
+		t.Fatalf("shape = %v, %v", shape, err)
+	}
+	count, err := IndexedCount(shapes, "layer.", ".weight")
+	if err != nil || count != 2 {
+		t.Fatalf("count = %d, %v", count, err)
+	}
+	delete(shapes, "layer.0.weight")
+	if _, err := IndexedCount(shapes, "layer.", ".weight"); err == nil {
+		t.Fatal("nonzero starting index accepted")
+	}
+}

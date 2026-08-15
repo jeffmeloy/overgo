@@ -81,27 +81,6 @@ func BindDeviceLayerGraphInputs(
 	return result, feeds, nil
 }
 
-func (w *DeviceF32Weights) Lookup(name string) (DeviceTensor, bool) {
-	if w == nil {
-		return DeviceTensor{}, false
-	}
-	return w.deviceTensorStore.Lookup(name)
-}
-
-func (w *DeviceF32Weights) Count() int {
-	if w == nil {
-		return 0
-	}
-	return w.deviceTensorStore.Count()
-}
-
-func (w *DeviceF32Weights) Close() error {
-	if w == nil {
-		return nil
-	}
-	return w.deviceTensorStore.Close()
-}
-
 func f32Bytes(values []float32) []byte {
 	if len(values) == 0 {
 		return nil

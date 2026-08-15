@@ -277,12 +277,12 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Qwen3.5-4B-mmproj-bf16.gguf")
+	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Qwen3.5-4B-mmproj-bf16-facts-v2.gguf")
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Qwen3.5-4B-f16.gguf")
 	imagePath := filepath.Join(roots.Models, "..", "fixtures", "qwen35_mm_image.png")
 	imageGoldenPath := filepath.Join(roots.Models, "..", "fixtures", "qwen35_mm_golden.json")
 	videoGoldenPath := filepath.Join(roots.Models, "..", "fixtures", "qwen35_video_golden.json")
-	assertSHA256(t, projectorPath, "3bc43ac6246bd2c312cd7cd5df95c55ba3ddb7019d6d22910cd25936cd656186")
+	assertSHA256(t, projectorPath, "7b92fcb9bd3c70ef66bfdf6f9dc085ca8335cb85190ecd2eb6273aa1d057496e")
 	assertSHA256(t, imagePath, "ccacbf46fc6dfe7545aed8a791f8ac343e1302ffbb7a1e899297afb68aa517b7")
 	assertSHA256(t, imageGoldenPath, "774a9e8ffe2ea3ba37e142123ee35ddcf91c24baa43647b0a9af96fce74f8ea1")
 	assertSHA256(t, videoGoldenPath, "38d61519eb39e98e577aeeebec6159be5efd6b2680e3b4c52d87da0047967505")
@@ -337,7 +337,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	}
 	assertQwen35Grid(t, "video", processedVideo, videoGolden.Grid)
 	assertQwen35Probe(t, "video pixels", processedVideo.PixelValues, videoGolden.Pixels, 0.15, 0)
-	videoPrompt, err := vision.BuildQwen35VideoPrompt(
+	videoPrompt, err := vision.BuildVideoPrompt(
 		context.Background(), language, frames, "", videoGolden.Question, 24, true,
 	)
 	if err != nil {

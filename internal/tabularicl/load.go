@@ -14,12 +14,10 @@ import (
 	"math"
 	"path/filepath"
 	"slices"
-	"sort"
-	"strconv"
-	"strings"
 
 	"overgo/internal/hostmath"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensorcatalog"
 )
 
 const (
@@ -199,46 +197,10 @@ func (l *headLoader) tensor(name string) []float32 {
 	return values
 }
 
-func (l *headLoader) shapeOf(name string, rank int) ([]int, error) {
-	shape, ok := l.shapes[name]
-	if !ok {
-		return nil, fmt.Errorf("missing tensor %q", name)
-	}
-	if len(shape) != rank {
-		return nil, fmt.Errorf("tensor %q rank %d, want %d", name, len(shape), rank)
-	}
-	return shape, nil
-}
-
-// blockCount: contiguous prefix.blocks.N indices probed via probe suffix.
-func (l *headLoader) blockCount(prefix, probe string) (int, error) {
-	var indices []int
-	for name := range l.shapes {
-		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, probe) {
-			continue
-		}
-		index, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(name, prefix), probe))
-		if err != nil || index < 0 {
-			return 0, fmt.Errorf("malformed block tensor %q", name)
-		}
-		indices = append(indices, index)
-	}
-	if len(indices) == 0 {
-		return 0, fmt.Errorf("no blocks under %q", prefix)
-	}
-	sort.Ints(indices)
-	for i, index := range indices {
-		if index != i {
-			return 0, fmt.Errorf("block indices under %q not contiguous from zero: %v", prefix, indices)
-		}
-	}
-	return len(indices), nil
-}
-
 // deriveDims reads every geometric fact from tensor shapes.
 func (l *headLoader) deriveDims() (Dims, error) {
 	var d Dims
-	inLinear, err := l.shapeOf("cell_embedder.in_linear.weight", 2)
+	inLinear, err := tensorcatalog.Shape(l.shapes, "cell_embedder.in_linear.weight", 2)
 	if err != nil {
 		return d, err
 	}
@@ -246,7 +208,7 @@ func (l *headLoader) deriveDims() (Dims, error) {
 		return d, fmt.Errorf("in_linear input width %d is not sin+cos pairs", inLinear[1])
 	}
 	d.EmbedDim, d.NumFreq = inLinear[0], inLinear[1]/2
-	fourier, err := l.shapeOf("cell_embedder.fourier_frequencies", 2)
+	fourier, err := tensorcatalog.Shape(l.shapes, "cell_embedder.fourier_frequencies", 2)
 	if err != nil {
 		return d, err
 	}
@@ -254,7 +216,7 @@ func (l *headLoader) deriveDims() (Dims, error) {
 		return d, fmt.Errorf("fourier freq cols %d != in_linear pairs %d", fourier[1], d.NumFreq)
 	}
 	d.FeatureGroupSize = fourier[0]
-	cls, err := l.shapeOf("cls_tokens", 2)
+	cls, err := tensorcatalog.Shape(l.shapes, "cls_tokens", 2)
 	if err != nil {
 		return d, err
 	}
@@ -262,7 +224,7 @@ func (l *headLoader) deriveDims() (Dims, error) {
 		return d, fmt.Errorf("cls_tokens width %d != embed %d", cls[1], d.EmbedDim)
 	}
 	d.NumCLS = cls[0]
-	ind, err := l.shapeOf("col_embedder.tf_col.blocks.0.ind_vectors", 2)
+	ind, err := tensorcatalog.Shape(l.shapes, "col_embedder.tf_col.blocks.0.ind_vectors", 2)
 	if err != nil {
 		return d, err
 	}
@@ -273,7 +235,7 @@ func (l *headLoader) deriveDims() (Dims, error) {
 
 	// Head counts: per-dim scale length IS the head dim of its tower.
 	headsOf := func(name string, width int) (int, error) {
-		pds, err := l.shapeOf(name, 1)
+		pds, err := tensorcatalog.Shape(l.shapes, name, 1)
 		if err != nil {
 			return 0, err
 		}
@@ -291,32 +253,32 @@ func (l *headLoader) deriveDims() (Dims, error) {
 	if d.ICLHeads, err = headsOf("icl_predictor.tf_icl.blocks.0.attn.per_dim_scale", d.NumCLS*d.EmbedDim); err != nil {
 		return d, err
 	}
-	if d.ColBlocks, err = l.blockCount("col_embedder.tf_col.blocks.", ".ind_vectors"); err != nil {
+	if d.ColBlocks, err = tensorcatalog.IndexedCount(l.shapes, "col_embedder.tf_col.blocks.", ".ind_vectors"); err != nil {
 		return d, err
 	}
-	if d.RowBlocks, err = l.blockCount("row_interactor.tf_row.blocks.", ".attn.per_dim_scale"); err != nil {
+	if d.RowBlocks, err = tensorcatalog.IndexedCount(l.shapes, "row_interactor.tf_row.blocks.", ".attn.per_dim_scale"); err != nil {
 		return d, err
 	}
-	if d.ICLBlocks, err = l.blockCount("icl_predictor.tf_icl.blocks.", ".attn.per_dim_scale"); err != nil {
+	if d.ICLBlocks, err = tensorcatalog.IndexedCount(l.shapes, "icl_predictor.tf_icl.blocks.", ".attn.per_dim_scale"); err != nil {
 		return d, err
 	}
 	// Second towers must mirror the first (the forward reuses one count).
-	if n, err := l.blockCount("col_embedder_2.tf_col.blocks.", ".ind_vectors"); err != nil || n != d.ColBlocks {
+	if n, err := tensorcatalog.IndexedCount(l.shapes, "col_embedder_2.tf_col.blocks.", ".ind_vectors"); err != nil || n != d.ColBlocks {
 		return d, fmt.Errorf("col_embedder_2 blocks %d/%v != col_embedder blocks %d", n, err, d.ColBlocks)
 	}
-	if n, err := l.blockCount("row_interactor_2.tf_row.blocks.", ".attn.per_dim_scale"); err != nil || n != d.RowBlocks {
+	if n, err := tensorcatalog.IndexedCount(l.shapes, "row_interactor_2.tf_row.blocks.", ".attn.per_dim_scale"); err != nil || n != d.RowBlocks {
 		return d, fmt.Errorf("row_interactor_2 blocks %d/%v != row_interactor blocks %d", n, err, d.RowBlocks)
 	}
 	// Task kind: the classifier ships a class-projection y encoder; the
 	// regressor ships a scalar MLP2 y encoder.
 	if _, ok := l.shapes["icl_predictor.y_encoder.projection.weight"]; ok {
 		d.IsClassifier = true
-		lookup, err := l.shapeOf("cell_embedder.y_embedder_lookup.weight", 2)
+		lookup, err := tensorcatalog.Shape(l.shapes, "cell_embedder.y_embedder_lookup.weight", 2)
 		if err != nil {
 			return d, err
 		}
 		d.MaxClasses = lookup[0]
-		projection, err := l.shapeOf("icl_predictor.y_encoder.projection.weight", 2)
+		projection, err := tensorcatalog.Shape(l.shapes, "icl_predictor.y_encoder.projection.weight", 2)
 		if err != nil {
 			return d, err
 		}
@@ -324,7 +286,7 @@ func (l *headLoader) deriveDims() (Dims, error) {
 			return d, fmt.Errorf("y projection shape %v != [%d %d]", projection, d.NumCLS*d.EmbedDim, d.MaxClasses)
 		}
 	}
-	decoder, err := l.shapeOf("icl_predictor.decoder.layers.1.weight", 2)
+	decoder, err := tensorcatalog.Shape(l.shapes, "icl_predictor.decoder.layers.1.weight", 2)
 	if err != nil {
 		return d, err
 	}

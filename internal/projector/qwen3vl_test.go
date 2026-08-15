@@ -157,7 +157,7 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 			t.Fatalf("output[%d] = %g, want %g", index, value, want[index])
 		}
 	}
-	if output.GridT != 1 || output.GridH != 2 || output.GridW != 2 || output.MergeSize != 2 {
+	if output.GridT != 1 || output.GridH != 2 || output.GridW != 2 || output.MergeSize != fixtureSpatialMerge {
 		t.Fatalf("output grid = %d,%d,%d merge=%d", output.GridT, output.GridH, output.GridW, output.MergeSize)
 	}
 }
@@ -242,7 +242,7 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	prompt, err := runner.BuildImagesPrompt(
 		context.Background(), qwen3VLPromptTokenizer{}, []image.Image{input, input},
-		[]string{"A", "B", "C"}, true,
+		[]string{"A", "B", "C"}, PromptOptions{Thinking: true},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -315,10 +315,8 @@ func compareFloat32Tolerance(t *testing.T, name string, got, want []float32, tol
 
 func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 	spec := Qwen3VLSpec{
-		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8,
-		MergerIntermediate: 16, OutputHidden: 6, Layers: 1, Heads: 1,
-		MergeSize: 2, LayerNormEpsilon: 1e-6,
-		ImageStd: [3]float32{1, 1, 1},
+		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1),
+		MergerIntermediate: 16, OutputHidden: 6, MergeSize: fixtureSpatialMerge,
 	}
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 4; y++ {
@@ -346,10 +344,8 @@ func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 
 func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
 	spec := Qwen3VLSpec{
-		ImageSize: 4, PatchSize: 2, Hidden: 4, Intermediate: 8,
-		MergerIntermediate: 16, OutputHidden: 6, Layers: 1, Heads: 1,
-		MergeSize: 2, LayerNormEpsilon: 1e-6,
-		ImageStd: [3]float32{1, 1, 1},
+		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1),
+		MergerIntermediate: 16, OutputHidden: 6, MergeSize: fixtureSpatialMerge,
 	}
 	frames := make([]image.Image, 3)
 	for index, red := range []uint8{10, 20, 30} {
@@ -469,7 +465,8 @@ func tinyQwen3VLMetadata() []gguf.Metadata {
 		{Key: "clip.vision.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(6)}},
 		{Key: "clip.vision.block_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
 		{Key: "clip.vision.attention.head_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
-		{Key: "clip.vision.spatial_merge_size", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
+		{Key: visionSpatialMergeKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSpatialMerge)}},
+		{Key: visionRopeFrequencyKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: fixtureRopeFrequency}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},
 		{Key: "clip.vision.image_std", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{1, 1, 1}}},

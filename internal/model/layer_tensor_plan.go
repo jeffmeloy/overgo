@@ -190,7 +190,7 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 	if multiAxis {
 		plan.kind = rotaryGraphMulti
 		plan.sections = s.RopeSections
-		if s.RopeScalingType == "linear" {
+		if s.RopeScalingType == ropeScalingLinear {
 			plan.frequencyScale = 1 / s.RopeScalingFactor
 		}
 		return plan
@@ -207,7 +207,7 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 	}
 	applyNormal := func() {
 		plan.layout = tensor.RoPELayoutNormal
-		if s.RopeScalingType == "linear" {
+		if s.RopeScalingType == ropeScalingLinear {
 			plan.frequencyScale = 1 / s.RopeScalingFactor
 		}
 		if policy.SlidingFrequency && s.IsSlidingLayer(layer) {
@@ -215,7 +215,7 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		}
 	}
 	applyDefault := func() {
-		if s.RopeScalingType == "linear" {
+		if s.RopeScalingType == ropeScalingLinear {
 			plan.frequencyScale = 1 / s.RopeScalingFactor
 		}
 		if policy.SlidingScaleReset && s.IsSlidingLayer(layer) {
@@ -234,13 +234,13 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		plan.rotaryDimensions = s.RopeDimensionSWA
 		plan.frequencyBase = s.RopeFrequencySWA
 	case rotaryPolicyNeoXYaRNDense:
-		if s.RopeScalingType == "yarn" && !s.IsSlidingLayer(layer) {
+		if s.RopeScalingType == ropeScalingYaRN && !s.IsSlidingLayer(layer) {
 			setYaRN(tensor.RoPELayoutNeoX)
 		} else {
 			applyDefault()
 		}
 	case rotaryPolicyNormalYaRN:
-		if s.RopeScalingType == "yarn" {
+		if s.RopeScalingType == ropeScalingYaRN {
 			setYaRN(tensor.RoPELayoutNormal)
 		} else {
 			applyNormal()
@@ -248,7 +248,7 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 	case rotaryPolicyNormal:
 		applyNormal()
 	case rotaryPolicySlidingLinearReset:
-		if policy.ForceScaleAndSlidingReset || s.RopeScalingType == "linear" {
+		if policy.ForceScaleAndSlidingReset || s.RopeScalingType == ropeScalingLinear {
 			plan.frequencyScale = 1 / s.RopeScalingFactor
 		}
 		if s.IsSlidingLayer(layer) {
@@ -263,7 +263,7 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 	if policy.FactorPairs {
 		plan.factorPairs = rotaryDimensions / 2
 	}
-	if profile.Has(ArchitectureLongRoPE) && s.RopeScalingType != "yarn" &&
+	if profile.Has(ArchitectureLongRoPE) && s.RopeScalingType != ropeScalingYaRN &&
 		s.RopeAttentionFactor > 0 && s.RopeAttentionFactor != 1 {
 		plan.outputScale = s.RopeAttentionFactor
 	}

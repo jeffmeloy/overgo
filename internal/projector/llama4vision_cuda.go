@@ -27,13 +27,13 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 	hostFeeds := graph.hostFeeds
 	hostFeeds[pixels] = pixelsValue(pixels, input.PixelValues)
 	weight := graph.weight
-	patch := builder.Reshape(weight("v.patch_embd.weight"), uint64(patchWidth), uint64(r.spec.Hidden))
-	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), "v.patch_embd.bias")
+	patch := builder.Reshape(weight(visionPatchWeightTensor), uint64(patchWidth), uint64(r.spec.Hidden))
+	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), visionPatchBiasTensor)
 	class := builder.Reshape(weight("v.class_embd"), uint64(r.spec.Hidden), 1)
 	hidden = builder.Concat(hidden, class, 1)
-	hidden = builder.Add(hidden, weight("v.position_embd.weight"))
+	hidden = builder.Add(hidden, weight(visionPositionWeightTensor))
 	if r.spec.PreLayerNorm {
-		hidden = builder.AffineLayerNorm(hidden, weight("v.pre_ln.weight"), weight("v.pre_ln.bias"), r.spec.LayerNormEpsilon)
+		hidden = builder.AffineLayerNorm(hidden, weight(visionPreNormWeightTensor), weight(visionPreNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
 	positionsW, positionsH := make([]uint32, rows), make([]uint32, rows)
 	for index := 0; index < patchRows; index++ {
@@ -57,8 +57,8 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 		q := builder.GroupSlice(qkv, 0, headWidth, uint64(r.spec.Heads), headWidth)
 		k := builder.GroupSlice(qkv, uint64(r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
 		v := builder.GroupSlice(qkv, uint64(2*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
-		q = llama4VisionRoPEGraph(builder, q, positionsW, positionsH, r.spec.RopeTheta)
-		k = llama4VisionRoPEGraph(builder, k, positionsW, positionsH, r.spec.RopeTheta)
+		q = llama4VisionRoPEGraph(builder, q, positionsW, positionsH, r.spec.RopeFrequency)
+		k = llama4VisionRoPEGraph(builder, k, positionsW, positionsH, r.spec.RopeFrequency)
 		attention := r.attention.graph(builder, q, k, v)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))
 		projected := graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_out.weight"), attention), prefix+"attn_out.bias")
@@ -70,7 +70,7 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 		hidden = builder.Add(hidden, down)
 	}
 	if r.spec.PostLayerNorm {
-		hidden = builder.AffineLayerNorm(hidden, weight("v.post_ln.weight"), weight("v.post_ln.bias"), r.spec.LayerNormEpsilon)
+		hidden = builder.AffineLayerNorm(hidden, weight(visionPostNormWeightTensor), weight(visionPostNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
 	hidden = builder.FlatSlice(hidden, 0, uint64(r.spec.Hidden), uint64(patchRows))
 	merged := mergePlan.graph(builder, hidden)

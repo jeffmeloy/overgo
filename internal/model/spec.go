@@ -594,7 +594,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		if spec.AttentionTempScale != 0 {
 			spec.AttentionTempFloor = spec.OriginalContextLength
 		}
-		if spec.RopeScalingType == "yarn" {
+		if spec.RopeScalingType == ropeScalingYaRN {
 			spec.RopeYaRNLogMultiplier, _ = optional[float32](
 				values, prefix+"rope.scaling.yarn_log_multiplier", gguf.ValueTypeFloat32,
 			)
@@ -1544,9 +1544,9 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			}
 			spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
 			if value, ok := optional[float32](values, prefix+"rope.scaling.yarn_log_multiplier", gguf.ValueTypeFloat32); ok {
-				spec.RopeYaRNLogMultiplier = value / 0.1
+				spec.RopeYaRNLogMultiplier = value / yarnLogFactorStep
 			}
-			if spec.RopeScalingType == "yarn" && spec.RopeScalingFactor > 0 {
+			if spec.RopeScalingType == ropeScalingYaRN && spec.RopeScalingFactor > 0 {
 				rawAttentionFactor := float32(1)
 				if value, ok := optional[float32](values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32); ok {
 					rawAttentionFactor = value
@@ -1802,7 +1802,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		spec.RopeDimensionSWA = spec.KeyLengthSWA
 		spec.AttentionScale = 1
 	}
-	if spec.RopeScalingType == "longrope" && profile.Has(ArchitectureLongRoPE) {
+	if spec.RopeScalingType == ropeScalingLongRoPE && profile.Has(ArchitectureLongRoPE) {
 		spec.RopeDimensionCount = spec.KeyLength
 		spec.OriginalContextLength = spec.ContextLength
 		if value, ok := optional[uint32](
@@ -1817,7 +1817,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			spec.RopeAttentionFactor = value
 		}
 	}
-	if spec.RopeScalingType == "yarn" &&
+	if spec.RopeScalingType == ropeScalingYaRN &&
 		(validation.Hybrid == HybridValidationLlama ||
 			validation.Hybrid == HybridValidationRopeScaling && validation.MLA == MLAValidationNone) {
 		rawAttentionFactor := float32(1)
@@ -2013,7 +2013,7 @@ func (s Spec) validate() error {
 	if err := s.validateAttentionMetadata(); err != nil {
 		return err
 	}
-	if s.RopeScalingType == "linear" && s.RopeScalingFactor <= 0 {
+	if s.RopeScalingType == ropeScalingLinear && s.RopeScalingFactor <= 0 {
 		return errors.New("linear RoPE scaling factor must be positive")
 	}
 	return s.validateNumericPolicies()

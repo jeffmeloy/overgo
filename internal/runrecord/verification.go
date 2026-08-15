@@ -20,19 +20,13 @@ func VerifyGateRun(
 	store artifact.Reader,
 	recipeID, gateID, runID artifact.ID,
 ) (Verification, error) {
-	gate, ok, err := gateCodec.Read(ctx, store, gateID)
+	gate, err := gateCodec.Require(ctx, store, gateID)
 	if err != nil {
 		return Verification{}, err
 	}
-	if !ok {
-		return Verification{}, errors.New("run record: verifier gate is absent or incompatible")
-	}
-	run, ok, err := runCodec.Read(ctx, store, runID)
+	run, err := runCodec.Require(ctx, store, runID)
 	if err != nil {
 		return Verification{}, err
-	}
-	if !ok {
-		return Verification{}, errors.New("run record: verifier run is absent or incompatible")
 	}
 	if gate.ID != gateID || run.ID != runID || gate.Recipe != recipeID || run.Recipe != recipeID {
 		return Verification{}, errors.New("run record: verifier identity mismatch")

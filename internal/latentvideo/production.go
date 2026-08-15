@@ -92,14 +92,7 @@ func ResolveProfile(modelDirectory string) (Profile, error) {
 }
 
 func ReadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Profile, error) {
-	profile, ok, err := videoProfileCodec.Read(ctx, store, id)
-	if err != nil {
-		return Profile{}, err
-	}
-	if !ok {
-		return Profile{}, errors.New("latent video: recipe profile is absent")
-	}
-	return profile, nil
+	return videoProfileCodec.Require(ctx, store, id)
 }
 
 func (p Profile) Content() (artifact.Content, error) { return videoProfileCodec.Content(p) }

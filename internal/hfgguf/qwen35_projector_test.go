@@ -49,3 +49,17 @@ func TestQwen35ProjectorMappingAndTemporalSplit(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveQwen35VisionRope(t *testing.T) {
+	if got, err := resolveQwen35VisionRope(nil); err != nil || got != qwen35VisionDefaultRope {
+		t.Fatalf("default rope = %v, %v", got, err)
+	}
+	explicit := float32(25000)
+	if got, err := resolveQwen35VisionRope(&explicit); err != nil || got != explicit {
+		t.Fatalf("explicit rope = %v, %v", got, err)
+	}
+	invalid := float32(0)
+	if _, err := resolveQwen35VisionRope(&invalid); err == nil {
+		t.Fatal("invalid explicit rope accepted")
+	}
+}

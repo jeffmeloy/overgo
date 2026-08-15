@@ -901,7 +901,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			if hasLong != hasShort {
 				return Weights{}, fmt.Errorf("%s LongRoPE factor tensors must both be present or absent", spec.Architecture)
 			}
-			if spec.RopeScalingType == "longrope" && !hasLong {
+			if spec.RopeScalingType == ropeScalingLongRoPE && !hasLong {
 				return Weights{}, fmt.Errorf("%s LongRoPE factor tensors are missing", spec.Architecture)
 			}
 			if hasLong {

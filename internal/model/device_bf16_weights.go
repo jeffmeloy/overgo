@@ -46,17 +46,3 @@ func (w *DeviceBF16Weights) Input(builder *tensor.Builder, name string) (*tensor
 	node := builder.Input(name, dtype.BF16, value.Shape)
 	return node, value.Pointer, builder.Err()
 }
-
-func (w *DeviceBF16Weights) Lookup(name string) (DeviceTensor, bool) {
-	if w == nil {
-		return DeviceTensor{}, false
-	}
-	return w.deviceTensorStore.Lookup(name)
-}
-
-func (w *DeviceBF16Weights) Close() error {
-	if w == nil {
-		return nil
-	}
-	return w.deviceTensorStore.Close()
-}

@@ -96,7 +96,7 @@ func (s Spec) validateMLAMetadata() error {
 		case s.HashLayerCount > s.BlockCount || len(s.CompressRatios) != int(s.BlockCount) ||
 			len(s.LayerSwiGLUClamp) != int(s.BlockCount) || len(s.LayerSharedSwiGLUClamp) != int(s.BlockCount):
 			return errors.New("DeepSeek 4 layer schedule is invalid")
-		case s.RopeScalingType == "yarn" &&
+		case s.RopeScalingType == ropeScalingYaRN &&
 			(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 || s.YaRNExtFactor < 0 ||
 				s.YaRNAttentionFactor <= 0 || s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0):
 			return errors.New("DeepSeek 4 YaRN metadata is invalid")
@@ -157,7 +157,7 @@ func (s Spec) validateMLAMetadata() error {
 			return errors.New("DeepSeek2 query LoRA rank is missing")
 		case s.RopeDimensionCount%2 != 0:
 			return errors.New("DeepSeek2 rotary dimension is invalid")
-		case s.RopeScalingType == "yarn" &&
+		case s.RopeScalingType == ropeScalingYaRN &&
 			(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 || s.YaRNExtFactor < 0 ||
 				s.YaRNAttentionFactor <= 0 || s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0 ||
 				math.IsNaN(float64(s.RopeScalingFactor)) || math.IsInf(float64(s.RopeScalingFactor), 0) ||
@@ -184,7 +184,7 @@ func (s Spec) validateMLAMetadata() error {
 		case s.ExpertCount > 0 &&
 			(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)):
 			return errors.New("Mistral 3 expert metadata is invalid")
-		case s.RopeScalingType == "yarn" &&
+		case s.RopeScalingType == ropeScalingYaRN &&
 			(math.IsNaN(float64(s.RopeYaRNLogMultiplier)) || math.IsInf(float64(s.RopeYaRNLogMultiplier), 0)):
 			return errors.New("Mistral 3 YaRN metadata is invalid")
 		}

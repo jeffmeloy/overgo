@@ -630,15 +630,56 @@ type vaeLoadedOp struct {
 }
 
 func loadVAEDecoderOps(reader *pytorchzip.Reader, plan VAEDecoderPlan) ([]vaeLoadedOp, error) {
+	return loadVAEOps(reader, plan.vaePlanCore, "decoder")
+}
+
+func loadVAEOps(reader *pytorchzip.Reader, plan vaePlanCore, scope string) ([]vaeLoadedOp, error) {
 	ops := make([]vaeLoadedOp, len(plan.ops))
 	for index, op := range plan.ops {
 		values, err := reader.ReadBindingValues(op.bindings)
 		if err != nil {
-			return nil, fmt.Errorf("vae decoder %s: %w", op.prefix, err)
+			return nil, fmt.Errorf("vae %s %s: %w", scope, op.prefix, err)
 		}
 		ops[index] = vaeLoadedOp{vaeDecoderOp: op, values: values}
 	}
 	return ops, nil
+}
+
+func downsample2DInto(out, input, weight, bias []float32, channels, frames, height, width int) error {
+	if channels <= 0 || frames <= 0 || height <= 0 || width <= 0 || height%2 != 0 || width%2 != 0 ||
+		len(input) != channels*frames*height*width || len(weight) != channels*channels*3*3 || len(bias) != channels ||
+		len(out) != channels*frames*(height/2)*(width/2) {
+		return fmt.Errorf("vae downsample2d: invalid shape")
+	}
+	outHeight, outWidth := height/2, width/2
+	for outputChannel := range channels {
+		for frame := range frames {
+			for outputY := range outHeight {
+				for outputX := range outWidth {
+					sum := float64(bias[outputChannel])
+					for inputChannel := range channels {
+						for kernelY := range 3 {
+							inputY := 2*outputY + kernelY
+							if inputY >= height {
+								continue
+							}
+							for kernelX := range 3 {
+								inputX := 2*outputX + kernelX
+								if inputX >= width {
+									continue
+								}
+								inputIndex := ((inputChannel*frames+frame)*height+inputY)*width + inputX
+								weightIndex := ((outputChannel*channels+inputChannel)*3+kernelY)*3 + kernelX
+								sum += float64(input[inputIndex]) * float64(weight[weightIndex])
+							}
+						}
+					}
+					out[((outputChannel*frames+frame)*outHeight+outputY)*outWidth+outputX] = float32(sum)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func causalGeometry(cIn, cOut, kt, kh, kw, padT, t, h, w int) hostmath.Conv3DShape {
@@ -736,6 +777,48 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 			out[i] += x[i]
 		}
 		return out, frames, h, w, nil
+	case vaeOpDownsample2D:
+		out := make([]float32, op.cOut*frames*(h/2)*(w/2))
+		if err := downsample2DInto(out, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
+			return nil, 0, 0, 0, err
+		}
+		return out, frames, h / 2, w / 2, nil
+	case vaeOpDownsample3D:
+		outH, outW := h/2, w/2
+		spatialOut := make([]float32, op.cOut*frames*outH*outW)
+		if err := downsample2DInto(spatialOut, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
+			return nil, 0, 0, 0, err
+		}
+		prior := state.cache0
+		state.cache0 = nextTemporalCache(state.cache0, spatialOut, op.cOut, frames, outH*outW, false)
+		if chunkIndex == 0 {
+			return spatialOut, frames, outH, outW, nil
+		}
+		joinedFrames := frames + 1
+		joined := make([]float32, op.cOut*joinedFrames*outH*outW)
+		for channel := range op.cOut {
+			if prior.frames > 0 {
+				destination := joined[channel*joinedFrames*outH*outW : (channel*joinedFrames+1)*outH*outW]
+				source := prior.data[(channel*prior.frames+prior.frames-1)*outH*outW : (channel*prior.frames+prior.frames)*outH*outW]
+				copy(destination, source)
+			}
+			destination := joined[(channel*joinedFrames+1)*outH*outW : (channel+1)*joinedFrames*outH*outW]
+			source := spatialOut[channel*frames*outH*outW : (channel+1)*frames*outH*outW]
+			copy(destination, source)
+		}
+		shape := hostmath.Conv3DShape{
+			CIn: op.cOut, COut: op.cOut, InT: joinedFrames, InH: outH, InW: outW,
+			KT: 3, KH: 1, KW: 1, StrideT: 2, StrideH: 1, StrideW: 1,
+		}
+		outFrames, _, _, err := shape.OutputDims()
+		if err != nil {
+			return nil, 0, 0, 0, err
+		}
+		out := make([]float32, op.cOut*outFrames*outH*outW)
+		if err := hostmath.CausalConv3DInto(out, joined, nil, op.values[2], op.values[3], 0, shape); err != nil {
+			return nil, 0, 0, 0, err
+		}
+		return out, outFrames, outH, outW, nil
 	case vaeOpUpsample2D:
 		weight, bias := op.values[0], op.values[1]
 		out := make([]float32, op.cOut*frames*vaeSpatialScale*h*vaeSpatialScale*w)

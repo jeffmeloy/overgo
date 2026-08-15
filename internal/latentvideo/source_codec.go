@@ -3,6 +3,8 @@ package latentvideo
 import (
 	"errors"
 	"fmt"
+
+	"overgo/internal/pytorchzip"
 )
 
 // SourceCodecProfile: recipe-owned causal VAE boundary facts.
@@ -89,6 +91,59 @@ func NormalizeSourceLatent(out, meanOutput []float32, plan SourceCodecPlan) erro
 		}
 	}
 	return nil
+}
+
+// EncodeSourceVideo runs the checkpoint-derived causal encoder chunk stream.
+func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodecPlan, source []float32) ([]float32, error) {
+	sourceElements, err := plan.SourceElements()
+	if err != nil || len(source) != sourceElements || len(graph.ops) == 0 ||
+		graph.InputChannels != plan.Source.Channels || graph.LatentChannels != plan.Latent.Channels || graph.Stride != plan.Profile.Stride {
+		return nil, errors.New("source codec: encoder contract mismatch")
+	}
+	reader, err := pytorchzip.Open(checkpoint)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	ops, err := loadVAEOps(reader, graph.vaePlanCore, "encoder")
+	if err != nil {
+		return nil, err
+	}
+	states := make([]vaeOpState, len(ops))
+	latentElements, err := plan.LatentElements()
+	if err != nil {
+		return nil, err
+	}
+	means := make([]float32, latentElements)
+	sourceFrame, latentFrame := 0, 0
+	sourceSpatial := plan.Source.Height * plan.Source.Width
+	latentSpatial := plan.Latent.Height * plan.Latent.Width
+	for chunkIndex, frames := range plan.SourceChunks {
+		current := make([]float32, plan.Source.Channels*frames*sourceSpatial)
+		if err := copyChannelFrames(current, frames, 0, source, plan.Source.Frames, sourceFrame, plan.Source.Channels, frames, sourceSpatial); err != nil {
+			return nil, err
+		}
+		height, width := plan.Source.Height, plan.Source.Width
+		for opIndex := range ops {
+			current, frames, height, width, err = runVAEOp(ops[opIndex], &states[opIndex], chunkIndex, current, frames, height, width)
+			if err != nil {
+				return nil, fmt.Errorf("source codec: %s chunk %d: %w", ops[opIndex].prefix, chunkIndex, err)
+			}
+		}
+		if len(current) != graph.MomentChannels*frames*latentSpatial || height != plan.Latent.Height || width != plan.Latent.Width {
+			return nil, fmt.Errorf("source codec: chunk %d output mismatch", chunkIndex)
+		}
+		if err := copyChannelFrames(means, plan.Latent.Frames, latentFrame, current, frames, 0, plan.Latent.Channels, frames, latentSpatial); err != nil {
+			return nil, err
+		}
+		sourceFrame += plan.SourceChunks[chunkIndex]
+		latentFrame += frames
+	}
+	if sourceFrame != plan.Source.Frames || latentFrame != plan.Latent.Frames {
+		return nil, fmt.Errorf("source codec: consumed source=%d/%d latent=%d/%d", sourceFrame, plan.Source.Frames, latentFrame, plan.Latent.Frames)
+	}
+	latent := make([]float32, len(means))
+	return latent, NormalizeSourceLatent(latent, means, plan)
 }
 
 func sourceChunkSchedule(frames, temporalStride int) []int {

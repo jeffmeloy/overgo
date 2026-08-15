@@ -53,6 +53,7 @@ type vaeDeviceBuffer struct {
 
 type vaeKernelSet struct {
 	conv3d, rmsNorm, attention, upsample2d driver.Function
+	downsample2d, temporalDownsample       driver.Function
 	interleave, cacheUpdate, add, clamp    driver.Function
 }
 
@@ -78,6 +79,14 @@ type VAEDecoderCUDASession struct {
 // NewVAEDecoderCUDASession: loads the kernel module and uploads every decoder
 // weight tensor once (f32, the checkpoint dtype the host oracle serves).
 func NewVAEDecoderCUDASession(checkpoint string, plan VAEDecoderPlan, ordinal int) (session *VAEDecoderCUDASession, err error) {
+	session, err = newVAECUDASession(checkpoint, plan.vaePlanCore, ordinal)
+	if session != nil {
+		session.Plan = plan
+	}
+	return session, err
+}
+
+func newVAECUDASession(checkpoint string, plan vaePlanCore, ordinal int) (session *VAEDecoderCUDASession, err error) {
 	if len(plan.ops) == 0 {
 		return nil, errors.New("vae cuda session: empty plan")
 	}
@@ -86,7 +95,7 @@ func NewVAEDecoderCUDASession(checkpoint string, plan VAEDecoderPlan, ordinal in
 		return nil, err
 	}
 	session = &VAEDecoderCUDASession{
-		Plan:    plan,
+		Plan:    VAEDecoderPlan{vaePlanCore: plan},
 		worker:  worker,
 		buffers: make(map[string]vaeDeviceBuffer),
 		ctx:     context.Background(),
@@ -117,6 +126,8 @@ func NewVAEDecoderCUDASession(checkpoint string, plan VAEDecoderPlan, ordinal in
 			{"vae_channel_rms_norm_f32", &session.kernels.rmsNorm},
 			{"vae_spatial_attention_f32", &session.kernels.attention},
 			{"vae_upsample2d_f32", &session.kernels.upsample2d},
+			{"vae_downsample2d_f32", &session.kernels.downsample2d},
+			{"vae_temporal_downsample_f32", &session.kernels.temporalDownsample},
 			{"vae_time_interleave_f32", &session.kernels.interleave},
 			{"vae_temporal_cache_update_f32", &session.kernels.cacheUpdate},
 			{"add_f32", &session.kernels.add},
@@ -410,6 +421,50 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 			return 0, 0, 0, 0, err
 		}
 		return out, frames, h, w, nil
+	case vaeOpDownsample2D:
+		out, err := s.buffer(state, actName, op.cOut*frames*(h/2)*(w/2))
+		if err != nil {
+			return 0, 0, 0, 0, err
+		}
+		if err := s.downsample2D(state, out, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
+			return 0, 0, 0, 0, err
+		}
+		return out, frames, h / 2, w / 2, nil
+	case vaeOpDownsample3D:
+		outH, outW := h/2, w/2
+		spatial := outH * outW
+		spatialOut, err := s.buffer(state, "work_a", op.cOut*frames*spatial)
+		if err != nil {
+			return 0, 0, 0, 0, err
+		}
+		if err := s.downsample2D(state, spatialOut, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
+			return 0, 0, 0, 0, err
+		}
+		prior := opState.cache0
+		next, err := s.updateCache(state, fmt.Sprintf("op%d_down", opIndex), opState.cache0, spatialOut, op.cOut, frames, spatial, false)
+		if err != nil {
+			return 0, 0, 0, 0, err
+		}
+		opState.cache0 = next
+		if chunkIndex == 0 {
+			out, err := s.buffer(state, actName, op.cOut*frames*spatial)
+			if err != nil {
+				return 0, 0, 0, 0, err
+			}
+			if err := state.Driver.MemcpyDtoD(out, spatialOut, uint64(op.cOut*frames*spatial*4)); err != nil {
+				return 0, 0, 0, 0, err
+			}
+			return out, frames, outH, outW, nil
+		}
+		outFrames := (frames-1)/2 + 1
+		out, err := s.buffer(state, actName, op.cOut*outFrames*spatial)
+		if err != nil {
+			return 0, 0, 0, 0, err
+		}
+		if err := s.temporalDownsample(state, out, spatialOut, prior.ptr, op.values[2], op.values[3], op.cOut, frames, prior.frames, spatial, outFrames); err != nil {
+			return 0, 0, 0, 0, err
+		}
+		return out, outFrames, outH, outW, nil
 	case vaeOpUpsample2D:
 		out, err := s.buffer(state, actName, op.cOut*frames*vaeSpatialScale*h*vaeSpatialScale*w)
 		if err != nil {
@@ -494,6 +549,24 @@ func (s *VAEDecoderCUDASession) upsample2D(state *device.State, out, x, weight, 
 	return launchVAEKernel(state, s.kernels.upsample2d, vaeElementwiseGrid(elements), vaeBlock1D, 0,
 		&out, &x, &weight, &bias,
 		&cInArg, &cOutArg, &framesArg, &heightArg, &widthArg, &outHArg, &outWArg, &count)
+}
+
+func (s *VAEDecoderCUDASession) downsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, channels, frames, h, w int) error {
+	outH, outW := h/2, w/2
+	elements := channels * frames * outH * outW
+	channelsArg, framesArg := uint32(channels), uint32(frames)
+	heightArg, widthArg := uint32(h), uint32(w)
+	outHArg, outWArg, count := uint32(outH), uint32(outW), uint32(elements)
+	return launchVAEKernel(state, s.kernels.downsample2d, vaeElementwiseGrid(elements), vaeBlock1D, 0,
+		&out, &x, &weight, &bias, &channelsArg, &framesArg, &heightArg, &widthArg, &outHArg, &outWArg, &count)
+}
+
+func (s *VAEDecoderCUDASession) temporalDownsample(state *device.State, out, x, prior, weight, bias driver.DevicePtr, channels, frames, priorFrames, spatial, outFrames int) error {
+	elements := channels * outFrames * spatial
+	channelsArg, framesArg, priorFramesArg := uint32(channels), uint32(frames), uint32(priorFrames)
+	spatialArg, outFramesArg, count := uint32(spatial), uint32(outFrames), uint32(elements)
+	return launchVAEKernel(state, s.kernels.temporalDownsample, vaeElementwiseGrid(elements), vaeBlock1D, 0,
+		&out, &x, &prior, &weight, &bias, &channelsArg, &framesArg, &priorFramesArg, &spatialArg, &outFramesArg, &count)
 }
 
 // Decode streams the plan over the latent volume on CUDA: host denorm

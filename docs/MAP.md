@@ -25,6 +25,12 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Shape similarity (rank-based, no metric prior) | `tensorstats.ShapeFeatures` + `tensorstats.Nearest` |
 | Open weights by format | `gguf.Open` (file) / `safetensors.OpenSource` (dir) — or just `MeasureAtLocation` |
 
+## Media execution
+
+| Need | Use |
+| --- | --- |
+| Compile and execute a Wan/LiveEdit causal VAE source encoder | `latentvideo.CompileVAEEncoderPlan` + `CompileSourceCodecBoundary`; host oracle `EncodeSourceVideo`; resident device path `NewVAEEncoderCUDASession` |
+
 ## Commands / process (Go owns policy; scripts are bash or Go)
 | Need | Use |
 | --- | --- |

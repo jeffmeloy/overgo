@@ -6262,6 +6262,80 @@ __device__ float moe_expert_value(
 
 // ---- Wan causal 3-D VAE decode (streamed chunk-major, latentvideo) ----
 
+extern "C" __global__ void vae_downsample2d_f32(
+		float * out,
+		const float * input,
+		const float * weight,
+		const float * bias,
+		unsigned int channels,
+		unsigned int frames,
+		unsigned int height,
+		unsigned int width,
+		unsigned int output_height,
+		unsigned int output_width,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) return;
+	const unsigned int plane = frames * output_height * output_width;
+	const unsigned int output_channel = index / plane;
+	unsigned int remainder = index - output_channel * plane;
+	const unsigned int frame = remainder / (output_height * output_width);
+	remainder -= frame * output_height * output_width;
+	const unsigned int output_y = remainder / output_width;
+	const unsigned int output_x = remainder - output_y * output_width;
+	double sum = (double) bias[output_channel];
+	for (unsigned int input_channel = 0; input_channel < channels; ++input_channel) {
+		for (unsigned int kernel_y = 0; kernel_y < 3; ++kernel_y) {
+			const unsigned int input_y = 2 * output_y + kernel_y;
+			if (input_y >= height) continue;
+			for (unsigned int kernel_x = 0; kernel_x < 3; ++kernel_x) {
+				const unsigned int input_x = 2 * output_x + kernel_x;
+				if (input_x >= width) continue;
+				const unsigned int input_index = ((input_channel * frames + frame) * height + input_y) * width + input_x;
+				const unsigned int weight_index = ((output_channel * channels + input_channel) * 3 + kernel_y) * 3 + kernel_x;
+				sum += (double) input[input_index] * (double) weight[weight_index];
+			}
+		}
+	}
+	out[index] = (float) sum;
+}
+
+extern "C" __global__ void vae_temporal_downsample_f32(
+		float * out,
+		const float * input,
+		const float * prior,
+		const float * weight,
+		const float * bias,
+		unsigned int channels,
+		unsigned int frames,
+		unsigned int prior_frames,
+		unsigned int spatial,
+		unsigned int output_frames,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) return;
+	const unsigned int output_channel = index / (output_frames * spatial);
+	const unsigned int remainder = index - output_channel * output_frames * spatial;
+	const unsigned int output_frame = remainder / spatial;
+	const unsigned int position = remainder - output_frame * spatial;
+	double sum = (double) bias[output_channel];
+	for (unsigned int input_channel = 0; input_channel < channels; ++input_channel) {
+		for (unsigned int kernel_time = 0; kernel_time < 3; ++kernel_time) {
+			const unsigned int joined_frame = 2 * output_frame + kernel_time;
+			if (joined_frame > frames) continue;
+			float value = 0.0f;
+			if (joined_frame == 0) {
+				if (prior_frames > 0) value = prior[(input_channel * prior_frames + prior_frames - 1) * spatial + position];
+			} else {
+				value = input[(input_channel * frames + joined_frame - 1) * spatial + position];
+			}
+			const unsigned int weight_index = (output_channel * channels + input_channel) * 3 + kernel_time;
+			sum += (double) value * (double) weight[weight_index];
+		}
+	}
+	out[index] = (float) sum;
+}
+
 // vae_causal_conv3d_f32: stride-1 same-padded causal 3-D convolution over one
 // streamed chunk with a temporal prefix cache of cache_t frames. 64x64
 // position-by-channel tiles with 4x4 register blocking per thread (8 shared

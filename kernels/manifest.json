@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 41,
+  "abiVersion": 42,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -63,7 +63,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "d000d1e7e05e368b499ebf7b355a6c689130c22517964a3096b7c0255da8644c",
+      "sourceSha256": "8f290ff3e3daf3902eb348f37c70ba012e16926f8bc067c8de62c358cbd9b663",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -71,7 +71,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "5d8a26e58715bc9a39d328a68bb2f49b4f347aced071f5fc4abae06383b8c5e8",
+      "assetSha256": "bc274e7527472c27987affb7ff5a46c52f8ec8080e0d31b8f52221f0595b8aff",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -243,7 +243,9 @@
         "transpose_2d_f32",
         "vae_causal_conv3d_f32",
         "vae_channel_rms_norm_f32",
+        "vae_downsample2d_f32",
         "vae_spatial_attention_f32",
+        "vae_temporal_downsample_f32",
         "vae_temporal_cache_update_f32",
         "vae_time_interleave_f32",
         "vae_upsample2d_f32",
@@ -1341,6 +1343,24 @@
           "parameters": [
             ".u64",
             ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "vae_downsample2d_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
             ".u32",
             ".u32",
             ".u32",
@@ -1348,6 +1368,24 @@
           ],
           "functions": [
             "vae_spatial_attention_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "vae_temporal_downsample_f32"
           ]
         },
         {

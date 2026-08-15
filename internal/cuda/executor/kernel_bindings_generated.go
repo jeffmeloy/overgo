@@ -177,7 +177,9 @@ const (
 	kernelTranspose2dF32
 	kernelVaeCausalConv3dF32
 	kernelVaeChannelRmsNormF32
+	kernelVaeDownsample2dF32
 	kernelVaeSpatialAttentionF32
+	kernelVaeTemporalDownsampleF32
 	kernelVaeTemporalCacheUpdateF32
 	kernelVaeTimeInterleaveF32
 	kernelVaeUpsample2dF32
@@ -364,7 +366,9 @@ var kernelFunctionNames = [...]string{
 	"transpose_2d_f32",
 	"vae_causal_conv3d_f32",
 	"vae_channel_rms_norm_f32",
+	"vae_downsample2d_f32",
 	"vae_spatial_attention_f32",
+	"vae_temporal_downsample_f32",
 	"vae_temporal_cache_update_f32",
 	"vae_time_interleave_f32",
 	"vae_upsample2d_f32",
@@ -550,7 +554,9 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	17,
 	6,
+	11,
 	6,
+	11,
 	10,
 	6,
 	12,

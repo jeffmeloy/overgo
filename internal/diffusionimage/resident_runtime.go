@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/latentimage"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/workflowruntime"
 )
 
@@ -86,5 +87,11 @@ func RegisterResidentRuntime(runtime *workflowruntime.Runtime, modelID artifact.
 	if generator == nil {
 		return errors.New("diffusionimage: incomplete resident runtime binding")
 	}
-	return registerRuntime(runtime, modelID, generator)
+	return workflowruntime.RegisterPipeline(
+		runtime, modelID,
+		modelrecipe.ModuleDiffusionImagePrepare, generator.prepare,
+		modelrecipe.ModuleDiffusionImageIntegrate, generator.integrate,
+		modelrecipe.ModuleDiffusionImageDecode, generator.decode,
+		latentimage.PNGContent,
+	)
 }

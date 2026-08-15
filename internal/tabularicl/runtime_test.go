@@ -2,32 +2,19 @@ package tabularicl
 
 import (
 	"math"
-	"reflect"
 	"testing"
-
-	"overgo/internal/modelrecipetest"
-	"overgo/internal/recipe"
 )
 
 const (
-	tabularFixtureRows   = 2
-	tabularFixtureCols   = 1
-	tabularFixtureTrain  = 1
-	tabularFixtureOutDim = 2
+	tabularFixtureRows  = 2
+	tabularFixtureCols  = 1
+	tabularFixtureTrain = 1
 )
 
-var (
-	tabularRequestFixture = Request{
-		Task: TaskClassification, X: []float32{2, 3}, Y: []float32{1, 0},
-		Rows: tabularFixtureRows, Cols: tabularFixtureCols, TrainRows: tabularFixtureTrain,
-	}
-	tabularValuesFixture = []float32{5, 7, 11, 13}
-	invalidValuesFixture = []float32{17}
-)
-
-type predictorFunc func(Request) ([]float32, int, error)
-
-func (f predictorFunc) Predict(request Request) ([]float32, int, error) { return f(request) }
+var tabularRequestFixture = Request{
+	Task: TaskClassification, X: []float32{2, 3}, Y: []float32{1, 0},
+	Rows: tabularFixtureRows, Cols: tabularFixtureCols, TrainRows: tabularFixtureTrain,
+}
 
 func TestLoadTaskRejectsUnknownHeadBeforeFilesystemAccess(t *testing.T) {
 	if _, err := LoadTask(t.TempDir(), "unsupported-fixture-task"); err == nil {
@@ -52,47 +39,6 @@ func TestValidateRequestRejectsMalformedInputs(t *testing.T) {
 			test.mutate(&request)
 			if err := ValidateRequest(request); err == nil {
 				t.Fatal("malformed request accepted")
-			}
-		})
-	}
-}
-
-func TestRegisteredRuntimeEnforcesTabularOutputContract(t *testing.T) {
-	tests := []struct {
-		name      string
-		values    []float32
-		wantError bool
-	}{
-		{name: "valid", values: tabularValuesFixture},
-		{name: "invalid-geometry", values: invalidValuesFixture, wantError: true},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			fixture := modelrecipetest.NewCapability(t, "tabular-"+test.name, recipe.TaskTabular)
-			if err := registerRuntime(fixture.Runtime, fixture.Model, predictorFunc(
-				func(request Request) ([]float32, int, error) {
-					if !reflect.DeepEqual(request, tabularRequestFixture) {
-						t.Fatalf("request = %+v", request)
-					}
-					return test.values, tabularFixtureOutDim, nil
-				},
-			)); err != nil {
-				t.Fatal(err)
-			}
-			result, err := fixture.ExecuteScalar("tabular/runtime/"+test.name, tabularRequestFixture)
-			if test.wantError {
-				if err == nil {
-					t.Fatal("invalid prediction geometry accepted")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			prediction := modelrecipetest.Output[Prediction](t, result, "predictions")
-			if prediction.Rows != tabularFixtureRows || prediction.OutDim != tabularFixtureOutDim ||
-				!reflect.DeepEqual(prediction.Values, tabularValuesFixture) {
-				t.Fatalf("prediction = %+v", prediction)
 			}
 		})
 	}

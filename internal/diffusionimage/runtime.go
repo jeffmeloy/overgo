@@ -23,12 +23,6 @@ type sampleFeatures struct {
 	height, width int
 }
 
-type generator interface {
-	prepare(Request) (samplePlan, error)
-	integrate(samplePlan) (sampleFeatures, error)
-	decode(sampleFeatures) (latentimage.EncodedImage, error)
-}
-
 func ValidateRequest(request Request) error {
 	if request.Steps <= 0 || request.Height <= 0 || request.Width <= 0 {
 		return errors.New("diffusionimage: positive steps, height, and width required")
@@ -64,10 +58,6 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 	if model == nil {
 		return errors.New("diffusionimage: incomplete runtime binding")
 	}
-	return registerRuntime(runtime, modelID, model)
-}
-
-func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model generator) error {
 	return workflowruntime.RegisterPipeline(
 		runtime, modelID,
 		modelrecipe.ModuleDiffusionImagePrepare, model.prepare,

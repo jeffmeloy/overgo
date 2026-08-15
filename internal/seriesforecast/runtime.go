@@ -11,10 +11,6 @@ import (
 
 var forecastContract = artifact.JSONContract(artifact.KindOutput, "overgo.forecast-output.v1")
 
-type forecaster interface {
-	Forecast([]float32) ([]float32, error)
-}
-
 func ValidateRequest(series []float32) error {
 	if len(series) == 0 {
 		return errors.New("seriesforecast: input series is empty")
@@ -32,10 +28,6 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 	if model == nil {
 		return errors.New("seriesforecast: incomplete runtime binding")
 	}
-	return registerRuntime(runtime, modelID, model)
-}
-
-func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model forecaster) error {
 	return workflowruntime.RegisterJSONStage[[]float32, []float32](
 		runtime, modelrecipe.ModuleForecastSeries, modelID, forecastContract,
 		func(series []float32) ([]float32, error) {

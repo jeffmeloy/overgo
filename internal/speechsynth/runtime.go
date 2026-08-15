@@ -104,21 +104,8 @@ func (s *Synthesizer) decode(latents LatentBatch) (Audio, error) {
 	return Audio{PCM: pcm, SampleRate: s.model.Codec.SampleRate, Channels: 1}, nil
 }
 
-type runtimeStages interface {
-	tokenize(SynthesisRequest) (generationPlan, error)
-	generate(generationPlan) (LatentBatch, error)
-	decode(LatentBatch) (Audio, error)
-}
-
 // RegisterRuntime binds one synthesizer to its recipe stage.
 func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, synthesizer *Synthesizer) error {
-	if synthesizer == nil {
-		return errors.New("speechsynth: incomplete runtime binding")
-	}
-	return registerRuntime(runtime, modelID, synthesizer)
-}
-
-func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, synthesizer runtimeStages) error {
 	if synthesizer == nil {
 		return errors.New("speechsynth: incomplete runtime binding")
 	}

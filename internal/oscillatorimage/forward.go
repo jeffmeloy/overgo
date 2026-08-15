@@ -256,11 +256,3 @@ func (m *Model) decode(features []float32) (latentimage.EncodedImage, error) {
 	}
 	return latentimage.EncodePlanarPNG(image.Pixels, image.Height, image.Width)
 }
-
-// Generate samples one seeded image for classID. Initial phases are uniform
-// in [-pi,pi) from the artifact's own Go-rand sampling convention; output is
-// flat [out_ch, OutH, OutW], tanh-bounded when configured.
-func (m *Model) Generate(classID int, seed int64) ([]float32, error) {
-	image, err := m.generate(Request{Class: classID, Seed: seed})
-	return image.Pixels, err
-}

@@ -144,6 +144,28 @@
     {
       "evidence": [
         {
+          "contains": "func LoadRecurrentLayerArtifact(",
+          "path": "internal/hybridtrain/artifact.go",
+          "role": "source",
+          "identity": "file:sha256:810f2bc6614dfd8dba850ce38ae9229d9580fae672377e86b8efdf18fcbae39b"
+        },
+        {
+          "contains": "func TestQwen35RealTraining(",
+          "path": "internal/adaptiveparity/qwen35_training_cuda_windows_test.go",
+          "role": "artifact",
+          "identity": "evidence:sha256:278a46e1c0137fc981794778376081912c8fa3b6cc96bcf4e72959f30924d2c7"
+        }
+      ],
+      "id": "qwen35-real-recurrent-layer-training",
+      "evidence_tier": "device-gated",
+      "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestQwen35RealTraining$' -count=1 -v",
+      "artifact_identity": "sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec+76d9880f804b116fd95e3faf739bed6ad9898430e03d25bae49d5969ec1491a3+6dcce666b1ebf776b9ee9e9df9107b068204affc602e94949e5c4c039894ea1a",
+      "status": "implemented",
+      "summary": "Qwen3.5-4B recurrent layer 0 trains from the real GGUF and real prompt token embeddings through the compiled resident program; adaptive_new has no corresponding training oracle."
+    },
+    {
+      "evidence": [
+        {
           "contains": "func validateMultimodalImages(",
           "path": "internal/server/server_native_prompt.go",
           "role": "source",

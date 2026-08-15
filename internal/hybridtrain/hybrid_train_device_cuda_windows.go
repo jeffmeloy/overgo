@@ -7,6 +7,7 @@ import (
 	"overgo/internal/devicemath"
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 // residency records device-loop weight and momentum movement.
@@ -19,6 +20,15 @@ type residency struct {
 	FinalWeightRead int // one checkpoint read
 	GradUploads     int // one per step
 	Steps           int
+}
+
+type residentTrainingState struct {
+	step             int
+	output           []float32
+	inputs           [][]float32
+	loss             float64
+	dTop             []float32
+	matGrad, vecGrad []float32
 }
 
 // TrainDeviceResident runs hybrid forward/backward with resident matrix weights,
@@ -103,54 +113,68 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimi
 	if err != nil {
 		return nil, acc, err
 	}
+	execution, err := trainingprogram.Bind(m.program, []trainingprogram.Binding[residentTrainingState]{
+		{Operator: "hybrid-forward", Execute: func(state *residentTrainingState) error {
+			x := m.X
+			state.inputs = make([][]float32, len(m.Weights))
+			for i := range m.Weights {
+				state.inputs[i] = x
+				o, _, err := devicemath.HybridDecoderLayerForwardDeviceResident(worker, x, rw[i], m.Weights[i], m.Dims[i], m.States[i])
+				if err != nil {
+					return err
+				}
+				x = o
+			}
+			state.output = x
+			return nil
+		}},
+		{Operator: "squared-error", Execute: func(state *residentTrainingState) error {
+			state.loss, state.dTop = m.loss(state.output)
+			return nil
+		}},
+		{Operator: "hybrid-backward", Execute: func(state *residentTrainingState) error {
+			grads := make([]hostmath.HybridDecoderLayerGrads, len(m.Weights))
+			dOut := state.dTop
+			for i := len(m.Weights) - 1; i >= 0; i-- {
+				g, err := devicemath.HybridDecoderLayerBackwardDeviceResident(worker, state.inputs[i], rw[i], m.Weights[i], m.Dims[i], m.States[i], dOut)
+				if err != nil {
+					return err
+				}
+				grads[i] = g
+				dOut = g.DX
+			}
+			state.matGrad, state.vecGrad = m.packGrads(grads)
+			return nil
+		}},
+		{Operator: "matrix-muon", Execute: func(state *residentTrainingState) error {
+			if err := devicemath.WriteResident(worker, dG, devicemath.ResidentSlice{ElemOffset: 0, Data: state.matGrad}); err != nil {
+				return err
+			}
+			acc.GradUploads++
+			return residentMuon.StepMatrices(updates, state.step+1)
+		}},
+		{Operator: "vector-sign", Execute: func(state *residentTrainingState) error {
+			copy(vecGrad, state.vecGrad)
+			vecOpt.Step()
+			return nil
+		}},
+	})
+	if err != nil {
+		return nil, acc, err
+	}
 
 	traj := make([]float64, 0, steps)
 	for step := 0; step < steps; step++ {
-		// Forward stack on device: matrix weights read from resident dW pointers,
-		// vector weights from the host slices (aliasing vecW).
-		x := m.X
-		inputs := make([][]float32, len(m.Weights))
-		for i := range m.Weights {
-			inputs[i] = x
-			o, _, err := devicemath.HybridDecoderLayerForwardDeviceResident(worker, x, rw[i], m.Weights[i], m.Dims[i], m.States[i])
-			if err != nil {
-				return nil, acc, err
-			}
-			x = o
-		}
-		loss, dTop := m.loss(x)
-		traj = append(traj, loss)
-
-		// Backward stack on device (recomputes its own forward intermediates from
-		// the resident weights).
-		grads := make([]hostmath.HybridDecoderLayerGrads, len(m.Weights))
-		dOut := dTop
-		for i := len(m.Weights) - 1; i >= 0; i-- {
-			g, err := devicemath.HybridDecoderLayerBackwardDeviceResident(worker, inputs[i], rw[i], m.Weights[i], m.Dims[i], m.States[i], dOut)
-			if err != nil {
-				return nil, acc, err
-			}
-			grads[i] = g
-			dOut = g.DX
-		}
-		matG, vecG := m.packGrads(grads)
-
-		// Refresh the resident gradient buffer (grads are recomputed each step).
-		if err := devicemath.WriteResident(worker, dG, devicemath.ResidentSlice{ElemOffset: 0, Data: matG}); err != nil {
+		state := residentTrainingState{step: step}
+		if err := execution.RunPhases(&state,
+			trainingprogram.PhaseForward,
+			trainingprogram.PhaseLoss,
+			trainingprogram.PhaseBackward,
+			trainingprogram.PhaseOptimize,
+		); err != nil {
 			return nil, acc, err
 		}
-		acc.GradUploads++
-
-		// Host Sign update for vector params (aliases vecW -> next forward sees it).
-		copy(vecGrad, vecG)
-		vecOpt.Step()
-
-		// Resident Muon: matrix weights + momentum updated in place on the device.
-		// Nothing is uploaded or downloaded here; weights AND momentum stay resident.
-		if err := residentMuon.StepMatrices(updates, step+1); err != nil {
-			return nil, acc, err
-		}
-		// NO per-step weight read-back: the next forward reads dW in place.
+		traj = append(traj, state.loss)
 	}
 
 	// Checkpoint: pull the trained matrix weights back to host exactly once, so

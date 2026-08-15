@@ -53,7 +53,7 @@ func TestHybridDecoderLayerBackwardFD(t *testing.T) {
 			ConvQ: rs(keyDim * 3), ConvK: rs(keyDim * 3), ConvV: rs(valDim * 3),
 			ConvBiasQ: rs(keyDim), ConvBiasK: rs(keyDim), ConvBiasV: rs(valDim),
 			Wbeta: rs(hv * hidden), Walpha: rs(hv * hidden), TimeStep: rs(hv), A: rs(hv),
-			Wz: rs(valDim * hidden), Norm: rs(valDim), Wout: rs(hidden * valDim),
+			Wz: rs(valDim * hidden), Norm: rs(hd), Wout: rs(hidden * valDim),
 		}
 		w := HybridLayerWeights{InputNorm: rs(hidden), PostNorm: rs(hidden), IsLinear: true, GDN: gdn, MLP: mlp}
 		d := HybridLayerDims{Tokens: T, Hidden: hidden, Inter: inter, Eps: eps,

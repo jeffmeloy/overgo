@@ -101,12 +101,12 @@ sessions to execute concurrently.
 | Image generation | Typed conditioning, CUDA-resident denoising, and PNG artifact output | Krea has verified 2048-pixel execution. SenseNova has a CUDA-tested 256-pixel text-to-PNG recipe. Un-0 publishes an exact retained artifact. SimpleDiffusion uses a geometry-keyed resident CUDA recipe; its real seed-7, two-step, 64x64 generation is 15-18x faster warm than the host in repeated tests, with one decoded color channel differing by one byte from the retained PNG. Full-size and image-edit tests are not complete. |
 | Video generation | Typed oscillator, Wan, and LiveEdit recipes; encoded artifact publication; CUDA-resident Wan denoising and VAE encoding/decoding; retained LiveEdit text projection, cumulative attention history, and source-latent reuse | Un-0 publishes six real-artifact frames as a 64x64 GIF byte-identical to adaptive_new. Wan has verified full-clip execution. LiveEdit executes all 30 blocks. Its full 81-frame edit matches adaptive and Python output quality, uses 15.624 GiB peak device memory, takes 81.6-81.9 s cold, and takes 51.0-51.5 s when the same source latent is resident. The production recipe publishes GIF; the performance gate streams MP4. |
 | Speech, forecast, table, seq2seq | Shared runtime and recipe components. Pocket-TTS verifies waveform output and trains its real backbone+flow parameter set through compiled Muon on native generated codec latents. TimesFM verifies exact forecasts and a held-out Supernova baseline. Needle verifies exact numeric parity, grounded text-to-tool-call JSON, and real GSM8K training through the common dataset stream, compiled training program, and device Muon. | Needle retains BF16 matrices and measures 66.758-67.363 MiB across matched cold processes versus adaptive_new's 120.918-121.328 MiB. Shared reverse traversal trains both final norms, all eight decoder self/cross-attention pairs, all 12 encoder self-attention blocks, and the tied source/target/output embedding. A fixed 4-train/4-held-out GSM8K gate improves both aggregate losses. Pocket-TTS corpus audio encoding and held-out training evidence remain open. Comparable process peak measurements remain open for the other capabilities. |
-| Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers; scratch construction uses shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. The dense CLI publishes atomic, non-overwriting, exact-resume checkpoints. SimpleDiffusion trains its real 101.8M-parameter checkpoint on structured image crops through the shared stream and platform Muon stepper; one update lowers both matched training and held-out OT losses. RepoDB dataset selection from the CLI, checkpoint adoption by every trainer, and general multimodal objectives are not implemented. |
+| Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers; scratch construction and Qwen3.5 hybrid training use compiled programs and shared VJPs | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. Qwen3.5-4B recurrent layer 0 trains from the real GGUF and prompt token embeddings; adaptive_new has no corresponding training oracle. The dense CLI publishes atomic, non-overwriting, exact-resume checkpoints. SimpleDiffusion trains its real 101.8M-parameter checkpoint on structured image crops through the shared stream and platform Muon stepper; one update lowers both matched training and held-out OT losses. RepoDB dataset selection from the CLI, checkpoint adoption by every trainer, complete Qwen3.5 stack training, and general multimodal objectives are not implemented. |
 
 Known gaps include full-size SenseNova image and edit tests, LiveEdit cold-request
 leadership and recipe-configured MP4 publication, exact full-sequence Unlimited OCR comparison, comparable
 peak-memory measurements, checkpoint adoption outside dense training, publication and activation of
-scratch-built controllers, and real-model Qwen3.5/E4B/Gemma4 training. Un-0
+scratch-built controllers, complete real-model Qwen3.5 training, and real-model E4B/Gemma4 training. Un-0
 training refuses execution until a recipe supplies real class/image data; the
 former synthetic constant-target trainer was deleted.
 
@@ -127,6 +127,7 @@ checks, and unresolved limitations are in the
 | Pocket-TTS speech | Adaptive real-model generation fixture | Compiled recipe plus matching latent/EOS/PCM/WAV output; 24 kHz mono; 0.48-0.53 s repeated synthesis; 0.540-0.543 GiB peak heap | Output matches and repeated execution is faster; comparable process peak-memory measurement is not complete |
 | Carbon-500M causal Muon | adaptive 6.816 s loop / 11.47 GiB | 1.510-1.550 s / 4.985 GiB; matching loss trajectory | At least 77.3% faster training loop and 56.5% lower peak memory |
 | Qwen2.5-0.5B causal Muon | adaptive 505 ms retained warm step | 469-480 ms retained warm execution; 552-753 ms cold execution; 6.592 GiB peak | At least 5.0% faster retained warm execution; lifecycle phases gated separately |
+| Qwen3.5-4B recurrent-layer Muon | adaptive_new has no training oracle | Real GGUF layer 0, 112,885,760 matrix and 38,080 vector parameters; all five token IDs from a recorded prompt; loss 13.185789 to 11.006020 in two resident steps; 1.552 s training loop; 1.775 GiB peak | Overgo-only layer capability; no parity or full-model claim |
 | Corpus-derived scratch causal | adaptive 221.4-231.8 ms / 3.13-3.18 MB peak | 58.0-65.4 ms matching steps / 1.15-1.17 MB combined peak; process, driver, model, PTX/program, first-run, and repeated-run phases measured separately | At least 3.38 times faster and 62% lower peak memory for the recorded configuration |
 | Krea 2048 image | Python 97.5-135.4 s; adaptive 158.144 s / 33.47 GB | 63.510 s / 32.732 GB; MAE 0.03910 | Faster execution and lower peak memory within the stated quality tolerance |
 | Wan video | Resident Python 463.4 s; adaptive 795.1 s | 370.27 s; stage peaks 7.875/10.330 GB | Faster than both references; a matching repeat run is not complete |
@@ -377,6 +378,14 @@ go run ./cmd/train \
   -out D:/checkpoints/carbon-run-2 \
   -steps 4 -freeze-lexical
 ```
+
+Qwen3.5-4B recurrent layer 0 also trains from the pinned real GGUF through an
+ordered `TrainingProgram`. The evidence uses all five token IDs from the recorded
+"The capital of France is" prompt, trains 112,885,760 matrix and 38,080 vector
+parameters, and lowers the two-step loss from 13.185789 to 11.006020. This proves
+one real recurrent layer, not complete 32-layer training. adaptive_new commit
+`214950b3b` provides no Qwen3.5 training oracle, so this is an Overgo-only
+capability rather than a parity result.
 
 ### Dataset processing
 

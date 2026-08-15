@@ -9,7 +9,7 @@ import "math"
 //	Wq/Wk: [hk*d, H]   Wv: [hv*d, H]         (projections from the normed input)
 //	ConvQ/ConvK: [hk*d, K]  ConvV: [hv*d, K]  ConvBias: per channel (nil ok)
 //	Wbeta/Walpha: [hv, H]   TimeStep/A: [hv]  Wz: [hv*d, H]
-//	Norm: [hv*d] (SSMNorm)  Wout: [Hout, hv*d]
+//	Norm: [d] (per-value-head SSMNorm)  Wout: [Hout, hv*d]
 type GatedDeltaMixWeights struct {
 	Wq, Wk, Wv                      []float32
 	ConvQ, ConvK, ConvV             []float32
@@ -74,7 +74,7 @@ func GatedDeltaMixForward(x []float32, w GatedDeltaMixWeights, d GatedDeltaMixDi
 	c.gdnOut, c.gdnState = GatedDeltaNetForward(c.qL2, c.kL2, c.vConv, c.gate, c.beta, state,
 		hd, hk, hk, hv, T, 1, 1, false)
 	// output gate: WeightedRMSNorm(gdnOut, Norm) * SiLU(z), then Wout.
-	c.normed = weightedRMSNorm(c.gdnOut, w.Norm, T, valDim, d.Eps)
+	c.normed = weightedRMSNorm(c.gdnOut, w.Norm, T*hv, hd, d.Eps)
 	c.siluZ = make([]float32, len(c.z))
 	for i, v := range c.z {
 		c.siluZ[i] = float32(float64(v) / (1 + math.Exp(-float64(v))))

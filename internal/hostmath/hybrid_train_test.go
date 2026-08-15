@@ -34,7 +34,7 @@ func TestHybridDecoderLayerTrainStep(t *testing.T) {
 			ConvQ: rs(keyDim * K), ConvK: rs(keyDim * K), ConvV: rs(valDim * K),
 			ConvBiasQ: rs(keyDim), ConvBiasK: rs(keyDim), ConvBiasV: rs(valDim),
 			Wbeta: rs(hv * hidden), Walpha: rs(hv * hidden), TimeStep: rs(hv), A: rs(hv),
-			Wz: rs(valDim * hidden), Norm: rs(valDim), Wout: rs(hidden * valDim),
+			Wz: rs(valDim * hidden), Norm: rs(hd), Wout: rs(hidden * valDim),
 		},
 	}
 	d := HybridLayerDims{Tokens: T, Hidden: hidden, Inter: inter, Eps: eps,

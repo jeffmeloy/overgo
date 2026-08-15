@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "qwen35-real-model",
-          "title": "Train a real Qwen3.5 artifact through the shared resident program as an Overgo-only capability; use local gradient fixtures and record adaptive's absent training oracle",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestQwen35RealTraining$' -count=1 -v"
-        },
-        {
           "id": "e4b-real-model",
           "title": "Train the real Gemma E4B artifact with AltUp, PLE, Laurel, SharedKV, mixed-window semantics, device Muon, exact resume, and matched adaptive evidence across every adaptive-declared trainable text/image/audio modality",
           "status": "open",

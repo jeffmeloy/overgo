@@ -124,7 +124,7 @@ func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 			ConvQ: sc(keyDim * convK), ConvK: sc(keyDim * convK), ConvV: sc(valDim * convK),
 			ConvBiasQ: sc(keyDim), ConvBiasK: sc(keyDim), ConvBiasV: sc(valDim),
 			Wbeta: sc(hv * H), Walpha: sc(hv * H), TimeStep: sc(hv), A: sc(hv),
-			Wz: sc(valDim * H), Norm: sc(valDim), Wout: sc(H * valDim),
+			Wz: sc(valDim * H), Norm: sc(hd), Wout: sc(H * valDim),
 		}
 		w := hostmath.HybridLayerWeights{
 			InputNorm: sc(H), PostNorm: sc(H), IsLinear: true,

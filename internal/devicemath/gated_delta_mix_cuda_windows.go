@@ -96,7 +96,7 @@ func gatedDeltaMixForwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW,
 		c.siluZ[i] = float32(float64(v) / (1 + math.Exp(-float64(v))))
 	}
 	c.gdnOut, _ = hostmath.GatedDeltaNetForward(c.qL2, c.kL2, c.vConv, c.gate, c.beta, state, hd, hk, hk, hv, T, 1, 1, false)
-	c.normed, err = RMSNormForward(worker, c.gdnOut, w.Norm, T, valDim, eps)
+	c.normed, err = RMSNormForward(worker, c.gdnOut, w.Norm, T*hv, hd, eps)
 	if err != nil {
 		return c, err
 	}
@@ -181,7 +181,7 @@ func gatedDeltaMixBackwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW
 		dz[i] = float32(float64(dSiluZ[i]) * s * (1 + v*(1-s)))
 	}
 	// normed = weightedRMSNorm(gdnOut, Norm) -> dGdnOut, dNorm.
-	dGdnOut, dNorm, err := RMSNormBackward(worker, gdnOut, w.Norm, dNormed, T, valDim, eps)
+	dGdnOut, dNorm, err := RMSNormBackward(worker, gdnOut, w.Norm, dNormed, T*hv, hd, eps)
 	if err != nil {
 		return g, err
 	}

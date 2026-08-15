@@ -97,8 +97,7 @@ def gated_delta_mix(x, w, cfg):
     gate = torch.nn.functional.softplus(alpha + w["TimeStep"]) * w["A"]  # [T,hv]
     z = torch.nn.functional.linear(x, w["Wz"])                          # [T, valDim]
     gdn = gated_delta_net(ql, kl, vv, gate, beta, w["state"], hk, hv, hd, T)  # [T,hv,hd]
-    gdn = gdn.reshape(T, valDim)
-    normed = rms_norm(gdn, w["Norm"], eps)
+    normed = rms_norm(gdn, w["Norm"], eps).reshape(T, valDim)
     gated = normed * (z * torch.sigmoid(z))                            # * SiLU(z)
     return torch.nn.functional.linear(gated, w["Wout"])                # [T, H]
 
@@ -162,7 +161,7 @@ def emit():
         "ConvBiasQ": seeded(keyDim, gen), "ConvBiasK": seeded(keyDim, gen), "ConvBiasV": seeded(valDim, gen),
         "Wbeta": seeded((hv, H), gen), "Walpha": seeded((hv, H), gen),
         "TimeStep": seeded(hv, gen), "A": seeded(hv, gen),
-        "Wz": seeded((valDim, H), gen), "Norm": seeded(valDim, gen), "Wout": seeded((H, valDim), gen),
+        "Wz": seeded((valDim, H), gen), "Norm": seeded(hd, gen), "Wout": seeded((H, valDim), gen),
         "state": seeded((hv, hd, hd), gen),
     }
     cfg_lin = {"T": T, "H": H, "hk": hk, "hv": hv, "hd": hd, "K": K, "inter": inter, "eps": eps}

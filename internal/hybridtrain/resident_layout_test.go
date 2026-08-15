@@ -51,4 +51,14 @@ func TestResidentMatrixLayout(t *testing.T) {
 		t.Errorf("plans map %d matrices, but model has %d", mapped, len(m.mats))
 	}
 	t.Logf("layout OK: %d layers, %d matrices tiling %d matW elements", len(plans), len(m.mats), m.MatrixParamCount())
+	operators := m.Program().Operators()
+	want := []string{"hybrid-forward", "squared-error", "hybrid-backward", "matrix-muon", "vector-sign"}
+	if len(operators) != len(want) {
+		t.Fatalf("program operators=%d, want %d", len(operators), len(want))
+	}
+	for index := range want {
+		if operators[index].ID != want[index] {
+			t.Fatalf("program operator %d=%q, want %q", index, operators[index].ID, want[index])
+		}
+	}
 }

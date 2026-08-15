@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 // LayerKind selects a layer's mix variant.
@@ -64,11 +65,13 @@ type Model struct {
 	mats    []matDesc // resident-Muon matrices, in canonical stack order
 	matPlan optimizer.Plan
 	vecPlan optimizer.Plan
+	program trainingprogram.TrainingProgram
 }
 
 // MatrixParamCount / VectorParamCount expose the two optimizer buffers' sizes.
-func (m *Model) MatrixParamCount() int { return len(m.matW) }
-func (m *Model) VectorParamCount() int { return len(m.vecW) }
+func (m *Model) MatrixParamCount() int                    { return len(m.matW) }
+func (m *Model) VectorParamCount() int                    { return len(m.vecW) }
+func (m *Model) Program() trainingprogram.TrainingProgram { return m.program }
 
 // matSlot is one matrix's element offset and size within the flat matW buffer.
 type matSlot struct{ Off, Size int }
@@ -230,6 +233,18 @@ func (b *builder) mat(dst *[]float32, name string, rows, cols int) {
 	b.fixups = append(b.fixups, aliasFixup{dst: dst, mat: true, off: off, size: rows * cols})
 }
 
+func (b *builder) matValues(dst *[]float32, name string, rows, cols int, values []float32) error {
+	if len(values) != rows*cols {
+		return fmt.Errorf("hybrid model: matrix %q has %d values, need %d", name, len(values), rows*cols)
+	}
+	off := len(b.m.matW)
+	b.m.matW = append(b.m.matW, values...)
+	b.m.mats = append(b.m.mats, matDesc{name: name, off: off, size: len(values), rows: rows, cols: cols})
+	b.matSpecs = append(b.matSpecs, optimizer.GroupSpec{Name: name, Start: off, End: off + len(values), Rows: rows, Cols: cols})
+	b.fixups = append(b.fixups, aliasFixup{dst: dst, mat: true, off: off, size: len(values)})
+	return nil
+}
+
 // vec appends an n-element host-Sign param into vecW (recorded as a 1xN Sign group)
 // and registers dst for post-build alias rebinding.
 func (b *builder) vec(dst *[]float32, name string, n int) {
@@ -237,6 +252,17 @@ func (b *builder) vec(dst *[]float32, name string, n int) {
 	b.randn(&b.m.vecW, n)
 	b.vecSpecs = append(b.vecSpecs, optimizer.GroupSpec{Name: name, Start: off, End: off + n, Rows: 1, Cols: n})
 	b.fixups = append(b.fixups, aliasFixup{dst: dst, mat: false, off: off, size: n})
+}
+
+func (b *builder) vecValues(dst *[]float32, name string, values []float32) error {
+	if len(values) == 0 {
+		return fmt.Errorf("hybrid model: vector %q is empty", name)
+	}
+	off := len(b.m.vecW)
+	b.m.vecW = append(b.m.vecW, values...)
+	b.vecSpecs = append(b.vecSpecs, optimizer.GroupSpec{Name: name, Start: off, End: off + len(values), Rows: 1, Cols: len(values)})
+	b.fixups = append(b.fixups, aliasFixup{dst: dst, mat: false, off: off, size: len(values)})
+	return nil
 }
 
 // rebindAliases repoints every recorded weight-slice field onto the final matW/vecW
@@ -306,7 +332,7 @@ func BuildModel(cfg StackConfig, seed int64) (*Model, error) {
 			b.vec(&w.GDN.ConvBiasV, p("gdn.cbv"), valDim)
 			b.vec(&w.GDN.TimeStep, p("gdn.dt"), hv)
 			b.vec(&w.GDN.A, p("gdn.a"), hv)
-			b.vec(&w.GDN.Norm, p("gdn.norm"), valDim)
+			b.vec(&w.GDN.Norm, p("gdn.norm"), cfg.GDNHeadDim)
 		}
 		m.Dims[li] = cfg.layerDims(kind)
 		if kind == LinearAttention {
@@ -325,14 +351,46 @@ func BuildModel(cfg StackConfig, seed int64) (*Model, error) {
 		m.Target[i] = float32(b.rng.NormFloat64() * 0.3)
 	}
 
-	var err error
-	if m.matPlan, err = optimizer.CompilePlan(len(m.matW), b.matSpecs); err != nil {
-		return nil, err
-	}
-	if m.vecPlan, err = optimizer.CompilePlan(len(m.vecW), b.vecSpecs); err != nil {
+	if err := b.finish(); err != nil {
 		return nil, err
 	}
 	return m, nil
+}
+
+func (b *builder) finish() error {
+	var err error
+	if b.m.matPlan, err = optimizer.CompilePlan(len(b.m.matW), b.matSpecs); err != nil {
+		return err
+	}
+	if b.m.vecPlan, err = optimizer.CompilePlan(len(b.m.vecW), b.vecSpecs); err != nil {
+		return err
+	}
+	all := append([]optimizer.GroupSpec(nil), b.matSpecs...)
+	for _, spec := range b.vecSpecs {
+		spec.Start += len(b.m.matW)
+		spec.End += len(b.m.matW)
+		all = append(all, spec)
+	}
+	plan, err := optimizer.CompilePlan(len(b.m.matW)+len(b.m.vecW), all)
+	if err != nil {
+		return err
+	}
+	parameters := make([]trainingprogram.ParameterSpec, len(all))
+	for index, spec := range all {
+		parameters[index] = trainingprogram.ParameterSpec{Name: spec.Name, Rows: spec.Rows, Cols: spec.Cols, Trainable: !spec.Frozen}
+	}
+	b.m.program, err = trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
+		Operators: []trainingprogram.OperatorSpec{
+			{ID: "hybrid-forward", Phase: trainingprogram.PhaseForward},
+			{ID: "squared-error", Phase: trainingprogram.PhaseLoss},
+			{ID: "hybrid-backward", Phase: trainingprogram.PhaseBackward},
+			{ID: "matrix-muon", Phase: trainingprogram.PhaseOptimize},
+			{ID: "vector-sign", Phase: trainingprogram.PhaseOptimize},
+		},
+		Parameters: parameters,
+		Optimizer:  plan,
+	})
+	return err
 }
 
 func name(layer int, tensor string) string {

@@ -127,7 +127,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Dense causal LM | Carbon at `c72b6595d`: four 31-token DNA windows, loss `8.43767 -> 7.29179`, 6.816 s loop, 11.47 GiB. Qwen2.5-0.5B at `de547a363`: 505 ms warm step | Carbon on the same windows: loss `8.438149 -> 7.290705-7.293696`, 1.510-1.550 s loop, 4.985 GiB. Qwen on the pinned 512-token adaptive corpus: loss `4.592842 -> 2.958702`; 552-753 ms cold execution, 469-480 ms retained warm execution, 6.592 GiB peak | Carbon wall/peak lead; Qwen retained warm-wall lead with measured peak |
 | Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train -freeze-lexical` selects the no-fallback resident contract; full-parameter mode remains explicit; `-resume` restores a validated checkpoint and advances the same stream | Carbon route and exact resume reachable |
 | Checkpoint/resume | Fine-tune evidence and persistence exist, uneven by trainer | Atomic directory publication refuses overwrite and binds weight content, full Muon state, data/augmentation RNG counters, stream position, processor/projector/codec identities, compiled run/program identities, and lineage parents. Host and resident CUDA tests match uninterrupted weights and momentum exactly. | Dense production contract complete; adoption by scratch, seq2seq, speech, and diffusion trainers remains open |
-| Qwen3.5 hybrid | Inference active; training unsupported in adaptive inventory | Host/device hybrid layer VJPs and synthetic resident stack train | Overgo primitive lead; real-model gap |
+| Qwen3.5 hybrid | Inference active; no Qwen3.5 training oracle at `214950b3b` | Model-native per-head GDN norm matches the local PyTorch gradient oracle. Real 4B GGUF recurrent layer 0 trains 112,885,760 matrix and 38,080 vector parameters through the compiled resident program on all five token IDs from a recorded prompt; loss `13.185789 -> 11.006020` | Overgo-only real-layer capability; complete 32-layer training remains open |
 | Gemma E4B | Adaptive declares streamed CUDA LM scope and supplies real semantics/oracles | Host E4B VJPs plus device primitives; no real E4B end-to-end training | Open; current done status is false closure |
 | Gemma4 12B | Streamed CUDA LM scope | Shared backward prerequisites; no reported real 12B training | Gap |
 | Forecast/latent/FNS | CUDA objectives for LM, FNS, latent L2/sequence, forecast | TimesFM primitives remain open. Un-0 retains complete VJPs but explicitly refuses training after deletion of its synthetic constant-target ramp | Breadth gap; false capability removed |
@@ -162,6 +162,12 @@ Overgo's tokenizer total includes a large generated Unicode table.
   469-480 ms versus adaptive's 505 ms warm reference. Peak use is 6.592 GiB.
 - Hybrid resident synthetic stack: loss `15.92 -> 2.56`; host/device trajectory
   difference `2.856e-6`.
+- Qwen3.5-4B recurrent layer 0: checkpoint `c4e8dc8f...`, local gradient oracle
+  `76d9880f...`, serving data `6dcce666...`, and compiled program `cc95d667...`
+  are pinned. Four real prompt transitions train 112,885,760 matrix and 38,080
+  vector parameters; loss is `13.185789 -> 11.006020`, training wall is 1.552 s,
+  and peak device allocation is 1.775 GiB. adaptive_new `214950b3b` has no Qwen3.5 training
+  oracle; no parity or full-model claim is made.
 - Needle 26M, first real GSM8K training record, three compiled device-Muon
   steps over the decoder final norm and complete last cross-attention block:
   train loss `6.541863 -> 6.415488`; separate held-out record
@@ -364,9 +370,11 @@ stubs.
 
 ### P0: production training leadership remains narrow
 
-Carbon and Qwen2.5-0.5B now have reachable frozen-lexical CUDA contracts and
-matched leadership evidence. Repeat for hybrid and E4B; add held-out promotion
-before broader claims. Exact dense checkpoint/resume evidence is already gated.
+Carbon and Qwen2.5-0.5B have reachable frozen-lexical CUDA contracts and matched
+leadership evidence. Qwen3.5 has one real recurrent-layer training gate without
+an adaptive oracle. Extend that compiled path across the complete stack, then
+E4B; add held-out promotion before broader claims. Exact dense checkpoint/resume
+evidence is already gated.
 
 ### P0: E4B training is falsely closed
 
@@ -479,8 +487,8 @@ The authoritative steps live in `docs/plan.json`. Order:
 7. Publish scratch initialization and training results as complete RepoDB
    artifacts; bind exact resume and production command reachability.
 8. Make checkpoint/resume atomic, exact, lineage-bound, and production-reachable.
-9. Prove dense real-artifact training parity; then real Qwen hybrid and E4B,
-    exercising every adaptive-declared trainable modality.
+9. Extend the proven real Qwen recurrent-layer path to the complete hybrid
+    stack; then train E4B, exercising every adaptive-declared modality.
 10. Compile the multimodal training matrix; port remaining adaptive objective
     families through shared programs and explicitly refuse absent objectives.
 11. Train and promote the scratch workflow controller; keep recursive candidate

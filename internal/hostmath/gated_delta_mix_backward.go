@@ -50,7 +50,7 @@ func GatedDeltaMixBackward(x []float32, w GatedDeltaMixWeights, d GatedDeltaMixD
 		dz[i] = float32(float64(dSiluZ[i]) * s * (1 + v*(1-s)))
 	}
 	// normed = weightedRMSNorm(gdnOut, Norm) -> dGdnOut, dNorm
-	dGdnOut, dNorm := weightedRMSNormBackward(c.gdnOut, w.Norm, dNormed, T, valDim, d.Eps)
+	dGdnOut, dNorm := weightedRMSNormBackward(c.gdnOut, w.Norm, dNormed, T*hv, hd, d.Eps)
 	g.DNorm = dNorm
 	// z = Wz·x
 	dxZ, dWz := linearBackward2(x, w.Wz, dz, T, H, valDim)

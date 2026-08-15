@@ -49,6 +49,7 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | --- | --- |
 | Publish or load an exact-resume checkpoint | `trainingprogram.PublishCheckpoint` / `LoadCheckpoint`; one staged, non-overwriting directory |
 | Resume dense host or resident CUDA Muon | `densecausal.TrainBatchesResume` / `TrainDeviceResidentBatches` |
+| Load and train a real gated-delta recurrent layer | `hybridtrain.LoadRecurrentLayerArtifact` / `Model.TrainDeviceResident`; execution order is `Model.Program()` |
 | Bind dataset progress | `trainingdata.StreamState`; checkpoint form is `trainingprogram.DatasetState` |
 
 ## Commands / process (Go owns policy; scripts are bash or Go)

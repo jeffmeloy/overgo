@@ -26,7 +26,7 @@ func TestGatedDeltaMixBackwardFD(t *testing.T) {
 		ConvQ: rs(keyDim * d.ConvK), ConvK: rs(keyDim * d.ConvK), ConvV: rs(valDim * d.ConvK),
 		ConvBiasQ: rs(keyDim), ConvBiasK: rs(keyDim), ConvBiasV: rs(valDim),
 		Wbeta: rs(hv * H), Walpha: rs(hv * H), TimeStep: rs(hv), A: rs(hv),
-		Wz: rs(valDim * H), Norm: rs(valDim), Wout: rs(d.OutDim * valDim),
+		Wz: rs(valDim * H), Norm: rs(hd), Wout: rs(d.OutDim * valDim),
 	}
 	x := rs(T * H)
 	state := rs(hv * hd * hd)

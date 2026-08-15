@@ -214,7 +214,6 @@ func LinearBackward(dx, dW, dB, x, w, dy []float32, rows, inDim, outDim int, add
 			if g == 0 {
 				continue
 			}
-			wRow := w[o*inDim : (o+1)*inDim]
 			if dW != nil {
 				dWRow := dW[o*inDim : (o+1)*inDim]
 				for c := 0; c < inDim; c++ {
@@ -222,6 +221,7 @@ func LinearBackward(dx, dW, dB, x, w, dy []float32, rows, inDim, outDim int, add
 				}
 			}
 			if dxRow != nil {
+				wRow := w[o*inDim : (o+1)*inDim]
 				for c := 0; c < inDim; c++ {
 					dxRow[c] += g * wRow[c]
 				}

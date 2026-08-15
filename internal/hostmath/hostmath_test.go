@@ -48,6 +48,16 @@ func TestLinearBF16BackwardInput(t *testing.T) {
 	}
 }
 
+func TestLinearBackwardWeightOnly(t *testing.T) {
+	x := []float32{1, 2, -1, 3}
+	dy := []float32{2, -1, 4, 0.5}
+	dW := make([]float32, 4)
+	LinearBackward(nil, dW, nil, x, nil, dy, 2, 2, 2, false)
+	if want := []float32{-2, 16, -1.5, -0.5}; !slices.Equal(dW, want) {
+		t.Fatalf("weight-only gradient = %v, want %v", dW, want)
+	}
+}
+
 // TestGELUTanh pins the tanh approximation against PyTorch gelu(approximate="tanh").
 func TestGELUTanh(t *testing.T) {
 	v := []float32{0, 1, -1, 2, -2, 0.5}

@@ -26,10 +26,10 @@ active recipe + resolved artifact facts
 
 | Surface | Count | Treatment |
 |---|---:|---|
-| Repo production files / AST nodes | 748 / 1,024,181 | Structural baseline |
-| Repo test files / AST nodes | 584 / 699,753 | Structural baseline |
-| Exported declarations / import edges | 4,405 / 2,226 | Reduce single-consumer exports |
-| Exact duplicate excess AST nodes | 11,663 | Profiler-ranked deletion queue |
+| Repo production files / AST nodes | 749 / 1,024,876 | Structural baseline |
+| Repo test files / AST nodes | 586 / 703,108 | Structural baseline |
+| Exported declarations / import edges | 4,371 / 2,231 | Reduce single-consumer exports |
+| Exact duplicate excess AST nodes | 11,455 | Profiler-ranked deletion queue |
 | Model/inference production files | 143 | Diagnostic; ownership matters, not file count |
 | Model/inference production functions | 943 | Typed plans and operators own execution |
 | Family-named production files | 0 | Hold at zero |
@@ -73,6 +73,9 @@ active recipe + resolved artifact facts
 | Runtime CUDA rewrite decision maps | 0 | Node and fusion frames retain compiled decisions |
 | Compiled CUDA tensor-pointer map APIs | 0 | Indexed input slabs are the sole compiled contract |
 | Retained compiled CUDA execution methods | 1 | Inputs, targets, and attributes share one indexed entry point |
+| Single-axis RoPE builder entry points | 1 | Typed options own layout and scaling policy |
+| Routed-expert builder entry points | 1 | Typed options own routing, activation, and storage policy |
+| General attention builder entry points | 1 | Typed options own masking, window, bias, and sink policy |
 | Routed per-layer device-binding maps | 0 | Branch input programs retain compiled slots |
 | Duplicate dense FFN builders | 0 | Feed-forward policy owns layout, activation, bias, and projection |
 | Routed/denoiser allocation owners | 1 | Shared ordered allocation set; VAE keeps distinct batched/workspace ownership |
@@ -92,7 +95,7 @@ active recipe + resolved artifact facts
 | Family capability runtime files | 91 / 21,953 lines | Separate unique math from displaced orchestration |
 | Family capability exported functions | 295 | Delete wrappers and direct orchestration after caller migration |
 | Production projector recipe consumers | 0 | Route server and generate through active projection plans |
-| Active projection lifecycle dimensions | task only | Add modality/module scope before serving migration |
+| Active projection lifecycle dimensions | task only | One recipe bundle must enumerate every admitted modality module |
 | Training authority timing | pre-allocation | Training plan resolves before runtime construction |
 | Typed architecture profile facts | 166 | Profile/artifact facts own omitted-value policy |
 | `optionalOr` calls in `model/spec.go` | 12 | Move remaining relational defaults into typed policies |
@@ -103,15 +106,14 @@ Family-named production files: none.
 
 ## Ordered Work
 
-1. Add modality/module scope to active capability identity; one projector may expose image, audio, and video.
-2. Compile projection definitions with base and projector dependencies; migrate server/generate and delete direct runtime opens.
+1. Compile one active projection bundle containing every supported image, audio, and video module; keep one task identity.
+2. Bind projection definitions to exact base/projector artifacts; migrate server/generate and delete direct runtime opens.
 3. Move remaining relational metadata defaults into typed profile/artifact policies.
-4. Make typed `RoPEOptions` the sole single-axis rotary API; migrate and delete remaining wrappers.
-5. Replace video runtime registration names and duplicated stage plumbing only when the wave is net-negative.
-6. Bind VQA production execution to its active recipe; remove inventory-only activation.
-7. Replace coarse prepare/integrate/decode shells with neutral operator programs.
-8. Compile one image/video codec program; migrate host and CUDA execution together.
-9. Classify remaining legacy/fallback hits; retain explicit file-format support only.
+4. Replace video runtime registration names and duplicated stage plumbing only when the wave is net-negative.
+5. Bind VQA production execution to its active recipe; remove inventory-only activation.
+6. Replace coarse prepare/integrate/decode shells with neutral operator programs.
+7. Compile one image/video codec program; migrate host and CUDA execution together.
+8. Classify remaining legacy/fallback hits; retain explicit file-format support only.
 
 ## Completed Waves
 
@@ -128,6 +130,11 @@ Family-named production files: none.
 - Resolved normalization policy handed back to model-plan compilation; stale-profile execution fixed.
 - Rotary omitted-value policy moved into 166 typed profile facts: two waves, `-132` net lines.
 - Duplicate Step35 metadata object removed; one serialized policy owner remains.
+- Duplicate projector inventory maps removed: `-16` net lines.
+- Indexed CUDA execution made authoritative: two map-execution APIs deleted.
+- Test-only MoE builder facade deleted: `-218` net lines.
+- Typed single-axis RoPE options made authoritative: `-119` net lines.
+- Typed general attention options made authoritative: `-202` net lines.
 - Context-pipeline-tail abstraction rejected: `+26` lines for three consumers; no commit.
 
 ## Per-Wave Gate

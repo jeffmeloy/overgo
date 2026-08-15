@@ -191,22 +191,22 @@ func prepareCapability(
 	task recipe.Task,
 	capability capability,
 ) (artifact.ID, recipe.Definition, error) {
-	inventory, err := capability.inventory(path)
+	source, err := capability.resolve(path)
 	if err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
 	}
-	modelID := inventory.Manifest.ID
+	modelID := source.inventory.Manifest.ID
 	var definition recipe.Definition
 	var facts []artifact.Content
-	if capability.bind != nil {
-		definition, facts, err = capability.bind(path, modelID)
+	if source.define != nil {
+		definition, facts, err = source.define(modelID)
 	} else {
 		definition, err = modelrecipe.CapabilityDefinition(task, modelID)
 	}
 	if err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
 	}
-	batch, err := inventory.Batch("recipe/facts/" + modelID.String())
+	batch, err := source.inventory.Batch("recipe/facts/" + modelID.String())
 	if err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
 	}
@@ -330,15 +330,16 @@ func executeCapability(
 		return err
 	}
 	defer store.Close()
-	inventory, err := capability.inventory(path)
+	source, err := capability.resolve(path)
 	if err != nil {
 		return err
 	}
-	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, inventory.Manifest.ID, task)
+	modelID := source.inventory.Manifest.ID
+	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
 	if err != nil {
 		return err
 	}
-	output, err := capability.execute(ctx, store, path, inventory.Manifest.ID, program, input)
+	output, err := capability.execute(ctx, store, path, modelID, program, input)
 	if err != nil {
 		return err
 	}
@@ -450,11 +451,11 @@ func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
 	if capability, ok := capabilities[task]; ok {
-		var err error
-		inventory, err = capability.inventory(path)
+		source, err := capability.resolve(path)
 		if err != nil {
 			return err
 		}
+		inventory = source.inventory
 	} else {
 		if task != recipe.TaskInference {
 			return fmt.Errorf("unsupported model recipe task %q", task)

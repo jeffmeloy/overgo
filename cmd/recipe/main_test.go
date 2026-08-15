@@ -20,7 +20,7 @@ func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 	} {
 		t.Run(string(task), func(t *testing.T) {
 			capability, ok := capabilities[task]
-			if !ok || capability.inventory == nil || capability.execute == nil {
+			if !ok || capability.resolve == nil || capability.execute == nil {
 				t.Fatalf("capability = %+v", capability)
 			}
 		})

@@ -88,81 +88,61 @@ func imageCapability() capability {
 	)
 	diffusion := residentExecutor(diffusionCache, diffusionErr)
 	return capability{
-		inventory: func(path string) (modelartifact.Inventory, error) {
-			routedModel, err := sensenovarecipe.Recognize(path)
-			if err != nil {
-				return modelartifact.Inventory{}, err
-			}
-			if routedModel {
-				return sensenovarecipe.Inventory(path)
-			}
-			recognized, err := latentimage.IsPipeline(path)
-			if err != nil {
-				return modelartifact.Inventory{}, err
-			}
-			if recognized {
-				return latentImageInventory(path)
-			}
-			return imageGenInventory(path)
-		},
-		execute: func(ctx context.Context, store artifact.Repository, path string, modelID artifact.ID, program recipe.Program, raw string) (any, error) {
-			switch imageProgramModule(program) {
-			case modelrecipe.ModuleRoutedImagePrepare:
-				return routed(ctx, store, path, modelID, program, raw)
-			case modelrecipe.ModuleLatentImagePrepare:
-				return latent(ctx, store, path, modelID, program, raw)
-			case modelrecipe.ModuleOscillatorImagePrepare:
-				return oscillator(ctx, store, path, modelID, program, raw)
-			case modelrecipe.ModuleDiffusionImagePrepare:
-				return diffusion(ctx, store, path, modelID, program, raw)
-			default:
-				return nil, fmt.Errorf("image-gen: compiled recipe has no registered operator")
-			}
-		},
-		bind: func(path string, modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-			routedModel, err := sensenovarecipe.Recognize(path)
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			if routedModel {
-				definition, err := modelrecipe.RoutedImageDefinition(modelID)
-				return definition, nil, err
-			}
-			recognized, err := latentimage.IsPipeline(path)
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			if recognized {
-				profile, err := latentimage.ResolveProfile(path)
-				if err != nil {
-					return recipe.Definition{}, nil, err
-				}
-				content, err := profile.Content()
-				if err != nil {
-					return recipe.Definition{}, nil, err
-				}
-				definition, err := modelrecipe.LatentImageDefinition(modelID, profile.ID)
-				return definition, []artifact.Content{content}, err
-			}
-			recognized, err = diffusionimage.Recognize(path)
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			if recognized {
-				definition, err := modelrecipe.DiffusionImageDefinition(modelID)
-				return definition, nil, err
-			}
-			recognized, err = oscillatorimage.Recognize(path)
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			if !recognized {
-				return recipe.Definition{}, nil, fmt.Errorf("image-gen: artifact has no registered image recipe")
-			}
-			definition, err := modelrecipe.OscillatorImageDefinition(modelID)
-			return definition, nil, err
-		},
+		resolve: resolveImageSource,
+		execute: capabilityruntime.Dispatch(
+			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed},
+			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleLatentImagePrepare, Execute: latent},
+			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleOscillatorImagePrepare, Execute: oscillator},
+			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleDiffusionImagePrepare, Execute: diffusion},
+		),
 	}
+}
+
+func resolveImageSource(path string) (capabilitySource, error) {
+	routed, err := sensenovarecipe.Recognize(path)
+	if err != nil {
+		return capabilitySource{}, err
+	}
+	if routed {
+		inventory, err := sensenovarecipe.Inventory(path)
+		return definitionSource(inventory, err, modelrecipe.RoutedImageDefinition)
+	}
+	latent, err := latentimage.IsPipeline(path)
+	if err != nil {
+		return capabilitySource{}, err
+	}
+	if latent {
+		inventory, err := latentImageInventory(path)
+		return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+			profile, err := latentimage.ResolveProfile(path)
+			if err != nil {
+				return recipe.Definition{}, nil, err
+			}
+			content, err := profile.Content()
+			if err != nil {
+				return recipe.Definition{}, nil, err
+			}
+			definition, err := modelrecipe.LatentImageDefinition(modelID, profile.ID)
+			return definition, []artifact.Content{content}, err
+		}}, err
+	}
+	diffusion, err := diffusionimage.Recognize(path)
+	if err != nil {
+		return capabilitySource{}, err
+	}
+	if diffusion {
+		inventory, err := imageGenInventory(path)
+		return definitionSource(inventory, err, modelrecipe.DiffusionImageDefinition)
+	}
+	oscillator, err := oscillatorimage.Recognize(path)
+	if err != nil {
+		return capabilitySource{}, err
+	}
+	if !oscillator {
+		return capabilitySource{}, fmt.Errorf("image-gen: artifact has no registered image recipe")
+	}
+	inventory, err := imageGenInventory(path)
+	return definitionSource(inventory, err, modelrecipe.OscillatorImageDefinition)
 }
 
 func latentImageInventory(path string) (modelartifact.Inventory, error) {

@@ -12,6 +12,40 @@ import (
 
 type Executor func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error)
 
+// ExecutorBinding binds one compiled entry module to its implementation.
+type ExecutorBinding struct {
+	Module  recipe.ModuleID
+	Execute Executor
+}
+
+// Dispatch selects execution from the compiled recipe entry module.
+func Dispatch(bindings ...ExecutorBinding) Executor {
+	bindings = append([]ExecutorBinding(nil), bindings...)
+	return func(
+		ctx context.Context,
+		store artifact.Repository,
+		path string,
+		modelID artifact.ID,
+		program recipe.Program,
+		raw string,
+	) (any, error) {
+		stages := program.Stages()
+		if len(stages) == 0 {
+			return nil, errors.New("capability runtime: compiled program has no entry module")
+		}
+		entry := stages[0].Module.ID
+		for _, binding := range bindings {
+			if binding.Module == entry {
+				if binding.Execute == nil {
+					return nil, fmt.Errorf("capability runtime: entry module %q has no executor", entry)
+				}
+				return binding.Execute(ctx, store, path, modelID, program, raw)
+			}
+		}
+		return nil, fmt.Errorf("capability runtime: entry module %q has no executor", entry)
+	}
+}
+
 func JSONScalar[Input, Model, Output any](
 	name string,
 	validate func(Input) error,

@@ -7,6 +7,7 @@ package seq2seq
 
 import (
 	"fmt"
+	"math"
 
 	"overgo/internal/hostmath"
 )
@@ -21,7 +22,7 @@ func (m *Model) embedRows(dst []float32, tokens []int) error {
 		}
 		row, source := dst[i*d:(i+1)*d], m.embed[token*d:(token+1)*d]
 		for j, value := range source {
-			row[j] = value * m.embedScale
+			row[j] = float32FromBF16(value) * m.embedScale
 		}
 	}
 	return nil
@@ -33,7 +34,7 @@ func (m *Model) embedRows(dst []float32, tokens []int) error {
 // power-of-two head dim the fold is bit-exact against scaling the scores.
 func (m *Model) projectQ(dst, normed []float32, rows int, block *attnBlock, posBase int, roped bool) {
 	heads, hd := m.Dims.Heads, m.Dims.HeadDim
-	hostmath.Linear(dst, normed, block.q, rows, m.Dims.DModel, heads*hd)
+	hostmath.LinearBF16(dst, normed, block.q, rows, m.Dims.DModel, heads*hd)
 	hostmath.RMSNormInto(dst, dst, block.qNorm, rows*heads, hd, m.Dims.RMSEps)
 	if roped {
 		m.ropeRows(dst, rows, heads, posBase)
@@ -46,12 +47,12 @@ func (m *Model) projectQ(dst, normed []float32, rows int, block *attnBlock, posB
 // projectKV: normed source rows -> per-head-normed roped keys and raw values.
 func (m *Model) projectKV(dstK, dstV, source []float32, rows int, block *attnBlock, posBase int, roped bool) {
 	kv, hd := m.Dims.KVHeads, m.Dims.HeadDim
-	hostmath.Linear(dstK, source, block.k, rows, m.Dims.DModel, kv*hd)
+	hostmath.LinearBF16(dstK, source, block.k, rows, m.Dims.DModel, kv*hd)
 	hostmath.RMSNormInto(dstK, dstK, block.kNorm, rows*kv, hd, m.Dims.RMSEps)
 	if roped {
 		m.ropeRows(dstK, rows, kv, posBase)
 	}
-	hostmath.Linear(dstV, source, block.v, rows, m.Dims.DModel, kv*hd)
+	hostmath.LinearBF16(dstV, source, block.v, rows, m.Dims.DModel, kv*hd)
 }
 
 // ropeRows: rotate-half every head of rows whose absolute positions start
@@ -66,10 +67,10 @@ func (m *Model) ropeRows(x []float32, rows, heads, posBase int) {
 }
 
 // gatedResidualOut: hidden += gate * (attn @ o_proj) per row.
-func (m *Model) gatedResidualOut(hidden, attn, oProj []float32, rows int, gate float32) {
+func (m *Model) gatedResidualOut(hidden, attn []float32, oProj []uint16, rows int, gate float32) {
 	d := m.Dims.DModel
 	projected := make([]float32, rows*d)
-	hostmath.Linear(projected, attn, oProj, rows, m.Dims.Heads*m.Dims.HeadDim, d)
+	hostmath.LinearBF16(projected, attn, oProj, rows, m.Dims.Heads*m.Dims.HeadDim, d)
 	for i, value := range projected {
 		hidden[i] += gate * value
 	}
@@ -133,13 +134,29 @@ func (m *Model) projectCrossMemory(memory []float32, memRows int) (*crossMemory,
 func (m *Model) projectLogits(logits, hiddenRow, normedScratch []float32) {
 	d := m.Dims.DModel
 	hostmath.RMSNormInto(normedScratch[:d], hiddenRow, m.decFinalNorm, 1, d, m.Dims.RMSEps)
-	hostmath.Linear(logits[:m.Dims.Vocab], normedScratch[:d], m.embed, 1, d, m.Dims.Vocab)
+	hostmath.LinearBF16(logits[:m.Dims.Vocab], normedScratch[:d], m.embed, 1, d, m.Dims.Vocab)
 }
+
+func float32FromBF16(value uint16) float32 { return math.Float32frombits(uint32(value) << 16) }
 
 // DecodeFull teacher-forces tgt through the decoder in one full-sequence
 // pass and returns logits [len(tgt), vocab] — the recompute reference the
 // incremental session is checked against.
 func (m *Model) DecodeFull(memory []float32, memRows int, tgt []int) ([]float32, error) {
+	hidden, err := m.decodeHiddenFull(memory, memRows, tgt)
+	if err != nil {
+		return nil, err
+	}
+	rows, d := len(tgt), m.Dims.DModel
+	logits := make([]float32, rows*m.Dims.Vocab)
+	scratch := make([]float32, d)
+	for row := 0; row < rows; row++ {
+		m.projectLogits(logits[row*m.Dims.Vocab:(row+1)*m.Dims.Vocab], hidden[row*d:(row+1)*d], scratch)
+	}
+	return logits, nil
+}
+
+func (m *Model) decodeHiddenFull(memory []float32, memRows int, tgt []int) ([]float32, error) {
 	if len(tgt) == 0 {
 		return nil, fmt.Errorf("seq2seq: empty target")
 	}
@@ -172,10 +189,5 @@ func (m *Model) DecodeFull(memory []float32, memRows int, tgt []int) ([]float32,
 		hostmath.MaskedBidirectionalAttention(attn, q, cross.k[layer], cross.v[layer], rows, cross.rows, dims.Heads, dims.KVHeads, dims.HeadDim, nil)
 		m.gatedResidualOut(hidden, attn, crossBlock.o, rows, crossBlock.gate)
 	}
-	logits := make([]float32, rows*dims.Vocab)
-	scratch := make([]float32, d)
-	for row := 0; row < rows; row++ {
-		m.projectLogits(logits[row*dims.Vocab:(row+1)*dims.Vocab], hidden[row*d:(row+1)*d], scratch)
-	}
-	return logits, nil
+	return hidden, nil
 }

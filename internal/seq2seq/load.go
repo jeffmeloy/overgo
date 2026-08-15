@@ -44,7 +44,7 @@ type Dims struct {
 // the loaded f32 tensors.
 type attnBlock struct {
 	inNorm       []float32 // [d], folded 1+w
-	q, k, v, o   []float32 // [heads*hd,d], [kv*hd,d], [kv*hd,d], [d,heads*hd]
+	q, k, v, o   []uint16  // BF16 [heads*hd,d], [kv*hd,d], [kv*hd,d], [d,heads*hd]
 	qNorm, kNorm []float32 // [hd], folded 1+w
 	gate         float32   // folded sigmoid(raw)
 }
@@ -52,7 +52,7 @@ type attnBlock struct {
 // Model: loaded weights and derived dims.
 type Model struct {
 	Dims         Dims
-	embed        []float32 // [vocab,d]; tied head (config tie_word_embeddings)
+	embed        []uint16  // BF16 [vocab,d]; tied head
 	encFinalNorm []float32 // [d], folded 1+w
 	decFinalNorm []float32 // [d], folded 1+w
 	encoder      []attnBlock
@@ -81,9 +81,8 @@ const (
 	decLayerPrefix   = "model.decoder.layers."
 )
 
-// Load opens the safetensors artifact, materializes every needed tensor as
-// f32, derives dims from shapes, and folds load-time transforms (1+w norm
-// scales, sigmoid residual gates).
+// Load opens the safetensors artifact, retains matrix tensors as BF16,
+// promotes transformed vectors to F32, and derives dims from shapes.
 func Load(directory string) (*Model, error) {
 	config, err := loadConfig(filepath.Join(directory, "config.json"))
 	if err != nil {
@@ -131,6 +130,26 @@ func Load(directory string) (*Model, error) {
 		weights[name] = values
 		return values, nil
 	}
+	readBF16 := func(name string, wantShape ...int) ([]uint16, error) {
+		tensor, ok := source.Tensors[name]
+		if !ok {
+			return nil, fmt.Errorf("seq2seq: tensor %q missing", name)
+		}
+		shape := shapes[name]
+		if len(shape) != len(wantShape) {
+			return nil, fmt.Errorf("seq2seq: tensor %q rank %d, want %d", name, len(shape), len(wantShape))
+		}
+		for i, want := range wantShape {
+			if want > 0 && shape[i] != want {
+				return nil, fmt.Errorf("seq2seq: tensor %q shape %v, want dim %d = %d", name, shape, i, want)
+			}
+		}
+		values, err := safetensors.ReadBF16(tensor)
+		if err != nil {
+			return nil, fmt.Errorf("seq2seq: tensor %q: %w", name, err)
+		}
+		return values, nil
+	}
 
 	dims, err := deriveDims(shapes, config)
 	if err != nil {
@@ -142,7 +161,7 @@ func Load(directory string) (*Model, error) {
 		embedScale: float32(math.Sqrt(float64(dims.DModel))),
 		scoreScale: float32(1 / math.Sqrt(float64(dims.HeadDim))),
 	}
-	if m.embed, err = read(embedName, dims.Vocab, dims.DModel); err != nil {
+	if m.embed, err = readBF16(embedName, dims.Vocab, dims.DModel); err != nil {
 		return nil, err
 	}
 	if m.encFinalNorm, err = read(encFinalNormName, dims.DModel); err != nil {
@@ -165,16 +184,16 @@ func Load(directory string) (*Model, error) {
 			if block.inNorm, err = read(base+norm, d); err != nil {
 				return nil, err
 			}
-			if block.q, err = read(a+"q_proj.weight", qw, d); err != nil {
+			if block.q, err = readBF16(a+"q_proj.weight", qw, d); err != nil {
 				return nil, err
 			}
-			if block.k, err = read(a+"k_proj.weight", kvw, d); err != nil {
+			if block.k, err = readBF16(a+"k_proj.weight", kvw, d); err != nil {
 				return nil, err
 			}
-			if block.v, err = read(a+"v_proj.weight", kvw, d); err != nil {
+			if block.v, err = readBF16(a+"v_proj.weight", kvw, d); err != nil {
 				return nil, err
 			}
-			if block.o, err = read(a+"out_proj.weight", d, qw); err != nil {
+			if block.o, err = readBF16(a+"out_proj.weight", d, qw); err != nil {
 				return nil, err
 			}
 			if block.qNorm, err = read(a+"q_norm.weight", hd); err != nil {

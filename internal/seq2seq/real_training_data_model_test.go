@@ -1,0 +1,173 @@
+//go:build modeltest
+
+package seq2seq
+
+import (
+	"bufio"
+	"context"
+	"math"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"overgo/internal/artifact"
+	"overgo/internal/dataroot"
+	"overgo/internal/recipecontract"
+	"overgo/internal/testutil"
+	"overgo/internal/trainingdata"
+)
+
+func realGSM8KTrainingPair(t *testing.T, ordinal int) (*Generator, TrainingPair, trainingdata.Example) {
+	t.Helper()
+	if ordinal < 0 {
+		t.Fatal("negative GSM8K record ordinal")
+	}
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordPath := filepath.Join(roots.Datasets, "openai_gsm8k_train.jsonl")
+	file, err := os.Open(recordPath)
+	if err != nil {
+		t.Fatalf("GSM8K dataset unavailable: %v", err)
+	}
+	scanner := bufio.NewScanner(file)
+	for index := 0; index <= ordinal; index++ {
+		if !scanner.Scan() {
+			file.Close()
+			t.Fatalf("GSM8K record %d unavailable: %v", ordinal, scanner.Err())
+		}
+	}
+	record := scanner.Text()
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	datasetID, _ := artifact.IdentifyBytes(artifact.KindDataset, []byte(recordPath))
+	splitID, _ := artifact.IdentifyBytes(artifact.KindDatasetShard, []byte(recordPath+"#train"))
+	processorID, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("json-text-pair/question-answer/v1"))
+	processor, err := trainingdata.JSONTextPairProcessor("question", "answer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	authority := trainingdata.Authority{
+		Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processorID}, Seed: 17,
+		Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityText}},
+	}
+	materialized, err := trainingdata.MaterializeDocuments(authority, processorID, []string{record}, trainingdata.ProcessorBinding{
+		Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityText}, Process: processor,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer materialized.Close()
+	stream, err := trainingdata.NewStream(materialized, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, MicrobatchExamples: 1, DecodeWorkers: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := batcher.Next(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	generator, err := LoadGenerator(filepath.Join(roots.Models, "needle"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pair, err := generator.TrainingPair(batch.Examples[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return generator, pair, batch.Examples[0]
+}
+
+func TestNeedleRealGSM8KTrainingPair(t *testing.T) {
+	generator, pair, example := realGSM8KTrainingPair(t, 0)
+	if len(pair.Source) < 12 || len(pair.Targets) < 20 || pair.DecoderInput[0] != generator.model.Dims.StartToken || pair.Targets[len(pair.Targets)-1] != generator.model.Dims.EOSToken {
+		t.Fatalf("unexpected real pair geometry source=%d decoder=%d target=%d", len(pair.Source), len(pair.DecoderInput), len(pair.Targets))
+	}
+	loss, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.IsNaN(loss) || math.IsInf(loss, 0) || loss <= 0 || loss >= 20 {
+		t.Fatalf("real GSM8K teacher-forced loss=%g", loss)
+	}
+	input, target, _ := trainingdata.TextPair(example)
+	if !strings.Contains(input, "Natalia") || !strings.Contains(target, "#### 72") {
+		t.Fatalf("unexpected GSM8K record %q -> %q", input, target)
+	}
+	t.Logf("real GSM8K record: source_tokens=%d target_tokens=%d baseline_loss=%.6f", len(pair.Source), len(pair.Targets), loss)
+}
+
+func TestNeedleRealGSM8KFinalNormTraining(t *testing.T) {
+	generator, pair, _ := realGSM8KTrainingPair(t, 0)
+	before, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewFinalNormTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	operators := trainer.Program().Operators()
+	if len(operators) != 3 || operators[0].ID != finalNormForward || operators[1].ID != finalNormBackward || operators[2].ID != finalNormMuon {
+		t.Fatalf("compiled operators = %+v", operators)
+	}
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(pair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	after, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trajectory[0] != before || !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && after < trajectory[2]) {
+		t.Fatalf("real GSM8K loss did not descend: before=%g trajectory=%v after=%g", before, trajectory, after)
+	}
+	t.Logf("real GSM8K final-norm Muon: %.6f -> %.6f via %v", before, after, trajectory)
+}
+
+func TestNeedleRealGSM8KHeldOutEvaluation(t *testing.T) {
+	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
+	_, heldOutPair, heldOutExample := realGSM8KTrainingPair(t, 1)
+	trainBefore, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutBefore, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewFinalNormTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if _, err := trainer.Step(trainPair); err != nil {
+			t.Fatal(err)
+		}
+	}
+	trainAfter, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutAfter, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(trainAfter < trainBefore) || math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
+		t.Fatalf("invalid train/held-out result train %.6f -> %.6f held-out %.6f -> %.6f", trainBefore, trainAfter, heldOutBefore, heldOutAfter)
+	}
+	heldInput, heldTarget, _ := trainingdata.TextPair(heldOutExample)
+	if !strings.Contains(heldInput, "babysitting") || !strings.Contains(heldTarget, "#### 10") {
+		t.Fatalf("unexpected held-out GSM8K record %q -> %q", heldInput, heldTarget)
+	}
+	t.Logf("real GSM8K train %.6f -> %.6f; held-out %.6f -> %.6f", trainBefore, trainAfter, heldOutBefore, heldOutAfter)
+}

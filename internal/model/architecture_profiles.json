@@ -45,6 +45,7 @@
       }
     },
     "FeedForward": 5,
+    "MetadataDefaults": {"OriginalContext": true, "RopeAttentionFactor": 1, "RopeDimension": 2},
     "Name": "apertus",
     "Validation": {
       "Attention": 22
@@ -141,6 +142,7 @@
     "ModelCatalog": {
       "DraftLayerOutputNorm": true
     },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "bailingmoe2",
     "Validation": {
       "ExpertMetadata": 1,
@@ -348,6 +350,7 @@
       "Heads": 1,
       "KVHeads": 1
     },
+    "MetadataDefaults": {"OriginalContext": true, "RopeAttentionFactor": 1, "RopeDimension": 2},
     "Name": "deci",
     "Validation": {
       "Attention": 5
@@ -593,9 +596,7 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "MetadataDefaults": {
-      "SlidingPattern": 4
-    },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true, "SlidingPattern": 4},
     "Name": "exaone-moe",
     "Validation": {
       "ExpertMetadata": 1,
@@ -617,10 +618,7 @@
       }
     },
     "DraftKind": 4,
-    "MetadataDefaults": {
-      "SlidingPattern": 4,
-      "SlidingWindow": 4096
-    },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true, "SlidingPattern": 4, "SlidingWindow": 4096},
     "Name": "exaone4",
     "Validation": {
       "Attention": 30
@@ -686,6 +684,7 @@
     "Metadata": {
       "KVHeads": 6
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencySWA": 10000, "SlidingPattern": 6},
     "Name": "gemma-embedding",
     "FeedForward": 6,
     "Validation": {
@@ -858,6 +857,7 @@
     "Capabilities": 608249856,
     "DraftKind": 4,
     "FeedForward": 2,
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "glm4",
     "Validation": {
       "Attention": 28
@@ -888,6 +888,7 @@
       "SharedCatalog": 1
     },
     "FFNNormLayout": 3,
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "glm4moe",
     "Validation": {
       "Attention": 29,
@@ -1000,9 +1001,7 @@
       "ResidualScale": true,
       "SharedCatalog": 2
     },
-    "MetadataDefaults": {
-      "RopeDimension": 2
-    },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "granite",
     "Overrides": 3,
     "Position": 1,
@@ -1284,6 +1283,9 @@
     "Metadata": {
       "KVHeads": 6
     },
+    "MetadataDefaults": {
+      "RopeDimension": 2
+    },
     "Name": "jina-bert-v3",
     "Normalization": 1,
     "OutputNorm": 1,
@@ -1551,6 +1553,7 @@
     "Experts": {
       "Catalog": 1
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true},
     "Name": "mellum",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1586,6 +1589,7 @@
     "ModelCatalog": {
       "DraftLayerOutputNorm": true
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true},
     "Name": "mimo2",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1689,6 +1693,7 @@
     "ModelCatalog": {
       "TokenNorm": 1
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencySWA": 10000, "SlidingPattern": 3},
     "Name": "modern-bert",
     "Validation": {
       "Attention": 19
@@ -1786,6 +1791,7 @@
     "Metadata": {
       "KVHeads": 6
     },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "nomic-bert",
     "Normalization": 1,
     "OutputNorm": 1,
@@ -1810,6 +1816,7 @@
     "Metadata": {
       "KVHeads": 6
     },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "nomic-bert-moe",
     "Normalization": 1,
     "OutputNorm": 1,
@@ -1911,6 +1918,7 @@
     "DenseWeights": {
       "RequireAttentionOutputBias": true
     },
+    "MetadataDefaults": {"OriginalContext": true, "RopeAttentionFactor": 1, "RopeDimension": 2},
     "Name": "pangu-embedded",
     "Validation": {
       "Attention": 18
@@ -1938,6 +1946,7 @@
       "QueryScale": 3
     },
     "FeedForward": 2,
+    "MetadataDefaults": {"RopeAttentionFactor": 1},
     "Name": "phi3",
     "Validation": {
       "Attention": 17
@@ -2167,6 +2176,7 @@
       "SharedCatalog": 3
     },
     "FFNNormLayout": 4,
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "qwen3next",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2407,10 +2417,11 @@
     },
     "Metadata": {
       "Heads": 2,
-      "KVHeads": 2
+      "KVHeads": 2,
+      "PreserveDraftLayers": true
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true},
     "Name": "step35",
-    "Metadata": {"PreserveDraftLayers": true},
     "Validation": {
       "ExpertMetadata": 1,
       "Hybrid": 7

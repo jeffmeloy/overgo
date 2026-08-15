@@ -30,7 +30,11 @@ type MetadataDefaultPolicy struct {
 	SlidingWindow          uint32
 	SlidingPattern         uint32
 	MaxALiBiBias           float32
+	RopeAttentionFactor    float32
+	RopeFrequencySWA       float32
 	RopeDisabled           bool
+	OriginalContext        bool
+	RopeFrequencyFromBase  bool
 	RopeDimension          RopeDimensionDefaultPolicy
 }
 
@@ -63,7 +67,9 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 		spec.SlidingWindow = p.SlidingWindow
 	}
 	if p.SlidingPattern > 0 {
-		spec.SlidingPattern = p.SlidingPattern
+		spec.SlidingPattern = optionalOr(
+			values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32, p.SlidingPattern,
+		)
 	}
 	if p.RopeDimension != RopeDimensionDefaultNone {
 		spec.RopeDimensionCount = spec.KeyLength
@@ -72,6 +78,21 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 				spec.RopeDimensionCount = value
 			}
 		}
+	}
+	if p.OriginalContext {
+		spec.OriginalContextLength = optionalOr(
+			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, spec.ContextLength,
+		)
+	}
+	if p.RopeAttentionFactor > 0 {
+		spec.RopeAttentionFactor = readFloat("rope.scaling.attn_factor", p.RopeAttentionFactor)
+	}
+	if p.RopeFrequencyFromBase || p.RopeFrequencySWA > 0 {
+		fallback := p.RopeFrequencySWA
+		if p.RopeFrequencyFromBase {
+			fallback = spec.RopeFrequencyBase
+		}
+		spec.RopeFrequencySWA = readFloat("rope.freq_base_swa", fallback)
 	}
 }
 

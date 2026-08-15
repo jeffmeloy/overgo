@@ -75,9 +75,16 @@ func MatrixGeometry(shapes map[string][2]int) TensorGeometry {
 
 func (p *TensorPack) ParameterCount() int { return len(p.weights) }
 
+func (p *TensorPack) Plan() Plan { return p.plan }
+
 // NewOptimizer binds Muon state directly to packed storage.
 func (p *TensorPack) NewOptimizer(config Config) (*Optimizer, error) {
 	return New(p.weights, p.gradients, p.plan, config)
+}
+
+// NewStepper binds the packed slabs to the platform Muon backend.
+func (p *TensorPack) NewStepper(config Config) (Stepper, error) {
+	return NewStepper(p.weights, p.gradients, p.plan, config)
 }
 
 // Scatter publishes packed weights to bound model tensors.

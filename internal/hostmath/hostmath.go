@@ -87,6 +87,11 @@ func LayerNormInto(out, x, weight, bias []float32, rows, d int, eps float64) {
 // tanh approximation above.
 func GELUErf(x float64) float64 { return 0.5 * x * (1 + math.Erf(x/math.Sqrt2)) }
 
+// ShiftFlowSigma applies rational flow-time shifting.
+func ShiftFlowSigma(sigma, shift float64) float64 {
+	return shift * sigma / (1 + (shift-1)*sigma)
+}
+
 // GELUErfPrime: derivative of GELUErf,
 // 0.5(1+erf(x/sqrt2)) + x*exp(-x^2/2)/sqrt(2pi) — the scalar VJP factor for
 // the erf GELU, for callers mixing it into a larger reduction per element.

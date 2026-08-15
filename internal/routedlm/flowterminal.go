@@ -240,13 +240,9 @@ func ShiftedFlowTimeSchedule(steps int, shift float64) ([]float64, error) {
 	}
 	out := make([]float64, steps+1)
 	for i := range out {
-		out[i] = 1 - shiftFlowSigma(1-float64(i)/float64(steps), shift)
+		out[i] = 1 - hostmath.ShiftFlowSigma(1-float64(i)/float64(steps), shift)
 	}
 	return out, nil
-}
-
-func shiftFlowSigma(sigma, shift float64) float64 {
-	return shift * sigma / (1 + (shift-1)*sigma)
 }
 
 // SinusoidalEmbedding: [len(values), dim] rows, layout [cos half | sin half],

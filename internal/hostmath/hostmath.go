@@ -6,6 +6,17 @@ package hostmath
 
 import "math"
 
+// Transpose2D materializes the transpose of a row-major matrix.
+func Transpose2D(x []float32, rows, columns int) []float32 {
+	out := make([]float32, len(x))
+	for row := 0; row < rows; row++ {
+		for column := 0; column < columns; column++ {
+			out[column*rows+row] = x[row*columns+column]
+		}
+	}
+	return out
+}
+
 // RMSNormInto: out = x/sqrt(mean(x^2)+eps) * weight per row; a nil weight is
 // unit scale. out may alias x.
 func RMSNormInto(out, x, weight []float32, rows, d int, eps float64) {

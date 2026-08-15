@@ -62,9 +62,9 @@ func gatedDeltaMixForwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW,
 	}
 	c.qProj, c.kProj, c.vProj = qProj, kProj, vProj
 	// ShortConv is channel-major [ch,T]; projections are token-major [T,ch].
-	c.qConv = mixFromChannelMajor(hostmath.ShortConvForward(mixToChannelMajor(qProj, T, keyDim), keyDim, T, w.ConvQ, w.ConvBiasQ, K), T, keyDim)
-	c.kConv = mixFromChannelMajor(hostmath.ShortConvForward(mixToChannelMajor(kProj, T, keyDim), keyDim, T, w.ConvK, w.ConvBiasK, K), T, keyDim)
-	c.vConv = mixFromChannelMajor(hostmath.ShortConvForward(mixToChannelMajor(vProj, T, valDim), valDim, T, w.ConvV, w.ConvBiasV, K), T, valDim)
+	c.qConv = hostmath.Transpose2D(hostmath.ShortConvForward(hostmath.Transpose2D(qProj, T, keyDim), keyDim, T, w.ConvQ, w.ConvBiasQ, K), keyDim, T)
+	c.kConv = hostmath.Transpose2D(hostmath.ShortConvForward(hostmath.Transpose2D(kProj, T, keyDim), keyDim, T, w.ConvK, w.ConvBiasK, K), keyDim, T)
+	c.vConv = hostmath.Transpose2D(hostmath.ShortConvForward(hostmath.Transpose2D(vProj, T, valDim), valDim, T, w.ConvV, w.ConvBiasV, K), valDim, T)
 	c.qL2 = hostmath.L2NormForward(c.qConv, T*hk, hd, eps)
 	c.kL2 = hostmath.L2NormForward(c.kConv, T*hk, hd, eps)
 	// beta = sigmoid(Wbeta·x); alpha = Walpha·x; gate = softplus(alpha+ts)*A.
@@ -284,35 +284,13 @@ func gatedDeltaMixBackwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW
 // <-> channel-major transposes the mix uses (mirrors host
 // shortConvBackTokenMajor).
 func mixShortConvBackTokenMajor(worker *device.Worker, proj, dConv []float32, T, ch int, w, bias []float32, K int) (dProj, dW, dBias []float32, err error) {
-	dcm := mixToChannelMajor(dConv, T, ch)
-	xcm := mixToChannelMajor(proj, T, ch)
+	dcm := hostmath.Transpose2D(dConv, T, ch)
+	xcm := hostmath.Transpose2D(proj, T, ch)
 	dxcm, dW, dBias, err := ShortConvBackwardDevice(worker, xcm, dcm, ch, T, w, bias, K)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return mixFromChannelMajor(dxcm, T, ch), dW, dBias, nil
-}
-
-// mixToChannelMajor: [T,ch] -> [ch,T]. mixFromChannelMajor is the inverse. These
-// mirror hostmath's package-private toChannelMajor/fromChannelMajor.
-func mixToChannelMajor(x []float32, T, ch int) []float32 {
-	out := make([]float32, len(x))
-	for t := 0; t < T; t++ {
-		for c := 0; c < ch; c++ {
-			out[c*T+t] = x[t*ch+c]
-		}
-	}
-	return out
-}
-
-func mixFromChannelMajor(x []float32, T, ch int) []float32 {
-	out := make([]float32, len(x))
-	for c := 0; c < ch; c++ {
-		for t := 0; t < T; t++ {
-			out[t*ch+c] = x[c*T+t]
-		}
-	}
-	return out
+	return hostmath.Transpose2D(dxcm, ch, T), dW, dBias, nil
 }
 
 // mixSoftplus mirrors hostmath's package-private softplus (f64, overflow guard).

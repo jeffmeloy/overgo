@@ -6,6 +6,17 @@ import (
 	"testing"
 )
 
+func TestTranspose2D(t *testing.T) {
+	input := []float32{1, 2, 3, 4, 5, 6}
+	transposed := Transpose2D(input, 2, 3)
+	if want := []float32{1, 4, 2, 5, 3, 6}; !slices.Equal(transposed, want) {
+		t.Fatalf("transpose = %v, want %v", transposed, want)
+	}
+	if roundTrip := Transpose2D(transposed, 3, 2); !slices.Equal(roundTrip, input) {
+		t.Fatalf("round trip = %v, want %v", roundTrip, input)
+	}
+}
+
 func TestChannelMixF64Into(t *testing.T) {
 	const channels, positions = 2, 2
 	input := []float32{1, 2, 3, 4}

@@ -50,9 +50,9 @@ func GatedDeltaMixForward(x []float32, w GatedDeltaMixWeights, d GatedDeltaMixDi
 	c.kProj = Linear2(x, w.Wk, T, H, keyDim)
 	c.vProj = Linear2(x, w.Wv, T, H, valDim)
 	// ShortConv is channel-major [ch,T]; projections are token-major [T,ch].
-	c.qConv = fromChannelMajor(ShortConvForward(toChannelMajor(c.qProj, T, keyDim), keyDim, T, w.ConvQ, w.ConvBiasQ, K), T, keyDim)
-	c.kConv = fromChannelMajor(ShortConvForward(toChannelMajor(c.kProj, T, keyDim), keyDim, T, w.ConvK, w.ConvBiasK, K), T, keyDim)
-	c.vConv = fromChannelMajor(ShortConvForward(toChannelMajor(c.vProj, T, valDim), valDim, T, w.ConvV, w.ConvBiasV, K), T, valDim)
+	c.qConv = Transpose2D(ShortConvForward(Transpose2D(c.qProj, T, keyDim), keyDim, T, w.ConvQ, w.ConvBiasQ, K), keyDim, T)
+	c.kConv = Transpose2D(ShortConvForward(Transpose2D(c.kProj, T, keyDim), keyDim, T, w.ConvK, w.ConvBiasK, K), keyDim, T)
+	c.vConv = Transpose2D(ShortConvForward(Transpose2D(c.vProj, T, valDim), valDim, T, w.ConvV, w.ConvBiasV, K), valDim, T)
 	// L2Norm q,k per (token,head) over hd.
 	c.qL2 = L2NormForward(c.qConv, T*hk, hd, d.Eps)
 	c.kL2 = L2NormForward(c.kConv, T*hk, hd, d.Eps)
@@ -107,27 +107,6 @@ func weightedRMSNorm(x, weight []float32, rows, width int, eps float64) []float3
 		inv := 1.0 / math.Sqrt(ss/float64(width)+eps)
 		for c, v := range row {
 			out[r*width+c] = float32(float64(v) * inv * float64(weight[c]))
-		}
-	}
-	return out
-}
-
-// toChannelMajor: [T,ch] -> [ch,T]. fromChannelMajor is the inverse.
-func toChannelMajor(x []float32, T, ch int) []float32 {
-	out := make([]float32, len(x))
-	for t := 0; t < T; t++ {
-		for c := 0; c < ch; c++ {
-			out[c*T+t] = x[t*ch+c]
-		}
-	}
-	return out
-}
-
-func fromChannelMajor(x []float32, T, ch int) []float32 {
-	out := make([]float32, len(x))
-	for c := 0; c < ch; c++ {
-		for t := 0; t < T; t++ {
-			out[t*ch+c] = x[c*T+t]
 		}
 	}
 	return out

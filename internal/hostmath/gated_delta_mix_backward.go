@@ -113,10 +113,10 @@ func GatedDeltaMixBackward(x []float32, w GatedDeltaMixWeights, d GatedDeltaMixD
 // shortConvBackTokenMajor wraps ShortConvBackward with the token-major<->channel-
 // major transposes the mix uses.
 func shortConvBackTokenMajor(proj, dConv []float32, T, ch int, w, bias []float32, K int) (dProj, dW, dBias []float32) {
-	dcm := toChannelMajor(dConv, T, ch)
-	xcm := toChannelMajor(proj, T, ch)
+	dcm := Transpose2D(dConv, T, ch)
+	xcm := Transpose2D(proj, T, ch)
 	dxcm, dW, dBias := ShortConvBackward(xcm, dcm, ch, T, w, bias, K)
-	return fromChannelMajor(dxcm, T, ch), dW, dBias
+	return Transpose2D(dxcm, ch, T), dW, dBias
 }
 
 // weightedRMSNormBackward: VJP of y = x/sqrt(mean(x^2)+eps)*weight. Returns dx and

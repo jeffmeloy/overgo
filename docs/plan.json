@@ -5,7 +5,7 @@
     {
       "id": "automation-roadmap",
       "title": "Complete the automation roadmap through shared Go owners",
-      "status": "open",
+      "status": "blocked-external-prereq",
       "steps": [
         {
           "id": "source-license",

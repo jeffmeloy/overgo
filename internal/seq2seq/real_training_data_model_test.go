@@ -103,18 +103,18 @@ func TestNeedleRealGSM8KTrainingPair(t *testing.T) {
 	t.Logf("real GSM8K record: source_tokens=%d target_tokens=%d baseline_loss=%.6f", len(pair.Source), len(pair.Targets), loss)
 }
 
-func TestNeedleRealGSM8KFinalNormTraining(t *testing.T) {
+func TestNeedleRealGSM8KCompiledTraining(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
 	before, err := generator.model.Loss(pair)
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewFinalNormTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
 	operators := trainer.Program().Operators()
-	if len(operators) != 3 || operators[0].ID != finalNormForward || operators[1].ID != finalNormBackward || operators[2].ID != finalNormMuon {
+	if len(operators) != 3 || operators[0].ID != trainingForward || operators[1].ID != trainingBackward || operators[2].ID != trainingMuon {
 		t.Fatalf("compiled operators = %+v", operators)
 	}
 	trajectory := make([]float64, 3)
@@ -131,7 +131,7 @@ func TestNeedleRealGSM8KFinalNormTraining(t *testing.T) {
 	if trajectory[0] != before || !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && after < trajectory[2]) {
 		t.Fatalf("real GSM8K loss did not descend: before=%g trajectory=%v after=%g", before, trajectory, after)
 	}
-	t.Logf("real GSM8K final-norm Muon: %.6f -> %.6f via %v", before, after, trajectory)
+	t.Logf("real GSM8K compiled Muon: %.6f -> %.6f via %v", before, after, trajectory)
 }
 
 func TestNeedleRealGSM8KHeldOutEvaluation(t *testing.T) {
@@ -145,7 +145,7 @@ func TestNeedleRealGSM8KHeldOutEvaluation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewFinalNormTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,4 +170,60 @@ func TestNeedleRealGSM8KHeldOutEvaluation(t *testing.T) {
 		t.Fatalf("unexpected held-out GSM8K record %q -> %q", heldInput, heldTarget)
 	}
 	t.Logf("real GSM8K train %.6f -> %.6f; held-out %.6f -> %.6f", trainBefore, trainAfter, heldOutBefore, heldOutAfter)
+}
+
+func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
+	generator, pair, _ := realGSM8KTrainingPair(t, 0)
+	block := &generator.model.decoderCross[len(generator.model.decoderCross)-1]
+	rawBefore, foldedBefore := block.rawGate, block.gate
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parameters := trainer.Program().Parameters()
+	if len(parameters) != 2 || parameters[1].Name != "decoder.final_cross.raw_gate" {
+		t.Fatalf("compiled parameters = %+v", parameters)
+	}
+	probe := trainingStep{pair: pair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	const epsilon = float32(1e-3)
+	block.rawGate, block.gate = rawBefore+epsilon, sigmoid(rawBefore+epsilon)
+	plus, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block.rawGate, block.gate = rawBefore-epsilon, sigmoid(rawBefore-epsilon)
+	minus, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block.rawGate, block.gate = rawBefore, foldedBefore
+	finiteDifference := (plus - minus) / (2 * float64(epsilon))
+	analytic := float64(probe.gradient[generator.model.Dims.DModel])
+	if delta := math.Abs(analytic - finiteDifference); delta > 2e-3 {
+		t.Fatalf("final cross gate gradient analytic=%g finite_difference=%g delta=%g", analytic, finiteDifference, delta)
+	}
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(pair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if block.rawGate == rawBefore || block.gate == foldedBefore {
+		t.Fatalf("final cross gate did not update: raw=%g folded=%g", block.rawGate, block.gate)
+	}
+	after, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && after < trajectory[2]) {
+		t.Fatalf("final cross training did not descend: %v -> %g", trajectory, after)
+	}
+	t.Logf("real GSM8K final-cross Muon: %v -> %.6f; raw gate %.6f -> %.6f", trajectory, after, rawBefore, block.rawGate)
 }

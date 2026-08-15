@@ -244,6 +244,10 @@ Overgo's tokenizer total includes a large generated Unicode table.
   `PixelShuffle2D` operation; CUDA maximum errors are `1.192e-7` and
   `1.907e-6`. The final stride-4 transpose convolution compiles to a reordered
   MulMat projection plus pixel shuffle and matches within `3.338e-6` at 32x32.
+- All 46 real encoder, middle and decoder blocks pass a `1e-5` CUDA boundary
+  ratchet. The observed maximum is `2.861e-6`; all 16 middle transformers stay
+  at or below `2.980e-8`. This closes shape-specific block coverage, not full
+  graph residency.
 - Synthetic dense medium benchmark: host `85.6 s/step`; device full
   `1.89 s/step`; `45.4x`. This is an internal backend comparison, not
   adaptive_new parity and not a production-model result.

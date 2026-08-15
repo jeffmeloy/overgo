@@ -207,24 +207,3 @@ func (w *DeviceWeights) Input(
 	}
 	return node, value.Pointer, nil
 }
-
-func (w *DeviceWeights) Lookup(name string) (DeviceTensor, bool) {
-	if w == nil {
-		return DeviceTensor{}, false
-	}
-	return w.deviceTensorStore.Lookup(name)
-}
-
-func (w *DeviceWeights) Count() int {
-	if w == nil {
-		return 0
-	}
-	return w.deviceTensorStore.Count()
-}
-
-func (w *DeviceWeights) Close() error {
-	if w == nil {
-		return nil
-	}
-	return w.deviceTensorStore.Close()
-}

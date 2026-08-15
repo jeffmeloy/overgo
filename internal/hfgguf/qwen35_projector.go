@@ -147,7 +147,7 @@ func qwen35ProjectorTensors(source *safetensors.Source, config qwen35VisionConfi
 			return nil, fmt.Errorf("HF/GGUF adapter: Qwen 3.5 projector tensor %q has no mapping", sourceName)
 		}
 		result = append(result, gguf.TensorData{
-			Name: destination, Shape: reverseTensorShape(tensor.Shape), Type: gguf.DTypeBF16, Data: tensor.Reader(),
+			Name: destination, Shape: gguf.ReverseShape(tensor.Shape), Type: gguf.DTypeBF16, Data: tensor.Reader(),
 		})
 	}
 	sort.Slice(result, func(left, right int) bool { return result[left].Name < result[right].Name })
@@ -237,12 +237,4 @@ func qwen35TemporalPatchReader(tensor safetensors.Tensor, selected int, config q
 		}
 	}()
 	return reader
-}
-
-func reverseTensorShape(shape []uint64) []uint64 {
-	result := make([]uint64, len(shape))
-	for index := range shape {
-		result[len(shape)-1-index] = shape[index]
-	}
-	return result
 }

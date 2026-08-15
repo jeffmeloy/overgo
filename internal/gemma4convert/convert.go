@@ -442,7 +442,7 @@ func modelTensors(source *safetensors.Source, config modelConfig, fp8Native bool
 			return nil, fmt.Errorf("Gemma 4 converter: tensor %q: %w", sourceName, err)
 		}
 		tensors = append(tensors, gguf.TensorData{
-			Name: destinationName, Shape: reverseShape(tensor.Shape), Type: dataType, Data: reader,
+			Name: destinationName, Shape: gguf.ReverseShape(tensor.Shape), Type: dataType, Data: reader,
 		})
 	}
 	tensors = append(tensors, proportionalRopeTensor(config))
@@ -606,7 +606,7 @@ func projectorTensors(source *safetensors.Source, outputF32 bool) ([]gguf.Tensor
 		if tensor.DType != "BF16" {
 			return nil, fmt.Errorf("Gemma 4 converter: projector tensor %q uses %s", item.source, tensor.DType)
 		}
-		shape := reverseShape(tensor.Shape)
+		shape := gguf.ReverseShape(tensor.Shape)
 		var reader io.Reader = tensor.Reader()
 		switch item.source {
 		case "model.embed_vision.patch_dense.weight",
@@ -639,14 +639,6 @@ func projectorTensors(source *safetensors.Source, outputF32 bool) ([]gguf.Tensor
 		})
 	}
 	return tensors, nil
-}
-
-func reverseShape(shape []uint64) []uint64 {
-	result := make([]uint64, len(shape))
-	for index := range shape {
-		result[len(shape)-1-index] = shape[index]
-	}
-	return result
 }
 
 func stringMetadata(key, value string) gguf.Metadata {

@@ -540,7 +540,7 @@ func modelTensors(source *safetensors.Source, profile archProfile, config modelC
 			}
 		}
 		tensors = append(tensors, gguf.TensorData{
-			Name: destinationName, Shape: reverseShape(tensor.Shape), Type: dataType, Data: reader,
+			Name: destinationName, Shape: gguf.ReverseShape(tensor.Shape), Type: dataType, Data: reader,
 		})
 	}
 	// Tied embeddings: runtime output head falls back to token_embd; no duplicate tensor.
@@ -681,14 +681,6 @@ func modelTensorReader(tensor safetensors.Tensor, destinationName string) (gguf.
 	default:
 		return 0, nil, fmt.Errorf("unsupported dtype %q", tensor.DType)
 	}
-}
-
-func reverseShape(shape []uint64) []uint64 {
-	result := make([]uint64, len(shape))
-	for index := range shape {
-		result[len(shape)-1-index] = shape[index]
-	}
-	return result
 }
 
 func stringMetadata(key, value string) gguf.Metadata {

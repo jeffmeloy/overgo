@@ -84,7 +84,7 @@
           "contains": "func ValidateDenseRepository(",
           "path": "internal/hfgguf/catalog.go",
           "role": "source",
-          "identity": "file:sha256:8408344b3932dd14d5252e5ed5a53f7bd1eeedd0d9ce05dc95e32c88387cbda6"
+          "identity": "file:sha256:6f9cabc61dbf09a334602819678fcec2b408501631f3bdd9701a63c5a0cc7ae1"
         },
         {
           "contains": "func TestValidateDenseRepositoryUsesRuntimeCatalog(",
@@ -240,7 +240,7 @@
           "contains": "func Qwen35ProjectorConversion(",
           "path": "internal/hfgguf/qwen35_projector.go",
           "role": "source",
-          "identity": "file:sha256:6107ad4e605e77ca851a8aecc9cf1a70c1796ea4c75651d6dcb2b8ae0b15b2dc"
+          "identity": "file:sha256:90072f06d790e66dcf47d5aea8f40150cfe30edb08f3c3d5f5f77da19ea19aea"
         },
         {
           "contains": "func ProjectedInputsForPrompt(",

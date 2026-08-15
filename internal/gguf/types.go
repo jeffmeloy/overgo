@@ -155,3 +155,12 @@ type TensorInfo struct {
 	Offset     uint64
 	Size       uint64
 }
+
+// ReverseShape converts source-major dimensions to GGML order.
+func ReverseShape(shape []uint64) []uint64 {
+	result := make([]uint64, len(shape))
+	for index, dimension := range shape {
+		result[len(shape)-1-index] = dimension
+	}
+	return result
+}

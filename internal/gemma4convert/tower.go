@@ -277,7 +277,7 @@ func towerTensors(source *safetensors.Source, outputF32 bool) ([]gguf.TensorData
 		if tensor.DType != "BF16" {
 			return nil, fmt.Errorf("Gemma 4 converter: tower tensor %q uses %s", sourceName, tensor.DType)
 		}
-		shape := reverseShape(tensor.Shape)
+		shape := gguf.ReverseShape(tensor.Shape)
 		var reader io.Reader = tensor.Reader()
 		dataType := gguf.DTypeBF16
 		if len(shape) == 0 {

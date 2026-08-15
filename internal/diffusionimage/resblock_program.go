@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"overgo/internal/cuda/executor"
-	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -68,23 +67,8 @@ func compileResBlockProgram(block *resBlock, config Config, channels, height, wi
 }
 
 func (program resBlockProgram) execute(ctx context.Context, device *executor.Executor, input []float32) ([]float32, error) {
-	want := program.channels * program.height * program.width
-	if program.input == nil || program.output == nil || len(input) != want {
-		return nil, errors.New("diffusionimage: residual block input mismatch")
-	}
-	graphInput := nchwToGraphImage(input, program.channels, program.height, program.width)
-	value, err := reference.NewValue(program.input.Shape, graphInput)
-	if err != nil {
-		return nil, err
-	}
-	feeds := graphruntime.NewFeeds()
-	feeds.AddHost(program.static)
-	feeds.Host[program.input] = value
-	result, err := feeds.Execute(ctx, []*tensor.Tensor{program.output}, device)
-	if err != nil {
-		return nil, err
-	}
-	return graphImageToNCHW(result[program.output].Data, program.channels, program.height, program.width), nil
+	geometry := imageGeometry{channels: program.channels, height: program.height, width: program.width}
+	return executeImageGraph(ctx, device, program.input, program.output, program.static, input, geometry, geometry)
 }
 
 func nchwToGraphImage(input []float32, channels, height, width int) []float32 {

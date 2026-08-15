@@ -49,7 +49,7 @@ func run() error {
 	}
 	if len(entries) == 0 {
 		fmt.Println("smoke-lane: 0 servable models; nothing to smoke (honest empty, not green)")
-		return fmt.Errorf("outcome=empty: servable matrix has no models")
+		return runrecord.LaneError(runrecord.LaneEmpty, "servable matrix has no models")
 	}
 	unavailable, failed, passed := 0, 0, 0
 	for _, entry := range entries {
@@ -81,8 +81,11 @@ func run() error {
 	fmt.Printf("=== SMOKE %d passed / %d failed / %d unavailable of %d servable ===\n",
 		passed, failed, unavailable, len(entries))
 	fmt.Println("honesty: matrix derived from the servable predicate; runs recorded to the store per model recipe")
-	if failed > 0 || unavailable > 0 {
-		return fmt.Errorf("%d failed, %d unavailable", failed, unavailable)
+	if failed > 0 {
+		return runrecord.LaneError(runrecord.LaneFailed, fmt.Sprintf("%d failed, %d unavailable", failed, unavailable))
+	}
+	if unavailable > 0 {
+		return runrecord.LaneError(runrecord.LaneUnavailable, fmt.Sprintf("%d model artifacts unavailable", unavailable))
 	}
 	return nil
 }

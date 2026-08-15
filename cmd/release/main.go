@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"overgo/internal/runrecord"
 )
 
 var releaseCommands = []string{
@@ -72,7 +74,7 @@ func main() {
 		os.Exit(1)
 	}
 	if err := buildRelease(".", *out, *verify); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, runrecord.LaneError(runrecord.LaneFailed, err.Error()))
 		os.Exit(1)
 	}
 }

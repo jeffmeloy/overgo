@@ -200,6 +200,9 @@ boundary, which is the correct claim.
 
 ### Verification lanes
 
+- Smoke, device, race, and release share `runrecord.LaneOutcome`:
+  `pass`, `fail`, `unavailable`, and `empty`. Typed non-passing results
+  retain their outcome through wrapped command errors.
 - The device lane treats a missing CUDA device or driver as unavailable and
   non-passing.
 - The race lane combines Go's host race detector with CUDA racecheck and
@@ -423,17 +426,17 @@ active in each run record rather than assuming they were.
 - `cmd/device-lane` has no direct unit tests around selection or reporting.
 - Hosted CI has no real-GPU lane and the race workflow covers only server and
   inference packages.
-- Smoke distinguishes `empty` from success with a nonzero exit, but lane
-  outcomes do not yet share one typed result contract.
+- Smoke distinguishes `empty` from success; smoke, device, race, and release
+  now share one typed result contract.
 - Release output still includes historical documents that conflict with the
   doctrine that Git owns chronology.
 - The current SBOM is stale, and project-owned source remains
   `NOASSERTION` in `LICENSES.md`.
 
 Required direction: share typed lane outcomes (`pass`, `fail`, `unavailable`,
-`empty`) and require callers to declare accepted outcomes; add direct device
-selection/reporting tests and a real-GPU integration lane; separate durable
-release contracts from historical assessments.
+`empty`) with future lanes; add direct device selection/reporting tests and a
+real-GPU integration lane; separate durable release contracts from historical
+assessments.
 
 ### A11: Override and stop controls are too narrow for later autonomy
 
@@ -453,8 +456,6 @@ necessarily the whole manually managed campaign.
 1. Keep the open-step verifier invariant enforced by `internal/plan`.
 2. Calibrate advisory false-alarm behavior against non-overlapping history;
    retain explicitly directional labels until that evidence exists.
-3. Share one typed lane-outcome contract and migrate smoke, device, race, and
-   release callers without compatibility paths.
 
 ### P1: close repository and containment gaps
 

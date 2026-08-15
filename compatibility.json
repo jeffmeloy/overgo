@@ -914,7 +914,7 @@
           "contains": "func createArchive(",
           "path": "cmd/release/main.go",
           "role": "source",
-          "identity": "file:sha256:4c08ad3a86eaf1437b5a7b6db3dbebe8c13b6b16930a34f5d80dacdcd4b11dc7"
+          "identity": "file:sha256:accf388a3fec2a67a3ef516f7a8599022639b1b473d780581edebdaa7d2affb0"
         },
         {
           "contains": "func TestCreateArchiveIsDeterministic(",

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/runrecord"
 )
 
 const cudaTestEnv = "OVERGO_CUDA_TEST"
@@ -31,7 +32,7 @@ func run() error {
 	if out, err := clioptions.CombinedOutput(os.Environ(), "go", "run", "./cmd/cuda-info"); err != nil {
 		fmt.Println("device-lane: UNAVAILABLE -- cuda-info failed; no passing evidence exists")
 		fmt.Print(clioptions.Tail(out, 800))
-		return err
+		return runrecord.LaneError(runrecord.LaneUnavailable, err.Error())
 	}
 	steps := [][]string{
 		{"go", "run", "./cmd/cuda-smoke"},
@@ -44,7 +45,7 @@ func run() error {
 		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), clioptions.Verdict(err))
 		if err != nil {
 			fmt.Print(clioptions.Tail(out, 2000))
-			return fmt.Errorf("%s failed", strings.Join(step, " "))
+			return runrecord.LaneError(runrecord.LaneFailed, strings.Join(step, " ")+" failed")
 		}
 	}
 	fmt.Printf("=== DEVICE LANE GREEN in %.1fs ===\n", time.Since(start).Seconds())

@@ -312,3 +312,34 @@ func TestNeedleRealGSM8KFinalCrossOutputMuon(t *testing.T) {
 	}
 	t.Logf("real GSM8K device Muon: %v -> %.6f; output BF16 words changed=%d/%d", trajectory, after, changed, len(block.o))
 }
+
+func TestNeedleRealGSM8KFinalCrossAttentionCoreGradient(t *testing.T) {
+	generator, pair, _ := realGSM8KTrainingPair(t, 0)
+	trainer, err := NewTrainer(generator.model, 1, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	probe := trainingStep{pair: pair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	norm := func(values []float32) float64 {
+		var sum float64
+		for _, value := range values {
+			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+				t.Fatal("non-finite cross-attention gradient")
+			}
+			sum += float64(value) * float64(value)
+		}
+		return math.Sqrt(sum)
+	}
+	qNorm, kNorm, vNorm := norm(probe.attentionQGradient), norm(probe.attentionKGradient), norm(probe.attentionVGradient)
+	if qNorm == 0 || kNorm == 0 || vNorm == 0 {
+		t.Fatalf("real cross-attention gradient norms q=%g k=%g v=%g", qNorm, kNorm, vNorm)
+	}
+	t.Logf("real GSM8K final cross-attention gradient norms: q=%g k=%g v=%g", qNorm, kNorm, vNorm)
+}

@@ -10,6 +10,43 @@ import (
 	"testing"
 )
 
+func TestMaskedBidirectionalAttentionBackwardFiniteDifference(t *testing.T) {
+	const querySeq, keySeq, heads, kvHeads, headDim = 2, 3, 2, 1, 2
+	q := []float32{0.2, -0.1, 0.4, 0.3, -0.2, 0.5, 0.1, -0.4}
+	k := []float32{0.3, -0.2, -0.1, 0.4, 0.5, 0.2}
+	v := []float32{0.7, -0.3, 0.2, 0.6, -0.4, 0.8}
+	dOut := []float32{0.5, -0.2, 0.1, 0.4, -0.3, 0.6, 0.2, -0.5}
+	mask := []bool{true, false, true}
+	dq, dk, dv := make([]float32, len(q)), make([]float32, len(k)), make([]float32, len(v))
+	MaskedBidirectionalAttentionBackward(dq, dk, dv, q, k, v, dOut, querySeq, keySeq, heads, kvHeads, headDim, mask)
+	objective := func() float64 {
+		out := make([]float32, len(q))
+		MaskedBidirectionalAttention(out, q, k, v, querySeq, keySeq, heads, kvHeads, headDim, mask)
+		var sum float64
+		for index, value := range out {
+			sum += float64(value) * float64(dOut[index])
+		}
+		return sum
+	}
+	const epsilon = float32(1e-3)
+	for name, pair := range map[string]struct{ values, gradients []float32 }{
+		"q": {q, dq}, "k": {k, dk}, "v": {v, dv},
+	} {
+		for index := range pair.values {
+			original := pair.values[index]
+			pair.values[index] = original + epsilon
+			plus := objective()
+			pair.values[index] = original - epsilon
+			minus := objective()
+			pair.values[index] = original
+			finiteDifference := (plus - minus) / (2 * float64(epsilon))
+			if delta := math.Abs(float64(pair.gradients[index]) - finiteDifference); delta > 2e-4 {
+				t.Fatalf("%s[%d] analytic=%g finite_difference=%g delta=%g", name, index, pair.gradients[index], finiteDifference, delta)
+			}
+		}
+	}
+}
+
 // fdTol: fp32 roundoff plus truncation by accumulation depth (the reference
 // gradCheckTolF32Depth contract, adaptive operators_backward_test.go).
 func fdTol(step float64, accumDepth int) float64 {

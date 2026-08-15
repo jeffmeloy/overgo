@@ -96,6 +96,9 @@ type trainingStep struct {
 	trace                  decoderTrainingTrace
 	gradient               []float32
 	projectionGradient     []float32
+	attentionQGradient     []float32
+	attentionKGradient     []float32
+	attentionVGradient     []float32
 	loss                   float64
 }
 
@@ -242,6 +245,20 @@ func (t *Trainer) backward(state *trainingStep) error {
 		rows, t.model.Dims.Heads*t.model.Dims.HeadDim, d, false,
 	)
 	copy(state.gradient[d+1:], state.projectionGradient)
+	state.attentionQGradient = make([]float32, len(state.trace.finalCrossQ))
+	state.attentionKGradient = make([]float32, len(state.trace.finalCrossK))
+	state.attentionVGradient = make([]float32, len(state.trace.finalCrossV))
+	dAttention := make([]float32, len(state.trace.finalCrossAttention))
+	hostmath.LinearBF16BackwardInput(
+		dAttention, dProjected, t.model.decoderCross[len(t.model.decoderCross)-1].o,
+		rows, t.model.Dims.Heads*t.model.Dims.HeadDim, d,
+	)
+	hostmath.MaskedBidirectionalAttentionBackward(
+		state.attentionQGradient, state.attentionKGradient, state.attentionVGradient,
+		state.trace.finalCrossQ, state.trace.finalCrossK, state.trace.finalCrossV, dAttention,
+		rows, len(state.trace.finalCrossK)/(t.model.Dims.KVHeads*t.model.Dims.HeadDim),
+		t.model.Dims.Heads, t.model.Dims.KVHeads, t.model.Dims.HeadDim, nil,
+	)
 	return nil
 }
 

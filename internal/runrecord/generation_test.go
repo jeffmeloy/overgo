@@ -29,7 +29,7 @@ func TestGenerationRecordBindsFullProvenance(t *testing.T) {
 	if record.Parents[0] == record.Parents[1] || record.Components[0] == record.Components[1] {
 		t.Fatal("generation record retained caller-owned slices")
 	}
-	lineage := record.Lineage()
+	lineage := dependencyLineage(record.ID, generationDependencies(record)...)
 	if len(lineage) != len(record.Parents)+len(record.Components)+12 {
 		t.Fatalf("generation lineage has %d edges", len(lineage))
 	}
@@ -48,11 +48,11 @@ func TestGenerationRecordBindsFullProvenance(t *testing.T) {
 			t.Fatalf("generation lineage omits %s", required)
 		}
 	}
-	content, err := record.Content()
+	content, err := generationCodec.Content(record)
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseGenerationRecord(content.Data)
+	parsed, err := generationCodec.Parse(content.Data)
 	if err != nil || parsed.ID != record.ID || parsed.Run != record.Run || parsed.Decision != record.Decision {
 		t.Fatalf("generation round trip = (%+v, %v)", parsed, err)
 	}

@@ -3,41 +3,88 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
   "items": [
     {
-      "id": "master-sync-20260814",
-      "title": "Merge current master before automation-plan reconciliation",
+      "id": "master-sync-20260815",
+      "title": "Merge current master before automation-roadmap continuation",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Merge current master before automation-plan reconciliation",
+          "title": "Merge current master before automation-roadmap continuation",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD"
         }
       ]
     },
     {
-      "id": "needle-final-self-attention-vjp",
-      "title": "Propagate Needle training through final decoder self-attention",
+      "id": "needle-training-binding-consolidation",
+      "title": "Consolidate Needle training parameter bindings",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Propagate Needle training through final decoder self-attention",
+          "title": "Consolidate Needle training parameter bindings",
           "status": "open",
-          "verify": "go test -tags modeltest ./internal/seq2seq -run '^TestNeedleRealGSM8KFinalSelfAttentionGradient$' -count=1 -v"
+          "verify": "go test -tags modeltest ./internal/seq2seq -run '^TestNeedleRealGSM8KCompiledTraining$' -count=1 -v"
         }
       ]
     },
     {
-      "id": "automation-advisory-calibration",
-      "title": "Require non-overlapping advisory confirmations and label empirical thresholds honestly",
+      "id": "automation-roadmap",
+      "title": "Complete the automation roadmap through shared Go owners",
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Require non-overlapping advisory confirmations and label empirical thresholds honestly",
+          "id": "lane-outcomes",
+          "title": "Share typed pass/fail/unavailable/empty outcomes across smoke, device, race, and release callers; delete local variants",
           "status": "open",
-          "verify": "go test ./cmd/advisories -run '^TestNonOverlappingConfirmation$' -count=1 -v"
+          "verify": "go test ./internal/runrecord -run '^TestLaneOutcomeContract$' -count=1 -v"
+        },
+        {
+          "id": "advisory-calibration",
+          "title": "Derive advisory history sufficiency from the alarm budget and report sequential/regime limitations without enforcing directional evidence",
+          "status": "open",
+          "verify": "go test ./cmd/advisories -run '^TestAdvisoryCalibrationContract$' -count=1 -v"
+        },
+        {
+          "id": "protection-evidence",
+          "title": "Record hook/guard activation in gate evidence and verify protected integration configuration repository-side",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./cmd/gate -run '^TestProtectionEvidence$' -count=1 -v"
+        },
+        {
+          "id": "override-containment",
+          "title": "Persist forced advances and typed lane-scoped containment events in RepoDB",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestOverrideAndContainmentEvidence$' -count=1 -v"
+        },
+        {
+          "id": "release-integrity",
+          "title": "Regenerate the SBOM and exclude chronological assessments from release payloads",
+          "status": "open",
+          "verify": "go test ./cmd/release ./cmd/sbom -run '^TestReleaseIntegrityContract$' -count=1 -v \u0026\u0026 go run ./cmd/sbom -check"
+        },
+        {
+          "id": "source-license",
+          "title": "Blocked: the repository owner must select the distribution license before project-owned source can replace NOASSERTION",
+          "status": "blocked-external-prereq"
+        },
+        {
+          "id": "lease-measurements",
+          "title": "Record predicted and actual CPU, RAM, VRAM, wall, interference, collision, abandonment, and recovery measurements on exercised leases",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestLeaseOutcomeMetrics$' -count=1 -v"
+        },
+        {
+          "id": "recommendation-evaluation",
+          "title": "Compare deterministic scheduling recommendations with owner decisions and report error bounds without assigning work",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestSchedulingRecommendationEvaluation$' -count=1 -v"
+        },
+        {
+          "id": "autonomy-admission",
+          "title": "Admit autonomous scheduling classes only with measured benefit, independent SQA, containment, rollback, and recovery evidence",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestAutonomyAdmissionRequiresRecoveryEvidence$' -count=1 -v"
         }
       ]
     },

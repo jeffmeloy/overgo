@@ -191,6 +191,10 @@ func (m *Model) decodeHiddenFull(memory []float32, memRows int, tgt []int) ([]fl
 type decoderTrainingTrace struct {
 	finalSelfProjected  []float32
 	finalSelfAttention  []float32
+	finalSelfInput      []float32
+	finalSelfNormed     []float32
+	finalSelfQRaw       []float32
+	finalSelfKRaw       []float32
 	finalSelfQ          []float32
 	finalSelfK          []float32
 	finalSelfV          []float32
@@ -227,11 +231,23 @@ func (m *Model) decodeHiddenFullTrace(memory []float32, memRows int, tgt []int, 
 	attn := make([]float32, rows*dims.Heads*dims.HeadDim)
 	for layer := range m.decoderSelf {
 		self := &m.decoderSelf[layer]
+		lastSelf := trace != nil && layer == len(m.decoderSelf)-1
+		if lastSelf {
+			trace.finalSelfInput = append(trace.finalSelfInput[:0], hidden...)
+		}
 		hostmath.RMSNormInto(normed, hidden, self.inNorm, rows, d, dims.RMSEps)
-		m.projectQ(q, normed, rows, self, 0, true)
-		m.projectKV(k, v, normed, rows, self, 0, true)
+		if lastSelf {
+			trace.finalSelfNormed = append(trace.finalSelfNormed[:0], normed...)
+			trace.finalSelfQRaw = make([]float32, len(q))
+			trace.finalSelfKRaw = make([]float32, len(k))
+			m.projectQTrace(q, trace.finalSelfQRaw, normed, rows, self, 0, true)
+			m.projectKVTrace(k, v, trace.finalSelfKRaw, normed, rows, self, 0, true)
+		} else {
+			m.projectQ(q, normed, rows, self, 0, true)
+			m.projectKV(k, v, normed, rows, self, 0, true)
+		}
 		hostmath.CausalAttention(attn, q, k, v, rows, dims.Heads, dims.KVHeads, dims.HeadDim)
-		if trace != nil && layer == len(m.decoderSelf)-1 {
+		if lastSelf {
 			trace.finalSelfAttention = append(trace.finalSelfAttention[:0], attn...)
 			trace.finalSelfQ = append(trace.finalSelfQ[:0], q...)
 			trace.finalSelfK = append(trace.finalSelfK[:0], k...)

@@ -124,30 +124,6 @@ func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
 	}
 }
 
-func TestDefinitionReadsCanonicalLegacyVersion(t *testing.T) {
-	current, _ := fixtureRecipe(t)
-	legacy, err := newDefinition(
-		LegacyVersion, current.Task, current.Model, nil,
-		current.Nodes, current.Edges, current.Inputs, current.Outputs,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	content, err := legacy.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	parsed, err := ParseDefinition(content)
-	if err != nil {
-		t.Fatal(err)
-	}
-	artifactContent, err := parsed.ArtifactContent()
-	if err != nil || parsed.ID != legacy.ID || parsed.Version != LegacyVersion ||
-		artifactContent.Descriptor.Schema != LegacySchema {
-		t.Fatalf("legacy definition = (%+v, %+v, %v)", parsed, artifactContent.Descriptor, err)
-	}
-}
-
 func TestDefinitionRejectsInvalidDependencies(t *testing.T) {
 	definition, _ := fixtureRecipe(t)
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "profile")

@@ -9,12 +9,10 @@ import (
 )
 
 const (
-	LegacyVersion = uint16(1)
-	Version       = uint16(2)
-	MediaType     = "application/vnd.overgo.recipe+json"
-	LegacySchema  = "overgo.recipe.v1"
-	Schema        = "overgo.recipe.v2"
-	maxName       = 128
+	Version   = uint16(2)
+	MediaType = "application/vnd.overgo.recipe+json"
+	Schema    = "overgo.recipe.v2"
+	maxName   = 128
 )
 
 type Task string
@@ -211,10 +209,6 @@ type Definition struct {
 	Edges        []Edge       `json:"edges,omitempty"`
 	Inputs       []Input      `json:"inputs,omitempty"`
 	Outputs      []Output     `json:"outputs"`
-}
-
-func SupportsSchema(schema string) bool {
-	return schema == Schema || schema == LegacySchema
 }
 
 func validateDependency(dependency Dependency) error {

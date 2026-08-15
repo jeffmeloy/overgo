@@ -12,16 +12,6 @@ import (
 	"overgo/internal/textcheck"
 )
 
-type legacyDefinitionBody struct {
-	Version uint16      `json:"version"`
-	Task    Task        `json:"task"`
-	Model   artifact.ID `json:"model"`
-	Nodes   []Node      `json:"nodes"`
-	Edges   []Edge      `json:"edges,omitempty"`
-	Inputs  []Input     `json:"inputs,omitempty"`
-	Outputs []Output    `json:"outputs"`
-}
-
 type definitionBody struct {
 	Version      uint16       `json:"version"`
 	Task         Task         `json:"task"`
@@ -33,9 +23,7 @@ type definitionBody struct {
 }
 
 var definitionCodec = artifact.DocumentCodec[Definition]{
-	Name: "recipe definition", ContractFor: func(value Definition) artifact.DocumentContract {
-		return DefinitionDocumentContract(value.Version)
-	},
+	Name: "recipe definition", Contract: DefinitionDocumentContract(),
 	Decode: decodeDefinition,
 	Encode: definitionContent, Canonicalize: canonicalize,
 	Clone: func(value Definition) Definition {
@@ -55,33 +43,16 @@ func ParseDefinition(content []byte) (Definition, error) {
 }
 
 func decodeDefinition(content []byte, definition *Definition) error {
-	var envelope struct {
-		Version uint16 `json:"version"`
+	var body definitionBody
+	if err := strictjson.DecodeBytes(content, &body); err != nil {
+		return err
 	}
-	if err := json.Unmarshal(content, &envelope); err != nil {
-		return fmt.Errorf("recipe: decode definition version: %w", err)
-	}
-	switch envelope.Version {
-	case LegacyVersion:
-		var body legacyDefinitionBody
-		if err := strictjson.DecodeBytes(content, &body); err != nil {
-			return err
-		}
-		*definition = Definition{
-			Version: LegacyVersion, Task: body.Task, Model: body.Model,
-			Nodes: body.Nodes, Edges: body.Edges, Inputs: body.Inputs, Outputs: body.Outputs,
-		}
-	case Version:
-		var body definitionBody
-		if err := strictjson.DecodeBytes(content, &body); err != nil {
-			return err
-		}
-		*definition = Definition{
-			Version: Version, Task: body.Task, Dependencies: body.Dependencies,
-			Nodes: body.Nodes, Edges: body.Edges, Inputs: body.Inputs, Outputs: body.Outputs,
-		}
-	default:
+	if body.Version != Version {
 		return errors.New("recipe: unsupported definition version")
+	}
+	*definition = Definition{
+		Version: Version, Task: body.Task, Dependencies: body.Dependencies,
+		Nodes: body.Nodes, Edges: body.Edges, Inputs: body.Inputs, Outputs: body.Outputs,
 	}
 	return nil
 }
@@ -94,21 +65,8 @@ func NewDefinitionWithDependencies(
 	inputs []Input,
 	outputs []Output,
 ) (Definition, error) {
-	return newDefinition(Version, task, artifact.ID{}, dependencies, nodes, edges, inputs, outputs)
-}
-
-func newDefinition(
-	version uint16,
-	task Task,
-	model artifact.ID,
-	dependencies []Dependency,
-	nodes []Node,
-	edges []Edge,
-	inputs []Input,
-	outputs []Output,
-) (Definition, error) {
 	return definitionCodec.New(Definition{
-		Version: version, Task: task, Model: model, Dependencies: slices.Clone(dependencies),
+		Version: Version, Task: task, Dependencies: slices.Clone(dependencies),
 		Nodes: slices.Clone(nodes), Edges: slices.Clone(edges),
 		Inputs: slices.Clone(inputs), Outputs: slices.Clone(outputs),
 	})
@@ -126,45 +84,35 @@ func (d Definition) ArtifactContent() (artifact.Content, error) {
 	return definitionCodec.Content(d)
 }
 
-func DefinitionDocumentContract(version uint16) artifact.DocumentContract {
-	schema := Schema
-	if version == LegacyVersion {
-		schema = LegacySchema
-	}
-	return artifact.DocumentContract{Kind: artifact.KindRecipe, MediaType: MediaType, Schema: schema}
+func DefinitionDocumentContract() artifact.DocumentContract {
+	return artifact.DocumentContract{Kind: artifact.KindRecipe, MediaType: MediaType, Schema: Schema}
 }
 
 func canonicalize(d *Definition) error {
-	if d == nil || (d.Version != LegacyVersion && d.Version != Version) {
+	if d == nil || d.Version != Version {
 		return errors.New("recipe: invalid definition envelope")
 	}
-	if d.Version == LegacyVersion {
-		if d.Model.Kind() != artifact.KindModel || len(d.Dependencies) != 0 {
-			return errors.New("recipe: invalid legacy definition dependencies")
+	for _, dependency := range d.Dependencies {
+		if err := validateDependency(dependency); err != nil {
+			return err
 		}
-	} else {
-		for _, dependency := range d.Dependencies {
-			if err := validateDependency(dependency); err != nil {
-				return err
-			}
-		}
-		sort.Slice(d.Dependencies, func(i, j int) bool {
-			return dependencyKey(d.Dependencies[i]) < dependencyKey(d.Dependencies[j])
-		})
-		if duplicateDependencies(d.Dependencies) {
-			return errors.New("recipe: duplicate dependency role and slot")
-		}
-		model, found := artifact.ID{}, false
-		for _, dependency := range d.Dependencies {
-			if dependency.Role == DependencyModel && dependency.Slot == 0 {
-				model, found = dependency.Artifact, true
-			}
-		}
-		if !found {
-			return errors.New("recipe: model dependency is absent")
-		}
-		d.Model = model
 	}
+	sort.Slice(d.Dependencies, func(i, j int) bool {
+		return dependencyKey(d.Dependencies[i]) < dependencyKey(d.Dependencies[j])
+	})
+	if duplicateDependencies(d.Dependencies) {
+		return errors.New("recipe: duplicate dependency role and slot")
+	}
+	model, found := artifact.ID{}, false
+	for _, dependency := range d.Dependencies {
+		if dependency.Role == DependencyModel && dependency.Slot == 0 {
+			model, found = dependency.Artifact, true
+		}
+	}
+	if !found {
+		return errors.New("recipe: model dependency is absent")
+	}
+	d.Model = model
 	if err := validateTask(d.Task); err != nil {
 		return err
 	}
@@ -211,17 +159,9 @@ func canonicalize(d *Definition) error {
 }
 
 func definitionContent(d Definition) ([]byte, error) {
-	var body any
-	if d.Version == LegacyVersion {
-		body = legacyDefinitionBody{
-			Version: d.Version, Task: d.Task, Model: d.Model,
-			Nodes: d.Nodes, Edges: d.Edges, Inputs: d.Inputs, Outputs: d.Outputs,
-		}
-	} else {
-		body = definitionBody{
-			Version: d.Version, Task: d.Task, Dependencies: d.Dependencies,
-			Nodes: d.Nodes, Edges: d.Edges, Inputs: d.Inputs, Outputs: d.Outputs,
-		}
+	body := definitionBody{
+		Version: d.Version, Task: d.Task, Dependencies: d.Dependencies,
+		Nodes: d.Nodes, Edges: d.Edges, Inputs: d.Inputs, Outputs: d.Outputs,
 	}
 	content, err := json.Marshal(body)
 	if err != nil {

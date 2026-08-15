@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/projector"
 )
 
 func TestDecodeVideoFileFFmpeg(t *testing.T) {
@@ -37,7 +39,7 @@ func TestDecodeVideoFileFFmpeg(t *testing.T) {
 }
 
 func TestResolveFFmpegRejectsMissingConfiguredPath(t *testing.T) {
-	if _, err := resolveFFmpeg(filepath.Join(t.TempDir(), "missing.exe")); err == nil {
+	if _, err := projector.ResolveFFmpeg(filepath.Join(t.TempDir(), "missing.exe")); err == nil {
 		t.Fatal("missing configured FFmpeg was accepted")
 	}
 }

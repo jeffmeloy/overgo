@@ -174,49 +174,10 @@ func loadPrefillContext(l *ladder) (*prefillContext, error) {
 	}, nil
 }
 
-// prefillWeightBinder: uploads one layer's dual-branch weights as device feeds
-// and returns a free function.
-type prefillWeightBinder struct {
-	worker *device.Worker
-	ctx    context.Context
-	ptrs   []driver.DevicePtr
-}
-
-func (p *prefillWeightBinder) upload(b []byte) (driver.DevicePtr, error) {
-	var ptr driver.DevicePtr
-	err := p.worker.Do(p.ctx, func(state *device.State) error {
-		q, e := state.Driver.MemAlloc(uint64(len(b)))
-		if e != nil {
-			return e
-		}
-		if e := state.Driver.MemcpyHtoD(q, b); e != nil {
-			_ = state.Driver.MemFree(q)
-			return e
-		}
-		ptr = q
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	p.ptrs = append(p.ptrs, ptr)
-	return ptr, nil
-}
-
-func (p *prefillWeightBinder) free() {
-	_ = p.worker.Do(p.ctx, func(state *device.State) error {
-		for _, q := range p.ptrs {
-			_ = state.Driver.MemFree(q)
-		}
-		return nil
-	})
-	p.ptrs = p.ptrs[:0]
-}
-
-func bindPrefillBranch(p *prefillWeightBinder, feeds map[*tensor.Tensor]driver.DevicePtr, nodes routedlm.DevicePrefillBranch,
+func bindPrefillBranch(ctx context.Context, allocations *device.AllocationSet, feeds map[*tensor.Tensor]driver.DevicePtr, nodes routedlm.DevicePrefillBranch,
 	inputNorm []float32, q, k, v, o routedlm.BF16Matrix, qNorm, kNorm, postNorm []float32, gate, up, down routedlm.BF16Matrix) error {
 	bindV := func(node *tensor.Tensor, val []float32) error {
-		ptr, e := p.upload(driver.Bytes(val))
+		ptr, e := allocations.Upload(ctx, driver.Bytes(val))
 		if e != nil {
 			return e
 		}
@@ -224,7 +185,7 @@ func bindPrefillBranch(p *prefillWeightBinder, feeds map[*tensor.Tensor]driver.D
 		return nil
 	}
 	bindM := func(node *tensor.Tensor, m routedlm.BF16Matrix) error {
-		ptr, e := p.upload(driver.Bytes(m.Data))
+		ptr, e := allocations.Upload(ctx, driver.Bytes(m.Data))
 		if e != nil {
 			return e
 		}
@@ -277,7 +238,8 @@ func runDevicePrefill(l *ladder) error {
 	maskShape := tensor.MustShape(1, uint64(pc.promptLen))
 
 	// ---- ladder verification: each layer fed the previous GOLDEN boundary ---
-	binder := &prefillWeightBinder{worker: worker, ctx: ctx}
+	allocations := device.NewAllocationSet(worker)
+	defer func() { _ = allocations.Close(ctx) }()
 	worstByLayer := make([]float64, cfg.NumHiddenLayers)
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
 		w, err := routedlm.LoadLayerWeights(pc.src, cfg, binding, layer)
@@ -297,12 +259,12 @@ func runDevicePrefill(l *ladder) error {
 			}
 		}
 		feeds := map[*tensor.Tensor]driver.DevicePtr{}
-		if err := bindPrefillBranch(binder, feeds, g.Text,
+		if err := bindPrefillBranch(ctx, &allocations, feeds, g.Text,
 			w.InputNorm.Text, w.QKV.QText, w.QKV.KText, w.QKV.VText, w.QKV.OText,
 			w.QKV.QNorm[0], w.QKV.KNorm[0], w.Output.PostText, w.Output.GateText, w.Output.UpText, w.Output.DownText); err != nil {
 			return err
 		}
-		if err := bindPrefillBranch(binder, feeds, g.Vision,
+		if err := bindPrefillBranch(ctx, &allocations, feeds, g.Vision,
 			w.InputNorm.Vision, w.QKV.QVision, w.QKV.KVision, w.QKV.VVision, w.QKV.OVision,
 			w.QKV.QNorm[1], w.QKV.KNorm[1], w.Output.PostVision, w.Output.GateVision, w.Output.UpVision, w.Output.DownVision); err != nil {
 			return err
@@ -318,11 +280,11 @@ func runDevicePrefill(l *ladder) error {
 		}
 		out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 		if err != nil {
-			binder.free()
+			_ = allocations.Close(ctx)
 			return fmt.Errorf("device prefill execute layer %d: %w", layer, err)
 		}
 		devOut := out[g.Output].Data
-		binder.free()
+		_ = allocations.Close(ctx)
 
 		golden, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_layer"+strconv.Itoa(layer)+"_output_golden.json")
 		if err != nil {
@@ -374,12 +336,12 @@ func runDevicePrefill(l *ladder) error {
 			return err
 		}
 		feeds := map[*tensor.Tensor]driver.DevicePtr{}
-		if err := bindPrefillBranch(binder, feeds, g.Text,
+		if err := bindPrefillBranch(ctx, &allocations, feeds, g.Text,
 			w.InputNorm.Text, w.QKV.QText, w.QKV.KText, w.QKV.VText, w.QKV.OText,
 			w.QKV.QNorm[0], w.QKV.KNorm[0], w.Output.PostText, w.Output.GateText, w.Output.UpText, w.Output.DownText); err != nil {
 			return err
 		}
-		if err := bindPrefillBranch(binder, feeds, g.Vision,
+		if err := bindPrefillBranch(ctx, &allocations, feeds, g.Vision,
 			w.InputNorm.Vision, w.QKV.QVision, w.QKV.KVision, w.QKV.VVision, w.QKV.OVision,
 			w.QKV.QNorm[1], w.QKV.KNorm[1], w.Output.PostVision, w.Output.GateVision, w.Output.UpVision, w.Output.DownVision); err != nil {
 			return err
@@ -395,11 +357,11 @@ func runDevicePrefill(l *ladder) error {
 		}
 		out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 		if err != nil {
-			binder.free()
+			_ = allocations.Close(ctx)
 			return fmt.Errorf("device prefill chained layer %d: %w", layer, err)
 		}
 		row = append([]float32(nil), out[g.Output].Data...)
-		binder.free()
+		_ = allocations.Close(ctx)
 		golden, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_layer"+strconv.Itoa(layer)+"_output_golden.json")
 		if err != nil {
 			return err

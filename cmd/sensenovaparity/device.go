@@ -68,48 +68,6 @@ func smiField(query string) int {
 func gpuUsedMiB() int { return smiField("memory.used") }
 func gpuFreeMiB() int { return smiField("memory.free") }
 
-// deviceUploader: uploads host bytes as device feeds, tracks them for one free.
-type deviceUploader struct {
-	worker *device.Worker
-	ctx    context.Context
-	ptrs   []driver.DevicePtr
-}
-
-func (u *deviceUploader) up(b []byte) (driver.DevicePtr, error) {
-	var ptr driver.DevicePtr
-	err := u.worker.Do(u.ctx, func(state *device.State) error {
-		q, e := state.Driver.MemAlloc(uint64(len(b)))
-		if e != nil {
-			return e
-		}
-		if e := state.Driver.MemcpyHtoD(q, b); e != nil {
-			_ = state.Driver.MemFree(q)
-			return e
-		}
-		ptr = q
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	u.ptrs = append(u.ptrs, ptr)
-	return ptr, nil
-}
-
-func (u *deviceUploader) upBF16(m routedlm.BF16Matrix) (driver.DevicePtr, error) {
-	return u.up(driver.Bytes(m.Data))
-}
-
-func (u *deviceUploader) free() {
-	_ = u.worker.Do(u.ctx, func(state *device.State) error {
-		for _, q := range u.ptrs {
-			_ = state.Driver.MemFree(q)
-		}
-		return nil
-	})
-	u.ptrs = u.ptrs[:0]
-}
-
 // worstAbs: worst |a-b| over aligned slices.
 func worstAbs(a, b []float32) float64 {
 	worst := 0.0
@@ -319,14 +277,14 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			return "", math.NaN(), "", fmt.Errorf("compile: %w", err)
 		}
 
-		up := &deviceUploader{worker: worker, ctx: ctx}
-		defer up.free()
+		allocations := device.NewAllocationSet(worker)
+		defer func() { _ = allocations.Close(ctx) }()
 		dev := map[*tensor.Tensor]driver.DevicePtr{}
 		for node, m := range map[*tensor.Tensor]routedlm.BF16Matrix{
 			tW0: weights.Timestep.W0, tW2: weights.Timestep.W2,
 			nW0: weights.NoiseScale.W0, nW2: weights.NoiseScale.W2,
 		} {
-			p, e := up.upBF16(m)
+			p, e := allocations.Upload(ctx, driver.Bytes(m.Data))
 			if e != nil {
 				return "", math.NaN(), "", e
 			}
@@ -393,13 +351,13 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			return "", math.NaN(), "", fmt.Errorf("compile: %w", err)
 		}
 
-		up := &deviceUploader{worker: worker, ctx: ctx}
-		defer up.free()
-		pw0, err := up.upBF16(weights.Head.W0)
+		allocations := device.NewAllocationSet(worker)
+		defer func() { _ = allocations.Close(ctx) }()
+		pw0, err := allocations.Upload(ctx, driver.Bytes(weights.Head.W0.Data))
 		if err != nil {
 			return "", math.NaN(), "", err
 		}
-		pw2, err := up.upBF16(weights.Head.W2)
+		pw2, err := allocations.Upload(ctx, driver.Bytes(weights.Head.W2.Data))
 		if err != nil {
 			return "", math.NaN(), "", err
 		}

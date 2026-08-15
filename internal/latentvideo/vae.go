@@ -52,27 +52,29 @@ type vaeDecoderOp struct {
 	weightBytes int64
 }
 
-// VAEDecoderPlan: validated decoder graph derived from tensor names/shapes.
-type VAEDecoderPlan struct {
-	ZDim                 int
-	OutputChannels       int
-	Stride               [3]int // derived: 2^upsample3d temporal, 2^(upsample3d+upsample2d) spatial
+type vaePlanCore struct {
+	Stride               [3]int
 	UsedTensorCount      int
 	UsedWeightBytes      int64
 	LargestOpWeightBytes int64
 	ops                  []vaeDecoderOp
 }
 
-// Ops: compiled operation count.
-func (p VAEDecoderPlan) Ops() int { return len(p.ops) }
+func (p vaePlanCore) Ops() int { return len(p.ops) }
 
-// OpPrefixes: compiled operation prefixes in execution order.
-func (p VAEDecoderPlan) OpPrefixes() []string {
+func (p vaePlanCore) OpPrefixes() []string {
 	prefixes := make([]string, len(p.ops))
-	for i, op := range p.ops {
-		prefixes[i] = op.prefix
+	for index, op := range p.ops {
+		prefixes[index] = op.prefix
 	}
 	return prefixes
+}
+
+// VAEDecoderPlan: validated decoder graph derived from tensor names/shapes.
+type VAEDecoderPlan struct {
+	vaePlanCore
+	ZDim           int
+	OutputChannels int
 }
 
 // VAELatentStats: per-channel latent normalization facts (decode applies
@@ -84,6 +86,100 @@ type VAELatentStats struct {
 type vaeTensorShape struct {
 	name  string
 	shape []int64
+}
+
+type vaePlanStats struct {
+	tensors        int
+	weightBytes    int64
+	largestOpBytes int64
+}
+
+type vaePlanCompiler struct {
+	scope  string
+	metas  []pytorchzip.TensorMeta
+	byName map[string]pytorchzip.TensorMeta
+	ops    []vaeDecoderOp
+	names  []string
+}
+
+func newVAEPlanCompiler(scope string, metas []pytorchzip.TensorMeta) *vaePlanCompiler {
+	compiler := &vaePlanCompiler{scope: scope, metas: metas, byName: make(map[string]pytorchzip.TensorMeta, len(metas))}
+	for _, meta := range metas {
+		compiler.byName[meta.Name] = meta
+	}
+	return compiler
+}
+
+func (c *vaePlanCompiler) shape(name string) (vaeTensorShape, error) {
+	meta, ok := c.byName[name]
+	if !ok {
+		return vaeTensorShape{}, fmt.Errorf("%s: missing tensor %s", c.scope, name)
+	}
+	return vaeTensorShape{name: name, shape: meta.Shape}, nil
+}
+
+func (c *vaePlanCompiler) vector(name string, elements int) error {
+	meta, ok := c.byName[name]
+	if !ok {
+		return fmt.Errorf("%s: missing tensor %s", c.scope, name)
+	}
+	if meta.Numel != int64(elements) {
+		return fmt.Errorf("%s: %s elements=%d want=%d", c.scope, name, meta.Numel, elements)
+	}
+	return nil
+}
+
+func (c *vaePlanCompiler) has(name string) bool {
+	_, ok := c.byName[name]
+	return ok
+}
+
+func (c *vaePlanCompiler) add(kind vaeOpKind, prefix string, cIn, cOut int, names ...string) {
+	c.ops = append(c.ops, vaeDecoderOp{kind: kind, prefix: prefix, cIn: cIn, cOut: cOut})
+	c.names = append(c.names, names...)
+}
+
+func (c *vaePlanCompiler) finish(owned func(string) bool) (vaePlanStats, error) {
+	consumed := make(map[string]bool, len(c.names))
+	for _, name := range c.names {
+		consumed[name] = true
+	}
+	var unexpected []string
+	for _, meta := range c.metas {
+		if owned(meta.Name) && !consumed[meta.Name] {
+			unexpected = append(unexpected, meta.Name)
+		}
+	}
+	if len(unexpected) > 0 {
+		sort.Strings(unexpected)
+		return vaePlanStats{}, fmt.Errorf("%s: unconsumed tensors %v", c.scope, unexpected)
+	}
+	bindings, err := pytorchzip.CompileBindings(c.metas, c.names)
+	if err != nil {
+		return vaePlanStats{}, err
+	}
+	var stats vaePlanStats
+	offset := 0
+	for index := range c.ops {
+		op := &c.ops[index]
+		count := vaeOpTensorCount(*op)
+		op.bindings = bindings[offset : offset+count]
+		offset += count
+		for _, binding := range op.bindings {
+			bytes, err := pytorchzip.TensorMetaBytes(binding.Meta)
+			if err != nil {
+				return vaePlanStats{}, err
+			}
+			op.weightBytes += bytes
+		}
+		stats.tensors += count
+		stats.weightBytes += op.weightBytes
+		stats.largestOpBytes = max(stats.largestOpBytes, op.weightBytes)
+	}
+	if offset != len(bindings) {
+		return vaePlanStats{}, fmt.Errorf("%s: binding partition consumed %d of %d", c.scope, offset, len(bindings))
+	}
+	return stats, nil
 }
 
 func (s vaeTensorShape) conv3d(label string) (cOut, cIn, kt, kh, kw int, err error) {
@@ -106,40 +202,11 @@ func (s vaeTensorShape) conv2d(label string) (cOut, cIn, kh, kw int, err error) 
 // exist under each prefix; channels resolve from weight shapes; the chain is
 // validated end to end.
 func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error) {
-	byName := make(map[string]pytorchzip.TensorMeta, len(metas))
-	for _, m := range metas {
-		byName[m.Name] = m
-	}
-	shape := func(name string) (vaeTensorShape, bool) {
-		m, ok := byName[name]
-		return vaeTensorShape{name: name, shape: m.Shape}, ok
-	}
-	requireShape := func(name string) (vaeTensorShape, error) {
-		s, ok := shape(name)
-		if !ok {
-			return s, fmt.Errorf("vae decoder: missing tensor %s", name)
-		}
-		return s, nil
-	}
-	requireVector := func(name string, elements int) error {
-		m, ok := byName[name]
-		if !ok {
-			return fmt.Errorf("vae decoder: missing tensor %s", name)
-		}
-		if m.Numel != int64(elements) {
-			return fmt.Errorf("vae decoder: %s elements=%d want=%d", name, m.Numel, elements)
-		}
-		return nil
-	}
+	compiler := newVAEPlanCompiler("vae decoder", metas)
 	var plan VAEDecoderPlan
-	var names []string
-	addOp := func(kind vaeOpKind, prefix string, cIn, cOut int, tensorNames ...string) {
-		plan.ops = append(plan.ops, vaeDecoderOp{kind: kind, prefix: prefix, cIn: cIn, cOut: cOut})
-		names = append(names, tensorNames...)
-	}
 
 	// conv2: latent-space pointwise [z, z, 1, 1, 1].
-	conv2, err := requireShape("conv2.weight")
+	conv2, err := compiler.shape("conv2.weight")
 	if err != nil {
 		return plan, err
 	}
@@ -151,10 +218,10 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		return plan, fmt.Errorf("vae decoder: conv2.weight shape %v is not a latent pointwise", conv2.shape)
 	}
 	plan.ZDim = zIn
-	addOp(vaeOpPointwise, "conv2", zIn, zOut, "conv2.weight", "conv2.bias")
+	compiler.add(vaeOpPointwise, "conv2", zIn, zOut, "conv2.weight", "conv2.bias")
 
 	// decoder.conv1: latent -> feature volume conv [c, z, 3, 3, 3].
-	conv1, err := requireShape("decoder.conv1.weight")
+	conv1, err := compiler.shape("decoder.conv1.weight")
 	if err != nil {
 		return plan, err
 	}
@@ -165,11 +232,11 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 	if c1In != plan.ZDim || kt != 3 || kh != 3 || kw != 3 {
 		return plan, fmt.Errorf("vae decoder: decoder.conv1.weight shape %v incompatible with z_dim=%d", conv1.shape, plan.ZDim)
 	}
-	addOp(vaeOpConv, "decoder.conv1", c1In, c1Out, "decoder.conv1.weight", "decoder.conv1.bias")
+	compiler.add(vaeOpConv, "decoder.conv1", c1In, c1Out, "decoder.conv1.weight", "decoder.conv1.bias")
 	channels := c1Out
 
 	compileResidual := func(prefix string) (int, error) {
-		w0, err := requireShape(prefix + ".residual.2.weight")
+		w0, err := compiler.shape(prefix + ".residual.2.weight")
 		if err != nil {
 			return 0, err
 		}
@@ -180,7 +247,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if cIn != channels || kt != 3 || kh != 3 || kw != 3 {
 			return 0, fmt.Errorf("vae decoder: %s shape %v incompatible with input channels=%d", w0.name, w0.shape, channels)
 		}
-		w1, err := requireShape(prefix + ".residual.6.weight")
+		w1, err := compiler.shape(prefix + ".residual.6.weight")
 		if err != nil {
 			return 0, err
 		}
@@ -198,7 +265,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 			{prefix + ".residual.0.gamma", cIn}, {prefix + ".residual.2.bias", cOut},
 			{prefix + ".residual.3.gamma", cOut}, {prefix + ".residual.6.bias", cOut},
 		} {
-			if err := requireVector(check.name, check.elements); err != nil {
+			if err := compiler.vector(check.name, check.elements); err != nil {
 				return 0, err
 			}
 		}
@@ -206,12 +273,12 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 			prefix + ".residual.0.gamma", prefix + ".residual.2.weight", prefix + ".residual.2.bias",
 			prefix + ".residual.3.gamma", prefix + ".residual.6.weight", prefix + ".residual.6.bias",
 		}
-		_, hasShortcut := byName[prefix+".shortcut.weight"]
+		hasShortcut := compiler.has(prefix + ".shortcut.weight")
 		if hasShortcut != (cIn != cOut) {
 			return 0, fmt.Errorf("vae decoder: %s shortcut presence=%t but channels %d->%d", prefix, hasShortcut, cIn, cOut)
 		}
 		if hasShortcut {
-			sw, err := requireShape(prefix + ".shortcut.weight")
+			sw, err := compiler.shape(prefix + ".shortcut.weight")
 			if err != nil {
 				return 0, err
 			}
@@ -222,16 +289,16 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 			if sOut != cOut || sIn != cIn || kt != 1 || kh != 1 || kw != 1 {
 				return 0, fmt.Errorf("vae decoder: %s shape %v is not a %d->%d pointwise", sw.name, sw.shape, cIn, cOut)
 			}
-			if err := requireVector(prefix+".shortcut.bias", cOut); err != nil {
+			if err := compiler.vector(prefix+".shortcut.bias", cOut); err != nil {
 				return 0, err
 			}
 			opNames = append(opNames, prefix+".shortcut.weight", prefix+".shortcut.bias")
 		}
-		addOp(vaeOpResidual, prefix, cIn, cOut, opNames...)
+		compiler.add(vaeOpResidual, prefix, cIn, cOut, opNames...)
 		return cOut, nil
 	}
 	compileAttention := func(prefix string) error {
-		qkv, err := requireShape(prefix + ".to_qkv.weight")
+		qkv, err := compiler.shape(prefix + ".to_qkv.weight")
 		if err != nil {
 			return err
 		}
@@ -242,7 +309,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if qkvIn != channels || qkvOut != 3*channels || kh != 1 || kw != 1 {
 			return fmt.Errorf("vae decoder: %s shape %v incompatible with channels=%d", qkv.name, qkv.shape, channels)
 		}
-		proj, err := requireShape(prefix + ".proj.weight")
+		proj, err := compiler.shape(prefix + ".proj.weight")
 		if err != nil {
 			return err
 		}
@@ -259,17 +326,17 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		}{
 			{prefix + ".norm.gamma", channels}, {prefix + ".to_qkv.bias", 3 * channels}, {prefix + ".proj.bias", channels},
 		} {
-			if err := requireVector(check.name, check.elements); err != nil {
+			if err := compiler.vector(check.name, check.elements); err != nil {
 				return err
 			}
 		}
-		addOp(vaeOpAttention, prefix, channels, channels,
+		compiler.add(vaeOpAttention, prefix, channels, channels,
 			prefix+".norm.gamma", prefix+".to_qkv.weight", prefix+".to_qkv.bias",
 			prefix+".proj.weight", prefix+".proj.bias")
 		return nil
 	}
 	compileResample := func(prefix string) (int, error) {
-		rw, err := requireShape(prefix + ".resample.1.weight")
+		rw, err := compiler.shape(prefix + ".resample.1.weight")
 		if err != nil {
 			return 0, err
 		}
@@ -280,16 +347,16 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if cIn != channels {
 			return 0, fmt.Errorf("vae decoder: %s shape %v incompatible with channels=%d", rw.name, rw.shape, channels)
 		}
-		if err := requireVector(prefix+".resample.1.bias", cOut); err != nil {
+		if err := compiler.vector(prefix+".resample.1.bias", cOut); err != nil {
 			return 0, err
 		}
-		if _, hasTime := byName[prefix+".time_conv.weight"]; !hasTime {
-			addOp(vaeOpUpsample2D, prefix, cIn, cOut, prefix+".resample.1.weight", prefix+".resample.1.bias")
+		if !compiler.has(prefix + ".time_conv.weight") {
+			compiler.add(vaeOpUpsample2D, prefix, cIn, cOut, prefix+".resample.1.weight", prefix+".resample.1.bias")
 			plan.Stride[1] *= vaeSpatialScale
 			plan.Stride[2] *= vaeSpatialScale
 			return cOut, nil
 		}
-		tw, err := requireShape(prefix + ".time_conv.weight")
+		tw, err := compiler.shape(prefix + ".time_conv.weight")
 		if err != nil {
 			return 0, err
 		}
@@ -300,10 +367,10 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if tIn != channels || tOut != 2*channels || kt != 3 || kh != 1 || kw != 1 {
 			return 0, fmt.Errorf("vae decoder: %s shape %v is not a %d->%d temporal conv", tw.name, tw.shape, channels, 2*channels)
 		}
-		if err := requireVector(prefix+".time_conv.bias", tOut); err != nil {
+		if err := compiler.vector(prefix+".time_conv.bias", tOut); err != nil {
 			return 0, err
 		}
-		addOp(vaeOpUpsample3D, prefix, cIn, cOut,
+		compiler.add(vaeOpUpsample3D, prefix, cIn, cOut,
 			prefix+".time_conv.weight", prefix+".time_conv.bias",
 			prefix+".resample.1.weight", prefix+".resample.1.bias")
 		plan.Stride[0] *= vaeSpatialScale
@@ -317,9 +384,9 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		count := 0
 		for {
 			prefix := fmt.Sprintf("%s.%d", group, count)
-			_, isResidual := byName[prefix+".residual.0.gamma"]
-			_, isAttention := byName[prefix+".norm.gamma"]
-			_, isResample := byName[prefix+".resample.1.weight"]
+			isResidual := compiler.has(prefix + ".residual.0.gamma")
+			isAttention := compiler.has(prefix + ".norm.gamma")
+			isResample := compiler.has(prefix + ".resample.1.weight")
 			switch {
 			case isResidual:
 				channels, err = compileResidual(prefix)
@@ -344,7 +411,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 	}
 
 	// decoder.head: norm+silu then conv to output channels.
-	hw, err := requireShape("decoder.head.2.weight")
+	hw, err := compiler.shape("decoder.head.2.weight")
 	if err != nil {
 		return plan, err
 	}
@@ -355,14 +422,15 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 	if headIn != channels || kt != 3 || kh != 3 || kw != 3 {
 		return plan, fmt.Errorf("vae decoder: decoder.head.2.weight shape %v incompatible with channels=%d", hw.shape, channels)
 	}
-	if err := requireVector("decoder.head.0.gamma", channels); err != nil {
+	if err := compiler.vector("decoder.head.0.gamma", channels); err != nil {
 		return plan, err
 	}
-	if err := requireVector("decoder.head.2.bias", headOut); err != nil {
+	if err := compiler.vector("decoder.head.2.bias", headOut); err != nil {
 		return plan, err
 	}
-	addOp(vaeOpHead, "decoder.head", channels, headOut, "decoder.head.0.gamma", "decoder.head.2.weight", "decoder.head.2.bias")
+	compiler.add(vaeOpHead, "decoder.head", channels, headOut, "decoder.head.0.gamma", "decoder.head.2.weight", "decoder.head.2.bias")
 	plan.OutputChannels = headOut
+	plan.ops = compiler.ops
 
 	// Chain continuity across the compiled graph.
 	for index := 1; index < len(plan.ops); index++ {
@@ -371,47 +439,15 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 				index, plan.ops[index].prefix, plan.ops[index].cIn, plan.ops[index-1].cOut)
 		}
 	}
-	// All decoder-side tensors must be consumed (capability retention check).
-	consumed := make(map[string]bool, len(names))
-	for _, name := range names {
-		consumed[name] = true
-	}
-	var unexpected []string
-	for _, m := range metas {
-		if (strings.HasPrefix(m.Name, "decoder.") || strings.HasPrefix(m.Name, "conv2.")) && !consumed[m.Name] {
-			unexpected = append(unexpected, m.Name)
-		}
-	}
-	if len(unexpected) > 0 {
-		sort.Strings(unexpected)
-		return plan, fmt.Errorf("vae decoder: unconsumed decoder tensors %v", unexpected)
-	}
-	bindings, err := pytorchzip.CompileBindings(metas, names)
+	stats, err := compiler.finish(func(name string) bool {
+		return strings.HasPrefix(name, "decoder.") || strings.HasPrefix(name, "conv2.")
+	})
 	if err != nil {
 		return plan, err
 	}
-	offset := 0
-	for index := range plan.ops {
-		op := &plan.ops[index]
-		count := vaeOpTensorCount(*op)
-		op.bindings = bindings[offset : offset+count]
-		offset += count
-		for _, binding := range op.bindings {
-			bytes, byteErr := pytorchzip.TensorMetaBytes(binding.Meta)
-			if byteErr != nil {
-				return plan, byteErr
-			}
-			op.weightBytes += bytes
-		}
-		plan.UsedTensorCount += count
-		plan.UsedWeightBytes += op.weightBytes
-		if op.weightBytes > plan.LargestOpWeightBytes {
-			plan.LargestOpWeightBytes = op.weightBytes
-		}
-	}
-	if offset != len(bindings) {
-		return plan, fmt.Errorf("vae decoder: binding partition consumed %d of %d", offset, len(bindings))
-	}
+	plan.UsedTensorCount = stats.tensors
+	plan.UsedWeightBytes = stats.weightBytes
+	plan.LargestOpWeightBytes = stats.largestOpBytes
 	return plan, nil
 }
 

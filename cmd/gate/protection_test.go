@@ -8,7 +8,7 @@ import (
 	"overgo/internal/protection"
 )
 
-func TestProtectionEvidenceContract(t *testing.T) {
+func TestProtectionEvidence(t *testing.T) {
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)

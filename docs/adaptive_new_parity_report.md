@@ -125,7 +125,7 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Gemma4 12B | Streamed CUDA LM scope | Shared backward prerequisites; no reported real 12B training | Gap |
 | Forecast/latent/FNS | CUDA objectives for LM, FNS, latent L2/sequence, forecast | TimesFM primitives remain open. Un-0 retains complete VJPs but explicitly refuses training after deletion of its synthetic constant-target ramp | Breadth gap; false capability removed |
 | OCR | Host objective; CUDA train/eval absent | No promoted training path | Both incomplete |
-| SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and revive experiments; device path incomplete | The shared materializer selects structured 32x32 crops from the artifact's four real sample grids, then the common stream, normalized-image processor, seeded OT objective, full model VJP, and platform Muon stepper train the 101,828,450-parameter checkpoint. One train/held-out gate lowers matched train loss `1.331198 -> 1.156815` and held-out loss `1.396862 -> 1.346165`; 6,143 sampled final-projection values change. Two complete gates take 3.34-4.81 s on the reviewed Windows/CUDA machine | Real-data full-checkpoint update proven; device forward/backward and matched performance remain open |
+| SimpleDiffusion/UViT | Real-checkpoint OT-flow trainer and first resident CUDA VJP boundary | The shared materializer selects structured 32x32 crops from the artifact's four real sample grids, then the common stream, normalized-image processor, seeded OT objective, full model VJP, and platform Muon stepper train the 101,828,450-parameter checkpoint. One train/held-out gate lowers matched train loss `1.331198 -> 1.156815` and held-out loss `1.396862 -> 1.346165`; 6,143 sampled final-projection values change. The real final transpose-projection input and weight gradients now use the shared resident CUDA linear VJP with maximum errors `6.985e-10` and `2.980e-8` | Real-data full-checkpoint host update and first exact device-backward boundary proven; remaining blocks and matched training performance remain open |
 | Pocket-TTS | Latent bridge, flow-net, backbone paths | Inference recipe and reference waveform are production-proven. The production compiled trainer binds all 85,282,848 joint backbone+flow parameters to shared Muon; native generated codec latents lower loss `0.505204 -> 0.285938` in one step | Real-artifact Muon trajectory proven; corpus audio encoding and held-out evaluation open |
 | Controller model | Strategic adaptive plan; no promoted controller | Overgo training design targets it | Not started |
 | Tier-1 memory scaling | Adaptive streamed/checkpointed components | Resident dense session and scratch pool exist; no production E4B run | Partial |
@@ -212,12 +212,19 @@ Overgo's tokenizer total includes a large generated Unicode table.
   stepper. One update lowers matched train loss `1.331198 -> 1.156815` and
   held-out loss `1.396862 -> 1.346165`; 6,143 final-projection values change.
   The 3.34-4.81 s focused gates are capability evidence, not a matched performance
-  claim; forward/backward remain host-owned.
+  claim. Forward is resident CUDA; the final projection is the first migrated
+  backward boundary. The remaining backward blocks remain host-owned.
+- The real final transpose projection now compiles to the shared resident
+  linear VJP layout. Against a real forward activation and an upstream MSE
+  gradient derived from the retained real image, CUDA input-gradient maximum
+  error is `6.985e-10` and checkpoint-layout weight-gradient maximum error is
+  `2.980e-8`. The resident session retains the reordered checkpoint weight;
+  dynamic activation and loss gradients reuse fixed device buffers.
 - SimpleDiffusion's typed prepare/integrate/decode recipe publishes the real
   checkpoint's seed-7, two-step, 64x64 sample as a 10,506-byte PNG identical
-  to adaptive_new's retained artifact. The focused generation gate takes about
-  0.93 s including checkpoint load; this is output-parity evidence, not a
-  matched process-wall or peak-memory claim.
+  to adaptive_new's retained artifact. That host result remains the exact
+  publication oracle; the resident CUDA result and leadership evidence are
+  reported below.
 - SimpleDiffusion and adaptive_new now run the same real-checkpoint forward in
   isolated child processes. The shared safetensors reader decodes native F32
   directly into final slabs and the diffusion loader traverses tensors

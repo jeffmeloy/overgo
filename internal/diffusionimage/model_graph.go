@@ -175,18 +175,7 @@ func (graph *modelGraph) upsample(input *tensor.Tensor, binding convBinding, inp
 
 func (graph *modelGraph) finalProjection(input *tensor.Tensor, binding convBinding, inputGeometry imageGeometry, outputChannels, patch int) *tensor.Tensor {
 	expandedChannels := outputChannels * patch * patch
-	weight := make([]float32, inputGeometry.channels*expandedChannels)
-	for y := range patch {
-		for x := range patch {
-			for outputChannel := range outputChannels {
-				row := (y*patch+x)*outputChannels + outputChannel
-				for inputChannel := range inputGeometry.channels {
-					source := ((inputChannel*outputChannels+outputChannel)*patch+y)*patch + x
-					weight[row*inputGeometry.channels+inputChannel] = binding.weight[source]
-				}
-			}
-		}
-	}
+	weight := finalProjectionLinearWeight(binding.weight, inputGeometry.channels, outputChannels, patch)
 	flat := graph.builder.Reshape(input, uint64(inputGeometry.channels), uint64(inputGeometry.height*inputGeometry.width))
 	projected := graph.builder.MulMat(
 		graph.bind(binding.name, ".pixel_projection", weight, uint64(inputGeometry.channels), uint64(expandedChannels)), flat,
@@ -194,4 +183,36 @@ func (graph *modelGraph) finalProjection(input *tensor.Tensor, binding convBindi
 	projected = graph.builder.Reshape(projected, uint64(expandedChannels), uint64(inputGeometry.width), uint64(inputGeometry.height))
 	output := graph.builder.PixelShuffle2D(projected, uint32(patch))
 	return graph.builder.Add(output, graph.bind(binding.name, ".bias", binding.bias, uint64(outputChannels)))
+}
+
+func finalProjectionLinearWeight(checkpoint []float32, inputChannels, outputChannels, patch int) []float32 {
+	weight := make([]float32, inputChannels*outputChannels*patch*patch)
+	for y := range patch {
+		for x := range patch {
+			for outputChannel := range outputChannels {
+				row := (y*patch+x)*outputChannels + outputChannel
+				for inputChannel := range inputChannels {
+					source := ((inputChannel*outputChannels+outputChannel)*patch+y)*patch + x
+					weight[row*inputChannels+inputChannel] = checkpoint[source]
+				}
+			}
+		}
+	}
+	return weight
+}
+
+func finalProjectionCheckpointGradient(linear []float32, inputChannels, outputChannels, patch int) []float32 {
+	gradient := make([]float32, len(linear))
+	for y := range patch {
+		for x := range patch {
+			for outputChannel := range outputChannels {
+				row := (y*patch+x)*outputChannels + outputChannel
+				for inputChannel := range inputChannels {
+					target := ((inputChannel*outputChannels+outputChannel)*patch+y)*patch + x
+					gradient[target] = linear[row*inputChannels+inputChannel]
+				}
+			}
+		}
+	}
+	return gradient
 }

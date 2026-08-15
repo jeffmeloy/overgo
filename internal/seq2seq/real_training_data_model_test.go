@@ -18,8 +18,11 @@ import (
 	"overgo/internal/trainingdata"
 )
 
-func realGSM8KTrainingPair(t *testing.T) (*Generator, TrainingPair, trainingdata.Example) {
+func realGSM8KTrainingPair(t *testing.T, ordinal int) (*Generator, TrainingPair, trainingdata.Example) {
 	t.Helper()
+	if ordinal < 0 {
+		t.Fatal("negative GSM8K record ordinal")
+	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
@@ -30,9 +33,11 @@ func realGSM8KTrainingPair(t *testing.T) (*Generator, TrainingPair, trainingdata
 		t.Fatalf("GSM8K dataset unavailable: %v", err)
 	}
 	scanner := bufio.NewScanner(file)
-	if !scanner.Scan() {
-		file.Close()
-		t.Fatalf("GSM8K first record unavailable: %v", scanner.Err())
+	for index := 0; index <= ordinal; index++ {
+		if !scanner.Scan() {
+			file.Close()
+			t.Fatalf("GSM8K record %d unavailable: %v", ordinal, scanner.Err())
+		}
 	}
 	record := scanner.Text()
 	if err := file.Close(); err != nil {
@@ -80,7 +85,7 @@ func realGSM8KTrainingPair(t *testing.T) (*Generator, TrainingPair, trainingdata
 }
 
 func TestNeedleRealGSM8KTrainingPair(t *testing.T) {
-	generator, pair, example := realGSM8KTrainingPair(t)
+	generator, pair, example := realGSM8KTrainingPair(t, 0)
 	if len(pair.Source) < 12 || len(pair.Targets) < 20 || pair.DecoderInput[0] != generator.model.Dims.StartToken || pair.Targets[len(pair.Targets)-1] != generator.model.Dims.EOSToken {
 		t.Fatalf("unexpected real pair geometry source=%d decoder=%d target=%d", len(pair.Source), len(pair.DecoderInput), len(pair.Targets))
 	}
@@ -99,7 +104,7 @@ func TestNeedleRealGSM8KTrainingPair(t *testing.T) {
 }
 
 func TestNeedleRealGSM8KFinalNormTraining(t *testing.T) {
-	generator, pair, _ := realGSM8KTrainingPair(t)
+	generator, pair, _ := realGSM8KTrainingPair(t, 0)
 	before, err := generator.model.Loss(pair)
 	if err != nil {
 		t.Fatal(err)
@@ -127,4 +132,42 @@ func TestNeedleRealGSM8KFinalNormTraining(t *testing.T) {
 		t.Fatalf("real GSM8K loss did not descend: before=%g trajectory=%v after=%g", before, trajectory, after)
 	}
 	t.Logf("real GSM8K final-norm Muon: %.6f -> %.6f via %v", before, after, trajectory)
+}
+
+func TestNeedleRealGSM8KHeldOutEvaluation(t *testing.T) {
+	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
+	_, heldOutPair, heldOutExample := realGSM8KTrainingPair(t, 1)
+	trainBefore, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutBefore, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewFinalNormTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if _, err := trainer.Step(trainPair); err != nil {
+			t.Fatal(err)
+		}
+	}
+	trainAfter, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutAfter, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(trainAfter < trainBefore) || math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
+		t.Fatalf("invalid train/held-out result train %.6f -> %.6f held-out %.6f -> %.6f", trainBefore, trainAfter, heldOutBefore, heldOutAfter)
+	}
+	heldInput, heldTarget, _ := trainingdata.TextPair(heldOutExample)
+	if !strings.Contains(heldInput, "babysitting") || !strings.Contains(heldTarget, "#### 10") {
+		t.Fatalf("unexpected held-out GSM8K record %q -> %q", heldInput, heldTarget)
+	}
+	t.Logf("real GSM8K train %.6f -> %.6f; held-out %.6f -> %.6f", trainBefore, trainAfter, heldOutBefore, heldOutAfter)
 }

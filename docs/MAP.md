@@ -1,0 +1,45 @@
+# Reuse map — capability → existing owner
+
+Read this BEFORE grepping for "does X exist" or writing a new helper. If a row
+covers your need, use that owner; do not re-derive it. If a row is missing, add
+it here when you find or build the owner. This map exists because the recurring
+failure mode is agents re-discovering (or reinventing) code that already exists.
+
+## Models and datasets (RepoDB is the catalog)
+| Need | Use |
+| --- | --- |
+| List available models (present, active recipe) | `discovery.Servable(ctx, store, limit)` |
+| List available datasets | `store.Query(ctx, repodb.Query{Kind: artifact.KindDataset})`; mirror `discovery.Servable` if a typed lister is wanted |
+| Resolve a model's active definition + tensor inventory | `modelrecipe.ActiveRecord` → `activation.Definition.Dependency(recipe.DependencyDefinition, 0)` → `modelrecipe.ResolveModelDefinition` (`.Tensors`) |
+| Load a model for inference (identity-bound) | `clioptions.OpenRunner` / `modelrecipe.ResolveActiveGGUF` |
+| A model/dataset's on-disk location | `store.Locations(ctx, id)` (see `discovery.presence` for the stat pattern) |
+| Data roots (store, models, datasets, checkpoints) | `dataroot.ResolveCurrent()` → `Roots` |
+
+## Tensor / model artifacts
+| Need | Use |
+| --- | --- |
+| Build a model's tensor inventory | `modelartifact.FromGGUF` / `modelartifact.FromHFRepository` |
+| Characterize a model's tensors (sampled, distribution-free) | `modelartifact.MeasureGGUF` / `MeasureSafetensors`; format-agnostic by location: `modelartifact.MeasureAtLocation` |
+| The per-tensor profile itself (L-moments, energy, quartiles) | `internal/tensorstats.Characterize` (embedded in `modelartifact.TensorMeasurement`) |
+| Effective rank (spectral) | `tensorstats.EffectiveRank` / `EffectiveRankOf`; singular values via `tensorstats.SingularValues` |
+| Shape similarity (rank-based, no metric prior) | `tensorstats.ShapeFeatures` + `tensorstats.Nearest` |
+| Open weights by format | `gguf.Open` (file) / `safetensors.OpenSource` (dir) — or just `MeasureAtLocation` |
+
+## Commands / process (Go owns policy; scripts are bash or Go)
+| Need | Use |
+| --- | --- |
+| Run a subprocess, capture combined output | `clioptions.CombinedOutput(env, name, args...)` |
+| Pass/fail label, bounded output tail | `clioptions.Verdict(err)`, `clioptions.Tail(s, n)` |
+| A `cmd/*` main entrypoint | `clioptions.MainNamed("<name>", run)` |
+| The current task of record | `go run ./cmd/plan -next` (trust it; do not carry the goal in memory) |
+| Inject / advance a plan task | `go run ./cmd/plan -add -title <t> -vcmd <verify> <id>`; `-advance <id> <step>` |
+| Commit (required; raw `git commit` is guard-blocked) | `go run ./cmd/gate -message-file <f> -paths <csv> -plan <item>/<step>` |
+| Finalize a merge | `git merge --no-ff --no-commit <branch>` then `go run ./cmd/gate -merge -plan <item>/do` (long: run backgrounded to avoid the 2-min shell timeout) |
+| RepoDB store | `repodb.Open(root)`; `store.Query` / `Content` / `Locations` / `Commit` |
+
+## Tests
+| Need | Use |
+| --- | --- |
+| Write a GGUF fixture | `testutil.TempGGUF(t, name, metadata, tensors)` / `testutil.WriteGGUF` |
+| float32 → little-endian tensor bytes | `testutil.Float32LE(values)` |
+| Artifact/id/repo fixtures | `internal/testutil` (`ArtifactID`, `PublishArtifact`, `MonoPCM16WAV`, …) |

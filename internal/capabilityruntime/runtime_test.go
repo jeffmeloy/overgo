@@ -247,3 +247,119 @@ func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 		t.Fatalf("closes=%d", closes)
 	}
 }
+
+type mappedVideoRequest struct {
+	Condition int `json:"condition"`
+	Source    int `json:"source"`
+}
+
+type mappedVideoModel struct {
+	runs   int
+	closed *int
+}
+
+func (m *mappedVideoModel) Close(context.Context) error {
+	*m.closed++
+	return nil
+}
+
+func TestVideoProductionActivation(t *testing.T) {
+	const module recipe.ModuleID = "test.video-compose"
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "mapped-video-model")
+	testutil.PublishArtifact(t, store, modelID)
+	node := recipe.Node{ID: "compose", Module: module, Placement: recipe.PlacementHost}
+	definition, err := recipe.NewDefinitionWithDependencies(
+		recipe.TaskVideoGen, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
+		[]recipe.Node{node}, nil,
+		[]recipe.Input{
+			{Name: "condition", Data: recipe.DataPromptConditioning, Target: recipe.Endpoint{Node: node.ID, Port: "condition"}},
+			{Name: "source", Data: recipe.DataVideo, Target: recipe.Endpoint{Node: node.ID, Port: "source"}},
+		},
+		[]recipe.Output{{Name: "video", Data: recipe.DataVideo, Source: recipe.Endpoint{Node: node.ID, Port: "video"}}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := recipe.NewCatalog(recipe.Module{
+		ID: module, Tasks: []recipe.Task{recipe.TaskVideoGen}, Placements: []recipe.Placement{recipe.PlacementHost},
+		Inputs: []recipe.Port{
+			{Name: "condition", Data: recipe.DataPromptConditioning, Cardinality: recipe.CardinalityOne},
+			{Name: "source", Data: recipe.DataVideo, Cardinality: recipe.CardinalityOne},
+		},
+		Outputs: []recipe.Port{{Name: "video", Data: recipe.DataVideo, Cardinality: recipe.CardinalityOne}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := recipe.CompileProgram(definition, catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loads, resets, closes := 0, 0, 0
+	cache, err := NewMappedSessionCache[mappedVideoRequest, *mappedVideoModel, int](
+		"video", "cuda:0", 1,
+		func(request mappedVideoRequest) error {
+			if request.Condition <= 0 || request.Source <= 0 {
+				return errors.New("positive video inputs required")
+			}
+			return nil
+		},
+		func(mappedVideoRequest) (string, error) { return "video:1x1", nil },
+		func(context.Context, artifact.Repository, string, recipe.Program, mappedVideoRequest) (*mappedVideoModel, error) {
+			loads++
+			return &mappedVideoModel{closed: &closes}, nil
+		},
+		func(context.Context, *mappedVideoModel, mappedVideoRequest) error { resets++; return nil },
+		func(runtime *workflowruntime.Runtime, bound artifact.ID, model *mappedVideoModel) error {
+			return workflowruntime.RegisterResolvedStage(runtime, module, bound,
+				func(_ context.Context, step workflowruntime.StepRequest) (int, error) {
+					condition, err := workflowruntime.ScalarInput[int](step, "condition")
+					if err != nil {
+						return 0, err
+					}
+					source, err := workflowruntime.ScalarInput[int](step, "source")
+					model.runs++
+					return condition + source, err
+				}, func(value int) (artifact.Content, error) {
+					return artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, "test.video-output.v1"), value)
+				})
+		},
+		func(request mappedVideoRequest) (map[recipe.PortName]MappedInput, error) {
+			condition, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "test.video-condition.v1"), request.Condition)
+			if err != nil {
+				return nil, err
+			}
+			source, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "test.video-source.v1"), request.Source)
+			return map[recipe.PortName]MappedInput{
+				"condition": {Value: request.Condition, Content: condition},
+				"source":    {Value: request.Source, Content: source},
+			}, err
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		output, err := cache.Executor()(t.Context(), store, "model", modelID, program, `{"condition":2,"source":3}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if output != 5 {
+			t.Fatalf("video output=%v", output)
+		}
+	}
+	if loads != 1 || resets != 1 {
+		t.Fatalf("loads=%d resets=%d", loads, resets)
+	}
+	if err := cache.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if closes != 1 {
+		t.Fatalf("closes=%d", closes)
+	}
+}

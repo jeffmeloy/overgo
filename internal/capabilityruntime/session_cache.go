@@ -38,6 +38,7 @@ type ScalarSessionCache[Input, Model, Output any] struct {
 	load     func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error)
 	reset    func(context.Context, Model, Input) error
 	bind     func(*workflowruntime.Runtime, artifact.ID, Model) error
+	inputs   func(Input, artifact.Content, recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error)
 
 	mu      sync.Mutex
 	tick    uint64
@@ -55,12 +56,82 @@ func NewScalarSessionCache[Input, Model, Output any](
 	reset func(context.Context, Model, Input) error,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
 ) (*ScalarSessionCache[Input, Model, Output], error) {
+	return newSessionCache[Input, Model, Output](
+		name, device, capacity, validate, policy, load, reset, bind,
+		func(input Input, content artifact.Content, definition recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error) {
+			if len(definition.Inputs) != 1 {
+				return nil, errors.New("capability runtime: scalar program identity differs")
+			}
+			port := definition.Inputs[0]
+			return map[recipe.PortName]workflowruntime.Value{
+				port.Name: workflowruntime.ArtifactValue(port.Data, input, content),
+			}, nil
+		},
+	)
+}
+
+// MappedInput binds one JSON request field to a typed recipe port.
+type MappedInput struct {
+	Value   any
+	Content artifact.Content
+}
+
+// NewMappedSessionCache reuses the shared resident cache for multi-input recipes.
+func NewMappedSessionCache[Input, Model, Output any](
+	name, device string,
+	capacity int,
+	validate func(Input) error,
+	policy func(Input) (string, error),
+	load func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error),
+	reset func(context.Context, Model, Input) error,
+	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
+	mapInputs func(Input) (map[recipe.PortName]MappedInput, error),
+) (*ScalarSessionCache[Input, Model, Output], error) {
+	if mapInputs == nil {
+		return nil, errors.New("capability runtime: input mapper is nil")
+	}
+	return newSessionCache[Input, Model, Output](
+		name, device, capacity, validate, policy, load, reset, bind,
+		func(input Input, _ artifact.Content, definition recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error) {
+			mapped, err := mapInputs(input)
+			if err != nil {
+				return nil, err
+			}
+			if len(mapped) != len(definition.Inputs) {
+				return nil, errors.New("capability runtime: mapped input set differs")
+			}
+			values := make(map[recipe.PortName]workflowruntime.Value, len(mapped))
+			for _, port := range definition.Inputs {
+				input, ok := mapped[port.Name]
+				if !ok {
+					return nil, fmt.Errorf("capability runtime: mapped input %q is absent", port.Name)
+				}
+				if err := input.Content.Validate(); err != nil {
+					return nil, err
+				}
+				values[port.Name] = workflowruntime.ArtifactValue(port.Data, input.Value, input.Content)
+			}
+			return values, nil
+		},
+	)
+}
+
+func newSessionCache[Input, Model, Output any](
+	name, device string,
+	capacity int,
+	validate func(Input) error,
+	policy func(Input) (string, error),
+	load func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error),
+	reset func(context.Context, Model, Input) error,
+	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
+	inputs func(Input, artifact.Content, recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error),
+) (*ScalarSessionCache[Input, Model, Output], error) {
 	if name == "" || device == "" || capacity <= 0 || validate == nil || policy == nil || load == nil || reset == nil || bind == nil {
 		return nil, errors.New("capability runtime: incomplete scalar session cache")
 	}
 	return &ScalarSessionCache[Input, Model, Output]{
 		name: name, device: device, capacity: capacity,
-		validate: validate, policy: policy, load: load, reset: reset, bind: bind,
+		validate: validate, policy: policy, load: load, reset: reset, bind: bind, inputs: inputs,
 		entries: make(map[sessionKey]*sessionEntry[Model]), changed: make(chan struct{}),
 	}, nil
 }
@@ -78,7 +149,7 @@ func (c *ScalarSessionCache[Input, Model, Output]) execute(
 	raw string,
 ) (any, error) {
 	var zero Output
-	input, content, err := decodeScalarInput(c.name, c.validate, modelID, program, raw)
+	input, content, err := decodeJSONInput(c.name, c.validate, modelID, program, raw)
 	if err != nil {
 		return zero, err
 	}
@@ -101,13 +172,22 @@ func (c *ScalarSessionCache[Input, Model, Output]) execute(
 			return zero, c.retire(ctx, key, entry, err)
 		}
 	}
-	output, err := executeScalar[Input, Model, Output](
-		ctx, store, modelID, program, content, input, entry.model, c.bind,
-	)
+	inputs, err := c.inputs(input, content, program.Definition())
+	if err == nil {
+		output, executeErr := Execute[Output](
+			ctx, store, modelID, program,
+			"recipe/run/"+program.Definition().ID.String()+"/"+content.Descriptor.ID.String(), inputs,
+			func(runtime *workflowruntime.Runtime) error { return c.bind(runtime, modelID, entry.model) },
+		)
+		if executeErr != nil {
+			err = c.retire(ctx, key, entry, executeErr)
+		}
+		return output, err
+	}
 	if err != nil {
 		err = c.retire(ctx, key, entry, err)
 	}
-	return output, err
+	return zero, err
 }
 
 func (c *ScalarSessionCache[Input, Model, Output]) lease(
@@ -277,7 +357,7 @@ func closeEntry[Model any](ctx context.Context, entry *sessionEntry[Model]) erro
 	return closeModel(ctx, entry.model)
 }
 
-func decodeScalarInput[Input any](
+func decodeJSONInput[Input any](
 	name string,
 	validate func(Input) error,
 	modelID artifact.ID,
@@ -291,13 +371,30 @@ func decodeScalarInput[Input any](
 	if err := validate(input); err != nil {
 		return input, artifact.Content{}, err
 	}
-	if err := validateScalarProgram(modelID, program); err != nil {
-		return input, artifact.Content{}, err
+	if program.Definition().Model != modelID {
+		return input, artifact.Content{}, errors.New("capability runtime: program model differs from binding")
 	}
 	content, err := artifact.JSONContent(
 		artifact.JSONContract(artifact.KindFile, "overgo."+name+"-input.v1"), input,
 	)
 	return input, content, err
+}
+
+func decodeScalarInput[Input any](
+	name string,
+	validate func(Input) error,
+	modelID artifact.ID,
+	program recipe.Program,
+	raw string,
+) (Input, artifact.Content, error) {
+	input, content, err := decodeJSONInput(name, validate, modelID, program, raw)
+	if err != nil {
+		return input, content, err
+	}
+	if err := validateScalarProgram(modelID, program); err != nil {
+		return input, artifact.Content{}, err
+	}
+	return input, content, nil
 }
 
 func executeScalar[Input, Model, Output any](

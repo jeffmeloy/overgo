@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "liveedit-device-runtime",
-          "title": "Integrate source encode, text conditioning, retained denoise, sampler, and causal decode into the typed reference-video runtime; match the adaptive oracle",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditDeviceRuntime$' -count=1 -v"
-        },
-        {
           "id": "video-production-activation",
           "title": "Activate typed Wan and LiveEdit recipes through the shared capability runtime; publish encoded clips and support repeated resident requests",
           "status": "open",

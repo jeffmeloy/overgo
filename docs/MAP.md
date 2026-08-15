@@ -32,6 +32,8 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Compile and execute a Wan/LiveEdit causal VAE source encoder | `latentvideo.CompileVAEEncoderPlan` + `CompileSourceCodecBoundary`; host oracle `EncodeSourceVideo`; resident device path `NewVAEEncoderCUDASession` |
 | Execute LiveEdit chunks with retained text and bounded self-attention K/V | `latentvideo.NewReferenceEditDenoiserCUDASession`; neutral history graph: `model.ConditionedDiffusionProgram.BuildBlockWithSelfHistory` |
 | Run typed LiveEdit source-to-frames device composition | `latentvideo.NewReferenceEditRuntime` → `ReferenceEditRuntime.Run` |
+| Activate Wan or LiveEdit through a retained recipe session | `cmd/recipe.videoCapability` routes `model.latent-video-*` / `model.reference-video-*`; `capabilityruntime.NewScalarSessionCache` / `NewMappedSessionCache` owns residency |
+| Publish decoded Wan or LiveEdit frames | `latentvideo.EncodedVideo` + `GIFContent`; the frame sink quantizes each borrowed planar frame without retaining float-frame copies |
 
 ## Commands / process (Go owns policy; scripts are bash or Go)
 | Need | Use |

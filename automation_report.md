@@ -416,9 +416,12 @@ allows execution when its binary is absent. Raw Git and other clients can bypass
 the controls. This matches the guard's stated accident-prevention scope, but it
 is not repository-wide enforcement.
 
-Required direction: retain fail-open interactive safety, but add repository-side
-verification for integration and protected branches. Report whether hooks were
-active in each run record rather than assuming they were.
+The gate now verifies `.github/protection.json` against the configured hooks
+and pull-request workflow, and records those repository facts in its immutable
+step evidence. Parent-harness activation and host branch enforcement remain
+external facts: the gate records activation as unobserved instead of inferring
+it from configuration. Retain fail-open interactive safety and report whether
+hooks were active in each run record rather than assuming they were.
 
 ### A10: Lane and release coverage remains uneven
 

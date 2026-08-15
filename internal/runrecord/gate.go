@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -48,6 +49,7 @@ type GateStep struct {
 	Phase      Phase       `json:"phase"`
 	Outcome    StepOutcome `json:"outcome"`
 	DurationNS uint64      `json:"duration_ns,omitempty"`
+	Evidence   string      `json:"evidence,omitempty"`
 }
 
 // GateResult: immutable named-step gate verdict.
@@ -155,7 +157,7 @@ func canonicalizeGateResult(result *GateResult) error {
 	terminalMatch := false
 	for _, step := range result.Steps {
 		_, duplicate := seen[step.Name]
-		if !validLabel(step.Name) || !validPhase(step.Phase) ||
+		if !validLabel(step.Name) || !validPhase(step.Phase) || step.Evidence != "" && !textcheck.Bounded(step.Evidence, 2048, "\x00\r\n") ||
 			step.DurationNS > math.MaxInt64 || step.Outcome != StepSkipped && step.DurationNS == 0 ||
 			duplicate {
 			return errors.New("run record: invalid gate step")

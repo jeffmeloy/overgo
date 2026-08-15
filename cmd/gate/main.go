@@ -37,6 +37,7 @@ import (
 	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
+	"overgo/internal/protection"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
@@ -65,6 +66,7 @@ type gateContext struct {
 	source       *repoanalysis.SourceSnapshot
 	profile      *codeprofile.Profile
 	profileDirty bool
+	stepEvidence map[string]string
 }
 
 func main() {
@@ -122,6 +124,7 @@ func run() error {
 	}
 	g := &gateContext{
 		repo: repo, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
+		stepEvidence: map[string]string{},
 	}
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
@@ -240,6 +243,7 @@ func (g *gateContext) pipeline() error {
 		fn    func() (skipped bool, err error)
 	}
 	steps := []step{
+		{"protection", runrecord.PhaseValidate, g.stepProtection},
 		{"scope", runrecord.PhaseValidate, g.stepScope},
 		{"profile", runrecord.PhaseValidate, g.stepProfile},
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
@@ -271,7 +275,7 @@ func (g *gateContext) pipeline() error {
 		}
 		record := runrecord.GateStep{
 			Name: s.name, Phase: s.phase, Outcome: runrecord.StepSucceeded,
-			DurationNS: uint64(time.Since(began).Nanoseconds()),
+			DurationNS: uint64(time.Since(began).Nanoseconds()), Evidence: g.stepEvidence[s.name],
 		}
 		switch {
 		case err != nil:
@@ -290,6 +294,16 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	return nil
+}
+
+func (g *gateContext) stepProtection() (bool, error) {
+	configured, activated, err := protection.Verify(g.repo)
+	if err != nil {
+		return false, err
+	}
+	g.stepEvidence["protection"] = configured + ";activation=" + activated
+	g.honesty = append(g.honesty, "protection: "+g.stepEvidence["protection"])
+	return false, nil
 }
 
 func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {

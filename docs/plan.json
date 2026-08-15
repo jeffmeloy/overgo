@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "advisory-calibration",
-          "title": "Derive advisory history sufficiency from the alarm budget and report sequential/regime limitations without enforcing directional evidence",
-          "status": "open",
-          "verify": "go test ./cmd/advisories -run '^TestAdvisoryCalibrationContract$' -count=1 -v"
-        },
-        {
           "id": "protection-evidence",
           "title": "Record hook/guard activation in gate evidence and verify protected integration configuration repository-side",
           "status": "open",

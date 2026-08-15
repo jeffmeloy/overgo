@@ -165,20 +165,20 @@ func (c modelConfig) headDim() uint32 {
 func modelMetadata(directory, name string, profile archProfile, config modelConfig) ([]gguf.Metadata, error) {
 	prefix := profile.prefix + "."
 	metadata := []gguf.Metadata{
-		stringMetadata("general.architecture", profile.prefix),
-		stringMetadata("general.name", name),
-		uint32Metadata(prefix+"block_count", config.HiddenLayers),
-		uint32Metadata(prefix+"context_length", config.MaxPositions),
-		uint32Metadata(prefix+"embedding_length", config.HiddenSize),
-		uint32Metadata(prefix+"feed_forward_length", config.IntermediateSize),
-		uint32Metadata(prefix+"attention.head_count", config.AttentionHeads),
-		uint32Metadata(prefix+"attention.head_count_kv", config.KVHeads),
-		float32Metadata(prefix+"attention.layer_norm_rms_epsilon", config.RMSEpsilon),
-		float32Metadata(prefix+"rope.freq_base", config.RopeTheta),
-		uint32Metadata(prefix+"attention.key_length", config.headDim()),
-		uint32Metadata(prefix+"attention.value_length", config.headDim()),
-		uint32Metadata(prefix+"rope.dimension_count", config.headDim()),
-		uint32Metadata(prefix+"vocab_size", config.Vocabulary),
+		gguf.StringMetadata("general.architecture", profile.prefix),
+		gguf.StringMetadata("general.name", name),
+		gguf.Uint32Metadata(prefix+"block_count", config.HiddenLayers),
+		gguf.Uint32Metadata(prefix+"context_length", config.MaxPositions),
+		gguf.Uint32Metadata(prefix+"embedding_length", config.HiddenSize),
+		gguf.Uint32Metadata(prefix+"feed_forward_length", config.IntermediateSize),
+		gguf.Uint32Metadata(prefix+"attention.head_count", config.AttentionHeads),
+		gguf.Uint32Metadata(prefix+"attention.head_count_kv", config.KVHeads),
+		gguf.Float32Metadata(prefix+"attention.layer_norm_rms_epsilon", config.RMSEpsilon),
+		gguf.Float32Metadata(prefix+"rope.freq_base", config.RopeTheta),
+		gguf.Uint32Metadata(prefix+"attention.key_length", config.headDim()),
+		gguf.Uint32Metadata(prefix+"attention.value_length", config.headDim()),
+		gguf.Uint32Metadata(prefix+"rope.dimension_count", config.headDim()),
+		gguf.Uint32Metadata(prefix+"vocab_size", config.Vocabulary),
 	}
 	tokenizerItems, err := tokenizerMetadata(directory, config.Vocabulary, noSpecialTokens())
 	if err != nil {
@@ -245,8 +245,8 @@ func tokenizerMetadata(directory string, vocabulary uint32, fallback specialToke
 		types[special.unknown] = tokenTypeUnknown
 	}
 	metadata := []gguf.Metadata{
-		stringMetadata("tokenizer.ggml.model", "gpt2"),
-		stringMetadata("tokenizer.ggml.pre", pre),
+		gguf.StringMetadata("tokenizer.ggml.model", "gpt2"),
+		gguf.StringMetadata("tokenizer.ggml.pre", pre),
 		gguf.ArrayMetadata("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
 		gguf.ArrayMetadata("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
 		gguf.ArrayMetadata("tokenizer.ggml.merges", gguf.ValueTypeString, merges),
@@ -261,12 +261,12 @@ func tokenizerMetadata(directory string, vocabulary uint32, fallback specialToke
 		{"tokenizer.ggml.padding_token_id", special.padding},
 	} {
 		if item.id >= 0 {
-			metadata = append(metadata, uint32Metadata(item.key, uint32(item.id)))
+			metadata = append(metadata, gguf.Uint32Metadata(item.key, uint32(item.id)))
 		}
 	}
 	metadata = append(metadata,
-		boolMetadata("tokenizer.ggml.add_bos_token", postProcessorAddsBOS(file.PostProcessor)),
-		boolMetadata("tokenizer.ggml.add_eos_token", false),
+		gguf.BoolMetadata("tokenizer.ggml.add_bos_token", postProcessorAddsBOS(file.PostProcessor)),
+		gguf.BoolMetadata("tokenizer.ggml.add_eos_token", false),
 	)
 	return metadata, nil
 }
@@ -681,20 +681,4 @@ func modelTensorReader(tensor safetensors.Tensor, destinationName string) (gguf.
 	default:
 		return 0, nil, fmt.Errorf("unsupported dtype %q", tensor.DType)
 	}
-}
-
-func stringMetadata(key, value string) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeString, Data: value}}
-}
-
-func uint32Metadata(key string, value uint32) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: value}}
-}
-
-func float32Metadata(key string, value float32) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: value}}
-}
-
-func boolMetadata(key string, value bool) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeBool, Data: value}}
 }

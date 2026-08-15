@@ -74,7 +74,7 @@ func writeQwen35Model(directory string, repository *hfrepo.Repository, options O
 	if name := strings.TrimSpace(options.Name); name != "" {
 		for index := range metadata {
 			if metadata[index].Key == "general.name" {
-				metadata[index] = stringMetadata("general.name", name)
+				metadata[index] = gguf.StringMetadata("general.name", name)
 			}
 		}
 	}
@@ -126,5 +126,5 @@ func chatTemplateMetadata(directory string) ([]gguf.Metadata, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HF converter: read chat template: %w", err)
 	}
-	return []gguf.Metadata{stringMetadata("tokenizer.chat_template", string(encoded))}, nil
+	return []gguf.Metadata{gguf.StringMetadata("tokenizer.chat_template", string(encoded))}, nil
 }

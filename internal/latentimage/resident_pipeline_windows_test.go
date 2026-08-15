@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -193,7 +194,7 @@ func TestSelectedHiddenBridgePreservesTokenLayerOrder(t *testing.T) {
 	}
 	got := results[output].Data
 	want := []float32{0, 1, 4, 5, 8, 9, 2, 3, 6, 7, 10, 11}
-	if !equalFloat32(got, want) {
+	if !slices.Equal(got, want) {
 		t.Fatalf("bridge output = %v, want %v", got, want)
 	}
 }
@@ -221,19 +222,7 @@ func TestSelectedHiddenBridgeDropsEncoderPrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []float32{2, 3, 4, 5}
-	if !equalFloat32(results[output].Data, want) {
+	if !slices.Equal(results[output].Data, want) {
 		t.Fatalf("cropped output = %v, want %v", results[output].Data, want)
 	}
-}
-
-func equalFloat32(left, right []float32) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }

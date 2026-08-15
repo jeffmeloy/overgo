@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"time"
 
 	"overgo/internal/hostmath"
@@ -128,7 +129,7 @@ func CompileEncoderPlan(metas []pytorchzip.TensorMeta, policy EncoderConfig) (En
 			if got.DType != encoderStorageDType {
 				plan.DTypeMismatches = append(plan.DTypeMismatches, TensorIssue{Name: name, Want: encoderStorageDType, Got: got.DType})
 			}
-			if !int64SliceEqual(got.Shape, spec.shape) {
+			if !slices.Equal(got.Shape, spec.shape) {
 				plan.ShapeMismatches = append(plan.ShapeMismatches, TensorIssue{Name: name, Want: fmt.Sprint(spec.shape), Got: fmt.Sprint(got.Shape)})
 			}
 		}
@@ -166,18 +167,6 @@ func expectedEncoderSpecs(c EncoderConfig) map[string]tensorSpec {
 		specs[p+"pos_embedding.embedding.weight"] = tensorSpec{shape: []int64{numBuckets, numHeads}}
 	}
 	return specs
-}
-
-func int64SliceEqual(a, b []int64) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func encoderBlockTensorNames(layer int) []string {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
+	"slices"
 	"sort"
 
 	"overgo/internal/statecodec"
@@ -239,7 +240,7 @@ func configSignature(config Config) uint64 {
 		writeUint64(^uint64(6))
 		writeUint64(config.Infill.signature)
 	}
-	if !samplerOrdersEqual(config.Samplers, defaultSamplerOrder) {
+	if !slices.Equal(config.Samplers, defaultSamplerOrder) {
 		writeUint64(^uint64(1))
 		writeUint64(uint64(len(config.Samplers)))
 		for _, stage := range config.Samplers {
@@ -270,16 +271,4 @@ func infillVocabularySignature(vocabulary *InfillVocabulary) uint64 {
 	writeUint64(uint64(vocabulary.EOT + 1))
 	writeUint64(uint64(vocabulary.EOS + 1))
 	return hash.Sum64()
-}
-
-func samplerOrdersEqual(left, right []SamplerStage) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }

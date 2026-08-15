@@ -2,6 +2,7 @@ package seriesforecast
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"overgo/internal/trainingdata"
@@ -24,22 +25,10 @@ func TestLightCurveProcessorDerivesBandAndBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := input, []float32{11, 12}; !equalFloat32(got, want) {
+	if got, want := input, []float32{11, 12}; !slices.Equal(got, want) {
 		t.Fatalf("context=%v, want %v", got, want)
 	}
-	if got, want := target, []float32{13, 14}; !equalFloat32(got, want) {
+	if got, want := target, []float32{13, 14}; !slices.Equal(got, want) {
 		t.Fatalf("target=%v, want %v", got, want)
 	}
-}
-
-func equalFloat32(left, right []float32) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }

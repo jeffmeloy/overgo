@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"slices"
 	"testing"
 
 	"overgo/internal/recipecontract"
@@ -24,7 +25,7 @@ func TestImageProcessorEmitsNormalizedCHW(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(example.Values) != 1 || example.Values[0].Modality != recipecontract.ModalityImage ||
-		example.Values[0].Role != RoleTarget || !slicesEqual(example.Values[0].Shape, []int{3, 1, 2}) {
+		example.Values[0].Role != RoleTarget || !slices.Equal(example.Values[0].Shape, []int{3, 1, 2}) {
 		t.Fatalf("example = %+v", example)
 	}
 	values, err := Float32(example.Values[0])
@@ -37,16 +38,4 @@ func TestImageProcessorEmitsNormalizedCHW(t *testing.T) {
 			t.Fatalf("value[%d] = %g, want %g", index, values[index], want[index])
 		}
 	}
-}
-
-func slicesEqual(left, right []int) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }

@@ -85,7 +85,7 @@ type generationAdaptiveOracle struct {
 	} `json:"performance"`
 }
 
-const senseNovaTerminalPNG = "d439b8ce349eb71451efb69124eb9191e855e0e5bf237d88ebcec42b3defb4e8"
+const senseNovaTerminalPNG = "550857f5c31e64e3a241132f5f6673572cee9f4bd620ece65ce5f1412c49e59f"
 
 func TestSenseNovaGenerationLeadership(t *testing.T) {
 	cudatest.Require(t)

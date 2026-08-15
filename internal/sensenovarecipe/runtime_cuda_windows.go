@@ -289,11 +289,10 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 	if generator == nil {
 		return errors.New("sensenova recipe: incomplete runtime binding")
 	}
-	if err := workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleRoutedImagePrepare, modelID, generator.prepare, nil); err != nil {
-		return err
-	}
-	if err := workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleRoutedImageIntegrate, modelID, generator.integrate, nil); err != nil {
-		return err
-	}
-	return workflowruntime.RegisterJSONStage(runtime, modelrecipe.ModuleRoutedImageDecode, modelID, routedImageContract, generator.decode)
+	return workflowruntime.RegisterJSONPipeline(
+		runtime, modelID, routedImageContract,
+		modelrecipe.ModuleRoutedImagePrepare, generator.prepare,
+		modelrecipe.ModuleRoutedImageIntegrate, generator.integrate,
+		modelrecipe.ModuleRoutedImageDecode, generator.decode,
+	)
 }

@@ -122,17 +122,10 @@ func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, synt
 	if synthesizer == nil {
 		return errors.New("speechsynth: incomplete runtime binding")
 	}
-	if err := workflowruntime.RegisterScalarStage(
-		runtime, modelrecipe.ModuleSpeechTokenize, modelID, synthesizer.tokenize, nil,
-	); err != nil {
-		return err
-	}
-	if err := workflowruntime.RegisterScalarStage(
-		runtime, modelrecipe.ModuleSpeechGenerate, modelID, synthesizer.generate, nil,
-	); err != nil {
-		return err
-	}
-	return workflowruntime.RegisterJSONStage(
-		runtime, modelrecipe.ModuleSpeechDecode, modelID, audioContract, synthesizer.decode,
+	return workflowruntime.RegisterJSONPipeline(
+		runtime, modelID, audioContract,
+		modelrecipe.ModuleSpeechTokenize, synthesizer.tokenize,
+		modelrecipe.ModuleSpeechGenerate, synthesizer.generate,
+		modelrecipe.ModuleSpeechDecode, synthesizer.decode,
 	)
 }

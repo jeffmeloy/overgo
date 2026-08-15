@@ -73,25 +73,19 @@ func RegisterVideoRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID,
 }
 
 func registerVideoRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model videoGenerator) error {
-	if err := workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleOscillatorVideoPrepare, modelID, model.prepareVideo, nil); err != nil {
-		return err
-	}
-	if err := workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleOscillatorVideoIntegrate, modelID, model.integrateVideo, nil); err != nil {
-		return err
-	}
-	return workflowruntime.RegisterJSONStage(runtime, modelrecipe.ModuleOscillatorVideoDecode, modelID, videoContract, model.decodeVideo)
+	return workflowruntime.RegisterJSONPipeline(
+		runtime, modelID, videoContract,
+		modelrecipe.ModuleOscillatorVideoPrepare, model.prepareVideo,
+		modelrecipe.ModuleOscillatorVideoIntegrate, model.integrateVideo,
+		modelrecipe.ModuleOscillatorVideoDecode, model.decodeVideo,
+	)
 }
 
 func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model generator) error {
-	if err := workflowruntime.RegisterScalarStage(
-		runtime, modelrecipe.ModuleOscillatorImagePrepare, modelID, model.prepare, nil,
-	); err != nil {
-		return err
-	}
-	if err := workflowruntime.RegisterScalarStage(
-		runtime, modelrecipe.ModuleOscillatorImageIntegrate, modelID, model.integrate, nil,
-	); err != nil {
-		return err
-	}
-	return workflowruntime.RegisterJSONStage(runtime, modelrecipe.ModuleOscillatorImageDecode, modelID, imageContract, model.decode)
+	return workflowruntime.RegisterJSONPipeline(
+		runtime, modelID, imageContract,
+		modelrecipe.ModuleOscillatorImagePrepare, model.prepare,
+		modelrecipe.ModuleOscillatorImageIntegrate, model.integrate,
+		modelrecipe.ModuleOscillatorImageDecode, model.decode,
+	)
 }

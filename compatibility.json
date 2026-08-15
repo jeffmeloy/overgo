@@ -935,7 +935,7 @@
           "contains": "func LoadSynthesizer(",
           "path": "internal/speechsynth/runtime.go",
           "role": "source",
-          "identity": "file:sha256:8ce2e50ca348c6ac36354fc8c5568f2c17c88f48e1c3f2b57038a1c5f475b9ca"
+          "identity": "file:sha256:e8935d4b8eadcd3193cad9baa5701e0cbaa0c375292b1f0b54a44823a7aa4d83"
         },
         {
           "contains": "func TestPocketTTSProductionParity(",
@@ -1026,7 +1026,7 @@
           "contains": "func LoadGenerator(",
           "path": "internal/sensenovarecipe/runtime_cuda_windows.go",
           "role": "source",
-          "identity": "file:sha256:06fe49ba629e837a5ab8106e211e34c537e88dfa64a9c5559e2aa9b1f019919e"
+          "identity": "file:sha256:87605cac6e07f73b392c603e193c9159d718891759f091ee1bca6eaee3e0dfc5"
         },
         {
           "contains": "case modelrecipe.ModuleRoutedImagePrepare:",

@@ -98,18 +98,11 @@ func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 	if model == nil {
 		return errors.New("seq2seq: incomplete runtime binding")
 	}
-	if err := workflowruntime.RegisterScalarStage(
-		runtime, modelrecipe.ModuleSeq2SeqEncode, modelID, model.encodeRequest, nil,
-	); err != nil {
-		return err
-	}
-	if err := workflowruntime.RegisterScalarStage(
-		runtime, modelrecipe.ModuleSeq2SeqPrepare, modelID, model.prepareGeneration, nil,
-	); err != nil {
-		return err
-	}
-	return workflowruntime.RegisterJSONStage[textSelector, string](
-		runtime, modelrecipe.ModuleSeq2SeqSelect, modelID, generatedTextContract,
+	return workflowruntime.RegisterJSONPipeline(
+		runtime, modelID, generatedTextContract,
+		modelrecipe.ModuleSeq2SeqEncode, model.encodeRequest,
+		modelrecipe.ModuleSeq2SeqPrepare, model.prepareGeneration,
+		modelrecipe.ModuleSeq2SeqSelect,
 		func(selector textSelector) (string, error) {
 			if selector == nil {
 				return "", errors.New("seq2seq: missing text selector")

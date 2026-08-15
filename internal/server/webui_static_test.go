@@ -21,6 +21,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/style.css", "text/css; charset=utf-8", "--acc"},
 		{"/boot.js", "text/javascript; charset=utf-8", "window.overgo"},
 		{"/viz.js", "text/javascript; charset=utf-8", "sparkline"},
+		{"/md.js", "text/javascript; charset=utf-8", "overgo.md"},
 		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/chat/completions"},
 		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
 		{"/mod/training.js", "text/javascript; charset=utf-8", "/runs"},
@@ -185,6 +186,35 @@ func TestWebUICancel(t *testing.T) {
 				t.Errorf("%s missing cancel machinery %q", asset, needle)
 			}
 		}
+	}
+}
+
+// TestWebUIChatMarkdown guards the chat markdown renderer: it must build DOM
+// (never innerHTML — model output is untrusted), scheme-check link hrefs, offer
+// copy buttons, and be wired into the chat tab and the shell load order.
+func TestWebUIChatMarkdown(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
+
+	md := get("/md.js")
+	if strings.Contains(md, ".innerHTML") {
+		t.Error("md.js assigns .innerHTML — model output must render as DOM text, never markup")
+	}
+	for _, needle := range []string{"md-codeblock", "clipboard.writeText", "https?:", "createTextNode"} {
+		if !strings.Contains(md, needle) {
+			t.Errorf("md.js missing %q", needle)
+		}
+	}
+	chat := get("/mod/chat.js")
+	for _, needle := range []string{"overgo.md(", "overgo.copyButton"} {
+		if !strings.Contains(chat, needle) {
+			t.Errorf("chat.js does not use %q", needle)
+		}
+	}
+	// md.js must load before chat.js so overgo.md exists when chat renders.
+	app := get("/app.html")
+	if strings.Index(app, "/md.js") < 0 || strings.Index(app, "/md.js") > strings.Index(app, "/mod/chat.js") {
+		t.Error("app.html must load /md.js before /mod/chat.js")
 	}
 }
 

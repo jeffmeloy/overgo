@@ -231,6 +231,28 @@ func (b *Builder) WindowUnpartition2D(input *Tensor, width, height uint32) *Tens
 	})
 }
 
+// PixelShuffle2D: channel groups to spatial subpixels.
+func (b *Builder) PixelShuffle2D(input *Tensor, scale uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Shape.Rank != 3 || scale == 0 {
+		b.setError(errors.New("PixelShuffle2D input is invalid"))
+		return nil
+	}
+	factor := uint64(scale) * uint64(scale)
+	if input.Shape.Dims[0]%factor != 0 {
+		b.setError(errors.New("PixelShuffle2D channels are indivisible by scale squared"))
+		return nil
+	}
+	shape, err := NewShape(input.Shape.Dims[0]/factor, input.Shape.Dims[1]*uint64(scale), input.Shape.Dims[2]*uint64(scale))
+	if err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.add("", input.Type, shape, OpPixelShuffle2D, []*Tensor{input}, PixelShuffle2DAttributes{Scale: scale})
+}
+
 // SAMAttention: batched decomposed-relative 2D attention.
 func (b *Builder) SAMAttention(query, key, value, relativeW, relativeH *Tensor, scale, relativeScale float32, spatialSize uint32) *Tensor {
 	if b.err != nil {

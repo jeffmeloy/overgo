@@ -299,6 +299,8 @@ func TestExecutorMatchesReference(t *testing.T) {
 	sigmoid := builder.Sigmoid(norm)
 	softplus := builder.Softplus(builder.GELU(silu))
 	atan := builder.Atan(scale)
+	pixels := builder.Input("pixels", dtype.F32, tensor.MustShape(8, 2, 1))
+	shuffled := builder.PixelShuffle2D(pixels, 2)
 	xielu := builder.XIELU(scale, 0.8, 0.2, 0.5, -0.1)
 	l2Norm := builder.L2Norm(builder.Add(sigmoid, softplus), 1e-6)
 	output := builder.Softmax(l2Norm)
@@ -313,8 +315,11 @@ func TestExecutorMatchesReference(t *testing.T) {
 	}
 	leftValue, _ := reference.NewValue(shape, leftData)
 	rightValue, _ := reference.NewValue(shape, rightData)
-	feeds := map[*tensor.Tensor]reference.Value{left: leftValue, right: rightValue}
-	outputs := []*tensor.Tensor{output, layerNorm, reluSquared, geluErf, xielu, divide, atan}
+	feeds := map[*tensor.Tensor]reference.Value{
+		left: leftValue, right: rightValue,
+		pixels: {Shape: pixels.Shape, Data: []float32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}},
+	}
+	outputs := []*tensor.Tensor{output, layerNorm, reluSquared, geluErf, xielu, divide, atan, shuffled}
 	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyElementwise)...)
 }
 

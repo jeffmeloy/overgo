@@ -140,6 +140,7 @@ var operationDescriptors = [...]OperationDescriptor{
 	{OpCacheAppend, "cache_append", OperationLayout, allExecutionBackends},
 	{OpMADNorm, "mad_norm", OperationElementwise, allExecutionBackends},
 	{OpAtan, "atan", OperationElementwise, allExecutionBackends},
+	{OpPixelShuffle2D, "pixel_shuffle_2d", OperationLayout, allExecutionBackends},
 }
 
 // DescribeOperation: typed operation lookup.

@@ -260,6 +260,8 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return windowPartition2D(node.Shape, inputs[0], node.Attrs.(tensor.Window2DAttributes), false)
 	case tensor.OpWindowUnpartition2D:
 		return windowPartition2D(node.Shape, inputs[0], node.Attrs.(tensor.Window2DAttributes), true)
+	case tensor.OpPixelShuffle2D:
+		return pixelShuffle2D(node.Shape, inputs[0], node.Attrs.(tensor.PixelShuffle2DAttributes))
 	case tensor.OpSAMAttention:
 		return samAttention(node.Shape, inputs, node.Attrs.(tensor.SAMAttentionAttributes))
 	case tensor.OpGroupNorm:

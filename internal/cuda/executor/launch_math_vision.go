@@ -253,6 +253,23 @@ func launchMathVision(
 		return launch1DABI(
 			state, function, count, &input, &output, &channels, &width, &height, &window, &count,
 		)
+	case tensor.OpPixelShuffle2D:
+		attributes, ok := node.Attrs.(tensor.PixelShuffle2DAttributes)
+		if !ok {
+			return errors.New("invalid pixel shuffle 2D attributes")
+		}
+		count, err := elementCount32(node.Shape)
+		if err != nil {
+			return err
+		}
+		input := pointers.input(0)
+		channels := uint32(node.Shape.Dims[0])
+		inputW, inputH := uint32(node.Inputs[0].Shape.Dims[1]), uint32(node.Inputs[0].Shape.Dims[2])
+		scale := attributes.Scale
+		return launch1DABI(
+			state, functions[kernelPixelShuffle2dF32], count,
+			&input, &output, &channels, &inputW, &inputH, &scale, &count,
+		)
 	case tensor.OpSAMAttention:
 		attributes, ok := node.Attrs.(tensor.SAMAttentionAttributes)
 		if !ok {

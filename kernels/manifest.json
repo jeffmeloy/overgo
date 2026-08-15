@@ -63,7 +63,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "3c46f4dfb247cca20dfa21c08033c3cb98c341b8e139586f854b426885752d58",
+      "sourceSha256": "bc798c893fd8e6ab3ac4bfa3e966951d04b991c19fc0a1f726c7c64828546a53",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -71,7 +71,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "5581ca2671d188133b3753f31c0cf91d6a6b9d8a9b7e8e1531f4364a9d65fa39",
+      "assetSha256": "add7b8fb54ff0a7fe4bdd74bdda2d9bd5d20d2ae39a567382d31678e7b81f53d",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -199,6 +199,7 @@
         "mul_mat_tq1_0_f32",
         "mul_mat_tq2_0_f32",
         "multiply_f32",
+        "pixel_shuffle_2d_f32",
         "quantize_q8_0_input_f32",
         "relu_f32",
         "relu_backward_f32",
@@ -1045,6 +1046,23 @@
           "parameters": [
             ".u64",
             ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "pixel_shuffle_2d_f32",
+            "top_k_partials_f32",
+            "window_partition_2d_f32",
+            "window_unpartition_2d_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
             ".u64",
             ".u64",
             ".u64",
@@ -1244,22 +1262,6 @@
           ],
           "functions": [
             "ssm_scan_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".u32"
-          ],
-          "functions": [
-            "top_k_partials_f32",
-            "window_partition_2d_f32",
-            "window_unpartition_2d_f32"
           ]
         },
         {

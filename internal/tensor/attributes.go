@@ -25,6 +25,7 @@ func (AttentionAttributes) tensorAttributes()            {}
 func (Conv1DAttributes) tensorAttributes()               {}
 func (Conv2DAttributes) tensorAttributes()               {}
 func (Window2DAttributes) tensorAttributes()             {}
+func (PixelShuffle2DAttributes) tensorAttributes()       {}
 func (SAMAttentionAttributes) tensorAttributes()         {}
 func (GroupNormAttributes) tensorAttributes()            {}
 func (MoEAttributes) tensorAttributes()                  {}
@@ -79,6 +80,7 @@ const (
 	attributeLoRAMerge
 	attributeCacheAppend
 	attributeMADNorm
+	attributePixelShuffle2D
 )
 
 var operationAttributeKinds = [...]attributeKind{
@@ -120,6 +122,7 @@ var operationAttributeKinds = [...]attributeKind{
 	OpLoRAMerge:            attributeLoRAMerge,
 	OpCacheAppend:          attributeCacheAppend,
 	OpMADNorm:              attributeMADNorm,
+	OpPixelShuffle2D:       attributePixelShuffle2D,
 }
 
 func validateOperationAttributes(op Op, attributes Attributes) error {
@@ -166,6 +169,8 @@ func attributeKindOf(attributes Attributes) attributeKind {
 		return attributeRMSNorm
 	case MADNormAttributes:
 		return attributeMADNorm
+	case PixelShuffle2DAttributes:
+		return attributePixelShuffle2D
 	case LayerNormAttributes:
 		return attributeLayerNorm
 	case L2NormAttributes:

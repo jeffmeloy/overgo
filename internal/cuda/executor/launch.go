@@ -29,7 +29,7 @@ func launchNode(
 		tensor.OpClamp, tensor.OpBF16Round, tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf,
 		tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpAtan,
 		tensor.OpExp, tensor.OpXIELU, tensor.OpConv1DSame, tensor.OpConv2D,
-		tensor.OpWindowPartition2D, tensor.OpWindowUnpartition2D, tensor.OpSAMAttention,
+		tensor.OpWindowPartition2D, tensor.OpWindowUnpartition2D, tensor.OpPixelShuffle2D, tensor.OpSAMAttention,
 		tensor.OpGroupNorm, tensor.OpL2Norm:
 		return launchMathVision(state, functions, blas, node, pointers, attributePointers)
 	case tensor.OpSSMConv, tensor.OpSSMScan, tensor.OpGatedDeltaNet,

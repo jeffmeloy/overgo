@@ -210,6 +210,24 @@ func TestBuilderAffineLayerNorm(t *testing.T) {
 	}
 }
 
+func TestBuilderPixelShuffle2D(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(12, 3, 2))
+	output := builder.PixelShuffle2D(input, 2)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if output.Op != OpPixelShuffle2D || output.Shape != MustShape(3, 6, 4) {
+		t.Fatalf("unexpected pixel shuffle output: %s %v", output.Op, output.Shape)
+	}
+
+	invalid := NewBuilder()
+	invalid.PixelShuffle2D(invalid.Input("input", dtype.F32, MustShape(3, 2, 2)), 2)
+	if invalid.Err() == nil {
+		t.Fatal("indivisible pixel shuffle channels were accepted")
+	}
+}
+
 func TestBuilderQwen35UnaryPrimitives(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(4, 3))

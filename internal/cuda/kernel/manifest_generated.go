@@ -7,7 +7,7 @@ const (
 	BundleTarget         = "compute_89"
 	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
 	TorchCudaRandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
-	OpsF32SHA256         = "5581ca2671d188133b3753f31c0cf91d6a6b9d8a9b7e8e1531f4364a9d65fa39"
+	OpsF32SHA256         = "add7b8fb54ff0a7fe4bdd74bdda2d9bd5d20d2ae39a567382d31678e7b81f53d"
 )
 
 var bundleAssets = [...]bundleAsset{

@@ -81,6 +81,7 @@ const (
 	OpCacheAppend
 	OpMADNorm
 	OpAtan
+	OpPixelShuffle2D
 	OpCount
 )
 
@@ -192,6 +193,10 @@ type Conv2DAttributes struct {
 
 type Window2DAttributes struct {
 	Width, Height, Window uint32
+}
+
+type PixelShuffle2DAttributes struct {
+	Scale uint32
 }
 
 type SAMAttentionAttributes struct {

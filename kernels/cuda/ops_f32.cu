@@ -1016,6 +1016,29 @@ extern "C" __global__ void window_unpartition_2d_f32(
 	output[index] = input[channel + channels * (local_x + window * (local_y + window * batch))];
 }
 
+extern "C" __global__ void pixel_shuffle_2d_f32(
+		const float * input,
+		float * output,
+		unsigned int channels,
+		unsigned int input_w,
+		unsigned int input_h,
+		unsigned int scale,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int channel = index % channels;
+	const unsigned int spatial = index / channels;
+	const unsigned int output_w = input_w * scale;
+	const unsigned int x = spatial % output_w;
+	const unsigned int y = spatial / output_w;
+	const unsigned int subpixel = (y % scale) * scale + (x % scale);
+	const unsigned int expanded_channels = channels * scale * scale;
+	const unsigned int source_spatial = x / scale + input_w * (y / scale);
+	output[index] = input[channel + channels * subpixel + expanded_channels * source_spatial];
+}
+
 __device__ float sam_relative_value(
 		const float * table,
 		unsigned int width,

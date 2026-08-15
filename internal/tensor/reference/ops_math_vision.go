@@ -156,6 +156,30 @@ func windowPartition2D(shape tensor.Shape, input Value, attributes tensor.Window
 	return Value{Shape: shape, Data: output}, nil
 }
 
+func pixelShuffle2D(shape tensor.Shape, input Value, attributes tensor.PixelShuffle2DAttributes) (Value, error) {
+	scale := int(attributes.Scale)
+	channels := int(shape.Dims[0])
+	outputW, outputH := int(shape.Dims[1]), int(shape.Dims[2])
+	if scale <= 0 || outputW%scale != 0 || outputH%scale != 0 {
+		return Value{}, errors.New("invalid pixel shuffle 2D geometry")
+	}
+	inputW, inputH := outputW/scale, outputH/scale
+	expandedChannels := channels * scale * scale
+	if input.Shape != tensor.MustShape(uint64(expandedChannels), uint64(inputW), uint64(inputH)) {
+		return Value{}, errors.New("pixel shuffle 2D input shape differs")
+	}
+	output := make([]float32, channels*outputW*outputH)
+	for y := range outputH {
+		for x := range outputW {
+			subpixel := (y%scale)*scale + x%scale
+			sourceBase := ((y/scale)*inputW+x/scale)*expandedChannels + subpixel*channels
+			outputBase := (y*outputW + x) * channels
+			copy(output[outputBase:outputBase+channels], input.Data[sourceBase:sourceBase+channels])
+		}
+	}
+	return Value{Shape: shape, Data: output}, nil
+}
+
 func mustElements(shape tensor.Shape) int {
 	elements, err := shape.Elements()
 	if err != nil || elements > uint64(^uint(0)>>1) {

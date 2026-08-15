@@ -133,6 +133,7 @@ const (
 	kernelMulMatTq10F32
 	kernelMulMatTq20F32
 	kernelMultiplyF32
+	kernelPixelShuffle2dF32
 	kernelQuantizeQ80InputF32
 	kernelReluF32
 	kernelReluBackwardF32
@@ -314,6 +315,7 @@ var kernelFunctionNames = [...]string{
 	"mul_mat_tq1_0_f32",
 	"mul_mat_tq2_0_f32",
 	"multiply_f32",
+	"pixel_shuffle_2d_f32",
 	"quantize_q8_0_input_f32",
 	"relu_f32",
 	"relu_backward_f32",
@@ -494,6 +496,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	6,
 	4,
+	7,
 	3,
 	3,
 	4,

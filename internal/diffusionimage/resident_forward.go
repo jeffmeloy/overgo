@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 
 	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
@@ -101,6 +102,28 @@ func (forward *ResidentForward) Execute(ctx context.Context, input []float32) ([
 		return nil, err
 	}
 	return graphImageToNCHW(result[forward.output].Data, forward.image.channels, forward.image.height, forward.image.width), nil
+}
+
+func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int64) ([]float32, error) {
+	if forward == nil || forward.runtime == nil || steps <= 0 {
+		return nil, errors.New("diffusionimage: resident sample request is invalid")
+	}
+	rng := rand.New(rand.NewSource(seed))
+	pixels := make([]float32, forward.image.channels*forward.image.height*forward.image.width)
+	for index := range pixels {
+		pixels[index] = float32(rng.NormFloat64())
+	}
+	delta := float32(1) / float32(steps)
+	for range steps {
+		velocity, err := forward.Execute(ctx, pixels)
+		if err != nil {
+			return nil, err
+		}
+		for index := range pixels {
+			pixels[index] += velocity[index] * delta
+		}
+	}
+	return pixels, nil
 }
 
 func (forward *ResidentForward) Stats(ctx context.Context) (graphruntime.ResidentStats, error) {

@@ -75,10 +75,18 @@ func imageCapability() capability {
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
 	)
-	diffusion := capabilityruntime.JSONScalar[diffusionimage.Request, *diffusionimage.Model, latentimage.EncodedImage](
-		"image-gen", diffusionimage.ValidateRequest,
-		capabilityruntime.IgnoreInput[diffusionimage.Request](diffusionimage.Load), diffusionimage.RegisterRuntime,
+	diffusionCache, diffusionErr := capabilityruntime.NewScalarSessionCache[diffusionimage.Request, *diffusionimage.ResidentGenerator, latentimage.EncodedImage](
+		"image-gen", imageDevice, imageSessionCapacity,
+		diffusionimage.ValidateRequest, diffusionimage.SessionPolicy,
+		func(ctx context.Context, _ artifact.Repository, path string, _ recipe.Program, request diffusionimage.Request) (*diffusionimage.ResidentGenerator, error) {
+			return diffusionimage.LoadResidentGenerator(ctx, path, request)
+		},
+		func(ctx context.Context, generator *diffusionimage.ResidentGenerator, request diffusionimage.Request) error {
+			return generator.Reset(ctx, request)
+		},
+		diffusionimage.RegisterResidentRuntime,
 	)
+	diffusion := residentExecutor(diffusionCache, diffusionErr)
 	return capability{
 		inventory: func(path string) (modelartifact.Inventory, error) {
 			routedModel, err := sensenovarecipe.Recognize(path)

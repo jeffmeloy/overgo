@@ -88,6 +88,7 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 		}, modelrecipe.ModuleLatentImagePrepare},
 		{modelrecipe.OscillatorImageDefinition, modelrecipe.ModuleOscillatorImagePrepare},
 		{modelrecipe.RoutedImageDefinition, modelrecipe.ModuleRoutedImagePrepare},
+		{modelrecipe.DiffusionImageDefinition, modelrecipe.ModuleDiffusionImagePrepare},
 	}
 	for _, test := range tests {
 		definition, err := test.define(modelID)

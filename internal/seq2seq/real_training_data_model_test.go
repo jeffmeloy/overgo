@@ -577,7 +577,7 @@ func TestNeedleRealGSM8KEncoderMuon(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer trainer.Close()
-	wantCount := 1 + generator.model.Dims.DecoderLayers*2*8 + 1 + generator.model.Dims.EncoderLayers*8
+	wantCount := 1 + generator.model.Dims.DecoderLayers*2*8 + 1 + generator.model.Dims.EncoderLayers*8 + 1
 	if parameters := trainer.Program().Parameters(); len(parameters) != wantCount {
 		t.Fatalf("compiled parameters=%d want=%d", len(parameters), wantCount)
 	}
@@ -651,6 +651,79 @@ func TestNeedleRealGSM8KEncoderMuon(t *testing.T) {
 		t.Fatal("encoder final norm did not update")
 	}
 	t.Logf("real GSM8K encoder Muon: train %.6f -> %.6f; held-out %.6f -> %.6f; BF16 Q/K/V words changed=%d; final-norm finite difference=%g/%g", trainBefore, trainAfter, heldOutBefore, heldOutAfter, changed, analytic, finite)
+}
+
+func TestNeedleRealGSM8KTiedEmbeddingMuon(t *testing.T) {
+	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
+	_, heldOutPair, _ := realGSM8KTrainingPair(t, 1)
+	before := append([]uint16(nil), generator.model.embed...)
+	trainBefore, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutBefore, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	parameters := trainer.Program().Parameters()
+	if parameters[len(parameters)-1].Name != "shared.embedding" || !parameters[len(parameters)-1].Trainable {
+		t.Fatalf("compiled embedding parameter=%+v", parameters[len(parameters)-1])
+	}
+	probe := trainingStep{pair: trainPair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if norm := gradientL2(probe.embeddingGradient); norm == 0 || math.IsNaN(norm) || math.IsInf(norm, 0) {
+		t.Fatalf("embedding gradient norm=%g", norm)
+	}
+	analytic, finite := verifyBF16GradientRadius(t, generator.model, trainPair, generator.model.embed, probe.embeddingGradient, 4)
+	trajectory := make([]float64, 3)
+	for step := range trajectory {
+		trajectory[step], err = trainer.Step(trainPair)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	trainAfter, err := generator.model.Loss(trainPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heldOutAfter, err := generator.model.Loss(heldOutPair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
+		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
+		t.Fatalf("embedding result train %.6f -> %v -> %.6f held-out %.6f -> %.6f", trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
+	}
+	changed := changedBF16(before, generator.model.embed)
+	changedTokenRows := func(tokens []int) int {
+		seen := make(map[int]bool)
+		count := 0
+		for _, token := range tokens {
+			if seen[token] {
+				continue
+			}
+			seen[token] = true
+			start := token * generator.model.Dims.DModel
+			count += changedBF16(before[start:start+generator.model.Dims.DModel], generator.model.embed[start:start+generator.model.Dims.DModel])
+		}
+		return count
+	}
+	sourceChanged := changedTokenRows(trainPair.Source)
+	decoderChanged := changedTokenRows(trainPair.DecoderInput)
+	if changed == 0 || sourceChanged == 0 || decoderChanged == 0 {
+		t.Fatalf("tied embedding did not update total=%d source=%d decoder=%d", changed, sourceChanged, decoderChanged)
+	}
+	t.Logf("real GSM8K tied-embedding Muon: train %.6f -> %.6f; held-out %.6f -> %.6f; BF16 words changed=%d source-token=%d decoder-token=%d; finite difference=%g/%g", trainBefore, trainAfter, heldOutBefore, heldOutAfter, changed, sourceChanged, decoderChanged, analytic, finite)
 }
 
 func TestNeedleRealGSM8KFinalSelfAttentionGradient(t *testing.T) {

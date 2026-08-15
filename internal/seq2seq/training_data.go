@@ -132,6 +132,7 @@ type trainingStep struct {
 	decoderInputGradient           []float32
 	memoryGradient                 []float32
 	encoderInputGradient           []float32
+	embeddingGradient              []float32
 	penultimateSelfRawGate         float32
 	penultimateCrossRawGate        float32
 	loss                           float64
@@ -173,6 +174,7 @@ type trainingLayout struct {
 	earlierDecoder                        []decoderLayerParameterLayout
 	encoderFinalNorm                      parameterSpan
 	encoder                               []attentionParameterLayout
+	embedding                             parameterSpan
 	count                                 int
 }
 
@@ -265,6 +267,7 @@ func trainingParameterBindings(model *Model, layout trainingLayout) []trainingPa
 	for layer := range layout.encoder {
 		bindings = appendAttentionParameterBindings(bindings, fmt.Sprintf("encoder.layer%d.self", layer), layout.encoder[layer], &model.encoder[layer], d, qWidth, kvWidth)
 	}
+	bindings = append(bindings, trainingParameterBinding{name: "shared.embedding", span: layout.embedding, rows: model.Dims.Vocab, cols: d, bf16: model.embed})
 	return bindings
 }
 
@@ -350,6 +353,7 @@ func newTrainingLayout(model *Model) trainingLayout {
 	for layer := range layout.encoder {
 		layout.encoder[layer] = nextAttentionLayout(&cursor, d, model.Dims.HeadDim, qWidth, kvWidth)
 	}
+	layout.embedding = nextParameter(&cursor, model.Dims.Vocab*d)
 	layout.count = cursor
 	return layout
 }
@@ -472,9 +476,11 @@ func (t *Trainer) backward(state *trainingStep) error {
 	}
 	dLogits := make([]float32, len(state.logits))
 	state.loss = hostmath.SoftmaxCrossEntropy(dLogits, state.logits, state.pair.Targets, rows, vocab)
+	state.gradient = make([]float32, len(t.gradients))
+	state.embeddingGradient = state.gradient[t.layout.embedding.start:t.layout.embedding.end]
+	hostmath.LinearBackward(nil, state.embeddingGradient, nil, state.normed, nil, dLogits, rows, d, vocab, false)
 	dNormed := make([]float32, len(state.normed))
 	hostmath.LinearBF16BackwardInput(dNormed, dLogits, t.model.embed, rows, d, vocab)
-	state.gradient = make([]float32, len(t.gradients))
 	dHidden := make([]float32, len(state.hidden))
 	hostmath.RMSNormBackward(
 		dHidden, state.gradient[t.layout.finalNorm.start:t.layout.finalNorm.end],
@@ -914,6 +920,27 @@ func (t *Trainer) backwardEncoder(state *trainingStep) error {
 		gradient = projections.input
 	}
 	state.encoderInputGradient = gradient
+	return t.backwardEmbeddings(state)
+}
+
+func (t *Trainer) backwardEmbeddings(state *trainingStep) error {
+	d := t.model.Dims.DModel
+	if len(state.decoderInputGradient) != len(state.pair.DecoderInput)*d ||
+		len(state.encoderInputGradient) != len(state.pair.Source)*d ||
+		len(state.embeddingGradient) != t.model.Dims.Vocab*d {
+		return errors.New("seq2seq: embedding gradient geometry differs")
+	}
+	addRows := func(tokens []int, gradient []float32) {
+		for row, token := range tokens {
+			dst := state.embeddingGradient[token*d : (token+1)*d]
+			src := gradient[row*d : (row+1)*d]
+			for column, value := range src {
+				dst[column] += value * t.model.embedScale
+			}
+		}
+	}
+	addRows(state.pair.DecoderInput, state.decoderInputGradient)
+	addRows(state.pair.Source, state.encoderInputGradient)
 	return nil
 }
 

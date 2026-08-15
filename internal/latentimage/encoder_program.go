@@ -188,9 +188,9 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 
 		var attn *tensor.Tensor
 		if p.keyBias != nil {
-			attn = b.AttentionWithKeyBias(q, k, v, p.keyBias, scale, true) // causal GQA + pad-key mask
+			attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{KeyBias: p.keyBias, Scale: scale, Causal: true}) // causal GQA + pad-key mask
 		} else {
-			attn = b.Attention(q, k, v, scale, true) // causal GQA
+			attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: true}) // causal GQA
 		}
 		attn = b.Reshape(attn, qDim, uint64(seq))
 		attn = b.MulMat(bind.Input(prefix+"self_attn.o_proj.weight", qDim, h), attn)

@@ -67,7 +67,7 @@ func (p visionAttentionPlan) graph(
 	builder *tensor.Builder,
 	query, key, value *tensor.Tensor,
 ) *tensor.Tensor {
-	return builder.Attention(query, key, value, p.scale(), p.causal)
+	return builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: p.scale(), Causal: p.causal})
 }
 
 type normalizationKind uint8

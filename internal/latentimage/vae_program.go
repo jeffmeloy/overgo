@@ -165,7 +165,7 @@ func (g *vaeGraphBuilder) buildOp(op vaeOp, x *tensor.Tensor, c, ch, cw int) (*t
 		k := b.GroupSlice(qkv, cu, cu, 1, cu)   // [c,1,plane]
 		v := b.GroupSlice(qkv, 2*cu, cu, 1, cu) // [c,1,plane]
 		scale := float32(1 / math.Sqrt(float64(c)))
-		attn := b.Reshape(b.Attention(q, k, v, scale, false), cu, pu)
+		attn := b.Reshape(b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: false}), cu, pu)
 		out := b.Add(b.MulMat(g.weight(projW, cu, cu), attn), g.weight(projB, cu))
 		return b.Add(out, x), c, ch, cw, nil
 	case vaeUpsample:

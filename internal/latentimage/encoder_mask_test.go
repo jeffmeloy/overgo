@@ -41,7 +41,7 @@ func TestAttentionKeyBiasMaskMath(t *testing.T) {
 			bias[padKey] = padKeyBias
 		}
 		kbN := b.Input("kb", dtype.F32, tensor.MustShape(tokens))
-		out := b.AttentionWithKeyBias(qN, kN, vN, kbN, scale, true)
+		out := b.AttentionWithOptions(qN, kN, vN, tensor.AttentionOptions{KeyBias: kbN, Scale: scale, Causal: true})
 		if err := b.Err(); err != nil {
 			t.Fatalf("build: %v", err)
 		}

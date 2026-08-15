@@ -616,7 +616,7 @@ func TestExecuteAttentionALiBiMatchesLlamaSlope(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 1))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
-	output := builder.AttentionALiBiWithOffset(query, key, value, 1, 2, true, 1)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, MaxALiBiBias: 2, Causal: true, QueryStart: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1113,7 +1113,7 @@ func TestExecuteCausalGroupedQueryAttention(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 2, 2))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(2, 1, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(2, 1, 2))
-	output := builder.Attention(query, key, value, 1, true)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Causal: true})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1146,9 +1146,9 @@ func TestExecuteWindowAttentionWithBidirectionalBlocks(t *testing.T) {
 	key := builder.Input("key", dtype.F32, shape)
 	value := builder.Input("value", dtype.F32, shape)
 	blocks := builder.Input("blocks", dtype.F32, tensor.MustShape(5))
-	output := builder.AttentionWindowWithBlockMaskWithOffset(
-		query, key, value, blocks, 1, 0, 3,
-	)
+	output := builder.AttentionWithOptions(
+		query, key, value, tensor.AttentionOptions{BlockIDs: blocks, Scale: 1, Causal: true, QueryStart: 0, Window: 3})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1175,7 +1175,7 @@ func TestExecuteAttentionSinksAddHiddenLogit(t *testing.T) {
 	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
-	output := builder.AttentionWithSinksWithOffset(query, key, value, sinks, 1, false, 0)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Sinks: sinks, Scale: 1, Causal: false, QueryStart: 0})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: query.Shape, Data: []float32{0}},
 		key:   {Shape: key.Shape, Data: []float32{0, 0}},
@@ -1288,7 +1288,7 @@ func TestExecuteSoftcappedAttention(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 1))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
-	output := builder.AttentionSoftcappedWithOffset(query, key, value, 1, 2, false, 0)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Softcap: 2, Causal: false, QueryStart: 0})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1317,7 +1317,7 @@ func TestExecuteCachedAttentionAndConcat(t *testing.T) {
 	newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(2, 1, 1))
 	key := builder.Concat(pastKey, newKey, 2)
 	value := builder.Concat(pastValue, newValue, 2)
-	output := builder.AttentionWithOffset(query, key, value, 1, true, 2)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: 2})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1363,7 +1363,7 @@ func TestExecuteBatchedCachedAttentionAndMiddleConcat(t *testing.T) {
 	newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(width, heads, newTokens, sequences))
 	key := builder.Concat(pastKey, newKey, 2)
 	value := builder.Concat(pastValue, newValue, 2)
-	output := builder.AttentionWithOffset(query, key, value, 1, true, pastTokens)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: pastTokens})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1393,7 +1393,7 @@ func TestExecuteSymmetricWindowAttention(t *testing.T) {
 	query := builder.Input("query", dtype.F32, shape)
 	key := builder.Input("key", dtype.F32, shape)
 	value := builder.Input("value", dtype.F32, shape)
-	output := builder.AttentionSymmetricWindow(query, key, value, 1, 4)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, SymmetricWindow: true, Window: 4})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1424,7 +1424,7 @@ func TestExecuteSymmetricWindowAttentionWithSinks(t *testing.T) {
 	key := builder.Input("key", dtype.F32, shape)
 	value := builder.Input("value", dtype.F32, shape)
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
-	output := builder.AttentionSymmetricWindowWithSinks(query, key, value, sinks, 1, 4)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Sinks: sinks, Scale: 1, SymmetricWindow: true, Window: 4})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: shape, Data: make([]float32, 5)},
 		key:   {Shape: shape, Data: make([]float32, 5)},
@@ -1448,7 +1448,7 @@ func TestExecuteChunkedWindowAttention(t *testing.T) {
 	query := builder.Input("query", dtype.F32, shape)
 	key := builder.Input("key", dtype.F32, shape)
 	value := builder.Input("value", dtype.F32, shape)
-	output := builder.AttentionChunkedWindowWithOffset(query, key, value, 1, true, 0, 4)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Causal: true, ChunkedWindow: true, QueryStart: 0, Window: 4})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: shape, Data: make([]float32, 6)},
 		key:   {Shape: shape, Data: make([]float32, 6)},
@@ -1714,7 +1714,7 @@ func TestExecuteAttentionWithT5RelativeBias(t *testing.T) {
 	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(1, 4))
-	output := builder.AttentionWithRelativeBias(query, key, value, bias, 1)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Bias: bias, Scale: 1, RelativeBidirectional: true})
 	zeroShape := tensor.MustShape(1, 1, 2)
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: zeroShape, Data: []float32{0, 0}},

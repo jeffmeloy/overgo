@@ -124,7 +124,7 @@ func (graph *modelGraph) transformerTokens(block *attnBlock, config Config, inpu
 	query = graph.builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: float32(config.RopeTheta), FrequencyScale: 1, Reverse: true})
 	key = graph.builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: float32(config.RopeTheta), FrequencyScale: 1, Reverse: true})
 	attended := graph.builder.Reshape(
-		graph.builder.Attention(query, key, value, 1/float32(math.Sqrt(float64(headDim))), false),
+		graph.builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1 / float32(math.Sqrt(float64(headDim))), Causal: false}),
 		heads*headDim, sequence,
 	)
 	projected := linear(attended, block.attention.Woproj, block.attention.Boproj, c, 2*c, ".attention.output")

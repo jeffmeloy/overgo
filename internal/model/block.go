@@ -807,11 +807,11 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	}
 	query = builder.Scale(query, attentionScale)
 	if p.plan.Sliding {
-		attention = builder.AttentionWindowWithOffset(
-			query, cacheKey, cacheValue, 1, true, queryStart, spec.SlidingWindow,
-		)
+		attention = builder.AttentionWithOptions(
+			query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: queryStart, Window: spec.SlidingWindow})
+
 	} else {
-		attention = builder.AttentionWithOffset(query, cacheKey, cacheValue, 1, true, queryStart)
+		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: queryStart})
 	}
 	attention = builder.MulMat(weights.AttentionOutput, builder.Reshape(attention, headCount*valueLength, tokens))
 	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
@@ -1023,14 +1023,11 @@ func buildGatedProjectionMixCached(
 	if spec.AttentionScale > 0 {
 		attentionScale = spec.AttentionScale
 	}
-	attention := builder.AttentionWithOffset(
+	attention := builder.AttentionWithOptions(
 		query,
 		cacheKey,
-		cacheValue,
-		attentionScale,
-		true,
-		queryStart,
-	)
+		cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart})
+
 	attention = builder.Reshape(
 		attention,
 		uint64(spec.HeadCount)*uint64(spec.ValueLength),

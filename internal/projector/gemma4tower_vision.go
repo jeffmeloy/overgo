@@ -256,7 +256,7 @@ func (r *Gemma4TowerRunner) encodeVisionPatches(
 		v = builder.RMSNorm(v, spec.RMSNormEpsilon)
 		q = gemma4VisionRoPE(builder, q, positions, spec.RopeFreqBase)
 		k = gemma4VisionRoPE(builder, k, positions, spec.RopeFreqBase)
-		attention := builder.Attention(q, k, v, 1, false)
+		attention := builder.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: 1, Causal: false})
 		attention = builder.Reshape(attention, uint64(spec.Heads*spec.HeadDim), uint64(rows))
 		attention = r.gemma4TowerClippedLinearGraph(graph, attention, prefix+"attn_output")
 		attention = builder.WeightedRMSNorm(

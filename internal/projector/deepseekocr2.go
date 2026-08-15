@@ -250,10 +250,10 @@ func (r *DeepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.T
 		imageQ := builder.FlatSlice(q, 0, headWidth, uint64(r.spec.Heads), patches)
 		imageK := builder.FlatSlice(k, 0, headWidth, uint64(r.spec.KVHeads), patches)
 		imageV := builder.FlatSlice(v, 0, headWidth, uint64(r.spec.KVHeads), patches)
-		imageAttention := builder.Attention(imageQ, imageK, imageV, float32(1/math.Sqrt(float64(headWidth))), false)
+		imageAttention := builder.AttentionWithOptions(imageQ, imageK, imageV, tensor.AttentionOptions{Scale: float32(1 / math.Sqrt(float64(headWidth))), Causal: false})
 		queryOffset := headWidth * uint64(r.spec.Heads) * patches
 		queryQ := builder.FlatSlice(q, queryOffset, headWidth, uint64(r.spec.Heads), patches)
-		queryAttention := builder.AttentionWithOffset(queryQ, k, v, float32(1/math.Sqrt(float64(headWidth))), true, uint32(patches))
+		queryAttention := builder.AttentionWithOptions(queryQ, k, v, tensor.AttentionOptions{Scale: float32(1 / math.Sqrt(float64(headWidth))), Causal: true, QueryStart: uint32(patches)})
 		attention := builder.Concat(imageAttention, queryAttention, 2)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), sequence)
 		attention = builder.MulMat(weight(prefix+"attn_out.weight"), attention)

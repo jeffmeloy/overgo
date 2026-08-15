@@ -367,10 +367,9 @@ func buildCausalPostQKNormMixCached(
 		cacheKey = builder.Concat(pastKey, key, 2)
 		cacheValue = builder.Concat(pastValue, value, 2)
 	}
-	attention := builder.AttentionWithOffset(
-		query, cacheKey, cacheValue,
-		float32(1/math.Sqrt(float64(spec.KeyLength))), true, queryStart,
-	)
+	attention := builder.AttentionWithOptions(
+		query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: float32(1 / math.Sqrt(float64(spec.KeyLength))), Causal: true, QueryStart: queryStart})
+
 	attention = builder.Reshape(attention, headCount*uint64(spec.ValueLength), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	if weights.AttentionOutputBias != nil {
@@ -459,11 +458,11 @@ func buildRelativeSelfAttentionMix(
 	}
 	var attention *tensor.Tensor
 	if causal {
-		attention = builder.AttentionWithRelativeBiasAndOffset(
-			query, cacheKey, cacheValue, weights.AttentionRelativeBias, 1, queryStart,
-		)
+		attention = builder.AttentionWithOptions(
+			query, cacheKey, cacheValue, tensor.AttentionOptions{Bias: weights.AttentionRelativeBias, Scale: 1, Causal: true, QueryStart: queryStart})
+
 	} else {
-		attention = builder.AttentionWithRelativeBias(query, cacheKey, cacheValue, weights.AttentionRelativeBias, 1)
+		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Bias: weights.AttentionRelativeBias, Scale: 1, RelativeBidirectional: true})
 	}
 	attention = builder.Reshape(attention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
 	result := DenseBlockResult{Output: builder.MulMat(weights.AttentionOutput, attention)}
@@ -510,7 +509,7 @@ func buildCrossAttentionMix(
 		crossKey = headedProjection(builder, encoderState, weights.CrossAttentionK, spec.KeyLength, spec.HeadCountKV, encoderTokens)
 		crossValue = headedProjection(builder, encoderState, weights.CrossAttentionV, spec.ValueLength, spec.HeadCountKV, encoderTokens)
 	}
-	crossAttention := builder.AttentionWithOffset(crossQuery, crossKey, crossValue, 1, false, 0)
+	crossAttention := builder.AttentionWithOptions(crossQuery, crossKey, crossValue, tensor.AttentionOptions{Scale: 1, Causal: false, QueryStart: 0})
 	crossAttention = builder.Reshape(crossAttention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
 	return DenseBlockResult{
 		Output: builder.MulMat(weights.CrossAttentionOutput, crossAttention),

@@ -215,7 +215,7 @@ func buildLatentAttentionMixCached(
 	if usesSparseIndexer {
 		attention = builder.SparseAttentionWithOffset(query, cacheKey, cacheValue, topK, attentionScale, true, queryStart)
 	} else {
-		attention = builder.AttentionWithOffset(query, cacheKey, cacheValue, attentionScale, true, queryStart)
+		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart})
 	}
 	if weights.AttentionVB != nil {
 		attention = builder.GroupedMulMat(weights.AttentionVB, attention)

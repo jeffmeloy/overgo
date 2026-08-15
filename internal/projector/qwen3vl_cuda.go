@@ -61,10 +61,10 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 		for temporal := 0; temporal < input.GridT; temporal++ {
 			offset := uint64(temporal * spatial * r.spec.Hidden)
 			shape := []uint64{headWidth, uint64(r.spec.Heads), uint64(spatial)}
-			part := builder.Attention(
+			part := builder.AttentionWithOptions(
 				builder.FlatSlice(q, offset, shape...), builder.FlatSlice(k, offset, shape...),
-				builder.FlatSlice(v, offset, shape...), float32(1/math.Sqrt(float64(headWidth))), false,
-			)
+				builder.FlatSlice(v, offset, shape...), tensor.AttentionOptions{Scale: float32(1 / math.Sqrt(float64(headWidth))), Causal: false})
+
 			if attention == nil {
 				attention = part
 			} else {

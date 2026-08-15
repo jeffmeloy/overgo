@@ -502,7 +502,7 @@ func TestExecutorCachedAttentionMatchesReference(t *testing.T) {
 	newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(4, 1, 1))
 	key := builder.Concat(pastKey, newKey, 2)
 	value := builder.Concat(pastValue, newValue, 2)
-	output := builder.AttentionWithOffset(query, key, value, 0.5, true, 3)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 0.5, Causal: true, QueryStart: 3})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -537,7 +537,7 @@ func TestExecutorBatchedCachedAttentionMatchesReference(t *testing.T) {
 	newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(width, keyHeads, newTokens, sequences))
 	key := builder.Concat(pastKey, newKey, 2)
 	value := builder.Concat(pastValue, newValue, 2)
-	output := builder.AttentionWithOffset(query, key, value, 0.5, true, pastTokens)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 0.5, Causal: true, QueryStart: pastTokens})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -560,7 +560,7 @@ func TestExecutorNonCausalAttentionMatchesReference(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(4, 2, 3))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(4, 1, 3))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(4, 1, 3))
-	output := builder.Attention(query, key, value, 0.5, false)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 0.5, Causal: false})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -579,9 +579,9 @@ func TestExecutorWindowAttentionBlockMaskMatchesReference(t *testing.T) {
 	key := builder.Input("key", dtype.F32, tensor.MustShape(4, 1, 5))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(4, 1, 5))
 	blocks := builder.Input("blocks", dtype.F32, tensor.MustShape(5))
-	output := builder.AttentionWindowWithBlockMaskWithOffset(
-		query, key, value, blocks, 0.5, 0, 3,
-	)
+	output := builder.AttentionWithOptions(
+		query, key, value, tensor.AttentionOptions{BlockIDs: blocks, Scale: 0.5, Causal: true, QueryStart: 0, Window: 3})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -600,7 +600,7 @@ func TestExecutorAttentionSinksMatchReference(t *testing.T) {
 	key := builder.Input("key", dtype.F32, tensor.MustShape(4, 1, 3))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(4, 1, 3))
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(2))
-	output := builder.AttentionWindowWithSinksWithOffset(query, key, value, sinks, 0.5, true, 1, 2)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Sinks: sinks, Scale: 0.5, Causal: true, QueryStart: 1, Window: 2})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}

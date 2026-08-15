@@ -131,7 +131,7 @@ func TestBuilderAttentionSinks(t *testing.T) {
 	key := builder.Input("key", dtype.F32, MustShape(2, 1, 1))
 	value := builder.Input("value", dtype.F32, MustShape(2, 1, 1))
 	sinks := builder.Input("sinks", dtype.F32, MustShape(2))
-	output := builder.AttentionWithSinksWithOffset(query, key, value, sinks, 1, true, 0)
+	output := builder.AttentionWithOptions(query, key, value, AttentionOptions{Sinks: sinks, Scale: 1, Causal: true, QueryStart: 0})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -139,19 +139,18 @@ func TestBuilderAttentionSinks(t *testing.T) {
 	if !attributes.HasSinks || len(output.Inputs) != 4 || output.Inputs[3] != sinks {
 		t.Fatalf("unexpected sink attention: %+v", attributes)
 	}
-	windowed := builder.AttentionSymmetricWindowWithSinks(query, key, value, sinks, 1, 2)
+	windowed := builder.AttentionWithOptions(query, key, value, AttentionOptions{Sinks: sinks, Scale: 1, SymmetricWindow: true, Window: 2})
 	attributes = windowed.Attrs.(AttentionAttributes)
 	if !attributes.HasSinks || !attributes.SymmetricWindow || attributes.Window != 2 || attributes.Causal {
 		t.Fatalf("unexpected symmetric sink attention: %+v", attributes)
 	}
 
 	invalid := NewBuilder()
-	invalid.AttentionWithSinksWithOffset(
+	invalid.AttentionWithOptions(
 		invalid.Input("query", dtype.F32, MustShape(2, 2, 1)),
 		invalid.Input("key", dtype.F32, MustShape(2, 1, 1)),
-		invalid.Input("value", dtype.F32, MustShape(2, 1, 1)),
-		invalid.Input("sinks", dtype.F32, MustShape(1)), 1, true, 0,
-	)
+		invalid.Input("value", dtype.F32, MustShape(2, 1, 1)), AttentionOptions{Sinks: invalid.Input("sinks", dtype.F32, MustShape(1)), Scale: 1, Causal: true, QueryStart: 0})
+
 	if invalid.Err() == nil || !strings.Contains(invalid.Err().Error(), "[query heads]") {
 		t.Fatalf("error = %v", invalid.Err())
 	}

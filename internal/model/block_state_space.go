@@ -255,7 +255,7 @@ func buildAttentionSSMHybridMixCached(
 	if spec.AttentionScale > 0 {
 		attentionScale = spec.AttentionScale
 	}
-	attention := builder.AttentionWithOffset(query, cacheKey, cacheValue, attentionScale, true, queryStart)
+	attention := builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart})
 	attention = builder.Reshape(attention, heads*uint64(spec.ValueLength), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	if weights.AttentionOutputBias != nil {
@@ -417,7 +417,7 @@ func buildCausalProjectionMixCached(
 	if spec.AttentionScale > 0 {
 		scale = spec.AttentionScale
 	}
-	attention := builder.AttentionWithOffset(query, cacheKey, cacheValue, scale, true, queryStart)
+	attention := builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: scale, Causal: true, QueryStart: queryStart})
 	attention = builder.Reshape(attention, heads*uint64(spec.ValueLength), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	if weights.AttentionOutputBias != nil {

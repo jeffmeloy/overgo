@@ -10,39 +10,33 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// toHeadMajor reshapes [seq, nHeads*hd] -> [nHeads, seq, hd] (each head
-// contiguous) so per-head device GEMMs address contiguous sub-buffers.
-func toHeadMajor(x []float32, seq, nHeads, hd int) []float32 {
+type headMajorDirection string
+
+const (
+	headMajorPack   headMajorDirection = "head_major_f32"
+	headMajorUnpack headMajorDirection = "head_major_inverse_f32"
+)
+
+func headMajorLayout(x []float32, seq, nHeads, hd int, direction headMajorDirection) []float32 {
+	sourceSeq, sourceHead := nHeads*hd, hd
+	targetSeq, targetHead := hd, seq*hd
+	if direction == headMajorUnpack {
+		sourceSeq, targetSeq = targetSeq, sourceSeq
+		sourceHead, targetHead = targetHead, sourceHead
+	}
 	out := make([]float32, len(x))
-	for i := 0; i < seq; i++ {
-		for h := 0; h < nHeads; h++ {
-			copy(out[(h*seq+i)*hd:(h*seq+i+1)*hd], x[(i*nHeads+h)*hd:(i*nHeads+h+1)*hd])
+	for head := 0; head < nHeads; head++ {
+		for row := 0; row < seq; row++ {
+			source := row*sourceSeq + head*sourceHead
+			target := row*targetSeq + head*targetHead
+			copy(out[target:target+hd], x[source:source+hd])
 		}
 	}
 	return out
 }
 
-// fromHeadMajor is the inverse of toHeadMajor.
-func fromHeadMajor(x []float32, seq, nHeads, hd int) []float32 {
-	out := make([]float32, len(x))
-	for h := 0; h < nHeads; h++ {
-		for i := 0; i < seq; i++ {
-			copy(out[(i*nHeads+h)*hd:(i*nHeads+h+1)*hd], x[(h*seq+i)*hd:(h*seq+i+1)*hd])
-		}
-	}
-	return out
-}
-
-// MultiHeadAttentionBackwardResident is the resident counterpart to
-// MultiHeadAttentionBackward: the whole causal GQA attention-core backward runs
-// in ONE worker.Do -- inputs reshaped head-major and uploaded once, every head's
-// GEMMs and softmax_backward run on resident sub-buffers, GQA dk/dv accumulate
-// on device via the add kernel, and only dQ/dK/dV come back. The softmax
-// probabilities are recomputed on device per head (causal_softmax of qh·khᵀ)
-// rather than received as a host [nh, seq, seq] slice -- the score scale is
-// folded into q upstream, so scores use scale 1 (dQ/dK are scaled on return).
-// Same math as MultiHeadAttentionBackward. Addresses SQA finding 2 for the
-// attention block and removes the O(heads*seq^2) host softmax allocation.
+// MultiHeadAttentionBackwardResident: one-session causal GQA backward.
+// Recomputes softmax on device; returns dQ/dK/dV only.
 func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, dOut []float32, seq, nh, nkv, hd int, scale float64) (dQ, dK, dV []float32, err error) {
 	if seq <= 0 || nh <= 0 || nkv <= 0 || hd <= 0 || nh%nkv != 0 ||
 		len(q) != seq*nh*hd || len(k) != seq*nkv*hd || len(v) != seq*nkv*hd ||
@@ -50,10 +44,10 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, dOut []f
 		return nil, nil, nil, fmt.Errorf("MultiHeadAttentionBackwardResident: shape mismatch (seq=%d nh=%d nkv=%d hd=%d)", seq, nh, nkv, hd)
 	}
 	group := nh / nkv
-	qC := toHeadMajor(q, seq, nh, hd)
-	kC := toHeadMajor(k, seq, nkv, hd)
-	vC := toHeadMajor(v, seq, nkv, hd)
-	dOutC := toHeadMajor(dOut, seq, nh, hd)
+	qC := headMajorLayout(q, seq, nh, hd, headMajorPack)
+	kC := headMajorLayout(k, seq, nkv, hd, headMajorPack)
+	vC := headMajorLayout(v, seq, nkv, hd, headMajorPack)
+	dOutC := headMajorLayout(dOut, seq, nh, hd, headMajorPack)
 	dqC := make([]float32, seq*nh*hd)
 	dkC := make([]float32, seq*nkv*hd)
 	dvC := make([]float32, seq*nkv*hd)
@@ -193,9 +187,9 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, dOut []f
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	dQ = fromHeadMajor(dqC, seq, nh, hd)
-	dK = fromHeadMajor(dkC, seq, nkv, hd)
-	dV = fromHeadMajor(dvC, seq, nkv, hd)
+	dQ = headMajorLayout(dqC, seq, nh, hd, headMajorUnpack)
+	dK = headMajorLayout(dkC, seq, nkv, hd, headMajorUnpack)
+	dV = headMajorLayout(dvC, seq, nkv, hd, headMajorUnpack)
 	// scores = (Q·Kᵀ)*scale, so scale multiplies both dQ and dK (matching
 	// AttentionCoreBackward); dV is unscaled.
 	if scale != 1 {

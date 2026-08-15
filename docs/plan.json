@@ -13,12 +13,6 @@
           "status": "blocked-external-prereq"
         },
         {
-          "id": "recommendation-evaluation",
-          "title": "Compare deterministic scheduling recommendations with owner decisions and report error bounds without assigning work",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestSchedulingRecommendationEvaluation$' -count=1 -v"
-        },
-        {
           "id": "autonomy-admission",
           "title": "Admit autonomous scheduling classes only with measured benefit, independent SQA, containment, rollback, and recovery evidence",
           "status": "open",

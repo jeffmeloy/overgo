@@ -482,9 +482,12 @@ masquerade as a stop for the whole manually managed campaign.
 
 ### P3: bound autonomy by measured recovery
 
-Delegate only scheduling classes with sustained benefit, independent SQA,
-sealed promotion evidence, lane-scoped containment, rollback, and measured
-recovery. The owner remains objective, exception, and promotion authority.
+`internal/plan.AssessAutonomy` marks a scheduling class eligible only when every
+observed comparison is a recommendation win, collisions and abandonments are
+absent, developer and SQA evidence are distinct, and sealed promotion,
+lane-scoped containment, rollback, and measured recovery evidence are present.
+It does not dispatch or promote; the owner remains objective, exception, and
+promotion authority.
 
 ## Suggested success measures
 

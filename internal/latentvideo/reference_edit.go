@@ -286,9 +286,7 @@ func quantizeEdit(values []float32, arithmetic EditArithmetic) error {
 	case EditFP32:
 		return nil
 	case EditBF16:
-		for index := range values {
-			values[index] = dtype.RoundBF16(values[index])
-		}
+		dtype.RoundBF16Slice(values)
 		return nil
 	default:
 		return fmt.Errorf("reference edit sampler: unsupported arithmetic %q", arithmetic)

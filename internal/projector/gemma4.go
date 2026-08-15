@@ -272,21 +272,21 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 			}
 		}
 	}
-	bf16RoundSlice(pixels)
+	dtype.RoundBF16Slice(pixels)
 	ln1Weight, ln1Bias, err := r.loadPair(ctx, "v.patch_norm.1.weight", "v.patch_norm.1.bias")
 	if err != nil {
 		return Gemma4Output{}, err
 	}
 	ln1 := make([]float32, len(pixels))
 	layerNorm(ln1, pixels, ln1Weight.Data, ln1Bias.Data, rows, r.spec.PatchWidth, r.spec.LayerNormEpsilon)
-	bf16RoundSlice(ln1)
+	dtype.RoundBF16Slice(ln1)
 	traceGemma4(trace, "patch_ln1", ln1)
 	patchWeight, patchBias, err := r.loadPair(ctx, visionPatchWeightTensor, visionPatchBiasTensor)
 	if err != nil {
 		return Gemma4Output{}, err
 	}
 	hidden := linear(ln1, patchWeight.Data, patchBias.Data, rows, r.spec.PatchWidth, r.spec.Hidden)
-	bf16RoundSlice(hidden)
+	dtype.RoundBF16Slice(hidden)
 	traceGemma4(trace, "patch_dense", hidden)
 	ln2Weight, ln2Bias, err := r.loadPair(ctx, "v.patch_norm.2.weight", "v.patch_norm.2.bias")
 	if err != nil {
@@ -294,7 +294,7 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	}
 	ln2 := make([]float32, len(hidden))
 	layerNorm(ln2, hidden, ln2Weight.Data, ln2Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
-	bf16RoundSlice(ln2)
+	dtype.RoundBF16Slice(ln2)
 	traceGemma4(trace, "patch_ln2", ln2)
 	position, err := r.load(ctx, visionPositionWeightTensor)
 	if err != nil {
@@ -318,18 +318,18 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	}
 	posNorm := make([]float32, len(ln2))
 	layerNorm(posNorm, ln2, ln3Weight.Data, ln3Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
-	bf16RoundSlice(posNorm)
+	dtype.RoundBF16Slice(posNorm)
 	traceGemma4(trace, "pos_norm", posNorm)
 	preProjection := make([]float32, len(posNorm))
 	rmsNormNoWeight(preProjection, posNorm, rows, r.spec.Hidden, r.spec.RMSNormEpsilon)
-	bf16RoundSlice(preProjection)
+	dtype.RoundBF16Slice(preProjection)
 	traceGemma4(trace, "pre_projection_norm", preProjection)
 	projection, err := r.load(ctx, "mm.input_projection.weight")
 	if err != nil {
 		return Gemma4Output{}, err
 	}
 	embeddings := linear(preProjection, projection.Data, nil, rows, r.spec.Hidden, r.spec.Hidden)
-	bf16RoundSlice(embeddings)
+	dtype.RoundBF16Slice(embeddings)
 	traceGemma4(trace, "embedding_projection", embeddings)
 	value, err := reference.NewValue(tensor.MustShape(uint64(r.spec.Hidden), uint64(rows)), embeddings)
 	if err != nil {
@@ -370,10 +370,4 @@ func rmsNormNoWeight(output, input []float32, rows, width int, epsilon float32) 
 			}
 		}
 	})
-}
-
-func bf16RoundSlice(values []float32) {
-	for index, value := range values {
-		values[index] = dtype.RoundBF16(value)
-	}
 }

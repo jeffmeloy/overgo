@@ -312,7 +312,7 @@ func EncodeTokensStreamed(checkpoint string, plan EncoderPlan, tokenIDs, mask []
 		return nil, stats, err
 	}
 	hostmath.RMSNormInto(hidden, hidden, norm, len(tokenIDs), config.Dim, config.NormEps)
-	roundBF16(hidden)
+	dtype.RoundBF16Slice(hidden)
 	stats.FinalNormBytes = int64(len(norm) * uint16Bytes)
 	stats.OutputRows = len(tokenIDs)
 	stats.OutputDim = config.Dim
@@ -408,18 +408,12 @@ func encoderBlockForward(x []float32, mask, buckets []int, batch, seq, dim, head
 	return out, nil
 }
 
-func roundBF16(x []float32) {
-	for i, v := range x {
-		x[i] = dtype.RoundBF16(v)
-	}
-}
-
 func roundBF16If(enabled bool, values ...[]float32) {
 	if !enabled {
 		return
 	}
 	for _, value := range values {
-		roundBF16(value)
+		dtype.RoundBF16Slice(value)
 	}
 }
 

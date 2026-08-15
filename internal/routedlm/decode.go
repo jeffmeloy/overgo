@@ -57,13 +57,13 @@ func DecodeRow(tokenRow []float32, decodeMask []int, segments [][2]int, resident
 	for head := 0; head < cfg.NumAttentionHeads; head++ {
 		row := q[head*hd : (head+1)*hd]
 		rope.applyRotary(row, pos)
-		bf16RoundSlice(row)
+		dtype.RoundBF16Slice(row)
 		rmsNormRounded(row, row, w.QKV.QNorm[branch], 1, hd, cfg.RMSNormEps)
 	}
 	for head := 0; head < cfg.NumKeyValueHeads; head++ {
 		row := k[head*hd : (head+1)*hd]
 		rope.applyRotary(row, pos)
-		bf16RoundSlice(row)
+		dtype.RoundBF16Slice(row)
 		rmsNormRounded(row, row, w.QKV.KNorm[branch], 1, hd, cfg.RMSNormEps)
 	}
 	resident.Keys = append(resident.Keys, k...)
@@ -98,7 +98,7 @@ func DecodeRow(tokenRow []float32, decodeMask []int, segments [][2]int, resident
 				out[i] += prob * vRow[i]
 			}
 		}
-		bf16RoundSlice(out)
+		dtype.RoundBF16Slice(out)
 	}
 
 	projected := make([]float32, d)

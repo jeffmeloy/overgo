@@ -414,7 +414,7 @@ func ScalarConditionRow(w FlowMLPWeights, value float64, plan FlowPlan) ([]float
 	if w.W0.In != plan.FrequencyDim || w.W2.Out != plan.Hidden {
 		return nil, fmt.Errorf("routed lm scalar condition: weights are not [%d->%d]", plan.FrequencyDim, plan.Hidden)
 	}
-	bf16RoundSlice(freq)
+	dtype.RoundBF16Slice(freq)
 	mid := make([]float32, w.W0.Out)
 	linearBiasRounded(mid, freq, w.W0, w.B0, 1)
 	siluRounded(mid)
@@ -523,7 +523,7 @@ func GuidedFlowVelocity(velocities [][]float32, coefficients []float32) ([]float
 			out[index] += coefficients[term] * value
 		}
 	}
-	bf16RoundSlice(out)
+	dtype.RoundBF16Slice(out)
 	return out, nil
 }
 

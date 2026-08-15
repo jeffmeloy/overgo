@@ -1,6 +1,10 @@
 package oscillatorimage
 
-import "math"
+import (
+	"math"
+
+	"overgo/internal/tensor/dtype"
+)
 
 // Host VJPs for the training leg. Gate: artifact-shipped torch autograd
 // goldens for conv2dSame3x3 and resizeConvBlock; central differences for the
@@ -47,7 +51,7 @@ func conv2dSame3x3Backward(x, weight, dOut []float32, b, cin, cout, h, w int) (d
 			}
 		}
 	}
-	return f64ToF32(dxf), f64ToF32(dWf), f64ToF32(dBf)
+	return dtype.Float64SliceToFloat32(dxf), dtype.Float64SliceToFloat32(dWf), dtype.Float64SliceToFloat32(dBf)
 }
 
 // upsampleNearest2xBackward: 2x2 sum-pool VJP.
@@ -244,12 +248,4 @@ func readoutTransformBackwardInto(dPhases []float32, dStride, dOffset int, dFeat
 			}
 		}
 	}
-}
-
-func f64ToF32(values []float64) []float32 {
-	out := make([]float32, len(values))
-	for i, v := range values {
-		out[i] = float32(v)
-	}
-	return out
 }

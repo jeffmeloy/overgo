@@ -294,23 +294,15 @@ func (p *DenoiserProgram) hostFeeds(
 		}
 		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
 	}
-	feeds[p.InLatent] = reference.Value{Shape: p.InLatent.Shape, Data: f32of(latentPatches)}
-	feeds[p.InText] = reference.Value{Shape: p.InText.Shape, Data: f32of(txt)}
-	feeds[p.InTemb] = reference.Value{Shape: p.InTemb.Shape, Data: f32of(temb)}
-	feeds[p.InTembMod] = reference.Value{Shape: p.InTembMod.Shape, Data: f32of(tembMod)}
+	feeds[p.InLatent] = reference.Value{Shape: p.InLatent.Shape, Data: dtype.Float64SliceToFloat32(latentPatches)}
+	feeds[p.InText] = reference.Value{Shape: p.InText.Shape, Data: dtype.Float64SliceToFloat32(txt)}
+	feeds[p.InTemb] = reference.Value{Shape: p.InTemb.Shape, Data: dtype.Float64SliceToFloat32(temb)}
+	feeds[p.InTembMod] = reference.Value{Shape: p.InTembMod.Shape, Data: dtype.Float64SliceToFloat32(tembMod)}
 	feeds[p.InDelta] = reference.Value{Shape: p.InDelta.Shape, Data: []float32{0}}
 	if p.keyBias != nil {
 		feeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyData}
 	}
 	return feeds, nil
-}
-
-func f32of(v []float64) []float32 {
-	out := make([]float32, len(v))
-	for i, x := range v {
-		out[i] = float32(x)
-	}
-	return out
 }
 
 // zeroCenteredRMSNorm mirrors Krea2RMSNorm: x/sqrt(mean(x^2)+eps) * (1+weight),

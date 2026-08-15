@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/hostmath"
+	"overgo/internal/tensor/dtype"
 )
 
 // HybridDecoderLayerBackwardDevice is the device VJP of hostmath's qwen3.5 hybrid
@@ -175,7 +176,7 @@ func attentionMixForwardDeviceW(worker *device.Worker, xn []float32, mw attnMatW
 	c.heads, c.kv, c.hd = ad.Heads, ad.KVHeads, ad.HeadDim
 	c.qDim, c.kvDim = c.heads*c.hd, c.kv*c.hd
 	c.rd = hostmath.RopeWidth(ad.RopeDim, c.hd)
-	c.invFreq = f64To32(hostmath.RopeInvFreq(ad.RopeTheta, c.rd))
+	c.invFreq = dtype.Float64SliceToFloat32(hostmath.RopeInvFreq(ad.RopeTheta, c.rd))
 	c.scale = float32(1.0 / math.Sqrt(float64(c.hd)))
 
 	qProj, err := linearForwardTW(worker, xn, mw.wq, T, H, c.qDim)
@@ -325,15 +326,6 @@ func scatterRotary(base, rotated []float32, rows, width, rotaryWidth int) []floa
 	out := append([]float32(nil), base...)
 	for row := 0; row < rows; row++ {
 		copy(out[row*width:row*width+rotaryWidth], rotated[row*rotaryWidth:(row+1)*rotaryWidth])
-	}
-	return out
-}
-
-// f64To32: device kernel input narrowing.
-func f64To32(v []float64) []float32 {
-	out := make([]float32, len(v))
-	for i, x := range v {
-		out[i] = float32(x)
 	}
 	return out
 }

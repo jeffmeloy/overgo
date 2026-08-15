@@ -1085,7 +1085,11 @@ func TestExecuteRoPENormal(t *testing.T) {
 func TestExecuteYaRNRoPEAppliesMagnitudeAndFrequencyBlend(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 1))
-	yarn := builder.RoPENeoXYaRN(input, []uint32{17}, 4, 8, 10_000, 0.25, 1, 1, 32, 1)
+	yarn := builder.RoPEWithOptions(input, tensor.RoPEOptions{
+		Layout: tensor.RoPELayoutNeoX, Positions: []uint32{17}, RotaryDimensions: 4,
+		OriginalContext: 8, FrequencyBase: 10_000, FrequencyScale: 0.25,
+		YaRN: true, ExtFactor: 1, AttentionFactor: 1, BetaFast: 32, BetaSlow: 1,
+	})
 	linear := builder.RoPENeoXScaled(input, []uint32{17}, 4, 10_000, 0.25)
 	feed, _ := NewValue(input.Shape, []float32{1, 2, 3, 4})
 	results, err := Execute([]*tensor.Tensor{yarn, linear}, map[*tensor.Tensor]Value{input: feed})

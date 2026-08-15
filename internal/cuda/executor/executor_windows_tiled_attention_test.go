@@ -87,6 +87,14 @@ func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			replay, err := cuda.ExecuteCompiled(context.Background(), compiled, feeds, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			replayWorst, replayAt := maxAbsDifference(t, replay[attention].Data, got[attention].Data)
+			if replayWorst != 0 {
+				t.Fatalf("replay max abs diff %.6g at=%d", replayWorst, replayAt)
+			}
 			worst, at := maxAbsDifference(t, got[attention].Data, want[attention].Data)
 			t.Logf("%s max_abs_diff=%.6g at=%d", testCase.name, worst, at)
 			if worst > testCase.tolerance {

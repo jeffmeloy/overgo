@@ -11,28 +11,17 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// --- Scratch pool -----------------------------------------------------------
-// One device region reused across every layer's transient forward/backward
-// scratch, so peak scratch is O(1 layer) not O(all layers). The activation
-// caches, residuals and weight grads MUST persist across the fwd->bwd and stay
-// per-layer resident; only the per-op scratch that never survives its layer is
-// pooled here.
+// Stack scratch: one device region; layer-local lifetime.
 
-// scratchArena is a bump allocator over one pre-allocated device buffer. Each
-// layer's forwardDevice/backwardDevice draws its transient buffers here and
-// runStack rewinds the cursor after each layer, so the same addresses serve
-// every layer. Stream ordering (one stream) makes reuse safe: the prior layer's
-// kernels retire before the next layer's issue -- no sync needed.
+// scratchArena: preallocated bump storage; stream-ordered reuse.
 type scratchArena struct {
 	base     driver.DevicePtr
 	capElems int
 	cur      int
-	high     int // high-water cursor (measurement only)
+	high     int // Measurement only.
 }
 
-// alloc hands out the next n elements. Overflow is a loud error: it means the
-// scratch size helpers below drifted from the actual forwardDevice/backwardDevice
-// allocations (an undercount can never silently corrupt reused memory).
+// alloc: next region; fail on extent drift.
 func (a *scratchArena) alloc(n int) (driver.DevicePtr, error) {
 	if n <= 0 {
 		return 0, errors.New("scratchArena: non-positive alloc")
@@ -50,41 +39,25 @@ func (a *scratchArena) alloc(n int) (driver.DevicePtr, error) {
 
 func (a *scratchArena) reset() { a.cur = 0 }
 
-// forwardScratchElems counts forwardDevice's attnOut and MLP buffers.
-// Single owner; drift is caught loudly by scratchArena.alloc overflow.
+// forwardScratchElems: attention and MLP scratch.
 func forwardScratchElems(d layerDims) int {
 	return 2 * d.seq * d.hidden
 }
 
-// backwardScratchElems counts backwardDevice's transient scratch buffers:
+// backwardScratchElems: transient VJP storage:
 // 4*(seq*inter) + 9*(seq*hidden) + 7*(seq*width) + 6*(seq*kvWidth)
 // + 4*(heads*seq*seq) + optional bias-transpose (seq*width).
-// The arena reserves the optional term so biased and unbiased layers share one
-// capacity contract.
+// Optional bias transpose included.
 func backwardScratchElems(d layerDims) int {
 	return 4*d.seq*d.inter + 9*d.seq*d.hidden + 8*d.seq*d.width + 6*d.seq*d.kvWidth + 4*d.heads*d.seq*d.seq
 }
 
-// maxScratchElems sizes the shared arena to one layer's larger pass (backward).
+// maxScratchElems: larger layer pass.
 func maxScratchElems(d layerDims) int {
 	if f := forwardScratchElems(d); f > backwardScratchElems(d) {
 		return f
 	}
 	return backwardScratchElems(d)
-}
-
-// scratchPoolEnabled selects runStack's scratch strategy: true (production
-// default) reuses one arena; false falls back to the legacy per-layer session
-// allocations. The false path exists ONLY so a test can measure peak device
-// bytes both ways on one GPU (see SetScratchPoolEnabled) -- production pools.
-var scratchPoolEnabled = true
-
-// SetScratchPoolEnabled toggles the arena and returns the prior value. A
-// measurement seam for the peak before/after test, not for production callers.
-func SetScratchPoolEnabled(on bool) bool {
-	prev := scratchPoolEnabled
-	scratchPoolEnabled = on
-	return prev
 }
 
 // --- Measured allocator granularity + derived resident capacity -------------

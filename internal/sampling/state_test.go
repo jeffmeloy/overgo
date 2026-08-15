@@ -276,29 +276,6 @@ func TestAdaptivePStateResumesEMAAndRNGExactly(t *testing.T) {
 	}
 }
 
-func TestSamplerLoadsPreviousV3State(t *testing.T) {
-	sampler, err := New(Config{Temperature: 1, Seed: 7})
-	if err != nil {
-		t.Fatal(err)
-	}
-	current, err := sampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
-	count := binary.LittleEndian.Uint32(current[40:])
-	previous := make([]byte, previousSamplerHeaderSize+int(count)*4)
-	copy(previous, previousSamplerStateMagic)
-	copy(previous[8:previousSamplerHeaderSize], current[8:previousSamplerHeaderSize])
-	copy(previous[previousSamplerHeaderSize:], current[samplerStateHeaderSize:])
-	resumed, err := New(Config{Temperature: 1, Seed: 7})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := resumed.LoadState(previous); err != nil {
-		t.Fatalf("load previous v3 state: %v", err)
-	}
-}
-
 func TestLogitBiasParticipatesInStateSignature(t *testing.T) {
 	plain, err := New(Config{Seed: 7})
 	if err != nil {
@@ -493,26 +470,5 @@ func TestSamplerLazyGBNFStateRestoresBufferedTriggerHistory(t *testing.T) {
 	if !resumed.gbnfState.awaitingTrigger ||
 		len(resumed.gbnfState.triggerBuffer) != 0 {
 		t.Fatal("reset did not restore lazy GBNF trigger state")
-	}
-}
-
-func TestSamplerLoadsLegacyV2StateWithoutGBNF(t *testing.T) {
-	config := Config{Temperature: 0.8, Seed: 19}
-	source, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	current, err := source.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
-	legacy := append([]byte(nil), current[:40]...)
-	copy(legacy, legacySamplerStateMagic)
-	restored, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := restored.LoadState(legacy); err != nil {
-		t.Fatal(err)
 	}
 }

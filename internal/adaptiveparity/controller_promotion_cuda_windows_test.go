@@ -107,7 +107,7 @@ func controllerRecords(commit string, holdout bool) []controllertrain.Record {
 			records = append(records, controllertrain.Record{
 				ID:     fmt.Sprintf("%s-%02d-%02d", split, actionIndex, variant),
 				Group:  fmt.Sprintf("%s-action-%02d", split, actionIndex),
-				Source: controllertrain.GitSource{Commit: commit, Path: "internal/workflowrecipe/workflow.go"},
+				Source: controllertrain.GitSource{Commit: commit, Path: "internal/workflowrecipe/catalog.go"},
 				Prompt: fmt.Sprintf("%s case %02d", item.prompt, caseNumber), Action: item.action,
 			})
 		}
@@ -117,18 +117,21 @@ func controllerRecords(commit string, holdout bool) []controllertrain.Record {
 
 func controllerSourceCommit(t *testing.T) string {
 	t.Helper()
-	command := exec.Command("git", "rev-parse", "HEAD")
-	command.Dir = "../.."
-	output, err := command.Output()
-	if err != nil {
-		t.Fatal(err)
+	for _, revision := range []string{"MERGE_HEAD", "HEAD"} {
+		command := exec.Command("git", "rev-parse", "--verify", revision)
+		command.Dir = "../.."
+		output, err := command.Output()
+		if err == nil {
+			return strings.TrimSpace(string(output))
+		}
 	}
-	return strings.TrimSpace(string(output))
+	t.Fatal("Git source commit is unavailable")
+	return ""
 }
 
 func verifyControllerSources(t *testing.T, commit string) {
 	t.Helper()
-	command := exec.Command("git", "show", commit+":internal/workflowrecipe/workflow.go")
+	command := exec.Command("git", "show", commit+":internal/workflowrecipe/catalog.go")
 	command.Dir = "../.."
 	output, err := command.Output()
 	if err != nil {

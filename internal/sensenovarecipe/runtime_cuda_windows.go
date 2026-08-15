@@ -123,7 +123,7 @@ func LoadGenerator(modelDir string) (_ *Generator, result error) {
 	if generator.terminal, err = routedlm.LoadTerminalWeights(source, config, binding); err != nil {
 		return nil, err
 	}
-	if generator.tokenizer, err = hfbpe.LoadLegacy(modelDir); err != nil {
+	if generator.tokenizer, err = hfbpe.LoadSplit(modelDir); err != nil {
 		return nil, err
 	}
 	if generator.worker, err = device.New(0); err != nil {

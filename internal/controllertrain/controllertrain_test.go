@@ -92,7 +92,7 @@ func fixtureCorpusSpec() Spec {
 	}
 	train, holdout := make([]Record, len(actions)), make([]Record, len(actions))
 	for index, action := range actions {
-		source := GitSource{Commit: "0123456789abcdef0123456789abcdef01234567", Path: "internal/workflowrecipe/workflow.go"}
+		source := GitSource{Commit: "0123456789abcdef0123456789abcdef01234567", Path: "internal/workflowrecipe/catalog.go"}
 		prompt := fmt.Sprintf("route action %d", index)
 		train[index] = Record{ID: fmt.Sprintf("train-%d", index), Group: fmt.Sprintf("train-%d", index), Source: source, Prompt: prompt, Action: action}
 		holdout[index] = Record{ID: fmt.Sprintf("holdout-%d", index), Group: fmt.Sprintf("holdout-%d", index), Source: source, Prompt: prompt, Action: action}

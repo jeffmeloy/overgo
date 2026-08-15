@@ -25,11 +25,6 @@ func ValidateGenerateRequest(request GenerateRequest) error {
 	return nil
 }
 
-type runtimeStages interface {
-	encodeRequest(GenerateRequest) (encodedRequest, error)
-	prepareGeneration(encodedRequest) (textSelector, error)
-}
-
 // Generator binds one model to its artifact tokenizer.
 type Generator struct {
 	model     *Model
@@ -50,18 +45,6 @@ func LoadGenerator(directory string) (*Generator, error) {
 		return nil, err
 	}
 	return &Generator{model: model, tokenizer: table}, nil
-}
-
-func (g *Generator) Generate(request GenerateRequest) (string, error) {
-	encoded, err := g.encodeRequest(request)
-	if err != nil {
-		return "", err
-	}
-	selector, err := g.prepareGeneration(encoded)
-	if err != nil {
-		return "", err
-	}
-	return selector.selectText()
 }
 
 func (g *Generator) encodeRequest(request GenerateRequest) (encodedRequest, error) {
@@ -91,17 +74,10 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 	if generator == nil {
 		return errors.New("seq2seq: incomplete runtime binding")
 	}
-	return registerRuntime(runtime, modelID, generator)
-}
-
-func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model runtimeStages) error {
-	if model == nil {
-		return errors.New("seq2seq: incomplete runtime binding")
-	}
 	return workflowruntime.RegisterJSONPipeline(
 		runtime, modelID, generatedTextContract,
-		modelrecipe.ModuleSeq2SeqEncode, model.encodeRequest,
-		modelrecipe.ModuleSeq2SeqPrepare, model.prepareGeneration,
+		modelrecipe.ModuleSeq2SeqEncode, generator.encodeRequest,
+		modelrecipe.ModuleSeq2SeqPrepare, generator.prepareGeneration,
 		modelrecipe.ModuleSeq2SeqSelect,
 		func(selector textSelector) (string, error) {
 			if selector == nil {

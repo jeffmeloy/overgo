@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
 
@@ -114,16 +115,16 @@ func (r *Gemma4Runner) EncodeAudio(ctx context.Context, samples []float32) (Gemm
 	if r.cuda != nil {
 		return r.encodeAudioCUDA(ctx, frames, rows, spec)
 	}
-	bf16RoundSlice(frames)
+	dtype.RoundBF16Slice(frames)
 	normed := make([]float32, len(frames))
 	rmsNormNoWeight(normed, frames, rows, spec.SamplesPerToken, spec.RMSNormEpsilon)
-	bf16RoundSlice(normed)
+	dtype.RoundBF16Slice(normed)
 	projection, err := r.load(ctx, "mm.a.input_projection.weight")
 	if err != nil {
 		return Gemma4AudioOutput{}, err
 	}
 	embeddings := linear(normed, projection.Data, nil, rows, spec.SamplesPerToken, spec.Hidden)
-	bf16RoundSlice(embeddings)
+	dtype.RoundBF16Slice(embeddings)
 	value, err := reference.NewValue(tensor.MustShape(uint64(spec.Hidden), uint64(rows)), embeddings)
 	if err != nil {
 		return Gemma4AudioOutput{}, err

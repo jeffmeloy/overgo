@@ -181,10 +181,11 @@ func TestAdaptiveDerivationProfileAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantProfile, err := identifyJSON(artifact.KindProfile, struct {
+	wantProfile, err := artifact.JSONID(artifact.KindProfile, struct {
 		Profile DerivationProfile `json:"profile"`
 		Steps   int               `json:"steps"`
 	}{Profile: profile, Steps: facts.Steps})
+
 	if err != nil {
 		t.Fatal(err)
 	}

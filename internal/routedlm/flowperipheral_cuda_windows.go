@@ -321,8 +321,8 @@ func (s *DeviceFlowPeripheralSession) FlowConditionRow(
 	if err != nil {
 		return nil, err
 	}
-	bf16RoundSlice(timestepFrequency)
-	bf16RoundSlice(noiseFrequency)
+	dtype.RoundBF16Slice(timestepFrequency)
+	dtype.RoundBF16Slice(noiseFrequency)
 	copy(s.timeIn, timestepFrequency)
 	copy(s.noiseIn, noiseFrequency)
 	return s.run(ctx, s.condition, s.timeIn, s.noiseIn)

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"overgo/internal/artifact"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/workflowruntime"
@@ -176,16 +175,4 @@ func readProgramProfile(ctx context.Context, store artifact.Reader, program reci
 		return Profile{}, err
 	}
 	return profile, nil
-}
-
-func VideoProgramModule(program recipe.Program) recipe.ModuleID {
-	stages := program.Stages()
-	if len(stages) == 0 {
-		return ""
-	}
-	return stages[0].Module.ID
-}
-
-func IsWanProgram(program recipe.Program) bool {
-	return VideoProgramModule(program) == modelrecipe.ModuleLatentVideoPrepare
 }

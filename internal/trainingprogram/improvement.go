@@ -73,7 +73,7 @@ func CompileImprovementProposal(spec ImprovementSpec) (ImprovementProposal, erro
 		Dataset: spec.Dataset, DevelopmentSplit: spec.DevelopmentSplit, Recipe: spec.Recipe,
 		Code: spec.Code, Proposer: spec.Proposer, Components: components,
 	}
-	id, err := identifyJSON(artifact.KindRecipe, body)
+	id, err := artifact.JSONID(artifact.KindRecipe, body)
 	if err != nil {
 		return ImprovementProposal{}, err
 	}

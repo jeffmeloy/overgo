@@ -313,14 +313,7 @@ func (o *ResidentOps) SoftmaxCrossEntropy(logits, targets, losses driver.DeviceP
 }
 
 func (o *ResidentOps) Add(left, right, output driver.DevicePtr, count int) error {
-	if left == 0 || right == 0 || output == 0 || count <= 0 || uint64(count) > math.MaxUint32 {
-		return errors.New("resident ops: invalid add")
-	}
-	function, err := o.function("add_f32")
-	if err != nil {
-		return err
-	}
-	return o.session.launchVector3(function, left, right, output, count)
+	return o.launchVector3("add_f32", "resident ops: invalid add", left, right, output, count)
 }
 
 func (o *ResidentOps) Scale(input, output driver.DevicePtr, scale float32, count int) error {
@@ -344,27 +337,26 @@ func (o *ResidentOps) ScaleByScalar(input, scale, output driver.DevicePtr, count
 }
 
 func (o *ResidentOps) ReLUBackward(incoming, input, gradient driver.DevicePtr, count int) error {
-	if incoming == 0 || input == 0 || gradient == 0 || count <= 0 || uint64(count) > math.MaxUint32 {
-		return errors.New("resident ops: invalid ReLU VJP")
-	}
-	function, err := o.function("relu_backward_f32")
-	if err != nil {
-		return err
-	}
-	countU := uint32(count)
-	return o.session.launch1D(function, countU,
-		unsafe.Pointer(&incoming), unsafe.Pointer(&input), unsafe.Pointer(&gradient), unsafe.Pointer(&countU))
+	return o.launchVector3("relu_backward_f32", "resident ops: invalid ReLU VJP", incoming, input, gradient, count)
 }
 
 func (o *ResidentOps) SiLUBackward(incoming, input, gradient driver.DevicePtr, count int) error {
-	if incoming == 0 || input == 0 || gradient == 0 || count <= 0 || uint64(count) > math.MaxUint32 {
-		return errors.New("resident ops: invalid SiLU VJP")
+	return o.launchVector3("silu_backward_f32", "resident ops: invalid SiLU VJP", incoming, input, gradient, count)
+}
+
+func (o *ResidentOps) launchVector3(
+	name, invalid string,
+	left, right, output driver.DevicePtr,
+	count int,
+) error {
+	if left == 0 || right == 0 || output == 0 || count <= 0 || uint64(count) > math.MaxUint32 {
+		return errors.New(invalid)
 	}
-	function, err := o.function("silu_backward_f32")
+	function, err := o.function(name)
 	if err != nil {
 		return err
 	}
-	return o.session.launchVector3(function, incoming, input, gradient, count)
+	return o.session.launchVector3(function, left, right, output, count)
 }
 
 func (o *ResidentOps) Conv2DBackward(

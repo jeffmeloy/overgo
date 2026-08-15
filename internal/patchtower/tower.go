@@ -155,12 +155,6 @@ func LoadMergerWeights(src *safetensors.Source, spec Spec) (MergerWeights, error
 	return w, nil
 }
 
-func bf16RoundSlice(values []float32) {
-	for i, v := range values {
-		values[i] = dtype.RoundBF16(v)
-	}
-}
-
 // addBiasBF16: x = bf16(x + bias[col]) per element (runtime_bias_bf16).
 func addBiasBF16(x, bias []float32, rows, cols int) {
 	for r := 0; r < rows; r++ {
@@ -341,7 +335,7 @@ func BlockForwardStages(pre []float32, rows int, spec Spec, w BlockWeights) (Blo
 	hd := h / heads
 	norm1 := make([]float32, rows*h)
 	hostmath.LayerNormInto(norm1, pre, w.Norm1Weight, w.Norm1Bias, rows, h, LayerNormEps)
-	bf16RoundSlice(norm1)
+	dtype.RoundBF16Slice(norm1)
 	qkv := make([]float32, rows*3*h)
 	hostmath.LinearF64(qkv, norm1, w.QKVWeight, nil, rows, h, 3*h)
 	addBiasBF16(qkv, w.QKVBias, rows, 3*h)
@@ -366,7 +360,7 @@ func BlockForwardStages(pre []float32, rows int, spec Spec, w BlockWeights) (Blo
 	}
 	normed := v // reuse
 	hostmath.LayerNormInto(normed, resid, w.Norm2Weight, w.Norm2Bias, rows, h, LayerNormEps)
-	bf16RoundSlice(normed)
+	dtype.RoundBF16Slice(normed)
 	fc1 := make([]float32, rows*inter)
 	hostmath.LinearF64(fc1, normed, w.FC1Weight, nil, rows, h, inter)
 	for r := 0; r < rows; r++ {
@@ -441,7 +435,7 @@ func MergerRowInto(dst, blockLast []float32, outRow, gridH, gridW int, spec Spec
 			srcRow := blockLast[src*spec.Hidden : (src+1)*spec.Hidden]
 			member := projected[pos*spec.OutHidden : (pos+1)*spec.OutHidden]
 			hostmath.LinearF64(member, srcRow, merger.Proj1Weight, merger.Proj1Bias, 1, spec.Hidden, spec.OutHidden)
-			bf16RoundSlice(member)
+			dtype.RoundBF16Slice(member)
 		}
 	}
 
@@ -462,13 +456,13 @@ func MergerRowInto(dst, blockLast []float32, outRow, gridH, gridW int, spec Spec
 		copy(fused[:spec.OutHidden], projected[pos*spec.OutHidden:(pos+1)*spec.OutHidden])
 		copy(fused[spec.OutHidden:], pooled)
 		hostmath.LinearF64(hidden, fused, merger.Pool0Weight, merger.Pool0Bias, 1, 2*spec.OutHidden, spec.OutHidden)
-		bf16RoundSlice(hidden)
+		dtype.RoundBF16Slice(hidden)
 		for i, v := range hidden {
 			hidden[i] = dtype.RoundBF16(float32(hostmath.GELUErf(float64(v))))
 		}
 		score := scores[pos*spec.OutHidden : (pos+1)*spec.OutHidden]
 		hostmath.LinearF64(score, hidden, merger.Pool2Weight, merger.Pool2Bias, 1, spec.OutHidden, spec.OutHidden)
-		bf16RoundSlice(score)
+		dtype.RoundBF16Slice(score)
 	}
 
 	weighted := scratch.weighted
@@ -489,5 +483,5 @@ func MergerRowInto(dst, blockLast []float32, outRow, gridH, gridW int, spec Spec
 	}
 
 	hostmath.LinearF64(dst, weighted, merger.Proj2Weight, merger.Proj2Bias, 1, spec.OutHidden, spec.OutHidden)
-	bf16RoundSlice(dst)
+	dtype.RoundBF16Slice(dst)
 }

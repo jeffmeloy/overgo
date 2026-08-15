@@ -299,14 +299,6 @@ type DenoiserProgram struct {
 	Head   *tensor.Tensor
 }
 
-func crossAttentionContextWeights(bind tensor.WeightInputs, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
-	return model.ConditionedDiffusionAttentionWeights{
-		Key: bind.Input(prefix+"k.weight", d, d), KeyBias: bind.Input(prefix+"k.bias", d),
-		Value: bind.Input(prefix+"v.weight", d, d), ValueBias: bind.Input(prefix+"v.bias", d),
-		KeyNorm: bind.Input(prefix+"norm_k.weight", d),
-	}
-}
-
 func attentionQueryOutputWeights(bind tensor.WeightInputs, prefix string, d uint64) model.ConditionedDiffusionAttentionWeights {
 	return model.ConditionedDiffusionAttentionWeights{
 		Query: bind.Input(prefix+"q.weight", d, d), QueryBias: bind.Input(prefix+"q.bias", d),
@@ -413,7 +405,11 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 	for layer := 0; layer < c.NumLayers; layer++ {
 		prefix := denoiserBlockPrefix(layer) + "cross_attn."
 		key, value, err := diffusion.BuildCrossContext(
-			contextBuilder, program.contextInput, crossAttentionContextWeights(contextBind, prefix, d),
+			contextBuilder, program.contextInput, model.ConditionedDiffusionAttentionWeights{
+				Key: contextBind.Input(prefix+"k.weight", d, d), KeyBias: contextBind.Input(prefix+"k.bias", d),
+				Value: contextBind.Input(prefix+"v.weight", d, d), ValueBias: contextBind.Input(prefix+"v.bias", d),
+				KeyNorm: contextBind.Input(prefix+"norm_k.weight", d),
+			},
 		)
 		if err != nil {
 			return nil, fmt.Errorf("denoiser program context layer %d: %w", layer, err)

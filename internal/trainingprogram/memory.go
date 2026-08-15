@@ -105,7 +105,7 @@ func CompileMemorySchedule(spec MemoryScheduleSpec) (MemorySchedule, error) {
 		Tier1Peak: active, ResidentCapacity: residentCapacity, Tier1Capacity: tier1Capacity,
 		FixedDevice: fixed, HostBytes: hostBytes, DoubleBuffered: doubleBuffered,
 	}
-	id, err := identifyJSON(artifact.KindProfile, body)
+	id, err := artifact.JSONID(artifact.KindProfile, body)
 	if err != nil {
 		return MemorySchedule{}, err
 	}

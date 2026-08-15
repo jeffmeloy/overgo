@@ -401,7 +401,7 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 
 	// ---- text_inputs (real sha256 oracle; renderer ported) ----------------
 	l.stage("text_inputs", func() (string, float64, string, error) {
-		tok, err := hfbpe.LoadLegacy(modelDir)
+		tok, err := hfbpe.LoadSplit(modelDir)
 		if err != nil {
 			return "", math.NaN(), "", fmt.Errorf("load tokenizer: %w", err)
 		}
@@ -445,7 +445,7 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 				}
 			}
 		}
-		return verdictOracle, 0, fmt.Sprintf("ids+time+height+width sha256 match: conditional=%d source_only=%d tokens (renderer=routedlm.RenderEditPrompt, tokenizer=hfbpe.LoadLegacy vocab+merges, template=SenseNovaPromptTemplate, merge=%d source=%dx%d=%d)",
+		return verdictOracle, 0, fmt.Sprintf("ids+time+height+width sha256 match: conditional=%d source_only=%d tokens (renderer=routedlm.RenderEditPrompt, tokenizer=hfbpe.LoadSplit vocab+merges, template=SenseNovaPromptTemplate, merge=%d source=%dx%d=%d)",
 			edit.TextInputs.Conditional.IDs.Elements, edit.TextInputs.SourceOnly.IDs.Elements, merge, source.TokenHeight, source.TokenWidth, source.TokenCount), nil
 	})
 

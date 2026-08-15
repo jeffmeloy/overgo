@@ -223,9 +223,6 @@ func CompileModelDefinition(
 		return Plan{}, err
 	}
 	resolved = checked
-	if definition.Version == recipe.LegacyVersion {
-		return Plan{}, errors.New("model recipe: stored model definition requires recipe v2")
-	}
 	definitionID, ok := definition.Dependency(recipe.DependencyDefinition, 0)
 	if !ok || definitionID != resolved.Document.ID || definition.Model != resolved.Document.Model {
 		return Plan{}, errors.New("model recipe: recipe model definition binding mismatch")

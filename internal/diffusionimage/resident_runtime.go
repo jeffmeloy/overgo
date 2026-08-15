@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"overgo/internal/artifact"
 	"overgo/internal/latentimage"
-	"overgo/internal/workflowruntime"
 )
 
 type ResidentGenerator struct {
@@ -80,11 +78,4 @@ func (generator *ResidentGenerator) Close(ctx context.Context) error {
 	generator.forward = nil
 	generator.model = nil
 	return err
-}
-
-func RegisterResidentRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, generator *ResidentGenerator) error {
-	if generator == nil {
-		return errors.New("diffusionimage: incomplete resident runtime binding")
-	}
-	return registerRuntime(runtime, modelID, generator)
 }

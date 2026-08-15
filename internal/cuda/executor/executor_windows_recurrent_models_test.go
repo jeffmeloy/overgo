@@ -1038,9 +1038,11 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 		ropeInput, []uint32{0, 17}, 4, 8, 10_000, 0.25, 1, 0.9, 16, 2,
 		ropeFactors,
 	)
-	yarnRope := builder.RoPENeoXYaRN(
-		ropeInput, []uint32{0, 17}, 4, 8, 10_000, 0.25, 1, 1, 32, 1,
-	)
+	yarnRope := builder.RoPEWithOptions(ropeInput, tensor.RoPEOptions{
+		Layout: tensor.RoPELayoutNeoX, Positions: []uint32{0, 17}, RotaryDimensions: 4,
+		OriginalContext: 8, FrequencyBase: 10_000, FrequencyScale: 0.25,
+		YaRN: true, ExtFactor: 1, AttentionFactor: 1, BetaFast: 32, BetaSlow: 1,
+	})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}

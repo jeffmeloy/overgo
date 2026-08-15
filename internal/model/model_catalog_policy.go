@@ -35,7 +35,7 @@ type ModelCatalogPolicy struct {
 	Weights                 WeightCatalogPolicy
 	PositionEmbedding       positionEmbeddingCatalogPolicy
 	TokenNorm               tokenNormCatalogPolicy
-	TokenEmbeddingFallback  bool
+	TiedTokenEmbedding      bool
 	RequireTokenTypes       bool
 	SkipOutput              bool
 	RequireOutputBias       bool

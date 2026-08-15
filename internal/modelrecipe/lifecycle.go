@@ -535,14 +535,14 @@ func loadDefinition(ctx context.Context, store artifact.Reader, id artifact.ID) 
 	if err != nil {
 		return recipe.Definition{}, err
 	}
-	if !ok || !recipe.SupportsSchema(content.Descriptor.Schema) {
+	if !ok || content.Descriptor.Schema != recipe.Schema {
 		return recipe.Definition{}, errors.New("model recipe: definition content is absent or incompatible")
 	}
 	definition, err := recipe.ParseDefinition(content.Data)
 	if err != nil {
 		return recipe.Definition{}, err
 	}
-	if recipe.DefinitionDocumentContract(definition.Version).ValidateContent(content, id) != nil || definition.ID != id {
+	if recipe.DefinitionDocumentContract().ValidateContent(content, id) != nil || definition.ID != id {
 		return recipe.Definition{}, errors.New("model recipe: definition content identity differs")
 	}
 	return definition, nil

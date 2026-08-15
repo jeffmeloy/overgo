@@ -145,6 +145,26 @@ type Metadata struct {
 	Value Value
 }
 
+// StringMetadata constructs string metadata.
+func StringMetadata(key, value string) Metadata {
+	return Metadata{Key: key, Value: Value{Type: ValueTypeString, Data: value}}
+}
+
+// Uint32Metadata constructs uint32 metadata.
+func Uint32Metadata(key string, value uint32) Metadata {
+	return Metadata{Key: key, Value: Value{Type: ValueTypeUint32, Data: value}}
+}
+
+// Float32Metadata constructs float32 metadata.
+func Float32Metadata(key string, value float32) Metadata {
+	return Metadata{Key: key, Value: Value{Type: ValueTypeFloat32, Data: value}}
+}
+
+// BoolMetadata constructs bool metadata.
+func BoolMetadata(key string, value bool) Metadata {
+	return Metadata{Key: key, Value: Value{Type: ValueTypeBool, Data: value}}
+}
+
 // ArrayMetadata constructs typed GGUF array metadata.
 func ArrayMetadata(key string, elementType ValueType, data any) Metadata {
 	return Metadata{Key: key, Value: Value{Type: ValueTypeArray, ArrayType: elementType, Data: data}}

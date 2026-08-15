@@ -166,7 +166,7 @@ type residentStackBuffers struct {
 func (o *layerOps) runStackDevice(input driver.DevicePtr, wp []layerWeightPtrs, gp []layerGradPtrs, tail func(driver.DevicePtr) (driver.DevicePtr, error)) (driver.DevicePtr, error) {
 	d, nL := o.d, len(wp)
 	seqHidden := d.seq * d.hidden
-	if scratchPoolEnabled && o.arena == nil {
+	if o.arena == nil {
 		base, err := o.s.alloc(maxScratchElems(d))
 		if err != nil {
 			return 0, err
@@ -194,9 +194,7 @@ func (o *layerOps) runStackDevice(input driver.DevicePtr, wp []layerWeightPtrs, 
 		if err := o.forwardDevice(xIn[i], wp[i], cp[i], xIn[i+1]); err != nil {
 			return 0, err
 		}
-		if o.arena != nil {
-			o.arena.reset()
-		}
+		o.arena.reset()
 	}
 	dOutP, err := tail(xIn[nL])
 	if err != nil {
@@ -207,9 +205,7 @@ func (o *layerOps) runStackDevice(input driver.DevicePtr, wp []layerWeightPtrs, 
 		if err := o.backwardDevice(xIn[i], dOutP, cp[i], wp[i], gp[i], dXP); err != nil {
 			return 0, err
 		}
-		if o.arena != nil {
-			o.arena.reset()
-		}
+		o.arena.reset()
 		dOutP = dXP
 	}
 	return dOutP, nil

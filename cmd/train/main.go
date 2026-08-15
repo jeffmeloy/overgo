@@ -85,11 +85,15 @@ func run() error {
 		!slicesEqualIDs(resumed.Processors, []artifact.ID{dataAuthority.Processor})) {
 		return errors.New("resume checkpoint dataset, split, or processor authority differs")
 	}
+	authority, err := compileTrainingAuthority(model, inputDir, dataAuthority, streamState, *baseLR, resumed)
+	if err != nil {
+		return fmt.Errorf("compile training authority: %w", err)
+	}
 	traj, backend, trainState, err := runTrainingState(model, batches, *baseLR, *mu, !*host, *freezeLexical, resumeState)
 	if err != nil {
 		return fmt.Errorf("train: %w", err)
 	}
-	checkpointSpec, err := productionCheckpointSpec(model, inputDir, dataAuthority, streamState, trainState, resumed)
+	checkpointSpec, err := authority.checkpointSpec(trainState)
 	if err != nil {
 		return err
 	}
@@ -213,23 +217,33 @@ func saveCheckpoint(srcDir, outDir string, m *densecausal.Model, spec trainingpr
 	})
 }
 
-func productionCheckpointSpec(model *densecausal.Model, modelDir string, data batchAuthority, stream trainingdata.StreamState, state densecausal.TrainState, resumed trainingprogram.Checkpoint) (trainingprogram.CheckpointSpec, error) {
+type trainingAuthority struct {
+	model, program, runPlan artifact.ID
+	optimizerPlan           string
+	data                    batchAuthority
+	stream                  trainingdata.StreamState
+	rng                     []trainingprogram.RNGState
+	lineage                 []trainingprogram.LineageParent
+	projectors, codecs      []artifact.ID
+}
+
+func compileTrainingAuthority(model *densecausal.Model, modelDir string, data batchAuthority, stream trainingdata.StreamState, baseLR float64, resumed trainingprogram.Checkpoint) (trainingAuthority, error) {
 	modelID := resumed.Model
 	if !modelID.Valid() {
 		file, err := os.Open(filepath.Join(modelDir, trainingprogram.CheckpointWeights))
 		if err != nil {
-			return trainingprogram.CheckpointSpec{}, err
+			return trainingAuthority{}, err
 		}
 		var closeErr error
 		modelID, _, err = artifact.Identify(artifact.KindModel, file)
 		closeErr = file.Close()
 		if err := errors.Join(err, closeErr); err != nil {
-			return trainingprogram.CheckpointSpec{}, err
+			return trainingAuthority{}, err
 		}
 	}
-	muonPlan, _, err := model.TrainingPlan(state.Config.BaseLearningRate)
-	if err != nil || muonPlan.Identity() != state.PlanIdentity {
-		return trainingprogram.CheckpointSpec{}, errors.New("checkpoint Muon plan differs from trained model")
+	muonPlan, _, err := model.TrainingPlan(baseLR)
+	if err != nil {
+		return trainingAuthority{}, err
 	}
 	parameters := make([]trainingprogram.ParameterSpec, muonPlan.GroupCount())
 	for index := range parameters {
@@ -246,10 +260,10 @@ func productionCheckpointSpec(model *densecausal.Model, modelDir string, data ba
 		Parameters: parameters, Optimizer: muonPlan,
 	})
 	if err != nil {
-		return trainingprogram.CheckpointSpec{}, err
+		return trainingAuthority{}, err
 	}
 	if resumed.ID().Valid() && resumed.Program != program.ID() {
-		return trainingprogram.CheckpointSpec{}, errors.New("resume checkpoint program differs from trained model")
+		return trainingAuthority{}, errors.New("resume checkpoint program differs from trained model")
 	}
 	profile := func(name string) artifact.ID {
 		id, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/densecausal/"+name+"/v1"))
@@ -276,7 +290,7 @@ func productionCheckpointSpec(model *densecausal.Model, modelDir string, data ba
 		Program: program,
 	})
 	if err != nil {
-		return trainingprogram.CheckpointSpec{}, err
+		return trainingAuthority{}, err
 	}
 	rngAlgorithm, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/counter-rng/v1"))
 	rng := append([]trainingprogram.RNGState(nil), resumed.RNG...)
@@ -284,14 +298,6 @@ func productionCheckpointSpec(model *densecausal.Model, modelDir string, data ba
 		rng = []trainingprogram.RNGState{
 			{Name: "augmentation", Algorithm: rngAlgorithm},
 			{Name: "data", Algorithm: rngAlgorithm},
-		}
-	}
-	for index := range rng {
-		switch rng[index].Name {
-		case "augmentation":
-			rng[index].Counter = uint64(state.Step)
-		case "data":
-			rng[index].Counter = stream.Position
 		}
 	}
 	lineage := []trainingprogram.LineageParent{
@@ -305,13 +311,33 @@ func productionCheckpointSpec(model *densecausal.Model, modelDir string, data ba
 	if resumed.ID().Valid() {
 		lineage = append(lineage, trainingprogram.LineageParent{Artifact: resumed.ID(), Relation: artifact.RelationDerivedFrom})
 	}
+	return trainingAuthority{
+		model: modelID, program: program.ID(), runPlan: runPlan.ID(), optimizerPlan: muonPlan.Identity(),
+		data: data, stream: stream, rng: rng, lineage: lineage,
+		projectors: resumed.Projectors, codecs: resumed.Codecs,
+	}, nil
+}
+
+func (authority trainingAuthority) checkpointSpec(state densecausal.TrainState) (trainingprogram.CheckpointSpec, error) {
+	if state.PlanIdentity != authority.optimizerPlan {
+		return trainingprogram.CheckpointSpec{}, errors.New("checkpoint Muon plan differs from compiled training authority")
+	}
+	rng := append([]trainingprogram.RNGState(nil), authority.rng...)
+	for index := range rng {
+		switch rng[index].Name {
+		case "augmentation":
+			rng[index].Counter = uint64(state.Step)
+		case "data":
+			rng[index].Counter = authority.stream.Position
+		}
+	}
 	return trainingprogram.CheckpointSpec{
-		RunPlan: runPlan.ID(), Program: program.ID(), Model: modelID,
-		Dataset: data.Dataset, Split: data.Split,
-		Stream:    trainingprogram.DatasetState{Identity: stream.Identity, Position: stream.Position},
+		RunPlan: authority.runPlan, Program: authority.program, Model: authority.model,
+		Dataset: authority.data.Dataset, Split: authority.data.Split,
+		Stream:    trainingprogram.DatasetState{Identity: authority.stream.Identity, Position: authority.stream.Position},
 		Optimizer: state, ParameterCount: len(state.Momentum), RNG: rng,
-		Processors: []artifact.ID{data.Processor}, Projectors: resumed.Projectors,
-		Codecs: resumed.Codecs, Lineage: lineage,
+		Processors: []artifact.ID{authority.data.Processor}, Projectors: authority.projectors,
+		Codecs: authority.codecs, Lineage: authority.lineage,
 	}, nil
 }
 

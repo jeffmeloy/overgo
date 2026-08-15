@@ -18,29 +18,60 @@ import (
 )
 
 type capability struct {
-	inventory func(string) (modelartifact.Inventory, error)
-	execute   capabilityruntime.Executor
-	bind      func(string, artifact.ID) (recipe.Definition, []artifact.Content, error)
+	resolve func(string) (capabilitySource, error)
+	execute capabilityruntime.Executor
+}
+
+type capabilitySource struct {
+	inventory modelartifact.Inventory
+	define    func(artifact.ID) (recipe.Definition, []artifact.Content, error)
+}
+
+func definitionSource(
+	inventory modelartifact.Inventory,
+	err error,
+	define func(artifact.ID) (recipe.Definition, error),
+) (capabilitySource, error) {
+	if err != nil {
+		return capabilitySource{}, err
+	}
+	return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+		definition, err := define(modelID)
+		return definition, nil, err
+	}}, nil
+}
+
+func inventoryCapability(
+	inventory func(string) (modelartifact.Inventory, error),
+	execute capabilityruntime.Executor,
+) capability {
+	return capability{
+		resolve: func(path string) (capabilitySource, error) {
+			resolved, err := inventory(path)
+			return capabilitySource{inventory: resolved}, err
+		},
+		execute: execute,
+	}
 }
 
 var capabilities = map[recipe.Task]capability{
-	recipe.TaskForecast: {inventory: modelartifact.FromHFPath, execute: capabilityruntime.JSONScalar[[]float32, *seriesforecast.Model, []float32](
+	recipe.TaskForecast: inventoryCapability(modelartifact.FromHFPath, capabilityruntime.JSONScalar[[]float32, *seriesforecast.Model, []float32](
 		"forecast", seriesforecast.ValidateRequest,
-		capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime)},
-	recipe.TaskTabular: {inventory: tabularInventory, execute: capabilityruntime.JSONScalar[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](
+		capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime)),
+	recipe.TaskTabular: inventoryCapability(tabularInventory, capabilityruntime.JSONScalar[tabularicl.Request, *tabularicl.Model, tabularicl.Prediction](
 		"tabular", tabularicl.ValidateRequest,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, request tabularicl.Request) (*tabularicl.Model, error) {
 			return tabularicl.LoadTask(path, request.Task)
-		}, tabularicl.RegisterRuntime)},
-	recipe.TaskSeq2Seq: {inventory: modelartifact.FromHFPath, execute: capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Generator, string](
+		}, tabularicl.RegisterRuntime)),
+	recipe.TaskSeq2Seq: inventoryCapability(modelartifact.FromHFPath, capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Generator, string](
 		"seq2seq", seq2seq.ValidateGenerateRequest,
-		capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.LoadGenerator), seq2seq.RegisterRuntime)},
-	recipe.TaskSpeech: {inventory: speechInventory, execute: capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
+		capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.LoadGenerator), seq2seq.RegisterRuntime)),
+	recipe.TaskSpeech: inventoryCapability(speechInventory, capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
 		"speech", speechsynth.ValidateSynthesisRequest,
-		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)},
+		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)),
 	recipe.TaskImageGen: imageCapability(),
 	recipe.TaskVideoGen: videoCapability(),
-	recipe.TaskVQA:      {inventory: modelartifact.FromHFPath},
+	recipe.TaskVQA:      inventoryCapability(modelartifact.FromHFPath, nil),
 }
 
 func safetensorsInventory(context, path, config string, companions ...modelartifact.FileSpec) (modelartifact.Inventory, error) {
@@ -79,14 +110,6 @@ func speechInventory(path string) (modelartifact.Inventory, error) {
 
 func imageGenInventory(path string) (modelartifact.Inventory, error) {
 	return safetensorsInventory("image-gen", path, "config.json")
-}
-
-func imageProgramModule(program recipe.Program) recipe.ModuleID {
-	stages := program.Stages()
-	if len(stages) == 0 {
-		return ""
-	}
-	return stages[0].Module.ID
 }
 
 func tabularInventory(path string) (modelartifact.Inventory, error) {

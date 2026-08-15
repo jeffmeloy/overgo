@@ -9,8 +9,20 @@ import (
 	"testing"
 )
 
-// TestArtifactLoadDerivesDims: every geometric dim from flat tensor lengths;
-// config cross-check passes on the real artifact.
+func generatePlanar(model *Model, request Request) ([]float32, error) {
+	plan, err := model.prepare(request)
+	if err != nil {
+		return nil, err
+	}
+	features, err := model.integrate(plan)
+	if err != nil {
+		return nil, err
+	}
+	image, err := model.decodePlanar(features)
+	return image.Pixels, err
+}
+
+// Artifact dimensions derive from tensor extents.
 func TestArtifactLoadDerivesDims(t *testing.T) {
 	m := loadArtifactModel(t)
 	cfg := m.Cfg
@@ -66,13 +78,11 @@ func TestArtifactPublishesReferenceGIF(t *testing.T) {
 	t.Logf("real Un-0 GIF: class=1 seed=202 frames=6 size=64x64 encoded_bytes=%d changed_source_pixels=%d exact_reference=true", len(encoded.Data), encoded.ChangedPixels)
 }
 
-// TestArtifactGenerateDeterministicAndClassSensitive: same seed+class is
-// bit-identical; a class change must move pixels (the reference round-trip
-// gates the same three facts).
+// Generation is deterministic and class-sensitive.
 func TestArtifactGenerateDeterministicAndClassSensitive(t *testing.T) {
 	m := loadArtifactModel(t)
 	cfg := m.Cfg
-	img, err := m.Generate(1, 42)
+	img, err := generatePlanar(m, Request{Class: 1, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,11 +96,11 @@ func TestArtifactGenerateDeterministicAndClassSensitive(t *testing.T) {
 			}
 		}
 	}
-	again, err := m.Generate(1, 42)
+	again, err := generatePlanar(m, Request{Class: 1, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := m.Generate(2, 42)
+	other, err := generatePlanar(m, Request{Class: 2, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +114,7 @@ func TestArtifactGenerateDeterministicAndClassSensitive(t *testing.T) {
 	if !diff {
 		t.Fatal("class change did not change the image")
 	}
-	if _, err := m.Generate(cfg.NClasses, 42); err == nil {
+	if _, err := generatePlanar(m, Request{Class: cfg.NClasses, Seed: 42}); err == nil {
 		t.Fatal("out-of-range class accepted")
 	}
 }

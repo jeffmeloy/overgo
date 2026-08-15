@@ -92,11 +92,9 @@ func compileProfileFixture(
 	if document.Architecture != spec.Architecture {
 		return Plan{}, errors.New("model recipe: profile does not match inference recipe")
 	}
-	if definition.Version != recipe.LegacyVersion {
-		profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
-		if !ok || profileID != document.ID {
-			return Plan{}, errors.New("model recipe: definition profile dependency mismatch")
-		}
+	profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
+	if !ok || profileID != document.ID {
+		return Plan{}, errors.New("model recipe: definition profile dependency mismatch")
 	}
 	return compileDefinition(definition, func() (model.ModelPlan, error) {
 		return model.CompileModelPlanWithProfile(spec, weights, document.Policy)

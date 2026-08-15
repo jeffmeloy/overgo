@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"time"
 
 	"overgo/internal/hostmath"
@@ -128,7 +129,7 @@ func CompileEncoderPlan(metas []pytorchzip.TensorMeta, policy EncoderConfig) (En
 			if got.DType != encoderStorageDType {
 				plan.DTypeMismatches = append(plan.DTypeMismatches, TensorIssue{Name: name, Want: encoderStorageDType, Got: got.DType})
 			}
-			if !int64SliceEqual(got.Shape, spec.shape) {
+			if !slices.Equal(got.Shape, spec.shape) {
 				plan.ShapeMismatches = append(plan.ShapeMismatches, TensorIssue{Name: name, Want: fmt.Sprint(spec.shape), Got: fmt.Sprint(got.Shape)})
 			}
 		}
@@ -166,18 +167,6 @@ func expectedEncoderSpecs(c EncoderConfig) map[string]tensorSpec {
 		specs[p+"pos_embedding.embedding.weight"] = tensorSpec{shape: []int64{numBuckets, numHeads}}
 	}
 	return specs
-}
-
-func int64SliceEqual(a, b []int64) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func encoderBlockTensorNames(layer int) []string {
@@ -323,7 +312,7 @@ func EncodeTokensStreamed(checkpoint string, plan EncoderPlan, tokenIDs, mask []
 		return nil, stats, err
 	}
 	hostmath.RMSNormInto(hidden, hidden, norm, len(tokenIDs), config.Dim, config.NormEps)
-	roundBF16(hidden)
+	dtype.RoundBF16Slice(hidden)
 	stats.FinalNormBytes = int64(len(norm) * uint16Bytes)
 	stats.OutputRows = len(tokenIDs)
 	stats.OutputDim = config.Dim
@@ -419,18 +408,12 @@ func encoderBlockForward(x []float32, mask, buckets []int, batch, seq, dim, head
 	return out, nil
 }
 
-func roundBF16(x []float32) {
-	for i, v := range x {
-		x[i] = dtype.RoundBF16(v)
-	}
-}
-
 func roundBF16If(enabled bool, values ...[]float32) {
 	if !enabled {
 		return
 	}
 	for _, value := range values {
-		roundBF16(value)
+		dtype.RoundBF16Slice(value)
 	}
 }
 

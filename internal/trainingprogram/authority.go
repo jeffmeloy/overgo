@@ -3,7 +3,6 @@
 package trainingprogram
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -78,7 +77,7 @@ func CompileScratchConstruction(spec ScratchSpec) (ScratchConstruction, error) {
 		InitializerProfile: spec.InitializerProfile, InitializedModel: spec.InitializedModel,
 		RNGStreams: streams,
 	}
-	id, err := identifyJSON(artifact.KindRecipe, body)
+	id, err := artifact.JSONID(artifact.KindRecipe, body)
 	if err != nil {
 		return ScratchConstruction{}, err
 	}
@@ -154,7 +153,7 @@ func CompileTrainingProgram(spec ProgramSpec) (TrainingProgram, error) {
 		Parameters  []ParameterSpec `json:"parameters"`
 		OptimizerID string          `json:"optimizer_id"`
 	}{Objective: spec.Objective, Operators: operators, Parameters: parameters, OptimizerID: spec.Optimizer.Identity()}
-	id, err := identifyJSON(artifact.KindRecipe, body)
+	id, err := artifact.JSONID(artifact.KindRecipe, body)
 	if err != nil {
 		return TrainingProgram{}, err
 	}
@@ -272,7 +271,7 @@ func CompileTrainingRunPlan(spec RunSpec) (TrainingRunPlan, error) {
 		Signature: signature, Processors: processors, Projectors: projectors,
 		Codecs: codecs, Policies: spec.Policies, Program: spec.Program.ID(),
 	}
-	id, err := identifyJSON(artifact.KindRecipe, body)
+	id, err := artifact.JSONID(artifact.KindRecipe, body)
 	if err != nil {
 		return TrainingRunPlan{}, err
 	}
@@ -411,12 +410,4 @@ func validatePolicies(spec PolicySpec) error {
 		}
 	}
 	return nil
-}
-
-func identifyJSON(kind artifact.Kind, value any) (artifact.ID, error) {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	return artifact.IdentifyBytes(kind, data)
 }

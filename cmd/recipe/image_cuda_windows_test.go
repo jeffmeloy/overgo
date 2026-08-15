@@ -17,6 +17,19 @@ import (
 
 func TestLatentImageInventoryAcceptsDiffusersShards(t *testing.T) {
 	root := t.TempDir()
+	writeLatentImageInventoryFixture(t, root)
+
+	inventory, err := latentImageInventory(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(inventory.TensorInventory.Tensors); got != 4 {
+		t.Fatalf("tensor facts = %d, want 4", got)
+	}
+}
+
+func writeLatentImageInventoryFixture(t testing.TB, root string) {
+	t.Helper()
 	for _, name := range []string{"text_encoder", "transformer", "vae", "tokenizer", "scheduler"} {
 		if err := os.MkdirAll(filepath.Join(root, name), 0o755); err != nil {
 			t.Fatal(err)
@@ -26,7 +39,11 @@ func TestLatentImageInventoryAcceptsDiffusersShards(t *testing.T) {
 		"model_index.json", "scheduler/scheduler_config.json", "text_encoder/config.json",
 		"tokenizer/tokenizer.json", "tokenizer/tokenizer_config.json", "transformer/config.json", "vae/config.json",
 	} {
-		if err := os.WriteFile(filepath.Join(root, name), []byte("{}"), 0o600); err != nil {
+		path := filepath.Join(root, name)
+		if _, err := os.Stat(path); err == nil {
+			continue
+		}
+		if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -49,17 +66,9 @@ func TestLatentImageInventoryAcceptsDiffusersShards(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-
-	inventory, err := latentImageInventory(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := len(inventory.TensorInventory.Tensors); got != 4 {
-		t.Fatalf("tensor facts = %d, want 4", got)
-	}
 }
 
-func writeInventorySafetensor(t *testing.T, path, tensor string) {
+func writeInventorySafetensor(t testing.TB, path, tensor string) {
 	t.Helper()
 	header, err := json.Marshal(map[string]any{
 		tensor: map[string]any{"dtype": "U8", "shape": []uint64{1}, "data_offsets": []uint64{0, 1}},
@@ -99,7 +108,7 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := imageProgramModule(program); got != test.want {
+		if got := program.Stages()[0].Module.ID; got != test.want {
 			t.Fatalf("operator module=%q, want %q", got, test.want)
 		}
 	}
@@ -108,8 +117,13 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteImageProfileFixture(t, root)
+	writeLatentImageInventoryFixture(t, root)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "profile-bound-image")
-	definition, facts, err := imageCapability().bind(root, modelID)
+	source, err := imageCapability().resolve(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, facts, err := source.define(modelID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,8 +142,13 @@ func TestImageCapabilityBindsSenseNovaByArchitecture(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
+	writeInventorySafetensor(t, filepath.Join(root, "model.safetensors"), "weight")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-image")
-	definition, facts, err := imageCapability().bind(root, modelID)
+	source, err := imageCapability().resolve(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, facts, err := source.define(modelID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +159,7 @@ func TestImageCapabilityBindsSenseNovaByArchitecture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := imageProgramModule(program); got != modelrecipe.ModuleRoutedImagePrepare {
+	if got := program.Stages()[0].Module.ID; got != modelrecipe.ModuleRoutedImagePrepare {
 		t.Fatalf("SenseNova operator=%q", got)
 	}
 }
@@ -156,7 +175,7 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if imageProgramModule(program) != modelrecipe.ModuleLatentImagePrepare ||
+	if program.Stages()[0].Module.ID != modelrecipe.ModuleLatentImagePrepare ||
 		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataImage {
 		t.Fatalf("latent image program=%+v", definition)
 	}

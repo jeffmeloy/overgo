@@ -11,7 +11,6 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modeltest"
-	"overgo/internal/statecodec"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
@@ -587,27 +586,6 @@ func TestDeciSentinelCacheValidationAndRangeRemoval(t *testing.T) {
 	}
 }
 
-func TestKVCacheStateLoadsLegacyVersion(t *testing.T) {
-	runner := cacheTestRunner()
-	cache := cacheTestValue(t)
-	cache.Position = 7
-	for _, magic := range []string{legacyCacheStateMagic, cacheStateV2Magic} {
-		t.Run(magic, func(t *testing.T) {
-			loaded, err := runner.LoadCache(legacyCachePayload(cache, magic))
-			if err != nil {
-				t.Fatal(err)
-			}
-			wantPosition := cache.Position
-			if magic == legacyCacheStateMagic {
-				wantPosition = cache.Tokens
-			}
-			if loaded.Position != wantPosition {
-				t.Fatalf("legacy next position = %d, want %d", loaded.Position, wantPosition)
-			}
-		})
-	}
-}
-
 func TestKVCacheStateRejectsTruncationAndTrailingData(t *testing.T) {
 	runner := cacheTestRunner()
 	data, err := runner.SaveCache(cacheTestValue(t))
@@ -967,33 +945,4 @@ func cacheTestValue(t testing.TB) *KVCache {
 		Tokens:   2,
 		Position: 2,
 	}
-}
-
-func legacyCachePayload(cache *KVCache, magic string) []byte {
-	headerSize := legacyCacheHeaderSize
-	if magic == cacheStateV2Magic {
-		headerSize = cacheStateHeaderSize
-	}
-	total := headerSize
-	for _, layer := range cache.Layers {
-		for _, value := range []reference.Value{layer.Key, layer.Value} {
-			total += 44 + 4*len(value.Data)
-		}
-	}
-	encoder := statecodec.NewEncoderCapacity(uint64(total), uint64(total))
-	encoder.Raw([]byte(magic))
-	encoder.U32(cache.Tokens)
-	if magic == cacheStateV2Magic {
-		encoder.U32(effectiveCachePosition(cache))
-	}
-	encoder.U32(uint32(len(cache.Layers)))
-	for _, layer := range cache.Layers {
-		writeCacheValue(encoder, layer.Key)
-		writeCacheValue(encoder, layer.Value)
-	}
-	result, err := encoder.Data()
-	if err != nil {
-		panic(err)
-	}
-	return result
 }

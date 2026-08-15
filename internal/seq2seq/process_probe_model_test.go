@@ -20,7 +20,7 @@ func TestSingleTokenProcessProbe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output, err := generator.Generate(GenerateRequest{Text: "hello", MaxTokens: 1})
+	output, err := generateThroughRecipe(t, generator, GenerateRequest{Text: "hello", MaxTokens: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,10 +16,7 @@ import (
 
 const (
 	cacheStateMagic        = "L2GKV003"
-	cacheStateV2Magic      = "L2GKV002"
-	legacyCacheStateMagic  = "L2GKV001"
 	cacheStateHeaderSize   = 20
-	legacyCacheHeaderSize  = 16
 	maxCacheStateLayers    = 4096
 	maxLayerCacheStates    = 16
 	maxCacheStateName      = 64
@@ -616,18 +613,12 @@ func writeCacheValue(encoder *statecodec.Encoder, value reference.Value) {
 func unmarshalCache(data []byte) (*KVCache, error) {
 	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
 	magic := string(decoder.Raw(8))
-	if magic != cacheStateMagic && magic != cacheStateV2Magic && magic != legacyCacheStateMagic {
+	if magic != cacheStateMagic {
 		return nil, errors.New("inference: KV cache state has invalid magic or version")
 	}
 	tokens := decoder.U32()
-	position := tokens
-	var layers uint32
-	if magic == cacheStateMagic || magic == cacheStateV2Magic {
-		position = decoder.U32()
-		layers = decoder.U32()
-	} else {
-		layers = decoder.U32()
-	}
+	position := decoder.U32()
+	layers := decoder.U32()
 	if decoder.Err() != nil {
 		return nil, errors.New("inference: KV cache state is truncated")
 	}
@@ -671,18 +662,6 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 		return reference.Value{Shape: shape, Data: values}, nil
 	}
 	for index := range result.Layers {
-		if magic != cacheStateMagic {
-			key, err := readValue()
-			if err != nil {
-				return nil, fmt.Errorf("inference: KV cache layer %d key: %w", index, err)
-			}
-			value, err := readValue()
-			if err != nil {
-				return nil, fmt.Errorf("inference: KV cache layer %d value: %w", index, err)
-			}
-			result.Layers[index] = LayerCache{Key: key, Value: value}
-			continue
-		}
 		stateCount := decoder.U32()
 		if decoder.Err() != nil {
 			return nil, fmt.Errorf("inference: KV cache layer %d state count is truncated", index)

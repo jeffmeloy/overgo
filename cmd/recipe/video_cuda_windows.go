@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -61,80 +60,63 @@ func videoCapability() capability {
 	)
 
 	return capability{
-		inventory: videoInventory,
-		execute: func(ctx context.Context, store artifact.Repository, path string, modelID artifact.ID, program recipe.Program, raw string) (any, error) {
-			switch latentvideo.VideoProgramModule(program) {
-			case modelrecipe.ModuleLatentVideoPrepare:
-				return wan(ctx, store, path, modelID, program, raw)
-			case modelrecipe.ModuleReferenceVideoPrepare:
-				return edit(ctx, store, path, modelID, program, raw)
-			case modelrecipe.ModuleOscillatorVideoPrepare:
-				return oscillator(ctx, store, path, modelID, program, raw)
-			default:
-				return nil, errors.New("video-gen: compiled recipe has no registered operator")
-			}
-		},
-		bind: func(path string, modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-			if latentvideo.IsLiveEdit(path) {
-				profile, err := latentvideo.ResolveProfile(filepath.Join(filepath.Dir(path), "Wan2.1-T2V-1.3B"))
-				if err != nil {
-					return recipe.Definition{}, nil, err
-				}
-				content, err := profile.Content()
-				if err != nil {
-					return recipe.Definition{}, nil, err
-				}
-				definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-				return definition, []artifact.Content{content}, err
-			}
-			if latentvideo.IsWan(path) {
-				profile, err := latentvideo.ResolveProfile(path)
-				if err != nil {
-					return recipe.Definition{}, nil, err
-				}
-				content, err := profile.Content()
-				if err != nil {
-					return recipe.Definition{}, nil, err
-				}
-				definition, err := modelrecipe.LatentVideoDefinition(modelID, profile.ID)
-				return definition, []artifact.Content{content}, err
-			}
-			recognized, err := oscillatorimage.Recognize(path)
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			if !recognized {
-				return recipe.Definition{}, nil, errors.New("video-gen: artifact has no registered video recipe")
-			}
-			definition, err := modelrecipe.OscillatorVideoDefinition(modelID)
-			return definition, nil, err
-		},
+		resolve: resolveVideoSource,
+		execute: capabilityruntime.Dispatch(
+			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleLatentVideoPrepare, Execute: wan},
+			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleReferenceVideoPrepare, Execute: edit},
+			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleOscillatorVideoPrepare, Execute: oscillator},
+		),
 	}
 }
 
-func videoInventory(path string) (modelartifact.Inventory, error) {
+func resolveVideoSource(path string) (capabilitySource, error) {
 	if latentvideo.IsLiveEdit(path) {
 		wan := filepath.Join(filepath.Dir(path), "Wan2.1-T2V-1.3B")
-		return modelartifact.FromFiles(path, []modelartifact.FileSpec{
+		inventory, err := modelartifact.FromFiles(path, []modelartifact.FileSpec{
 			{Path: filepath.Join(path, "ar-forcing_002000.pt"), Name: "liveedit/weights", Role: artifact.ComponentWeights},
 			{Path: filepath.Join(wan, "config.json"), Name: "wan/config", Role: artifact.ComponentConfig},
 			{Path: filepath.Join(wan, "diffusion_pytorch_model.safetensors"), Name: "wan/weights", Role: artifact.ComponentWeights},
 			{Path: filepath.Join(wan, "Wan2.1_VAE.pth"), Name: "wan/vae", Role: artifact.ComponentWeights},
 		})
+		return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+			profile, err := latentvideo.ResolveProfile(wan)
+			if err != nil {
+				return recipe.Definition{}, nil, err
+			}
+			content, err := profile.Content()
+			if err != nil {
+				return recipe.Definition{}, nil, err
+			}
+			definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
+			return definition, []artifact.Content{content}, err
+		}}, err
 	}
 	if latentvideo.IsWan(path) {
-		return modelartifact.FromFiles(path, []modelartifact.FileSpec{
+		inventory, err := modelartifact.FromFiles(path, []modelartifact.FileSpec{
 			{Path: filepath.Join(path, "config.json"), Name: "config", Role: artifact.ComponentConfig},
 			{Path: filepath.Join(path, "diffusion_pytorch_model.safetensors"), Name: "denoiser/weights", Role: artifact.ComponentWeights},
 			{Path: filepath.Join(path, "Wan2.1_VAE.pth"), Name: "vae/weights", Role: artifact.ComponentWeights},
 		})
+		return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+			profile, err := latentvideo.ResolveProfile(path)
+			if err != nil {
+				return recipe.Definition{}, nil, err
+			}
+			content, err := profile.Content()
+			if err != nil {
+				return recipe.Definition{}, nil, err
+			}
+			definition, err := modelrecipe.LatentVideoDefinition(modelID, profile.ID)
+			return definition, []artifact.Content{content}, err
+		}}, err
 	}
 	recognized, err := oscillatorimage.Recognize(path)
 	if err != nil {
-		return modelartifact.Inventory{}, err
+		return capabilitySource{}, err
 	}
 	if !recognized {
-		return modelartifact.Inventory{}, fmt.Errorf("video-gen: artifact has no registered video recipe")
+		return capabilitySource{}, fmt.Errorf("video-gen: artifact has no registered video recipe")
 	}
-	return imageGenInventory(path)
+	inventory, err := imageGenInventory(path)
+	return definitionSource(inventory, err, modelrecipe.OscillatorVideoDefinition)
 }

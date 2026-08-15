@@ -25,6 +25,7 @@
       "SelectionBias": true,
       "SharedCatalog": 2
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true, "SlidingPattern": 4},
     "Name": "afmoe",
     "Validation": {
       "ExpertMetadata": 1,
@@ -45,6 +46,7 @@
       }
     },
     "FeedForward": 5,
+    "MetadataDefaults": {"OriginalContext": true, "RopeAttentionFactor": 1, "RopeDimension": 2},
     "Name": "apertus",
     "Validation": {
       "Attention": 22
@@ -141,6 +143,7 @@
     "ModelCatalog": {
       "DraftLayerOutputNorm": true
     },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "bailingmoe2",
     "Validation": {
       "ExpertMetadata": 1,
@@ -211,6 +214,7 @@
   {
     "Capabilities": 67182592,
     "FeedForward": 2,
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "chatglm",
     "Validation": {
       "Attention": 25
@@ -224,7 +228,7 @@
     "Capabilities": 8421376,
     "FeedForward": 1,
     "ModelCatalog": {
-      "TokenEmbeddingFallback": true
+      "TiedTokenEmbedding": true
     },
     "Name": "codeshell",
     "Normalization": 1
@@ -252,6 +256,7 @@
     "ModelCatalog": {
       "SkipOutput": true
     },
+    "MetadataDefaults": {"RopeFrequencyFromBase": true, "SlidingPattern": 4},
     "Name": "cohere2",
     "Validation": {
       "Attention": 12
@@ -283,6 +288,7 @@
       "Routing": 1,
       "SharedCatalog": 2
     },
+    "MetadataDefaults": {"RopeFrequencyFromBase": true, "SlidingPattern": 4},
     "Name": "cohere2moe",
     "Validation": {
       "Attention": 13,
@@ -297,8 +303,7 @@
       "Usage": 2
     },
     "Runtime": {
-      "LogitScale": 1,
-      "NormalizationFallback": 1
+      "LogitScale": 1
     }
   },
   {
@@ -349,6 +354,7 @@
       "Heads": 1,
       "KVHeads": 1
     },
+    "MetadataDefaults": {"OriginalContext": true, "RopeAttentionFactor": 1, "RopeDimension": 2},
     "Name": "deci",
     "Validation": {
       "Attention": 5
@@ -405,6 +411,7 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
+    "MetadataDefaults": {"RopeDimension": 1},
     "Name": "deepseek2-ocr",
     "Validation": {
       "ExpertMetadata": 1,
@@ -594,9 +601,7 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "MetadataDefaults": {
-      "SlidingPattern": 4
-    },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true, "SlidingPattern": 4},
     "Name": "exaone-moe",
     "Validation": {
       "ExpertMetadata": 1,
@@ -618,10 +623,7 @@
       }
     },
     "DraftKind": 4,
-    "MetadataDefaults": {
-      "SlidingPattern": 4,
-      "SlidingWindow": 4096
-    },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true, "SlidingPattern": 4, "SlidingWindow": 4096},
     "Name": "exaone4",
     "Validation": {
       "Attention": 30
@@ -650,6 +652,7 @@
     "Cache": 10,
     "Capabilities": 8,
     "FFNNormLayout": 1,
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "falcon-h1",
     "RecurrentMixer": 5,
     "Validation": {
@@ -687,6 +690,7 @@
     "Metadata": {
       "KVHeads": 6
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencySWA": 10000, "SlidingPattern": 6},
     "Name": "gemma-embedding",
     "FeedForward": 6,
     "Validation": {
@@ -708,6 +712,7 @@
       "EmbeddingHeadScaleBlocks": 46,
       "QueryScale": 4
     },
+    "MetadataDefaults": {"RopeFrequencyFromBase": true, "SlidingPattern": 2, "SlidingWindow": 4096},
     "Name": "gemma2",
     "FeedForward": 6,
     "Validation": {
@@ -731,6 +736,7 @@
       },
       "QueryScale": 4
     },
+    "MetadataDefaults": {"RopeFrequencySWA": 10000, "SlidingPattern": 6},
     "Name": "gemma3",
     "FeedForward": 6,
     "Validation": {
@@ -759,9 +765,11 @@
       "LowRankResidualWidth": 64,
       "PerLayerEmbeddingWidth": 256,
       "RopeDimension": 1,
+      "RopeFrequencySWA": 10000,
       "SharedKVStartLayer": 20,
       "SparseLayerCount": 10,
-      "SparsityStdMultiplier": 1.6448533535003662
+      "SparsityStdMultiplier": 1.6448533535003662,
+      "SlidingPattern": 5
     },
     "Name": "gemma3n",
     "FeedForward": 6,
@@ -800,6 +808,7 @@
       "KVHeads": 2,
       "SWAHeadLengths": true
     },
+    "MetadataDefaults": {"RopeFrequencySWA": 10000},
     "Name": "gemma4",
     "FeedForward": 6,
     "Validation": {
@@ -824,6 +833,7 @@
     "ModelCatalog": {
       "Weights": 4
     },
+    "MetadataDefaults": {"RopeDimension": 1, "RopeFrequencySWA": 10000},
     "Name": "gemma4-assistant",
     "Validation": {
       "Attention": 9
@@ -859,6 +869,7 @@
     "Capabilities": 608249856,
     "DraftKind": 4,
     "FeedForward": 2,
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "glm4",
     "Validation": {
       "Attention": 28
@@ -889,6 +900,7 @@
       "SharedCatalog": 1
     },
     "FFNNormLayout": 3,
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "glm4moe",
     "Validation": {
       "Attention": 29,
@@ -924,6 +936,7 @@
       "Routing": 2,
       "SupplementalCatalog": 2
     },
+    "MetadataDefaults": {"RopeDimension": 1, "RopeFrequencyFromBase": true, "SlidingPattern": 2},
     "Name": "gpt-oss",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1001,9 +1014,7 @@
       "ResidualScale": true,
       "SharedCatalog": 2
     },
-    "MetadataDefaults": {
-      "RopeDimension": 2
-    },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "granite",
     "Overrides": 3,
     "Position": 1,
@@ -1132,6 +1143,7 @@
         "PostRotary": 1
       }
     },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "hunyuan-dense",
     "Validation": {
       "Attention": 27
@@ -1154,6 +1166,7 @@
       "Composition": 1,
       "SharedCatalog": 1
     },
+    "MetadataDefaults": {"RopeDimension": 1},
     "Name": "hunyuan-moe",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1167,6 +1180,7 @@
         "PostRotary": 1
       }
     },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "hunyuan_vl",
     "Validation": {
       "Attention": 27
@@ -1194,6 +1208,7 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
+    "MetadataDefaults": {"RopeDimension": 1},
     "Name": "hy_v3",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1285,6 +1300,9 @@
     "Metadata": {
       "KVHeads": 6
     },
+    "MetadataDefaults": {
+      "RopeDimension": 2
+    },
     "Name": "jina-bert-v3",
     "Normalization": 1,
     "OutputNorm": 1,
@@ -1345,6 +1363,7 @@
       "Heads": 1,
       "KVHeads": 1
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true, "SlidingPattern": 4},
     "Name": "laguna",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1488,6 +1507,7 @@
       "Routing": 1,
       "SharedCatalog": 1
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true, "SlidingPattern": 4},
     "Name": "llama4",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1552,6 +1572,7 @@
     "Experts": {
       "Catalog": 1
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true, "SlidingPattern": 4},
     "Name": "mellum",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1587,6 +1608,7 @@
     "ModelCatalog": {
       "DraftLayerOutputNorm": true
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true},
     "Name": "mimo2",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1690,6 +1712,7 @@
     "ModelCatalog": {
       "TokenNorm": 1
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencySWA": 10000, "SlidingPattern": 3},
     "Name": "modern-bert",
     "Validation": {
       "Attention": 19
@@ -1769,6 +1792,7 @@
     "Metadata": {
       "KVHeads": 6
     },
+    "MetadataDefaults": {"RopeDimension": 1},
     "Name": "neo-bert",
     "OutputNorm": 2,
     "Position": 1,
@@ -1787,6 +1811,7 @@
     "Metadata": {
       "KVHeads": 6
     },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "nomic-bert",
     "Normalization": 1,
     "OutputNorm": 1,
@@ -1811,6 +1836,7 @@
     "Metadata": {
       "KVHeads": 6
     },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "nomic-bert-moe",
     "Normalization": 1,
     "OutputNorm": 1,
@@ -1846,6 +1872,7 @@
     "DenseWeights": {
       "RequirePostNorm": true
     },
+    "MetadataDefaults": {"RopeFrequencyFromBase": true, "SlidingPattern": 4},
     "Name": "olmo2",
     "Validation": {
       "Attention": 11
@@ -1899,6 +1926,7 @@
   {
     "Capabilities": 71303232,
     "MetadataRead": 16,
+    "MetadataDefaults": {"RopeDimension": 1},
     "Name": "paddleocr",
     "Rotary": {
       "MultiAxis": 1
@@ -1912,6 +1940,7 @@
     "DenseWeights": {
       "RequireAttentionOutputBias": true
     },
+    "MetadataDefaults": {"OriginalContext": true, "RopeAttentionFactor": 1, "RopeDimension": 2},
     "Name": "pangu-embedded",
     "Validation": {
       "Attention": 18
@@ -1939,6 +1968,7 @@
       "QueryScale": 3
     },
     "FeedForward": 2,
+    "MetadataDefaults": {"RopeAttentionFactor": 1},
     "Name": "phi3",
     "Validation": {
       "Attention": 17
@@ -2014,6 +2044,7 @@
       "Heads": 1,
       "KVHeads": 1
     },
+    "MetadataDefaults": {"RopeDimension": 1, "RopeFrequencyFromBase": true, "SlidingPattern": 8},
     "Name": "plamo3",
     "Validation": {
       "Attention": 4
@@ -2034,6 +2065,7 @@
     "Metadata": {
       "KVHeads": 5
     },
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "qwen",
     "Validation": {
       "Attention": 24
@@ -2059,6 +2091,7 @@
   {
     "Capabilities": 71303232,
     "MetadataRead": 16,
+    "MetadataDefaults": {"RopeDimension": 1},
     "Name": "qwen2vl",
     "Rotary": {
       "MultiAxis": 1
@@ -2168,6 +2201,7 @@
       "SharedCatalog": 3
     },
     "FFNNormLayout": 4,
+    "MetadataDefaults": {"RopeDimension": 2},
     "Name": "qwen3next",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2185,6 +2219,7 @@
       }
     },
     "MetadataRead": 48,
+    "MetadataDefaults": {"RopeDimension": 1},
     "Name": "qwen3vl",
     "Rotary": {
       "MultiAxis": 1
@@ -2206,6 +2241,7 @@
       "Catalog": 1
     },
     "MetadataRead": 48,
+    "MetadataDefaults": {"RopeDimension": 1},
     "Name": "qwen3vlmoe",
     "Rotary": {
       "MultiAxis": 1
@@ -2328,6 +2364,7 @@
       "Catalog": 1,
       "RouterInputOriginal": true
     },
+    "MetadataDefaults": {"RopeDimension": 1, "RopeFrequencyFromBase": true, "SlidingPattern": 4},
     "Name": "smallthinker",
     "Validation": {
       "ExpertMetadata": 1,
@@ -2408,10 +2445,11 @@
     },
     "Metadata": {
       "Heads": 2,
-      "KVHeads": 2
+      "KVHeads": 2,
+      "PreserveDraftLayers": true
     },
+    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true},
     "Name": "step35",
-    "Metadata": {"PreserveDraftLayers": true},
     "Validation": {
       "ExpertMetadata": 1,
       "Hybrid": 7

@@ -21,19 +21,13 @@ func (m BF16Matrix) empty() bool { return len(m.Data) == 0 && len(m.Raw) == 0 }
 // (f64-accumulate linear followed by bf16 rounding of the outputs).
 func linearRounded(out, x []float32, w BF16Matrix, rows int) {
 	hostmath.LinearBF16F64(out, x, w.Data, nil, rows, w.In, w.Out)
-	bf16RoundSlice(out)
-}
-
-func bf16RoundSlice(values []float32) {
-	for i, v := range values {
-		values[i] = dtype.RoundBF16(v)
-	}
+	dtype.RoundBF16Slice(out)
 }
 
 // rmsNormRounded: out = bf16(rmsnorm(x) * weight) per row.
 func rmsNormRounded(out, x, weight []float32, rows, d int, eps float64) {
 	hostmath.RMSNormInto(out, x, weight, rows, d, eps)
-	bf16RoundSlice(out)
+	dtype.RoundBF16Slice(out)
 }
 
 func silu64(x float64) float64 {

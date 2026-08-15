@@ -163,13 +163,13 @@ func PromptLayerForward(hidden []float32, mask []int, cfg Config, w LayerWeights
 		for head := 0; head < cfg.NumAttentionHeads; head++ {
 			row := s.QHeads[token*qOut+head*hd : token*qOut+(head+1)*hd]
 			rope.applyRotary(row, pos)
-			bf16RoundSlice(row)
+			dtype.RoundBF16Slice(row)
 			rmsNormRounded(row, row, w.QKV.QNorm[branch], 1, hd, cfg.RMSNormEps)
 		}
 		for head := 0; head < cfg.NumKeyValueHeads; head++ {
 			row := s.KHeads[token*kvOut+head*hd : token*kvOut+(head+1)*hd]
 			rope.applyRotary(row, pos)
-			bf16RoundSlice(row)
+			dtype.RoundBF16Slice(row)
 			rmsNormRounded(row, row, w.QKV.KNorm[branch], 1, hd, cfg.RMSNormEps)
 		}
 	}
@@ -205,7 +205,7 @@ func PromptLayerForward(hidden []float32, mask []int, cfg Config, w LayerWeights
 						out[i] += prob * v[i]
 					}
 				}
-				bf16RoundSlice(out)
+				dtype.RoundBF16Slice(out)
 			}
 		}
 	})
@@ -324,7 +324,7 @@ func PromptResidentKV(hidden []float32, mask []int, cfg Config, w LayerWeights) 
 			for head := 0; head < cfg.NumKeyValueHeads; head++ {
 				headRow := kRow[head*hd : (head+1)*hd]
 				rope.applyRotary(headRow, RowPosition{Branch: branch, Time: token})
-				bf16RoundSlice(headRow)
+				dtype.RoundBF16Slice(headRow)
 				rmsNormRounded(headRow, headRow, w.QKV.KNorm[branch], 1, hd, cfg.RMSNormEps)
 			}
 		}

@@ -17,19 +17,11 @@ type Prediction struct {
 	OutDim int       `json:"output_dim"`
 }
 
-type predictor interface {
-	Predict(Request) ([]float32, int, error)
-}
-
 // RegisterRuntime binds one loaded model to its tabular stage.
 func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model *Model) error {
 	if model == nil {
 		return errors.New("tabularicl: incomplete runtime binding")
 	}
-	return registerRuntime(runtime, modelID, model)
-}
-
-func registerRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model predictor) error {
 	return workflowruntime.RegisterJSONStage[Request, Prediction](
 		runtime, modelrecipe.ModuleTabularPredict, modelID, predictionContract,
 		func(table Request) (Prediction, error) {

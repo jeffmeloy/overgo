@@ -101,12 +101,15 @@ func NewCheckpoint(spec CheckpointSpec, weights artifact.ID) (Checkpoint, error)
 	if err := canonicalizeCheckpoint(&checkpoint); err != nil {
 		return Checkpoint{}, err
 	}
-	data, err := json.Marshal(checkpointDocument{Version: CheckpointVersion, Checkpoint: checkpoint})
+	id, err := artifact.JSONID(
+		artifact.KindCheckpoint,
+		checkpointDocument{Version: CheckpointVersion, Checkpoint: checkpoint})
+
 	if err != nil {
 		return Checkpoint{}, err
 	}
-	checkpoint.id, err = artifact.IdentifyBytes(artifact.KindCheckpoint, data)
-	return checkpoint, err
+	checkpoint.id = id
+	return checkpoint, nil
 }
 
 func (c Checkpoint) Marshal() ([]byte, error) {

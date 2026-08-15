@@ -20,3 +20,10 @@ func BF16ToFloat32(value uint16) float32 {
 func RoundBF16(value float32) float32 {
 	return BF16ToFloat32(Float32ToBF16(value))
 }
+
+// RoundBF16Slice rounds values in place.
+func RoundBF16Slice(values []float32) {
+	for index, value := range values {
+		values[index] = RoundBF16(value)
+	}
+}

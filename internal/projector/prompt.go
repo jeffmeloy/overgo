@@ -54,8 +54,6 @@ type AttentionBlock struct {
 	End   uint32
 }
 
-type Gemma4Prompt = MultimodalPrompt
-
 type ImageProjector interface {
 	BuildImagePrompt(context.Context, ImageTokenizer, image.Image, string, string, bool) (MultimodalPrompt, error)
 	Close() error

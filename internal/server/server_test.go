@@ -269,6 +269,10 @@ type fakeAudioProjector struct {
 	samples []float32
 }
 
+func (*fakeQwen3VLProjector) Close() error { return nil }
+
+func (*fakeAudioProjector) Close() error { return nil }
+
 func (f *fakeAudioProjector) BuildAudioPrompt(
 	_ context.Context,
 	_ projector.ImageTokenizer,

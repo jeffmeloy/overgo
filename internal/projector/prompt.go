@@ -37,8 +37,6 @@ type promptMarkerTokenizer interface {
 	TokenizeTextMarkers(string, string, []int, bool) ([]tokenizer.TokenID, []int, error)
 }
 
-type Qwen3VLTokenizer = ImageTokenizer
-
 type MultimodalPrompt struct {
 	TokenIDs              []tokenizer.TokenID
 	Embeddings            []float32
@@ -56,7 +54,6 @@ type AttentionBlock struct {
 	End   uint32
 }
 
-type Qwen3VLPrompt = MultimodalPrompt
 type Gemma4Prompt = MultimodalPrompt
 
 type ImageProjector interface {
@@ -953,29 +950,29 @@ func (r *Qwen3VLRunner) BuildImagesPrompt(
 	})
 }
 
-func (r *Qwen3VLRunner) BuildQwen35VideoPrompt(
+func (r *Qwen3VLRunner) BuildVideoPrompt(
 	ctx context.Context,
-	tokenizer Qwen3VLTokenizer,
+	tokenizer ImageTokenizer,
 	frames []image.Image,
 	beforeVideo, afterVideo string,
 	fps float64,
 	thinking bool,
-) (Qwen3VLPrompt, error) {
+) (MultimodalPrompt, error) {
 	if tokenizer == nil {
-		return Qwen3VLPrompt{}, errors.New("projector: tokenizer is nil")
+		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
 	}
 	if fps <= 0 || math.IsNaN(fps) || math.IsInf(fps, 0) {
-		return Qwen3VLPrompt{}, errors.New("projector: video FPS must be positive and finite")
+		return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
 	}
 	output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
 	if err != nil {
-		return Qwen3VLPrompt{}, err
+		return MultimodalPrompt{}, err
 	}
 	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
 	perGroup := rows * columns
 	item, err := qwenImagePromptItem(output)
 	if err != nil {
-		return Qwen3VLPrompt{}, err
+		return MultimodalPrompt{}, err
 	}
 	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
 		mediaPromptRunPlan: mediaPromptRunPlan{
@@ -989,17 +986,6 @@ func (r *Qwen3VLRunner) BuildQwen35VideoPrompt(
 			return Qwen3VLMultiChunkPositions(tokenCount, starts, perGroup, rows, columns)
 		},
 	})
-}
-
-func (r *Qwen3VLRunner) BuildVideoPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	frames []image.Image,
-	beforeVideo, afterVideo string,
-	fps float64,
-	thinking bool,
-) (MultimodalPrompt, error) {
-	return r.BuildQwen35VideoPrompt(ctx, tokenizer, frames, beforeVideo, afterVideo, fps, thinking)
 }
 
 func Qwen35ImagePromptText(beforeImage, afterImage string, imageTokens int, thinking bool) string {

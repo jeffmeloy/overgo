@@ -337,7 +337,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	}
 	assertQwen35Grid(t, "video", processedVideo, videoGolden.Grid)
 	assertQwen35Probe(t, "video pixels", processedVideo.PixelValues, videoGolden.Pixels, 0.15, 0)
-	videoPrompt, err := vision.BuildQwen35VideoPrompt(
+	videoPrompt, err := vision.BuildVideoPrompt(
 		context.Background(), language, frames, "", videoGolden.Question, 24, true,
 	)
 	if err != nil {

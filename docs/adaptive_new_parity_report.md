@@ -28,7 +28,7 @@ best resident implementation.
   model has not trained end to end. Device VJPs and a synthetic hybrid trainer
   are prerequisites, not E4B closure.
 - Production dense training beats adaptive's retained Carbon causal protocol;
-  Qwen, hybrid, E4B, checkpoint, and promotion remain open.
+  Qwen, hybrid, E4B, non-dense checkpoint adoption, and promotion remain open.
 - Corpus-to-model construction now matches the pinned adaptive_new scratch
   oracle. The resident three-step program leads the matched reference on wall
   and runtime-owned peak memory; production checkpoint/publication remains open.
@@ -118,8 +118,8 @@ Overgo's tokenizer total includes a large generated Unicode table.
 | Model from scratch | `RunFromProviderRich` derives split, rune vocabulary, topology, initialization, batching, causal training and metrics from documents | Pinned source/config/oracle parity; direct flat initialization; shared tensor forward/VJP; resident CUDA weights, gradients, momentum, compiled graphs and pooled scratch | Matched three-step wall/peak lead; artifact publication and exact resume open |
 | Optimizer | Adaptive optimizer machinery and model-specific use; historical SGD paths remain | Matrix/vector/scalar groups use one compiled Muon path; sign, BF16-SGD and family-local production updates deleted | Muon-only production authority |
 | Dense causal LM | Retained Carbon causal CUDA at `c72b6595d`: four 31-token DNA windows, LR `1.33179e-5`, Muon 0.95, loss `8.43767 -> 7.29179`, 6.816 s loop, 11.47 GiB admitted peak | Same ordered windows and settings: loss `8.437673 -> 7.293611`, 5.05-5.13 s loop, 4.620 GiB measured peak | Matched Carbon wall/peak lead; Qwen bias path open |
-| Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train -freeze-lexical` selects the no-fallback resident contract; full-parameter mode remains explicit | Carbon route reachable; exact checkpoint contract open |
-| Checkpoint/resume | Fine-tune evidence and persistence exist, uneven by trainer | Dense exact-resume tests exist; production save overwrites files and omits optimizer/RNG/data cursor | Test capability only |
+| Production dense command | Multiple adaptive entry points, uneven recipe authority | `cmd/train -freeze-lexical` selects the no-fallback resident contract; full-parameter mode remains explicit; `-resume` restores a validated checkpoint and advances the same stream | Carbon route and exact resume reachable |
+| Checkpoint/resume | Fine-tune evidence and persistence exist, uneven by trainer | Atomic directory publication refuses overwrite and binds weight content, full Muon state, data/augmentation RNG counters, stream position, processor/projector/codec identities, compiled run/program identities, and lineage parents. Host and resident CUDA tests match uninterrupted weights and momentum exactly. | Dense production contract complete; adoption by scratch, seq2seq, speech, and diffusion trainers remains open |
 | Qwen3.5 hybrid | Inference active; training unsupported in adaptive inventory | Host/device hybrid layer VJPs and synthetic resident stack train | Overgo primitive lead; real-model gap |
 | Gemma E4B | Adaptive declares streamed CUDA LM scope and supplies real semantics/oracles | Host E4B VJPs plus device primitives; no real E4B end-to-end training | Open; current done status is false closure |
 | Gemma4 12B | Streamed CUDA LM scope | Shared backward prerequisites; no reported real 12B training | Gap |
@@ -362,12 +362,12 @@ the item and step are `done`. Reopen against the actual Gemma E4B artifact.
 Synthetic Qwen-style hybrid training is not a substitute for AltUp, PLE,
 Laurel, SharedKV, and mixed-window execution together.
 
-### P1: production checkpoint contract is unsafe and incomplete
+### P1: checkpoint adoption is incomplete
 
-The command creates the output directory and writes `model.safetensors`
-directly. It may overwrite an existing artifact, is not atomic, and does not
-persist Muon momentum, RNG, dataset cursor, compiled plan identity, or RepoDB
-lineage. Exact resume tests exist below the command but are not reachable.
+`cmd/train` now publishes one staged directory atomically, refuses overwrite,
+validates weight content on load, and resumes exact host or resident CUDA Muon
+state with data/RNG/compiled-authority/lineage bindings. Scratch, seq2seq,
+speech, and diffusion trainers still need to consume this shared owner.
 
 ### P1: Muon-only production authority needs a scanner
 

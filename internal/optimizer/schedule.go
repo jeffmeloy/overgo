@@ -15,10 +15,10 @@ const (
 
 // Config: adaptive optimizer policy.
 type Config struct {
-	BaseLearningRate float64
-	Momentum         float64
-	Steps            int
-	Schedule         Schedule
+	BaseLearningRate float64  `json:"base_learning_rate"`
+	Momentum         float64  `json:"momentum"`
+	Steps            int      `json:"steps"`
+	Schedule         Schedule `json:"schedule"`
 }
 
 func (c Config) validate() error {

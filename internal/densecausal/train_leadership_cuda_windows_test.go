@@ -71,7 +71,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer worker.Close()
-	if _, err := warmModel.TrainDeviceResidentFrozenLexicalBatches(worker, carbonAdaptiveCausalWindows[:1], 1.33179e-5, 0.95); err != nil {
+	if _, _, err := warmModel.TrainDeviceResidentFrozenLexicalBatches(worker, carbonAdaptiveCausalWindows[:1], 1.33179e-5, 0.95, nil); err != nil {
 		t.Fatalf("Carbon warm-up: %v", err)
 	}
 	if err := worker.Do(context.Background(), func(state *device.State) error {
@@ -175,7 +175,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	trajectory, err := model.TrainDeviceResidentFrozenLexicalBatches(worker, slices.Repeat([][]int{tokens}, 4), 0, 0.95)
+	trajectory, _, err := model.TrainDeviceResidentFrozenLexicalBatches(worker, slices.Repeat([][]int{tokens}, 4), 0, 0.95, nil)
 	wall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)

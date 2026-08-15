@@ -63,27 +63,29 @@ func (m *Model) deriveResidentCapacity(worker *device.Worker, seq int, frozenLex
 	return devicemath.DeriveResidentCapacity(free, g, fixed, perLayer), nil
 }
 
-// TrainDeviceResidentBatches keeps layer weights and Muon momentum resident
-// across an ordered batch sequence. Attention bias is not supported.
-func (m *Model) TrainDeviceResidentBatches(worker *device.Worker, batches [][]int, baseLR, mu float64) ([]float64, error) {
-	return m.trainDeviceResident(worker, batches, baseLR, mu, false, nil)
+// TrainDeviceResidentBatches keeps model and Muon state resident.
+func (m *Model) TrainDeviceResidentBatches(worker *device.Worker, batches [][]int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
+	var state TrainState
+	trajectory, err := m.trainDeviceResident(worker, batches, baseLR, mu, false, nil, resume, &state)
+	return trajectory, state, err
 }
 
-// TrainDeviceResidentFrozenLexicalBatches preserves ordered minibatches under
-// one resident weight, momentum, and allocation lifetime.
-func (m *Model) TrainDeviceResidentFrozenLexicalBatches(worker *device.Worker, batches [][]int, baseLR, mu float64) ([]float64, error) {
-	return m.trainDeviceResident(worker, batches, baseLR, mu, true, nil)
+// TrainDeviceResidentFrozenLexicalBatches keeps non-lexical state resident.
+func (m *Model) TrainDeviceResidentFrozenLexicalBatches(worker *device.Worker, batches [][]int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
+	var state TrainState
+	trajectory, err := m.trainDeviceResident(worker, batches, baseLR, mu, true, nil, resume, &state)
+	return trajectory, state, err
 }
 
 // MeasureDeviceResidentFrozenLexicalBatches returns the resident loop wall;
 // admission, upload, checkpoint, and teardown stay outside that phase.
 func (m *Model) MeasureDeviceResidentFrozenLexicalBatches(worker *device.Worker, batches [][]int, baseLR, mu float64) ([]float64, time.Duration, error) {
 	var wall time.Duration
-	trajectory, err := m.trainDeviceResident(worker, batches, baseLR, mu, true, &wall)
+	trajectory, err := m.trainDeviceResident(worker, batches, baseLR, mu, true, &wall, nil, nil)
 	return trajectory, wall, err
 }
 
-func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, loopWall *time.Duration) ([]float64, error) {
+func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, loopWall *time.Duration, resume *TrainState, stateOut *TrainState) ([]float64, error) {
 	if len(batches) == 0 || len(batches[0]) < 2 {
 		return nil, fmt.Errorf("densecausal: need at least one batch with two tokens")
 	}
@@ -122,6 +124,12 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 	if err != nil {
 		return nil, err
 	}
+	if resume != nil {
+		if err := opt.Restore(*resume); err != nil {
+			return nil, err
+		}
+	}
+	initialState := opt.Snapshot()
 
 	// Flat offset of every tensor within the sorted plan buffer.
 	offset := make(map[string]int, len(names))
@@ -192,7 +200,11 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		_ = devicemath.FreeResident(worker, dW)
 		return nil, err
 	}
-	dM, err := devicemath.AllocResidentF32(worker, layerElems, nil)
+	deviceMomentum := make([]float32, layerElems)
+	for index := range deviceMomentum {
+		deviceMomentum[index] = float32(initialState.Momentum[layerStart+index])
+	}
+	dM, err := devicemath.AllocResidentF32(worker, layerElems, deviceMomentum)
 	if err != nil {
 		_ = devicemath.FreeResident(worker, dW, dG)
 		return nil, err
@@ -215,7 +227,12 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 			_ = devicemath.FreeResident(worker, dFinalW)
 			return nil, err
 		}
-		dFinalM, err = devicemath.AllocResidentF32(worker, d.Hidden, nil)
+		finalOffset := offset["model.norm.weight"]
+		finalMomentum := make([]float32, d.Hidden)
+		for index := range finalMomentum {
+			finalMomentum[index] = float32(initialState.Momentum[finalOffset+index])
+		}
+		dFinalM, err = devicemath.AllocResidentF32(worker, d.Hidden, finalMomentum)
 		if err != nil {
 			_ = devicemath.FreeResident(worker, dFinalW, dFinalG)
 			return nil, err
@@ -316,7 +333,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		}
 
 		// Host Muon: non-layer groups. Device Muon: resident layer matrices.
-		opt.StepGroups(func(gr optimizer.Group) bool {
+		stepResult := opt.StepGroups(func(gr optimizer.Group) bool {
 			return !isLayerMatrixName(gr.Name) && !(frozenLexical && (gr.Name == m.headName() || gr.Name == "model.norm.weight"))
 		})
 		updates := make([]optimizer.ResidentMatrix, len(mats))
@@ -333,7 +350,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 				Weights: dFinalW, Gradient: dFinalG, Momentum: dFinalM, Rows: d.Hidden, Cols: 1,
 			})
 		}
-		if err := optimizer.DeviceMuonMatricesResident(worker, updates, step+1, config); err != nil {
+		if err := optimizer.DeviceMuonMatricesResident(worker, updates, stepResult.Step, config); err != nil {
 			return nil, err
 		}
 
@@ -365,6 +382,35 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		if err := devicemath.ReadResident(worker, dFinalW, devicemath.ResidentSlice{Data: weights[finalOffset : finalOffset+d.Hidden]}); err != nil {
 			return nil, err
 		}
+	}
+	state := opt.Snapshot()
+	momentumSlices := make([]devicemath.ResidentSlice, len(mats))
+	for index, matrix := range mats {
+		momentumSlices[index] = devicemath.ResidentSlice{
+			ElemOffset: matrix.relOff,
+			Data:       deviceMomentum[matrix.relOff : matrix.relOff+matrix.size],
+		}
+	}
+	if err := devicemath.ReadResident(worker, dM, momentumSlices...); err != nil {
+		return nil, err
+	}
+	for _, matrix := range mats {
+		for index := range matrix.size {
+			state.Momentum[matrix.absOff+index] = float64(deviceMomentum[matrix.relOff+index])
+		}
+	}
+	if frozenLexical {
+		finalOffset := offset["model.norm.weight"]
+		finalMomentum := make([]float32, d.Hidden)
+		if err := devicemath.ReadResident(worker, dFinalM, devicemath.ResidentSlice{Data: finalMomentum}); err != nil {
+			return nil, err
+		}
+		for index, value := range finalMomentum {
+			state.Momentum[finalOffset+index] = float64(value)
+		}
+	}
+	if stateOut != nil {
+		*stateOut = state
 	}
 	scatter(m, names, weights)
 	return trajectory, nil

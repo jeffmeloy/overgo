@@ -16,34 +16,37 @@ import (
 // using a device-unsupported trait (e.g. attention bias) is routed to host up
 // front instead of failing mid-session. It returns the loss trajectory and the
 // backend label actually used ("cuda" or "host").
-func runTraining(m *densecausal.Model, batches [][]int, baseLR, mu float64, preferDevice, freezeLexical bool) ([]float64, string, error) {
+func runTrainingState(m *densecausal.Model, batches [][]int, baseLR, mu float64, preferDevice, freezeLexical bool, resume *densecausal.TrainState) ([]float64, string, densecausal.TrainState, error) {
 	if preferDevice {
 		if ok, reason := densecausal.DeviceTrainingSupported(m.Dims); !ok {
 			if freezeLexical {
-				return nil, "", fmt.Errorf("frozen lexical CUDA training unsupported: %s", reason)
+				return nil, "", densecausal.TrainState{}, fmt.Errorf("frozen lexical CUDA training unsupported: %s", reason)
 			}
 			fmt.Printf("train: device training unsupported (%s); using host path\n", reason)
-			return runHostTraining(m, batches, baseLR, mu)
+			trajectory, state, err := runHostTrainingState(m, batches, baseLR, mu, resume)
+			return trajectory, "host", state, err
 		}
 		worker, err := device.New(0)
 		if err == nil {
 			defer worker.Close()
-			var traj []float64
-			var terr error
+			var trajectory []float64
+			var state densecausal.TrainState
+			var trainErr error
 			if freezeLexical {
-				traj, terr = m.TrainDeviceResidentFrozenLexicalBatches(worker, batches, baseLR, mu)
+				trajectory, state, trainErr = m.TrainDeviceResidentFrozenLexicalBatches(worker, batches, baseLR, mu, resume)
 			} else {
-				traj, terr = m.TrainDeviceResidentBatches(worker, batches, baseLR, mu)
+				trajectory, state, trainErr = m.TrainDeviceResidentBatches(worker, batches, baseLR, mu, resume)
 			}
-			if terr != nil {
-				return nil, "", terr
+			if trainErr != nil {
+				return nil, "", densecausal.TrainState{}, trainErr
 			}
-			return traj, "cuda", nil
+			return trajectory, "cuda", state, nil
 		}
 		if freezeLexical {
-			return nil, "", fmt.Errorf("frozen lexical CUDA training unavailable: %w", err)
+			return nil, "", densecausal.TrainState{}, fmt.Errorf("frozen lexical CUDA training unavailable: %w", err)
 		}
 		fmt.Printf("train: CUDA unavailable (%v); using host path\n", err)
 	}
-	return runHostTraining(m, batches, baseLR, mu)
+	trajectory, state, err := runHostTrainingState(m, batches, baseLR, mu, resume)
+	return trajectory, "host", state, err
 }

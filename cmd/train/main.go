@@ -1,10 +1,5 @@
-// Command train runs Muon training on a dense causal-LM
-// safetensors artifact and writes a trained checkpoint. It is the production
-// caller for the densecausal training lane: it loads a model + tokenizer,
-// materializes a UTF-8 dataset stream, runs ordered training updates on
-// the GPU when available (host fallback), and persists the result via
-// safetensors.Save. Without a caller like this the lane is exercised only by
-// tests -- present but inert.
+// Command train runs dense causal Muon training and publishes exact-resume
+// checkpoints.
 package main
 
 import (
@@ -22,6 +17,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/safetensors"
 	"overgo/internal/trainingdata"
+	"overgo/internal/trainingprogram"
 )
 
 func main() {
@@ -32,6 +28,7 @@ func run() error {
 	modelDir := flag.String("model", "", "model directory (safetensors + config.json + tokenizer.json)")
 	datasetPath := flag.String("dataset", "", "UTF-8 training dataset")
 	outDir := flag.String("out", "", "output directory for the trained checkpoint")
+	resumeDir := flag.String("resume", "", "resume checkpoint directory")
 	steps := flag.Int("steps", 1, "number of Muon update steps")
 	maxSeq := flag.Int("seq", 512, "cap the token sequence to this length (attention is O(seq^2)); <=0 keeps all")
 	baseLR := flag.Float64("lr", 0, "base learning rate; <=0 derives n_params^-1/2")
@@ -40,7 +37,7 @@ func run() error {
 	freezeLexical := flag.Bool("freeze-lexical", false, "freeze tied embedding/head; requires CUDA resident training")
 	flag.Parse()
 
-	if *modelDir == "" || *datasetPath == "" || *outDir == "" {
+	if (*modelDir == "" && *resumeDir == "") || *datasetPath == "" || *outDir == "" {
 		flag.Usage()
 		return fmt.Errorf("-model, -dataset, and -out are required")
 	}
@@ -48,11 +45,27 @@ func run() error {
 		return fmt.Errorf("-steps must be >= 1")
 	}
 
-	model, err := densecausal.Load(*modelDir)
+	inputDir := *modelDir
+	var resumed trainingprogram.Checkpoint
+	var resumeState *densecausal.TrainState
+	var resumeStream *trainingdata.StreamState
+	if *resumeDir != "" {
+		var err error
+		resumed, err = trainingprogram.LoadCheckpoint(*resumeDir)
+		if err != nil {
+			return fmt.Errorf("load checkpoint: %w", err)
+		}
+		inputDir = *resumeDir
+		state := densecausal.TrainState(resumed.Optimizer)
+		resumeState = &state
+		stream := trainingdata.StreamState{Identity: resumed.Stream.Identity, Position: resumed.Stream.Position}
+		resumeStream = &stream
+	}
+	model, err := densecausal.Load(inputDir)
 	if err != nil {
 		return fmt.Errorf("load model: %w", err)
 	}
-	tok, err := hfbpe.Load(*modelDir)
+	tok, err := hfbpe.Load(inputDir)
 	if err != nil {
 		return fmt.Errorf("load tokenizer: %w", err)
 	}
@@ -60,7 +73,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("read dataset: %w", err)
 	}
-	batches, streamState, err := tokenBatches(context.Background(), raw, *steps, *maxSeq, tok.Encode)
+	batches, streamState, dataAuthority, err := tokenBatchesResume(context.Background(), raw, *steps, *maxSeq, tok.Encode, resumeStream)
 	if err != nil {
 		return err
 	}
@@ -68,11 +81,20 @@ func run() error {
 	if *host && *freezeLexical {
 		return fmt.Errorf("-host and -freeze-lexical are mutually exclusive")
 	}
-	traj, backend, err := runTraining(model, batches, *baseLR, *mu, !*host, *freezeLexical)
+	if resumed.ID().Valid() && (resumed.Dataset != dataAuthority.Dataset || resumed.Split != dataAuthority.Split ||
+		!slicesEqualIDs(resumed.Processors, []artifact.ID{dataAuthority.Processor})) {
+		return errors.New("resume checkpoint dataset, split, or processor authority differs")
+	}
+	traj, backend, trainState, err := runTrainingState(model, batches, *baseLR, *mu, !*host, *freezeLexical, resumeState)
 	if err != nil {
 		return fmt.Errorf("train: %w", err)
 	}
-	if err := saveCheckpoint(*modelDir, *outDir, model); err != nil {
+	checkpointSpec, err := productionCheckpointSpec(model, inputDir, dataAuthority, streamState, trainState, resumed)
+	if err != nil {
+		return err
+	}
+	checkpoint, err := saveCheckpoint(inputDir, *outDir, model, checkpointSpec)
+	if err != nil {
 		return fmt.Errorf("save checkpoint: %w", err)
 	}
 
@@ -80,7 +102,7 @@ func run() error {
 	for i, loss := range traj {
 		fmt.Printf("step %d: loss %.6f\n", i, loss)
 	}
-	fmt.Printf("checkpoint written to %s\n", *outDir)
+	fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), *outDir)
 	return nil
 }
 
@@ -91,13 +113,8 @@ func lrLabel(lr float64) string {
 	return fmt.Sprintf("%g", lr)
 }
 
-func runHostTraining(
-	m *densecausal.Model,
-	batches [][]int,
-	baseLR, mu float64,
-) ([]float64, string, error) {
-	trajectory, err := m.TrainBatches(batches, baseLR, mu)
-	return trajectory, "host", err
+func runHostTrainingState(m *densecausal.Model, batches [][]int, baseLR, mu float64, resume *densecausal.TrainState) ([]float64, densecausal.TrainState, error) {
+	return m.TrainBatchesResume(batches, baseLR, mu, resume)
 }
 
 func tokenBatches(
@@ -106,20 +123,37 @@ func tokenBatches(
 	steps, maxSeq int,
 	encode func(string) ([]int, error),
 ) ([][]int, trainingdata.StreamState, error) {
+	batches, state, _, err := tokenBatchesResume(ctx, raw, steps, maxSeq, encode, nil)
+	return batches, state, err
+}
+
+type batchAuthority struct {
+	Dataset   artifact.ID
+	Split     artifact.ID
+	Processor artifact.ID
+}
+
+func tokenBatchesResume(
+	ctx context.Context,
+	raw []byte,
+	steps, maxSeq int,
+	encode func(string) ([]int, error),
+	resume *trainingdata.StreamState,
+) ([][]int, trainingdata.StreamState, batchAuthority, error) {
 	if len(raw) == 0 || steps <= 0 || encode == nil {
-		return nil, trainingdata.StreamState{}, errors.New("train: invalid dataset stream input")
+		return nil, trainingdata.StreamState{}, batchAuthority{}, errors.New("train: invalid dataset stream input")
 	}
 	datasetID, err := artifact.IdentifyBytes(artifact.KindDataset, raw)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, err
+		return nil, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	splitID, err := artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), raw...))
 	if err != nil {
-		return nil, trainingdata.StreamState{}, err
+		return nil, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training/text-utf8/v1"))
 	if err != nil {
-		return nil, trainingdata.StreamState{}, err
+		return nil, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	authority := trainingdata.Authority{
 		Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processorID},
@@ -131,56 +165,165 @@ func tokenBatches(
 		Process:    trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, "utf-8"),
 	})
 	if err != nil {
-		return nil, trainingdata.StreamState{}, err
+		return nil, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	defer materialized.Close()
-	stream, err := trainingdata.NewStream(materialized, nil)
+	stream, err := trainingdata.NewStream(materialized, resume)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, err
+		return nil, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, MicrobatchExamples: 1, DecodeWorkers: 1})
 	if err != nil {
-		return nil, trainingdata.StreamState{}, err
+		return nil, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	batches := make([][]int, steps)
 	for step := range steps {
 		batch, err := batcher.Next(ctx)
 		if err != nil {
-			return nil, trainingdata.StreamState{}, err
+			return nil, trainingdata.StreamState{}, batchAuthority{}, err
 		}
 		tokens, err := encode(string(batch.Examples[0].Values[0].Data))
 		if err != nil {
-			return nil, trainingdata.StreamState{}, fmt.Errorf("train: encode dataset record: %w", err)
+			return nil, trainingdata.StreamState{}, batchAuthority{}, fmt.Errorf("train: encode dataset record: %w", err)
 		}
 		if maxSeq > 0 && len(tokens) > maxSeq {
 			tokens = tokens[:maxSeq]
 		}
 		if len(tokens) < 2 {
-			return nil, trainingdata.StreamState{}, fmt.Errorf("train: record needs at least two tokens, got %d", len(tokens))
+			return nil, trainingdata.StreamState{}, batchAuthority{}, fmt.Errorf("train: record needs at least two tokens, got %d", len(tokens))
 		}
 		batches[step] = tokens
 	}
-	return batches, stream.Snapshot(), nil
+	return batches, stream.Snapshot(), batchAuthority{Dataset: datasetID, Split: splitID, Processor: processorID}, nil
 }
 
-// saveCheckpoint writes the trained weights as a single-file model.safetensors
-// and copies config.json + tokenizer.json so the checkpoint reloads through
-// densecausal.Load. The trained weights live in m.Weights (the training step
-// scatters them back after the final update).
-func saveCheckpoint(srcDir, outDir string, m *densecausal.Model) error {
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return err
-	}
-	meta := map[string]string{"format": "pt", "trainer": "overgo"}
-	if err := safetensors.Save(filepath.Join(outDir, "model.safetensors"), m.Weights, m.Shapes, meta); err != nil {
-		return err
-	}
-	for _, name := range []string{"config.json", "tokenizer.json"} {
-		if err := copyFile(filepath.Join(srcDir, name), filepath.Join(outDir, name)); err != nil {
-			return fmt.Errorf("copy %s: %w", name, err)
+// saveCheckpoint stages one loader-compatible, exact-resume directory.
+func saveCheckpoint(srcDir, outDir string, m *densecausal.Model, spec trainingprogram.CheckpointSpec) (trainingprogram.Checkpoint, error) {
+	return trainingprogram.PublishCheckpoint(outDir, spec, func(stage string) error {
+		meta := map[string]string{"format": "pt", "trainer": "overgo"}
+		if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), m.Weights, m.Shapes, meta); err != nil {
+			return err
+		}
+		for _, name := range []string{"config.json", "tokenizer.json"} {
+			if err := copyFile(filepath.Join(srcDir, name), filepath.Join(stage, name)); err != nil {
+				return fmt.Errorf("copy %s: %w", name, err)
+			}
+		}
+		return nil
+	})
+}
+
+func productionCheckpointSpec(model *densecausal.Model, modelDir string, data batchAuthority, stream trainingdata.StreamState, state densecausal.TrainState, resumed trainingprogram.Checkpoint) (trainingprogram.CheckpointSpec, error) {
+	modelID := resumed.Model
+	if !modelID.Valid() {
+		file, err := os.Open(filepath.Join(modelDir, trainingprogram.CheckpointWeights))
+		if err != nil {
+			return trainingprogram.CheckpointSpec{}, err
+		}
+		var closeErr error
+		modelID, _, err = artifact.Identify(artifact.KindModel, file)
+		closeErr = file.Close()
+		if err := errors.Join(err, closeErr); err != nil {
+			return trainingprogram.CheckpointSpec{}, err
 		}
 	}
-	return nil
+	muonPlan, _, err := model.TrainingPlan(state.Config.BaseLearningRate)
+	if err != nil || muonPlan.Identity() != state.PlanIdentity {
+		return trainingprogram.CheckpointSpec{}, errors.New("checkpoint Muon plan differs from trained model")
+	}
+	parameters := make([]trainingprogram.ParameterSpec, muonPlan.GroupCount())
+	for index := range parameters {
+		group, _ := muonPlan.Group(index)
+		parameters[index] = trainingprogram.ParameterSpec{Name: group.Name, Rows: group.Rows, Cols: group.Cols, Trainable: !group.Frozen}
+	}
+	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
+		Operators: []trainingprogram.OperatorSpec{
+			{ID: "dense-forward", Phase: trainingprogram.PhaseForward},
+			{ID: "dense-backward", Phase: trainingprogram.PhaseBackward},
+			{ID: "muon", Phase: trainingprogram.PhaseOptimize},
+		},
+		Parameters: parameters, Optimizer: muonPlan,
+	})
+	if err != nil {
+		return trainingprogram.CheckpointSpec{}, err
+	}
+	if resumed.ID().Valid() && resumed.Program != program.ID() {
+		return trainingprogram.CheckpointSpec{}, errors.New("resume checkpoint program differs from trained model")
+	}
+	profile := func(name string) artifact.ID {
+		id, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/densecausal/"+name+"/v1"))
+		return id
+	}
+	recipeID, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("overgo/densecausal/training/v1"))
+	initial := trainingprogram.InitialStateSpec{Model: modelID}
+	if resumed.ID().Valid() {
+		initial = trainingprogram.InitialStateSpec{Checkpoint: resumed.ID()}
+	}
+	runPlan, err := trainingprogram.CompileTrainingRunPlan(trainingprogram.RunSpec{
+		Recipe: recipeID, Initial: initial, Dataset: data.Dataset, Split: data.Split,
+		Signature: recipecontract.ModalitySignature{
+			Inputs:  []recipecontract.Modality{recipecontract.ModalityText},
+			Outputs: []recipecontract.Modality{recipecontract.ModalityText},
+		},
+		Processors: []artifact.ID{data.Processor},
+		Policies: trainingprogram.PolicySpec{
+			Objective: profile("causal-cross-entropy"), Precision: profile("fp32-bf16"),
+			Placement: profile("platform-resident"), Memory: profile("derived-memory"),
+			Checkpoint: profile("exact-checkpoint"), Evaluation: profile("loss-trajectory"),
+			Promotion: profile("heldout-promotion"),
+		},
+		Program: program,
+	})
+	if err != nil {
+		return trainingprogram.CheckpointSpec{}, err
+	}
+	rngAlgorithm, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/counter-rng/v1"))
+	rng := append([]trainingprogram.RNGState(nil), resumed.RNG...)
+	if len(rng) == 0 {
+		rng = []trainingprogram.RNGState{
+			{Name: "augmentation", Algorithm: rngAlgorithm},
+			{Name: "data", Algorithm: rngAlgorithm},
+		}
+	}
+	for index := range rng {
+		switch rng[index].Name {
+		case "augmentation":
+			rng[index].Counter = uint64(state.Step)
+		case "data":
+			rng[index].Counter = stream.Position
+		}
+	}
+	lineage := []trainingprogram.LineageParent{
+		{Artifact: modelID, Relation: artifact.RelationTrainedFrom},
+		{Artifact: data.Dataset, Relation: artifact.RelationDependsOn},
+		{Artifact: data.Split, Relation: artifact.RelationDependsOn},
+		{Artifact: data.Processor, Relation: artifact.RelationTokenizedBy},
+		{Artifact: program.ID(), Relation: artifact.RelationProducedBy},
+		{Artifact: runPlan.ID(), Relation: artifact.RelationDependsOn},
+	}
+	if resumed.ID().Valid() {
+		lineage = append(lineage, trainingprogram.LineageParent{Artifact: resumed.ID(), Relation: artifact.RelationDerivedFrom})
+	}
+	return trainingprogram.CheckpointSpec{
+		RunPlan: runPlan.ID(), Program: program.ID(), Model: modelID,
+		Dataset: data.Dataset, Split: data.Split,
+		Stream:    trainingprogram.DatasetState{Identity: stream.Identity, Position: stream.Position},
+		Optimizer: state, ParameterCount: len(state.Momentum), RNG: rng,
+		Processors: []artifact.ID{data.Processor}, Projectors: resumed.Projectors,
+		Codecs: resumed.Codecs, Lineage: lineage,
+	}, nil
+}
+
+func slicesEqualIDs(left, right []artifact.ID) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func copyFile(src, dst string) error {

@@ -85,7 +85,7 @@ func TestTrainDeviceResidentScratchPoolPeak(t *testing.T) {
 			t.Fatal(err)
 		}
 		started := time.Now()
-		traj, err := m.TrainDeviceResidentBatches(worker, slices.Repeat([][]int{tokens}, steps), 0, 0.9)
+		traj, _, err := m.TrainDeviceResidentBatches(worker, slices.Repeat([][]int{tokens}, steps), 0, 0.9, nil)
 		wall := time.Since(started)
 		if err != nil {
 			t.Fatalf("TrainDeviceResidentBatches(pool=%v): %v", pool, err)

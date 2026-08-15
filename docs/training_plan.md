@@ -64,7 +64,8 @@ Production gaps:
   checkpoint and run publication are not yet production-reachable RepoDB flows;
 - `cmd/train` selects the resident dense device loop; the displaced per-step
   weight scatter/gradient gather training adapters are deleted;
-- production checkpoints are not atomic complete-state resumes;
+- dense production checkpoints atomically bind weights, Muon/RNG/data state,
+  compiled identities and lineage; other trainers have not adopted the owner;
 - matrix, vector and scalar groups share the Muon Newton–Schulz path;
 - no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed the compiled
   resident training contract;
@@ -78,8 +79,8 @@ Production gaps:
   forward/backward, matched performance, and complete resume remain open.
 
 Scratch device training and Newton–Schulz are resident and gated. Artifact
-publication, exact resume, controller promotion and real-model integration are
-now the long poles.
+publication, checkpoint adoption outside dense training, controller promotion
+and real-model integration are now the long poles.
 
 ## 2. Authority and compiled contracts
 
@@ -360,6 +361,12 @@ Includes every step-boundary field plus:
 
 Exact-resume tests compare the uninterrupted and resumed trajectories, not only
 their next loss value.
+
+The dense production command implements the step-boundary schema. Its current
+accumulation depth is one, so `accumulation=0` is the only legal publication
+boundary. Host and resident CUDA tests compare uninterrupted and resumed Muon
+weights and momentum exactly. Trainers that add multi-microbatch accumulation
+must add the second schema before enabling mid-step publication.
 
 ## 8. Quantized training transport
 

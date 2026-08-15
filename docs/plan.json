@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "muon-only",
-          "title": "Compile Muon matrix/vector/scalar groups; migrate every caller; delete BF16SGD, TrainBF16SGD, and UpdateSign compatibility paths",
-          "status": "open",
-          "verify": "go test ./internal/optimizer ./internal/densecausal -run '^TestMuonOwnsEveryTrainableGeometry$' -count=1 -v \u0026\u0026 ! rg -n 'BF16SGD|UpdateSign' internal cmd"
-        },
-        {
           "id": "exact-production-resume",
           "title": "Make production checkpoints atomic and non-overwriting; persist weights, Muon state, RNG/augmentation state, modality processors/codecs, dataset cursor, compiled identities, and RepoDB lineage; resume exactly at accumulation boundaries",
           "status": "open",

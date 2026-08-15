@@ -9,9 +9,12 @@ import (
 	"strconv"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingdata"
+	"overgo/internal/trainingprogram"
 )
 
 func TestTokenBatchesUseResumableDatasetStream(t *testing.T) {
@@ -115,7 +118,7 @@ func TestTrainAttnBiasRoutedToHostAtSelection(t *testing.T) {
 	}
 
 	tokens := []int{1, 2, 3, 4, 5}
-	traj, backend, err := runTraining(model, [][]int{tokens}, 0, 0.9, true, false) // prefer device
+	traj, backend, _, err := runTrainingState(model, [][]int{tokens}, 0, 0.9, true, false, nil)
 	if err != nil {
 		t.Fatalf("runTraining routed a bias model into a device session (mid-session failure): %v", err)
 	}
@@ -125,7 +128,7 @@ func TestTrainAttnBiasRoutedToHostAtSelection(t *testing.T) {
 	if len(traj) != 1 || math.IsNaN(traj[0]) || math.IsInf(traj[0], 0) {
 		t.Fatalf("trajectory = %v, want one finite loss", traj)
 	}
-	if _, _, err := runTraining(model, [][]int{tokens}, 0, 0.9, true, true); err == nil {
+	if _, _, _, err := runTrainingState(model, [][]int{tokens}, 0, 0.9, true, true, nil); err == nil {
 		t.Fatal("frozen lexical request silently fell back to host")
 	}
 }
@@ -150,7 +153,7 @@ func TestTrainGlueLoadStepSaveReload(t *testing.T) {
 
 	before := append([]float32(nil), model.Weights["model.embed_tokens.weight"]...)
 	tokens := []int{1, 2, 3, 4, 5}
-	traj, backend, err := runTraining(model, [][]int{tokens}, 0, 0.9, false, false) // host path
+	traj, backend, state, err := runTrainingState(model, [][]int{tokens}, 0, 0.9, false, false, nil)
 	if err != nil {
 		t.Fatalf("runTraining: %v", err)
 	}
@@ -172,7 +175,8 @@ func TestTrainGlueLoadStepSaveReload(t *testing.T) {
 	}
 
 	out := filepath.Join(t.TempDir(), "out")
-	if err := saveCheckpoint(src, out, model); err != nil {
+	spec := checkpointSpecForTest(t, src, state, 1)
+	if _, err := saveCheckpoint(src, out, model, spec); err != nil {
 		t.Fatalf("saveCheckpoint: %v", err)
 	}
 	reloaded, err := densecausal.Load(out)
@@ -188,9 +192,79 @@ func TestTrainGlueLoadStepSaveReload(t *testing.T) {
 			t.Fatalf("reloaded weight[%d] = %v, want %v (trained value not persisted)", i, got[i], v)
 		}
 	}
-	for _, name := range []string{"config.json", "tokenizer.json", "model.safetensors"} {
+	for _, name := range []string{"config.json", "tokenizer.json", "model.safetensors", trainingprogram.CheckpointFilename} {
 		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
 			t.Fatalf("checkpoint missing %s: %v", name, err)
 		}
 	}
+}
+
+func TestProductionCheckpointResumeExact(t *testing.T) {
+	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
+		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4,
+		KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 7,
+	})
+	root := t.TempDir()
+	source := filepath.Join(root, "source")
+	writeArtifactDir(t, source, weights, shapes)
+	batches := [][]int{{1, 2, 3, 4, 5}, {5, 4, 3, 2, 1}}
+
+	uninterrupted, err := densecausal.Load(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, uninterruptedState, err := runTrainingState(uninterrupted, batches, 0, 0.9, false, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	staged, err := densecausal.Load(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, firstState, err := runTrainingState(staged, batches[:1], 0, 0.9, false, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpointDir := filepath.Join(root, "step-1")
+	checkpoint, err := saveCheckpoint(source, checkpointDir, staged, checkpointSpecForTest(t, source, firstState, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := trainingprogram.LoadCheckpoint(checkpointDir)
+	if err != nil || loaded.ID() != checkpoint.ID() || loaded.Stream.Position != 1 {
+		t.Fatalf("load checkpoint = (%s, %+v, %v)", loaded.ID(), loaded.Stream, err)
+	}
+	resumed, err := densecausal.Load(checkpointDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumeState := densecausal.TrainState(loaded.Optimizer)
+	_, _, finalState, err := runTrainingState(resumed, batches[1:], 0, 0.9, false, false, &resumeState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(uninterrupted.Weights, resumed.Weights) || !reflect.DeepEqual(uninterruptedState, finalState) {
+		t.Fatal("resumed weights or Muon state differ from uninterrupted training")
+	}
+	if _, err := saveCheckpoint(source, checkpointDir, resumed, checkpointSpecForTest(t, source, finalState, 2)); err == nil {
+		t.Fatal("checkpoint overwrite accepted")
+	}
+}
+
+func checkpointSpecForTest(t *testing.T, source string, state densecausal.TrainState, position uint64) trainingprogram.CheckpointSpec {
+	t.Helper()
+	dataset, _ := artifact.IdentifyBytes(artifact.KindDataset, []byte("dataset"))
+	split, _ := artifact.IdentifyBytes(artifact.KindDatasetShard, []byte("split"))
+	processor, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("processor"))
+	streamIdentity, _ := artifact.IdentifyBytes(artifact.KindDatasetShard, []byte("stream"))
+	model, err := densecausal.Load(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec, err := productionCheckpointSpec(model, source, batchAuthority{Dataset: dataset, Split: split, Processor: processor}, trainingdata.StreamState{Identity: streamIdentity, Position: position}, state, trainingprogram.Checkpoint{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return spec
 }

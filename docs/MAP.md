@@ -43,6 +43,14 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Prove cross-protocol behavior | `server.TestAdaptiveServingContractMatrix`; focused endpoint tests remain the implementation evidence |
 | Edit request cache windows | Native completion `cache_prompt`, `n_cache_reuse`, `n_keep`, and `n_discard`; `inference.Runner` owns retained state |
 
+## Training state
+
+| Need | Use |
+| --- | --- |
+| Publish or load an exact-resume checkpoint | `trainingprogram.PublishCheckpoint` / `LoadCheckpoint`; one staged, non-overwriting directory |
+| Resume dense host or resident CUDA Muon | `densecausal.TrainBatchesResume` / `TrainDeviceResidentBatches` |
+| Bind dataset progress | `trainingdata.StreamState`; checkpoint form is `trainingprogram.DatasetState` |
+
 ## Commands / process (Go owns policy; scripts are bash or Go)
 | Need | Use |
 | --- | --- |

@@ -34,7 +34,7 @@ func TestTrainDeviceResidentBatchesMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trajDev, err := mDev.TrainDeviceResidentBatches(worker, batches, 0, 0.9)
+	trajDev, _, err := mDev.TrainDeviceResidentBatches(worker, batches, 0, 0.9, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestTrainDeviceResidentFrozenLexicalBatchesMatchesInitialLoss(t *testing.T)
 		t.Fatal(err)
 	}
 	embedBefore := slices.Clone(model.Weights["model.embed_tokens.weight"])
-	trajectory, err := model.TrainDeviceResidentFrozenLexicalBatches(worker, slices.Repeat([][]int{tokens}, 8), 0, 0.9)
+	trajectory, _, err := model.TrainDeviceResidentFrozenLexicalBatches(worker, slices.Repeat([][]int{tokens}, 8), 0, 0.9, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,5 +101,37 @@ func TestTrainDeviceResidentFrozenLexicalBatchesMatchesInitialLoss(t *testing.T)
 	}
 	if !slices.Equal(embedBefore, model.Weights["model.embed_tokens.weight"]) {
 		t.Fatal("frozen lexical table changed")
+	}
+}
+
+func TestTrainDeviceResidentResumeExact(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	batches := [][]int{{1, 5, 9, 3, 7, 2, 11, 4}, {4, 11, 2, 7, 3, 9, 5, 1}}
+	uninterrupted := tinyMuonModel(t)
+	_, wantState, err := uninterrupted.TrainDeviceResidentBatches(worker, batches, 0, 0.9, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumed := tinyMuonModel(t)
+	_, firstState, err := resumed.TrainDeviceResidentBatches(worker, batches[:1], 0, 0.9, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, gotState, err := resumed.TrainDeviceResidentBatches(worker, batches[1:], 0, 0.9, &firstState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(wantState.Momentum, gotState.Momentum) {
+		t.Fatal("resumed device Muon momentum differs")
+	}
+	for name, want := range uninterrupted.Weights {
+		if !slices.Equal(want, resumed.Weights[name]) {
+			t.Fatalf("resumed device weight %q differs", name)
+		}
 	}
 }

@@ -1,6 +1,7 @@
 package optimizer
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -8,10 +9,10 @@ import (
 
 // State: portable optimizer progress and momentum.
 type State struct {
-	PlanIdentity string
-	Config       Config
-	Step         int
-	Momentum     []float64
+	PlanIdentity string    `json:"plan_identity"`
+	Config       Config    `json:"config"`
+	Step         int       `json:"step"`
+	Momentum     []float64 `json:"momentum"`
 }
 
 // StepResult: committed step facts.
@@ -113,16 +114,35 @@ func (o *Optimizer) Snapshot() State {
 }
 
 func (o *Optimizer) Restore(state State) error {
-	if state.PlanIdentity != o.plan.Identity() {
-		return errors.New("optimizer state: plan identity mismatch")
+	if err := ValidateState(state, o.plan.Identity(), len(o.momentum)); err != nil {
+		return err
 	}
 	if state.Config != o.config {
 		return errors.New("optimizer state: config mismatch")
 	}
+	o.step = state.Step
+	copy(o.momentum, state.Momentum)
+	return nil
+}
+
+// ValidateState checks portable Muon state without live parameter storage.
+func ValidateState(state State, planIdentity string, parameterCount int) error {
+	if planIdentity == "" || state.PlanIdentity != planIdentity {
+		return errors.New("optimizer state: plan identity mismatch")
+	}
+	if len(state.PlanIdentity) != 64 {
+		return errors.New("optimizer state: invalid plan identity")
+	}
+	if _, err := hex.DecodeString(state.PlanIdentity); err != nil {
+		return errors.New("optimizer state: invalid plan identity")
+	}
+	if err := state.Config.validate(); err != nil {
+		return err
+	}
 	if state.Step < 0 {
 		return errors.New("optimizer state: negative step")
 	}
-	if len(state.Momentum) != len(o.momentum) {
+	if parameterCount < 0 || len(state.Momentum) != parameterCount {
 		return errors.New("optimizer state: momentum length mismatch")
 	}
 	for _, value := range state.Momentum {
@@ -130,7 +150,5 @@ func (o *Optimizer) Restore(state State) error {
 			return errors.New("optimizer state: non-finite momentum")
 		}
 	}
-	o.step = state.Step
-	copy(o.momentum, state.Momentum)
 	return nil
 }

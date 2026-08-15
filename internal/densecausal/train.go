@@ -73,41 +73,58 @@ func validateTokenBatches(batches [][]int) error {
 
 // trainSetup: sorted tensors, flat buffers, compiled geometry, resolved LR.
 func (m *Model) trainSetup(baseLR float64) (names []string, weights, gradients []float32, plan optimizer.Plan, resolvedLR float64, err error) {
-	names = slices.Sorted(maps.Keys(m.Weights))
+	names, plan, resolvedLR, err = m.trainingPlan(baseLR)
+	if err != nil {
+		return nil, nil, nil, optimizer.Plan{}, 0, err
+	}
+	weights = make([]float32, plan.ParameterCount())
+	gradients = make([]float32, plan.ParameterCount())
+	offset := 0
+	for _, name := range names {
+		copy(weights[offset:], m.Weights[name])
+		offset += len(m.Weights[name])
+	}
+	return names, weights, gradients, plan, resolvedLR, nil
+}
 
+// TrainingPlan compiles dense parameter and Muon identity without storage.
+func (m *Model) TrainingPlan(baseLR float64) (optimizer.Plan, float64, error) {
+	_, plan, resolvedLR, err := m.trainingPlan(baseLR)
+	return plan, resolvedLR, err
+}
+
+func (m *Model) trainingPlan(baseLR float64) ([]string, optimizer.Plan, float64, error) {
+	names := slices.Sorted(maps.Keys(m.Weights))
 	var totalElements uint64
 	for _, name := range names {
 		var valid bool
 		totalElements, valid = checked.Add64(totalElements, uint64(len(m.Weights[name])))
 		if !valid {
-			return nil, nil, nil, optimizer.Plan{}, 0, fmt.Errorf("densecausal: trainable parameter count overflows uint64")
+			return nil, optimizer.Plan{}, 0, fmt.Errorf("densecausal: trainable parameter count overflows uint64")
 		}
 	}
 	total, valid := checked.Int(totalElements)
 	if !valid {
-		return nil, nil, nil, optimizer.Plan{}, 0, fmt.Errorf("densecausal: trainable parameter count exceeds int")
+		return nil, optimizer.Plan{}, 0, fmt.Errorf("densecausal: trainable parameter count exceeds int")
 	}
 	if baseLR <= 0 {
 		baseLR = optimizer.DeriveBaseLR(total)
 	}
-	weights = make([]float32, total)
-	gradients = make([]float32, total)
 	specs := make([]optimizer.GroupSpec, 0, len(names))
 	offset := 0
 	for _, name := range names {
 		values := m.Weights[name]
 		rows, cols, err := tensorGeometry(m.Shapes[name], len(values))
 		if err != nil {
-			return nil, nil, nil, optimizer.Plan{}, 0, fmt.Errorf("densecausal: %s: %w", name, err)
+			return nil, optimizer.Plan{}, 0, fmt.Errorf("densecausal: %s: %w", name, err)
 		}
-		copy(weights[offset:], values)
 		specs = append(specs, optimizer.GroupSpec{
 			Name: name, Start: offset, End: offset + len(values), Rows: rows, Cols: cols,
 		})
 		offset += len(values)
 	}
-	plan, err = optimizer.CompilePlan(total, specs)
-	return names, weights, gradients, plan, baseLR, err
+	plan, err := optimizer.CompilePlan(total, specs)
+	return names, plan, baseLR, err
 }
 
 // gatherGrads: tensor gradients -> flat plan order; absent tensors zeroed.

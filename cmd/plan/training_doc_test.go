@@ -30,7 +30,8 @@ func TestTrainingPlanMatchesImplementation(t *testing.T) {
 		"`ScratchConstruction`",
 		"Adaptive_new is an offline oracle, not a runtime dependency",
 		"`cmd/train` selects the resident dense device loop",
-		"production checkpoints are not atomic complete-state resumes",
+		"dense production checkpoints atomically bind weights, Muon/RNG/data state",
+		"`accumulation=0` is the only legal publication boundary",
 		"compiled multimodal training authority binds dataset processor modalities",
 		"no real Qwen3.5, Gemma E4B or Gemma4 12B artifact has completed",
 		"real multimodal processor/projector/codec gradient",
@@ -50,5 +51,9 @@ func TestTrainingPlanMatchesImplementation(t *testing.T) {
 	}
 	if !strings.Contains(read("internal/densecausal/train_device_resident_cuda_windows.go"), "func (m *Model) TrainDeviceResidentBatches") {
 		t.Fatal("resident trainer absent")
+	}
+	checkpoint := read("internal/trainingprogram/checkpoint.go")
+	if !strings.Contains(checkpoint, "func PublishCheckpoint") || !strings.Contains(checkpoint, "func LoadCheckpoint") {
+		t.Fatal("production checkpoint owner absent")
 	}
 }

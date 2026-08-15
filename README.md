@@ -101,11 +101,11 @@ sessions to execute concurrently.
 | Image generation | Typed conditioning, CUDA-resident denoising, and PNG artifact output | Krea has verified 2048-pixel execution. SenseNova has a CUDA-tested 256-pixel text-to-PNG recipe. Un-0 publishes an exact retained artifact. SimpleDiffusion uses a geometry-keyed resident CUDA recipe; its real seed-7, two-step, 64x64 generation is 15-18x faster warm than the host in repeated tests, with one decoded color channel differing by one byte from the retained PNG. Full-size and image-edit tests are not complete. |
 | Video generation | Typed oscillator, Wan, and LiveEdit recipes; encoded artifact publication; CUDA-resident Wan denoising and VAE encoding/decoding; retained LiveEdit text projection, cumulative attention history, and source-latent reuse | Un-0 publishes six real-artifact frames as a 64x64 GIF byte-identical to adaptive_new. Wan has verified full-clip execution. LiveEdit executes all 30 blocks. Its full 81-frame edit matches adaptive and Python output quality, uses 15.624 GiB peak device memory, takes 81.6-81.9 s cold, and takes 51.0-51.5 s when the same source latent is resident. The production recipe publishes GIF; the performance gate streams MP4. |
 | Speech, forecast, table, seq2seq | Shared runtime and recipe components. Pocket-TTS verifies waveform output and trains its real backbone+flow parameter set through compiled Muon on native generated codec latents. TimesFM verifies exact forecasts and a held-out Supernova baseline. Needle verifies exact numeric parity, grounded text-to-tool-call JSON, and real GSM8K training through the common dataset stream, compiled training program, and device Muon. | Needle retains BF16 matrices and measures 66.758-67.363 MiB across matched cold processes versus adaptive_new's 120.918-121.328 MiB. Shared reverse traversal trains both final norms, all eight decoder self/cross-attention pairs, all 12 encoder self-attention blocks, and the tied source/target/output embedding. A fixed 4-train/4-held-out GSM8K gate improves both aggregate losses. Pocket-TTS corpus audio encoding and held-out training evidence remain open. Comparable process peak measurements remain open for the other capabilities. |
-| Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers; scratch construction uses shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. SimpleDiffusion trains its real 101.8M-parameter checkpoint on structured image crops through the shared stream and platform Muon stepper; one update lowers both matched training and held-out OT losses. RepoDB dataset selection from the CLI, complete-state resume, and general multimodal objectives are not implemented. |
+| Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers; scratch construction uses shared tensor VJP and resident CUDA/Muon sessions | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. The dense CLI publishes atomic, non-overwriting, exact-resume checkpoints. SimpleDiffusion trains its real 101.8M-parameter checkpoint on structured image crops through the shared stream and platform Muon stepper; one update lowers both matched training and held-out OT losses. RepoDB dataset selection from the CLI, checkpoint adoption by every trainer, and general multimodal objectives are not implemented. |
 
 Known gaps include full-size SenseNova image and edit tests, LiveEdit cold-request
 leadership and recipe-configured MP4 publication, exact full-sequence Unlimited OCR comparison, comparable
-peak-memory measurements, complete-state resume, publication and activation of
+peak-memory measurements, checkpoint adoption outside dense training, publication and activation of
 scratch-built controllers, and real-model Qwen3.5/E4B/Gemma4 training. Un-0
 training refuses execution until a recipe supplies real class/image data; the
 former synthetic constant-target trainer was deleted.
@@ -363,10 +363,19 @@ reference and cannot be combined with it. A non-positive `-lr` derives
 `n_params^-1/2`.
 
 The frozen-lexical Carbon configuration is the currently verified production
-training configuration. The CLI writes model weights, `config.json`, and
-`tokenizer.json`. It does not yet write one atomic checkpoint containing the
-optimizer, random-number-generator state, and dataset position required for
-complete resume.
+training configuration. The CLI atomically publishes a new directory and
+refuses an existing target. `checkpoint.json` binds weights, Muon momentum and
+step, data and augmentation RNG counters, dataset stream position, processor,
+projector and codec identities, compiled run/program identities, and RepoDB
+lineage parents. Resume into another new checkpoint with:
+
+```bash
+go run ./cmd/train \
+  -resume D:/checkpoints/carbon-run \
+  -dataset D:/datasets/train.txt \
+  -out D:/checkpoints/carbon-run-2 \
+  -steps 4 -freeze-lexical
+```
 
 ### Dataset processing
 

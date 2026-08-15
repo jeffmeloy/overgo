@@ -20,6 +20,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -265,6 +266,7 @@ func (g *gateContext) pipeline() error {
 		{"manifest", runrecord.PhaseValidate, g.stepManifest},
 		{"sbom", runrecord.PhaseValidate, g.stepSBOM},
 		{"claims", runrecord.PhaseValidate, g.stepClaims},
+		{"docs", runrecord.PhaseValidate, g.stepDocumentation},
 		{"magics", runrecord.PhaseValidate, g.stepMagics},
 		{"device", runrecord.PhaseTest, g.stepDevice},
 		{"acceptance", runrecord.PhaseTest, g.stepAcceptance},
@@ -311,6 +313,45 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	return nil
+}
+
+const (
+	historicalRankingMarker = "<!-- overgo-document: historical-ranking -->"
+	currentWorkMarker       = "<!-- overgo-current-work: docs/plan.json -->"
+)
+
+// stepDocumentation keeps prose assessments from masquerading as current
+// work authority. Ranked current work belongs to the failable plan; prose may
+// retain its historical ordering only with an explicit warning and redirect.
+func (g *gateContext) stepDocumentation() (bool, error) {
+	return false, documentationFreshness(g.repo)
+}
+
+func documentationFreshness(root string) error {
+	return filepath.WalkDir(filepath.Join(root, "docs"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		text := string(data)
+		if !strings.Contains(text, "## Execution Program") {
+			return nil
+		}
+		header := text
+		if len(header) > 1024 {
+			header = header[:1024]
+		}
+		if !strings.Contains(header, historicalRankingMarker) || !strings.Contains(header, currentWorkMarker) {
+			return fmt.Errorf("documentation ranking %s lacks a prominent historical marker and docs/plan.json redirect", filepath.ToSlash(path))
+		}
+		return nil
+	})
 }
 
 func (g *gateContext) stepProtection() (bool, error) {

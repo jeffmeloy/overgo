@@ -1,5 +1,12 @@
 # adaptive_new Parity and Performance Report
 
+<!-- overgo-document: historical-ranking -->
+<!-- overgo-current-work: docs/plan.json -->
+
+> Historical assessment reviewed 2026-08-14. Its priorities and present-tense
+> claims are not current authority; use `docs/plan.json` and generated
+> compatibility evidence for current work and status.
+
 Validation base: Overgo `dfcebd9` plus the final-cross training slice;
 adaptive_new `214950b3b`; reviewed 2026-08-14. adaptive_new working-tree changes
 remain observations, not landed evidence.

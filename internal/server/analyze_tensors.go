@@ -39,15 +39,18 @@ type analyzeTensor struct {
 // empirical distribution, never a fitted shape (see the workbench's
 // distribution-free analysis principle).
 type analyzeTensorsResponse struct {
-	Model   string              `json:"model"`
-	Policy  analyzeTensorPolicy `json:"policy"`
-	Count   int                 `json:"count"`
-	Tensors []analyzeTensor     `json:"tensors"`
+	Model   string                          `json:"model"`
+	Policy  modelartifact.MeasurementPolicy `json:"policy"`
+	Count   int                             `json:"count"`
+	Tensors []analyzeTensor                 `json:"tensors"`
 }
 
-type analyzeTensorPolicy struct {
-	MaxSamplesPerTensor uint64 `json:"max_samples_per_tensor"`
-	MaxReadBytes        uint64 `json:"max_read_bytes"`
+// analyzeTensorMeasurementPolicy is the single measurement policy for the
+// analysis endpoints: bounded sampling plus small-matrix effective rank.
+var analyzeTensorMeasurementPolicy = modelartifact.MeasurementPolicy{
+	MaxSamplesPerTensor: analyzeTensorMaxSamplesPerTensor,
+	MaxReadBytes:        analyzeTensorMaxReadBytes,
+	SpectralMaxDim:      analyzeTensorSpectralMaxDim,
 }
 
 func (h *Handler) analyzeTensors(response http.ResponseWriter, request *http.Request) {
@@ -61,7 +64,7 @@ func (h *Handler) analyzeTensors(response http.ResponseWriter, request *http.Req
 	}
 	writeJSON(response, http.StatusOK, analyzeTensorsResponse{
 		Model:   h.config.ModelID,
-		Policy:  analyzeTensorPolicy{analyzeTensorMaxSamplesPerTensor, analyzeTensorMaxReadBytes},
+		Policy:  analyzeTensorMeasurementPolicy,
 		Count:   len(profiles),
 		Tensors: profiles,
 	})
@@ -164,11 +167,7 @@ func characterizeGGUF(file *gguf.File) ([]analyzeTensor, error) {
 	if err != nil {
 		return nil, err
 	}
-	document, err := modelartifact.MeasureGGUF(inventory.TensorInventory, file, modelartifact.MeasurementPolicy{
-		MaxSamplesPerTensor: analyzeTensorMaxSamplesPerTensor,
-		MaxReadBytes:        analyzeTensorMaxReadBytes,
-		SpectralMaxDim:      analyzeTensorSpectralMaxDim,
-	})
+	document, err := modelartifact.MeasureGGUF(inventory.TensorInventory, file, analyzeTensorMeasurementPolicy)
 	if err != nil {
 		return nil, err
 	}

@@ -60,6 +60,8 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | Compile and admit recursive improvement trials | `trainingprogram.CompileImprovementProposal` / `runrecord.AdmitImprovement` / `DecideImprovement`; proposals cannot authorize admission, evaluation, promotion, or rollback |
 | Compile a measured training-memory schedule | `trainingprogram.CompileMemorySchedule`; `scratchmodel.TrainingMemorySegments` supplies exact flat parameter, gradient, and Muon-state geometry |
 | Bind dataset progress | `trainingdata.StreamState`; checkpoint form is `trainingprogram.DatasetState` |
+| Bind isolated evaluation splits and proposer visibility | `trainingdata.NewEvaluationIsolation`; `BudgetFor` and `AuthorizeProposer` validate the immutable policy identity |
+| Issue an immutable query/resource limit | `runrecord.NewBudgetGrant`; derive consumption from evidence and call `BudgetGrant.Allows` |
 | Decode real image/audio training records | `trainingdata.ImageProcessor` / `Image`; `trainingdata.AudioProcessor` / `Audio` |
 
 ## Commands / process (Go owns policy; scripts are bash or Go)

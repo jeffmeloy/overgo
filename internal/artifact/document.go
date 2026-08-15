@@ -81,6 +81,15 @@ func (c DocumentContract) ValidateContent(content Content, id ID) error {
 	return content.Validate()
 }
 
+// DependencyLineage binds one child to immutable parent authorities.
+func DependencyLineage(child ID, parents ...ID) []Lineage {
+	lineage := make([]Lineage, len(parents))
+	for index, parent := range parents {
+		lineage[index] = Lineage{Child: child, Parent: parent, Relation: RelationDependsOn}
+	}
+	return lineage
+}
+
 func (c DocumentContract) validateDescriptor(descriptor Descriptor, id ID) error {
 	if id.Kind() != c.Kind || descriptor.ID != id || descriptor.MediaType != c.MediaType ||
 		descriptor.Schema != c.Schema {

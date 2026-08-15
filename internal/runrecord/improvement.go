@@ -130,13 +130,13 @@ func (value ImprovementDecision) Content() (artifact.Content, error) {
 func (value ImprovementDecision) RollbackTarget() artifact.ID { return value.Rollback }
 
 func (value ImprovementAdmission) Lineage() []artifact.Lineage {
-	return dependencyLineage(value.ID, value.Proposal, value.ParentModel, value.Dataset,
+	return artifact.DependencyLineage(value.ID, value.Proposal, value.ParentModel, value.Dataset,
 		value.Candidate, value.DevelopmentSplit, value.PromotionSplit, value.Recipe, value.Code,
 		value.Proposer, value.Evaluator, value.Authority)
 }
 
 func (value ImprovementDecision) Lineage() []artifact.Lineage {
-	lineage := dependencyLineage(value.ID, value.Admission, value.ParentModel, value.ChildModel,
+	lineage := artifact.DependencyLineage(value.ID, value.Admission, value.ParentModel, value.ChildModel,
 		value.Dataset, value.DevelopmentSplit, value.PromotionSplit, value.Recipe, value.Code,
 		value.Evaluator, value.Run, value.Evaluation, value.Proposer, value.Authority, value.Decider)
 	lineage = append(lineage, artifact.Lineage{

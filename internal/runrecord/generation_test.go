@@ -29,7 +29,7 @@ func TestGenerationRecordBindsFullProvenance(t *testing.T) {
 	if record.Parents[0] == record.Parents[1] || record.Components[0] == record.Components[1] {
 		t.Fatal("generation record retained caller-owned slices")
 	}
-	lineage := dependencyLineage(record.ID, generationDependencies(record)...)
+	lineage := artifact.DependencyLineage(record.ID, generationDependencies(record)...)
 	if len(lineage) != len(record.Parents)+len(record.Components)+12 {
 		t.Fatalf("generation lineage has %d edges", len(lineage))
 	}

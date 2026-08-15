@@ -250,7 +250,7 @@ func TestReviewDocumentFamily(t *testing.T) {
 	if err := mutated.ValidateIdentity(); err == nil {
 		t.Fatal("identity validation accepted mutated review content")
 	}
-	if got := dependencyLineage(actor.ID, testutil.ArtifactID(t, artifact.KindEvidence, "parent")); len(got) != 1 || got[0].Child != actor.ID {
+	if got := artifact.DependencyLineage(actor.ID, testutil.ArtifactID(t, artifact.KindEvidence, "parent")); len(got) != 1 || got[0].Child != actor.ID {
 		t.Fatalf("shared dependency lineage = %+v", got)
 	}
 }

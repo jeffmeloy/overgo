@@ -49,11 +49,7 @@ func NewGenerationRecord(value GenerationRecord) (GenerationRecord, error) {
 }
 
 func (value GenerationRecord) Batch(key string) (artifact.Batch, error) {
-	content, err := generationCodec.Content(value)
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, dependencyLineage(value.ID, generationDependencies(value)...), nil)
+	return artifact.DependencyDocumentBatch(key, generationCodec, value, generationDependencies(value)...)
 }
 
 func canonicalizeGeneration(value *GenerationRecord) error {

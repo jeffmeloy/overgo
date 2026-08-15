@@ -185,6 +185,16 @@ func (c DocumentCodec[T]) Content(value T) (Content, error) {
 	return contract.Content(id, data)
 }
 
+// DependencyDocumentBatch publishes one typed document whose lineage is only
+// immutable depends-on edges. Richer relation graphs remain caller-owned.
+func DependencyDocumentBatch[T any](key string, codec DocumentCodec[T], value T, parents ...ID) (Batch, error) {
+	content, err := codec.Content(value)
+	if err != nil {
+		return Batch{}, err
+	}
+	return NewDocumentBatch(key, []Content{content}, DependencyLineage(content.Descriptor.ID, parents...), nil)
+}
+
 func (c DocumentCodec[T]) canonical(value T) (T, []byte, DocumentContract, error) {
 	value = c.clone(value)
 	c.SetIdentity(&value, ID{})

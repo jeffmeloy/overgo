@@ -7,6 +7,31 @@ import (
 	"overgo/internal/tensor"
 )
 
+func compileRoPEOptions(
+	spec Spec,
+	positions []uint32,
+	width uint32,
+	layout tensor.RoPELayout,
+	factors *tensor.Tensor,
+	yarn bool,
+) tensor.RoPEOptions {
+	options := tensor.RoPEOptions{
+		Layout: layout, Positions: positions, FrequencyFactors: factors,
+		RotaryDimensions: width, FrequencyBase: spec.RopeFrequencyBase,
+		FrequencyScale: spec.ropeFrequencyScale(),
+	}
+	if yarn {
+		options.YaRN, options.OriginalContext = true, spec.OriginalContextLength
+		options.ExtFactor, options.AttentionFactor = spec.YaRNExtFactor, spec.YaRNAttentionFactor
+		options.BetaFast, options.BetaSlow = spec.YaRNBetaFast, spec.YaRNBetaSlow
+	}
+	return options
+}
+
+func applyRoPEPair(builder *tensor.Builder, query, key *tensor.Tensor, options tensor.RoPEOptions) (*tensor.Tensor, *tensor.Tensor) {
+	return builder.RoPEWithOptions(query, options), builder.RoPEWithOptions(key, options)
+}
+
 // buildLatentAttentionMixCached: compressed-query/KV attention.
 func buildLatentAttentionMixCached(
 	builder *tensor.Builder,
@@ -86,30 +111,21 @@ func buildLatentAttentionMixCached(
 		ropeWidth, 1, tokens,
 	)
 	kvCompressed = builder.WeightedRMSNorm(kvCompressed, weights.AttentionKVANorm, spec.RMSNormEpsilon)
-	frequencyScale := spec.ropeFrequencyScale()
 	if omitsRoPE {
 		// No rotary transform.
-	} else if (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == ropeScalingYaRN {
-		qPE = builder.RoPENormalYaRN(qPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
-			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
-			spec.YaRNBetaFast, spec.YaRNBetaSlow)
-		kPE = builder.RoPENormalYaRN(kPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
-			spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
-			spec.YaRNBetaFast, spec.YaRNBetaSlow)
-	} else if usesNeoXResidualScale {
-		if weights.RopeFactors != nil {
-			qPE = builder.RoPENeoXScaledWithFactors(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
-			kPE = builder.RoPENeoXScaledWithFactors(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
-		} else {
-			qPE = builder.RoPENeoXScaled(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
-			kPE = builder.RoPENeoXScaled(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
-		}
-	} else if weights.RopeFactors != nil {
-		qPE = builder.RoPENormalScaledWithFactors(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
-		kPE = builder.RoPENormalScaledWithFactors(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale, weights.RopeFactors)
 	} else {
-		qPE = builder.RoPENormalScaled(qPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
-		kPE = builder.RoPENormalScaled(kPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
+		layout := tensor.RoPELayoutNormal
+		if usesNeoXResidualScale {
+			layout = tensor.RoPELayoutNeoX
+		}
+		yarn := (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == ropeScalingYaRN
+		factors := weights.RopeFactors
+		if yarn {
+			factors = nil
+		}
+		qPE, kPE = applyRoPEPair(builder, qPE, kPE, compileRoPEOptions(
+			spec, positions, uint32(ropeWidth), layout, factors, yarn,
+		))
 	}
 	if spec.RopeAttentionFactor > 0 && spec.RopeAttentionFactor != 1 {
 		qPE = builder.Scale(qPE, spec.RopeAttentionFactor)
@@ -123,19 +139,15 @@ func buildLatentAttentionMixCached(
 			indexerQuery := builder.MulMat(weights.IndexerAttentionQB, queryRank)
 			indexerQPE := builder.GroupSlice(indexerQuery, 0, ropeWidth, indexerHeads, indexerWidth)
 			indexerQNoPE := builder.GroupSlice(indexerQuery, ropeWidth, indexerWidth-ropeWidth, indexerHeads, indexerWidth)
-			if spec.RopeScalingType == ropeScalingYaRN {
-				if usesSparseNeoXIndexer {
-					indexerQPE = builder.RoPENeoXYaRN(indexerQPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
-						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
-						spec.YaRNBetaFast, spec.YaRNBetaSlow)
-				} else {
-					indexerQPE = builder.RoPENormalYaRN(indexerQPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
-						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
-						spec.YaRNBetaFast, spec.YaRNBetaSlow)
-				}
-			} else {
-				indexerQPE = builder.RoPENormalScaled(indexerQPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
+			indexerLayout := tensor.RoPELayoutNormal
+			if usesSparseNeoXIndexer && spec.RopeScalingType == ropeScalingYaRN {
+				indexerLayout = tensor.RoPELayoutNeoX
 			}
+			indexerOptions := compileRoPEOptions(
+				spec, positions, uint32(ropeWidth), indexerLayout, nil,
+				spec.RopeScalingType == ropeScalingYaRN,
+			)
+			indexerQPE = builder.RoPEWithOptions(indexerQPE, indexerOptions)
 			indexerQuery = builder.FWHT(builder.Concat(indexerQPE, indexerQNoPE, 0))
 
 			indexerKey = builder.MulMat(weights.IndexerAttentionK, normalized)
@@ -146,19 +158,7 @@ func buildLatentAttentionMixCached(
 			indexerKey = builder.AffineLayerNorm(indexerKey, weights.IndexerKNorm, weights.IndexerKNormBias, indexerEpsilon)
 			indexerKPE := builder.GroupSlice(indexerKey, 0, ropeWidth, 1, indexerWidth)
 			indexerKNoPE := builder.GroupSlice(indexerKey, ropeWidth, indexerWidth-ropeWidth, 1, indexerWidth)
-			if spec.RopeScalingType == ropeScalingYaRN {
-				if usesSparseNeoXIndexer {
-					indexerKPE = builder.RoPENeoXYaRN(indexerKPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
-						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
-						spec.YaRNBetaFast, spec.YaRNBetaSlow)
-				} else {
-					indexerKPE = builder.RoPENormalYaRN(indexerKPE, positions, uint32(ropeWidth), spec.OriginalContextLength,
-						spec.RopeFrequencyBase, frequencyScale, spec.YaRNExtFactor, spec.YaRNAttentionFactor,
-						spec.YaRNBetaFast, spec.YaRNBetaSlow)
-				}
-			} else {
-				indexerKPE = builder.RoPENormalScaled(indexerKPE, positions, uint32(ropeWidth), spec.RopeFrequencyBase, frequencyScale)
-			}
+			indexerKPE = builder.RoPEWithOptions(indexerKPE, indexerOptions)
 			indexerKey = builder.FWHT(builder.Concat(indexerKPE, indexerKNoPE, 0))
 			if pastIndexerKey != nil {
 				indexerKey = builder.Concat(pastIndexerKey, indexerKey, 2)
@@ -206,7 +206,7 @@ func buildLatentAttentionMixCached(
 	}
 	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
 	if (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == ropeScalingYaRN {
-		logScale := float32(math.Log(float64(1 / frequencyScale)))
+		logScale := float32(math.Log(float64(1 / spec.ropeFrequencyScale())))
 		originalFactor := spec.YaRNAttentionFactor * (1 + yarnLogFactorStep*logScale)
 		magnitude := originalFactor * (1 + yarnLogFactorStep*spec.RopeYaRNLogMultiplier*logScale)
 		attentionScale *= magnitude * magnitude

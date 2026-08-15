@@ -98,23 +98,6 @@ func (b *Builder) RoPENeoXScaled(
 	})
 }
 
-// RoPENeoXYaRN: applies YaRN interpolation/extrapolation and magnitude scaling
-// to split-half rotary layout
-func (b *Builder) RoPENeoXYaRN(
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	originalContext uint32,
-	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
-) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
-		rotaryDimensions: rotaryDimensions, originalContext: originalContext,
-		frequencyBase: frequencyBase, frequencyScale: frequencyScale, yarn: true,
-		extFactor: extFactor, attentionFactor: attentionFactor, betaFast: betaFast, betaSlow: betaSlow,
-	})
-}
-
 func (b *Builder) RoPENeoXScaledWithFactors(
 	input *Tensor,
 	positions []uint32,
@@ -149,23 +132,6 @@ func (b *Builder) RoPENormalScaled(
 	return b.buildRoPE(input, ropeOptions{
 		operation: OpRoPENormal, name: "rope_normal", positions: positions,
 		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: frequencyScale,
-	})
-}
-
-// RoPENormalYaRN: applies YaRN interpolation/extrapolation and magnitude
-// scaling to consecutive rotary pairs
-func (b *Builder) RoPENormalYaRN(
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	originalContext uint32,
-	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
-) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENormal, name: "rope_normal", positions: positions,
-		rotaryDimensions: rotaryDimensions, originalContext: originalContext,
-		frequencyBase: frequencyBase, frequencyScale: frequencyScale, yarn: true,
-		extFactor: extFactor, attentionFactor: attentionFactor, betaFast: betaFast, betaSlow: betaSlow,
 	})
 }
 

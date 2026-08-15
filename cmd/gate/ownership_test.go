@@ -38,11 +38,53 @@ func TestNonGoOwnershipGateScope(t *testing.T) {
 }
 
 func TestEnvironmentBoundRetry(t *testing.T) {
-	cache := retryCache{TreeKey: "tree", Environment: "env-a", Steps: map[string]string{"test": "succeeded"}}
-	if !retryReusable(cache, "tree", "env-a") {
+	cache := retryCache{Environment: "env-a", Steps: map[string]phaseCache{"test": {Input: "source", Outcome: "succeeded"}}}
+	if !retryReusable(cache, "env-a") {
 		t.Fatal("matching environment did not reuse cache")
 	}
-	if retryReusable(cache, "tree", "env-b") {
+	if retryReusable(cache, "env-b") {
 		t.Fatal("retry cache crossed environment identity")
+	}
+}
+
+func TestPhaseCacheUsesDerivedInputs(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"internal/feature.go":       "package internal\nfunc Feature() {}\n",
+		"compatibility.json":        `{}`,
+		"docs/COMPATIBILITY.md":     "current claims\n",
+		"cmd/compatibility/main.go": "package main\n",
+	}
+	for path, content := range files {
+		resolved := filepath.Join(root, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(resolved), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(resolved, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	buildBefore, err := fingerprintPhaseInputs(root, "build", paths, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimsBefore, err := fingerprintPhaseInputs(root, "claims", paths, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "docs", "COMPATIBILITY.md"), []byte("refreshed claims\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	buildAfter, _ := fingerprintPhaseInputs(root, "build", paths, nil)
+	claimsAfter, _ := fingerprintPhaseInputs(root, "claims", paths, nil)
+	if buildBefore != buildAfter {
+		t.Fatal("documentation invalidated build inputs")
+	}
+	if claimsBefore == claimsAfter {
+		t.Fatal("compatibility documentation did not invalidate claim inputs")
 	}
 }

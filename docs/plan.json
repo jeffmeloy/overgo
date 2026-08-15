@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
   "items": [
     {
-      "id": "automation-phase-cache",
-      "title": "Cache successful gate phases by their derived input fingerprints rather than the whole tree",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Cache successful gate phases by their derived input fingerprints rather than the whole tree",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run '^TestPhaseCacheUsesDerivedInputs$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "automation-sync",
       "title": "Synchronize master through a Go owner that resolves generated plan projections safely",
       "status": "open",

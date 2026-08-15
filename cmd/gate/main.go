@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -69,6 +70,8 @@ type gateContext struct {
 	profile      *codeprofile.Profile
 	profileDirty bool
 	stepEvidence map[string]string
+	phaseKeys    map[string]string
+	cachePaths   []string
 }
 
 func main() {
@@ -134,7 +137,7 @@ func run() error {
 	}
 	g := &gateContext{
 		repo: repo, planRef: *planRef, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
-		stepEvidence: map[string]string{},
+		stepEvidence: map[string]string{}, phaseKeys: map[string]string{},
 	}
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
@@ -282,10 +285,15 @@ func (g *gateContext) pipeline() error {
 		began := time.Now()
 		var skipped bool
 		var err error
-		if cacheable[s.name] && cache.Steps[s.name] == string(runrecord.StepSucceeded) {
+		input := ""
+		if cacheable[s.name] {
+			input, err = g.phaseInputFingerprint(s.name)
+		}
+		cached := cache.Steps[s.name]
+		if err == nil && cached.Input == input && cached.Outcome == string(runrecord.StepSucceeded) {
 			skipped = true
-			g.honesty = append(g.honesty, s.name+" reused: identical tree already passed this step")
-		} else {
+			g.honesty = append(g.honesty, s.name+" reused: derived inputs already passed this step")
+		} else if err == nil {
 			skipped, err = s.fn()
 		}
 		duration := uint64(time.Since(began).Nanoseconds())
@@ -305,7 +313,7 @@ func (g *gateContext) pipeline() error {
 		g.steps = append(g.steps, record)
 		fmt.Printf("[gate] %-8s %-9s %6.2fs\n", s.name, record.Outcome, time.Since(began).Seconds())
 		if err == nil && cacheable[s.name] && !skipped {
-			cache.Steps[s.name] = string(runrecord.StepSucceeded)
+			cache.Steps[s.name] = phaseCache{Input: input, Outcome: string(runrecord.StepSucceeded)}
 			g.saveRetryCache(cache)
 		}
 		if err != nil {
@@ -559,30 +567,139 @@ func (g *gateContext) treeStateKey() (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
+type phaseCache struct {
+	Input   string `json:"input"`
+	Outcome string `json:"outcome"`
+}
+
 type retryCache struct {
-	TreeKey     string            `json:"tree_key"`
-	Environment string            `json:"environment"`
-	Steps       map[string]string `json:"steps"`
+	Environment string                `json:"environment"`
+	Steps       map[string]phaseCache `json:"steps"`
 }
 
 func (g *gateContext) loadRetryCache() retryCache {
-	key, _ := g.treeStateKey()
-	empty := retryCache{TreeKey: key, Environment: g.environment.ID.String(), Steps: map[string]string{}}
+	empty := retryCache{Environment: g.environment.ID.String(), Steps: map[string]phaseCache{}}
 	var cache retryCache
-	if key == "" || readJSON(g.repo, gateRetryFile, &cache) != nil || !retryReusable(cache, key, empty.Environment) {
+	if readJSON(g.repo, gateRetryFile, &cache) != nil || !retryReusable(cache, empty.Environment) {
 		return empty
 	}
 	return cache
 }
 
 func (g *gateContext) saveRetryCache(cache retryCache) {
-	if cache.TreeKey != "" {
+	if cache.Environment != "" {
 		_ = writeJSON(g.repo, gateRetryFile, cache, 0o644)
 	}
 }
 
-func retryReusable(cache retryCache, treeKey, environment string) bool {
-	return cache.TreeKey == treeKey && cache.Environment == environment && cache.Steps != nil
+func retryReusable(cache retryCache, environment string) bool {
+	return cache.Environment == environment && cache.Steps != nil
+}
+
+func (g *gateContext) phaseInputFingerprint(phase string) (string, error) {
+	if key := g.phaseKeys[phase]; key != "" {
+		return key, nil
+	}
+	paths := g.cachePaths
+	var err error
+	if paths == nil {
+		paths, err = gitLines(g.repo, "ls-files", "-co", "--exclude-standard")
+		if err != nil {
+			return "", err
+		}
+		g.cachePaths = paths
+	}
+	var evidence map[string]bool
+	if phase == "claims" {
+		evidence, err = compatibilityEvidencePaths(g.repo)
+		if err != nil {
+			return "", err
+		}
+	}
+	key, err := fingerprintPhaseInputs(g.repo, phase, paths, evidence)
+	if err == nil {
+		if g.phaseKeys == nil {
+			g.phaseKeys = map[string]string{}
+		}
+		g.phaseKeys[phase] = key
+	}
+	return key, err
+}
+
+func fingerprintPhaseInputs(root, phase string, paths []string, claimEvidence map[string]bool) (string, error) {
+	var selected []string
+	for _, path := range paths {
+		path = filepath.ToSlash(path)
+		if phaseOwnsPath(phase, path, claimEvidence) {
+			selected = append(selected, path)
+		}
+	}
+	sort.Strings(selected)
+	hasher := sha256.New()
+	hasher.Write([]byte(phase + "\x00"))
+	for _, path := range selected {
+		hasher.Write([]byte(path + "\x00"))
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if errors.Is(err, os.ErrNotExist) {
+			hasher.Write([]byte("<deleted>\x00"))
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		hasher.Write(data)
+		hasher.Write([]byte{0})
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func phaseOwnsPath(phase, path string, claimEvidence map[string]bool) bool {
+	goSource := path == "go.mod" || path == "go.sum" || strings.HasSuffix(path, ".go")
+	goInput := goSource ||
+		(strings.HasPrefix(path, "internal/") || strings.HasPrefix(path, "cmd/")) && !strings.HasSuffix(path, ".md")
+	switch phase {
+	case "vet", "build":
+		return goInput
+	case "test":
+		return goInput || path == "README.md" || strings.HasPrefix(path, "docs/")
+	case "manifest":
+		return goSource || strings.HasPrefix(path, "kernels/") || strings.HasPrefix(path, "cmd/kernel-") ||
+			strings.HasPrefix(path, "internal/cuda/executor/")
+	case "sbom":
+		return goSource || path == "SBOM.cdx.json" || strings.HasPrefix(path, "cmd/sbom/")
+	case "claims":
+		return goSource || path == "compatibility.json" || path == "docs/COMPATIBILITY.md" ||
+			strings.HasPrefix(path, "cmd/compatibility/") || claimEvidence[path]
+	default:
+		return false
+	}
+}
+
+func compatibilityEvidencePaths(root string) (map[string]bool, error) {
+	raw, err := os.ReadFile(filepath.Join(root, "compatibility.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string]bool{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var document struct {
+		Claims []struct {
+			Evidence []struct {
+				Path string `json:"path"`
+			} `json:"evidence"`
+		} `json:"claims"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		return nil, err
+	}
+	paths := map[string]bool{}
+	for _, claim := range document.Claims {
+		for _, evidence := range claim.Evidence {
+			paths[filepath.ToSlash(evidence.Path)] = true
+		}
+	}
+	return paths, nil
 }
 
 func discoverEnvironment(repo string) (runrecord.Environment, error) {

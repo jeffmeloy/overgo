@@ -10,6 +10,8 @@
 //	                               (step.verify); exit code is pass/fail
 //	plan -context                  emit one typed JSON grounding payload for
 //	                               the current task and worktree
+//	plan -record-lease <file>      record an owner-approved advisory worktree lease
+//	plan -lease-report             report active lease conflicts and reservations
 //	plan -advance <item> <step>    mark a step done -- REFUSED unless that step's
 //	                               verify command exits 0 (step "." closes the
 //	                               item). -force <reason> overrides loudly.
@@ -52,6 +54,11 @@ func main() {
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
 	contextJSON := flag.Bool("context", false, "emit one typed JSON grounding payload for the current automation task")
+	recordLease := flag.String("record-lease", "", "record an advisory worktree lease from a JSON file")
+	leaseReport := flag.Bool("lease-report", false, "emit active worktree leases and resource/conflict advice as JSON")
+	cpuCapacity := flag.Int("cpu-capacity", 0, "with -lease-report: available CPU threads (0 unknown)")
+	ramCapacity := flag.Int("ram-capacity-gib", 0, "with -lease-report: available host RAM GiB (0 unknown)")
+	vramCapacity := flag.Int("vram-capacity-gib", 0, "with -lease-report: available VRAM GiB (0 unknown)")
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
 	add := flag.Bool("add", false, "inject a new top-priority task: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
@@ -63,7 +70,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "with -context: explicit lane role (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, leaseReport: *leaseReport, capacity: plan.ResourceCapacity{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -71,7 +78,9 @@ func main() {
 
 type cli struct {
 	next, prompt, verify, status, context, advance, add, setverify, compact, stop bool
-	force, title, before, verifyCmd, role                                         string
+	force, title, before, verifyCmd, role, recordLease                            string
+	leaseReport                                                                   bool
+	capacity                                                                      plan.ResourceCapacity
 }
 
 func run(c cli, args []string) error {
@@ -92,6 +101,10 @@ func run(c cli, args []string) error {
 		return err
 	}
 	switch {
+	case c.recordLease != "":
+		return recordWorkLease(".", c.recordLease, os.Stdout)
+	case c.leaseReport:
+		return printLeaseReport(".", c.capacity, os.Stdout)
 	case c.add:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
@@ -133,7 +146,7 @@ func run(c cli, args []string) error {
 		fmt.Println(action)
 		return nil
 	default:
-		return errors.New("one of -next, -prompt, -verify, -status, -context, -advance is required")
+		return errors.New("one of -next, -prompt, -verify, -status, -context, -record-lease, -lease-report, -advance is required")
 	}
 }
 

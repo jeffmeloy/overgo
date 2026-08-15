@@ -478,7 +478,7 @@
           "contains": "func CompileModelPlanWithProfile(",
           "path": "internal/model/layer_plan.go",
           "role": "source",
-          "identity": "file:sha256:3b2933036f8e3bea8c7698ca136ca1347a8477f6d2275996fe3931e877516460"
+          "identity": "file:sha256:73f5dec736a202a261865050596606337ed6c82f56426cbdd9b9f4a271ab8324"
         },
         {
           "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -1113,7 +1113,7 @@
           "contains": "capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed}",
           "path": "cmd/recipe/image_cuda_windows.go",
           "role": "source",
-          "identity": "file:sha256:7826bd918180225448a8801b1ba22931adadaf6d943709fc241b43e0525dff75"
+          "identity": "file:sha256:d10057eb5055b604fe23cf34e587a9c9f3e28a6a7952e978490a60253e2e0fa5"
         },
         {
           "contains": "func TestSenseNovaProductionImageGeneration(",

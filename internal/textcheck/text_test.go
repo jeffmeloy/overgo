@@ -7,3 +7,9 @@ func TestBounded(t *testing.T) {
 		t.Fatal("bounded canonical text policy drifted")
 	}
 }
+
+func TestLowerIdentifier(t *testing.T) {
+	if !LowerIdentifier("stage_2.output", 32) || LowerIdentifier("Stage", 32) || LowerIdentifier("two words", 32) || LowerIdentifier("stage", 4) {
+		t.Fatal("lower identifier policy drifted")
+	}
+}

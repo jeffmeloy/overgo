@@ -241,7 +241,7 @@ func TestVAEUpsample3DFirstChunkSkipsTimeConv(t *testing.T) {
 }
 
 func TestVAEDecodeRejectsInvalidInputs(t *testing.T) {
-	plan := VAEDecoderPlan{ZDim: 2, OutputChannels: 3, Stride: [3]int{4, 8, 8}, ops: []vaeDecoderOp{{kind: vaeOpPointwise, cIn: 2, cOut: 2}}}
+	plan := VAEDecoderPlan{vaePlanCore: vaePlanCore{Stride: [3]int{4, 8, 8}, ops: []vaeDecoderOp{{kind: vaeOpPointwise, cIn: 2, cOut: 2}}}, ZDim: 2, OutputChannels: 3}
 	stats := VAELatentStats{Mean: []float32{0, 0}, Std: []float32{1, 1}}
 	sink := func(int, []float32, int, int) error { return nil }
 	if _, err := DecodeLatentVideo("missing.pth", plan, stats, make([]float32, 2), 1, 1, 1, nil); err == nil {

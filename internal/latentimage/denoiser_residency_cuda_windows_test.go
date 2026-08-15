@@ -96,7 +96,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 			t.Fatalf("grid %dx%d want %dx%d", pgh, pgw, gh, gw)
 		}
 		temb, tembMod := hostTimestep(t, src, tr, sigma)
-		res := residentDenoise(t, ctx, rd, prog, f32of(patches), text, temb, tembMod)
+		res := residentDenoise(t, ctx, rd, prog, dtype.Float64SliceToFloat32(patches), text, temb, tembMod)
 		// per-block distribution + finiteness.
 		for l, hidden := range res.BlockHidden {
 			if len(hidden) != prog.Seq*tr.Hidden {
@@ -122,7 +122,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 		// determinism: step 0 replayed must be bit-identical.
 		if step == 0 {
 			firstVel = append([]float32(nil), res.Velocity...)
-			res2 := residentDenoise(t, ctx, rd, prog, f32of(patches), text, temb, tembMod)
+			res2 := residentDenoise(t, ctx, rd, prog, dtype.Float64SliceToFloat32(patches), text, temb, tembMod)
 			for i := range firstVel {
 				if firstVel[i] != res2.Velocity[i] {
 					t.Fatalf("nondeterministic device forward at %d: %g vs %g", i, firstVel[i], res2.Velocity[i])
@@ -177,7 +177,7 @@ func hostTimestep(t *testing.T, src *safetensors.Source, spec TransformerSpec, s
 		modIn[i] = geluTanh(tembF[i])
 	}
 	modF := dense(modIn, pw, pb, 1, spec.Hidden, 6*spec.Hidden)
-	return f32of(tembF), f32of(modF)
+	return dtype.Float64SliceToFloat32(tembF), dtype.Float64SliceToFloat32(modF)
 }
 
 func loadF32(t *testing.T, src *safetensors.Source, name string) []float32 {

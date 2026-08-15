@@ -57,7 +57,7 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseModelDefinitionDocument(content.Data)
+	parsed, err := modelDefinitionCodec.Parse(content.Data)
 	if err != nil {
 		t.Fatal(err)
 	}

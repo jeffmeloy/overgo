@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -152,7 +151,7 @@ func decodeVideoFile(ctx context.Context, path, configuredFFmpeg string, fps flo
 		closeErr := file.Close()
 		return frames, errors.Join(decodeErr, closeErr)
 	}
-	ffmpeg, err := resolveFFmpeg(configuredFFmpeg)
+	ffmpeg, err := projector.ResolveFFmpeg(configuredFFmpeg)
 	if err != nil {
 		return nil, err
 	}
@@ -192,25 +191,4 @@ func decodeVideoFile(ctx context.Context, path, configuredFFmpeg string, fps flo
 		return nil, errors.New("FFmpeg produced no video frames")
 	}
 	return frames, nil
-}
-
-func resolveFFmpeg(configured string) (string, error) {
-	if strings.TrimSpace(configured) != "" {
-		if _, err := os.Stat(configured); err != nil {
-			return "", fmt.Errorf("FFmpeg executable: %w", err)
-		}
-		return configured, nil
-	}
-	if path, err := exec.LookPath("ffmpeg"); err == nil {
-		return path, nil
-	}
-	if runtime.GOOS == "windows" {
-		if programFiles := os.Getenv("ProgramFiles"); programFiles != "" {
-			candidate := filepath.Join(programFiles, "DownloadHelper CoApp", "ffmpeg.exe")
-			if _, err := os.Stat(candidate); err == nil {
-				return candidate, nil
-			}
-		}
-	}
-	return "", errors.New("FFmpeg is unavailable; set -ffmpeg or OVERGO_FFMPEG")
 }

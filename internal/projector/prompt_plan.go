@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
 
@@ -34,6 +35,23 @@ type imagePromptPlan struct {
 }
 
 type imagePromptEncoder func(context.Context, image.Image) (imagePromptItem, error)
+
+func delimitedImagePromptPlan(family, placeholder, label string, addSpecial bool, width int, prefix, suffix string) imagePromptPlan {
+	return imagePromptPlan{
+		Family: family, Placeholder: placeholder, PlaceholderLabel: label,
+		AddSpecial: addSpecial, EmbeddingWidth: width,
+		Render: func(text []string, items []imagePromptItem) string {
+			return renderDelimitedImagePrompt(text, items, placeholder, prefix, suffix)
+		},
+	}
+}
+
+func referenceImageEncoder(encode func(context.Context, image.Image) (reference.Value, error)) imagePromptEncoder {
+	return func(ctx context.Context, source image.Image) (imagePromptItem, error) {
+		value, err := encode(ctx, source)
+		return imagePromptItem{Embeddings: value.Data, Count: int(value.Shape.Dims[1])}, err
+	}
+}
 
 type mixedMediaPromptItem struct {
 	Kind        MediaKind

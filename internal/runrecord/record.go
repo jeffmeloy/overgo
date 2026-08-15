@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -306,7 +307,7 @@ func canonicalizeRun(run *Run) error {
 	if run.Outcome == OutcomeSucceeded && (len(run.Outputs) == 0 || run.Failure != "") {
 		return errors.New("run record: invalid successful outcome")
 	}
-	if run.Outcome == OutcomeFailed && !validLabel(run.Failure) {
+	if run.Outcome == OutcomeFailed && !textcheck.LowerIdentifier(run.Failure, maxLabelBytes) {
 		return errors.New("run record: failed outcome requires failure code")
 	}
 	if run.Outcome == OutcomeCancelled && run.Failure != "" {
@@ -369,7 +370,7 @@ func canonicalizeEvaluation(evaluation *Evaluation) error {
 		return errors.New("run record: invalid evaluation envelope")
 	}
 	for _, metric := range evaluation.Metrics {
-		if !validLabel(metric.Name) || len(metric.Unit) > maxLabelBytes ||
+		if !textcheck.LowerIdentifier(metric.Name, maxLabelBytes) || len(metric.Unit) > maxLabelBytes ||
 			strings.TrimSpace(metric.Unit) != metric.Unit || strings.ContainsAny(metric.Unit, "\r\n") ||
 			math.IsNaN(metric.Value) || math.IsInf(metric.Value, 0) ||
 			metric.Direction != DirectionNeutral && metric.Direction != DirectionMinimize &&
@@ -401,20 +402,6 @@ func canonicalIDs(ids []artifact.ID) error {
 		}
 	}
 	return nil
-}
-
-func validLabel(value string) bool {
-	if value == "" || len(value) > maxLabelBytes || strings.TrimSpace(value) != value {
-		return false
-	}
-	for _, character := range value {
-		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' ||
-			character == '.' || character == '-' || character == '_' {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 func runContent(run Run) ([]byte, error) {

@@ -63,10 +63,11 @@ func vaeG0LatentStats(t testing.TB) VAELatentStats {
 func compileRealVAEDecoderPlan(t testing.TB) (VAEDecoderPlan, string) {
 	t.Helper()
 	checkpoint := wanVAECheckpointPath(t)
-	metas, err := pytorchzip.ReadTensorMetadata(checkpoint)
+	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
+	metas := catalog.Tensors
 	plan, err := CompileVAEDecoderPlan(metas)
 	if err != nil {
 		t.Fatal(err)

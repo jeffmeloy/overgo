@@ -93,28 +93,44 @@ type trainingOptimizer interface {
 }
 
 type trainingStep struct {
-	pair                    TrainingPair
-	hidden, normed, logits  []float32
-	trace                   decoderTrainingTrace
-	gradient                []float32
-	projectionGradient      []float32
-	qProjectionGradient     []float32
-	kProjectionGradient     []float32
-	vProjectionGradient     []float32
-	attentionQGradient      []float32
-	attentionKGradient      []float32
-	attentionVGradient      []float32
-	selfAttentionQGradient  []float32
-	selfAttentionKGradient  []float32
-	selfAttentionVGradient  []float32
-	selfOutputGradient      []float32
-	selfQGradient           []float32
-	selfKGradient           []float32
-	selfVGradient           []float32
-	finalSelfOutputGradient []float32
-	priorDecoderGradient    []float32
-	selfRawGateGradient     float32
-	loss                    float64
+	pair                          TrainingPair
+	hidden, normed, logits        []float32
+	trace                         decoderTrainingTrace
+	gradient                      []float32
+	projectionGradient            []float32
+	qProjectionGradient           []float32
+	kProjectionGradient           []float32
+	vProjectionGradient           []float32
+	attentionQGradient            []float32
+	attentionKGradient            []float32
+	attentionVGradient            []float32
+	selfAttentionQGradient        []float32
+	selfAttentionKGradient        []float32
+	selfAttentionVGradient        []float32
+	selfOutputGradient            []float32
+	selfQGradient                 []float32
+	selfKGradient                 []float32
+	selfVGradient                 []float32
+	finalSelfOutputGradient       []float32
+	priorDecoderGradient          []float32
+	selfRawGateGradient           float32
+	penultimateCrossQ             []float32
+	penultimateCrossK             []float32
+	penultimateCrossV             []float32
+	penultimateCrossQProjection   []float32
+	penultimateCrossKProjection   []float32
+	penultimateCrossVProjection   []float32
+	penultimateSelfOutputGradient []float32
+	penultimateSelfQ              []float32
+	penultimateSelfK              []float32
+	penultimateSelfV              []float32
+	penultimateSelfQProjection    []float32
+	penultimateSelfKProjection    []float32
+	penultimateSelfVProjection    []float32
+	previousDecoderGradient       []float32
+	penultimateSelfRawGate        float32
+	penultimateCrossRawGate       float32
+	loss                          float64
 }
 
 type parameterSpan struct{ start, end int }
@@ -126,6 +142,22 @@ type trainingLayout struct {
 	selfRawGate, selfOutput               parameterSpan
 	selfInputNorm, selfQNorm, selfKNorm   parameterSpan
 	selfQ, selfK, selfV                   parameterSpan
+	penultimateCrossRawGate               parameterSpan
+	penultimateCrossOutput                parameterSpan
+	penultimateCrossInputNorm             parameterSpan
+	penultimateCrossQNorm                 parameterSpan
+	penultimateCrossKNorm                 parameterSpan
+	penultimateCrossQ                     parameterSpan
+	penultimateCrossK                     parameterSpan
+	penultimateCrossV                     parameterSpan
+	penultimateSelfRawGate                parameterSpan
+	penultimateSelfOutput                 parameterSpan
+	penultimateSelfInputNorm              parameterSpan
+	penultimateSelfQNorm                  parameterSpan
+	penultimateSelfKNorm                  parameterSpan
+	penultimateSelfQ                      parameterSpan
+	penultimateSelfK                      parameterSpan
+	penultimateSelfV                      parameterSpan
 	count                                 int
 }
 
@@ -168,6 +200,10 @@ func (b trainingParameterBinding) publish(src []float32) {
 func trainingParameterBindings(model *Model, layout trainingLayout) []trainingParameterBinding {
 	cross := &model.decoderCross[len(model.decoderCross)-1]
 	self := &model.decoderSelf[len(model.decoderSelf)-1]
+	penultimateCross := &model.decoderCross[len(model.decoderCross)-2]
+	penultimateSelf := &model.decoderSelf[len(model.decoderSelf)-2]
+	penultimateName := fmt.Sprintf("decoder.layer%d.cross", len(model.decoderCross)-2)
+	penultimateSelfName := fmt.Sprintf("decoder.layer%d.self", len(model.decoderSelf)-2)
 	d := model.Dims.DModel
 	qWidth := model.Dims.Heads * model.Dims.HeadDim
 	kvWidth := model.Dims.KVHeads * model.Dims.HeadDim
@@ -189,6 +225,22 @@ func trainingParameterBindings(model *Model, layout trainingLayout) []trainingPa
 		{name: "decoder.final_self.q", span: layout.selfQ, rows: qWidth, cols: d, bf16: self.q},
 		{name: "decoder.final_self.k", span: layout.selfK, rows: kvWidth, cols: d, bf16: self.k},
 		{name: "decoder.final_self.v", span: layout.selfV, rows: kvWidth, cols: d, bf16: self.v},
+		{name: penultimateName + ".raw_gate", span: layout.penultimateCrossRawGate, rows: 1, cols: 1, scalar: &penultimateCross.rawGate, folded: &penultimateCross.gate},
+		{name: penultimateName + ".output", span: layout.penultimateCrossOutput, rows: d, cols: qWidth, bf16: penultimateCross.o},
+		{name: penultimateName + ".input_norm", span: layout.penultimateCrossInputNorm, rows: d, cols: 1, f32: penultimateCross.inNorm},
+		{name: penultimateName + ".q_norm", span: layout.penultimateCrossQNorm, rows: model.Dims.HeadDim, cols: 1, f32: penultimateCross.qNorm},
+		{name: penultimateName + ".k_norm", span: layout.penultimateCrossKNorm, rows: model.Dims.HeadDim, cols: 1, f32: penultimateCross.kNorm},
+		{name: penultimateName + ".q", span: layout.penultimateCrossQ, rows: qWidth, cols: d, bf16: penultimateCross.q},
+		{name: penultimateName + ".k", span: layout.penultimateCrossK, rows: kvWidth, cols: d, bf16: penultimateCross.k},
+		{name: penultimateName + ".v", span: layout.penultimateCrossV, rows: kvWidth, cols: d, bf16: penultimateCross.v},
+		{name: penultimateSelfName + ".raw_gate", span: layout.penultimateSelfRawGate, rows: 1, cols: 1, scalar: &penultimateSelf.rawGate, folded: &penultimateSelf.gate},
+		{name: penultimateSelfName + ".output", span: layout.penultimateSelfOutput, rows: d, cols: qWidth, bf16: penultimateSelf.o},
+		{name: penultimateSelfName + ".input_norm", span: layout.penultimateSelfInputNorm, rows: d, cols: 1, f32: penultimateSelf.inNorm},
+		{name: penultimateSelfName + ".q_norm", span: layout.penultimateSelfQNorm, rows: model.Dims.HeadDim, cols: 1, f32: penultimateSelf.qNorm},
+		{name: penultimateSelfName + ".k_norm", span: layout.penultimateSelfKNorm, rows: model.Dims.HeadDim, cols: 1, f32: penultimateSelf.kNorm},
+		{name: penultimateSelfName + ".q", span: layout.penultimateSelfQ, rows: qWidth, cols: d, bf16: penultimateSelf.q},
+		{name: penultimateSelfName + ".k", span: layout.penultimateSelfK, rows: kvWidth, cols: d, bf16: penultimateSelf.k},
+		{name: penultimateSelfName + ".v", span: layout.penultimateSelfV, rows: kvWidth, cols: d, bf16: penultimateSelf.v},
 	}
 }
 
@@ -204,23 +256,39 @@ func newTrainingLayout(model *Model) trainingLayout {
 	kvWidth := model.Dims.KVHeads * model.Dims.HeadDim
 	cursor := 0
 	layout := trainingLayout{
-		finalNorm:     nextParameter(&cursor, d),
-		rawGate:       nextParameter(&cursor, 1),
-		output:        nextParameter(&cursor, d*qWidth),
-		inputNorm:     nextParameter(&cursor, d),
-		qNorm:         nextParameter(&cursor, model.Dims.HeadDim),
-		kNorm:         nextParameter(&cursor, model.Dims.HeadDim),
-		qProjection:   nextParameter(&cursor, qWidth*d),
-		kProjection:   nextParameter(&cursor, kvWidth*d),
-		vProjection:   nextParameter(&cursor, kvWidth*d),
-		selfRawGate:   nextParameter(&cursor, 1),
-		selfOutput:    nextParameter(&cursor, d*qWidth),
-		selfInputNorm: nextParameter(&cursor, d),
-		selfQNorm:     nextParameter(&cursor, model.Dims.HeadDim),
-		selfKNorm:     nextParameter(&cursor, model.Dims.HeadDim),
-		selfQ:         nextParameter(&cursor, qWidth*d),
-		selfK:         nextParameter(&cursor, kvWidth*d),
-		selfV:         nextParameter(&cursor, kvWidth*d),
+		finalNorm:                 nextParameter(&cursor, d),
+		rawGate:                   nextParameter(&cursor, 1),
+		output:                    nextParameter(&cursor, d*qWidth),
+		inputNorm:                 nextParameter(&cursor, d),
+		qNorm:                     nextParameter(&cursor, model.Dims.HeadDim),
+		kNorm:                     nextParameter(&cursor, model.Dims.HeadDim),
+		qProjection:               nextParameter(&cursor, qWidth*d),
+		kProjection:               nextParameter(&cursor, kvWidth*d),
+		vProjection:               nextParameter(&cursor, kvWidth*d),
+		selfRawGate:               nextParameter(&cursor, 1),
+		selfOutput:                nextParameter(&cursor, d*qWidth),
+		selfInputNorm:             nextParameter(&cursor, d),
+		selfQNorm:                 nextParameter(&cursor, model.Dims.HeadDim),
+		selfKNorm:                 nextParameter(&cursor, model.Dims.HeadDim),
+		selfQ:                     nextParameter(&cursor, qWidth*d),
+		selfK:                     nextParameter(&cursor, kvWidth*d),
+		selfV:                     nextParameter(&cursor, kvWidth*d),
+		penultimateCrossRawGate:   nextParameter(&cursor, 1),
+		penultimateCrossOutput:    nextParameter(&cursor, d*qWidth),
+		penultimateCrossInputNorm: nextParameter(&cursor, d),
+		penultimateCrossQNorm:     nextParameter(&cursor, model.Dims.HeadDim),
+		penultimateCrossKNorm:     nextParameter(&cursor, model.Dims.HeadDim),
+		penultimateCrossQ:         nextParameter(&cursor, qWidth*d),
+		penultimateCrossK:         nextParameter(&cursor, kvWidth*d),
+		penultimateCrossV:         nextParameter(&cursor, kvWidth*d),
+		penultimateSelfRawGate:    nextParameter(&cursor, 1),
+		penultimateSelfOutput:     nextParameter(&cursor, d*qWidth),
+		penultimateSelfInputNorm:  nextParameter(&cursor, d),
+		penultimateSelfQNorm:      nextParameter(&cursor, model.Dims.HeadDim),
+		penultimateSelfKNorm:      nextParameter(&cursor, model.Dims.HeadDim),
+		penultimateSelfQ:          nextParameter(&cursor, qWidth*d),
+		penultimateSelfK:          nextParameter(&cursor, kvWidth*d),
+		penultimateSelfV:          nextParameter(&cursor, kvWidth*d),
 	}
 	layout.count = cursor
 	return layout
@@ -355,213 +423,325 @@ func (t *Trainer) backward(state *trainingStep) error {
 }
 
 func (t *Trainer) backwardFinalCross(state *trainingStep, dHidden []float32) error {
-	rows, d := len(state.pair.Targets), t.model.Dims.DModel
-	if len(state.trace.finalCrossProjected) != len(dHidden) {
-		return errors.New("final cross-attention trace differs")
-	}
-	var gateGradient float64
-	for index, gradient := range dHidden {
-		gateGradient += float64(gradient) * float64(state.trace.finalCrossProjected[index])
-	}
+	rows := len(state.pair.Targets)
+	trace := state.trace.finalCross()
 	block := &t.model.decoderCross[len(t.model.decoderCross)-1]
-	gate := block.gate
-	state.gradient[t.layout.rawGate.start] = float32(gateGradient) * gate * (1 - gate)
-	if len(state.trace.finalCrossAttention) != rows*t.model.Dims.Heads*t.model.Dims.HeadDim {
-		return errors.New("final cross-attention core trace differs")
+	core, err := backwardCrossAttentionCore(trace, block, dHidden, rows, t.model.Dims)
+	if err != nil {
+		return err
 	}
-	dProjected := make([]float32, len(dHidden))
-	for index, gradient := range dHidden {
-		dProjected[index] = gate * gradient
-	}
+	state.gradient[t.layout.rawGate.start] = core.rawGate
 	state.projectionGradient = state.gradient[t.layout.output.start:t.layout.output.end]
-	hostmath.LinearBackward(
-		nil, state.projectionGradient, nil, state.trace.finalCrossAttention, nil, dProjected,
-		rows, t.model.Dims.Heads*t.model.Dims.HeadDim, d, false,
-	)
-	state.attentionQGradient = make([]float32, len(state.trace.finalCrossQ))
-	state.attentionKGradient = make([]float32, len(state.trace.finalCrossK))
-	state.attentionVGradient = make([]float32, len(state.trace.finalCrossV))
-	dAttention := make([]float32, len(state.trace.finalCrossAttention))
-	hostmath.LinearBF16BackwardInput(
-		dAttention, dProjected, block.o,
-		rows, t.model.Dims.Heads*t.model.Dims.HeadDim, d,
-	)
-	hostmath.MaskedBidirectionalAttentionBackward(
-		state.attentionQGradient, state.attentionKGradient, state.attentionVGradient,
-		state.trace.finalCrossQ, state.trace.finalCrossK, state.trace.finalCrossV, dAttention,
-		rows, len(state.trace.finalCrossK)/(t.model.Dims.KVHeads*t.model.Dims.HeadDim),
-		t.model.Dims.Heads, t.model.Dims.KVHeads, t.model.Dims.HeadDim, nil,
-	)
+	copy(state.projectionGradient, core.output)
+	state.attentionQGradient, state.attentionKGradient, state.attentionVGradient = core.q, core.k, core.v
 	if err := t.backwardFinalCrossProjections(state, block, dHidden); err != nil {
 		return err
 	}
 	return t.backwardFinalSelfCore(state)
 }
 
-func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attnBlock, residualGradient []float32) error {
-	dims := t.model.Dims
-	rows := len(state.pair.Targets)
-	memRows := len(state.trace.finalCrossMemory) / dims.DModel
+type attentionCoreGradient struct {
+	rawGate         float32
+	output, q, k, v []float32
+}
+
+type crossProjectionGradient struct {
+	input, inputNorm, qNorm, kNorm []float32
+	q, k, v                        []float32
+}
+
+func backwardCrossAttentionCore(trace *attentionTrainingTrace, block *attnBlock, dOutput []float32, rows int, dims Dims) (attentionCoreGradient, error) {
+	if len(trace.projected) != len(dOutput) || len(trace.attention) != rows*dims.Heads*dims.HeadDim {
+		return attentionCoreGradient{}, errors.New("cross-attention core trace differs")
+	}
+	var gateGradient float64
+	for index, gradient := range dOutput {
+		gateGradient += float64(gradient) * float64(trace.projected[index])
+	}
+	result := attentionCoreGradient{rawGate: float32(gateGradient) * block.gate * (1 - block.gate)}
+	dProjected := make([]float32, len(dOutput))
+	for index, gradient := range dOutput {
+		dProjected[index] = block.gate * gradient
+	}
+	result.output = make([]float32, len(block.o))
+	hostmath.LinearBackward(nil, result.output, nil, trace.attention, nil, dProjected, rows, dims.Heads*dims.HeadDim, dims.DModel, false)
+	dAttention := make([]float32, len(trace.attention))
+	hostmath.LinearBF16BackwardInput(dAttention, dProjected, block.o, rows, dims.Heads*dims.HeadDim, dims.DModel)
+	result.q = make([]float32, len(trace.q))
+	result.k = make([]float32, len(trace.k))
+	result.v = make([]float32, len(trace.v))
+	hostmath.MaskedBidirectionalAttentionBackward(
+		result.q, result.k, result.v, trace.q, trace.k, trace.v, dAttention,
+		rows, len(trace.k)/(dims.KVHeads*dims.HeadDim), dims.Heads, dims.KVHeads, dims.HeadDim, nil,
+	)
+	return result, nil
+}
+
+func backwardCrossAttentionProjections(
+	trace *attentionTrainingTrace, block *attnBlock, core attentionCoreGradient,
+	residualGradient []float32, rows int, dims Dims, scoreScale float32,
+) (crossProjectionGradient, error) {
+	memRows := len(trace.source) / dims.DModel
 	qWidth := dims.Heads * dims.HeadDim
 	kvWidth := dims.KVHeads * dims.HeadDim
-	if len(state.trace.finalCrossInput) != rows*dims.DModel ||
-		len(state.trace.finalCrossNormed) != rows*dims.DModel ||
-		len(state.trace.finalCrossQRaw) != rows*qWidth ||
-		memRows == 0 || len(state.trace.finalCrossKRaw) != memRows*kvWidth {
-		return errors.New("final cross-attention projection trace differs")
+	if len(trace.input) != rows*dims.DModel || len(trace.normed) != rows*dims.DModel ||
+		len(trace.qRaw) != rows*qWidth || memRows == 0 || len(trace.kRaw) != memRows*kvWidth {
+		return crossProjectionGradient{}, errors.New("cross-attention projection trace differs")
 	}
-
-	dQNorm := make([]float32, len(state.attentionQGradient))
-	for index, value := range state.attentionQGradient {
-		dQNorm[index] = value * t.model.scoreScale
+	result := crossProjectionGradient{
+		inputNorm: make([]float32, dims.DModel), qNorm: make([]float32, dims.HeadDim), kNorm: make([]float32, dims.HeadDim),
+		q: make([]float32, len(block.q)), k: make([]float32, len(block.k)), v: make([]float32, len(block.v)),
+	}
+	dQNorm := make([]float32, len(core.q))
+	for index, value := range core.q {
+		dQNorm[index] = value * scoreScale
 	}
 	dQRaw := make([]float32, len(dQNorm))
 	hostmath.RMSNormBackward(
-		dQRaw, state.gradient[t.layout.qNorm.start:t.layout.qNorm.end],
-		state.trace.finalCrossQRaw, block.qNorm, dQNorm,
+		dQRaw, result.qNorm, trace.qRaw, block.qNorm, dQNorm,
 		rows*dims.Heads, dims.HeadDim, dims.RMSEps, false,
 	)
-	state.qProjectionGradient = state.gradient[t.layout.qProjection.start:t.layout.qProjection.end]
-	hostmath.LinearBackward(
-		nil, state.qProjectionGradient, nil, state.trace.finalCrossNormed, nil, dQRaw,
-		rows, dims.DModel, qWidth, false,
-	)
-	dCrossNormed := make([]float32, len(state.trace.finalCrossNormed))
+	hostmath.LinearBackward(nil, result.q, nil, trace.normed, nil, dQRaw, rows, dims.DModel, qWidth, false)
+	dCrossNormed := make([]float32, len(trace.normed))
 	hostmath.LinearBF16BackwardInput(dCrossNormed, dQRaw, block.q, rows, dims.DModel, qWidth)
-	dCrossInput := make([]float32, len(dCrossNormed))
+	result.input = make([]float32, len(dCrossNormed))
 	hostmath.RMSNormBackward(
-		dCrossInput, state.gradient[t.layout.inputNorm.start:t.layout.inputNorm.end],
-		state.trace.finalCrossInput, block.inNorm, dCrossNormed,
+		result.input, result.inputNorm, trace.input, block.inNorm, dCrossNormed,
 		rows, dims.DModel, dims.RMSEps, false,
 	)
 	for index, value := range residualGradient {
-		dCrossInput[index] += value
+		result.input[index] += value
 	}
-	state.finalSelfOutputGradient = dCrossInput
-
-	dKRaw := make([]float32, len(state.attentionKGradient))
+	dKRaw := make([]float32, len(core.k))
 	hostmath.RMSNormBackward(
-		dKRaw, state.gradient[t.layout.kNorm.start:t.layout.kNorm.end],
-		state.trace.finalCrossKRaw, block.kNorm, state.attentionKGradient,
+		dKRaw, result.kNorm, trace.kRaw, block.kNorm, core.k,
 		memRows*dims.KVHeads, dims.HeadDim, dims.RMSEps, false,
 	)
+	hostmath.LinearBackward(nil, result.k, nil, trace.source, nil, dKRaw, memRows, dims.DModel, kvWidth, false)
+	hostmath.LinearBackward(nil, result.v, nil, trace.source, nil, core.v, memRows, dims.DModel, kvWidth, false)
+	return result, nil
+}
+
+func (t *Trainer) backwardFinalCrossProjections(state *trainingStep, block *attnBlock, residualGradient []float32) error {
+	result, err := backwardCrossAttentionProjections(
+		state.trace.finalCross(), block,
+		attentionCoreGradient{q: state.attentionQGradient, k: state.attentionKGradient, v: state.attentionVGradient},
+		residualGradient, len(state.pair.Targets), t.model.Dims, t.model.scoreScale,
+	)
+	if err != nil {
+		return err
+	}
+	copy(state.gradient[t.layout.inputNorm.start:t.layout.inputNorm.end], result.inputNorm)
+	copy(state.gradient[t.layout.qNorm.start:t.layout.qNorm.end], result.qNorm)
+	copy(state.gradient[t.layout.kNorm.start:t.layout.kNorm.end], result.kNorm)
+	state.qProjectionGradient = state.gradient[t.layout.qProjection.start:t.layout.qProjection.end]
 	state.kProjectionGradient = state.gradient[t.layout.kProjection.start:t.layout.kProjection.end]
 	state.vProjectionGradient = state.gradient[t.layout.vProjection.start:t.layout.vProjection.end]
-	hostmath.LinearBackward(
-		nil, state.kProjectionGradient, nil, state.trace.finalCrossMemory, nil, dKRaw,
-		memRows, dims.DModel, kvWidth, false,
-	)
-	hostmath.LinearBackward(
-		nil, state.vProjectionGradient, nil, state.trace.finalCrossMemory, nil, state.attentionVGradient,
-		memRows, dims.DModel, kvWidth, false,
-	)
+	copy(state.qProjectionGradient, result.q)
+	copy(state.kProjectionGradient, result.k)
+	copy(state.vProjectionGradient, result.v)
+	state.finalSelfOutputGradient = result.input
 	return nil
 }
 
 func (t *Trainer) backwardFinalSelfCore(state *trainingStep) error {
 	dims := t.model.Dims
 	rows := len(state.pair.Targets)
-	trace := &state.trace
-	if len(state.finalSelfOutputGradient) != rows*dims.DModel ||
-		len(trace.finalSelfProjected) != rows*dims.DModel ||
-		len(trace.finalSelfAttention) != rows*dims.Heads*dims.HeadDim {
-		return errors.New("final self-attention trace differs")
-	}
+	trace := state.trace.finalSelf()
 	block := &t.model.decoderSelf[len(t.model.decoderSelf)-1]
-	var gateGradient float64
-	for index, gradient := range state.finalSelfOutputGradient {
-		gateGradient += float64(gradient) * float64(trace.finalSelfProjected[index])
+	core, err := backwardCausalAttentionCore(trace, block, state.finalSelfOutputGradient, rows, dims)
+	if err != nil {
+		return err
 	}
-	state.selfRawGateGradient = float32(gateGradient) * block.gate * (1 - block.gate)
+	state.selfRawGateGradient = core.rawGate
 	state.gradient[t.layout.selfRawGate.start] = state.selfRawGateGradient
-	dProjected := make([]float32, len(state.finalSelfOutputGradient))
-	for index, gradient := range state.finalSelfOutputGradient {
-		dProjected[index] = block.gate * gradient
-	}
 	state.selfOutputGradient = state.gradient[t.layout.selfOutput.start:t.layout.selfOutput.end]
-	hostmath.LinearBackward(
-		nil, state.selfOutputGradient, nil, trace.finalSelfAttention, nil, dProjected,
-		rows, dims.Heads*dims.HeadDim, dims.DModel, false,
-	)
-	dAttention := make([]float32, len(trace.finalSelfAttention))
-	hostmath.LinearBF16BackwardInput(
-		dAttention, dProjected, block.o,
-		rows, dims.Heads*dims.HeadDim, dims.DModel,
-	)
-	state.selfAttentionQGradient = make([]float32, len(trace.finalSelfQ))
-	state.selfAttentionKGradient = make([]float32, len(trace.finalSelfK))
-	state.selfAttentionVGradient = make([]float32, len(trace.finalSelfV))
-	hostmath.CausalAttentionBackward(
-		state.selfAttentionQGradient, state.selfAttentionKGradient, state.selfAttentionVGradient,
-		trace.finalSelfQ, trace.finalSelfK, trace.finalSelfV, dAttention,
-		rows, dims.Heads, dims.KVHeads, dims.HeadDim,
-	)
+	copy(state.selfOutputGradient, core.output)
+	state.selfAttentionQGradient, state.selfAttentionKGradient, state.selfAttentionVGradient = core.q, core.k, core.v
 	return t.backwardFinalSelfProjections(state, block)
 }
 
-func (t *Trainer) backwardFinalSelfProjections(state *trainingStep, block *attnBlock) error {
-	dims := t.model.Dims
-	rows := len(state.pair.Targets)
+func backwardCausalAttentionCore(trace *attentionTrainingTrace, block *attnBlock, dOutput []float32, rows int, dims Dims) (attentionCoreGradient, error) {
+	if len(dOutput) != rows*dims.DModel || len(trace.projected) != len(dOutput) || len(trace.attention) != rows*dims.Heads*dims.HeadDim {
+		return attentionCoreGradient{}, errors.New("causal-attention core trace differs")
+	}
+	var gateGradient float64
+	for index, gradient := range dOutput {
+		gateGradient += float64(gradient) * float64(trace.projected[index])
+	}
+	result := attentionCoreGradient{rawGate: float32(gateGradient) * block.gate * (1 - block.gate)}
+	dProjected := make([]float32, len(dOutput))
+	for index, gradient := range dOutput {
+		dProjected[index] = block.gate * gradient
+	}
+	result.output = make([]float32, len(block.o))
+	hostmath.LinearBackward(nil, result.output, nil, trace.attention, nil, dProjected, rows, dims.Heads*dims.HeadDim, dims.DModel, false)
+	dAttention := make([]float32, len(trace.attention))
+	hostmath.LinearBF16BackwardInput(dAttention, dProjected, block.o, rows, dims.Heads*dims.HeadDim, dims.DModel)
+	result.q = make([]float32, len(trace.q))
+	result.k = make([]float32, len(trace.k))
+	result.v = make([]float32, len(trace.v))
+	hostmath.CausalAttentionBackward(result.q, result.k, result.v, trace.q, trace.k, trace.v, dAttention, rows, dims.Heads, dims.KVHeads, dims.HeadDim)
+	return result, nil
+}
+
+func backwardCausalAttentionProjections(
+	trace *attentionTrainingTrace, block *attnBlock, core attentionCoreGradient,
+	residualGradient []float32, rows int, dims Dims, scoreScale float32, invFreq []float64,
+) (crossProjectionGradient, error) {
 	qWidth := dims.Heads * dims.HeadDim
 	kvWidth := dims.KVHeads * dims.HeadDim
-	trace := &state.trace
-	if len(trace.finalSelfInput) != rows*dims.DModel || len(trace.finalSelfNormed) != rows*dims.DModel ||
-		len(trace.finalSelfQRaw) != rows*qWidth || len(trace.finalSelfKRaw) != rows*kvWidth {
-		return errors.New("final self-attention projection trace differs")
+	if len(trace.input) != rows*dims.DModel || len(trace.normed) != rows*dims.DModel ||
+		len(trace.qRaw) != rows*qWidth || len(trace.kRaw) != rows*kvWidth {
+		return crossProjectionGradient{}, errors.New("causal-attention projection trace differs")
 	}
-	dQNorm := append([]float32(nil), state.selfAttentionQGradient...)
+	result := crossProjectionGradient{
+		inputNorm: make([]float32, dims.DModel), qNorm: make([]float32, dims.HeadDim), kNorm: make([]float32, dims.HeadDim),
+		q: make([]float32, len(block.q)), k: make([]float32, len(block.k)), v: make([]float32, len(block.v)),
+	}
+	dQNorm := append([]float32(nil), core.q...)
 	for index := range dQNorm {
-		dQNorm[index] *= t.model.scoreScale
+		dQNorm[index] *= scoreScale
 	}
 	for row := range rows {
 		for head := range dims.Heads {
-			hostmath.RotaryHalfBackward(dQNorm[(row*dims.Heads+head)*dims.HeadDim:(row*dims.Heads+head+1)*dims.HeadDim], t.model.invFreq, row)
+			hostmath.RotaryHalfBackward(dQNorm[(row*dims.Heads+head)*dims.HeadDim:(row*dims.Heads+head+1)*dims.HeadDim], invFreq, row)
 		}
 	}
-	dKNorm := append([]float32(nil), state.selfAttentionKGradient...)
+	dKNorm := append([]float32(nil), core.k...)
 	for row := range rows {
 		for head := range dims.KVHeads {
-			hostmath.RotaryHalfBackward(dKNorm[(row*dims.KVHeads+head)*dims.HeadDim:(row*dims.KVHeads+head+1)*dims.HeadDim], t.model.invFreq, row)
+			hostmath.RotaryHalfBackward(dKNorm[(row*dims.KVHeads+head)*dims.HeadDim:(row*dims.KVHeads+head+1)*dims.HeadDim], invFreq, row)
 		}
 	}
 	dQRaw := make([]float32, len(dQNorm))
 	dKRaw := make([]float32, len(dKNorm))
 	hostmath.RMSNormBackward(
-		dQRaw, state.gradient[t.layout.selfQNorm.start:t.layout.selfQNorm.end],
-		trace.finalSelfQRaw, block.qNorm, dQNorm,
+		dQRaw, result.qNorm,
+		trace.qRaw, block.qNorm, dQNorm,
 		rows*dims.Heads, dims.HeadDim, dims.RMSEps, false,
 	)
 	hostmath.RMSNormBackward(
-		dKRaw, state.gradient[t.layout.selfKNorm.start:t.layout.selfKNorm.end],
-		trace.finalSelfKRaw, block.kNorm, dKNorm,
+		dKRaw, result.kNorm,
+		trace.kRaw, block.kNorm, dKNorm,
 		rows*dims.KVHeads, dims.HeadDim, dims.RMSEps, false,
 	)
-	state.selfQGradient = state.gradient[t.layout.selfQ.start:t.layout.selfQ.end]
-	state.selfKGradient = state.gradient[t.layout.selfK.start:t.layout.selfK.end]
-	state.selfVGradient = state.gradient[t.layout.selfV.start:t.layout.selfV.end]
-	hostmath.LinearBackward(nil, state.selfQGradient, nil, trace.finalSelfNormed, nil, dQRaw, rows, dims.DModel, qWidth, false)
-	hostmath.LinearBackward(nil, state.selfKGradient, nil, trace.finalSelfNormed, nil, dKRaw, rows, dims.DModel, kvWidth, false)
-	hostmath.LinearBackward(nil, state.selfVGradient, nil, trace.finalSelfNormed, nil, state.selfAttentionVGradient, rows, dims.DModel, kvWidth, false)
-	dNormed := make([]float32, len(trace.finalSelfNormed))
+	hostmath.LinearBackward(nil, result.q, nil, trace.normed, nil, dQRaw, rows, dims.DModel, qWidth, false)
+	hostmath.LinearBackward(nil, result.k, nil, trace.normed, nil, dKRaw, rows, dims.DModel, kvWidth, false)
+	hostmath.LinearBackward(nil, result.v, nil, trace.normed, nil, core.v, rows, dims.DModel, kvWidth, false)
+	dNormed := make([]float32, len(trace.normed))
 	scratch := make([]float32, len(dNormed))
 	hostmath.LinearBF16BackwardInput(dNormed, dQRaw, block.q, rows, dims.DModel, qWidth)
 	hostmath.LinearBF16BackwardInput(scratch, dKRaw, block.k, rows, dims.DModel, kvWidth)
 	for index, value := range scratch {
 		dNormed[index] += value
 	}
-	hostmath.LinearBF16BackwardInput(scratch, state.selfAttentionVGradient, block.v, rows, dims.DModel, kvWidth)
+	hostmath.LinearBF16BackwardInput(scratch, core.v, block.v, rows, dims.DModel, kvWidth)
 	for index, value := range scratch {
 		dNormed[index] += value
 	}
-	dInput := make([]float32, len(dNormed))
+	result.input = make([]float32, len(dNormed))
 	hostmath.RMSNormBackward(
-		dInput, state.gradient[t.layout.selfInputNorm.start:t.layout.selfInputNorm.end],
-		trace.finalSelfInput, block.inNorm, dNormed, rows, dims.DModel, dims.RMSEps, false,
+		result.input, result.inputNorm,
+		trace.input, block.inNorm, dNormed, rows, dims.DModel, dims.RMSEps, false,
 	)
-	for index, value := range state.finalSelfOutputGradient {
-		dInput[index] += value
+	for index, value := range residualGradient {
+		result.input[index] += value
 	}
-	state.priorDecoderGradient = dInput
+	return result, nil
+}
+
+func (t *Trainer) backwardFinalSelfProjections(state *trainingStep, block *attnBlock) error {
+	result, err := backwardCausalAttentionProjections(
+		state.trace.finalSelf(), block,
+		attentionCoreGradient{q: state.selfAttentionQGradient, k: state.selfAttentionKGradient, v: state.selfAttentionVGradient},
+		state.finalSelfOutputGradient, len(state.pair.Targets), t.model.Dims, t.model.scoreScale, t.model.invFreq,
+	)
+	if err != nil {
+		return err
+	}
+	copy(state.gradient[t.layout.selfInputNorm.start:t.layout.selfInputNorm.end], result.inputNorm)
+	copy(state.gradient[t.layout.selfQNorm.start:t.layout.selfQNorm.end], result.qNorm)
+	copy(state.gradient[t.layout.selfKNorm.start:t.layout.selfKNorm.end], result.kNorm)
+	state.selfQGradient = state.gradient[t.layout.selfQ.start:t.layout.selfQ.end]
+	state.selfKGradient = state.gradient[t.layout.selfK.start:t.layout.selfK.end]
+	state.selfVGradient = state.gradient[t.layout.selfV.start:t.layout.selfV.end]
+	copy(state.selfQGradient, result.q)
+	copy(state.selfKGradient, result.k)
+	copy(state.selfVGradient, result.v)
+	state.priorDecoderGradient = result.input
+	return t.backwardPenultimateCrossCore(state)
+}
+
+func (t *Trainer) backwardPenultimateCrossCore(state *trainingStep) error {
+	layer := len(t.model.decoderCross) - 2
+	if layer < 0 {
+		return nil
+	}
+	core, err := backwardCrossAttentionCore(
+		&state.trace.layers[layer].cross, &t.model.decoderCross[layer],
+		state.priorDecoderGradient, len(state.pair.Targets), t.model.Dims,
+	)
+	if err != nil {
+		return err
+	}
+	state.penultimateCrossQ, state.penultimateCrossK, state.penultimateCrossV = core.q, core.k, core.v
+	state.penultimateCrossRawGate = core.rawGate
+	state.gradient[t.layout.penultimateCrossRawGate.start] = core.rawGate
+	copy(state.gradient[t.layout.penultimateCrossOutput.start:t.layout.penultimateCrossOutput.end], core.output)
+	projections, err := backwardCrossAttentionProjections(
+		&state.trace.layers[layer].cross, &t.model.decoderCross[layer], core,
+		state.priorDecoderGradient, len(state.pair.Targets), t.model.Dims, t.model.scoreScale,
+	)
+	if err != nil {
+		return err
+	}
+	copy(state.gradient[t.layout.penultimateCrossInputNorm.start:t.layout.penultimateCrossInputNorm.end], projections.inputNorm)
+	copy(state.gradient[t.layout.penultimateCrossQNorm.start:t.layout.penultimateCrossQNorm.end], projections.qNorm)
+	copy(state.gradient[t.layout.penultimateCrossKNorm.start:t.layout.penultimateCrossKNorm.end], projections.kNorm)
+	state.penultimateCrossQProjection = state.gradient[t.layout.penultimateCrossQ.start:t.layout.penultimateCrossQ.end]
+	state.penultimateCrossKProjection = state.gradient[t.layout.penultimateCrossK.start:t.layout.penultimateCrossK.end]
+	state.penultimateCrossVProjection = state.gradient[t.layout.penultimateCrossV.start:t.layout.penultimateCrossV.end]
+	copy(state.penultimateCrossQProjection, projections.q)
+	copy(state.penultimateCrossKProjection, projections.k)
+	copy(state.penultimateCrossVProjection, projections.v)
+	state.penultimateSelfOutputGradient = projections.input
+	return t.backwardPenultimateSelfCore(state)
+}
+
+func (t *Trainer) backwardPenultimateSelfCore(state *trainingStep) error {
+	layer := len(t.model.decoderSelf) - 2
+	if layer < 0 {
+		return nil
+	}
+	core, err := backwardCausalAttentionCore(
+		&state.trace.layers[layer].self, &t.model.decoderSelf[layer],
+		state.penultimateSelfOutputGradient, len(state.pair.Targets), t.model.Dims,
+	)
+	if err != nil {
+		return err
+	}
+	state.penultimateSelfQ, state.penultimateSelfK, state.penultimateSelfV = core.q, core.k, core.v
+	state.penultimateSelfRawGate = core.rawGate
+	state.gradient[t.layout.penultimateSelfRawGate.start] = core.rawGate
+	copy(state.gradient[t.layout.penultimateSelfOutput.start:t.layout.penultimateSelfOutput.end], core.output)
+	projections, err := backwardCausalAttentionProjections(
+		&state.trace.layers[layer].self, &t.model.decoderSelf[layer], core,
+		state.penultimateSelfOutputGradient, len(state.pair.Targets), t.model.Dims, t.model.scoreScale, t.model.invFreq,
+	)
+	if err != nil {
+		return err
+	}
+	copy(state.gradient[t.layout.penultimateSelfInputNorm.start:t.layout.penultimateSelfInputNorm.end], projections.inputNorm)
+	copy(state.gradient[t.layout.penultimateSelfQNorm.start:t.layout.penultimateSelfQNorm.end], projections.qNorm)
+	copy(state.gradient[t.layout.penultimateSelfKNorm.start:t.layout.penultimateSelfKNorm.end], projections.kNorm)
+	state.penultimateSelfQProjection = state.gradient[t.layout.penultimateSelfQ.start:t.layout.penultimateSelfQ.end]
+	state.penultimateSelfKProjection = state.gradient[t.layout.penultimateSelfK.start:t.layout.penultimateSelfK.end]
+	state.penultimateSelfVProjection = state.gradient[t.layout.penultimateSelfV.start:t.layout.penultimateSelfV.end]
+	copy(state.penultimateSelfQProjection, projections.q)
+	copy(state.penultimateSelfKProjection, projections.k)
+	copy(state.penultimateSelfVProjection, projections.v)
+	state.previousDecoderGradient = projections.input
 	return nil
 }
 

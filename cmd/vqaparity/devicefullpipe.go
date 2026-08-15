@@ -144,7 +144,8 @@ func runFullPipeline(
 		return res, err
 	}
 
-	binder := &prefillWeightBinder{worker: worker, ctx: ctx}
+	allocations := device.NewAllocationSet(worker)
+	defer func() { _ = allocations.Close(ctx) }()
 	e2eStart := time.Now()
 
 	// ================= STAGE 0: DEVICE VISION TOWER -> block_last ============
@@ -156,7 +157,7 @@ func runFullPipeline(
 	l.log(fmt.Sprintf("DEVICE full STAGE0 vision tower done nPatch=%d hidden=%d", nPatch, pc.spec.Hidden))
 
 	// ================= STAGE 1: DEVICE MERGER -> image features ==============
-	devMerged, err := runFullMerger(ctx, exe, binder, pc, blockLast, nPatch, O)
+	devMerged, err := runFullMerger(ctx, exe, &allocations, pc, blockLast, nPatch, O)
 	if err != nil {
 		return res, err
 	}
@@ -172,7 +173,7 @@ func runFullPipeline(
 	}
 
 	// ================= STAGE 2: DEVICE PREFILL (chained) + KV export =========
-	lastRow, seedKeys, seedValues, err := runFullPrefill(ctx, exe, binder, pc, prefillEmbeds)
+	lastRow, seedKeys, seedValues, err := runFullPrefill(ctx, exe, &allocations, pc, prefillEmbeds)
 	if err != nil {
 		return res, err
 	}
@@ -213,11 +214,11 @@ func runFullPipeline(
 		return res, fmt.Errorf("device full decode compile: %w", err)
 	}
 
-	deco := &prefillWeightBinder{worker: worker, ctx: ctx}
-	defer deco.free()
+	decodeAllocations := device.NewAllocationSet(worker)
+	defer func() { _ = decodeAllocations.Close(ctx) }()
 	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{}
 	bindVec := func(node *tensor.Tensor, v []float32) error {
-		p, e := deco.upload(driver.Bytes(v))
+		p, e := decodeAllocations.Upload(ctx, driver.Bytes(v))
 		if e != nil {
 			return e
 		}
@@ -225,7 +226,7 @@ func runFullPipeline(
 		return nil
 	}
 	bindMat := func(node *tensor.Tensor, m routedlm.BF16Matrix) error {
-		p, e := deco.upload(driver.Bytes(m.Data))
+		p, e := decodeAllocations.Upload(ctx, driver.Bytes(m.Data))
 		if e != nil {
 			return e
 		}
@@ -255,7 +256,7 @@ func runFullPipeline(
 	if _, err := terminal.Head.ReadAt(headBytes, 0); err != nil {
 		return res, fmt.Errorf("device full: head read: %w", err)
 	}
-	if p, e := deco.upload(headBytes); e != nil {
+	if p, e := decodeAllocations.Upload(ctx, headBytes); e != nil {
 		return res, e
 	} else {
 		deviceFeeds[dgraph.Head] = p
@@ -409,7 +410,7 @@ func runFullPipeline(
 func runFullMerger(
 	ctx context.Context,
 	exe *executor.Executor,
-	binder *prefillWeightBinder,
+	allocations *device.AllocationSet,
 	pc *prefillContext,
 	blockLast []float32,
 	nPatch, O int,
@@ -424,10 +425,10 @@ func runFullMerger(
 	}
 	mgFeeds := map[*tensor.Tensor]driver.DevicePtr{}
 	if err := firstErr(
-		bindMergerV(binder, mgFeeds, mg.Proj1W, pc.merger.Proj1Weight), bindMergerV(binder, mgFeeds, mg.Proj1B, pc.merger.Proj1Bias),
-		bindMergerV(binder, mgFeeds, mg.Proj2W, pc.merger.Proj2Weight), bindMergerV(binder, mgFeeds, mg.Proj2B, pc.merger.Proj2Bias),
-		bindMergerV(binder, mgFeeds, mg.Pool0W, pc.merger.Pool0Weight), bindMergerV(binder, mgFeeds, mg.Pool0B, pc.merger.Pool0Bias),
-		bindMergerV(binder, mgFeeds, mg.Pool2W, pc.merger.Pool2Weight), bindMergerV(binder, mgFeeds, mg.Pool2B, pc.merger.Pool2Bias),
+		bindMergerV(ctx, allocations, mgFeeds, mg.Proj1W, pc.merger.Proj1Weight), bindMergerV(ctx, allocations, mgFeeds, mg.Proj1B, pc.merger.Proj1Bias),
+		bindMergerV(ctx, allocations, mgFeeds, mg.Proj2W, pc.merger.Proj2Weight), bindMergerV(ctx, allocations, mgFeeds, mg.Proj2B, pc.merger.Proj2Bias),
+		bindMergerV(ctx, allocations, mgFeeds, mg.Pool0W, pc.merger.Pool0Weight), bindMergerV(ctx, allocations, mgFeeds, mg.Pool0B, pc.merger.Pool0Bias),
+		bindMergerV(ctx, allocations, mgFeeds, mg.Pool2W, pc.merger.Pool2Weight), bindMergerV(ctx, allocations, mgFeeds, mg.Pool2B, pc.merger.Pool2Bias),
 	); err != nil {
 		return nil, err
 	}
@@ -443,7 +444,7 @@ func runFullMerger(
 		return nil, fmt.Errorf("device full merger execute: %w", err)
 	}
 	merged := append([]float32(nil), mgOut[mg.Merged].Data...) // [imageRows*O] row-major
-	binder.free()
+	_ = allocations.Close(ctx)
 	return merged, nil
 }
 
@@ -453,7 +454,7 @@ func runFullMerger(
 func runFullPrefill(
 	ctx context.Context,
 	exe *executor.Executor,
-	binder *prefillWeightBinder,
+	allocations *device.AllocationSet,
 	pc *prefillContext,
 	prefillEmbeds []float32,
 ) (lastRow []float32, seedKeys, seedValues [][]float32, err error) {
@@ -479,12 +480,12 @@ func runFullPrefill(
 			return nil, nil, nil, err
 		}
 		feeds := map[*tensor.Tensor]driver.DevicePtr{}
-		if err := bindPrefillBranch(binder, feeds, pg.Text,
+		if err := bindPrefillBranch(ctx, allocations, feeds, pg.Text,
 			w.InputNorm.Text, w.QKV.QText, w.QKV.KText, w.QKV.VText, w.QKV.OText,
 			w.QKV.QNorm[0], w.QKV.KNorm[0], w.Output.PostText, w.Output.GateText, w.Output.UpText, w.Output.DownText); err != nil {
 			return nil, nil, nil, err
 		}
-		if err := bindPrefillBranch(binder, feeds, pg.Vision,
+		if err := bindPrefillBranch(ctx, allocations, feeds, pg.Vision,
 			w.InputNorm.Vision, w.QKV.QVision, w.QKV.KVision, w.QKV.VVision, w.QKV.OVision,
 			w.QKV.QNorm[1], w.QKV.KNorm[1], w.Output.PostVision, w.Output.GateVision, w.Output.UpVision, w.Output.DownVision); err != nil {
 			return nil, nil, nil, err
@@ -500,13 +501,13 @@ func runFullPrefill(
 		}
 		out, err := exe.ExecuteCompiled(ctx, pgCompiled, hostFeeds, inputs)
 		if err != nil {
-			binder.free()
+			_ = allocations.Close(ctx)
 			return nil, nil, nil, fmt.Errorf("device full prefill layer %d: %w", layer, err)
 		}
 		row = append([]float32(nil), out[pg.Output].Data...)
 		seedKeys[layer] = append([]float32(nil), out[pg.KeyKV].Data[:pc.promptLen*kvOut]...)
 		seedValues[layer] = append([]float32(nil), out[pg.ValueKV].Data[:pc.promptLen*kvOut]...)
-		binder.free()
+		_ = allocations.Close(ctx)
 	}
 	lastRow = row[(pc.promptLen-1)*H : pc.promptLen*H]
 	return lastRow, seedKeys, seedValues, nil
@@ -535,11 +536,11 @@ func runFullVision(l *ladder, ctx context.Context, worker *device.Worker, exe *e
 	if err != nil {
 		return nil, fmt.Errorf("device full vision compile: %w", err)
 	}
-	vb := &prefillWeightBinder{worker: worker, ctx: ctx}
-	defer vb.free()
+	allocations := device.NewAllocationSet(worker)
+	defer func() { _ = allocations.Close(ctx) }()
 	feeds := map[*tensor.Tensor]driver.DevicePtr{}
 	bind := func(node *tensor.Tensor, v []float32) error {
-		ptr, e := vb.upload(driver.Bytes(v))
+		ptr, e := allocations.Upload(ctx, driver.Bytes(v))
 		if e != nil {
 			return e
 		}
@@ -577,8 +578,8 @@ func runFullVision(l *ladder, ctx context.Context, worker *device.Worker, exe *e
 	return append([]float32(nil), out[g.BlockLast].Data...), nil
 }
 
-func bindMergerV(p *prefillWeightBinder, feeds map[*tensor.Tensor]driver.DevicePtr, node *tensor.Tensor, v []float32) error {
-	ptr, e := p.upload(driver.Bytes(v))
+func bindMergerV(ctx context.Context, allocations *device.AllocationSet, feeds map[*tensor.Tensor]driver.DevicePtr, node *tensor.Tensor, v []float32) error {
+	ptr, e := allocations.Upload(ctx, driver.Bytes(v))
 	if e != nil {
 		return e
 	}

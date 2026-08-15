@@ -162,6 +162,20 @@ Overgo's tokenizer total includes a large generated Unicode table.
   lower real GSM8K train loss `6.541863 -> 6.405072` and the held-out record
   `8.629535 -> 8.534937`; end-to-end Q/K/V finite differences include inverse
   RoPE and query-score scaling.
+- Indexed reverse traversal now reaches decoder layer 6 cross-attention on the
+  same GSM8K record. Q/K/V core gradient norms are
+  `0.309892/0.131402/0.001113`; raw-gate analytic `-0.023812` matches the
+  direct `-0.023562` finite difference. Its complete cross block now shares
+  the Muon plan. A four-word central BF16 stencil verifies the earlier-depth
+  Q/K/V projections; input/Q/K norm gradients use direct float32 differences.
+  Three steps lower train loss `6.541863 -> 6.394826` and held-out loss
+  `8.629535 -> 8.533603`, changing 21,334/262,144 Q, 13,886/131,072 K, and
+  11,389/131,072 V words. Layer 6 causal self-attention now shares the same
+  compiled plan and inverse-RoPE projection VJP. Three complete-pair steps
+  lower train loss `6.541863 -> 6.387569` and held-out loss
+  `8.629535 -> 8.531155`, changing 21,048/262,144 Q, 15,945/131,072 K, and
+  13,403/131,072 V words. Its Q/K/V and input/Q/K norm finite differences all
+  pass. Decoder layers 0-5 and the encoder remain open.
 - Synthetic dense medium benchmark: host `85.6 s/step`; device full
   `1.89 s/step`; `45.4x`. This is an internal backend comparison, not
   adaptive_new parity and not a production-model result.

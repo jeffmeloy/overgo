@@ -436,14 +436,14 @@ func currentEvent(ctx context.Context, store artifact.Reader, recipeID artifact.
 	if !ok {
 		return recipe.LifecycleEvent{}, errors.New("model recipe: lifecycle status is absent")
 	}
-	content, ok, err := artifact.ReadDocument(ctx, store, eventID, recipe.LifecycleDocumentContract())
+	event, ok, err := recipe.ReadLifecycleEvent(ctx, store, eventID)
 	if err != nil {
 		return recipe.LifecycleEvent{}, err
 	}
 	if !ok {
 		return recipe.LifecycleEvent{}, errors.New("model recipe: lifecycle content is absent or incompatible")
 	}
-	return recipe.ParseLifecycleEvent(content.Data)
+	return event, nil
 }
 
 func findDecision(

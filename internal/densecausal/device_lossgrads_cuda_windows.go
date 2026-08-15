@@ -8,6 +8,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/devicemath"
 	"overgo/internal/hostmath"
+	"overgo/internal/tensor/dtype"
 )
 
 // deviceLossAndGrads is the device counterpart to LossAndGrads. The WHOLE layer
@@ -54,7 +55,7 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 			Gate: l.gate, Up: l.up, Down: l.down,
 		}
 	}
-	invF32 := ropeInvF32(hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim))
+	invF32 := dtype.Float64SliceToFloat32(hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim))
 
 	// Host head / final RMSNorm / softmax-CE tail: consumes the final pre-norm
 	// stream, writes the head + norm grads, and returns the last layer's output

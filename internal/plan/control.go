@@ -58,7 +58,7 @@ func RecordControlEvent(ctx context.Context, repository artifact.Repository, eve
 
 // ReadControlEvent returns false when id is not automation-control evidence.
 func ReadControlEvent(ctx context.Context, reader artifact.Reader, id artifact.ID) (ControlEvent, bool, error) {
-	return readTypedDocument(ctx, reader, id, controlCodec.Contract, controlCodec.Parse)
+	return readTypedDocument(ctx, reader, id, controlCodec.Contract, controlCodec.Read)
 }
 
 func canonicalizeControl(event *ControlEvent) error {

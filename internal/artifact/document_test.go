@@ -91,7 +91,7 @@ func TestCloneAliasBindingsOwnsCompareAndSetPointers(t *testing.T) {
 	}
 }
 
-func TestReadDocumentAndBatchOwnContent(t *testing.T) {
+func TestDocumentBatchOwnsContent(t *testing.T) {
 	contract := DocumentContract{
 		Kind: KindDataset, MediaType: "application/test+json", Schema: "test/v1",
 	}
@@ -104,15 +104,11 @@ func TestReadDocumentAndBatchOwnContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	loaded, ok, err := ReadDocument(context.Background(), documentReader{content: content}, id, contract)
-	if err != nil || !ok {
-		t.Fatalf("read document = (%v, %v)", ok, err)
-	}
-	batch, err := NewDocumentBatch("document/batch", []Content{loaded}, nil, nil)
+	batch, err := NewDocumentBatch("document/batch", []Content{content}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	loaded.Data[0] = 'x'
+	content.Data[0] = 'x'
 	if batch.Contents[0].Data[0] != '{' {
 		t.Fatal("document batch retained caller bytes")
 	}

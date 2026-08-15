@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+
+	"overgo/internal/textcheck"
 )
 
 type Catalog struct {
@@ -60,7 +62,7 @@ func (c *Catalog) Modules() []Module {
 }
 
 func canonicalModule(module Module) (Module, error) {
-	if !validName(string(module.ID)) || len(module.Tasks) == 0 || len(module.Placements) == 0 {
+	if !textcheck.LowerIdentifier(string(module.ID), maxName) || len(module.Tasks) == 0 || len(module.Placements) == 0 {
 		return Module{}, errors.New("recipe: invalid module identity or policy")
 	}
 	result := cloneModule(module)

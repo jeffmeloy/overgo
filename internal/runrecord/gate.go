@@ -143,7 +143,7 @@ func canonicalizeGateResult(result *GateResult) error {
 			return errors.New("run record: successful gate has failure code")
 		}
 	case OutcomeFailed:
-		if !validLabel(result.Failure) {
+		if !textcheck.LowerIdentifier(result.Failure, maxLabelBytes) {
 			return errors.New("run record: failed gate lacks failure code")
 		}
 	case OutcomeCancelled:
@@ -158,7 +158,7 @@ func canonicalizeGateResult(result *GateResult) error {
 	for _, step := range result.Steps {
 		_, duplicate := seen[step.Name]
 		switch {
-		case !validLabel(step.Name):
+		case !textcheck.LowerIdentifier(step.Name, maxLabelBytes):
 			return fmt.Errorf("run record: invalid gate step name %q", step.Name)
 		case !validPhase(step.Phase):
 			return fmt.Errorf("run record: gate step %q has invalid phase", step.Name)

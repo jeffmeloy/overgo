@@ -39,6 +39,32 @@
       ]
     },
     {
+      "id": "runtime-tightening",
+      "title": "Delete ranked runtime duplication through existing owners",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete ranked runtime duplication through existing owners",
+          "status": "open",
+          "verify": "go test -v -count=1 ./internal/tensor ./internal/latentimage -run '^(TestWeightInputsSelectsCompiledMatrixStorage|TestDenoiserProgramMatchesHostReference|TestEncoderProgramMatchesHostReference|TestEncoderProgramMaskedMatchesHostReference|TestFusionProgramMatchesHostReference|TestTimestepProgramMatchesHostReference)$' \u0026\u0026 go test -short -count=1 ./internal/latentvideo"
+        }
+      ]
+    },
+    {
+      "id": "liveedit-source-graph",
+      "title": "Compile the real LiveEdit causal VAE encoder graph",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile the real LiveEdit causal VAE encoder graph",
+          "status": "open",
+          "verify": "go test -tags modeltest ./internal/latentvideo -run '^TestLiveEditSourceCodecGraph$' -count=1 -v"
+        }
+      ]
+    },
+    {
       "id": "adaptive-inference-parity",
       "title": "Port and exceed adaptive_new inference through Overgo recipes and shared processing components",
       "status": "open",

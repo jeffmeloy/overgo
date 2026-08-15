@@ -72,6 +72,8 @@ func syntheticCheckpoint(t *testing.T, values []float32) (string, []byte) {
 	w.op(0)
 	w.op('(')
 	w.tensorEntry("w", "BFloat16Storage", "0", int64(len(values)), 0, []int64{2, 3}, []int64{3, 1})
+	w.str("enabled")
+	w.op(0x88) // NEWTRUE
 	w.op('u')
 	w.op('.')
 	body := make([]byte, len(values)*2)
@@ -107,12 +109,16 @@ func syntheticCheckpoint(t *testing.T, values []float32) (string, []byte) {
 func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 	values := []float32{-2.5, 0, 1.25, 255, -0.375, 8}
 	path, pickle := syntheticCheckpoint(t, values)
-	metas, err := ReadTensorMetadata(path)
+	catalog, err := ReadCatalog(path)
 	if err != nil {
 		t.Fatal(err)
 	}
+	metas := catalog.Tensors
 	if len(metas) != 1 || metas[0].Name != "w" || metas[0].DType != "BFloat16Storage" || metas[0].Numel != 6 {
 		t.Fatalf("metas=%+v", metas)
+	}
+	if enabled, ok := catalog.Scalars["enabled"].(bool); !ok || !enabled {
+		t.Fatalf("scalars=%v", catalog.Scalars)
 	}
 	bindings, err := CompileBindings(metas, []string{"w"})
 	if err != nil {
@@ -144,7 +150,7 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 	}
 	// Truncated pickle must refuse, not panic.
 	for cut := 1; cut < len(pickle); cut += 7 {
-		if _, err := ParseTensorMetadata(pickle[:cut]); err == nil {
+		if _, err := ParseCatalog(pickle[:cut]); err == nil {
 			t.Fatalf("truncated pickle at %d parsed without error", cut)
 		}
 	}

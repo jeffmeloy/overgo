@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"overgo/internal/gguf"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
 	"overgo/internal/safetensors"
 )
@@ -91,9 +92,9 @@ func Convert(options Options) (Report, error) {
 		return Report{}, errors.New("HF converter: model or projector output is required")
 	}
 	// Shard discovery (single file or index) is OpenSource's contract.
-	config, err := readConfig(directory)
-	if err != nil {
-		return Report{}, err
+	var config modelConfig
+	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &config); err != nil {
+		return Report{}, fmt.Errorf("HF converter: config: %w", err)
 	}
 	if config.ModelType == "qwen3_5" {
 		return convertQwen35(directory, options)
@@ -138,18 +139,6 @@ func Convert(options Options) (Report, error) {
 	return Report{
 		Tensors: len(tensors), VocabSize: int(config.Vocabulary), OutputBytes: written.Size(),
 	}, nil
-}
-
-func readConfig(directory string) (modelConfig, error) {
-	var config modelConfig
-	encoded, err := os.ReadFile(filepath.Join(directory, "config.json"))
-	if err != nil {
-		return config, fmt.Errorf("HF converter: read config: %w", err)
-	}
-	if err := json.Unmarshal(encoded, &config); err != nil {
-		return config, fmt.Errorf("HF converter: parse config: %w", err)
-	}
-	return config, nil
 }
 
 func validateConfig(config modelConfig) error {

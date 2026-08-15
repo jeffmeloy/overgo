@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/tensor/dtype"
 )
 
 // Grads: parameter gradients keyed by (prefix-stripped) tensor name.
@@ -96,7 +97,7 @@ func conv2dValidStrideBackward(grads Grads, name string, x, weight, dOut []float
 	}
 	grads.addF64(name+".weight", dWf)
 	grads.addF64(name+".bias", dBf)
-	return f64ToF32(dxf)
+	return dtype.Float64SliceToFloat32(dxf)
 }
 
 // convTranspose2dStrideBackward: VJP of convTranspose2dStride
@@ -141,7 +142,7 @@ func convTranspose2dStrideBackward(grads Grads, name string, x, weight, dOut []f
 	}
 	grads.addF64(name+".weight", dWf)
 	grads.addF64(name+".bias", dBf)
-	return f64ToF32(dxf)
+	return dtype.Float64SliceToFloat32(dxf)
 }
 
 // conv2dSame3x3Backward: VJP of conv2dSame3x3; parallel over input channels
@@ -210,7 +211,7 @@ func conv2dSame3x3Backward(grads Grads, name string, x, weight, dOut []float32, 
 	})
 	grads.addF64(name+".weight", dWf)
 	grads.addF64(name+".bias", dBf)
-	return f64ToF32(dxf)
+	return dtype.Float64SliceToFloat32(dxf)
 }
 
 func avgPool2xBackward(dOut []float32, b, c, h, w int) []float32 {
@@ -694,12 +695,4 @@ func (m *Model) backwardFromTrace(trace forwardTrace, dOut []float32, grads Grad
 	dx := conv2dValidStrideBackward(grads, m.patch.name, trace.input, m.patch.weight, d,
 		trace.batch, cfg.InChannels, cfg.BaseChannels, trace.imageH, trace.imageW, cfg.PatchSize, cfg.PatchSize)
 	return dx, nil
-}
-
-func f64ToF32(v []float64) []float32 {
-	out := make([]float32, len(v))
-	for i, x := range v {
-		out[i] = float32(x)
-	}
-	return out
 }

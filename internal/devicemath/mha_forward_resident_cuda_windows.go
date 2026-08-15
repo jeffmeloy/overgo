@@ -10,23 +10,17 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// MultiHeadAttentionForwardResident is the forward counterpart to
-// MultiHeadAttentionBackwardResident: the causal GQA attention core runs in ONE
-// cudaBLAS session -- q/k/v reshaped head-major and uploaded once, and per head
-// the scores (qh·khᵀ), the causal softmax (causal_softmax_f32), and
-// attnCore = p·v run on resident sub-buffers. Only attnCore [seq, nh*hd] comes
-// back. The score scale is assumed folded into q upstream (scores use scale 1),
-// matching hostmath.CausalAttention and the resident backward. This is the
-// attention piece of the device forward that will feed the resident layer cache.
+// MultiHeadAttentionForwardResident: one-session causal GQA forward.
+// Expects q-scaled scores; returns attention output only.
 func MultiHeadAttentionForwardResident(worker *device.Worker, q, k, v []float32, seq, nh, nkv, hd int) ([]float32, error) {
 	if seq <= 0 || nh <= 0 || nkv <= 0 || hd <= 0 || nh%nkv != 0 ||
 		len(q) != seq*nh*hd || len(k) != seq*nkv*hd || len(v) != seq*nkv*hd {
 		return nil, fmt.Errorf("MultiHeadAttentionForwardResident: shape mismatch (seq=%d nh=%d nkv=%d hd=%d)", seq, nh, nkv, hd)
 	}
 	group := nh / nkv
-	qC := toHeadMajor(q, seq, nh, hd)
-	kC := toHeadMajor(k, seq, nkv, hd)
-	vC := toHeadMajor(v, seq, nkv, hd)
+	qC := headMajorLayout(q, seq, nh, hd, headMajorPack)
+	kC := headMajorLayout(k, seq, nkv, hd, headMajorPack)
+	vC := headMajorLayout(v, seq, nkv, hd, headMajorPack)
 	attnCoreC := make([]float32, seq*nh*hd)
 
 	err := withCUDABLAS(worker, func(session *cudaBLAS) error {
@@ -90,5 +84,5 @@ func MultiHeadAttentionForwardResident(worker *device.Worker, q, k, v []float32,
 	if err != nil {
 		return nil, err
 	}
-	return fromHeadMajor(attnCoreC, seq, nh, hd), nil
+	return headMajorLayout(attnCoreC, seq, nh, hd, headMajorUnpack), nil
 }

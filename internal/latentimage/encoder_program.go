@@ -78,25 +78,6 @@ type EncoderProgram struct {
 	CaptureAfter []int
 }
 
-// encWeightBinder binds named weight inputs; rank-2 projections take matmulType.
-type encWeightBinder struct {
-	builder    *tensor.Builder
-	inputs     map[string]*tensor.Tensor
-	matmulType dtype.Type
-}
-
-// input declares a weight tensor with the MulMat storage convention: a torch
-// Linear weight [out,in] is declared as shape (in,out); rank-1 tensors stay F32.
-func (b encWeightBinder) input(name string, dimensions ...uint64) *tensor.Tensor {
-	storage := dtype.F32
-	if len(dimensions) == 2 {
-		storage = b.matmulType
-	}
-	node := b.builder.Input(name, storage, tensor.MustShape(dimensions...))
-	b.inputs[name] = node
-	return node
-}
-
 // padKeyBias is the additive score bias for a pad KEY: a query's dot with
 // a pad key is driven to ~-inf so it underflows to 0 probability. Mirrors the
 // adaptive runtime_causal_gqa_masked_bf16 sentinel (-3.402823466e38) so the
@@ -166,7 +147,7 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 	}
 	b := tensor.NewBuilder()
 	setBuilderMatmulCompute(b, matmulType)
-	bind := encWeightBinder{builder: b, inputs: p.weightInputs, matmulType: matmulType}
+	bind := tensor.WeightInputs{Builder: b, Inputs: p.weightInputs, MatrixType: matmulType}
 
 	p.Embed = b.Input("encoder_embed", dtype.F32, tensor.MustShape(h, uint64(seq)))
 	hidden := p.Embed
@@ -192,16 +173,16 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 		prefix := fmt.Sprintf("%slayers.%d.", textEncoderPrefix, l)
 
 		// --- causal GQA self-attention (standard RMSNorm, per-head q/k norm) ---
-		n1 := b.WeightedRMSNorm(hidden, bind.input(prefix+"input_layernorm.weight", h), eps)
-		q := b.MulMat(bind.input(prefix+"self_attn.q_proj.weight", h, qDim), n1)
-		k := b.MulMat(bind.input(prefix+"self_attn.k_proj.weight", h, kvDim), n1)
-		v := b.MulMat(bind.input(prefix+"self_attn.v_proj.weight", h, kvDim), n1)
+		n1 := b.WeightedRMSNorm(hidden, bind.Input(prefix+"input_layernorm.weight", h), eps)
+		q := b.MulMat(bind.Input(prefix+"self_attn.q_proj.weight", h, qDim), n1)
+		k := b.MulMat(bind.Input(prefix+"self_attn.k_proj.weight", h, kvDim), n1)
+		v := b.MulMat(bind.Input(prefix+"self_attn.v_proj.weight", h, kvDim), n1)
 
 		q = b.Reshape(q, headDim, heads, uint64(seq))
 		k = b.Reshape(k, headDim, kvHeads, uint64(seq))
 		v = b.Reshape(v, headDim, kvHeads, uint64(seq))
-		q = b.WeightedRMSNorm(q, bind.input(prefix+"self_attn.q_norm.weight", headDim), eps)
-		k = b.WeightedRMSNorm(k, bind.input(prefix+"self_attn.k_norm.weight", headDim), eps)
+		q = b.WeightedRMSNorm(q, bind.Input(prefix+"self_attn.q_norm.weight", headDim), eps)
+		k = b.WeightedRMSNorm(k, bind.Input(prefix+"self_attn.k_norm.weight", headDim), eps)
 		q = b.RoPENeoX(q, positions, uint32(headDim), theta)
 		k = b.RoPENeoX(k, positions, uint32(headDim), theta)
 
@@ -212,14 +193,14 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 			attn = b.Attention(q, k, v, scale, true) // causal GQA
 		}
 		attn = b.Reshape(attn, qDim, uint64(seq))
-		attn = b.MulMat(bind.input(prefix+"self_attn.o_proj.weight", qDim, h), attn)
+		attn = b.MulMat(bind.Input(prefix+"self_attn.o_proj.weight", qDim, h), attn)
 		hidden = b.Add(hidden, attn)
 
 		// --- SwiGLU MLP (standard RMSNorm) ---
-		n2 := b.WeightedRMSNorm(hidden, bind.input(prefix+"post_attention_layernorm.weight", h), eps)
-		g := b.MulMat(bind.input(prefix+"mlp.gate_proj.weight", h, inter), n2)
-		u := b.MulMat(bind.input(prefix+"mlp.up_proj.weight", h, inter), n2)
-		ff := b.MulMat(bind.input(prefix+"mlp.down_proj.weight", inter, h), b.SwiGLU(g, u))
+		n2 := b.WeightedRMSNorm(hidden, bind.Input(prefix+"post_attention_layernorm.weight", h), eps)
+		g := b.MulMat(bind.Input(prefix+"mlp.gate_proj.weight", h, inter), n2)
+		u := b.MulMat(bind.Input(prefix+"mlp.up_proj.weight", h, inter), n2)
+		ff := b.MulMat(bind.Input(prefix+"mlp.down_proj.weight", inter, h), b.SwiGLU(g, u))
 		hidden = b.Add(hidden, ff)
 
 		if slot, ok := slots[l+1]; ok {

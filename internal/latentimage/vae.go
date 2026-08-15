@@ -25,6 +25,7 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor/dtype"
 )
 
 // vaeNormZeroGuard: channel-norm zero-column floor (reference constant, mirrors
@@ -97,8 +98,8 @@ func loadVAEDecoder(modelDir, class string) (*VAEDecoder, error) {
 	}
 	d := &VAEDecoder{
 		ZDim:        cfg.ZDim,
-		LatentsMean: f64sToF32(cfg.LatentsMean),
-		LatentsStd:  f64sToF32(cfg.LatentsStd),
+		LatentsMean: dtype.Float64SliceToFloat32(cfg.LatentsMean),
+		LatentsStd:  dtype.Float64SliceToFloat32(cfg.LatentsStd),
 	}
 	if err := d.build(weights, cfg); err != nil {
 		return nil, err
@@ -482,14 +483,6 @@ func PixelsToU8(pixels []float32) []uint8 {
 			p = 1
 		}
 		out[i] = uint8(math.Round(p * 255))
-	}
-	return out
-}
-
-func f64sToF32(in []float64) []float32 {
-	out := make([]float32, len(in))
-	for i, v := range in {
-		out[i] = float32(v)
 	}
 	return out
 }

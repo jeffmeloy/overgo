@@ -93,10 +93,11 @@ func NewGenerator(config GeneratorConfig) (generator *Generator, err error) {
 		}
 	}()
 	checkpoint := filepath.Join(config.ModelDirectory, "Wan2.1_VAE.pth")
-	metadata, err := pytorchzip.ReadTensorMetadata(checkpoint)
+	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {
 		return generator, err
 	}
+	metadata := catalog.Tensors
 	plan, err := CompileVAEDecoderPlan(metadata)
 	if err != nil {
 		return generator, err

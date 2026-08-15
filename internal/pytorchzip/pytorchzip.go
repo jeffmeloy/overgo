@@ -31,23 +31,28 @@ type TensorMeta struct {
 	Numel         int64
 }
 
-// ReadTensorMetadata parses data.pkl out of one checkpoint file.
-func ReadTensorMetadata(filename string) ([]TensorMeta, error) {
+type Catalog struct {
+	Tensors []TensorMeta
+	Scalars map[string]any
+}
+
+// ReadCatalog: tensor inventory and scalar facts from data.pkl.
+func ReadCatalog(filename string) (Catalog, error) {
 	zr, err := zip.OpenReader(filename)
 	if err != nil {
-		return nil, err
+		return Catalog{}, err
 	}
 	defer zr.Close()
 	for _, f := range zr.File {
 		if path.Base(f.Name) == "data.pkl" {
 			b, err := readZipEntryBytes(f, maxPickleBytes)
 			if err != nil {
-				return nil, err
+				return Catalog{}, err
 			}
-			return ParseTensorMetadata(b)
+			return ParseCatalog(b)
 		}
 	}
-	return nil, fmt.Errorf("pytorchzip: data.pkl not found in %s", filename)
+	return Catalog{}, fmt.Errorf("pytorchzip: data.pkl not found in %s", filename)
 }
 
 const (
@@ -55,8 +60,8 @@ const (
 	scratchChunkBytes = 1 << 20
 )
 
-// ParseTensorMetadata decodes a torch state_dict pickle stream.
-func ParseTensorMetadata(data []byte) (metas []TensorMeta, err error) {
+// ParseCatalog: one pickle walk.
+func ParseCatalog(data []byte) (catalog Catalog, err error) {
 	// Stack-machine helpers signal truncation/underflow with a TYPED
 	// controlled panic (encoding/gob pattern); recover exactly that type into
 	// a refusal. Any other panic is a real bug and still crashes.
@@ -66,25 +71,25 @@ func ParseTensorMetadata(data []byte) (metas []TensorMeta, err error) {
 			if !ok {
 				panic(r)
 			}
-			metas, err = nil, fmt.Errorf("pytorchzip pickle: %s at offset %d", pe.msg, pe.pos)
+			catalog, err = Catalog{}, fmt.Errorf("pytorchzip pickle: %s at offset %d", pe.msg, pe.pos)
 		}
 	}()
-	p := &pickleTensorParser{data: data, memo: map[int]pickleValue{}}
+	p := &pickleTensorParser{data: data, memo: map[int]pickleValue{}, scalars: map[string]any{}}
 	if err := p.parse(); err != nil {
-		return nil, err
+		return Catalog{}, err
 	}
 	if len(p.tensors) == 0 {
-		return nil, fmt.Errorf("pytorchzip pickle: no tensors found")
+		return Catalog{}, fmt.Errorf("pytorchzip pickle: no tensors found")
 	}
 	// Downstream loaders address tensors BY name; an unnamed tensor would be
 	// present but unreachable, so it is a malformed stream, not an oddity.
 	for _, m := range p.tensors {
 		if m.Name == "" {
-			return nil, fmt.Errorf("pytorchzip pickle: tensor with storage key %q has no state_dict name", m.StorageKey)
+			return Catalog{}, fmt.Errorf("pytorchzip pickle: tensor with storage key %q has no state_dict name", m.StorageKey)
 		}
 	}
 	sort.Slice(p.tensors, func(i, j int) bool { return p.tensors[i].Name < p.tensors[j].Name })
-	return p.tensors, nil
+	return Catalog{Tensors: p.tensors, Scalars: p.scalars}, nil
 }
 
 type pickleValue interface{}
@@ -105,9 +110,7 @@ type pickleTensorParser struct {
 	stack   []pickleValue
 	memo    map[int]pickleValue
 	tensors []TensorMeta
-	// scalars captures string-keyed scalar dict entries (ints, floats, bools,
-	// strings) seen anywhere in the stream — the config a {cfg, model} save
-	// pickles beside the weights. nil disables capture (the tensor-only path).
+	// scalars: string-keyed scalar dict entries.
 	scalars map[string]any
 }
 
@@ -296,53 +299,10 @@ func (p *pickleTensorParser) notePair(key, val pickleValue) {
 		p.tensors[ref.index].Name = name
 		return
 	}
-	// Config scalars a {cfg, model} save carries beside the weights. The tensor
-	// walk ignores them; capture is opt-in so the tensor-only path is unchanged.
-	if p.scalars != nil {
-		switch v := val.(type) {
-		case int64, float64, bool, string:
-			p.scalars[name] = v
-		}
+	switch v := val.(type) {
+	case int64, float64, bool, string:
+		p.scalars[name] = v
 	}
-}
-
-// ReadScalarConfig parses the checkpoint pickle and returns its string-keyed
-// scalar entries (ints, floats, bools, strings), flattened by key across any
-// nested dicts — the config a {cfg, model, step} save pickles beside the
-// weights. Tensor entries are skipped; use ReadTensorMetadata for those.
-func ReadScalarConfig(filename string) (map[string]any, error) {
-	zr, err := zip.OpenReader(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer zr.Close()
-	for _, f := range zr.File {
-		if path.Base(f.Name) == "data.pkl" {
-			b, err := readZipEntryBytes(f, maxPickleBytes)
-			if err != nil {
-				return nil, err
-			}
-			return parseScalarConfig(b)
-		}
-	}
-	return nil, fmt.Errorf("pytorchzip: data.pkl not found in %s", filename)
-}
-
-func parseScalarConfig(data []byte) (scalars map[string]any, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			pe, ok := r.(pickleParseError)
-			if !ok {
-				panic(r)
-			}
-			scalars, err = nil, fmt.Errorf("pytorchzip pickle: %s at offset %d", pe.msg, pe.pos)
-		}
-	}()
-	p := &pickleTensorParser{data: data, memo: map[int]pickleValue{}, scalars: map[string]any{}}
-	if err := p.parse(); err != nil {
-		return nil, err
-	}
-	return p.scalars, nil
 }
 
 func persistentStorageRef(v pickleValue) (pickleStorageRef, error) {

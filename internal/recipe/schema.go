@@ -3,9 +3,9 @@ package recipe
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -245,19 +245,6 @@ func validateDependency(dependency Dependency) error {
 	return nil
 }
 
-func validName(value string) bool {
-	if value == "" || len(value) > maxName || strings.TrimSpace(value) != value {
-		return false
-	}
-	for _, char := range value {
-		if char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '.' || char == '-' || char == '_' {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
 func validateTask(task Task) error {
 	switch task {
 	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskImageGen, TaskVideoGen, TaskVQA:
@@ -289,7 +276,7 @@ func validateDataKind(kind DataKind) error {
 }
 
 func (p Port) validate() error {
-	if !validName(string(p.Name)) {
+	if !textcheck.LowerIdentifier(string(p.Name), maxName) {
 		return errors.New("recipe: invalid port name")
 	}
 	if err := validateDataKind(p.Data); err != nil {

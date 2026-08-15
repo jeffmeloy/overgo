@@ -17,10 +17,11 @@ func TestLiveEditSourceCodecGraph(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkpoint := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B", "Wan2.1_VAE.pth")
-	metas, err := pytorchzip.ReadTensorMetadata(checkpoint)
+	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Wan VAE metadata: %v", err)
 	}
+	metas := catalog.Tensors
 	plan, err := CompileVAEEncoderPlan(metas)
 	if err != nil {
 		t.Fatal(err)

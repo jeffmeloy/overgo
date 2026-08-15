@@ -126,19 +126,12 @@ func profileContent(document ProfileDocument) (artifact.Content, error) {
 }
 
 func loadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (ProfileDocument, error) {
-	content, ok, err := artifact.ReadDocument(ctx, store, id, profileContract)
+	document, ok, err := profileCodec.Read(ctx, store, id)
 	if err != nil {
 		return ProfileDocument{}, err
 	}
 	if !ok {
 		return ProfileDocument{}, errors.New("model recipe: profile content is absent or incompatible")
-	}
-	document, err := ParseProfileDocument(content.Data)
-	if err != nil {
-		return ProfileDocument{}, err
-	}
-	if document.ID != id {
-		return ProfileDocument{}, errors.New("model recipe: profile content identity differs")
 	}
 	if err := validateStoredProfileProvenance(ctx, store, document); err != nil {
 		return ProfileDocument{}, err

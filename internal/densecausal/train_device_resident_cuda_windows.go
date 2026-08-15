@@ -12,6 +12,7 @@ import (
 	"overgo/internal/devicemath"
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/tensor/dtype"
 )
 
 // isLayerMatrixName reports whether a tensor is a per-layer projection matrix
@@ -254,7 +255,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		defer func() { _ = devicemath.FreeResident(worker, dFinalW, dFinalG, dFinalM) }()
 	}
 
-	invF32 := ropeInvF32(hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim))
+	invF32 := dtype.Float64SliceToFloat32(hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim))
 	trajectory := make([]float64, 0, steps)
 
 	loopStarted := time.Now()

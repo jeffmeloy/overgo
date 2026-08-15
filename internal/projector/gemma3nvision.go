@@ -531,14 +531,9 @@ func (r *Gemma3nVisionRunner) buildImagesPrompt(
 	text []string,
 	history bool,
 ) (MultimodalPrompt, error) {
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, imagePromptPlan{
-		Family: "Gemma 3n", Placeholder: Gemma3nImagePad, PlaceholderLabel: "Gemma 3n image placeholder",
-		AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden,
-		Render: func(text []string, items []imagePromptItem) string {
-			return renderDelimitedImagePrompt(text, items, Gemma3nImagePad, "<start_of_image>", "<end_of_image>")
-		},
-	}, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-		value, err := r.EncodeImage(ctx, source)
-		return imagePromptItem{Embeddings: value.Data, Count: int(value.Shape.Dims[1])}, err
-	})
+	plan := delimitedImagePromptPlan(
+		"Gemma 3n", Gemma3nImagePad, "Gemma 3n image placeholder", history, r.spec.OutputHidden,
+		"<start_of_image>", "<end_of_image>",
+	)
+	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, referenceImageEncoder(r.EncodeImage))
 }

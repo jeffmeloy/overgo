@@ -1,6 +1,7 @@
 package recipe
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,8 +46,6 @@ var lifecycleCodec = artifact.DocumentCodec[LifecycleEvent]{
 	Identity:    func(value LifecycleEvent) artifact.ID { return value.ID },
 	SetIdentity: func(value *LifecycleEvent, id artifact.ID) { value.ID = id },
 }
-
-func LifecycleDocumentContract() artifact.DocumentContract { return lifecycleContract }
 
 type Status string
 
@@ -94,8 +93,8 @@ func NewLifecycleEvent(definition Definition, from, to Status, previousEvent, su
 	})
 }
 
-func ParseLifecycleEvent(content []byte) (LifecycleEvent, error) {
-	return lifecycleCodec.Parse(content)
+func ReadLifecycleEvent(ctx context.Context, reader artifact.Reader, id artifact.ID) (LifecycleEvent, bool, error) {
+	return lifecycleCodec.Read(ctx, reader, id)
 }
 
 func (e LifecycleEvent) Content() (artifact.Content, error) {

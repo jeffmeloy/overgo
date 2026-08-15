@@ -53,8 +53,6 @@ var tensorInventoryCodec = artifact.DocumentCodec[TensorInventoryDocument]{
 	SetIdentity: func(value *TensorInventoryDocument, id artifact.ID) { value.ID = id },
 }
 
-func TensorInventoryDocumentContract() artifact.DocumentContract { return tensorInventoryContract }
-
 // TensorFormat: source representation contract.
 type TensorFormat string
 
@@ -101,8 +99,8 @@ func NewTensorInventoryDocument(
 	return tensorInventoryCodec.New(document)
 }
 
-func ParseTensorInventoryDocument(content []byte) (TensorInventoryDocument, error) {
-	return tensorInventoryCodec.Parse(content)
+func ReadTensorInventoryDocument(ctx context.Context, store artifact.Reader, id artifact.ID) (TensorInventoryDocument, bool, error) {
+	return tensorInventoryCodec.Read(ctx, store, id)
 }
 
 func (d TensorInventoryDocument) ValidateIdentity() error {
@@ -147,17 +145,14 @@ func LoadTensorInventory(
 		if matched {
 			return TensorInventoryDocument{}, false, errors.New("model artifact: multiple tensor inventories")
 		}
-		content, ok, contentErr := artifact.ReadDocument(ctx, store, edge.Child, tensorInventoryContract)
+		document, ok, contentErr := tensorInventoryCodec.Read(ctx, store, edge.Child)
 		if contentErr != nil {
 			return TensorInventoryDocument{}, false, contentErr
 		}
 		if !ok {
 			return TensorInventoryDocument{}, false, errors.New("model artifact: tensor inventory content is absent or incompatible")
 		}
-		found, err = ParseTensorInventoryDocument(content.Data)
-		if err != nil {
-			return TensorInventoryDocument{}, false, err
-		}
+		found = document
 		if found.Model != model || found.ID != edge.Child {
 			return TensorInventoryDocument{}, false, errors.New("model artifact: tensor inventory lineage mismatch")
 		}

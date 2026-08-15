@@ -20,12 +20,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "liveedit-retained-denoiser",
-          "title": "Execute LiveEdit checkpoint blocks with retained text KV and bounded self-attention history through shared CUDA graph owners",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditRetainedDenoiser$' -count=1 -v"
-        },
-        {
           "id": "liveedit-device-runtime",
           "title": "Integrate source encode, text conditioning, retained denoise, sampler, and causal decode into the typed reference-video runtime; match the adaptive oracle",
           "status": "open",

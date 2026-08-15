@@ -220,8 +220,8 @@ func (s *ReferenceEditDenoiserCUDASession) projectContext(textContext []float32)
 	return nil
 }
 
-// RunChunk executes one chunk and replaces the bounded self-attention tail.
-func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE []float32) ([]float32, error) {
+// RunChunk executes one chunk. commitHistory advances the bounded tail.
+func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE []float32, commitHistory bool) ([]float32, error) {
 	if s == nil || s.cuda == nil {
 		return nil, errors.New("reference edit denoiser: closed")
 	}
@@ -263,12 +263,16 @@ func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE [
 	if err != nil {
 		return nil, errors.Join(err, next.Release(s.ctx))
 	}
-	prior := s.historyRetained
-	s.historyRetained, s.historyProgram = next, program
-	if prior != nil {
-		if err := prior.Release(s.ctx); err != nil {
-			return nil, err
+	if commitHistory {
+		prior := s.historyRetained
+		s.historyRetained, s.historyProgram = next, program
+		if prior != nil {
+			if err := prior.Release(s.ctx); err != nil {
+				return nil, err
+			}
 		}
+	} else if err := next.Release(s.ctx); err != nil {
+		return nil, err
 	}
 	s.stats.Runs++
 	return head.Data, nil
@@ -293,6 +297,19 @@ func (s *ReferenceEditDenoiserCUDASession) ExecutionStats() (driver.ExecutionSta
 		return driver.ExecutionStats{}, errors.New("reference edit denoiser: closed")
 	}
 	return s.worker.ExecutionStats(s.ctx)
+}
+
+// ResetHistory starts a new request while retaining weights and text K/V.
+func (s *ReferenceEditDenoiserCUDASession) ResetHistory() error {
+	if s == nil || s.cuda == nil {
+		return errors.New("reference edit denoiser: closed")
+	}
+	if s.historyRetained == nil {
+		return nil
+	}
+	err := s.historyRetained.Release(context.WithoutCancel(s.ctx))
+	s.historyRetained, s.historyProgram = nil, nil
+	return err
 }
 
 func (s *ReferenceEditDenoiserCUDASession) Close() error {

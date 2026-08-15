@@ -68,7 +68,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		output, err := session.RunChunk(patches, blockE, headE)
+		output, err := session.RunChunk(patches, blockE, headE, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,7 +118,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	coldSecond, err := fresh.RunChunk(second, blockE, headE)
+	coldSecond, err := fresh.RunChunk(second, blockE, headE, true)
 	if err != nil {
 		t.Fatal(err)
 	}

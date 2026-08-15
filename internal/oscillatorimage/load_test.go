@@ -1,6 +1,12 @@
 package oscillatorimage
 
-import "testing"
+import (
+	"bytes"
+	"image/png"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 // TestArtifactLoadDerivesDims: every geometric dim from flat tensor lengths;
 // config cross-check passes on the real artifact.
@@ -65,4 +71,53 @@ func TestArtifactGenerateDeterministicAndClassSensitive(t *testing.T) {
 	if _, err := m.Generate(cfg.NClasses, 42); err == nil {
 		t.Fatal("out-of-range class accepted")
 	}
+}
+
+func TestArtifactPublishesReferencePNG(t *testing.T) {
+	m := loadArtifactModel(t)
+	plan, err := m.prepare(Request{Class: 1, Seed: 42})
+	if err != nil {
+		t.Fatal(err)
+	}
+	features, err := m.integrate(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := m.decode(features)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if encoded.MediaType != "image/png" || encoded.Channels != 3 || encoded.Height != m.Cfg.OutH() || encoded.Width != m.Cfg.OutW() || len(encoded.Data) == 0 {
+		t.Fatalf("encoded image=%+v", encoded)
+	}
+	got, err := png.Decode(bytes.NewReader(encoded.Data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	referencePath := filepath.Join(filepath.Dir(filepath.Dir(artifactDir(t))), "docs", "image_gen_samples", "un0_direct_seed42.png")
+	referenceFile, err := os.Open(referencePath)
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: reference image %s: %v", referencePath, err)
+	}
+	want, decodeErr := png.Decode(referenceFile)
+	closeErr := referenceFile.Close()
+	if decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
+	if closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if got.Bounds() != want.Bounds() {
+		t.Fatalf("PNG bounds=%v want=%v", got.Bounds(), want.Bounds())
+	}
+	for y := got.Bounds().Min.Y; y < got.Bounds().Max.Y; y++ {
+		for x := got.Bounds().Min.X; x < got.Bounds().Max.X; x++ {
+			gr, gg, gb, ga := got.At(x, y).RGBA()
+			wr, wg, wb, wa := want.At(x, y).RGBA()
+			if gr != wr || gg != wg || gb != wb || ga != wa {
+				t.Fatalf("PNG pixel (%d,%d)=%d,%d,%d,%d want=%d,%d,%d,%d", x, y, gr, gg, gb, ga, wr, wg, wb, wa)
+			}
+		}
+	}
+	t.Logf("real Un-0 PNG: class=1 seed=42 size=%dx%d encoded_bytes=%d exact_reference_pixels=true", encoded.Width, encoded.Height, len(encoded.Data))
 }

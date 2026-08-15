@@ -3,6 +3,7 @@ package oscillatorimage
 import (
 	"testing"
 
+	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 )
@@ -10,16 +11,18 @@ import (
 type generatorFunc struct {
 	prepareFunc   func(Request) (phasePlan, error)
 	integrateFunc func(phasePlan) ([]float32, error)
-	decodeFunc    func([]float32) (Image, error)
+	decodeFunc    func([]float32) (latentimage.EncodedImage, error)
 }
 
 func (f generatorFunc) prepare(request Request) (phasePlan, error)  { return f.prepareFunc(request) }
 func (f generatorFunc) integrate(plan phasePlan) ([]float32, error) { return f.integrateFunc(plan) }
-func (f generatorFunc) decode(features []float32) (Image, error)    { return f.decodeFunc(features) }
+func (f generatorFunc) decode(features []float32) (latentimage.EncodedImage, error) {
+	return f.decodeFunc(features)
+}
 
 func TestRegisteredRuntimeExecutesImageProgram(t *testing.T) {
 	fixture := modelrecipetest.NewCapability(t, "image-model", recipe.TaskImageGen)
-	want := Image{Pixels: []float32{0.25}, Channels: 1, Height: 1, Width: 1}
+	want := latentimage.EncodedImage{Data: []byte{1, 2, 3}, MediaType: "image/png", Channels: 3, Height: 1, Width: 1}
 	stages := generatorFunc{
 		prepareFunc: func(request Request) (phasePlan, error) {
 			if request.Class != 2 || request.Seed != 7 {
@@ -33,8 +36,8 @@ func TestRegisteredRuntimeExecutesImageProgram(t *testing.T) {
 			}
 			return []float32{0.25}, nil
 		},
-		decodeFunc: func(features []float32) (Image, error) {
-			if len(features) != 1 || features[0] != want.Pixels[0] {
+		decodeFunc: func(features []float32) (latentimage.EncodedImage, error) {
+			if len(features) != 1 || features[0] != 0.25 {
 				t.Fatalf("features = %v", features)
 			}
 			return want, nil
@@ -43,10 +46,10 @@ func TestRegisteredRuntimeExecutesImageProgram(t *testing.T) {
 	if err := registerRuntime(fixture.Runtime, fixture.Model, stages); err != nil {
 		t.Fatal(err)
 	}
-	got := modelrecipetest.MustExecuteScalar[Image](
+	got := modelrecipetest.MustExecuteScalar[latentimage.EncodedImage](
 		t, fixture, "image/runtime", Request{Class: 2, Seed: 7},
 	)
-	if len(got.Pixels) != 1 || got.Pixels[0] != want.Pixels[0] {
+	if string(got.Data) != string(want.Data) || got.MediaType != want.MediaType {
 		t.Fatalf("image = %+v", got)
 	}
 }

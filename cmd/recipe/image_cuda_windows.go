@@ -70,7 +70,7 @@ func imageCapability() capability {
 		latentimage.RegisterRuntime,
 	)
 	latent := residentExecutor(latentCache, err)
-	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, oscillatorimage.Image](
+	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
 	)

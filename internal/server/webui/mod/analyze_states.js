@@ -78,7 +78,7 @@
           el("span", { class: "note", text: "MDS stress " + data.stress.toFixed(3) + " (" + data.layout_iterations + " iters)" })));
 
         out.appendChild(el("div", { class: "section-title", text: "Distance matrix — " + data.metric + " (token × token)" }));
-        out.appendChild(overgo.viz.heatmap(data.distance)); // auto-scaled; no assumed range
+        out.appendChild(overgo.viz.heatmap(data.distance, { labels: labels })); // auto-scaled; no assumed range
 
         out.appendChild(el("div", { class: "section-title", text: "Neighbor graph (kNN edges, non-metric-MDS layout)" }));
         const edges = [];

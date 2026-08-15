@@ -86,7 +86,7 @@
           map.replaceChildren(
             el("div", { class: "section-title", text: "Attention weights — head " + h + " (query × key)" }),
             // Fixed 0..1 scale: these are probabilities, not an inferred range.
-            overgo.viz.heatmap(data.weights[h], { max: 1 }));
+            overgo.viz.heatmap(data.weights[h], { max: 1, labels: labels }));
         }
         draw();
       }

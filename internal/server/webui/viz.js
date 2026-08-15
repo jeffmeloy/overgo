@@ -4,6 +4,7 @@
 (function () {
   "use strict";
   const NS = "http://www.w3.org/2000/svg";
+  let legendSeq = 0; // unique gradient ids so multiple legends never collide
   function svg(tag, attrs) {
     const node = document.createElementNS(NS, tag);
     for (const name in attrs) node.setAttribute(name, attrs[name]);
@@ -85,26 +86,93 @@
     return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
   }
 
-  // heatmap: an N×N matrix as a grid of colored cells (e.g. a distance matrix).
-  // Values are shown as-is; the color encodes magnitude relative to `max`.
+  // shortLabel: truncate a tick label so axis ticks stay legible.
+  function shortLabel(text, keep) {
+    text = String(text == null ? "" : text);
+    keep = keep || 7;
+    return text.length > keep ? text.slice(0, keep - 1) + "…" : text;
+  }
+
+  // colorScaleLegend: the value→color key for a heatmap. Reads the SAME ramp()
+  // the cells use (sampled as gradient stops) with min/mid/max ticks, so a reader
+  // can map color to magnitude instead of hovering every cell.
+  function colorScaleLegend(min, max, opts) {
+    opts = opts || {};
+    const width = 200, barH = 10, height = 30, gid = "hm-grad-" + (legendSeq++);
+    const node = svg("svg", { viewBox: "0 0 " + width + " " + height, width: width, height: height });
+    const defs = svg("defs", {});
+    const grad = svg("linearGradient", { id: gid, x1: "0", y1: "0", x2: "1", y2: "0" });
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+      grad.appendChild(svg("stop", { offset: (t * 100) + "%", "stop-color": ramp(t) }));
+    }
+    defs.appendChild(grad);
+    node.appendChild(defs);
+    node.appendChild(svg("rect", { x: 0, y: 0, width: width, height: barH, rx: 2, fill: "url(#" + gid + ")" }));
+    const fmt = (v) => (Math.abs(v) >= 1000 || (v !== 0 && Math.abs(v) < 0.01)) ? v.toExponential(1) : v.toFixed(2);
+    [[0, min, "start"], [width / 2, (min + max) / 2, "middle"], [width, max, "end"]].forEach(([x, v, anchor]) => {
+      const label = svg("text", { x: x, y: barH + 15, "font-size": 10, fill: "var(--dim)", "text-anchor": anchor });
+      label.textContent = (opts.label ? "" : "") + fmt(v);
+      node.appendChild(label);
+    });
+    return node;
+  }
+
+  // heatmap: an N×N matrix as a grid of colored cells (e.g. a distance matrix or
+  // attention weights). Color encodes magnitude in [min, max] via ramp(). Returns
+  // a wrapper holding the grid plus a color-scale legend; optional opts.rowLabels
+  // / opts.colLabels add axis ticks when the matrix is small enough to stay
+  // legible. Values are shown as-is — no smoothing.
   function heatmap(matrix, opts) {
     opts = opts || {};
     const n = matrix.length;
     const max = opts.max != null ? opts.max : Math.max(1e-9, ...matrix.flat());
+    const min = opts.min != null ? opts.min : 0;
+    const span = max - min > 1e-12 ? max - min : 1;
     const cell = Math.max(6, Math.min(22, Math.floor(420 / Math.max(1, n))));
-    const size = n * cell;
-    const node = svg("svg", { viewBox: "0 0 " + size + " " + size, width: Math.min(size, 460), height: Math.min(size, 460) });
+    const rowLabels = opts.rowLabels || opts.labels;
+    const colLabels = opts.colLabels || opts.labels;
+    // Ticks only when they will not collide (small n and labels provided).
+    const showTicks = n <= 24 && cell >= 12;
+    const marginLeft = showTicks && rowLabels ? 58 : 0;
+    const marginTop = showTicks && colLabels ? 52 : 0;
+    const grid = n * cell;
+    const w = marginLeft + grid, h = marginTop + grid;
+    const node = svg("svg", {
+      viewBox: "0 0 " + w + " " + h,
+      width: Math.min(w, 480), height: Math.min(h, 480),
+      style: "max-width:100%",
+    });
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
         const value = matrix[i][j];
-        const rect = svg("rect", { x: j * cell, y: i * cell, width: cell, height: cell, fill: ramp(value / max) });
+        const rect = svg("rect", { x: marginLeft + j * cell, y: marginTop + i * cell, width: cell, height: cell, fill: ramp((value - min) / span) });
         const title = document.createElementNS(NS, "title");
-        title.textContent = "(" + i + "," + j + ") = " + value.toFixed(4);
+        const rl = rowLabels ? " " + rowLabels[i] : "", cl = colLabels ? " " + colLabels[j] : "";
+        title.textContent = "(" + i + rl + ", " + j + cl + ") = " + value.toFixed(4);
         rect.appendChild(title);
         node.appendChild(rect);
       }
     }
-    return node;
+    if (showTicks && rowLabels) {
+      for (let i = 0; i < n; i++) {
+        const t = svg("text", { x: marginLeft - 5, y: marginTop + i * cell + cell / 2 + 3, "font-size": 10, fill: "var(--dim)", "text-anchor": "end" });
+        t.textContent = shortLabel(rowLabels[i]);
+        node.appendChild(t);
+      }
+    }
+    if (showTicks && colLabels) {
+      for (let j = 0; j < n; j++) {
+        const x = marginLeft + j * cell + cell / 2;
+        const t = svg("text", { x: x, y: marginTop - 5, "font-size": 10, fill: "var(--dim)", "text-anchor": "start", transform: "rotate(-55 " + x + " " + (marginTop - 5) + ")" });
+        t.textContent = shortLabel(colLabels[j]);
+        node.appendChild(t);
+      }
+    }
+    if (opts.legend === false) return node;
+    const wrap = document.createElement("div");
+    wrap.appendChild(node);
+    wrap.appendChild(colorScaleLegend(min, max, opts));
+    return wrap;
   }
 
   // graph: nodes at `coords` ([x,y] pairs) with `edges` ([i,j] pairs). Used for

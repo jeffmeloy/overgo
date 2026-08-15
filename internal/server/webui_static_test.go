@@ -131,6 +131,25 @@ func TestWebUIAuthUX(t *testing.T) {
 	}
 }
 
+// TestWebUIHeatmapLegend guards the heatmap readability additions: a color-scale
+// legend built from the same ramp() the cells use, and axis tick labels driven by
+// caller-supplied labels (so a reader can map color→value and read the axes
+// instead of hovering every cell).
+func TestWebUIHeatmapLegend(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	viz := serveTestRequest(handler, http.MethodGet, "/viz.js", "").Body.String()
+	for _, needle := range []string{"colorScaleLegend", "linearGradient", "rowLabels", "colLabels"} {
+		if !strings.Contains(viz, needle) {
+			t.Errorf("viz.js heatmap missing %q", needle)
+		}
+	}
+	for _, asset := range []string{"/mod/analyze_attention.js", "/mod/analyze_states.js"} {
+		if !strings.Contains(serveTestRequest(handler, http.MethodGet, asset, "").Body.String(), "labels:") {
+			t.Errorf("%s does not pass labels to heatmap (axis ticks)", asset)
+		}
+	}
+}
+
 func TestWebUIRejectsNonGet(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()

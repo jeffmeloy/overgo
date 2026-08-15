@@ -75,7 +75,7 @@ func run() error {
 		}
 		fmt.Printf("[smoke] %s %-9s %6.1fs tier=%s\n", entry.Model, outcome, wall.Seconds(), entry.Tier)
 		if serveErr != nil {
-			fmt.Printf("        %s\n", tail(failure, 400))
+			fmt.Printf("        %s\n", clioptions.Tail(failure, 400))
 		}
 	}
 	fmt.Printf("=== SMOKE %d passed / %d failed / %d unavailable of %d servable ===\n",
@@ -93,7 +93,7 @@ func serve(location string) error {
 	cmd := exec.Command("go", "run", "./cmd/generate", "-n", "4", location, smokePrompt)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%v: %s", err, tail(string(out), 800))
+		return fmt.Errorf("%v: %s", err, clioptions.Tail(string(out), 800))
 	}
 	var payload struct {
 		Text string `json:"text"`
@@ -231,11 +231,4 @@ func hostname() string {
 		return "unknown"
 	}
 	return name
-}
-
-func tail(s string, limit int) string {
-	if len(s) <= limit {
-		return s
-	}
-	return "..." + s[len(s)-limit:]
 }

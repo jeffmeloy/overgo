@@ -31,7 +31,7 @@ func run() error {
 	// can never mistake absence for green.
 	if out, err := command("go", "run", "./cmd/cuda-info"); err != nil {
 		fmt.Println("device-lane: UNAVAILABLE -- cuda-info failed; no passing evidence exists")
-		fmt.Print(tail(out, 800))
+		fmt.Print(clioptions.Tail(out, 800))
 		return err
 	}
 	steps := [][]string{
@@ -44,7 +44,7 @@ func run() error {
 		out, err := commandEnv(append(os.Environ(), cudaTestEnv+"=1"), step[0], step[1:]...)
 		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), verdict(err))
 		if err != nil {
-			fmt.Print(tail(out, 2000))
+			fmt.Print(clioptions.Tail(out, 2000))
 			return fmt.Errorf("%s failed", strings.Join(step, " "))
 		}
 	}
@@ -69,11 +69,4 @@ func commandEnv(env []string, name string, args ...string) (string, error) {
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	return string(out), err
-}
-
-func tail(s string, limit int) string {
-	if len(s) <= limit {
-		return s
-	}
-	return "..." + s[len(s)-limit:]
 }

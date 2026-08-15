@@ -27,6 +27,14 @@ func MainNamed(name string, run func() error) {
 	})
 }
 
+// Tail bounds diagnostic output while retaining its most recent bytes.
+func Tail(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	return "..." + text[len(text)-limit:]
+}
+
 // WriteJSON: one JSON document.
 func WriteJSON(writer io.Writer, value any) error {
 	return json.NewEncoder(writer).Encode(value)

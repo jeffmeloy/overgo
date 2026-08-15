@@ -41,15 +41,15 @@
       ]
     },
     {
-      "id": "simplediffusion-png-publication",
-      "title": "Publish real SimpleDiffusion samples through a typed PNG recipe",
+      "id": "simplediffusion-device-resblock",
+      "title": "Execute a real SimpleDiffusion residual block through the shared CUDA graph",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Publish real SimpleDiffusion samples through a typed PNG recipe",
+          "title": "Execute a real SimpleDiffusion residual block through the shared CUDA graph",
           "status": "open",
-          "verify": "go test -tags modeltest ./internal/diffusionimage -run '^TestRealCheckpointPublishesReferencePNG$' -count=1 -v"
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/diffusionimage -run '^TestRealResBlockCUDAParity$' -count=1 -v"
         }
       ]
     },

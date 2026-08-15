@@ -11,7 +11,14 @@
       clear(panel);
       panel.appendChild(el("div", { class: "note", text: "loading /analyze/model…" }));
 
-      const data = await overgo.api.get("/analyze/model");
+      let data;
+      try {
+        data = await overgo.modelInfo();
+      } catch (err) {
+        clear(panel);
+        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
+        return;
+      }
       const m = data.model, d = data.derived;
       clear(panel);
 

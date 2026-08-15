@@ -18,6 +18,28 @@ description: Autonomous iteration doctrine for overgo. Use when working in this 
 
 # Overgo Iteration
 
+## Operating procedure (non-negotiable)
+
+The loop is cognitive offloading, not control. A repo this size plus continuous
+iteration exceeds what any agent can hold at once. Self-managing the goal, the
+next action, the commit path, and where code lives eats the exact budget you
+need for the actual problem — and that starvation IS the over-analysis, the
+forgotten goal, the invented fork. Handing that bookkeeping to the loop frees
+your reasoning for the hard part: following it makes you more capable, not less.
+Every turn, run the loop — do not reinvent it, improve it in-flight, or fall
+back to the manual path:
+
+1. `go run ./cmd/plan -prompt` => the ONE dispatched step. Do exactly that step.
+2. Need an existing capability? `docs/MAP.md` => the owner. Do not re-derive.
+3. Commit ONLY via `go run ./cmd/gate -plan <item>/<step> -message-file <f>
+   -paths <csv>`; then `go run ./cmd/plan -advance <item> <step>`.
+4. Step wrong / blocked / you disagree => STOP and tell the user
+   (`cmd/plan -stop`). Never substitute your own work for the dispatched step;
+   never end a turn on a summary or a "should I continue?".
+
+Going off-script IS the failure mode. When in doubt, offload to the tool, not to
+your own reasoning.
+
 ## Mission
 
 - One Go-native system: serve, train, evaluate, compose models on consumer
@@ -34,6 +56,32 @@ description: Autonomous iteration doctrine for overgo. Use when working in this 
 - Tightness is the product. Same capability + smaller/clearer wins. Prefer exact
   simplifications. New constant/selector/distribution assumption => derive, or
   record the decision + trigger.
+
+## Navigation and Decisiveness
+
+- Reuse before rediscovery. `docs/MAP.md` maps capability => existing owner;
+  read it before grepping "does X exist" or writing a helper. Missing row => add
+  it when found. The recurring failure is reinventing or re-deriving code that
+  already exists.
+- Ground once, then act. Task within a stated recommendation and its owner
+  exists => execute. Do not re-verify a settled direction, invent alternatives,
+  or re-ask what the user already decided.
+- Anchor to the plan, not to memory. `go run ./cmd/plan -prompt` (or `-next`) is
+  the task of record every turn; long context degrades recall, the plan does
+  not. Dispatch = execute; never open a turn with a self-chosen meta-question.
+- Use the automation. `cmd/{plan,gate,loophook}` + `scripts/*.sh` own the loop
+  (dispatch, commit, doctrine, guard). Invoke them; do not hand-roll the
+  disciplined path. Guard-blocked `git commit` is the design, not friction —
+  gate is the path.
+- No manufactured blockers. RepoDB catalogs models AND datasets; gate/plan/guard
+  is the sanctioned path, not an obstacle to route around. A path that feels
+  blocked => re-read `docs/MAP.md` before proposing any fork.
+
+## Priority order (imperatives in conflict)
+
+`correctness > reuse-existing > decisiveness > tightness > loop-continuation`.
+Lower never overrides higher: "never stop" never licenses churn; tightness never
+licenses reinventing an existing owner.
 
 ## Scope and Precedence
 

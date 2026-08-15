@@ -42,20 +42,29 @@
         if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); }
       });
 
-      function messageNode(message) {
-        return el("div", { class: "msg " + message.role },
-          el("div", { class: "role", text: message.role }),
-          el("div", { class: "body" }, message.content));
+      function messageNode(message, streaming) {
+        const body = el("div", { class: "body" });
+        // Completed assistant turns render as markdown (safe DOM, no innerHTML);
+        // the in-flight turn and user text stay plain so streaming stays cheap
+        // and partial code fences don't flicker.
+        if (message.role === "assistant" && !streaming && message.content) {
+          body.appendChild(overgo.md(message.content));
+        } else {
+          body.appendChild(document.createTextNode(message.content));
+          if (streaming) body.appendChild(el("span", { class: "cursor", text: "▋" }));
+        }
+        const head = el("div", { class: "role" }, message.role);
+        if (message.role === "assistant" && !streaming && message.content) {
+          head.appendChild(overgo.copyButton(message.content, "copy"));
+        }
+        return el("div", { class: "msg " + message.role }, head, body);
       }
 
       function renderLog(streamingCursor) {
         clear(log);
         messages.forEach((message, index) => {
-          const node = messageNode(message);
-          if (streamingCursor && index === messages.length - 1 && message.role === "assistant") {
-            node.querySelector(".body").appendChild(el("span", { class: "cursor", text: "▋" }));
-          }
-          log.appendChild(node);
+          const streaming = streamingCursor && index === messages.length - 1 && message.role === "assistant";
+          log.appendChild(messageNode(message, streaming));
         });
         log.scrollTop = log.scrollHeight;
       }

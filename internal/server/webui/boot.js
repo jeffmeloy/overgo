@@ -36,17 +36,31 @@
   }
 
   const api = {
-    async get(path) {
-      return readJSON(await fetch(path, { headers: authHeaders() }));
+    async get(path, opts) {
+      return readJSON(await fetch(path, { headers: authHeaders(), signal: opts && opts.signal }));
     },
-    async post(path, body) {
+    async post(path, body, opts) {
       return readJSON(await fetch(path, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
+        signal: opts && opts.signal,
       }));
     },
   };
+
+  // /analyze/model is fetched by the shell (capability gating), the Model tab,
+  // and the lens (vocab size). Cache the in-flight/last promise so a page load
+  // hits it once; a rejection clears the cache so a retry after the key is set
+  // refetches, and a key change invalidates it explicitly.
+  let modelPromise = null;
+  function modelInfo() {
+    if (!modelPromise) {
+      modelPromise = api.get("/analyze/model").catch((err) => { modelPromise = null; throw err; });
+    }
+    return modelPromise;
+  }
+  function invalidateModel() { modelPromise = null; }
 
   // Minimal hyperscript: el("div", {class:"x"}, child, child...).
   function el(tag, attrs, ...children) {
@@ -74,6 +88,14 @@
     return el("div", { class: "err-banner", text: message });
   }
 
+  // friendlyError: one place that turns a 401 into the actionable hint every tab
+  // should show, so auth failures read the same everywhere instead of leaking
+  // the raw "missing or invalid bearer token".
+  function friendlyError(err) {
+    if (err && err.status === 401) return "API key required — enter it in the top bar.";
+    return String((err && err.message) || err);
+  }
+
   // Number formatting helpers (grouping, byte sizes, compact counts).
   function grouped(n) { return Number(n).toLocaleString("en-US"); }
   function bytes(n) {
@@ -91,12 +113,49 @@
     return String(n);
   }
 
+  // displayToken: make an empty / whitespace-only / multiline token piece
+  // visible without altering the underlying text. Shared by every tab that shows
+  // token strings (logit lens, hidden states, attention).
+  function displayToken(text) {
+    if (text === "" || text == null) return "∅";
+    if (/^\s+$/.test(text)) return "␠".repeat(text.length);
+    return text.replace(/\n/g, "⏎");
+  }
+
+  // runner: manage an exclusive, cancelable async action bound to a run button
+  // and a cancel button. run(task) ignores re-entrant calls, disables run and
+  // reveals cancel while task(signal) is in flight, and dispatches an abort to
+  // onCancel and any other failure to onError. Factored out of the three tabs
+  // that drive a real forward pass so the abort semantics live in one place.
+  function runner(runButton, cancelButton, handlers) {
+    handlers = handlers || {};
+    let controller = null;
+    cancelButton.addEventListener("click", () => controller && controller.abort());
+    return async function run(task) {
+      if (controller) return; // a run is already in flight
+      runButton.disabled = true;
+      cancelButton.style.display = "";
+      controller = new AbortController();
+      try {
+        await task(controller.signal);
+      } catch (err) {
+        if (err && err.name === "AbortError") { if (handlers.onCancel) handlers.onCancel(); }
+        else if (handlers.onError) handlers.onError(err);
+      } finally {
+        runButton.disabled = false;
+        cancelButton.style.display = "none";
+        controller = null;
+      }
+    };
+  }
+
   const tabs = [];
   function registerTab(tab) { tabs.push(tab); }
 
   window.overgo = {
-    api, el, clear, errorBanner, registerTab,
-    getKey, setKey,
+    api, el, clear, errorBanner, friendlyError, registerTab,
+    getKey, setKey, modelInfo, invalidateModel,
+    displayToken, runner,
     fmt: { grouped, bytes, compact },
   };
 
@@ -179,6 +238,16 @@
   // fail. Fail-open: if capabilities can't be fetched (offline / key required),
   // every tab stays enabled and errors surface per-request instead.
   let capabilities = null;
+  let authNoticeEl = null;
+
+  // When /analyze/model answers 401 the whole analysis surface is locked behind
+  // the key; surface one banner + highlight the field instead of letting each
+  // tab fail on its own with a raw bearer-token error.
+  function showAuthNotice(show) {
+    if (authNoticeEl) authNoticeEl.style.display = show ? "" : "none";
+    const key = document.getElementById("api-key");
+    if (key) key.classList.toggle("needs-key", show);
+  }
 
   function tabSupported(tab) {
     if (!tab.requires || !capabilities) return true;
@@ -201,10 +270,12 @@
 
   async function refreshCapabilities() {
     try {
-      const model = await api.get("/analyze/model");
+      const model = await modelInfo();
       capabilities = model.analysis || {};
+      showAuthNotice(false);
     } catch (err) {
       capabilities = null; // fail-open
+      showAuthNotice(err && err.status === 401);
     }
     applyCapabilities();
   }
@@ -224,10 +295,15 @@
       tabBar.appendChild(tab.button);
       panels.appendChild(tab.panel);
     }
+    authNoticeEl = el("div", { class: "auth-banner", style: "display:none" },
+      "This server requires an API key — enter it in the field at the top right to load analysis and chat.");
+    document.querySelector(".wrap").insertBefore(authNoticeEl, panels);
+
     const keyInput = document.getElementById("api-key");
     keyInput.value = getKey();
     keyInput.addEventListener("change", () => {
       setKey(keyInput.value.trim());
+      invalidateModel(); // the cached model was fetched under the old key
       // Re-mount the active tab so its data reloads under the new key.
       for (const tab of tabs) tab.mounted = false;
       const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
@@ -243,6 +319,9 @@
     activate(tabs.some((t) => t.id === start) ? start : (tabs[0] && tabs[0].id));
     refreshStatus();
     refreshCapabilities();
+    // Re-probe health so a server that drops (or comes back) is reflected in the
+    // status pill instead of showing a stale "online" until the next key change.
+    setInterval(refreshStatus, 10000);
   }
 
   // boot.js is deferred, so it runs while readyState is "interactive" — before

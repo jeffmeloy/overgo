@@ -19,6 +19,9 @@ type AnalysisPolicy struct {
 	MDSTolerance    float64 `json:"mds_tolerance"`
 }
 
+// Inline effective-rank compute bound. Larger matrices report deferred.
+const analyzeTensorSpectralMaxDim = 512
+
 func (policy AnalysisPolicy) validate() error {
 	if policy.TensorSamples == 0 || policy.TensorReadBytes == 0 || policy.StatePositions <= 0 ||
 		policy.MDSIterations <= 0 || policy.MDSTolerance <= 0 || math.IsNaN(policy.MDSTolerance) || math.IsInf(policy.MDSTolerance, 0) {
@@ -27,13 +30,20 @@ func (policy AnalysisPolicy) validate() error {
 	return nil
 }
 
-// analyzeTensor is one tensor's storage identity plus its distribution-free
-// value profile (the embedded characterization flattens into the JSON object).
+func (policy AnalysisPolicy) tensorMeasurementPolicy() modelartifact.MeasurementPolicy {
+	return modelartifact.MeasurementPolicy{
+		MaxSamplesPerTensor: policy.TensorSamples,
+		MaxReadBytes:        policy.TensorReadBytes,
+		SpectralMaxDim:      analyzeTensorSpectralMaxDim,
+	}
+}
+
+// analyzeTensor is one tensor's storage identity plus its persisted measurement
+// (name, characterization, and effective rank flatten into the JSON object).
 type analyzeTensor struct {
-	Name    string   `json:"name"`
 	Storage string   `json:"storage"`
 	Shape   []uint64 `json:"shape"`
-	tensorstats.Characterization
+	modelartifact.TensorMeasurement
 }
 
 // analyzeTensorsResponse returns a distribution-free value profile for every
@@ -42,15 +52,10 @@ type analyzeTensor struct {
 // empirical distribution, never a fitted shape (see the workbench's
 // distribution-free analysis principle).
 type analyzeTensorsResponse struct {
-	Model   string              `json:"model"`
-	Policy  analyzeTensorPolicy `json:"policy"`
-	Count   int                 `json:"count"`
-	Tensors []analyzeTensor     `json:"tensors"`
-}
-
-type analyzeTensorPolicy struct {
-	MaxSamplesPerTensor uint64 `json:"max_samples_per_tensor"`
-	MaxReadBytes        uint64 `json:"max_read_bytes"`
+	Model   string                          `json:"model"`
+	Policy  modelartifact.MeasurementPolicy `json:"policy"`
+	Count   int                             `json:"count"`
+	Tensors []analyzeTensor                 `json:"tensors"`
 }
 
 func (h *Handler) analyzeTensors(response http.ResponseWriter, request *http.Request) {
@@ -64,7 +69,7 @@ func (h *Handler) analyzeTensors(response http.ResponseWriter, request *http.Req
 	}
 	writeJSON(response, http.StatusOK, analyzeTensorsResponse{
 		Model:   h.config.ModelID,
-		Policy:  analyzeTensorPolicy{h.config.Analysis.TensorSamples, h.config.Analysis.TensorReadBytes},
+		Policy:  h.config.Analysis.tensorMeasurementPolicy(),
 		Count:   len(profiles),
 		Tensors: profiles,
 	})
@@ -159,10 +164,7 @@ func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analy
 		return nil, false
 	}
 	defer file.Close()
-	profiles, err := characterizeGGUF(file, modelartifact.MeasurementPolicy{
-		MaxSamplesPerTensor: h.config.Analysis.TensorSamples,
-		MaxReadBytes:        h.config.Analysis.TensorReadBytes,
-	})
+	profiles, err := characterizeGGUF(file, h.config.Analysis.tensorMeasurementPolicy())
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "tensor_characterization_failed", err.Error())
 		return nil, false
@@ -186,10 +188,9 @@ func characterizeGGUF(file *gguf.File, policy modelartifact.MeasurementPolicy) (
 	for i, measurement := range document.Measurements {
 		fact, _ := inventory.TensorInventory.Tensor(measurement.Name)
 		profiles[i] = analyzeTensor{
-			Name:             measurement.Name,
-			Storage:          fact.Storage,
-			Shape:            fact.Shape,
-			Characterization: measurement.Characterization,
+			Storage:           fact.Storage,
+			Shape:             fact.Shape,
+			TensorMeasurement: measurement,
 		}
 	}
 	return profiles, nil

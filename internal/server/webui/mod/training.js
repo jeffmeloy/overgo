@@ -39,7 +39,7 @@
         } catch (err) {
           const message = err.status === 501
             ? "Run browsing is not configured on this server (no RepoDB store)."
-            : (err.status === 401 ? "API key required — enter it in the top bar." : String(err.message || err));
+            : overgo.friendlyError(err);
           host.replaceChildren(overgo.errorBanner(message));
           return;
         }

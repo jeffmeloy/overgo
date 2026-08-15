@@ -6,12 +6,18 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sync"
+	"unsafe"
 
 	"overgo/internal/tensor/dtype"
 )
 
+var f32PromotionBuffers = sync.Pool{
+	New: func() any { return make([]byte, f32PromotionBufferBytes) },
+}
+
 const (
-	f32PromotionBufferBytes = 4 << 10
+	f32PromotionBufferBytes = 1 << 20
 	float16StorageBytes     = 2
 	float32StorageBytes     = 4
 )
@@ -29,12 +35,24 @@ func ReadF32(tensor Tensor) ([]float32, error) {
 	if count < 0 || uint64(count) != elements {
 		return nil, errors.New("safetensors: tensor is too large for host memory")
 	}
+	values := make([]float32, count)
+	if tensor.DType == "F32" && nativeLittleEndian() {
+		byteCount := tensor.Size()
+		if byteCount < 0 || int64(int(byteCount)) != byteCount {
+			return nil, errors.New("safetensors: tensor byte count exceeds host memory")
+		}
+		payload := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(values))), int(byteCount))
+		if _, err := io.ReadFull(tensor.Reader(), payload); err != nil {
+			return nil, err
+		}
+		return values, nil
+	}
 	reader, err := F32Reader(tensor)
 	if err != nil {
 		return nil, err
 	}
-	values := make([]float32, count)
-	var encoded [f32PromotionBufferBytes]byte
+	encoded := f32PromotionBuffers.Get().([]byte)
+	defer f32PromotionBuffers.Put(encoded)
 	for offset := 0; offset < count; {
 		batch := min(count-offset, len(encoded)/float32StorageBytes)
 		payload := encoded[:batch*float32StorageBytes]
@@ -49,6 +67,11 @@ func ReadF32(tensor Tensor) ([]float32, error) {
 	return values, nil
 }
 
+func nativeLittleEndian() bool {
+	word := uint16(1)
+	return *(*byte)(unsafe.Pointer(&word)) == 1
+}
+
 // ReadBF16 retains one BF16 tensor in native word storage.
 func ReadBF16(tensor Tensor) ([]uint16, error) {
 	if tensor.DType != "BF16" {
@@ -60,7 +83,8 @@ func ReadBF16(tensor Tensor) ([]uint16, error) {
 		return nil, errors.New("safetensors: tensor is too large for host memory")
 	}
 	values := make([]uint16, count)
-	var encoded [f32PromotionBufferBytes]byte
+	encoded := f32PromotionBuffers.Get().([]byte)
+	defer f32PromotionBuffers.Put(encoded)
 	for offset := 0; offset < count; {
 		batch := min(count-offset, len(encoded)/float16StorageBytes)
 		payload := encoded[:batch*float16StorageBytes]

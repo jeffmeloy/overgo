@@ -18,8 +18,15 @@
     { key: "tau4", label: "L-kurt τ₄", num: true, get: (t) => t.l_moments.Tau4 },
     { key: "zero", label: "Zero %", num: true, get: (t) => t.values.zero_fraction },
     { key: "maxabs", label: "Max |·|", num: true, get: (t) => t.values.max_absolute },
+    { key: "effrank", label: "Eff. rank", num: true, get: (t) => (t.spectral_status === "computed" ? t.effective_rank : -1) },
     { key: "entropy", label: "Energy entropy", num: true, get: (t) => t.values.normalized_energy_entropy },
   ];
+
+  function effrankText(t) {
+    if (t.spectral_status === "computed") return t.effective_rank.toFixed(3);
+    if (t.spectral_status === "deferred") return "def";
+    return "—"; // not-applicable (1-D / non-matrix) or spectral off
+  }
 
   function sci(value) {
     if (value === 0) return "0";
@@ -38,7 +45,14 @@
       clear(panel);
       panel.appendChild(el("div", { class: "note", text: "loading /analyze/tensors…" }));
 
-      const data = await overgo.api.get("/analyze/tensors");
+      let data;
+      try {
+        data = await overgo.api.get("/analyze/tensors");
+      } catch (err) {
+        clear(panel);
+        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
+        return;
+      }
       const rows = data.tensors || [];
       clear(panel);
 
@@ -114,7 +128,7 @@
           style: "width:64px;height:8px;border-radius:4px;background:var(--bg2);overflow:hidden",
         });
         track.appendChild(el("div", {
-          style: "height:100%;width:" + (clamped * 100).toFixed(1) + "%;background:var(--accent)",
+          style: "height:100%;width:" + (clamped * 100).toFixed(1) + "%;background:var(--acc)",
         }));
         wrap.append(el("span", { text: clamped.toFixed(3) }), track);
         return wrap;
@@ -141,6 +155,7 @@
             t.l_moments.Tau4.toFixed(3),
             (t.values.zero_fraction * 100).toFixed(1),
             sci(t.values.max_absolute),
+            effrankText(t),
           ];
           for (const value of cells) {
             tr.appendChild(el("td", {

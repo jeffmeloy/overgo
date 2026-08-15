@@ -1107,7 +1107,7 @@
           "contains": "func LoadGenerator(",
           "path": "internal/sensenovarecipe/runtime_cuda_windows.go",
           "role": "source",
-          "identity": "file:sha256:e50e0209519eda83612edc237bbf28ff25f288584f4f124771ba4abdd844a320"
+          "identity": "file:sha256:392339ba59378d1cc82731a73d53df2029db95fb2c20f9546805231f77778cb1"
         },
         {
           "contains": "capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed}",

@@ -3,6 +3,7 @@ package hfbpe
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,12 +12,8 @@ import (
 	"overgo/internal/jsonfile"
 )
 
-// LoadLegacy consumes the split-file Hugging Face byte-level BPE representation
-// (vocab.json + merges.txt + optional added_tokens.json) when a model ships no
-// tokenizer.json. SenseNova-U1 is Qwen2-family (byte-level, no normalizer, no
-// byte fallback), so the resulting Tokenizer runs the same byte-level Encode
-// path as Load. Ported from adaptive_new go/extmodel loadLegacyByteLevelTokenizer.
-func LoadLegacy(dir string) (*Tokenizer, error) {
+// LoadSplit: vocab.json + merges.txt + optional added_tokens.json.
+func LoadSplit(dir string) (*Tokenizer, error) {
 	var vocab map[string]int
 	if err := jsonfile.Decode(filepath.Join(dir, "vocab.json"), &vocab); err != nil {
 		return nil, fmt.Errorf("parse vocab.json: %w", err)
@@ -27,21 +24,23 @@ func LoadLegacy(dir string) (*Tokenizer, error) {
 	}
 	defer file.Close()
 	t := &Tokenizer{vocab: vocab, mergeRank: map[string]int{}, special: map[string]int{}}
-	scanner, rank := bufio.NewScanner(file), 0
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+	reader, rank := bufio.NewReader(file), 0
+	for {
+		text, readErr := reader.ReadString('\n')
+		line := strings.TrimSpace(text)
 		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		if len(strings.Fields(line)) != 2 {
+		} else if len(strings.Fields(line)) != 2 {
 			return nil, fmt.Errorf("invalid BPE merge %q", line)
+		} else {
+			t.mergeRank[line] = rank
+			rank++
 		}
-		t.mergeRank[line] = rank
-		rank++
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return nil, readErr
+		}
 	}
 	var added map[string]int
 	err = jsonfile.Decode(filepath.Join(dir, "added_tokens.json"), &added)
@@ -52,7 +51,10 @@ func LoadLegacy(dir string) (*Tokenizer, error) {
 		t.special[token] = id
 		t.specials = append(t.specials, token)
 	}
-	sort.Slice(t.specials, func(i, j int) bool { return len(t.specials[i]) > len(t.specials[j]) })
+	sort.Slice(t.specials, func(i, j int) bool {
+		left, right := t.specials[i], t.specials[j]
+		return len(left) > len(right) || len(left) == len(right) && left < right
+	})
 	t.buildByteAlphabet()
 	return t, nil
 }

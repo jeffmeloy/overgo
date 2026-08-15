@@ -79,9 +79,9 @@ func Load(dir string) (*Tokenizer, error) {
 			t.mergeRank[pair[0]+" "+pair[1]] = i
 			continue
 		}
-		var legacy string
-		if err := json.Unmarshal(raw, &legacy); err == nil {
-			t.mergeRank[legacy] = i
+		var pairText string
+		if err := json.Unmarshal(raw, &pairText); err == nil {
+			t.mergeRank[pairText] = i
 			continue
 		}
 		return nil, fmt.Errorf("merges[%d]: unrecognized wire format", i)

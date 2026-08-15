@@ -227,3 +227,52 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	}
 	t.Logf("real GSM8K final-cross Muon: %v -> %.6f; raw gate %.6f -> %.6f", trajectory, after, rawBefore, block.rawGate)
 }
+
+func TestNeedleRealGSM8KFinalCrossOutputGradient(t *testing.T) {
+	generator, pair, _ := realGSM8KTrainingPair(t, 0)
+	trainer, err := NewTrainer(generator.model, 1, 0.001, 0.9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe := trainingStep{pair: pair}
+	if err := trainer.forward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.backward(&probe); err != nil {
+		t.Fatal(err)
+	}
+	block := &generator.model.decoderCross[len(generator.model.decoderCross)-1]
+	index := -1
+	for candidate, gradient := range probe.projectionGradient {
+		word := block.o[candidate]
+		if word > 1 && word < 0x7f00 && (word&0x8000) == 0 &&
+			(index < 0 || math.Abs(float64(gradient)) > math.Abs(float64(probe.projectionGradient[index]))) {
+			index = candidate
+		}
+	}
+	if index < 0 {
+		t.Fatal("positive final cross output weight absent")
+	}
+	original := block.o[index]
+	block.o[index] = original + 1
+	plus, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block.o[index] = original - 1
+	minus, err := generator.model.Loss(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block.o[index] = original
+	plusWeight := float64(math.Float32frombits(uint32(original+1) << 16))
+	minusWeight := float64(math.Float32frombits(uint32(original-1) << 16))
+	finiteDifference := (plus - minus) / (plusWeight - minusWeight)
+	analytic := float64(probe.projectionGradient[index])
+	delta := math.Abs(analytic - finiteDifference)
+	limit := 0.03 * max(math.Abs(analytic), math.Abs(finiteDifference))
+	if delta > limit {
+		t.Fatalf("final cross output gradient[%d] analytic=%g finite_difference=%g delta=%g limit=%g", index, analytic, finiteDifference, delta, limit)
+	}
+	t.Logf("real GSM8K final cross output gradient[%d]: analytic=%g finite_difference=%g", index, analytic, finiteDifference)
+}

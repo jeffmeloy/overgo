@@ -89,6 +89,7 @@ type trainingStep struct {
 	hidden, normed, logits []float32
 	trace                  decoderTrainingTrace
 	gradient               []float32
+	projectionGradient     []float32
 	loss                   float64
 }
 
@@ -207,6 +208,18 @@ func (t *Trainer) backward(state *trainingStep) error {
 	}
 	gate := t.model.decoderCross[len(t.model.decoderCross)-1].gate
 	state.gradient[d] = float32(gateGradient) * gate * (1 - gate)
+	if len(state.trace.finalCrossAttention) != rows*t.model.Dims.Heads*t.model.Dims.HeadDim {
+		return errors.New("final cross-attention core trace differs")
+	}
+	dProjected := make([]float32, len(dHidden))
+	for index, gradient := range dHidden {
+		dProjected[index] = gate * gradient
+	}
+	state.projectionGradient = make([]float32, len(t.model.decoderCross[len(t.model.decoderCross)-1].o))
+	hostmath.LinearBackward(
+		nil, state.projectionGradient, nil, state.trace.finalCrossAttention, nil, dProjected,
+		rows, t.model.Dims.Heads*t.model.Dims.HeadDim, d, false,
+	)
 	return nil
 }
 

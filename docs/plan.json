@@ -16,15 +16,15 @@
       ]
     },
     {
-      "id": "needle-final-cross-gradient",
-      "title": "Extend Needle gradients through the final decoder cross-attention block",
+      "id": "needle-final-cross-output-gradient",
+      "title": "Verify Needle final cross-attention output-projection gradient",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Extend Needle gradients through the final decoder cross-attention block",
+          "title": "Verify Needle final cross-attention output-projection gradient",
           "status": "open",
-          "verify": "go test -tags modeltest ./internal/seq2seq -run '^TestNeedleRealGSM8KFinalCrossAttentionTraining$' -count=1 -v"
+          "verify": "go test -tags modeltest ./internal/seq2seq -run '^TestNeedleRealGSM8KFinalCrossOutputGradient$' -count=1 -v"
         }
       ]
     },

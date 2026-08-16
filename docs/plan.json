@@ -56,12 +56,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "training-leg",
-          "title": "Port the fast-weight-bank gradient and Muon update through TrainingProgram; compare a complete real-checkpoint update on ordered WikiText records",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/thoughtbank ./internal/trainingprogram -run '^TestFractaleRealTrainingParity$' -count=1 -v"
-        },
-        {
           "id": "performance-leg",
           "title": "Prove linear incremental decode and beat the native quadratic reference on the same checkpoint and prompt",
           "status": "open",

@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "audio-waveform-streaming",
-      "title": "Stream audio waveform reconstruction: runner-owned tables, ordered overlap-add, typed magnitude policy",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stream audio waveform reconstruction: runner-owned tables, ordered overlap-add, typed magnitude policy",
-          "status": "open",
-          "verify": "go test ./internal/inference -run '^TestStreamedWaveformReconstruction$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "phase-b-tier0-draft",
       "title": "Phase B Tier-0: draft whole-model chaining rows into rsi_plan and open the first row",
       "status": "open",

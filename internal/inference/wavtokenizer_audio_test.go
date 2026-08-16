@@ -16,7 +16,7 @@ func TestAudioFeaturesToWaveformDCFrame(t *testing.T) {
 		data[bin] = float32(math.Inf(-1))
 	}
 	data[0] = 0
-	audio, err := audioFeaturesToWaveform(plan, reference.Value{
+	audio, err := audioFeaturesToWaveform(plan, newAudioWaveformTables(plan), reference.Value{
 		Shape: tensor.MustShape(uint64(plan.FrameWidth()), 1), Data: data,
 	})
 	if err != nil {
@@ -36,7 +36,7 @@ func TestAudioFeaturesToWaveformDCFrame(t *testing.T) {
 
 func TestAudioFeaturesToWaveformRejectsShape(t *testing.T) {
 	plan := testAudioWaveformPlan(t)
-	_, err := audioFeaturesToWaveform(plan, reference.Value{
+	_, err := audioFeaturesToWaveform(plan, newAudioWaveformTables(plan), reference.Value{
 		Shape: tensor.MustShape(uint64(plan.FrameWidth()-1), 1),
 		Data:  make([]float32, plan.FrameWidth()-1),
 	})

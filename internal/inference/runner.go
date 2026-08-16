@@ -168,6 +168,8 @@ type preparedModel struct {
 	modelSignature      [32]byte
 	modelSignatureErr   error
 	modelSignatureOnce  sync.Once
+	audioTables         *audioWaveformTables
+	audioTablesOnce     sync.Once
 }
 
 // runnerState: mutable LoRA and prompt-cache state.

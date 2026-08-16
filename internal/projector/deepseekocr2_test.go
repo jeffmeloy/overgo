@@ -49,7 +49,7 @@ func TestDeepSeekOCR2PromptContract(t *testing.T) {
 	}
 	defer runner.Close()
 	tok := &deepSeekOCRPromptTokenizer{}
-	prompt, err := runner.BuildImagePrompt(context.Background(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
+	prompt, err := testSession(t, runner).BuildImagePrompt(context.Background(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestDeepSeekOCR2PromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesDeepSeekOCR2(t *testing.T) {
-	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyDeepSeekOCR2(t, false), OpenOptions{})
+	projector, err := OpenAs[Projector](context.Background(), writeTinyDeepSeekOCR2(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

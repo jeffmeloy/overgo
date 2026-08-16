@@ -169,7 +169,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 		}
 		prompt.Audio = decoded
 	case "video":
-		if _, ok := h.config.ImageProjector.(projector.VideoProjector); !ok {
+		if h.config.ImageProjector == nil || !h.config.ImageProjector.Capabilities().Video {
 			return nativePrompt{}, errors.New("video data provided, but the server has no video projector")
 		}
 		decoded, err := h.resolveVideoData(ctx, media.Data)

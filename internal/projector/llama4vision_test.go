@@ -51,7 +51,7 @@ func TestLlama4VisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesLlama4(t *testing.T) {
-	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
+	projector, err := OpenAs[Projector](context.Background(), writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestLlama4MultipleImagePrompt(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	prompt, err := runner.BuildImagesPrompt(
+	prompt, err := testSession(t, runner).BuildImagesPrompt(
 		context.Background(), llama4PromptTokenizer{},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},

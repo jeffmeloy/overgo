@@ -53,7 +53,7 @@ func TestGemma3nVisionPromptContract(t *testing.T) {
 	}
 	defer runner.Close()
 	tok := &gemma3nPromptTokenizer{}
-	prompt, err := runner.BuildImagePrompt(context.Background(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
+	prompt, err := testSession(t, runner).BuildImagePrompt(context.Background(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestGemma3nVisionPromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesGemma3nVision(t *testing.T) {
-	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyGemma3nVision(t, false), OpenOptions{})
+	projector, err := OpenAs[Projector](context.Background(), writeTinyGemma3nVision(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

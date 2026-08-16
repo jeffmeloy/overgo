@@ -127,8 +127,7 @@ func run() error {
 			repoPath = roots.Store
 		}
 	}
-	var vision projector.ImageProjector
-	var audio projector.AudioProjector
+	var vision, audio projector.Session
 	if *projectorPath != "" {
 		repository, repositoryErr := modelFlags.RepositoryPath()
 		if repositoryErr != nil {
@@ -138,7 +137,7 @@ func run() error {
 		if openErr != nil {
 			return fmt.Errorf("open model recipe repository: %w", openErr)
 		}
-		vision, err = projector.OpenActiveAs[projector.ImageProjector](shutdownContext, store, runner.ModelID(), *projectorPath, projector.OpenOptions{
+		vision, err = projector.OpenActiveSession(shutdownContext, store, runner.ModelID(), *projectorPath, projector.OpenOptions{
 			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
 		})
 		err = errors.Join(err, store.Close())
@@ -146,7 +145,9 @@ func run() error {
 			return fmt.Errorf("open multimodal projector: %w", err)
 		}
 		defer vision.Close()
-		audio, _ = vision.(projector.AudioProjector)
+		if vision.Capabilities().Audio {
+			audio = vision
+		}
 	}
 	apiKey := strings.TrimSpace(os.Getenv("OVERGO_API_KEY"))
 	if *apiKeyFile != "" {

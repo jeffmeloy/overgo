@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"overgo/internal/gguf"
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor/reference"
 )
 
@@ -318,24 +319,19 @@ func linear(input, weight, bias []float32, rows, inputWidth, outputWidth int) []
 	return output
 }
 
+// layerNorm: hostmath's LayerNorm core with this family's affine discipline —
+// the normalized value is rounded to float32 BEFORE the float32 affine step
+// (hostmath's affine path is f64 and therefore not value-identical here).
 func layerNorm(output, input, weight, bias []float32, rows, width int, epsilon float32) {
 	parallelRows(rows, func(start, end int) {
+		hostmath.LayerNormInto(
+			output[start*width:end*width], input[start*width:end*width],
+			nil, nil, end-start, width, float64(epsilon),
+		)
 		for row := start; row < end; row++ {
-			source := input[row*width : (row+1)*width]
 			destination := output[row*width : (row+1)*width]
-			mean := 0.0
-			for _, value := range source {
-				mean += float64(value)
-			}
-			mean /= float64(width)
-			variance := 0.0
-			for _, value := range source {
-				difference := float64(value) - mean
-				variance += difference * difference
-			}
-			inverse := 1 / math.Sqrt(variance/float64(width)+float64(epsilon))
-			for channel, value := range source {
-				destination[channel] = float32((float64(value)-mean)*inverse)*weight[channel] + bias[channel]
+			for channel, value := range destination {
+				destination[channel] = value*weight[channel] + bias[channel]
 			}
 		}
 	})
@@ -475,11 +471,6 @@ func clampUint8(value float64) uint8 {
 		return maxUint8Channel
 	}
 	return uint8(value)
-}
-
-func geluTanh(value float32) float32 {
-	x := float64(value)
-	return float32(0.5 * x * (1 + math.Tanh(math.Sqrt(2/math.Pi)*(x+0.044715*x*x*x))))
 }
 
 func parallelRows(rows int, run func(start, end int)) {

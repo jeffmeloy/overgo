@@ -246,13 +246,13 @@
           "contains": "func validateMultimodalImages(",
           "path": "internal/server/server_native_prompt.go",
           "role": "source",
-          "identity": "file:sha256:04d77e54f9b7fd1c31eb1861fa76bee87b4243b77aec7b7438c5ac9e81363f63"
+          "identity": "file:sha256:02e7dfe3141d552d86de536170cd395e5520fdf93f6fa00591794027446aec60"
         },
         {
           "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
           "path": "internal/server/server_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:4d53b5003973d350a5c1d79ed4e2b4a79f82ce527cdc9161cdec1feb0bd5af4d"
+          "identity": "evidence:sha256:0de273d72b48146130bdcf292dea742e7be5e8199b4f8f0347f1f2c4ccbb2122"
         }
       ],
       "id": "bounded-server-media",
@@ -267,13 +267,13 @@
           "contains": "func OpenAs[T Projector](",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:cad18973afd4d6f80f6394e71bc5f156928a52865ae69d0380a25559de36c822"
+          "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:fbce76960809c65d38afb8d17db3e7100880962e63574d041522bf8977b8c4bd"
+          "identity": "evidence:sha256:c8baf7466707902ea3e956b919f564b490c465ed783637cefa2e6ff872728fc4"
         }
       ],
       "id": "gemma4-multimodal-oracle",
@@ -326,7 +326,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:fbce76960809c65d38afb8d17db3e7100880962e63574d041522bf8977b8c4bd"
+          "identity": "evidence:sha256:c8baf7466707902ea3e956b919f564b490c465ed783637cefa2e6ff872728fc4"
         }
       ],
       "id": "gemma-e4b-image-language-oracle",
@@ -354,7 +354,7 @@
           "contains": "func TestMultimodalInputMatrix(",
           "path": "internal/adaptiveparity/multimodal_input_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:fbce76960809c65d38afb8d17db3e7100880962e63574d041522bf8977b8c4bd"
+          "identity": "evidence:sha256:c8baf7466707902ea3e956b919f564b490c465ed783637cefa2e6ff872728fc4"
         }
       ],
       "id": "qwen35-image-video-language-oracle",
@@ -581,10 +581,10 @@
     {
       "evidence": [
         {
-          "contains": "func (r *Qwen3VLRunner) BuildImagesPrompt(",
+          "contains": "func (r *Qwen3VLRunner) imagesPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:cad18973afd4d6f80f6394e71bc5f156928a52865ae69d0380a25559de36c822"
+          "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
         },
         {
           "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -602,10 +602,10 @@
     {
       "evidence": [
         {
-          "contains": "func (r *Gemma4Runner) BuildMediaHistoryPrompt(",
+          "contains": "func (r *Gemma4Runner) mediaHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:cad18973afd4d6f80f6394e71bc5f156928a52865ae69d0380a25559de36c822"
+          "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
         },
         {
           "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -623,10 +623,10 @@
     {
       "evidence": [
         {
-          "contains": "func (r *Gemma4Runner) BuildMediaHistoryPrompt(",
+          "contains": "func (r *Gemma4Runner) mediaHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:cad18973afd4d6f80f6394e71bc5f156928a52865ae69d0380a25559de36c822"
+          "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
         },
         {
           "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
@@ -752,7 +752,7 @@
           "contains": "func (h *Handler) preparePrompt(",
           "path": "internal/server/server_native_prompt.go",
           "role": "source",
-          "identity": "file:sha256:04d77e54f9b7fd1c31eb1861fa76bee87b4243b77aec7b7438c5ac9e81363f63"
+          "identity": "file:sha256:02e7dfe3141d552d86de536170cd395e5520fdf93f6fa00591794027446aec60"
         },
         {
           "contains": "func (h *Handler) prepareProtocolGeneration(",
@@ -800,7 +800,7 @@
           "contains": "promptTools []inference.ChatTool",
           "path": "internal/server/protocol_chat.go",
           "role": "source",
-          "identity": "file:sha256:f07cb406e09f54181c703b85cb269871369c333ffce83537bc7e199c27281683"
+          "identity": "file:sha256:e17c52dfff8d4572f5b0dfaefadfddf61640f81103fbf3b6ed0522cf6b60532a"
         },
         {
           "contains": "func TestChatAndResponsesMultimodalFunctionTools(",

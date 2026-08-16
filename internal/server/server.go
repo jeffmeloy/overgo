@@ -215,9 +215,9 @@ type Config struct {
 	RequestTimeout     time.Duration
 	InfillBatchSize    int
 	SPMInfill          bool
-	Qwen3VLProjector   projector.ImageProjector
-	ImageProjector     projector.ImageProjector
-	AudioProjector     projector.AudioProjector
+	Qwen3VLProjector   projector.Session
+	ImageProjector     projector.Session
+	AudioProjector     projector.Session
 	RemoteMediaPolicy  *RemoteMediaPolicy
 	ResponseFiles      ResponseFileResolver
 	ResponseToolPolicy ResponseToolPolicy

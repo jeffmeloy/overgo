@@ -56,7 +56,7 @@ func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesPaddleOCR(t *testing.T) {
-	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
+	projector, err := OpenAs[Projector](context.Background(), writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {
 	defer runner.Close()
 	first := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	second := image.NewRGBA(image.Rect(0, 0, 8, 4))
-	prompt, err := runner.BuildImagesPrompt(
+	prompt, err := testSession(t, runner).BuildImagesPrompt(
 		context.Background(), paddleOCRPromptTokenizer{}, []image.Image{first, second},
 		[]string{"OCR:", " and ", "Table Recognition:"}, PromptOptions{},
 	)

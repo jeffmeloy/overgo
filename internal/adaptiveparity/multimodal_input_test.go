@@ -160,7 +160,7 @@ func testGemma4InputParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer language.Close()
-	imagePrompt, err := runner.BuildImagePrompt(
+	imagePrompt, err := mustProjectorSession(t, runner).BuildImagePrompt(
 		context.Background(), language, imageSource, "", "What color dominates this image? One word.", false,
 	)
 	if err != nil {
@@ -174,7 +174,7 @@ func testGemma4InputParity(t *testing.T) {
 		t.Fatalf("Gemma4 image first token = %d, want %v", imageToken, imageGolden.GeneratedTokenIDs)
 	}
 	wave := readFloat32Evidence(t, wavePath, "Gemma4 audio wave")
-	audioPrompt, err := runner.BuildAudioPrompt(
+	audioPrompt, err := mustProjectorSession(t, runner).BuildAudioPrompt(
 		context.Background(), language, wave, "", "What note do you hear? One word.",
 	)
 	if err != nil {
@@ -187,7 +187,7 @@ func testGemma4InputParity(t *testing.T) {
 	if len(audioGolden.Steps) == 0 || !slices.Contains(audioGolden.Steps[0].TopIDs, audioToken) {
 		t.Fatalf("Gemma4 audio first token = %d, outside oracle top IDs", audioToken)
 	}
-	imageAudio, err := runner.BuildMediaHistoryPrompt(
+	imageAudio, err := mustProjectorSession(t, runner).BuildMediaHistoryPrompt(
 		context.Background(), language,
 		[]projector.MediaInput{projector.NewImageMediaInput(imageSource), projector.NewAudioMediaInput(wave)},
 		[]string{"Image: ", " Audio: ", " Compare them."},
@@ -195,7 +195,7 @@ func testGemma4InputParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	audioImage, err := runner.BuildMediaHistoryPrompt(
+	audioImage, err := mustProjectorSession(t, runner).BuildMediaHistoryPrompt(
 		context.Background(), language,
 		[]projector.MediaInput{projector.NewAudioMediaInput(wave), projector.NewImageMediaInput(imageSource)},
 		[]string{"Audio: ", " Image: ", " Compare them."},
@@ -224,13 +224,13 @@ func testGemma4InputParity(t *testing.T) {
 	imageAudioToken := generatePromptFirstToken(t, language, imageAudio)
 	audioImageToken := generatePromptFirstToken(t, language, audioImage)
 	second := flipHorizontal(imageSource)
-	forward, err := runner.BuildVideoPrompt(
+	forward, err := mustProjectorSession(t, runner).BuildVideoPrompt(
 		context.Background(), language, []image.Image{imageSource, second}, "", "Describe the motion.", 2, false,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reverse, err := runner.BuildVideoPrompt(
+	reverse, err := mustProjectorSession(t, runner).BuildVideoPrompt(
 		context.Background(), language, []image.Image{second, imageSource}, "", "Describe the motion.", 2, false,
 	)
 	if err != nil {
@@ -247,6 +247,15 @@ func testGemma4InputParity(t *testing.T) {
 	videoToken := generatePromptFirstToken(t, language, forward)
 	t.Logf("Gemma4 12B real matrix: image exact token %d; audio top-set token %d; mixed ordered tokens %d/%d; video ordered token %d",
 		imageToken, audioToken, imageAudioToken, audioImageToken, videoToken)
+}
+
+func mustProjectorSession(t *testing.T, source projector.Projector) projector.Session {
+	t.Helper()
+	session, err := projector.NewSession(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return session
 }
 
 func generatePromptFirstToken(t *testing.T, runner *inference.Runner, prompt projector.MultimodalPrompt) tokenizer.TokenID {
@@ -321,7 +330,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	}
 	assertQwen35Grid(t, "image", processedImage, imageGolden.Grid)
 	assertQwen35Probe(t, "image pixels", processedImage.PixelValues, imageGolden.Pixels, 0.15, 0)
-	imagePrompt, err := vision.BuildImagePrompt(
+	imagePrompt, err := mustProjectorSession(t, vision).BuildImagePrompt(
 		context.Background(), language, imageSource, "", "What color dominates this image? One word.", true,
 	)
 	if err != nil {
@@ -337,7 +346,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	}
 	assertQwen35Grid(t, "video", processedVideo, videoGolden.Grid)
 	assertQwen35Probe(t, "video pixels", processedVideo.PixelValues, videoGolden.Pixels, 0.15, 0)
-	videoPrompt, err := vision.BuildVideoPrompt(
+	videoPrompt, err := mustProjectorSession(t, vision).BuildVideoPrompt(
 		context.Background(), language, frames, "", videoGolden.Question, 24, true,
 	)
 	if err != nil {

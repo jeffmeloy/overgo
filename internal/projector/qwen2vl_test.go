@@ -114,7 +114,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	opened, err := OpenAs[ImageProjector](context.Background(), path, OpenOptions{})
+	opened, err := OpenAs[Projector](context.Background(), path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	tok := &qwen2VLPromptTokenizer{}
-	prompt, err := runner.BuildImagePrompt(context.Background(), tok, input, "before", "after", true)
+	prompt, err := testSession(t, runner).BuildImagePrompt(context.Background(), tok, input, "before", "after", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 		t.Fatal("image prompt text is empty")
 	}
 	frames := []image.Image{input, input, input, input}
-	video, err := runner.BuildVideoPrompt(context.Background(), tok, frames, "", "describe", 24, false)
+	video, err := testSession(t, runner).BuildVideoPrompt(context.Background(), tok, frames, "", "describe", 24, false)
 	if err != nil {
 		t.Fatal(err)
 	}

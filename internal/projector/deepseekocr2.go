@@ -314,15 +314,7 @@ func (r *DeepSeekOCR2Runner) validateGraphs() error {
 	return nil
 }
 
-func (r *DeepSeekOCR2Runner) BuildImagePrompt(ctx context.Context, tokenizer ImageTokenizer, source image.Image, beforeImage, afterImage string, _ bool) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
-}
-
-func (r *DeepSeekOCR2Runner) BuildImagesPrompt(ctx context.Context, tokenizer ImageTokenizer, sources []image.Image, text []string, _ PromptOptions) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text)
-}
-
-func (r *DeepSeekOCR2Runner) buildImagesPrompt(ctx context.Context, tokenizer ImageTokenizer, sources []image.Image, text []string) (MultimodalPrompt, error) {
+func (r *DeepSeekOCR2Runner) imagesPrompt(ctx context.Context, tokenizer ImageTokenizer, sources []image.Image, text []string, _ PromptOptions) (MultimodalPrompt, error) {
 	plan := delimitedImagePromptPlan("DeepSeek-OCR-2", DeepSeekOCRImagePad, "DeepSeek-OCR-2 placeholder", true, r.spec.OutputHidden, "", "")
 	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, referenceImageEncoder(r.EncodeImage))
 }

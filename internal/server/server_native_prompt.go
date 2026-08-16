@@ -123,7 +123,7 @@ func (h *Handler) parseNativeMultimodalPrompt(ctx context.Context, raw json.RawM
 			if len(document.MultimodalData) != 1 {
 				return nativePrompt{}, errors.New("encoded video cannot be combined with other media")
 			}
-			if _, ok := h.config.ImageProjector.(projector.VideoProjector); !ok {
+			if h.config.ImageProjector == nil || !h.config.ImageProjector.Capabilities().Video {
 				return nativePrompt{}, errors.New("video data provided, but the server has no video projector")
 			}
 			video, err := h.resolveVideoData(ctx, encoded)
@@ -382,8 +382,8 @@ func (h *Handler) projectNativeMultimodalPrompt(
 		thinking = *prompt.Thinking
 	}
 	if len(prompt.Video) > 0 {
-		video, ok := h.config.ImageProjector.(projector.VideoProjector)
-		if !ok {
+		video := h.config.ImageProjector
+		if video == nil || !video.Capabilities().Video {
 			return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: video projector is unavailable")
 		}
 		fps := prompt.VideoFPS
@@ -403,11 +403,11 @@ func (h *Handler) projectNativeMultimodalPrompt(
 			ctx, tokenizerAPI, frames, prompt.BeforeMedia, prompt.AfterMedia, fps, thinking,
 		)
 	} else if len(prompt.Media) > 0 {
-		mixed, ok := any(h.config.ImageProjector).(projector.MediaHistoryProjector)
-		if !ok {
-			mixed, ok = any(h.config.AudioProjector).(projector.MediaHistoryProjector)
+		mixed := h.config.ImageProjector
+		if mixed == nil || !mixed.Capabilities().MediaHistory {
+			mixed = h.config.AudioProjector
 		}
-		if !ok {
+		if mixed == nil || !mixed.Capabilities().MediaHistory {
 			return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: selected projector does not support ordered mixed media")
 		}
 		imageData := make([][]byte, 0, len(prompt.Media))
@@ -452,18 +452,17 @@ func (h *Handler) projectNativeMultimodalPrompt(
 			return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: %w", decodeErr)
 		}
 		if prompt.MediaHistory {
-			var selected any = h.config.ImageProjector
-			if selected == nil {
-				selected = h.config.Qwen3VLProjector
+			history := h.config.ImageProjector
+			if history == nil {
+				history = h.config.Qwen3VLProjector
 			}
-			history, ok := selected.(projector.MultiImageProjector)
-			if !ok {
+			if history == nil || !history.Capabilities().MultiImage {
 				return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: selected projector does not support media history")
 			}
 			projected, err = history.BuildImagesPrompt(ctx, tokenizerAPI, images, prompt.MediaText, projector.PromptOptions{History: true})
 		} else if len(images) > 1 {
-			multi, ok := h.config.ImageProjector.(projector.MultiImageProjector)
-			if !ok {
+			multi := h.config.ImageProjector
+			if multi == nil || !multi.Capabilities().MultiImage {
 				return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: selected projector does not support multiple images")
 			}
 			projected, err = multi.BuildImagesPrompt(ctx, tokenizerAPI, images, prompt.MediaText, projector.PromptOptions{Thinking: thinking})

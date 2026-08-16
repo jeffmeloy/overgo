@@ -220,6 +220,43 @@ func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 	compareFloat32Tolerance(t, "Qwen3-VL deepstack", got.DeepstackEmbeddings[0].Data, want.DeepstackEmbeddings[0].Data, 2e-3)
 }
 
+type capturingQwen3VLTokenizer struct {
+	qwen3VLPromptTokenizer
+	texts []string
+}
+
+func (c *capturingQwen3VLTokenizer) TokenizeText(text string, addSpecial, special bool) ([]tokenizer.TokenID, error) {
+	c.texts = append(c.texts, text)
+	return c.qwen3VLPromptTokenizer.TokenizeText(text, addSpecial, special)
+}
+
+func TestQwen3VLSessionRendersImagePrompt(t *testing.T) {
+	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLDeepstackMetadata(), tinyQwen3VLDeepstackTensors())
+	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	session := testSession(t, runner)
+	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	tok := &capturingQwen3VLTokenizer{}
+	if _, err := session.BuildImagePrompt(context.Background(), tok, input, "before", "after", true); err != nil {
+		t.Fatal(err)
+	}
+	if len(tok.texts) == 0 ||
+		!strings.HasPrefix(tok.texts[0], "<|im_start|>user\nbefore<|vision_start|>") ||
+		!strings.HasSuffix(tok.texts[0], "after<|im_end|>\n<|im_start|>assistant\n<think>\n") {
+		t.Fatalf("thinking prompt = %q", tok.texts)
+	}
+	tok.texts = nil
+	if _, err := session.BuildImagePrompt(context.Background(), tok, input, "", "Describe.", false); err != nil {
+		t.Fatal(err)
+	}
+	if len(tok.texts) == 0 || !strings.HasSuffix(tok.texts[0], "<think>\n\n</think>\n\n") {
+		t.Fatalf("no-thinking prompt = %q", tok.texts)
+	}
+}
+
 func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	metadata := tinyQwen3VLDeepstackMetadata()
 	for index := range metadata {
@@ -240,7 +277,7 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	}
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	prompt, err := runner.BuildImagesPrompt(
+	prompt, err := testSession(t, runner).BuildImagesPrompt(
 		context.Background(), qwen3VLPromptTokenizer{}, []image.Image{input, input},
 		[]string{"A", "B", "C"}, PromptOptions{Thinking: true},
 	)

@@ -19,6 +19,14 @@ import (
 	"overgo/internal/tokenizer"
 )
 
+// gemma4ImagePromptText: independent render oracle for the Gemma 4 image
+// prompt the session produces.
+func gemma4ImagePromptText(question string, imageTokens int) string {
+	return "<bos><|turn>user\n<|image>" + strings.Repeat("<|image|>", imageTokens) +
+		"<image|>" + strings.TrimSpace(question) +
+		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
+}
+
 type gemma4PromptTokenizer struct{}
 
 func (gemma4PromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
@@ -77,7 +85,7 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 
 func TestGemma4ArtifactAdmitsAudioContract(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenAs[AudioProjector](context.Background(), path, OpenOptions{})
+	runner, err := OpenAs[Projector](context.Background(), path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +100,7 @@ func TestGemma4MultipleImagePrompt(t *testing.T) {
 	}
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
-	prompt, err := runner.BuildImagesPrompt(
+	prompt, err := testSession(t, runner).BuildImagesPrompt(
 		context.Background(), gemma4PromptTokenizer{}, []image.Image{input, input},
 		[]string{"", "", "Compare."}, PromptOptions{},
 	)
@@ -103,7 +111,7 @@ func TestGemma4MultipleImagePrompt(t *testing.T) {
 		len(prompt.Embeddings) != len(prompt.EmbeddingTokenIndices)*prompt.EmbeddingWidth {
 		t.Fatalf("multi-image prompt = blocks %v indices %d embeddings %d", prompt.AttentionBlocks, len(prompt.EmbeddingTokenIndices), len(prompt.Embeddings))
 	}
-	if _, err := runner.BuildImagesPrompt(
+	if _, err := testSession(t, runner).BuildImagesPrompt(
 		context.Background(), gemma4PromptTokenizer{}, []image.Image{input, input},
 		[]string{"text", "", "Compare."}, PromptOptions{},
 	); err == nil {
@@ -180,7 +188,7 @@ func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 	}
 	defer runner.Close()
 	frame := image.NewRGBA(image.Rect(0, 0, 3, 3))
-	prompt, err := runner.BuildVideoPrompt(
+	prompt, err := testSession(t, runner).BuildVideoPrompt(
 		context.Background(), gemma4PromptTokenizer{}, []image.Image{frame, frame}, "", "Describe.", 2, false,
 	)
 	if err != nil {
@@ -478,7 +486,7 @@ func TestGemma4RealPromptTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := Gemma4ImagePromptText("What color dominates this image? One word.", golden.NumImagePlaceholderTokens)
+	text := gemma4ImagePromptText("What color dominates this image? One word.", golden.NumImagePlaceholderTokens)
 	ids, err := vocab.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true})
 	if err != nil {
 		t.Fatal(err)

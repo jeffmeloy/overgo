@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"overgo/internal/gguf"
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
@@ -429,9 +430,7 @@ func (r *Granite4VisionRunner) runVisionLayer(ctx context.Context, hidden []floa
 		return err
 	}
 	up := linear(norm, upWeight.Data, upBias.Data, rows, r.spec.Hidden, r.spec.Intermediate)
-	for index, value := range up {
-		up[index] = geluTanh(value)
-	}
+	hostmath.GELUTanhInPlace(up)
 	downWeight, downBias, err := r.loadPair(ctx, prefix+"ffn_down.weight", prefix+"ffn_down.bias")
 	if err != nil {
 		return err

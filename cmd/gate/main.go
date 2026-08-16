@@ -415,6 +415,13 @@ func (g *gateContext) stepProfile() (bool, error) {
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
 	g.honesty = append(g.honesty, surfaceDeltaHonesty(base, profile))
+	if g.automationPlan() {
+		movement, err := codeprofile.MeasureProductionMovement(baseSource, snapshot)
+		if err != nil {
+			return false, err
+		}
+		g.honesty = append(g.honesty, automationROIHonesty("commit", movement))
+	}
 	g.honesty = append(g.honesty, profileReviewFocus(profile, g.changedGoFiles()))
 	if err := g.appendConsumerCensus(snapshot, baseSource, changed, &profile); err != nil {
 		return false, err
@@ -459,6 +466,13 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
+	if g.automationPlan() {
+		movement, err := codeprofile.MeasureProductionMovement(sliceBase, candidate)
+		if err != nil {
+			return err
+		}
+		g.honesty = append(g.honesty, automationROIHonesty("plan-slice@"+mergeBase[:12], movement))
+	}
 	paths = pathSet(slicePaths)
 	declarations, current, err = codeprofile.ProductionConsumerCensus(candidate, selection, paths)
 	if err != nil {
@@ -470,6 +484,18 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	}
 	g.honesty = append(g.honesty, consumerCensusHonesty("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
+}
+
+func (g *gateContext) automationPlan() bool {
+	item, _, _ := strings.Cut(g.planRef, "/")
+	return strings.HasPrefix(item, "automation-")
+}
+
+func automationROIHonesty(scope string, movement codeprofile.ProductionMovement) string {
+	return fmt.Sprintf(
+		"automation ROI %s: automation_production_added=%d repository_production_deleted=%d net=%+d; diagnostic_only=true verified_on_gate_success=true",
+		scope, movement.Added, movement.Deleted, movement.Added-movement.Deleted,
+	)
 }
 
 func consumerCensusHonesty(scope, context string, declarations []codeprofile.ConsumerDeclaration, base, current codeprofile.ConsumerSummary) string {

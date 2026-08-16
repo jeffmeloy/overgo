@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "automation-roi",
-          "title": "Project commit-local and cumulative plan-slice automation production surface against verified repository deletion",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/codeprofile -run '^TestAutomationROIProjection$' -count=1 -v"
-        },
-        {
           "id": "advisory-critical-path",
           "title": "Move observe-only readability outside admission while retaining one shared source analysis path",
           "status": "open",

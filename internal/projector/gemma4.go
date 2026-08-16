@@ -322,7 +322,7 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	dtype.RoundBF16Slice(posNorm)
 	traceGemma4(trace, "pos_norm", posNorm)
 	preProjection := make([]float32, len(posNorm))
-	rmsNormNoWeight(preProjection, posNorm, rows, r.spec.Hidden, r.spec.RMSNormEpsilon)
+	hostmath.RMSNormInto(preProjection, posNorm, nil, rows, r.spec.Hidden, float64(r.spec.RMSNormEpsilon))
 	dtype.RoundBF16Slice(preProjection)
 	traceGemma4(trace, "pre_projection_norm", preProjection)
 	projection, err := r.load(ctx, "mm.input_projection.weight")
@@ -354,21 +354,4 @@ func (r *Gemma4Runner) load(ctx context.Context, name string) (reference.Value, 
 
 func (r *Gemma4Runner) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
 	return loadProjectorHostTensorPair(ctx, r.file, first, second)
-}
-
-func rmsNormNoWeight(output, input []float32, rows, width int, epsilon float32) {
-	parallelRows(rows, func(start, end int) {
-		for row := start; row < end; row++ {
-			source := input[row*width : (row+1)*width]
-			destination := output[row*width : (row+1)*width]
-			sumSquares := 0.0
-			for _, value := range source {
-				sumSquares += float64(value) * float64(value)
-			}
-			inverse := 1 / math.Sqrt(sumSquares/float64(width)+float64(epsilon))
-			for channel, value := range source {
-				destination[channel] = float32(float64(value) * inverse)
-			}
-		}
-	})
 }

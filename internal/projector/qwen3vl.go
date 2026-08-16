@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"image"
 	"math"
-	"runtime"
 	"slices"
-	"sync"
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/reference"
@@ -430,25 +428,6 @@ func clampUint8(value float64) uint8 {
 		return maxUint8Channel
 	}
 	return uint8(value)
-}
-
-func parallelRows(rows int, run func(start, end int)) {
-	workers := min(runtime.GOMAXPROCS(0), rows)
-	if workers <= 1 {
-		run(0, rows)
-		return
-	}
-	var group sync.WaitGroup
-	group.Add(workers)
-	for worker := 0; worker < workers; worker++ {
-		start := worker * rows / workers
-		end := (worker + 1) * rows / workers
-		go func() {
-			defer group.Done()
-			run(start, end)
-		}()
-	}
-	group.Wait()
 }
 
 func metadataString(file *gguf.File, key string) (string, error) {

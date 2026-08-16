@@ -1593,17 +1593,6 @@ func execute(
 		(runtimeAttributes.compiled != compiled || len(runtimeAttributes.values) != len(order)) {
 		return nil, errors.New("CUDA runtime attributes belong to another compiled graph")
 	}
-	attributesFor := func(node *tensor.Tensor) tensor.Attributes {
-		if runtimeAttributes != nil {
-			if index, ok := compiled.orderIndexes[node]; ok && runtimeAttributes.values[index] != nil {
-				attributes, resolveErr := resolveRuntimeAttributes(runtimeAttributes.values[index])
-				if resolveErr == nil {
-					return attributes
-				}
-			}
-		}
-		return node.Attrs
-	}
 
 	if plan.ArenaSize > 0 && arena == 0 {
 		return nil, errors.New("CUDA executor arena is unavailable")
@@ -1936,8 +1925,16 @@ func execute(
 				submitted = true
 				continue
 			}
+			attributes := node.Attrs
+			if runtimeAttributes != nil && runtimeAttributes.values[nodeIndex] != nil {
+				var resolveErr error
+				attributes, resolveErr = resolveRuntimeAttributes(runtimeAttributes.values[nodeIndex])
+				if resolveErr != nil {
+					return resolveErr
+				}
+			}
 			if err := launchNode(
-				state, functions, blas, q8Input, node, attributesFor(node), operands, attributePointers,
+				state, functions, blas, q8Input, node, attributes, operands, attributePointers,
 			); err != nil {
 				return fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 			}

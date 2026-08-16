@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "census-method-resolution",
-      "title": "Census reports unused concrete methods via receiver/interface method-set resolution",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Census reports unused concrete methods via receiver/interface method-set resolution",
-          "status": "open",
-          "verify": "go test ./internal/codeprofile -run '^TestCensusReportsUnusedConcreteMethods$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "cuda-binding-migration",
       "title": "Finish indexed CUDA operand-slot migration; delete BindDeviceInputs and map contract",
       "status": "open",

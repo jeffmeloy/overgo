@@ -55,16 +55,59 @@ type consumerIndex struct {
 	methods      map[string][]int
 	objects      map[*ast.Object]int
 	definitions  map[*ast.Ident]bool
+	// interfaceMethods holds every method name declared by any interface in
+	// the snapshot; only concrete methods matching one (or exported methods,
+	// which may satisfy interfaces outside the snapshot such as io.Reader)
+	// retain the method-dispatch boundary. Unexported methods matching no
+	// snapshot interface cannot be dynamically dispatched and are reportable.
+	interfaceMethods map[string]bool
+	// testOnlyImports marks packages imported exclusively from test files:
+	// test-support identified through imports, never through package names.
+	testOnlyImports map[string]bool
 }
 
 // ProductionConsumerCensus classifies declarations in changed production
 // files using the repository's parsed syntax and go-list build selection.
 // A nil changed set includes every production declaration.
 func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection, changed map[string]bool) ([]ConsumerDeclaration, ConsumerSummary, error) {
-	index := consumerIndex{keys: map[string][]int{}, methods: map[string][]int{}, objects: map[*ast.Object]int{}, definitions: map[*ast.Ident]bool{}}
+	index := consumerIndex{
+		keys: map[string][]int{}, methods: map[string][]int{}, objects: map[*ast.Object]int{},
+		definitions: map[*ast.Ident]bool{}, interfaceMethods: map[string]bool{}, testOnlyImports: map[string]bool{},
+	}
 	packageNames, err := repoanalysis.PackageNames(snapshot, selection)
 	if err != nil {
 		return nil, ConsumerSummary{}, err
+	}
+	productionImports := map[string]bool{}
+	testImports := map[string]bool{}
+	for _, source := range snapshot.Files {
+		file, _ := source.Syntax()
+		ast.Inspect(file, func(node ast.Node) bool {
+			if value, ok := node.(*ast.InterfaceType); ok && value.Methods != nil {
+				for _, field := range value.Methods.List {
+					for _, name := range field.Names {
+						index.interfaceMethods[name.Name] = true
+					}
+				}
+			}
+			return true
+		})
+		for _, imported := range file.Imports {
+			importPath, err := strconv.Unquote(imported.Path.Value)
+			if err != nil {
+				continue
+			}
+			if source.Test {
+				testImports[importPath] = true
+			} else {
+				productionImports[importPath] = true
+			}
+		}
+	}
+	for importPath := range testImports {
+		if !productionImports[importPath] {
+			index.testOnlyImports[importPath] = true
+		}
 	}
 	for _, source := range snapshot.Files {
 		if source.Test || changed != nil && !changed[source.Path] {
@@ -86,7 +129,7 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection re
 
 func (c *consumerIndex) addFile(source repoanalysis.GoFile, file *ast.File, packagePath string, active, generated bool) {
 	boundary := ""
-	if path.Base(packagePath) == "testutil" {
+	if c.testOnlyImports[packagePath] {
 		boundary = "test-helper"
 	} else if generated {
 		boundary = "generated"
@@ -99,7 +142,11 @@ func (c *consumerIndex) addFile(source repoanalysis.GoFile, file *ast.File, pack
 			kind, key, functionBoundary := "function", symbolKey(packagePath, value.Name.Name), boundary
 			if value.Recv != nil {
 				kind, key = "method", ""
-				if functionBoundary == "" {
+				// Only plausibly-dispatched methods stay boundary: exported
+				// (may satisfy interfaces outside the snapshot) or matching a
+				// declared interface method. Unexported non-interface methods
+				// are direct-call only and report when unused.
+				if functionBoundary == "" && (ast.IsExported(value.Name.Name) || c.interfaceMethods[value.Name.Name]) {
 					functionBoundary = "method-dispatch"
 				}
 			}
@@ -218,7 +265,12 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 					return true
 				}
 			}
-			c.markBoundary(c.methods[value.Sel.Name], "method-dispatch")
+			// A selector use is a reference, credited to every same-named
+			// method (receiver types are unresolved syntactically, so the
+			// over-credit errs toward "used", never toward a false dead
+			// report). The old blanket method-dispatch marking hid every
+			// unused concrete method from the census.
+			c.count(c.resolve(c.methods[value.Sel.Name], active), source.Test, false)
 		case *ast.Ident:
 			if c.definitions[value] {
 				return true

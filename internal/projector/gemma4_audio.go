@@ -124,7 +124,7 @@ func (r *Gemma4Runner) EncodeAudio(ctx context.Context, samples []float32) (Gemm
 	if err != nil {
 		return Gemma4AudioOutput{}, err
 	}
-	embeddings := hostmath.LinearF64New(normed, projection.Data, nil, rows, spec.SamplesPerToken, spec.Hidden)
+	embeddings := hostmath.LinearF64BiasFirstNew(normed, projection.Data, nil, rows, spec.SamplesPerToken, spec.Hidden)
 	dtype.RoundBF16Slice(embeddings)
 	value, err := reference.NewValue(tensor.MustShape(uint64(spec.Hidden), uint64(rows)), embeddings)
 	if err != nil {

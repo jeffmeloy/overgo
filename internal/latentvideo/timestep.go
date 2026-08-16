@@ -48,29 +48,11 @@ func CompileTimestepConditioning(timesteps []float64, w TimestepConditioningWeig
 	work := make([]float32, batch*dim)
 	headE = make([]float32, batch*dim)
 	blockE = make([]float32, batch*6*dim)
-	linearBiasF64Into(work, frequencies, w.Embed0W, w.Embed0B, batch, freqDim, dim)
+	hostmath.LinearF64(work, frequencies, w.Embed0W, w.Embed0B, batch, freqDim, dim)
 	hostmath.SiLUInPlace(work)
-	linearBiasF64Into(headE, work, w.Embed2W, w.Embed2B, batch, dim, dim)
+	hostmath.LinearF64(headE, work, w.Embed2W, w.Embed2B, batch, dim, dim)
 	copy(work, headE)
 	hostmath.SiLUInPlace(work)
-	linearBiasF64Into(blockE, work, w.ProjectW, w.ProjectB, batch, dim, 6*dim)
+	hostmath.LinearF64(blockE, work, w.ProjectW, w.ProjectB, batch, dim, 6*dim)
 	return headE, blockE, nil
-}
-
-// linearBiasF64Into: y = Wx + b with the bias folded into the f64
-// accumulator before the single rounding (the reference engine's order).
-func linearBiasF64Into(out, x, w, bias []float32, rows, inDim, outDim int) {
-	hostmath.ParallelRangeF64(rows*outDim, inDim, func(lo, hi int) {
-		for index := lo; index < hi; index++ {
-			r, o := index/outDim, index%outDim
-			xr := x[r*inDim : (r+1)*inDim]
-			wr := w[o*inDim : (o+1)*inDim]
-			var acc float64
-			for i, value := range xr {
-				acc += float64(value) * float64(wr[i])
-			}
-			acc += float64(bias[o])
-			out[index] = float32(acc)
-		}
-	})
 }

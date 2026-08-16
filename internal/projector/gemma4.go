@@ -286,7 +286,7 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	if err != nil {
 		return Gemma4Output{}, err
 	}
-	hidden := hostmath.LinearF64New(ln1, patchWeight.Data, patchBias.Data, rows, r.spec.PatchWidth, r.spec.Hidden)
+	hidden := hostmath.LinearF64BiasFirstNew(ln1, patchWeight.Data, patchBias.Data, rows, r.spec.PatchWidth, r.spec.Hidden)
 	dtype.RoundBF16Slice(hidden)
 	traceGemma4(trace, "patch_dense", hidden)
 	ln2Weight, ln2Bias, err := r.loadPair(ctx, "v.patch_norm.2.weight", "v.patch_norm.2.bias")
@@ -329,7 +329,7 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	if err != nil {
 		return Gemma4Output{}, err
 	}
-	embeddings := hostmath.LinearF64New(preProjection, projection.Data, nil, rows, r.spec.Hidden, r.spec.Hidden)
+	embeddings := hostmath.LinearF64BiasFirstNew(preProjection, projection.Data, nil, rows, r.spec.Hidden, r.spec.Hidden)
 	dtype.RoundBF16Slice(embeddings)
 	traceGemma4(trace, "embedding_projection", embeddings)
 	value, err := reference.NewValue(tensor.MustShape(uint64(r.spec.Hidden), uint64(rows)), embeddings)

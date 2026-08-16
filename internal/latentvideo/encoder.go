@@ -420,27 +420,14 @@ func roundBF16If(enabled bool, values ...[]float32) {
 // linearWithAccumulation: bf16=true uses F32 accumulation (the native-dtype
 // convention); bf16=false uses the F64 wider-accumulate convention.
 func linearWithAccumulation(x, w []float32, rows, inDim, outDim int, bf16 bool) []float32 {
-	out := make([]float32, rows*outDim)
 	if bf16 {
+		out := make([]float32, rows*outDim)
 		// hostmath.Linear accumulates F32 over the input dim in ascending
 		// order — the identical per-element arithmetic, fanned out.
 		hostmath.Linear(out, x, w, rows, inDim, outDim)
 		return out
 	}
-	hostmath.ParallelRangeF64(rows, inDim*outDim, func(lo, hi int) {
-		for r := lo; r < hi; r++ {
-			xr, orow := x[r*inDim:(r+1)*inDim], out[r*outDim:(r+1)*outDim]
-			for o := 0; o < outDim; o++ {
-				wr := w[o*inDim : (o+1)*inDim]
-				var acc float64
-				for i, value := range xr {
-					acc += float64(value) * float64(wr[i])
-				}
-				orow[o] = float32(acc)
-			}
-		}
-	})
-	return out
+	return hostmath.LinearF64New(x, w, nil, rows, inDim, outDim)
 }
 
 // rmsNormWithReduction: bf16=true reduces squares in F32 (native-dtype

@@ -8,30 +8,6 @@ import (
 	"overgo/internal/hostmath"
 )
 
-// linearF64: dst[rows,out] = x[rows,in]·w[out,in]^T (+bias), f64 accumulate
-// (the wider-accumulate convention the reference locks parity to). Fans out
-// over output columns — full worker width at any row count (the middle
-// stack runs few tokens), and each worker owns disjoint dst columns.
-func linearF64(dst, x, w, bias []float32, rows, inDim, outDim int) {
-	hostmath.ParallelRangeF64(outDim, rows*inDim, func(lo, hi int) {
-		for r := 0; r < rows; r++ {
-			xRow := x[r*inDim : (r+1)*inDim]
-			dstRow := dst[r*outDim : (r+1)*outDim]
-			for o := lo; o < hi; o++ {
-				wRow := w[o*inDim : (o+1)*inDim]
-				var acc float64
-				for i, v := range xRow {
-					acc += float64(v) * float64(wRow[i])
-				}
-				if bias != nil {
-					acc += float64(bias[o])
-				}
-				dstRow[o] = float32(acc)
-			}
-		}
-	})
-}
-
 // conv2dValidStride: NCHW Conv2d, square kernel, no padding — patch
 // embedding (k=stride=patch) and 1x1 level transitions.
 func conv2dValidStride(x, weight, bias []float32, b, cin, cout, h, w, kernel, stride int) ([]float32, int, int) {
@@ -319,8 +295,8 @@ func tpaForward(out, x []float32, w tpaWeights, seq, nEmbd, nHead, headDim, qRan
 	contract := func(dst, wa, wb []float32, rank int) {
 		a := aFactor[:seq*nHead*rank]
 		bf := bFactor[:seq*rank*headDim]
-		linearF64(a, x, wa, nil, seq, nEmbd, nHead*rank)
-		linearF64(bf, x, wb, nil, seq, nEmbd, rank*headDim)
+		hostmath.LinearF64(a, x, wa, nil, seq, nEmbd, nHead*rank)
+		hostmath.LinearF64(bf, x, wb, nil, seq, nEmbd, rank*headDim)
 		cpFactorContractInto(dst, a, bf, seq, nHead, rank, headDim)
 	}
 	contract(q, w.WAq, w.WBq, qRank)
@@ -340,7 +316,7 @@ func tpaForward(out, x []float32, w tpaWeights, seq, nEmbd, nHead, headDim, qRan
 	hostmath.MaskedBidirectionalAttention(attn, q, k, v, seq, seq, nHead, nHead, headDim, nil)
 
 	projected := make([]float32, 2*seq*nEmbd)
-	linearF64(projected, attn, w.Woproj, w.Boproj, seq, nHead*headDim, 2*nEmbd)
+	hostmath.LinearF64(projected, attn, w.Woproj, w.Boproj, seq, nHead*headDim, 2*nEmbd)
 	xatgluGateInto(out, projected, w.AlphaO, seq, nEmbd)
 }
 
@@ -429,14 +405,14 @@ func (blk *attnBlock) forwardTrace(m *Model, x []float32, b, c, h, w int, retain
 	hostmath.LayerNormInto(norm2, residual, blk.norm2Weight, blk.norm2Bias, rows, c, cfg.NormEps)
 	mlpProjected := make([]float32, rows*blk.mlpProjected)
 	mlpHidden := make([]float32, rows*blk.mlpHidden)
-	linearF64(mlpProjected, norm2, blk.mlpProjection, nil, rows, c, blk.mlpProjected)
+	hostmath.LinearF64(mlpProjected, norm2, blk.mlpProjection, nil, rows, c, blk.mlpProjected)
 	xatgluGateInto(mlpHidden, mlpProjected, float64(blk.mlpAlpha), rows, blk.mlpHidden)
 	mlpTarget := out
 	if retain {
 		mlpOutput = make([]float32, len(tokens))
 		mlpTarget = mlpOutput
 	}
-	linearF64(mlpTarget, mlpHidden, blk.mlpOutput, nil, rows, blk.mlpHidden, c)
+	hostmath.LinearF64(mlpTarget, mlpHidden, blk.mlpOutput, nil, rows, blk.mlpHidden, c)
 	addScaledInto(out, residual, mlpTarget, blk.mlpScale)
 	return attnTrace{
 		norm1: norm1, attention: attention, residual: residual, norm2: norm2,

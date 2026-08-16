@@ -59,6 +59,7 @@ func TestFractaleRecipeActivation(t *testing.T) {
 	}
 	verification, err := publishCapabilityVerification(
 		ctx, store, definition, "0123456789abcdef0123456789abcdef01234567", time.Millisecond,
+		"host", "go", "real Fractale generation matched adaptive_new reference",
 	)
 	if err != nil {
 		t.Fatal(err)

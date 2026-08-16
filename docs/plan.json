@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "modeltest-lane",
-          "title": "Fix the modeltest-tagged compile break so the model-evidence lane builds",
-          "status": "open",
-          "verify": "go vet -tags modeltest ./..."
-        },
-        {
           "id": "crossplatform-build",
           "title": "Fix the rotted non-Windows fallback so cross-platform builds compile",
           "status": "open",

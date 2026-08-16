@@ -147,6 +147,12 @@ func canonicalizeTensorMeasurements(document *TensorMeasurementDocument) error {
 			index > 0 && document.Measurements[index-1].Name == measurement.Name {
 			return errors.New("model artifact: invalid tensor measurement")
 		}
+		// A nonzero spectral policy demands an explicit verdict per tensor:
+		// an empty status would let a skipped spectral pass masquerade as a
+		// measured document (the 2026-08-16 audit's evidence-integrity P1).
+		if document.Policy.SpectralMaxDim > 0 && measurement.SpectralStatus == "" {
+			return errors.New("model artifact: spectral policy is set but a measurement carries no spectral status")
+		}
 	}
 	return nil
 }

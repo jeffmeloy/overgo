@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
   "items": [
     {
-      "id": "automation-self-hardening",
-      "title": "Tighten automation safety, evidence, return, and critical-path cost",
-      "status": "open",
-      "steps": [
-        {
-          "id": "advisory-critical-path",
-          "title": "Move observe-only readability outside admission while retaining one shared source analysis path",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/gostyle -run '^TestObserveOnlyReadabilityLeavesCriticalPath$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "automation-roadmap",
       "title": "Complete the automation roadmap through shared Go owners",
       "status": "blocked-external-prereq",

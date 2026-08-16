@@ -152,6 +152,9 @@ func TestAutomationROIProjection(t *testing.T) {
 		!strings.Contains(got, "repository_production_deleted=") || !strings.Contains(got, "diagnostic_only=true") {
 		t.Fatalf("automation ROI = %+v, %q", movement, got)
 	}
+	if compact := compactHonesty([]string{got}); len(compact) != 1 || !strings.HasPrefix(compact[0], "roi: ") {
+		t.Fatalf("automation ROI hidden from gate summary: %v", compact)
+	}
 }
 
 func TestASTProfileEvidenceGate(t *testing.T) {

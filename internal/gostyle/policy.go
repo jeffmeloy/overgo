@@ -93,6 +93,17 @@ var policy = []rule{
 	policyRule("discard-justification", advisory, "decisions/handle-errors", "A discard comment must explain why loss is safe, not merely exist.", typeAwareMechanism, declared, "reviewer judgment over type-known discarded errors", false),
 }
 
+// EnforcementActive reports whether readability currently owns an admission
+// decision. Observe-only policy remains available to advisory callers.
+func EnforcementActive() bool {
+	for _, rule := range policy {
+		if rule.Maturity == enforceable {
+			return true
+		}
+	}
+	return false
+}
+
 func validatePolicy() error {
 	seen := map[string]bool{}
 	for _, rule := range policy {

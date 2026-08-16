@@ -48,3 +48,15 @@ func TestGoReadabilityCandidateDelta(t *testing.T) {
 		}
 	}
 }
+
+func TestObserveOnlyReadabilityLeavesCriticalPath(t *testing.T) {
+	if readabilityAdmissionActive() {
+		t.Fatal("observe-only policy unexpectedly owns admission")
+	}
+	gate := gateContext{}
+	for _, step := range gate.pipelineSteps() {
+		if step.name == "readability" {
+			t.Fatal("observe-only readability remains on the critical gate path")
+		}
+	}
+}

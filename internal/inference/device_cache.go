@@ -555,7 +555,6 @@ type deviceDecodeSession struct {
 	replays   uint64
 }
 
-type deviceGraphState = model.CacheState[*tensor.Tensor]
 type deviceGraphStates = model.CacheStates[*tensor.Tensor]
 
 func retainedDeviceGreedySelections(

@@ -17,10 +17,6 @@ type convolutionPlan struct {
 	depthwise bool
 }
 
-func pointwiseConvolution() convolutionPlan {
-	return convolutionPlan{strideX: 1, strideY: 1}
-}
-
 func sameConvolution(input, weight *tensor.Tensor, stride uint32, depthwise bool) convolutionPlan {
 	kernelW, kernelH := uint32(weight.Shape.Dims[0]), uint32(weight.Shape.Dims[1])
 	width, height := uint32(input.Shape.Dims[1]), uint32(input.Shape.Dims[2])

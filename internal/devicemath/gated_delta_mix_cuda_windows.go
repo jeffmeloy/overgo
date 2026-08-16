@@ -24,19 +24,6 @@ type gatedDeltaMixDeviceCache struct {
 	gated                []float32 // normed*siluZ [T,valDim]
 }
 
-// gatedDeltaMixForwardDevice recomputes hostmath.GatedDeltaMixForward's
-// intermediates on device (through `gated`, one Wout matmul short of the mix
-// output): device projections/norms via LinearForwardT/RMSNormForward, host
-// ShortConv/L2Norm/GDN forward for the pieces without a device forward kernel,
-// and the sigmoid/softplus/SiLU elementwise glue (exactly as
-// hostmath.GatedDeltaMixForward). x is the normed mix input [T,Hidden]; state is
-// the GDN input state [hv,hd,hd]. The mix output is
-// LinearForwardT(c.gated, Wout); callers that need it (the layer forward) apply
-// it, callers that reverse from `gated` (the backward) do not.
-func gatedDeltaMixForwardDevice(worker *device.Worker, x []float32, w hostmath.GatedDeltaMixWeights, d hostmath.GatedDeltaMixDims, state []float32) (gatedDeltaMixDeviceCache, error) {
-	return gatedDeltaMixForwardDeviceW(worker, x, gdnHostMatW(w), w, d, state)
-}
-
 // gatedDeltaMixForwardDeviceW is gatedDeltaMixForwardDevice over resident-or-host
 // matrix weights (mw). The vector weights (conv kernels/biases, per-head scalars,
 // the output RMSNorm weight) stay host-owned (Sign-updated) and come from w; only

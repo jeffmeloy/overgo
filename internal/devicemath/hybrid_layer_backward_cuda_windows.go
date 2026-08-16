@@ -159,13 +159,6 @@ type attnMixDeviceCache struct {
 	qDim, kvDim     int
 }
 
-// attentionMixForwardDevice recomputes hostmath.attentionMixForward on device:
-// q/k/v proj -> per-head RMSNorm(q,k) -> partial rotary(q,k) -> scale q by
-// 1/sqrt(hd) -> causal GQA attention -> Wo. Returns the mix output and the cache.
-func attentionMixForwardDevice(worker *device.Worker, xn []float32, w hostmath.AttentionMixWeights, ad hostmath.AttentionMixDims) ([]float32, attnMixDeviceCache, error) {
-	return attentionMixForwardDeviceW(worker, xn, attnHostMatW(w), w, ad)
-}
-
 // attentionMixForwardDeviceW is attentionMixForwardDevice over resident-or-host
 // matrix weights (mw: Wq/Wk/Wv/Wo); the per-head q/k RMSNorm weights stay
 // host-owned via w. A resident-weight attention forward re-uploads no matrix
@@ -225,12 +218,6 @@ func attentionMixForwardDeviceW(worker *device.Worker, xn []float32, mw attnMatW
 		return nil, c, err
 	}
 	return mixOut, c, nil
-}
-
-// attentionMixBackwardDevice is the device VJP of attentionMixForwardDevice,
-// mirroring hostmath.attentionMixBackward op for op.
-func attentionMixBackwardDevice(worker *device.Worker, xn []float32, w hostmath.AttentionMixWeights, ad hostmath.AttentionMixDims, dOut []float32, c attnMixDeviceCache) ([]float32, hostmath.AttentionMixWeights, error) {
-	return attentionMixBackwardDeviceW(worker, xn, attnHostMatW(w), w, ad, dOut, c)
 }
 
 // attentionMixBackwardDeviceW is attentionMixBackwardDevice over resident-or-host

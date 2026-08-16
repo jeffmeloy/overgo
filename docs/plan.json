@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "verification-substrate",
-      "title": "Restore the verification substrate every campaign verifier depends on",
-      "status": "open",
-      "steps": [
-        {
-          "id": "crlf-normalize",
-          "title": "Renormalize CRLF-tracked Go files to satisfy .gitattributes",
-          "status": "open",
-          "verify": "test -z \"$(gofmt -l cmd internal)\""
-        }
-      ]
-    },
-    {
       "id": "loop-integrity",
       "title": "Close the loop-governance gaps that fail open or false-block",
       "status": "open",

@@ -116,6 +116,26 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	}
 }
 
+func TestCompileObjectiveProgramDerivesOptimizerParameters(t *testing.T) {
+	plan, err := optimizer.CompilePlan(6, []optimizer.GroupSpec{
+		{Name: "matrix", Start: 0, End: 4, Rows: 2, Cols: 2},
+		{Name: "frozen", Start: 4, End: 6, Rows: 1, Cols: 2, Frozen: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := CompileObjectiveProgram(ObjectiveTokenPrediction, nil, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parameters := program.Parameters()
+	if len(parameters) != 2 || parameters[0].Name != "matrix" ||
+		parameters[0].Rows != 2 || parameters[0].Cols != 2 || !parameters[0].Trainable ||
+		parameters[1].Name != "frozen" || parameters[1].Trainable {
+		t.Fatalf("derived parameters = %+v", parameters)
+	}
+}
+
 func TestObjectiveMatrixRefusesUnstoredEvidence(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

@@ -18,14 +18,21 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
+const (
+	forwarderAction       = "forwarder"
+	consumerSurfaceAction = "consumer-surface"
+)
+
 type proposal struct {
 	ID           string   `json:"id"`
+	Action       string   `json:"action"`
 	Package      string   `json:"package"`
-	Wrapper      string   `json:"wrapper"`
-	Target       string   `json:"target"`
-	Calls        int      `json:"calls"`
+	Wrapper      string   `json:"wrapper,omitempty"`
+	Target       string   `json:"target,omitempty"`
+	Calls        int      `json:"calls,omitempty"`
 	Files        []string `json:"files"`
 	RemovedNodes int      `json:"removed_nodes"`
+	Symbols      []string `json:"symbols,omitempty"`
 }
 
 type sourceFile struct {
@@ -87,11 +94,21 @@ func apply(root, id string) (proposal, error) {
 		if err != nil {
 			return proposal{}, fmt.Errorf("tighten %s: %w", name, err)
 		}
+		updated, err = cleanupSource(updated)
+		if err != nil {
+			return proposal{}, fmt.Errorf("tighten cleanup %s: %w", name, err)
+		}
 		updates[name] = updated
 	}
 	for name, updated := range updates {
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.WriteFile(path, updated, fileMode(path)); err != nil {
+		var err error
+		if updated == nil {
+			err = os.Remove(path)
+		} else {
+			err = os.WriteFile(path, updated, fileMode(path))
+		}
+		if err != nil {
 			return proposal{}, errors.Join(err, restore(root, originals))
 		}
 	}
@@ -109,7 +126,7 @@ func apply(root, id string) (proposal, error) {
 	}
 	beforeNodes := before.Production.Nodes + before.Test.Nodes
 	afterNodes := after.Production.Nodes + after.Test.Nodes
-	if afterNodes >= beforeNodes || len(after.Functions) >= len(before.Functions) {
+	if afterNodes >= beforeNodes || selected.Action == forwarderAction && len(after.Functions) >= len(before.Functions) {
 		return rollback(fmt.Errorf("reduction did not lower package AST surface: nodes %d -> %d, functions %d -> %d", beforeNodes, afterNodes, len(before.Functions), len(after.Functions)))
 	}
 	return selected.proposal, nil
@@ -161,10 +178,16 @@ func discover(root string) ([]candidate, error) {
 			}
 			value, ok := buildCandidate(packagePath, files, wrapper, target)
 			if ok {
+				value.Action = forwarderAction
 				found = append(found, value)
 			}
 		}
 	}
+	consumers, err := discoverConsumerReductions(root, snapshot, groups)
+	if err != nil {
+		return nil, err
+	}
+	found = append(found, consumers...)
 	sort.Slice(found, func(i, j int) bool { return found[i].ID < found[j].ID })
 	return found, nil
 }
@@ -325,6 +348,7 @@ func buildCandidate(packagePath string, files []*sourceFile, wrapper, target dec
 	value.Package = packagePath
 	value.Wrapper = wrapper.decl.Name.Name
 	value.Target = target.decl.Name.Name
+	value.Symbols = []string{wrapper.decl.Name.Name}
 	value.RemovedNodes = codeprofile.NodeCount(wrapper.decl)
 	for name := range changed {
 		value.Files = append(value.Files, name)

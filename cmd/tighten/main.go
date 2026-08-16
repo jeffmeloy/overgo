@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"overgo/internal/clioptions"
 )
@@ -23,7 +24,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stderr, "tighten: migrated %d calls and deleted %s; removed %d wrapper AST nodes\n", proposal.Calls, proposal.Wrapper, proposal.RemovedNodes)
+		fmt.Fprintf(os.Stderr, "tighten: applied %s to %s; migrated %d references and removed %d AST nodes\n", proposal.Action, strings.Join(proposal.Symbols, ","), proposal.Calls, proposal.RemovedNodes)
 		return nil
 	}
 	proposals, err := discover(*root)

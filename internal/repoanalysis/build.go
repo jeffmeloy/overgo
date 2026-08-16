@@ -27,6 +27,10 @@ type BuildSelection struct {
 // tags, legacy tags, filename constraints, cgo, tests, and external tests share
 // one repository owner.
 func HostBuildSelection(root string, patterns ...string) (BuildSelection, error) {
+	root, err := filepath.Abs(root)
+	if err != nil {
+		return BuildSelection{}, err
+	}
 	args := append([]string{"list", "-e", "-json"}, patterns...)
 	command := exec.Command("go", args...)
 	command.Dir = root

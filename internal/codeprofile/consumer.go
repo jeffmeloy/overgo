@@ -18,6 +18,7 @@ type ConsumerDeclaration struct {
 	Exported             bool   `json:"exported,omitempty"`
 	ProductionReferences int    `json:"production_references,omitempty"`
 	TestReferences       int    `json:"test_references,omitempty"`
+	ExternalReferences   int    `json:"external_references,omitempty"`
 	Boundary             string `json:"boundary,omitempty"`
 }
 
@@ -81,9 +82,6 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection re
 		index.addFile(source, file, packagePath(source, file, selection), selected(source.Path, selection), generated)
 	}
 	for _, source := range snapshot.Files {
-		if !selected(source.Path, selection) {
-			continue
-		}
 		file, _ := source.Syntax()
 		index.references(source, file, packagePath(source, file, selection), packageNames)
 	}
@@ -217,7 +215,7 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 		case *ast.SelectorExpr:
 			if qualifier, ok := value.X.(*ast.Ident); ok {
 				if imported := aliases[qualifier.Name]; imported != "" {
-					c.count(c.keys[symbolKey(imported, value.Sel.Name)], source.Test)
+					c.count(c.keys[symbolKey(imported, value.Sel.Name)], source.Test, true)
 					return true
 				}
 			}
@@ -231,12 +229,12 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 			}
 			if value.Obj != nil {
 				if index, ok := c.objects[value.Obj]; ok {
-					c.count([]int{index}, source.Test)
+					c.count([]int{index}, source.Test, false)
 				}
 				return true
 			}
 			if candidates := c.keys[symbolKey(packagePath, value.Name)]; len(candidates) == 1 {
-				c.count(candidates, source.Test)
+				c.count(candidates, source.Test, false)
 			}
 		}
 		return true
@@ -258,8 +256,11 @@ func (c *consumerIndex) reflectionBoundary(call *ast.CallExpr) {
 	}
 }
 
-func (c *consumerIndex) count(indices []int, test bool) {
+func (c *consumerIndex) count(indices []int, test, external bool) {
 	for _, index := range indices {
+		if external {
+			c.declarations[index].ExternalReferences++
+		}
 		if test {
 			c.declarations[index].TestReferences++
 		} else {

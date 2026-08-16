@@ -59,7 +59,7 @@ func CEntry() {}
 			t.Errorf("%s boundary = %q, want %q", name, got, want)
 		}
 	}
-	if byName["Used"].ProductionReferences != 1 || byName["Used"].TestReferences != 0 {
+	if byName["Used"].ProductionReferences != 1 || byName["Used"].TestReferences != 0 || byName["Used"].ExternalReferences != 1 {
 		t.Errorf("Used = %+v", byName["Used"])
 	}
 	if byName["Tested"].ProductionReferences != 0 || byName["Tested"].TestReferences != 1 {

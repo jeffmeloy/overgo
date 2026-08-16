@@ -1,7 +1,161 @@
 {
-  "campaign": "adaptive_new parity and performance leadership",
-  "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
+  "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and the composition-viability pivot",
+  "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
+    {
+      "id": "verification-substrate",
+      "title": "Restore the verification substrate every campaign verifier depends on",
+      "status": "open",
+      "steps": [
+        {
+          "id": "modeltest-lane",
+          "title": "Fix the modeltest-tagged compile break so the model-evidence lane builds",
+          "status": "open",
+          "verify": "go vet -tags modeltest ./..."
+        },
+        {
+          "id": "crossplatform-build",
+          "title": "Fix the rotted non-Windows fallback so cross-platform builds compile",
+          "status": "open",
+          "verify": "GOOS=linux go build ./..."
+        },
+        {
+          "id": "ci-tagged-lanes",
+          "title": "Extend CI so tagged vet and cross-platform builds cannot rot silently again",
+          "status": "open",
+          "verify": "grep -q 'modeltest' .github/workflows/test.yml \u0026\u0026 grep -q 'GOOS=linux' .github/workflows/test.yml"
+        },
+        {
+          "id": "crlf-normalize",
+          "title": "Renormalize CRLF-tracked Go files to satisfy .gitattributes",
+          "status": "open",
+          "verify": "test -z \"$(gofmt -l cmd internal)\""
+        }
+      ]
+    },
+    {
+      "id": "loop-integrity",
+      "title": "Close the loop-governance gaps that fail open or false-block",
+      "status": "open",
+      "steps": [
+        {
+          "id": "guard-build",
+          "title": "Build bin/guard.exe in the SessionStart hook so the guard cannot silently fail open",
+          "status": "open",
+          "verify": "grep -q 'cmd/guard' scripts/overgo_doctrine.sh \u0026\u0026 test -x bin/guard.exe"
+        },
+        {
+          "id": "stop-dirt-scope",
+          "title": "Block the Stop gate only on turn-created dirt so bounded turns with parked parallel work end cleanly",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -run '^TestStopIgnoresPreexistingDirt$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "evidence-durability",
+      "title": "Make RepoDB evidence survive single-disk loss",
+      "status": "open",
+      "steps": [
+        {
+          "id": "repodb-snapshot",
+          "title": "Implement verified repodb-store snapshot and restore with content-hash round-trip",
+          "status": "open",
+          "verify": "go test ./internal/repodb -run '^TestStoreSnapshotRoundTrip$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "experiment-generation-record",
+      "title": "Typed experiment/generation aggregate binding full provenance identities",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reference immutable identities for parents, components, bridge, training plan, data split, evaluator, code/kernel/environment, seeds, budget, run, outcome and decision; minimal day-one schema",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run '^TestGenerationRecordBindsFullProvenance$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "refusal-ledger",
+      "title": "Record every refused candidate as an immutable measured refusal decision",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Expose the refusal ledger as a RepoDB query through the existing decision lifecycle; no second mutable document",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/recipe -run '^TestRefusalDecisionCarriesMeasuredReason$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "determinism-and-statistical-verdicts",
+      "title": "Classify every claim as bitwise-deterministic, tolerance-bounded, or stochastic-multi-seed",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Repeat deterministic claims and require agreement; derive CUDA tolerance margins from measured spread; require multi-seed comparison for stochastic training outcomes; implement as a gate step",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/testevidence -run '^TestVerdictClassificationAndRepeatAgreement$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "evaluation-isolation",
+      "title": "Separate development, selection, promotion and audit splits with query budgets and proposer blinding",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record per-split query budgets through the common typed budget owner; prevent the proposer from observing promotion or audit results",
+          "status": "open",
+          "verify": "go test ./internal/trainingdata ./internal/runrecord -run '^TestSplitIsolationAndQueryBudget$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "component-decomposition",
+      "title": "Derive typed components across the eight organ axes as artifacts with lineage",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Port adaptive_new organ_schema classification (classifyOrganTensor/Space/Modality, validateOrganContract) as classification only; no retrieval index",
+          "status": "open",
+          "verify": "go test ./internal/... -run '^TestComponentDecompositionContract$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "composition-viability",
+      "title": "THE PIVOT: graft one classified component into a frozen target and train only the bridge",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Freeze both models, train the bridge tensor through the shared Muon plan; require held-out gain beyond the observed noise envelope or record refusal with measured reason; manual, human-reviewed, recorded budget; decision_point in docs/rsi_plan.json governs the outcome",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestComponentCompositionViability$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "roadmap-validator",
+      "title": "Validate the rsi_plan DAG and derive roadmap state; emit PROPOSED plan insertions without dispatching",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate depends_on, capability preconditions, cycles and verifier syntax; derive state from Git/RepoDB/live-plan evidence; advisory only",
+          "status": "open",
+          "verify": "go test ./cmd/roadmap -run '^TestRoadmapDAGAndReadiness$' -count=1 -v"
+        }
+      ]
+    },
     {
       "id": "session-repo-scoping",
       "title": "Scope Stop hooks once the harness exposes authoritative active-repository identity",

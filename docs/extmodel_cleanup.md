@@ -96,6 +96,9 @@ active recipe + resolved artifact facts
 | Family capability exported functions | 295 | Delete wrappers and direct orchestration after caller migration |
 | Production projector recipe consumers | 2 | Server and generate require active projection plans |
 | Active projection lifecycle dimensions | model + projector + modules | Exact bundle authority |
+| Projection command lifecycle implementations | 1 | Shared capability prepare, verify, and activate path |
+| Duplicate projection modality enums | 0 | Standard recipe data kinds own media identity |
+| Projection inspection runtime constructions | 0 | Artifact descriptor supplies typed media facts |
 | Training authority timing | pre-allocation | Training plan resolves before runtime construction |
 | Typed architecture profile facts | 166 | Profile/artifact facts own omitted-value policy |
 | Model-specific `optionalOr` defaults in `model/spec.go` | 0 | Three remaining calls use multiplicative identity |
@@ -131,6 +134,7 @@ Family-named production files: none.
 - Typed single-axis RoPE options made authoritative: `-119` net lines.
 - Typed general attention options made authoritative: `-202` net lines.
 - Active projection bundle binds exact model, projector, and modality modules; server/generate direct opens deleted.
+- Projection lifecycle consolidated; command forks and modality inference deleted: `-105` production lines.
 - GGUF inventory requires explicit model/projector kind; implicit identity fallback deleted.
 - Inventory-only VQA capability registration deleted; verified VQA runtime remains recipe-bound.
 - T5/Qwen/Step/Grove omitted metadata moved into typed profile facts: four literals removed.

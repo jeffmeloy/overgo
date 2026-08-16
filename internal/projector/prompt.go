@@ -15,7 +15,6 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/tokenizer"
-	"overgo/internal/workflowrecipe"
 )
 
 const Qwen3VLImagePad = "<|image_pad|>"
@@ -246,12 +245,13 @@ func embeddingTokenIndices(starts, counts []int, offset int) []uint32 {
 }
 
 type projectorDescriptor struct {
-	kind string
-	open func(context.Context, *gguf.File, OpenOptions) (Projector, error)
+	kind  string
+	media []recipe.DataKind
+	open  func(context.Context, *gguf.File, OpenOptions) (Projector, error)
 }
 
-func describeProjector[T Projector](kind string, open func(context.Context, *gguf.File, OpenOptions) (T, error)) projectorDescriptor {
-	return projectorDescriptor{kind: kind, open: func(ctx context.Context, file *gguf.File, options OpenOptions) (Projector, error) {
+func describeProjector[T Projector](kind string, open func(context.Context, *gguf.File, OpenOptions) (T, error), media ...recipe.DataKind) projectorDescriptor {
+	return projectorDescriptor{kind: kind, media: slices.Clone(media), open: func(ctx context.Context, file *gguf.File, options OpenOptions) (Projector, error) {
 		return open(ctx, file, options)
 	}}
 }
@@ -262,56 +262,57 @@ func describeCatalogProjector[S any, T Projector](
 	read func(*gguf.File) (S, error),
 	validate func(*gguf.File, S) ([]string, error),
 	build func(*gguf.File, S, *projectorCUDA) T,
+	media ...recipe.DataKind,
 ) projectorDescriptor {
 	return describeProjector(kind, func(ctx context.Context, file *gguf.File, options OpenOptions) (T, error) {
 		return buildCatalogProjector(ctx, file, options, label, excluded, read, validate, build)
-	})
+	}, media...)
 }
 
 var projectorCatalog = []projectorDescriptor{
-	describeProjector(deepSeekOCR2ProjectorType, openDeepSeekOCR2),
-	describeProjector(deepSeekOCRProjectorType, openDeepSeekOCR),
+	describeProjector(deepSeekOCR2ProjectorType, openDeepSeekOCR2, recipe.DataImage),
+	describeProjector(deepSeekOCRProjectorType, openDeepSeekOCR, recipe.DataImage),
 	describeCatalogProjector(cogVLMProjectorType, "CogVLM", nil, ReadCogVLMVisionSpec, validateCogVLMVisionCatalog,
 		func(file *gguf.File, spec CogVLMVisionSpec, cuda *projectorCUDA) *CogVLMVisionRunner {
 			return &CogVLMVisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		}),
-	describeProjector(gemma3nVisionProjectorType, openGemma3nVision),
+		}, recipe.DataImage),
+	describeProjector(gemma3nVisionProjectorType, openGemma3nVision, recipe.DataImage),
 	describeCatalogProjector(mimoVLProjectorType, "MiMo-VL", nil, ReadMiMoVLSpec, validateMiMoVLCatalog,
 		func(file *gguf.File, spec MiMoVLSpec, cuda *projectorCUDA) *MiMoVLRunner {
 			return &MiMoVLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		}),
+		}, recipe.DataImage),
 	describeCatalogProjector(granite4VisionProjectorType, "Granite 4 Vision", nil, ReadGranite4VisionSpec, validateGranite4VisionCatalog,
 		func(file *gguf.File, spec Granite4VisionSpec, cuda *projectorCUDA) *Granite4VisionRunner {
 			return &Granite4VisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		}),
+		}, recipe.DataImage),
 	describeCatalogProjector(llama4ProjectorType, "Llama-4", nil, ReadLlama4VisionSpec, validateLlama4VisionCatalog,
 		func(file *gguf.File, spec Llama4VisionSpec, cuda *projectorCUDA) *Llama4VisionRunner {
 			return &Llama4VisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		}),
+		}, recipe.DataImage),
 	describeCatalogProjector(hunyuanVLProjectorType, "Hunyuan-VL", nil, ReadHunyuanVLSpec, validateHunyuanVLCatalog,
 		func(file *gguf.File, spec HunyuanVLSpec, cuda *projectorCUDA) *HunyuanVLRunner {
 			return &HunyuanVLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		}),
+		}, recipe.DataImage),
 	describeCatalogProjector(paddleOCRProjectorType, "PaddleOCR", nil, ReadPaddleOCRSpec, validatePaddleOCRCatalog,
 		func(file *gguf.File, spec PaddleOCRSpec, cuda *projectorCUDA) *PaddleOCRRunner {
 			return &PaddleOCRRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		}),
+		}, recipe.DataImage),
 	describeCatalogProjector(qwen2VLProjectorType, "Qwen2-VL", nil, ReadQwen2VLSpec, validateQwen2VLCatalog,
 		func(file *gguf.File, spec Qwen2VLSpec, cuda *projectorCUDA) *Qwen2VLRunner {
 			return &Qwen2VLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		}),
+		}, recipe.DataImage, recipe.DataVideo),
 	describeCatalogProjector(qwen3VLProjectorType, "Qwen3-VL", nil, ReadQwen3VLSpec, validateQwen3VLCatalog,
 		func(file *gguf.File, spec Qwen3VLSpec, cuda *projectorCUDA) *Qwen3VLRunner {
 			return &Qwen3VLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		}),
+		}, recipe.DataImage, recipe.DataVideo),
 	describeCatalogProjector(gemma4UVProjectorType, "Gemma 4", []string{"mm.a.input_projection.weight"}, ReadGemma4Spec, validateGemma4Catalog,
 		func(file *gguf.File, spec Gemma4Spec, cuda *projectorCUDA) *Gemma4Runner {
 			return &Gemma4Runner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		}),
+		}, recipe.DataImage, recipe.DataAudio, recipe.DataVideo),
 	describeCatalogProjector(gemma4UAProjectorType, "Gemma 4", []string{"mm.a.input_projection.weight"}, ReadGemma4Spec, validateGemma4Catalog,
 		func(file *gguf.File, spec Gemma4Spec, cuda *projectorCUDA) *Gemma4Runner {
 			return &Gemma4Runner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		}),
+		}, recipe.DataImage, recipe.DataAudio, recipe.DataVideo),
 	describeCatalogProjector(gemma4VisionTowerProjectorType, "Gemma 4 tower", nil, ReadGemma4TowerSpec, validateGemma4TowerCatalog,
 		func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
 			return &Gemma4TowerRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, audioPlan: newGemma4AudioFrontendPlan(spec.Audio)}
@@ -330,7 +331,7 @@ func OpenActiveAs[T Projector](
 	path string,
 	options OpenOptions,
 ) (T, error) {
-	return openAs[T](ctx, path, options, func(file *gguf.File, selected Projector) error {
+	return openAs[T](ctx, path, options, func(file *gguf.File, descriptor projectorDescriptor) error {
 		inventory, err := modelartifact.FromGGUF(file, artifact.KindProjector)
 		if err != nil {
 			return err
@@ -344,69 +345,54 @@ func OpenActiveAs[T Projector](
 		if !ok || bound != inventory.Manifest.ID {
 			return errors.New("projector: loaded artifact differs from active projection recipe")
 		}
-		return validateProjectionModules(program, selected)
+		expected, err := modelrecipe.ProjectionDefinition(
+			modelID, inventory.Manifest.ID, descriptor.media...,
+		)
+		if err != nil {
+			return err
+		}
+		if definition.ID != expected.ID {
+			return errors.New("projector: active projection recipe differs from artifact capabilities")
+		}
+		return nil
 	})
 }
 
-// CompileProjectionDefinition: artifact-derived projector bundle.
-func CompileProjectionDefinition(
-	ctx context.Context,
-	modelID artifact.ID,
-	path string,
-) (modelartifact.Inventory, recipe.Definition, error) {
-	var inventory modelartifact.Inventory
-	var definition recipe.Definition
-	selected, err := openAs[Projector](ctx, path, OpenOptions{}, func(file *gguf.File, selected Projector) error {
-		var inspectErr error
-		inventory, inspectErr = modelartifact.FromGGUF(file, artifact.KindProjector)
-		if inspectErr != nil {
-			return inspectErr
-		}
-		definition, inspectErr = modelrecipe.ProjectionDefinition(
-			modelID, inventory.Manifest.ID, projectionModalities(selected)...,
-		)
-		return inspectErr
-	})
-	if err != nil {
-		return modelartifact.Inventory{}, recipe.Definition{}, err
+// InspectProjection: validated inventory and media contract.
+func InspectProjection(ctx context.Context, path string) (modelartifact.Inventory, []recipe.DataKind, error) {
+	if err := ctx.Err(); err != nil {
+		return modelartifact.Inventory{}, nil, err
 	}
-	return inventory, definition, selected.Close()
+	file, err := gguf.Open(path)
+	if err != nil {
+		return modelartifact.Inventory{}, nil, err
+	}
+	descriptor, descriptorErr := resolveProjectorDescriptor(file)
+	inventory, inventoryErr := modelartifact.FromGGUF(file, artifact.KindProjector)
+	if err := errors.Join(descriptorErr, inventoryErr, file.Close()); err != nil {
+		return modelartifact.Inventory{}, nil, err
+	}
+	return inventory, slices.Clone(descriptor.media), nil
 }
 
 func openAs[T Projector](
 	ctx context.Context,
 	path string,
 	options OpenOptions,
-	admit func(*gguf.File, Projector) error,
+	admit func(*gguf.File, projectorDescriptor) error,
 ) (T, error) {
 	var zero T
 	selected, err := openProjectorResource(ctx, path, func(file *gguf.File) (Projector, error) {
-		projectorType := ""
-		for _, key := range []string{"clip.projector_type", "clip.vision.projector_type", "clip.audio.projector_type"} {
-			if value, ok := file.MetadataValue(key); ok && value.Type == gguf.ValueTypeString {
-				projectorType, _ = value.Data.(string)
-				if projectorType != "" {
-					break
-				}
+		descriptor, err := resolveProjectorDescriptor(file)
+		if err != nil {
+			return nil, err
+		}
+		if admit != nil {
+			if err := admit(file, descriptor); err != nil {
+				return nil, err
 			}
 		}
-		for _, descriptor := range projectorCatalog {
-			if descriptor.kind == projectorType {
-				selected, err := descriptor.open(ctx, file, options)
-				if err != nil {
-					return nil, err
-				}
-				if admit != nil {
-					err = admit(file, selected)
-				}
-				if err != nil {
-					_ = selected.Close()
-					return nil, err
-				}
-				return selected, nil
-			}
-		}
-		return nil, fmt.Errorf("projector: artifact projector type %q is unsupported", projectorType)
+		return descriptor.open(ctx, file, options)
 	})
 	if err != nil {
 		return zero, err
@@ -419,44 +405,22 @@ func openAs[T Projector](
 	return projector, nil
 }
 
-func validateProjectionModules(program recipe.Program, selected Projector) error {
-	want := map[recipe.ModuleID]bool{}
-	if _, ok := selected.(ImageProjector); ok {
-		want[workflowrecipe.ModuleDecodeImage] = true
-		want[workflowrecipe.ModuleProjectImage] = true
-	}
-	if _, ok := selected.(AudioProjector); ok {
-		want[workflowrecipe.ModuleDecodeAudio] = true
-		want[workflowrecipe.ModuleProjectAudio] = true
-	}
-	if _, ok := selected.(VideoProjector); ok {
-		want[workflowrecipe.ModuleDecodeVideo] = true
-		want[workflowrecipe.ModuleProjectVideo] = true
-	}
-	for _, stage := range program.Stages() {
-		if !want[stage.Module.ID] {
-			return fmt.Errorf("projector: active projection recipe admits unsupported module %q", stage.Module.ID)
+func resolveProjectorDescriptor(file *gguf.File) (projectorDescriptor, error) {
+	projectorType := ""
+	for _, key := range []string{"clip.projector_type", "clip.vision.projector_type", "clip.audio.projector_type"} {
+		if value, ok := file.MetadataValue(key); ok && value.Type == gguf.ValueTypeString {
+			projectorType, _ = value.Data.(string)
+			if projectorType != "" {
+				break
+			}
 		}
-		delete(want, stage.Module.ID)
 	}
-	if len(want) != 0 {
-		return errors.New("projector: active projection recipe omits supported modules")
+	for _, descriptor := range projectorCatalog {
+		if descriptor.kind == projectorType {
+			return descriptor, nil
+		}
 	}
-	return nil
-}
-
-func projectionModalities(selected Projector) []modelrecipe.ProjectionModality {
-	var modalities []modelrecipe.ProjectionModality
-	if _, ok := selected.(ImageProjector); ok {
-		modalities = append(modalities, modelrecipe.ProjectionImage)
-	}
-	if _, ok := selected.(AudioProjector); ok {
-		modalities = append(modalities, modelrecipe.ProjectionAudio)
-	}
-	if _, ok := selected.(VideoProjector); ok {
-		modalities = append(modalities, modelrecipe.ProjectionVideo)
-	}
-	return modalities
+	return projectorDescriptor{}, fmt.Errorf("projector: artifact projector type %q is unsupported", projectorType)
 }
 
 func (r *Granite4VisionRunner) BuildImagePrompt(

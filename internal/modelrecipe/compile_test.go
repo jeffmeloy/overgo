@@ -173,7 +173,7 @@ func TestProjectionDefinitionCompilesAllSelectedModalities(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "projection-model")
 	projectorID := testutil.ArtifactID(t, artifact.KindProjector, "projection-projector")
 	definition, err := ProjectionDefinition(
-		modelID, projectorID, ProjectionVideo, ProjectionImage, ProjectionAudio, ProjectionImage,
+		modelID, projectorID, recipe.DataVideo, recipe.DataImage, recipe.DataAudio, recipe.DataImage,
 	)
 	if err != nil {
 		t.Fatal(err)

@@ -603,5 +603,4 @@ permissions for model, dataset, or checkpoint stores.
 - [Merge floor](docs/MERGE_FLOOR_PLAN.md): automation implementation status.
 - [Iteration doctrine](skill.md): architecture, verification, porting, and
   development workflow rules.
-- [LICENSES.md](LICENSES.md) and [SBOM.cdx.json](SBOM.cdx.json): dependency and
-  binary provenance.
+- [SBOM.cdx.json](SBOM.cdx.json): dependency and binary provenance.

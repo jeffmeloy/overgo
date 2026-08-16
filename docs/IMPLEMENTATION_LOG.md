@@ -306,8 +306,7 @@ compatibility claims.
   kernel-manifest verifier also checks schema/ABI metadata, the complete PTX
   entry set, and every function's ordered parameter types/alignment/array
   extents. Unit tests, verification, release creation, and CI reject stale
-  provenance. The project/kernel license remains `NOASSERTION` rather than
-  assuming distribution rights.
+  provenance.
 - CUDA module loading fails closed unless the embedded PTX matches the
   ABI-versioned hashes compiled into the Go host. The manifest verifier ties
   those runtime pins to the checked-in assets, providing content-based NVIDIA
@@ -1215,14 +1214,11 @@ provenance across `Proc.Call`. Package tests and scoped vet checks remain
 enabled; replacing this ABI conversion solely to silence the analyzer would
 require an extra native shim and violate the no-cgo design.
 
-### Deferred: release signing and project license declaration
+### Deferred: release signing
 
 Reproducible unsigned archives are implemented. Authenticode signing requires
 a user-controlled code-signing certificate/private key and timestamping
-policy, neither of which is present or safe to invent. The repository owner
-also has not declared a license for the Go/kernel code; SBOM and license
-inventory therefore use `NOASSERTION`. Public distribution should wait for
-both decisions.
+policy, neither of which is present or safe to invent.
 
 ### Deferred: Go race detector under the no-cgo contract
 

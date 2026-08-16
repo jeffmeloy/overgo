@@ -1190,7 +1190,7 @@ func (g *gateContext) stepManifest() (bool, error) {
 }
 
 func (g *gateContext) stepSBOM() (bool, error) {
-	if !g.pathsTouchAny("go.mod", "go.sum", "LICENSES.md", "SBOM.cdx.json", "cmd/sbom/") {
+	if !g.pathsTouchAny("go.mod", "go.sum", "SBOM.cdx.json", "cmd/sbom/") {
 		g.honesty = append(g.honesty, "sbom skipped: no dependency-owning paths in -paths")
 		return true, nil
 	}

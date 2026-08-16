@@ -479,10 +479,9 @@ hooks were active in each run record rather than assuming they were.
   and inference packages.
 - Smoke distinguishes `empty` from success; smoke, device, race, and release
   now share one typed result contract.
-- Release output contains durable compatibility, import, licensing, and SBOM
+- Release output contains durable compatibility, import, and SBOM
   contracts; chronological assessments remain repository history. The SBOM is
-  regenerated from the current dependency graph. Project-owned source remains
-  `NOASSERTION` pending the owner's license decision.
+  regenerated from the current dependency graph.
 
 Required direction: expand race coverage only from measured concurrency risk.
 
@@ -509,8 +508,7 @@ masquerade as a stop for the whole manually managed campaign.
 2. Record forced advances as immutable override events.
 3. Add typed lane-scoped containment reasons for evidence corruption, evaluator
    contamination, worktree collision, device instability, and lost rollback.
-4. Regenerate the SBOM, resolve source-license authority, and remove historical
-   documents from release payloads.
+4. Regenerate the SBOM and remove historical documents from release payloads.
 
 ### P2: calibrate recommendations under human dispatch
 
@@ -553,6 +551,5 @@ promotion authority.
   `outcome=empty`.
 - Every current open plan step has a nonempty verifier; validation now rejects
   regressions before dispatch or save.
-- Project-owned Go and CUDA sources have no declared distribution license.
 - The scheduler remains intentionally human-operated; this report does not
   classify that boundary itself as a defect.

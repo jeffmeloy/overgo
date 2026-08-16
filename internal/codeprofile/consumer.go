@@ -2,6 +2,7 @@ package codeprofile
 
 import (
 	"go/ast"
+	"go/token"
 	"path"
 	"strconv"
 	"strings"
@@ -25,6 +26,26 @@ type ConsumerSummary struct {
 	TestOnly   int `json:"test_only"`
 	Boundary   int `json:"boundary"`
 	Zero       int `json:"zero"`
+}
+
+// NewUnconsumedSurface returns candidate declarations that did not exist in
+// the baseline and have no production caller or mechanically protected use.
+func NewUnconsumedSurface(base, candidate []ConsumerDeclaration) []ConsumerDeclaration {
+	known := make(map[string]bool, len(base))
+	for _, declaration := range base {
+		known[declarationIdentity(declaration)] = true
+	}
+	var added []ConsumerDeclaration
+	for _, declaration := range candidate {
+		if !known[declarationIdentity(declaration)] && declaration.ProductionReferences == 0 && declaration.Boundary == "" {
+			added = append(added, declaration)
+		}
+	}
+	return added
+}
+
+func declarationIdentity(declaration ConsumerDeclaration) string {
+	return strings.Join([]string{declaration.Package, declaration.File, declaration.Kind, declaration.Name}, "\x00")
 }
 
 type consumerIndex struct {
@@ -86,7 +107,9 @@ func (c *consumerIndex) addFile(source repoanalysis.GoFile, file *ast.File, pack
 					functionBoundary = "method-dispatch"
 				}
 			}
-			if file.Name.Name == "main" && (value.Name.Name == "main" || value.Name.Name == "init") {
+			if value.Body == nil {
+				functionBoundary = "external"
+			} else if value.Name.Name == "init" || file.Name.Name == "main" && value.Name.Name == "main" {
 				functionBoundary = "command"
 			} else if exportedByCgo(value) {
 				functionBoundary = "cgo"
@@ -99,8 +122,12 @@ func (c *consumerIndex) addFile(source repoanalysis.GoFile, file *ast.File, pack
 					c.add(source.Path, packagePath, named.Name, "type", symbolKey(packagePath, named.Name.Name), boundary)
 					c.addBoundaryFields(source.Path, packagePath, named)
 				case *ast.ValueSpec:
+					valueBoundary := boundary
+					if valueBoundary == "" && value.Tok == token.VAR && (len(named.Values) > 0 || hasDirective(named.Doc, "//go:embed")) {
+						valueBoundary = "initialization"
+					}
 					for _, name := range named.Names {
-						c.add(source.Path, packagePath, name, strings.ToLower(value.Tok.String()), symbolKey(packagePath, name.Name), boundary)
+						c.add(source.Path, packagePath, name, strings.ToLower(value.Tok.String()), symbolKey(packagePath, name.Name), valueBoundary)
 					}
 				}
 			}
@@ -109,13 +136,15 @@ func (c *consumerIndex) addFile(source repoanalysis.GoFile, file *ast.File, pack
 }
 
 func exportedByCgo(function *ast.FuncDecl) bool {
-	if function.Doc == nil {
-		return false
-	}
-	want := "//export " + function.Name.Name
-	for _, comment := range function.Doc.List {
-		if strings.TrimSpace(comment.Text) == want {
-			return true
+	return hasDirective(function.Doc, "//export "+function.Name.Name)
+}
+
+func hasDirective(group *ast.CommentGroup, want string) bool {
+	if group != nil {
+		for _, comment := range group.List {
+			if strings.TrimSpace(comment.Text) == want || strings.HasPrefix(strings.TrimSpace(comment.Text), want+" ") {
+				return true
+			}
 		}
 	}
 	return false

@@ -72,3 +72,18 @@ func CEntry() {}
 		t.Fatalf("summary = %+v", summary)
 	}
 }
+
+func TestGateRejectsNewUnconsumedProductionSurface(t *testing.T) {
+	base := []ConsumerDeclaration{{File: "p.go", Package: "p", Name: "Debt", Kind: "function"}}
+	candidate := append([]ConsumerDeclaration(nil), base...)
+	candidate = append(candidate,
+		ConsumerDeclaration{File: "p.go", Package: "p", Name: "Unused", Kind: "function"},
+		ConsumerDeclaration{File: "p.go", Package: "p", Name: "TestOnly", Kind: "function", TestReferences: 1},
+		ConsumerDeclaration{File: "p.go", Package: "p", Name: "Used", Kind: "function", ProductionReferences: 1},
+		ConsumerDeclaration{File: "p.go", Package: "p", Name: "Init", Kind: "function", Boundary: "command"},
+	)
+	got := NewUnconsumedSurface(base, candidate)
+	if len(got) != 2 || got[0].Name != "Unused" || got[1].Name != "TestOnly" {
+		t.Fatalf("new unconsumed surface = %+v", got)
+	}
+}

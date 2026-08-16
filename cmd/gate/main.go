@@ -436,11 +436,14 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	_, base, err := codeprofile.ProductionConsumerCensus(head, selection, paths)
+	baseDeclarations, base, err := codeprofile.ProductionConsumerCensus(head, selection, paths)
 	if err != nil {
 		return err
 	}
 	g.honesty = append(g.honesty, consumerCensusHonesty("commit", selection.Context, declarations, base, current))
+	if unconsumed := codeprofile.NewUnconsumedSurface(baseDeclarations, declarations); len(unconsumed) > 0 {
+		return fmt.Errorf("new unconsumed production surface: %s", consumerCandidates(unconsumed))
+	}
 
 	mergeBase, err := command(g.repo, "git", "merge-base", "master", "HEAD")
 	if err != nil {
@@ -480,7 +483,7 @@ func consumerCensusHonesty(scope, context string, declarations []codeprofile.Con
 			class = "zero"
 		}
 		if class != "" {
-			candidates = append(candidates, declaration.File+":"+declaration.Name+"="+class)
+			candidates = append(candidates, consumerCandidate(declaration, class))
 		}
 	}
 	sort.Strings(candidates)
@@ -493,6 +496,23 @@ func consumerCensusHonesty(scope, context string, declarations []codeprofile.Con
 		current.Boundary-base.Boundary, current.Zero-base.Zero,
 		current.Production, current.TestOnly, current.Boundary, current.Zero, strings.Join(candidates, ","),
 	)
+}
+
+func consumerCandidates(declarations []codeprofile.ConsumerDeclaration) string {
+	candidates := make([]string, len(declarations))
+	for index, declaration := range declarations {
+		class := "zero"
+		if declaration.TestReferences > 0 {
+			class = "test-only"
+		}
+		candidates[index] = consumerCandidate(declaration, class)
+	}
+	sort.Strings(candidates)
+	return strings.Join(candidates, ",")
+}
+
+func consumerCandidate(declaration codeprofile.ConsumerDeclaration, class string) string {
+	return declaration.File + ":" + declaration.Name + "=" + class
 }
 
 func changedGoPathsAtRevision(repo, revision string, pending []string) ([]string, error) {

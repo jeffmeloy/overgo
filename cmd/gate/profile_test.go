@@ -37,6 +37,34 @@ func TestASTStructuralProfileGate(t *testing.T) {
 	}
 }
 
+func TestGateRejectsNewUnconsumedProductionSurface(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "internal", "p", "p.go")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.26\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("package p\nfunc Existing() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"init"}, {"add", "."}, {"-c", "user.name=fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "base"},
+	} {
+		if _, err := command(root, "git", args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(path, []byte("package p\nfunc Existing() {}\nfunc AddedButUnused() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g := gateContext{repo: root, paths: []string{"internal/p/p.go"}}
+	if _, err := g.stepProfile(); err == nil || !strings.Contains(err.Error(), "AddedButUnused=zero") {
+		t.Fatalf("unconsumed surface error = %v", err)
+	}
+}
+
 func TestAdvisoryCandidate(t *testing.T) {
 	profile := codeprofile.Profile{
 		Functions: []codeprofile.Function{

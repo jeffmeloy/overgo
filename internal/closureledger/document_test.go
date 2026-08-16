@@ -99,7 +99,7 @@ func TestPublicationRequiresStoredOwnerAndFixture(t *testing.T) {
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	loaded, ok, err := Load(ctx, store, document.ID)
+	loaded, ok, err := documentCodec.Read(ctx, store, document.ID)
 	if err != nil || !ok || loaded.ID != document.ID {
 		t.Fatalf("loaded document = (%+v, %t, %v)", loaded, ok, err)
 	}

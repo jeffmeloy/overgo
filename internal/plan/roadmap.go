@@ -197,20 +197,6 @@ func RoadmapVerifier(data []byte, id string) (string, error) {
 	return row.Verify, nil
 }
 
-// RoadmapBackfillVerifier returns the exact verifier only for a row declared
-// historically landed by the reviewed roadmap record.
-func RoadmapBackfillVerifier(data []byte, id string) (string, error) {
-	document, rows, err := parseRoadmap(data)
-	if err != nil {
-		return "", err
-	}
-	row, ok := rows[id]
-	if !ok || !slices.Contains(document.Execution.Landed, id) {
-		return "", fmt.Errorf("roadmap row %q is not declared historically landed", id)
-	}
-	return row.Verify, nil
-}
-
 func parseRoadmap(data []byte) (roadmapDocument, map[string]roadmapStep, error) {
 	var document roadmapDocument
 	if err := strictjson.DecodeBytes(data, &document); err != nil {

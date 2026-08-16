@@ -21,10 +21,8 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 		t.Fatal(err)
 	}
 	evidence := plan.RoadmapEvidence{
-		Live: map[string]bool{"roadmap-validator": true},
-		Landed: map[string]bool{
-			"go-hygiene-policy-baseline": true, "go-readability-gate": true, "unconsumed-surface-admission": true,
-		},
+		Live:     map[string]bool{"roadmap-validator": true},
+		Landed:   map[string]bool{"unconsumed-surface-admission": true},
 		InFlight: map[string]bool{}, ProbeBound: map[string]string{
 			"refusal-ledger": "go test ./internal/runrecord ./internal/recipe -run '^TestRefusalDecisionCarriesMeasuredReason$' -count=1 -v",
 		},
@@ -55,7 +53,7 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 		mutate    func(map[string]any)
 		want      string
 	}{
-		{"cycle", "go-hygiene-policy-baseline", func(row map[string]any) { row["depends_on"] = []any{"go-readability-gate"} }, "cycle"},
+		{"cycle", "production-consumer-census", func(row map[string]any) { row["depends_on"] = []any{"unconsumed-surface-admission"} }, "cycle"},
 		{"unknown dependency", "roadmap-validator", func(row map[string]any) { row["depends_on"] = []any{"absent"} }, "unknown"},
 		{"missing safety reachability", "composition-viability", func(row map[string]any) {
 			dependencies := row["depends_on"].([]any)
@@ -87,7 +85,7 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 
 	t.Run("live dependency must be landed", func(t *testing.T) {
 		unsafe := evidence
-		unsafe.Live = map[string]bool{"go-readability-gate": true}
+		unsafe.Live = map[string]bool{"unconsumed-surface-admission": true}
 		unsafe.Landed = map[string]bool{}
 		if _, err := plan.EvaluateRoadmap(data, unsafe); err == nil || !strings.Contains(err.Error(), "unsatisfied dependencies") {
 			t.Fatalf("live safety error = %v", err)
@@ -123,41 +121,6 @@ func TestRoadmapProbeExecutesAbsentVerifier(t *testing.T) {
 	run, err := runrecord.ParseRun(content.Data)
 	if err != nil || run.Outcome != runrecord.OutcomeFailed || run.Failure != probe.ExpectedFailure {
 		t.Fatalf("probe run = (%+v, %v)", run, err)
-	}
-}
-
-func TestRoadmapLandedEvidenceBackfill(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(root, "docs", "rsi_plan.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	verifier, err := plan.RoadmapBackfillVerifier(data, "objective-breadth")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := plan.RoadmapBackfillVerifier(data, "refusal-ledger"); err == nil {
-		t.Fatal("non-historical row accepted for landed backfill")
-	}
-	storePath := t.TempDir()
-	store, err := repodb.Open(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	completion, err := plan.ExecuteRoadmapCompletion(context.Background(), root, store, "objective-breadth", verifier)
-	store.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	evidence, err := collectEvidence(root, storePath, data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !evidence.Landed[completion.Row] {
-		t.Fatalf("completion did not land row: %+v", evidence)
 	}
 }
 

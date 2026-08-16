@@ -90,7 +90,6 @@ func run() error {
 	recordFailure := flag.Bool("record-failure", false, "recover an unbatchable post-commit record as a typed failed finalization")
 	admitReview := flag.String("admit-review", "", "read-only: admit a RepoDB review-verdict ID against the current HEAD")
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
-	readabilityReport := flag.Bool("readability-report", false, "read-only observe/enforce readability report for -paths")
 	staleAfter := flag.Duration("stale-after", 30*time.Second, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
 	repo, err := os.Getwd()
@@ -128,9 +127,6 @@ func run() error {
 	}
 	if *watchdog {
 		return printGateWatchdog(repo, *staleAfter)
-	}
-	if *readabilityReport {
-		return runReadabilityReport(repo, *pathsCSV, os.Stdout)
 	}
 	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
 		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
@@ -269,9 +265,6 @@ func (g *gateContext) pipelineSteps() []gateStep {
 		{"protection", runrecord.PhaseValidate, g.stepProtection},
 		{"scope", runrecord.PhaseValidate, g.stepScope},
 		{"profile", runrecord.PhaseValidate, g.stepProfile},
-	}
-	if readabilityAdmissionActive() {
-		steps = append(steps, gateStep{"readability", runrecord.PhaseValidate, g.stepReadability})
 	}
 	return append(steps, []gateStep{
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
@@ -433,7 +426,11 @@ func (g *gateContext) stepProfile() (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		g.honesty = append(g.honesty, automationROIHonesty("commit", movement))
+		summary, err := automationROIAdmission("commit", movement)
+		g.honesty = append(g.honesty, summary)
+		if err != nil {
+			return false, err
+		}
 	}
 	g.honesty = append(g.honesty, profileReviewFocus(profile, g.changedGoFiles()))
 	if err := g.appendConsumerCensus(snapshot, baseSource, changed, &profile); err != nil {
@@ -484,7 +481,11 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 		if err != nil {
 			return err
 		}
-		g.honesty = append(g.honesty, automationROIHonesty("plan-slice@"+mergeBase[:12], movement))
+		summary, err := automationROIAdmission("plan-slice@"+mergeBase[:12], movement)
+		g.honesty = append(g.honesty, summary)
+		if err != nil {
+			return err
+		}
 	}
 	paths = pathSet(slicePaths)
 	declarations, current, err = codeprofile.ProductionConsumerCensus(candidate, selection, paths)
@@ -504,11 +505,17 @@ func (g *gateContext) automationPlan() bool {
 	return strings.HasPrefix(item, "automation-")
 }
 
-func automationROIHonesty(scope string, movement codeprofile.ProductionMovement) string {
-	return fmt.Sprintf(
-		"automation ROI %s: automation_production_added=%d repository_production_deleted=%d net=%+d; diagnostic_only=true verified_on_gate_success=true",
+func automationROIAdmission(scope string, movement codeprofile.ProductionMovement) (string, error) {
+	summary := fmt.Sprintf(
+		"automation ROI %s: production_ast=%d-%d net=%+d go_lines=%d-%d net=%+d; admission=net-negative",
 		scope, movement.Added, movement.Deleted, movement.Added-movement.Deleted,
+		movement.GoLinesAdded, movement.GoLinesDeleted, movement.GoLinesAdded-movement.GoLinesDeleted,
 	)
+	if movement.Added > 0 && movement.Added >= movement.Deleted ||
+		movement.GoLinesAdded > 0 && movement.GoLinesAdded >= movement.GoLinesDeleted {
+		return summary, fmt.Errorf("automation surface is not net-negative: %s", summary)
+	}
+	return summary, nil
 }
 
 func consumerCensusHonesty(scope, context string, declarations []codeprofile.ConsumerDeclaration, base, current codeprofile.ConsumerSummary) string {
@@ -1840,8 +1847,6 @@ func compactHonesty(lines []string) []string {
 			label = "delta: "
 		case strings.HasPrefix(line, "automation ROI"):
 			label = "roi: "
-		case strings.HasPrefix(line, "go readability:"):
-			label = "style: "
 		case strings.HasPrefix(line, "consumer census"):
 			label = "consumer: "
 		case strings.HasPrefix(line, "test scope:"):

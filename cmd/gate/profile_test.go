@@ -147,13 +147,16 @@ func TestAutomationROIProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := automationROIHonesty("plan-slice@fixture", movement)
-	if movement.Added == 0 || movement.Deleted == 0 || !strings.Contains(got, "automation_production_added=") ||
-		!strings.Contains(got, "repository_production_deleted=") || !strings.Contains(got, "diagnostic_only=true") {
-		t.Fatalf("automation ROI = %+v, %q", movement, got)
+	got, err := automationROIAdmission("plan-slice@fixture", movement)
+	if movement.Added == 0 || movement.Deleted == 0 || movement.GoLinesAdded == 0 || movement.GoLinesDeleted == 0 ||
+		!strings.Contains(got, "production_ast=") || !strings.Contains(got, "go_lines=") || err == nil {
+		t.Fatalf("automation ROI = %+v, %q, %v", movement, got, err)
 	}
 	if compact := compactHonesty([]string{got}); len(compact) != 1 || !strings.HasPrefix(compact[0], "roi: ") {
 		t.Fatalf("automation ROI hidden from gate summary: %v", compact)
+	}
+	if _, err := automationROIAdmission("deletion", codeprofile.ProductionMovement{Deleted: 1, GoLinesDeleted: 1}); err != nil {
+		t.Fatalf("deletion-only wave rejected: %v", err)
 	}
 }
 

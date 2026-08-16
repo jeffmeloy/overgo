@@ -24,20 +24,13 @@ func run() error {
 	roadmapPath := flag.String("roadmap", "docs/rsi_plan.json", "roadmap design record")
 	storePath := flag.String("store", "repodb-store", "RepoDB evidence store")
 	probeRow := flag.String("probe-row", "", "execute and record the named roadmap row's absent verifier")
-	backfillRow := flag.String("backfill-landed-row", "", "execute and record a historically landed row's passing verifier")
 	flag.Parse()
 	data, err := os.ReadFile(filepath.Join(*root, filepath.FromSlash(*roadmapPath)))
 	if err != nil {
 		return err
 	}
-	if *probeRow != "" && *backfillRow != "" {
-		return fmt.Errorf("roadmap accepts only one evidence operation")
-	}
 	if *probeRow != "" {
 		return probeRoadmapRow(*root, filepath.Join(*root, filepath.FromSlash(*storePath)), data, *probeRow)
-	}
-	if *backfillRow != "" {
-		return backfillRoadmapRow(*root, filepath.Join(*root, filepath.FromSlash(*storePath)), data, *backfillRow)
 	}
 	evidence, err := collectEvidence(*root, filepath.Join(*root, filepath.FromSlash(*storePath)), data)
 	if err != nil {
@@ -126,24 +119,6 @@ func collectEvidence(root, storePath string, roadmapData []byte) (plan.RoadmapEv
 		evidence.Live[item.ID] = true
 	}
 	return evidence, nil
-}
-
-func backfillRoadmapRow(root, storePath string, data []byte, row string) error {
-	verifier, err := plan.RoadmapBackfillVerifier(data, row)
-	if err != nil {
-		return err
-	}
-	store, err := repodb.Open(storePath)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	completion, err := plan.ExecuteRoadmapCompletion(context.Background(), root, store, row, verifier)
-	if err != nil {
-		return err
-	}
-	fmt.Println(completion.ID)
-	return nil
 }
 
 func probeRoadmapRow(root, storePath string, data []byte, row string) error {

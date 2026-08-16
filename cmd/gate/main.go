@@ -90,6 +90,7 @@ func run() error {
 	recordFailure := flag.Bool("record-failure", false, "recover an unbatchable post-commit record as a typed failed finalization")
 	admitReview := flag.String("admit-review", "", "read-only: admit a RepoDB review-verdict ID against the current HEAD")
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
+	readabilityReport := flag.Bool("readability-report", false, "read-only observe/enforce readability report for -paths")
 	staleAfter := flag.Duration("stale-after", 30*time.Second, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
 	repo, err := os.Getwd()
@@ -127,6 +128,9 @@ func run() error {
 	}
 	if *watchdog {
 		return printGateWatchdog(repo, *staleAfter)
+	}
+	if *readabilityReport {
+		return runReadabilityReport(repo, *pathsCSV, os.Stdout)
 	}
 	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
 		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
@@ -254,17 +258,22 @@ func checkPlanBinding(repo, ref string) error {
 	return nil
 }
 
-func (g *gateContext) pipeline() error {
-	type step struct {
-		name  string
-		phase runrecord.Phase
-		fn    func() (skipped bool, err error)
-	}
-	steps := []step{
+type gateStep struct {
+	name  string
+	phase runrecord.Phase
+	fn    func() (skipped bool, err error)
+}
+
+func (g *gateContext) pipelineSteps() []gateStep {
+	steps := []gateStep{
 		{"protection", runrecord.PhaseValidate, g.stepProtection},
 		{"scope", runrecord.PhaseValidate, g.stepScope},
 		{"profile", runrecord.PhaseValidate, g.stepProfile},
-		{"readability", runrecord.PhaseValidate, g.stepReadability},
+	}
+	if readabilityAdmissionActive() {
+		steps = append(steps, gateStep{"readability", runrecord.PhaseValidate, g.stepReadability})
+	}
+	return append(steps, []gateStep{
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
 		{"vet", runrecord.PhaseVet, g.stepVet},
 		{"build", runrecord.PhaseBuild, g.stepBuild},
@@ -277,7 +286,11 @@ func (g *gateContext) pipeline() error {
 		{"device", runrecord.PhaseTest, g.stepDevice},
 		{"acceptance", runrecord.PhaseTest, g.stepAcceptance},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
-	}
+	}...)
+}
+
+func (g *gateContext) pipeline() error {
+	steps := g.pipelineSteps()
 	cache := g.loadRetryCache()
 	// Verification steps whose result depends only on tree state may reuse a
 	// prior identical-tree success (the retry-loop tax: a failed commit step
@@ -415,6 +428,13 @@ func (g *gateContext) stepProfile() (bool, error) {
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
 	g.honesty = append(g.honesty, surfaceDeltaHonesty(base, profile))
+	if g.automationPlan() {
+		movement, err := codeprofile.MeasureProductionMovement(baseSource, snapshot)
+		if err != nil {
+			return false, err
+		}
+		g.honesty = append(g.honesty, automationROIHonesty("commit", movement))
+	}
 	g.honesty = append(g.honesty, profileReviewFocus(profile, g.changedGoFiles()))
 	if err := g.appendConsumerCensus(snapshot, baseSource, changed, &profile); err != nil {
 		return false, err
@@ -459,6 +479,13 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
+	if g.automationPlan() {
+		movement, err := codeprofile.MeasureProductionMovement(sliceBase, candidate)
+		if err != nil {
+			return err
+		}
+		g.honesty = append(g.honesty, automationROIHonesty("plan-slice@"+mergeBase[:12], movement))
+	}
 	paths = pathSet(slicePaths)
 	declarations, current, err = codeprofile.ProductionConsumerCensus(candidate, selection, paths)
 	if err != nil {
@@ -470,6 +497,18 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	}
 	g.honesty = append(g.honesty, consumerCensusHonesty("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
+}
+
+func (g *gateContext) automationPlan() bool {
+	item, _, _ := strings.Cut(g.planRef, "/")
+	return strings.HasPrefix(item, "automation-")
+}
+
+func automationROIHonesty(scope string, movement codeprofile.ProductionMovement) string {
+	return fmt.Sprintf(
+		"automation ROI %s: automation_production_added=%d repository_production_deleted=%d net=%+d; diagnostic_only=true verified_on_gate_success=true",
+		scope, movement.Added, movement.Deleted, movement.Added-movement.Deleted,
+	)
 }
 
 func consumerCensusHonesty(scope, context string, declarations []codeprofile.ConsumerDeclaration, base, current codeprofile.ConsumerSummary) string {
@@ -1799,6 +1838,8 @@ func compactHonesty(lines []string) []string {
 		switch {
 		case strings.Contains(line, "code profile delta vs HEAD"):
 			label = "delta: "
+		case strings.HasPrefix(line, "automation ROI"):
+			label = "roi: "
 		case strings.HasPrefix(line, "go readability:"):
 			label = "style: "
 		case strings.HasPrefix(line, "consumer census"):

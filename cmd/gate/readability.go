@@ -2,13 +2,40 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"path/filepath"
 	"runtime"
 	"strings"
 
 	"overgo/internal/gostyle"
 	"overgo/internal/repoanalysis"
 )
+
+func readabilityAdmissionActive() bool { return gostyle.EnforcementActive() }
+
+func runReadabilityReport(repo, pathsCSV string, output io.Writer) error {
+	gate := gateContext{repo: repo, stepEvidence: map[string]string{}}
+	for _, path := range strings.Split(pathsCSV, ",") {
+		if path = strings.TrimSpace(path); path != "" {
+			gate.paths = append(gate.paths, filepath.ToSlash(path))
+		}
+	}
+	if len(gate.paths) == 0 {
+		return errors.New("readability report requires -paths")
+	}
+	if err := gate.expandDirectoryPaths(); err != nil {
+		return err
+	}
+	_, err := gate.stepReadability()
+	evidence := gate.stepEvidence["readability"]
+	if evidence == "" {
+		return errors.New(strings.Join(gate.honesty, "; "))
+	}
+	fmt.Fprintln(output, evidence)
+	return err
+}
 
 type readabilityRuleEvidence struct {
 	ID         string `json:"id"`

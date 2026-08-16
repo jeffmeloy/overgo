@@ -24,15 +24,22 @@ func run() error {
 	roadmapPath := flag.String("roadmap", "docs/rsi_plan.json", "roadmap design record")
 	storePath := flag.String("store", "repodb-store", "RepoDB evidence store")
 	probeRow := flag.String("probe-row", "", "execute and record the named roadmap row's absent verifier")
+	backfillRow := flag.String("backfill-landed-row", "", "execute and record a historically landed row's passing verifier")
 	flag.Parse()
 	data, err := os.ReadFile(filepath.Join(*root, filepath.FromSlash(*roadmapPath)))
 	if err != nil {
 		return err
 	}
+	if *probeRow != "" && *backfillRow != "" {
+		return fmt.Errorf("roadmap accepts only one evidence operation")
+	}
 	if *probeRow != "" {
 		return probeRoadmapRow(*root, filepath.Join(*root, filepath.FromSlash(*storePath)), data, *probeRow)
 	}
-	evidence, err := collectEvidence(*root, filepath.Join(*root, filepath.FromSlash(*storePath)))
+	if *backfillRow != "" {
+		return backfillRoadmapRow(*root, filepath.Join(*root, filepath.FromSlash(*storePath)), data, *backfillRow)
+	}
+	evidence, err := collectEvidence(*root, filepath.Join(*root, filepath.FromSlash(*storePath)), data)
 	if err != nil {
 		return err
 	}
@@ -43,7 +50,7 @@ func run() error {
 	return clioptions.WritePrettyJSON(os.Stdout, report)
 }
 
-func collectEvidence(root, storePath string) (plan.RoadmapEvidence, error) {
+func collectEvidence(root, storePath string, roadmapData []byte) (plan.RoadmapEvidence, error) {
 	document, err := plan.Load(filepath.Join(root, filepath.FromSlash(plan.Path)))
 	if err != nil {
 		return plan.RoadmapEvidence{}, err
@@ -85,6 +92,17 @@ func collectEvidence(root, storePath string) (plan.RoadmapEvidence, error) {
 			}
 			continue
 		}
+		completion, completionOK, err := plan.ReadRoadmapCompletion(ctx, store, descriptor.ID)
+		if err == nil && completionOK && reachable[completion.CodeCommit] {
+			verifier, verifierErr := plan.RoadmapVerifier(roadmapData, completion.Row)
+			runContent, ok, readErr := store.Content(ctx, completion.Run)
+			run, parseErr := runrecord.ParseRun(runContent.Data)
+			if verifierErr == nil && verifier == completion.Verifier && readErr == nil && ok && parseErr == nil &&
+				run.Outcome == runrecord.OutcomeSucceeded && run.CodeCommit == completion.CodeCommit {
+				evidence.Landed[completion.Row] = true
+			}
+			continue
+		}
 		probe, probeOK, err := plan.ReadRoadmapProbe(ctx, store, descriptor.ID)
 		if err == nil && probeOK && reachable[probe.CodeCommit] {
 			runContent, ok, err := store.Content(ctx, probe.Run)
@@ -108,6 +126,24 @@ func collectEvidence(root, storePath string) (plan.RoadmapEvidence, error) {
 		evidence.Live[item.ID] = true
 	}
 	return evidence, nil
+}
+
+func backfillRoadmapRow(root, storePath string, data []byte, row string) error {
+	verifier, err := plan.RoadmapBackfillVerifier(data, row)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(storePath)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	completion, err := plan.ExecuteRoadmapCompletion(context.Background(), root, store, row, verifier)
+	if err != nil {
+		return err
+	}
+	fmt.Println(completion.ID)
+	return nil
 }
 
 func probeRoadmapRow(root, storePath string, data []byte, row string) error {

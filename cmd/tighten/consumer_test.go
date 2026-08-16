@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -31,7 +33,7 @@ func keep() int { return 1 }
 import "testing"
 
 func TestValue(t *testing.T) {
-	if Value() != 4 { t.Fatal(Value()) }
+	if Value() != 4 { t.Fatal("behavior changed") }
 }
 `)
 
@@ -86,6 +88,87 @@ func TestSourceContract(t *testing.T) {
 	if err != nil || string(after) != string(before) {
 		t.Fatalf("failed transaction was not restored: %v", err)
 	}
+}
+
+func TestTightenBuildContextAndPublicationSafety(t *testing.T) {
+	t.Run("refuses build variants", func(t *testing.T) {
+		root := t.TempDir()
+		testutil.WriteTextFile(t, root, "go.mod", "module fixture\n\ngo 1.26\n")
+		testutil.WriteTextFile(t, root, "value/value.go", `package value
+
+func add(a, b int) int { return a + b }
+func sum(a, b int) int { return add(a, b) }
+func Value() int { return sum(1, 2) }
+`)
+		other := "linux"
+		if runtime.GOOS == other {
+			other = "windows"
+		}
+		testutil.WriteTextFile(t, root, "value/value_"+other+".go", "package value\nfunc variant() int { return sum(2, 3) }\n")
+		proposals, err := discover(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if findProposal(proposals, "value:sum->add") != nil {
+			t.Fatalf("build-variant package produced unsafe reduction: %+v", proposals)
+		}
+	})
+
+	t.Run("uses declared import name", func(t *testing.T) {
+		root := t.TempDir()
+		testutil.WriteTextFile(t, root, "go.mod", "module fixture\n\ngo 1.26\n")
+		testutil.WriteTextFile(t, root, "oddpath/odd.go", "package actual\nfunc Text() string { return \"unused\" }\n")
+		testutil.WriteTextFile(t, root, "value/value.go", `package value
+
+import "fixture/oddpath"
+
+func Value() int { return 1 }
+func unused() string { return actual.Text() }
+`)
+		proposals, err := discover(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		proposal := findProposal(proposals, "value:consumer-surface")
+		if proposal == nil {
+			t.Fatalf("missing consumer reduction: %+v", proposals)
+		}
+		if _, err := apply(root, proposal.ID); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(filepath.Join(root, "value", "value.go"))
+		if err != nil || strings.Contains(string(data), "oddpath") || strings.Contains(string(data), "unused") {
+			t.Fatalf("declared package import survived reduction: %v\n%s", err, data)
+		}
+	})
+
+	t.Run("recovers interrupted publication", func(t *testing.T) {
+		root := t.TempDir()
+		originals := map[string][]byte{"a.go": []byte("a-original\n"), "b.go": []byte("b-original\n")}
+		updates := map[string][]byte{"a.go": []byte("a-updated\n"), "b.go": []byte("b-updated\n")}
+		for name, data := range originals {
+			testutil.WriteTextFile(t, root, name, string(data))
+		}
+		publication, err := beginPublication(root, originals, updates)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := publication.publish(1); !errors.Is(err, errPublicationInterrupted) {
+			t.Fatalf("publication interruption = %v", err)
+		}
+		if err := recoverPublication(root); err != nil {
+			t.Fatal(err)
+		}
+		for name, want := range originals {
+			got, err := os.ReadFile(filepath.Join(root, name))
+			if err != nil || string(got) != string(want) {
+				t.Fatalf("recovered %s = %q, %v", name, got, err)
+			}
+		}
+		if _, err := os.Stat(filepath.Join(root, publicationDirectory)); !os.IsNotExist(err) {
+			t.Fatalf("completed recovery retained journal: %v", err)
+		}
+	})
 }
 
 func findProposal(proposals []candidate, id string) *candidate {

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/codeprofile"
+	"overgo/internal/repoanalysis"
 )
 
 func TestASTStructuralProfileGate(t *testing.T) {
@@ -119,6 +120,40 @@ func TestSurfaceDeltaHonesty(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("surface delta %q lacks %q", got, want)
 		}
+	}
+}
+
+func TestAutomationROIProjection(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "internal", "p", "p.go")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("package p\nfunc keep() {}\nfunc remove() { println(1) }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	base, err := repoanalysis.LoadGo(root, []string{"internal/p/p.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := base.Overlay(map[string][]byte{
+		"internal/p/p.go": []byte("package p\nfunc keep() {}\n"),
+		"internal/q/q.go": []byte("package q\nfunc added(v int) int { if v > 0 { return v }; return 0 }\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	movement, err := codeprofile.MeasureProductionMovement(base, candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := automationROIHonesty("plan-slice@fixture", movement)
+	if movement.Added == 0 || movement.Deleted == 0 || !strings.Contains(got, "automation_production_added=") ||
+		!strings.Contains(got, "repository_production_deleted=") || !strings.Contains(got, "diagnostic_only=true") {
+		t.Fatalf("automation ROI = %+v, %q", movement, got)
+	}
+	if compact := compactHonesty([]string{got}); len(compact) != 1 || !strings.HasPrefix(compact[0], "roi: ") {
+		t.Fatalf("automation ROI hidden from gate summary: %v", compact)
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 // go list did not classify.
 type BuildSelection struct {
 	Context string
+	Root    string
 	Files   map[string]bool
 	// Packages maps repository files to the import path selected by go list.
 	// It lets AST consumers resolve import aliases without rediscovering module
@@ -38,7 +39,7 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 	if err != nil {
 		return BuildSelection{}, err
 	}
-	selection := BuildSelection{Files: map[string]bool{}, Packages: map[string]string{}}
+	selection := BuildSelection{Root: root, Files: map[string]bool{}, Packages: map[string]string{}}
 	if context, err := goOutput(root, "env", "GOOS", "GOARCH"); err == nil {
 		selection.Context = strings.Join(strings.Fields(context), "/")
 	}

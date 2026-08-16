@@ -4,14 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"runtime"
-	"strings"
-	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/clioptions"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/textcheck"
@@ -56,42 +50,20 @@ func ReadRoadmapProbe(ctx context.Context, reader artifact.Reader, id artifact.I
 // ExecuteRoadmapProbe accepts only a healthy verifier run whose named target
 // is absent, then binds that observation to immutable run evidence and HEAD.
 func ExecuteRoadmapProbe(ctx context.Context, root string, repository artifact.Repository, row, verifier string) (RoadmapProbe, error) {
-	shell, err := clioptions.POSIXShell()
+	execution, err := executeRoadmapVerifier(root, verifier)
 	if err != nil {
 		return RoadmapProbe{}, err
 	}
-	started := time.Now()
-	output, commandErr := clioptions.CombinedOutputIn(root, os.Environ(), shell, "-c", testevidence.JSONCommand(verifier))
-	measured := uint64(max(time.Since(started).Nanoseconds(), 1))
-	if commandErr != nil {
-		return RoadmapProbe{}, fmt.Errorf("roadmap probe command failed: %w: %s", commandErr, clioptions.Tail(output, 2000))
-	}
-	if err := testevidence.VerifyGoTestTargetAbsent(verifier, output); err != nil {
+	if err := testevidence.VerifyGoTestTargetAbsent(verifier, execution.Output); err != nil {
 		return RoadmapProbe{}, fmt.Errorf("roadmap probe is not an isolated absent target: %w", err)
-	}
-	command := exec.Command("git", "rev-parse", "HEAD")
-	command.Dir = root
-	head, err := command.Output()
-	if err != nil {
-		return RoadmapProbe{}, err
-	}
-	host, err := os.Hostname()
-	if err != nil {
-		host = "unknown"
-	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
-		Host: host, OS: runtime.GOOS, Arch: runtime.GOARCH, Device: "host", Backend: "go", Driver: runtime.Version(),
-	})
-	if err != nil {
-		return RoadmapProbe{}, err
 	}
 	recipe, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("overgo-roadmap-probe/v1"))
 	if err != nil {
 		return RoadmapProbe{}, err
 	}
-	commit := strings.TrimSpace(string(head))
-	run, err := runrecord.NewBoundRun(recipe, runrecord.OutcomeFailed, nil, nil, "target-absent", commit, environment.ID,
-		measured, []runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: measured}})
+	run, err := runrecord.NewBoundRun(recipe, runrecord.OutcomeFailed, nil, nil, "target-absent",
+		execution.CodeCommit, execution.Environment,
+		execution.MeasuredNS, []runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: execution.MeasuredNS}})
 	if err != nil {
 		return RoadmapProbe{}, err
 	}
@@ -99,18 +71,14 @@ func ExecuteRoadmapProbe(ctx context.Context, root string, repository artifact.R
 	if err != nil {
 		return RoadmapProbe{}, err
 	}
-	environmentContent, err := environment.Content()
-	if err != nil {
-		return RoadmapProbe{}, err
-	}
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipe})
 	probe, probeContent, err := identifyRoadmapProbe(RoadmapProbe{
-		Row: row, Verifier: verifier, CodeCommit: commit, Run: run.ID, ExpectedFailure: "target-absent",
+		Row: row, Verifier: verifier, CodeCommit: execution.CodeCommit, Run: run.ID, ExpectedFailure: "target-absent",
 	})
 	if err != nil {
 		return RoadmapProbe{}, err
 	}
-	batch.Contents = append(batch.Contents, environmentContent, probeContent)
+	batch.Contents = append(batch.Contents, execution.EnvironmentContent, probeContent)
 	batch.Lineage = append(batch.Lineage, artifact.Lineage{
 		Child: probe.ID, Parent: run.ID, Relation: artifact.RelationDependsOn,
 	})

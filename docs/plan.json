@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "determinism-and-statistical-verdicts",
-      "title": "Classify every claim as bitwise-deterministic, tolerance-bounded, or stochastic-multi-seed",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Repeat deterministic claims and require agreement; derive CUDA tolerance margins from measured spread; require multi-seed comparison for stochastic training outcomes; implement as a gate step",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/testevidence -run '^TestVerdictClassificationAndRepeatAgreement$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "evaluation-isolation",
       "title": "Separate development, selection, promotion and audit splits with query budgets and proposer blinding",
       "status": "open",

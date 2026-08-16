@@ -468,7 +468,22 @@ func runVerify(it plan.Item, st plan.Step) error {
 	if evidenceErr != nil {
 		return fmt.Errorf("verify VACUOUS for %s/%s: %v -- run the named oracle against its real prerequisite or record an honest stop", it.ID, st.ID, evidenceErr)
 	}
-	fmt.Fprintf(os.Stderr, "plan verify %s/%s: PASS\n", it.ID, st.ID)
+	class := testevidence.ClassifyVerifyCommand(st.Verify)
+	// A bitwise-deterministic go-test claim must repeat: one green run of a
+	// host oracle is reproducibility unproven. Device (tolerance-bounded) and
+	// multi-seed claims own their variance inside the test and run once.
+	if structuredGoTest && class == testevidence.VerdictBitwiseDeterministic {
+		var repeat bytes.Buffer
+		repeatCmd := exec.Command(shell, "-c", verifyCommand)
+		repeatCmd.Stdout, repeatCmd.Stderr = &repeat, &repeat
+		if err := repeatCmd.Run(); err != nil {
+			return fmt.Errorf("verify REPEAT failed for %s/%s: %w: %s", it.ID, st.ID, err, clioptions.Tail(repeat.String(), 2000))
+		}
+		if err := testevidence.RepeatAgreement(buf.String(), repeat.String()); err != nil {
+			return fmt.Errorf("verify NOT deterministic for %s/%s: %v -- a bitwise-deterministic claim reached different per-test verdicts across two runs", it.ID, st.ID, err)
+		}
+	}
+	fmt.Fprintf(os.Stderr, "plan verify %s/%s: PASS verdict=%s\n", it.ID, st.ID, class)
 	return nil
 }
 

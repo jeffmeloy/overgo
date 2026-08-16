@@ -2,6 +2,7 @@ package runrecord
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -11,7 +12,6 @@ const (
 	GenerationVersion   uint16 = 1
 	GenerationMediaType        = "application/vnd.overgo.generation+json"
 	GenerationSchema           = "overgo/generation/v1"
-	maxGenerationSeeds         = 64
 )
 
 // GenerationRecord is the experiment/generation aggregate: one descendant
@@ -56,6 +56,24 @@ var generationCodec = artifact.JSONDocumentCodec(
 // The authoring constructor arrives with the experiment-lifecycle row, which
 // supplies its production caller; until then generationCodec.New is reachable
 // in-package and reading the graph is the only production capability.
+
+// ValidateGenerationBudget proves a record's seed consumption fits its bound
+// grant: the budget document must be the one the record references, and the
+// seed count may not exceed the issued amount. The bound replaces the former
+// maxGenerationSeeds code threshold with the typed experiment budget.
+func ValidateGenerationBudget(record GenerationRecord, budget Budget) error {
+	if err := budget.ValidateIdentity(); err != nil {
+		return err
+	}
+	if budget.ID != record.Budget {
+		return fmt.Errorf("run record: generation %s is bound to budget %s, not %s", record.ID, record.Budget, budget.ID)
+	}
+	if uint64(len(record.Seeds)) > budget.Issued {
+		return fmt.Errorf("run record: generation %s consumed %d seeds against a grant of %d %s",
+			record.ID, len(record.Seeds), budget.Issued, budget.Unit)
+	}
+	return nil
+}
 
 func ParseGenerationRecord(data []byte) (GenerationRecord, error) {
 	return generationCodec.Parse(data)
@@ -124,8 +142,11 @@ func canonicalizeGeneration(value *GenerationRecord) error {
 	if value.Bridge.Valid() && value.Bridge.Kind() != artifact.KindAdapter {
 		return errors.New("run record: generation bridge is not an adapter")
 	}
-	if len(value.Seeds) == 0 || len(value.Seeds) > maxGenerationSeeds {
-		return errors.New("run record: generation seeds are absent or unbounded")
+	// Seed count is bounded by the record's typed budget grant, never by a
+	// code threshold; ValidateGenerationBudget enforces it where the budget
+	// document is available.
+	if len(value.Seeds) == 0 {
+		return errors.New("run record: generation seeds are absent")
 	}
 	if value.TrainingPlan.Kind() != artifact.KindRecipe || value.Dataset.Kind() != artifact.KindDataset ||
 		value.Split.Kind() != artifact.KindDatasetShard || value.Evaluator.Kind() != artifact.KindEvidence ||

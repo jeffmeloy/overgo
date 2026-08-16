@@ -141,6 +141,7 @@ func writeGenerations(output io.Writer, repository string, limit int) error {
 		return err
 	}
 	records := make(map[artifact.ID]runrecord.GenerationRecord)
+	budgets := make(map[artifact.ID]runrecord.Budget)
 	for _, descriptor := range result.Artifacts {
 		content, ok, err := store.Content(ctx, descriptor.ID)
 		if err != nil {
@@ -149,11 +150,13 @@ func writeGenerations(output io.Writer, repository string, limit int) error {
 		if !ok {
 			continue
 		}
-		record, err := runrecord.ParseGenerationRecord(content.Data)
-		if err != nil {
-			continue // other evidence document kinds share the store
+		if record, err := runrecord.ParseGenerationRecord(content.Data); err == nil {
+			records[record.Child] = record
+			continue
 		}
-		records[record.Child] = record
+		if budget, err := runrecord.ParseBudget(content.Data); err == nil {
+			budgets[budget.ID] = budget
+		}
 	}
 	var depthOf func(child artifact.ID, visiting map[artifact.ID]bool) int
 	depthOf = func(child artifact.ID, visiting map[artifact.ID]bool) int {
@@ -181,8 +184,13 @@ func writeGenerations(output io.Writer, repository string, limit int) error {
 		fmt.Fprintf(output, "generation child=%s depth=%d outcome=%s parents=%d components=%d seeds=%d decision=%s\n",
 			child, depthOf(child, map[artifact.ID]bool{}), record.Outcome,
 			len(record.Parents), len(record.Components), len(record.Seeds), record.Decision)
+		if budget, ok := budgets[record.Budget]; ok {
+			if err := runrecord.ValidateGenerationBudget(record, budget); err != nil {
+				fmt.Fprintf(output, "generation child=%s BUDGET VIOLATION: %v\n", child, err)
+			}
+		}
 	}
-	fmt.Fprintf(output, "%d generation record(s); honesty: depth derives from committed generation records only; models without records are depth-0 roots\n", len(records))
+	fmt.Fprintf(output, "%d generation record(s); honesty: depth derives from committed generation records only; models without records are depth-0 roots; seed consumption validates against committed budget grants when present\n", len(records))
 	return nil
 }
 

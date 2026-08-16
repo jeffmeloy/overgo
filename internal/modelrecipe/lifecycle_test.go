@@ -260,7 +260,8 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	}
 	refusal, err := recipe.NewDecision(
 		refused.ID, recipe.DecisionRefused, recipe.EvidenceExperimental, "kernel parity failed",
-		recipe.Decider{CodeCommit: lifecycleDecisionCommit, Derivation: derivationID}, nil,
+		recipe.Decider{CodeCommit: lifecycleDecisionCommit, Derivation: derivationID},
+		[]artifact.ID{testutil.ArtifactID(t, artifact.KindRun, "kernel-parity-failed-run")},
 	)
 	if err != nil {
 		t.Fatal(err)

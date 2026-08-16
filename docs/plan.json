@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "refusal-ledger",
-      "title": "Record every refused candidate as an immutable measured refusal decision",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Expose the refusal ledger as a RepoDB query through the existing decision lifecycle; no second mutable document",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/recipe -run '^TestRefusalDecisionCarriesMeasuredReason$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "determinism-and-statistical-verdicts",
       "title": "Classify every claim as bitwise-deterministic, tolerance-bounded, or stochastic-multi-seed",
       "status": "open",

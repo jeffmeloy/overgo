@@ -51,6 +51,54 @@ func TestDecisionRoundTripIncludesDeciderAndTier(t *testing.T) {
 	}
 }
 
+// TestRefusalDecisionCarriesMeasuredReason pins the refusal-ledger contract: a
+// refused decision must bind both a human-readable reason AND at least one
+// measurement evidence identity, so every ledger row traces to what was
+// actually measured. Prose-only refusals and evidence-free refusals are
+// rejected; non-refusal outcomes keep their existing evidence latitude.
+func TestRefusalDecisionCarriesMeasuredReason(t *testing.T) {
+	subject := testutil.ArtifactID(t, artifact.KindRecipe, "subject")
+	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "derivation")
+	failedRun := testutil.ArtifactID(t, artifact.KindRun, "failed-run")
+	decider := Decider{CodeCommit: decisionTestCommit, Derivation: derivation}
+
+	decision, err := NewDecision(
+		subject, DecisionRefused, EvidenceExperimental,
+		"held-out loss regressed beyond the noise envelope",
+		decider, []artifact.ID{failedRun},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := decision.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseDecision(content.Data)
+	if err != nil || parsed.Reason != decision.Reason || len(parsed.Evidence) != 1 || parsed.Evidence[0] != failedRun {
+		t.Fatalf("parsed refusal = (%+v, %v)", parsed, err)
+	}
+
+	if _, err := NewDecision(
+		subject, DecisionRefused, EvidenceExperimental, "prose without measurement",
+		decider, nil,
+	); err == nil {
+		t.Fatal("refusal without measurement evidence accepted")
+	}
+	if _, err := NewDecision(
+		subject, DecisionRefused, EvidenceExperimental, "",
+		decider, []artifact.ID{failedRun},
+	); err == nil {
+		t.Fatal("refusal without reason accepted")
+	}
+	if _, err := NewDecision(
+		subject, DecisionObserved, EvidenceExperimental, "observation needs no measurement binding",
+		decider, nil,
+	); err != nil {
+		t.Fatalf("non-refusal outcome lost its evidence latitude: %v", err)
+	}
+}
+
 func TestDecisionRejectsMissingReasonAndDecider(t *testing.T) {
 	subject := testutil.ArtifactID(t, artifact.KindRecipe, "subject")
 	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "derivation")

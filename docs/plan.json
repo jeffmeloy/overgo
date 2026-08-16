@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "ci-tagged-lanes",
-          "title": "Extend CI so tagged vet and cross-platform builds cannot rot silently again",
-          "status": "open",
-          "verify": "grep -q 'modeltest' .github/workflows/test.yml \u0026\u0026 grep -q 'GOOS=linux' .github/workflows/test.yml"
-        },
-        {
           "id": "crlf-normalize",
           "title": "Renormalize CRLF-tracked Go files to satisfy .gitattributes",
           "status": "open",

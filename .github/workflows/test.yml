@@ -31,6 +31,17 @@ jobs:
         env:
           CGO_ENABLED: "0"
         run: go vet ./...
+      - name: Vet tagged lanes
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go vet -tags modeltest ./...
+          go vet -tags integration ./...
+      - name: Cross-platform build
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+        run: go build ./...
       - name: Verify SBOM
         env:
           CGO_ENABLED: "0"

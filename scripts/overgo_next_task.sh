@@ -7,6 +7,12 @@
 #   "hooks": { "UserPromptSubmit": [{ "hooks": [{ "type": "command",
 #     "command": "bash scripts/overgo_next_task.sh" }] }] }
 set -u
+# Repo scoping: govern only sessions whose active project is this repo.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
+  project="$(cd "$CLAUDE_PROJECT_DIR" 2>/dev/null && pwd || echo)"
+  [ "$project" = "$here" ] || exit 0
+fi
 
 if [ "${1:-}" = "--selftest" ]; then
 	echo "overgo_next_task selftest ok"

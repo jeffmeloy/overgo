@@ -3,38 +3,28 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "session-repo-scoping",
-      "title": "Scope Stop hooks once the harness exposes authoritative active-repository identity",
-      "status": "blocked-external-prereq",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Blocked: hook input has no typed active-repository signal; cwd inference would reproduce the false block",
-          "status": "blocked-external-prereq"
-        }
-      ]
-    },
-    {
       "id": "loop-hardening-8",
       "title": "Suppress Stop decisions once the harness exposes typed background-agent liveness",
-      "status": "blocked-external-prereq",
+      "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Blocked: hook input reports neither running agent IDs nor a trustworthy aggregate in-flight state",
-          "status": "blocked-external-prereq"
+          "title": "Retire milestone-stop and dispatch-marker machinery: cmd/loop owns continuity, the Stop gate keeps orphan protection only",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -count=1 -v"
         }
       ]
     },
     {
       "id": "rung15-sensenova",
       "title": "Close full-size SenseNova generation quality; retain the edit-oracle input blocker",
-      "status": "blocked-external-prereq",
+      "status": "open",
       "steps": [
         {
-          "id": "edit-layer-parity",
-          "title": "Blocked: exact edit prefix/layer parity needs the fingerprinted source PNG absent from both repositories",
-          "status": "blocked-external-prereq"
+          "id": "edit-oracle-regeneration",
+          "title": "Regenerate the edit source oracle: fingerprint the reproducible SenseNova generation output as the edit input and record the fresh cross-repo reference",
+          "status": "open",
+          "verify": "test -f fixtures/sensenova_edit_source.sha256 \u0026\u0026 grep -qE '^[0-9a-f]{64}' fixtures/sensenova_edit_source.sha256"
         }
       ]
     }

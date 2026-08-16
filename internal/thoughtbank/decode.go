@@ -91,14 +91,22 @@ func FastWeightBankLMDecodeInit(w *FastWeightBankLMWeights, promptIDs []int32, i
 	for i, blk := range w.Blocks {
 		s.layers[i] = newFwbAttnLayerCache(blk.Attn)
 	}
-	var last []float32
-	for _, id := range promptIDs {
-		l, err := s.stepToken(id)
-		if err != nil {
-			return nil, nil, err
-		}
-		last = l
+	attentionInputs := make([][]float32, len(w.Blocks))
+	output, err := fastWeightBankLMForward(promptIDs, initMem, slots, w, func(layer int, input []float32) {
+		attentionInputs[layer] = input
+	})
+	if err != nil {
+		return nil, nil, err
 	}
+	for layer, cache := range s.layers {
+		if err := cache.prefill(attentionInputs[layer], len(promptIDs)); err != nil {
+			return nil, nil, fmt.Errorf("decode: prefill layer %d: %w", layer, err)
+		}
+	}
+	s.pos = len(promptIDs)
+	s.hText = append(s.hText, output.HText...)
+	start := (len(promptIDs) - 1) * w.VocabSize
+	last := append([]float32(nil), output.Logits[start:start+w.VocabSize]...)
 	return s, last, nil
 }
 
@@ -241,15 +249,6 @@ func (c *fwbAttnLayerCache) attnStep(h []float32, pos int) ([]float32, error) {
 	applyRotarySinglePos(q, nh, dh, pos)
 	q = rmsNormNew(q, w.QNorm, nh, dh, w.NormEps)
 
-	// This token's window K/V for FUTURE tokens: window K is normed, V is raw.
-	wkTok := make([]float32, dh)
-	wvTok := make([]float32, dh)
-	for e := 0; e < dh; e++ {
-		wkTok[e] = float32(dot(w.WWk[e*d:(e+1)*d], h))
-		wvTok[e] = float32(dot(w.WWv[e*d:(e+1)*d], h))
-	}
-	wkTok = rmsNormNew(wkTok, w.KVNorm, 1, dh, w.NormEps)
-
 	// Select block entries. CSA: lightning-indexer top-k over completed blocks.
 	// HCA: every completed block, in index order. Both are causal-exact because
 	// nDone == blockOfT is precisely the set token t may see.
@@ -343,11 +342,36 @@ func (c *fwbAttnLayerCache) attnStep(h []float32, pos int) ([]float32, error) {
 
 	// Incorporate this token AFTER it has been read (window excludes t; the block
 	// it belongs to is never attended by t and is compressed only once full).
-	c.pushWindow(pos, wkTok, wvTok)
-	if err := c.appendBlockToken(h); err != nil {
+	if err := c.appendToken(pos, h); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+func (c *fwbAttnLayerCache) prefill(input []float32, rows int) error {
+	d := c.w.DModel
+	if len(input) != rows*d {
+		return fmt.Errorf("attention input has %d values, want %d", len(input), rows*d)
+	}
+	for position := range rows {
+		if err := c.appendToken(position, input[position*d:(position+1)*d]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *fwbAttnLayerCache) appendToken(pos int, hidden []float32) error {
+	w := c.w
+	d, dh := w.DModel, w.DHead
+	windowKey, windowValue := make([]float32, dh), make([]float32, dh)
+	for feature := range dh {
+		windowKey[feature] = float32(dot(w.WWk[feature*d:(feature+1)*d], hidden))
+		windowValue[feature] = float32(dot(w.WWv[feature*d:(feature+1)*d], hidden))
+	}
+	windowKey = rmsNormNew(windowKey, w.KVNorm, 1, dh, w.NormEps)
+	c.pushWindow(pos, windowKey, windowValue)
+	return c.appendBlockToken(hidden)
 }
 
 // pushWindow stores this token's window K/V at its ring slot.

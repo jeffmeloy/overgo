@@ -1,6 +1,6 @@
 {
   "campaign": "Recursive self-improvement through constrained, content-addressed artifact improvement",
-  "revision": 8,
+  "revision": 9,
   "doctrine": "Design record, not live executable work. docs/plan.json remains the only dispatch surface; cmd/plan does not read this file. A thin roadmap command over a common Go owner may validate this record and emit a PROPOSED live-plan insertion, but never mutate or dispatch it. The governing principle: the model may propose increasingly powerful ARTIFACTS, but deterministic Go owns execution, resource limits, evidence capture, admission, promotion and rollback. RSI here is constrained artifact improvement, never unrestricted code self-modification, and proposal / evaluation / authorization / rollback stay in separate authority domains.",
   "thesis": "Overgo is a content-addressed population of artifacts with a promotion mechanism. Automated composition needs three missing operators: bridge, compose, and a runtime experiment control plane to exercise them. RSI depth is a separate axis -- how many layers of the stack are themselves artifacts under the same lifecycle. Phase D lifts that ceiling and is safe only because ground truth is externally sourced and unauthorable by the system.",
   "control_plane_status": {
@@ -211,6 +211,13 @@
           "decision_point": {
             "on_pass": "proceed to Phase B as written",
             "on_refusal": "the controller action space shrinks and Phases B-D reshape BEFORE being built. Re-scope to whole-model chaining (Tier 0) through internal/workflowrecipe typed ports, which needs no latent-space bridging, and re-rank the adapter tier against measured failure modes rather than deleting it."
+          },
+          "outcome": {
+            "verdict": "refusal",
+            "measured": "baseline held-out CE 4.849884; seeds 7/11/13 held-out 5.440103/5.441688/5.428838 after 6 bridge-only Muon steps; training loss rose 4.969914 to 5.93-6.03 across all seeds",
+            "failure_mode": "optimizer step-size dominance at the recorded budget (derived lr, 6 steps, 64-token windows): normalized Muon updates overshoot the 1.84M-parameter bridge before it can adapt; graft execution itself is proven exact (zero-Up no-op and finite-difference VJP tests)",
+            "protocol": "donor Carbon-500M layer-14 MLP (organ mlp_gate) into frozen Qwen2.5-0.5B layer 12; zero-initialized Up bridge; host reference; wall 14m01s; evidence in TestComponentCompositionViability log at the committing head",
+            "consequence": "on_refusal branch taken: Phase B re-scopes toward Tier-0 whole-model chaining; the adapter tier is re-ranked, not deleted -- a lower-lr / longer-budget bridge retrial is a legal future probe under a new recorded protocol"
           }
         },
         {

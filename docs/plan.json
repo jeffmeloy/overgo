@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "composition-viability",
-      "title": "THE PIVOT: graft one classified component into a frozen target and train only the bridge",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Freeze both models, train the bridge tensor through the shared Muon plan; require held-out gain beyond the observed noise envelope or record refusal with measured reason; manual, human-reviewed, recorded budget; decision_point in docs/rsi_plan.json governs the outcome",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestComponentCompositionViability$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "roadmap-validator",
       "title": "Validate the rsi_plan DAG and derive roadmap state; emit PROPOSED plan insertions without dispatching",
       "status": "open",

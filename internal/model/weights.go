@@ -292,6 +292,31 @@ func (c weightCatalog) required(name string, shape ...uint64) (gguf.TensorInfo, 
 	return item, nil
 }
 
+// loadQLoRAQuery binds the low-rank query projection triple. Each slot gets
+// its OWN variable: a shared loop variable here once aliased AttentionQNorm
+// and AttentionQB to the same pointee, leaving AttentionQNorm dereferencing
+// the attn_q_b tensor info (finding evidence:sha256:3aa4a494; shapes differ,
+// so a graph requiring the norm would have failed loudly -- the family's
+// QLoRA path had never executed it).
+func loadQLoRAQuery(catalog weightCatalog, prefix string, spec Spec, queryLength uint64, layer *LayerWeights) error {
+	qA, err := catalog.required(prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank))
+	if err != nil {
+		return err
+	}
+	layer.AttentionQ = &qA
+	qNorm, err := catalog.required(prefix+"attn_q_a_norm.weight", uint64(spec.QLoRARank))
+	if err != nil {
+		return err
+	}
+	layer.AttentionQNorm = &qNorm
+	qB, err := catalog.required(prefix+"attn_q_b.weight", uint64(spec.QLoRARank), queryLength)
+	if err != nil {
+		return err
+	}
+	layer.AttentionQB = &qB
+	return nil
+}
+
 // tensorShapeDim: shape dimension of an optional tensor, zero when absent.
 func tensorShapeDim(info *gguf.TensorInfo, index int) uint64 {
 	if info == nil {
@@ -817,24 +842,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 			} else {
 				if spec.QLoRARank > 0 {
-					item, itemErr := catalog.required(prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank))
-					if itemErr != nil {
-						return Weights{}, itemErr
+					if err := loadQLoRAQuery(catalog, prefix, spec, queryLength, layer); err != nil {
+						return Weights{}, err
 					}
-					qA := item
-					layer.AttentionQ = &qA
-					// NOTE: AttentionQNorm and AttentionQB deliberately share
-					// one variable below to preserve historical binding.
-					item, itemErr = catalog.required(prefix+"attn_q_a_norm.weight", uint64(spec.QLoRARank))
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					layer.AttentionQNorm = &item
-					item, itemErr = catalog.required(prefix+"attn_q_b.weight", uint64(spec.QLoRARank), queryLength)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					layer.AttentionQB = &item
 				} else if layer.AttentionQ, err = catalog.requiredRef(prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength); err != nil {
 					return Weights{}, err
 				}

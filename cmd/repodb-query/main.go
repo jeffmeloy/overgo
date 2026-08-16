@@ -42,6 +42,7 @@ func run(args []string, output io.Writer) error {
 	servable := flags.Bool("servable", false, "list models with an active inference recipe and on-disk presence (the discovery query)")
 	generations := flags.Bool("generations", false, "list generation records with descendant depth derived from the committed graph")
 	refusals := flags.Bool("refusals", false, "list refused decisions with their measured evidence (the refusal ledger)")
+	budgets := flags.Bool("budgets", false, "list split partitions and query-budget grants with balances derived from committed charges")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -56,6 +57,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *refusals {
 		return writeRefusals(output, *repository, *limit)
+	}
+	if *budgets {
+		return writeBudgets(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -219,6 +223,64 @@ func writeRefusals(output io.Writer, repository string, limit int) error {
 		count++
 	}
 	fmt.Fprintf(output, "%d refusal(s); honesty: rows derive from committed decision documents only; refusals without measurement evidence cannot be committed\n", count)
+	return nil
+}
+
+// writeBudgets renders split partitions and query-budget grants with balances
+// derived from committed charges -- immutable documents only, no counter to
+// drift. An exhausted or over-charged grant is reported, never hidden.
+func writeBudgets(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	var grants []runrecord.Budget
+	var partitions []runrecord.SplitPartition
+	charges := make(map[artifact.ID][]runrecord.BudgetCharge)
+	for _, descriptor := range result.Artifacts {
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		if partition, err := runrecord.ParseSplitPartition(content.Data); err == nil {
+			fmt.Fprintf(output, "partition dataset=%s development=%s selection=%s promotion=%s audit=%s proposer=%s\n",
+				partition.Dataset, partition.Development, partition.Selection, partition.Promotion, partition.Audit, partition.Proposer)
+			partitions = append(partitions, partition)
+			continue
+		}
+		if budget, err := runrecord.ParseBudget(content.Data); err == nil {
+			grants = append(grants, budget)
+			continue
+		}
+		if charge, err := runrecord.ParseBudgetCharge(content.Data); err == nil {
+			charges[charge.Budget] = append(charges[charge.Budget], charge)
+		}
+	}
+	for _, budget := range grants {
+		remaining, err := runrecord.BudgetBalance(budget, charges[budget.ID])
+		if err != nil {
+			fmt.Fprintf(output, "budget split=%s unit=%s issued=%d INVALID: %v\n", budget.Split, budget.Unit, budget.Issued, err)
+			continue
+		}
+		fmt.Fprintf(output, "budget split=%s unit=%s issued=%d charged=%d remaining=%d\n",
+			budget.Split, budget.Unit, budget.Issued, budget.Issued-remaining, remaining)
+		for _, partition := range partitions {
+			if err := runrecord.ValidateBlinding(partition, budget, charges[budget.ID]); err != nil {
+				fmt.Fprintf(output, "budget split=%s BLINDING VIOLATION: %v\n", budget.Split, err)
+			}
+		}
+	}
+	fmt.Fprintf(output, "%d partition(s), %d budget(s); honesty: balances and blinding derive from committed documents only; violations and over-consumption report loudly rather than clamping\n",
+		len(partitions), len(grants))
 	return nil
 }
 

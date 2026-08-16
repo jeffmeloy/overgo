@@ -281,22 +281,22 @@ func ParseReviewFinding(data []byte) (ReviewFinding, error) { return reviewFindi
 func ParseReviewVerdict(data []byte) (ReviewVerdict, error) { return reviewVerdictCodec.Parse(data) }
 
 func (value ReviewEvaluator) Lineage() []artifact.Lineage {
-	return dependencyLineage(value.ID, value.Definition)
+	return artifact.DependencyLineage(value.ID, value.Definition)
 }
 
 func (value ReviewCandidate) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Developer, value.Worktree, value.Evaluator, value.GateResult, value.GateRun}
-	return dependencyLineage(value.ID, parents...)
+	return artifact.DependencyLineage(value.ID, parents...)
 }
 
 func (value ReviewFinding) Lineage() []artifact.Lineage {
-	return dependencyLineage(value.ID, value.Candidate, value.Reviewer, value.Evaluator)
+	return artifact.DependencyLineage(value.ID, value.Candidate, value.Reviewer, value.Evaluator)
 }
 
 func (value ReviewVerdict) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Candidate, value.Reviewer, value.Worktree, value.Evaluator}
 	parents = append(parents, value.Findings...)
-	return dependencyLineage(value.ID, parents...)
+	return artifact.DependencyLineage(value.ID, parents...)
 }
 
 // AdmitReview verifies that an approved verdict covers one immutable candidate

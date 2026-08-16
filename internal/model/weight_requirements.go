@@ -77,14 +77,6 @@ func optionalStoredTensorPointer(
 	return requirement
 }
 
-func optionalTensorPointerShapes(
-	name string,
-	destination **gguf.TensorInfo,
-	shapes ...[]uint64,
-) tensorRequirement {
-	return tensorRequirement{name: name, shapes: shapes, pointer: destination, optional: true}
-}
-
 func requiredTensorPointerShapes(
 	name string,
 	destination **gguf.TensorInfo,

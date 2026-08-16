@@ -2,12 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testutil"
 )
 
 func TestGenerateValidatesEvidenceAndSortsOutput(t *testing.T) {
@@ -40,7 +39,7 @@ func TestGenerateRejectsStaleClaimEvidence(t *testing.T) {
 	root := t.TempDir()
 	source := writeEvidence(t, root, "feature.go", "package feature\nfunc Feature() {}\n", "func Feature(", roleSource)
 	proof := writeEvidence(t, root, "feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", roleArtifact)
-	writeTestFile(t, root, "feature_test.go", "package feature\nfunc TestFeature() { panic(\"changed\") }\n")
+	testutil.WriteTextFile(t, root, "feature_test.go", "package feature\nfunc TestFeature() { panic(\"changed\") }\n")
 	writeTestManifest(t, root, []claim{{
 		ID: "stale", Status: "implemented", EvidenceTier: tierContract,
 		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Stale claim.",
@@ -61,11 +60,11 @@ func TestSymbolEvidenceIgnoresUnrelatedFileChanges(t *testing.T) {
 		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Symbol evidence.",
 		Evidence: []evidence{proof, testProof},
 	}}, testModels())
-	writeTestFile(t, root, "feature.go", "package feature\nfunc Feature() int { return 1 }\nfunc Unrelated() int { return 3 }\n")
+	testutil.WriteTextFile(t, root, "feature.go", "package feature\nfunc Feature() int { return 1 }\nfunc Unrelated() int { return 3 }\n")
 	if _, err := generate(root); err != nil {
 		t.Fatalf("unrelated declaration invalidated symbol evidence: %v", err)
 	}
-	writeTestFile(t, root, "feature.go", "package feature\nfunc Feature() int { return 4 }\nfunc Unrelated() int { return 3 }\n")
+	testutil.WriteTextFile(t, root, "feature.go", "package feature\nfunc Feature() int { return 4 }\nfunc Unrelated() int { return 3 }\n")
 	if _, err := generate(root); err == nil || !strings.Contains(err.Error(), "is stale") {
 		t.Fatalf("changed symbol evidence error = %v", err)
 	}
@@ -77,8 +76,8 @@ func TestGenerateNormalizesEvidenceLineEndings(t *testing.T) {
 	proofText := "package feature\nfunc TestFeature() {}\n"
 	source := writeEvidence(t, root, "feature.go", sourceText, "func Feature(", roleSource)
 	proof := writeEvidence(t, root, "feature_test.go", proofText, "func TestFeature(", roleArtifact)
-	writeTestFile(t, root, "feature.go", strings.ReplaceAll(sourceText, "\n", "\r\n"))
-	writeTestFile(t, root, "feature_test.go", strings.ReplaceAll(proofText, "\n", "\r\n"))
+	testutil.WriteTextFile(t, root, "feature.go", strings.ReplaceAll(sourceText, "\n", "\r\n"))
+	testutil.WriteTextFile(t, root, "feature_test.go", strings.ReplaceAll(proofText, "\n", "\r\n"))
 	writeTestManifest(t, root, []claim{{
 		ID: "portable", Status: "implemented", EvidenceTier: tierContract,
 		Verify: "go test . -run '^TestFeature$' -count=1 -v", Summary: "Portable evidence.",
@@ -166,20 +165,9 @@ func TestValidateModelCoverageRejectsMissingAndExtra(t *testing.T) {
 	}
 }
 
-func writeTestFile(t *testing.T, root, path, data string) {
-	t.Helper()
-	absolute := filepath.Join(root, filepath.FromSlash(path))
-	if err := os.MkdirAll(filepath.Dir(absolute), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(absolute, []byte(data), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func writeEvidence(t *testing.T, root, path, data, contains string, role evidenceRole) evidence {
 	t.Helper()
-	writeTestFile(t, root, path, data)
+	testutil.WriteTextFile(t, root, path, data)
 	kind := artifact.KindFile
 	if role == roleArtifact {
 		kind = artifact.KindEvidence
@@ -193,7 +181,7 @@ func writeEvidence(t *testing.T, root, path, data, contains string, role evidenc
 
 func writeSymbolEvidence(t *testing.T, root, path, data, contains, symbol string, role evidenceRole) evidence {
 	t.Helper()
-	writeTestFile(t, root, path, data)
+	testutil.WriteTextFile(t, root, path, data)
 	proof := evidence{Path: path, Contains: contains, Symbol: symbol, Role: role}
 	payload, err := evidencePayload(proof, []byte(data))
 	if err != nil {
@@ -225,7 +213,7 @@ func writeTestManifest(t *testing.T, root string, claims []claim, models map[str
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeTestFile(t, root, manifestPath, string(data))
+	testutil.WriteTextFile(t, root, manifestPath, string(data))
 }
 
 func testModels() map[string]modelClaim {

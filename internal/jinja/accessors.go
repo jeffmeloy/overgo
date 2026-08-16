@@ -15,11 +15,6 @@ func getAttr(obj any, name string) (any, bool) {
 	return nil, false
 }
 
-// getItem resolves obj[intIndex] for integer indexing.
-func getItem(obj any, i int) (any, bool) {
-	return indexInto(obj, i)
-}
-
 func indexInto(obj any, i int) (any, bool) {
 	switch o := obj.(type) {
 	case []any:

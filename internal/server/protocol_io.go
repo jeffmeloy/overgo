@@ -42,7 +42,7 @@ func (stream sseEmitter) write(value any) error {
 }
 
 func (stream sseEmitter) named(name string, value any) error {
-	if err := writeNamedSSE(stream.writer, name, value); err != nil {
+	if err := writeSSEEvent(stream.writer, name, value); err != nil {
 		return err
 	}
 	stream.flusher.Flush()
@@ -139,10 +139,6 @@ func writeJSON(response http.ResponseWriter, status int, value any) {
 
 func writeSSE(response io.Writer, value any) error {
 	return writeSSEEvent(response, "", value)
-}
-
-func writeNamedSSE(response io.Writer, event string, value any) error {
-	return writeSSEEvent(response, event, value)
 }
 
 func writeSSEEvent(response io.Writer, event string, value any) error {

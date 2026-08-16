@@ -42,14 +42,14 @@ func buildFixtureAttn(rng *rand.Rand, c fixtureDecodeConfig, sparse bool) *Compr
 		DModel: d, NHeads: nh, DHead: dh,
 		M: m, NWin: c.nWin, DLatentQ: c.dLatentQ, NGroups: c.nGroups,
 		TopK: c.topKCSA, NIdxHeads: c.nIdxHeads,
-		WDq:        randVec(rng, c.dLatentQ*d, 0.2),
-		WUq:        randVec(rng, nh*dh*c.dLatentQ, 0.2),
-		WWk:        randVec(rng, dh*d, 0.2),
-		WWv:        randVec(rng, dh*d, 0.2),
-		OutProj:    randVec(rng, d*d, 0.2),
-		QNorm:      randVec(rng, dh, 0.5),
-		KVNorm:     randVec(rng, dh, 0.5),
-		SinkLogits: randVec(rng, nh, 0.5),
+		WDq:        randSlice(rng, c.dLatentQ*d, 0.2),
+		WUq:        randSlice(rng, nh*dh*c.dLatentQ, 0.2),
+		WWk:        randSlice(rng, dh*d, 0.2),
+		WWv:        randSlice(rng, dh*d, 0.2),
+		OutProj:    randSlice(rng, d*d, 0.2),
+		QNorm:      randSlice(rng, dh, 0.5),
+		KVNorm:     randSlice(rng, dh, 0.5),
+		SinkLogits: randSlice(rng, nh, 0.5),
 		NormEps:    referenceRMSNormEps,
 	}
 	for i := 0; i < dh; i++ {
@@ -59,21 +59,21 @@ func buildFixtureAttn(rng *rand.Rand, c fixtureDecodeConfig, sparse bool) *Compr
 	hpg := nh / c.nGroups
 	dg := d / c.nGroups
 	for g := 0; g < c.nGroups; g++ {
-		a.OutGroup = append(a.OutGroup, randVec(rng, dg*hpg*dh, 0.2))
+		a.OutGroup = append(a.OutGroup, randSlice(rng, dg*hpg*dh, 0.2))
 	}
 	if sparse {
-		a.WKVa = randVec(rng, dh*d, 0.2)
-		a.WKVb = randVec(rng, dh*d, 0.2)
-		a.WZa = randVec(rng, dh*d, 0.2)
-		a.WZb = randVec(rng, dh*d, 0.2)
-		a.PosA = randVec(rng, m*dh, 0.2)
-		a.PosB = randVec(rng, m*dh, 0.2)
-		a.WIq = randVec(rng, c.nIdxHeads*dh*c.dLatentQ, 0.2)
-		a.WW = randVec(rng, c.nIdxHeads*d, 0.2)
+		a.WKVa = randSlice(rng, dh*d, 0.2)
+		a.WKVb = randSlice(rng, dh*d, 0.2)
+		a.WZa = randSlice(rng, dh*d, 0.2)
+		a.WZb = randSlice(rng, dh*d, 0.2)
+		a.PosA = randSlice(rng, m*dh, 0.2)
+		a.PosB = randSlice(rng, m*dh, 0.2)
+		a.WIq = randSlice(rng, c.nIdxHeads*dh*c.dLatentQ, 0.2)
+		a.WW = randSlice(rng, c.nIdxHeads*d, 0.2)
 	} else {
-		a.WKV = randVec(rng, dh*d, 0.2)
-		a.WZ = randVec(rng, dh*d, 0.2)
-		a.Pos = randVec(rng, m*dh, 0.2)
+		a.WKV = randSlice(rng, dh*d, 0.2)
+		a.WZ = randSlice(rng, dh*d, 0.2)
+		a.Pos = randSlice(rng, m*dh, 0.2)
 	}
 	return a
 }
@@ -83,14 +83,14 @@ func buildFixtureMHC(rng *rand.Rand, c fixtureDecodeConfig) *HyperConnectionWeig
 	flat := n * d
 	return &HyperConnectionWeights{
 		NHC: n, DModel: d, SinkhornIters: c.sinkIters,
-		WPre:     randVec(rng, n*flat, 0.2),
-		WRes:     randVec(rng, n*n*flat, 0.2),
-		WPost:    randVec(rng, n*flat, 0.2),
-		SPre:     randVec(rng, n, 0.1),
-		SRes:     randVec(rng, n*n, 0.1),
-		SPost:    randVec(rng, n, 0.1),
+		WPre:     randSlice(rng, n*flat, 0.2),
+		WRes:     randSlice(rng, n*n*flat, 0.2),
+		WPost:    randSlice(rng, n*flat, 0.2),
+		SPre:     randSlice(rng, n, 0.1),
+		SRes:     randSlice(rng, n*n, 0.1),
+		SPost:    randSlice(rng, n, 0.1),
 		AlphaPre: 0.3, AlphaRes: 0.3, AlphaPost: 0.3,
-		NormWeight: randVec(rng, flat, 0.5),
+		NormWeight: randSlice(rng, flat, 0.5),
 		NormEps:    referenceRMSNormEps,
 	}
 }
@@ -102,17 +102,17 @@ func buildFixtureModel(seed int64) (*FastWeightBankLMWeights, fixtureDecodeConfi
 	m := &FastWeightBankLMWeights{
 		VocabSize: c.vocab, DModel: d, NLayers: 2,
 		NHC: c.nHC, MemDim: md, MaxMem: c.maxMem,
-		Embed:   randVec(rng, c.vocab*d, 0.3),
-		AOutNet: randVec(rng, c.nHC*d, 0.2),
-		NormOut: randVec(rng, d, 0.5),
+		Embed:   randSlice(rng, c.vocab*d, 0.3),
+		AOutNet: randSlice(rng, c.nHC*d, 0.2),
+		NormOut: randSlice(rng, d, 0.5),
 		Write: &thoughtWriteWeights{
-			WriteCtxQ:     randVec(rng, d, 0.2),
-			WriteGate:     randVec(rng, md*d, 0.2),
-			WriteGateBias: randVec(rng, md, 0.1),
-			ThoughtHead:   randVec(rng, md*d, 0.2),
-			NormWrite:     randVec(rng, md, 0.5),
-			WriteDecision: randVec(rng, d, 0.2),
-			WriteDecBias:  randVec(rng, 1, 0.1),
+			WriteCtxQ:     randSlice(rng, d, 0.2),
+			WriteGate:     randSlice(rng, md*d, 0.2),
+			WriteGateBias: randSlice(rng, md, 0.1),
+			ThoughtHead:   randSlice(rng, md*d, 0.2),
+			NormWrite:     randSlice(rng, md, 0.5),
+			WriteDecision: randSlice(rng, d, 0.2),
+			WriteDecBias:  randSlice(rng, 1, 0.1),
 		},
 		NormEps: referenceRMSNormEps,
 	}
@@ -124,31 +124,31 @@ func buildFixtureModel(seed int64) (*FastWeightBankLMWeights, fixtureDecodeConfi
 		moe := &sharedRoutedMoEWeights{
 			DModel: d, DFF: c.dFF, NExperts: c.nExperts,
 			NShared: c.nShared, TopK: c.topKExperts,
-			WGate: randVec(rng, c.nExperts*d, 0.2),
+			WGate: randSlice(rng, c.nExperts*d, 0.2),
 		}
 		for e := 0; e < c.nExperts; e++ {
-			moe.ExpertW12 = append(moe.ExpertW12, randVec(rng, 2*c.dFF*d, 0.2))
-			moe.ExpertW3 = append(moe.ExpertW3, randVec(rng, d*c.dFF, 0.2))
+			moe.ExpertW12 = append(moe.ExpertW12, randSlice(rng, 2*c.dFF*d, 0.2))
+			moe.ExpertW3 = append(moe.ExpertW3, randSlice(rng, d*c.dFF, 0.2))
 		}
 		for s := 0; s < c.nShared; s++ {
-			moe.SharedW12 = append(moe.SharedW12, randVec(rng, 2*c.dFF*d, 0.2))
-			moe.SharedW3 = append(moe.SharedW3, randVec(rng, d*c.dFF, 0.2))
+			moe.SharedW12 = append(moe.SharedW12, randSlice(rng, 2*c.dFF*d, 0.2))
+			moe.SharedW3 = append(moe.SharedW3, randSlice(rng, d*c.dFF, 0.2))
 		}
 		blk := &HyperConnectionBlockWeights{
 			NHC: c.nHC, DModel: d, Attn: buildFixtureAttn(rng, c, sparse), MoE: moe,
 			Bank: &FastWeightBankWeights{
 				DModel: d, MemDim: md, Rank: c.memReadRank, SwiGLU: true,
-				FWA:        randVec(rng, 2*c.memReadRank*d*md, 0.2),
-				FWB:        randVec(rng, d*c.memReadRank*md, 0.2),
-				FWO:        randVec(rng, d*d, 0.2),
-				NormWeight: randVec(rng, d, 0.5),
+				FWA:        randSlice(rng, 2*c.memReadRank*d*md, 0.2),
+				FWB:        randSlice(rng, d*c.memReadRank*md, 0.2),
+				FWO:        randSlice(rng, d*d, 0.2),
+				NormWeight: randSlice(rng, d, 0.5),
 				NormEps:    referenceRMSNormEps,
 			},
 			MHCAttn:   buildFixtureMHC(rng, c),
 			MHCMoE:    buildFixtureMHC(rng, c),
-			NormAttn:  randVec(rng, d, 0.5),
-			NormMoE:   randVec(rng, d, 0.5),
-			ACrossNet: randVec(rng, c.nHC*d, 0.2),
+			NormAttn:  randSlice(rng, d, 0.5),
+			NormMoE:   randSlice(rng, d, 0.5),
+			ACrossNet: randSlice(rng, c.nHC*d, 0.2),
 			ReadBank:  true,
 			NormEps:   referenceRMSNormEps,
 		}
@@ -251,7 +251,7 @@ func TestFastWeightBankLMIncrementalDecodeFixture(t *testing.T) {
 		ids[i] = int32(rng.Intn(c.vocab))
 	}
 	slots := 3
-	bank := randVec(rng, slots*c.memDim, 0.3)
+	bank := randSlice(rng, slots*c.memDim, 0.3)
 
 	runDecodeOracle(t, "fixture", w, ids, bank, slots)
 
@@ -267,7 +267,7 @@ func TestFastWeightBankLMIncrementalDecodeLengths(t *testing.T) {
 	w, c := buildFixtureModel(7)
 	slots := 2
 	rng := rand.New(rand.NewSource(3))
-	bank := randVec(rng, slots*c.memDim, 0.3)
+	bank := randSlice(rng, slots*c.memDim, 0.3)
 	for seq := 1; seq <= 12; seq++ {
 		ids := make([]int32, seq)
 		for i := range ids {

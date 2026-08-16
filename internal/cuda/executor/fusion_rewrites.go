@@ -1,9 +1,6 @@
 package executor
 
 import (
-	"fmt"
-	"os"
-
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -140,7 +137,6 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "activated-gate", apply: applyActivatedGateRewrite},
 	{name: "gelu-tanh", apply: applyGELUTanhRewrite},
 	{name: "layer-norm-modulate", apply: applyLayerNormModulateRewrite},
-	// BISECT {name: "broadcast-gate-add", apply: applyBroadcastGateAddRewrite},
 	{name: "q8-emission", apply: applyQ8EmissionRewrite},
 	{name: "q8-argmax", apply: applyQ8ArgmaxRewrite},
 	{name: "bf16-gate", apply: applyBF16GateRewrite},
@@ -485,58 +481,6 @@ func applyLayerNormModulateRewrite(context *rewriteContext) {
 		})
 		for _, item := range interior {
 			compiled.skipped[item] = struct{}{}
-		}
-	}
-}
-
-// applyBroadcastGateAddRewrite: Add(residual, Multiply(value, gate)) with a
-// rank-1 gate joins into one pass.
-func applyBroadcastGateAddRewrite(context *rewriteContext) {
-	compiled := context.compiled
-	for _, node := range context.order {
-		if node.Op != tensor.OpAdd || len(node.Inputs) != 2 {
-			continue
-		}
-		if _, skipped := compiled.skipped[node]; skipped {
-			continue
-		}
-		if compiled.hasFusion(node, compiledFusionGELUTanh) {
-			continue
-		}
-		if compiled.hasFusion(node, compiledFusionLayerNormModulate) {
-			continue
-		}
-		product, residual := node.Inputs[0], node.Inputs[1]
-		if product.Op != tensor.OpMultiply {
-			product, residual = residual, product
-		}
-		if product.Op != tensor.OpMultiply || len(product.Inputs) != 2 ||
-			!residual.Shape.Equal(node.Shape) || product == residual {
-			continue
-		}
-		value, gate := product.Inputs[0], product.Inputs[1]
-		if !modulationVectorFor(node, gate) {
-			value, gate = gate, value
-		}
-		if !modulationVectorFor(node, gate) || !value.Shape.Equal(node.Shape) {
-			continue
-		}
-		if !context.fusableIntermediate(product, 1) {
-			continue
-		}
-		if compiled.skipped == nil {
-			compiled.skipped = make(map[*tensor.Tensor]struct{})
-		}
-		compiled.setFusion(node, &compiledFusion{kind: compiledFusionBroadcastGateAdd, operands: []*tensor.Tensor{value, gate, residual}, broadcastGate: broadcastGateAddFusion{
-			value: value, gate: gate, residual: residual,
-		}})
-		compiled.skipped[product] = struct{}{}
-		if os.Getenv("OVERGO_FUSION_DEBUG") != "" {
-			fmt.Printf("gate-add: node=%d %v value=%d(%s %v) gate=%d(%s %v) residual=%d(%s %v)\n",
-				node.ID, node.Shape.Dims[:node.Shape.Rank],
-				value.ID, value.Op, value.Shape.Dims[:value.Shape.Rank],
-				gate.ID, gate.Op, gate.Shape.Dims[:gate.Shape.Rank],
-				residual.ID, residual.Op, residual.Shape.Dims[:residual.Shape.Rank])
 		}
 	}
 }

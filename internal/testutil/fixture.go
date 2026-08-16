@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"encoding/binary"
+	"io/fs"
 	"math"
 	"math/rand"
 	"os"
@@ -83,6 +84,22 @@ func RepoRoot(t testing.TB) string {
 func FixturePath(t testing.TB, elements ...string) string {
 	t.Helper()
 	return filepath.Join(append([]string{RepoRoot(t), "fixtures"}, elements...)...)
+}
+
+// WriteTextFile writes a repository-relative text fixture, creating parents.
+func WriteTextFile(t testing.TB, root, name, content string, permissions ...fs.FileMode) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(name))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mode := fs.FileMode(0o644)
+	if len(permissions) > 0 {
+		mode = permissions[0]
+	}
+	if err := os.WriteFile(path, []byte(content), mode); err != nil {
+		t.Fatal(err)
+	}
 }
 
 type DenseCausalSpec struct {

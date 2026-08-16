@@ -39,7 +39,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -446,7 +445,7 @@ func runVerify(it plan.Item, st plan.Step) error {
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: %s\n", it.ID, st.ID, st.Verify)
 	var buf bytes.Buffer
-	shell, err := verificationShell()
+	shell, err := clioptions.POSIXShell()
 	if err != nil {
 		return fmt.Errorf("verify %s/%s: %w", it.ID, st.ID, err)
 	}
@@ -471,23 +470,6 @@ func runVerify(it plan.Item, st plan.Step) error {
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: PASS\n", it.ID, st.ID)
 	return nil
-}
-
-func verificationShell() (string, error) {
-	if shell, err := exec.LookPath("sh"); err == nil {
-		return shell, nil
-	}
-	if runtime.GOOS == "windows" {
-		for _, path := range []string{
-			`C:\Program Files\Git\bin\bash.exe`,
-			`C:\Program Files\Git\usr\bin\bash.exe`,
-		} {
-			if info, err := os.Stat(filepath.Clean(path)); err == nil && !info.IsDir() {
-				return path, nil
-			}
-		}
-	}
-	return "", fmt.Errorf("POSIX shell unavailable")
 }
 
 // vacuousVerify reports why a 0-exit verify is NOT real evidence, or "" when it

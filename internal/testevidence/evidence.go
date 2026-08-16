@@ -146,6 +146,16 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 
 var goTestRunFlag = regexp.MustCompile(`(?:^|[ \t])-run(?:=|[ \t]+)(?:'([^']*)'|"([^"]*)"|([^ \t;&|]+))`)
 
+// ValidateGoTestCommand checks that a declared verifier selects a named test.
+// Execution evidence remains the responsibility of VerifyGoTestTarget.
+func ValidateGoTestCommand(command string) error {
+	if !strings.Contains(command, "go test") {
+		return fmt.Errorf("verifier is not a go test command")
+	}
+	_, err := goTestTarget(command)
+	return err
+}
+
 // JSONCommand enables structured events for every go test in a verifier.
 func JSONCommand(command string) string {
 	if !strings.Contains(command, "go test -json") {
@@ -157,20 +167,9 @@ func JSONCommand(command string) string {
 // VerifyGoTestTarget requires the declared -run target to pass while retaining
 // unrelated skips as visible, uncredited evidence.
 func VerifyGoTestTarget(command, out string) error {
-	match := goTestRunFlag.FindStringSubmatch(command)
-	if match == nil {
-		return fmt.Errorf("go test verifier must declare its acceptance target with -run")
-	}
-	pattern := match[1]
-	if pattern == "" {
-		pattern = match[2]
-	}
-	if pattern == "" {
-		pattern = match[3]
-	}
-	target, err := regexp.Compile(pattern)
+	target, err := goTestTarget(command)
 	if err != nil {
-		return fmt.Errorf("compile go test -run target: %w", err)
+		return err
 	}
 	report, err := GoTestJSONReport(out)
 	if err != nil {
@@ -194,9 +193,50 @@ func VerifyGoTestTarget(command, out string) error {
 		}
 	}
 	if !passed {
-		return fmt.Errorf("go test -run %q matched no passing test", pattern)
+		return fmt.Errorf("go test -run %q matched no passing test", target.String())
 	}
 	return nil
+}
+
+// VerifyGoTestTargetAbsent accepts only a healthy package run in which the
+// declared target did not exist. It is the bootstrap verdict for roadmap work.
+func VerifyGoTestTargetAbsent(command, out string) error {
+	target, err := goTestTarget(command)
+	if err != nil {
+		return err
+	}
+	report, err := GoTestJSONReport(out)
+	if err != nil {
+		return err
+	}
+	for _, result := range report.tests {
+		if target.MatchString(result.Name) {
+			return fmt.Errorf("go test -run %q already matched %s", target.String(), result.Name)
+		}
+	}
+	if report.PassedPackages == 0 {
+		return fmt.Errorf("go test -run %q produced no passing package", target.String())
+	}
+	return nil
+}
+
+func goTestTarget(command string) (*regexp.Regexp, error) {
+	match := goTestRunFlag.FindStringSubmatch(command)
+	if match == nil {
+		return nil, fmt.Errorf("go test verifier must declare its acceptance target with -run")
+	}
+	pattern := match[1]
+	if pattern == "" {
+		pattern = match[2]
+	}
+	if pattern == "" {
+		pattern = match[3]
+	}
+	target, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("compile go test -run target: %w", err)
+	}
+	return target, nil
 }
 
 // VerifyOutput rejects successful shell verification that did not prove its

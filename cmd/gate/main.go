@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -263,6 +264,7 @@ func (g *gateContext) pipeline() error {
 		{"protection", runrecord.PhaseValidate, g.stepProtection},
 		{"scope", runrecord.PhaseValidate, g.stepScope},
 		{"profile", runrecord.PhaseValidate, g.stepProfile},
+		{"readability", runrecord.PhaseValidate, g.stepReadability},
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
 		{"vet", runrecord.PhaseVet, g.stepVet},
 		{"build", runrecord.PhaseBuild, g.stepBuild},
@@ -384,7 +386,8 @@ func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
 }
 
 func (g *gateContext) stepProfile() (bool, error) {
-	if len(g.changedGoFiles()) == 0 {
+	changed := g.plannedGoFiles()
+	if len(changed) == 0 {
 		return true, nil
 	}
 	snapshot, err := g.sourceSnapshot()
@@ -395,7 +398,11 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	base, err := profileAtHEAD(g.repo, snapshot)
+	baseSource, err := sourceAtHEAD(g.repo, snapshot)
+	if err != nil {
+		return false, err
+	}
+	base, err := codeprofile.Build(baseSource)
 	if err != nil {
 		return false, err
 	}
@@ -409,8 +416,143 @@ func (g *gateContext) stepProfile() (bool, error) {
 	))
 	g.honesty = append(g.honesty, surfaceDeltaHonesty(base, profile))
 	g.honesty = append(g.honesty, profileReviewFocus(profile, g.changedGoFiles()))
+	if err := g.appendConsumerCensus(snapshot, baseSource, changed, &profile); err != nil {
+		return false, err
+	}
 	g.profile = &profile
 	return false, nil
+}
+
+func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSnapshot, changed []string, profile *codeprofile.Profile) error {
+	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	if err != nil {
+		return err
+	}
+	if _, profile.Consumers, err = codeprofile.ProductionConsumerCensus(candidate, selection, nil); err != nil {
+		return err
+	}
+	paths := pathSet(changed)
+	declarations, current, err := codeprofile.ProductionConsumerCensus(candidate, selection, paths)
+	if err != nil {
+		return err
+	}
+	baseDeclarations, base, err := codeprofile.ProductionConsumerCensus(head, selection, paths)
+	if err != nil {
+		return err
+	}
+	g.honesty = append(g.honesty, consumerCensusHonesty("commit", selection.Context, declarations, base, current))
+	if unconsumed := codeprofile.NewUnconsumedSurface(baseDeclarations, declarations); len(unconsumed) > 0 {
+		return fmt.Errorf("new unconsumed production surface: %s", consumerCandidates(unconsumed))
+	}
+
+	mergeBase, err := command(g.repo, "git", "merge-base", "master", "HEAD")
+	if err != nil {
+		g.honesty = append(g.honesty, "consumer census plan-slice unavailable: "+err.Error())
+		return nil
+	}
+	mergeBase = strings.TrimSpace(mergeBase)
+	slicePaths, err := changedGoPathsAtRevision(g.repo, mergeBase, changed)
+	if err != nil {
+		return err
+	}
+	sliceBase, err := sourceAtRevision(g.repo, candidate, mergeBase, slicePaths)
+	if err != nil {
+		return err
+	}
+	paths = pathSet(slicePaths)
+	declarations, current, err = codeprofile.ProductionConsumerCensus(candidate, selection, paths)
+	if err != nil {
+		return err
+	}
+	_, base, err = codeprofile.ProductionConsumerCensus(sliceBase, selection, paths)
+	if err != nil {
+		return err
+	}
+	g.honesty = append(g.honesty, consumerCensusHonesty("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
+	return nil
+}
+
+func consumerCensusHonesty(scope, context string, declarations []codeprofile.ConsumerDeclaration, base, current codeprofile.ConsumerSummary) string {
+	var candidates []string
+	for _, declaration := range declarations {
+		class := ""
+		switch {
+		case declaration.ProductionReferences == 0 && declaration.TestReferences > 0:
+			class = "test-only"
+		case declaration.ProductionReferences == 0 && declaration.TestReferences == 0 && declaration.Boundary == "":
+			class = "zero"
+		}
+		if class != "" {
+			candidates = append(candidates, consumerCandidate(declaration, class))
+		}
+	}
+	sort.Strings(candidates)
+	if len(candidates) > 5 {
+		candidates = candidates[:5]
+	}
+	return fmt.Sprintf(
+		"consumer census %s context=%s delta: production=%+d test_only=%+d boundary=%+d zero=%+d; current=%d/%d/%d/%d; candidates=%s; advisory_only=ambiguous dispatch is a boundary, tests are not production consumers",
+		scope, context, current.Production-base.Production, current.TestOnly-base.TestOnly,
+		current.Boundary-base.Boundary, current.Zero-base.Zero,
+		current.Production, current.TestOnly, current.Boundary, current.Zero, strings.Join(candidates, ","),
+	)
+}
+
+func consumerCandidates(declarations []codeprofile.ConsumerDeclaration) string {
+	candidates := make([]string, len(declarations))
+	for index, declaration := range declarations {
+		class := "zero"
+		if declaration.TestReferences > 0 {
+			class = "test-only"
+		}
+		candidates[index] = consumerCandidate(declaration, class)
+	}
+	sort.Strings(candidates)
+	return strings.Join(candidates, ",")
+}
+
+func consumerCandidate(declaration codeprofile.ConsumerDeclaration, class string) string {
+	return declaration.File + ":" + declaration.Name + "=" + class
+}
+
+func changedGoPathsAtRevision(repo, revision string, pending []string) ([]string, error) {
+	raw, err := command(repo, "git", "diff", "--no-renames", "--name-only", "-z", revision, "--", "cmd", "internal")
+	if err != nil {
+		return nil, err
+	}
+	paths := pathSet(pending)
+	for _, name := range strings.Split(raw, "\x00") {
+		if strings.HasSuffix(name, ".go") {
+			paths[filepath.ToSlash(name)] = true
+		}
+	}
+	return slices.Sorted(maps.Keys(paths)), nil
+}
+
+func sourceAtRevision(repo string, candidate repoanalysis.SourceSnapshot, revision string, paths []string) (repoanalysis.SourceSnapshot, error) {
+	overlay := make(map[string][]byte, len(paths))
+	for _, path := range paths {
+		cmd := exec.Command("git", "show", revision+":"+path)
+		cmd.Dir = repo
+		data, err := cmd.Output()
+		if err != nil {
+			if _, missing := err.(*exec.ExitError); missing {
+				overlay[path] = nil
+				continue
+			}
+			return repoanalysis.SourceSnapshot{}, err
+		}
+		overlay[path] = data
+	}
+	return candidate.Overlay(overlay)
+}
+
+func pathSet(paths []string) map[string]bool {
+	set := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		set[filepath.ToSlash(path)] = true
+	}
+	return set
 }
 
 type profileSignal struct {
@@ -507,39 +649,25 @@ func cliMainClone(clone codeprofile.Clone) bool {
 	})
 }
 
-func profileAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (codeprofile.Profile, error) {
+func sourceAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (repoanalysis.SourceSnapshot, error) {
 	raw, err := command(repo, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
-		return codeprofile.Profile{}, err
+		return repoanalysis.SourceSnapshot{}, err
 	}
 	dirty, err := repoanalysis.ParseDirtyStatus([]byte(raw))
 	if err != nil {
-		return codeprofile.Profile{}, err
+		return repoanalysis.SourceSnapshot{}, err
 	}
-	overlay := map[string][]byte{}
+	paths := map[string]bool{}
 	for _, entry := range dirty {
 		for _, path := range []string{entry.Path, entry.OriginalPath} {
 			if !strings.HasSuffix(path, ".go") || !strings.HasPrefix(path, "internal/") && !strings.HasPrefix(path, "cmd/") {
 				continue
 			}
-			cmd := exec.Command("git", "show", "HEAD:"+path)
-			cmd.Dir = repo
-			data, err := cmd.Output()
-			if err != nil {
-				if _, missing := err.(*exec.ExitError); missing {
-					overlay[path] = nil
-					continue
-				}
-				return codeprofile.Profile{}, err
-			}
-			overlay[path] = data
+			paths[path] = true
 		}
 	}
-	base, err := candidate.Overlay(overlay)
-	if err != nil {
-		return codeprofile.Profile{}, err
-	}
-	return codeprofile.Build(base)
+	return sourceAtRevision(repo, candidate, "HEAD", slices.Sorted(maps.Keys(paths)))
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,
@@ -834,6 +962,16 @@ func (g *gateContext) changedGoFiles() []string {
 			continue
 		}
 		out = append(out, p)
+	}
+	return out
+}
+
+func (g *gateContext) plannedGoFiles() []string {
+	var out []string
+	for _, path := range g.paths {
+		if strings.HasSuffix(path, ".go") && (strings.HasPrefix(path, "cmd/") || strings.HasPrefix(path, "internal/")) {
+			out = append(out, path)
+		}
 	}
 	return out
 }
@@ -1661,6 +1799,10 @@ func compactHonesty(lines []string) []string {
 		switch {
 		case strings.Contains(line, "code profile delta vs HEAD"):
 			label = "delta: "
+		case strings.HasPrefix(line, "go readability:"):
+			label = "style: "
+		case strings.HasPrefix(line, "consumer census"):
+			label = "consumer: "
 		case strings.HasPrefix(line, "test scope:"):
 			label = "scope: "
 		case strings.Contains(line, " reused:"):

@@ -21,6 +21,7 @@ func TestCompactAgentOutput(t *testing.T) {
 		honesty: []string{
 			"code profile: production=700 files/1000000 nodes and a large routine baseline",
 			"code profile delta vs HEAD: production=+0 files/-20 nodes duplicate_excess=-12",
+			"consumer census commit context=windows/amd64 delta: production=+1 test_only=+0 boundary=+0 zero=+0",
 			"test scope: 2 direct + 1 dependent packages (derived from import graph)",
 			"claims skipped: no changed path appears in compatibility.json",
 			"magic backlog: 3 inherited uncatalogued constants",
@@ -29,7 +30,8 @@ func TestCompactAgentOutput(t *testing.T) {
 	var output bytes.Buffer
 	gate.printSummary(&output, runrecord.OutcomeSucceeded, "")
 	text := output.String()
-	if len(text) > 1000 || !strings.Contains(text, "GATE SUCCEEDED") || !strings.Contains(text, "delta:") || !strings.Contains(text, "warning:") {
+	if len(text) > 1000 || !strings.Contains(text, "GATE SUCCEEDED") || !strings.Contains(text, "delta:") ||
+		!strings.Contains(text, "consumer:") || !strings.Contains(text, "warning:") {
 		t.Fatalf("gate output is not compact and decision-complete (%d bytes):\n%s", len(text), text)
 	}
 	if strings.Contains(text, "routine baseline") || strings.Contains(text, "claims skipped:") {

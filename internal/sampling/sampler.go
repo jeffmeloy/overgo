@@ -1419,11 +1419,6 @@ func (s *Sampler) sampleMirostatV1(logits []float32) (int, error) {
 	return selectedID, nil
 }
 
-func normalizedCandidates(logits []float32, temperature float32) ([]candidate, float64, error) {
-	candidates := make([]candidate, len(logits))
-	return normalizedCandidatesInto(candidates, logits, temperature)
-}
-
 func normalizedCandidatesInto(candidates []candidate, logits []float32, temperature float32) ([]candidate, float64, error) {
 	if len(candidates) != len(logits) {
 		return nil, 0, errors.New("candidate scratch size differs from logits")

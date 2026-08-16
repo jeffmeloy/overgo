@@ -68,3 +68,25 @@ func TestSourceSnapshotOverlay(t *testing.T) {
 		t.Fatal("escaping overlay passed")
 	}
 }
+
+func TestGoStylePolicyAndBaseline(t *testing.T) {
+	base, err := (SourceSnapshot{}).Overlay(map[string][]byte{
+		"p/p.go": []byte("package p\nfunc before() {}\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := base.Overlay(map[string][]byte{
+		"p/p.go": []byte("package p\nfunc after() {}\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := candidate.Files[0].Syntax()
+	if err != nil || candidate.Files[0].Line(file.Decls[0].Pos()) != 2 {
+		t.Fatalf("declaration line = %d, %v", candidate.Files[0].Line(file.Decls[0].Pos()), err)
+	}
+	if base.Identity() == candidate.Identity() || base.Identity() == "" {
+		t.Fatal("snapshot identity did not bind source content")
+	}
+}

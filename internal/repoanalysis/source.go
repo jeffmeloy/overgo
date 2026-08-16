@@ -1,10 +1,12 @@
 package repoanalysis
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"go/ast"
+	"go/build/constraint"
 	"go/parser"
 	"go/token"
 	"os"
@@ -40,7 +42,62 @@ func (f GoFile) Generated() (bool, error) {
 	return err == nil && (hasPathPart(f.Path, "generated") || ast.IsGenerated(syntax)), err
 }
 
+// BuildExpression returns the normalized leading source constraint. Filename
+// and toolchain context selection are owned by HostBuildSelection.
+func (f GoFile) BuildExpression() (string, error) {
+	syntax, err := f.Syntax()
+	if err != nil {
+		return "", err
+	}
+	var legacy []string
+	for _, group := range syntax.Comments {
+		if group.End() > syntax.Package {
+			break
+		}
+		for _, comment := range group.List {
+			switch {
+			case constraint.IsGoBuild(comment.Text):
+				expression, err := constraint.Parse(comment.Text)
+				if err != nil {
+					return "", err
+				}
+				return expression.String(), nil
+			case constraint.IsPlusBuild(comment.Text):
+				expression, err := constraint.Parse(comment.Text)
+				if err != nil {
+					return "", err
+				}
+				legacy = append(legacy, "("+expression.String()+")")
+			}
+		}
+	}
+	return strings.Join(legacy, " && "), nil
+}
+
+// Line resolves a syntax position without exposing or recreating the parser's
+// file set. Source blobs may be shared by files with identical content, for
+// which the line mapping is also identical.
+func (f GoFile) Line(pos token.Pos) int {
+	offset := int(pos) - 1
+	if offset < 0 || offset > len(f.blob.data) {
+		return 0
+	}
+	return bytes.Count(f.blob.data[:offset], []byte{'\n'}) + 1
+}
+
 type SourceSnapshot struct{ Files []GoFile }
+
+// Identity binds analysis evidence to the complete ordered source snapshot.
+func (s SourceSnapshot) Identity() string {
+	hash := sha256.New()
+	for _, file := range s.Files {
+		hash.Write([]byte(file.Path))
+		hash.Write([]byte{0})
+		hash.Write([]byte(file.ContentID))
+		hash.Write([]byte{0})
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
 
 // Overlay returns a snapshot with repository-relative source replacements.
 // A nil value deletes the path; input snapshots remain immutable.

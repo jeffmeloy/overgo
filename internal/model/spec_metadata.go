@@ -54,10 +54,6 @@ type MetadataShapePolicy struct {
 	PreserveDraftLayers       bool
 }
 
-func newSpecMetadata(file *gguf.File) (specMetadata, error) {
-	return newSpecMetadataWithProfile(file, nil)
-}
-
 func newSpecMetadataWithProfile(file *gguf.File, resolved *ArchitectureProfile) (specMetadata, error) {
 	if file == nil {
 		return specMetadata{}, errors.New("model file is nil")

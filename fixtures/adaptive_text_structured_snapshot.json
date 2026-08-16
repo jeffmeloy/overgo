@@ -14,7 +14,7 @@
       "entry_point": "go/extmodel/operators_forward.go:ForwardDenseCausal",
       "signature": {"inputs": ["text"], "outputs": ["text"]},
       "state": "parity",
-      "artifacts": [{"name": "weights", "identity": "tensor-set:sha256:2b1059a8f6091f6a092c0d6996a21765562e534af96d6f250609973b58e42d18"}],
+      "artifacts": [{"name": "weights", "identity": "tensor-set:sha256:08d12f90b68fe93f3c39da1bb9f4592a13085c2740716166d2baab708793d3e8"}],
       "corpora": [{"name": "serving-cases", "identity": "dataset:sha256:964ca1d714233666e6f7ca66223036057ced4dce704b0d391b2d1fdac8c96e59"}],
       "goldens": [{"name": "exact-tokens", "identity": "evidence:sha256:964ca1d714233666e6f7ca66223036057ced4dce704b0d391b2d1fdac8c96e59"}]
     },

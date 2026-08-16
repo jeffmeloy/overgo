@@ -249,6 +249,9 @@ func (v *Vocab) DecodePiece(id TokenID, includeSpecial bool) (string, error) {
 	if id < 0 || int(id) >= len(v.Tokens) {
 		return "", fmt.Errorf("tokenizer: token ID %d is out of range", id)
 	}
+	if piece, ok := v.dna.piece(id); ok {
+		return piece, nil
+	}
 	token := v.Tokens[id]
 	switch token.Type {
 	case TokenControl, TokenUnknown:

@@ -78,6 +78,7 @@ type Vocab struct {
 	ugmMaxLen   int
 	maxTokenLen int
 	fimDeclared bool
+	dna         *dnaExtension
 }
 
 // Load: reads and validates supported vocabulary profile
@@ -319,6 +320,35 @@ func Load(file *gguf.File) (*Vocab, error) {
 		false,
 	); err != nil {
 		return nil, err
+	}
+	dnaK, err := optionalScalar[uint32](values, MetadataDNAK, gguf.ValueTypeUint32, 0)
+	if err != nil {
+		return nil, err
+	}
+	if dnaK != 0 {
+		start, err := requiredScalar[uint32](values, MetadataDNAStartID, gguf.ValueTypeUint32)
+		if err != nil {
+			return nil, err
+		}
+		vocabulary, err := requiredScalar[uint32](values, MetadataDNAVocabulary, gguf.ValueTypeUint32)
+		if err != nil {
+			return nil, err
+		}
+		specialTokens, err := requiredArray[string](values, MetadataDNASpecialTokens, gguf.ValueTypeString)
+		if err != nil {
+			return nil, err
+		}
+		autoTags, err := optionalScalar[bool](values, MetadataDNAAutoTags, gguf.ValueTypeBool, false)
+		if err != nil {
+			return nil, err
+		}
+		if err := ValidateDNAExtension(dnaK, start, vocabulary, specialTokens, uint32(len(vocab.Tokens))); err != nil {
+			return nil, fmt.Errorf("tokenizer: DNA extension: %w", err)
+		}
+		vocab.dna = &dnaExtension{
+			k: dnaK, start: start, vocabulary: vocabulary,
+			specialTokens: specialTokens, autoTags: autoTags,
+		}
 	}
 	return vocab, nil
 }

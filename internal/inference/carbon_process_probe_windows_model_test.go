@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -59,33 +60,42 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var text strings.Builder
-	promptTokens := 0
-	ids, _, err := runner.Generate(context.Background(), testCase.Prompt, GenerateOptions{
-		MaxNewTokens: testCase.MaxTokens,
-		Sampler:      greedy,
-		DeviceGreedy: true,
-		OnToken: func(event TokenEvent) error {
-			text.WriteString(event.Piece)
-			return nil
-		},
-		OnPromptEvaluated: func(evaluation PromptEvaluation) {
-			promptTokens = evaluation.Tokens
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
+	generate := func() time.Duration {
+		promptTokens := 0
+		requestStarted := time.Now()
+		ids, fullText, generateErr := runner.Generate(context.Background(), testCase.Prompt, GenerateOptions{
+			MaxNewTokens: testCase.MaxTokens,
+			Sampler:      greedy,
+			DeviceGreedy: true,
+			OnPromptEvaluated: func(evaluation PromptEvaluation) {
+				promptTokens = evaluation.Tokens
+			},
+		})
+		if generateErr != nil {
+			t.Fatal(generateErr)
+		}
+		generatedTokens := len(ids) - promptTokens
+		text, ok := strings.CutPrefix(fullText, testCase.Prompt)
+		if !ok {
+			t.Fatalf("Carbon returned text %q lacks prompt %q", fullText, testCase.Prompt)
+		}
+		if promptTokens != testCase.PromptTokens || generatedTokens != testCase.GeneratedTokens || text != testCase.Text {
+			t.Fatalf("Carbon output counts=%d/%d text=%q", promptTokens, generatedTokens, text)
+		}
+		return time.Since(requestStarted)
 	}
+	_ = generate()
 	wall := time.Since(started)
+	warm := make([]time.Duration, 5)
+	for index := range warm {
+		warm[index] = generate()
+	}
+	slices.Sort(warm)
 	memory, err := runner.DeviceMemoryStats(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	generatedTokens := len(ids) - promptTokens
-	if promptTokens != testCase.PromptTokens || generatedTokens != testCase.GeneratedTokens || text.String() != testCase.Text {
-		t.Fatalf("Carbon output counts=%d/%d text=%q", promptTokens, generatedTokens, text.String())
-	}
-	fmt.Printf("CARBON_PROCESS_PROBE wall_ns=%d resolve_ns=%d open_ns=%d generate_ns=%d device_peak=%d\n",
+	fmt.Printf("CARBON_PROCESS_PROBE wall_ns=%d resolve_ns=%d open_ns=%d generate_ns=%d warm_ns=%d device_peak=%d\n",
 		wall.Nanoseconds(), resolvedAt.Sub(started).Nanoseconds(), openedAt.Sub(resolvedAt).Nanoseconds(),
-		wall-openedAt.Sub(started), memory.PeakBytes)
+		wall-openedAt.Sub(started), warm[len(warm)/2].Nanoseconds(), memory.PeakBytes)
 }

@@ -30,6 +30,11 @@ import (
 const (
 	markerPath  = "docs/.dispatch_pending"
 	boundedPath = "docs/.bounded_request"
+	// turnBasePath snapshots the dirty set at UserPromptSubmit so the Stop gate
+	// blocks only on TURN-CREATED dirt. Pre-existing dirt is another lane's
+	// parked in-flight work; blocking on it forced false stop records on bounded
+	// turns (the fourth false-record variant, recorded in docs/plan_stop.json).
+	turnBasePath = "docs/.turn_dirty_base"
 )
 
 func main() {
@@ -83,7 +88,7 @@ func runStop(hookJSON string) int {
 	if complete {
 		_ = os.Remove(markerPath)
 	}
-	dirtyWork := hasDirtyPlannedScope()
+	dirtyWork := hasTurnCreatedDirt()
 	markerArmed := fileExists(markerPath)
 
 	if !stopDecision(false, boundedRequest, freshStop, gateRunning, complete, dirtyWork, markerArmed) {
@@ -115,9 +120,12 @@ func runStop(hookJSON string) int {
 func runPostCommit(hookJSON string) {
 	if strings.Contains(hookJSON, "cmd/gate") {
 		_ = os.WriteFile(markerPath, []byte(gitHead()+"\n"), 0o644)
+		// The gate committed this turn's dirt; re-baseline so the next-step
+		// check below measures only work created after the commit boundary.
+		writeTurnBase()
 		return
 	}
-	if fileExists(markerPath) && hasDirtyPlannedScope() {
+	if fileExists(markerPath) && hasTurnCreatedDirt() {
 		_ = os.Remove(markerPath)
 	}
 }
@@ -126,6 +134,7 @@ func runDoctrine() {
 	// A turn never spans sessions -- any pending boundary is stale.
 	_ = os.Remove(markerPath)
 	_ = os.Remove(boundedPath)
+	_ = os.Remove(turnBasePath)
 	fmt.Println(doctrineText)
 	fmt.Println()
 	fmt.Println("Dispatched now (go run ./cmd/plan -next):")
@@ -134,6 +143,9 @@ func runDoctrine() {
 }
 
 func runPrompt(hookJSON string) {
+	// Every turn starts by snapshotting the dirty set: the Stop gate then owes a
+	// block only to dirt this turn creates, not to another lane's parked work.
+	writeTurnBase()
 	var input struct {
 		Prompt string `json:"prompt"`
 	}
@@ -189,21 +201,68 @@ func gitHead() string {
 	return strings.TrimSpace(string(out))
 }
 
-func hasDirtyPlannedScope() bool {
-	out, err := exec.Command("git", "status", "--porcelain=v1", "-z", "--untracked-files=all").Output()
+// dirtyPaths parses porcelain -z status into paths; untracked files count.
+func dirtyPaths(status []byte) ([]string, error) {
+	entries, err := repoanalysis.ParseDirtyStatus(status)
 	if err != nil {
-		return false
+		return nil, err
 	}
-	dirty, err := dirtyPlannedScope(out)
-	return err == nil && dirty
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, entry.Path)
+	}
+	return paths, nil
 }
 
-func dirtyPlannedScope(status []byte) (bool, error) {
-	paths, err := repoanalysis.ParseDirtyStatus(status)
+// currentDirtyPaths returns the repository's dirty paths, or nil on git failure.
+func currentDirtyPaths() []string {
+	out, err := exec.Command("git", "status", "--porcelain=v1", "-z", "--untracked-files=all").Output()
 	if err != nil {
-		return false, err
+		return nil
 	}
-	return len(paths) > 0, nil
+	paths, err := dirtyPaths(out)
+	if err != nil {
+		return nil
+	}
+	return paths
+}
+
+// writeTurnBase snapshots the dirty set at a turn boundary (prompt submit, or a
+// gate commit inside the turn). One path per line.
+func writeTurnBase() {
+	_ = os.WriteFile(turnBasePath, []byte(strings.Join(currentDirtyPaths(), "\n")+"\n"), 0o644)
+}
+
+// hasTurnCreatedDirt reports whether dirt exists beyond the turn-start snapshot.
+// A missing or unreadable snapshot FAILS SAFE toward the old behavior -- all
+// dirt blocks -- so a lost marker errs toward "commit your work", never toward
+// orphaning it.
+func hasTurnCreatedDirt() bool {
+	current := currentDirtyPaths()
+	base, err := os.ReadFile(turnBasePath)
+	if err != nil {
+		return len(current) > 0
+	}
+	return len(turnCreatedDirt(strings.Split(strings.TrimSpace(string(base)), "\n"), current)) > 0
+}
+
+// turnCreatedDirt is the pure diff: every current dirty path absent from the
+// turn-start snapshot. Pre-existing paths are another lane's parked work and
+// are never this turn's obligation.
+func turnCreatedDirt(base, current []string) []string {
+	parked := make(map[string]bool, len(base))
+	for _, path := range base {
+		if path != "" {
+			parked[path] = true
+		}
+	}
+	var created []string
+	for _, path := range current {
+		if !parked[path] {
+			created = append(created, path)
+		}
+	}
+	return created
 }
 
 func freshStopAtHead(head string) bool {

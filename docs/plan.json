@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "loop-integrity",
-      "title": "Close the loop-governance gaps that fail open or false-block",
-      "status": "open",
-      "steps": [
-        {
-          "id": "stop-dirt-scope",
-          "title": "Block the Stop gate only on turn-created dirt so bounded turns with parked parallel work end cleanly",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -run '^TestStopIgnoresPreexistingDirt$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "evidence-durability",
       "title": "Make RepoDB evidence survive single-disk loss",
       "status": "open",

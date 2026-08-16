@@ -20,7 +20,7 @@ func requireIntegration(t *testing.T) {
 
 func TestBindResidency(t *testing.T) {
 	binding, err := bindResidency(recipe.ResidencyHybridNative)
-	if err != nil || !binding.deviceNative || !binding.allowFallback || binding.hostReference {
+	if err != nil || !binding.deviceNative || !binding.hostRecovery || binding.hostReference {
 		t.Fatalf("bound hybrid residency = %+v err=%v", binding, err)
 	}
 }

@@ -226,12 +226,12 @@ func loadOptionalDenseGEGLUCatalog(
 		return nil
 	}
 	var err error
-	if layer.FeedForwardGate, err = catalog.required(prefix+names[0], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
+	if layer.FeedForwardGate, err = catalog.requiredRef(prefix+names[0], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
 		return err
 	}
-	if layer.FeedForwardUp, err = catalog.required(prefix+names[1], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
+	if layer.FeedForwardUp, err = catalog.requiredRef(prefix+names[1], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
 		return err
 	}
-	layer.FeedForwardDown, err = catalog.required(prefix+names[2], uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength))
+	layer.FeedForwardDown, err = catalog.requiredRef(prefix+names[2], uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength))
 	return err
 }

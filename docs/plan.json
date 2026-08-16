@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "layer-schema-unification",
-      "title": "Replace three mirrored layer schemas with one compiled indexed binding schema",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replace three mirrored layer schemas with one compiled indexed binding schema",
-          "status": "open",
-          "verify": "go test ./internal/model -run '^TestUnifiedLayerBindingSchema$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "profile-compiled-loading",
       "title": "Compile metadata and weight loading from profiles; delete family branch trees per migration",
       "status": "open",

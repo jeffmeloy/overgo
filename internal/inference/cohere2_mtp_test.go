@@ -14,8 +14,8 @@ func TestSelectedModelTensorsIncludesCohere2MTP(t *testing.T) {
 	privateHead := info("blk.2.nextn.shared_head_head.weight")
 	mtp := &model.SingleDraftWeights{
 		Layer: model.LayerWeights{
-			AttentionNorm:     info("blk.2.attn_norm.weight"),
-			AttentionQ:        info("blk.2.attn_q.weight"),
+			AttentionNorm:     pointerTensorInfo(info("blk.2.attn_norm.weight")),
+			AttentionQ:        pointerTensorInfo(info("blk.2.attn_q.weight")),
 			FeedForwardRouter: pointerTensorInfo(info("blk.2.ffn_gate_inp.weight")),
 		},
 		EHProjection:  info("blk.2.nextn.eh_proj.weight"),
@@ -23,7 +23,7 @@ func TestSelectedModelTensorsIncludesCohere2MTP(t *testing.T) {
 		HiddenNorm:    info("blk.2.nextn.hnorm.weight"), Output: &privateHead,
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
-		info("token_embd.weight"), mtp.Layer.AttentionNorm, mtp.Layer.AttentionQ,
+		info("token_embd.weight"), *mtp.Layer.AttentionNorm, *mtp.Layer.AttentionQ,
 		*mtp.Layer.FeedForwardRouter, mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm, privateHead,
 	}}
 	selected := selectedModelTensors(file, model.Weights{

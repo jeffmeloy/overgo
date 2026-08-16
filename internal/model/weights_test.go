@@ -69,7 +69,7 @@ func TestReadWeightsGPTJ(t *testing.T) {
 	}
 	layer := weights.Layers[0]
 	if weights.Output == nil || weights.OutputBias == nil || weights.OutputNormBias == nil ||
-		layer.AttentionNormBias == nil || layer.FeedForwardNorm.Name != "" || layer.FeedForwardGate.Name != "" ||
+		layer.AttentionNormBias == nil || layer.FeedForwardNorm != nil || layer.FeedForwardGate != nil ||
 		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil {
 		t.Fatalf("unexpected GPT-J catalog: %+v", weights)
 	}
@@ -140,12 +140,12 @@ func TestReadWeightsNemotronHMoEThreeWayLayers(t *testing.T) {
 		t.Fatal(err)
 	}
 	attention, recurrent, moe := weights.Layers[0], weights.Layers[1], weights.Layers[2]
-	if attention.AttentionQ.Name == "" || attention.AttentionOutputBias == nil || attention.FeedForwardUp.Name != "" ||
+	if attention.AttentionQ == nil || attention.AttentionOutputBias == nil || attention.FeedForwardUp != nil ||
 		!recurrent.Recurrent || recurrent.SSMInput == nil || recurrent.SSMConv1DBias == nil ||
 		moe.Recurrent || moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
 		moe.FeedForwardLatentDown == nil || moe.FeedForwardLatentUp == nil ||
 		moe.FeedForwardUpExperts == nil || moe.FeedForwardDownExperts == nil ||
-		moe.FeedForwardSharedUp == nil || moe.FeedForwardSharedDown == nil || moe.AttentionQ.Name != "" {
+		moe.FeedForwardSharedUp == nil || moe.FeedForwardSharedDown == nil || moe.AttentionQ != nil {
 		t.Fatalf("unexpected Nemotron-H MoE catalog: %+v", weights.Layers)
 	}
 }
@@ -167,8 +167,8 @@ func TestReadWeightsNemotronHDenseFFNLayer(t *testing.T) {
 		t.Fatal(err)
 	}
 	layer := weights.Layers[0]
-	if layer.AttentionNorm.Name == "" || layer.FeedForwardUp.Name == "" || layer.FeedForwardDown.Name == "" ||
-		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil || layer.AttentionQ.Name != "" {
+	if layer.AttentionNorm == nil || layer.FeedForwardUp == nil || layer.FeedForwardDown == nil ||
+		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil || layer.AttentionQ != nil {
 		t.Fatalf("unexpected dense Nemotron-H catalog: %+v", layer)
 	}
 }
@@ -210,7 +210,7 @@ func TestReadWeightsQwen3MoE(t *testing.T) {
 	layer := weights.Layers[0]
 	if layer.FeedForwardRouter == nil || layer.FeedForwardGateExperts == nil ||
 		layer.FeedForwardUpExperts == nil || layer.FeedForwardDownExperts == nil ||
-		layer.FeedForwardUp.Name != "" || layer.FeedForwardDown.Name != "" {
+		layer.FeedForwardUp != nil || layer.FeedForwardDown != nil {
 		t.Fatalf("unexpected Qwen3-MoE layer catalog: %+v", layer)
 	}
 }
@@ -253,7 +253,7 @@ func TestReadWeightsLlama4InterleavedMoE(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if weights.Layers[0].FeedForwardGate.Name == "" || weights.Layers[0].FeedForwardRouter != nil ||
+	if weights.Layers[0].FeedForwardGate == nil || weights.Layers[0].FeedForwardRouter != nil ||
 		weights.Layers[1].FeedForwardRouter == nil || weights.Layers[1].FeedForwardSharedGate == nil ||
 		weights.Layers[1].FeedForwardSharedUp == nil || weights.Layers[1].FeedForwardSharedDown == nil {
 		t.Fatalf("unexpected Llama 4 catalog: %+v", weights.Layers)
@@ -382,7 +382,7 @@ func TestReadWeightsGLM4MoE(t *testing.T) {
 		t.Fatal(err)
 	}
 	dense, moe := weights.Layers[0], weights.Layers[1]
-	if dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
+	if dense.FeedForwardGate == nil || dense.FeedForwardRouter != nil ||
 		moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
 		moe.FeedForwardSharedGate == nil || moe.FeedForwardNorm.Name != "blk.1.attn_post_norm.weight" ||
 		moe.AttentionQNorm == nil || moe.AttentionKNorm == nil || len(weights.AppendedSingleDraft) != 1 ||
@@ -438,11 +438,11 @@ func TestReadWeightsMiMo2MixedDenseAndMoE(t *testing.T) {
 	}
 	dense, moe := weights.Layers[0], weights.Layers[1]
 	if weights.Output == nil || dense.AttentionQKV == nil || dense.AttentionSinks == nil ||
-		dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
+		dense.FeedForwardGate == nil || dense.FeedForwardRouter != nil ||
 		moe.AttentionQKV == nil || moe.AttentionSinks != nil || moe.FeedForwardRouter == nil ||
 		moe.FeedForwardExpertBias == nil || moe.FeedForwardGateExperts == nil ||
-		moe.FeedForwardUp.Name != "" || len(weights.AppendedSingleDraft) != 1 ||
-		weights.AppendedSingleDraft[0].Layer.FeedForwardGate.Name == "" ||
+		moe.FeedForwardUp != nil || len(weights.AppendedSingleDraft) != 1 ||
+		weights.AppendedSingleDraft[0].Layer.FeedForwardGate == nil ||
 		weights.AppendedSingleDraft[0].LayerOutputNorm == nil {
 		t.Fatalf("unexpected MiMo2 catalog: dense=%+v moe=%+v", dense, moe)
 	}
@@ -508,7 +508,7 @@ func TestReadWeightsStep35MixedDenseAndMoE(t *testing.T) {
 		t.Fatal(err)
 	}
 	dense, moe := weights.Layers[0], weights.Layers[1]
-	if weights.Output == nil || dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
+	if weights.Output == nil || dense.FeedForwardGate == nil || dense.FeedForwardRouter != nil ||
 		dense.RopeFactors == nil || moe.RopeFactors == nil ||
 		moe.AttentionQNorm == nil || moe.AttentionKNorm == nil || moe.AttentionOutputGate == nil ||
 		moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
@@ -594,7 +594,7 @@ func TestReadWeightsDBRX(t *testing.T) {
 		layer.AttentionNormBias != nil || layer.FeedForwardNorm.Name != "blk.0.attn_output_norm.weight" ||
 		layer.FeedForwardNormBias != nil || layer.FeedForwardRouter == nil ||
 		layer.FeedForwardGateExperts == nil || layer.FeedForwardUpExperts == nil ||
-		layer.FeedForwardDownExperts == nil || layer.FeedForwardUp.Name != "" {
+		layer.FeedForwardDownExperts == nil || layer.FeedForwardUp != nil {
 		t.Fatalf("unexpected DBRX catalog: %+v", weights)
 	}
 }
@@ -625,8 +625,8 @@ func TestReadWeightsArcticParallelDenseAndMoE(t *testing.T) {
 	}
 	layer := weights.Layers[0]
 	if weights.Output != nil || layer.FeedForwardExpertNorm == nil ||
-		layer.FeedForwardGate.Name == "" || layer.FeedForwardUp.Name == "" ||
-		layer.FeedForwardDown.Name == "" || layer.FeedForwardRouter == nil ||
+		layer.FeedForwardGate == nil || layer.FeedForwardUp == nil ||
+		layer.FeedForwardDown == nil || layer.FeedForwardRouter == nil ||
 		layer.FeedForwardGateExperts == nil || layer.FeedForwardUpExperts == nil ||
 		layer.FeedForwardDownExperts == nil {
 		t.Fatalf("unexpected Arctic catalog: %+v", weights)
@@ -695,11 +695,11 @@ func TestReadWeightsDeciSparseLayers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if weights.Layers[0].AttentionQKV == nil || weights.Layers[0].AttentionOutput.Name == "" ||
-		weights.Layers[1].AttentionQ.Name != "" || weights.Layers[1].AttentionOutput.Name == "" ||
-		weights.Layers[2].AttentionNorm.Name != "" || weights.Layers[2].FeedForwardUp.Name == "" ||
-		weights.Layers[3].AttentionNorm.Name != "" || weights.Layers[3].FeedForwardNorm.Name != "" ||
-		weights.Layers[3].FeedForwardUp.Name != "" {
+	if weights.Layers[0].AttentionQKV == nil || weights.Layers[0].AttentionOutput == nil ||
+		weights.Layers[1].AttentionQ != nil || weights.Layers[1].AttentionOutput == nil ||
+		weights.Layers[2].AttentionNorm != nil || weights.Layers[2].FeedForwardUp == nil ||
+		weights.Layers[3].AttentionNorm != nil || weights.Layers[3].FeedForwardNorm != nil ||
+		weights.Layers[3].FeedForwardUp != nil {
 		t.Fatalf("unexpected Deci catalog: %+v", weights)
 	}
 }
@@ -742,7 +742,7 @@ func TestReadWeightsGrokOptionalDenseBranch(t *testing.T) {
 				if layer.AttentionQKV == nil || layer.AttentionPostNorm == nil ||
 					layer.FeedForwardPostNorm == nil || layer.FeedForwardRouter == nil ||
 					(layer.FeedForwardGateExperts != nil) != gated || layer.FeedForwardUpExperts == nil ||
-					layer.FeedForwardDownExperts == nil || (layer.FeedForwardUp.Name != "") != dense {
+					layer.FeedForwardDownExperts == nil || (layer.FeedForwardUp != nil) != dense {
 					t.Fatalf("unexpected Grok catalog: %+v", weights)
 				}
 			})
@@ -834,7 +834,7 @@ func TestReadWeightsChatGLM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w.Layers[0].AttentionQKV == nil || w.Layers[0].FeedForwardUp.Name == "" || w.Layers[0].FeedForwardGate.Name != "" {
+	if w.Layers[0].AttentionQKV == nil || w.Layers[0].FeedForwardUp == nil || w.Layers[0].FeedForwardGate != nil {
 		t.Fatalf("unexpected ChatGLM catalog: %+v", w)
 	}
 }
@@ -963,7 +963,7 @@ func TestReadWeightsDeepSeekDenseThenMoEWithTiedOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	dense, moe := weights.Layers[0], weights.Layers[1]
-	if weights.Output != nil || dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
+	if weights.Output != nil || dense.FeedForwardGate == nil || dense.FeedForwardRouter != nil ||
 		moe.FeedForwardRouter == nil || moe.FeedForwardGateExperts == nil ||
 		moe.FeedForwardUpExperts == nil || moe.FeedForwardDownExperts == nil ||
 		moe.FeedForwardSharedGate == nil || moe.FeedForwardSharedUp == nil ||
@@ -1073,7 +1073,7 @@ func TestReadWeightsDOTS1DenseThenMoE(t *testing.T) {
 	}
 	dense, moe := weights.Layers[0], weights.Layers[1]
 	if weights.Output == nil || dense.AttentionQKV == nil || dense.AttentionQNorm == nil ||
-		dense.AttentionKNorm == nil || dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
+		dense.AttentionKNorm == nil || dense.FeedForwardGate == nil || dense.FeedForwardRouter != nil ||
 		moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
 		moe.FeedForwardSharedGate == nil || moe.FeedForwardSharedUp == nil ||
 		moe.FeedForwardSharedDown == nil {
@@ -1163,8 +1163,8 @@ func TestReadWeightsBailingMoE2DenseThenMoE(t *testing.T) {
 		t.Fatal(err)
 	}
 	dense, moe := weights.Layers[0], weights.Layers[1]
-	if weights.Output == nil || dense.AttentionQKV == nil || dense.AttentionQ.Name != "" ||
-		dense.FeedForwardGate.Name == "" || dense.FeedForwardRouter != nil ||
+	if weights.Output == nil || dense.AttentionQKV == nil || dense.AttentionQ != nil ||
+		dense.FeedForwardGate == nil || dense.FeedForwardRouter != nil ||
 		moe.AttentionQKV == nil || moe.AttentionQNorm == nil || moe.AttentionKNorm == nil ||
 		moe.FeedForwardRouter == nil || moe.FeedForwardExpertBias == nil ||
 		moe.FeedForwardSharedGate == nil || moe.FeedForwardSharedUp == nil ||
@@ -1235,7 +1235,7 @@ func TestReadWeightsLlamaEmbedDenseAndMoE(t *testing.T) {
 		t.Fatal(err)
 	}
 	if dense.OutputNorm.Name != "output_norm.weight" || dense.Output != nil ||
-		dense.Layers[0].FeedForwardGate.Name == "" || dense.Layers[0].FeedForwardRouter != nil {
+		dense.Layers[0].FeedForwardGate == nil || dense.Layers[0].FeedForwardRouter != nil {
 		t.Fatalf("unexpected dense Llama Embed catalog: %+v", dense)
 	}
 
@@ -1254,7 +1254,7 @@ func TestReadWeightsLlamaEmbedDenseAndMoE(t *testing.T) {
 	}
 	if moe.Layers[0].FeedForwardRouter == nil || moe.Layers[0].FeedForwardGateExperts == nil ||
 		moe.Layers[0].FeedForwardUpExperts == nil || moe.Layers[0].FeedForwardDownExperts == nil ||
-		moe.Layers[0].FeedForwardGate.Name != "" {
+		moe.Layers[0].FeedForwardGate != nil {
 		t.Fatalf("unexpected MoE Llama Embed catalog: %+v", moe.Layers[0])
 	}
 }
@@ -1314,7 +1314,7 @@ func TestReadWeightsPanguEmbeddedRequiresOutputBiasAndSelectsLongRoPE(t *testing
 		t.Fatal(err)
 	}
 	if fused.Layers[0].AttentionQKV == nil || fused.Layers[0].AttentionQKVBias == nil ||
-		fused.Layers[0].AttentionQ.Name != "" {
+		fused.Layers[0].AttentionQ != nil {
 		t.Fatalf("unexpected fused Pangu Embedded catalog: %+v", fused.Layers[0])
 	}
 }
@@ -1350,9 +1350,9 @@ func TestReadWeightsModernBERTUsesOptionalFirstNormAndFusedGEGLU(t *testing.T) {
 	}
 	if weights.TokenEmbeddingNorm == nil || weights.TokenEmbeddingNormBias != nil ||
 		weights.OutputNorm.Name != "output_norm.weight" || weights.Output != nil ||
-		weights.Layers[0].AttentionNorm.Name != "" || weights.Layers[1].AttentionNorm.Name == "" ||
+		weights.Layers[0].AttentionNorm != nil || weights.Layers[1].AttentionNorm == nil ||
 		weights.Layers[0].AttentionQKV == nil || weights.Layers[0].FeedForwardUp.Shape[1] != 32 ||
-		weights.Layers[0].FeedForwardGate.Name != "" {
+		weights.Layers[0].FeedForwardGate != nil {
 		t.Fatalf("unexpected ModernBERT catalog: %+v", weights)
 	}
 }
@@ -1412,9 +1412,9 @@ func TestReadWeightsEuroBERTFusedQKVWithoutOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	layer := weights.Layers[0]
-	if weights.Output != nil || layer.AttentionQKV == nil || layer.AttentionQ.Name != "" ||
-		layer.FeedForwardGate.Name == "" || layer.FeedForwardUp.Name == "" ||
-		layer.FeedForwardDown.Name == "" {
+	if weights.Output != nil || layer.AttentionQKV == nil || layer.AttentionQ != nil ||
+		layer.FeedForwardGate == nil || layer.FeedForwardUp == nil ||
+		layer.FeedForwardDown == nil {
 		t.Fatalf("unexpected EuroBERT catalog: %+v", weights)
 	}
 }
@@ -1447,9 +1447,9 @@ func TestReadWeightsBERTPostNormEncoder(t *testing.T) {
 	if weights.OutputNorm.Name != "" || weights.Output != nil || weights.PositionEmbedding == nil ||
 		weights.TokenTypeEmbedding == nil || weights.TokenEmbeddingNorm == nil ||
 		weights.TokenEmbeddingNormBias == nil || layer.AttentionQKV == nil ||
-		layer.AttentionQKVBias == nil || layer.AttentionNorm.Name != "" ||
+		layer.AttentionQKVBias == nil || layer.AttentionNorm != nil ||
 		layer.AttentionPostNorm == nil || layer.AttentionPostNormBias == nil ||
-		layer.FeedForwardNorm.Name != "" || layer.FeedForwardGate.Name != "" ||
+		layer.FeedForwardNorm != nil || layer.FeedForwardGate != nil ||
 		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil ||
 		layer.FeedForwardPostNorm == nil || layer.FeedForwardPostNormBias == nil {
 		t.Fatalf("unexpected BERT catalog: %+v", weights)
@@ -1474,8 +1474,8 @@ func TestReadWeightsNeoBERTFusedQKVAndSwiGLU(t *testing.T) {
 	}
 	layer := weights.Layers[0]
 	if weights.OutputNorm.Name != "enc.output_norm.weight" || weights.Output != nil ||
-		layer.AttentionQKV == nil || layer.AttentionQ.Name != "" ||
-		layer.FeedForwardGate.Name != "" || layer.FeedForwardUp.Shape[1] != 32 {
+		layer.AttentionQKV == nil || layer.AttentionQ != nil ||
+		layer.FeedForwardGate != nil || layer.FeedForwardUp.Shape[1] != 32 {
 		t.Fatalf("unexpected NeoBERT catalog: %+v", weights)
 	}
 }
@@ -1507,9 +1507,9 @@ func TestReadWeightsNomicBERTPostNormSwiGLU(t *testing.T) {
 	if weights.OutputNorm.Name != "" || weights.Output != nil || weights.PositionEmbedding != nil ||
 		weights.TokenTypeEmbedding == nil || weights.TokenEmbeddingNorm == nil ||
 		weights.TokenEmbeddingNormBias == nil || layer.AttentionQKV == nil ||
-		layer.AttentionQKVBias == nil || layer.AttentionNorm.Name != "" ||
+		layer.AttentionQKVBias == nil || layer.AttentionNorm != nil ||
 		layer.AttentionPostNorm == nil || layer.AttentionPostNormBias == nil ||
-		layer.FeedForwardNorm.Name != "" || layer.FeedForwardGate.Name == "" ||
+		layer.FeedForwardNorm != nil || layer.FeedForwardGate == nil ||
 		layer.FeedForwardUpBias == nil || layer.FeedForwardDownBias == nil ||
 		layer.FeedForwardPostNorm == nil || layer.FeedForwardPostNormBias == nil {
 		t.Fatalf("unexpected NomicBERT catalog: %+v", weights)

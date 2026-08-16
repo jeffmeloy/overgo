@@ -25,11 +25,11 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 		prefix := fmt.Sprintf("blk.%d.", block)
 		layer := &result.Layers[block]
 		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-			requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
-			requiredTensor("attn_q_a.weight", &layer.AttentionQ, width, uint64(spec.QLoRARank)),
-			requiredTensor("attn_kv.weight", &layer.AttentionK, width, headWidth),
-			requiredTensor("attn_output.weight", &layer.AttentionOutput, uint64(spec.AttentionOutputGroups*spec.AttentionOutputRank), width),
-			requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, width),
+			requiredTensorPointer("attn_norm.weight", &layer.AttentionNorm, width),
+			requiredTensorPointer("attn_q_a.weight", &layer.AttentionQ, width, uint64(spec.QLoRARank)),
+			requiredTensorPointer("attn_kv.weight", &layer.AttentionK, width, headWidth),
+			requiredTensorPointer("attn_output.weight", &layer.AttentionOutput, uint64(spec.AttentionOutputGroups*spec.AttentionOutputRank), width),
+			requiredTensorPointer("ffn_norm.weight", &layer.FeedForwardNorm, width),
 			requiredTensorPointer("attn_sinks.weight", &layer.AttentionSinks, uint64(spec.HeadCount)),
 			requiredTensorPointer("attn_q_a_norm.weight", &layer.AttentionQNorm, uint64(spec.QLoRARank)),
 			requiredTensorPointer("attn_q_b.weight", &layer.AttentionQB, uint64(spec.QLoRARank), uint64(spec.HeadCount)*headWidth),

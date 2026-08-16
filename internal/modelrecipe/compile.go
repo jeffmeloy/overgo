@@ -120,15 +120,6 @@ type linearCapability struct {
 	stages    []scalarStage
 }
 
-// ProjectionModality: typed projection graph branch.
-type ProjectionModality uint8
-
-const (
-	ProjectionImage ProjectionModality = iota + 1
-	ProjectionAudio
-	ProjectionVideo
-)
-
 type projectionStage struct {
 	name    string
 	media   recipe.DataKind
@@ -137,31 +128,31 @@ type projectionStage struct {
 	project recipe.ModuleID
 }
 
-var projectionStages = map[ProjectionModality]projectionStage{
-	ProjectionImage: {"image", recipe.DataImage, recipe.DataImageTensor, workflowrecipe.ModuleDecodeImage, workflowrecipe.ModuleProjectImage},
-	ProjectionAudio: {"audio", recipe.DataAudio, recipe.DataAudioTensor, workflowrecipe.ModuleDecodeAudio, workflowrecipe.ModuleProjectAudio},
-	ProjectionVideo: {"video", recipe.DataVideo, recipe.DataVideoTensor, workflowrecipe.ModuleDecodeVideo, workflowrecipe.ModuleProjectVideo},
+var projectionStages = map[recipe.DataKind]projectionStage{
+	recipe.DataImage: {"image", recipe.DataImage, recipe.DataImageTensor, workflowrecipe.ModuleDecodeImage, workflowrecipe.ModuleProjectImage},
+	recipe.DataAudio: {"audio", recipe.DataAudio, recipe.DataAudioTensor, workflowrecipe.ModuleDecodeAudio, workflowrecipe.ModuleProjectAudio},
+	recipe.DataVideo: {"video", recipe.DataVideo, recipe.DataVideoTensor, workflowrecipe.ModuleDecodeVideo, workflowrecipe.ModuleProjectVideo},
 }
 
 // ProjectionDefinition: one exact projector bundle; one branch per supported modality.
 func ProjectionDefinition(
 	modelID, projectorID artifact.ID,
-	modalities ...ProjectionModality,
+	media ...recipe.DataKind,
 ) (recipe.Definition, error) {
-	if len(modalities) == 0 {
+	if len(media) == 0 {
 		return recipe.Definition{}, errors.New("model recipe: projection bundle is empty")
 	}
-	modalities = slices.Clone(modalities)
-	slices.Sort(modalities)
-	modalities = slices.Compact(modalities)
-	nodes := make([]recipe.Node, 0, 2*len(modalities))
-	edges := make([]recipe.Edge, 0, len(modalities))
-	inputs := make([]recipe.Input, 0, len(modalities))
-	outputs := make([]recipe.Output, 0, len(modalities))
-	for _, modality := range modalities {
-		stage, ok := projectionStages[modality]
+	media = slices.Clone(media)
+	slices.Sort(media)
+	media = slices.Compact(media)
+	nodes := make([]recipe.Node, 0, 2*len(media))
+	edges := make([]recipe.Edge, 0, len(media))
+	inputs := make([]recipe.Input, 0, len(media))
+	outputs := make([]recipe.Output, 0, len(media))
+	for _, kind := range media {
+		stage, ok := projectionStages[kind]
 		if !ok {
-			return recipe.Definition{}, fmt.Errorf("model recipe: unknown projection modality %d", modality)
+			return recipe.Definition{}, fmt.Errorf("model recipe: unsupported projection media %q", kind)
 		}
 		decodeID := recipe.NodeID(stage.name + "-decode")
 		projectID := recipe.NodeID(stage.name + "-project")

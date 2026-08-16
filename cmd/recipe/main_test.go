@@ -25,6 +25,10 @@ func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 			}
 		})
 	}
+	projection := projectionCapability("")
+	if projection.resolve == nil || projection.execute != nil {
+		t.Fatalf("projection capability = %+v", projection)
+	}
 }
 
 func TestCapabilityVerificationActivatesCandidate(t *testing.T) {

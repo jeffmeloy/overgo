@@ -32,7 +32,6 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
@@ -75,23 +74,28 @@ func run() error {
 	path := roots.ResolveModelPath(flags.Arg(0))
 	selectedTask := recipe.Task(*task)
 	capability, capabilityKnown := capabilities[selectedTask]
+	if selectedTask == recipe.TaskProjection && verb != "status" {
+		if strings.TrimSpace(*projectorPath) == "" {
+			return errors.New("projection requires -projector")
+		}
+		capability = projectionCapability(roots.ResolveModelPath(*projectorPath))
+		capabilityKnown = true
+	}
 	switch verb {
 	case "verify":
-		if selectedTask == recipe.TaskProjection {
-			if strings.TrimSpace(*projectorPath) == "" {
-				return errors.New("projection verification requires -projector")
-			}
-			return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath))
-		}
-		if !capabilityKnown || capability.execute == nil {
+		if !capabilityKnown {
 			return fmt.Errorf("task %q has no registered verifier runtime", selectedTask)
 		}
-		rawInput, inputErr := readInput(*input)
-		if inputErr != nil {
-			return inputErr
-		}
-		if strings.TrimSpace(rawInput) == "" {
-			return errors.New("verify requires -input JSON")
+		rawInput := ""
+		if capability.execute != nil {
+			var inputErr error
+			rawInput, inputErr = readInput(*input)
+			if inputErr != nil {
+				return inputErr
+			}
+			if strings.TrimSpace(rawInput) == "" {
+				return errors.New("verify requires -input JSON")
+			}
 		}
 		return verifyCapability(repository, path, selectedTask, capability, rawInput)
 	case "activate":
@@ -101,14 +105,6 @@ func run() error {
 		verification, verificationErr := parseVerification(*gate, *runID)
 		if verificationErr != nil {
 			return verificationErr
-		}
-		if selectedTask == recipe.TaskProjection {
-			if strings.TrimSpace(*projectorPath) == "" {
-				return errors.New("projection activation requires -projector")
-			}
-			return activateProjection(
-				repository, path, roots.ResolveModelPath(*projectorPath), *reason, verification,
-			)
 		}
 		if capabilityKnown {
 			return activateCapability(repository, path, *reason, selectedTask, capability, verification)
@@ -200,111 +196,6 @@ func activateCapability(
 	return nil
 }
 
-func activateProjection(
-	repository, modelPath, projectorPath, reason string,
-	verification modelrecipe.Verification,
-) error {
-	ctx := context.Background()
-	store, err := repodb.Open(repository)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	modelID, definition, err := prepareProjection(ctx, store, modelPath, projectorPath)
-	if err != nil {
-		return err
-	}
-	if err := modelrecipe.ActivateCapability(
-		ctx, store, definition, verification, recipe.EvidenceExperimental, reason,
-	); err != nil {
-		return err
-	}
-	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  projector  %s\n  recipe     %s\n  reason     %s\n",
-		modelPath, recipe.TaskProjection, modelID, projectorPath, definition.ID, reason)
-	return nil
-}
-
-func verifyProjection(repository, modelPath, projectorPath string) error {
-	ctx := context.Background()
-	revision, err := cleanGoRevision()
-	if err != nil {
-		return err
-	}
-	store, err := repodb.Open(repository)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	_, definition, err := prepareProjection(ctx, store, modelPath, projectorPath)
-	if err != nil {
-		return err
-	}
-	if _, published, err := modelrecipe.Status(ctx, store, definition.ID); err != nil {
-		return err
-	} else if !published {
-		if _, _, err := modelrecipe.PublishCandidate(
-			ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
-		); err != nil {
-			return err
-		}
-	}
-	started := time.Now()
-	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		return err
-	}
-	if len(program.Stages()) != len(definition.Nodes) {
-		return errors.New("projection recipe compilation is incomplete")
-	}
-	verification, err := publishCapabilityVerification(ctx, store, definition, revision, time.Since(started))
-	if err != nil {
-		return err
-	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]string{
-		"gate_id": verification.Gate.String(), "recipe_id": definition.ID.String(),
-		"run_id": verification.Run.String(),
-	})
-}
-
-func prepareProjection(
-	ctx context.Context,
-	store artifact.Repository,
-	modelPath, projectorPath string,
-) (artifact.ID, recipe.Definition, error) {
-	file, err := gguf.Open(modelPath)
-	if err != nil {
-		return artifact.ID{}, recipe.Definition{}, err
-	}
-	modelInventory, inventoryErr := modelartifact.FromGGUF(file, artifact.KindModel)
-	closeErr := file.Close()
-	if err := errors.Join(inventoryErr, closeErr); err != nil {
-		return artifact.ID{}, recipe.Definition{}, err
-	}
-	projectorInventory, definition, err := projector.CompileProjectionDefinition(
-		ctx, modelInventory.Manifest.ID, projectorPath,
-	)
-	if err != nil {
-		return artifact.ID{}, recipe.Definition{}, err
-	}
-	modelFacts, err := modelInventory.Batch("recipe/projection/facts/" + definition.ID.String())
-	if err != nil {
-		return artifact.ID{}, recipe.Definition{}, err
-	}
-	projectorFacts, err := projectorInventory.Batch(modelFacts.Key)
-	if err != nil {
-		return artifact.ID{}, recipe.Definition{}, err
-	}
-	modelFacts.Artifacts = append(modelFacts.Artifacts, projectorFacts.Artifacts...)
-	modelFacts.Contents = append(modelFacts.Contents, projectorFacts.Contents...)
-	modelFacts.Manifests = append(modelFacts.Manifests, projectorFacts.Manifests...)
-	modelFacts.Lineage = append(modelFacts.Lineage, projectorFacts.Lineage...)
-	modelFacts.Locations = append(modelFacts.Locations, projectorFacts.Locations...)
-	if _, err := store.Commit(ctx, modelFacts); err != nil {
-		return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish projection facts: %w", err)
-	}
-	return modelInventory.Manifest.ID, definition, nil
-}
-
 func prepareCapability(
 	ctx context.Context,
 	store artifact.Repository,
@@ -330,6 +221,17 @@ func prepareCapability(
 	batch, err := source.inventory.Batch("recipe/facts/" + modelID.String())
 	if err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
+	}
+	for _, related := range source.related {
+		relatedBatch, err := related.Batch(batch.Key)
+		if err != nil {
+			return artifact.ID{}, recipe.Definition{}, err
+		}
+		batch.Artifacts = append(batch.Artifacts, relatedBatch.Artifacts...)
+		batch.Contents = append(batch.Contents, relatedBatch.Contents...)
+		batch.Manifests = append(batch.Manifests, relatedBatch.Manifests...)
+		batch.Lineage = append(batch.Lineage, relatedBatch.Lineage...)
+		batch.Locations = append(batch.Locations, relatedBatch.Locations...)
 	}
 	batch.Contents = append(batch.Contents, facts...)
 	if _, err := store.Commit(ctx, batch); err != nil {
@@ -365,18 +267,25 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 		return err
 	}
 	started := time.Now()
-	output, err := capability.execute(ctx, store, path, modelID, program, input)
-	if err != nil {
-		return err
+	var output any
+	if capability.execute != nil {
+		output, err = capability.execute(ctx, store, path, modelID, program, input)
+		if err != nil {
+			return err
+		}
 	}
 	verification, err := publishCapabilityVerification(ctx, store, definition, revision, time.Since(started))
 	if err != nil {
 		return err
 	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{
-		"gate_id": verification.Gate.String(), "output": output,
+	result := map[string]any{
+		"gate_id":   verification.Gate.String(),
 		"recipe_id": definition.ID.String(), "run_id": verification.Run.String(),
-	})
+	}
+	if capability.execute != nil {
+		result["output"] = output
+	}
+	return json.NewEncoder(os.Stdout).Encode(result)
 }
 
 func publishCapabilityVerification(

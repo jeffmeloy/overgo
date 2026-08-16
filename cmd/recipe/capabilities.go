@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,7 +10,10 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/seq2seq"
 	"overgo/internal/seriesforecast"
@@ -24,6 +28,7 @@ type capability struct {
 
 type capabilitySource struct {
 	inventory modelartifact.Inventory
+	related   []modelartifact.Inventory
 	define    func(artifact.ID) (recipe.Definition, []artifact.Content, error)
 }
 
@@ -52,6 +57,32 @@ func inventoryCapability(
 		},
 		execute: execute,
 	}
+}
+
+func projectionCapability(projectorPath string) capability {
+	return capability{resolve: func(modelPath string) (capabilitySource, error) {
+		file, err := gguf.Open(modelPath)
+		if err != nil {
+			return capabilitySource{}, err
+		}
+		modelInventory, inventoryErr := modelartifact.FromGGUF(file, artifact.KindModel)
+		inventoryErr = errors.Join(inventoryErr, file.Close())
+		if inventoryErr != nil {
+			return capabilitySource{}, inventoryErr
+		}
+		projectorInventory, media, err := projector.InspectProjection(context.Background(), projectorPath)
+		if err != nil {
+			return capabilitySource{}, err
+		}
+		return capabilitySource{
+			inventory: modelInventory,
+			related:   []modelartifact.Inventory{projectorInventory},
+			define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+				definition, err := modelrecipe.ProjectionDefinition(modelID, projectorInventory.Manifest.ID, media...)
+				return definition, nil, err
+			},
+		}, nil
+	}}
 }
 
 var capabilities = map[recipe.Task]capability{

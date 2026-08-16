@@ -50,68 +50,83 @@ func ResolveActiveGGUFWithPolicy(
 	}
 	defer store.Close()
 	ctx := context.Background()
+	if err := PublishActiveGGUFWithPolicy(ctx, store, path, placement, session, residency); err != nil {
+		return modelrecipe.LoadedProgram{}, err
+	}
+	return modelrecipe.ResolveActiveGGUF(ctx, store, path)
+}
+
+// PublishActiveGGUFWithPolicy provisions one verified serving recipe.
+func PublishActiveGGUFWithPolicy(
+	ctx context.Context,
+	store artifact.Repository,
+	path string,
+	placement recipe.Placement,
+	session modelrecipe.DecodeSessionPolicy,
+	residency recipe.ResidencyPolicy,
+) error {
 	file, err := gguf.Open(path)
 	if err != nil {
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if err != nil {
 		_ = file.Close()
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
 	spec, err := model.ReadSpec(file)
 	if err != nil {
 		_ = file.Close()
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
 	profile := spec.Profile()
 	profileDocument, err := modelrecipe.NewProfileDocument(profile)
 	if err != nil {
 		_ = file.Close()
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
 	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
 	closeErr := file.Close()
 	if err != nil || closeErr != nil {
-		return modelrecipe.LoadedProgram{}, errors.Join(err, closeErr)
+		return errors.Join(err, closeErr)
 	}
 	resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
 	if err != nil {
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
 	prefix := "fixture/serving/" + inventory.Manifest.ID.String()
 	if _, err := modelrecipe.PublishResolvedModelDefinition(
 		ctx, store, prefix+"/facts", inventory, resolved,
 	); err != nil {
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		inventory.Manifest.ID, profileDocument.ID, document.ID, placement,
 		session, residency,
 	)
 	if err != nil {
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, prefix+"/candidate", definition); err != nil {
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
 	if _, _, err := modelrecipe.Transition(
 		ctx, store, prefix+"/validated", definition, recipe.StatusValidated, nil, nil,
 	); err != nil {
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
 	verification, err := modelrecipetest.PublishVerification(
 		ctx, store, prefix+"/verification", definition.ID,
 	)
 	if err != nil {
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, prefix+"/active", definition, verification, nil, nil,
 	); err != nil {
-		return modelrecipe.LoadedProgram{}, err
+		return err
 	}
-	return modelrecipe.ResolveActiveGGUF(ctx, store, path)
+	return nil
 }
 
 func defaultResidency(placement recipe.Placement) recipe.ResidencyPolicy {

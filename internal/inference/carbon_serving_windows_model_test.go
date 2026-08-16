@@ -59,7 +59,7 @@ func TestCarbonServingGolden(t *testing.T) {
 		t.Fatalf("invalid Carbon serving evidence: schema=%q cases=%d", golden.Schema, len(golden.Cases))
 	}
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
-		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceF32,
+		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,
 	)
 	if err != nil {
 		t.Fatal(err)

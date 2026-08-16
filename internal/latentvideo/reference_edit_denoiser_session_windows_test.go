@@ -3,6 +3,7 @@
 package latentvideo
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"math"
@@ -11,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/pytorchzip"
@@ -130,6 +133,99 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 		stats.Layers, stats.HistoryTokens, stats.ContextProjections, stats.Runs, retainedWall.Seconds(),
 		float64(stats.WeightBytes)/(1<<30), float64(memory.PeakBytes)/(1<<30), execution.GraphInstantiations, execution.GraphLaunches)
 	t.Logf("LiveEdit retained history effect: max_abs=%.6g", historyEffect)
+}
+
+func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
+	cudatest.Require(t)
+	repo := testutil.RepoRoot(t)
+	roots, err := dataroot.Resolve(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wanDir := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
+	policy := DenoiserPolicy{
+		NumTrainTimesteps: 1000, SinusoidalPeriod: 10000, RotaryFrequencyBase: 10000,
+		VAEStride: [3]int{4, 8, 8},
+	}
+	base, err := LoadDenoiserConfig(wanDir, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpoint, err := CompileReferenceEditCheckpoint(
+		filepath.Join(filepath.Dir(wanDir), "LiveEdit", "ar-forcing_002000.pt"), base,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	geometry := LatentGeometry{
+		Channels: checkpoint.Config.InDim, LatentFrames: 3, LatentHeight: 32, LatentWidth: 64,
+		Grid: [3]int{3, 16, 32}, Seq: 3 * 16 * 32,
+	}
+	layers := 2
+	context := readRetainedDenoiserF32(t, testutil.FixturePath(t, "wan", "raw", "g1_cond_context.f32le"), base.TextLen*base.Dim)
+	session, err := NewReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, layers, 3, 21, 21, 0, context)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	combined := make([]float32, geometry.Channels*geometry.LatentFrames*geometry.LatentHeight*geometry.LatentWidth)
+	for index := range combined {
+		combined[index] = float32(index%257-128) / 257
+	}
+	patches, err := session.cold.PatchifyLatent(combined)
+	if err != nil {
+		t.Fatal(err)
+	}
+	headE, blockE, err := CompileTimestepConditioning([]float64{900}, session.cold.timestepWeights)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := func() ([]float32, [][2][sha256.Size]byte) {
+		t.Helper()
+		if err := session.ResetHistory(); err != nil {
+			t.Fatal(err)
+		}
+		output, err := session.RunChunk(patches, blockE, headE, 0, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digests := make([][2][sha256.Size]byte, layers)
+		for layer := range layers {
+			for kind, buffer := range []*executor.DeviceBuffer{session.cacheKeys[layer], session.cacheValues[layer]} {
+				value, err := buffer.Value(session.cold.currentSelfKeys[layer].Shape)
+				if kind == 1 {
+					value, err = buffer.Value(session.cold.currentSelfVals[layer].Shape)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				elements, err := value.Shape.Elements()
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw := make([]byte, int(elements)*4)
+				if err := session.worker.Do(t.Context(), func(state *device.State) error {
+					return state.Driver.MemcpyDtoH(raw, value.Pointer)
+				}); err != nil {
+					t.Fatal(err)
+				}
+				digests[layer][kind] = sha256.Sum256(raw)
+			}
+		}
+		return output, digests
+	}
+	first, firstDigests := run()
+	second, secondDigests := run()
+	for layer := range firstDigests {
+		for kind, name := range []string{"key", "value"} {
+			if firstDigests[layer][kind] != secondDigests[layer][kind] {
+				t.Fatalf("retained replay layer=%d %s digest differs", layer, name)
+			}
+		}
+	}
+	if worst := maxAbsDifference(first, second); worst != 0 {
+		t.Fatalf("retained replay head max_abs=%.6g", worst)
+	}
 }
 
 func encodeRetainedDenoiserSource(t testing.TB, repo, models string) []float32 {

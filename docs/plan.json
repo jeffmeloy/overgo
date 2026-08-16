@@ -41,7 +41,7 @@
     {
       "id": "rung15-sensenova",
       "title": "Close full-size SenseNova generation quality; retain the edit-oracle input blocker",
-      "status": "open",
+      "status": "blocked-external-prereq",
       "steps": [
         {
           "id": "edit-layer-parity",

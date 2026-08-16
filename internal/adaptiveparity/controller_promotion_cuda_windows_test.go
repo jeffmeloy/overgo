@@ -117,13 +117,16 @@ func controllerRecords(commit string, holdout bool) []controllertrain.Record {
 
 func controllerSourceCommit(t *testing.T) string {
 	t.Helper()
-	command := exec.Command("git", "rev-parse", "HEAD")
-	command.Dir = "../.."
-	output, err := command.Output()
-	if err != nil {
-		t.Fatal(err)
+	for _, revision := range []string{"MERGE_HEAD", "HEAD"} {
+		command := exec.Command("git", "rev-parse", "--verify", revision)
+		command.Dir = "../.."
+		output, err := command.Output()
+		if err == nil {
+			return strings.TrimSpace(string(output))
+		}
 	}
-	return strings.TrimSpace(string(output))
+	t.Fatal("Git source commit is unavailable")
+	return ""
 }
 
 func verifyControllerSources(t *testing.T, commit string) {

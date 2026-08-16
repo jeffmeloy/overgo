@@ -91,7 +91,10 @@ __device__ float block_sum_f32(float value, float * partial) {
         }
         __syncthreads();
     }
-    return partial[0];
+    const float total = partial[0];
+    // Close reduction lifetime before callers reuse shared storage.
+    __syncthreads();
+    return total;
 }
 
 __device__ float block_max_f32(float value, float * partial) {
@@ -4677,6 +4680,7 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
             local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 1);
             local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 2);
             local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 4);
+            __syncwarp();
             if (part == 0) {
                 maximum_row[row] = next_maximum;
                 sum_row[row] = sum_row[row] * alpha + local_sum;

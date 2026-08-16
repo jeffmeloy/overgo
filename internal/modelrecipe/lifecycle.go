@@ -358,6 +358,12 @@ type Activation struct {
 	Decisions  []recipe.Decision
 }
 
+// HasActiveRecipe reports declaration only; ActiveRecord validates evidence.
+func HasActiveRecipe(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (bool, error) {
+	_, ok, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, task))
+	return ok, err
+}
+
 func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (Activation, bool, error) {
 	id, ok, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, task))
 	if err != nil || !ok {
@@ -366,6 +372,9 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 	definition, err := loadDefinition(ctx, store, id)
 	if err != nil {
 		return Activation{}, false, err
+	}
+	if definition.Model != modelID || definition.Task != task {
+		return Activation{}, false, errors.New("model recipe: active alias subject mismatch")
 	}
 	event, err := currentEvent(ctx, store, definition.ID)
 	if err != nil {

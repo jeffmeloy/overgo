@@ -32,7 +32,7 @@ func run() error {
 	if *probeRow != "" {
 		return probeRoadmapRow(*root, filepath.Join(*root, filepath.FromSlash(*storePath)), data, *probeRow)
 	}
-	evidence, err := collectEvidence(*root, filepath.Join(*root, filepath.FromSlash(*storePath)))
+	evidence, err := collectEvidence(*root, filepath.Join(*root, filepath.FromSlash(*storePath)), data)
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func run() error {
 	return clioptions.WritePrettyJSON(os.Stdout, report)
 }
 
-func collectEvidence(root, storePath string) (plan.RoadmapEvidence, error) {
+func collectEvidence(root, storePath string, roadmapData []byte) (plan.RoadmapEvidence, error) {
 	document, err := plan.Load(filepath.Join(root, filepath.FromSlash(plan.Path)))
 	if err != nil {
 		return plan.RoadmapEvidence{}, err
@@ -82,6 +82,17 @@ func collectEvidence(root, storePath string) (plan.RoadmapEvidence, error) {
 					id, _, _ := strings.Cut(step.Evidence, "/")
 					evidence.Landed[id] = id != ""
 				}
+			}
+			continue
+		}
+		completion, completionOK, err := plan.ReadRoadmapCompletion(ctx, store, descriptor.ID)
+		if err == nil && completionOK && reachable[completion.CodeCommit] {
+			verifier, verifierErr := plan.RoadmapVerifier(roadmapData, completion.Row)
+			runContent, ok, readErr := store.Content(ctx, completion.Run)
+			run, parseErr := runrecord.ParseRun(runContent.Data)
+			if verifierErr == nil && verifier == completion.Verifier && readErr == nil && ok && parseErr == nil &&
+				run.Outcome == runrecord.OutcomeSucceeded && run.CodeCommit == completion.CodeCommit {
+				evidence.Landed[completion.Row] = true
 			}
 			continue
 		}

@@ -16,11 +16,13 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"overgo/internal/plan"
@@ -30,6 +32,10 @@ import (
 const (
 	markerPath  = "docs/.dispatch_pending"
 	boundedPath = "docs/.bounded_request"
+	// turnBasePath snapshots dirt at UserPromptSubmit so the Stop gate
+	// blocks only on TURN-CREATED dirt. Pre-existing dirt is another lane's
+	// parked in-flight work.
+	turnBasePath = "docs/.loop_state"
 )
 
 func main() {
@@ -83,7 +89,7 @@ func runStop(hookJSON string) int {
 	if complete {
 		_ = os.Remove(markerPath)
 	}
-	dirtyWork := hasDirtyPlannedScope()
+	dirtyWork := hasTurnCreatedDirt()
 	markerArmed := fileExists(markerPath)
 
 	if !stopDecision(false, boundedRequest, freshStop, gateRunning, complete, dirtyWork, markerArmed) {
@@ -115,9 +121,12 @@ func runStop(hookJSON string) int {
 func runPostCommit(hookJSON string) {
 	if strings.Contains(hookJSON, "cmd/gate") {
 		_ = os.WriteFile(markerPath, []byte(gitHead()+"\n"), 0o644)
+		// The gate committed this turn's dirt; re-baseline so the next-step
+		// check below measures only work created after the commit boundary.
+		writeTurnBase()
 		return
 	}
-	if fileExists(markerPath) && hasDirtyPlannedScope() {
+	if fileExists(markerPath) && hasTurnCreatedDirt() {
 		_ = os.Remove(markerPath)
 	}
 }
@@ -126,6 +135,7 @@ func runDoctrine() {
 	// A turn never spans sessions -- any pending boundary is stale.
 	_ = os.Remove(markerPath)
 	_ = os.Remove(boundedPath)
+	_ = os.Remove(turnBasePath)
 	fmt.Println(doctrineText)
 	fmt.Println()
 	fmt.Println("Dispatched now (go run ./cmd/plan -next):")
@@ -134,6 +144,9 @@ func runDoctrine() {
 }
 
 func runPrompt(hookJSON string) {
+	// Every turn starts by snapshotting the dirty set: the Stop gate then owes a
+	// block only to dirt this turn creates, not to another lane's parked work.
+	writeTurnBase()
 	var input struct {
 		Prompt string `json:"prompt"`
 	}
@@ -189,21 +202,109 @@ func gitHead() string {
 	return strings.TrimSpace(string(out))
 }
 
-func hasDirtyPlannedScope() bool {
-	out, err := exec.Command("git", "status", "--porcelain=v1", "-z", "--untracked-files=all").Output()
+// dirtyPaths parses porcelain -z status into paths; untracked files count.
+func dirtyPaths(status []byte) ([]string, error) {
+	entries, err := repoanalysis.ParseDirtyStatus(status)
 	if err != nil {
-		return false
+		return nil, err
 	}
-	dirty, err := dirtyPlannedScope(out)
-	return err == nil && dirty
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, entry.Path)
+	}
+	return paths, nil
 }
 
-func dirtyPlannedScope(status []byte) (bool, error) {
-	paths, err := repoanalysis.ParseDirtyStatus(status)
+type dirtyFact struct {
+	Path           string `json:"path"`
+	OriginalPath   string `json:"original_path,omitempty"`
+	IndexStatus    string `json:"index_status"`
+	WorktreeStatus string `json:"worktree_status"`
+	IndexIdentity  string `json:"index_identity"`
+	WorkIdentity   string `json:"work_identity"`
+}
+
+// currentDirtyFacts binds path, index state, and worktree bytes.
+func currentDirtyFacts() ([]dirtyFact, error) {
+	out, err := exec.Command("git", "status", "--porcelain=v1", "-z", "--untracked-files=all").Output()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return len(paths) > 0, nil
+	paths, err := repoanalysis.ParseDirtyStatus(out)
+	if err != nil {
+		return nil, err
+	}
+	facts := make([]dirtyFact, 0, len(paths))
+	for _, path := range paths {
+		index, _ := exec.Command("git", "ls-files", "--stage", "--", path.Path).Output()
+		facts = append(facts, dirtyFact{
+			Path: path.Path, OriginalPath: path.OriginalPath,
+			IndexStatus: path.IndexStatus, WorktreeStatus: path.WorktreeStatus,
+			IndexIdentity: strings.TrimSpace(string(index)), WorkIdentity: workIdentity(path.Path),
+		})
+	}
+	return facts, nil
+}
+
+// writeTurnBase snapshots dirt at a prompt or commit boundary.
+func writeTurnBase() {
+	facts, err := currentDirtyFacts()
+	if err != nil {
+		return
+	}
+	data, err := json.Marshal(facts)
+	if err == nil {
+		_ = os.WriteFile(turnBasePath, append(data, '\n'), 0o600)
+	}
+}
+
+// hasTurnCreatedDirt reports whether dirt exists beyond the turn-start snapshot.
+// A missing or unreadable snapshot FAILS SAFE toward the old behavior -- all
+// dirt blocks -- so a lost marker errs toward "commit your work", never toward
+// orphaning it.
+func hasTurnCreatedDirt() bool {
+	current, currentErr := currentDirtyFacts()
+	if currentErr != nil {
+		return true
+	}
+	base, err := os.ReadFile(turnBasePath)
+	if err != nil {
+		return len(current) > 0
+	}
+	var baseline []dirtyFact
+	if json.Unmarshal(base, &baseline) != nil {
+		return len(current) > 0
+	}
+	return len(turnCreatedDirt(baseline, current)) > 0
+}
+
+// turnCreatedDirt returns new or further-modified dirty facts.
+func turnCreatedDirt(base, current []dirtyFact) []dirtyFact {
+	parked := make(map[dirtyFact]bool, len(base))
+	for _, fact := range base {
+		parked[fact] = true
+	}
+	var created []dirtyFact
+	for _, fact := range current {
+		if !parked[fact] {
+			created = append(created, fact)
+		}
+	}
+	return created
+}
+
+func workIdentity(path string) string {
+	file, err := os.Open(filepath.FromSlash(path))
+	if err != nil {
+		return "missing"
+	}
+	hash := sha256.New()
+	_, copyErr := io.Copy(hash, file)
+	closeErr := file.Close()
+	if copyErr != nil || closeErr != nil {
+		return "unreadable"
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
 func freshStopAtHead(head string) bool {

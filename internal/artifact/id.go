@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	idAlgorithm = "sha256"
-	idParts     = 3
-	digestBytes = sha256.Size
-	digestHex   = digestBytes * 2
+	idAlgorithm         = "sha256"
+	idParts             = 3
+	digestBytes         = sha256.Size
+	digestHex           = digestBytes * 2
+	identifyBufferBytes = 1 << 20
 )
 
 // Kind: durable artifact class
@@ -112,7 +113,7 @@ func Identify(kind Kind, reader io.Reader) (ID, uint64, error) {
 		return ID{}, 0, errors.New("artifact: invalid kind")
 	}
 	hasher := sha256.New()
-	count, err := io.Copy(hasher, reader)
+	count, err := io.CopyBuffer(hasher, reader, make([]byte, identifyBufferBytes))
 	if err != nil {
 		return ID{}, 0, fmt.Errorf("artifact: hash content: %w", err)
 	}

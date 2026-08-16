@@ -88,12 +88,7 @@ func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 		return nil, err
 	}
 	plan := pack.Plan()
-	parameters := make([]trainingprogram.ParameterSpec, plan.GroupCount())
-	for index := range parameters {
-		group, _ := plan.Group(index)
-		parameters[index] = trainingprogram.ParameterSpec{Name: group.Name, Rows: group.Rows, Cols: group.Cols, Trainable: !group.Frozen}
-	}
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, parameters, plan)
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, plan)
 	if err != nil {
 		_ = update.Close()
 		return nil, err

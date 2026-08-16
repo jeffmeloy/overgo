@@ -55,6 +55,10 @@ type fastWeightBankLMOutput struct {
 // non-function of its inputs). Callers wanting the seeded behaviour pass the
 // seed slots in explicitly.
 func FastWeightBankLMForward(ids []int32, initMem []float32, slots int, w *FastWeightBankLMWeights) (*fastWeightBankLMOutput, error) {
+	return fastWeightBankLMForward(ids, initMem, slots, w, nil)
+}
+
+func fastWeightBankLMForward(ids []int32, initMem []float32, slots int, w *FastWeightBankLMWeights, capture func(int, []float32)) (*fastWeightBankLMOutput, error) {
 	seq := len(ids)
 	if seq == 0 {
 		return nil, fmt.Errorf("model: empty input")
@@ -80,7 +84,11 @@ func FastWeightBankLMForward(ids []int32, initMem []float32, slots int, w *FastW
 	bank := initMem
 	var totalBal float64
 	for i, blk := range w.Blocks {
-		out, bal, err := HyperConnectionBlockForward(x, seq, slots, bank, blk)
+		var attentionInput func([]float32)
+		if capture != nil {
+			attentionInput = func(input []float32) { capture(i, input) }
+		}
+		out, bal, err := hyperConnectionBlockForward(x, seq, slots, bank, blk, attentionInput)
 		if err != nil {
 			return nil, fmt.Errorf("model: block %d: %w", i, err)
 		}
@@ -200,6 +208,10 @@ type HyperConnectionBlockWeights struct {
 // x holds seq x n_hc x d_model values; bank holds slots x mem_dim (may be
 // empty). Returns the updated residual streams and the MoE balance auxiliary.
 func HyperConnectionBlockForward(x []float32, seq, slots int, bank []float32, w *HyperConnectionBlockWeights) ([]float32, float64, error) {
+	return hyperConnectionBlockForward(x, seq, slots, bank, w, nil)
+}
+
+func hyperConnectionBlockForward(x []float32, seq, slots int, bank []float32, w *HyperConnectionBlockWeights, captureAttentionInput func([]float32)) ([]float32, float64, error) {
 	n, d := w.NHC, w.DModel
 	flat := n * d
 	if len(x) != seq*flat {
@@ -211,6 +223,9 @@ func HyperConnectionBlockForward(x []float32, seq, slots int, bank []float32, w 
 	var attnErr error
 	out, err := HyperConnectionForward(x, seq, w.MHCAttn, func(in []float32, rows, dd int) []float32 {
 		normed := rmsNormNew(in, w.NormAttn, rows, dd, w.NormEps)
+		if captureAttentionInput != nil {
+			captureAttentionInput(normed)
+		}
 		y, e := CompressedHybridAttentionForward(normed, rows, w.Attn)
 		if e != nil {
 			attnErr = e

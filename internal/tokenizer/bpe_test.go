@@ -170,6 +170,34 @@ func TestLoadEncodeDecodeAndSpecialTokens(t *testing.T) {
 	}
 }
 
+func TestDecodeDeclaredDNAExtension(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		scalar("tokenizer.ggml.model", gguf.ValueTypeString, "gpt2"),
+		scalar("tokenizer.ggml.pre", gguf.ValueTypeString, "default"),
+		array("tokenizer.ggml.tokens", gguf.ValueTypeString, []string{
+			"x", "[PAD1]", "[PAD2]", "[PAD3]", "[PAD4]", "[PAD5]", "[PAD6]", "[PAD7]", "[PAD8]", "[PAD9]",
+		}),
+		array("tokenizer.ggml.token_type", gguf.ValueTypeInt32, []int32{1, 5, 5, 5, 5, 5, 5, 5, 5, 5}),
+		array("tokenizer.ggml.merges", gguf.ValueTypeString, []string{}),
+		scalar(MetadataDNAK, gguf.ValueTypeUint32, uint32(1)),
+		scalar(MetadataDNAStartID, gguf.ValueTypeUint32, uint32(1)),
+		scalar(MetadataDNAVocabulary, gguf.ValueTypeUint32, uint32(9)),
+		array(MetadataDNASpecialTokens, gguf.ValueTypeString, []string{"<dna>", "</dna>", "<oov>"}),
+		scalar(MetadataDNAAutoTags, gguf.ValueTypeBool, false),
+	}}
+	vocab, err := Load(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := vocab.Decode([]TokenID{1, 2, 3, 4, 5, 6, 7, 8, 9}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded != "<dna></dna><oov>ATCG" {
+		t.Fatalf("DNA extension decode = %q", decoded)
+	}
+}
+
 func TestGemma4RawBPEAndNewlines(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		scalar("tokenizer.ggml.model", gguf.ValueTypeString, "gemma4"),

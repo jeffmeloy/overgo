@@ -49,7 +49,6 @@ var releaseDocuments = []string{
 	"compatibility.json",
 	"media_policy.json",
 	"resource_policy.json",
-	"LICENSES.md",
 	"SBOM.cdx.json",
 	"kernels/manifest.json",
 }

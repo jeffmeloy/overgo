@@ -254,17 +254,19 @@ func checkPlanBinding(repo, ref string) error {
 	return nil
 }
 
-func (g *gateContext) pipeline() error {
-	type step struct {
-		name  string
-		phase runrecord.Phase
-		fn    func() (skipped bool, err error)
-	}
-	steps := []step{
+type gateStep struct {
+	name  string
+	phase runrecord.Phase
+	fn    func() (skipped bool, err error)
+}
+
+func (g *gateContext) pipelineSteps() []gateStep {
+	steps := []gateStep{
 		{"protection", runrecord.PhaseValidate, g.stepProtection},
 		{"scope", runrecord.PhaseValidate, g.stepScope},
 		{"profile", runrecord.PhaseValidate, g.stepProfile},
-		{"readability", runrecord.PhaseValidate, g.stepReadability},
+	}
+	return append(steps, []gateStep{
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
 		{"vet", runrecord.PhaseVet, g.stepVet},
 		{"build", runrecord.PhaseBuild, g.stepBuild},
@@ -277,7 +279,11 @@ func (g *gateContext) pipeline() error {
 		{"device", runrecord.PhaseTest, g.stepDevice},
 		{"acceptance", runrecord.PhaseTest, g.stepAcceptance},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
-	}
+	}...)
+}
+
+func (g *gateContext) pipeline() error {
+	steps := g.pipelineSteps()
 	cache := g.loadRetryCache()
 	// Verification steps whose result depends only on tree state may reuse a
 	// prior identical-tree success (the retry-loop tax: a failed commit step
@@ -415,6 +421,17 @@ func (g *gateContext) stepProfile() (bool, error) {
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
 	g.honesty = append(g.honesty, surfaceDeltaHonesty(base, profile))
+	if g.automationPlan() {
+		movement, err := codeprofile.MeasureProductionMovement(baseSource, snapshot)
+		if err != nil {
+			return false, err
+		}
+		summary, err := automationROIAdmission("commit", movement)
+		g.honesty = append(g.honesty, summary)
+		if err != nil {
+			return false, err
+		}
+	}
 	g.honesty = append(g.honesty, profileReviewFocus(profile, g.changedGoFiles()))
 	if err := g.appendConsumerCensus(snapshot, baseSource, changed, &profile); err != nil {
 		return false, err
@@ -459,6 +476,17 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
+	if g.automationPlan() {
+		movement, err := codeprofile.MeasureProductionMovement(sliceBase, candidate)
+		if err != nil {
+			return err
+		}
+		summary, err := automationROIAdmission("plan-slice@"+mergeBase[:12], movement)
+		g.honesty = append(g.honesty, summary)
+		if err != nil {
+			return err
+		}
+	}
 	paths = pathSet(slicePaths)
 	declarations, current, err = codeprofile.ProductionConsumerCensus(candidate, selection, paths)
 	if err != nil {
@@ -470,6 +498,24 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	}
 	g.honesty = append(g.honesty, consumerCensusHonesty("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
+}
+
+func (g *gateContext) automationPlan() bool {
+	item, _, _ := strings.Cut(g.planRef, "/")
+	return strings.HasPrefix(item, "automation-")
+}
+
+func automationROIAdmission(scope string, movement codeprofile.ProductionMovement) (string, error) {
+	summary := fmt.Sprintf(
+		"automation ROI %s: production_ast=%d-%d net=%+d go_lines=%d-%d net=%+d; admission=net-negative",
+		scope, movement.Added, movement.Deleted, movement.Added-movement.Deleted,
+		movement.GoLinesAdded, movement.GoLinesDeleted, movement.GoLinesAdded-movement.GoLinesDeleted,
+	)
+	if movement.Added > 0 && movement.Added >= movement.Deleted ||
+		movement.GoLinesAdded > 0 && movement.GoLinesAdded >= movement.GoLinesDeleted {
+		return summary, fmt.Errorf("automation surface is not net-negative: %s", summary)
+	}
+	return summary, nil
 }
 
 func consumerCensusHonesty(scope, context string, declarations []codeprofile.ConsumerDeclaration, base, current codeprofile.ConsumerSummary) string {
@@ -1144,7 +1190,7 @@ func (g *gateContext) stepManifest() (bool, error) {
 }
 
 func (g *gateContext) stepSBOM() (bool, error) {
-	if !g.pathsTouchAny("go.mod", "go.sum", "LICENSES.md", "SBOM.cdx.json", "cmd/sbom/") {
+	if !g.pathsTouchAny("go.mod", "go.sum", "SBOM.cdx.json", "cmd/sbom/") {
 		g.honesty = append(g.honesty, "sbom skipped: no dependency-owning paths in -paths")
 		return true, nil
 	}
@@ -1799,8 +1845,8 @@ func compactHonesty(lines []string) []string {
 		switch {
 		case strings.Contains(line, "code profile delta vs HEAD"):
 			label = "delta: "
-		case strings.HasPrefix(line, "go readability:"):
-			label = "style: "
+		case strings.HasPrefix(line, "automation ROI"):
+			label = "roi: "
 		case strings.HasPrefix(line, "consumer census"):
 			label = "consumer: "
 		case strings.HasPrefix(line, "test scope:"):

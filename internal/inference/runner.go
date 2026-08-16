@@ -172,9 +172,10 @@ type preparedModel struct {
 
 // runnerState: mutable LoRA and prompt-cache state.
 type runnerState struct {
-	closed       bool
-	promptCaches []*cachedPrompt
-	loraAdapters []loadedLoRA
+	closed        bool
+	promptCaches  []*cachedPrompt
+	loraAdapters  []loadedLoRA
+	decodeSession *deviceDecodeSession
 }
 
 // Runner: prepared assets + mutable request state.

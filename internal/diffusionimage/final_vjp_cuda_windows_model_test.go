@@ -44,7 +44,7 @@ func TestRealFinalProjectionResidentVJPParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer program.Close(t.Context())
+	defer program.Close()
 	gotDX, gotWeight, err := program.Execute(t.Context(), trace.finalInput, dOut)
 	if err != nil {
 		t.Fatal(err)

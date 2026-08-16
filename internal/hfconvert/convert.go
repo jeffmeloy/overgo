@@ -20,6 +20,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
 	"overgo/internal/safetensors"
+	"overgo/internal/tokenizer"
 )
 
 type modelConfig struct {
@@ -268,7 +269,47 @@ func tokenizerMetadata(directory string, vocabulary uint32, fallback specialToke
 		gguf.BoolMetadata("tokenizer.ggml.add_bos_token", postProcessorAddsBOS(file.PostProcessor)),
 		gguf.BoolMetadata("tokenizer.ggml.add_eos_token", false),
 	)
+	extension, err := dnaTokenizerMetadata(directory, vocabulary)
+	if err != nil {
+		return nil, err
+	}
+	metadata = append(metadata, extension...)
 	return metadata, nil
+}
+
+type dnaTokenizerConfig struct {
+	K             uint32   `json:"k"`
+	StartID       uint32   `json:"dna_start_id"`
+	Vocabulary    uint32   `json:"dna_vocab_size"`
+	SpecialTokens []string `json:"dna_special_tokens"`
+	AutoTags      bool     `json:"auto_dna_tags"`
+}
+
+func dnaTokenizerMetadata(directory string, modelVocabulary uint32) ([]gguf.Metadata, error) {
+	path := filepath.Join(directory, "dna_config.json")
+	encoded, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("HF converter: read DNA tokenizer facts: %w", err)
+	}
+	var config dnaTokenizerConfig
+	if err := json.Unmarshal(encoded, &config); err != nil {
+		return nil, fmt.Errorf("HF converter: parse DNA tokenizer facts: %w", err)
+	}
+	if err := tokenizer.ValidateDNAExtension(
+		config.K, config.StartID, config.Vocabulary, config.SpecialTokens, modelVocabulary,
+	); err != nil {
+		return nil, fmt.Errorf("HF converter: DNA tokenizer facts: %w", err)
+	}
+	return []gguf.Metadata{
+		gguf.Uint32Metadata(tokenizer.MetadataDNAK, config.K),
+		gguf.Uint32Metadata(tokenizer.MetadataDNAStartID, config.StartID),
+		gguf.Uint32Metadata(tokenizer.MetadataDNAVocabulary, config.Vocabulary),
+		gguf.ArrayMetadata(tokenizer.MetadataDNASpecialTokens, gguf.ValueTypeString, config.SpecialTokens),
+		gguf.BoolMetadata(tokenizer.MetadataDNAAutoTags, config.AutoTags),
+	}, nil
 }
 
 const (

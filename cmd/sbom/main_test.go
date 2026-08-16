@@ -33,6 +33,27 @@ func TestGenerateIsDeterministicAndValidJSON(t *testing.T) {
 	}
 }
 
+func TestSBOMOmitUndeclaredLicenses(t *testing.T) {
+	generated, err := generate("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(generated, []byte("NOASSERTION")) {
+		t.Fatal("SBOM retains undeclared-license policy")
+	}
+	var document struct {
+		Metadata struct {
+			Component map[string]any `json:"component"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(generated, &document); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := document.Metadata.Component["licenses"]; ok {
+		t.Fatal("project component declares a license")
+	}
+}
+
 func TestReleaseIntegrityContract(t *testing.T) {
 	generated, err := generate("../..")
 	if err != nil {

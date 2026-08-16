@@ -139,7 +139,7 @@ func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := PublishResolvedModelDefinition(
-		ctx, store, "fixture/definition/bundle", inventory, resolvedSource,
+		ctx, store, inventory, resolvedSource,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -150,6 +150,52 @@ func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
 	if resolved.Document.Model != inventory.Manifest.ID || resolved.Spec.EmbeddingLength != definitionEmbedding ||
 		resolved.Tensors.ID != inventory.TensorInventory.ID {
 		t.Fatalf("resolved model definition = %+v", resolved)
+	}
+}
+
+func TestPublishResolvedModelDefinitionSeparatesProfiles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "definition.gguf")
+	writeDefinitionGGUF(t, path)
+	file, err := gguf.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := model.LookupArchitecture(definitionArchitecture)
+	spec, err := model.ReadSpecWithProfile(file, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles := []model.ArchitectureProfile{base, base}
+	profiles[1].LayerTopology = model.LayerTopologyCausalPostQKNormSkip
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	for _, profile := range profiles {
+		profileDocument, err := NewProfileDocument(profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := PublishResolvedModelDefinition(context.Background(), store, inventory, resolved); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ResolveModelDefinition(context.Background(), store, document.ID); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

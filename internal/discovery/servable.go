@@ -7,6 +7,8 @@ package discovery
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 
 	"overgo/internal/artifact"
@@ -32,15 +34,29 @@ func Servable(ctx context.Context, store *repodb.Store, limit int) ([]Entry, err
 		return nil, err
 	}
 	var entries []Entry
+	identities := map[string]fileIdentity{}
 	for _, manifest := range result.Manifests {
-		activation, active, err := modelrecipe.ActiveRecord(ctx, store, manifest.ID, recipe.TaskInference)
+		declared, err := modelrecipe.HasActiveRecipe(ctx, store, manifest.ID, recipe.TaskInference)
 		if err != nil {
 			return nil, err
+		}
+		if !declared {
+			continue
+		}
+		location, present := presence(ctx, store, manifest, identities)
+		if !present {
+			continue
+		}
+		activation, active, err := modelrecipe.ActiveRecord(ctx, store, manifest.ID, recipe.TaskInference)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"discovery: model %s activation at %q (present=%t): %w",
+				manifest.ID, location, present, err,
+			)
 		}
 		if !active {
 			continue
 		}
-		location, present := presence(ctx, store, manifest)
 		entries = append(entries, Entry{
 			Model: manifest.ID, Recipe: activation.Definition.ID, Tier: activation.Tier,
 			Location: location, Present: present,
@@ -49,39 +65,88 @@ func Servable(ctx context.Context, store *repodb.Store, limit int) ([]Entry, err
 	return entries, nil
 }
 
-// presence prefers a location that stats as a REGULAR FILE (the artifact
-// itself) over one that stats as a directory (often a recorded parent):
-// serving needs the artifact path, not its neighborhood.
-func presence(ctx context.Context, store *repodb.Store, manifest artifact.Manifest) (string, bool) {
-	ids := []artifact.ID{manifest.ID}
+type fileIdentity struct {
+	id      artifact.ID
+	size    uint64
+	present bool
+}
+
+// presence requires recorded bytes, not a path that now names replacement bytes.
+func presence(
+	ctx context.Context,
+	store *repodb.Store,
+	manifest artifact.Manifest,
+	identities map[string]fileIdentity,
+) (string, bool) {
+	recorded, servingLocation := "", ""
 	for _, component := range manifest.Components {
-		ids = append(ids, component.Artifact)
-	}
-	recorded, directoryHit := "", ""
-	for _, id := range ids {
-		locations, err := store.Locations(ctx, id)
+		descriptor, ok, err := store.Artifact(ctx, component.Artifact)
+		if err != nil || !ok {
+			return recorded, false
+		}
+		locations, err := store.Locations(ctx, component.Artifact)
 		if err != nil {
-			continue
+			return recorded, false
 		}
+		matched := false
 		for _, location := range locations {
-			if location.Kind != artifact.LocationFile && location.Kind != artifact.LocationDirectory {
+			if location.Kind != artifact.LocationFile {
 				continue
 			}
-			recorded = location.Value
-			info, err := os.Stat(location.Value)
-			if err != nil {
-				continue
+			if recorded == "" {
+				recorded = location.Value
 			}
-			if !info.IsDir() {
-				return location.Value, true
-			}
-			if directoryHit == "" {
-				directoryHit = location.Value
+			identity := identifyLocation(location.Value, descriptor.ID.Kind(), identities)
+			if identity.present && identity.id == descriptor.ID && identity.size == descriptor.Size {
+				matched = true
+				if servingLocation == "" {
+					servingLocation = location.Value
+				}
+				break
 			}
 		}
+		if !matched {
+			return recorded, false
+		}
 	}
-	if directoryHit != "" {
-		return directoryHit, true
+	if servingLocation != "" {
+		return servingLocation, true
 	}
-	return recorded, false
+	if recorded != "" {
+		return recorded, false
+	}
+	locations, _ := store.Locations(ctx, manifest.ID)
+	for _, location := range locations {
+		if location.Kind == artifact.LocationDirectory {
+			return location.Value, false
+		}
+	}
+	return "", false
+}
+
+func identifyLocation(path string, kind artifact.Kind, identities map[string]fileIdentity) fileIdentity {
+	key := path + "\x00" + kind.String()
+	if identity, ok := identities[key]; ok {
+		return identity
+	}
+	identity := fileIdentity{}
+	before, err := os.Stat(path)
+	if err != nil || before.IsDir() {
+		identities[key] = identity
+		return identity
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		identities[key] = identity
+		return identity
+	}
+	id, size, identifyErr := artifact.Identify(kind, file)
+	closeErr := file.Close()
+	after, statErr := os.Stat(path)
+	if errors.Join(identifyErr, closeErr, statErr) == nil &&
+		before.Size() == after.Size() && before.ModTime().Equal(after.ModTime()) && size == uint64(after.Size()) {
+		identity = fileIdentity{id: id, size: size, present: true}
+	}
+	identities[key] = identity
+	return identity
 }

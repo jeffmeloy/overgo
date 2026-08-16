@@ -10,6 +10,15 @@ const (
 
 // CompileObjectiveProgram seals the shared forward/backward/Muon order.
 func CompileObjectiveProgram(objective ObjectiveKind, parameters []ParameterSpec, plan optimizer.Plan) (TrainingProgram, error) {
+	if parameters == nil {
+		parameters = make([]ParameterSpec, plan.GroupCount())
+		for index := range parameters {
+			group, _ := plan.Group(index)
+			parameters[index] = ParameterSpec{
+				Name: group.Name, Rows: group.Rows, Cols: group.Cols, Trainable: !group.Frozen,
+			}
+		}
+	}
 	return CompileTrainingProgram(ProgramSpec{
 		Objective: objective,
 		Operators: []OperatorSpec{

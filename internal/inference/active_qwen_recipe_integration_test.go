@@ -98,7 +98,7 @@ func publishActiveGGUFRecipe(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := modelrecipe.PublishResolvedModelDefinition(ctx, store, "integration/qwen35/facts", inventory, resolved); err != nil {
+	if _, err := modelrecipe.PublishResolvedModelDefinition(ctx, store, inventory, resolved); err != nil {
 		t.Fatal(err)
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(

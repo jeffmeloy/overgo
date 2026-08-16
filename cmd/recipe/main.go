@@ -83,6 +83,24 @@ func run() error {
 	}
 	switch verb {
 	case "verify":
+		if selectedTask == recipe.TaskInference {
+			rawInput, inputErr := readInput(*input)
+			if inputErr != nil {
+				return inputErr
+			}
+			if strings.TrimSpace(rawInput) == "" {
+				return errors.New("verify requires -input JSON")
+			}
+			sessionOverride, sessionErr := parseSessionOverride(*sessionFlag)
+			if sessionErr != nil {
+				return sessionErr
+			}
+			residency, residencyErr := parseResidency(*residencyFlag)
+			if residencyErr != nil {
+				return residencyErr
+			}
+			return verifyInference(repository, path, rawInput, sessionOverride, residency)
+		}
 		if !capabilityKnown {
 			return fmt.Errorf("task %q has no registered verifier runtime", selectedTask)
 		}
@@ -274,7 +292,9 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 			return err
 		}
 	}
-	verification, err := publishCapabilityVerification(ctx, store, definition, revision, time.Since(started))
+	verification, err := publishCapabilityVerification(
+		ctx, store, definition, revision, time.Since(started), "host", "go", "candidate output validated",
+	)
 	if err != nil {
 		return err
 	}
@@ -294,6 +314,7 @@ func publishCapabilityVerification(
 	definition recipe.Definition,
 	revision string,
 	wall time.Duration,
+	device, backend, evidence string,
 ) (modelrecipe.Verification, error) {
 	host, err := os.Hostname()
 	if err != nil {
@@ -301,7 +322,7 @@ func publishCapabilityVerification(
 	}
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: host, OS: runtime.GOOS, Arch: runtime.GOARCH,
-		Device: "host", Backend: "go", Driver: "process", Runtime: runtime.Version(),
+		Device: device, Backend: backend, Driver: "process", Runtime: runtime.Version(),
 	})
 	if err != nil {
 		return modelrecipe.Verification{}, err
@@ -312,7 +333,7 @@ func publishCapabilityVerification(
 		runrecord.OutcomeSucceeded, "", duration,
 		[]runrecord.GateStep{{
 			Name: "candidate-execution", Phase: runrecord.PhaseTest,
-			Outcome: runrecord.StepSucceeded, DurationNS: duration,
+			Outcome: runrecord.StepSucceeded, DurationNS: duration, Evidence: evidence,
 		}},
 	)
 	if err != nil {
@@ -383,6 +404,70 @@ type sessionOverride struct {
 	value modelrecipe.DecodeSessionPolicy
 }
 
+type inferenceCandidate struct {
+	inventory  modelartifact.Inventory
+	resolved   modelrecipe.ResolvedModelDefinition
+	definition recipe.Definition
+}
+
+func prepareInferenceCandidate(
+	path string,
+	override sessionOverride,
+	residency recipe.ResidencyPolicy,
+) (inferenceCandidate, error) {
+	file, err := gguf.Open(path)
+	if err != nil {
+		return inferenceCandidate{}, err
+	}
+	defer file.Close()
+	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
+	if err != nil {
+		return inferenceCandidate{}, err
+	}
+	spec, err := model.ReadSpec(file)
+	if err != nil {
+		return inferenceCandidate{}, err
+	}
+	profileDocument, err := modelrecipe.NewProfileDocument(spec.Profile())
+	if err != nil {
+		return inferenceCandidate{}, err
+	}
+	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
+	if err != nil {
+		return inferenceCandidate{}, err
+	}
+	resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
+	if err != nil {
+		return inferenceCandidate{}, err
+	}
+	weights, err := model.ReadWeights(file, spec)
+	if err != nil {
+		return inferenceCandidate{}, err
+	}
+	modelPlan, err := model.CompileModelPlanWithProfile(spec, weights, profileDocument.Policy)
+	if err != nil {
+		return inferenceCandidate{}, err
+	}
+	session := modelrecipe.DecodeSessionCapacity
+	if !modelPlan.SupportsCapacityCache() {
+		session = modelrecipe.DecodeSessionRequest
+	}
+	if override.set {
+		if override.value == modelrecipe.DecodeSessionCapacity && !modelPlan.SupportsCapacityCache() {
+			return inferenceCandidate{}, errors.New("recipe: -session capacity is unsupported by this model's compiled plan")
+		}
+		session = override.value
+	}
+	definition, err := modelrecipe.InferenceWithModelDefinition(
+		inventory.Manifest.ID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
+		session, residency,
+	)
+	if err != nil {
+		return inferenceCandidate{}, err
+	}
+	return inferenceCandidate{inventory: inventory, resolved: resolved, definition: definition}, nil
+}
+
 func parseSessionOverride(text string) (sessionOverride, error) {
 	switch strings.ToLower(strings.TrimSpace(text)) {
 	case "", "auto":
@@ -403,77 +488,28 @@ func activate(
 	verification modelrecipe.Verification,
 ) error {
 	ctx := context.Background()
-	file, err := gguf.Open(path)
+	candidate, err := prepareInferenceCandidate(path, override, residency)
 	if err != nil {
 		return err
-	}
-	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		return err
-	}
-	spec, err := model.ReadSpec(file)
-	if err != nil {
-		return err
-	}
-	profile := spec.Profile()
-	profileDocument, err := modelrecipe.NewProfileDocument(profile)
-	if err != nil {
-		return err
-	}
-	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
-	if err != nil {
-		return err
-	}
-	resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
-	if err != nil {
-		return err
-	}
-	// session derived from the compiled plan: capacity requires every token
-	// cache to admit bounded append; SharedKV models compile only as request.
-	weights, err := model.ReadWeights(file, spec)
-	if err != nil {
-		return err
-	}
-	modelPlan, err := model.CompileModelPlanWithProfile(spec, weights, profile)
-	if err != nil {
-		return err
-	}
-	session := modelrecipe.DecodeSessionCapacity
-	if !modelPlan.SupportsCapacityCache() {
-		session = modelrecipe.DecodeSessionRequest
-	}
-	if override.set {
-		// operator pin: request is the general per-request path (valid for any
-		// model); capacity requires SupportsCapacityCache.
-		if override.value == modelrecipe.DecodeSessionCapacity && !modelPlan.SupportsCapacityCache() {
-			return errors.New("recipe: -session capacity is unsupported by this model's compiled plan")
-		}
-		session = override.value
 	}
 	store, err := repodb.Open(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	modelID := inventory.Manifest.ID
+	modelID := candidate.inventory.Manifest.ID
 	if _, err := modelrecipe.PublishResolvedModelDefinition(
-		ctx, store, "recipe/facts/"+modelID.String(), inventory, resolved,
+		ctx, store, candidate.inventory, candidate.resolved,
 	); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
-	definition, err := modelrecipe.InferenceWithModelDefinition(
-		modelID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
-		session, residency,
-	)
-	if err != nil {
-		return err
-	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceExperimental, reason); err != nil {
+	if err := modelrecipe.ActivateCapability(
+		ctx, store, candidate.definition, verification, recipe.EvidenceExperimental, reason,
+	); err != nil {
 		return err
 	}
 	fmt.Printf("activated %s\n  model      %s\n  definition %s\n  recipe     %s\n  reason     %s\n",
-		path, modelID, resolved.Document.ID, definition.ID, reason)
+		path, modelID, candidate.resolved.Document.ID, candidate.definition.ID, reason)
 	return nil
 }
 

@@ -67,16 +67,55 @@ func TestLoopDirtySnapshot(t *testing.T) {
 		"internal/server/webui/index.html",
 		"docs/design.md",
 	} {
-		dirty, err := dirtyPlannedScope([]byte("?? " + path + "\x00"))
+		paths, err := dirtyPaths([]byte("?? " + path + "\x00"))
 		if err != nil {
 			t.Fatalf("%s: %v", path, err)
 		}
-		if !dirty {
-			t.Errorf("%s was not treated as meaningful dirty work", path)
+		if len(paths) != 1 || paths[0] != path {
+			t.Errorf("%s was not treated as meaningful dirty work: %v", path, paths)
 		}
 	}
-	dirty, err := dirtyPlannedScope(nil)
-	if err != nil || dirty {
-		t.Fatalf("clean status = (%v, %v), want (false, nil)", dirty, err)
+	paths, err := dirtyPaths(nil)
+	if err != nil || len(paths) != 0 {
+		t.Fatalf("clean status = (%v, %v), want (none, nil)", paths, err)
+	}
+}
+
+// TestStopIgnoresPreexistingDirt pins the turn-scoped dirt verdict: dirt already
+// present at the turn-start snapshot is another lane's parked work and never
+// blocks this turn's end; only turn-created dirt is an orphaning obligation.
+// A missing snapshot fails SAFE -- every dirty path blocks, the pre-snapshot
+// behavior -- so a lost marker errs toward committing, never toward orphaning.
+func TestStopIgnoresPreexistingDirt(t *testing.T) {
+	parked := []dirtyFact{
+		{Path: "internal/discovery/servable.go", WorktreeStatus: "M", WorkIdentity: "first"},
+		{Path: "internal/modelrecipe/lifecycle.go", WorktreeStatus: "M", WorkIdentity: "second"},
+	}
+
+	if created := turnCreatedDirt(parked, parked); len(created) != 0 {
+		t.Fatalf("pre-existing dirt reported as turn-created: %v", created)
+	}
+	if stopDecision(false, false, false, false, false, len(turnCreatedDirt(parked, parked)) > 0, false) {
+		t.Fatal("bounded turn with only parked parallel-lane dirt was blocked")
+	}
+
+	current := append(append([]dirtyFact{}, parked...), dirtyFact{Path: "cmd/loophook/main.go", WorktreeStatus: "M", WorkIdentity: "third"})
+	created := turnCreatedDirt(parked, current)
+	if len(created) != 1 || created[0].Path != "cmd/loophook/main.go" {
+		t.Fatalf("turn-created dirt = %v, want the new path only", created)
+	}
+	if !stopDecision(false, false, false, false, false, len(created) > 0, false) {
+		t.Fatal("turn that created dirt was allowed to end without committing")
+	}
+
+	// Missing snapshot: nil base treats every current path as turn-created.
+	if created := turnCreatedDirt(nil, parked); len(created) != len(parked) {
+		t.Fatalf("missing snapshot must fail safe toward blocking, got %v", created)
+	}
+
+	changed := append([]dirtyFact{}, parked...)
+	changed[0].WorkIdentity = "changed-this-turn"
+	if created := turnCreatedDirt(parked, changed); len(created) != 1 || created[0].Path != parked[0].Path {
+		t.Fatalf("modified parked path was not turn-created dirt: %v", created)
 	}
 }

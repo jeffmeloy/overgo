@@ -21,10 +21,8 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 		t.Fatal(err)
 	}
 	evidence := plan.RoadmapEvidence{
-		Live: map[string]bool{"roadmap-validator": true},
-		Landed: map[string]bool{
-			"go-hygiene-policy-baseline": true, "go-readability-gate": true, "unconsumed-surface-admission": true,
-		},
+		Live:     map[string]bool{"roadmap-validator": true},
+		Landed:   map[string]bool{"unconsumed-surface-admission": true},
 		InFlight: map[string]bool{}, ProbeBound: map[string]string{
 			"refusal-ledger": "go test ./internal/runrecord ./internal/recipe -run '^TestRefusalDecisionCarriesMeasuredReason$' -count=1 -v",
 		},
@@ -55,7 +53,7 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 		mutate    func(map[string]any)
 		want      string
 	}{
-		{"cycle", "go-hygiene-policy-baseline", func(row map[string]any) { row["depends_on"] = []any{"go-readability-gate"} }, "cycle"},
+		{"cycle", "production-consumer-census", func(row map[string]any) { row["depends_on"] = []any{"unconsumed-surface-admission"} }, "cycle"},
 		{"unknown dependency", "roadmap-validator", func(row map[string]any) { row["depends_on"] = []any{"absent"} }, "unknown"},
 		{"missing safety reachability", "composition-viability", func(row map[string]any) {
 			dependencies := row["depends_on"].([]any)
@@ -87,7 +85,7 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 
 	t.Run("live dependency must be landed", func(t *testing.T) {
 		unsafe := evidence
-		unsafe.Live = map[string]bool{"go-readability-gate": true}
+		unsafe.Live = map[string]bool{"unconsumed-surface-admission": true}
 		unsafe.Landed = map[string]bool{}
 		if _, err := plan.EvaluateRoadmap(data, unsafe); err == nil || !strings.Contains(err.Error(), "unsatisfied dependencies") {
 			t.Fatalf("live safety error = %v", err)

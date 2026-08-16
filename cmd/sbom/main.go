@@ -99,12 +99,12 @@ func generate(root string) ([]byte, error) {
 		}
 		sum := sha256.Sum256(data)
 		ref := "file:" + path
-		license := "NOASSERTION"
+		license := ""
 		if path == "internal/quant/iq_tables_generated.go" ||
 			path == "kernels/cuda/iq_tables_generated.cuh" {
 			license = "MIT"
 		}
-		components = append(components, map[string]any{
+		entry := map[string]any{
 			"type":    "file",
 			"name":    path,
 			"bom-ref": ref,
@@ -112,8 +112,11 @@ func generate(root string) ([]byte, error) {
 				"alg":     "SHA-256",
 				"content": hex.EncodeToString(sum[:]),
 			}},
-			"licenses": []map[string]any{{"license": map[string]string{"name": license}}},
-		})
+		}
+		if license != "" {
+			entry["licenses"] = []map[string]any{{"license": map[string]string{"name": license}}}
+		}
+		components = append(components, entry)
 		dependsOn = append(dependsOn, ref)
 	}
 	sort.Slice(components, func(i, j int) bool {
@@ -127,14 +130,14 @@ func generate(root string) ([]byte, error) {
 		"components":   components,
 		"dependencies": []map[string]any{{"ref": "pkg:golang/overgo", "dependsOn": dependsOn}},
 		"metadata": map[string]any{
-			"component": component("application", "overgo", projectVersion, "NOASSERTION", "pkg:golang/overgo"),
+			"component": component("application", "overgo", projectVersion, "", "pkg:golang/overgo"),
 			"properties": []map[string]string{
 				{"name": "overgo:cgo", "value": "false"},
 				{"name": "overgo:cuda-target", "value": "compute_89"},
 				{"name": "overgo:upstream-commit", "value": upstreamCommit},
 			},
 			"tools": map[string]any{"components": []map[string]any{
-				component("application", "overgo sbom generator", "1", "NOASSERTION", ""),
+				component("application", "overgo sbom generator", "1", "", ""),
 			}},
 		},
 	}
@@ -150,7 +153,7 @@ func moduleLicense(path string) string {
 	case "github.com/dlclark/regexp2/v2":
 		return "MIT"
 	default:
-		return "NOASSERTION"
+		return ""
 	}
 }
 
@@ -159,12 +162,9 @@ func component(kind, name, version, license, purl string) map[string]any {
 	if ref == "" {
 		ref = "component:" + strings.NewReplacer(" ", "-", ".", "-").Replace(strings.ToLower(name))
 	}
-	result := map[string]any{
-		"type":     kind,
-		"name":     name,
-		"version":  version,
-		"bom-ref":  ref,
-		"licenses": []map[string]any{{"license": map[string]string{"name": license}}},
+	result := map[string]any{"type": kind, "name": name, "version": version, "bom-ref": ref}
+	if license != "" {
+		result["licenses"] = []map[string]any{{"license": map[string]string{"name": license}}}
 	}
 	if purl != "" {
 		result["purl"] = purl

@@ -279,6 +279,7 @@ func (r *Runner) Close() error {
 func (s *runnerState) detachPromptCaches() []*cachedPrompt {
 	caches := s.promptCaches
 	s.promptCaches = nil
+	s.decodeSession = nil
 	return caches
 }
 

@@ -45,7 +45,7 @@ func TestRealDecoderResBlockResidentVJPParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer program.Close(t.Context())
+	defer program.Close()
 	gotInput, gotGrads, err := program.Execute(t.Context(), trace, incoming)
 	if err != nil {
 		t.Fatal(err)

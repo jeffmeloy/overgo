@@ -813,13 +813,22 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 ) ([]*deviceKVCache, error) {
 	capacity, parameterized := r.parameterizedDecodeCapacity(appends, plan)
 	if parameterized {
+		identity := decodeSessionIdentity{
+			capacity: capacity, pageTokens: resolveCachePageTokens(appends[0].PageTokens),
+			branches: uint32(len(appends)), tokenCount: 1, output: plan,
+			lora: r.currentLoRASignature(),
+		}
 		session := appends[0].Past.session
+		if session == nil && r.decodeSession != nil && r.decodeSession.program.identity == identity {
+			session = r.decodeSession
+		}
 		compatible := session != nil && session.program.identity.branches == uint32(len(appends)) &&
 			session.program.identity.matches(
 				capacity, resolveCachePageTokens(appends[0].PageTokens), plan, r.currentLoRASignature(),
 			)
 		for index, item := range appends {
-			compatible = compatible && item.Past.session == session && item.Past.sessionBranch == index
+			compatible = compatible && (item.Past.session == nil ||
+				(item.Past.session == session && item.Past.sessionBranch == index))
 		}
 		if compatible {
 			return r.executeParameterizedDecodeSession(ctx, session, appends)
@@ -897,6 +906,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			rebuilds: rebuilds, replays: replays,
 		}
 		session.owners = repeatDecodeSession(session, len(graphs))
+		r.decodeSession = session
 		sessions = session.owners
 	}
 	targets, storages, err := r.prepareDeviceCacheTargets(ctx, compiled, graphs, appends, targetPlans)
@@ -910,9 +920,11 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		return errors.Join(errs...)
 	}
-	retained, err := r.cuda.ExecuteRetainedCompiled(
-		ctx, compiled, hostFeeds, inputs, targets, nil,
-	)
+	execute := r.cuda.ExecuteRetainedCompiledOnce
+	if retainable {
+		execute = r.cuda.ExecuteRetainedCompiled
+	}
+	retained, err := execute(ctx, compiled, hostFeeds, inputs, targets, nil)
 	if err != nil {
 		return nil, errors.Join(err, releaseStorages())
 	}

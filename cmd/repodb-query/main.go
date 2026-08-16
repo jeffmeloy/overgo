@@ -106,7 +106,7 @@ func writeServable(output io.Writer, repository string, limit int) error {
 		fmt.Fprintf(output, "servable model=%s tier=%s recipe=%s present=%t location=%s\n",
 			entry.Model, entry.Tier, entry.Recipe, entry.Present, entry.Location)
 	}
-	fmt.Fprintf(output, "%d servable model(s); honesty: presence is a stat of recorded locations, absent locations report present=false\n", len(entries))
+	fmt.Fprintf(output, "%d servable model(s); honesty: every listed file hashes to its recorded component identity\n", len(entries))
 	return nil
 }
 

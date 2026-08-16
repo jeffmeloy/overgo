@@ -1,16 +1,108 @@
 {
-  "campaign": "adaptive_new parity and performance leadership",
-  "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier.",
+  "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and the composition-viability pivot",
+  "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "automation-roadmap",
-      "title": "Complete the automation roadmap through shared Go owners",
-      "status": "blocked-external-prereq",
+      "id": "evidence-durability",
+      "title": "Make RepoDB evidence survive single-disk loss",
+      "status": "open",
       "steps": [
         {
-          "id": "source-license",
-          "title": "Blocked: the repository owner must select the distribution license before project-owned source can replace NOASSERTION",
-          "status": "blocked-external-prereq"
+          "id": "repodb-snapshot",
+          "title": "Implement verified repodb-store snapshot and restore with content-hash round-trip",
+          "status": "open",
+          "verify": "go test ./internal/repodb -run '^TestStoreSnapshotRoundTrip$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "experiment-generation-record",
+      "title": "Typed experiment/generation aggregate binding full provenance identities",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reference immutable identities for parents, components, bridge, training plan, data split, evaluator, code/kernel/environment, seeds, budget, run, outcome and decision; minimal day-one schema",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run '^TestGenerationRecordBindsFullProvenance$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "refusal-ledger",
+      "title": "Record every refused candidate as an immutable measured refusal decision",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Expose the refusal ledger as a RepoDB query through the existing decision lifecycle; no second mutable document",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/recipe -run '^TestRefusalDecisionCarriesMeasuredReason$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "determinism-and-statistical-verdicts",
+      "title": "Classify every claim as bitwise-deterministic, tolerance-bounded, or stochastic-multi-seed",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Repeat deterministic claims and require agreement; derive CUDA tolerance margins from measured spread; require multi-seed comparison for stochastic training outcomes; implement as a gate step",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/testevidence -run '^TestVerdictClassificationAndRepeatAgreement$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "evaluation-isolation",
+      "title": "Separate development, selection, promotion and audit splits with query budgets and proposer blinding",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record per-split query budgets through the common typed budget owner; prevent the proposer from observing promotion or audit results",
+          "status": "open",
+          "verify": "go test ./internal/trainingdata ./internal/runrecord -run '^TestSplitIsolationAndQueryBudget$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "component-decomposition",
+      "title": "Derive typed components across the eight organ axes as artifacts with lineage",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Port adaptive_new organ_schema classification (classifyOrganTensor/Space/Modality, validateOrganContract) as classification only; no retrieval index",
+          "status": "open",
+          "verify": "go test ./internal/... -run '^TestComponentDecompositionContract$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "composition-viability",
+      "title": "THE PIVOT: graft one classified component into a frozen target and train only the bridge",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Freeze both models, train the bridge tensor through the shared Muon plan; require held-out gain beyond the observed noise envelope or record refusal with measured reason; manual, human-reviewed, recorded budget; decision_point in docs/rsi_plan.json governs the outcome",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestComponentCompositionViability$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "roadmap-validator",
+      "title": "Validate the rsi_plan DAG and derive roadmap state; emit PROPOSED plan insertions without dispatching",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate depends_on, capability preconditions, cycles and verifier syntax; derive state from Git/RepoDB/live-plan evidence; advisory only",
+          "status": "open",
+          "verify": "go test ./cmd/roadmap -run '^TestRoadmapDAGAndReadiness$' -count=1 -v"
         }
       ]
     },
@@ -47,25 +139,6 @@
           "id": "edit-layer-parity",
           "title": "Blocked: exact edit prefix/layer parity needs the fingerprinted source PNG absent from both repositories",
           "status": "blocked-external-prereq"
-        }
-      ]
-    },
-    {
-      "id": "rung2-fractale",
-      "title": "Fractale-350M",
-      "status": "open",
-      "steps": [
-        {
-          "id": "training-leg",
-          "title": "Port the fast-weight-bank gradient and Muon update through TrainingProgram; compare a complete real-checkpoint update on ordered WikiText records",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/thoughtbank ./internal/trainingprogram -run '^TestFractaleRealTrainingParity$' -count=1 -v"
-        },
-        {
-          "id": "performance-leg",
-          "title": "Prove linear incremental decode and beat the native quadratic reference on the same checkpoint and prompt",
-          "status": "open",
-          "verify": "OVERGO_FRACTALE_BASELINE=1 go test -tags modeltest ./internal/thoughtbank -run '^TestFractaleIncrementalLeadership$' -count=2 -v"
         }
       ]
     }

@@ -67,6 +67,37 @@ func ResolveActiveGGUF(
 	return loaded, nil
 }
 
+// ResolveCandidateGGUF: verifies one explicit candidate before promotion.
+func ResolveCandidateGGUF(
+	path string,
+	definition recipe.Definition,
+	resolved ResolvedModelDefinition,
+) (LoadedProgram, error) {
+	loaded, err := loadGGUFFacts(path)
+	if err != nil {
+		return LoadedProgram{}, err
+	}
+	fail := func(cause error) (LoadedProgram, error) {
+		return LoadedProgram{}, errors.Join(cause, loaded.Close())
+	}
+	if definition.Task != recipe.TaskInference || definition.Model != loaded.state.Inventory.Manifest.ID {
+		return fail(errors.New("model recipe: candidate does not name the loaded inference model"))
+	}
+	definitionID, ok := definition.Dependency(recipe.DependencyDefinition, 0)
+	if !ok || definitionID != resolved.Document.ID {
+		return fail(errors.New("model recipe: candidate model definition differs"))
+	}
+	if resolved.Document.Model != loaded.state.Inventory.Manifest.ID ||
+		resolved.Tensors.ID != loaded.state.Inventory.TensorInventory.ID {
+		return fail(errors.New("model recipe: loaded GGUF differs from candidate model definition"))
+	}
+	loaded.state.EvidenceTier = recipe.EvidenceExperimental
+	if err := loaded.bindResolved(definition, resolved); err != nil {
+		return fail(err)
+	}
+	return loaded, nil
+}
+
 func loadGGUFFacts(path string) (LoadedProgram, error) {
 	file, err := gguf.Open(path)
 	if err != nil {

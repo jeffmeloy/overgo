@@ -38,6 +38,23 @@ func TestOrganCatalogIndexesComponents(t *testing.T) {
 		t.Fatalf("GGUF component = (%+v, %v)", component, ok)
 	}
 
+	// Numeric layer identity: with 12 layers, ordinal 2 is layer 2 and
+	// ordinal 10 is layer 10 -- lexical ordering would invert them.
+	var wide []string
+	for layer := 0; layer < 12; layer++ {
+		prefix := "blk." + itoa(layer)
+		wide = append(wide, prefix+".ffn_gate.weight", prefix+".ffn_up.weight", prefix+".ffn_down.weight")
+	}
+	twelve, err := CompileCatalog(wide)
+	if err != nil || twelve.MLPCount() != 12 {
+		t.Fatalf("12-layer catalog = (%d, %v)", twelve.MLPCount(), err)
+	}
+	second, _ := twelve.MLP(2)
+	tenth, _ := twelve.MLP(10)
+	if second.Gate != "blk.2.ffn_gate.weight" || tenth.Gate != "blk.10.ffn_gate.weight" {
+		t.Fatalf("numeric ordering broken: ordinal2=%s ordinal10=%s", second.Gate, tenth.Gate)
+	}
+
 	incomplete, err := CompileCatalog([]string{"blk.0.ffn_gate.weight", "blk.0.ffn_up.weight"})
 	if err != nil {
 		t.Fatal(err)
@@ -53,4 +70,11 @@ func TestOrganCatalogIndexesComponents(t *testing.T) {
 	}); err == nil {
 		t.Fatal("ambiguous duplicate role binding accepted")
 	}
+}
+
+func itoa(value int) string {
+	if value < 10 {
+		return string(rune('0' + value))
+	}
+	return string(rune('0'+value/10)) + string(rune('0'+value%10))
 }

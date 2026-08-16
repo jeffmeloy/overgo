@@ -1,5 +1,123 @@
 {
   "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and the composition-viability pivot",
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
-  "items": []
+  "items": [
+    {
+      "id": "measurement-budget-integrity",
+      "title": "One format-neutral measurement executor owns reads, budgets, spectral status, and scratch",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One format-neutral measurement executor owns reads, budgets, spectral status, and scratch",
+          "status": "open",
+          "verify": "go test ./internal/modelartifact -run '^TestMeasurementChargesReadBudget$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "dead-surface-deletion",
+      "title": "Delete confirmed dead production surface after build-tag verification",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete confirmed dead production surface after build-tag verification",
+          "status": "open",
+          "verify": "go build ./... \u0026\u0026 ! grep -q 'func Resolve(' internal/closureledger/repository.go"
+        }
+      ]
+    },
+    {
+      "id": "census-method-resolution",
+      "title": "Census reports unused concrete methods via receiver/interface method-set resolution",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Census reports unused concrete methods via receiver/interface method-set resolution",
+          "status": "open",
+          "verify": "go test ./internal/codeprofile -run '^TestCensusReportsUnusedConcreteMethods$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "cuda-binding-migration",
+      "title": "Finish indexed CUDA operand-slot migration; delete BindDeviceInputs and map contract",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Finish indexed CUDA operand-slot migration; delete BindDeviceInputs and map contract",
+          "status": "open",
+          "verify": "go test ./internal/cuda/executor -run '^TestIndexedOperandSlotsOnly$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "projector-consolidation",
+      "title": "Consolidate projector prompt authority and delete local math duplicating hostmath",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Consolidate projector prompt authority and delete local math duplicating hostmath",
+          "status": "open",
+          "verify": "go test ./internal/projector -run '^TestCompiledSessionOwnsPrompts$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "layer-schema-unification",
+      "title": "Replace three mirrored layer schemas with one compiled indexed binding schema",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace three mirrored layer schemas with one compiled indexed binding schema",
+          "status": "open",
+          "verify": "go test ./internal/model -run '^TestUnifiedLayerBindingSchema$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "profile-compiled-loading",
+      "title": "Compile metadata and weight loading from profiles; delete family branch trees per migration",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile metadata and weight loading from profiles; delete family branch trees per migration",
+          "status": "open",
+          "verify": "go test ./internal/model -run '^TestProfileCompiledMetadataLoading$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "audio-waveform-streaming",
+      "title": "Stream audio waveform reconstruction: runner-owned tables, ordered overlap-add, typed magnitude policy",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stream audio waveform reconstruction: runner-owned tables, ordered overlap-add, typed magnitude policy",
+          "status": "open",
+          "verify": "go test ./internal/inference -run '^TestStreamedWaveformReconstruction$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "phase-b-tier0-draft",
+      "title": "Phase B Tier-0: draft whole-model chaining rows into rsi_plan and open the first row",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase B Tier-0: draft whole-model chaining rows into rsi_plan and open the first row",
+          "status": "open",
+          "verify": "go test ./cmd/roadmap -run '^TestRoadmapDAGAndReadiness$' -count=1 -v"
+        }
+      ]
+    }
+  ]
 }

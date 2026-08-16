@@ -83,7 +83,7 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection re
 	}
 	for _, source := range snapshot.Files {
 		file, _ := source.Syntax()
-		index.references(source, file, packagePath(source, file, selection), packageNames)
+		index.references(source, file, packagePath(source, file, selection), packageNames, selected(source.Path, selection))
 	}
 	return index.declarations, summarizeConsumers(index.declarations), nil
 }
@@ -186,7 +186,7 @@ func (c *consumerIndex) addBoundaryFields(file, packagePath string, spec *ast.Ty
 	}
 }
 
-func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, packagePath string, packageNames map[string]string) {
+func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, packagePath string, packageNames map[string]string, active bool) {
 	aliases := map[string]string{}
 	for _, imported := range file.Imports {
 		importPath, err := strconv.Unquote(imported.Path.Value)
@@ -215,7 +215,7 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 		case *ast.SelectorExpr:
 			if qualifier, ok := value.X.(*ast.Ident); ok {
 				if imported := aliases[qualifier.Name]; imported != "" {
-					c.count(c.keys[symbolKey(imported, value.Sel.Name)], source.Test, true)
+					c.count(c.resolve(c.keys[symbolKey(imported, value.Sel.Name)], active), source.Test, true)
 					return true
 				}
 			}
@@ -233,12 +233,28 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 				}
 				return true
 			}
-			if candidates := c.keys[symbolKey(packagePath, value.Name)]; len(candidates) == 1 {
+			if candidates := c.resolve(c.keys[symbolKey(packagePath, value.Name)], active); len(candidates) == 1 {
 				c.count(candidates, source.Test, false)
 			}
 		}
 		return true
 	})
+}
+
+func (c *consumerIndex) resolve(indices []int, active bool) []int {
+	if !active {
+		return indices
+	}
+	selected := make([]int, 0, len(indices))
+	for _, index := range indices {
+		if c.declarations[index].Boundary != "build-variant" {
+			selected = append(selected, index)
+		}
+	}
+	if len(selected) > 0 {
+		return selected
+	}
+	return indices
 }
 
 func (c *consumerIndex) reflectionBoundary(call *ast.CallExpr) {

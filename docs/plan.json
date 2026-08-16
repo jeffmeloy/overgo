@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "dead-surface-deletion",
-      "title": "Delete confirmed dead production surface after build-tag verification",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete confirmed dead production surface after build-tag verification",
-          "status": "open",
-          "verify": "go build ./... \u0026\u0026 ! grep -q 'func Resolve(' internal/closureledger/repository.go"
-        }
-      ]
-    },
-    {
       "id": "census-method-resolution",
       "title": "Census reports unused concrete methods via receiver/interface method-set resolution",
       "status": "open",

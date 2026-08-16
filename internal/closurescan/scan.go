@@ -55,17 +55,6 @@ func ScanRoot(root string) ([]Candidate, error) {
 	return ScanSnapshot(snapshot, nil)
 }
 
-// ScanFiles scans exactly the given root-relative production files; non-Go,
-// test, and missing files are skipped so callers can pass a commit's path
-// set unfiltered.
-func ScanFiles(root string, relatives []string) ([]Candidate, error) {
-	snapshot, err := repoanalysis.LoadGo(root, relatives)
-	if err != nil {
-		return nil, err
-	}
-	return ScanSnapshot(snapshot, nil)
-}
-
 // ScanSnapshot reuses parsed source and optionally limits findings to paths.
 func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]Candidate, error) {
 	var out []Candidate

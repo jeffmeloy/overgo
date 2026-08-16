@@ -139,29 +139,6 @@ func BuildDevicePrefillLayer(cfg Config, tokens int, blocks []PrefillAttnBlock) 
 	return buildDevicePrefillLayer(cfg, rope, positions, blocks)
 }
 
-// BuildDeviceBlockPrefillLayer emits multi-axis block-causal prefix math.
-func BuildDeviceBlockPrefillLayer(
-	cfg Config,
-	rope RopePlan,
-	positions []RowPosition,
-) (*DevicePrefillLayerGraph, error) {
-	if len(positions) == 0 {
-		return nil, fmt.Errorf("routed lm device prefill: empty positions")
-	}
-	blocks := make([]PrefillAttnBlock, 0, len(positions))
-	for start := 0; start < len(positions); {
-		end := start + 1
-		for end < len(positions) && positions[end].Time == positions[start].Time {
-			end++
-		}
-		blocks = append(blocks, PrefillAttnBlock{
-			QStart: start, QCount: end - start, KeyStart: 0, KeyEnd: end,
-		})
-		start = end
-	}
-	return buildDevicePrefillLayer(cfg, rope, positions, blocks)
-}
-
 func buildDevicePrefillLayer(
 	cfg Config,
 	rope RopePlan,

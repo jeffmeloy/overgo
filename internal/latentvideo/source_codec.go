@@ -96,7 +96,7 @@ func NormalizeSourceLatent(out, meanOutput []float32, plan SourceCodecPlan) erro
 // EncodeSourceVideo runs the checkpoint-derived causal encoder chunk stream.
 func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodecPlan, source []float32) ([]float32, error) {
 	sourceElements, err := plan.SourceElements()
-	if err != nil || len(source) != sourceElements || len(graph.ops) == 0 ||
+	if err != nil || len(source) != sourceElements || len(graph.Operations) == 0 ||
 		graph.InputChannels != plan.Source.Channels || graph.LatentChannels != plan.Latent.Channels || graph.Stride != plan.Profile.Stride {
 		return nil, errors.New("source codec: encoder contract mismatch")
 	}
@@ -127,7 +127,7 @@ func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodec
 		for opIndex := range ops {
 			current, frames, height, width, err = runVAEOp(ops[opIndex], &states[opIndex], chunkIndex, current, frames, height, width)
 			if err != nil {
-				return nil, fmt.Errorf("source codec: %s chunk %d: %w", ops[opIndex].prefix, chunkIndex, err)
+				return nil, fmt.Errorf("source codec: %s chunk %d: %w", ops[opIndex].Name, chunkIndex, err)
 			}
 		}
 		if len(current) != graph.MomentChannels*frames*latentSpatial || height != plan.Latent.Height || width != plan.Latent.Width {

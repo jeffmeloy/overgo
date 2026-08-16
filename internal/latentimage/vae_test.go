@@ -35,22 +35,22 @@ func TestVAEDecoderDerivesFromRealCheckpoint(t *testing.T) {
 	// op-count: post_quant + conv_in + (resnet,attn,resnet) + 4 blocks*(3 resnet)
 	// + 3 upsamplers + head = 1+1+3 + 12 + 3 + 1 = 21.
 	wantOps := 1 + 1 + 3 + 4*3 + 3 + 1
-	if len(d.ops) != wantOps {
-		t.Errorf("op count=%d want %d", len(d.ops), wantOps)
+	if len(d.Operations) != wantOps {
+		t.Errorf("op count=%d want %d", len(d.Operations), wantOps)
 	}
 	// channel chain sanity: first op cIn == ZDim, last op cOut == OutChannels.
-	if d.ops[0].cIn != d.ZDim {
-		t.Errorf("first op cIn=%d want %d", d.ops[0].cIn, d.ZDim)
+	if d.Operations[0].InputChannels != d.ZDim {
+		t.Errorf("first op cIn=%d want %d", d.Operations[0].InputChannels, d.ZDim)
 	}
-	if last := d.ops[len(d.ops)-1]; last.cOut != d.OutChannels {
-		t.Errorf("last op cOut=%d want %d", last.cOut, d.OutChannels)
+	if last := d.Operations[len(d.Operations)-1]; last.OutputChannels != d.OutChannels {
+		t.Errorf("last op cOut=%d want %d", last.OutputChannels, d.OutChannels)
 	}
 	// deepest feature dim = base_dim*dim_mult[last] = 96*4 = 384 at conv_in out.
-	if d.ops[1].cOut != 384 {
-		t.Errorf("conv_in cOut=%d want 384", d.ops[1].cOut)
+	if d.Operations[1].OutputChannels != 384 {
+		t.Errorf("conv_in cOut=%d want 384", d.Operations[1].OutputChannels)
 	}
 	t.Logf("decoder derived: z=%d out=%d scale=%dx ops=%d weightMB=%.1f",
-		d.ZDim, d.OutChannels, d.SpatialScale, len(d.ops), float64(d.WeightBytes)/(1<<20))
+		d.ZDim, d.OutChannels, d.SpatialScale, len(d.Operations), float64(d.WeightBytes)/(1<<20))
 }
 
 // Denorm applies z*std + mean per channel (the VAE upload affine).

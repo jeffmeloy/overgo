@@ -81,10 +81,10 @@ func compileRealVAEDecoderPlan(t testing.TB) (VAEDecoderPlan, string) {
 // decoder.head endpoints).
 func TestVAEDecoderPlanStructureReal(t *testing.T) {
 	plan, _ := compileRealVAEDecoderPlan(t)
-	if plan.Ops() != 21 || plan.UsedTensorCount != 108 || plan.UsedWeightBytes != 293182412 || plan.LargestOpWeightBytes != 31856640 {
-		t.Fatalf("bad decoder plan: ops=%d tensors=%d bytes=%d largest=%d", plan.Ops(), plan.UsedTensorCount, plan.UsedWeightBytes, plan.LargestOpWeightBytes)
+	if len(plan.Operations) != 21 || plan.UsedTensorCount != 108 || plan.UsedWeightBytes != 293182412 || plan.LargestOpWeightBytes != 31856640 {
+		t.Fatalf("bad decoder plan: ops=%d tensors=%d bytes=%d largest=%d", len(plan.Operations), plan.UsedTensorCount, plan.UsedWeightBytes, plan.LargestOpWeightBytes)
 	}
-	prefixes := plan.OpPrefixes()
+	prefixes := plan.Names()
 	if prefixes[0] != "conv2" || prefixes[len(prefixes)-1] != "decoder.head" {
 		t.Fatalf("bad op endpoints: %v", prefixes)
 	}
@@ -95,7 +95,7 @@ func TestVAEDecoderPlanStructureReal(t *testing.T) {
 	if len(stats.Mean) != plan.ZDim {
 		t.Fatalf("g0 latent stats arity=%d vs derived z_dim=%d", len(stats.Mean), plan.ZDim)
 	}
-	t.Logf("vae decoder ops=%d tensors=%d bytes=%d largest_op=%d stride=%v", plan.Ops(), plan.UsedTensorCount, plan.UsedWeightBytes, plan.LargestOpWeightBytes, plan.Stride)
+	t.Logf("vae decoder ops=%d tensors=%d bytes=%d largest_op=%d stride=%v", len(plan.Operations), plan.UsedTensorCount, plan.UsedWeightBytes, plan.LargestOpWeightBytes, plan.Stride)
 }
 
 type vaeGoldenFrames struct {

@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -87,7 +88,7 @@ func (g *vaeGraphBuilder) weight(data []float32, dims ...uint64) *tensor.Tensor 
 // dtype.F32 is supported here (the host-feed exact-parity path -- the VAE decode
 // is one-shot so there is no BF16 resident-weight variant).
 func CompileVAEProgram(d *VAEDecoder, h, w int, matmulType dtype.Type) (*VAEProgram, error) {
-	if d == nil || len(d.ops) == 0 {
+	if d == nil || len(d.Operations) == 0 {
 		return nil, fmt.Errorf("vae program: decoder not built")
 	}
 	if h <= 0 || w <= 0 {
@@ -112,11 +113,11 @@ func CompileVAEProgram(d *VAEDecoder, h, w int, matmulType dtype.Type) (*VAEProg
 
 	x := p.Latent
 	c, ch, cw := d.ZDim, h, w
-	for i := range d.ops {
+	for i := range d.Operations {
 		var err error
-		x, c, ch, cw, err = g.buildOp(d.ops[i], x, c, ch, cw)
+		x, c, ch, cw, err = g.buildOp(d.Operations[i], x, c, ch, cw)
 		if err != nil {
-			return nil, fmt.Errorf("vae program: op %d (%s): %w", i, d.ops[i].prefix, err)
+			return nil, fmt.Errorf("vae program: op %d (%s): %w", i, d.Operations[i].Name, err)
 		}
 	}
 	p.Output = b.Clamp(x, -1, 1)
@@ -130,31 +131,31 @@ func CompileVAEProgram(d *VAEDecoder, h, w int, matmulType dtype.Type) (*VAEProg
 
 // buildOp emits the graph nodes for one derived op and returns the new
 // activation + geometry. x is always [c, ch*cw] HWC columns.
-func (g *vaeGraphBuilder) buildOp(op vaeOp, x *tensor.Tensor, c, ch, cw int) (*tensor.Tensor, int, int, int, error) {
+func (g *vaeGraphBuilder) buildOp(op media.CodecOperation[[][]float32], x *tensor.Tensor, c, ch, cw int) (*tensor.Tensor, int, int, int, error) {
 	b := g.b
 	plane := ch * cw
-	switch op.kind {
-	case vaePointwise:
-		out := g.pointwise(x, op.weights[0], op.weights[1], c, op.cOut, plane)
-		return out, op.cOut, ch, cw, nil
-	case vaeConv:
-		out := g.conv3x3(x, op.weights[0], op.weights[1], c, op.cOut, ch, cw)
-		return out, op.cOut, ch, cw, nil
-	case vaeResnet:
-		gamma0, w0, b0 := op.weights[0], op.weights[1], op.weights[2]
-		gamma1, w1, b1 := op.weights[3], op.weights[4], op.weights[5]
+	switch op.Operator {
+	case media.CodecPointwise:
+		out := g.pointwise(x, op.Bindings[0], op.Bindings[1], c, op.OutputChannels, plane)
+		return out, op.OutputChannels, ch, cw, nil
+	case media.CodecConvolution:
+		out := g.conv3x3(x, op.Bindings[0], op.Bindings[1], c, op.OutputChannels, ch, cw)
+		return out, op.OutputChannels, ch, cw, nil
+	case media.CodecResidual:
+		gamma0, w0, b0 := op.Bindings[0], op.Bindings[1], op.Bindings[2]
+		gamma1, w1, b1 := op.Bindings[3], op.Bindings[4], op.Bindings[5]
 		n0 := b.SiLU(g.channelNorm(x, gamma0, c))
-		h0 := g.conv3x3(n0, w0, b0, c, op.cOut, ch, cw)
-		n1 := b.SiLU(g.channelNorm(h0, gamma1, op.cOut))
-		out := g.conv3x3(n1, w1, b1, op.cOut, op.cOut, ch, cw)
-		if op.cIn == op.cOut {
-			return b.Add(out, x), op.cOut, ch, cw, nil
+		h0 := g.conv3x3(n0, w0, b0, c, op.OutputChannels, ch, cw)
+		n1 := b.SiLU(g.channelNorm(h0, gamma1, op.OutputChannels))
+		out := g.conv3x3(n1, w1, b1, op.OutputChannels, op.OutputChannels, ch, cw)
+		if op.InputChannels == op.OutputChannels {
+			return b.Add(out, x), op.OutputChannels, ch, cw, nil
 		}
-		shortcut := g.pointwise(x, op.weights[6], op.weights[7], c, op.cOut, plane)
-		return b.Add(out, shortcut), op.cOut, ch, cw, nil
-	case vaeAttention:
-		gamma, qkvW, qkvB := op.weights[0], op.weights[1], op.weights[2]
-		projW, projB := op.weights[3], op.weights[4]
+		shortcut := g.pointwise(x, op.Bindings[6], op.Bindings[7], c, op.OutputChannels, plane)
+		return b.Add(out, shortcut), op.OutputChannels, ch, cw, nil
+	case media.CodecAttention:
+		gamma, qkvW, qkvB := op.Bindings[0], op.Bindings[1], op.Bindings[2]
+		projW, projB := op.Bindings[3], op.Bindings[4]
 		norm := g.channelNorm(x, gamma, c)
 		qkv := b.Add(
 			b.MulMat(g.weight(qkvW, uint64(c), uint64(3*c)), norm),
@@ -168,16 +169,16 @@ func (g *vaeGraphBuilder) buildOp(op vaeOp, x *tensor.Tensor, c, ch, cw int) (*t
 		attn := b.Reshape(b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: false}), cu, pu)
 		out := b.Add(b.MulMat(g.weight(projW, cu, cu), attn), g.weight(projB, cu))
 		return b.Add(out, x), c, ch, cw, nil
-	case vaeUpsample:
-		out := g.upsample(x, op.weights[0], op.weights[1], c, op.cOut, ch, cw)
-		return out, op.cOut, 2 * ch, 2 * cw, nil
-	case vaeHead:
-		gamma, weight, bias := op.weights[0], op.weights[1], op.weights[2]
+	case media.CodecUpsampleSpatial:
+		out := g.upsample(x, op.Bindings[0], op.Bindings[1], c, op.OutputChannels, ch, cw)
+		return out, op.OutputChannels, 2 * ch, 2 * cw, nil
+	case media.CodecHead:
+		gamma, weight, bias := op.Bindings[0], op.Bindings[1], op.Bindings[2]
 		norm := b.SiLU(g.channelNorm(x, gamma, c))
-		out := g.conv3x3(norm, weight, bias, c, op.cOut, ch, cw)
-		return out, op.cOut, ch, cw, nil
+		out := g.conv3x3(norm, weight, bias, c, op.OutputChannels, ch, cw)
+		return out, op.OutputChannels, ch, cw, nil
 	}
-	return nil, 0, 0, 0, fmt.Errorf("unsupported op kind %d", op.kind)
+	return nil, 0, 0, 0, fmt.Errorf("unsupported op kind %d", op.Operator)
 }
 
 // pointwise: 1x1 channel mix out[cOut,plane] = W[cOut,cIn] @ x[cIn,plane] + bias.

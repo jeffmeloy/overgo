@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/media"
+	"overgo/internal/pytorchzip"
 )
 
 // Torch-fixture oracle values ported from the reference repo
@@ -96,9 +98,15 @@ func residualFixtureOp(cIn, cOut int) (vaeLoadedOp, *vaeOpState) {
 		values = append(values, take(cOut*cIn), take(cOut))
 	}
 	return vaeLoadedOp{
-		vaeDecoderOp: vaeDecoderOp{kind: vaeOpResidual, prefix: "fixture", cIn: cIn, cOut: cOut},
-		values:       values,
+		CodecOperation: fixtureCodecOperation(media.CodecResidual, cIn, cOut),
+		values:         values,
 	}, &vaeOpState{}
+}
+
+func fixtureCodecOperation(kind media.CodecOperator, cIn, cOut int) media.CodecOperation[[]pytorchzip.TensorBinding] {
+	return media.CodecOperation[[]pytorchzip.TensorBinding]{
+		Operator: kind, Name: "fixture", InputChannels: cIn, OutputChannels: cOut, BindingCount: 1,
+	}
 }
 
 func TestVAEResidualBlockMatchesTorchIdentityShortcutFixture(t *testing.T) {
@@ -145,7 +153,7 @@ func TestVAESpatialAttentionMatchesTorchFixture(t *testing.T) {
 	next := 1
 	take := vaeFixtureTake(&next, 40, 0.3)
 	op := vaeLoadedOp{
-		vaeDecoderOp: vaeDecoderOp{kind: vaeOpAttention, prefix: "fixture", cIn: 3, cOut: 3},
+		CodecOperation: fixtureCodecOperation(media.CodecAttention, 3, 3),
 		values: [][]float32{
 			take(3),         // norm gamma
 			take(3 * 3 * 3), // to_qkv w
@@ -217,8 +225,8 @@ func TestVAEUpsample3DFirstChunkSkipsTimeConv(t *testing.T) {
 	resampleW := make([]float32, c*c*3*3)
 	resampleW[4] = 1 // identity tap: pure nearest upsample
 	op := vaeLoadedOp{
-		vaeDecoderOp: vaeDecoderOp{kind: vaeOpUpsample3D, prefix: "fixture", cIn: c, cOut: c},
-		values:       [][]float32{timeW, make([]float32, 2*c), resampleW, make([]float32, c)},
+		CodecOperation: fixtureCodecOperation(media.CodecUpsampleSpatiotemporal, c, c),
+		values:         [][]float32{timeW, make([]float32, 2*c), resampleW, make([]float32, c)},
 	}
 	state := &vaeOpState{}
 	out, frames, h, w, err := runVAEOp(op, state, 0, []float32{3}, 1, 1, 1)
@@ -241,7 +249,12 @@ func TestVAEUpsample3DFirstChunkSkipsTimeConv(t *testing.T) {
 }
 
 func TestVAEDecodeRejectsInvalidInputs(t *testing.T) {
-	plan := VAEDecoderPlan{vaePlanCore: vaePlanCore{Stride: [3]int{4, 8, 8}, ops: []vaeDecoderOp{{kind: vaeOpPointwise, cIn: 2, cOut: 2}}}, ZDim: 2, OutputChannels: 3}
+	plan := VAEDecoderPlan{vaePlanCore: vaePlanCore{
+		Stride: [3]int{4, 8, 8},
+		CodecProgram: media.CodecProgram[[]pytorchzip.TensorBinding]{
+			Operations: []media.CodecOperation[[]pytorchzip.TensorBinding]{fixtureCodecOperation(media.CodecPointwise, 2, 2)},
+		},
+	}, ZDim: 2, OutputChannels: 3}
 	stats := VAELatentStats{Mean: []float32{0, 0}, Std: []float32{1, 1}}
 	sink := func(int, []float32, int, int) error { return nil }
 	if _, err := DecodeLatentVideo("missing.pth", plan, stats, make([]float32, 2), 1, 1, 1, nil); err == nil {

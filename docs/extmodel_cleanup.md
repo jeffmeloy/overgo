@@ -99,16 +99,16 @@ active recipe + resolved artifact facts
 | Training authority timing | pre-allocation | Training plan resolves before runtime construction |
 | Typed architecture profile facts | 166 | Profile/artifact facts own omitted-value policy |
 | Model-specific `optionalOr` defaults in `model/spec.go` | 0 | Three remaining calls use multiplicative identity |
-| Production `legacy` / `fallback` text hits | 20 / 73 | Classify format support vs runtime authority; delete authority branches |
-| Parallel image/video VAE operation systems | 2 | Compile one neutral media codec program |
+| Production `legacy` / `fallback` line hits | 39 / 93 | Format, tokenizer, schema, and explicit policy vocabulary |
+| Implicit runtime compatibility fallbacks | 0 | Recipe residency owns device-OOM host recovery |
+| Media codec program contracts | 1 | Shared typed operations; resident/streamed bindings stay explicit |
 
 Family-named production files: none.
 
 ## Ordered Work
 
 1. Replace coarse prepare/integrate/decode shells with neutral operator programs.
-2. Compile one image/video codec topology; migrate host and CUDA execution together.
-3. Classify remaining legacy/fallback hits; retain format, tokenizer, and explicit resource-policy behavior only.
+2. Move remaining codec topology declarations from artifact-specific compilers into recipe facts.
 
 ## Completed Waves
 
@@ -137,6 +137,8 @@ Family-named production files: none.
 - Image/video codec channel norm and spatial attention unified in `hostmath`; two local implementations deleted.
 - Expert width derivation is exact; shared-expert fallback relationships are typed profile facts.
 - Oscillator image/video share one runtime registration owner; video-only facade deleted.
+- Packed-batch remainder and recipe-owned host recovery named precisely; runtime fallback ambiguity removed.
+- Image/video/source codecs share one typed program; local enums, validators, arity switch, and plan wrappers deleted.
 - Context-pipeline-tail abstraction rejected: `+26` lines for three consumers; no commit.
 
 ## Per-Wave Gate

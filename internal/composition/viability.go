@@ -64,14 +64,23 @@ func RunViability(config Config) (Result, error) {
 	if graftLayer < 0 {
 		graftLayer = target.Dims.Layers / 2
 	}
-	donorLayer := config.DonorLayer
-	if donorLayer < 0 {
-		donorLayer = donor.Dims.Layers / 2
+	names := make([]string, 0, len(donor.Weights))
+	for name := range donor.Weights {
+		names = append(names, name)
 	}
-	gateName, upName, downName, contract, err := SelectDonorMLP(donor.Weights, donorLayer)
+	catalog, err := organ.CompileCatalog(names)
 	if err != nil {
 		return Result{}, err
 	}
+	donorLayer := config.DonorLayer
+	if donorLayer < 0 {
+		donorLayer = catalog.MLPCount() / 2
+	}
+	component, ok := catalog.MLP(donorLayer)
+	if !ok {
+		return Result{}, fmt.Errorf("composition: donor MLP index %d outside %d cataloged components", donorLayer, catalog.MLPCount())
+	}
+	gateName, upName, downName, contract := component.Gate, component.Up, component.Down, component.Contract
 	baseline, _, err := target.Loss(config.HeldOut)
 	if err != nil {
 		return Result{}, fmt.Errorf("composition: baseline held-out loss: %w", err)

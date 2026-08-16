@@ -175,6 +175,12 @@ type Node struct {
 	Placement Placement       `json:"placement"`
 	Session   SessionPolicy   `json:"session,omitempty"`
 	Residency ResidencyPolicy `json:"residency,omitempty"`
+	// ModelSlot selects which model dependency the node executes against,
+	// keyed by Dependency{Role: DependencyModel, Slot: ModelSlot}. Slot 0 is
+	// the definition's primary model; a multi-model chain binds later nodes
+	// to higher slots so composition stays typed port wiring, never latent
+	// bridging.
+	ModelSlot uint32 `json:"model_slot,omitempty"`
 }
 
 type Endpoint struct {

@@ -126,6 +126,9 @@ func canonicalize(d *Definition) error {
 		if err := validatePlacement(node.Placement); err != nil {
 			return err
 		}
+		if _, ok := d.Dependency(DependencyModel, node.ModelSlot); !ok {
+			return fmt.Errorf("recipe: node %q model slot %d has no model dependency", node.ID, node.ModelSlot)
+		}
 	}
 	for _, input := range d.Inputs {
 		if !textcheck.LowerIdentifier(string(input.Name), maxName) || !validEndpoint(input.Target) {

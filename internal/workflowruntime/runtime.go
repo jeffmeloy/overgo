@@ -214,8 +214,12 @@ func (r *Runtime) executePlan(
 		if !ok {
 			return nil, fmt.Errorf("workflow runtime: module %q has no adapter", step.Module)
 		}
+		model, ok := definition.Dependency(recipe.DependencyModel, step.ModelSlot)
+		if !ok {
+			return nil, fmt.Errorf("workflow runtime: step %q model slot %d is unbound", step.ID, step.ModelSlot)
+		}
 		produced, err := adapter.Execute(ctx, StepRequest{
-			Model: definition.Model, Inputs: stepInputs,
+			Model: model, Inputs: stepInputs,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("workflow runtime: step %q: %w", step.ID, err)

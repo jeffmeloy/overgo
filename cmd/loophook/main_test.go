@@ -87,7 +87,10 @@ func TestLoopDirtySnapshot(t *testing.T) {
 // A missing snapshot fails SAFE -- every dirty path blocks, the pre-snapshot
 // behavior -- so a lost marker errs toward committing, never toward orphaning.
 func TestStopIgnoresPreexistingDirt(t *testing.T) {
-	parked := []string{"internal/discovery/servable.go", "internal/modelrecipe/lifecycle.go"}
+	parked := []dirtyFact{
+		{Path: "internal/discovery/servable.go", WorktreeStatus: "M", WorkIdentity: "first"},
+		{Path: "internal/modelrecipe/lifecycle.go", WorktreeStatus: "M", WorkIdentity: "second"},
+	}
 
 	if created := turnCreatedDirt(parked, parked); len(created) != 0 {
 		t.Fatalf("pre-existing dirt reported as turn-created: %v", created)
@@ -96,9 +99,9 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 		t.Fatal("bounded turn with only parked parallel-lane dirt was blocked")
 	}
 
-	current := append(append([]string{}, parked...), "cmd/loophook/main.go")
+	current := append(append([]dirtyFact{}, parked...), dirtyFact{Path: "cmd/loophook/main.go", WorktreeStatus: "M", WorkIdentity: "third"})
 	created := turnCreatedDirt(parked, current)
-	if len(created) != 1 || created[0] != "cmd/loophook/main.go" {
+	if len(created) != 1 || created[0].Path != "cmd/loophook/main.go" {
 		t.Fatalf("turn-created dirt = %v, want the new path only", created)
 	}
 	if !stopDecision(false, false, false, false, false, len(created) > 0, false) {
@@ -110,8 +113,9 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 		t.Fatalf("missing snapshot must fail safe toward blocking, got %v", created)
 	}
 
-	// Empty-string snapshot lines (blank file) never mask real paths.
-	if created := turnCreatedDirt([]string{""}, []string{"docs/design.md"}); len(created) != 1 {
-		t.Fatalf("blank snapshot line masked a real dirty path: %v", created)
+	changed := append([]dirtyFact{}, parked...)
+	changed[0].WorkIdentity = "changed-this-turn"
+	if created := turnCreatedDirt(parked, changed); len(created) != 1 || created[0].Path != parked[0].Path {
+		t.Fatalf("modified parked path was not turn-created dirt: %v", created)
 	}
 }

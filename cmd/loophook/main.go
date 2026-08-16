@@ -16,11 +16,13 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"overgo/internal/plan"
@@ -30,11 +32,10 @@ import (
 const (
 	markerPath  = "docs/.dispatch_pending"
 	boundedPath = "docs/.bounded_request"
-	// turnBasePath snapshots the dirty set at UserPromptSubmit so the Stop gate
+	// turnBasePath snapshots dirt at UserPromptSubmit so the Stop gate
 	// blocks only on TURN-CREATED dirt. Pre-existing dirt is another lane's
-	// parked in-flight work; blocking on it forced false stop records on bounded
-	// turns (the fourth false-record variant, recorded in docs/plan_stop.json).
-	turnBasePath = "docs/.turn_dirty_base"
+	// parked in-flight work.
+	turnBasePath = "docs/.loop_state"
 )
 
 func main() {
@@ -214,23 +215,47 @@ func dirtyPaths(status []byte) ([]string, error) {
 	return paths, nil
 }
 
-// currentDirtyPaths returns the repository's dirty paths, or nil on git failure.
-func currentDirtyPaths() []string {
-	out, err := exec.Command("git", "status", "--porcelain=v1", "-z", "--untracked-files=all").Output()
-	if err != nil {
-		return nil
-	}
-	paths, err := dirtyPaths(out)
-	if err != nil {
-		return nil
-	}
-	return paths
+type dirtyFact struct {
+	Path           string `json:"path"`
+	OriginalPath   string `json:"original_path,omitempty"`
+	IndexStatus    string `json:"index_status"`
+	WorktreeStatus string `json:"worktree_status"`
+	IndexIdentity  string `json:"index_identity"`
+	WorkIdentity   string `json:"work_identity"`
 }
 
-// writeTurnBase snapshots the dirty set at a turn boundary (prompt submit, or a
-// gate commit inside the turn). One path per line.
+// currentDirtyFacts binds path, index state, and worktree bytes.
+func currentDirtyFacts() ([]dirtyFact, error) {
+	out, err := exec.Command("git", "status", "--porcelain=v1", "-z", "--untracked-files=all").Output()
+	if err != nil {
+		return nil, err
+	}
+	paths, err := repoanalysis.ParseDirtyStatus(out)
+	if err != nil {
+		return nil, err
+	}
+	facts := make([]dirtyFact, 0, len(paths))
+	for _, path := range paths {
+		index, _ := exec.Command("git", "ls-files", "--stage", "--", path.Path).Output()
+		facts = append(facts, dirtyFact{
+			Path: path.Path, OriginalPath: path.OriginalPath,
+			IndexStatus: path.IndexStatus, WorktreeStatus: path.WorktreeStatus,
+			IndexIdentity: strings.TrimSpace(string(index)), WorkIdentity: workIdentity(path.Path),
+		})
+	}
+	return facts, nil
+}
+
+// writeTurnBase snapshots dirt at a prompt or commit boundary.
 func writeTurnBase() {
-	_ = os.WriteFile(turnBasePath, []byte(strings.Join(currentDirtyPaths(), "\n")+"\n"), 0o644)
+	facts, err := currentDirtyFacts()
+	if err != nil {
+		return
+	}
+	data, err := json.Marshal(facts)
+	if err == nil {
+		_ = os.WriteFile(turnBasePath, append(data, '\n'), 0o600)
+	}
 }
 
 // hasTurnCreatedDirt reports whether dirt exists beyond the turn-start snapshot.
@@ -238,31 +263,48 @@ func writeTurnBase() {
 // dirt blocks -- so a lost marker errs toward "commit your work", never toward
 // orphaning it.
 func hasTurnCreatedDirt() bool {
-	current := currentDirtyPaths()
+	current, currentErr := currentDirtyFacts()
+	if currentErr != nil {
+		return true
+	}
 	base, err := os.ReadFile(turnBasePath)
 	if err != nil {
 		return len(current) > 0
 	}
-	return len(turnCreatedDirt(strings.Split(strings.TrimSpace(string(base)), "\n"), current)) > 0
+	var baseline []dirtyFact
+	if json.Unmarshal(base, &baseline) != nil {
+		return len(current) > 0
+	}
+	return len(turnCreatedDirt(baseline, current)) > 0
 }
 
-// turnCreatedDirt is the pure diff: every current dirty path absent from the
-// turn-start snapshot. Pre-existing paths are another lane's parked work and
-// are never this turn's obligation.
-func turnCreatedDirt(base, current []string) []string {
-	parked := make(map[string]bool, len(base))
-	for _, path := range base {
-		if path != "" {
-			parked[path] = true
-		}
+// turnCreatedDirt returns new or further-modified dirty facts.
+func turnCreatedDirt(base, current []dirtyFact) []dirtyFact {
+	parked := make(map[dirtyFact]bool, len(base))
+	for _, fact := range base {
+		parked[fact] = true
 	}
-	var created []string
-	for _, path := range current {
-		if !parked[path] {
-			created = append(created, path)
+	var created []dirtyFact
+	for _, fact := range current {
+		if !parked[fact] {
+			created = append(created, fact)
 		}
 	}
 	return created
+}
+
+func workIdentity(path string) string {
+	file, err := os.Open(filepath.FromSlash(path))
+	if err != nil {
+		return "missing"
+	}
+	hash := sha256.New()
+	_, copyErr := io.Copy(hash, file)
+	closeErr := file.Close()
+	if copyErr != nil || closeErr != nil {
+		return "unreadable"
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
 func freshStopAtHead(head string) bool {

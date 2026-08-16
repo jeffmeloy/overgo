@@ -335,9 +335,11 @@ func runDeviceDecode(l *ladder) error {
 			}
 		}
 	}()
-	deviceInputs, err := compiled.BindDeviceInputs(deviceFeeds)
-	if err != nil {
-		return err
+	deviceInputs := compiled.NewDeviceInputs()
+	for node, pointer := range deviceFeeds {
+		if err := deviceInputs.Set(node, pointer); err != nil {
+			return err
+		}
 	}
 	l.log(fmt.Sprintf("DEVICE decode residency kv_capacity_bytes=%d/layer", kvBytes))
 

@@ -165,9 +165,11 @@ func runSenseNovaPrefixBranch(
 		if err := binder.bind(feeds, graph.Weights, weights); err != nil {
 			t.Fatal(err)
 		}
-		inputs, err := compiled.BindDeviceInputs(feeds)
-		if err != nil {
-			t.Fatal(err)
+		inputs := compiled.NewDeviceInputs()
+		for node, pointer := range feeds {
+			if err := inputs.Set(node, pointer); err != nil {
+				t.Fatal(err)
+			}
 		}
 		result, err := cuda.ExecuteCompiled(
 			context.Background(), compiled,

@@ -153,9 +153,8 @@ func runDevice(l *ladder) error {
 		dRow:  {Shape: rowShape, Data: lastRow},
 		dNorm: {Shape: normShape, Data: normWeight},
 	}
-	devFeeds := map[*tensor.Tensor]driver.DevicePtr{dHead: headPtr}
-	devInputs, err := compiled.BindDeviceInputs(devFeeds)
-	if err != nil {
+	devInputs := compiled.NewDeviceInputs()
+	if err := devInputs.Set(dHead, headPtr); err != nil {
 		return err
 	}
 	devOut, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, devInputs)

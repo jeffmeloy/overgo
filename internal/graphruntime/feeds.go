@@ -56,9 +56,11 @@ func (f *Feeds) Execute(
 	if err != nil {
 		return nil, err
 	}
-	inputs, err := compiled.BindDeviceInputs(f.Device)
-	if err != nil {
-		return nil, err
+	inputs := compiled.NewDeviceInputs()
+	for node, pointer := range f.Device {
+		if err := inputs.Set(node, pointer); err != nil {
+			return nil, err
+		}
 	}
 	return device.ExecuteCompiled(ctx, compiled, f.Host, inputs)
 }

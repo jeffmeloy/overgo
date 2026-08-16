@@ -139,9 +139,11 @@ func runDeviceMerger(l *ladder) error {
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		g.BlockLast: {Shape: blockShape, Data: blockLast},
 	}
-	deviceInputs, err := compiled.BindDeviceInputs(deviceFeeds)
-	if err != nil {
-		return err
+	deviceInputs := compiled.NewDeviceInputs()
+	for node, pointer := range deviceFeeds {
+		if err := deviceInputs.Set(node, pointer); err != nil {
+			return err
+		}
 	}
 	outVals, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs)
 	if err != nil {

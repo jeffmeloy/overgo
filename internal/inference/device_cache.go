@@ -870,9 +870,11 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err != nil {
 		return nil, err
 	}
-	inputs, err := compiled.BindDeviceInputs(deviceFeeds)
-	if err != nil {
-		return nil, err
+	inputs := compiled.NewDeviceInputs()
+	for node, pointer := range deviceFeeds {
+		if err := inputs.Set(node, pointer); err != nil {
+			return nil, err
+		}
 	}
 	targetPlans, err := r.compileDeviceCacheTargetPlans(compiled, graphs, appends)
 	if err != nil {

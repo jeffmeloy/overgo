@@ -599,20 +599,20 @@ func (c *CompiledGraph) NewDeviceInputs() *DeviceInputs {
 	return &DeviceInputs{compiled: c, Pointers: make([]driver.DevicePtr, c.inputCount)}
 }
 
-// BindDeviceInputs compiles tensor-keyed bindings into input slots.
-func (c *CompiledGraph) BindDeviceInputs(feeds map[*tensor.Tensor]driver.DevicePtr) (*DeviceInputs, error) {
-	inputs := c.NewDeviceInputs()
-	if inputs == nil {
-		return nil, errors.New("CUDA compiled graph is unavailable")
+// Set binds one compiled input node's device pointer into its indexed slot.
+// The indexed slots are the ONLY operand contract: the former tensor-keyed
+// map layer (BindDeviceInputs) is deleted, so callers bind directly as they
+// produce pointers instead of accumulating a map to convert.
+func (i *DeviceInputs) Set(node *tensor.Tensor, pointer driver.DevicePtr) error {
+	if i == nil || i.compiled == nil {
+		return errors.New("CUDA device inputs are unavailable")
 	}
-	for node, pointer := range feeds {
-		slot, ok := c.InputSlot(node)
-		if !ok {
-			return nil, fmt.Errorf("CUDA device input %q is not compiled", node.Name)
-		}
-		inputs.Pointers[slot] = pointer
+	slot, ok := i.compiled.InputSlot(node)
+	if !ok {
+		return fmt.Errorf("CUDA device input %q is not compiled", node.Name)
 	}
-	return inputs, nil
+	i.Pointers[slot] = pointer
+	return nil
 }
 
 // RuntimeAttributes: graph-indexed per-execution attribute overrides.

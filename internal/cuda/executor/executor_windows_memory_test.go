@@ -253,8 +253,8 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 	if err := appendTargets.Set(joined, joinedTarget); err != nil {
 		t.Fatal(err)
 	}
-	appendInputs, err := appendGraph.BindDeviceInputs(map[*tensor.Tensor]driver.DevicePtr{past: initialTarget.Pointer})
-	if err != nil {
+	appendInputs := appendGraph.NewDeviceInputs()
+	if err := appendInputs.Set(past, initialTarget.Pointer); err != nil {
 		t.Fatal(err)
 	}
 	retained, err := cuda.ExecuteRetainedCompiled(
@@ -306,8 +306,8 @@ func TestExecutorRejectsUndeclaredRetainedTargetAlias(t *testing.T) {
 	if err := targets.Set(output, value); err != nil {
 		t.Fatal(err)
 	}
-	inputs, err := compiled.BindDeviceInputs(map[*tensor.Tensor]driver.DevicePtr{input: value.Pointer})
-	if err != nil {
+	inputs := compiled.NewDeviceInputs()
+	if err := inputs.Set(input, value.Pointer); err != nil {
 		t.Fatal(err)
 	}
 	_, err = cuda.ExecuteRetainedCompiled(context.Background(), compiled, nil, inputs, targets, nil)

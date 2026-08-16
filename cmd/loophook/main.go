@@ -30,7 +30,6 @@ import (
 )
 
 const (
-	markerPath  = "docs/.dispatch_pending"
 	boundedPath = "docs/.bounded_request"
 	// turnBasePath snapshots dirt at UserPromptSubmit so the Stop gate
 	// blocks only on TURN-CREATED dirt. Pre-existing dirt is another lane's
@@ -65,12 +64,14 @@ func readStdin() string {
 
 // stopDecision is the pure verdict the Stop hook renders. block==true means the
 // turn-end is refused. Allow (block=false) whenever a valve fires; otherwise
-// block iff work is orphaned (a meaningful dirty path or an armed dispatch marker).
-func stopDecision(stopHookActive, boundedRequest, freshStop, gateRunning, planComplete, dirtyWork, markerArmed bool) (block bool) {
+// block iff turn-created work would be orphaned. Continuity is cmd/loop's job
+// now (loop-hardening-8 retirement): the milestone-stop rule and dispatch
+// marker are gone, so the gate polices only work loss, never momentum.
+func stopDecision(stopHookActive, boundedRequest, freshStop, gateRunning, planComplete, dirtyWork bool) (block bool) {
 	if stopHookActive || boundedRequest || freshStop || gateRunning || planComplete {
 		return false
 	}
-	return dirtyWork || markerArmed
+	return dirtyWork
 }
 
 func runStop(hookJSON string) int {
@@ -79,61 +80,38 @@ func runStop(hookJSON string) int {
 		return 0
 	}
 	boundedRequest := consumeBoundedRequest(boundedPath)
-	head := gitHead()
-	freshStop := freshStopAtHead(head)
-	if freshStop {
-		_ = os.Remove(markerPath)
-	}
+	freshStop := freshStopAtHead(gitHead())
 	gateRunning := gateProcessRunning()
 	next, complete := nextAction()
-	if complete {
-		_ = os.Remove(markerPath)
-	}
 	dirtyWork := hasTurnCreatedDirt()
-	markerArmed := fileExists(markerPath)
 
-	if !stopDecision(false, boundedRequest, freshStop, gateRunning, complete, dirtyWork, markerArmed) {
+	if !stopDecision(false, boundedRequest, freshStop, gateRunning, complete, dirtyWork) {
 		return 0
 	}
 
 	var b strings.Builder
-	b.WriteString("overgo loop gate: this turn orphans work -- do not end it.\n")
-	if dirtyWork {
-		b.WriteString("  * uncommitted repository work: commit via 'go run ./cmd/gate -plan <item>/<step> ...' or revert.\n")
-	}
-	if markerArmed {
-		b.WriteString("  * a commit landed but the next step is NOT dispatched (the milestone-stop). Run 'go run ./cmd/plan -next' and take its first real action THIS turn.\n")
-	}
+	b.WriteString("overgo loop gate: this turn would orphan uncommitted work.\n")
+	b.WriteString("  * commit via 'go run ./cmd/gate -plan <item>/<step> ...' or revert it.\n")
 	if len(next) > 150 {
 		next = next[:150]
 	}
 	b.WriteString("  Dispatched now: " + next + "\n")
-	b.WriteString("  A summary/checkpoint/'should I continue?' is NOT a valid end. Only:\n")
-	b.WriteString("    go run ./cmd/plan -stop <user-stop|irreversible|external-prereq>: <detail>\n")
+	b.WriteString("  (Continuity is cmd/loop's job; this gate only prevents work loss.)\n")
 	fmt.Fprint(os.Stderr, b.String())
 	return 2
 }
 
-// runPostCommit owns the dispatch-marker lifecycle. A plan-bound gate call is the
-// commit boundary: arm the marker so the Stop gate refuses a milestone-stop until
-// the next step is dispatched. A later non-gate command that has left new
-// repository work in the tree consumes the boundary (the next step is underway): clear it.
+// runPostCommit re-baselines the turn-dirt snapshot at a gate commit boundary
+// so the orphan check measures only work created after the commit. The old
+// dispatch-marker lifecycle is retired: cmd/loop owns continuity.
 func runPostCommit(hookJSON string) {
 	if strings.Contains(hookJSON, "cmd/gate") {
-		_ = os.WriteFile(markerPath, []byte(gitHead()+"\n"), 0o644)
-		// The gate committed this turn's dirt; re-baseline so the next-step
-		// check below measures only work created after the commit boundary.
 		writeTurnBase()
-		return
-	}
-	if fileExists(markerPath) && hasTurnCreatedDirt() {
-		_ = os.Remove(markerPath)
 	}
 }
 
 func runDoctrine() {
 	// A turn never spans sessions -- any pending boundary is stale.
-	_ = os.Remove(markerPath)
 	_ = os.Remove(boundedPath)
 	_ = os.Remove(turnBasePath)
 	fmt.Println(doctrineText)

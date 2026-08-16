@@ -6,34 +6,29 @@ import (
 	"testing"
 )
 
-// TestStopDecision pins the pure Stop verdict: any valve allows; otherwise the
-// turn-end is blocked iff work is orphaned (uncommitted work or an armed dispatch
-// marker). Crucially, a committed-but-not-dispatched turn (markerArmed, clean
-// tree) BLOCKS -- that is the milestone-stop the old progress-based gate let
-// through.
+// TestStopDecision pins the pure Stop verdict after the loop-hardening-8
+// retirement: any valve allows; otherwise the turn-end is blocked iff
+// turn-created work would be orphaned. Continuity (the old milestone-stop and
+// dispatch marker) is cmd/loop's job, never this gate's.
 func TestStopDecision(t *testing.T) {
 	cases := []struct {
-		name                                                                  string
-		stopHookActive, freshStop, gateRunning, planComplete, dirtyGo, marker bool
-		wantBlock                                                             bool
+		name                                                          string
+		stopHookActive, freshStop, gateRunning, planComplete, dirtyGo bool
+		wantBlock                                                     bool
 	}{
-		{"retry valve", true, false, false, false, true, true, false},
-		{"fresh stop", false, true, false, false, true, true, false},
-		{"gate in flight", false, false, true, false, true, true, false},
+		{"retry valve", true, false, false, false, true, false},
+		{"fresh stop", false, true, false, false, true, false},
+		{"gate in flight", false, false, true, false, true, false},
 		// loop-hardening-7 accepted residual: during the gate's go-run COMPILE
 		// phase gateRunning is momentarily false, so a wait-turn BLOCKS on dirty
-		// .go (safe direction). Recovery is the "retry valve" row above -- the
-		// next attempt carries stop_hook_active and allows. This pair pins the
-		// self-healing that makes the compile-gap safe without a stale-marker fix.
-		{"gate compile-window (pre-retry)", false, false, false, false, true, true, true},
-		{"plan complete", false, false, false, true, true, true, false},
-		{"clean, nothing armed", false, false, false, false, false, false, false},
-		{"uncommitted go", false, false, false, false, true, false, true},
-		{"milestone-stop: committed, not dispatched", false, false, false, false, false, true, true},
-		{"both orphans", false, false, false, false, true, true, true},
+		// .go (safe direction); the next attempt's retry valve allows.
+		{"gate compile-window (pre-retry)", false, false, false, false, true, true},
+		{"plan complete", false, false, false, true, true, false},
+		{"clean tree", false, false, false, false, false, false},
+		{"uncommitted go", false, false, false, false, true, true},
 	}
 	for _, c := range cases {
-		got := stopDecision(c.stopHookActive, false, c.freshStop, c.gateRunning, c.planComplete, c.dirtyGo, c.marker)
+		got := stopDecision(c.stopHookActive, false, c.freshStop, c.gateRunning, c.planComplete, c.dirtyGo)
 		if got != c.wantBlock {
 			t.Errorf("%s: stopDecision=%v want %v", c.name, got, c.wantBlock)
 		}
@@ -49,7 +44,7 @@ func TestBoundedRequestCompletionDoesNotRecordStop(t *testing.T) {
 	if !bounded || fileExists(marker) {
 		t.Fatal("bounded request marker was not consumed")
 	}
-	if stopDecision(false, bounded, false, false, false, true, true) {
+	if stopDecision(false, bounded, false, false, false, true) {
 		t.Fatal("bounded answer was blocked by continuation state")
 	}
 	if !boundedRequestText("automation plan completed?") || !boundedRequestText("summarize work completed") || !boundedRequestText("should we add a doc check?") {
@@ -95,7 +90,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 	if created := turnCreatedDirt(parked, parked); len(created) != 0 {
 		t.Fatalf("pre-existing dirt reported as turn-created: %v", created)
 	}
-	if stopDecision(false, false, false, false, false, len(turnCreatedDirt(parked, parked)) > 0, false) {
+	if stopDecision(false, false, false, false, false, len(turnCreatedDirt(parked, parked)) > 0) {
 		t.Fatal("bounded turn with only parked parallel-lane dirt was blocked")
 	}
 
@@ -104,7 +99,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 	if len(created) != 1 || created[0].Path != "cmd/loophook/main.go" {
 		t.Fatalf("turn-created dirt = %v, want the new path only", created)
 	}
-	if !stopDecision(false, false, false, false, false, len(created) > 0, false) {
+	if !stopDecision(false, false, false, false, false, len(created) > 0) {
 		t.Fatal("turn that created dirt was allowed to end without committing")
 	}
 

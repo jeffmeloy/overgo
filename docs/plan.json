@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "loop-hardening-8",
-      "title": "Suppress Stop decisions once the harness exposes typed background-agent liveness",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire milestone-stop and dispatch-marker machinery: cmd/loop owns continuity, the Stop gate keeps orphan protection only",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "rung15-sensenova",
       "title": "Close full-size SenseNova generation quality; retain the edit-oracle input blocker",
       "status": "open",

@@ -126,6 +126,41 @@ func TestRoadmapProbeExecutesAbsentVerifier(t *testing.T) {
 	}
 }
 
+func TestRoadmapLandedEvidenceBackfill(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "docs", "rsi_plan.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier, err := plan.RoadmapBackfillVerifier(data, "objective-breadth")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := plan.RoadmapBackfillVerifier(data, "refusal-ledger"); err == nil {
+		t.Fatal("non-historical row accepted for landed backfill")
+	}
+	storePath := t.TempDir()
+	store, err := repodb.Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completion, err := plan.ExecuteRoadmapCompletion(context.Background(), root, store, "objective-breadth", verifier)
+	store.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := collectEvidence(root, storePath, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !evidence.Landed[completion.Row] {
+		t.Fatalf("completion did not land row: %+v", evidence)
+	}
+}
+
 func mutateRoadmap(t *testing.T, data []byte, id string, mutate func(map[string]any)) []byte {
 	t.Helper()
 	var document map[string]any

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"overgo/internal/artifact"
@@ -65,7 +66,26 @@ func verifyInference(
 	results, evaluateErr := servingeval.EvaluateExact(ctx, runner, suite)
 	closeErr := runner.Close()
 	if evaluateErr != nil || closeErr != nil {
-		return fmt.Errorf("recipe: exact inference evaluation: %w", errors.Join(evaluateErr, closeErr))
+		failure := errors.Join(evaluateErr, closeErr)
+		evidence := strings.ReplaceAll(failure.Error(), "\n", " ")
+		if len(evidence) > 1900 {
+			evidence = evidence[:1900]
+		}
+		verification, publishErr := publishCapabilityFailure(
+			ctx, store, candidate.definition, revision, time.Since(started),
+			"cuda:0", "cuda", "contract=exact; "+evidence, "exact-mismatch",
+		)
+		if publishErr != nil {
+			return errors.Join(failure, publishErr)
+		}
+		if encodeErr := json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"error": failure.Error(), "gate_id": verification.Gate.String(),
+			"outcome": "failed", "recipe_id": candidate.definition.ID.String(),
+			"run_id": verification.Run.String(),
+		}); encodeErr != nil {
+			return errors.Join(failure, encodeErr)
+		}
+		return fmt.Errorf("recipe: exact inference evaluation: %w", failure)
 	}
 	inputID, err := artifact.IdentifyBytes(artifact.KindDataset, []byte(input))
 	if err != nil {

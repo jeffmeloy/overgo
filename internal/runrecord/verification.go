@@ -20,6 +20,24 @@ func VerifyGateRun(
 	store artifact.Reader,
 	recipeID, gateID, runID artifact.ID,
 ) (Verification, error) {
+	return verifyGateRunOutcome(ctx, store, recipeID, gateID, runID, OutcomeSucceeded)
+}
+
+// VerifyFailedGateRun: load and bind a failed verifier gate/run pair.
+func VerifyFailedGateRun(
+	ctx context.Context,
+	store artifact.Reader,
+	recipeID, gateID, runID artifact.ID,
+) (Verification, error) {
+	return verifyGateRunOutcome(ctx, store, recipeID, gateID, runID, OutcomeFailed)
+}
+
+func verifyGateRunOutcome(
+	ctx context.Context,
+	store artifact.Reader,
+	recipeID, gateID, runID artifact.ID,
+	want Outcome,
+) (Verification, error) {
 	gate, err := gateCodec.Require(ctx, store, gateID)
 	if err != nil {
 		return Verification{}, err
@@ -31,8 +49,8 @@ func VerifyGateRun(
 	if gate.ID != gateID || run.ID != runID || gate.Recipe != recipeID || run.Recipe != recipeID {
 		return Verification{}, errors.New("run record: verifier identity mismatch")
 	}
-	if gate.Outcome != OutcomeSucceeded || run.Outcome != OutcomeSucceeded {
-		return Verification{}, errors.New("run record: verifier did not succeed")
+	if gate.Outcome != want || run.Outcome != want {
+		return Verification{}, errors.New("run record: verifier outcome mismatch")
 	}
 	if gate.Environment != run.Environment || gate.CodeCommit != run.CodeCommit ||
 		!slices.Contains(run.Outputs, gate.ID) {

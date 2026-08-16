@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "recipe-retirement",
-      "title": "Retire invalid active recipes with failed verifier evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire invalid active recipes with failed verifier evidence",
-          "status": "open",
-          "verify": "go test -count=1 ./internal/modelrecipe ./internal/runrecord -run '^(TestRetireActiveCapabilityRequiresFailedEvidence|TestVerifyFailedGateRun)$' -v"
-        }
-      ]
-    },
-    {
       "id": "refusal-ledger",
       "title": "Record every refused candidate as an immutable measured refusal decision",
       "status": "open",

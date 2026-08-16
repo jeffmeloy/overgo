@@ -151,6 +151,55 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 	}
 }
 
+func TestRetireActiveCapabilityRequiresFailedEvidence(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "retirement-model")
+	testutil.PublishArtifact(t, store, modelID)
+	active, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := PublishCandidate(ctx, store, "fixture/retirement/active-candidate", active); err != nil {
+		t.Fatal(err)
+	}
+	activeVerification := publishVerification(t, store, active.ID, "fixture/retirement/active-verification")
+	if err := ActivateCapability(
+		ctx, store, active, activeVerification, recipe.EvidenceExperimental, "legacy activation",
+	); err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := PublishCandidate(ctx, store, "fixture/retirement/candidate", candidate); err != nil {
+		t.Fatal(err)
+	}
+	if err := RetireActiveCapability(
+		ctx, store, candidate, activeVerification, "exact output mismatch",
+	); err == nil {
+		t.Fatal("successful verifier evidence retired an active recipe")
+	}
+	failed := publishFailedVerification(t, store, candidate.ID, "fixture/retirement/failed-verification")
+	if err := RetireActiveCapability(
+		ctx, store, candidate, failed, "exact output mismatch",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if declared, err := HasActiveRecipe(ctx, store, modelID, recipe.TaskInference); err != nil || declared {
+		t.Fatalf("retired active declaration = (%v, %v)", declared, err)
+	}
+	status, published, err := Status(ctx, store, active.ID)
+	if err != nil || !published || status != recipe.StatusSuperseded {
+		t.Fatalf("retired status = (%s, %v, %v)", status, published, err)
+	}
+}
+
 func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	ctx := context.Background()
 	store, err := repodb.Open(t.TempDir())

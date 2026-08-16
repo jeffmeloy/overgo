@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"overgo/internal/artifact"
@@ -33,14 +34,17 @@ func Servable(ctx context.Context, store *repodb.Store, limit int) ([]Entry, err
 	}
 	var entries []Entry
 	for _, manifest := range result.Manifests {
+		location, present := presence(ctx, store, manifest)
 		activation, active, err := modelrecipe.ActiveRecord(ctx, store, manifest.ID, recipe.TaskInference)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf(
+				"discovery: model %s activation at %q (present=%t): %w",
+				manifest.ID, location, present, err,
+			)
 		}
 		if !active {
 			continue
 		}
-		location, present := presence(ctx, store, manifest)
 		entries = append(entries, Entry{
 			Model: manifest.ID, Recipe: activation.Definition.ID, Tier: activation.Tier,
 			Location: location, Present: present,

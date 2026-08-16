@@ -49,6 +49,7 @@ func TestCapabilityVerificationActivatesCandidate(t *testing.T) {
 	}
 	verification, err := publishCapabilityVerification(
 		ctx, store, definition, "0123456789abcdef0123456789abcdef01234567", time.Millisecond,
+		"host", "go", "fixture output validated",
 	)
 	if err != nil {
 		t.Fatal(err)

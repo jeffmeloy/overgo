@@ -109,6 +109,32 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 	}
 }
 
+func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
+	path := t.TempDir() + "/model.gguf"
+	writeServingDefinitionGGUF(t, path, false)
+	store := openProgramStore(t)
+	defer store.Close()
+	inventory, resolved := publishProgramFacts(t, store, path)
+	definition := definitionRecipe(t, inventory, resolved)
+
+	loaded, err := ResolveCandidateGGUF(path, definition, resolved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.Close()
+	if loaded.state.Program.Identity.Recipe != definition.ID ||
+		loaded.state.EvidenceTier != recipe.EvidenceExperimental {
+		t.Fatalf("candidate program = %+v tier=%s", loaded.state.Program.Identity, loaded.state.EvidenceTier)
+	}
+
+	otherPath := t.TempDir() + "/other.gguf"
+	writeServingDefinitionGGUF(t, otherPath, true)
+	otherInventory, otherResolved := publishProgramFacts(t, store, otherPath)
+	otherDefinition := definitionRecipe(t, otherInventory, otherResolved)
+	_, err = ResolveCandidateGGUF(path, otherDefinition, otherResolved)
+	assertProgramError(t, err, "does not name the loaded inference model")
+}
+
 func openProgramStore(t *testing.T) *repodb.Store {
 	t.Helper()
 	store, err := repodb.Open(t.TempDir())

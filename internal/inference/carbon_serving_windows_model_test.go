@@ -1,38 +1,23 @@
 //go:build windows && modeltest
 
-package inference
+package inference_test
 
 import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/inference"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
-	"overgo/internal/sampling"
+	"overgo/internal/servingeval"
 	"overgo/internal/servingtest"
 	"overgo/internal/testutil"
 )
-
-type carbonServingCase struct {
-	Name            string `json:"name"`
-	Prompt          string `json:"prompt"`
-	MaxTokens       int    `json:"max_tokens"`
-	Text            string `json:"text"`
-	PromptTokens    int    `json:"prompt_tokens"`
-	GeneratedTokens int    `json:"generated_tokens"`
-}
-
-type carbonServingGolden struct {
-	Schema string              `json:"schema"`
-	Source string              `json:"source"`
-	Cases  []carbonServingCase `json:"cases"`
-}
 
 const (
 	carbonServingModelIdentity  = "model:sha256:08d12f90b68fe93f3c39da1bb9f4592a13085c2740716166d2baab708793d3e8"
@@ -48,10 +33,10 @@ func TestCarbonServingGolden(t *testing.T) {
 	if _, err := os.Stat(modelPath); err != nil {
 		t.Skipf("UNAVAILABLE: converted Carbon artifact absent at %s", modelPath)
 	}
-	var golden carbonServingGolden
+	var golden servingeval.Suite
 	fixture := testutil.FixturePath(t, "carbon_serving_golden.json")
-	requireCarbonFileIdentity(t, modelPath, artifact.KindModel, carbonServingModelIdentity)
-	requireCarbonFileIdentity(t, fixture, artifact.KindEvidence, carbonServingGoldenIdentity)
+	requireServingFileIdentity(t, modelPath, artifact.KindModel, carbonServingModelIdentity)
+	requireServingFileIdentity(t, fixture, artifact.KindEvidence, carbonServingGoldenIdentity)
 	if err := jsonfile.Decode(fixture, &golden); err != nil {
 		t.Fatal(err)
 	}
@@ -64,57 +49,19 @@ func TestCarbonServingGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenWithProgram(context.Background(), &loaded, OpenOptions{})
+	runner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
 
-	for _, testCase := range golden.Cases {
-		t.Run(testCase.Name, func(t *testing.T) {
-			greedy, err := sampling.New(sampling.Config{Temperature: 0})
-			if err != nil {
-				t.Fatal(err)
-			}
-			var generated strings.Builder
-			promptTokens := 0
-			ids, _, err := runner.Generate(context.Background(), testCase.Prompt, GenerateOptions{
-				MaxNewTokens: testCase.MaxTokens,
-				Sampler:      greedy,
-				DeviceGreedy: true,
-				OnToken: func(event TokenEvent) error {
-					generated.WriteString(event.Piece)
-					return nil
-				},
-				OnPromptEvaluated: func(evaluation PromptEvaluation) {
-					promptTokens = evaluation.Tokens
-				},
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			generatedTokens := len(ids) - promptTokens
-			if promptTokens != testCase.PromptTokens || generatedTokens != testCase.GeneratedTokens {
-				t.Fatalf("token counts prompt/generated=%d/%d, want %d/%d",
-					promptTokens, generatedTokens, testCase.PromptTokens, testCase.GeneratedTokens)
-			}
-			if text := generated.String(); text != testCase.Text {
-				pieces := make([]string, 0, generatedTokens)
-				for _, id := range ids[promptTokens:] {
-					piece, pieceErr := runner.TokenPiece(id)
-					if pieceErr != nil {
-						t.Fatal(pieceErr)
-					}
-					pieces = append(pieces, piece)
-				}
-				t.Fatalf("generated text = %q, ids=%v pieces=%q, want %q", text, ids[promptTokens:], pieces, testCase.Text)
-			}
-		})
+	if _, err := servingeval.EvaluateExact(context.Background(), runner, golden); err != nil {
+		t.Fatal(err)
 	}
 	t.Logf("Carbon real serving: %d cases match %s", len(golden.Cases), golden.Source)
 }
 
-func requireCarbonFileIdentity(t testing.TB, path string, kind artifact.Kind, want string) {
+func requireServingFileIdentity(t testing.TB, path string, kind artifact.Kind, want string) {
 	t.Helper()
 	file, err := os.Open(path)
 	if err != nil {

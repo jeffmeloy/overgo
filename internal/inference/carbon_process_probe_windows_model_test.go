@@ -22,13 +22,23 @@ import (
 
 const carbonWarmSamples = 11
 
+type carbonProcessGolden struct {
+	Cases []struct {
+		Prompt          string `json:"prompt"`
+		MaxTokens       int    `json:"max_tokens"`
+		Text            string `json:"text"`
+		PromptTokens    int    `json:"prompt_tokens"`
+		GeneratedTokens int    `json:"generated_tokens"`
+	} `json:"cases"`
+}
+
 func TestCarbonServingProcessProbe(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var golden carbonServingGolden
+	var golden carbonProcessGolden
 	if err := jsonfile.Decode(testutil.FixturePath(t, "carbon_serving_golden.json"), &golden); err != nil {
 		t.Fatal(err)
 	}

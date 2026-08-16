@@ -113,6 +113,182 @@ type layerExecution struct {
 	result          DenseBlockResult
 }
 
+func mergeLayerResult(destination *DenseBlockResult, result DenseBlockResult) {
+	destination.Output = result.Output
+	if result.Key != nil || result.Value != nil {
+		destination.Key, destination.Value = result.Key, result.Value
+	}
+	if result.Auxiliary != nil {
+		destination.Auxiliary = result.Auxiliary
+	}
+	if result.Query != nil {
+		destination.Query, destination.AttentionScale = result.Query, result.AttentionScale
+	}
+	if len(result.States) > 0 {
+		destination.States = result.States
+	}
+}
+
+func executeAttentionOperator(
+	options blockDispatchOptions,
+	plan LayerPlan,
+	operator LayerOperator,
+	operands layerOperands,
+	execution *layerExecution,
+) (DenseBlockResult, error) {
+	c := options.Context
+	switch operator {
+	case LayerOperatorAttentionCausalProjection:
+		return buildCausalProjectionMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], plan.Layer,
+		)
+	case LayerOperatorAttentionGatedProjection:
+		sequences := c.Sequences
+		if sequences == 0 {
+			sequences = 1
+		}
+		return buildGatedProjectionMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			c.Positions, c.MultiPositions, sequences,
+			operands.caches[0], operands.caches[1], c.CacheWrite,
+			plan.AttentionGraph.deltaProjection,
+		)
+	case LayerOperatorAttentionOutputProjection:
+		if options.Weights.AttentionOutput == nil {
+			return DenseBlockResult{}, errors.New("compiled output-projection stage is invalid")
+		}
+		projected := c.Builder.MulMat(options.Weights.AttentionOutput, execution.current)
+		if options.Weights.AttentionOutputBias != nil {
+			projected = c.Builder.Add(projected, options.Weights.AttentionOutputBias)
+		}
+		return DenseBlockResult{Output: projected}, c.Builder.Err()
+	case LayerOperatorAttentionBidirectionalFusedQKV:
+		return buildBidirectionalFusedQKVMix(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], plan,
+		)
+	case LayerOperatorAttentionBidirectionalQKNorm:
+		return buildBidirectionalQKNormMix(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], plan,
+		)
+	case LayerOperatorAttentionCausalPostQKNorm:
+		return buildCausalPostQKNormMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], plan.Layer,
+		)
+	case LayerOperatorAttentionSharedKVQKNorm:
+		return buildSharedKVQKNormMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], plan, c.CacheWrite,
+		)
+	case LayerOperatorAttentionBidirectionalEncoder:
+		return buildBidirectionalEncoderAttentionMix(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], plan,
+		)
+	case LayerOperatorAttentionPairedCausalProjection:
+		return buildPairedCausalProjectionMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], c.CacheWrite,
+		)
+	case LayerOperatorAttentionSharedCacheQKNorm:
+		return buildSharedCacheQKNormMix(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1], plan,
+		)
+	case LayerOperatorAttentionPlannedProjection:
+		return buildPolicyAttentionMix(
+			options, execution.current, execution.feedForwardBase,
+			operands.caches[0], operands.caches[1],
+		)
+	case LayerOperatorAttentionRelativeBidirectional:
+		return buildRelativeSelfAttentionMix(
+			c.Builder, execution.current, options.Spec, options.Weights, nil, nil, false,
+		)
+	case LayerOperatorAttentionRelativeCausal:
+		return buildRelativeSelfAttentionMix(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			operands.caches[0], operands.caches[1], true,
+		)
+	case LayerOperatorAttentionCross:
+		return buildCrossAttentionMix(
+			c.Builder, execution.current, operands.tensors[0], options.Spec, options.Weights,
+			operands.caches[0], operands.caches[1],
+		)
+	default:
+		return DenseBlockResult{}, errors.New("compiled attention-mixing policy is invalid")
+	}
+}
+
+func executeRecurrentOperator(
+	options blockDispatchOptions,
+	plan LayerPlan,
+	operands layerOperands,
+	execution *layerExecution,
+) (DenseBlockResult, error) {
+	c := options.Context
+	switch plan.Mixer {
+	case recurrentMixerSelectiveScan, recurrentMixerWeightedSelectiveScan:
+		return buildSelectiveScanMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			operands.caches[0], operands.caches[1], plan.Mixer,
+		)
+	case recurrentMixerGroupedSelectiveScan, recurrentMixerScaledGroupedSelectiveScan,
+		recurrentMixerSparseGroupedSelectiveScan:
+		if plan.Mixer == recurrentMixerGroupedSelectiveScan && options.Weights.SSMConv1DBias == nil {
+			return DenseBlockResult{}, errors.New("grouped selective-scan convolution bias is nil")
+		}
+		return buildGroupedSelectiveScanMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			operands.caches[0], operands.caches[1], plan.Mixer,
+		)
+	case recurrentMixerNormalizedSelectiveScan:
+		return buildNormalizedSelectiveScanMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			operands.caches[0], operands.caches[1],
+		)
+	case recurrentMixerGatedDelta:
+		sequences := c.Sequences
+		if sequences == 0 {
+			sequences = 1
+		}
+		return buildGatedDeltaMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			c.Positions, sequences, operands.caches[0], operands.caches[1],
+			plan.AttentionGraph.deltaProjection,
+		)
+	case recurrentMixerShortConvolution:
+		return buildShortConvolutionMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1],
+		)
+	case recurrentMixerDynamicWKV6:
+		return buildDynamicWKV6MixCached(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			operands.caches[0], operands.caches[1],
+		)
+	case recurrentMixerAffineWKV6:
+		return buildAffineWKV6MixCached(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			operands.caches[0], operands.caches[1], plan,
+		)
+	case recurrentMixerDynamicWKV7:
+		return buildDynamicWKV7MixCached(
+			c.Builder, execution.current, options.Spec, options.Weights,
+			operands.caches[0], operands.caches[1], plan,
+		)
+	case recurrentMixerKeyedDelta:
+		return buildKeyedDeltaAttentionMixCached(
+			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
+			operands.caches[0], operands.caches[1],
+		)
+	default:
+		return DenseBlockResult{}, errors.New("compiled recurrent-mixing policy is invalid")
+	}
+}
+
 func executeLayerProgram(
 	options blockDispatchOptions,
 	plan LayerPlan,
@@ -209,105 +385,11 @@ func executeLayerInstruction(
 		LayerOperatorAttentionPairedCausalProjection, LayerOperatorAttentionSharedCacheQKNorm,
 		LayerOperatorAttentionPlannedProjection, LayerOperatorAttentionRelativeBidirectional,
 		LayerOperatorAttentionRelativeCausal, LayerOperatorAttentionCross:
-		var result DenseBlockResult
-		var err error
-		switch instruction.Operator {
-		case LayerOperatorAttentionCausalProjection:
-			result, err = buildCausalProjectionMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan.Layer,
-			)
-		case LayerOperatorAttentionGatedProjection:
-			sequences := c.Sequences
-			if sequences == 0 {
-				sequences = 1
-			}
-			result, err = buildGatedProjectionMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights,
-				c.Positions, c.MultiPositions, sequences,
-				operands.caches[0], operands.caches[1], c.CacheWrite,
-				plan.AttentionGraph.deltaProjection,
-			)
-		case LayerOperatorAttentionOutputProjection:
-			if options.Weights.AttentionOutput == nil {
-				return errors.New("compiled output-projection stage is invalid")
-			}
-			projected := c.Builder.MulMat(options.Weights.AttentionOutput, execution.current)
-			if options.Weights.AttentionOutputBias != nil {
-				projected = c.Builder.Add(projected, options.Weights.AttentionOutputBias)
-			}
-			result.Output, err = projected, c.Builder.Err()
-		case LayerOperatorAttentionBidirectionalFusedQKV:
-			result, err = buildBidirectionalFusedQKVMix(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan,
-			)
-		case LayerOperatorAttentionBidirectionalQKNorm:
-			result, err = buildBidirectionalQKNormMix(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan,
-			)
-		case LayerOperatorAttentionCausalPostQKNorm:
-			result, err = buildCausalPostQKNormMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan.Layer,
-			)
-		case LayerOperatorAttentionSharedKVQKNorm:
-			result, err = buildSharedKVQKNormMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan, c.CacheWrite,
-			)
-		case LayerOperatorAttentionBidirectionalEncoder:
-			result, err = buildBidirectionalEncoderAttentionMix(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan,
-			)
-		case LayerOperatorAttentionPairedCausalProjection:
-			result, err = buildPairedCausalProjectionMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], c.CacheWrite,
-			)
-		case LayerOperatorAttentionSharedCacheQKNorm:
-			result, err = buildSharedCacheQKNormMix(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1], plan,
-			)
-		case LayerOperatorAttentionPlannedProjection:
-			result, err = buildPolicyAttentionMix(
-				options, execution.current, execution.feedForwardBase,
-				operands.caches[0], operands.caches[1],
-			)
-		case LayerOperatorAttentionRelativeBidirectional:
-			result, err = buildRelativeSelfAttentionMix(
-				c.Builder, execution.current, options.Spec, options.Weights, nil, nil, false,
-			)
-		case LayerOperatorAttentionRelativeCausal:
-			result, err = buildRelativeSelfAttentionMix(
-				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1], true,
-			)
-		case LayerOperatorAttentionCross:
-			result, err = buildCrossAttentionMix(
-				c.Builder, execution.current, operands.tensors[0], options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1],
-			)
-		default:
-			return errors.New("compiled attention-mixing policy is invalid")
-		}
+		result, err := executeAttentionOperator(options, plan, instruction.Operator, operands, execution)
 		if err != nil {
 			return err
 		}
-		execution.result.Output = result.Output
-		if result.Key != nil || result.Value != nil {
-			execution.result.Key, execution.result.Value = result.Key, result.Value
-		}
-		// Preserve optional exact-attention inputs.
-		if result.Query != nil {
-			execution.result.Query, execution.result.AttentionScale = result.Query, result.AttentionScale
-		}
-		if len(result.States) > 0 {
-			execution.result.States = result.States
-		}
+		mergeLayerResult(&execution.result, result)
 		execution.current = result.Output
 		return nil
 	case LayerOperatorHybridMix:
@@ -318,75 +400,15 @@ func executeLayerInstruction(
 		if err != nil {
 			return err
 		}
-		execution.result = result
+		mergeLayerResult(&execution.result, result)
 		execution.current = result.Output
 		return nil
 	case LayerOperatorRecurrentMix:
-		var result DenseBlockResult
-		var err error
-		switch plan.Mixer {
-		case recurrentMixerSelectiveScan, recurrentMixerWeightedSelectiveScan:
-			result, err = buildSelectiveScanMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1], plan.Mixer,
-			)
-		case recurrentMixerGroupedSelectiveScan, recurrentMixerScaledGroupedSelectiveScan,
-			recurrentMixerSparseGroupedSelectiveScan:
-			if plan.Mixer == recurrentMixerGroupedSelectiveScan &&
-				options.Weights.SSMConv1DBias == nil {
-				return errors.New("grouped selective-scan convolution bias is nil")
-			}
-			result, err = buildGroupedSelectiveScanMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1], plan.Mixer,
-			)
-		case recurrentMixerNormalizedSelectiveScan:
-			result, err = buildNormalizedSelectiveScanMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1],
-			)
-		case recurrentMixerGatedDelta:
-			sequences := c.Sequences
-			if sequences == 0 {
-				sequences = 1
-			}
-			result, err = buildGatedDeltaMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights,
-				c.Positions, sequences, operands.caches[0], operands.caches[1],
-				plan.AttentionGraph.deltaProjection,
-			)
-		case recurrentMixerShortConvolution:
-			result, err = buildShortConvolutionMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1],
-			)
-		case recurrentMixerDynamicWKV6:
-			result, err = buildDynamicWKV6MixCached(
-				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1],
-			)
-		case recurrentMixerAffineWKV6:
-			result, err = buildAffineWKV6MixCached(
-				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1], plan,
-			)
-		case recurrentMixerDynamicWKV7:
-			result, err = buildDynamicWKV7MixCached(
-				c.Builder, execution.current, options.Spec, options.Weights,
-				operands.caches[0], operands.caches[1], plan,
-			)
-		case recurrentMixerKeyedDelta:
-			result, err = buildKeyedDeltaAttentionMixCached(
-				c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-				operands.caches[0], operands.caches[1],
-			)
-		default:
-			return errors.New("compiled recurrent-mixing policy is invalid")
-		}
+		result, err := executeRecurrentOperator(options, plan, operands, execution)
 		if err != nil {
 			return err
 		}
-		execution.result = result
+		mergeLayerResult(&execution.result, result)
 		execution.current = result.Output
 		return nil
 	case LayerOperatorFeedForwardNorm:

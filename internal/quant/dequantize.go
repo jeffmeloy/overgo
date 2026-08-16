@@ -9,28 +9,37 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// Dequantize: converts supported ggml storage into F32 values
+// Dequantize converts supported storage into newly allocated F32 values.
 func Dequantize(dataType dtype.Type, source []byte, elements uint64) ([]float32, error) {
 	if elements > uint64(math.MaxInt) {
 		return nil, errors.New("dequantized tensor exceeds addressable memory")
 	}
+	output := make([]float32, int(elements))
+	if err := DequantizeInto(dataType, source, output); err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
+// DequantizeInto converts supported storage into caller-owned F32 memory.
+func DequantizeInto(dataType dtype.Type, source []byte, output []float32) error {
 	traits, ok := dataType.Traits()
 	if !ok {
-		return nil, fmt.Errorf("unknown tensor type %d", dataType)
+		return fmt.Errorf("unknown tensor type %d", dataType)
 	}
+	elements := uint64(len(output))
 	if elements%traits.BlockSize != 0 {
-		return nil, fmt.Errorf("element count %d is not divisible by %s block size %d", elements, traits.Name, traits.BlockSize)
+		return fmt.Errorf("element count %d is not divisible by %s block size %d", elements, traits.Name, traits.BlockSize)
 	}
 	blocks := elements / traits.BlockSize
 	if blocks > math.MaxUint64/traits.TypeSize {
-		return nil, errors.New("quantized byte size overflows uint64")
+		return errors.New("quantized byte size overflows uint64")
 	}
 	expected := blocks * traits.TypeSize
 	if uint64(len(source)) != expected {
-		return nil, fmt.Errorf("%s data has %d bytes, need %d", traits.Name, len(source), expected)
+		return fmt.Errorf("%s data has %d bytes, need %d", traits.Name, len(source), expected)
 	}
 
-	output := make([]float32, int(elements))
 	switch dataType {
 	case dtype.F32:
 		for index := range output {
@@ -161,9 +170,9 @@ func Dequantize(dataType dtype.Type, source []byte, elements uint64) ([]float32,
 	case dtype.NVFP4:
 		dequantizeNVFP4(source, output, blocks, traits)
 	default:
-		return nil, fmt.Errorf("dequantization for %s is not implemented", dataType)
+		return fmt.Errorf("dequantization for %s is not implemented", dataType)
 	}
-	return output, nil
+	return nil
 }
 
 var iq4NLValues = [...]float32{

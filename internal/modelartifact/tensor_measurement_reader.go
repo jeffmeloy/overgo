@@ -181,13 +181,13 @@ func sampleGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo, maxSamples 
 	}
 	samples := make([]float64, 0, blockSamples*traits.BlockSize)
 	storage := make([]byte, traits.TypeSize)
+	values := make([]float32, traits.BlockSize)
 	for sample := uint64(0); sample < blockSamples; sample++ {
 		block := evenlySpacedIndex(sample, blockSamples, blocks)
 		if err := file.ReadTensorRange(tensor, block*traits.TypeSize, storage); err != nil {
 			return nil, 0, 0, err
 		}
-		values, err := quant.Dequantize(tensor.Type, storage, traits.BlockSize)
-		if err != nil {
+		if err := quant.DequantizeInto(tensor.Type, storage, values); err != nil {
 			return nil, 0, 0, err
 		}
 		for _, value := range values {

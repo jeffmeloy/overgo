@@ -288,7 +288,7 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 	if err != nil {
 		return reference.Value{}, err
 	}
-	hidden := linear(input.PixelValues, patchWeight.Data, patchBias, patchRows, patchWidth, r.spec.Hidden)
+	hidden := hostmath.LinearF64BiasFirstNew(input.PixelValues, patchWeight.Data, patchBias, patchRows, patchWidth, r.spec.Hidden)
 	classEmbedding, err := r.load(ctx, "v.class_embd")
 	if err != nil {
 		return reference.Value{}, err
@@ -333,19 +333,19 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 	if err != nil {
 		return reference.Value{}, err
 	}
-	adapted := linear(shuffled, mlp1.Data, nil, mergePlan.outputRows, shuffleWidth, r.spec.AdapterIntermediate)
+	adapted := hostmath.LinearF64BiasFirstNew(shuffled, mlp1.Data, nil, mergePlan.outputRows, shuffleWidth, r.spec.AdapterIntermediate)
 	hostmath.GELUTanhInPlace(adapted)
 	mlp2, err := r.load(ctx, "mm.model.mlp.2.weight")
 	if err != nil {
 		return reference.Value{}, err
 	}
-	adapted = linear(adapted, mlp2.Data, nil, mergePlan.outputRows, r.spec.AdapterIntermediate, r.spec.AdapterHidden)
+	adapted = hostmath.LinearF64BiasFirstNew(adapted, mlp2.Data, nil, mergePlan.outputRows, r.spec.AdapterIntermediate, r.spec.AdapterHidden)
 	hostmath.GELUTanhInPlace(adapted)
 	projection, err := r.load(ctx, "mm.model.fc.weight")
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output := linear(adapted, projection.Data, nil, mergePlan.outputRows, r.spec.AdapterHidden, r.spec.OutputHidden)
+	output := hostmath.LinearF64BiasFirstNew(adapted, projection.Data, nil, mergePlan.outputRows, r.spec.AdapterHidden, r.spec.OutputHidden)
 	return reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(mergePlan.outputRows)), output)
 }
 
@@ -370,7 +370,7 @@ func (r *Llama4VisionRunner) runLayer(ctx context.Context, hidden []float32, gri
 	if err != nil {
 		return err
 	}
-	projected := linear(attention, outWeight.Data, outBias, rows, r.spec.Hidden, r.spec.Hidden)
+	projected := hostmath.LinearF64BiasFirstNew(attention, outWeight.Data, outBias, rows, r.spec.Hidden, r.spec.Hidden)
 	for index := range hidden {
 		hidden[index] += projected[index]
 	}
@@ -386,7 +386,7 @@ func (r *Llama4VisionRunner) runLayer(ctx context.Context, hidden []float32, gri
 	if err != nil {
 		return err
 	}
-	up := linear(norm, upWeight.Data, upBias, rows, r.spec.Hidden, r.spec.Intermediate)
+	up := hostmath.LinearF64BiasFirstNew(norm, upWeight.Data, upBias, rows, r.spec.Hidden, r.spec.Intermediate)
 	for index, value := range up {
 		up[index] = r.activate(value)
 	}
@@ -398,7 +398,7 @@ func (r *Llama4VisionRunner) runLayer(ctx context.Context, hidden []float32, gri
 	if err != nil {
 		return err
 	}
-	down := linear(up, downWeight.Data, downBias, rows, r.spec.Intermediate, r.spec.Hidden)
+	down := hostmath.LinearF64BiasFirstNew(up, downWeight.Data, downBias, rows, r.spec.Intermediate, r.spec.Hidden)
 	for index := range hidden {
 		hidden[index] += down[index]
 	}
@@ -449,7 +449,7 @@ func (r *Llama4VisionRunner) affineNormalize(ctx context.Context, input []float3
 		return nil, err
 	}
 	output := make([]float32, len(input))
-	layerNorm(output, input, weight.Data, bias.Data, rows, len(input)/rows, r.spec.LayerNormEpsilon)
+	hostmath.LayerNormF32AffineInto(output, input, weight.Data, bias.Data, rows, len(input)/rows, r.spec.LayerNormEpsilon)
 	return output, nil
 }
 
@@ -463,7 +463,7 @@ func (r *Llama4VisionRunner) projectQKV(ctx context.Context, input []float32, ro
 		if err != nil {
 			return nil, err
 		}
-		return linear(input, weight.Data, bias, rows, r.spec.Hidden, 3*r.spec.Hidden), nil
+		return hostmath.LinearF64BiasFirstNew(input, weight.Data, bias, rows, r.spec.Hidden, 3*r.spec.Hidden), nil
 	}
 	qkv := make([]float32, rows*3*r.spec.Hidden)
 	for partIndex, part := range []string{"q", "k", "v"} {
@@ -475,7 +475,7 @@ func (r *Llama4VisionRunner) projectQKV(ctx context.Context, input []float32, ro
 		if err != nil {
 			return nil, err
 		}
-		projected := linear(input, weight.Data, bias, rows, r.spec.Hidden, r.spec.Hidden)
+		projected := hostmath.LinearF64BiasFirstNew(input, weight.Data, bias, rows, r.spec.Hidden, r.spec.Hidden)
 		for row := 0; row < rows; row++ {
 			copy(qkv[row*3*r.spec.Hidden+partIndex*r.spec.Hidden:], projected[row*r.spec.Hidden:(row+1)*r.spec.Hidden])
 		}

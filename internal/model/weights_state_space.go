@@ -11,7 +11,6 @@ func loadRecurrentMixerLayer(
 	recurrent bool,
 	queryLength, keyLength, valueLength, attentionOutputLength uint64,
 ) (bool, error) {
-	var err error
 	if mixer == recurrentMixerWeightedSelectiveScan {
 		layer.Recurrent = true
 		if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
@@ -86,10 +85,11 @@ func loadRecurrentMixerLayer(
 				return true, itemErr
 			}
 		}
-		if layer.AttentionOutput, err = catalog.requiredRef(
-			prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength),
-		); err != nil {
-			return true, err
+		if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+			requiredTensorPointer("attn_output.weight", &layer.AttentionOutput,
+				attentionOutputLength, uint64(spec.EmbeddingLength)),
+		}); itemErr != nil {
+			return true, itemErr
 		}
 	} else if mixer == recurrentMixerGroupedSelectiveScan || mixer == recurrentMixerScaledGroupedSelectiveScan {
 		layer.Recurrent = true
@@ -182,33 +182,17 @@ func loadRecurrentMixerLayer(
 				}
 			}
 		} else {
-			if layer.AttentionQ, err = catalog.requiredRef(
-				prefix+"attn_q.weight",
-				uint64(spec.EmbeddingLength),
-				queryLength*2,
-			); err != nil {
-				return true, err
-			}
-			if layer.AttentionK, err = catalog.requiredRef(
-				prefix+"attn_k.weight",
-				uint64(spec.EmbeddingLength),
-				keyLength,
-			); err != nil {
-				return true, err
-			}
-			if layer.AttentionV, err = catalog.requiredRef(
-				prefix+"attn_v.weight",
-				uint64(spec.EmbeddingLength),
-				valueLength,
-			); err != nil {
-				return true, err
-			}
-			if layer.AttentionOutput, err = catalog.requiredRef(
-				prefix+"attn_output.weight",
-				attentionOutputLength,
-				uint64(spec.EmbeddingLength),
-			); err != nil {
-				return true, err
+			if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+				requiredTensorPointer("attn_q.weight", &layer.AttentionQ,
+					uint64(spec.EmbeddingLength), queryLength*2),
+				requiredTensorPointer("attn_k.weight", &layer.AttentionK,
+					uint64(spec.EmbeddingLength), keyLength),
+				requiredTensorPointer("attn_v.weight", &layer.AttentionV,
+					uint64(spec.EmbeddingLength), valueLength),
+				requiredTensorPointer("attn_output.weight", &layer.AttentionOutput,
+					attentionOutputLength, uint64(spec.EmbeddingLength)),
+			}); itemErr != nil {
+				return true, itemErr
 			}
 		}
 	} else if mixer == recurrentMixerShortConvolution {

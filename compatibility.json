@@ -499,7 +499,7 @@
           "contains": "func Compile(",
           "path": "internal/cuda/executor/executor.go",
           "role": "source",
-          "identity": "file:sha256:92a0ca19ced60ce8debe1e68e8069d843154c36aa6d5639b4d060fccf9df4638"
+          "identity": "file:sha256:d07b499ea9589f25a9df1a0738c5d2c7b44634e1e0565bae9e8cd6c69d9faf01"
         },
         {
           "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
@@ -926,7 +926,7 @@
           "contains": "func (p CompiledLayerProgram) Build(",
           "path": "internal/model/graph_dispatch.go",
           "role": "source",
-          "identity": "file:sha256:95ba21de97ed22929589a720ce6f2740ddbbfe366e188a1b854c630c4298a1de"
+          "identity": "file:sha256:ed92d64281a64bc206f7d6b3953fa6f46984650b1c9ff824f35c65ce5f0ab195"
         },
         {
           "contains": "func ReadWeights(",

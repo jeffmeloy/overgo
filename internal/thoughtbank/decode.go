@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	"overgo/internal/hostmath"
 )
 
 // O(n) incremental single-token decode for the fast-weight-bank LM. Ported from
@@ -161,11 +163,12 @@ func (s *FastWeightBankLMDecodeState) stepToken(id int32) ([]float32, error) {
 	}
 	vocab := w.VocabSize
 	logits := make([]float32, vocab)
-	parallelRows(vocab, d, func(lo, hi int) {
+	hostmath.ParallelRangeF64(vocab, d, func(lo, hi int) {
 		for v := lo; v < hi; v++ {
 			logits[v] = float32(dot(head[v*d:(v+1)*d], hText))
 		}
 	})
+
 	s.pos++
 	return logits, nil
 }

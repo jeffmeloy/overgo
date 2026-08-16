@@ -357,7 +357,7 @@ func (r *Granite4VisionRunner) encodeTile(ctx context.Context, tile Granite4Visi
 	if err != nil {
 		return nil, err
 	}
-	hidden := linear(tile.PixelValues, patchWeight.Data, patchBias.Data, rows, patchWidth, r.spec.Hidden)
+	hidden := hostmath.LinearF64BiasFirstNew(tile.PixelValues, patchWeight.Data, patchBias.Data, rows, patchWidth, r.spec.Hidden)
 	positions, err := r.load(ctx, visionPositionWeightTensor)
 	if err != nil {
 		return nil, err
@@ -407,7 +407,7 @@ func (r *Granite4VisionRunner) runVisionLayer(ctx context.Context, hidden []floa
 		if loadErr != nil {
 			return loadErr
 		}
-		projected := linear(norm, weight.Data, bias.Data, rows, r.spec.Hidden, r.spec.Hidden)
+		projected := hostmath.LinearF64BiasFirstNew(norm, weight.Data, bias.Data, rows, r.spec.Hidden, r.spec.Hidden)
 		for row := 0; row < rows; row++ {
 			copy(qkv[row*3*r.spec.Hidden+partIndex*r.spec.Hidden:], projected[row*r.spec.Hidden:(row+1)*r.spec.Hidden])
 		}
@@ -417,7 +417,7 @@ func (r *Granite4VisionRunner) runVisionLayer(ctx context.Context, hidden []floa
 	if err != nil {
 		return err
 	}
-	projected := linear(attention, outWeight.Data, outBias.Data, rows, r.spec.Hidden, r.spec.Hidden)
+	projected := hostmath.LinearF64BiasFirstNew(attention, outWeight.Data, outBias.Data, rows, r.spec.Hidden, r.spec.Hidden)
 	for index := range hidden {
 		hidden[index] += projected[index]
 	}
@@ -429,13 +429,13 @@ func (r *Granite4VisionRunner) runVisionLayer(ctx context.Context, hidden []floa
 	if err != nil {
 		return err
 	}
-	up := linear(norm, upWeight.Data, upBias.Data, rows, r.spec.Hidden, r.spec.Intermediate)
+	up := hostmath.LinearF64BiasFirstNew(norm, upWeight.Data, upBias.Data, rows, r.spec.Hidden, r.spec.Intermediate)
 	hostmath.GELUTanhInPlace(up)
 	downWeight, downBias, err := r.loadPair(ctx, prefix+"ffn_down.weight", prefix+"ffn_down.bias")
 	if err != nil {
 		return err
 	}
-	down := linear(up, downWeight.Data, downBias.Data, rows, r.spec.Intermediate, r.spec.Hidden)
+	down := hostmath.LinearF64BiasFirstNew(up, downWeight.Data, downBias.Data, rows, r.spec.Intermediate, r.spec.Hidden)
 	for index := range hidden {
 		hidden[index] += down[index]
 	}
@@ -503,7 +503,7 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	if err != nil {
 		return nil, err
 	}
-	up := linear(cross, upWeight.Data, upBias.Data, windows*queryLength, r.spec.Hidden, r.spec.QFormerWidth)
+	up := hostmath.LinearF64BiasFirstNew(cross, upWeight.Data, upBias.Data, windows*queryLength, r.spec.Hidden, r.spec.QFormerWidth)
 	for index, value := range up {
 		up[index] = float32(0.5 * float64(value) * (1 + math.Erf(float64(value)/math.Sqrt2)))
 	}
@@ -511,7 +511,7 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	if err != nil {
 		return nil, err
 	}
-	ffn := linear(up, downWeight.Data, downBias.Data, windows*queryLength, r.spec.QFormerWidth, r.spec.Hidden)
+	ffn := hostmath.LinearF64BiasFirstNew(up, downWeight.Data, downBias.Data, windows*queryLength, r.spec.QFormerWidth, r.spec.Hidden)
 	for index := range ffn {
 		ffn[index] += cross[index]
 	}
@@ -524,7 +524,7 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	if err != nil {
 		return nil, err
 	}
-	return linear(unwinned, linearWeight.Data, linearBias.Data, newSide*newSide, r.spec.Hidden, r.spec.ProjectionDim), nil
+	return hostmath.LinearF64BiasFirstNew(unwinned, linearWeight.Data, linearBias.Data, newSide*newSide, r.spec.Hidden, r.spec.ProjectionDim), nil
 }
 
 func (r *Granite4VisionRunner) qformerAttention(
@@ -543,7 +543,7 @@ func (r *Granite4VisionRunner) qformerAttention(
 		if index == 0 {
 			input, rows = queryInput, windows*queryRows
 		}
-		parts[index] = linear(input, weight.Data, bias.Data, rows, r.spec.Hidden, r.spec.Hidden)
+		parts[index] = hostmath.LinearF64BiasFirstNew(input, weight.Data, bias.Data, rows, r.spec.Hidden, r.spec.Hidden)
 	}
 	attention := granite4BatchedAttention(
 		parts[0], parts[1], parts[2], windows, queryRows, keyRows,
@@ -553,7 +553,7 @@ func (r *Granite4VisionRunner) qformerAttention(
 	if err != nil {
 		return nil, err
 	}
-	return linear(attention, outWeight.Data, outBias.Data, windows*queryRows, r.spec.Hidden, r.spec.Hidden), nil
+	return hostmath.LinearF64BiasFirstNew(attention, outWeight.Data, outBias.Data, windows*queryRows, r.spec.Hidden, r.spec.Hidden), nil
 }
 
 func granite4BatchedAttention(q, k, v []float32, batches, queryRows, keyRows, hidden, heads int) []float32 {
@@ -671,7 +671,7 @@ func (r *Granite4VisionRunner) affineNormalize(
 		return nil, err
 	}
 	output := make([]float32, len(input))
-	layerNorm(output, input, weight.Data, bias.Data, rows, len(input)/rows, epsilon)
+	hostmath.LayerNormF32AffineInto(output, input, weight.Data, bias.Data, rows, len(input)/rows, epsilon)
 	return output, nil
 }
 

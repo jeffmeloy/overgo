@@ -3,9 +3,7 @@ package thoughtbank
 import (
 	"fmt"
 	"math"
-	"runtime"
 	"sort"
-	"sync"
 
 	"overgo/internal/hostmath"
 )
@@ -39,20 +37,22 @@ func swiGLUExpert(x, w12, w3 []float32, rows, d, dff int) []float32 {
 	// row over the flat (row, unit) output space.
 	fused := make([]float32, rows*2*dff)
 	wide := 2 * dff
-	parallelRows(rows*wide, d, func(lo, hi int) {
+	hostmath.ParallelRangeF64(rows*wide, d, func(lo, hi int) {
 		for i := lo; i < hi; i++ {
 			t, o := i/wide, i%wide
 			fused[i] = float32(dot(w12[o*d:(o+1)*d], x[t*d:(t+1)*d]))
 		}
 	})
+
 	hidden := swiGLUClamped(fused, rows, dff)
 	out := make([]float32, rows*d)
-	parallelRows(rows*d, dff, func(lo, hi int) {
+	hostmath.ParallelRangeF64(rows*d, dff, func(lo, hi int) {
 		for i := lo; i < hi; i++ {
 			t, o := i/d, i%d
 			out[i] = float32(dot(w3[o*dff:(o+1)*dff], hidden[t*dff:(t+1)*dff]))
 		}
 	})
+
 	return out
 }
 
@@ -184,37 +184,4 @@ func MoEBalanceLoss(routings []moERouting, nExperts, k int) float64 {
 		acc += dev * dev
 	}
 	return acc / float64(nExperts)
-}
-
-// parallelRowsMinWork is the MAC count below which dispatch is not worth it,
-// derived from the repo's measured dispatch overhead (~7.4 us) against ~0.17
-// ns/MAC. Below it parallelRows runs inline.
-const parallelRowsMinWork = 32768
-
-// parallelRows runs fn over [0,rows) split across workers. Each output element
-// is computed by exactly one worker via a single dot, so the result is
-// worker-count-independent (bit-exact regardless of parallelism).
-func parallelRows(rows, minWorkPerRow int, fn func(lo, hi int)) {
-	workers := runtime.GOMAXPROCS(0)
-	if workers > rows {
-		workers = rows
-	}
-	if workers < 2 || rows*minWorkPerRow < parallelRowsMinWork {
-		fn(0, rows)
-		return
-	}
-	chunk := (rows + workers - 1) / workers
-	var wg sync.WaitGroup
-	for start := 0; start < rows; start += chunk {
-		end := start + chunk
-		if end > rows {
-			end = rows
-		}
-		wg.Add(1)
-		go func(lo, hi int) {
-			defer wg.Done()
-			fn(lo, hi)
-		}(start, end)
-	}
-	wg.Wait()
 }

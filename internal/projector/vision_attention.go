@@ -1,12 +1,16 @@
 package projector
 
-import "math"
+import (
+	"math"
+
+	"overgo/internal/hostmath"
+)
 
 func (p visionAttentionPlan) cpu(qkv []float32, rows int) []float32 {
 	headWidth := p.headWidth()
 	output := make([]float32, rows*p.hidden)
 	scale := float64(p.scale())
-	parallelRows(p.heads, func(startHead, endHead int) {
+	hostmath.ParallelRangeF64(p.heads, 2*rows*rows*headWidth, func(startHead, endHead int) {
 		scores := make([]float64, rows)
 		for head := startHead; head < endHead; head++ {
 			for query := 0; query < rows; query++ {

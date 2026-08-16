@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"image"
 	"math"
-	"runtime"
 	"slices"
-	"sync"
 
 	"overgo/internal/gguf"
-	"overgo/internal/hostmath"
 	"overgo/internal/tensor/reference"
 )
 
@@ -297,46 +294,6 @@ func (r *Qwen3VLRunner) encode(ctx context.Context, input Qwen3VLImage) (Qwen3VL
 	return r.encodeGraph(ctx, input)
 }
 
-func linear(input, weight, bias []float32, rows, inputWidth, outputWidth int) []float32 {
-	output := make([]float32, rows*outputWidth)
-	parallelRows(rows, func(start, end int) {
-		for row := start; row < end; row++ {
-			source := input[row*inputWidth : (row+1)*inputWidth]
-			destination := output[row*outputWidth : (row+1)*outputWidth]
-			for channel := 0; channel < outputWidth; channel++ {
-				accumulator := 0.0
-				if bias != nil {
-					accumulator = float64(bias[channel])
-				}
-				weights := weight[channel*inputWidth : (channel+1)*inputWidth]
-				for index, value := range source {
-					accumulator += float64(value) * float64(weights[index])
-				}
-				destination[channel] = float32(accumulator)
-			}
-		}
-	})
-	return output
-}
-
-// layerNorm: hostmath's LayerNorm core with this family's affine discipline —
-// the normalized value is rounded to float32 BEFORE the float32 affine step
-// (hostmath's affine path is f64 and therefore not value-identical here).
-func layerNorm(output, input, weight, bias []float32, rows, width int, epsilon float32) {
-	parallelRows(rows, func(start, end int) {
-		hostmath.LayerNormInto(
-			output[start*width:end*width], input[start*width:end*width],
-			nil, nil, end-start, width, float64(epsilon),
-		)
-		for row := start; row < end; row++ {
-			destination := output[row*width : (row+1)*width]
-			for channel, value := range destination {
-				destination[channel] = value*weight[channel] + bias[channel]
-			}
-		}
-	})
-}
-
 func mergedGrid(height, width, merge int) ([]int, []int) {
 	rows := make([]int, height*width)
 	columns := make([]int, height*width)
@@ -471,25 +428,6 @@ func clampUint8(value float64) uint8 {
 		return maxUint8Channel
 	}
 	return uint8(value)
-}
-
-func parallelRows(rows int, run func(start, end int)) {
-	workers := min(runtime.GOMAXPROCS(0), rows)
-	if workers <= 1 {
-		run(0, rows)
-		return
-	}
-	var group sync.WaitGroup
-	group.Add(workers)
-	for worker := 0; worker < workers; worker++ {
-		start := worker * rows / workers
-		end := (worker + 1) * rows / workers
-		go func() {
-			defer group.Done()
-			run(start, end)
-		}()
-	}
-	group.Wait()
 }
 
 func metadataString(file *gguf.File, key string) (string, error) {

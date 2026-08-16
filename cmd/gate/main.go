@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -464,7 +465,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	g.honesty = append(g.honesty, consumerCensusHonesty("plan-slice@"+shortCommit(mergeBase), selection.Context, declarations, base, current))
+	g.honesty = append(g.honesty, consumerCensusHonesty("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
 }
 
@@ -505,7 +506,7 @@ func changedGoPathsAtRevision(repo, revision string, pending []string) ([]string
 			paths[filepath.ToSlash(name)] = true
 		}
 	}
-	return sortedPaths(paths), nil
+	return slices.Sorted(maps.Keys(paths)), nil
 }
 
 func sourceAtRevision(repo string, candidate repoanalysis.SourceSnapshot, revision string, paths []string) (repoanalysis.SourceSnapshot, error) {
@@ -532,22 +533,6 @@ func pathSet(paths []string) map[string]bool {
 		set[filepath.ToSlash(path)] = true
 	}
 	return set
-}
-
-func sortedPaths(set map[string]bool) []string {
-	paths := make([]string, 0, len(set))
-	for path := range set {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	return paths
-}
-
-func shortCommit(commit string) string {
-	if len(commit) > 12 {
-		return commit[:12]
-	}
-	return commit
 }
 
 type profileSignal struct {
@@ -653,30 +638,16 @@ func sourceAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (repoanaly
 	if err != nil {
 		return repoanalysis.SourceSnapshot{}, err
 	}
-	overlay := map[string][]byte{}
+	paths := map[string]bool{}
 	for _, entry := range dirty {
 		for _, path := range []string{entry.Path, entry.OriginalPath} {
 			if !strings.HasSuffix(path, ".go") || !strings.HasPrefix(path, "internal/") && !strings.HasPrefix(path, "cmd/") {
 				continue
 			}
-			cmd := exec.Command("git", "show", "HEAD:"+path)
-			cmd.Dir = repo
-			data, err := cmd.Output()
-			if err != nil {
-				if _, missing := err.(*exec.ExitError); missing {
-					overlay[path] = nil
-					continue
-				}
-				return repoanalysis.SourceSnapshot{}, err
-			}
-			overlay[path] = data
+			paths[path] = true
 		}
 	}
-	base, err := candidate.Overlay(overlay)
-	if err != nil {
-		return repoanalysis.SourceSnapshot{}, err
-	}
-	return base, nil
+	return sourceAtRevision(repo, candidate, "HEAD", slices.Sorted(maps.Keys(paths)))
 }
 
 // treeStateKey hashes HEAD plus every pending difference (staged, unstaged,
@@ -1810,6 +1781,8 @@ func compactHonesty(lines []string) []string {
 			label = "delta: "
 		case strings.HasPrefix(line, "go readability:"):
 			label = "style: "
+		case strings.HasPrefix(line, "consumer census"):
+			label = "consumer: "
 		case strings.HasPrefix(line, "test scope:"):
 			label = "scope: "
 		case strings.Contains(line, " reused:"):

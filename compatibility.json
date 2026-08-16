@@ -225,7 +225,7 @@
           "contains": "func CompileObjectiveProgram(",
           "path": "internal/trainingprogram/objective_program.go",
           "role": "source",
-          "identity": "file:sha256:b9f84597ab050644e977ff37e5e00c2d9d9fa7d0623d6044166eff232a9fcc88"
+          "identity": "file:sha256:482c51257e9a565ad41dd38524a235d7656999c4501147348069553010070a8a"
         },
         {
           "contains": "func TestTrainingObjectiveMatrix(",

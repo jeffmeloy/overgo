@@ -97,112 +97,73 @@ func AttentionSinkSoftmaxInto(out, logits, sink []float32, rows, heads, n int) {
 	}
 }
 
-// CompressKVHeavy is the HCA (heavily compressed) scheme: non-overlapping blocks
-// of m tokens, each collapsed by a softmax over the block computed from a gate
-// projection plus a learned per-position bias.
-//
-// The gate carries the positional bias; the value projection does NOT --
-// position influences HOW the block is summarised, never WHAT is summarised.
-//
-// hPad holds blocks*m x dModel values (already padded to a block multiple); the
-// result holds blocks x dHead.
-func CompressKVHeavy(hPad, wKV, wZ, pos []float32, blocks, m, dModel, dHead int) ([]float32, error) {
-	if len(hPad) != blocks*m*dModel {
-		return nil, fmt.Errorf("hca compress: input has %d values, want %d", len(hPad), blocks*m*dModel)
+type compressionSeries struct {
+	value, score, position []float32
+	blockOffset            int
+}
+
+func compressKV(hPad []float32, series []compressionSeries, blocks, m, dModel, dHead int) ([]float32, error) {
+	if len(hPad) != blocks*m*dModel || len(series) == 0 {
+		return nil, fmt.Errorf("compress kv: input or series shape differs")
 	}
-	if len(pos) != m*dHead {
-		return nil, fmt.Errorf("hca compress: pos has %d values, want %d", len(pos), m*dHead)
-	}
-	out := make([]float32, blocks*dHead)
-	c := make([]float64, m*dHead)
-	z := make([]float64, m*dHead)
-	for b := 0; b < blocks; b++ {
-		for j := 0; j < m; j++ {
-			tok := hPad[(b*m+j)*dModel : (b*m+j+1)*dModel]
-			for e := 0; e < dHead; e++ {
-				c[j*dHead+e] = dot(wKV[e*dModel:(e+1)*dModel], tok)
-				z[j*dHead+e] = dot(wZ[e*dModel:(e+1)*dModel], tok) + float64(pos[j*dHead+e])
-			}
+	for _, source := range series {
+		if len(source.value) != dHead*dModel || len(source.score) != dHead*dModel ||
+			len(source.position) != m*dHead {
+			return nil, fmt.Errorf("compress kv: projection shape differs")
 		}
-		// Softmax runs over the BLOCK axis independently per feature dimension.
-		for e := 0; e < dHead; e++ {
-			maxZ := math.Inf(-1)
-			for j := 0; j < m; j++ {
-				if z[j*dHead+e] > maxZ {
-					maxZ = z[j*dHead+e]
+	}
+	candidates := len(series) * m
+	values, scores := make([]float64, candidates*dHead), make([]float64, candidates*dHead)
+	out := make([]float32, blocks*dHead)
+	for block := 0; block < blocks; block++ {
+		for sourceIndex, source := range series {
+			sourceBlock := block + source.blockOffset
+			for position := 0; position < m; position++ {
+				candidate := sourceIndex*m + position
+				if sourceBlock < 0 {
+					for feature := 0; feature < dHead; feature++ {
+						values[candidate*dHead+feature] = 0
+						scores[candidate*dHead+feature] = math.Inf(-1)
+					}
+					continue
+				}
+				token := hPad[(sourceBlock*m+position)*dModel : (sourceBlock*m+position+1)*dModel]
+				for feature := 0; feature < dHead; feature++ {
+					values[candidate*dHead+feature] = dot(source.value[feature*dModel:(feature+1)*dModel], token)
+					scores[candidate*dHead+feature] = dot(source.score[feature*dModel:(feature+1)*dModel], token) +
+						float64(source.position[position*dHead+feature])
 				}
 			}
-			var sum, acc float64
-			for j := 0; j < m; j++ {
-				w := math.Exp(z[j*dHead+e] - maxZ)
-				sum += w
-				acc += w * c[j*dHead+e]
+		}
+		for feature := 0; feature < dHead; feature++ {
+			maxScore := math.Inf(-1)
+			for candidate := 0; candidate < candidates; candidate++ {
+				maxScore = max(maxScore, scores[candidate*dHead+feature])
 			}
-			out[b*dHead+e] = float32(acc / sum)
+			var denominator, numerator float64
+			for candidate := 0; candidate < candidates; candidate++ {
+				weight := math.Exp(scores[candidate*dHead+feature] - maxScore)
+				denominator += weight
+				numerator += weight * values[candidate*dHead+feature]
+			}
+			out[block*dHead+feature] = float32(numerator / denominator)
 		}
 	}
 	return out, nil
 }
 
-// CompressKVSparse is the CSA (compressed sparse) scheme: two projection series
-// whose blocks OVERLAP by one, so block i summarises its own m tokens together
-// with the previous block's.
-//
-// Block 0 has no predecessor. The reference masks the phantom one with -inf
-// before the softmax rather than dropping it, keeping the softmax's shape
-// identical for every block; this reproduces that, so block 0's weights come
-// only from the a-series.
-func CompressKVSparse(hPad, wKVa, wKVb, wZa, wZb, posA, posB []float32, blocks, m, dModel, dHead int) ([]float32, error) {
-	if len(hPad) != blocks*m*dModel {
-		return nil, fmt.Errorf("csa compress: input has %d values, want %d", len(hPad), blocks*m*dModel)
-	}
-	if len(posA) != m*dHead || len(posB) != m*dHead {
-		return nil, fmt.Errorf("csa compress: pos_a/pos_b must each hold %d values", m*dHead)
-	}
-	out := make([]float32, blocks*dHead)
-	// Per block: 2m candidates (m from series a on this block, m from series b
-	// on the PREVIOUS block).
-	cCat := make([]float64, 2*m*dHead)
-	zCat := make([]float64, 2*m*dHead)
-	for b := 0; b < blocks; b++ {
-		for j := 0; j < m; j++ {
-			tok := hPad[(b*m+j)*dModel : (b*m+j+1)*dModel]
-			for e := 0; e < dHead; e++ {
-				cCat[j*dHead+e] = dot(wKVa[e*dModel:(e+1)*dModel], tok)
-				zCat[j*dHead+e] = dot(wZa[e*dModel:(e+1)*dModel], tok) + float64(posA[j*dHead+e])
-			}
-		}
-		for j := 0; j < m; j++ {
-			idx := (m + j) * dHead
-			if b == 0 {
-				// Phantom predecessor: value zero, gate -inf so softmax ignores it.
-				for e := 0; e < dHead; e++ {
-					cCat[idx+e] = 0
-					zCat[idx+e] = math.Inf(-1)
-				}
-				continue
-			}
-			tok := hPad[((b-1)*m+j)*dModel : ((b-1)*m+j+1)*dModel]
-			for e := 0; e < dHead; e++ {
-				cCat[idx+e] = dot(wKVb[e*dModel:(e+1)*dModel], tok)
-				zCat[idx+e] = dot(wZb[e*dModel:(e+1)*dModel], tok) + float64(posB[j*dHead+e])
-			}
-		}
-		for e := 0; e < dHead; e++ {
-			maxZ := math.Inf(-1)
-			for j := 0; j < 2*m; j++ {
-				if v := zCat[j*dHead+e]; v > maxZ {
-					maxZ = v
-				}
-			}
-			var sum, acc float64
-			for j := 0; j < 2*m; j++ {
-				w := math.Exp(zCat[j*dHead+e] - maxZ)
-				sum += w
-				acc += w * cCat[j*dHead+e]
-			}
-			out[b*dHead+e] = float32(acc / sum)
-		}
-	}
-	return out, nil
+// CompressKVHeavy collapses each non-overlapping block through one learned series.
+func CompressKVHeavy(hPad, value, score, position []float32, blocks, m, dModel, dHead int) ([]float32, error) {
+	return compressKV(hPad, []compressionSeries{{value: value, score: score, position: position}},
+		blocks, m, dModel, dHead)
+}
+
+// CompressKVSparse combines the current block with a second series over its predecessor.
+func CompressKVSparse(hPad, valueA, valueB, scoreA, scoreB, positionA, positionB []float32,
+	blocks, m, dModel, dHead int,
+) ([]float32, error) {
+	return compressKV(hPad, []compressionSeries{
+		{value: valueA, score: scoreA, position: positionA},
+		{value: valueB, score: scoreB, position: positionB, blockOffset: -1},
+	}, blocks, m, dModel, dHead)
 }

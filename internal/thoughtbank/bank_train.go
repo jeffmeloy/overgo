@@ -74,14 +74,7 @@ func newFastWeightBankTrainer(weights *FastWeightBankWeights, config optimizer.C
 	if err != nil {
 		return nil, err
 	}
-	parameters := make([]trainingprogram.ParameterSpec, pack.Plan().GroupCount())
-	for index := range parameters {
-		group, _ := pack.Plan().Group(index)
-		parameters[index] = trainingprogram.ParameterSpec{
-			Name: group.Name, Rows: group.Rows, Cols: group.Cols, Trainable: !group.Frozen,
-		}
-	}
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, parameters, pack.Plan())
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, pack.Plan())
 	if err != nil {
 		return nil, err
 	}

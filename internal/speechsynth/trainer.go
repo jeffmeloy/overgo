@@ -47,12 +47,7 @@ func NewJointTrainer(model *Model, steps int, baseLR, momentum float64) (*JointT
 		return nil, err
 	}
 	plan := pack.Plan()
-	parameters := make([]trainingprogram.ParameterSpec, plan.GroupCount())
-	for index := range parameters {
-		group, _ := plan.Group(index)
-		parameters[index] = trainingprogram.ParameterSpec{Name: group.Name, Rows: group.Rows, Cols: group.Cols, Trainable: !group.Frozen}
-	}
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentSequence, parameters, plan)
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentSequence, nil, plan)
 	if err != nil {
 		_ = stepper.Close()
 		return nil, err

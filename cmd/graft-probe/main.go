@@ -15,6 +15,7 @@ import (
 
 	"overgo/internal/composition"
 	"overgo/internal/jsonfile"
+	"overgo/internal/repodb"
 )
 
 func main() {
@@ -36,6 +37,7 @@ func run(args []string, output io.Writer) error {
 	window := flags.Int("window", 64, "tokens per batch window")
 	learningRate := flags.Float64("lr", 0, "bridge learning rate (<=0 derives n_params^-1/2)")
 	momentum := flags.Float64("mu", 0.9, "Muon momentum")
+	recordStore := flags.String("record", "", "RepoDB root: commit the experiment as a generation record with its verdict")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -49,16 +51,29 @@ func run(args []string, output io.Writer) error {
 	if len(tokens) < 3*(*window) {
 		return fmt.Errorf("need at least %d tokens for two train windows and one held-out window, got %d", 3*(*window), len(tokens))
 	}
-	result, err := composition.RunViability(composition.Config{
+	probeConfig := composition.Config{
 		TargetDir: *targetDir, DonorDir: *donorDir,
 		GraftLayer: *graftLayer, DonorLayer: *donorLayer,
 		Seeds: []int64{7, 11, 13}, Steps: *steps,
 		BaseLR: *learningRate, Momentum: *momentum,
 		Train:   [][]int{tokens[:*window], tokens[*window : 2*(*window)]},
 		HeldOut: tokens[2*(*window) : 3*(*window)],
-	})
+	}
+	result, err := composition.RunViability(probeConfig)
 	if err != nil {
 		return err
+	}
+	if *recordStore != "" {
+		store, err := repodb.Open(*recordStore)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = store.Close() }()
+		record, err := composition.RecordViability(store, probeConfig, result)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "generation record committed: %s\n", record.ID)
 	}
 	fmt.Fprintf(output, "donor component: %s (role=%s modality=%s) grafted at target layer %d\n",
 		result.DonorTensor, result.DonorContract.Role, result.DonorContract.Modality, result.GraftLayer)

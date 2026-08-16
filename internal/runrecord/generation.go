@@ -53,9 +53,14 @@ var generationCodec = artifact.JSONDocumentCodec(
 	},
 )
 
-// The authoring constructor arrives with the experiment-lifecycle row, which
-// supplies its production caller; until then generationCodec.New is reachable
-// in-package and reading the graph is the only production capability.
+// NewGenerationRecord identifies one descendant construction attempt. Its
+// production caller is composition.RecordViability (the graft probe's
+// recording path), which arrived with the generation-lifecycle wiring.
+func NewGenerationRecord(record GenerationRecord) (GenerationRecord, error) {
+	record.Version = GenerationVersion
+	record.ID = artifact.ID{}
+	return generationCodec.New(record)
+}
 
 // ValidateGenerationBudget proves a record's seed consumption fits its bound
 // grant: the budget document must be the one the record references, and the

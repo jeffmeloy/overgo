@@ -225,13 +225,12 @@ func loadOptionalDenseGEGLUCatalog(
 	if present == 0 {
 		return nil
 	}
-	var err error
-	if layer.FeedForwardGate, err = catalog.requiredRef(prefix+names[0], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
-		return err
-	}
-	if layer.FeedForwardUp, err = catalog.requiredRef(prefix+names[1], uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)); err != nil {
-		return err
-	}
-	layer.FeedForwardDown, err = catalog.requiredRef(prefix+names[2], uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength))
-	return err
+	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
+		requiredTensorPointer(names[0], &layer.FeedForwardGate,
+			uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
+		requiredTensorPointer(names[1], &layer.FeedForwardUp,
+			uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
+		requiredTensorPointer(names[2], &layer.FeedForwardDown,
+			uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)),
+	})
 }

@@ -3,15 +3,15 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "experiment-generation-record",
-      "title": "Typed experiment/generation aggregate binding full provenance identities",
+      "id": "recipe-retirement",
+      "title": "Retire invalid active recipes with failed verifier evidence",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Reference immutable identities for parents, components, bridge, training plan, data split, evaluator, code/kernel/environment, seeds, budget, run, outcome and decision; minimal day-one schema",
+          "title": "Retire invalid active recipes with failed verifier evidence",
           "status": "open",
-          "verify": "go test ./internal/runrecord -run '^TestGenerationRecordBindsFullProvenance$' -count=1 -v"
+          "verify": "go test -count=1 ./internal/modelrecipe ./internal/runrecord -run '^(TestRetireActiveCapabilityRequiresFailedEvidence|TestVerifyFailedGateRun)$' -v"
         }
       ]
     },

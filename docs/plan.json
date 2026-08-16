@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "component-decomposition",
-      "title": "Derive typed components across the eight organ axes as artifacts with lineage",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Port adaptive_new organ_schema classification (classifyOrganTensor/Space/Modality, validateOrganContract) as classification only; no retrieval index",
-          "status": "open",
-          "verify": "go test ./internal/... -run '^TestComponentDecompositionContract$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "composition-viability",
       "title": "THE PIVOT: graft one classified component into a frozen target and train only the bridge",
       "status": "open",

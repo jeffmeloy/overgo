@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/gguf"
+	"overgo/internal/organ"
 )
 
 type metadataReport struct {
@@ -20,12 +21,14 @@ type metadataReport struct {
 }
 
 type tensorReport struct {
-	Name   string   `json:"name"`
-	Type   string   `json:"type"`
-	Shape  []uint64 `json:"shape"`
-	Shard  uint16   `json:"shard"`
-	Offset uint64   `json:"offset"`
-	Size   uint64   `json:"size"`
+	Name   string          `json:"name"`
+	Type   string          `json:"type"`
+	Shape  []uint64        `json:"shape"`
+	Shard  uint16          `json:"shard"`
+	Offset uint64          `json:"offset"`
+	Size   uint64          `json:"size"`
+	Organ  *organ.Contract `json:"organ,omitempty"`
+	Issues []string        `json:"organIssues,omitempty"`
 }
 
 type report struct {
@@ -42,7 +45,20 @@ type report struct {
 	Tensors       []tensorReport   `json:"tensors,omitempty"`
 }
 
-func buildReport(path string, file *gguf.File, includeMetadata, includeTensors bool, maxString int) report {
+// modelFamily reads general.architecture for organ classification; a missing
+// key classifies with an empty family rather than failing the report.
+func modelFamily(file *gguf.File) string {
+	for _, item := range file.Metadata {
+		if item.Key == "general.architecture" {
+			if value, ok := item.Value.Data.(string); ok {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
+func buildReport(path string, file *gguf.File, includeMetadata, includeTensors, includeOrgans bool, maxString int) report {
 	result := report{
 		Path:          path,
 		Version:       file.Version,
@@ -54,19 +70,28 @@ func buildReport(path string, file *gguf.File, includeMetadata, includeTensors b
 		TensorCount:   len(file.Tensors),
 		TypeCounts:    make(map[string]int),
 	}
+	family := modelFamily(file)
 	for _, tensor := range file.Tensors {
 		result.TypeCounts[tensor.Type.String()]++
 		if includeTensors {
 			shape := make([]uint64, tensor.Dimensions)
 			copy(shape, tensor.Shape[:tensor.Dimensions])
-			result.Tensors = append(result.Tensors, tensorReport{
+			entry := tensorReport{
 				Name:   tensor.Name,
 				Type:   tensor.Type.String(),
 				Shape:  shape,
 				Shard:  tensor.Shard,
 				Offset: tensor.Offset,
 				Size:   tensor.Size,
-			})
+			}
+			if includeOrgans {
+				contract := organ.Classify(tensor.Name, tensor.Type.String(), family, "", "")
+				entry.Organ = &contract
+				for _, issue := range organ.Validate(contract) {
+					entry.Issues = append(entry.Issues, issue.Code+": "+issue.Message)
+				}
+			}
+			result.Tensors = append(result.Tensors, entry)
 		}
 	}
 	if includeMetadata {
@@ -95,6 +120,7 @@ func run(arguments []string) error {
 	flags := flag.NewFlagSet("inspect-gguf", flag.ContinueOnError)
 	includeMetadata := flags.Bool("metadata", true, "include metadata keys and scalar values")
 	includeTensors := flags.Bool("tensors", false, "include every tensor descriptor")
+	includeOrgans := flags.Bool("organs", false, "classify each tensor into the eight-axis organ contract (implies per-tensor output with -tensors)")
 	maxString := flags.Int("max-string", 256, "maximum characters shown for scalar strings; negative means unlimited")
 	if err := flags.Parse(arguments); err != nil {
 		return err
@@ -109,7 +135,7 @@ func run(arguments []string) error {
 	}
 	defer file.Close()
 
-	return clioptions.WritePrettyJSON(os.Stdout, buildReport(path, file, *includeMetadata, *includeTensors, *maxString))
+	return clioptions.WritePrettyJSON(os.Stdout, buildReport(path, file, *includeMetadata, *includeTensors || *includeOrgans, *includeOrgans, *maxString))
 }
 
 func main() {

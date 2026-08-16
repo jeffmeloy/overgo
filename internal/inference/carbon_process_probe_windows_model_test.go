@@ -20,6 +20,8 @@ import (
 	"overgo/internal/testutil"
 )
 
+const carbonWarmSamples = 11
+
 func TestCarbonServingProcessProbe(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
@@ -86,7 +88,7 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	}
 	_ = generate()
 	wall := time.Since(started)
-	warm := make([]time.Duration, 5)
+	warm := make([]time.Duration, carbonWarmSamples)
 	for index := range warm {
 		warm[index] = generate()
 	}
@@ -95,7 +97,16 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("CARBON_PROCESS_PROBE wall_ns=%d resolve_ns=%d open_ns=%d generate_ns=%d warm_ns=%d device_peak=%d\n",
+	execution, err := runner.DeviceExecutionStats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if execution.GraphInstantiations > 4 || execution.GraphUpdates > 2*carbonWarmSamples {
+		t.Fatalf("Carbon decode graph cache churn: instantiations=%d updates=%d",
+			execution.GraphInstantiations, execution.GraphUpdates)
+	}
+	fmt.Printf("CARBON_PROCESS_PROBE wall_ns=%d resolve_ns=%d open_ns=%d generate_ns=%d warm_ns=%d device_peak=%d graph_instantiations=%d graph_updates=%d graph_launches=%d kernel_launches=%d\n",
 		wall.Nanoseconds(), resolvedAt.Sub(started).Nanoseconds(), openedAt.Sub(resolvedAt).Nanoseconds(),
-		wall-openedAt.Sub(started), warm[len(warm)/2].Nanoseconds(), memory.PeakBytes)
+		wall-openedAt.Sub(started), warm[len(warm)/2].Nanoseconds(), memory.PeakBytes,
+		execution.GraphInstantiations, execution.GraphUpdates, execution.GraphLaunches, execution.KernelLaunches)
 }

@@ -1396,7 +1396,7 @@ func (e *Executor) ExecuteCompiled(
 	feeds map[*tensor.Tensor]reference.Value,
 	inputs *DeviceInputs,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	return hostResult(e.runCompiled(ctx, compiled, feeds, inputs, nil, nil, false))
+	return hostResult(e.runCompiled(ctx, compiled, feeds, inputs, nil, nil, false, false))
 }
 
 // ExecuteRetainedCompiled: indexed retained execution.
@@ -1408,7 +1408,25 @@ func (e *Executor) ExecuteRetainedCompiled(
 	targets *RetainedTargets,
 	attributes *RuntimeAttributes,
 ) (*RetainedOutputs, error) {
-	execution, err := e.runCompiled(ctx, compiled, hostFeeds, deviceInputs, targets, attributes, true)
+	execution, err := e.runCompiled(ctx, compiled, hostFeeds, deviceInputs, targets, attributes, true, true)
+	if err != nil {
+		return nil, err
+	}
+	return &RetainedOutputs{
+		executor: e, compiled: compiled, values: execution.values, leases: execution.leases,
+	}, nil
+}
+
+// ExecuteRetainedCompiledOnce: retained outputs without replay-cache ownership.
+func (e *Executor) ExecuteRetainedCompiledOnce(
+	ctx context.Context,
+	compiled *CompiledGraph,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	deviceInputs *DeviceInputs,
+	targets *RetainedTargets,
+	attributes *RuntimeAttributes,
+) (*RetainedOutputs, error) {
+	execution, err := e.runCompiled(ctx, compiled, hostFeeds, deviceInputs, targets, attributes, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1447,7 +1465,7 @@ func (e *Executor) runCompiled(
 	deviceInputs *DeviceInputs,
 	targets *RetainedTargets,
 	attributes *RuntimeAttributes,
-	retain bool,
+	retain, cacheGraph bool,
 ) (*executionResult, error) {
 	if e == nil {
 		return nil, errors.New("CUDA executor is closed")
@@ -1477,6 +1495,10 @@ func (e *Executor) runCompiled(
 			return arenaErr
 		}
 		var executeErr error
+		var graphExecs *graphExecCache
+		if cacheGraph {
+			graphExecs = &resources.graphExecs
+		}
 		result, executeErr = execute(
 			state,
 			compiled,
@@ -1490,7 +1512,7 @@ func (e *Executor) runCompiled(
 			arena,
 			&resources.scratch,
 			&resources.buffers,
-			&resources.graphExecs,
+			graphExecs,
 			retain,
 		)
 		dumpResourceMemory(resources)

@@ -920,9 +920,11 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		return errors.Join(errs...)
 	}
-	retained, err := r.cuda.ExecuteRetainedCompiled(
-		ctx, compiled, hostFeeds, inputs, targets, nil,
-	)
+	execute := r.cuda.ExecuteRetainedCompiledOnce
+	if retainable {
+		execute = r.cuda.ExecuteRetainedCompiled
+	}
+	retained, err := execute(ctx, compiled, hostFeeds, inputs, targets, nil)
 	if err != nil {
 		return nil, errors.Join(err, releaseStorages())
 	}

@@ -24,8 +24,10 @@ import (
 const carbonProcessRuns = 5
 
 var carbonProcessMarker = regexp.MustCompile(`CARBON_PROCESS_PROBE wall_ns=([0-9]+).*warm_ns=([0-9]+).*device_peak=([0-9]+)`)
+var carbonCandidatePhaseMarker = regexp.MustCompile(`resolve_ns=([0-9]+) open_ns=([0-9]+) generate_ns=([0-9]+)`)
+var carbonProcessLineMarker = regexp.MustCompile(`CARBON_PROCESS_PROBE[^\r\n]*`)
 
-func TestCarbonWarmGenerationParity(t *testing.T) {
+func TestCarbonColdLifecyclePhases(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	if err != nil {
@@ -79,11 +81,15 @@ func TestCarbonWarmGenerationParity(t *testing.T) {
 	}
 	candidateWall, candidateWarm, candidateDevice := carbonProbeMedians(t, candidate)
 	referenceWall, referenceWarm, referenceDevice := carbonProbeMedians(t, reference)
+	resolveWall, openWall, generationWall := carbonCandidatePhaseMedians(t, candidate)
 	candidateHost, referenceHost := testutil.MedianProcessPeak(candidate), testutil.MedianProcessPeak(reference)
+	logCarbonProbeSamples(t, "candidate", candidate)
+	logCarbonProbeSamples(t, "reference", reference)
 	t.Logf("Carbon candidate=%s reference=%s", testutil.FormatProcessMeasurements(candidate), testutil.FormatProcessMeasurements(reference))
 	t.Logf("Carbon lifecycle candidate=%s/%0.3fMiB reference=%s/%0.3fMiB",
 		candidateWall, testutil.MiB(candidateDevice), referenceWall, testutil.MiB(referenceDevice))
 	t.Logf("Carbon warm generation candidate=%s reference=%s", candidateWarm, referenceWarm)
+	t.Logf("Carbon candidate cold phases resolve=%s open=%s generation=%s", resolveWall, openWall, generationWall)
 	if candidateDevice >= referenceDevice {
 		t.Fatalf("Carbon device peak %.3f MiB does not beat adaptive %.3f MiB",
 			testutil.MiB(candidateDevice), testutil.MiB(referenceDevice))
@@ -92,12 +98,48 @@ func TestCarbonWarmGenerationParity(t *testing.T) {
 		t.Fatalf("Carbon process peak %.3f MiB does not beat adaptive %.3f MiB",
 			testutil.MiB(candidateHost), testutil.MiB(referenceHost))
 	}
-	if candidateWall >= 2*referenceWall {
-		t.Fatalf("Carbon lifecycle wall %s exceeds 2x adaptive %s", candidateWall, referenceWall)
+	if 2*candidateWall >= 3*referenceWall {
+		t.Fatalf("Carbon lifecycle wall %s exceeds 1.5x adaptive %s", candidateWall, referenceWall)
 	}
 	if candidateWarm > referenceWarm+referenceWarm/50 {
 		t.Fatalf("Carbon warm generation %s exceeds 2%% parity band around adaptive %s", candidateWarm, referenceWarm)
 	}
+}
+
+func logCarbonProbeSamples(t testing.TB, label string, results []processmeasure.Result) {
+	t.Helper()
+	for index, result := range results {
+		marker := carbonProcessLineMarker.FindString(string(result.Output))
+		if marker == "" {
+			marker = "marker absent"
+		}
+		t.Logf("Carbon %s process %d: %s", label, index+1, marker)
+	}
+}
+
+func carbonCandidatePhaseMedians(t testing.TB, results []processmeasure.Result) (time.Duration, time.Duration, time.Duration) {
+	t.Helper()
+	resolveWalls := make([]time.Duration, len(results))
+	openWalls := make([]time.Duration, len(results))
+	generationWalls := make([]time.Duration, len(results))
+	for index, result := range results {
+		match := carbonCandidatePhaseMarker.FindSubmatch(result.Output)
+		if len(match) != 4 {
+			t.Fatalf("Carbon candidate phase marker is malformed: %s", result.Output)
+		}
+		for field, target := range []*time.Duration{&resolveWalls[index], &openWalls[index], &generationWalls[index]} {
+			value, err := strconv.ParseUint(string(match[field+1]), 10, 64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			*target = time.Duration(value)
+		}
+	}
+	slices.Sort(resolveWalls)
+	slices.Sort(openWalls)
+	slices.Sort(generationWalls)
+	middle := len(results) / 2
+	return resolveWalls[middle], openWalls[middle], generationWalls[middle]
 }
 
 func carbonProbeMedians(t testing.TB, results []processmeasure.Result) (time.Duration, time.Duration, uint64) {

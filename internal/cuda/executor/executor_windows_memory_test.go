@@ -104,6 +104,44 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	}
 }
 
+func TestExecutorRetainedOnceBypassesGraphCache(t *testing.T) {
+	cudatest.Require(t)
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(4)
+	input := builder.Input("input", dtype.F32, shape)
+	output := builder.Scale(input, 2)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda := newFixtureExecutor(t)
+	before, err := cuda.worker.ExecutionStats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	retained, err := cuda.ExecuteRetainedCompiledOnce(context.Background(), compiled,
+		map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: []float32{1, 2, 3, 4}}},
+		nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := retained.CopyToHost(context.Background(), output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, got.Data, []float32{2, 4, 6, 8}, accuracyExact)
+	if err := retained.Release(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	after, err := cuda.worker.ExecutionStats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.GraphInstantiations != before.GraphInstantiations || after.GraphLaunches != before.GraphLaunches {
+		t.Fatalf("one-shot retained execution mutated graph cache: before=%+v after=%+v", before, after)
+	}
+}
+
 func TestExecutorRetainedFlatSlicesShareProducerStorage(t *testing.T) {
 	cudatest.Require(t)
 	const (

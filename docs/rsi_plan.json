@@ -141,8 +141,8 @@
       }
     },
     "implementation_preconditions": {
-      "rule": "Every non-landed roadmap row is Go implementation work unless it explicitly declares implementation_language other than go. go-readability-gate must be LANDED before any such row lands. This is a landing precondition asserted directly against roadmap state, never an edge in depends_on.",
-      "requires": ["go-readability-gate"],
+      "rule": "Every non-landed roadmap row is Go implementation work unless it explicitly declares implementation_language other than go. The readability and new-unconsumed-surface gates must be LANDED before any such row lands. These are landing preconditions asserted directly against roadmap state, never edges in depends_on.",
+      "requires": ["go-readability-gate", "unconsumed-surface-admission"],
       "why_not_depends_on": "depends_on is the stage-derivation authority. A universal precondition expressed there inflates every downstream stage without encoding a real ordering constraint: revision 5 carried it as 11 edges, which lengthened the critical path from 7 stages to 9 and moved composition-viability from stage 2 to stage 4 -- the cheap-test-first inversion named in open_risks, in its third occurrence. The repository already models this correctly for the controls it has: changed-file gofmt and repository-wide go vet appear in control_plane_status as capabilities, and nothing depends on them. A commit gate applies to whatever is in front of it; it does not need to precede work in the dependency sense. Build-order preference for the two style rows is expressed in execution_order.priority_within_stage.",
       "bootstrap_exceptions": ["go-hygiene-policy-baseline", "go-readability-gate"],
       "landed_exemption": "Rows already listed in execution_order.landed predate this policy and are not retroactively rewritten. Candidate changes near historical debt are checked by candidate-versus-HEAD diagnostics."

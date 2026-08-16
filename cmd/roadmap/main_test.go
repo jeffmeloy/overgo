@@ -21,8 +21,10 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 		t.Fatal(err)
 	}
 	evidence := plan.RoadmapEvidence{
-		Live:     map[string]bool{"roadmap-validator": true},
-		Landed:   map[string]bool{"go-hygiene-policy-baseline": true, "go-readability-gate": true},
+		Live: map[string]bool{"roadmap-validator": true},
+		Landed: map[string]bool{
+			"go-hygiene-policy-baseline": true, "go-readability-gate": true, "unconsumed-surface-admission": true,
+		},
 		InFlight: map[string]bool{}, ProbeBound: map[string]string{
 			"refusal-ledger": "go test ./internal/runrecord ./internal/recipe -run '^TestRefusalDecisionCarriesMeasuredReason$' -count=1 -v",
 		},

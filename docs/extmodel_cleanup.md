@@ -99,7 +99,7 @@ active recipe + resolved artifact facts
 | Training authority timing | pre-allocation | Training plan resolves before runtime construction |
 | Typed architecture profile facts | 166 | Profile/artifact facts own omitted-value policy |
 | Model-specific `optionalOr` defaults in `model/spec.go` | 0 | Three remaining calls use multiplicative identity |
-| Production `legacy` / `fallback` line hits | 39 / 93 | Format, tokenizer, schema, and explicit policy vocabulary |
+| Production `legacy` / `fallback` line hits | 37 / 93 | Format, tokenizer, schema, and explicit policy vocabulary |
 | Implicit runtime compatibility fallbacks | 0 | Recipe residency owns device-OOM host recovery |
 | Media codec program contracts | 1 | Shared typed operations; resident/streamed bindings stay explicit |
 

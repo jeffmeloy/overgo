@@ -23,8 +23,7 @@ type hybridMatW struct {
 	gdn  gdnMatW
 }
 
-// hybridHostMatW / attnHostMatW / gdnHostMatW wrap host weight slices -- the
-// legacy upload-per-call path the public host-weight-fed device ops use.
+// Host matrix bundles: upload-per-call device operators.
 func attnHostMatW(w hostmath.AttentionMixWeights) attnMatW {
 	return attnMatW{wq: hostW(w.Wq), wk: hostW(w.Wk), wv: hostW(w.Wv), wo: hostW(w.Wo)}
 }

@@ -49,19 +49,6 @@
           "status": "blocked-external-prereq"
         }
       ]
-    },
-    {
-      "id": "rung2-fractale",
-      "title": "Fractale-350M",
-      "status": "open",
-      "steps": [
-        {
-          "id": "performance-leg",
-          "title": "Prove linear incremental decode and beat the native quadratic reference on the same checkpoint and prompt",
-          "status": "open",
-          "verify": "OVERGO_FRACTALE_BASELINE=1 go test -tags modeltest ./internal/thoughtbank -run '^TestFractaleIncrementalLeadership$' -count=2 -v"
-        }
-      ]
     }
   ]
 }

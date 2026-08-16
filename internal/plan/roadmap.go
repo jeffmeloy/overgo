@@ -81,6 +81,7 @@ type roadmapStep struct {
 	LivePlanConflict       json.RawMessage `json:"live_plan_conflict"`
 	Note                   json.RawMessage `json:"note"`
 	Origin                 json.RawMessage `json:"origin"`
+	Outcome                json.RawMessage `json:"outcome"`
 	PortSource             json.RawMessage `json:"port_source"`
 	Priority               json.RawMessage `json:"priority"`
 	Rationale              json.RawMessage `json:"rationale"`

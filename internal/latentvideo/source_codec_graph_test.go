@@ -47,7 +47,7 @@ func TestVAEEncoderPlanCompilesInventory(t *testing.T) {
 	wantPrefixes := []string{"encoder.conv1", "encoder.downsamples.0", "encoder.middle.0", "encoder.head", "conv1"}
 	if plan.InputChannels != inputChannels || plan.LatentChannels != featureChannels || plan.MomentChannels != momentChannels ||
 		plan.UsedTensorCount != len(inventory) || plan.UsedWeightBytes <= 0 ||
-		!slices.Equal(plan.OpPrefixes(), wantPrefixes) {
-		t.Fatalf("encoder plan = %+v prefixes=%v", plan, plan.OpPrefixes())
+		!slices.Equal(plan.Names(), wantPrefixes) {
+		t.Fatalf("encoder plan = %+v prefixes=%v", plan, plan.Names())
 	}
 }

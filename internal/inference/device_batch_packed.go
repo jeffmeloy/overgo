@@ -33,7 +33,7 @@ func (r *Runner) forwardPackedDeviceCohortsLocked(
 			return nil, false, nil
 		}
 	}
-	packed, fallback := planDeviceCohorts(appends)
+	packed, remainder := planDeviceCohorts(appends)
 	if len(packed) == 0 {
 		return nil, false, nil
 	}
@@ -79,8 +79,8 @@ func (r *Runner) forwardPackedDeviceCohortsLocked(
 			return fail(err)
 		}
 	}
-	if len(fallback) > 0 {
-		if err := execute(fallback, false); err != nil {
+	if len(remainder) > 0 {
+		if err := execute(remainder, false); err != nil {
 			return fail(err)
 		}
 	}
@@ -90,10 +90,10 @@ func (r *Runner) forwardPackedDeviceCohortsLocked(
 func planDeviceCohorts(appends []deviceBatchAppend) ([][]int, []int) {
 	cohorts := make([][]int, 0)
 	byKey := make(map[deviceCohortKey]int)
-	fallback := make([]int, 0)
+	remainder := make([]int, 0)
 	for index, item := range appends {
 		if item.Past == nil || len(item.Tokens) != 1 {
-			fallback = append(fallback, index)
+			remainder = append(remainder, index)
 			continue
 		}
 		key := deviceCohortKey{
@@ -110,16 +110,16 @@ func planDeviceCohorts(appends []deviceBatchAppend) ([][]int, []int) {
 	packed := cohorts[:0]
 	for _, cohort := range cohorts {
 		if len(cohort) < 2 {
-			fallback = append(fallback, cohort...)
+			remainder = append(remainder, cohort...)
 			continue
 		}
 		packed = append(packed, cohort)
 	}
 	if len(packed) == 0 {
-		return nil, fallback
+		return nil, remainder
 	}
-	slices.Sort(fallback)
-	return packed, fallback
+	slices.Sort(remainder)
+	return packed, remainder
 }
 
 func (r *Runner) forwardPackedDeviceBatchLocked(
@@ -163,7 +163,15 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
-	retained, err := r.cuda.ExecuteRetainedWithDeviceFeeds(ctx, outputs, hostFeeds, deviceFeeds)
+	compiled, err := executor.Compile(outputs...)
+	if err != nil {
+		return nil, err
+	}
+	inputs, err := compiled.BindDeviceInputs(deviceFeeds)
+	if err != nil {
+		return nil, err
+	}
+	retained, err := r.cuda.ExecuteRetainedCompiled(ctx, compiled, hostFeeds, inputs, nil, nil)
 	if err != nil {
 		return nil, err
 	}

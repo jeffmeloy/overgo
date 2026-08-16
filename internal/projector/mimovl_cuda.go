@@ -60,11 +60,11 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 		scale := float32(1 / math.Sqrt(float64(r.spec.HeadDim)))
 		var attention *tensor.Tensor
 		if mode == -1 {
-			attention = builder.Attention(q, k, v, scale, false)
+			attention = builder.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: false})
 		} else {
-			attention = builder.AttentionSymmetricWindowWithSinks(
-				q, k, v, weight(prefix+"attn_sinks"), scale, uint32(2*r.spec.WindowSize),
-			)
+			attention = builder.AttentionWithOptions(
+				q, k, v, tensor.AttentionOptions{Sinks: weight(prefix + "attn_sinks"), Scale: scale, SymmetricWindow: true, Window: uint32(2 * r.spec.WindowSize)})
+
 		}
 		attention = builder.Reshape(attention, uint64(qWidth), uint64(rows))
 		projected := builder.MulMat(weight(prefix+"attn_out.weight"), attention)

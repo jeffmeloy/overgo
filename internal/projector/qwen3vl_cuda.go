@@ -61,10 +61,10 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 		for temporal := 0; temporal < input.GridT; temporal++ {
 			offset := uint64(temporal * spatial * r.spec.Hidden)
 			shape := []uint64{headWidth, uint64(r.spec.Heads), uint64(spatial)}
-			part := builder.Attention(
+			part := builder.AttentionWithOptions(
 				builder.FlatSlice(q, offset, shape...), builder.FlatSlice(k, offset, shape...),
-				builder.FlatSlice(v, offset, shape...), float32(1/math.Sqrt(float64(headWidth))), false,
-			)
+				builder.FlatSlice(v, offset, shape...), tensor.AttentionOptions{Scale: float32(1 / math.Sqrt(float64(headWidth))), Causal: false})
+
 			if attention == nil {
 				attention = part
 			} else {
@@ -181,8 +181,8 @@ func interleavedVisionRoPE(
 		builder.GroupSlice(input, quarter, quarter, visionRoPEAxisCount, axisWidth),
 		axisWidth, heads, rows,
 	)
-	y = builder.RoPENeoX(y, positionsY, uint32(axisWidth), frequencyBase)
-	x = builder.RoPENeoX(x, positionsX, uint32(axisWidth), frequencyBase)
+	y = builder.RoPEWithOptions(y, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positionsY, RotaryDimensions: uint32(axisWidth), FrequencyBase: frequencyBase, FrequencyScale: 1})
+	x = builder.RoPEWithOptions(x, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positionsX, RotaryDimensions: uint32(axisWidth), FrequencyBase: frequencyBase, FrequencyScale: 1})
 	split := func(value *tensor.Tensor, offset uint64) *tensor.Tensor {
 		return builder.Reshape(builder.GroupSlice(value, offset, quarter, 1, quarter), quarter, heads, rows)
 	}

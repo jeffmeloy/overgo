@@ -1,6 +1,11 @@
 package model
 
-import "overgo/internal/gguf"
+import (
+	"errors"
+	"math"
+
+	"overgo/internal/gguf"
+)
 
 // RopeDimensionDefaultPolicy: missing rotary-width relationship.
 type RopeDimensionDefaultPolicy uint8
@@ -9,6 +14,16 @@ const (
 	RopeDimensionDefaultNone RopeDimensionDefaultPolicy = iota
 	RopeDimensionDefaultKeyLength
 	RopeDimensionDefaultKeyLengthOverride
+)
+
+// SharedExpertDefaultPolicy: omitted shared-expert width relationship.
+type SharedExpertDefaultPolicy uint8
+
+const (
+	SharedExpertDefaultNone SharedExpertDefaultPolicy = iota
+	SharedExpertDefaultModelFeedForward
+	SharedExpertDefaultExpertFeedForward
+	SharedExpertDefaultExpertProduct
 )
 
 // MetadataDefaultPolicy: serialized architecture defaults and override keys.
@@ -36,6 +51,44 @@ type MetadataDefaultPolicy struct {
 	OriginalContext        bool
 	RopeFrequencyFromBase  bool
 	RopeDimension          RopeDimensionDefaultPolicy
+	DecoderBlocksFromModel bool
+	FullAttentionInterval  uint32
+	MoELayerStep           uint32
+	ExpertChunkFromKey     bool
+	SharedExpert           SharedExpertDefaultPolicy
+}
+
+func (p MetadataDefaultPolicy) uint(values map[string]gguf.Value, prefix, key string, fallback uint32) uint32 {
+	return optionalOr(values, prefix+key, gguf.ValueTypeUint32, fallback)
+}
+
+func (p MetadataDefaultPolicy) readSharedExpertWidth(
+	values map[string]gguf.Value,
+	prefix string,
+	spec Spec,
+) (uint32, error) {
+	var fallback uint32
+	switch p.SharedExpert {
+	case SharedExpertDefaultModelFeedForward:
+		fallback = spec.FeedForwardLength
+	case SharedExpertDefaultExpertFeedForward:
+		fallback = spec.ExpertFeedForward
+	case SharedExpertDefaultExpertProduct:
+		if spec.ExpertFeedForward == 0 || spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
+			return 0, errors.New("shared expert width overflows")
+		}
+		fallback = spec.ExpertFeedForward * spec.SharedExpertCount
+	default:
+		return 0, errors.New("shared expert width relationship is absent")
+	}
+	return p.uint(values, prefix, "expert_shared_feed_forward_length", fallback), nil
+}
+
+func derivedExpertFeedForward(spec Spec) (uint32, error) {
+	if spec.ExpertUsedCount == 0 || spec.FeedForwardLength%spec.ExpertUsedCount != 0 {
+		return 0, errors.New("expert feed-forward width is not exactly derivable")
+	}
+	return spec.FeedForwardLength / spec.ExpertUsedCount, nil
 }
 
 func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string, spec *Spec) {

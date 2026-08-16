@@ -34,18 +34,14 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, mode
 	if model == nil {
 		return errors.New("oscillatorimage: incomplete runtime binding")
 	}
-	return workflowruntime.RegisterPipeline(
+	if err := workflowruntime.RegisterPipeline(
 		runtime, modelID,
 		modelrecipe.ModuleOscillatorImagePrepare, model.prepare,
 		modelrecipe.ModuleOscillatorImageIntegrate, model.integrate,
 		modelrecipe.ModuleOscillatorImageDecode, model.decode,
 		latentimage.PNGContent,
-	)
-}
-
-func RegisterVideoRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, model *Model) error {
-	if model == nil {
-		return errors.New("oscillatorimage: incomplete video runtime binding")
+	); err != nil {
+		return err
 	}
 	return workflowruntime.RegisterJSONPipeline(
 		runtime, modelID, videoContract,

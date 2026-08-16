@@ -49,9 +49,9 @@ func TestTrainingRopeMatchesServingNeoX(t *testing.T) {
 			input := builder.Input("q", dtype.F32, tensor.MustShape(
 				uint64(width), uint64(heads), uint64(tokens),
 			))
-			output := builder.RoPENeoXScaled(
-				input, positions, uint32(tc.ropeDim), float32(tc.theta), 1,
-			)
+			output := builder.RoPEWithOptions(
+				input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(tc.ropeDim), FrequencyBase: float32(tc.theta), FrequencyScale: 1})
+
 			if err := builder.Err(); err != nil {
 				t.Fatal(err)
 			}

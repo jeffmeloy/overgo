@@ -9,8 +9,13 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/gguf"
+	"overgo/internal/modelartifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 	"overgo/internal/tokenizer"
+	"overgo/internal/workflowrecipe"
 )
 
 const Qwen3VLImagePad = "<|image_pad|>"
@@ -314,6 +319,66 @@ var projectorCatalog = []projectorDescriptor{
 }
 
 func OpenAs[T Projector](ctx context.Context, path string, options OpenOptions) (T, error) {
+	return openAs[T](ctx, path, options, nil)
+}
+
+// OpenActiveAs: exact artifact and module admission before projector use.
+func OpenActiveAs[T Projector](
+	ctx context.Context,
+	store artifact.Reader,
+	modelID artifact.ID,
+	path string,
+	options OpenOptions,
+) (T, error) {
+	return openAs[T](ctx, path, options, func(file *gguf.File, selected Projector) error {
+		inventory, err := modelartifact.FromGGUF(file, artifact.KindProjector)
+		if err != nil {
+			return err
+		}
+		_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, recipe.TaskProjection)
+		if err != nil {
+			return err
+		}
+		definition := program.Definition()
+		bound, ok := definition.Dependency(recipe.DependencyProjector, 0)
+		if !ok || bound != inventory.Manifest.ID {
+			return errors.New("projector: loaded artifact differs from active projection recipe")
+		}
+		return validateProjectionModules(program, selected)
+	})
+}
+
+// CompileProjectionDefinition: artifact-derived projector bundle.
+func CompileProjectionDefinition(
+	ctx context.Context,
+	modelID artifact.ID,
+	path string,
+) (modelartifact.Inventory, recipe.Definition, error) {
+	var inventory modelartifact.Inventory
+	var definition recipe.Definition
+	selected, err := openAs[Projector](ctx, path, OpenOptions{}, func(file *gguf.File, selected Projector) error {
+		var inspectErr error
+		inventory, inspectErr = modelartifact.FromGGUF(file, artifact.KindProjector)
+		if inspectErr != nil {
+			return inspectErr
+		}
+		definition, inspectErr = modelrecipe.ProjectionDefinition(
+			modelID, inventory.Manifest.ID, projectionModalities(selected)...,
+		)
+		return inspectErr
+	})
+	if err != nil {
+		return modelartifact.Inventory{}, recipe.Definition{}, err
+	}
+	return inventory, definition, selected.Close()
+}
+
+func openAs[T Projector](
+	ctx context.Context,
+	path string,
+	options OpenOptions,
+	admit func(*gguf.File, Projector) error,
+) (T, error) {
 	var zero T
 	selected, err := openProjectorResource(ctx, path, func(file *gguf.File) (Projector, error) {
 		projectorType := ""
@@ -327,7 +392,18 @@ func OpenAs[T Projector](ctx context.Context, path string, options OpenOptions) 
 		}
 		for _, descriptor := range projectorCatalog {
 			if descriptor.kind == projectorType {
-				return descriptor.open(ctx, file, options)
+				selected, err := descriptor.open(ctx, file, options)
+				if err != nil {
+					return nil, err
+				}
+				if admit != nil {
+					err = admit(file, selected)
+				}
+				if err != nil {
+					_ = selected.Close()
+					return nil, err
+				}
+				return selected, nil
 			}
 		}
 		return nil, fmt.Errorf("projector: artifact projector type %q is unsupported", projectorType)
@@ -341,6 +417,46 @@ func OpenAs[T Projector](ctx context.Context, path string, options OpenOptions) 
 		return zero, errors.New("projector: selected artifact does not implement the requested contract")
 	}
 	return projector, nil
+}
+
+func validateProjectionModules(program recipe.Program, selected Projector) error {
+	want := map[recipe.ModuleID]bool{}
+	if _, ok := selected.(ImageProjector); ok {
+		want[workflowrecipe.ModuleDecodeImage] = true
+		want[workflowrecipe.ModuleProjectImage] = true
+	}
+	if _, ok := selected.(AudioProjector); ok {
+		want[workflowrecipe.ModuleDecodeAudio] = true
+		want[workflowrecipe.ModuleProjectAudio] = true
+	}
+	if _, ok := selected.(VideoProjector); ok {
+		want[workflowrecipe.ModuleDecodeVideo] = true
+		want[workflowrecipe.ModuleProjectVideo] = true
+	}
+	for _, stage := range program.Stages() {
+		if !want[stage.Module.ID] {
+			return fmt.Errorf("projector: active projection recipe admits unsupported module %q", stage.Module.ID)
+		}
+		delete(want, stage.Module.ID)
+	}
+	if len(want) != 0 {
+		return errors.New("projector: active projection recipe omits supported modules")
+	}
+	return nil
+}
+
+func projectionModalities(selected Projector) []modelrecipe.ProjectionModality {
+	var modalities []modelrecipe.ProjectionModality
+	if _, ok := selected.(ImageProjector); ok {
+		modalities = append(modalities, modelrecipe.ProjectionImage)
+	}
+	if _, ok := selected.(AudioProjector); ok {
+		modalities = append(modalities, modelrecipe.ProjectionAudio)
+	}
+	if _, ok := selected.(VideoProjector); ok {
+		modalities = append(modalities, modelrecipe.ProjectionVideo)
+	}
+	return modalities
 }
 
 func (r *Granite4VisionRunner) BuildImagePrompt(

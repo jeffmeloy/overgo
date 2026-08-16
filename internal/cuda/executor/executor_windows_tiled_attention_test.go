@@ -45,9 +45,9 @@ func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
 			roundedQuery, roundedKey, roundedValue := builder.BF16Round(query), builder.BF16Round(key), builder.BF16Round(value)
 			var attention *tensor.Tensor
 			if keyBias != nil {
-				attention = builder.AttentionWithKeyBias(roundedQuery, roundedKey, roundedValue, keyBias, testCase.scale, false)
+				attention = builder.AttentionWithOptions(roundedQuery, roundedKey, roundedValue, tensor.AttentionOptions{KeyBias: keyBias, Scale: testCase.scale, Causal: false})
 			} else {
-				attention = builder.Attention(roundedQuery, roundedKey, roundedValue, testCase.scale, false)
+				attention = builder.AttentionWithOptions(roundedQuery, roundedKey, roundedValue, tensor.AttentionOptions{Scale: testCase.scale, Causal: false})
 			}
 			if err := builder.Err(); err != nil {
 				t.Fatal(err)
@@ -134,9 +134,9 @@ func TestExecutorTiledAttentionMatchesReference(t *testing.T) {
 			var keyBias *tensor.Tensor
 			if testCase.masked {
 				keyBias = builder.Input("key_bias", dtype.F32, tensor.MustShape(testCase.kvTokens))
-				attention = builder.AttentionWithKeyBias(query, key, value, keyBias, testCase.scale, false)
+				attention = builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{KeyBias: keyBias, Scale: testCase.scale, Causal: false})
 			} else {
-				attention = builder.Attention(query, key, value, testCase.scale, false)
+				attention = builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: testCase.scale, Causal: false})
 			}
 			if err := builder.Err(); err != nil {
 				t.Fatal(err)
@@ -184,7 +184,7 @@ func TestExecutorBLASAttentionKeyBiasMatchesReference(t *testing.T) {
 	key := builder.Input("k", dtype.F32, tensor.MustShape(width, heads, keyTokens))
 	value := builder.Input("v", dtype.F32, tensor.MustShape(width, heads, keyTokens))
 	keyBias := builder.Input("key_bias", dtype.F32, tensor.MustShape(keyTokens))
-	attention := builder.AttentionWithKeyBias(query, key, value, keyBias, scale, false)
+	attention := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{KeyBias: keyBias, Scale: scale, Causal: false})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}

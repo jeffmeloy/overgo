@@ -89,7 +89,7 @@ func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file)
+	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer secondFile.Close()
-	secondInventory, err := modelartifact.FromGGUF(secondFile)
+	secondInventory, err := modelartifact.FromGGUF(secondFile, artifact.KindModel)
 	if err != nil {
 		t.Fatal(err)
 	}

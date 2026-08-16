@@ -678,8 +678,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 		if m.profile.Forward.Session == ForwardSessionEncoderDecoder {
-			spec.DecoderBlockCount = optionalOr(
-				values, prefix+"decoder_block_count", gguf.ValueTypeUint32, spec.BlockCount,
+			spec.DecoderBlockCount = m.profile.MetadataDefaults.uint(
+				values, prefix, "decoder_block_count", spec.BlockCount,
 			)
 			spec.DecoderStartTokenID, _ = optional[uint32](values, prefix+"decoder_start_token_id", gguf.ValueTypeUint32)
 		}
@@ -717,8 +717,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); err != nil {
 			return Spec{}, err
 		}
-		spec.FullAttentionInterval = optionalOr(
-			values, prefix+"full_attention_interval", gguf.ValueTypeUint32, uint32(4),
+		spec.FullAttentionInterval = m.profile.MetadataDefaults.uint(
+			values, prefix, "full_attention_interval", m.profile.MetadataDefaults.FullAttentionInterval,
 		)
 		if recurrent, ok, recurrentErr := optionalArray[bool](
 			values,
@@ -877,10 +877,13 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if spec.ExpertUsedCount == 0 {
 			return Spec{}, errors.New("expert used count is zero")
 		}
-		spec.ExpertFeedForward = optionalOr(
+		if value, ok := optional[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
-			spec.FeedForwardLength/spec.ExpertUsedCount,
-		)
+		); ok {
+			spec.ExpertFeedForward = value
+		} else if spec.ExpertFeedForward, err = derivedExpertFeedForward(spec); err != nil {
+			return Spec{}, err
+		}
 		if validation.Hybrid == HybridValidationArctic {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
@@ -926,9 +929,9 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = false
 		}
 		if validation.hybridOneOf(HybridValidationQwen3Next, HybridValidationQwen35MoE) {
-			spec.SharedExpertFF = optionalOr(
-				values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32, spec.FeedForwardLength,
-			)
+			if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertWidth(values, prefix, spec); err != nil {
+				return Spec{}, err
+			}
 		}
 	}
 	if profile.Has(ArchitectureLatentKVLayout) {
@@ -999,8 +1002,8 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.LeadingDenseBlocks, _ = optional[uint32](
 			values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32,
 		)
-		spec.MoELayerStep = optionalOr(
-			values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32, uint32(1),
+		spec.MoELayerStep = profile.MetadataDefaults.uint(
+			values, prefix, "moe_every_n_layers", profile.MetadataDefaults.MoELayerStep,
 		)
 		spec.ExpertGatingFunc = expertGatingSigmoid
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
@@ -1026,8 +1029,8 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 	}
 	if validation.Hybrid == HybridValidationGroveMoE {
-		spec.ExpertChunkFeedForward = optionalOr(
-			values, prefix+"expert_chunk_feed_forward_length", gguf.ValueTypeUint32, spec.KeyLength,
+		spec.ExpertChunkFeedForward = profile.MetadataDefaults.uint(
+			values, prefix, "expert_chunk_feed_forward_length", spec.KeyLength,
 		)
 		if spec.ExpertGroupScale, err = required[float32](values, prefix+"expert_group_scale", gguf.ValueTypeFloat32); err != nil {
 			return Spec{}, err
@@ -1054,19 +1057,18 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.SharedExpertCount = value
 		}
 		if spec.SharedExpertCount > 0 {
-			spec.SharedExpertFF = optionalOr(
-				values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
-				spec.ExpertFeedForward*spec.SharedExpertCount,
-			)
+			if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertWidth(values, prefix, spec); err != nil {
+				return Spec{}, err
+			}
 		}
 	}
 	if validation.Hybrid == HybridValidationHYV3 {
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		spec.SharedExpertFF = optionalOr(
-			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32, spec.ExpertFeedForward,
-		)
+		if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertWidth(values, prefix, spec); err != nil {
+			return Spec{}, err
+		}
 		spec.ExpertGatingFunc = expertGatingSigmoid
 		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok {
 			spec.ExpertGatingFunc = value
@@ -1137,9 +1139,9 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		spec.SharedExpertFF = optionalOr(
-			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32, spec.FeedForwardLength,
-		)
+		if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertWidth(values, prefix, spec); err != nil {
+			return Spec{}, err
+		}
 		spec.ExpertWeightsNorm = true
 	}
 	if validation.Hybrid == HybridValidationGrok {

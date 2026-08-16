@@ -78,7 +78,7 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 				actIndex = 1 - actIndex
 				x, frames, height, width, allocErr = s.codec.runOp(state, opIndex, chunkIndex, &states[opIndex], x, fmt.Sprintf("act_%d", actIndex), frames, height, width)
 				if allocErr != nil {
-					return fmt.Errorf("source codec CUDA %s chunk %d: %w", s.codec.ops[opIndex].prefix, chunkIndex, allocErr)
+					return fmt.Errorf("source codec CUDA %s chunk %d: %w", s.codec.ops[opIndex].Name, chunkIndex, allocErr)
 				}
 			}
 			if height != plan.Latent.Height || width != plan.Latent.Width || frames <= 0 {

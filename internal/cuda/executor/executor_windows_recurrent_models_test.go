@@ -1024,20 +1024,14 @@ func TestExecutorEmbeddingBroadcastSwiGLUAndRoPEMatchesReference(t *testing.T) {
 	swiglu := builder.SwiGLU(builder.WeightedRMSNorm(embedding, weight, 1e-5), up)
 	ropeInput := builder.Input("rope", dtype.F32, tensor.MustShape(4, 1, 2))
 	ropeFactors := builder.Input("rope_factors", dtype.F32, tensor.MustShape(2))
-	rope := builder.RoPENeoX(ropeInput, []uint32{0, 17}, 4, 1_000_000)
-	normalRope := builder.RoPENormal(ropeInput, []uint32{0, 17}, 4, 1_000_000)
-	factoredRope := builder.RoPENormalScaledWithFactors(
-		ropeInput,
-		[]uint32{0, 17},
-		4,
-		1_000_000,
-		0.25,
-		ropeFactors,
-	)
-	factoredYaRNRope := builder.RoPENormalYaRNWithFactors(
-		ropeInput, []uint32{0, 17}, 4, 8, 10_000, 0.25, 1, 0.9, 16, 2,
-		ropeFactors,
-	)
+	rope := builder.RoPEWithOptions(ropeInput, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: []uint32{0, 17}, RotaryDimensions: 4, FrequencyBase: 1_000_000, FrequencyScale: 1})
+	normalRope := builder.RoPEWithOptions(ropeInput, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: []uint32{0, 17}, RotaryDimensions: 4, FrequencyBase: 1_000_000, FrequencyScale: 1})
+	factoredRope := builder.RoPEWithOptions(
+		ropeInput, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: []uint32{0, 17}, FrequencyFactors: ropeFactors, RotaryDimensions: 4, FrequencyBase: 1_000_000, FrequencyScale: 0.25})
+
+	factoredYaRNRope := builder.RoPEWithOptions(
+		ropeInput, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: []uint32{0, 17}, FrequencyFactors: ropeFactors, RotaryDimensions: 4, OriginalContext: 8, FrequencyBase: 10_000, FrequencyScale: 0.25, YaRN: true, ExtFactor: 1, AttentionFactor: 0.9, BetaFast: 16, BetaSlow: 2})
+
 	yarnRope := builder.RoPEWithOptions(ropeInput, tensor.RoPEOptions{
 		Layout: tensor.RoPELayoutNeoX, Positions: []uint32{0, 17}, RotaryDimensions: 4,
 		OriginalContext: 8, FrequencyBase: 10_000, FrequencyScale: 0.25,

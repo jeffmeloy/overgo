@@ -267,7 +267,7 @@
           "contains": "func OpenAs[T Projector](",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:481c606386cc67a71f217d840e56751e501a279a4a0895cfe8565e66aaf8ff50"
+          "identity": "file:sha256:982a94f04eb5ab03e7565fd6c62e93b09885c4be8f3e488c54a0b227978504d7"
         },
         {
           "contains": "func TestMultimodalInputMatrix(",
@@ -499,7 +499,7 @@
           "contains": "func Compile(",
           "path": "internal/cuda/executor/executor.go",
           "role": "source",
-          "identity": "file:sha256:8a18d586d9803cec4ea90bcfe1326826f6867942eaadeb6ac3360aa755427e60"
+          "identity": "file:sha256:215fd502db7fef29ec4dc451bc119e249b48461eff1305eeec59751a00d505d5"
         },
         {
           "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
@@ -584,7 +584,7 @@
           "contains": "func (r *Qwen3VLRunner) BuildImagesPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:481c606386cc67a71f217d840e56751e501a279a4a0895cfe8565e66aaf8ff50"
+          "identity": "file:sha256:982a94f04eb5ab03e7565fd6c62e93b09885c4be8f3e488c54a0b227978504d7"
         },
         {
           "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -605,7 +605,7 @@
           "contains": "func (r *Gemma4Runner) BuildMediaHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:481c606386cc67a71f217d840e56751e501a279a4a0895cfe8565e66aaf8ff50"
+          "identity": "file:sha256:982a94f04eb5ab03e7565fd6c62e93b09885c4be8f3e488c54a0b227978504d7"
         },
         {
           "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -626,7 +626,7 @@
           "contains": "func (r *Gemma4Runner) BuildMediaHistoryPrompt(",
           "path": "internal/projector/prompt.go",
           "role": "source",
-          "identity": "file:sha256:481c606386cc67a71f217d840e56751e501a279a4a0895cfe8565e66aaf8ff50"
+          "identity": "file:sha256:982a94f04eb5ab03e7565fd6c62e93b09885c4be8f3e488c54a0b227978504d7"
         },
         {
           "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",

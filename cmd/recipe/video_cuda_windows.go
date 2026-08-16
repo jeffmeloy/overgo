@@ -56,7 +56,7 @@ func videoCapability() capability {
 		"video-gen", oscillatorimage.ValidateVideoRequest,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ oscillatorimage.VideoRequest) (*oscillatorimage.Model, error) {
 			return oscillatorimage.Load(path)
-		}, oscillatorimage.RegisterVideoRuntime,
+		}, oscillatorimage.RegisterRuntime,
 	)
 
 	return capability{

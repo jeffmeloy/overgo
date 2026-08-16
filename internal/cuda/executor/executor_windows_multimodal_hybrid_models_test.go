@@ -927,9 +927,9 @@ func TestExecutorSoftcappedWindowAttentionMatchesReference(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(4, 2, 2))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(4, 1, 5))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(4, 1, 5))
-	output := builder.AttentionWindowSoftcappedWithOffset(
-		query, key, value, 0.5, 1.75, true, 3, 3,
-	)
+	output := builder.AttentionWithOptions(
+		query, key, value, tensor.AttentionOptions{Scale: 0.5, Softcap: 1.75, Causal: true, QueryStart: 3, Window: 3})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -947,8 +947,8 @@ func TestExecutorSymmetricWindowAttentionMatchesReference(t *testing.T) {
 	key := builder.Input("key", dtype.F32, tensor.MustShape(4, 1, 7))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(3, 1, 7))
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(2))
-	output := builder.AttentionSymmetricWindow(query, key, value, 0.5, 4)
-	withSinks := builder.AttentionSymmetricWindowWithSinks(query, key, value, sinks, 0.5, 4)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 0.5, SymmetricWindow: true, Window: 4})
+	withSinks := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Sinks: sinks, Scale: 0.5, SymmetricWindow: true, Window: 4})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -969,7 +969,7 @@ func TestExecutorChunkedWindowAttentionMatchesReference(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(4, 2, 4))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(4, 1, 10))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(3, 1, 10))
-	output := builder.AttentionChunkedWindowWithOffset(query, key, value, 0.5, true, 6, 4)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 0.5, Causal: true, ChunkedWindow: true, QueryStart: 6, Window: 4})
 	feeds := map[*tensor.Tensor]reference.Value{
 		query: patternedValue(query.Shape, 13, 0.8, 0),
 		key:   patternedValue(key.Shape, 17, 0.7, 0),
@@ -984,8 +984,8 @@ func TestExecutorT5RelativeBiasAttentionMatchesReference(t *testing.T) {
 	key := builder.Input("key", dtype.F32, tensor.MustShape(3, 2, 4))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(3, 2, 4))
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(2, 32))
-	output := builder.AttentionWithRelativeBias(query, key, value, bias, 1)
-	causal := builder.AttentionWithRelativeBiasAndOffset(query, key, value, bias, 1, 0)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Bias: bias, Scale: 1, RelativeBidirectional: true})
+	causal := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Bias: bias, Scale: 1, Causal: true, QueryStart: 0})
 	relu := builder.ReLU(value)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)

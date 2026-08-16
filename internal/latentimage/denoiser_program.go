@@ -167,9 +167,9 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 		q, k, v = roundAttentionForStorage(b, matmulType, q, k, v)
 		var attn *tensor.Tensor
 		if p.keyBias != nil {
-			attn = b.AttentionWithKeyBias(q, k, v, p.keyBias, scale, false)
+			attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{KeyBias: p.keyBias, Scale: scale, Causal: false})
 		} else {
-			attn = b.Attention(q, k, v, scale, false)
+			attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: false})
 		}
 		attn = b.Reshape(attn, h, uint64(seq))   // (Hidden, seq)
 		attn = b.Multiply(attn, b.Sigmoid(gate)) // sigmoid output gate
@@ -312,7 +312,7 @@ func buildInterleavedRoPE(b *tensor.Builder, x *tensor.Tensor, axes [3]uint64, p
 	for axis := 0; axis < 3; axis++ {
 		span := axes[axis]
 		part := b.Reshape(b.GroupSlice(x, offset, span, 1, span), span, heads, tokens)
-		rotated := b.RoPENormal(part, positions[axis], uint32(span), theta)
+		rotated := b.RoPEWithOptions(part, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positions[axis], RotaryDimensions: uint32(span), FrequencyBase: theta, FrequencyScale: 1})
 		if joined == nil {
 			joined = rotated
 		} else {

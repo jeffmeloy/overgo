@@ -26,13 +26,13 @@ func TestLiveEditSourceCodecGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prefixes := plan.OpPrefixes()
+	prefixes := plan.Names()
 	if plan.InputChannels != 3 || plan.LatentChannels != 16 || plan.MomentChannels != 32 ||
-		plan.Stride != [3]int{4, 8, 8} || plan.Ops() != 17 ||
+		plan.Stride != [3]int{4, 8, 8} || len(plan.Operations) != 17 ||
 		len(prefixes) != 17 || prefixes[0] != "encoder.conv1" || prefixes[15] != "encoder.head" || prefixes[16] != "conv1" ||
 		plan.UsedTensorCount == 0 || plan.UsedWeightBytes <= 0 || plan.LargestOpWeightBytes <= 0 {
 		t.Fatalf("encoder plan = %+v prefixes=%v", plan, prefixes)
 	}
 	t.Logf("real Wan source encoder: ops=%d tensors=%d weights=%.3fMiB max_op=%.3fMiB stride=%v",
-		plan.Ops(), plan.UsedTensorCount, float64(plan.UsedWeightBytes)/(1<<20), float64(plan.LargestOpWeightBytes)/(1<<20), plan.Stride)
+		len(plan.Operations), plan.UsedTensorCount, float64(plan.UsedWeightBytes)/(1<<20), float64(plan.LargestOpWeightBytes)/(1<<20), plan.Stride)
 }

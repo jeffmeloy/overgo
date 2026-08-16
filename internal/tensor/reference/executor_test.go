@@ -234,7 +234,7 @@ func TestExecuteRoPENormalWithFrequencyFactors(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 1))
 	factors := builder.Input("factors", dtype.F32, tensor.MustShape(2))
-	output := builder.RoPENormalWithFactors(input, []uint32{2}, 4, 1, factors)
+	output := builder.RoPEWithOptions(input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: []uint32{2}, FrequencyFactors: factors, RotaryDimensions: 4, FrequencyBase: 1, FrequencyScale: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -616,7 +616,7 @@ func TestExecuteAttentionALiBiMatchesLlamaSlope(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 1))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
-	output := builder.AttentionALiBiWithOffset(query, key, value, 1, 2, true, 1)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, MaxALiBiBias: 2, Causal: true, QueryStart: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -643,7 +643,7 @@ func TestExecuteMoETopKNormalization(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
-	output := builder.MoE(input, router, gate, up, down, 2, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -685,7 +685,7 @@ func TestExecuteUngatedMoE(t *testing.T) {
 	router := builder.Input("router", dtype.F32, tensor.MustShape(2, 2))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
-	output := builder.MoEUngated(input, router, up, down, 2, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -727,7 +727,7 @@ func TestExecuteUngatedMoEWithSelectionBias(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(2))
-	output := builder.MoEUngatedWithSelectionBias(input, router, up, down, bias, 1, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{SelectionBias: bias, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -765,9 +765,9 @@ func TestExecuteReLUMoEWithRouterInput(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
-	output := builder.MoEReLUWithRouterInput(
-		input, routerInput, router, gate, up, down, 1, true, 1, tensor.MoERoutingSoftmax,
-	)
+	output := builder.MoEWithOptions(
+		input, router, up, down, tensor.MoEOptions{RouterInput: routerInput, Gate: gate, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationReLU, ExpertIndexDivisor: 1})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -805,9 +805,9 @@ func TestExecuteGroupedMoEWithRouterInput(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 2))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
-	output := builder.MoEGroupedWithRouterInput(
-		input, routerInput, router, gate, up, down, 1, true, 1, 2,
-	)
+	output := builder.MoEWithOptions(
+		input, router, up, down, tensor.MoEOptions{RouterInput: routerInput, Gate: gate, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 2})
+
 	value := func(shape tensor.Shape, data []float32) Value {
 		result, err := NewValue(shape, data)
 		if err != nil {
@@ -842,7 +842,7 @@ func TestExecuteGELUMoE(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 1))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 1))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 1))
-	output := builder.MoEGELU(input, router, gate, up, down, 1, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationGELU, ExpertIndexDivisor: 1})
 	value := func(shape tensor.Shape, data []float32) Value {
 		result, err := NewValue(shape, data)
 		if err != nil {
@@ -879,9 +879,9 @@ func TestExecuteGELUMoEExpertScale(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 1))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 1))
 	scale := builder.Input("scale", dtype.F32, tensor.MustShape(1))
-	output := builder.MoEGELUWithRouterInput(
-		input, input, router, gate, up, down, scale, 1, true, 1,
-	)
+	output := builder.MoEWithOptions(
+		input, router, up, down, tensor.MoEOptions{RouterInput: input, Gate: gate, ExpertScale: scale, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationGELU, ExpertIndexDivisor: 1})
+
 	makeValue := func(shape tensor.Shape, data []float32) Value {
 		result, err := NewValue(shape, data)
 		if err != nil {
@@ -1022,7 +1022,7 @@ func TestExecuteEmbeddingWeightedNormAndSwiGLU(t *testing.T) {
 func TestExecuteRoPENeoX(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 2))
-	output := builder.RoPENeoX(input, []uint32{0, 1}, 4, 10000)
+	output := builder.RoPEWithOptions(input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: []uint32{0, 1}, RotaryDimensions: 4, FrequencyBase: 10000, FrequencyScale: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1058,7 +1058,7 @@ func TestExecuteRoPENeoX(t *testing.T) {
 func TestExecuteRoPENormal(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 2))
-	output := builder.RoPENormal(input, []uint32{0, 1}, 4, 10000)
+	output := builder.RoPEWithOptions(input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: []uint32{0, 1}, RotaryDimensions: 4, FrequencyBase: 10000, FrequencyScale: 1})
 	feed, err := NewValue(input.Shape, []float32{
 		1, 2, 3, 4,
 		1, 2, 3, 4,
@@ -1090,7 +1090,7 @@ func TestExecuteYaRNRoPEAppliesMagnitudeAndFrequencyBlend(t *testing.T) {
 		OriginalContext: 8, FrequencyBase: 10_000, FrequencyScale: 0.25,
 		YaRN: true, ExtFactor: 1, AttentionFactor: 1, BetaFast: 32, BetaSlow: 1,
 	})
-	linear := builder.RoPENeoXScaled(input, []uint32{17}, 4, 10_000, 0.25)
+	linear := builder.RoPEWithOptions(input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: []uint32{17}, RotaryDimensions: 4, FrequencyBase: 10_000, FrequencyScale: 0.25})
 	feed, _ := NewValue(input.Shape, []float32{1, 2, 3, 4})
 	results, err := Execute([]*tensor.Tensor{yarn, linear}, map[*tensor.Tensor]Value{input: feed})
 	if err != nil {
@@ -1113,7 +1113,7 @@ func TestExecuteCausalGroupedQueryAttention(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(2, 2, 2))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(2, 1, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(2, 1, 2))
-	output := builder.Attention(query, key, value, 1, true)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Causal: true})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1146,9 +1146,9 @@ func TestExecuteWindowAttentionWithBidirectionalBlocks(t *testing.T) {
 	key := builder.Input("key", dtype.F32, shape)
 	value := builder.Input("value", dtype.F32, shape)
 	blocks := builder.Input("blocks", dtype.F32, tensor.MustShape(5))
-	output := builder.AttentionWindowWithBlockMaskWithOffset(
-		query, key, value, blocks, 1, 0, 3,
-	)
+	output := builder.AttentionWithOptions(
+		query, key, value, tensor.AttentionOptions{BlockIDs: blocks, Scale: 1, Causal: true, QueryStart: 0, Window: 3})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1175,7 +1175,7 @@ func TestExecuteAttentionSinksAddHiddenLogit(t *testing.T) {
 	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
-	output := builder.AttentionWithSinksWithOffset(query, key, value, sinks, 1, false, 0)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Sinks: sinks, Scale: 1, Causal: false, QueryStart: 0})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: query.Shape, Data: []float32{0}},
 		key:   {Shape: key.Shape, Data: []float32{0, 0}},
@@ -1216,7 +1216,7 @@ func TestExecuteSigmoidMoEUsesBiasOnlyForSelection(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 2))
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(2))
-	output := builder.MoESigmoid(input, router, gate, up, down, bias, 1, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: bias, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{1}},
 		router: {Shape: router.Shape, Data: []float32{2, 1}},
@@ -1241,7 +1241,7 @@ func TestExecuteLimitedSigmoidMoE(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(1, 1, 1))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 1))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 1))
-	output := builder.MoESigmoidLimited(input, router, gate, up, down, nil, 1, true, 1, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: nil, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1, SwiGLUClamp: 1})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{2}},
 		router: {Shape: router.Shape, Data: []float32{0}},
@@ -1265,8 +1265,8 @@ func TestExecuteFusedGateUpMoEMatchesSeparate(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 2))
 	gateUp := builder.Input("gate_up", dtype.F32, tensor.MustShape(1, 2, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 2))
-	separate := builder.MoESigmoid(input, router, gate, up, down, nil, 2, true, 1)
-	fused := builder.MoESigmoidFusedGateUp(input, router, gateUp, down, nil, 2, true, 1)
+	separate := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
+	fused := builder.MoEWithOptions(input, router, gateUp, down, tensor.MoEOptions{SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, FusedGateUp: true, ExpertIndexDivisor: 1})
 	results, err := Execute([]*tensor.Tensor{separate, fused}, map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{1}},
 		router: {Shape: router.Shape, Data: []float32{2, 1}},
@@ -1288,7 +1288,7 @@ func TestExecuteSoftcappedAttention(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 1))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
-	output := builder.AttentionSoftcappedWithOffset(query, key, value, 1, 2, false, 0)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Softcap: 2, Causal: false, QueryStart: 0})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1317,7 +1317,7 @@ func TestExecuteCachedAttentionAndConcat(t *testing.T) {
 	newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(2, 1, 1))
 	key := builder.Concat(pastKey, newKey, 2)
 	value := builder.Concat(pastValue, newValue, 2)
-	output := builder.AttentionWithOffset(query, key, value, 1, true, 2)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: 2})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1363,7 +1363,7 @@ func TestExecuteBatchedCachedAttentionAndMiddleConcat(t *testing.T) {
 	newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(width, heads, newTokens, sequences))
 	key := builder.Concat(pastKey, newKey, 2)
 	value := builder.Concat(pastValue, newValue, 2)
-	output := builder.AttentionWithOffset(query, key, value, 1, true, pastTokens)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: pastTokens})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1393,7 +1393,7 @@ func TestExecuteSymmetricWindowAttention(t *testing.T) {
 	query := builder.Input("query", dtype.F32, shape)
 	key := builder.Input("key", dtype.F32, shape)
 	value := builder.Input("value", dtype.F32, shape)
-	output := builder.AttentionSymmetricWindow(query, key, value, 1, 4)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, SymmetricWindow: true, Window: 4})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -1424,7 +1424,7 @@ func TestExecuteSymmetricWindowAttentionWithSinks(t *testing.T) {
 	key := builder.Input("key", dtype.F32, shape)
 	value := builder.Input("value", dtype.F32, shape)
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
-	output := builder.AttentionSymmetricWindowWithSinks(query, key, value, sinks, 1, 4)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Sinks: sinks, Scale: 1, SymmetricWindow: true, Window: 4})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: shape, Data: make([]float32, 5)},
 		key:   {Shape: shape, Data: make([]float32, 5)},
@@ -1448,7 +1448,7 @@ func TestExecuteChunkedWindowAttention(t *testing.T) {
 	query := builder.Input("query", dtype.F32, shape)
 	key := builder.Input("key", dtype.F32, shape)
 	value := builder.Input("value", dtype.F32, shape)
-	output := builder.AttentionChunkedWindowWithOffset(query, key, value, 1, true, 0, 4)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Causal: true, ChunkedWindow: true, QueryStart: 0, Window: 4})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: shape, Data: make([]float32, 6)},
 		key:   {Shape: shape, Data: make([]float32, 6)},
@@ -1480,7 +1480,7 @@ func TestExecuteOpenAIMoEUsesSelectedSoftmaxAndBiases(t *testing.T) {
 	upBias := builder.Input("up_bias", dtype.F32, tensor.MustShape(1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
 	downBias := builder.Input("down_bias", dtype.F32, tensor.MustShape(2, 2))
-	output := builder.MoEOpenAI(input, router, routerBias, gate, gateBias, up, upBias, down, downBias, 2, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, Biases: &tensor.MoEBiases{Router: routerBias, Gate: gateBias, Up: upBias, Down: downBias}, TopK: 2, Scale: 1, Routing: tensor.MoERoutingSelectedSoftmax, Activation: tensor.MoEActivationSwiGLUOAI, ExpertIndexDivisor: 1})
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:      {Shape: input.Shape, Data: []float32{1, 2}},
 		router:     {Shape: router.Shape, Data: make([]float32, 4)},
@@ -1686,7 +1686,7 @@ func TestExecuteDeepSeek4HCAndFixedRouting(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 2))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
 	selected := builder.Input("selected", dtype.F32, tensor.MustShape(1, 1))
-	moe := builder.MoESqrtSoftplusLimited(input, router, gate, up, down, nil, selected, 1, true, 1, 1)
+	moe := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: nil, SelectedExperts: selected, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSqrtSoftplus, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1, SwiGLUClamp: 1})
 	results, err := Execute([]*tensor.Tensor{head, moe}, map[*tensor.Tensor]Value{
 		input: {Shape: input.Shape, Data: []float32{2, 4}},
 		fn:    {Shape: fn.Shape, Data: make([]float32, 8)}, scale: {Shape: scale.Shape, Data: []float32{0}},
@@ -1714,7 +1714,7 @@ func TestExecuteAttentionWithT5RelativeBias(t *testing.T) {
 	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(1, 4))
-	output := builder.AttentionWithRelativeBias(query, key, value, bias, 1)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Bias: bias, Scale: 1, RelativeBidirectional: true})
 	zeroShape := tensor.MustShape(1, 1, 2)
 	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: zeroShape, Data: []float32{0, 0}},
@@ -1894,7 +1894,7 @@ func TestExecuteLoRAFusedMoE(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, tensor.MustShape(2, 1, 1))
 	up := builder.Input("up", dtype.F32, tensor.MustShape(2, 1, 1))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 1))
-	output := builder.MoE(input, router, gate, up, down, 1, false, 1)
+	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: 1, NormalizeTopKProb: false, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	feeds := map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{1, 2}},
 		router: {Shape: router.Shape, Data: []float32{0, 0}},

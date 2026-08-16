@@ -192,7 +192,7 @@ func buildAxisPartitionedRoPE(
 			builder.GroupSlice(input, offset, span, 1, span),
 			span, heads, tokens,
 		)
-		rotated := builder.RoPENormal(part, positions[axis], uint32(span), frequencyBase)
+		rotated := builder.RoPEWithOptions(part, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positions[axis], RotaryDimensions: uint32(span), FrequencyBase: frequencyBase, FrequencyScale: 1})
 		if joined == nil {
 			joined = rotated
 		} else {
@@ -337,10 +337,10 @@ func buildConditionedDiffusionBlock(
 		}
 		return x
 	}
-	attention := builder.Attention(
+	attention := builder.AttentionWithOptions(
 		roundStorage(result.SelfQueryRotated), roundStorage(attentionKey),
-		roundStorage(attentionValue), attentionScale, false,
-	)
+		roundStorage(attentionValue), tensor.AttentionOptions{Scale: attentionScale, Causal: false})
+
 	result.SelfAttention = builder.Reshape(attention, dim, tokens)
 	result.SelfProjected = buildBiasedProjection(builder, weights.SelfAttention.Output, weights.SelfAttention.OutputBias, result.SelfAttention)
 	result.SelfResidual = builder.Add(input, builder.Multiply(result.SelfProjected, chunk(2)))
@@ -356,10 +356,10 @@ func buildConditionedDiffusionBlock(
 		buildBiasedProjection(builder, weights.CrossAttention.Query, weights.CrossAttention.QueryBias, crossIn),
 		weights.CrossAttention.QueryNorm, options.Epsilon,
 	)
-	crossAttention := builder.Attention(
+	crossAttention := builder.AttentionWithOptions(
 		roundStorage(builder.Reshape(crossQuery, headWidth, heads, tokens)),
-		roundStorage(crossKey), roundStorage(crossValue), attentionScale, false,
-	)
+		roundStorage(crossKey), roundStorage(crossValue), tensor.AttentionOptions{Scale: attentionScale, Causal: false})
+
 	result.CrossProjected = buildBiasedProjection(
 		builder, weights.CrossAttention.Output, weights.CrossAttention.OutputBias,
 		builder.Reshape(crossAttention, dim, tokens),

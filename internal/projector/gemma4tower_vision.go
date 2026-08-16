@@ -256,7 +256,7 @@ func (r *Gemma4TowerRunner) encodeVisionPatches(
 		v = builder.RMSNorm(v, spec.RMSNormEpsilon)
 		q = gemma4VisionRoPE(builder, q, positions, spec.RopeFreqBase)
 		k = gemma4VisionRoPE(builder, k, positions, spec.RopeFreqBase)
-		attention := builder.Attention(q, k, v, 1, false)
+		attention := builder.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: 1, Causal: false})
 		attention = builder.Reshape(attention, uint64(spec.Heads*spec.HeadDim), uint64(rows))
 		attention = r.gemma4TowerClippedLinearGraph(graph, attention, prefix+"attn_output")
 		attention = builder.WeightedRMSNorm(
@@ -389,8 +389,8 @@ func gemma4VisionRoPE(
 	y := builder.GroupSlice(input, axisWidth, axisWidth, 1, axisWidth)
 	x = builder.Reshape(x, axisWidth, input.Shape.Dims[1], input.Shape.Dims[2])
 	y = builder.Reshape(y, axisWidth, input.Shape.Dims[1], input.Shape.Dims[2])
-	x = builder.RoPENeoX(x, xPositions, uint32(axisWidth), frequencyBase)
-	y = builder.RoPENeoX(y, yPositions, uint32(axisWidth), frequencyBase)
+	x = builder.RoPEWithOptions(x, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: xPositions, RotaryDimensions: uint32(axisWidth), FrequencyBase: frequencyBase, FrequencyScale: 1})
+	y = builder.RoPEWithOptions(y, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: yPositions, RotaryDimensions: uint32(axisWidth), FrequencyBase: frequencyBase, FrequencyScale: 1})
 	return builder.Concat(x, y, 0)
 }
 

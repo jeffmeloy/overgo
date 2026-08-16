@@ -109,7 +109,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			ctx, file, weights, outputProjection, loraAdapters, residency, worker,
 			&deviceWeights, &rawWeights, &decodeWeights,
 		); err != nil {
-			if !residency.allowFallback || !driver.IsOutOfMemory(err) {
+			if !residency.hostRecovery || !driver.IsOutOfMemory(err) {
 				return fail(err)
 			}
 			// Measured fit answered no: release the partial stores and keep
@@ -137,8 +137,8 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 }
 
 type residencyBinding struct {
-	deviceF32, deviceNative, decodeBF16     bool
-	hostCache, allowFallback, hostReference bool
+	deviceF32, deviceNative, decodeBF16    bool
+	hostCache, hostRecovery, hostReference bool
 }
 
 func bindResidency(policy recipe.ResidencyPolicy) (residencyBinding, error) {
@@ -154,7 +154,7 @@ func bindResidency(policy recipe.ResidencyPolicy) (residencyBinding, error) {
 	case recipe.ResidencyDeviceNativeBF16:
 		binding.deviceNative, binding.decodeBF16 = true, true
 	case recipe.ResidencyHybridNative:
-		binding.deviceNative, binding.allowFallback = true, true
+		binding.deviceNative, binding.hostRecovery = true, true
 	case recipe.ResidencyHostReference:
 		binding.hostReference = true
 	default:

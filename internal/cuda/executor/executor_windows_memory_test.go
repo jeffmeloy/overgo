@@ -34,7 +34,7 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	retained, err := cuda.ExecuteRetainedWithDeviceFeeds(
+	retained, err := cuda.executeRetainedWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{output},
 		feeds,
@@ -83,7 +83,7 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if _, ok := retained.Value(output); ok {
 		t.Fatal("released output remains accessible")
 	}
-	reused, err := cuda.ExecuteRetainedWithDeviceFeeds(
+	reused, err := cuda.executeRetainedWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{output},
 		feeds,
@@ -119,7 +119,7 @@ func TestExecutorRetainedFlatSlicesShareProducerStorage(t *testing.T) {
 	first := builder.FlatSlice(producer, firstOffset, firstLength)
 	second := builder.FlatSlice(producer, secondOffset, secondLength)
 	cuda := newFixtureExecutor(t)
-	retained, err := cuda.ExecuteRetainedWithDeviceFeeds(
+	retained, err := cuda.executeRetainedWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{first, second},
 		map[*tensor.Tensor]reference.Value{
@@ -321,7 +321,7 @@ func TestExecutorCopyDeviceValuesConcatenatesSegments(t *testing.T) {
 	output := builder.Scale(input, 1)
 	inputValue, _ := reference.NewValue(shape, []float32{1, 2, 3, 4})
 	cuda := newFixtureExecutor(t)
-	retained, err := cuda.ExecuteRetainedWithDeviceFeeds(
+	retained, err := cuda.executeRetainedWithDeviceFeeds(
 		context.Background(),
 		[]*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{input: inputValue},

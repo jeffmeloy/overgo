@@ -12,12 +12,7 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-// TestExecutorBF16MulMatMatchesReference: native-BF16 residency serves matmul
-// weights at 2 bytes through the SAME native-dtype mechanism as F16. Decode
-// (right rows == 1) reads BF16 directly via the custom warp kernel; prefill
-// (right rows > 1) upconverts the BF16 weight to F32 (bits<<16, the exact
-// resident F32-copy dequant) and runs the identical SGEMM. Both must match the
-// BF16-dequantized F32 reference; the greedy selection must be exact.
+// TestExecutorBF16MulMatMatchesReference: native BF16; exact decode/prefill.
 func TestExecutorBF16MulMatMatchesReference(t *testing.T) {
 	leftShape := tensor.MustShape(64, 19)
 	leftValue := patternedValue(leftShape, 11, 0.03, -0.1)
@@ -50,7 +45,7 @@ func TestExecutorBF16GetRowsMatchesReference(t *testing.T) {
 	worker := newFixtureWorker(t)
 	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
-	got, err := cuda.ExecuteWithDeviceFeeds(
+	got, err := cuda.executeWithDeviceFeeds(
 		context.Background(), []*tensor.Tensor{rows}, nil,
 		map[*tensor.Tensor]driver.DevicePtr{table: pointer},
 	)
@@ -106,7 +101,7 @@ func TestExecutorBF16TensorCoreMulMatMatchesRoundedReference(t *testing.T) {
 	worker := newFixtureWorker(t)
 	pointer := copyFixtureDeviceBytes(t, worker, leftStorage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
-	got, err := cuda.ExecuteWithDeviceFeeds(
+	got, err := cuda.executeWithDeviceFeeds(
 		context.Background(), []*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{right: rightValue},
 		map[*tensor.Tensor]driver.DevicePtr{left: pointer},

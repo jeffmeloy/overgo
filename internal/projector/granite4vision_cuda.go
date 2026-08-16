@@ -170,7 +170,7 @@ func granite4AttentionGraph(
 	query = builder.Reshape(query, headWidth, uint64(heads*windows), uint64(queryRows))
 	key = builder.Reshape(key, headWidth, uint64(heads*windows), uint64(keyRows))
 	value = builder.Reshape(value, headWidth, uint64(heads*windows), uint64(keyRows))
-	output := builder.Attention(query, key, value, float32(1/math.Sqrt(float64(headWidth))), false)
+	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: float32(1 / math.Sqrt(float64(headWidth))), Causal: false})
 	output = builder.Reshape(output, uint64(hidden), uint64(windows*queryRows))
 	inverse := make([]uint32, 0, windows*queryRows)
 	for window := 0; window < windows; window++ {

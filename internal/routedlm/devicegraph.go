@@ -122,15 +122,15 @@ func BuildDeviceDecodeGraph(cfg Config, capacity uint32) (*DeviceDecodeGraph, er
 		v := b.Reshape(b.MulMat(li.V, normed), hd, kvHeads, 1)
 
 		// Reference order: rope THEN per-head QK-norm.
-		qRope := b.RoPENeoX(q, []uint32{0}, rot, g.RopeBase)
+		qRope := b.RoPEWithOptions(q, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: []uint32{0}, RotaryDimensions: rot, FrequencyBase: g.RopeBase, FrequencyScale: 1})
 		q = b.WeightedRMSNorm(qRope, li.QNorm, eps)
-		kRope := b.RoPENeoX(k, []uint32{0}, rot, g.RopeBase)
+		kRope := b.RoPEWithOptions(k, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: []uint32{0}, RotaryDimensions: rot, FrequencyBase: g.RopeBase, FrequencyScale: 1})
 		k = b.WeightedRMSNorm(kRope, li.KNorm, eps)
 
 		queryStart := b.CacheTokenOffset(0)
 		cacheKey := b.WriteCache(li.PastKey, k, 2, tensor.CacheWriteAppend)
 		cacheValue := b.WriteCache(li.PastValue, v, 2, tensor.CacheWriteAppend)
-		attn := b.AttentionWithOffset(q, cacheKey, cacheValue, scale, true, queryStart)
+		attn := b.AttentionWithOptions(q, cacheKey, cacheValue, tensor.AttentionOptions{Scale: scale, Causal: true, QueryStart: queryStart})
 		attnFlat := b.Reshape(attn, qOut, 1)
 
 		projected := b.MulMat(li.O, attnFlat)

@@ -67,6 +67,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Metadata.FeedForward", profile.Metadata.FeedForward, metadataHybridLayers),
 		validateProfileOrdinal("Metadata.Heads", profile.Metadata.Heads, metadataHybridLayers),
 		validateProfileOrdinal("Metadata.KVHeads", profile.Metadata.KVHeads, metadataHybridLayers),
+		validateProfileOrdinal("MetadataDefaults.SharedExpert", profile.MetadataDefaults.SharedExpert, SharedExpertDefaultExpertProduct),
 		validateProfileOrdinal("Validation.BaseRotary", profile.Validation.BaseRotary, BaseRotaryValidationHalfWidth),
 		validateProfileOrdinal("Validation.ExpertMetadata", profile.Validation.ExpertMetadata, ExpertMetadataWhenDeclared),
 		validateProfileOrdinal("Validation.Encoder", profile.Validation.Encoder, EncoderValidationNomicBERTMoE),
@@ -165,6 +166,30 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		return fmt.Errorf("architecture profile %q: Qwen GDN graph requires Qwen GDN attention", profile.Name)
 	}
 	defaults := profile.MetadataDefaults
+	if profile.Forward.Session == ForwardSessionEncoderDecoder && !defaults.DecoderBlocksFromModel {
+		return fmt.Errorf("architecture profile %q: decoder block default is absent", profile.Name)
+	}
+	if profile.Validation.hybridOneOf(
+		HybridValidationQwen3Next, HybridValidationQwen35, HybridValidationQwen35MoE,
+	) && defaults.FullAttentionInterval == 0 {
+		return fmt.Errorf("architecture profile %q: full-attention cadence default is absent", profile.Name)
+	}
+	if profile.Validation.Hybrid == HybridValidationStep35 && defaults.MoELayerStep == 0 {
+		return fmt.Errorf("architecture profile %q: MoE cadence default is absent", profile.Name)
+	}
+	if profile.Validation.Hybrid == HybridValidationGroveMoE && !defaults.ExpertChunkFromKey {
+		return fmt.Errorf("architecture profile %q: expert chunk-width relationship is absent", profile.Name)
+	}
+	if profile.Validation.hybridOneOf(HybridValidationQwen3Next, HybridValidationQwen35MoE, HybridValidationHunyuanMoE) &&
+		defaults.SharedExpert != SharedExpertDefaultModelFeedForward {
+		return fmt.Errorf("architecture profile %q: model-width shared expert relationship is absent", profile.Name)
+	}
+	if profile.Validation.Hybrid == HybridValidationHYV3 && defaults.SharedExpert != SharedExpertDefaultExpertFeedForward {
+		return fmt.Errorf("architecture profile %q: expert-width shared expert relationship is absent", profile.Name)
+	}
+	if profile.Validation.Attention == AttentionValidationCohere2MoE && defaults.SharedExpert != SharedExpertDefaultExpertProduct {
+		return fmt.Errorf("architecture profile %q: repeated shared expert relationship is absent", profile.Name)
+	}
 	if profile.Validation.Attention == AttentionValidationGemma3N &&
 		(defaults.AlternateStateCount == 0 || defaults.LowRankResidualWidth == 0 ||
 			defaults.PerLayerEmbeddingWidth == 0 || defaults.SharedKVStartLayer == 0 ||

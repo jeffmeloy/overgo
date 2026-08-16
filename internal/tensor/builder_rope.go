@@ -45,6 +45,7 @@ type RoPEOptions struct {
 	AttentionFactor  float32
 	BetaFast         float32
 	BetaSlow         float32
+	Reverse          bool
 }
 
 // RoPEWithOptions: typed single-axis rotary construction.
@@ -65,135 +66,11 @@ func (b *Builder) RoPEWithOptions(input *Tensor, options RoPEOptions) *Tensor {
 		frequencyBase:    options.FrequencyBase, frequencyScale: options.FrequencyScale,
 		yarn: options.YaRN, originalContext: options.OriginalContext,
 		extFactor: options.ExtFactor, attentionFactor: options.AttentionFactor,
-		betaFast: options.BetaFast, betaSlow: options.BetaSlow,
+		betaFast: options.BetaFast, betaSlow: options.BetaSlow, reverse: options.Reverse,
 	})
 }
 
 // RoPENeoX: split-half rotary layout; input [head width, heads, tokens, batch?].
-func (b *Builder) RoPENeoX(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
-		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: 1,
-	})
-}
-
-// RoPENeoXReverse: split-half rotary layout with negated angles.
-func (b *Builder) RoPENeoXReverse(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENeoX, name: "rope_neox_reverse", positions: positions,
-		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: 1, reverse: true,
-	})
-}
-
-func (b *Builder) RoPENeoXScaled(
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	frequencyBase float32,
-	frequencyScale float32,
-) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
-		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: frequencyScale,
-	})
-}
-
-func (b *Builder) RoPENeoXScaledWithFactors(
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	frequencyBase float32,
-	frequencyScale float32,
-	frequencyFactors *Tensor,
-) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENeoX, name: "rope_neox", positions: positions,
-		frequencyFactors: frequencyFactors, rotaryDimensions: rotaryDimensions,
-		frequencyBase: frequencyBase, frequencyScale: frequencyScale,
-	})
-}
-
-// RoPENormal: applies rotary embeddings to consecutive channel pairs, as used
-// by Llama architecture family
-func (b *Builder) RoPENormal(input *Tensor, positions []uint32, rotaryDimensions uint32, frequencyBase float32) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENormal, name: "rope_normal", positions: positions,
-		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: 1,
-	})
-}
-
-func (b *Builder) RoPENormalScaled(
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	frequencyBase float32,
-	frequencyScale float32,
-) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENormal, name: "rope_normal", positions: positions,
-		rotaryDimensions: rotaryDimensions, frequencyBase: frequencyBase, frequencyScale: frequencyScale,
-	})
-}
-
-// RoPENormalYaRNWithFactors: YaRN plus pair divisors.
-func (b *Builder) RoPENormalYaRNWithFactors(
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	originalContext uint32,
-	frequencyBase, frequencyScale, extFactor, attentionFactor, betaFast, betaSlow float32,
-	frequencyFactors *Tensor,
-) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENormal, name: "rope_normal", positions: positions,
-		frequencyFactors: frequencyFactors, rotaryDimensions: rotaryDimensions,
-		originalContext: originalContext, frequencyBase: frequencyBase,
-		frequencyScale: frequencyScale, yarn: true, extFactor: extFactor,
-		attentionFactor: attentionFactor, betaFast: betaFast, betaSlow: betaSlow,
-	})
-}
-
-func (b *Builder) RoPENormalScaledWithFactors(
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	frequencyBase float32,
-	frequencyScale float32,
-	frequencyFactors *Tensor,
-) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENormal, name: "rope_normal", positions: positions,
-		frequencyFactors: frequencyFactors, rotaryDimensions: rotaryDimensions,
-		frequencyBase: frequencyBase, frequencyScale: frequencyScale,
-	})
-}
-
-// RoPENormalWithFactors: applies one frequency divisor per rotary pair
-func (b *Builder) RoPENormalWithFactors(
-	input *Tensor,
-	positions []uint32,
-	rotaryDimensions uint32,
-	frequencyBase float32,
-	frequencyFactors *Tensor,
-) *Tensor {
-	return b.buildRoPE(input, ropeOptions{
-		operation: OpRoPENormal, name: "rope_normal", positions: positions,
-		frequencyFactors: frequencyFactors, rotaryDimensions: rotaryDimensions,
-		frequencyBase: frequencyBase, frequencyScale: 1,
-	})
-}
-
-// RoPEMulti: adjacent-pair multi-axis rotation; axes T/H/W/extra.
-func (b *Builder) RoPEMulti(
-	input *Tensor,
-	positions [4][]uint32,
-	sections [4]int32,
-	rotaryDimensions uint32,
-	frequencyBase float32,
-) *Tensor {
-	return b.RoPEMultiScaled(input, positions, sections, rotaryDimensions, frequencyBase, 1)
-}
-
 func (b *Builder) RoPEMultiScaled(
 	input *Tensor,
 	positions [4][]uint32,

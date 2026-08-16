@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 
+	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
@@ -53,7 +54,7 @@ func ResolveActiveGGUFWithPolicy(
 	if err != nil {
 		return modelrecipe.LoadedProgram{}, err
 	}
-	inventory, err := modelartifact.FromGGUF(file)
+	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if err != nil {
 		_ = file.Close()
 		return modelrecipe.LoadedProgram{}, err

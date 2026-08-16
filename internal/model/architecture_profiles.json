@@ -288,7 +288,7 @@
       "Routing": 1,
       "SharedCatalog": 2
     },
-    "MetadataDefaults": {"RopeFrequencyFromBase": true, "SlidingPattern": 4},
+    "MetadataDefaults": {"RopeFrequencyFromBase": true, "SharedExpert": 3, "SlidingPattern": 4},
     "Name": "cohere2moe",
     "Validation": {
       "Attention": 13,
@@ -1130,6 +1130,7 @@
       "Composition": 5,
       "SupplementalCatalog": 4
     },
+    "MetadataDefaults": {"ExpertChunkFromKey": true},
     "Name": "grovemoe",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1166,7 +1167,7 @@
       "Composition": 1,
       "SharedCatalog": 1
     },
-    "MetadataDefaults": {"RopeDimension": 1},
+    "MetadataDefaults": {"RopeDimension": 1, "SharedExpert": 1},
     "Name": "hunyuan-moe",
     "Validation": {
       "ExpertMetadata": 1,
@@ -1208,7 +1209,7 @@
       "SelectionBias": true,
       "SharedCatalog": 1
     },
-    "MetadataDefaults": {"RopeDimension": 1},
+    "MetadataDefaults": {"RopeDimension": 1, "SharedExpert": 2},
     "Name": "hy_v3",
     "Validation": {
       "ExpertMetadata": 1,
@@ -2126,6 +2127,7 @@
     "DraftKind": 1,
     "FFNNormLayout": 4,
     "Metadata": {"DraftBeforeShape": true},
+    "MetadataDefaults": {"FullAttentionInterval": 4},
     "Name": "qwen35",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2156,6 +2158,7 @@
     },
     "FFNNormLayout": 4,
     "Metadata": {"DraftBeforeShape": true},
+    "MetadataDefaults": {"FullAttentionInterval": 4, "SharedExpert": 1},
     "Name": "qwen35moe",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2201,7 +2204,7 @@
       "SharedCatalog": 3
     },
     "FFNNormLayout": 4,
-    "MetadataDefaults": {"RopeDimension": 2},
+    "MetadataDefaults": {"FullAttentionInterval": 4, "RopeDimension": 2, "SharedExpert": 1},
     "Name": "qwen3next",
     "RecurrentMixer": 8,
     "Validation": {
@@ -2448,7 +2451,7 @@
       "KVHeads": 2,
       "PreserveDraftLayers": true
     },
-    "MetadataDefaults": {"RopeDimension": 2, "RopeFrequencyFromBase": true},
+    "MetadataDefaults": {"MoELayerStep": 1, "RopeDimension": 2, "RopeFrequencyFromBase": true},
     "Name": "step35",
     "Validation": {
       "ExpertMetadata": 1,
@@ -2470,6 +2473,7 @@
     "ModelCatalog": {
       "Weights": 7
     },
+    "MetadataDefaults": {"DecoderBlocksFromModel": true},
     "Name": "t5",
     "OutputNorm": 3,
     "Validation": {

@@ -131,7 +131,7 @@ func TestBuilderAttentionSinks(t *testing.T) {
 	key := builder.Input("key", dtype.F32, MustShape(2, 1, 1))
 	value := builder.Input("value", dtype.F32, MustShape(2, 1, 1))
 	sinks := builder.Input("sinks", dtype.F32, MustShape(2))
-	output := builder.AttentionWithSinksWithOffset(query, key, value, sinks, 1, true, 0)
+	output := builder.AttentionWithOptions(query, key, value, AttentionOptions{Sinks: sinks, Scale: 1, Causal: true, QueryStart: 0})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -139,19 +139,18 @@ func TestBuilderAttentionSinks(t *testing.T) {
 	if !attributes.HasSinks || len(output.Inputs) != 4 || output.Inputs[3] != sinks {
 		t.Fatalf("unexpected sink attention: %+v", attributes)
 	}
-	windowed := builder.AttentionSymmetricWindowWithSinks(query, key, value, sinks, 1, 2)
+	windowed := builder.AttentionWithOptions(query, key, value, AttentionOptions{Sinks: sinks, Scale: 1, SymmetricWindow: true, Window: 2})
 	attributes = windowed.Attrs.(AttentionAttributes)
 	if !attributes.HasSinks || !attributes.SymmetricWindow || attributes.Window != 2 || attributes.Causal {
 		t.Fatalf("unexpected symmetric sink attention: %+v", attributes)
 	}
 
 	invalid := NewBuilder()
-	invalid.AttentionWithSinksWithOffset(
+	invalid.AttentionWithOptions(
 		invalid.Input("query", dtype.F32, MustShape(2, 2, 1)),
 		invalid.Input("key", dtype.F32, MustShape(2, 1, 1)),
-		invalid.Input("value", dtype.F32, MustShape(2, 1, 1)),
-		invalid.Input("sinks", dtype.F32, MustShape(1)), 1, true, 0,
-	)
+		invalid.Input("value", dtype.F32, MustShape(2, 1, 1)), AttentionOptions{Sinks: invalid.Input("sinks", dtype.F32, MustShape(1)), Scale: 1, Causal: true, QueryStart: 0})
+
 	if invalid.Err() == nil || !strings.Contains(invalid.Err().Error(), "[query heads]") {
 		t.Fatalf("error = %v", invalid.Err())
 	}
@@ -362,7 +361,7 @@ func TestBuilderSigmoidMoEWithSelectionBias(t *testing.T) {
 	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	bias := builder.Input("bias", dtype.F32, MustShape(3))
-	output := builder.MoESigmoid(input, router, gate, up, down, bias, 2, true, 1.5)
+	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, SelectionBias: bias, TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSigmoid, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +379,7 @@ func TestBuilderLimitedSigmoidMoE(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, MustShape(2, 4, 3))
 	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
-	output := builder.MoESigmoidLimited(input, router, gate, up, down, nil, 2, true, 1, 3)
+	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSigmoid, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1, SwiGLUClamp: 3})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +394,7 @@ func TestBuilderLimitedSigmoidMoE(t *testing.T) {
 	g := invalid.Input("gate", dtype.F32, MustShape(2, 4, 3))
 	u := invalid.Input("up", dtype.F32, MustShape(2, 4, 3))
 	d := invalid.Input("down", dtype.F32, MustShape(4, 2, 3))
-	invalid.MoESigmoidLimited(x, r, g, u, d, nil, 2, true, 1, -1)
+	invalid.MoEWithOptions(x, r, u, d, MoEOptions{Gate: g, SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSigmoid, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1, SwiGLUClamp: -1})
 	if invalid.Err() == nil {
 		t.Fatal("limited MoE accepted negative clamp")
 	}
@@ -407,7 +406,7 @@ func TestBuilderSigmoidMoEWithFusedGateUp(t *testing.T) {
 	router := builder.Input("router", dtype.F32, MustShape(2, 3))
 	gateUp := builder.Input("gate_up", dtype.F32, MustShape(2, 8, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
-	output := builder.MoESigmoidFusedGateUp(input, router, gateUp, down, nil, 2, true, 1.5)
+	output := builder.MoEWithOptions(input, router, gateUp, down, MoEOptions{SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSigmoid, Activation: MoEActivationSiLU, FusedGateUp: true, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -425,7 +424,7 @@ func TestBuilderSoftmaxMoEWithFusedGateUpAndSelectionBias(t *testing.T) {
 	gateUp := builder.Input("gate_up", dtype.F32, MustShape(2, 8, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	bias := builder.Input("bias", dtype.F32, MustShape(3))
-	output := builder.MoESoftmaxFusedGateUp(input, router, gateUp, down, bias, 2, true, 1.5)
+	output := builder.MoEWithOptions(input, router, gateUp, down, MoEOptions{SelectionBias: bias, TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, FusedGateUp: true, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +443,7 @@ func TestBuilderSoftmaxMoEWithSelectionBias(t *testing.T) {
 	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	bias := builder.Input("bias", dtype.F32, MustShape(3))
-	output := builder.MoESoftmaxWithSelectionBias(input, router, gate, up, down, bias, 2, true, 1.5)
+	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, SelectionBias: bias, TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +460,7 @@ func TestBuilderUngatedMoE(t *testing.T) {
 	router := builder.Input("router", dtype.F32, MustShape(2, 3))
 	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
-	output := builder.MoEUngated(input, router, up, down, 2, true, 1.5)
+	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -476,7 +475,7 @@ func TestBuilderUngatedMoE(t *testing.T) {
 	quantizedRouter := quantized.Input("router", dtype.F32, MustShape(32, 3))
 	quantizedUp := quantized.Input("up", dtype.Q8_0, MustShape(32, 32, 3))
 	quantizedDown := quantized.Input("down", dtype.Q8_0, MustShape(32, 32, 3))
-	quantized.MoEUngated(quantizedInput, quantizedRouter, quantizedUp, quantizedDown, 2, true, 1)
+	quantized.MoEWithOptions(quantizedInput, quantizedRouter, quantizedUp, quantizedDown, MoEOptions{TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := quantized.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +488,7 @@ func TestBuilderUngatedMoEWithSelectionBias(t *testing.T) {
 	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	bias := builder.Input("bias", dtype.F32, MustShape(3))
-	output := builder.MoEUngatedWithSelectionBias(input, router, up, down, bias, 2, true, 1.5)
+	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{SelectionBias: bias, TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -509,9 +508,9 @@ func TestBuilderReLUMoEWithRouterInput(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, MustShape(2, 4, 3))
 	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
-	output := builder.MoEReLUWithRouterInput(
-		input, routerInput, router, gate, up, down, 2, true, 1, MoERoutingSigmoid,
-	)
+	output := builder.MoEWithOptions(
+		input, router, up, down, MoEOptions{RouterInput: routerInput, Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSigmoid, Activation: MoEActivationReLU, ExpertIndexDivisor: 1})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -530,9 +529,9 @@ func TestBuilderGroupedMoEWithRouterInput(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, MustShape(2, 3, 2))
 	up := builder.Input("up", dtype.F32, MustShape(2, 3, 2))
 	down := builder.Input("down", dtype.F32, MustShape(3, 2, 2))
-	output := builder.MoEGroupedWithRouterInput(
-		input, routerInput, router, gate, up, down, 2, true, 1.25, 2,
-	)
+	output := builder.MoEWithOptions(
+		input, router, up, down, MoEOptions{RouterInput: routerInput, Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 2})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -546,10 +545,10 @@ func TestBuilderGroupedMoEWithRouterInput(t *testing.T) {
 	invalidRouter := invalid.Input("router", dtype.F32, MustShape(2, 4))
 	invalidExperts := invalid.Input("experts", dtype.F32, MustShape(2, 3, 2))
 	invalidDown := invalid.Input("down", dtype.F32, MustShape(3, 2, 2))
-	invalid.MoEGroupedWithRouterInput(
-		invalidInput, invalidInput, invalidRouter, invalidExperts, invalidExperts,
-		invalidDown, 2, true, 1, 0,
-	)
+	invalid.MoEWithOptions(
+		invalidInput, invalidRouter, invalidExperts,
+		invalidDown, MoEOptions{RouterInput: invalidInput, Gate: invalidExperts, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 0})
+
 	if invalid.Err() == nil {
 		t.Fatal("grouped MoE accepted zero expert index divisor")
 	}
@@ -562,7 +561,7 @@ func TestBuilderGELUMoE(t *testing.T) {
 	gate := builder.Input("gate", dtype.F32, MustShape(2, 4, 3))
 	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
-	output := builder.MoEGELU(input, router, gate, up, down, 2, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationGELU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -611,7 +610,7 @@ func TestBuilderQ8MoE(t *testing.T) {
 	gate := builder.Input("gate", dtype.Q8_0, MustShape(32, 32, 4))
 	up := builder.Input("up", dtype.Q8_0, MustShape(32, 32, 4))
 	down := builder.Input("down", dtype.Q8_0, MustShape(32, 32, 4))
-	output := builder.MoE(input, router, gate, up, down, 2, true, 1)
+	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -625,7 +624,7 @@ func TestBuilderQ8MoE(t *testing.T) {
 	invalidGate := invalid.Input("gate", dtype.Q8_0, MustShape(16, 32, 4))
 	invalidUp := invalid.Input("up", dtype.Q8_0, MustShape(16, 32, 4))
 	invalidDown := invalid.Input("down", dtype.Q8_0, MustShape(32, 16, 4))
-	invalid.MoE(invalidInput, invalidRouter, invalidGate, invalidUp, invalidDown, 2, true, 1)
+	invalid.MoEWithOptions(invalidInput, invalidRouter, invalidUp, invalidDown, MoEOptions{Gate: invalidGate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if invalid.Err() == nil {
 		t.Fatal("Q8_0 MoE accepted an unaligned hidden width")
 	}
@@ -636,7 +635,7 @@ func TestBuilderQ8MoE(t *testing.T) {
 	mixedGate := mixed.Input("gate", dtype.Q8_0, MustShape(32, 32, 4))
 	mixedUp := mixed.Input("up", dtype.F32, MustShape(32, 32, 4))
 	mixedDown := mixed.Input("down", dtype.Q8_0, MustShape(32, 32, 4))
-	mixed.MoE(mixedInput, mixedRouter, mixedGate, mixedUp, mixedDown, 2, true, 1)
+	mixed.MoEWithOptions(mixedInput, mixedRouter, mixedUp, mixedDown, MoEOptions{Gate: mixedGate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
 	if mixed.Err() == nil {
 		t.Fatal("MoE accepted mixed expert storage types")
 	}
@@ -661,7 +660,7 @@ func TestBuilderNativeQuantizedMoEFormats(t *testing.T) {
 			gate := builder.Input("gate", dataType, MustShape(traits.BlockSize, traits.BlockSize, 2))
 			up := builder.Input("up", dataType, MustShape(traits.BlockSize, traits.BlockSize, 2))
 			down := builder.Input("down", dataType, MustShape(traits.BlockSize, traits.BlockSize, 2))
-			output := builder.MoE(input, router, gate, up, down, 1, false, 1)
+			output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, TopK: 1, NormalizeTopKProb: false, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
 			if err := builder.Err(); err != nil {
 				t.Fatal(err)
 			}
@@ -780,12 +779,9 @@ func TestBuilderGetRowsAndRoPE(t *testing.T) {
 	builder := NewBuilder()
 	table := builder.Input("table", dtype.F32, MustShape(8, 16))
 	embedding := builder.GetRows(table, []uint32{3, 5})
-	rope := builder.RoPENeoX(
-		builder.Input("query", dtype.F32, MustShape(8, 2, 2)),
-		[]uint32{4, 5},
-		8,
-		10000,
-	)
+	rope := builder.RoPEWithOptions(
+		builder.Input("query", dtype.F32, MustShape(8, 2, 2)), RoPEOptions{Layout: RoPELayoutNeoX, Positions: []uint32{4, 5}, RotaryDimensions: 8, FrequencyBase: 10000, FrequencyScale: 1})
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -798,13 +794,13 @@ func TestBuilderGetRowsAndRoPE(t *testing.T) {
 	positions[1] = []uint32{3, 4}
 	positions[2] = []uint32{5, 6}
 	positions[3] = []uint32{7, 8}
-	multi := builder.RoPEMulti(
+	multi := builder.RoPEMultiScaled(
 		builder.Input("multi", dtype.F32, MustShape(8, 1, 2)),
 		positions,
 		[4]int32{2, 2, 2, 2},
 		8,
-		10000,
-	)
+		10000, 1)
+
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}

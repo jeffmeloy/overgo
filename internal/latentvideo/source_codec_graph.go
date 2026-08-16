@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"overgo/internal/media"
 	"overgo/internal/pytorchzip"
 )
 
@@ -42,7 +43,7 @@ func CompileVAEEncoderPlan(metas []pytorchzip.TensorMeta) (VAEEncoderPlan, error
 		return plan, err
 	}
 	plan.InputChannels = in
-	compiler.add(vaeOpConv, "encoder.conv1", in, out, "encoder.conv1.weight", "encoder.conv1.bias")
+	compiler.add(media.CodecConvolution, "encoder.conv1", in, out, "encoder.conv1.weight", "encoder.conv1.bias")
 	channels := out
 
 	compileResidual := func(prefix string) error {
@@ -83,7 +84,7 @@ func CompileVAEEncoderPlan(metas []pytorchzip.TensorMeta) (VAEEncoderPlan, error
 			}
 			tensors = append(tensors, prefix+".shortcut.weight", prefix+".shortcut.bias")
 		}
-		compiler.add(vaeOpResidual, prefix, residualIn, residualOut, tensors...)
+		compiler.add(media.CodecResidual, prefix, residualIn, residualOut, tensors...)
 		channels = residualOut
 		return nil
 	}
@@ -104,7 +105,7 @@ func CompileVAEEncoderPlan(metas []pytorchzip.TensorMeta) (VAEEncoderPlan, error
 				return err
 			}
 		}
-		compiler.add(vaeOpAttention, prefix, channels, channels,
+		compiler.add(media.CodecAttention, prefix, channels, channels,
 			prefix+".norm.gamma", prefix+".to_qkv.weight", prefix+".to_qkv.bias", prefix+".proj.weight", prefix+".proj.bias")
 		return nil
 	}
@@ -117,7 +118,7 @@ func CompileVAEEncoderPlan(metas []pytorchzip.TensorMeta) (VAEEncoderPlan, error
 			return err
 		}
 		if !compiler.has(prefix + ".time_conv.weight") {
-			compiler.add(vaeOpDownsample2D, prefix, channels, channels, prefix+".resample.1.weight", prefix+".resample.1.bias")
+			compiler.add(media.CodecDownsampleSpatial, prefix, channels, channels, prefix+".resample.1.weight", prefix+".resample.1.bias")
 			plan.Stride[1] *= vaeSpatialScale
 			plan.Stride[2] *= vaeSpatialScale
 			return nil
@@ -129,7 +130,7 @@ func CompileVAEEncoderPlan(metas []pytorchzip.TensorMeta) (VAEEncoderPlan, error
 		if err := compiler.vector(prefix+".time_conv.bias", channels); err != nil {
 			return err
 		}
-		compiler.add(vaeOpDownsample3D, prefix, channels, channels,
+		compiler.add(media.CodecDownsampleSpatiotemporal, prefix, channels, channels,
 			prefix+".resample.1.weight", prefix+".resample.1.bias", prefix+".time_conv.weight", prefix+".time_conv.bias")
 		plan.Stride[0] *= vaeSpatialScale
 		plan.Stride[1] *= vaeSpatialScale
@@ -189,7 +190,7 @@ head:
 	if err := compiler.vector("encoder.head.2.bias", headOut); err != nil {
 		return plan, err
 	}
-	compiler.add(vaeOpHead, "encoder.head", channels, headOut, "encoder.head.0.gamma", "encoder.head.2.weight", "encoder.head.2.bias")
+	compiler.add(media.CodecHead, "encoder.head", channels, headOut, "encoder.head.0.gamma", "encoder.head.2.weight", "encoder.head.2.bias")
 	pointOut, pointIn, kt, kh, kw, err := conv3("conv1.weight")
 	if err != nil || pointIn != headOut || pointOut != headOut || kt != 1 || kh != 1 || kw != 1 {
 		return plan, fmt.Errorf("vae encoder: invalid moment pointwise: %w", err)
@@ -197,9 +198,12 @@ head:
 	if err := compiler.vector("conv1.bias", pointOut); err != nil {
 		return plan, err
 	}
-	compiler.add(vaeOpPointwise, "conv1", pointIn, pointOut, "conv1.weight", "conv1.bias")
+	compiler.add(media.CodecPointwise, "conv1", pointIn, pointOut, "conv1.weight", "conv1.bias")
 	plan.MomentChannels, plan.LatentChannels = pointOut, pointOut/2
-	plan.ops = compiler.ops
+	plan.CodecProgram.Operations = compiler.ops
+	if err := plan.CodecProgram.Validate("vae encoder"); err != nil {
+		return plan, err
+	}
 	stats, err := compiler.finish(func(name string) bool {
 		return strings.HasPrefix(name, "encoder.") || strings.HasPrefix(name, "conv1.")
 	})

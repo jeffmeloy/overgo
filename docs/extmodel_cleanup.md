@@ -26,10 +26,10 @@ active recipe + resolved artifact facts
 
 | Surface | Count | Treatment |
 |---|---:|---|
-| Repo production files / AST nodes | 748 / 1,024,181 | Structural baseline |
-| Repo test files / AST nodes | 584 / 699,753 | Structural baseline |
-| Exported declarations / import edges | 4,405 / 2,226 | Reduce single-consumer exports |
-| Exact duplicate excess AST nodes | 11,663 | Profiler-ranked deletion queue |
+| Repo production files / AST nodes | 749 / 1,024,876 | Structural baseline |
+| Repo test files / AST nodes | 586 / 703,108 | Structural baseline |
+| Exported declarations / import edges | 4,371 / 2,231 | Reduce single-consumer exports |
+| Exact duplicate excess AST nodes | 11,455 | Profiler-ranked deletion queue |
 | Model/inference production files | 143 | Diagnostic; ownership matters, not file count |
 | Model/inference production functions | 943 | Typed plans and operators own execution |
 | Family-named production files | 0 | Hold at zero |
@@ -73,6 +73,9 @@ active recipe + resolved artifact facts
 | Runtime CUDA rewrite decision maps | 0 | Node and fusion frames retain compiled decisions |
 | Compiled CUDA tensor-pointer map APIs | 0 | Indexed input slabs are the sole compiled contract |
 | Retained compiled CUDA execution methods | 1 | Inputs, targets, and attributes share one indexed entry point |
+| Single-axis RoPE builder entry points | 1 | Typed options own layout and scaling policy |
+| Routed-expert builder entry points | 1 | Typed options own routing, activation, and storage policy |
+| General attention builder entry points | 1 | Typed options own masking, window, bias, and sink policy |
 | Routed per-layer device-binding maps | 0 | Branch input programs retain compiled slots |
 | Duplicate dense FFN builders | 0 | Feed-forward policy owns layout, activation, bias, and projection |
 | Routed/denoiser allocation owners | 1 | Shared ordered allocation set; VAE keeps distinct batched/workspace ownership |
@@ -91,27 +94,21 @@ active recipe + resolved artifact facts
 | Coarse capability modules | 31/34 | Replace staged family shells with neutral operators |
 | Family capability runtime files | 91 / 21,953 lines | Separate unique math from displaced orchestration |
 | Family capability exported functions | 295 | Delete wrappers and direct orchestration after caller migration |
-| Production projector recipe consumers | 0 | Route server and generate through active projection plans |
-| Active projection lifecycle dimensions | task only | Add modality/module scope before serving migration |
+| Production projector recipe consumers | 2 | Server and generate require active projection plans |
+| Active projection lifecycle dimensions | model + projector + modules | Exact bundle authority |
 | Training authority timing | pre-allocation | Training plan resolves before runtime construction |
 | Typed architecture profile facts | 166 | Profile/artifact facts own omitted-value policy |
-| `optionalOr` calls in `model/spec.go` | 12 | Move remaining relational defaults into typed policies |
-| Production `legacy` / `fallback` text hits | 20 / 73 | Classify format support vs runtime authority; delete authority branches |
-| Parallel image/video VAE operation systems | 2 | Compile one neutral media codec program |
+| Model-specific `optionalOr` defaults in `model/spec.go` | 0 | Three remaining calls use multiplicative identity |
+| Production `legacy` / `fallback` line hits | 37 / 93 | Format, tokenizer, schema, and explicit policy vocabulary |
+| Implicit runtime compatibility fallbacks | 0 | Recipe residency owns device-OOM host recovery |
+| Media codec program contracts | 1 | Shared typed operations; resident/streamed bindings stay explicit |
 
 Family-named production files: none.
 
 ## Ordered Work
 
-1. Add modality/module scope to active capability identity; one projector may expose image, audio, and video.
-2. Compile projection definitions with base and projector dependencies; migrate server/generate and delete direct runtime opens.
-3. Move remaining relational metadata defaults into typed profile/artifact policies.
-4. Make typed `RoPEOptions` the sole single-axis rotary API; migrate and delete remaining wrappers.
-5. Replace video runtime registration names and duplicated stage plumbing only when the wave is net-negative.
-6. Bind VQA production execution to its active recipe; remove inventory-only activation.
-7. Replace coarse prepare/integrate/decode shells with neutral operator programs.
-8. Compile one image/video codec program; migrate host and CUDA execution together.
-9. Classify remaining legacy/fallback hits; retain explicit file-format support only.
+1. Replace coarse prepare/integrate/decode shells with neutral operator programs.
+2. Move remaining codec topology declarations from artifact-specific compilers into recipe facts.
 
 ## Completed Waves
 
@@ -128,6 +125,20 @@ Family-named production files: none.
 - Resolved normalization policy handed back to model-plan compilation; stale-profile execution fixed.
 - Rotary omitted-value policy moved into 166 typed profile facts: two waves, `-132` net lines.
 - Duplicate Step35 metadata object removed; one serialized policy owner remains.
+- Duplicate projector inventory maps removed: `-16` net lines.
+- Indexed CUDA execution made authoritative: two map-execution APIs deleted.
+- Test-only MoE builder facade deleted: `-218` net lines.
+- Typed single-axis RoPE options made authoritative: `-119` net lines.
+- Typed general attention options made authoritative: `-202` net lines.
+- Active projection bundle binds exact model, projector, and modality modules; server/generate direct opens deleted.
+- GGUF inventory requires explicit model/projector kind; implicit identity fallback deleted.
+- Inventory-only VQA capability registration deleted; verified VQA runtime remains recipe-bound.
+- T5/Qwen/Step/Grove omitted metadata moved into typed profile facts: four literals removed.
+- Image/video codec channel norm and spatial attention unified in `hostmath`; two local implementations deleted.
+- Expert width derivation is exact; shared-expert fallback relationships are typed profile facts.
+- Oscillator image/video share one runtime registration owner; video-only facade deleted.
+- Packed-batch remainder and recipe-owned host recovery named precisely; runtime fallback ambiguity removed.
+- Image/video/source codecs share one typed program; local enums, validators, arity switch, and plan wrappers deleted.
 - Context-pipeline-tail abstraction rejected: `+26` lines for three consumers; no commit.
 
 ## Per-Wave Gate

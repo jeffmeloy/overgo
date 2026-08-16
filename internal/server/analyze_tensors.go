@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/tensorstats"
@@ -176,7 +177,7 @@ func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analy
 // the shared, identity-keyed measurement pipeline, pairing each characterization
 // with its storage and shape facts.
 func characterizeGGUF(file *gguf.File, policy modelartifact.MeasurementPolicy) ([]analyzeTensor, error) {
-	inventory, err := modelartifact.FromGGUF(file)
+	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if err != nil {
 		return nil, err
 	}

@@ -12,13 +12,13 @@ package latentvideo
 
 import (
 	"fmt"
-	"math"
 	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/media"
 	"overgo/internal/pytorchzip"
 )
 
@@ -28,46 +28,12 @@ const channelNormZeroGuard = 1e-12
 // vaeSpatialScale: every resample stage is a fixed 2x (Wan resample stack).
 const vaeSpatialScale = 2
 
-type vaeOpKind string
-
-const (
-	vaeOpPointwise    vaeOpKind = "pointwise3d"
-	vaeOpConv         vaeOpKind = "conv3d"
-	vaeOpResidual     vaeOpKind = "residual"
-	vaeOpAttention    vaeOpKind = "attention"
-	vaeOpDownsample2D vaeOpKind = "downsample2d"
-	vaeOpDownsample3D vaeOpKind = "downsample3d"
-	vaeOpUpsample2D   vaeOpKind = "upsample2d"
-	vaeOpUpsample3D   vaeOpKind = "upsample3d"
-	vaeOpHead         vaeOpKind = "head"
-)
-
-// vaeDecoderOp: one compiled decode operation with tensor bindings in
-// canonical order (gammas and weight/bias pairs as each op consumes them).
-type vaeDecoderOp struct {
-	kind        vaeOpKind
-	prefix      string
-	cIn, cOut   int
-	bindings    []pytorchzip.TensorBinding
-	weightBytes int64
-}
-
 type vaePlanCore struct {
+	media.CodecProgram[[]pytorchzip.TensorBinding]
 	Stride               [3]int
 	UsedTensorCount      int
 	UsedWeightBytes      int64
 	LargestOpWeightBytes int64
-	ops                  []vaeDecoderOp
-}
-
-func (p vaePlanCore) Ops() int { return len(p.ops) }
-
-func (p vaePlanCore) OpPrefixes() []string {
-	prefixes := make([]string, len(p.ops))
-	for index, op := range p.ops {
-		prefixes[index] = op.prefix
-	}
-	return prefixes
 }
 
 // VAEDecoderPlan: validated decoder graph derived from tensor names/shapes.
@@ -98,7 +64,7 @@ type vaePlanCompiler struct {
 	scope  string
 	metas  []pytorchzip.TensorMeta
 	byName map[string]pytorchzip.TensorMeta
-	ops    []vaeDecoderOp
+	ops    []media.CodecOperation[[]pytorchzip.TensorBinding]
 	names  []string
 }
 
@@ -134,8 +100,10 @@ func (c *vaePlanCompiler) has(name string) bool {
 	return ok
 }
 
-func (c *vaePlanCompiler) add(kind vaeOpKind, prefix string, cIn, cOut int, names ...string) {
-	c.ops = append(c.ops, vaeDecoderOp{kind: kind, prefix: prefix, cIn: cIn, cOut: cOut})
+func (c *vaePlanCompiler) add(kind media.CodecOperator, prefix string, cIn, cOut int, names ...string) {
+	c.ops = append(c.ops, media.CodecOperation[[]pytorchzip.TensorBinding]{
+		Operator: kind, Name: prefix, InputChannels: cIn, OutputChannels: cOut, BindingCount: len(names),
+	})
 	c.names = append(c.names, names...)
 }
 
@@ -162,19 +130,20 @@ func (c *vaePlanCompiler) finish(owned func(string) bool) (vaePlanStats, error) 
 	offset := 0
 	for index := range c.ops {
 		op := &c.ops[index]
-		count := vaeOpTensorCount(*op)
-		op.bindings = bindings[offset : offset+count]
+		count := op.BindingCount
+		op.Bindings = bindings[offset : offset+count]
 		offset += count
-		for _, binding := range op.bindings {
+		var operationBytes int64
+		for _, binding := range op.Bindings {
 			bytes, err := pytorchzip.TensorMetaBytes(binding.Meta)
 			if err != nil {
 				return vaePlanStats{}, err
 			}
-			op.weightBytes += bytes
+			operationBytes += bytes
 		}
 		stats.tensors += count
-		stats.weightBytes += op.weightBytes
-		stats.largestOpBytes = max(stats.largestOpBytes, op.weightBytes)
+		stats.weightBytes += operationBytes
+		stats.largestOpBytes = max(stats.largestOpBytes, operationBytes)
 	}
 	if offset != len(bindings) {
 		return vaePlanStats{}, fmt.Errorf("%s: binding partition consumed %d of %d", c.scope, offset, len(bindings))
@@ -218,7 +187,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		return plan, fmt.Errorf("vae decoder: conv2.weight shape %v is not a latent pointwise", conv2.shape)
 	}
 	plan.ZDim = zIn
-	compiler.add(vaeOpPointwise, "conv2", zIn, zOut, "conv2.weight", "conv2.bias")
+	compiler.add(media.CodecPointwise, "conv2", zIn, zOut, "conv2.weight", "conv2.bias")
 
 	// decoder.conv1: latent -> feature volume conv [c, z, 3, 3, 3].
 	conv1, err := compiler.shape("decoder.conv1.weight")
@@ -232,7 +201,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 	if c1In != plan.ZDim || kt != 3 || kh != 3 || kw != 3 {
 		return plan, fmt.Errorf("vae decoder: decoder.conv1.weight shape %v incompatible with z_dim=%d", conv1.shape, plan.ZDim)
 	}
-	compiler.add(vaeOpConv, "decoder.conv1", c1In, c1Out, "decoder.conv1.weight", "decoder.conv1.bias")
+	compiler.add(media.CodecConvolution, "decoder.conv1", c1In, c1Out, "decoder.conv1.weight", "decoder.conv1.bias")
 	channels := c1Out
 
 	compileResidual := func(prefix string) (int, error) {
@@ -294,7 +263,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 			}
 			opNames = append(opNames, prefix+".shortcut.weight", prefix+".shortcut.bias")
 		}
-		compiler.add(vaeOpResidual, prefix, cIn, cOut, opNames...)
+		compiler.add(media.CodecResidual, prefix, cIn, cOut, opNames...)
 		return cOut, nil
 	}
 	compileAttention := func(prefix string) error {
@@ -330,7 +299,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 				return err
 			}
 		}
-		compiler.add(vaeOpAttention, prefix, channels, channels,
+		compiler.add(media.CodecAttention, prefix, channels, channels,
 			prefix+".norm.gamma", prefix+".to_qkv.weight", prefix+".to_qkv.bias",
 			prefix+".proj.weight", prefix+".proj.bias")
 		return nil
@@ -351,7 +320,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 			return 0, err
 		}
 		if !compiler.has(prefix + ".time_conv.weight") {
-			compiler.add(vaeOpUpsample2D, prefix, cIn, cOut, prefix+".resample.1.weight", prefix+".resample.1.bias")
+			compiler.add(media.CodecUpsampleSpatial, prefix, cIn, cOut, prefix+".resample.1.weight", prefix+".resample.1.bias")
 			plan.Stride[1] *= vaeSpatialScale
 			plan.Stride[2] *= vaeSpatialScale
 			return cOut, nil
@@ -370,7 +339,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if err := compiler.vector(prefix+".time_conv.bias", tOut); err != nil {
 			return 0, err
 		}
-		compiler.add(vaeOpUpsample3D, prefix, cIn, cOut,
+		compiler.add(media.CodecUpsampleSpatiotemporal, prefix, cIn, cOut,
 			prefix+".time_conv.weight", prefix+".time_conv.bias",
 			prefix+".resample.1.weight", prefix+".resample.1.bias")
 		plan.Stride[0] *= vaeSpatialScale
@@ -428,16 +397,12 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 	if err := compiler.vector("decoder.head.2.bias", headOut); err != nil {
 		return plan, err
 	}
-	compiler.add(vaeOpHead, "decoder.head", channels, headOut, "decoder.head.0.gamma", "decoder.head.2.weight", "decoder.head.2.bias")
+	compiler.add(media.CodecHead, "decoder.head", channels, headOut, "decoder.head.0.gamma", "decoder.head.2.weight", "decoder.head.2.bias")
 	plan.OutputChannels = headOut
-	plan.ops = compiler.ops
+	plan.CodecProgram.Operations = compiler.ops
 
-	// Chain continuity across the compiled graph.
-	for index := 1; index < len(plan.ops); index++ {
-		if plan.ops[index].cIn != plan.ops[index-1].cOut {
-			return plan, fmt.Errorf("vae decoder: op %d (%s) input channels=%d, previous output=%d",
-				index, plan.ops[index].prefix, plan.ops[index].cIn, plan.ops[index-1].cOut)
-		}
+	if err := plan.CodecProgram.Validate("vae decoder"); err != nil {
+		return plan, err
 	}
 	stats, err := compiler.finish(func(name string) bool {
 		return strings.HasPrefix(name, "decoder.") || strings.HasPrefix(name, "conv2.")
@@ -449,25 +414,6 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 	plan.UsedWeightBytes = stats.weightBytes
 	plan.LargestOpWeightBytes = stats.largestOpBytes
 	return plan, nil
-}
-
-func vaeOpTensorCount(op vaeDecoderOp) int {
-	switch op.kind {
-	case vaeOpPointwise, vaeOpConv, vaeOpDownsample2D, vaeOpUpsample2D:
-		return 2
-	case vaeOpResidual:
-		if op.cIn != op.cOut {
-			return 8
-		}
-		return 6
-	case vaeOpAttention:
-		return 5
-	case vaeOpDownsample3D, vaeOpUpsample3D:
-		return 4
-	case vaeOpHead:
-		return 3
-	}
-	return 0
 }
 
 // VideoFrameSink consumes one borrowed planar [c][h][w] frame; sinks that
@@ -586,69 +532,6 @@ func nextTemporalCache(prior vaeTemporalCache, x []float32, c, frames, spatial i
 	return vaeTemporalCache{data: out, frames: nextFrames, initialized: true}
 }
 
-// channelRMSNormInto: RMS over channels at each position, sqrt(C)-scaled,
-// zero-guarded (reference F.normalize(dim=1)*sqrt(C)*gamma).
-func channelRMSNormInto(out, x, gamma []float32, c, plane int) error {
-	if c <= 0 || plane <= 0 {
-		return fmt.Errorf("vae rms norm: bad shape c=%d plane=%d", c, plane)
-	}
-	if len(x) != c*plane || len(out) != len(x) || len(gamma) != c {
-		return fmt.Errorf("vae rms norm: bad lengths out=%d x=%d gamma=%d", len(out), len(x), len(gamma))
-	}
-	scale := math.Sqrt(float64(c))
-	for pos := 0; pos < plane; pos++ {
-		var sumSq float64
-		for ch := 0; ch < c; ch++ {
-			v := float64(x[ch*plane+pos])
-			sumSq += v * v
-		}
-		norm := math.Sqrt(sumSq)
-		if norm < channelNormZeroGuard {
-			norm = channelNormZeroGuard
-		}
-		for ch := 0; ch < c; ch++ {
-			idx := ch*plane + pos
-			out[idx] = float32(float64(x[idx]) / norm * scale * float64(gamma[ch]))
-		}
-	}
-	return nil
-}
-
-// spatialAttentionInto: per-frame spatial self-attention over qkv
-// [3c][t][h*w] planes, residual added by the caller.
-func spatialAttentionInto(out, qkv []float32, c, t, frame int) error {
-	if c <= 0 || t <= 0 || frame <= 0 || len(qkv) != 3*c*t*frame || len(out) != c*t*frame {
-		return fmt.Errorf("vae attention: bad lengths out=%d qkv=%d", len(out), len(qkv))
-	}
-	scale := 1 / math.Sqrt(float64(c))
-	scores := make([]float32, frame)
-	kOff := c * t * frame
-	vOff := 2 * c * t * frame
-	for ti := 0; ti < t; ti++ {
-		for qi := 0; qi < frame; qi++ {
-			for kj := 0; kj < frame; kj++ {
-				var dot float64
-				for ch := 0; ch < c; ch++ {
-					qIdx := (ch*t+ti)*frame + qi
-					kIdx := kOff + (ch*t+ti)*frame + kj
-					dot += float64(qkv[qIdx]) * float64(qkv[kIdx])
-				}
-				scores[kj] = float32(dot * scale)
-			}
-			hostmath.SoftmaxInPlace(scores)
-			for ch := 0; ch < c; ch++ {
-				var acc float64
-				for kj, p := range scores {
-					vIdx := vOff + (ch*t+ti)*frame + kj
-					acc += float64(p) * float64(qkv[vIdx])
-				}
-				out[(ch*t+ti)*frame+qi] = float32(acc)
-			}
-		}
-	}
-	return nil
-}
-
 // timeInterleaveInto: temporal upsample reshape — the time conv's doubled
 // channel output [2c][t][s] interleaves to [c][2t][s], even output frames
 // from the first channel half (reference reshape+stack).
@@ -669,7 +552,7 @@ func timeInterleaveInto(out, convolved []float32, c, frames, spatial int) error 
 
 // vaeLoadedOp: an op with weights resident (gammas flattened to channels).
 type vaeLoadedOp struct {
-	vaeDecoderOp
+	media.CodecOperation[[]pytorchzip.TensorBinding]
 	values [][]float32
 }
 
@@ -678,13 +561,13 @@ func loadVAEDecoderOps(reader *pytorchzip.Reader, plan VAEDecoderPlan) ([]vaeLoa
 }
 
 func loadVAEOps(reader *pytorchzip.Reader, plan vaePlanCore, scope string) ([]vaeLoadedOp, error) {
-	ops := make([]vaeLoadedOp, len(plan.ops))
-	for index, op := range plan.ops {
-		values, err := reader.ReadBindingValues(op.bindings)
+	ops := make([]vaeLoadedOp, len(plan.Operations))
+	for index, op := range plan.Operations {
+		values, err := reader.ReadBindingValues(op.Bindings)
 		if err != nil {
-			return nil, fmt.Errorf("vae %s %s: %w", scope, op.prefix, err)
+			return nil, fmt.Errorf("vae %s %s: %w", scope, op.Name, err)
 		}
-		ops[index] = vaeLoadedOp{vaeDecoderOp: op, values: values}
+		ops[index] = vaeLoadedOp{CodecOperation: op, values: values}
 	}
 	return ops, nil
 }
@@ -739,7 +622,7 @@ func causalGeometry(cIn, cOut, kt, kh, kw, padT, t, h, w int) hostmath.Conv3DSha
 // op's temporal state exactly as the reference chunk-major graph does.
 func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, frames, h, w int) ([]float32, int, int, int, error) {
 	spatial := h * w
-	c := op.cIn
+	c := op.InputChannels
 	cachedConv := func(out, input []float32, cache *vaeTemporalCache, weight, bias []float32, cOut, kt, kh, kw int) error {
 		shape := causalGeometry(c, cOut, kt, kh, kw, kt/2, frames, h, w)
 		if err := hostmath.CausalConv3DInto(out, input, cache.data, weight, bias, cache.frames, shape); err != nil {
@@ -750,67 +633,67 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		}
 		return nil
 	}
-	switch op.kind {
-	case vaeOpPointwise, vaeOpConv:
+	switch op.Operator {
+	case media.CodecPointwise, media.CodecConvolution:
 		weight, bias := op.values[0], op.values[1]
 		kt := 1
-		if op.kind == vaeOpConv {
+		if op.Operator == media.CodecConvolution {
 			kt = 3
 		}
-		out := make([]float32, op.cOut*frames*spatial)
-		if err := cachedConv(out, x, &state.cache0, weight, bias, op.cOut, kt, kt, kt); err != nil {
+		out := make([]float32, op.OutputChannels*frames*spatial)
+		if err := cachedConv(out, x, &state.cache0, weight, bias, op.OutputChannels, kt, kt, kt); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, frames, h, w, nil
-	case vaeOpResidual:
+	case media.CodecResidual:
 		gamma0, w0, b0 := op.values[0], op.values[1], op.values[2]
 		gamma1, w1, b1 := op.values[3], op.values[4], op.values[5]
 		n0 := make([]float32, len(x))
-		if err := channelRMSNormInto(n0, x, gamma0, c, frames*spatial); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(n0, x, gamma0, c, frames*spatial, channelNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n0)
-		h0 := make([]float32, op.cOut*frames*spatial)
-		if err := cachedConv(h0, n0, &state.cache0, w0, b0, op.cOut, 3, 3, 3); err != nil {
+		h0 := make([]float32, op.OutputChannels*frames*spatial)
+		if err := cachedConv(h0, n0, &state.cache0, w0, b0, op.OutputChannels, 3, 3, 3); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		n1 := make([]float32, len(h0))
-		if err := channelRMSNormInto(n1, h0, gamma1, op.cOut, frames*spatial); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(n1, h0, gamma1, op.OutputChannels, frames*spatial, channelNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n1)
 		out := make([]float32, len(h0))
-		shape1 := causalGeometry(op.cOut, op.cOut, 3, 3, 3, 1, frames, h, w)
+		shape1 := causalGeometry(op.OutputChannels, op.OutputChannels, 3, 3, 3, 1, frames, h, w)
 		if err := hostmath.CausalConv3DInto(out, n1, state.cache1.data, w1, b1, state.cache1.frames, shape1); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		state.cache1 = nextTemporalCache(state.cache1, n1, op.cOut, frames, spatial, false)
-		if op.cIn == op.cOut {
+		state.cache1 = nextTemporalCache(state.cache1, n1, op.OutputChannels, frames, spatial, false)
+		if op.InputChannels == op.OutputChannels {
 			for i := range out {
 				out[i] += x[i]
 			}
 			return out, frames, h, w, nil
 		}
 		shortcut := make([]float32, len(out))
-		if err := hostmath.ChannelMixF64Into(shortcut, x, op.values[6], op.values[7], c, op.cOut, frames*spatial); err != nil {
+		if err := hostmath.ChannelMixF64Into(shortcut, x, op.values[6], op.values[7], c, op.OutputChannels, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		for i := range out {
 			out[i] += shortcut[i]
 		}
 		return out, frames, h, w, nil
-	case vaeOpAttention:
+	case media.CodecAttention:
 		gamma, qkvW, qkvB := op.values[0], op.values[1], op.values[2]
 		projW, projB := op.values[3], op.values[4]
 		norm := make([]float32, len(x))
-		if err := channelRMSNormInto(norm, x, gamma, c, frames*spatial); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, frames*spatial, channelNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		qkv := make([]float32, 3*c*frames*spatial)
 		if err := hostmath.ChannelMixF64Into(qkv, norm, qkvW, qkvB, c, 3*c, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		if err := spatialAttentionInto(norm, qkv, c, frames, spatial); err != nil {
+		if err := hostmath.SpatialAttentionF64Into(norm, qkv, c, frames, spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		out := make([]float32, len(x))
@@ -821,26 +704,26 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 			out[i] += x[i]
 		}
 		return out, frames, h, w, nil
-	case vaeOpDownsample2D:
-		out := make([]float32, op.cOut*frames*(h/2)*(w/2))
+	case media.CodecDownsampleSpatial:
+		out := make([]float32, op.OutputChannels*frames*(h/2)*(w/2))
 		if err := downsample2DInto(out, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, frames, h / 2, w / 2, nil
-	case vaeOpDownsample3D:
+	case media.CodecDownsampleSpatiotemporal:
 		outH, outW := h/2, w/2
-		spatialOut := make([]float32, op.cOut*frames*outH*outW)
+		spatialOut := make([]float32, op.OutputChannels*frames*outH*outW)
 		if err := downsample2DInto(spatialOut, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		prior := state.cache0
-		state.cache0 = nextTemporalCache(state.cache0, spatialOut, op.cOut, frames, outH*outW, false)
+		state.cache0 = nextTemporalCache(state.cache0, spatialOut, op.OutputChannels, frames, outH*outW, false)
 		if chunkIndex == 0 {
 			return spatialOut, frames, outH, outW, nil
 		}
 		joinedFrames := frames + 1
-		joined := make([]float32, op.cOut*joinedFrames*outH*outW)
-		for channel := range op.cOut {
+		joined := make([]float32, op.OutputChannels*joinedFrames*outH*outW)
+		for channel := range op.OutputChannels {
 			if prior.frames > 0 {
 				destination := joined[channel*joinedFrames*outH*outW : (channel*joinedFrames+1)*outH*outW]
 				source := prior.data[(channel*prior.frames+prior.frames-1)*outH*outW : (channel*prior.frames+prior.frames)*outH*outW]
@@ -851,26 +734,26 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 			copy(destination, source)
 		}
 		shape := hostmath.Conv3DShape{
-			CIn: op.cOut, COut: op.cOut, InT: joinedFrames, InH: outH, InW: outW,
+			CIn: op.OutputChannels, COut: op.OutputChannels, InT: joinedFrames, InH: outH, InW: outW,
 			KT: 3, KH: 1, KW: 1, StrideT: 2, StrideH: 1, StrideW: 1,
 		}
 		outFrames, _, _, err := shape.OutputDims()
 		if err != nil {
 			return nil, 0, 0, 0, err
 		}
-		out := make([]float32, op.cOut*outFrames*outH*outW)
+		out := make([]float32, op.OutputChannels*outFrames*outH*outW)
 		if err := hostmath.CausalConv3DInto(out, joined, nil, op.values[2], op.values[3], 0, shape); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, outFrames, outH, outW, nil
-	case vaeOpUpsample2D:
+	case media.CodecUpsampleSpatial:
 		weight, bias := op.values[0], op.values[1]
-		out := make([]float32, op.cOut*frames*vaeSpatialScale*h*vaeSpatialScale*w)
-		if err := hostmath.ResizeConv2DInto(out, x, weight, bias, c, op.cOut, frames, h, w); err != nil {
+		out := make([]float32, op.OutputChannels*frames*vaeSpatialScale*h*vaeSpatialScale*w)
+		if err := hostmath.ResizeConv2DInto(out, x, weight, bias, c, op.OutputChannels, frames, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, frames, vaeSpatialScale * h, vaeSpatialScale * w, nil
-	case vaeOpUpsample3D:
+	case media.CodecUpsampleSpatiotemporal:
 		timeW, timeB := op.values[0], op.values[1]
 		resampleW, resampleB := op.values[2], op.values[3]
 		spatialInput, spatialFrames := x, frames
@@ -895,25 +778,25 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 			}
 			state.cache0 = nextCache
 		}
-		out := make([]float32, op.cOut*spatialFrames*vaeSpatialScale*h*vaeSpatialScale*w)
-		if err := hostmath.ResizeConv2DInto(out, spatialInput, resampleW, resampleB, c, op.cOut, spatialFrames, h, w); err != nil {
+		out := make([]float32, op.OutputChannels*spatialFrames*vaeSpatialScale*h*vaeSpatialScale*w)
+		if err := hostmath.ResizeConv2DInto(out, spatialInput, resampleW, resampleB, c, op.OutputChannels, spatialFrames, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, spatialFrames, vaeSpatialScale * h, vaeSpatialScale * w, nil
-	case vaeOpHead:
+	case media.CodecHead:
 		gamma, weight, bias := op.values[0], op.values[1], op.values[2]
 		norm := make([]float32, len(x))
-		if err := channelRMSNormInto(norm, x, gamma, c, frames*spatial); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, frames*spatial, channelNormZeroGuard); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(norm)
-		out := make([]float32, op.cOut*frames*spatial)
-		if err := cachedConv(out, norm, &state.cache0, weight, bias, op.cOut, 3, 3, 3); err != nil {
+		out := make([]float32, op.OutputChannels*frames*spatial)
+		if err := cachedConv(out, norm, &state.cache0, weight, bias, op.OutputChannels, 3, 3, 3); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, frames, h, w, nil
 	}
-	return nil, 0, 0, 0, fmt.Errorf("vae decoder: unsupported op %s", op.kind)
+	return nil, 0, 0, 0, fmt.Errorf("vae decoder: unsupported op %d", op.Operator)
 }
 
 // VideoDecodeShape: output extents for a latent volume under the plan's
@@ -939,7 +822,7 @@ func VideoDecodeShape(plan VAEDecoderPlan, latentFrames, latentH, latentW int) (
 // stay resident (the reference chunk-major graph residency); peak host
 // memory is weights plus one chunk's activations.
 func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, error) {
-	decodeStats, geometry, err := prepareVAEDecode("vae decode", "host_streamed_chunks", plan, len(plan.ops), stats, z, latentFrames, latentH, latentW, sink)
+	decodeStats, geometry, err := prepareVAEDecode("vae decode", "host_streamed_chunks", plan, len(plan.Operations), stats, z, latentFrames, latentH, latentW, sink)
 	if err != nil {
 		return decodeStats, err
 	}
@@ -974,7 +857,7 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 		for opIndex := range ops {
 			x, frames, h, w, err = runVAEOp(ops[opIndex], &states[opIndex], chunkIndex, x, frames, h, w)
 			if err != nil {
-				return decodeStats, fmt.Errorf("vae decode %s chunk %d: %w", ops[opIndex].prefix, chunkIndex, err)
+				return decodeStats, fmt.Errorf("vae decode %s chunk %d: %w", ops[opIndex].Name, chunkIndex, err)
 			}
 			samplePeak()
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -57,25 +58,19 @@ func openProjectorCUDA(
 
 func projectorTensorInfos(file *gguf.File, required, optional []string) ([]gguf.TensorInfo, error) {
 	infos := make([]gguf.TensorInfo, 0, len(required)+len(optional))
-	included := make(map[string]struct{}, len(required)+len(optional))
 	for _, name := range required {
-		if _, ok := included[name]; ok {
-			continue
-		}
 		info, ok := file.Tensor(name)
 		if !ok {
 			return nil, fmt.Errorf("tensor %q is unavailable", name)
 		}
 		infos = append(infos, info)
-		included[name] = struct{}{}
 	}
 	for _, name := range optional {
-		if _, ok := included[name]; ok {
+		if slices.Contains(required, name) {
 			continue
 		}
 		if info, ok := file.Tensor(name); ok {
 			infos = append(infos, info)
-			included[name] = struct{}{}
 		}
 	}
 	return infos, nil

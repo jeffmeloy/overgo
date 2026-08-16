@@ -17,6 +17,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
 	"overgo/internal/projector"
+	"overgo/internal/repodb"
 	llamaserver "overgo/internal/server"
 )
 
@@ -112,9 +113,7 @@ func run() error {
 	openOptions.PromptCacheEntries = *promptCacheEntries
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	runner, err := clioptions.OpenRunner(
-		shutdownContext, *modelFlags.Repository, flag.Arg(0), openOptions,
-	)
+	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, flag.Arg(0), openOptions)
 	if err != nil {
 		return err
 	}
@@ -131,9 +130,18 @@ func run() error {
 	var vision projector.ImageProjector
 	var audio projector.AudioProjector
 	if *projectorPath != "" {
-		vision, err = projector.OpenAs[projector.ImageProjector](shutdownContext, *projectorPath, projector.OpenOptions{
+		repository, repositoryErr := modelFlags.RepositoryPath()
+		if repositoryErr != nil {
+			return repositoryErr
+		}
+		store, openErr := repodb.OpenReadOnly(repository)
+		if openErr != nil {
+			return fmt.Errorf("open model recipe repository: %w", openErr)
+		}
+		vision, err = projector.OpenActiveAs[projector.ImageProjector](shutdownContext, store, runner.ModelID(), *projectorPath, projector.OpenOptions{
 			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
 		})
+		err = errors.Join(err, store.Close())
 		if err != nil {
 			return fmt.Errorf("open multimodal projector: %w", err)
 		}

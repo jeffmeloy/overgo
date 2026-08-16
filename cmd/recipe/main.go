@@ -32,6 +32,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
@@ -51,7 +52,8 @@ func run() error {
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
 	gate := flags.String("gate", "", "successful verifier gate artifact ID (activate)")
 	runID := flags.String("run-id", "", "bound verifier run artifact ID (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|forecast|tabular|seq2seq|speech|image-gen|video-gen|vqa)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|projection|forecast|tabular|seq2seq|speech|image-gen|video-gen|vqa)")
+	projectorPath := flags.String("projector", "", "projector GGUF for projection recipes")
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
 	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),
 		"weight residency: stream | host-cache | device-f32 | device-native | device-native-bf16 | hybrid-native | host-reference")
@@ -75,6 +77,12 @@ func run() error {
 	capability, capabilityKnown := capabilities[selectedTask]
 	switch verb {
 	case "verify":
+		if selectedTask == recipe.TaskProjection {
+			if strings.TrimSpace(*projectorPath) == "" {
+				return errors.New("projection verification requires -projector")
+			}
+			return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath))
+		}
 		if !capabilityKnown || capability.execute == nil {
 			return fmt.Errorf("task %q has no registered verifier runtime", selectedTask)
 		}
@@ -93,6 +101,14 @@ func run() error {
 		verification, verificationErr := parseVerification(*gate, *runID)
 		if verificationErr != nil {
 			return verificationErr
+		}
+		if selectedTask == recipe.TaskProjection {
+			if strings.TrimSpace(*projectorPath) == "" {
+				return errors.New("projection activation requires -projector")
+			}
+			return activateProjection(
+				repository, path, roots.ResolveModelPath(*projectorPath), *reason, verification,
+			)
 		}
 		if capabilityKnown {
 			return activateCapability(repository, path, *reason, selectedTask, capability, verification)
@@ -182,6 +198,111 @@ func activateCapability(
 	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
 		path, task, modelID, definition.ID, reason)
 	return nil
+}
+
+func activateProjection(
+	repository, modelPath, projectorPath, reason string,
+	verification modelrecipe.Verification,
+) error {
+	ctx := context.Background()
+	store, err := repodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	modelID, definition, err := prepareProjection(ctx, store, modelPath, projectorPath)
+	if err != nil {
+		return err
+	}
+	if err := modelrecipe.ActivateCapability(
+		ctx, store, definition, verification, recipe.EvidenceExperimental, reason,
+	); err != nil {
+		return err
+	}
+	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  projector  %s\n  recipe     %s\n  reason     %s\n",
+		modelPath, recipe.TaskProjection, modelID, projectorPath, definition.ID, reason)
+	return nil
+}
+
+func verifyProjection(repository, modelPath, projectorPath string) error {
+	ctx := context.Background()
+	revision, err := cleanGoRevision()
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	_, definition, err := prepareProjection(ctx, store, modelPath, projectorPath)
+	if err != nil {
+		return err
+	}
+	if _, published, err := modelrecipe.Status(ctx, store, definition.ID); err != nil {
+		return err
+	} else if !published {
+		if _, _, err := modelrecipe.PublishCandidate(
+			ctx, store, "recipe/candidate/"+definition.ID.String(), definition,
+		); err != nil {
+			return err
+		}
+	}
+	started := time.Now()
+	program, err := modelrecipe.CompileCapability(definition)
+	if err != nil {
+		return err
+	}
+	if len(program.Stages()) != len(definition.Nodes) {
+		return errors.New("projection recipe compilation is incomplete")
+	}
+	verification, err := publishCapabilityVerification(ctx, store, definition, revision, time.Since(started))
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(map[string]string{
+		"gate_id": verification.Gate.String(), "recipe_id": definition.ID.String(),
+		"run_id": verification.Run.String(),
+	})
+}
+
+func prepareProjection(
+	ctx context.Context,
+	store artifact.Repository,
+	modelPath, projectorPath string,
+) (artifact.ID, recipe.Definition, error) {
+	file, err := gguf.Open(modelPath)
+	if err != nil {
+		return artifact.ID{}, recipe.Definition{}, err
+	}
+	modelInventory, inventoryErr := modelartifact.FromGGUF(file, artifact.KindModel)
+	closeErr := file.Close()
+	if err := errors.Join(inventoryErr, closeErr); err != nil {
+		return artifact.ID{}, recipe.Definition{}, err
+	}
+	projectorInventory, definition, err := projector.CompileProjectionDefinition(
+		ctx, modelInventory.Manifest.ID, projectorPath,
+	)
+	if err != nil {
+		return artifact.ID{}, recipe.Definition{}, err
+	}
+	modelFacts, err := modelInventory.Batch("recipe/projection/facts/" + definition.ID.String())
+	if err != nil {
+		return artifact.ID{}, recipe.Definition{}, err
+	}
+	projectorFacts, err := projectorInventory.Batch(modelFacts.Key)
+	if err != nil {
+		return artifact.ID{}, recipe.Definition{}, err
+	}
+	modelFacts.Artifacts = append(modelFacts.Artifacts, projectorFacts.Artifacts...)
+	modelFacts.Contents = append(modelFacts.Contents, projectorFacts.Contents...)
+	modelFacts.Manifests = append(modelFacts.Manifests, projectorFacts.Manifests...)
+	modelFacts.Lineage = append(modelFacts.Lineage, projectorFacts.Lineage...)
+	modelFacts.Locations = append(modelFacts.Locations, projectorFacts.Locations...)
+	if _, err := store.Commit(ctx, modelFacts); err != nil {
+		return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish projection facts: %w", err)
+	}
+	return modelInventory.Manifest.ID, definition, nil
 }
 
 func prepareCapability(
@@ -378,7 +499,7 @@ func activate(
 		return err
 	}
 	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file)
+	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if err != nil {
 		return err
 	}
@@ -450,14 +571,20 @@ func activate(
 func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
 	var inventory modelartifact.Inventory
-	if capability, ok := capabilities[task]; ok {
+	if task == recipe.TaskVQA {
+		var err error
+		inventory, err = modelartifact.FromHFPath(path)
+		if err != nil {
+			return err
+		}
+	} else if capability, ok := capabilities[task]; ok {
 		source, err := capability.resolve(path)
 		if err != nil {
 			return err
 		}
 		inventory = source.inventory
 	} else {
-		if task != recipe.TaskInference {
+		if task != recipe.TaskInference && task != recipe.TaskProjection {
 			return fmt.Errorf("unsupported model recipe task %q", task)
 		}
 		file, err := gguf.Open(path)
@@ -465,7 +592,7 @@ func status(repository, path string, task recipe.Task) error {
 			return err
 		}
 		defer file.Close()
-		inventory, err = modelartifact.FromGGUF(file)
+		inventory, err = modelartifact.FromGGUF(file, artifact.KindModel)
 		if err != nil {
 			return err
 		}

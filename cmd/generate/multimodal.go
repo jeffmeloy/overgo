@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/media"
 	"overgo/internal/projector"
@@ -26,11 +27,12 @@ import (
 
 func imageProjectedPrompt(
 	ctx context.Context,
+	store artifact.Reader,
 	runner *inference.Runner,
 	projectorPath, imagePath, question string,
 	thinking bool, projectorOptions projector.OpenOptions,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	vision, err := projector.OpenAs[projector.ImageProjector](ctx, projectorPath, projectorOptions)
+	vision, err := projector.OpenActiveAs[projector.ImageProjector](ctx, store, runner.ModelID(), projectorPath, projectorOptions)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open multimodal projector: %w", err)
 	}
@@ -53,11 +55,12 @@ func imageProjectedPrompt(
 
 func audioProjectedPrompt(
 	ctx context.Context,
+	store artifact.Reader,
 	runner *inference.Runner,
 	projectorPath, audioPath, question string,
 	projectorOptions projector.OpenOptions,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	audio, err := projector.OpenAs[projector.AudioProjector](ctx, projectorPath, projectorOptions)
+	audio, err := projector.OpenActiveAs[projector.AudioProjector](ctx, store, runner.ModelID(), projectorPath, projectorOptions)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open audio projector: %w", err)
 	}
@@ -91,6 +94,7 @@ func audioProjectedPrompt(
 
 func videoProjectedPrompt(
 	ctx context.Context,
+	store artifact.Reader,
 	runner *inference.Runner,
 	projectorPath string,
 	framePaths []string,
@@ -101,7 +105,7 @@ func videoProjectedPrompt(
 	fps float64,
 	thinking bool, projectorOptions projector.OpenOptions,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	vision, err := projector.OpenAs[projector.VideoProjector](ctx, projectorPath, projectorOptions)
+	vision, err := projector.OpenActiveAs[projector.VideoProjector](ctx, store, runner.ModelID(), projectorPath, projectorOptions)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open multimodal projector: %w", err)
 	}

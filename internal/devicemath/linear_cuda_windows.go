@@ -25,7 +25,7 @@ type linWeight struct {
 	dev  driver.DevicePtr // used when host == nil: a resident buffer sub-pointer
 }
 
-// hostW wraps a host weight slice (upload-per-call semantics, the legacy path).
+// hostW: upload-per-call host weight.
 func hostW(w []float32) linWeight { return linWeight{host: w} }
 
 // devW wraps a resident device weight pointer (uploaded once, read in place).

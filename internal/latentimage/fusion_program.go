@@ -224,9 +224,9 @@ func fusionAttnFF(
 	q, k, v = roundAttentionForStorage(b, bind.MatrixType, q, k, v)
 	var attn *tensor.Tensor
 	if keyBias != nil {
-		attn = b.AttentionWithKeyBias(q, k, v, keyBias, scale, false)
+		attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{KeyBias: keyBias, Scale: scale, Causal: false})
 	} else {
-		attn = b.Attention(q, k, v, scale, false)
+		attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: false})
 	}
 	attn = b.Reshape(attn, th, cols)
 	attn = b.Multiply(attn, b.Sigmoid(gate)) // sigmoid output gate

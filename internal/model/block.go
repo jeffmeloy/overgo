@@ -773,7 +773,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	if p.plan.Sliding {
 		frequencyBase = spec.RopeFrequencySWA
 	}
-	query = builder.RoPENeoXScaled(query, positions, spec.LayerRopeDimensionCount(layerIndex), frequencyBase, 1)
+	query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.LayerRopeDimensionCount(layerIndex), FrequencyBase: frequencyBase, FrequencyScale: 1})
 	cacheKey, cacheValue := pastKey, pastValue
 	queryStart := uint32(0)
 	if p.plan.HasKV {
@@ -781,7 +781,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		value := builder.Reshape(builder.MulMat(weights.AttentionV, normalized), valueLength, kvHeadCount, tokens)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 		value = builder.RMSNorm(value, spec.RMSNormEpsilon)
-		key = builder.RoPENeoXScaled(key, positions, spec.LayerRopeDimensionCount(layerIndex), frequencyBase, 1)
+		key = builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.LayerRopeDimensionCount(layerIndex), FrequencyBase: frequencyBase, FrequencyScale: 1})
 		cacheKey, cacheValue = key, value
 		if pastKey != nil {
 			if pastKey.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
@@ -807,11 +807,11 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	}
 	query = builder.Scale(query, attentionScale)
 	if p.plan.Sliding {
-		attention = builder.AttentionWindowWithOffset(
-			query, cacheKey, cacheValue, 1, true, queryStart, spec.SlidingWindow,
-		)
+		attention = builder.AttentionWithOptions(
+			query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: queryStart, Window: spec.SlidingWindow})
+
 	} else {
-		attention = builder.AttentionWithOffset(query, cacheKey, cacheValue, 1, true, queryStart)
+		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: queryStart})
 	}
 	attention = builder.MulMat(weights.AttentionOutput, builder.Reshape(attention, headCount*valueLength, tokens))
 	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
@@ -984,12 +984,12 @@ func buildGatedProjectionMixCached(
 	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	frequencyScale := spec.ropeFrequencyScale()
 	if deltaProjection == gatedDeltaInterleavedProjections {
-		query = builder.RoPENeoXScaled(
-			query, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
-		)
-		key = builder.RoPENeoXScaled(
-			key, positions, spec.RopeDimensionCount, spec.RopeFrequencyBase, frequencyScale,
-		)
+		query = builder.RoPEWithOptions(
+			query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: frequencyScale})
+
+		key = builder.RoPEWithOptions(
+			key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: frequencyScale})
+
 	} else {
 		resolved := [4][]uint32{}
 		if multiPositions == nil {
@@ -1023,14 +1023,11 @@ func buildGatedProjectionMixCached(
 	if spec.AttentionScale > 0 {
 		attentionScale = spec.AttentionScale
 	}
-	attention := builder.AttentionWithOffset(
+	attention := builder.AttentionWithOptions(
 		query,
 		cacheKey,
-		cacheValue,
-		attentionScale,
-		true,
-		queryStart,
-	)
+		cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart})
+
 	attention = builder.Reshape(
 		attention,
 		uint64(spec.HeadCount)*uint64(spec.ValueLength),

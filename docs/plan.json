@@ -3,15 +3,15 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "phase-b-tier0-draft",
-      "title": "Phase B Tier-0: draft whole-model chaining rows into rsi_plan and open the first row",
+      "id": "tier0-chain-contract",
+      "title": "Tier-0 chain contract: typed whole-model chaining through workflowrecipe ports executes a two-model chain through the generic runtime",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Phase B Tier-0: draft whole-model chaining rows into rsi_plan and open the first row",
+          "title": "Tier-0 chain contract: typed whole-model chaining through workflowrecipe ports executes a two-model chain through the generic runtime",
           "status": "open",
-          "verify": "go test ./cmd/roadmap -run '^TestRoadmapDAGAndReadiness$' -count=1 -v"
+          "verify": "go test ./internal/workflowrecipe -run '^TestTier0ChainExecutesThroughTypedPorts$' -count=1 -v"
         }
       ]
     }

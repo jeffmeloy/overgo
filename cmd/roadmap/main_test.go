@@ -24,14 +24,14 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 		Live:     map[string]bool{"roadmap-validator": true},
 		Landed:   map[string]bool{"unconsumed-surface-admission": true},
 		InFlight: map[string]bool{}, ProbeBound: map[string]string{
-			"refusal-ledger": "go test ./internal/runrecord ./internal/recipe -run '^TestRefusalDecisionCarriesMeasuredReason$' -count=1 -v",
+			"experiment-lifecycle": "go test ./internal/runrecord -run '^TestExperimentLifecycleIsIdempotentAndRecoverable$' -count=1 -v",
 		},
 	}
 	report, err := plan.EvaluateRoadmap(data, evidence)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.States["roadmap-validator"] != "open" || report.States["refusal-ledger"] != "ready" || len(report.Proposed) != 1 {
+	if report.States["roadmap-validator"] != "open" || report.States["experiment-lifecycle"] != "ready" || len(report.Proposed) != 1 {
 		t.Fatalf("derived roadmap state = %+v; proposals = %+v", report.States, report.Proposed)
 	}
 	encoded, err := json.Marshal(report)
@@ -42,10 +42,10 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 		t.Fatalf("proposal is not an advisory live-plan insertion: %s", encoded)
 	}
 	staleProbe := evidence
-	staleProbe.ProbeBound = map[string]string{"refusal-ledger": "go test ./internal/runrecord -run '^TestOther$' -count=1"}
+	staleProbe.ProbeBound = map[string]string{"experiment-lifecycle": "go test ./internal/runrecord -run '^TestOther$' -count=1"}
 	staleReport, err := plan.EvaluateRoadmap(data, staleProbe)
-	if err != nil || staleReport.States["refusal-ledger"] != "new" {
-		t.Fatalf("stale verifier probe changed readiness: state=%q err=%v", staleReport.States["refusal-ledger"], err)
+	if err != nil || staleReport.States["experiment-lifecycle"] != "new" {
+		t.Fatalf("stale verifier probe changed readiness: state=%q err=%v", staleReport.States["experiment-lifecycle"], err)
 	}
 
 	tests := []struct {
@@ -85,7 +85,7 @@ func TestRoadmapDAGAndReadiness(t *testing.T) {
 
 	t.Run("live dependency must be landed", func(t *testing.T) {
 		unsafe := evidence
-		unsafe.Live = map[string]bool{"unconsumed-surface-admission": true}
+		unsafe.Live = map[string]bool{"compose-model-artifact": true}
 		unsafe.Landed = map[string]bool{}
 		if _, err := plan.EvaluateRoadmap(data, unsafe); err == nil || !strings.Contains(err.Error(), "unsatisfied dependencies") {
 			t.Fatalf("live safety error = %v", err)
@@ -145,4 +145,31 @@ func mutateRoadmap(t *testing.T, data []byte, id string, mutate func(map[string]
 	}
 	t.Fatalf("row %s not found", id)
 	return nil
+}
+
+// TestRoadmapLandedStatePortable pins portability: a fresh worktree with NO
+// local RepoDB evidence still derives rows listed in execution_order.landed as
+// landed, because that list enters the record only through a reviewed gate
+// commit and travels with git. Before this, every committed outcome reported
+// "new" outside the originating worktree.
+func TestRoadmapLandedStatePortable(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "rsi_plan.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := plan.EvaluateRoadmap(data, plan.RoadmapEvidence{
+		Live: map[string]bool{}, Landed: map[string]bool{},
+		InFlight: map[string]bool{}, ProbeBound: map[string]string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range []string{"composition-viability", "component-decomposition", "refusal-ledger", "multimodal-objectives"} {
+		if report.States[row] != "landed" {
+			t.Errorf("%s = %q in an evidence-free worktree, want landed from committed execution_order.landed", row, report.States[row])
+		}
+	}
+	if report.States["experiment-lifecycle"] == "landed" {
+		t.Error("unlanded row wrongly derived landed")
+	}
 }

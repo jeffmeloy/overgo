@@ -160,6 +160,16 @@ func EvaluateRoadmap(data []byte, evidence RoadmapEvidence) (RoadmapReport, erro
 	if err := validateStoredStages(document.Execution, rows, stages); err != nil {
 		return RoadmapReport{}, err
 	}
+	// Portability: execution_order.landed is itself committed evidence -- it
+	// enters the record only through a reviewed gate commit -- so a fresh
+	// worktree without the local RepoDB store still derives those rows as
+	// landed instead of demoting every committed outcome to "new".
+	if evidence.Landed == nil {
+		evidence.Landed = map[string]bool{}
+	}
+	for _, id := range document.Execution.Landed {
+		evidence.Landed[id] = true
+	}
 	if err := validateRoadmapSafety(document, rows, closures, evidence); err != nil {
 		return RoadmapReport{}, err
 	}

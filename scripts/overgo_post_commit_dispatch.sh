@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Thin hook adapter -> cmd/loophook (Go owns the logic). PostToolUse: arms/clears
-# docs/.dispatch_pending at the commit boundary so the Stop gate refuses a
-# milestone-stop until the next step is dispatched.
+# Thin hook adapter -> cmd/loophook (Go owns the logic). PostToolUse:
+# re-baselines the turn-dirt snapshot at gate-commit boundaries so the Stop
+# gate's orphan check measures only post-commit work.
 [ "${1:-}" = "--selftest" ] && { echo "overgo_post_commit_dispatch selftest ok"; exit 0; }
 # Repo scoping: govern only sessions whose active project is this repo.
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

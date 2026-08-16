@@ -68,12 +68,9 @@ func RunViability(config Config) (Result, error) {
 	if donorLayer < 0 {
 		donorLayer = donor.Dims.Layers / 2
 	}
-	gateName := fmt.Sprintf("model.layers.%d.mlp.gate_proj.weight", donorLayer)
-	upName := fmt.Sprintf("model.layers.%d.mlp.up_proj.weight", donorLayer)
-	downName := fmt.Sprintf("model.layers.%d.mlp.down_proj.weight", donorLayer)
-	contract := organ.Classify(gateName, "f32", "", "text", "")
-	if contract.Role != organ.RoleMLPGate {
-		return Result{}, fmt.Errorf("composition: donor tensor %s classified %s, want %s", gateName, contract.Role, organ.RoleMLPGate)
+	gateName, upName, downName, contract, err := SelectDonorMLP(donor.Weights, donorLayer)
+	if err != nil {
+		return Result{}, err
 	}
 	baseline, _, err := target.Loss(config.HeldOut)
 	if err != nil {

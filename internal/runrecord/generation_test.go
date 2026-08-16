@@ -137,3 +137,62 @@ func withGenerationVersion(record GenerationRecord) GenerationRecord {
 	record.Version = GenerationVersion
 	return record
 }
+
+// TestGenerationRecordBindsBudget pins the typed replacement for the old
+// maxGenerationSeeds code threshold: a record's seed consumption validates
+// against its BOUND budget grant -- within-grant passes, over-consumption is
+// refused with the grant named, and a foreign budget document is refused as
+// not the record's binding.
+func TestGenerationRecordBindsBudget(t *testing.T) {
+	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
+	grant, err := budgetCodec.New(Budget{
+		Version: BudgetVersion, Unit: "seeds", Split: id(artifact.KindDatasetShard, "selection"),
+		Issued: 3, Authority: id(artifact.KindEvidence, "authority"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := GenerationRecord{
+		Parents:      []artifact.ID{id(artifact.KindModel, "parent")},
+		Child:        id(artifact.KindModel, "child"),
+		Components:   []artifact.ID{id(artifact.KindTensorSet, "organ")},
+		Bridge:       id(artifact.KindAdapter, "bridge"),
+		TrainingPlan: id(artifact.KindRecipe, "plan"),
+		Dataset:      id(artifact.KindDataset, "dataset"),
+		Split:        id(artifact.KindDatasetShard, "selection"),
+		Evaluator:    id(artifact.KindEvidence, "evaluator"),
+		Code:         id(artifact.KindEvidence, "code"),
+		Environment:  id(artifact.KindEvidence, "environment"),
+		Seeds:        []uint64{7, 11, 13},
+		Budget:       grant.ID,
+		Run:          id(artifact.KindRun, "run"),
+		Outcome:      OutcomeSucceeded,
+		Decision:     id(artifact.KindEvidence, "decision"),
+	}
+	bound, err := generationCodec.New(withGenerationVersion(record))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateGenerationBudget(bound, grant); err != nil {
+		t.Fatalf("within-grant consumption refused: %v", err)
+	}
+	over := record
+	over.Seeds = []uint64{7, 11, 13, 17}
+	overBound, err := generationCodec.New(withGenerationVersion(over))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateGenerationBudget(overBound, grant); err == nil {
+		t.Fatal("over-grant consumption accepted")
+	}
+	foreign, err := budgetCodec.New(Budget{
+		Version: BudgetVersion, Unit: "seeds", Split: record.Split,
+		Issued: 100, Authority: id(artifact.KindEvidence, "other-authority"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateGenerationBudget(bound, foreign); err == nil {
+		t.Fatal("foreign budget document accepted as the record's binding")
+	}
+}

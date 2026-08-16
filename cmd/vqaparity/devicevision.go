@@ -162,9 +162,11 @@ func runDeviceVision(l *ladder) error {
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		g.PreBlock0: {Shape: preShape, Data: preBlock0},
 	}
-	deviceInputs, err := compiled.BindDeviceInputs(deviceFeeds)
-	if err != nil {
-		return err
+	deviceInputs := compiled.NewDeviceInputs()
+	for node, pointer := range deviceFeeds {
+		if err := deviceInputs.Set(node, pointer); err != nil {
+			return err
+		}
 	}
 	out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs)
 	if err != nil {

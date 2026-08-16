@@ -70,7 +70,7 @@ func TestReadWeightsRWKV7Family(t *testing.T) {
 				weights.TokenEmbeddingNorm == nil || weights.OutputNormBias == nil) {
 				t.Fatalf("incomplete WKV7 catalog: %+v", layer)
 			}
-			if !classic && (layer.TimeMixG1 != nil || layer.FeedForwardGate.Name == "" || weights.TokenEmbeddingNorm != nil) {
+			if !classic && (layer.TimeMixG1 != nil || layer.FeedForwardGate == nil || weights.TokenEmbeddingNorm != nil) {
 				t.Fatalf("incomplete ARWKV7 catalog: %+v", layer)
 			}
 		})
@@ -337,7 +337,7 @@ func TestReadWeightsT5EncoderDecoder(t *testing.T) {
 		weights.EncoderOutputNorm == nil || weights.Layers[0].CrossAttentionQ == nil ||
 		weights.EncoderLayers[1].AttentionRelativeBias == nil ||
 		weights.Layers[1].AttentionRelativeBias == nil ||
-		weights.Layers[0].FeedForwardGate.Name != "" {
+		weights.Layers[0].FeedForwardGate != nil {
 		t.Fatalf("unexpected T5 weights: %+v", weights)
 	}
 }
@@ -509,13 +509,13 @@ func TestReadWeightsErnie45MoEInterleavesDenseAndExpertLayers(t *testing.T) {
 		if spec.IsInterleavedMoELayer(uint32(block)) {
 			if layer.FeedForwardRouter == nil || layer.FeedForwardUpExperts == nil ||
 				layer.FeedForwardDownExperts == nil || layer.FeedForwardExpertBias == nil ||
-				layer.FeedForwardSharedGate == nil || layer.FeedForwardGate.Name != "" {
+				layer.FeedForwardSharedGate == nil || layer.FeedForwardGate != nil {
 				t.Fatalf("ERNIE MoE layer %d catalog: %+v", block, layer)
 			}
 			if (block == 1) != (layer.FeedForwardGateExperts == nil) {
 				t.Fatalf("ERNIE optional expert gate mismatch at layer %d", block)
 			}
-		} else if layer.FeedForwardGate.Name == "" || layer.FeedForwardRouter != nil {
+		} else if layer.FeedForwardGate == nil || layer.FeedForwardRouter != nil {
 			t.Fatalf("ERNIE dense layer %d catalog: %+v", block, layer)
 		}
 	}
@@ -588,9 +588,9 @@ func TestReadWeightsGemma4SharedKVMoEAndPerLayerInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if weights.PerLayerTokenEmbedding == nil || weights.Layers[0].AttentionV.Name != "" ||
-		weights.Layers[0].FeedForwardGate.Name == "" || weights.Layers[2].FeedForwardGate.Name == "" ||
-		weights.Layers[2].AttentionK.Name != "" || weights.Layers[2].FeedForwardRouter == nil ||
+	if weights.PerLayerTokenEmbedding == nil || weights.Layers[0].AttentionV != nil ||
+		weights.Layers[0].FeedForwardGate == nil || weights.Layers[2].FeedForwardGate == nil ||
+		weights.Layers[2].AttentionK != nil || weights.Layers[2].FeedForwardRouter == nil ||
 		weights.Layers[2].FeedForwardDownExpertsScale == nil ||
 		weights.Layers[3].PerLayerProjection == nil {
 		t.Fatalf("unexpected Gemma 4 catalog: %+v", weights)
@@ -635,7 +635,7 @@ func TestReadWeightsGemma4Assistant(t *testing.T) {
 		t.Fatal(err)
 	}
 	if weights.FeatureProjection == nil || weights.FeatureProjectionPost == nil ||
-		weights.Output != nil || weights.Layers[0].AttentionK.Name != "" ||
+		weights.Output != nil || weights.Layers[0].AttentionK != nil ||
 		weights.Layers[0].RopeFactors != nil || weights.Layers[1].RopeFactors == nil ||
 		weights.Layers[1].LayerOutputScale == nil {
 		t.Fatalf("unexpected Gemma 4 assistant catalog: %+v", weights)
@@ -701,8 +701,8 @@ func TestReadWeightsGemma3nAltUpAndLaurel(t *testing.T) {
 	if weights.AltUpProjection == nil || weights.AltUpUnembedding == nil ||
 		layer.AltUpCorrectCoefficient == nil || layer.AltUpPredictCoefficient == nil ||
 		layer.AltUpRouter == nil || layer.LaurelLeft == nil || layer.LaurelRight == nil ||
-		layer.PerLayerProjection == nil || layer.AttentionK.Name != "" ||
-		layer.AttentionV.Name != "" || layer.AttentionKNorm != nil {
+		layer.PerLayerProjection == nil || layer.AttentionK != nil ||
+		layer.AttentionV != nil || layer.AttentionKNorm != nil {
 		t.Fatalf("unexpected Gemma 3n catalog: %+v", weights)
 	}
 }
@@ -740,7 +740,7 @@ func TestReadWeightsQwen3VLMoE(t *testing.T) {
 	if layer.AttentionQKV == nil || layer.AttentionQNorm == nil || layer.AttentionKNorm == nil ||
 		layer.FeedForwardRouter == nil || layer.FeedForwardGateExperts == nil ||
 		layer.FeedForwardUpExperts == nil || layer.FeedForwardDownExperts == nil ||
-		layer.FeedForwardGate.Name != "" || layer.FeedForwardUp.Name != "" || layer.FeedForwardDown.Name != "" {
+		layer.FeedForwardGate != nil || layer.FeedForwardUp != nil || layer.FeedForwardDown != nil {
 		t.Fatalf("unexpected Qwen3-VL-MoE catalog: %+v", weights)
 	}
 }
@@ -772,7 +772,7 @@ func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 	}
 	layer := weights.Layers[0]
 	if weights.Output != nil || layer.AttentionQKV == nil || layer.AttentionOutputBias == nil ||
-		layer.FeedForwardNorm.Name == "" || layer.FeedForwardGate.Name == "" ||
+		layer.FeedForwardNorm == nil || layer.FeedForwardGate == nil ||
 		(architecture == "qwen3vl" && (layer.AttentionQNorm == nil || layer.AttentionKNorm == nil ||
 			weights.ClassifierOutput == nil)) {
 		t.Fatalf("unexpected %s catalog: %+v", architecture, weights)
@@ -822,8 +822,8 @@ func TestReadWeightsTalkieUsesEmbeddingSkipCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	layer := weights.Layers[0]
-	if weights.Output == nil || weights.OutputNorm.Name != "" || layer.AttentionNorm.Name != "" ||
-		layer.FeedForwardNorm.Name != "" || layer.AttentionQKV == nil ||
+	if weights.Output == nil || weights.OutputNorm.Name != "" || layer.AttentionNorm != nil ||
+		layer.FeedForwardNorm != nil || layer.AttentionQKV == nil ||
 		layer.AttentionQNorm == nil || layer.AttentionKNorm != nil || layer.LayerOutputScale == nil {
 		t.Fatalf("unexpected Talkie catalog: %+v", weights)
 	}

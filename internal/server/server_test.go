@@ -125,17 +125,66 @@ type fakeGenerator struct {
 	projectedInputs *inference.ProjectedInputs
 }
 
+// fakeSessionStub: embeddable projector.Session base; every prompt surface
+// errors until a fake overrides it.
+type fakeSessionStub struct{}
+
+func (fakeSessionStub) BuildImagePrompt(
+	context.Context, projector.ImageTokenizer, image.Image, string, string, bool,
+) (projector.MultimodalPrompt, error) {
+	return projector.MultimodalPrompt{}, errors.New("fake session: image prompts unsupported")
+}
+
+func (fakeSessionStub) BuildImagesPrompt(
+	context.Context, projector.ImageTokenizer, []image.Image, []string, projector.PromptOptions,
+) (projector.MultimodalPrompt, error) {
+	return projector.MultimodalPrompt{}, errors.New("fake session: image prompts unsupported")
+}
+
+func (fakeSessionStub) BuildVideoPrompt(
+	context.Context, projector.ImageTokenizer, []image.Image, string, string, float64, bool,
+) (projector.MultimodalPrompt, error) {
+	return projector.MultimodalPrompt{}, errors.New("fake session: video prompts unsupported")
+}
+
+func (fakeSessionStub) BuildAudioPrompt(
+	context.Context, projector.ImageTokenizer, []float32, string, string,
+) (projector.MultimodalPrompt, error) {
+	return projector.MultimodalPrompt{}, errors.New("fake session: audio prompts unsupported")
+}
+
+func (fakeSessionStub) BuildMediaHistoryPrompt(
+	context.Context, projector.ImageTokenizer, []projector.MediaInput, []string,
+) (projector.MultimodalPrompt, error) {
+	return projector.MultimodalPrompt{}, errors.New("fake session: media history prompts unsupported")
+}
+
+func (fakeSessionStub) Capabilities() projector.SessionCapabilities {
+	return projector.SessionCapabilities{}
+}
+
+func (fakeSessionStub) Close() error { return nil }
+
 type fakeQwen3VLProjector struct {
+	fakeSessionStub
 	before string
 	after  string
 	images int
 	text   []string
 }
 
+func (*fakeQwen3VLProjector) Capabilities() projector.SessionCapabilities {
+	return projector.SessionCapabilities{Image: true, MultiImage: true}
+}
+
 type fakeVideoProjector struct {
 	fakeQwen3VLProjector
 	frames int
 	fps    float64
+}
+
+func (*fakeVideoProjector) Capabilities() projector.SessionCapabilities {
+	return projector.SessionCapabilities{Image: true, MultiImage: true, Video: true}
 }
 
 func (f *fakeVideoProjector) BuildVideoPrompt(
@@ -162,6 +211,10 @@ type fakeHistoryProjector struct {
 	historyText []string
 	historyRuns int
 	mediaKinds  []projector.MediaKind
+}
+
+func (*fakeHistoryProjector) Capabilities() projector.SessionCapabilities {
+	return projector.SessionCapabilities{Image: true, MultiImage: true, MediaHistory: true}
 }
 
 func (f *fakeHistoryProjector) BuildImagesPrompt(
@@ -264,9 +317,14 @@ func (f *fakeQwen3VLProjector) BuildImagesPrompt(
 }
 
 type fakeAudioProjector struct {
+	fakeSessionStub
 	before  string
 	after   string
 	samples []float32
+}
+
+func (*fakeAudioProjector) Capabilities() projector.SessionCapabilities {
+	return projector.SessionCapabilities{Audio: true}
 }
 
 func (*fakeQwen3VLProjector) Close() error { return nil }

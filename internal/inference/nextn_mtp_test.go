@@ -13,7 +13,7 @@ func TestSelectedModelTensorsIncludesGenericNextN(t *testing.T) {
 	layerOutputNorm := info("blk.1.layer_output_norm.weight")
 	mtp := model.AppendedDraftWeights{
 		Layer: model.LayerWeights{
-			AttentionNorm: info("blk.1.attn_norm.weight"),
+			AttentionNorm: pointerTensorInfo(info("blk.1.attn_norm.weight")),
 			AttentionQKV:  pointerTensorInfo(info("blk.1.attn_qkv.weight")),
 		},
 		EHProjection:    info("blk.1.nextn.eh_proj.weight"),
@@ -24,7 +24,7 @@ func TestSelectedModelTensorsIncludesGenericNextN(t *testing.T) {
 	}
 	weights := model.Weights{TokenEmbedding: info("token_embd.weight"), AppendedSingleDraft: []model.AppendedDraftWeights{mtp}}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
-		weights.TokenEmbedding, mtp.Layer.AttentionNorm, *mtp.Layer.AttentionQKV,
+		weights.TokenEmbedding, *mtp.Layer.AttentionNorm, *mtp.Layer.AttentionQKV,
 		mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm, layerOutputNorm, outputNorm,
 	}}
 	selected := selectedModelTensors(file, weights)

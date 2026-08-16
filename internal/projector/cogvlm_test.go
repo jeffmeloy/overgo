@@ -55,7 +55,7 @@ func TestCogVLMPromptMarksVisualExpertBlock(t *testing.T) {
 	}
 	defer runner.Close()
 	tok := &cogVLMPromptTokenizer{}
-	prompt, err := runner.BuildImagePrompt(context.Background(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false)
+	prompt, err := testSession(t, runner).BuildImagePrompt(context.Background(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestCogVLMPromptMarksVisualExpertBlock(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesCogVLM(t *testing.T) {
-	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyCogVLM(t, false), OpenOptions{})
+	projector, err := OpenAs[Projector](context.Background(), writeTinyCogVLM(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

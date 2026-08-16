@@ -9,6 +9,16 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
+// LayerBackwardResult bundles a layer's input-gradient and weight-gradients
+// (densecausal layout), returned by the whole-stack resident driver.
+type LayerBackwardResult struct {
+	DX                     []float32
+	DWInLN, DWPostLN       []float32
+	DWQ, DWK, DWV, DWO     []float32
+	DQBias, DKBias, DVBias []float32
+	DWGate, DWUp, DWDown   []float32
+}
+
 // stackFnNames is the deduped union of the forward and backward kernel sets, so
 // one session loads every function the whole-stack driver launches.
 var stackFnNames = func() []string {

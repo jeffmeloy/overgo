@@ -8,6 +8,7 @@ import (
 	"math"
 
 	"overgo/internal/gguf"
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
@@ -333,17 +334,13 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 		return reference.Value{}, err
 	}
 	adapted := linear(shuffled, mlp1.Data, nil, mergePlan.outputRows, shuffleWidth, r.spec.AdapterIntermediate)
-	for index, value := range adapted {
-		adapted[index] = geluTanh(value)
-	}
+	hostmath.GELUTanhInPlace(adapted)
 	mlp2, err := r.load(ctx, "mm.model.mlp.2.weight")
 	if err != nil {
 		return reference.Value{}, err
 	}
 	adapted = linear(adapted, mlp2.Data, nil, mergePlan.outputRows, r.spec.AdapterIntermediate, r.spec.AdapterHidden)
-	for index, value := range adapted {
-		adapted[index] = geluTanh(value)
-	}
+	hostmath.GELUTanhInPlace(adapted)
 	projection, err := r.load(ctx, "mm.model.fc.weight")
 	if err != nil {
 		return reference.Value{}, err
@@ -438,7 +435,7 @@ func llama4VisionRoPE(qkv []float32, gridH, gridW, hidden, heads int, theta floa
 func (r *Llama4VisionRunner) activate(value float32) float32 {
 	switch r.spec.Activation {
 	case llama4GELU:
-		return geluTanh(value)
+		return float32(hostmath.GELUTanh(float64(value)))
 	case llama4SiLU:
 		return value / (1 + float32(math.Exp(float64(-value))))
 	default:

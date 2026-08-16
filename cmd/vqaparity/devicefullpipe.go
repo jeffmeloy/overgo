@@ -307,9 +307,11 @@ func runFullPipeline(
 			}
 		}
 	}()
-	deviceInputs, err := dCompiled.BindDeviceInputs(deviceFeeds)
-	if err != nil {
-		return res, err
+	deviceInputs := dCompiled.NewDeviceInputs()
+	for node, pointer := range deviceFeeds {
+		if err := deviceInputs.Set(node, pointer); err != nil {
+			return res, err
+		}
 	}
 	attrs := dCompiled.NewRuntimeAttributes()
 	setStep := func(tokenPos int) error {
@@ -427,9 +429,11 @@ func runFullMerger(
 	mgHost := map[*tensor.Tensor]reference.Value{
 		mg.BlockLast: {Shape: tensor.MustShape(uint64(pc.spec.Hidden), uint64(nPatch)), Data: blockLast},
 	}
-	mgInputs, err := mgCompiled.BindDeviceInputs(mgFeeds)
-	if err != nil {
-		return nil, err
+	mgInputs := mgCompiled.NewDeviceInputs()
+	for node, pointer := range mgFeeds {
+		if err := mgInputs.Set(node, pointer); err != nil {
+			return nil, err
+		}
 	}
 	mgOut, err := exe.ExecuteCompiled(ctx, mgCompiled, mgHost, mgInputs)
 	if err != nil {
@@ -487,9 +491,11 @@ func runFullPrefill(
 			pg.MaskText: {Shape: maskShape, Data: pc.maskText},
 			pg.MaskVis:  {Shape: maskShape, Data: pc.maskVis},
 		}
-		inputs, err := pgCompiled.BindDeviceInputs(feeds)
-		if err != nil {
-			return nil, nil, nil, err
+		inputs := pgCompiled.NewDeviceInputs()
+		for node, pointer := range feeds {
+			if err := inputs.Set(node, pointer); err != nil {
+				return nil, nil, nil, err
+			}
 		}
 		out, err := exe.ExecuteCompiled(ctx, pgCompiled, hostFeeds, inputs)
 		if err != nil {
@@ -559,9 +565,11 @@ func runFullVision(l *ladder, ctx context.Context, worker *device.Worker, exe *e
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		g.PreBlock0: {Shape: tensor.MustShape(uint64(pc.spec.Hidden), uint64(nPatch)), Data: preBlock0},
 	}
-	inputs, err := compiled.BindDeviceInputs(feeds)
-	if err != nil {
-		return nil, err
+	inputs := compiled.NewDeviceInputs()
+	for node, pointer := range feeds {
+		if err := inputs.Set(node, pointer); err != nil {
+			return nil, err
+		}
 	}
 	out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 	if err != nil {

@@ -61,7 +61,7 @@ func MeasureGGUF(
 		return TensorMeasurementDocument{}, err
 	}
 	measurements := make([]TensorMeasurement, 0, len(file.Tensors))
-	var readBytes uint64
+	meter := readMeter{limit: policy.MaxReadBytes, format: "GGUF"}
 	for _, tensor := range file.Tensors {
 		fact, ok := inventory.Tensor(tensor.Name)
 		if !ok || fact.Storage != strings.ToLower(tensor.Type.String()) || fact.Bytes != tensor.Size ||
@@ -72,31 +72,59 @@ func MeasureGGUF(
 		if err != nil {
 			return TensorMeasurementDocument{}, err
 		}
-		if readBytes > policy.MaxReadBytes || bytesNeeded > policy.MaxReadBytes-readBytes {
-			return TensorMeasurementDocument{}, errors.New("model artifact: GGUF measurement exceeds read budget")
+		if err := meter.charge(bytesNeeded); err != nil {
+			return TensorMeasurementDocument{}, err
 		}
 		measurement, err := measurementFromSamples(tensor.Name, elements, samples)
 		if err != nil {
 			return TensorMeasurementDocument{}, err
 		}
-		if policy.SpectralMaxDim > 0 {
-			if err := applyEffectiveRank(&measurement, file, tensor, policy.SpectralMaxDim); err != nil {
-				return TensorMeasurementDocument{}, err
-			}
+		dims := tensor.Shape[:tensor.Dimensions]
+		if err := collectEffectiveRank(&measurement, &meter, dims, policy.SpectralMaxDim,
+			ggufTensorBytes(tensor),
+			func() ([]float64, error) { return fullGGUFTensorValues(file, tensor) },
+		); err != nil {
+			return TensorMeasurementDocument{}, err
 		}
 		measurements = append(measurements, measurement)
-		readBytes += bytesNeeded
 	}
-	return newTensorMeasurementDocument(inventory.ID, policy, readBytes, measurements)
+	return newTensorMeasurementDocument(inventory.ID, policy, meter.used, measurements)
 }
 
-// applyEffectiveRank sets a measurement's spectral fields: the normalized
-// effective rank of a 2-D matrix whose dimensions are both within maxDim,
-// deferred when larger (the compute is O(dim³)), not-applicable otherwise.
-// Effective rank is transpose-invariant, so the row/col assignment is immaterial.
-func applyEffectiveRank(measurement *TensorMeasurement, file *gguf.File, tensor gguf.TensorInfo, maxDim uint64) error {
-	dims := tensor.Shape[:tensor.Dimensions]
-	if tensor.Dimensions != 2 {
+// readMeter is the single owner of a measurement run's read budget: every
+// byte that leaves storage -- sampled or spectral, any format -- is charged
+// before it is read, so recorded ReadBytes can never understate the reads.
+type readMeter struct {
+	used   uint64
+	limit  uint64
+	format string
+}
+
+func (m *readMeter) charge(bytes uint64) error {
+	if m.used > m.limit || bytes > m.limit-m.used {
+		return fmt.Errorf("model artifact: %s measurement exceeds read budget", m.format)
+	}
+	m.used += bytes
+	return nil
+}
+
+// collectEffectiveRank is the format-neutral spectral step: the normalized
+// effective rank of a 2-D matrix within maxDim, charged to the meter BEFORE
+// the full read, deferred when larger (the compute is O(dim^3)), and
+// not-applicable otherwise. A zero maxDim policy records not-applicable
+// explicitly rather than leaving the status empty.
+func collectEffectiveRank(
+	measurement *TensorMeasurement,
+	meter *readMeter,
+	dims []uint64,
+	maxDim uint64,
+	fullBytes uint64,
+	read func() ([]float64, error),
+) error {
+	if maxDim == 0 {
+		return nil // spectral not attempted: status stays empty by contract
+	}
+	if len(dims) != 2 {
 		measurement.SpectralStatus = SpectralNotApplicable
 		return nil
 	}
@@ -104,7 +132,10 @@ func applyEffectiveRank(measurement *TensorMeasurement, file *gguf.File, tensor 
 		measurement.SpectralStatus = SpectralDeferred
 		return nil
 	}
-	data, err := fullGGUFTensorValues(file, tensor)
+	if err := meter.charge(fullBytes); err != nil {
+		return err
+	}
+	data, err := read()
 	if err != nil {
 		return err
 	}
@@ -117,6 +148,9 @@ func applyEffectiveRank(measurement *TensorMeasurement, file *gguf.File, tensor 
 	measurement.SpectralStatus = SpectralComputed
 	return nil
 }
+
+// ggufTensorBytes is the stored size of a full tensor read for budget charging.
+func ggufTensorBytes(tensor gguf.TensorInfo) uint64 { return tensor.Size }
 
 // fullGGUFTensorValues reads and dequantizes every element of a GGUF tensor in
 // storage order. It is sampleGGUFTensorValues at full coverage: with the sample
@@ -175,7 +209,7 @@ func MeasureSafetensors(
 		return TensorMeasurementDocument{}, err
 	}
 	measurements := make([]TensorMeasurement, 0, len(source.Tensors))
-	var readBytes uint64
+	meter := readMeter{limit: policy.MaxReadBytes, format: "Safetensors"}
 	for _, name := range source.Names() {
 		tensor := source.Tensors[name]
 		width, ok := safetensors.DTypeBytes(tensor.DType)
@@ -189,31 +223,45 @@ func MeasureSafetensors(
 			return TensorMeasurementDocument{}, fmt.Errorf("model artifact: tensor %q differs from inventory", name)
 		}
 		sampleCount := min(elements, policy.MaxSamplesPerTensor)
-		bytesNeeded := sampleCount * width
-		if sampleCount == 0 || readBytes > policy.MaxReadBytes || bytesNeeded > policy.MaxReadBytes-readBytes {
-			return TensorMeasurementDocument{}, errors.New("model artifact: Safetensors measurement exceeds read budget")
+		if sampleCount == 0 {
+			return TensorMeasurementDocument{}, errors.New("model artifact: invalid Safetensors measurement policy")
 		}
-		storage := make([]byte, width)
-		samples := make([]float64, sampleCount)
-		for sample := uint64(0); sample < sampleCount; sample++ {
-			element := evenlySpacedIndex(sample, sampleCount, elements)
-			if _, err := tensor.ReadAt(storage, int64(element*width)); err != nil {
-				return TensorMeasurementDocument{}, err
+		if err := meter.charge(sampleCount * width); err != nil {
+			return TensorMeasurementDocument{}, err
+		}
+		readValues := func(count uint64) ([]float64, error) {
+			storage := make([]byte, width)
+			values := make([]float64, count)
+			for sample := uint64(0); sample < count; sample++ {
+				element := evenlySpacedIndex(sample, count, elements)
+				if _, err := tensor.ReadAt(storage, int64(element*width)); err != nil {
+					return nil, err
+				}
+				value, err := decodeSafetensorScalar(tensor.DType, storage)
+				if err != nil {
+					return nil, fmt.Errorf("model artifact: tensor %q: %w", name, err)
+				}
+				values[sample] = value
 			}
-			value, err := decodeSafetensorScalar(tensor.DType, storage)
-			if err != nil {
-				return TensorMeasurementDocument{}, fmt.Errorf("model artifact: tensor %q: %w", name, err)
-			}
-			samples[sample] = value
+			return values, nil
+		}
+		samples, err := readValues(sampleCount)
+		if err != nil {
+			return TensorMeasurementDocument{}, err
 		}
 		measurement, err := measurementFromSamples(name, elements, samples)
 		if err != nil {
 			return TensorMeasurementDocument{}, err
 		}
+		if err := collectEffectiveRank(&measurement, &meter, tensor.Shape, policy.SpectralMaxDim,
+			elements*width,
+			func() ([]float64, error) { return readValues(elements) },
+		); err != nil {
+			return TensorMeasurementDocument{}, err
+		}
 		measurements = append(measurements, measurement)
-		readBytes += bytesNeeded
 	}
-	return newTensorMeasurementDocument(inventory.ID, policy, readBytes, measurements)
+	return newTensorMeasurementDocument(inventory.ID, policy, meter.used, measurements)
 }
 
 func decodeSafetensorScalar(dataType string, data []byte) (float64, error) {

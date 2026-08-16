@@ -167,9 +167,11 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	if err != nil {
 		return nil, err
 	}
-	inputs, err := compiled.BindDeviceInputs(deviceFeeds)
-	if err != nil {
-		return nil, err
+	inputs := compiled.NewDeviceInputs()
+	for node, pointer := range deviceFeeds {
+		if err := inputs.Set(node, pointer); err != nil {
+			return nil, err
+		}
 	}
 	retained, err := r.cuda.ExecuteRetainedCompiled(ctx, compiled, hostFeeds, inputs, nil, nil)
 	if err != nil {

@@ -3,6 +3,7 @@ package organ
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -65,7 +66,10 @@ func CompileCatalog(names []string) (Catalog, error) {
 			prefixes = append(prefixes, prefix)
 		}
 	}
-	sort.Strings(prefixes)
+	// Numeric layer identity orders the catalog: layer 2 precedes layer 10.
+	// Lexical prefix comparison inverted multi-digit models (the P1 the
+	// 2026-08-16 audit caught after the pivot selected donors by ordinal).
+	sort.Slice(prefixes, func(i, j int) bool { return numericLess(prefixes[i], prefixes[j]) })
 	catalog := Catalog{}
 	for ordinal, prefix := range prefixes {
 		bound := groups[prefix]
@@ -88,6 +92,24 @@ func (c Catalog) MLP(index int) (MLPComponent, bool) {
 
 // MLPCount reports how many complete MLP components compiled.
 func (c Catalog) MLPCount() int { return len(c.mlps) }
+
+// numericLess compares dotted prefixes segment-wise with numeric segments
+// compared as integers, so blk.2 precedes blk.10.
+func numericLess(a, b string) bool {
+	as, bs := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(as) && i < len(bs); i++ {
+		if as[i] == bs[i] {
+			continue
+		}
+		an, aErr := strconv.Atoi(as[i])
+		bn, bErr := strconv.Atoi(bs[i])
+		if aErr == nil && bErr == nil {
+			return an < bn
+		}
+		return as[i] < bs[i]
+	}
+	return len(as) < len(bs)
+}
 
 // componentPrefix groups a tensor with its layer siblings: everything before
 // the final two name segments (projection and parameter kind).

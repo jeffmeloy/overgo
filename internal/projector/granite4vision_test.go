@@ -53,7 +53,7 @@ func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesGranite4Vision(t *testing.T) {
-	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
+	projector, err := OpenAs[Projector](context.Background(), writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestGranite4VisionPromptCarriesDeepstack(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	prompt, err := runner.BuildImagePrompt(
+	prompt, err := testSession(t, runner).BuildImagePrompt(
 		context.Background(), granite4VisionPromptTokenizer{}, image.NewRGBA(image.Rect(0, 0, 4, 4)), "", "describe", false,
 	)
 	if err != nil {

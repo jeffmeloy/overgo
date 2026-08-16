@@ -257,7 +257,7 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 
 		allocations := device.NewAllocationSet(worker)
 		defer func() { _ = allocations.Close(ctx) }()
-		dev := map[*tensor.Tensor]driver.DevicePtr{}
+		inputs := compiled.NewDeviceInputs()
 		for node, m := range map[*tensor.Tensor]routedlm.BF16Matrix{
 			tW0: weights.Timestep.W0, tW2: weights.Timestep.W2,
 			nW0: weights.NoiseScale.W0, nW2: weights.NoiseScale.W2,
@@ -266,7 +266,9 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			if e != nil {
 				return "", math.NaN(), "", e
 			}
-			dev[node] = p
+			if e := inputs.Set(node, p); e != nil {
+				return "", math.NaN(), "", e
+			}
 		}
 		host := map[*tensor.Tensor]reference.Value{
 			freqTn: {Shape: freqShape, Data: freqT},
@@ -275,10 +277,6 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			tB2:    {Shape: midBiasShape, Data: weights.Timestep.B2},
 			nB0:    {Shape: midBiasShape, Data: weights.NoiseScale.B0},
 			nB2:    {Shape: midBiasShape, Data: weights.NoiseScale.B2},
-		}
-		inputs, err := compiled.BindDeviceInputs(dev)
-		if err != nil {
-			return "", math.NaN(), "", err
 		}
 		out, err := exe.ExecuteCompiled(ctx, compiled, host, inputs)
 		if err != nil {
@@ -347,10 +345,11 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			b0:      {Shape: tensor.MustShape(uint64(H), 1), Data: weights.Head.B0},
 			b2:      {Shape: tensor.MustShape(uint64(F), 1), Data: weights.Head.B2},
 		}
-		dev := map[*tensor.Tensor]driver.DevicePtr{w0: pw0, w2: pw2}
-		inputs, err := compiled.BindDeviceInputs(dev)
-		if err != nil {
-			return "", math.NaN(), "", err
+		inputs := compiled.NewDeviceInputs()
+		for node, pointer := range map[*tensor.Tensor]driver.DevicePtr{w0: pw0, w2: pw2} {
+			if err := inputs.Set(node, pointer); err != nil {
+				return "", math.NaN(), "", err
+			}
 		}
 		res, err := exe.ExecuteCompiled(ctx, compiled, host, inputs)
 		if err != nil {

@@ -54,7 +54,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
-	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
+	projector, err := OpenAs[Projector](context.Background(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	prompt, err := runner.BuildImagesPrompt(
+	prompt, err := testSession(t, runner).BuildImagesPrompt(
 		context.Background(), hunyuanVLPromptTokenizer{},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},

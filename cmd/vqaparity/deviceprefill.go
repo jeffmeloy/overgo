@@ -273,9 +273,11 @@ func runDevicePrefill(l *ladder) error {
 			g.MaskText: {Shape: maskShape, Data: pc.maskText},
 			g.MaskVis:  {Shape: maskShape, Data: pc.maskVis},
 		}
-		inputs, err := compiled.BindDeviceInputs(feeds)
-		if err != nil {
-			return err
+		inputs := compiled.NewDeviceInputs()
+		for node, pointer := range feeds {
+			if err := inputs.Set(node, pointer); err != nil {
+				return err
+			}
 		}
 		out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 		if err != nil {
@@ -350,9 +352,11 @@ func runDevicePrefill(l *ladder) error {
 			g.MaskText: {Shape: maskShape, Data: pc.maskText},
 			g.MaskVis:  {Shape: maskShape, Data: pc.maskVis},
 		}
-		inputs, err := compiled.BindDeviceInputs(feeds)
-		if err != nil {
-			return err
+		inputs := compiled.NewDeviceInputs()
+		for node, pointer := range feeds {
+			if err := inputs.Set(node, pointer); err != nil {
+				return err
+			}
 		}
 		out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 		if err != nil {

@@ -47,7 +47,7 @@ func TestMiMoVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesMiMoVL(t *testing.T) {
-	projector, err := OpenAs[ImageProjector](context.Background(), writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
+	projector, err := OpenAs[Projector](context.Background(), writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestMiMoVLPromptContract(t *testing.T) {
 	}
 	defer runner.Close()
 	tok := &mimoVLPromptTokenizer{}
-	prompt, err := runner.BuildImagePrompt(
+	prompt, err := testSession(t, runner).BuildImagePrompt(
 		context.Background(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false,
 	)
 	if err != nil {

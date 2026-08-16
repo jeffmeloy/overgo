@@ -488,17 +488,7 @@ func gemma3nAveragePool(builder *tensor.Builder, input *tensor.Tensor, width, he
 	return builder.Reshape(result, input.Shape.Dims[0], uint64(width), uint64(height))
 }
 
-func (r *Gemma3nVisionRunner) BuildImagePrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	_ bool,
-) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
-}
-
-func (r *Gemma3nVisionRunner) BuildImagesPrompt(
+func (r *Gemma3nVisionRunner) imagesPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	sources []image.Image,

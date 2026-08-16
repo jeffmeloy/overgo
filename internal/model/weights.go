@@ -9,194 +9,6 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// LayerWeights: initial dense transformer weight set
-type LayerWeights struct {
-	Recurrent                   bool
-	AttentionNorm               gguf.TensorInfo
-	AttentionNormBias           *gguf.TensorInfo
-	AttentionNorm2              *gguf.TensorInfo
-	AttentionNorm2Bias          *gguf.TensorInfo
-	AttentionQ                  gguf.TensorInfo
-	AttentionQB                 *gguf.TensorInfo
-	AttentionK                  gguf.TensorInfo
-	AttentionV                  gguf.TensorInfo
-	AttentionOutput             gguf.TensorInfo
-	AttentionQScale             *gguf.TensorInfo
-	AttentionKScale             *gguf.TensorInfo
-	AttentionVScale             *gguf.TensorInfo
-	AttentionOutputScale        *gguf.TensorInfo
-	AttentionSubNorm            *gguf.TensorInfo
-	AttentionQBias              *gguf.TensorInfo
-	AttentionKBias              *gguf.TensorInfo
-	AttentionVBias              *gguf.TensorInfo
-	AttentionOutputBias         *gguf.TensorInfo
-	AttentionQNorm              *gguf.TensorInfo
-	AttentionKNorm              *gguf.TensorInfo
-	AttentionQNormBias          *gguf.TensorInfo
-	AttentionKNormBias          *gguf.TensorInfo
-	AttentionPostNorm           *gguf.TensorInfo
-	AttentionPostNormBias       *gguf.TensorInfo
-	AttentionRelativeBias       *gguf.TensorInfo
-	CrossAttentionNorm          *gguf.TensorInfo
-	CrossAttentionQ             *gguf.TensorInfo
-	CrossAttentionK             *gguf.TensorInfo
-	CrossAttentionV             *gguf.TensorInfo
-	CrossAttentionOutput        *gguf.TensorInfo
-	AttentionOutputGate         *gguf.TensorInfo
-	AttentionSinks              *gguf.TensorInfo
-	RopeFactors                 *gguf.TensorInfo
-	FeedForwardNorm             gguf.TensorInfo
-	FeedForwardNormBias         *gguf.TensorInfo
-	FeedForwardExpertNorm       *gguf.TensorInfo
-	FeedForwardGate             gguf.TensorInfo
-	FeedForwardUp               gguf.TensorInfo
-	FeedForwardDown             gguf.TensorInfo
-	FeedForwardGateScale        *gguf.TensorInfo
-	FeedForwardUpScale          *gguf.TensorInfo
-	FeedForwardDownScale        *gguf.TensorInfo
-	FeedForwardActivationScale  *gguf.TensorInfo
-	FeedForwardSubNorm          *gguf.TensorInfo
-	FeedForwardGateBias         *gguf.TensorInfo
-	FeedForwardUpBias           *gguf.TensorInfo
-	FeedForwardDownBias         *gguf.TensorInfo
-	FeedForwardPostNorm         *gguf.TensorInfo
-	FeedForwardPostNormBias     *gguf.TensorInfo
-	FeedForwardPreNorm2         *gguf.TensorInfo
-	FeedForwardPostNorm1        *gguf.TensorInfo
-	FeedForwardPostNorm2        *gguf.TensorInfo
-	FeedForwardRouter           *gguf.TensorInfo
-	FeedForwardRouterBias       *gguf.TensorInfo
-	FeedForwardRouterScale      *gguf.TensorInfo
-	FeedForwardGateUpExperts    *gguf.TensorInfo
-	FeedForwardGateExperts      *gguf.TensorInfo
-	FeedForwardUpExperts        *gguf.TensorInfo
-	FeedForwardDownExperts      *gguf.TensorInfo
-	FeedForwardDownExpertsScale *gguf.TensorInfo
-	FeedForwardGateChunkExperts *gguf.TensorInfo
-	FeedForwardUpChunkExperts   *gguf.TensorInfo
-	FeedForwardDownChunkExperts *gguf.TensorInfo
-	FeedForwardExpertBias       *gguf.TensorInfo
-	FeedForwardLatentDown       *gguf.TensorInfo
-	FeedForwardLatentUp         *gguf.TensorInfo
-	FeedForwardSharedGate       *gguf.TensorInfo
-	FeedForwardSharedUp         *gguf.TensorInfo
-	FeedForwardSharedDown       *gguf.TensorInfo
-	FeedForwardSharedRouter     *gguf.TensorInfo
-	LayerOutputScale            *gguf.TensorInfo
-	PerLayerInputGate           *gguf.TensorInfo
-	PerLayerProjection          *gguf.TensorInfo
-	PerLayerPostNorm            *gguf.TensorInfo
-	ShortConvKernel             *gguf.TensorInfo
-	ShortConvInput              *gguf.TensorInfo
-	ShortConvOutput             *gguf.TensorInfo
-	AttentionKVAMQA             *gguf.TensorInfo
-	AttentionKVANorm            *gguf.TensorInfo
-	AttentionKVB                *gguf.TensorInfo
-	AttentionKB                 *gguf.TensorInfo
-	AttentionVB                 *gguf.TensorInfo
-	IndexerKNorm                *gguf.TensorInfo
-	IndexerKNormBias            *gguf.TensorInfo
-	IndexerProjection           *gguf.TensorInfo
-	IndexerAttentionK           *gguf.TensorInfo
-	IndexerAttentionQB          *gguf.TensorInfo
-	AttentionOutputA            *gguf.TensorInfo
-	AttentionCompressorKV       *gguf.TensorInfo
-	AttentionCompressorGate     *gguf.TensorInfo
-	AttentionCompressorAPE      *gguf.TensorInfo
-	AttentionCompressorNorm     *gguf.TensorInfo
-	IndexerCompressorKV         *gguf.TensorInfo
-	IndexerCompressorGate       *gguf.TensorInfo
-	IndexerCompressorAPE        *gguf.TensorInfo
-	IndexerCompressorNorm       *gguf.TensorInfo
-	HyperAttentionFN            *gguf.TensorInfo
-	HyperAttentionBase          *gguf.TensorInfo
-	HyperAttentionScale         *gguf.TensorInfo
-	HyperFeedForwardFN          *gguf.TensorInfo
-	HyperFeedForwardBase        *gguf.TensorInfo
-	HyperFeedForwardScale       *gguf.TensorInfo
-	HyperHeadFN                 *gguf.TensorInfo
-	HyperHeadBase               *gguf.TensorInfo
-	HyperHeadScale              *gguf.TensorInfo
-	FeedForwardHashExperts      *gguf.TensorInfo
-	VisualAttentionQKV          *gguf.TensorInfo
-	VisualAttentionOutput       *gguf.TensorInfo
-	VisualFeedForwardGate       *gguf.TensorInfo
-	VisualFeedForwardUp         *gguf.TensorInfo
-	VisualFeedForwardDown       *gguf.TensorInfo
-	AltUpCorrectCoefficient     *gguf.TensorInfo
-	AltUpCorrectScale           *gguf.TensorInfo
-	AltUpPredictCoefficient     *gguf.TensorInfo
-	AltUpRouter                 *gguf.TensorInfo
-	AltUpRouterNorm             *gguf.TensorInfo
-	LaurelLeft                  *gguf.TensorInfo
-	LaurelRight                 *gguf.TensorInfo
-	LaurelPostNorm              *gguf.TensorInfo
-
-	AttentionQKV         *gguf.TensorInfo
-	AttentionQKVBias     *gguf.TensorInfo
-	AttentionGate        *gguf.TensorInfo
-	SSMConv1D            *gguf.TensorInfo
-	SSMConv1DBias        *gguf.TensorInfo
-	SSMInput             *gguf.TensorInfo
-	SSMX                 *gguf.TensorInfo
-	SSMTimeStepWeight    *gguf.TensorInfo
-	SSMTimeStep          *gguf.TensorInfo
-	SSMTimeStepNorm      *gguf.TensorInfo
-	SSMA                 *gguf.TensorInfo
-	SSMD                 *gguf.TensorInfo
-	SSMBNorm             *gguf.TensorInfo
-	SSMCNorm             *gguf.TensorInfo
-	SSMBeta              *gguf.TensorInfo
-	SSMAlpha             *gguf.TensorInfo
-	SSMBetaAlpha         *gguf.TensorInfo
-	SSMNorm              *gguf.TensorInfo
-	SSMOutput            *gguf.TensorInfo
-	SSMQueryConv         *gguf.TensorInfo
-	SSMKeyConv           *gguf.TensorInfo
-	SSMValueConv         *gguf.TensorInfo
-	SSMForgetA           *gguf.TensorInfo
-	SSMForgetB           *gguf.TensorInfo
-	SSMOutputGateA       *gguf.TensorInfo
-	SSMOutputGateB       *gguf.TensorInfo
-	TimeMixW1            *gguf.TensorInfo
-	TimeMixW2            *gguf.TensorInfo
-	TimeMixW0            *gguf.TensorInfo
-	TimeMixA0            *gguf.TensorInfo
-	TimeMixA1            *gguf.TensorInfo
-	TimeMixA2            *gguf.TensorInfo
-	TimeMixV0            *gguf.TensorInfo
-	TimeMixV1            *gguf.TensorInfo
-	TimeMixV2            *gguf.TensorInfo
-	TimeMixG1            *gguf.TensorInfo
-	TimeMixG2            *gguf.TensorInfo
-	TimeMixKK            *gguf.TensorInfo
-	TimeMixKA            *gguf.TensorInfo
-	TimeMixRK            *gguf.TensorInfo
-	TimeMixLerpX         *gguf.TensorInfo
-	TimeMixLerpFused     *gguf.TensorInfo
-	TimeMixLerpW         *gguf.TensorInfo
-	TimeMixLerpK         *gguf.TensorInfo
-	TimeMixLerpV         *gguf.TensorInfo
-	TimeMixLerpR         *gguf.TensorInfo
-	TimeMixLerpG         *gguf.TensorInfo
-	TimeMixFirst         *gguf.TensorInfo
-	TimeMixDecay         *gguf.TensorInfo
-	TimeMixDecayW1       *gguf.TensorInfo
-	TimeMixDecayW2       *gguf.TensorInfo
-	TimeMixKey           *gguf.TensorInfo
-	TimeMixValue         *gguf.TensorInfo
-	TimeMixReceptance    *gguf.TensorInfo
-	TimeMixGate          *gguf.TensorInfo
-	TimeMixLN            *gguf.TensorInfo
-	TimeMixLNBias        *gguf.TensorInfo
-	TimeMixOutput        *gguf.TensorInfo
-	ChannelMixLerpK      *gguf.TensorInfo
-	ChannelMixLerpR      *gguf.TensorInfo
-	ChannelMixKey        *gguf.TensorInfo
-	ChannelMixValue      *gguf.TensorInfo
-	ChannelMixReceptance *gguf.TensorInfo
-}
-
 // WavPosNetWeights: layer-specific PosNet tensors
 type WavPosNetWeights struct {
 	Norm1, Norm1Bias, Conv1, Conv1Bias gguf.TensorInfo
@@ -372,18 +184,18 @@ func (p encoderDecoderCatalogPlan) loadLayer(
 	requireGate bool,
 	inheritedBias **gguf.TensorInfo,
 ) error {
-	gate := optionalTensor("ffn_gate.weight", &layer.FeedForwardGate, p.width, p.feedForward)
+	gate := optionalTensorPointer("ffn_gate.weight", &layer.FeedForwardGate, p.width, p.feedForward)
 	gate.optional = !requireGate
 	if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-		requiredTensor("attn_norm.weight", &layer.AttentionNorm, p.width),
-		requiredTensor("attn_q.weight", &layer.AttentionQ, p.width, p.query),
-		requiredTensor("attn_k.weight", &layer.AttentionK, p.width, p.key),
-		requiredTensor("attn_v.weight", &layer.AttentionV, p.width, p.value),
-		requiredTensor("attn_o.weight", &layer.AttentionOutput, p.output, p.width),
-		requiredTensor("ffn_norm.weight", &layer.FeedForwardNorm, p.width),
+		requiredTensorPointer("attn_norm.weight", &layer.AttentionNorm, p.width),
+		requiredTensorPointer("attn_q.weight", &layer.AttentionQ, p.width, p.query),
+		requiredTensorPointer("attn_k.weight", &layer.AttentionK, p.width, p.key),
+		requiredTensorPointer("attn_v.weight", &layer.AttentionV, p.width, p.value),
+		requiredTensorPointer("attn_o.weight", &layer.AttentionOutput, p.output, p.width),
+		requiredTensorPointer("ffn_norm.weight", &layer.FeedForwardNorm, p.width),
 		gate,
-		requiredTensor("ffn_up.weight", &layer.FeedForwardUp, p.width, p.feedForward),
-		requiredTensor("ffn_down.weight", &layer.FeedForwardDown, p.feedForward, p.width),
+		requiredTensorPointer("ffn_up.weight", &layer.FeedForwardUp, p.width, p.feedForward),
+		requiredTensorPointer("ffn_down.weight", &layer.FeedForwardDown, p.feedForward, p.width),
 	}); err != nil {
 		return err
 	}
@@ -478,6 +290,48 @@ func (c weightCatalog) required(name string, shape ...uint64) (gguf.TensorInfo, 
 		return gguf.TensorInfo{}, err
 	}
 	return item, nil
+}
+
+// loadQLoRAQuery binds the low-rank query projection triple. Each slot gets
+// its OWN variable: a shared loop variable here once aliased AttentionQNorm
+// and AttentionQB to the same pointee, leaving AttentionQNorm dereferencing
+// the attn_q_b tensor info (finding evidence:sha256:3aa4a494; shapes differ,
+// so a graph requiring the norm would have failed loudly -- the family's
+// QLoRA path had never executed it).
+func loadQLoRAQuery(catalog weightCatalog, prefix string, spec Spec, queryLength uint64, layer *LayerWeights) error {
+	qA, err := catalog.required(prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank))
+	if err != nil {
+		return err
+	}
+	layer.AttentionQ = &qA
+	qNorm, err := catalog.required(prefix+"attn_q_a_norm.weight", uint64(spec.QLoRARank))
+	if err != nil {
+		return err
+	}
+	layer.AttentionQNorm = &qNorm
+	qB, err := catalog.required(prefix+"attn_q_b.weight", uint64(spec.QLoRARank), queryLength)
+	if err != nil {
+		return err
+	}
+	layer.AttentionQB = &qB
+	return nil
+}
+
+// tensorShapeDim: shape dimension of an optional tensor, zero when absent.
+func tensorShapeDim(info *gguf.TensorInfo, index int) uint64 {
+	if info == nil {
+		return 0
+	}
+	return info.Shape[index]
+}
+
+// requiredRef: required lookup returning a heap copy for pointer slots.
+func (c weightCatalog) requiredRef(name string, shape ...uint64) (*gguf.TensorInfo, error) {
+	item, err := c.required(name, shape...)
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
 }
 
 func (c weightCatalog) selectName(prefix, primary, alternate string) string {
@@ -928,7 +782,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if profile.LayerTopology == LayerTopologyBidirectionalFusedQKV {
-			norm := optionalTensor("attn_norm.weight", &layer.AttentionNorm, uint64(spec.EmbeddingLength))
+			norm := optionalTensorPointer("attn_norm.weight", &layer.AttentionNorm, uint64(spec.EmbeddingLength))
 			norm.optional = block == 0
 			if normErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{norm}); normErr != nil {
 				return Weights{}, normErr
@@ -936,7 +790,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		} else if normPlan.PreAttention &&
 			(!layerPlan.DeciSparse || spec.LayerHeadCount(block) > 0) &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
-			if layer.AttentionNorm, err = catalog.required(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
+			if layer.AttentionNorm, err = catalog.requiredRef(prefix+"attn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}
 			if spec.RequiresLayerNormBias() {
@@ -956,10 +810,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				inner := uint64(spec.SSMInnerSize)
 				width := uint64(spec.EmbeddingLength)
 				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-					requiredTensor("attn_q.weight", &layer.AttentionQ, width, inner),
-					requiredTensor("attn_k.weight", &layer.AttentionK, width, inner),
-					requiredTensor("attn_v.weight", &layer.AttentionV, width, inner),
-					requiredTensor("attn_output.weight", &layer.AttentionOutput, inner, width),
+					requiredTensorPointer("attn_q.weight", &layer.AttentionQ, width, inner),
+					requiredTensorPointer("attn_k.weight", &layer.AttentionK, width, inner),
+					requiredTensorPointer("attn_v.weight", &layer.AttentionV, width, inner),
+					requiredTensorPointer("attn_output.weight", &layer.AttentionOutput, inner, width),
 				}); itemErr != nil {
 					return Weights{}, itemErr
 				}
@@ -988,25 +842,13 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 			} else {
 				if spec.QLoRARank > 0 {
-					item, itemErr := catalog.required(prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank))
-					if itemErr != nil {
-						return Weights{}, itemErr
+					if err := loadQLoRAQuery(catalog, prefix, spec, queryLength, layer); err != nil {
+						return Weights{}, err
 					}
-					layer.AttentionQ = item
-					item, itemErr = catalog.required(prefix+"attn_q_a_norm.weight", uint64(spec.QLoRARank))
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					layer.AttentionQNorm = &item
-					item, itemErr = catalog.required(prefix+"attn_q_b.weight", uint64(spec.QLoRARank), queryLength)
-					if itemErr != nil {
-						return Weights{}, itemErr
-					}
-					layer.AttentionQB = &item
-				} else if layer.AttentionQ, err = catalog.required(prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength); err != nil {
+				} else if layer.AttentionQ, err = catalog.requiredRef(prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength); err != nil {
 					return Weights{}, err
 				}
-				if layer.AttentionOutput, err = catalog.required(prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength)); err != nil {
+				if layer.AttentionOutput, err = catalog.requiredRef(prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength)); err != nil {
 					return Weights{}, err
 				}
 				kvA, itemErr := catalog.required(prefix+"attn_kv_a_mqa.weight", uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank+spec.RopeDimensionCount))
@@ -1039,15 +881,15 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					layer.AttentionKVB = &validated
 				}
 			}
-			if layer.FeedForwardNorm, err = catalog.required(prefix+"ffn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
+			if layer.FeedForwardNorm, err = catalog.requiredRef(prefix+"ffn_norm.weight", uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}
 			if block < spec.LeadingDenseBlocks {
 				width := uint64(spec.EmbeddingLength)
 				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-					requiredTensor("ffn_gate.weight", &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
-					requiredTensor("ffn_up.weight", &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
-					requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
+					requiredTensorPointer("ffn_gate.weight", &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
+					requiredTensorPointer("ffn_up.weight", &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
+					requiredTensorPointer("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
 				}); itemErr != nil {
 					return Weights{}, itemErr
 				}
@@ -1090,10 +932,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 			if spec.LayerFeedForwardLength(block) == 0 {
 				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-					requiredTensor("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
-					requiredTensor("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
-					requiredTensor("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
-					requiredTensor("attn_output.weight", &layer.AttentionOutput, attentionOutputLength, uint64(spec.EmbeddingLength)),
+					requiredTensorPointer("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
+					requiredTensorPointer("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
+					requiredTensorPointer("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
+					requiredTensorPointer("attn_output.weight", &layer.AttentionOutput, attentionOutputLength, uint64(spec.EmbeddingLength)),
 					optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, queryLength),
 					optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, keyLength),
 					optionalF32TensorPointer("attn_v.bias", &layer.AttentionVBias, valueLength),
@@ -1105,8 +947,8 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 			if !profile.Has(ArchitectureMoE) {
 				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-					requiredTensor("ffn_up.weight", &layer.FeedForwardUp, uint64(spec.EmbeddingLength), uint64(spec.LayerFeedForwardLength(block))),
-					requiredTensor("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.LayerFeedForwardLength(block)), uint64(spec.EmbeddingLength)),
+					requiredTensorPointer("ffn_up.weight", &layer.FeedForwardUp, uint64(spec.EmbeddingLength), uint64(spec.LayerFeedForwardLength(block))),
+					requiredTensorPointer("ffn_down.weight", &layer.FeedForwardDown, uint64(spec.LayerFeedForwardLength(block)), uint64(spec.EmbeddingLength)),
 					optionalF32TensorPointer("ffn_up.bias", &layer.FeedForwardUpBias, uint64(spec.LayerFeedForwardLength(block))),
 					optionalF32TensorPointer("ffn_down.bias", &layer.FeedForwardDownBias, uint64(spec.EmbeddingLength)),
 				}); itemErr != nil {
@@ -1180,7 +1022,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		if layerPlan.DeciSparse && spec.LayerHeadCount(block) == 0 {
 			// Attention-free layer.
 		} else if layerPlan.DeciSparse && spec.LayerKVHeadCount(block) == 0 {
-			if layer.AttentionOutput, err = catalog.required(
+			if layer.AttentionOutput, err = catalog.requiredRef(
 				prefix+"attn_output.weight",
 				uint64(spec.EmbeddingLength),
 				uint64(spec.EmbeddingLength),
@@ -1195,13 +1037,13 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			return Weights{}, mixerErr
 		} else if handled {
 		} else if profile.Has(ArchitectureSharedKV) {
-			if layer.AttentionQ, err = catalog.required(
+			if layer.AttentionQ, err = catalog.requiredRef(
 				prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength,
 			); err != nil {
 				return Weights{}, err
 			}
 			if spec.LayerHasKV(block) {
-				if layer.AttentionK, err = catalog.required(
+				if layer.AttentionK, err = catalog.requiredRef(
 					prefix+"attn_k.weight", uint64(spec.EmbeddingLength), keyLength,
 				); err != nil {
 					return Weights{}, err
@@ -1211,12 +1053,12 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					if valueErr != nil {
 						return Weights{}, valueErr
 					}
-					layer.AttentionV = value
+					layer.AttentionV = &value
 				} else if layerPlan.splitProjection() {
 					return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_v.weight")
 				}
 			}
-			if layer.AttentionOutput, err = catalog.required(
+			if layer.AttentionOutput, err = catalog.requiredRef(
 				prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength),
 			); err != nil {
 				return Weights{}, err
@@ -1224,7 +1066,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		} else if layerPlan.Attention == AttentionLatent || layerPlan.Attention == AttentionSparseLatent {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
 			if profile.LatentAttention == latentAttentionNeoXResidualScale || (profile.Has(ArchitectureLatentKVLayout) && spec.QLoRARank > 0) {
-				if layer.AttentionQ, err = catalog.required(
+				if layer.AttentionQ, err = catalog.requiredRef(
 					prefix+"attn_q_a.weight", uint64(spec.EmbeddingLength), uint64(spec.QLoRARank),
 				); err != nil {
 					return Weights{}, err
@@ -1239,7 +1081,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					return Weights{}, qNormErr
 				}
 				layer.AttentionQNorm = &qNorm
-			} else if layer.AttentionQ, err = catalog.required(
+			} else if layer.AttentionQ, err = catalog.requiredRef(
 				prefix+"attn_q.weight", uint64(spec.EmbeddingLength), queryLength,
 			); err != nil {
 				return Weights{}, err
@@ -1274,7 +1116,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					return Weights{}, itemErr
 				}
 			}
-			if layer.AttentionOutput, err = catalog.required(
+			if layer.AttentionOutput, err = catalog.requiredRef(
 				prefix+"attn_output.weight", uint64(spec.HeadCount)*uint64(spec.ValueLength), uint64(spec.EmbeddingLength),
 			); err != nil {
 				return Weights{}, err
@@ -1437,9 +1279,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		if !layer.Recurrent && layer.AttentionQKV == nil &&
 			(!layerPlan.DeciSparse || spec.LayerKVHeadCount(block) > 0) {
 			if biasErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-				optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, layer.AttentionQ.Shape[1]),
-				optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, layer.AttentionK.Shape[1]),
-				optionalF32TensorPointer("attn_v.bias", &layer.AttentionVBias, layer.AttentionV.Shape[1]),
+				optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, tensorShapeDim(layer.AttentionQ, 1)),
+				optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, tensorShapeDim(layer.AttentionK, 1)),
+				optionalF32TensorPointer("attn_v.bias", &layer.AttentionVBias, tensorShapeDim(layer.AttentionV, 1)),
 			}); biasErr != nil {
 				return Weights{}, biasErr
 			}
@@ -1503,7 +1345,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		if layerPlan.ResidualStages.kind == residualStable {
 			if normErr := loadOptionalWeightBias(
 				catalog, prefix,
-				requiredTensor(feedForwardNormName, &layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
+				requiredTensorPointer(feedForwardNormName, &layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
 				requiredTensorPointer("ffn_norm.bias", &layer.FeedForwardNormBias, uint64(spec.EmbeddingLength)),
 				"StableLM FFN norm bias has no weight",
 			); normErr != nil {
@@ -1513,7 +1355,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			(!layerPlan.DeciSparse || spec.LayerFeedForwardLength(block) > 0) &&
 			profile.Residual != ResidualParallel &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
-			if layer.FeedForwardNorm, err = catalog.required(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
+			if layer.FeedForwardNorm, err = catalog.requiredRef(prefix+feedForwardNormName, uint64(spec.EmbeddingLength)); err != nil {
 				return Weights{}, err
 			}
 			if spec.RequiresLayerNormBias() {
@@ -1557,15 +1399,15 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		keyLength := shapes.KeyProjectionWidth()
 		valueLength := shapes.ValueProjectionWidth()
 		if loadErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-			requiredTensor("attn_norm.weight", &mtp.Layer.AttentionNorm, uint64(spec.EmbeddingLength)),
-			requiredTensor("post_attention_norm.weight", &mtp.Layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
-			requiredTensor("attn_q.weight", &mtp.Layer.AttentionQ, uint64(spec.EmbeddingLength), 2*queryLength),
-			requiredTensor("attn_k.weight", &mtp.Layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
-			requiredTensor("attn_v.weight", &mtp.Layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
-			requiredTensor("attn_output.weight", &mtp.Layer.AttentionOutput, queryLength, uint64(spec.EmbeddingLength)),
-			requiredTensor("ffn_gate.weight", &mtp.Layer.FeedForwardGate, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
-			requiredTensor("ffn_up.weight", &mtp.Layer.FeedForwardUp, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
-			requiredTensor("ffn_down.weight", &mtp.Layer.FeedForwardDown, uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)),
+			requiredTensorPointer("attn_norm.weight", &mtp.Layer.AttentionNorm, uint64(spec.EmbeddingLength)),
+			requiredTensorPointer("post_attention_norm.weight", &mtp.Layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
+			requiredTensorPointer("attn_q.weight", &mtp.Layer.AttentionQ, uint64(spec.EmbeddingLength), 2*queryLength),
+			requiredTensorPointer("attn_k.weight", &mtp.Layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
+			requiredTensorPointer("attn_v.weight", &mtp.Layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
+			requiredTensorPointer("attn_output.weight", &mtp.Layer.AttentionOutput, queryLength, uint64(spec.EmbeddingLength)),
+			requiredTensorPointer("ffn_gate.weight", &mtp.Layer.FeedForwardGate, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
+			requiredTensorPointer("ffn_up.weight", &mtp.Layer.FeedForwardUp, uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
+			requiredTensorPointer("ffn_down.weight", &mtp.Layer.FeedForwardDown, uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)),
 		}); loadErr != nil {
 			return Weights{}, loadErr
 		}

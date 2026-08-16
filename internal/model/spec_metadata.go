@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"slices"
 
 	"overgo/internal/gguf"
@@ -382,6 +383,414 @@ func (m specMetadata) readDraftLayers(spec *Spec) error {
 		spec.LayerKVHeadCounts = spec.LayerKVHeadCounts[:limit]
 	}
 	return nil
+}
+
+// metadataReadMode: missing-key handling for one compiled scalar read.
+type metadataReadMode uint8
+
+const (
+	metadataReadRequired metadataReadMode = iota
+	metadataReadAssignZero
+	metadataReadKeepCurrent
+)
+
+// metadataOpKind: shape of one compiled metadata operation.
+type metadataOpKind uint8
+
+const (
+	metadataOpUint32 metadataOpKind = iota
+	metadataOpFloat32
+	metadataOpBool
+	metadataOpSetUint32
+	metadataOpSetBool
+	metadataOpDefaults
+	metadataOpInverseKeyScale
+	metadataOpEpsilonEither
+	metadataOpRopeSections
+	metadataOpSlidingPatternType
+	metadataOpHalveFeedForward
+	metadataOpExpertWidthFromModel
+	metadataOpSharedWidthFromModel
+	metadataOpSharedWidthFromExpert
+	metadataOpSharedWidthScale
+	metadataOpSharedWidthPolicy
+)
+
+// metadataOp: one compiled read/derive/validate/bind operation. field names
+// a Spec destination resolved through the exported field set.
+type metadataOp struct {
+	kind  metadataOpKind
+	key   string
+	field string
+	mode  metadataReadMode
+	value uint32
+	flag  bool
+}
+
+func (s *Spec) fieldDestination(field string) any {
+	return reflect.ValueOf(s).Elem().FieldByName(field).Addr().Interface()
+}
+
+func setU32(field string, value uint32) metadataOp {
+	return metadataOp{kind: metadataOpSetUint32, field: field, value: value}
+}
+
+// at: binds a scalar-read template to a metadata key and Spec field.
+func (o metadataOp) at(key, field string) metadataOp {
+	o.key, o.field = key, field
+	return o
+}
+
+// scalar-read templates: kind and missing-key mode without a binding.
+var (
+	opReqU32   = metadataOp{kind: metadataOpUint32}
+	opZeroU32  = metadataOp{kind: metadataOpUint32, mode: metadataReadAssignZero}
+	opKeepU32  = metadataOp{kind: metadataOpUint32, mode: metadataReadKeepCurrent}
+	opReqF32   = metadataOp{kind: metadataOpFloat32}
+	opZeroF32  = metadataOp{kind: metadataOpFloat32, mode: metadataReadAssignZero}
+	opKeepF32  = metadataOp{kind: metadataOpFloat32, mode: metadataReadKeepCurrent}
+	opReqBool  = metadataOp{kind: metadataOpBool}
+	opZeroBool = metadataOp{kind: metadataOpBool, mode: metadataReadAssignZero}
+)
+
+var (
+	ropeDimensionRequired = opReqU32.at("rope.dimension_count", "RopeDimensionCount")
+	ropeDimensionAssigned = opZeroU32.at("rope.dimension_count", "RopeDimensionCount")
+	expertWidthRequired   = opReqU32.at("expert_feed_forward_length", "ExpertFeedForward")
+	expertGatingRequired  = opReqU32.at("expert_gating_func", "ExpertGatingFunc")
+	sharedWidthOptional   = opKeepU32.at("expert_shared_feed_forward_length", "SharedExpertFF")
+	leadingDenseOptional  = opZeroU32.at("leading_dense_block_count", "LeadingDenseBlocks")
+	expertNormAlways      = metadataOp{kind: metadataOpSetBool, field: "ExpertWeightsNorm", flag: true}
+	expertNormOptional    = opZeroBool.at("expert_weights_norm", "ExpertWeightsNorm")
+	sectionsRequired      = metadataOp{kind: metadataOpRopeSections, key: "rope.dimension_sections"}
+	sectionsOptional      = metadataOp{kind: metadataOpRopeSections, key: "rope.dimension_sections", mode: metadataReadKeepCurrent}
+)
+
+// cohere2CoreProgram: shared Cohere2 and Cohere2-MoE core reads.
+var cohere2CoreProgram = []metadataOp{
+	opReqF32.at("logit_scale", "LogitScale"),
+	ropeDimensionRequired,
+	{kind: metadataOpSlidingPatternType, key: "attention.sliding_window_pattern"},
+}
+
+// coreAttentionPrograms: architecture-core reads keyed by attention contract.
+var coreAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
+	AttentionValidationTalkie:     {opReqF32.at("logit_scale", "LogitScale")},
+	AttentionValidationCohere2:    cohere2CoreProgram,
+	AttentionValidationCohere2MoE: cohere2CoreProgram,
+	AttentionValidationStableLM:   {ropeDimensionRequired},
+	AttentionValidationPhi2:       {ropeDimensionRequired},
+	AttentionValidationPhi3: {
+		ropeDimensionRequired,
+		opReqU32.at("rope.scaling.original_context_length", "OriginalContextLength"),
+	},
+	AttentionValidationGemmaEmbedding: {
+		opReqU32.at("attention.sliding_window", "SlidingWindow"),
+		opZeroU32.at("dense_2_feat_in", "Dense2FeatureIn"),
+		opZeroU32.at("dense_2_feat_out", "Dense2FeatureOut"),
+		opZeroU32.at("dense_3_feat_in", "Dense3FeatureIn"),
+		opZeroU32.at("dense_3_feat_out", "Dense3FeatureOut"),
+	},
+	AttentionValidationGPTNeoX: {
+		ropeDimensionAssigned,
+		opReqBool.at("use_parallel_residual", "ParallelResidual"),
+	},
+	AttentionValidationQwen:    {{kind: metadataOpHalveFeedForward}},
+	AttentionValidationGLM4:    {sectionsOptional},
+	AttentionValidationGLM4MoE: {sectionsOptional},
+	AttentionValidationFalcon:  {ropeDimensionAssigned},
+}
+
+// coreFlagPrograms: architecture-core reads keyed by metadata-read facts.
+var coreFlagPrograms = []struct {
+	flag    MetadataReadPolicy
+	program []metadataOp
+}{
+	{MetadataReadGPTJRotary, []metadataOp{ropeDimensionRequired}},
+	{MetadataReadCommandRLogits, []metadataOp{opZeroF32.at("logit_scale", "LogitScale")}},
+	{MetadataReadVisualSections, []metadataOp{sectionsRequired}},
+	{MetadataReadQwen3VLDeepstack, []metadataOp{opKeepU32.at("n_deepstack_layers", "DeepstackLayerCount")}},
+	{MetadataReadSmolLM3NoRoPE, []metadataOp{setU32("NoRopeLayerStep", 4)}},
+	{MetadataReadOLMoClamp, []metadataOp{opKeepF32.at("attention.clamp_kqv", "AttentionClamp")}},
+}
+
+// expertProductProgram: shared-product MoE width reads with optional gating
+// and weights-norm overrides.
+func expertProductProgram(gating, norm bool) []metadataOp {
+	program := []metadataOp{expertWidthRequired, opReqU32.at("expert_shared_count", "SharedExpertCount")}
+	if gating {
+		program = append(program, expertGatingRequired)
+	}
+	program = append(program, metadataOp{kind: metadataOpSharedWidthFromExpert}, metadataOp{kind: metadataOpSharedWidthScale})
+	if norm {
+		program = append(program, expertNormOptional)
+	}
+	return append(program, leadingDenseOptional)
+}
+
+// expertHybridPrograms: expert-stage reads keyed by hybrid contract.
+var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
+	HybridValidationMiMo2:  {setU32("ExpertGatingFunc", expertGatingSigmoid), expertNormAlways},
+	HybridValidationMellum: {expertWidthRequired, expertNormAlways},
+	HybridValidationHunyuanMoE: {
+		expertWidthRequired,
+		{kind: metadataOpSharedWidthPolicy},
+		expertNormAlways,
+	},
+	HybridValidationDBRX: {{kind: metadataOpExpertWidthFromModel}, expertNormAlways},
+	HybridValidationSmallThinker: {
+		{kind: metadataOpExpertWidthFromModel},
+		expertNormAlways,
+		expertGatingRequired,
+	},
+	HybridValidationDOTS1:      expertProductProgram(true, true),
+	HybridValidationBailingMoE: expertProductProgram(false, true),
+	HybridValidationDeepSeek:   expertProductProgram(false, false),
+	HybridValidationLFM2MoE:    {expertWidthRequired, expertGatingRequired, leadingDenseOptional},
+	HybridValidationBailingMoE2: {
+		expertWidthRequired,
+		opReqU32.at("expert_shared_count", "SharedExpertCount"),
+		{kind: metadataOpSharedWidthFromExpert},
+		sharedWidthOptional,
+		{kind: metadataOpSharedWidthScale},
+		expertGatingRequired,
+		expertNormOptional,
+		leadingDenseOptional,
+	},
+	HybridValidationQwen2MoE: {
+		{kind: metadataOpExpertWidthFromModel, flag: true},
+		setU32("SharedExpertCount", 1),
+		{kind: metadataOpSharedWidthFromModel},
+		sharedWidthOptional,
+	},
+}
+
+// expertAttentionPrograms: expert-stage reads keyed by attention contract.
+var expertAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
+	AttentionValidationErnie45MoE: {
+		expertWidthRequired,
+		opReqU32.at("interleave_moe_layer_step", "MoELayerStep"),
+		leadingDenseOptional,
+		opZeroU32.at("expert_shared_feed_forward_length", "SharedExpertFF"),
+		expertNormAlways,
+	},
+}
+
+var rwkv6Reads = []metadataOp{
+	opReqU32.at("time_mix_extra_dim", "TimeMixExtraDim"),
+	opReqU32.at("time_decay_extra_dim", "TimeDecayExtraDim"),
+	opZeroU32.at("rescale_every_n_layers", "RescaleEvery"),
+}
+
+var rwkv7Reads = []metadataOp{
+	opReqU32.at("attention.decay_lora_rank", "DecayLoRARank"),
+	opReqU32.at("attention.iclr_lora_rank", "ICLRLoRARank"),
+	opReqU32.at("attention.value_residual_mix_lora_rank", "ValueMixLoRARank"),
+	opZeroU32.at("attention.gate_lora_rank", "GateLoRARank"),
+}
+
+// rwkvProgram: WKV head reads with the family token-shift default.
+func rwkvProgram(reads []metadataOp, shift uint32) []metadataOp {
+	program := append([]metadataOp{opReqU32.at("wkv.head_size", "WKVHeadSize")}, reads...)
+	return append(program, setU32("TokenShiftCount", shift), opKeepU32.at("token_shift_count", "TokenShiftCount"))
+}
+
+// ssmProgram: state-space dimension reads; grouped families read a count.
+func ssmProgram(grouped bool) []metadataOp {
+	program := []metadataOp{
+		opReqU32.at("ssm.conv_kernel", "SSMConvKernel"),
+		opReqU32.at("ssm.inner_size", "SSMInnerSize"),
+		opReqU32.at("ssm.state_size", "SSMStateSize"),
+		opReqU32.at("ssm.time_step_rank", "SSMTimeStepRank"),
+	}
+	if grouped {
+		return append(program, opReqU32.at("ssm.group_count", "SSMGroupCount"))
+	}
+	return append(program, setU32("SSMGroupCount", 1), opZeroBool.at("ssm.dt_b_c_rms", "SSMDtBCNorm"))
+}
+
+// coreRecurrentPrograms: architecture-core reads keyed by recurrent contract.
+var coreRecurrentPrograms = map[RecurrentValidationPolicy][]metadataOp{
+	RecurrentValidationRWKV6:         rwkvProgram(rwkv6Reads, 2),
+	RecurrentValidationRWKV6Qwen2:    rwkvProgram(rwkv6Reads, 1),
+	RecurrentValidationRWKV7:         rwkvProgram(rwkv7Reads, 2),
+	RecurrentValidationARWKV7:        rwkvProgram(rwkv7Reads, 1),
+	RecurrentValidationMamba:         ssmProgram(false),
+	RecurrentValidationJamba:         ssmProgram(false),
+	RecurrentValidationMamba2:        ssmProgram(true),
+	RecurrentValidationGraniteHybrid: ssmProgram(true),
+	RecurrentValidationPLaMo2:        ssmProgram(true),
+	RecurrentValidationNemotronH:     ssmProgram(true),
+	RecurrentValidationNemotronHMoE:  ssmProgram(true),
+	RecurrentValidationFalconH1:      ssmProgram(true),
+}
+
+// lfm2RuntimeProgram: short-convolution cache and sliding-window reads.
+var lfm2RuntimeProgram = []metadataOp{
+	opReqU32.at("shortconv.l_cache", "ShortConvCacheLength"),
+	opKeepU32.at("attention.sliding_window", "SlidingWindow"),
+}
+
+// compileRuntimeProgram: ordered runtime metadata operations from a profile.
+func compileRuntimeProgram(profile ArchitectureProfile) []metadataOp {
+	switch profile.Validation.Hybrid {
+	case HybridValidationLFM2, HybridValidationLFM2MoE:
+		return lfm2RuntimeProgram
+	case HybridValidationGPTOSS:
+		return []metadataOp{opReqU32.at("attention.sliding_window", "SlidingWindow")}
+	}
+	return nil
+}
+
+// compileArchitectureCoreProgram: ordered core metadata operations from a profile.
+func compileArchitectureCoreProgram(profile ArchitectureProfile) []metadataOp {
+	validation := profile.Validation
+	program := make([]metadataOp, 0, 16)
+	switch {
+	case validation.Attention == AttentionValidationCohere2MoE:
+		program = append(program, metadataOp{kind: metadataOpEpsilonEither})
+	case profile.Normalization == NormalizationLayer,
+		profile.Normalization == NormalizationUnweightedLayer,
+		profile.Normalization == NormalizationWeightOnlyLayer:
+		program = append(program, opReqF32.at("attention.layer_norm_epsilon", "LayerNormEpsilon"))
+	default:
+		program = append(program, opReqF32.at("attention.layer_norm_rms_epsilon", "RMSNormEpsilon"))
+	}
+	program = append(program,
+		opZeroF32.at("final_logit_softcapping", "FinalLogitSoftcap"),
+		opZeroF32.at("attn_logit_softcapping", "AttentionSoftcap"),
+	)
+	if profile.readsMetadata(MetadataReadJaisScale) {
+		program = append(program, metadataOp{kind: metadataOpInverseKeyScale})
+	}
+	program = append(program, opKeepF32.at("attention.scale", "AttentionScale"), metadataOp{kind: metadataOpDefaults})
+	program = append(program, coreAttentionPrograms[validation.Attention]...)
+	for _, entry := range coreFlagPrograms {
+		if profile.readsMetadata(entry.flag) {
+			program = append(program, entry.program...)
+		}
+	}
+	if validation.Hybrid == HybridValidationAFMoE {
+		program = append(program, setU32("NoRopeLayerStep", 4))
+	}
+	return append(program, coreRecurrentPrograms[validation.Recurrent]...)
+}
+
+// compileExpertProgram: ordered expert metadata operations from a profile.
+func compileExpertProgram(profile ArchitectureProfile) []metadataOp {
+	validation := profile.Validation
+	program := append([]metadataOp(nil), expertHybridPrograms[validation.Hybrid]...)
+	program = append(program, expertAttentionPrograms[validation.Attention]...)
+	if validation.Encoder == EncoderValidationNomicBERTMoE {
+		program = append(program, opReqU32.at("moe_every_n_layers", "MoELayerStep"))
+	}
+	return program
+}
+
+func runMetadataRead[T any](
+	values map[string]gguf.Value, key string, valueType gguf.ValueType,
+	mode metadataReadMode, destination *T,
+) error {
+	switch mode {
+	case metadataReadRequired:
+		value, err := required[T](values, key, valueType)
+		if err != nil {
+			return err
+		}
+		*destination = value
+	case metadataReadAssignZero:
+		*destination, _ = optional[T](values, key, valueType)
+	default:
+		if value, ok := optional[T](values, key, valueType); ok {
+			*destination = value
+		}
+	}
+	return nil
+}
+
+func (m specMetadata) readSectionsOp(spec *Spec, op metadataOp) error {
+	key := m.prefix + op.key
+	var sections []int32
+	var err error
+	if op.mode == metadataReadRequired {
+		sections, err = requiredArray[int32](m.values, key, gguf.ValueTypeInt32)
+	} else {
+		var present bool
+		sections, present, err = optionalArray[int32](m.values, key, gguf.ValueTypeInt32)
+		if err == nil && !present {
+			return nil
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if len(sections) != len(spec.RopeSections) {
+		return fmt.Errorf("metadata %q has %d values, need %d", key, len(sections), len(spec.RopeSections))
+	}
+	copy(spec.RopeSections[:], sections)
+	return nil
+}
+
+// runMetadataProgram: neutral executor for compiled metadata operations.
+func (m specMetadata) runMetadataProgram(spec Spec, program []metadataOp) (Spec, error) {
+	values, prefix := m.values, m.prefix
+	for _, op := range program {
+		var err error
+		switch op.kind {
+		case metadataOpUint32:
+			err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeUint32, op.mode, spec.fieldDestination(op.field).(*uint32))
+		case metadataOpFloat32:
+			err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeFloat32, op.mode, spec.fieldDestination(op.field).(*float32))
+		case metadataOpBool:
+			err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeBool, op.mode, spec.fieldDestination(op.field).(*bool))
+		case metadataOpSetUint32:
+			*spec.fieldDestination(op.field).(*uint32) = op.value
+		case metadataOpSetBool:
+			*spec.fieldDestination(op.field).(*bool) = op.flag
+		case metadataOpDefaults:
+			m.profile.MetadataDefaults.read(values, prefix, &spec)
+		case metadataOpInverseKeyScale:
+			spec.AttentionScale = 1 / float32(spec.KeyLength)
+		case metadataOpEpsilonEither:
+			if value, ok := optional[float32](values, prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32); ok {
+				spec.RMSNormEpsilon = value
+				spec.profile.Normalization = NormalizationRMS
+			} else if value, ok := optional[float32](values, prefix+"attention.layer_norm_epsilon", gguf.ValueTypeFloat32); ok {
+				spec.LayerNormEpsilon = value
+			} else {
+				err = errors.New("Cohere2-MoE norm epsilon is missing")
+			}
+		case metadataOpRopeSections:
+			err = m.readSectionsOp(&spec, op)
+		case metadataOpSlidingPatternType:
+			if pattern, ok := values[prefix+op.key]; ok && pattern.Type != gguf.ValueTypeUint32 &&
+				(pattern.Type != gguf.ValueTypeArray || pattern.ArrayType != gguf.ValueTypeBool) {
+				err = errors.New("Cohere2 sliding attention pattern has an invalid type")
+			}
+		case metadataOpHalveFeedForward:
+			if spec.FeedForwardLength == 0 || spec.FeedForwardLength%2 != 0 {
+				err = errors.New("Qwen feed-forward length must be positive and even")
+			} else {
+				spec.FeedForwardLength /= 2
+			}
+		case metadataOpExpertWidthFromModel:
+			if !op.flag || spec.ExpertFeedForward == 0 {
+				spec.ExpertFeedForward = spec.FeedForwardLength
+			}
+		case metadataOpSharedWidthFromModel:
+			spec.SharedExpertFF = spec.FeedForwardLength
+		case metadataOpSharedWidthFromExpert:
+			spec.SharedExpertFF = spec.ExpertFeedForward
+		case metadataOpSharedWidthScale:
+			spec.SharedExpertFF *= spec.SharedExpertCount
+		case metadataOpSharedWidthPolicy:
+			spec.SharedExpertFF, err = m.profile.MetadataDefaults.readSharedExpertWidth(values, prefix, spec)
+		}
+		if err != nil {
+			return Spec{}, err
+		}
+	}
+	return spec, nil
 }
 
 func (m specMetadata) readFamilyShape(spec *Spec) error {

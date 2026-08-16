@@ -125,7 +125,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 		t.Fatalf("Unlimited OCR oracle prompt = %q", golden.Decode.Prompt)
 	}
 	projectStarted := time.Now()
-	prompt, err := vision.BuildImagePrompt(
+	prompt, err := mustProjectorSession(t, vision).BuildImagePrompt(
 		context.Background(), language, source, "", "document parsing.", false,
 	)
 	if err != nil {

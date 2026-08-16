@@ -69,6 +69,12 @@ func RunDevicePrefixStacks(
 		if err != nil {
 			return nil, stats, err
 		}
+		// The SenseNova prefix oracles were recorded against single-call
+		// weight-staging SGEMM numerics; bounded tiling drifts the stack
+		// past its committed floors.
+		if err := compiled.ReserveExactWeightStaging(); err != nil {
+			return nil, stats, err
+		}
 		hidden, err := EmbeddingRows(source, cfg, binding, input.TokenIDs)
 		if err != nil {
 			return nil, stats, err

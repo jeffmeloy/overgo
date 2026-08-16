@@ -25,11 +25,11 @@ func readTargetFeatureWeightCatalog(catalog weightCatalog, spec Spec) (Weights, 
 		prefix := fmt.Sprintf("blk.%d.", block)
 		layer := &result.Layers[block]
 		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-			requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
-			requiredTensor("attn_q.weight", &layer.AttentionQ, width, query),
-			requiredTensor("attn_k.weight", &layer.AttentionK, width, key),
-			requiredTensor("attn_v.weight", &layer.AttentionV, width, value),
-			requiredTensor("attn_output.weight", &layer.AttentionOutput, query, width),
+			requiredTensorPointer("attn_norm.weight", &layer.AttentionNorm, width),
+			requiredTensorPointer("attn_q.weight", &layer.AttentionQ, width, query),
+			requiredTensorPointer("attn_k.weight", &layer.AttentionK, width, key),
+			requiredTensorPointer("attn_v.weight", &layer.AttentionV, width, value),
+			requiredTensorPointer("attn_output.weight", &layer.AttentionOutput, query, width),
 			requiredTensorPointer("attn_q_norm.weight", &layer.AttentionQNorm, uint64(spec.KeyLength)),
 			requiredTensorPointer("attn_k_norm.weight", &layer.AttentionKNorm, uint64(spec.KeyLength)),
 		}); err != nil {
@@ -70,11 +70,11 @@ func readHiddenFusionWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 	key := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
 	value := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
 	if err := loadTensorRequirements(catalog, "blk.0.", []tensorRequirement{
-		requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
-		requiredTensor("attn_q.weight", &layer.AttentionQ, 2*width, query),
-		requiredTensor("attn_k.weight", &layer.AttentionK, 2*width, key),
-		requiredTensor("attn_v.weight", &layer.AttentionV, 2*width, value),
-		requiredTensor("attn_output.weight", &layer.AttentionOutput, query, width),
+		requiredTensorPointer("attn_norm.weight", &layer.AttentionNorm, width),
+		requiredTensorPointer("attn_q.weight", &layer.AttentionQ, 2*width, query),
+		requiredTensorPointer("attn_k.weight", &layer.AttentionK, 2*width, key),
+		requiredTensorPointer("attn_v.weight", &layer.AttentionV, 2*width, value),
+		requiredTensorPointer("attn_output.weight", &layer.AttentionOutput, query, width),
 		requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, width),
 		optionalTensorPointer("rope_freqs.weight", &layer.RopeFactors, uint64(spec.RopeDimensionCount/2)),
 	}); err != nil {
@@ -104,9 +104,9 @@ func readPairedProjectionWeightCatalog(catalog weightCatalog, spec Spec) (Weight
 		query := uint64(spec.HeadCount) * uint64(spec.LayerKeyLength(block))
 		output := uint64(spec.HeadCount) * uint64(spec.LayerValueLength(block))
 		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-			requiredTensor("attn_norm.weight", &layer.AttentionNorm, width),
-			requiredTensor("attn_q.weight", &layer.AttentionQ, width, query),
-			requiredTensor("attn_output.weight", &layer.AttentionOutput, output, width),
+			requiredTensorPointer("attn_norm.weight", &layer.AttentionNorm, width),
+			requiredTensorPointer("attn_q.weight", &layer.AttentionQ, width, query),
+			requiredTensorPointer("attn_output.weight", &layer.AttentionOutput, output, width),
 			requiredTensorPointer("attn_q_norm.weight", &layer.AttentionQNorm, uint64(spec.LayerKeyLength(block))),
 			requiredTensorPointer("post_attention_norm.weight", &layer.AttentionPostNorm, width),
 			requiredTensorPointer("post_ffw_norm.weight", &layer.FeedForwardPostNorm, width),

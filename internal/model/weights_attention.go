@@ -35,9 +35,9 @@ func loadStandardAttentionCatalog(
 			}
 		}
 		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-			requiredTensor("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
-			requiredTensor("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
-			requiredTensor("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
+			requiredTensorPointer("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
+			requiredTensorPointer("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
+			requiredTensorPointer("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
 		}); err != nil {
 			return err
 		}
@@ -48,6 +48,6 @@ func loadStandardAttentionCatalog(
 	if err != nil {
 		return err
 	}
-	layer.AttentionOutput = output
+	layer.AttentionOutput = &output
 	return nil
 }

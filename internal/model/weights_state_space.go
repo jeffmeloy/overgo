@@ -79,14 +79,14 @@ func loadRecurrentMixerLayer(
 			}
 		} else {
 			if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-				requiredTensor("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
-				requiredTensor("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
-				requiredTensor("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
+				requiredTensorPointer("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
+				requiredTensorPointer("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
+				requiredTensorPointer("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
 			}); itemErr != nil {
 				return true, itemErr
 			}
 		}
-		if layer.AttentionOutput, err = catalog.required(
+		if layer.AttentionOutput, err = catalog.requiredRef(
 			prefix+"attn_output.weight", attentionOutputLength, uint64(spec.EmbeddingLength),
 		); err != nil {
 			return true, err
@@ -182,28 +182,28 @@ func loadRecurrentMixerLayer(
 				}
 			}
 		} else {
-			if layer.AttentionQ, err = catalog.required(
+			if layer.AttentionQ, err = catalog.requiredRef(
 				prefix+"attn_q.weight",
 				uint64(spec.EmbeddingLength),
 				queryLength*2,
 			); err != nil {
 				return true, err
 			}
-			if layer.AttentionK, err = catalog.required(
+			if layer.AttentionK, err = catalog.requiredRef(
 				prefix+"attn_k.weight",
 				uint64(spec.EmbeddingLength),
 				keyLength,
 			); err != nil {
 				return true, err
 			}
-			if layer.AttentionV, err = catalog.required(
+			if layer.AttentionV, err = catalog.requiredRef(
 				prefix+"attn_v.weight",
 				uint64(spec.EmbeddingLength),
 				valueLength,
 			); err != nil {
 				return true, err
 			}
-			if layer.AttentionOutput, err = catalog.required(
+			if layer.AttentionOutput, err = catalog.requiredRef(
 				prefix+"attn_output.weight",
 				attentionOutputLength,
 				uint64(spec.EmbeddingLength),

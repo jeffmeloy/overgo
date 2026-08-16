@@ -152,17 +152,7 @@ func (r *CogVLMVisionRunner) EncodeImage(ctx context.Context, source image.Image
 	return r.encodeGraph(ctx, pixels)
 }
 
-func (r *CogVLMVisionRunner) BuildImagePrompt(
-	ctx context.Context,
-	tokenizerAPI ImageTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	_ bool,
-) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizerAPI, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
-}
-
-func (r *CogVLMVisionRunner) BuildImagesPrompt(
+func (r *CogVLMVisionRunner) imagesPrompt(
 	ctx context.Context,
 	tokenizerAPI ImageTokenizer,
 	sources []image.Image,

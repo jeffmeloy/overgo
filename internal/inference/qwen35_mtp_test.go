@@ -17,8 +17,8 @@ func TestSelectedModelTensorsIncludesQwen35MTP(t *testing.T) {
 	info := func(name string) gguf.TensorInfo { return gguf.TensorInfo{Name: name} }
 	mtp := &model.SingleDraftWeights{
 		Layer: model.LayerWeights{
-			AttentionNorm: info("blk.1.attn_norm.weight"),
-			AttentionQ:    info("blk.1.attn_q.weight"),
+			AttentionNorm: pointerTensorInfo(info("blk.1.attn_norm.weight")),
+			AttentionQ:    pointerTensorInfo(info("blk.1.attn_q.weight")),
 		},
 		EHProjection:  info("blk.1.nextn.eh_proj.weight"),
 		EmbeddingNorm: info("blk.1.nextn.enorm.weight"),
@@ -27,7 +27,7 @@ func TestSelectedModelTensorsIncludesQwen35MTP(t *testing.T) {
 	privateHead := info("blk.1.nextn.shared_head_head.weight")
 	mtp.Output = &privateHead
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
-		info("token_embd.weight"), mtp.Layer.AttentionNorm, mtp.Layer.AttentionQ,
+		info("token_embd.weight"), *mtp.Layer.AttentionNorm, *mtp.Layer.AttentionQ,
 		mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm, privateHead,
 	}}
 	selected := selectedModelTensors(file, model.Weights{
@@ -52,8 +52,8 @@ func TestSelectedModelTensorsIncludesStep35MTP(t *testing.T) {
 	}
 	mtp := model.AppendedDraftWeights{
 		Layer: model.LayerWeights{
-			AttentionNorm: info("blk.1.attn_norm.weight"),
-			AttentionQ:    info("blk.1.attn_q.weight"),
+			AttentionNorm: pointerTensorInfo(info("blk.1.attn_norm.weight")),
+			AttentionQ:    pointerTensorInfo(info("blk.1.attn_q.weight")),
 		},
 		EHProjection:   info("blk.1.nextn.eh_proj.weight"),
 		EmbeddingNorm:  info("blk.1.nextn.enorm.weight"),
@@ -67,7 +67,7 @@ func TestSelectedModelTensorsIncludesStep35MTP(t *testing.T) {
 		AppendedMultiCarryDraft: []model.AppendedDraftWeights{mtp},
 	}
 	file := &gguf.File{Tensors: []gguf.TensorInfo{
-		weights.TokenEmbedding, mtp.Layer.AttentionNorm, mtp.Layer.AttentionQ,
+		weights.TokenEmbedding, *mtp.Layer.AttentionNorm, *mtp.Layer.AttentionQ,
 		mtp.EHProjection, mtp.EmbeddingNorm, mtp.HiddenNorm,
 		*mtp.TokenEmbedding, *mtp.OutputNorm, *mtp.Output,
 	}}

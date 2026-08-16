@@ -50,8 +50,13 @@ func compileDeviceFeeds(
 	if err != nil {
 		return nil, nil, err
 	}
-	inputs, err := compiled.BindDeviceInputs(device)
-	return compiled, inputs, err
+	inputs := compiled.NewDeviceInputs()
+	for node, pointer := range device {
+		if err := inputs.Set(node, pointer); err != nil {
+			return nil, nil, err
+		}
+	}
+	return compiled, inputs, nil
 }
 
 func TestExecutorImplicitZeroFeed(t *testing.T) {

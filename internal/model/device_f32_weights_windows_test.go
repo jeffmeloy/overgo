@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
@@ -51,8 +50,8 @@ func TestDeviceF32WeightsFeedExecutor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inputs, err := compiled.BindDeviceInputs(map[*tensor.Tensor]driver.DevicePtr{input: pointer})
-	if err != nil {
+	inputs := compiled.NewDeviceInputs()
+	if err := inputs.Set(input, pointer); err != nil {
 		t.Fatal(err)
 	}
 	results, err := cuda.ExecuteCompiled(context.Background(), compiled, nil, inputs)

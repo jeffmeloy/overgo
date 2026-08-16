@@ -32,7 +32,7 @@ func imageProjectedPrompt(
 	projectorPath, imagePath, question string,
 	thinking bool, projectorOptions projector.OpenOptions,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	vision, err := projector.OpenActiveAs[projector.ImageProjector](ctx, store, runner.ModelID(), projectorPath, projectorOptions)
+	vision, err := projector.OpenActiveSession(ctx, store, runner.ModelID(), projectorPath, projectorOptions)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open multimodal projector: %w", err)
 	}
@@ -60,7 +60,7 @@ func audioProjectedPrompt(
 	projectorPath, audioPath, question string,
 	projectorOptions projector.OpenOptions,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	audio, err := projector.OpenActiveAs[projector.AudioProjector](ctx, store, runner.ModelID(), projectorPath, projectorOptions)
+	audio, err := projector.OpenActiveSession(ctx, store, runner.ModelID(), projectorPath, projectorOptions)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open audio projector: %w", err)
 	}
@@ -105,7 +105,7 @@ func videoProjectedPrompt(
 	fps float64,
 	thinking bool, projectorOptions projector.OpenOptions,
 ) ([]tokenizer.TokenID, inference.ProjectedInputs, error) {
-	vision, err := projector.OpenActiveAs[projector.VideoProjector](ctx, store, runner.ModelID(), projectorPath, projectorOptions)
+	vision, err := projector.OpenActiveSession(ctx, store, runner.ModelID(), projectorPath, projectorOptions)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: open multimodal projector: %w", err)
 	}

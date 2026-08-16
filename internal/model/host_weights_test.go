@@ -80,12 +80,12 @@ func TestHostLayerGraphInputs(t *testing.T) {
 	feedForwardDownBias := value(8)
 	feedForwardActivationScale := value(12)
 	layer := HostLayer{
-		AttentionNorm:              value(8),
-		AttentionQ:                 value(8, 8),
+		AttentionNorm:              refValue(value(8)),
+		AttentionQ:                 refValue(value(8, 8)),
 		AttentionQB:                &qB,
-		AttentionK:                 value(8, 4),
-		AttentionV:                 value(8, 4),
-		AttentionOutput:            value(8, 8),
+		AttentionK:                 refValue(value(8, 4)),
+		AttentionV:                 refValue(value(8, 4)),
+		AttentionOutput:            refValue(value(8, 8)),
 		AttentionQNorm:             &qNorm,
 		AttentionKNorm:             &kNorm,
 		RopeFactors:                &ropeFactors,
@@ -93,10 +93,10 @@ func TestHostLayerGraphInputs(t *testing.T) {
 		AttentionKBias:             &attentionKBias,
 		AttentionVBias:             &attentionVBias,
 		AttentionOutputBias:        &attentionOutputBias,
-		FeedForwardNorm:            value(8),
-		FeedForwardGate:            value(8, 12),
-		FeedForwardUp:              value(8, 12),
-		FeedForwardDown:            value(12, 8),
+		FeedForwardNorm:            refValue(value(8)),
+		FeedForwardGate:            refValue(value(8, 12)),
+		FeedForwardUp:              refValue(value(8, 12)),
+		FeedForwardDown:            refValue(value(12, 8)),
 		FeedForwardGateBias:        &feedForwardGateBias,
 		FeedForwardUpBias:          &feedForwardUpBias,
 		FeedForwardDownBias:        &feedForwardDownBias,
@@ -128,12 +128,12 @@ func TestHostLayerGraphInputsPermitDenseFusedQKV(t *testing.T) {
 	qkv := value(8, 24)
 	qkvBias := value(24)
 	layer := HostLayer{
-		AttentionNorm:    value(8),
+		AttentionNorm:    refValue(value(8)),
 		AttentionQKV:     &qkv,
 		AttentionQKVBias: &qkvBias,
-		AttentionOutput:  value(8, 8),
-		FeedForwardUp:    value(8, 12),
-		FeedForwardDown:  value(12, 8),
+		AttentionOutput:  refValue(value(8, 8)),
+		FeedForwardUp:    refValue(value(8, 12)),
+		FeedForwardDown:  refValue(value(12, 8)),
 	}
 	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
 	if err != nil {
@@ -160,7 +160,7 @@ func TestHostLayerGraphInputsPermitFusedBetaAlphaRecurrent(t *testing.T) {
 	norm := value(2)
 	output := value(4, 8)
 	layer := HostLayer{
-		AttentionNorm:   value(8),
+		AttentionNorm:   refValue(value(8)),
 		AttentionQKV:    &qkv,
 		SSMConv1D:       &conv,
 		SSMTimeStep:     &dt,
@@ -168,7 +168,7 @@ func TestHostLayerGraphInputsPermitFusedBetaAlphaRecurrent(t *testing.T) {
 		SSMBetaAlpha:    &ba,
 		SSMNorm:         &norm,
 		SSMOutput:       &output,
-		FeedForwardNorm: value(8),
+		FeedForwardNorm: refValue(value(8)),
 	}
 	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
 	if err != nil {
@@ -192,11 +192,11 @@ func TestHostLayerGraphInputsPermitKimiKDA(t *testing.T) {
 	forgetA, forgetB, beta := value(8, 2), value(2, 4), value(8, 2)
 	a, dt, gateA, gateB, norm := value(1, 2, 1, 1), value(4), value(8, 2), value(2, 4), value(2)
 	layer := HostLayer{
-		AttentionNorm: value(8), AttentionQ: q, AttentionK: k, AttentionV: v, AttentionOutput: output,
+		AttentionNorm: refValue(value(8)), AttentionQ: &q, AttentionK: &k, AttentionV: &v, AttentionOutput: &output,
 		SSMQueryConv: &queryConv, SSMKeyConv: &keyConv, SSMValueConv: &valueConv,
 		SSMForgetA: &forgetA, SSMForgetB: &forgetB, SSMBeta: &beta, SSMA: &a,
 		SSMTimeStep: &dt, SSMOutputGateA: &gateA, SSMOutputGateB: &gateB, SSMNorm: &norm,
-		FeedForwardNorm: value(8),
+		FeedForwardNorm: refValue(value(8)),
 	}
 	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
 	if err != nil {
@@ -221,8 +221,8 @@ func TestHostLayerGraphInputsPermitRWKV6Qwen2(t *testing.T) {
 	key, val, receptance := value(8, 4), value(8, 4), value(8, 8)
 	gate, output := value(8, 8), value(8, 8)
 	layer := HostLayer{
-		AttentionNorm: value(8), FeedForwardNorm: value(8),
-		FeedForwardGate: value(8, 12), FeedForwardUp: value(8, 12), FeedForwardDown: value(12, 8),
+		AttentionNorm: refValue(value(8)), FeedForwardNorm: refValue(value(8)),
+		FeedForwardGate: refValue(value(8, 12)), FeedForwardUp: refValue(value(8, 12)), FeedForwardDown: refValue(value(12, 8)),
 		TimeMixW1: &w1, TimeMixW2: &w2, TimeMixLerpX: &lerpX, TimeMixLerpFused: &lerp,
 		TimeMixDecay: &decay, TimeMixDecayW1: &decayW1, TimeMixDecayW2: &decayW2,
 		TimeMixKey: &key, TimeMixValue: &val, TimeMixReceptance: &receptance,
@@ -253,7 +253,7 @@ func TestHostLayerGraphInputsPermitRWKV6(t *testing.T) {
 	channelLerpK, channelLerpR := value(8, 1, 1), value(8, 1, 1)
 	channelKey, channelValue, channelReceptance := value(8, 12), value(12, 8), value(8, 8)
 	layer := HostLayer{
-		AttentionNorm: attentionNorm, AttentionNormBias: &attentionBias,
+		AttentionNorm: &attentionNorm, AttentionNormBias: &attentionBias,
 		AttentionNorm2: &channelNorm, AttentionNorm2Bias: &channelBias,
 		TimeMixW1: &w1, TimeMixW2: &w2, TimeMixLerpX: &lerpX, TimeMixLerpFused: &lerp,
 		TimeMixFirst: &first, TimeMixDecay: &decay, TimeMixDecayW1: &decayW1, TimeMixDecayW2: &decayW2,
@@ -290,7 +290,7 @@ func TestHostLayerGraphInputsPermitRWKV7(t *testing.T) {
 	mixNorm, mixBias := value(8), value(8)
 	channelLerp, channelKey, channelValue := value(8, 1, 1), value(8, 12), value(12, 8)
 	layer := HostLayer{
-		AttentionNorm: attentionNorm, AttentionNormBias: &attentionBias,
+		AttentionNorm: &attentionNorm, AttentionNormBias: &attentionBias,
 		AttentionNorm2: &channelNorm, AttentionNorm2Bias: &channelBias,
 		TimeMixW0: &w0, TimeMixW1: &w1, TimeMixW2: &w2,
 		TimeMixA0: &a0, TimeMixA1: &a1, TimeMixA2: &a2,
@@ -328,7 +328,7 @@ func TestHostLayerGraphInputsPermitMamba2(t *testing.T) {
 	norm := value(4, 2)
 	output := value(8, 4)
 	layer := HostLayer{
-		AttentionNorm: value(4), SSMInput: &input, SSMConv1D: &conv,
+		AttentionNorm: refValue(value(4)), SSMInput: &input, SSMConv1D: &conv,
 		SSMConv1DBias: &convBias, SSMTimeStep: &dt, SSMA: &a, SSMD: &d,
 		SSMNorm: &norm, SSMOutput: &output,
 	}
@@ -352,10 +352,10 @@ func TestHostLayerGraphInputsPermitFalconH1(t *testing.T) {
 	ssmInput, conv, dt := value(4, 28), value(3, 16), value(4)
 	a, d, ssmOutput := value(1, 4), value(1, 4), value(8, 4)
 	layer := HostLayer{
-		AttentionNorm: value(4), AttentionQ: value(4, 4), AttentionK: value(4, 2),
-		AttentionV: value(4, 2), AttentionOutput: value(4, 4),
-		FeedForwardNorm: value(4), FeedForwardGate: value(4, 6),
-		FeedForwardUp: value(4, 6), FeedForwardDown: value(6, 4),
+		AttentionNorm: refValue(value(4)), AttentionQ: refValue(value(4, 4)), AttentionK: refValue(value(4, 2)),
+		AttentionV: refValue(value(4, 2)), AttentionOutput: refValue(value(4, 4)),
+		FeedForwardNorm: refValue(value(4)), FeedForwardGate: refValue(value(4, 6)),
+		FeedForwardUp: refValue(value(4, 6)), FeedForwardDown: refValue(value(6, 4)),
 		SSMInput: &ssmInput, SSMConv1D: &conv, SSMTimeStep: &dt,
 		SSMA: &a, SSMD: &d, SSMOutput: &ssmOutput,
 	}
@@ -383,16 +383,16 @@ func TestHostLayerGraphInputsPermitParallelDenseAndMoE(t *testing.T) {
 	upExperts := value(8, 12, 4)
 	downExperts := value(12, 8, 4)
 	layer := HostLayer{
-		AttentionNorm:          value(8),
-		AttentionQ:             value(8, 8),
-		AttentionK:             value(8, 4),
-		AttentionV:             value(8, 4),
-		AttentionOutput:        value(8, 8),
-		FeedForwardNorm:        value(8),
+		AttentionNorm:          refValue(value(8)),
+		AttentionQ:             refValue(value(8, 8)),
+		AttentionK:             refValue(value(8, 4)),
+		AttentionV:             refValue(value(8, 4)),
+		AttentionOutput:        refValue(value(8, 8)),
+		FeedForwardNorm:        refValue(value(8)),
 		FeedForwardExpertNorm:  &expertNorm,
-		FeedForwardGate:        value(8, 8),
-		FeedForwardUp:          value(8, 8),
-		FeedForwardDown:        value(8, 8),
+		FeedForwardGate:        refValue(value(8, 8)),
+		FeedForwardUp:          refValue(value(8, 8)),
+		FeedForwardDown:        refValue(value(8, 8)),
 		FeedForwardRouter:      &router,
 		FeedForwardGateExperts: &gateExperts,
 		FeedForwardUpExperts:   &upExperts,
@@ -424,17 +424,17 @@ func TestHostLayerGraphInputsPermitPostNormalizedBlock(t *testing.T) {
 	feedForwardPostNorm := value(8)
 	feedForwardPostNormBias := value(8)
 	layer := HostLayer{
-		AttentionQ:              value(8, 8),
-		AttentionK:              value(8, 4),
-		AttentionV:              value(8, 4),
-		AttentionOutput:         value(8, 8),
+		AttentionQ:              refValue(value(8, 8)),
+		AttentionK:              refValue(value(8, 4)),
+		AttentionV:              refValue(value(8, 4)),
+		AttentionOutput:         refValue(value(8, 8)),
 		AttentionQNorm:          &qNorm,
 		AttentionKNorm:          &kNorm,
 		AttentionPostNorm:       &attentionPostNorm,
 		AttentionPostNormBias:   &attentionPostNormBias,
-		FeedForwardGate:         value(8, 12),
-		FeedForwardUp:           value(8, 12),
-		FeedForwardDown:         value(12, 8),
+		FeedForwardGate:         refValue(value(8, 12)),
+		FeedForwardUp:           refValue(value(8, 12)),
+		FeedForwardDown:         refValue(value(12, 8)),
 		FeedForwardPostNorm:     &feedForwardPostNorm,
 		FeedForwardPostNormBias: &feedForwardPostNormBias,
 	}
@@ -467,18 +467,18 @@ func TestHostLayerGraphInputsPermitSequentialFFN(t *testing.T) {
 	feedForwardUpBias := value(12)
 	feedForwardDownBias := value(8)
 	layer := HostLayer{
-		AttentionNorm:       value(8),
+		AttentionNorm:       refValue(value(8)),
 		AttentionNormBias:   &attentionNormBias,
-		AttentionQ:          value(8, 8),
-		AttentionK:          value(8, 4),
-		AttentionV:          value(8, 4),
-		AttentionOutput:     value(8, 8),
+		AttentionQ:          refValue(value(8, 8)),
+		AttentionK:          refValue(value(8, 4)),
+		AttentionV:          refValue(value(8, 4)),
+		AttentionOutput:     refValue(value(8, 8)),
 		AttentionOutputBias: &attentionOutputBias,
-		FeedForwardNorm:     value(8),
+		FeedForwardNorm:     refValue(value(8)),
 		FeedForwardNormBias: &feedForwardNormBias,
-		FeedForwardUp:       value(8, 12),
+		FeedForwardUp:       refValue(value(8, 12)),
 		FeedForwardUpBias:   &feedForwardUpBias,
-		FeedForwardDown:     value(12, 8),
+		FeedForwardDown:     refValue(value(12, 8)),
 		FeedForwardDownBias: &feedForwardDownBias,
 	}
 	graph, feeds, err := layer.GraphInputs(builder, "blk.0.")
@@ -494,6 +494,8 @@ func TestHostLayerGraphInputsPermitSequentialFFN(t *testing.T) {
 		t.Fatalf("unexpected sequential FFN graph inputs: graph=%+v feeds=%d", graph, len(feeds))
 	}
 }
+
+func refValue(value reference.Value) *reference.Value { return &value }
 
 func hostTensorFixture(t *testing.T) []byte {
 	t.Helper()

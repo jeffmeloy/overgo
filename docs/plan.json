@@ -1,5 +1,19 @@
 {
   "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and the composition-viability pivot",
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
-  "items": []
+  "items": [
+    {
+      "id": "tier0-chain-contract",
+      "title": "Tier-0 chain contract: typed whole-model chaining through workflowrecipe ports executes a two-model chain through the generic runtime",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Tier-0 chain contract: typed whole-model chaining through workflowrecipe ports executes a two-model chain through the generic runtime",
+          "status": "open",
+          "verify": "go test ./internal/workflowrecipe -run '^TestTier0ChainExecutesThroughTypedPorts$' -count=1 -v"
+        }
+      ]
+    }
+  ]
 }

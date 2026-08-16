@@ -10,8 +10,18 @@ import (
 	"overgo/internal/gguf"
 )
 
-func openImageProjectorAs[T ImageProjector](path string, options OpenOptions) (T, error) {
+func openImageProjectorAs[T Projector](path string, options OpenOptions) (T, error) {
 	return OpenAs[T](context.Background(), path, options)
+}
+
+// testSession compiles the prompt session for a hermetic runner fixture.
+func testSession(t *testing.T, source Projector) Session {
+	t.Helper()
+	session, err := NewSession(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return session
 }
 
 func TestOpenProjectorResourceClosesFileOnBuildFailure(t *testing.T) {

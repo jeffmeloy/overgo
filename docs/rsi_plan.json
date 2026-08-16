@@ -1,6 +1,6 @@
 {
   "campaign": "Recursive self-improvement through constrained, content-addressed artifact improvement",
-  "revision": 10,
+  "revision": 11,
   "doctrine": "Design record, not live executable work. docs/plan.json remains the only dispatch surface; cmd/plan does not read this file. A thin roadmap command over a common Go owner may validate this record and emit a PROPOSED live-plan insertion, but never mutate or dispatch it. The governing principle: the model may propose increasingly powerful ARTIFACTS, but deterministic Go owns execution, resource limits, evidence capture, admission, promotion and rollback. RSI here is constrained artifact improvement, never unrestricted code self-modification, and proposal / evaluation / authorization / rollback stay in separate authority domains.",
   "thesis": "Overgo is a content-addressed population of artifacts with a promotion mechanism. Automated composition needs three missing operators: bridge, compose, and a runtime experiment control plane to exercise them. RSI depth is a separate axis -- how many layers of the stack are themselves artifacts under the same lifecycle. Phase D lifts that ceiling and is safe only because ground truth is externally sourced and unauthorable by the system.",
   "control_plane_status": {
@@ -24,15 +24,47 @@
     }
   },
   "operator_set": {
-    "construct": {"state": "built", "owner": "internal/scratchmodel.Compile"},
-    "train": {"state": "built", "owner": "internal/densecausal, internal/trainingprogram, internal/optimizer"},
-    "evaluate": {"state": "built", "owner": "internal/runrecord, recipe verify"},
-    "promote_refuse": {"state": "built", "owner": "cmd/recipe activate, internal/recipe decisions, RepoDB storage"},
-    "retrieve": {"state": "partial", "owner": "internal/tensorstats.ShapeFeatures + Nearest", "gap": "pool is the loaded model only; internal/server/analyze_tensors.go sources from characterizeLoadedModel"},
-    "decompose": {"state": "external", "owner": "adaptive_new go/extmodel/organ_schema.go", "gap": "not ported"},
-    "bridge": {"state": "missing", "gap": "component pair -> trained adapter", "closed_by": "bridge-synthesis"},
-    "compose": {"state": "missing", "gap": "components + adapter + profile + recipe + checkpoint -> one executable content-addressed model artifact", "closed_by": "compose-model-artifact"},
-    "experiment": {"state": "missing", "gap": "create/admit/lease/execute/evaluate/refuse/promote/recover/rollback a descendant under budget with a replayable record", "closed_by": "experiment-lifecycle"}
+    "construct": {
+      "state": "built",
+      "owner": "internal/scratchmodel.Compile"
+    },
+    "train": {
+      "state": "built",
+      "owner": "internal/densecausal, internal/trainingprogram, internal/optimizer"
+    },
+    "evaluate": {
+      "state": "built",
+      "owner": "internal/runrecord, recipe verify"
+    },
+    "promote_refuse": {
+      "state": "built",
+      "owner": "cmd/recipe activate, internal/recipe decisions, RepoDB storage"
+    },
+    "retrieve": {
+      "state": "partial",
+      "owner": "internal/tensorstats.ShapeFeatures + Nearest",
+      "gap": "pool is the loaded model only; internal/server/analyze_tensors.go sources from characterizeLoadedModel"
+    },
+    "decompose": {
+      "state": "external",
+      "owner": "adaptive_new go/extmodel/organ_schema.go",
+      "gap": "not ported"
+    },
+    "bridge": {
+      "state": "missing",
+      "gap": "component pair -> trained adapter",
+      "closed_by": "bridge-synthesis"
+    },
+    "compose": {
+      "state": "missing",
+      "gap": "components + adapter + profile + recipe + checkpoint -> one executable content-addressed model artifact",
+      "closed_by": "compose-model-artifact"
+    },
+    "experiment": {
+      "state": "missing",
+      "gap": "create/admit/lease/execute/evaluate/refuse/promote/recover/rollback a descendant under budget with a replayable record",
+      "closed_by": "experiment-lifecycle"
+    }
   },
   "metric": {
     "headline": "descendant-generation-depth",
@@ -54,10 +86,23 @@
     "mandatory_preconditions": {
       "rule": "Preconditions attach to declared row CAPABILITIES, never to phase membership. Phase is not a safety property: rsi-phase-c contains typed-controller-action-language and independent-rsi-admission, which define or enforce boundaries rather than crossing them, and a phase-keyed rule would reject both incorrectly. The validator unions the required sets for a row's capabilities and asserts containment in its dependency closure. A row with no capabilities declares that it neither executes, promotes, admits nor measures.",
       "by_capability": {
-        "executes-autonomously": ["bounded-exploration-budget", "runtime-resource-scheduler", "experiment-lifecycle"],
-        "promotes-artifact": ["rollback-invariant-and-drill", "evaluation-isolation", "independent-rsi-admission"],
-        "admits-without-human": ["sealed-external-authority"],
-        "measures-held-out": ["evaluation-isolation", "determinism-and-statistical-verdicts"]
+        "executes-autonomously": [
+          "bounded-exploration-budget",
+          "runtime-resource-scheduler",
+          "experiment-lifecycle"
+        ],
+        "promotes-artifact": [
+          "rollback-invariant-and-drill",
+          "evaluation-isolation",
+          "independent-rsi-admission"
+        ],
+        "admits-without-human": [
+          "sealed-external-authority"
+        ],
+        "measures-held-out": [
+          "evaluation-isolation",
+          "determinism-and-statistical-verdicts"
+        ]
       },
       "capability_definitions": {
         "executes-autonomously": "runs GPU or long-lived work without per-run human authorization",
@@ -68,7 +113,9 @@
     },
     "implementation_preconditions": {
       "rule": "Every non-landed Go roadmap row requires the new-unconsumed-surface admission invariant. Toolchain formatting and vet remain commit-gate checks; advisory readability remains reviewer judgment rather than a permanent analyzer.",
-      "requires": ["unconsumed-surface-admission"],
+      "requires": [
+        "unconsumed-surface-admission"
+      ],
       "why_not_depends_on": "A universal commit gate is a landing invariant, not a dependency edge; expressing it in depends_on distorts experiment order.",
       "bootstrap_exceptions": [],
       "landed_exemption": "Rows already listed in execution_order.landed predate this policy and are not retroactively rewritten. Candidate changes near historical debt are checked by candidate-versus-HEAD diagnostics."
@@ -116,7 +163,9 @@
           "verify": "go test ./internal/codeprofile ./internal/repoanalysis -run '^TestProductionConsumerCensus$' -count=1 -v",
           "verifier_status": "landed",
           "outcome": "Landed in substance before this row was dispatched: internal/codeprofile consumer analysis runs in every cmd/gate profile step, classifying production/test-only/boundary/zero consumers per commit and per plan slice (gate evidence lines 'consumer census'). The 2026-08-16 session recorded three live refusals proving the boundary classification. The named verifier remains a formalization opportunity, not missing capability.",
-          "depends_on": ["roadmap-validator"],
+          "depends_on": [
+            "roadmap-validator"
+          ],
           "implementation_language": "go",
           "rationale": "Start with the easier and more reliable half of refactoring automation: determine when consolidation is required and hand the model a bounded symbol/caller set. Tests are evidence, not production consumers. Reuse the build-aware source snapshot and profile owners; add no second parser, hand-maintained path table or composite quality score.",
           "acceptance": "The census resolves declarations and references across active build contexts; identifies new exports with zero non-test callers, declarations reachable only from tests, and document readers or writers without an exercised production counterpart; mechanically classifies command, interface, generated, serialization, reflection, cgo and build-variant boundaries; and reports cumulative delta from the plan slice base rather than allowing a small cleanup commit to conceal a larger preceding expansion. This row is observe-only."
@@ -128,7 +177,9 @@
           "verify": "go test ./cmd/gate ./internal/codeprofile -run '^TestGateRejectsNewUnconsumedProductionSurface$' -count=1 -v",
           "verifier_status": "landed",
           "outcome": "Landed in substance: the cmd/gate profile step hard-refuses candidate-introduced unconsumed production surface ('new unconsumed production surface: ... REFUSED'). Three recorded refusals on 2026-08-16 (generation-record constructor, test-only helper, speculative constants) each forced a better design; existing debt reports without blocking. The named verifier remains a formalization opportunity, not missing capability.",
-          "depends_on": ["production-consumer-census"],
+          "depends_on": [
+            "production-consumer-census"
+          ],
           "implementation_language": "go",
           "rationale": "This is the narrow ratchet that removes dependence on model discipline: a complete staged vertical slice may add an owner and its real consumer together, but cannot advance by calling tests a consumer or by promising that a later row will use a public API.",
           "acceptance": "Only candidate-introduced, mechanically proven unconsumed declarations fail. Existing debt remains visible but does not block unrelated work. Once this row lands, add it to graph_contract.implementation_preconditions.requires so later Go roadmap rows cannot land without the consumer invariant."
@@ -165,7 +216,10 @@
           "status": "new",
           "verify": "go test ./internal/runrecord -run '^TestExperimentLifecycleIsIdempotentAndRecoverable$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["experiment-generation-record", "refusal-ledger"],
+          "depends_on": [
+            "experiment-generation-record",
+            "refusal-ledger"
+          ],
           "rationale": "A generation record describes an experiment but does not operate it. This lifecycle is the runtime analogue of the prepared/finalized gate transaction: interruption cannot create two outcomes, silently lose a run, or promote without terminal evidence. Resource leases plug into the leased/running transitions when Phase E supplies them."
         }
       ]
@@ -206,8 +260,16 @@
           "status": "new",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestComponentCompositionViability$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["objective-breadth", "component-decomposition", "experiment-generation-record", "determinism-and-statistical-verdicts", "evaluation-isolation"],
-          "capabilities": ["measures-held-out"],
+          "depends_on": [
+            "objective-breadth",
+            "component-decomposition",
+            "experiment-generation-record",
+            "determinism-and-statistical-verdicts",
+            "evaluation-isolation"
+          ],
+          "capabilities": [
+            "measures-held-out"
+          ],
           "priority": "first",
           "rationale": "THE PIVOT. Nothing upstream of recursive-improvement-boundary establishes that component composition produces working models, yet that step has the controller proposing composition candidates. Without this row a downstream failure cannot be attributed between a bad proposer and an unviable mechanism. Uses proven infrastructure only: Tier-1 transplant needs no profile synthesis because the target ArchitectureProfile already exists in the 135-entry catalog, and densecausal.TrainDeviceResidentFrozenLexicalBatches already proves frozen-parameter resident CUDA training. Run manually, human-reviewed, under a recorded budget.",
           "decision_point": {
@@ -234,16 +296,58 @@
     },
     {
       "id": "rsi-phase-b-automatic-composition",
-      "title": "Phase B -- make composition automatic",
+      "title": "Phase B -- make composition automatic; re-scoped to Tier-0 whole-model chaining by the composition-viability on_refusal branch (revision 11)",
       "status": "open",
       "steps": [
+        {
+          "id": "tier0-chain-contract",
+          "title": "Typed whole-model chaining through workflowrecipe ports: a chain artifact composes validated models by output-to-input port wiring with no latent bridging; one two-model chain executes through the generic runtime",
+          "status": "new",
+          "verify": "go test ./internal/workflowrecipe -run '^TestTier0ChainExecutesThroughTypedPorts$' -count=1 -v",
+          "verifier_status": "declared",
+          "rationale": "The on_refusal branch: composition that needs no latent-space bridge. workflowrecipe typed ports already exist; the chain artifact makes composition content-addressed and replayable."
+        },
+        {
+          "id": "tier0-chain-viability",
+          "title": "Chain two real validated models and require held-out task gain over the single-model baseline beyond the observed envelope, or record a measured refusal; the probe records a generation record either way",
+          "status": "new",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestTier0ChainViability$' -count=1 -v -timeout 45m",
+          "verifier_status": "declared",
+          "depends_on": [
+            "tier0-chain-contract",
+            "evaluation-isolation",
+            "determinism-and-statistical-verdicts"
+          ],
+          "capabilities": [
+            "measures-held-out"
+          ],
+          "rationale": "The Tier-0 analogue of the pivot, under the same probe discipline: pre-written envelope threshold, recorded budget, refusal as loud as ship, generation record committed through the existing author."
+        },
+        {
+          "id": "adapter-retrial-probe",
+          "title": "Re-rank the adapter tier against its measured failure mode: rerun bridge-only Muon at a lower learning rate and longer budget under a NEW recorded protocol via cmd/graft-probe; two refusals retire the tier, a ship re-opens it",
+          "status": "new",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAdapterRetrialProbe$' -count=1 -v -timeout 60m",
+          "verifier_status": "declared",
+          "capabilities": [
+            "measures-held-out"
+          ],
+          "rationale": "The pivot's failure mode was optimizer step-size dominance at the 6-step budget, not proven non-viability; the on_refusal branch re-ranks rather than deletes. One retrial under a corrected protocol produces the second measurement the tier's fate needs.",
+          "depends_on": [
+            "composition-viability",
+            "evaluation-isolation",
+            "determinism-and-statistical-verdicts"
+          ]
+        },
         {
           "id": "component-catalog",
           "title": "Populate the store component catalog across every validated model and repoint the similarity endpoint at the store pool so retrieval is cross-model and inspectable",
           "status": "new",
           "verify": "go test ./internal/server -run '^TestSimilarComponentsSpanStoreCatalog$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["component-decomposition"],
+          "depends_on": [
+            "component-decomposition"
+          ],
           "cost": "near-zero if cmd/model-characterize is folded into the in-progress validation pass",
           "rationale": "analyze_tensors.go:113 sources its pool from characterizeLoadedModel, so similarity is within-model only. The pool source changes, the algorithm does not."
         },
@@ -253,7 +357,11 @@
           "status": "new",
           "verify": "go test ./internal/... -run '^TestBridgeProposalBlocksWithoutVerifier$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["refusal-ledger", "component-catalog", "composition-viability"],
+          "depends_on": [
+            "refusal-ledger",
+            "component-catalog",
+            "composition-viability"
+          ],
           "port_source": "adaptive_new go/extmodel/hdc.go CandidateRecipeBridges; verifiers organ_contract_parity / universal_optimizer_bridge_parity / paired_bridge_semantic"
         },
         {
@@ -262,8 +370,16 @@
           "status": "new",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestBridgeSynthesisProducesEvidenceOrRefusal$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["composition-viability", "bridge-proposal", "experiment-lifecycle", "bounded-exploration-budget", "runtime-resource-scheduler"],
-          "capabilities": ["executes-autonomously"],
+          "depends_on": [
+            "composition-viability",
+            "bridge-proposal",
+            "experiment-lifecycle",
+            "bounded-exploration-budget",
+            "runtime-resource-scheduler"
+          ],
+          "capabilities": [
+            "executes-autonomously"
+          ],
           "closes_operator": "bridge"
         },
         {
@@ -272,7 +388,10 @@
           "status": "new",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestComposedArtifactExecutesAndResolvesLineage$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["bridge-synthesis", "construction-profile-bridge"],
+          "depends_on": [
+            "bridge-synthesis",
+            "construction-profile-bridge"
+          ],
           "closes_operator": "compose",
           "rationale": "Revision 1 listed compose as missing and never closed it. A trained adapter is not an assembled model; without this row nothing produces the descendant artifact that descendant-improvement measures."
         },
@@ -282,7 +401,10 @@
           "status": "new",
           "verify": "go test ./internal/... -run '^TestHypervectorRetrievalRanksKnownBridges$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["bridge-synthesis", "component-catalog"],
+          "depends_on": [
+            "bridge-synthesis",
+            "component-catalog"
+          ],
           "rationale": "Deliberately last in phase B. Do not automate selection before composition-viability establishes that selection matters and hand-run bridges reveal what ranking needs. The signals are complementary: lexical says what a tensor is called, distributional says how it behaves."
         }
       ]
@@ -307,8 +429,19 @@
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestControllerPromotionContract$' -count=1 -v",
           "verifier_status": "declared",
           "origin": "docs/plan.json",
-          "depends_on": ["construction-profile-bridge", "composition-viability", "typed-controller-action-language", "rollback-invariant-and-drill", "sealed-external-authority", "evaluation-isolation", "independent-rsi-admission"],
-          "capabilities": ["promotes-artifact", "measures-held-out"],
+          "depends_on": [
+            "construction-profile-bridge",
+            "composition-viability",
+            "typed-controller-action-language",
+            "rollback-invariant-and-drill",
+            "sealed-external-authority",
+            "evaluation-isolation",
+            "independent-rsi-admission"
+          ],
+          "capabilities": [
+            "promotes-artifact",
+            "measures-held-out"
+          ],
           "live_plan_conflict": "This row is dispatched in docs/plan.json now, but independent-rsi-admission does not exist. Until it does, 'champion/challenger promotion and rollback external to the model' is a naming convention rather than an enforced authority boundary. Either land independent-rsi-admission first or record explicitly that this controller's promotion is owner-authorized and not machine-separated."
         },
         {
@@ -326,8 +459,22 @@
           "verify": "go test ./internal/runrecord ./internal/trainingprogram -run '^TestRecursiveImprovementLineageAndExternalPromotion$' -count=1 -v",
           "verifier_status": "declared",
           "origin": "docs/plan.json (recursive-improvement-boundary)",
-          "depends_on": ["controller-promotion", "determinism-and-statistical-verdicts", "bounded-exploration-budget", "evaluation-isolation", "sealed-external-authority", "independent-rsi-admission", "experiment-lifecycle", "runtime-resource-scheduler"],
-          "capabilities": ["executes-autonomously", "promotes-artifact", "admits-without-human", "measures-held-out"],
+          "depends_on": [
+            "controller-promotion",
+            "determinism-and-statistical-verdicts",
+            "bounded-exploration-budget",
+            "evaluation-isolation",
+            "sealed-external-authority",
+            "independent-rsi-admission",
+            "experiment-lifecycle",
+            "runtime-resource-scheduler"
+          ],
+          "capabilities": [
+            "executes-autonomously",
+            "promotes-artifact",
+            "admits-without-human",
+            "measures-held-out"
+          ],
           "note": "Host-only verify: this validates the lineage and admission CONTRACT, not that improvement occurred. descendant-improvement tests the outcome."
         },
         {
@@ -336,8 +483,15 @@
           "status": "new",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestDescendantBeatsParent$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["bounded-controller-trials", "compose-model-artifact", "evaluation-isolation"],
-          "capabilities": ["promotes-artifact", "measures-held-out"],
+          "depends_on": [
+            "bounded-controller-trials",
+            "compose-model-artifact",
+            "evaluation-isolation"
+          ],
+          "capabilities": [
+            "promotes-artifact",
+            "measures-held-out"
+          ],
           "rationale": "First row whose passing means actual self-improvement occurred rather than that the contract holds. Generation depth 1."
         }
       ]
@@ -347,7 +501,10 @@
       "title": "Phase D -- deepen RSI by promoting operators from code into declarative, schema-versioned artifacts consumed by trusted Go interpreters",
       "status": "open",
       "constraint": "Phase D artifacts are declarative INPUTS to trusted Go interpreters, never executable logic. A candidate must never promote a new evaluator or gate using that same new evaluator or gate: generation N-1 authority approves generation N.",
-      "phase_capabilities": ["promotes-artifact", "admits-without-human"],
+      "phase_capabilities": [
+        "promotes-artifact",
+        "admits-without-human"
+      ],
       "phase_capabilities_note": "Declared once here rather than repeated on five rows. Expansion rule: a row's effective capability set is the union of its own capabilities and its item's phase_capabilities. This is shorthand for per-row declaration, not a phase-keyed safety rule -- phase membership still confers nothing by itself.",
       "steps": [
         {
@@ -357,7 +514,9 @@
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/scratchmodel -run '^TestDerivationProfilePromotedByDescendantQuality$' -count=1 -v",
           "verifier_status": "declared",
           "improves": "how the system constructs models",
-          "depends_on": ["descendant-improvement"],
+          "depends_on": [
+            "descendant-improvement"
+          ],
           "rationale": "AdaptiveDerivationProfile() returns eight pinned scalars frozen to reproduce the adaptive oracle. Promotion to artifact closes eight magic rows by derivation rather than a better story -- the RSI loop satisfies Magic Discipline as a side effect."
         },
         {
@@ -367,7 +526,11 @@
           "verify": "go test ./internal/... -run '^TestEvaluatorRanksKnownOutcomesUnderPriorAuthority$' -count=1 -v",
           "verifier_status": "declared",
           "improves": "how the system judges",
-          "depends_on": ["sealed-external-authority", "evaluation-isolation", "descendant-improvement"],
+          "depends_on": [
+            "sealed-external-authority",
+            "evaluation-isolation",
+            "descendant-improvement"
+          ],
           "rationale": "The classic RSI failure is a system improving its evaluator into one that approves everything. Safe only because the ranking set is externally sourced and unauthorable, and because the approving authority predates the candidate."
         },
         {
@@ -377,7 +540,10 @@
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/trainingprogram -run '^TestComposedObjectiveProducesBetterDescendant$' -count=1 -v",
           "verifier_status": "declared",
           "improves": "what the system optimizes",
-          "depends_on": ["objective-breadth", "descendant-improvement"]
+          "depends_on": [
+            "objective-breadth",
+            "descendant-improvement"
+          ]
         },
         {
           "id": "proposal-ranking-from-outcomes",
@@ -386,7 +552,12 @@
           "verify": "go test ./internal/... -run '^TestProposalRankingImprovesOnRefusalHistory$' -count=1 -v",
           "verifier_status": "declared",
           "improves": "how the system proposes",
-          "depends_on": ["hdc-retrieval", "refusal-ledger", "evaluation-isolation", "descendant-improvement"],
+          "depends_on": [
+            "hdc-retrieval",
+            "refusal-ledger",
+            "evaluation-isolation",
+            "descendant-improvement"
+          ],
           "rationale": "Where refusal records stop being an audit trail and become the most valuable dataset in the store: passed and refused bridges are labelled data no external source can supply. Must respect proposer blinding -- the ranking trains on refusal reasons, never on promotion or audit split results."
         },
         {
@@ -396,7 +567,10 @@
           "verify": "go test ./internal/plan -run '^TestSchedulerRankedByRealizedDelta$' -count=1 -v",
           "verifier_status": "declared",
           "improves": "how the system allocates its own effort",
-          "depends_on": ["runtime-resource-scheduler", "descendant-improvement"]
+          "depends_on": [
+            "runtime-resource-scheduler",
+            "descendant-improvement"
+          ]
         }
       ]
     },
@@ -428,7 +602,9 @@
           "status": "new",
           "verify": "go test ./internal/plan -run '^TestExplorationBudgetTokensEnforced$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["evaluation-isolation"],
+          "depends_on": [
+            "evaluation-isolation"
+          ],
           "rationale": "Bounded autonomy is the only kind that can be left running unattended. Query counts, GPU-hours and later resource dimensions use one common immutable budget/token mechanism with typed units, owner, subject, issued amount, consumed amount, expiry and external override evidence."
         },
         {
@@ -445,7 +621,10 @@
           "status": "new",
           "verify": "go test ./internal/plan -run '^TestExperimentLeaseLifecycleAndMeasurement$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["experiment-generation-record", "experiment-lifecycle"],
+          "depends_on": [
+            "experiment-generation-record",
+            "experiment-lifecycle"
+          ],
           "rationale": "cmd/plan -lease-report covers worktree/resource advisory leases for development. Runtime experiments need their own lease projection, but both consumers should reuse common resource request and measured-outcome primitives now that the abstraction has two real owners. Experiment-specific lifecycle state stays in runrecord; plan owns recommendation and capacity assessment."
         }
       ]
@@ -453,16 +632,59 @@
   ],
   "execution_order": {
     "derivation": "Stages are DERIVED from depends_on (stage = 1 + max stage of dependencies), then filtered to exclude rows listed in landed. Regenerated by the validator, never hand-authored; a mismatch between stored and recomputed stages is a validation failure. Stage numbers are dependency-depth labels, not global barriers: a row becomes ready when its own dependency closure is satisfied even if unrelated rows at lower stages remain open. Rows within a stage have no ordering constraint and may run in parallel.",
-    "stage_1": ["construction-profile-bridge", "independent-rsi-admission", "roadmap-validator", "rollback-invariant-and-drill", "sealed-external-authority", "typed-controller-action-language"],
-    "stage_2": ["bounded-exploration-budget", "component-catalog", "experiment-lifecycle"],
-    "stage_3": ["bridge-proposal", "controller-promotion", "runtime-resource-scheduler"],
-    "stage_4": ["bounded-controller-trials", "bridge-synthesis"],
-    "stage_5": ["compose-model-artifact", "hdc-retrieval"],
-    "stage_6": ["descendant-improvement"],
-    "stage_7": ["derivation-profile-as-artifact", "evaluator-as-artifact", "objective-composition", "proposal-ranking-from-outcomes", "scheduler-as-artifact"],
+    "stage_1": [
+      "construction-profile-bridge",
+      "independent-rsi-admission",
+      "roadmap-validator",
+      "rollback-invariant-and-drill",
+      "sealed-external-authority",
+      "tier0-chain-contract",
+      "typed-controller-action-language"
+    ],
+    "stage_2": [
+      "bounded-exploration-budget",
+      "component-catalog",
+      "experiment-lifecycle",
+      "tier0-chain-viability"
+    ],
+    "stage_3": [
+      "adapter-retrial-probe",
+      "bridge-proposal",
+      "controller-promotion",
+      "runtime-resource-scheduler"
+    ],
+    "stage_4": [
+      "bounded-controller-trials",
+      "bridge-synthesis"
+    ],
+    "stage_5": [
+      "compose-model-artifact",
+      "hdc-retrieval"
+    ],
+    "stage_6": [
+      "descendant-improvement"
+    ],
+    "stage_7": [
+      "derivation-profile-as-artifact",
+      "evaluator-as-artifact",
+      "objective-composition",
+      "proposal-ranking-from-outcomes",
+      "scheduler-as-artifact"
+    ],
     "priority_within_stage": "Stage 2: composition-viability first because it is the cheapest high-information experiment; production-consumer-census remains the prerequisite for the narrow unconsumed-surface admission in stage 3. Admission gates landing, not numerical design.",
     "bootstrap_exception": "The owner authorizes roadmap-validator once; later roadmap promotion is mechanical.",
-    "landed": ["multimodal-objectives", "objective-breadth", "production-consumer-census", "unconsumed-surface-admission", "composition-viability", "experiment-generation-record", "refusal-ledger", "determinism-and-statistical-verdicts", "evaluation-isolation", "component-decomposition"]
+    "landed": [
+      "multimodal-objectives",
+      "objective-breadth",
+      "production-consumer-census",
+      "unconsumed-surface-admission",
+      "composition-viability",
+      "experiment-generation-record",
+      "refusal-ledger",
+      "determinism-and-statistical-verdicts",
+      "evaluation-isolation",
+      "component-decomposition"
+    ]
   },
   "open_risks": [
     "The empirical bet is untested: no evidence in overgo or adaptive_new that organ-level composition yields working models. adaptive_new carries the machinery and verifiers but no observed promoted bridge.",

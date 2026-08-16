@@ -58,17 +58,8 @@ type AttentionBlock struct {
 	End   uint32
 }
 
-type ImageProjector interface {
-	BuildImagePrompt(context.Context, ImageTokenizer, image.Image, string, string, bool) (MultimodalPrompt, error)
-	Close() error
-}
-
 type Projector interface {
 	Close() error
-}
-
-type MultiImageProjector interface {
-	BuildImagesPrompt(context.Context, ImageTokenizer, []image.Image, []string, PromptOptions) (MultimodalPrompt, error)
 }
 
 type PromptOptions struct {
@@ -119,20 +110,6 @@ func (input MediaInput) validate(family string, index int) error {
 		return fmt.Errorf("projector: unsupported %s media kind %d", family, input.Kind)
 	}
 	return nil
-}
-
-type MediaHistoryProjector interface {
-	BuildMediaHistoryPrompt(context.Context, ImageTokenizer, []MediaInput, []string) (MultimodalPrompt, error)
-}
-
-type AudioProjector interface {
-	BuildAudioPrompt(context.Context, ImageTokenizer, []float32, string, string) (MultimodalPrompt, error)
-	Close() error
-}
-
-type VideoProjector interface {
-	BuildVideoPrompt(context.Context, ImageTokenizer, []image.Image, string, string, float64, bool) (MultimodalPrompt, error)
-	Close() error
 }
 
 type OpenOptions struct {
@@ -423,33 +400,14 @@ func resolveProjectorDescriptor(file *gguf.File) (projectorDescriptor, error) {
 	return projectorDescriptor{}, fmt.Errorf("projector: artifact projector type %q is unsupported", projectorType)
 }
 
-func (r *Granite4VisionRunner) BuildImagePrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	_ bool,
-) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
-}
-
-func (r *Granite4VisionRunner) BuildImagesPrompt(
+func (r *Granite4VisionRunner) imagesPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
 	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
-}
-
-func (r *Granite4VisionRunner) buildImagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	history bool,
-) (MultimodalPrompt, error) {
+	history := options.History
 	plan := imagePromptPlan{
 		Family: "Granite 4 Vision", Placeholder: Granite4VisionImageToken,
 		PlaceholderLabel: "Granite 4 Vision image token", AddSpecial: history,
@@ -486,33 +444,14 @@ func (r *Granite4VisionRunner) buildImagesPrompt(
 	})
 }
 
-func (r *Llama4VisionRunner) BuildImagePrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	_ bool,
-) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
-}
-
-func (r *Llama4VisionRunner) BuildImagesPrompt(
+func (r *Llama4VisionRunner) imagesPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
 	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
-}
-
-func (r *Llama4VisionRunner) buildImagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	history bool,
-) (MultimodalPrompt, error) {
+	history := options.History
 	plan := imagePromptPlan{
 		Family: "Llama-4", Placeholder: Llama4ImagePad, PlaceholderLabel: "Llama-4 placeholder",
 		AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden,
@@ -543,33 +482,14 @@ func (r *Llama4VisionRunner) buildImagesPrompt(
 	})
 }
 
-func (r *HunyuanVLRunner) BuildImagePrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	_ bool,
-) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
-}
-
-func (r *HunyuanVLRunner) BuildImagesPrompt(
+func (r *HunyuanVLRunner) imagesPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
 	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
-}
-
-func (r *HunyuanVLRunner) buildImagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	history bool,
-) (MultimodalPrompt, error) {
+	history := options.History
 	plan := imagePromptPlan{
 		Family: "Hunyuan-VL", Placeholder: HunyuanVLImagePad, PlaceholderLabel: "Hunyuan-VL placeholder",
 		AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden, Positions: hunyuanImagePromptPositions,
@@ -603,33 +523,14 @@ func (r *HunyuanVLRunner) buildImagesPrompt(
 	})
 }
 
-func (r *PaddleOCRRunner) BuildImagePrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	_ bool,
-) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
-}
-
-func (r *PaddleOCRRunner) BuildImagesPrompt(
+func (r *PaddleOCRRunner) imagesPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
 	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
-}
-
-func (r *PaddleOCRRunner) buildImagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	history bool,
-) (MultimodalPrompt, error) {
+	history := options.History
 	plan := imagePromptPlan{
 		Family: "PaddleOCR", Placeholder: PaddleOCRImagePad, PlaceholderLabel: "PaddleOCR placeholder",
 		AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden, Positions: qwenImagePromptPositions,
@@ -670,33 +571,14 @@ func (r *PaddleOCRRunner) buildImagesPrompt(
 	})
 }
 
-func (r *MiMoVLRunner) BuildImagePrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	_ bool,
-) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
-}
-
-func (r *MiMoVLRunner) BuildImagesPrompt(
+func (r *MiMoVLRunner) imagesPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
 	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
-}
-
-func (r *MiMoVLRunner) buildImagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	history bool,
-) (MultimodalPrompt, error) {
+	history := options.History
 	plan := imagePromptPlan{
 		Family: "MiMo-VL", Placeholder: Qwen3VLImagePad, PlaceholderLabel: "MiMo-VL placeholder",
 		AddSpecial: history, EmbeddingWidth: r.spec.ProjectionDim,
@@ -729,43 +611,14 @@ func (r *MiMoVLRunner) buildImagesPrompt(
 	})
 }
 
-func (r *Qwen3VLRunner) BuildImagePrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	thinking bool,
-) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{Thinking: thinking})
-}
-
-func (r *Qwen2VLRunner) BuildImagePrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	_ bool,
-) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
-}
-
-func (r *Qwen2VLRunner) BuildImagesPrompt(
+func (r *Qwen2VLRunner) imagesPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	sources []image.Image,
 	text []string,
 	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
-}
-
-func (r *Qwen2VLRunner) buildImagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	history bool,
-) (MultimodalPrompt, error) {
+	history := options.History
 	plan := qwenImagePlan("Qwen2-VL", history, r.spec.OutputHidden, func(text []string, items []imagePromptItem) string {
 		return renderQwenImagePrompt(text, items, history, "<|im_end|>\n<|im_start|>assistant\n")
 	})
@@ -778,7 +631,7 @@ func (r *Qwen2VLRunner) buildImagesPrompt(
 	})
 }
 
-func (r *Qwen2VLRunner) BuildVideoPrompt(
+func (r *Qwen2VLRunner) videoPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	frames []image.Image,
@@ -810,17 +663,7 @@ func (r *Qwen2VLRunner) BuildVideoPrompt(
 	})
 }
 
-func (r *Gemma4Runner) BuildImagePrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	source image.Image,
-	beforeImage, afterImage string,
-	_ bool,
-) (MultimodalPrompt, error) {
-	return r.BuildImagesPrompt(ctx, tokenizer, []image.Image{source}, []string{beforeImage, afterImage}, PromptOptions{})
-}
-
-func (r *Gemma4Runner) BuildImagesPrompt(
+func (r *Gemma4Runner) imagesPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	sources []image.Image,
@@ -877,7 +720,7 @@ func (r *Gemma4Runner) gemma4ImagePromptItem(ctx context.Context, source image.I
 	}, nil
 }
 
-func (r *Gemma4Runner) BuildMediaHistoryPrompt(
+func (r *Gemma4Runner) mediaHistoryPrompt(
 	ctx context.Context,
 	tokenizerAPI ImageTokenizer,
 	media []MediaInput,
@@ -914,13 +757,7 @@ func (r *Gemma4Runner) BuildMediaHistoryPrompt(
 	return executeMixedMediaPromptPlan(ctx, tokenizerAPI, media, text, plan)
 }
 
-func Gemma4ImagePromptText(question string, imageTokens int) string {
-	return "<bos><|turn>user\n<|image>" + strings.Repeat("<|image|>", imageTokens) +
-		"<image|>" + strings.TrimSpace(question) +
-		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
-}
-
-func (r *Gemma4Runner) BuildAudioPrompt(
+func (r *Gemma4Runner) audioPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	samples []float32,
@@ -953,7 +790,7 @@ func Gemma4AudioPromptText(question string, audioTokens int) string {
 		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
 }
 
-func (r *Gemma4Runner) BuildVideoPrompt(
+func (r *Gemma4Runner) videoPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	frames []image.Image,
@@ -1002,7 +839,7 @@ func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps floa
 	return prompt.String()
 }
 
-func (r *Qwen3VLRunner) BuildImagesPrompt(
+func (r *Qwen3VLRunner) imagesPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	sources []image.Image,
@@ -1028,7 +865,7 @@ func (r *Qwen3VLRunner) BuildImagesPrompt(
 	})
 }
 
-func (r *Qwen3VLRunner) BuildVideoPrompt(
+func (r *Qwen3VLRunner) videoPrompt(
 	ctx context.Context,
 	tokenizer ImageTokenizer,
 	frames []image.Image,
@@ -1064,21 +901,6 @@ func (r *Qwen3VLRunner) BuildVideoPrompt(
 			return Qwen3VLMultiChunkPositions(tokenCount, starts, perGroup, rows, columns)
 		},
 	})
-}
-
-func Qwen35ImagePromptText(beforeImage, afterImage string, imageTokens int, thinking bool) string {
-	var prompt strings.Builder
-	prompt.WriteString("<|im_start|>user\n")
-	prompt.WriteString(beforeImage)
-	prompt.WriteString("<|vision_start|>")
-	prompt.WriteString(strings.Repeat(Qwen3VLImagePad, imageTokens))
-	prompt.WriteString("<|vision_end|>")
-	prompt.WriteString(afterImage)
-	prompt.WriteString("<|im_end|>\n<|im_start|>assistant\n<think>\n")
-	if !thinking {
-		prompt.WriteString("\n</think>\n\n")
-	}
-	return prompt.String()
 }
 
 func Qwen35VideoPromptText(beforeVideo, afterVideo string, groups, tokensPerGroup int, fps float64, thinking bool) string {

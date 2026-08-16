@@ -37,13 +37,14 @@ type Clone struct {
 }
 
 type Profile struct {
-	Production           Partition  `json:"production"`
-	Test                 Partition  `json:"test"`
-	Functions            []Function `json:"functions"`
-	Clones               []Clone    `json:"clones"`
-	DuplicateExcessNodes int        `json:"duplicate_excess_nodes"`
-	ExportedDeclarations int        `json:"exported_declarations"`
-	PackageImportEdges   int        `json:"package_import_edges"`
+	Production           Partition       `json:"production"`
+	Test                 Partition       `json:"test"`
+	Functions            []Function      `json:"functions"`
+	Clones               []Clone         `json:"clones"`
+	DuplicateExcessNodes int             `json:"duplicate_excess_nodes"`
+	ExportedDeclarations int             `json:"exported_declarations"`
+	PackageImportEdges   int             `json:"package_import_edges"`
+	Consumers            ConsumerSummary `json:"consumers"`
 }
 
 func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {

@@ -17,6 +17,10 @@ import (
 type BuildSelection struct {
 	Context string
 	Files   map[string]bool
+	// Packages maps repository files to the import path selected by go list.
+	// It lets AST consumers resolve import aliases without rediscovering module
+	// layout or maintaining package-path tables.
+	Packages map[string]string
 }
 
 // HostBuildSelection derives file membership through the Go toolchain so build
@@ -30,13 +34,14 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 	if err != nil {
 		return BuildSelection{}, err
 	}
-	selection := BuildSelection{Files: map[string]bool{}}
+	selection := BuildSelection{Files: map[string]bool{}, Packages: map[string]string{}}
 	if context, err := goOutput(root, "env", "GOOS", "GOARCH"); err == nil {
 		selection.Context = strings.Join(strings.Fields(context), "/")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(output))
 	for {
 		var pkg struct {
+			ImportPath                                                   string
 			Dir                                                          string
 			GoFiles, CgoFiles, TestGoFiles, XTestGoFiles, IgnoredGoFiles []string
 		}
@@ -47,13 +52,13 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 		}
 		for _, names := range [][]string{pkg.GoFiles, pkg.CgoFiles, pkg.TestGoFiles, pkg.XTestGoFiles} {
 			for _, name := range names {
-				if err := recordBuildFile(root, pkg.Dir, name, true, selection.Files); err != nil {
+				if err := recordBuildFile(root, pkg.Dir, pkg.ImportPath, name, true, selection); err != nil {
 					return BuildSelection{}, err
 				}
 			}
 		}
 		for _, name := range pkg.IgnoredGoFiles {
-			if err := recordBuildFile(root, pkg.Dir, name, false, selection.Files); err != nil {
+			if err := recordBuildFile(root, pkg.Dir, pkg.ImportPath, name, false, selection); err != nil {
 				return BuildSelection{}, err
 			}
 		}
@@ -61,7 +66,7 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 	return selection, nil
 }
 
-func recordBuildFile(root, directory, name string, selected bool, files map[string]bool) error {
+func recordBuildFile(root, directory, packagePath, name string, selected bool, selection BuildSelection) error {
 	relative, err := filepath.Rel(root, filepath.Join(directory, name))
 	if err != nil {
 		return err
@@ -69,7 +74,9 @@ func recordBuildFile(root, directory, name string, selected bool, files map[stri
 	if relative == ".." || filepath.IsAbs(relative) || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return fmt.Errorf("build file %s escapes repository", name)
 	}
-	files[filepath.ToSlash(relative)] = selected
+	path := filepath.ToSlash(relative)
+	selection.Files[path] = selected
+	selection.Packages[path] = packagePath
 	return nil
 }
 

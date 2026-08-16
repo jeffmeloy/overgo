@@ -31,7 +31,7 @@ func TestASTStructuralProfileGate(t *testing.T) {
 	}
 	g := gateContext{repo: root, paths: []string{"internal/p/p.go"}}
 	skipped, err := g.stepProfile()
-	if err != nil || skipped || len(g.honesty) != 3 || !strings.Contains(g.honesty[0], "production=1 files") ||
+	if err != nil || skipped || len(g.honesty) < 4 || !strings.Contains(g.honesty[0], "production=1 files") ||
 		!strings.Contains(g.honesty[1], "delta vs HEAD") {
 		t.Fatalf("profile step = skipped %v, err %v, honesty %v", skipped, err, g.honesty)
 	}

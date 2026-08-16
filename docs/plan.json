@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "tighten-publication-safety",
-          "title": "Refuse inactive or multi-context reducer edits, resolve imports through repoanalysis, and recover interrupted publications",
-          "status": "open",
-          "verify": "go test ./cmd/tighten ./internal/repoanalysis -run '^TestTightenBuildContextAndPublicationSafety$' -count=1 -v"
-        },
-        {
           "id": "automation-roi",
           "title": "Project commit-local and cumulative plan-slice automation production surface against verified repository deletion",
           "status": "open",

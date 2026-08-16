@@ -4,11 +4,10 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"path"
 	"strconv"
 )
 
-func cleanupSource(data []byte) ([]byte, error) {
+func cleanupSource(data []byte, packageNames map[string]string) ([]byte, error) {
 	set := token.NewFileSet()
 	file, err := parser.ParseFile(set, "", data, parser.ParseComments)
 	if err != nil {
@@ -36,9 +35,9 @@ func cleanupSource(data []byte) ([]byte, error) {
 			if spec.Name != nil {
 				name = spec.Name.Name
 			} else if imported, err := strconv.Unquote(spec.Path.Value); err == nil {
-				name = path.Base(imported)
+				name = packageNames[imported]
 			}
-			if name != "_" && name != "." && !used[name] {
+			if name != "" && name != "_" && name != "." && !used[name] {
 				unused = append(unused, raw)
 			}
 		}

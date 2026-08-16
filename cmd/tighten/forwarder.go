@@ -39,6 +39,7 @@ type sourceFile struct {
 	repoanalysis.GoFile
 	syntax     *ast.File
 	generated  bool
+	selected   bool
 	parents    map[ast.Node]ast.Node
 	references map[string][]*ast.Ident
 	shadowed   map[string]bool
@@ -56,13 +57,17 @@ type edit struct {
 
 type candidate struct {
 	proposal
-	wrapper declaration
-	edits   map[string][]edit
+	wrapper      declaration
+	edits        map[string][]edit
+	packageNames map[string]string
 }
 
 // apply migrates every direct caller, deletes the selected wrapper, and keeps
 // the edit only when the affected package tests pass and its AST surface falls.
 func apply(root, id string) (proposal, error) {
+	if err := recoverPublication(root); err != nil {
+		return proposal{}, err
+	}
 	candidates, err := discover(root)
 	if err != nil {
 		return proposal{}, err
@@ -94,26 +99,21 @@ func apply(root, id string) (proposal, error) {
 		if err != nil {
 			return proposal{}, fmt.Errorf("tighten %s: %w", name, err)
 		}
-		updated, err = cleanupSource(updated)
+		updated, err = cleanupSource(updated, selected.packageNames)
 		if err != nil {
 			return proposal{}, fmt.Errorf("tighten cleanup %s: %w", name, err)
 		}
 		updates[name] = updated
 	}
-	for name, updated := range updates {
-		path := filepath.Join(root, filepath.FromSlash(name))
-		var err error
-		if updated == nil {
-			err = os.Remove(path)
-		} else {
-			err = os.WriteFile(path, updated, fileMode(path))
-		}
-		if err != nil {
-			return proposal{}, errors.Join(err, restore(root, originals))
-		}
+	publication, err := beginPublication(root, originals, updates)
+	if err != nil {
+		return proposal{}, err
+	}
+	if err := publication.publish(0); err != nil {
+		return proposal{}, errors.Join(err, publication.rollback())
 	}
 	rollback := func(err error) (proposal, error) {
-		return proposal{}, errors.Join(err, restore(root, originals))
+		return proposal{}, errors.Join(err, publication.rollback())
 	}
 	command := exec.Command("go", "test", packagePattern(selected.Package), "-count=1")
 	command.Dir = root
@@ -129,6 +129,9 @@ func apply(root, id string) (proposal, error) {
 	if afterNodes >= beforeNodes || selected.Action == forwarderAction && len(after.Functions) >= len(before.Functions) {
 		return rollback(fmt.Errorf("reduction did not lower package AST surface: nodes %d -> %d, functions %d -> %d", beforeNodes, afterNodes, len(before.Functions), len(after.Functions)))
 	}
+	if err := publication.finish(); err != nil {
+		return rollback(err)
+	}
 	return selected.proposal, nil
 }
 
@@ -137,7 +140,16 @@ func discover(root string) ([]candidate, error) {
 	if err != nil {
 		return nil, err
 	}
+	selection, err := repoanalysis.HostBuildSelection(root, "./...")
+	if err != nil {
+		return nil, err
+	}
+	packageNames, err := repoanalysis.PackageNames(snapshot, selection)
+	if err != nil {
+		return nil, err
+	}
 	groups := map[string][]*sourceFile{}
+	multipleContexts := map[string]bool{}
 	for index := range snapshot.Files {
 		file := &snapshot.Files[index]
 		if (file.Test && !strings.HasSuffix(file.Path, "_test.go")) || strings.Contains("/"+filepath.ToSlash(file.Path)+"/", "/vendor/") {
@@ -152,14 +164,17 @@ func discover(root string) ([]candidate, error) {
 			return nil, err
 		}
 		parents, references, shadowed := indexSyntax(syntax)
-		source := &sourceFile{GoFile: *file, syntax: syntax, generated: generated, parents: parents, references: references, shadowed: shadowed}
+		selected, known := selection.Files[file.Path]
+		source := &sourceFile{GoFile: *file, syntax: syntax, generated: generated, selected: known && selected,
+			parents: parents, references: references, shadowed: shadowed}
 		key := filepath.ToSlash(filepath.Dir(file.Path)) + "\x00" + syntax.Name.Name
 		groups[key] = append(groups[key], source)
+		multipleContexts[key] = multipleContexts[key] || !source.selected
 	}
 	found := []candidate{}
 	for key, files := range groups {
 		packagePath, _, _ := strings.Cut(key, "\x00")
-		if hasAssembly(root, packagePath) {
+		if hasAssembly(root, packagePath) || multipleContexts[key] {
 			continue
 		}
 		declarations := collectDeclarations(files)
@@ -179,6 +194,7 @@ func discover(root string) ([]candidate, error) {
 			value, ok := buildCandidate(packagePath, files, wrapper, target)
 			if ok {
 				value.Action = forwarderAction
+				value.packageNames = packageNames
 				found = append(found, value)
 			}
 		}
@@ -188,6 +204,9 @@ func discover(root string) ([]candidate, error) {
 		return nil, err
 	}
 	found = append(found, consumers...)
+	for index := range found {
+		found[index].packageNames = packageNames
+	}
 	sort.Slice(found, func(i, j int) bool { return found[i].ID < found[j].ID })
 	return found, nil
 }
@@ -414,15 +433,4 @@ func fileMode(path string) os.FileMode {
 		return 0o644
 	}
 	return info.Mode()
-}
-
-func restore(root string, originals map[string][]byte) error {
-	var failures []error
-	for name, data := range originals {
-		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.WriteFile(path, data, fileMode(path)); err != nil {
-			failures = append(failures, fmt.Errorf("restore %s: %w", name, err))
-		}
-	}
-	return errors.Join(failures...)
 }

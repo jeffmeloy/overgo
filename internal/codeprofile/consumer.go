@@ -62,13 +62,9 @@ type consumerIndex struct {
 // A nil changed set includes every production declaration.
 func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection, changed map[string]bool) ([]ConsumerDeclaration, ConsumerSummary, error) {
 	index := consumerIndex{keys: map[string][]int{}, methods: map[string][]int{}, objects: map[*ast.Object]int{}, definitions: map[*ast.Ident]bool{}}
-	packageNames := map[string]string{}
-	for _, source := range snapshot.Files {
-		file, err := source.Syntax()
-		if err != nil {
-			return nil, ConsumerSummary{}, err
-		}
-		packageNames[packagePath(source, file, selection)] = file.Name.Name
+	packageNames, err := repoanalysis.PackageNames(snapshot, selection)
+	if err != nil {
+		return nil, ConsumerSummary{}, err
 	}
 	for _, source := range snapshot.Files {
 		if source.Test || changed != nil && !changed[source.Path] {
@@ -195,11 +191,12 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 		if err != nil {
 			continue
 		}
-		alias := path.Base(importPath)
+		alias := packageNames[importPath]
 		if imported.Name != nil {
 			alias = imported.Name.Name
-		} else if name := packageNames[importPath]; name != "" {
-			alias = name
+		}
+		if alias == "" {
+			continue
 		}
 		aliases[alias] = importPath
 	}

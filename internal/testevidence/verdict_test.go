@@ -1,0 +1,60 @@
+package testevidence
+
+import (
+	"strings"
+	"testing"
+)
+
+func verdictEvidence(action string) string {
+	lines := []string{
+		`{"Action":"run","Package":"overgo/internal/example","Test":"TestStable"}`,
+		`{"Action":"pass","Package":"overgo/internal/example","Test":"TestStable"}`,
+		`{"Action":"run","Package":"overgo/internal/example","Test":"TestWatched"}`,
+		`{"Action":"` + action + `","Package":"overgo/internal/example","Test":"TestWatched"}`,
+		`{"Action":"pass","Package":"overgo/internal/example"}`,
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// TestVerdictClassificationAndRepeatAgreement pins the claim-verdict contract:
+// classification derives from observable command markers (device markers =>
+// tolerance-bounded, seed markers => stochastic-multi-seed, otherwise the
+// strictest bitwise-deterministic class), and a bitwise-deterministic claim's
+// two evidence runs must reach identical per-test verdicts -- a flipped or
+// vanished test is named, not averaged away.
+func TestVerdictClassificationAndRepeatAgreement(t *testing.T) {
+	classifications := []struct {
+		command string
+		want    VerdictClass
+	}{
+		{"go test ./internal/repodb -run '^TestStoreSnapshotRoundTrip$' -count=1 -v", VerdictBitwiseDeterministic},
+		{"grep -q 'modeltest' .github/workflows/test.yml", VerdictBitwiseDeterministic},
+		{"OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestComponentCompositionViability$' -count=1 -v", VerdictToleranceBounded},
+		{"OVERGO_SEALED_AUTHORITY_TEST=1 go test ./internal/protection -count=1", VerdictToleranceBounded},
+		{"go run ./cmd/device-lane", VerdictToleranceBounded},
+		{"OVERGO_SEEDS=3 go test ./internal/scratchmodel -run '^TestMultiSeedGain$' -count=1", VerdictStochasticMultiSeed},
+		{"go test ./internal/densecausal -run '^TestMultiSeedLossEnvelope$' -count=1 -v", VerdictStochasticMultiSeed},
+	}
+	for _, c := range classifications {
+		if got := ClassifyVerifyCommand(c.command); got != c.want {
+			t.Errorf("ClassifyVerifyCommand(%q) = %s, want %s", c.command, got, c.want)
+		}
+	}
+
+	if err := RepeatAgreement(verdictEvidence("pass"), verdictEvidence("pass")); err != nil {
+		t.Fatalf("identical runs disagreed: %v", err)
+	}
+	err := RepeatAgreement(verdictEvidence("pass"), verdictEvidence("fail"))
+	if err == nil || !strings.Contains(err.Error(), "TestWatched") ||
+		!strings.Contains(err.Error(), "pass") || !strings.Contains(err.Error(), "fail") {
+		t.Fatalf("flipped verdict not named: %v", err)
+	}
+	missing := strings.ReplaceAll(verdictEvidence("pass"), `"Test":"TestWatched"`, `"Test":"TestStable"`)
+	if err := RepeatAgreement(verdictEvidence("pass"), missing); err == nil ||
+		!strings.Contains(err.Error(), "absent") {
+		t.Fatalf("vanished test not reported as absent: %v", err)
+	}
+	if err := RepeatAgreement("not json", verdictEvidence("pass")); err == nil {
+		t.Fatal("undecodable first evidence accepted")
+	}
+}

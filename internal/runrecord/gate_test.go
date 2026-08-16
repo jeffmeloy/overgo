@@ -173,3 +173,36 @@ func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 		t.Fatal("unbound gate/run pair accepted")
 	}
 }
+
+func TestVerifyFailedGateRun(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "failed-recipe")
+	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "failed-environment")
+	testutil.PublishArtifact(t, store, recipeID)
+	testutil.PublishArtifact(t, store, environmentID)
+	record, err := NewGateRecord(
+		recipeID, environmentID, fixtureCodeCommit, OutcomeFailed, "exact-mismatch", 1,
+		[]GateStep{{Name: "verify", Phase: PhaseTest, Outcome: StepFailed, DurationNS: 1}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := record.Batch("fixture/failed-verification")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyFailedGateRun(ctx, store, recipeID, record.Result.ID, record.Run.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyGateRun(ctx, store, recipeID, record.Result.ID, record.Run.ID); err == nil {
+		t.Fatal("failed evidence accepted as successful")
+	}
+}

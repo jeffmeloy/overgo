@@ -1358,9 +1358,27 @@ func (g *gateContext) stepDevice() (bool, error) {
 }
 
 func (g *gateContext) stepAcceptance() (bool, error) {
-	g.stepEvidence["acceptance"] = g.planRef
+	// cmd/plan -verify owns the verdict contract: it classifies the claim
+	// (bitwise-deterministic / tolerance-bounded / stochastic-multi-seed) and
+	// repeats deterministic go-test claims requiring per-test agreement. The
+	// gate records the class alongside the plan reference.
+	g.stepEvidence["acceptance"] = g.planRef + " verdict=" + string(acceptanceVerdictClass(g.repo))
 	_, err := command(g.repo, "go", "run", "./cmd/plan", "-verify")
 	return false, err
+}
+
+// acceptanceVerdictClass classifies the current step's verify command; an
+// unreadable plan defaults to the strictest class.
+func acceptanceVerdictClass(repo string) testevidence.VerdictClass {
+	document, err := plan.Load(filepath.Join(repo, plan.Path))
+	if err != nil {
+		return testevidence.VerdictBitwiseDeterministic
+	}
+	_, step, open := plan.Current(document)
+	if !open {
+		return testevidence.VerdictBitwiseDeterministic
+	}
+	return testevidence.ClassifyVerifyCommand(step.Verify)
 }
 
 // pathsTouchDeviceSource: device-lane code lives outside internal/cuda too (e.g.

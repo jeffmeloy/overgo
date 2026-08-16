@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
@@ -152,6 +153,76 @@ func ActivateCapability(
 		return fmt.Errorf("model recipe: transition active: %w", err)
 	}
 	return nil
+}
+
+// RetireActiveCapability supersedes an invalid active recipe with failed proof.
+func RetireActiveCapability(
+	ctx context.Context,
+	store artifact.Repository,
+	candidate recipe.Definition,
+	verification Verification,
+	reason string,
+) error {
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("model recipe: retirement reason is empty")
+	}
+	activeID, active, err := artifact.ResolveAlias(ctx, store, activeAlias(candidate.Model, candidate.Task))
+	if err != nil {
+		return err
+	}
+	if !active {
+		return errors.New("model recipe: retirement requires an active recipe")
+	}
+	definition, err := loadDefinition(ctx, store, activeID)
+	if err != nil {
+		return err
+	}
+	current, err := currentEvent(ctx, store, definition.ID)
+	if err != nil {
+		return err
+	}
+	if current.To != recipe.StatusActive || definition.Model != candidate.Model || definition.Task != candidate.Task {
+		return errors.New("model recipe: retirement subject mismatch")
+	}
+	failed, err := runrecord.VerifyFailedGateRun(
+		ctx, store, candidate.ID, verification.Gate, verification.Run,
+	)
+	if err != nil {
+		return err
+	}
+	decision, err := recipe.NewDecision(
+		definition.ID, recipe.DecisionRefused, recipe.EvidenceExperimental, reason,
+		recipe.Decider{CodeCommit: failed.Gate.CodeCommit, Derivation: failed.Gate.ID},
+		[]artifact.ID{failed.Gate.ID, failed.Run.ID},
+	)
+	if err != nil {
+		return err
+	}
+	content, err := decision.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"recipe/retirement-decision/"+definition.ID.String()+"/"+decision.ID.String(),
+		[]artifact.Content{content},
+		[]artifact.Lineage{
+			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
+			{Child: decision.ID, Parent: failed.Gate.ID, Relation: artifact.RelationDependsOn},
+			{Child: decision.ID, Parent: failed.Run.ID, Relation: artifact.RelationDependsOn},
+		}, nil,
+	)
+	if err != nil {
+		return err
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		return err
+	}
+	_, _, err = Transition(
+		ctx, store, "recipe/retired/"+definition.ID.String()+"/"+decision.ID.String(),
+		definition, recipe.StatusSuperseded,
+		[]artifact.ID{decision.ID, failed.Gate.ID, failed.Run.ID}, nil,
+	)
+	return err
 }
 
 // reverifyActiveCapability: refresh proof after verifier-schema or code change.
@@ -360,8 +431,15 @@ type Activation struct {
 
 // HasActiveRecipe reports declaration only; ActiveRecord validates evidence.
 func HasActiveRecipe(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (bool, error) {
-	_, ok, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, task))
-	return ok, err
+	id, ok, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, task))
+	if err != nil || !ok {
+		return ok, err
+	}
+	status, published, err := Status(ctx, store, id)
+	if err != nil || !published {
+		return false, err
+	}
+	return status != recipe.StatusSuperseded && status != recipe.StatusRefused, nil
 }
 
 func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (Activation, bool, error) {

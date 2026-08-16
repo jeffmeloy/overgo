@@ -18,4 +18,6 @@ docs/plan_stop.json
 # transient loop-control markers
 docs/.dispatch_pending
 docs/.bounded_request
+docs/.loop_pause
+docs/loop.json
 bin/loophook.exe

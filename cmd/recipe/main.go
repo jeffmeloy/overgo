@@ -6,6 +6,8 @@
 //	                                        candidate execution evidence
 //	recipe activate -reason "..." -gate <id> -run-id <id> <model>
 //	                                        verified promotion
+//	recipe retire -reason "..." -gate <id> -run-id <id> <model>
+//	                                        measured refusal
 //	recipe status <model>                   show the active recipe and tier
 //
 // Model references resolve through the data-root contract. Activation consumes
@@ -43,7 +45,7 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: recipe <verify|activate|run|status> [options] <model>")
+		return errors.New("usage: recipe <verify|activate|retire|run|status> [options] <model>")
 	}
 	verb := os.Args[1]
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
@@ -139,6 +141,26 @@ func run() error {
 			return residencyErr
 		}
 		return activate(repository, path, *reason, sessionOverride, residency, verification)
+	case "retire":
+		if selectedTask != recipe.TaskInference {
+			return fmt.Errorf("retirement is unsupported for task %q", selectedTask)
+		}
+		if strings.TrimSpace(*reason) == "" {
+			return errors.New("retire requires -reason: the refusal records why")
+		}
+		verification, verificationErr := parseVerification(*gate, *runID)
+		if verificationErr != nil {
+			return verificationErr
+		}
+		sessionOverride, sessionErr := parseSessionOverride(*sessionFlag)
+		if sessionErr != nil {
+			return sessionErr
+		}
+		residency, residencyErr := parseResidency(*residencyFlag)
+		if residencyErr != nil {
+			return residencyErr
+		}
+		return retire(repository, path, *reason, sessionOverride, residency, verification)
 	case "run":
 		if !capabilityKnown || capability.execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
@@ -316,6 +338,36 @@ func publishCapabilityVerification(
 	wall time.Duration,
 	device, backend, evidence string,
 ) (modelrecipe.Verification, error) {
+	return publishCapabilityResult(
+		ctx, store, definition, revision, wall, device, backend, evidence,
+		runrecord.OutcomeSucceeded, "",
+	)
+}
+
+func publishCapabilityFailure(
+	ctx context.Context,
+	store artifact.Repository,
+	definition recipe.Definition,
+	revision string,
+	wall time.Duration,
+	device, backend, evidence, failure string,
+) (modelrecipe.Verification, error) {
+	return publishCapabilityResult(
+		ctx, store, definition, revision, wall, device, backend, evidence,
+		runrecord.OutcomeFailed, failure,
+	)
+}
+
+func publishCapabilityResult(
+	ctx context.Context,
+	store artifact.Repository,
+	definition recipe.Definition,
+	revision string,
+	wall time.Duration,
+	device, backend, evidence string,
+	outcome runrecord.Outcome,
+	failure string,
+) (modelrecipe.Verification, error) {
 	host, err := os.Hostname()
 	if err != nil {
 		host = "unknown"
@@ -328,12 +380,16 @@ func publishCapabilityVerification(
 		return modelrecipe.Verification{}, err
 	}
 	duration := uint64(max(wall.Nanoseconds(), 1))
+	stepOutcome := runrecord.StepSucceeded
+	if outcome == runrecord.OutcomeFailed {
+		stepOutcome = runrecord.StepFailed
+	}
 	record, err := runrecord.NewGateRecord(
 		definition.ID, environment.ID, revision,
-		runrecord.OutcomeSucceeded, "", duration,
+		outcome, failure, duration,
 		[]runrecord.GateStep{{
 			Name: "candidate-execution", Phase: runrecord.PhaseTest,
-			Outcome: runrecord.StepSucceeded, DurationNS: duration, Evidence: evidence,
+			Outcome: stepOutcome, DurationNS: duration, Evidence: evidence,
 		}},
 	)
 	if err != nil {
@@ -510,6 +566,31 @@ func activate(
 	}
 	fmt.Printf("activated %s\n  model      %s\n  definition %s\n  recipe     %s\n  reason     %s\n",
 		path, modelID, candidate.resolved.Document.ID, candidate.definition.ID, reason)
+	return nil
+}
+
+func retire(
+	repository, path, reason string,
+	override sessionOverride,
+	residency recipe.ResidencyPolicy,
+	verification modelrecipe.Verification,
+) error {
+	candidate, err := prepareInferenceCandidate(path, override, residency)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	store, err := repodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if err := modelrecipe.RetireActiveCapability(
+		ctx, store, candidate.definition, verification, reason,
+	); err != nil {
+		return err
+	}
+	fmt.Printf("retired %s\n  model  %s\n  reason %s\n", path, candidate.inventory.Manifest.ID, reason)
 	return nil
 }
 

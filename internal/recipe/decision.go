@@ -109,6 +109,12 @@ func canonicalizeDecision(decision *Decision) error {
 		(decision.Outcome == DecisionFailed || decision.Outcome == DecisionInapplicable || decision.Outcome == DecisionRefused) && decision.Reason == "" {
 		return errors.New("recipe: invalid decision reason")
 	}
+	// A refusal is a measured decision: prose alone cannot refuse. At least one
+	// evidence identity (the failed run, gate, or evaluation) must ground it, so
+	// the refusal ledger is queryable back to what was actually measured.
+	if decision.Outcome == DecisionRefused && len(decision.Evidence) == 0 {
+		return errors.New("recipe: refusal decision carries no measurement evidence")
+	}
 	if !validGitCommit(decision.Decider.CodeCommit) || !decision.Decider.Derivation.Valid() {
 		return errors.New("recipe: invalid decision decider")
 	}

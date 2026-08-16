@@ -1,0 +1,80 @@
+// Command graft-probe runs the composition-viability experiment from the
+// command line: graft one organ-classified donor MLP into a frozen target
+// behind a trainable bridge, train only the bridge with shared Muon, and print
+// the SHIP or REFUSE verdict with every measured loss. This is the manual,
+// human-reviewed entry point the composition-viability plan row requires.
+package main
+
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"overgo/internal/composition"
+	"overgo/internal/jsonfile"
+)
+
+func main() {
+	if err := run(os.Args[1:], os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, "graft-probe:", err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string, output io.Writer) error {
+	flags := flag.NewFlagSet("graft-probe", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	targetDir := flags.String("target", "", "target model directory (safetensors)")
+	donorDir := flags.String("donor", "", "donor model directory (safetensors)")
+	tokensPath := flags.String("tokens", "", "JSON array of token IDs; sliced into train and held-out windows")
+	graftLayer := flags.Int("layer", -1, "target graft layer (-1 = middle)")
+	donorLayer := flags.Int("donor-layer", -1, "donor component layer (-1 = middle)")
+	steps := flags.Int("steps", 6, "bridge Muon steps per seed")
+	window := flags.Int("window", 64, "tokens per batch window")
+	learningRate := flags.Float64("lr", 0, "bridge learning rate (<=0 derives n_params^-1/2)")
+	momentum := flags.Float64("mu", 0.9, "Muon momentum")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 || *targetDir == "" || *donorDir == "" || *tokensPath == "" {
+		return errors.New("usage: graft-probe -target <dir> -donor <dir> -tokens <ids.json> [options]")
+	}
+	var tokens []int
+	if err := jsonfile.Decode(*tokensPath, &tokens); err != nil {
+		return err
+	}
+	if len(tokens) < 3*(*window) {
+		return fmt.Errorf("need at least %d tokens for two train windows and one held-out window, got %d", 3*(*window), len(tokens))
+	}
+	result, err := composition.RunViability(composition.Config{
+		TargetDir: *targetDir, DonorDir: *donorDir,
+		GraftLayer: *graftLayer, DonorLayer: *donorLayer,
+		Seeds: []int64{7, 11, 13}, Steps: *steps,
+		BaseLR: *learningRate, Momentum: *momentum,
+		Train:   [][]int{tokens[:*window], tokens[*window : 2*(*window)]},
+		HeldOut: tokens[2*(*window) : 3*(*window)],
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "donor component: %s (role=%s modality=%s) grafted at target layer %d\n",
+		result.DonorTensor, result.DonorContract.Role, result.DonorContract.Modality, result.GraftLayer)
+	fmt.Fprintf(output, "baseline held-out CE: %.6f\n", result.Baseline)
+	for _, outcome := range result.Outcomes {
+		steps := make([]string, len(outcome.TrainLosses))
+		for i, loss := range outcome.TrainLosses {
+			steps[i] = fmt.Sprintf("%.4f", loss)
+		}
+		fmt.Fprintf(output, "seed %d: train=[%s] held-out=%.6f\n", outcome.Seed, strings.Join(steps, " "), outcome.HeldOut)
+	}
+	verdict := "REFUSE"
+	if result.Ship {
+		verdict = "SHIP"
+	}
+	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
+	fmt.Fprintln(output, "honesty: host-reference execution; single corpus slice; verdict binds only this artifact pair, layer, and budget")
+	return nil
+}

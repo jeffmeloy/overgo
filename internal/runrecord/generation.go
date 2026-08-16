@@ -21,23 +21,26 @@ const (
 // edges of this graph, never maintained in prose. Day-one schema is
 // deliberately minimal; extend from what the first experiments demand.
 type GenerationRecord struct {
-	Version      uint16        `json:"version"`
-	Parents      []artifact.ID `json:"parents"`
-	Child        artifact.ID   `json:"child"`
-	Components   []artifact.ID `json:"components,omitempty"`
-	Bridge       artifact.ID   `json:"bridge,omitempty"`
-	TrainingPlan artifact.ID   `json:"training_plan"`
-	Dataset      artifact.ID   `json:"dataset"`
-	Split        artifact.ID   `json:"split"`
-	Evaluator    artifact.ID   `json:"evaluator"`
-	Code         artifact.ID   `json:"code"`
-	Environment  artifact.ID   `json:"environment"`
-	Seeds        []uint64      `json:"seeds"`
-	Budget       artifact.ID   `json:"budget"`
-	Run          artifact.ID   `json:"run"`
-	Outcome      Outcome       `json:"outcome"`
-	Decision     artifact.ID   `json:"decision"`
-	ID           artifact.ID   `json:"-"`
+	Version    uint16        `json:"version"`
+	Parents    []artifact.ID `json:"parents"`
+	Child      artifact.ID   `json:"child"`
+	Components []artifact.ID `json:"components,omitempty"`
+	// omitzero, not omitempty: a whole-model child legally carries no bridge,
+	// and the zero ID must vanish from the document rather than fail the
+	// strict ID marshal.
+	Bridge       artifact.ID `json:"bridge,omitzero"`
+	TrainingPlan artifact.ID `json:"training_plan"`
+	Dataset      artifact.ID `json:"dataset"`
+	Split        artifact.ID `json:"split"`
+	Evaluator    artifact.ID `json:"evaluator"`
+	Code         artifact.ID `json:"code"`
+	Environment  artifact.ID `json:"environment"`
+	Seeds        []uint64    `json:"seeds"`
+	Budget       artifact.ID `json:"budget"`
+	Run          artifact.ID `json:"run"`
+	Outcome      Outcome     `json:"outcome"`
+	Decision     artifact.ID `json:"decision"`
+	ID           artifact.ID `json:"-"`
 }
 
 var generationCodec = artifact.JSONDocumentCodec(

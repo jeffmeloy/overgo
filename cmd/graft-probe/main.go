@@ -38,8 +38,21 @@ func run(args []string, output io.Writer) error {
 	learningRate := flags.Float64("lr", 0, "bridge learning rate (<=0 derives n_params^-1/2)")
 	momentum := flags.Float64("mu", 0.9, "Muon momentum")
 	recordStore := flags.String("record", "", "RepoDB root: commit the experiment as a generation record with its verdict")
+	chain := flags.Bool("chain", false, "run the Tier-0 whole-model chain probe instead of the graft probe")
+	scorerDir := flags.String("scorer", "", "chain probe: scorer model directory (safetensors + tokenizer.json)")
+	drafterDir := flags.String("drafter", "", "chain probe: drafter model directory (safetensors + tokenizer.json)")
+	prefix := flags.Int("chain-prefix", 64, "chain probe: context tokens per window")
+	draft := flags.Int("chain-draft", 8, "chain probe: generated gap tokens per arm")
+	heldOut := flags.Int("chain-target", 32, "chain probe: held-out tokens scored per window")
+	windows := flags.Int("chain-windows", 3, "chain probe: disjoint windows sliced from the token stream")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *chain {
+		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" || *recordStore == "" {
+			return errors.New("usage: graft-probe -chain -scorer <dir> -drafter <dir> -tokens <ids.json> -record <repodb> [options]")
+		}
+		return runChain(*scorerDir, *drafterDir, *tokensPath, *recordStore, *prefix, *draft, *heldOut, *windows, output)
 	}
 	if flags.NArg() != 0 || *targetDir == "" || *donorDir == "" || *tokensPath == "" {
 		return errors.New("usage: graft-probe -target <dir> -donor <dir> -tokens <ids.json> [options]")
@@ -91,5 +104,53 @@ func run(args []string, output io.Writer) error {
 	}
 	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
 	fmt.Fprintln(output, "honesty: host-reference execution; single corpus slice; verdict binds only this artifact pair, layer, and budget")
+	return nil
+}
+
+// runChain executes the Tier-0 whole-model chain probe: both arms run through
+// the generic workflow runtime as content-addressed recipes, and the verdict
+// is committed as a generation record whether it ships or refuses.
+func runChain(scorerDir, drafterDir, tokensPath, recordStore string, prefix, draft, target, windows int, output io.Writer) error {
+	var tokens []int
+	if err := jsonfile.Decode(tokensPath, &tokens); err != nil {
+		return err
+	}
+	span := prefix + draft + target
+	if windows < 1 || len(tokens) < windows*span {
+		return fmt.Errorf("need %d tokens for %d windows of %d, got %d", windows*span, windows, span, len(tokens))
+	}
+	sliced := make([][]int, windows)
+	for index := range sliced {
+		sliced[index] = tokens[index*span : (index+1)*span]
+	}
+	store, err := repodb.Open(recordStore)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+	chainConfig := composition.ChainConfig{
+		ScorerDir: scorerDir, DrafterDir: drafterDir,
+		Prefix: prefix, Draft: draft, Target: target, Windows: sliced,
+	}
+	result, err := composition.RunChainViability(store, chainConfig)
+	if err != nil {
+		return err
+	}
+	record, err := composition.RecordChainViability(store, chainConfig, result)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "generation record committed: %s\n", record.ID)
+	fmt.Fprintf(output, "chain recipe %s baseline recipe %s\n", result.ChainRecipe, result.BaselineRecipe)
+	for _, outcome := range result.Outcomes {
+		fmt.Fprintf(output, "window %d: baseline CE %.6f chain CE %.6f\n",
+			outcome.Window, outcome.BaselineCE, outcome.ChainCE)
+	}
+	verdict := "REFUSE"
+	if result.Ship {
+		verdict = "SHIP"
+	}
+	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
+	fmt.Fprintln(output, "honesty: host-reference greedy decode; displaced-window CE; verdict binds only this model pair, window protocol, and budget")
 	return nil
 }

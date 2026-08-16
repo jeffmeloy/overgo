@@ -1,6 +1,6 @@
 {
   "campaign": "Recursive self-improvement through constrained, content-addressed artifact improvement",
-  "revision": 11,
+  "revision": 13,
   "doctrine": "Design record, not live executable work. docs/plan.json remains the only dispatch surface; cmd/plan does not read this file. A thin roadmap command over a common Go owner may validate this record and emit a PROPOSED live-plan insertion, but never mutate or dispatch it. The governing principle: the model may propose increasingly powerful ARTIFACTS, but deterministic Go owns execution, resource limits, evidence capture, admission, promotion and rollback. RSI here is constrained artifact improvement, never unrestricted code self-modification, and proposal / evaluation / authorization / rollback stay in separate authority domains.",
   "thesis": "Overgo is a content-addressed population of artifacts with a promotion mechanism. Automated composition needs three missing operators: bridge, compose, and a runtime experiment control plane to exercise them. RSI depth is a separate axis -- how many layers of the stack are themselves artifacts under the same lifecycle. Phase D lifts that ceiling and is safe only because ground truth is externally sourced and unauthorable by the system.",
   "control_plane_status": {
@@ -204,7 +204,7 @@
         {
           "id": "determinism-and-statistical-verdicts",
           "title": "Repeat deterministic claims and require agreement; measure CUDA numerical spread and derive tolerance margins from observation; require multi-seed comparison for stochastic training outcomes; classify every claim as bitwise-deterministic, tolerance-bounded, or stochastic-multi-seed",
-          "status": "new",
+          "status": "landed",
           "verify": "go test ./cmd/gate ./internal/testevidence -run '^TestVerdictClassificationAndRepeatAgreement$' -count=1 -v",
           "verifier_status": "declared",
           "priority": "first (parallel with composition-viability)",
@@ -302,7 +302,7 @@
         {
           "id": "tier0-chain-contract",
           "title": "Typed whole-model chaining through workflowrecipe ports: a chain artifact composes validated models by output-to-input port wiring with no latent bridging; one two-model chain executes through the generic runtime",
-          "status": "new",
+          "status": "landed",
           "verify": "go test ./internal/workflowrecipe -run '^TestTier0ChainExecutesThroughTypedPorts$' -count=1 -v",
           "verifier_status": "declared",
           "rationale": "The on_refusal branch: composition that needs no latent-space bridge. workflowrecipe typed ports already exist; the chain artifact makes composition content-addressed and replayable."
@@ -310,7 +310,7 @@
         {
           "id": "tier0-chain-viability",
           "title": "Chain two real validated models and require held-out task gain over the single-model baseline beyond the observed envelope, or record a measured refusal; the probe records a generation record either way",
-          "status": "new",
+          "status": "landed",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestTier0ChainViability$' -count=1 -v -timeout 45m",
           "verifier_status": "declared",
           "depends_on": [
@@ -321,7 +321,12 @@
           "capabilities": [
             "measures-held-out"
           ],
-          "rationale": "The Tier-0 analogue of the pivot, under the same probe discipline: pre-written envelope threshold, recorded budget, refusal as loud as ship, generation record committed through the existing author."
+          "rationale": "The Tier-0 analogue of the pivot, under the same probe discipline: pre-written envelope threshold, recorded budget, refusal as loud as ship, generation record committed through the existing author.",
+          "outcome": {
+            "verdict": "SHIP",
+            "evidence": "TestTier0ChainViability 2026-08-16: chain held-out CE beats single-model baseline on all 3 windows (6.045884<6.425492, 6.191928<6.264131, 6.215089<6.277595); scorer Qwen2.5-0.5B, drafter MiniCPM5-1B, prefix 64 draft 8 target 32, greedy deterministic, host reference; generation record evidence:sha256:96c025f5ee8b276cc451fc197305bba3ba62298f16b52afafceaf276def52f61; chain recipe recipe:sha256:94ffe225c9a8f7375afeb2ca3ce0fa30c7791b374c0002ac5d39ffddeda6c7b2",
+            "interpretation": "Tier-0 whole-model chaining transfers predictive gain across the tokenizer boundary with no latent bridge; composition ladder re-opens at the whole-model tier"
+          }
         },
         {
           "id": "adapter-retrial-probe",
@@ -591,7 +596,7 @@
         {
           "id": "evaluation-isolation",
           "title": "Separate development, selection, promotion and audit datasets; record per-split query budgets; prevent the proposer from observing promotion or audit results",
-          "status": "new",
+          "status": "landed",
           "verify": "go test ./internal/trainingdata ./internal/runrecord -run '^TestSplitIsolationAndQueryBudget$' -count=1 -v",
           "verifier_status": "declared",
           "rationale": "An immutable held-out set is still vulnerable to adaptive overfitting through repeated querying -- immutability of the DATA does not bound information leakage from repeated QUERIES. Query budgets plus proposer blinding are the actual controls. Reuse the common typed budget accounting owner also consumed by exploration budgets rather than implementing split-local counters."

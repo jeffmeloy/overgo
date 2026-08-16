@@ -56,6 +56,7 @@ const (
 	kernelGeluErfF32
 	kernelGeluF32
 	kernelGeluTanhExactF32
+	kernelGetRowsBf16F32
 	kernelGetRowsF32
 	kernelGetRowsIq1MF32
 	kernelGetRowsIq1SF32
@@ -247,6 +248,7 @@ var kernelFunctionNames = [...]string{
 	"gelu_erf_f32",
 	"gelu_f32",
 	"gelu_tanh_exact_f32",
+	"get_rows_bf16_f32",
 	"get_rows_f32",
 	"get_rows_iq1_m_f32",
 	"get_rows_iq1_s_f32",
@@ -437,6 +439,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	3,
 	8,
+	5,
 	5,
 	5,
 	5,

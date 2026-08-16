@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 43,
+  "abiVersion": 44,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -63,7 +63,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "e0e68ee229a099d3daee2a58f1663020715b9fe2cec4df218b423b55033ec839",
+      "sourceSha256": "ad6e1a95ea3a81eeb3c490bfd3edb2e28cc1bf6d009944c3e77a162e0a88c5f1",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -71,7 +71,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "173aa3ab7aaa2d603f26278c2d77995c3334af2a7e305b7c6bec8655d2f9f36c",
+      "assetSha256": "e6a1b7f257a92381dd6973ec8d545b9e7aae56cdeac6a04c809c8c0659be56a0",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -122,6 +122,7 @@
         "gelu_erf_f32",
         "gelu_f32",
         "gelu_tanh_exact_f32",
+        "get_rows_bf16_f32",
         "get_rows_f32",
         "get_rows_iq1_m_f32",
         "get_rows_iq1_s_f32",
@@ -275,6 +276,7 @@
             "copy_token_offset_f32",
             "embedding_gather_rows_f32",
             "fp8_to_f32",
+            "get_rows_bf16_f32",
             "get_rows_f32",
             "get_rows_iq1_m_f32",
             "get_rows_iq1_s_f32",

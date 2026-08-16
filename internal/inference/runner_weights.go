@@ -29,8 +29,7 @@ func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 	return result
 }
 
-// getRowsSourceTensors: tensors consumed by get_rows (embedding tables), which
-// have no native-F16 kernel and must stay F32-resident.
+// getRowsSourceTensors: embedding table inventory.
 func getRowsSourceTensors(weights model.Weights) map[string]struct{} {
 	result := make(map[string]struct{})
 	result[weights.TokenEmbedding.Name] = struct{}{}

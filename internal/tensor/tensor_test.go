@@ -827,6 +827,18 @@ func TestBuilderQ8DeviceOperationsProduceF32(t *testing.T) {
 	}
 }
 
+func TestBuilderBF16GetRowsProducesF32(t *testing.T) {
+	builder := NewBuilder()
+	table := builder.Input("table", dtype.BF16, MustShape(8, 4))
+	rows := builder.GetRows(table, []uint32{2})
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if rows.Type != dtype.F32 {
+		t.Fatalf("BF16 get_rows output type = %s, want f32", rows.Type)
+	}
+}
+
 func TestBuilderQ6KDeviceOperationsProduceF32(t *testing.T) {
 	builder := NewBuilder()
 	table := builder.Input("table", dtype.Q6K, MustShape(256, 4))

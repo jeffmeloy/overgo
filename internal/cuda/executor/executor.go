@@ -54,6 +54,7 @@ type executionScratch struct {
 }
 
 const graphExecCacheCapacity = 4
+const nativeWeightStagingLimitBytes = uint64(32 << 20)
 
 type graphExecEntry struct {
 	exec     driver.GraphExec
@@ -149,7 +150,7 @@ type deviceBufferLease struct {
 
 type deviceBufferPool struct {
 	free        map[uint64][]driver.DevicePtr
-	allocations []driver.DevicePtr
+	allocations []deviceBufferLease
 }
 
 func (p *deviceBufferPool) acquire(state *device.State, size uint64) (deviceBufferLease, error) {
@@ -184,8 +185,9 @@ func (p *deviceBufferPool) acquireBucket(
 	if p.free == nil {
 		p.free = make(map[uint64][]driver.DevicePtr)
 	}
-	p.allocations = append(p.allocations, pointer)
-	return deviceBufferLease{pointer: pointer, size: bucket}, nil
+	lease := deviceBufferLease{pointer: pointer, size: bucket}
+	p.allocations = append(p.allocations, lease)
+	return lease, nil
 }
 
 func (p *deviceBufferPool) release(lease deviceBufferLease) {
@@ -196,8 +198,8 @@ func (p *deviceBufferPool) release(lease deviceBufferLease) {
 
 func (p *deviceBufferPool) close(state *device.State) error {
 	var errs []error
-	for _, pointer := range p.allocations {
-		if err := state.Driver.MemFree(pointer); err != nil {
+	for _, lease := range p.allocations {
+		if err := state.Driver.MemFree(lease.pointer); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1223,7 +1225,11 @@ func compileGraph(externalOutputs bool, outputs ...*tensor.Tensor) (*CompiledGra
 				if stagingElements > math.MaxUint64/stagingWidth {
 					return nil, errors.New("half-precision mul_mat staging size overflows")
 				}
-				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, stagingElements*stagingWidth)
+				stagingBytes := stagingElements * stagingWidth
+				if stagingWidth == 4 {
+					stagingBytes = nativeWeightStagingBytes(inner, stagingRows)
+				}
+				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, stagingBytes)
 			}
 		}
 		if node.Op == tensor.OpConv2D {
@@ -1319,6 +1325,11 @@ func compileGraph(externalOutputs bool, outputs ...*tensor.Tensor) (*CompiledGra
 	compiled.elided = nil
 	compiled.q8Emit = nil
 	return compiled, nil
+}
+
+func nativeWeightStagingBytes(inner, rows uint64) uint64 {
+	rowBytes := inner * 4
+	return min(inner*rows*4, max(rowBytes, nativeWeightStagingLimitBytes))
 }
 
 func New(deviceOrdinal int) (*Executor, error) {
@@ -1520,6 +1531,7 @@ func (e *Executor) runCompiled(
 			&resources.graphExecs,
 			retain,
 		)
+		dumpResourceMemory(resources)
 		return executeErr
 	})
 	return result, err

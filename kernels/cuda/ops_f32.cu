@@ -3040,6 +3040,20 @@ extern "C" __global__ void get_rows_f32(
     }
 }
 
+extern "C" __global__ void get_rows_bf16_f32(
+        const __nv_bfloat16 * table,
+        const unsigned int * rows,
+        float * output,
+        unsigned int width,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const unsigned int column = index % width;
+        const unsigned int output_row = index / width;
+        output[index] = __bfloat162float(table[rows[output_row] * width + column]);
+    }
+}
+
 __device__ static float rope_yarn_corr_dim(
 		unsigned int rotary_dimensions,
 		unsigned int original_context,

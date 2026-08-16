@@ -240,34 +240,18 @@ func launchLinearLayout(
 			if blas == nil || blas.staging == 0 {
 				return fmt.Errorf("%s mul_mat weight workspace is unavailable", leftNode.Type)
 			}
-			weightElements := uint64(inner) * uint64(leftRows)
-			if weightElements > math.MaxUint32 || weightElements*4 > blas.stagingBytes {
-				return fmt.Errorf("%s mul_mat weight exceeds workspace", leftNode.Type)
-			}
-			count := uint32(weightElements)
-			if err := launch1DABI(
-				state, functions[upconvertKernel], count, &left, &blas.staging, &count,
-			); err != nil {
-				return err
-			}
 			blas.stagedNode = nil
-			if traceExternalCall(
-				state, traceTagSGEMM,
-				uint64(blas.staging), uint64(right), uint64(output),
-				uint64(leftRows), uint64(rightRows), uint64(inner),
-			) {
-				return nil
-			}
-			err = blas.library.SGEMM(
-				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
-				int32(leftRows), int32(rightRows), int32(inner), 1,
-				blas.staging, int32(inner), right, int32(inner), 0,
-				output, int32(leftRows),
+			return launchStagedNativeMatMul(
+				state, blas, inner, leftRows, rightRows, right, output,
+				func(start, rows, count uint32) error {
+					elementOffset := uint64(start) * uint64(inner)
+					source := left + driver.DevicePtr(elementOffset*2)
+					return launch1DABI(
+						state, functions[upconvertKernel], count,
+						&source, &blas.staging, &count,
+					)
+				},
 			)
-			runtime.KeepAlive(left)
-			runtime.KeepAlive(right)
-			runtime.KeepAlive(output)
-			return err
 		}
 		if leftNode.Type == dtype.F8E4M3 {
 			// native fp8 residency, same native-dtype contract as F16/BF16 but the
@@ -297,36 +281,21 @@ func launchLinearLayout(
 			if blas == nil || blas.staging == 0 {
 				return errors.New("fp8 mul_mat weight workspace is unavailable")
 			}
-			weightElements := uint64(inner) * uint64(leftRows)
-			if weightElements > math.MaxUint32 || weightElements*4 > blas.stagingBytes {
-				return errors.New("fp8 mul_mat weight exceeds workspace")
-			}
-			if err := launchGridABI(
-				state, functions[kernelFp8ToF32],
-				driver.Dim3{X: leftRows, Y: 1, Z: 1},
-				driver.Dim3{X: 256, Y: 1, Z: 1},
-				&left, &scale, &blas.staging, &inner, &leftRows,
-			); err != nil {
-				return err
-			}
 			blas.stagedNode = nil
-			if traceExternalCall(
-				state, traceTagSGEMM,
-				uint64(blas.staging), uint64(right), uint64(output),
-				uint64(leftRows), uint64(rightRows), uint64(inner),
-			) {
-				return nil
-			}
-			err = blas.library.SGEMM(
-				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
-				int32(leftRows), int32(rightRows), int32(inner), 1,
-				blas.staging, int32(inner), right, int32(inner), 0,
-				output, int32(leftRows),
+			return launchStagedNativeMatMul(
+				state, blas, inner, leftRows, rightRows, right, output,
+				func(start, rows, _ uint32) error {
+					elementOffset := uint64(start) * uint64(inner)
+					source := left + driver.DevicePtr(elementOffset)
+					sourceScale := scale + driver.DevicePtr(uint64(start)*4)
+					return launchGridABI(
+						state, functions[kernelFp8ToF32],
+						driver.Dim3{X: rows, Y: 1, Z: 1},
+						driver.Dim3{X: 256, Y: 1, Z: 1},
+						&source, &sourceScale, &blas.staging, &inner, &rows,
+					)
+				},
 			)
-			runtime.KeepAlive(left)
-			runtime.KeepAlive(right)
-			runtime.KeepAlive(output)
-			return err
 		}
 		if nativeQuantizedType(leftNode.Type) {
 			if rightNode.Type != dtype.F32 {
@@ -502,7 +471,9 @@ func launchLinearLayout(
 			return errors.New("get_rows row list is empty")
 		}
 		function := functions[kernelGetRowsF32]
-		if descriptor, ok := quantKernels[node.Inputs[0].Type]; ok {
+		if node.Inputs[0].Type == dtype.BF16 {
+			function = functions[kernelGetRowsBf16F32]
+		} else if descriptor, ok := quantKernels[node.Inputs[0].Type]; ok {
 			traits, _ := node.Inputs[0].Type.Traits()
 			if uint64(width)%traits.BlockSize != 0 {
 				return fmt.Errorf("%s get_rows width is not block aligned", descriptor.label)
@@ -513,6 +484,53 @@ func launchLinearLayout(
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
+}
+
+func launchStagedNativeMatMul(
+	state *device.State,
+	blas *blasState,
+	inner, leftRows, rightRows uint32,
+	right, output driver.DevicePtr,
+	stage func(start, rows, count uint32) error,
+) error {
+	if blas == nil || blas.staging == 0 || stage == nil {
+		return errors.New("native mul_mat staging is unavailable")
+	}
+	if inner > math.MaxInt32 || leftRows > math.MaxInt32 || rightRows > math.MaxInt32 {
+		return errors.New("native mul_mat geometry exceeds cuBLAS")
+	}
+	rowBytes := uint64(inner) * 4
+	capacity := blas.stagingBytes / rowBytes
+	if capacity == 0 {
+		return errors.New("native mul_mat staging is smaller than one row")
+	}
+	for start := uint32(0); start < leftRows; {
+		rows := min(leftRows-start, uint32(min(capacity, uint64(math.MaxUint32))))
+		count64 := uint64(rows) * uint64(inner)
+		if count64 > math.MaxUint32 {
+			return errors.New("native mul_mat staging launch overflows")
+		}
+		if err := stage(start, rows, uint32(count64)); err != nil {
+			return err
+		}
+		chunkOutput := output + driver.DevicePtr(uint64(start)*4)
+		if !traceExternalCall(
+			state, traceTagSGEMM,
+			uint64(blas.staging), uint64(right), uint64(chunkOutput),
+			uint64(rows), uint64(rightRows), uint64(inner),
+		) {
+			if err := blas.library.SGEMM(
+				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+				int32(rows), int32(rightRows), int32(inner), 1,
+				blas.staging, int32(inner), right, int32(inner), 0,
+				chunkOutput, int32(leftRows),
+			); err != nil {
+				return err
+			}
+		}
+		start += rows
+	}
+	return nil
 }
 
 func bf16MulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {

@@ -100,10 +100,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		if err != nil {
 			return fail(err)
 		}
-		// Tied models drive the vocab projection from the token embedding, which
-		// stays F32 for get_rows; the resolved output-projection tensor lets the
-		// resident loader keep a small BF16 catalog copy so greedy decode keeps
-		// the fused BF16 argmax path that the native layer weights use.
+		// Resolve tied or dedicated output projection before residency selection.
 		outputProjection := weights.TokenEmbedding
 		if program.Model.Terminal().OutputHead == model.OutputHeadDedicated && weights.Output != nil {
 			outputProjection = *weights.Output
@@ -207,10 +204,10 @@ func loadResidentWeights(
 			// raw native route at ~1 byte/element + a per-row F32 scale (the
 			// combined [rows*inner e4m3 | rows*4 scale] payload the GGUF carries and
 			// the fp8 matmul kernel consumes). Decode reads the native dtype
-			// directly; prefill upconverts to F32 for a bit-exact SGEMM. Embeddings
-			// (get_rows, no half-precision kernel) and adapted/f32-required tensors
-			// stay F32.
-			if !adapted && !requiresF32 && !isEmbedding && info.Dimensions == 2 &&
+			// directly; prefill upconverts to F32 for exact SGEMM. BF16 embeddings
+			// use native get_rows; other embeddings and adapted/f32-required
+			// tensors stay F32.
+			if !adapted && !requiresF32 && (!isEmbedding || info.Type == dtype.BF16) && info.Dimensions == 2 &&
 				(info.Type == dtype.F16 || info.Type == dtype.BF16 || info.Type == dtype.F8E4M3) {
 				quantized = append(quantized, info)
 				continue
@@ -230,12 +227,11 @@ func loadResidentWeights(
 		}
 		// native 2D BF16 matmul weights now live in the raw store (above),
 		// serving both decode (native kernel) and prefill (upconvert + SGEMM)
-		// from a single 2-byte copy. The decode catalog holds only tensors that
-		// stayed F32 in the raw store yet drive a decode MulMat: a tied output
-		// projection (the token embedding, kept F32 for get_rows) gets a small
-		// BF16 copy so greedy decode keeps the fused BF16 argmax path.
+		// from a single 2-byte copy. The decode catalog covers only tensors that
+		// stayed F32 but drive decode MulMat.
 		var decodeTensors []gguf.TensorInfo
-		if _, isEmbedding := embeddingTensors[outputProjection.Name]; isEmbedding &&
+		_, outputIsRaw := (*rawWeights).Lookup(outputProjection.Name)
+		if _, isEmbedding := embeddingTensors[outputProjection.Name]; isEmbedding && !outputIsRaw &&
 			outputProjection.Type == dtype.BF16 && outputProjection.Dimensions == 2 {
 			decodeTensors = append(decodeTensors, outputProjection)
 		}

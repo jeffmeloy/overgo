@@ -499,13 +499,13 @@
           "contains": "func Compile(",
           "path": "internal/cuda/executor/executor.go",
           "role": "source",
-          "identity": "file:sha256:e84b08e18978c65437b84896847fbc7aa66b4b279d3c21c10b99d7e6bcdb17cf"
+          "identity": "file:sha256:8a18d586d9803cec4ea90bcfe1326826f6867942eaadeb6ac3360aa755427e60"
         },
         {
           "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
           "path": "internal/cuda/executor/compile_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:e4892fc91fa944d950ce2650b2eebae0f9a781eef4311d7d8a87878f6cc1ffab"
+          "identity": "evidence:sha256:f3ca355e68a8cfd64b859d747a0b0015499e79c1b3261448bc6de1032c439810"
         }
       ],
       "id": "compiled-cuda-graph",

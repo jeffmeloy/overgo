@@ -224,7 +224,7 @@ func (b *Builder) getRows(table *Tensor, rows []uint32) *Tensor {
 	}
 	attributes := GetRowsAttributes{Rows: slices.Clone(rows)}
 	outputType := table.Type
-	if table.Type.IsQuantized() {
+	if table.Type != dtype.F32 {
 		outputType = dtype.F32
 	}
 	return b.add("", outputType, shape, OpGetRows, []*Tensor{table}, attributes)

@@ -9,6 +9,25 @@ import (
 	"overgo/internal/tensor/planner"
 )
 
+func dumpResourceMemory(resources *executorResources) {
+	if os.Getenv("OVERGO_MEMORY_PLAN") == "" || resources == nil {
+		return
+	}
+	var pool, free uint64
+	for _, lease := range resources.buffers.allocations {
+		pool += lease.size
+	}
+	for size, pointers := range resources.buffers.free {
+		free += size * uint64(len(pointers))
+	}
+	var staging, scores uint64
+	if resources.blas != nil {
+		staging, scores = resources.blas.stagingBytes, resources.blas.scoreBytes
+	}
+	fmt.Fprintf(os.Stderr, "[memory-resources] arena=%d staging=%d scores=%d q8=%d pool=%d free=%d\n",
+		resources.arenaSize, staging, scores, resources.q8Input.stagingBytes, pool, free)
+}
+
 // OVERGO_OP_COUNTS=1: dump per-graph launch composition at compile time.
 func dumpOpCounts(compiled *CompiledGraph) {
 	if os.Getenv("OVERGO_OP_COUNTS") == "" && os.Getenv("OVERGO_MEMORY_PLAN") == "" {

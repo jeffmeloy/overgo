@@ -80,6 +80,19 @@ func TestCompiledRetainedTargetsUseOutputSlots(t *testing.T) {
 	}
 }
 
+func TestNativeWeightStagingIsBoundedAndRowAligned(t *testing.T) {
+	if got := nativeWeightStagingBytes(1024, 2); got != 8192 {
+		t.Fatalf("small staging = %d, want 8192", got)
+	}
+	if got := nativeWeightStagingBytes(4096, 65536); got != nativeWeightStagingLimitBytes {
+		t.Fatalf("bounded staging = %d, want %d", got, nativeWeightStagingLimitBytes)
+	}
+	widerThanLimit := nativeWeightStagingLimitBytes/4 + 1
+	if got := nativeWeightStagingBytes(widerThanLimit, 2); got != widerThanLimit*4 {
+		t.Fatalf("wide-row staging = %d, want %d", got, widerThanLimit*4)
+	}
+}
+
 func TestCompileExternalOmitsCallerOwnedOutput(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))

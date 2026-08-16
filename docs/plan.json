@@ -51,19 +51,6 @@
       ]
     },
     {
-      "id": "rung17-gemma12b",
-      "title": "Compare Gemma4 12B native-FP8 serving against adaptive_new",
-      "status": "open",
-      "steps": [
-        {
-          "id": "performance-leg",
-          "title": "Run the same FP8 artifact and prompt in both systems; Overgo must be at-or-below on wall and peak without token drift",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_BASELINE=1 go test ./internal/adaptiveparity -run '^TestGemma4FP8Leadership$' -count=2 -v"
-        }
-      ]
-    },
-    {
       "id": "rung2-fractale",
       "title": "Fractale-350M",
       "status": "open",

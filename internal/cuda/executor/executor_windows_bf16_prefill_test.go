@@ -32,6 +32,36 @@ func TestExecutorBF16MulMatMatchesReference(t *testing.T) {
 	checkResidentMulMat(t, dtype.BF16, leftShape, storage, dequantized)
 }
 
+func TestExecutorBF16GetRowsMatchesReference(t *testing.T) {
+	cudatest.Require(t)
+	shape := tensor.MustShape(8, 4)
+	value := patternedValue(shape, 11, 0.03, -0.1)
+	storage, err := quant.Quantize(dtype.BF16, value.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dequantized, err := quant.Dequantize(dtype.BF16, storage, uint64(len(value.Data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	builder := tensor.NewBuilder()
+	table := builder.Input("table", dtype.BF16, shape)
+	rows := builder.GetRows(table, []uint32{3, 1})
+	worker := newFixtureWorker(t)
+	pointer := copyFixtureDeviceBytes(t, worker, storage)
+	cuda := newFixtureExecutorWithWorker(t, worker)
+	got, err := cuda.ExecuteWithDeviceFeeds(
+		context.Background(), []*tensor.Tensor{rows}, nil,
+		map[*tensor.Tensor]driver.DevicePtr{table: pointer},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := append([]float32(nil), dequantized[24:32]...)
+	want = append(want, dequantized[8:16]...)
+	compare(t, got[rows].Data, want, accuracyExact)
+}
+
 func TestExecutorBF16TensorCoreMulMatMatchesRoundedReference(t *testing.T) {
 	cudatest.Require(t)
 	leftShape, rightShape := tensor.MustShape(64, 37), tensor.MustShape(64, 29)

@@ -1,0 +1,30 @@
+{
+  "schema": "overgo/adaptive-gemma4-fp8-performance/v1",
+  "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
+  "source_entrypoint": "go/extmodel/alternating_window_decoder_cuda_windows_test.go:TestGemma4Device_GoldenGate",
+  "protocol": "case=0;greedy=true;max_new_tokens=16;wall=generation;candidate_cache_page_tokens=32;reference_cache_tokens=256;peak=runtime_owned_cuda",
+  "golden_sha256": "ccb91b5e6912c23805b2253d16c193fac8445396444f3f0fc4d370d39eaeaa94",
+  "candidate_artifact_sha256": "64fb17f3c324dcbf9f83861e5d2ea1534a66ea0970223047e788a482b080853c",
+  "source_config_sha256": "18bd83445d43b1c5ffb31e81ddf0f05880bcc2d7a9220967ccab4866240fdc59",
+  "source_index_sha256": "8bec4873473c10d187ad0c333945f44a2e7a4103dace4f1a344d25adbd76647f",
+  "source_shards": [
+    {"name": "model-00001-of-00002.safetensors", "bytes": 9969043746, "sha256": "64088516d8c65da90319b2fad0a8df850de8e8ceaeb192a95cc62e9da3223742"},
+    {"name": "model-00002-of-00002.safetensors", "bytes": 5463692670, "sha256": "72358dc742bbe9851c05b37f4c7b286fb5585034f2c342915456ac229bd6c5a3"}
+  ],
+  "environment": {
+    "gpu": "NVIDIA GeForce RTX 4090 D",
+    "driver": "595.79",
+    "go": "go1.26.2",
+    "os_arch": "windows/amd64"
+  },
+  "prompt": "What is the capital of France? Answer in one word.",
+  "input_ids": [2, 105, 2364, 107, 3689, 563, 506, 5279, 529, 7001, 236881, 25685, 528, 886, 3658, 236761, 106, 107, 105, 4368, 107, 100, 45518, 107, 101],
+  "output_ids": [50429, 106],
+  "runs": [
+    {"load_nanos": 3209102200, "generation_nanos": 493852500, "wall_nanos": 3765473200, "peak_owned_bytes": 15422438596},
+    {"load_nanos": 2876397100, "generation_nanos": 497603000, "wall_nanos": 3432671100, "peak_owned_bytes": 15422438596},
+    {"load_nanos": 2824435900, "generation_nanos": 493137200, "wall_nanos": 3386692600, "peak_owned_bytes": 15422438596},
+    {"load_nanos": 2825174800, "generation_nanos": 488886400, "wall_nanos": 3380738300, "peak_owned_bytes": 15422438596},
+    {"load_nanos": 2839031600, "generation_nanos": 491376800, "wall_nanos": 3397808800, "peak_owned_bytes": 15422438596}
+  ]
+}

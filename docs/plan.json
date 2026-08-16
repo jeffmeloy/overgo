@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "guard-build",
-          "title": "Build bin/guard.exe in the SessionStart hook so the guard cannot silently fail open",
-          "status": "open",
-          "verify": "grep -q 'cmd/guard' scripts/overgo_doctrine.sh \u0026\u0026 test -x bin/guard.exe"
-        },
-        {
           "id": "stop-dirt-scope",
           "title": "Block the Stop gate only on turn-created dirt so bounded turns with parked parallel work end cleanly",
           "status": "open",

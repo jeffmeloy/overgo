@@ -3,16 +3,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
 
-	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/diffusionimage"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/oscillatorimage"
-	"overgo/internal/recipe"
 )
 
 func imageCapability() capability {

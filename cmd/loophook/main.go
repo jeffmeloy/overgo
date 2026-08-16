@@ -3,16 +3,16 @@
 // three hooks that programmatically hold a session on the plan loop:
 //
 //	loophook stop         Stop hook.      exit 2 blocks the turn-end, 0 allows.
-//	loophook post-commit  PostToolUse.    arms/clears docs/.dispatch_pending.
+//	loophook post-commit  PostToolUse.    re-baselines turn dirt at gate commits.
 //	loophook doctrine     SessionStart.   emits the turn contract + dispatch.
 //	loophook prompt       UserPromptSubmit. Classifies bounded requests before
 //	                      dispatching campaign work.
 //
-// The stop gate refuses a turn-end that ORPHANS work -- uncommitted repository
-// work, or an armed dispatch marker (a commit landed this turn but the next step was not
-// dispatched: the milestone-stop). A bare commit is NOT a clean exit. Valves
-// keep it from ever wedging: a stop_hook_active retry passes, a live background
-// gate steps aside, a fresh recorded stop at HEAD passes, plan-complete passes.
+// The stop gate protects WORK, not momentum (continuity is cmd/loop's job): it
+// refuses only a turn-end that would orphan turn-created uncommitted work.
+// Valves keep it from ever wedging: a stop_hook_active retry passes, a live
+// background gate steps aside, a fresh recorded stop at HEAD passes,
+// plan-complete passes.
 package main
 
 import (
@@ -178,19 +178,6 @@ func gitHead() string {
 		return "none"
 	}
 	return strings.TrimSpace(string(out))
-}
-
-// dirtyPaths parses porcelain -z status into paths; untracked files count.
-func dirtyPaths(status []byte) ([]string, error) {
-	entries, err := repoanalysis.ParseDirtyStatus(status)
-	if err != nil {
-		return nil, err
-	}
-	paths := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		paths = append(paths, entry.Path)
-	}
-	return paths, nil
 }
 
 type dirtyFact struct {

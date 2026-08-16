@@ -1,5 +1,58 @@
 {
   "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and the composition-viability pivot",
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
-  "items": []
+  "items": [
+    {
+      "id": "roadmap-portability",
+      "title": "Roadmap portability: derive landed state from committed evidence, not worktree-local RepoDB",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Roadmap portability: derive landed state from committed evidence, not worktree-local RepoDB",
+          "status": "open",
+          "verify": "go test ./cmd/roadmap -run '^TestRoadmapLandedStatePortable$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "generation-budget-binding",
+      "title": "Replace maxGenerationSeeds magic with validation against the bound typed budget",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace maxGenerationSeeds magic with validation against the bound typed budget",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run '^TestGenerationRecordBindsBudget$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "graft-generalization",
+      "title": "Generalize the graft pilot: organ inventory selects the donor component, no hardcoded dense-causal tensor names",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Generalize the graft pilot: organ inventory selects the donor component, no hardcoded dense-causal tensor names",
+          "status": "open",
+          "verify": "go test ./internal/composition -run '^TestViabilitySelectsOrganClassifiedComponent$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "generation-lifecycle-wiring",
+      "title": "Wire generation-record authoring into production: graft-probe commits a generation record with its verdict",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Wire generation-record authoring into production: graft-probe commits a generation record with its verdict",
+          "status": "open",
+          "verify": "go test ./cmd/graft-probe -run '^TestProbeCommitsGenerationRecord$' -count=1 -v"
+        }
+      ]
+    }
+  ]
 }

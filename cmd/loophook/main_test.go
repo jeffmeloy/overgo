@@ -55,27 +55,6 @@ func TestBoundedRequestCompletionDoesNotRecordStop(t *testing.T) {
 	}
 }
 
-func TestLoopDirtySnapshot(t *testing.T) {
-	for _, path := range []string{
-		"internal/model/model.go",
-		"internal/model/architecture_profiles.json",
-		"internal/server/webui/index.html",
-		"docs/design.md",
-	} {
-		paths, err := dirtyPaths([]byte("?? " + path + "\x00"))
-		if err != nil {
-			t.Fatalf("%s: %v", path, err)
-		}
-		if len(paths) != 1 || paths[0] != path {
-			t.Errorf("%s was not treated as meaningful dirty work: %v", path, paths)
-		}
-	}
-	paths, err := dirtyPaths(nil)
-	if err != nil || len(paths) != 0 {
-		t.Fatalf("clean status = (%v, %v), want (none, nil)", paths, err)
-	}
-}
-
 // TestStopIgnoresPreexistingDirt pins the turn-scoped dirt verdict: dirt already
 // present at the turn-start snapshot is another lane's parked work and never
 // blocks this turn's end; only turn-created dirt is an orphaning obligation.

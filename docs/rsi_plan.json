@@ -1,6 +1,6 @@
 {
   "campaign": "Recursive self-improvement through constrained, content-addressed artifact improvement",
-  "revision": 7,
+  "revision": 8,
   "doctrine": "Design record, not live executable work. docs/plan.json remains the only dispatch surface; cmd/plan does not read this file. A thin roadmap command over a common Go owner may validate this record and emit a PROPOSED live-plan insertion, but never mutate or dispatch it. The governing principle: the model may propose increasingly powerful ARTIFACTS, but deterministic Go owns execution, resource limits, evidence capture, admission, promotion and rollback. RSI here is constrained artifact improvement, never unrestricted code self-modification, and proposal / evaluation / authorization / rollback stay in separate authority domains.",
   "thesis": "Overgo is a content-addressed population of artifacts with a promotion mechanism. Automated composition needs three missing operators: bridge, compose, and a runtime experiment control plane to exercise them. RSI depth is a separate axis -- how many layers of the stack are themselves artifacts under the same lifecycle. Phase D lifts that ceiling and is safe only because ground truth is externally sourced and unauthorable by the system.",
   "control_plane_status": {
@@ -16,86 +16,12 @@
         "findings, plan advancement, containment, gate evidence",
         "changed-file gofmt and repository-wide go vet"
       ],
-      "gap": "Google-aligned Go readability policy is not yet a typed candidate-delta gate. Phase 0 establishes the reviewed rule catalog and enforcement before the remaining RSI Go implementation rows become ready."
+      "gap": "Surface discipline now relies on the toolchain baseline, production-consumer admission, and net-negative automation admission; the retired observe-only readability analyzer did not own a failable decision."
     },
     "runtime_experiment": {
       "state": "missing",
       "needs": "a plane that repeatedly creates, admits, leases, executes, evaluates, refuses, promotes, recovers and rolls back model descendants through idempotent state transitions. Distinct from the development control plane and not derivable from it. Phase 0 builds the minimum lifecycle; Phase E supplies enforceable authority and resource controls."
     }
-  },
-  "go_implementation_quality": {
-    "purpose": "Make Google-aligned Go readability a repository implementation precondition while preserving Overgo's least-mechanism, common-owner and deletion-led doctrine. This governs Go code written to build the RSI system; runtime model artifacts remain declarative and cannot emit Go.",
-    "sources": {
-      "reviewed_on": "2026-08-15",
-      "overview": "https://google.github.io/styleguide/go/",
-      "canonical_guide": "https://google.github.io/styleguide/go/guide",
-      "style_decisions": "https://google.github.io/styleguide/go/decisions",
-      "best_practices": "https://google.github.io/styleguide/go/best-practices",
-      "freshness": "The gate never browses. A periodic advisory reports upstream source changes for owner review; local rule semantics change only through a gated code revision with source section, rationale and regression test."
-    },
-    "principles_in_priority_order": ["clarity", "simplicity", "concision", "maintainability", "consistency", "least mechanism"],
-    "implementation": {
-      "owner": "internal/gostyle consuming the existing internal/repoanalysis parse-once snapshot; cmd/gate is the enforcement adapter",
-      "scope": "Compare candidate diagnostics with HEAD at changed declaration identity. Existing untouched debt is reported but never blocks unrelated work. Generated sources are identified structurally and checked only for formatting and generator-owned invariants.",
-      "output": "Structured diagnostics carry rule id, enforcement tier, Google source section, file, line, symbol, candidate/base state, rationale and whether a deterministic fix exists.",
-      "dependency_policy": "Use the Go toolchain and existing common owners first. Do not add a kitchen-sink linter or parallel parser merely to obtain a rule that can be expressed through go/ast, go/types, go list, gofmt or go vet."
-    },
-    "automation_contract": {
-      "rule_lifecycle": {
-        "states": ["declared", "observed", "authoritative", "enforceable"],
-        "transition_authority": "A rule or independently testable subcheck advances only through a gated code revision carrying source-section identity, positive and negative regression cases, selected/skipped evidence and candidate-history dispositions. Merely having a syntax detector means observed, never enforceable.",
-        "gate_rule": "Only enforceable hard subchecks may fail a candidate. Observed and authoritative-but-not-promoted subchecks emit rule-local advisories; judgment-heavy rules never promote without a deterministic predicate replacing the judgment.",
-        "history": "RepoDB records useful, false-positive, exempted and unresolved dispositions by rule and detector revision. Promotion is individual, reversible and cannot be inferred from an aggregate style score."
-      },
-      "source_freshness": {
-        "offline_authority": "A reviewed local manifest maps every rule to document, section identity, rationale and detector revision. The commit gate validates this manifest and never browses.",
-        "network_advisory": "A periodic non-blocking check reports upstream document or section changes for owner review. Upstream change cannot silently alter local semantics, and a missing or stale section identity is failable before rule promotion."
-      },
-      "build_context": {
-        "owner": "internal/repoanalysis derives build membership once from go list, go:build, legacy +build and filename constraints; analyzers do not independently reimplement build selection.",
-        "rule": "Cross-file diagnostics compare only files that can coexist in a declared target context. Generated and excluded files retain explicit selected/skipped reasons. Host coverage is mandatory; other changed platform cones are selected from derived context facts."
-      },
-      "analysis_efficiency": {
-        "reuse": "Candidate and HEAD share content-addressed per-file facts keyed by repository path, content identity, detector revision and build context. Unchanged files are never reparsed or rescanned; only cross-file aggregates are recomputed.",
-        "walks": "Each analyzer performs one deliberate syntax/type fact pass per changed file. Common parsing, position, identity and build facts belong to repoanalysis; rule-specific facts remain private to gostyle until another real consumer exists.",
-        "report_shape": "Rule metadata is stored once. Diagnostics carry only rule-local location, symbol, state and message; base/candidate snapshot evidence is nested rather than represented by parallel fields.",
-        "telemetry": "Gate evidence records files reused and rescanned, syntax and type passes, cache hits, diagnostic and encoded byte counts, analysis wall time, peak memory when available, exports added and production consumers. These are rule-local accountability signals, never a composite score or fixed ratchet."
-      },
-      "surface_policy": "Existing codeprofile clone, function and export facts remain the structural owner. A new export without a production consumer is an advisory requiring ownership rationale; no fixed surface ceiling may substitute for deletion-led review."
-    },
-    "hard_candidate_delta_rules": [
-      "gofmt for changed and generated Go; go vet ./... for any Go ownership change",
-      "package names lowercase and concise with only documented test/generated exceptions; no dot imports; blank imports only in main, tests or compiler-defined embed cases",
-      "MixedCaps for newly declared identifiers and constants, with a reviewed initialism vocabulary and cgo/generated exceptions",
-      "receiver abbreviations consistent for every method on a type and omitted when unused",
-      "context.Context first when passed; no context.Context struct fields; no custom context types in signatures; tests use testing.TB.Context for their root context",
-      "error is the final failure return; exported APIs return error rather than a concrete error pointer; static error strings are lowercase and omit terminal punctuation",
-      "a discarded type-known error requires an adjacent comment; presence is the hard rule because it is mechanically decidable, while whether the comment justifies the discard is a reviewer judgment tracked as an advisory",
-      "importable library packages do not register command-line flags as an import side effect",
-      "go mod tidy -diff is clean whenever module ownership changes"
-    ],
-    "advisory_rules": [
-      "new interfaces without a demonstrated consumer need, producer-owned interfaces, or functions returning interfaces where a concrete type is available",
-      "new mutable package-level state or exported variables controlling library behavior",
-      "context.Background inside a library call chain, especially when a caller context is already available",
-      "panic or Must use outside initialization and invariant-only paths",
-      "Get-prefixed APIs where the operation is not HTTP GET and Fetch or Compute would reveal cost or blocking",
-      "naked returns in nontrivial functions and value receivers that copy large, aliasing or synchronization-bearing structs",
-      "assertion helpers, helpers that fail without testing.TB.Helper, reflect.DeepEqual in new tests, and failures that hide got/want context",
-      "goroutines without mechanically visible cancellation, join or documented process-lifetime ownership",
-      "large functions, branch growth, exact clones, exported API growth and new abstractions whose measured consumer count does not justify them",
-      "whether an error-discard comment actually justifies the discard, as opposed to merely existing; adequacy is a reviewer judgment and cannot fail a candidate under promotion_policy's deterministic low-noise bar"
-    ],
-    "non_goals": [
-      "no line-length rule",
-      "no composite readability or style score",
-      "no fixed complexity, function-size or global-state ceiling",
-      "no favorable metric allowed to offset a new violation in another rule",
-      "no repository-wide rewrite to pay historical style debt",
-      "no automatic refactoring in the commit gate beyond an explicitly invoked formatter",
-      "no packages named common, util or helper merely to satisfy shared ownership; shared packages are named for the behavior they own"
-    ],
-    "promotion_policy": "Only deterministic low-noise rules fail candidate commits initially. Advisory rules graduate individually only after recorded candidate history demonstrates useful findings, bounded false positives and lower review/rework cost."
   },
   "operator_set": {
     "construct": {"state": "built", "owner": "internal/scratchmodel.Compile"},
@@ -141,10 +67,10 @@
       }
     },
     "implementation_preconditions": {
-      "rule": "Every non-landed roadmap row is Go implementation work unless it explicitly declares implementation_language other than go. The readability and new-unconsumed-surface gates must be LANDED before any such row lands. These are landing preconditions asserted directly against roadmap state, never edges in depends_on.",
-      "requires": ["go-readability-gate", "unconsumed-surface-admission"],
-      "why_not_depends_on": "depends_on is the stage-derivation authority. A universal precondition expressed there inflates every downstream stage without encoding a real ordering constraint: revision 5 carried it as 11 edges, which lengthened the critical path from 7 stages to 9 and moved composition-viability from stage 2 to stage 4 -- the cheap-test-first inversion named in open_risks, in its third occurrence. The repository already models this correctly for the controls it has: changed-file gofmt and repository-wide go vet appear in control_plane_status as capabilities, and nothing depends on them. A commit gate applies to whatever is in front of it; it does not need to precede work in the dependency sense. Build-order preference for the two style rows is expressed in execution_order.priority_within_stage.",
-      "bootstrap_exceptions": ["go-hygiene-policy-baseline", "go-readability-gate"],
+      "rule": "Every non-landed Go roadmap row requires the new-unconsumed-surface admission invariant. Toolchain formatting and vet remain commit-gate checks; advisory readability remains reviewer judgment rather than a permanent analyzer.",
+      "requires": ["unconsumed-surface-admission"],
+      "why_not_depends_on": "A universal commit gate is a landing invariant, not a dependency edge; expressing it in depends_on distorts experiment order.",
+      "bootstrap_exceptions": [],
       "landed_exemption": "Rows already listed in execution_order.landed predate this policy and are not retroactively rewritten. Candidate changes near historical debt are checked by candidate-versus-HEAD diagnostics."
     }
   },
@@ -169,32 +95,10 @@
   "items": [
     {
       "id": "rsi-phase-0-experiment-plane",
-      "title": "Phase 0 -- Go implementation hygiene and minimum runtime experiment control plane",
+      "title": "Phase 0 -- minimum runtime experiment control plane",
       "status": "open",
-      "rationale": "First make the implementation loop produce readable, least-mechanism Go without a new style ratchet. Then build the minimum experiment envelope and lifecycle so no experiment result is unattributable or unreplayable.",
+      "rationale": "Build the minimum experiment envelope and lifecycle so no experiment result is unattributable or unreplayable; repository hygiene remains owned by the toolchain, consumer admission, and deletion-led review.",
       "steps": [
-        {
-          "id": "go-hygiene-policy-baseline",
-          "title": "Encode the reviewed Google Go rule catalog through existing Go analysis owners; classify deterministic hard rules versus judgment-heavy advisories; census the repository and bind candidate-versus-HEAD baseline evidence without rewriting historical debt",
-          "status": "new",
-          "verify": "go test ./internal/gostyle ./internal/repoanalysis -run '^TestGoStylePolicyAndBaseline$' -count=1 -v",
-          "verifier_status": "declared",
-          "priority": "bootstrap first",
-          "rationale": "The policy must exist before enforcement so the gate cannot silently turn subjective guidance into blockers. Reuse repoanalysis, go/ast, go/types, go list, gofmt and go vet; add no broad lint framework or second source parser.",
-          "acceptance": "The baseline reports every rule and exclusion, proves generated/build-constrained handling, records source sections and candidate/base identities, and demonstrates that no aggregate score or favorable metric can hide a rule regression."
-        },
-        {
-          "id": "go-readability-gate",
-          "title": "Harden the Go policy baseline and add an observe-first candidate-delta readability phase to cmd/gate: promote only authoritative low-noise subchecks, retain semantic guidance as structured advisories, and record rule-local coverage, cost and disposition evidence",
-          "status": "new",
-          "verify": "go test ./internal/gostyle ./cmd/gate -run '^TestGoReadabilityCandidateDelta$' -count=1 -v",
-          "verifier_status": "declared",
-          "depends_on": ["go-hygiene-policy-baseline"],
-          "priority": "bootstrap second",
-          "rationale": "This converts only readability review proven safe to automate into deterministic code. The implementation first separates detector availability from enforcement readiness, honors build contexts, validates local source-section authority, reuses unchanged facts and measures its own cost. Existing debt does not block unrelated commits; changed declarations cannot add new enforceable hard-rule debt; heuristic and semantic findings retain judgment and evidence rather than becoming a score.",
-          "acceptance": "The named verifier covers aliased and shadowed imports, declaration identity, mutually exclusive build-tag and filename-constrained variants, generated sources, receiver object identity, MixedCaps declaration scope, valid source-section mappings and line-only movement. Gate evidence names every selected/skipped subcheck and maturity state; only enforceable subchecks fail. Candidate-versus-HEAD analysis reuses unchanged content facts, performs one rule-fact pass per changed file, stores rule metadata once and reports analysis-cost telemetry without a composite score. The first landed gate revision may leave every new detector observe-only; promotion occurs subcheck-by-subcheck from recorded evidence.",
-          "bootstrap": "The owner manually inserts the two Go-hygiene rows into docs/plan.json. Once this row lands, every remaining non-landed Go row must reach it through depends_on and every Go commit runs the gate phase automatically."
-        },
         {
           "id": "roadmap-validator",
           "title": "Validate the canonical depends_on DAG, runtime safety reachability, Go implementation preconditions, cross-references, derived stages, cycles and verifier syntax; derive roadmap state from Git/RepoDB/live-plan/lease evidence and emit a PROPOSED docs/plan.json insertion without becoming a second dispatcher",
@@ -211,7 +115,7 @@
           "status": "new",
           "verify": "go test ./internal/codeprofile ./internal/repoanalysis -run '^TestProductionConsumerCensus$' -count=1 -v",
           "verifier_status": "declared",
-          "depends_on": ["go-readability-gate", "roadmap-validator"],
+          "depends_on": ["roadmap-validator"],
           "implementation_language": "go",
           "rationale": "Start with the easier and more reliable half of refactoring automation: determine when consolidation is required and hand the model a bounded symbol/caller set. Tests are evidence, not production consumers. Reuse the build-aware source snapshot and profile owners; add no second parser, hand-maintained path table or composite quality score.",
           "acceptance": "The census resolves declarations and references across active build contexts; identifies new exports with zero non-test callers, declarations reachable only from tests, and document readers or writers without an exercised production counterpart; mechanically classifies command, interface, generated, serialization, reflection, cgo and build-variant boundaries; and reports cumulative delta from the plan slice base rather than allowing a small cleanup commit to conceal a larger preceding expansion. This row is observe-only."
@@ -226,17 +130,6 @@
           "implementation_language": "go",
           "rationale": "This is the narrow ratchet that removes dependence on model discipline: a complete staged vertical slice may add an owner and its real consumer together, but cannot advance by calling tests a consumer or by promising that a later row will use a public API.",
           "acceptance": "Only candidate-introduced, mechanically proven unconsumed declarations fail. Existing debt remains visible but does not block unrelated work. Once this row lands, add it to graph_contract.implementation_preconditions.requires so later Go roadmap rows cannot land without the consumer invariant."
-        },
-        {
-          "id": "safe-privatization-reducer",
-          "title": "Extend cmd/tighten only with mechanically safe consumer-driven reductions: privatize declarations whose callers are wholly package-local, delete zero-reference declarations and empty files, remove displaced imports, and retain a transaction only when formatting, package tests and AST surface improve",
-          "status": "new",
-          "verify": "go test ./cmd/tighten -run '^TestConsumerReducerRetainsOnlyVerifiedReduction$' -count=1 -v",
-          "verifier_status": "declared",
-          "depends_on": ["unconsumed-surface-admission"],
-          "implementation_language": "go",
-          "rationale": "Automate transformations only where symbol identity and caller closure make semantics mechanically provable. Numerical equivalence, ownership redesign, record consolidation, memory lifetime and execution order remain model-reviewed refactors whose targets and acceptance are supplied by the census and gate.",
-          "acceptance": "The reducer updates all mechanically resolved callers, refuses reflection/interface/build-boundary ambiguity, rolls back on any compile or test failure, and keeps the edit only when the targeted unconsumed-surface condition is eliminated and production AST does not increase."
         },
         {
           "id": "experiment-generation-record",
@@ -551,15 +444,15 @@
   ],
   "execution_order": {
     "derivation": "Stages are DERIVED from depends_on (stage = 1 + max stage of dependencies), then filtered to exclude rows listed in landed. Regenerated by the validator, never hand-authored; a mismatch between stored and recomputed stages is a validation failure. Stage numbers are dependency-depth labels, not global barriers: a row becomes ready when its own dependency closure is satisfied even if unrelated rows at lower stages remain open. Rows within a stage have no ordering constraint and may run in parallel.",
-    "stage_1": ["component-decomposition", "construction-profile-bridge", "determinism-and-statistical-verdicts", "evaluation-isolation", "experiment-generation-record", "go-hygiene-policy-baseline", "independent-rsi-admission", "refusal-ledger", "roadmap-validator", "rollback-invariant-and-drill", "sealed-external-authority", "typed-controller-action-language"],
-    "stage_2": ["bounded-exploration-budget", "component-catalog", "composition-viability", "experiment-lifecycle", "go-readability-gate"],
-    "stage_3": ["bridge-proposal", "controller-promotion", "production-consumer-census", "runtime-resource-scheduler"],
-    "stage_4": ["bounded-controller-trials", "bridge-synthesis", "unconsumed-surface-admission"],
-    "stage_5": ["compose-model-artifact", "hdc-retrieval", "safe-privatization-reducer"],
+    "stage_1": ["component-decomposition", "construction-profile-bridge", "determinism-and-statistical-verdicts", "evaluation-isolation", "experiment-generation-record", "independent-rsi-admission", "refusal-ledger", "roadmap-validator", "rollback-invariant-and-drill", "sealed-external-authority", "typed-controller-action-language"],
+    "stage_2": ["bounded-exploration-budget", "component-catalog", "composition-viability", "experiment-lifecycle", "production-consumer-census"],
+    "stage_3": ["bridge-proposal", "controller-promotion", "runtime-resource-scheduler", "unconsumed-surface-admission"],
+    "stage_4": ["bounded-controller-trials", "bridge-synthesis"],
+    "stage_5": ["compose-model-artifact", "hdc-retrieval"],
     "stage_6": ["descendant-improvement"],
     "stage_7": ["derivation-profile-as-artifact", "evaluator-as-artifact", "objective-composition", "proposal-ranking-from-outcomes", "scheduler-as-artifact"],
-    "priority_within_stage": "Stage 1: go-hygiene-policy-baseline first, so the readability gate exists before the bulk of new RSI Go lands and the landing precondition is satisfiable early. Stage 2: composition-viability first -- it is the cheapest high-information experiment in the record and its decision_point reshapes bridge, controller and Phase D work. Stage 3: production-consumer-census precedes further speculative foundations; its observe-only corpus earns the narrow admission rule, which then enables only mechanically safe reducer actions. The style and consumer rows gate LANDING, not numerical design, so they do not replace semantic review.",
-    "bootstrap_exception": "The owner manually authorizes go-hygiene-policy-baseline and go-readability-gate in docs/plan.json. After they land, the owner authorizes roadmap-validator once; every later roadmap promotion is mechanical.",
+    "priority_within_stage": "Stage 2: composition-viability first because it is the cheapest high-information experiment; production-consumer-census remains the prerequisite for the narrow unconsumed-surface admission in stage 3. Admission gates landing, not numerical design.",
+    "bootstrap_exception": "The owner authorizes roadmap-validator once; later roadmap promotion is mechanical.",
     "landed": ["multimodal-objectives", "objective-breadth"]
   },
   "open_risks": [
@@ -570,8 +463,6 @@
     "Phase 0 risks inverting cheap-test-first if the envelope or lifecycle is over-built before the first experiment. Keep records referential and transitions minimal; extend from observed recovery and attribution demands.",
     "Sealed authority is weakly enforceable on a single-user host. Same-user layers provide detection only; autonomous promotion stays disabled until a distinct principal or remote protected authority is exercised.",
     "Roadmap state and verifier status will drift if manually edited. The validator must derive them and report mismatches rather than trusting this document's snapshots.",
-    "Runtime lifecycle, lease and budget records can become a second governance surface. Reuse existing artifact codecs, decisions, run records and resource measurements; add no mutable ledger or duplicated fact.",
-    "A broad style gate can recreate the failed ratchet dynamic by rewarding cosmetic rewrites or abstraction churn. Enforce only per-rule candidate regressions; retain semantic guidance as advisory and measure whether each rule reduces review or rework cost before promotion.",
-    "Google's guidance evolves and contains contextual recommendations. The commit gate must use a reviewed local rule implementation, never live web content; upstream changes open an advisory for owner review rather than silently changing acceptance."
+    "Runtime lifecycle, lease and budget records can become a second governance surface. Reuse existing artifact codecs, decisions, run records and resource measurements; add no mutable ledger or duplicated fact."
   ]
 }

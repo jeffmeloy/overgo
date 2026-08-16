@@ -71,7 +71,6 @@ failure mode is agents re-discovering (or reinventing) code that already exists.
 | The current task of record | `go run ./cmd/plan -next` (trust it; do not carry the goal in memory) |
 | Park an out-of-scope finding | `go run ./cmd/finding -title <t> -severity <s> -owner <surface> -evidence <fact> -closure <path> -check <failable-check>` |
 | Rank repeated raw policy literals | `go run ./cmd/closure-scan -raw` (advisory ownership evidence; math/structure facts excluded) |
-| Eliminate an exact internal forwarding wrapper | `go run ./cmd/tighten` lists mechanically safe proposals; `-apply <id>` migrates all direct callers, deletes the wrapper, and retains the transaction only when package tests pass and AST surface falls |
 | Validate or propose RSI roadmap work | `go run ./cmd/roadmap` derives states from reachable gate results, the live plan, leases, and exact-verifier probe evidence; output is `PROPOSED` only and never mutates `docs/plan.json`; `-probe-row <id>` executes the exact named verifier and records only a healthy target-absent run binding |
 | Inject / advance a plan task | `go run ./cmd/plan -add -title <t> -vcmd <verify> <id>`; `-advance <id> <step>` |
 | Synchronize local master | `go run ./cmd/plan -sync-master`; if a merge is prepared, finalize with the plan-bound gate `-merge` |

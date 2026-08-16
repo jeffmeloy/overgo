@@ -26,18 +26,6 @@ const (
 	imageSessionCapacity = 1
 )
 
-func residentExecutor[Input, Model, Output any](
-	cache *capabilityruntime.ScalarSessionCache[Input, Model, Output],
-	err error,
-) capabilityruntime.Executor {
-	if err == nil {
-		return cache.Executor()
-	}
-	return func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error) {
-		return nil, err
-	}
-}
-
 func imageCapability() capability {
 	routedCache, routedErr := capabilityruntime.NewScalarSessionCache[sensenovarecipe.GenerationRequest, *sensenovarecipe.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
@@ -50,7 +38,7 @@ func imageCapability() capability {
 		},
 		sensenovarecipe.RegisterRuntime,
 	)
-	routed := residentExecutor(routedCache, routedErr)
+	routed := cachedExecutor(routedCache, routedErr)
 	latentCache, err := capabilityruntime.NewScalarSessionCache[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
 		latentimage.ValidateRequest, latentimage.SessionPolicy,
@@ -70,7 +58,7 @@ func imageCapability() capability {
 		},
 		latentimage.RegisterRuntime,
 	)
-	latent := residentExecutor(latentCache, err)
+	latent := cachedExecutor(latentCache, err)
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
@@ -86,7 +74,7 @@ func imageCapability() capability {
 		},
 		diffusionimage.RegisterRuntime[*diffusionimage.ResidentGenerator],
 	)
-	diffusion := residentExecutor(diffusionCache, diffusionErr)
+	diffusion := cachedExecutor(diffusionCache, diffusionErr)
 	return capability{
 		resolve: resolveImageSource,
 		execute: capabilityruntime.Dispatch(

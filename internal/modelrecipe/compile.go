@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	ModuleCompileModelPlan  recipe.ModuleID = "model.compile-plan"
-	ModuleCompileDecodePlan recipe.ModuleID = "model.compile-decode-plan"
-	ModuleForwardTokens     recipe.ModuleID = "model.forward-tokens"
+	ModuleCompileModelPlan    recipe.ModuleID = "model.compile-plan"
+	ModuleCompileDecodePlan   recipe.ModuleID = "model.compile-decode-plan"
+	ModuleForwardTokens       recipe.ModuleID = "model.forward-tokens"
+	ModuleThoughtBankGenerate recipe.ModuleID = "model.thoughtbank-generate"
 	// ModuleForecastSeries: host forward for series-forecast capability
 	// packages; input series tensor, output quantile-forecast tensor.
 	ModuleForecastSeries recipe.ModuleID = "model.forecast-series"
@@ -218,6 +219,9 @@ func (c linearCapability) modules(task recipe.Task) []recipe.Module {
 }
 
 var linearCapabilities = map[recipe.Task]linearCapability{
+	recipe.TaskGeneration: {placement: recipe.PlacementHost, stages: []scalarStage{
+		{node: "generate", module: ModuleThoughtBankGenerate, input: "request", output: "text", inputData: recipe.DataText, outData: recipe.DataText},
+	}},
 	recipe.TaskForecast: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "forecast", module: ModuleForecastSeries, input: "series", output: "forecast", inputData: recipe.DataTensor, outData: recipe.DataTensor},
 	}},
@@ -608,7 +612,7 @@ func mustCatalog() *recipe.Catalog {
 		},
 	}
 	for _, task := range []recipe.Task{
-		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech,
+		recipe.TaskGeneration, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech,
 	} {
 		modules = append(modules, linearCapabilities[task].modules(task)...)
 	}

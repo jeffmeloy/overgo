@@ -51,3 +51,16 @@ func TestTensorInventoryDocumentRejectsInvalidFacts(t *testing.T) {
 		})
 	}
 }
+
+func TestPyTorchTensorInventoryDocument(t *testing.T) {
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "pytorch-inventory-model")
+	document, err := NewTensorInventoryDocument(modelID, TensorFormatPyTorch, []TensorFact{
+		{Name: "weights/embed", Shape: []uint64{16, 8}, Storage: "bf16", Bytes: 256},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Format != TensorFormatPyTorch {
+		t.Fatalf("format = %s", document.Format)
+	}
+}

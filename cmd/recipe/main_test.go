@@ -15,7 +15,7 @@ import (
 
 func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 	for _, task := range []recipe.Task{
-		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
+		recipe.TaskGeneration, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
 		recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen,
 	} {
 		t.Run(string(task), func(t *testing.T) {

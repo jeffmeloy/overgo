@@ -19,6 +19,7 @@ import (
 	"overgo/internal/seriesforecast"
 	"overgo/internal/speechsynth"
 	"overgo/internal/tabularicl"
+	"overgo/internal/thoughtbank"
 )
 
 type capability struct {
@@ -59,6 +60,39 @@ func inventoryCapability(
 	}
 }
 
+func cachedExecutor[Input, Model, Output any](
+	cache *capabilityruntime.ScalarSessionCache[Input, Model, Output],
+	err error,
+) capabilityruntime.Executor {
+	if err == nil {
+		return cache.Executor()
+	}
+	return func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error) {
+		return nil, err
+	}
+}
+
+func thoughtBankCapability() capability {
+	cache, err := capabilityruntime.NewScalarSessionCache[thoughtbank.GenerateRequest, *thoughtbank.Generator, thoughtbank.Generation](
+		"generation", "host", 1,
+		thoughtbank.ValidateGenerateRequest, thoughtbank.GenerationSessionPolicy,
+		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ thoughtbank.GenerateRequest) (*thoughtbank.Generator, error) {
+			return thoughtbank.LoadGenerator(path)
+		},
+		func(context.Context, *thoughtbank.Generator, thoughtbank.GenerateRequest) error { return nil },
+		thoughtbank.RegisterRuntime,
+	)
+	return capability{
+		resolve: func(path string) (capabilitySource, error) {
+			inventory, inventoryErr := thoughtBankInventory(path)
+			return definitionSource(inventory, inventoryErr, func(modelID artifact.ID) (recipe.Definition, error) {
+				return modelrecipe.CapabilityDefinition(recipe.TaskGeneration, modelID)
+			})
+		},
+		execute: cachedExecutor(cache, err),
+	}
+}
+
 func projectionCapability(projectorPath string) capability {
 	return capability{resolve: func(modelPath string) (capabilitySource, error) {
 		file, err := gguf.Open(modelPath)
@@ -86,6 +120,7 @@ func projectionCapability(projectorPath string) capability {
 }
 
 var capabilities = map[recipe.Task]capability{
+	recipe.TaskGeneration: thoughtBankCapability(),
 	recipe.TaskForecast: inventoryCapability(modelartifact.FromHFPath, capabilityruntime.JSONScalar[[]float32, *seriesforecast.Model, []float32](
 		"forecast", seriesforecast.ValidateRequest,
 		capabilityruntime.IgnoreInput[[]float32](seriesforecast.Load), seriesforecast.RegisterRuntime)),
@@ -151,4 +186,12 @@ func tabularInventory(path string) (modelartifact.Inventory, error) {
 		)
 	}
 	return modelartifact.FromFiles(path, specs)
+}
+
+func thoughtBankInventory(path string) (modelartifact.Inventory, error) {
+	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
+		{Path: filepath.Join(path, "model.pt"), Name: "weights", Role: artifact.ComponentWeights},
+		{Path: filepath.Join(path, "tokenizer.json"), Name: "tokenizer", Role: artifact.ComponentTokenizer},
+		{Path: filepath.Join(path, "generation_config.json"), Name: "generation", Role: artifact.ComponentConfig},
+	})
 }

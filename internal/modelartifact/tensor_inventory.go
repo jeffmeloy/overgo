@@ -59,6 +59,8 @@ type TensorFormat string
 const (
 	TensorFormatGGUF        TensorFormat = "gguf"
 	TensorFormatSafetensors TensorFormat = "safetensors"
+	TensorFormatPyTorch     TensorFormat = "pytorch-zip"
+	TensorFormatMixed       TensorFormat = "mixed"
 )
 
 // TensorFact: logical tensor storage and shape.
@@ -165,7 +167,8 @@ func (d TensorInventoryDocument) validateShape() error {
 	if d.Version != TensorInventoryVersion || d.Model.Kind() != artifact.KindModel {
 		return errors.New("model artifact: invalid tensor inventory envelope")
 	}
-	if d.Format != TensorFormatGGUF && d.Format != TensorFormatSafetensors {
+	if d.Format != TensorFormatGGUF && d.Format != TensorFormatSafetensors &&
+		d.Format != TensorFormatPyTorch && d.Format != TensorFormatMixed {
 		return errors.New("model artifact: invalid tensor inventory format")
 	}
 	if len(d.Tensors) == 0 || len(d.Tensors) > maxInventoryTensors {

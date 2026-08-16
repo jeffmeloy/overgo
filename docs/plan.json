@@ -56,12 +56,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "recipe-activation",
-          "title": "Activate the real ThoughtBank checkpoint through the generic recipe runtime",
-          "status": "open",
-          "verify": "go test -tags modeltest ./cmd/recipe ./internal/capabilityruntime -run '^TestFractaleRecipeActivation$' -count=1 -v"
-        },
-        {
           "id": "training-leg",
           "title": "Port the fast-weight-bank gradient and Muon update through TrainingProgram; compare a complete real-checkpoint update on ordered WikiText records",
           "status": "open",

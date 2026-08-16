@@ -28,7 +28,7 @@ func videoCapability() capability {
 		},
 		latentvideo.RegisterWanRuntime,
 	)
-	wan := residentExecutor(wanCache, wanErr)
+	wan := cachedExecutor(wanCache, wanErr)
 
 	editCache, editErr := capabilityruntime.NewMappedSessionCache[latentvideo.ReferenceEditRequest, *latentvideo.LiveEditRuntime, latentvideo.EncodedVideo](
 		"video-gen", imageDevice, imageSessionCapacity,
@@ -51,7 +51,7 @@ func videoCapability() capability {
 			}, nil
 		},
 	)
-	edit := residentExecutor(editCache, editErr)
+	edit := cachedExecutor(editCache, editErr)
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.VideoRequest, *oscillatorimage.Model, oscillatorimage.EncodedVideo](
 		"video-gen", oscillatorimage.ValidateVideoRequest,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ oscillatorimage.VideoRequest) (*oscillatorimage.Model, error) {

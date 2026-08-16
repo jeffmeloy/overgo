@@ -1,0 +1,118 @@
+package thoughtbank
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
+
+	"overgo/internal/artifact"
+	"overgo/internal/hfbpe"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/workflowruntime"
+)
+
+const maxGenerationTokens = 256
+
+var generationContract = artifact.JSONContract(artifact.KindOutput, "overgo.thoughtbank-generation.v1")
+
+type GenerateRequest struct {
+	Text      string `json:"text"`
+	MaxTokens int    `json:"max_tokens"`
+}
+
+type Generation struct {
+	Text   string `json:"text"`
+	Tokens []int  `json:"tokens"`
+}
+
+type Generator struct {
+	weights   *FastWeightBankLMWeights
+	config    ArchConfig
+	tokenizer *hfbpe.Tokenizer
+}
+
+func ValidateGenerateRequest(request GenerateRequest) error {
+	if request.Text == "" || request.MaxTokens <= 0 || request.MaxTokens > maxGenerationTokens {
+		return fmt.Errorf("thoughtbank: generation requires text and 1..%d tokens", maxGenerationTokens)
+	}
+	return nil
+}
+
+func GenerationSessionPolicy(GenerateRequest) (string, error) { return "thoughtbank-host", nil }
+
+func LoadGenerator(directory string) (*Generator, error) {
+	weights, config, err := LoadCheckpoint(filepath.Join(directory, "model.pt"))
+	if err != nil {
+		return nil, err
+	}
+	tokenizer, err := hfbpe.Load(directory)
+	if err != nil {
+		return nil, err
+	}
+	return &Generator{weights: weights, config: config, tokenizer: tokenizer}, nil
+}
+
+func (g *Generator) Close(context.Context) error {
+	if g != nil {
+		g.weights, g.tokenizer = nil, nil
+	}
+	return nil
+}
+
+func (g *Generator) Generate(request GenerateRequest) (Generation, error) {
+	if g == nil || g.weights == nil || g.tokenizer == nil {
+		return Generation{}, errors.New("thoughtbank: generator is unavailable")
+	}
+	if err := ValidateGenerateRequest(request); err != nil {
+		return Generation{}, err
+	}
+	encoded, err := g.tokenizer.Encode(request.Text)
+	if err != nil {
+		return Generation{}, err
+	}
+	if len(encoded) == 0 {
+		return Generation{}, errors.New("thoughtbank: prompt tokenization is empty")
+	}
+	prompt := make([]int32, len(encoded))
+	for index, token := range encoded {
+		prompt[index] = int32(token)
+	}
+	slots := g.config.MemSeedSlots
+	state, logits, err := FastWeightBankLMDecodeInit(
+		g.weights, prompt, make([]float32, slots*g.config.MemDim), slots,
+	)
+	if err != nil {
+		return Generation{}, err
+	}
+	tokens := make([]int, request.MaxTokens)
+	for index := range tokens {
+		tokens[index] = argmaxLogit(logits)
+		if index+1 < len(tokens) {
+			logits, err = FastWeightBankLMDecodeStep(state, int32(tokens[index]))
+			if err != nil {
+				return Generation{}, err
+			}
+		}
+	}
+	return Generation{Text: g.tokenizer.Decode(tokens), Tokens: tokens}, nil
+}
+
+func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, generator *Generator) error {
+	if generator == nil {
+		return errors.New("thoughtbank: incomplete runtime binding")
+	}
+	return workflowruntime.RegisterJSONStage[GenerateRequest, Generation](
+		runtime, modelrecipe.ModuleThoughtBankGenerate, modelID, generationContract, generator.Generate,
+	)
+}
+
+func argmaxLogit(values []float32) int {
+	best := 0
+	for index := 1; index < len(values); index++ {
+		if values[index] > values[best] {
+			best = index
+		}
+	}
+	return best
+}

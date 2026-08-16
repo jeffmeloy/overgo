@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/pytorchzip"
 	"overgo/internal/safetensors"
 )
 
@@ -40,6 +41,7 @@ func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err err
 		}
 	}()
 	var facts []TensorFact
+	hasSafetensors, hasPyTorch := false, false
 	for _, spec := range specs {
 		kind, mediaType := fileContract(spec.Role, spec.Path)
 		descriptor, absolute, err := identifyFile(spec.Path, kind, mediaType)
@@ -54,6 +56,7 @@ func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err err
 		descriptors = append(descriptors, descriptor)
 		locations = append(locations, artifact.Location{Artifact: descriptor.ID, Kind: artifact.LocationFile, Value: absolute})
 		if mediaType == safetensorsMediaType {
+			hasSafetensors = true
 			sourceDir := filepath.Dir(absolute)
 			source := sources[sourceDir]
 			if source == nil {
@@ -64,6 +67,13 @@ func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err err
 				sources[sourceDir] = source
 			}
 			weightFacts, err := namespacedTensorFacts(source, absolute, spec.Name)
+			if err != nil {
+				return Inventory{}, fmt.Errorf("model artifact: component %s: %w", spec.Name, err)
+			}
+			facts = append(facts, weightFacts...)
+		} else if mediaType == pytorchZipMediaType {
+			hasPyTorch = true
+			weightFacts, err := pytorchTensorFacts(absolute, spec.Name)
 			if err != nil {
 				return Inventory{}, fmt.Errorf("model artifact: component %s: %w", spec.Name, err)
 			}
@@ -82,11 +92,60 @@ func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err err
 		Artifact: manifest.ID, Kind: artifact.LocationDirectory, Value: filepath.Clean(absoluteRoot),
 	})
 	sort.Slice(facts, func(left, right int) bool { return facts[left].Name < facts[right].Name })
-	tensors, err := NewTensorInventoryDocument(manifest.ID, TensorFormatSafetensors, facts)
+	format := TensorFormatSafetensors
+	if hasPyTorch {
+		format = TensorFormatPyTorch
+		if hasSafetensors {
+			format = TensorFormatMixed
+		}
+	}
+	tensors, err := NewTensorInventoryDocument(manifest.ID, format, facts)
 	if err != nil {
 		return Inventory{}, err
 	}
 	return Inventory{Manifest: manifest, TensorInventory: tensors, Components: descriptors, Locations: locations}, nil
+}
+
+func pytorchTensorFacts(filename, namespace string) ([]TensorFact, error) {
+	catalog, err := pytorchzip.ReadCatalog(filename)
+	if err != nil {
+		return nil, err
+	}
+	facts := make([]TensorFact, len(catalog.Tensors))
+	for index, tensor := range catalog.Tensors {
+		storage, width, err := pytorchStorage(tensor.DType)
+		if err != nil {
+			return nil, fmt.Errorf("tensor %s: %w", tensor.Name, err)
+		}
+		if tensor.Numel < 0 || uint64(tensor.Numel) > ^uint64(0)/width {
+			return nil, fmt.Errorf("tensor %s: byte size overflows", tensor.Name)
+		}
+		shape := make([]uint64, len(tensor.Shape))
+		for dimension, size := range tensor.Shape {
+			if size < 0 {
+				return nil, fmt.Errorf("tensor %s: negative dimension", tensor.Name)
+			}
+			shape[dimension] = uint64(size)
+		}
+		facts[index] = TensorFact{
+			Name: namespace + "/" + tensor.Name, Shape: shape,
+			Storage: storage, Bytes: uint64(tensor.Numel) * width,
+		}
+	}
+	return facts, nil
+}
+
+func pytorchStorage(name string) (string, uint64, error) {
+	switch name {
+	case "FloatStorage":
+		return "f32", 4, nil
+	case "HalfStorage":
+		return "f16", 2, nil
+	case "BFloat16Storage":
+		return "bf16", 2, nil
+	default:
+		return "", 0, fmt.Errorf("unsupported storage %q", name)
+	}
 }
 
 func fileContract(role artifact.ComponentRole, path string) (artifact.Kind, string) {

@@ -122,6 +122,7 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 		output     recipe.DataKind
 		modules    []recipe.ModuleID
 	}{
+		{recipe.TaskGeneration, []recipe.Placement{recipe.PlacementHost}, []recipe.DataKind{recipe.DataText}, recipe.DataText, []recipe.ModuleID{ModuleThoughtBankGenerate}},
 		{recipe.TaskForecast, []recipe.Placement{recipe.PlacementHost}, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleForecastSeries}},
 		{recipe.TaskTabular, []recipe.Placement{recipe.PlacementHost}, []recipe.DataKind{recipe.DataTensor}, recipe.DataTensor, []recipe.ModuleID{ModuleTabularPredict}},
 		{recipe.TaskSeq2Seq, []recipe.Placement{recipe.PlacementHost, recipe.PlacementHost, recipe.PlacementHost}, []recipe.DataKind{recipe.DataText}, recipe.DataText, []recipe.ModuleID{ModuleSeq2SeqEncode, ModuleSeq2SeqPrepare, ModuleSeq2SeqSelect}},

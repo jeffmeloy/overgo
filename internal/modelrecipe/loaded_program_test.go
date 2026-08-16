@@ -180,7 +180,7 @@ func publishProgramFacts(
 		t.Fatal(err)
 	}
 	if _, err := PublishResolvedModelDefinition(
-		context.Background(), store, "fixture/program/facts/"+inventory.Manifest.ID.String(), inventory, resolved,
+		context.Background(), store, inventory, resolved,
 	); err != nil {
 		t.Fatal(err)
 	}

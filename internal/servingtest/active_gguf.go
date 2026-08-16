@@ -96,7 +96,7 @@ func PublishActiveGGUFWithPolicy(
 	}
 	prefix := "fixture/serving/" + inventory.Manifest.ID.String()
 	if _, err := modelrecipe.PublishResolvedModelDefinition(
-		ctx, store, prefix+"/facts", inventory, resolved,
+		ctx, store, inventory, resolved,
 	); err != nil {
 		return err
 	}

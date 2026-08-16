@@ -39,9 +39,8 @@ func verifyInference(
 		return err
 	}
 	defer store.Close()
-	modelID := candidate.inventory.Manifest.ID
 	if _, err := modelrecipe.PublishResolvedModelDefinition(
-		ctx, store, "recipe/facts/"+modelID.String(), candidate.inventory, candidate.resolved,
+		ctx, store, candidate.inventory, candidate.resolved,
 	); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}

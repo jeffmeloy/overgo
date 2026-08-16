@@ -112,10 +112,10 @@ func (r ResolvedModelDefinition) Batch(
 func PublishResolvedModelDefinition(
 	ctx context.Context,
 	store artifact.Repository,
-	key string,
 	inventory modelartifact.Inventory,
 	resolved ResolvedModelDefinition,
 ) (artifact.CommitID, error) {
+	key := "recipe/facts/" + resolved.Document.ID.String()
 	batch, err := resolved.Batch(key, inventory)
 	if err != nil {
 		return artifact.CommitID{}, err

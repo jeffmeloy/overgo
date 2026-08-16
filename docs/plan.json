@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
   "items": [
     {
-      "id": "graft-generalization",
-      "title": "Generalize the graft pilot: organ inventory selects the donor component, no hardcoded dense-causal tensor names",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Generalize the graft pilot: organ inventory selects the donor component, no hardcoded dense-causal tensor names",
-          "status": "open",
-          "verify": "go test ./internal/composition -run '^TestViabilitySelectsOrganClassifiedComponent$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "generation-lifecycle-wiring",
       "title": "Wire generation-record authoring into production: graft-probe commits a generation record with its verdict",
       "status": "open",

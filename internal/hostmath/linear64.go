@@ -25,6 +25,13 @@ func LinearF64(dst, x, w, bias []float32, rows, inDim, outDim int) {
 	})
 }
 
+// LinearF64New allocates the LinearF64 destination.
+func LinearF64New(x, w, bias []float32, rows, inDim, outDim int) []float32 {
+	dst := make([]float32, rows*outDim)
+	LinearF64(dst, x, w, bias, rows, inDim, outDim)
+	return dst
+}
+
 func linearF64Cols(dst, x, w, bias []float32, oLo, oHi, inDim int) {
 	for o := oLo; o < oHi; o++ {
 		wr := w[o*inDim : (o+1)*inDim]

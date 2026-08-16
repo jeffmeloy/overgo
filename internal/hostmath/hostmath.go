@@ -83,6 +83,19 @@ func LayerNormInto(out, x, weight, bias []float32, rows, d int, eps float64) {
 	}
 }
 
+// LayerNormF32AffineInto rounds normalization before the affine step.
+func LayerNormF32AffineInto(out, x, weight, bias []float32, rows, d int, eps float32) {
+	parallelRangeCost(rows, 2*d, macF64, func(start, end int) {
+		LayerNormInto(out[start*d:end*d], x[start*d:end*d], nil, nil, end-start, d, float64(eps))
+		for row := start; row < end; row++ {
+			values := out[row*d : (row+1)*d]
+			for column, value := range values {
+				values[column] = value*weight[column] + bias[column]
+			}
+		}
+	})
+}
+
 // GELUErf: the EXACT (erf) GELU 0.5*x*(1+erf(x/sqrt(2))) — distinct from the
 // tanh approximation above.
 func GELUErf(x float64) float64 { return 0.5 * x * (1 + math.Erf(x/math.Sqrt2)) }

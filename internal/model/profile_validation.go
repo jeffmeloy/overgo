@@ -25,10 +25,10 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	checks := []error{
 		validateProfileOrdinal("DraftKind", profile.DraftKind, DraftOptionalSingleCatalog),
 		validateProfileOrdinal("OutputNorm", profile.OutputNorm, OutputNormTokenEmbedding),
-		validateProfileOrdinal("Normalization", profile.Normalization, NormalizationWeightOnlyLayer),
-		validateProfileOrdinal("Position", profile.Position, PositionNormal),
+		validateProfileOrdinal("Normalization", profile.Normalization, NormalizationMAD),
+		validateProfileOrdinal("Position", profile.Position, PositionLearnedAbsolute),
 		validateProfileOrdinal("Residual", profile.Residual, ResidualParallel),
-		validateProfileOrdinal("FeedForward", profile.FeedForward, FeedForwardGEGLU),
+		validateProfileOrdinal("FeedForward", profile.FeedForward, FeedForwardReLU),
 		validateProfileOrdinal("Attention", profile.Attention, AttentionShortConvolution),
 		validateProfileOrdinal("Overrides", profile.Overrides, EmbeddingOverrideMappedBase),
 		validateProfileOrdinal("Deepstack", profile.Deepstack, DeepstackSequentialAfter),

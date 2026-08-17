@@ -87,6 +87,10 @@ const (
 	NormalizationUnweightedLayer
 	NormalizationUnweightedRMS
 	NormalizationWeightOnlyLayer
+	// NormalizationMAD: mean-absolute-deviation normalization, the
+	// constructed (scratch) topology's norm. Registered so constructed
+	// components speak the same policy vocabulary as inherited ones.
+	NormalizationMAD
 )
 
 // PositionPolicy: rotary layout contract.
@@ -95,6 +99,9 @@ type PositionPolicy uint8
 const (
 	PositionNeoX PositionPolicy = iota
 	PositionNormal
+	// PositionLearnedAbsolute: learned absolute position embeddings plus
+	// optional lag bias, the constructed topology's position contract.
+	PositionLearnedAbsolute
 )
 
 // ResidualPolicy: block residual ordering.
@@ -116,6 +123,9 @@ const (
 	FeedForwardSquaredReLU
 	FeedForwardXIELU
 	FeedForwardGEGLU
+	// FeedForwardReLU: plain gateless ReLU MLP, the constructed topology's
+	// feed-forward contract.
+	FeedForwardReLU
 )
 
 // AttentionPolicy: primary attention implementation.

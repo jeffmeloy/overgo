@@ -15,9 +15,15 @@ import (
 	"unicode/utf8"
 
 	"overgo/internal/artifact"
+	"overgo/internal/model"
 	"overgo/internal/optimizer"
 	"overgo/internal/trainingprogram"
 )
+
+// ScratchArchitecture is the constructed topology's registered name in the
+// executor's architecture-profile vocabulary: constructed and inherited
+// components are named, validated and policy-driven through the same registry.
+const ScratchArchitecture = "adaptive-causal"
 
 type CorpusFacts struct {
 	Documents []string
@@ -100,19 +106,20 @@ type Parameter struct {
 }
 
 type Construction struct {
-	id         artifact.ID
-	dataset    artifact.ID
-	splitID    artifact.ID
-	config     Config
-	split      Split
-	parameters []Parameter
-	weights    []float32
-	bindings   map[string]parameterBinding
-	seed       int64
-	authority  trainingprogram.ScratchConstruction
-	optimizer  optimizer.Plan
-	program    trainingprogram.TrainingProgram
-	processor  artifact.ID
+	id           artifact.ID
+	dataset      artifact.ID
+	splitID      artifact.ID
+	config       Config
+	split        Split
+	parameters   []Parameter
+	weights      []float32
+	bindings     map[string]parameterBinding
+	seed         int64
+	authority    trainingprogram.ScratchConstruction
+	optimizer    optimizer.Plan
+	program      trainingprogram.TrainingProgram
+	processor    artifact.ID
+	architecture model.ArchitectureProfile
 }
 
 type parameterBinding struct{ start, end int }
@@ -230,18 +237,28 @@ func Compile(facts CorpusFacts, profile DerivationProfile) (Construction, error)
 	if err != nil {
 		return Construction{}, err
 	}
+	architecture, registered := model.LookupArchitecture(ScratchArchitecture)
+	if !registered {
+		return Construction{}, fmt.Errorf("scratch model: architecture %q is not registered", ScratchArchitecture)
+	}
+	if err := model.ValidateArchitectureProfile(architecture); err != nil {
+		return Construction{}, err
+	}
 	return Construction{
 		id: modelID, dataset: datasetID, splitID: splitID, config: cloneConfig(config),
 		split: cloneSplit(split), parameters: slices.Clone(parameters), weights: weights, bindings: bindings, seed: facts.Seed,
 		authority: authority, optimizer: optimizerPlan, program: program,
-		processor: processorID,
+		processor: processorID, architecture: architecture,
 	}, nil
 }
 
-func (c Construction) ID() artifact.ID                                { return c.id }
-func (c Construction) Dataset() artifact.ID                           { return c.dataset }
-func (c Construction) SplitID() artifact.ID                           { return c.splitID }
-func (c Construction) Config() Config                                 { return cloneConfig(c.config) }
+func (c Construction) ID() artifact.ID      { return c.id }
+func (c Construction) Dataset() artifact.ID { return c.dataset }
+func (c Construction) SplitID() artifact.ID { return c.splitID }
+
+// Architecture emits the constructed topology in the executor's registered
+// profile vocabulary -- the interchangeability contract with inherited models.
+func (c Construction) Architecture() model.ArchitectureProfile        { return c.architecture }
 func (c Construction) Split() Split                                   { return cloneSplit(c.split) }
 func (c Construction) Parameters() []Parameter                        { return slices.Clone(c.parameters) }
 func (c Construction) Authority() trainingprogram.ScratchConstruction { return c.authority }

@@ -15,6 +15,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
+	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
@@ -46,6 +47,7 @@ func run(args []string, output io.Writer) error {
 	refusals := flags.Bool("refusals", false, "list refused decisions with their measured evidence (the refusal ledger)")
 	budgets := flags.Bool("budgets", false, "list split partitions and query-budget grants with balances derived from committed charges")
 	experiments := flags.Bool("experiments", false, "reconcile experiment lifecycle chains to their current state, flagging expired leases and runners")
+	components := flags.Bool("components", false, "list committed component decompositions with per-role counts (classification ledger)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -66,6 +68,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *experiments {
 		return writeExperiments(output, *repository, *limit)
+	}
+	if *components {
+		return writeComponents(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -295,6 +300,57 @@ func writeExperiments(output io.Writer, repository string, limit int) error {
 		fmt.Fprintln(output, line)
 	}
 	fmt.Fprintf(output, "%d experiment(s); honesty: state derives from committed lifecycle chains only; a diverged or illegal chain errors rather than guesses\n", len(ids))
+	return nil
+}
+
+// writeComponents lists committed component decompositions with per-role
+// counts: the classification ledger, read from immutable documents only.
+func writeComponents(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorSet, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	count := 0
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != modelartifact.ComponentDecompositionMediaType ||
+			descriptor.Schema != modelartifact.ComponentDecompositionSchema {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		decomposition, err := modelartifact.ParseComponentDecomposition(content.Data)
+		if err != nil {
+			return err
+		}
+		roles := map[string]int{}
+		for _, component := range decomposition.Components {
+			roles[string(component.Contract.Role)]++
+		}
+		names := make([]string, 0, len(roles))
+		for role := range roles {
+			names = append(names, role)
+		}
+		sort.Strings(names)
+		summary := make([]string, 0, len(names))
+		for _, role := range names {
+			summary = append(summary, fmt.Sprintf("%s=%d", role, roles[role]))
+		}
+		fmt.Fprintf(output, "decomposition %s model=%s components=%d %s\n",
+			decomposition.ID, decomposition.Model, len(decomposition.Components), strings.Join(summary, " "))
+		count++
+	}
+	fmt.Fprintf(output, "%d decomposition(s); honesty: rows derive from committed classification documents only; no retrieval index exists yet\n", count)
 	return nil
 }
 

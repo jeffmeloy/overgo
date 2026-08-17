@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "component-decomposition",
-      "title": "Derive typed components from tensor name, shape, dtype, family and modality across the eight organ axes; persist as artifacts with lineage to the source model; classification only, no retrieval index",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Derive typed components from tensor name, shape, dtype, family and modality across the eight organ axes; persist as artifacts with lineage to the source model; classification only, no retrieval index",
-          "status": "open",
-          "verify": "go test ./internal/... -run '^TestComponentDecompositionContract$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "composition-viability",
       "title": "Graft one classified component from a validated model into another; freeze both, train only the bridge tensor through the shared Muon plan; require held-out gain over the unmodified target beyond the observed noise envelope, or record refusal with measured reason and failure mode",
       "status": "open",

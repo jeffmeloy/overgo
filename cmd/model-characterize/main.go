@@ -123,5 +123,16 @@ func characterizeServable(
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return artifact.ID{}, fmt.Errorf("commit measurement: %w", err)
 	}
+	decomposition, err := modelartifact.NewComponentDecomposition(entry.Model, "", "", resolved.Tensors.Tensors)
+	if err != nil {
+		return artifact.ID{}, fmt.Errorf("decompose components: %w", err)
+	}
+	decompositionBatch, err := decomposition.Batch("decompose:" + decomposition.ID.String())
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if _, err := store.Commit(ctx, decompositionBatch); err != nil {
+		return artifact.ID{}, fmt.Errorf("commit decomposition: %w", err)
+	}
 	return document.ID, nil
 }

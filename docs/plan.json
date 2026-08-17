@@ -3,27 +3,6 @@
   "doctrine": "Follow skill.md. The GUI is a thin consumer of the same native training workflow as cmd/train. Active recipes, typed artifacts, trainingprogram, operation, runrecord, and RepoDB remain sole authorities. Add no DPO-only endpoint, shell execution, filesystem-path browser contract, duplicate orchestration, unbounded metric retention, smoothing, fitted curves, reward aliases, artificial thresholds, or extra model passes for visualization. Every wave migrates its production consumer immediately and deletes displaced logic.",
   "items": [
     {
-      "id": "rl-server-admission",
-      "title": "Expose active DPO recipes through the existing training workspace and execute them through the native workflow",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add typed artifact, dataset, checkpoint, and managed-output controls; bind a production workflow adapter without DPO-specific transport",
-          "status": "open",
-          "verify": "go test ./internal/server ./cmd/server -run '^(TestTrainingWorkspaceAdmitsActiveDPORecipe|TestServerRuntimeExecutesDPOWorkflow)$' -count=1",
-          "rationale": "Recipe capability discovery must own form shape and admission. Browser fields carry identities, never arbitrary model or output paths.",
-          "depends_on": [
-            "rl-training-workflow"
-          ],
-          "capabilities": [
-            "executes-autonomously",
-            "publishes-artifact"
-          ]
-        }
-      ]
-    },
-    {
       "id": "rl-bounded-telemetry",
       "title": "Publish measured DPO observations without unbounded operation memory or duplicate model work",
       "status": "open",

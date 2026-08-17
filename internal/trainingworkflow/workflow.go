@@ -19,6 +19,7 @@ import (
 )
 
 type Request struct {
+	Recipe             artifact.ID
 	ModelDirectory     string
 	DatasetPath        string
 	OutputDirectory    string
@@ -100,7 +101,7 @@ func executeTokenPrediction(
 	if err != nil {
 		return Result{}, err
 	}
-	authority, err := compileAuthority(model, inputDirectory, data, stream, request.LearningRate, resumed, trainingprogram.ObjectiveTokenPrediction, nil)
+	authority, err := compileAuthority(model, inputDirectory, data, stream, request.LearningRate, resumed, request.Recipe, trainingprogram.ObjectiveTokenPrediction, nil)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile authority: %w", err)
 	}
@@ -143,7 +144,7 @@ func executeDPO(
 		return Result{}, fmt.Errorf("training workflow: identify reference: %w", err)
 	}
 	preference := &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: request.DPOScale}
-	authority, err := compileAuthority(model, inputDirectory, data, stream, request.LearningRate, resumed, trainingprogram.ObjectiveDPO, preference)
+	authority, err := compileAuthority(model, inputDirectory, data, stream, request.LearningRate, resumed, request.Recipe, trainingprogram.ObjectiveDPO, preference)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile DPO authority: %w", err)
 	}
@@ -206,6 +207,7 @@ func compileAuthority(
 	stream trainingdata.StreamState,
 	learningRate float64,
 	resumed trainingprogram.Checkpoint,
+	recipeID artifact.ID,
 	objective trainingprogram.ObjectiveKind,
 	preference *trainingprogram.PreferencePolicy,
 ) (compiledAuthority, error) {
@@ -240,7 +242,11 @@ func compileAuthority(
 		id, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/densecausal/"+name+"/v1"))
 		return id
 	}
-	recipeID, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("overgo/densecausal/training/"+string(objective)+"/v1"))
+	if !recipeID.Valid() {
+		recipeID, _ = artifact.IdentifyBytes(artifact.KindRecipe, []byte("overgo/densecausal/training/"+string(objective)+"/v1"))
+	} else if recipeID.Kind() != artifact.KindRecipe {
+		return compiledAuthority{}, errors.New("training workflow: recipe identity differs")
+	}
 	initial := trainingprogram.InitialStateSpec{Model: modelID}
 	if resumed.ID().Valid() {
 		initial = trainingprogram.InitialStateSpec{Checkpoint: resumed.ID()}

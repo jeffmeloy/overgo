@@ -124,13 +124,19 @@ func RunChainViability(store *repodb.Store, config ChainConfig) (ChainResult, er
 	for index, window := range config.Windows {
 		prefixText := scorer.tokenizer.Decode(window[:config.Prefix])
 		target := window[config.Prefix+config.Draft : span]
+		// Batch keys carry the full protocol identity (recipes fix the model
+		// pair; prefix/draft/target and window fix the data), so distinct
+		// configurations sharing one store never collide and identical
+		// replays deduplicate.
+		protocol := fmt.Sprintf("%s/p%d-d%d-t%d/w%d",
+			result.ChainRecipe, config.Prefix, config.Draft, config.Target, index)
 		chainCtx, chainText, err := executeChainArm(
-			ctx, runtime, chainProgram, fmt.Sprintf("tier0-chain/chain/%d", index), prefixText)
+			ctx, runtime, chainProgram, "tier0-chain/chain/"+protocol, prefixText)
 		if err != nil {
 			return ChainResult{}, fmt.Errorf("composition: window %d chain arm: %w", index, err)
 		}
 		baseCtx, _, err := executeChainArm(
-			ctx, runtime, baseProgram, fmt.Sprintf("tier0-chain/baseline/%d", index), prefixText)
+			ctx, runtime, baseProgram, "tier0-chain/baseline/"+protocol, prefixText)
 		if err != nil {
 			return ChainResult{}, fmt.Errorf("composition: window %d baseline arm: %w", index, err)
 		}

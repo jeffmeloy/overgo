@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "tier0-dose-response",
-      "title": "Tier-0 dose-response: extend the shipped chain gain into a law -- vary draft length (4/8/16/32), window count (6 disjoint), and drafter direction (strong-to-weak vs weak-to-strong) under the recorded protocol; record the response curve and the direction asymmetry as generation records",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Tier-0 dose-response: extend the shipped chain gain into a law -- vary draft length (4/8/16/32), window count (6 disjoint), and drafter direction (strong-to-weak vs weak-to-strong) under the recorded protocol; record the response curve and the direction asymmetry as generation records",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestTier0ChainDoseResponse$' -count=1 -v -timeout 60m"
-        }
-      ]
-    },
-    {
       "id": "residual-injection-connector",
       "title": "Residual-injection connector probe: compose frozen models through a learned linear projection with magnitude-rescaled residual injection at 0.75 depth, trained with a feature-matching loss at the scorer's penultimate layer (never end-to-end task CE, the measured failure mode of the retired adapter tier); envelope verdict vs baseline and vs the Tier-0 chain; refusal recorded either way",
       "status": "open",

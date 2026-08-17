@@ -12,8 +12,6 @@ package oscillatorimage
 
 import (
 	"fmt"
-	"io"
-	"math"
 	"path/filepath"
 	"strings"
 
@@ -115,23 +113,9 @@ func loadTensors(directory string) (map[string][]float32, error) {
 		return nil, err
 	}
 	defer source.Close()
-	tensors := make(map[string][]float32, len(source.Tensors))
-	for name, tensor := range source.Tensors {
-		reader, err := safetensors.F32Reader(tensor)
-		if err != nil {
-			return nil, fmt.Errorf("oscillatorimage: tensor %q: %w", name, err)
-		}
-		elements := tensor.Elements()
-		raw := make([]byte, elements*4)
-		if _, err := io.ReadFull(reader, raw); err != nil {
-			return nil, fmt.Errorf("oscillatorimage: tensor %q payload: %w", name, err)
-		}
-		values := make([]float32, elements)
-		for i := range values {
-			bits := uint32(raw[4*i]) | uint32(raw[4*i+1])<<8 | uint32(raw[4*i+2])<<16 | uint32(raw[4*i+3])<<24
-			values[i] = math.Float32frombits(bits)
-		}
-		tensors[name] = values
+	tensors, err := source.ReadAllF32()
+	if err != nil {
+		return nil, fmt.Errorf("oscillatorimage: materialize: %w", err)
 	}
 	return tensors, nil
 }

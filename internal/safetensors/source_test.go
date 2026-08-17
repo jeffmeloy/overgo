@@ -39,6 +39,23 @@ func TestOpenSourceUsesShardIndexAndReadsTensor(t *testing.T) {
 	}
 }
 
+func TestSourceIntShapesUsesHostRepresentability(t *testing.T) {
+	source := &Source{Tensors: map[string]Tensor{
+		"matrix": {Shape: []uint64{2, 3}},
+	}}
+	shapes, err := source.IntShapes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := shapes["matrix"]; len(got) != 2 || got[0] != 2 || got[1] != 3 {
+		t.Fatalf("shape = %v", got)
+	}
+	source.Tensors["matrix"] = Tensor{Shape: []uint64{2, 0}}
+	if _, err := source.IntShapes(); err == nil {
+		t.Fatal("empty dimension accepted")
+	}
+}
+
 func TestSourceSnapshotOwnsCatalogMetadata(t *testing.T) {
 	directory := t.TempDir()
 	writeShard(t, filepath.Join(directory, "model.safetensors"), map[string]testTensor{

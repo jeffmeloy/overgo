@@ -16,8 +16,6 @@ package densecausal
 
 import (
 	"fmt"
-	"io"
-	"math"
 	"path/filepath"
 	"strings"
 
@@ -72,32 +70,13 @@ func Load(directory string) (*Model, error) {
 	}
 	defer source.Close()
 
-	shapes := make(map[string][]int, len(source.Tensors))
-	weights := make(map[string][]float32, len(source.Tensors))
-	for name, tensor := range source.Tensors {
-		dims := make([]int, len(tensor.Shape))
-		for i, dim := range tensor.Shape {
-			if dim == 0 || dim > 1<<31 {
-				return nil, fmt.Errorf("densecausal: tensor %q dimension %d out of range", name, dim)
-			}
-			dims[i] = int(dim)
-		}
-		shapes[name] = dims
-		reader, err := safetensors.F32Reader(tensor)
-		if err != nil {
-			return nil, fmt.Errorf("densecausal: tensor %q: %w", name, err)
-		}
-		elements := tensor.Elements()
-		buf := make([]byte, elements*4)
-		if _, err := io.ReadFull(reader, buf); err != nil {
-			return nil, fmt.Errorf("densecausal: tensor %q payload: %w", name, err)
-		}
-		values := make([]float32, elements)
-		for i := range values {
-			bits := uint32(buf[4*i]) | uint32(buf[4*i+1])<<8 | uint32(buf[4*i+2])<<16 | uint32(buf[4*i+3])<<24
-			values[i] = math.Float32frombits(bits)
-		}
-		weights[name] = values
+	shapes, err := source.IntShapes()
+	if err != nil {
+		return nil, fmt.Errorf("densecausal: inventory: %w", err)
+	}
+	weights, err := source.ReadAllF32()
+	if err != nil {
+		return nil, fmt.Errorf("densecausal: materialize: %w", err)
 	}
 	m, err := NewModel(weights, shapes, config.NumAttentionHeads, config.HeadDim, config.RopeTheta, config.RMSNormEps)
 	if err != nil {

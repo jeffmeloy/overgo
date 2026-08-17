@@ -65,6 +65,26 @@ func TestReadF32PromotesIntoFinalSlab(t *testing.T) {
 	}
 }
 
+func TestSourceReadAllF32UsesTypedTensorConversion(t *testing.T) {
+	f32 := []byte{0x00, 0x00, 0x80, 0x3f}
+	bf16 := []byte{0x00, 0xc0}
+	first, err := NewTensor("first", "F32", []uint64{1}, bytes.NewReader(f32), 0, int64(len(f32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := NewTensor("second", "BF16", []uint64{1}, bytes.NewReader(bf16), 0, int64(len(bf16)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	values, err := (&Source{Tensors: map[string]Tensor{"first": first, "second": second}}).ReadAllF32()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values["first"][0] != 1 || values["second"][0] != -2 {
+		t.Fatalf("values = %v", values)
+	}
+}
+
 func TestReadBF16RetainsNativeWords(t *testing.T) {
 	encoded := []byte{0x80, 0x3f, 0x00, 0xc0}
 	tensor, err := NewTensor("x", "BF16", []uint64{2}, bytes.NewReader(encoded), 0, int64(len(encoded)))

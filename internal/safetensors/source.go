@@ -216,6 +216,26 @@ func (s *Source) Names() []string {
 	return names
 }
 
+// IntShapes: host-representable nonempty tensor dimensions.
+func (s *Source) IntShapes() (map[string][]int, error) {
+	if s == nil {
+		return nil, errors.New("safetensors: nil source")
+	}
+	shapes := make(map[string][]int, len(s.Tensors))
+	for name, tensor := range s.Tensors {
+		shape := make([]int, len(tensor.Shape))
+		for index, dimension := range tensor.Shape {
+			converted := int(dimension)
+			if dimension == 0 || uint64(converted) != dimension {
+				return nil, fmt.Errorf("safetensors: tensor %q dimension %d is not host-representable", name, dimension)
+			}
+			shape[index] = converted
+		}
+		shapes[name] = shape
+	}
+	return shapes, nil
+}
+
 // Shards: sorted repository-relative shard names.
 func (s *Source) Shards() []string {
 	if s == nil {

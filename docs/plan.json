@@ -1,5 +1,40 @@
 {
-  "campaign": "Native RL GUI: recipe-selected DPO execution, bounded telemetry, and evidence views",
-  "doctrine": "Follow skill.md. The GUI is a thin consumer of the same native training workflow as cmd/train. Active recipes, typed artifacts, trainingprogram, operation, runrecord, and RepoDB remain sole authorities. Add no DPO-only endpoint, shell execution, filesystem-path browser contract, duplicate orchestration, unbounded metric retention, smoothing, fitted curves, reward aliases, artificial thresholds, or extra model passes for visualization. Every wave migrates its production consumer immediately and deletes displaced logic.",
-  "items": []
+  "campaign": "Repository tightening: shared tensor ingestion and direct protocol ownership",
+  "doctrine": "Follow skill.md. Migrate every production caller and delete displaced loops, copies, wrappers, and tests in the same wave. Preserve numerical and protocol behavior. Add no compatibility path or speculative abstraction.",
+  "items": [
+    {
+      "id": "borrowed-tensor-catalog",
+      "title": "Remove the full-catalog snapshot copy from streamed prefix execution",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Borrow the immutable open source during prefix streaming and delete Source.Snapshot",
+          "status": "open",
+          "verify": "go test ./internal/safetensors ./internal/routedlm -run '^(TestOpenSourceUsesShardIndexAndReadsTensor|TestGenerationRetainedPrefixDirectBinding)$' -count=1",
+          "rationale": "The sole production caller neither mutates nor outlives the source; copying every tensor map entry and shape adds memory without ownership value.",
+          "depends_on": [
+            "shared-tensor-ingestion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "protocol-decoder-tightening",
+      "title": "Delete protocol decode wrappers and duplicate Responses text-part parsing",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Call strict JSON authority directly and share one private Responses text-part decoder",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^(TestAnthropic|TestResponses|TestResponse)' -count=1",
+          "rationale": "Remove pass-through wrappers and keep one typed text-part validation path without merging distinct protocol semantics.",
+          "depends_on": [
+            "borrowed-tensor-catalog"
+          ]
+        }
+      ]
+    }
+  ]
 }

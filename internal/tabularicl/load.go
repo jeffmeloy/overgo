@@ -10,7 +10,6 @@ package tabularicl
 
 import (
 	"fmt"
-	"io"
 	"math"
 	"path/filepath"
 	"slices"
@@ -129,36 +128,18 @@ func LoadHead(headDir string) (*Head, error) {
 		return nil, err
 	}
 	defer source.Close()
-	shapes := make(map[string][]int, len(source.Tensors))
-	weights := make(map[string][]float32, len(source.Tensors))
+	shapes, err := source.IntShapes()
+	if err != nil {
+		return nil, fmt.Errorf("tabularicl: inventory: %w", err)
+	}
 	for name, tensor := range source.Tensors {
-		// All-F32 artifact contract (mirrors the reference admission check).
 		if tensor.DType != "F32" {
 			return nil, fmt.Errorf("tabularicl: tensor %q dtype %s violates the all-F32 contract", name, tensor.DType)
 		}
-		dims := make([]int, len(tensor.Shape))
-		for i, dim := range tensor.Shape {
-			if dim == 0 || dim > 1<<31 {
-				return nil, fmt.Errorf("tabularicl: tensor %q dimension %d out of range", name, dim)
-			}
-			dims[i] = int(dim)
-		}
-		shapes[name] = dims
-		reader, err := safetensors.F32Reader(tensor)
-		if err != nil {
-			return nil, fmt.Errorf("tabularicl: tensor %q: %w", name, err)
-		}
-		elements := tensor.Elements()
-		raw := make([]byte, elements*4)
-		if _, err := io.ReadFull(reader, raw); err != nil {
-			return nil, fmt.Errorf("tabularicl: tensor %q payload: %w", name, err)
-		}
-		values := make([]float32, elements)
-		for i := range values {
-			bits := uint32(raw[4*i]) | uint32(raw[4*i+1])<<8 | uint32(raw[4*i+2])<<16 | uint32(raw[4*i+3])<<24
-			values[i] = math.Float32frombits(bits)
-		}
-		weights[name] = values
+	}
+	weights, err := source.ReadAllF32()
+	if err != nil {
+		return nil, fmt.Errorf("tabularicl: materialize: %w", err)
 	}
 	loader := &headLoader{weights: weights, shapes: shapes}
 	head, err := loader.compile()

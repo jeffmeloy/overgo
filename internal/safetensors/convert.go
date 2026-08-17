@@ -47,22 +47,55 @@ func ReadF32(tensor Tensor) ([]float32, error) {
 		}
 		return values, nil
 	}
-	reader, err := F32Reader(tensor)
-	if err != nil {
-		return nil, err
-	}
 	encoded := f32PromotionBuffers.Get().([]byte)
 	defer f32PromotionBuffers.Put(encoded)
-	for offset := 0; offset < count; {
-		batch := min(count-offset, len(encoded)/float32StorageBytes)
-		payload := encoded[:batch*float32StorageBytes]
-		if _, err := io.ReadFull(reader, payload); err != nil {
-			return nil, err
+	switch tensor.DType {
+	case "F32":
+		for offset := 0; offset < count; {
+			batch := min(count-offset, len(encoded)/float32StorageBytes)
+			payload := encoded[:batch*float32StorageBytes]
+			if _, err := tensor.ReadAt(payload, int64(offset)*float32StorageBytes); err != nil {
+				return nil, err
+			}
+			for index := range batch {
+				values[offset+index] = math.Float32frombits(binary.LittleEndian.Uint32(payload[index*float32StorageBytes:]))
+			}
+			offset += batch
 		}
-		for index := range batch {
-			values[offset+index] = math.Float32frombits(binary.LittleEndian.Uint32(payload[index*float32StorageBytes:]))
+	case "F16", "BF16":
+		convert := dtype.Float16ToFloat32
+		if tensor.DType == "BF16" {
+			convert = dtype.BF16ToFloat32
 		}
-		offset += batch
+		for offset := 0; offset < count; {
+			batch := min(count-offset, len(encoded)/float16StorageBytes)
+			payload := encoded[:batch*float16StorageBytes]
+			if _, err := tensor.ReadAt(payload, int64(offset)*float16StorageBytes); err != nil {
+				return nil, err
+			}
+			for index := range batch {
+				values[offset+index] = convert(binary.LittleEndian.Uint16(payload[index*float16StorageBytes:]))
+			}
+			offset += batch
+		}
+	default:
+		return nil, fmt.Errorf("safetensors: cannot promote %s to F32", tensor.DType)
+	}
+	return values, nil
+}
+
+// ReadAllF32 materializes the source directly into final F32 slices.
+func (s *Source) ReadAllF32() (map[string][]float32, error) {
+	if s == nil {
+		return nil, errors.New("safetensors: nil source")
+	}
+	values := make(map[string][]float32, len(s.Tensors))
+	for name, tensor := range s.Tensors {
+		decoded, err := ReadF32(tensor)
+		if err != nil {
+			return nil, fmt.Errorf("safetensors: tensor %q: %w", name, err)
+		}
+		values[name] = decoded
 	}
 	return values, nil
 }
@@ -88,7 +121,7 @@ func ReadBF16(tensor Tensor) ([]uint16, error) {
 	for offset := 0; offset < count; {
 		batch := min(count-offset, len(encoded)/float16StorageBytes)
 		payload := encoded[:batch*float16StorageBytes]
-		if _, err := tensor.ReadAt(payload, int64(offset*float16StorageBytes)); err != nil {
+		if _, err := tensor.ReadAt(payload, int64(offset)*float16StorageBytes); err != nil {
 			return nil, err
 		}
 		for index := range batch {
@@ -139,7 +172,12 @@ func (r *f32Reader) Read(destination []byte) (int, error) {
 			return written, errors.New("safetensors: 16-bit source returned a partial element")
 		}
 		if count > 0 {
-			r.output = make([]byte, count*float32StorageBytes/float16StorageBytes)
+			size := count * float32StorageBytes / float16StorageBytes
+			if cap(r.output) < size {
+				r.output = make([]byte, size)
+			} else {
+				r.output = r.output[:size]
+			}
 			for index := 0; index < count/float16StorageBytes; index++ {
 				value := r.convert(binary.LittleEndian.Uint16(r.input[index*float16StorageBytes:]))
 				binary.LittleEndian.PutUint32(r.output[index*float32StorageBytes:], math.Float32bits(value))

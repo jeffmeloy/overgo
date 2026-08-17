@@ -63,13 +63,13 @@
      "contains": "func OpenSourceWithLimits(",
      "path": "internal/safetensors/source.go",
      "role": "source",
-     "identity": "file:sha256:9cf6d6c44950724c0f7d84ef35b61b7cdf1f096a36872354621fe816ba563d18"
+     "identity": "file:sha256:cf2214f08bc86e68474ff21416c423c7614db44ffb24e55a868d62f92c3790cd"
     },
     {
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",
      "path": "internal/safetensors/source_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:77761d1030a9241e9430905657e0cfb7acdefdaaf3f919f6a8f574fe8bf8e3da"
+     "identity": "evidence:sha256:dccf33a0884680118ee459c60c79e459bdabd19792dcb10c9b0b720d739894ba"
     }
    ],
    "id": "bounded-safetensors-repositories",

@@ -3,24 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "hdc-retrieval",
-      "title": "Port the bit-packed hypervector index with catalog-derived signature width, combining the lexical organ signal with the existing distributional signal",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Port the bit-packed hypervector index with catalog-derived signature width, combining the lexical organ signal with the existing distributional signal",
-          "status": "open",
-          "verify": "go test ./internal/... -run '^TestHypervectorRetrievalRanksKnownBridges$' -count=1 -v",
-          "rationale": "Deliberately last in phase B. Do not automate selection before composition-viability establishes that selection matters and hand-run bridges reveal what ranking needs. The signals are complementary: lexical says what a tensor is called, distributional says how it behaves.",
-          "depends_on": [
-            "bridge-synthesis",
-            "component-catalog"
-          ]
-        }
-      ]
-    },
-    {
       "id": "bounded-controller-trials",
       "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",
       "status": "open",

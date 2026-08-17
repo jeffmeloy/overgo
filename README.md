@@ -115,9 +115,8 @@ former synthetic constant-target trainer was deleted.
 ## Recorded performance
 
 Snapshot reviewed 2026-08-14. These are recorded single-machine results, not
-portable guarantees. The authoritative protocol, artifact identities, quality
-checks, and unresolved limitations are in the
-[adaptive_new parity report](docs/adaptive_new_parity_report.md).
+portable guarantees. The authoritative protocols and artifact identities live
+in the RepoDB store's committed run and generation records.
 
 | Workload | Reference | Overgo | Verdict |
 | --- | ---: | ---: | --- |
@@ -484,7 +483,7 @@ child retains acyclic construction lineage to the parent and governing facts.
 No descendant improvement has been demonstrated yet. CLI activation, exact
 checkpoint/resume, and a larger repository-task corpus remain open.
 
-See the [training plan](docs/training_plan.md) for the exact boundary.
+See [docs/plan.json](docs/plan.json) for the open campaign rows.
 
 ## Commands
 
@@ -595,12 +594,9 @@ permissions for model, dataset, or checkpoint stores.
 
 - [Compatibility matrix](docs/COMPATIBILITY.md): generated model and feature
   status with verification levels and commands.
-- [Adaptive_new parity report](docs/adaptive_new_parity_report.md): capability,
-  quality, wall, peak-memory, and remaining-gap assessment.
-- [Training plan](docs/training_plan.md): scratch-controller-first Muon design
-  and current implementation boundary.
-- [RepoDB](docs/REPODB.md): artifact identity, lineage, and store contracts.
-- [Merge floor](docs/MERGE_FLOOR_PLAN.md): automation implementation status.
+- [Plan](docs/plan.json): the single dispatching authority for all open
+  campaign work.
 - [Iteration doctrine](skill.md): architecture, verification, porting, and
   development workflow rules.
+- [RepoDB import](docs/REPODB_IMPORT.md): store import contract.
 - [SBOM.cdx.json](SBOM.cdx.json): dependency and binary provenance.

@@ -37,7 +37,7 @@ const (
 
 // TestTier0ChainViability passes when the experiment ran to a legal verdict --
 // SHIP or measured REFUSAL -- and fails only when the experiment could not
-// execute. The docs/rsi_plan.json Phase B row consumes the logged verdict.
+// execute. The docs/plan.json Phase B row consumes the logged verdict.
 func TestTier0ChainViability(t *testing.T) {
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))

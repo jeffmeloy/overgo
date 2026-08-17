@@ -1,5 +1,485 @@
 {
-  "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and the composition-viability pivot",
-  "doctrine": "Follow skill.md. This file contains executable open work only; every open step has a failable verifier. docs/rsi_plan.json is the non-dispatching design record; rows enter here by owner authorization now and by roadmap-validator proposal once it lands.",
-  "items": []
+  "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and automatic composition",
+  "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
+  "items": [
+    {
+      "id": "experiment-generation-record",
+      "title": "Typed experiment/generation aggregate referencing the immutable identities for parents, components, bridge, training plan, data split, evaluator, code/kernel/environment, seeds, budget, run, outcome and decision",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Typed experiment/generation aggregate referencing the immutable identities for parents, components, bridge, training plan, data split, evaluator, code/kernel/environment, seeds, budget, run, outcome and decision",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run '^TestGenerationRecordBindsFullProvenance$' -count=1 -v",
+          "rationale": "Descendant depth is computed from this graph. The aggregate stores references rather than copies: RepoDB remains generic storage while runrecord owns generation semantics and existing recipe, dataset, evaluator, environment and decision artifacts retain their facts."
+        }
+      ]
+    },
+    {
+      "id": "refusal-ledger",
+      "title": "Record every refused candidate as an immutable measured refusal decision; expose the refusal ledger as a RepoDB query rather than a second mutable document",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record every refused candidate as an immutable measured refusal decision; expose the refusal ledger as a RepoDB query rather than a second mutable document",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/recipe -run '^TestRefusalDecisionCarriesMeasuredReason$' -count=1 -v",
+          "rationale": "Audit trail, negative training signal for proposal-ranking-from-outcomes, and the mechanism preventing the system re-proposing the same dead end indefinitely. Reuse the existing decision lifecycle and keep RepoDB domain-neutral."
+        }
+      ]
+    },
+    {
+      "id": "experiment-lifecycle",
+      "title": "Implement the idempotent runtime experiment state machine: proposed, admitted, leased, running, evaluated, refused/promoted, contained, rolled-back; bind retry identity, heartbeat expiry, checkpoint recovery and reconciliation to immutable generation evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Implement the idempotent runtime experiment state machine: proposed, admitted, leased, running, evaluated, refused/promoted, contained, rolled-back; bind retry identity, heartbeat expiry, checkpoint recovery and reconciliation to immutable generation evidence",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run '^TestExperimentLifecycleIsIdempotentAndRecoverable$' -count=1 -v",
+          "rationale": "A generation record describes an experiment but does not operate it. This lifecycle is the runtime analogue of the prepared/finalized gate transaction: interruption cannot create two outcomes, silently lose a run, or promote without terminal evidence. Resource leases plug into the leased/running transitions when Phase E supplies them.",
+          "depends_on": [
+            "experiment-generation-record",
+            "refusal-ledger"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "component-decomposition",
+      "title": "Derive typed components from tensor name, shape, dtype, family and modality across the eight organ axes; persist as artifacts with lineage to the source model; classification only, no retrieval index",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Derive typed components from tensor name, shape, dtype, family and modality across the eight organ axes; persist as artifacts with lineage to the source model; classification only, no retrieval index",
+          "status": "open",
+          "verify": "go test ./internal/... -run '^TestComponentDecompositionContract$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "composition-viability",
+      "title": "Graft one classified component from a validated model into another; freeze both, train only the bridge tensor through the shared Muon plan; require held-out gain over the unmodified target beyond the observed noise envelope, or record refusal with measured reason and failure mode",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Graft one classified component from a validated model into another; freeze both, train only the bridge tensor through the shared Muon plan; require held-out gain over the unmodified target beyond the observed noise envelope, or record refusal with measured reason and failure mode",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestComponentCompositionViability$' -count=1 -v",
+          "rationale": "THE PIVOT. Nothing upstream of recursive-improvement-boundary establishes that component composition produces working models, yet that step has the controller proposing composition candidates. Without this row a downstream failure cannot be attributed between a bad proposer and an unviable mechanism. Uses proven infrastructure only: Tier-1 transplant needs no profile synthesis because the target ArchitectureProfile already exists in the 135-entry catalog, and densecausal.TrainDeviceResidentFrozenLexicalBatches already proves frozen-parameter resident CUDA training. Run manually, human-reviewed, under a recorded budget.",
+          "depends_on": [
+            "objective-breadth",
+            "component-decomposition",
+            "experiment-generation-record",
+            "determinism-and-statistical-verdicts",
+            "evaluation-isolation"
+          ],
+          "capabilities": [
+            "measures-held-out"
+          ],
+          "outcome": {
+            "verdict": "refusal",
+            "measured": "baseline held-out CE 4.849884; seeds 7/11/13 held-out 5.440103/5.441688/5.428838 after 6 bridge-only Muon steps; training loss rose 4.969914 to 5.93-6.03 across all seeds",
+            "failure_mode": "optimizer step-size dominance at the recorded budget (derived lr, 6 steps, 64-token windows): normalized Muon updates overshoot the 1.84M-parameter bridge before it can adapt; graft execution itself is proven exact (zero-Up no-op and finite-difference VJP tests)",
+            "protocol": "donor Carbon-500M layer-14 MLP (organ mlp_gate) into frozen Qwen2.5-0.5B layer 12; zero-initialized Up bridge; host reference; wall 14m01s; evidence in TestComponentCompositionViability log at the committing head",
+            "consequence": "on_refusal branch taken: Phase B re-scopes toward Tier-0 whole-model chaining; the adapter tier is re-ranked, not deleted -- a lower-lr / longer-budget bridge retrial is a legal future probe under a new recorded protocol"
+          }
+        }
+      ]
+    },
+    {
+      "id": "construction-profile-bridge",
+      "title": "Make scratchmodel.Compile emit model.ArchitectureProfile rather than a private Config, so constructed and inherited components are interchangeable in the vocabulary the executor already runs",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make scratchmodel.Compile emit model.ArchitectureProfile rather than a private Config, so constructed and inherited components are interchangeable in the vocabulary the executor already runs",
+          "status": "open",
+          "verify": "go test ./internal/scratchmodel ./internal/model -run '^TestConstructionEmitsExecutableProfile$' -count=1 -v",
+          "rationale": "The keystone join, currently unnamed and on the critical path. internal/scratchmodel does not import internal/model; ArchitectureProfile is never constructed at runtime. controller-promotion needs a controller both scratch-built and executable through the shared runtime."
+        }
+      ]
+    },
+    {
+      "id": "adapter-retrial-probe",
+      "title": "Re-rank the adapter tier against its measured failure mode: rerun bridge-only Muon at a lower learning rate and longer budget under a NEW recorded protocol via cmd/graft-probe; two refusals retire the tier, a ship re-opens it",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Re-rank the adapter tier against its measured failure mode: rerun bridge-only Muon at a lower learning rate and longer budget under a NEW recorded protocol via cmd/graft-probe; two refusals retire the tier, a ship re-opens it",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAdapterRetrialProbe$' -count=1 -v -timeout 60m",
+          "rationale": "The pivot's failure mode was optimizer step-size dominance at the 6-step budget, not proven non-viability; the on_refusal branch re-ranks rather than deletes. One retrial under a corrected protocol produces the second measurement the tier's fate needs.",
+          "depends_on": [
+            "composition-viability",
+            "evaluation-isolation",
+            "determinism-and-statistical-verdicts"
+          ],
+          "capabilities": [
+            "measures-held-out"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "component-catalog",
+      "title": "Populate the store component catalog across every validated model and repoint the similarity endpoint at the store pool so retrieval is cross-model and inspectable",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Populate the store component catalog across every validated model and repoint the similarity endpoint at the store pool so retrieval is cross-model and inspectable",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestSimilarComponentsSpanStoreCatalog$' -count=1 -v",
+          "rationale": "analyze_tensors.go:113 sources its pool from characterizeLoadedModel, so similarity is within-model only. The pool source changes, the algorithm does not.",
+          "depends_on": [
+            "component-decomposition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bridge-proposal",
+      "title": "Convert retrieval output into blocked composition candidates carrying required verifier, promotion-blocked state and blocker reason; advisory by construction, never authorizing",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Convert retrieval output into blocked composition candidates carrying required verifier, promotion-blocked state and blocker reason; advisory by construction, never authorizing",
+          "status": "open",
+          "verify": "go test ./internal/... -run '^TestBridgeProposalBlocksWithoutVerifier$' -count=1 -v",
+          "depends_on": [
+            "refusal-ledger",
+            "component-catalog",
+            "composition-viability"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "typed-controller-action-language",
+      "title": "Define an allowlisted artifact-transformation action language the controller emits; deterministic Go executors compile those actions through recipes, neutral operators and shared training programs. No code, no shell, no arbitrary runtime orchestration",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define an allowlisted artifact-transformation action language the controller emits; deterministic Go executors compile those actions through recipes, neutral operators and shared training programs. No code, no shell, no arbitrary runtime orchestration",
+          "status": "open",
+          "verify": "go test ./internal/... -run '^TestControllerActionsAreAllowlistedTransformations$' -count=1 -v",
+          "rationale": "The automation boundary. A controller emitting code or shell is unrestricted self-modification wearing a recipe costume."
+        }
+      ]
+    },
+    {
+      "id": "independent-rsi-admission",
+      "title": "Bind proposer, evaluator and decider to distinct authority domains rather than merely distinct artifact IDs; re-evaluate from a clean worker against sealed inputs; require generation N-1 authority to approve generation N evaluator or policy changes",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bind proposer, evaluator and decider to distinct authority domains rather than merely distinct artifact IDs; re-evaluate from a clean worker against sealed inputs; require generation N-1 authority to approve generation N evaluator or policy changes",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/recipe -run '^TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration$' -count=1 -v",
+          "rationale": "Distinct artifact IDs do not prevent a single process from authoring all three. Authority separation and the no-self-approval generation edge must be enforced in immutable runtime evidence, not by naming or doctrine."
+        }
+      ]
+    },
+    {
+      "id": "sealed-external-authority",
+      "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
+          "status": "open",
+          "verify": "OVERGO_SEALED_AUTHORITY_TEST=1 go test ./internal/testevidence ./internal/protection -run '^TestCandidatePrincipalCannotWriteSealedAuthority$' -count=1 -v",
+          "rationale": "THE FIXED POINT. Goldens originate from HF transformers 4.57.1 / torch 2.12.0+cu126 and pinned llama.cpp; fixtures/carbon_golden.json stamps its producing versions and llama_*_grad_golden.json carry torch autograd gradients. The system cannot author them. Every Phase D row is safe exactly to the degree it is ultimately scored against artifacts the system did not produce."
+        }
+      ]
+    },
+    {
+      "id": "bounded-exploration-budget",
+      "title": "Issue GPU-hour budget tokens for autonomous proposal; enforce cancellation and containment; exceeding a budget requires an external decision",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Issue GPU-hour budget tokens for autonomous proposal; enforce cancellation and containment; exceeding a budget requires an external decision",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestExplorationBudgetTokensEnforced$' -count=1 -v",
+          "rationale": "Bounded autonomy is the only kind that can be left running unattended. Query counts, GPU-hours and later resource dimensions use one common immutable budget/token mechanism with typed units, owner, subject, issued amount, consumed amount, expiry and external override evidence.",
+          "depends_on": [
+            "evaluation-isolation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rollback-invariant-and-drill",
+      "title": "Make reversibility a checked invariant -- immutable champion retention, compare-and-set activation, decisions carrying decider identity -- and exercise a rollback drill that demonstrably restores the prior champion",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make reversibility a checked invariant -- immutable champion retention, compare-and-set activation, decisions carrying decider identity -- and exercise a rollback drill that demonstrably restores the prior champion",
+          "status": "open",
+          "verify": "go test ./internal/repodb ./internal/recipe -run '^TestPromotionReversibleAndDrillRestoresChampion$' -count=1 -v",
+          "rationale": "An untested rollback is not a rollback. The drill is the row, not the invariant alone."
+        }
+      ]
+    },
+    {
+      "id": "controller-promotion",
+      "title": "Construct and train the small workflow controller from scratch; immutable Git/RepoDB corpus rather than operational-state text; typed component and workflow actions; held-out action/modality validity and multi-seed gains; pretrained challengers under the same suite; champion/challenger promotion and rollback external to the model",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Construct and train the small workflow controller from scratch; immutable Git/RepoDB corpus rather than operational-state text; typed component and workflow actions; held-out action/modality validity and multi-seed gains; pretrained challengers under the same suite; champion/challenger promotion and rollback external to the model",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestControllerPromotionContract$' -count=1 -v",
+          "depends_on": [
+            "construction-profile-bridge",
+            "composition-viability",
+            "typed-controller-action-language",
+            "rollback-invariant-and-drill",
+            "sealed-external-authority",
+            "evaluation-isolation",
+            "independent-rsi-admission"
+          ],
+          "capabilities": [
+            "promotes-artifact",
+            "measures-held-out"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "runtime-resource-scheduler",
+      "title": "Add experiment/job leases carrying GPU memory, CPU, RAM and wall-time estimates, heartbeat expiry, cancellation, checkpoint/resume, abandoned-job reconciliation, retry identity, recovery cost and actual measurements; recommendation-only at first",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add experiment/job leases carrying GPU memory, CPU, RAM and wall-time estimates, heartbeat expiry, cancellation, checkpoint/resume, abandoned-job reconciliation, retry identity, recovery cost and actual measurements; recommendation-only at first",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestExperimentLeaseLifecycleAndMeasurement$' -count=1 -v",
+          "rationale": "cmd/plan -lease-report covers worktree/resource advisory leases for development. Runtime experiments need their own lease projection, but both consumers should reuse common resource request and measured-outcome primitives now that the abstraction has two real owners. Experiment-specific lifecycle state stays in runrecord; plan owns recommendation and capacity assessment.",
+          "depends_on": [
+            "experiment-generation-record",
+            "experiment-lifecycle"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bridge-synthesis",
+      "title": "Given a blocked candidate, derive adapter geometry, train it with everything else frozen, and emit promotion evidence or a refusal record with measured reason",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Given a blocked candidate, derive adapter geometry, train it with everything else frozen, and emit promotion evidence or a refusal record with measured reason",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestBridgeSynthesisProducesEvidenceOrRefusal$' -count=1 -v",
+          "depends_on": [
+            "composition-viability",
+            "bridge-proposal",
+            "experiment-lifecycle",
+            "bounded-exploration-budget",
+            "runtime-resource-scheduler"
+          ],
+          "capabilities": [
+            "executes-autonomously"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "compose-model-artifact",
+      "title": "Assemble components, adapter, architecture profile, recipe and checkpoint into one executable content-addressed model artifact with full lineage to every input",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Assemble components, adapter, architecture profile, recipe and checkpoint into one executable content-addressed model artifact with full lineage to every input",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestComposedArtifactExecutesAndResolvesLineage$' -count=1 -v",
+          "rationale": "Revision 1 listed compose as missing and never closed it. A trained adapter is not an assembled model; without this row nothing produces the descendant artifact that descendant-improvement measures.",
+          "depends_on": [
+            "bridge-synthesis",
+            "construction-profile-bridge"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hdc-retrieval",
+      "title": "Port the bit-packed hypervector index with catalog-derived signature width, combining the lexical organ signal with the existing distributional signal",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Port the bit-packed hypervector index with catalog-derived signature width, combining the lexical organ signal with the existing distributional signal",
+          "status": "open",
+          "verify": "go test ./internal/... -run '^TestHypervectorRetrievalRanksKnownBridges$' -count=1 -v",
+          "rationale": "Deliberately last in phase B. Do not automate selection before composition-viability establishes that selection matters and hand-run bridges reveal what ranking needs. The signals are complementary: lexical says what a tensor is called, distributional says how it behaves.",
+          "depends_on": [
+            "bridge-synthesis",
+            "component-catalog"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bounded-controller-trials",
+      "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/trainingprogram -run '^TestRecursiveImprovementLineageAndExternalPromotion$' -count=1 -v",
+          "depends_on": [
+            "controller-promotion",
+            "determinism-and-statistical-verdicts",
+            "bounded-exploration-budget",
+            "evaluation-isolation",
+            "sealed-external-authority",
+            "independent-rsi-admission",
+            "experiment-lifecycle",
+            "runtime-resource-scheduler"
+          ],
+          "capabilities": [
+            "executes-autonomously",
+            "promotes-artifact",
+            "admits-without-human",
+            "measures-held-out"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "descendant-improvement",
+      "title": "Require a child artifact to beat its parent under the full metric contract: identical evaluator and split identities, margin beyond observed noise, multi-seed where stochastic, no critical regression, resource cost reported, holdout query budget respected",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Require a child artifact to beat its parent under the full metric contract: identical evaluator and split identities, margin beyond observed noise, multi-seed where stochastic, no critical regression, resource cost reported, holdout query budget respected",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestDescendantBeatsParent$' -count=1 -v",
+          "rationale": "First row whose passing means actual self-improvement occurred rather than that the contract holds. Generation depth 1.",
+          "depends_on": [
+            "bounded-controller-trials",
+            "compose-model-artifact",
+            "evaluation-isolation"
+          ],
+          "capabilities": [
+            "promotes-artifact",
+            "measures-held-out"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "derivation-profile-as-artifact",
+      "title": "Make the corpus-to-topology derivation profile a content-addressed artifact with lineage and promotion record, so the system proposes derivation profiles and is judged on the models they produce",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the corpus-to-topology derivation profile a content-addressed artifact with lineage and promotion record, so the system proposes derivation profiles and is judged on the models they produce",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/scratchmodel -run '^TestDerivationProfilePromotedByDescendantQuality$' -count=1 -v",
+          "rationale": "AdaptiveDerivationProfile() returns eight pinned scalars frozen to reproduce the adaptive oracle. Promotion to artifact closes eight magic rows by derivation rather than a better story -- the RSI loop satisfies Magic Discipline as a side effect.",
+          "depends_on": [
+            "descendant-improvement"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evaluator-as-artifact",
+      "title": "Promote an evaluator only if it correctly ranks a held-out set of models with known-good and known-bad outcomes drawn from the sealed oracle set, approved by generation N-1 authority",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Promote an evaluator only if it correctly ranks a held-out set of models with known-good and known-bad outcomes drawn from the sealed oracle set, approved by generation N-1 authority",
+          "status": "open",
+          "verify": "go test ./internal/... -run '^TestEvaluatorRanksKnownOutcomesUnderPriorAuthority$' -count=1 -v",
+          "rationale": "The classic RSI failure is a system improving its evaluator into one that approves everything. Safe only because the ranking set is externally sourced and unauthorable, and because the approving authority predates the candidate.",
+          "depends_on": [
+            "sealed-external-authority",
+            "evaluation-isolation",
+            "descendant-improvement"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "objective-composition",
+      "title": "Make objectives composable typed artifacts; let the system propose objective mixtures and measure which produce better descendants",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make objectives composable typed artifacts; let the system propose objective mixtures and measure which produce better descendants",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/trainingprogram -run '^TestComposedObjectiveProducesBetterDescendant$' -count=1 -v",
+          "depends_on": [
+            "objective-breadth",
+            "descendant-improvement"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "proposal-ranking-from-outcomes",
+      "title": "Train the proposer ranking on the refusal ledger so retrieval becomes a learned prior over what composes successfully rather than a fixed similarity function",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train the proposer ranking on the refusal ledger so retrieval becomes a learned prior over what composes successfully rather than a fixed similarity function",
+          "status": "open",
+          "verify": "go test ./internal/... -run '^TestProposalRankingImprovesOnRefusalHistory$' -count=1 -v",
+          "rationale": "Where refusal records stop being an audit trail and become the most valuable dataset in the store: passed and refused bridges are labelled data no external source can supply. Must respect proposer blinding -- the ranking trains on refusal reasons, never on promotion or audit split results.",
+          "depends_on": [
+            "hdc-retrieval",
+            "refusal-ledger",
+            "evaluation-isolation",
+            "descendant-improvement"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scheduler-as-artifact",
+      "title": "Make next-candidate selection under wall-clock and VRAM budget a learned artifact scored on realized capability delta per wall-hour rather than an applied formula",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make next-candidate selection under wall-clock and VRAM budget a learned artifact scored on realized capability delta per wall-hour rather than an applied formula",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestSchedulerRankedByRealizedDelta$' -count=1 -v",
+          "depends_on": [
+            "runtime-resource-scheduler",
+            "descendant-improvement"
+          ]
+        }
+      ]
+    }
+  ]
 }

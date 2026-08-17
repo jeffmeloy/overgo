@@ -33,7 +33,7 @@ var compositionSeeds = []int64{7, 11, 13}
 // TestComponentCompositionViability is THE PIVOT: it passes when the
 // experiment ran to a legal verdict -- SHIP or measured REFUSAL -- and fails
 // only when the experiment could not execute. The decision_point in
-// docs/rsi_plan.json consumes the logged verdict.
+// docs/plan.json consumes the logged verdict.
 func TestComponentCompositionViability(t *testing.T) {
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))

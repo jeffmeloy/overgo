@@ -6,6 +6,7 @@
 package plan
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -26,6 +27,15 @@ type Step struct {
 	Title  string `json:"title"`
 	Status string `json:"status"`
 	Verify string `json:"verify,omitempty"`
+	// Campaign detail carried from the merged design record (owner directive
+	// 2026-08-16: one plan document). Rationale says why the row exists;
+	// DependsOn declares ordering the queue must respect; Capabilities name
+	// the discipline contracts the row exercises; Outcome records the
+	// measured verdict verbatim once the row has run.
+	Rationale    string          `json:"rationale,omitempty"`
+	DependsOn    []string        `json:"depends_on,omitempty"`
+	Capabilities []string        `json:"capabilities,omitempty"`
+	Outcome      json.RawMessage `json:"outcome,omitempty"`
 }
 
 // Item is one rung of the ladder.

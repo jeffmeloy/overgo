@@ -11,7 +11,7 @@ import (
 // Retained: GBNF triggers are ECMAScript for std::regex parity — lookaround +
 // backreferences (tested: TestLazyGBNFECMAScriptTriggerFeatures) that stdlib
 // RE2 cannot express. ReDoS bounded by backtrack cap + MatchTimeout + size/count
-// limits below. See docs/stdlib_only_plan.md §4.
+// limits below.
 
 const (
 	maxGBNFTriggerPatternBytes = 4096

@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 )
@@ -68,7 +69,7 @@ func mergeItem(base, local, upstream Item) (Item, error) {
 			continue
 		}
 		if !inBase {
-			if inLocal && inUpstream && localStep != upstreamStep {
+			if inLocal && inUpstream && !sameStep(localStep, upstreamStep) {
 				return Item{}, fmt.Errorf("plan projection: independently added step %q/%q conflicts", base.ID, id)
 			}
 			if inLocal {
@@ -126,5 +127,12 @@ func unionOrder[T any](local, upstream []T, idOf func(T) string) []string {
 }
 
 func sameItem(left, right Item) bool {
-	return left.ID == right.ID && left.Title == right.Title && left.Status == right.Status && slices.Equal(left.Steps, right.Steps)
+	return left.ID == right.ID && left.Title == right.Title && left.Status == right.Status && slices.EqualFunc(left.Steps, right.Steps, sameStep)
+}
+
+func sameStep(left, right Step) bool {
+	return left.ID == right.ID && left.Title == right.Title && left.Status == right.Status &&
+		left.Verify == right.Verify && left.Rationale == right.Rationale &&
+		slices.Equal(left.DependsOn, right.DependsOn) && slices.Equal(left.Capabilities, right.Capabilities) &&
+		bytes.Equal(left.Outcome, right.Outcome)
 }

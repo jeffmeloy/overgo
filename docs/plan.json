@@ -3,29 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "bridge-synthesis",
-      "title": "Given a blocked candidate, derive adapter geometry, train it with everything else frozen, and emit promotion evidence or a refusal record with measured reason",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Given a blocked candidate, derive adapter geometry, train it with everything else frozen, and emit promotion evidence or a refusal record with measured reason",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestBridgeSynthesisProducesEvidenceOrRefusal$' -count=1 -v",
-          "depends_on": [
-            "composition-viability",
-            "bridge-proposal",
-            "experiment-lifecycle",
-            "bounded-exploration-budget",
-            "runtime-resource-scheduler"
-          ],
-          "capabilities": [
-            "executes-autonomously"
-          ]
-        }
-      ]
-    },
-    {
       "id": "compose-model-artifact",
       "title": "Assemble components, adapter, architecture profile, recipe and checkpoint into one executable content-addressed model artifact with full lineage to every input",
       "status": "open",

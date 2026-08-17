@@ -79,9 +79,9 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 	}
 	mergedRows := rows / (r.spec.MergeSize * r.spec.MergeSize)
 	merged := builder.Reshape(hidden, uint64(r.spec.Hidden*r.spec.MergeSize*r.spec.MergeSize), uint64(mergedRows))
-	fc1 := builder.Add(builder.MulMat(weight("mm.0.weight"), merged), weight("mm.0.bias"))
+	fc1 := builder.Add(builder.MulMat(weight(projectionFirstWeightTensor), merged), weight(projectionFirstBiasTensor))
 	fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
-	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
+	output := builder.Add(builder.MulMat(weight(projectionSecondWeightTensor), fc1), weight(projectionSecondBiasTensor))
 	results, err := graph.execute(output)
 	if err != nil {
 		return Qwen2VLOutput{}, fmt.Errorf("projector: execute Qwen2-VL graph: %w", err)

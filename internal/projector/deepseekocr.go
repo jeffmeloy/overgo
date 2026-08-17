@@ -25,7 +25,6 @@ const (
 	deepSeekOCRProjectionInputs   = 2
 	deepSeekOCRFirstGlobalLayer   = 2
 	deepSeekOCRGlobalLayerPeriod  = 3
-	deepSeekOCRSiLUCoefficient    = 1.702
 	deepSeekOCRUnitStride         = 1
 	deepSeekOCRDownsampleStride   = 2
 	DeepSeekOCRImagePad           = "<image>"
@@ -550,7 +549,7 @@ func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Te
 		hidden = builder.Add(hidden, attention)
 		norm = builder.AffineLayerNorm(hidden, builder.Reshape(weight(prefix+"ln2.weight"), uint64(r.spec.Hidden)), builder.Reshape(weight(prefix+"ln2.bias"), uint64(r.spec.Hidden)), r.spec.LayerNormEpsilon)
 		up := builder.Add(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), builder.Reshape(weight(prefix+"ffn_up.bias"), uint64(r.spec.FeedForward), 1))
-		up = builder.Multiply(up, builder.Sigmoid(builder.Scale(up, deepSeekOCRSiLUCoefficient)))
+		up = builder.Multiply(up, builder.Sigmoid(builder.Scale(up, quickGELUScale)))
 		down := builder.Add(builder.MulMat(weight(prefix+"ffn_down.weight"), up), builder.Reshape(weight(prefix+"ffn_down.bias"), uint64(r.spec.Hidden), 1))
 		hidden = builder.Add(hidden, down)
 	}

@@ -596,6 +596,9 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/recipes/active" ||
 		request.URL.Path == "/operations" ||
 		request.URL.Path == "/operations/cancel" ||
+		request.URL.Path == "/operations/wait" ||
+		request.URL.Path == "/generation/capabilities" ||
+		request.URL.Path == "/generation/run" ||
 		request.URL.Path == "/completion" ||
 		request.URL.Path == "/completions" ||
 		request.URL.Path == "/infill" ||
@@ -684,6 +687,12 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.operationStatus(response, request)
 	case "/operations/cancel":
 		h.operationCancel(response, request)
+	case "/operations/wait":
+		h.operationWait(response, request)
+	case "/generation/capabilities":
+		h.generationCapabilities(response, request)
+	case "/generation/run":
+		h.generationRun(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

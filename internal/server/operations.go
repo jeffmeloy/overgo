@@ -47,3 +47,24 @@ func (h *Handler) operationCancel(response http.ResponseWriter, request *http.Re
 	status, _ := h.operations.Status(body.ID)
 	writeJSON(response, http.StatusAccepted, status)
 }
+
+func (h *Handler) operationWait(response http.ResponseWriter, request *http.Request) {
+	if !requireMethod(response, request, http.MethodGet) {
+		return
+	}
+	id, err := artifact.ParseID(request.URL.Query().Get("id"))
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	status, err := h.operations.Wait(request.Context(), id)
+	if err != nil {
+		if request.Context().Err() != nil {
+			writeGenerationError(response, err)
+		} else {
+			writeError(response, http.StatusNotFound, "not_found", "operation not found")
+		}
+		return
+	}
+	writeJSON(response, http.StatusOK, status)
+}

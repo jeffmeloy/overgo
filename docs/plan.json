@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE execution authority. Keep the browser thin; Go recipes, compiled plans, runtime sessions, RepoDB, and run evidence own behavior. Unsloth is workflow inventory or an oracle only. No family literals, guessed defaults, fixed warning thresholds, duplicate browser state, compatibility paths, or modality-specific job systems. Migrate each caller and delete displaced logic in the same wave.",
   "items": [
     {
-      "id": "gui-generation-workspace",
-      "title": "Drive every admitted generation modality from recipe-provided capabilities and the common operation runtime",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add one generation workspace with typed shared controls, recipe-derived optional controls, and compiled request parity with CLI",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestGenerationWorkspaceUsesRecipeCapabilities$' -count=1",
-          "rationale": "One capability description replaces browser family switches and modality-specific forms while preserving existing mathematical execution.",
-          "depends_on": [
-            "common-operation-runtime"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-artifact-gallery",
       "title": "Browse every output kind through bounded RepoDB summaries and on-demand streamed content",
       "status": "open",

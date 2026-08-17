@@ -1,0 +1,103 @@
+(function () {
+  "use strict";
+  window.overgo.registerTab({
+    id: "generation",
+    label: "Generate",
+    section: "inference",
+    async mount(panel, overgo) {
+      const { api, el, clear, fmt } = overgo;
+      clear(panel);
+      const capabilitySelect = el("select", { class: "text" });
+      const controls = el("div", { class: "control-grid" });
+      const status = el("div", { class: "note" });
+      const run = el("button", { class: "btn", text: "Run" });
+      const cancel = el("button", { class: "btn alt", text: "Cancel", style: "display:none" });
+      panel.append(
+        el("div", { class: "section-title", text: "Generation" }),
+        el("div", { class: "row" }, capabilitySelect, run, cancel),
+        controls,
+        status);
+
+      let capabilities;
+      try { capabilities = await api.get("/generation/capabilities"); }
+      catch (err) {
+        status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+        run.disabled = true;
+        return;
+      }
+      for (const capability of capabilities) {
+        capabilitySelect.appendChild(el("option", {
+          value: capability.task,
+          text: capability.task + " / " + fmt.shortID(capability.recipe),
+        }));
+      }
+      let fields = new Map();
+      function selected() { return capabilities.find((item) => item.task === capabilitySelect.value); }
+      function renderControls() {
+        fields = new Map();
+        controls.replaceChildren();
+        const capability = selected();
+        if (!capability) return;
+        for (const control of capability.controls) {
+          let input;
+          if (control.type === "boolean") {
+            input = el("select", { class: "text" },
+              el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
+              el("option", { value: "true", text: "true" }),
+              el("option", { value: "false", text: "false" }));
+          } else {
+            input = el(control.type === "text" ? "textarea" : "input", {
+              class: "text", type: control.type === "integer" || control.type === "number" ? "number" : null,
+              step: control.type === "integer" ? "1" : "any", required: control.required,
+            });
+          }
+          fields.set(control.name, { control, input });
+          controls.appendChild(el("label", { class: "control" },
+            el("span", { text: control.name }), input));
+        }
+      }
+      capabilitySelect.addEventListener("change", renderControls);
+      renderControls();
+
+      let operation = null;
+      cancel.addEventListener("click", async () => {
+        if (operation) await api.post("/operations/cancel", { id: operation });
+      });
+      run.addEventListener("click", async () => {
+        const capability = selected();
+        if (!capability) return;
+        const input = {};
+        for (const [name, field] of fields) {
+          const value = field.input.value;
+          if (value === "" && field.control.required) {
+            field.input.focus();
+            status.textContent = name + " is required";
+            return;
+          }
+          if (value === "" && !field.control.required) continue;
+          input[name] = field.control.type === "boolean" ? value === "true" :
+            (field.control.type === "integer" || field.control.type === "number" ? Number(value) : value);
+        }
+        run.disabled = true;
+        cancel.style.display = "";
+        try {
+          const accepted = await api.post("/generation/run", {
+            task: capability.task,
+            recipe: capability.recipe,
+            input,
+          });
+          operation = accepted.operation;
+          status.textContent = "running / " + fmt.shortID(operation);
+          const terminal = await api.get("/operations/wait?id=" + encodeURIComponent(operation));
+          status.textContent = terminal.state + (terminal.run ? " / " + fmt.shortID(terminal.run) : "");
+        } catch (err) {
+          status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+        } finally {
+          operation = null;
+          run.disabled = false;
+          cancel.style.display = "none";
+        }
+      });
+    },
+  });
+})();

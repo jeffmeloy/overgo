@@ -124,10 +124,13 @@ table.grid td.mono { font-family:var(--mono); }
 .tag.control { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 40%, transparent); }
 .tag.byte { color:var(--acc); border-color:color-mix(in srgb, var(--acc) 40%, transparent); }
 .tag.user_defined { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
-input.text, textarea.text {
+input.text, select.text, textarea.text {
   font:13px var(--font); color:var(--ink); background:var(--bg2);
   border:1px solid var(--line); border-radius:8px; padding:9px 11px; width:100%;
 }
+.control-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin:12px 0; }
+.control { display:grid; gap:5px; color:var(--dim); font-size:12px; }
+.control textarea { min-height:72px; resize:vertical; }
 textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 .note { color:var(--faint); font:12px var(--mono); }

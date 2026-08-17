@@ -131,6 +131,10 @@ input.text, select.text, textarea.text {
 .control-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin:12px 0; }
 .control { display:grid; gap:5px; color:var(--dim); font-size:12px; }
 .control textarea { min-height:72px; resize:vertical; }
+.artifact-gallery { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-top:12px; }
+.artifact { border:1px solid var(--line); border-radius:8px; padding:10px; min-width:0; }
+.artifact img, .artifact video { display:block; width:100%; aspect-ratio:1; object-fit:contain; background:var(--bg2); margin-bottom:8px; }
+.artifact audio { display:block; width:100%; margin-bottom:8px; }
 textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 .note { color:var(--faint); font:12px var(--mono); }

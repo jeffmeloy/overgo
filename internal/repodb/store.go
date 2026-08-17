@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"sort"
 	"sync"
@@ -381,6 +382,35 @@ func (s *Store) Content(ctx context.Context, id artifact.ID) (artifact.Content, 
 	}
 	value, ok := s.state.contents[id]
 	return value.Clone(), ok, nil
+}
+
+func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
+	if err := contextError(ctx); err != nil {
+		return artifact.Descriptor{}, nil, false, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(false); err != nil {
+		return artifact.Descriptor{}, nil, false, err
+	}
+	value, ok := s.state.contents[id]
+	if !ok {
+		return artifact.Descriptor{}, nil, false, nil
+	}
+	return value.Descriptor, bytes.NewReader(value.Data), true, nil
+}
+
+func (s *Store) HasContent(ctx context.Context, id artifact.ID) (bool, error) {
+	if err := contextError(ctx); err != nil {
+		return false, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(false); err != nil {
+		return false, err
+	}
+	_, ok := s.state.contents[id]
+	return ok, nil
 }
 
 func (s *Store) ResolveAlias(ctx context.Context, name string) (artifact.ID, bool, error) {

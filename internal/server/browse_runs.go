@@ -45,13 +45,8 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
-	if h.config.RepoDBPath == "" {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "run browsing is not configured")
-		return
-	}
-	store, err := repodb.OpenReadOnly(h.config.RepoDBPath)
-	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", "cannot open the run store")
+	store, ok := h.openBrowseStore(response)
+	if !ok {
 		return
 	}
 	defer store.Close()

@@ -599,6 +599,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/operations/wait" ||
 		request.URL.Path == "/generation/capabilities" ||
 		request.URL.Path == "/generation/run" ||
+		request.URL.Path == "/artifacts" ||
+		request.URL.Path == "/artifacts/content" ||
 		request.URL.Path == "/completion" ||
 		request.URL.Path == "/completions" ||
 		request.URL.Path == "/infill" ||
@@ -693,6 +695,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.generationCapabilities(response, request)
 	case "/generation/run":
 		h.generationRun(response, request)
+	case "/artifacts":
+		h.artifactGallery(response, request)
+	case "/artifacts/content":
+		h.artifactContent(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

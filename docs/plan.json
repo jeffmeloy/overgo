@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE execution authority. Keep the browser thin; Go recipes, compiled plans, runtime sessions, RepoDB, and run evidence own behavior. Unsloth is workflow inventory or an oracle only. No family literals, guessed defaults, fixed warning thresholds, duplicate browser state, compatibility paths, or modality-specific job systems. Migrate each caller and delete displaced logic in the same wave.",
   "items": [
     {
-      "id": "common-operation-runtime",
-      "title": "Own status, cancellation, publication, and failure evidence in one payload-free operation lifecycle",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Extract the shared Go operation runtime and bind status and cancellation endpoints to it",
-          "status": "open",
-          "verify": "go test ./internal/operation ./internal/server -run '^TestOperation(RuntimeLifecycle|CancellationReleasesResources|PublicationIsAtomic)$' -count=1",
-          "rationale": "Generation, training, export, and analysis need one context-driven lifecycle and one immutable run record, not task-specific managers.",
-          "depends_on": [
-            "gui-recipe-inspector"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-generation-workspace",
       "title": "Drive every admitted generation modality from recipe-provided capabilities and the common operation runtime",
       "status": "open",

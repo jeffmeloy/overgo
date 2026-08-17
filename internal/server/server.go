@@ -20,6 +20,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
+	"overgo/internal/operation"
 	"overgo/internal/projector"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
@@ -352,6 +353,7 @@ type Handler struct {
 	responseHistory    *responseHistoryStore
 	responseFiles      ResponseFileResolver
 	thinkingSigner     *anthropicThinkingSigner
+	operations         *operation.Manager
 }
 
 func New(config Config, generator Generator) (*Handler, error) {
@@ -446,6 +448,10 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("server defaults: %w", err)
 	}
+	operations, err := operation.NewManager(config.MaxStoredResponses)
+	if err != nil {
+		return nil, err
+	}
 	slots := make(chan int, config.MaxConcurrent)
 	for id := range config.MaxConcurrent {
 		slots <- id
@@ -484,12 +490,19 @@ func New(config Config, generator Generator) (*Handler, error) {
 		),
 		responseFiles:  config.ResponseFiles,
 		thinkingSigner: thinkingSigner,
+		operations:     operations,
 	}, nil
 }
 
 // Close: release fused scheduler state.
 func (h *Handler) Close() error {
-	if h == nil || h.continuous == nil {
+	if h == nil {
+		return nil
+	}
+	if h.operations != nil {
+		h.operations.Close()
+	}
+	if h.continuous == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -581,6 +594,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/datasets" ||
 		request.URL.Path == "/runs" ||
 		request.URL.Path == "/recipes/active" ||
+		request.URL.Path == "/operations" ||
+		request.URL.Path == "/operations/cancel" ||
 		request.URL.Path == "/completion" ||
 		request.URL.Path == "/completions" ||
 		request.URL.Path == "/infill" ||
@@ -665,6 +680,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.browseRuns(response, request)
 	case "/recipes/active":
 		h.activeRecipe(response, request)
+	case "/operations":
+		h.operationStatus(response, request)
+	case "/operations/cancel":
+		h.operationCancel(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

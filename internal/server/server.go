@@ -225,6 +225,7 @@ type Config struct {
 	ResponseToolPolicy ResponseToolPolicy
 	MaxStoredResponses int
 	ResponseStoreBytes int
+	DatasetPreview     DatasetPreviewAPI
 	FFmpegPath         string
 	VideoFPS           float64
 	VideoMaxFrames     int
@@ -592,6 +593,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/analyze/tensors" ||
 		request.URL.Path == "/analyze/tensors/similar" ||
 		request.URL.Path == "/datasets" ||
+		request.URL.Path == "/datasets/preview" ||
 		request.URL.Path == "/runs" ||
 		request.URL.Path == "/recipes/active" ||
 		request.URL.Path == "/operations" ||
@@ -681,6 +683,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.analyzeTensorsSimilar(response, request)
 	case "/datasets":
 		h.browseDatasets(response, request)
+	case "/datasets/preview":
+		h.previewDataset(response, request)
 	case "/runs":
 		h.browseRuns(response, request)
 	case "/recipes/active":

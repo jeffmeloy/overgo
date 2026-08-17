@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"slices"
 	"sort"
 	"sync"
+	"unicode/utf8"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipecontract"
@@ -211,6 +213,9 @@ func (batcher *Batcher) Next(ctx context.Context) (Batch, error) {
 			return fail(err)
 		}
 		size := uint64(reference.length)
+		if batcher.policy.MaxBytes > 0 && size > batcher.policy.MaxBytes {
+			return fail(errors.New("training data: record exceeds batch byte budget"))
+		}
 		if batcher.policy.MaxBytes > 0 && len(references) > 0 &&
 			(bytes >= batcher.policy.MaxBytes || size > batcher.policy.MaxBytes-bytes) {
 			break
@@ -226,6 +231,62 @@ func (batcher *Batcher) Next(ctx context.Context) (Batch, error) {
 		return fail(err)
 	}
 	return Batch{Examples: examples, State: batcher.stream.Snapshot(), micro: batcher.policy.MicrobatchExamples}, nil
+}
+
+type PreviewValue struct {
+	Role       ValueRole               `json:"role"`
+	Modality   recipecontract.Modality `json:"modality"`
+	Encoding   string                  `json:"encoding"`
+	Shape      []int                   `json:"shape,omitempty"`
+	SampleRate int                     `json:"sample_rate,omitempty"`
+	Bytes      int                     `json:"bytes"`
+	Text       string                  `json:"text,omitempty"`
+}
+
+type PreviewExample struct {
+	ID     string         `json:"id"`
+	Group  string         `json:"group"`
+	Values []PreviewValue `json:"values"`
+}
+
+type PreviewResult struct {
+	State    StreamState      `json:"state"`
+	Examples []PreviewExample `json:"examples"`
+}
+
+func Preview(ctx context.Context, dataset *Dataset, position uint64, examples int, maxBytes uint64) (PreviewResult, error) {
+	if dataset == nil || examples <= 0 || maxBytes == 0 {
+		return PreviewResult{}, errors.New("training data: invalid preview request")
+	}
+	stream, err := NewStream(dataset, &StreamState{Identity: dataset.Identity(), Position: position})
+	if err != nil {
+		return PreviewResult{}, err
+	}
+	batcher, err := NewBatcher(stream, BatchPolicy{
+		Examples: examples, DecodeWorkers: min(examples, max(runtime.GOMAXPROCS(0), 1)), MaxBytes: maxBytes,
+	})
+	if err != nil {
+		return PreviewResult{}, err
+	}
+	batch, err := batcher.Next(ctx)
+	if err != nil {
+		return PreviewResult{}, err
+	}
+	result := PreviewResult{State: batch.State, Examples: make([]PreviewExample, len(batch.Examples))}
+	for index, example := range batch.Examples {
+		values := make([]PreviewValue, len(example.Values))
+		for valueIndex, value := range example.Values {
+			values[valueIndex] = PreviewValue{
+				Role: value.Role, Modality: value.Modality, Encoding: value.Encoding,
+				Shape: slices.Clone(value.Shape), SampleRate: value.SampleRate, Bytes: len(value.Data),
+			}
+			if value.Encoding == EncodingUTF8 && utf8.Valid(value.Data) {
+				values[valueIndex].Text = string(value.Data)
+			}
+		}
+		result.Examples[index] = PreviewExample{ID: example.ID, Group: example.Group, Values: values}
+	}
+	return result, nil
 }
 
 func (batcher *Batcher) decode(ctx context.Context, references []recordRef) ([]Example, error) {

@@ -135,6 +135,9 @@ input.text, select.text, textarea.text {
 .artifact { border:1px solid var(--line); border-radius:8px; padding:10px; min-width:0; }
 .artifact img, .artifact video { display:block; width:100%; aspect-ratio:1; object-fit:contain; background:var(--bg2); margin-bottom:8px; }
 .artifact audio { display:block; width:100%; margin-bottom:8px; }
+.link-button { border:0; padding:0; background:none; color:var(--acc); cursor:pointer; }
+.dataset-example { border-top:1px solid var(--line); padding:10px 0; }
+.preview-text { white-space:pre-wrap; overflow-wrap:anywhere; font:12px var(--mono); }
 textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 .note { color:var(--faint); font:12px var(--mono); }

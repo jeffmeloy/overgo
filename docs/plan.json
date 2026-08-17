@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE execution authority. Keep the browser thin; Go recipes, compiled plans, runtime sessions, RepoDB, and run evidence own behavior. Unsloth is workflow inventory or an oracle only. No family literals, guessed defaults, fixed warning thresholds, duplicate browser state, compatibility paths, or modality-specific job systems. Migrate each caller and delete displaced logic in the same wave.",
   "items": [
     {
-      "id": "gui-dataset-run-detail",
-      "title": "Expose bounded production-processed dataset previews and immutable run evidence with lineage",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Extend existing dataset and run handlers and render typed detail without JavaScript parsing or mutable side stores",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^Test(DatasetPreviewUsesProductionProcessor|RunDetailReconstructsImmutableEvidence)$' -count=1",
-          "rationale": "Dataset processing and run reconstruction stay with their production Go owners; list and preview bounds come from request and authority limits.",
-          "depends_on": [
-            "gui-artifact-gallery"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-training-export",
       "title": "Run recipe-selected training and export through reusable Go services and the common operation lifecycle",
       "status": "open",

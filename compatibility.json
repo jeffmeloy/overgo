@@ -1065,7 +1065,7 @@
           "contains": "func (h *Handler) browseDatasets(",
           "path": "internal/server/browse_datasets.go",
           "role": "source",
-          "identity": "file:sha256:39f41784db88b8521fc1032dfc5f9260fbfa59da1ce05d220dceef5855accb14"
+          "identity": "file:sha256:05ed7aa70f6c96ba15080c775f081b0b28386af9f92038dc15b36907ffa3b4fa"
         },
         {
           "contains": "func TestBrowseDatasetsReadsManifest(",
@@ -1086,13 +1086,13 @@
           "contains": "func (h *Handler) browseRuns(",
           "path": "internal/server/browse_runs.go",
           "role": "source",
-          "identity": "file:sha256:c9a666af30bf99019847a3a6da484859c0fcb8c0c86dad08d29bc32a7056690a"
+          "identity": "file:sha256:e2ae1a42d73d6f529adc2e43d25d0dd53e26254378daa148bd060126f6aae296"
         },
         {
           "contains": "func TestBrowseRunsReadsRepoDBRecords(",
           "path": "internal/server/browse_runs_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:efb38882338ca18a945a390531e64e6f50496e62363f440ddcafc7d465ae6b28"
+          "identity": "evidence:sha256:26c02cc89bc0b60879030cd339589be6e15c5a22ca082c8093a3786f0152a823"
         }
       ],
       "id": "repodb-run-browser",

@@ -78,9 +78,10 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
-	magic := decoder.Raw(8)
-	draftSignature := decoder.Raw(32)
+	decoder, err := r.modelStateDecoder(data, singleHeadMTPStateMagic, mtpLabel)
+	if err != nil {
+		return nil, err
+	}
 	targetSignature := decoder.Raw(32)
 	mtpStart := decoder.U32()
 	position := decoder.U32()
@@ -88,16 +89,6 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 	layerLength := decoder.U64()
 	if decoder.Err() != nil {
 		return nil, fmt.Errorf("inference: %s state is truncated", mtpLabel)
-	}
-	if string(magic) != singleHeadMTPStateMagic {
-		return nil, fmt.Errorf("inference: %s state has invalid magic or version", mtpLabel)
-	}
-	draftModel, err := r.sessionModelSignature()
-	if err != nil {
-		return nil, err
-	}
-	if string(draftSignature) != string(draftModel[:]) {
-		return nil, fmt.Errorf("inference: %s state belongs to a different draft model", mtpLabel)
 	}
 	var targetModel [32]byte
 	copy(targetModel[:], targetSignature)
@@ -117,13 +108,7 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 		layerLength != payload-hiddenBytes-trunkLength || trunkLength == 0 {
 		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", mtpLabel)
 	}
-	hidden := reference.Value{
-		Shape: tensor.MustShape(uint64(r.spec.EmbeddingLength), 1),
-		Data:  make([]float32, int(r.spec.EmbeddingLength)),
-	}
-	for index := range hidden.Data {
-		hidden.Data[index] = decoder.F32()
-	}
+	hidden := decodeHiddenState(decoder, uint64(r.spec.EmbeddingLength))
 	trunkData := decoder.Raw(trunkLength)
 	layerData := decoder.Raw(layerLength)
 	if decoder.Done() != nil {
@@ -152,4 +137,12 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 		return nil, err
 	}
 	return session, nil
+}
+
+func decodeHiddenState(decoder *statecodec.Decoder, width uint64) reference.Value {
+	hidden := reference.Value{Shape: tensor.MustShape(width, 1), Data: make([]float32, int(width))}
+	for index := range hidden.Data {
+		hidden.Data[index] = decoder.F32()
+	}
+	return hidden
 }

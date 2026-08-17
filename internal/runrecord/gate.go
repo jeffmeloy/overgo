@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -9,7 +8,6 @@ import (
 	"sort"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 	"overgo/internal/textcheck"
 )
 
@@ -23,17 +21,14 @@ var gateContract = artifact.DocumentContract{
 	Kind: artifact.KindEvidence, MediaType: GateMediaType, Schema: GateSchema,
 }
 
-var gateCodec = artifact.DocumentCodec[GateResult]{
-	Name: "run record gate result", Contract: gateContract,
-	Decode: func(data []byte, value *GateResult) error { return strictjson.DecodeBytes(data, value) },
-	Encode: gateContent, Canonicalize: canonicalizeGateResult,
-	Clone: func(value GateResult) GateResult {
+var gateCodec = artifact.JSONDocumentCodec(
+	"run record gate result", gateContract.Kind, gateContract.MediaType, gateContract.Schema,
+	canonicalizeGateResult, func(value GateResult) artifact.ID { return value.ID },
+	func(value *GateResult, id artifact.ID) { value.ID = id }, func(value GateResult) GateResult {
 		value.Steps = slices.Clone(value.Steps)
 		return value
 	},
-	Identity:    func(value GateResult) artifact.ID { return value.ID },
-	SetIdentity: func(value *GateResult, id artifact.ID) { value.ID = id },
-}
+)
 
 type StepOutcome string
 
@@ -206,13 +201,4 @@ func aggregateGatePhases(steps []GateStep) ([]PhaseMetric, error) {
 	}
 	sort.Slice(phases, func(i, j int) bool { return phases[i].Phase < phases[j].Phase })
 	return phases, nil
-}
-
-func gateContent(result GateResult) ([]byte, error) {
-	result.ID = artifact.ID{}
-	content, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("run record: encode gate result: %w", err)
-	}
-	return content, nil
 }

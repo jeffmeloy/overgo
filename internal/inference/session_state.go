@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -78,24 +79,15 @@ func (r *Runner) LoadSession(data []byte, sampler *sampling.Sampler) (*Session, 
 	if sampler == nil {
 		return nil, errors.New("inference: sampler is nil")
 	}
-	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
-	magic := decoder.Raw(8)
-	modelSignature := decoder.Raw(32)
+	decoder, err := r.modelStateDecoder(data, sessionStateMagic, "session")
+	if err != nil {
+		return nil, err
+	}
 	tokenCount := decoder.U32()
 	cacheLength := decoder.U64()
 	samplerLength := decoder.U32()
 	if decoder.Err() != nil {
 		return nil, errors.New("inference: session state is truncated")
-	}
-	if string(magic) != sessionStateMagic {
-		return nil, errors.New("inference: session state has invalid magic or version")
-	}
-	signature, err := r.sessionModelSignature()
-	if err != nil {
-		return nil, err
-	}
-	if string(modelSignature) != string(signature[:]) {
-		return nil, errors.New("inference: session state belongs to a different model")
 	}
 	if tokenCount == 0 || tokenCount > maxSessionTokens {
 		return nil, errors.New("inference: session token count is invalid or exceeds limit")
@@ -136,6 +128,29 @@ func (r *Runner) LoadSession(data []byte, sampler *sampling.Sampler) (*Session, 
 		return nil, fmt.Errorf("inference: load sampler state: %w", err)
 	}
 	return session, nil
+}
+
+func (r *Runner) modelStateDecoder(data []byte, magic, label string) (*statecodec.Decoder, error) {
+	if r == nil {
+		return nil, errRunnerNil
+	}
+	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
+	encodedMagic := decoder.Raw(uint64(len(magic)))
+	modelSignature := decoder.Raw(sha256.Size)
+	if decoder.Err() != nil {
+		return nil, fmt.Errorf("inference: %s state is truncated", label)
+	}
+	if !bytes.Equal(encodedMagic, []byte(magic)) {
+		return nil, fmt.Errorf("inference: %s state has invalid magic or version", label)
+	}
+	signature, err := r.sessionModelSignature()
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(modelSignature, signature[:]) {
+		return nil, fmt.Errorf("inference: %s state belongs to a different model", label)
+	}
+	return decoder, nil
 }
 
 func (r *Runner) validateSession(session *Session) error {

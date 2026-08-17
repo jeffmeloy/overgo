@@ -84,6 +84,12 @@ func newTensorMeasurementDocument(
 	return tensorMeasurementCodec.New(document)
 }
 
+// ParseTensorMeasurementDocument decodes one committed measurement document:
+// the store-catalog read path for cross-model component retrieval.
+func ParseTensorMeasurementDocument(content []byte) (TensorMeasurementDocument, error) {
+	return tensorMeasurementCodec.Parse(content)
+}
+
 func (d TensorMeasurementDocument) ValidateIdentity() error {
 	return tensorMeasurementCodec.ValidateIdentity(d)
 }

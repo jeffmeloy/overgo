@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "component-catalog",
-      "title": "Populate the store component catalog across every validated model and repoint the similarity endpoint at the store pool so retrieval is cross-model and inspectable",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Populate the store component catalog across every validated model and repoint the similarity endpoint at the store pool so retrieval is cross-model and inspectable",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestSimilarComponentsSpanStoreCatalog$' -count=1 -v",
-          "rationale": "analyze_tensors.go:113 sources its pool from characterizeLoadedModel, so similarity is within-model only. The pool source changes, the algorithm does not.",
-          "depends_on": [
-            "component-decomposition"
-          ]
-        }
-      ]
-    },
-    {
       "id": "bridge-proposal",
       "title": "Convert retrieval output into blocked composition candidates carrying required verifier, promotion-blocked state and blocker reason; advisory by construction, never authorizing",
       "status": "open",

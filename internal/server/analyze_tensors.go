@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
+	"overgo/internal/repodb"
 	"overgo/internal/tensorstats"
 )
 
@@ -41,7 +42,10 @@ func (policy AnalysisPolicy) tensorMeasurementPolicy() modelartifact.Measurement
 
 // analyzeTensor is one tensor's storage identity plus its persisted measurement
 // (name, characterization, and effective rank flatten into the JSON object).
+// Model labels the owning model when the entry comes from the cross-model
+// store catalog.
 type analyzeTensor struct {
+	Model   string   `json:"model,omitempty"`
 	Storage string   `json:"storage"`
 	Shape   []uint64 `json:"shape"`
 	modelartifact.TensorMeasurement
@@ -84,10 +88,13 @@ type tensorSimilarNeighbor struct {
 
 // analyzeTensorsSimilarResponse returns the tensors whose value distributions
 // are closest in shape to a named tensor, by exact distribution-free
-// nearest-neighbor over scale-free descriptors.
+// nearest-neighbor over scale-free descriptors. Pool names the retrieval
+// source: "store-catalog" spans every measured model in RepoDB;
+// "loaded-model" is the single-model fallback when no catalog is committed.
 type analyzeTensorsSimilarResponse struct {
 	Target    analyzeTensor           `json:"target"`
 	Metric    string                  `json:"metric"`
+	Pool      string                  `json:"pool"`
 	Neighbors []tensorSimilarNeighbor `json:"neighbors"`
 }
 
@@ -110,20 +117,27 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 		}
 		k = parsed
 	}
-	profiles, ok := h.characterizeLoadedModel(response)
-	if !ok {
-		return
+	profiles, source := h.storeComponentPool(request)
+	if len(profiles) == 0 {
+		var ok bool
+		profiles, ok = h.characterizeLoadedModel(response)
+		if !ok {
+			return
+		}
+		source = "loaded-model"
 	}
 	targetIndex := -1
+	targetModel := request.URL.Query().Get("model")
 	pool := make([]tensorstats.Characterization, len(profiles))
 	for i, profile := range profiles {
 		pool[i] = profile.Characterization
-		if profile.Name == name {
+		if profile.Name == name && (targetModel == "" || profile.Model == targetModel) &&
+			(targetIndex < 0 || profile.Model == h.config.ModelID) {
 			targetIndex = i
 		}
 	}
 	if targetIndex < 0 {
-		writeError(response, http.StatusNotFound, "not_found", "tensor "+name+" is not in the model")
+		writeError(response, http.StatusNotFound, "not_found", "tensor "+name+" is not in the "+source+" pool")
 		return
 	}
 	if k == 0 {
@@ -138,8 +152,59 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 	writeJSON(response, http.StatusOK, analyzeTensorsSimilarResponse{
 		Target:    profiles[targetIndex],
 		Metric:    "rank-footrule",
+		Pool:      source,
 		Neighbors: neighbors,
 	})
+}
+
+// storeComponentPool assembles the cross-model retrieval pool from every
+// committed tensor-measurement document in RepoDB, labeling each entry with
+// its owning model via the measurement's inventory lineage. An absent or
+// empty catalog returns nil so the caller falls back to the loaded model --
+// retrieval degrades to within-model, never errors, when the catalog is
+// unpopulated.
+func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, string) {
+	if h.config.RepoDBPath == "" {
+		return nil, ""
+	}
+	store, err := repodb.OpenReadOnly(h.config.RepoDBPath)
+	if err != nil {
+		return nil, ""
+	}
+	defer store.Close()
+	ctx := request.Context()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorInventory, MaxResults: repodb.MaxQueryResults})
+	if err != nil {
+		return nil, ""
+	}
+	var profiles []analyzeTensor
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != modelartifact.TensorMeasurementMediaType ||
+			descriptor.Schema != modelartifact.TensorMeasurementSchema {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil || !ok {
+			continue
+		}
+		document, err := modelartifact.ParseTensorMeasurementDocument(content.Data)
+		if err != nil {
+			continue
+		}
+		inventory, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.Inventory)
+		if err != nil || !ok {
+			continue
+		}
+		model := inventory.Model.String()
+		for _, measurement := range document.Measurements {
+			entry := analyzeTensor{Model: model, TensorMeasurement: measurement}
+			if fact, ok := inventory.Tensor(measurement.Name); ok {
+				entry.Storage, entry.Shape = fact.Storage, fact.Shape
+			}
+			profiles = append(profiles, entry)
+		}
+	}
+	return profiles, "store-catalog"
 }
 
 // characterizeLoadedModel opens the served model and profiles every tensor via

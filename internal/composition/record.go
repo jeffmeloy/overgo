@@ -161,8 +161,8 @@ func RecordViability(store *repodb.Store, config Config, result Result) (runreco
 		}
 		return id
 	}
-	protocol := fmt.Sprintf("target=%s;donor=%s;tensor=%s;layer=%d;steps=%d;seeds=%d",
-		config.TargetDir, config.DonorDir, result.DonorTensor, result.GraftLayer, config.Steps, len(config.Seeds))
+	protocol := fmt.Sprintf("target=%s;donor=%s;tensor=%s;layer=%d;steps=%d;seeds=%d;lrscale=%g",
+		config.TargetDir, config.DonorDir, result.DonorTensor, result.GraftLayer, config.Steps, len(config.Seeds), config.LRScale)
 	seeds := make([]uint64, len(config.Seeds))
 	for index, seed := range config.Seeds {
 		seeds[index] = uint64(seed)

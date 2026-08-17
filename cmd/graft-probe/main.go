@@ -36,6 +36,7 @@ func run(args []string, output io.Writer) error {
 	steps := flags.Int("steps", 6, "bridge Muon steps per seed")
 	window := flags.Int("window", 64, "tokens per batch window")
 	learningRate := flags.Float64("lr", 0, "bridge learning rate (<=0 derives n_params^-1/2)")
+	lrScale := flags.Float64("lr-scale", 0, "scale the derived learning rate (retrial protocol; effective only when -lr is unset)")
 	momentum := flags.Float64("mu", 0.9, "Muon momentum")
 	recordStore := flags.String("record", "", "RepoDB root: commit the experiment as a generation record with its verdict")
 	chain := flags.Bool("chain", false, "run the Tier-0 whole-model chain probe instead of the graft probe")
@@ -68,7 +69,7 @@ func run(args []string, output io.Writer) error {
 		TargetDir: *targetDir, DonorDir: *donorDir,
 		GraftLayer: *graftLayer, DonorLayer: *donorLayer,
 		Seeds: []int64{7, 11, 13}, Steps: *steps,
-		BaseLR: *learningRate, Momentum: *momentum,
+		BaseLR: *learningRate, LRScale: *lrScale, Momentum: *momentum,
 		Train:   [][]int{tokens[:*window], tokens[*window : 2*(*window)]},
 		HeldOut: tokens[2*(*window) : 3*(*window)],
 	}

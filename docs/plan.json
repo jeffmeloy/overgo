@@ -3,28 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "adapter-retrial-probe",
-      "title": "Re-rank the adapter tier against its measured failure mode: rerun bridge-only Muon at a lower learning rate and longer budget under a NEW recorded protocol via cmd/graft-probe; two refusals retire the tier, a ship re-opens it",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-rank the adapter tier against its measured failure mode: rerun bridge-only Muon at a lower learning rate and longer budget under a NEW recorded protocol via cmd/graft-probe; two refusals retire the tier, a ship re-opens it",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAdapterRetrialProbe$' -count=1 -v -timeout 60m",
-          "rationale": "The pivot's failure mode was optimizer step-size dominance at the 6-step budget, not proven non-viability; the on_refusal branch re-ranks rather than deletes. One retrial under a corrected protocol produces the second measurement the tier's fate needs.",
-          "depends_on": [
-            "composition-viability",
-            "evaluation-isolation",
-            "determinism-and-statistical-verdicts"
-          ],
-          "capabilities": [
-            "measures-held-out"
-          ]
-        }
-      ]
-    },
-    {
       "id": "component-catalog",
       "title": "Populate the store component catalog across every validated model and repoint the similarity endpoint at the store pool so retrieval is cross-model and inspectable",
       "status": "open",

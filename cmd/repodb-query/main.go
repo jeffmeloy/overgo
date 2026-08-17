@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/composition"
 	"overgo/internal/discovery"
 	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
@@ -48,6 +49,7 @@ func run(args []string, output io.Writer) error {
 	budgets := flags.Bool("budgets", false, "list split partitions and query-budget grants with balances derived from committed charges")
 	experiments := flags.Bool("experiments", false, "reconcile experiment lifecycle chains to their current state, flagging expired leases and runners")
 	components := flags.Bool("components", false, "list committed component decompositions with per-role counts (classification ledger)")
+	proposals := flags.Bool("proposals", false, "list committed bridge proposals with their blocked state, blocker and required verifier")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -71,6 +73,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *components {
 		return writeComponents(output, *repository, *limit)
+	}
+	if *proposals {
+		return writeProposals(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -351,6 +356,45 @@ func writeComponents(output io.Writer, repository string, limit int) error {
 		count++
 	}
 	fmt.Fprintf(output, "%d decomposition(s); honesty: rows derive from committed classification documents only; no retrieval index exists yet\n", count)
+	return nil
+}
+
+// writeProposals lists committed bridge proposals: always promotion-blocked
+// with their blocker and required verifier -- the advisory candidate ledger.
+func writeProposals(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	count := 0
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != composition.BridgeProposalMediaType ||
+			descriptor.Schema != composition.BridgeProposalSchema {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		proposal, err := composition.ParseBridgeProposal(content.Data)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "proposal %s target=%s candidates=%d state=%s verifier=%q blocker=%q\n",
+			proposal.ID, proposal.Target, len(proposal.Candidates), proposal.State,
+			proposal.RequiredVerifier, proposal.Blocker)
+		count++
+	}
+	fmt.Fprintf(output, "%d proposal(s); honesty: every row is promotion-blocked by construction; this ledger advises and never authorizes\n", count)
 	return nil
 }
 

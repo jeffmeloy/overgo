@@ -3,24 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "bridge-proposal",
-      "title": "Convert retrieval output into blocked composition candidates carrying required verifier, promotion-blocked state and blocker reason; advisory by construction, never authorizing",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Convert retrieval output into blocked composition candidates carrying required verifier, promotion-blocked state and blocker reason; advisory by construction, never authorizing",
-          "status": "open",
-          "verify": "go test ./internal/... -run '^TestBridgeProposalBlocksWithoutVerifier$' -count=1 -v",
-          "depends_on": [
-            "refusal-ledger",
-            "component-catalog",
-            "composition-viability"
-          ]
-        }
-      ]
-    },
-    {
       "id": "typed-controller-action-language",
       "title": "Define an allowlisted artifact-transformation action language the controller emits; deterministic Go executors compile those actions through recipes, neutral operators and shared training programs. No code, no shell, no arbitrary runtime orchestration",
       "status": "open",

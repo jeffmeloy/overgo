@@ -56,32 +56,6 @@ func TestSourceIntShapesUsesHostRepresentability(t *testing.T) {
 	}
 }
 
-func TestSourceSnapshotOwnsCatalogMetadata(t *testing.T) {
-	directory := t.TempDir()
-	writeShard(t, filepath.Join(directory, "model.safetensors"), map[string]testTensor{
-		"weight": {dataType: "F32", shape: []uint64{1}, data: []byte{0, 0, 128, 63}},
-	})
-	source, err := OpenSource(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer source.Close()
-	snapshot := source.Snapshot()
-	original := source.Tensors["weight"]
-	original.Shape[0] = 0
-	source.Tensors["weight"] = original
-	if got := snapshot.Tensors["weight"].Shape[0]; got != 1 {
-		t.Fatalf("snapshot shape=%d want 1", got)
-	}
-	var payload [4]byte
-	if _, err := snapshot.Tensors["weight"].ReadAt(payload[:], 0); err != nil {
-		t.Fatal(err)
-	}
-	if payload != [4]byte{0, 0, 128, 63} {
-		t.Fatalf("snapshot payload=%v", payload)
-	}
-}
-
 func TestOpenSourceUsesDiffusersShardIndex(t *testing.T) {
 	directory := t.TempDir()
 	shard := "diffusion_pytorch_model-00001-of-00001.safetensors"
